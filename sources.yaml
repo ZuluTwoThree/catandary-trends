@@ -5,17 +5,16 @@ verticals:
   FOOD:
     sources:
       - name: FoodNavigator
-        feed_url: https://www.foodnavigator.com/Info/RSS-Feeds
+        feed_url: https://www.foodnavigator.com/arc/outboundfeeds/rss/
         type: trade_media
-        notes: Main feed page, actual RSS URL to be verified
       - name: Food Dive
         feed_url: https://www.fooddive.com/feeds/news/
         type: trade_media
       - name: The Spoon
         feed_url: https://thespoon.tech/feed/
         type: trade_media
-      - name: FoodBev Media
-        feed_url: https://www.foodbev.com/feed/
+      - name: BeverageDaily
+        feed_url: https://www.beveragedaily.com/arc/outboundfeeds/rss/
         type: trade_media
       - name: New Food Magazine
         feed_url: https://www.newfoodmagazine.com/feed/
