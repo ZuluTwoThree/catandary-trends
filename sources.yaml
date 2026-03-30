@@ -1,0 +1,57 @@
+# Catandary Trends – Source Configuration
+# Sprint 1: FOOD + TECH pilot verticals
+
+verticals:
+  FOOD:
+    sources:
+      - name: FoodNavigator
+        feed_url: https://www.foodnavigator.com/Info/RSS-Feeds
+        type: trade_media
+        notes: Main feed page, actual RSS URL to be verified
+      - name: Food Dive
+        feed_url: https://www.fooddive.com/feeds/news/
+        type: trade_media
+      - name: The Spoon
+        feed_url: https://thespoon.tech/feed/
+        type: trade_media
+      - name: FoodBev Media
+        feed_url: https://www.foodbev.com/feed/
+        type: trade_media
+      - name: New Food Magazine
+        feed_url: https://www.newfoodmagazine.com/feed/
+        type: trade_media
+    radar:
+      - name: Trendhunter Food
+        feed_url: https://www.trendhunter.com/rss/category/Food-Trends
+        type: radar
+
+  TECH:
+    sources:
+      - name: TechCrunch
+        feed_url: https://techcrunch.com/feed/
+        type: trade_media
+      - name: The Verge
+        feed_url: https://www.theverge.com/rss/index.xml
+        type: trade_media
+      - name: Ars Technica
+        feed_url: https://feeds.arstechnica.com/arstechnica/index
+        type: trade_media
+      - name: VentureBeat
+        feed_url: https://venturebeat.com/feed/
+        type: trade_media
+      - name: MIT Technology Review
+        feed_url: https://www.technologyreview.com/feed/
+        type: trade_media
+    radar:
+      - name: Trendhunter Tech
+        feed_url: https://www.trendhunter.com/rss/category/Technology-Trends-and-Gadgets
+        type: radar
+
+cross_industry:
+  press_wires:
+    - name: PR Newswire
+      feed_url: https://www.prnewswire.com/rss/news-releases-list.rss
+      type: press_wire
+    - name: GlobeNewswire
+      feed_url: https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20Releases
+      type: press_wire
