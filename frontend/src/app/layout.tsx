@@ -27,6 +27,7 @@ export default function RootLayout({
     <html lang="de" className="dark">
       <body
         className={`${inter.className} bg-background text-foreground min-h-screen antialiased`}
+        suppressHydrationWarning
       >
         <LocaleProvider>
           <Header />

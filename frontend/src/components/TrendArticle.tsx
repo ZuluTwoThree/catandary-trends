@@ -17,18 +17,19 @@ export default function TrendArticle({
   trend: Trend;
   related: Trend[];
 }) {
-  const { locale, t } = useLocale();
+  const { locale, mounted, t } = useLocale();
   const vertical = getVerticalInfo(trend.primary_vertical);
+  const effectiveLocale = mounted ? locale : "de";
 
   const title =
-    locale === "de" ? trend.title_de || trend.title_en : trend.title_en;
+    effectiveLocale === "de" ? trend.title_de || trend.title_en : trend.title_en;
   const summary =
-    locale === "de" ? trend.summary_de || trend.summary_en : trend.summary_en;
-  const body = locale === "de" ? trend.body_de || trend.body_en : trend.body_en;
+    effectiveLocale === "de" ? trend.summary_de || trend.summary_en : trend.summary_en;
+  const body = effectiveLocale === "de" ? trend.body_de || trend.body_en : trend.body_en;
 
   const date = trend.published_at || trend.created_at;
   const formattedDate = date
-    ? new Date(date).toLocaleDateString(locale === "de" ? "de-DE" : "en-US", {
+    ? new Date(date).toLocaleDateString(effectiveLocale === "de" ? "de-DE" : "en-US", {
         day: "numeric",
         month: "long",
         year: "numeric",
@@ -37,7 +38,7 @@ export default function TrendArticle({
 
   const signalTypeKey = trend.trend_signal_type as TranslationKey | undefined;
   const signalTypeLabel =
-    signalTypeKey && signalTypeKey in translations[locale]
+    signalTypeKey && signalTypeKey in translations[effectiveLocale]
       ? t(signalTypeKey)
       : trend.trend_signal_type?.replace("_", " ") ?? null;
 
@@ -187,11 +188,11 @@ export default function TrendArticle({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {related.map((r) => {
               const rTitle =
-                locale === "de"
+                effectiveLocale === "de"
                   ? r.title_de || r.title_en
                   : r.title_en;
               const rSummary =
-                locale === "de"
+                effectiveLocale === "de"
                   ? r.summary_de || r.summary_en
                   : r.summary_en;
               return (

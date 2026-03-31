@@ -8,21 +8,24 @@ import PestelBadge from "./PestelBadge";
 import TrendScore from "./TrendScore";
 
 export default function TrendCard({ trend }: { trend: Trend }) {
-  const { locale, t } = useLocale();
+  const { locale, mounted, t } = useLocale();
   const vertical = getVerticalInfo(trend.primary_vertical);
 
+  // Always use "de" before mount to match server render
+  const effectiveLocale = mounted ? locale : "de";
+
   const title =
-    locale === "de"
+    effectiveLocale === "de"
       ? trend.title_de || trend.title_en
       : trend.title_en;
   const summary =
-    locale === "de"
+    effectiveLocale === "de"
       ? trend.summary_de || trend.summary_en
       : trend.summary_en;
 
   const date = trend.published_at || trend.created_at;
   const formattedDate = date
-    ? new Date(date).toLocaleDateString(locale === "de" ? "de-DE" : "en-US", {
+    ? new Date(date).toLocaleDateString(effectiveLocale === "de" ? "de-DE" : "en-US", {
         day: "numeric",
         month: "short",
         year: "numeric",
