@@ -15,6 +15,7 @@ DATA_DIR.mkdir(exist_ok=True)
 
 # Database
 DATABASE_PATH = os.getenv("DATABASE_PATH", str(DATA_DIR / "catandary.db"))
+DATABASE_URL = os.getenv("DATABASE_URL", "")  # PostgreSQL connection string for production
 
 # Ollama
 # OLLAMA_HOST env var is often set to 0.0.0.0 for the server bind address.
