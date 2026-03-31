@@ -1,33 +1,49 @@
 import { Suspense } from "react";
-import { getTrends, getVerticalCounts } from "@/lib/db";
+import { getTrends, getTrendsCount, getVerticalCounts } from "@/lib/db";
 import type { Vertical } from "@/lib/types";
 import TrendCard from "@/components/TrendCard";
 import VerticalFilter from "@/components/VerticalFilter";
+import Pagination from "@/components/Pagination";
 import { TrendsListJsonLd } from "@/components/JsonLd";
 
 export const dynamic = "force-dynamic";
 
+const PER_PAGE = 12;
+
 export default async function TrendsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vertical?: string }>;
+  searchParams: Promise<{ vertical?: string; page?: string }>;
 }) {
   const params = await searchParams;
   const vertical = (params.vertical as Vertical) || null;
+  const page = Math.max(1, parseInt(params.page || "1"));
+  const offset = (page - 1) * PER_PAGE;
 
   const trends = getTrends({
     status: "published",
     vertical: vertical ?? undefined,
-    limit: 50,
+    limit: PER_PAGE,
+    offset,
+  });
+
+  const total = getTrendsCount({
+    status: "published",
+    vertical: vertical ?? undefined,
   });
 
   // If no published trends, show all (including drafts) for development
   const displayTrends =
     trends.length > 0
       ? trends
-      : getTrends({ vertical: vertical ?? undefined, limit: 50 });
+      : getTrends({ vertical: vertical ?? undefined, limit: PER_PAGE, offset });
 
-  const counts = getVerticalCounts();
+  const displayTotal =
+    trends.length > 0
+      ? total
+      : getTrendsCount({ vertical: vertical ?? undefined });
+
+  const counts = getVerticalCounts("published");
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -62,11 +78,17 @@ export default async function TrendsPage({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {displayTrends.map((trend) => (
-            <TrendCard key={trend.id} trend={trend} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {displayTrends.map((trend) => (
+              <TrendCard key={trend.id} trend={trend} />
+            ))}
+          </div>
+
+          <Suspense fallback={null}>
+            <Pagination total={displayTotal} page={page} perPage={PER_PAGE} />
+          </Suspense>
+        </>
       )}
 
       {/* CTA */}
