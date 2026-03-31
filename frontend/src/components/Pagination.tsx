@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useLocale } from "@/lib/locale-context";
 
 export default function Pagination({
   total,
@@ -13,6 +14,7 @@ export default function Pagination({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useLocale();
   const totalPages = Math.ceil(total / perPage);
 
   if (totalPages <= 1) return null;
@@ -34,7 +36,7 @@ export default function Pagination({
         disabled={page <= 1}
         className="px-3 py-1.5 rounded-lg text-sm border border-border bg-card text-muted hover:text-foreground hover:border-accent/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
       >
-        &larr; Zurück
+        &larr; {t("paginationPrev")}
       </button>
 
       <div className="flex items-center gap-1">
@@ -73,7 +75,7 @@ export default function Pagination({
         disabled={page >= totalPages}
         className="px-3 py-1.5 rounded-lg text-sm border border-border bg-card text-muted hover:text-foreground hover:border-accent/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
       >
-        Weiter &rarr;
+        {t("paginationNext")} &rarr;
       </button>
     </div>
   );

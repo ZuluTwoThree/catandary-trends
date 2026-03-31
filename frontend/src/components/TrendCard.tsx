@@ -1,14 +1,28 @@
+"use client";
+
 import Link from "next/link";
 import type { Trend } from "@/lib/types";
 import { getVerticalInfo } from "@/lib/types";
+import { useLocale } from "@/lib/locale-context";
 import PestelBadge from "./PestelBadge";
 import TrendScore from "./TrendScore";
 
 export default function TrendCard({ trend }: { trend: Trend }) {
+  const { locale, t } = useLocale();
   const vertical = getVerticalInfo(trend.primary_vertical);
+
+  const title =
+    locale === "de"
+      ? trend.title_de || trend.title_en
+      : trend.title_en;
+  const summary =
+    locale === "de"
+      ? trend.summary_de || trend.summary_en
+      : trend.summary_en;
+
   const date = trend.published_at || trend.created_at;
   const formattedDate = date
-    ? new Date(date).toLocaleDateString("de-DE", {
+    ? new Date(date).toLocaleDateString(locale === "de" ? "de-DE" : "en-US", {
         day: "numeric",
         month: "short",
         year: "numeric",
@@ -34,17 +48,16 @@ export default function TrendCard({ trend }: { trend: Trend }) {
 
         {/* Title */}
         <h3 className="text-base font-semibold leading-snug mb-2 group-hover:text-accent transition-colors line-clamp-2">
-          {trend.title_de || trend.title_en}
+          {title}
         </h3>
 
         {/* Summary */}
         <p className="text-sm text-muted leading-relaxed mb-4 line-clamp-3 flex-grow">
-          {trend.summary_de || trend.summary_en}
+          {summary}
         </p>
 
         {/* Footer */}
         <div className="flex flex-col gap-2 mt-auto">
-          {/* PESTEL Badges */}
           {trend.pestel.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {trend.pestel.map((p) => (
@@ -53,7 +66,6 @@ export default function TrendCard({ trend }: { trend: Trend }) {
             </div>
           )}
 
-          {/* Score + Signal Type + Source */}
           <div className="flex items-center justify-between">
             <TrendScore score={trend.trend_score} />
             <span className="text-xs text-muted truncate ml-2">
@@ -61,10 +73,9 @@ export default function TrendCard({ trend }: { trend: Trend }) {
             </span>
           </div>
 
-          {/* Cross-vertical indicator */}
           {trend.verticals.length > 1 && (
             <div className="flex items-center gap-1 text-xs text-accent/70">
-              <span>Cross-Industry:</span>
+              <span>{t("crossIndustry")}:</span>
               {trend.verticals
                 .filter((v) => v !== trend.primary_vertical)
                 .map((v) => {
