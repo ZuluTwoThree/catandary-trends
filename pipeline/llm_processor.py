@@ -325,8 +325,9 @@ def process_entry(entry: dict) -> dict | None:
         mark_filtered(entry_id, "content_generation_error")
         return None
 
-    # Build trend data
-    slug = slugify(content_en.title, max_length=80)
+    # Build trend data — append entry_id to slug for uniqueness
+    base_slug = slugify(content_en.title, max_length=70)
+    slug = f"{base_slug}-{entry_id}"
     trend_data = {
         "title_en": content_en.title,
         "title_de": content_de.title if content_de else None,
