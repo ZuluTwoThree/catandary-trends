@@ -375,7 +375,7 @@ def run_pipeline(limit: int = 50):
     filtered = 0
     errors = 0
 
-    for entry in entries:
+    for i, entry in enumerate(entries):
         try:
             result = process_entry(entry)
             processed += 1
@@ -385,7 +385,13 @@ def run_pipeline(limit: int = 50):
                 filtered += 1
         except Exception as e:
             logger.error("Error processing entry %d: %s", entry["id"], e, exc_info=True)
+            mark_processed(entry["id"])  # Skip on error so we don't get stuck
             errors += 1
+
+        # Progress update every 10 entries
+        if (i + 1) % 10 == 0:
+            logger.info("Progress: %d/%d (created=%d, filtered=%d, errors=%d)",
+                        i + 1, len(entries), created, filtered, errors)
 
     elapsed = time.time() - start
     logger.info(

@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
-# Initialize the Ollama client
-client = ollama.Client(host=OLLAMA_HOST)
+# Initialize the Ollama client with generous timeout for inference
+client = ollama.Client(host=OLLAMA_HOST, timeout=300)  # 5 min timeout
 
 
 def chat(model: str, prompt: str, system: str | None = None,
