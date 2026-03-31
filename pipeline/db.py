@@ -4,7 +4,7 @@ import json
 import sqlite3
 import logging
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from pipeline.config import DATABASE_PATH
@@ -244,7 +244,7 @@ def update_trend_status(trend_id: int, status: str):
         params = [status]
         if status == "published":
             extra = ", published_at = ?"
-            params.append(datetime.utcnow().isoformat())
+            params.append(datetime.now(timezone.utc).isoformat())
         params.append(trend_id)
         conn.execute(f"UPDATE trends SET status = ?{extra} WHERE id = ?", params)
 
@@ -265,7 +265,7 @@ def update_source_last_fetched(source_id: int):
     with get_connection() as conn:
         conn.execute(
             "UPDATE sources SET last_fetched = ? WHERE id = ?",
-            (datetime.utcnow().isoformat(), source_id),
+            (datetime.now(timezone.utc).isoformat(), source_id),
         )
 
 
