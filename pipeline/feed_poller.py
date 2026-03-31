@@ -7,7 +7,7 @@ Fetches RSS/Atom feeds from configured sources and stores new entries in the dat
 import logging
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import feedparser
@@ -66,17 +66,27 @@ def fetch_feed(source_name: str, feed_url: str) -> list[dict]:
             logger.warning("%s: parse error: %s", source_name, feed.bozo_exception)
             return []
 
+        cutoff = datetime.now(timezone.utc) - timedelta(days=90)
         entries = []
         for entry in feed.entries:
             url = entry.get("link")
             title = entry.get("title", "").strip()
             if not url or not title:
                 continue
+            pub_date = parse_published_date(entry)
+            # Skip entries older than 90 days
+            if pub_date:
+                try:
+                    entry_dt = datetime.fromisoformat(pub_date).replace(tzinfo=timezone.utc)
+                    if entry_dt < cutoff:
+                        continue
+                except (ValueError, TypeError):
+                    pass
             entries.append({
                 "url": url,
                 "title": title,
                 "excerpt": get_entry_excerpt(entry),
-                "published_date": parse_published_date(entry),
+                "published_date": pub_date,
             })
 
         logger.info("%s: fetched %d entries", source_name, len(entries))
