@@ -1,6 +1,5 @@
 """Ollama client wrapper with retry logic and structured output support."""
 
-import json
 import logging
 import time
 from typing import TypeVar
@@ -30,8 +29,9 @@ def chat(model: str, prompt: str, system: str | None = None,
         model=model,
         messages=messages,
         options={"temperature": temperature},
+        think=False,
     )
-    return response["message"]["content"]
+    return response.message.content or ""
 
 
 def chat_structured(model: str, prompt: str, schema: type[T],
@@ -40,6 +40,7 @@ def chat_structured(model: str, prompt: str, schema: type[T],
     """Send a chat request and parse the response into a Pydantic model.
 
     Uses structured output (JSON schema) with retry and optional model fallback.
+    Disables Qwen3 thinking mode to get direct JSON output.
     """
     messages = []
     if system:
@@ -53,8 +54,11 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                 messages=messages,
                 format=schema.model_json_schema(),
                 options={"temperature": temperature},
+                think=False,
             )
-            raw = response["message"]["content"]
+            raw = response.message.content or ""
+            if not raw.strip():
+                raise ValueError("Empty response from model")
             result = schema.model_validate_json(raw)
             logger.debug("Structured output from %s (attempt %d): %s", model, attempt + 1, result)
             return result
@@ -73,8 +77,10 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                         messages=messages,
                         format=schema.model_json_schema(),
                         options={"temperature": temperature},
+                        think=False,
                     )
-                    return schema.model_validate_json(response["message"]["content"])
+                    raw = response.message.content or ""
+                    return schema.model_validate_json(raw)
                 except Exception as e2:
                     logger.error("Fallback model %s also failed: %s", fallback_model, e2)
 
@@ -86,7 +92,7 @@ def generate_embedding(model: str, text: str) -> list[float] | None:
     """Generate an embedding vector for the given text."""
     try:
         response = client.embed(model=model, input=text)
-        return response["embeddings"][0]
+        return response.embeddings[0]
     except Exception as e:
         logger.error("Embedding generation failed: %s", e)
         return None
@@ -97,7 +103,6 @@ def check_model_available(model: str) -> bool:
     try:
         models = client.list()
         available = [m.model for m in models.models]
-        # Check both exact match and prefix match (e.g., "qwen3:8b" matches "qwen3:8b-...")
         return any(model in name or name.startswith(model) for name in available)
     except Exception as e:
         logger.error("Failed to check model availability: %s", e)

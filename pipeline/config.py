@@ -17,7 +17,9 @@ DATA_DIR.mkdir(exist_ok=True)
 DATABASE_PATH = os.getenv("DATABASE_PATH", str(DATA_DIR / "catandary.db"))
 
 # Ollama
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+# OLLAMA_HOST env var is often set to 0.0.0.0 for the server bind address.
+# For the client, we always connect to 127.0.0.1.
+OLLAMA_HOST = os.getenv("OLLAMA_CLIENT_HOST", "http://127.0.0.1:11434")
 
 # Models
 MODEL_FILTER = "qwen3:8b"
