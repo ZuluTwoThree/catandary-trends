@@ -67,8 +67,24 @@ export const translations = {
     footerRights: "All rights reserved.",
     footerPowered: "Powered by",
 
+    // Mega-Trends
+    megaTrends: "Mega-Trends",
+    megaTrendsSubtitle:
+      "Langfristige Entwicklungen, die branchen\u00fcbergreifend Wirkung zeigen. Zeithorizont: 10\u201325 Jahre.",
+    megaTrendTrends: "Trend-Signale",
+    megaTrendVerticals: "Betroffene Branchen",
+    megaTrendCta:
+      "Vollst\u00e4ndige Mega/Macro/Micro-Prognose verf\u00fcgbar in Catandary Foresight",
+    viewAllMegaTrends: "Alle Mega-Trends anzeigen",
+
+    // Cross-Vertical
+    crossVerticalTitle: "Cross-Industry Trends",
+    crossVerticalSubtitle:
+      "Trend-Signale, die mehrere Branchen gleichzeitig betreffen \u2014 Fr\u00fchindikatoren f\u00fcr systemische Ver\u00e4nderungen.",
+    affectedVerticals: "Betroffene Branchen",
+
     // Signal types
-    product_launch: "Produkteinführung",
+    product_launch: "Produkteinf\u00fchrung",
     research: "Forschung",
     market_shift: "Marktverschiebung",
     consumer_behavior: "Verbraucherverhalten",
@@ -133,6 +149,20 @@ export const translations = {
 
     footerRights: "All rights reserved.",
     footerPowered: "Powered by",
+
+    megaTrends: "Mega Trends",
+    megaTrendsSubtitle:
+      "Long-term developments with cross-industry impact. Time horizon: 10\u201325 years.",
+    megaTrendTrends: "Trend signals",
+    megaTrendVerticals: "Affected verticals",
+    megaTrendCta:
+      "Full Mega/Macro/Micro forecast available in Catandary Foresight",
+    viewAllMegaTrends: "View all mega trends",
+
+    crossVerticalTitle: "Cross-Industry Trends",
+    crossVerticalSubtitle:
+      "Trend signals affecting multiple industries simultaneously \u2014 early indicators of systemic change.",
+    affectedVerticals: "Affected verticals",
 
     product_launch: "Product Launch",
     research: "Research",

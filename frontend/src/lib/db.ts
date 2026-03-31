@@ -92,6 +92,83 @@ export function getTrendsCount(options: {
   }
 }
 
+export function getTrendsByMegaTrend(megaTrend: string, options: {
+  status?: string;
+  limit?: number;
+} = {}): Trend[] {
+  const db = getDb();
+  try {
+    let query = "SELECT * FROM trends WHERE mega_trend = ?";
+    const params: unknown[] = [megaTrend];
+
+    if (options.status) {
+      query += " AND status = ?";
+      params.push(options.status);
+    }
+
+    query += " ORDER BY created_at DESC LIMIT ?";
+    params.push(options.limit ?? 50);
+
+    const rows = db.prepare(query).all(...params) as Record<string, unknown>[];
+    return rows.map(parseTrendRow);
+  } finally {
+    db.close();
+  }
+}
+
+export function getMegaTrends(status?: string): { mega_trend: string; count: number; verticals: string[] }[] {
+  const db = getDb();
+  try {
+    let query = "SELECT mega_trend, COUNT(*) as cnt, GROUP_CONCAT(DISTINCT primary_vertical) as verts FROM trends WHERE mega_trend IS NOT NULL AND mega_trend != ''";
+    const params: unknown[] = [];
+
+    if (status) {
+      query += " AND status = ?";
+      params.push(status);
+    }
+
+    query += " GROUP BY mega_trend ORDER BY cnt DESC";
+
+    const rows = db.prepare(query).all(...params) as {
+      mega_trend: string;
+      cnt: number;
+      verts: string;
+    }[];
+
+    return rows.map((r) => ({
+      mega_trend: r.mega_trend,
+      count: r.cnt,
+      verticals: r.verts ? r.verts.split(",") : [],
+    }));
+  } finally {
+    db.close();
+  }
+}
+
+export function getCrossVerticalTrends(options: {
+  status?: string;
+  limit?: number;
+} = {}): Trend[] {
+  const db = getDb();
+  try {
+    let query = "SELECT * FROM trends WHERE json_array_length(verticals) > 1";
+    const params: unknown[] = [];
+
+    if (options.status) {
+      query += " AND status = ?";
+      params.push(options.status);
+    }
+
+    query += " ORDER BY trend_score DESC, created_at DESC LIMIT ?";
+    params.push(options.limit ?? 20);
+
+    const rows = db.prepare(query).all(...params) as Record<string, unknown>[];
+    return rows.map(parseTrendRow);
+  } finally {
+    db.close();
+  }
+}
+
 export function getVerticalCounts(status?: string): Record<string, number> {
   const db = getDb();
   try {

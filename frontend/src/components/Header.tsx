@@ -22,6 +22,18 @@ export default function Header() {
             {t("trends")}
           </a>
           <a
+            href="/trends/mega"
+            className="hover:text-foreground transition-colors hidden sm:inline"
+          >
+            {t("megaTrends")}
+          </a>
+          <a
+            href="/trends/cross-vertical"
+            className="hover:text-foreground transition-colors hidden md:inline"
+          >
+            {t("crossIndustry")}
+          </a>
+          <a
             href="https://catandary.de"
             className="hover:text-foreground transition-colors hidden sm:inline"
             target="_blank"

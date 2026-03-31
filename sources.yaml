@@ -84,6 +84,60 @@ verticals:
         feed_url: https://www.trendhunter.com/rss/category/Environmental-Trends
         type: radar
 
+  DESIGN:
+    sources:
+      - name: Dezeen
+        feed_url: https://www.dezeen.com/feed/
+        type: trade_media
+      - name: ArchDaily
+        feed_url: https://www.archdaily.com/feed
+        type: trade_media
+      - name: Wallpaper
+        feed_url: https://www.wallpaper.com/rss
+        type: trade_media
+      - name: Designboom
+        feed_url: https://www.designboom.com/feed/
+        type: trade_media
+    radar:
+      - name: Trendhunter Design
+        feed_url: https://www.trendhunter.com/rss/category/Modern-Art-and-Design-Trends
+        type: radar
+
+  FASHION:
+    sources:
+      - name: Business of Fashion
+        feed_url: https://www.businessoffashion.com/feed/
+        type: trade_media
+      - name: Cosmetics Design
+        feed_url: https://www.cosmeticsdesign.com/arc/outboundfeeds/rss/
+        type: trade_media
+      - name: Fashionista
+        feed_url: https://fashionista.com/.rss/full/
+        type: trade_media
+      - name: Sourcing Journal
+        feed_url: https://sourcingjournal.com/feed/
+        type: trade_media
+    radar:
+      - name: Trendhunter Fashion
+        feed_url: https://www.trendhunter.com/rss/category/Style-and-Fashion-Trends
+        type: radar
+
+  BIZ:
+    sources:
+      - name: Retail Dive
+        feed_url: https://www.retaildive.com/feeds/news/
+        type: trade_media
+      - name: Fast Company
+        feed_url: https://www.fastcompany.com/latest/rss
+        type: trade_media
+      - name: Finextra
+        feed_url: https://www.finextra.com/rss/headlines.aspx
+        type: trade_media
+    radar:
+      - name: Trendhunter Business
+        feed_url: https://www.trendhunter.com/rss/category/Business-Trends
+        type: radar
+
 cross_industry:
   press_wires:
     - name: PR Newswire
