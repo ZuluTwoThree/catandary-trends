@@ -1,5 +1,5 @@
 # Catandary Trends – Source Configuration
-# Sprint 1: FOOD + TECH pilot verticals
+# Sprint 1: FOOD + TECH | Sprint 4: HEALTH + ECO
 
 verticals:
   FOOD:
@@ -44,6 +44,44 @@ verticals:
     radar:
       - name: Trendhunter Tech
         feed_url: https://www.trendhunter.com/rss/category/Technology-Trends-and-Gadgets
+        type: radar
+
+  HEALTH:
+    sources:
+      - name: STAT News
+        feed_url: https://www.statnews.com/feed/
+        type: trade_media
+      - name: MobiHealthNews
+        feed_url: https://www.mobihealthnews.com/feed
+        type: trade_media
+      - name: Nutraingredients
+        feed_url: https://www.nutraingredients.com/arc/outboundfeeds/rss/
+        type: trade_media
+      - name: Fierce Healthcare
+        feed_url: https://www.fiercehealthcare.com/rss/xml
+        type: trade_media
+    radar:
+      - name: Trendhunter Health
+        feed_url: https://www.trendhunter.com/rss/category/Health-and-Fitness-Trends
+        type: radar
+
+  ECO:
+    sources:
+      - name: CleanTechnica
+        feed_url: https://cleantechnica.com/feed/
+        type: trade_media
+      - name: Packaging Dive
+        feed_url: https://www.packagingdive.com/feeds/news/
+        type: trade_media
+      - name: Carbon Brief
+        feed_url: https://www.carbonbrief.org/feed/
+        type: trade_media
+      - name: Renewable Energy World
+        feed_url: https://www.renewableenergyworld.com/feed/
+        type: trade_media
+    radar:
+      - name: Trendhunter Environmental
+        feed_url: https://www.trendhunter.com/rss/category/Environmental-Trends
         type: radar
 
 cross_industry:

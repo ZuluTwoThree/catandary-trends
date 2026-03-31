@@ -1,0 +1,24 @@
+# Catandary Trends – Cron Jobs
+# Install: crontab deploy/crontab.txt
+# Adjust paths to match your deployment directory
+
+CATANDARY_DIR=/opt/catandary-trends
+PYTHON=/opt/catandary-trends/.venv/bin/python
+
+# RSS-Feeds pollen (alle 4 Stunden)
+0 */4 * * * cd $CATANDARY_DIR && $PYTHON -m pipeline.feed_poller >> logs/feed_poller.log 2>&1
+
+# Trendhunter-Radar (1x täglich, morgens)
+0 8 * * * cd $CATANDARY_DIR && $PYTHON -m pipeline.radar_discovery >> logs/radar.log 2>&1
+
+# LLM-Pipeline für neue Einträge (alle 4 Stunden, nach Polling)
+30 */4 * * * cd $CATANDARY_DIR && $PYTHON -m pipeline.llm_processor 20 >> logs/llm_processor.log 2>&1
+
+# Auto-Publish (stündlich, nur high-confidence Drafts)
+0 * * * * cd $CATANDARY_DIR && $PYTHON -m pipeline.auto_publisher >> logs/auto_publisher.log 2>&1
+
+# Wöchentlicher Newsletter (Montag 9:00)
+# 0 9 * * 1 cd $CATANDARY_DIR && $PYTHON -m pipeline.newsletter_generator >> logs/newsletter.log 2>&1
+
+# Source-Discovery Report (Freitag 17:00)
+# 0 17 * * 5 cd $CATANDARY_DIR && $PYTHON -m pipeline.source_report >> logs/source_report.log 2>&1

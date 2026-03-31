@@ -3,6 +3,7 @@ import { getTrends, getVerticalCounts } from "@/lib/db";
 import type { Vertical } from "@/lib/types";
 import TrendCard from "@/components/TrendCard";
 import VerticalFilter from "@/components/VerticalFilter";
+import { TrendsListJsonLd } from "@/components/JsonLd";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function TrendsPage({
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
+      <TrendsListJsonLd />
       {/* Hero */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight mb-2">

@@ -133,6 +133,15 @@ CREATE INDEX IF NOT EXISTS idx_trends_slug ON trends(slug);
 CREATE INDEX IF NOT EXISTS idx_trends_status ON trends(status);
 CREATE INDEX IF NOT EXISTS idx_trends_vertical ON trends(primary_vertical);
 CREATE INDEX IF NOT EXISTS idx_trends_created ON trends(created_at);
+
+CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    verticals TEXT DEFAULT '[]',
+    confirmed INTEGER DEFAULT 0,
+    subscribed_at TEXT DEFAULT (datetime('now')),
+    unsubscribed_at TEXT
+);
 """
 
 PG_SCHEMA = """
@@ -242,6 +251,15 @@ CREATE INDEX IF NOT EXISTS idx_trends_slug ON trends(slug);
 CREATE INDEX IF NOT EXISTS idx_trends_status ON trends(status);
 CREATE INDEX IF NOT EXISTS idx_trends_vertical ON trends(primary_vertical);
 CREATE INDEX IF NOT EXISTS idx_trends_created ON trends(created_at);
+
+CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+    id SERIAL PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    verticals JSONB DEFAULT '[]',
+    confirmed BOOLEAN DEFAULT false,
+    subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    unsubscribed_at TIMESTAMP
+);
 """
 
 

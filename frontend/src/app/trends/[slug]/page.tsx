@@ -5,6 +5,7 @@ import { getVerticalInfo } from "@/lib/types";
 import PestelBadge from "@/components/PestelBadge";
 import VerticalBadge from "@/components/VerticalBadge";
 import TrendScore from "@/components/TrendScore";
+import { TrendArticleJsonLd } from "@/components/JsonLd";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -75,6 +76,7 @@ export default async function TrendArticlePage({
         </span>
       </nav>
 
+      <TrendArticleJsonLd trend={trend} />
       <article>
         {/* Header */}
         <header className="mb-8">
