@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import type { Trend } from "@/lib/types";
 import { getVerticalInfo } from "@/lib/types";
@@ -20,6 +21,14 @@ export default function TrendArticle({
   const { locale, mounted, t } = useLocale();
   const vertical = getVerticalInfo(trend.primary_vertical);
   const effectiveLocale = mounted ? locale : "de";
+
+  useEffect(() => {
+    fetch("/api/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trend_id: trend.id, event: "page_view" }),
+    }).catch(() => {});
+  }, [trend.id]);
 
   const title =
     effectiveLocale === "de" ? trend.title_de || trend.title_en : trend.title_en;

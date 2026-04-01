@@ -83,8 +83,15 @@ export const translations = {
       "Trend-Signale, die mehrere Branchen gleichzeitig betreffen \u2014 Fr\u00fchindikatoren f\u00fcr systemische Ver\u00e4nderungen.",
     affectedVerticals: "Betroffene Branchen",
 
+    // Cluster Dashboard
+    clusterDashboard: "Trend-Cluster Dashboard",
+    clusterSubtitle:
+      "Branchenübergreifende Muster und Mega-Trend-Cluster auf einen Blick.",
+    topTrends: "Top Trends",
+    viewAll: "Alle anzeigen",
+
     // Signal types
-    product_launch: "Produkteinf\u00fchrung",
+    product_launch: "Produkteinführung",
     research: "Forschung",
     market_shift: "Marktverschiebung",
     consumer_behavior: "Verbraucherverhalten",
@@ -163,6 +170,12 @@ export const translations = {
     crossVerticalSubtitle:
       "Trend signals affecting multiple industries simultaneously \u2014 early indicators of systemic change.",
     affectedVerticals: "Affected verticals",
+
+    clusterDashboard: "Trend Cluster Dashboard",
+    clusterSubtitle:
+      "Cross-industry patterns and mega-trend clusters at a glance.",
+    topTrends: "Top Trends",
+    viewAll: "View all",
 
     product_launch: "Product Launch",
     research: "Research",

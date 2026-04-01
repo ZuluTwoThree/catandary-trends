@@ -138,6 +138,63 @@ verticals:
         feed_url: https://www.trendhunter.com/rss/category/Business-Trends
         type: radar
 
+  CULTURE:
+    sources:
+      - name: Nieman Lab
+        feed_url: https://www.niemanlab.org/feed/
+        type: trade_media
+      - name: GamesIndustry.biz
+        feed_url: https://www.gamesindustry.biz/feed
+        type: trade_media
+      - name: The Wrap
+        feed_url: https://www.thewrap.com/feed/
+        type: trade_media
+      - name: Creative Bloq
+        feed_url: https://www.creativebloq.com/feed
+        type: trade_media
+    radar:
+      - name: Trendhunter Culture
+        feed_url: https://www.trendhunter.com/rss/category/Pop-Culture-and-Internet-Trends
+        type: radar
+
+  SOCIAL:
+    sources:
+      - name: Impact Alpha
+        feed_url: https://impactalpha.com/feed/
+        type: trade_media
+      - name: Social Enterprise UK
+        feed_url: https://www.socialenterprise.org.uk/feed/
+        type: trade_media
+      - name: EdTech Magazine
+        feed_url: https://edtechmagazine.com/higher/rss.xml
+        type: trade_media
+      - name: Nonprofit Quarterly
+        feed_url: https://nonprofitquarterly.org/feed/
+        type: trade_media
+    radar:
+      - name: Trendhunter Social
+        feed_url: https://www.trendhunter.com/rss/category/Social-Trends
+        type: radar
+
+  LUXURY:
+    sources:
+      - name: Robb Report
+        feed_url: https://robbreport.com/feed/
+        type: trade_media
+      - name: Luxury Daily
+        feed_url: https://www.luxurydaily.com/feed/
+        type: trade_media
+      - name: Highsnobiety
+        feed_url: https://www.highsnobiety.com/feed/
+        type: trade_media
+      - name: Skift
+        feed_url: https://skift.com/feed/
+        type: trade_media
+    radar:
+      - name: Trendhunter Luxury
+        feed_url: https://www.trendhunter.com/rss/category/Luxury-Trends
+        type: radar
+
 cross_industry:
   press_wires:
     - name: PR Newswire

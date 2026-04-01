@@ -169,6 +169,25 @@ export function getCrossVerticalTrends(options: {
   }
 }
 
+export function getTopTrendsByEngagement(limit: number = 10): Trend[] {
+  const db = getDb();
+  try {
+    const rows = db
+      .prepare(
+        `SELECT t.*, COALESCE(m.page_views, 0) as views
+         FROM trends t
+         LEFT JOIN trend_metrics m ON t.id = m.trend_id
+         WHERE t.status = 'published'
+         ORDER BY views DESC, t.trend_score DESC
+         LIMIT ?`
+      )
+      .all(limit) as Record<string, unknown>[];
+    return rows.map(parseTrendRow);
+  } finally {
+    db.close();
+  }
+}
+
 export function getVerticalCounts(status?: string): Record<string, number> {
   const db = getDb();
   try {
