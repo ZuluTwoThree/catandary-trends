@@ -24,7 +24,7 @@ export default function TrendCard({ trend }: { trend: Trend }) {
       : trend.summary_en;
 
   const date = trend.published_at || trend.created_at;
-  const formattedDate = date
+  const formattedDate = mounted && date
     ? new Date(date).toLocaleDateString(effectiveLocale === "de" ? "de-DE" : "en-US", {
         day: "numeric",
         month: "short",

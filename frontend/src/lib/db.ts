@@ -12,8 +12,9 @@ function getDb(): Database.Database {
 }
 
 function parseTrendRow(row: Record<string, unknown>): Trend {
+  const { embedding, ...rest } = row;
   return {
-    ...row,
+    ...rest,
     verticals: JSON.parse((row.verticals as string) || "[]"),
     pestel: JSON.parse((row.pestel as string) || "[]"),
     tags: JSON.parse((row.tags as string) || "[]"),
