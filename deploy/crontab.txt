@@ -22,3 +22,6 @@ PYTHON=/opt/catandary-trends/.venv/bin/python
 
 # Source-Discovery Report (Freitag 17:00)
 # 0 17 * * 5 cd $CATANDARY_DIR && $PYTHON -m pipeline.source_report >> logs/source_report.log 2>&1
+
+# Mega-Trend Reviewer (1. des Monats, 03:00 – läuft ca. 2-3h mit Qwen3 14B)
+0 3 1 * * cd $CATANDARY_DIR && $PYTHON -m pipeline.mega_trend_reviewer >> logs/mega_trend_reviewer.log 2>&1

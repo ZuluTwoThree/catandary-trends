@@ -1,8 +1,11 @@
 """Pydantic schemas for LLM pipeline structured outputs."""
 
+import logging
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+logger = logging.getLogger(__name__)
 
 # --- Verticals & PESTEL ---
 
@@ -44,6 +47,17 @@ class ExtractionResult(BaseModel):
 
 # --- Step 3: NER + Classification ---
 
+def _get_canonical_keys() -> set[str]:
+    """Lazily load canonical mega-trend keys. Cached after first call."""
+    if not hasattr(_get_canonical_keys, "_cache"):
+        try:
+            from pipeline.config import get_mega_trend_keys
+            _get_canonical_keys._cache = set(get_mega_trend_keys())
+        except Exception:
+            _get_canonical_keys._cache = set()
+    return _get_canonical_keys._cache
+
+
 class ClassificationResult(BaseModel):
     """Output of NER and classification step."""
     verticals: list[Vertical] = Field(description="Applicable verticals (can be cross-vertical)")
@@ -51,7 +65,25 @@ class ClassificationResult(BaseModel):
     tags: list[str] = Field(description="Descriptive tags")
     trend_signal_type: TrendSignalType = Field(description="Type of trend signal")
     regions: list[str] = Field(default_factory=lambda: ["Global"], description="Geographic regions")
-    mega_trend: str | None = Field(default=None, description="Associated mega trend")
+    mega_trend: str | None = Field(default=None, description="Canonical mega-trend key from mega_trends.yaml")
+
+    @field_validator("mega_trend", mode="before")
+    @classmethod
+    def validate_mega_trend(cls, v: str | None) -> str | None:
+        if v is None or v == "" or v == "null":
+            return None
+        canonical = _get_canonical_keys()
+        if not canonical:
+            return v  # No taxonomy loaded, accept as-is
+        if v in canonical:
+            return v
+        # Try normalizing: lowercase, replace spaces/hyphens with underscores
+        normalized = v.lower().strip().replace("-", "_").replace(" ", "_")
+        if normalized in canonical:
+            return normalized
+        # No match — log and set to None rather than storing garbage
+        logger.warning("LLM returned non-canonical mega_trend '%s', setting to None", v)
+        return None
 
 
 # --- Step 5: Content Generation ---

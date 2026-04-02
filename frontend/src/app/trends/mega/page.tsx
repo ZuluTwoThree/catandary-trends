@@ -21,7 +21,8 @@ export default function MegaTrendsRoute() {
     verticalInfos: mt.verticals.map((v) =>
       getVerticalInfo(v as Parameters<typeof getVerticalInfo>[0])
     ),
-    slug: encodeURIComponent(mt.mega_trend.toLowerCase().replace(/\s+/g, "-")),
+    // Canonical keys use underscores; URL slugs use hyphens
+    slug: encodeURIComponent(mt.mega_trend.replace(/_/g, "-")),
   }));
 
   return (

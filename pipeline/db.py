@@ -438,7 +438,7 @@ def get_unprocessed_entries(limit: int = 50) -> list[dict]:
     """Get raw entries that haven't been processed yet."""
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT re.*, s.name as source_name, s.vertical as source_vertical "
+            "SELECT re.*, s.name as source_name, s.vertical as source_vertical, s.source_type as source_type "
             "FROM raw_entries re JOIN sources s ON re.source_id = s.id "
             "WHERE re.processed = 0 AND re.filtered_out = 0 "
             "ORDER BY re.fetched_at ASC LIMIT ?",

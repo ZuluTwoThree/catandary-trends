@@ -1,0 +1,160 @@
+# Catandary Mega-Trends Taxonomy
+# Canonical list of mega-trends (10-25 year horizon).
+# Used by the classification prompt (Qwen3 8B picks from this list)
+# and the mega-trend reviewer (Qwen3 14B validates/proposes updates monthly).
+#
+# Each mega-trend has:
+#   key: snake_case identifier stored in DB
+#   name_en / name_de: display names
+#   description: one-line definition for LLM prompt context
+#   horizon: estimated time horizon
+#   verticals: most relevant verticals (not exclusive — cross-vertical assignment is encouraged)
+
+mega_trends:
+
+  - key: artificial_intelligence_and_automation
+    name_en: "Artificial Intelligence & Automation"
+    name_de: "Künstliche Intelligenz & Automatisierung"
+    description: "AI/ML integration across industries — from generative AI and design tools to industrial robotics, autonomous systems, and AI-driven decision making."
+    horizon: "15-25 years"
+    verticals: [TECH, BIZ, HEALTH, FOOD, DESIGN, CULTURE]
+
+  - key: circular_economy_and_zero_waste
+    name_en: "Circular Economy & Zero Waste"
+    name_de: "Kreislaufwirtschaft & Zero Waste"
+    description: "Closed-loop production systems, waste elimination, recyclability-by-design, reversible architecture, product-as-service models."
+    horizon: "15-25 years"
+    verticals: [ECO, DESIGN, FASHION, FOOD, BIZ]
+
+  - key: personalized_health_and_longevity
+    name_en: "Personalized Health & Longevity"
+    name_de: "Personalisierte Gesundheit & Langlebigkeit"
+    description: "Precision medicine, digital therapeutics, individualized nutrition, longevity science, biomarker-driven health optimization."
+    horizon: "15-25 years"
+    verticals: [HEALTH, TECH, FOOD, FASHION]
+
+  - key: climate_resilience_and_adaptation
+    name_en: "Climate Resilience & Adaptation"
+    name_de: "Klimaresilienz & Anpassung"
+    description: "Designing systems, buildings, and communities for climate change impact — flood-resistant architecture, heat adaptation, climate-smart agriculture."
+    horizon: "20-25 years"
+    verticals: [ECO, DESIGN, FOOD, SOCIAL]
+
+  - key: clean_energy_transition
+    name_en: "Clean Energy Transition"
+    name_de: "Saubere Energiewende"
+    description: "Decarbonization of energy, industry and transport — renewables, green hydrogen, energy storage, grid modernization, carbon capture."
+    horizon: "20-25 years"
+    verticals: [ECO, TECH, BIZ, SOCIAL]
+
+  - key: bio_revolution_and_new_materials
+    name_en: "Bio-Revolution & New Materials"
+    name_de: "Bio-Revolution & Neue Materialien"
+    description: "Biotech-derived materials, synthetic biology, mycelium/algae/cellulose-based products, lab-grown alternatives, biomimicry."
+    horizon: "15-25 years"
+    verticals: [ECO, DESIGN, FASHION, FOOD, HEALTH]
+
+  - key: connected_living_and_smart_spaces
+    name_en: "Connected Living & Smart Spaces"
+    name_de: "Vernetztes Wohnen & Intelligente Räume"
+    description: "IoT ecosystems, smart homes/kitchens/offices, ambient computing, sensor-driven environments, home automation."
+    horizon: "10-20 years"
+    verticals: [TECH, DESIGN, FOOD, BIZ]
+
+  - key: experience_economy_and_immersive_design
+    name_en: "Experience Economy & Immersive Design"
+    name_de: "Erlebnisökonomie & Immersives Design"
+    description: "Physical spaces as experience platforms — immersive retail, experiential dining, sensory environments, projection mapping, pop-up culture."
+    horizon: "10-20 years"
+    verticals: [DESIGN, BIZ, CULTURE, LUXURY, FOOD]
+
+  - key: cultural_heritage_and_identity
+    name_en: "Cultural Heritage & Identity Renaissance"
+    name_de: "Kulturelles Erbe & Identitätsrenaissance"
+    description: "Revival of craft traditions, cultural fusion in design, place-based branding, indigenous knowledge integration, regional identity as differentiator."
+    horizon: "10-20 years"
+    verticals: [DESIGN, FASHION, CULTURE, FOOD, LUXURY]
+
+  - key: inclusive_and_human_centric_design
+    name_en: "Inclusive & Human-Centric Design"
+    name_de: "Inklusives & Menschenzentriertes Design"
+    description: "Universal accessibility, assistive technology, gender-inclusive products, aging-population design, neurodiversity accommodation, equity in design."
+    horizon: "15-25 years"
+    verticals: [DESIGN, SOCIAL, HEALTH, TECH, FASHION]
+
+  - key: future_of_food_and_agriculture
+    name_en: "Future of Food & Agriculture"
+    name_de: "Zukunft der Ernährung & Landwirtschaft"
+    description: "Alternative proteins, precision agriculture, vertical farming, functional/fortified foods, food-as-medicine, novel ingredients."
+    horizon: "15-25 years"
+    verticals: [FOOD, TECH, HEALTH, ECO]
+
+  - key: creator_economy_and_platform_shift
+    name_en: "Creator Economy & Platform Shift"
+    name_de: "Creator Economy & Plattformwandel"
+    description: "Content monetization, creator tools, decentralized media, platform economy, user-generated commerce, digital-native brands."
+    horizon: "10-20 years"
+    verticals: [CULTURE, TECH, BIZ, FASHION]
+
+  - key: new_luxury_and_premiumization
+    name_en: "New Luxury & Premiumization"
+    name_de: "Neuer Luxus & Premiumisierung"
+    description: "Luxury democratization, quiet luxury, experiential premium, artisanal positioning, luxury-mass collaborations, heritage brand renewal."
+    horizon: "10-20 years"
+    verticals: [LUXURY, FASHION, DESIGN, FOOD, BIZ]
+
+  - key: modular_and_adaptive_systems
+    name_en: "Modular & Adaptive Systems"
+    name_de: "Modulare & Adaptive Systeme"
+    description: "Reconfigurable architecture, modular furniture/housing, flexible workspaces, temporary structures, DIY assembly systems."
+    horizon: "10-20 years"
+    verticals: [DESIGN, BIZ, TECH, SOCIAL]
+
+  - key: urban_transformation_and_smart_cities
+    name_en: "Urban Transformation & Smart Cities"
+    name_de: "Urbane Transformation & Smart Cities"
+    description: "Redesigning cities for density, livability and sustainability — public space activation, smart infrastructure, transit-oriented development."
+    horizon: "15-25 years"
+    verticals: [DESIGN, ECO, SOCIAL, TECH, BIZ]
+
+  - key: financial_innovation_and_inclusion
+    name_en: "Financial Innovation & Inclusion"
+    name_de: "Finanzinnovation & Inklusion"
+    description: "Fintech disruption, embedded finance, digital banking, decentralized finance, financial literacy, unbanked population access."
+    horizon: "10-20 years"
+    verticals: [BIZ, TECH, SOCIAL]
+
+  - key: mental_health_and_neuro_wellness
+    name_en: "Mental Health & Neuro-Wellness"
+    name_de: "Mentale Gesundheit & Neuro-Wellness"
+    description: "Mental health technology, neuroscience-based consumer products, stress management tech, mindfulness platforms, biofeedback devices."
+    horizon: "10-20 years"
+    verticals: [HEALTH, TECH, FASHION, SOCIAL]
+
+  - key: regenerative_design_and_net_positive
+    name_en: "Regenerative Design & Net Positive"
+    name_de: "Regeneratives Design & Net Positive"
+    description: "Beyond sustainability — designs and systems that actively restore ecosystems, regenerative agriculture, net-positive buildings, restorative practices."
+    horizon: "15-25 years"
+    verticals: [ECO, DESIGN, FOOD, FASHION]
+
+  - key: electric_and_autonomous_mobility
+    name_en: "Electric & Autonomous Mobility"
+    name_de: "Elektrische & Autonome Mobilität"
+    description: "Electric vehicles, autonomous driving, shared mobility platforms, urban micro-mobility, charging infrastructure, mobility-as-a-service."
+    horizon: "15-25 years"
+    verticals: [TECH, ECO, DESIGN, BIZ]
+
+  - key: wearable_technology_and_augmented_living
+    name_en: "Wearable Technology & Augmented Living"
+    name_de: "Wearable-Technologie & Augmented Living"
+    description: "Smart wearables, health monitoring devices, AR/VR integration, smart textiles, brain-computer interfaces, augmented senses."
+    horizon: "15-25 years"
+    verticals: [TECH, HEALTH, FASHION, DESIGN]
+
+  - key: digital_trust_and_data_sovereignty
+    name_en: "Digital Trust & Data Sovereignty"
+    name_de: "Digitales Vertrauen & Datensouveränität"
+    description: "Data privacy, digital identity management, AI governance, algorithmic transparency, cybersecurity, content authentication."
+    horizon: "10-25 years"
+    verticals: [TECH, BIZ, SOCIAL, HEALTH]

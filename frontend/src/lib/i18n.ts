@@ -90,6 +90,11 @@ export const translations = {
     topTrends: "Top Trends",
     viewAll: "Alle anzeigen",
 
+    // CRS
+    crsLabel: "Catandary Relevance Score",
+    crsTooltip:
+      "Der CRS quantifiziert die strategische Relevanz eines Trend-Signals. Unsere proprietären Algorithmen bewerten branchenübergreifende Wirkung, gesellschaftliche Tragweite und Signalreife — je höher der Score, desto wahrscheinlicher beeinflusst dieser Trend Ihre Branche.",
+
     // Signal types
     product_launch: "Produkteinführung",
     research: "Forschung",
@@ -99,6 +104,14 @@ export const translations = {
     funding: "Finanzierung",
     partnership: "Partnerschaft",
     patent: "Patent",
+
+    // Source types
+    sourceType_trade_media: "Fachpresse",
+    sourceType_press_wire: "Pressemitteilung",
+    sourceType_radar: "Trend-Radar",
+    sourceType_research: "Forschung",
+    sourceType_brand: "Marke",
+    sourceType_api: "Datenquelle",
   },
   en: {
     trends: "Trends",
@@ -177,6 +190,10 @@ export const translations = {
     topTrends: "Top Trends",
     viewAll: "View all",
 
+    crsLabel: "Catandary Relevance Score",
+    crsTooltip:
+      "The CRS quantifies the strategic relevance of a trend signal. Our proprietary algorithms evaluate cross-industry impact, societal breadth, and signal maturity — the higher the score, the more likely this trend will reshape your industry.",
+
     product_launch: "Product Launch",
     research: "Research",
     market_shift: "Market Shift",
@@ -185,6 +202,14 @@ export const translations = {
     funding: "Funding",
     partnership: "Partnership",
     patent: "Patent",
+
+    // Source types
+    sourceType_trade_media: "Trade Media",
+    sourceType_press_wire: "Press Release",
+    sourceType_radar: "Trend Radar",
+    sourceType_research: "Research",
+    sourceType_brand: "Brand",
+    sourceType_api: "Data Source",
   },
 } as const;
 

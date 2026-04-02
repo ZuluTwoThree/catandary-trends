@@ -23,7 +23,7 @@ export default function TrendCard({ trend }: { trend: Trend }) {
       ? trend.summary_de || trend.summary_en
       : trend.summary_en;
 
-  const date = trend.published_at || trend.created_at;
+  const date = trend.source_date || trend.published_at || trend.created_at;
   const formattedDate = mounted && date
     ? new Date(date).toLocaleDateString(effectiveLocale === "de" ? "de-DE" : "en-US", {
         day: "numeric",
@@ -72,7 +72,24 @@ export default function TrendCard({ trend }: { trend: Trend }) {
           <div className="flex items-center justify-between">
             <TrendScore score={trend.trend_score} />
             <span className="text-xs text-muted truncate ml-2">
-              {trend.source_name}
+              {(() => {
+                const icon =
+                  trend.source_type === "trade_media" ? "📰" :
+                  trend.source_type === "press_wire" ? "📋" :
+                  trend.source_type === "radar" ? "📡" :
+                  trend.trend_signal_type === "research" ? "🔬" :
+                  trend.source_type === "brand" ? "🏷" :
+                  trend.source_type === "api" ? "📊" : "📰";
+                const labelKey =
+                  trend.source_type === "trade_media" ? "sourceType_trade_media" :
+                  trend.source_type === "press_wire" ? "sourceType_press_wire" :
+                  trend.source_type === "radar" ? "sourceType_radar" :
+                  trend.trend_signal_type === "research" ? "sourceType_research" :
+                  trend.source_type === "brand" ? "sourceType_brand" :
+                  trend.source_type === "api" ? "sourceType_api" :
+                  "sourceType_trade_media";
+                return `${icon} ${t(labelKey as any)}`;
+              })()}
             </span>
           </div>
 

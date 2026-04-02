@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import type { Trend } from "@/lib/types";
-import { getVerticalInfo } from "@/lib/types";
+import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
 import { useLocale } from "@/lib/locale-context";
 import { translations, type TranslationKey } from "@/lib/i18n";
 import PestelBadge from "./PestelBadge";
@@ -36,7 +36,7 @@ export default function TrendArticle({
     effectiveLocale === "de" ? trend.summary_de || trend.summary_en : trend.summary_en;
   const body = effectiveLocale === "de" ? trend.body_de || trend.body_en : trend.body_en;
 
-  const date = trend.published_at || trend.created_at;
+  const date = trend.source_date || trend.published_at || trend.created_at;
   const formattedDate = mounted && date
     ? new Date(date).toLocaleDateString(effectiveLocale === "de" ? "de-DE" : "en-US", {
         day: "numeric",
@@ -136,12 +136,26 @@ export default function TrendArticle({
               <dd className="text-sm capitalize">{signalTypeLabel}</dd>
             </div>
           )}
-          {trend.mega_trend && (
-            <div>
-              <dt className="text-xs text-muted mb-1">{t("megaTrend")}</dt>
-              <dd className="text-sm">{trend.mega_trend}</dd>
-            </div>
-          )}
+          {trend.mega_trend && (() => {
+            const mtInfo = getMegaTrendInfo(trend.mega_trend);
+            const mtName = mtInfo
+              ? effectiveLocale === "de" ? mtInfo.name_de : mtInfo.name_en
+              : trend.mega_trend;
+            const mtIcon = mtInfo?.icon ?? "";
+            return (
+              <div>
+                <dt className="text-xs text-muted mb-1">{t("megaTrend")}</dt>
+                <dd className="text-sm">
+                  <Link
+                    href={`/trends/mega/${encodeURIComponent(trend.mega_trend.replace(/_/g, "-"))}`}
+                    className="text-accent hover:underline"
+                  >
+                    {mtIcon} {mtName}
+                  </Link>
+                </dd>
+              </div>
+            );
+          })()}
           {trend.brands.length > 0 && (
             <div>
               <dt className="text-xs text-muted mb-1">{t("brands")}</dt>

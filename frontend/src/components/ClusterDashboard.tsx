@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useLocale } from "@/lib/locale-context";
 import type { Trend, VerticalInfo } from "@/lib/types";
-import { getVerticalInfo } from "@/lib/types";
+import { getMegaTrendInfo } from "@/lib/types";
 import TrendCard from "./TrendCard";
 
 interface MegaTrendItem {
@@ -48,37 +48,50 @@ export default function ClusterDashboard({
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {megaTrends.map((mt) => (
-            <Link
-              key={mt.mega_trend}
-              href={`/trends/mega/${encodeURIComponent(mt.mega_trend.toLowerCase().replace(/\s+/g, "-"))}`}
-              className="rounded-xl border border-border bg-card p-5 hover:bg-card-hover hover:border-accent/30 transition-all"
-            >
-              <h3 className="text-sm font-semibold mb-2 line-clamp-2">
-                {mt.mega_trend}
-              </h3>
-              <p className="text-xs text-muted mb-3">
-                {mt.count} {t("megaTrendTrends")}
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {mt.verticalInfos.slice(0, 4).map((v) => (
-                  <span
-                    key={v.id}
-                    className="text-xs"
-                    style={{ color: v.color }}
-                    title={v.label}
-                  >
-                    {v.icon}
-                  </span>
-                ))}
-                {mt.verticalInfos.length > 4 && (
-                  <span className="text-xs text-muted">
-                    +{mt.verticalInfos.length - 4}
-                  </span>
-                )}
-              </div>
-            </Link>
-          ))}
+          {megaTrends.map((mt) => {
+            const info = getMegaTrendInfo(mt.mega_trend);
+            const displayName = info
+              ? effectiveLocale === "de"
+                ? info.name_de
+                : info.name_en
+              : mt.mega_trend;
+            const icon = info?.icon ?? "📊";
+
+            return (
+              <Link
+                key={mt.mega_trend}
+                href={`/trends/mega/${encodeURIComponent(mt.mega_trend.toLowerCase().replace(/\s+/g, "-"))}`}
+                className="rounded-xl border border-border bg-card p-5 hover:bg-card-hover hover:border-accent/30 transition-all"
+              >
+                <div className="flex items-start gap-2 mb-2">
+                  <span className="text-lg">{icon}</span>
+                  <h3 className="text-sm font-semibold line-clamp-2">
+                    {displayName}
+                  </h3>
+                </div>
+                <p className="text-xs text-muted mb-3">
+                  {mt.count} {t("megaTrendTrends")}
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {mt.verticalInfos.slice(0, 4).map((v) => (
+                    <span
+                      key={v.id}
+                      className="text-xs"
+                      style={{ color: v.color }}
+                      title={v.label}
+                    >
+                      {v.icon}
+                    </span>
+                  ))}
+                  {mt.verticalInfos.length > 4 && (
+                    <span className="text-xs text-muted">
+                      +{mt.verticalInfos.length - 4}
+                    </span>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </section>
 

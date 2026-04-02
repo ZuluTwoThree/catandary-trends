@@ -22,8 +22,13 @@ function parseTrendRow(row: Record<string, unknown>): Trend {
     companies: JSON.parse((row.companies as string) || "[]"),
     regions: JSON.parse((row.regions as string) || "[]"),
     auto_published: Boolean(row.auto_published),
+    source_date: (row.source_date as string) || null,
+    source_type: (row.source_type as string) || null,
   } as Trend;
 }
+
+/** SELECT columns for trend queries — joins raw_entries for source_date + source_type, capping future dates to now */
+const TREND_SELECT = "SELECT t.*, MIN(re.published_date, datetime('now')) as source_date, s.source_type as source_type FROM trends t LEFT JOIN raw_entries re ON t.raw_entry_id = re.id LEFT JOIN sources s ON re.source_id = s.id";
 
 export function getTrends(options: {
   status?: string;
@@ -33,19 +38,19 @@ export function getTrends(options: {
 } = {}): Trend[] {
   const db = getDb();
   try {
-    let query = "SELECT * FROM trends WHERE 1=1";
+    let query = TREND_SELECT + " WHERE 1=1";
     const params: unknown[] = [];
 
     if (options.status) {
-      query += " AND status = ?";
+      query += " AND t.status = ?";
       params.push(options.status);
     }
     if (options.vertical) {
-      query += " AND primary_vertical = ?";
+      query += " AND t.primary_vertical = ?";
       params.push(options.vertical);
     }
 
-    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+    query += " ORDER BY COALESCE(re.published_date, t.created_at) DESC LIMIT ? OFFSET ?";
     params.push(options.limit ?? 50);
     params.push(options.offset ?? 0);
 
@@ -60,7 +65,7 @@ export function getTrendBySlug(slug: string): Trend | null {
   const db = getDb();
   try {
     const row = db
-      .prepare("SELECT * FROM trends WHERE slug = ?")
+      .prepare(TREND_SELECT + " WHERE t.slug = ?")
       .get(slug) as Record<string, unknown> | undefined;
     return row ? parseTrendRow(row) : null;
   } finally {
@@ -74,15 +79,15 @@ export function getTrendsCount(options: {
 } = {}): number {
   const db = getDb();
   try {
-    let query = "SELECT COUNT(*) as cnt FROM trends WHERE 1=1";
+    let query = "SELECT COUNT(*) as cnt FROM trends t WHERE 1=1";
     const params: unknown[] = [];
 
     if (options.status) {
-      query += " AND status = ?";
+      query += " AND t.status = ?";
       params.push(options.status);
     }
     if (options.vertical) {
-      query += " AND primary_vertical = ?";
+      query += " AND t.primary_vertical = ?";
       params.push(options.vertical);
     }
 
@@ -99,15 +104,15 @@ export function getTrendsByMegaTrend(megaTrend: string, options: {
 } = {}): Trend[] {
   const db = getDb();
   try {
-    let query = "SELECT * FROM trends WHERE mega_trend = ?";
+    let query = TREND_SELECT + " WHERE t.mega_trend = ?";
     const params: unknown[] = [megaTrend];
 
     if (options.status) {
-      query += " AND status = ?";
+      query += " AND t.status = ?";
       params.push(options.status);
     }
 
-    query += " ORDER BY created_at DESC LIMIT ?";
+    query += " ORDER BY COALESCE(re.published_date, t.created_at) DESC LIMIT ?";
     params.push(options.limit ?? 50);
 
     const rows = db.prepare(query).all(...params) as Record<string, unknown>[];
@@ -152,15 +157,15 @@ export function getCrossVerticalTrends(options: {
 } = {}): Trend[] {
   const db = getDb();
   try {
-    let query = "SELECT * FROM trends WHERE json_array_length(verticals) > 1";
+    let query = TREND_SELECT + " WHERE json_array_length(t.verticals) > 1";
     const params: unknown[] = [];
 
     if (options.status) {
-      query += " AND status = ?";
+      query += " AND t.status = ?";
       params.push(options.status);
     }
 
-    query += " ORDER BY trend_score DESC, created_at DESC LIMIT ?";
+    query += " ORDER BY t.trend_score DESC, COALESCE(re.published_date, t.created_at) DESC LIMIT ?";
     params.push(options.limit ?? 20);
 
     const rows = db.prepare(query).all(...params) as Record<string, unknown>[];
@@ -175,8 +180,10 @@ export function getTopTrendsByEngagement(limit: number = 10): Trend[] {
   try {
     const rows = db
       .prepare(
-        `SELECT t.*, COALESCE(m.page_views, 0) as views
+        `SELECT t.*, MIN(re.published_date, datetime('now')) as source_date, s.source_type as source_type, COALESCE(m.page_views, 0) as views
          FROM trends t
+         LEFT JOIN raw_entries re ON t.raw_entry_id = re.id
+         LEFT JOIN sources s ON re.source_id = s.id
          LEFT JOIN trend_metrics m ON t.id = m.trend_id
          WHERE t.status = 'published'
          ORDER BY views DESC, t.trend_score DESC
@@ -192,15 +199,15 @@ export function getTopTrendsByEngagement(limit: number = 10): Trend[] {
 export function getVerticalCounts(status?: string): Record<string, number> {
   const db = getDb();
   try {
-    let query = "SELECT primary_vertical, COUNT(*) as cnt FROM trends WHERE 1=1";
+    let query = "SELECT primary_vertical, COUNT(*) as cnt FROM trends t WHERE 1=1";
     const params: unknown[] = [];
 
     if (status) {
-      query += " AND status = ?";
+      query += " AND t.status = ?";
       params.push(status);
     }
 
-    query += " GROUP BY primary_vertical ORDER BY cnt DESC";
+    query += " GROUP BY t.primary_vertical ORDER BY cnt DESC";
 
     const rows = db.prepare(query).all(...params) as {
       primary_vertical: string;

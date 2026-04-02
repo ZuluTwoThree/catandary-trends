@@ -820,3 +820,85 @@ catandary-trends/
    - Was ist noch offen?
    - Welche Entscheidungen wurden getroffen und warum?
 4. Neuen Sprint-Branch erstellen
+
+---
+
+## Quellenbalance & Pipeline-Optimierung (Stand: 2026-04-02)
+
+### Ist-Zustand Quellenverteilung
+
+| Vertical | Quellen | Trends | Bewertung |
+|----------|---------|--------|-----------|
+| FOOD | 6 | 510 | **Stark überrepräsentiert** — dominiert die Pipeline |
+| TECH | 6 | 199 | Gut, aber sehr "general tech" (VC/Startup-lastig) |
+| FASHION | 5 | 148 | OK, Business-Perspektive fehlt |
+| CULTURE | 5 | 139 | OK |
+| ECO | 6 | 118 | Ausbalanciert |
+| DESIGN | 5 | 117 | Ausbalanciert |
+| BIZ | 4 | 113 | **Wenigste Quellen**, keine strategische Quelle |
+| HEALTH | 5 | 110 | Pharma/Biotech fehlt |
+| SOCIAL | 5 | 79 | Schwach, Quellen sehr nischig |
+| LUXURY | 5 | 39 | **Stark unterrepräsentiert**, RSS-Angebot im Luxus-Bereich ist generell dünn |
+| CROSS | 2 | — | Presseverteiler (PR Newswire, GlobeNewswire) |
+
+### Verifizierte Quellen-Ergänzungen (RSS-Feeds geprüft 2026-04-02)
+
+| Quelle | Feed-URL | Vertical | Typ | Begründung |
+|--------|----------|----------|-----|------------|
+| **McKinsey Insights** | `https://www.mckinsey.com/insights/rss` | BIZ | trade_media | Strategische Cross-Industry-Perspektive, schließt größte Lücke |
+| **Endpoints News** | `https://endpts.com/feed/` | HEALTH | trade_media | Biotech, Pharma, Drug Development — ergänzt STAT News (Policy) und Nutraingredients (Supplements) |
+| **Healthcare IT News** | `https://www.healthcareitnews.com/feed` | HEALTH | trade_media | Digital Health, KI im Gesundheitswesen — wenig Output aber hochrelevant |
+| **Wired** | `https://www.wired.com/feed/rss` | TECH | trade_media | Breitere Tech/Society-Perspektive, gegen VC/Startup-Bias |
+| **IEEE Spectrum** | `https://spectrum.ieee.org/feeds/feed.rss` | TECH | trade_media | Deep Tech, Engineering, Forschung — fehlt komplett im Mix |
+| **Glossy** | `https://www.glossy.co/feed/` | FASHION | trade_media | Fashion/Beauty-Industrie, ergänzt BoF (Strategie) und Cosmetics Design (Ingredients) |
+| **Platformer** | `https://platformer.news/rss/` | CULTURE | trade_media | Tech-Policy, Platform-Regulierung, Social Media — passt zu Mega-Trend "Creator Economy & Platform Shift" |
+
+### Nicht ergänzt (und warum)
+
+- **FOOD**: Bereits 510 Trends bei 6 Quellen — braucht keine weiteren Quellen, sondern eher Differenzierung (→ siehe FOOD-Vertical-Aufspaltung unten)
+- **DESIGN**: Dezeen + ArchDaily + Designboom decken Architektur und Produktdesign gut ab
+- **ECO**: 6 Quellen, 118 Trends — ausbalanciert
+- **LUXURY**: Luxury Society, JCK, WWD haben kein funktionierendes öffentliches RSS — Luxus-Fachmedien sind überwiegend Paywall/geschlossene Plattformen
+
+### Balance-Prinzip für die Datenpipeline
+
+Die Pipeline soll langfristig eine ausgewogene Verteilung über alle Vertikale anstreben. Aktuell dominiert FOOD mit ~32% aller Trends, während LUXURY nur ~2.5% ausmacht. Maßnahmen:
+
+1. **Neue Quellen priorisiert für unterrepräsentierte Vertikale** hinzufügen (BIZ, HEALTH, TECH, FASHION, CULTURE — siehe oben)
+2. **FOOD-Übergewicht reduzieren** durch Prüfung einer Vertical-Aufspaltung (siehe unten) und/oder Erhöhung des Relevanz-Schwellenwerts für FOOD
+3. **Regelmäßiger Balance-Check** (monatlich): Trends pro Vertical zählen, bei >3x Abweichung vom Median Quellen und Schwellenwerte anpassen
+4. **LUXURY bleibt strukturell schwach** wegen fehlendem RSS-Angebot — Trendhunter-Radar ist hier die Hauptquelle. Ggf. Brand-Newsrooms (LVMH, Kering, Richemont) als ergänzende Quellen evaluieren
+
+---
+
+## Offene Evaluation: FOOD-Vertical Aufspaltung
+
+### Problem
+
+FOOD ist mit 510 Trends (~32% des Gesamtbestands) deutlich überrepräsentiert. Das liegt daran, dass "Food & Beverage" ein extrem breites Feld ist, das von AgriTech über Gastronomie bis zu Lebensmittel-Regulierung reicht. Die Signale sind inhaltlich sehr heterogen — ein Precision-Agriculture-Startup hat wenig mit einem neuen Restaurantkonzept gemeinsam.
+
+### Zu prüfende Aufspaltung
+
+| Sub-Vertical | Kürzel | Abdeckung | Beispiel-Signale |
+|---|---|---|---|
+| **Food & Beverage** | FOOD | Lebensmittel-Produkte, Getränke, Ingredients, Functional Foods | Plant-Based Protein, Fermentation, Novel Ingredients |
+| **FoodTech** | FOODTECH | AgriTech, Precision Agriculture, Lab-Grown, Food-AI | Vertical Farming, Cellular Agriculture, AI-Rezeptentwicklung |
+| **Foodservice & Gastro** | GASTRO | Restaurants, Catering, Hospitality, Dark Kitchens | Ghost Kitchens, Experiential Dining, Robotik in der Gastronomie |
+| **Food Retail & Supply Chain** | FOODRETAIL | Lebensmittelhandel, Logistik, Packaging, D2C Food | Smart Shelf, Last-Mile Delivery, Sustainable Packaging |
+| **Food Regulation & Safety** | — | Könnte auch unter FOOD bleiben | Nährwertkennzeichnung, Novel Food Regulation, EFSA-Entscheidungen |
+
+### Entscheidungskriterien
+
+Bevor eine Aufspaltung implementiert wird, muss geprüft werden:
+
+1. **Ist die Trennung im LLM-Klassifikationsschritt zuverlässig?** — Kann Qwen3 8B konsistent zwischen FOOD, FOODTECH und GASTRO unterscheiden, oder produziert die Aufspaltung vor allem Rauschen?
+2. **Gibt es genug Quellen pro Sub-Vertical?** — FoodNavigator und Food Dive decken alles ab; für GASTRO oder FOODRETAIL müssten neue Quellen gefunden werden
+3. **Verbessert es die UX auf der Website?** — Mehr Vertikale = feinere Filter, aber auch mehr Komplexität. Aktuell haben wir 10 Vertikale, 13-14 könnten noch übersichtlich sein
+4. **Ist Tagging statt Aufspaltung die bessere Lösung?** — Alternativ könnte FOOD bleiben, aber Sub-Tags wie `foodtech`, `gastro`, `food-retail` als Filter dienen, ohne die Vertical-Architektur zu ändern
+
+### Nächste Schritte
+
+- [ ] Bestehende 510 FOOD-Trends manuell stichprobenartig in Sub-Kategorien einteilen (Sample von 50)
+- [ ] Prüfen ob das LLM die Unterscheidung konsistent trifft (Testlauf mit 50 Artikeln + Sub-Vertical-Prompt)
+- [ ] Entscheidung: Echte Vertical-Aufspaltung vs. Sub-Tags innerhalb FOOD
+- [ ] Bei Aufspaltung: Neue Quellen für GASTRO und FOODRETAIL evaluieren (z.B. Restaurant Business, Progressive Grocer, Supermarket News)

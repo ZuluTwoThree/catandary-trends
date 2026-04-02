@@ -27,6 +27,7 @@ from pipeline.config import (
     MODEL_FILTER,
     MODEL_GENERATE,
     RELEVANCE_THRESHOLD,
+    get_mega_trend_prompt_block,
 )
 from pipeline.db import (
     get_recent_embeddings,
@@ -42,6 +43,7 @@ from pipeline.models import (
     GeneratedContent,
     RelevanceResult,
 )
+from pipeline.crs import compute_crs
 from pipeline.ollama_client import chat_structured, generate_embedding
 
 logging.basicConfig(
@@ -73,19 +75,60 @@ EXTRACTION_SYSTEM = """\
 You are a precise information extractor. Extract ONLY information that is explicitly stated in the text.
 Do not infer, guess, or add information. If something is not mentioned, leave it as null or empty."""
 
-CLASSIFICATION_SYSTEM = """\
-You are a trend classifier for Catandary Trends. Classify the trend signal using these taxonomies:
+_CLASSIFICATION_SYSTEM_TEMPLATE = """\
+You are a trend classifier for Catandary Trends, a cross-industry trend intelligence platform.
 
-VERTICALS: FOOD (Food & Beverage), TECH (Technology & AI), HEALTH (Health & Wellness),
+## Your task
+Classify a single trend signal into the Catandary taxonomy. You must assign:
+1. Verticals (1-3)
+2. PESTEL dimensions (1-3)
+3. Tags (3-8, specific, lowercase)
+4. Signal type
+5. Regions
+6. Mega-trend (exactly one from the canonical list below, or null if none fits)
+
+## Verticals
+FOOD (Food & Beverage), TECH (Technology & AI), HEALTH (Health & Wellness),
 ECO (Sustainability & Eco), DESIGN (Design & Architecture), FASHION (Fashion & Beauty),
 BIZ (Business & Retail), CULTURE (Culture & Media), SOCIAL (Social Impact), LUXURY (Luxury & Premium)
 
-PESTEL: P (Political), E (Economic), S (Social), T (Technological), En (Environmental), L (Legal)
+Cross-vertical assignment is common and encouraged when a trend genuinely spans industries.
 
-SIGNAL TYPES: product_launch, research, market_shift, consumer_behavior, regulation, funding, partnership, patent
+## PESTEL dimensions
+P (Political), E (Economic), S (Social), T (Technological), En (Environmental), L (Legal)
 
-Assign 1-3 verticals (cross-vertical trends are common). Always include at least one PESTEL dimension.
-Use specific, lowercase tags (3-8 tags). If you can identify a mega-trend, name it concisely."""
+## Signal types
+product_launch, research, market_shift, consumer_behavior, regulation, funding, partnership, patent
+
+## Mega-trend assignment rules
+
+A mega-trend is a structural shift with a 10-25 year time horizon that is NOT dependent on a single \
+company, technology, or product. It describes WHERE an entire industry or society is heading.
+
+Pick exactly one mega-trend from this canonical list. If the trend signal does not clearly fit any \
+mega-trend, set mega_trend to null — do NOT invent new mega-trend names.
+
+To decide which mega-trend fits, ask yourself: "If I removed this structural shift from the world, \
+would this trend signal still exist?" If the answer is no, that is the correct mega-trend.
+
+### Canonical mega-trends:
+{mega_trend_block}
+
+## Important
+- Use ONLY keys from the canonical mega-trend list above. Never invent new mega-trend names.
+- A product launch can still map to a mega-trend if it is a manifestation of that structural shift.
+- When in doubt between two mega-trends, pick the one that describes the deeper structural driver."""
+
+
+def _build_classification_system() -> str:
+    """Build the classification system prompt with current mega-trend taxonomy."""
+    return _CLASSIFICATION_SYSTEM_TEMPLATE.format(
+        mega_trend_block=get_mega_trend_prompt_block()
+    )
+
+
+# Built once at import time; rebuilt if mega_trends.yaml changes (restart required)
+CLASSIFICATION_SYSTEM = _build_classification_system()
 
 CONTENT_EN_SYSTEM = """\
 You are a professional trend analyst writing for Catandary Trends, a cross-industry trend intelligence platform.
@@ -345,7 +388,13 @@ def process_entry(entry: dict) -> dict | None:
         "trend_level": "micro",  # Default; macro/mega assigned later
         "brands": [extraction.brand_name] if extraction.brand_name else [],
         "regions": classification.regions,
-        "trend_score": relevance.confidence,
+        "trend_score": compute_crs(
+            confidence=relevance.confidence,
+            num_verticals=len(classification.verticals),
+            num_pestel=len(classification.pestel),
+            signal_type=classification.trend_signal_type,
+            source_type=entry.get("source_type"),
+        ) / 100.0,
         "confidence": relevance.confidence,
         "source_url": source_url,
         "source_name": source_name,

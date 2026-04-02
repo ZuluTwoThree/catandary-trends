@@ -44,3 +44,25 @@ def load_sources() -> dict:
     sources_path = PROJECT_ROOT / "sources.yaml"
     with open(sources_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def load_mega_trends() -> list[dict]:
+    """Load canonical mega-trends taxonomy from mega_trends.yaml."""
+    path = PROJECT_ROOT / "mega_trends.yaml"
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data.get("mega_trends", [])
+
+
+def get_mega_trend_keys() -> list[str]:
+    """Get list of canonical mega-trend keys for LLM prompt."""
+    return [mt["key"] for mt in load_mega_trends()]
+
+
+def get_mega_trend_prompt_block() -> str:
+    """Build the mega-trend section for the classification prompt."""
+    trends = load_mega_trends()
+    lines = []
+    for mt in trends:
+        lines.append(f'- {mt["key"]}: {mt["description"]}')
+    return "\n".join(lines)
