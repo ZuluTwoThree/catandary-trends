@@ -90,7 +90,7 @@ Classify a single trend signal into the Catandary taxonomy. You must assign:
 ## Verticals
 FOOD (Food & Beverage), TECH (Technology & AI), HEALTH (Health & Wellness),
 ECO (Sustainability & Eco), DESIGN (Design & Architecture), FASHION (Fashion & Beauty),
-BIZ (Business & Retail), CULTURE (Culture & Media), SOCIAL (Social Impact), LUXURY (Luxury & Premium)
+BIZ (Business & Retail), LIFESTYLE (Culture, Media, Entertainment, Social Impact, Education, Luxury, Travel, Gaming)
 
 Cross-vertical assignment is common and encouraged when a trend genuinely spans industries.
 
@@ -178,14 +178,8 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
 
 def step_relevance_filter(title: str, excerpt: str, source_vertical: str) -> RelevanceResult | None:
     """Step 1: Determine if the entry is a relevant trend signal."""
-    vertical_hint = (
-        f"Source vertical hint: {source_vertical}"
-        if source_vertical and source_vertical != "CROSS"
-        else "This is from a cross-industry source. Classify the vertical based purely on the content."
-    )
     prompt = f"""Analyze this RSS feed entry and determine if it's a relevant trend signal.
-
-{vertical_hint}
+Classify the vertical based purely on the content, not on where the source comes from.
 
 Title: {title}
 

@@ -1,6 +1,6 @@
 export type Vertical =
   | "FOOD" | "TECH" | "HEALTH" | "ECO" | "DESIGN"
-  | "FASHION" | "BIZ" | "CULTURE" | "SOCIAL" | "LUXURY";
+  | "FASHION" | "BIZ" | "LIFESTYLE";
 
 export type PestelDimension = "P" | "E" | "S" | "T" | "En" | "L";
 
@@ -63,9 +63,7 @@ export const VERTICALS: VerticalInfo[] = [
   { id: "DESIGN", label: "Design & Architecture", color: "#ec4899", icon: "🎨" },
   { id: "FASHION", label: "Fashion & Beauty", color: "#f43f5e", icon: "👗" },
   { id: "BIZ", label: "Business & Retail", color: "#3b82f6", icon: "📊" },
-  { id: "CULTURE", label: "Culture & Media", color: "#a855f7", icon: "🎭" },
-  { id: "SOCIAL", label: "Social Impact", color: "#22c55e", icon: "🤝" },
-  { id: "LUXURY", label: "Luxury & Premium", color: "#eab308", icon: "✨" },
+  { id: "LIFESTYLE", label: "Lifestyle & Culture", color: "#a855f7", icon: "🎭" },
 ];
 
 export const PESTEL: PestelInfo[] = [
@@ -103,7 +101,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "AI/ML integration across industries — from generative AI and design tools to industrial robotics and autonomous systems.",
     description_de: "KI/ML-Integration über alle Branchen — von generativer KI und Design-Tools bis zu industrieller Robotik und autonomen Systemen.",
     icon: "🤖",
-    verticals: ["TECH", "BIZ", "HEALTH", "FOOD", "DESIGN", "CULTURE"],
+    verticals: ["TECH", "BIZ", "HEALTH", "FOOD", "DESIGN", "LIFESTYLE"],
   },
   {
     key: "circular_economy_and_zero_waste",
@@ -130,7 +128,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "Designing systems for climate change impact — flood-resistant architecture, heat adaptation, climate-smart agriculture.",
     description_de: "Systeme für den Klimawandel gestalten — hochwasserresistente Architektur, Hitzeanpassung, klimasmarte Landwirtschaft.",
     icon: "🌍",
-    verticals: ["ECO", "DESIGN", "FOOD", "SOCIAL"],
+    verticals: ["ECO", "DESIGN", "FOOD", "LIFESTYLE"],
   },
   {
     key: "clean_energy_transition",
@@ -139,7 +137,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "Decarbonization of energy, industry and transport — renewables, energy storage, grid modernization, carbon capture.",
     description_de: "Dekarbonisierung von Energie, Industrie und Verkehr — Erneuerbare, Energiespeicher, Netzmodernisierung.",
     icon: "⚡",
-    verticals: ["ECO", "TECH", "BIZ", "SOCIAL"],
+    verticals: ["ECO", "TECH", "BIZ", "LIFESTYLE"],
   },
   {
     key: "bio_revolution_and_new_materials",
@@ -166,7 +164,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "Physical spaces as experience platforms — immersive retail, experiential dining, sensory environments, pop-up culture.",
     description_de: "Physische Räume als Erlebnisplattformen — immersiver Retail, Erlebnis-Gastronomie, sensorische Umgebungen.",
     icon: "✨",
-    verticals: ["DESIGN", "BIZ", "CULTURE", "LUXURY", "FOOD"],
+    verticals: ["DESIGN", "BIZ", "LIFESTYLE", "FOOD"],
   },
   {
     key: "cultural_heritage_and_identity",
@@ -175,7 +173,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "Revival of craft traditions, cultural fusion, place-based branding, indigenous knowledge, regional identity.",
     description_de: "Revival von Handwerkstraditionen, kulturelle Fusion, ortsbasiertes Branding, indigenes Wissen.",
     icon: "🏛️",
-    verticals: ["DESIGN", "FASHION", "CULTURE", "FOOD", "LUXURY"],
+    verticals: ["DESIGN", "FASHION", "LIFESTYLE", "FOOD"],
   },
   {
     key: "inclusive_and_human_centric_design",
@@ -184,7 +182,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "Universal accessibility, assistive technology, gender-inclusive products, neurodiversity, equity in design.",
     description_de: "Universelle Barrierefreiheit, assistive Technologien, genderinklusive Produkte, Neurodiversität.",
     icon: "♿",
-    verticals: ["DESIGN", "SOCIAL", "HEALTH", "TECH", "FASHION"],
+    verticals: ["DESIGN", "LIFESTYLE", "HEALTH", "TECH", "FASHION"],
   },
   {
     key: "future_of_food_and_agriculture",
@@ -202,7 +200,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "Content monetization, creator tools, decentralized media, platform economy, digital-native brands.",
     description_de: "Content-Monetarisierung, Creator-Tools, dezentrale Medien, Plattformökonomie, digital-native Marken.",
     icon: "📱",
-    verticals: ["CULTURE", "TECH", "BIZ", "FASHION"],
+    verticals: ["LIFESTYLE", "TECH", "BIZ", "FASHION"],
   },
   {
     key: "new_luxury_and_premiumization",
@@ -211,7 +209,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "Luxury democratization, quiet luxury, experiential premium, artisanal positioning, heritage brand renewal.",
     description_de: "Luxus-Demokratisierung, Quiet Luxury, erlebnisorientiertes Premium, handwerkliche Positionierung.",
     icon: "💎",
-    verticals: ["LUXURY", "FASHION", "DESIGN", "FOOD", "BIZ"],
+    verticals: ["LIFESTYLE", "FASHION", "DESIGN", "FOOD", "BIZ"],
   },
   {
     key: "modular_and_adaptive_systems",
@@ -220,7 +218,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "Reconfigurable architecture, modular furniture/housing, flexible workspaces, temporary structures.",
     description_de: "Rekonfigurierbare Architektur, modulare Möbel/Wohnungen, flexible Arbeitsbereiche, temporäre Strukturen.",
     icon: "🧩",
-    verticals: ["DESIGN", "BIZ", "TECH", "SOCIAL"],
+    verticals: ["DESIGN", "BIZ", "TECH", "LIFESTYLE"],
   },
   {
     key: "urban_transformation_and_smart_cities",
@@ -229,7 +227,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "Redesigning cities for density, livability and sustainability — public space, smart infrastructure, transit.",
     description_de: "Städte neu gestalten für Dichte, Lebensqualität und Nachhaltigkeit — öffentlicher Raum, smarte Infrastruktur.",
     icon: "🏙️",
-    verticals: ["DESIGN", "ECO", "SOCIAL", "TECH", "BIZ"],
+    verticals: ["DESIGN", "ECO", "LIFESTYLE", "TECH", "BIZ"],
   },
   {
     key: "financial_innovation_and_inclusion",
@@ -238,7 +236,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "Fintech disruption, embedded finance, digital banking, decentralized finance, financial literacy.",
     description_de: "Fintech-Disruption, Embedded Finance, Digital Banking, dezentrale Finanzen, Finanzbildung.",
     icon: "💳",
-    verticals: ["BIZ", "TECH", "SOCIAL"],
+    verticals: ["BIZ", "TECH", "LIFESTYLE"],
   },
   {
     key: "mental_health_and_neuro_wellness",
@@ -247,7 +245,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "Mental health technology, neuroscience-based products, stress management, mindfulness platforms, biofeedback.",
     description_de: "Mental-Health-Technologie, neurowissenschaftsbasierte Produkte, Stressmanagement, Achtsamkeitsplattformen.",
     icon: "🧠",
-    verticals: ["HEALTH", "TECH", "FASHION", "SOCIAL"],
+    verticals: ["HEALTH", "TECH", "FASHION", "LIFESTYLE"],
   },
   {
     key: "regenerative_design_and_net_positive",
@@ -283,7 +281,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     description_en: "Data privacy, digital identity, AI governance, algorithmic transparency, cybersecurity, content authentication.",
     description_de: "Datenschutz, digitale Identität, KI-Governance, algorithmische Transparenz, Cybersicherheit.",
     icon: "🔒",
-    verticals: ["TECH", "BIZ", "SOCIAL", "HEALTH"],
+    verticals: ["TECH", "BIZ", "LIFESTYLE", "HEALTH"],
   },
 ];
 

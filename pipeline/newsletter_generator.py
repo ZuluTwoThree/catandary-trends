@@ -28,9 +28,7 @@ VERTICAL_LABELS = {
     "DESIGN": ("Design & Architecture", "🎨"),
     "FASHION": ("Fashion & Beauty", "👗"),
     "BIZ": ("Business & Retail", "📊"),
-    "CULTURE": ("Culture & Media", "🎭"),
-    "SOCIAL": ("Social Impact", "🤝"),
-    "LUXURY": ("Luxury & Premium", "✨"),
+    "LIFESTYLE": ("Lifestyle & Culture", "🎭"),
 }
 
 

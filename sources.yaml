@@ -218,8 +218,9 @@ verticals:
         feed_url: https://www.retail-insider.com/feed/
         type: trade_media
 
-  CULTURE:
+  LIFESTYLE:
     sources:
+      # Culture & Media
       - name: Nieman Lab
         feed_url: https://www.niemanlab.org/feed/
         type: trade_media
@@ -232,9 +233,7 @@ verticals:
       - name: Hypebeast
         feed_url: https://www.hypebeast.com/feed/
         type: trade_media
-
-  SOCIAL:
-    sources:
+      # Social Impact & Education
       - name: Impact Alpha
         feed_url: https://impactalpha.com/feed/
         type: trade_media
@@ -247,9 +246,7 @@ verticals:
       - name: Nonprofit Quarterly
         feed_url: https://nonprofitquarterly.org/feed/
         type: trade_media
-
-  LUXURY:
-    sources:
+      # Luxury & Travel
       - name: Robb Report
         feed_url: https://robbreport.com/feed/
         type: trade_media

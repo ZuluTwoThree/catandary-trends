@@ -35,7 +35,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 VERTICALS = ["FOOD", "TECH", "HEALTH", "ECO", "DESIGN",
-             "FASHION", "BIZ", "CULTURE", "SOCIAL", "LUXURY"]
+             "FASHION", "BIZ", "LIFESTYLE"]
 
 # Process trends in batches to fit context window (~16K tokens)
 BATCH_SIZE = 25

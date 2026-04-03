@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 Vertical = Literal[
     "FOOD", "TECH", "HEALTH", "ECO", "DESIGN",
-    "FASHION", "BIZ", "CULTURE", "SOCIAL", "LUXURY",
+    "FASHION", "BIZ", "LIFESTYLE",
 ]
 
 PestelDimension = Literal["P", "E", "S", "T", "En", "L"]
