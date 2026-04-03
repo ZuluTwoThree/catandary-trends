@@ -178,9 +178,14 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
 
 def step_relevance_filter(title: str, excerpt: str, source_vertical: str) -> RelevanceResult | None:
     """Step 1: Determine if the entry is a relevant trend signal."""
+    vertical_hint = (
+        f"Source vertical hint: {source_vertical}"
+        if source_vertical and source_vertical != "CROSS"
+        else "This is from a cross-industry source. Classify the vertical based purely on the content."
+    )
     prompt = f"""Analyze this RSS feed entry and determine if it's a relevant trend signal.
 
-Source vertical hint: {source_vertical}
+{vertical_hint}
 
 Title: {title}
 
