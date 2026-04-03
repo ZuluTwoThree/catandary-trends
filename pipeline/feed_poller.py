@@ -101,7 +101,7 @@ def poll_vertical_sources(vertical: str, config: dict) -> dict:
     """Poll all sources for a single vertical. Returns stats."""
     stats = {"fetched": 0, "new": 0, "duplicate": 0, "errors": 0}
 
-    all_sources = config.get("sources", []) + config.get("radar", [])
+    all_sources = config.get("sources", []) + config.get("science", []) + config.get("radar", [])
 
     for source_cfg in all_sources:
         source_name = source_cfg["name"]

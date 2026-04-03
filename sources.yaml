@@ -1,5 +1,5 @@
 # Catandary Trends – Source Configuration
-# Sprint 1: FOOD + TECH | Sprint 4: HEALTH + ECO
+# Updated: 2026-04-03
 
 verticals:
   FOOD:
@@ -16,13 +16,22 @@ verticals:
       - name: BeverageDaily
         feed_url: https://www.beveragedaily.com/arc/outboundfeeds/rss/
         type: trade_media
-      - name: New Food Magazine
-        feed_url: https://www.newfoodmagazine.com/feed/
+      - name: Eater
+        feed_url: https://www.eater.com/rss/index.xml
         type: trade_media
-    radar:
-      - name: Trendhunter Food
-        feed_url: https://www.trendhunter.com/rss/category/Food-Trends
-        type: radar
+      - name: Nation's Restaurant News
+        feed_url: https://www.nrn.com/rss.xml
+        type: trade_media
+      - name: Confectionery Production
+        feed_url: https://www.confectioneryproduction.com/feed/
+        type: trade_media
+    science:
+      - name: Nature Food
+        feed_url: https://www.nature.com/natfood.rss
+        type: research
+      - name: Trends in Food Science & Technology
+        feed_url: https://rss.sciencedirect.com/publication/science/09242244
+        type: research
 
   TECH:
     sources:
@@ -41,10 +50,31 @@ verticals:
       - name: MIT Technology Review
         feed_url: https://www.technologyreview.com/feed/
         type: trade_media
-    radar:
-      - name: Trendhunter Tech
-        feed_url: https://www.trendhunter.com/rss/category/Technology-Trends-and-Gadgets
-        type: radar
+      - name: IEEE Spectrum
+        feed_url: https://spectrum.ieee.org/feeds/feed.rss
+        type: trade_media
+      - name: IoT Tech News
+        feed_url: https://www.iottechnews.com/feed/
+        type: trade_media
+    science:
+      - name: Nature Machine Intelligence
+        feed_url: https://www.nature.com/natmachintell.rss
+        type: research
+      - name: Nature Electronics
+        feed_url: https://www.nature.com/natelectron.rss
+        type: research
+      - name: IEEE Spectrum AI
+        feed_url: https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss
+        type: research
+      - name: IEEE Spectrum Robotics
+        feed_url: https://spectrum.ieee.org/feeds/topic/robotics.rss
+        type: research
+      - name: Tech Xplore AI/ML
+        feed_url: https://techxplore.com/rss-feed/machine-learning-ai-news/
+        type: research
+      - name: Ars Technica Science
+        feed_url: https://feeds.arstechnica.com/arstechnica/science
+        type: research
 
   HEALTH:
     sources:
@@ -60,10 +90,31 @@ verticals:
       - name: Fierce Healthcare
         feed_url: https://www.fiercehealthcare.com/rss/xml
         type: trade_media
-    radar:
-      - name: Trendhunter Health
-        feed_url: https://www.trendhunter.com/rss/category/Health-and-Fitness-Trends
-        type: radar
+      - name: AthletechNews
+        feed_url: https://athletechnews.com/feed/
+        type: trade_media
+      - name: Nutritional Outlook
+        feed_url: https://www.nutritionaloutlook.com/rss.xml
+        type: trade_media
+    science:
+      - name: Nature Medicine
+        feed_url: https://www.nature.com/nm.rss
+        type: research
+      - name: The Lancet
+        feed_url: https://www.thelancet.com/rssfeed/lancet_current.xml
+        type: research
+      - name: Lancet Digital Health
+        feed_url: https://www.thelancet.com/rssfeed/landig_current.xml
+        type: research
+      - name: Medical Xpress
+        feed_url: https://medicalxpress.com/rss-feed/
+        type: research
+      - name: Nature Neuroscience
+        feed_url: https://www.nature.com/neuro.rss
+        type: research
+      - name: Nature Aging
+        feed_url: https://www.nature.com/nataging.rss
+        type: research
 
   ECO:
     sources:
@@ -79,10 +130,28 @@ verticals:
       - name: Renewable Energy World
         feed_url: https://www.renewableenergyworld.com/feed/
         type: trade_media
-    radar:
-      - name: Trendhunter Environmental
-        feed_url: https://www.trendhunter.com/rss/category/Environmental-Trends
-        type: radar
+      - name: Carbon Herald
+        feed_url: https://www.carbonherald.com/feed/
+        type: trade_media
+      - name: Grist
+        feed_url: https://www.grist.org/feed/
+        type: trade_media
+    science:
+      - name: Nature Sustainability
+        feed_url: https://www.nature.com/natsustain.rss
+        type: research
+      - name: Nature Climate Change
+        feed_url: https://www.nature.com/nclimate.rss
+        type: research
+      - name: Nature Energy
+        feed_url: https://www.nature.com/nenergy.rss
+        type: research
+      - name: One Earth
+        feed_url: https://www.cell.com/one-earth/current.rss
+        type: research
+      - name: Lancet Planetary Health
+        feed_url: https://www.thelancet.com/rssfeed/lanplh_current.xml
+        type: research
 
   DESIGN:
     sources:
@@ -98,18 +167,24 @@ verticals:
       - name: Designboom
         feed_url: https://www.designboom.com/feed/
         type: trade_media
-    radar:
-      - name: Trendhunter Design
-        feed_url: https://www.trendhunter.com/rss/category/Modern-Art-and-Design-Trends
-        type: radar
+    science:
+      - name: Nature Reviews Materials
+        feed_url: https://www.nature.com/natrevmats.rss
+        type: research
+      - name: Nature Materials
+        feed_url: https://www.nature.com/nmat.rss
+        type: research
+      - name: Matter (Cell Press)
+        feed_url: https://www.cell.com/matter/current.rss
+        type: research
 
   FASHION:
     sources:
       - name: Business of Fashion
         feed_url: https://www.businessoffashion.com/feed/
         type: trade_media
-      - name: Cosmetics Design
-        feed_url: https://www.cosmeticsdesign.com/arc/outboundfeeds/rss/
+      - name: Glossy
+        feed_url: https://www.glossy.co/feed/
         type: trade_media
       - name: Fashionista
         feed_url: https://fashionista.com/.rss/full/
@@ -117,10 +192,16 @@ verticals:
       - name: Sourcing Journal
         feed_url: https://sourcingjournal.com/feed/
         type: trade_media
-    radar:
-      - name: Trendhunter Fashion
-        feed_url: https://www.trendhunter.com/rss/category/Style-and-Fashion-Trends
-        type: radar
+      - name: WWD
+        feed_url: https://www.wwd.com/feed/
+        type: trade_media
+      - name: Vogue UK
+        feed_url: https://www.vogue.co.uk/feed/rss
+        type: trade_media
+    science:
+      - name: Trends in Biotechnology
+        feed_url: https://rss.sciencedirect.com/publication/science/01677799
+        type: research
 
   BIZ:
     sources:
@@ -133,10 +214,9 @@ verticals:
       - name: Finextra
         feed_url: https://www.finextra.com/rss/headlines.aspx
         type: trade_media
-    radar:
-      - name: Trendhunter Business
-        feed_url: https://www.trendhunter.com/rss/category/Business-Trends
-        type: radar
+      - name: Retail Insider
+        feed_url: https://www.retail-insider.com/feed/
+        type: trade_media
 
   CULTURE:
     sources:
@@ -146,16 +226,12 @@ verticals:
       - name: GamesIndustry.biz
         feed_url: https://www.gamesindustry.biz/feed
         type: trade_media
-      - name: The Wrap
-        feed_url: https://www.thewrap.com/feed/
-        type: trade_media
       - name: Creative Bloq
         feed_url: https://www.creativebloq.com/feed
         type: trade_media
-    radar:
-      - name: Trendhunter Culture
-        feed_url: https://www.trendhunter.com/rss/category/Pop-Culture-and-Internet-Trends
-        type: radar
+      - name: Hypebeast
+        feed_url: https://www.hypebeast.com/feed/
+        type: trade_media
 
   SOCIAL:
     sources:
@@ -171,10 +247,6 @@ verticals:
       - name: Nonprofit Quarterly
         feed_url: https://nonprofitquarterly.org/feed/
         type: trade_media
-    radar:
-      - name: Trendhunter Social
-        feed_url: https://www.trendhunter.com/rss/category/Social-Trends
-        type: radar
 
   LUXURY:
     sources:
@@ -190,10 +262,6 @@ verticals:
       - name: Skift
         feed_url: https://skift.com/feed/
         type: trade_media
-    radar:
-      - name: Trendhunter Luxury
-        feed_url: https://www.trendhunter.com/rss/category/Luxury-Trends
-        type: radar
 
 cross_industry:
   press_wires:
@@ -203,3 +271,28 @@ cross_industry:
     - name: GlobeNewswire
       feed_url: https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20Releases
       type: press_wire
+  science:
+    - name: Nature (main)
+      feed_url: https://www.nature.com/nature.rss
+      type: research
+    - name: Science Magazine News
+      feed_url: https://www.science.org/rss/news_current.xml
+      type: research
+    - name: Phys.org
+      feed_url: https://phys.org/rss-feed/
+      type: research
+    - name: ScienceDaily Top
+      feed_url: https://www.sciencedaily.com/rss/top.xml
+      type: research
+    - name: Quanta Magazine
+      feed_url: https://www.quantamagazine.org/feed/
+      type: research
+    - name: New Scientist Technology
+      feed_url: https://www.newscientist.com/subject/technology/feed/
+      type: research
+    - name: Science News
+      feed_url: https://www.sciencenews.org/feed
+      type: research
+    - name: PNAS
+      feed_url: https://www.pnas.org/action/showFeed?type=etoc&feed=rss&jc=pnas
+      type: research

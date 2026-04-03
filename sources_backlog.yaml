@@ -1,0 +1,28 @@
+# Sources Backlog — evaluated but not yet integrated
+# Updated: 2026-04-03
+
+pending:
+  - name: Trendwatching Daily Innovations
+    feed_url: https://www.trendwatching.com/innovations/rss.xml
+    type: radar
+    vertical: CROSS
+    frequency: 1/day (weekdays)
+    notes: >
+      Cross-industry innovation signals, high quality. Free plan includes this content.
+      No ToS page exists, robots.txt permissive. Lower risk than Trendhunter.
+      RSS teaser is HTML with image only — title carries the signal (brand + innovation).
+      Could replace Trendhunter as radar layer. Needs: pipeline support for
+      extracting brand from title + Brave Search for original source.
+    evaluated: 2026-04-03
+    status: ready
+
+rejected:
+  - name: Trendhunter (all category feeds)
+    type: radar
+    vertical: CROSS
+    reason: >
+      Non-Commercial CC license conflicts with Catandary's lead-generator model.
+      RSS feeds blocked (403). All 346 existing TH-sourced trends removed from DB
+      on 2026-04-03 because they linked to trendhunter.com instead of primary sources.
+    evaluated: 2026-04-03
+    status: rejected
