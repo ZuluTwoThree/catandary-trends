@@ -16,7 +16,7 @@ Catandary Trends ist eine branchenübergreifende Trend-Intelligence-Plattform, d
 
 ## Catandary Trend-Taxonomie
 
-### Industrie-Vertikale (inspiriert von Trendhunter-Kategorien, aber eigene Struktur)
+### Industrie-Vertikale (eigenständige Catandary-Struktur)
 
 | Vertikale | Kürzel | Abdeckung | Beispiel-Signale |
 |---|---|---|---|
@@ -27,9 +27,7 @@ Catandary Trends ist eine branchenübergreifende Trend-Intelligence-Plattform, d
 | **Design & Architecture** | DESIGN | Produktdesign, Architektur, Interiors, UX | Biophilic Design, Modular Housing |
 | **Fashion & Beauty** | FASHION | Mode, Kosmetik, Textil, Schmuck | Slow Fashion, Biotech Materials, Clean Beauty |
 | **Business & Retail** | BIZ | Strategie, Startups, Handel, E-Commerce, Fintech | D2C, Recommerce, Embedded Finance |
-| **Culture & Media** | CULTURE | Entertainment, Social Media, Gaming, Kunst | Creator Economy, Spatial Computing |
-| **Social Impact** | SOCIAL | Bildung, Inklusion, Charity, Governance | EdTech, DEI, Impact Investing |
-| **Luxury & Premium** | LUXURY | High-End Produkte, Experiences, Travel | Experiential Luxury, Quiet Luxury |
+| **Lifestyle** | LIFESTYLE | Kultur, Entertainment, Social Media, Gaming, Kunst, Bildung, Inklusion, Luxury, Travel | Creator Economy, Spatial Computing, Experiential Luxury, EdTech |
 
 ### PESTEL-Klassifizierung (quer zu den Vertikalen)
 
@@ -129,7 +127,7 @@ Quellen werden pro Vertikale organisiert. Neue Vertikale starten mit 3-5 Kernque
 | Finextra | Fachpresse | Fintech, Banking, Payments |
 | CB Insights (Blog) | Research | Startups, Markets, VC |
 
-**CULTURE & MEDIA:**
+**LIFESTYLE (Kultur, Entertainment, Social Impact, Luxury):**
 | Quelle | Typ | Fokus |
 |---|---|---|
 | Nieman Lab | Fachpresse | Media, Journalism, Platforms |
@@ -151,34 +149,19 @@ Quellen werden pro Vertikale organisiert. Neue Vertikale starten mit 3-5 Kernque
 | Reddit (diverse Subreddits) | Offizielle API | Community-Signale |
 | Hacker News | RSS/API | Tech-Signale |
 
-### Schicht 2: Trendhunter als Cross-Industry Radar (RSS Excerpt Feeds)
+### Schicht 2: Brave Search als Cross-Industry Radar
 
-Trendhunter bietet Kategorie-spezifische RSS-Feeds – alle werden als Entdeckungsschicht genutzt:
+Trendhunter wurde vollständig ersetzt (Stand: 2026-04-03). Stattdessen nutzt die Pipeline Brave Search API als Entdeckungsschicht:
 
-| Trendhunter-Feed | → Catandary-Vertikale |
-|---|---|
-| `/rss/category/Food-Trends` | FOOD |
-| `/rss/category/Technology-Trends-and-Gadgets` | TECH |
-| `/rss/category/Health-and-Fitness-Trends` | HEALTH |
-| `/rss/category/Environmental-Trends` | ECO |
-| `/rss/category/Modern-Art-and-Design-Trends` | DESIGN |
-| `/rss/category/Style-and-Fashion-Trends` | FASHION |
-| `/rss/category/Business-Trends` | BIZ |
-| `/rss/category/Pop-Culture-and-Internet-Trends` | CULTURE |
-| `/rss/category/Social-Trends` | SOCIAL |
-| `/rss/category/Luxury-Trends` | LUXURY |
-
-Workflow pro Radar-Eintrag:
-- Titel + Teaser extrahieren (durch ToU gedeckt)
-- Per LLM den Markennamen aus dem Titel extrahieren
-- Per Web-Suche die Originalquelle finden (Titel + Markenname als Query)
-- Originalquelle in das Quellen-Netzwerk aufnehmen
-- **Kein Volltext-Scraping, kein Content-Speichern von Trendhunter**
+- Pro Vertikale werden kuratierte Suchqueries ausgeführt
+- Ergebnisse werden per LLM auf Trend-Relevanz gefiltert
+- Originalquellen werden direkt identifiziert und in das Quellen-Netzwerk aufgenommen
+- **Kein Scraping von Aggregator-Seiten**
 
 ### Schicht 3: Organisches Quellenwachstum
 
 Das System lernt über Zeit:
-- Neue Quellen-Domains, die über Trendhunter-Radar entdeckt werden, automatisch registrieren
+- Neue Quellen-Domains, die über Brave Search Radar entdeckt werden, automatisch registrieren
 - Nach 3+ Treffern von derselben Domain → RSS-Feed suchen und direkt anbinden
 - Wöchentlicher Report: "Neue Quellen entdeckt, noch nicht als RSS eingebunden"
 
@@ -213,7 +196,7 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
 [Schritt 1] RELEVANZ-FILTER (Qwen3 8B)
     "Ist das ein relevantes Trend-Signal?"
     → ja/nein/grenzwertig + confidence score
-    → Vertikale zuordnen: FOOD/TECH/HEALTH/ECO/DESIGN/FASHION/BIZ/CULTURE/SOCIAL/LUXURY
+    → Vertikale zuordnen: FOOD/TECH/HEALTH/ECO/DESIGN/FASHION/BIZ/LIFESTYLE
     → Wenn nein: archivieren als "gefiltert", Ende
     │
     ▼
@@ -266,8 +249,9 @@ from typing import Literal
 import time
 
 class TrendSignal(BaseModel):
-    is_food_trend: bool
+    is_relevant: bool
     confidence: float
+    primary_vertical: Literal["FOOD", "TECH", "HEALTH", "ECO", "DESIGN", "FASHION", "BIZ", "LIFESTYLE"]
     brand_name: str | None
     categories: list[str]
     tags: list[str]
@@ -316,7 +300,7 @@ CREATE TABLE sources (
     name TEXT NOT NULL,
     feed_url TEXT NOT NULL,
     source_type TEXT CHECK (source_type IN ('trade_media', 'press_wire', 'brand', 'api', 'radar')),
-    vertical TEXT CHECK (vertical IN ('FOOD','TECH','HEALTH','ECO','DESIGN','FASHION','BIZ','CULTURE','SOCIAL','LUXURY','CROSS')),
+    vertical TEXT CHECK (vertical IN ('FOOD','TECH','HEALTH','ECO','DESIGN','FASHION','BIZ','LIFESTYLE','CROSS')),
     sub_categories JSONB DEFAULT '[]',
     active BOOLEAN DEFAULT true,
     auto_discovered BOOLEAN DEFAULT false,
@@ -393,11 +377,11 @@ CREATE TABLE trend_metrics (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Source-Discovery-Log (Trendhunter-Radar)
+-- Source-Discovery-Log (Brave Search Radar)
 CREATE TABLE source_discoveries (
     id SERIAL PRIMARY KEY,
-    radar_source TEXT DEFAULT 'trendhunter',
-    radar_vertical TEXT,               -- welcher TH-Feed
+    radar_source TEXT DEFAULT 'brave_search',
+    radar_vertical TEXT,               -- welche Vertikale
     original_title TEXT,
     extracted_brand TEXT,
     discovered_url TEXT,
@@ -433,7 +417,7 @@ CREATE TABLE trend_clusters (
 # RSS-Feeds pollen (alle 4 Stunden)
 0 */4 * * *  python pipeline/feed_poller.py
 
-# Trendhunter-Radar (1x täglich, morgens)
+# Brave Search Radar (1x täglich, morgens)
 0 8 * * *    python pipeline/radar_discovery.py
 
 # LLM-Pipeline für neue Einträge (alle 4 Stunden, nach Polling)
@@ -462,10 +446,6 @@ verticals:
       - name: Food Dive
         feed_url: https://www.fooddive.com/feeds/...
         type: trade_media
-    radar:
-      - name: Trendhunter Food
-        feed_url: https://www.trendhunter.com/rss/category/Food-Trends
-        type: radar_only
 
   TECH:
     sources:
@@ -475,20 +455,6 @@ verticals:
       - name: Ars Technica
         feed_url: https://feeds.arstechnica.com/arstechnica/index
         type: trade_media
-    radar:
-      - name: Trendhunter Tech
-        feed_url: https://www.trendhunter.com/rss/category/Technology-Trends-and-Gadgets
-        type: radar_only
-
-  HEALTH:
-    sources:
-      - name: Nutraingredients
-        feed_url: https://www.nutraingredients.com/rss/...
-        type: trade_media
-    radar:
-      - name: Trendhunter Health
-        feed_url: https://www.trendhunter.com/rss/category/Health-and-Fitness-Trends
-        type: radar_only
 
   # ... weitere Vertikale nach gleichem Schema
 
@@ -500,39 +466,33 @@ cross_industry:
     - name: BusinessWire
       feed_url: https://www.businesswire.com/rss/...
       type: press_wire
-  apis:
-    - name: Exploding Topics
-      type: api
-      api_key_env: EXPLODING_TOPICS_KEY
 ```
 
-### Radar-Discovery Pipeline
+### Radar-Discovery Pipeline (Brave Search)
 
 ```python
 """
-Trendhunter RSS → Markenname extrahieren → Web-Suche → Originalquelle finden
+Brave Search API → Trend-Signale finden → Originalquelle identifizieren
 """
 
-def discover_sources_from_radar(radar_entries):
-    for entry in radar_entries:
-        # 1. Markenname aus RSS-Titel extrahieren (Qwen3 8B)
-        brand = extract_brand_name(entry.title)
+def discover_sources_from_radar(verticals):
+    for vertical, queries in verticals.items():
+        for query in queries:
+            # 1. Brave Search mit kuratierten Queries
+            search_results = brave_search(query)
 
-        # 2. Web-Suche nach Originalquelle
-        query = f"{brand} {extract_keywords(entry.title)}"
-        search_results = web_search(query)
+            # 2. Ergebnisse per LLM auf Trend-Relevanz filtern
+            relevant = filter_trend_signals(search_results)
 
-        # 3. Beste Primärquelle identifizieren
-        primary_source = find_primary_source(search_results)
+            # 3. Domain registrieren
+            for result in relevant:
+                log_discovery(result.brand, result.url, result.domain)
 
-        # 4. Domain registrieren
-        log_discovery(brand, primary_source.url, primary_source.domain)
-
-        # 5. Wenn Domain 3+ mal gesehen → RSS-Feed suchen
-        if get_discovery_count(primary_source.domain) >= 3:
-            rss_feed = find_rss_feed(primary_source.domain)
-            if rss_feed:
-                add_to_sources(primary_source.domain, rss_feed)
+            # 4. Wenn Domain 3+ mal gesehen → RSS-Feed suchen
+            if get_discovery_count(result.domain) >= 3:
+                rss_feed = find_rss_feed(result.domain)
+                if rss_feed:
+                    add_to_sources(result.domain, rss_feed)
 ```
 
 ---
@@ -594,7 +554,7 @@ catandary.de/trends/newsletter             → Newsletter-Signup
 ### Design-Richtung
 
 - Dark-Mode Card-Grid UI
-- **Vertikale-Tabs** oder Filter-Bar oben (FOOD / TECH / HEALTH / ECO / ...)
+- **Vertikale-Tabs** oder Filter-Bar oben (FOOD / TECH / HEALTH / ECO / DESIGN / FASHION / BIZ / LIFESTYLE)
 - **PESTEL-farbcodierte Badges** auf jeder Karte
 - **Vertikale-Icons** für schnelle visuelle Orientierung
 - Trend-Score-Visualisierung pro Karte
@@ -613,52 +573,30 @@ catandary.de/trends/newsletter             → Newsletter-Signup
 
 ---
 
-## Sprint-Plan
+## Sprint-Plan (alle Sprints abgeschlossen)
 
-### Sprint 1 (Woche 1-2): Pipeline-MVP (2 Pilot-Vertikale: FOOD + TECH)
-- [ ] Ollama-Setup: Qwen3 8B, NuExtract, Qwen3 14B, Qwen3-Embedding installieren
-- [ ] Feed-Poller mit sources.yaml (3 Quellen FOOD, 3 Quellen TECH)
-- [ ] Trendhunter-Radar für FOOD + TECH Feeds
-- [ ] LLM-Pipeline: Relevanz-Filter + Extraktion + Klassifizierung (inkl. Vertical + PESTEL)
-- [ ] Pydantic-Schemas für alle Structured Outputs
-- [ ] CLI-Tool für manuelles Review und Publish
-- [ ] Grundlegendes Logging und Error-Handling
+### Sprint 1 ✓ — Pipeline-MVP (FOOD + TECH)
+- [x] Ollama-Setup, Feed-Poller, LLM-Pipeline, Pydantic-Schemas, Review-CLI
 
-### Sprint 2 (Woche 3-4): Content-Generierung + DB
-- [ ] Content-Generierung (DE + EN) mit Qwen3 14B
-- [ ] Duplikat-Erkennung mit Embeddings (cross-vertical)
-- [ ] Migration SQLite → PostgreSQL (mit pgvector)
-- [ ] Radar-Pipeline (Source Discovery) für beide Vertikale
-- [ ] sources.yaml Konfigurationssystem mit Vertical-Struktur
+### Sprint 2 ✓ — Content-Generierung + DB
+- [x] Content-Generierung DE+EN, Duplikat-Erkennung, PostgreSQL-Support, Radar-Pipeline
 
-### Sprint 3 (Woche 5-6): Frontend-MVP
-- [ ] Next.js-Projekt aufsetzen
-- [ ] Hauptseite mit Vertical-Filter und Card-Grid
-- [ ] PESTEL-Badges und Vertical-Icons
-- [ ] Einzelartikel-Seite (DE + EN)
-- [ ] Responsive Design (Dark-Mode)
+### Sprint 3 ✓ — Frontend-MVP
+- [x] Next.js mit Dark-Mode Card-Grid, Vertical-Filter, PESTEL-Badges, DE/EN-Switcher
 
-### Sprint 4 (Woche 7-8): Launch + 2 weitere Vertikale
-- [ ] HEALTH + ECO Vertikale hinzufügen (Quellen + Radar)
-- [ ] Newsletter-Integration
-- [ ] Lead-Capture-Elemente und Foresight-CTAs
-- [ ] SEO (Meta-Tags, Structured Data, Sitemap)
-- [ ] Deployment auf Hetzner
-- [ ] Cron-Jobs einrichten
+### Sprint 4 ✓ — Launch + HEALTH/ECO
+- [x] HEALTH + ECO Vertikale, Newsletter, SEO, Deployment-Config
 
-### Sprint 5 (Woche 9-10): Weitere Vertikale + Polish
-- [ ] DESIGN, FASHION, BIZ Vertikale hinzufügen
-- [ ] Cross-Vertical Trend-Clustering
-- [ ] Mega-Trend-Übersichtsseiten (Foresight-Teaser)
-- [ ] Auto-Publish für high-confidence Trends
+### Sprint 5 ✓ — DESIGN/FASHION/BIZ + Polish
+- [x] Weitere Vertikale, Cross-Vertical Clustering, Mega-Trend-Seiten, Auto-Publish
 
-### Sprint 6 (Woche 11+): Vollständig + Growth
-- [ ] Restliche Vertikale (CULTURE, SOCIAL, LUXURY)
-- [ ] Engagement-Tracking implementieren
-- [ ] Wöchentlicher automatisierter Newsletter (mit Vertical-Auswahl)
-- [ ] Social-Media Auto-Posting (optional)
-- [ ] Trend-Cluster-Dashboard als Foresight-Teaser
-- [ ] Quellen-Pool auf 50+ erweitern
+### Sprint 6 ✓ — Vollausbau + Overhaul
+- [x] Alle Vertikale live (8 Vertikale nach Konsolidierung)
+- [x] CULTURE+SOCIAL+LUXURY → LIFESTYLE zusammengelegt
+- [x] Trendhunter komplett ersetzt durch 43 Primärquellen + Brave Search Radar
+- [x] Semantische Reklassifizierung aller 1226 Trends
+- [x] CRS-Scoring, kanonische Mega-Trends-Taxonomie
+- [x] Engagement-Tracking, Newsletter, Cluster-Dashboard
 
 ---
 
@@ -775,7 +713,7 @@ catandary-trends/
 │   ├── __init__.py
 │   ├── feed_poller.py           # RSS-Feed-Aggregation
 │   ├── llm_processor.py         # LLM-Pipeline (Filter → Extract → Classify → Generate)
-│   ├── radar_discovery.py       # Trendhunter-Radar → Source Discovery
+│   ├── radar_discovery.py       # Brave Search Radar → Source Discovery
 │   ├── auto_publisher.py        # Auto-Publish high-confidence Drafts
 │   ├── newsletter_generator.py  # Wöchentlicher Newsletter
 │   ├── source_report.py         # Neue-Quellen-Report
@@ -807,98 +745,54 @@ catandary-trends/
 └── requirements.txt
 ```
 
-### Sprint-Anweisungen für Claude Code
+### Weiterentwicklung
 
-**Sprint 1 starten mit:** "Lies CLAUDE.md und implementiere Sprint 1 komplett. Initialisiere das Git-Repo, erstelle .gitignore, pushe auf GitHub (ZuluTwoThree/catandary-trends). Arbeite im Branch sprint/1-pipeline-mvp. Baue Feed-Poller und LLM-Pipeline für FOOD + TECH. Verifiziere alle RSS-Feed-URLs. Teste die Pipeline mit echten Daten. Committe und pushe nach jedem Feature. Merge am Ende in main und tagge v0.1.0."
+Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direkt auf `main` oder in Feature-Branches entwickelt. Aktuelle Prioritäten:
 
-**Zwischen Sprints:** Claude Code soll am Ende jedes Sprints:
-1. Sprint-Branch in main mergen und Release-Tag setzen
-2. Auf GitHub pushen
-3. Kurzen Status-Report ausgeben:
-   - Was wurde gebaut?
-   - Was funktioniert (mit Beispiel-Output)?
-   - Was ist noch offen?
-   - Welche Entscheidungen wurden getroffen und warum?
-4. Neuen Sprint-Branch erstellen
+1. **Quellen-Ergänzung** — 7 verifizierte Feeds stehen bereit (siehe Quellenbalance)
+2. **LIFESTYLE stärken** — neue Quellen für das schwächste Vertical finden
+3. **Frontend-Polish** — README aktualisieren, Deployment auf Hetzner finalisieren
+4. **Pipeline-Automatisierung** — Cron-Jobs auf Produktionssystem einrichten
 
 ---
 
-## Quellenbalance & Pipeline-Optimierung (Stand: 2026-04-02)
+## Quellenbalance & Pipeline-Optimierung (Stand: 2026-04-04)
 
-### Ist-Zustand Quellenverteilung
+### Ist-Zustand nach semantischem Overhaul
 
-| Vertical | Quellen | Trends | Bewertung |
-|----------|---------|--------|-----------|
-| FOOD | 6 | 510 | **Stark überrepräsentiert** — dominiert die Pipeline |
-| TECH | 6 | 199 | Gut, aber sehr "general tech" (VC/Startup-lastig) |
-| FASHION | 5 | 148 | OK, Business-Perspektive fehlt |
-| CULTURE | 5 | 139 | OK |
-| ECO | 6 | 118 | Ausbalanciert |
-| DESIGN | 5 | 117 | Ausbalanciert |
-| BIZ | 4 | 113 | **Wenigste Quellen**, keine strategische Quelle |
-| HEALTH | 5 | 110 | Pharma/Biotech fehlt |
-| SOCIAL | 5 | 79 | Schwach, Quellen sehr nischig |
-| LUXURY | 5 | 39 | **Stark unterrepräsentiert**, RSS-Angebot im Luxus-Bereich ist generell dünn |
-| CROSS | 2 | — | Presseverteiler (PR Newswire, GlobeNewswire) |
+Nach der Reklassifizierung aller 1226 Trends und der Konsolidierung von CULTURE+SOCIAL+LUXURY → LIFESTYLE:
 
-### Verifizierte Quellen-Ergänzungen (RSS-Feeds geprüft 2026-04-02)
+| Vertical | Trends | Anteil | Bewertung |
+|----------|--------|--------|-----------|
+| TECH | 401 | 33% | **Größtes Vertical** — breites Quellenspektrum (VC/Startup + Deep Tech) |
+| FOOD | 254 | 21% | Deutlich reduziert nach semantischem Overhaul (vorher 32%) |
+| BIZ | 124 | 10% | Verbessert, strategische Quellen fehlen noch |
+| ECO | 116 | 9% | Ausbalanciert |
+| HEALTH | 107 | 9% | Pharma/Biotech-Perspektive fehlt |
+| DESIGN | 85 | 7% | Ausbalanciert |
+| FASHION | 84 | 7% | OK |
+| LIFESTYLE | 55 | 4% | **Schwächstes Vertical** — strukturell bedingt (RSS-Angebot dünn für Luxury/Culture-Nischen) |
+| **TOTAL** | **1226** | **100%** | |
+
+### Verifizierte Quellen-Ergänzungen (RSS-Feeds geprüft 2026-04-02, noch nicht eingebunden)
 
 | Quelle | Feed-URL | Vertical | Typ | Begründung |
 |--------|----------|----------|-----|------------|
-| **McKinsey Insights** | `https://www.mckinsey.com/insights/rss` | BIZ | trade_media | Strategische Cross-Industry-Perspektive, schließt größte Lücke |
-| **Endpoints News** | `https://endpts.com/feed/` | HEALTH | trade_media | Biotech, Pharma, Drug Development — ergänzt STAT News (Policy) und Nutraingredients (Supplements) |
-| **Healthcare IT News** | `https://www.healthcareitnews.com/feed` | HEALTH | trade_media | Digital Health, KI im Gesundheitswesen — wenig Output aber hochrelevant |
-| **Wired** | `https://www.wired.com/feed/rss` | TECH | trade_media | Breitere Tech/Society-Perspektive, gegen VC/Startup-Bias |
-| **IEEE Spectrum** | `https://spectrum.ieee.org/feeds/feed.rss` | TECH | trade_media | Deep Tech, Engineering, Forschung — fehlt komplett im Mix |
-| **Glossy** | `https://www.glossy.co/feed/` | FASHION | trade_media | Fashion/Beauty-Industrie, ergänzt BoF (Strategie) und Cosmetics Design (Ingredients) |
-| **Platformer** | `https://platformer.news/rss/` | CULTURE | trade_media | Tech-Policy, Platform-Regulierung, Social Media — passt zu Mega-Trend "Creator Economy & Platform Shift" |
-
-### Nicht ergänzt (und warum)
-
-- **FOOD**: Bereits 510 Trends bei 6 Quellen — braucht keine weiteren Quellen, sondern eher Differenzierung (→ siehe FOOD-Vertical-Aufspaltung unten)
-- **DESIGN**: Dezeen + ArchDaily + Designboom decken Architektur und Produktdesign gut ab
-- **ECO**: 6 Quellen, 118 Trends — ausbalanciert
-- **LUXURY**: Luxury Society, JCK, WWD haben kein funktionierendes öffentliches RSS — Luxus-Fachmedien sind überwiegend Paywall/geschlossene Plattformen
+| **McKinsey Insights** | `https://www.mckinsey.com/insights/rss` | BIZ | trade_media | Strategische Cross-Industry-Perspektive |
+| **Endpoints News** | `https://endpts.com/feed/` | HEALTH | trade_media | Biotech, Pharma, Drug Development |
+| **Healthcare IT News** | `https://www.healthcareitnews.com/feed` | HEALTH | trade_media | Digital Health, KI im Gesundheitswesen |
+| **Wired** | `https://www.wired.com/feed/rss` | TECH | trade_media | Breitere Tech/Society-Perspektive |
+| **IEEE Spectrum** | `https://spectrum.ieee.org/feeds/feed.rss` | TECH | trade_media | Deep Tech, Engineering, Forschung |
+| **Glossy** | `https://www.glossy.co/feed/` | FASHION | trade_media | Fashion/Beauty-Industrie |
+| **Platformer** | `https://platformer.news/rss/` | LIFESTYLE | trade_media | Tech-Policy, Platform-Regulierung, Social Media |
 
 ### Balance-Prinzip für die Datenpipeline
 
-Die Pipeline soll langfristig eine ausgewogene Verteilung über alle Vertikale anstreben. Aktuell dominiert FOOD mit ~32% aller Trends, während LUXURY nur ~2.5% ausmacht. Maßnahmen:
+1. **Neue Quellen priorisiert für unterrepräsentierte Vertikale** (LIFESTYLE, FASHION, HEALTH, BIZ)
+2. **TECH-Dominanz beobachten** — mit 33% aktuell größtes Vertical, aber durch Quellenvielfalt gerechtfertigt
+3. **Regelmäßiger Balance-Check** (monatlich): bei >3x Abweichung vom Median Quellen und Schwellenwerte anpassen
+4. **LIFESTYLE stärken**: Brand-Newsrooms (LVMH, Kering, Richemont), Gaming- und Creator-Economy-Quellen evaluieren
 
-1. **Neue Quellen priorisiert für unterrepräsentierte Vertikale** hinzufügen (BIZ, HEALTH, TECH, FASHION, CULTURE — siehe oben)
-2. **FOOD-Übergewicht reduzieren** durch Prüfung einer Vertical-Aufspaltung (siehe unten) und/oder Erhöhung des Relevanz-Schwellenwerts für FOOD
-3. **Regelmäßiger Balance-Check** (monatlich): Trends pro Vertical zählen, bei >3x Abweichung vom Median Quellen und Schwellenwerte anpassen
-4. **LUXURY bleibt strukturell schwach** wegen fehlendem RSS-Angebot — Trendhunter-Radar ist hier die Hauptquelle. Ggf. Brand-Newsrooms (LVMH, Kering, Richemont) als ergänzende Quellen evaluieren
+### FOOD-Vertical Aufspaltung — Entschärft
 
----
-
-## Offene Evaluation: FOOD-Vertical Aufspaltung
-
-### Problem
-
-FOOD ist mit 510 Trends (~32% des Gesamtbestands) deutlich überrepräsentiert. Das liegt daran, dass "Food & Beverage" ein extrem breites Feld ist, das von AgriTech über Gastronomie bis zu Lebensmittel-Regulierung reicht. Die Signale sind inhaltlich sehr heterogen — ein Precision-Agriculture-Startup hat wenig mit einem neuen Restaurantkonzept gemeinsam.
-
-### Zu prüfende Aufspaltung
-
-| Sub-Vertical | Kürzel | Abdeckung | Beispiel-Signale |
-|---|---|---|---|
-| **Food & Beverage** | FOOD | Lebensmittel-Produkte, Getränke, Ingredients, Functional Foods | Plant-Based Protein, Fermentation, Novel Ingredients |
-| **FoodTech** | FOODTECH | AgriTech, Precision Agriculture, Lab-Grown, Food-AI | Vertical Farming, Cellular Agriculture, AI-Rezeptentwicklung |
-| **Foodservice & Gastro** | GASTRO | Restaurants, Catering, Hospitality, Dark Kitchens | Ghost Kitchens, Experiential Dining, Robotik in der Gastronomie |
-| **Food Retail & Supply Chain** | FOODRETAIL | Lebensmittelhandel, Logistik, Packaging, D2C Food | Smart Shelf, Last-Mile Delivery, Sustainable Packaging |
-| **Food Regulation & Safety** | — | Könnte auch unter FOOD bleiben | Nährwertkennzeichnung, Novel Food Regulation, EFSA-Entscheidungen |
-
-### Entscheidungskriterien
-
-Bevor eine Aufspaltung implementiert wird, muss geprüft werden:
-
-1. **Ist die Trennung im LLM-Klassifikationsschritt zuverlässig?** — Kann Qwen3 8B konsistent zwischen FOOD, FOODTECH und GASTRO unterscheiden, oder produziert die Aufspaltung vor allem Rauschen?
-2. **Gibt es genug Quellen pro Sub-Vertical?** — FoodNavigator und Food Dive decken alles ab; für GASTRO oder FOODRETAIL müssten neue Quellen gefunden werden
-3. **Verbessert es die UX auf der Website?** — Mehr Vertikale = feinere Filter, aber auch mehr Komplexität. Aktuell haben wir 10 Vertikale, 13-14 könnten noch übersichtlich sein
-4. **Ist Tagging statt Aufspaltung die bessere Lösung?** — Alternativ könnte FOOD bleiben, aber Sub-Tags wie `foodtech`, `gastro`, `food-retail` als Filter dienen, ohne die Vertical-Architektur zu ändern
-
-### Nächste Schritte
-
-- [ ] Bestehende 510 FOOD-Trends manuell stichprobenartig in Sub-Kategorien einteilen (Sample von 50)
-- [ ] Prüfen ob das LLM die Unterscheidung konsistent trifft (Testlauf mit 50 Artikeln + Sub-Vertical-Prompt)
-- [ ] Entscheidung: Echte Vertical-Aufspaltung vs. Sub-Tags innerhalb FOOD
-- [ ] Bei Aufspaltung: Neue Quellen für GASTRO und FOODRETAIL evaluieren (z.B. Restaurant Business, Progressive Grocer, Supermarket News)
+Nach dem semantischen Overhaul ist FOOD von 32% auf 21% geschrumpft. Eine Aufspaltung in Sub-Vertikale (FOODTECH, GASTRO, FOODRETAIL) ist damit **nicht mehr dringend**. Die Option bleibt als Sub-Tagging-Ansatz bestehen, falls FOOD wieder überproportional wächst.

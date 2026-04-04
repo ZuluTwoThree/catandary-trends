@@ -67,5 +67,6 @@ def get_mega_trend_prompt_block() -> str:
     trends = load_mega_trends()
     lines = []
     for mt in trends:
-        lines.append(f'- {mt["key"]}: {mt["description"]}')
+        momentum = mt.get("momentum", "stable")
+        lines.append(f'- {mt["key"]} [{momentum}]: {mt["description"]}')
     return "\n".join(lines)
