@@ -53,6 +53,9 @@ verticals:
       - name: IEEE Spectrum
         feed_url: https://spectrum.ieee.org/feeds/feed.rss
         type: trade_media
+      - name: Wired
+        feed_url: https://www.wired.com/feed/rss
+        type: trade_media
       - name: IoT Tech News
         feed_url: https://www.iottechnews.com/feed/
         type: trade_media
@@ -95,6 +98,12 @@ verticals:
         type: trade_media
       - name: Nutritional Outlook
         feed_url: https://www.nutritionaloutlook.com/rss.xml
+        type: trade_media
+      - name: Endpoints News
+        feed_url: https://endpts.com/feed/
+        type: trade_media
+      - name: Healthcare IT News
+        feed_url: https://www.healthcareitnews.com/feed
         type: trade_media
     science:
       - name: Nature Medicine
@@ -217,6 +226,9 @@ verticals:
       - name: Retail Insider
         feed_url: https://www.retail-insider.com/feed/
         type: trade_media
+      - name: McKinsey Insights
+        feed_url: https://www.mckinsey.com/insights/rss
+        type: trade_media
 
   LIFESTYLE:
     sources:
@@ -258,6 +270,9 @@ verticals:
         type: trade_media
       - name: Skift
         feed_url: https://skift.com/feed/
+        type: trade_media
+      - name: Platformer
+        feed_url: https://platformer.news/rss/
         type: trade_media
 
 cross_industry:

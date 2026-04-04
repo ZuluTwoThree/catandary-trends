@@ -16,14 +16,23 @@ export default function MegaTrendsRoute() {
   const displayMegaTrends =
     megaTrends.length > 0 ? megaTrends : getMegaTrends();
 
+  const MOMENTUM_ORDER = { emerging: 0, rising: 1, stable: 2, declining: 3 };
+
   const enriched = displayMegaTrends.map((mt) => ({
     ...mt,
     verticalInfos: mt.verticals.map((v) =>
       getVerticalInfo(v as Parameters<typeof getVerticalInfo>[0])
     ),
-    // Canonical keys use underscores; URL slugs use hyphens
     slug: encodeURIComponent(mt.mega_trend.replace(/_/g, "-")),
-  }));
+    momentum: mt.momentum,
+    cluster_strength: mt.cluster_strength,
+    horizon: mt.horizon,
+  })).sort((a, b) => {
+    const ma = MOMENTUM_ORDER[a.momentum ?? "stable"] ?? 2;
+    const mb = MOMENTUM_ORDER[b.momentum ?? "stable"] ?? 2;
+    if (ma !== mb) return ma - mb;
+    return b.count - a.count;
+  });
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">

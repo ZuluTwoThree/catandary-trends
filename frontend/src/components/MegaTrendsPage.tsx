@@ -11,7 +11,18 @@ interface MegaTrendItem {
   verticals: string[];
   verticalInfos: VerticalInfo[];
   slug: string;
+  momentum?: "rising" | "stable" | "declining" | "emerging";
+  cluster_strength?: "strong" | "moderate" | "fragmented";
+  horizon?: string;
+  description?: string;
 }
+
+const MOMENTUM_CONFIG = {
+  rising: { label_en: "Rising", label_de: "Steigend", color: "#22c55e", icon: "\u2197" },
+  stable: { label_en: "Stable", label_de: "Stabil", color: "#a3a3a3", icon: "\u2192" },
+  declining: { label_en: "Declining", label_de: "Abnehmend", color: "#ef4444", icon: "\u2198" },
+  emerging: { label_en: "Emerging", label_de: "Aufkommend", color: "#a855f7", icon: "\u2728" },
+} as const;
 
 export default function MegaTrendsPage({
   megaTrends,
@@ -69,10 +80,30 @@ export default function MegaTrendsPage({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-muted mb-4">
+                <div className="flex items-center gap-3 text-sm text-muted mb-4 flex-wrap">
                   <span>
                     {mt.count} {t("megaTrendTrends")}
                   </span>
+                  {mt.momentum && (
+                    <span
+                      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border"
+                      style={{
+                        color: MOMENTUM_CONFIG[mt.momentum].color,
+                        borderColor: MOMENTUM_CONFIG[mt.momentum].color + "40",
+                        backgroundColor: MOMENTUM_CONFIG[mt.momentum].color + "10",
+                      }}
+                    >
+                      {MOMENTUM_CONFIG[mt.momentum].icon}{" "}
+                      {effectiveLocale === "de"
+                        ? MOMENTUM_CONFIG[mt.momentum].label_de
+                        : MOMENTUM_CONFIG[mt.momentum].label_en}
+                    </span>
+                  )}
+                  {mt.horizon && (
+                    <span className="text-xs text-muted/60">
+                      {mt.horizon}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-xs text-muted block mb-2">

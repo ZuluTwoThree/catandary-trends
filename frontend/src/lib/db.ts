@@ -1,5 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
+import fs from "fs";
+import yaml from "js-yaml";
 import type { Trend, Vertical } from "./types";
 
 const DB_PATH = process.env.DATABASE_PATH
@@ -122,7 +124,46 @@ export function getTrendsByMegaTrend(megaTrend: string, options: {
   }
 }
 
-export function getMegaTrends(status?: string): { mega_trend: string; count: number; verticals: string[] }[] {
+export interface MegaTrendInfo {
+  mega_trend: string;
+  count: number;
+  verticals: string[];
+  name_en: string;
+  name_de: string;
+  description: string;
+  momentum: "rising" | "stable" | "declining" | "emerging";
+  cluster_strength: "strong" | "moderate" | "fragmented";
+  signal_count: number;
+  horizon: string;
+}
+
+function loadMegaTrendYaml(): Record<string, {
+  name_en: string; name_de: string; description: string;
+  momentum: string; cluster_strength: string; signal_count: number; horizon: string;
+}> {
+  const yamlPath = path.join(process.cwd(), "..", "mega_trends.yaml");
+  try {
+    const raw = fs.readFileSync(yamlPath, "utf-8");
+    const data = yaml.load(raw) as { mega_trends: Array<Record<string, unknown>> };
+    const map: Record<string, any> = {};
+    for (const mt of data.mega_trends || []) {
+      map[mt.key as string] = {
+        name_en: mt.name_en as string,
+        name_de: mt.name_de as string,
+        description: mt.description as string,
+        momentum: (mt.momentum as string) || "stable",
+        cluster_strength: (mt.cluster_strength as string) || "fragmented",
+        signal_count: (mt.signal_count as number) || 0,
+        horizon: (mt.horizon as string) || "",
+      };
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+export function getMegaTrends(status?: string): MegaTrendInfo[] {
   const db = getDb();
   try {
     let query = "SELECT mega_trend, COUNT(*) as cnt, GROUP_CONCAT(DISTINCT primary_vertical) as verts FROM trends WHERE mega_trend IS NOT NULL AND mega_trend != ''";
@@ -141,11 +182,23 @@ export function getMegaTrends(status?: string): { mega_trend: string; count: num
       verts: string;
     }[];
 
-    return rows.map((r) => ({
-      mega_trend: r.mega_trend,
-      count: r.cnt,
-      verticals: r.verts ? r.verts.split(",") : [],
-    }));
+    const yamlData = loadMegaTrendYaml();
+
+    return rows.map((r) => {
+      const meta = yamlData[r.mega_trend] || {};
+      return {
+        mega_trend: r.mega_trend,
+        count: r.cnt,
+        verticals: r.verts ? r.verts.split(",") : [],
+        name_en: meta.name_en || r.mega_trend.replace(/_/g, " "),
+        name_de: meta.name_de || r.mega_trend.replace(/_/g, " "),
+        description: meta.description || "",
+        momentum: (meta.momentum || "stable") as MegaTrendInfo["momentum"],
+        cluster_strength: (meta.cluster_strength || "fragmented") as MegaTrendInfo["cluster_strength"],
+        signal_count: meta.signal_count || 0,
+        horizon: meta.horizon || "",
+      };
+    });
   } finally {
     db.close();
   }
