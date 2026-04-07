@@ -22,12 +22,12 @@ Catandary Trends ist eine branchenübergreifende Trend-Intelligence-Plattform, d
 |---|---|---|---|
 | **Food & Beverage** | FOOD | Lebensmittel, Getränke, Gastronomie, AgriTech | Plant-Based, Fermentation, Functional Foods |
 | **Technology & AI** | TECH | Software, Hardware, AI, Robotik, IoT | GenAI-Tools, Wearables, Edge Computing |
-| **Health & Wellness** | HEALTH | Medizin, Fitness, Mental Health, Pharma | Digital Health, Longevity, Microbiome |
+| **Health & Wellness** | HEALTH | Medizin, klinische Wellness, Mental Health, Pharma, Supplements, körperphysiologische Fitness | Digital Health, Longevity, Microbiome |
 | **Sustainability & Eco** | ECO | Energie, Kreislaufwirtschaft, Klima, Mobilität | Carbon Capture, Circular Packaging, EV |
 | **Design & Architecture** | DESIGN | Produktdesign, Architektur, Interiors, UX | Biophilic Design, Modular Housing |
 | **Fashion & Beauty** | FASHION | Mode, Kosmetik, Textil, Schmuck | Slow Fashion, Biotech Materials, Clean Beauty |
 | **Business & Retail** | BIZ | Strategie, Startups, Handel, E-Commerce, Fintech | D2C, Recommerce, Embedded Finance |
-| **Lifestyle** | LIFESTYLE | Kultur, Entertainment, Social Media, Gaming, Kunst, Bildung, Inklusion, Luxury, Travel | Creator Economy, Spatial Computing, Experiential Luxury, EdTech |
+| **Lifestyle** | LIFESTYLE | Kultur, Entertainment, Social Media, Gaming, Kunst, Bildung, Inklusion, Luxury, Travel, Sport (Athleten/Events/Communities/Studios) | Creator Economy, Spatial Computing, Experiential Luxury, EdTech, Hyrox |
 
 ### PESTEL-Klassifizierung (quer zu den Vertikalen)
 
@@ -796,3 +796,39 @@ Nach der Reklassifizierung aller 1226 Trends und der Konsolidierung von CULTURE+
 ### FOOD-Vertical Aufspaltung — Entschärft
 
 Nach dem semantischen Overhaul ist FOOD von 32% auf 21% geschrumpft. Eine Aufspaltung in Sub-Vertikale (FOODTECH, GASTRO, FOODRETAIL) ist damit **nicht mehr dringend**. Die Option bleibt als Sub-Tagging-Ansatz bestehen, falls FOOD wieder überproportional wächst.
+
+### Geplante Quellen-Ergänzungen
+
+| Quelle | Vertical | Status | Begründung |
+|--------|----------|--------|------------|
+| **Lebensmittelzeitung** | FOOD | RSS-Feed prüfen | Deutsche FOOD-Fachpresse, stärkt DE-Perspektive im FOOD-Vertical |
+
+---
+
+## Session-Log
+
+### Session 2026-04-04 (Abend)
+
+**Kontext:** LLM-Processor war vorzeitig abgebrochen, 194 Entries unverarbeitet.
+
+**Durchgeführt:**
+1. Ollama (Windows-Exe) war nicht erreichbar — neu gestartet, erreichbar über `172.29.96.1:11434` (WSL2 → Windows)
+2. Python-Abhängigkeiten auf Windows Python 3.13 installiert (`/mnt/c/Users/Dirk/AppData/Local/Programs/Python/Python313/python.exe`)
+3. LLM-Processor in mehreren Batches durchlaufen lassen (Batch-Limit default=10, per Argument auf 200 erhöht)
+4. **Ergebnis:** 171 Entries verarbeitet (10 + 161), **109 neue Trends** erstellt, 62 gefiltert, 0 Fehler
+5. DB-Stand danach: **3.644 Raw Entries**, **2.495 Trends** (davon 1.226 published, 1.269 drafts)
+
+**Bekannte Probleme identifiziert:**
+- `primary_vertical` wird im Relevanz-Filter oft falsch gesetzt (z.B. FASHION für Quantum-Computing) — Klassifizierungsschritt korrigiert `verticals`, aber `primary_vertical` bleibt falsch
+- Mega-Trend-Zuordnung teilweise sinnlos (z.B. Neandertal-Genomik → `regenerative_design_and_net_positive`)
+
+**Nächste Schritte (Post-Processing-Pipeline):**
+1. `scripts/reclassify_verticals.py` — Verticals fixen (Qwen3 8B, ~65s/500 Trends)
+2. `scripts/discover_mega_trends.py` — Mega-Trend-Kandidaten analysieren (kein LLM, Clustering)
+3. `pipeline/mega_trend_reviewer.py` — Mega-Trends per LLM zuweisen (Qwen3 14B, ~15-25 Min)
+4. `scripts/backfill_crs.py` — CRS-Scores berechnen (Formel, ~2s)
+
+**Technische Hinweise:**
+- Ollama läuft als Windows-Exe, WSL2 erreicht es über `OLLAMA_CLIENT_HOST=http://172.29.96.1:11434`
+- Windows Python nutzen: `"/mnt/c/Users/Dirk/AppData/Local/Programs/Python/Python313/python.exe"`
+- LLM-Processor Default-Batch ist 10, für große Batches Argument übergeben: `python -m pipeline.llm_processor 200`

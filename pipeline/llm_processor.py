@@ -379,7 +379,7 @@ def process_entry(entry: dict) -> dict | None:
         "body_en": content_en.body,
         "body_de": content_de.body if content_de else None,
         "verticals": classification.verticals,
-        "primary_vertical": relevance.primary_vertical,
+        "primary_vertical": classification.verticals[0] if classification.verticals else relevance.primary_vertical,
         "pestel": classification.pestel,
         "tags": classification.tags,
         "trend_signal_type": classification.trend_signal_type,

@@ -14,7 +14,7 @@ import httpx
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-OLLAMA_HOST = "http://127.0.0.1:11434"
+OLLAMA_HOST = "http://172.29.96.1:11434"
 MODEL = "qwen3:8b"
 DB_PATH = "data/catandary.db"
 
@@ -22,24 +22,61 @@ VERTICALS = ["FOOD", "TECH", "HEALTH", "ECO", "DESIGN", "FASHION", "BIZ", "LIFES
 
 CLASSIFY_PROMPT = """Classify this trend into the Catandary vertical taxonomy.
 
-## Verticals (pick 1 primary + up to 2 secondary if genuinely cross-vertical)
-- FOOD: Food & Beverage, ingredients, restaurants, agriculture, nutrition
-- TECH: Technology, AI, software, hardware, robotics, IoT, startups
-- HEALTH: Medicine, pharma, fitness, mental health, biotech, wellness
-- ECO: Sustainability, energy, climate, circular economy, packaging
+## Verticals
+- FOOD: Food & beverage, ingredients, restaurants, agriculture, nutrition science
+- TECH: Technology, AI, software, hardware, robotics, IoT, biotech, quantum, materials science, R&D breakthroughs
+- HEALTH: Clinical medicine, pharma drugs in trials/market, mental health, supplements, body physiology, healthcare delivery
+- ECO: Sustainability, energy, climate, circular economy, packaging, environmental policy
 - DESIGN: Architecture, product design, interiors, UX, urban planning
-- FASHION: Fashion, beauty, cosmetics, textiles, jewelry
-- BIZ: Business strategy, retail, e-commerce, fintech, finance, M&A
-- LIFESTYLE: Culture, media, entertainment, gaming, social impact, education, luxury, travel, sports
+- FASHION: Apparel, beauty, cosmetics, textiles, jewelry (the products themselves)
+- BIZ: Business strategy, retail, e-commerce, fintech, banking, payments, M&A, funding
+- LIFESTYLE: Culture, media, entertainment, gaming, social impact, education, luxury experiences, travel, sport (athletes, events, communities, gym/studio culture, fitness as lifestyle)
 
-Return a JSON object with:
-- "primary": the single most fitting vertical code
-- "secondaries": array of 0-2 additional verticals (only if genuinely cross-vertical)
+## Disambiguation rules (CRITICAL)
+1. **Biotech, gene editing, synthetic biology, lab research → TECH** (not HEALTH). HEALTH is for clinical/patient-facing topics.
+2. **AI/tech applied to a specific industry → that industry.** E.g. "AI for drug discovery" = HEALTH, "AI chip architecture" = TECH.
+3. **Fintech, payments, banking, crypto finance → BIZ** (not TECH), unless it's about the underlying tech stack.
+4. **Sustainable materials for a specific industry → that industry.** E.g. bio-textiles = FASHION, compostable food packaging = FOOD.
+5. **Sustainability as the core topic → ECO** (carbon credits, circular economy policy, renewables).
+6. **M&A, funding rounds, IPOs, earnings → BIZ**, unless the deal only makes sense within one vertical.
+7. **Scientific research papers (biology, chemistry, physics) → TECH**, unless clearly clinical/patient-focused.
+8. **Sport & fitness routing:**
+   - Athletes, sport events, sport communities, gyms/studios as lifestyle, fitness culture → LIFESTYLE
+   - Clinical/physiological wellness, supplements, body health, medical aspects of fitness → HEALTH
+   - Sport apparel, footwear, athleisure → FASHION
+   - Sport business, M&A, brand strategy → BIZ
+   - Sport architecture, stadiums, facility design → DESIGN
+   - Sport nutrition products → FOOD
+   - Sport wearables / biometrics tech itself → TECH
+9. **Most trends belong to ONE vertical.** Only add secondaries when the trend genuinely cannot be understood without two industries.
 
+## Examples
+Title: "CRISPR Advances Enable Faster Gene Editing in Crops"
+→ {{"primary": "TECH", "secondaries": ["FOOD"]}}
+
+Title: "New Alzheimer's Drug Shows Promise in Phase 3 Trial"
+→ {{"primary": "HEALTH", "secondaries": []}}
+
+Title: "Stripe Launches Embedded Banking for SMBs"
+→ {{"primary": "BIZ", "secondaries": []}}
+
+Title: "LVMH Acquires Luxury Watchmaker in €2B Deal"
+→ {{"primary": "BIZ", "secondaries": ["FASHION"]}}
+
+Title: "Bacterial Flagellar Adaptation Reveals Evolutionary Mechanism"
+→ {{"primary": "TECH", "secondaries": []}}
+
+Title: "Biodegradable Packaging for Fresh Produce Hits Shelves"
+→ {{"primary": "FOOD", "secondaries": ["ECO"]}}
+
+Title: "Quantum Computing Breakthrough in Drug Discovery"
+→ {{"primary": "TECH", "secondaries": ["HEALTH"]}}
+
+## Task
 Title: {title}
 Summary: {summary}
 
-Return ONLY the JSON, nothing else. /no_think"""
+Return ONLY a JSON object with "primary" and "secondaries", nothing else. /no_think"""
 
 
 def classify_trend(title: str, summary: str) -> dict | None:
@@ -73,11 +110,19 @@ def classify_trend(title: str, summary: str) -> dict | None:
 
 
 def main():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=60)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=60000")
+    # Force WAL checkpoint to clear any stale locks
+    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
-    c.execute("SELECT id, title_en, summary_en, primary_vertical, verticals FROM trends ORDER BY id")
+    # Only reclassify drafts by default, pass --all to reclassify everything
+    if "--all" in sys.argv:
+        c.execute("SELECT id, title_en, summary_en, primary_vertical, verticals FROM trends ORDER BY id")
+    else:
+        c.execute("SELECT id, title_en, summary_en, primary_vertical, verticals FROM trends WHERE status = 'draft' ORDER BY id")
     rows = c.fetchall()
     total = len(rows)
 

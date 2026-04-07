@@ -17,6 +17,9 @@ env/
 *.db
 *.sqlite3
 
+# Local data artifacts
+data/
+
 # Node / Next.js
 node_modules/
 .next/
