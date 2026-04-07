@@ -1,5 +1,5 @@
 # Catandary Trends – Source Configuration
-# Updated: 2026-04-03
+# Updated: 2026-04-07
 
 verticals:
   FOOD:
@@ -24,6 +24,21 @@ verticals:
         type: trade_media
       - name: Confectionery Production
         feed_url: https://www.confectioneryproduction.com/feed/
+        type: trade_media
+      - name: AgFunderNews
+        feed_url: https://agfundernews.com/feed
+        type: trade_media
+      - name: Good Food Institute
+        feed_url: https://gfi.org/feed
+        type: trade_media
+      - name: Green Queen
+        feed_url: https://www.greenqueen.com.hk/feed
+        type: trade_media
+      - name: Civil Eats
+        feed_url: https://feeds.feedburner.com/CivilEats
+        type: trade_media
+      - name: Lebensmittelzeitung
+        feed_url: https://www.lebensmittelzeitung.net/feed/
         type: trade_media
     science:
       - name: Nature Food
@@ -58,6 +73,27 @@ verticals:
         type: trade_media
       - name: IoT Tech News
         feed_url: https://www.iottechnews.com/feed/
+        type: trade_media
+      - name: Semiconductor Engineering
+        feed_url: https://semiengineering.com/feed/
+        type: trade_media
+      - name: EE Times
+        feed_url: https://www.eetimes.com/feed/
+        type: trade_media
+      - name: The Register
+        feed_url: https://www.theregister.com/headlines.atom
+        type: trade_media
+      - name: t3n
+        feed_url: https://t3n.de/rss.xml
+        type: trade_media
+      - name: Netzpolitik.org
+        feed_url: https://netzpolitik.org/feed/
+        type: trade_media
+      - name: Norwegian SciTech News
+        feed_url: https://norwegianscitechnews.com/feed
+        type: trade_media
+      - name: KrASIA
+        feed_url: https://console.kr-asia.com/feed
         type: trade_media
     science:
       - name: Nature Machine Intelligence
@@ -145,6 +181,15 @@ verticals:
       - name: Grist
         feed_url: https://www.grist.org/feed/
         type: trade_media
+      - name: Trellis
+        feed_url: https://trellis.net/feed
+        type: trade_media
+      - name: ESG Today
+        feed_url: https://www.esgtoday.com/feed
+        type: trade_media
+      - name: Circular Online
+        feed_url: https://www.circularonline.co.uk/feed
+        type: trade_media
     science:
       - name: Nature Sustainability
         feed_url: https://www.nature.com/natsustain.rss
@@ -229,6 +274,21 @@ verticals:
       - name: McKinsey Insights
         feed_url: https://www.mckinsey.com/insights/rss
         type: trade_media
+      - name: Horizont
+        feed_url: https://www.horizont.net/news/feed/
+        type: trade_media
+      - name: Gründerszene
+        feed_url: https://www.businessinsider.de/gruenderszene/feed/
+        type: trade_media
+      - name: brutkasten
+        feed_url: https://brutkasten.com/feed
+        type: trade_media
+      - name: Asia Times
+        feed_url: https://asiatimes.com/feed/
+        type: trade_media
+      - name: The Japan News
+        feed_url: https://japannews.yomiuri.co.jp/feed/
+        type: trade_media
 
   LIFESTYLE:
     sources:
@@ -273,6 +333,9 @@ verticals:
         type: trade_media
       - name: Platformer
         feed_url: https://platformer.news/rss/
+        type: trade_media
+      - name: Rest of World
+        feed_url: https://restofworld.org/feed/latest
         type: trade_media
 
 cross_industry:
