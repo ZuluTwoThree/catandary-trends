@@ -331,8 +331,24 @@ Include this source attribution at the end: "Source: {source_name}" """
     )
 
 
+_CJK_RE = re.compile(r"[\u3000-\u9fff\u4e00-\u9fff\u3040-\u30ff]")
+
+
+def _strip_cjk(s: str | None) -> str | None:
+    """Remove CJK chars and the words containing them, collapse whitespace."""
+    if not s:
+        return s
+    cleaned = re.sub(r"\S*[\u3000-\u9fff\u4e00-\u9fff\u3040-\u30ff]+\S*", "", s)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
 def step_translate_to_de(content_en: GeneratedContent, source_name: str) -> GeneratedContent | None:
-    """Step 5b: Translate EN content to DE using the same 14B model for quality."""
+    """Step 5b: Translate EN content to DE using the same 14B model for quality.
+
+    Includes a CJK-leakage retry loop: Qwen3 14B occasionally injects Chinese
+    characters into German output. We detect CJK in the result and retry up to
+    3 times; if still tainted, we strip the offending words as a last resort.
+    """
     prompt = f"""Übersetze folgenden englischen Trend-Artikel ins Deutsche.
 
 Title: {content_en.title}
@@ -344,12 +360,33 @@ Body:
 
 Quelle: {source_name}"""
 
-    return chat_structured(
-        model=MODEL_GENERATE,
-        prompt=prompt,
-        schema=GeneratedContent,
-        system=TRANSLATE_SYSTEM,
-        temperature=0.3,
+    last_de: GeneratedContent | None = None
+    for attempt in range(3):
+        de = chat_structured(
+            model=MODEL_GENERATE,
+            prompt=prompt,
+            schema=GeneratedContent,
+            system=TRANSLATE_SYSTEM,
+            temperature=0.3,
+        )
+        if de is None:
+            continue
+        last_de = de
+        combined = (de.title or "") + (de.summary or "") + (de.body or "")
+        if not _CJK_RE.search(combined):
+            return de
+        logger.warning("Translation attempt %d contained CJK characters, retrying", attempt + 1)
+
+    if last_de is None:
+        return None
+
+    # Fallback: strip CJK words from the last attempt
+    logger.warning("All translation retries leaked CJK; stripping offending words")
+    return GeneratedContent(
+        title=_strip_cjk(last_de.title) or last_de.title,
+        summary=_strip_cjk(last_de.summary) or "",
+        body=_strip_cjk(last_de.body) or "",
+        source_attribution=last_de.source_attribution,
     )
 
 
