@@ -644,6 +644,28 @@ def get_vertical_counts(status: str | None = None) -> dict[str, int]:
 
 # --- Embedding Operations ---
 
+def get_recent_titles(days: int = 30) -> list[str]:
+    """Get recent trend titles (EN) for fast title-level dedup.
+
+    Used by the batch LLM processor to filter out raw entries whose title
+    closely matches an existing trend before any LLM call is spent on them.
+    """
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            rows = conn.execute(
+                "SELECT title_en FROM trends "
+                "WHERE title_en IS NOT NULL AND created_at > NOW() - INTERVAL '%s days'",
+                (days,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT title_en FROM trends "
+                "WHERE title_en IS NOT NULL AND created_at > datetime('now', ?)",
+                (f"-{days} days",),
+            ).fetchall()
+        return [row["title_en"] if isinstance(row, dict) else row[0] for row in rows]
+
+
 def get_recent_embeddings(days: int = 30) -> list[tuple[int, bytes]]:
     """Get embeddings from the last N days for dedup checking."""
     with get_connection() as conn:

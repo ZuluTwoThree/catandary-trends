@@ -11,9 +11,11 @@ Processes raw RSS entries through:
 
 import json
 import logging
+import re
 import struct
 import sys
 import time
+from difflib import SequenceMatcher
 from math import sqrt
 
 from slugify import slugify
@@ -31,6 +33,7 @@ from pipeline.config import (
 )
 from pipeline.db import (
     get_recent_embeddings,
+    get_recent_titles,
     get_unprocessed_entries,
     init_db,
     insert_trend,
@@ -186,6 +189,17 @@ Anforderungen:
 - Keine Phrasen aus dem Original kopieren
 - Struktur: Hook-Satz → Kontext → Analyse → Ausblick"""
 
+TRANSLATE_SYSTEM = """\
+Du bist ein professioneller Fachübersetzer für Trend- und Branchenanalysen (EN → DE).
+Übersetze den englischen Trend-Artikel präzise, idiomatisch und im analytischen Ton einer deutschen Fachpublikation.
+
+Regeln:
+- Übersetze Titel, Summary und Body getrennt — behalte Struktur und Länge ungefähr bei
+- Fachbegriffe bleiben englisch, wenn im Deutschen üblich (z.B. "Supply Chain", "AI", "Startup")
+- Keine wörtliche Wort-für-Wort-Übersetzung — natürliches Deutsch
+- Quellennennung am Ende als "Quelle: <Name>" statt "Source: <Name>"
+- Keine Inhalte hinzufügen oder weglassen"""
+
 
 def embedding_to_bytes(embedding: list[float]) -> bytes:
     """Pack a float list into bytes for storage."""
@@ -287,10 +301,10 @@ def step_dedup_check(title: str, excerpt: str) -> tuple[bool, float, list[float]
     return False, max_sim, embedding
 
 
-def step_generate_content(title: str, excerpt: str, extraction: ExtractionResult,
-                          classification: ClassificationResult,
-                          source_url: str, source_name: str) -> tuple[GeneratedContent | None, GeneratedContent | None]:
-    """Step 5: Generate trend articles in EN and DE."""
+def step_generate_content_en(title: str, excerpt: str, extraction: ExtractionResult,
+                              classification: ClassificationResult,
+                              source_url: str, source_name: str) -> GeneratedContent | None:
+    """Step 5a: Generate English trend article."""
     context = f"""Original Title: {title}
 Original Excerpt: {excerpt[:1000]}
 Brand: {extraction.brand_name or 'Unknown'}
@@ -308,13 +322,7 @@ Source: {source_name} ({source_url})"""
 
 Include this source attribution at the end: "Source: {source_name}" """
 
-    prompt_de = f"""Schreibe einen Trend-Artikel auf Deutsch basierend auf diesen Informationen.
-
-{context}
-
-Füge diese Quellenangabe am Ende ein: "Quelle: {source_name}" """
-
-    content_en = chat_structured(
+    return chat_structured(
         model=MODEL_GENERATE,
         prompt=prompt_en,
         schema=GeneratedContent,
@@ -322,15 +330,60 @@ Füge diese Quellenangabe am Ende ein: "Quelle: {source_name}" """
         temperature=0.7,
     )
 
-    content_de = chat_structured(
+
+def step_translate_to_de(content_en: GeneratedContent, source_name: str) -> GeneratedContent | None:
+    """Step 5b: Translate EN content to DE using the same 14B model for quality."""
+    prompt = f"""Übersetze folgenden englischen Trend-Artikel ins Deutsche.
+
+Title: {content_en.title}
+
+Summary: {content_en.summary}
+
+Body:
+{content_en.body}
+
+Quelle: {source_name}"""
+
+    return chat_structured(
         model=MODEL_GENERATE,
-        prompt=prompt_de,
+        prompt=prompt,
         schema=GeneratedContent,
-        system=CONTENT_DE_SYSTEM,
-        temperature=0.7,
+        system=TRANSLATE_SYSTEM,
+        temperature=0.3,
     )
 
-    return content_en, content_de
+
+# --- Title-level dedup helpers ---
+
+_TITLE_NORMALIZE_RE = re.compile(r"[^\w\s]+", re.UNICODE)
+
+
+def normalize_title(title: str) -> str:
+    """Lowercase, strip punctuation, collapse whitespace."""
+    t = _TITLE_NORMALIZE_RE.sub(" ", (title or "").lower())
+    return " ".join(t.split())
+
+
+def is_title_duplicate(title: str, existing_norm: list[str], threshold: float = 0.90) -> tuple[bool, float]:
+    """Return (is_dup, best_similarity) via length-prefiltered SequenceMatcher."""
+    norm = normalize_title(title)
+    if not norm:
+        return False, 0.0
+    best = 0.0
+    nlen = len(norm)
+    for other in existing_norm:
+        olen = len(other)
+        if olen == 0:
+            continue
+        # Length prefilter: skip if lengths differ by >40%
+        if min(nlen, olen) / max(nlen, olen) < 0.6:
+            continue
+        sim = SequenceMatcher(None, norm, other).ratio()
+        if sim > best:
+            best = sim
+            if best >= threshold:
+                return True, best
+    return False, best
 
 
 def process_entry(entry: dict) -> dict | None:
@@ -442,6 +495,241 @@ def process_entry(entry: dict) -> dict | None:
     return trend_data
 
 
+def run_pipeline_batch(limit: int = 200):
+    """Stage-by-stage batch pipeline.
+
+    Minimizes model reloads by processing all surviving entries through one
+    stage before moving to the next. Model load order: Qwen3 8B (stages 2-4)
+    → Qwen3-Embedding (stage 5) → Qwen3 14B (stages 6-7).
+    """
+    start = time.time()
+    init_db()
+
+    entries = get_unprocessed_entries(limit=limit)
+    logger.info("BATCH: loaded %d unprocessed entries", len(entries))
+    if not entries:
+        return {"processed": 0, "created": 0, "filtered": 0, "errors": 0}
+
+    created = 0
+    filtered = 0
+    errors = 0
+
+    # ---- Stage 1: Title dedup (no LLM) ----
+    t_stage = time.time()
+    existing_titles_norm = [normalize_title(t) for t in get_recent_titles(days=30)]
+    logger.info("Stage 1 (title dedup): %d existing titles loaded", len(existing_titles_norm))
+
+    survivors: list[dict] = []
+    batch_titles_norm: list[str] = []
+    for entry in entries:
+        title = entry["title"] or ""
+        is_dup, sim = is_title_duplicate(title, existing_titles_norm)
+        if is_dup:
+            mark_filtered(entry["id"], f"title_duplicate: sim={sim:.3f}")
+            filtered += 1
+            continue
+        # Also check against intra-batch titles
+        is_dup, sim = is_title_duplicate(title, batch_titles_norm)
+        if is_dup:
+            mark_filtered(entry["id"], f"title_duplicate_intra_batch: sim={sim:.3f}")
+            filtered += 1
+            continue
+        batch_titles_norm.append(normalize_title(title))
+        survivors.append(entry)
+    logger.info("Stage 1 done in %.1fs: %d → %d (%d title dups)",
+                time.time() - t_stage, len(entries), len(survivors), filtered)
+
+    # ---- Stage 2: Relevance filter (Qwen3 8B) ----
+    t_stage = time.time()
+    next_survivors = []
+    for entry in survivors:
+        try:
+            rel = step_relevance_filter(entry["title"], entry["excerpt"] or "", entry.get("source_vertical", "TECH"))
+            if rel is None:
+                mark_filtered(entry["id"], "relevance_filter_error")
+                filtered += 1
+                continue
+            if not rel.is_relevant or rel.confidence < RELEVANCE_THRESHOLD:
+                mark_filtered(entry["id"], f"not_relevant: {rel.reason}")
+                filtered += 1
+                continue
+            entry["_relevance"] = rel
+            next_survivors.append(entry)
+        except Exception as e:
+            logger.error("[%d] relevance error: %s", entry["id"], e)
+            mark_processed(entry["id"])
+            errors += 1
+    survivors = next_survivors
+    logger.info("Stage 2 done in %.1fs: %d survivors", time.time() - t_stage, len(survivors))
+
+    # ---- Stage 3: Extraction (Qwen3 8B) ----
+    t_stage = time.time()
+    for entry in survivors:
+        try:
+            ext = step_extraction(entry["title"], entry["excerpt"] or "")
+            entry["_extraction"] = ext if ext is not None else ExtractionResult()
+        except Exception as e:
+            logger.error("[%d] extraction error: %s", entry["id"], e)
+            entry["_extraction"] = ExtractionResult()
+    logger.info("Stage 3 done in %.1fs", time.time() - t_stage)
+
+    # ---- Stage 4: Classification (Qwen3 8B) ----
+    t_stage = time.time()
+    next_survivors = []
+    for entry in survivors:
+        try:
+            cls = step_classification(entry["title"], entry["excerpt"] or "", entry["_extraction"])
+            if cls is None:
+                mark_filtered(entry["id"], "classification_error")
+                filtered += 1
+                continue
+            entry["_classification"] = cls
+            next_survivors.append(entry)
+        except Exception as e:
+            logger.error("[%d] classification error: %s", entry["id"], e)
+            mark_processed(entry["id"])
+            errors += 1
+    survivors = next_survivors
+    logger.info("Stage 4 done in %.1fs: %d survivors", time.time() - t_stage, len(survivors))
+
+    # ---- Stage 5: Embeddings + dedup (load recent embeddings ONCE) ----
+    t_stage = time.time()
+    recent = get_recent_embeddings(days=30)
+    recent_vecs = [bytes_to_embedding(b) for _, b in recent]
+    logger.info("Stage 5: %d recent embeddings loaded", len(recent_vecs))
+
+    next_survivors = []
+    batch_vecs: list[list[float]] = []
+    for entry in survivors:
+        try:
+            text = f"{entry['title']}\n{(entry['excerpt'] or '')[:500]}"
+            emb = generate_embedding(MODEL_EMBEDDING, text)
+            if emb is None:
+                mark_filtered(entry["id"], "embedding_error")
+                filtered += 1
+                continue
+            max_sim = 0.0
+            is_dup = False
+            for v in recent_vecs:
+                sim = cosine_similarity(emb, v)
+                if sim > max_sim:
+                    max_sim = sim
+                if sim > DUPLICATE_SIMILARITY_THRESHOLD:
+                    is_dup = True
+                    break
+            if not is_dup:
+                for v in batch_vecs:
+                    sim = cosine_similarity(emb, v)
+                    if sim > max_sim:
+                        max_sim = sim
+                    if sim > DUPLICATE_SIMILARITY_THRESHOLD:
+                        is_dup = True
+                        break
+            if is_dup:
+                mark_filtered(entry["id"], f"duplicate: similarity={max_sim:.3f}")
+                filtered += 1
+                continue
+            entry["_embedding"] = emb
+            batch_vecs.append(emb)
+            next_survivors.append(entry)
+        except Exception as e:
+            logger.error("[%d] dedup error: %s", entry["id"], e)
+            mark_processed(entry["id"])
+            errors += 1
+    survivors = next_survivors
+    logger.info("Stage 5 done in %.1fs: %d survivors", time.time() - t_stage, len(survivors))
+
+    # ---- Stage 6: Content generation EN (Qwen3 14B) ----
+    t_stage = time.time()
+    next_survivors = []
+    for entry in survivors:
+        try:
+            en = step_generate_content_en(
+                entry["title"], entry["excerpt"] or "",
+                entry["_extraction"], entry["_classification"],
+                entry["url"], entry.get("source_name", "Unknown"),
+            )
+            if en is None:
+                mark_filtered(entry["id"], "content_generation_error")
+                filtered += 1
+                continue
+            entry["_content_en"] = en
+            next_survivors.append(entry)
+        except Exception as e:
+            logger.error("[%d] content EN error: %s", entry["id"], e)
+            mark_processed(entry["id"])
+            errors += 1
+    survivors = next_survivors
+    logger.info("Stage 6 done in %.1fs: %d survivors", time.time() - t_stage, len(survivors))
+
+    # ---- Stage 7: Translate EN → DE (Qwen3 14B, same model loaded) ----
+    t_stage = time.time()
+    for entry in survivors:
+        try:
+            de = step_translate_to_de(entry["_content_en"], entry.get("source_name", "Unknown"))
+            entry["_content_de"] = de
+        except Exception as e:
+            logger.error("[%d] translation error: %s", entry["id"], e)
+            entry["_content_de"] = None
+    logger.info("Stage 7 done in %.1fs", time.time() - t_stage)
+
+    # ---- Stage 8: Insert trends ----
+    t_stage = time.time()
+    for entry in survivors:
+        try:
+            rel = entry["_relevance"]
+            ext = entry["_extraction"]
+            cls = entry["_classification"]
+            en = entry["_content_en"]
+            de = entry.get("_content_de")
+            base_slug = slugify(en.title, max_length=70)
+            slug = f"{base_slug}-{entry['id']}"
+            trend_data = {
+                "title_en": en.title,
+                "title_de": de.title if de else None,
+                "slug": slug,
+                "summary_en": en.summary,
+                "summary_de": de.summary if de else None,
+                "body_en": en.body,
+                "body_de": de.body if de else None,
+                "verticals": cls.verticals,
+                "primary_vertical": cls.verticals[0] if cls.verticals else rel.primary_vertical,
+                "pestel": cls.pestel,
+                "tags": cls.tags,
+                "trend_signal_type": cls.trend_signal_type,
+                "mega_trend": cls.mega_trend,
+                "trend_level": "micro",
+                "brands": [ext.brand_name] if ext.brand_name else [],
+                "regions": cls.regions,
+                "trend_score": compute_crs(
+                    confidence=rel.confidence,
+                    num_verticals=len(cls.verticals),
+                    num_pestel=len(cls.pestel),
+                    signal_type=cls.trend_signal_type,
+                    source_type=entry.get("source_type"),
+                ) / 100.0,
+                "confidence": rel.confidence,
+                "source_url": entry["url"],
+                "source_name": entry.get("source_name", "Unknown"),
+                "embedding": embedding_to_bytes(entry["_embedding"]),
+            }
+            insert_trend(entry["id"], trend_data)
+            mark_processed(entry["id"])
+            created += 1
+        except Exception as e:
+            logger.error("[%d] insert error: %s", entry["id"], e, exc_info=True)
+            mark_processed(entry["id"])
+            errors += 1
+    logger.info("Stage 8 done in %.1fs", time.time() - t_stage)
+
+    elapsed = time.time() - start
+    logger.info(
+        "BATCH complete in %.1fs: %d entries, %d created, %d filtered, %d errors",
+        elapsed, len(entries), created, filtered, errors,
+    )
+    return {"processed": len(entries), "created": created, "filtered": filtered, "errors": errors}
+
+
 def run_pipeline(limit: int = 50):
     """Process unprocessed raw entries through the LLM pipeline."""
     start = time.time()
@@ -482,5 +770,13 @@ def run_pipeline(limit: int = 50):
 
 
 if __name__ == "__main__":
-    limit = int(sys.argv[1]) if len(sys.argv) > 1 else 10
-    run_pipeline(limit=limit)
+    args = sys.argv[1:]
+    mode_batch = True
+    if args and args[0] == "--legacy":
+        mode_batch = False
+        args = args[1:]
+    limit = int(args[0]) if args else 200
+    if mode_batch:
+        run_pipeline_batch(limit=limit)
+    else:
+        run_pipeline(limit=limit)

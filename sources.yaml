@@ -243,9 +243,6 @@ verticals:
       - name: Fashionista
         feed_url: https://fashionista.com/.rss/full/
         type: trade_media
-      - name: Sourcing Journal
-        feed_url: https://sourcingjournal.com/feed/
-        type: trade_media
       - name: WWD
         feed_url: https://www.wwd.com/feed/
         type: trade_media
