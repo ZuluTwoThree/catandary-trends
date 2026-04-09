@@ -747,6 +747,8 @@ catandary-trends/
 
 ### Weiterentwicklung
 
+**`BACKLOG.md` im Repo-Root ist die zentrale Sammlung offener Feature-Ideen, verworfener Ansätze mit Begründung, und aufgeschobener Verbesserungen.** Vor jeder neuen Feature-Planung **immer zuerst dort reinschauen** — es enthält Kontext zu Ideen, die schon durchdacht oder angetestet wurden (z.B. Dry-Runs, Methodik-Notizen, Wiedervorlage-Kriterien). Neue Ideen, die nicht sofort umgesetzt werden, dort ablegen statt im Code oder Chat verloren gehen zu lassen.
+
 Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direkt auf `main` oder in Feature-Branches entwickelt. Aktuelle Prioritäten:
 
 1. **Quellen-Ergänzung** — 7 verifizierte Feeds stehen bereit (siehe Quellenbalance)

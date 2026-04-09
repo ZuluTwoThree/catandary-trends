@@ -47,3 +47,5 @@ htmlcov/
 
 # Local review artifacts
 prompts_for_review.txt
+
+20*-this-session-*.txt
