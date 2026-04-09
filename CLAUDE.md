@@ -751,9 +751,10 @@ catandary-trends/
 
 Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direkt auf `main` oder in Feature-Branches entwickelt. Aktuelle Prioritäten:
 
-1. **LIFESTYLE stärken** — neue Quellen für das schwächste Vertical finden
-2. **Frontend-Polish** — README aktualisieren, Deployment auf Hetzner finalisieren
-3. **Pipeline-Automatisierung** — Cron-Jobs auf Produktionssystem einrichten
+1. **Frontend-Polish** — README aktualisieren, Deployment auf Hetzner finalisieren
+2. **Pipeline-Automatisierung** — Cron-Jobs auf Produktionssystem einrichten
+
+**Hinweis zur Vertical-Balance:** LIFESTYLE, DESIGN und FASHION sind bewusst die *Now*-Trendsignale im Foresight-Modell (kurze Lead-Zeit). Ihr kombinierter Anteil (~15 %) ist als Zielgröße OK — keine aktive Quellenausweitung nötig.
 
 ---
 
