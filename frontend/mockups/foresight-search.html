@@ -1,0 +1,1140 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Catandary Foresight — Search Workbench (Mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #0a0c0a;
+    --paper: #f4f1e8;
+    --bone: #e6e1d3;
+    --fog: #1a1d1a;
+    --mist: #252822;
+    --edge: #3a3d35;
+    --rule: #4a4d45;
+    --muted: #8a8d82;
+    --text: #d8d5c8;
+    --accent: #d4ff3a;      /* electric chartreuse */
+    --accent-deep: #a8cc28;
+    --warn: #ff6b3a;
+    --cool: #7ec4e8;
+    --violet: #b89fff;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text); }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    min-height: 100vh;
+    font-feature-settings: 'ss01','cv11';
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% 0%, rgba(212,255,58,0.04), transparent 70%),
+      radial-gradient(ellipse 60% 40% at 90% 100%, rgba(184,159,255,0.03), transparent 70%);
+    background-attachment: fixed;
+  }
+  /* subtle grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-ligatures: none; }
+  .serif { font-family: 'Fraunces', Georgia, serif; font-optical-sizing: auto; }
+
+  /* layout */
+  .shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr) 340px;
+    min-height: 100vh;
+  }
+  /* ========== RAIL ========== */
+  .rail {
+    border-right: 1px solid var(--edge);
+    padding: 28px 22px 40px;
+    background: linear-gradient(180deg, #0a0c0a 0%, #0d0f0c 100%);
+    position: sticky; top: 0; height: 100vh;
+    overflow-y: auto;
+  }
+  .brand {
+    font-family: 'Fraunces', serif;
+    font-weight: 800;
+    font-size: 20px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--paper);
+    margin-bottom: 2px;
+  }
+  .brand span { color: var(--accent); }
+  .brand-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    margin-bottom: 40px;
+  }
+  .rail-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    margin: 28px 0 10px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .rail-label::after {
+    content: '';
+    flex: 1;
+    margin-left: 10px;
+    border-top: 1px dashed var(--edge);
+    align-self: center;
+  }
+  .watchlist { list-style: none; padding: 0; margin: 0; }
+  .watchlist li {
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(74,77,69,0.4);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: padding 180ms ease;
+  }
+  .watchlist li:hover { padding-left: 6px; }
+  .watchlist li.active {
+    padding-left: 10px;
+    border-left: 2px solid var(--accent);
+    margin-left: -12px;
+    padding-right: 4px;
+  }
+  .watchlist .name { font-size: 12px; font-weight: 500; color: var(--text); }
+  .watchlist .delta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+  .delta.up { color: var(--accent); background: rgba(212,255,58,0.08); }
+  .delta.down { color: var(--warn); background: rgba(255,107,58,0.08); }
+  .delta.flat { color: var(--muted); }
+  .new-query {
+    margin-top: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .new-query::before { content: '+ '; color: var(--accent); }
+
+  /* ========== MAIN ========== */
+  main {
+    padding: 40px 48px 80px;
+    min-width: 0;
+  }
+  .topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 36px;
+  }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .eyebrow::before {
+    content: '';
+    display: inline-block;
+    width: 22px;
+    height: 1px;
+    background: var(--accent);
+    vertical-align: middle;
+    margin-right: 10px;
+  }
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: 54px;
+    line-height: 1;
+    letter-spacing: -0.035em;
+    color: var(--paper);
+    margin: 0 0 8px;
+  }
+  h1 em {
+    font-style: italic;
+    font-weight: 500;
+    color: var(--accent);
+  }
+  .topbar .meta {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .topbar .meta .hot {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  /* search box */
+  .search-box {
+    position: relative;
+    margin-bottom: 32px;
+    border: 1px solid var(--rule);
+    background: rgba(15,17,14,0.8);
+    padding: 20px 22px 18px;
+  }
+  .search-box::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border: 1px solid transparent;
+    background:
+      linear-gradient(90deg, var(--accent) 0 20%, transparent 20%) top left / 40px 1px no-repeat,
+      linear-gradient(180deg, var(--accent) 0 20%, transparent 20%) top left / 1px 40px no-repeat,
+      linear-gradient(-90deg, var(--accent) 0 20%, transparent 20%) top right / 40px 1px no-repeat,
+      linear-gradient(180deg, var(--accent) 0 20%, transparent 20%) top right / 1px 40px no-repeat;
+  }
+  .search-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 10px;
+  }
+  .search-input {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 32px;
+    color: var(--paper);
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+  .search-input .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 30px;
+    background: var(--accent);
+    animation: blink 1.1s steps(2) infinite;
+    margin-left: 2px;
+    vertical-align: text-top;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .filters {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+  }
+  .chip {
+    padding: 4px 10px;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+  }
+  .chip.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(212,255,58,0.06);
+  }
+  .chip.neg { border-style: dashed; color: var(--warn); border-color: var(--warn); }
+
+  /* ========== METRICS STRIP ========== */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    margin-bottom: 44px;
+    border-top: 1px solid var(--edge);
+    border-bottom: 1px solid var(--edge);
+  }
+  .metric {
+    padding: 20px 22px;
+    border-right: 1px solid var(--edge);
+  }
+  .metric:last-child { border-right: none; }
+  .metric .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .metric .value {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: 40px;
+    line-height: 1;
+    color: var(--paper);
+    letter-spacing: -0.03em;
+  }
+  .metric .value .unit { font-size: 16px; color: var(--muted); margin-left: 4px; }
+  .metric .delta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    margin-top: 8px;
+  }
+  .metric .delta.up { color: var(--accent); }
+  .metric .delta.down { color: var(--warn); }
+
+  /* ========== SECTION ========== */
+  section { margin-bottom: 56px; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--edge);
+  }
+  .section-head h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 22px;
+    color: var(--paper);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .section-head h2 .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-right: 10px;
+    vertical-align: middle;
+  }
+  .section-head .aside {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  /* ========== TIMELINE ========== */
+  .timeline-wrap {
+    background: linear-gradient(180deg, rgba(20,22,19,0.5) 0%, transparent 100%);
+    padding: 22px 26px 18px;
+    border: 1px solid var(--edge);
+    position: relative;
+  }
+  .tl-legend {
+    display: flex;
+    gap: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .tl-legend span::before {
+    content: '';
+    display: inline-block;
+    width: 10px;
+    height: 2px;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  .tl-legend .s1::before { background: var(--violet); }
+  .tl-legend .s2::before { background: var(--cool); }
+  .tl-legend .s3::before { background: var(--accent); }
+  svg.chart { width: 100%; height: auto; display: block; }
+  .tl-xaxis {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 8px;
+    letter-spacing: 0.05em;
+  }
+  .tl-annotate {
+    position: absolute;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 11px;
+    color: var(--accent);
+    top: 40px;
+    right: 32%;
+    background: rgba(10,12,10,0.9);
+    padding: 3px 8px;
+    border-left: 2px solid var(--accent);
+  }
+
+  /* ========== SIGNAL PATH ========== */
+  .path {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+  }
+  .path-col {
+    border: 1px solid var(--edge);
+    padding: 20px 22px 18px;
+    position: relative;
+  }
+  .path-col::after {
+    content: '→';
+    position: absolute;
+    right: -18px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 18px;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .path-col:last-child::after { display: none; }
+  .path-col .tier-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .path-col .lead {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--paper);
+    margin-bottom: 14px;
+    font-style: italic;
+  }
+  .path-col .count {
+    font-family: 'Fraunces', serif;
+    font-size: 36px;
+    font-weight: 300;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    margin-bottom: 4px;
+  }
+  .path-col.future .count { color: var(--violet); }
+  .path-col.market .count { color: var(--cool); }
+  .path-col.now .count { color: var(--accent); }
+  .path-col .share {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .path-col .top-src {
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.6;
+    padding-top: 12px;
+    border-top: 1px dashed var(--edge);
+  }
+  .path-col .top-src .src {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+  }
+  .path-col .top-src .src .n { color: var(--muted); }
+
+  /* ========== MEGA DISTRIBUTION ========== */
+  .mega-bars { display: flex; flex-direction: column; gap: 10px; }
+  .mega-bar {
+    display: grid;
+    grid-template-columns: 260px 1fr 60px;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
+  }
+  .mega-bar .name { color: var(--text); }
+  .mega-bar .name .icon { margin-right: 8px; opacity: 0.8; }
+  .mega-bar .track {
+    height: 4px;
+    background: rgba(74,77,69,0.4);
+    position: relative;
+  }
+  .mega-bar .fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent-deep) 100%);
+  }
+  .mega-bar .fill.weak { background: var(--muted); }
+  .mega-bar .n {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ========== RESULTS ========== */
+  .result-table {
+    border-top: 1px solid var(--edge);
+  }
+  .result {
+    display: grid;
+    grid-template-columns: 50px 1fr 120px 80px 40px;
+    gap: 16px;
+    align-items: baseline;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--edge);
+    cursor: pointer;
+    transition: background 150ms;
+  }
+  .result:hover { background: rgba(212,255,58,0.03); padding-left: 8px; margin-left: -8px; padding-right: 8px; margin-right: -8px; }
+  .result .score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .result .title {
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 1.3;
+    color: var(--paper);
+    letter-spacing: -0.01em;
+  }
+  .result .title .tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 1px 5px;
+    margin-right: 8px;
+    vertical-align: middle;
+    background: rgba(212,255,58,0.05);
+  }
+  .result .title .excerpt {
+    display: block;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-top: 6px;
+    font-style: normal;
+  }
+  .result .src {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .result .tier {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .result .tier.future { color: var(--violet); }
+  .result .tier.market { color: var(--cool); }
+  .result .tier.now { color: var(--accent); }
+  .result .date {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: right;
+  }
+
+  /* toolbar */
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px dashed var(--edge);
+  }
+  .tool-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 8px 14px;
+    border: 1px solid var(--rule);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 150ms;
+  }
+  .tool-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .tool-btn.primary { border-color: var(--accent); color: var(--ink); background: var(--accent); font-weight: 700; }
+
+  /* ========== ASIDE ========== */
+  aside {
+    border-left: 1px solid var(--edge);
+    padding: 40px 28px 80px;
+    background: linear-gradient(180deg, rgba(13,15,12,0.9) 0%, rgba(10,12,10,0.6) 100%);
+    position: sticky; top: 0; max-height: 100vh;
+    overflow-y: auto;
+  }
+  aside::-webkit-scrollbar { width: 4px; }
+  aside::-webkit-scrollbar-thumb { background: var(--edge); }
+
+  .aside-block { margin-bottom: 36px; }
+  .aside-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .aside-label .hint { color: var(--accent); font-weight: 700; }
+
+  /* co-occurrence cloud */
+  .cooc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    line-height: 1.2;
+  }
+  .cooc span {
+    font-family: 'Inter', sans-serif;
+    padding: 3px 8px;
+    border: 1px solid var(--rule);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 120ms;
+  }
+  .cooc span:hover { border-color: var(--accent); color: var(--accent); }
+  .cooc .w5 { font-size: 18px; color: var(--paper); border-color: var(--accent); background: rgba(212,255,58,0.08); }
+  .cooc .w4 { font-size: 15px; color: var(--paper); }
+  .cooc .w3 { font-size: 13px; }
+  .cooc .w2 { font-size: 11px; }
+  .cooc .w1 { font-size: 10px; color: var(--muted); }
+
+  /* PESTEL bars */
+  .pestel { display: grid; gap: 8px; }
+  .pe-row {
+    display: grid;
+    grid-template-columns: 30px 1fr 30px;
+    align-items: center;
+    gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+  }
+  .pe-row .k {
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+  }
+  .pe-row .bar {
+    height: 6px;
+    background: rgba(74,77,69,0.35);
+    position: relative;
+  }
+  .pe-row .bar i {
+    position: absolute;
+    inset: 0 auto 0 0;
+    display: block;
+  }
+  .pe-row .v { text-align: right; color: var(--muted); }
+  .pe-row.P .k { color: #ff6b3a; } .pe-row.P i { background: #ff6b3a; }
+  .pe-row.E .k { color: #7ec4e8; } .pe-row.E i { background: #7ec4e8; }
+  .pe-row.S .k { color: #8fdc8f; } .pe-row.S i { background: #8fdc8f; }
+  .pe-row.T .k { color: #b89fff; } .pe-row.T i { background: #b89fff; }
+  .pe-row.En .k { color: #3adcc5; } .pe-row.En i { background: #3adcc5; }
+  .pe-row.L .k { color: #ffb347; } .pe-row.L i { background: #ffb347; }
+
+  /* cross-vertical grid */
+  .cv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .cv-cell {
+    padding: 10px 12px;
+    border: 1px solid var(--edge);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+  }
+  .cv-cell .vn { color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .cv-cell .cn { font-size: 14px; color: var(--paper); font-family: 'Fraunces', serif; font-weight: 500; }
+  .cv-cell.hot { border-color: var(--accent); background: rgba(212,255,58,0.05); }
+  .cv-cell.hot .cn { color: var(--accent); }
+
+  /* footnote */
+  .footnote {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    border-top: 1px solid var(--edge);
+    padding-top: 16px;
+    margin-top: 20px;
+  }
+  .footnote em { color: var(--accent); font-style: normal; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ================ RAIL ================ -->
+  <nav class="rail">
+    <div class="brand">Catandary<span>.</span></div>
+    <div class="brand-sub">Foresight · Workbench</div>
+
+    <div class="rail-label"><span>Watchlist</span></div>
+    <ul class="watchlist">
+      <li class="active">
+        <span class="name">Präzisionsfermentation</span>
+        <span class="delta up">+142%</span>
+      </li>
+      <li>
+        <span class="name">Postbiotics</span>
+        <span class="delta up">+38%</span>
+      </li>
+      <li>
+        <span class="name">Cultivated Meat</span>
+        <span class="delta down">−17%</span>
+      </li>
+      <li>
+        <span class="name">Modular Housing</span>
+        <span class="delta up">+9%</span>
+      </li>
+      <li>
+        <span class="name">Neuromorphic Compute</span>
+        <span class="delta up">+61%</span>
+      </li>
+      <li>
+        <span class="name">Creator Economy</span>
+        <span class="delta flat">—</span>
+      </li>
+      <li>
+        <span class="name">Spatial Web</span>
+        <span class="delta down">−22%</span>
+      </li>
+      <li>
+        <span class="name">Biophilic Design</span>
+        <span class="delta up">+14%</span>
+      </li>
+    </ul>
+    <div class="new-query">Query hinzufügen</div>
+
+    <div class="rail-label"><span>Dossiers</span></div>
+    <ul class="watchlist">
+      <li><span class="name">Protein-Transition</span><span class="delta mono">7 q</span></li>
+      <li><span class="name">Post-Ownership-Consumption</span><span class="delta mono">4 q</span></li>
+      <li><span class="name">Decarbonized Mobility</span><span class="delta mono">6 q</span></li>
+    </ul>
+
+    <div class="rail-label"><span>Alerts · 3 neu</span></div>
+    <ul class="watchlist" style="font-size:11px;">
+      <li style="display:block; border-left:2px solid var(--accent); padding-left:10px; margin-left:-12px;">
+        <div style="color:var(--accent); font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.1em;">HEUTE 08:12</div>
+        <div style="color:var(--text); font-size:11px; margin-top:3px;">„Präzisionsfermentation" +142% über 30-Tage-Baseline.</div>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- ================ MAIN ================ -->
+  <main>
+    <div class="topbar">
+      <div>
+        <div class="eyebrow">Search Workbench · Mockup</div>
+        <h1>Was <em>wird</em><br/>ein Thema?</h1>
+      </div>
+      <div class="meta">
+        <div>SESSION · 2026-04-09 08:14</div>
+        <div>INDEX · 4.173 SIGNALE</div>
+        <div>POOL · 119 QUELLEN · <span class="hot">8 VERTICALS</span></div>
+      </div>
+    </div>
+
+    <!-- search box -->
+    <div class="search-box">
+      <label class="search-label">Semantic Query · 0.42s · 147 Treffer ≥ 0.35</label>
+      <div class="search-input">
+        Präzisionsfermentation <span class="cursor"></span>
+      </div>
+      <div class="filters">
+        <span class="chip active">FOOD</span>
+        <span class="chip active">HEALTH</span>
+        <span class="chip">+ Vertical</span>
+        <span class="chip active">Future-Tier</span>
+        <span class="chip active">Market-Tier</span>
+        <span class="chip">Now-Tier</span>
+        <span class="chip neg">− "plant-based"</span>
+        <span class="chip">Zeitraum: 24 Monate</span>
+        <span class="chip">Threshold ≥ 0.35</span>
+      </div>
+    </div>
+
+    <!-- metrics strip -->
+    <div class="metrics">
+      <div class="metric">
+        <div class="label">Treffer · Gesamt</div>
+        <div class="value">147</div>
+        <div class="delta up">▲ +56 letzte 30 T.</div>
+      </div>
+      <div class="metric">
+        <div class="label">Velocity · 30d / 90d</div>
+        <div class="value">2.42<span class="unit">×</span></div>
+        <div class="delta up">▲ Beschleunigung bestätigt</div>
+      </div>
+      <div class="metric">
+        <div class="label">First Seen</div>
+        <div class="value serif" style="font-size:28px;">Aug 2024</div>
+        <div class="delta" style="color:var(--muted);">20 Monate Historie</div>
+      </div>
+      <div class="metric">
+        <div class="label">Signal-Tier · Dominant</div>
+        <div class="value serif" style="font-size:26px; color:var(--violet);">Future</div>
+        <div class="delta" style="color:var(--muted);">Früh-Indikator · Science-Layer</div>
+      </div>
+    </div>
+
+    <!-- timeline -->
+    <section>
+      <div class="section-head">
+        <h2><span class="num mono">01 /</span>Signal-Timeline</h2>
+        <div class="aside">Monatliche Treffer · Science / Trade / Now</div>
+      </div>
+      <div class="timeline-wrap">
+        <div class="tl-legend">
+          <span class="s1">Science · Future</span>
+          <span class="s2">Trade · Market</span>
+          <span class="s3">Consumer · Now</span>
+        </div>
+        <svg class="chart" viewBox="0 0 840 220" preserveAspectRatio="none">
+          <!-- baselines -->
+          <line x1="0" y1="180" x2="840" y2="180" stroke="#3a3d35" stroke-width="1" stroke-dasharray="2 4"/>
+          <line x1="0" y1="120" x2="840" y2="120" stroke="#3a3d35" stroke-width="0.5" stroke-dasharray="2 4"/>
+          <line x1="0" y1="60"  x2="840" y2="60"  stroke="#3a3d35" stroke-width="0.5" stroke-dasharray="2 4"/>
+
+          <!-- Science (violet) - starts early -->
+          <path d="M0,178 L40,176 L80,172 L120,170 L160,168 L200,165 L240,160 L280,152 L320,145 L360,140 L400,130 L440,122 L480,112 L520,100 L560,88 L600,74 L640,60 L680,48 L720,38 L760,30 L800,25 L840,20 L840,220 L0,220 Z"
+                fill="url(#fv)" opacity="0.7"/>
+          <path d="M0,178 L40,176 L80,172 L120,170 L160,168 L200,165 L240,160 L280,152 L320,145 L360,140 L400,130 L440,122 L480,112 L520,100 L560,88 L600,74 L640,60 L680,48 L720,38 L760,30 L800,25 L840,20"
+                fill="none" stroke="#b89fff" stroke-width="1.5"/>
+
+          <!-- Trade (cool) - starts later -->
+          <path d="M0,180 L40,180 L80,180 L120,180 L160,178 L200,176 L240,172 L280,168 L320,162 L360,156 L400,150 L440,143 L480,133 L520,120 L560,108 L600,94 L640,78 L680,65 L720,52 L760,44 L800,40 L840,38 L840,220 L0,220 Z"
+                fill="url(#mv)" opacity="0.5"/>
+          <path d="M0,180 L40,180 L80,180 L120,180 L160,178 L200,176 L240,172 L280,168 L320,162 L360,156 L400,150 L440,143 L480,133 L520,120 L560,108 L600,94 L640,78 L680,65 L720,52 L760,44 L800,40 L840,38"
+                fill="none" stroke="#7ec4e8" stroke-width="1.5"/>
+
+          <!-- Now (accent) - very recent -->
+          <path d="M0,180 L40,180 L80,180 L120,180 L160,180 L200,180 L240,180 L280,180 L320,180 L360,178 L400,176 L440,172 L480,166 L520,158 L560,148 L600,136 L640,122 L680,108 L720,92 L760,75 L800,62 L840,54 L840,220 L0,220 Z"
+                fill="url(#nv)" opacity="0.45"/>
+          <path d="M0,180 L40,180 L80,180 L120,180 L160,180 L200,180 L240,180 L280,180 L320,180 L360,178 L400,176 L440,172 L480,166 L520,158 L560,148 L600,136 L640,122 L680,108 L720,92 L760,75 L800,62 L840,54"
+                fill="none" stroke="#d4ff3a" stroke-width="1.5"/>
+
+          <defs>
+            <linearGradient id="fv" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#b89fff" stop-opacity="0.5"/>
+              <stop offset="1" stop-color="#b89fff" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="mv" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#7ec4e8" stop-opacity="0.45"/>
+              <stop offset="1" stop-color="#7ec4e8" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="nv" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#d4ff3a" stop-opacity="0.4"/>
+              <stop offset="1" stop-color="#d4ff3a" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+
+          <!-- velocity annotation marker -->
+          <line x1="600" y1="30" x2="600" y2="200" stroke="#d4ff3a" stroke-width="0.5" stroke-dasharray="1 3"/>
+          <circle cx="600" cy="74" r="3" fill="#d4ff3a"/>
+        </svg>
+        <div class="tl-annotate">Trade-Breakout · Q1 2026</div>
+        <div class="tl-xaxis">
+          <span>AUG 2024</span><span>NOV</span><span>FEB</span><span>MAI</span><span>AUG</span><span>NOV</span><span>FEB 2026</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- signal path -->
+    <section>
+      <div class="section-head">
+        <h2><span class="num mono">02 /</span>Signal-Pfad · Lead-Time-Tiers</h2>
+        <div class="aside">Science → Trade → Now</div>
+      </div>
+      <div class="path">
+        <div class="path-col future">
+          <div class="tier-name">Future · 5–10 Jahre Lead</div>
+          <div class="lead">Science-Layer</div>
+          <div class="count">68</div>
+          <div class="share">46% aller Treffer</div>
+          <div class="top-src">
+            <div class="src"><span>Nature Food</span><span class="n">14</span></div>
+            <div class="src"><span>PNAS</span><span class="n">11</span></div>
+            <div class="src"><span>Trends in Food Sci.</span><span class="n">9</span></div>
+            <div class="src"><span>Good Food Institute</span><span class="n">8</span></div>
+          </div>
+        </div>
+        <div class="path-col market">
+          <div class="tier-name">Market · 1–2 Jahre Lead</div>
+          <div class="lead">Trade-Layer</div>
+          <div class="count">62</div>
+          <div class="share">42% aller Treffer</div>
+          <div class="top-src">
+            <div class="src"><span>FoodNavigator</span><span class="n">15</span></div>
+            <div class="src"><span>AgFunderNews</span><span class="n">12</span></div>
+            <div class="src"><span>Food Dive</span><span class="n">10</span></div>
+            <div class="src"><span>The Spoon</span><span class="n">8</span></div>
+          </div>
+        </div>
+        <div class="path-col now">
+          <div class="tier-name">Now · Echtzeit</div>
+          <div class="lead">Consumer-Layer</div>
+          <div class="count">17</div>
+          <div class="share">12% aller Treffer</div>
+          <div class="top-src">
+            <div class="src"><span>Eater</span><span class="n">6</span></div>
+            <div class="src"><span>Hypebeast</span><span class="n">3</span></div>
+            <div class="src"><span>Vogue UK</span><span class="n">3</span></div>
+            <div class="src"><span>Robb Report</span><span class="n">2</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="footnote">
+        Lesart · <em>88% der Treffer stammen aus Future- und Market-Quellen.</em> Strukturelles Signal, nicht Hype. Consumer-Layer ist noch dünn — Mainstream-Diffusion steht bevor.
+      </div>
+    </section>
+
+    <!-- mega distribution -->
+    <section>
+      <div class="section-head">
+        <h2><span class="num mono">03 /</span>Mega-Trend-Verortung</h2>
+        <div class="aside">Worin wird verhandelt?</div>
+      </div>
+      <div class="mega-bars">
+        <div class="mega-bar">
+          <div class="name"><span class="icon">🌾</span>future_of_food_and_agriculture</div>
+          <div class="track"><div class="fill" style="width:84%;"></div></div>
+          <div class="n">82</div>
+        </div>
+        <div class="mega-bar">
+          <div class="name"><span class="icon">🧬</span>bio_revolution_and_new_materials</div>
+          <div class="track"><div class="fill" style="width:52%;"></div></div>
+          <div class="n">51</div>
+        </div>
+        <div class="mega-bar">
+          <div class="name"><span class="icon">❤️</span>personalized_health_and_longevity</div>
+          <div class="track"><div class="fill" style="width:28%;"></div></div>
+          <div class="n">28</div>
+        </div>
+        <div class="mega-bar">
+          <div class="name"><span class="icon">♻️</span>regenerative_design_and_net_positive</div>
+          <div class="track"><div class="fill weak" style="width:18%;"></div></div>
+          <div class="n">18</div>
+        </div>
+        <div class="mega-bar">
+          <div class="name"><span class="icon">🏭</span>climate_resilience_and_adaptation</div>
+          <div class="track"><div class="fill weak" style="width:11%;"></div></div>
+          <div class="n">11</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- results -->
+    <section>
+      <div class="section-head">
+        <h2><span class="num mono">04 /</span>Top Signale</h2>
+        <div class="aside">Hybrid-Ranking · RRF · 10 von 147</div>
+      </div>
+      <div class="result-table">
+
+        <div class="result">
+          <div class="score">0.867</div>
+          <div class="title">
+            <span class="tag">KEYWORD+SEMANTIC</span>
+            Nature Food publiziert Meta-Analyse zu Präzisionsfermentation als Schlüssel-Technologie der Protein-Transition
+            <span class="excerpt">Eine systematische Review von 89 Studien identifiziert mikrobielle Präzisionsfermentation als skalierbarste Plattform für funktionale Milchproteine jenseits von Pflanzenalternativen — mit Lead-Time-Indikation für 2030er.</span>
+          </div>
+          <div class="src">NATURE FOOD</div>
+          <div class="tier future">FUTURE</div>
+          <div class="date">03 APR</div>
+        </div>
+
+        <div class="result">
+          <div class="score">0.812</div>
+          <div class="title">
+            <span class="tag">SEMANTIC</span>
+            Perfect Day schließt Serie-E über 350 Mio. USD — Bioreaktor-Ausbau für animal-free Whey
+            <span class="excerpt">Das kalifornische Bio-Startup sichert die bislang größte Finanzierungsrunde im Segment animal-free Dairy und plant eine zweite Produktionsstätte in Europa zur Belieferung der Lebensmittelindustrie.</span>
+          </div>
+          <div class="src">AGFUNDER</div>
+          <div class="tier market">MARKET</div>
+          <div class="date">29 MAR</div>
+        </div>
+
+        <div class="result">
+          <div class="score">0.798</div>
+          <div class="title">
+            <span class="tag">KEYWORD+SEMANTIC</span>
+            Formo startet präzisionsfermentierten Schmelzkäse im deutschen LEH — Edeka als Launch-Partner
+            <span class="excerpt">Der Berliner Biotech-Anbieter bringt den ersten tierfreien Schmelzkäse auf Basis mikrobiell gewonnener Milchproteine in 1.200 Edeka-Märkte. Positionierung explizit nicht als Plant-Based.</span>
+          </div>
+          <div class="src">FOODNAVIGATOR</div>
+          <div class="tier market">MARKET</div>
+          <div class="date">25 MAR</div>
+        </div>
+
+        <div class="result">
+          <div class="score">0.773</div>
+          <div class="title">
+            <span class="tag">SEMANTIC</span>
+            PNAS-Studie weist katalytische Effizienzsteigerung bei Hefe-basierten Bioreaktoren nach
+            <span class="excerpt">Eine interdisziplinäre Arbeitsgruppe demonstriert, wie optimierte Stoffwechselwege die Ausbeute von funktionalen Proteinen in Fermentationsanlagen um das 6-fache erhöhen — ein Wendepunkt für Kostenparität.</span>
+          </div>
+          <div class="src">PNAS</div>
+          <div class="tier future">FUTURE</div>
+          <div class="date">22 MAR</div>
+        </div>
+
+        <div class="result">
+          <div class="score">0.751</div>
+          <div class="title">
+            <span class="tag">KEYWORD</span>
+            Regulierungsentwurf der EU-Kommission öffnet Pfad für Novel-Food-Zulassung präzisionsfermentierter Proteine
+            <span class="excerpt">Die Kommission legt einen beschleunigten Zulassungsrahmen vor, der die Time-to-Market für mikrobiell produzierte Proteine um 18 Monate verkürzen könnte. Branchenverbände begrüßen die Initiative.</span>
+          </div>
+          <div class="src">FOOD DIVE</div>
+          <div class="tier market">MARKET</div>
+          <div class="date">18 MAR</div>
+        </div>
+
+      </div>
+      <div class="toolbar">
+        <button class="tool-btn primary">Alle 147 Anzeigen</button>
+        <button class="tool-btn">Als Dossier speichern</button>
+        <button class="tool-btn">Export · Markdown</button>
+        <button class="tool-btn">Export · CSV</button>
+        <button class="tool-btn">BibTeX</button>
+        <button class="tool-btn">Digest-Abo</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================ ASIDE ================ -->
+  <aside>
+
+    <div class="aside-block">
+      <div class="aside-label"><span>Co-Occurrence</span><span class="hint">WEAK SIGNAL</span></div>
+      <div class="cooc">
+        <span class="w5">mikrobiell</span>
+        <span class="w5">Bioreaktor</span>
+        <span class="w4">Casein</span>
+        <span class="w4">Whey</span>
+        <span class="w4">animal-free</span>
+        <span class="w3">Scale-Up</span>
+        <span class="w3">CapEx</span>
+        <span class="w3">Novel Food</span>
+        <span class="w3">Upstream</span>
+        <span class="w2">Hefe</span>
+        <span class="w2">Novozymes</span>
+        <span class="w2">Stoffwechselweg</span>
+        <span class="w2">Kostenparität</span>
+        <span class="w1">synbio</span>
+        <span class="w1">GRAS-Status</span>
+        <span class="w1">Perfect Day</span>
+      </div>
+      <div class="footnote">
+        <em>„Stoffwechselweg"</em> neu im Cluster · +320% in 30 Tagen · Weak-Signal-Kandidat
+      </div>
+    </div>
+
+    <div class="aside-block">
+      <div class="aside-label"><span>Cross-Vertical</span><span class="hint">4 AKTIV</span></div>
+      <div class="cv-grid">
+        <div class="cv-cell hot">
+          <span class="vn">FOOD</span><span class="cn">82</span>
+        </div>
+        <div class="cv-cell hot">
+          <span class="vn">HEALTH</span><span class="cn">34</span>
+        </div>
+        <div class="cv-cell">
+          <span class="vn">ECO</span><span class="cn">18</span>
+        </div>
+        <div class="cv-cell">
+          <span class="vn">TECH</span><span class="cn">11</span>
+        </div>
+        <div class="cv-cell">
+          <span class="vn">BIZ</span><span class="cn">2</span>
+        </div>
+        <div class="cv-cell">
+          <span class="vn">FASHION</span><span class="cn">0</span>
+        </div>
+      </div>
+      <div class="footnote">
+        Jumping Trend · <em>+9 Treffer HEALTH in 14 T.</em> — Migration FOOD → HEALTH beobachten
+      </div>
+    </div>
+
+    <div class="aside-block">
+      <div class="aside-label"><span>PESTEL-Profil</span><span class="hint">T+E DOMINANT</span></div>
+      <div class="pestel">
+        <div class="pe-row T"><span class="k">T</span><span class="bar"><i style="width:88%;"></i></span><span class="v">88</span></div>
+        <div class="pe-row E"><span class="k">E</span><span class="bar"><i style="width:64%;"></i></span><span class="v">64</span></div>
+        <div class="pe-row En"><span class="k">En</span><span class="bar"><i style="width:42%;"></i></span><span class="v">42</span></div>
+        <div class="pe-row S"><span class="k">S</span><span class="bar"><i style="width:29%;"></i></span><span class="v">29</span></div>
+        <div class="pe-row L"><span class="k">L</span><span class="bar"><i style="width:22%;"></i></span><span class="v">22</span></div>
+        <div class="pe-row P"><span class="k">P</span><span class="bar"><i style="width:14%;"></i></span><span class="v">14</span></div>
+      </div>
+      <div class="footnote">
+        Tech-getriebenes, wirtschaftlich validiertes Thema · politische Regulierung folgt typisch
+      </div>
+    </div>
+
+    <div class="aside-block">
+      <div class="aside-label"><span>Kontrast-Query</span><span class="hint">A ÷ B</span></div>
+      <div style="font-family:'Fraunces',serif; font-size:15px; line-height:1.4; color:var(--text);">
+        <em>Präzisionsfermentation</em><br/>
+        <span style="color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:10px;">vs.</span><br/>
+        <em>Cultivated Meat</em>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-top:16px; font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted);">
+        <span>Q1 '25</span><span>Q2</span><span>Q3</span><span>Q4</span><span>Q1 '26</span>
+      </div>
+      <svg viewBox="0 0 200 60" style="width:100%; height:60px; margin-top:4px;">
+        <path d="M0,30 L40,28 L80,25 L120,22 L160,18 L200,12" fill="none" stroke="#d4ff3a" stroke-width="1.5"/>
+        <path d="M0,30 L40,32 L80,35 L120,38 L160,42 L200,46" fill="none" stroke="#ff6b3a" stroke-width="1.5"/>
+      </svg>
+      <div class="footnote">
+        <em style="color:var(--accent);">▲ PF</em> übernimmt Narrativ-Dominanz · <em style="color:var(--warn);">▼ CM</em> verliert
+      </div>
+    </div>
+
+    <div class="aside-block" style="padding: 16px; border: 1px solid var(--accent); background: rgba(212,255,58,0.04);">
+      <div class="aside-label" style="margin-bottom:8px;"><span style="color:var(--accent);">Hypothese</span></div>
+      <div style="font-family:'Fraunces', serif; font-style:italic; font-size:14px; line-height:1.4; color:var(--paper);">
+        „Präzisionsfermentation wird bis 2028 die dominante Plattform-Technologie der animal-free Dairy-Kategorie — nicht als Nische, sondern als Mainstream-Supply."
+      </div>
+      <div style="font-family:'JetBrains Mono', monospace; font-size:9px; text-transform:uppercase; letter-spacing:0.15em; color:var(--muted); margin-top:10px;">
+        Konfidenz: moderat-hoch · 147 Signale · 20 Mo. Historie
+      </div>
+    </div>
+
+  </aside>
+</div>
+</body>
+</html>
