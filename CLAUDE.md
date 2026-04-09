@@ -751,10 +751,9 @@ catandary-trends/
 
 Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direkt auf `main` oder in Feature-Branches entwickelt. Aktuelle Prioritäten:
 
-1. **Quellen-Ergänzung** — 7 verifizierte Feeds stehen bereit (siehe Quellenbalance)
-2. **LIFESTYLE stärken** — neue Quellen für das schwächste Vertical finden
-3. **Frontend-Polish** — README aktualisieren, Deployment auf Hetzner finalisieren
-4. **Pipeline-Automatisierung** — Cron-Jobs auf Produktionssystem einrichten
+1. **LIFESTYLE stärken** — neue Quellen für das schwächste Vertical finden
+2. **Frontend-Polish** — README aktualisieren, Deployment auf Hetzner finalisieren
+3. **Pipeline-Automatisierung** — Cron-Jobs auf Produktionssystem einrichten
 
 ---
 
@@ -776,17 +775,11 @@ Nach der Reklassifizierung aller 1226 Trends und der Konsolidierung von CULTURE+
 | LIFESTYLE | 55 | 4% | **Schwächstes Vertical** — strukturell bedingt (RSS-Angebot dünn für Luxury/Culture-Nischen) |
 | **TOTAL** | **1226** | **100%** | |
 
-### Verifizierte Quellen-Ergänzungen (RSS-Feeds geprüft 2026-04-02, noch nicht eingebunden)
+### Quellen-Ergänzungen (eingebunden 2026-04)
 
-| Quelle | Feed-URL | Vertical | Typ | Begründung |
-|--------|----------|----------|-----|------------|
-| **McKinsey Insights** | `https://www.mckinsey.com/insights/rss` | BIZ | trade_media | Strategische Cross-Industry-Perspektive |
-| **Endpoints News** | `https://endpts.com/feed/` | HEALTH | trade_media | Biotech, Pharma, Drug Development |
-| **Healthcare IT News** | `https://www.healthcareitnews.com/feed` | HEALTH | trade_media | Digital Health, KI im Gesundheitswesen |
-| **Wired** | `https://www.wired.com/feed/rss` | TECH | trade_media | Breitere Tech/Society-Perspektive |
-| **IEEE Spectrum** | `https://spectrum.ieee.org/feeds/feed.rss` | TECH | trade_media | Deep Tech, Engineering, Forschung |
-| **Glossy** | `https://www.glossy.co/feed/` | FASHION | trade_media | Fashion/Beauty-Industrie |
-| **Platformer** | `https://platformer.news/rss/` | LIFESTYLE | trade_media | Tech-Policy, Platform-Regulierung, Social Media |
+Die 7 ursprünglich als Backlog geführten Feeds sind alle live in `sources.yaml`:
+McKinsey Insights, Endpoints News, Healthcare IT News, Wired, IEEE Spectrum
+(+ AI/Robotics-Sub-Feeds), Glossy, Platformer.
 
 ### Balance-Prinzip für die Datenpipeline
 
