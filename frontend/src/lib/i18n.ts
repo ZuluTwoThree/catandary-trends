@@ -9,7 +9,7 @@ export const translations = {
     // Hero
     heroTitle: "Cross-Industry Trend Intelligence",
     heroSubtitle:
-      "Kuratierte Trend-Signale aus 10 Industrie-Vertikalen. Analysiert, klassifiziert und eingeordnet.",
+      "Kuratierte Trend-Signale aus acht Industrie-Vertikalen — täglich aus Fachpresse, Forschung und Brancheninsidern destilliert.",
 
     // Filter
     filterAll: "Alle",
@@ -18,12 +18,12 @@ export const translations = {
     emptyTitle: "Noch keine Trends",
     emptyIn: "in",
     emptySubtitle:
-      "Die Pipeline läuft — bald erscheinen hier kuratierte Trend-Signale.",
+      "Die Pipeline läuft — sobald neue Signale klassifiziert sind, erscheinen sie hier.",
 
     // CTA
     ctaTitle: "Tiefere Analysen gefragt?",
     ctaText:
-      "Catandary Foresight bietet vollständige Mega/Macro/Micro-Prognosen, Cross-Industry-Cluster und strategische Handlungsempfehlungen.",
+      "Catandary Foresight liefert die vollständige Mega/Macro/Micro-Einordnung, Cross-Industry-Cluster und strategische Handlungsempfehlungen für Ihr Geschäftsfeld.",
     ctaButton: "Catandary Foresight entdecken",
 
     // Pagination
@@ -45,7 +45,7 @@ export const translations = {
     // Newsletter
     newsletterTitle: "Trends Newsletter",
     newsletterSubtitle:
-      "Jeden Montag die wichtigsten Trend-Signale aus 10 Branchen. Kuratiert, analysiert, eingeordnet.",
+      "Jeden Montag die wichtigsten Trend-Signale aus acht Branchen. Kuratiert, analysiert, eingeordnet.",
     newsletterPlaceholder: "deine@email.de",
     newsletterButton: "Abonnieren",
     newsletterLoading: "...",
@@ -70,7 +70,7 @@ export const translations = {
     // Mega-Trends
     megaTrends: "Mega-Trends",
     megaTrendsSubtitle:
-      "Langfristige Entwicklungen, die branchen\u00fcbergreifend Wirkung zeigen. Zeithorizont: 10\u201325 Jahre.",
+      "Langfristige Entwicklungen, die branchen\u00fcbergreifend Wirkung zeigen — mit Momentum-Tracking aus dem Catandary-Signalnetzwerk.",
     megaTrendTrends: "Trend-Signale",
     megaTrendVerticals: "Betroffene Branchen",
     megaTrendCta:
@@ -119,18 +119,18 @@ export const translations = {
 
     heroTitle: "Cross-Industry Trend Intelligence",
     heroSubtitle:
-      "Curated trend signals from 10 industry verticals. Analyzed, classified, and contextualized.",
+      "Curated trend signals from eight industry verticals — distilled daily from trade press, research, and industry insiders.",
 
     filterAll: "All",
 
     emptyTitle: "No trends yet",
     emptyIn: "in",
     emptySubtitle:
-      "The pipeline is running — curated trend signals will appear here soon.",
+      "The pipeline is running — new signals will appear here once classified.",
 
     ctaTitle: "Looking for deeper analysis?",
     ctaText:
-      "Catandary Foresight offers complete Mega/Macro/Micro forecasts, cross-industry clusters, and strategic recommendations.",
+      "Catandary Foresight delivers the full Mega/Macro/Micro classification, cross-industry clusters, and strategic recommendations tailored to your business.",
     ctaButton: "Discover Catandary Foresight",
 
     paginationPrev: "Previous",
@@ -149,7 +149,7 @@ export const translations = {
 
     newsletterTitle: "Trends Newsletter",
     newsletterSubtitle:
-      "The most important trend signals from 10 industries, every Monday. Curated, analyzed, contextualized.",
+      "The most important trend signals from eight industries, every Monday. Curated, analyzed, contextualized.",
     newsletterPlaceholder: "your@email.com",
     newsletterButton: "Subscribe",
     newsletterLoading: "...",
@@ -172,7 +172,7 @@ export const translations = {
 
     megaTrends: "Mega Trends",
     megaTrendsSubtitle:
-      "Long-term developments with cross-industry impact. Time horizon: 10\u201325 years.",
+      "Long-term developments with cross-industry impact — tracked by momentum across the Catandary signal network.",
     megaTrendTrends: "Trend signals",
     megaTrendVerticals: "Affected verticals",
     megaTrendCta:

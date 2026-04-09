@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Mega-Trends — Catandary Trends",
   description:
-    "Langfristige Cross-Industry Mega-Trends. Zeithorizont: 10–25 Jahre.",
+    "Langfristige Cross-Industry Mega-Trends mit Momentum-Tracking aus dem Catandary-Signalnetzwerk.",
 };
 
 export default function MegaTrendsRoute() {

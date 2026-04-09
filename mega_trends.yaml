@@ -1,24 +1,10 @@
-# Catandary Mega-Trends Taxonomy
-# Generated: 2026-04-04
-#
-# momentum: rising | stable | declining | emerging (data-driven, from temporal signal analysis)
-# cluster_strength: strong | moderate | fragmented (from embedding clustering analysis)
-# signal_count: total trends assigned to this mega-trend
-#
-# Momentum is calculated by comparing mega-trend frequency in early vs. late publication periods.
-# Cluster strength indicates whether the mega-trend forms a distinct embedding cluster.
-# Both metrics are updated by: python -m scripts.discover_mega_trends
-
 mega_trends:
-
-# --- STRONG CLUSTER + RISING ---
-
 - key: artificial_intelligence_and_automation
   name_en: Artificial Intelligence & Automation
   name_de: Künstliche Intelligenz & Automatisierung
-  description: AI/ML integration across industries — from generative AI and design
-    tools to industrial robotics, autonomous systems, and AI-driven decision making.
-  horizon: 15-25 years
+  description: AI/ML integration across industries — from generative AI and design tools to industrial
+    robotics, autonomous systems, and AI-driven decision making.
+  horizon: 10-20 years
   momentum: stable
   cluster_strength: strong
   signal_count: 109
@@ -29,13 +15,15 @@ mega_trends:
   - FOOD
   - DESIGN
   - LIFESTYLE
-
+  icon: 🤖
+  description_de: KI/ML-Integration über alle Branchen — von generativer KI und Design-Tools bis zu industrieller
+    Robotik und autonomen Systemen.
 - key: personalized_health_and_longevity
   name_en: Personalized Health & Longevity
   name_de: Personalisierte Gesundheit & Langlebigkeit
-  description: Precision medicine, digital therapeutics, individualized nutrition,
-    longevity science, biomarker-driven health optimization.
-  horizon: 15-25 years
+  description: Precision medicine, digital therapeutics, individualized nutrition, longevity science,
+    biomarker-driven health optimization.
+  horizon: 10-20 years
   momentum: rising
   cluster_strength: strong
   signal_count: 38
@@ -44,13 +32,14 @@ mega_trends:
   - TECH
   - FOOD
   - FASHION
-
+  icon: 🧬
+  description_de: Präzisionsmedizin, digitale Therapeutika, individualisierte Ernährung, Langlebigkeitswissenschaft.
 - key: clean_energy_transition
   name_en: Clean Energy Transition
   name_de: Saubere Energiewende
-  description: Decarbonization of energy, industry and transport — renewables, green
-    hydrogen, energy storage, grid modernization, carbon capture.
-  horizon: 20-25 years
+  description: Decarbonization of energy, industry and transport — renewables, green hydrogen, energy
+    storage, grid modernization, carbon capture.
+  horizon: 20-30 years
   momentum: rising
   cluster_strength: strong
   signal_count: 13
@@ -59,13 +48,15 @@ mega_trends:
   - TECH
   - BIZ
   - LIFESTYLE
-
+  icon: ⚡
+  description_de: Dekarbonisierung von Energie, Industrie und Verkehr — Erneuerbare, Energiespeicher,
+    Netzmodernisierung.
 - key: electric_and_autonomous_mobility
   name_en: Electric & Autonomous Mobility
   name_de: Elektrische & Autonome Mobilität
-  description: Electric vehicles, autonomous driving, shared mobility platforms, urban
-    micro-mobility, charging infrastructure, mobility-as-a-service.
-  horizon: 15-25 years
+  description: Electric vehicles, autonomous driving, shared mobility platforms, urban micro-mobility,
+    charging infrastructure, mobility-as-a-service.
+  horizon: 10-20 years
   momentum: rising
   cluster_strength: strong
   signal_count: 13
@@ -74,13 +65,14 @@ mega_trends:
   - ECO
   - DESIGN
   - BIZ
-
+  icon: 🚗
+  description_de: Elektrofahrzeuge, autonomes Fahren, geteilte Mobilität, urbane Mikromobilität, Ladeinfrastruktur.
 - key: financial_innovation_and_inclusion
   name_en: Financial Innovation & Inclusion
   name_de: Finanzinnovation & Inklusion
-  description: Fintech disruption, embedded finance, digital banking, decentralized
-    finance, financial literacy, unbanked population access.
-  horizon: 10-20 years
+  description: Fintech disruption, embedded finance, digital banking, decentralized finance, financial
+    literacy, unbanked population access.
+  horizon: 5-15 years
   momentum: rising
   cluster_strength: strong
   signal_count: 16
@@ -88,13 +80,14 @@ mega_trends:
   - BIZ
   - TECH
   - LIFESTYLE
-
+  icon: 💳
+  description_de: Fintech-Disruption, Embedded Finance, Digital Banking, dezentrale Finanzen, Finanzbildung.
 - key: new_luxury_and_premiumization
   name_en: New Luxury & Premiumization
   name_de: Neuer Luxus & Premiumisierung
-  description: Luxury democratization, quiet luxury, experiential premium, artisanal
-    positioning, luxury-mass collaborations, heritage brand renewal.
-  horizon: 10-20 years
+  description: Luxury democratization, quiet luxury, experiential premium, artisanal positioning, luxury-mass
+    collaborations, heritage brand renewal.
+  horizon: 5-10 years
   momentum: rising
   cluster_strength: strong
   signal_count: 16
@@ -104,12 +97,13 @@ mega_trends:
   - DESIGN
   - FOOD
   - BIZ
-
+  icon: 💎
+  description_de: Luxus-Demokratisierung, Quiet Luxury, erlebnisorientiertes Premium, handwerkliche Positionierung.
 - key: regenerative_design_and_net_positive
   name_en: Regenerative Design & Net Positive
   name_de: Regeneratives Design & Net Positive
-  description: Beyond sustainability — designs and systems that actively restore
-    ecosystems, regenerative agriculture, net-positive buildings, restorative practices.
+  description: Beyond sustainability — designs and systems that actively restore ecosystems, regenerative
+    agriculture, net-positive buildings, restorative practices.
   horizon: 15-25 years
   momentum: rising
   cluster_strength: strong
@@ -119,13 +113,15 @@ mega_trends:
   - DESIGN
   - FOOD
   - FASHION
-
+  icon: 🌿
+  description_de: Über Nachhaltigkeit hinaus — Designs die Ökosysteme aktiv wiederherstellen, regenerative
+    Landwirtschaft.
 - key: inclusive_and_human_centric_design
   name_en: Inclusive & Human-Centric Design
   name_de: Inklusives & Menschenzentriertes Design
-  description: Universal accessibility, assistive technology, gender-inclusive products,
-    aging-population design, neurodiversity accommodation, equity in design.
-  horizon: 15-25 years
+  description: Universal accessibility, assistive technology, gender-inclusive products, aging-population
+    design, neurodiversity accommodation, equity in design.
+  horizon: 10-20 years
   momentum: rising
   cluster_strength: fragmented
   signal_count: 11
@@ -135,15 +131,14 @@ mega_trends:
   - HEALTH
   - TECH
   - FASHION
-
-# --- STRONG CLUSTER + STABLE/DECLINING ---
-
+  icon: ♿
+  description_de: Universelle Barrierefreiheit, assistive Technologien, genderinklusive Produkte, Neurodiversität.
 - key: future_of_food_and_agriculture
   name_en: Future of Food & Agriculture
   name_de: Zukunft der Ernährung & Landwirtschaft
-  description: Alternative proteins, precision agriculture, vertical farming, functional/fortified
-    foods, food-as-medicine, novel ingredients.
-  horizon: 15-25 years
+  description: Alternative proteins, precision agriculture, vertical farming, functional/fortified foods,
+    food-as-medicine, novel ingredients.
+  horizon: 10-20 years
   momentum: declining
   cluster_strength: strong
   signal_count: 62
@@ -152,13 +147,15 @@ mega_trends:
   - TECH
   - HEALTH
   - ECO
-
+  icon: 🌾
+  description_de: Alternative Proteine, Präzisionslandwirtschaft, Vertical Farming, funktionale Lebensmittel,
+    Food-as-Medicine.
 - key: connected_living_and_smart_spaces
   name_en: Connected Living & Smart Spaces
   name_de: Vernetztes Wohnen & Intelligente Räume
-  description: IoT ecosystems, smart homes/kitchens/offices, ambient computing, sensor-driven
-    environments, home automation.
-  horizon: 10-20 years
+  description: IoT ecosystems, smart homes/kitchens/offices, ambient computing, sensor-driven environments,
+    home automation.
+  horizon: 5-15 years
   momentum: declining
   cluster_strength: strong
   signal_count: 46
@@ -167,13 +164,14 @@ mega_trends:
   - DESIGN
   - FOOD
   - BIZ
-
+  icon: 🏠
+  description_de: IoT-Ökosysteme, Smart Homes/Küchen/Büros, Ambient Computing, sensorgesteuerte Umgebungen.
 - key: creator_economy_and_platform_shift
   name_en: Creator Economy & Platform Shift
   name_de: Creator Economy & Plattformwandel
-  description: Content monetization, creator tools, decentralized media, platform
-    economy, user-generated commerce, digital-native brands.
-  horizon: 10-20 years
+  description: Content monetization, creator tools, decentralized media, platform economy, user-generated
+    commerce, digital-native brands.
+  horizon: 5-10 years
   momentum: declining
   cluster_strength: strong
   signal_count: 14
@@ -182,14 +180,14 @@ mega_trends:
   - TECH
   - BIZ
   - FASHION
-
-# --- FRAGMENTED CLUSTER (not dominant in any single cluster, spread across multiple) ---
-
+  icon: 📱
+  description_de: Content-Monetarisierung, Creator-Tools, dezentrale Medien, Plattformökonomie, digital-native
+    Marken.
 - key: bio_revolution_and_new_materials
   name_en: Bio-Revolution & New Materials
   name_de: Bio-Revolution & Neue Materialien
-  description: Biotech-derived materials, synthetic biology, mycelium/algae/cellulose-based
-    products, lab-grown alternatives, biomimicry.
+  description: Biotech-derived materials, synthetic biology, mycelium/algae/cellulose-based products,
+    lab-grown alternatives, biomimicry.
   horizon: 15-25 years
   momentum: declining
   cluster_strength: fragmented
@@ -200,12 +198,14 @@ mega_trends:
   - FASHION
   - FOOD
   - HEALTH
-
+  icon: 🧫
+  description_de: Biotech-basierte Materialien, synthetische Biologie, Myzel/Algen-Produkte, lab-grown
+    Alternativen, Biomimikry.
 - key: circular_economy_and_zero_waste
   name_en: Circular Economy & Zero Waste
   name_de: Kreislaufwirtschaft & Zero Waste
-  description: Closed-loop production systems, waste elimination, recyclability-by-design,
-    reversible architecture, product-as-service models.
+  description: Closed-loop production systems, waste elimination, recyclability-by-design, reversible
+    architecture, product-as-service models.
   horizon: 15-25 years
   momentum: declining
   cluster_strength: fragmented
@@ -216,13 +216,15 @@ mega_trends:
   - FASHION
   - FOOD
   - BIZ
-
+  icon: ♻️
+  description_de: Geschlossene Produktionskreisläufe, Abfallvermeidung, Recycling-by-Design, reversible
+    Architektur.
 - key: climate_resilience_and_adaptation
   name_en: Climate Resilience & Adaptation
   name_de: Klimaresilienz & Anpassung
-  description: Designing systems, buildings, and communities for climate change impact
-    — flood-resistant architecture, heat adaptation, climate-smart agriculture.
-  horizon: 20-25 years
+  description: Designing systems, buildings, and communities for climate change impact — flood-resistant
+    architecture, heat adaptation, climate-smart agriculture.
+  horizon: 20-30 years
   momentum: stable
   cluster_strength: fragmented
   signal_count: 6
@@ -231,13 +233,15 @@ mega_trends:
   - DESIGN
   - FOOD
   - LIFESTYLE
-
+  icon: 🌍
+  description_de: Systeme für den Klimawandel gestalten — hochwasserresistente Architektur, Hitzeanpassung,
+    klimasmarte Landwirtschaft.
 - key: experience_economy_and_immersive_design
   name_en: Experience Economy & Immersive Design
   name_de: Erlebnisökonomie & Immersives Design
-  description: Physical spaces as experience platforms — immersive retail, experiential
-    dining, sensory environments, projection mapping, pop-up culture.
-  horizon: 10-20 years
+  description: Physical spaces as experience platforms — immersive retail, experiential dining, sensory
+    environments, projection mapping, pop-up culture.
+  horizon: 5-10 years
   momentum: stable
   cluster_strength: fragmented
   signal_count: 18
@@ -246,13 +250,15 @@ mega_trends:
   - BIZ
   - LIFESTYLE
   - FOOD
-
+  icon: ✨
+  description_de: Physische Räume als Erlebnisplattformen — immersiver Retail, Erlebnis-Gastronomie, sensorische
+    Umgebungen.
 - key: cultural_heritage_and_identity
   name_en: Cultural Heritage & Identity Renaissance
   name_de: Kulturelles Erbe & Identitätsrenaissance
-  description: Revival of craft traditions, cultural fusion in design, place-based
-    branding, indigenous knowledge integration, regional identity as differentiator.
-  horizon: 10-20 years
+  description: Revival of craft traditions, cultural fusion in design, place-based branding, indigenous
+    knowledge integration, regional identity as differentiator.
+  horizon: 5-10 years
   momentum: rising
   cluster_strength: fragmented
   signal_count: 15
@@ -261,13 +267,15 @@ mega_trends:
   - FASHION
   - LIFESTYLE
   - FOOD
-
+  icon: 🏛️
+  description_de: Revival von Handwerkstraditionen, kulturelle Fusion, ortsbasiertes Branding, indigenes
+    Wissen.
 - key: urban_transformation_and_smart_cities
   name_en: Urban Transformation & Smart Cities
   name_de: Urbane Transformation & Smart Cities
-  description: Redesigning cities for density, livability and sustainability — public
-    space activation, smart infrastructure, transit-oriented development.
-  horizon: 15-25 years
+  description: Redesigning cities for density, livability and sustainability — public space activation,
+    smart infrastructure, transit-oriented development.
+  horizon: 20-30 years
   momentum: declining
   cluster_strength: fragmented
   signal_count: 10
@@ -277,13 +285,15 @@ mega_trends:
   - LIFESTYLE
   - TECH
   - BIZ
-
+  icon: 🏙️
+  description_de: Städte neu gestalten für Dichte, Lebensqualität und Nachhaltigkeit — öffentlicher Raum,
+    smarte Infrastruktur.
 - key: digital_trust_and_data_sovereignty
   name_en: Digital Trust & Data Sovereignty
   name_de: Digitales Vertrauen & Datensouveränität
-  description: Data privacy, digital identity management, AI governance, algorithmic
-    transparency, cybersecurity, content authentication.
-  horizon: 10-25 years
+  description: Data privacy, digital identity management, AI governance, algorithmic transparency, cybersecurity,
+    content authentication.
+  horizon: 10-20 years
   momentum: rising
   cluster_strength: fragmented
   signal_count: 4
@@ -292,12 +302,13 @@ mega_trends:
   - BIZ
   - LIFESTYLE
   - HEALTH
-
+  icon: 🔒
+  description_de: Datenschutz, digitale Identität, KI-Governance, algorithmische Transparenz, Cybersicherheit.
 - key: modular_and_adaptive_systems
   name_en: Modular & Adaptive Systems
   name_de: Modulare & Adaptive Systeme
-  description: Reconfigurable architecture, modular furniture/housing, flexible workspaces,
-    temporary structures, DIY assembly systems.
+  description: Reconfigurable architecture, modular furniture/housing, flexible workspaces, temporary
+    structures, DIY assembly systems.
   horizon: 10-20 years
   momentum: emerging
   cluster_strength: fragmented
@@ -307,13 +318,15 @@ mega_trends:
   - BIZ
   - TECH
   - LIFESTYLE
-
+  icon: 🧩
+  description_de: Rekonfigurierbare Architektur, modulare Möbel/Wohnungen, flexible Arbeitsbereiche, temporäre
+    Strukturen.
 - key: mental_health_and_neuro_wellness
   name_en: Mental Health & Neuro-Wellness
   name_de: Mentale Gesundheit & Neuro-Wellness
-  description: Mental health technology, neuroscience-based consumer products, stress
-    management tech, mindfulness platforms, biofeedback devices.
-  horizon: 10-20 years
+  description: Mental health technology, neuroscience-based consumer products, stress management tech,
+    mindfulness platforms, biofeedback devices.
+  horizon: 5-15 years
   momentum: rising
   cluster_strength: fragmented
   signal_count: 3
@@ -322,13 +335,14 @@ mega_trends:
   - TECH
   - FASHION
   - LIFESTYLE
-
+  icon: 🧠
+  description_de: Mental-Health-Technologie, neurowissenschaftsbasierte Produkte, Stressmanagement, Achtsamkeitsplattformen.
 - key: wearable_technology_and_augmented_living
   name_en: Wearable Technology & Augmented Living
   name_de: Wearable-Technologie & Augmented Living
-  description: Smart wearables, health monitoring devices, AR/VR integration, smart
-    textiles, brain-computer interfaces, augmented senses.
-  horizon: 15-25 years
+  description: Smart wearables, health monitoring devices, AR/VR integration, smart textiles, brain-computer
+    interfaces, augmented senses.
+  horizon: 5-15 years
   momentum: emerging
   cluster_strength: fragmented
   signal_count: 3
@@ -337,15 +351,32 @@ mega_trends:
   - HEALTH
   - FASHION
   - DESIGN
-
-# --- NEW: Discovered via embedding clustering (Cluster C16) ---
-
+  icon: ⌚
+  description_de: Smart Wearables, Gesundheitsmonitoring, AR/VR, smarte Textilien, Gehirn-Computer-Schnittstellen.
+- key: virtual_worlds_consolidation
+  name_en: Virtual Worlds Consolidation & Post-Metaverse Reckoning
+  name_de: Konsolidierung Virtueller Welten & Post-Metaverse-Ernüchterung
+  description: Retreat and consolidation of social VR, metaverse platforms and social gaming spaces after
+    the hype cycle — platform closures, nostalgia-driven revivals of early digital communities, shift
+    from immersive virtual worlds back to lighter social formats, rethinking of what persistent virtual
+    spaces should be.
+  horizon: 3-7 years
+  momentum: emerging
+  cluster_strength: strong
+  signal_count: 0
+  verticals:
+  - LIFESTYLE
+  - TECH
+  - BIZ
+  icon: 🕶️
+  description_de: Rückzug und Konsolidierung von Social VR, Metaverse-Plattformen und Social Gaming nach
+    dem Hype — Schließungen, Nostalgie-Revivals, Neudenken virtueller Räume.
 - key: geopolitical_disruption_and_supply_chain_resilience
   name_en: Geopolitical Disruption & Supply Chain Resilience
   name_de: Geopolitische Disruption & Lieferkettenresilienz
-  description: Tariff impacts, trade wars, energy security concerns, supply chain
-    diversification, reshoring, geopolitical risk pricing, sanctions effects.
-  horizon: 10-20 years
+  description: Tariff impacts, trade wars, energy security concerns, supply chain diversification, reshoring,
+    geopolitical risk pricing, sanctions effects.
+  horizon: 5-10 years
   momentum: emerging
   cluster_strength: strong
   signal_count: 0
@@ -354,3 +385,6 @@ mega_trends:
   - ECO
   - LIFESTYLE
   - TECH
+  icon: 🌐
+  description_de: Zoll-Auswirkungen, Handelskriege, Energiesicherheit, Lieferketten-Diversifizierung,
+    Reshoring, geopolitisches Risiko, Sanktionen.

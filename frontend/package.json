@@ -3,7 +3,10 @@
   "version": "0.3.0",
   "private": true,
   "scripts": {
+    "gen:mega-trends": "node scripts/generate-mega-trends.mjs",
+    "predev": "node scripts/generate-mega-trends.mjs",
     "dev": "next dev --turbopack -p 3001",
+    "prebuild": "node scripts/generate-mega-trends.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

@@ -18,10 +18,26 @@ interface MegaTrendItem {
 }
 
 const MOMENTUM_CONFIG = {
-  rising: { label_en: "Rising", label_de: "Steigend", color: "#22c55e", icon: "\u2197" },
-  stable: { label_en: "Stable", label_de: "Stabil", color: "#a3a3a3", icon: "\u2192" },
-  declining: { label_en: "Declining", label_de: "Abnehmend", color: "#ef4444", icon: "\u2198" },
-  emerging: { label_en: "Emerging", label_de: "Aufkommend", color: "#a855f7", icon: "\u2728" },
+  rising: {
+    label_en: "Rising", label_de: "Steigend", color: "#22c55e", icon: "\u2197",
+    tooltip_en: "Signal frequency is clearly increasing — the trend is gaining traction across sources.",
+    tooltip_de: "Die Signalhäufigkeit nimmt deutlich zu — der Trend gewinnt quellenübergreifend an Momentum.",
+  },
+  stable: {
+    label_en: "Stable", label_de: "Stabil", color: "#a3a3a3", icon: "\u2192",
+    tooltip_en: "Signal frequency is steady — the trend is established with no clear up- or downward shift.",
+    tooltip_de: "Die Signalhäufigkeit bleibt konstant — der Trend ist etabliert, ohne klaren Auf- oder Abwärtsimpuls.",
+  },
+  declining: {
+    label_en: "Declining", label_de: "Abnehmend", color: "#ef4444", icon: "\u2198",
+    tooltip_en: "Signal frequency is decreasing — the trend is losing momentum relative to earlier periods.",
+    tooltip_de: "Die Signalhäufigkeit nimmt ab — der Trend verliert gegenüber früheren Perioden an Momentum.",
+  },
+  emerging: {
+    label_en: "Emerging", label_de: "Aufkommend", color: "#a855f7", icon: "\u2728",
+    tooltip_en: "Early-stage signal — small absolute volume but sharp recent growth, worth watching.",
+    tooltip_de: "Früher Trend — geringe absolute Zahl an Signalen, aber starker Zuwachs, beobachtenswert.",
+  },
 } as const;
 
 export default function MegaTrendsPage({
@@ -86,7 +102,12 @@ export default function MegaTrendsPage({
                   </span>
                   {mt.momentum && (
                     <span
-                      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border"
+                      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border cursor-help"
+                      title={
+                        effectiveLocale === "de"
+                          ? MOMENTUM_CONFIG[mt.momentum].tooltip_de
+                          : MOMENTUM_CONFIG[mt.momentum].tooltip_en
+                      }
                       style={{
                         color: MOMENTUM_CONFIG[mt.momentum].color,
                         borderColor: MOMENTUM_CONFIG[mt.momentum].color + "40",
@@ -97,11 +118,6 @@ export default function MegaTrendsPage({
                       {effectiveLocale === "de"
                         ? MOMENTUM_CONFIG[mt.momentum].label_de
                         : MOMENTUM_CONFIG[mt.momentum].label_en}
-                    </span>
-                  )}
-                  {mt.horizon && (
-                    <span className="text-xs text-muted/60">
-                      {mt.horizon}
                     </span>
                   )}
                 </div>

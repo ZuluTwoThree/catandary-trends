@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Catandary Trends — Cross-Industry Trend Intelligence",
   description:
-    "Kuratierte Trend-Signale aus 10 Industrie-Vertikalen. Powered by Catandary Foresight.",
+    "Kuratierte Trend-Signale aus acht Industrie-Vertikalen. Powered by Catandary Foresight.",
   openGraph: {
     title: "Catandary Trends",
     description: "Cross-Industry Trend Intelligence",

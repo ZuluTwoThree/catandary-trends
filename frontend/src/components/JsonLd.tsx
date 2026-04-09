@@ -42,7 +42,7 @@ export function TrendsListJsonLd() {
     name: "Catandary Trends",
     url: "https://catandary.de/trends",
     description:
-      "Cross-Industry Trend Intelligence — kuratierte Trend-Signale aus 10 Industrie-Vertikalen.",
+      "Cross-Industry Trend Intelligence — kuratierte Trend-Signale aus acht Industrie-Vertikalen.",
     publisher: {
       "@type": "Organization",
       name: "Catandary",
