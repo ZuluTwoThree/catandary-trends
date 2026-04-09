@@ -1,370 +1,466 @@
-# Catandary Trends – Source Configuration
-# Updated: 2026-04-07
-
 verticals:
   FOOD:
     sources:
-      - name: FoodNavigator
-        feed_url: https://www.foodnavigator.com/arc/outboundfeeds/rss/
-        type: trade_media
-      - name: Food Dive
-        feed_url: https://www.fooddive.com/feeds/news/
-        type: trade_media
-      - name: The Spoon
-        feed_url: https://thespoon.tech/feed/
-        type: trade_media
-      - name: BeverageDaily
-        feed_url: https://www.beveragedaily.com/arc/outboundfeeds/rss/
-        type: trade_media
-      - name: Eater
-        feed_url: https://www.eater.com/rss/index.xml
-        type: trade_media
-      - name: Nation's Restaurant News
-        feed_url: https://www.nrn.com/rss.xml
-        type: trade_media
-      - name: Confectionery Production
-        feed_url: https://www.confectioneryproduction.com/feed/
-        type: trade_media
-      - name: AgFunderNews
-        feed_url: https://agfundernews.com/feed
-        type: trade_media
-      - name: Good Food Institute
-        feed_url: https://gfi.org/feed
-        type: trade_media
-      - name: Green Queen
-        feed_url: https://www.greenqueen.com.hk/feed
-        type: trade_media
-      - name: Civil Eats
-        feed_url: https://feeds.feedburner.com/CivilEats
-        type: trade_media
-      - name: Lebensmittelzeitung
-        feed_url: https://www.lebensmittelzeitung.net/feed/
-        type: trade_media
+    - name: FoodNavigator
+      feed_url: https://www.foodnavigator.com/arc/outboundfeeds/rss/
+      type: trade_media
+      lead_time_tier: market
+    - name: Food Dive
+      feed_url: https://www.fooddive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: The Spoon
+      feed_url: https://thespoon.tech/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: BeverageDaily
+      feed_url: https://www.beveragedaily.com/arc/outboundfeeds/rss/
+      type: trade_media
+      lead_time_tier: market
+    - name: Eater
+      feed_url: https://www.eater.com/rss/index.xml
+      type: trade_media
+      lead_time_tier: now
+    - name: Nation's Restaurant News
+      feed_url: https://www.nrn.com/rss.xml
+      type: trade_media
+      lead_time_tier: now
+    - name: Confectionery Production
+      feed_url: https://www.confectioneryproduction.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: AgFunderNews
+      feed_url: https://agfundernews.com/feed
+      type: trade_media
+      lead_time_tier: market
+    - name: Good Food Institute
+      feed_url: https://gfi.org/feed
+      type: trade_media
+      lead_time_tier: future
+    - name: Green Queen
+      feed_url: https://www.greenqueen.com.hk/feed
+      type: trade_media
+      lead_time_tier: market
+    - name: Civil Eats
+      feed_url: https://feeds.feedburner.com/CivilEats
+      type: trade_media
+      lead_time_tier: market
+    - name: Lebensmittelzeitung
+      feed_url: https://www.lebensmittelzeitung.net/feed/
+      type: trade_media
+      lead_time_tier: market
     science:
-      - name: Nature Food
-        feed_url: https://www.nature.com/natfood.rss
-        type: research
-      - name: Trends in Food Science & Technology
-        feed_url: https://rss.sciencedirect.com/publication/science/09242244
-        type: research
-
+    - name: Nature Food
+      feed_url: https://www.nature.com/natfood.rss
+      type: research
+      lead_time_tier: future
+    - name: Trends in Food Science & Technology
+      feed_url: https://rss.sciencedirect.com/publication/science/09242244
+      type: research
+      lead_time_tier: future
   TECH:
     sources:
-      - name: TechCrunch
-        feed_url: https://techcrunch.com/feed/
-        type: trade_media
-      - name: The Verge
-        feed_url: https://www.theverge.com/rss/index.xml
-        type: trade_media
-      - name: Ars Technica
-        feed_url: https://feeds.arstechnica.com/arstechnica/index
-        type: trade_media
-      - name: VentureBeat
-        feed_url: https://venturebeat.com/feed/
-        type: trade_media
-      - name: MIT Technology Review
-        feed_url: https://www.technologyreview.com/feed/
-        type: trade_media
-      - name: IEEE Spectrum
-        feed_url: https://spectrum.ieee.org/feeds/feed.rss
-        type: trade_media
-      - name: Wired
-        feed_url: https://www.wired.com/feed/rss
-        type: trade_media
-      - name: IoT Tech News
-        feed_url: https://www.iottechnews.com/feed/
-        type: trade_media
-      - name: Semiconductor Engineering
-        feed_url: https://semiengineering.com/feed/
-        type: trade_media
-      - name: EE Times
-        feed_url: https://www.eetimes.com/feed/
-        type: trade_media
-      - name: The Register
-        feed_url: https://www.theregister.com/headlines.atom
-        type: trade_media
-      - name: t3n
-        feed_url: https://t3n.de/rss.xml
-        type: trade_media
-      - name: Netzpolitik.org
-        feed_url: https://netzpolitik.org/feed/
-        type: trade_media
-      - name: Norwegian SciTech News
-        feed_url: https://norwegianscitechnews.com/feed
-        type: trade_media
-      - name: KrASIA
-        feed_url: https://console.kr-asia.com/feed
-        type: trade_media
+    - name: TechCrunch
+      feed_url: https://techcrunch.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: The Verge
+      feed_url: https://www.theverge.com/rss/index.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Ars Technica
+      feed_url: https://feeds.arstechnica.com/arstechnica/index
+      type: trade_media
+      lead_time_tier: market
+    - name: VentureBeat
+      feed_url: https://venturebeat.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: MIT Technology Review
+      feed_url: https://www.technologyreview.com/feed/
+      type: trade_media
+      lead_time_tier: future
+    - name: IEEE Spectrum
+      feed_url: https://spectrum.ieee.org/feeds/feed.rss
+      type: trade_media
+      lead_time_tier: future
+    - name: Wired
+      feed_url: https://www.wired.com/feed/rss
+      type: trade_media
+      lead_time_tier: market
+    - name: IoT Tech News
+      feed_url: https://www.iottechnews.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Semiconductor Engineering
+      feed_url: https://semiengineering.com/feed/
+      type: trade_media
+      lead_time_tier: future
+    - name: EE Times
+      feed_url: https://www.eetimes.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: The Register
+      feed_url: https://www.theregister.com/headlines.atom
+      type: trade_media
+      lead_time_tier: market
+    - name: t3n
+      feed_url: https://t3n.de/rss.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Netzpolitik.org
+      feed_url: https://netzpolitik.org/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Norwegian SciTech News
+      feed_url: https://norwegianscitechnews.com/feed
+      type: trade_media
+      lead_time_tier: future
+    - name: KrASIA
+      feed_url: https://console.kr-asia.com/feed
+      type: trade_media
+      lead_time_tier: market
     science:
-      - name: Nature Machine Intelligence
-        feed_url: https://www.nature.com/natmachintell.rss
-        type: research
-      - name: Nature Electronics
-        feed_url: https://www.nature.com/natelectron.rss
-        type: research
-      - name: IEEE Spectrum AI
-        feed_url: https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss
-        type: research
-      - name: IEEE Spectrum Robotics
-        feed_url: https://spectrum.ieee.org/feeds/topic/robotics.rss
-        type: research
-      - name: Tech Xplore AI/ML
-        feed_url: https://techxplore.com/rss-feed/machine-learning-ai-news/
-        type: research
-      - name: Ars Technica Science
-        feed_url: https://feeds.arstechnica.com/arstechnica/science
-        type: research
-
+    - name: Nature Machine Intelligence
+      feed_url: https://www.nature.com/natmachintell.rss
+      type: research
+      lead_time_tier: future
+    - name: Nature Electronics
+      feed_url: https://www.nature.com/natelectron.rss
+      type: research
+      lead_time_tier: future
+    - name: IEEE Spectrum AI
+      feed_url: https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss
+      type: research
+      lead_time_tier: future
+    - name: IEEE Spectrum Robotics
+      feed_url: https://spectrum.ieee.org/feeds/topic/robotics.rss
+      type: research
+      lead_time_tier: future
+    - name: Tech Xplore AI/ML
+      feed_url: https://techxplore.com/rss-feed/machine-learning-ai-news/
+      type: research
+      lead_time_tier: future
+    - name: Ars Technica Science
+      feed_url: https://feeds.arstechnica.com/arstechnica/science
+      type: research
+      lead_time_tier: future
   HEALTH:
     sources:
-      - name: STAT News
-        feed_url: https://www.statnews.com/feed/
-        type: trade_media
-      - name: MobiHealthNews
-        feed_url: https://www.mobihealthnews.com/feed
-        type: trade_media
-      - name: Nutraingredients
-        feed_url: https://www.nutraingredients.com/arc/outboundfeeds/rss/
-        type: trade_media
-      - name: Fierce Healthcare
-        feed_url: https://www.fiercehealthcare.com/rss/xml
-        type: trade_media
-      - name: AthletechNews
-        feed_url: https://athletechnews.com/feed/
-        type: trade_media
-      - name: Nutritional Outlook
-        feed_url: https://www.nutritionaloutlook.com/rss.xml
-        type: trade_media
-      - name: Endpoints News
-        feed_url: https://endpts.com/feed/
-        type: trade_media
-      - name: Healthcare IT News
-        feed_url: https://www.healthcareitnews.com/feed
-        type: trade_media
+    - name: STAT News
+      feed_url: https://www.statnews.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: MobiHealthNews
+      feed_url: https://www.mobihealthnews.com/feed
+      type: trade_media
+      lead_time_tier: market
+    - name: Nutraingredients
+      feed_url: https://www.nutraingredients.com/arc/outboundfeeds/rss/
+      type: trade_media
+      lead_time_tier: market
+    - name: Fierce Healthcare
+      feed_url: https://www.fiercehealthcare.com/rss/xml
+      type: trade_media
+      lead_time_tier: market
+    - name: AthletechNews
+      feed_url: https://athletechnews.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Nutritional Outlook
+      feed_url: https://www.nutritionaloutlook.com/rss.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Endpoints News
+      feed_url: https://endpts.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Healthcare IT News
+      feed_url: https://www.healthcareitnews.com/feed
+      type: trade_media
+      lead_time_tier: market
     science:
-      - name: Nature Medicine
-        feed_url: https://www.nature.com/nm.rss
-        type: research
-      - name: The Lancet
-        feed_url: https://www.thelancet.com/rssfeed/lancet_current.xml
-        type: research
-      - name: Lancet Digital Health
-        feed_url: https://www.thelancet.com/rssfeed/landig_current.xml
-        type: research
-      - name: Medical Xpress
-        feed_url: https://medicalxpress.com/rss-feed/
-        type: research
-      - name: Nature Neuroscience
-        feed_url: https://www.nature.com/neuro.rss
-        type: research
-      - name: Nature Aging
-        feed_url: https://www.nature.com/nataging.rss
-        type: research
-
+    - name: Nature Medicine
+      feed_url: https://www.nature.com/nm.rss
+      type: research
+      lead_time_tier: future
+    - name: The Lancet
+      feed_url: https://www.thelancet.com/rssfeed/lancet_current.xml
+      type: research
+      lead_time_tier: future
+    - name: Lancet Digital Health
+      feed_url: https://www.thelancet.com/rssfeed/landig_current.xml
+      type: research
+      lead_time_tier: future
+    - name: Medical Xpress
+      feed_url: https://medicalxpress.com/rss-feed/
+      type: research
+      lead_time_tier: future
+    - name: Nature Neuroscience
+      feed_url: https://www.nature.com/neuro.rss
+      type: research
+      lead_time_tier: future
+    - name: Nature Aging
+      feed_url: https://www.nature.com/nataging.rss
+      type: research
+      lead_time_tier: future
   ECO:
     sources:
-      - name: CleanTechnica
-        feed_url: https://cleantechnica.com/feed/
-        type: trade_media
-      - name: Packaging Dive
-        feed_url: https://www.packagingdive.com/feeds/news/
-        type: trade_media
-      - name: Carbon Brief
-        feed_url: https://www.carbonbrief.org/feed/
-        type: trade_media
-      - name: Renewable Energy World
-        feed_url: https://www.renewableenergyworld.com/feed/
-        type: trade_media
-      - name: Carbon Herald
-        feed_url: https://www.carbonherald.com/feed/
-        type: trade_media
-      - name: Grist
-        feed_url: https://www.grist.org/feed/
-        type: trade_media
-      - name: Trellis
-        feed_url: https://trellis.net/feed
-        type: trade_media
-      - name: ESG Today
-        feed_url: https://www.esgtoday.com/feed
-        type: trade_media
-      - name: Circular Online
-        feed_url: https://www.circularonline.co.uk/feed
-        type: trade_media
+    - name: CleanTechnica
+      feed_url: https://cleantechnica.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Packaging Dive
+      feed_url: https://www.packagingdive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: Carbon Brief
+      feed_url: https://www.carbonbrief.org/feed/
+      type: trade_media
+      lead_time_tier: future
+    - name: Renewable Energy World
+      feed_url: https://www.renewableenergyworld.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Carbon Herald
+      feed_url: https://www.carbonherald.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Grist
+      feed_url: https://www.grist.org/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Trellis
+      feed_url: https://trellis.net/feed
+      type: trade_media
+      lead_time_tier: market
+    - name: ESG Today
+      feed_url: https://www.esgtoday.com/feed
+      type: trade_media
+      lead_time_tier: market
+    - name: Circular Online
+      feed_url: https://www.circularonline.co.uk/feed
+      type: trade_media
+      lead_time_tier: market
     science:
-      - name: Nature Sustainability
-        feed_url: https://www.nature.com/natsustain.rss
-        type: research
-      - name: Nature Climate Change
-        feed_url: https://www.nature.com/nclimate.rss
-        type: research
-      - name: Nature Energy
-        feed_url: https://www.nature.com/nenergy.rss
-        type: research
-      - name: One Earth
-        feed_url: https://www.cell.com/one-earth/current.rss
-        type: research
-      - name: Lancet Planetary Health
-        feed_url: https://www.thelancet.com/rssfeed/lanplh_current.xml
-        type: research
-
+    - name: Nature Sustainability
+      feed_url: https://www.nature.com/natsustain.rss
+      type: research
+      lead_time_tier: future
+    - name: Nature Climate Change
+      feed_url: https://www.nature.com/nclimate.rss
+      type: research
+      lead_time_tier: future
+    - name: Nature Energy
+      feed_url: https://www.nature.com/nenergy.rss
+      type: research
+      lead_time_tier: future
+    - name: One Earth
+      feed_url: https://www.cell.com/one-earth/current.rss
+      type: research
+      lead_time_tier: future
+    - name: Lancet Planetary Health
+      feed_url: https://www.thelancet.com/rssfeed/lanplh_current.xml
+      type: research
+      lead_time_tier: future
   DESIGN:
     sources:
-      - name: Dezeen
-        feed_url: https://www.dezeen.com/feed/
-        type: trade_media
-      - name: ArchDaily
-        feed_url: https://www.archdaily.com/feed
-        type: trade_media
-      - name: Wallpaper
-        feed_url: https://www.wallpaper.com/rss
-        type: trade_media
-      - name: Designboom
-        feed_url: https://www.designboom.com/feed/
-        type: trade_media
+    - name: Dezeen
+      feed_url: https://www.dezeen.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: ArchDaily
+      feed_url: https://www.archdaily.com/feed
+      type: trade_media
+      lead_time_tier: now
+    - name: Wallpaper
+      feed_url: https://www.wallpaper.com/rss
+      type: trade_media
+      lead_time_tier: now
+    - name: Designboom
+      feed_url: https://www.designboom.com/feed/
+      type: trade_media
+      lead_time_tier: now
     science:
-      - name: Nature Reviews Materials
-        feed_url: https://www.nature.com/natrevmats.rss
-        type: research
-      - name: Nature Materials
-        feed_url: https://www.nature.com/nmat.rss
-        type: research
-      - name: Matter (Cell Press)
-        feed_url: https://www.cell.com/matter/current.rss
-        type: research
-
+    - name: Nature Reviews Materials
+      feed_url: https://www.nature.com/natrevmats.rss
+      type: research
+      lead_time_tier: future
+    - name: Nature Materials
+      feed_url: https://www.nature.com/nmat.rss
+      type: research
+      lead_time_tier: future
+    - name: Matter (Cell Press)
+      feed_url: https://www.cell.com/matter/current.rss
+      type: research
+      lead_time_tier: future
   FASHION:
     sources:
-      - name: Business of Fashion
-        feed_url: https://www.businessoffashion.com/feed/
-        type: trade_media
-      - name: Glossy
-        feed_url: https://www.glossy.co/feed/
-        type: trade_media
-      - name: Fashionista
-        feed_url: https://fashionista.com/.rss/full/
-        type: trade_media
-      - name: WWD
-        feed_url: https://www.wwd.com/feed/
-        type: trade_media
-      - name: Vogue UK
-        feed_url: https://www.vogue.co.uk/feed/rss
-        type: trade_media
+    - name: Business of Fashion
+      feed_url: https://www.businessoffashion.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Glossy
+      feed_url: https://www.glossy.co/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Fashionista
+      feed_url: https://fashionista.com/.rss/full/
+      type: trade_media
+      lead_time_tier: now
+    - name: WWD
+      feed_url: https://www.wwd.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Vogue UK
+      feed_url: https://www.vogue.co.uk/feed/rss
+      type: trade_media
+      lead_time_tier: now
     science:
-      - name: Trends in Biotechnology
-        feed_url: https://rss.sciencedirect.com/publication/science/01677799
-        type: research
-
+    - name: Trends in Biotechnology
+      feed_url: https://rss.sciencedirect.com/publication/science/01677799
+      type: research
+      lead_time_tier: future
   BIZ:
     sources:
-      - name: Retail Dive
-        feed_url: https://www.retaildive.com/feeds/news/
-        type: trade_media
-      - name: Fast Company
-        feed_url: https://www.fastcompany.com/latest/rss
-        type: trade_media
-      - name: Finextra
-        feed_url: https://www.finextra.com/rss/headlines.aspx
-        type: trade_media
-      - name: Retail Insider
-        feed_url: https://www.retail-insider.com/feed/
-        type: trade_media
-      - name: McKinsey Insights
-        feed_url: https://www.mckinsey.com/insights/rss
-        type: trade_media
-      - name: Horizont
-        feed_url: https://www.horizont.net/news/feed/
-        type: trade_media
-      - name: Gründerszene
-        feed_url: https://www.businessinsider.de/gruenderszene/feed/
-        type: trade_media
-      - name: brutkasten
-        feed_url: https://brutkasten.com/feed
-        type: trade_media
-      - name: Asia Times
-        feed_url: https://asiatimes.com/feed/
-        type: trade_media
-      - name: The Japan News
-        feed_url: https://japannews.yomiuri.co.jp/feed/
-        type: trade_media
-
+    - name: Retail Dive
+      feed_url: https://www.retaildive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: Fast Company
+      feed_url: https://www.fastcompany.com/latest/rss
+      type: trade_media
+      lead_time_tier: market
+    - name: Finextra
+      feed_url: https://www.finextra.com/rss/headlines.aspx
+      type: trade_media
+      lead_time_tier: market
+    - name: Retail Insider
+      feed_url: https://www.retail-insider.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: McKinsey Insights
+      feed_url: https://www.mckinsey.com/insights/rss
+      type: trade_media
+      lead_time_tier: future
+    - name: Horizont
+      feed_url: https://www.horizont.net/news/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Gründerszene
+      feed_url: https://www.businessinsider.de/gruenderszene/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: brutkasten
+      feed_url: https://brutkasten.com/feed
+      type: trade_media
+      lead_time_tier: market
+    - name: Asia Times
+      feed_url: https://asiatimes.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: The Japan News
+      feed_url: https://japannews.yomiuri.co.jp/feed/
+      type: trade_media
+      lead_time_tier: market
   LIFESTYLE:
     sources:
-      # Culture & Media
-      - name: Nieman Lab
-        feed_url: https://www.niemanlab.org/feed/
-        type: trade_media
-      - name: GamesIndustry.biz
-        feed_url: https://www.gamesindustry.biz/feed
-        type: trade_media
-      - name: Creative Bloq
-        feed_url: https://www.creativebloq.com/feed
-        type: trade_media
-      - name: Hypebeast
-        feed_url: https://www.hypebeast.com/feed/
-        type: trade_media
-      # Social Impact & Education
-      - name: Impact Alpha
-        feed_url: https://impactalpha.com/feed/
-        type: trade_media
-      - name: Social Enterprise UK
-        feed_url: https://www.socialenterprise.org.uk/feed/
-        type: trade_media
-      - name: EdTech Magazine
-        feed_url: https://edtechmagazine.com/higher/rss.xml
-        type: trade_media
-      - name: Nonprofit Quarterly
-        feed_url: https://nonprofitquarterly.org/feed/
-        type: trade_media
-      # Luxury & Travel
-      - name: Robb Report
-        feed_url: https://robbreport.com/feed/
-        type: trade_media
-      - name: Luxury Daily
-        feed_url: https://www.luxurydaily.com/feed/
-        type: trade_media
-      - name: Highsnobiety
-        feed_url: https://www.highsnobiety.com/feed/
-        type: trade_media
-      - name: Skift
-        feed_url: https://skift.com/feed/
-        type: trade_media
-      - name: Platformer
-        feed_url: https://platformer.news/rss/
-        type: trade_media
-      - name: Rest of World
-        feed_url: https://restofworld.org/feed/latest
-        type: trade_media
-
+    - name: Nieman Lab
+      feed_url: https://www.niemanlab.org/feed/
+      type: trade_media
+      lead_time_tier: future
+    - name: GamesIndustry.biz
+      feed_url: https://www.gamesindustry.biz/feed
+      type: trade_media
+      lead_time_tier: now
+    - name: Creative Bloq
+      feed_url: https://www.creativebloq.com/feed
+      type: trade_media
+      lead_time_tier: now
+    - name: Hypebeast
+      feed_url: https://www.hypebeast.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Impact Alpha
+      feed_url: https://impactalpha.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Social Enterprise UK
+      feed_url: https://www.socialenterprise.org.uk/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: EdTech Magazine
+      feed_url: https://edtechmagazine.com/higher/rss.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Nonprofit Quarterly
+      feed_url: https://nonprofitquarterly.org/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Robb Report
+      feed_url: https://robbreport.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Luxury Daily
+      feed_url: https://www.luxurydaily.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Highsnobiety
+      feed_url: https://www.highsnobiety.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Skift
+      feed_url: https://skift.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Platformer
+      feed_url: https://platformer.news/rss/
+      type: trade_media
+      lead_time_tier: future
+    - name: Rest of World
+      feed_url: https://restofworld.org/feed/latest
+      type: trade_media
+      lead_time_tier: future
 cross_industry:
   press_wires:
-    - name: PR Newswire
-      feed_url: https://www.prnewswire.com/rss/news-releases-list.rss
-      type: press_wire
-    - name: GlobeNewswire
-      feed_url: https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20Releases
-      type: press_wire
+  - name: PR Newswire
+    feed_url: https://www.prnewswire.com/rss/news-releases-list.rss
+    type: press_wire
+    lead_time_tier: market
+  - name: GlobeNewswire
+    feed_url: https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20Releases
+    type: press_wire
+    lead_time_tier: market
   science:
-    - name: Nature (main)
-      feed_url: https://www.nature.com/nature.rss
-      type: research
-    - name: Science Magazine News
-      feed_url: https://www.science.org/rss/news_current.xml
-      type: research
-    - name: Phys.org
-      feed_url: https://phys.org/rss-feed/
-      type: research
-    - name: ScienceDaily Top
-      feed_url: https://www.sciencedaily.com/rss/top.xml
-      type: research
-    - name: Quanta Magazine
-      feed_url: https://www.quantamagazine.org/feed/
-      type: research
-    - name: New Scientist Technology
-      feed_url: https://www.newscientist.com/subject/technology/feed/
-      type: research
-    - name: Science News
-      feed_url: https://www.sciencenews.org/feed
-      type: research
-    - name: PNAS
-      feed_url: https://www.pnas.org/action/showFeed?type=etoc&feed=rss&jc=pnas
-      type: research
+  - name: Nature (main)
+    feed_url: https://www.nature.com/nature.rss
+    type: research
+    lead_time_tier: future
+  - name: Science Magazine News
+    feed_url: https://www.science.org/rss/news_current.xml
+    type: research
+    lead_time_tier: future
+  - name: Phys.org
+    feed_url: https://phys.org/rss-feed/
+    type: research
+    lead_time_tier: future
+  - name: ScienceDaily Top
+    feed_url: https://www.sciencedaily.com/rss/top.xml
+    type: research
+    lead_time_tier: future
+  - name: Quanta Magazine
+    feed_url: https://www.quantamagazine.org/feed/
+    type: research
+    lead_time_tier: future
+  - name: New Scientist Technology
+    feed_url: https://www.newscientist.com/subject/technology/feed/
+    type: research
+    lead_time_tier: future
+  - name: Science News
+    feed_url: https://www.sciencenews.org/feed
+    type: research
+    lead_time_tier: future
+  - name: PNAS
+    feed_url: https://www.pnas.org/action/showFeed?type=etoc&feed=rss&jc=pnas
+    type: research
+    lead_time_tier: future

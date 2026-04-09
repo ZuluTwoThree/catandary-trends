@@ -97,6 +97,51 @@ def fetch_feed(source_name: str, feed_url: str) -> list[dict]:
         return []
 
 
+VALID_LEAD_TIME_TIERS = {"future", "market", "now"}
+
+
+def warn_if_missing_tier(source_cfg: dict) -> None:
+    """Warn if a source lacks the `lead_time_tier` field and suggest a fix.
+
+    The lead_time_tier is used downstream by the (planned) structural-vs-hype
+    score (see BACKLOG.md). Missing tiers break that scoring silently, so we
+    surface them at poll time when the source is first observed.
+    """
+    tier = source_cfg.get("lead_time_tier")
+    if tier in VALID_LEAD_TIME_TIERS:
+        return
+
+    name = source_cfg.get("name", "<unnamed>")
+    stype = source_cfg.get("type", "trade_media")
+    # Suggest a sensible default based on source type
+    if stype == "research":
+        suggested = "future"
+        rationale = "research/academic → ~5-10y lead time"
+    elif stype == "press_wire":
+        suggested = "market"
+        rationale = "press wire / corporate announcements → ~1-2y lead time"
+    else:
+        suggested = "market"
+        rationale = (
+            "trade_media default; use 'now' for consumer/lifestyle/fashion "
+            "real-time culture (e.g. Hypebeast, Vogue UK) or 'future' for "
+            "deep-analytical (e.g. MIT Tech Review, Carbon Brief)"
+        )
+
+    if tier is None:
+        logger.warning(
+            "Source '%s' has no `lead_time_tier`. Add to sources.yaml:\n"
+            "        lead_time_tier: %s   # %s",
+            name, suggested, rationale,
+        )
+    else:
+        logger.warning(
+            "Source '%s' has invalid lead_time_tier=%r. "
+            "Must be one of %s. Suggested: %s (%s)",
+            name, tier, sorted(VALID_LEAD_TIME_TIERS), suggested, rationale,
+        )
+
+
 def poll_vertical_sources(vertical: str, config: dict) -> dict:
     """Poll all sources for a single vertical. Returns stats."""
     stats = {"fetched": 0, "new": 0, "duplicate": 0, "errors": 0}
@@ -107,6 +152,7 @@ def poll_vertical_sources(vertical: str, config: dict) -> dict:
         source_name = source_cfg["name"]
         feed_url = source_cfg["feed_url"]
         source_type = source_cfg.get("type", "trade_media")
+        warn_if_missing_tier(source_cfg)
 
         source_id = upsert_source(source_name, feed_url, source_type, vertical)
 
@@ -143,6 +189,7 @@ def poll_cross_industry(config: dict) -> dict:
             source_name = source_cfg["name"]
             feed_url = source_cfg["feed_url"]
             source_type = source_cfg.get("type", "press_wire")
+            warn_if_missing_tier(source_cfg)
 
             source_id = upsert_source(source_name, feed_url, source_type, "CROSS")
 
