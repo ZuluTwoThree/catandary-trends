@@ -1,155 +1,195 @@
 # Catandary Trends
 
-Cross-industry trend intelligence pipeline powered by local LLMs (Ollama).
+Cross-industry trend intelligence platform powered by local LLMs (Ollama).
+Aggregates RSS signals from primary trade/research sources across eight
+industry verticals, classifies them via a multi-stage LLM pipeline, and
+publishes curated trend articles (DE + EN) through a Next.js frontend.
+
+See [`CLAUDE.md`](CLAUDE.md) for the full architecture and taxonomy, and
+[`BACKLOG.md`](BACKLOG.md) for open ideas.
+
+## Verticals
+
+FOOD · TECH · HEALTH · ECO · DESIGN · FASHION · BIZ · LIFESTYLE
+
+Cross-cutting classification: PESTEL dimensions (P/E/S/T/En/L) plus
+Mega/Macro/Micro trend levels (Foresight taxonomy).
 
 ## Setup
 
 ### Prerequisites
 
 - Python 3.12+
-- [Ollama](https://ollama.com/) installed and running
-- NVIDIA GPU (RTX 5080 recommended, 16GB VRAM)
+- Node.js 20+ (for frontend)
+- [Ollama](https://ollama.com/) running on `127.0.0.1:11434`
+- NVIDIA GPU with ≥12 GB VRAM (RTX 5080 reference)
 
-### Install Ollama Models
+### Install Ollama models
 
 ```bash
-ollama pull qwen3:8b
-ollama pull qwen3:14b
-ollama pull qwen3-embedding
+ollama pull qwen3:8b          # filter / extract / classify
+ollama pull qwen3:14b         # content generation (DE + EN)
+ollama pull qwen3-embedding   # dedup + semantic search (4096-dim)
 ```
 
-### Install Python Dependencies
+### Install dependencies
 
 ```bash
 pip install -r requirements.txt
+cd frontend && npm install && cd ..
 ```
 
-### Initialize Database
+### Initialize database
 
 ```bash
 python scripts/setup_db.py
 ```
 
-### Environment Variables (optional)
+SQLite is used by default (`data/catandary.db`). PostgreSQL + pgvector is
+the planned production target.
 
-Copy `.env.example` to `.env` and adjust as needed:
+### Environment
 
-```bash
-cp .env.example .env
+Copy `.env.example` to `.env`. Key settings:
+
+- `OLLAMA_CLIENT_HOST` — default `http://127.0.0.1:11434`.
+  From WSL2 use the Windows host IP instead of `localhost`.
+- `DATABASE_PATH` — default `./data/catandary.db`
+- `BRAVE_SEARCH_API_KEY` — optional, for the radar discovery step
+- `LOG_LEVEL` — default `INFO`
+
+## Pipeline
+
+```
+RSS feeds ──► feed_poller ──► raw_entries
+                                  │
+                                  ▼
+                       llm_processor (Ollama)
+                       1. relevance filter   (qwen3:8b)
+                       2. structured extract (qwen3:8b)
+                       3. NER + classify     (qwen3:8b)
+                       4. dedup via embedding (qwen3-embedding)
+                       5. content EN          (qwen3:14b)
+                       6. translate DE        (qwen3:14b)
+                                  │
+                                  ▼
+                              trends (draft)
+                                  │
+                 ┌────────────────┼──────────────────┐
+                 ▼                ▼                  ▼
+          auto_publisher   mega_trend_reviewer   review CLI
+                 │                │                  │
+                 ▼                ▼                  ▼
+                          trends (published) ──► Next.js frontend
 ```
 
-Key settings:
-- `OLLAMA_CLIENT_HOST` — Ollama API endpoint (default: `http://127.0.0.1:11434`)
-- `DATABASE_PATH` — SQLite database path (default: `./data/catandary.db`)
-- `LOG_LEVEL` — Logging level (default: `INFO`)
-
-## Usage
-
-### 1. Poll RSS Feeds
-
-Fetch new entries from all configured sources:
+### Poll feeds
 
 ```bash
-# All verticals
-python -m pipeline.feed_poller
-
-# Specific verticals
-python -m pipeline.feed_poller FOOD TECH
+python -m pipeline.feed_poller                 # all verticals
+python -m pipeline.feed_poller FOOD TECH       # subset
+python scripts/poll_dryrun.py                  # count new signals, no write
 ```
 
-### 2. Run LLM Pipeline
-
-Process unprocessed entries through the full pipeline (relevance filter → extraction → classification → dedup → content generation):
+### Run LLM pipeline
 
 ```bash
-# Process up to 10 entries (default)
-python -m pipeline.llm_processor
-
-# Process specific number
-python -m pipeline.llm_processor 50
+python -m pipeline.llm_processor 200           # process up to 200 entries
 ```
 
-### 3. Radar Discovery
+Default batch size is 10; pass a larger number as argument for bigger runs.
 
-Extract brand names from Trendhunter radar feeds:
+### Auto-publish high-confidence drafts
 
 ```bash
-python -m pipeline.radar_discovery FOOD TECH
+python -m pipeline.auto_publisher              # threshold configured in pipeline/config.py
 ```
 
-### 4. Review & Publish
+### Assign / refresh mega-trends
 
 ```bash
-# List all trends
-python scripts/review_cli.py list
+python -m pipeline.mega_trend_reviewer         # Qwen3 14B, batched
+python scripts/review_recent_live.py           # yesterday + today only
+```
 
-# List drafts only
+### Manual review CLI
+
+```bash
 python scripts/review_cli.py list draft
-
-# Show trend detail
-python scripts/review_cli.py show 1
-
-# Publish a trend
-python scripts/review_cli.py publish 1
-
-# Interactive review
-python scripts/review_cli.py review
-
-# Statistics
+python scripts/review_cli.py show <id>
+python scripts/review_cli.py publish <id>
+python scripts/review_cli.py review            # interactive
 python scripts/review_cli.py stats
 ```
 
-### 5. Verify RSS Feeds
+### Verify feed URLs
 
 ```bash
 python scripts/verify_feeds.py
 ```
 
-## Running Tests
+## Frontend
+
+Next.js 14 App Router, Tailwind, better-sqlite3. Runs on port **3001**
+(port 3000 is reserved for Open WebUI on the dev machine).
+
+```bash
+cd frontend
+npm run dev                  # http://localhost:3001
+npm run build && npm start   # production
+```
+
+Routes:
+- `/trends` — main grid with vertical filter
+- `/trends/[slug]` — single trend article
+- `/trends/vertical/[v]` — vertical view
+- `/trends/mega` — mega-trends with momentum tracking
+- `/trends/pestel/[dimension]` — PESTEL cut
+- `/api/search?q=...` — embedding-based semantic search prototype
+
+A static mockup of the planned Foresight Search Workbench lives at
+`frontend/mockups/foresight-search.html`.
+
+## Tests
 
 ```bash
 python -m pytest tests/ -v
 ```
 
-## Architecture
+## Sources
 
-```
-RSS Feeds → Feed Poller → raw_entries DB
-                              ↓
-                    LLM Pipeline (Ollama)
-                    1. Relevance Filter (Qwen3 8B)
-                    2. Structured Extraction (Qwen3 8B)
-                    3. NER + Classification (Qwen3 8B)
-                    4. Duplicate Check (Qwen3-Embedding)
-                    5. Content Generation EN+DE (Qwen3 14B)
-                              ↓
-                        trends DB → Review CLI → Published
-```
+Configured in [`sources.yaml`](sources.yaml), grouped by vertical.
+Only legal primary sources (trade media, research, press wires, brand
+newsrooms). No aggregator scraping. The Brave Search radar
+(`pipeline/radar_discovery.py`) is the discovery layer for new domains.
 
-## Sources (Sprint 1)
-
-**FOOD:** FoodNavigator, Food Dive, The Spoon, BeverageDaily, New Food Magazine, Trendhunter Food Radar
-**TECH:** TechCrunch, The Verge, Ars Technica, VentureBeat, MIT Technology Review, Trendhunter Tech Radar
-**Cross-Industry:** PR Newswire, GlobeNewswire
-
-## Project Structure
+## Project structure
 
 ```
 catandary-trends/
+├── CLAUDE.md               # Architecture & taxonomy spec
+├── BACKLOG.md              # Open ideas, deferred experiments
+├── sources.yaml            # Feed configuration
+├── mega_trends.yaml        # Canonical mega-trend taxonomy
 ├── pipeline/
-│   ├── config.py            # Configuration & sources.yaml loader
-│   ├── db.py                # SQLite database layer
-│   ├── feed_poller.py       # RSS feed aggregation
-│   ├── llm_processor.py     # Full LLM pipeline
-│   ├── models.py            # Pydantic schemas
-│   ├── ollama_client.py     # Ollama wrapper with retry logic
-│   └── radar_discovery.py   # Trendhunter radar pipeline
-├── scripts/
-│   ├── review_cli.py        # CLI for trend review/publish
-│   ├── setup_db.py          # Database initialization
-│   └── verify_feeds.py      # RSS feed URL verification
-├── tests/                   # Unit tests (43 tests)
-├── sources.yaml             # Feed source configuration
-├── requirements.txt
-└── CLAUDE.md               # Full project specification
+│   ├── feed_poller.py
+│   ├── llm_processor.py
+│   ├── mega_trend_reviewer.py
+│   ├── auto_publisher.py
+│   ├── radar_discovery.py
+│   ├── newsletter_generator.py
+│   ├── models.py           # Pydantic schemas
+│   ├── db.py               # SQLite layer
+│   └── ollama_client.py
+├── frontend/               # Next.js app
+│   ├── src/app/
+│   ├── src/components/
+│   └── mockups/            # Static design demos
+├── scripts/                # setup, reclassify, review, dryruns
+└── tests/
 ```
+
+## Status
+
+Sprints 1–6 complete. Active focus: frontend polish, Hetzner deployment,
+pipeline cron automation. See `CLAUDE.md` → Weiterentwicklung.
