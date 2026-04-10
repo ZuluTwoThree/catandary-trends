@@ -234,10 +234,10 @@ export default function ForesightCockpit() {
               </div>
             )}
 
-            {/* Result cards */}
+            {/* Result cards — relevance relative to theoretical RRF max (2/61 ≈ 0.0328) */}
             {data.results.map((r) => {
-              const maxRrf = data.results[0]?.rrf_score || 1;
-              const relevance = Math.round((r.rrf_score / maxRrf) * 100);
+              const RRF_MAX = 2 / 61; // rank 1 in both FTS5 + embedding
+              const relevance = Math.round((r.rrf_score / RRF_MAX) * 100);
               return <ResultCard key={r.id} result={r} de={de} relevance={relevance} />;
             })}
           </div>
