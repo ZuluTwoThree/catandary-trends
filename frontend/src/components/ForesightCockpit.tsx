@@ -235,9 +235,11 @@ export default function ForesightCockpit() {
             )}
 
             {/* Result cards */}
-            {data.results.map((r) => (
-              <ResultCard key={r.id} result={r} de={de} />
-            ))}
+            {data.results.map((r) => {
+              const maxRrf = data.results[0]?.rrf_score || 1;
+              const relevance = Math.round((r.rrf_score / maxRrf) * 100);
+              return <ResultCard key={r.id} result={r} de={de} relevance={relevance} />;
+            })}
           </div>
 
           {/* Sidebar: analytics */}
@@ -272,7 +274,7 @@ export default function ForesightCockpit() {
 // ---------------------------------------------------------------------------
 // Result card
 // ---------------------------------------------------------------------------
-function ResultCard({ result: r, de }: { result: SearchResult; de: boolean }) {
+function ResultCard({ result: r, de, relevance }: { result: SearchResult; de: boolean; relevance: number }) {
   const vi = getVerticalInfo(r.primary_vertical as Vertical);
   const tierCfg = TIER_CONFIG[r.lead_time_tier as keyof typeof TIER_CONFIG] ?? TIER_CONFIG.unknown;
 
@@ -313,8 +315,8 @@ function ResultCard({ result: r, de }: { result: SearchResult; de: boolean }) {
             {r.source_date && (
               <span>{new Date(r.source_date).toLocaleDateString(de ? "de-DE" : "en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
             )}
-            {r.rrf_score > 0 && (
-              <span className="text-accent">RRF {r.rrf_score}</span>
+            {relevance > 0 && (
+              <span className="text-accent">{relevance}%</span>
             )}
           </div>
         </div>
