@@ -60,3 +60,5 @@
   - **Option B (Orchestrator):** Leichtgewichtiges Pipeline-Script `pipeline/run_full_cycle.py`, das Feed-Poll → LLM-Processor → Auto-Publish → Mega-Trend-Review sequentiell ausführt und einen Summary-Report schreibt. Passt gut zu Cron-Automatisierung.
   - **Option C (Cron-Kette):** Separate Cron-Jobs mit Zeitversatz (z.B. Poll 00:00, LLM 00:30, Auto-Publish 08:00, Review-Report per Mail).
   - Bevorzugt: **Option B** — ein einziger Cron-Eintrag, ein Report, keine Timing-Abhängigkeiten.
+
+- [ ] **Foresight Cockpit auf MacBook Air (8GB RAM) testen.** Query-Embedding braucht Ollama mit `qwen3-embedding` (~5-6GB VRAM). Bei 8GB unified Memory eng. Zu prüfen: (1) Läuft `qwen3-embedding` auf M-Chip mit 8GB überhaupt? (2) Falls nicht: kleineres Embedding-Modell evaluieren (`nomic-embed-text` ~270MB, `all-minisearch` ~23MB) — benötigt dann Neuberechnung aller Trend-Vektoren in der passenden Dimension. (3) FTS5-only-Fallback funktioniert bereits automatisch wenn Ollama nicht erreichbar ist.
