@@ -34,6 +34,12 @@ export default function Header() {
             {t("crossIndustry")}
           </a>
           <a
+            href="/trends/foresight"
+            className="hover:text-foreground transition-colors hidden md:inline"
+          >
+            {t("foresightCockpit")}
+          </a>
+          <a
             href="https://catandary.de"
             className="hover:text-foreground transition-colors hidden sm:inline"
             target="_blank"

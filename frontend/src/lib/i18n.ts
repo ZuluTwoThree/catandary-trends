@@ -90,6 +90,9 @@ export const translations = {
     topTrends: "Top Trends",
     viewAll: "Alle anzeigen",
 
+    // Foresight Cockpit
+    foresightCockpit: "Foresight",
+
     // CRS
     crsLabel: "Catandary Relevance Score",
     crsTooltip:
@@ -189,6 +192,8 @@ export const translations = {
       "Cross-industry patterns and mega-trend clusters at a glance.",
     topTrends: "Top Trends",
     viewAll: "View all",
+
+    foresightCockpit: "Foresight",
 
     crsLabel: "Catandary Relevance Score",
     crsTooltip:
