@@ -61,6 +61,17 @@ interface SearchResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Explore types (landing page)
+// ---------------------------------------------------------------------------
+interface ExploreData {
+  lookback_days: number;
+  recent_total: number;
+  trending_tags: Array<{ tag: string; count: number; tfidf: number }>;
+  mega_momentum: Array<{ mega_trend: string; recent: number; total: number }>;
+  vertical_activity: Array<{ primary_vertical: string; count: number }>;
+}
+
+// ---------------------------------------------------------------------------
 // Lead-time tier config
 // ---------------------------------------------------------------------------
 const TIER_CONFIG = {
@@ -82,7 +93,16 @@ export default function ForesightCockpit() {
   const [data, setData] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [explore, setExplore] = useState<ExploreData | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Load explore data on mount
+  useEffect(() => {
+    fetch("/api/search/explore")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setExplore(d); })
+      .catch(() => {});
+  }, []);
 
   const doSearch = useCallback(
     async (q: string, v: string | null) => {
@@ -123,6 +143,14 @@ export default function ForesightCockpit() {
       if (query.trim()) doSearch(query, v);
     },
     [doSearch, query]
+  );
+
+  const searchFor = useCallback(
+    (term: string) => {
+      setQuery(term);
+      doSearch(term, vertical);
+    },
+    [doSearch, vertical]
   );
 
   // Cleanup debounce on unmount
@@ -256,17 +284,143 @@ export default function ForesightCockpit() {
         </div>
       )}
 
-      {/* Empty state */}
-      {!data && !loading && !error && (
-        <div className="text-center py-20 text-muted space-y-2">
-          <div className="text-4xl opacity-30">&#x1F50D;</div>
-          <p className="text-sm">
-            {de
-              ? "Suchbegriff eingeben, um Trend-Signale zu entdecken"
-              : "Enter a search term to discover trend signals"}
-          </p>
-        </div>
+      {/* Explore dashboard (no query entered) */}
+      {!data && !loading && !error && explore && (
+        <ExploreDashboard explore={explore} de={de} onSearch={searchFor} onVertical={onVerticalChange} />
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Explore dashboard (landing page)
+// ---------------------------------------------------------------------------
+function ExploreDashboard({
+  explore,
+  de,
+  onSearch,
+  onVertical,
+}: {
+  explore: ExploreData;
+  de: boolean;
+  onSearch: (term: string) => void;
+  onVertical: (v: string | null) => void;
+}) {
+  const maxMomentum = explore.mega_momentum[0]?.recent ?? 1;
+  const maxVertical = explore.vertical_activity[0]?.count ?? 1;
+  const maxTfidf = Math.max(...explore.trending_tags.map((t) => t.tfidf), 1);
+
+  return (
+    <div className="space-y-8">
+      {/* Period header */}
+      <p className="text-xs text-muted">
+        {explore.recent_total} {de ? "Signale in den letzten" : "signals in the last"} {explore.lookback_days} {de ? "Tagen" : "days"}
+      </p>
+
+      {/* Trending tags */}
+      <div>
+        <h2 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider mb-3">
+          {de ? "Trending Signale" : "Trending Signals"}
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          {explore.trending_tags.map((t) => {
+            const rel = t.tfidf / maxTfidf;
+            const fontSize = 12 + rel * 8; // 12px to 20px
+            const opacity = 0.5 + rel * 0.5;
+            return (
+              <button
+                key={t.tag}
+                onClick={() => onSearch(t.tag)}
+                className="inline-block rounded-lg bg-accent/10 px-3 py-1.5 text-accent
+                           hover:bg-accent/20 transition-colors cursor-pointer"
+                style={{ fontSize: `${fontSize}px`, opacity }}
+                title={`${t.count}x (TF-IDF: ${t.tfidf})`}
+              >
+                {t.tag}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Mega-trend momentum */}
+        <div className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider mb-4">
+            {de ? "Mega-Trend Momentum" : "Mega-Trend Momentum"}
+          </h2>
+          <div className="space-y-2.5">
+            {explore.mega_momentum.map((mt) => {
+              const info = getMegaTrendInfo(mt.mega_trend);
+              const label = info
+                ? (de ? info.name_de : info.name_en)
+                : mt.mega_trend.replace(/_/g, " ");
+              const pct = (mt.recent / maxMomentum) * 100;
+              return (
+                <button
+                  key={mt.mega_trend}
+                  onClick={() => onSearch(label)}
+                  className="w-full flex items-center gap-3 text-left group hover:bg-card-hover
+                             rounded-md px-2 py-1 -mx-2 transition-colors"
+                >
+                  <span className="w-5 text-center text-sm">{info?.icon ?? "?"}</span>
+                  <span className="flex-1 text-sm text-foreground/80 truncate group-hover:text-foreground">
+                    {label}
+                  </span>
+                  <div className="w-24 h-2 rounded-full bg-border overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-accent/70"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-accent w-12 text-right">
+                    +{mt.recent}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Vertical activity */}
+        <div className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider mb-4">
+            {de ? "Vertikale Aktivität" : "Vertical Activity"}
+            <span className="text-muted font-normal ml-2 normal-case">
+              ({explore.lookback_days}d)
+            </span>
+          </h2>
+          <div className="space-y-2.5">
+            {explore.vertical_activity.map((va) => {
+              const info = getVerticalInfo(va.primary_vertical as Vertical);
+              const pct = (va.count / maxVertical) * 100;
+              return (
+                <button
+                  key={va.primary_vertical}
+                  onClick={() => onVertical(va.primary_vertical)}
+                  className="w-full flex items-center gap-3 text-left group hover:bg-card-hover
+                             rounded-md px-2 py-1 -mx-2 transition-colors"
+                >
+                  <span className="w-5 text-center">{info.icon}</span>
+                  <span
+                    className="w-20 text-sm font-medium"
+                    style={{ color: info.color }}
+                  >
+                    {va.primary_vertical}
+                  </span>
+                  <div className="flex-1 h-2.5 rounded-full bg-border overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${pct}%`, backgroundColor: info.color }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted w-8 text-right">{va.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
