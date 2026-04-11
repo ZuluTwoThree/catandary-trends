@@ -61,4 +61,27 @@
   - **Option C (Cron-Kette):** Separate Cron-Jobs mit Zeitversatz (z.B. Poll 00:00, LLM 00:30, Auto-Publish 08:00, Review-Report per Mail).
   - Bevorzugt: **Option B** — ein einziger Cron-Eintrag, ein Report, keine Timing-Abhängigkeiten.
 
+- [ ] **Brave Search Radar Pipeline — Rewrite von `pipeline/radar_discovery.py`.** Aktuelle Datei (281 Zeilen) enthält obsoleten Trendhunter-Workflow. Komplett-Rewrite zu eigenständigem Brave Search Radar mit kuratierten Queries pro Vertikale.
+  - **Schritt 1: `sources.yaml` erweitern.** Pro Vertikale ein `radar:` Abschnitt mit 3-5 kuratierten Suchqueries (z.B. FOOD: `"food innovation trends 2026"`, `"novel food ingredients startup"`, `"functional food market shift"`). Ergibt ~24-40 Queries/Tag.
+  - **Schritt 2: `radar_discovery.py` neu schreiben.** Behalten: `brave_search()` Funktion (Zeilen 67-96), nur `freshness` Parameter ergänzen. Alles andere ersetzen:
+    1. `sources.yaml` → `radar:` Queries laden
+    2. Pro Vertical + Query: `brave_search(query, freshness="pw")` (past week)
+    3. Deduplizierung gegen `raw_entries` (URL)
+    4. LLM Relevanz-Filter (Qwen3 8B, YES/NO + Confidence) — minimaler Filter, volle Klassifikation macht der LLM-Processor
+    5. Relevante Ergebnisse → `insert_raw_entry()` (source_id von "Brave Radar — {VERTICAL}" Source)
+    6. Domain-Tracking: `log_source_discovery()` → bei 3+ Treffern RSS-Feed-Vorschlag
+    7. Summary-Report am Ende
+  - **Schritt 3: DB Sources anlegen.** Pro Vertikale eine `sources`-Zeile: `source_type='radar'`, `name='Brave Radar — {VERTICAL}'`. Script legt fehlende beim Start automatisch an.
+  - **Flags:** `--dry-run` (kein DB-Write), `--vertical FOOD` (einzelnes Vertical), `--backfill` (freshness="pm" statt "pw" für breiteres Zeitfenster)
+  - **Rate-Limit-Budget:** ~40 Queries/Tag, ~1.200/Monat (Brave Free Tier: 2.000). Rate-Limiting: 1 Request/Sekunde.
+  - **Cron:** Täglich 08:00 (normal), Sonntag 10:00 (`--backfill`).
+  - **DB-Funktionen existieren bereits:** `db.insert_raw_entry()`, `db.insert_source_discovery()`, `db.get_discovery_count()` — kein DB-Code nötig.
+  - **Verifikation:** (1) `--dry-run` zeigt Queries + Ergebnisse ohne DB-Write, (2) `--vertical FOOD` testet einzeln, (3) Nach Lauf: neue `raw_entries` mit `source_type='radar'` prüfen, (4) `llm_processor` Lauf bestätigt Pickup, (5) `source_discoveries` für Domain-Promotion-Schwelle prüfen.
+
 - [ ] **Foresight Cockpit auf MacBook Air (8GB RAM) testen.** Query-Embedding braucht Ollama mit `qwen3-embedding` (~5-6GB VRAM). Bei 8GB unified Memory eng. Zu prüfen: (1) Läuft `qwen3-embedding` auf M-Chip mit 8GB überhaupt? (2) Falls nicht: kleineres Embedding-Modell evaluieren (`nomic-embed-text` ~270MB, `all-minisearch` ~23MB) — benötigt dann Neuberechnung aller Trend-Vektoren in der passenden Dimension. (3) FTS5-only-Fallback funktioniert bereits automatisch wenn Ollama nicht erreichbar ist.
+
+## Tagesziele 2026-04-11
+
+- [ ] **Cron-Jobs einrichten.** Pipeline-Automatisierung auf dem Produktionssystem (Hetzner oder lokal): Feed-Poll, LLM-Processor, Auto-Publish als wiederkehrende Jobs. Siehe Option B oben (Orchestrator-Script `pipeline/run_full_cycle.py`).
+- [ ] **Newsletter implementieren.** Newsletter-Generator (`pipeline/newsletter_generator.py`) fertigstellen und testen. Anbindung an Resend/Buttondown, wöchentlicher Versand (Montag 9:00).
+- [ ] **Plattform auf MacBook Air testen.** Gesamte Plattform (Frontend + Foresight Cockpit inkl. semantischer Suche mit Ollama Embeddings) auf MacBook Air 8GB deployen und verifizieren. Ergebnis dokumentieren.

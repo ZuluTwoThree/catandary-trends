@@ -417,8 +417,9 @@ CREATE TABLE trend_clusters (
 # RSS-Feeds pollen (alle 4 Stunden)
 0 */4 * * *  python pipeline/feed_poller.py
 
-# Brave Search Radar (1x täglich, morgens)
+# Brave Search Radar (täglich morgens + wöchentlicher Backfill)
 0 8 * * *    python pipeline/radar_discovery.py
+0 10 * * 0   python pipeline/radar_discovery.py --backfill
 
 # LLM-Pipeline für neue Einträge (alle 4 Stunden, nach Polling)
 30 */4 * * * python pipeline/llm_processor.py
@@ -470,30 +471,26 @@ cross_industry:
 
 ### Radar-Discovery Pipeline (Brave Search)
 
-```python
-"""
-Brave Search API → Trend-Signale finden → Originalquelle identifizieren
-"""
+**Status:** Rewrite ausstehend — aktuelle `pipeline/radar_discovery.py` enthält obsoleten Trendhunter-Workflow. Siehe BACKLOG.md für vollständigen Implementierungsplan.
 
-def discover_sources_from_radar(verticals):
-    for vertical, queries in verticals.items():
-        for query in queries:
-            # 1. Brave Search mit kuratierten Queries
-            search_results = brave_search(query)
+**Architektur (Ziel):**
 
-            # 2. Ergebnisse per LLM auf Trend-Relevanz filtern
-            relevant = filter_trend_signals(search_results)
-
-            # 3. Domain registrieren
-            for result in relevant:
-                log_discovery(result.brand, result.url, result.domain)
-
-            # 4. Wenn Domain 3+ mal gesehen → RSS-Feed suchen
-            if get_discovery_count(result.domain) >= 3:
-                rss_feed = find_rss_feed(result.domain)
-                if rss_feed:
-                    add_to_sources(result.domain, rss_feed)
 ```
+radar_discovery.py main()
+  ├── load sources.yaml → radar: queries pro Vertikale
+  ├── for each vertical + query:
+  │     ├── brave_search(query, freshness="pw")     # past week
+  │     ├── deduplicate gegen raw_entries (URL)
+  │     ├── LLM relevance filter (Qwen3 8B, YES/NO)
+  │     ├── insert → raw_entries (source_id = Brave Radar)
+  │     └── log_source_discovery() für Domain-Tracking
+  ├── domain promotion: 3+ Entdeckungen → RSS-Feed vorschlagen
+  └── summary report
+```
+
+**Konfiguration:** `sources.yaml` bekommt `radar:` Abschnitt pro Vertikale mit 3-5 kuratierten Queries. Ergebnisse fließen als `raw_entries` in die bestehende LLM-Pipeline. Budget: ~40 Queries/Tag, ~1.200/Monat (Brave Free Tier: 2.000).
+
+**Cron:** Täglich 08:00 (normal), Sonntag 10:00 (Backfill mit `--backfill`, freshness="pm").
 
 ---
 
