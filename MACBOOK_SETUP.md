@@ -228,3 +228,113 @@ DATABASE_PATH=./data/catandary.db
 ```
 
 Die Frontend Search API liest `OLLAMA_CLIENT_HOST` (default: `http://127.0.0.1:11434`) und `DATABASE_PATH`.
+
+---
+
+## Testergebnis — 2026-04-12 (MacBook Air M3, 8 GB)
+
+Durchgeführter Test der gesamten Anleitung auf MacBook Air M3 / 8 GB / macOS 15.7.3.
+
+### Zusammenfassung
+
+- **Setup funktioniert vollständig.** Alle dokumentierten Schritte sind ausführbar, Voraussetzungen stimmen.
+- **Semantische Suche ist funktional korrekt, aber auf 8 GB praktisch unbenutzbar** — Latenz pro Anfrage ~4 Minuten durch permanentes Swap-Thrashing des 4.7-GB-Embedding-Modells.
+- **FTS5-only Fallback ist auf 8 GB voll brauchbar** (Sub-Sekunde, gute Trefferqualität).
+
+### Erkannte Fehler in der Anleitung
+
+1. **Dateiname Case:** Die Anleitung spricht von `macbook_setup.md`, tatsächlich heißt sie `MACBOOK_SETUP.md`. Auf case-insensitiven Filesystems egal, auf anderen nicht.
+2. **Cockpit-URL falsch:** Abschnitt 3 sagt `http://localhost:3001/foresight` — liefert 404. Der Next.js-Router legt die Seite unter `app/trends/foresight/page.tsx` ab, die korrekte URL ist `http://localhost:3001/trends/foresight`. Das betrifft auch Abschnitt 5 (Test 2 und 3).
+3. **Ollama-Tag:** Die Anleitung sagt `ollama pull qwen3-embedding` funktioniert. Bestätigt: der Tag lässt sich aus der offiziellen Ollama-Registry auflösen und liefert ein 4.7-GB-Modell mit 4096-dim Output. Keine Korrektur nötig.
+4. **Node-Version:** Anleitung sagt "Node.js 20+". Test lief mit Node 25.2.1 problemlos. `better-sqlite3` Apple-Silicon-Prebuild greift automatisch.
+
+### Gemessene Werte
+
+| Metrik | Wert |
+|---|---|
+| DB-Transfer (Windows `bequiet` → Mac via `scp` über Tailnet) | ~11 s bei ~9.7 MB/s |
+| DB-Größe | 121.180.160 Bytes (116 MB) |
+| Published trends | 4782 ✅ |
+| Embeddings vorhanden | 4782 × 4096-dim float32 ✅ |
+| `npm install` frontend | 4 s, 88 Pakete |
+| `npm run dev` ready time | 242 ms (Next.js 16.2.1 Turbopack) |
+| **FTS5-only search (cold, `q=protein`)** | **787 ms**, 179 unique Matches |
+| `ollama pull qwen3-embedding` | 4.7 GB Download |
+| Embedding-Dimension | 4096 (passt zur hartcodierten `EMBED_DIM` in `route.ts:24`) |
+| **Cold-Start Embedding-Call** | **~180 s** |
+| **Warm Embedding-Call** | **~114 s** (Modell-Pages werden ständig aus Swap nachgeladen) |
+| **Vollständige Hybrid-Suche** `/api/search?q=protein` | **251.240 ms** (4 min 16 s) |
+| Memory Pressure (Ollama + Dev-Server) | rot |
+| Swap-Nutzung (Peak) | 8.9 GB von 10.2 GB |
+| Freier RAM (Peak) | ~68 MB |
+| Swap nach `ollama stop qwen3-embedding` | 5.2 GB |
+
+### Test 1 — Frontend (ohne Ollama) ✅
+
+- `/` → 307 Redirect → `/trends` → 200 ✅
+- `/trends/foresight` → 200 ✅
+- `better-sqlite3` liest `data/catandary.db` korrekt (4782 Trends sichtbar)
+- Visuelle Prüfung im Browser: Trends-Grid lädt, Cockpit rendert
+
+### Test 2 — FTS5-only Hybrid-Suche (ohne Ollama) ✅
+
+`GET /api/search?q=protein&limit=5`:
+```json
+{
+  "took_ms": 787,
+  "meta": {"fts_hits": 15, "emb_hits": 0, "total_unique": 179, "embedding_available": false},
+  "analytics": {"has_enough_data": true, "total_matches": 179}
+}
+```
+
+- Top-Treffer korrekt sortiert (Protein-Soda, Pulses Gain Momentum, Molekulare Landwirtschaft)
+- Analytics-Sidebar wird aktiviert (≥30 Treffer)
+- Relevanz-Prozente plausibel
+- FTS5-only-Fallback greift still und sauber wenn `embedQuery()` `null` zurückgibt
+
+### Test 3 — Hybrid-Suche mit Ollama (qwen3-embedding) ⚠️
+
+`GET /api/search?q=protein&limit=5`:
+```json
+{
+  "took_ms": 251240,
+  "meta": {"fts_hits": 15, "emb_hits": 15, "total_unique": 182, "embedding_available": true, "embedding_only": false}
+}
+```
+
+**RRF-Fusion ist fachlich korrekt:**
+
+| RRF | FTS-Rank | Emb-Score | Titel |
+|---|---|---|---|
+| 0.0296 | #2 | 0.486 | Pulses Gain Momentum as a Sustainable Protein Solution |
+| 0.0164 | #1 | — | Protein-Soda (FTS-only) |
+| 0.0164 | — | 0.541 | Nachhaltige Proteinerzeugung (**semantic-only**) |
+| 0.0161 | — | 0.541 | Proteinvielfalt gewinnt an Momentum (**semantic-only**) |
+| 0.0159 | #3 | — | Molekulare Landwirtschaft |
+
+Dual-Source-Hits ranken zuverlässig oben. Rein-semantische Treffer ohne wörtlichen `protein`-Match erscheinen — der Kern-Use-Case des Cockpits.
+
+**Aber:** 251 Sekunden pro Anfrage ist für interaktive Nutzung nicht brauchbar.
+
+### Test 4 — Performance & RAM ❌
+
+- Memory Pressure: **rot** während Ollama-Betrieb
+- System paget permanent, Modellgewichte werden zwischen Calls aus SSD-Swap zurückgeladen
+- Ursache: qwen3-embedding belegt ~5-6 GB RAM, macOS braucht ~3-4 GB, Next.js Dev-Server ~300 MB, Node-vecCache ~75 MB (4782 × 4096 × 4 Bytes) → Summe überschreitet 8 GB physikalisch deutlich
+
+### Test 5 — Production Build
+
+Nicht durchgeführt. Würde am Memory-Problem nichts ändern, da die Latenz vom Ollama-Embed-Call dominiert wird, nicht vom Next.js-Modus.
+
+### Fazit & Empfehlungen
+
+- **Auf 8-GB-Macs ist qwen3-embedding-8B nicht produktiv einsetzbar.** Die 4096-dim-Wahl des Pipeline-Teams passt zur Dev-Maschine (RTX 5080, 16 GB VRAM), nicht zu leichten Clients.
+- **FTS5-only-Modus sollte auf schwachen Clients explizit erzwingbar sein.** Aktuell fällt die Suche stillschweigend zurück, wenn `embedQuery()` scheitert — das ist gut. Besser wäre eine Env-Var `DISABLE_EMBEDDING_SEARCH=1`, die den Call gar nicht erst absetzt, um selbst den fehlgeschlagenen Ollama-Request zu sparen.
+- **Für 8-GB-Clients mit semantischer Suche** müsste die gesamte DB auf ein kleineres Embedding-Modell neu eingebettet werden (`qwen3-embedding-0.6b` → 1024-dim, ~300 MB RAM; oder `nomic-embed-text` → 768-dim). Das ist ein eigener Sprint-Aufwand und zieht Änderungen an `EMBED_DIM` und dem DB-Spaltenlayout nach sich.
+- **Die Anleitung selbst ist größtenteils korrekt** — nur die beiden URLs (`/foresight` statt `/trends/foresight`) und ggf. der Dateiname-Case sollten gefixt werden.
+
+### Nach dem Test durchgeführt
+
+- `ollama stop qwen3-embedding` — Swap-Nutzung fiel von 8.9 GB auf 5.2 GB.
+- `ollama rm qwen3-embedding` — 4.7 GB Disk freigeräumt (das Modell ist auf dem MacBook dauerhaft sinnlos).
+- Dev-Server wurde gestoppt.
