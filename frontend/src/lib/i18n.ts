@@ -63,6 +63,16 @@ export const translations = {
     newsletterFeature4Text:
       "Exklusive Vorschauen auf Catandary Foresight Analysen.",
 
+    // Newsletter Edition
+    newsletterEditionTitle: "Wöchentliches Trend-Briefing",
+    newsletterEditionSubtitle: "Die wichtigsten Signale der Woche — analysiert und eingeordnet.",
+    newsletterOverview: "Wochenüberblick",
+    newsletterMegaRadar: "Mega-Trend-Radar",
+    newsletterSignals: "Signale",
+    newsletterNoEdition: "Noch kein Briefing verfügbar. Das erste Briefing wird Montag veröffentlicht.",
+    newsletterSubscribeCta: "Newsletter abonnieren",
+    newsletterWeek: "KW",
+
     // Footer
     footerRights: "All rights reserved.",
     footerPowered: "Powered by",
@@ -169,6 +179,16 @@ export const translations = {
     newsletterFeature4Title: "Foresight Previews",
     newsletterFeature4Text:
       "Exclusive previews of Catandary Foresight analyses.",
+
+    // Newsletter Edition
+    newsletterEditionTitle: "Weekly Trend Briefing",
+    newsletterEditionSubtitle: "The week's most important signals — analyzed and contextualized.",
+    newsletterOverview: "Weekly Overview",
+    newsletterMegaRadar: "Mega-Trend Radar",
+    newsletterSignals: "signals",
+    newsletterNoEdition: "No briefing available yet. The first briefing will be published Monday.",
+    newsletterSubscribeCta: "Subscribe to newsletter",
+    newsletterWeek: "Week",
 
     footerRights: "All rights reserved.",
     footerPowered: "Powered by",

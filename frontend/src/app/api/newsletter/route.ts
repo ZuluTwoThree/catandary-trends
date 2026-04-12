@@ -7,6 +7,87 @@ export const dynamic = "force-dynamic";
 const DB_PATH = process.env.DATABASE_PATH
   || path.join(process.cwd(), "..", "data", "catandary.db");
 
+// GET — fetch latest newsletter edition (or specific week)
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const year = searchParams.get("year");
+    const week = searchParams.get("week");
+    const listOnly = searchParams.get("list") === "true";
+
+    const db = new Database(DB_PATH, { readonly: true });
+    try {
+      // Check if table exists
+      const tableExists = db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='newsletter_editions'"
+        )
+        .get();
+
+      if (!tableExists) {
+        return NextResponse.json({ edition: null, archive: [] });
+      }
+
+      // Archive listing
+      if (listOnly) {
+        const editions = db
+          .prepare(
+            "SELECT id, year, week, total_signals, created_at FROM newsletter_editions ORDER BY year DESC, week DESC LIMIT 24"
+          )
+          .all();
+        return NextResponse.json({ archive: editions });
+      }
+
+      // Specific edition or latest
+      let row;
+      if (year && week) {
+        row = db
+          .prepare(
+            "SELECT * FROM newsletter_editions WHERE year = ? AND week = ? LIMIT 1"
+          )
+          .get(Number(year), Number(week));
+      } else {
+        row = db
+          .prepare(
+            "SELECT * FROM newsletter_editions ORDER BY year DESC, week DESC LIMIT 1"
+          )
+          .get();
+      }
+
+      if (!row) {
+        return NextResponse.json({ edition: null });
+      }
+
+      // Parse JSON fields
+      const edition = row as Record<string, unknown>;
+      for (const field of [
+        "vertical_summaries",
+        "mega_trend_radar",
+        "trend_refs",
+      ]) {
+        if (edition[field] && typeof edition[field] === "string") {
+          try {
+            edition[field] = JSON.parse(edition[field] as string);
+          } catch {
+            // keep as string
+          }
+        }
+      }
+
+      return NextResponse.json({ edition });
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    console.error("Newsletter GET error:", error);
+    return NextResponse.json(
+      { error: "Failed to load newsletter" },
+      { status: 500 }
+    );
+  }
+}
+
+// POST — newsletter signup (unchanged)
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json();
@@ -38,7 +119,6 @@ export async function POST(request: NextRequest) {
 
       if (existing) {
         if (existing.unsubscribed_at) {
-          // Re-subscribe
           db.prepare(
             "UPDATE newsletter_subscribers SET unsubscribed_at = NULL, subscribed_at = datetime('now') WHERE id = ?"
           ).run(existing.id);
