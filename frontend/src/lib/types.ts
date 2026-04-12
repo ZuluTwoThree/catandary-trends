@@ -16,12 +16,9 @@ export interface Trend {
   id: number;
   raw_entry_id: number;
   title_en: string;
-  title_de: string | null;
   slug: string;
   summary_en: string | null;
-  summary_de: string | null;
   body_en: string | null;
-  body_de: string | null;
   verticals: Vertical[];
   primary_vertical: Vertical;
   pestel: PestelDimension[];
@@ -89,9 +86,7 @@ export function getPestelInfo(id: PestelDimension): PestelInfo {
 export interface MegaTrendInfo {
   key: string;
   name_en: string;
-  name_de: string;
   description_en: string;
-  description_de: string;
   icon: string;
   verticals: Vertical[];
 }

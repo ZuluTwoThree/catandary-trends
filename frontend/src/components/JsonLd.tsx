@@ -5,8 +5,8 @@ export function TrendArticleJsonLd({ trend }: { trend: Trend }) {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
-    headline: trend.title_de || trend.title_en,
-    description: trend.summary_de || trend.summary_en,
+    headline: trend.title_en,
+    description: trend.summary_en,
     datePublished: trend.published_at || trend.created_at,
     dateModified: trend.published_at || trend.created_at,
     author: {
@@ -42,7 +42,7 @@ export function TrendsListJsonLd() {
     name: "Catandary Trends",
     url: "https://catandary.de/trends",
     description:
-      "Cross-Industry Trend Intelligence — kuratierte Trend-Signale aus acht Industrie-Vertikalen.",
+      "Cross-Industry Trend Intelligence — curated trend signals from eight industry verticals.",
     publisher: {
       "@type": "Organization",
       name: "Catandary",

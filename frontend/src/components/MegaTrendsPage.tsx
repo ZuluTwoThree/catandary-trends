@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useLocale } from "@/lib/locale-context";
 import type { VerticalInfo, MegaTrendInfo } from "@/lib/types";
 import { getMegaTrendInfo } from "@/lib/types";
 
@@ -19,24 +18,20 @@ interface MegaTrendItem {
 
 const MOMENTUM_CONFIG = {
   rising: {
-    label_en: "Rising", label_de: "Steigend", color: "#22c55e", icon: "\u2197",
-    tooltip_en: "Signal frequency is clearly increasing — the trend is gaining traction across sources.",
-    tooltip_de: "Die Signalhäufigkeit nimmt deutlich zu — der Trend gewinnt quellenübergreifend an Momentum.",
+    label: "Rising", color: "#22c55e", icon: "\u2197",
+    tooltip: "Signal frequency is clearly increasing — the trend is gaining traction across sources.",
   },
   stable: {
-    label_en: "Stable", label_de: "Stabil", color: "#a3a3a3", icon: "\u2192",
-    tooltip_en: "Signal frequency is steady — the trend is established with no clear up- or downward shift.",
-    tooltip_de: "Die Signalhäufigkeit bleibt konstant — der Trend ist etabliert, ohne klaren Auf- oder Abwärtsimpuls.",
+    label: "Stable", color: "#a3a3a3", icon: "\u2192",
+    tooltip: "Signal frequency is steady — the trend is established with no clear up- or downward shift.",
   },
   declining: {
-    label_en: "Declining", label_de: "Abnehmend", color: "#ef4444", icon: "\u2198",
-    tooltip_en: "Signal frequency is decreasing — the trend is losing momentum relative to earlier periods.",
-    tooltip_de: "Die Signalhäufigkeit nimmt ab — der Trend verliert gegenüber früheren Perioden an Momentum.",
+    label: "Declining", color: "#ef4444", icon: "\u2198",
+    tooltip: "Signal frequency is decreasing — the trend is losing momentum relative to earlier periods.",
   },
   emerging: {
-    label_en: "Emerging", label_de: "Aufkommend", color: "#a855f7", icon: "\u2728",
-    tooltip_en: "Early-stage signal — small absolute volume but sharp recent growth, worth watching.",
-    tooltip_de: "Früher Trend — geringe absolute Zahl an Signalen, aber starker Zuwachs, beobachtenswert.",
+    label: "Emerging", color: "#a855f7", icon: "\u2728",
+    tooltip: "Early-stage signal — small absolute volume but sharp recent growth, worth watching.",
   },
 } as const;
 
@@ -45,36 +40,25 @@ export default function MegaTrendsPage({
 }: {
   megaTrends: MegaTrendItem[];
 }) {
-  const { locale, mounted, t } = useLocale();
-  const effectiveLocale = mounted ? locale : "de";
-
   return (
     <>
       <div className="mb-10">
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3">
-          {t("megaTrends")}
+          Mega Trends
         </h1>
         <p className="text-muted text-lg max-w-2xl">
-          {t("megaTrendsSubtitle")}
+          Long-term structural shifts reshaping industries over the next 10-25 years.
         </p>
       </div>
 
       {megaTrends.length === 0 ? (
-        <p className="text-muted">{t("emptySubtitle")}</p>
+        <p className="text-muted">No mega trends discovered yet. Check back soon.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {megaTrends.map((mt) => {
             const info = getMegaTrendInfo(mt.mega_trend);
-            const displayName = info
-              ? effectiveLocale === "de"
-                ? info.name_de
-                : info.name_en
-              : mt.mega_trend;
-            const description = info
-              ? effectiveLocale === "de"
-                ? info.description_de
-                : info.description_en
-              : null;
+            const displayName = info ? info.name_en : mt.mega_trend;
+            const description = info ? info.description_en : null;
             const icon = info?.icon ?? "📊";
 
             return (
@@ -98,16 +82,12 @@ export default function MegaTrendsPage({
                 </div>
                 <div className="flex items-center gap-3 text-sm text-muted mb-4 flex-wrap">
                   <span>
-                    {mt.count} {t("megaTrendTrends")}
+                    {mt.count} Trend signals
                   </span>
                   {mt.momentum && (
                     <span
                       className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border cursor-help"
-                      title={
-                        effectiveLocale === "de"
-                          ? MOMENTUM_CONFIG[mt.momentum].tooltip_de
-                          : MOMENTUM_CONFIG[mt.momentum].tooltip_en
-                      }
+                      title={MOMENTUM_CONFIG[mt.momentum].tooltip}
                       style={{
                         color: MOMENTUM_CONFIG[mt.momentum].color,
                         borderColor: MOMENTUM_CONFIG[mt.momentum].color + "40",
@@ -115,15 +95,13 @@ export default function MegaTrendsPage({
                       }}
                     >
                       {MOMENTUM_CONFIG[mt.momentum].icon}{" "}
-                      {effectiveLocale === "de"
-                        ? MOMENTUM_CONFIG[mt.momentum].label_de
-                        : MOMENTUM_CONFIG[mt.momentum].label_en}
+                      {MOMENTUM_CONFIG[mt.momentum].label}
                     </span>
                   )}
                 </div>
                 <div>
                   <span className="text-xs text-muted block mb-2">
-                    {t("megaTrendVerticals")}
+                    Affected verticals
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {mt.verticalInfos.map((v) => (
@@ -138,7 +116,7 @@ export default function MegaTrendsPage({
                   </div>
                 </div>
                 <p className="text-xs text-accent/60 mt-4">
-                  {t("megaTrendCta")} →
+                  Want the full mega-trend forecast? Discover Catandary Foresight →
                 </p>
               </Link>
             );

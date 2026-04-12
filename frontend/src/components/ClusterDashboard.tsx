@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useLocale } from "@/lib/locale-context";
 import type { Trend, VerticalInfo } from "@/lib/types";
 import { getMegaTrendInfo } from "@/lib/types";
 import TrendCard from "./TrendCard";
@@ -22,39 +21,32 @@ export default function ClusterDashboard({
   crossVerticalTrends: Trend[];
   topTrends: Trend[];
 }) {
-  const { locale, mounted, t } = useLocale();
-  const effectiveLocale = mounted ? locale : "de";
-
   return (
     <>
       <div className="mb-10">
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3">
-          {t("clusterDashboard")}
+          Trend Clusters
         </h1>
         <p className="text-muted text-lg max-w-2xl">
-          {t("clusterSubtitle")}
+          Discover how trend signals connect across industries — mega trends, cross-vertical patterns, and top signals.
         </p>
       </div>
 
       {/* Mega-Trends Overview */}
       <section className="mb-12">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-xl font-semibold">{t("megaTrends")}</h2>
+          <h2 className="text-xl font-semibold">Mega Trends</h2>
           <Link
             href="/trends/mega"
             className="text-sm text-accent hover:underline"
           >
-            {t("viewAllMegaTrends")} →
+            View all Mega Trends →
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {megaTrends.map((mt) => {
             const info = getMegaTrendInfo(mt.mega_trend);
-            const displayName = info
-              ? effectiveLocale === "de"
-                ? info.name_de
-                : info.name_en
-              : mt.mega_trend;
+            const displayName = info ? info.name_en : mt.mega_trend;
             const icon = info?.icon ?? "📊";
 
             return (
@@ -70,7 +62,7 @@ export default function ClusterDashboard({
                   </h3>
                 </div>
                 <p className="text-xs text-muted mb-3">
-                  {mt.count} {t("megaTrendTrends")}
+                  {mt.count} Trend signals
                 </p>
                 <div className="flex flex-wrap gap-1">
                   {mt.verticalInfos.slice(0, 4).map((v) => (
@@ -100,13 +92,13 @@ export default function ClusterDashboard({
         <section className="mb-12">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xl font-semibold">
-              {t("crossVerticalTitle")}
+              Cross-Industry Trends
             </h2>
             <Link
               href="/trends/cross-vertical"
               className="text-sm text-accent hover:underline"
             >
-              {t("viewAll")} →
+              View all →
             </Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -120,7 +112,7 @@ export default function ClusterDashboard({
       {/* Top Trends by Engagement */}
       {topTrends.length > 0 && (
         <section className="mb-12">
-          <h2 className="text-xl font-semibold mb-5">{t("topTrends")}</h2>
+          <h2 className="text-xl font-semibold mb-5">Top Trends</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {topTrends.map((trend) => (
               <TrendCard key={trend.id} trend={trend} />

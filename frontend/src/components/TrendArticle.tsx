@@ -4,12 +4,21 @@ import { useEffect } from "react";
 import Link from "next/link";
 import type { Trend } from "@/lib/types";
 import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
-import { useLocale } from "@/lib/locale-context";
-import { translations, type TranslationKey } from "@/lib/i18n";
 import PestelBadge from "./PestelBadge";
 import VerticalBadge from "./VerticalBadge";
 import TrendScore from "./TrendScore";
 import ForesightCta from "./ForesightCta";
+
+const SIGNAL_TYPE_LABELS: Record<string, string> = {
+  product_launch: "Product Launch",
+  research: "Research",
+  market_shift: "Market Shift",
+  consumer_behavior: "Consumer Behavior",
+  regulation: "Regulation",
+  funding: "Funding",
+  partnership: "Partnership",
+  patent: "Patent",
+};
 
 export default function TrendArticle({
   trend,
@@ -18,9 +27,7 @@ export default function TrendArticle({
   trend: Trend;
   related: Trend[];
 }) {
-  const { locale, mounted, t } = useLocale();
   const vertical = getVerticalInfo(trend.primary_vertical);
-  const effectiveLocale = mounted ? locale : "de";
 
   useEffect(() => {
     fetch("/api/track", {
@@ -30,26 +37,23 @@ export default function TrendArticle({
     }).catch(() => {});
   }, [trend.id]);
 
-  const title =
-    effectiveLocale === "de" ? trend.title_de || trend.title_en : trend.title_en;
-  const summary =
-    effectiveLocale === "de" ? trend.summary_de || trend.summary_en : trend.summary_en;
-  const body = effectiveLocale === "de" ? trend.body_de || trend.body_en : trend.body_en;
+  const title = trend.title_en;
+  const summary = trend.summary_en;
+  const body = trend.body_en;
 
   const date = trend.source_date || trend.published_at || trend.created_at;
-  const formattedDate = mounted && date
-    ? new Date(date).toLocaleDateString(effectiveLocale === "de" ? "de-DE" : "en-US", {
+  const formattedDate = date
+    ? new Date(date).toLocaleDateString("en-US", {
         day: "numeric",
         month: "long",
         year: "numeric",
       })
     : null;
 
-  const signalTypeKey = trend.trend_signal_type as TranslationKey | undefined;
   const signalTypeLabel =
-    signalTypeKey && signalTypeKey in translations[effectiveLocale]
-      ? t(signalTypeKey)
-      : trend.trend_signal_type?.replace("_", " ") ?? null;
+    SIGNAL_TYPE_LABELS[trend.trend_signal_type] ??
+    trend.trend_signal_type?.replace("_", " ") ??
+    null;
 
   return (
     <>
@@ -59,7 +63,7 @@ export default function TrendArticle({
           href="/trends"
           className="hover:text-foreground transition-colors"
         >
-          {t("trends")}
+          Trends
         </Link>
         <span>/</span>
         <Link
@@ -95,7 +99,7 @@ export default function TrendArticle({
               <>
                 <span>|</span>
                 <span>
-                  {t("source")}: {trend.source_name}
+                  Source: {trend.source_name}
                 </span>
               </>
             )}
@@ -132,19 +136,17 @@ export default function TrendArticle({
         <div className="border-t border-border pt-6 mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
           {trend.trend_signal_type && (
             <div>
-              <dt className="text-xs text-muted mb-1">{t("signalType")}</dt>
+              <dt className="text-xs text-muted mb-1">Signal Type</dt>
               <dd className="text-sm capitalize">{signalTypeLabel}</dd>
             </div>
           )}
           {trend.mega_trend && (() => {
             const mtInfo = getMegaTrendInfo(trend.mega_trend);
-            const mtName = mtInfo
-              ? effectiveLocale === "de" ? mtInfo.name_de : mtInfo.name_en
-              : trend.mega_trend;
+            const mtName = mtInfo ? mtInfo.name_en : trend.mega_trend;
             const mtIcon = mtInfo?.icon ?? "";
             return (
               <div>
-                <dt className="text-xs text-muted mb-1">{t("megaTrend")}</dt>
+                <dt className="text-xs text-muted mb-1">Mega Trend</dt>
                 <dd className="text-sm">
                   <Link
                     href={`/trends/mega/${encodeURIComponent(trend.mega_trend.replace(/_/g, "-"))}`}
@@ -158,13 +160,13 @@ export default function TrendArticle({
           })()}
           {trend.brands.length > 0 && (
             <div>
-              <dt className="text-xs text-muted mb-1">{t("brands")}</dt>
+              <dt className="text-xs text-muted mb-1">Brands</dt>
               <dd className="text-sm">{trend.brands.join(", ")}</dd>
             </div>
           )}
           {trend.regions.length > 0 && (
             <div>
-              <dt className="text-xs text-muted mb-1">{t("regions")}</dt>
+              <dt className="text-xs text-muted mb-1">Regions</dt>
               <dd className="text-sm">{trend.regions.join(", ")}</dd>
             </div>
           )}
@@ -188,7 +190,7 @@ export default function TrendArticle({
         {trend.source_url && (
           <div className="mt-8 p-4 rounded-lg bg-card border border-border">
             <p className="text-sm text-muted">
-              {t("originalSource")}:{" "}
+              Original Source:{" "}
               <a
                 href={trend.source_url}
                 target="_blank"
@@ -206,31 +208,21 @@ export default function TrendArticle({
       {related.length > 0 && (
         <section className="mt-12">
           <h2 className="text-xl font-semibold mb-4">
-            {t("relatedTrends")} {vertical.label}
+            Related Trends in {vertical.label}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {related.map((r) => {
-              const rTitle =
-                effectiveLocale === "de"
-                  ? r.title_de || r.title_en
-                  : r.title_en;
-              const rSummary =
-                effectiveLocale === "de"
-                  ? r.summary_de || r.summary_en
-                  : r.summary_en;
-              return (
-                <Link
-                  key={r.id}
-                  href={`/trends/${r.slug}`}
-                  className="rounded-lg border border-border bg-card p-4 hover:bg-card-hover hover:border-accent/30 transition-all"
-                >
-                  <h3 className="text-sm font-medium leading-snug line-clamp-2 mb-2">
-                    {rTitle}
-                  </h3>
-                  <p className="text-xs text-muted line-clamp-2">{rSummary}</p>
-                </Link>
-              );
-            })}
+            {related.map((r) => (
+              <Link
+                key={r.id}
+                href={`/trends/${r.slug}`}
+                className="rounded-lg border border-border bg-card p-4 hover:bg-card-hover hover:border-accent/30 transition-all"
+              >
+                <h3 className="text-sm font-medium leading-snug line-clamp-2 mb-2">
+                  {r.title_en}
+                </h3>
+                <p className="text-xs text-muted line-clamp-2">{r.summary_en}</p>
+              </Link>
+            ))}
           </div>
         </section>
       )}

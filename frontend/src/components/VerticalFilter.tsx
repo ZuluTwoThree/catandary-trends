@@ -35,7 +35,7 @@ export default function VerticalFilter({
             : "bg-card border border-border text-muted hover:text-foreground hover:border-accent/30"
         }`}
       >
-        Alle
+        All
         <span className="ml-1.5 text-xs opacity-60">{total}</span>
       </button>
       {VERTICALS.map((v) => {

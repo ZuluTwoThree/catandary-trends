@@ -1,19 +1,13 @@
-"use client";
-
-import { useLocale } from "@/lib/locale-context";
-
 export default function Footer() {
-  const { t } = useLocale();
-
   return (
     <footer className="border-t border-border mt-20">
       <div className="mx-auto max-w-7xl px-4 py-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted">
         <p>
-          &copy; {new Date().getFullYear()} Catandary. {t("footerRights")}
+          &copy; {new Date().getFullYear()} Catandary. All rights reserved.
         </p>
         <div className="flex items-center gap-4">
           <span>
-            {t("footerPowered")}{" "}
+            Powered by{" "}
             <a
               href="https://catandary.de"
               className="text-accent hover:underline"

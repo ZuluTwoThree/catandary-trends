@@ -3,29 +3,27 @@
 import Link from "next/link";
 import type { Trend } from "@/lib/types";
 import { getVerticalInfo } from "@/lib/types";
-import { useLocale } from "@/lib/locale-context";
 import PestelBadge from "./PestelBadge";
 import TrendScore from "./TrendScore";
 
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  trade_media: "Trade Media",
+  press_wire: "Press Release",
+  radar: "Trend Radar",
+  research: "Research",
+  brand: "Brand",
+  api: "Data Source",
+};
+
 export default function TrendCard({ trend }: { trend: Trend }) {
-  const { locale, mounted, t } = useLocale();
   const vertical = getVerticalInfo(trend.primary_vertical);
 
-  // Always use "de" before mount to match server render
-  const effectiveLocale = mounted ? locale : "de";
-
-  const title =
-    effectiveLocale === "de"
-      ? trend.title_de || trend.title_en
-      : trend.title_en;
-  const summary =
-    effectiveLocale === "de"
-      ? trend.summary_de || trend.summary_en
-      : trend.summary_en;
+  const title = trend.title_en;
+  const summary = trend.summary_en;
 
   const date = trend.source_date || trend.published_at || trend.created_at;
-  const formattedDate = mounted && date
-    ? new Date(date).toLocaleDateString(effectiveLocale === "de" ? "de-DE" : "en-US", {
+  const formattedDate = date
+    ? new Date(date).toLocaleDateString("en-US", {
         day: "numeric",
         month: "short",
         year: "numeric",
@@ -80,22 +78,15 @@ export default function TrendCard({ trend }: { trend: Trend }) {
                   trend.trend_signal_type === "research" ? "🔬" :
                   trend.source_type === "brand" ? "🏷" :
                   trend.source_type === "api" ? "📊" : "📰";
-                const labelKey =
-                  trend.source_type === "trade_media" ? "sourceType_trade_media" :
-                  trend.source_type === "press_wire" ? "sourceType_press_wire" :
-                  trend.source_type === "radar" ? "sourceType_radar" :
-                  trend.trend_signal_type === "research" ? "sourceType_research" :
-                  trend.source_type === "brand" ? "sourceType_brand" :
-                  trend.source_type === "api" ? "sourceType_api" :
-                  "sourceType_trade_media";
-                return `${icon} ${t(labelKey as any)}`;
+                const label = SOURCE_TYPE_LABELS[trend.source_type ?? ""] || "Trade Media";
+                return `${icon} ${label}`;
               })()}
             </span>
           </div>
 
           {trend.verticals.length > 1 && (
             <div className="flex items-center gap-1 text-xs text-accent/70">
-              <span>{t("crossIndustry")}:</span>
+              <span>Cross-Industry:</span>
               {trend.verticals
                 .filter((v) => v !== trend.primary_vertical)
                 .map((v) => {

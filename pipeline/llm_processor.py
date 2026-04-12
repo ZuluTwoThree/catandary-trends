@@ -8,10 +8,9 @@ Processes raw RSS entries through:
 4. NER + Classification (Qwen3 8B)
 5. Embeddings + Dedup (Qwen3-Embedding)
 6. Content Generation EN (Qwen3 14B)
-7. Translation DE (Qwen3 14B)
-8. Insert Trends
-9. Reclassify Verticals (Qwen3 8B)
-10. Auto-Publish (confidence >= 0.85)
+7. Insert Trends
+8. Reclassify Verticals (Qwen3 8B)
+9. Auto-Publish (confidence >= 0.85)
 """
 
 import json
@@ -184,28 +183,6 @@ Requirements:
 - Do not copy phrases from the original
 - Structure: Hook sentence → Context → Analysis → Outlook"""
 
-CONTENT_DE_SYSTEM = """\
-Du bist ein professioneller Trendanalyst für Catandary Trends, eine branchenübergreifende Trend-Intelligence-Plattform.
-Schreibe einen prägnanten, analytischen Trend-Artikel auf Deutsch (150-250 Wörter).
-
-Anforderungen:
-- Professioneller, analytischer Ton – nicht werblich
-- Fokus auf WARUM das wichtig ist und WAS es für die Branche signalisiert
-- Quellennennung am Ende
-- Der Artikel muss sich substanziell vom Quellmaterial unterscheiden
-- Keine Phrasen aus dem Original kopieren
-- Struktur: Hook-Satz → Kontext → Analyse → Ausblick"""
-
-TRANSLATE_SYSTEM = """\
-Du bist ein professioneller Fachübersetzer für Trend- und Branchenanalysen (EN → DE).
-Übersetze den englischen Trend-Artikel präzise, idiomatisch und im analytischen Ton einer deutschen Fachpublikation.
-
-Regeln:
-- Übersetze Titel, Summary und Body getrennt — behalte Struktur und Länge ungefähr bei
-- Fachbegriffe bleiben englisch, wenn im Deutschen üblich (z.B. "Supply Chain", "AI", "Startup")
-- Keine wörtliche Wort-für-Wort-Übersetzung — natürliches Deutsch
-- Quellennennung am Ende als "Quelle: <Name>" statt "Source: <Name>"
-- Keine Inhalte hinzufügen oder weglassen"""
 
 
 def embedding_to_bytes(embedding: list[float]) -> bytes:
@@ -311,7 +288,7 @@ def step_dedup_check(title: str, excerpt: str) -> tuple[bool, float, list[float]
 def step_generate_content_en(title: str, excerpt: str, extraction: ExtractionResult,
                               classification: ClassificationResult,
                               source_url: str, source_name: str) -> GeneratedContent | None:
-    """Step 5a: Generate English trend article."""
+    """Step 5: Generate English trend article."""
     context = f"""Original Title: {title}
 Original Excerpt: {excerpt[:1000]}
 Brand: {extraction.brand_name or 'Unknown'}
@@ -338,63 +315,6 @@ Include this source attribution at the end: "Source: {source_name}" """
     )
 
 
-_CJK_RE = re.compile(r"[\u3000-\u9fff\u4e00-\u9fff\u3040-\u30ff]")
-
-
-def _strip_cjk(s: str | None) -> str | None:
-    """Remove CJK chars and the words containing them, collapse whitespace."""
-    if not s:
-        return s
-    cleaned = re.sub(r"\S*[\u3000-\u9fff\u4e00-\u9fff\u3040-\u30ff]+\S*", "", s)
-    return re.sub(r"\s+", " ", cleaned).strip()
-
-
-def step_translate_to_de(content_en: GeneratedContent, source_name: str) -> GeneratedContent | None:
-    """Step 5b: Translate EN content to DE using the same 14B model for quality.
-
-    Includes a CJK-leakage retry loop: Qwen3 14B occasionally injects Chinese
-    characters into German output. We detect CJK in the result and retry up to
-    3 times; if still tainted, we strip the offending words as a last resort.
-    """
-    prompt = f"""Übersetze folgenden englischen Trend-Artikel ins Deutsche.
-
-Title: {content_en.title}
-
-Summary: {content_en.summary}
-
-Body:
-{content_en.body}
-
-Quelle: {source_name}"""
-
-    last_de: GeneratedContent | None = None
-    for attempt in range(3):
-        de = chat_structured(
-            model=MODEL_GENERATE,
-            prompt=prompt,
-            schema=GeneratedContent,
-            system=TRANSLATE_SYSTEM,
-            temperature=0.3,
-        )
-        if de is None:
-            continue
-        last_de = de
-        combined = (de.title or "") + (de.summary or "") + (de.body or "")
-        if not _CJK_RE.search(combined):
-            return de
-        logger.warning("Translation attempt %d contained CJK characters, retrying", attempt + 1)
-
-    if last_de is None:
-        return None
-
-    # Fallback: strip CJK words from the last attempt
-    logger.warning("All translation retries leaked CJK; stripping offending words")
-    return GeneratedContent(
-        title=_strip_cjk(last_de.title) or last_de.title,
-        summary=_strip_cjk(last_de.summary) or "",
-        body=_strip_cjk(last_de.body) or "",
-        source_attribution=last_de.source_attribution,
-    )
 
 
 # --- Title-level dedup helpers ---
@@ -486,8 +406,8 @@ def process_entry(entry: dict) -> dict | None:
 
     logger.info("[%d] Not duplicate (max_sim=%.3f)", entry_id, max_sim)
 
-    # Step 5: Content Generation
-    content_en, content_de = step_generate_content(
+    # Step 5: Content Generation EN
+    content_en = step_generate_content_en(
         title, excerpt, extraction, classification, source_url, source_name
     )
 
@@ -501,12 +421,12 @@ def process_entry(entry: dict) -> dict | None:
     slug = f"{base_slug}-{entry_id}"
     trend_data = {
         "title_en": content_en.title,
-        "title_de": content_de.title if content_de else None,
+        "title_de": None,
         "slug": slug,
         "summary_en": content_en.summary,
-        "summary_de": content_de.summary if content_de else None,
+        "summary_de": None,
         "body_en": content_en.body,
-        "body_de": content_de.body if content_de else None,
+        "body_de": None,
         "verticals": classification.verticals,
         "primary_vertical": classification.verticals[0] if classification.verticals else relevance.primary_vertical,
         "pestel": classification.pestel,
@@ -706,18 +626,7 @@ def run_pipeline_batch(limit: int = 200):
     survivors = next_survivors
     logger.info("Stage 6 done in %.1fs: %d survivors", time.time() - t_stage, len(survivors))
 
-    # ---- Stage 7: Translate EN → DE (Qwen3 14B, same model loaded) ----
-    t_stage = time.time()
-    for entry in survivors:
-        try:
-            de = step_translate_to_de(entry["_content_en"], entry.get("source_name", "Unknown"))
-            entry["_content_de"] = de
-        except Exception as e:
-            logger.error("[%d] translation error: %s", entry["id"], e)
-            entry["_content_de"] = None
-    logger.info("Stage 7 done in %.1fs", time.time() - t_stage)
-
-    # ---- Stage 8: Insert trends ----
+    # ---- Stage 7: Insert trends ----
     t_stage = time.time()
     for entry in survivors:
         try:
@@ -725,17 +634,16 @@ def run_pipeline_batch(limit: int = 200):
             ext = entry["_extraction"]
             cls = entry["_classification"]
             en = entry["_content_en"]
-            de = entry.get("_content_de")
             base_slug = slugify(en.title, max_length=70)
             slug = f"{base_slug}-{entry['id']}"
             trend_data = {
                 "title_en": en.title,
-                "title_de": de.title if de else None,
+                "title_de": None,
                 "slug": slug,
                 "summary_en": en.summary,
-                "summary_de": de.summary if de else None,
+                "summary_de": None,
                 "body_en": en.body,
-                "body_de": de.body if de else None,
+                "body_de": None,
                 "verticals": cls.verticals,
                 "primary_vertical": cls.verticals[0] if cls.verticals else rel.primary_vertical,
                 "pestel": cls.pestel,
@@ -764,18 +672,18 @@ def run_pipeline_batch(limit: int = 200):
             logger.error("[%d] insert error: %s", entry["id"], e, exc_info=True)
             mark_processed(entry["id"])
             errors += 1
-    logger.info("Stage 8 done in %.1fs", time.time() - t_stage)
+    logger.info("Stage 7 done in %.1fs", time.time() - t_stage)
 
-    # ---- Stage 9: Reclassify drafts (Qwen3 8B) ----
+    # ---- Stage 8: Reclassify drafts (Qwen3 8B) ----
     t_stage = time.time()
     reclass_stats = reclassify_drafts()
-    logger.info("Stage 9 done in %.1fs: %d reclassified (%d changed)",
+    logger.info("Stage 8 done in %.1fs: %d reclassified (%d changed)",
                 time.time() - t_stage, reclass_stats["total"], reclass_stats["changed"])
 
-    # ---- Stage 10: Auto-publish ----
+    # ---- Stage 9: Auto-publish ----
     t_stage = time.time()
     pub_stats = auto_publish()
-    logger.info("Stage 10 done in %.1fs: %d published, %d skipped",
+    logger.info("Stage 9 done in %.1fs: %d published, %d skipped",
                 time.time() - t_stage, pub_stats["published"], pub_stats["skipped"])
 
     elapsed = time.time() - start

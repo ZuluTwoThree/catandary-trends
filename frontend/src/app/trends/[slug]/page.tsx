@@ -13,14 +13,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const trend = getTrendBySlug(slug);
-  if (!trend) return { title: "Trend nicht gefunden" };
+  if (!trend) return { title: "Trend not found" };
 
   return {
-    title: `${trend.title_de || trend.title_en} — Catandary Trends`,
-    description: trend.summary_de || trend.summary_en || undefined,
+    title: `${trend.title_en} — Catandary Trends`,
+    description: trend.summary_en || undefined,
     openGraph: {
-      title: trend.title_de || trend.title_en,
-      description: trend.summary_de || trend.summary_en || undefined,
+      title: trend.title_en,
+      description: trend.summary_en || undefined,
       type: "article",
     },
   };

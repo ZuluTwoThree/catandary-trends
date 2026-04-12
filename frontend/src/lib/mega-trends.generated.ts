@@ -6,9 +6,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "artificial_intelligence_and_automation",
     "name_en": "Artificial Intelligence & Automation",
-    "name_de": "Künstliche Intelligenz & Automatisierung",
     "description_en": "AI/ML integration across industries — from generative AI and design tools to industrial robotics, autonomous systems, and AI-driven decision making.",
-    "description_de": "KI/ML-Integration über alle Branchen — von generativer KI und Design-Tools bis zu industrieller Robotik und autonomen Systemen.",
     "icon": "🤖",
     "verticals": [
       "TECH",
@@ -22,9 +20,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "personalized_health_and_longevity",
     "name_en": "Personalized Health & Longevity",
-    "name_de": "Personalisierte Gesundheit & Langlebigkeit",
     "description_en": "Precision medicine, digital therapeutics, individualized nutrition, longevity science, biomarker-driven health optimization.",
-    "description_de": "Präzisionsmedizin, digitale Therapeutika, individualisierte Ernährung, Langlebigkeitswissenschaft.",
     "icon": "🧬",
     "verticals": [
       "HEALTH",
@@ -36,9 +32,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "clean_energy_transition",
     "name_en": "Clean Energy Transition",
-    "name_de": "Saubere Energiewende",
     "description_en": "Decarbonization of energy, industry and transport — renewables, green hydrogen, energy storage, grid modernization, carbon capture.",
-    "description_de": "Dekarbonisierung von Energie, Industrie und Verkehr — Erneuerbare, Energiespeicher, Netzmodernisierung.",
     "icon": "⚡",
     "verticals": [
       "ECO",
@@ -50,9 +44,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "electric_and_autonomous_mobility",
     "name_en": "Electric & Autonomous Mobility",
-    "name_de": "Elektrische & Autonome Mobilität",
     "description_en": "Electric vehicles, autonomous driving, shared mobility platforms, urban micro-mobility, charging infrastructure, mobility-as-a-service.",
-    "description_de": "Elektrofahrzeuge, autonomes Fahren, geteilte Mobilität, urbane Mikromobilität, Ladeinfrastruktur.",
     "icon": "🚗",
     "verticals": [
       "TECH",
@@ -64,9 +56,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "financial_innovation_and_inclusion",
     "name_en": "Financial Innovation & Inclusion",
-    "name_de": "Finanzinnovation & Inklusion",
     "description_en": "Fintech disruption, embedded finance, digital banking, decentralized finance, financial literacy, unbanked population access.",
-    "description_de": "Fintech-Disruption, Embedded Finance, Digital Banking, dezentrale Finanzen, Finanzbildung.",
     "icon": "💳",
     "verticals": [
       "BIZ",
@@ -77,9 +67,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "new_luxury_and_premiumization",
     "name_en": "New Luxury & Premiumization",
-    "name_de": "Neuer Luxus & Premiumisierung",
     "description_en": "Luxury democratization, quiet luxury, experiential premium, artisanal positioning, luxury-mass collaborations, heritage brand renewal.",
-    "description_de": "Luxus-Demokratisierung, Quiet Luxury, erlebnisorientiertes Premium, handwerkliche Positionierung.",
     "icon": "💎",
     "verticals": [
       "LIFESTYLE",
@@ -92,9 +80,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "regenerative_design_and_net_positive",
     "name_en": "Regenerative Design & Net Positive",
-    "name_de": "Regeneratives Design & Net Positive",
     "description_en": "Beyond sustainability — designs and systems that actively restore ecosystems, regenerative agriculture, net-positive buildings, restorative practices.",
-    "description_de": "Über Nachhaltigkeit hinaus — Designs die Ökosysteme aktiv wiederherstellen, regenerative Landwirtschaft.",
     "icon": "🌿",
     "verticals": [
       "ECO",
@@ -106,9 +92,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "inclusive_and_human_centric_design",
     "name_en": "Inclusive & Human-Centric Design",
-    "name_de": "Inklusives & Menschenzentriertes Design",
     "description_en": "Universal accessibility, assistive technology, gender-inclusive products, aging-population design, neurodiversity accommodation, equity in design.",
-    "description_de": "Universelle Barrierefreiheit, assistive Technologien, genderinklusive Produkte, Neurodiversität.",
     "icon": "♿",
     "verticals": [
       "DESIGN",
@@ -121,9 +105,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "future_of_food_and_agriculture",
     "name_en": "Future of Food & Agriculture",
-    "name_de": "Zukunft der Ernährung & Landwirtschaft",
     "description_en": "Alternative proteins, precision agriculture, vertical farming, functional/fortified foods, food-as-medicine, novel ingredients.",
-    "description_de": "Alternative Proteine, Präzisionslandwirtschaft, Vertical Farming, funktionale Lebensmittel, Food-as-Medicine.",
     "icon": "🌾",
     "verticals": [
       "FOOD",
@@ -135,9 +117,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "connected_living_and_smart_spaces",
     "name_en": "Connected Living & Smart Spaces",
-    "name_de": "Vernetztes Wohnen & Intelligente Räume",
     "description_en": "IoT ecosystems, smart homes/kitchens/offices, ambient computing, sensor-driven environments, home automation.",
-    "description_de": "IoT-Ökosysteme, Smart Homes/Küchen/Büros, Ambient Computing, sensorgesteuerte Umgebungen.",
     "icon": "🏠",
     "verticals": [
       "TECH",
@@ -149,9 +129,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "creator_economy_and_platform_shift",
     "name_en": "Creator Economy & Platform Shift",
-    "name_de": "Creator Economy & Plattformwandel",
     "description_en": "Content monetization, creator tools, decentralized media, platform economy, user-generated commerce, digital-native brands.",
-    "description_de": "Content-Monetarisierung, Creator-Tools, dezentrale Medien, Plattformökonomie, digital-native Marken.",
     "icon": "📱",
     "verticals": [
       "LIFESTYLE",
@@ -163,9 +141,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "bio_revolution_and_new_materials",
     "name_en": "Bio-Revolution & New Materials",
-    "name_de": "Bio-Revolution & Neue Materialien",
     "description_en": "Biotech-derived materials, synthetic biology, mycelium/algae/cellulose-based products, lab-grown alternatives, biomimicry.",
-    "description_de": "Biotech-basierte Materialien, synthetische Biologie, Myzel/Algen-Produkte, lab-grown Alternativen, Biomimikry.",
     "icon": "🧫",
     "verticals": [
       "ECO",
@@ -178,9 +154,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "circular_economy_and_zero_waste",
     "name_en": "Circular Economy & Zero Waste",
-    "name_de": "Kreislaufwirtschaft & Zero Waste",
     "description_en": "Closed-loop production systems, waste elimination, recyclability-by-design, reversible architecture, product-as-service models.",
-    "description_de": "Geschlossene Produktionskreisläufe, Abfallvermeidung, Recycling-by-Design, reversible Architektur.",
     "icon": "♻️",
     "verticals": [
       "ECO",
@@ -193,9 +167,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "climate_resilience_and_adaptation",
     "name_en": "Climate Resilience & Adaptation",
-    "name_de": "Klimaresilienz & Anpassung",
     "description_en": "Designing systems, buildings, and communities for climate change impact — flood-resistant architecture, heat adaptation, climate-smart agriculture.",
-    "description_de": "Systeme für den Klimawandel gestalten — hochwasserresistente Architektur, Hitzeanpassung, klimasmarte Landwirtschaft.",
     "icon": "🌍",
     "verticals": [
       "ECO",
@@ -207,9 +179,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "experience_economy_and_immersive_design",
     "name_en": "Experience Economy & Immersive Design",
-    "name_de": "Erlebnisökonomie & Immersives Design",
     "description_en": "Physical spaces as experience platforms — immersive retail, experiential dining, sensory environments, projection mapping, pop-up culture.",
-    "description_de": "Physische Räume als Erlebnisplattformen — immersiver Retail, Erlebnis-Gastronomie, sensorische Umgebungen.",
     "icon": "✨",
     "verticals": [
       "DESIGN",
@@ -221,9 +191,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "cultural_heritage_and_identity",
     "name_en": "Cultural Heritage & Identity Renaissance",
-    "name_de": "Kulturelles Erbe & Identitätsrenaissance",
     "description_en": "Revival of craft traditions, cultural fusion in design, place-based branding, indigenous knowledge integration, regional identity as differentiator.",
-    "description_de": "Revival von Handwerkstraditionen, kulturelle Fusion, ortsbasiertes Branding, indigenes Wissen.",
     "icon": "🏛️",
     "verticals": [
       "DESIGN",
@@ -235,9 +203,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "urban_transformation_and_smart_cities",
     "name_en": "Urban Transformation & Smart Cities",
-    "name_de": "Urbane Transformation & Smart Cities",
     "description_en": "Redesigning cities for density, livability and sustainability — public space activation, smart infrastructure, transit-oriented development.",
-    "description_de": "Städte neu gestalten für Dichte, Lebensqualität und Nachhaltigkeit — öffentlicher Raum, smarte Infrastruktur.",
     "icon": "🏙️",
     "verticals": [
       "DESIGN",
@@ -250,9 +216,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "digital_trust_and_data_sovereignty",
     "name_en": "Digital Trust & Data Sovereignty",
-    "name_de": "Digitales Vertrauen & Datensouveränität",
     "description_en": "Data privacy, digital identity management, AI governance, algorithmic transparency, cybersecurity, content authentication.",
-    "description_de": "Datenschutz, digitale Identität, KI-Governance, algorithmische Transparenz, Cybersicherheit.",
     "icon": "🔒",
     "verticals": [
       "TECH",
@@ -264,9 +228,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "modular_and_adaptive_systems",
     "name_en": "Modular & Adaptive Systems",
-    "name_de": "Modulare & Adaptive Systeme",
     "description_en": "Reconfigurable architecture, modular furniture/housing, flexible workspaces, temporary structures, DIY assembly systems.",
-    "description_de": "Rekonfigurierbare Architektur, modulare Möbel/Wohnungen, flexible Arbeitsbereiche, temporäre Strukturen.",
     "icon": "🧩",
     "verticals": [
       "DESIGN",
@@ -278,9 +240,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "mental_health_and_neuro_wellness",
     "name_en": "Mental Health & Neuro-Wellness",
-    "name_de": "Mentale Gesundheit & Neuro-Wellness",
     "description_en": "Mental health technology, neuroscience-based consumer products, stress management tech, mindfulness platforms, biofeedback devices.",
-    "description_de": "Mental-Health-Technologie, neurowissenschaftsbasierte Produkte, Stressmanagement, Achtsamkeitsplattformen.",
     "icon": "🧠",
     "verticals": [
       "HEALTH",
@@ -292,9 +252,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "wearable_technology_and_augmented_living",
     "name_en": "Wearable Technology & Augmented Living",
-    "name_de": "Wearable-Technologie & Augmented Living",
     "description_en": "Smart wearables, health monitoring devices, AR/VR integration, smart textiles, brain-computer interfaces, augmented senses.",
-    "description_de": "Smart Wearables, Gesundheitsmonitoring, AR/VR, smarte Textilien, Gehirn-Computer-Schnittstellen.",
     "icon": "⌚",
     "verticals": [
       "TECH",
@@ -306,9 +264,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "virtual_worlds_consolidation",
     "name_en": "Virtual Worlds Consolidation & Post-Metaverse Reckoning",
-    "name_de": "Konsolidierung Virtueller Welten & Post-Metaverse-Ernüchterung",
     "description_en": "Retreat and consolidation of social VR, metaverse platforms and social gaming spaces after the hype cycle — platform closures, nostalgia-driven revivals of early digital communities, shift from immersive virtual worlds back to lighter social formats, rethinking of what persistent virtual spaces should be.",
-    "description_de": "Rückzug und Konsolidierung von Social VR, Metaverse-Plattformen und Social Gaming nach dem Hype — Schließungen, Nostalgie-Revivals, Neudenken virtueller Räume.",
     "icon": "🕶️",
     "verticals": [
       "LIFESTYLE",
@@ -319,9 +275,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "geopolitical_disruption_and_supply_chain_resilience",
     "name_en": "Geopolitical Disruption & Supply Chain Resilience",
-    "name_de": "Geopolitische Disruption & Lieferkettenresilienz",
     "description_en": "Tariff impacts, trade wars, energy security concerns, supply chain diversification, reshoring, geopolitical risk pricing, sanctions effects.",
-    "description_de": "Zoll-Auswirkungen, Handelskriege, Energiesicherheit, Lieferketten-Diversifizierung, Reshoring, geopolitisches Risiko, Sanktionen.",
     "icon": "🌐",
     "verticals": [
       "BIZ",

@@ -475,7 +475,7 @@ export async function GET(request: Request) {
   const hydrated = topIds.length
     ? (db
         .prepare(
-          `SELECT t.id, t.slug, t.title_de, t.title_en, t.summary_de, t.summary_en,
+          `SELECT t.id, t.slug, t.title_en, t.summary_en,
                   t.primary_vertical, t.source_name, t.mega_trend, t.pestel, t.tags,
                   t.trend_signal_type, t.published_at, t.created_at,
                   COALESCE(lt.lead_time_tier, 'unknown') as lead_time_tier,

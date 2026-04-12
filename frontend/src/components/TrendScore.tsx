@@ -1,18 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useLocale } from "@/lib/locale-context";
 
 export default function TrendScore({ score }: { score: number | null }) {
   const [showTooltip, setShowTooltip] = useState(false);
-  const { t } = useLocale();
 
   if (score === null || score === undefined) return null;
 
-  // Score is stored as 0.0–1.0, display as 0–100
   const crs = Math.round(score * 100);
-
-  // Color: green (high) → yellow (medium) → orange (lower)
   const hue = crs >= 80 ? 142 : crs >= 65 ? 47 : 25;
 
   return (
@@ -40,10 +35,13 @@ export default function TrendScore({ score }: { score: number | null }) {
       {showTooltip && (
         <div className="absolute bottom-full left-0 mb-2 w-64 p-3 rounded-lg bg-card border border-border shadow-lg text-xs z-50">
           <p className="font-semibold text-foreground mb-1">
-            {t("crsLabel")}
+            Catandary Relevance Score
           </p>
           <p className="text-muted leading-relaxed">
-            {t("crsTooltip")}
+            The CRS quantifies the strategic relevance of a trend signal. Our
+            proprietary algorithms evaluate cross-industry impact, societal
+            breadth, and signal maturity — the higher the score, the more likely
+            this trend will reshape your industry.
           </p>
         </div>
       )}

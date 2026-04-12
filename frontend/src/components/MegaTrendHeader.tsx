@@ -1,7 +1,4 @@
-"use client";
-
 import Link from "next/link";
-import { useLocale } from "@/lib/locale-context";
 import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
 import type { Vertical } from "@/lib/types";
 
@@ -14,20 +11,9 @@ export default function MegaTrendHeader({
   count: number;
   verticals: string[];
 }) {
-  const { locale, mounted, t } = useLocale();
-  const effectiveLocale = mounted ? locale : "de";
-
   const info = getMegaTrendInfo(megaTrend);
-  const displayName = info
-    ? effectiveLocale === "de"
-      ? info.name_de
-      : info.name_en
-    : megaTrend;
-  const description = info
-    ? effectiveLocale === "de"
-      ? info.description_de
-      : info.description_en
-    : null;
+  const displayName = info ? info.name_en : megaTrend;
+  const description = info ? info.description_en : null;
   const icon = info?.icon ?? "📊";
 
   return (
@@ -37,14 +23,14 @@ export default function MegaTrendHeader({
           href="/trends"
           className="hover:text-foreground transition-colors"
         >
-          {t("trends")}
+          Trends
         </Link>
         <span>/</span>
         <Link
           href="/trends/mega"
           className="hover:text-foreground transition-colors"
         >
-          {t("megaTrends")}
+          Mega Trends
         </Link>
         <span>/</span>
         <span className="text-foreground">{displayName}</span>
@@ -61,7 +47,7 @@ export default function MegaTrendHeader({
           <p className="text-muted text-lg max-w-2xl mb-4">{description}</p>
         )}
         <p className="text-muted mb-4">
-          {count} {t("megaTrendTrends")}
+          {count} Trend signals
         </p>
         <div className="flex flex-wrap gap-2 mb-4">
           {verticals.map((v) => {
@@ -79,7 +65,9 @@ export default function MegaTrendHeader({
           })}
         </div>
         <div className="rounded-lg bg-card border border-accent/20 p-4">
-          <p className="text-sm text-accent/80">{t("megaTrendCta")}</p>
+          <p className="text-sm text-accent/80">
+            Want the full mega-trend forecast? Discover Catandary Foresight →
+          </p>
         </div>
       </div>
     </>

@@ -20,9 +20,7 @@ const trends = data?.mega_trends ?? [];
 const items = trends.map((mt) => ({
   key: mt.key,
   name_en: mt.name_en,
-  name_de: mt.name_de,
   description_en: mt.description ?? "",
-  description_de: mt.description_de ?? mt.description ?? "",
   icon: mt.icon ?? "📊",
   verticals: mt.verticals ?? [],
 }));

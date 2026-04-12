@@ -129,7 +129,6 @@ export interface MegaTrendInfo {
   count: number;
   verticals: string[];
   name_en: string;
-  name_de: string;
   description: string;
   momentum: "rising" | "stable" | "declining" | "emerging";
   cluster_strength: "strong" | "moderate" | "fragmented";
@@ -138,7 +137,7 @@ export interface MegaTrendInfo {
 }
 
 function loadMegaTrendYaml(): Record<string, {
-  name_en: string; name_de: string; description: string;
+  name_en: string; description: string;
   momentum: string; cluster_strength: string; signal_count: number; horizon: string;
 }> {
   const yamlPath = path.join(process.cwd(), "..", "mega_trends.yaml");
@@ -149,7 +148,6 @@ function loadMegaTrendYaml(): Record<string, {
     for (const mt of data.mega_trends || []) {
       map[mt.key as string] = {
         name_en: mt.name_en as string,
-        name_de: mt.name_de as string,
         description: mt.description as string,
         momentum: (mt.momentum as string) || "stable",
         cluster_strength: (mt.cluster_strength as string) || "fragmented",
@@ -191,7 +189,6 @@ export function getMegaTrends(status?: string): MegaTrendInfo[] {
         count: r.cnt,
         verticals: r.verts ? r.verts.split(",") : [],
         name_en: meta.name_en || r.mega_trend.replace(/_/g, " "),
-        name_de: meta.name_de || r.mega_trend.replace(/_/g, " "),
         description: meta.description || "",
         momentum: (meta.momentum || "stable") as MegaTrendInfo["momentum"],
         cluster_strength: (meta.cluster_strength || "fragmented") as MegaTrendInfo["cluster_strength"],

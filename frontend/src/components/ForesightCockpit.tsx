@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useLocale } from "@/lib/locale-context";
 import {
   getVerticalInfo,
   getPestelInfo,
@@ -17,9 +16,7 @@ import {
 interface SearchResult {
   id: number;
   slug: string;
-  title_de: string;
   title_en: string;
-  summary_de: string;
   summary_en: string;
   primary_vertical: string;
   source_name: string;
@@ -64,19 +61,16 @@ interface SearchResponse {
 // Lead-time tier config
 // ---------------------------------------------------------------------------
 const TIER_CONFIG = {
-  future: { label_de: "Future", label_en: "Future", color: "#8b5cf6", desc_de: "Science / Forschung (5-10 J.)", desc_en: "Science / Research (5-10y)" },
-  market: { label_de: "Market", label_en: "Market", color: "#3b82f6", desc_de: "Fachpresse / Trade (1-2 J.)", desc_en: "Trade Press (1-2y)" },
-  now: { label_de: "Now", label_en: "Now", color: "#22c55e", desc_de: "Consumer / Lifestyle (Echtzeit)", desc_en: "Consumer / Lifestyle (real-time)" },
-  unknown: { label_de: "Andere", label_en: "Other", color: "#737373", desc_de: "", desc_en: "" },
+  future: { label: "Future", color: "#8b5cf6", desc: "Science / Research (5-10y)" },
+  market: { label: "Market", color: "#3b82f6", desc: "Trade Press (1-2y)" },
+  now: { label: "Now", color: "#22c55e", desc: "Consumer / Lifestyle (real-time)" },
+  unknown: { label: "Other", color: "#737373", desc: "" },
 } as const;
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 export default function ForesightCockpit() {
-  const { t, locale, mounted } = useLocale();
-  const de = locale === "de";
-
   const [query, setQuery] = useState("");
   const [vertical, setVertical] = useState<string | null>(null);
   const [data, setData] = useState<SearchResponse | null>(null);
@@ -128,8 +122,6 @@ export default function ForesightCockpit() {
   // Cleanup debounce on unmount
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
-  if (!mounted) return null;
-
   const a = data?.analytics;
   const hasAnalytics = a?.has_enough_data ?? false;
 
@@ -138,12 +130,10 @@ export default function ForesightCockpit() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
-          {de ? "Foresight Cockpit" : "Foresight Cockpit"}
+          Foresight Cockpit
         </h1>
         <p className="mt-1 text-muted text-sm">
-          {de
-            ? "Semantische Trend-Suche mit Signal-Analyse, Lead-Time-Tracking und Cross-Vertical-Insights."
-            : "Semantic trend search with signal analysis, lead-time tracking, and cross-vertical insights."}
+          Semantic trend search with signal analysis, lead-time tracking, and cross-vertical insights.
         </p>
       </div>
 
@@ -154,7 +144,7 @@ export default function ForesightCockpit() {
             type="text"
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
-            placeholder={de ? "Suchbegriff eingeben..." : "Enter search term..."}
+            placeholder="Enter search term..."
             className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground
                        placeholder:text-muted focus:outline-none focus:border-accent
                        transition-colors"
@@ -172,7 +162,7 @@ export default function ForesightCockpit() {
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors
               ${!vertical ? "bg-accent text-white" : "bg-card text-muted hover:text-foreground border border-border"}`}
           >
-            {de ? "Alle" : "All"}
+            All
           </button>
           {VERTICALS.map((v) => (
             <button
@@ -203,7 +193,7 @@ export default function ForesightCockpit() {
             {/* Meta bar */}
             <div className="flex items-center justify-between text-xs text-muted">
               <span>
-                {data.analytics.total_matches} {de ? "Treffer" : "matches"}
+                {data.analytics.total_matches} matches
                 {data.meta.embedding_available ? "" : " (FTS only)"}
               </span>
               <span>{data.took_ms}ms</span>
@@ -212,45 +202,41 @@ export default function ForesightCockpit() {
             {/* Embedding-only hint */}
             {data.meta.embedding_only && data.results.length > 0 && (
               <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 text-sm text-muted">
-                {de
-                  ? "Keine exakte Textübereinstimmung — Ergebnisse basieren auf semantischer Ähnlichkeit."
-                  : "No exact text match — results are based on semantic similarity."}
+                No exact text match — results are based on semantic similarity.
               </div>
             )}
 
             {/* Not enough data hint */}
             {!hasAnalytics && data.analytics.total_matches > 0 && (
               <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted">
-                {de
-                  ? `Zu wenige Signale (${data.analytics.total_matches}) für Trend-Analyse. Mindestens 30 Treffer nötig.`
-                  : `Too few signals (${data.analytics.total_matches}) for trend analysis. At least 30 matches needed.`}
+                Too few signals ({data.analytics.total_matches}) for trend analysis. At least 30 matches needed.
               </div>
             )}
 
             {/* No results */}
             {data.results.length === 0 && (
               <div className="text-center py-12 text-muted">
-                {de ? "Keine Treffer" : "No results"}
+                No results
               </div>
             )}
 
-            {/* Result cards — relevance relative to theoretical RRF max (2/61 ≈ 0.0328) */}
+            {/* Result cards */}
             {data.results.map((r) => {
-              const RRF_MAX = 2 / 61; // rank 1 in both FTS5 + embedding
+              const RRF_MAX = 2 / 61;
               const relevance = Math.round((r.rrf_score / RRF_MAX) * 100);
-              return <ResultCard key={r.id} result={r} de={de} relevance={relevance} />;
+              return <ResultCard key={r.id} result={r} relevance={relevance} />;
             })}
           </div>
 
           {/* Sidebar: analytics */}
           {hasAnalytics && a && (
             <div className="w-full lg:w-80 xl:w-96 shrink-0 space-y-5">
-              <TimelineChart timeline={a.timeline} de={de} />
-              <LeadTimeBreakdown leadTime={a.lead_time} total={a.total_matches} de={de} />
-              <VerticalDistribution verticals={a.verticals} de={de} />
-              <PestelProfile pestel={a.pestel} total={a.total_matches} de={de} />
-              <MegaTrendDistribution megaTrends={a.mega_trends} de={de} />
-              <CoOccurrenceCloud tags={a.co_occurrence} de={de} />
+              <TimelineChart timeline={a.timeline} />
+              <LeadTimeBreakdown leadTime={a.lead_time} total={a.total_matches} />
+              <VerticalDistribution verticals={a.verticals} />
+              <PestelProfile pestel={a.pestel} total={a.total_matches} />
+              <MegaTrendDistribution megaTrends={a.mega_trends} />
+              <CoOccurrenceCloud tags={a.co_occurrence} />
             </div>
           )}
         </div>
@@ -261,9 +247,7 @@ export default function ForesightCockpit() {
         <div className="text-center py-20 text-muted space-y-2">
           <div className="text-4xl opacity-30">&#x1F50D;</div>
           <p className="text-sm">
-            {de
-              ? "Suchbegriff eingeben, um Trend-Signale zu entdecken"
-              : "Enter a search term to discover trend signals"}
+            Enter a search term to discover trend signals
           </p>
         </div>
       )}
@@ -274,7 +258,7 @@ export default function ForesightCockpit() {
 // ---------------------------------------------------------------------------
 // Result card
 // ---------------------------------------------------------------------------
-function ResultCard({ result: r, de, relevance }: { result: SearchResult; de: boolean; relevance: number }) {
+function ResultCard({ result: r, relevance }: { result: SearchResult; relevance: number }) {
   const vi = getVerticalInfo(r.primary_vertical as Vertical);
   const tierCfg = TIER_CONFIG[r.lead_time_tier as keyof typeof TIER_CONFIG] ?? TIER_CONFIG.unknown;
 
@@ -296,24 +280,24 @@ function ResultCard({ result: r, de, relevance }: { result: SearchResult; de: bo
               className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
               style={{ backgroundColor: `${tierCfg.color}20`, color: tierCfg.color, border: `1px solid ${tierCfg.color}40` }}
             >
-              {tierCfg.label_en}
+              {tierCfg.label}
             </span>
             {r.mega_trend && (
               <span className="text-[10px] text-muted truncate max-w-[160px]">
-                {getMegaTrendInfo(r.mega_trend)?.[de ? "name_de" : "name_en"] ?? r.mega_trend.replace(/_/g, " ")}
+                {getMegaTrendInfo(r.mega_trend)?.name_en ?? r.mega_trend.replace(/_/g, " ")}
               </span>
             )}
           </div>
           <h3 className="font-semibold text-sm leading-snug mb-1">
-            {de ? r.title_de : r.title_en}
+            {r.title_en}
           </h3>
           <p className="text-xs text-muted line-clamp-2">
-            {de ? (r.summary_de || r.summary_en) : r.summary_en}
+            {r.summary_en}
           </p>
           <div className="mt-2 flex items-center gap-3 text-[10px] text-muted">
             <span>{r.source_name}</span>
             {r.source_date && (
-              <span>{new Date(r.source_date).toLocaleDateString(de ? "de-DE" : "en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+              <span>{new Date(r.source_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
             )}
             {relevance > 0 && (
               <span className="text-accent">{relevance}%</span>
@@ -328,13 +312,13 @@ function ResultCard({ result: r, de, relevance }: { result: SearchResult; de: bo
 // ---------------------------------------------------------------------------
 // Timeline chart (simple SVG bar chart)
 // ---------------------------------------------------------------------------
-function TimelineChart({ timeline, de }: { timeline: Analytics["timeline"]; de: boolean }) {
+function TimelineChart({ timeline }: { timeline: Analytics["timeline"] }) {
   if (!timeline.length) return null;
   const maxCount = Math.max(...timeline.map((m) => m.count), 1);
   const barW = Math.max(4, Math.floor(280 / timeline.length) - 1);
 
   return (
-    <AnalyticsCard title={de ? "Signal-Timeline" : "Signal Timeline"}>
+    <AnalyticsCard title="Signal Timeline">
       <div className="flex items-end gap-px h-24 overflow-x-auto">
         {timeline.map((m) => (
           <div key={m.month} className="flex flex-col items-center group relative">
@@ -362,10 +346,10 @@ function TimelineChart({ timeline, de }: { timeline: Analytics["timeline"]; de: 
 // ---------------------------------------------------------------------------
 // Lead-time tier breakdown
 // ---------------------------------------------------------------------------
-function LeadTimeBreakdown({ leadTime, total, de }: { leadTime: Record<string, number>; total: number; de: boolean }) {
+function LeadTimeBreakdown({ leadTime, total }: { leadTime: Record<string, number>; total: number }) {
   const tiers = ["future", "market", "now"] as const;
   return (
-    <AnalyticsCard title={de ? "Signal-Pfad" : "Signal Path"}>
+    <AnalyticsCard title="Signal Path">
       <div className="space-y-2">
         {tiers.map((tier) => {
           const count = leadTime[tier] || 0;
@@ -375,9 +359,9 @@ function LeadTimeBreakdown({ leadTime, total, de }: { leadTime: Record<string, n
             <div key={tier}>
               <div className="flex justify-between text-xs mb-0.5">
                 <span style={{ color: cfg.color }}>
-                  {cfg.label_en}
+                  {cfg.label}
                   <span className="text-muted ml-1 text-[10px]">
-                    {de ? cfg.desc_de : cfg.desc_en}
+                    {cfg.desc}
                   </span>
                 </span>
                 <span className="text-muted">{count} ({Math.round(pct)}%)</span>
@@ -399,12 +383,12 @@ function LeadTimeBreakdown({ leadTime, total, de }: { leadTime: Record<string, n
 // ---------------------------------------------------------------------------
 // Cross-vertical distribution
 // ---------------------------------------------------------------------------
-function VerticalDistribution({ verticals, de }: { verticals: Record<string, number>; de: boolean }) {
+function VerticalDistribution({ verticals }: { verticals: Record<string, number> }) {
   const entries = Object.entries(verticals).sort((a, b) => b[1] - a[1]);
   const max = entries[0]?.[1] ?? 1;
 
   return (
-    <AnalyticsCard title={de ? "Cross-Vertical" : "Cross-Vertical"}>
+    <AnalyticsCard title="Cross-Vertical">
       <div className="space-y-1.5">
         {entries.map(([v, count]) => {
           const info = getVerticalInfo(v as Vertical);
@@ -430,7 +414,7 @@ function VerticalDistribution({ verticals, de }: { verticals: Record<string, num
 // ---------------------------------------------------------------------------
 // PESTEL profile
 // ---------------------------------------------------------------------------
-function PestelProfile({ pestel, total, de }: { pestel: Record<string, number>; total: number; de: boolean }) {
+function PestelProfile({ pestel, total }: { pestel: Record<string, number>; total: number }) {
   const dims = ["P", "E", "S", "T", "En", "L"] as const;
   return (
     <AnalyticsCard title="PESTEL">
@@ -465,18 +449,16 @@ function PestelProfile({ pestel, total, de }: { pestel: Record<string, number>; 
 // ---------------------------------------------------------------------------
 // Mega-trend distribution
 // ---------------------------------------------------------------------------
-function MegaTrendDistribution({ megaTrends, de }: { megaTrends: Analytics["mega_trends"]; de: boolean }) {
+function MegaTrendDistribution({ megaTrends }: { megaTrends: Analytics["mega_trends"] }) {
   if (!megaTrends.length) return null;
   const max = megaTrends[0]?.count ?? 1;
 
   return (
-    <AnalyticsCard title={de ? "Mega-Trends" : "Mega Trends"}>
+    <AnalyticsCard title="Mega Trends">
       <div className="space-y-1.5">
         {megaTrends.slice(0, 8).map((mt) => {
           const info = getMegaTrendInfo(mt.mega_trend);
-          const label = info
-            ? (de ? info.name_de : info.name_en)
-            : mt.mega_trend.replace(/_/g, " ");
+          const label = info ? info.name_en : mt.mega_trend.replace(/_/g, " ");
           return (
             <div key={mt.mega_trend} className="flex items-center gap-2 text-xs">
               <span className="w-5 text-center">{info?.icon ?? "?"}</span>
@@ -499,16 +481,16 @@ function MegaTrendDistribution({ megaTrends, de }: { megaTrends: Analytics["mega
 // ---------------------------------------------------------------------------
 // Co-occurrence cloud (TF-IDF weighted)
 // ---------------------------------------------------------------------------
-function CoOccurrenceCloud({ tags, de }: { tags: Analytics["co_occurrence"]; de: boolean }) {
+function CoOccurrenceCloud({ tags }: { tags: Analytics["co_occurrence"] }) {
   if (!tags.length) return null;
   const maxTfidf = Math.max(...tags.map((t) => t.tfidf), 1);
 
   return (
-    <AnalyticsCard title={de ? "Verwandte Begriffe" : "Related Terms"}>
+    <AnalyticsCard title="Related Terms">
       <div className="flex flex-wrap gap-1.5">
         {tags.map((t) => {
           const rel = t.tfidf / maxTfidf;
-          const fontSize = 10 + rel * 6; // 10px to 16px
+          const fontSize = 10 + rel * 6;
           const opacity = 0.4 + rel * 0.6;
           return (
             <span

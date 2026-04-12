@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useLocale } from "@/lib/locale-context";
 
 interface MegaTrendRadar {
   key: string;
@@ -86,7 +85,6 @@ function RichText({ text, className }: { text: string; className?: string }) {
 }
 
 function SignupForm() {
-  const { t } = useLocale();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
@@ -133,7 +131,7 @@ function SignupForm() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder={t("newsletterPlaceholder")}
+            placeholder="Your email address"
             className="flex-1 rounded-lg bg-background border border-border px-4 py-2.5 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-accent"
             required
             disabled={status === "loading"}
@@ -143,9 +141,7 @@ function SignupForm() {
             disabled={status === "loading"}
             className="bg-accent text-background px-6 py-2.5 rounded-lg font-medium hover:bg-accent/90 transition-colors text-sm whitespace-nowrap disabled:opacity-50"
           >
-            {status === "loading"
-              ? t("newsletterLoading")
-              : t("newsletterButton")}
+            {status === "loading" ? "Subscribing..." : "Subscribe"}
           </button>
         </form>
       )}
@@ -157,7 +153,6 @@ function SignupForm() {
 }
 
 export default function NewsletterPage() {
-  const { t } = useLocale();
   const [edition, setEdition] = useState<NewsletterEdition | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -314,7 +309,9 @@ export default function NewsletterPage() {
           Subscribe to newsletter
         </h2>
         <SignupForm />
-        <p className="text-xs text-muted mt-2">{t("newsletterSpam")}</p>
+        <p className="text-xs text-muted mt-2">
+          No spam. One email per week with the most important trend signals.
+        </p>
       </section>
     </div>
   );
