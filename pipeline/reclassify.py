@@ -1,22 +1,20 @@
-#!/usr/bin/env python3
-"""Reclassify all existing trends with the new 8-vertical taxonomy.
+"""Reclassify draft trends using LLM-based semantic vertical assignment.
 
-Uses pure semantic classification (no source vertical hint).
-Updates primary_vertical and verticals JSON array.
+Reuses the same Qwen3 8B model as the pipeline classification stage.
+Called after trend insertion to fix vertical misclassifications before auto-publish.
 """
 
 import json
+import logging
+import re
 import sqlite3
-import sys
 import time
 
 import httpx
 
-sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+from pipeline.config import DATABASE_PATH, OLLAMA_HOST, MODEL_CLASSIFY
 
-OLLAMA_HOST = "http://127.0.0.1:11434"
-MODEL = "qwen3:8b"
-DB_PATH = "data/catandary.db"
+logger = logging.getLogger(__name__)
 
 VERTICALS = ["FOOD", "TECH", "HEALTH", "ECO", "DESIGN", "FASHION", "BIZ", "LIFESTYLE"]
 
@@ -60,17 +58,11 @@ Title: "New Alzheimer's Drug Shows Promise in Phase 3 Trial"
 Title: "Stripe Launches Embedded Banking for SMBs"
 → {{"primary": "BIZ", "secondaries": []}}
 
-Title: "LVMH Acquires Luxury Watchmaker in €2B Deal"
-→ {{"primary": "BIZ", "secondaries": ["FASHION"]}}
+Title: "Royal Enfield's Electric Motorcycle Signals a Shift"
+→ {{"primary": "TECH", "secondaries": ["ECO"]}}
 
-Title: "Bacterial Flagellar Adaptation Reveals Evolutionary Mechanism"
+Title: "Durable Outdoor Bluetooth Speakers"
 → {{"primary": "TECH", "secondaries": []}}
-
-Title: "Biodegradable Packaging for Fresh Produce Hits Shelves"
-→ {{"primary": "FOOD", "secondaries": ["ECO"]}}
-
-Title: "Quantum Computing Breakthrough in Drug Discovery"
-→ {{"primary": "TECH", "secondaries": ["HEALTH"]}}
 
 ## Task
 Title: {title}
@@ -79,13 +71,14 @@ Summary: {summary}
 Return ONLY a JSON object with "primary" and "secondaries", nothing else. /no_think"""
 
 
-def classify_trend(title: str, summary: str) -> dict | None:
+def _classify_one(title: str, summary: str) -> dict | None:
+    """Classify a single trend via Ollama."""
     prompt = CLASSIFY_PROMPT.format(title=title, summary=summary[:500])
     try:
         resp = httpx.post(
             f"{OLLAMA_HOST}/api/generate",
             json={
-                "model": MODEL,
+                "model": MODEL_CLASSIFY,
                 "prompt": prompt,
                 "stream": False,
                 "options": {"temperature": 0},
@@ -93,41 +86,37 @@ def classify_trend(title: str, summary: str) -> dict | None:
             timeout=30,
         )
         text = resp.json().get("response", "").strip()
-        # Extract JSON
-        import re
         match = re.search(r'\{[^}]+\}', text)
         if match:
             data = json.loads(match.group())
             primary = data.get("primary", "").upper()
             secondaries = [s.upper() for s in data.get("secondaries", [])]
-
             if primary in VERTICALS:
                 all_verts = [primary] + [s for s in secondaries if s in VERTICALS and s != primary]
                 return {"primary": primary, "verticals": all_verts}
     except Exception as e:
-        print(f"  ERROR: {e}")
+        logger.warning("Reclassify error: %s", e)
     return None
 
 
-def main():
-    conn = sqlite3.connect(DB_PATH, timeout=60)
+def reclassify_drafts() -> dict:
+    """Reclassify all draft trends. Returns stats dict."""
+    conn = sqlite3.connect(DATABASE_PATH, timeout=60)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=60000")
-    # Force WAL checkpoint to clear any stale locks
-    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
-    # Only reclassify drafts by default, pass --all to reclassify everything
-    if "--all" in sys.argv:
-        c.execute("SELECT id, title_en, summary_en, primary_vertical, verticals FROM trends ORDER BY id")
-    else:
-        c.execute("SELECT id, title_en, summary_en, primary_vertical, verticals FROM trends WHERE status = 'draft' ORDER BY id")
+    c.execute("SELECT id, title_en, summary_en, primary_vertical FROM trends WHERE status = 'draft' ORDER BY id")
     rows = c.fetchall()
     total = len(rows)
 
-    print(f"Reclassifying {total} trends with 8-vertical taxonomy\n")
+    if total == 0:
+        logger.info("Reclassify: no drafts to process")
+        conn.close()
+        return {"total": 0, "changed": 0, "errors": 0}
 
+    logger.info("Reclassify: processing %d drafts", total)
     changed = 0
     errors = 0
     t0 = time.time()
@@ -138,11 +127,9 @@ def main():
         summary = row["summary_en"] or ""
         old_primary = row["primary_vertical"]
 
-        result = classify_trend(title, summary)
-
+        result = _classify_one(title, summary)
         if result is None:
             errors += 1
-            print(f"  [{i+1}/{total}] ERROR id={tid}: {title[:50]}")
             continue
 
         new_primary = result["primary"]
@@ -150,37 +137,18 @@ def main():
 
         if new_primary != old_primary:
             changed += 1
-            print(f"  [{i+1}/{total}] {old_primary:10} -> {new_primary:10}  {title[:55]}")
+            logger.info("Reclassify #%d: %s -> %s  %s", tid, old_primary, new_primary, title[:55])
 
         c.execute(
             "UPDATE trends SET primary_vertical = ?, verticals = ? WHERE id = ?",
             (new_primary, json.dumps(new_verticals), tid),
         )
 
-        # Commit every 50
         if (i + 1) % 50 == 0:
             conn.commit()
-            elapsed = time.time() - t0
-            rate = (i + 1) / elapsed
-            remaining = (total - i - 1) / rate
-            print(f"  --- {i+1}/{total} done, {changed} changed, {elapsed:.0f}s elapsed, ~{remaining:.0f}s remaining ---")
 
     conn.commit()
     elapsed = time.time() - t0
-
-    print(f"\n{'='*60}")
-    print(f"Done in {elapsed:.0f}s ({total/elapsed:.1f} trends/sec)")
-    print(f"Changed: {changed}/{total} ({changed/total*100:.0f}%)")
-    print(f"Errors: {errors}")
-
-    # Show new distribution
-    c.execute("SELECT primary_vertical, COUNT(*) FROM trends GROUP BY primary_vertical ORDER BY COUNT(*) DESC")
-    print(f"\nNew distribution:")
-    for vert, cnt in c.fetchall():
-        print(f"  {vert:10} {cnt:>4}")
-
+    logger.info("Reclassify done in %.1fs: %d/%d changed, %d errors", elapsed, changed, total, errors)
     conn.close()
-
-
-if __name__ == "__main__":
-    main()
+    return {"total": total, "changed": changed, "errors": errors}

@@ -78,10 +78,10 @@
   - **DB-Funktionen existieren bereits:** `db.insert_raw_entry()`, `db.insert_source_discovery()`, `db.get_discovery_count()` — kein DB-Code nötig.
   - **Verifikation:** (1) `--dry-run` zeigt Queries + Ergebnisse ohne DB-Write, (2) `--vertical FOOD` testet einzeln, (3) Nach Lauf: neue `raw_entries` mit `source_type='radar'` prüfen, (4) `llm_processor` Lauf bestätigt Pickup, (5) `source_discoveries` für Domain-Promotion-Schwelle prüfen.
 
-- [ ] **Foresight Cockpit auf MacBook Air (8GB RAM) testen.** Query-Embedding braucht Ollama mit `qwen3-embedding` (~5-6GB VRAM). Bei 8GB unified Memory eng. Zu prüfen: (1) Läuft `qwen3-embedding` auf M-Chip mit 8GB überhaupt? (2) Falls nicht: kleineres Embedding-Modell evaluieren (`nomic-embed-text` ~270MB, `all-minisearch` ~23MB) — benötigt dann Neuberechnung aller Trend-Vektoren in der passenden Dimension. (3) FTS5-only-Fallback funktioniert bereits automatisch wenn Ollama nicht erreichbar ist.
+- [x] ~~**Foresight Cockpit auf MacBook Air (8GB RAM) testen.**~~ Erledigt 2026-04-12. Ergebnis: FTS5-only einwandfrei (787 ms), qwen3-embedding unbenutzbar auf 8 GB (4 min/Query, Memory Pressure rot, 8.9 GB Swap). Hybrid-Suche fachlich korrekt aber nicht interaktiv nutzbar. Empfehlung: FTS5-only auf schwachen Clients, optional `DISABLE_EMBEDDING_SEARCH` Env-Var. Details in `MACBOOK_SETUP.md`.
 
 ## Tagesziele 2026-04-11
 
 - [ ] **Cron-Jobs einrichten.** Pipeline-Automatisierung auf dem Produktionssystem (Hetzner oder lokal): Feed-Poll, LLM-Processor, Auto-Publish als wiederkehrende Jobs. Siehe Option B oben (Orchestrator-Script `pipeline/run_full_cycle.py`).
 - [ ] **Newsletter implementieren.** Newsletter-Generator (`pipeline/newsletter_generator.py`) fertigstellen und testen. Anbindung an Resend/Buttondown, wöchentlicher Versand (Montag 9:00).
-- [ ] **Plattform auf MacBook Air testen.** Gesamte Plattform (Frontend + Foresight Cockpit inkl. semantischer Suche mit Ollama Embeddings) auf MacBook Air 8GB deployen und verifizieren. Ergebnis dokumentieren.
+- [x] ~~**Plattform auf MacBook Air testen.**~~ Erledigt 2026-04-12, siehe `MACBOOK_SETUP.md`.

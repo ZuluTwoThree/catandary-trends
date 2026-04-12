@@ -2,11 +2,16 @@
 """LLM Processing Pipeline for Catandary Trends.
 
 Processes raw RSS entries through:
-1. Relevance Filter (Qwen3 8B)
-2. Structured Extraction (Qwen3 8B)
-3. NER + Classification (Qwen3 8B)
-4. Duplicate Check (Qwen3-Embedding)
-5. Content Generation (Qwen3 14B) – DE + EN
+1. Title Dedup (no LLM)
+2. Relevance Filter (Qwen3 8B)
+3. Structured Extraction (Qwen3 8B)
+4. NER + Classification (Qwen3 8B)
+5. Embeddings + Dedup (Qwen3-Embedding)
+6. Content Generation EN (Qwen3 14B)
+7. Translation DE (Qwen3 14B)
+8. Insert Trends
+9. Reclassify Verticals (Qwen3 8B)
+10. Auto-Publish (confidence >= 0.85)
 """
 
 import json
@@ -46,8 +51,10 @@ from pipeline.models import (
     GeneratedContent,
     RelevanceResult,
 )
+from pipeline.auto_publisher import auto_publish
 from pipeline.crs import compute_crs
 from pipeline.ollama_client import chat_structured, generate_embedding
+from pipeline.reclassify import reclassify_drafts
 
 logging.basicConfig(
     level=LOG_LEVEL,
@@ -759,12 +766,25 @@ def run_pipeline_batch(limit: int = 200):
             errors += 1
     logger.info("Stage 8 done in %.1fs", time.time() - t_stage)
 
+    # ---- Stage 9: Reclassify drafts (Qwen3 8B) ----
+    t_stage = time.time()
+    reclass_stats = reclassify_drafts()
+    logger.info("Stage 9 done in %.1fs: %d reclassified (%d changed)",
+                time.time() - t_stage, reclass_stats["total"], reclass_stats["changed"])
+
+    # ---- Stage 10: Auto-publish ----
+    t_stage = time.time()
+    pub_stats = auto_publish()
+    logger.info("Stage 10 done in %.1fs: %d published, %d skipped",
+                time.time() - t_stage, pub_stats["published"], pub_stats["skipped"])
+
     elapsed = time.time() - start
     logger.info(
-        "BATCH complete in %.1fs: %d entries, %d created, %d filtered, %d errors",
-        elapsed, len(entries), created, filtered, errors,
+        "BATCH complete in %.1fs: %d entries, %d created, %d filtered, %d errors, %d published",
+        elapsed, len(entries), created, filtered, errors, pub_stats["published"],
     )
-    return {"processed": len(entries), "created": created, "filtered": filtered, "errors": errors}
+    return {"processed": len(entries), "created": created, "filtered": filtered, "errors": errors,
+            "published": pub_stats["published"]}
 
 
 def run_pipeline(limit: int = 50):

@@ -424,8 +424,9 @@ CREATE TABLE trend_clusters (
 # LLM-Pipeline für neue Einträge (alle 4 Stunden, nach Polling)
 30 */4 * * * python pipeline/llm_processor.py
 
-# Auto-Publish (stündlich, nur high-confidence Drafts)
-0 * * * *    python pipeline/auto_publisher.py --min-confidence 0.9
+# Auto-Publish ist in die LLM-Pipeline integriert (Stage 9+10: Reclassify → Auto-Publish)
+# Standalone-Lauf nur als Fallback nötig:
+# python pipeline/auto_publisher.py  (nutzt AUTO_PUBLISH_CONFIDENCE=0.85 aus config.py)
 
 # Wöchentlicher Newsletter (Montag 9:00)
 0 9 * * 1    python pipeline/newsletter_generator.py
@@ -748,80 +749,52 @@ catandary-trends/
 
 Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direkt auf `main` oder in Feature-Branches entwickelt. Aktuelle Prioritäten:
 
-1. **Frontend-Polish** — README aktualisieren, Deployment auf Hetzner finalisieren
-2. **Pipeline-Automatisierung** — Cron-Jobs auf Produktionssystem einrichten
+1. **Pipeline-Automatisierung** — Cron-Jobs einrichten (Orchestrator-Script `run_full_cycle.py`, siehe BACKLOG.md)
+2. **Newsletter** — `pipeline/newsletter_generator.py` fertigstellen, Anbindung an Resend/Buttondown
+3. **Brave Search Radar** — `radar_discovery.py` Rewrite (Plan in BACKLOG.md)
+4. **Deployment auf Hetzner** — Caddy + PM2, README aktualisieren
 
-**Hinweis zur Vertical-Balance:** LIFESTYLE, DESIGN und FASHION sind bewusst die *Now*-Trendsignale im Foresight-Modell (kurze Lead-Zeit). Ihr kombinierter Anteil (~15 %) ist als Zielgröße OK — keine aktive Quellenausweitung nötig.
+**Hinweis zur Vertical-Balance:** LIFESTYLE, DESIGN und FASHION sind die *Now*-Trendsignale im Foresight-Modell (kurze Lead-Zeit). Ihr kombinierter Anteil (~18 %) ist gesund — keine aktive Quellenausweitung nötig.
 
 ---
 
-## Quellenbalance & Pipeline-Optimierung (Stand: 2026-04-04)
+## Quellenbalance & Pipeline-Optimierung (Stand: 2026-04-12)
 
-### Ist-Zustand nach semantischem Overhaul
+### Ist-Zustand
 
-Nach der Reklassifizierung aller 1226 Trends und der Konsolidierung von CULTURE+SOCIAL+LUXURY → LIFESTYLE:
+112 aktive Quellen (79 Trade Media, 31 Research, 2 Press Wire). 7.016 Raw Entries, 4.782 published Trends, 22 Mega-Trends.
 
 | Vertical | Trends | Anteil | Bewertung |
 |----------|--------|--------|-----------|
-| TECH | 401 | 33% | **Größtes Vertical** — breites Quellenspektrum (VC/Startup + Deep Tech) |
-| FOOD | 254 | 21% | Deutlich reduziert nach semantischem Overhaul (vorher 32%) |
-| BIZ | 124 | 10% | Verbessert, strategische Quellen fehlen noch |
-| ECO | 116 | 9% | Ausbalanciert |
-| HEALTH | 107 | 9% | Pharma/Biotech-Perspektive fehlt |
-| DESIGN | 85 | 7% | Ausbalanciert |
-| FASHION | 84 | 7% | OK |
-| LIFESTYLE | 55 | 4% | **Schwächstes Vertical** — strukturell bedingt (RSS-Angebot dünn für Luxury/Culture-Nischen) |
-| **TOTAL** | **1226** | **100%** | |
-
-### Quellen-Ergänzungen (eingebunden 2026-04)
-
-Die 7 ursprünglich als Backlog geführten Feeds sind alle live in `sources.yaml`:
-McKinsey Insights, Endpoints News, Healthcare IT News, Wired, IEEE Spectrum
-(+ AI/Robotics-Sub-Feeds), Glossy, Platformer.
+| TECH | 1532 | 32% | Größtes Vertical — breites Quellenspektrum (VC/Startup + Deep Tech) |
+| BIZ | 927 | 19% | Stark gewachsen (vorher 10%), gut ausbalanciert |
+| FOOD | 575 | 12% | Stabil |
+| HEALTH | 518 | 11% | Deutlich verbessert durch neue Quellen (Endpoints, Healthcare IT News) |
+| ECO | 408 | 9% | Stabil |
+| LIFESTYLE | 321 | 7% | Deutlich verbessert (vorher 4%), Konsolidierung CULTURE+SOCIAL+LUXURY zahlt sich aus |
+| FASHION | 278 | 6% | Stabil |
+| DESIGN | 223 | 5% | Stabil |
+| **TOTAL** | **4782** | **100%** | |
 
 ### Balance-Prinzip für die Datenpipeline
 
-1. **Neue Quellen priorisiert für unterrepräsentierte Vertikale** (LIFESTYLE, FASHION, HEALTH, BIZ)
-2. **TECH-Dominanz beobachten** — mit 33% aktuell größtes Vertical, aber durch Quellenvielfalt gerechtfertigt
-3. **Regelmäßiger Balance-Check** (monatlich): bei >3x Abweichung vom Median Quellen und Schwellenwerte anpassen
-4. **LIFESTYLE stärken**: Brand-Newsrooms (LVMH, Kering, Richemont), Gaming- und Creator-Economy-Quellen evaluieren
-
-### FOOD-Vertical Aufspaltung — Entschärft
-
-Nach dem semantischen Overhaul ist FOOD von 32% auf 21% geschrumpft. Eine Aufspaltung in Sub-Vertikale (FOODTECH, GASTRO, FOODRETAIL) ist damit **nicht mehr dringend**. Die Option bleibt als Sub-Tagging-Ansatz bestehen, falls FOOD wieder überproportional wächst.
+1. **TECH-Dominanz beobachten** — mit 32% stabil, durch Quellenvielfalt gerechtfertigt
+2. **Regelmäßiger Balance-Check** (monatlich): bei >3x Abweichung vom Median Quellen und Schwellenwerte anpassen
+3. **LIFESTYLE weiter stärken**: Brand-Newsrooms (LVMH, Kering, Richemont), Gaming- und Creator-Economy-Quellen evaluieren
 
 ### Geplante Quellen-Ergänzungen
 
 | Quelle | Vertical | Status | Begründung |
 |--------|----------|--------|------------|
-| **Lebensmittelzeitung** | FOOD | RSS-Feed prüfen | Deutsche FOOD-Fachpresse, stärkt DE-Perspektive im FOOD-Vertical |
+| **Lebensmittelzeitung** | FOOD | RSS-Feed prüfen | Deutsche FOOD-Fachpresse, stärkt DE-Perspektive |
 
 ---
 
-## Session-Log
+## Technische Hinweise
 
-### Session 2026-04-04 (Abend)
-
-**Kontext:** LLM-Processor war vorzeitig abgebrochen, 194 Entries unverarbeitet.
-
-**Durchgeführt:**
-1. Ollama (Windows-Exe) war nicht erreichbar — neu gestartet, erreichbar über `172.29.96.1:11434` (WSL2 → Windows)
-2. Python-Abhängigkeiten auf Windows Python 3.13 installiert (`/mnt/c/Users/Dirk/AppData/Local/Programs/Python/Python313/python.exe`)
-3. LLM-Processor in mehreren Batches durchlaufen lassen (Batch-Limit default=10, per Argument auf 200 erhöht)
-4. **Ergebnis:** 171 Entries verarbeitet (10 + 161), **109 neue Trends** erstellt, 62 gefiltert, 0 Fehler
-5. DB-Stand danach: **3.644 Raw Entries**, **2.495 Trends** (davon 1.226 published, 1.269 drafts)
-
-**Bekannte Probleme identifiziert:**
-- `primary_vertical` wird im Relevanz-Filter oft falsch gesetzt (z.B. FASHION für Quantum-Computing) — Klassifizierungsschritt korrigiert `verticals`, aber `primary_vertical` bleibt falsch
-- Mega-Trend-Zuordnung teilweise sinnlos (z.B. Neandertal-Genomik → `regenerative_design_and_net_positive`)
-
-**Nächste Schritte (Post-Processing-Pipeline):**
-1. `scripts/reclassify_verticals.py` — Verticals fixen (Qwen3 8B, ~65s/500 Trends)
-2. `scripts/discover_mega_trends.py` — Mega-Trend-Kandidaten analysieren (kein LLM, Clustering)
-3. `pipeline/mega_trend_reviewer.py` — Mega-Trends per LLM zuweisen (Qwen3 14B, ~15-25 Min)
-4. `scripts/backfill_crs.py` — CRS-Scores berechnen (Formel, ~2s)
-
-**Technische Hinweise:**
-- Ollama läuft als Windows-Exe, WSL2 erreicht es über `OLLAMA_CLIENT_HOST=http://172.29.96.1:11434`
-- Windows Python nutzen: `"/mnt/c/Users/Dirk/AppData/Local/Programs/Python/Python313/python.exe"`
-- LLM-Processor Default-Batch ist 10, für große Batches Argument übergeben: `python -m pipeline.llm_processor 200`
+- Ollama läuft als Windows-Exe auf `127.0.0.1:11434`. Env: `OLLAMA_CLIENT_HOST=http://127.0.0.1:11434`
+- Python: `C:\Users\Dirk\AppData\Local\Programs\Python\Python313\python.exe` (oder Git Bash: `/c/Users/Dirk/AppData/Local/Programs/Python/Python313/python.exe`)
+- LLM-Processor Default-Batch ist 10, für große Batches: `python -m pipeline.llm_processor 200`
+- Pipeline-Output in Datei umleiten (nicht pipen!): `python -m pipeline.llm_processor 200 > data/llm_processor.log 2>&1`
+- Frontend Dev-Server auf Port 3001 (Port 3000 belegt durch Open WebUI)
+- Qwen3 braucht `think=False` in Ollama-Calls um Chain-of-Thought-Bloat zu vermeiden
