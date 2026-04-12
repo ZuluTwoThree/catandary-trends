@@ -227,17 +227,30 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     → Wenn >0.92 Similarity: als Duplikat markieren, Ende
     │
     ▼
-[Schritt 5] CONTENT-GENERIERUNG (Qwen3 14B)
-    → Eigener Trend-Artikel (150-250 Wörter), DE und EN separat
+[Schritt 5] CONTENT-GENERIERUNG EN (Qwen3 14B)
+    → Eigener Trend-Artikel (150-250 Wörter)
     → Analytischer, professioneller Ton
     → Quellennennung + Backlink Pflicht
     → MUSS sich substanziell vom Original unterscheiden
     → Temperatur: 0.6-0.8
     │
     ▼
-[Schritt 6] REVIEW-QUEUE
-    → Status: "draft" → manueller Quick-Check → "published"
-    → Oder: Auto-Publish wenn confidence > 0.9 und kein Flag
+[Schritt 6] ÜBERSETZUNG DE (Qwen3 14B)
+    → Deutsche Version des EN-Artikels
+    → Gleiche Struktur (Hook → Kontext → Ausblick)
+    │
+    ▼
+[Schritt 7] INSERT (trends Tabelle, Status: "draft")
+    │
+    ▼
+[Schritt 8] RECLASSIFY (Qwen3 8B)
+    → Vertikale per LLM-Semantic-Check korrigieren
+    → Fängt Fehlklassifizierungen aus Schritt 3 ab
+    │
+    ▼
+[Schritt 9] AUTO-PUBLISH
+    → Status: "draft" → "published" wenn confidence >= 0.85
+    → Niedrigere Confidence bleibt als Draft für manuelles Review
 ```
 
 ### Structured Output: Produktionsreife Absicherung

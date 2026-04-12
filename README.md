@@ -65,22 +65,21 @@ RSS feeds ──► feed_poller ──► raw_entries
                                   │
                                   ▼
                        llm_processor (Ollama)
-                       1. relevance filter   (qwen3:8b)
-                       2. structured extract (qwen3:8b)
-                       3. NER + classify     (qwen3:8b)
-                       4. dedup via embedding (qwen3-embedding)
-                       5. content EN          (qwen3:14b)
-                       6. translate DE        (qwen3:14b)
+                        1. title dedup          (no LLM)
+                        2. relevance filter     (qwen3:8b)
+                        3. structured extract   (qwen3:8b)
+                        4. NER + classify       (qwen3:8b)
+                        5. dedup via embedding  (qwen3-embedding)
+                        6. content EN           (qwen3:14b)
+                        7. translate DE         (qwen3:14b)
+                        8. insert trends        (draft)
+                        9. reclassify verticals (qwen3:8b)
+                       10. auto-publish         (conf ≥ 0.85)
                                   │
                                   ▼
-                              trends (draft)
-                                  │
-                 ┌────────────────┼──────────────────┐
-                 ▼                ▼                  ▼
-          auto_publisher   mega_trend_reviewer   review CLI
-                 │                │                  │
-                 ▼                ▼                  ▼
                           trends (published) ──► Next.js frontend
+                                  │
+                          mega_trend_reviewer (periodic)
 ```
 
 ### Poll feeds
@@ -101,8 +100,11 @@ Default batch size is 10; pass a larger number as argument for bigger runs.
 
 ### Auto-publish high-confidence drafts
 
+Auto-publish and reclassify are integrated into the LLM pipeline (stages 9+10).
+Standalone run as fallback:
+
 ```bash
-python -m pipeline.auto_publisher              # threshold configured in pipeline/config.py
+python -m pipeline.auto_publisher              # threshold: AUTO_PUBLISH_CONFIDENCE=0.85
 ```
 
 ### Assign / refresh mega-trends
@@ -145,10 +147,8 @@ Routes:
 - `/trends/vertical/[v]` — vertical view
 - `/trends/mega` — mega-trends with momentum tracking
 - `/trends/pestel/[dimension]` — PESTEL cut
-- `/api/search?q=...` — embedding-based semantic search prototype
-
-A static mockup of the planned Foresight Search Workbench lives at
-`frontend/mockups/foresight-search.html`.
+- `/trends/foresight` — Foresight Cockpit (hybrid FTS5 + embedding search with analytics)
+- `/api/search?q=...&vertical=FOOD&limit=20` — hybrid search API (RRF fusion)
 
 ## Tests
 
@@ -176,6 +176,7 @@ catandary-trends/
 │   ├── llm_processor.py
 │   ├── mega_trend_reviewer.py
 │   ├── auto_publisher.py
+│   ├── reclassify.py       # Vertical reclassification for drafts
 │   ├── radar_discovery.py
 │   ├── newsletter_generator.py
 │   ├── models.py           # Pydantic schemas
@@ -191,5 +192,9 @@ catandary-trends/
 
 ## Status
 
-Sprints 1–6 complete. Active focus: frontend polish, Hetzner deployment,
-pipeline cron automation. See `CLAUDE.md` → Weiterentwicklung.
+Sprints 1–6 complete. 112 active sources, ~5000 published trends across 8
+verticals. Active focus: pipeline cron automation, newsletter, Hetzner
+deployment, Brave Search radar. See `CLAUDE.md` → Weiterentwicklung and
+`BACKLOG.md` for detailed plans.
+
+For MacBook Air (8 GB) deployment, see [`MACBOOK_SETUP.md`](MACBOOK_SETUP.md).

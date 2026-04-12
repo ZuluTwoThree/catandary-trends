@@ -15,15 +15,7 @@
 
 - [x] ~~**Mega-Trend-Reviewer Live-Run für heute published Trends.**~~ Erledigt 2026-04-09 über `scripts/review_recent_live.py`: 2678 Trends (gestern + heute) reviewed, 104 Mega-Trend-Updates, 61 min, 0 Fehler.
 
-- [ ] **Hybrid-Suche (FTS5 + Embedding-Similarity) über Trends.** Ziel: User tippt z.B. "Getränke" und filtert innerhalb eines Verticals semantisch + lexikalisch. Infrastruktur: Alle 3908 Trends haben bereits qwen3-embedding-Vektoren (1024 Dim) als BLOB in `trends.embedding`.
-  - **Plan:**
-    1. SQLite FTS5 Virtual Table `trends_fts` über `title_de, summary_de, tags` + Trigger für Sync bei Insert/Update.
-    2. Next.js API-Route `/api/search?q=...&vertical=FOOD&limit=20` (Prototyp: `frontend/src/app/api/search/route.ts`). Ruft Ollama `POST http://127.0.0.1:11434/api/embed` mit `qwen3-embedding` für Query-Embedding.
-    3. In-Memory-Similarity: Trend-Embeddings einmalig beim Serverstart in `Float32Array` laden (~16 MB für 3908×1024), cosine gegen alle, Top-K (<50 ms). Invalidierung bei Poll-Cycle.
-    4. Reciprocal Rank Fusion: FTS5-Resultate + Embedding-Resultate mergen (RRF mit k=60).
-    5. Frontend: Suchfeld oben im Trends-Grid, debounced 300 ms, rendert `TrendCard` sortiert nach Score, Schwelle ~0.35 empirisch.
-  - **Upgrade-Pfad:** bei >50k Trends oder komplexen Metadaten-Filtern → `sqlite-vec` Extension; später pgvector bei Postgres-Migration.
-  - **Aufwand:** ~4-6h für Variante a + FTS5 inkl. UI. Prototyp der API-Route existiert unter `frontend/src/app/api/search/route.ts` (ohne FTS5, ohne Frontend-Anbindung).
+- [x] ~~**Hybrid-Suche (FTS5 + Embedding-Similarity) über Trends.**~~ Erledigt 2026-04-11. Foresight Cockpit live unter `/trends/foresight`. FTS5 + qwen3-embedding (4096-dim) via RRF (k=60). API: `GET /api/search?q=...&vertical=FOOD&limit=20`. In-Memory-Embedding-Cache (~75 MB für 4782 Trends). Analytics-Sidebar (Timeline, PESTEL, Lead-Time-Tiers, Mega-Trends, Co-Occurrence) ab >=30 Treffern. FTS5-only-Fallback automatisch wenn Ollama nicht erreichbar. Strict Threshold 0.60 für Embedding-only-Queries. RRF normalisiert auf Prozent (theoretisches Max 2/61).
 
 - [ ] **Foresight-Search-Workbench — Ausbau der Hybrid-Suche zu einem Analysten-Werkzeug.** Aufbauend auf der Hybrid-Suche (FTS5 + Embedding, siehe oben). Die Suche soll vom reinen Nachschlagewerk zum Früherkennungs- und Hypothesenwerkzeug werden.
   - **Stufe 1 (MVP, auf der Hybrid-Suche aufbauend):**
@@ -55,11 +47,7 @@
   - **Qualitätsverlust:** (1) 1-Call produziert durchgängig einen **einzelnen Fließtext-Absatz** statt der im System-Prompt geforderten 3-Absatz-Struktur (Hook → Kontext/Analyse → Ausblick). (2) Outputs sind **30–40% kürzer** als 2-Call und unterschreiten die 150-250-Wort-Vorgabe. (3) DE-Teil gelegentlich Kasus-/Kleinschreibungsfehler ("patientenkapital", "langfristigem Werterschaffung"). (4) Positiv: 1-Call ist inhaltlich oft konkreter (zitiert mehr Originaldetails), weil das Modell den Excerpt nur einmal verarbeitet.
   - **Einordnung:** Die Einsparung von 11.4s/Entry (~38 Min auf 200 Entries) ist attraktiv, rechtfertigt den Strukturverlust aber nicht — die 3-Absatz-Struktur ist Kern des Produkt-Tons. Vor einer Wiedervorlage müsste der 1-Call-Prompt die Struktur- und Längen-Vorgaben deutlich härter einfordern (z.B. explizites "three paragraphs, minimum 150 words per language") und ein zweiter Vergleichslauf zeigen, dass sich Qualität auf 2-Call-Niveau bringen lässt ohne den Speedup zu verlieren. Artefakte: `data/bilingual_dryrun.json` + `.md`.
 
-- [ ] **Auto-Publish + Review in Pipeline integrieren.** Aktuell müssen `auto_publisher` und manuelles Review nach jedem LLM-Processor-Lauf separat angestoßen werden. Das ist fehleranfällig und blockiert den Workflow bei Nachtläufen. Lösung gesucht:
-  - **Option A (einfach):** Am Ende von `llm_processor.py` automatisch `auto_publisher` aufrufen (als Python-Import, nicht Subprocess). Skipped Drafts in eine Datei/Log schreiben für späteres manuelles Review.
-  - **Option B (Orchestrator):** Leichtgewichtiges Pipeline-Script `pipeline/run_full_cycle.py`, das Feed-Poll → LLM-Processor → Auto-Publish → Mega-Trend-Review sequentiell ausführt und einen Summary-Report schreibt. Passt gut zu Cron-Automatisierung.
-  - **Option C (Cron-Kette):** Separate Cron-Jobs mit Zeitversatz (z.B. Poll 00:00, LLM 00:30, Auto-Publish 08:00, Review-Report per Mail).
-  - Bevorzugt: **Option B** — ein einziger Cron-Eintrag, ein Report, keine Timing-Abhängigkeiten.
+- [x] ~~**Auto-Publish + Review in Pipeline integrieren.**~~ Erledigt 2026-04-12. Umgesetzt als **Option A**: `reclassify_drafts()` (Stage 9) + `auto_publish()` (Stage 10) werden am Ende von `llm_processor.py` automatisch aufgerufen. Schwelle: `AUTO_PUBLISH_CONFIDENCE=0.85` (config.py). Neues Modul: `pipeline/reclassify.py`. Orchestrator-Script (Option B) bleibt als Backlog für Cron-Automatisierung.
 
 - [ ] **Brave Search Radar Pipeline — Rewrite von `pipeline/radar_discovery.py`.** Aktuelle Datei (281 Zeilen) enthält obsoleten Trendhunter-Workflow. Komplett-Rewrite zu eigenständigem Brave Search Radar mit kuratierten Queries pro Vertikale.
   - **Schritt 1: `sources.yaml` erweitern.** Pro Vertikale ein `radar:` Abschnitt mit 3-5 kuratierten Suchqueries (z.B. FOOD: `"food innovation trends 2026"`, `"novel food ingredients startup"`, `"functional food market shift"`). Ergibt ~24-40 Queries/Tag.
