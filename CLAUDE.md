@@ -793,13 +793,11 @@ Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direk
 
 1. **TECH-Dominanz beobachten** — mit 32% stabil, durch Quellenvielfalt gerechtfertigt
 2. **Regelmäßiger Balance-Check** (monatlich): bei >3x Abweichung vom Median Quellen und Schwellenwerte anpassen
-3. **LIFESTYLE weiter stärken**: Brand-Newsrooms (LVMH, Kering, Richemont), Gaming- und Creator-Economy-Quellen evaluieren
+3. ~~**LIFESTYLE stärken**~~: Erledigt — Hypebeast, Highsnobiety, GamesIndustry.biz eingebunden, LIFESTYLE von 4% auf 7% gewachsen
 
 ### Geplante Quellen-Ergänzungen
 
-| Quelle | Vertical | Status | Begründung |
-|--------|----------|--------|------------|
-| **Lebensmittelzeitung** | FOOD | RSS-Feed prüfen | Deutsche FOOD-Fachpresse, stärkt DE-Perspektive |
+Keine offenen Ergänzungen. Lebensmittelzeitung wurde in `sources.yaml` eingebunden.
 
 ---
 
