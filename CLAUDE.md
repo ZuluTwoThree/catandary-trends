@@ -149,21 +149,9 @@ Quellen werden pro Vertikale organisiert. Neue Vertikale starten mit 3-5 Kernque
 | Reddit (diverse Subreddits) | Offizielle API | Community-Signale |
 | Hacker News | RSS/API | Tech-Signale |
 
-### Schicht 2: Brave Search als Cross-Industry Radar
+### Quellenwachstum
 
-Trendhunter wurde vollständig ersetzt (Stand: 2026-04-03). Stattdessen nutzt die Pipeline Brave Search API als Entdeckungsschicht:
-
-- Pro Vertikale werden kuratierte Suchqueries ausgeführt
-- Ergebnisse werden per LLM auf Trend-Relevanz gefiltert
-- Originalquellen werden direkt identifiziert und in das Quellen-Netzwerk aufgenommen
-- **Kein Scraping von Aggregator-Seiten**
-
-### Schicht 3: Organisches Quellenwachstum
-
-Das System lernt über Zeit:
-- Neue Quellen-Domains, die über Brave Search Radar entdeckt werden, automatisch registrieren
-- Nach 3+ Treffern von derselben Domain → RSS-Feed suchen und direkt anbinden
-- Wöchentlicher Report: "Neue Quellen entdeckt, noch nicht als RSS eingebunden"
+Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein automatisches Scraping oder Aggregator-Quellen. Trendhunter und Brave Search Radar wurden entfernt (2026-04-12) — 112 RSS-Primärquellen decken alle 8 Vertikale ab.
 
 ---
 
@@ -390,21 +378,6 @@ CREATE TABLE trend_metrics (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Source-Discovery-Log (Brave Search Radar)
-CREATE TABLE source_discoveries (
-    id SERIAL PRIMARY KEY,
-    radar_source TEXT DEFAULT 'brave_search',
-    radar_vertical TEXT,               -- welche Vertikale
-    original_title TEXT,
-    extracted_brand TEXT,
-    discovered_url TEXT,
-    discovered_domain TEXT,
-    has_rss_feed BOOLEAN,
-    feed_url TEXT,
-    added_to_sources BOOLEAN DEFAULT false,
-    discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Cross-Vertical Trend-Cluster (für Foresight)
 CREATE TABLE trend_clusters (
     id SERIAL PRIMARY KEY,
@@ -429,10 +402,6 @@ CREATE TABLE trend_clusters (
 ```
 # RSS-Feeds pollen (alle 4 Stunden)
 0 */4 * * *  python pipeline/feed_poller.py
-
-# Brave Search Radar (täglich morgens + wöchentlicher Backfill)
-0 8 * * *    python pipeline/radar_discovery.py
-0 10 * * 0   python pipeline/radar_discovery.py --backfill
 
 # LLM-Pipeline für neue Einträge (alle 4 Stunden, nach Polling)
 30 */4 * * * python pipeline/llm_processor.py
@@ -482,29 +451,6 @@ cross_industry:
       feed_url: https://www.businesswire.com/rss/...
       type: press_wire
 ```
-
-### Radar-Discovery Pipeline (Brave Search)
-
-**Status:** Rewrite ausstehend — aktuelle `pipeline/radar_discovery.py` enthält obsoleten Trendhunter-Workflow. Siehe BACKLOG.md für vollständigen Implementierungsplan.
-
-**Architektur (Ziel):**
-
-```
-radar_discovery.py main()
-  ├── load sources.yaml → radar: queries pro Vertikale
-  ├── for each vertical + query:
-  │     ├── brave_search(query, freshness="pw")     # past week
-  │     ├── deduplicate gegen raw_entries (URL)
-  │     ├── LLM relevance filter (Qwen3 8B, YES/NO)
-  │     ├── insert → raw_entries (source_id = Brave Radar)
-  │     └── log_source_discovery() für Domain-Tracking
-  ├── domain promotion: 3+ Entdeckungen → RSS-Feed vorschlagen
-  └── summary report
-```
-
-**Konfiguration:** `sources.yaml` bekommt `radar:` Abschnitt pro Vertikale mit 3-5 kuratierten Queries. Ergebnisse fließen als `raw_entries` in die bestehende LLM-Pipeline. Budget: ~40 Queries/Tag, ~1.200/Monat (Brave Free Tier: 2.000).
-
-**Cron:** Täglich 08:00 (normal), Sonntag 10:00 (Backfill mit `--backfill`, freshness="pm").
 
 ---
 
@@ -655,7 +601,7 @@ git remote add origin git@github.com:ZuluTwoThree/catandary-trends.git
 - `main` – stabiler, deployable Stand
 - `sprint/1-pipeline-mvp` – Sprint-Branch, wird nach Abschluss in main gemergt
 - `sprint/2-content-gen` – usw.
-- Feature-Branches optional bei komplexen Features: `feature/radar-discovery`
+- Feature-Branches optional bei komplexen Features
 
 **Commit-Konventionen:**
 ```
@@ -724,7 +670,6 @@ catandary-trends/
 │   ├── __init__.py
 │   ├── feed_poller.py           # RSS-Feed-Aggregation
 │   ├── llm_processor.py         # LLM-Pipeline (Filter → Extract → Classify → Generate)
-│   ├── radar_discovery.py       # Brave Search Radar → Source Discovery
 │   ├── auto_publisher.py        # Auto-Publish high-confidence Drafts
 │   ├── newsletter_generator.py  # Wöchentlicher Newsletter
 │   ├── source_report.py         # Neue-Quellen-Report
@@ -764,8 +709,7 @@ Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direk
 
 1. **Pipeline-Automatisierung** — Cron-Jobs einrichten (Orchestrator-Script `run_full_cycle.py`, siehe BACKLOG.md)
 2. **Newsletter** — `pipeline/newsletter_generator.py` fertigstellen, Anbindung an Resend/Buttondown
-3. **Brave Search Radar** — `radar_discovery.py` Rewrite (Plan in BACKLOG.md)
-4. **Deployment auf Hetzner** — Caddy + PM2, README aktualisieren
+3. **Deployment auf Hetzner** — Caddy + PM2, README aktualisieren
 
 **Hinweis zur Vertical-Balance:** LIFESTYLE, DESIGN und FASHION sind die *Now*-Trendsignale im Foresight-Modell (kurze Lead-Zeit). Ihr kombinierter Anteil (~18 %) ist gesund — keine aktive Quellenausweitung nötig.
 

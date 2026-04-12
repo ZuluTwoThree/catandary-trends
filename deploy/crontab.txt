@@ -8,9 +8,6 @@ PYTHON=/opt/catandary-trends/.venv/bin/python
 # RSS-Feeds pollen (alle 4 Stunden)
 0 */4 * * * cd $CATANDARY_DIR && $PYTHON -m pipeline.feed_poller >> logs/feed_poller.log 2>&1
 
-# Trendhunter-Radar (1x täglich, morgens)
-0 8 * * * cd $CATANDARY_DIR && $PYTHON -m pipeline.radar_discovery >> logs/radar.log 2>&1
-
 # LLM-Pipeline für neue Einträge (alle 4 Stunden, nach Polling)
 30 */4 * * * cd $CATANDARY_DIR && $PYTHON -m pipeline.llm_processor 20 >> logs/llm_processor.log 2>&1
 

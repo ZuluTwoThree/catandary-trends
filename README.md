@@ -55,7 +55,6 @@ Copy `.env.example` to `.env`. Key settings:
 - `OLLAMA_CLIENT_HOST` — default `http://127.0.0.1:11434`.
   From WSL2 use the Windows host IP instead of `localhost`.
 - `DATABASE_PATH` — default `./data/catandary.db`
-- `BRAVE_SEARCH_API_KEY` — optional, for the radar discovery step
 - `LOG_LEVEL` — default `INFO`
 
 ## Pipeline
@@ -160,8 +159,7 @@ python -m pytest tests/ -v
 
 Configured in [`sources.yaml`](sources.yaml), grouped by vertical.
 Only legal primary sources (trade media, research, press wires, brand
-newsrooms). No aggregator scraping. The Brave Search radar
-(`pipeline/radar_discovery.py`) is the discovery layer for new domains.
+newsrooms). No aggregator scraping.
 
 ## Project structure
 
@@ -177,7 +175,6 @@ catandary-trends/
 │   ├── mega_trend_reviewer.py
 │   ├── auto_publisher.py
 │   ├── reclassify.py       # Vertical reclassification for drafts
-│   ├── radar_discovery.py
 │   ├── newsletter_generator.py
 │   ├── models.py           # Pydantic schemas
 │   ├── db.py               # SQLite layer

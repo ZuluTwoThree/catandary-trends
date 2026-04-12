@@ -49,27 +49,28 @@
 
 - [x] ~~**Auto-Publish + Review in Pipeline integrieren.**~~ Erledigt 2026-04-12. Umgesetzt als **Option A**: `reclassify_drafts()` (Stage 9) + `auto_publish()` (Stage 10) werden am Ende von `llm_processor.py` automatisch aufgerufen. Schwelle: `AUTO_PUBLISH_CONFIDENCE=0.85` (config.py). Neues Modul: `pipeline/reclassify.py`. Orchestrator-Script (Option B) bleibt als Backlog für Cron-Automatisierung.
 
-- [ ] **Brave Search Radar Pipeline — Rewrite von `pipeline/radar_discovery.py`.** Aktuelle Datei (281 Zeilen) enthält obsoleten Trendhunter-Workflow. Komplett-Rewrite zu eigenständigem Brave Search Radar mit kuratierten Queries pro Vertikale.
-  - **Schritt 1: `sources.yaml` erweitern.** Pro Vertikale ein `radar:` Abschnitt mit 3-5 kuratierten Suchqueries (z.B. FOOD: `"food innovation trends 2026"`, `"novel food ingredients startup"`, `"functional food market shift"`). Ergibt ~24-40 Queries/Tag.
-  - **Schritt 2: `radar_discovery.py` neu schreiben.** Behalten: `brave_search()` Funktion (Zeilen 67-96), nur `freshness` Parameter ergänzen. Alles andere ersetzen:
-    1. `sources.yaml` → `radar:` Queries laden
-    2. Pro Vertical + Query: `brave_search(query, freshness="pw")` (past week)
-    3. Deduplizierung gegen `raw_entries` (URL)
-    4. LLM Relevanz-Filter (Qwen3 8B, YES/NO + Confidence) — minimaler Filter, volle Klassifikation macht der LLM-Processor
-    5. Relevante Ergebnisse → `insert_raw_entry()` (source_id von "Brave Radar — {VERTICAL}" Source)
-    6. Domain-Tracking: `log_source_discovery()` → bei 3+ Treffern RSS-Feed-Vorschlag
-    7. Summary-Report am Ende
-  - **Schritt 3: DB Sources anlegen.** Pro Vertikale eine `sources`-Zeile: `source_type='radar'`, `name='Brave Radar — {VERTICAL}'`. Script legt fehlende beim Start automatisch an.
-  - **Flags:** `--dry-run` (kein DB-Write), `--vertical FOOD` (einzelnes Vertical), `--backfill` (freshness="pm" statt "pw" für breiteres Zeitfenster)
-  - **Rate-Limit-Budget:** ~40 Queries/Tag, ~1.200/Monat (Brave Free Tier: 2.000). Rate-Limiting: 1 Request/Sekunde.
-  - **Cron:** Täglich 08:00 (normal), Sonntag 10:00 (`--backfill`).
-  - **DB-Funktionen existieren bereits:** `db.insert_raw_entry()`, `db.insert_source_discovery()`, `db.get_discovery_count()` — kein DB-Code nötig.
-  - **Verifikation:** (1) `--dry-run` zeigt Queries + Ergebnisse ohne DB-Write, (2) `--vertical FOOD` testet einzeln, (3) Nach Lauf: neue `raw_entries` mit `source_type='radar'` prüfen, (4) `llm_processor` Lauf bestätigt Pickup, (5) `source_discoveries` für Domain-Promotion-Schwelle prüfen.
+- [x] ~~**Brave Search Radar Pipeline.**~~ Entfernt 2026-04-12. `pipeline/radar_discovery.py` (obsoleter Trendhunter-Workflow) gelöscht. Brave Search Radar wird nicht weiterverfolgt — 112 RSS-Primärquellen decken alle Vertikale ausreichend ab.
 
 - [x] ~~**Foresight Cockpit auf MacBook Air (8GB RAM) testen.**~~ Erledigt 2026-04-12. Ergebnis: FTS5-only einwandfrei (787 ms), qwen3-embedding unbenutzbar auf 8 GB (4 min/Query, Memory Pressure rot, 8.9 GB Swap). Hybrid-Suche fachlich korrekt aber nicht interaktiv nutzbar. Empfehlung: FTS5-only auf schwachen Clients, optional `DISABLE_EMBEDDING_SEARCH` Env-Var. Details in `MACBOOK_SETUP.md`.
 
+## Pipeline-Orchestrierung (Cron)
+
+- [ ] **`pipeline/run_full_cycle.py` — Orchestrator-Script für den Hauptzyklus.** Fasst Feed-Poll + LLM-Pipeline in einen sequentiellen Lauf zusammen. Ersetzt die separaten Cron-Einträge für `feed_poller` und `llm_processor`.
+  - **Ablauf:** (1) Ollama-Health-Check → (2) Feed Poll alle Verticals → (3) LLM Pipeline Batch N → (4) Summary Report (neue Entries, published, Fehler, Dauer) → Exit Code 0/1
+  - **Flags:** `--skip-poll` (nur LLM), `--skip-llm` (nur Poll), `--batch N` (default 200), `--dry-run`
+  - **Logging:** Zentrales Log pro Zyklus, optional Append in `data/cycle_log.jsonl` für Monitoring
+  - **Vorteile:** Garantiert sequentiell (kein DB-Lock), Ollama-Check vor teurem LLM-Lauf, ein Cron statt zwei
+  - **Nicht enthalten:** Mega-Trend-Reviewer (monatlich, eigener Cron), Newsletter (wöchentlich, eigener Cron), Radar (täglich, eigener Cron)
+  - **Crontab-Ziel:**
+    ```
+    30 */4 * * *   python -m pipeline.run_full_cycle --batch 200
+    0 3 1 * *      python -m pipeline.mega_trend_reviewer
+    # 0 9 * * 1    python -m pipeline.newsletter_generator  (wenn Versand fertig)
+    ```
+  - **Bestehendes `deploy/crontab.txt` danach aktualisieren** (aktuell veraltet: Trendhunter-Referenz, auto_publisher als eigener Cron — beides inzwischen in die LLM-Pipeline integriert)
+
 ## Tagesziele 2026-04-11
 
-- [ ] **Cron-Jobs einrichten.** Pipeline-Automatisierung auf dem Produktionssystem (Hetzner oder lokal): Feed-Poll, LLM-Processor, Auto-Publish als wiederkehrende Jobs. Siehe Option B oben (Orchestrator-Script `pipeline/run_full_cycle.py`).
+- [x] ~~**Cron-Jobs einrichten.**~~ Plan erstellt, siehe "Pipeline-Orchestrierung" oben. Umsetzung als eigenes Feature.
 - [ ] **Newsletter implementieren.** Newsletter-Generator (`pipeline/newsletter_generator.py`) fertigstellen und testen. Anbindung an Resend/Buttondown, wöchentlicher Versand (Montag 9:00).
 - [x] ~~**Plattform auf MacBook Air testen.**~~ Erledigt 2026-04-12, siehe `MACBOOK_SETUP.md`.

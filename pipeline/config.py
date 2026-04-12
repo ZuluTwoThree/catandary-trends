@@ -29,9 +29,6 @@ MODEL_CLASSIFY = "qwen3:8b"
 MODEL_GENERATE = "qwen3:14b"
 MODEL_EMBEDDING = "qwen3-embedding"
 
-# Brave Search (for radar source discovery)
-BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
-
 # Pipeline
 RELEVANCE_THRESHOLD = 0.6
 DUPLICATE_SIMILARITY_THRESHOLD = 0.92
