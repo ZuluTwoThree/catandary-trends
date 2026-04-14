@@ -308,10 +308,10 @@ verticals:
       feed_url: https://fashionista.com/.rss/full/
       type: trade_media
       lead_time_tier: now
-    - name: WWD
-      feed_url: https://www.wwd.com/feed/
-      type: trade_media
-      lead_time_tier: now
+    # - name: WWD  # disabled 2026-04-14: persistent HTTP 403
+    #   feed_url: https://www.wwd.com/feed/
+    #   type: trade_media
+    #   lead_time_tier: now
     - name: Vogue UK
       feed_url: https://www.vogue.co.uk/feed/rss
       type: trade_media

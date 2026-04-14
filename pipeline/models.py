@@ -1,6 +1,7 @@
 """Pydantic schemas for LLM pipeline structured outputs."""
 
 import logging
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -77,8 +78,9 @@ class ClassificationResult(BaseModel):
             return v  # No taxonomy loaded, accept as-is
         if v in canonical:
             return v
-        # Try normalizing: lowercase, replace spaces/hyphens with underscores
-        normalized = v.lower().strip().replace("-", "_").replace(" ", "_")
+        # Try normalizing: lowercase, strip brackets/annotations, replace spaces/hyphens with underscores
+        normalized = re.sub(r"\s*\[.*?\]", "", v)  # strip LLM annotations like "[declining]"
+        normalized = normalized.lower().strip().replace("-", "_").replace(" ", "_")
         if normalized in canonical:
             return normalized
         # No match — log and set to None rather than storing garbage
