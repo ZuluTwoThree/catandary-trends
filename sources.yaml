@@ -58,6 +58,30 @@ verticals:
       feed_url: https://rss.sciencedirect.com/publication/science/09242244
       type: research
       lead_time_tier: future
+    - name: Frontiers in Sustainable Food Systems
+      feed_url: https://www.frontiersin.org/journals/sustainable-food-systems/rss
+      type: research
+      lead_time_tier: future
+    - name: IFPRI Blog
+      feed_url: https://www.ifpri.org/rss/?post_type=blog
+      type: research
+      lead_time_tier: future
+    - name: FAO Newsroom
+      feed_url: https://www.fao.org/feeds/fao-newsroom-rss
+      type: research
+      lead_time_tier: future
+    - name: EFSA Journal
+      feed_url: https://efsa.onlinelibrary.wiley.com/feed/18314732/most-recent
+      type: research
+      lead_time_tier: future
+    - name: Comprehensive Reviews in Food Science
+      feed_url: https://ift.onlinelibrary.wiley.com/feed/15414337/most-recent
+      type: research
+      lead_time_tier: future
+    - name: Food Policy
+      feed_url: https://rss.sciencedirect.com/publication/science/03069192
+      type: research
+      lead_time_tier: future
   TECH:
     sources:
     - name: TechCrunch
@@ -145,6 +169,14 @@ verticals:
       feed_url: https://feeds.arstechnica.com/arstechnica/science
       type: research
       lead_time_tier: future
+    - name: arXiv cs.AI
+      feed_url: https://rss.arxiv.org/rss/cs.AI
+      type: research
+      lead_time_tier: future
+    - name: Science Robotics
+      feed_url: https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=scirobotics
+      type: research
+      lead_time_tier: future
   HEALTH:
     sources:
     - name: STAT News
@@ -202,6 +234,14 @@ verticals:
       lead_time_tier: future
     - name: Nature Aging
       feed_url: https://www.nature.com/nataging.rss
+      type: research
+      lead_time_tier: future
+    - name: NEJM
+      feed_url: https://www.nejm.org/action/showFeed?jc=nejm&type=etoc&feed=rss
+      type: research
+      lead_time_tier: future
+    - name: BMJ
+      feed_url: https://www.bmj.com/rss/recent.xml
       type: research
       lead_time_tier: future
   ECO:
@@ -321,6 +361,14 @@ verticals:
       feed_url: https://rss.sciencedirect.com/publication/science/01677799
       type: research
       lead_time_tier: future
+    - name: Textile Research Journal
+      feed_url: https://journals.sagepub.com/action/showFeed?ui=0&mi=ehikzz&ai=2b4&jc=trj&type=etoc&feed=rss
+      type: research
+      lead_time_tier: future
+    - name: Intl Journal of Fashion Design
+      feed_url: https://www.tandfonline.com/feed/rss/tfdt20
+      type: research
+      lead_time_tier: future
   BIZ:
     sources:
     - name: Retail Dive
@@ -363,6 +411,11 @@ verticals:
       feed_url: https://japannews.yomiuri.co.jp/feed/
       type: trade_media
       lead_time_tier: market
+    science:
+    - name: Harvard Business Review
+      feed_url: http://feeds.harvardbusiness.org/harvardbusiness
+      type: research
+      lead_time_tier: future
   LIFESTYLE:
     sources:
     - name: Nieman Lab
@@ -420,6 +473,19 @@ verticals:
     - name: Rest of World
       feed_url: https://restofworld.org/feed/latest
       type: trade_media
+      lead_time_tier: future
+    science:
+    - name: Nature Human Behaviour
+      feed_url: https://www.nature.com/nathumbehav.rss
+      type: research
+      lead_time_tier: future
+    - name: Psychological Science
+      feed_url: https://journals.sagepub.com/action/showFeed?ui=0&mi=ehikzz&ai=2b4&jc=pssa&type=etoc&feed=rss
+      type: research
+      lead_time_tier: future
+    - name: APS News & Research
+      feed_url: https://www.psychologicalscience.org/feed
+      type: research
       lead_time_tier: future
 cross_industry:
   press_wires:
