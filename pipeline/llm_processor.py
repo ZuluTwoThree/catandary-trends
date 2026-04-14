@@ -178,7 +178,6 @@ Write a concise, analytical trend article in English (150-250 words).
 Requirements:
 - Professional, analytical tone – not promotional
 - Focus on WHY this matters and WHAT it signals for the industry
-- Include the source attribution at the end
 - The article must be substantially different from the source material
 - Do not copy phrases from the original
 - Structure: Hook sentence → Context → Analysis → Outlook"""
