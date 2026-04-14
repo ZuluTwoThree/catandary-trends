@@ -5,20 +5,11 @@
 CATANDARY_DIR=/opt/catandary-trends
 PYTHON=/opt/catandary-trends/.venv/bin/python
 
-# RSS-Feeds pollen (alle 4 Stunden)
-0 */4 * * * cd $CATANDARY_DIR && $PYTHON -m pipeline.feed_poller >> logs/feed_poller.log 2>&1
+# Full pipeline cycle: poll + LLM + reclassify + auto-publish (every 4 hours)
+30 */4 * * * cd $CATANDARY_DIR && $PYTHON -m pipeline.run_full_cycle --batch 400 >> data/cycle.log 2>&1
 
-# LLM-Pipeline für neue Einträge (alle 4 Stunden, nach Polling)
-30 */4 * * * cd $CATANDARY_DIR && $PYTHON -m pipeline.llm_processor 20 >> logs/llm_processor.log 2>&1
+# Mega-Trend Reviewer (1st of month, 03:00)
+0 3 1 * * cd $CATANDARY_DIR && $PYTHON -m pipeline.mega_trend_reviewer >> data/mega_trend_reviewer.log 2>&1
 
-# Auto-Publish (stündlich, nur high-confidence Drafts)
-0 * * * * cd $CATANDARY_DIR && $PYTHON -m pipeline.auto_publisher >> logs/auto_publisher.log 2>&1
-
-# Wöchentlicher Newsletter (Montag 9:00)
-# 0 9 * * 1 cd $CATANDARY_DIR && $PYTHON -m pipeline.newsletter_generator >> logs/newsletter.log 2>&1
-
-# Source-Discovery Report (Freitag 17:00)
-# 0 17 * * 5 cd $CATANDARY_DIR && $PYTHON -m pipeline.source_report >> logs/source_report.log 2>&1
-
-# Mega-Trend Reviewer (1. des Monats, 03:00 – läuft ca. 2-3h mit Qwen3 14B)
-0 3 1 * * cd $CATANDARY_DIR && $PYTHON -m pipeline.mega_trend_reviewer >> logs/mega_trend_reviewer.log 2>&1
+# Weekly Newsletter (Monday 9:00) — uncomment when ready
+# 0 9 * * 1 cd $CATANDARY_DIR && $PYTHON -m pipeline.newsletter_generator >> data/newsletter.log 2>&1
