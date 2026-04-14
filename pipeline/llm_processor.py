@@ -304,7 +304,7 @@ Source: {source_name} ({source_url})"""
 
 {context}
 
-Include this source attribution at the end: "Source: {source_name}" """
+"""
 
     return chat_structured(
         model=MODEL_GENERATE,
@@ -506,7 +506,8 @@ def run_pipeline_batch(limit: int = 200):
     # ---- Stage 2: Relevance filter (Qwen3 8B) ----
     t_stage = time.time()
     next_survivors = []
-    for entry in survivors:
+    total_stage2 = len(survivors)
+    for i, entry in enumerate(survivors, 1):
         try:
             rel = step_relevance_filter(entry["title"], entry["excerpt"] or "", entry.get("source_vertical", "TECH"))
             if rel is None:
@@ -523,6 +524,8 @@ def run_pipeline_batch(limit: int = 200):
             logger.error("[%d] relevance error: %s", entry["id"], e)
             mark_processed(entry["id"])
             errors += 1
+        if i % 25 == 0:
+            logger.info("Stage 2 progress: %d/%d (%.0f%%)", i, total_stage2, i / total_stage2 * 100)
     survivors = next_survivors
     logger.info("Stage 2 done in %.1fs: %d survivors", time.time() - t_stage, len(survivors))
 
@@ -606,7 +609,8 @@ def run_pipeline_batch(limit: int = 200):
     # ---- Stage 6: Content generation EN (Qwen3 14B) ----
     t_stage = time.time()
     next_survivors = []
-    for entry in survivors:
+    total_stage6 = len(survivors)
+    for i, entry in enumerate(survivors, 1):
         try:
             en = step_generate_content_en(
                 entry["title"], entry["excerpt"] or "",
@@ -619,6 +623,8 @@ def run_pipeline_batch(limit: int = 200):
                 continue
             entry["_content_en"] = en
             next_survivors.append(entry)
+            if i % 10 == 0 or i == total_stage6:
+                logger.info("Stage 6 progress: %d/%d (%.0f%%)", i, total_stage6, i / total_stage6 * 100)
         except Exception as e:
             logger.error("[%d] content EN error: %s", entry["id"], e)
             mark_processed(entry["id"])
