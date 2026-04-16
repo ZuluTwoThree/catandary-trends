@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Option B — Swiss Data Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #111111;
+    --surface: #1a1a1a;
+    --surface-hover: #202020;
+    --text: #e0e0e0;
+    --accent: #00e5a0;
+    --accent-dim: rgba(0,229,160,0.12);
+    --muted: #666666;
+    --border: #2a2a2a;
+    --border-strong: #444444;
+    --red: #ff4d4d;
+    --amber: #ffb800;
+
+    --v-food: #f97316;
+    --v-tech: #a78bfa;
+    --v-health: #34d399;
+    --v-eco: #22d3ee;
+    --v-design: #f472b6;
+    --v-fashion: #fb7185;
+    --v-biz: #60a5fa;
+    --v-lifestyle: #c084fc;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--bg); color: var(--text); }
+  body {
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  /* ====== STATUS BAR ====== */
+  .status-bar {
+    height: 3px;
+    display: flex;
+    background: var(--border);
+  }
+  .status-bar span {
+    height: 100%;
+    transition: width 600ms ease;
+  }
+
+  /* ====== HEADER ====== */
+  header {
+    border-bottom: 2px solid var(--border-strong);
+    padding: 0 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+  }
+  .brand {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text);
+    text-decoration: none;
+  }
+  nav { display: flex; gap: 0; height: 100%; }
+  nav a {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 120ms;
+  }
+  nav a:hover { color: var(--text); }
+  nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ====== MAIN ====== */
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 48px; }
+
+  /* ====== HERO ====== */
+  .hero {
+    padding: 56px 0 0;
+    margin-bottom: 8px;
+  }
+  .hero h1 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-weight: 400;
+    font-size: 48px;
+    line-height: 1.05;
+    color: var(--text);
+    margin-bottom: 0;
+  }
+
+  /* metrics strip */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 2px solid var(--border-strong);
+    border-bottom: 1px solid var(--border);
+    margin: 24px 0 32px;
+  }
+  .metric {
+    padding: 16px 0;
+    border-right: 1px solid var(--border);
+  }
+  .metric:last-child { border-right: none; }
+  .metric:first-child { padding-left: 0; }
+  .metric:not(:first-child) { padding-left: 20px; }
+  .metric .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .metric .value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 28px;
+    font-weight: 400;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+  .metric .value .unit {
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: 2px;
+  }
+
+  /* ====== FILTER ====== */
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 32px;
+  }
+  .filter-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    background: transparent;
+    cursor: pointer;
+    transition: all 120ms;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .filter-btn:hover { border-color: var(--border-strong); color: var(--text); }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  .filter-btn .sq {
+    width: 4px;
+    height: 4px;
+  }
+
+  /* ====== CARDS ====== */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+  .card {
+    background: var(--bg);
+    padding: 24px;
+    cursor: pointer;
+    transition: background 120ms;
+    display: flex;
+    flex-direction: column;
+  }
+  .card:hover { background: var(--surface); }
+
+  .card-top-border {
+    height: 2px;
+    margin-bottom: 16px;
+  }
+  .card-meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-meta .pipe { color: var(--border-strong); }
+  .card-meta .vert { font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+  .card-title {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 19px;
+    line-height: 1.3;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+  .card-summary {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 16px;
+    flex-grow: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-bottom {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .card-bottom .crs {
+    font-weight: 600;
+  }
+  .crs-high { color: var(--accent); }
+  .crs-mid { color: var(--amber); }
+
+  .pestel-row {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+    margin-bottom: 4px;
+  }
+  .pestel-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 1px 5px;
+    border: 1px solid;
+  }
+
+  /* ====== FOOTER ====== */
+  footer {
+    border-top: 2px solid var(--border-strong);
+    margin-top: 64px;
+    padding: 20px 48px;
+    display: flex;
+    justify-content: space-between;
+  }
+  footer span {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  footer .accent { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- Status bar: vertical proportions as colored blocks -->
+<div class="status-bar">
+  <span style="width:32%;background:var(--v-tech)"></span>
+  <span style="width:19%;background:var(--v-biz)"></span>
+  <span style="width:12%;background:var(--v-food)"></span>
+  <span style="width:11%;background:var(--v-health)"></span>
+  <span style="width:9%;background:var(--v-eco)"></span>
+  <span style="width:7%;background:var(--v-lifestyle)"></span>
+  <span style="width:6%;background:var(--v-fashion)"></span>
+  <span style="width:5%;background:var(--v-design)"></span>
+</div>
+
+<header>
+  <a href="#" class="brand">Catandary</a>
+  <nav>
+    <a href="#" class="active">Trends</a>
+    <a href="#">Mega Trends</a>
+    <a href="#">Cross-Industry</a>
+    <a href="#">Foresight</a>
+    <a href="#">Newsletter</a>
+  </nav>
+</header>
+
+<div class="container">
+  <div class="hero">
+    <h1>Trend Intelligence</h1>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="label">Signals</div>
+      <div class="value">4,782</div>
+    </div>
+    <div class="metric">
+      <div class="label">Verticals</div>
+      <div class="value">8</div>
+    </div>
+    <div class="metric">
+      <div class="label">Mega-Trends</div>
+      <div class="value">23</div>
+    </div>
+    <div class="metric">
+      <div class="label">Last Update</div>
+      <div class="value">12<span class="unit">Apr</span></div>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active">All</button>
+    <button class="filter-btn"><span class="sq" style="background:var(--v-tech)"></span> TECH 1532</button>
+    <button class="filter-btn"><span class="sq" style="background:var(--v-biz)"></span> BIZ 927</button>
+    <button class="filter-btn"><span class="sq" style="background:var(--v-food)"></span> FOOD 575</button>
+    <button class="filter-btn"><span class="sq" style="background:var(--v-health)"></span> HEALTH 518</button>
+    <button class="filter-btn"><span class="sq" style="background:var(--v-eco)"></span> ECO 408</button>
+    <button class="filter-btn"><span class="sq" style="background:var(--v-lifestyle)"></span> LIFE 321</button>
+    <button class="filter-btn"><span class="sq" style="background:var(--v-fashion)"></span> FASH 278</button>
+    <button class="filter-btn"><span class="sq" style="background:var(--v-design)"></span> DSGN 223</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-top-border" style="background:var(--v-tech)"></div>
+      <div class="card-meta"><span class="vert" style="color:var(--v-tech)">Tech</span><span class="pipe">|</span> 11 Apr 2026</div>
+      <div class="card-title">NVIDIA Blackwell Ultra Architecture Signals End of Traditional Compute Scaling</div>
+      <div class="card-summary">Next-generation GPU architecture marks a fundamental shift in AI infrastructure design, with implications beyond semiconductors.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:rgba(167,139,250,0.35)">T</span>
+        <span class="pestel-tag" style="color:#60a5fa;border-color:rgba(96,165,250,0.35)">E</span>
+      </div>
+      <div class="card-bottom">
+        <span>Ars Technica</span>
+        <span class="crs crs-high">CRS 87</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-top-border" style="background:var(--v-health)"></div>
+      <div class="card-meta"><span class="vert" style="color:var(--v-health)">Health</span><span class="pipe">|</span> 11 Apr 2026</div>
+      <div class="card-title">CRISPR Gene Therapy Shows 94% Efficacy in Sickle Cell Phase 3 Trial</div>
+      <div class="card-summary">One-time CRISPR treatments could replace lifetime disease management, reshaping health economics of rare diseases.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:rgba(167,139,250,0.35)">T</span>
+        <span class="pestel-tag" style="color:#22c55e;border-color:rgba(34,197,94,0.35)">S</span>
+        <span class="pestel-tag" style="color:#60a5fa;border-color:rgba(96,165,250,0.35)">E</span>
+      </div>
+      <div class="card-bottom">
+        <span>STAT News</span>
+        <span class="crs crs-high">CRS 91</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-top-border" style="background:var(--v-eco)"></div>
+      <div class="card-meta"><span class="vert" style="color:var(--v-eco)">Eco</span><span class="pipe">|</span> 10 Apr 2026</div>
+      <div class="card-title">EU Carbon Border Tax Triggers Supply Chain Restructuring Across Industries</div>
+      <div class="card-summary">CBAM implementation forces manufacturers to rethink sourcing, early movers gain advantage through preemptive decarbonization.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:#ef4444;border-color:rgba(239,68,68,0.35)">P</span>
+        <span class="pestel-tag" style="color:#60a5fa;border-color:rgba(96,165,250,0.35)">E</span>
+        <span class="pestel-tag" style="color:#22d3ee;border-color:rgba(34,211,238,0.35)">En</span>
+      </div>
+      <div class="card-bottom">
+        <span>GreenBiz</span>
+        <span class="crs crs-mid">CRS 78</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-top-border" style="background:var(--v-food)"></div>
+      <div class="card-meta"><span class="vert" style="color:var(--v-food)">Food</span><span class="pipe">|</span> 10 Apr 2026</div>
+      <div class="card-title">Precision Fermentation Startups Secure $340M as Big Food Accelerates</div>
+      <div class="card-summary">Record venture funding signals precision fermentation's transition from research to industrial-scale production.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:rgba(167,139,250,0.35)">T</span>
+        <span class="pestel-tag" style="color:#60a5fa;border-color:rgba(96,165,250,0.35)">E</span>
+      </div>
+      <div class="card-bottom">
+        <span>FoodNavigator</span>
+        <span class="crs crs-high">CRS 82</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-top-border" style="background:var(--v-biz)"></div>
+      <div class="card-meta"><span class="vert" style="color:var(--v-biz)">Biz</span><span class="pipe">|</span> 9 Apr 2026</div>
+      <div class="card-title">Shopify's AI-Native Commerce Stack Rewrites the DTC Playbook</div>
+      <div class="card-summary">AI-first product recommendations create a two-tier retail landscape between adopters and legacy operators.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:rgba(167,139,250,0.35)">T</span>
+        <span class="pestel-tag" style="color:#60a5fa;border-color:rgba(96,165,250,0.35)">E</span>
+      </div>
+      <div class="card-bottom">
+        <span>Retail Dive</span>
+        <span class="crs crs-mid">CRS 74</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-top-border" style="background:var(--v-fashion)"></div>
+      <div class="card-meta"><span class="vert" style="color:var(--v-fashion)">Fashion</span><span class="pipe">|</span> 9 Apr 2026</div>
+      <div class="card-title">Mylo Mushroom Leather Achieves Price Parity with Premium Animal Hide</div>
+      <div class="card-summary">Mycelium-based material reaching cost equivalence could trigger the first substitution wave in luxury manufacturing.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:rgba(167,139,250,0.35)">T</span>
+        <span class="pestel-tag" style="color:#22d3ee;border-color:rgba(34,211,238,0.35)">En</span>
+      </div>
+      <div class="card-bottom">
+        <span>Business of Fashion</span>
+        <span class="crs crs-mid">CRS 79</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>&copy; 2026 Catandary</span>
+  <span>Powered by <span class="accent">Catandary Foresight</span></span>
+</footer>
+
+</body>
+</html>

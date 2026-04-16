@@ -7,7 +7,6 @@ import {
   getMegaTrendInfo,
   VERTICALS,
   type Vertical,
-  type PestelDimension,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -61,10 +60,10 @@ interface SearchResponse {
 // Lead-time tier config
 // ---------------------------------------------------------------------------
 const TIER_CONFIG = {
-  future: { label: "Future", color: "#8b5cf6", desc: "Science / Research (5-10y)" },
-  market: { label: "Market", color: "#3b82f6", desc: "Trade Press (1-2y)" },
-  now: { label: "Now", color: "#22c55e", desc: "Consumer / Lifestyle (real-time)" },
-  unknown: { label: "Other", color: "#737373", desc: "" },
+  future: { label: "Future", color: "#a78bfa", desc: "Science / Research (5-10y)" },
+  market: { label: "Market", color: "#60a5fa", desc: "Trade Press (1-2y)" },
+  now: { label: "Now", color: "#d4ff3a", desc: "Consumer / Lifestyle (real-time)" },
+  unknown: { label: "Other", color: "#8a8d82", desc: "" },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -119,60 +118,76 @@ export default function ForesightCockpit() {
     [doSearch, query]
   );
 
-  // Cleanup debounce on unmount
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
   const a = data?.analytics;
   const hasAnalytics = a?.has_enough_data ?? false;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          Foresight Cockpit
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-3">
+          —— Premium Intelligence
+        </div>
+        <h1 className="font-display text-4xl md:text-[44px] leading-[1.05] tracking-tight text-paper mb-3">
+          Foresight <span className="italic">Cockpit</span>
         </h1>
-        <p className="mt-1 text-muted text-sm">
-          Semantic trend search with signal analysis, lead-time tracking, and cross-vertical insights.
+        <p className="font-sans text-text text-base max-w-2xl leading-relaxed">
+          Semantic trend search with signal analysis, lead-time tracking, and
+          cross-vertical insights.
         </p>
       </div>
 
       {/* Search bar + vertical filter */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3">
+        <div className="relative">
           <input
             type="text"
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Enter search term..."
-            className="w-full rounded-lg border border-border bg-card px-4 py-3 text-foreground
-                       placeholder:text-muted focus:outline-none focus:border-accent
-                       transition-colors"
+            className="w-full border border-border bg-card px-4 py-3 font-sans text-paper
+                       placeholder:text-muted placeholder:font-mono placeholder:text-[12px] placeholder:uppercase placeholder:tracking-[0.12em]
+                       focus:outline-none focus:border-accent transition-colors"
             autoFocus
           />
           {loading && (
             <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-accent" />
+              <div className="h-4 w-4 animate-spin border-2 border-border border-t-accent" />
             </div>
           )}
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap border border-border">
           <button
             onClick={() => onVerticalChange(null)}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors
-              ${!vertical ? "bg-accent text-white" : "bg-card text-muted hover:text-foreground border border-border"}`}
+            className={`font-mono text-[10px] uppercase tracking-[0.12em] px-4 py-2.5 border-r border-border transition-colors ${
+              !vertical
+                ? "text-accent bg-accent/5"
+                : "text-muted hover:text-paper hover:bg-white/[0.02]"
+            }`}
           >
             All
           </button>
-          {VERTICALS.map((v) => (
+          {VERTICALS.map((v, idx) => (
             <button
               key={v.id}
               onClick={() => onVerticalChange(v.id)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors
-                ${vertical === v.id ? "text-white" : "bg-card text-muted hover:text-foreground border border-border"}`}
-              style={vertical === v.id ? { backgroundColor: v.color } : undefined}
+              className={`font-mono text-[10px] uppercase tracking-[0.12em] px-4 py-2.5 inline-flex items-center gap-2 transition-colors ${
+                idx < VERTICALS.length - 1 ? "border-r border-border" : ""
+              } ${
+                vertical === v.id
+                  ? "bg-accent/5"
+                  : "text-muted hover:text-paper hover:bg-white/[0.02]"
+              }`}
+              style={vertical === v.id ? { color: v.color } : undefined}
             >
-              {v.icon} {v.id}
+              <span
+                className="inline-block w-2 h-[3px]"
+                style={{ backgroundColor: v.color }}
+                aria-hidden="true"
+              />
+              <span>{v.code}</span>
             </button>
           ))}
         </div>
@@ -180,7 +195,7 @@ export default function ForesightCockpit() {
 
       {/* Error */}
       {error && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-red-400 text-sm">
+        <div className="border border-warn/40 bg-warn/10 px-4 py-3 text-warn font-mono text-xs uppercase tracking-[0.12em]">
           {error}
         </div>
       )}
@@ -189,34 +204,35 @@ export default function ForesightCockpit() {
       {data && (
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Main: results */}
-          <div className="flex-1 min-w-0 space-y-4">
+          <div className="flex-1 min-w-0 space-y-3">
             {/* Meta bar */}
-            <div className="flex items-center justify-between text-xs text-muted">
+            <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted pb-2 border-b border-border">
               <span>
-                {data.analytics.total_matches} matches
-                {data.meta.embedding_available ? "" : " (FTS only)"}
+                <span className="text-paper">{data.analytics.total_matches}</span>
+                <span> matches{data.meta.embedding_available ? "" : " (FTS only)"}</span>
               </span>
               <span>{data.took_ms}ms</span>
             </div>
 
             {/* Embedding-only hint */}
             {data.meta.embedding_only && data.results.length > 0 && (
-              <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3 text-sm text-muted">
+              <div className="border-l-[3px] border-accent pl-4 py-1 font-sans text-sm text-text">
                 No exact text match — results are based on semantic similarity.
               </div>
             )}
 
             {/* Not enough data hint */}
             {!hasAnalytics && data.analytics.total_matches > 0 && (
-              <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted">
-                Too few signals ({data.analytics.total_matches}) for trend analysis. At least 30 matches needed.
+              <div className="border border-border bg-card/40 px-4 py-3 font-sans text-sm text-muted">
+                Too few signals ({data.analytics.total_matches}) for trend
+                analysis. At least 30 matches needed.
               </div>
             )}
 
             {/* No results */}
             {data.results.length === 0 && (
-              <div className="text-center py-12 text-muted">
-                No results
+              <div className="text-center py-12 font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+                No Results
               </div>
             )}
 
@@ -230,7 +246,7 @@ export default function ForesightCockpit() {
 
           {/* Sidebar: analytics */}
           {hasAnalytics && a && (
-            <div className="w-full lg:w-80 xl:w-96 shrink-0 space-y-5">
+            <div className="w-full lg:w-80 xl:w-96 shrink-0 space-y-4">
               <TimelineChart timeline={a.timeline} />
               <LeadTimeBreakdown leadTime={a.lead_time} total={a.total_matches} />
               <VerticalDistribution verticals={a.verticals} />
@@ -244,9 +260,11 @@ export default function ForesightCockpit() {
 
       {/* Empty state */}
       {!data && !loading && !error && (
-        <div className="text-center py-20 text-muted space-y-2">
-          <div className="text-4xl opacity-30">&#x1F50D;</div>
-          <p className="text-sm">
+        <div className="text-center py-20 space-y-3 border border-dashed border-border">
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+            Awaiting Query
+          </div>
+          <p className="font-sans text-sm text-muted">
             Enter a search term to discover trend signals
           </p>
         </div>
@@ -265,52 +283,54 @@ function ResultCard({ result: r, relevance }: { result: SearchResult; relevance:
   return (
     <a
       href={`/trends/${r.slug}`}
-      className="block rounded-lg border border-border bg-card p-4 hover:bg-card-hover transition-colors"
+      className="block border border-border border-l-[3px] bg-card/40 p-4 hover:bg-card transition-colors"
+      style={{ borderLeftColor: vi.color }}
     >
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span
-              className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium"
-              style={{ backgroundColor: `${vi.color}15`, color: vi.color, border: `1px solid ${vi.color}30` }}
-            >
-              {vi.icon} {vi.id}
-            </span>
-            <span
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-              style={{ backgroundColor: `${tierCfg.color}20`, color: tierCfg.color, border: `1px solid ${tierCfg.color}40` }}
-            >
-              {tierCfg.label}
-            </span>
-            {r.mega_trend && (
-              <span className="text-[10px] text-muted truncate max-w-[160px]">
-                {getMegaTrendInfo(r.mega_trend)?.name_en ?? r.mega_trend.replace(/_/g, " ")}
-              </span>
-            )}
-          </div>
-          <h3 className="font-semibold text-sm leading-snug mb-1">
-            {r.title_en}
-          </h3>
-          <p className="text-xs text-muted line-clamp-2">
-            {r.summary_en}
-          </p>
-          <div className="mt-2 flex items-center gap-3 text-[10px] text-muted">
-            <span>{r.source_name}</span>
-            {r.source_date && (
-              <span>{new Date(r.source_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
-            )}
-            {relevance > 0 && (
-              <span className="text-accent">{relevance}%</span>
-            )}
-          </div>
-        </div>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span
+          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] px-2 py-0.5 border"
+          style={{ backgroundColor: `${vi.color}12`, color: vi.color, borderColor: `${vi.color}55` }}
+        >
+          <span
+            className="inline-block w-2 h-[3px]"
+            style={{ backgroundColor: vi.color }}
+            aria-hidden="true"
+          />
+          <span>{vi.code}</span>
+        </span>
+        <span
+          className="inline-flex items-center font-mono text-[9px] uppercase tracking-[0.12em] px-2 py-0.5 border"
+          style={{ backgroundColor: `${tierCfg.color}15`, color: tierCfg.color, borderColor: `${tierCfg.color}55` }}
+        >
+          {tierCfg.label}
+        </span>
+        {r.mega_trend && (
+          <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted truncate max-w-[160px]">
+            {getMegaTrendInfo(r.mega_trend)?.name_en ?? r.mega_trend.replace(/_/g, " ")}
+          </span>
+        )}
+      </div>
+      <h3 className="font-display text-[17px] leading-snug text-paper mb-1">
+        {r.title_en}
+      </h3>
+      <p className="font-sans text-xs text-text line-clamp-2">{r.summary_en}</p>
+      <div className="mt-3 pt-2 border-t border-dashed border-border flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
+        <span>{r.source_name}</span>
+        {r.source_date && (
+          <span>
+            {new Date(r.source_date).toLocaleDateString("en-US", {
+              month: "short", day: "numeric", year: "numeric",
+            })}
+          </span>
+        )}
+        {relevance > 0 && <span className="ml-auto text-accent">{relevance}%</span>}
       </div>
     </a>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Timeline chart (simple SVG bar chart)
+// Timeline chart
 // ---------------------------------------------------------------------------
 function TimelineChart({ timeline }: { timeline: Analytics["timeline"] }) {
   if (!timeline.length) return null;
@@ -323,19 +343,19 @@ function TimelineChart({ timeline }: { timeline: Analytics["timeline"] }) {
         {timeline.map((m) => (
           <div key={m.month} className="flex flex-col items-center group relative">
             <div
-              className="bg-accent/70 hover:bg-accent rounded-t transition-colors"
+              className="bg-accent/70 hover:bg-accent transition-colors"
               style={{
                 width: barW,
                 height: `${Math.max(2, (m.count / maxCount) * 80)}px`,
               }}
             />
-            <div className="absolute -top-6 hidden group-hover:block bg-card border border-border rounded px-1.5 py-0.5 text-[10px] whitespace-nowrap z-10">
+            <div className="absolute -top-6 hidden group-hover:block bg-card border border-border px-1.5 py-0.5 font-mono text-[10px] whitespace-nowrap z-10">
               {m.month}: {m.count}
             </div>
           </div>
         ))}
       </div>
-      <div className="flex justify-between text-[10px] text-muted mt-1">
+      <div className="flex justify-between font-mono text-[9px] uppercase tracking-[0.14em] text-muted mt-2">
         <span>{timeline[0]?.month}</span>
         <span>{timeline[timeline.length - 1]?.month}</span>
       </div>
@@ -350,28 +370,28 @@ function LeadTimeBreakdown({ leadTime, total }: { leadTime: Record<string, numbe
   const tiers = ["future", "market", "now"] as const;
   return (
     <AnalyticsCard title="Signal Path">
-      <div className="space-y-2">
+      <div className="space-y-3">
         {tiers.map((tier) => {
           const count = leadTime[tier] || 0;
           const pct = total > 0 ? (count / total) * 100 : 0;
           const cfg = TIER_CONFIG[tier];
           return (
             <div key={tier}>
-              <div className="flex justify-between text-xs mb-0.5">
-                <span style={{ color: cfg.color }}>
-                  {cfg.label}
-                  <span className="text-muted ml-1 text-[10px]">
-                    {cfg.desc}
-                  </span>
-                </span>
-                <span className="text-muted">{count} ({Math.round(pct)}%)</span>
+              <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.12em] mb-1">
+                <span style={{ color: cfg.color }}>{cfg.label}</span>
+                <span className="text-muted">{count} · {Math.round(pct)}%</span>
               </div>
-              <div className="h-2 rounded-full bg-border overflow-hidden">
+              <div className="h-[3px] bg-border overflow-hidden">
                 <div
-                  className="h-full rounded-full transition-all"
+                  className="h-full transition-all"
                   style={{ width: `${pct}%`, backgroundColor: cfg.color }}
                 />
               </div>
+              {cfg.desc && (
+                <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted/70 mt-1">
+                  {cfg.desc}
+                </div>
+              )}
             </div>
           );
         })}
@@ -389,16 +409,20 @@ function VerticalDistribution({ verticals }: { verticals: Record<string, number>
 
   return (
     <AnalyticsCard title="Cross-Vertical">
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {entries.map(([v, count]) => {
           const info = getVerticalInfo(v as Vertical);
           return (
-            <div key={v} className="flex items-center gap-2 text-xs">
-              <span className="w-5 text-center">{info.icon}</span>
-              <span className="w-16 truncate" style={{ color: info.color }}>{v}</span>
-              <div className="flex-1 h-2 rounded-full bg-border overflow-hidden">
+            <div key={v} className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em]">
+              <span
+                className="inline-block w-2 h-[3px] shrink-0"
+                style={{ backgroundColor: info.color }}
+                aria-hidden="true"
+              />
+              <span className="w-12 shrink-0" style={{ color: info.color }}>{info.code}</span>
+              <div className="flex-1 h-[3px] bg-border overflow-hidden">
                 <div
-                  className="h-full rounded-full"
+                  className="h-full"
                   style={{ width: `${(count / max) * 100}%`, backgroundColor: info.color }}
                 />
               </div>
@@ -426,16 +450,19 @@ function PestelProfile({ pestel, total }: { pestel: Record<string, number>; tota
           return (
             <div key={d} className="flex-1 flex flex-col items-center group relative">
               <div
-                className="w-full rounded-t transition-colors"
+                className="w-full transition-colors"
                 style={{
                   height: `${Math.max(2, (pct / 100) * 64)}px`,
                   backgroundColor: `${info.color}80`,
                 }}
               />
-              <span className="text-[10px] mt-1" style={{ color: info.color }}>
+              <span
+                className="font-mono text-[10px] uppercase tracking-[0.12em] mt-1"
+                style={{ color: info.color }}
+              >
                 {d}
               </span>
-              <div className="absolute -top-6 hidden group-hover:block bg-card border border-border rounded px-1.5 py-0.5 text-[10px] whitespace-nowrap z-10">
+              <div className="absolute -top-6 hidden group-hover:block bg-card border border-border px-1.5 py-0.5 font-mono text-[10px] whitespace-nowrap z-10">
                 {info.label}: {count} ({Math.round(pct)}%)
               </div>
             </div>
@@ -455,21 +482,20 @@ function MegaTrendDistribution({ megaTrends }: { megaTrends: Analytics["mega_tre
 
   return (
     <AnalyticsCard title="Mega Trends">
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {megaTrends.slice(0, 8).map((mt) => {
           const info = getMegaTrendInfo(mt.mega_trend);
           const label = info ? info.name_en : mt.mega_trend.replace(/_/g, " ");
           return (
             <div key={mt.mega_trend} className="flex items-center gap-2 text-xs">
-              <span className="w-5 text-center">{info?.icon ?? "?"}</span>
-              <span className="flex-1 truncate text-foreground/80">{label}</span>
-              <div className="w-16 h-1.5 rounded-full bg-border overflow-hidden">
+              <span className="flex-1 truncate font-sans text-paper/90">{label}</span>
+              <div className="w-16 h-[3px] bg-border overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-accent/70"
+                  className="h-full bg-accent/70"
                   style={{ width: `${(mt.count / max) * 100}%` }}
                 />
               </div>
-              <span className="text-muted w-6 text-right">{mt.count}</span>
+              <span className="font-mono text-[10px] text-muted w-6 text-right">{mt.count}</span>
             </div>
           );
         })}
@@ -479,7 +505,7 @@ function MegaTrendDistribution({ megaTrends }: { megaTrends: Analytics["mega_tre
 }
 
 // ---------------------------------------------------------------------------
-// Co-occurrence cloud (TF-IDF weighted)
+// Co-occurrence cloud
 // ---------------------------------------------------------------------------
 function CoOccurrenceCloud({ tags }: { tags: Analytics["co_occurrence"] }) {
   if (!tags.length) return null;
@@ -495,7 +521,7 @@ function CoOccurrenceCloud({ tags }: { tags: Analytics["co_occurrence"] }) {
           return (
             <span
               key={t.tag}
-              className="inline-block rounded-md bg-accent/10 px-2 py-0.5 text-accent cursor-default transition-opacity hover:opacity-100"
+              className="inline-block font-mono uppercase tracking-[0.08em] border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-accent cursor-default transition-opacity hover:opacity-100"
               style={{ fontSize: `${fontSize}px`, opacity }}
               title={`${t.tag}: ${t.count}x (TF-IDF: ${t.tfidf})`}
             >
@@ -513,9 +539,9 @@ function CoOccurrenceCloud({ tags }: { tags: Analytics["co_occurrence"] }) {
 // ---------------------------------------------------------------------------
 function AnalyticsCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">
-        {title}
+    <div className="border border-border bg-card/40 p-4">
+      <h3 className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4 pb-2 border-b border-dashed border-border">
+        —— {title}
       </h3>
       {children}
     </div>

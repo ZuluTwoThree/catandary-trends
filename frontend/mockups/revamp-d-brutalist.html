@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Option D — Brutalist Press</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&family=Satoshi:wght@300;400;500;700&display=swap" rel="stylesheet" />
+<!-- Clash Display is not on Google Fonts, using Syne as substitute with similar geometric bold feel -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f5f0e8;
+    --surface: #ffffff;
+    --text: #1a1a1a;
+    --text-secondary: #555555;
+    --accent: #ff3d00;
+    --accent2: #0055ff;
+    --muted: #999999;
+    --border: #d8d3c8;
+    --border-strong: #1a1a1a;
+    --dark: #1a1a1a;
+
+    --v-food: #e86a10;
+    --v-tech: #7c3aed;
+    --v-health: #059669;
+    --v-eco: #0891b2;
+    --v-design: #db2777;
+    --v-fashion: #e11d48;
+    --v-biz: #2563eb;
+    --v-lifestyle: #9333ea;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--bg); color: var(--text); }
+  body {
+    font-family: 'Work Sans', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'Fira Code', monospace; }
+  .display { font-family: 'Syne', sans-serif; }
+
+  /* ====== HEADER ====== */
+  header {
+    border-bottom: 3px solid var(--dark);
+    padding: 0 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+  }
+  .brand {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: -0.02em;
+    color: var(--dark);
+    text-decoration: none;
+    text-transform: uppercase;
+  }
+  .brand .dot { color: var(--accent); }
+  nav { display: flex; gap: 0; height: 100%; }
+  nav a {
+    font-family: 'Work Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -3px;
+    transition: all 120ms;
+  }
+  nav a:hover { color: var(--dark); }
+  nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav a.cta-btn {
+    background: var(--accent);
+    color: white;
+    margin-left: 8px;
+    font-weight: 600;
+    border: none;
+    margin-bottom: 0;
+    padding: 0 20px;
+  }
+  nav a.cta-btn:hover { background: #e63600; }
+
+  /* ====== MAIN ====== */
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 48px; }
+
+  /* ====== HERO ====== */
+  .hero {
+    padding: 56px 0 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 3px solid var(--dark);
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-left { position: relative; z-index: 1; }
+  .hero h1 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 68px;
+    line-height: 0.92;
+    letter-spacing: -0.04em;
+    text-transform: uppercase;
+    color: var(--dark);
+  }
+  .hero h1 .line2 { color: var(--accent); }
+  .hero-right {
+    text-align: right;
+    padding-bottom: 8px;
+    position: relative;
+    z-index: 1;
+  }
+  .hero-right p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    max-width: 300px;
+    line-height: 1.5;
+  }
+  .hero-stats {
+    display: flex;
+    gap: 24px;
+    margin-top: 12px;
+    font-family: 'Fira Code', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .hero-stats .n { color: var(--dark); font-weight: 600; }
+  /* decorative // */
+  .hero::after {
+    content: '//';
+    position: absolute;
+    right: -20px;
+    top: -30px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 200px;
+    color: var(--accent);
+    opacity: 0.07;
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  /* ====== FILTER ====== */
+  .filter-bar {
+    display: flex;
+    gap: 0;
+    margin-bottom: 32px;
+    border: 2px solid var(--dark);
+  }
+  .filter-btn {
+    font-family: 'Work Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    padding: 10px 16px;
+    border: none;
+    border-right: 2px solid var(--dark);
+    background: transparent;
+    cursor: pointer;
+    transition: all 100ms;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .filter-btn:last-child { border-right: none; }
+  .filter-btn:hover { background: var(--dark); color: white; }
+  .filter-btn.active { background: var(--accent); color: white; }
+  .filter-btn .bar {
+    width: 12px;
+    height: 4px;
+  }
+
+  /* ====== CARDS ====== */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+  }
+  .card {
+    border: 2px solid var(--dark);
+    border-right: none;
+    border-bottom: none;
+    padding: 24px;
+    background: var(--surface);
+    cursor: pointer;
+    transition: all 120ms;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .card:nth-child(3n) { border-right: 2px solid var(--dark); }
+  .card:nth-last-child(-n+3) { border-bottom: 2px solid var(--dark); }
+
+  .card:hover { background: var(--dark); color: white; }
+  .card:hover .card-title { color: white; }
+  .card:hover .card-summary { color: rgba(255,255,255,0.6); }
+  .card:hover .card-source { color: rgba(255,255,255,0.5); }
+  .card:hover .card-crs { color: var(--accent); }
+  .card:hover .card-footer { border-top-color: rgba(255,255,255,0.2); }
+  .card:hover .pestel-tag { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); }
+  .card:hover .card-vert { color: white; }
+
+  .card-stripe {
+    height: 4px;
+    margin: -24px -24px 18px -24px;
+  }
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .card-vert {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .card-date {
+    font-family: 'Fira Code', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 18px;
+    line-height: 1.25;
+    color: var(--dark);
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+  .card-summary {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    flex-grow: 1;
+    margin-bottom: 14px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .pestel-row {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+  .pestel-tag {
+    font-family: 'Fira Code', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border: 1.5px solid;
+    text-transform: uppercase;
+    transition: all 120ms;
+  }
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 12px;
+    border-top: 1.5px solid var(--border);
+    transition: border-color 120ms;
+  }
+  .card-source {
+    font-family: 'Fira Code', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    transition: color 120ms;
+  }
+  .card-crs {
+    font-family: 'Fira Code', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    transition: color 120ms;
+  }
+
+  /* stagger animation */
+  .card { animation: slideIn 400ms ease both; }
+  .card:nth-child(1) { animation-delay: 0ms; }
+  .card:nth-child(2) { animation-delay: 50ms; }
+  .card:nth-child(3) { animation-delay: 100ms; }
+  .card:nth-child(4) { animation-delay: 150ms; }
+  .card:nth-child(5) { animation-delay: 200ms; }
+  .card:nth-child(6) { animation-delay: 250ms; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  /* stripe animate */
+  .card-stripe {
+    transform-origin: left;
+    animation: stripeIn 350ms ease both;
+  }
+  .card:nth-child(1) .card-stripe { animation-delay: 100ms; }
+  .card:nth-child(2) .card-stripe { animation-delay: 150ms; }
+  .card:nth-child(3) .card-stripe { animation-delay: 200ms; }
+  .card:nth-child(4) .card-stripe { animation-delay: 250ms; }
+  .card:nth-child(5) .card-stripe { animation-delay: 300ms; }
+  .card:nth-child(6) .card-stripe { animation-delay: 350ms; }
+  @keyframes stripeIn {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+
+  /* ====== FOOTER ====== */
+  footer {
+    border-top: 3px solid var(--dark);
+    margin-top: 64px;
+    padding: 20px 48px;
+    display: flex;
+    justify-content: space-between;
+  }
+  footer span {
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  footer .accent { color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="#" class="brand">Catandary<span class="dot">.</span>Trends</a>
+  <nav>
+    <a href="#" class="active">Trends</a>
+    <a href="#">Mega Trends</a>
+    <a href="#">Cross-Industry</a>
+    <a href="#">Foresight</a>
+    <a href="#" class="cta-btn">Newsletter</a>
+  </nav>
+</header>
+
+<div class="container">
+  <div class="hero">
+    <div class="hero-left">
+      <h1>Trend<br><span class="line2">Intelligence</span></h1>
+    </div>
+    <div class="hero-right">
+      <p>Curated signals from eight industry verticals. Distilled daily from trade press, research, and insiders.</p>
+      <div class="hero-stats">
+        <span><span class="n">4,782</span> signals</span>
+        <span><span class="n">8</span> verticals</span>
+        <span><span class="n">23</span> megas</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active">All</button>
+    <button class="filter-btn"><span class="bar" style="background:var(--v-tech)"></span> Tech</button>
+    <button class="filter-btn"><span class="bar" style="background:var(--v-biz)"></span> Biz</button>
+    <button class="filter-btn"><span class="bar" style="background:var(--v-food)"></span> Food</button>
+    <button class="filter-btn"><span class="bar" style="background:var(--v-health)"></span> Health</button>
+    <button class="filter-btn"><span class="bar" style="background:var(--v-eco)"></span> Eco</button>
+    <button class="filter-btn"><span class="bar" style="background:var(--v-lifestyle)"></span> Life</button>
+    <button class="filter-btn"><span class="bar" style="background:var(--v-fashion)"></span> Fashion</button>
+    <button class="filter-btn"><span class="bar" style="background:var(--v-design)"></span> Design</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-stripe" style="background:var(--v-tech)"></div>
+      <div class="card-head">
+        <span class="card-vert" style="color:var(--v-tech)">Technology</span>
+        <span class="card-date">11 Apr</span>
+      </div>
+      <div class="card-title">NVIDIA Blackwell Ultra Architecture Signals End of Traditional Compute Scaling</div>
+      <div class="card-summary">Next-generation GPU architecture marks a fundamental shift in AI infrastructure design, with implications beyond semiconductors.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:var(--v-tech)">T</span>
+        <span class="pestel-tag" style="color:var(--v-biz);border-color:var(--v-biz)">E</span>
+      </div>
+      <div class="card-footer">
+        <span class="card-source">Ars Technica</span>
+        <span class="card-crs">CRS 87</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-stripe" style="background:var(--v-health)"></div>
+      <div class="card-head">
+        <span class="card-vert" style="color:var(--v-health)">Health</span>
+        <span class="card-date">11 Apr</span>
+      </div>
+      <div class="card-title">CRISPR Gene Therapy Shows 94% Efficacy in Sickle Cell Phase 3 Trial</div>
+      <div class="card-summary">One-time CRISPR treatments could replace lifetime disease management, reshaping health economics.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:var(--v-tech)">T</span>
+        <span class="pestel-tag" style="color:var(--v-health);border-color:var(--v-health)">S</span>
+        <span class="pestel-tag" style="color:var(--v-biz);border-color:var(--v-biz)">E</span>
+      </div>
+      <div class="card-footer">
+        <span class="card-source">STAT News</span>
+        <span class="card-crs">CRS 91</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-stripe" style="background:var(--v-eco)"></div>
+      <div class="card-head">
+        <span class="card-vert" style="color:var(--v-eco)">Sustainability</span>
+        <span class="card-date">10 Apr</span>
+      </div>
+      <div class="card-title">EU Carbon Border Tax Triggers Supply Chain Restructuring Across Industries</div>
+      <div class="card-summary">CBAM forces manufacturers to rethink sourcing, early movers gain advantage through preemptive decarbonization.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:#dc2626;border-color:#dc2626">P</span>
+        <span class="pestel-tag" style="color:var(--v-biz);border-color:var(--v-biz)">E</span>
+        <span class="pestel-tag" style="color:var(--v-eco);border-color:var(--v-eco)">En</span>
+      </div>
+      <div class="card-footer">
+        <span class="card-source">GreenBiz</span>
+        <span class="card-crs">CRS 78</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-stripe" style="background:var(--v-food)"></div>
+      <div class="card-head">
+        <span class="card-vert" style="color:var(--v-food)">Food & Bev</span>
+        <span class="card-date">10 Apr</span>
+      </div>
+      <div class="card-title">Precision Fermentation Startups Secure $340M as Big Food Accelerates</div>
+      <div class="card-summary">Record funding signals precision fermentation's shift from research to industrial-scale production.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:var(--v-tech)">T</span>
+        <span class="pestel-tag" style="color:var(--v-biz);border-color:var(--v-biz)">E</span>
+      </div>
+      <div class="card-footer">
+        <span class="card-source">FoodNavigator</span>
+        <span class="card-crs">CRS 82</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-stripe" style="background:var(--v-biz)"></div>
+      <div class="card-head">
+        <span class="card-vert" style="color:var(--v-biz)">Business</span>
+        <span class="card-date">9 Apr</span>
+      </div>
+      <div class="card-title">Shopify's AI-Native Commerce Stack Rewrites the DTC Playbook</div>
+      <div class="card-summary">AI-first product recommendations create a two-tier retail landscape between adopters and legacy operators.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:var(--v-tech)">T</span>
+        <span class="pestel-tag" style="color:var(--v-biz);border-color:var(--v-biz)">E</span>
+      </div>
+      <div class="card-footer">
+        <span class="card-source">Retail Dive</span>
+        <span class="card-crs">CRS 74</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-stripe" style="background:var(--v-fashion)"></div>
+      <div class="card-head">
+        <span class="card-vert" style="color:var(--v-fashion)">Fashion</span>
+        <span class="card-date">9 Apr</span>
+      </div>
+      <div class="card-title">Mylo Mushroom Leather Achieves Price Parity with Premium Animal Hide</div>
+      <div class="card-summary">Mycelium-based material reaching cost equivalence could trigger substitution wave in luxury manufacturing.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:var(--v-tech)">T</span>
+        <span class="pestel-tag" style="color:var(--v-eco);border-color:var(--v-eco)">En</span>
+      </div>
+      <div class="card-footer">
+        <span class="card-source">Business of Fashion</span>
+        <span class="card-crs">CRS 79</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>&copy; 2026 Catandary</span>
+  <span>Powered by <span class="accent">Catandary Foresight</span></span>
+</footer>
+
+</body>
+</html>

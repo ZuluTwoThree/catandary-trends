@@ -1,48 +1,34 @@
 export default function Header() {
   return (
     <header className="border-b border-border">
-      <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between">
-        <a href="/trends" className="flex items-center gap-2">
-          <span className="text-xl font-bold tracking-tight">
-            Catandary <span className="text-accent">Trends</span>
+      <div className="mx-auto max-w-7xl px-6 md:px-12 h-16 flex items-center justify-between">
+        <a href="/trends" className="group">
+          <span className="font-display text-[22px] font-normal tracking-tight text-paper">
+            Catandary<span className="text-accent">.</span>
           </span>
         </a>
-        <nav className="flex items-center gap-4 text-sm text-muted">
-          <a
-            href="/trends"
-            className="hover:text-foreground transition-colors"
-          >
-            Trends
-          </a>
-          <a
-            href="/trends/mega"
-            className="hover:text-foreground transition-colors hidden sm:inline"
-          >
-            Mega Trends
-          </a>
-          <a
-            href="/trends/cross-vertical"
-            className="hover:text-foreground transition-colors hidden md:inline"
-          >
-            Cross-Industry
-          </a>
-          <a
-            href="/trends/foresight"
-            className="hover:text-foreground transition-colors hidden md:inline"
-          >
-            Foresight
-          </a>
-          <a
-            href="https://catandary.de"
-            className="hover:text-foreground transition-colors hidden sm:inline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Catandary
-          </a>
+        <nav className="flex items-center gap-1">
+          {[
+            { href: "/trends", label: "Trends" },
+            { href: "/trends/mega", label: "Mega Trends" },
+            { href: "/trends/cross-vertical", label: "Cross-Industry" },
+            { href: "/trends/foresight", label: "Foresight" },
+            { href: "https://catandary.de", label: "Catandary", external: true },
+          ].map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              {...(item.external
+                ? { target: "_blank", rel: "noopener noreferrer" }
+                : {})}
+              className="hidden md:inline font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-paper px-3 py-1.5 transition-colors"
+            >
+              {item.label}
+            </a>
+          ))}
           <a
             href="/trends/newsletter"
-            className="bg-accent/10 text-accent px-3 py-1.5 rounded-md hover:bg-accent/20 transition-colors"
+            className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent px-3 py-1.5 border border-accent bg-accent/5 hover:bg-accent/15 transition-colors"
           >
             Newsletter
           </a>

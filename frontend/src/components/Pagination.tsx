@@ -27,14 +27,17 @@ export default function Pagination({
     router.push(`/trends?${params.toString()}`);
   }
 
+  const btnBase =
+    "font-mono text-[10px] uppercase tracking-[0.14em] transition-colors disabled:opacity-30 disabled:cursor-not-allowed";
+
   return (
-    <div className="flex items-center justify-center gap-2 mt-10">
+    <div className="flex items-center justify-center gap-2 mt-12 pt-6 border-t border-border">
       <button
         onClick={() => goToPage(page - 1)}
         disabled={page <= 1}
-        className="px-3 py-1.5 rounded-lg text-sm border border-border bg-card text-muted hover:text-foreground hover:border-accent/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+        className={`${btnBase} px-3 py-2 border border-border text-muted hover:text-paper hover:border-accent/40`}
       >
-        &larr; Previous
+        ← Previous
       </button>
 
       <div className="flex items-center gap-1">
@@ -49,17 +52,20 @@ export default function Pagination({
           }, [])
           .map((p, i) =>
             p === -1 ? (
-              <span key={`ellipsis-${i}`} className="px-2 text-muted">
-                ...
+              <span
+                key={`ellipsis-${i}`}
+                className="px-2 font-mono text-[10px] text-muted"
+              >
+                …
               </span>
             ) : (
               <button
                 key={p}
                 onClick={() => goToPage(p)}
-                className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
+                className={`${btnBase} w-9 h-9 inline-flex items-center justify-center border ${
                   p === page
-                    ? "bg-accent text-background"
-                    : "border border-border bg-card text-muted hover:text-foreground hover:border-accent/30"
+                    ? "bg-accent text-ink border-accent"
+                    : "border-border text-muted hover:text-paper hover:border-accent/40"
                 }`}
               >
                 {p}
@@ -71,9 +77,9 @@ export default function Pagination({
       <button
         onClick={() => goToPage(page + 1)}
         disabled={page >= totalPages}
-        className="px-3 py-1.5 rounded-lg text-sm border border-border bg-card text-muted hover:text-foreground hover:border-accent/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+        className={`${btnBase} px-3 py-2 border border-border text-muted hover:text-paper hover:border-accent/40`}
       >
-        Next &rarr;
+        Next →
       </button>
     </div>
   );

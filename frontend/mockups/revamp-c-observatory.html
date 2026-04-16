@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Option C — Dark Observatory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --void: #05060a;
+    --surface: #0d0f16;
+    --surface-up: #131622;
+    --text: #c8cad0;
+    --bright: #ecedf0;
+    --accent: #6c9fff;
+    --accent2: #a78bfa;
+    --muted: #4a4e5a;
+    --border: #1e2130;
+    --warm: #f59e42;
+    --glow: rgba(108,159,255,0.08);
+
+    --v-food: #f97316;
+    --v-tech: #a78bfa;
+    --v-health: #34d399;
+    --v-eco: #22d3ee;
+    --v-design: #f472b6;
+    --v-fashion: #fb7185;
+    --v-biz: #60a5fa;
+    --v-lifestyle: #c084fc;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--void); color: var(--text); }
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(ellipse 60% 50% at 30% 10%, rgba(108,159,255,0.06), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 80% 80%, rgba(167,139,250,0.04), transparent 50%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  /* scan line animation */
+  body::after {
+    content: '';
+    position: fixed;
+    left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 10%, var(--accent) 50%, transparent 90%);
+    opacity: 0.15;
+    z-index: 200;
+    animation: scanline 8s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes scanline {
+    0% { top: -1px; opacity: 0; }
+    5% { opacity: 0.2; }
+    50% { opacity: 0.08; }
+    95% { opacity: 0.15; }
+    100% { top: 100vh; opacity: 0; }
+  }
+
+  .mono { font-family: 'Space Mono', monospace; }
+
+  /* ====== HEADER ====== */
+  header {
+    padding: 0 48px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: rgba(5,6,10,0.6);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .brand {
+    font-family: 'Playfair Display', serif;
+    font-weight: 500;
+    font-size: 22px;
+    color: var(--bright);
+    text-decoration: none;
+    letter-spacing: -0.02em;
+  }
+  .brand .c { color: var(--accent); }
+  nav { display: flex; gap: 4px; }
+  nav a {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    transition: all 150ms;
+  }
+  nav a:hover { color: var(--text); background: rgba(108,159,255,0.06); }
+  nav a.active { color: var(--accent); background: rgba(108,159,255,0.1); }
+
+  /* ====== MAIN ====== */
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 48px; }
+
+  /* ====== HERO ====== */
+  .hero {
+    padding: 72px 0 56px;
+    text-align: center;
+    position: relative;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%; transform: translateX(-50%);
+    width: 600px; height: 300px;
+    background: radial-gradient(ellipse, rgba(108,159,255,0.08), transparent 70%);
+    pointer-events: none;
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 400;
+    font-size: 52px;
+    line-height: 1.1;
+    color: var(--bright);
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+    text-shadow: 0 0 80px rgba(108,159,255,0.15);
+    position: relative;
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+  .hero-sub {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    color: var(--muted);
+    max-width: 520px;
+    margin: 0 auto 24px;
+    font-weight: 300;
+    position: relative;
+  }
+  .hero-stats {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    position: relative;
+  }
+  .hero-stats .num { color: var(--accent); font-weight: 700; }
+
+  /* ====== FILTER ====== */
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 180ms;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .filter-btn:hover { border-color: rgba(108,159,255,0.3); color: var(--text); background: var(--glow); }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(108,159,255,0.1); }
+  .filter-btn .circle {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  /* ====== CARDS ====== */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--surface-up) 100%);
+    cursor: pointer;
+    transition: all 250ms;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    opacity: 0;
+    transition: opacity 250ms;
+  }
+  .card:hover {
+    border-color: rgba(108,159,255,0.25);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 20px rgba(108,159,255,0.05);
+  }
+  .card:hover::before {
+    opacity: 1;
+    background: linear-gradient(180deg, rgba(108,159,255,0.03), transparent 60%);
+  }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .card-vert {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .card-vert .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .card-date {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .card-title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 500;
+    font-size: 17px;
+    line-height: 1.35;
+    color: var(--bright);
+    margin-bottom: 10px;
+  }
+  .card-summary {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.55;
+    flex-grow: 1;
+    margin-bottom: 16px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .card-source {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .card-crs {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .pestel-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .pestel-tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid;
+    background: rgba(0,0,0,0.2);
+  }
+
+  /* ====== FOOTER ====== */
+  footer {
+    border-top: 1px solid var(--border);
+    margin-top: 80px;
+    padding: 24px 48px;
+    display: flex;
+    justify-content: space-between;
+  }
+  footer span {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  footer .accent { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="#" class="brand"><span class="c">C</span>atandary</a>
+  <nav>
+    <a href="#" class="active">Trends</a>
+    <a href="#">Mega Trends</a>
+    <a href="#">Cross-Industry</a>
+    <a href="#">Foresight</a>
+    <a href="#">Newsletter</a>
+  </nav>
+</header>
+
+<div class="container">
+  <div class="hero">
+    <h1>Cross-Industry<br><em>Trend Intelligence</em></h1>
+    <p class="hero-sub">Curated trend signals from eight industry verticals — distilled daily from trade press, research, and industry insiders.</p>
+    <div class="hero-stats">
+      <span><span class="num">4,782</span> signals</span>
+      <span><span class="num">8</span> verticals</span>
+      <span><span class="num">23</span> mega-trends</span>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active">All 4782</button>
+    <button class="filter-btn"><span class="circle" style="background:var(--v-tech)"></span> Tech</button>
+    <button class="filter-btn"><span class="circle" style="background:var(--v-biz)"></span> Biz</button>
+    <button class="filter-btn"><span class="circle" style="background:var(--v-food)"></span> Food</button>
+    <button class="filter-btn"><span class="circle" style="background:var(--v-health)"></span> Health</button>
+    <button class="filter-btn"><span class="circle" style="background:var(--v-eco)"></span> Eco</button>
+    <button class="filter-btn"><span class="circle" style="background:var(--v-lifestyle)"></span> Life</button>
+    <button class="filter-btn"><span class="circle" style="background:var(--v-fashion)"></span> Fashion</button>
+    <button class="filter-btn"><span class="circle" style="background:var(--v-design)"></span> Design</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-vert" style="color:var(--v-tech)"><span class="dot" style="background:var(--v-tech)"></span> Tech</span>
+        <span class="card-date">11 Apr</span>
+      </div>
+      <div class="card-title">NVIDIA Blackwell Ultra Architecture Signals End of Traditional Compute Scaling</div>
+      <div class="card-summary">Next-generation GPU architecture marks a fundamental shift in AI infrastructure design, with implications far beyond semiconductors.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:rgba(167,139,250,0.3)">T</span>
+        <span class="pestel-tag" style="color:#60a5fa;border-color:rgba(96,165,250,0.3)">E</span>
+      </div>
+      <div class="card-footer">
+        <span class="card-source">Ars Technica</span>
+        <span class="card-crs" style="color:var(--accent)">CRS 87</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-vert" style="color:var(--v-health)"><span class="dot" style="background:var(--v-health)"></span> Health</span>
+        <span class="card-date">11 Apr</span>
+      </div>
+      <div class="card-title">CRISPR Gene Therapy Shows 94% Efficacy in Sickle Cell Phase 3 Trial</div>
+      <div class="card-summary">One-time CRISPR treatments could replace lifetime disease management, reshaping health economics.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:rgba(167,139,250,0.3)">T</span>
+        <span class="pestel-tag" style="color:#22c55e;border-color:rgba(34,197,94,0.3)">S</span>
+        <span class="pestel-tag" style="color:#60a5fa;border-color:rgba(96,165,250,0.3)">E</span>
+      </div>
+      <div class="card-footer">
+        <span class="card-source">STAT News</span>
+        <span class="card-crs" style="color:var(--accent)">CRS 91</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-vert" style="color:var(--v-eco)"><span class="dot" style="background:var(--v-eco)"></span> Eco</span>
+        <span class="card-date">10 Apr</span>
+      </div>
+      <div class="card-title">EU Carbon Border Tax Triggers Supply Chain Restructuring</div>
+      <div class="card-summary">CBAM forces manufacturers to rethink sourcing, early movers gain advantage through preemptive decarbonization.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:#ef4444;border-color:rgba(239,68,68,0.3)">P</span>
+        <span class="pestel-tag" style="color:#60a5fa;border-color:rgba(96,165,250,0.3)">E</span>
+        <span class="pestel-tag" style="color:#22d3ee;border-color:rgba(34,211,238,0.3)">En</span>
+      </div>
+      <div class="card-footer">
+        <span class="card-source">GreenBiz</span>
+        <span class="card-crs" style="color:var(--warm)">CRS 78</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-vert" style="color:var(--v-food)"><span class="dot" style="background:var(--v-food)"></span> Food</span>
+        <span class="card-date">10 Apr</span>
+      </div>
+      <div class="card-title">Precision Fermentation Startups Secure $340M in Q1</div>
+      <div class="card-summary">Record venture funding signals precision fermentation's transition from research to industrial-scale production.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:rgba(167,139,250,0.3)">T</span>
+        <span class="pestel-tag" style="color:#60a5fa;border-color:rgba(96,165,250,0.3)">E</span>
+      </div>
+      <div class="card-footer">
+        <span class="card-source">FoodNavigator</span>
+        <span class="card-crs" style="color:var(--accent)">CRS 82</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-vert" style="color:var(--v-biz)"><span class="dot" style="background:var(--v-biz)"></span> Biz</span>
+        <span class="card-date">9 Apr</span>
+      </div>
+      <div class="card-title">Shopify's AI-Native Commerce Stack Rewrites the DTC Playbook</div>
+      <div class="card-summary">AI-first product recommendations create a two-tier retail landscape between adopters and legacy operators.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:rgba(167,139,250,0.3)">T</span>
+        <span class="pestel-tag" style="color:#60a5fa;border-color:rgba(96,165,250,0.3)">E</span>
+      </div>
+      <div class="card-footer">
+        <span class="card-source">Retail Dive</span>
+        <span class="card-crs" style="color:var(--warm)">CRS 74</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-vert" style="color:var(--v-fashion)"><span class="dot" style="background:var(--v-fashion)"></span> Fashion</span>
+        <span class="card-date">9 Apr</span>
+      </div>
+      <div class="card-title">Mylo Mushroom Leather Achieves Price Parity with Premium Hide</div>
+      <div class="card-summary">Mycelium-based material reaching cost equivalence could trigger the first substitution wave in luxury goods.</div>
+      <div class="pestel-row">
+        <span class="pestel-tag" style="color:var(--v-tech);border-color:rgba(167,139,250,0.3)">T</span>
+        <span class="pestel-tag" style="color:#22d3ee;border-color:rgba(34,211,238,0.3)">En</span>
+      </div>
+      <div class="card-footer">
+        <span class="card-source">Business of Fashion</span>
+        <span class="card-crs" style="color:var(--warm)">CRS 79</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>&copy; 2026 Catandary</span>
+  <span>Powered by <span class="accent">Catandary Foresight</span></span>
+</footer>
+
+</body>
+</html>

@@ -20,46 +20,54 @@ export default function VerticalFilter({
     } else {
       params.delete("vertical");
     }
+    // Reset page when changing vertical
+    params.delete("page");
     router.push(`/trends?${params.toString()}`);
   }
 
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-stretch border border-border">
+      <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted px-4 py-3 border-r border-border flex items-center whitespace-nowrap">
+        Vertical ——
+      </div>
       <button
         onClick={() => handleClick(null)}
-        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+        className={`font-mono text-[10px] uppercase tracking-[0.08em] px-4 py-3 border-r border-border flex items-center gap-2 transition-colors ${
           active === null
-            ? "bg-accent text-background"
-            : "bg-card border border-border text-muted hover:text-foreground hover:border-accent/30"
+            ? "text-accent bg-accent/5"
+            : "text-muted hover:text-paper hover:bg-white/[0.02]"
         }`}
       >
-        All
-        <span className="ml-1.5 text-xs opacity-60">{total}</span>
+        <span>All</span>
+        <span className="text-[9px] opacity-60">{total}</span>
       </button>
-      {VERTICALS.map((v) => {
+      {VERTICALS.map((v, idx) => {
         const count = counts[v.id] ?? 0;
         if (count === 0) return null;
         const isActive = active === v.id;
+        const isLast = idx === VERTICALS.length - 1;
         return (
           <button
             key={v.id}
             onClick={() => handleClick(v.id)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            className={`font-mono text-[10px] uppercase tracking-[0.08em] px-4 py-3 flex items-center gap-2 transition-colors ${
+              !isLast ? "border-r border-border" : ""
+            } ${
               isActive
-                ? "text-background"
-                : "bg-card border border-border text-muted hover:text-foreground hover:border-accent/30"
+                ? "bg-accent/5"
+                : "text-muted hover:text-paper hover:bg-white/[0.02]"
             }`}
-            style={
-              isActive
-                ? { backgroundColor: v.color }
-                : undefined
-            }
+            style={isActive ? { color: v.color } : undefined}
           >
-            <span className="mr-1">{v.icon}</span>
-            {v.label}
-            <span className="ml-1.5 text-xs opacity-60">{count}</span>
+            <span
+              className="inline-block w-[8px] h-[3px]"
+              style={{ backgroundColor: v.color }}
+              aria-hidden="true"
+            />
+            <span>{v.code}</span>
+            <span className="text-[9px] opacity-60">{count}</span>
           </button>
         );
       })}

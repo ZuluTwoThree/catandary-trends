@@ -47,11 +47,12 @@ export default async function TrendsPage({
       : getTrendsCount({ vertical: vertical ?? undefined });
 
   const counts = getVerticalCounts("published");
+  const totalPublished = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="mx-auto max-w-7xl px-6 md:px-10 py-10">
       <TrendsListJsonLd />
-      <TrendsHero />
+      <TrendsHero totalSignals={totalPublished} verticalCounts={counts} />
 
       {/* Vertical Filter */}
       <div className="mb-8">

@@ -11,17 +11,24 @@ export default function VerticalBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-md font-medium ${
-        size === "md" ? "px-2.5 py-1 text-sm" : "px-2 py-0.5 text-xs"
+      className={`inline-flex items-center gap-2 font-mono uppercase tracking-[0.12em] border ${
+        size === "md" ? "px-2.5 py-1 text-[11px]" : "px-2 py-0.5 text-[10px]"
       }`}
       style={{
-        backgroundColor: `${info.color}15`,
+        backgroundColor: `${info.color}12`,
         color: info.color,
-        border: `1px solid ${info.color}30`,
+        borderColor: `${info.color}55`,
       }}
     >
-      <span>{info.icon}</span>
-      <span>{info.label}</span>
+      <span
+        className={size === "md" ? "inline-block w-2.5 h-[3px]" : "inline-block w-2 h-[3px]"}
+        style={{ backgroundColor: info.color }}
+        aria-hidden="true"
+      />
+      <span>{info.code}</span>
+      <span className="text-muted/70 font-sans normal-case tracking-normal">
+        {info.label}
+      </span>
     </span>
   );
 }

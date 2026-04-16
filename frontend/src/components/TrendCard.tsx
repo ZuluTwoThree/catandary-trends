@@ -7,99 +7,108 @@ import PestelBadge from "./PestelBadge";
 import TrendScore from "./TrendScore";
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
-  trade_media: "Trade Media",
-  press_wire: "Press Release",
-  radar: "Trend Radar",
+  trade_media: "Trade",
+  press_wire: "Press",
+  radar: "Radar",
   research: "Research",
   brand: "Brand",
-  api: "Data Source",
+  api: "Data",
 };
 
 export default function TrendCard({ trend }: { trend: Trend }) {
   const vertical = getVerticalInfo(trend.primary_vertical);
-
   const title = trend.title_en;
   const summary = trend.summary_en;
 
   const date = trend.source_date || trend.published_at || trend.created_at;
   const formattedDate = date
-    ? new Date(date).toLocaleDateString("en-US", {
-        day: "numeric",
+    ? new Date(date).toLocaleDateString("en-GB", {
+        day: "2-digit",
         month: "short",
         year: "numeric",
-      })
+      }).toUpperCase()
     : null;
 
+  const sourceLabel =
+    SOURCE_TYPE_LABELS[
+      trend.trend_signal_type === "research"
+        ? "research"
+        : trend.source_type ?? "trade_media"
+    ] ?? "Trade";
+
   return (
-    <Link href={`/trends/${trend.slug}`}>
-      <article className="group rounded-xl border border-border bg-card p-5 hover:bg-card-hover hover:border-accent/30 transition-all duration-200 h-full flex flex-col">
-        {/* Header: Vertical + Date */}
-        <div className="flex items-center justify-between mb-3">
-          <span
-            className="inline-flex items-center gap-1 text-xs font-medium"
-            style={{ color: vertical.color }}
-          >
-            <span>{vertical.icon}</span>
-            <span>{vertical.label}</span>
+    <Link href={`/trends/${trend.slug}`} className="block h-full">
+      <article
+        className="brackets group h-full flex flex-col border border-border border-l-[3px] bg-transparent hover:bg-accent/[0.02] transition-colors px-6 py-7"
+        style={{ borderLeftColor: vertical.color }}
+      >
+        {/* Header: Vertical code + Date */}
+        <div className="flex items-center justify-between mb-4">
+          <span className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.15em]">
+            <span
+              className="inline-block w-2 h-[3px]"
+              style={{ backgroundColor: vertical.color }}
+              aria-hidden="true"
+            />
+            <span style={{ color: vertical.color }}>{vertical.code}</span>
           </span>
           {formattedDate && (
-            <time className="text-xs text-muted">{formattedDate}</time>
+            <time className="font-mono text-[10px] text-muted tracking-wider">
+              {formattedDate}
+            </time>
           )}
         </div>
 
         {/* Title */}
-        <h3 className="text-base font-semibold leading-snug mb-2 group-hover:text-accent transition-colors line-clamp-2">
+        <h3 className="font-display text-[19px] leading-[1.3] tracking-[-0.01em] text-paper mb-3 line-clamp-3 group-hover:text-accent transition-colors">
           {title}
         </h3>
 
         {/* Summary */}
-        <p className="text-sm text-muted leading-relaxed mb-4 line-clamp-3 flex-grow">
+        <p className="text-[13px] leading-[1.55] text-muted line-clamp-3 mb-4 flex-grow">
           {summary}
         </p>
 
-        {/* Footer */}
-        <div className="flex flex-col gap-2 mt-auto">
-          {trend.pestel.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {trend.pestel.map((p) => (
-                <PestelBadge key={p} dimension={p} />
-              ))}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between">
-            <TrendScore score={trend.trend_score} />
-            <span className="text-xs text-muted truncate ml-2">
-              {(() => {
-                const icon =
-                  trend.source_type === "trade_media" ? "📰" :
-                  trend.source_type === "press_wire" ? "📋" :
-                  trend.source_type === "radar" ? "📡" :
-                  trend.trend_signal_type === "research" ? "🔬" :
-                  trend.source_type === "brand" ? "🏷" :
-                  trend.source_type === "api" ? "📊" : "📰";
-                const label = SOURCE_TYPE_LABELS[trend.source_type ?? ""] || "Trade Media";
-                return `${icon} ${label}`;
-              })()}
-            </span>
+        {/* PESTEL row */}
+        {trend.pestel.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {trend.pestel.map((p) => (
+              <PestelBadge key={p} dimension={p} />
+            ))}
           </div>
+        )}
 
-          {trend.verticals.length > 1 && (
-            <div className="flex items-center gap-1 text-xs text-accent/70">
-              <span>Cross-Industry:</span>
-              {trend.verticals
-                .filter((v) => v !== trend.primary_vertical)
-                .map((v) => {
-                  const vi = getVerticalInfo(v);
-                  return (
-                    <span key={v} title={vi.label}>
-                      {vi.icon}
-                    </span>
-                  );
-                })}
-            </div>
-          )}
+        {/* Footer — dashed rule, source + CRS bar */}
+        <div className="flex items-center justify-between pt-3 border-t border-dashed border-border">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
+            {sourceLabel}
+            {trend.source_name ? (
+              <span className="text-muted/60"> / {trend.source_name}</span>
+            ) : null}
+          </span>
+          <TrendScore score={trend.trend_score} />
         </div>
+
+        {/* Cross-industry row (optional) */}
+        {trend.verticals.length > 1 && (
+          <div className="mt-2 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em] text-muted">
+            <span className="opacity-70">Cross:</span>
+            {trend.verticals
+              .filter((v) => v !== trend.primary_vertical)
+              .map((v) => {
+                const vi = getVerticalInfo(v);
+                return (
+                  <span
+                    key={v}
+                    title={vi.label}
+                    style={{ color: vi.color }}
+                  >
+                    {vi.code}
+                  </span>
+                );
+              })}
+          </div>
+        )}
       </article>
     </Link>
   );
