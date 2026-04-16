@@ -1,81 +1,124 @@
 import { Suspense } from "react";
-import { getTrends, getTrendsCount, getVerticalCounts } from "@/lib/db";
-import type { Vertical } from "@/lib/types";
+import {
+  getTrendsFiltered,
+  getTrendsFilteredCount,
+  getVerticalCounts,
+  getVerticalCountsScoped,
+  getMegaTrends,
+  getTopSourcesByCount,
+} from "@/lib/db";
+import { parseFilterParams } from "@/lib/filter-params";
 import TrendCard from "@/components/TrendCard";
-import VerticalFilter from "@/components/VerticalFilter";
+import TrendRow from "@/components/TrendRow";
 import Pagination from "@/components/Pagination";
 import TrendsHero from "@/components/TrendsHero";
 import TrendsEmpty from "@/components/TrendsEmpty";
 import ForesightCta from "@/components/ForesightCta";
+import FilterBar from "@/components/filters/FilterBar";
+import ActiveChips from "@/components/filters/ActiveChips";
 import { TrendsListJsonLd } from "@/components/JsonLd";
 
 export const dynamic = "force-dynamic";
 
-const PER_PAGE = 12;
-
 export default async function TrendsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vertical?: string; page?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const params = await searchParams;
-  const vertical = (params.vertical as Vertical) || null;
-  const page = Math.max(1, parseInt(params.page || "1"));
-  const offset = (page - 1) * PER_PAGE;
+  const raw = await searchParams;
+  const filters = parseFilterParams(raw);
 
-  const trends = getTrends({
-    status: "published",
-    vertical: vertical ?? undefined,
-    limit: PER_PAGE,
-    offset,
-  });
+  // Main result set
+  const trends = getTrendsFiltered(filters);
+  const total = getTrendsFilteredCount(filters);
 
-  const total = getTrendsCount({
-    status: "published",
-    vertical: vertical ?? undefined,
-  });
+  // Counts for filter controls
+  const scopedVerticalCounts = getVerticalCountsScoped(filters);
+  const globalVerticalCounts = getVerticalCounts("published");
+  const totalPublished = Object.values(globalVerticalCounts).reduce(
+    (a, b) => a + b,
+    0
+  );
 
-  // If no published trends, show all (including drafts) for development
-  const displayTrends =
-    trends.length > 0
-      ? trends
-      : getTrends({ vertical: vertical ?? undefined, limit: PER_PAGE, offset });
+  // Mega trend options (top 12 by count, respecting status)
+  const megaOptions = getMegaTrends("published")
+    .slice(0, 12)
+    .map((m) => ({
+      key: m.mega_trend,
+      name: m.name_en,
+      count: m.count,
+    }));
 
-  const displayTotal =
-    trends.length > 0
-      ? total
-      : getTrendsCount({ vertical: vertical ?? undefined });
-
-  const counts = getVerticalCounts("published");
-  const totalPublished = Object.values(counts).reduce((a, b) => a + b, 0);
+  // Source options (top 20 for exclude dropdown)
+  const sourceOptions = getTopSourcesByCount(20, "published");
 
   return (
     <div className="mx-auto max-w-7xl px-6 md:px-10 py-10">
       <TrendsListJsonLd />
-      <TrendsHero totalSignals={totalPublished} verticalCounts={counts} />
+      <TrendsHero
+        totalSignals={totalPublished}
+        verticalCounts={globalVerticalCounts}
+      />
 
-      {/* Vertical Filter */}
-      <div className="mb-8">
-        <Suspense fallback={null}>
-          <VerticalFilter active={vertical} counts={counts} />
-        </Suspense>
+      {/* Filter controls */}
+      <Suspense fallback={null}>
+        <div className="mb-6">
+          <FilterBar
+            filters={filters}
+            verticalCounts={scopedVerticalCounts}
+            megaOptions={megaOptions}
+            sourceOptions={sourceOptions}
+          />
+        </div>
+      </Suspense>
+
+      {/* Active-chips strip */}
+      <Suspense fallback={null}>
+        <div className="mb-6">
+          <ActiveChips filters={filters} />
+        </div>
+      </Suspense>
+
+      {/* Result count */}
+      <div className="mb-6 flex items-baseline justify-between">
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
+          <span className="text-accent tabular-nums">
+            {total.toLocaleString("en-US")}
+          </span>
+          <span className="text-muted/70"> / Signals</span>
+        </div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
+          —— 02
+        </div>
       </div>
 
-      {/* Trend Grid */}
-      {displayTrends.length === 0 ? (
-        <TrendsEmpty vertical={vertical} />
+      {/* Results */}
+      {trends.length === 0 ? (
+        <Suspense fallback={null}>
+          <TrendsEmpty filters={filters} />
+        </Suspense>
+      ) : filters.view === "list" ? (
+        <div className="border border-border">
+          {trends.map((trend) => (
+            <TrendRow key={trend.id} trend={trend} />
+          ))}
+        </div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {displayTrends.map((trend) => (
-              <TrendCard key={trend.id} trend={trend} />
-            ))}
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {trends.map((trend) => (
+            <TrendCard key={trend.id} trend={trend} />
+          ))}
+        </div>
+      )}
 
-          <Suspense fallback={null}>
-            <Pagination total={displayTotal} page={page} perPage={PER_PAGE} />
-          </Suspense>
-        </>
+      {trends.length > 0 && (
+        <Suspense fallback={null}>
+          <Pagination
+            total={total}
+            page={filters.page}
+            perPage={filters.limit ?? 12}
+          />
+        </Suspense>
       )}
 
       <ForesightCta />
