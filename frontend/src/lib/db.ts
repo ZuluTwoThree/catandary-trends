@@ -57,7 +57,7 @@ export function getTrends(options: {
       params.push(options.vertical);
     }
 
-    query += " ORDER BY COALESCE(re.published_date, t.created_at) DESC LIMIT ? OFFSET ?";
+    query += " ORDER BY MIN(COALESCE(re.published_date, t.created_at), t.created_at) DESC LIMIT ? OFFSET ?";
     params.push(options.limit ?? 50);
     params.push(options.offset ?? 0);
 
@@ -119,7 +119,7 @@ export function getTrendsByMegaTrend(megaTrend: string, options: {
       params.push(options.status);
     }
 
-    query += " ORDER BY COALESCE(re.published_date, t.created_at) DESC LIMIT ?";
+    query += " ORDER BY MIN(COALESCE(re.published_date, t.created_at), t.created_at) DESC LIMIT ?";
     params.push(options.limit ?? 50);
 
     const rows = db.prepare(query).all(...params) as Record<string, unknown>[];
@@ -380,19 +380,23 @@ function buildFilterClauses(options: TrendsFilterOptions): {
   };
 }
 
+/** Capped date expression — caps future source dates to created_at so they
+ *  sort by ingestion time, not by a bogus future RSS date. */
+const CAPPED_DATE = "MIN(COALESCE(re.published_date, t.created_at), t.created_at)";
+
 function buildOrderBy(sort: TrendsSortBy | undefined): string {
   switch (sort) {
     case "date_asc":
-      return "ORDER BY COALESCE(re.published_date, t.created_at) ASC";
+      return `ORDER BY ${CAPPED_DATE} ASC`;
     case "score_desc":
-      return "ORDER BY t.trend_score DESC NULLS LAST, COALESCE(re.published_date, t.created_at) DESC";
+      return `ORDER BY t.trend_score DESC NULLS LAST, ${CAPPED_DATE} DESC`;
     case "engagement_desc":
-      return "ORDER BY COALESCE(m.page_views, 0) DESC, COALESCE(re.published_date, t.created_at) DESC";
+      return `ORDER BY COALESCE(m.page_views, 0) DESC, ${CAPPED_DATE} DESC`;
     case "source_date_desc":
-      return "ORDER BY re.published_date DESC NULLS LAST, t.created_at DESC";
+      return `ORDER BY ${CAPPED_DATE} DESC, t.created_at DESC`;
     case "date_desc":
     default:
-      return "ORDER BY COALESCE(re.published_date, t.created_at) DESC";
+      return `ORDER BY ${CAPPED_DATE} DESC`;
   }
 }
 
