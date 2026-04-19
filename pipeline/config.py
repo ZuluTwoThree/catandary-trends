@@ -22,12 +22,12 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")  # PostgreSQL connection string for
 # For the client, we always connect to 127.0.0.1.
 OLLAMA_HOST = os.getenv("OLLAMA_CLIENT_HOST", "http://127.0.0.1:11434")
 
-# Models
-MODEL_FILTER = "qwen3:8b"
-MODEL_EXTRACT = "nuextract"
-MODEL_CLASSIFY = "qwen3:8b"
-MODEL_GENERATE = "qwen3:14b"
-MODEL_EMBEDDING = "qwen3-embedding"
+# Models — override via environment variables for testing
+MODEL_FILTER = os.getenv("MODEL_FILTER", "qwen3:8b")
+MODEL_EXTRACT = os.getenv("MODEL_EXTRACT", "nuextract")
+MODEL_CLASSIFY = os.getenv("MODEL_CLASSIFY", "qwen3:8b")
+MODEL_GENERATE = os.getenv("MODEL_GENERATE", "qwen3:14b")
+MODEL_EMBEDDING = os.getenv("MODEL_EMBEDDING", "qwen3-embedding")
 
 # Pipeline
 RELEVANCE_THRESHOLD = 0.6

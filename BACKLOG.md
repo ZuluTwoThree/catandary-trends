@@ -13,6 +13,8 @@
 
 - [ ] **Datengetriebene "Seit/Signale"-Badge auf Mega-Trend-Karten.** Statt erfundenem Horizont eine ehrliche Fakten-Zeile: `Seit <first_seen_month> · <n> Signale in 30 Tagen`. Werte kommen aus `raw_entries.published_date` gejoint über `trends.mega_trend`. Umsetzung: SQL in `getMegaTrends()` um `MIN(r.published_date) as first_seen` und `SUM(CASE WHEN r.published_date >= date('now','-30 days') THEN 1 ELSE 0 END) as signals_30d` erweitern, dann in `MegaTrendsPage.tsx` rendern.
 
+- [ ] **Mega-Trend Full-Review via Anthropic API.** Ab ~15.000 Trends lohnt sich ein einmaliger Full-Review aller Trends über die Anthropic API statt lokal. Lokal (Qwen3 14B, Batches à 25): ~384 Batches × 90s = **9,5 Stunden**. Via API (Sonnet/Haiku, Batches à 400 dank 200K Kontext): ~24 Batches × 10-15s = **5 Minuten**. Kosten: ~$8.60 (Sonnet) / ~$2.40 (Haiku). Haiku reicht für Klassifizierung. Umsetzung: `--api` Flag in `mega_trend_reviewer.py`, Anthropic SDK statt `ollama_client.chat_structured`, Batch-Size auf 400. Trigger: wenn `SELECT COUNT(*) FROM trends WHERE status='published'` >= 15.000.
+
 - [x] ~~**Mega-Trend-Reviewer Live-Run für heute published Trends.**~~ Erledigt 2026-04-09 über `scripts/review_recent_live.py`: 2678 Trends (gestern + heute) reviewed, 104 Mega-Trend-Updates, 61 min, 0 Fehler.
 
 - [x] ~~**Hybrid-Suche (FTS5 + Embedding-Similarity) über Trends.**~~ Erledigt 2026-04-11. Foresight Cockpit live unter `/trends/foresight`. FTS5 + qwen3-embedding (4096-dim) via RRF (k=60). API: `GET /api/search?q=...&vertical=FOOD&limit=20`. In-Memory-Embedding-Cache (~75 MB für 4782 Trends). Analytics-Sidebar (Timeline, PESTEL, Lead-Time-Tiers, Mega-Trends, Co-Occurrence) ab >=30 Treffern. FTS5-only-Fallback automatisch wenn Ollama nicht erreichbar. Strict Threshold 0.60 für Embedding-only-Queries. RRF normalisiert auf Prozent (theoretisches Max 2/61).
@@ -53,15 +55,174 @@
 
 - [x] ~~**Foresight Cockpit auf MacBook Air (8GB RAM) testen.**~~ Erledigt 2026-04-12. Ergebnis: FTS5-only einwandfrei (787 ms), qwen3-embedding unbenutzbar auf 8 GB (4 min/Query, Memory Pressure rot, 8.9 GB Swap). Hybrid-Suche fachlich korrekt aber nicht interaktiv nutzbar. Empfehlung: FTS5-only auf schwachen Clients, optional `DISABLE_EMBEDDING_SEARCH` Env-Var. Details in `MACBOOK_SETUP.md`.
 
+## Google Trends Integration via pytrends
+
+- [ ] **pytrends als ergänzende Datenquelle für Trend-Validierung, Momentum-Scoring und Micro-Trend-Discovery.**
+
+  Google Trends liefert über die inoffizielle Python-Library `pytrends` kostenlos Suchinteresse-Daten, die unsere RSS-Fachpresse-Signale um eine Consumer-Demand-Perspektive ergänzen. Kein API-Key nötig, aber Rate-Limits (~10-20 Requests/Minute).
+
+  ### Drei Nutzungsebenen
+
+  **Ebene 1 — Mega-Trend-Momentum-Validierung (wöchentlicher Cron)**
+
+  Zweck: Prüfen ob unsere Mega-Trend-Gewichtung (AI=2772, Health=1410, ...) dem tatsächlichen öffentlichen Suchinteresse entspricht. Aufdecken von Über-/Unterrepräsentation.
+
+  - `interest_over_time()` für alle 20 Mega-Trend-Keywords abfragen (je 5 pro Request, 4 Requests)
+  - Zeitraum: `today 12-m` (wöchentliche Datenpunkte)
+  - Google-Trends-Index (0-100) gegen unsere Signal-Counts normalisiert plotten
+  - Ergebnis: `data/google_trends_momentum.json` — pro Mega-Trend: `{key, gt_index_current, gt_index_3m_ago, gt_delta_pct, catandary_signal_count, ratio}`
+  - Divergenzen flaggen: wenn `gt_delta_pct > +50%` aber unsere Signale stagnieren → blinder Fleck; wenn `gt_delta_pct < -30%` aber wir viele neue Signale haben → Fachpresse-Bubble
+  - `interest_by_region()` parallel abfragen → validiert unser `regions`-Feld (sind "Global"-markierte Trends wirklich global, oder nur US/EU?)
+
+  Implementierung:
+  ```
+  pipeline/google_trends.py
+    - fetch_mega_trend_momentum() → 4 Requests, 20 Keywords, 12-Monats-Zeitreihe
+    - fetch_mega_trend_regions() → 4 Requests, Top-5-Länder pro Keyword
+    - save_momentum_snapshot() → data/google_trends_momentum.json (append, timestamped)
+    - compare_with_catandary() → Divergenz-Report nach stdout/log
+  ```
+
+  Google-Trends-Keywords pro Mega-Trend (Mapping nötig, da unsere Keys nicht direkt suchbar sind):
+  ```yaml
+  artificial_intelligence_and_automation: "artificial intelligence"
+  personalized_health_and_longevity: "longevity health"
+  financial_innovation_and_inclusion: "fintech"
+  future_of_food_and_agriculture: "future of food"
+  clean_energy_transition: "clean energy"
+  new_luxury_and_premiumization: "quiet luxury"
+  inclusive_and_human_centric_design: "inclusive design"
+  mental_health_and_neuro_wellness: "mental health tech"
+  digital_trust_and_data_sovereignty: "data privacy"
+  regenerative_design_and_net_positive: "regenerative design"
+  climate_resilience_and_adaptation: "climate adaptation"
+  geopolitical_disruption_and_supply_chain_resilience: "supply chain resilience"
+  experience_economy_and_immersive_design: "immersive experience"
+  bio_revolution_and_new_materials: "biomaterials"
+  electric_and_autonomous_mobility: "electric vehicle"
+  circular_economy_and_zero_waste: "circular economy"
+  connected_living_and_smart_spaces: "smart home"
+  cultural_heritage_and_identity: "cultural heritage"
+  wearable_technology_and_augmented_living: "wearable technology"
+  creator_economy_and_platform_shift: "creator economy"
+  ```
+  Dieses Mapping muss einmal manuell kuratiert und in `config.py` oder `mega_trends.yaml` hinterlegt werden. Pro Mega-Trend ggf. 2-3 alternative Suchbegriffe testen und den mit dem höchsten/stabilsten Index wählen.
+
+  **Ebene 2 — Micro-Trend-Discovery via Rising Queries (wöchentlicher Cron)**
+
+  Zweck: Neue aufsteigende Suchbegriffe finden, die wir in unseren RSS-Quellen noch nicht covern. Frühwarnsystem für Trends die in der Consumer-Suche explodieren bevor sie in der Fachpresse landen.
+
+  - `related_queries()` für die 20 Mega-Trend-Keywords, Filter: `rising` (>= Breakout oder >100% Wachstum)
+  - Zusätzlich: `related_queries()` ohne Keywords aber mit Kategorie-Filter für unsere 8 Verticals:
+    ```
+    FOOD:      cat=71  (Food & Drink)
+    TECH:      cat=5   (Computers & Electronics)
+    HEALTH:    cat=45  (Health)
+    ECO:       cat=174 (Science) + cat=12 (Business & Industrial)
+    DESIGN:    cat=3   (Arts & Entertainment)
+    FASHION:   cat=44  (Beauty & Fitness)
+    BIZ:       cat=12  (Business & Industrial) + cat=7 (Finance)
+    LIFESTYLE: cat=3   (Arts & Entertainment) + cat=65 (Hobbies & Leisure)
+    ```
+  - `related_topics()` parallel → breitere thematische Felder statt einzelner Suchbegriffe
+  - `suggestions(keyword)` für jeden Rising Query → Autocomplete-Expansion, findet Long-Tail-Varianten
+
+  Ergebnis-Pipeline:
+  1. Rising Queries sammeln → `data/google_trends_rising.json`
+  2. Gegen bestehende `trends.tags` und `trends.title_en` matchen (FTS5 MATCH oder simple LIKE)
+  3. **Unmatched Rising Queries** = potenzielle blinde Flecken → Report: "Google-Nutzer suchen zunehmend nach X, aber wir haben dazu 0 Signale"
+  4. Optional: Unmatched Queries als Seed-Keywords für neue RSS-Quellen-Recherche verwenden
+
+  Implementierung:
+  ```
+  pipeline/google_trends.py (Erweiterung)
+    - fetch_rising_queries_by_mega_trend() → 20 Keywords × related_queries(rising)
+    - fetch_rising_queries_by_category() → 8 Verticals × cat-IDs
+    - fetch_related_topics() → 20 Keywords × related_topics(rising)
+    - match_against_corpus() → FTS5-Match gegen trends.title_en + trends.tags
+    - generate_gap_report() → data/google_trends_gaps.md
+  ```
+
+  **Ebene 3 — Trending-Searches als Consumer-Signal-Layer (täglicher Cron)**
+
+  Zweck: Tägliche Google-Trending-Searches als zusätzlichen Signal-Stream neben RSS-Fachpresse. Zeigt was *Konsumenten* bewegt vs. was *Fachmedien* berichten.
+
+  - `trending_searches(pn='united_states')` + `pn='germany'` → je ~20 tägliche Trending-Begriffe
+  - `realtime_trending_searches(pn='US')` → Trending Now mit **zugehörigen News-Links** (quasi Discovery-Quelle)
+  - Gegen unsere Vertical-Taxonomie klassifizieren (einfacher LLM-Call oder Keyword-Matching)
+  - Speichern in neue Tabelle `google_trending` (nicht in `trends` — anderer Signaltyp)
+
+  Implementierung:
+  ```
+  pipeline/google_trends.py (Erweiterung)
+    - fetch_daily_trending(countries=['united_states', 'germany']) → trending_searches()
+    - fetch_realtime_trending(countries=['US', 'DE']) → realtime_trending_searches()
+    - classify_trending(items) → Vertical-Zuordnung via Keyword-Match oder LLM
+    - store_trending() → INSERT in google_trending Tabelle
+  ```
+
+  DB-Schema:
+  ```sql
+  CREATE TABLE google_trending (
+      id INTEGER PRIMARY KEY,
+      query TEXT NOT NULL,
+      country TEXT NOT NULL,           -- 'US', 'DE'
+      source TEXT NOT NULL,            -- 'daily' | 'realtime'
+      related_news_url TEXT,           -- nur bei realtime
+      related_news_title TEXT,
+      vertical TEXT,                   -- klassifiziert gegen Catandary-Taxonomie
+      mega_trend TEXT,                 -- optional: Mega-Trend-Match
+      matched_trend_id INTEGER,        -- FK auf trends.id wenn Match gefunden
+      fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX idx_google_trending_date ON google_trending(fetched_at);
+  CREATE INDEX idx_google_trending_vertical ON google_trending(vertical);
+  ```
+
+  Frontend-Darstellung (perspektivisch):
+  - "Consumer Buzz"-Widget auf `/trends`: Top-5 Trending Queries der letzten 24h die zu einem unserer Verticals matchen
+  - Auf Mega-Trend-Detailseiten: "Was Konsumenten gerade suchen" als Kontrast zu den Fachpresse-Signalen
+
+  ### Rate-Limiting & Scheduling
+
+  Google drosselt bei >10-20 Requests/Minute. Strategie:
+  - **3 Sekunden Pause** zwischen Requests (`time.sleep(3)`)
+  - **Exponential Backoff** bei 429-Errors (2s → 4s → 8s → 16s, max 3 Retries)
+  - **Request-Budget pro Cron-Lauf:**
+    - Ebene 1 (Momentum): ~12 Requests (4× interest_over_time + 4× interest_by_region + Reserve) → ~1 Minute
+    - Ebene 2 (Rising): ~30 Requests (20× related_queries + 8× category-queries + Reserve) → ~2 Minuten
+    - Ebene 3 (Trending): ~4 Requests (2× daily + 2× realtime) → ~15 Sekunden
+  - **Gesamt: ~46 Requests, ~4 Minuten pro Lauf** — weit unter dem Drosselungs-Limit wenn über 3-5 Minuten verteilt
+
+  Cron-Vorschlag:
+  ```
+  # Google Trends Momentum + Rising Queries (Samstag 6:00, wöchentlich)
+  0 6 * * 6    python -m pipeline.google_trends --momentum --rising
+  # Google Trends Daily Trending (täglich 8:00)
+  0 8 * * *    python -m pipeline.google_trends --trending
+  ```
+
+  ### Priorisierung & Abhängigkeiten
+
+  | Ebene | Aufwand | Wert | Abhängigkeiten |
+  |---|---|---|---|
+  | 1 Momentum | ~2h | Hoch — validiert Mega-Trend-Gewichtung, sofort actionable | Mega-Trend-Keyword-Mapping kuratieren |
+  | 2 Rising | ~3h | Hoch — Blind-Spot-Detection, neue Quellen-Seeds | FTS5 muss laufen (bereits vorhanden) |
+  | 3 Trending | ~3h | Mittel — Consumer-Perspektive, eher Nice-to-have | Neue DB-Tabelle, Frontend-Widget optional |
+
+  Empfehlung: Ebene 1 zuerst als Standalone-Script (`scripts/dryrun_google_trends.py`), Ergebnis evaluieren. Wenn die Momentum-Daten nützlich sind, Ebene 2 dranbauen. Ebene 3 ist unabhängig und kann jederzeit separat gebaut werden.
+
+  ### Risiken & Watchouts
+
+  - **pytrends ist inoffiziell** — Google kann Endpoints jederzeit ändern. Library-Updates verfolgen, Fallback: `serpapi.com` Google Trends API ($50/Monat, 5.000 Searches) als Alternative.
+  - **Relative Werte** — Google Trends liefert nur Index 0-100 relativ zum Zeitraum, kein absolutes Suchvolumen. Vergleiche nur innerhalb eines Requests valide. Mega-Trend-Keywords daher immer im selben 5er-Batch abfragen.
+  - **Keyword-Qualität entscheidend** — "circular economy" trifft den Mega-Trend gut, "inclusive design" vielleicht nicht. Das Keyword-Mapping muss iterativ optimiert werden.
+  - **Geo-Bias** — Google Trends ist stark US/EU-lastig. Für APAC/LatAm-Trends weniger aussagekräftig.
+  - **Kein Ersatz für Fachpresse** — Google Trends zeigt Consumer-Interesse, nicht Branchen-Innovation. Ein Trend kann in der Fachpresse explodieren ohne dass Konsumenten danach suchen (z.B. "carbon capture"). Beide Perspektiven ergänzen sich, ersetzen sich nicht.
+
 ## Pipeline-Orchestrierung (Cron)
 
-- [ ] **`pipeline/run_full_cycle.py` — Orchestrator-Script für den Hauptzyklus.** Fasst Feed-Poll + LLM-Pipeline in einen sequentiellen Lauf zusammen. Ersetzt die separaten Cron-Einträge für `feed_poller` und `llm_processor`.
-  - **Ablauf:** (1) Ollama-Health-Check → (2) Feed Poll alle Verticals → (3) LLM Pipeline Batch N → (4) Summary Report (neue Entries, published, Fehler, Dauer) → Exit Code 0/1
-  - **Flags:** `--skip-poll` (nur LLM), `--skip-llm` (nur Poll), `--batch N` (default 200), `--dry-run`
-  - **Logging:** Zentrales Log pro Zyklus, optional Append in `data/cycle_log.jsonl` für Monitoring
-  - **Vorteile:** Garantiert sequentiell (kein DB-Lock), Ollama-Check vor teurem LLM-Lauf, ein Cron statt zwei
-  - **Nicht enthalten:** Mega-Trend-Reviewer (monatlich, eigener Cron), Newsletter (wöchentlich, eigener Cron), Radar (täglich, eigener Cron)
-  - **Crontab-Ziel:**
+- [x] ~~**`pipeline/run_full_cycle.py` — Orchestrator-Script für den Hauptzyklus.**~~ Implementiert 2026-04-12. Flags: `--batch N`, `--skip-poll`, `--skip-llm`, `--dry-run`. Logs to `data/cycle_log.jsonl`. Crontab:
     ```
     30 */4 * * *   python -m pipeline.run_full_cycle --batch 200
     0 3 1 * *      python -m pipeline.mega_trend_reviewer

@@ -17,6 +17,14 @@ verticals:
       feed_url: https://www.beveragedaily.com/arc/outboundfeeds/rss/
       type: trade_media
       lead_time_tier: market
+    - name: DairyReporter
+      feed_url: https://www.dairyreporter.com/arc/outboundfeeds/rss/
+      type: trade_media
+      lead_time_tier: market
+    - name: FoodTec Insider
+      feed_url: https://www.foodtec-insider.de/rss.xml
+      type: trade_media
+      lead_time_tier: market
     - name: Eater
       feed_url: https://www.eater.com/rss/index.xml
       type: trade_media
