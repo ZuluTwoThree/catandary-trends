@@ -82,15 +82,20 @@ Example reasoning:
 - Be consistent: similar trends should get the same mega-trend."""
 
 
-def get_trends_for_vertical(vertical: str) -> list[dict]:
-    """Fetch all published trends for a vertical."""
+def get_trends_for_vertical(vertical: str, only_null: bool = False) -> list[dict]:
+    """Fetch published trends for a vertical.
+
+    If only_null is True, only return trends with missing mega_trend.
+    """
     with get_connection() as conn:
-        rows = conn.execute(
+        query = (
             "SELECT id, title_en, summary_en, mega_trend, tags "
             "FROM trends WHERE primary_vertical = ? AND status = 'published' "
-            "ORDER BY created_at DESC",
-            (vertical,),
-        ).fetchall()
+        )
+        if only_null:
+            query += "AND (mega_trend IS NULL OR mega_trend = '') "
+        query += "ORDER BY created_at DESC"
+        rows = conn.execute(query, (vertical,)).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -171,9 +176,9 @@ def review_batch(trends: list[dict], system_prompt: str, dry_run: bool = False) 
     return {"reviewed": len(result.assignments), "updated": updated, "errors": 0}
 
 
-def review_vertical(vertical: str, dry_run: bool = False) -> dict:
-    """Review all trends in a vertical."""
-    trends = get_trends_for_vertical(vertical)
+def review_vertical(vertical: str, dry_run: bool = False, only_null: bool = False) -> dict:
+    """Review trends in a vertical. If only_null, only those without mega_trend."""
+    trends = get_trends_for_vertical(vertical, only_null=only_null)
     if not trends:
         logger.info("No trends found for vertical %s", vertical)
         return {"vertical": vertical, "total": 0, "reviewed": 0, "updated": 0, "errors": 0}
@@ -219,7 +224,7 @@ def review_vertical(vertical: str, dry_run: bool = False) -> dict:
     return result
 
 
-def run_reviewer(verticals: list[str] | None = None, dry_run: bool = False):
+def run_reviewer(verticals: list[str] | None = None, dry_run: bool = False, only_null: bool = False):
     """Run the mega-trend reviewer for specified or all verticals."""
     t0 = time.time()
     target_verticals = verticals or VERTICALS
@@ -227,11 +232,12 @@ def run_reviewer(verticals: list[str] | None = None, dry_run: bool = False):
     logger.info("=== Mega-Trend Reviewer starting ===")
     logger.info("Verticals: %s", target_verticals)
     logger.info("Mode: %s", "DRY RUN" if dry_run else "LIVE")
+    logger.info("Scope: %s", "NULL mega-trends only" if only_null else "all trends")
     logger.info("Model: %s", MODEL_GENERATE)
 
     all_results = []
     for vertical in target_verticals:
-        result = review_vertical(vertical, dry_run)
+        result = review_vertical(vertical, dry_run, only_null=only_null)
         all_results.append(result)
 
     elapsed = time.time() - t0
@@ -252,6 +258,7 @@ def run_reviewer(verticals: list[str] | None = None, dry_run: bool = False):
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     dry_run = "--dry-run" in sys.argv
+    only_null = "--null" in sys.argv
 
     verticals = [a.upper() for a in args if a.upper() in VERTICALS] or None
-    run_reviewer(verticals=verticals, dry_run=dry_run)
+    run_reviewer(verticals=verticals, dry_run=dry_run, only_null=only_null)

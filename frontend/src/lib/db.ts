@@ -139,6 +139,10 @@ export interface MegaTrendInfo {
   cluster_strength: "strong" | "moderate" | "fragmented";
   signal_count: number;
   horizon: string;
+  /** Earliest source date for any trend in this mega-trend (ISO string). */
+  first_seen: string | null;
+  /** Number of signals published in the last 30 days. */
+  signals_30d: number;
 }
 
 function loadMegaTrendYaml(): Record<string, {
@@ -169,20 +173,28 @@ function loadMegaTrendYaml(): Record<string, {
 export function getMegaTrends(status?: string): MegaTrendInfo[] {
   const db = getDb();
   try {
-    let query = "SELECT mega_trend, COUNT(*) as cnt, GROUP_CONCAT(DISTINCT primary_vertical) as verts FROM trends WHERE mega_trend IS NOT NULL AND mega_trend != ''";
+    let query = `SELECT t.mega_trend, COUNT(*) as cnt,
+       GROUP_CONCAT(DISTINCT t.primary_vertical) as verts,
+       MIN(re.published_date) as first_seen,
+       SUM(CASE WHEN re.published_date >= datetime('now', '-30 days') THEN 1 ELSE 0 END) as signals_30d
+       FROM trends t
+       LEFT JOIN raw_entries re ON t.raw_entry_id = re.id
+       WHERE t.mega_trend IS NOT NULL AND t.mega_trend != ''`;
     const params: unknown[] = [];
 
     if (status) {
-      query += " AND status = ?";
+      query += " AND t.status = ?";
       params.push(status);
     }
 
-    query += " GROUP BY mega_trend ORDER BY cnt DESC";
+    query += " GROUP BY t.mega_trend ORDER BY cnt DESC";
 
     const rows = db.prepare(query).all(...params) as {
       mega_trend: string;
       cnt: number;
       verts: string;
+      first_seen: string | null;
+      signals_30d: number;
     }[];
 
     const yamlData = loadMegaTrendYaml();
@@ -197,8 +209,10 @@ export function getMegaTrends(status?: string): MegaTrendInfo[] {
         description: meta.description || "",
         momentum: (meta.momentum || "stable") as MegaTrendInfo["momentum"],
         cluster_strength: (meta.cluster_strength || "fragmented") as MegaTrendInfo["cluster_strength"],
-        signal_count: meta.signal_count || 0,
+        signal_count: r.signals_30d || 0,
         horizon: meta.horizon || "",
+        first_seen: r.first_seen || null,
+        signals_30d: r.signals_30d || 0,
       };
     });
   } finally {

@@ -14,6 +14,18 @@ interface MegaTrendItem {
   cluster_strength?: "strong" | "moderate" | "fragmented";
   horizon?: string;
   description?: string;
+  first_seen?: string | null;
+  signals_30d?: number;
+}
+
+function formatFirstSeen(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  } catch {
+    return null;
+  }
 }
 
 const MOMENTUM_CONFIG = {
@@ -73,8 +85,16 @@ export default function MegaTrendsPage({
                 className="group block border border-border bg-card/40 p-6 hover:bg-card hover:border-accent/40 transition-colors"
               >
                 <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
-                    Mega / {mt.count} Signals
+                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted flex items-center gap-3">
+                    {formatFirstSeen(mt.first_seen) ? (
+                      <span>Since <span className="text-paper">{formatFirstSeen(mt.first_seen)}</span></span>
+                    ) : (
+                      <span>Mega</span>
+                    )}
+                    <span className="text-border">·</span>
+                    <span><span className="text-accent tabular-nums">{(mt.signals_30d ?? 0).toLocaleString("en-US")}</span> in 30d</span>
+                    <span className="text-border">·</span>
+                    <span><span className="text-paper tabular-nums">{mt.count.toLocaleString("en-US")}</span> total</span>
                   </div>
                   {mt.momentum && (
                     <span
