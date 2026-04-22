@@ -234,7 +234,7 @@ export function getCrossVerticalTrends(options: {
       params.push(options.status);
     }
 
-    query += " ORDER BY t.trend_score DESC, COALESCE(re.published_date, t.created_at) DESC LIMIT ?";
+    query += " ORDER BY COALESCE(re.published_date, t.created_at) DESC, t.trend_score DESC LIMIT ?";
     params.push(options.limit ?? 20);
 
     const rows = db.prepare(query).all(...params) as Record<string, unknown>[];

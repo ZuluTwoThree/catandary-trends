@@ -181,6 +181,7 @@ verticals:
       feed_url: https://rss.arxiv.org/rss/cs.AI
       type: research
       lead_time_tier: future
+      active: false  # Paused — 323 entries/day floods pipeline, 16% of all raw entries
     - name: Science Robotics
       feed_url: https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=scirobotics
       type: research

@@ -59,7 +59,16 @@ def chat_structured(model: str, prompt: str, schema: type[T],
             raw = response.message.content or ""
             if not raw.strip():
                 raise ValueError("Empty response from model")
-            result = schema.model_validate_json(raw)
+            # Some models (e.g. Qwen3.5, Gemma4) wrap JSON in markdown fences
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                # Remove opening fence (```json or ```)
+                first_newline = cleaned.index("\n")
+                cleaned = cleaned[first_newline + 1:]
+                # Remove closing fence
+                if cleaned.rstrip().endswith("```"):
+                    cleaned = cleaned.rstrip()[:-3].rstrip()
+            result = schema.model_validate_json(cleaned)
             logger.debug("Structured output from %s (attempt %d): %s", model, attempt + 1, result)
             return result
         except Exception as e:
@@ -80,7 +89,13 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                         think=False,
                     )
                     raw = response.message.content or ""
-                    return schema.model_validate_json(raw)
+                    cleaned = raw.strip()
+                    if cleaned.startswith("```"):
+                        first_newline = cleaned.index("\n")
+                        cleaned = cleaned[first_newline + 1:]
+                        if cleaned.rstrip().endswith("```"):
+                            cleaned = cleaned.rstrip()[:-3].rstrip()
+                    return schema.model_validate_json(cleaned)
                 except Exception as e2:
                     logger.error("Fallback model %s also failed: %s", fallback_model, e2)
 
