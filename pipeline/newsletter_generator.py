@@ -76,19 +76,38 @@ BANNED_PHRASES = (
 # 1. Data aggregation
 # ---------------------------------------------------------------------------
 
-def get_weekly_newsletter_data(days: int = 7) -> dict:
-    """Fetch published trends from the past N days and aggregate for editorial."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+def get_weekly_newsletter_data(days: int = 7, week_start: str | None = None,
+                               week_end: str | None = None) -> dict:
+    """Fetch published trends for a date range and aggregate for editorial.
+
+    If week_start/week_end are provided, use those instead of days-based cutoff.
+    """
+    if week_start and week_end:
+        cutoff = week_start
+        upper = week_end
+    else:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        upper = None
 
     with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT id, title_en, title_de, slug, summary_en, summary_de, "
-            "primary_vertical, mega_trend, tags, pestel, trend_signal_type, "
-            "trend_score, confidence, source_name, created_at "
-            "FROM trends WHERE status = 'published' AND created_at > ? "
-            "ORDER BY trend_score DESC, created_at DESC",
-            (cutoff,),
-        ).fetchall()
+        if upper:
+            rows = conn.execute(
+                "SELECT id, title_en, title_de, slug, summary_en, summary_de, "
+                "primary_vertical, mega_trend, tags, pestel, trend_signal_type, "
+                "trend_score, confidence, source_name, created_at "
+                "FROM trends WHERE status = 'published' AND created_at > ? AND created_at < ? "
+                "ORDER BY trend_score DESC, created_at DESC",
+                (cutoff, upper),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, title_en, title_de, slug, summary_en, summary_de, "
+                "primary_vertical, mega_trend, tags, pestel, trend_signal_type, "
+                "trend_score, confidence, source_name, created_at "
+                "FROM trends WHERE status = 'published' AND created_at > ? "
+                "ORDER BY trend_score DESC, created_at DESC",
+                (cutoff,),
+            ).fetchall()
 
     # Convert rows to dicts
     trends = []
@@ -751,22 +770,38 @@ def generate_html(edition: dict) -> str:
 # 7. Main orchestration
 # ---------------------------------------------------------------------------
 
-def generate_newsletter(days: int = 7, skip_llm: bool = False) -> dict:
+def generate_newsletter(days: int = 7, skip_llm: bool = False,
+                        year: int | None = None, week: int | None = None) -> dict:
     """Generate a complete newsletter edition.
 
+    If year/week are provided, generate for that specific ISO week retroactively.
     Returns the edition dict with all fields populated.
     """
-    logger.info("Collecting trend data (last %d days)...", days)
-    data = get_weekly_newsletter_data(days)
+    if year and week:
+        # Calculate Monday-Sunday of the given ISO week
+        from datetime import date
+        monday = date.fromisocalendar(year, week, 1)
+        sunday = date.fromisocalendar(year, week, 7)
+        week_start = f"{monday.isoformat()}T00:00:00"
+        week_end = f"{sunday.isoformat()}T23:59:59"
+        logger.info("Collecting trend data for %d-W%02d (%s to %s)...", year, week, monday, sunday)
+        data = get_weekly_newsletter_data(week_start=week_start, week_end=week_end)
+        # Override period label
+        data["period"] = f"{year}-W{week:02d}"
+        data["period_label"] = f"Week {week}/{year}"
+        iso_year, iso_week = year, week
+    else:
+        logger.info("Collecting trend data (last %d days)...", days)
+        data = get_weekly_newsletter_data(days)
+        now = datetime.now(timezone.utc)
+        iso_year, iso_week, _ = now.isocalendar()
+
     logger.info("Found %d signals across %d verticals",
                 data["total_count"], len(data["verticals"]))
 
     if data["total_count"] == 0:
         logger.info("No signals found — skipping newsletter generation")
         return {}
-
-    now = datetime.now(timezone.utc)
-    iso_year, iso_week, _ = now.isocalendar()
 
     # Build trend_refs for the HTML template
     trend_refs = {}
@@ -835,11 +870,16 @@ def generate_newsletter(days: int = 7, skip_llm: bool = False) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="Generate weekly newsletter")
     parser.add_argument("--days", type=int, default=7, help="Days to look back")
+    parser.add_argument("--year", type=int, help="ISO year for retroactive generation")
+    parser.add_argument("--week", type=int, help="ISO week number for retroactive generation")
     parser.add_argument("--preview", action="store_true", help="Save HTML preview only, don't store in DB")
     parser.add_argument("--skip-llm", action="store_true", help="Skip LLM calls, data-only output")
     args = parser.parse_args()
 
-    edition = generate_newsletter(days=args.days, skip_llm=args.skip_llm)
+    edition = generate_newsletter(
+        days=args.days, skip_llm=args.skip_llm,
+        year=args.year, week=args.week,
+    )
     if not edition:
         return
 

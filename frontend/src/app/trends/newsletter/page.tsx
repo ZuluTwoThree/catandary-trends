@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { getVerticalInfo, type Vertical } from "@/lib/types";
 
@@ -26,6 +26,14 @@ interface NewsletterEdition {
   vertical_summaries: Record<string, string>;
   mega_trend_radar: MegaTrendRadar[];
   trend_refs: Record<string, TrendRef[]>;
+  total_signals: number;
+  created_at: string;
+}
+
+interface ArchiveEntry {
+  id: number;
+  year: number;
+  week: number;
   total_signals: number;
   created_at: string;
 }
@@ -146,19 +154,104 @@ function SignupForm() {
   );
 }
 
+/** Week selector for navigating between editions */
+function WeekSelector({
+  archive,
+  currentYear,
+  currentWeek,
+  onSelect,
+}: {
+  archive: ArchiveEntry[];
+  currentYear: number;
+  currentWeek: number;
+  onSelect: (year: number, week: number) => void;
+}) {
+  const currentIdx = archive.findIndex(
+    (a) => a.year === currentYear && a.week === currentWeek
+  );
+  const prevEdition = currentIdx < archive.length - 1 ? archive[currentIdx + 1] : null;
+  const nextEdition = currentIdx > 0 ? archive[currentIdx - 1] : null;
+
+  return (
+    <div className="flex items-center justify-between gap-4 mb-10 pb-4 border-b border-border">
+      {/* Prev */}
+      <button
+        onClick={() => prevEdition && onSelect(prevEdition.year, prevEdition.week)}
+        disabled={!prevEdition}
+        className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        ← W{prevEdition ? `${prevEdition.week}` : "—"}
+      </button>
+
+      {/* Current + dropdown */}
+      <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.14em]">
+        <select
+          value={`${currentYear}-${currentWeek}`}
+          onChange={(e) => {
+            const [y, w] = e.target.value.split("-").map(Number);
+            onSelect(y, w);
+          }}
+          className="bg-transparent text-accent border-none font-mono text-[10px] uppercase tracking-[0.14em] cursor-pointer focus:outline-none"
+        >
+          {archive.map((a) => (
+            <option
+              key={`${a.year}-${a.week}`}
+              value={`${a.year}-${a.week}`}
+              className="bg-card text-paper"
+            >
+              Week {a.week}/{a.year} — {a.total_signals} signals
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Next */}
+      <button
+        onClick={() => nextEdition && onSelect(nextEdition.year, nextEdition.week)}
+        disabled={!nextEdition}
+        className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        W{nextEdition ? `${nextEdition.week}` : "—"} →
+      </button>
+    </div>
+  );
+}
+
 export default function NewsletterPage() {
   const [edition, setEdition] = useState<NewsletterEdition | null>(null);
+  const [archive, setArchive] = useState<ArchiveEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetch("/api/newsletter")
-      .then((res) => res.json())
-      .then((data) => {
-        setEdition(data.edition || null);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+  const loadEdition = useCallback(async (year?: number, week?: number) => {
+    setLoading(true);
+    try {
+      const params = year && week ? `?year=${year}&week=${week}` : "";
+      const res = await fetch(`/api/newsletter${params}`);
+      const data = await res.json();
+      setEdition(data.edition || null);
+    } catch {
+      setEdition(null);
+    }
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    // Load archive list and latest edition in parallel
+    Promise.all([
+      fetch("/api/newsletter?list=true").then((r) => r.json()),
+      fetch("/api/newsletter").then((r) => r.json()),
+    ]).then(([archiveData, editionData]) => {
+      setArchive(archiveData.archive || []);
+      setEdition(editionData.edition || null);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  function handleWeekSelect(year: number, week: number) {
+    loadEdition(year, week);
+    // Update URL without navigation for bookmarkability
+    window.history.replaceState(null, "", `?year=${year}&week=${week}`);
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-6 md:px-12 py-16">
@@ -190,17 +283,26 @@ export default function NewsletterPage() {
         </div>
       ) : (
         <>
-          {/* Period bar */}
-          <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-10 pb-4 border-b border-border">
-            <span className="text-accent">
-              Week {edition.week}/{edition.year}
-            </span>
-            <span className="text-border">——</span>
-            <span>
-              <span className="text-paper">{edition.total_signals}</span>
-              <span> signals</span>
-            </span>
-          </div>
+          {/* Week selector */}
+          {archive.length > 1 ? (
+            <WeekSelector
+              archive={archive}
+              currentYear={edition.year}
+              currentWeek={edition.week}
+              onSelect={handleWeekSelect}
+            />
+          ) : (
+            <div className="flex items-center gap-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-10 pb-4 border-b border-border">
+              <span className="text-accent">
+                Week {edition.week}/{edition.year}
+              </span>
+              <span className="text-border">——</span>
+              <span>
+                <span className="text-paper">{edition.total_signals}</span>
+                <span> signals</span>
+              </span>
+            </div>
+          )}
 
           {/* Editorial */}
           <section className="mb-12">
@@ -310,6 +412,43 @@ export default function NewsletterPage() {
                     );
                   })}
                 </div>
+              </div>
+            </section>
+          )}
+
+          {/* Archive */}
+          {archive.length > 1 && (
+            <section className="mb-12">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">
+                04 — Archive
+              </div>
+              <div className="border border-border bg-card/40">
+                {archive.map((a, i) => {
+                  const isActive =
+                    a.year === edition.year && a.week === edition.week;
+                  return (
+                    <button
+                      key={`${a.year}-${a.week}`}
+                      onClick={() => handleWeekSelect(a.year, a.week)}
+                      className={`w-full flex items-center justify-between px-5 py-3 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors ${
+                        i < archive.length - 1
+                          ? "border-b border-dashed border-border"
+                          : ""
+                      } ${
+                        isActive
+                          ? "text-accent bg-accent/5"
+                          : "text-muted hover:text-paper hover:bg-card"
+                      }`}
+                    >
+                      <span>
+                        {isActive && "→ "}Week {a.week}/{a.year}
+                      </span>
+                      <span>
+                        {a.total_signals} signals
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </section>
           )}
