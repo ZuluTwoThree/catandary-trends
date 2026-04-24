@@ -1,11 +1,192 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #0a0a0a;
-  --color-foreground: #ededed;
-  --color-card: #141414;
-  --color-card-hover: #1a1a1a;
-  --color-border: #262626;
-  --color-muted: #737373;
-  --color-accent: #c084fc;
+  /* ===== Core palette — Option A "Editorial Intelligence" ===== */
+  --color-background: #0a0c0a;       /* --ink */
+  --color-foreground: #d8d5c8;       /* --text */
+  --color-paper: #f4f1e8;            /* bright text on dark surfaces */
+  --color-card: #111310;             /* --surface */
+  --color-card-hover: #161914;       /* --surface-hover */
+  --color-border: #2a2d25;           /* --edge */
+  --color-rule: #3a3d35;             /* secondary divider */
+  --color-muted: #8a8d82;
+  --color-accent: #d4ff3a;           /* chartreuse */
+  --color-accent-deep: #a8cc28;
+  --color-warn: #ff6b3a;
+
+  /* ===== Vertical palette ===== */
+  --color-v-food: #f97316;
+  --color-v-tech: #a78bfa;
+  --color-v-health: #34d399;
+  --color-v-eco: #22d3ee;
+  --color-v-design: #f472b6;
+  --color-v-fashion: #fb7185;
+  --color-v-biz: #60a5fa;
+  --color-v-lifestyle: #c084fc;
+
+  /* ===== Typography ===== */
+  --font-display: var(--font-plex-serif), "IBM Plex Serif", Georgia, serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+  --font-sans: var(--font-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
+}
+
+/* ===== Global defaults ===== */
+html {
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(212, 255, 58, 0.03), transparent 70%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* Grain overlay — fixed, non-interactive, above content */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+/* ===== Utility classes ===== */
+.font-display { font-family: var(--font-display); font-feature-settings: "ss01"; }
+.font-mono { font-family: var(--font-mono); }
+
+/* Eyebrow: small all-caps mono label with leading rule */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--color-accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.eyebrow::before {
+  content: "";
+  width: 28px;
+  height: 1px;
+  background: currentColor;
+}
+
+/* Corner-bracket decoration container — add on any relative element */
+.brackets {
+  position: relative;
+}
+.brackets::before,
+.brackets::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+.brackets::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid var(--color-accent);
+  border-left: 2px solid var(--color-accent);
+}
+.brackets::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid var(--color-accent);
+  border-right: 2px solid var(--color-accent);
+}
+.brackets:hover::before,
+.brackets:hover::after,
+.brackets.brackets-always::before,
+.brackets.brackets-always::after {
+  opacity: 1;
+}
+
+/* Ruled separator utility */
+.rule-dashed {
+  border-top: 1px dashed var(--color-border);
+}
+
+/* ===== Reveal animation (staggered page-load) ===== */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes reveal-rule {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.reveal {
+  animation: reveal-up 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.reveal-rule {
+  transform-origin: left;
+  animation: reveal-rule 900ms cubic-bezier(0.2, 0.7, 0.2, 1) 200ms both;
+}
+/* Hero crosshair decoration — thin plus mark at a corner */
+.crosshair {
+  position: relative;
+  width: 10px;
+  height: 10px;
+}
+.crosshair::before,
+.crosshair::after {
+  content: "";
+  position: absolute;
+  background: var(--color-accent);
+}
+.crosshair::before {
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  transform: translateX(-50%);
+}
+.crosshair::after {
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  transform: translateY(-50%);
+}
+
+/* Blinking live dot for terminal status bar */
+@keyframes pulse-dot {
+  0%, 60% { opacity: 1; }
+  61%, 100% { opacity: 0.25; }
+}
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--color-accent);
+  border-radius: 9999px;
+  animation: pulse-dot 1.8s steps(1, end) infinite;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal-rule, .live-dot {
+    animation: none !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+  .reveal-rule { transform: none; }
 }

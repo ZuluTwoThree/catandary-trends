@@ -46,6 +46,9 @@ export interface VerticalInfo {
   id: Vertical;
   label: string;
   color: string;
+  /** 4-char monospace abbreviation — replaces legacy emoji icon. */
+  code: string;
+  /** Legacy alias for transitional rendering; use `code` going forward. */
   icon: string;
 }
 
@@ -56,22 +59,22 @@ export interface PestelInfo {
 }
 
 export const VERTICALS: VerticalInfo[] = [
-  { id: "FOOD", label: "Food & Beverage", color: "#f97316", icon: "🍽" },
-  { id: "TECH", label: "Technology & AI", color: "#8b5cf6", icon: "💻" },
-  { id: "HEALTH", label: "Health & Wellness", color: "#10b981", icon: "🏥" },
-  { id: "ECO", label: "Sustainability", color: "#06b6d4", icon: "🌱" },
-  { id: "DESIGN", label: "Design & Architecture", color: "#ec4899", icon: "🎨" },
-  { id: "FASHION", label: "Fashion & Beauty", color: "#f43f5e", icon: "👗" },
-  { id: "BIZ", label: "Business & Retail", color: "#3b82f6", icon: "📊" },
-  { id: "LIFESTYLE", label: "Lifestyle & Culture", color: "#a855f7", icon: "🎭" },
+  { id: "FOOD", label: "Food & Beverage", color: "#f97316", code: "FOOD", icon: "FOOD" },
+  { id: "TECH", label: "Technology & AI", color: "#a78bfa", code: "TECH", icon: "TECH" },
+  { id: "HEALTH", label: "Health & Wellness", color: "#34d399", code: "HLTH", icon: "HLTH" },
+  { id: "ECO", label: "Sustainability", color: "#22d3ee", code: "ECO", icon: "ECO" },
+  { id: "DESIGN", label: "Design & Architecture", color: "#f472b6", code: "DSGN", icon: "DSGN" },
+  { id: "FASHION", label: "Fashion & Beauty", color: "#fb7185", code: "FASH", icon: "FASH" },
+  { id: "BIZ", label: "Business & Retail", color: "#60a5fa", code: "BIZ", icon: "BIZ" },
+  { id: "LIFESTYLE", label: "Lifestyle & Culture", color: "#c084fc", code: "LIFE", icon: "LIFE" },
 ];
 
 export const PESTEL: PestelInfo[] = [
   { id: "P", label: "Political", color: "#ef4444" },
-  { id: "E", label: "Economic", color: "#3b82f6" },
-  { id: "S", label: "Social", color: "#22c55e" },
-  { id: "T", label: "Technological", color: "#8b5cf6" },
-  { id: "En", label: "Environmental", color: "#06b6d4" },
+  { id: "E", label: "Economic", color: "#60a5fa" },
+  { id: "S", label: "Social", color: "#34d399" },
+  { id: "T", label: "Technological", color: "#a78bfa" },
+  { id: "En", label: "Environmental", color: "#22d3ee" },
   { id: "L", label: "Legal", color: "#f97316" },
 ];
 

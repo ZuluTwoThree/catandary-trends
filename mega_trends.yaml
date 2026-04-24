@@ -120,11 +120,11 @@ mega_trends:
   name_en: Inclusive & Human-Centric Design
   name_de: Inklusives & Menschenzentriertes Design
   description: Universal accessibility, assistive technology, gender-inclusive products, aging-population
-    design, neurodiversity accommodation, equity in design.
+    design, neurodiversity accommodation, equity in design, modular/adaptive architecture, flexible workspaces.
   horizon: 10-20 years
   momentum: rising
-  cluster_strength: fragmented
-  signal_count: 11
+  cluster_strength: moderate
+  signal_count: 397
   verticals:
   - DESIGN
   - LIFESTYLE
@@ -154,18 +154,21 @@ mega_trends:
   name_en: Connected Living & Smart Spaces
   name_de: Vernetztes Wohnen & Intelligente Räume
   description: IoT ecosystems, smart homes/kitchens/offices, ambient computing, sensor-driven environments,
-    home automation.
+    home automation, smart city infrastructure, transit-oriented development, urban public space activation.
   horizon: 5-15 years
   momentum: declining
   cluster_strength: strong
-  signal_count: 46
+  signal_count: 105
   verticals:
   - TECH
   - DESIGN
   - FOOD
   - BIZ
+  - ECO
+  - LIFESTYLE
   icon: 🏠
-  description_de: IoT-Ökosysteme, Smart Homes/Küchen/Büros, Ambient Computing, sensorgesteuerte Umgebungen.
+  description_de: IoT-Ökosysteme, Smart Homes/Küchen/Büros, Ambient Computing, sensorgesteuerte Umgebungen,
+    smarte Stadtinfrastruktur, urbane Transformation.
 - key: creator_economy_and_platform_shift
   name_en: Creator Economy & Platform Shift
   name_de: Creator Economy & Plattformwandel
@@ -270,24 +273,6 @@ mega_trends:
   icon: 🏛️
   description_de: Revival von Handwerkstraditionen, kulturelle Fusion, ortsbasiertes Branding, indigenes
     Wissen.
-- key: urban_transformation_and_smart_cities
-  name_en: Urban Transformation & Smart Cities
-  name_de: Urbane Transformation & Smart Cities
-  description: Redesigning cities for density, livability and sustainability — public space activation,
-    smart infrastructure, transit-oriented development.
-  horizon: 20-30 years
-  momentum: declining
-  cluster_strength: fragmented
-  signal_count: 10
-  verticals:
-  - DESIGN
-  - ECO
-  - LIFESTYLE
-  - TECH
-  - BIZ
-  icon: 🏙️
-  description_de: Städte neu gestalten für Dichte, Lebensqualität und Nachhaltigkeit — öffentlicher Raum,
-    smarte Infrastruktur.
 - key: digital_trust_and_data_sovereignty
   name_en: Digital Trust & Data Sovereignty
   name_de: Digitales Vertrauen & Datensouveränität
@@ -304,23 +289,6 @@ mega_trends:
   - HEALTH
   icon: 🔒
   description_de: Datenschutz, digitale Identität, KI-Governance, algorithmische Transparenz, Cybersicherheit.
-- key: modular_and_adaptive_systems
-  name_en: Modular & Adaptive Systems
-  name_de: Modulare & Adaptive Systeme
-  description: Reconfigurable architecture, modular furniture/housing, flexible workspaces, temporary
-    structures, DIY assembly systems.
-  horizon: 10-20 years
-  momentum: emerging
-  cluster_strength: fragmented
-  signal_count: 4
-  verticals:
-  - DESIGN
-  - BIZ
-  - TECH
-  - LIFESTYLE
-  icon: 🧩
-  description_de: Rekonfigurierbare Architektur, modulare Möbel/Wohnungen, flexible Arbeitsbereiche, temporäre
-    Strukturen.
 - key: mental_health_and_neuro_wellness
   name_en: Mental Health & Neuro-Wellness
   name_de: Mentale Gesundheit & Neuro-Wellness

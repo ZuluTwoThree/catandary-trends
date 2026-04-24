@@ -92,7 +92,7 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "inclusive_and_human_centric_design",
     "name_en": "Inclusive & Human-Centric Design",
-    "description_en": "Universal accessibility, assistive technology, gender-inclusive products, aging-population design, neurodiversity accommodation, equity in design.",
+    "description_en": "Universal accessibility, assistive technology, gender-inclusive products, aging-population design, neurodiversity accommodation, equity in design, modular/adaptive architecture, flexible workspaces.",
     "icon": "♿",
     "verticals": [
       "DESIGN",
@@ -117,13 +117,15 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
   {
     "key": "connected_living_and_smart_spaces",
     "name_en": "Connected Living & Smart Spaces",
-    "description_en": "IoT ecosystems, smart homes/kitchens/offices, ambient computing, sensor-driven environments, home automation.",
+    "description_en": "IoT ecosystems, smart homes/kitchens/offices, ambient computing, sensor-driven environments, home automation, smart city infrastructure, transit-oriented development, urban public space activation.",
     "icon": "🏠",
     "verticals": [
       "TECH",
       "DESIGN",
       "FOOD",
-      "BIZ"
+      "BIZ",
+      "ECO",
+      "LIFESTYLE"
     ]
   },
   {
@@ -201,19 +203,6 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     ]
   },
   {
-    "key": "urban_transformation_and_smart_cities",
-    "name_en": "Urban Transformation & Smart Cities",
-    "description_en": "Redesigning cities for density, livability and sustainability — public space activation, smart infrastructure, transit-oriented development.",
-    "icon": "🏙️",
-    "verticals": [
-      "DESIGN",
-      "ECO",
-      "LIFESTYLE",
-      "TECH",
-      "BIZ"
-    ]
-  },
-  {
     "key": "digital_trust_and_data_sovereignty",
     "name_en": "Digital Trust & Data Sovereignty",
     "description_en": "Data privacy, digital identity management, AI governance, algorithmic transparency, cybersecurity, content authentication.",
@@ -223,18 +212,6 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "BIZ",
       "LIFESTYLE",
       "HEALTH"
-    ]
-  },
-  {
-    "key": "modular_and_adaptive_systems",
-    "name_en": "Modular & Adaptive Systems",
-    "description_en": "Reconfigurable architecture, modular furniture/housing, flexible workspaces, temporary structures, DIY assembly systems.",
-    "icon": "🧩",
-    "verticals": [
-      "DESIGN",
-      "BIZ",
-      "TECH",
-      "LIFESTYLE"
     ]
   },
   {

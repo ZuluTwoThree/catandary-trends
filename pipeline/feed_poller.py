@@ -149,6 +149,8 @@ def poll_vertical_sources(vertical: str, config: dict) -> dict:
     all_sources = config.get("sources", []) + config.get("science", []) + config.get("radar", [])
 
     for source_cfg in all_sources:
+        if source_cfg.get("active") is False:
+            continue
         source_name = source_cfg["name"]
         feed_url = source_cfg["feed_url"]
         source_type = source_cfg.get("type", "trade_media")
@@ -185,6 +187,8 @@ def poll_cross_industry(config: dict) -> dict:
         for source_cfg in category_sources:
             if source_cfg.get("type") == "api":
                 continue  # API sources handled separately
+            if source_cfg.get("active") is False:
+                continue
 
             source_name = source_cfg["name"]
             feed_url = source_cfg["feed_url"]

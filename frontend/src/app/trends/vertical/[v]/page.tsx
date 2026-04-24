@@ -6,5 +6,5 @@ export default async function VerticalPage({
   params: Promise<{ v: string }>;
 }) {
   const { v } = await params;
-  redirect(`/trends?vertical=${v.toUpperCase()}`);
+  redirect(`/trends?v=${v.toUpperCase()}`);
 }
