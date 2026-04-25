@@ -43,6 +43,7 @@ from pipeline.db import (
     insert_trend,
     mark_filtered,
     mark_processed,
+    save_stage_result,
 )
 from pipeline.models import (
     ClassificationResult,
@@ -506,9 +507,17 @@ def run_pipeline_batch(limit: int = 200):
     t_stage = time.time()
     next_survivors = []
     total_stage2 = len(survivors)
+    cache_hits_stage2 = 0
     for i, entry in enumerate(survivors, 1):
         try:
-            rel = step_relevance_filter(entry["title"], entry["excerpt"] or "", entry.get("source_vertical", "TECH"))
+            cached = entry.get("relevance_json")
+            if cached:
+                rel = RelevanceResult.model_validate_json(cached)
+                cache_hits_stage2 += 1
+            else:
+                rel = step_relevance_filter(entry["title"], entry["excerpt"] or "", entry.get("source_vertical", "TECH"))
+                if rel is not None:
+                    save_stage_result(entry["id"], "relevance", rel)
             if rel is None:
                 mark_filtered(entry["id"], "relevance_filter_error")
                 filtered += 1
@@ -526,25 +535,42 @@ def run_pipeline_batch(limit: int = 200):
         if i % 25 == 0:
             logger.info("Stage 2 progress: %d/%d (%.0f%%)", i, total_stage2, i / total_stage2 * 100)
     survivors = next_survivors
-    logger.info("Stage 2 done in %.1fs: %d survivors", time.time() - t_stage, len(survivors))
+    logger.info("Stage 2 done in %.1fs: %d survivors (%d cache hits)",
+                time.time() - t_stage, len(survivors), cache_hits_stage2)
 
     # ---- Stage 3: Extraction (Qwen3 8B) ----
     t_stage = time.time()
+    cache_hits_stage3 = 0
     for entry in survivors:
         try:
-            ext = step_extraction(entry["title"], entry["excerpt"] or "")
-            entry["_extraction"] = ext if ext is not None else ExtractionResult()
+            cached = entry.get("extraction_json")
+            if cached:
+                entry["_extraction"] = ExtractionResult.model_validate_json(cached)
+                cache_hits_stage3 += 1
+            else:
+                ext = step_extraction(entry["title"], entry["excerpt"] or "")
+                ext = ext if ext is not None else ExtractionResult()
+                save_stage_result(entry["id"], "extraction", ext)
+                entry["_extraction"] = ext
         except Exception as e:
             logger.error("[%d] extraction error: %s", entry["id"], e)
             entry["_extraction"] = ExtractionResult()
-    logger.info("Stage 3 done in %.1fs", time.time() - t_stage)
+    logger.info("Stage 3 done in %.1fs (%d cache hits)", time.time() - t_stage, cache_hits_stage3)
 
     # ---- Stage 4: Classification (Qwen3 8B) ----
     t_stage = time.time()
     next_survivors = []
+    cache_hits_stage4 = 0
     for entry in survivors:
         try:
-            cls = step_classification(entry["title"], entry["excerpt"] or "", entry["_extraction"])
+            cached = entry.get("classification_json")
+            if cached:
+                cls = ClassificationResult.model_validate_json(cached)
+                cache_hits_stage4 += 1
+            else:
+                cls = step_classification(entry["title"], entry["excerpt"] or "", entry["_extraction"])
+                if cls is not None:
+                    save_stage_result(entry["id"], "classification", cls)
             if cls is None:
                 mark_filtered(entry["id"], "classification_error")
                 filtered += 1
@@ -556,7 +582,8 @@ def run_pipeline_batch(limit: int = 200):
             mark_processed(entry["id"])
             errors += 1
     survivors = next_survivors
-    logger.info("Stage 4 done in %.1fs: %d survivors", time.time() - t_stage, len(survivors))
+    logger.info("Stage 4 done in %.1fs: %d survivors (%d cache hits)",
+                time.time() - t_stage, len(survivors), cache_hits_stage4)
 
     # ---- Stage 5: Embeddings + dedup (load recent embeddings ONCE) ----
     t_stage = time.time()
@@ -566,10 +593,18 @@ def run_pipeline_batch(limit: int = 200):
 
     next_survivors = []
     batch_vecs: list[list[float]] = []
+    cache_hits_stage5 = 0
     for entry in survivors:
         try:
-            text = f"{entry['title']}\n{(entry['excerpt'] or '')[:500]}"
-            emb = generate_embedding(MODEL_EMBEDDING, text)
+            cached_emb = entry.get("embedding_blob")
+            if cached_emb:
+                emb = bytes_to_embedding(cached_emb)
+                cache_hits_stage5 += 1
+            else:
+                text = f"{entry['title']}\n{(entry['excerpt'] or '')[:500]}"
+                emb = generate_embedding(MODEL_EMBEDDING, text)
+                if emb is not None:
+                    save_stage_result(entry["id"], "embedding", embedding_to_bytes(emb))
             if emb is None:
                 mark_filtered(entry["id"], "embedding_error")
                 filtered += 1
@@ -603,19 +638,28 @@ def run_pipeline_batch(limit: int = 200):
             mark_processed(entry["id"])
             errors += 1
     survivors = next_survivors
-    logger.info("Stage 5 done in %.1fs: %d survivors", time.time() - t_stage, len(survivors))
+    logger.info("Stage 5 done in %.1fs: %d survivors (%d cache hits)",
+                time.time() - t_stage, len(survivors), cache_hits_stage5)
 
     # ---- Stage 6: Content generation EN (Qwen3 14B) ----
     t_stage = time.time()
     next_survivors = []
     total_stage6 = len(survivors)
+    cache_hits_stage6 = 0
     for i, entry in enumerate(survivors, 1):
         try:
-            en = step_generate_content_en(
-                entry["title"], entry["excerpt"] or "",
-                entry["_extraction"], entry["_classification"],
-                entry["url"], entry.get("source_name", "Unknown"),
-            )
+            cached = entry.get("content_en_json")
+            if cached:
+                en = GeneratedContent.model_validate_json(cached)
+                cache_hits_stage6 += 1
+            else:
+                en = step_generate_content_en(
+                    entry["title"], entry["excerpt"] or "",
+                    entry["_extraction"], entry["_classification"],
+                    entry["url"], entry.get("source_name", "Unknown"),
+                )
+                if en is not None:
+                    save_stage_result(entry["id"], "content_en", en)
             if en is None:
                 mark_filtered(entry["id"], "content_generation_error")
                 filtered += 1
@@ -629,7 +673,8 @@ def run_pipeline_batch(limit: int = 200):
             mark_processed(entry["id"])
             errors += 1
     survivors = next_survivors
-    logger.info("Stage 6 done in %.1fs: %d survivors", time.time() - t_stage, len(survivors))
+    logger.info("Stage 6 done in %.1fs: %d survivors (%d cache hits)",
+                time.time() - t_stage, len(survivors), cache_hits_stage6)
 
     # ---- Stage 7: Insert trends ----
     t_stage = time.time()

@@ -54,7 +54,14 @@ CREATE TABLE IF NOT EXISTS raw_entries (
     fetched_at TEXT DEFAULT (datetime('now')),
     processed INTEGER DEFAULT 0,
     filtered_out INTEGER DEFAULT 0,
-    filter_reason TEXT
+    filter_reason TEXT,
+    -- Stage cache for crash-resilience: persisted after each LLM call,
+    -- allows pipeline restart without redoing completed stages.
+    relevance_json TEXT,
+    extraction_json TEXT,
+    classification_json TEXT,
+    embedding_blob BLOB,
+    content_en_json TEXT
 );
 
 CREATE TABLE IF NOT EXISTS trends (
@@ -172,7 +179,12 @@ CREATE TABLE IF NOT EXISTS raw_entries (
     fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     processed BOOLEAN DEFAULT false,
     filtered_out BOOLEAN DEFAULT false,
-    filter_reason TEXT
+    filter_reason TEXT,
+    relevance_json TEXT,
+    extraction_json TEXT,
+    classification_json TEXT,
+    embedding_blob BYTEA,
+    content_en_json TEXT
 );
 
 CREATE TABLE IF NOT EXISTS trends (
@@ -363,6 +375,29 @@ def _now_iso() -> str:
 
 # --- Init ---
 
+_STAGE_CACHE_COLUMNS = [
+    ("relevance_json", "TEXT", "TEXT"),
+    ("extraction_json", "TEXT", "TEXT"),
+    ("classification_json", "TEXT", "TEXT"),
+    ("embedding_blob", "BLOB", "BYTEA"),
+    ("content_en_json", "TEXT", "TEXT"),
+]
+
+
+def _migrate_stage_cache_columns():
+    """Add stage-cache columns to existing raw_entries tables. Idempotent."""
+    with get_connection() as conn:
+        for col, sqlite_type, pg_type in _STAGE_CACHE_COLUMNS:
+            typ = pg_type if USE_POSTGRES else sqlite_type
+            try:
+                conn.execute(f"ALTER TABLE raw_entries ADD COLUMN {col} {typ}")
+            except Exception as e:
+                msg = str(e).lower()
+                if "duplicate column" in msg or "already exists" in msg:
+                    continue
+                raise
+
+
 def init_db():
     """Initialize database schema."""
     if USE_POSTGRES:
@@ -378,6 +413,7 @@ def init_db():
         with get_connection() as conn:
             conn.executescript(SQLITE_SCHEMA)
         logger.info("SQLite database initialized at %s", get_db_path())
+    _migrate_stage_cache_columns()
 
 
 # --- Source Operations ---
@@ -460,6 +496,33 @@ def mark_processed(entry_id: int):
     """Mark an entry as processed."""
     with get_connection() as conn:
         conn.execute("UPDATE raw_entries SET processed = 1 WHERE id = ?", (entry_id,))
+
+
+_STAGE_TO_COLUMN = {
+    "relevance": "relevance_json",
+    "extraction": "extraction_json",
+    "classification": "classification_json",
+    "embedding": "embedding_blob",
+    "content_en": "content_en_json",
+}
+
+
+def save_stage_result(entry_id: int, stage: str, result):
+    """Persist an LLM stage result so a crash mid-pipeline doesn't waste GPU work.
+
+    `result` is either a Pydantic model (json-serialised) or raw bytes for embedding.
+    """
+    if stage not in _STAGE_TO_COLUMN:
+        raise ValueError(f"Unknown stage: {stage}")
+    col = _STAGE_TO_COLUMN[stage]
+    if stage == "embedding":
+        value = result
+    elif hasattr(result, "model_dump_json"):
+        value = result.model_dump_json()
+    else:
+        value = json.dumps(result)
+    with get_connection() as conn:
+        conn.execute(f"UPDATE raw_entries SET {col} = ? WHERE id = ?", (value, entry_id))
 
 
 # --- Trend Operations ---
