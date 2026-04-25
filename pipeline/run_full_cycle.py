@@ -57,6 +57,54 @@ def check_ollama() -> bool:
         return False
 
 
+def check_gpu(model: str = "qwen3:14b") -> bool:
+    """Verify the heaviest model loads on GPU. Force-loads via a tiny generate
+    request, then reads /api/ps and asserts size_vram > 0.
+
+    Why: a broken Ollama install or hijacked VRAM lets the model silently fall
+    back to CPU, which makes Stage 6 ~10x slower without any visible error.
+    See feedback_pipeline_gpu_check.md.
+    """
+    try:
+        httpx.post(
+            f"{OLLAMA_HOST}/api/generate",
+            json={"model": model, "prompt": "hi", "stream": False,
+                  "keep_alive": "5m", "think": False},
+            timeout=120,
+        )
+    except Exception as e:
+        logger.error("GPU check: test-generate on %s failed: %s", model, e)
+        return False
+
+    try:
+        resp = httpx.get(f"{OLLAMA_HOST}/api/ps", timeout=10)
+        ps = resp.json().get("models", [])
+    except Exception as e:
+        logger.error("GPU check: /api/ps failed: %s", e)
+        return False
+
+    target = next((m for m in ps if m.get("name") == model or m.get("model") == model), None)
+    if target is None:
+        logger.error("GPU check: %s not present in /api/ps after test-generate", model)
+        return False
+
+    vram = target.get("size_vram", 0)
+    size = target.get("size", 0)
+    if vram <= 0:
+        logger.error(
+            "GPU check FAIL: %s size_vram=%d (model on CPU). Aborting cycle — "
+            "investigate Ollama CUDA backend (see lib/ollama/cuda_v12/).",
+            model, vram,
+        )
+        return False
+
+    logger.info(
+        "GPU check OK: %s on GPU (vram=%.2f GB / size=%.2f GB)",
+        model, vram / 1e9, size / 1e9,
+    )
+    return True
+
+
 def run_poll() -> dict:
     """Run feed polling and return stats."""
     from pipeline.feed_poller import run_poll as _poll
@@ -108,6 +156,19 @@ def main():
                 "timestamp": timestamp,
                 "status": "aborted",
                 "reason": "ollama_unavailable",
+                "duration_s": round(time.time() - cycle_start, 1),
+            }
+            write_cycle_log(result)
+            sys.exit(1)
+
+    # Step 1b: GPU placement check (only when LLM will run, skip on dry-run)
+    if not args.skip_llm and not args.dry_run:
+        if not check_gpu():
+            logger.error("ABORT: GPU not available — refusing to run LLM pipeline on CPU.")
+            result = {
+                "timestamp": timestamp,
+                "status": "aborted",
+                "reason": "gpu_unavailable",
                 "duration_s": round(time.time() - cycle_start, 1),
             }
             write_cycle_log(result)
