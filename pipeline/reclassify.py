@@ -6,19 +6,27 @@ Called after trend insertion to fix vertical misclassifications before auto-publ
 
 import json
 import logging
-import re
 import sqlite3
 import time
+from typing import Literal
 
-import httpx
+from pydantic import BaseModel, Field
 
-from pipeline.config import DATABASE_PATH, OLLAMA_HOST, MODEL_CLASSIFY
+from pipeline.config import DATABASE_PATH, MODEL_CLASSIFY
+from pipeline.ollama_client import chat_structured
 
 logger = logging.getLogger(__name__)
 
+Vertical = Literal["FOOD", "TECH", "HEALTH", "ECO", "DESIGN", "FASHION", "BIZ", "LIFESTYLE"]
 VERTICALS = ["FOOD", "TECH", "HEALTH", "ECO", "DESIGN", "FASHION", "BIZ", "LIFESTYLE"]
 
-CLASSIFY_PROMPT = """Classify this trend into the Catandary vertical taxonomy.
+
+class ReclassifyResult(BaseModel):
+    primary: Vertical
+    secondaries: list[Vertical] = Field(default_factory=list)
+
+
+CLASSIFY_SYSTEM = """You assign trends to the Catandary vertical taxonomy.
 
 ## Verticals
 - FOOD: Food & beverage, ingredients, restaurants, agriculture, nutrition science
@@ -50,53 +58,37 @@ CLASSIFY_PROMPT = """Classify this trend into the Catandary vertical taxonomy.
 
 ## Examples
 Title: "CRISPR Advances Enable Faster Gene Editing in Crops"
-→ {{"primary": "TECH", "secondaries": ["FOOD"]}}
+→ {"primary": "TECH", "secondaries": ["FOOD"]}
 
 Title: "New Alzheimer's Drug Shows Promise in Phase 3 Trial"
-→ {{"primary": "HEALTH", "secondaries": []}}
+→ {"primary": "HEALTH", "secondaries": []}
 
 Title: "Stripe Launches Embedded Banking for SMBs"
-→ {{"primary": "BIZ", "secondaries": []}}
+→ {"primary": "BIZ", "secondaries": []}
 
 Title: "Royal Enfield's Electric Motorcycle Signals a Shift"
-→ {{"primary": "TECH", "secondaries": ["ECO"]}}
+→ {"primary": "TECH", "secondaries": ["ECO"]}
 
 Title: "Durable Outdoor Bluetooth Speakers"
-→ {{"primary": "TECH", "secondaries": []}}
-
-## Task
-Title: {title}
-Summary: {summary}
-
-Return ONLY a JSON object with "primary" and "secondaries", nothing else. /no_think"""
+→ {"primary": "TECH", "secondaries": []}"""
 
 
 def _classify_one(title: str, summary: str) -> dict | None:
-    """Classify a single trend via Ollama."""
-    prompt = CLASSIFY_PROMPT.format(title=title, summary=summary[:500])
-    try:
-        resp = httpx.post(
-            f"{OLLAMA_HOST}/api/generate",
-            json={
-                "model": MODEL_CLASSIFY,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": 0},
-            },
-            timeout=30,
-        )
-        text = resp.json().get("response", "").strip()
-        match = re.search(r'\{[^}]+\}', text)
-        if match:
-            data = json.loads(match.group())
-            primary = data.get("primary", "").upper()
-            secondaries = [s.upper() for s in data.get("secondaries", [])]
-            if primary in VERTICALS:
-                all_verts = [primary] + [s for s in secondaries if s in VERTICALS and s != primary]
-                return {"primary": primary, "verticals": all_verts}
-    except Exception as e:
-        logger.warning("Reclassify error: %s", e)
-    return None
+    """Classify a single trend via Ollama with retries + structured output."""
+    prompt = f"Title: {title}\nSummary: {summary[:500]}"
+    result = chat_structured(
+        model=MODEL_CLASSIFY,
+        prompt=prompt,
+        schema=ReclassifyResult,
+        system=CLASSIFY_SYSTEM,
+        temperature=0.0,
+        fallback_model="qwen3:8b",
+    )
+    if result is None:
+        return None
+    primary = result.primary
+    secondaries = [s for s in result.secondaries if s != primary]
+    return {"primary": primary, "verticals": [primary] + secondaries}
 
 
 def reclassify_drafts() -> dict:
