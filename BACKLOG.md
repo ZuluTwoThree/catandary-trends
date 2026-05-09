@@ -230,6 +230,31 @@
     ```
   - **Bestehendes `deploy/crontab.txt` danach aktualisieren** (aktuell veraltet: Trendhunter-Referenz, auto_publisher als eigener Cron — beides inzwischen in die LLM-Pipeline integriert)
 
+## Hardware-Notizen
+
+- **Pipeline-Verhalten auf RTX 3090 (24 GB GDDR6X)** — Stand 2026-05-09. Aktuelle Baseline: RTX 5080, 16 GB GDDR7, 960 GB/s.
+
+  | Aspekt | RTX 5080 (jetzt) | RTX 3090 |
+  |---|---|---|
+  | VRAM | 16 GB GDDR7 | **24 GB** GDDR6X |
+  | Bandbreite | 960 GB/s | 936 GB/s |
+  | Architektur | Blackwell | Ampere (mature) |
+
+  **Auswirkungen beim Umzug:**
+
+  1. **Qwen3:14B passt komfortabel** — belegt nur ~68 % der 24 GB statt 84 % der 16 GB. Headroom für VRAM-Hijacks (Browser-WebGPU, ComfyUI, DWM) → Crash am 2026-05-09 (41 % Offload, 9.6 h Laufzeit, 263 Reclassify-Errors) wäre nicht passiert.
+  2. **Größere Modelle möglich** — Qwen3:32B (~20 GB) oder Mistral Small 3.2 24B (CLAUDE.md-Alternative für Stage 5) laufen ohne CPU-Offload. Höhere Sprachqualität bei Content-Gen.
+  3. **Mehrere Modelle parallel** — qwen3:14b + qwen3-embedding gleichzeitig im VRAM. Spart Modell-Reload zwischen Stage 5 und 6 (~1–2 Min/Batch). `OLLAMA_NUM_PARALLEL=2` wird sinnvoll nutzbar.
+  4. **Geschwindigkeit pro Token** — 5–10 % langsamer (älterer Tensor-Core, ähnliche Bandbreite). Stage 6 von 70–82 Min auf 75–90 Min. Praktisch unmerklich, durch fehlendes Offload-Risiko + Parallelisierung **netto gleich schnell oder schneller**.
+  5. **GPU-Check (`MIN_GPU_FRACTION=0.80`)** — unverändert sinnvoll, fängt VRAM-Hijacks weiterhin auf der 3090.
+
+  **Beim Umzug zu beachten:**
+  - Ollama + Modelle portabel (`ollama pull` neu ziehen)
+  - 3090 läuft heißer/lauter unter Dauerlast (älteres Cooling) — bei Eigen-Hardware Belüftung sicherstellen
+  - `OLLAMA_KEEP_ALIVE` höher setzen (z. B. 30m), weil Modell-Reloads keine Konkurrenz ums VRAM mehr haben
+
+  **Net-Effekt:** Pipeline robuster (kein Offload-Risiko), gleich schnell oder schneller durch parallele Stages, Tür zu größeren Modellen offen.
+
 ## Tagesziele 2026-04-11
 
 - [x] ~~**Cron-Jobs einrichten.**~~ Plan erstellt, siehe "Pipeline-Orchestrierung" oben. Umsetzung als eigenes Feature.
