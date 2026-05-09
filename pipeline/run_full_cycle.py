@@ -57,13 +57,17 @@ def check_ollama() -> bool:
         return False
 
 
+MIN_GPU_FRACTION = 0.80
+
+
 def check_gpu(model: str = "qwen3:14b") -> bool:
-    """Verify the heaviest model loads on GPU. Force-loads via a tiny generate
-    request, then reads /api/ps and asserts size_vram > 0.
+    """Verify the heaviest model is fully loaded on GPU. Force-loads via a tiny
+    generate request, then reads /api/ps and asserts size_vram >= 80% of size.
 
     Why: a broken Ollama install or hijacked VRAM lets the model silently fall
     back to CPU, which makes Stage 6 ~10x slower without any visible error.
-    See feedback_pipeline_gpu_check.md.
+    Healthy load is ~84% (rest is KV-cache headroom); partial offloads drop to
+    ~40% and trigger the slowdown. See feedback_pipeline_gpu_check.md.
     """
     try:
         httpx.post(
@@ -90,17 +94,24 @@ def check_gpu(model: str = "qwen3:14b") -> bool:
 
     vram = target.get("size_vram", 0)
     size = target.get("size", 0)
-    if vram <= 0:
+    if size <= 0:
+        logger.error("GPU check FAIL: %s reported size=0 in /api/ps", model)
+        return False
+
+    fraction = vram / size
+    if fraction < MIN_GPU_FRACTION:
         logger.error(
-            "GPU check FAIL: %s size_vram=%d (model on CPU). Aborting cycle — "
-            "investigate Ollama CUDA backend (see lib/ollama/cuda_v12/).",
-            model, vram,
+            "GPU check FAIL: %s only %.0f%% on GPU (vram=%.2f GB / size=%.2f GB, "
+            "threshold=%.0f%%). Partial CPU offload makes the LLM pipeline 5-10x "
+            "slower and triggers reclassify timeouts. Free VRAM (close other "
+            "models, browser WebGPU, Open WebUI) and retry.",
+            model, fraction * 100, vram / 1e9, size / 1e9, MIN_GPU_FRACTION * 100,
         )
         return False
 
     logger.info(
-        "GPU check OK: %s on GPU (vram=%.2f GB / size=%.2f GB)",
-        model, vram / 1e9, size / 1e9,
+        "GPU check OK: %s on GPU (vram=%.2f GB / size=%.2f GB, %.0f%%)",
+        model, vram / 1e9, size / 1e9, fraction * 100,
     )
     return True
 
