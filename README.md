@@ -155,6 +155,44 @@ Routes:
 python -m pytest tests/ -v
 ```
 
+## Backups
+
+`scripts/backup_db.py` takes an online-consistent snapshot of
+`data/catandary.db` via SQLite's `Connection.backup()` (safe during pipeline
+writes), gzips it, copies `.env` alongside, and prunes snapshots older than
+`--keep-days` (default 14) in each destination.
+
+```bash
+# Manual run, one or more --dest folders
+python scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary
+```
+
+Daily cron (00:05), as installed on the reference machine:
+
+```cron
+5 0 * * * /home/dirk/projects/catandary-trends/.venv/bin/python \
+    /home/dirk/projects/catandary-trends/scripts/backup_db.py \
+    --dest /mnt/data-hdd/backups/catandary \
+    >> /home/dirk/logs/catandary-backup.log 2>&1
+```
+
+Snapshot size on the reference DB (~22k trends with 4096-dim embeddings):
+~717 MB → ~530 MB gzipped, run time ~18 s.
+
+### Restore
+
+```bash
+gunzip -c /mnt/data-hdd/backups/catandary/catandary-YYYY-MM-DD.db.gz \
+    > data/catandary.db
+cp /mnt/data-hdd/backups/catandary/env-YYYY-MM-DD .env
+```
+
+Quick integrity check: row count should match the timeline up to that date.
+
+```bash
+python -c "import sqlite3; print(sqlite3.connect('data/catandary.db').execute('select count(*) from trends').fetchone()[0])"
+```
+
 ## Sources
 
 Configured in [`sources.yaml`](sources.yaml), grouped by vertical.
