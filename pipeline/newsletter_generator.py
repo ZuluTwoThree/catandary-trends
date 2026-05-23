@@ -19,7 +19,12 @@ from pathlib import Path
 
 from pipeline.config import DATA_DIR, LOG_LEVEL, MODEL_GENERATE, load_mega_trends
 from pipeline.db import get_connection
-from pipeline.ollama_client import chat
+
+import os as _os
+if _os.getenv("NEWSLETTER_LLM_BACKEND") == "llamacpp":
+    from pipeline.llamacpp_client import chat
+else:
+    from pipeline.ollama_client import chat
 
 logging.basicConfig(
     level=LOG_LEVEL,
