@@ -57,6 +57,22 @@ verticals:
       feed_url: https://www.lebensmittelzeitung.net/feed/
       type: trade_media
       lead_time_tier: market
+    - name: Plant Based News
+      feed_url: https://plantbasednews.org/feed/
+      type: trade_media
+      lead_time_tier: future
+    - name: Food Navigator USA
+      feed_url: https://www.foodnavigator-usa.com/arc/outboundfeeds/rss/
+      type: trade_media
+      lead_time_tier: market
+    - name: Food Navigator Asia
+      feed_url: https://www.foodnavigator-asia.com/arc/outboundfeeds/rss/
+      type: trade_media
+      lead_time_tier: market
+    - name: Food Safety News
+      feed_url: https://www.foodsafetynews.com/feed
+      type: trade_media
+      lead_time_tier: market
     science:
     - name: Nature Food
       feed_url: https://www.nature.com/natfood.rss
@@ -88,6 +104,10 @@ verticals:
       lead_time_tier: future
     - name: Food Policy
       feed_url: https://rss.sciencedirect.com/publication/science/03069192
+      type: research
+      lead_time_tier: future
+    - name: Nature Biotechnology
+      feed_url: https://www.nature.com/nbt/rss
       type: research
       lead_time_tier: future
   TECH:
@@ -291,6 +311,10 @@ verticals:
       feed_url: https://www.circularonline.co.uk/feed
       type: trade_media
       lead_time_tier: market
+    - name: Modern Farmer
+      feed_url: https://www.modernfarmer.com/feed/
+      type: trade_media
+      lead_time_tier: market
     science:
     - name: Nature Sustainability
       feed_url: https://www.nature.com/natsustain.rss
@@ -418,6 +442,14 @@ verticals:
       lead_time_tier: market
     - name: The Japan News
       feed_url: https://japannews.yomiuri.co.jp/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Restaurant Business
+      feed_url: https://www.restaurantbusinessonline.com/feed
+      type: trade_media
+      lead_time_tier: market
+    - name: Nation's Restaurant News
+      feed_url: https://www.nrn.com/rss.xml
       type: trade_media
       lead_time_tier: market
     science:
