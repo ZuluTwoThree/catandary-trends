@@ -37,6 +37,21 @@ mkdir -p "$(dirname "$LOG")"
   # shellcheck disable=SC1091
   source .venv/bin/activate
 
+  # >>> Stage-6 content generation on llama.cpp 35B — `git revert` this commit to disable >>>
+  # Activates the llama.cpp backend ONLY if start-active.sh actually loads the
+  # expected GGUF (so the mid-pipeline GPU handover reloads exactly that model and
+  # fits VRAM). Otherwise fall back to Ollama 14B — no crash, no symlink mutation.
+  export STAGE5_MODEL="Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"
+  ACTIVE_SCRIPT="$(readlink -f /home/dirk/llama.cpp/start-active.sh 2>/dev/null)"
+  if [ -n "$ACTIVE_SCRIPT" ] && grep -q "$STAGE5_MODEL" "$ACTIVE_SCRIPT" 2>/dev/null; then
+    export STAGE5_BACKEND=llamacpp
+    echo "----- Stage-6 backend: llamacpp ($STAGE5_MODEL), GPU handover active -----"
+  else
+    export STAGE5_BACKEND=ollama
+    echo "----- Stage-6 backend: ollama (fallback — start-active.sh does not load $STAGE5_MODEL) -----"
+  fi
+  # <<< Stage-6 activation <<<
+
   echo
   echo "----- stopping llama-server.service to free GPU -----"
   systemctl --user stop llama-server.service
