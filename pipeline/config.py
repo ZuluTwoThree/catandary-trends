@@ -29,6 +29,16 @@ MODEL_CLASSIFY = os.getenv("MODEL_CLASSIFY", "qwen3:8b")
 MODEL_GENERATE = os.getenv("MODEL_GENERATE", "qwen3:14b")
 MODEL_EMBEDDING = os.getenv("MODEL_EMBEDDING", "qwen3-embedding")
 
+# Content-generation backend (pipeline Stage 6 / "Stage 5" in the foresight doc).
+# "ollama" (default) uses MODEL_GENERATE on Ollama. "llamacpp" routes content
+# generation to a llama-server (GGUF in STAGE5_MODEL) with a mid-pipeline GPU
+# handover — see pipeline.gpu_handover. Other stages stay on Ollama.
+STAGE5_BACKEND = os.getenv("STAGE5_BACKEND", "ollama")
+STAGE5_MODEL = os.getenv("STAGE5_MODEL", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf")
+# Minimum body word count before the llama.cpp content guard retries (premature
+# grammar string-termination at temp>0 occasionally yields a stub body).
+STAGE5_MIN_BODY_WORDS = int(os.getenv("STAGE5_MIN_BODY_WORDS", "100"))
+
 # Pipeline
 RELEVANCE_THRESHOLD = 0.6
 DUPLICATE_SIMILARITY_THRESHOLD = 0.92

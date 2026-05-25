@@ -19,6 +19,7 @@ import re
 import struct
 import sys
 import time
+from contextlib import nullcontext
 from difflib import SequenceMatcher
 from math import sqrt
 
@@ -33,6 +34,9 @@ from pipeline.config import (
     MODEL_FILTER,
     MODEL_GENERATE,
     RELEVANCE_THRESHOLD,
+    STAGE5_BACKEND,
+    STAGE5_MIN_BODY_WORDS,
+    STAGE5_MODEL,
     get_mega_trend_prompt_block,
 )
 from pipeline.db import (
@@ -54,6 +58,7 @@ from pipeline.models import (
 from pipeline.auto_publisher import auto_publish
 from pipeline.crs import compute_crs
 from pipeline.ollama_client import chat_structured, generate_embedding
+from pipeline import gpu_handover, llamacpp_client
 from pipeline.reclassify import reclassify_drafts
 
 logging.basicConfig(
@@ -305,6 +310,18 @@ Source: {source_name} ({source_url})"""
 {context}
 
 """
+
+    if STAGE5_BACKEND == "llamacpp":
+        # Route content gen to llama-server (GPU handover managed by the caller).
+        # The word-count guard retries on premature grammar string-termination.
+        return llamacpp_client.chat_structured(
+            model=STAGE5_MODEL,
+            prompt=prompt_en,
+            schema=GeneratedContent,
+            system=CONTENT_EN_SYSTEM,
+            temperature=0.7,
+            validate=lambda c: len(c.body.split()) >= STAGE5_MIN_BODY_WORDS,
+        )
 
     return chat_structured(
         model=MODEL_GENERATE,
@@ -641,37 +658,46 @@ def run_pipeline_batch(limit: int = 200):
     logger.info("Stage 5 done in %.1fs: %d survivors (%d cache hits)",
                 time.time() - t_stage, len(survivors), cache_hits_stage5)
 
-    # ---- Stage 6: Content generation EN (Qwen3 14B) ----
+    # ---- Stage 6: Content generation EN (Qwen3 14B, or llama.cpp 35B) ----
+    # When STAGE5_BACKEND=llamacpp, hand the GPU over to llama-server for the
+    # duration of this contiguous loop only (Ollama VRAM is freed, then reloaded
+    # on demand for Stage 8). All entries needing fresh generation run inside the
+    # handover; fully-cached batches skip it (no survivors → no handover).
     t_stage = time.time()
     next_survivors = []
     total_stage6 = len(survivors)
     cache_hits_stage6 = 0
-    for i, entry in enumerate(survivors, 1):
-        try:
-            cached = entry.get("content_en_json")
-            if cached:
-                en = GeneratedContent.model_validate_json(cached)
-                cache_hits_stage6 += 1
-            else:
-                en = step_generate_content_en(
-                    entry["title"], entry["excerpt"] or "",
-                    entry["_extraction"], entry["_classification"],
-                    entry["url"], entry.get("source_name", "Unknown"),
-                )
-                if en is not None:
-                    save_stage_result(entry["id"], "content_en", en)
-            if en is None:
-                mark_filtered(entry["id"], "content_generation_error")
-                filtered += 1
-                continue
-            entry["_content_en"] = en
-            next_survivors.append(entry)
-            if i % 10 == 0 or i == total_stage6:
-                logger.info("Stage 6 progress: %d/%d (%.0f%%)", i, total_stage6, i / total_stage6 * 100)
-        except Exception as e:
-            logger.error("[%d] content EN error: %s", entry["id"], e)
-            mark_processed(entry["id"])
-            errors += 1
+    needs_gen = any(not e.get("content_en_json") for e in survivors)
+    gpu_ctx = (gpu_handover.content_gen_on_llamacpp(STAGE5_MODEL)
+               if STAGE5_BACKEND == "llamacpp" and needs_gen
+               else nullcontext())
+    with gpu_ctx:
+        for i, entry in enumerate(survivors, 1):
+            try:
+                cached = entry.get("content_en_json")
+                if cached:
+                    en = GeneratedContent.model_validate_json(cached)
+                    cache_hits_stage6 += 1
+                else:
+                    en = step_generate_content_en(
+                        entry["title"], entry["excerpt"] or "",
+                        entry["_extraction"], entry["_classification"],
+                        entry["url"], entry.get("source_name", "Unknown"),
+                    )
+                    if en is not None:
+                        save_stage_result(entry["id"], "content_en", en)
+                if en is None:
+                    mark_filtered(entry["id"], "content_generation_error")
+                    filtered += 1
+                    continue
+                entry["_content_en"] = en
+                next_survivors.append(entry)
+                if i % 10 == 0 or i == total_stage6:
+                    logger.info("Stage 6 progress: %d/%d (%.0f%%)", i, total_stage6, i / total_stage6 * 100)
+            except Exception as e:
+                logger.error("[%d] content EN error: %s", entry["id"], e)
+                mark_processed(entry["id"])
+                errors += 1
     survivors = next_survivors
     logger.info("Stage 6 done in %.1fs: %d survivors (%d cache hits)",
                 time.time() - t_stage, len(survivors), cache_hits_stage6)
