@@ -5,6 +5,20 @@ Erstellt: 2026-05-22
 Basis: Briefing "Reife-Sprung auf TRL 7–8" + Ergänzung "Infrastruktur-Migration"
 Repo: `github.com/ZuluTwoThree/catandary-trends @ main 1c11cbc`
 
+## Statusübersicht (Stand 2026-05-29)
+
+| # | Deliverable | Status |
+|---|---|---|
+| D1 | Code-Review A–H | offen |
+| D2 | Infrastruktur-Migration Ollama → llama.cpp + 80B | **teilweise erledigt** — Stage 6 (Content-Gen) läuft seit 2026-05-25 auf llama.cpp mit **Qwen3.6-35B-A3B** (nicht 80B); GPU-Handover, Pre-Flight, Wortzahl-Guard implementiert (Commits `e0161e0` + `5250ba8` + `91e0729`); vier saubere Nachtläufe. Restscope: weitere Stages auf llama.cpp + 80B-A/B-Test (D3) |
+| D3 | A/B-Studie Qwen3-Next-80B vs qwen3:14b (Stage 6) | offen — Dry-Run-Tool `scripts/dryrun_stage5_llamacpp.py` ist die Basis, 80B-Run noch nicht durchgeführt |
+| D4 | Quellen-Diversifizierungsplan inkl. Newsletter-Ingest | **brief erstellt** (`pipeline_expansion_prompt.md`, `2f9db07`) + aktiver Goal Contract (`goals/2026-05-29-pipeline-expansion-mvp.md`); MVP-Deadline 2026-06-26 |
+| D5 | Synthese-Layer (Cluster-Detection, Weak-Signal) | offen |
+| D6 | Quality-Metrics-Framework | offen |
+| D7 | TRL-Roadmap (6→7→8) | offen — neu zu fassen nach D2/D4-Fortschritt |
+
+Detaillierter Wochenplan unten ist der ursprüngliche Stand vom 2026-05-22 und wird beim nächsten Review aktualisiert.
+
 ---
 
 ## 0. Zusammenfassung

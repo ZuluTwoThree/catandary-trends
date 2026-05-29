@@ -1,5 +1,12 @@
 # Catandary Trends — Backlog
 
+## Status-Update 2026-05-29
+
+- **Stage 6 (Content-Gen) auf llama.cpp 35B** seit 2026-05-25 produktiv (`5250ba8` + `91e0729`, vier saubere Nachtläufe in Folge). Architektur, Pre-Flight, Wortzahl-Guard, GPU-Handover und Rollback-Pfade dokumentiert in `CLAUDE.md`. Offene Folgearbeit: Stage 6 ⇄ andere Stages konsolidieren, ggf. Stage 4 (Classify) ebenfalls auf 35B testen.
+- **Quellen-Expansion über RSS hinaus** als priorisiertes Vorhaben: Brief in `pipeline_expansion_prompt.md` (Commit `2f9db07`), aktiver Goal Contract `goals/2026-05-29-pipeline-expansion-mvp.md` (Deadline 2026-06-26, 30 published Trends aus 3 neuen `source_type`-Werten).
+- **Newsletter**: KW15–KW21/2026 retroaktiv per Qwen3.6-35B-A3B generiert, persistiert in DB-Tabelle `newsletter_editions`, Frontend liest live. Offen bleibt nur die Automatisierung (Mo-09:00-Cron + Versand-Anbindung).
+- **Pipeline-Lauf**: `scripts/scheduled_cycle.sh` ist die Referenz-Orchestrierung, läuft per transientem systemd-Timer (`systemd-run --user --on-calendar=…`). Tägliches DB-Backup via `scripts/backup_db.py` (Cron 00:05).
+
 ## Pipeline-Optimierung
 
 - [ ] **Datengetriebener "Structural vs. Hype"-Score für Mega-Trend-Karten.** Idee: aus der monatlichen Signalverteilung pro Mega-Trend ein Maß ableiten (Coverage + Entropie + Post-Peak-Decay). Dry-Run-Implementierung: `scripts/dryrun_structural_score.py` — kann re-run werden, sobald die Datenbasis besser ist.
@@ -258,5 +265,5 @@
 ## Tagesziele 2026-04-11
 
 - [x] ~~**Cron-Jobs einrichten.**~~ Plan erstellt, siehe "Pipeline-Orchestrierung" oben. Umsetzung als eigenes Feature.
-- [ ] **Newsletter implementieren.** Newsletter-Generator (`pipeline/newsletter_generator.py`) fertigstellen und testen. Anbindung an Resend/Buttondown, wöchentlicher Versand (Montag 9:00).
+- [x] ~~**Newsletter implementieren.**~~ Erledigt — `pipeline/newsletter_generator.py` produziert EN-Editions in DB-Tabelle `newsletter_editions`, KW15–KW21/2026 retroaktiv generiert (Stand 2026-05-25). Optionales llama.cpp-Backend via `NEWSLETTER_LLM_BACKEND=llamacpp` (Qwen3.6-35B-A3B). **Offen:** automatischer Cron-Job (Mo 09:00), Anbindung an Resend/Buttondown für tatsächlichen Versand.
 - [x] ~~**Plattform auf MacBook Air testen.**~~ Erledigt 2026-04-12, siehe `MACBOOK_SETUP.md`.

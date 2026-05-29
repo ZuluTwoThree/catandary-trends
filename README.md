@@ -22,7 +22,8 @@ Mega/Macro/Micro trend levels (Foresight taxonomy).
 - Python 3.12+
 - Node.js 20+ (for frontend)
 - [Ollama](https://ollama.com/) running on `127.0.0.1:11434`
-- NVIDIA GPU with ≥12 GB VRAM (RTX 5080 reference)
+- NVIDIA GPU with ≥12 GB VRAM (verified on RTX 5080 16 GB and RTX 3090 24 GB)
+- Optional: [`llama.cpp`](https://github.com/ggerganov/llama.cpp) `llama-server` for the Stage-6 35B backend (requires the 24 GB card; see `CLAUDE.md` → "Stage-6 auf llama.cpp 35B")
 
 ### Install Ollama models
 
@@ -227,9 +228,12 @@ catandary-trends/
 
 ## Status
 
-Sprints 1–6 complete. 112 active sources, ~5000 published trends across 8
-verticals. Active focus: pipeline cron automation, newsletter, Hetzner
-deployment, Brave Search radar. See `CLAUDE.md` → Weiterentwicklung and
-`BACKLOG.md` for detailed plans.
+Sprints 1–6 complete. **137 active sources, 26k+ published trends** across 8
+verticals (Stand 2026-05-29). Stage 6 content generation can optionally run
+on a llama.cpp 35B backend with mid-pipeline GPU handover. Active focus:
+non-RSS source-type expansion (see `pipeline_expansion_prompt.md` and the
+active Goal Contract under `goals/`), newsletter cadence, Hetzner deployment.
+Brave Search radar was retired in April 2026. See `CLAUDE.md` for full
+architecture and `BACKLOG.md` for the running idea list.
 
 For MacBook Air (8 GB) deployment, see [`MACBOOK_SETUP.md`](MACBOOK_SETUP.md).

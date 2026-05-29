@@ -8,7 +8,7 @@ Catandary Trends ist eine branchenübergreifende Trend-Intelligence-Plattform, d
 - Branchenübergreifend mit eigenständiger Catandary-Taxonomie (Vertikale + PESTEL + Mega/Macro/Micro)
 - Nur legale Primärquellen (RSS-Feeds von Fachmedien, Presseverteilern, Marken-Newsrooms)
 - Keine Aggregator-Seiten scrapen (Trendhunter etc.)
-- Alle LLM-Verarbeitung lokal auf RTX 5080 (16GB VRAM)
+- Alle LLM-Verarbeitung lokal (RTX 5080 16 GB oder RTX 3090 24 GB — VRAM jeweils per `nvidia-smi` prüfen). Stage 6 optional auf llama.cpp 35B (nur auf der 24-GB-Karte).
 - Cloud-APIs nur als Fallback für komplexe Synthese-Aufgaben
 - Modularer Aufbau: Neue Vertikale können ohne Architekturänderung hinzugefügt werden
 
@@ -56,9 +56,10 @@ Die Mega/Macro-Einordnung wird auf der Free-Seite nur angeteasert – die vollst
 
 ## Hardware-Basis
 
-- **GPU:** NVIDIA RTX 5080, 16GB GDDR7, 960 GB/s Bandbreite
+- **GPU (variabel):** NVIDIA RTX 5080 (16 GB GDDR7) **oder** RTX 3090 (24 GB GDDR6X). Vor jeder VRAM-/Koexistenz-Entscheidung `nvidia-smi` prüfen — Headroom unterscheidet sich substanziell.
 - **Modelle laufen sequentiell** (nicht parallel) – VRAM wird zwischen Schritten freigegeben
-- **Peak-VRAM:** ~10.7 GB (Qwen3 14B Q4_K_M), lässt Headroom für 16K Token Kontext
+- **Peak-VRAM Ollama-Pfad:** ~10.7 GB (Qwen3 14B Q4_K_M); auf der 16-GB-Karte enger als auf der 24-GB-Karte
+- **Optionaler llama.cpp-Pfad für Stage 6 (Content-Gen):** Qwen3.6-35B-A3B Q4_K_M (~24 GB) — passt nur auf die 24-GB-Karte, mit Mid-Pipeline-GPU-Handover (siehe `pipeline/gpu_handover.py`). Default-Backend bleibt Ollama.
 - **Ollama-Konfiguration:** `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_KEEP_ALIVE=5m`
 
 ---
@@ -151,7 +152,7 @@ Quellen werden pro Vertikale organisiert. Neue Vertikale starten mit 3-5 Kernque
 
 ### Quellenwachstum
 
-Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein automatisches Scraping oder Aggregator-Quellen. Trendhunter und Brave Search Radar wurden entfernt (2026-04-12) — 112 RSS-Primärquellen decken alle 8 Vertikale ab.
+Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein automatisches Scraping oder Aggregator-Quellen. Trendhunter und Brave Search Radar wurden entfernt (2026-04-12) — **137 aktive RSS-Primärquellen** (Stand 2026-05-29) decken alle 8 Vertikale ab. Ausbau auf nicht-RSS-Quellentypen siehe `pipeline_expansion_prompt.md` und Goal Contract unter `goals/`.
 
 ---
 
@@ -159,14 +160,14 @@ Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein au
 
 ### Modell-Zuordnung pro Pipeline-Schritt
 
-| Schritt | Modell | VRAM | Speed (RTX 5080) | Ollama-Befehl |
+| Schritt | Modell | VRAM | Speed (Referenz) | Backend |
 |---|---|---|---|---|
-| 1. Relevanz-Filter | Qwen3 8B Q4_K_M | ~6.5 GB | ~129 t/s | `ollama pull qwen3:8b` |
-| 2. Strukturierte Extraktion | NuExtract 3.8B | ~4 GB | ~200+ t/s | `ollama pull nuextract` |
-| 3. NER (Markennamen) | Qwen3 8B Q4_K_M | ~6.5 GB | ~129 t/s | `ollama pull qwen3:8b` |
-| 4. Klassifizierung | Qwen3 8B Q4_K_M | ~6.5 GB | ~129 t/s | `ollama pull qwen3:8b` |
-| 5. Content-Generierung (DE+EN) | Qwen3 14B Q4_K_M | ~10.7 GB | ~80 t/s | `ollama pull qwen3:14b` |
-| 6. Embeddings | Qwen3-Embedding 8B | ~5-6 GB | Batch | `ollama pull qwen3-embedding` |
+| 1. Relevanz-Filter | Qwen3 8B Q4_K_M | ~6.5 GB | ~129 t/s | Ollama (`ollama pull qwen3:8b`) |
+| 2. Strukturierte Extraktion | NuExtract 3.8B | ~4 GB | ~200+ t/s | Ollama (`ollama pull nuextract`) — derzeit Fallback auf qwen3:8b |
+| 3. NER (Markennamen) | Qwen3 8B Q4_K_M | ~6.5 GB | ~129 t/s | Ollama |
+| 4. Klassifizierung | Qwen3 8B Q4_K_M | ~6.5 GB | ~129 t/s | Ollama |
+| 5. Content-Generierung (EN) | Qwen3 14B Q4_K_M **oder** Qwen3.6-35B-A3B Q4_K_M | ~10.7 GB / ~24 GB | ~80 t/s / ~117 t/s | Ollama (Default) **oder** llama.cpp (`STAGE5_BACKEND=llamacpp`, nur 24-GB-Karte, mit GPU-Handover) |
+| 6. Embeddings | Qwen3-Embedding 8B | ~5–6 GB | Batch | Ollama (`ollama pull qwen3-embedding`) |
 
 **Alternative Modelle zum Testen:**
 - Relevanz-Filter: Gemma 3 4B (`ollama pull gemma3:4b`, ~3.5 GB) – noch schneller
@@ -715,29 +716,29 @@ Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direk
 
 ---
 
-## Quellenbalance & Pipeline-Optimierung (Stand: 2026-04-12)
+## Quellenbalance & Pipeline-Optimierung (Stand: 2026-05-29)
 
 ### Ist-Zustand
 
-112 aktive Quellen (79 Trade Media, 31 Research, 2 Press Wire). 7.016 Raw Entries, 4.782 published Trends, 22 Mega-Trends.
+137 aktive Quellen (87 Trade Media, 48 Research, 2 Press Wire). 38.689 Raw Entries, 26.374 published Trends, 21 kanonische Mega-Trends.
 
 | Vertical | Trends | Anteil | Bewertung |
 |----------|--------|--------|-----------|
-| TECH | 1532 | 32% | Größtes Vertical — breites Quellenspektrum (VC/Startup + Deep Tech) |
-| BIZ | 927 | 19% | Stark gewachsen (vorher 10%), gut ausbalanciert |
-| FOOD | 575 | 12% | Stabil |
-| HEALTH | 518 | 11% | Deutlich verbessert durch neue Quellen (Endpoints, Healthcare IT News) |
-| ECO | 408 | 9% | Stabil |
-| LIFESTYLE | 321 | 7% | Deutlich verbessert (vorher 4%), Konsolidierung CULTURE+SOCIAL+LUXURY zahlt sich aus |
-| FASHION | 278 | 6% | Stabil |
-| DESIGN | 223 | 5% | Stabil |
-| **TOTAL** | **4782** | **100%** | |
+| TECH | 9.623 | 36% | TECH-Dominanz hat zugenommen (vorher 32%) — Quellenvielfalt rechtfertigt das weiterhin |
+| BIZ | 4.699 | 18% | Stabil hoch |
+| HEALTH | 3.812 | 14% | Weiter gewachsen, Endpoints/Healthcare IT News tragen |
+| ECO | 2.388 | 9% | Stabil |
+| FOOD | 1.691 | 6% | Anteil **gesunken** (vorher 12%), aber 8 neue FOOD-Quellen seit 2026-05-24 noch in Catch-up — Effekt schlägt erst über Wochen voll durch |
+| LIFESTYLE | 1.594 | 6% | Stabil |
+| DESIGN | 1.343 | 5% | Stabil |
+| FASHION | 1.224 | 5% | Stabil |
+| **TOTAL** | **26.374** | **100%** | |
 
 ### Balance-Prinzip für die Datenpipeline
 
-1. **TECH-Dominanz beobachten** — mit 32% stabil, durch Quellenvielfalt gerechtfertigt
-2. **Regelmäßiger Balance-Check** (monatlich): bei >3x Abweichung vom Median Quellen und Schwellenwerte anpassen
-3. ~~**LIFESTYLE stärken**~~: Erledigt — Hypebeast, Highsnobiety, GamesIndustry.biz eingebunden, LIFESTYLE von 4% auf 7% gewachsen
+1. **TECH-Dominanz beobachten** — bei 36% durch Quellenvielfalt (VC/Startup + Deep Tech + Halbleiter + Quantum) erklärt, aber Trend zur weiteren Konzentration im Auge behalten
+2. **Regelmäßiger Balance-Check** (monatlich): bei >3× Abweichung vom Median Quellen und Schwellenwerte anpassen
+3. **FOOD-Catch-up** beobachten — die 8 Quellen aus dem 2026-05-24-Commit (`a561b74`) füttern erst seit dem 2026-05-25-Lauf. Anteil sollte sich über 4–6 Wochen Richtung historischer ~10–12% normalisieren.
 
 ### Geplante Quellen-Ergänzungen
 
@@ -745,11 +746,22 @@ Keine offenen Ergänzungen. Lebensmittelzeitung wurde in `sources.yaml` eingebun
 
 ---
 
+## Stage-6 auf llama.cpp 35B (optional, seit 2026-05-25)
+
+Auf der 24-GB-Karte kann Stage 6 (Content-Generierung) auf ein deutlich größeres Modell umgeleitet werden:
+
+- **Modell:** Qwen3.6-35B-A3B-UD-Q4_K_M, geladen via `llama-server` (systemd user unit `llama-server.service`, Port 8090)
+- **Routing:** `STAGE5_BACKEND=llamacpp` in `scheduled_cycle.sh` aktiviert den Pfad. Pre-Flight verweigert den Start, falls `start-active.sh` nicht das erwartete Modell lädt — verhindert OOM.
+- **GPU-Handover:** `pipeline/gpu_handover.py` entlädt vor Stage 6 die Ollama-Modelle, startet llama-server, stoppt es nach Stage 6 wieder. Stages 7–9 nutzen Ollama wieder (Qwen3 8B für Reclassify on-demand).
+- **Content-Guard:** Wortzahl-Validator retryt bis zu 3× bei vorzeitig terminierten Body-Strings (Grammar-Artefakt bei temp 0.7). In den ersten vier Nachtläufen war die "alle 3 Versuche failed"-Rate <0,25 %.
+- **Rückbau:** entweder `STAGE5_BACKEND=ollama` (Env-Override), `git revert 91e0729` (Aktivierungs-Commit, Code bleibt), oder Symlink `start-active.sh` auf ein anderes Modell zeigen lassen (Auto-Fallback im Skript).
+- **Zugehörige Goals:** offene Erweiterung der Quellen-Architektur, siehe `goals/` und `pipeline_expansion_prompt.md`.
+
 ## Technische Hinweise
 
 - Ollama läuft als Windows-Exe auf `127.0.0.1:11434`. Env: `OLLAMA_CLIENT_HOST=http://127.0.0.1:11434`
-- Python: `C:\Users\Dirk\AppData\Local\Programs\Python\Python313\python.exe` (oder Git Bash: `/c/Users/Dirk/AppData/Local/Programs/Python/Python313/python.exe`)
+- Python: `C:\Users\Dirk\AppData\Local\Programs\Python\Python313\python.exe` (oder Git Bash: `/c/Users/Dirk/AppData/Local/Programs/Python/Python313/python.exe`); auf der Linux-Workstation `.venv/bin/python` im Repo
 - LLM-Processor Default-Batch ist 10, für große Batches: `python -m pipeline.llm_processor 200`
 - Pipeline-Output in Datei umleiten (nicht pipen!): `python -m pipeline.llm_processor 200 > data/llm_processor.log 2>&1`
 - Frontend Dev-Server auf Port 3001 (Port 3000 belegt durch Open WebUI)
-- Qwen3 braucht `think=False` in Ollama-Calls um Chain-of-Thought-Bloat zu vermeiden
+- Qwen3 braucht `think=False` in Ollama-Calls (oder `enable_thinking=false` in llama.cpp) um Chain-of-Thought-Bloat zu vermeiden
