@@ -37,6 +37,8 @@ from pipeline.config import (
     STAGE5_BACKEND,
     STAGE5_MIN_BODY_WORDS,
     STAGE5_MODEL,
+    STAGE_8B_BACKEND,
+    STAGE_8B_MODEL,
     get_mega_trend_prompt_block,
 )
 from pipeline.db import (
@@ -220,6 +222,15 @@ Title: {title}
 
 Excerpt: {excerpt[:1500]}"""
 
+    if STAGE_8B_BACKEND == "llamacpp":
+        return llamacpp_client.chat_structured(
+            model=STAGE_8B_MODEL,
+            prompt=prompt,
+            schema=RelevanceResult,
+            system=RELEVANCE_SYSTEM,
+            temperature=0.0,
+        )
+
     return chat_structured(
         model=MODEL_FILTER,
         prompt=prompt,
@@ -238,8 +249,20 @@ Title: {title}
 
 Text: {excerpt[:1500]}"""
 
+    # Effective model after the NuExtract→qwen3:8b fallback (NuExtract disabled).
+    resolved_model = MODEL_EXTRACT if MODEL_EXTRACT != "nuextract" else "qwen3:8b"
+
+    if STAGE_8B_BACKEND == "llamacpp" and resolved_model == "qwen3:8b":
+        return llamacpp_client.chat_structured(
+            model=STAGE_8B_MODEL,
+            prompt=prompt,
+            schema=ExtractionResult,
+            system=EXTRACTION_SYSTEM,
+            temperature=0.0,
+        )
+
     return chat_structured(
-        model=MODEL_EXTRACT if MODEL_EXTRACT != "nuextract" else "qwen3:8b",
+        model=resolved_model,
         prompt=prompt,
         schema=ExtractionResult,
         system=EXTRACTION_SYSTEM,
@@ -257,6 +280,15 @@ Excerpt: {excerpt[:1000]}
 Brand: {extraction.brand_name or 'Unknown'}
 Product: {extraction.product_name or 'Unknown'}
 Key Claims: {', '.join(extraction.key_claims[:5]) if extraction.key_claims else 'None'}"""
+
+    if STAGE_8B_BACKEND == "llamacpp":
+        return llamacpp_client.chat_structured(
+            model=STAGE_8B_MODEL,
+            prompt=prompt,
+            schema=ClassificationResult,
+            system=CLASSIFICATION_SYSTEM,
+            temperature=0.0,
+        )
 
     return chat_structured(
         model=MODEL_CLASSIFY,
@@ -520,87 +552,95 @@ def run_pipeline_batch(limit: int = 200):
     logger.info("Stage 1 done in %.1fs: %d → %d (%d title dups)",
                 time.time() - t_stage, len(entries), len(survivors), filtered)
 
-    # ---- Stage 2: Relevance filter (Qwen3 8B) ----
-    t_stage = time.time()
-    next_survivors = []
-    total_stage2 = len(survivors)
-    cache_hits_stage2 = 0
-    for i, entry in enumerate(survivors, 1):
-        try:
-            cached = entry.get("relevance_json")
-            if cached:
-                rel = RelevanceResult.model_validate_json(cached)
-                cache_hits_stage2 += 1
-            else:
-                rel = step_relevance_filter(entry["title"], entry["excerpt"] or "", entry.get("source_vertical", "TECH"))
-                if rel is not None:
-                    save_stage_result(entry["id"], "relevance", rel)
-            if rel is None:
-                mark_filtered(entry["id"], "relevance_filter_error")
-                filtered += 1
-                continue
-            if not rel.is_relevant or rel.confidence < RELEVANCE_THRESHOLD:
-                mark_filtered(entry["id"], f"not_relevant: {rel.reason}")
-                filtered += 1
-                continue
-            entry["_relevance"] = rel
-            next_survivors.append(entry)
-        except Exception as e:
-            logger.error("[%d] relevance error: %s", entry["id"], e)
-            mark_processed(entry["id"])
-            errors += 1
-        if i % 25 == 0:
-            logger.info("Stage 2 progress: %d/%d (%.0f%%)", i, total_stage2, i / total_stage2 * 100)
-    survivors = next_survivors
-    logger.info("Stage 2 done in %.1fs: %d survivors (%d cache hits)",
-                time.time() - t_stage, len(survivors), cache_hits_stage2)
+    # ---- Stages 2-4: Relevance / Extraction / Classification (Qwen3 8B) ----
+    # When STAGE_8B_BACKEND=llamacpp, swap the GPU to the 8B llama-server for
+    # the duration of these three contiguous loops; restore the symlink on
+    # exit so Stage 6's 35B handover finds start-active.sh as expected.
+    gpu_ctx_8b = (gpu_handover.eight_b_on_llamacpp(STAGE_8B_MODEL)
+                  if STAGE_8B_BACKEND == "llamacpp" and survivors
+                  else nullcontext())
+    with gpu_ctx_8b:
+        # ---- Stage 2: Relevance filter (Qwen3 8B) ----
+        t_stage = time.time()
+        next_survivors = []
+        total_stage2 = len(survivors)
+        cache_hits_stage2 = 0
+        for i, entry in enumerate(survivors, 1):
+            try:
+                cached = entry.get("relevance_json")
+                if cached:
+                    rel = RelevanceResult.model_validate_json(cached)
+                    cache_hits_stage2 += 1
+                else:
+                    rel = step_relevance_filter(entry["title"], entry["excerpt"] or "", entry.get("source_vertical", "TECH"))
+                    if rel is not None:
+                        save_stage_result(entry["id"], "relevance", rel)
+                if rel is None:
+                    mark_filtered(entry["id"], "relevance_filter_error")
+                    filtered += 1
+                    continue
+                if not rel.is_relevant or rel.confidence < RELEVANCE_THRESHOLD:
+                    mark_filtered(entry["id"], f"not_relevant: {rel.reason}")
+                    filtered += 1
+                    continue
+                entry["_relevance"] = rel
+                next_survivors.append(entry)
+            except Exception as e:
+                logger.error("[%d] relevance error: %s", entry["id"], e)
+                mark_processed(entry["id"])
+                errors += 1
+            if i % 25 == 0:
+                logger.info("Stage 2 progress: %d/%d (%.0f%%)", i, total_stage2, i / total_stage2 * 100)
+        survivors = next_survivors
+        logger.info("Stage 2 done in %.1fs: %d survivors (%d cache hits)",
+                    time.time() - t_stage, len(survivors), cache_hits_stage2)
 
-    # ---- Stage 3: Extraction (Qwen3 8B) ----
-    t_stage = time.time()
-    cache_hits_stage3 = 0
-    for entry in survivors:
-        try:
-            cached = entry.get("extraction_json")
-            if cached:
-                entry["_extraction"] = ExtractionResult.model_validate_json(cached)
-                cache_hits_stage3 += 1
-            else:
-                ext = step_extraction(entry["title"], entry["excerpt"] or "")
-                ext = ext if ext is not None else ExtractionResult()
-                save_stage_result(entry["id"], "extraction", ext)
-                entry["_extraction"] = ext
-        except Exception as e:
-            logger.error("[%d] extraction error: %s", entry["id"], e)
-            entry["_extraction"] = ExtractionResult()
-    logger.info("Stage 3 done in %.1fs (%d cache hits)", time.time() - t_stage, cache_hits_stage3)
+        # ---- Stage 3: Extraction (Qwen3 8B) ----
+        t_stage = time.time()
+        cache_hits_stage3 = 0
+        for entry in survivors:
+            try:
+                cached = entry.get("extraction_json")
+                if cached:
+                    entry["_extraction"] = ExtractionResult.model_validate_json(cached)
+                    cache_hits_stage3 += 1
+                else:
+                    ext = step_extraction(entry["title"], entry["excerpt"] or "")
+                    ext = ext if ext is not None else ExtractionResult()
+                    save_stage_result(entry["id"], "extraction", ext)
+                    entry["_extraction"] = ext
+            except Exception as e:
+                logger.error("[%d] extraction error: %s", entry["id"], e)
+                entry["_extraction"] = ExtractionResult()
+        logger.info("Stage 3 done in %.1fs (%d cache hits)", time.time() - t_stage, cache_hits_stage3)
 
-    # ---- Stage 4: Classification (Qwen3 8B) ----
-    t_stage = time.time()
-    next_survivors = []
-    cache_hits_stage4 = 0
-    for entry in survivors:
-        try:
-            cached = entry.get("classification_json")
-            if cached:
-                cls = ClassificationResult.model_validate_json(cached)
-                cache_hits_stage4 += 1
-            else:
-                cls = step_classification(entry["title"], entry["excerpt"] or "", entry["_extraction"])
-                if cls is not None:
-                    save_stage_result(entry["id"], "classification", cls)
-            if cls is None:
-                mark_filtered(entry["id"], "classification_error")
-                filtered += 1
-                continue
-            entry["_classification"] = cls
-            next_survivors.append(entry)
-        except Exception as e:
-            logger.error("[%d] classification error: %s", entry["id"], e)
-            mark_processed(entry["id"])
-            errors += 1
-    survivors = next_survivors
-    logger.info("Stage 4 done in %.1fs: %d survivors (%d cache hits)",
-                time.time() - t_stage, len(survivors), cache_hits_stage4)
+        # ---- Stage 4: Classification (Qwen3 8B) ----
+        t_stage = time.time()
+        next_survivors = []
+        cache_hits_stage4 = 0
+        for entry in survivors:
+            try:
+                cached = entry.get("classification_json")
+                if cached:
+                    cls = ClassificationResult.model_validate_json(cached)
+                    cache_hits_stage4 += 1
+                else:
+                    cls = step_classification(entry["title"], entry["excerpt"] or "", entry["_extraction"])
+                    if cls is not None:
+                        save_stage_result(entry["id"], "classification", cls)
+                if cls is None:
+                    mark_filtered(entry["id"], "classification_error")
+                    filtered += 1
+                    continue
+                entry["_classification"] = cls
+                next_survivors.append(entry)
+            except Exception as e:
+                logger.error("[%d] classification error: %s", entry["id"], e)
+                mark_processed(entry["id"])
+                errors += 1
+        survivors = next_survivors
+        logger.info("Stage 4 done in %.1fs: %d survivors (%d cache hits)",
+                    time.time() - t_stage, len(survivors), cache_hits_stage4)
 
     # ---- Stage 5: Embeddings + dedup (load recent embeddings ONCE) ----
     t_stage = time.time()
@@ -751,8 +791,15 @@ def run_pipeline_batch(limit: int = 200):
     logger.info("Stage 7 done in %.1fs", time.time() - t_stage)
 
     # ---- Stage 8: Reclassify drafts (Qwen3 8B) ----
+    # Same GPU-handover pattern as Stages 2-4 when STAGE_8B_BACKEND=llamacpp.
+    # The Stage-6 35B handover above has already exited and stopped llama-server;
+    # this brings it back up with the 8B GGUF for the reclassify pass.
     t_stage = time.time()
-    reclass_stats = reclassify_drafts()
+    gpu_ctx_8b_reclass = (gpu_handover.eight_b_on_llamacpp(STAGE_8B_MODEL)
+                          if STAGE_8B_BACKEND == "llamacpp"
+                          else nullcontext())
+    with gpu_ctx_8b_reclass:
+        reclass_stats = reclassify_drafts()
     logger.info("Stage 8 done in %.1fs: %d reclassified (%d changed)",
                 time.time() - t_stage, reclass_stats["total"], reclass_stats["changed"])
 

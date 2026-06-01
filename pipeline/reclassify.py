@@ -12,7 +12,13 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from pipeline.config import DATABASE_PATH, MODEL_CLASSIFY
+from pipeline.config import (
+    DATABASE_PATH,
+    MODEL_CLASSIFY,
+    STAGE_8B_BACKEND,
+    STAGE_8B_MODEL,
+)
+from pipeline import llamacpp_client
 from pipeline.ollama_client import chat_structured
 
 logger = logging.getLogger(__name__)
@@ -74,16 +80,30 @@ Title: "Durable Outdoor Bluetooth Speakers"
 
 
 def _classify_one(title: str, summary: str) -> dict | None:
-    """Classify a single trend via Ollama with retries + structured output."""
+    """Classify a single trend with retries + structured output.
+
+    Routes to llama.cpp 8B when STAGE_8B_BACKEND=llamacpp (run_pipeline_batch
+    is responsible for bringing the 8B server up around this call), otherwise
+    Ollama qwen3:8b.
+    """
     prompt = f"Title: {title}\nSummary: {summary[:500]}"
-    result = chat_structured(
-        model=MODEL_CLASSIFY,
-        prompt=prompt,
-        schema=ReclassifyResult,
-        system=CLASSIFY_SYSTEM,
-        temperature=0.0,
-        fallback_model="qwen3:8b",
-    )
+    if STAGE_8B_BACKEND == "llamacpp":
+        result = llamacpp_client.chat_structured(
+            model=STAGE_8B_MODEL,
+            prompt=prompt,
+            schema=ReclassifyResult,
+            system=CLASSIFY_SYSTEM,
+            temperature=0.0,
+        )
+    else:
+        result = chat_structured(
+            model=MODEL_CLASSIFY,
+            prompt=prompt,
+            schema=ReclassifyResult,
+            system=CLASSIFY_SYSTEM,
+            temperature=0.0,
+            fallback_model="qwen3:8b",
+        )
     if result is None:
         return None
     primary = result.primary

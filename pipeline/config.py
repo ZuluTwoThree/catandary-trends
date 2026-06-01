@@ -39,6 +39,14 @@ STAGE5_MODEL = os.getenv("STAGE5_MODEL", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf")
 # grammar string-termination at temp>0 occasionally yields a stub body).
 STAGE5_MIN_BODY_WORDS = int(os.getenv("STAGE5_MIN_BODY_WORDS", "100"))
 
+# qwen3:8b stages backend (pipeline Stages 2 Relevance, 3 Extraction,
+# 4 Classification, 8 Reclassify).
+# "ollama" (default) uses MODEL_FILTER/MODEL_CLASSIFY on Ollama. "llamacpp" routes
+# all four stages to a llama-server serving STAGE_8B_MODEL, sharing the same
+# port 8090 with Stage 6's 35B server via symlink-swap (see pipeline.gpu_handover).
+STAGE_8B_BACKEND = os.getenv("STAGE_8B_BACKEND", "ollama")
+STAGE_8B_MODEL = os.getenv("STAGE_8B_MODEL", "Qwen3-8B-UD-Q4_K_XL.gguf")
+
 # Pipeline
 RELEVANCE_THRESHOLD = 0.6
 DUPLICATE_SIMILARITY_THRESHOLD = 0.92
