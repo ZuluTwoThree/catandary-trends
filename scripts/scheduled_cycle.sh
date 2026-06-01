@@ -52,6 +52,23 @@ mkdir -p "$(dirname "$LOG")"
   fi
   # <<< Stage-6 activation <<<
 
+  # >>> Stages 2/3/4/8 on llama.cpp 8B — `git revert` this commit to disable >>>
+  # Activates the llama.cpp 8B backend for the four qwen3:8b stages ONLY if the
+  # 8B start script exists and references the expected GGUF. The pipeline's
+  # in-run eight_b_on_llamacpp handover swaps the symlink to start-qwen3-8b.sh
+  # before Stages 2-4 and Stage 8 and restores it afterwards.
+  # Fail-safe: missing script or wrong GGUF reference → fall back to Ollama.
+  export STAGE_8B_MODEL="Qwen3-8B-UD-Q4_K_XL.gguf"
+  ACTIVE_8B="/home/dirk/llama.cpp/start-qwen3-8b.sh"
+  if [ -f "$ACTIVE_8B" ] && grep -q "$STAGE_8B_MODEL" "$ACTIVE_8B" 2>/dev/null; then
+    export STAGE_8B_BACKEND=llamacpp
+    echo "----- Stages 2/3/4/8 backend: llamacpp ($STAGE_8B_MODEL) -----"
+  else
+    export STAGE_8B_BACKEND=ollama
+    echo "----- Stages 2/3/4/8 backend: ollama (fallback — $ACTIVE_8B missing or wrong GGUF) -----"
+  fi
+  # <<< Stage 8B activation <<<
+
   echo
   echo "----- stopping llama-server.service to free GPU -----"
   systemctl --user stop llama-server.service
