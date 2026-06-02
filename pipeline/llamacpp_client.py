@@ -139,3 +139,26 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                 continue
             logger.error("All attempts exhausted for %s", model)
             return None
+
+
+def generate_embedding(text: str, model: str | None = None) -> list[float] | None:
+    """Generate an embedding vector via llama-server's OpenAI-compatible endpoint.
+
+    Drop-in replacement for `pipeline.ollama_client.generate_embedding`. Hits
+    POST {LLAMACPP_HOST}/v1/embeddings. `model` is included in the payload but
+    llama-server ignores it (the loaded model is whatever start-active.sh
+    brought up); callers can pass it for logging clarity.
+    """
+    payload: dict = {"input": text}
+    if model is not None:
+        payload["model"] = model
+    url = f"{LLAMACPP_HOST}/v1/embeddings"
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            r = client.post(url, json=payload)
+            r.raise_for_status()
+            data = r.json()
+        return data["data"][0]["embedding"]
+    except Exception as e:
+        logger.error("llama.cpp embedding failed: %s", e)
+        return None

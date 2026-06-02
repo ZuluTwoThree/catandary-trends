@@ -47,6 +47,13 @@ STAGE5_MIN_BODY_WORDS = int(os.getenv("STAGE5_MIN_BODY_WORDS", "100"))
 STAGE_8B_BACKEND = os.getenv("STAGE_8B_BACKEND", "ollama")
 STAGE_8B_MODEL = os.getenv("STAGE_8B_MODEL", "Qwen3-8B-UD-Q4_K_XL.gguf")
 
+# Stage 5 (Embeddings + Dedup) backend.
+# "ollama" (default) uses MODEL_EMBEDDING on Ollama. "llamacpp" routes embedding
+# generation to a llama-server in --embedding mode serving EMBED_MODEL on
+# port 8090, sharing the symlink with the other llama.cpp stages.
+EMBED_BACKEND = os.getenv("EMBED_BACKEND", "ollama")
+EMBED_MODEL = os.getenv("EMBED_MODEL", "Qwen3-Embedding-8B-Q4_K_M.gguf")
+
 # Pipeline
 RELEVANCE_THRESHOLD = 0.6
 DUPLICATE_SIMILARITY_THRESHOLD = 0.92

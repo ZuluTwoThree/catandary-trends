@@ -33,6 +33,8 @@ from pipeline.config import (
     MODEL_EXTRACT,
     MODEL_FILTER,
     MODEL_GENERATE,
+    EMBED_BACKEND,
+    EMBED_MODEL,
     RELEVANCE_THRESHOLD,
     STAGE5_BACKEND,
     STAGE5_MIN_BODY_WORDS,
@@ -306,7 +308,10 @@ def step_dedup_check(title: str, excerpt: str) -> tuple[bool, float, list[float]
     Returns (is_duplicate, max_similarity, embedding).
     """
     text = f"{title}\n{excerpt[:500]}"
-    embedding = generate_embedding(MODEL_EMBEDDING, text)
+    if EMBED_BACKEND == "llamacpp":
+        embedding = llamacpp_client.generate_embedding(text, model=EMBED_MODEL)
+    else:
+        embedding = generate_embedding(MODEL_EMBEDDING, text)
     if embedding is None:
         return False, 0.0, None
 
@@ -643,6 +648,9 @@ def run_pipeline_batch(limit: int = 200):
                     time.time() - t_stage, len(survivors), cache_hits_stage4)
 
     # ---- Stage 5: Embeddings + dedup (load recent embeddings ONCE) ----
+    # When EMBED_BACKEND=llamacpp, hand the GPU over to a llama-server in
+    # --embedding mode for the duration of this loop only; restore the symlink
+    # on exit so Stage 6's 35B handover finds start-active.sh as expected.
     t_stage = time.time()
     recent = get_recent_embeddings(days=30)
     recent_vecs = [bytes_to_embedding(b) for _, b in recent]
@@ -651,49 +659,57 @@ def run_pipeline_batch(limit: int = 200):
     next_survivors = []
     batch_vecs: list[list[float]] = []
     cache_hits_stage5 = 0
-    for entry in survivors:
-        try:
-            cached_emb = entry.get("embedding_blob")
-            if cached_emb:
-                emb = bytes_to_embedding(cached_emb)
-                cache_hits_stage5 += 1
-            else:
-                text = f"{entry['title']}\n{(entry['excerpt'] or '')[:500]}"
-                emb = generate_embedding(MODEL_EMBEDDING, text)
-                if emb is not None:
-                    save_stage_result(entry["id"], "embedding", embedding_to_bytes(emb))
-            if emb is None:
-                mark_filtered(entry["id"], "embedding_error")
-                filtered += 1
-                continue
-            max_sim = 0.0
-            is_dup = False
-            for v in recent_vecs:
-                sim = cosine_similarity(emb, v)
-                if sim > max_sim:
-                    max_sim = sim
-                if sim > DUPLICATE_SIMILARITY_THRESHOLD:
-                    is_dup = True
-                    break
-            if not is_dup:
-                for v in batch_vecs:
+    needs_embed = any(not e.get("embedding_blob") for e in survivors)
+    gpu_ctx_embed = (gpu_handover.embed_on_llamacpp(EMBED_MODEL)
+                     if EMBED_BACKEND == "llamacpp" and needs_embed
+                     else nullcontext())
+    with gpu_ctx_embed:
+        for entry in survivors:
+            try:
+                cached_emb = entry.get("embedding_blob")
+                if cached_emb:
+                    emb = bytes_to_embedding(cached_emb)
+                    cache_hits_stage5 += 1
+                else:
+                    text = f"{entry['title']}\n{(entry['excerpt'] or '')[:500]}"
+                    if EMBED_BACKEND == "llamacpp":
+                        emb = llamacpp_client.generate_embedding(text, model=EMBED_MODEL)
+                    else:
+                        emb = generate_embedding(MODEL_EMBEDDING, text)
+                    if emb is not None:
+                        save_stage_result(entry["id"], "embedding", embedding_to_bytes(emb))
+                if emb is None:
+                    mark_filtered(entry["id"], "embedding_error")
+                    filtered += 1
+                    continue
+                max_sim = 0.0
+                is_dup = False
+                for v in recent_vecs:
                     sim = cosine_similarity(emb, v)
                     if sim > max_sim:
                         max_sim = sim
                     if sim > DUPLICATE_SIMILARITY_THRESHOLD:
                         is_dup = True
                         break
-            if is_dup:
-                mark_filtered(entry["id"], f"duplicate: similarity={max_sim:.3f}")
-                filtered += 1
-                continue
-            entry["_embedding"] = emb
-            batch_vecs.append(emb)
-            next_survivors.append(entry)
-        except Exception as e:
-            logger.error("[%d] dedup error: %s", entry["id"], e)
-            mark_processed(entry["id"])
-            errors += 1
+                if not is_dup:
+                    for v in batch_vecs:
+                        sim = cosine_similarity(emb, v)
+                        if sim > max_sim:
+                            max_sim = sim
+                        if sim > DUPLICATE_SIMILARITY_THRESHOLD:
+                            is_dup = True
+                            break
+                if is_dup:
+                    mark_filtered(entry["id"], f"duplicate: similarity={max_sim:.3f}")
+                    filtered += 1
+                    continue
+                entry["_embedding"] = emb
+                batch_vecs.append(emb)
+                next_survivors.append(entry)
+            except Exception as e:
+                logger.error("[%d] dedup error: %s", entry["id"], e)
+                mark_processed(entry["id"])
+                errors += 1
     survivors = next_survivors
     logger.info("Stage 5 done in %.1fs: %d survivors (%d cache hits)",
                 time.time() - t_stage, len(survivors), cache_hits_stage5)

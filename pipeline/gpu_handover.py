@@ -45,8 +45,9 @@ VRAM_FREE_THRESHOLD_MIB = int(os.getenv("VRAM_FREE_THRESHOLD_MIB", "3000"))
 # here when introducing more llama.cpp-backed stages.
 LLAMA_CPP_ROOT = Path(os.getenv("LLAMACPP_ROOT", "/home/dirk/llama.cpp"))
 MODEL_START_SCRIPTS: dict[str, Path] = {
-    "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf": LLAMA_CPP_ROOT / "start-qwen3.6-35b.sh",
-    "Qwen3-8B-UD-Q4_K_XL.gguf":       LLAMA_CPP_ROOT / "start-qwen3-8b.sh",
+    "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf":  LLAMA_CPP_ROOT / "start-qwen3.6-35b.sh",
+    "Qwen3-8B-UD-Q4_K_XL.gguf":        LLAMA_CPP_ROOT / "start-qwen3-8b.sh",
+    "Qwen3-Embedding-8B-Q4_K_M.gguf":  LLAMA_CPP_ROOT / "start-qwen3-emb.sh",
 }
 
 
@@ -241,6 +242,44 @@ def content_gen_on_llamacpp(expected_model: str):
                 llama_server_stop()
             except Exception as e:
                 logger.error("llama-server stop failed: %s", e)
+
+
+@contextmanager
+def embed_on_llamacpp(expected_model: str):
+    """Context manager: swap symlink to embedding start script, start server,
+    restore on exit. Mirrors `eight_b_on_llamacpp` for Stage 5.
+
+    The embedding server runs in --embedding --pooling last mode, exposing
+    POST /v1/embeddings only — chat endpoints are unavailable while it's up.
+    `_model_ready` still works because llama-server reports its loaded model
+    on GET /v1/models regardless of mode.
+    """
+    if _model_ready(expected_model):
+        logger.info("embed handover: llama-server already serving %s — nothing to do",
+                    expected_model)
+        try:
+            yield
+        finally:
+            pass
+        return
+
+    saved_target = _current_symlink_target()
+    llama_server_start(expected_model, swap_symlink=True)
+    try:
+        yield
+    finally:
+        try:
+            llama_server_stop()
+        except Exception as e:
+            logger.error("llama-server stop failed: %s", e)
+        if saved_target and _current_symlink_target() != saved_target:
+            try:
+                logger.info("Restoring start-active.sh → %s", saved_target)
+                if START_ACTIVE.is_symlink() or START_ACTIVE.exists():
+                    START_ACTIVE.unlink()
+                START_ACTIVE.symlink_to(saved_target)
+            except Exception as e:
+                logger.error("symlink restore failed: %s", e)
 
 
 @contextmanager
