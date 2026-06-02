@@ -69,6 +69,23 @@ mkdir -p "$(dirname "$LOG")"
   fi
   # <<< Stage 8B activation <<<
 
+  # >>> Stage 5 Embedding on llama.cpp — `git revert` this commit to disable >>>
+  # Activates the llama.cpp embedding backend ONLY if the embedding start
+  # script exists and references the expected GGUF. The in-pipeline
+  # embed_on_llamacpp handover swaps the symlink to start-qwen3-emb.sh
+  # for Stage 5 and restores it afterwards.
+  # Fail-safe: missing script or wrong GGUF reference → fall back to Ollama.
+  export EMBED_MODEL="Qwen3-Embedding-8B-Q4_K_M.gguf"
+  ACTIVE_EMB="/home/dirk/llama.cpp/start-qwen3-emb.sh"
+  if [ -f "$ACTIVE_EMB" ] && grep -q "$EMBED_MODEL" "$ACTIVE_EMB" 2>/dev/null; then
+    export EMBED_BACKEND=llamacpp
+    echo "----- Stage 5 backend: llamacpp ($EMBED_MODEL) -----"
+  else
+    export EMBED_BACKEND=ollama
+    echo "----- Stage 5 backend: ollama (fallback — $ACTIVE_EMB missing or wrong GGUF) -----"
+  fi
+  # <<< Stage 5 Embed activation <<<
+
   echo
   echo "----- stopping llama-server.service to free GPU -----"
   systemctl --user stop llama-server.service
