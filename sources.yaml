@@ -60,6 +60,14 @@ verticals:
       lead_time_tier: future
   TECH:
     sources:
+    - name: heise online
+      feed_url: https://www.heise.de/rss/heise-atom.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Golem
+      feed_url: https://rss.golem.de/rss.php?feed=RSS2.0
+      type: trade_media
+      lead_time_tier: market
     - name: TechCrunch
       feed_url: https://techcrunch.com/feed/
       type: trade_media
@@ -121,6 +129,14 @@ verticals:
       type: trade_media
       lead_time_tier: market
     science:
+    - name: MIT News
+      feed_url: https://news.mit.edu/rss/feed
+      type: research
+      lead_time_tier: future
+    - name: arXiv cs.AI
+      feed_url: https://export.arxiv.org/rss/cs.AI
+      type: research
+      lead_time_tier: future
     - name: Nature Machine Intelligence
       feed_url: https://www.nature.com/natmachintell.rss
       type: research
@@ -147,6 +163,14 @@ verticals:
       lead_time_tier: future
   HEALTH:
     sources:
+    - name: MedTech Dive
+      feed_url: https://www.medtechdive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: Deutsches Ärzteblatt
+      feed_url: https://www.aerzteblatt.de/rss/news
+      type: trade_media
+      lead_time_tier: market
     - name: STAT News
       feed_url: https://www.statnews.com/feed/
       type: trade_media
@@ -206,6 +230,18 @@ verticals:
       lead_time_tier: future
   ECO:
     sources:
+    - name: pv magazine Deutschland
+      feed_url: https://www.pv-magazine.de/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: CleanThinking
+      feed_url: https://www.cleanthinking.de/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Electrek
+      feed_url: https://electrek.co/feed/
+      type: trade_media
+      lead_time_tier: now
     - name: CleanTechnica
       feed_url: https://cleantechnica.com/feed/
       type: trade_media
@@ -265,6 +301,10 @@ verticals:
       lead_time_tier: future
   DESIGN:
     sources:
+    - name: Yanko Design
+      feed_url: https://www.yankodesign.com/feed/
+      type: trade_media
+      lead_time_tier: now
     - name: Dezeen
       feed_url: https://www.dezeen.com/feed/
       type: trade_media
@@ -323,6 +363,22 @@ verticals:
       lead_time_tier: future
   BIZ:
     sources:
+    - name: Handelsblatt Schlagzeilen
+      feed_url: https://www.handelsblatt.com/contentexport/feed/schlagzeilen
+      type: trade_media
+      lead_time_tier: market
+    - name: Harvard Business Review
+      feed_url: http://feeds.hbr.org/harvardbusiness
+      type: trade_media
+      lead_time_tier: future
+    - name: Sifted
+      feed_url: https://sifted.eu/feed
+      type: trade_media
+      lead_time_tier: market
+    - name: OMR
+      feed_url: https://omr.com/de/feed
+      type: trade_media
+      lead_time_tier: now
     - name: Retail Dive
       feed_url: https://www.retaildive.com/feeds/news/
       type: trade_media
@@ -365,6 +421,14 @@ verticals:
       lead_time_tier: market
   LIFESTYLE:
     sources:
+    - name: Variety
+      feed_url: https://variety.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: PocketGamer.biz
+      feed_url: https://www.pocketgamer.biz/rss/
+      type: trade_media
+      lead_time_tier: now
     - name: Nieman Lab
       feed_url: https://www.niemanlab.org/feed/
       type: trade_media
@@ -432,6 +496,14 @@ cross_industry:
     type: press_wire
     lead_time_tier: market
   science:
+  - name: idw Pressemitteilungen
+    feed_url: https://idw-online.de/pages/de/pressreleasesrss
+    type: research
+    lead_time_tier: future
+  - name: Fraunhofer Presse
+    feed_url: https://www.fraunhofer.de/de/rss/presse.rss
+    type: research
+    lead_time_tier: future
   - name: Nature (main)
     feed_url: https://www.nature.com/nature.rss
     type: research

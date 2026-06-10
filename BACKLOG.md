@@ -1,5 +1,27 @@
 # Catandary Trends — Backlog
 
+## Quellenausbau Trend-Radar (Ziel: 300+ Quellen, Stand 2026-06-10: 128)
+
+Phase 1 (RSS-Tranche 1) erledigt 2026-06-10: +18 verifizierte Feeds (heise, Golem, MIT News,
+arXiv cs.AI, MedTech Dive, Ärzteblatt, pv magazine DE, CleanThinking, Electrek, Yanko Design,
+Handelsblatt, HBR, Sifted, OMR, Variety, PocketGamer.biz, idw Pressemitteilungen [~350 Einträge!],
+Fraunhofer Presse). Methodik: Kandidaten-Verify per httpx+feedparser, Feed-Discovery über
+`<link rel="alternate">` im HTML wenn URL unbekannt.
+
+- [ ] **RSS-Tranche 2:** Helmholtz, Max-Planck (RSS-URLs via Site-Suche/idw abdeckbar), Baunetz,
+  TextilWirtschaft, FashionUnited (HTTP 422 — ggf. User-Agent-Problem), BCG (403 — Header testen),
+  Roland Berger, EurekAlert (kein `<link>`-Tag — RSS-Seite manuell prüfen), weitere DACH-Fachpresse
+  je Vertikale (Ziel +30–50).
+- [ ] **Freie APIs (Phase 2):** EU CORDIS (Forschungsförderung → Future-Signale),
+  EPO OPS / DPMA (Patente → `trend_signal_type='patent'` existiert, wird nie befüllt),
+  EUR-Lex / EU-Kommission Presse (Regulatorik → PESTEL P/L stärken: aktuell nur 286/499 Trends),
+  Reddit API + Hacker News (in CLAUDE.md vorgesehen, nie angebunden).
+- [ ] **Phase 3:** Brave-Radar-Rewrite (Plan unten), Google Trends via pytrends als
+  Momentum-Validierung.
+- [ ] **Durchsatz-Schutz:** Ab ~250 Quellen Embedding-/Keyword-Prefilter vor dem LLM-Relevanz-Filter
+  erwägen, um GPU-Zeit <1 h/Tag zu halten. idw + arXiv sind Volumen-Treiber (je 350–400
+  Einträge/Abruf) — ggf. Kategorie-Filter auf Feed-Ebene.
+
 ## Pipeline-Optimierung
 
 - [ ] **Datengetriebener "Structural vs. Hype"-Score für Mega-Trend-Karten.** Idee: aus der monatlichen Signalverteilung pro Mega-Trend ein Maß ableiten (Coverage + Entropie + Post-Peak-Decay). Dry-Run-Implementierung: `scripts/dryrun_structural_score.py` — kann re-run werden, sobald die Datenbasis besser ist.
