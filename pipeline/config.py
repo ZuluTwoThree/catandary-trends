@@ -38,6 +38,12 @@ DUPLICATE_SIMILARITY_THRESHOLD = 0.92
 AUTO_PUBLISH_CONFIDENCE = 0.85
 MAX_RETRIES = 3
 
+# Trend-Radar (paid product)
+PORTAL_BASE_URL = os.getenv("PORTAL_BASE_URL", "http://localhost:3001")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+BRIEFING_FROM = os.getenv("BRIEFING_FROM", "Catandary Trend-Radar <radar@catandary.de>")
+BRIEFING_OUTBOX = os.getenv("BRIEFING_OUTBOX", str(DATA_DIR / "briefing_outbox"))
+
 # Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
