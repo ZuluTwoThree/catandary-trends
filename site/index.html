@@ -147,7 +147,7 @@ h1 em{font-style:italic;color:var(--accent)}
 }
 
 /* ---------- Sections ---------- */
-section{padding:130px 0;border-bottom:.5px solid var(--line)}
+section{padding:96px 0;border-bottom:.5px solid var(--line)}
 .sec-label{
   display:flex;align-items:center;gap:16px;
   font-size:11px;letter-spacing:.24em;color:var(--text-3);margin-bottom:56px;
@@ -274,10 +274,6 @@ footer{padding:64px 0 48px}
   font-size:10px;letter-spacing:.14em;color:var(--text-3);
   border-top:.5px solid var(--line);padding-top:28px}
 
-/* Reveal */
-.reveal{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease}
-.reveal.in{opacity:1;transform:none}
-
 /* ---------- Responsive ---------- */
 @media (max-width:980px){
   .hero-grid{grid-template-columns:1fr;min-height:0}
@@ -307,7 +303,6 @@ footer{padding:64px 0 48px}
 @media (prefers-reduced-motion:reduce){
   .stream-track{animation:none}
   .dot{animation:none}
-  .reveal{opacity:1;transform:none;transition:none}
   html{scroll-behavior:auto}
 }
 </style>
@@ -336,8 +331,8 @@ footer{padding:64px 0 48px}
       <p class="hero-sub">
         Catandary destilliert Patentdatenbanken, Regulierungsorgane und kuratierte
         Fachmedien zu einem strukturierten, täglichen Signal-Feed — kalibriert auf
-        Ihre Vertikalen und Ihre Geografie. Kein Dashboard, das Sie pflegen müssen.
-        Kein Newsletter, den Sie überfliegen. Ein Vorsprung-System.
+        Ihre Vertikalen und Ihre Geografie. Kein Dashboard, kein Newsletter:
+        ein Vorsprung-System.
       </p>
       <div class="hero-ctas">
         <a class="btn btn-primary" href="#angebot">DEMO ANFRAGEN</a>
@@ -387,27 +382,26 @@ footer{padding:64px 0 48px}
 <!-- ======================= 02 PROBLEM ======================= -->
 <section id="problem">
   <div class="wrap">
-    <div class="sec-label reveal"><b>01</b>DAS PROBLEM</div>
-    <h2 class="reveal">Drei Wahrheiten, die jedes <em>Strategieteam</em> kennt.</h2>
+    <div class="sec-label"><b>01</b>DAS PROBLEM</div>
+    <h2>Drei Wahrheiten, die jedes <em>Strategieteam</em> kennt.</h2>
     <div class="truths">
-      <div class="truth reveal">
+      <div class="truth">
         <span class="truth-n">I</span>
         <p>Bis ein Trend in Ihrem Branchenreport steht, arbeitet Ihre Konkurrenz seit
-        achtzehn Monaten daran. Reports dokumentieren Vergangenheit — Signale entstehen täglich.</p>
+        achtzehn Monaten daran.</p>
       </div>
-      <div class="truth reveal">
+      <div class="truth">
         <span class="truth-n">II</span>
-        <p>Ihre besten Leute verbringen ihre Zeit mit Sichten statt mit Denken.
-        Und die Quellen, die wirklich zählen — Patentschriften, Regulierungsentwürfe,
-        graue Literatur — sind nie die, die man abonniert hat.</p>
+        <p>Ihre besten Leute verbringen ihre Zeit mit Sichten statt mit Denken — und die
+        Quellen, die zählen, sind nie die, die man abonniert hat.</p>
       </div>
-      <div class="truth reveal">
+      <div class="truth">
         <span class="truth-n">III</span>
         <p>Strategieentscheidungen fallen quartalsweise. Die Welt entscheidet täglich.
-        Diese Lücke ist kein Prozessproblem. Sie ist Ihr größtes unbeobachtetes Risiko.</p>
+        Diese Lücke ist Ihr größtes unbeobachtetes Risiko.</p>
       </div>
     </div>
-    <p class="problem-close reveal">Foresight scheitert selten an der Analyse.
+    <p class="problem-close">Foresight scheitert selten an der Analyse.
     Es scheitert am Zeitpunkt.</p>
   </div>
 </section>
@@ -415,10 +409,10 @@ footer{padding:64px 0 48px}
 <!-- ======================= 03 MECHANISMUS ======================= -->
 <section id="plattform">
   <div class="wrap">
-    <div class="sec-label reveal"><b>02</b>DER MECHANISMUS</div>
-    <h2 class="reveal">Von der Quelle zur Entscheidung — <em>eine Sequenz,</em> kein Dashboard.</h2>
+    <div class="sec-label"><b>02</b>DER MECHANISMUS</div>
+    <h2>Von der Quelle zur Entscheidung — <em>eine Sequenz,</em> kein Dashboard.</h2>
     <div class="mech">
-      <div class="mech-step reveal">
+      <div class="mech-step">
         <div class="mech-node"></div>
         <h3>INPUT</h3>
         <div class="mech-sub">Die Welt, vollständig gelesen.</div>
@@ -427,7 +421,7 @@ footer{padding:64px 0 48px}
         graue Literatur. Keine Aggregatoren, kein Scraping — jede Quelle
         nachvollziehbar.</p>
       </div>
-      <div class="mech-step reveal">
+      <div class="mech-step">
         <div class="mech-node"></div>
         <h3>VERARBEITUNG</h3>
         <div class="mech-sub">Destillation statt Sammlung.</div>
@@ -436,7 +430,7 @@ footer{padding:64px 0 48px}
         Deduplizierung.</b> Über 1.500 Signale pro Woche werden gesichtet —
         durchgelassen wird, was strategisch trägt.</p>
       </div>
-      <div class="mech-step reveal">
+      <div class="mech-step">
         <div class="mech-node"></div>
         <h3>OUTPUT</h3>
         <div class="mech-sub">Ihr Feed. Ihre Sprache. Ihr Vorsprung.</div>
@@ -445,12 +439,10 @@ footer{padding:64px 0 48px}
         Auf Deutsch, mit Quellenangabe und Handlungsimpuls je Signal.</p>
       </div>
     </div>
-    <div class="methodik-note reveal" id="methodik">
+    <div class="methodik-note" id="methodik">
       <span class="mn-label">METHODIK</span>
-      <p><b>Maschinell vorsortiert, redaktionell kalibriert.</b> Die Klassifikation läuft
-      auf eigener Infrastruktur in Deutschland — kein Signal verlässt das System zur
-      Verarbeitung. Jede Einordnung ist überprüfbar: Quelle, Datum, Taxonomie-Pfad.
-      Was die Maschine nicht sicher entscheiden kann, entscheidet sie nicht.</p>
+      <p><b>Maschinell vorsortiert, redaktionell kalibriert</b> — auf eigener Infrastruktur
+      in Deutschland, jede Einordnung über Quelle und Taxonomie-Pfad überprüfbar.</p>
     </div>
   </div>
 </section>
@@ -458,20 +450,17 @@ footer{padding:64px 0 48px}
 <!-- ======================= 04 BEWEIS ======================= -->
 <section id="report">
   <div class="wrap">
-    <div class="sec-label reveal"><b>03</b>DER BEWEIS</div>
-    <h2 class="reveal">So sieht eine <em>Signal-Einheit</em> aus.</h2>
+    <div class="sec-label"><b>03</b>DER BEWEIS</div>
+    <h2>So sieht eine <em>Signal-Einheit</em> aus.</h2>
     <div class="proof-grid">
-      <div class="proof-text reveal">
-        <p>Kein Testimonial. Kein anonymisiertes Lob. Stattdessen: ein realer Ausschnitt
-        aus einem Signal-Report, wie er Foresight-Teams täglich erreicht.</p>
-        <p>Jede Einheit folgt derselben Anatomie — <b>Kategorie, Signal, Kontext,
-        Quellen, Handlungsimpuls.</b> Informationsdicht genug für eine
-        Vorstandsvorlage, kompakt genug für die Morgenlektüre.</p>
-        <p>Der vollständige Beispiel-Report umfasst zwölf Einheiten einer
-        Kalenderwoche, quer durch die Vertikalen Ihres Zuschnitts —
+      <div class="proof-text">
+        <p>Kein Testimonial. Stattdessen ein realer Ausschnitt aus einem Signal-Report —
+        jede Einheit folgt derselben Anatomie: <b>Kategorie, Signal, Kontext, Quellen,
+        Handlungsimpuls.</b></p>
+        <p>Der vollständige Beispiel-Report umfasst zwölf Einheiten einer Kalenderwoche —
         <a href="#angebot" style="color:var(--accent);border-bottom:.5px solid var(--accent)">anfordern, ohne Formularmarathon.</a></p>
       </div>
-      <div class="report-card reveal">
+      <div class="report-card">
         <div class="report-head"><span>SIGNAL-REPORT · AUSZUG</span><span>KW 24 / 2026</span></div>
         <div class="report-body">
           <div class="sig-meta">
@@ -505,26 +494,24 @@ footer{padding:64px 0 48px}
 <!-- ======================= 05 ANGEBOT ======================= -->
 <section id="angebot">
   <div class="wrap">
-    <div class="sec-label reveal"><b>04</b>DER EINSTIEG</div>
-    <h2 class="reveal">Zwei Wege. <em>Ein Ziel.</em></h2>
+    <div class="sec-label"><b>04</b>DER EINSTIEG</div>
+    <h2>Zwei Wege. <em>Ein Ziel.</em></h2>
     <div class="offer-grid">
-      <div class="offer primary reveal">
+      <div class="offer primary">
         <div class="offer-intent">DIREKTER WEG</div>
         <h3>Demo-Gespräch</h3>
-        <p>Dreißig Minuten, Ihr Use-Case, das System live. Wir kalibrieren während des
-        Gesprächs einen Feed auf Ihre Vertikalen — Sie sehen Ihre Branche, nicht
-        unsere Folien. Danach wissen Sie, ob Catandary für Sie arbeitet.</p>
+        <p>Dreißig Minuten, Ihr Use-Case, das System live. Wir kalibrieren im Gespräch
+        einen Feed auf Ihre Vertikalen — Sie sehen Ihre Branche, nicht unsere Folien.</p>
         <div class="offer-details">
           <span>30 MIN</span><span>VIDEO-CALL</span><span>LIVE IM SYSTEM</span><span>OHNE VORBEREITUNG</span>
         </div>
         <a class="btn btn-primary" href="mailto:foresight@catandary.de?subject=Demo-Gespr%C3%A4ch%20Catandary%20Foresight&body=Guten%20Tag%2C%0A%0Awir%20m%C3%B6chten%20ein%20Demo-Gespr%C3%A4ch%20vereinbaren.%0A%0AUnternehmen%3A%0ARolle%3A%0ARelevante%20Branchen%2FThemen%3A%0ATerminvorschl%C3%A4ge%3A%0A%0AMit%20freundlichen%20Gr%C3%BC%C3%9Fen">DEMO ANFRAGEN</a>
       </div>
-      <div class="offer reveal">
+      <div class="offer">
         <div class="offer-intent">ERST PRÜFEN</div>
         <h3>Beispiel-Report</h3>
-        <p>Ein vollständiger Signal-Report einer Kalenderwoche — zwölf Einheiten,
-        echte Signale, echte Quellen, echte Handlungsimpulse. Lesen Sie ihn wie Ihr
-        Team ihn lesen würde. Kein Konto, keine Trial-Mechanik, kein Follow-up-Funnel.</p>
+        <p>Ein vollständiger Signal-Report einer Kalenderwoche — zwölf Einheiten, echte
+        Signale, echte Handlungsimpulse. Kein Konto, keine Trial-Mechanik, kein Funnel.</p>
         <div class="offer-details">
           <span>PDF</span><span>12 SIGNAL-EINHEITEN</span><span>INNERHALB 24 H</span>
         </div>
@@ -537,9 +524,9 @@ footer{padding:64px 0 48px}
 <!-- ======================= 06 FAQ ======================= -->
 <section id="faq">
   <div class="wrap">
-    <div class="sec-label reveal"><b>05</b>EINWÄNDE, EHRLICH BEANTWORTET</div>
-    <h2 class="reveal">Was Sie Ihrem Vorstand <em>antworten werden.</em></h2>
-    <div class="faq-list reveal">
+    <div class="sec-label"><b>05</b>EINWÄNDE, EHRLICH BEANTWORTET</div>
+    <h2>Was Sie Ihrem Vorstand <em>antworten werden.</em></h2>
+    <div class="faq-list">
       <details>
         <summary><span class="faq-n">01</span><span class="faq-q">Womit unterscheidet sich das von Gartner, TrendOne oder einem Trendradar-Projekt?</span><span class="faq-x">+</span></summary>
         <div class="faq-a">Gartner generalisiert global und taktet in Jahreszyklen. TrendOne kuratiert breit, ohne DACH-Tiefe. Beratungs-Trendradare sind Projekte — nach Abgabe veralten sie. Catandary ist ein <b>laufendes System</b>: täglich verarbeitet, auf Ihre Vertikalen und Geografie kalibriert, mit Patentdaten und Regulierungssignalen, die in keiner Kuratorik auftauchen. Sie kaufen keinen Report. Sie kaufen einen Zeitvorsprung.</div>
@@ -593,19 +580,6 @@ footer{padding:64px 0 48px}
 (function () {
   var track = document.getElementById("streamTrack");
   track.innerHTML += track.innerHTML;
-})();
-/* Reveal on scroll — disabled for reduced motion via CSS. */
-(function () {
-  if (!("IntersectionObserver" in window)) {
-    document.querySelectorAll(".reveal").forEach(function (el) { el.classList.add("in"); });
-    return;
-  }
-  var io = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) {
-      if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-    });
-  }, { threshold: 0.12 });
-  document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
 })();
 </script>
 </body>

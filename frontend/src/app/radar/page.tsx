@@ -101,7 +101,7 @@ function TierCard({
 export default function RadarLandingPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-      {/* Hero */}
+      {/* Hero — kurz: Versprechen, CTA, Zahlen. */}
       <section className="text-center max-w-3xl mx-auto">
         <p className="text-sm font-bold uppercase tracking-widest text-accent mb-4">
           Catandary Trend-Radar
@@ -112,13 +112,10 @@ export default function RadarLandingPage() {
           <span className="text-accent">Sie lesen nur die, die zählen.</span>
         </h1>
         <p className="mt-6 text-lg text-muted leading-relaxed">
-          Niemand in Ihrem Team hat die Zeit, jede Woche 1.500 Artikel aus
-          internationaler Fachpresse, Forschung und Presseverteilern zu
-          screenen, zu bewerten und strategisch einzuordnen. Unser Radar tut
-          genau das — und kuratiert daraus Ihr individuelles Briefing:
-          personalisiert auf Ihre Branchen und Ihre Watchlist, täglich
-          alarmiert, montags eingeordnet. Auf Deutsch, auf Wunsch unter
-          Ihrer Marke.
+          Wir sichten jede Woche die internationale Fachpresse, Forschung und
+          Presseverteiler — und kuratieren daraus Ihr Briefing: täglich
+          alarmiert, montags eingeordnet. Auf Deutsch, auf Wunsch unter Ihrer
+          Marke.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
           <a
@@ -127,65 +124,34 @@ export default function RadarLandingPage() {
           >
             14 Tage kostenlos testen
           </a>
-          <Link
-            href="/trends"
+          <a
+            href="#preise"
             className="border border-border font-semibold rounded-xl px-7 py-3.5 hover:border-accent/50 transition-colors"
           >
-            Live-Beispiele ansehen
-          </Link>
+            Preise ansehen
+          </a>
         </div>
         <p className="mt-3 text-xs text-muted">
           Ohne Kreditkarte. Zwei echte Briefings, dann entscheiden Sie.
         </p>
-      </section>
-
-      {/* Value props */}
-      <section className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[
-          {
-            title: "1.500+ Signale gesichtet — 20 gelesen",
-            body: "Jede Woche werten wir über 1.500 Signale aus internationaler Fachpresse, Forschungsmedien und Presseverteilern aus. Sie bekommen die relevantesten für Ihre Branchen — mit Relevanz-Score, PESTEL-Einordnung und Link zur Originalquelle. Das ersetzt 1–2 Beratertage Recherche pro Monat.",
-          },
-          {
-            title: "Täglich alarmiert, montags eingeordnet",
-            body: "Schlägt eines Ihrer Watchlist-Themen an — ein Wettbewerber, eine Technologie, ein Begriff — erfahren Sie es am nächsten Morgen per Alert, nicht erst im Wochenrückblick. Das Montags-Briefing liefert dann die kuratierte Synthese der Woche.",
-          },
-          {
-            title: "White-Label für Ihr Geschäft",
-            body: "Ab dem Pro-Tarif tragen Briefing und Portal Ihr Logo und Ihre Farben. Beratungen versenden es als eigenes Produkt an ihre Mandanten — aus 490 € Einkauf wird ein eigener Retainer-Baustein.",
-          },
-        ].map((v) => (
-          <div key={v.title} className="rounded-2xl border border-border bg-card p-6">
-            <h3 className="font-bold text-lg mb-2">{v.title}</h3>
-            <p className="text-sm text-muted leading-relaxed">{v.body}</p>
-          </div>
-        ))}
-      </section>
-
-      {/* How it works */}
-      <section className="mt-20">
-        <h2 className="text-2xl font-bold text-center mb-10">
-          So funktioniert es
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
+        <dl className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-y-6 border-y border-border py-6">
           {[
-            ["1", "Branchen wählen", "Aus 8 Vertikalen: Food, Tech, Health, Eco, Design, Fashion, Business, Lifestyle."],
-            ["2", "Watchlist definieren", "Bis zu 30 Begriffe: Wettbewerber, Technologien, Themen."],
-            ["3", "Alerts + Briefing erhalten", "Tägliche Alerts bei Watchlist-Treffern, montags die kuratierte Wochen-Synthese — plus Portal mit allen Signalen."],
-            ["4", "Weiterverwenden", "Quellenlinks, PESTEL-Tags und Mega-Trend-Einordnung für Ihre Beratungs- und Pitch-Arbeit."],
-          ].map(([num, title, body]) => (
-            <div key={num}>
-              <div className="w-10 h-10 mx-auto rounded-full bg-accent/15 text-accent font-bold flex items-center justify-center mb-3">
-                {num}
-              </div>
-              <h3 className="font-semibold mb-1">{title}</h3>
-              <p className="text-sm text-muted">{body}</p>
+            ["1.500+", "Signale / Woche"],
+            ["128", "Primärquellen"],
+            ["8", "Branchen"],
+            ["Mo 06:30", "Briefing"],
+          ].map(([value, label]) => (
+            <div key={label}>
+              <dt className="text-2xl font-extrabold">{value}</dt>
+              <dd className="text-xs text-muted uppercase tracking-wide mt-1">
+                {label}
+              </dd>
             </div>
           ))}
-        </div>
+        </dl>
       </section>
 
-      {/* Pricing */}
+      {/* Preise — direkt nach dem Hero. */}
       <section className="mt-20" id="preise">
         <h2 className="text-2xl font-bold text-center mb-2">Preise</h2>
         <p className="text-center text-muted mb-10">
@@ -200,6 +166,7 @@ export default function RadarLandingPage() {
               "3 Branchen Ihrer Wahl",
               "15 Watchlist-Begriffe",
               "Tägliche Watchlist-Alerts",
+              "Wöchentliches Briefing (Deutsch)",
               "Mega-Trend-Monatsreport",
               "Bis 3 Empfänger",
             ]}
@@ -245,11 +212,32 @@ export default function RadarLandingPage() {
         </p>
       </section>
 
+      {/* Nutzen — drei Karten, je zwei Sätze. */}
+      <section className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[
+          {
+            title: "1.500+ Signale gesichtet — 20 gelesen",
+            body: "Sie bekommen die relevantesten Signale Ihrer Branchen mit Relevanz-Score, PESTEL-Einordnung und Link zur Originalquelle. Das ersetzt 1–2 Beratertage Recherche pro Monat.",
+          },
+          {
+            title: "Täglich alarmiert, montags eingeordnet",
+            body: "Watchlist-Treffer — ein Wettbewerber, eine Technologie, ein Begriff — melden wir am nächsten Morgen per Alert. Montags folgt die kuratierte Synthese der Woche.",
+          },
+          {
+            title: "White-Label für Ihr Geschäft",
+            body: "Ab Pro tragen Briefing und Portal Ihr Logo und Ihre Farben. Beratungen versenden es als eigenes Produkt — aus 490 € Einkauf wird ein eigener Retainer-Baustein.",
+          },
+        ].map((v) => (
+          <div key={v.title} className="rounded-2xl border border-border bg-card p-6">
+            <h3 className="font-bold text-lg mb-2">{v.title}</h3>
+            <p className="text-sm text-muted leading-relaxed">{v.body}</p>
+          </div>
+        ))}
+      </section>
+
       {/* FAQ */}
       <section className="mt-20 max-w-3xl mx-auto">
-        <h2 className="text-2xl font-bold text-center mb-8">
-          Häufige Fragen
-        </h2>
+        <h2 className="text-2xl font-bold text-center mb-8">Häufige Fragen</h2>
         <div className="space-y-4">
           {[
             [
@@ -258,15 +246,15 @@ export default function RadarLandingPage() {
             ],
             [
               "Wie unterscheidet sich das von WGSN oder Trendwatching?",
-              "Diese Tools sind global, englischsprachig und kosten 8.000–30.000 € pro Jahr. Das Trend-Radar liefert auf Deutsch, fokussiert auf Ihre Branchen und Watchlist, und darf ab Pro-Tier unter Ihrer Marke weiterverwendet werden — zu einem Bruchteil des Preises.",
+              "Diese Tools sind global, englischsprachig und kosten 8.000–30.000 € pro Jahr. Das Trend-Radar liefert auf Deutsch, fokussiert auf Ihre Branchen und Watchlist, und darf ab Pro-Tarif unter Ihrer Marke weiterverwendet werden — zu einem Bruchteil des Preises.",
             ],
             [
               "Was heißt White-Label genau?",
-              "Briefing und Portal tragen Ihr Logo, Ihren Namen und Ihre Farbe. Im Agency-Tier konfigurieren Sie bis zu drei getrennte Radare für Ihre Mandanten — jeweils mit eigenen Branchen, eigener Watchlist und eigenem Branding.",
+              "Briefing und Portal tragen Ihr Logo, Ihren Namen und Ihre Farbe. Im Agency-Tarif konfigurieren Sie bis zu drei getrennte Radare für Ihre Mandanten — jeweils mit eigenen Branchen, eigener Watchlist und eigenem Branding.",
             ],
             [
               "Wie schnell bin ich startklar?",
-              "Nach Bestellung oder Test-Anfrage richten wir Ihr Radar am selben Werktag ein. Das erste Briefing kommt innerhalb von 24 Stunden, danach jeden Montag.",
+              "Nach Bestellung oder Test-Anfrage richten wir Ihr Radar am selben Werktag ein. Das erste Briefing kommt innerhalb von 24 Stunden, danach jeden Montag — Alerts ab dem ersten Watchlist-Treffer.",
             ],
             [
               "Kann ich monatlich kündigen?",
@@ -289,23 +277,24 @@ export default function RadarLandingPage() {
         </div>
       </section>
 
-      {/* Final CTA */}
+      {/* Abschluss-CTA — eine Zeile, ein Button. */}
       <section className="mt-20 text-center rounded-2xl border border-accent/30 bg-accent/5 p-10">
-        <h2 className="text-2xl font-bold">
-          Zwei Briefings. Null Risiko. Ihre Entscheidung.
-        </h2>
-        <p className="text-muted mt-2 mb-6">
-          Starten Sie den 14-Tage-Test — Einrichtung am selben Werktag, ohne
-          Kreditkarte.
-        </p>
+        <h2 className="text-2xl font-bold">Zwei Briefings. Null Risiko.</h2>
         <a
           href={TRIAL_MAILTO}
-          className="inline-block bg-accent text-white font-semibold rounded-xl px-8 py-4 hover:opacity-90 transition-opacity"
+          className="mt-6 inline-block bg-accent text-white font-semibold rounded-xl px-8 py-4 hover:opacity-90 transition-opacity"
         >
           14 Tage kostenlos testen
         </a>
         <p className="mt-4 text-xs text-muted">
-          Fragen? <a href={`mailto:${CONTACT_EMAIL}`} className="underline">{CONTACT_EMAIL}</a>
+          Fragen?{" "}
+          <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
+            {CONTACT_EMAIL}
+          </a>{" "}
+          · Live-Beispiele:{" "}
+          <Link href="/trends" className="underline">
+            Catandary Trends
+          </Link>
         </p>
       </section>
     </div>
