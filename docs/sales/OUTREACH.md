@@ -24,9 +24,11 @@
 > Die Frage dahinter kenne ich gut: Wie bleibt man für Mandanten kontinuierlich auf dem
 > Stand von [deren Branchen], ohne jede Woche einen Tag in Fachpresse zu versenken?
 >
-> Wir lösen das mit einem wöchentlichen Trend-Briefing aus 43 internationalen Primärquellen —
-> kuratiert auf Ihre Branchen und Stichworte, auf Deutsch, und ab dem Pro-Tarif **unter Ihrem
-> Logo**, sodass Sie es direkt als eigenen Baustein an Mandanten weitergeben können.
+> Wir lösen das, indem wir jede Woche über 1.500 Signale aus internationaler Fachpresse,
+> Forschung und Presseverteilern sichten und daraus Ihr individuelles Briefing kuratieren —
+> auf Ihre Branchen und Stichworte zugeschnitten, mit täglichen Alerts bei Watchlist-Treffern,
+> auf Deutsch, und ab dem Pro-Tarif **unter Ihrem Logo**, sodass Sie es direkt als eigenen
+> Baustein an Mandanten weitergeben können.
 >
 > Darf ich Ihnen für 14 Tage ein Radar auf [2–3 vermutete Fokusbranchen] einrichten?
 > Kostenlos, ohne Kreditkarte — Sie bekommen zwei echte Briefings und entscheiden dann.
@@ -71,10 +73,10 @@
 > als [Rolle] bei [Firma] gehört das Beobachten von [Branche]-Trends vermutlich zu den
 > Dingen, die wichtig sind, aber nie oben auf dem Stapel liegen.
 >
-> Dafür gibt es das Trend-Radar: jeden Montag die relevanten Signale der Woche aus
-> 43 internationalen Fachquellen — gefiltert auf [Branche] und Ihre Themen
-> (z. B. [2–3 plausible Watchlist-Begriffe für deren Geschäft]), auf Deutsch, mit
-> Quellenlink zu jedem Signal.
+> Dafür gibt es das Trend-Radar: Wir sichten jede Woche über 1.500 Signale aus
+> internationalen Fachquellen und liefern Ihnen montags die relevanten für [Branche]
+> und Ihre Themen (z. B. [2–3 plausible Watchlist-Begriffe für deren Geschäft]) —
+> auf Deutsch, mit Quellenlink zu jedem Signal und täglichem Alert bei Treffern.
 >
 > Ich richte Ihnen gern einen kostenlosen 14-Tage-Test ein — ohne Kreditkarte,
 > Einrichtung dauert einen Werktag. Interesse?
@@ -93,9 +95,10 @@
 
 **Nachricht nach Annahme (Tag 1–2):**
 
-> Danke fürs Vernetzen, [Vorname]! Kurz und konkret: Wir liefern Beratungen ein
-> wöchentliches Trend-Briefing aus 43 Primärquellen — kuratiert auf ihre Branchen,
-> auf Deutsch, ab Pro-Tarif white-label für die eigene Mandantenkommunikation.
+> Danke fürs Vernetzen, [Vorname]! Kurz und konkret: Wir sichten wöchentlich 1.500+
+> Trend-Signale und kuratieren daraus individuelle Briefings für Beratungen — auf
+> deren Branchen zugeschnitten, auf Deutsch, ab Pro-Tarif white-label für die eigene
+> Mandantenkommunikation.
 > Ich richte Ihnen gern einen 14-Tage-Test ein (kostenlos, ohne Karte).
 > Welche 2–3 Branchen wären für Sie spannend?
 

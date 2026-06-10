@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Catandary Trend-Radar — Ihr wöchentliches Trend-Briefing",
+  title: "Catandary Trend-Radar — Über 1.500 Signale pro Woche, kuratiert für Sie",
   description:
-    "Personalisiertes Trend-Briefing für Beratungen, Agenturen und Innovationsteams. 43 internationale Primärquellen, 8 Branchen, jede Woche auf Deutsch — auf Wunsch unter Ihrer Marke.",
+    "Wir sichten über 1.500 Trend-Signale pro Woche aus internationalen Primärquellen und kuratieren daraus Ihr individuelles Briefing. Täglich alarmiert, montags eingeordnet — auf Deutsch, auf Wunsch unter Ihrer Marke.",
 };
 
-const STRIPE_LINK_SOLO = process.env.NEXT_PUBLIC_STRIPE_LINK_SOLO || "";
+const STRIPE_LINK_BASIC = process.env.NEXT_PUBLIC_STRIPE_LINK_BASIC || "";
+const STRIPE_LINK_TEAM = process.env.NEXT_PUBLIC_STRIPE_LINK_TEAM || "";
 const STRIPE_LINK_PRO = process.env.NEXT_PUBLIC_STRIPE_LINK_PRO || "";
 const CONTACT_EMAIL = "radar@catandary.de";
 
@@ -107,15 +108,18 @@ export default function RadarLandingPage() {
           Catandary Trend-Radar
         </p>
         <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight">
-          Ihr wöchentliches Trend-Briefing.
+          Über 1.500 Trend-Signale pro Woche.
           <br />
-          <span className="text-accent">Auf Deutsch. Unter Ihrer Marke.</span>
+          <span className="text-accent">Sie lesen nur die, die zählen.</span>
         </h1>
         <p className="mt-6 text-lg text-muted leading-relaxed">
-          43 internationale Primärquellen, 8 Branchen, eine kuratierte
-          Auswertung pro Woche — personalisiert auf Ihre Branchen und Ihre
-          Watchlist. Für Beratungen, Agenturen und Innovationsteams, die keine
-          Zeit für tagelange Trend-Recherche haben.
+          Niemand in Ihrem Team hat die Zeit, jede Woche 1.500 Artikel aus
+          internationaler Fachpresse, Forschung und Presseverteilern zu
+          screenen, zu bewerten und strategisch einzuordnen. Unser Radar tut
+          genau das — und kuratiert daraus Ihr individuelles Briefing:
+          personalisiert auf Ihre Branchen und Ihre Watchlist, täglich
+          alarmiert, montags eingeordnet. Auf Deutsch, auf Wunsch unter
+          Ihrer Marke.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
           <a
@@ -140,16 +144,16 @@ export default function RadarLandingPage() {
       <section className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
           {
-            title: "1–2 Beratertage pro Monat gespart",
-            body: "Statt Fachpresse, Newsletter und Pressemeldungen selbst zu sichten, bekommen Sie die relevanten Signale der Woche kuratiert und eingeordnet — mit Relevanz-Score, PESTEL-Einordnung und Link zur Originalquelle.",
+            title: "1.500+ Signale gesichtet — 20 gelesen",
+            body: "Jede Woche werten wir über 1.500 Signale aus internationaler Fachpresse, Forschungsmedien und Presseverteilern aus. Sie bekommen die relevantesten für Ihre Branchen — mit Relevanz-Score, PESTEL-Einordnung und Link zur Originalquelle. Das ersetzt 1–2 Beratertage Recherche pro Monat.",
+          },
+          {
+            title: "Täglich alarmiert, montags eingeordnet",
+            body: "Schlägt eines Ihrer Watchlist-Themen an — ein Wettbewerber, eine Technologie, ein Begriff — erfahren Sie es am nächsten Morgen per Alert, nicht erst im Wochenrückblick. Das Montags-Briefing liefert dann die kuratierte Synthese der Woche.",
           },
           {
             title: "White-Label für Ihr Geschäft",
-            body: "Ab dem Pro-Tier trägt das Briefing Ihr Logo und Ihre Farben. Beratungen versenden es als eigenes Produkt an ihre Mandanten — aus 490 € Einkauf wird ein eigener Retainer-Baustein.",
-          },
-          {
-            title: "Watchlist für Ihre Themen",
-            body: "Wettbewerber, Technologien, Schlüsselbegriffe: Ihre Watchlist wird jede Woche gegen alle neuen Signale geprüft. Treffer stehen ganz oben im Briefing.",
+            body: "Ab dem Pro-Tarif tragen Briefing und Portal Ihr Logo und Ihre Farben. Beratungen versenden es als eigenes Produkt an ihre Mandanten — aus 490 € Einkauf wird ein eigener Retainer-Baustein.",
           },
         ].map((v) => (
           <div key={v.title} className="rounded-2xl border border-border bg-card p-6">
@@ -168,7 +172,7 @@ export default function RadarLandingPage() {
           {[
             ["1", "Branchen wählen", "Aus 8 Vertikalen: Food, Tech, Health, Eco, Design, Fashion, Business, Lifestyle."],
             ["2", "Watchlist definieren", "Bis zu 30 Begriffe: Wettbewerber, Technologien, Themen."],
-            ["3", "Briefing erhalten", "Jeden Montagmorgen im Postfach — plus Portal mit allen Signalen."],
+            ["3", "Alerts + Briefing erhalten", "Tägliche Alerts bei Watchlist-Treffern, montags die kuratierte Wochen-Synthese — plus Portal mit allen Signalen."],
             ["4", "Weiterverwenden", "Quellenlinks, PESTEL-Tags und Mega-Trend-Einordnung für Ihre Beratungs- und Pitch-Arbeit."],
           ].map(([num, title, body]) => (
             <div key={num}>
@@ -188,20 +192,34 @@ export default function RadarLandingPage() {
         <p className="text-center text-muted mb-10">
           Monatlich kündbar. Jahreszahlung: 15 % Rabatt.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           <TierCard
-            name="Radar Solo"
-            price="249"
-            tagline="Für das interne Trend-Radar eines Teams."
+            name="Radar Basic"
+            price="99"
+            tagline="Der Einstieg: eine Branche im Blick behalten."
             features={[
-              "2 Branchen Ihrer Wahl",
-              "10 Watchlist-Begriffe",
+              "1 Branche Ihrer Wahl",
+              "5 Watchlist-Begriffe",
               "Wöchentliches Briefing (Deutsch)",
               "Radar-Portal mit allen Signalen",
               "1 Empfänger",
             ]}
-            cta={STRIPE_LINK_SOLO ? "Jetzt abonnieren" : "Test starten"}
-            ctaHref={STRIPE_LINK_SOLO || TRIAL_MAILTO}
+            cta={STRIPE_LINK_BASIC ? "Jetzt abonnieren" : "Test starten"}
+            ctaHref={STRIPE_LINK_BASIC || TRIAL_MAILTO}
+          />
+          <TierCard
+            name="Radar Team"
+            price="249"
+            tagline="Das interne Trend-Radar für Ihr Team."
+            features={[
+              "3 Branchen Ihrer Wahl",
+              "15 Watchlist-Begriffe",
+              "Tägliche Watchlist-Alerts",
+              "Mega-Trend-Monatsreport",
+              "Bis 3 Empfänger",
+            ]}
+            cta={STRIPE_LINK_TEAM ? "Jetzt abonnieren" : "Test starten"}
+            ctaHref={STRIPE_LINK_TEAM || TRIAL_MAILTO}
           />
           <TierCard
             name="Radar Pro"
@@ -211,8 +229,9 @@ export default function RadarLandingPage() {
             features={[
               "Alle 8 Branchen",
               "30 Watchlist-Begriffe",
+              "Tägliche Watchlist-Alerts",
               "White-Label: Ihr Logo, Ihre Farben",
-              "Mega-Trend-Monatsreport",
+              "Monats-Deep-Dive (PDF)",
               "Bis 5 Empfänger",
             ]}
             cta={STRIPE_LINK_PRO ? "Jetzt abonnieren" : "Test starten"}
@@ -250,7 +269,7 @@ export default function RadarLandingPage() {
           {[
             [
               "Woher kommen die Inhalte?",
-              "Aus 43 verifizierten Primärquellen — internationale Fachpresse, Forschungsmedien, Presseverteiler und Marken-Newsrooms. Jedes Signal verlinkt die Originalquelle. Keine Aggregator-Seiten, kein Scraping.",
+              "Wir verarbeiten über 1.500 Signale pro Woche aus mehr als 100 verifizierten Primärquellen — internationale Fachpresse, Forschungsmedien, Presseverteiler und Marken-Newsrooms; das Quellennetz wächst laufend Richtung 300+. Jedes Signal verlinkt die Originalquelle. Keine Aggregator-Seiten, kein Scraping.",
             ],
             [
               "Wie unterscheidet sich das von WGSN oder Trendwatching?",

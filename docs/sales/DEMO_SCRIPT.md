@@ -32,10 +32,13 @@ Briefing öffnen (auf ihre Branchen konfiguriert):
 - Briefing-Archiv: „Nach drei Monaten haben Sie hier eine durchsuchbare Trend-Historie."
 
 **4. Preis (2 Min) — selbstbewusst, ohne Umwege.**
-„Drei Tarife: 249 für zwei Branchen intern, 490 mit allen Branchen und White-Label,
-890 wenn Sie eigene Mandanten-Radare weitergeben wollen. Monatlich kündbar.
-Zum Vergleich: ein WGSN-Seat kostet über 10.000 im Jahr."
+„Vier Tarife: 99 für eine Branche, 249 für drei Branchen mit täglichen Alerts,
+490 mit allen Branchen und White-Label, 890 wenn Sie eigene Mandanten-Radare
+weitergeben wollen. Monatlich kündbar. Zum Vergleich: ein WGSN-Seat kostet
+über 10.000 im Jahr."
 Dann schweigen. Einwände kommen lassen (→ POSITIONIERUNG.md).
+*Hinweis: Im Gespräch nie mit Basic anfangen — Beratungen brauchen Pro (White-Label).
+Basic ist der Auffangtarif, wenn das Budget-Nein kommt.*
 
 **5. Abschluss (3 Min) — Trial aktivieren, nicht anbieten.**
 „Ich schlage vor: Ich richte Ihnen das Radar jetzt mit genau diesen Branchen und Ihrer

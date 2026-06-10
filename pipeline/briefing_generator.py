@@ -166,7 +166,7 @@ def render_briefing_html(customer: dict, top_trends: list[dict], watchlist_hits:
       {watchlist_section}
       <tr><td style="padding-top:28px;">
         <h2 style="font-size:18px;color:#0f172a;margin:0;">Top-Signale der Woche</h2>
-        <p style="font-size:13px;color:#64748b;margin:4px 0 0;">Kuratiert aus 43 internationalen Primärquellen, sortiert nach Relevanz</p>
+        <p style="font-size:13px;color:#64748b;margin:4px 0 0;">Kuratiert aus über 1.500 gesichteten Signalen dieser Woche, sortiert nach Relevanz</p>
       </td></tr>
       {top_section}
       <tr><td style="padding-top:24px;" align="center">

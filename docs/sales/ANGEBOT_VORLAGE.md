@@ -1,7 +1,7 @@
 # Angebotsvorlage — Catandary Trend-Radar
 
 *(Als PDF/E-Mail an den Interessenten. Platzhalter in [Klammern] ersetzen.
-Für Solo/Pro reicht der Stripe-Link — diese Vorlage ist für Agency-Abschlüsse
+Für Basic/Team/Pro reicht der Stripe-Link — diese Vorlage ist für Agency-Abschlüsse
 und Kunden, die ein formales Angebot für die Buchhaltung brauchen.)*
 
 ---
@@ -23,7 +23,8 @@ folgendes Angebot:
 
 | Position | Beschreibung |
 |---|---|
-| Trend-Briefing | Wöchentliches kuratiertes Briefing (Deutsch) aus 43 internationalen Primärquellen, jeden Montag per E-Mail |
+| Trend-Briefing | Wöchentliches kuratiertes Briefing (Deutsch) aus über 1.500 gesichteten Signalen pro Woche (100+ internationale Primärquellen), jeden Montag per E-Mail |
+| [Team/Pro/Agency] Watchlist-Alerts | Tägliche Alert-E-Mail bei neuen Treffern zu Ihren Watchlist-Begriffen |
 | Personalisierung | [N] Branchen-Vertikale: [Liste] · Watchlist mit bis zu [10/30] Begriffen |
 | Radar-Portal | Persönlicher Web-Zugang mit allen Signalen, Watchlist-Treffern und Briefing-Archiv |
 | [Pro/Agency] White-Label | Briefing und Portal mit Ihrem Logo, Namen und Ihrer Markenfarbe |

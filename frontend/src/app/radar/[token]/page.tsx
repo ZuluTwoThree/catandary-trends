@@ -138,8 +138,8 @@ export default async function RadarPortalPage({
               Top-Signale aus Ihren Branchen
             </h2>
             <p className="text-sm text-muted mb-4">
-              Kuratiert aus 43 internationalen Primärquellen, sortiert nach
-              Relevanz
+              Kuratiert aus über 1.500 gesichteten Signalen pro Woche,
+              sortiert nach Relevanz
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {topTrends.map((trend) => (

@@ -58,19 +58,30 @@ Pitch-Vorbereitung und Kunden-Newsletter.
 
 ---
 
-## 3. Pricing
+## 3. Pricing (überarbeitet 2026-06-10)
 
 | Tier | Preis/Monat | Leistungsumfang |
 |---|---|---|
-| **Radar Solo** | **249 €** | 2 Vertikale, 10 Watchlist-Keywords, wöchentl. Briefing (DE), Portal-Zugang, 1 Empfänger |
-| **Radar Pro** | **490 €** | Alle 8 Vertikale, 30 Keywords, **White-Label** (eigenes Logo/Farbe), bis 5 Empfänger, Mega-Trend-Monatsreport |
+| **Radar Basic** | **99 €** | 1 Vertikale, 5 Keywords, wöchentl. Briefing (DE), Portal, 1 Empfänger |
+| **Radar Team** | **249 €** | 3 Vertikale, 15 Keywords, **tägliche Watchlist-Alerts**, Mega-Trend-Monatsreport, bis 3 Empfänger |
+| **Radar Pro** | **490 €** | Alle 8 Vertikale, 30 Keywords, Alerts, **White-Label**, Monats-Deep-Dive, bis 5 Empfänger |
 | **Radar Agency** | **890 €** | Wie Pro, plus **3 getrennte Mandanten-Radare** (eigene Konfiguration + Branding je Endkunde), Weitergaberecht |
 
-- Jahreszahlung: −15 % (verbessert Cashflow, senkt Churn).
-- **14 Tage Test ohne Kreditkarte** — Token-Portal + 2 echte Briefings. Das Produkt verkauft
-  sich über die erste Briefing-Mail, nicht über Folien.
-- Preisanker im Pitch: „Ein WGSN-Seat kostet 10.000 €+ im Jahr. Ein einziger Beratertag kostet
-  1.500 €. Radar Pro kostet 16 € pro Werktag.“
+Begründung der Überarbeitung (ursprünglich 3 Tiers ab 249 €):
+- **Basic 99 €** senkt die Einstiegshürde auf „triviale Kaufentscheidung“ und ermöglicht
+  Self-Serve-Käufe direkt über den Stripe-Link ohne Demo. Upgrade-Pfad Basic→Team wird
+  zweiter Wachstumshebel nach Tag 90.
+- **Tägliche Alerts (Team+)** lösen das Kadenz-Problem („nur eine E-Mail pro Woche“):
+  aus dem Wochen-Briefing wird *kontinuierliche Überwachung mit wöchentlicher Synthese* —
+  gleiche Pipeline, ein zusätzlicher Cron-Lauf, null Grenzkosten.
+- Jahreszahlung: −15 % · **14 Tage Test ohne Kreditkarte** (2 echte Briefings + Alerts).
+
+**Messaging-Prinzip:** Nie Quellen-Anzahl in den Vordergrund („43 Quellen“ klingt nach wenig),
+sondern Leistung: **„Über 1.500 Signale pro Woche gesichtet, professionell kuratiert und
+individuell zusammengestellt — Sie lesen nur die 20, die zählen.“** Kein Mitarbeiter beim
+Zielkunden hat die Zeit, 1.500 Artikel zu screenen, zu bewerten und strategisch einzuordnen —
+genau diese Arbeit ist das Produkt. (Datenbasis: 7.016 Roh-Signale in 30 Tagen ≈ 1.600/Woche
+aus 112 aktiven Feeds; Ausbau auf 300+ Quellen läuft, siehe Abschnitt 5b.)
 
 **Zahlungsabwicklung:** Stripe Payment Links (Solo/Pro) — kein Checkout-Code, PCI-frei,
 SEPA + Kreditkarte, Kunde kann *morgen* kaufen. Agency-Tier per Rechnung (Stripe Invoicing).
@@ -117,34 +128,48 @@ ist groß genug, aber nicht beliebig — siehe kritische Annahme A5.
 Aufwand: 30 Erstkontakte + Follow-ups + 2–4 Demos ≈ **10–12 h/Woche Vertrieb** — solo machbar,
 weil Delivery automatisiert ist.
 
-### Funnel-Rechnung (konservativ)
+### Funnel-Rechnung (konservativ, mit Basic-Tier aktualisiert)
 
 | Stufe | Rate | Ergebnis aus 360 Kontakten |
 |---|---|---|
 | Antwort (personalisiert, klarer Schmerz, Trial-CTA) | 10 % | 36 Antworten |
 | Antwort → Demo/Gespräch | 60 % | 22 Demos |
-| Demo → Trial (14 Tage, ohne Karte, im Gespräch aktiviert) | 70 % | 15 Trials |
-| Trial → zahlend (Produkt liefert 2 echte Briefings) | 60 % | **9 Kunden** |
+| Demo → Trial (14 Tage, ohne Karte, im Gespräch aktiviert) | 75 % | 16 Trials |
+| Trial → zahlend (Briefings + Alerts, Basic als Auffangtarif) | 65 % | 10–11 Kunden |
+| + Self-Serve Basic (Stripe-Link ohne Demo, via Landing Page) | — | 1–2 Kunden |
+
+Das Basic-Tier hebt die Konversionsraten am unteren Funnel-Ende: Wer 490 € scheut, kauft
+99 € statt gar nicht. Gesamterwartung: **12 Kunden**.
 
 ### Umsatzrechnung
 
-Erwarteter Mix bei 9 Kunden (Beratungen bevorzugen Pro/Agency wegen White-Label):
-
 | Tier | Kunden | MRR |
 |---|---|---|
-| Solo (249 €) | 4 | 996 € |
-| Pro (490 €) | 4 | 1.960 € |
+| Basic (99 €) | 4 | 396 € |
+| Team (249 €) | 4 | 996 € |
+| Pro (490 €) | 3 | 1.470 € |
 | Agency (890 €) | 1 | 890 € |
-| **Summe** | **9** | **3.846 €** |
+| **Summe** | **12** | **3.752 €** |
 
-→ **Puffer von 846 € über Ziel** (≈ 28 %). Selbst ohne den Agency-Abschluss und mit nur
-3 Pro-Kunden stehen 2.466 € — dann fehlen 2 weitere Solo-Kunden, die Welle 3 (Woche 11–13,
-+120 Kontakte) liefert. Break-even-Szenario rein mit Solo-Tier: 13 Kunden nötig — auch das
-liegt im Funnel-Korridor, wenn Welle 3 durchläuft.
+→ **Puffer von 752 € über Ziel** (≈ 25 %). Ohne Agency-Abschluss: 2.862 € — dann fehlen
+2 Basic- oder 1 Team-Kunde aus Welle 3 (Woche 11–13, +120 Kontakte). Trade-off gegenüber
+dem alten Modell: 12 statt 9 Abschlüsse nötig, aber jeder einzelne ist leichter; zusätzlich
+entsteht ein Upgrade-Pfad (Basic→Team→Pro), der nach Tag 90 ohne Neuakquise wächst.
 
-Reihenfolge der Abschlüsse (erwartet): Wochen 5–7 erste 2–3 Solo/Pro aus Welle 1,
-Wochen 8–11 der Block aus Welle 2 (4–5 Kunden inkl. erstem Agency über Referenz aus Welle 1),
-Wochen 12–13 Rest aus Trial-Konversionen.
+Reihenfolge der Abschlüsse (erwartet): Wochen 5–7 erste 3–4 Basic/Team aus Welle 1
+(inkl. 1–2 Self-Serve), Wochen 8–11 der Block aus Welle 2 (5–6 Kunden inkl. erstem Agency
+über Referenz), Wochen 12–13 Rest aus Trial-Konversionen.
+
+### 5b. Datenbasis-Ausbau (parallel zu Welle 1–3, kostenneutral)
+
+Wertversprechen „1.500+ Signale aus 300+ Quellen“ wird in drei Phasen unterfüttert
+(alle Quellen kostenlos, lokale LLM-Verarbeitung = keine Grenzkosten):
+1. **RSS-Ausbau (Woche 1–2):** DACH-Fachpresse, idw-online/EurekAlert (Forschungs-PR),
+   Brand-Newsrooms, Consulting-Insights → Ziel 200+ Feeds.
+2. **Freie APIs (Woche 3–4):** EU CORDIS (Forschungsförderung), EPO/DPMA (Patente),
+   EUR-Lex (Regulatorik), Reddit/Hacker News.
+3. **Bestehende Backlog-Pläne:** Brave-Radar-Rewrite, Google Trends als Momentum-Validierung.
+Durchsatz-Check: ~500 Roh-Signale/Tag ≈ <1 h GPU-Zeit (RTX 5080) für den Relevanz-Filter.
 
 ### Kritische Annahmen — woran der Plan scheitert
 
@@ -168,7 +193,8 @@ mit der Technik.
 
 | Tätigkeit | Aufwand | Automatisierung |
 |---|---|---|
-| Briefing-Erzeugung + Versand | 0 min/Woche | Cron: `python -m pipeline.briefing_generator --send` |
+| Briefing-Erzeugung + Versand | 0 min/Woche | Cron Mo 06:30: `python -m pipeline.briefing_generator --send` |
+| Tägliche Watchlist-Alerts (Team+) | 0 min/Tag | Cron Di–Fr 07:00: `python -m pipeline.briefing_generator --alerts --send` |
 | Pipeline (Feeds → LLM → Publish) | bereits automatisiert | bestehende Cron-Kette |
 | Neukunden-Onboarding | < 5 min | `python scripts/radar_admin.py add ...` |
 | Kündigungen | < 2 min | `radar_admin.py cancel` + Stripe |
