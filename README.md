@@ -1,12 +1,55 @@
-# Catandary Trends
+# Catandary Trends — Trend-Radar Product Variant
 
 Cross-industry trend intelligence platform powered by local LLMs (Ollama).
 Aggregates RSS signals from primary trade/research sources across eight
 industry verticals, classifies them via a multi-stage LLM pipeline, and
 publishes curated trend articles (DE + EN) through a Next.js frontend.
 
+**This branch (`product/trend-radar`) is the sellable product variant:**
+it adds **Catandary Trend-Radar**, a paid B2B subscription — personalized
+weekly trend briefings (white-label capable) for consultancies, agencies
+and innovation teams. See [`docs/BUSINESS_PLAN.md`](docs/BUSINESS_PLAN.md)
+for the business model and the calculated 90-day path to 3,000 € MRR,
+[`docs/SETUP_VERKAUF.md`](docs/SETUP_VERKAUF.md) for the operator runbook,
+and [`docs/sales/`](docs/sales/) for the complete sales kit.
+
 See [`CLAUDE.md`](CLAUDE.md) for the full architecture and taxonomy, and
 [`BACKLOG.md`](BACKLOG.md) for open ideas.
+
+## Trend-Radar (paid product)
+
+```
+Stripe Payment Link / Trial-Anfrage
+        │
+        ▼
+scripts/radar_admin.py add|trial      # onboard customer (<5 min)
+        │                             # tier, verticals, watchlist, branding
+        ▼
+pipeline/briefing_generator.py        # cron: Monday 06:30, --send
+  ├── top trends per customer verticals (trend_score ranked)
+  ├── watchlist hits via FTS5 (per-keyword)
+  ├── white-label HTML email (Resend, outbox fallback)
+  └── archive → radar_briefings
+        │
+        ▼
+frontend /radar/[token]               # token-gated customer portal
+  ├── personalized feed + watchlist sections
+  ├── briefing archive (HTML served per briefing)
+  └── customer branding (logo, color, name)
+
+frontend /radar                       # public landing page with pricing
+                                      # (Stripe links via NEXT_PUBLIC_STRIPE_LINK_*)
+```
+
+Quick demo against the bundled data snapshot:
+
+```bash
+python scripts/radar_admin.py trial --name "Demo GmbH" --email demo@example.de \
+  --verticals TECH,HEALTH --keywords "quantum computing,longevity"
+python -m pipeline.briefing_generator --customer <id> --anchor-latest
+# open the portal link printed by radar_admin (frontend on :3001)
+python scripts/radar_admin.py mrr     # revenue tracking toward 3,000 € target
+```
 
 ## Verticals
 
