@@ -17,16 +17,18 @@ from pipeline.db import get_connection
 
 logger = logging.getLogger(__name__)
 
-VALID_TIERS = ("trial", "solo", "pro", "agency")
+VALID_TIERS = ("trial", "basic", "team", "pro", "agency")
 VALID_STATUS = ("active", "paused", "cancelled")
 
 # Per-tier limits enforced at write time. Trials get pro limits so the
-# trial experience matches what most prospects would buy.
+# trial experience matches what most prospects would buy. "alerts" gates
+# the daily watchlist alert emails (Team and up).
 TIER_LIMITS = {
-    "trial": {"verticals": 8, "keywords": 30, "recipients": 5, "mandates": 0, "mrr": 0},
-    "solo": {"verticals": 2, "keywords": 10, "recipients": 1, "mandates": 0, "mrr": 249},
-    "pro": {"verticals": 8, "keywords": 30, "recipients": 5, "mandates": 0, "mrr": 490},
-    "agency": {"verticals": 8, "keywords": 30, "recipients": 5, "mandates": 3, "mrr": 890},
+    "trial": {"verticals": 8, "keywords": 30, "recipients": 5, "mandates": 0, "mrr": 0, "alerts": True},
+    "basic": {"verticals": 1, "keywords": 5, "recipients": 1, "mandates": 0, "mrr": 99, "alerts": False},
+    "team": {"verticals": 3, "keywords": 15, "recipients": 3, "mandates": 0, "mrr": 249, "alerts": True},
+    "pro": {"verticals": 8, "keywords": 30, "recipients": 5, "mandates": 0, "mrr": 490, "alerts": True},
+    "agency": {"verticals": 8, "keywords": 30, "recipients": 5, "mandates": 3, "mrr": 890, "alerts": True},
 }
 
 VALID_VERTICALS = ("FOOD", "TECH", "HEALTH", "ECO", "DESIGN", "FASHION", "BIZ", "LIFESTYLE")
@@ -38,7 +40,7 @@ CREATE TABLE IF NOT EXISTS radar_customers (
     contact_name TEXT,
     email TEXT NOT NULL,
     extra_recipients TEXT DEFAULT '[]',
-    tier TEXT NOT NULL CHECK (tier IN ('trial','solo','pro','agency')),
+    tier TEXT NOT NULL CHECK (tier IN ('trial','basic','team','pro','agency')),
     parent_id INTEGER REFERENCES radar_customers(id),
     token TEXT UNIQUE NOT NULL,
     verticals TEXT DEFAULT '[]',
@@ -69,15 +71,63 @@ CREATE TABLE IF NOT EXISTS radar_briefings (
     UNIQUE(customer_id, week_label)
 );
 
+CREATE TABLE IF NOT EXISTS radar_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES radar_customers(id),
+    day_label TEXT NOT NULL,
+    subject TEXT,
+    html TEXT NOT NULL,
+    trend_ids TEXT DEFAULT '[]',
+    watchlist_hits TEXT DEFAULT '{}',
+    sent_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(customer_id, day_label)
+);
+
 CREATE INDEX IF NOT EXISTS idx_radar_customers_token ON radar_customers(token);
 CREATE INDEX IF NOT EXISTS idx_radar_customers_status ON radar_customers(status);
 CREATE INDEX IF NOT EXISTS idx_radar_briefings_customer ON radar_briefings(customer_id);
+CREATE INDEX IF NOT EXISTS idx_radar_alerts_customer ON radar_alerts(customer_id);
 """
 
 
+def _migrate_legacy_tiers(conn):
+    """Rebuild radar_customers if it still carries the pre-launch tier set
+    ('solo' instead of 'basic'/'team'). SQLite cannot alter CHECK constraints
+    in place; uses the documented rebuild procedure (new table, copy, drop,
+    rename with legacy_alter_table so FK references in radar_briefings are
+    not rewritten)."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='radar_customers'"
+    ).fetchone()
+    if row is None or "'solo'" not in row["sql"]:
+        return
+    logger.info("migrating radar_customers to new tier set (solo -> team)")
+    customers_ddl = RADAR_SCHEMA.split("CREATE TABLE IF NOT EXISTS radar_briefings")[0]
+    customers_ddl = customers_ddl.replace(
+        "CREATE TABLE IF NOT EXISTS radar_customers", "CREATE TABLE radar_customers_new"
+    ).strip().rstrip(";")
+    cols = ("id, name, contact_name, email, extra_recipients, tier, parent_id, token, "
+            "verticals, keywords, language, brand_name, brand_color, brand_logo_url, "
+            "status, trial_ends_at, mrr_eur, stripe_customer_id, notes, created_at, updated_at")
+    conn.execute("PRAGMA foreign_keys=OFF")
+    conn.execute("PRAGMA legacy_alter_table=ON")
+    conn.execute(customers_ddl)
+    conn.execute(
+        f"""INSERT INTO radar_customers_new ({cols})
+            SELECT {cols.replace('tier,', "CASE tier WHEN 'solo' THEN 'team' ELSE tier END,", 1)}
+            FROM radar_customers"""
+    )
+    conn.execute("DROP TABLE radar_customers")
+    conn.execute("ALTER TABLE radar_customers_new RENAME TO radar_customers")
+    conn.execute("PRAGMA legacy_alter_table=OFF")
+    conn.execute("PRAGMA foreign_keys=ON")
+
+
 def init_radar_schema():
-    """Create radar tables if missing. Safe to re-run."""
+    """Create radar tables if missing, migrate legacy tier set. Safe to re-run."""
     with get_connection() as conn:
+        _migrate_legacy_tiers(conn)
         conn.executescript(RADAR_SCHEMA)
     logger.info("radar schema initialized")
 
@@ -338,6 +388,58 @@ def get_briefing(briefing_id: int) -> dict | None:
     d["trend_ids"] = json.loads(d.get("trend_ids") or "[]")
     d["watchlist_hits"] = json.loads(d.get("watchlist_hits") or "{}")
     return d
+
+
+# --- Daily watchlist alerts ---
+
+def insert_alert(customer_id: int, day_label: str, subject: str, html: str,
+                 trend_ids: list[int], watchlist_hits: dict,
+                 sent_at: str | None = None) -> int:
+    """Store a daily alert. One per customer and day (replaced on re-run)."""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """INSERT INTO radar_alerts
+               (customer_id, day_label, subject, html, trend_ids, watchlist_hits, sent_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(customer_id, day_label) DO UPDATE SET
+                 subject = excluded.subject,
+                 html = excluded.html,
+                 trend_ids = excluded.trend_ids,
+                 watchlist_hits = excluded.watchlist_hits,
+                 sent_at = COALESCE(excluded.sent_at, radar_alerts.sent_at)""",
+            (customer_id, day_label, subject, html, json.dumps(trend_ids),
+             json.dumps(watchlist_hits), sent_at),
+        )
+        if cursor.lastrowid:
+            return cursor.lastrowid
+        row = conn.execute(
+            "SELECT id FROM radar_alerts WHERE customer_id = ? AND day_label = ?",
+            (customer_id, day_label),
+        ).fetchone()
+        return row["id"]
+
+
+def mark_alert_sent(alert_id: int):
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE radar_alerts SET sent_at = datetime('now') WHERE id = ?",
+            (alert_id,),
+        )
+
+
+def get_alerted_trend_ids(customer_id: int, days: int = 14) -> set[int]:
+    """Trend IDs already alerted to this customer recently — prevents the
+    same hit firing on consecutive days."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT trend_ids FROM radar_alerts WHERE customer_id = ? "
+            "AND created_at >= datetime('now', ?)",
+            (customer_id, f"-{days} days"),
+        ).fetchall()
+    ids: set[int] = set()
+    for r in rows:
+        ids.update(json.loads(r["trend_ids"] or "[]"))
+    return ids
 
 
 # --- Trend selection for briefings & portal ---

@@ -9,10 +9,18 @@ import pytest
 os.environ["DATABASE_PATH"] = os.path.join(tempfile.gettempdir(), "catandary_radar_test.db")
 
 from pipeline import radar_db
-from pipeline.briefing_generator import render_briefing_html, select_briefing_content
+from pipeline.briefing_generator import (
+    generate_alert_for_customer,
+    render_alert_html,
+    render_briefing_html,
+    select_briefing_content,
+)
 from pipeline.db import get_connection, init_db, insert_raw_entry, insert_trend, upsert_source
 
 from datetime import datetime, timezone
+
+TABLES = ("radar_alerts", "radar_briefings", "radar_customers",
+          "trends", "raw_entries", "sources")
 
 
 @pytest.fixture(autouse=True)
@@ -20,11 +28,11 @@ def clean_db():
     init_db()
     radar_db.init_radar_schema()
     with get_connection() as conn:
-        for table in ("radar_briefings", "radar_customers", "trends", "raw_entries", "sources"):
+        for table in TABLES:
             conn.execute(f"DELETE FROM {table}")
     yield
     with get_connection() as conn:
-        for table in ("radar_briefings", "radar_customers", "trends", "raw_entries", "sources"):
+        for table in TABLES:
             conn.execute(f"DELETE FROM {table}")
 
 
@@ -60,7 +68,7 @@ def make_trend(slug: str, vertical: str = "TECH", title_de: str = "Testtrend",
 
 class TestCustomerCrud:
     def test_insert_and_get(self):
-        c = radar_db.insert_customer("Acme", "a@acme.de", "solo", ["TECH"], keywords=["ki"])
+        c = radar_db.insert_customer("Acme", "a@acme.de", "team", ["TECH"], keywords=["ki"])
         assert c["id"] > 0
         assert c["mrr_eur"] == 249
         assert len(c["token"]) >= 32
@@ -69,15 +77,26 @@ class TestCustomerCrud:
         assert fetched["verticals"] == ["TECH"]
 
     def test_tier_limits_enforced(self):
-        with pytest.raises(ValueError, match="max 2 verticals"):
-            radar_db.insert_customer("X", "x@x.de", "solo", ["TECH", "FOOD", "ECO"])
-        with pytest.raises(ValueError, match="max 10 watchlist"):
-            radar_db.insert_customer("X", "x@x.de", "solo", ["TECH"],
-                                     keywords=[f"k{i}" for i in range(11)])
+        with pytest.raises(ValueError, match="max 3 verticals"):
+            radar_db.insert_customer("X", "x@x.de", "team",
+                                     ["TECH", "FOOD", "ECO", "BIZ"])
+        with pytest.raises(ValueError, match="max 15 watchlist"):
+            radar_db.insert_customer("X", "x@x.de", "team", ["TECH"],
+                                     keywords=[f"k{i}" for i in range(16)])
+        with pytest.raises(ValueError, match="max 1 verticals"):
+            radar_db.insert_customer("X", "x@x.de", "basic", ["TECH", "FOOD"])
+        with pytest.raises(ValueError, match="max 5 watchlist"):
+            radar_db.insert_customer("X", "x@x.de", "basic", ["TECH"],
+                                     keywords=[f"k{i}" for i in range(6)])
         with pytest.raises(ValueError, match="invalid verticals"):
             radar_db.insert_customer("X", "x@x.de", "pro", ["SPACE"])
         with pytest.raises(ValueError, match="at least one vertical"):
             radar_db.insert_customer("X", "x@x.de", "pro", [])
+
+    def test_tier_pricing(self):
+        assert radar_db.insert_customer("B", "b@b.de", "basic", ["TECH"])["mrr_eur"] == 99
+        assert radar_db.insert_customer("T", "t@t.de", "team", ["TECH"])["mrr_eur"] == 249
+        assert radar_db.insert_customer("P", "p@p.de", "pro", ["TECH"])["mrr_eur"] == 490
 
     def test_trial_has_zero_mrr_and_pro_limits(self):
         c = radar_db.insert_customer("T", "t@t.de", "trial",
@@ -86,15 +105,15 @@ class TestCustomerCrud:
 
     def test_update_revalidates_limits(self):
         c = radar_db.insert_customer("Acme", "a@acme.de", "pro",
-                                     ["TECH", "FOOD", "ECO"])
-        with pytest.raises(ValueError, match="max 2 verticals"):
-            radar_db.update_customer(c["id"], tier="solo")
-        updated = radar_db.update_customer(c["id"], verticals=["TECH"], tier="solo")
-        assert updated["tier"] == "solo"
+                                     ["TECH", "FOOD", "ECO", "BIZ"])
+        with pytest.raises(ValueError, match="max 3 verticals"):
+            radar_db.update_customer(c["id"], tier="team")
+        updated = radar_db.update_customer(c["id"], verticals=["TECH"], tier="team")
+        assert updated["tier"] == "team"
         assert updated["mrr_eur"] == 249
 
     def test_update_rejects_unknown_fields(self):
-        c = radar_db.insert_customer("Acme", "a@acme.de", "solo", ["TECH"])
+        c = radar_db.insert_customer("Acme", "a@acme.de", "team", ["TECH"])
         with pytest.raises(ValueError, match="unknown fields"):
             radar_db.update_customer(c["id"], evil="1")
 
@@ -109,19 +128,19 @@ class TestCustomerCrud:
                                      parent_id=agency["id"])
 
     def test_mandate_requires_agency_parent(self):
-        solo = radar_db.insert_customer("Solo", "s@s.de", "solo", ["TECH"])
+        team = radar_db.insert_customer("Team", "s@s.de", "team", ["TECH"])
         with pytest.raises(ValueError, match="agency-tier"):
-            radar_db.insert_customer("M", "m@m.de", "pro", ["FOOD"], parent_id=solo["id"])
+            radar_db.insert_customer("M", "m@m.de", "pro", ["FOOD"], parent_id=team["id"])
 
     def test_token_rotation(self):
-        c = radar_db.insert_customer("Acme", "a@acme.de", "solo", ["TECH"])
+        c = radar_db.insert_customer("Acme", "a@acme.de", "team", ["TECH"])
         new_token = radar_db.rotate_token(c["id"])
         assert new_token != c["token"]
         assert radar_db.get_customer_by_token(c["token"]) is None
         assert radar_db.get_customer_by_token(new_token)["id"] == c["id"]
 
     def test_mrr_summary(self):
-        radar_db.insert_customer("A", "a@a.de", "solo", ["TECH"])
+        radar_db.insert_customer("A", "a@a.de", "team", ["TECH"])
         radar_db.insert_customer("B", "b@b.de", "pro", ["TECH"])
         c = radar_db.insert_customer("C", "c@c.de", "agency", ["TECH"])
         radar_db.update_customer(c["id"], status="cancelled")
@@ -212,3 +231,85 @@ class TestBriefing:
             customer, top, hits, "2026-W24", datetime(2026, 6, 8, tzinfo=timezone.utc)
         )
         assert "<script>alert" not in html
+
+
+class TestDailyAlerts:
+    def _customer(self, tier="team"):
+        return radar_db.insert_customer(
+            "Acme", "a@acme.de", tier, ["TECH"],
+            keywords=["Quantencomputer"][: radar_db.TIER_LIMITS[tier]["keywords"]],
+            brand_name="Acme Radar", brand_color="#123456",
+        )
+
+    def test_alert_generated_for_new_hit(self):
+        make_trend("q1", "TECH", title_de="Quantencomputer Durchbruch")
+        customer = self._customer()
+        result = generate_alert_for_customer(customer, "2020-01-01", "2026-06-10",
+                                             "10.06.2026", send=False)
+        assert result["status"] == "generated"
+        assert result["hits"] == 1
+
+    def test_alert_dedupes_already_alerted_trends(self):
+        make_trend("q1", "TECH", title_de="Quantencomputer Durchbruch")
+        customer = self._customer()
+        first = generate_alert_for_customer(customer, "2020-01-01", "2026-06-10",
+                                            "10.06.2026", send=False)
+        assert first["status"] == "generated"
+        second = generate_alert_for_customer(customer, "2020-01-01", "2026-06-11",
+                                             "11.06.2026", send=False)
+        assert second["status"] == "no_new_hits"
+
+    def test_basic_tier_gets_no_alerts(self):
+        make_trend("q1", "TECH", title_de="Quantencomputer Durchbruch")
+        customer = self._customer(tier="basic")
+        result = generate_alert_for_customer(customer, "2020-01-01", "2026-06-10",
+                                             "10.06.2026", send=False)
+        assert result["status"] == "tier_without_alerts"
+
+    def test_no_hits_no_alert(self):
+        customer = self._customer()
+        result = generate_alert_for_customer(customer, "2020-01-01", "2026-06-10",
+                                             "10.06.2026", send=False)
+        assert result["status"] == "no_new_hits"
+
+    def test_render_alert_html(self):
+        make_trend("q1", "TECH", title_de="Quantencomputer Durchbruch")
+        customer = self._customer()
+        hits = radar_db.search_watchlist(["Quantencomputer"], since="2020-01-01")
+        subject, html = render_alert_html(customer, hits, "10.06.2026")
+        assert "Acme Radar" in subject
+        assert "1 neuer Watchlist-Treffer" in subject
+        assert "Quantencomputer Durchbruch" in html
+        assert customer["token"] in html
+
+
+class TestLegacyTierMigration:
+    def test_solo_rows_migrate_to_team(self):
+        # rebuild the table with the legacy CHECK + a legacy 'solo' row
+        with get_connection() as conn:
+            conn.execute("DROP TABLE IF EXISTS radar_alerts")
+            conn.execute("DROP TABLE IF EXISTS radar_briefings")
+            conn.execute("DROP TABLE IF EXISTS radar_customers")
+            conn.execute("""
+                CREATE TABLE radar_customers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL, contact_name TEXT, email TEXT NOT NULL,
+                    extra_recipients TEXT DEFAULT '[]',
+                    tier TEXT NOT NULL CHECK (tier IN ('trial','solo','pro','agency')),
+                    parent_id INTEGER, token TEXT UNIQUE NOT NULL,
+                    verticals TEXT DEFAULT '[]', keywords TEXT DEFAULT '[]',
+                    language TEXT DEFAULT 'de', brand_name TEXT, brand_color TEXT,
+                    brand_logo_url TEXT, status TEXT DEFAULT 'active',
+                    trial_ends_at TEXT, mrr_eur REAL DEFAULT 0,
+                    stripe_customer_id TEXT, notes TEXT,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now'))
+                )""")
+            conn.execute(
+                "INSERT INTO radar_customers (name, email, tier, token, verticals) "
+                "VALUES ('Alt', 'alt@x.de', 'solo', 'legacy-token', '[\"TECH\"]')"
+            )
+        radar_db.init_radar_schema()
+        migrated = radar_db.get_customer_by_token("legacy-token")
+        assert migrated["tier"] == "team"
+        assert migrated["name"] == "Alt"

@@ -6,12 +6,17 @@ branded HTML email, archive it in radar_briefings and (optionally) send
 it via Resend. Without RESEND_API_KEY the HTML lands in the outbox
 directory — useful for review, demos and local development.
 
+Also handles the daily watchlist alerts (Team tier and up): a compact
+email that fires only when a watchlist keyword has new hits that were
+not alerted before. No hits, no email.
+
 Usage:
     python -m pipeline.briefing_generator                  # all active customers, archive + outbox
     python -m pipeline.briefing_generator --send           # also send via Resend
     python -m pipeline.briefing_generator --customer 3     # single customer
     python -m pipeline.briefing_generator --since-days 14  # wider window
     python -m pipeline.briefing_generator --anchor-latest  # anchor week on newest trend (demo/stale DB)
+    python -m pipeline.briefing_generator --alerts [--send]  # daily watchlist alerts (cron: Tue-Fri 07:00)
 """
 
 import argparse
@@ -271,6 +276,95 @@ def generate_for_customer(customer: dict, since: str, week_label: str,
     }
 
 
+def render_alert_html(customer: dict, watchlist_hits: dict, day_str: str) -> tuple[str, str]:
+    """Render the compact daily alert email. Returns (subject, html)."""
+    language = customer.get("language") or "de"
+    brand_name = customer.get("brand_name") or "Catandary Trend-Radar"
+    brand_color = customer.get("brand_color") or DEFAULT_BRAND_COLOR
+    n_hits = sum(len(v) for v in watchlist_hits.values())
+    keywords = ", ".join(watchlist_hits.keys())
+    subject = f"{brand_name} Alert: {n_hits} neue{'r' if n_hits == 1 else ''} Watchlist-Treffer ({keywords})"
+
+    sections = []
+    for keyword, trends in watchlist_hits.items():
+        items = "".join(_trend_card_html(t, language, brand_color) for t in trends)
+        sections.append(f"""
+        <tr><td style="padding-top:14px;">
+          <div style="font-size:13px;font-weight:700;color:{brand_color};
+                      text-transform:uppercase;letter-spacing:0.05em;">⌖ {_esc(keyword)}</div>
+        </td></tr>{items}""")
+
+    portal_url = f"{PORTAL_BASE_URL}/radar/{customer['token']}"
+    body = f"""<!DOCTYPE html>
+<html lang="{language}"><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
+  <tr><td style="background:{brand_color};padding:18px 32px;">
+    <div style="font-size:17px;font-weight:800;color:#ffffff;">{_esc(brand_name)} · Watchlist-Alert</div>
+    <div style="font-size:12px;color:rgba(255,255,255,0.85);">{day_str} · {n_hits} neue Treffer zu Ihren Themen</div>
+  </td></tr>
+  <tr><td style="padding:18px 32px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      {''.join(sections)}
+      <tr><td style="padding-top:20px;" align="center">
+        <a href="{portal_url}" style="display:inline-block;background:{brand_color};color:#ffffff;
+           font-size:13px;font-weight:700;padding:10px 24px;border-radius:8px;text-decoration:none;">
+          Im Radar-Portal ansehen →</a>
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td style="padding:14px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;">
+    <div style="font-size:11px;color:#94a3b8;">Sie erhalten Alerts nur bei neuen Watchlist-Treffern.
+    Die Wochen-Synthese folgt im Montags-Briefing.</div>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>"""
+    return subject, body
+
+
+def generate_alert_for_customer(customer: dict, since: str, day_label: str,
+                                day_str: str, send: bool) -> dict:
+    """Daily alert: new watchlist hits only, deduped against recent alerts."""
+    if not radar_db.TIER_LIMITS[customer["tier"]]["alerts"]:
+        return {"customer_id": customer["id"], "status": "tier_without_alerts"}
+    if not customer["keywords"]:
+        return {"customer_id": customer["id"], "status": "no_keywords"}
+
+    hits = radar_db.search_watchlist(customer["keywords"], since=since,
+                                     limit_per_keyword=WATCHLIST_LIMIT_PER_KEYWORD)
+    already = radar_db.get_alerted_trend_ids(customer["id"])
+    hits = {kw: [t for t in trends if t["id"] not in already]
+            for kw, trends in hits.items()}
+    hits = {kw: trends for kw, trends in hits.items() if trends}
+    if not hits:
+        return {"customer_id": customer["id"], "status": "no_new_hits"}
+
+    subject, body = render_alert_html(customer, hits, day_str)
+    trend_ids = [t["id"] for trends in hits.values() for t in trends]
+    hit_summary = {kw: [t["id"] for t in trends] for kw, trends in hits.items()}
+    alert_id = radar_db.insert_alert(customer["id"], day_label, subject, body,
+                                     trend_ids, hit_summary)
+
+    outbox = Path(BRIEFING_OUTBOX)
+    outbox.mkdir(parents=True, exist_ok=True)
+    outfile = outbox / f"alert-{day_label}-customer{customer['id']}.html"
+    outfile.write_text(body, encoding="utf-8")
+
+    sent = False
+    if send and RESEND_API_KEY:
+        recipients = [customer["email"], *customer["extra_recipients"]]
+        sent = send_via_resend(recipients, subject, body)
+        if sent:
+            radar_db.mark_alert_sent(alert_id)
+
+    logger.info("customer %s: alert %s — %d new hits%s", customer["id"], day_label,
+                len(trend_ids), ", sent" if sent else "")
+    return {"customer_id": customer["id"], "status": "sent" if sent else "generated",
+            "hits": len(trend_ids), "outfile": str(outfile)}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Trend-Radar Briefing-Generator")
     parser.add_argument("--customer", type=int, default=None, help="nur diese Kunden-ID")
@@ -278,7 +372,11 @@ def main():
     parser.add_argument("--since-days", type=int, default=7, help="Signalfenster in Tagen")
     parser.add_argument("--anchor-latest", action="store_true",
                         help="Woche am neuesten Trend statt heute ausrichten (Demo/alter Snapshot)")
+    parser.add_argument("--alerts", action="store_true",
+                        help="Tages-Alerts statt Wochen-Briefing (Fenster: --since-days, Default 1)")
     args = parser.parse_args()
+    if args.alerts and args.since_days == 7:
+        args.since_days = 1
 
     radar_db.init_radar_schema()
 
@@ -309,6 +407,19 @@ def main():
 
     if not customers:
         logger.info("no active customers")
+        return
+
+    if args.alerts:
+        day_label = anchor.strftime("%Y-%m-%d")
+        day_str = anchor.strftime("%d.%m.%Y")
+        results = [generate_alert_for_customer(c, since, day_label, day_str, args.send)
+                   for c in customers]
+        generated = [r for r in results if r["status"] in ("generated", "sent")]
+        print(f"\nAlerts {day_label}: {len(generated)}/{len(results)} erzeugt "
+              f"(Fenster: {args.since_days} Tag(e))")
+        for r in generated:
+            print(f"  Kunde {r['customer_id']}: {r['hits']} neue Treffer → {r['outfile']}"
+                  + ("  [versandt]" if r["status"] == "sent" else ""))
         return
 
     results = [generate_for_customer(c, since, week_label, anchor, args.send)
