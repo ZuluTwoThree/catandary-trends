@@ -5,14 +5,13 @@ Vom Code zum kaufbereiten Produkt in einem Nachmittag. Reihenfolge einhalten.
 ## 1. Stripe einrichten (≈ 45 Min, einmalig)
 
 1. Stripe-Konto (https://dashboard.stripe.com) mit Firmendaten + USt-IdNr.
-2. **Produkte anlegen:** „Radar Basic" 99 €/Monat, „Radar Team" 249 €/Monat,
-   „Radar Pro" 490 €/Monat — jeweils wiederkehrend, zzgl. Steuer (Stripe Tax aktivieren),
-   SEPA-Lastschrift + Karte erlauben. Optional je ein Jahres-Preis (1.010 € / 2.540 € / 4.998 €).
+2. **Produkte anlegen:** „Radar Team" 249 €/Monat, „Radar Pro" 490 €/Monat —
+   jeweils wiederkehrend, zzgl. Steuer (Stripe Tax aktivieren), SEPA-Lastschrift +
+   Karte erlauben. Optional je ein Jahres-Preis (2.540 € / 4.998 €).
 3. **Payment Links erzeugen** (je Produkt: „Zahlungslink erstellen", Felder
    „Firmenname" + „USt-IdNr." als Pflichtfelder ergänzen).
 4. Links in `frontend/.env.local` eintragen:
    ```
-   NEXT_PUBLIC_STRIPE_LINK_BASIC=https://buy.stripe.com/...
    NEXT_PUBLIC_STRIPE_LINK_TEAM=https://buy.stripe.com/...
    NEXT_PUBLIC_STRIPE_LINK_PRO=https://buy.stripe.com/...
    ```

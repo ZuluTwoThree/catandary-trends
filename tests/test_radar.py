@@ -83,20 +83,17 @@ class TestCustomerCrud:
         with pytest.raises(ValueError, match="max 15 watchlist"):
             radar_db.insert_customer("X", "x@x.de", "team", ["TECH"],
                                      keywords=[f"k{i}" for i in range(16)])
-        with pytest.raises(ValueError, match="max 1 verticals"):
-            radar_db.insert_customer("X", "x@x.de", "basic", ["TECH", "FOOD"])
-        with pytest.raises(ValueError, match="max 5 watchlist"):
-            radar_db.insert_customer("X", "x@x.de", "basic", ["TECH"],
-                                     keywords=[f"k{i}" for i in range(6)])
+        with pytest.raises(ValueError, match="invalid tier"):
+            radar_db.insert_customer("X", "x@x.de", "basic", ["TECH"])
         with pytest.raises(ValueError, match="invalid verticals"):
             radar_db.insert_customer("X", "x@x.de", "pro", ["SPACE"])
         with pytest.raises(ValueError, match="at least one vertical"):
             radar_db.insert_customer("X", "x@x.de", "pro", [])
 
     def test_tier_pricing(self):
-        assert radar_db.insert_customer("B", "b@b.de", "basic", ["TECH"])["mrr_eur"] == 99
         assert radar_db.insert_customer("T", "t@t.de", "team", ["TECH"])["mrr_eur"] == 249
         assert radar_db.insert_customer("P", "p@p.de", "pro", ["TECH"])["mrr_eur"] == 490
+        assert radar_db.insert_customer("A", "a@a.de", "agency", ["TECH"])["mrr_eur"] == 890
 
     def test_trial_has_zero_mrr_and_pro_limits(self):
         c = radar_db.insert_customer("T", "t@t.de", "trial",
@@ -258,13 +255,6 @@ class TestDailyAlerts:
         second = generate_alert_for_customer(customer, "2020-01-01", "2026-06-11",
                                              "11.06.2026", send=False)
         assert second["status"] == "no_new_hits"
-
-    def test_basic_tier_gets_no_alerts(self):
-        make_trend("q1", "TECH", title_de="Quantencomputer Durchbruch")
-        customer = self._customer(tier="basic")
-        result = generate_alert_for_customer(customer, "2020-01-01", "2026-06-10",
-                                             "10.06.2026", send=False)
-        assert result["status"] == "tier_without_alerts"
 
     def test_no_hits_no_alert(self):
         customer = self._customer()

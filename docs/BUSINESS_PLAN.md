@@ -58,22 +58,22 @@ Pitch-Vorbereitung und Kunden-Newsletter.
 
 ---
 
-## 3. Pricing (überarbeitet 2026-06-10)
+## 3. Pricing (überarbeitet 2026-06-10; Basic-Tier am selben Tag wieder entfernt)
 
 | Tier | Preis/Monat | Leistungsumfang |
 |---|---|---|
-| **Radar Basic** | **99 €** | 1 Vertikale, 5 Keywords, wöchentl. Briefing (DE), Portal, 1 Empfänger |
 | **Radar Team** | **249 €** | 3 Vertikale, 15 Keywords, **tägliche Watchlist-Alerts**, Mega-Trend-Monatsreport, bis 3 Empfänger |
 | **Radar Pro** | **490 €** | Alle 8 Vertikale, 30 Keywords, Alerts, **White-Label**, Monats-Deep-Dive, bis 5 Empfänger |
 | **Radar Agency** | **890 €** | Wie Pro, plus **3 getrennte Mandanten-Radare** (eigene Konfiguration + Branding je Endkunde), Weitergaberecht |
 
-Begründung der Überarbeitung (ursprünglich 3 Tiers ab 249 €):
-- **Basic 99 €** senkt die Einstiegshürde auf „triviale Kaufentscheidung“ und ermöglicht
-  Self-Serve-Käufe direkt über den Stripe-Link ohne Demo. Upgrade-Pfad Basic→Team wird
-  zweiter Wachstumshebel nach Tag 90.
-- **Tägliche Alerts (Team+)** lösen das Kadenz-Problem („nur eine E-Mail pro Woche“):
+Anmerkungen:
+- **Tägliche Alerts (alle Tiers)** lösen das Kadenz-Problem („nur eine E-Mail pro Woche“):
   aus dem Wochen-Briefing wird *kontinuierliche Überwachung mit wöchentlicher Synthese* —
   gleiche Pipeline, ein zusätzlicher Cron-Lauf, null Grenzkosten.
+- **Kein Basic-Tier:** Ein 99-€-Einstieg wurde erwogen und verworfen — er verankert den
+  Preisanker zu niedrig, zieht Support-intensive Kleinkunden an und kannibalisiert
+  Team-Abschlüsse. Der niedrigschwellige Einstieg ist der **14-Tage-Test**, nicht ein
+  Niedrigpreis-Tarif.
 - Jahreszahlung: −15 % · **14 Tage Test ohne Kreditkarte** (2 echte Briefings + Alerts).
 
 **Messaging-Prinzip:** Nie Quellen-Anzahl in den Vordergrund („43 Quellen“ klingt nach wenig),
@@ -128,37 +128,32 @@ ist groß genug, aber nicht beliebig — siehe kritische Annahme A5.
 Aufwand: 30 Erstkontakte + Follow-ups + 2–4 Demos ≈ **10–12 h/Woche Vertrieb** — solo machbar,
 weil Delivery automatisiert ist.
 
-### Funnel-Rechnung (konservativ, mit Basic-Tier aktualisiert)
+### Funnel-Rechnung (konservativ)
 
 | Stufe | Rate | Ergebnis aus 360 Kontakten |
 |---|---|---|
 | Antwort (personalisiert, klarer Schmerz, Trial-CTA) | 10 % | 36 Antworten |
 | Antwort → Demo/Gespräch | 60 % | 22 Demos |
-| Demo → Trial (14 Tage, ohne Karte, im Gespräch aktiviert) | 75 % | 16 Trials |
-| Trial → zahlend (Briefings + Alerts, Basic als Auffangtarif) | 65 % | 10–11 Kunden |
-| + Self-Serve Basic (Stripe-Link ohne Demo, via Landing Page) | — | 1–2 Kunden |
-
-Das Basic-Tier hebt die Konversionsraten am unteren Funnel-Ende: Wer 490 € scheut, kauft
-99 € statt gar nicht. Gesamterwartung: **12 Kunden**.
+| Demo → Trial (14 Tage, ohne Karte, im Gespräch aktiviert) | 70 % | 15 Trials |
+| Trial → zahlend (2 Briefings + tägliche Alerts überzeugen) | 60 % | **9 Kunden** |
 
 ### Umsatzrechnung
 
 | Tier | Kunden | MRR |
 |---|---|---|
-| Basic (99 €) | 4 | 396 € |
 | Team (249 €) | 4 | 996 € |
-| Pro (490 €) | 3 | 1.470 € |
+| Pro (490 €) | 4 | 1.960 € |
 | Agency (890 €) | 1 | 890 € |
-| **Summe** | **12** | **3.752 €** |
+| **Summe** | **9** | **3.846 €** |
 
-→ **Puffer von 752 € über Ziel** (≈ 25 %). Ohne Agency-Abschluss: 2.862 € — dann fehlen
-2 Basic- oder 1 Team-Kunde aus Welle 3 (Woche 11–13, +120 Kontakte). Trade-off gegenüber
-dem alten Modell: 12 statt 9 Abschlüsse nötig, aber jeder einzelne ist leichter; zusätzlich
-entsteht ein Upgrade-Pfad (Basic→Team→Pro), der nach Tag 90 ohne Neuakquise wächst.
+→ **Puffer von 846 € über Ziel** (≈ 28 %). Ohne Agency-Abschluss und mit nur 3 Pro-Kunden
+stehen 2.466 € — dann fehlen 2 weitere Team-Kunden, die Welle 3 (Woche 11–13, +120 Kontakte)
+liefert. Die täglichen Alerts stärken die Trial-Konversion gegenüber dem ursprünglichen
+Modell: Der Wert zeigt sich nicht erst montags, sondern beim ersten Watchlist-Treffer.
 
-Reihenfolge der Abschlüsse (erwartet): Wochen 5–7 erste 3–4 Basic/Team aus Welle 1
-(inkl. 1–2 Self-Serve), Wochen 8–11 der Block aus Welle 2 (5–6 Kunden inkl. erstem Agency
-über Referenz), Wochen 12–13 Rest aus Trial-Konversionen.
+Reihenfolge der Abschlüsse (erwartet): Wochen 5–7 erste 2–3 Team/Pro aus Welle 1,
+Wochen 8–11 der Block aus Welle 2 (4–5 Kunden inkl. erstem Agency über Referenz),
+Wochen 12–13 Rest aus Trial-Konversionen.
 
 ### 5b. Datenbasis-Ausbau (parallel zu Welle 1–3, kostenneutral)
 

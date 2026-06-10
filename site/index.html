@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catandary Foresight — Schwache Signale erkennen, bevor sie Strategie werden</title>
+<meta name="description" content="Foresight-Intelligence für Strategie- und Innovationsteams im DACH-Markt. Patentdaten, Regulierungsorgane und kuratierte Fachmedien — destilliert zu einem täglichen Signal-Feed. Ohne Self-Serve-Overhead.">
+<meta property="og:title" content="Catandary Foresight">
+<meta property="og:description" content="Schwache Signale erkennen, bevor sie Strategie werden. Foresight-Intelligence für den DACH-Markt.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230F0F0E'/%3E%3Ccircle cx='16' cy='16' r='5' fill='none' stroke='%231D9E75' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='1.6' fill='%231D9E75'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0F0F0E;
+  --surface:#161614;
+  --surface-hover:#1A1A18;
+  --accent:#1D9E75;
+  --accent-dim:rgba(29,158,117,.12);
+  --text:#E2DFD7;
+  --text-2:#888780;
+  --text-3:#4A4A48;
+  --line:rgba(255,255,255,.07);
+  --line-mid:rgba(255,255,255,.12);
+  --serif:"Playfair Display",Georgia,serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
+  --c-food:#9FE1CB;
+  --c-energie:#EF9F27;
+  --c-health:#ED93B1;
+  --c-ki:#85B7EB;
+  --c-finanz:#AFA9EC;
+  --c-mobil:#97C459;
+  --c-reg:#F0997B;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--mono);
+  font-weight:300;
+  font-size:15px;
+  line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+::selection{background:var(--accent-dim);color:var(--text)}
+a{color:inherit;text-decoration:none}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:1px solid var(--accent);outline-offset:3px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 32px}
+
+/* ---------- Nav ---------- */
+.nav{
+  position:sticky;top:0;z-index:50;
+  background:rgba(15,15,14,.86);
+  backdrop-filter:blur(12px);
+  border-bottom:.5px solid var(--line);
+}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:60px}
+.logo{display:flex;align-items:baseline;gap:10px;font-size:13px;letter-spacing:.14em}
+.logo b{font-weight:500}
+.logo span{color:var(--text-3);font-weight:300}
+.nav-links{display:flex;gap:36px;font-size:12px;letter-spacing:.08em;color:var(--text-2)}
+.nav-links a{transition:color .2s}
+.nav-links a:hover{color:var(--text)}
+.btn{
+  display:inline-block;font-family:var(--mono);font-size:12px;font-weight:500;
+  letter-spacing:.08em;padding:11px 22px;border-radius:2px;cursor:pointer;
+  transition:background .2s,border-color .2s,color .2s;
+}
+.btn-primary{background:var(--accent);color:#0B0B0A;border:.5px solid var(--accent)}
+.btn-primary:hover{background:#23B385;border-color:#23B385}
+.btn-ghost{background:transparent;color:var(--text);border:.5px solid var(--line-mid)}
+.btn-ghost:hover{border-color:var(--text-2);background:var(--surface)}
+.nav .btn{padding:8px 18px}
+
+/* ---------- Hero ---------- */
+.hero{border-bottom:.5px solid var(--line)}
+.hero-grid{display:grid;grid-template-columns:1.85fr 1fr;min-height:calc(100vh - 60px)}
+.hero-main{display:flex;flex-direction:column;justify-content:center;padding:96px 64px 96px 0;position:relative}
+.eyebrow{
+  display:flex;align-items:center;gap:10px;
+  font-size:11px;letter-spacing:.22em;color:var(--text-2);margin-bottom:36px;
+}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+h1{
+  font-family:var(--serif);font-weight:400;
+  font-size:clamp(40px,4.6vw,64px);line-height:1.12;letter-spacing:-.01em;
+  max-width:15ch;
+}
+h1 em{font-style:italic;color:var(--accent)}
+.hero-sub{
+  margin-top:32px;max-width:54ch;font-size:14px;color:var(--text-2);line-height:1.85;
+}
+.hero-ctas{display:flex;gap:14px;margin-top:44px;flex-wrap:wrap}
+.hero-ctas .btn{padding:14px 28px;font-size:13px}
+.hero-metrics{
+  display:flex;gap:0;margin-top:64px;border-top:.5px solid var(--line);
+}
+.metric{padding:20px 32px 0 0;margin-right:32px}
+.metric+.metric{border-left:.5px solid var(--line);padding-left:32px}
+.metric b{display:block;font-size:19px;font-weight:400;color:var(--text);letter-spacing:.02em}
+.metric span{font-size:10px;letter-spacing:.18em;color:var(--text-3)}
+
+/* ---------- Signal stream ---------- */
+.stream-col{
+  border-left:.5px solid var(--line);
+  position:relative;overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.stream-head{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:18px 24px;border-bottom:.5px solid var(--line);
+  font-size:10px;letter-spacing:.2em;color:var(--text-3);flex-shrink:0;
+}
+.stream-head .live{display:flex;align-items:center;gap:7px;color:var(--accent)}
+.stream{position:relative;flex:1;overflow:hidden;
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 7%,#000 90%,transparent 100%);
+  mask-image:linear-gradient(to bottom,transparent 0,#000 7%,#000 90%,transparent 100%);
+}
+.stream-track{animation:streamflow 75s linear infinite}
+@keyframes streamflow{to{transform:translateY(-50%)}}
+.signal{
+  padding:20px 24px;border-bottom:.5px solid var(--line);
+  transition:background .25s;
+}
+.signal:hover{background:var(--surface-hover)}
+.sig-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+.tag{
+  font-size:9px;letter-spacing:.16em;padding:3px 8px;border-radius:2px;
+  border:.5px solid currentColor;font-weight:400;
+}
+.t-food{color:var(--c-food)} .t-energie{color:var(--c-energie)}
+.t-health{color:var(--c-health)} .t-ki{color:var(--c-ki)}
+.t-finanz{color:var(--c-finanz)} .t-mobil{color:var(--c-mobil)}
+.t-reg{color:var(--c-reg)}
+.sig-time{font-size:10px;color:var(--text-3);letter-spacing:.08em}
+.sig-title{font-size:12.5px;font-weight:400;color:var(--text);line-height:1.55}
+.sig-src{margin-top:8px;font-size:10px;color:var(--text-3);letter-spacing:.04em}
+.status-bar{
+  border-top:.5px solid var(--line);padding:13px 24px;flex-shrink:0;
+  font-size:10px;letter-spacing:.16em;color:var(--text-3);
+  display:flex;gap:18px;align-items:center;
+}
+
+/* ---------- Sections ---------- */
+section{padding:130px 0;border-bottom:.5px solid var(--line)}
+.sec-label{
+  display:flex;align-items:center;gap:16px;
+  font-size:11px;letter-spacing:.24em;color:var(--text-3);margin-bottom:56px;
+}
+.sec-label::after{content:"";flex:1;height:.5px;background:var(--line)}
+.sec-label b{color:var(--accent);font-weight:400}
+h2{
+  font-family:var(--serif);font-weight:400;
+  font-size:clamp(30px,3.2vw,44px);line-height:1.2;letter-spacing:-.005em;
+  max-width:24ch;
+}
+h2 em{font-style:italic;color:var(--accent)}
+
+/* Problem */
+.truths{margin-top:72px;display:flex;flex-direction:column}
+.truth{
+  display:grid;grid-template-columns:80px 1fr;gap:32px;align-items:baseline;
+  padding:36px 0;border-top:.5px solid var(--line);
+}
+.truth-n{font-size:11px;color:var(--text-3);letter-spacing:.2em}
+.truth p{font-size:17px;line-height:1.8;color:var(--text);max-width:62ch;font-weight:300}
+.problem-close{
+  margin-top:64px;font-family:var(--serif);font-style:italic;
+  font-size:21px;color:var(--text-2);max-width:46ch;
+}
+
+/* Mechanismus */
+.mech{margin-top:80px;display:grid;grid-template-columns:1fr 1fr 1fr;position:relative}
+.mech::before{
+  content:"";position:absolute;top:7px;left:5%;right:5%;height:.5px;
+  background:var(--line-mid);
+}
+.mech-step{padding:0 40px 0 0;position:relative}
+.mech-step+.mech-step{padding-left:40px}
+.mech-node{
+  width:15px;height:15px;border-radius:50%;background:var(--bg);
+  border:.5px solid var(--text-2);position:relative;z-index:1;margin-bottom:30px;
+}
+.mech-step:nth-child(2) .mech-node{border-color:var(--accent);background:var(--accent-dim)}
+.mech-step h3{font-size:11px;letter-spacing:.24em;font-weight:500;color:var(--text);margin-bottom:6px}
+.mech-step .mech-sub{font-family:var(--serif);font-style:italic;font-size:18px;color:var(--text-2);margin-bottom:20px}
+.mech-step p{font-size:13px;color:var(--text-2);line-height:1.85;max-width:38ch}
+.mech-step p b{color:var(--text);font-weight:400}
+.methodik-note{
+  margin-top:88px;border:.5px solid var(--line);border-left:2px solid var(--accent);
+  background:var(--surface);padding:32px 40px;border-radius:2px;
+  display:grid;grid-template-columns:auto 1fr;gap:40px;align-items:center;
+}
+.methodik-note .mn-label{font-size:10px;letter-spacing:.24em;color:var(--accent)}
+.methodik-note p{font-size:13.5px;color:var(--text-2);line-height:1.85;max-width:78ch}
+.methodik-note p b{color:var(--text);font-weight:400}
+
+/* Beweis */
+.proof-grid{margin-top:72px;display:grid;grid-template-columns:1fr 1.25fr;gap:72px;align-items:start}
+.proof-text p{font-size:14px;color:var(--text-2);line-height:1.9;max-width:46ch}
+.proof-text p+p{margin-top:22px}
+.proof-text p b{color:var(--text);font-weight:400}
+.report-card{
+  border:.5px solid var(--line-mid);background:var(--surface);border-radius:3px;
+  overflow:hidden;
+}
+.report-head{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:16px 28px;border-bottom:.5px solid var(--line);
+  font-size:10px;letter-spacing:.18em;color:var(--text-3);
+}
+.report-body{padding:32px 28px}
+.report-body .sig-meta{margin-bottom:14px}
+.report-title{
+  font-family:var(--serif);font-size:23px;line-height:1.35;color:var(--text);
+  margin-bottom:24px;font-weight:400;
+}
+.report-sec{margin-top:22px}
+.report-sec h4{font-size:10px;letter-spacing:.22em;color:var(--text-3);font-weight:500;margin-bottom:9px}
+.report-sec p{font-size:13px;color:var(--text-2);line-height:1.8}
+.report-sec.impulse{
+  margin-top:28px;background:var(--accent-dim);border:.5px solid rgba(29,158,117,.25);
+  border-radius:2px;padding:20px 22px;
+}
+.report-sec.impulse h4{color:var(--accent)}
+.report-sec.impulse p{color:var(--text)}
+
+/* Angebot */
+.offer-grid{margin-top:72px;display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.offer{
+  border:.5px solid var(--line-mid);border-radius:3px;padding:52px 48px;
+  background:var(--surface);display:flex;flex-direction:column;
+  transition:border-color .25s,transform .25s;
+}
+.offer:hover{border-color:var(--text-3);transform:translateY(-2px)}
+.offer.primary{border-color:rgba(29,158,117,.45)}
+.offer.primary:hover{border-color:var(--accent)}
+.offer-intent{font-size:10px;letter-spacing:.22em;color:var(--text-3);margin-bottom:26px}
+.offer.primary .offer-intent{color:var(--accent)}
+.offer h3{font-family:var(--serif);font-weight:400;font-size:28px;margin-bottom:18px}
+.offer p{font-size:13.5px;color:var(--text-2);line-height:1.85;flex:1}
+.offer-details{
+  margin:30px 0;padding:18px 0;border-top:.5px solid var(--line);border-bottom:.5px solid var(--line);
+  font-size:11px;letter-spacing:.12em;color:var(--text-2);display:flex;flex-wrap:wrap;gap:8px 20px;
+}
+.offer .btn{align-self:flex-start;padding:14px 28px;font-size:13px}
+
+/* FAQ */
+.faq-list{margin-top:72px;border-top:.5px solid var(--line)}
+.faq-list details{border-bottom:.5px solid var(--line)}
+.faq-list summary{
+  display:grid;grid-template-columns:64px 1fr 30px;align-items:baseline;gap:24px;
+  padding:30px 0;cursor:pointer;list-style:none;
+}
+.faq-list summary::-webkit-details-marker{display:none}
+.faq-n{font-size:11px;color:var(--text-3);letter-spacing:.2em}
+.faq-q{font-size:16px;color:var(--text);font-weight:400}
+.faq-x{color:var(--text-3);font-size:18px;text-align:right;transition:transform .25s;line-height:1}
+details[open] .faq-x{transform:rotate(45deg);color:var(--accent)}
+.faq-a{padding:0 94px 34px 88px;font-size:13.5px;color:var(--text-2);line-height:1.9;max-width:88ch}
+.faq-a b{color:var(--text);font-weight:400}
+
+/* Footer */
+footer{padding:64px 0 48px}
+.foot-grid{display:flex;justify-content:space-between;align-items:flex-start;gap:40px;flex-wrap:wrap}
+.foot-links{display:flex;gap:32px;font-size:11px;letter-spacing:.1em;color:var(--text-2)}
+.foot-links a:hover{color:var(--text)}
+.foot-meta{margin-top:48px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;
+  font-size:10px;letter-spacing:.14em;color:var(--text-3);
+  border-top:.5px solid var(--line);padding-top:28px}
+
+/* Reveal */
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease}
+.reveal.in{opacity:1;transform:none}
+
+/* ---------- Responsive ---------- */
+@media (max-width:980px){
+  .hero-grid{grid-template-columns:1fr;min-height:0}
+  .hero-main{padding:72px 0 56px}
+  .stream-col{border-left:none;border-top:.5px solid var(--line);height:520px}
+  .mech{grid-template-columns:1fr;gap:48px}
+  .mech::before{display:none}
+  .mech-step{padding:0 0 0 28px;border-left:.5px solid var(--line-mid)}
+  .mech-step+.mech-step{padding-left:28px}
+  .mech-node{position:absolute;left:-8px;margin:0}
+  .proof-grid,.offer-grid{grid-template-columns:1fr;gap:40px}
+  .methodik-note{grid-template-columns:1fr;gap:16px}
+  .nav-links{display:none}
+  .hero-metrics{flex-wrap:wrap}
+  .faq-a{padding:0 0 34px 88px}
+}
+@media (max-width:600px){
+  .wrap{padding:0 20px}
+  section{padding:88px 0}
+  .truth{grid-template-columns:1fr;gap:10px;padding:28px 0}
+  .faq-list summary{grid-template-columns:1fr 30px}
+  .faq-n{display:none}
+  .faq-a{padding:0 0 30px 0}
+  .metric{padding-right:18px;margin-right:18px}
+  .metric+.metric{padding-left:18px}
+}
+@media (prefers-reduced-motion:reduce){
+  .stream-track{animation:none}
+  .dot{animation:none}
+  .reveal{opacity:1;transform:none;transition:none}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+
+<!-- ======================= NAV ======================= -->
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="logo" href="#top"><b>CATANDARY</b><span>FORESIGHT</span></a>
+    <div class="nav-links">
+      <a href="#plattform">PLATTFORM</a>
+      <a href="#methodik">METHODIK</a>
+      <a href="#report">BEISPIEL-REPORT</a>
+    </div>
+    <a class="btn btn-primary" href="#angebot">DEMO ANFRAGEN</a>
+  </div>
+</nav>
+
+<!-- ======================= 01 HERO ======================= -->
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div class="hero-main">
+      <div class="eyebrow"><span class="dot"></span>FORESIGHT-INTELLIGENCE&nbsp;·&nbsp;DACH</div>
+      <h1>Schwache Signale erkennen, <em>bevor sie Strategie werden.</em></h1>
+      <p class="hero-sub">
+        Catandary destilliert Patentdatenbanken, Regulierungsorgane und kuratierte
+        Fachmedien zu einem strukturierten, täglichen Signal-Feed — kalibriert auf
+        Ihre Vertikalen und Ihre Geografie. Kein Dashboard, das Sie pflegen müssen.
+        Kein Newsletter, den Sie überfliegen. Ein Vorsprung-System.
+      </p>
+      <div class="hero-ctas">
+        <a class="btn btn-primary" href="#angebot">DEMO ANFRAGEN</a>
+        <a class="btn btn-ghost" href="#report">BEISPIEL-REPORT ANSEHEN</a>
+      </div>
+      <div class="hero-metrics">
+        <div class="metric"><b>1.500+</b><span>SIGNALE&nbsp;/&nbsp;WOCHE</span></div>
+        <div class="metric"><b>128</b><span>PRIMÄRQUELLEN</span></div>
+        <div class="metric"><b>8</b><span>VERTIKALE</span></div>
+        <div class="metric"><b>Täglich</b><span>VERARBEITET</span></div>
+      </div>
+    </div>
+
+    <aside class="stream-col" aria-label="Live-Signal-Feed (Auszug)">
+      <div class="stream-head">
+        <span class="live"><span class="dot"></span>SIGNAL-FEED</span>
+        <span>AUSZUG · KW 24</span>
+      </div>
+      <div class="stream">
+        <div class="stream-track" id="streamTrack">
+          <!-- Signal set (duplicated by JS for seamless loop) -->
+          <div class="signal"><div class="sig-meta"><span class="tag t-reg">REGULIERUNG</span><span class="sig-time">06:31</span></div><div class="sig-title">Die Lücke zwischen PQC-Zeitplänen und der realen Umsetzung</div><div class="sig-src">EE Times · NIST IR 8547</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-ki">KI &amp; PLATTFORMEN</span><span class="sig-time">06:28</span></div><div class="sig-title">KI-Agenten übernehmen das Steuer: Eine neue Ära der Website-Verwaltung</div><div class="sig-src">The Verge</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-food">FOOD TECH</span><span class="sig-time">06:24</span></div><div class="sig-title">Kaffeeabfälle als Geschmacksverstärker in pflanzlichem Fleisch</div><div class="sig-src">FoodNavigator</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-health">HEALTH</span><span class="sig-time">06:19</span></div><div class="sig-title">Der Aufstieg der Neuro-Wellness-Überwachung</div><div class="sig-src">The Spoon</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-finanz">FINANZ</span><span class="sig-time">06:12</span></div><div class="sig-title">AI-Investitionen folgen strategischem Denken, nicht unmittelbarem ROI</div><div class="sig-src">The Register</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-reg">REGULIERUNG</span><span class="sig-time">06:05</span></div><div class="sig-title">Korporative Transparenz unter Druck: Amazon lehnt Klimadatenoffenlegung ab</div><div class="sig-src">The Register</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-mobil">MOBILITÄT</span><span class="sig-time">05:58</span></div><div class="sig-title">Elektrische Mountainbikes verschieben die urbane Mobilität</div><div class="sig-src">Wired</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-ki">KI &amp; PLATTFORMEN</span><span class="sig-time">05:51</span></div><div class="sig-title">Die Synergie von KI und Chip-Design treibt Innovation in der EDA voran</div><div class="sig-src">EE Times</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-energie">ENERGIE</span><span class="sig-time">05:47</span></div><div class="sig-title">Smart Irrigation 3.0: Übergang zu integrierter Wasserverwaltung</div><div class="sig-src">Wired</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-health">HEALTH</span><span class="sig-time">05:40</span></div><div class="sig-title">Unsicherheit in der Impfpolitik löst branchenweite Vorsicht aus</div><div class="sig-src">Wired</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-food">FOOD TECH</span><span class="sig-time">05:33</span></div><div class="sig-title">Kaffee-Preisvolatilität signalisiert breitere Unsicherheit in der Landwirtschaft</div><div class="sig-src">BeverageDaily</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-reg">REGULIERUNG</span><span class="sig-time">05:27</span></div><div class="sig-title">Kongress vor entscheidender Weichenstellung bei der Überwachungsreform</div><div class="sig-src">The Verge</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-mobil">MOBILITÄT</span><span class="sig-time">05:20</span></div><div class="sig-title">Hörbare Sicherheitstechnologie: Innovation in der urbanen Mobilität</div><div class="sig-src">Wired</div></div>
+          <div class="signal"><div class="sig-meta"><span class="tag t-finanz">FINANZ</span><span class="sig-time">05:14</span></div><div class="sig-title">Regulatorischer Widerstand legt Lieferkettenrisiken im Elektroniksektor offen</div><div class="sig-src">The Register</div></div>
+        </div>
+      </div>
+      <div class="status-bar">
+        <span class="live"><span class="dot"></span></span>
+        <span>SYSTEM AKTIV</span>
+        <span>LETZTE VERARBEITUNG 06:31 MEZ</span>
+      </div>
+    </aside>
+  </div>
+</header>
+
+<!-- ======================= 02 PROBLEM ======================= -->
+<section id="problem">
+  <div class="wrap">
+    <div class="sec-label reveal"><b>01</b>DAS PROBLEM</div>
+    <h2 class="reveal">Drei Wahrheiten, die jedes <em>Strategieteam</em> kennt.</h2>
+    <div class="truths">
+      <div class="truth reveal">
+        <span class="truth-n">I</span>
+        <p>Bis ein Trend in Ihrem Branchenreport steht, arbeitet Ihre Konkurrenz seit
+        achtzehn Monaten daran. Reports dokumentieren Vergangenheit — Signale entstehen täglich.</p>
+      </div>
+      <div class="truth reveal">
+        <span class="truth-n">II</span>
+        <p>Ihre besten Leute verbringen ihre Zeit mit Sichten statt mit Denken.
+        Und die Quellen, die wirklich zählen — Patentschriften, Regulierungsentwürfe,
+        graue Literatur — sind nie die, die man abonniert hat.</p>
+      </div>
+      <div class="truth reveal">
+        <span class="truth-n">III</span>
+        <p>Strategieentscheidungen fallen quartalsweise. Die Welt entscheidet täglich.
+        Diese Lücke ist kein Prozessproblem. Sie ist Ihr größtes unbeobachtetes Risiko.</p>
+      </div>
+    </div>
+    <p class="problem-close reveal">Foresight scheitert selten an der Analyse.
+    Es scheitert am Zeitpunkt.</p>
+  </div>
+</section>
+
+<!-- ======================= 03 MECHANISMUS ======================= -->
+<section id="plattform">
+  <div class="wrap">
+    <div class="sec-label reveal"><b>02</b>DER MECHANISMUS</div>
+    <h2 class="reveal">Von der Quelle zur Entscheidung — <em>eine Sequenz,</em> kein Dashboard.</h2>
+    <div class="mech">
+      <div class="mech-step reveal">
+        <div class="mech-node"></div>
+        <h3>INPUT</h3>
+        <div class="mech-sub">Die Welt, vollständig gelesen.</div>
+        <p><b>128 verifizierte Primärquellen</b>, täglich abgefragt: Patentdatenbanken,
+        Regulierungsorgane, internationale Fachmedien, Forschungs-Pressedienste,
+        graue Literatur. Keine Aggregatoren, kein Scraping — jede Quelle
+        nachvollziehbar.</p>
+      </div>
+      <div class="mech-step reveal">
+        <div class="mech-node"></div>
+        <h3>VERARBEITUNG</h3>
+        <div class="mech-sub">Destillation statt Sammlung.</div>
+        <p>Mehrstufige Klassifikation auf eigener Infrastruktur:
+        <b>Relevanz, Vertikale, PESTEL-Dimension, Mega-Trend-Zuordnung,
+        Deduplizierung.</b> Über 1.500 Signale pro Woche werden gesichtet —
+        durchgelassen wird, was strategisch trägt.</p>
+      </div>
+      <div class="mech-step reveal">
+        <div class="mech-node"></div>
+        <h3>OUTPUT</h3>
+        <div class="mech-sub">Ihr Feed. Ihre Sprache. Ihr Vorsprung.</div>
+        <p>Ein strukturierter, täglicher Signal-Feed plus wöchentliche Synthese —
+        <b>kalibriert auf Ihre Vertikalen, Ihre Watchlist, Ihre Geografie.</b>
+        Auf Deutsch, mit Quellenangabe und Handlungsimpuls je Signal.</p>
+      </div>
+    </div>
+    <div class="methodik-note reveal" id="methodik">
+      <span class="mn-label">METHODIK</span>
+      <p><b>Maschinell vorsortiert, redaktionell kalibriert.</b> Die Klassifikation läuft
+      auf eigener Infrastruktur in Deutschland — kein Signal verlässt das System zur
+      Verarbeitung. Jede Einordnung ist überprüfbar: Quelle, Datum, Taxonomie-Pfad.
+      Was die Maschine nicht sicher entscheiden kann, entscheidet sie nicht.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 04 BEWEIS ======================= -->
+<section id="report">
+  <div class="wrap">
+    <div class="sec-label reveal"><b>03</b>DER BEWEIS</div>
+    <h2 class="reveal">So sieht eine <em>Signal-Einheit</em> aus.</h2>
+    <div class="proof-grid">
+      <div class="proof-text reveal">
+        <p>Kein Testimonial. Kein anonymisiertes Lob. Stattdessen: ein realer Ausschnitt
+        aus einem Signal-Report, wie er Foresight-Teams täglich erreicht.</p>
+        <p>Jede Einheit folgt derselben Anatomie — <b>Kategorie, Signal, Kontext,
+        Quellen, Handlungsimpuls.</b> Informationsdicht genug für eine
+        Vorstandsvorlage, kompakt genug für die Morgenlektüre.</p>
+        <p>Der vollständige Beispiel-Report umfasst zwölf Einheiten einer
+        Kalenderwoche, quer durch die Vertikalen Ihres Zuschnitts —
+        <a href="#angebot" style="color:var(--accent);border-bottom:.5px solid var(--accent)">anfordern, ohne Formularmarathon.</a></p>
+      </div>
+      <div class="report-card reveal">
+        <div class="report-head"><span>SIGNAL-REPORT · AUSZUG</span><span>KW 24 / 2026</span></div>
+        <div class="report-body">
+          <div class="sig-meta">
+            <span class="tag t-reg">REGULIERUNG</span>
+            <span class="sig-time">DI · 06:31 MEZ</span>
+          </div>
+          <div class="report-title">Die Lücke zwischen PQC-Zeitplänen und der realen Umsetzung</div>
+          <div class="report-sec">
+            <h4>KONTEXT</h4>
+            <p>Während NIST die Migrationsfristen für Post-Quanten-Kryptografie konkretisiert,
+            zeigen Implementierungsdaten aus der Halbleiterbranche eine wachsende Lücke zwischen
+            regulatorischem Zeitplan und Unternehmens-Roadmaps. „Harvest now, decrypt later"
+            verschiebt das Risiko in die Gegenwart — relevant für jede Organisation mit
+            Datenbeständen, deren Vertraulichkeit über 2030 hinaus tragen muss.</p>
+          </div>
+          <div class="report-sec">
+            <h4>QUELLEN</h4>
+            <p>EE Times (Primär) · NIST IR 8547 (Sekundär) · Signal-Pfad: Forschung → Fachpresse</p>
+          </div>
+          <div class="report-sec impulse">
+            <h4>HANDLUNGSIMPULS</h4>
+            <p>Krypto-Inventur in der eigenen Lieferkette priorisieren; Beschaffungsrichtlinien
+            um PQC-Klauseln ergänzen. Relevanter Zeithorizont: 12–24 Monate.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 05 ANGEBOT ======================= -->
+<section id="angebot">
+  <div class="wrap">
+    <div class="sec-label reveal"><b>04</b>DER EINSTIEG</div>
+    <h2 class="reveal">Zwei Wege. <em>Ein Ziel.</em></h2>
+    <div class="offer-grid">
+      <div class="offer primary reveal">
+        <div class="offer-intent">DIREKTER WEG</div>
+        <h3>Demo-Gespräch</h3>
+        <p>Dreißig Minuten, Ihr Use-Case, das System live. Wir kalibrieren während des
+        Gesprächs einen Feed auf Ihre Vertikalen — Sie sehen Ihre Branche, nicht
+        unsere Folien. Danach wissen Sie, ob Catandary für Sie arbeitet.</p>
+        <div class="offer-details">
+          <span>30 MIN</span><span>VIDEO-CALL</span><span>LIVE IM SYSTEM</span><span>OHNE VORBEREITUNG</span>
+        </div>
+        <a class="btn btn-primary" href="mailto:foresight@catandary.de?subject=Demo-Gespr%C3%A4ch%20Catandary%20Foresight&body=Guten%20Tag%2C%0A%0Awir%20m%C3%B6chten%20ein%20Demo-Gespr%C3%A4ch%20vereinbaren.%0A%0AUnternehmen%3A%0ARolle%3A%0ARelevante%20Branchen%2FThemen%3A%0ATerminvorschl%C3%A4ge%3A%0A%0AMit%20freundlichen%20Gr%C3%BC%C3%9Fen">DEMO ANFRAGEN</a>
+      </div>
+      <div class="offer reveal">
+        <div class="offer-intent">ERST PRÜFEN</div>
+        <h3>Beispiel-Report</h3>
+        <p>Ein vollständiger Signal-Report einer Kalenderwoche — zwölf Einheiten,
+        echte Signale, echte Quellen, echte Handlungsimpulse. Lesen Sie ihn wie Ihr
+        Team ihn lesen würde. Kein Konto, keine Trial-Mechanik, kein Follow-up-Funnel.</p>
+        <div class="offer-details">
+          <span>PDF</span><span>12 SIGNAL-EINHEITEN</span><span>INNERHALB 24 H</span>
+        </div>
+        <a class="btn btn-ghost" href="mailto:foresight@catandary.de?subject=Beispiel-Report%20anfordern&body=Guten%20Tag%2C%0A%0Abitte%20senden%20Sie%20uns%20den%20Beispiel-Report.%0A%0AUnternehmen%3A%0ARelevante%20Branchen%3A%0A%0AMit%20freundlichen%20Gr%C3%BC%C3%9Fen">REPORT ANFORDERN</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 06 FAQ ======================= -->
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-label reveal"><b>05</b>EINWÄNDE, EHRLICH BEANTWORTET</div>
+    <h2 class="reveal">Was Sie Ihrem Vorstand <em>antworten werden.</em></h2>
+    <div class="faq-list reveal">
+      <details>
+        <summary><span class="faq-n">01</span><span class="faq-q">Womit unterscheidet sich das von Gartner, TrendOne oder einem Trendradar-Projekt?</span><span class="faq-x">+</span></summary>
+        <div class="faq-a">Gartner generalisiert global und taktet in Jahreszyklen. TrendOne kuratiert breit, ohne DACH-Tiefe. Beratungs-Trendradare sind Projekte — nach Abgabe veralten sie. Catandary ist ein <b>laufendes System</b>: täglich verarbeitet, auf Ihre Vertikalen und Geografie kalibriert, mit Patentdaten und Regulierungssignalen, die in keiner Kuratorik auftauchen. Sie kaufen keinen Report. Sie kaufen einen Zeitvorsprung.</div>
+      </details>
+      <details>
+        <summary><span class="faq-n">02</span><span class="faq-q">Wie stellen Sie Qualität sicher, wenn maschinelle Verarbeitung im Spiel ist?</span><span class="faq-x">+</span></summary>
+        <div class="faq-a">Drei Mechanismen: <b>Erstens</b> verarbeitet das System ausschließlich verifizierte Primärquellen — was hineingeht, ist bereits journalistisch oder wissenschaftlich geprüft. <b>Zweitens</b> ist jede Klassifikation konservativ kalibriert: Was die Maschine nicht sicher entscheiden kann, entscheidet sie nicht. <b>Drittens</b> trägt jedes Signal seine Quellenangabe — jede Aussage ist in einem Klick überprüfbar. Sie müssen uns nicht glauben. Sie können nachlesen.</div>
+      </details>
+      <details>
+        <summary><span class="faq-n">03</span><span class="faq-q">Wie viel Arbeit macht das unserem Team?</span><span class="faq-x">+</span></summary>
+        <div class="faq-a">Die Kalibrierung dauert <b>ein Gespräch</b> — Vertikalen, Watchlist-Themen, Geografie. Danach: null Betriebsaufwand. Kein Dashboard, das gepflegt, keine Quellen, die verwaltet, keine Lizenzen, die geschult werden müssen. Der Feed kommt zu Ihrem Team, nicht umgekehrt. Anpassungen erledigt eine E-Mail.</div>
+      </details>
+      <details>
+        <summary><span class="faq-n">04</span><span class="faq-q">Was kostet es?</span><span class="faq-x">+</span></summary>
+        <div class="faq-a">Abhängig vom Zuschnitt — Anzahl der Vertikalen, Mandanten-Konfigurationen, Reporting-Tiefe. Die ehrliche Antwort im Demo-Gespräch dauert fünf Minuten. Als Rahmen: <b>deutlich unter den Kosten eines einzelnen Analysten-Arbeitstags pro Monat</b> — und ein Bruchteil dessen, was Enterprise-Tools mit Jahresvertrag aufrufen.</div>
+      </details>
+      <details>
+        <summary><span class="faq-n">05</span><span class="faq-q">Wo liegen unsere Daten — und was sieht Catandary von uns?</span><span class="faq-x">+</span></summary>
+        <div class="faq-a">Verarbeitung und Hosting auf <b>eigener Infrastruktur in Deutschland.</b> Die Signal-Verarbeitung berührt Ihre Unternehmensdaten nicht — gespeichert werden ausschließlich Firmenname, Ansprechpartner und Empfängeradressen. Ihre Watchlist verlässt das System nicht. AV-Vertrag auf Wunsch, DSGVO-konform ohne Sonderkonstruktion.</div>
+      </details>
+      <details>
+        <summary><span class="faq-n">06</span><span class="faq-q">Wie schnell sind wir produktiv?</span><span class="faq-x">+</span></summary>
+        <div class="faq-a">Beispiel-Report: <b>innerhalb von 24 Stunden.</b> Kalibrierter Feed nach Beauftragung: <b>fünf Werktage</b> bis zur ersten wöchentlichen Synthese, der tägliche Feed läuft ab Tag eins. Es gibt keinen Implementierungsaufwand auf Ihrer Seite — die Zeit ist unsere Kalibrierung, nicht Ihr Projektmanagement.</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= FOOTER ======================= -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <a class="logo" href="#top"><b>CATANDARY</b><span>FORESIGHT</span></a>
+      <div class="foot-links">
+        <a href="#plattform">PLATTFORM</a>
+        <a href="#methodik">METHODIK</a>
+        <a href="#report">BEISPIEL-REPORT</a>
+        <a href="#angebot">DEMO</a>
+      </div>
+      <a class="foot-links" href="mailto:foresight@catandary.de">FORESIGHT@CATANDARY.DE</a>
+    </div>
+    <div class="foot-meta">
+      <span>© 2026 CATANDARY · DEUTSCHLAND</span>
+      <span><a href="https://catandary.de/impressum">IMPRESSUM</a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="https://catandary.de/datenschutz">DATENSCHUTZ</a></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* Seamless stream loop: duplicate the signal set once (50% translateY loop). */
+(function () {
+  var track = document.getElementById("streamTrack");
+  track.innerHTML += track.innerHTML;
+})();
+/* Reveal on scroll — disabled for reduced motion via CSS. */
+(function () {
+  if (!("IntersectionObserver" in window)) {
+    document.querySelectorAll(".reveal").forEach(function (el) { el.classList.add("in"); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
+})();
+</script>
+</body>
+</html>

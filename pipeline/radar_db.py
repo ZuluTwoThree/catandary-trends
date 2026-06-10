@@ -17,15 +17,15 @@ from pipeline.db import get_connection
 
 logger = logging.getLogger(__name__)
 
-VALID_TIERS = ("trial", "basic", "team", "pro", "agency")
+VALID_TIERS = ("trial", "team", "pro", "agency")
 VALID_STATUS = ("active", "paused", "cancelled")
 
 # Per-tier limits enforced at write time. Trials get pro limits so the
 # trial experience matches what most prospects would buy. "alerts" gates
-# the daily watchlist alert emails (Team and up).
+# the daily watchlist alert emails. (A 99-EUR basic tier existed briefly
+# in 2026-06 and was removed; the DB CHECK still tolerates the value.)
 TIER_LIMITS = {
     "trial": {"verticals": 8, "keywords": 30, "recipients": 5, "mandates": 0, "mrr": 0, "alerts": True},
-    "basic": {"verticals": 1, "keywords": 5, "recipients": 1, "mandates": 0, "mrr": 99, "alerts": False},
     "team": {"verticals": 3, "keywords": 15, "recipients": 3, "mandates": 0, "mrr": 249, "alerts": True},
     "pro": {"verticals": 8, "keywords": 30, "recipients": 5, "mandates": 0, "mrr": 490, "alerts": True},
     "agency": {"verticals": 8, "keywords": 30, "recipients": 5, "mandates": 3, "mrr": 890, "alerts": True},

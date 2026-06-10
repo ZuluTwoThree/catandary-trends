@@ -5,7 +5,7 @@
 > Das Trend-Radar sichtet für Beratungen, Agenturen und Innovationsteams im DACH-Raum
 > über 1.500 Trend-Signale pro Woche und kuratiert daraus ihr individuelles Briefing —
 > täglich alarmiert, montags eingeordnet, auf Deutsch, auf Wunsch unter eigener Marke,
-> ab 99 € im Monat.
+> ab 249 € im Monat.
 
 **Messaging-Regel:** Nie die Quellen-*Anzahl* in den Vordergrund stellen (klingt nach wenig),
 immer die Sichtungs-*Leistung*: 1.500+ Signale screenen, bewerten, strategisch einordnen —
@@ -19,7 +19,7 @@ Presseverteilern — niemand hat die Zeit, die zu screenen, zu bewerten und einz
 Genau das tut das Trend-Radar: Es kuratiert daraus Ihr individuelles Briefing für Ihre
 Branchen und Ihre Watchlist, alarmiert Sie täglich bei Treffern und liefert montags die
 Synthese auf Deutsch — auf Wunsch mit Ihrem Logo, sodass Sie es direkt an Ihre Mandanten
-weitergeben. Ab 99 € im Monat, monatlich kündbar, 14 Tage kostenlos testbar."
+weitergeben. Ab 249 € im Monat, monatlich kündbar, 14 Tage kostenlos testbar."
 
 ## Die drei Botschaften (immer in dieser Reihenfolge)
 
@@ -61,8 +61,8 @@ sie durch ein Briefing, das nach Relevanz sortiert und auf Ihre Watchlist geprü
 **„Zu teuer."**
 Rechnen wir: Wie viele Stunden pro Monat verbringt bei Ihnen jemand mit Trend-Sichtung?
 Bei nur einem Tag à 1.500 € kostet die Eigenrecherche das Sechsfache von Radar Team.
-(Falls wirklich kein Budget: auf Basic für 99 € verweisen, nicht rabattieren —
-der Upgrade-Pfad kommt von allein, sobald die Alerts fehlen.)
+(Falls wirklich kein Budget: Jahreszahlung mit −15 % anbieten oder gehen lassen —
+nicht rabattieren. Ein Kunde, der 249 € nicht trägt, trägt auch den Retainer-Pitch nicht.)
 
 **„Ist das nicht nur zusammenkopiert?"**
 Nein — jeder Artikel ist eine eigenständige analytische Einordnung (150–250 Wörter) mit

@@ -164,7 +164,7 @@ def cmd_rotate(args):
 def cmd_mrr(args):
     summary = radar_db.get_mrr_summary()
     print("MRR-Übersicht (aktive Kunden)\n")
-    for tier in ("basic", "team", "pro", "agency", "trial"):
+    for tier in ("team", "pro", "agency", "trial"):
         entry = summary["by_tier"].get(tier)
         if entry:
             print(f"  {tier:<8} {entry['count']:>3} Kunden  {entry['mrr']:>8.0f} €")
@@ -199,7 +199,7 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_add = sub.add_parser("add", help="Zahlenden Kunden anlegen")
-    p_add.add_argument("--tier", required=True, choices=["basic", "team", "pro", "agency"])
+    p_add.add_argument("--tier", required=True, choices=["team", "pro", "agency"])
     _add_config_args(p_add, require_core=True)
 
     p_trial = sub.add_parser("trial", help="14-Tage-Trial anlegen")
@@ -214,14 +214,14 @@ def main():
 
     p_set = sub.add_parser("set", help="Kundenfelder ändern")
     p_set.add_argument("id", type=int)
-    p_set.add_argument("--tier", default=None, choices=["trial", "basic", "team", "pro", "agency"])
+    p_set.add_argument("--tier", default=None, choices=["trial", "team", "pro", "agency"])
     p_set.add_argument("--mrr", type=float, default=None, dest="mrr",
                        help="MRR überschreiben (z.B. Jahresrabatt)")
     _add_config_args(p_set, require_core=False)
 
     p_conv = sub.add_parser("convert", help="Trial in zahlendes Abo umwandeln")
     p_conv.add_argument("id", type=int)
-    p_conv.add_argument("--tier", required=True, choices=["basic", "team", "pro", "agency"])
+    p_conv.add_argument("--tier", required=True, choices=["team", "pro", "agency"])
 
     for name in ("pause", "resume", "cancel"):
         p = sub.add_parser(name)
