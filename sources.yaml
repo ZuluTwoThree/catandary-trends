@@ -1,16 +1,24 @@
 verticals:
   FOOD:
     sources:
+    - name: Guardian Food
+      feed_url: https://www.theguardian.com/food/rss
+      type: trade_media
+      lead_time_tier: now
+    - name: Just Food
+      feed_url: https://www.just-food.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: vegconomist
+      feed_url: https://vegconomist.com/feed/
+      type: trade_media
+      lead_time_tier: market
     - name: FoodNavigator
       feed_url: https://www.foodnavigator.com/arc/outboundfeeds/rss/
       type: trade_media
       lead_time_tier: market
     - name: Food Dive
       feed_url: https://www.fooddive.com/feeds/news/
-      type: trade_media
-      lead_time_tier: market
-    - name: The Spoon
-      feed_url: https://thespoon.tech/feed/
       type: trade_media
       lead_time_tier: market
     - name: BeverageDaily
@@ -25,10 +33,6 @@ verticals:
       feed_url: https://www.nrn.com/rss.xml
       type: trade_media
       lead_time_tier: now
-    - name: Confectionery Production
-      feed_url: https://www.confectioneryproduction.com/feed/
-      type: trade_media
-      lead_time_tier: market
     - name: AgFunderNews
       feed_url: https://agfundernews.com/feed
       type: trade_media
@@ -50,6 +54,10 @@ verticals:
       type: trade_media
       lead_time_tier: market
     science:
+    - name: EFSA News
+      feed_url: https://www.efsa.europa.eu/en/all/rss
+      type: research
+      lead_time_tier: future
     - name: Nature Food
       feed_url: https://www.nature.com/natfood.rss
       type: research
@@ -60,6 +68,22 @@ verticals:
       lead_time_tier: future
   TECH:
     sources:
+    - name: netzpolitik.org
+      feed_url: https://netzpolitik.org/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: NYT Technology
+      feed_url: https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Guardian Technology
+      feed_url: https://www.theguardian.com/technology/rss
+      type: trade_media
+      lead_time_tier: market
+    - name: Hacker News Best
+      feed_url: https://hnrss.org/best
+      type: api
+      lead_time_tier: now
     - name: heise online
       feed_url: https://www.heise.de/rss/heise-atom.xml
       type: trade_media
@@ -133,10 +157,6 @@ verticals:
       feed_url: https://news.mit.edu/rss/feed
       type: research
       lead_time_tier: future
-    - name: arXiv cs.AI
-      feed_url: https://export.arxiv.org/rss/cs.AI
-      type: research
-      lead_time_tier: future
     - name: Nature Machine Intelligence
       feed_url: https://www.nature.com/natmachintell.rss
       type: research
@@ -163,6 +183,18 @@ verticals:
       lead_time_tier: future
   HEALTH:
     sources:
+    - name: NYT Health
+      feed_url: https://rss.nytimes.com/services/xml/rss/nyt/Health.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Fierce Biotech
+      feed_url: https://www.fiercebiotech.com/rss/xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Fierce Pharma
+      feed_url: https://www.fiercepharma.com/rss/xml
+      type: trade_media
+      lead_time_tier: market
     - name: MedTech Dive
       feed_url: https://www.medtechdive.com/feeds/news/
       type: trade_media
@@ -204,6 +236,22 @@ verticals:
       type: trade_media
       lead_time_tier: market
     science:
+    - name: Nature Biotechnology
+      feed_url: https://www.nature.com/nbt.rss
+      type: research
+      lead_time_tier: future
+    - name: The Lancet Current
+      feed_url: https://www.thelancet.com/rssfeed/lancet_current.xml
+      type: research
+      lead_time_tier: future
+    - name: WHO News
+      feed_url: https://www.who.int/rss-feeds/news-english.xml
+      type: research
+      lead_time_tier: future
+    - name: FDA Press
+      feed_url: https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml
+      type: research
+      lead_time_tier: future
     - name: Nature Medicine
       feed_url: https://www.nature.com/nm.rss
       type: research
@@ -230,6 +278,26 @@ verticals:
       lead_time_tier: future
   ECO:
     sources:
+    - name: Euractiv
+      feed_url: https://www.euractiv.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: NYT Climate
+      feed_url: https://rss.nytimes.com/services/xml/rss/nyt/Climate.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Guardian Environment
+      feed_url: https://www.theguardian.com/environment/rss
+      type: trade_media
+      lead_time_tier: market
+    - name: Canary Media
+      feed_url: https://www.canarymedia.com/rss.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Inside Climate News
+      feed_url: https://insideclimatenews.org/feed/
+      type: trade_media
+      lead_time_tier: market
     - name: pv magazine Deutschland
       feed_url: https://www.pv-magazine.de/feed/
       type: trade_media
@@ -279,6 +347,14 @@ verticals:
       type: trade_media
       lead_time_tier: market
     science:
+    - name: Nature Climate Change
+      feed_url: https://www.nature.com/nclimate.rss
+      type: research
+      lead_time_tier: future
+    - name: Nature Energy
+      feed_url: https://www.nature.com/nenergy.rss
+      type: research
+      lead_time_tier: future
     - name: Nature Sustainability
       feed_url: https://www.nature.com/natsustain.rss
       type: research
@@ -301,6 +377,14 @@ verticals:
       lead_time_tier: future
   DESIGN:
     sources:
+    - name: Design Milk
+      feed_url: https://design-milk.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Architectural Record
+      feed_url: https://www.architecturalrecord.com/rss/articles
+      type: trade_media
+      lead_time_tier: market
     - name: Yanko Design
       feed_url: https://www.yankodesign.com/feed/
       type: trade_media
@@ -336,6 +420,18 @@ verticals:
       lead_time_tier: future
   FASHION:
     sources:
+    - name: Guardian Fashion
+      feed_url: https://www.theguardian.com/fashion/rss
+      type: trade_media
+      lead_time_tier: now
+    - name: Ecotextile News
+      feed_url: https://www.ecotextile.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: TextilWirtschaft
+      feed_url: https://www.textilwirtschaft.de/news/feed/
+      type: trade_media
+      lead_time_tier: market
     - name: Business of Fashion
       feed_url: https://www.businessoffashion.com/feed/
       type: trade_media
@@ -363,6 +459,46 @@ verticals:
       lead_time_tier: future
   BIZ:
     sources:
+    - name: DW Wirtschaft
+      feed_url: https://rss.dw.com/xml/rss-de-eco
+      type: trade_media
+      lead_time_tier: market
+    - name: Tagesschau Wirtschaft
+      feed_url: https://www.tagesschau.de/wirtschaft/index~rss2.xml
+      type: trade_media
+      lead_time_tier: now
+    - name: Axios
+      feed_url: https://api.axios.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Politico Europe
+      feed_url: https://www.politico.eu/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: NYT Business
+      feed_url: https://rss.nytimes.com/services/xml/rss/nyt/Business.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Guardian Business
+      feed_url: https://www.theguardian.com/business/rss
+      type: trade_media
+      lead_time_tier: market
+    - name: Supply Chain Dive
+      feed_url: https://www.supplychaindive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: Marketing Dive
+      feed_url: https://www.marketingdive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: EU-Startups
+      feed_url: https://www.eu-startups.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: WirtschaftsWoche
+      feed_url: https://www.wiwo.de/contentexport/feed/rss/schlagzeilen
+      type: trade_media
+      lead_time_tier: market
     - name: Handelsblatt Schlagzeilen
       feed_url: https://www.handelsblatt.com/contentexport/feed/schlagzeilen
       type: trade_media
@@ -415,12 +551,29 @@ verticals:
       feed_url: https://asiatimes.com/feed/
       type: trade_media
       lead_time_tier: market
-    - name: The Japan News
-      feed_url: https://japannews.yomiuri.co.jp/feed/
-      type: trade_media
-      lead_time_tier: market
+    science:
+    - name: Project Syndicate
+      feed_url: https://www.project-syndicate.org/rss
+      type: research
+      lead_time_tier: future
   LIFESTYLE:
     sources:
+    - name: Guardian Culture
+      feed_url: https://www.theguardian.com/culture/rss
+      type: trade_media
+      lead_time_tier: now
+    - name: Hollywood Reporter
+      feed_url: https://www.hollywoodreporter.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Tubefilter
+      feed_url: https://www.tubefilter.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Music Business Worldwide
+      feed_url: https://www.musicbusinessworldwide.com/feed/
+      type: trade_media
+      lead_time_tier: market
     - name: Variety
       feed_url: https://variety.com/feed/
       type: trade_media
@@ -485,6 +638,11 @@ verticals:
       feed_url: https://restofworld.org/feed/latest
       type: trade_media
       lead_time_tier: future
+    science:
+    - name: Nature Human Behaviour
+      feed_url: https://www.nature.com/nathumbehav.rss
+      type: research
+      lead_time_tier: future
 cross_industry:
   press_wires:
   - name: PR Newswire
@@ -496,6 +654,22 @@ cross_industry:
     type: press_wire
     lead_time_tier: market
   science:
+  - name: DW Wissenschaft
+    feed_url: https://rss.dw.com/xml/rss-de-wissenschaft
+    type: research
+    lead_time_tier: future
+  - name: NYT Science
+    feed_url: https://rss.nytimes.com/services/xml/rss/nyt/Science.xml
+    type: research
+    lead_time_tier: future
+  - name: The Conversation
+    feed_url: https://theconversation.com/articles.atom
+    type: research
+    lead_time_tier: future
+  - name: EU Parliament Press
+    feed_url: https://www.europarl.europa.eu/rss/doc/press-releases/en.xml
+    type: research
+    lead_time_tier: future
   - name: idw Pressemitteilungen
     feed_url: https://idw-online.de/pages/de/pressreleasesrss
     type: research
