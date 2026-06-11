@@ -1,79 +1,75 @@
-#!/usr/bin/env python3
-"""Trendhunter Radar Discovery Pipeline.
+"""Brave Search Radar — discovery layer for signals outside the RSS network.
 
-Processes Trendhunter RSS feed entries to discover original brand sources:
-1. Extract brand name from RSS title via LLM
-2. Search for original source via Brave Search
-3. Log discovery with domain info
-4. Track domain frequency for potential RSS source addition
+Runs curated search queries per vertical (sources.yaml -> radar:), filters
+results for trend relevance with the local LLM, and feeds hits into
+raw_entries where the regular llm_processor picks them up. Discovered
+domains are tracked; after 3+ hits a domain becomes an RSS-onboarding
+candidate (organic source growth).
 
-Radar entries without a found original source are NOT passed to the LLM pipeline.
+Usage:
+    python -m pipeline.radar_discovery                 # all verticals, past week
+    python -m pipeline.radar_discovery --vertical FOOD # single vertical
+    python -m pipeline.radar_discovery --dry-run       # no DB writes, no LLM
+    python -m pipeline.radar_discovery --backfill      # freshness: past month
+
+Cron: daily 08:00 (normal), Sunday 10:00 with --backfill.
+Budget: 32 queries/day (~960/month, Brave free tier: 2,000).
 """
 
+import argparse
 import logging
-import sys
 import time
 from urllib.parse import urlparse
 
 import httpx
 
-from pipeline.config import BRAVE_SEARCH_API_KEY, LOG_LEVEL, MODEL_FILTER, load_sources
-from pipeline.db import (
-    get_connection,
-    get_discovery_count,
-    init_db,
-    insert_source_discovery,
+from pipeline import db
+from pipeline.config import (
+    BRAVE_SEARCH_API_KEY,
+    LOG_LEVEL,
+    MODEL_FILTER,
+    load_sources,
 )
 from pipeline.ollama_client import chat
 
-logging.basicConfig(
-    level=LOG_LEVEL,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-BRAND_EXTRACT_SYSTEM = """\
-You extract brand or company names from article titles.
-Return ONLY the brand/company name, nothing else.
-If no brand is identifiable, return "UNKNOWN".
-Do not add quotes or punctuation."""
+BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
+RESULTS_PER_QUERY = 10
+RATE_LIMIT_SECONDS = 1.1  # free tier: 1 req/s
+DOMAIN_PROMOTION_THRESHOLD = 3
 
-KEYWORD_EXTRACT_SYSTEM = """\
-Extract 2-4 search keywords from this article title.
-Return ONLY the keywords separated by spaces, nothing else.
-Omit the brand name. Focus on the product, technology, or trend described."""
-
-# Domains to skip when looking for original sources
+# Aggregators, socials and platforms we never ingest from.
 SKIP_DOMAINS = {
-    "trendhunter.com",
-    "www.trendhunter.com",
-    "twitter.com",
-    "x.com",
-    "facebook.com",
-    "instagram.com",
-    "linkedin.com",
-    "youtube.com",
-    "reddit.com",
-    "pinterest.com",
-    "tiktok.com",
-    "wikipedia.org",
-    "en.wikipedia.org",
-    "amazon.com",
+    "trendhunter.com", "springwise.com", "trendwatching.com",
+    "youtube.com", "reddit.com", "pinterest.com", "tiktok.com",
+    "facebook.com", "instagram.com", "x.com", "twitter.com",
+    "linkedin.com", "medium.com", "substack.com",
+    "wikipedia.org", "en.wikipedia.org", "amazon.com",
+    "google.com", "news.google.com", "msn.com", "yahoo.com",
 }
 
-BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
+RELEVANCE_SYSTEM = (
+    "You are a trend-signal filter for a cross-industry trend intelligence "
+    "platform. Given a search result (title + snippet) and an industry "
+    "vertical, answer with exactly one word: YES if it describes a concrete, "
+    "recent trend signal (product launch, research finding, market shift, "
+    "funding, regulation, consumer behavior) relevant to that vertical — "
+    "NO otherwise (listicles, evergreen guides, job ads, pure opinion, ads)."
+)
 
 
-def brave_search(query: str, count: int = 5) -> list[dict]:
-    """Search Brave and return list of {title, url, description}."""
+def brave_search(query: str, count: int = RESULTS_PER_QUERY,
+                 freshness: str = "pw") -> list[dict]:
+    """Search Brave and return [{title, url, description}]. freshness: pd/pw/pm/py."""
     if not BRAVE_SEARCH_API_KEY:
         logger.warning("BRAVE_SEARCH_API_KEY not set, skipping web search")
         return []
-
     try:
         resp = httpx.get(
             BRAVE_SEARCH_URL,
-            params={"q": query, "count": count},
+            params={"q": query, "count": count, "freshness": freshness},
             headers={
                 "Accept": "application/json",
                 "Accept-Encoding": "gzip",
@@ -83,199 +79,157 @@ def brave_search(query: str, count: int = 5) -> list[dict]:
         )
         resp.raise_for_status()
         data = resp.json()
-        results = []
-        for item in data.get("web", {}).get("results", []):
-            results.append({
+        return [
+            {
                 "title": item.get("title", ""),
                 "url": item.get("url", ""),
                 "description": item.get("description", ""),
-            })
-        return results
-    except Exception as e:
-        logger.error("Brave search failed for '%s': %s", query[:60], e)
+            }
+            for item in data.get("web", {}).get("results", [])
+        ]
+    except Exception as exc:
+        logger.error("brave search failed for '%s': %s", query[:60], exc)
         return []
 
 
-def find_original_source(brand: str, title: str) -> dict | None:
-    """Search for the original source of a Trendhunter radar entry.
-
-    Returns {url, domain, title} of the best primary source, or None.
-    """
-    # Build search query: brand + keywords from title
-    keywords = chat(
-        model=MODEL_FILTER,
-        prompt=f"Extract search keywords from this title:\n\n{title}",
-        system=KEYWORD_EXTRACT_SYSTEM,
-        temperature=0.0,
-    ).strip()
-
-    query = f'"{brand}" {keywords}'
-    results = brave_search(query)
-
-    if not results:
-        # Fallback: search with just the title
-        results = brave_search(title)
-
-    # Find first result that's not TH or social media
-    for result in results:
-        domain = urlparse(result["url"]).netloc.replace("www.", "")
-        if domain not in SKIP_DOMAINS:
-            return {
-                "url": result["url"],
-                "domain": domain,
-                "title": result["title"],
-            }
-
-    return None
+def domain_of(url: str) -> str:
+    netloc = urlparse(url).netloc.lower()
+    return netloc.removeprefix("www.")
 
 
-def extract_brand_from_title(title: str) -> str:
-    """Use LLM to extract brand/company name from a Trendhunter RSS title."""
-    prompt = f"Extract the brand or company name from this title:\n\n{title}"
-    result = chat(
-        model=MODEL_FILTER,
-        prompt=prompt,
-        system=BRAND_EXTRACT_SYSTEM,
-        temperature=0.0,
+def url_exists(url: str) -> bool:
+    with db.get_connection() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM raw_entries WHERE url = ? LIMIT 1", (url,)
+        ).fetchone()
+    return row is not None
+
+
+def ensure_radar_source(vertical: str) -> int:
+    """Get or create the per-vertical radar source row."""
+    return db.upsert_source(
+        name=f"Brave Radar — {vertical}",
+        feed_url=f"brave-radar://{vertical.lower()}",
+        source_type="radar",
+        vertical=vertical,
     )
-    brand = result.strip().strip('"').strip("'")
-    return brand if brand and brand != "UNKNOWN" else ""
 
 
-def get_radar_entries(vertical: str) -> list[dict]:
-    """Get unprocessed radar entries for a vertical from the database."""
-    with get_connection() as conn:
+def is_relevant(title: str, description: str, vertical: str) -> bool:
+    prompt = (f"Vertical: {vertical}\nTitle: {title}\nSnippet: {description}\n\n"
+              f"Trend signal for this vertical? Answer YES or NO.")
+    try:
+        answer = chat(MODEL_FILTER, prompt, system=RELEVANCE_SYSTEM)
+    except Exception as exc:
+        logger.error("relevance filter failed: %s", exc)
+        return False
+    return (answer or "").strip().upper().startswith("YES")
+
+
+def process_query(vertical: str, query: str, source_id: int | None,
+                  freshness: str, dry_run: bool) -> dict:
+    stats = {"results": 0, "skipped_domain": 0, "duplicates": 0,
+             "irrelevant": 0, "inserted": 0}
+    results = brave_search(query, freshness=freshness)
+    stats["results"] = len(results)
+    for r in results:
+        url, title, desc = r["url"], r["title"], r["description"]
+        if not url or not title:
+            continue
+        domain = domain_of(url)
+        if any(domain == d or domain.endswith("." + d) for d in SKIP_DOMAINS):
+            stats["skipped_domain"] += 1
+            continue
+        if url_exists(url):
+            stats["duplicates"] += 1
+            continue
+        if dry_run:
+            # no LLM, no writes — show what would be considered
+            stats["inserted"] += 1
+            print(f"    [dry-run] {domain:<28} {title[:70]}")
+            continue
+        if not is_relevant(title, desc, vertical):
+            stats["irrelevant"] += 1
+            continue
+        entry_id = db.insert_raw_entry(source_id, url, title, desc)
+        if entry_id is None:
+            stats["duplicates"] += 1
+            continue
+        stats["inserted"] += 1
+        db.insert_source_discovery({
+            "radar_source": "brave_search",
+            "radar_vertical": vertical,
+            "original_title": title,
+            "discovered_url": url,
+            "discovered_domain": domain,
+        })
+    return stats
+
+
+def report_domain_promotions() -> list[tuple[str, int]]:
+    """Domains discovered 3+ times that are not yet RSS sources."""
+    with db.get_connection() as conn:
         rows = conn.execute(
-            """SELECT re.id, re.url, re.title, re.excerpt, s.vertical
-            FROM raw_entries re
-            JOIN sources s ON re.source_id = s.id
-            WHERE s.source_type = 'radar'
-            AND s.vertical = ?
-            AND re.processed = 0
-            AND re.filtered_out = 0
-            ORDER BY re.fetched_at ASC
-            LIMIT 100""",
-            (vertical,),
+            """SELECT discovered_domain, COUNT(*) AS cnt
+               FROM source_discoveries
+               WHERE radar_source = 'brave_search'
+                 AND COALESCE(added_to_sources, 0) = 0
+                 AND discovered_domain IS NOT NULL
+               GROUP BY discovered_domain
+               HAVING cnt >= ?
+               ORDER BY cnt DESC""",
+            (DOMAIN_PROMOTION_THRESHOLD,),
         ).fetchall()
-        return [dict(row) for row in rows]
+    return [(r["discovered_domain"], r["cnt"]) for r in rows]
 
 
-def process_radar_entry(entry: dict) -> dict | None:
-    """Process a single radar entry to discover the source."""
-    title = entry["title"]
-    url = entry["url"]
-    vertical = entry["vertical"]
+def main():
+    parser = argparse.ArgumentParser(description="Brave Search Radar")
+    parser.add_argument("--vertical", help="nur diese Vertikale (z.B. FOOD)")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Queries + Kandidaten zeigen, kein LLM, keine DB-Writes")
+    parser.add_argument("--backfill", action="store_true",
+                        help="freshness=pm (Monat) statt pw (Woche)")
+    args = parser.parse_args()
 
-    # Extract brand name
-    brand = extract_brand_from_title(title)
-    if not brand:
-        logger.info("No brand found in: %s", title[:80])
-        return None
+    radar_config = load_sources().get("radar", {})
+    if not radar_config:
+        logger.error("kein radar: Abschnitt in sources.yaml")
+        return
+    if args.vertical:
+        vertical = args.vertical.upper()
+        if vertical not in radar_config:
+            logger.error("keine Radar-Queries für %s", vertical)
+            return
+        radar_config = {vertical: radar_config[vertical]}
 
-    # Search for original source
-    original = find_original_source(brand, title)
+    freshness = "pm" if args.backfill else "pw"
+    totals: dict[str, int] = {}
+    for vertical, queries in radar_config.items():
+        source_id = None if args.dry_run else ensure_radar_source(vertical)
+        print(f"\n{vertical} ({len(queries)} Queries, freshness={freshness})")
+        for query in queries:
+            stats = process_query(vertical, query, source_id, freshness, args.dry_run)
+            print(f"  '{query[:50]}': {stats['results']} Treffer, "
+                  f"{stats['inserted']} neu, {stats['duplicates']} Duplikate, "
+                  f"{stats['irrelevant']} irrelevant, {stats['skipped_domain']} geblockt")
+            for key, val in stats.items():
+                totals[key] = totals.get(key, 0) + val
+            time.sleep(RATE_LIMIT_SECONDS)
 
-    discovered_url = original["url"] if original else url
-    discovered_domain = original["domain"] if original else urlparse(url).netloc
+    print(f"\nRadar-Lauf: {totals.get('results', 0)} Ergebnisse | "
+          f"{totals.get('inserted', 0)} neue raw_entries | "
+          f"{totals.get('duplicates', 0)} Duplikate | "
+          f"{totals.get('irrelevant', 0)} irrelevant | "
+          f"{totals.get('skipped_domain', 0)} geblockte Domains")
 
-    discovery = {
-        "radar_source": "trendhunter",
-        "radar_vertical": vertical,
-        "original_title": title,
-        "extracted_brand": brand,
-        "discovered_url": discovered_url,
-        "discovered_domain": discovered_domain,
-        "has_rss_feed": False,
-    }
-
-    discovery_id = insert_source_discovery(discovery)
-    count = get_discovery_count(discovered_domain)
-
-    if original:
-        logger.info(
-            "Found original source for '%s': %s (domain: %s, seen %d times)",
-            brand, original["url"][:80], discovered_domain, count,
-        )
-
-        # Update the raw_entry URL to point to the original source
-        with get_connection() as conn:
-            conn.execute(
-                "UPDATE raw_entries SET url = ? WHERE id = ?",
-                (original["url"], entry["id"]),
-            )
-    else:
-        logger.warning(
-            "No original source found for '%s' (%s) — filtering out",
-            brand, title[:60],
-        )
-        # Filter out entries where we can't find the original source
-        with get_connection() as conn:
-            conn.execute(
-                "UPDATE raw_entries SET filtered_out = 1, filter_reason = 'no_original_source' WHERE id = ?",
-                (entry["id"],),
-            )
-
-    if count >= 3:
-        logger.info(
-            "Domain %s seen %d times — candidate for direct RSS source",
-            discovered_domain, count,
-        )
-
-    return discovery
-
-
-def run_radar(verticals: list[str] | None = None):
-    """Run the radar discovery pipeline."""
-    init_db()
-    sources_config = load_sources()
-
-    total_discovered = 0
-    total_processed = 0
-    total_found = 0
-
-    for vertical, config in sources_config.get("verticals", {}).items():
-        if verticals and vertical not in verticals:
-            continue
-
-        if not config.get("radar"):
-            continue
-
-        entries = get_radar_entries(vertical)
-        if not entries:
-            logger.info("%s: no unprocessed radar entries", vertical)
-            continue
-
-        logger.info("%s: processing %d radar entries", vertical, len(entries))
-
-        for entry in entries:
-            total_processed += 1
-            result = process_radar_entry(entry)
-            if result:
-                total_discovered += 1
-                if result["discovered_domain"] != "www.trendhunter.com":
-                    total_found += 1
-
-            # Mark as processed
-            with get_connection() as conn:
-                conn.execute(
-                    "UPDATE raw_entries SET processed = 1 WHERE id = ?",
-                    (entry["id"],),
-                )
-
-            # Rate limit: Brave free plan = 1 req/sec
-            time.sleep(1.1)
-
-    logger.info(
-        "Radar complete: %d processed, %d brands discovered, %d original sources found",
-        total_processed, total_discovered, total_found,
-    )
-    return {
-        "processed": total_processed,
-        "discovered": total_discovered,
-        "original_sources_found": total_found,
-    }
+    if not args.dry_run:
+        promotions = report_domain_promotions()
+        if promotions:
+            print("\nDomain-Kandidaten für RSS-Onboarding (3+ Treffer):")
+            for domain, cnt in promotions:
+                print(f"  {domain}  ({cnt} Treffer)  -> RSS-Feed prüfen, dann sources.yaml")
 
 
 if __name__ == "__main__":
-    target_verticals = sys.argv[1:] if len(sys.argv) > 1 else None
-    run_radar(target_verticals)
+    main()

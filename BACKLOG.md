@@ -1,26 +1,49 @@
 # Catandary Trends — Backlog
 
-## Quellenausbau Trend-Radar (Ziel: 300+ Quellen, Stand 2026-06-10: 128)
+## Quellenausbau Trend-Radar (Ziel: 3.000 relevante Signale/Woche; Stand 2026-06-11: 171 Feeds)
 
-Phase 1 (RSS-Tranche 1) erledigt 2026-06-10: +18 verifizierte Feeds (heise, Golem, MIT News,
-arXiv cs.AI, MedTech Dive, Ärzteblatt, pv magazine DE, CleanThinking, Electrek, Yanko Design,
-Handelsblatt, HBR, Sifted, OMR, Variety, PocketGamer.biz, idw Pressemitteilungen [~350 Einträge!],
-Fraunhofer Presse). Methodik: Kandidaten-Verify per httpx+feedparser, Feed-Discovery über
-`<link rel="alternate">` im HTML wenn URL unbekannt.
+**Tranche 1 (2026-06-10):** +18 Feeds (heise, Golem, idw [~350/Woche], MIT News, Handelsblatt, …).
+**Tranche 2+3 (2026-06-11):** +47 Qualitätsfeeds — Forschung/Regulierung (FDA, EFSA, WHO,
+EU-Parlament, The Conversation [~430/Woche], Nature-Journals, Lancet), DACH (TextilWirtschaft,
+WiWo, Tagesschau, netzpolitik, Ärzteblatt), Qualitätssektionen (Guardian, NYT, Politico, Euractiv),
+Fachpresse (Fierce Biotech/Pharma, Industry-Dive-Familie, Just Food, vegconomist).
+**Gepruned:** The Spoon (4 % Relevanz-Pass), Confectionery Production (286 d stale),
+The Japan News, arXiv cs.AI (Roh-Paper-Firehose, nicht kundentauglich).
+**Brave-Radar-Rewrite: erledigt 2026-06-11** — `pipeline/radar_discovery.py` neu, 32 kuratierte
+Queries in `sources.yaml` (`radar:`), LLM-Relevanzfilter, Domain-Promotion ab 3 Treffern,
+`--dry-run/--vertical/--backfill`, Tests gemockt. Braucht `BRAVE_SEARCH_API_KEY` im Betrieb.
 
-- [ ] **RSS-Tranche 2:** Helmholtz, Max-Planck (RSS-URLs via Site-Suche/idw abdeckbar), Baunetz,
-  TextilWirtschaft, FashionUnited (HTTP 422 — ggf. User-Agent-Problem), BCG (403 — Header testen),
-  Roland Berger, EurekAlert (kein `<link>`-Tag — RSS-Seite manuell prüfen), weitere DACH-Fachpresse
-  je Vertikale (Ziel +30–50).
-- [ ] **Freie APIs (Phase 2):** EU CORDIS (Forschungsförderung → Future-Signale),
+**Messmethodik:** `scripts/source_quality_report.py` misst reale Wochenfrequenz aus Feed-Timestamps
++ Aktualität. Wichtig: Span-Schätzungen überschießen die tatsächliche Pipeline-Aufnahme um ~2,7×
+(Kalibrierung gegen DB-Ground-Truth 1.754 raw/Woche für den Altbestand; Faktor 0,37 — enthält
+allerdings auch Polling-Lücken des Batch-Betriebs, im Cron-Dauerbetrieb liegt der Faktor höher).
+Pass-Raten aus DB: research 79,5 %, trade_media 56,8 %, press_wire 23,3 %.
+
+**Projektion relevante Signale/Woche (Stand 2026-06-11):**
+| Szenario | raw/Woche | relevant/Woche |
+|---|---|---|
+| Kalibriert konservativ (Faktor 0,37, ohne Radar) | ~3.250 | ~2.000 |
+| Unkalibriert (gedeckelte Span-Raten) | ~8.800 | ~5.300 |
+| + Brave Radar (32 Queries, nach Dedup/Filter) | +300–800 | +200–500 |
+
+→ Realistischer Korridor im Cron-Dauerbetrieb: **2.500–3.500 relevant/Woche.**
+
+- [ ] **Produktions-Verifikation (nach 14 Tagen Cron-Betrieb):** tatsächliche relevant/Woche messen:
+  `SELECT COUNT(*)/2 FROM raw_entries WHERE processed=1 AND filtered_out=0 AND fetched_at >= datetime('now','-14 days')`.
+  Liegt der Wert <3.000: Tranche 4 starten + Radar-Queries auf 40/Tag erhöhen.
+- [ ] **Tranche-4-Kandidaten:** Helmholtz/Max-Planck (über idw teilabgedeckt), Baunetz,
+  FashionUnited (HTTP 422), BCG (403 — Header testen), Roland Berger, EurekAlert (öffentliche
+  RSS offenbar eingestellt), EMA (Timeout), WEF/IEA/Agora (404, URLs neu suchen),
+  Cell-Press-Journals, weitere The-Conversation-Editionen.
+- [ ] **Freie APIs:** EU CORDIS (Forschungsförderung → Future-Signale),
   EPO OPS / DPMA (Patente → `trend_signal_type='patent'` existiert, wird nie befüllt),
   EUR-Lex / EU-Kommission Presse (Regulatorik → PESTEL P/L stärken: aktuell nur 286/499 Trends),
-  Reddit API + Hacker News (in CLAUDE.md vorgesehen, nie angebunden).
-- [ ] **Phase 3:** Brave-Radar-Rewrite (Plan unten), Google Trends via pytrends als
-  Momentum-Validierung.
+  Reddit API. Google Trends via pytrends als Momentum-Validierung.
 - [ ] **Durchsatz-Schutz:** Ab ~250 Quellen Embedding-/Keyword-Prefilter vor dem LLM-Relevanz-Filter
-  erwägen, um GPU-Zeit <1 h/Tag zu halten. idw + arXiv sind Volumen-Treiber (je 350–400
-  Einträge/Abruf) — ggf. Kategorie-Filter auf Feed-Ebene.
+  erwägen, um GPU-Zeit <1,5 h/Tag zu halten. idw + The Conversation sind die Volumen-Treiber —
+  ggf. Kategorie-Filter auf Feed-Ebene.
+- [ ] **MobiHealthNews / Healthcare IT News:** liefern HTTP 403 (Bot-Schutz?) — Poller-UA prüfen,
+  sonst ersetzen.
 
 ## Pipeline-Optimierung
 
@@ -83,7 +106,7 @@ Fraunhofer Presse). Methodik: Kandidaten-Verify per httpx+feedparser, Feed-Disco
   - **Option C (Cron-Kette):** Separate Cron-Jobs mit Zeitversatz (z.B. Poll 00:00, LLM 00:30, Auto-Publish 08:00, Review-Report per Mail).
   - Bevorzugt: **Option B** — ein einziger Cron-Eintrag, ein Report, keine Timing-Abhängigkeiten.
 
-- [ ] **Brave Search Radar Pipeline — Rewrite von `pipeline/radar_discovery.py`.** Aktuelle Datei (281 Zeilen) enthält obsoleten Trendhunter-Workflow. Komplett-Rewrite zu eigenständigem Brave Search Radar mit kuratierten Queries pro Vertikale.
+- [x] ~~**Brave Search Radar Pipeline — Rewrite von `pipeline/radar_discovery.py`.**~~ Erledigt 2026-06-11 nach diesem Plan (32 Queries in `sources.yaml`, Tests in `tests/test_radar_discovery.py`, siehe Quellenausbau-Abschnitt oben). Ursprünglicher Plan:
   - **Schritt 1: `sources.yaml` erweitern.** Pro Vertikale ein `radar:` Abschnitt mit 3-5 kuratierten Suchqueries (z.B. FOOD: `"food innovation trends 2026"`, `"novel food ingredients startup"`, `"functional food market shift"`). Ergibt ~24-40 Queries/Tag.
   - **Schritt 2: `radar_discovery.py` neu schreiben.** Behalten: `brave_search()` Funktion (Zeilen 67-96), nur `freshness` Parameter ergänzen. Alles andere ersetzen:
     1. `sources.yaml` → `radar:` Queries laden

@@ -710,3 +710,47 @@ cross_industry:
     feed_url: https://www.pnas.org/action/showFeed?type=etoc&feed=rss&jc=pnas
     type: research
     lead_time_tier: future
+
+# Brave Search Radar — kuratierte Discovery-Queries pro Vertikale.
+# Budget: 32 Queries/Tag (~960/Monat, Free Tier 2.000). freshness=pw (Woche).
+radar:
+  FOOD:
+    - food industry innovation announcement
+    - novel food ingredient launch
+    - foodtech startup funding round
+    - functional food consumer trend
+  TECH:
+    - emerging technology breakthrough announcement
+    - enterprise AI adoption shift
+    - robotics commercialization milestone
+    - semiconductor supply chain shift
+  HEALTH:
+    - digital health product launch
+    - longevity research breakthrough
+    - biotech clinical trial milestone
+    - consumer wellness trend shift
+  ECO:
+    - circular economy initiative launch
+    - clean energy technology milestone
+    - carbon capture commercialization
+    - sustainable packaging innovation
+  DESIGN:
+    - architecture innovation project unveiled
+    - industrial design award winner
+    - biophilic design adoption
+    - modular construction milestone
+  FASHION:
+    - fashion sustainability innovation
+    - beauty tech product launch
+    - textile material innovation
+    - luxury consumer behavior shift
+  BIZ:
+    - retail innovation rollout
+    - fintech product launch europe
+    - d2c brand strategy shift
+    - supply chain technology adoption
+  LIFESTYLE:
+    - creator economy platform shift
+    - gaming industry market trend
+    - travel experience innovation
+    - sports tech adoption trend
