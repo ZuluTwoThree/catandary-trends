@@ -9,10 +9,6 @@ verticals:
       feed_url: https://www.fooddive.com/feeds/news/
       type: trade_media
       lead_time_tier: market
-    - name: The Spoon
-      feed_url: https://thespoon.tech/feed/
-      type: trade_media
-      lead_time_tier: market
     - name: BeverageDaily
       feed_url: https://www.beveragedaily.com/arc/outboundfeeds/rss/
       type: trade_media
@@ -33,10 +29,6 @@ verticals:
       feed_url: https://www.nrn.com/rss.xml
       type: trade_media
       lead_time_tier: now
-    - name: Confectionery Production
-      feed_url: https://www.confectioneryproduction.com/feed/
-      type: trade_media
-      lead_time_tier: market
     - name: AgFunderNews
       feed_url: https://agfundernews.com/feed
       type: trade_media
@@ -71,6 +63,26 @@ verticals:
       lead_time_tier: market
     - name: Food Safety News
       feed_url: https://www.foodsafetynews.com/feed
+      type: trade_media
+      lead_time_tier: market
+    - name: Food Manufacture
+      feed_url: https://www.foodmanufacture.co.uk/arc/outboundfeeds/rss/
+      type: trade_media
+      lead_time_tier: market
+    - name: Grocery Dive
+      feed_url: https://www.grocerydive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: Guardian Food
+      feed_url: https://www.theguardian.com/food/rss
+      type: trade_media
+      lead_time_tier: now
+    - name: Just Food
+      feed_url: https://www.just-food.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: vegconomist
+      feed_url: https://vegconomist.com/feed/
       type: trade_media
       lead_time_tier: market
     science:
@@ -108,6 +120,10 @@ verticals:
       lead_time_tier: future
     - name: Nature Biotechnology
       feed_url: https://www.nature.com/nbt/rss
+      type: research
+      lead_time_tier: future
+    - name: EFSA News
+      feed_url: https://www.efsa.europa.eu/en/all/rss
       type: research
       lead_time_tier: future
   TECH:
@@ -172,6 +188,26 @@ verticals:
       feed_url: https://console.kr-asia.com/feed
       type: trade_media
       lead_time_tier: market
+    - name: NYT Technology
+      feed_url: https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Guardian Technology
+      feed_url: https://www.theguardian.com/technology/rss
+      type: trade_media
+      lead_time_tier: market
+    - name: Hacker News Best
+      feed_url: https://hnrss.org/best
+      type: api
+      lead_time_tier: now
+    - name: heise online
+      feed_url: https://www.heise.de/rss/heise-atom.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Golem
+      feed_url: https://rss.golem.de/rss.php?feed=RSS2.0
+      type: trade_media
+      lead_time_tier: market
     science:
     - name: Nature Machine Intelligence
       feed_url: https://www.nature.com/natmachintell.rss
@@ -201,9 +237,13 @@ verticals:
       feed_url: https://rss.arxiv.org/rss/cs.AI
       type: research
       lead_time_tier: future
-      active: false  # Paused — 323 entries/day floods pipeline, 16% of all raw entries
+      active: false
     - name: Science Robotics
       feed_url: https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=scirobotics
+      type: research
+      lead_time_tier: future
+    - name: MIT News
+      feed_url: https://news.mit.edu/rss/feed
       type: research
       lead_time_tier: future
   HEALTH:
@@ -213,6 +253,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: MobiHealthNews
+      active: false  # 2026-06-12: 403/Timeout von Mac-IP; Ersatz vorhanden, vom Prod-System ggf. reaktivieren
       feed_url: https://www.mobihealthnews.com/feed
       type: trade_media
       lead_time_tier: market
@@ -237,7 +278,36 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Healthcare IT News
+      active: false  # 2026-06-12: 403/Timeout von Mac-IP; Ersatz vorhanden, vom Prod-System ggf. reaktivieren
       feed_url: https://www.healthcareitnews.com/feed
+      type: trade_media
+      lead_time_tier: market
+    - name: NYT Health
+      feed_url: https://rss.nytimes.com/services/xml/rss/nyt/Health.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Fierce Biotech
+      feed_url: https://www.fiercebiotech.com/rss/xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Fierce Pharma
+      feed_url: https://www.fiercepharma.com/rss/xml
+      type: trade_media
+      lead_time_tier: market
+    - name: MedTech Dive
+      feed_url: https://www.medtechdive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: Deutsches Ärzteblatt
+      feed_url: https://www.aerzteblatt.de/rss/news
+      type: trade_media
+      lead_time_tier: market
+    - name: Healthcare Dive
+      feed_url: https://www.healthcaredive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: MedCity News
+      feed_url: https://medcitynews.com/feed/
       type: trade_media
       lead_time_tier: market
     science:
@@ -270,9 +340,18 @@ verticals:
       type: research
       lead_time_tier: future
     - name: BMJ
+      active: false  # 2026-06-12: 403/Timeout von Mac-IP; Ersatz vorhanden, vom Prod-System ggf. reaktivieren
       feed_url: https://www.bmj.com/rss/recent.xml
       type: research
       lead_time_tier: future
+    - name: WHO News
+      feed_url: https://www.who.int/rss-feeds/news-english.xml
+      type: research
+      lead_time_tier: future
+    - name: Drug Discovery Trends
+      feed_url: https://www.drugdiscoverytrends.com/feed/
+      type: trade_media
+      lead_time_tier: market
   ECO:
     sources:
     - name: CleanTechnica
@@ -315,6 +394,38 @@ verticals:
       feed_url: https://www.modernfarmer.com/feed/
       type: trade_media
       lead_time_tier: market
+    - name: Euractiv
+      feed_url: https://www.euractiv.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: NYT Climate
+      feed_url: https://rss.nytimes.com/services/xml/rss/nyt/Climate.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Guardian Environment
+      feed_url: https://www.theguardian.com/environment/rss
+      type: trade_media
+      lead_time_tier: market
+    - name: Canary Media
+      feed_url: https://www.canarymedia.com/rss.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Inside Climate News
+      feed_url: https://insideclimatenews.org/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: pv magazine Deutschland
+      feed_url: https://www.pv-magazine.de/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: CleanThinking
+      feed_url: https://www.cleanthinking.de/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Electrek
+      feed_url: https://electrek.co/feed/
+      type: trade_media
+      lead_time_tier: now
     science:
     - name: Nature Sustainability
       feed_url: https://www.nature.com/natsustain.rss
@@ -354,6 +465,18 @@ verticals:
       feed_url: https://www.designboom.com/feed/
       type: trade_media
       lead_time_tier: now
+    - name: Design Milk
+      feed_url: https://design-milk.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Architectural Record
+      feed_url: https://www.architecturalrecord.com/rss/articles
+      type: trade_media
+      lead_time_tier: market
+    - name: Yanko Design
+      feed_url: https://www.yankodesign.com/feed/
+      type: trade_media
+      lead_time_tier: now
     science:
     - name: Nature Reviews Materials
       feed_url: https://www.nature.com/natrevmats.rss
@@ -381,12 +504,24 @@ verticals:
       feed_url: https://fashionista.com/.rss/full/
       type: trade_media
       lead_time_tier: now
-    # - name: WWD  # disabled 2026-04-14: persistent HTTP 403
-    #   feed_url: https://www.wwd.com/feed/
-    #   type: trade_media
-    #   lead_time_tier: now
     - name: Vogue UK
       feed_url: https://www.vogue.co.uk/feed/rss
+      type: trade_media
+      lead_time_tier: now
+    - name: Guardian Fashion
+      feed_url: https://www.theguardian.com/fashion/rss
+      type: trade_media
+      lead_time_tier: now
+    - name: Ecotextile News
+      feed_url: https://www.ecotextile.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: TextilWirtschaft
+      feed_url: https://www.textilwirtschaft.de/news/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: WWD
+      feed_url: https://www.wwd.com/feed/
       type: trade_media
       lead_time_tier: now
     science:
@@ -440,10 +575,6 @@ verticals:
       feed_url: https://asiatimes.com/feed/
       type: trade_media
       lead_time_tier: market
-    - name: The Japan News
-      feed_url: https://japannews.yomiuri.co.jp/feed/
-      type: trade_media
-      lead_time_tier: market
     - name: Restaurant Business
       feed_url: https://www.restaurantbusinessonline.com/feed
       type: trade_media
@@ -452,9 +583,65 @@ verticals:
       feed_url: https://www.nrn.com/rss.xml
       type: trade_media
       lead_time_tier: market
+    - name: DW Wirtschaft
+      feed_url: https://rss.dw.com/xml/rss-de-eco
+      type: trade_media
+      lead_time_tier: market
+    - name: Tagesschau Wirtschaft
+      feed_url: https://www.tagesschau.de/wirtschaft/index~rss2.xml
+      type: trade_media
+      lead_time_tier: now
+    - name: Axios
+      feed_url: https://api.axios.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Politico Europe
+      feed_url: https://www.politico.eu/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: NYT Business
+      feed_url: https://rss.nytimes.com/services/xml/rss/nyt/Business.xml
+      type: trade_media
+      lead_time_tier: market
+    - name: Guardian Business
+      feed_url: https://www.theguardian.com/business/rss
+      type: trade_media
+      lead_time_tier: market
+    - name: Supply Chain Dive
+      feed_url: https://www.supplychaindive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: Marketing Dive
+      feed_url: https://www.marketingdive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: EU-Startups
+      feed_url: https://www.eu-startups.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: WirtschaftsWoche
+      feed_url: https://www.wiwo.de/contentexport/feed/rss/schlagzeilen
+      type: trade_media
+      lead_time_tier: market
+    - name: Handelsblatt Schlagzeilen
+      feed_url: https://www.handelsblatt.com/contentexport/feed/schlagzeilen
+      type: trade_media
+      lead_time_tier: market
+    - name: Sifted
+      feed_url: https://sifted.eu/feed
+      type: trade_media
+      lead_time_tier: market
+    - name: OMR
+      feed_url: https://omr.com/de/feed
+      type: trade_media
+      lead_time_tier: now
     science:
     - name: Harvard Business Review
       feed_url: http://feeds.harvardbusiness.org/harvardbusiness
+      type: research
+      lead_time_tier: future
+    - name: Project Syndicate
+      feed_url: https://www.project-syndicate.org/rss
       type: research
       lead_time_tier: future
   LIFESTYLE:
@@ -515,6 +702,30 @@ verticals:
       feed_url: https://restofworld.org/feed/latest
       type: trade_media
       lead_time_tier: future
+    - name: Guardian Culture
+      feed_url: https://www.theguardian.com/culture/rss
+      type: trade_media
+      lead_time_tier: now
+    - name: Hollywood Reporter
+      feed_url: https://www.hollywoodreporter.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Tubefilter
+      feed_url: https://www.tubefilter.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: Music Business Worldwide
+      feed_url: https://www.musicbusinessworldwide.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Variety
+      feed_url: https://variety.com/feed/
+      type: trade_media
+      lead_time_tier: now
+    - name: PocketGamer.biz
+      feed_url: https://www.pocketgamer.biz/rss/
+      type: trade_media
+      lead_time_tier: now
     science:
     - name: Nature Human Behaviour
       feed_url: https://www.nature.com/nathumbehav.rss
@@ -571,3 +782,68 @@ cross_industry:
     feed_url: https://www.pnas.org/action/showFeed?type=etoc&feed=rss&jc=pnas
     type: research
     lead_time_tier: future
+  - name: DW Wissenschaft
+    feed_url: https://rss.dw.com/xml/rss-de-wissenschaft
+    type: research
+    lead_time_tier: future
+  - name: NYT Science
+    feed_url: https://rss.nytimes.com/services/xml/rss/nyt/Science.xml
+    type: research
+    lead_time_tier: future
+  - name: The Conversation
+    feed_url: https://theconversation.com/articles.atom
+    type: research
+    lead_time_tier: future
+  - name: EU Parliament Press
+    feed_url: https://www.europarl.europa.eu/rss/doc/press-releases/en.xml
+    type: research
+    lead_time_tier: future
+  - name: idw Pressemitteilungen
+    feed_url: https://idw-online.de/pages/de/pressreleasesrss
+    type: research
+    lead_time_tier: future
+  - name: Fraunhofer Presse
+    feed_url: https://www.fraunhofer.de/de/rss/presse.rss
+    type: research
+    lead_time_tier: future
+radar:
+  FOOD:
+  - food industry innovation announcement
+  - novel food ingredient launch
+  - foodtech startup funding round
+  - functional food consumer trend
+  TECH:
+  - emerging technology breakthrough announcement
+  - enterprise AI adoption shift
+  - robotics commercialization milestone
+  - semiconductor supply chain shift
+  HEALTH:
+  - digital health product launch
+  - longevity research breakthrough
+  - biotech clinical trial milestone
+  - consumer wellness trend shift
+  ECO:
+  - circular economy initiative launch
+  - clean energy technology milestone
+  - carbon capture commercialization
+  - sustainable packaging innovation
+  DESIGN:
+  - architecture innovation project unveiled
+  - industrial design award winner
+  - biophilic design adoption
+  - modular construction milestone
+  FASHION:
+  - fashion sustainability innovation
+  - beauty tech product launch
+  - textile material innovation
+  - luxury consumer behavior shift
+  BIZ:
+  - retail innovation rollout
+  - fintech product launch europe
+  - d2c brand strategy shift
+  - supply chain technology adoption
+  LIFESTYLE:
+  - creator economy platform shift
+  - gaming industry market trend
+  - travel experience innovation
+  - sports tech adoption trend

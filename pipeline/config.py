@@ -60,6 +60,9 @@ DUPLICATE_SIMILARITY_THRESHOLD = 0.92
 AUTO_PUBLISH_CONFIDENCE = 0.85
 MAX_RETRIES = 3
 
+# Brave Search (radar discovery layer, pipeline/radar_discovery.py)
+BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
+
 # Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 

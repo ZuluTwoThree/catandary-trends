@@ -31,6 +31,8 @@ def main():
     for v, cfg in verticals.items():
         all_sources = cfg.get("sources", []) + cfg.get("science", []) + cfg.get("radar", [])
         for s in all_sources:
+            if s.get("active") is False:
+                continue
             name = s["name"]
             try:
                 entries = fetch_feed(name, s["feed_url"])
@@ -46,7 +48,7 @@ def main():
     cross = config.get("cross_industry", {})
     for category, items in cross.items():
         for s in items:
-            if s.get("type") == "api":
+            if s.get("type") == "api" or s.get("active") is False:
                 continue
             name = s["name"]
             try:

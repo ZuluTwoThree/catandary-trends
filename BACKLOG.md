@@ -7,6 +7,22 @@
 - **Newsletter**: KW15–KW21/2026 retroaktiv per Qwen3.6-35B-A3B generiert, persistiert in DB-Tabelle `newsletter_editions`, Frontend liest live. Offen bleibt nur die Automatisierung (Mo-09:00-Cron + Versand-Anbindung).
 - **Pipeline-Lauf**: `scripts/scheduled_cycle.sh` ist die Referenz-Orchestrierung, läuft per transientem systemd-Timer (`systemd-run --user --on-calendar=…`). Tägliches DB-Backup via `scripts/backup_db.py` (Cron 00:05).
 
+## Status-Update 2026-06-12 — Quellen-Port von product/trend-radar
+
+- **Quellennetz vereinigt:** 192 Feeds (189 aktiv) — Upstream-Bestand + 62 verifizierte Zugänge
+  aus `product/trend-radar` (Forschung/Regulierung: EFSA/WHO/EU-Parlament/idw/The Conversation,
+  DACH: heise/Golem/Handelsblatt/WiWo/Tagesschau/TextilWirtschaft, Guardian/NYT-Sektionen,
+  Fierce/Dive-Familie). Gepruned: The Spoon (4 % Relevanz-Pass), Confectionery Production,
+  The Japan News. Deaktiviert (`active: false`, von Mac-IP 403/Timeout — vom Prod-System ggf.
+  reaktivieren): MobiHealthNews, Healthcare IT News, BMJ.
+- **Brave-Radar reimplementiert:** `pipeline/radar_discovery.py` (Rewrite), 32 kuratierte Queries
+  in `sources.yaml` (`radar:`), Tests gemockt. Braucht `BRAVE_SEARCH_API_KEY`.
+- **Poller robuster:** Browser-UA + Accept-Header, 403/406-Fallback auf Reader-UA
+  (Just Food/New Scientist erlauben nur Reader-UAs), 5xx-Retry mit Backoff (idw), Timeout 30 s.
+  `poll_dryrun.py` respektiert jetzt `active: false`.
+- **Messwerkzeug:** `scripts/source_quality_report.py` (Wochenfrequenz aus Feed-Timestamps,
+  Stale-Erkennung, Kandidaten-Modus). Verifiziert: Dry-Run pollt alle 189 aktiven Feeds fehlerfrei.
+
 ## Pipeline-Optimierung
 
 - [ ] **Datengetriebener "Structural vs. Hype"-Score für Mega-Trend-Karten.** Idee: aus der monatlichen Signalverteilung pro Mega-Trend ein Maß ableiten (Coverage + Entropie + Post-Peak-Decay). Dry-Run-Implementierung: `scripts/dryrun_structural_score.py` — kann re-run werden, sobald die Datenbasis besser ist.

@@ -24,11 +24,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Browser-style UA: several quality sources (Endpoints, FDA, idw) serve
+# 403/redirects to plain bot UAs. 30s timeout covers slow feeds (idw ~20s).
 HTTP_CLIENT = httpx.Client(
-    timeout=20,
+    timeout=30,
     follow_redirects=True,
-    headers={"User-Agent": "CatandaryTrends/1.0 (RSS Feed Reader)"},
+    headers={
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36 "
+                      "CatandaryTrends/1.0 (RSS Feed Reader)",
+        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+    },
 )
+
+# Some publishers (e.g. Just Food) allow plain feed readers but block
+# browser UAs — the inverse of bot-protected sites. Retry 403s with this.
+FALLBACK_UA = "CatandaryTrends/1.0 (RSS Feed Reader)"
 
 
 def parse_published_date(entry: dict) -> str | None:
@@ -57,6 +68,12 @@ def fetch_feed(source_name: str, feed_url: str) -> list[dict]:
     """Fetch and parse a single RSS/Atom feed."""
     try:
         resp = HTTP_CLIENT.get(feed_url)
+        if resp.status_code in (403, 406):
+            resp = HTTP_CLIENT.get(feed_url, headers={"User-Agent": FALLBACK_UA})
+        if resp.status_code >= 500:
+            # transient upstream errors (idw etc.) — one retry after backoff
+            time.sleep(3)
+            resp = HTTP_CLIENT.get(feed_url)
         if resp.status_code != 200:
             logger.warning("%s: HTTP %d", source_name, resp.status_code)
             return []
