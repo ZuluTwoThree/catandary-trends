@@ -233,11 +233,6 @@ verticals:
       feed_url: https://feeds.arstechnica.com/arstechnica/science
       type: research
       lead_time_tier: future
-    - name: arXiv cs.AI
-      feed_url: https://rss.arxiv.org/rss/cs.AI
-      type: research
-      lead_time_tier: future
-      active: false
     - name: Science Robotics
       feed_url: https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=scirobotics
       type: research
