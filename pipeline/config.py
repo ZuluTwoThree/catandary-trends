@@ -63,6 +63,9 @@ MAX_RETRIES = 3
 # Brave Search (radar discovery layer, pipeline/radar_discovery.py)
 BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
 
+# Firecrawl (backfill script, scripts/backfill_sources.py)
+FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY", "")
+
 # Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
