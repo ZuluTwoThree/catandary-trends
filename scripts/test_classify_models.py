@@ -61,18 +61,22 @@ def sample(total: int) -> list[dict]:
 
 
 def parse_call(client, model, prompt, schema, system, usage_acc, dry_run):
-    """One structured call; accumulates usage. dry_run uses count_tokens only."""
+    """One structured call; accumulates usage (cache-aware). dry_run = count_tokens."""
+    sys_block = [{"type": "text", "text": system,
+                  "cache_control": {"type": "ephemeral"}}] if system else None
     if dry_run:
         ct = client.messages.count_tokens(
-            model=model, system=system, messages=[{"role": "user", "content": prompt}])
-        usage_acc["in"] += ct.input_tokens
-        usage_acc["out"] += 250  # assumed structured-output size
+            model=model, system=sys_block, messages=[{"role": "user", "content": prompt}])
+        usage_acc["in_fresh"] += ct.input_tokens  # no cache pricing in count_tokens
+        usage_acc["out"] += 250
         return None
     resp = client.messages.parse(
-        model=model, max_tokens=2048, temperature=0.0, system=system,
+        model=model, max_tokens=2048, temperature=0.0, system=sys_block,
         messages=[{"role": "user", "content": prompt}], output_format=schema)
     u = resp.usage
-    usage_acc["in"] += u.input_tokens + getattr(u, "cache_read_input_tokens", 0)
+    usage_acc["in_fresh"] += u.input_tokens
+    usage_acc["cache_read"] += getattr(u, "cache_read_input_tokens", 0) or 0
+    usage_acc["cache_create"] += getattr(u, "cache_creation_input_tokens", 0) or 0
     usage_acc["out"] += u.output_tokens
     if getattr(resp, "stop_reason", None) == "refusal":
         return None
@@ -103,14 +107,15 @@ def classify_one(client, model, row, usage_acc, dry_run):
 
 
 def run_model(client, model, rows, dry_run):
-    usage = {"in": 0, "out": 0}
+    usage = {"in_fresh": 0, "cache_read": 0, "cache_create": 0, "out": 0}
     preds = {}
     for i, row in enumerate(rows, 1):
         preds[row["id"]] = classify_one(client, model, row, usage, dry_run)
         if i % 50 == 0:
             print(f"    {model}: {i}/{len(rows)}", flush=True)
     pin, pout = PRICING[model]
-    cost = usage["in"] / 1e6 * pin + usage["out"] / 1e6 * pout
+    cost = (usage["in_fresh"] * pin + usage["cache_read"] * pin * 0.1
+            + usage["cache_create"] * pin * 1.25 + usage["out"] * pout) / 1e6
     return {"usage": usage, "cost": cost, "n": len(rows), "preds": preds}
 
 
@@ -132,7 +137,8 @@ def report(label, res, rows, dry_run):
     per1k = res["cost"] / n * 1000
     per1k_batch = per1k * BATCH_DISCOUNT
     proj = per1k_batch / 1000 * SCALE_TARGET
-    print(f"\n[{label}]  n={n}  tokens in/out={res['usage']['in']}/{res['usage']['out']}")
+    u = res["usage"]
+    print(f"\n[{label}]  n={n}  in_fresh/cache_read/out={u['in_fresh']}/{u['cache_read']}/{u['out']}")
     print(f"  $/1k (synchron): ${per1k:.2f}   $/1k (Batches -50%): ${per1k_batch:.2f}   "
           f"proj. {SCALE_TARGET//1000}k: ${proj:.0f}")
     if not dry_run:

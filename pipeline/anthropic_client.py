@@ -56,7 +56,11 @@ def _parse_kwargs(model: str, prompt: str, schema: type[T],
         "output_format": schema,
     }
     if system:
-        kwargs["system"] = system
+        # Cache the (large, stable) system prefix — read at ~0.1x on subsequent
+        # calls within the 5-min TTL. The taxonomy/mega-trend block dominates the
+        # input, so this is the main cost lever at scale.
+        kwargs["system"] = [{"type": "text", "text": system,
+                             "cache_control": {"type": "ephemeral"}}]
     return kwargs
 
 
@@ -124,7 +128,8 @@ def batch_classify(items: list[tuple[str, str]], schema: type[T], system: str,
             "output_config": {"format": {"type": "json_schema", "schema": schema_json}},
         }
         if system:
-            params["system"] = system
+            params["system"] = [{"type": "text", "text": system,
+                                 "cache_control": {"type": "ephemeral"}}]
         requests.append({"custom_id": cid, "params": params})
 
     batch = client.messages.batches.create(requests=requests)
