@@ -23,6 +23,30 @@
 - **Messwerkzeug:** `scripts/source_quality_report.py` (Wochenfrequenz aus Feed-Timestamps,
   Stale-Erkennung, Kandidaten-Modus). Verifiziert: Dry-Run pollt alle 189 aktiven Feeds fehlerfrei.
 
+## Status-Update 2026-06-20 — FOOD-Backfill + Alternativ-Datenstrategie
+
+- **FOOD-Backfill durchgeführt (zwei Methoden, alles datiert):**
+  - **Brave-Mode** (`scripts/backfill_sources.py --mode brave --months-back 36`): 1.494 publizierte Trends, 2023–2026, gleichmäßig ~50/Monat. Neu im Script: 6-Monats-Date-Window-Slicing (`--months-back`) + `page_age`→`published_date`. Commit `c829737`.
+  - **Deep-Mode** (Firecrawl `/map` @100, `--skip-noisy`): 702 publizierte Trends, **2002–2026** (tiefer historischer Schwanz). Lehren: Firecrawl-Scrapes laufen im Free-Tier massiv ins Rate-Limit (echte Kosten nur ~38 Credits, aber ~790 leere Einträge → gelöscht); `/map`-URLs tragen nur ~16 % ein Datum. **Datums-Recovery** baute die Lücke: `scripts/recover_dates.py` (Live-Seite JSON-LD/`article:published_time`, pro-Domain sequenziell, ~74 % Treffer) + `scripts/recover_dates_crossref.py` (DOI→Crossref für bot-geblockte Wiley-Journale, 99 %). Damit 405→1.418 datiert; 1.092 Müll (leer/Nicht-Artikel) gelöscht.
+  - **Throughput-Engpass identifiziert:** Stage-1-Dedup von `difflib`→`rapidfuzz` migriert (167× schneller, gemessen). Vollpipeline bei 50k Signalen ≈ 70 h GPU → Strategie nötig (siehe unten).
+
+- **Cross-Vertical-Quellen-Survey (`scripts/probe_source_apis.py`):** 193 Quellen geprobt → **44 mit WordPress-REST-API** (`/wp-json/wp/v2/posts`, gratis, datiert, Volltext — Summe **~3 Mio. Posts** verfügbar; vegconomist 15k, Green Queen 9k, Variety 609k, TechCrunch 261k …), **57 akademisch** (OpenAlex), 89 sonstige. **Firecrawl Deep ist damit für die meisten Quellen obsolet.** Neue Ingester: `scripts/ingest_wordpress.py` (WP-API, datums-/kategorie-gefiltert, gratis), geplant analog für OpenAlex/Sitemaps.
+  - **Erkenntnis:** Datenbeschaffung ist gelöst und faktisch unbegrenzt; Engpass = **Selektivität + Durchsatz**. RSS bleibt fürs Laufende (etablierte Quellen erfassen 100 %, bewiesen Green Queen 84/84) — WP/OpenAlex sind **Backfill + Onboarding-Catch-up**, kein Dauerstrom.
+
+- **Offene Entscheidung (Erinnerung 2026-06-20 17:00, `trig_01N4fr3iLUphyiXuvkbRKVmt`):** Option 3 phasiert — Throughput-Offensive zuerst (`--signal-mode` = kein Content-Gen, Artikel lazy; Batch-Klassifizierung via Anthropic Haiku/Sonnet; Embeddings lokal), dann gezielter Gap-Ingest pro Vertical. Kosten ~$1/1k (Haiku) bzw. ~$3/1k (Sonnet) Signale, ganzer Backfill grob ~$50–450. **Signalqualität bleibt:** signal-mode beschneidet nur die Artikel-Generierung, nicht Relevanz/Klassifizierung/Mega-Trend/Datum; Embeddings unverändert (`qwen3-embedding`, Input = `title+excerpt[:500]`, läuft ohnehin vor Content-Gen).
+
+## Quellen-Architektur — neue Signalquellen (priorisiert 2026-06-20)
+
+- [ ] **Patente als Signalquelle anbinden.** Hoher Foresight-Wert: Patente haben die **längste Lead-Time** (Anmeldung Jahre vor Markteintritt → „Future/Science-Tier"). Das Datenmodell ist vorbereitet — `trend_signal_type` enthält bereits `"patent"`.
+  - **Freie APIs:** **USPTO PatentsView** (sauberste: Titel, Abstract, Datum, Assignee, CPC-Klasse, Zitationen, REST/JSON), **EPO Open Patent Services** (weltweit, Registrierung), **Lens.org**, **WIPO PATENTSCOPE**.
+  - **Architektur:** eigener Ingester analog `ingest_wordpress.py` → nach **CPC-Klasse + Datum** filtern (sonst Millionen/Jahr), Abstract als Excerpt, in `raw_entries` mit `source_type` z. B. `patent`. Mapping CPC→Vertical kuratieren (z. B. A23 Food, A61 Health, H01/G06 Tech, C/Y02 Eco).
+  - **Caveats:** dichte Patent-Sprache → Relevanz/Klassifizierung gut prompten; Volumen riesig → strikt klassen-/datumsgefiltert ziehen. Erst PatentsView (US) als MVP, dann EPO für EU/Welt.
+
+- [ ] **OpenAlex über die 57 kuratierten Journale hinaus erweitern (Concept-/Topic-basiert).** Die 57 sind nur unsere bestehende Quellenliste — OpenAlex indexiert **~250 Mio. Werke über ~250k Quellen** und erlaubt Abfrage **nach Concept/Topic** (nicht nur Journal), je mit Datum + Abstract. Gratis.
+  - **Hebel:** statt journalweise → `filter=concepts.id:<concept>` (oder `topics`) + `from_publication_date` ziehen, quer über alle Journale (z. B. „food science", „machine learning", „renewable energy").
+  - **Qualitäts-/Volumen-Tradeoff:** Concept-Expansion bringt Millionen Werke **plus Rauschen** (Predatory Journals, irrelevante Subfelder). Mit OpenAlex-Qualitätssignalen gaten: `cited_by_count`, Source-Impact/`is_in_doaj`, `is_oa`, Mindest-Concept-Score. Pro Vertical 1–3 Concepts kuratieren, datums-/qualitätsgefiltert ziehen, dann durch denselben Relevanzfilter.
+  - Beide Items in der 17:00-Entscheidung (Option 3) als zusätzliche `source_type`-Kandidaten mitdenken.
+
 ## Pipeline-Optimierung
 
 - [ ] **Upgrade `scripts/discover_mega_trends.py` v1.0 → v1.1.** Review-Stand 2026-06-13 (Ist-Version = Commit `3be3e8b`): inhaltlich solide (PCA→KMeans mit Silhouette-k-Wahl, temporale Tag-Beschleunigung, Momentum-Update), Datengrundlage top (34.142 published Trends, alle embedded, einheitlich 4096-dim, 98% mit `published_date`). **Aktuell aber nicht lauffähig** + ein paar Sauberkeitslücken. v1.1-Scope:
@@ -36,6 +60,25 @@
   - GlobeNewswire (press_wire) **20%** · Guardian Food **20%** · Guardian Culture **27%** · Architectural Record **30%** · TextilWirtschaft **33%** · EU Parliament Press **35%** · NYT Science **46%** · OMR **47%** · EFSA News **47%**
   - Auffällig: Research lag im Lauf gesamt bei **64,6%** (unter den erwarteten ~80%), weil die neuen Regulierungs-/Research-Feeds (EU Parliament, EFSA, NYT Science, The Conversation/MIT News je 58%) den Schnitt drücken; Trade lag mit **71,7%** über Erwartung.
   - **Aktion am/ab 2026-06-20** (≥1 Woche Daten): Pass-Rate dieser Feeds erneut messen (`scripts/source_quality_report.py` bzw. `raw_entries`-Join wie im Post-Run-Report 2026-06-13). Wenn ein Feed dauerhaft <35% Pass-Rate bei relevantem Volumen liefert → Relevanz-Schwelle pro Quelle erwägen, Feed auf eine spezifischere Sektions-URL umstellen, oder bei strukturellem Off-Topic (z. B. Guardian-Sektionen, GlobeNewswire-PR-Flut) `active: false` setzen. Guardian Food/Culture und GlobeNewswire sind die heißesten Kandidaten.
+
+- [ ] **Historisches Backfill via Website-Scraping (Firecrawl / WebSearch).** Neue RSS-Feeds liefern nur die letzten 10–20 Artikel. Die 62 Feeds aus dem `product/trend-radar`-Merge (Commit `9cacaa3`, 2026-06-12) haben daher eine Historielücke bis zu ihrem Einbindungsdatum — besonders relevant für Regulation/Research-Quellen (EFSA, EU-Parlament, idw), DACH-Presse und Guardian-Sektionen. Ziel: pro Quell-Website die letzten 90–180 Tage Archiv-Seiten crawlen und als `raw_entries` in die Pipeline einspeisen.
+
+  **Implementierungsoptionen:**
+  - **Firecrawl** (`firecrawl-py`): crawlt Archiv-Seitenbaum, rendert JS, gibt saubere Markdown-Excerpts zurück. Direkt als `source_type='backfill'` in `raw_entries` einspeisen. Kein API-Key-freier Pfad (SaaS oder Self-Hosted).
+  - **WebSearch (Brave Search API)**: `site:foodnavigator.com after:2026-01-01` pro Feed — liefert Titel + URL + Snippet, kein Volltext. Geringer Aufwand, aber Snippet-Qualität für Stage-2-Extraktion oft zu dünn.
+  - **Hybrid:** Brave Search liefert URLs, Firecrawl holt den Content → teurer, aber beste Qualität.
+
+  **Konkrete Architektur:**
+  - `scripts/backfill_sources.py --source-name "EFSA News" --days-back 90` — nimmt den Feed-Namen aus `sources.yaml`, leitet die Homepage-URL ab, crawlt Archiv-Seiten, dedupliciert via `raw_entries.url UNIQUE`, schreibt neue Einträge mit `processed=0`.
+  - Normaler LLM-Processor verarbeitet den Backfill dann im nächsten Batch (kein eigener Pfad nötig).
+  - Scope initial: nur die 9 beobachteten Noisy-Feeds + die wichtigsten Regulation-Quellen, **nicht alle 189 Feeds** (zu viel Volume, zu hohes Rate-Limit-Risiko).
+
+  **Risiken/Offene Fragen:**
+  - ToS-Grauzone: Das Projekt nutzt ausschließlich Primärquellen via RSS. Direktes Crawlen der Website der gleichen Quelle ist eine Graubereichserweiterung davon — keine Aggregatoren, keine fremden Inhalte, aber ggf. außerhalb der impliziten RSS-Nutzungsvereinbarung. Vor dem Produktiv-Einsatz für jede geplante Quelle `robots.txt` prüfen und ggf. Crawl-Delay 5–10s einhalten.
+  - Volume-Schock: 180 Tage × 10 Artikel/Tag × 9 Feeds = ~16.000 neue Raw-Entries → ~8 Stunden LLM-Pipeline. Empfehlung: erst Noisy-Feeds-Qualitäts-Check (2026-06-20) abwarten, dann nur Feeds einbeziehen die ≥35% Pass-Rate halten.
+  - Dedup: Title-Dedup (`is_title_duplicate`) wird bei großem Backfill teuer (→ rapidfuzz-Migration abschließen vorher).
+
+  **Voraussetzungen:** rapidfuzz-Migration (Stage-1 Dedup) abgeschlossen, Qualitätscheck 2026-06-20 ausgewertet.
 
 - [ ] **Stage-1 Title-Dedup beschleunigen (`difflib` → `rapidfuzz`).** `is_title_duplicate()` in `pipeline/llm_processor.py` vergleicht jeden Batch-Eintrag per pure-Python `difflib.SequenceMatcher` gegen alle Titel der letzten 30 Tage. Bei einem 600er-Batch gegen ~12.500 bestehende Titel sind das bis zu ~7,5 Mio. `.ratio()`-Aufrufe single-threaded → **~10 Min pro Batch**, ohne Zwischen-Logging (beobachtet im Lauf 2026-06-12-1840, sah anfangs wie ein Hänger aus, war aber CPU-gebundener Dedup). Beim Backlog-Drain (mehrere 600er-Batches) summiert sich das auf Stunden reiner Dedup-Zeit. Fix: `rapidfuzz.fuzz.ratio` (C-Backend, ~50–100× schneller) bei gleicher Schwelle 0.90; der Längen-Prefilter (`min/max < 0.6`) kann bleiben oder durch `rapidfuzz.process.cdist` mit `score_cutoff` ersetzt werden. Schwellen-Äquivalenz vor dem Umstieg auf einem Sample verifizieren (SequenceMatcher.ratio vs. rapidfuzz.ratio liefern leicht andere Werte). Optional zusätzlich: das per-Batch `normalize_title()` der bestehenden Titel cachen statt pro Batch neu zu berechnen.
 
