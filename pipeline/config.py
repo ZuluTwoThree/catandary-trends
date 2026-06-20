@@ -66,6 +66,15 @@ BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
 # Firecrawl (backfill script, scripts/backfill_sources.py)
 FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY", "")
 
+# Anthropic API — classification backend for the one-time historical backfill.
+# CLASSIFY_BACKEND="anthropic" routes Stages 2/3/4/8 (relevance/extraction/
+# classification/reclassify) to Claude (off-GPU); embeddings + content-gen stay
+# local. The ongoing RSS pipeline stays fully local (CLAUDE.md). Takes precedence
+# over STAGE_8B_BACKEND when set to "anthropic".
+CLASSIFY_BACKEND = os.getenv("CLASSIFY_BACKEND", "ollama")  # ollama | llamacpp | anthropic
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL_CLASSIFY = os.getenv("ANTHROPIC_MODEL_CLASSIFY", "claude-haiku-4-5")
+
 # Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 

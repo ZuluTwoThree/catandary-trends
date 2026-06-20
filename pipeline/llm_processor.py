@@ -26,6 +26,8 @@ from math import sqrt
 from slugify import slugify
 
 from pipeline.config import (
+    ANTHROPIC_MODEL_CLASSIFY,
+    CLASSIFY_BACKEND,
     DUPLICATE_SIMILARITY_THRESHOLD,
     LOG_LEVEL,
     MODEL_CLASSIFY,
@@ -62,7 +64,7 @@ from pipeline.models import (
 from pipeline.auto_publisher import auto_publish
 from pipeline.crs import compute_crs
 from pipeline.ollama_client import chat_structured, generate_embedding
-from pipeline import gpu_handover, llamacpp_client
+from pipeline import anthropic_client, gpu_handover, llamacpp_client
 from pipeline.reclassify import reclassify_drafts
 
 logging.basicConfig(
@@ -224,6 +226,15 @@ Title: {title}
 
 Excerpt: {excerpt[:1500]}"""
 
+    if CLASSIFY_BACKEND == "anthropic":
+        return anthropic_client.chat_structured(
+            model=ANTHROPIC_MODEL_CLASSIFY,
+            prompt=prompt,
+            schema=RelevanceResult,
+            system=RELEVANCE_SYSTEM,
+            temperature=0.0,
+        )
+
     if STAGE_8B_BACKEND == "llamacpp":
         return llamacpp_client.chat_structured(
             model=STAGE_8B_MODEL,
@@ -254,6 +265,15 @@ Text: {excerpt[:1500]}"""
     # Effective model after the NuExtract→qwen3:8b fallback (NuExtract disabled).
     resolved_model = MODEL_EXTRACT if MODEL_EXTRACT != "nuextract" else "qwen3:8b"
 
+    if CLASSIFY_BACKEND == "anthropic":
+        return anthropic_client.chat_structured(
+            model=ANTHROPIC_MODEL_CLASSIFY,
+            prompt=prompt,
+            schema=ExtractionResult,
+            system=EXTRACTION_SYSTEM,
+            temperature=0.0,
+        )
+
     if STAGE_8B_BACKEND == "llamacpp" and resolved_model == "qwen3:8b":
         return llamacpp_client.chat_structured(
             model=STAGE_8B_MODEL,
@@ -282,6 +302,15 @@ Excerpt: {excerpt[:1000]}
 Brand: {extraction.brand_name or 'Unknown'}
 Product: {extraction.product_name or 'Unknown'}
 Key Claims: {', '.join(extraction.key_claims[:5]) if extraction.key_claims else 'None'}"""
+
+    if CLASSIFY_BACKEND == "anthropic":
+        return anthropic_client.chat_structured(
+            model=ANTHROPIC_MODEL_CLASSIFY,
+            prompt=prompt,
+            schema=ClassificationResult,
+            system=CLASSIFICATION_SYSTEM,
+            temperature=0.0,
+        )
 
     if STAGE_8B_BACKEND == "llamacpp":
         return llamacpp_client.chat_structured(

@@ -13,12 +13,14 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from pipeline.config import (
+    ANTHROPIC_MODEL_CLASSIFY,
+    CLASSIFY_BACKEND,
     DATABASE_PATH,
     MODEL_CLASSIFY,
     STAGE_8B_BACKEND,
     STAGE_8B_MODEL,
 )
-from pipeline import llamacpp_client
+from pipeline import anthropic_client, llamacpp_client
 from pipeline.ollama_client import chat_structured
 
 logger = logging.getLogger(__name__)
@@ -87,7 +89,15 @@ def _classify_one(title: str, summary: str) -> dict | None:
     Ollama qwen3:8b.
     """
     prompt = f"Title: {title}\nSummary: {summary[:500]}"
-    if STAGE_8B_BACKEND == "llamacpp":
+    if CLASSIFY_BACKEND == "anthropic":
+        result = anthropic_client.chat_structured(
+            model=ANTHROPIC_MODEL_CLASSIFY,
+            prompt=prompt,
+            schema=ReclassifyResult,
+            system=CLASSIFY_SYSTEM,
+            temperature=0.0,
+        )
+    elif STAGE_8B_BACKEND == "llamacpp":
         result = llamacpp_client.chat_structured(
             model=STAGE_8B_MODEL,
             prompt=prompt,
