@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS trends (
     source_url TEXT NOT NULL,
     source_name TEXT,
     embedding BLOB,
-    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'rejected')),
+    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'rejected', 'signal')),
     auto_published INTEGER DEFAULT 0,
     published_at TEXT,
     created_at TEXT DEFAULT (datetime('now'))
@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS trends (
     source_url TEXT NOT NULL,
     source_name TEXT,
     embedding VECTOR(1024),
-    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'rejected')),
+    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'rejected', 'signal')),
     auto_published BOOLEAN DEFAULT false,
     published_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -600,7 +600,13 @@ def insert_trend(entry_id: int, data: dict) -> int:
                     data.get("embedding"),
                 ),
             )
-            return cursor.lastrowid
+            new_id = cursor.lastrowid
+            # signal-mode inserts a content-less trend as status='signal'
+            # (excluded from auto-publish + public grid, included in foresight).
+            st = data.get("status")
+            if st and st != "draft":
+                conn.execute("UPDATE trends SET status = ? WHERE id = ?", (st, new_id))
+            return new_id
 
 
 def get_trends(status: str | None = None, vertical: str | None = None,

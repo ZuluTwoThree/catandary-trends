@@ -548,8 +548,14 @@ def process_entry(entry: dict) -> dict | None:
     return trend_data
 
 
-def run_pipeline_batch(limit: int = 200):
+def run_pipeline_batch(limit: int = 200, signal_mode: bool = False):
     """Stage-by-stage batch pipeline.
+
+    signal_mode=True skips Stage 6 (content generation), inserts content-less
+    `status='signal'` rows (foresight signals, no public article), and skips the
+    reclassify + auto-publish stages. Articles are generated later, decoupled, by
+    scripts/generate_content.py (which promotes signal -> published). Used for the
+    one-time historical backfill where classification runs on the Anthropic API.
 
     Minimizes model reloads by processing all surviving entries through one
     stage before moving to the next. Model load order: Qwen3 8B (stages 2-4)
@@ -750,48 +756,54 @@ def run_pipeline_batch(limit: int = 200):
                 time.time() - t_stage, len(survivors), cache_hits_stage5)
 
     # ---- Stage 6: Content generation EN (Qwen3 14B, or llama.cpp 35B) ----
-    # When STAGE5_BACKEND=llamacpp, hand the GPU over to llama-server for the
-    # duration of this contiguous loop only (Ollama VRAM is freed, then reloaded
-    # on demand for Stage 8). All entries needing fresh generation run inside the
-    # handover; fully-cached batches skip it (no survivors → no handover).
-    t_stage = time.time()
-    next_survivors = []
-    total_stage6 = len(survivors)
-    cache_hits_stage6 = 0
-    needs_gen = any(not e.get("content_en_json") for e in survivors)
-    gpu_ctx = (gpu_handover.content_gen_on_llamacpp(STAGE5_MODEL)
-               if STAGE5_BACKEND == "llamacpp" and needs_gen
-               else nullcontext())
-    with gpu_ctx:
-        for i, entry in enumerate(survivors, 1):
-            try:
-                cached = entry.get("content_en_json")
-                if cached:
-                    en = GeneratedContent.model_validate_json(cached)
-                    cache_hits_stage6 += 1
-                else:
-                    en = step_generate_content_en(
-                        entry["title"], entry["excerpt"] or "",
-                        entry["_extraction"], entry["_classification"],
-                        entry["url"], entry.get("source_name", "Unknown"),
-                    )
-                    if en is not None:
-                        save_stage_result(entry["id"], "content_en", en)
-                if en is None:
-                    mark_filtered(entry["id"], "content_generation_error")
-                    filtered += 1
-                    continue
-                entry["_content_en"] = en
-                next_survivors.append(entry)
-                if i % 10 == 0 or i == total_stage6:
-                    logger.info("Stage 6 progress: %d/%d (%.0f%%)", i, total_stage6, i / total_stage6 * 100)
-            except Exception as e:
-                logger.error("[%d] content EN error: %s", entry["id"], e)
-                mark_processed(entry["id"])
-                errors += 1
-    survivors = next_survivors
-    logger.info("Stage 6 done in %.1fs: %d survivors (%d cache hits)",
-                time.time() - t_stage, len(survivors), cache_hits_stage6)
+    # Skipped in signal-mode: signals carry no public article. Content is
+    # generated later (decoupled, local) by scripts/generate_content.py.
+    if signal_mode:
+        logger.info("Stage 6 skipped (signal-mode): %d signals, no content generation",
+                    len(survivors))
+    else:
+        # When STAGE5_BACKEND=llamacpp, hand the GPU over to llama-server for the
+        # duration of this contiguous loop only (Ollama VRAM is freed, then reloaded
+        # on demand for Stage 8). All entries needing fresh generation run inside the
+        # handover; fully-cached batches skip it (no survivors → no handover).
+        t_stage = time.time()
+        next_survivors = []
+        total_stage6 = len(survivors)
+        cache_hits_stage6 = 0
+        needs_gen = any(not e.get("content_en_json") for e in survivors)
+        gpu_ctx = (gpu_handover.content_gen_on_llamacpp(STAGE5_MODEL)
+                   if STAGE5_BACKEND == "llamacpp" and needs_gen
+                   else nullcontext())
+        with gpu_ctx:
+            for i, entry in enumerate(survivors, 1):
+                try:
+                    cached = entry.get("content_en_json")
+                    if cached:
+                        en = GeneratedContent.model_validate_json(cached)
+                        cache_hits_stage6 += 1
+                    else:
+                        en = step_generate_content_en(
+                            entry["title"], entry["excerpt"] or "",
+                            entry["_extraction"], entry["_classification"],
+                            entry["url"], entry.get("source_name", "Unknown"),
+                        )
+                        if en is not None:
+                            save_stage_result(entry["id"], "content_en", en)
+                    if en is None:
+                        mark_filtered(entry["id"], "content_generation_error")
+                        filtered += 1
+                        continue
+                    entry["_content_en"] = en
+                    next_survivors.append(entry)
+                    if i % 10 == 0 or i == total_stage6:
+                        logger.info("Stage 6 progress: %d/%d (%.0f%%)", i, total_stage6, i / total_stage6 * 100)
+                except Exception as e:
+                    logger.error("[%d] content EN error: %s", entry["id"], e)
+                    mark_processed(entry["id"])
+                    errors += 1
+        survivors = next_survivors
+        logger.info("Stage 6 done in %.1fs: %d survivors (%d cache hits)",
+                    time.time() - t_stage, len(survivors), cache_hits_stage6)
 
     # ---- Stage 7: Insert trends ----
     t_stage = time.time()
@@ -800,16 +812,9 @@ def run_pipeline_batch(limit: int = 200):
             rel = entry["_relevance"]
             ext = entry["_extraction"]
             cls = entry["_classification"]
-            en = entry["_content_en"]
-            base_slug = slugify(en.title, max_length=70)
-            slug = f"{base_slug}-{entry['id']}"
-            trend_data = {
-                "title_en": en.title,
+            common = {
                 "title_de": None,
-                "slug": slug,
-                "summary_en": en.summary,
                 "summary_de": None,
-                "body_en": en.body,
                 "body_de": None,
                 "verticals": cls.verticals,
                 "primary_vertical": cls.verticals[0] if cls.verticals else rel.primary_vertical,
@@ -832,6 +837,25 @@ def run_pipeline_batch(limit: int = 200):
                 "source_name": entry.get("source_name", "Unknown"),
                 "embedding": embedding_to_bytes(entry["_embedding"]),
             }
+            if signal_mode:
+                title = entry["title"] or "(untitled signal)"
+                trend_data = {
+                    **common,
+                    "title_en": title,
+                    "slug": f"{slugify(title, max_length=70)}-{entry['id']}",
+                    "summary_en": None,
+                    "body_en": None,
+                    "status": "signal",
+                }
+            else:
+                en = entry["_content_en"]
+                trend_data = {
+                    **common,
+                    "title_en": en.title,
+                    "slug": f"{slugify(en.title, max_length=70)}-{entry['id']}",
+                    "summary_en": en.summary,
+                    "body_en": en.body,
+                }
             insert_trend(entry["id"], trend_data)
             mark_processed(entry["id"])
             created += 1
@@ -841,32 +865,39 @@ def run_pipeline_batch(limit: int = 200):
             errors += 1
     logger.info("Stage 7 done in %.1fs", time.time() - t_stage)
 
-    # ---- Stage 8: Reclassify drafts (Qwen3 8B) ----
-    # Same GPU-handover pattern as Stages 2-4 when STAGE_8B_BACKEND=llamacpp.
-    # The Stage-6 35B handover above has already exited and stopped llama-server;
-    # this brings it back up with the 8B GGUF for the reclassify pass.
-    t_stage = time.time()
-    gpu_ctx_8b_reclass = (gpu_handover.eight_b_on_llamacpp(STAGE_8B_MODEL)
-                          if STAGE_8B_BACKEND == "llamacpp"
-                          else nullcontext())
-    with gpu_ctx_8b_reclass:
-        reclass_stats = reclassify_drafts()
-    logger.info("Stage 8 done in %.1fs: %d reclassified (%d changed)",
-                time.time() - t_stage, reclass_stats["total"], reclass_stats["changed"])
+    # ---- Stage 8: Reclassify drafts (Qwen3 8B) ----  /  ---- Stage 9: Auto-publish ----
+    # Both skipped in signal-mode: signals keep their API classification (the
+    # chosen quality bar) and are not auto-published (no article yet). reclassify
+    # would also re-touch unrelated drafts. Content-gen promotes signals later.
+    published = 0
+    if signal_mode:
+        logger.info("Stages 8+9 skipped (signal-mode): signals stay status='signal'")
+    else:
+        # Same GPU-handover pattern as Stages 2-4 when STAGE_8B_BACKEND=llamacpp.
+        # The Stage-6 35B handover above has already exited and stopped llama-server;
+        # this brings it back up with the 8B GGUF for the reclassify pass.
+        t_stage = time.time()
+        gpu_ctx_8b_reclass = (gpu_handover.eight_b_on_llamacpp(STAGE_8B_MODEL)
+                              if STAGE_8B_BACKEND == "llamacpp"
+                              else nullcontext())
+        with gpu_ctx_8b_reclass:
+            reclass_stats = reclassify_drafts()
+        logger.info("Stage 8 done in %.1fs: %d reclassified (%d changed)",
+                    time.time() - t_stage, reclass_stats["total"], reclass_stats["changed"])
 
-    # ---- Stage 9: Auto-publish ----
-    t_stage = time.time()
-    pub_stats = auto_publish()
-    logger.info("Stage 9 done in %.1fs: %d published, %d skipped",
-                time.time() - t_stage, pub_stats["published"], pub_stats["skipped"])
+        t_stage = time.time()
+        pub_stats = auto_publish()
+        published = pub_stats["published"]
+        logger.info("Stage 9 done in %.1fs: %d published, %d skipped",
+                    time.time() - t_stage, published, pub_stats["skipped"])
 
     elapsed = time.time() - start
     logger.info(
         "BATCH complete in %.1fs: %d entries, %d created, %d filtered, %d errors, %d published",
-        elapsed, len(entries), created, filtered, errors, pub_stats["published"],
+        elapsed, len(entries), created, filtered, errors, published,
     )
-    return {"processed": len(entries), "created": created, "filtered": filtered, "errors": errors,
-            "published": pub_stats["published"]}
+    return {"processed": len(entries), "created": created, "filtered": filtered,
+            "errors": errors, "published": published}
 
 
 def run_pipeline(limit: int = 50):
@@ -910,12 +941,11 @@ def run_pipeline(limit: int = 50):
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    mode_batch = True
-    if args and args[0] == "--legacy":
-        mode_batch = False
-        args = args[1:]
-    limit = int(args[0]) if args else 200
+    mode_batch = "--legacy" not in args
+    signal_mode = "--signal-mode" in args
+    positional = [a for a in args if not a.startswith("--")]
+    limit = int(positional[0]) if positional else 200
     if mode_batch:
-        run_pipeline_batch(limit=limit)
+        run_pipeline_batch(limit=limit, signal_mode=signal_mode)
     else:
         run_pipeline(limit=limit)
