@@ -21,6 +21,7 @@ signal backfill. Three modes:
 from __future__ import annotations
 import argparse
 import logging
+import subprocess
 import sys
 import time
 from contextlib import nullcontext
@@ -35,6 +36,32 @@ from pipeline.models import ClassificationResult, ExtractionResult
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+# Local content-gen needs a model in VRAM (qwen3:14b ~10.7 GB). Fail fast with a
+# clear message instead of OOM-killing the process when VRAM is occupied (e.g.
+# llama-server holding the GPU). Rule: ensure free VRAM before any local LLM.
+MIN_FREE_VRAM_MIB = 11_000
+
+
+def ensure_vram(min_free_mib: int = MIN_FREE_VRAM_MIB) -> None:
+    """Abort early if too little GPU memory is free for a local model."""
+    if STAGE5_BACKEND == "llamacpp":
+        return  # the llama.cpp path manages its own GPU handover
+    try:
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            text=True)
+        free = int(out.strip().splitlines()[0])
+    except Exception:
+        logger.warning("could not query VRAM (nvidia-smi); proceeding without check")
+        return
+    logger.info("VRAM free: %d MiB (need >= %d for local content-gen)", free, min_free_mib)
+    if free < min_free_mib:
+        raise SystemExit(
+            f"Insufficient free VRAM: {free} MiB < {min_free_mib} MiB needed for "
+            f"local content-gen (qwen3:14b). Free VRAM first, e.g.:\n"
+            f"  systemctl --user stop llama-server.service\n"
+            f"then re-run; restart it afterwards with `systemctl --user start llama-server.service`.")
 
 
 def select_signals(ids, vertical, since, limit):
@@ -128,6 +155,8 @@ def main() -> int:
     print(f"{len(rows)} signals match.")
     if args.dry_run or not rows:
         return 0
+
+    ensure_vram()  # rule: ensure free VRAM before invoking the local LLM
 
     totals = {"published": 0, "draft": 0, "errors": 0}
     for start in range(0, len(rows), args.chunk):
