@@ -84,6 +84,7 @@ def brave_search(query: str, count: int = RESULTS_PER_QUERY,
                 "title": item.get("title", ""),
                 "url": item.get("url", ""),
                 "description": item.get("description", ""),
+                "page_age": item.get("page_age", ""),
             }
             for item in data.get("web", {}).get("results", [])
         ]
