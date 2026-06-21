@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 import argparse
 import logging
+import re
 import sys
 import time
 from pathlib import Path
@@ -27,7 +28,38 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 logger = logging.getLogger(__name__)
 
 OPENALEX = "https://api.openalex.org"
-HEADERS = {"User-Agent": "CatandaryTrends/1.0 (mailto:trends@catandary.de)"}
+MAILTO = "trends@catandary.de"
+HEADERS = {"User-Agent": f"CatandaryTrends/1.0 (mailto:{MAILTO})"}
+
+
+def _get(client: httpx.Client, url: str, params: dict, timeout: int = 40,
+         tries: int = 6) -> dict | None:
+    """GET with the polite-pool `mailto` param and exponential backoff on 429.
+
+    The first ingest hit the common-pool rate limit (mailto only in the UA, not
+    as a query param) → resolve calls returned 429 → sources were silently
+    skipped. Sending `mailto` puts us in the polite pool; on 429/5xx we back off
+    and retry instead of treating it as 'no results'."""
+    params = {**params, "mailto": MAILTO}
+    for i in range(tries):
+        try:
+            r = client.get(url, params=params, timeout=timeout)
+        except Exception as e:  # noqa: BLE001 — transient network
+            logger.warning("OpenAlex request error (%s), retry %d/%d", e, i + 1, tries)
+            time.sleep(2 ** i)
+            continue
+        if r.status_code == 200:
+            return r.json()
+        if r.status_code in (429, 500, 502, 503):
+            wait = min(60, 2 ** i + 1)
+            logger.warning("OpenAlex %s on %s — backoff %ds (try %d/%d)",
+                           r.status_code, url.rsplit("/", 1)[-1], wait, i + 1, tries)
+            time.sleep(wait)
+            continue
+        logger.error("OpenAlex %s: %s", r.status_code, r.text[:160])
+        return None
+    logger.error("OpenAlex: exhausted retries for %s", url)
+    return None
 
 
 def find_source_entry(name: str) -> dict | None:
@@ -46,12 +78,24 @@ def find_source_entry(name: str) -> dict | None:
 
 
 def resolve_source_id(client: httpx.Client, name: str) -> tuple[str, str] | None:
-    """Return (openalex_source_id, display_name) for the best name match."""
-    r = client.get(f"{OPENALEX}/sources", params={"search": name, "per_page": 5}, timeout=30)
-    if r.status_code != 200:
-        return None
-    results = r.json().get("results", [])
-    return (results[0]["id"], results[0]["display_name"]) if results else None
+    """Return (openalex_source_id, display_name) for the best name match.
+
+    Picks the candidate with the most works (the real top journal dwarfs tiny
+    same-named sources — fixes Nature/Science/PNAS resolving to an empty/wrong
+    source), preferring journal-type sources. Tries the name with sources.yaml
+    annotations like '(main)' stripped, then the raw name."""
+    cleaned = re.sub(r"\s*\([^)]*\)", "", name).strip()
+    for q in dict.fromkeys([cleaned, name]):  # de-dup, keep order
+        data = _get(client, f"{OPENALEX}/sources",
+                    {"search": q, "per_page": 10,
+                     "select": "id,display_name,works_count,type"})
+        results = (data or {}).get("results", [])
+        if not results:
+            continue
+        best = max(results, key=lambda r: ((r.get("type") == "journal"),
+                                           r.get("works_count") or 0))
+        return best["id"], best["display_name"]
+    return None
 
 
 def reconstruct_abstract(inv: dict | None) -> str:
@@ -70,14 +114,12 @@ def iter_works(client: httpx.Client, source_id: str, after: str, before: str):
             f"from_publication_date:{after},to_publication_date:{before}")
     cursor = "*"
     while cursor:
-        r = client.get(f"{OPENALEX}/works", params={
+        data = _get(client, f"{OPENALEX}/works", {
             "filter": filt, "per_page": 200, "cursor": cursor,
             "select": "id,title,publication_date,abstract_inverted_index,doi,primary_location",
-        }, timeout=40)
-        if r.status_code != 200:
-            logger.error("OpenAlex works %s: %s", r.status_code, r.text[:160])
+        })
+        if data is None:
             return
-        data = r.json()
         for w in data.get("results", []):
             yield w
         cursor = data.get("meta", {}).get("next_cursor")

@@ -46,7 +46,7 @@ from pipeline.db import (
 )
 from pipeline.llm_processor import (
     RELEVANCE_SYSTEM, EXTRACTION_SYSTEM, CLASSIFICATION_SYSTEM,
-    normalize_title, is_title_duplicate, embedding_to_bytes, bytes_to_embedding,
+    normalize_title, embedding_to_bytes, bytes_to_embedding,
     cosine_similarity,
 )
 from pipeline.models import RelevanceResult, ExtractionResult, ClassificationResult
@@ -140,23 +140,25 @@ def pull_unprocessed(limit: int, include: list[str], exclude: list[str]) -> list
 
 
 def title_dedup(entries: list[dict], commit: bool) -> list[dict]:
-    """Drop title-duplicate entries. Only writes filter marks to the DB when
-    commit=True; a dry-run is fully side-effect-free."""
-    existing = [normalize_title(t) for t in get_recent_titles(days=30)]
-    survivors, seen = [], []
+    """O(n) exact-normalized title dedup, scalable to 100k+ entries.
+
+    Uses set membership on the normalized title (against recent DB titles and
+    within the batch) instead of the live pipeline's O(n^2) all-pairs fuzzy
+    match — infeasible at backfill scale. Near-duplicates with slightly different
+    wording are caught downstream by the Stage-5 embedding dedup (cosine), so
+    this only removes exact normalized-title repeats. Side-effect-free when
+    commit=False (dry-run)."""
+    existing = {normalize_title(t) for t in get_recent_titles(days=30)}
+    survivors: list[dict] = []
+    seen: set[str] = set()
     for e in entries:
-        title = e["title"] or ""
-        dup, sim = is_title_duplicate(title, existing)
-        if dup:
+        norm = normalize_title(e["title"] or "")
+        if norm and (norm in existing or norm in seen):
             if commit:
-                mark_filtered(e["id"], f"title_duplicate: sim={sim:.3f}")
+                mark_filtered(e["id"], "title_duplicate_exact")
             continue
-        dup, sim = is_title_duplicate(title, seen)
-        if dup:
-            if commit:
-                mark_filtered(e["id"], f"title_duplicate_intra_batch: sim={sim:.3f}")
-            continue
-        seen.append(normalize_title(title))
+        if norm:
+            seen.add(norm)
         survivors.append(e)
     return survivors
 
