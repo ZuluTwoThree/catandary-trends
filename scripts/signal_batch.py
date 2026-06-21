@@ -41,7 +41,7 @@ from pipeline.config import (
 from pipeline.llamacpp_client import LLAMACPP_HOST
 from pipeline.crs import compute_crs
 from pipeline.db import (
-    get_unprocessed_entries, get_recent_titles, get_recent_embeddings,
+    get_connection, get_recent_titles, get_recent_embeddings,
     mark_filtered, mark_processed, insert_trend,
 )
 from pipeline.llm_processor import (
@@ -119,6 +119,26 @@ def batch_over_chunks(items: list[tuple[str, str]], schema, system, model) -> di
     return out
 
 
+def pull_unprocessed(limit: int, include: list[str], exclude: list[str]) -> list[dict]:
+    """Unprocessed entries, optionally scoped by source vertical (include/exclude)."""
+    where = ["re.processed = 0", "re.filtered_out = 0"]
+    params: list = []
+    if include:
+        where.append(f"s.vertical IN ({','.join('?' * len(include))})")
+        params += include
+    if exclude:
+        where.append(f"s.vertical NOT IN ({','.join('?' * len(exclude))})")
+        params += exclude
+    sql = ("SELECT re.*, s.name AS source_name, s.vertical AS source_vertical, "
+           "s.source_type AS source_type FROM raw_entries re JOIN sources s ON re.source_id = s.id "
+           f"WHERE {' AND '.join(where)} ORDER BY re.fetched_at ASC")
+    if limit and limit > 0:
+        sql += " LIMIT ?"
+        params.append(limit)
+    with get_connection() as c:
+        return [dict(r) for r in c.execute(sql, params).fetchall()]
+
+
 def title_dedup(entries: list[dict], commit: bool) -> list[dict]:
     """Drop title-duplicate entries. Only writes filter marks to the DB when
     commit=True; a dry-run is fully side-effect-free."""
@@ -141,24 +161,31 @@ def title_dedup(entries: list[dict], commit: bool) -> list[dict]:
     return survivors
 
 
-def run(limit: int, execute: bool, embed_chunk: int) -> int:
+def run(limit: int, execute: bool, embed_chunk: int,
+        include: list[str], exclude: list[str]) -> int:
     t0 = time.time()
-    entries = get_unprocessed_entries(limit=limit)
-    print(f"Unprocessed pulled: {len(entries)}")
+    entries = pull_unprocessed(limit, include, exclude)
+    scope = (f"include={include}" if include else "") + (f" exclude={exclude}" if exclude else "")
+    print(f"Unprocessed in scope ({scope or 'ALL'}): {len(entries)}")
     if not entries:
         return 0
 
-    survivors = title_dedup(entries, commit=execute)
-    print(f"After title dedup: {len(survivors)} (filtered {len(entries) - len(survivors)})")
+    from collections import Counter
+    by_v = Counter(e.get("source_vertical") or "?" for e in entries)
+    print("  per vertical:", dict(by_v.most_common()))
 
-    # ---- cost projection (counts known before any submission) ----
-    est_requests = len(survivors)  # relevance on all; ext+cls on the ~64% that pass
-    est_cost = (len(survivors) / 1000.0) * COST_PER_1K_BATCHED
-    print(f"\nProjected Batch-API cost (−50%): ~${est_cost:.2f} "
-          f"for ~{len(survivors)} entries (relevance) + ~{int(len(survivors)*0.64)} (ext+classify).")
     if not execute:
+        # Cost projection on the scoped count (title-dedup will trim it slightly).
+        est_cost = (len(entries) / 1000.0) * COST_PER_1K_BATCHED
+        print(f"\nProjected Batch-API cost (−50%, ~${COST_PER_1K_BATCHED}/1k): "
+              f"~${est_cost:.2f} for {len(entries)} entries.")
+        print("  (relevance on all; extraction+classify on the ~60-65% that pass relevance.)")
+        print("  Note: actual run title-dedups first (reduces count slightly); Stage-5 dedup is local/free.")
         print("\nDRY-RUN — nothing submitted, no API cost. Re-run with --execute to classify.")
         return 0
+
+    survivors = title_dedup(entries, commit=True)
+    print(f"After title dedup: {len(survivors)} (filtered {len(entries) - len(survivors)})")
 
     # ---- Stage 2: relevance (batch) ----
     rel_items = [(str(e["id"]), p_relevance(e["title"] or "", e["excerpt"] or "")) for e in survivors]
@@ -262,12 +289,16 @@ def run(limit: int, execute: bool, embed_chunk: int) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--limit", type=int, default=2000)
+    ap.add_argument("--limit", type=int, default=0, help="0 = no limit (whole scope)")
+    ap.add_argument("--verticals", help="only these source verticals (comma list)")
+    ap.add_argument("--exclude-verticals", help="skip these source verticals (comma list)")
     ap.add_argument("--embed-chunk", type=int, default=64, help="texts per embedding request")
     ap.add_argument("--execute", action="store_true",
                     help="actually submit batches (costs money); default is dry-run")
     args = ap.parse_args()
-    return run(args.limit, args.execute, args.embed_chunk)
+    inc = [v.strip().upper() for v in args.verticals.split(",")] if args.verticals else []
+    exc = [v.strip().upper() for v in args.exclude_verticals.split(",")] if args.exclude_verticals else []
+    return run(args.limit, args.execute, args.embed_chunk, inc, exc)
 
 
 if __name__ == "__main__":

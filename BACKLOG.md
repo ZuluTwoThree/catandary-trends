@@ -47,6 +47,11 @@
   - **Qualitäts-/Volumen-Tradeoff:** Concept-Expansion bringt Millionen Werke **plus Rauschen** (Predatory Journals, irrelevante Subfelder). Mit OpenAlex-Qualitätssignalen gaten: `cited_by_count`, Source-Impact/`is_in_doaj`, `is_oa`, Mindest-Concept-Score. Pro Vertical 1–3 Concepts kuratieren, datums-/qualitätsgefiltert ziehen, dann durch denselben Relevanzfilter.
   - Beide Items in der 17:00-Entscheidung (Option 3) als zusätzliche `source_type`-Kandidaten mitdenken.
 
+- [ ] **OpenAlex-Ingest fixen: Namens-Auflösung + Router-Fehlrouting (Befund Welle-0-Backfill 2026-06-21).** Beim All-Vertical-Backfill lieferten **nur 18 von 57 ACADEMIC-Quellen** Works (8.363 statt projizierter 14.302). Zwei Ursachen:
+  - **(Bug, echter Verlust) `resolve_source_id` scheitert per Anzeigename an Top-Journalen:** PNAS, Nature (main), Science Magazine, Quanta, Nature Energy/Materials/Human Behaviour/Reviews Materials, Psychological Science, Trends in Biotechnology → **0 Works**, obwohl sie tausende 2024-Arbeiten haben. Die `?search=<name>`-Auflösung matcht die falsche/keine OpenAlex-Source. **Fix:** per **ISSN** auflösen (in `sources.yaml` hinterlegen) statt Namenssuche, bzw. Kandidaten nach `works_count`/Typ disambiguieren. Hoher Hebel — das sind genau die hochwertigen Quellen (Top-Pass-Rate in der Qualitätsanalyse).
+  - **(Router-Fehlklassifizierung, korrekt leer) Nicht-Journale als ACADEMIC geroutet:** The Conversation, WHO News, FAO, EU Parliament/idw/Fraunhofer Presse, EFSA News, NYT/MIT/Phys.org/ScienceDaily/Medical Xpress/Tech Xplore, HBR, Project Syndicate → OpenAlex hat sie nicht → 0. **Fix:** in `probe_source_apis.classify` Presse-/News-Outlets nicht nach ACADEMIC routen (→ WP/Sitemap). Kein Datenverlust, aber sauberere Kategorisierung.
+  - Geglückt (Referenz): The Lancet 1.807, NEJM 1.067, Frontiers Sustainable Food 924, Nature Medicine 747, EFSA Journal 495, Nature Biotech 484, Trends in Food Sci 445, Nature Climate 325.
+
 ## Pipeline-Optimierung
 
 - [ ] **Content-Prompt-Optimierung zur Artikelqualität (#3, inkl. zusätzlicher Output-Felder) — Stand 2026-06-21.** Ziel: Qualität der erzeugten Artikel heben, getestet per A/B gegen eine Stichprobe **bereits erzeugter** Artikel. Off-GPU planbar bis auf die Test-Generierung (lokal qwen, braucht freies VRAM-Fenster).
