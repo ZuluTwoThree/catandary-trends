@@ -1,9 +1,11 @@
 # Catandary Trends
 
-Cross-industry trend intelligence platform powered by local LLMs (Ollama).
-Aggregates RSS signals from primary trade/research sources across eight
-industry verticals, classifies them via a multi-stage LLM pipeline, and
-publishes curated trend articles (DE + EN) through a Next.js frontend.
+Cross-industry trend intelligence platform powered by local LLMs (Ollama /
+llama.cpp). Aggregates RSS signals from primary trade/research sources across
+eight industry verticals, classifies them via a multi-stage LLM pipeline, and
+publishes curated trend articles (EN) through a Next.js frontend. Each LLM
+stage has a pluggable backend (Ollama, llama.cpp, or — for the one-off historical
+backfill — the Anthropic API); the day-to-day RSS pipeline stays fully local.
 
 See [`CLAUDE.md`](CLAUDE.md) for the full architecture and taxonomy, and
 [`BACKLOG.md`](BACKLOG.md) for open ideas.
@@ -23,7 +25,8 @@ Mega/Macro/Micro trend levels (Foresight taxonomy).
 - Node.js 20+ (for frontend)
 - [Ollama](https://ollama.com/) running on `127.0.0.1:11434`
 - NVIDIA GPU with ≥12 GB VRAM (verified on RTX 5080 16 GB and RTX 3090 24 GB)
-- Optional: [`llama.cpp`](https://github.com/ggerganov/llama.cpp) `llama-server` for the Stage-6 35B backend (requires the 24 GB card; see `CLAUDE.md` → "Stage-6 auf llama.cpp 35B")
+- Optional: [`llama.cpp`](https://github.com/ggerganov/llama.cpp) `llama-server` (port 8090) as an alternate backend for the classification stages (8B), embeddings, and content generation (35B, requires the 24 GB card). See `CLAUDE.md` → "Stage-6 auf llama.cpp 35B".
+- Optional: an Anthropic API key for the historical-backfill classification path (`CLASSIFY_BACKEND=anthropic`, Haiku). Not used by the regular RSS pipeline.
 
 ### Install Ollama models
 
@@ -58,29 +61,47 @@ Copy `.env.example` to `.env`. Key settings:
 - `DATABASE_PATH` — default `./data/catandary.db`
 - `LOG_LEVEL` — default `INFO`
 
+Per-stage backend switches (all default to `ollama`; `scheduled_cycle.sh` sets
+them automatically when the matching llama.cpp start scripts are present):
+
+- `STAGE_8B_BACKEND` — relevance/extract/classify/reclassify: `ollama` | `llamacpp`
+- `EMBED_BACKEND` — Stage 5 embeddings: `ollama` | `llamacpp`
+- `STAGE5_BACKEND` — Stage 6 content gen: `ollama` (qwen3:14b) | `llamacpp` (35B)
+- `CLASSIFY_BACKEND` — `ollama` | `llamacpp` | `anthropic` (backfill only)
+- `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL_CLASSIFY` (default `claude-haiku-4-5`) — for `CLASSIFY_BACKEND=anthropic`
+
 ## Pipeline
 
 ```
 RSS feeds ──► feed_poller ──► raw_entries
                                   │
                                   ▼
-                       llm_processor (Ollama)
-                        1. title dedup          (no LLM)
-                        2. relevance filter     (qwen3:8b)
-                        3. structured extract   (qwen3:8b)
-                        4. NER + classify       (qwen3:8b)
-                        5. dedup via embedding  (qwen3-embedding)
-                        6. content EN           (qwen3:14b)
-                        7. translate DE         (qwen3:14b)
-                        8. insert trends        (draft)
-                        9. reclassify verticals (qwen3:8b)
-                       10. auto-publish         (conf ≥ 0.85)
+                       llm_processor (run_pipeline_batch)
+                        1. title dedup          (no LLM, rapidfuzz)
+                        2. relevance filter     ┐
+                        3. structured extract   │ 8B  (Ollama qwen3:8b /
+                        4. NER + classify       ┘      llama.cpp 8B / Anthropic)
+                        5. dedup via embedding  (qwen3-embedding, 4096-dim)
+                        6. content EN           (Ollama qwen3:14b / llama.cpp 35B)
+                        7. insert trends        (draft | signal)
+                        8. reclassify verticals (8B)
+                        9. auto-publish         (conf ≥ 0.85)
                                   │
                                   ▼
                           trends (published) ──► Next.js frontend
                                   │
                           mega_trend_reviewer (periodic)
 ```
+
+Notes:
+- **DE generation is currently suspended** — articles are EN-only (`title_de`/
+  `body_de` are left `NULL`; existing German bodies are historical). The frontend
+  DE/EN switcher still works for older content.
+- **`--signal-mode`** skips Stage 6 and inserts content-less `status='signal'`
+  rows (classification + embedding only) for fast foresight density; the article
+  is generated later, decoupled, by `scripts/generate_content.py`.
+- Each LLM stage's backend is selected via the env switches above; the regular
+  RSS run is fully local. `CLASSIFY_BACKEND=anthropic` is the backfill-only path.
 
 ### Poll feeds
 
@@ -90,17 +111,39 @@ python -m pipeline.feed_poller FOOD TECH       # subset
 python scripts/poll_dryrun.py                  # count new signals, no write
 ```
 
-### Run LLM pipeline
+### Run the full cycle (poll + LLM)
+
+`scripts/scheduled_cycle.sh` is the reference orchestration: it picks the
+llama.cpp backends when their start scripts are present, stops `llama-server`
+to free the GPU, runs `pipeline.run_full_cycle` (poll + LLM), drains any
+backlog, and restarts `llama-server` at the end.
 
 ```bash
-python -m pipeline.llm_processor 200           # process up to 200 entries
+scripts/scheduled_cycle.sh 600                 # poll + process, batch 600
+python -m pipeline.run_full_cycle --batch 600  # same, without the GPU/service wrapper
+python -m pipeline.run_full_cycle --skip-poll --batch 600   # process existing backlog only
 ```
 
-Default batch size is 10; pass a larger number as argument for bigger runs.
+### Run the LLM pipeline directly
+
+```bash
+python -m pipeline.llm_processor 200           # process up to 200 entries (default 200)
+python -m pipeline.llm_processor 200 --signal-mode   # classify+embed only, no article (status='signal')
+```
+
+### Decoupled content generation (signal-mode follow-up)
+
+Generates EN articles locally for `status='signal'` trends and promotes them to
+`published`/`draft`. Has a VRAM pre-flight guard (stop `llama-server` first).
+
+```bash
+python scripts/generate_content.py --vertical FOOD --limit 200
+python scripts/generate_content.py --all --chunk 200
+```
 
 ### Auto-publish high-confidence drafts
 
-Auto-publish and reclassify are integrated into the LLM pipeline (stages 9+10).
+Auto-publish and reclassify are integrated into the LLM pipeline (stages 8+9).
 Standalone run as fallback:
 
 ```bash
@@ -128,6 +171,29 @@ python scripts/review_cli.py stats
 
 ```bash
 python scripts/verify_feeds.py
+```
+
+## Historical backfill (non-RSS acquisition)
+
+RSS feeds only carry the latest ~10–50 items. For dated historical depth the
+acquisition scripts pull from free, dated channels and write `raw_entries`
+(processed=0) for the signal-mode pipeline to pick up. `probe_source_apis.py`
+classifies each source (WordPress REST API / OpenAlex / sitemap) and the
+`ingest_backfill.py` router dispatches accordingly.
+
+```bash
+python scripts/probe_source_apis.py                         # which channel per source
+python scripts/ingest_backfill.py --after 2024-01-01 --before 2025-01-01 --dry-run
+python scripts/ingest_wordpress.py --source-name "Green Queen" --after 2024-01-01 --before 2025-01-01
+python scripts/ingest_openalex.py  --source-name "Nature Food" --after 2024-01-01 --before 2025-01-01
+```
+
+Then classify the ingested entries off-GPU with Haiku and generate articles
+locally later:
+
+```bash
+CLASSIFY_BACKEND=anthropic python -m pipeline.llm_processor 5000 --signal-mode
+python scripts/generate_content.py --all --chunk 200
 ```
 
 ## Frontend
@@ -177,8 +243,9 @@ Daily cron (00:05), as installed on the reference machine:
     >> /home/dirk/logs/catandary-backup.log 2>&1
 ```
 
-Snapshot size on the reference DB (~22k trends with 4096-dim embeddings):
-~717 MB → ~530 MB gzipped, run time ~18 s.
+Snapshot scales with the DB (currently ~1.5 GB on disk, ~41k trends with
+4096-dim embeddings); gzip roughly halves it. Online `Connection.backup()`
+keeps it consistent during pipeline writes.
 
 ### Restore
 
@@ -210,30 +277,42 @@ catandary-trends/
 ├── mega_trends.yaml        # Canonical mega-trend taxonomy
 ├── pipeline/
 │   ├── feed_poller.py
-│   ├── llm_processor.py
+│   ├── run_full_cycle.py   # poll + LLM orchestration
+│   ├── llm_processor.py    # stages 1–9 (+ --signal-mode)
 │   ├── mega_trend_reviewer.py
 │   ├── auto_publisher.py
-│   ├── reclassify.py       # Vertical reclassification for drafts
+│   ├── reclassify.py       # vertical reclassification for drafts
+│   ├── radar_discovery.py  # Brave-search source discovery
 │   ├── newsletter_generator.py
+│   ├── crs.py              # composite trend/relevance scoring
 │   ├── models.py           # Pydantic schemas
-│   ├── db.py               # SQLite layer
-│   └── ollama_client.py
+│   ├── config.py           # settings + backend switches + sources loader
+│   ├── db.py               # SQLite layer (Postgres-ready schema)
+│   ├── ollama_client.py    # backend: Ollama
+│   ├── llamacpp_client.py  # backend: llama.cpp (8B / 35B / embeddings)
+│   ├── anthropic_client.py # backend: Anthropic (backfill classification)
+│   └── gpu_handover.py     # Ollama⇄llama-server VRAM/symlink handover
 ├── frontend/               # Next.js app
 │   ├── src/app/
 │   ├── src/components/
-│   └── mockups/            # Static design demos
-├── scripts/                # setup, reclassify, review, dryruns
+│   └── mockups/            # static design demos
+├── scripts/                # setup, ingest/backfill, content-gen, review, dryruns
+│   └── scheduled_cycle.sh  # reference full-cycle runner
 └── tests/
 ```
 
 ## Status
 
-Sprints 1–6 complete. **137 active sources, 26k+ published trends** across 8
-verticals (Stand 2026-05-29). Stage 6 content generation can optionally run
-on a llama.cpp 35B backend with mid-pipeline GPU handover. Active focus:
-non-RSS source-type expansion (see `pipeline_expansion_prompt.md` and the
-active Goal Contract under `goals/`), newsletter cadence, Hetzner deployment.
-Brave Search radar was retired in April 2026. See `CLAUDE.md` for full
-architecture and `BACKLOG.md` for the running idea list.
+Sprints 1–6 complete. **190 active sources, 41k+ published trends** across 8
+verticals (Stand 2026-06-21). Every LLM stage now has a pluggable backend:
+the classification stages (8B) and embeddings can run on Ollama or llama.cpp,
+and Stage 6 content generation always attempts the llama.cpp 35B (with
+mid-pipeline GPU handover, falling back to Ollama qwen3:14b). A decoupled
+throughput path (`--signal-mode` + Anthropic-Haiku backfill classification +
+local `generate_content.py`) drives the historical cross-vertical backfill via
+free WordPress-REST / OpenAlex / sitemap acquisition. DE article generation is
+currently suspended (EN-only). Active focus: cross-vertical backfill rollout,
+newsletter cadence, Hetzner deployment. See `CLAUDE.md` for full architecture
+and `BACKLOG.md` for the running idea list.
 
 For MacBook Air (8 GB) deployment, see [`MACBOOK_SETUP.md`](MACBOOK_SETUP.md).
