@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 import argparse
 import logging
+import os
 import re
 import sys
 import time
@@ -28,7 +29,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 logger = logging.getLogger(__name__)
 
 OPENALEX = "https://api.openalex.org"
-MAILTO = "trends@catandary.de"
+# OpenAlex is now a freemium credit service: $0.10/day with no key, $1/day with a
+# free key. A persistent 429 = the daily budget is exhausted (resets midnight UTC),
+# NOT a reputation throttle — backoff alone won't recover it, the api_key will.
+# Get a free key at openalex.org/settings/api and set OPENALEX_API_KEY.
+OPENALEX_API_KEY = os.getenv("OPENALEX_API_KEY", "")
+MAILTO = "trends@catandary.de"  # legacy polite-pool hint; harmless under the new model
 HEADERS = {"User-Agent": f"CatandaryTrends/1.0 (mailto:{MAILTO})"}
 
 
@@ -41,6 +47,8 @@ def _get(client: httpx.Client, url: str, params: dict, timeout: int = 40,
     skipped. Sending `mailto` puts us in the polite pool; on 429/5xx we back off
     and retry instead of treating it as 'no results'."""
     params = {**params, "mailto": MAILTO}
+    if OPENALEX_API_KEY:
+        params["api_key"] = OPENALEX_API_KEY
     for i in range(tries):
         try:
             r = client.get(url, params=params, timeout=timeout)
@@ -50,15 +58,23 @@ def _get(client: httpx.Client, url: str, params: dict, timeout: int = 40,
             continue
         if r.status_code == 200:
             return r.json()
-        if r.status_code in (429, 500, 502, 503):
-            wait = min(60, 2 ** i + 1)
-            logger.warning("OpenAlex %s on %s — backoff %ds (try %d/%d)",
-                           r.status_code, url.rsplit("/", 1)[-1], wait, i + 1, tries)
+        if r.status_code == 429:
+            # Daily budget exhausted (resets midnight UTC) OR >100 req/s burst. A
+            # short burst clears with backoff; an exhausted budget will not — bail
+            # after the retries rather than block forever (caller skips the source).
+            remaining = r.headers.get("X-RateLimit-Remaining")
+            wait = min(30, 2 ** i + 1)
+            logger.warning("OpenAlex 429 (remaining=%s%s) — backoff %ds (try %d/%d)",
+                           remaining, "" if OPENALEX_API_KEY else ", NO api_key set",
+                           wait, i + 1, tries)
             time.sleep(wait)
+            continue
+        if r.status_code in (500, 502, 503):
+            time.sleep(min(30, 2 ** i + 1))
             continue
         logger.error("OpenAlex %s: %s", r.status_code, r.text[:160])
         return None
-    logger.error("OpenAlex: exhausted retries for %s", url)
+    logger.error("OpenAlex: exhausted retries for %s (daily budget? set OPENALEX_API_KEY)", url)
     return None
 
 
@@ -115,7 +131,7 @@ def iter_works(client: httpx.Client, source_id: str, after: str, before: str):
     cursor = "*"
     while cursor:
         data = _get(client, f"{OPENALEX}/works", {
-            "filter": filt, "per_page": 200, "cursor": cursor,
+            "filter": filt, "per_page": 100, "cursor": cursor,  # 100 = API max
             "select": "id,title,publication_date,abstract_inverted_index,doi,primary_location",
         })
         if data is None:
