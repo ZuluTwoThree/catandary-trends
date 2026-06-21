@@ -24,8 +24,10 @@ Usage:
 from __future__ import annotations
 import argparse
 import logging
+import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -118,6 +120,38 @@ def batch_over_chunks(items: list[tuple[str, str]], schema, system, model) -> di
         logger.info("  submitting batch chunk %d-%d (%d requests)", i + 1, i + len(chunk), len(chunk))
         out.update(anthropic_client.batch_classify(chunk, schema, system, model))
     return out
+
+
+LLAMA_UNIT = "llama-server.service"
+MIN_FREE_VRAM_MIB = 8000
+
+
+def free_vram_for_embeddings() -> bool:
+    """Stop llama-server iff VRAM is too tight for local embeddings; return whether
+    we stopped it (caller restarts after Stage 5). The classification batches run
+    off-GPU for hours, so we free the GPU only around the embedding phase instead
+    of keeping llama-server down for the whole run."""
+    if EMBED_BACKEND != "ollama":
+        return False
+    try:
+        free = int(subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            text=True).strip().splitlines()[0])
+    except Exception:
+        return False
+    active = subprocess.run(["systemctl", "--user", "is-active", LLAMA_UNIT],
+                            capture_output=True, text=True).stdout.strip() == "active"
+    if free < MIN_FREE_VRAM_MIB and active:
+        logger.info("Stage 5: freeing VRAM — stopping %s (free=%d MiB)", LLAMA_UNIT, free)
+        subprocess.run(["systemctl", "--user", "stop", LLAMA_UNIT])
+        time.sleep(5)
+        return True
+    return False
+
+
+def restart_llama() -> None:
+    logger.info("Stage 5 done: restarting %s", LLAMA_UNIT)
+    subprocess.run(["systemctl", "--user", "start", LLAMA_UNIT])
 
 
 def _norm_rows(M: np.ndarray) -> np.ndarray:
@@ -244,6 +278,7 @@ def run(limit: int, execute: bool, embed_chunk: int,
     R = _norm_rows(np.asarray(recent_list, dtype=np.float32)) if recent_list else None
     thr = DUPLICATE_SIMILARITY_THRESHOLD
 
+    _llama_stopped = free_vram_for_embeddings()  # GPU only needed from here on
     kept_buf: np.ndarray | None = None  # preallocated (len(survivors) x dim), filled in place
     kept_count = 0
     keep = []
@@ -282,6 +317,8 @@ def run(limit: int, execute: bool, embed_chunk: int,
                     len(survivors), kept_count)
     survivors = keep
     logger.info("Stage 5 done: %d non-duplicate signals", len(survivors))
+    if _llama_stopped:
+        restart_llama()
 
     # ---- Stage 7: insert signals ----
     created = 0
