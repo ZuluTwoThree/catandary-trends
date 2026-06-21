@@ -104,6 +104,34 @@ def chat_structured(model: str, prompt: str, schema: type[T],
     return None
 
 
+# Validation keywords Pydantic emits that Anthropic structured output rejects.
+_UNSUPPORTED_SCHEMA_KEYS = frozenset({
+    "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+    "minLength", "maxLength", "pattern", "format",
+    "minItems", "maxItems", "uniqueItems",
+})
+
+
+def _strict_schema(node):
+    """Make a Pydantic JSON schema acceptable to Anthropic structured output: every
+    object needs `additionalProperties: false`, and unsupported validation keywords
+    (numeric/length/array constraints, pattern, format) must be removed. The SDK's
+    `messages.parse` does this internally; the raw batch path must do it itself.
+    Recurses into nested objects, $defs, anyOf/allOf, array items."""
+    if isinstance(node, dict):
+        for k in list(node):
+            if k in _UNSUPPORTED_SCHEMA_KEYS:
+                del node[k]
+        if node.get("type") == "object":
+            node["additionalProperties"] = False
+        for v in node.values():
+            _strict_schema(v)
+    elif isinstance(node, list):
+        for v in node:
+            _strict_schema(v)
+    return node
+
+
 def batch_classify(items: list[tuple[str, str]], schema: type[T], system: str,
                    model: str, max_tokens: int = _MAX_TOKENS,
                    poll_interval: int = 30, timeout: int = 86_400) -> dict[str, T | None]:
@@ -117,7 +145,7 @@ def batch_classify(items: list[tuple[str, str]], schema: type[T], system: str,
         logger.error("anthropic backend unavailable; batch_classify is a no-op")
         return {cid: None for cid, _ in items}
 
-    schema_json = schema.model_json_schema()
+    schema_json = _strict_schema(schema.model_json_schema())
     requests = []
     for cid, prompt in items:
         params = {
