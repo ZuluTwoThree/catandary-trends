@@ -153,7 +153,12 @@ def ingest(name: str, after: str, before: str, dry_run: bool) -> dict:
     stats = {"works": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
 
     with httpx.Client(headers=HEADERS) as client:
-        resolved = resolve_source_id(client, name)
+        # An explicit `openalex_id` in sources.yaml wins over name search — used
+        # for sources whose display name doesn't match the OpenAlex journal
+        # (e.g. "Science Magazine News" -> Science S3880285, "Matter (Cell Press)"
+        # where a generic "Matter" search hits physics journals instead).
+        explicit = (src or {}).get("openalex_id")
+        resolved = (explicit, name) if explicit else resolve_source_id(client, name)
         if not resolved:
             logger.error("OpenAlex: could not resolve source '%s'", name)
             return stats

@@ -484,6 +484,7 @@ verticals:
     - name: Matter (Cell Press)
       feed_url: https://www.cell.com/matter/current.rss
       type: research
+      openalex_id: S4210178557   # generic "Matter" search hits physics journals
       lead_time_tier: future
   FASHION:
     sources:
@@ -752,6 +753,7 @@ cross_industry:
   - name: Science Magazine News
     feed_url: https://www.science.org/rss/news_current.xml
     type: research
+    openalex_id: S3880285   # name doesn't match OpenAlex journal "Science" (2k works/yr)
     lead_time_tier: future
   - name: Phys.org
     feed_url: https://phys.org/rss-feed/
