@@ -4,19 +4,21 @@ Two handovers are supported, sharing the same `llama-server.service` on port 809
 via symlink-swap of `start-active.sh`:
 
   • Stage 6 (Content-Gen, 35B): see `content_gen_on_llamacpp`. The 35B alone
-    occupies ~24 GB and cannot coexist with Ollama models.
+    occupies ~24 GB and cannot coexist with Ollama models. It always swaps the
+    symlink to the 35B start script, so content gen uses the 35B regardless of
+    which model (or none) was loaded at pipeline start.
   • Stages 2/3/4/8 (8B): see `eight_b_on_llamacpp`. The 8B (~5 GB) coexists
     fine with Ollama embeddings (~5 GB) but uses the same port as the 35B,
     so symlink-swap is required.
 
 Common pattern for each:
 
-  1. (8B only) save the current symlink target so we can restore it on exit
+  1. save the current symlink target so we can restore it on exit
   2. swap `start-active.sh` to the start script that loads the expected model
   3. free Ollama VRAM (`ollama stop` every running model)
   4. start `llama-server.service` — which now follows the swapped symlink
   5. run the stage(s) against :8090
-  6. stop llama-server, restore symlink (8B), VRAM frees for the next phase
+  6. stop llama-server, restore symlink, VRAM frees for the next phase
 
 A pre-flight check refuses to start if `start-active.sh` does not resolve to a
 script that loads the expected model — defense in depth against OOM.
@@ -223,25 +225,48 @@ def llama_server_stop(timeout: int = 60) -> None:
 
 @contextmanager
 def content_gen_on_llamacpp(expected_model: str):
-    """Context manager: bring llama-server up for content gen, tear it down after.
+    """Context manager: bring llama-server up with the 35B for content gen, tear
+    it down after.
 
-    Only stops the server on exit if WE started it (so an externally-managed
-    server is left untouched). On exit, Ollama models reload on demand for the
+    Content generation ALWAYS attempts `expected_model` (the 35B), regardless of
+    which model — if any — start-active.sh pointed to at pipeline start. This
+    swaps the symlink to the registered start script for `expected_model` on
+    entry (saving the previous target) and restores it on exit, mirroring
+    `embed_on_llamacpp` / `eight_b_on_llamacpp`. The pre-flight in
+    `llama_server_start` then passes because the swap sets the right model.
+
+    If llama-server already serves `expected_model` (e.g. externally managed),
+    it is left untouched. On exit, Ollama models reload on demand for the
     subsequent reclassify/publish stages.
-
-    Assumes start-active.sh has been set externally (scheduled_cycle.sh)
-    to load `expected_model`; does NOT swap the symlink.
     """
-    already_up = _model_ready(expected_model)
-    llama_server_start(expected_model)
+    if _model_ready(expected_model):
+        logger.info("content-gen handover: llama-server already serving %s — nothing to do",
+                    expected_model)
+        try:
+            yield
+        finally:
+            pass
+        return
+
+    saved_target = _current_symlink_target()
+    llama_server_start(expected_model, swap_symlink=True)
     try:
         yield
     finally:
-        if not already_up:
+        try:
+            llama_server_stop()
+        except Exception as e:
+            logger.error("llama-server stop failed: %s", e)
+        # Restore start-active.sh to its pre-context target so the next handover
+        # and scheduled_cycle's final `systemctl start` find it as expected.
+        if saved_target and _current_symlink_target() != saved_target:
             try:
-                llama_server_stop()
+                logger.info("Restoring start-active.sh → %s", saved_target)
+                if START_ACTIVE.is_symlink() or START_ACTIVE.exists():
+                    START_ACTIVE.unlink()
+                START_ACTIVE.symlink_to(saved_target)
             except Exception as e:
-                logger.error("llama-server stop failed: %s", e)
+                logger.error("symlink restore failed: %s", e)
 
 
 @contextmanager

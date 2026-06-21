@@ -751,10 +751,10 @@ Keine offenen Ergänzungen. Lebensmittelzeitung wurde in `sources.yaml` eingebun
 Auf der 24-GB-Karte kann Stage 6 (Content-Generierung) auf ein deutlich größeres Modell umgeleitet werden:
 
 - **Modell:** Qwen3.6-35B-A3B-UD-Q4_K_M, geladen via `llama-server` (systemd user unit `llama-server.service`, Port 8090)
-- **Routing:** `STAGE5_BACKEND=llamacpp` in `scheduled_cycle.sh` aktiviert den Pfad. Pre-Flight verweigert den Start, falls `start-active.sh` nicht das erwartete Modell lädt — verhindert OOM.
-- **GPU-Handover:** `pipeline/gpu_handover.py` entlädt vor Stage 6 die Ollama-Modelle, startet llama-server, stoppt es nach Stage 6 wieder. Stages 7–9 nutzen Ollama wieder (Qwen3 8B für Reclassify on-demand).
+- **Routing:** `STAGE5_BACKEND=llamacpp` in `scheduled_cycle.sh` aktiviert den Pfad — gegated nur darauf, dass das 35B-**Start-Skript** (`start-qwen3.6-35b.sh`) existiert und das erwartete GGUF referenziert, **nicht** mehr darauf, worauf `start-active.sh` beim Start zeigt. Content-Gen versucht damit **immer** die 35B, egal welches Modell (oder keines) bei Pipeline-Start geladen war.
+- **GPU-Handover:** `pipeline/gpu_handover.py` (`content_gen_on_llamacpp`) **hängt vor Stage 6 den Symlink `start-active.sh` selbst auf das 35B-Start-Skript um** (speichert das vorherige Ziel), entlädt die Ollama-Modelle, startet llama-server, und stoppt es nach Stage 6 wieder + **stellt den Symlink zurück** (wie die 8B-/Embedding-Handover). Der Pre-Flight prüft danach konsistent das nun gesetzte Modell — OOM-Schutz bleibt. Stages 7–9 nutzen Ollama wieder (Qwen3 8B für Reclassify on-demand).
 - **Content-Guard:** Wortzahl-Validator retryt bis zu 3× bei vorzeitig terminierten Body-Strings (Grammar-Artefakt bei temp 0.7). In den ersten vier Nachtläufen war die "alle 3 Versuche failed"-Rate <0,25 %.
-- **Rückbau:** entweder `STAGE5_BACKEND=ollama` (Env-Override), `git revert 91e0729` (Aktivierungs-Commit, Code bleibt), oder Symlink `start-active.sh` auf ein anderes Modell zeigen lassen (Auto-Fallback im Skript).
+- **Rückbau:** `STAGE5_BACKEND=ollama` (Env-Override) erzwingt den Ollama-14B-Pfad. Alternativ das 35B-Start-Skript `start-qwen3.6-35b.sh` entfernen/umbenennen → `scheduled_cycle.sh` fällt automatisch auf Ollama zurück. (Das bloße Umhängen von `start-active.sh` deaktiviert den Pfad **nicht** mehr — der Handover hängt selbst auf die 35B um.)
 - **Zugehörige Goals:** offene Erweiterung der Quellen-Architektur, siehe `goals/` und `pipeline_expansion_prompt.md`.
 
 ## Technische Hinweise

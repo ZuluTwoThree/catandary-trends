@@ -41,14 +41,20 @@ mkdir -p "$(dirname "$LOG")"
   # Activates the llama.cpp backend ONLY if start-active.sh actually loads the
   # expected GGUF (so the mid-pipeline GPU handover reloads exactly that model and
   # fits VRAM). Otherwise fall back to Ollama 14B — no crash, no symlink mutation.
+  # Content gen ALWAYS attempts the 35B, regardless of which model (or none) is
+  # loaded at pipeline start: content_gen_on_llamacpp swaps start-active.sh to the
+  # 35B start script for the duration of Stage 6 and restores it afterwards. We
+  # therefore gate only on the 35B START SCRIPT existing and referencing the
+  # expected GGUF — not on start-active.sh's current target. Fall back to Ollama
+  # only if that start script is missing/misconfigured (avoids a hard crash).
   export STAGE5_MODEL="Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"
-  ACTIVE_SCRIPT="$(readlink -f /home/dirk/llama.cpp/start-active.sh 2>/dev/null)"
-  if [ -n "$ACTIVE_SCRIPT" ] && grep -q "$STAGE5_MODEL" "$ACTIVE_SCRIPT" 2>/dev/null; then
+  STAGE5_START="/home/dirk/llama.cpp/start-qwen3.6-35b.sh"
+  if [ -f "$STAGE5_START" ] && grep -q "$STAGE5_MODEL" "$STAGE5_START" 2>/dev/null; then
     export STAGE5_BACKEND=llamacpp
-    echo "----- Stage-6 backend: llamacpp ($STAGE5_MODEL), GPU handover active -----"
+    echo "----- Stage-6 backend: llamacpp ($STAGE5_MODEL), handover swaps symlink to 35B -----"
   else
     export STAGE5_BACKEND=ollama
-    echo "----- Stage-6 backend: ollama (fallback — start-active.sh does not load $STAGE5_MODEL) -----"
+    echo "----- Stage-6 backend: ollama (fallback — $STAGE5_START missing or wrong GGUF) -----"
   fi
   # <<< Stage-6 activation <<<
 
