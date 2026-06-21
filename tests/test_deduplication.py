@@ -23,10 +23,11 @@ class TestEmbeddingSerialization:
         assert unpacked == []
 
     def test_large_embedding(self):
-        original = [float(i) / 1000 for i in range(1024)]
+        # qwen3-embedding produces 4096-dim vectors
+        original = [float(i) / 1000 for i in range(4096)]
         packed = embedding_to_bytes(original)
         unpacked = bytes_to_embedding(packed)
-        assert len(unpacked) == 1024
+        assert len(unpacked) == 4096
         for a, b in zip(original, unpacked):
             assert abs(a - b) < 1e-6
 

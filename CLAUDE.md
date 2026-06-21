@@ -358,10 +358,10 @@ CREATE TABLE trends (
     -- Quelle
     source_url TEXT NOT NULL,
     source_name TEXT,
-    -- Embeddings
-    embedding VECTOR(1024),
+    -- Embeddings (qwen3-embedding = 4096-dim; pgvector ANN-Index cappt bei 2000 → für indizierte Suche truncaten)
+    embedding VECTOR(4096),
     -- Status
-    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'rejected')),
+    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'rejected', 'signal')),
     auto_published BOOLEAN DEFAULT false,
     published_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

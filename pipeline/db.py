@@ -212,7 +212,12 @@ CREATE TABLE IF NOT EXISTS trends (
     confidence REAL,
     source_url TEXT NOT NULL,
     source_name TEXT,
-    embedding VECTOR(1024),
+    -- qwen3-embedding outputs 4096-dim vectors (16384 bytes float32). The old
+    -- VECTOR(1024) declaration would reject every insert on Postgres. Note: pgvector
+    -- hnsw/ivfflat indexes cap at 2000 dims, so a 4096-dim column stores fine but
+    -- can't be ANN-indexed — truncate (Matryoshka) to <=2000 for an indexed column
+    -- when the prod ANN search lands. SQLite path stores raw bytes (BLOB), unaffected.
+    embedding VECTOR(4096),
     status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'rejected', 'signal')),
     auto_published BOOLEAN DEFAULT false,
     published_at TIMESTAMP,
