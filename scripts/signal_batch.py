@@ -31,6 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import httpx
+import numpy as np
 from slugify import slugify
 
 from pipeline import anthropic_client, ollama_client
@@ -117,6 +118,14 @@ def batch_over_chunks(items: list[tuple[str, str]], schema, system, model) -> di
         logger.info("  submitting batch chunk %d-%d (%d requests)", i + 1, i + len(chunk), len(chunk))
         out.update(anthropic_client.batch_classify(chunk, schema, system, model))
     return out
+
+
+def _norm_rows(M: np.ndarray) -> np.ndarray:
+    """L2-normalize each row so a dot product equals cosine similarity. Zero rows
+    are left as zeros (→ cosine 0), matching the old cosine_similarity contract."""
+    n = np.linalg.norm(M, axis=1, keepdims=True)
+    n[n == 0] = 1.0
+    return M / n
 
 
 def pull_unprocessed(limit: int, include: list[str], exclude: list[str]) -> list[dict]:
@@ -225,29 +234,52 @@ def run(limit: int, execute: bool, embed_chunk: int,
     survivors = keep
     logger.info("Stage 4 done: %d classified", len(survivors))
 
-    # ---- Stage 5: embeddings (batched) + dedup ----
-    recent_vecs = [bytes_to_embedding(b) for _, b in get_recent_embeddings(days=30)]
-    logger.info("Stage 5: %d recent embeddings for dedup", len(recent_vecs))
-    batch_vecs: list[list[float]] = []
+    # ---- Stage 5: embeddings (batched) + dedup (numpy-vectorized) ----
+    # Cosine via L2-normalized dot products done as matrix multiplies (BLAS): each
+    # embedding batch is compared against the recent-30d matrix and the running
+    # kept matrix in one matmul, instead of the old O(n^2) per-pair Python loop
+    # that hangs at 10k+. Identical threshold/semantics; just feasible at scale.
+    recent_list = [bytes_to_embedding(b) for _, b in get_recent_embeddings(days=30)]
+    logger.info("Stage 5: %d recent embeddings for dedup", len(recent_list))
+    R = _norm_rows(np.asarray(recent_list, dtype=np.float32)) if recent_list else None
+    thr = DUPLICATE_SIMILARITY_THRESHOLD
+
+    kept_buf: np.ndarray | None = None  # preallocated (len(survivors) x dim), filled in place
+    kept_count = 0
     keep = []
     for i in range(0, len(survivors), embed_chunk):
         chunk = survivors[i:i + embed_chunk]
         texts = [f"{e['title']}\n{(e['excerpt'] or '')[:500]}" for e in chunk]
         vecs = embed_batch(texts)
+        valid = []
         for e, v in zip(chunk, vecs):
             if v is None:
                 mark_filtered(e["id"], "embedding_error")
-                continue
-            dup = any(cosine_similarity(v, rv) > DUPLICATE_SIMILARITY_THRESHOLD
-                      for rv in recent_vecs) or \
-                  any(cosine_similarity(v, bv) > DUPLICATE_SIMILARITY_THRESHOLD for bv in batch_vecs)
-            if dup:
+            else:
+                valid.append((e, v))
+        if not valid:
+            continue
+        Bn = _norm_rows(np.asarray([v for _, v in valid], dtype=np.float32))  # (m, dim)
+        if kept_buf is None:
+            kept_buf = np.empty((len(survivors), Bn.shape[1]), dtype=np.float32)
+        rec_max = (Bn @ R.T).max(axis=1) if R is not None and R.shape[0] else np.zeros(len(valid))
+        prev_max = ((Bn @ kept_buf[:kept_count].T).max(axis=1)
+                    if kept_count else np.zeros(len(valid)))
+        chunk_start = kept_count
+        for j, (e, v) in enumerate(valid):
+            is_dup = rec_max[j] > thr or prev_max[j] > thr
+            if not is_dup and kept_count > chunk_start:  # vs vectors kept earlier in THIS chunk
+                if float((kept_buf[chunk_start:kept_count] @ Bn[j]).max()) > thr:
+                    is_dup = True
+            if is_dup:
                 mark_filtered(e["id"], "duplicate: embedding")
                 continue
-            e["_embedding"] = v
-            batch_vecs.append(v)
+            e["_embedding"] = v          # store the ORIGINAL (unnormalized) vector
+            kept_buf[kept_count] = Bn[j]
+            kept_count += 1
             keep.append(e)
-        logger.info("  embedded %d/%d", min(i + embed_chunk, len(survivors)), len(survivors))
+        logger.info("  embedded %d/%d (kept %d)", min(i + embed_chunk, len(survivors)),
+                    len(survivors), kept_count)
     survivors = keep
     logger.info("Stage 5 done: %d non-duplicate signals", len(survivors))
 
