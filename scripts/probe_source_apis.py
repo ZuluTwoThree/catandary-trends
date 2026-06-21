@@ -39,10 +39,16 @@ def collect_sources(cfg):
 def classify(src):
     domain = domain_of(src.get("feed_url", ""))
     typ = (src.get("type") or "").lower()
-    if (src.get("group") in ("science",) or typ in ("science", "research")
-            or any(h in domain for h in ACADEMIC_HOSTS)):
-        return "ACADEMIC", domain, None
-    # Probe WordPress REST API
+    is_academic = (src.get("group") in ("science",) or typ in ("science", "research")
+                   or any(h in domain for h in ACADEMIC_HOSTS))
+    # An explicit `ingest_via` in sources.yaml overrides the heuristic.
+    forced = (src.get("ingest_via") or "").upper()
+    if forced in ("WP", "ACADEMIC", "OTHER"):
+        return forced, domain, None
+    # Probe WordPress FIRST — a WP-backed outlet gives full dated content and beats
+    # OpenAlex even when tagged research/science (e.g. Science News: 733 WP posts in
+    # 2024 vs 0 OpenAlex works). Real journals (Nature, Lancet, PNAS …) run on
+    # publisher platforms with no /wp-json, so they fall through to ACADEMIC.
     try:
         r = httpx.get(f"https://{domain}/wp-json/wp/v2/posts",
                       params={"per_page": 1}, headers=HEADERS, timeout=8, follow_redirects=True)
@@ -50,6 +56,8 @@ def classify(src):
             return "WP", domain, int(r.headers["X-WP-Total"])
     except Exception:
         pass
+    if is_academic:
+        return "ACADEMIC", domain, None
     return "OTHER", domain, None
 
 
