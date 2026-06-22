@@ -52,7 +52,7 @@ from pipeline.llm_processor import (
     normalize_title, embedding_to_bytes, bytes_to_embedding,
     cosine_similarity,
 )
-from pipeline.models import RelevanceResult, ExtractionResult, ClassificationResult
+from pipeline.models import RelevanceResultSlim, ExtractionResult, ClassificationResult
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -267,7 +267,7 @@ def run(limit: int, execute: bool, embed_chunk: int,
     # ---- Stage 2: relevance (batch) ----
     rel_items = [(str(e["id"]), p_relevance(e["title"] or "", e["excerpt"] or "")) for e in survivors]
     logger.info("Stage 2 relevance: %d requests (backend=%s)", len(rel_items), backend)
-    rel = classify_stage(rel_items, RelevanceResult, RELEVANCE_SYSTEM, backend, workers)
+    rel = classify_stage(rel_items, RelevanceResultSlim, RELEVANCE_SYSTEM, backend, workers)
     keep = []
     for e in survivors:
         r = rel.get(str(e["id"]))

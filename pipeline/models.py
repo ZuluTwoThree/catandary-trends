@@ -36,6 +36,17 @@ class RelevanceResult(BaseModel):
     reason: str = Field(description="Brief reason for relevance decision")
 
 
+class RelevanceResultSlim(BaseModel):
+    """Relevance filter without the free-text `reason` field, for the backfill
+    classifier. Under constrained JSON decoding every schema field MUST be
+    generated, and `reason` (a full sentence) roughly doubled the relevance
+    output tokens → halved throughput (92 vs ~165 req/min). Dropping it is the
+    main local-throughput lever; `reason` is unused in signal-mode (gate only)."""
+    is_relevant: bool = Field(description="Whether this is a relevant trend signal")
+    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score 0-1")
+    primary_vertical: Vertical = Field(description="Primary industry vertical")
+
+
 # --- Step 2: Structured Extraction ---
 
 class ExtractionResult(BaseModel):
