@@ -499,10 +499,12 @@ verticals:
     - name: Fashionista
       feed_url: https://fashionista.com/.rss/full/
       type: trade_media
+      ingest_cap: 50   # low yield (~33%) — cap backfill
       lead_time_tier: now
     - name: Vogue UK
       feed_url: https://www.vogue.co.uk/feed/rss
       type: trade_media
+      ingest_cap: 50   # low yield (~18%) — cap backfill
       lead_time_tier: now
     - name: Guardian Fashion
       feed_url: https://www.theguardian.com/fashion/rss
@@ -519,6 +521,7 @@ verticals:
     - name: WWD
       feed_url: https://www.wwd.com/feed/
       type: trade_media
+      ingest_cap: 50   # huge volume, fashion-news noise — cap backfill
       lead_time_tier: now
     science:
     - name: Trends in Biotechnology
@@ -677,6 +680,7 @@ verticals:
     - name: Robb Report
       feed_url: https://robbreport.com/feed/
       type: trade_media
+      ingest_cap: 50   # luxury listings-heavy — cap backfill
       lead_time_tier: now
     - name: Luxury Daily
       feed_url: https://www.luxurydaily.com/feed/
@@ -685,6 +689,7 @@ verticals:
     - name: Highsnobiety
       feed_url: https://www.highsnobiety.com/feed/
       type: trade_media
+      ingest_cap: 50   # low yield (~30%) — cap backfill
       lead_time_tier: now
     - name: Skift
       feed_url: https://skift.com/feed/
@@ -705,6 +710,7 @@ verticals:
     - name: Hollywood Reporter
       feed_url: https://www.hollywoodreporter.com/feed/
       type: trade_media
+      ingest_cap: 50   # high-volume gossip, low yield (~19%) — cap backfill
       lead_time_tier: now
     - name: Tubefilter
       feed_url: https://www.tubefilter.com/feed/
@@ -717,6 +723,7 @@ verticals:
     - name: Variety
       feed_url: https://variety.com/feed/
       type: trade_media
+      ingest_cap: 50   # high-volume, low trend-signal yield (~22%) — cap backfill
       lead_time_tier: now
     - name: PocketGamer.biz
       feed_url: https://www.pocketgamer.biz/rss/

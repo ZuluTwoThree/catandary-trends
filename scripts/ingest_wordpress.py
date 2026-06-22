@@ -56,12 +56,15 @@ def month_chunks(after: str, before: str):
         y, m = ny, nm
 
 
-def fetch_month(client, base, after, before):
+def fetch_month(client, base, after, before, cap=None):
+    """Fetch a month's posts. `cap` limits posts/month (for noisy high-volume
+    sources) — stops paginating once `cap` is reached (oldest-first)."""
     posts, page = [], 1
+    per_page = min(100, cap) if cap else 100
     while True:
         try:
             r = client.get(f"{base}/wp-json/wp/v2/posts", params={
-                "after": after, "before": before, "per_page": 100, "page": page,
+                "after": after, "before": before, "per_page": per_page, "page": page,
                 "_fields": "date,link,title,excerpt,content", "orderby": "date", "order": "asc",
             }, timeout=30, follow_redirects=True)
         except Exception as exc:
@@ -76,6 +79,8 @@ def fetch_month(client, base, after, before):
         if not batch:
             break
         posts.extend(batch)
+        if cap and len(posts) >= cap:
+            return posts[:cap]
         if page >= int(r.headers.get("X-WP-TotalPages", 1)):
             break
         page += 1
@@ -89,6 +94,7 @@ def main():
     ap.add_argument("--base-url", help="override; else derived from sources.yaml feed_url")
     ap.add_argument("--after", required=True, help="YYYY-MM-DD (inclusive)")
     ap.add_argument("--before", required=True, help="YYYY-MM-DD (exclusive)")
+    ap.add_argument("--max-per-month", type=int, help="cap posts/month (overrides sources.yaml ingest_cap)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -97,7 +103,9 @@ def main():
         print(f"Quelle '{args.source_name}' nicht in sources.yaml und kein --base-url"); sys.exit(1)
     base = args.base_url or f"https://{domain_of(src['feed_url'])}"
     vertical = src["vertical"] if src else "FOOD"
-    print(f"[wp] {args.source_name} @ {base} | {args.after} .. {args.before} | dry_run={args.dry_run}")
+    cap = args.max_per_month or (src or {}).get("ingest_cap")  # per-source cap for noisy giants
+    print(f"[wp] {args.source_name} @ {base} | {args.after} .. {args.before} | "
+          f"dry_run={args.dry_run}{f' | cap={cap}/month' if cap else ''}")
 
     source_id = -1 if args.dry_run else db.upsert_source(
         name=args.source_name, feed_url=(src or {}).get("feed_url", base),
@@ -106,7 +114,7 @@ def main():
     stats = {"fetched": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
     with httpx.Client(headers=HEADERS) as client:
         for after, before in month_chunks(args.after, args.before):
-            posts = fetch_month(client, base, after, before)
+            posts = fetch_month(client, base, after, before, cap=cap)
             stats["fetched"] += len(posts)
             for p in posts:
                 url = (p.get("link") or "").strip()
