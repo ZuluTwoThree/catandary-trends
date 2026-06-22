@@ -52,6 +52,19 @@
 
 ## Quellen-Architektur — neue Signalquellen (priorisiert 2026-06-20)
 
+- [ ] **⭐ Quellen-Universum / Acquisition-Roadmap nach Lead-Time-Tier (Strategie 2026-06-22).** Wir schöpfen aus einem **winzigen Bruchteil** des legal/API-zugänglichen Materials: aktuell ~2 Kanäle (WP-REST + OpenAlex), konzentriert in den **späten** Tiers (Fachmedien + bisschen Research). Der Foresight-Vorsprung entsteht aber durch die **frühen** Tiers (längste Lead-Time, höchster Vorhersagewert) und harte **Mittel-Tier**-Signale — beides weitgehend ungenutzt. Jeder Kanal ist nur ein modularer Ingester (wie `ingest_wordpress.py`), der `raw_entries` mit eigenem `source_type` schreibt → entkoppelte Acquisition + Signal-Mode verarbeiten alles uniform. **Nur offizielle APIs / legale Primärquellen** (kein Aggregator-Scrape) — EDGAR/openFDA/OpenAlex/PatentsView/arXiv erfüllen das alle.
+
+  **Nach Lead-Time-Tier (priorisiert: frühe Tiers zuerst — das ist das fehlende Wertvolle):**
+  - **Frühestens — R&D-Förderung & Preprints (gratis):** **NIH RePORTER**, **NSF Award Search**, **CORDIS** (EU-Horizon-Projekte, Open Data) = wofür Geld bewilligt wird, *vor* der Forschung. **arXiv/bioRxiv/medRxiv/ChemRxiv** = früheste Forschungssignale, Monate vor Publikation (gezielt nach Category/Concept filtern → löst das arXiv-Firehose-Problem von früher).
+  - **Patente (gratis, eigenes Item unten):** USPTO PatentsView, EPO OPS, Lens.org.
+  - **Früh — Forschung publiziert:** OpenAlex (haben) + **Crossref** (150M Works, Metadaten/Abstracts), **Semantic Scholar API** (200M+ Paper, TLDRs), **PubMed/Europe PMC** (Biomed). Plus OpenAlex-Concept-Expansion (eigenes Item unten).
+  - **Mittel — Regulierung & Funding/M&A (gratis, harte Signale):** **SEC EDGAR Full-Text-API** (8-K/S-1-Filings = Funding/M&A/Pivots, *vor* der Presse), **Federal Register**, **openFDA** (Approvals/Recalls), **EUR-Lex** (`trend_signal_type='regulation'` ist schon im Datenmodell). Crunchbase/Dealroom = paid.
+  - **Marktnah — Produkte/Adoption:** WP-Fachmedien (haben Slice) + **Product Hunt** (Launches), **GitHub** (Trending/Releases = Tech-Adoption), **Hacker News** (Algolia-API).
+  - **Validierung — Nachfrage:** Google Trends (pytrends), Reddit-API.
+  - **CMS-Verallgemeinerung (billigster Zuwachs derselben Tier):** WordPress ist nur *ein* CMS — dieselbe API-Logik bei **Ghost** (Content API), **Substack** (JSON-Archiv), **Arc XP** (viele Fachverlage, z. B. FoodNavigator), **Drupal JSON:API**. → `probe_source_apis` um eine „CMS-Probe" erweitern, erschließt Hunderte weitere Sites.
+
+  **Strategischer Kern:** Mehr Fachmedien = mehr vom Gleichen. Die **frühen Tiers (Preprints + Grants + Patente)** + **Mittel-Tier (Filings + Regulierung)** machen die Zeitfenster-/Lead-Time-Analyse *prädiktiv* statt beschreibend — und sind genau das, was die Lead-Time-Positionierung (research→patent→funding→product→market) der Foresight-Engine erst füttert.
+
 - [ ] **Patente als Signalquelle anbinden.** Hoher Foresight-Wert: Patente haben die **längste Lead-Time** (Anmeldung Jahre vor Markteintritt → „Future/Science-Tier"). Das Datenmodell ist vorbereitet — `trend_signal_type` enthält bereits `"patent"`.
   - **Freie APIs:** **USPTO PatentsView** (sauberste: Titel, Abstract, Datum, Assignee, CPC-Klasse, Zitationen, REST/JSON), **EPO Open Patent Services** (weltweit, Registrierung), **Lens.org**, **WIPO PATENTSCOPE**.
   - **Architektur:** eigener Ingester analog `ingest_wordpress.py` → nach **CPC-Klasse + Datum** filtern (sonst Millionen/Jahr), Abstract als Excerpt, in `raw_entries` mit `source_type` z. B. `patent`. Mapping CPC→Vertical kuratieren (z. B. A23 Food, A61 Health, H01/G06 Tech, C/Y02 Eco).
