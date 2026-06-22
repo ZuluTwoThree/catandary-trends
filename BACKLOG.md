@@ -35,6 +35,19 @@
 
 - **Offene Entscheidung (Erinnerung 2026-06-20 17:00, `trig_01N4fr3iLUphyiXuvkbRKVmt`):** Option 3 phasiert — Throughput-Offensive zuerst (`--signal-mode` = kein Content-Gen, Artikel lazy; Batch-Klassifizierung via Anthropic Haiku/Sonnet; Embeddings lokal), dann gezielter Gap-Ingest pro Vertical. Kosten ~$1/1k (Haiku) bzw. ~$3/1k (Sonnet) Signale, ganzer Backfill grob ~$50–450. **Signalqualität bleibt:** signal-mode beschneidet nur die Artikel-Generierung, nicht Relevanz/Klassifizierung/Mega-Trend/Datum; Embeddings unverändert (`qwen3-embedding`, Input = `title+excerpt[:500]`, läuft ohnehin vor Content-Gen).
 
+## ⭐ STRATEGISCHE PRIORITÄT (HOCH) — Cluster-/Trajektorien-Foresight als Verkaufsfeature
+
+- [ ] **Foresight-Engine: Reasoning *in* den Signal-Daten, nicht in generierten Artikeln (Strategie-Entscheidung 2026-06-22).** Die **Cluster-/Trajektorien-Analyse auf den Signal-Embeddings ist das Mehrwert-Instrument und zukünftige Verkaufsfeature von Catandary Foresight** — nicht die publizierten Artikel (die sind der kostenlose Lead-Magnet). Das Modell: **Noise aus den Signalen canceln → das Reasoning fürs Trendverständnis passiert in den Daten** (Embedding-Cluster + Zeit-Trajektorien + Cross-Source-Korroboration), nicht durch LLM-Textgenerierung. Belegt am FOOD-Test (`docs/a2_food_evaluation.md`, `scripts/cluster_trajectory_demo.py`): 6.863 Signale → 12 kohärente Trend-Cluster + Tag-Momentum (food safety ↗, precision fermentation ↘) + 5–11-Quellen-Korroboration, **bei $0 Content-Gen**.
+
+  **Ausbau zum Produkt (vom Demo-Skript zur Foresight-Engine):**
+  - **Noise-Cancellation (Vorstufe):** Quellen-Qualitäts-Gewichtung (Pass-Rate pro Quelle, `scripts/source_signal_yield.py`), Relevanz-/Dedup-Filter, Signal-Typ-Gewichtung — nur hochwertige Signale ins Clustering. Rauschige Quellen (Variety/HR-Klasse) deckeln/ausschließen.
+  - **Clustering at scale:** ANN-Dedup + skalierbares Clustering (`discover_mega_trends.py` v1.1, hnswlib/faiss) über alle Verticals × Mehrjahres-Historie statt O(n)-bruteforce.
+  - **Trajektorien/Momentum:** Monats-/Quartals-Buckets, Slope/S-Kurven-Fit, **Lead-Time-Positionierung** (research → patent → funding → product → market) — voll tragfähig erst mit **3–5-Jahres-Backfill** (siehe FOOD-Test war nur 2024 = Intra-Jahr).
+  - **Reasoning in den Daten:** Cross-Source-Korroboration, Signal-Typ-Triangulation, PESTEL-Treiber-Analyse, Novelty-/Emergenz-Detektion (neuer Cluster = aufkommender Trend), Cross-Vertical-Trends (Signale mit mehreren `verticals`).
+  - **Produktisierung:** speist **Catandary Foresight** (Paid-Tier) — Cluster-Dashboards, „Wohin geht dieser Trend"-Ansicht, Mega-Trend-Trajektorien, Momentum-Rankings. Frontend-Foresight-Cockpit (`/trends/foresight`) als Ausgangspunkt.
+  - **Voraussetzung Datenbasis:** der gescopte Voll-Backfill (A3, lokal-parallel klassifiziert) liefert die Signal-Dichte; Content-Gen bleibt der *optionale, separate* Schritt nur für den öffentlichen Free-Layer.
+  - **Abgrenzung:** Free-Layer = Artikel (Lead-Magnet, GPU-Content-Gen für Teilmenge). **Premium-Layer = die Foresight-Engine auf den Signalen** (das hier). Beide aus derselben Signal-Basis.
+
 ## Quellen-Architektur — neue Signalquellen (priorisiert 2026-06-20)
 
 - [ ] **Patente als Signalquelle anbinden.** Hoher Foresight-Wert: Patente haben die **längste Lead-Time** (Anmeldung Jahre vor Markteintritt → „Future/Science-Tier"). Das Datenmodell ist vorbereitet — `trend_signal_type` enthält bereits `"patent"`.
