@@ -27,7 +27,7 @@ import logging
 import subprocess
 import sys
 import time
-from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -36,10 +36,10 @@ import httpx
 import numpy as np
 from slugify import slugify
 
-from pipeline import anthropic_client, ollama_client
+from pipeline import anthropic_client, ollama_client, llamacpp_client
 from pipeline.config import (
     ANTHROPIC_MODEL_CLASSIFY, RELEVANCE_THRESHOLD, DUPLICATE_SIMILARITY_THRESHOLD,
-    EMBED_BACKEND, EMBED_MODEL, MODEL_EMBEDDING,
+    EMBED_BACKEND, EMBED_MODEL, MODEL_EMBEDDING, STAGE_8B_MODEL,
 )
 from pipeline.llamacpp_client import LLAMACPP_HOST
 from pipeline.crs import compute_crs
@@ -122,15 +122,46 @@ def batch_over_chunks(items: list[tuple[str, str]], schema, system, model) -> di
     return out
 
 
+def local_classify(items: list[tuple[str, str]], schema, system, workers: int) -> dict:
+    """Classify concurrently against the local llama-server (port 8090) with a
+    thread pool — exploits the server's parallel slots. Drop-in for batch_classify;
+    same {custom_id: schema-instance | None} contract."""
+    out: dict = {}
+    done = 0
+
+    def one(item):
+        cid, prompt = item
+        return cid, llamacpp_client.chat_structured(
+            model=STAGE_8B_MODEL, prompt=prompt, schema=schema,
+            system=system, temperature=0.0)
+
+    t0 = time.time()
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        for cid, res in ex.map(one, items):
+            out[cid] = res
+            done += 1
+            if done % 500 == 0:
+                logger.info("  local classify %d/%d (%.0f req/min)",
+                            done, len(items), done / (time.time() - t0) * 60)
+    return out
+
+
+def classify_stage(items, schema, system, backend: str, workers: int) -> dict:
+    """Run a classification stage via the chosen backend (anthropic batch | local)."""
+    if backend == "local":
+        return local_classify(items, schema, system, workers)
+    return batch_over_chunks(items, schema, system, ANTHROPIC_MODEL_CLASSIFY)
+
+
 LLAMA_UNIT = "llama-server.service"
 MIN_FREE_VRAM_MIB = 8000
 
 
 def free_vram_for_embeddings() -> bool:
-    """Stop llama-server iff VRAM is too tight for local embeddings; return whether
-    we stopped it (caller restarts after Stage 5). The classification batches run
-    off-GPU for hours, so we free the GPU only around the embedding phase instead
-    of keeping llama-server down for the whole run."""
+    """Free GPU for the local embedding stage iff VRAM is too tight. Stops the
+    systemd llama-server.service AND any manually-started build/bin/llama-server
+    (the parallel 8B classifier used by backend=local holds ~22 GB). Returns True
+    if something was stopped (caller restarts the systemd unit afterwards)."""
     if EMBED_BACKEND != "ollama":
         return False
     try:
@@ -139,14 +170,13 @@ def free_vram_for_embeddings() -> bool:
             text=True).strip().splitlines()[0])
     except Exception:
         return False
-    active = subprocess.run(["systemctl", "--user", "is-active", LLAMA_UNIT],
-                            capture_output=True, text=True).stdout.strip() == "active"
-    if free < MIN_FREE_VRAM_MIB and active:
-        logger.info("Stage 5: freeing VRAM — stopping %s (free=%d MiB)", LLAMA_UNIT, free)
-        subprocess.run(["systemctl", "--user", "stop", LLAMA_UNIT])
-        time.sleep(5)
-        return True
-    return False
+    if free >= MIN_FREE_VRAM_MIB:
+        return False
+    logger.info("Stage 5: freeing VRAM for embeddings (free=%d MiB)", free)
+    subprocess.run(["systemctl", "--user", "stop", LLAMA_UNIT])
+    subprocess.run(["pkill", "-f", "build/bin/llama-server"])  # manual parallel 8B
+    time.sleep(6)
+    return True
 
 
 def restart_llama() -> None:
@@ -207,7 +237,8 @@ def title_dedup(entries: list[dict], commit: bool) -> list[dict]:
 
 
 def run(limit: int, execute: bool, embed_chunk: int,
-        include: list[str], exclude: list[str]) -> int:
+        include: list[str], exclude: list[str],
+        backend: str = "anthropic", workers: int = 24) -> int:
     t0 = time.time()
     entries = pull_unprocessed(limit, include, exclude)
     scope = (f"include={include}" if include else "") + (f" exclude={exclude}" if exclude else "")
@@ -220,13 +251,14 @@ def run(limit: int, execute: bool, embed_chunk: int,
     print("  per vertical:", dict(by_v.most_common()))
 
     if not execute:
-        # Cost projection on the scoped count (title-dedup will trim it slightly).
-        est_cost = (len(entries) / 1000.0) * COST_PER_1K_BATCHED
-        print(f"\nProjected Batch-API cost (−50%, ~${COST_PER_1K_BATCHED}/1k): "
-              f"~${est_cost:.2f} for {len(entries)} entries.")
+        if backend == "local":
+            print(f"\nbackend=local (llama.cpp :8090) — $0, ~165 req/min/stage at saturation.")
+        else:
+            est_cost = (len(entries) / 1000.0) * COST_PER_1K_BATCHED
+            print(f"\nProjected Batch-API cost (−50%, ~${COST_PER_1K_BATCHED}/1k): ~${est_cost:.2f} for {len(entries)} entries.")
         print("  (relevance on all; extraction+classify on the ~60-65% that pass relevance.)")
-        print("  Note: actual run title-dedups first (reduces count slightly); Stage-5 dedup is local/free.")
-        print("\nDRY-RUN — nothing submitted, no API cost. Re-run with --execute to classify.")
+        print("  Note: actual run title-dedups first; Stage-5 dedup is local/free.")
+        print("\nDRY-RUN — nothing submitted. Re-run with --execute to classify.")
         return 0
 
     survivors = title_dedup(entries, commit=True)
@@ -234,8 +266,8 @@ def run(limit: int, execute: bool, embed_chunk: int,
 
     # ---- Stage 2: relevance (batch) ----
     rel_items = [(str(e["id"]), p_relevance(e["title"] or "", e["excerpt"] or "")) for e in survivors]
-    logger.info("Stage 2 relevance: %d requests", len(rel_items))
-    rel = batch_over_chunks(rel_items, RelevanceResult, RELEVANCE_SYSTEM, ANTHROPIC_MODEL_CLASSIFY)
+    logger.info("Stage 2 relevance: %d requests (backend=%s)", len(rel_items), backend)
+    rel = classify_stage(rel_items, RelevanceResult, RELEVANCE_SYSTEM, backend, workers)
     keep = []
     for e in survivors:
         r = rel.get(str(e["id"]))
@@ -249,14 +281,16 @@ def run(limit: int, execute: bool, embed_chunk: int,
 
     # ---- Stage 3: extraction (batch) ----
     ext_items = [(str(e["id"]), p_extraction(e["title"] or "", e["excerpt"] or "")) for e in survivors]
-    ext = batch_over_chunks(ext_items, ExtractionResult, EXTRACTION_SYSTEM, ANTHROPIC_MODEL_CLASSIFY)
+    logger.info("Stage 3 extraction: %d requests", len(ext_items))
+    ext = classify_stage(ext_items, ExtractionResult, EXTRACTION_SYSTEM, backend, workers)
     for e in survivors:
         e["_extraction"] = ext.get(str(e["id"])) or ExtractionResult()
 
     # ---- Stage 4: classification (batch) ----
     cls_items = [(str(e["id"]), p_classification(e["title"] or "", e["excerpt"] or "", e["_extraction"]))
                  for e in survivors]
-    cls = batch_over_chunks(cls_items, ClassificationResult, CLASSIFICATION_SYSTEM, ANTHROPIC_MODEL_CLASSIFY)
+    logger.info("Stage 4 classification: %d requests", len(cls_items))
+    cls = classify_stage(cls_items, ClassificationResult, CLASSIFICATION_SYSTEM, backend, workers)
     keep = []
     for e in survivors:
         c = cls.get(str(e["id"]))
@@ -365,11 +399,14 @@ def main() -> int:
     ap.add_argument("--exclude-verticals", help="skip these source verticals (comma list)")
     ap.add_argument("--embed-chunk", type=int, default=64, help="texts per embedding request")
     ap.add_argument("--execute", action="store_true",
-                    help="actually submit batches (costs money); default is dry-run")
+                    help="actually classify (Anthropic = costs money); default is dry-run")
+    ap.add_argument("--backend", choices=["anthropic", "local"], default="anthropic",
+                    help="local = concurrent llama.cpp :8090 ($0); anthropic = Message Batches")
+    ap.add_argument("--workers", type=int, default=24, help="local backend concurrency")
     args = ap.parse_args()
     inc = [v.strip().upper() for v in args.verticals.split(",")] if args.verticals else []
     exc = [v.strip().upper() for v in args.exclude_verticals.split(",")] if args.exclude_verticals else []
-    return run(args.limit, args.execute, args.embed_chunk, inc, exc)
+    return run(args.limit, args.execute, args.embed_chunk, inc, exc, args.backend, args.workers)
 
 
 if __name__ == "__main__":
