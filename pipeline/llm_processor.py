@@ -19,6 +19,7 @@ import re
 import struct
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from rapidfuzz import fuzz
 from math import sqrt
@@ -28,6 +29,7 @@ from slugify import slugify
 from pipeline.config import (
     ANTHROPIC_MODEL_CLASSIFY,
     CLASSIFY_BACKEND,
+    CLASSIFY_WORKERS,
     DUPLICATE_SIMILARITY_THRESHOLD,
     LOG_LEVEL,
     MODEL_CLASSIFY,
@@ -215,6 +217,16 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     if norm_a == 0 or norm_b == 0:
         return 0.0
     return dot / (norm_a * norm_b)
+
+
+def _concurrent(fn, items, workers=CLASSIFY_WORKERS):
+    """Map fn over items, concurrently when workers>1. The step_* LLM calls are
+    pure (no DB writes), so dispatching them across the llama-server's parallel
+    slots is safe; results come back in input order. workers=0/1 → sequential."""
+    if workers and workers > 1 and len(items) > 1:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            return list(ex.map(fn, items))
+    return [fn(x) for x in items]
 
 
 def step_relevance_filter(title: str, excerpt: str, source_vertical: str) -> RelevanceResult | None:
@@ -548,7 +560,7 @@ def process_entry(entry: dict) -> dict | None:
     return trend_data
 
 
-def run_pipeline_batch(limit: int = 200, signal_mode: bool = False):
+def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int = 0):
     """Stage-by-stage batch pipeline.
 
     signal_mode=True skips Stage 6 (content generation), inserts content-less
@@ -564,8 +576,8 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False):
     start = time.time()
     init_db()
 
-    entries = get_unprocessed_entries(limit=limit)
-    logger.info("BATCH: loaded %d unprocessed entries", len(entries))
+    entries = get_unprocessed_entries(limit=limit, min_id=min_id)
+    logger.info("BATCH: loaded %d unprocessed entries (min_id=%d)", len(entries), min_id)
     if not entries:
         return {"processed": 0, "created": 0, "filtered": 0, "errors": 0}
 
@@ -609,16 +621,20 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False):
         # ---- Stage 2: Relevance filter (Qwen3 8B) ----
         t_stage = time.time()
         next_survivors = []
-        total_stage2 = len(survivors)
         cache_hits_stage2 = 0
-        for i, entry in enumerate(survivors, 1):
+        # Dispatch the LLM calls for uncached entries concurrently, then apply the
+        # cache/save/filter logic sequentially (DB writes stay single-threaded).
+        to_call = [e for e in survivors if not e.get("relevance_json")]
+        rel_res = dict(zip((e["id"] for e in to_call), _concurrent(
+            lambda e: step_relevance_filter(e["title"], e["excerpt"] or "", e.get("source_vertical", "TECH")), to_call)))
+        for entry in survivors:
             try:
                 cached = entry.get("relevance_json")
                 if cached:
                     rel = RelevanceResult.model_validate_json(cached)
                     cache_hits_stage2 += 1
                 else:
-                    rel = step_relevance_filter(entry["title"], entry["excerpt"] or "", entry.get("source_vertical", "TECH"))
+                    rel = rel_res.get(entry["id"])
                     if rel is not None:
                         save_stage_result(entry["id"], "relevance", rel)
                 if rel is None:
@@ -635,15 +651,16 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False):
                 logger.error("[%d] relevance error: %s", entry["id"], e)
                 mark_processed(entry["id"])
                 errors += 1
-            if i % 25 == 0:
-                logger.info("Stage 2 progress: %d/%d (%.0f%%)", i, total_stage2, i / total_stage2 * 100)
         survivors = next_survivors
-        logger.info("Stage 2 done in %.1fs: %d survivors (%d cache hits)",
-                    time.time() - t_stage, len(survivors), cache_hits_stage2)
+        logger.info("Stage 2 done in %.1fs: %d survivors (%d cache hits, workers=%d)",
+                    time.time() - t_stage, len(survivors), cache_hits_stage2, CLASSIFY_WORKERS)
 
         # ---- Stage 3: Extraction (Qwen3 8B) ----
         t_stage = time.time()
         cache_hits_stage3 = 0
+        to_call = [e for e in survivors if not e.get("extraction_json")]
+        ext_res = dict(zip((e["id"] for e in to_call), _concurrent(
+            lambda e: step_extraction(e["title"], e["excerpt"] or ""), to_call)))
         for entry in survivors:
             try:
                 cached = entry.get("extraction_json")
@@ -651,8 +668,7 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False):
                     entry["_extraction"] = ExtractionResult.model_validate_json(cached)
                     cache_hits_stage3 += 1
                 else:
-                    ext = step_extraction(entry["title"], entry["excerpt"] or "")
-                    ext = ext if ext is not None else ExtractionResult()
+                    ext = ext_res.get(entry["id"]) or ExtractionResult()
                     save_stage_result(entry["id"], "extraction", ext)
                     entry["_extraction"] = ext
             except Exception as e:
@@ -664,6 +680,9 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False):
         t_stage = time.time()
         next_survivors = []
         cache_hits_stage4 = 0
+        to_call = [e for e in survivors if not e.get("classification_json")]
+        cls_res = dict(zip((e["id"] for e in to_call), _concurrent(
+            lambda e: step_classification(e["title"], e["excerpt"] or "", e["_extraction"]), to_call)))
         for entry in survivors:
             try:
                 cached = entry.get("classification_json")
@@ -671,7 +690,7 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False):
                     cls = ClassificationResult.model_validate_json(cached)
                     cache_hits_stage4 += 1
                 else:
-                    cls = step_classification(entry["title"], entry["excerpt"] or "", entry["_extraction"])
+                    cls = cls_res.get(entry["id"])
                     if cls is not None:
                         save_stage_result(entry["id"], "classification", cls)
                 if cls is None:
@@ -704,7 +723,16 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False):
     gpu_ctx_embed = (gpu_handover.embed_on_llamacpp(EMBED_MODEL)
                      if EMBED_BACKEND == "llamacpp" and needs_embed
                      else nullcontext())
+    def _embed_one(text):
+        return (llamacpp_client.generate_embedding(text, model=EMBED_MODEL)
+                if EMBED_BACKEND == "llamacpp" else generate_embedding(MODEL_EMBEDDING, text))
+
     with gpu_ctx_embed:
+        # Generate embeddings for uncached entries concurrently (the dedup that
+        # follows stays sequential, since each kept vector feeds the next compare).
+        to_embed = [e for e in survivors if not e.get("embedding_blob")]
+        emb_res = dict(zip((e["id"] for e in to_embed), _concurrent(
+            lambda e: _embed_one(f"{e['title']}\n{(e['excerpt'] or '')[:500]}"), to_embed)))
         for entry in survivors:
             try:
                 cached_emb = entry.get("embedding_blob")
@@ -712,11 +740,7 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False):
                     emb = bytes_to_embedding(cached_emb)
                     cache_hits_stage5 += 1
                 else:
-                    text = f"{entry['title']}\n{(entry['excerpt'] or '')[:500]}"
-                    if EMBED_BACKEND == "llamacpp":
-                        emb = llamacpp_client.generate_embedding(text, model=EMBED_MODEL)
-                    else:
-                        emb = generate_embedding(MODEL_EMBEDDING, text)
+                    emb = emb_res.get(entry["id"])
                     if emb is not None:
                         save_stage_result(entry["id"], "embedding", embedding_to_bytes(emb))
                 if emb is None:
@@ -943,9 +967,10 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     mode_batch = "--legacy" not in args
     signal_mode = "--signal-mode" in args
+    min_id = next((int(a.split("=", 1)[1]) for a in args if a.startswith("--min-id=")), 0)
     positional = [a for a in args if not a.startswith("--")]
     limit = int(positional[0]) if positional else 200
     if mode_batch:
-        run_pipeline_batch(limit=limit, signal_mode=signal_mode)
+        run_pipeline_batch(limit=limit, signal_mode=signal_mode, min_id=min_id)
     else:
         run_pipeline(limit=limit)

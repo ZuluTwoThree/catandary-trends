@@ -475,15 +475,19 @@ def insert_raw_entry(source_id: int, url: str, title: str, excerpt: str,
             raise
 
 
-def get_unprocessed_entries(limit: int = 50) -> list[dict]:
-    """Get raw entries that haven't been processed yet."""
+def get_unprocessed_entries(limit: int = 50, min_id: int = 0) -> list[dict]:
+    """Get raw entries that haven't been processed yet.
+
+    `min_id` restricts to re.id > min_id — used to scope the RSS pipeline to
+    freshly-polled entries so it doesn't pick up a large backfill backlog that
+    shares the unprocessed pool (the backfill is classified separately, locally)."""
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT re.*, s.name as source_name, s.vertical as source_vertical, s.source_type as source_type "
             "FROM raw_entries re JOIN sources s ON re.source_id = s.id "
-            "WHERE re.processed = 0 AND re.filtered_out = 0 "
+            "WHERE re.processed = 0 AND re.filtered_out = 0 AND re.id > ? "
             "ORDER BY re.fetched_at ASC LIMIT ?",
-            (limit,),
+            (min_id, limit),
         ).fetchall()
         return [dict(row) for row in rows]
 
