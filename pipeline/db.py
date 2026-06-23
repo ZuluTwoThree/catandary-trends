@@ -93,7 +93,8 @@ CREATE TABLE IF NOT EXISTS trends (
     status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'rejected', 'signal')),
     auto_published INTEGER DEFAULT 0,
     published_at TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
+    created_at TEXT DEFAULT (datetime('now')),
+    sort_date TEXT
 );
 
 CREATE TABLE IF NOT EXISTS source_discoveries (
@@ -140,6 +141,8 @@ CREATE INDEX IF NOT EXISTS idx_trends_slug ON trends(slug);
 CREATE INDEX IF NOT EXISTS idx_trends_status ON trends(status);
 CREATE INDEX IF NOT EXISTS idx_trends_vertical ON trends(primary_vertical);
 CREATE INDEX IF NOT EXISTS idx_trends_created ON trends(created_at);
+-- NB: sort_date column + its indexes/trigger are created in _migrate_trends_sort_date()
+-- (after the ALTER), so they also apply cleanly to pre-existing DBs.
 
 CREATE TABLE IF NOT EXISTS newsletter_subscribers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -403,6 +406,49 @@ def _migrate_stage_cache_columns():
                 raise
 
 
+def _migrate_trends_sort_date():
+    """Add the indexed sort_date column (capped published date) + its indexes and
+    auto-maintaining trigger to existing trends tables, and backfill rows. Idempotent.
+    sort_date lets the frontend ORDER BY an index instead of a temp-b-tree over the
+    trends⋈raw_entries join (the /trends slowness). SQLite only."""
+    if USE_POSTGRES:
+        return
+    with get_connection() as conn:
+        first_time = False
+        try:
+            conn.execute("ALTER TABLE trends ADD COLUMN sort_date TEXT")
+            first_time = True
+        except Exception as e:
+            if "duplicate column" not in str(e).lower():
+                raise
+        # Index the common /trends access paths so they use indexes instead of a
+        # temp-b-tree / table scan over 40k+ rows:
+        #  - status_sort / vert_sort: main grid + vertical pages (ORDER BY sort_date)
+        #  - source: getTopSourcesByCount GROUP BY source_name
+        #  - mega_cover: COVERING index for getMegaTrends (group + first_seen/30d, no row lookup)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_trends_status_sort ON trends(status, sort_date)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_trends_vert_sort ON trends(primary_vertical, status, sort_date)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_trends_source ON trends(status, source_name)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_trends_mega_cover ON trends(status, mega_trend, primary_vertical, sort_date)")
+        conn.execute(
+            "CREATE TRIGGER IF NOT EXISTS trends_set_sort_date AFTER INSERT ON trends "
+            "BEGIN "
+            "UPDATE trends SET sort_date = MIN("
+            "COALESCE((SELECT published_date FROM raw_entries WHERE id = NEW.raw_entry_id), NEW.created_at), "
+            "NEW.created_at) WHERE id = NEW.id; "
+            "END"
+        )
+        if first_time:
+            # Backfill existing rows and update planner stats once (not every run).
+            conn.execute(
+                "UPDATE trends SET sort_date = COALESCE("
+                "(SELECT MIN(COALESCE(re.published_date, trends.created_at), trends.created_at) "
+                "FROM raw_entries re WHERE re.id = trends.raw_entry_id), trends.created_at) "
+                "WHERE sort_date IS NULL"
+            )
+            conn.execute("ANALYZE")
+
+
 def init_db():
     """Initialize database schema."""
     if USE_POSTGRES:
@@ -419,6 +465,7 @@ def init_db():
             conn.executescript(SQLITE_SCHEMA)
         logger.info("SQLite database initialized at %s", get_db_path())
     _migrate_stage_cache_columns()
+    _migrate_trends_sort_date()
 
 
 # --- Source Operations ---

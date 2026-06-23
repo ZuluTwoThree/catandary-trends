@@ -57,7 +57,7 @@ export function getTrends(options: {
       params.push(options.vertical);
     }
 
-    query += " ORDER BY MIN(COALESCE(re.published_date, t.created_at), t.created_at) DESC LIMIT ? OFFSET ?";
+    query += " ORDER BY t.sort_date DESC LIMIT ? OFFSET ?";
     params.push(options.limit ?? 50);
     params.push(options.offset ?? 0);
 
@@ -119,7 +119,7 @@ export function getTrendsByMegaTrend(megaTrend: string, options: {
       params.push(options.status);
     }
 
-    query += " ORDER BY MIN(COALESCE(re.published_date, t.created_at), t.created_at) DESC LIMIT ?";
+    query += " ORDER BY t.sort_date DESC LIMIT ?";
     params.push(options.limit ?? 50);
 
     const rows = db.prepare(query).all(...params) as Record<string, unknown>[];
@@ -175,10 +175,9 @@ export function getMegaTrends(status?: string): MegaTrendInfo[] {
   try {
     let query = `SELECT t.mega_trend, COUNT(*) as cnt,
        GROUP_CONCAT(DISTINCT t.primary_vertical) as verts,
-       MIN(re.published_date) as first_seen,
-       SUM(CASE WHEN re.published_date >= datetime('now', '-30 days') THEN 1 ELSE 0 END) as signals_30d
+       MIN(t.sort_date) as first_seen,
+       SUM(CASE WHEN t.sort_date >= datetime('now', '-30 days') THEN 1 ELSE 0 END) as signals_30d
        FROM trends t
-       LEFT JOIN raw_entries re ON t.raw_entry_id = re.id
        WHERE t.mega_trend IS NOT NULL AND t.mega_trend != ''`;
     const params: unknown[] = [];
 
@@ -234,7 +233,7 @@ export function getCrossVerticalTrends(options: {
       params.push(options.status);
     }
 
-    query += " ORDER BY COALESCE(re.published_date, t.created_at) DESC, t.trend_score DESC LIMIT ?";
+    query += " ORDER BY t.sort_date DESC, t.trend_score DESC LIMIT ?";
     params.push(options.limit ?? 20);
 
     const rows = db.prepare(query).all(...params) as Record<string, unknown>[];
@@ -360,7 +359,7 @@ function buildFilterClauses(options: TrendsFilterOptions): {
           ? "-7 days"
           : "-30 days";
     where.push(
-      "datetime(COALESCE(re.published_date, t.created_at)) >= datetime('now', ?)"
+      "t.sort_date >= datetime('now', ?)"
     );
     params.push(modifier);
   }
@@ -396,7 +395,7 @@ function buildFilterClauses(options: TrendsFilterOptions): {
 
 /** Capped date expression — caps future source dates to created_at so they
  *  sort by ingestion time, not by a bogus future RSS date. */
-const CAPPED_DATE = "MIN(COALESCE(re.published_date, t.created_at), t.created_at)";
+const CAPPED_DATE = "t.sort_date";
 
 function buildOrderBy(sort: TrendsSortBy | undefined): string {
   switch (sort) {
@@ -447,7 +446,7 @@ export function getTrendsFilteredCount(
 
     // Always include the raw_entries join because filters reference re.published_date.
     const query =
-      `SELECT COUNT(*) as cnt FROM trends t LEFT JOIN raw_entries re ON t.raw_entry_id = re.id` +
+      `SELECT COUNT(*) as cnt FROM trends t` +
       extraJoins +
       ` WHERE ${where}`;
 
@@ -464,17 +463,21 @@ export function getTopSourcesByCount(
 ): Array<{ source_name: string; count: number }> {
   const db = getDb();
   try {
+    // Build the status filter conditionally — the old `(? = 'all' OR status = ?)`
+    // trick defeated idx_trends_source(status, source_name), forcing a full scan
+    // (~4s over 50k rows). A plain `status = ?` lets the GROUP BY use the index.
+    const statusClause = status === "all" ? "" : " AND status = ?";
+    const params: unknown[] = status === "all" ? [limit] : [status, limit];
     const rows = db
       .prepare(
         `SELECT source_name, COUNT(*) as cnt
          FROM trends
-         WHERE source_name IS NOT NULL AND source_name != ''
-           AND (? = 'all' OR status = ?)
+         WHERE source_name IS NOT NULL AND source_name != ''${statusClause}
          GROUP BY source_name
          ORDER BY cnt DESC
          LIMIT ?`
       )
-      .all(status, status, limit) as Array<{ source_name: string; cnt: number }>;
+      .all(...params) as Array<{ source_name: string; cnt: number }>;
     return rows.map((r) => ({ source_name: r.source_name, count: r.cnt }));
   } finally {
     db.close();
@@ -497,7 +500,7 @@ export function getVerticalCountsScoped(
 
     const query =
       `SELECT t.primary_vertical, COUNT(*) as cnt
-       FROM trends t LEFT JOIN raw_entries re ON t.raw_entry_id = re.id` +
+       FROM trends t` +
       extraJoins +
       ` WHERE ${where}
        GROUP BY t.primary_vertical
