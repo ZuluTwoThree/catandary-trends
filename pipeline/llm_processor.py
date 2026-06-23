@@ -21,6 +21,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
+import numpy as np
 from rapidfuzz import fuzz
 from math import sqrt
 
@@ -217,6 +218,16 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     if norm_a == 0 or norm_b == 0:
         return 0.0
     return dot / (norm_a * norm_b)
+
+
+def _norm_rows(M: np.ndarray) -> np.ndarray:
+    """L2-normalize matrix rows so a dot product equals cosine similarity."""
+    M = np.asarray(M, dtype=np.float32)
+    if M.ndim == 1:
+        M = M.reshape(1, -1)
+    n = np.linalg.norm(M, axis=1, keepdims=True)
+    n[n == 0] = 1.0
+    return M / n
 
 
 def _concurrent(fn, items, workers=CLASSIFY_WORKERS):
@@ -717,7 +728,6 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
     logger.info("Stage 5: %d recent embeddings loaded", len(recent_vecs))
 
     next_survivors = []
-    batch_vecs: list[list[float]] = []
     cache_hits_stage5 = 0
     needs_embed = any(not e.get("embedding_blob") for e in survivors)
     gpu_ctx_embed = (gpu_handover.embed_on_llamacpp(EMBED_MODEL)
@@ -727,54 +737,56 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
         return (llamacpp_client.generate_embedding(text, model=EMBED_MODEL)
                 if EMBED_BACKEND == "llamacpp" else generate_embedding(MODEL_EMBEDDING, text))
 
+    # Pass 1: resolve each survivor's embedding (cached or generated concurrently),
+    # persist it, and drop embedding errors. Collect (entry, vec) for the dedup.
+    embedded: list[tuple[dict, list[float]]] = []
     with gpu_ctx_embed:
-        # Generate embeddings for uncached entries concurrently (the dedup that
-        # follows stays sequential, since each kept vector feeds the next compare).
         to_embed = [e for e in survivors if not e.get("embedding_blob")]
         emb_res = dict(zip((e["id"] for e in to_embed), _concurrent(
             lambda e: _embed_one(f"{e['title']}\n{(e['excerpt'] or '')[:500]}"), to_embed)))
         for entry in survivors:
-            try:
-                cached_emb = entry.get("embedding_blob")
-                if cached_emb:
-                    emb = bytes_to_embedding(cached_emb)
-                    cache_hits_stage5 += 1
-                else:
-                    emb = emb_res.get(entry["id"])
-                    if emb is not None:
-                        save_stage_result(entry["id"], "embedding", embedding_to_bytes(emb))
-                if emb is None:
-                    mark_filtered(entry["id"], "embedding_error")
-                    filtered += 1
-                    continue
-                max_sim = 0.0
-                is_dup = False
-                for v in recent_vecs:
-                    sim = cosine_similarity(emb, v)
-                    if sim > max_sim:
-                        max_sim = sim
-                    if sim > DUPLICATE_SIMILARITY_THRESHOLD:
-                        is_dup = True
-                        break
-                if not is_dup:
-                    for v in batch_vecs:
-                        sim = cosine_similarity(emb, v)
-                        if sim > max_sim:
-                            max_sim = sim
-                        if sim > DUPLICATE_SIMILARITY_THRESHOLD:
-                            is_dup = True
-                            break
-                if is_dup:
-                    mark_filtered(entry["id"], f"duplicate: similarity={max_sim:.3f}")
-                    filtered += 1
-                    continue
-                entry["_embedding"] = emb
-                batch_vecs.append(emb)
-                next_survivors.append(entry)
-            except Exception as e:
-                logger.error("[%d] dedup error: %s", entry["id"], e)
-                mark_processed(entry["id"])
-                errors += 1
+            cached_emb = entry.get("embedding_blob")
+            if cached_emb:
+                emb = bytes_to_embedding(cached_emb)
+                cache_hits_stage5 += 1
+            else:
+                emb = emb_res.get(entry["id"])
+                if emb is not None:
+                    save_stage_result(entry["id"], "embedding", embedding_to_bytes(emb))
+            if emb is None:
+                mark_filtered(entry["id"], "embedding_error")
+                filtered += 1
+                continue
+            embedded.append((entry, emb))
+
+    # Pass 2: vectorized dedup (numpy/BLAS) — replaces the O(n*recent) pure-Python
+    # cosine loop that idled the GPU for ~hours once `recent` grew to ~28k. Each new
+    # vector is checked against the recent set in one matmul and against the running
+    # kept-buffer incrementally (so intra-batch near-duplicates are still caught).
+    if embedded:
+        thr = DUPLICATE_SIMILARITY_THRESHOLD
+        R = _norm_rows(np.asarray(recent_vecs, dtype=np.float32)) if recent_vecs else None
+        B = _norm_rows(np.asarray([e for _, e in embedded], dtype=np.float32))
+        rec_max = ((B @ R.T).max(axis=1) if R is not None and R.shape[0]
+                   else np.zeros(len(embedded), dtype=np.float32))
+        kept_buf = np.empty_like(B)
+        kept_count = 0
+        for j, (entry, emb) in enumerate(embedded):
+            v = B[j]
+            max_sim = float(rec_max[j])
+            is_dup = max_sim > thr
+            if not is_dup and kept_count:
+                kmax = float((kept_buf[:kept_count] @ v).max())
+                max_sim = max(max_sim, kmax)
+                is_dup = kmax > thr
+            if is_dup:
+                mark_filtered(entry["id"], f"duplicate: similarity={max_sim:.3f}")
+                filtered += 1
+                continue
+            entry["_embedding"] = emb
+            kept_buf[kept_count] = v
+            kept_count += 1
+            next_survivors.append(entry)
     survivors = next_survivors
     logger.info("Stage 5 done in %.1fs: %d survivors (%d cache hits)",
                 time.time() - t_stage, len(survivors), cache_hits_stage5)
