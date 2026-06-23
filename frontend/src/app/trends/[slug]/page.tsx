@@ -36,6 +36,7 @@ export default async function TrendArticlePage({
   if (!trend) notFound();
 
   const related = getTrends({
+    status: "published",
     vertical: trend.primary_vertical,
     limit: 4,
   })
