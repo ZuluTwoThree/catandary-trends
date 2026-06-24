@@ -192,10 +192,15 @@ def _norm_rows(M: np.ndarray) -> np.ndarray:
     return M / n
 
 
-def pull_unprocessed(limit: int, include: list[str], exclude: list[str]) -> list[dict]:
-    """Unprocessed entries, optionally scoped by source vertical (include/exclude)."""
+def pull_unprocessed(limit: int, include: list[str], exclude: list[str],
+                     min_id: int = 0) -> list[dict]:
+    """Unprocessed entries, optionally scoped by source vertical (include/exclude)
+    and to id > min_id (to classify only a fresh ingest, not older backlog)."""
     where = ["re.processed = 0", "re.filtered_out = 0"]
     params: list = []
+    if min_id:
+        where.append("re.id > ?")
+        params.append(min_id)
     if include:
         where.append(f"s.vertical IN ({','.join('?' * len(include))})")
         params += include
@@ -238,9 +243,9 @@ def title_dedup(entries: list[dict], commit: bool) -> list[dict]:
 
 def run(limit: int, execute: bool, embed_chunk: int,
         include: list[str], exclude: list[str],
-        backend: str = "anthropic", workers: int = 24) -> int:
+        backend: str = "anthropic", workers: int = 24, min_id: int = 0) -> int:
     t0 = time.time()
-    entries = pull_unprocessed(limit, include, exclude)
+    entries = pull_unprocessed(limit, include, exclude, min_id)
     scope = (f"include={include}" if include else "") + (f" exclude={exclude}" if exclude else "")
     print(f"Unprocessed in scope ({scope or 'ALL'}): {len(entries)}")
     if not entries:
@@ -403,10 +408,13 @@ def main() -> int:
     ap.add_argument("--backend", choices=["anthropic", "local"], default="anthropic",
                     help="local = concurrent llama.cpp :8090 ($0); anthropic = Message Batches")
     ap.add_argument("--workers", type=int, default=24, help="local backend concurrency")
+    ap.add_argument("--min-id", type=int, default=0,
+                    help="only entries with id > MIN_ID — scope to a fresh ingest (e.g. patents)")
     args = ap.parse_args()
     inc = [v.strip().upper() for v in args.verticals.split(",")] if args.verticals else []
     exc = [v.strip().upper() for v in args.exclude_verticals.split(",")] if args.exclude_verticals else []
-    return run(args.limit, args.execute, args.embed_chunk, inc, exc, args.backend, args.workers)
+    return run(args.limit, args.execute, args.embed_chunk, inc, exc,
+               args.backend, args.workers, args.min_id)
 
 
 if __name__ == "__main__":
