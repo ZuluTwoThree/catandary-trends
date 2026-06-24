@@ -71,6 +71,20 @@
   - **Nächster Schritt (braucht 1 manuellen Schritt):** kostenlose OPS-App registrieren (developers.epo.org → Consumer Key+Secret) → in `.env` → `python scripts/ingest_patents.py --vertical FOOD --after 2020-01-01 --before 2026-07-01` pro Vertical → dann `signal_batch`/Pipeline klassifiziert sie in den Signal-Space (`trend_signal_type='patent'`). Analog zum OpenAlex-Key-Flow.
   - **Caveats:** dichte Patent-Sprache → Relevanz/Klassifizierung gut prompten; Volumen riesig → strikt klassen-/datumsgefiltert ziehen (max-pages cappt). OPS-Free-Tier ist throttled (4 GB/Woche) → über Tage verteilen.
 
+- [ ] **⭐ Patent-Daten-Features-Checkliste (aus `patent.dev` / Wolfgang Stark gelernt, 2026-06-24).** Was wir noch *nicht* haben, nach Wert sortiert. Erledigt = ✅, offen = ☐.
+  - ✅ **Citation-Graph** (`patent_links`: cites/parent/child + category) — `67c9e4d`. Backfill verkettet nach Klassifizierung.
+  - ✅ **Kind-Code-Parsing** (App/Grant via `kind_code`, `is_application`) — `c9483df`. App (A*) = frühestes Lead-Time-Signal.
+  - ✅ **Throttle „black"** (4. OPS-Stufe, harte Sperre) — `c9483df`.
+  - ☐ **`scripts/tir_metrics.py`** — Technology Improvement Rate: Cycle Time + Immediate Importance (r≈0,76) pro Cluster, dann SPNP-Centrality (~64 % Varianz). Siehe Memory `tir-patent-metrics-methodology`. **Baue ich, sobald der Citation-Backfill durch ist.**
+  - ☐ **Legal-Status-Ingest (INPADOC Legal Events)** — grant/in-force/**lapsed/abandoned**. *Neues* Signal neben Citations: Aufgabe einer Technologie = Negativsignal, Reife-Marker. Quelle: **BDDS-Produkt 5/11** (haben Zugang!) oder OPS `GetLegal`. Eigener Ingester → `patent_legal_events`-Tabelle.
+  - ☐ **INPADOC-Family-Dedup** — autoritative Familien-Gruppierung (besser als Google `parent`/`child`). Für korrekte Trend-*Counts* (1× pro Erfindung, nicht pro Land). OPS `GetFamily` / BDDS-INPADOC.
+  - ☐ **Earliest-Publication-Dedup im Analyse-Layer** — A+B desselben `pub_number`-Stamms auf die A-Publikation kollabieren (Lead-Time-Datum); cross-country via INPADOC-Family. `kind_code` ist schon da.
+  - ☐ **BDDS-DOCDB-XML-Ingester** (`--source epo-bdds`) — Produkt 14 (Welt-Back-File) / 3 (Front) → DOCDB-XML parsen → `raw_entries` + Citations. Der weltweite Bulk ohne OPS-Rate-Limits (Zugang validiert, EPO_LOGIN/PASSWORD in `.env`).
+  - ☐ **OPS-Citations-Constituent** — OPS `…/published-data/.../citations` für Citation-Anreicherung OPS-gezogener Patente (HF hat sie schon).
+  - ☐ **OPS-Full-Text** (`GetClaims`/`GetDescription`) + EP-Full-Text (BDDS-Produkt 32) — Volltext für tiefere Analyse, wo verfügbar.
+  - ☐ **CQL-Verfeinerungen** im OPS-Provider: `pd>=2020` (Vergleichsoperatoren), `ic=` (IPC alternativ zu CPC), Proximity (`prox/distance`).
+  - ☐ **DPMA Connect Plus** (DE-Patentamt, `patent.dev/dpma-connect-plus`) — falls DE-Markt-Fokus relevant wird.
+
 - [ ] **Weitere keyless Leading Indicators (für den Lead-Time-Layer, ohne Credential-Hürde):** arXiv (`export.arxiv.org/api/query`), bioRxiv/medRxiv, **NIH RePORTER** (`api.reporter.nih.gov`), **CORDIS** (EU-Horizon-Grants, Open Data) — alle keyless, früheste Tiers (Grants/Preprints *vor* der Forschung). Gleiches Muster wie `ingest_patents.py`: normalisierter Record → `insert_raw_entry` → Signal-Pipeline. Ergänzt die Patente um die noch früheren Lead-Indikatoren.
 
 - [ ] **OpenAlex über die 57 kuratierten Journale hinaus erweitern (Concept-/Topic-basiert).** Die 57 sind nur unsere bestehende Quellenliste — OpenAlex indexiert **~250 Mio. Werke über ~250k Quellen** und erlaubt Abfrage **nach Concept/Topic** (nicht nur Journal), je mit Datum + Abstract. Gratis.
