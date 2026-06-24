@@ -49,8 +49,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 OPS_BASE = "https://ops.epo.org/3.2"
-EPO_OPS_KEY = os.getenv("EPO_OPS_KEY", "")
-EPO_OPS_SECRET = os.getenv("EPO_OPS_SECRET", "")
+# EPO portal calls these "Consumer Key" / "Consumer Secret"; accept both names.
+EPO_OPS_KEY = os.getenv("EPO_OPS_CONSUMER_KEY") or os.getenv("EPO_OPS_KEY", "")
+EPO_OPS_SECRET = os.getenv("EPO_OPS_CONSUMER_SECRET_KEY") or os.getenv("EPO_OPS_SECRET", "")
 
 # CPC (Cooperative Patent Classification) section/class → Catandary vertical.
 # Curated so a CPC-scoped pull maps onto our taxonomy. A pulled patent's
@@ -129,9 +130,37 @@ def _ops_get(client: httpx.Client, token: str, url: str, params: dict, rng: str 
             continue
         if r.status_code == 404:
             return None  # no results for this slice
+        _note_throttle(r)
         r.raise_for_status()
         return r.json()
     return None
+
+
+# EPO OPS fair-usage: honor the X-Throttling-Control header. OPS reports a colour
+# + per-minute allowance per service (e.g. "search=green:30"). We pace the search
+# loop to stay within it and back right off on yellow/red.
+import re as _re  # noqa: E402
+
+_OPS_THROTTLE = {"search_color": "green", "search_limit": 30}
+
+
+def _note_throttle(resp) -> None:
+    h = resp.headers.get("X-Throttling-Control", "")
+    m = _re.search(r"search=(\w+):(\d+)", h)
+    if m:
+        _OPS_THROTTLE["search_color"] = m.group(1)
+        _OPS_THROTTLE["search_limit"] = int(m.group(2))
+
+
+def _throttle_sleep() -> None:
+    """Sleep between OPS searches to respect the reported per-minute allowance."""
+    color, limit = _OPS_THROTTLE["search_color"], max(1, _OPS_THROTTLE["search_limit"])
+    if color == "red":
+        time.sleep(15)
+    elif color == "yellow":
+        time.sleep(6)
+    else:  # green — pace to the per-minute search limit, with margin
+        time.sleep(max(2.5, 60.0 / limit + 0.5))
 
 
 def search_biblio(client: httpx.Client, token: str, cql: str, page_range: str):
@@ -166,8 +195,13 @@ def _exchange_documents(data: dict) -> list[dict]:
     sr = (data.get("ops:world-patent-data", {})
               .get("ops:biblio-search", {})
               .get("ops:search-result", {}))
-    docs = sr.get("exchange-documents", {})
-    return _as_list(docs.get("exchange-document"))
+    # `exchange-documents` may be a single group (dict) or a list of groups; each
+    # group's `exchange-document` may itself be a single doc or a list.
+    out: list[dict] = []
+    for grp in _as_list(sr.get("exchange-documents")):
+        if isinstance(grp, dict):
+            out.extend(d for d in _as_list(grp.get("exchange-document")) if isinstance(d, dict))
+    return out
 
 
 def parse_exchange_document(doc: dict) -> dict | None:
@@ -296,7 +330,7 @@ def ingest(vertical: str, cpc: str | None, after: str, before: str,
                     eid = db.insert_raw_entry(source_id, rec["url"], rec["title"],
                                               record_to_excerpt(rec)[:2000], rec["pub_date"])
                     stats["duplicates" if eid is None else "inserted"] += 1
-                time.sleep(0.5)  # be gentle on the free tier
+                _throttle_sleep()  # honor OPS X-Throttling-Control (fair usage)
             logger.info("  CPC %s done: fetched=%d inserted=%d dup=%d",
                         cls, stats["fetched"], stats["inserted"], stats["duplicates"])
 
