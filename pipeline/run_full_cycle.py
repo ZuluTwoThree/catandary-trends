@@ -122,17 +122,17 @@ def run_poll() -> dict:
     return _poll()
 
 
-def run_llm(batch: int) -> dict:
+def run_llm(batch: int, min_id: int = 0) -> dict:
     """Run LLM processing pipeline and return stats."""
     from pipeline.llm_processor import run_pipeline_batch
-    return run_pipeline_batch(limit=batch)
+    return run_pipeline_batch(limit=batch, min_id=min_id)
 
 
-def get_unprocessed_count() -> int:
-    """Get number of entries waiting for LLM processing."""
+def get_unprocessed_count(min_id: int = 0) -> int:
+    """Get number of entries waiting for LLM processing (id > min_id)."""
     from pipeline.db import get_unprocessed_entries, init_db
     init_db()
-    entries = get_unprocessed_entries(limit=99999)
+    entries = get_unprocessed_entries(limit=99999, min_id=min_id)
     return len(entries)
 
 
@@ -148,6 +148,9 @@ def main():
     parser.add_argument("--batch", type=int, default=400, help="Max entries to process (default: 400)")
     parser.add_argument("--skip-poll", action="store_true", help="Skip feed polling, only run LLM")
     parser.add_argument("--skip-llm", action="store_true", help="Skip LLM processing, only poll feeds")
+    parser.add_argument("--min-id", type=int, default=0,
+                        help="only process raw_entries with id > MIN_ID — scope to a fresh poll "
+                             "so a run never picks up a large unrelated backfill backlog")
     parser.add_argument("--dry-run", action="store_true", help="Check Ollama health + show stats, no processing")
     args = parser.parse_args()
 
@@ -233,13 +236,14 @@ def main():
     # Step 4: LLM processing (newly polled entries)
     llm_stats = None
     if not args.skip_llm:
-        new_count = get_unprocessed_count()
+        new_count = get_unprocessed_count(min_id=args.min_id)
         if new_count > 0:
             logger.info("-" * 40)
-            logger.info("PHASE 3: LLM Pipeline (%d new entries, batch=%d)", new_count, args.batch)
+            logger.info("PHASE 3: LLM Pipeline (%d new entries, batch=%d, min_id=%d)",
+                        new_count, args.batch, args.min_id)
             logger.info("-" * 40)
             t0 = time.time()
-            llm_stats = run_llm(min(args.batch, new_count))
+            llm_stats = run_llm(min(args.batch, new_count), min_id=args.min_id)
             llm_duration = time.time() - t0
             logger.info(
                 "LLM done in %.1fs — %d processed, %d trends created, %d filtered, %d errors",

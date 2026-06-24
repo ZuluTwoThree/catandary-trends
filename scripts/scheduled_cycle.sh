@@ -2,9 +2,14 @@
 # Scheduled Catandary pipeline run for off-hours use on ki-workstation.
 #
 # Sequence:
+#   0. Capture a watermark (max raw_entries.id) BEFORE polling. Both runs below
+#      are scoped to id > WATERMARK (--min-id), so the cycle only processes the
+#      freshly-polled entries and never drains an unrelated backfill backlog that
+#      shares the unprocessed pool (the multi-year signal backfill is classified
+#      separately by signal_batch).
 #   1. Run full cycle (poll + LLM) with the given batch size (default 600).
-#   2. If unprocessed entries remain, run a second cycle (--skip-poll) sized
-#      to drain the remaining backlog in one go.
+#   2. If fresh entries remain (id > WATERMARK), run a second cycle (--skip-poll)
+#      sized to drain that fresh backlog in one go.
 #   3. Always start llama-server.service at the end so the fcc-stack is
 #      available again after the off-hours window.
 #
@@ -61,11 +66,12 @@ mkdir -p "$(dirname "$LOG")"
   # >>> Stages 2/3/4/8 on llama.cpp 8B — `git revert` this commit to disable >>>
   # Activates the llama.cpp 8B backend for the four qwen3:8b stages ONLY if the
   # 8B start script exists and references the expected GGUF. The pipeline's
-  # in-run eight_b_on_llamacpp handover swaps the symlink to start-qwen3-8b.sh
-  # before Stages 2-4 and Stage 8 and restores it afterwards.
+  # in-run eight_b_on_llamacpp handover swaps the symlink to the 208K/24-slot
+  # start script (start-qwen3-8b-208k.sh) before Stages 2-4 and Stage 8 and
+  # restores it afterwards — phase 2-4 then runs parallel (CLASSIFY_WORKERS=24).
   # Fail-safe: missing script or wrong GGUF reference → fall back to Ollama.
   export STAGE_8B_MODEL="Qwen3-8B-UD-Q4_K_XL.gguf"
-  ACTIVE_8B="/home/dirk/llama.cpp/start-qwen3-8b.sh"
+  ACTIVE_8B="/home/dirk/llama.cpp/start-qwen3-8b-208k.sh"
   if [ -f "$ACTIVE_8B" ] && grep -q "$STAGE_8B_MODEL" "$ACTIVE_8B" 2>/dev/null; then
     export STAGE_8B_BACKEND=llamacpp
     echo "----- Stages 2/3/4/8 backend: llamacpp ($STAGE_8B_MODEL) -----"
@@ -103,31 +109,47 @@ mkdir -p "$(dirname "$LOG")"
     if [ "${USED:-9999}" -lt 1500 ]; then break; fi
   done
 
+  # Watermark: max raw_entries.id BEFORE the poll. Both runs are scoped to
+  # id > WATERMARK so the cycle only processes freshly-polled entries and never
+  # picks up an unrelated backfill backlog that shares the unprocessed pool
+  # (the multi-year signal backfill is classified separately by signal_batch).
   echo
-  echo "----- run 1: full cycle (poll + LLM), batch $BATCH -----"
-  python -m pipeline.run_full_cycle --batch "$BATCH"
+  WATERMARK=$(python - <<'PY'
+from pipeline.db import get_connection
+with get_connection() as c:
+    print(c.execute("SELECT COALESCE(MAX(id), 0) FROM raw_entries").fetchone()[0])
+PY
+)
+  WATERMARK="${WATERMARK:-0}"
+  echo "----- watermark before poll: $WATERMARK (only entries polled after this are processed) -----"
+
+  echo
+  echo "----- run 1: full cycle (poll + LLM), batch $BATCH, min_id $WATERMARK -----"
+  python -m pipeline.run_full_cycle --batch "$BATCH" --min-id "$WATERMARK"
   RC1=$?
   echo "----- run 1 exit code: $RC1 -----"
 
-  # Check remaining backlog regardless of exit code (Step 3 reads DB state)
-  UNPROCESSED=$(python - <<'PY'
+  # Remaining backlog = freshly-polled entries (id > WATERMARK) not yet done in
+  # run 1 — NOT the backfill. Drained by run 2, still scoped to the watermark.
+  UNPROCESSED=$(WATERMARK="$WATERMARK" python - <<'PY'
+import os
 from pipeline.db import get_unprocessed_entries, init_db
 init_db()
-print(len(get_unprocessed_entries(limit=999999)))
+print(len(get_unprocessed_entries(limit=999999, min_id=int(os.environ["WATERMARK"]))))
 PY
 )
   echo
-  echo "----- backlog after run 1: $UNPROCESSED unprocessed entries -----"
+  echo "----- backlog after run 1 (id > $WATERMARK): $UNPROCESSED unprocessed entries -----"
 
   RC2=0
   if [ "${UNPROCESSED:-0}" -gt 0 ]; then
     echo
-    echo "----- run 2: drain backlog (--skip-poll), batch $UNPROCESSED -----"
-    python -m pipeline.run_full_cycle --skip-poll --batch "$UNPROCESSED"
+    echo "----- run 2: drain fresh backlog (--skip-poll), batch $UNPROCESSED, min_id $WATERMARK -----"
+    python -m pipeline.run_full_cycle --skip-poll --batch "$UNPROCESSED" --min-id "$WATERMARK"
     RC2=$?
     echo "----- run 2 exit code: $RC2 -----"
   else
-    echo "no backlog → skipping run 2"
+    echo "no fresh backlog → skipping run 2"
   fi
 
   echo
