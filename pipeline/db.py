@@ -64,7 +64,11 @@ CREATE TABLE IF NOT EXISTS raw_entries (
     content_en_json TEXT,
     -- Patent node key (e.g. US-1234567-B2); links the citation/family graph
     -- (patent_links) back to this row. NULL for non-patent entries.
-    pub_number TEXT
+    pub_number TEXT,
+    -- Patent kind code (A1/A2 = application/first publication, B1/B2 = grant, U =
+    -- utility model …). A* is the earliest lead-time signal; used for app/grant
+    -- split and earliest-publication dedup. NULL for non-patent entries.
+    kind_code TEXT
 );
 
 CREATE TABLE IF NOT EXISTS trends (
@@ -462,11 +466,12 @@ def _migrate_patent_graph():
     if USE_POSTGRES:
         return
     with get_connection() as conn:
-        try:
-            conn.execute("ALTER TABLE raw_entries ADD COLUMN pub_number TEXT")
-        except Exception as e:
-            if "duplicate column" not in str(e).lower():
-                raise
+        for col in ("pub_number TEXT", "kind_code TEXT"):
+            try:
+                conn.execute(f"ALTER TABLE raw_entries ADD COLUMN {col}")
+            except Exception as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
         conn.execute(
             "CREATE TABLE IF NOT EXISTS patent_links ("
             " src_pub TEXT NOT NULL,"        # the citing patent / the patent this family-link belongs to
@@ -484,6 +489,20 @@ def _migrate_patent_graph():
             "replace(replace(url, 'https://patents.google.com/patent/', ''), '/en', '') "
             "WHERE pub_number IS NULL AND url LIKE 'https://patents.google.com/patent/%'"
         )
+        # Backfill kind_code by parsing the trailing segment of pub_number (US-123-B2 -> B2).
+        import re as _re
+        todo = conn.execute(
+            "SELECT id, pub_number FROM raw_entries WHERE pub_number IS NOT NULL AND kind_code IS NULL"
+        ).fetchall()
+        upd = []
+        for row in todo:
+            rid = row["id"] if isinstance(row, dict) else row[0]
+            pub = row["pub_number"] if isinstance(row, dict) else row[1]
+            last = (pub or "").rsplit("-", 1)[-1]
+            if _re.fullmatch(r"[A-Z]{1,2}\d?", last):
+                upd.append((last, rid))
+        if upd:
+            conn.executemany("UPDATE raw_entries SET kind_code = ? WHERE id = ?", upd)
 
 
 def insert_patent_links(rows: list[tuple]) -> int:
@@ -547,26 +566,28 @@ def upsert_source(name: str, feed_url: str, source_type: str, vertical: str) -> 
 # --- Raw Entry Operations ---
 
 def insert_raw_entry(source_id: int, url: str, title: str, excerpt: str,
-                     published_date: str | None = None, pub_number: str | None = None) -> int | None:
+                     published_date: str | None = None, pub_number: str | None = None,
+                     kind_code: str | None = None) -> int | None:
     """Insert a raw entry. Returns id or None if duplicate URL.
 
     `pub_number` (patent publication number) is the node key for the citation/
-    family graph in patent_links; NULL for non-patent entries."""
+    family graph; `kind_code` (A1/B2/…) flags application vs grant. Both NULL for
+    non-patent entries."""
     with get_connection() as conn:
         try:
             if USE_POSTGRES:
                 cursor = conn.execute(
-                    "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date, pub_number) "
-                    "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (url) DO NOTHING RETURNING id",
-                    (source_id, url, title, excerpt, published_date, pub_number),
+                    "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date, pub_number, kind_code) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (url) DO NOTHING RETURNING id",
+                    (source_id, url, title, excerpt, published_date, pub_number, kind_code),
                 )
                 result = cursor.fetchone()
                 return result["id"] if result else None
             else:
                 cursor = conn.execute(
-                    "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date, pub_number) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
-                    (source_id, url, title, excerpt, published_date, pub_number),
+                    "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date, pub_number, kind_code) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (source_id, url, title, excerpt, published_date, pub_number, kind_code),
                 )
                 return cursor.lastrowid
         except (sqlite3.IntegrityError, Exception) as e:

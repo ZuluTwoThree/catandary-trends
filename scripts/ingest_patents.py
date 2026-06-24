@@ -88,6 +88,20 @@ def vertical_for_cpc(cpc_list) -> str | None:
     return None
 
 
+def kind_code(pub_number: str) -> str:
+    """Patent kind code = trailing segment of the publication number (US-123-B2 -> B2).
+    A1/A2 = application (first publication), B1/B2 = grant, U = utility model, T = translation."""
+    import re
+    last = (pub_number or "").rsplit("-", 1)[-1]
+    return last if re.fullmatch(r"[A-Z]{1,2}\d?", last) else ""
+
+
+def is_application(pub_number: str) -> bool:
+    """True if a first-publication/application (kind A*) — the earliest lead-time
+    signal. B* = grant (years later); for trend timing prefer the A publication."""
+    return kind_code(pub_number).startswith("A")
+
+
 # --------------------------------------------------------------------------- #
 # EPO OPS provider
 # --------------------------------------------------------------------------- #
@@ -153,9 +167,13 @@ def _note_throttle(resp) -> None:
 
 
 def _throttle_sleep() -> None:
-    """Sleep between OPS searches to respect the reported per-minute allowance."""
+    """Sleep between OPS searches to respect the reported per-minute allowance.
+    OPS reports green/yellow/red/black (black = service blocked → back off hard)."""
     color, limit = _OPS_THROTTLE["search_color"], max(1, _OPS_THROTTLE["search_limit"])
-    if color == "red":
+    if color == "black":
+        logger.warning("OPS throttle BLACK (service blocked) — backing off 120s")
+        time.sleep(120)
+    elif color == "red":
         time.sleep(15)
     elif color == "yellow":
         time.sleep(6)
@@ -412,7 +430,7 @@ def gp_record(row: dict) -> dict | None:
             "pub_number": num, "pub_date": pub_date, "applicant": assignee,
             "cpc": [c.get("code", "") for c in (row.get("cpc") or [])][:8],
             "url": f"https://patents.google.com/patent/{num}/en" if num else "",
-            "vertical": vert, "links": patent_links(row, num)}
+            "vertical": vert, "links": patent_links(row, num), "kind_code": kind_code(num)}
 
 
 def ingest_hf_gpatents(after: str, before: str, max_files: int, dry_run: bool,
@@ -460,7 +478,7 @@ def ingest_hf_gpatents(after: str, before: str, max_files: int, dry_run: bool,
                                 source_type="api", vertical=v)
                         eid = db.insert_raw_entry(src_ids[v], rec["url"], rec["title"],
                                                   record_to_excerpt(rec)[:2000], rec["pub_date"],
-                                                  pub_number=rec["pub_number"])
+                                                  pub_number=rec["pub_number"], kind_code=rec["kind_code"])
                         st["duplicates" if eid is None else "inserted"] += 1
                         # capture edges even on URL-dup, so existing patents get their graph
                         if rec["links"]:
@@ -544,7 +562,12 @@ def selftest() -> int:
     assert ("US-12345-B2", "US-11000-A1", "parent", None) in g["links"]
     assert len(g["links"]) == 3
     assert gp_record({"title_localized": [{"text": "x", "language": "ja"}], "cpc": []}) is None  # non-EN
-    print("selftest OK — OPS + Google-Patents parsing + CPC routing validated")
+    # kind code / application-vs-grant
+    assert g["kind_code"] == "B2"
+    assert kind_code("US-2026165336-A1") == "A1" and is_application("US-2026165336-A1")
+    assert kind_code("EP-4123456-B1") == "B1" and not is_application("EP-4123456-B1")
+    assert kind_code("JP-H05341715-A") == "A" and is_application("JP-H05341715-A")
+    print("selftest OK — OPS + Google-Patents parsing + CPC routing + kind codes validated")
     print(f"  parsed: {rec['pub_number']} ({rec['pub_date']}) '{rec['title']}' "
           f"CPC={rec['cpc']} applicant={rec['applicant']!r}")
     return 0
