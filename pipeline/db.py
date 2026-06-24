@@ -61,7 +61,10 @@ CREATE TABLE IF NOT EXISTS raw_entries (
     extraction_json TEXT,
     classification_json TEXT,
     embedding_blob BLOB,
-    content_en_json TEXT
+    content_en_json TEXT,
+    -- Patent node key (e.g. US-1234567-B2); links the citation/family graph
+    -- (patent_links) back to this row. NULL for non-patent entries.
+    pub_number TEXT
 );
 
 CREATE TABLE IF NOT EXISTS trends (
@@ -449,6 +452,52 @@ def _migrate_trends_sort_date():
             conn.execute("ANALYZE")
 
 
+def _migrate_patent_graph():
+    """Add the patent citation/family graph: raw_entries.pub_number (node key) +
+    a patent_links edge table (cites / parent / child). Idempotent. SQLite only.
+
+    Forward citations are *not* stored on the cited patent — they are derived by
+    inverting the backward edges (SELECT src WHERE dst=X), so even old foundational
+    patents that were never ingested surface as heavily-cited dst nodes."""
+    if USE_POSTGRES:
+        return
+    with get_connection() as conn:
+        try:
+            conn.execute("ALTER TABLE raw_entries ADD COLUMN pub_number TEXT")
+        except Exception as e:
+            if "duplicate column" not in str(e).lower():
+                raise
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS patent_links ("
+            " src_pub TEXT NOT NULL,"        # the citing patent / the patent this family-link belongs to
+            " dst_pub TEXT NOT NULL,"        # the cited patent / the parent|child patent
+            " link_type TEXT NOT NULL,"      # 'cites' | 'parent' | 'child'
+            " category TEXT,"                # citations: EXA(examiner)|APP(applicant)|X|Y|A …
+            " UNIQUE(src_pub, dst_pub, link_type))"
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_plinks_src ON patent_links(src_pub, link_type)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_plinks_dst ON patent_links(dst_pub, link_type)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_raw_pubnum ON raw_entries(pub_number)")
+        # Backfill pub_number for already-ingested Google-Patents rows (url -> number).
+        conn.execute(
+            "UPDATE raw_entries SET pub_number = "
+            "replace(replace(url, 'https://patents.google.com/patent/', ''), '/en', '') "
+            "WHERE pub_number IS NULL AND url LIKE 'https://patents.google.com/patent/%'"
+        )
+
+
+def insert_patent_links(rows: list[tuple]) -> int:
+    """Batch-insert citation/family edges (src_pub, dst_pub, link_type, category).
+    INSERT OR IGNORE on the UNIQUE key so re-ingests don't duplicate edges."""
+    if not rows:
+        return 0
+    with get_connection() as conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO patent_links (src_pub, dst_pub, link_type, category) "
+            "VALUES (?, ?, ?, ?)", rows)
+        return len(rows)
+
+
 def init_db():
     """Initialize database schema."""
     if USE_POSTGRES:
@@ -466,6 +515,7 @@ def init_db():
         logger.info("SQLite database initialized at %s", get_db_path())
     _migrate_stage_cache_columns()
     _migrate_trends_sort_date()
+    _migrate_patent_graph()
 
 
 # --- Source Operations ---
@@ -497,23 +547,26 @@ def upsert_source(name: str, feed_url: str, source_type: str, vertical: str) -> 
 # --- Raw Entry Operations ---
 
 def insert_raw_entry(source_id: int, url: str, title: str, excerpt: str,
-                     published_date: str | None = None) -> int | None:
-    """Insert a raw entry. Returns id or None if duplicate URL."""
+                     published_date: str | None = None, pub_number: str | None = None) -> int | None:
+    """Insert a raw entry. Returns id or None if duplicate URL.
+
+    `pub_number` (patent publication number) is the node key for the citation/
+    family graph in patent_links; NULL for non-patent entries."""
     with get_connection() as conn:
         try:
             if USE_POSTGRES:
                 cursor = conn.execute(
-                    "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date) "
-                    "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (url) DO NOTHING RETURNING id",
-                    (source_id, url, title, excerpt, published_date),
+                    "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date, pub_number) "
+                    "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (url) DO NOTHING RETURNING id",
+                    (source_id, url, title, excerpt, published_date, pub_number),
                 )
                 result = cursor.fetchone()
                 return result["id"] if result else None
             else:
                 cursor = conn.execute(
-                    "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (source_id, url, title, excerpt, published_date),
+                    "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date, pub_number) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (source_id, url, title, excerpt, published_date, pub_number),
                 )
                 return cursor.lastrowid
         except (sqlite3.IntegrityError, Exception) as e:

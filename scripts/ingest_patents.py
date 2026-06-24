@@ -353,7 +353,34 @@ HF_GPATENTS = "nbettencourt/google-patents-data-preview"
 HF_PARQUET = f"https://huggingface.co/api/datasets/{HF_GPATENTS}/parquet/default/train"
 HF_NUM_FILES = 49
 _GP_COLS = ["publication_number", "country_code", "title_localized", "abstract_localized",
-            "publication_date", "filing_date", "cpc", "assignee_harmonized", "assignee"]
+            "publication_date", "filing_date", "cpc", "assignee_harmonized", "assignee",
+            "citation", "parent", "child"]
+
+
+def _pub_of(x):
+    """publication_number from a citation/parent/child entry (dict or string)."""
+    if isinstance(x, dict):
+        return x.get("publication_number") or None
+    return x or None
+
+
+def patent_links(row: dict, src: str) -> list[tuple]:
+    """Edges for the citation/family graph: (src, dst, link_type, category).
+    'cites' = backward citation (src cites dst); 'parent'/'child' = family/continuity."""
+    out = []
+    for c in row.get("citation") or []:
+        dst = _pub_of(c)
+        if dst:
+            out.append((src, dst, "cites", (c.get("category") if isinstance(c, dict) else None) or None))
+    for p in row.get("parent") or []:
+        dst = _pub_of(p)
+        if dst:
+            out.append((src, dst, "parent", None))
+    for ch in row.get("child") or []:
+        dst = _pub_of(ch)
+        if dst:
+            out.append((src, dst, "child", None))
+    return out
 
 
 def _en_text(localized) -> str:
@@ -385,7 +412,7 @@ def gp_record(row: dict) -> dict | None:
             "pub_number": num, "pub_date": pub_date, "applicant": assignee,
             "cpc": [c.get("code", "") for c in (row.get("cpc") or [])][:8],
             "url": f"https://patents.google.com/patent/{num}/en" if num else "",
-            "vertical": vert}
+            "vertical": vert, "links": patent_links(row, num)}
 
 
 def ingest_hf_gpatents(after: str, before: str, max_files: int, dry_run: bool,
@@ -394,8 +421,10 @@ def ingest_hf_gpatents(after: str, before: str, max_files: int, dry_run: bool,
     [after, before), and insert under a per-vertical 'Google Patents (V)' source."""
     import pyarrow.parquet as pq
     af, bf = int(after.replace("-", "")), int(before.replace("-", ""))
+    db.init_db()  # ensure pub_number column + patent_links table exist
     src_ids: dict[str, int] = {}
-    st = {"scanned": 0, "matched": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
+    link_buf: list[tuple] = []
+    st = {"scanned": 0, "matched": 0, "inserted": 0, "duplicates": 0, "skipped": 0, "links": 0}
     n = min(max_files, HF_NUM_FILES)
     with httpx.Client(timeout=180, headers={"User-Agent": "catandary-trends/patents"}) as client:
         for i in range(n):
@@ -430,19 +459,27 @@ def ingest_hf_gpatents(after: str, before: str, max_files: int, dry_run: bool,
                                 name=f"Google Patents ({v})", feed_url=f"hf://google-patents/{v}",
                                 source_type="api", vertical=v)
                         eid = db.insert_raw_entry(src_ids[v], rec["url"], rec["title"],
-                                                  record_to_excerpt(rec)[:2000], rec["pub_date"])
+                                                  record_to_excerpt(rec)[:2000], rec["pub_date"],
+                                                  pub_number=rec["pub_number"])
                         st["duplicates" if eid is None else "inserted"] += 1
+                        # capture edges even on URL-dup, so existing patents get their graph
+                        if rec["links"]:
+                            link_buf.extend(rec["links"])
+                            if len(link_buf) >= 5000:
+                                st["links"] += db.insert_patent_links(link_buf); link_buf.clear()
             finally:
                 try:
                     os.remove(path)
                 except OSError:
                     pass
-            logger.info("parquet %d/%d — scanned=%d matched=%d inserted=%d dup=%d",
-                        i + 1, n, st["scanned"], st["matched"], st["inserted"], st["duplicates"])
+            if link_buf:
+                st["links"] += db.insert_patent_links(link_buf); link_buf.clear()
+            logger.info("parquet %d/%d — scanned=%d matched=%d inserted=%d dup=%d links=%d",
+                        i + 1, n, st["scanned"], st["matched"], st["inserted"], st["duplicates"], st["links"])
     tag = "[dry] " if dry_run else ""
-    logger.info("%sGoogle-Patents: scanned %d | matched %d | %s %d | %d dup | %d off-scope",
+    logger.info("%sGoogle-Patents: scanned %d | matched %d | %s %d | %d dup | %d off-scope | %d graph-edges",
                 tag, st["scanned"], st["matched"], "würde einfügen" if dry_run else "eingefügt",
-                st["inserted"], st["duplicates"], st["skipped"])
+                st["inserted"], st["duplicates"], st["skipped"], st["links"])
     return st
 
 
@@ -495,9 +532,17 @@ def selftest() -> int:
                    "abstract_localized": [{"text": "A mood-claim snack.", "language": "en"}],
                    "publication_number": "US-12345-B2", "publication_date": 20230615,
                    "cpc": [{"code": "A23L33/00", "inventive": True}],
-                   "assignee_harmonized": [{"name": "ACME FOODS"}]})
+                   "assignee_harmonized": [{"name": "ACME FOODS"}],
+                   "citation": [{"publication_number": "US-9000000-B1", "category": "EXA"},
+                                {"publication_number": "EP-1-A1", "category": "APP"}],
+                   "parent": [{"publication_number": "US-11000-A1"}], "child": []})
     assert g and g["vertical"] == "FOOD" and g["pub_date"] == "2023-06-15", g
     assert g["url"].endswith("US-12345-B2/en")
+    # citation/family graph edges
+    assert ("US-12345-B2", "US-9000000-B1", "cites", "EXA") in g["links"], g["links"]
+    assert ("US-12345-B2", "EP-1-A1", "cites", "APP") in g["links"]
+    assert ("US-12345-B2", "US-11000-A1", "parent", None) in g["links"]
+    assert len(g["links"]) == 3
     assert gp_record({"title_localized": [{"text": "x", "language": "ja"}], "cpc": []}) is None  # non-EN
     print("selftest OK — OPS + Google-Patents parsing + CPC routing validated")
     print(f"  parsed: {rec['pub_number']} ({rec['pub_date']}) '{rec['title']}' "
