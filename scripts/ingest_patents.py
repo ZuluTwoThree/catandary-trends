@@ -1,0 +1,503 @@
+#!/usr/bin/env python3
+"""Patent ingester — the longest-lead-time signal for the foresight engine.
+
+Pulls bibliographic patent data (title + abstract + CPC class + publication date
++ applicant) into `raw_entries`, scoped by CPC class + date window so the volume
+stays sane (patents are millions/year). Each entry then flows through the normal
+signal pipeline (relevance/extraction/classification → embedding) and lands in the
+signal space, where `trend_signal_type='patent'` marks it as an early lead
+indicator for the lead-time analysis (research → patent → funding → product).
+
+Provider: EPO Open Patent Services (OPS) — worldwide coverage, free throttled tier,
+title + abstract + CPC. Needs free OAuth credentials (register at
+https://developers.epo.org → consumer key + secret), put them in .env:
+
+    EPO_OPS_KEY=...
+    EPO_OPS_SECRET=...
+
+Why OPS and not USPTO ODP: the ODP "Patent File Wrapper" API only exposes US
+*application* prosecution metadata (no abstract / CPC), a poor fit for trend
+signals. OPS gives the inventive content (title + abstract + classification)
+worldwide. Lens.org is an alternative (JSON, Bearer token) — same normalized
+record shape, swap `_ops_*` for a `_lens_*` provider.
+
+Usage:
+    python scripts/ingest_patents.py --selftest                 # validate parsing, no creds
+    python scripts/ingest_patents.py --cpc A23 --vertical FOOD --after 2020-01-01 --before 2026-07-01 --dry-run
+    python scripts/ingest_patents.py --cpc A23 --vertical FOOD --after 2020-01-01 --before 2026-07-01
+    python scripts/ingest_patents.py --vertical FOOD --after 2024-01-01 --before 2026-07-01   # all FOOD CPC classes
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import logging
+import os
+import sys
+import time
+from pathlib import Path
+
+import httpx
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from dotenv import load_dotenv
+
+from pipeline import db
+
+load_dotenv()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+OPS_BASE = "https://ops.epo.org/3.2"
+EPO_OPS_KEY = os.getenv("EPO_OPS_KEY", "")
+EPO_OPS_SECRET = os.getenv("EPO_OPS_SECRET", "")
+
+# CPC (Cooperative Patent Classification) section/class → Catandary vertical.
+# Curated so a CPC-scoped pull maps onto our taxonomy. A pulled patent's
+# vertical is taken from the query (we pull per class), so this is also the
+# canonical list of "which CPC classes feed which vertical".
+CPC_VERTICAL: dict[str, list[str]] = {
+    "FOOD": ["A23", "A21", "A22", "A01H", "C12C", "C12G", "C12J", "C13"],   # foods, baking, brewing, agri-genetics, sugar
+    "HEALTH": ["A61", "A61K", "A61P", "C12N", "C12Q", "G16H"],              # medical, pharma, biotech, health informatics
+    "ECO": ["Y02", "Y04", "F03D", "H02S", "C02F", "B09", "F24S"],          # climate-mitigation tech, wind, solar, water, waste
+    "TECH": ["G06", "G06F", "G06N", "H04", "H01L", "G06Q"],                 # computing, AI/ML, comms, semiconductors
+    "DESIGN": ["E04", "B44", "A47", "F21"],                                 # building/architecture, decorative, furniture, lighting
+    "FASHION": ["A41", "A43", "A44", "A45", "D01", "D03", "D06"],           # apparel, footwear, textiles, dyeing
+    "BIZ": ["G06Q"],                                                        # business methods / commerce
+    "LIFESTYLE": ["A63", "G07F"],                                           # sports/games/amusement, vending
+}
+
+# Longest-prefix-first so A61K wins over A61 when routing a CPC code to a vertical.
+_PREFIX_VERTICAL: list[tuple[str, str]] = sorted(
+    ((p, v) for v, ps in CPC_VERTICAL.items() for p in ps), key=lambda x: -len(x[0]))
+
+
+def vertical_for_cpc(cpc_list) -> str | None:
+    """Route a patent to a Catandary vertical by its CPC codes (inventive codes
+    preferred). Returns None if no code falls in any of our verticals' classes —
+    which doubles as the relevance filter (drops off-scope chemistry/mechanics)."""
+    if not cpc_list:
+        return None
+    codes = [c.get("code", "") for c in cpc_list if c.get("inventive")] \
+        or [c.get("code", "") for c in cpc_list]
+    for code in codes:
+        for prefix, vert in _PREFIX_VERTICAL:
+            if code.startswith(prefix):
+                return vert
+    return None
+
+
+# --------------------------------------------------------------------------- #
+# EPO OPS provider
+# --------------------------------------------------------------------------- #
+
+def get_token(client: httpx.Client) -> str:
+    """OAuth2 client-credentials → bearer access token (valid ~20 min)."""
+    if not EPO_OPS_KEY or not EPO_OPS_SECRET:
+        raise RuntimeError(
+            "EPO_OPS_KEY / EPO_OPS_SECRET not set. Register a free app at "
+            "https://developers.epo.org and add the consumer key+secret to .env")
+    basic = base64.b64encode(f"{EPO_OPS_KEY}:{EPO_OPS_SECRET}".encode()).decode()
+    r = client.post(f"{OPS_BASE}/auth/accesstoken",
+                    headers={"Authorization": f"Basic {basic}",
+                             "Content-Type": "application/x-www-form-urlencoded"},
+                    data={"grant_type": "client_credentials"}, timeout=30)
+    r.raise_for_status()
+    return r.json()["access_token"]
+
+
+def _ops_get(client: httpx.Client, token: str, url: str, params: dict, rng: str | None = None,
+             max_retries: int = 5) -> dict | None:
+    """OPS GET (JSON) with bearer auth, Range pagination, and backoff on the
+    throttled free tier (429/503 → exponential)."""
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    if rng:
+        headers["X-OPS-Range"] = rng  # OPS accepts X-OPS-Range or Range; X-OPS-Range avoids proxy stripping
+        headers["Range"] = rng
+    for attempt in range(max_retries):
+        try:
+            r = client.get(url, params=params, headers=headers, timeout=40)
+        except Exception as exc:
+            logger.warning("OPS request error (%s) — backoff", type(exc).__name__)
+            time.sleep(2 ** attempt)
+            continue
+        if r.status_code in (429, 503):
+            wait = min(2 ** attempt * 3, 60)
+            logger.warning("OPS throttled (HTTP %d) — backoff %ds (try %d/%d)",
+                           r.status_code, wait, attempt + 1, max_retries)
+            time.sleep(wait)
+            continue
+        if r.status_code == 404:
+            return None  # no results for this slice
+        r.raise_for_status()
+        return r.json()
+    return None
+
+
+def search_biblio(client: httpx.Client, token: str, cql: str, page_range: str):
+    """One page (Range) of /published-data/search/biblio for a CQL query.
+    Returns the list of exchange-document dicts (or [])."""
+    data = _ops_get(client, token, f"{OPS_BASE}/rest-services/published-data/search/biblio",
+                    params={"q": cql}, rng=page_range)
+    if not data:
+        return []
+    return _exchange_documents(data)
+
+
+# --------------------------------------------------------------------------- #
+# Parsing (OPS returns XML-as-JSON with ops:/exchange: keys, "$" text nodes)
+# --------------------------------------------------------------------------- #
+
+def _as_list(x):
+    """OPS collapses single-element arrays to objects — normalize to a list."""
+    if x is None:
+        return []
+    return x if isinstance(x, list) else [x]
+
+
+def _text(node) -> str:
+    """Pull the text out of an OPS '{"$": "..."}' node (or a plain string)."""
+    if isinstance(node, dict):
+        return str(node.get("$", "")).strip()
+    return str(node or "").strip()
+
+
+def _exchange_documents(data: dict) -> list[dict]:
+    sr = (data.get("ops:world-patent-data", {})
+              .get("ops:biblio-search", {})
+              .get("ops:search-result", {}))
+    docs = sr.get("exchange-documents", {})
+    return _as_list(docs.get("exchange-document"))
+
+
+def parse_exchange_document(doc: dict) -> dict | None:
+    """Normalize one OPS exchange-document → a flat patent record.
+
+    Returns {title, abstract, pub_number, pub_date, applicant, cpc, url} or None
+    if it lacks a usable title."""
+    bib = doc.get("bibliographic-data", {})
+
+    # Title: prefer English, else first available.
+    titles = _as_list(bib.get("invention-title"))
+    title = ""
+    for t in titles:
+        if isinstance(t, dict) and t.get("@lang") == "en":
+            title = _text(t)
+            break
+    if not title and titles:
+        title = _text(titles[0])
+    if not title:
+        return None
+
+    # Abstract (may live on doc, English preferred).
+    abstract = ""
+    for ab in _as_list(doc.get("abstract")):
+        if not isinstance(ab, dict):
+            continue
+        if ab.get("@lang") in (None, "en") or not abstract:
+            abstract = " ".join(_text(p) for p in _as_list(ab.get("p"))).strip()
+            if ab.get("@lang") == "en":
+                break
+
+    # Publication reference: country + doc-number + kind + date (epodoc form).
+    pub_number, pub_date = "", None
+    for did in _as_list(bib.get("publication-reference", {}).get("document-id")):
+        if not isinstance(did, dict):
+            continue
+        if did.get("@document-id-type") == "docdb":
+            country = _text(did.get("country"))
+            number = _text(did.get("doc-number"))
+            kind = _text(did.get("kind"))
+            pub_number = f"{country}{number}{kind}"
+            pub_date = _text(did.get("date")) or pub_date
+    # date is YYYYMMDD → ISO
+    if pub_date and len(pub_date) == 8:
+        pub_date = f"{pub_date[:4]}-{pub_date[4:6]}-{pub_date[6:8]}"
+
+    # Applicant (first).
+    applicant = ""
+    for ap in _as_list(bib.get("parties", {}).get("applicants", {}).get("applicant")):
+        if isinstance(ap, dict):
+            applicant = _text(ap.get("applicant-name", {}).get("name"))
+            if applicant:
+                break
+
+    # CPC classes.
+    cpc = []
+    for c in _as_list(bib.get("patent-classifications", {}).get("patent-classification")):
+        if isinstance(c, dict) and _text(c.get("classification-scheme", {}).get("@scheme", "")) or True:
+            sec = _text(c.get("section")) if isinstance(c, dict) else ""
+            cls = _text(c.get("class")) if isinstance(c, dict) else ""
+            if sec:
+                cpc.append(f"{sec}{cls}")
+
+    url = f"https://worldwide.espacenet.com/patent/search/family/publication/{pub_number}" if pub_number else ""
+    return {"title": title, "abstract": abstract, "pub_number": pub_number,
+            "pub_date": pub_date, "applicant": applicant, "cpc": cpc, "url": url}
+
+
+def record_to_excerpt(rec: dict) -> str:
+    """Build the excerpt text fed to the signal pipeline: abstract + applicant
+    so classification/embedding has substance even when the abstract is short."""
+    parts = []
+    if rec["abstract"]:
+        parts.append(rec["abstract"])
+    if rec["applicant"]:
+        parts.append(f"Applicant: {rec['applicant']}.")
+    if rec["cpc"]:
+        parts.append(f"CPC: {', '.join(rec['cpc'][:6])}.")
+    return " ".join(parts).strip() or rec["title"]
+
+
+# --------------------------------------------------------------------------- #
+# Ingest
+# --------------------------------------------------------------------------- #
+
+def _cpc_classes_for(vertical: str, cpc: str | None) -> list[str]:
+    if cpc:
+        return [cpc]
+    return CPC_VERTICAL.get(vertical, [])
+
+
+def ingest(vertical: str, cpc: str | None, after: str, before: str,
+           dry_run: bool, max_pages: int = 20) -> dict:
+    """Pull patents for `vertical` (one or all of its CPC classes) in [after, before)."""
+    classes = _cpc_classes_for(vertical, cpc)
+    if not classes:
+        logger.error("No CPC classes for vertical %s (and no --cpc given)", vertical)
+        return {"fetched": 0, "inserted": 0, "duplicates": 0}
+    pd_from = after.replace("-", "")
+    pd_to = before.replace("-", "")
+
+    source_id = -1 if dry_run else db.upsert_source(
+        name="EPO OPS Patents", feed_url=f"{OPS_BASE}/rest-services/published-data/search",
+        source_type="api", vertical=vertical)  # 'api' is CHECK-safe
+
+    stats = {"fetched": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
+    with httpx.Client(headers={"User-Agent": "catandary-trends/patents"}) as client:
+        token = get_token(client)
+        for cls in classes:
+            cql = f'cpc=/low "{cls}" and pd within "{pd_from} {pd_to}"'
+            logger.info("[patents] %s | CPC %s | %s..%s", vertical, cls, after, before)
+            for page in range(max_pages):
+                lo = page * 100 + 1
+                docs = search_biblio(client, token, cql, f"{lo}-{lo + 99}")
+                if not docs:
+                    break
+                for doc in docs:
+                    rec = parse_exchange_document(doc)
+                    if rec is None or not rec["url"]:
+                        stats["skipped"] += 1
+                        continue
+                    stats["fetched"] += 1
+                    if dry_run:
+                        stats["inserted"] += 1
+                        continue
+                    eid = db.insert_raw_entry(source_id, rec["url"], rec["title"],
+                                              record_to_excerpt(rec)[:2000], rec["pub_date"])
+                    stats["duplicates" if eid is None else "inserted"] += 1
+                time.sleep(0.5)  # be gentle on the free tier
+            logger.info("  CPC %s done: fetched=%d inserted=%d dup=%d",
+                        cls, stats["fetched"], stats["inserted"], stats["duplicates"])
+
+    tag = "[dry] " if dry_run else ""
+    logger.info("%s%s patents: fetched %d | %s %d | %d dup | %d skip", tag, vertical,
+                stats["fetched"], "würde einfügen" if dry_run else "eingefügt",
+                stats["inserted"], stats["duplicates"], stats["skipped"])
+    return stats
+
+
+# --------------------------------------------------------------------------- #
+# Provider 2: HuggingFace Google-Patents export (KEYLESS, worldwide, parquet)
+# nbettencourt/google-patents-data-preview — 340k patents with title/abstract/
+# date/cpc/assignee. Read selected columns from the auto-converted parquet over
+# HTTP (skips the heavy claims/description), filter EN + our CPC classes + date,
+# route to a vertical by CPC. No credentials required — works today.
+# --------------------------------------------------------------------------- #
+
+HF_GPATENTS = "nbettencourt/google-patents-data-preview"
+HF_PARQUET = f"https://huggingface.co/api/datasets/{HF_GPATENTS}/parquet/default/train"
+HF_NUM_FILES = 49
+_GP_COLS = ["publication_number", "country_code", "title_localized", "abstract_localized",
+            "publication_date", "filing_date", "cpc", "assignee_harmonized", "assignee"]
+
+
+def _en_text(localized) -> str:
+    """English text from a Google-Patents '*_localized' array [{text,language}]."""
+    for item in localized or []:
+        if isinstance(item, dict) and item.get("language") == "en":
+            return (item.get("text") or "").strip()
+    return ""  # non-English → skip (the pipeline is English)
+
+
+def gp_record(row: dict) -> dict | None:
+    """Normalize a Google-Patents parquet row → the shared patent record, or None
+    if it has no English title or no in-scope CPC class."""
+    title = _en_text(row.get("title_localized"))
+    if not title:
+        return None
+    vert = vertical_for_cpc(row.get("cpc"))
+    if vert is None:
+        return None
+    pd = str(row.get("publication_date") or "")
+    pub_date = f"{pd[:4]}-{pd[4:6]}-{pd[6:8]}" if len(pd) == 8 else None
+    assignee = ""
+    for a in (row.get("assignee_harmonized") or row.get("assignee") or []):
+        assignee = (a.get("name") if isinstance(a, dict) else str(a)) or ""
+        if assignee:
+            break
+    num = row.get("publication_number", "")
+    return {"title": title, "abstract": _en_text(row.get("abstract_localized")),
+            "pub_number": num, "pub_date": pub_date, "applicant": assignee,
+            "cpc": [c.get("code", "") for c in (row.get("cpc") or [])][:8],
+            "url": f"https://patents.google.com/patent/{num}/en" if num else "",
+            "vertical": vert}
+
+
+def ingest_hf_gpatents(after: str, before: str, max_files: int, dry_run: bool,
+                       scratch: str = "/tmp") -> dict:
+    """Stream the Google-Patents parquet files, filter to EN + our CPC classes +
+    [after, before), and insert under a per-vertical 'Google Patents (V)' source."""
+    import pyarrow.parquet as pq
+    af, bf = int(after.replace("-", "")), int(before.replace("-", ""))
+    src_ids: dict[str, int] = {}
+    st = {"scanned": 0, "matched": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
+    n = min(max_files, HF_NUM_FILES)
+    with httpx.Client(timeout=180, headers={"User-Agent": "catandary-trends/patents"}) as client:
+        for i in range(n):
+            path = os.path.join(scratch, f"gp_{i}.parquet")
+            try:
+                r = client.get(f"{HF_PARQUET}/{i}.parquet", follow_redirects=True)
+                r.raise_for_status()
+                with open(path, "wb") as fh:
+                    fh.write(r.content)
+            except Exception as exc:
+                logger.warning("parquet %d download failed: %s — skipping", i, exc)
+                continue
+            try:
+                pf = pq.ParquetFile(path)
+                for rg in range(pf.num_row_groups):
+                    for row in pf.read_row_group(rg, columns=_GP_COLS).to_pylist():
+                        st["scanned"] += 1
+                        pdv = row.get("publication_date")
+                        if not (pdv and af <= int(pdv) < bf):
+                            continue
+                        rec = gp_record(row)
+                        if rec is None or not rec["url"]:
+                            st["skipped"] += 1
+                            continue
+                        st["matched"] += 1
+                        if dry_run:
+                            st["inserted"] += 1
+                            continue
+                        v = rec["vertical"]
+                        if v not in src_ids:
+                            src_ids[v] = db.upsert_source(
+                                name=f"Google Patents ({v})", feed_url=f"hf://google-patents/{v}",
+                                source_type="api", vertical=v)
+                        eid = db.insert_raw_entry(src_ids[v], rec["url"], rec["title"],
+                                                  record_to_excerpt(rec)[:2000], rec["pub_date"])
+                        st["duplicates" if eid is None else "inserted"] += 1
+            finally:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+            logger.info("parquet %d/%d — scanned=%d matched=%d inserted=%d dup=%d",
+                        i + 1, n, st["scanned"], st["matched"], st["inserted"], st["duplicates"])
+    tag = "[dry] " if dry_run else ""
+    logger.info("%sGoogle-Patents: scanned %d | matched %d | %s %d | %d dup | %d off-scope",
+                tag, st["scanned"], st["matched"], "würde einfügen" if dry_run else "eingefügt",
+                st["inserted"], st["duplicates"], st["skipped"])
+    return st
+
+
+# --------------------------------------------------------------------------- #
+# Self-test: validate parsing on a bundled OPS-shaped sample (no creds needed)
+# --------------------------------------------------------------------------- #
+
+_SAMPLE = {
+  "ops:world-patent-data": {"ops:biblio-search": {"ops:search-result": {"exchange-documents": {
+    "exchange-document": [{
+      "bibliographic-data": {
+        "publication-reference": {"document-id": [
+          {"@document-id-type": "docdb", "country": {"$": "EP"},
+           "doc-number": {"$": "4123456"}, "kind": {"$": "A1"}, "date": {"$": "20240515"}}]},
+        "invention-title": [
+          {"@lang": "de", "$": "Fermentiertes pflanzliches Proteinprodukt"},
+          {"@lang": "en", "$": "Fermented plant protein product and method"}],
+        "parties": {"applicants": {"applicant": [
+          {"applicant-name": {"name": {"$": "NOVA FOODS GMBH"}}}]}},
+        "patent-classifications": {"patent-classification": [
+          {"section": {"$": "A"}, "class": {"$": "23"}},
+          {"section": {"$": "C"}, "class": {"$": "12"}}]},
+      },
+      "abstract": [{"@lang": "en", "p": {"$": "A precision-fermentation process yields a plant protein with improved texture."}}],
+    }]
+  }}}}
+}
+
+
+def selftest() -> int:
+    docs = _exchange_documents(_SAMPLE)
+    assert len(docs) == 1, f"expected 1 doc, got {len(docs)}"
+    rec = parse_exchange_document(docs[0])
+    assert rec is not None
+    assert rec["title"] == "Fermented plant protein product and method", rec["title"]
+    assert rec["pub_number"] == "EP4123456A1", rec["pub_number"]
+    assert rec["pub_date"] == "2024-05-15", rec["pub_date"]
+    assert rec["applicant"] == "NOVA FOODS GMBH", rec["applicant"]
+    assert rec["cpc"] == ["A23", "C12"], rec["cpc"]
+    assert "precision-fermentation" in rec["abstract"], rec["abstract"]
+    assert rec["url"].endswith("EP4123456A1")
+    exc = record_to_excerpt(rec)
+    assert "precision-fermentation" in exc and "NOVA FOODS" in exc and "A23" in exc
+    # CPC→vertical map + routing
+    assert "A23" in CPC_VERTICAL["FOOD"] and "A61" in CPC_VERTICAL["HEALTH"]
+    assert vertical_for_cpc([{"code": "A61K9/00", "inventive": True}]) == "HEALTH"
+    assert vertical_for_cpc([{"code": "F16B1/00"}]) is None  # off-scope → skipped
+    # Google-Patents (HF) normalizer
+    g = gp_record({"title_localized": [{"text": "Postbiotic snack bar", "language": "en"}],
+                   "abstract_localized": [{"text": "A mood-claim snack.", "language": "en"}],
+                   "publication_number": "US-12345-B2", "publication_date": 20230615,
+                   "cpc": [{"code": "A23L33/00", "inventive": True}],
+                   "assignee_harmonized": [{"name": "ACME FOODS"}]})
+    assert g and g["vertical"] == "FOOD" and g["pub_date"] == "2023-06-15", g
+    assert g["url"].endswith("US-12345-B2/en")
+    assert gp_record({"title_localized": [{"text": "x", "language": "ja"}], "cpc": []}) is None  # non-EN
+    print("selftest OK — OPS + Google-Patents parsing + CPC routing validated")
+    print(f"  parsed: {rec['pub_number']} ({rec['pub_date']}) '{rec['title']}' "
+          f"CPC={rec['cpc']} applicant={rec['applicant']!r}")
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Patent ingester → raw_entries (signal space)")
+    ap.add_argument("--source", choices=["hf-gpatents", "epo-ops"], default="hf-gpatents",
+                    help="hf-gpatents = keyless Google-Patents export (default); epo-ops = EPO OPS (needs creds)")
+    ap.add_argument("--vertical", help="epo-ops: required; hf-gpatents: ignored (auto-routed by CPC)")
+    ap.add_argument("--cpc", help="epo-ops: specific CPC class; overrides the vertical's set")
+    ap.add_argument("--after", help="YYYY-MM-DD (inclusive)")
+    ap.add_argument("--before", help="YYYY-MM-DD (exclusive)")
+    ap.add_argument("--max-pages", type=int, default=20, help="epo-ops: pages (×100) per CPC class")
+    ap.add_argument("--max-files", type=int, default=49, help="hf-gpatents: parquet files to scan (≤49)")
+    ap.add_argument("--scratch", default="/tmp", help="hf-gpatents: temp dir for parquet downloads")
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--selftest", action="store_true", help="validate parsing without network/creds")
+    args = ap.parse_args()
+
+    if args.selftest:
+        return selftest()
+    if not (args.after and args.before):
+        ap.error("--after and --before are required (or use --selftest)")
+    if args.source == "hf-gpatents":
+        ingest_hf_gpatents(args.after, args.before, args.max_files, args.dry_run, args.scratch)
+    else:
+        if not args.vertical:
+            ap.error("epo-ops needs --vertical")
+        ingest(args.vertical, args.cpc, args.after, args.before, args.dry_run, args.max_pages)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
