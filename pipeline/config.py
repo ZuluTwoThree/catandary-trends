@@ -47,10 +47,11 @@ STAGE5_MIN_BODY_WORDS = int(os.getenv("STAGE5_MIN_BODY_WORDS", "100"))
 STAGE_8B_BACKEND = os.getenv("STAGE_8B_BACKEND", "ollama")
 STAGE_8B_MODEL = os.getenv("STAGE_8B_MODEL", "Qwen3-8B-UD-Q4_K_XL.gguf")
 
-# Stages 2/3/4 classification concurrency. 0 = sequential (default, unchanged).
-# >1 dispatches the pure step_* LLM calls via a thread pool against the
-# llama-server's parallel slots (start the 8B with --parallel N first).
-CLASSIFY_WORKERS = int(os.getenv("CLASSIFY_WORKERS", "0"))
+# Stages 2/3/4 classification concurrency. Dispatches the pure step_* LLM calls
+# via a thread pool against the llama-server's parallel slots. Default 24 matches
+# the 208K/24-slot 8B server the handover brings up (see MODEL_START_SCRIPTS).
+# Set 0/1 for sequential (e.g. Ollama single-stream). Validated sweet spot: 24.
+CLASSIFY_WORKERS = int(os.getenv("CLASSIFY_WORKERS", "24"))
 
 # Stage 5 (Embeddings + Dedup) backend.
 # "ollama" (default) uses MODEL_EMBEDDING on Ollama. "llamacpp" routes embedding

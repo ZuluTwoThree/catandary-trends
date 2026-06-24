@@ -48,7 +48,9 @@ VRAM_FREE_THRESHOLD_MIB = int(os.getenv("VRAM_FREE_THRESHOLD_MIB", "3000"))
 LLAMA_CPP_ROOT = Path(os.getenv("LLAMACPP_ROOT", "/home/dirk/llama.cpp"))
 MODEL_START_SCRIPTS: dict[str, Path] = {
     "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf":  LLAMA_CPP_ROOT / "start-qwen3.6-35b.sh",
-    "Qwen3-8B-UD-Q4_K_XL.gguf":        LLAMA_CPP_ROOT / "start-qwen3-8b.sh",
+    # Phase 2-4 default: the 208K-context / 24-slot 8B (parallel classification).
+    # CLASSIFY_WORKERS=24 fans out across its slots. Swapped out for Stage 5/6.
+    "Qwen3-8B-UD-Q4_K_XL.gguf":        LLAMA_CPP_ROOT / "start-qwen3-8b-208k.sh",
     "Qwen3-Embedding-8B-Q4_K_M.gguf":  LLAMA_CPP_ROOT / "start-qwen3-emb.sh",
 }
 
