@@ -35,6 +35,8 @@ import logging
 import os
 import sys
 import time
+import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import httpx
@@ -502,6 +504,162 @@ def ingest_hf_gpatents(after: str, before: str, max_files: int, dry_run: bool,
 
 
 # --------------------------------------------------------------------------- #
+# Provider 3: EPO BDDS DOCDB bulk (worldwide bibliographic, OFFICIAL, no sampling)
+# Needs the myEPO account login (EPO_LOGIN/EPO_PASSWORD). Downloads a delivery file
+# → nested per-country DOCDB XML (exch:exchange-document) → title/abstract/CPC/date/
+# applicant + citations (references-cited) + INPADOC family (family-member). The
+# legit production source that replaces the HF sample (see BACKLOG).
+# --------------------------------------------------------------------------- #
+
+BDDS_OAUTH = "https://login.epo.org/oauth2/aus3up3nz0N133c0V417/v1/token"
+BDDS_CLIENT = "MG9hM3VwZG43YW41cE1JOE80MTc="
+BDDS_API = "https://publication-bdds.apps.epo.org/bdds/bdds-bff-service/prod/api"
+_EXCH = "{http://www.epo.org/exchange}"
+
+
+def bdds_token(client: httpx.Client) -> str:
+    """OAuth2 password grant against login.epo.org (myEPO account login)."""
+    user = (os.getenv("EPO_LOGIN") or "").strip()
+    pw = (os.getenv("EPO_PASSWORD") or "").strip()
+    if not user or not pw:
+        raise RuntimeError("EPO_LOGIN / EPO_PASSWORD not set (your myEPO account login)")
+    r = client.post(BDDS_OAUTH, headers={"Authorization": f"Basic {BDDS_CLIENT}",
+                    "Content-Type": "application/x-www-form-urlencoded"},
+                    data={"grant_type": "password", "username": user, "password": pw, "scope": "openid"})
+    r.raise_for_status()
+    return r.json()["access_token"]
+
+
+def _dt(e) -> str:
+    return (e.text or "").strip() if e is not None else ""
+
+
+def parse_docdb_document(doc) -> dict | None:
+    """One DOCDB exch:exchange-document → normalized record, or None if it has no
+    English title or no in-scope CPC class."""
+    bib = doc.find(f"{_EXCH}bibliographic-data")
+    if bib is None:
+        return None
+    pub = ""
+    for pr in bib.findall(f"{_EXCH}publication-reference"):
+        if pr.get("data-format") == "epodoc":
+            pub = _dt(pr.find("document-id/doc-number"))
+    if not pub:
+        pub = f"{doc.get('country','')}{doc.get('doc-number','')}{doc.get('kind','')}"
+    title = next((_dt(t) for t in bib.findall(f"{_EXCH}invention-title") if t.get("lang") == "en"), "")
+    if not title:
+        return None
+    cpc = []
+    pcs = bib.find(f"{_EXCH}patent-classifications")
+    if pcs is not None:
+        for pc in pcs.findall("patent-classification"):
+            s = _dt(pc.find("classification-symbol"))
+            if s:
+                cpc.append(s.replace(" ", ""))
+    vert = vertical_for_cpc([{"code": c, "inventive": True} for c in cpc])
+    if vert is None:
+        return None
+    ab = next((a for a in doc.findall(f"{_EXCH}abstract") if a.get("lang") == "en"), None)
+    abstract = " ".join(_dt(p) for p in ab.findall(f"{_EXCH}p")) if ab is not None else ""
+    date = doc.get("date-publ", "")
+    pub_date = f"{date[:4]}-{date[4:6]}-{date[6:8]}" if len(date) == 8 else None
+    applicant = ""
+    for an in bib.iter(f"{_EXCH}applicant-name"):
+        applicant = _dt(an.find("name"))
+        if applicant:
+            break
+    links = []
+    for pc in doc.iter():  # citations live under references-cited/citation/patcit
+        if pc.tag.endswith("patcit"):
+            d = _dt(pc.find("document-id/doc-number"))
+            if d:
+                links.append((pub, d, "cites", None))
+    for fm in doc.iter(f"{_EXCH}family-member"):
+        d = _dt(fm.find(".//doc-number"))
+        if d and d != pub:
+            links.append((pub, d, "family", None))
+    return {"title": title, "abstract": abstract, "pub_number": pub, "pub_date": pub_date,
+            "applicant": applicant, "cpc": cpc[:8], "vertical": vert,
+            "url": f"https://worldwide.espacenet.com/patent/search/publication/{pub}",
+            "kind_code": doc.get("kind", ""), "links": links}
+
+
+def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
+                scratch: str, dry_run: bool) -> dict:
+    """Download the latest delivery of a BDDS DOCDB product, parse the nested
+    per-country XML, filter to our CPC classes + [after, before), insert."""
+    db.init_db()
+    af, bf = int(after.replace("-", "")), int(before.replace("-", ""))
+    src_ids: dict[str, int] = {}
+    link_buf: list[tuple] = []
+    st = {"docs": 0, "matched": 0, "inserted": 0, "duplicates": 0, "links": 0}
+    with httpx.Client(timeout=600, headers={"User-Agent": "catandary-trends/patents"}) as client:
+        token = bdds_token(client)
+        prod = client.get(f"{BDDS_API}/products/{product_id}",
+                          headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}).json()
+        delivery = prod["deliveries"][0]
+        did = delivery["deliveryId"]
+        logger.info("[bdds] product %s delivery %s '%s' — %d files",
+                    product_id, did, delivery.get("deliveryName"), len(delivery["files"]))
+        for f in delivery["files"]:
+            if not f["fileName"].lower().endswith(".zip"):
+                continue  # skip coherence CSVs and other non-DOCDB delivery files
+            zpath = os.path.join(scratch, f["fileName"])
+            logger.info("  downloading %s ...", f["fileName"])
+            with client.stream("GET", f"{BDDS_API}/products/{product_id}/delivery/{did}/file/{f['fileId']}/download",
+                               headers={"Authorization": f"Bearer {token}"}) as r:
+                r.raise_for_status()
+                with open(zpath, "wb") as fh:
+                    for chunk in r.iter_bytes(1 << 20):
+                        fh.write(chunk)
+            with zipfile.ZipFile(zpath) as z:
+                inner = [n for n in z.namelist() if n.endswith(".zip") and "/DOC/" in n]
+                for name in (inner[:max_files] if max_files else inner):
+                    try:
+                        with z.open(name) as innerf, zipfile.ZipFile(innerf) as iz:
+                            xml = iz.read(iz.namelist()[0])
+                        root = ET.fromstring(xml)
+                    except (zipfile.BadZipFile, ET.ParseError):
+                        continue
+                    for docu in root.findall(f"{_EXCH}exchange-document"):
+                        st["docs"] += 1
+                        date = docu.get("date-publ", "")
+                        if not (len(date) == 8 and af <= int(date) < bf):
+                            continue
+                        rec = parse_docdb_document(docu)
+                        if rec is None:
+                            continue
+                        st["matched"] += 1
+                        if dry_run:
+                            continue
+                        v = rec["vertical"]
+                        if v not in src_ids:
+                            src_ids[v] = db.upsert_source(name=f"EPO DOCDB ({v})",
+                                feed_url=f"bdds://docdb/{v}", source_type="api", vertical=v)
+                        eid = db.insert_raw_entry(src_ids[v], rec["url"], rec["title"],
+                            record_to_excerpt(rec)[:2000], rec["pub_date"],
+                            pub_number=rec["pub_number"], kind_code=rec["kind_code"])
+                        st["duplicates" if eid is None else "inserted"] += 1
+                        if rec["links"]:
+                            link_buf.extend(rec["links"])
+                            if len(link_buf) >= 5000:
+                                st["links"] += db.insert_patent_links(link_buf); link_buf.clear()
+                    logger.info("  %s — docs=%d matched=%d inserted=%d edges=%d",
+                                name.split("/")[-1], st["docs"], st["matched"], st["inserted"], st["links"])
+            try:
+                os.remove(zpath)
+            except OSError:
+                pass
+        if link_buf:
+            st["links"] += db.insert_patent_links(link_buf)
+    tag = "[dry] " if dry_run else ""
+    logger.info("%sBDDS DOCDB: docs %d | matched %d | %s %d | %d dup | %d edges", tag,
+                st["docs"], st["matched"], "würde einfügen" if dry_run else "eingefügt",
+                st["inserted"], st["duplicates"], st["links"])
+    return st
+
+
+# --------------------------------------------------------------------------- #
 # Self-test: validate parsing on a bundled OPS-shaped sample (no creds needed)
 # --------------------------------------------------------------------------- #
 
@@ -575,8 +733,10 @@ def selftest() -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Patent ingester → raw_entries (signal space)")
-    ap.add_argument("--source", choices=["hf-gpatents", "epo-ops"], default="hf-gpatents",
-                    help="hf-gpatents = keyless Google-Patents export (default); epo-ops = EPO OPS (needs creds)")
+    ap.add_argument("--source", choices=["hf-gpatents", "epo-ops", "epo-bdds"], default="hf-gpatents",
+                    help="hf-gpatents = keyless Google-Patents (default); epo-ops = OPS query API; "
+                         "epo-bdds = official DOCDB bulk (needs EPO_LOGIN/EPO_PASSWORD)")
+    ap.add_argument("--product", type=int, default=3, help="epo-bdds product id (3=DOCDB front, 14=back file)")
     ap.add_argument("--vertical", help="epo-ops: required; hf-gpatents: ignored (auto-routed by CPC)")
     ap.add_argument("--cpc", help="epo-ops: specific CPC class; overrides the vertical's set")
     ap.add_argument("--after", help="YYYY-MM-DD (inclusive)")
@@ -594,6 +754,8 @@ def main() -> int:
         ap.error("--after and --before are required (or use --selftest)")
     if args.source == "hf-gpatents":
         ingest_hf_gpatents(args.after, args.before, args.max_files, args.dry_run, args.scratch)
+    elif args.source == "epo-bdds":
+        ingest_bdds(args.product, args.after, args.before, args.max_files, args.scratch, args.dry_run)
     else:
         if not args.vertical:
             ap.error("epo-ops needs --vertical")
