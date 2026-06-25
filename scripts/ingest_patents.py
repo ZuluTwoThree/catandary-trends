@@ -549,14 +549,17 @@ def parse_docdb_document(doc) -> dict | None:
     title = next((_dt(t) for t in bib.findall(f"{_EXCH}invention-title") if t.get("lang") == "en"), "")
     if not title:
         return None
-    cpc = []
+    cpc_struct: list[tuple[str, bool]] = []  # (symbol, inventive)
     pcs = bib.find(f"{_EXCH}patent-classifications")
     if pcs is not None:
         for pc in pcs.findall("patent-classification"):
             s = _dt(pc.find("classification-symbol"))
             if s:
-                cpc.append(s.replace(" ", ""))
-    vert = vertical_for_cpc([{"code": c, "inventive": True} for c in cpc])
+                val = _dt(pc.find("classification-value"))  # 'I' inventive | 'A' additional
+                inv = (not val) or val.strip().upper().startswith("I")
+                cpc_struct.append((s.replace(" ", ""), inv))
+    cpc = [c for c, _ in cpc_struct]
+    vert = vertical_for_cpc([{"code": c, "inventive": inv} for c, inv in cpc_struct])
     if vert is None:
         return None
     ab = next((a for a in doc.findall(f"{_EXCH}abstract") if a.get("lang") == "en"), None)
@@ -579,7 +582,7 @@ def parse_docdb_document(doc) -> dict | None:
         if d and d != pub:
             links.append((pub, d, "family", None))
     return {"title": title, "abstract": abstract, "pub_number": pub, "pub_date": pub_date,
-            "applicant": applicant, "cpc": cpc[:8], "vertical": vert,
+            "applicant": applicant, "cpc": cpc[:8], "cpc_struct": cpc_struct, "vertical": vert,
             "url": f"https://worldwide.espacenet.com/patent/search/publication/{pub}",
             "kind_code": doc.get("kind", ""), "links": links}
 
@@ -592,7 +595,8 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
     af, bf = int(after.replace("-", "")), int(before.replace("-", ""))
     src_ids: dict[str, int] = {}
     link_buf: list[tuple] = []
-    st = {"docs": 0, "matched": 0, "inserted": 0, "duplicates": 0, "links": 0}
+    cpc_buf: list[tuple] = []
+    st = {"docs": 0, "matched": 0, "inserted": 0, "duplicates": 0, "links": 0, "cpc": 0}
     with httpx.Client(timeout=600, headers={"User-Agent": "catandary-trends/patents"}) as client:
         token = bdds_token(client)
         prod = client.get(f"{BDDS_API}/products/{product_id}",
@@ -644,6 +648,10 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                             link_buf.extend(rec["links"])
                             if len(link_buf) >= 5000:
                                 st["links"] += db.insert_patent_links(link_buf); link_buf.clear()
+                        for code, inv in rec.get("cpc_struct", []):
+                            cpc_buf.append((rec["pub_number"], code, db.cpc_subclass(code), 1 if inv else 0))
+                        if len(cpc_buf) >= 5000:
+                            st["cpc"] += db.insert_patent_cpc(cpc_buf); cpc_buf.clear()
                     logger.info("  %s — docs=%d matched=%d inserted=%d edges=%d",
                                 name.split("/")[-1], st["docs"], st["matched"], st["inserted"], st["links"])
             try:
@@ -652,10 +660,12 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                 pass
         if link_buf:
             st["links"] += db.insert_patent_links(link_buf)
+        if cpc_buf:
+            st["cpc"] += db.insert_patent_cpc(cpc_buf)
     tag = "[dry] " if dry_run else ""
-    logger.info("%sBDDS DOCDB: docs %d | matched %d | %s %d | %d dup | %d edges", tag,
+    logger.info("%sBDDS DOCDB: docs %d | matched %d | %s %d | %d dup | %d edges | %d cpc", tag,
                 st["docs"], st["matched"], "würde einfügen" if dry_run else "eingefügt",
-                st["inserted"], st["duplicates"], st["links"])
+                st["inserted"], st["duplicates"], st["links"], st["cpc"])
     return st
 
 

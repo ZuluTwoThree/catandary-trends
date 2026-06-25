@@ -517,6 +517,80 @@ def insert_patent_links(rows: list[tuple]) -> int:
         return len(rows)
 
 
+import re as _re_cpc
+_CPC_SUBCLASS = _re_cpc.compile(r"^([A-HY]\d{2}[A-Z])")
+
+
+def cpc_subclass(code: str) -> str | None:
+    """CPC code → subclass key for domain grouping, e.g. 'A61K9/00' → 'A61K'."""
+    m = _CPC_SUBCLASS.match((code or "").replace(" ", ""))
+    return m.group(1) if m else None
+
+
+def _migrate_patent_cpc():
+    """Structured CPC storage: one row per (patent, CPC symbol) so domain scoping /
+    grouping is an indexed GROUP BY instead of parsing CPC out of the excerpt text.
+    `subclass` is denormalized (A61K9/00 → A61K) for the tir_graph domain rollup.
+    Idempotent, SQLite only — created on the next init_db (i.e. next ingest run)."""
+    if USE_POSTGRES:
+        return
+    with get_connection() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS patent_cpc ("
+            " pub_number TEXT NOT NULL,"      # the patent (= raw_entries.pub_number)
+            " cpc TEXT NOT NULL,"             # full CPC symbol, e.g. A61K9/00
+            " subclass TEXT,"                 # denormalized subclass, e.g. A61K
+            " inventive INTEGER DEFAULT 1,"   # 1=inventive (I), 0=additional (A)
+            " UNIQUE(pub_number, cpc))"
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_pcpc_pub ON patent_cpc(pub_number)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_pcpc_sub ON patent_cpc(subclass)")
+
+
+def insert_patent_cpc(rows: list[tuple]) -> int:
+    """Batch-insert (pub_number, cpc, subclass, inventive). INSERT OR IGNORE on
+    UNIQUE(pub_number, cpc) so re-ingests stay idempotent."""
+    if not rows:
+        return 0
+    with get_connection() as conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO patent_cpc (pub_number, cpc, subclass, inventive) "
+            "VALUES (?, ?, ?, ?)", rows)
+        return len(rows)
+
+
+def backfill_patent_cpc_from_excerpt(batch: int = 5000) -> int:
+    """One-off: populate patent_cpc for already-ingested patents by parsing the
+    'CPC: ...' field out of their excerpt (lossy — only the ≤6 codes the excerpt
+    kept). Future ingests write the full set structured at parse time. Run AFTER
+    the live pipeline run finishes (writes to a new table; no locking of trends)."""
+    if USE_POSTGRES:
+        return 0
+    _migrate_patent_cpc()
+    field = _re_cpc.compile(r"CPC:\s*([^.]+)", _re_cpc.IGNORECASE)
+    code_re = _re_cpc.compile(r"[A-HY]\d{2}[A-Z]\d{1,4}/?\d*")
+    total = 0
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT pub_number, excerpt FROM raw_entries "
+            "WHERE pub_number IS NOT NULL AND excerpt LIKE '%CPC:%'"
+        ).fetchall()
+    buf: list[tuple] = []
+    for r in rows:
+        pub = r["pub_number"] if isinstance(r, dict) else r[0]
+        ex = r["excerpt"] if isinstance(r, dict) else r[1]
+        m = field.search(ex or "")
+        if not m:
+            continue
+        for code in {c.replace(" ", "") for c in code_re.findall(m.group(1))}:
+            buf.append((pub, code, cpc_subclass(code), 1))
+        if len(buf) >= batch:
+            total += insert_patent_cpc(buf); buf.clear()
+    total += insert_patent_cpc(buf)
+    logger.info("patent_cpc backfill: %d (pub,cpc) rows from excerpts", total)
+    return total
+
+
 def init_db():
     """Initialize database schema."""
     if USE_POSTGRES:
@@ -535,6 +609,7 @@ def init_db():
     _migrate_stage_cache_columns()
     _migrate_trends_sort_date()
     _migrate_patent_graph()
+    _migrate_patent_cpc()
 
 
 # --- Source Operations ---
