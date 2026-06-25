@@ -36,12 +36,20 @@ def sparkline(counts: list[int]) -> str:
     return "".join(SPARK[min(len(SPARK) - 1, int(c / hi * (len(SPARK) - 1)))] for c in counts)
 
 
-def load(vertical: str, status: str, limit: int) -> list[dict]:
-    sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, "
+def load(vertical: str, status: str, limit: int, patents_only: bool = False) -> list[dict]:
+    # status: "all" = every status; else a single status or comma list
+    where = ["t.primary_vertical = ?", "t.embedding IS NOT NULL"]
+    params: list = [vertical]
+    if patents_only:
+        where.append("r.pub_number IS NOT NULL")  # only patent signals
+    if status and status.lower() != "all":
+        sts = [s.strip() for s in status.split(",")]
+        where.insert(0, f"t.status IN ({','.join('?' * len(sts))})")
+        params = sts + params
+    sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, t.status, "
            "       r.published_date, t.embedding "
            "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id "
-           "WHERE t.status = ? AND t.primary_vertical = ? AND t.embedding IS NOT NULL")
-    params = [status, vertical]
+           f"WHERE {' AND '.join(where)}")
     if limit:
         sql += " LIMIT ?"
         params.append(limit)
@@ -88,10 +96,12 @@ def main() -> int:
     ap.add_argument("--status", default="signal")
     ap.add_argument("--k", type=int, help="cluster count (default: silhouette-chosen)")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--patents-only", action="store_true", help="only patent signals (pub_number set)")
     args = ap.parse_args()
 
-    rows = load(args.vertical, args.status, args.limit)
-    print(f"{args.vertical} signals (status={args.status}) with embedding: {len(rows)}")
+    rows = load(args.vertical, args.status, args.limit, args.patents_only)
+    label = "patent signals" if args.patents_only else "signals"
+    print(f"{args.vertical} {label} (status={args.status}) with embedding: {len(rows)}")
     if len(rows) < 20:
         print("Too few signals for a meaningful demo.")
         return 0
