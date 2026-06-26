@@ -203,7 +203,13 @@ def llama_server_start(expected_model: str, timeout: int = 240,
         raise RuntimeError(
             f"start-active.sh does not load {expected_model}; aborting handover")
 
-    logger.info("Freeing Ollama VRAM before starting llama-server")
+    # Stop any llama-server already on the GPU FIRST. Without this, a pre-existing
+    # server (e.g. an idle gpt-oss/8B from another context) keeps holding VRAM —
+    # the VRAM-wait stalls and `systemctl start` on an already-active unit is a
+    # no-op, so the expected model never loads. Stopping is idempotent (no-op if
+    # already stopped), which keeps the scheduled_cycle path unaffected.
+    logger.info("Freeing VRAM before starting llama-server (stop unit + unload Ollama)")
+    _run(["systemctl", "--user", "stop", LLAMA_UNIT], timeout=60)
     ollama_unload()
     _wait_vram_below(VRAM_FREE_THRESHOLD_MIB, timeout=90)
 

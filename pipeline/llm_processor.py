@@ -187,16 +187,50 @@ def _build_classification_system() -> str:
 CLASSIFICATION_SYSTEM = _build_classification_system()
 
 CONTENT_EN_SYSTEM = """\
-You are a professional trend analyst writing for Catandary Trends, a cross-industry trend intelligence platform.
-Write a concise, analytical trend article in English (150-250 words).
+You are a trend analyst writing for Catandary Trends. Write a sharp, specific trend article in English (150-250 words).
 
-Requirements:
-- Professional, analytical tone – not promotional
-- Focus on WHY this matters and WHAT it signals for the industry
-- The article must be substantially different from the source material
-- Do not copy phrases from the original
-- Structure: Hook sentence → Context → Analysis → Outlook"""
+Voice:
+- Lead with the concrete fact: who did what, the number, the product, the filing, the company. Use specifics from the source, not abstractions.
+- Plain declarative sentences. Vary how each sentence opens — never start two sentences the same way.
+- Analytical, not promotional. Explain the mechanism (why it works, what concretely changes), not vague significance.
+- Substantially reworded from the source; never copy its phrasing.
+- Close with a concrete, falsifiable consequence — not a generic forecast.
 
+BANNED — never use these filler phrases or any close variant. They are the reason most AI articles read identically:
+- Template openers: "Looking ahead…", "This trend/shift/development/move signals/underscores/reflects/highlights…", "The era of…", "The rise of…", "Companies that fail…"
+- Filler verbs/phrases: "underscores", "signals a shift/move", "highlights a/the/its growing", "reflects a broader", "aligns with", "marks a significant", "paving the way", "plays a crucial/key role", "stands to", "continues to evolve", "positions … as a"
+- Empty endings: "in the coming years", "the years to come", "in the digital age", "on a global scale", "a competitive edge", "competitive landscape", "key differentiator", "growing need/demand for", "broader industry shift toward"
+- Empty intensifiers: "it's worth noting", "increasingly", "rapidly evolving", "ever-changing", "in today's world"
+
+Test every sentence: if it could open an article in any other industry, delete it and write the specific detail instead. Write the article, not a template."""
+
+
+# Data-driven cliché guard: the phrases below were the highest-frequency fillers
+# across the published corpus (e.g. "underscores"/"signals a shift"/"highlights"
+# each in ~45-48% of bodies, "looking ahead" opening ~8k paragraphs). The content
+# guard rejects any body/summary containing them so the model retries with cleaner
+# prose. (chat_structured returns the last attempt anyway, so a stubborn case never
+# loses the entry — it just isn't blocked.)
+_CLICHE_RE = re.compile(
+    r"\b("
+    r"looking ahead|underscore|signals? a (shift|move|broader|growing|new)|"
+    r"highlight(s|ing) (a|an|the|its|growing|broader|emerging)|"
+    r"reflects? a (broader|growing|significant|fundamental|larger)|aligns? with|"
+    r"marks? a (significant|pivotal|major|new|key)|pav(e|es|ing) the way|"
+    r"plays? a (crucial|key|pivotal|critical|significant|vital) role|the era of|"
+    r"stands? to (benefit|gain|reshape|transform|capitalize)|continues? to evolve|"
+    r"positions? .{0,30} as a|in the coming years|years to come|in the digital age|"
+    r"on a global scale|competitive (edge|landscape)|key differentiator|"
+    r"growing (need|demand|emphasis) for|broader (industry |market )?(shift|move|trend) toward|"
+    r"it'?s worth noting|ever[- ](changing|evolving)|in today'?s world"
+    r")\b", re.IGNORECASE)
+
+
+def content_is_clean(c: "GeneratedContent") -> bool:
+    """Content guard: body long enough AND free of the banned cliché phrases."""
+    if len(c.body.split()) < STAGE5_MIN_BODY_WORDS:
+        return False
+    return not _CLICHE_RE.search(f"{c.body}\n{c.summary}")
 
 
 def embedding_to_bytes(embedding: list[float]) -> bytes:
@@ -409,7 +443,7 @@ Source: {source_name} ({source_url})"""
             schema=GeneratedContent,
             system=CONTENT_EN_SYSTEM,
             temperature=0.7,
-            validate=lambda c: len(c.body.split()) >= STAGE5_MIN_BODY_WORDS,
+            validate=content_is_clean,
         )
 
     return chat_structured(
