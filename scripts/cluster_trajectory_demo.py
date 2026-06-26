@@ -97,6 +97,9 @@ def main() -> int:
     ap.add_argument("--k", type=int, help="cluster count (default: silhouette-chosen)")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--patents-only", action="store_true", help="only patent signals (pub_number set)")
+    ap.add_argument("--sov", action="store_true",
+                    help="Share-of-Voice: each cluster's share of the vertical's monthly "
+                         "volume + Δ-share early→late (removes the source-growth bias)")
     args = ap.parse_args()
 
     rows = load(args.vertical, args.status, args.limit, args.patents_only)
@@ -113,16 +116,46 @@ def main() -> int:
     km = KMeans(n_clusters=k, n_init=8, random_state=42).fit(X)
     labels = km.labels_
 
-    # global month axis
+    # global month axis + per-month total (the SoV denominator)
     months = sorted({m for r in rows if (m := month_key(r["published_date"]))})
     midx = {m: i for i, m in enumerate(months)}
+    total_by_month = [0] * len(months)
+    for r in rows:
+        mk = month_key(r["published_date"])
+        if mk in midx:
+            total_by_month[midx[mk]] += 1
 
-    # cluster summaries, ordered by size
+    sov = args.sov
+    if sov:
+        # restrict to months with enough volume (sparse early months → noisy share),
+        # then split that window into early/late thirds for the Δ-share.
+        meaningful = [i for i in range(len(months)) if total_by_month[i] >= 5]
+        third = max(1, len(meaningful) // 3)
+        early_idx, late_idx = set(meaningful[:third]), set(meaningful[-third:])
+
+        def share(traj, idxs):
+            cs = sum(traj[i] for i in idxs); ts = sum(total_by_month[i] for i in idxs)
+            return cs / ts if ts else 0.0
+
+    def cluster_traj(members):
+        t = [0] * len(months)
+        for m in members:
+            mk = month_key(m["published_date"])
+            if mk in midx:
+                t[midx[mk]] += 1
+        return t
+
     order = [c for c, _ in Counter(labels).most_common()]
-    print(f"Months covered: {months[0]}..{months[-1]} ({len(months)})\n")
+    print(f"Months covered: {months[0]}..{months[-1]} ({len(months)})")
+    if sov and meaningful:
+        print(f"SoV-Fenster: früh {months[min(early_idx)]}..{months[max(early_idx)]}  vs  "
+              f"spät {months[min(late_idx)]}..{months[max(late_idx)]}  "
+              f"(Anteil am monatlichen {args.vertical}-Volumen)")
+    print()
+
+    sov_rows = []
     for c in order:
         members = [rows[i] for i in range(len(rows)) if labels[i] == c]
-        # representative: closest to centroid
         cen = km.cluster_centers_[c]
         idxs = [i for i in range(len(rows)) if labels[i] == c]
         d = X[idxs] @ (cen / max(np.linalg.norm(cen), 1e-9))
@@ -135,29 +168,50 @@ def main() -> int:
             except Exception:
                 pass
         sources = {m["source_name"] for m in members if m["source_name"]}
-        traj = [0] * len(months)
-        for m in members:
-            mk = month_key(m["published_date"])
-            if mk in midx:
-                traj[midx[mk]] += 1
-
+        traj = cluster_traj(members)
         top_mega = megas.most_common(1)[0][0] if megas else "—"
-        print(f"━━ Cluster {c}  ·  {len(members)} signals  ·  {len(sources)} distinct sources")
-        print(f"   mega-trend: {top_mega}   |   top tags: {', '.join(t for t,_ in tags.most_common(6))}")
-        print(f"   trajectory {months[0]}…{months[-1]}: {sparkline(traj)}  (peak {max(traj)}/mo)")
-        for r in reps:
-            print(f"     • {(r['title_en'] or '')[:84]}")
-        print()
+        toptags = ", ".join(t for t, _ in tags.most_common(6))
+        if sov:
+            se, sl = share(traj, early_idx), share(traj, late_idx)
+            spark = sparkline([traj[i] / total_by_month[i] if total_by_month[i] else 0
+                               for i in range(len(months))])
+            sov_rows.append((sl - se, se, sl, c, len(members), top_mega, toptags, spark,
+                             (reps[0]["title_en"] or "")[:80] if reps else ""))
+        else:
+            print(f"━━ Cluster {c}  ·  {len(members)} signals  ·  {len(sources)} distinct sources")
+            print(f"   mega-trend: {top_mega}   |   top tags: {toptags}")
+            print(f"   trajectory {months[0]}…{months[-1]}: {sparkline(traj)}  (peak {max(traj)}/mo)")
+            for r in reps:
+                print(f"     • {(r['title_en'] or '')[:84]}")
+            print()
 
-    # overall mega-trend trajectories (verification: sustained vs spike)
-    print("Top mega-trends — monthly trajectory (volume = momentum):")
+    if sov:
+        print("Share-of-Voice je Cluster — sortiert nach Δ-Anteil (steigende zuerst):\n")
+        for ds, se, sl, c, n, top_mega, toptags, spark, rep0 in sorted(sov_rows, key=lambda x: -x[0]):
+            arrow = "↑ steigt" if ds > 0.005 else ("↓ fällt" if ds < -0.005 else "→ stabil")
+            print(f"━━ Cluster {c}  ·  {n} signals  ·  {top_mega}")
+            print(f"   Anteil: {se*100:4.1f}% → {sl*100:4.1f}%   (Δ {ds*100:+.1f}pp  {arrow})")
+            print(f"   share-Verlauf {months[0]}…{months[-1]}: {spark}")
+            print(f"   tags: {toptags}")
+            print(f"     • {rep0}\n")
+
+    # mega-trend roll-up
     mega_month: dict[str, list[int]] = {}
     for r in rows:
         mt, mk = r["mega_trend"], month_key(r["published_date"])
         if mt and mk in midx:
             mega_month.setdefault(mt, [0] * len(months))[midx[mk]] += 1
-    for mt, series in sorted(mega_month.items(), key=lambda kv: -sum(kv[1]))[:8]:
-        print(f"   {mt[:34]:<35} {sparkline(series)}  Σ{sum(series)}")
+    if sov:
+        print("Top Mega-Trends — Share-of-Voice (Δ früh→spät):")
+        mt_rows = [(share(s, late_idx) - share(s, early_idx), share(s, early_idx),
+                    share(s, late_idx), mt, sum(s)) for mt, s in mega_month.items()]
+        for ds, se, sl, mt, tot in sorted(mt_rows, key=lambda x: -x[0])[:10]:
+            arrow = "↑" if ds > 0.005 else ("↓" if ds < -0.005 else "→")
+            print(f"   {mt[:32]:<33} {se*100:4.1f}%→{sl*100:4.1f}% (Δ{ds*100:+5.1f}pp {arrow})  Σ{tot}")
+    else:
+        print("Top mega-trends — monthly trajectory (volume = momentum):")
+        for mt, series in sorted(mega_month.items(), key=lambda kv: -sum(kv[1]))[:8]:
+            print(f"   {mt[:34]:<35} {sparkline(series)}  Σ{sum(series)}")
     return 0
 
 
