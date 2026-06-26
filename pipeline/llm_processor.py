@@ -227,8 +227,15 @@ _CLICHE_RE = re.compile(
 
 
 def content_is_clean(c: "GeneratedContent") -> bool:
-    """Content guard: body long enough AND free of the banned cliché phrases."""
-    if len(c.body.split()) < STAGE5_MIN_BODY_WORDS:
+    """Content guard. Retries only on AI slop or a broken body — NOT on brevity:
+    a short, complete, cliché-free article is accepted as-is (clear short text
+    beats slop + wasted retries). Rejects only (a) a near-empty stub (garbage
+    floor), (b) a body cut off mid-sentence (no terminal punctuation), or
+    (c) banned cliché phrases."""
+    body = c.body.strip()
+    if len(body.split()) < STAGE5_MIN_BODY_WORDS:
+        return False                                   # near-empty stub = real failure
+    if not body.endswith((".", "!", "?", '"', "”")):   # cut off mid-sentence → retry
         return False
     return not _CLICHE_RE.search(f"{c.body}\n{c.summary}")
 

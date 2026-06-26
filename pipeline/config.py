@@ -35,9 +35,11 @@ MODEL_EMBEDDING = os.getenv("MODEL_EMBEDDING", "qwen3-embedding")
 # handover — see pipeline.gpu_handover. Other stages stay on Ollama.
 STAGE5_BACKEND = os.getenv("STAGE5_BACKEND", "ollama")
 STAGE5_MODEL = os.getenv("STAGE5_MODEL", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf")
-# Minimum body word count before the llama.cpp content guard retries (premature
-# grammar string-termination at temp>0 occasionally yields a stub body).
-STAGE5_MIN_BODY_WORDS = int(os.getenv("STAGE5_MIN_BODY_WORDS", "100"))
+# Garbage floor for the content guard — only catches a near-empty stub body (a
+# real generation failure), NOT a length target. A short but complete, cliché-free
+# body is preferred over retrying for length: clear short text beats AI slop. The
+# guard retries on clichés or mid-sentence truncation, not on brevity.
+STAGE5_MIN_BODY_WORDS = int(os.getenv("STAGE5_MIN_BODY_WORDS", "25"))
 
 # qwen3:8b stages backend (pipeline Stages 2 Relevance, 3 Extraction,
 # 4 Classification, 8 Reclassify).
