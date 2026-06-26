@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS sources (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     feed_url TEXT NOT NULL,
-    source_type TEXT CHECK (source_type IN ('trade_media', 'press_wire', 'brand', 'api', 'radar')),
+    source_type TEXT CHECK (source_type IN ('trade_media', 'press_wire', 'brand', 'api', 'radar', 'research', 'science', 'sitemap')),
     vertical TEXT CHECK (vertical IN ('FOOD','TECH','HEALTH','ECO','DESIGN','FASHION','BIZ','LIFESTYLE','CROSS')),
     sub_categories TEXT DEFAULT '[]',
     active INTEGER DEFAULT 1,
@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS sources (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     feed_url TEXT NOT NULL,
-    source_type TEXT CHECK (source_type IN ('trade_media', 'press_wire', 'brand', 'api', 'radar')),
+    source_type TEXT CHECK (source_type IN ('trade_media', 'press_wire', 'brand', 'api', 'radar', 'research', 'science', 'sitemap')),
     vertical TEXT CHECK (vertical IN ('FOOD','TECH','HEALTH','ECO','DESIGN','FASHION','BIZ','LIFESTYLE','CROSS')),
     sub_categories JSONB DEFAULT '[]',
     active BOOLEAN DEFAULT true,
@@ -194,7 +194,10 @@ CREATE TABLE IF NOT EXISTS raw_entries (
     extraction_json TEXT,
     classification_json TEXT,
     embedding_blob BYTEA,
-    content_en_json TEXT
+    content_en_json TEXT,
+    -- Patent node key + kind code (parity with the SQLite _migrate_patent_graph).
+    pub_number TEXT,
+    kind_code TEXT
 );
 
 CREATE TABLE IF NOT EXISTS trends (
@@ -231,7 +234,8 @@ CREATE TABLE IF NOT EXISTS trends (
     status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'rejected', 'signal')),
     auto_published BOOLEAN DEFAULT false,
     published_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    sort_date TIMESTAMP            -- parity with SQLite _migrate_trends_sort_date
 );
 
 CREATE TABLE IF NOT EXISTS source_discoveries (
@@ -272,12 +276,38 @@ CREATE TABLE IF NOT EXISTS trend_metrics (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Patent citation/family graph (parity with SQLite _migrate_patent_graph).
+CREATE TABLE IF NOT EXISTS patent_links (
+    src_pub TEXT NOT NULL,
+    dst_pub TEXT NOT NULL,
+    link_type TEXT NOT NULL,
+    category TEXT,
+    UNIQUE(src_pub, dst_pub, link_type)
+);
+
+-- Structured CPC (parity with SQLite _migrate_patent_cpc).
+CREATE TABLE IF NOT EXISTS patent_cpc (
+    pub_number TEXT NOT NULL,
+    cpc TEXT NOT NULL,
+    subclass TEXT,
+    inventive INTEGER DEFAULT 1,
+    UNIQUE(pub_number, cpc)
+);
+
 CREATE INDEX IF NOT EXISTS idx_raw_entries_url ON raw_entries(url);
 CREATE INDEX IF NOT EXISTS idx_raw_entries_processed ON raw_entries(processed);
+CREATE INDEX IF NOT EXISTS idx_raw_pubnum ON raw_entries(pub_number);
 CREATE INDEX IF NOT EXISTS idx_trends_slug ON trends(slug);
 CREATE INDEX IF NOT EXISTS idx_trends_status ON trends(status);
 CREATE INDEX IF NOT EXISTS idx_trends_vertical ON trends(primary_vertical);
 CREATE INDEX IF NOT EXISTS idx_trends_created ON trends(created_at);
+CREATE INDEX IF NOT EXISTS idx_trends_status_sort ON trends(status, sort_date);
+CREATE INDEX IF NOT EXISTS idx_trends_vert_sort ON trends(primary_vertical, status, sort_date);
+CREATE INDEX IF NOT EXISTS idx_trends_source ON trends(status, source_name);
+CREATE INDEX IF NOT EXISTS idx_plinks_src ON patent_links(src_pub, link_type);
+CREATE INDEX IF NOT EXISTS idx_plinks_dst ON patent_links(dst_pub, link_type);
+CREATE INDEX IF NOT EXISTS idx_pcpc_pub ON patent_cpc(pub_number);
+CREATE INDEX IF NOT EXISTS idx_pcpc_sub ON patent_cpc(subclass);
 
 CREATE TABLE IF NOT EXISTS newsletter_subscribers (
     id SERIAL PRIMARY KEY,
@@ -338,6 +368,24 @@ class _PgConnectionWrapper:
         sql = sql.replace("?", "%s")
         cur = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(sql, params or ())
+        return _PgCursorWrapper(cur)
+
+    def executemany(self, sql, rows):
+        """Batch insert. Translates SQLite 'INSERT OR IGNORE INTO t (cols) VALUES
+        (?, …)' → 'INSERT INTO t (cols) VALUES %s ON CONFLICT DO NOTHING' and runs
+        it through psycopg2.execute_values (fast path for the patent graph ingest).
+        Falls back to a plain executemany for non-INSERT-OR-IGNORE statements."""
+        import re as _re
+        rows = list(rows)
+        if not rows:
+            return _PgCursorWrapper(self._conn.cursor())
+        m = _re.match(r"(?is)\s*INSERT\s+OR\s+IGNORE\s+INTO\s+(.+?)\s+VALUES\s*\(.+\)\s*$", sql)
+        cur = self._conn.cursor()
+        if m:
+            psycopg2.extras.execute_values(
+                cur, f"INSERT INTO {m.group(1)} VALUES %s ON CONFLICT DO NOTHING", rows)
+        else:
+            cur.executemany(sql.replace("?", "%s"), rows)
         return _PgCursorWrapper(cur)
 
     def executescript(self, sql):
