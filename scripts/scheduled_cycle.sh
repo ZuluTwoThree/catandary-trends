@@ -52,11 +52,11 @@ mkdir -p "$(dirname "$LOG")"
   # therefore gate only on the 35B START SCRIPT existing and referencing the
   # expected GGUF — not on start-active.sh's current target. Fall back to Ollama
   # only if that start script is missing/misconfigured (avoids a hard crash).
-  export STAGE5_MODEL="Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"
-  STAGE5_START="/home/dirk/llama.cpp/start-qwen3.6-35b.sh"
+  export STAGE5_MODEL="Qwen3-30B-A3B-Q4_K_M.gguf"
+  STAGE5_START="/home/dirk/llama.cpp/start-qwen3-30b.sh"
   if [ -f "$STAGE5_START" ] && grep -q "$STAGE5_MODEL" "$STAGE5_START" 2>/dev/null; then
     export STAGE5_BACKEND=llamacpp
-    echo "----- Stage-6 backend: llamacpp ($STAGE5_MODEL), handover swaps symlink to 35B -----"
+    echo "----- Stage-6 backend: llamacpp ($STAGE5_MODEL), handover swaps symlink to 30B -----"
   else
     export STAGE5_BACKEND=ollama
     echo "----- Stage-6 backend: ollama (fallback — $STAGE5_START missing or wrong GGUF) -----"
