@@ -85,6 +85,22 @@ verticals:
       feed_url: https://vegconomist.com/feed/
       type: trade_media
       lead_time_tier: market
+    - name: The Spoon
+      feed_url: https://thespoon.tech/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: The Food Institute
+      feed_url: https://foodinstitute.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Food+Tech Connect
+      feed_url: https://foodtechconnect.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: Forward Fooding
+      feed_url: https://forwardfooding.com/feed/
+      type: trade_media
+      lead_time_tier: market
     science:
     - name: Nature Food
       feed_url: https://www.nature.com/natfood.rss
