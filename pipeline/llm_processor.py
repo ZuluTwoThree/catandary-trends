@@ -196,33 +196,31 @@ Voice:
 - Substantially reworded from the source; never copy its phrasing.
 - Close with a concrete, falsifiable consequence — not a generic forecast.
 
-BANNED — never use these filler phrases or any close variant. They are the reason most AI articles read identically:
-- Template openers: "Looking ahead…", "This trend/shift/development/move signals/underscores/reflects/highlights…", "The era of…", "The rise of…", "Companies that fail…"
-- Filler verbs/phrases: "underscores", "signals a shift/move", "highlights a/the/its growing", "reflects a broader", "aligns with", "marks a significant", "paving the way", "plays a crucial/key role", "stands to", "continues to evolve", "positions … as a"
-- Empty endings: "in the coming years", "the years to come", "in the digital age", "on a global scale", "a competitive edge", "competitive landscape", "key differentiator", "growing need/demand for", "broader industry shift toward"
-- Empty intensifiers: "it's worth noting", "increasingly", "rapidly evolving", "ever-changing", "in today's world"
+HARD RULE — never open a sentence with a template like "This trend/development/shift signals/underscores/reflects/highlights…" or "Looking ahead…". Open with the concrete subject instead.
 
-Test every sentence: if it could open an article in any other industry, delete it and write the specific detail instead. Write the article, not a template."""
+  ✗ "This development underscores a broader shift toward automation in logistics."
+  ✓ "Maersk's new system reroutes containers automatically when a port congests, cutting dwell time."
+
+Also avoid (reword, don't just swap synonyms): "paving the way", "the era of", "continues to evolve", "in the coming years / years to come", "in the digital age", "on a global scale", "a competitive edge", "companies that fail to…", and empty intensifiers ("increasingly", "rapidly evolving", "in today's world").
+
+Test each sentence: if it could open an article in any other industry, delete it and write the specific detail instead. Write the article, not a template."""
 
 
-# Data-driven cliché guard: the phrases below were the highest-frequency fillers
-# across the published corpus (e.g. "underscores"/"signals a shift"/"highlights"
-# each in ~45-48% of bodies, "looking ahead" opening ~8k paragraphs). The content
-# guard rejects any body/summary containing them so the model retries with cleaner
-# prose. (chat_structured returns the last attempt anyway, so a stubborn case never
-# loses the entry — it just isn't blocked.)
+# Cliché guard — NARROW on purpose: only the template *signatures* that are both
+# high-signal and easily avoidable (sentence-opener templates + a few set phrases).
+# Earlier the guard also banned common-but-borderline fillers ("highlights",
+# "aligns with", "reflects a broader" …); those fired on ~45% of bodies and caused
+# heavy retries while the model kept reproducing them. The system prompt still
+# discourages all of them — but only these few trigger a re-roll, so retries stay
+# rare and content-gen stays fast.
 _CLICHE_RE = re.compile(
     r"\b("
-    r"looking ahead|underscore|signals? a (shift|move|broader|growing|new)|"
-    r"highlight(s|ing) (a|an|the|its|growing|broader|emerging)|"
-    r"reflects? a (broader|growing|significant|fundamental|larger)|aligns? with|"
-    r"marks? a (significant|pivotal|major|new|key)|pav(e|es|ing) the way|"
-    r"plays? a (crucial|key|pivotal|critical|significant|vital) role|the era of|"
-    r"stands? to (benefit|gain|reshape|transform|capitalize)|continues? to evolve|"
-    r"positions? .{0,30} as a|in the coming years|years to come|in the digital age|"
-    r"on a global scale|competitive (edge|landscape)|key differentiator|"
-    r"growing (need|demand|emphasis) for|broader (industry |market )?(shift|move|trend) toward|"
-    r"it'?s worth noting|ever[- ](changing|evolving)|in today'?s world"
+    r"looking ahead|"
+    r"this (trend|shift|development|move|signal|announcement) "
+    r"(signals|underscores|reflects|highlights|marks|represents|demonstrates)|"
+    r"signals? a (shift|move|broader|new era)|underscores? a (broader|growing|fundamental)|"
+    r"pav(e|es|ing) the way|the era of|continues? to evolve|companies that fail|"
+    r"in the coming years|years to come|in the digital age|on a global scale"
     r")\b", re.IGNORECASE)
 
 
@@ -451,6 +449,7 @@ Source: {source_name} ({source_url})"""
             system=CONTENT_EN_SYSTEM,
             temperature=0.7,
             validate=content_is_clean,
+            max_validate_retries=1,  # one quick re-roll on clichés, then accept
         )
 
     return chat_structured(

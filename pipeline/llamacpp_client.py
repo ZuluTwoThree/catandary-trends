@@ -71,7 +71,8 @@ def _strip_fences(raw: str) -> str:
 def chat_structured(model: str, prompt: str, schema: type[T],
                     system: str | None = None, temperature: float = 0.0,
                     fallback_model: str | None = None,
-                    validate: Callable[[T], bool] | None = None) -> T | None:
+                    validate: Callable[[T], bool] | None = None,
+                    max_validate_retries: int | None = None) -> T | None:
     """Structured output against llama-server (OpenAI json_schema response_format).
 
     Mirrors pipeline.ollama_client.chat_structured: retry loop, markdown fence
@@ -79,10 +80,13 @@ def chat_structured(model: str, prompt: str, schema: type[T],
     the JSON payload (Qwen3 equivalent of Ollama's think=False).
 
     `validate`: optional content guard. If it returns False for a parsed result
-    (e.g. body too short due to premature grammar string-termination), the call
-    is retried like a failed attempt. On the final attempt the last result is
-    returned anyway — a short body beats None (which loses the entry).
-    """
+    the call is retried. The last result is returned anyway once the retry budget
+    is exhausted — a flagged body beats None (which loses the entry).
+    `max_validate_retries`: cap on *content-guard* retries (separate from HTTP/JSON
+    error retries, which keep the full MAX_RETRIES budget). Defaults to MAX_RETRIES-1.
+    Set low (e.g. 1) for soft guards like the cliché check: one quick re-roll, then
+    accept — avoids burning 3× GPU on output the model keeps producing anyway.
+    Content-guard retries skip the exponential backoff (the server is healthy)."""
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -106,6 +110,8 @@ def chat_structured(model: str, prompt: str, schema: type[T],
     }
 
     url = f"{LLAMACPP_HOST}/v1/chat/completions"
+    vcap = max_validate_retries if max_validate_retries is not None else MAX_RETRIES - 1
+    vfails = 0
     for attempt in range(MAX_RETRIES):
         try:
             with httpx.Client(timeout=TIMEOUT) as client:
@@ -122,14 +128,12 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                                MAX_TOKENS)
             result = schema.model_validate_json(_strip_fences(raw))
             if validate is not None and not validate(result):
-                if attempt < MAX_RETRIES - 1:
+                vfails += 1
+                if vfails <= vcap and attempt < MAX_RETRIES - 1:
                     logger.warning("Content guard rejected output for %s "
-                                   "(attempt %d/%d) — retrying",
-                                   model, attempt + 1, MAX_RETRIES)
-                    time.sleep(2 ** attempt)
-                    continue
-                logger.warning("Content guard still failing on final attempt "
-                               "for %s — returning last result", model)
+                                   "(cliché retry %d/%d) — re-rolling", model, vfails, vcap)
+                    continue  # no backoff: server is healthy, just re-roll
+                return result  # validate budget spent → accept the last result
             return result
         except Exception as e:
             logger.warning("Attempt %d/%d failed for %s: %s",
