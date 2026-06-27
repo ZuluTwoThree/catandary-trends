@@ -151,6 +151,8 @@ verticals:
     sources:
     - name: TechCrunch
       feed_url: https://techcrunch.com/feed/
+      # foresight-value categories only (drop Media & Entertainment / generic TC / Gaming / Social)
+      wp_categories: [577047203, 17396, 577030455, 577234943, 449223024, 449557044, 577030454, 577030453, 576957003, 576601119, 577123751, 2401, 21587494, 174, 426637499, 577065682, 577051039, 577052803, 577052802]
       type: trade_media
       lead_time_tier: market
     - name: The Verge
@@ -541,6 +543,8 @@ verticals:
       lead_time_tier: market
     - name: WWD
       feed_url: https://www.wwd.com/feed/
+      # foresight-value only (drop Fashion Features/Show Reviews/Scoops/Celebrity/Parties/People)
+      wp_categories: [26831, 344376264, 344417288, 31236264, 13412480, 43868619, 3651, 344417292, 32893, 344417290, 2512674, 344412699, 3342]
       type: trade_media
       ingest_cap: 50   # huge volume, fashion-news noise — cap backfill
       lead_time_tier: now
@@ -585,6 +589,8 @@ verticals:
       lead_time_tier: market
     - name: Gründerszene
       feed_url: https://www.businessinsider.de/gruenderszene/feed/
+      # foresight-value only — Wirtschaft/Tech/Business/Finanzen/Mobility/Science (drop Panorama/Leben/Politik-allg.)
+      wp_categories: [146, 1, 223749, 149, 3776, 223748, 1832, 91954, 230733, 223754, 127081, 223742, 1833, 223745, 400]
       type: trade_media
       lead_time_tier: market
     - name: brutkasten
@@ -680,6 +686,8 @@ verticals:
       lead_time_tier: now
     - name: Hypebeast
       feed_url: https://www.hypebeast.com/feed/
+      # foresight-value only (drop Fashion/Music/Footwear drops/Entertainment/Sports/Gaming)
+      wp_categories: [16, 52, 25946, 5889, 2487, 151209]
       type: trade_media
       lead_time_tier: now
     - name: Impact Alpha
@@ -730,6 +738,8 @@ verticals:
       lead_time_tier: now
     - name: Hollywood Reporter
       feed_url: https://www.hollywoodreporter.com/feed/
+      # foresight-value only — Business/Digital/Politics (drop Movies/TV/Reviews/Gossip)
+      wp_categories: [64, 65850, 65851, 65843]
       type: trade_media
       ingest_cap: 50   # high-volume gossip, low yield (~19%) — cap backfill
       lead_time_tier: now
@@ -743,6 +753,8 @@ verticals:
       lead_time_tier: market
     - name: Variety
       feed_url: https://variety.com/feed/
+      # foresight-value only — business of media (drop News/Reviews/Awards/Box Office firehose)
+      wp_categories: [46658504, 4269, 401512229]
       type: trade_media
       ingest_cap: 50   # high-volume, low trend-signal yield (~22%) — cap backfill
       lead_time_tier: now
