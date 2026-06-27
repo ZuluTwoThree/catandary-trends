@@ -56,16 +56,25 @@ def month_chunks(after: str, before: str):
         y, m = ny, nm
 
 
-def fetch_month(client, base, after, before, cap=None):
+def fetch_month(client, base, after, before, cap=None, categories=None, categories_exclude=None):
     """Fetch a month's posts. `cap` limits posts/month (for noisy high-volume
-    sources) — stops paginating once `cap` is reached (oldest-first)."""
+    sources) — stops paginating once `cap` is reached (oldest-first).
+    `categories` / `categories_exclude` are comma-separated WP category IDs for
+    server-side topic scoping (e.g. keep Foodtech, drop Delivery & Commerce) so
+    noise is never even fetched."""
     posts, page = [], 1
     per_page = min(100, cap) if cap else 100
+    cat_params = {}
+    if categories:
+        cat_params["categories"] = categories
+    if categories_exclude:
+        cat_params["categories_exclude"] = categories_exclude
     while True:
         try:
             r = client.get(f"{base}/wp-json/wp/v2/posts", params={
                 "after": after, "before": before, "per_page": per_page, "page": page,
                 "_fields": "date,link,title,excerpt,content", "orderby": "date", "order": "asc",
+                **cat_params,
             }, timeout=30, follow_redirects=True)
         except Exception as exc:
             print(f"    fetch error {after[:7]} p{page}: {type(exc).__name__}")
@@ -95,8 +104,15 @@ def main():
     ap.add_argument("--after", required=True, help="YYYY-MM-DD (inclusive)")
     ap.add_argument("--before", required=True, help="YYYY-MM-DD (exclusive)")
     ap.add_argument("--max-per-month", type=int, help="cap posts/month (overrides sources.yaml ingest_cap)")
+    ap.add_argument("--categories", help="comma-sep WP category IDs to INCLUDE (overrides sources.yaml wp_categories)")
+    ap.add_argument("--categories-exclude", help="comma-sep WP category IDs to EXCLUDE (overrides wp_categories_exclude)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+
+    def _csv(v):
+        if v is None:
+            return None
+        return ",".join(str(x) for x in v) if isinstance(v, (list, tuple)) else str(v)
 
     src = find_source(args.source_name)
     if not src and not args.base_url:
@@ -104,8 +120,12 @@ def main():
     base = args.base_url or f"https://{domain_of(src['feed_url'])}"
     vertical = src["vertical"] if src else "FOOD"
     cap = args.max_per_month or (src or {}).get("ingest_cap")  # per-source cap for noisy giants
+    categories = args.categories or _csv((src or {}).get("wp_categories"))
+    categories_exclude = args.categories_exclude or _csv((src or {}).get("wp_categories_exclude"))
+    catinfo = (f" | cats={categories}" if categories else "") + \
+              (f" | cats_excl={categories_exclude}" if categories_exclude else "")
     print(f"[wp] {args.source_name} @ {base} | {args.after} .. {args.before} | "
-          f"dry_run={args.dry_run}{f' | cap={cap}/month' if cap else ''}")
+          f"dry_run={args.dry_run}{f' | cap={cap}/month' if cap else ''}{catinfo}")
 
     source_id = -1 if args.dry_run else db.upsert_source(
         name=args.source_name, feed_url=(src or {}).get("feed_url", base),
@@ -114,7 +134,8 @@ def main():
     stats = {"fetched": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
     with httpx.Client(headers=HEADERS) as client:
         for after, before in month_chunks(args.after, args.before):
-            posts = fetch_month(client, base, after, before, cap=cap)
+            posts = fetch_month(client, base, after, before, cap=cap,
+                                categories=categories, categories_exclude=categories_exclude)
             stats["fetched"] += len(posts)
             for p in posts:
                 url = (p.get("link") or "").strip()

@@ -89,6 +89,11 @@ verticals:
       feed_url: https://thespoon.tech/feed/
       type: trade_media
       lead_time_tier: market
+      # WP category scoping — keep foresight-dense FoodTech topics, drop operative
+      # noise (Delivery & Commerce 89, Restaurant Tech 546, News 4085, Business of Food 90).
+      # Foodtech, Alt-Protein, Future Food, Robotics/AI, Ag Tech, Connected Kitchen,
+      # Future of Grocery, Funding, Startups, Future of Drink.
+      wp_categories: [86, 3774, 2583, 95, 982, 252, 573, 936, 266, 623]
     - name: The Food Institute
       feed_url: https://foodinstitute.com/feed/
       type: trade_media
