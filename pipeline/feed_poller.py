@@ -4,7 +4,9 @@
 Fetches RSS/Atom feeds from configured sources and stores new entries in the database.
 """
 
+import html
 import logging
+import re
 import sys
 import time
 from datetime import datetime, timezone, timedelta
@@ -114,6 +116,60 @@ def fetch_feed(source_name: str, feed_url: str) -> list[dict]:
         return []
 
 
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html(s: str) -> str:
+    return html.unescape(_TAG_RE.sub("", s or "")).strip()
+
+
+def fetch_wp_categories(source_name: str, feed_url: str, categories: str) -> list[dict]:
+    """Poll a curated WP source via the REST API scoped to its foresight-value
+    categories (sources.yaml `wp_categories`) — so the noise the RSS firehose
+    carries is never fetched. Recent window (90 days, matching the RSS cutoff),
+    one page of 100 newest posts. Falls back to RSS on any error."""
+    from pipeline.radar_discovery import domain_of
+    domain = domain_of(feed_url)
+    after = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%dT00:00:00")
+    try:
+        resp = HTTP_CLIENT.get(f"https://{domain}/wp-json/wp/v2/posts", params={
+            "categories": categories, "after": after, "per_page": 100,
+            "orderby": "date", "order": "desc",
+            "_fields": "date,link,title,excerpt,content",
+        })
+        if resp.status_code != 200:
+            logger.warning("%s: WP-API HTTP %d — falling back to RSS", source_name, resp.status_code)
+            return fetch_feed(source_name, feed_url)
+        posts = resp.json()
+    except Exception as e:
+        logger.warning("%s: WP-API fetch failed (%s) — falling back to RSS", source_name, e)
+        return fetch_feed(source_name, feed_url)
+    entries = []
+    for p in posts:
+        url = (p.get("link") or "").strip()
+        title = _strip_html(p.get("title", {}).get("rendered", ""))
+        if not url or not title:
+            continue
+        excerpt = _strip_html(p.get("excerpt", {}).get("rendered", "")) \
+            or _strip_html(p.get("content", {}).get("rendered", ""))[:2000]
+        pub = (p.get("date") or "")[:19].replace("T", " ")
+        entries.append({"url": url, "title": title, "excerpt": excerpt[:2000],
+                        "published_date": pub or None})
+    logger.info("%s: fetched %d entries (WP-API, foresight categories)", source_name, len(entries))
+    return entries
+
+
+def fetch_source(source_cfg: dict, source_name: str, feed_url: str) -> list[dict]:
+    """Dispatch: curated WP sources (wp_categories set) → category-scoped WP-API;
+    everything else → RSS. Keeps the foresight curation identical across backfill,
+    frontfill and the poller."""
+    cats = source_cfg.get("wp_categories")
+    if cats:
+        cats_str = ",".join(str(x) for x in cats) if isinstance(cats, (list, tuple)) else str(cats)
+        return fetch_wp_categories(source_name, feed_url, cats_str)
+    return fetch_feed(source_name, feed_url)
+
+
 VALID_LEAD_TIME_TIERS = {"future", "market", "now"}
 
 
@@ -175,7 +231,7 @@ def poll_vertical_sources(vertical: str, config: dict) -> dict:
 
         source_id = upsert_source(source_name, feed_url, source_type, vertical)
 
-        entries = fetch_feed(source_name, feed_url)
+        entries = fetch_source(source_cfg, source_name, feed_url)
         stats["fetched"] += len(entries)
 
         for entry in entries:
@@ -214,7 +270,7 @@ def poll_cross_industry(config: dict) -> dict:
 
             source_id = upsert_source(source_name, feed_url, source_type, "CROSS")
 
-            entries = fetch_feed(source_name, feed_url)
+            entries = fetch_source(source_cfg, source_name, feed_url)
             stats["fetched"] += len(entries)
 
             for entry in entries:
