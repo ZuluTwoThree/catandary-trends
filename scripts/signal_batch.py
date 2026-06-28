@@ -312,9 +312,20 @@ def run(limit: int, execute: bool, embed_chunk: int,
     # embedding batch is compared against the recent-30d matrix and the running
     # kept matrix in one matmul, instead of the old O(n^2) per-pair Python loop
     # that hangs at 10k+. Identical threshold/semantics; just feasible at scale.
-    recent_list = [bytes_to_embedding(b) for _, b in get_recent_embeddings(days=30)]
-    logger.info("Stage 5: %d recent embeddings for dedup", len(recent_list))
-    R = _norm_rows(np.asarray(recent_list, dtype=np.float32)) if recent_list else None
+    # Load recent embeddings straight into a numpy matrix via np.frombuffer — NOT as
+    # Python float-lists (bytes_to_embedding). At ~290k recent embeddings the
+    # list-of-lists ballooned to ~38 GB and OOM-killed the run (FASHION, 2026-06-28);
+    # frombuffer into a preallocated matrix is ~290k*4096*4 ≈ 5 GB.
+    _recent = get_recent_embeddings(days=30)
+    logger.info("Stage 5: %d recent embeddings for dedup", len(_recent))
+    if _recent:
+        _dim = len(_recent[0][1]) // 4
+        R = np.empty((len(_recent), _dim), dtype=np.float32)
+        for _i, (_, _b) in enumerate(_recent):
+            R[_i] = np.frombuffer(_b, dtype=np.float32)
+        R = _norm_rows(R)
+    else:
+        R = None
     thr = DUPLICATE_SIMILARITY_THRESHOLD
 
     _llama_stopped = free_vram_for_embeddings()  # GPU only needed from here on
