@@ -763,9 +763,21 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
     # --embedding mode for the duration of this loop only; restore the symlink
     # on exit so Stage 6's 35B handover finds start-active.sh as expected.
     t_stage = time.time()
+    # Build the recent-embedding matrix straight via np.frombuffer — NOT as Python
+    # float-lists (bytes_to_embedding). At ~355k recent embeddings the list-of-lists
+    # ballooned to ~46 GB and OOM-killed run_full_cycle (cycle, 2026-06-29);
+    # frombuffer into a preallocated matrix is ~355k*4096*4 ≈ 5.8 GB. Pre-normalized
+    # so the dedup matmul can use it directly. (Mirrors the signal_batch fix.)
     recent = get_recent_embeddings(days=30)
-    recent_vecs = [bytes_to_embedding(b) for _, b in recent]
-    logger.info("Stage 5: %d recent embeddings loaded", len(recent_vecs))
+    logger.info("Stage 5: %d recent embeddings loaded", len(recent))
+    if recent:
+        _rdim = len(recent[0][1]) // 4
+        R_recent = np.empty((len(recent), _rdim), dtype=np.float32)
+        for _ri, (_, _rb) in enumerate(recent):
+            R_recent[_ri] = np.frombuffer(_rb, dtype=np.float32)
+        R_recent = _norm_rows(R_recent)
+    else:
+        R_recent = None
 
     next_survivors = []
     cache_hits_stage5 = 0
@@ -805,7 +817,7 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
     # kept-buffer incrementally (so intra-batch near-duplicates are still caught).
     if embedded:
         thr = DUPLICATE_SIMILARITY_THRESHOLD
-        R = _norm_rows(np.asarray(recent_vecs, dtype=np.float32)) if recent_vecs else None
+        R = R_recent  # prebuilt + pre-normalized via frombuffer above (no Python lists)
         B = _norm_rows(np.asarray([e for _, e in embedded], dtype=np.float32))
         rec_max = ((B @ R.T).max(axis=1) if R is not None and R.shape[0]
                    else np.zeros(len(embedded), dtype=np.float32))
