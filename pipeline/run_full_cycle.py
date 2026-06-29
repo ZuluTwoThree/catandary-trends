@@ -198,13 +198,14 @@ def main():
     # Step 2: Process backlog (unprocessed entries from previous cycles)
     backlog_stats = None
     if not args.skip_llm:
-        backlog_count = get_unprocessed_count()
+        backlog_count = get_unprocessed_count(min_id=args.min_id)
         if backlog_count > 0:
             logger.info("-" * 40)
-            logger.info("PHASE 1: Backlog (%d unprocessed entries)", backlog_count)
+            logger.info("PHASE 1: Backlog (%d unprocessed entries, min_id=%d)",
+                        backlog_count, args.min_id)
             logger.info("-" * 40)
             t0 = time.time()
-            backlog_stats = run_llm(min(args.batch, backlog_count))
+            backlog_stats = run_llm(min(args.batch, backlog_count), min_id=args.min_id)
             backlog_duration = time.time() - t0
             logger.info(
                 "Backlog done in %.1fs — %d processed, %d trends created, %d filtered, %d errors",
