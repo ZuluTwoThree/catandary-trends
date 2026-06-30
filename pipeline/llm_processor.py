@@ -89,11 +89,44 @@ A relevant trend signal is:
 - Something that indicates where an industry is heading
 
 NOT relevant:
+- Sponsored posts, advertorials, paid/partner content, or any vendor advertising
+  (these are paid placements, not independent trend signals — never relevant)
 - Generic company earnings/quarterly results (unless they reveal a strategic shift)
 - Routine personnel changes
 - Opinion pieces without concrete data or developments
 - Event announcements without substance
 - Listicles or "top 10" without original insight"""
+
+# Deterministic advertorial markers (checked before any LLM call). Paid/sponsored
+# content is advertising, not a trend signal (CLAUDE.md: only independent
+# primary-source content). The LLM relevance filter judges *topic* relevance and
+# happily passes an on-topic advertorial with high confidence, so a cheap
+# code-level prefix guard is the reliable gate. Prefix-anchored (no \b) so the
+# run-together "SponsoredOptimized…" headline some newsrooms emit is still caught.
+_ADVERTORIAL_RE = re.compile(
+    r"^\s*(sponsored|advertorial|paid post|partner content)",
+    re.IGNORECASE,
+)
+# German "ANZEIGE" ad label, but only as a standalone label (followed by space or
+# colon) — so "Anzeigenmotiv"/"Anzeigenblätter" (legit trade journalism about
+# advertising) are NOT caught. And exclude "Anzeige gegen/wegen…" (a criminal
+# complaint = real news). Bare "advertisement"/"promoted" are intentionally NOT
+# markers: they catch ad-tech patents and research/company names, not advertorials.
+_ANZEIGE_RE = re.compile(r"^\s*anzeige(?=[:\s,])", re.IGNORECASE)
+_ANZEIGE_NEWS_RE = re.compile(
+    r"^\s*anzeige\s+(gegen|wegen|erstattet|erstatten|gestellt|nach|läuft)",
+    re.IGNORECASE,
+)
+
+
+def is_advertorial(title: str, excerpt: str = "") -> bool:
+    """True if the entry is sponsored/advertorial (paid placement, not a signal)."""
+    t = (title or "").lstrip()
+    if _ADVERTORIAL_RE.match(t):
+        return True
+    if _ANZEIGE_RE.match(t) and not _ANZEIGE_NEWS_RE.match(t):
+        return True
+    return False
 
 EXTRACTION_SYSTEM = """\
 You are a precise information extractor. Extract ONLY information that is explicitly stated in the text.
@@ -517,6 +550,12 @@ def process_entry(entry: dict) -> dict | None:
     logger.info("Processing [%d]: %s", entry_id, title[:80])
     t0 = time.time()
 
+    # Step 0: Advertorial guard (deterministic, pre-LLM)
+    if is_advertorial(title, excerpt):
+        logger.info("[%d] Filtered out: sponsored/advertorial", entry_id)
+        mark_filtered(entry_id, "sponsored/advertorial")
+        return None
+
     # Step 1: Relevance Filter
     relevance = step_relevance_filter(title, excerpt, source_vertical)
     if relevance is None:
@@ -645,6 +684,11 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
     batch_titles_norm: list[str] = []
     for entry in entries:
         title = entry["title"] or ""
+        # Stage 0: advertorial guard (deterministic, pre-LLM)
+        if is_advertorial(title, entry.get("excerpt") or ""):
+            mark_filtered(entry["id"], "sponsored/advertorial")
+            filtered += 1
+            continue
         is_dup, sim = is_title_duplicate(title, existing_titles_norm)
         if is_dup:
             mark_filtered(entry["id"], f"title_duplicate: sim={sim:.3f}")

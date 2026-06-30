@@ -48,7 +48,7 @@ from pipeline.db import (
     mark_filtered, mark_processed, insert_trend,
 )
 from pipeline.llm_processor import (
-    RELEVANCE_SYSTEM, EXTRACTION_SYSTEM, CLASSIFICATION_SYSTEM,
+    RELEVANCE_SYSTEM, EXTRACTION_SYSTEM, CLASSIFICATION_SYSTEM, is_advertorial,
     normalize_title, embedding_to_bytes, bytes_to_embedding,
     cosine_similarity,
 )
@@ -256,6 +256,11 @@ def title_dedup(entries: list[dict], commit: bool) -> list[dict]:
     survivors: list[dict] = []
     seen: set[str] = set()
     for e in entries:
+        # Deterministic advertorial guard (paid placement, not a signal)
+        if is_advertorial(e["title"] or "", e.get("excerpt") or ""):
+            if commit:
+                mark_filtered(e["id"], "sponsored/advertorial")
+            continue
         norm = normalize_title(e["title"] or "")
         if norm and (norm in existing or norm in seen):
             if commit:
