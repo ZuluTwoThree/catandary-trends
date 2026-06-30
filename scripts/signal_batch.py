@@ -122,6 +122,32 @@ def batch_over_chunks(items: list[tuple[str, str]], schema, system, model) -> di
     return out
 
 
+def assert_local_classify_model() -> None:
+    """Fail fast if :8090 isn't serving the expected 8B classify model.
+
+    A GPU-handover restore bug once left the embedding server (start-qwen3-emb.sh)
+    on :8090; a full 63k-entry run then crawled ~10h at 15 req/min — every request
+    failed schema validation against an embedding endpoint — before anyone noticed.
+    Verify the loaded model id matches STAGE_8B_MODEL before firing tens of
+    thousands of requests at it."""
+    try:
+        r = httpx.get(f"{LLAMACPP_HOST}/v1/models", timeout=10)
+        r.raise_for_status()
+        loaded = [m.get("id", "") for m in r.json().get("data", [])]
+    except Exception as e:
+        raise SystemExit(
+            f"backend=local: llama-server at {LLAMACPP_HOST} unreachable ({e}). "
+            f"Start the 208k classifier (start-qwen3-8b-208k.sh) first.")
+    want = STAGE_8B_MODEL
+    if not any(m == want or Path(m).name == want for m in loaded):
+        raise SystemExit(
+            f"backend=local: :8090 serves {loaded or '[]'}, expected '{want}'. "
+            f"The GPU-handover symlink likely points to the wrong model "
+            f"(e.g. start-qwen3-emb.sh). Repoint start-active.sh -> "
+            f"start-qwen3-8b-208k.sh and restart llama-server.service, then re-run.")
+    logger.info("Preflight OK: :8090 serves the expected classifier (%s)", want)
+
+
 def local_classify(items: list[tuple[str, str]], schema, system, workers: int) -> dict:
     """Classify concurrently against the local llama-server (port 8090) with a
     thread pool — exploits the server's parallel slots. Drop-in for batch_classify;
@@ -265,6 +291,9 @@ def run(limit: int, execute: bool, embed_chunk: int,
         print("  Note: actual run title-dedups first; Stage-5 dedup is local/free.")
         print("\nDRY-RUN — nothing submitted. Re-run with --execute to classify.")
         return 0
+
+    if backend == "local":
+        assert_local_classify_model()
 
     survivors = title_dedup(entries, commit=True)
     print(f"After title dedup: {len(survivors)} (filtered {len(entries) - len(survivors)})")
