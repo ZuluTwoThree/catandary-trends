@@ -153,6 +153,13 @@ PY
   fi
 
   echo
+  # Force the symlink back to the canonical 208K classifier before the final start.
+  # A hard-killed mid-cycle handover (OOM/SIGKILL) can leave start-active.sh on a
+  # transient script (emb/30B/35B); without this reset the final `systemctl start`
+  # would bring up the wrong model and the next consumer (signal_batch/cycle) would
+  # run against it. See pipeline.gpu_handover CANONICAL_RESTING_SCRIPT.
+  echo "----- resetting start-active.sh → start-qwen3-8b-208k.sh -----"
+  ln -sf start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
   echo "----- restarting llama-server.service -----"
   systemctl --user start llama-server.service
   RC3=$?

@@ -56,6 +56,32 @@ MODEL_START_SCRIPTS: dict[str, Path] = {
     "Qwen3-Embedding-8B-Q4_K_M.gguf":  LLAMA_CPP_ROOT / "start-qwen3-emb.sh",
 }
 
+# The 208K classifier is the only valid *resting* state for start-active.sh:
+# between handovers and after a cycle, :8090 should serve it. The embedding/30B/35B
+# scripts are transient — swapped in for a single stage only. If a handover is
+# hard-killed mid-stage (OOM/SIGKILL), its finally-based restore never runs and the
+# symlink is left on a transient script; the next handover would then save & "restore"
+# that poison value, cascading until the cycle ends on the wrong model. This stranded
+# the embedding server on :8090 once (2026-06-30), wasting a 10h BIZ run.
+CANONICAL_RESTING_MODEL = "Qwen3-8B-UD-Q4_K_XL.gguf"
+CANONICAL_RESTING_SCRIPT = MODEL_START_SCRIPTS[CANONICAL_RESTING_MODEL].name
+
+
+def _safe_saved_target() -> str:
+    """Symlink target to restore to on handover exit — never a transient script.
+
+    If start-active.sh is currently anything but the canonical classifier (e.g. a
+    prior handover was hard-killed and left it on emb/30B/35B), fall back to the
+    canonical classifier so the poison value cannot cascade through restores."""
+    current = _current_symlink_target()
+    if current != CANONICAL_RESTING_SCRIPT:
+        logger.warning(
+            "start-active.sh at handover entry is %r, not the canonical classifier "
+            "— will restore to %s (poisoned-symlink guard)",
+            current, CANONICAL_RESTING_SCRIPT)
+        return CANONICAL_RESTING_SCRIPT
+    return current
+
 
 def _ollama_bin() -> str:
     return shutil.which("ollama") or "/home/dirk/.local/bin/ollama"
@@ -258,7 +284,7 @@ def content_gen_on_llamacpp(expected_model: str):
             pass
         return
 
-    saved_target = _current_symlink_target()
+    saved_target = _safe_saved_target()
     llama_server_start(expected_model, swap_symlink=True)
     try:
         yield
@@ -298,7 +324,7 @@ def embed_on_llamacpp(expected_model: str):
             pass
         return
 
-    saved_target = _current_symlink_target()
+    saved_target = _safe_saved_target()
     llama_server_start(expected_model, swap_symlink=True)
     try:
         yield
@@ -335,7 +361,7 @@ def eight_b_on_llamacpp(expected_model: str):
             pass
         return
 
-    saved_target = _current_symlink_target()
+    saved_target = _safe_saved_target()
     llama_server_start(expected_model, swap_symlink=True)
     try:
         yield
