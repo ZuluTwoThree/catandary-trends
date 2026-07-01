@@ -159,12 +159,28 @@ def main() -> int:
     ensure_vram()  # rule: ensure free VRAM before invoking the local LLM
 
     totals = {"published": 0, "draft": 0, "errors": 0}
-    for start in range(0, len(rows), args.chunk):
-        chunk = rows[start:start + args.chunk]
-        logger.info("chunk %d-%d of %d", start + 1, start + len(chunk), len(rows))
-        s = generate_for(chunk)
-        for k in totals:
-            totals[k] += s[k]
+    try:
+        for start in range(0, len(rows), args.chunk):
+            chunk = rows[start:start + args.chunk]
+            logger.info("chunk %d-%d of %d", start + 1, start + len(chunk), len(rows))
+            s = generate_for(chunk)
+            for k in totals:
+                totals[k] += s[k]
+    finally:
+        # The content_gen_on_llamacpp handover restores the symlink but leaves
+        # llama-server stopped — in the full cycle the next stage restarts it, but
+        # a standalone run has no next stage, so :8090 would stay down. Bring it
+        # back to the canonical 208K resting state so the next consumer (signal
+        # pipeline / frontend classify) finds it up. Runs even on error.
+        if STAGE5_BACKEND == "llamacpp":
+            try:
+                logger.info("Restoring llama-server to resting state (%s)",
+                            gpu_handover.CANONICAL_RESTING_MODEL)
+                gpu_handover.llama_server_start(
+                    gpu_handover.CANONICAL_RESTING_MODEL, swap_symlink=True)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("could not restart llama-server to resting state: %s", e)
+
     print(f"\nDone: {totals['published']} published, {totals['draft']} draft, {totals['errors']} errors")
     return 0
 
