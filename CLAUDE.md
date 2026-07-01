@@ -8,7 +8,7 @@ Catandary Trends ist eine branchenübergreifende Trend-Intelligence-Plattform, d
 - Branchenübergreifend mit eigenständiger Catandary-Taxonomie (Vertikale + PESTEL + Mega/Macro/Micro)
 - Nur legale Primärquellen (RSS-Feeds von Fachmedien, Presseverteilern, Marken-Newsrooms)
 - Keine Aggregator-Seiten scrapen (Trendhunter etc.)
-- Alle LLM-Verarbeitung lokal (RTX 5080 16 GB oder RTX 3090 24 GB — VRAM jeweils per `nvidia-smi` prüfen). Stage 6 optional auf llama.cpp 35B (nur auf der 24-GB-Karte).
+- Alle LLM-Verarbeitung lokal auf der **RTX 3090 (24 GB)** (produktive Linux-Workstation; VRAM per `nvidia-smi` verifizieren). Stage 6 optional auf llama.cpp 30B (Qwen3-30B-A3B MoE, aktuell; 35B als revertierbare Alternative).
 - Cloud-APIs nur als Fallback für komplexe Synthese-Aufgaben
 - Modularer Aufbau: Neue Vertikale können ohne Architekturänderung hinzugefügt werden
 
@@ -56,10 +56,10 @@ Die Mega/Macro-Einordnung wird auf der Free-Seite nur angeteasert – die vollst
 
 ## Hardware-Basis
 
-- **GPU (variabel):** NVIDIA RTX 5080 (16 GB GDDR7) **oder** RTX 3090 (24 GB GDDR6X). Vor jeder VRAM-/Koexistenz-Entscheidung `nvidia-smi` prüfen — Headroom unterscheidet sich substanziell.
+- **GPU:** NVIDIA RTX 3090 (24 GB GDDR6X) — die produktive lokale Karte (per `nvidia-smi` bestätigt). Vor jeder VRAM-/Koexistenz-Entscheidung trotzdem `nvidia-smi` prüfen (llama-server hält ~22 GB im Ruhezustand). *(Frühere Doku nannte alternativ eine 16-GB-Karte; produktiv ist es die 3090.)*
 - **Modelle laufen sequentiell** (nicht parallel) – VRAM wird zwischen Schritten freigegeben
-- **Peak-VRAM Ollama-Pfad:** ~10.7 GB (Qwen3 14B Q4_K_M); auf der 16-GB-Karte enger als auf der 24-GB-Karte
-- **Optionaler llama.cpp-Pfad für Stage 6 (Content-Gen):** Qwen3.6-35B-A3B Q4_K_M (~24 GB) — passt nur auf die 24-GB-Karte, mit Mid-Pipeline-GPU-Handover (siehe `pipeline/gpu_handover.py`). Default-Backend bleibt Ollama.
+- **Peak-VRAM Ollama-Pfad:** ~10.7 GB (Qwen3 14B Q4_K_M) — passt auf der 24-GB-Karte mit Headroom
+- **Optionaler llama.cpp-Pfad für Stage 6 (Content-Gen):** Qwen3-30B-A3B-Q4_K_M (MoE, ~18 GB, 40K ctx — aktuelles Modell seit 2026-06-26, `be444d0`) **oder** revertierbar Qwen3.6-35B-A3B-UD-Q4_K_M (~24 GB) — passt nur auf die 24-GB-Karte, mit Mid-Pipeline-GPU-Handover (siehe `pipeline/gpu_handover.py`). Default-Backend bleibt Ollama.
 - **Ollama-Konfiguration:** `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_KEEP_ALIVE=5m`
 
 ---
@@ -166,8 +166,12 @@ Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein au
 | 2. Strukturierte Extraktion | NuExtract 3.8B | ~4 GB | ~200+ t/s | Ollama (`ollama pull nuextract`) — derzeit Fallback auf qwen3:8b |
 | 3. NER (Markennamen) | Qwen3 8B Q4_K_M | ~6.5 GB | ~129 t/s | Ollama |
 | 4. Klassifizierung | Qwen3 8B Q4_K_M | ~6.5 GB | ~129 t/s | Ollama |
-| 5. Content-Generierung (EN) | Qwen3 14B Q4_K_M **oder** Qwen3.6-35B-A3B Q4_K_M | ~10.7 GB / ~24 GB | ~80 t/s / ~117 t/s | Ollama (Default) **oder** llama.cpp (`STAGE5_BACKEND=llamacpp`, nur 24-GB-Karte, mit GPU-Handover) |
+| 5. Content-Generierung (EN) | Qwen3 14B Q4_K_M **oder** Qwen3-30B-A3B-Q4_K_M (MoE, aktuell; 35B revertierbar) | ~10.7 GB / ~18 GB | ~80 t/s / ~117 t/s | Ollama (Default) **oder** llama.cpp (`STAGE5_BACKEND=llamacpp`, nur 24-GB-Karte, mit GPU-Handover) |
 | 6. Embeddings | Qwen3-Embedding 8B | ~5–6 GB | Batch | Ollama (`ollama pull qwen3-embedding`) |
+
+> **⚠️ Backend-Realität (Stand 2026-07-01):** Die „Backend"-Spalte zeigt den **Config-Default** (`ollama` — Modell-Refs oben). **Produktiv läuft der ganze Cycle aber auf llama.cpp:** `scheduled_cycle.sh` setzt `STAGE_8B_BACKEND`/`EMBED_BACKEND`/`STAGE5_BACKEND=llamacpp`, sodass **alle** LLM-Stages (Relevanz/Extraktion/Klassifizierung/Reclassify auf dem 208K-8B, Embeddings, Content-Gen auf dem 30B) über den **llama-server (:8090)** laufen — Beleg: ein realer Cycle machte 3.922 `/v1/chat/completions` + 60 `/v1/embeddings` auf :8090 und **0** Inferenz-Calls auf Ollama. Ollama bleibt der **Default/Fallback** (greift nur, wenn `STAGE*_BACKEND=ollama`), plus optional `CLASSIFY_BACKEND=anthropic` für Stages 2/3/4/8 off-GPU.
+>
+> **Kein Ollama-Zwang mehr im Full Cycle:** `run_full_cycle` erkennt seit 2026-07-01 die aktiven GPU-Backends. Läuft alles auf llama.cpp, wird der frühere Ollama-Preflight (`check_ollama` + `check_gpu` lädt qwen3:14b als CPU-Offload-Canary) **übersprungen** und stattdessen `check_gpu_nvidia_smi()` genutzt (nur `nvidia-smi`, kein Modell-Load). → **Ein llama.cpp-Cycle braucht Ollama nicht** (nicht mal laufend). Nur wenn ein GPU-Stage auf `ollama` steht, wird Ollama geprüft/benötigt.
 
 **Alternative Modelle zum Testen:**
 - Relevanz-Filter: Gemma 3 4B (`ollama pull gemma3:4b`, ~3.5 GB) – noch schneller
@@ -746,15 +750,15 @@ Keine offenen Ergänzungen. Lebensmittelzeitung wurde in `sources.yaml` eingebun
 
 ---
 
-## Stage-6 auf llama.cpp 35B (optional, seit 2026-05-25)
+## Stage-6 auf llama.cpp (optional; 30B aktuell seit 2026-06-26, 35B revertierbar)
 
 Auf der 24-GB-Karte kann Stage 6 (Content-Generierung) auf ein deutlich größeres Modell umgeleitet werden:
 
-- **Modell:** Qwen3.6-35B-A3B-UD-Q4_K_M, geladen via `llama-server` (systemd user unit `llama-server.service`, Port 8090)
-- **Routing:** `STAGE5_BACKEND=llamacpp` in `scheduled_cycle.sh` aktiviert den Pfad — gegated nur darauf, dass das 35B-**Start-Skript** (`start-qwen3.6-35b.sh`) existiert und das erwartete GGUF referenziert, **nicht** mehr darauf, worauf `start-active.sh` beim Start zeigt. Content-Gen versucht damit **immer** die 35B, egal welches Modell (oder keines) bei Pipeline-Start geladen war.
-- **GPU-Handover:** `pipeline/gpu_handover.py` (`content_gen_on_llamacpp`) **hängt vor Stage 6 den Symlink `start-active.sh` selbst auf das 35B-Start-Skript um** (speichert das vorherige Ziel), entlädt die Ollama-Modelle, startet llama-server, und stoppt es nach Stage 6 wieder + **stellt den Symlink zurück** (wie die 8B-/Embedding-Handover). Der Pre-Flight prüft danach konsistent das nun gesetzte Modell — OOM-Schutz bleibt. Stages 7–9 nutzen Ollama wieder (Qwen3 8B für Reclassify on-demand).
+- **Modell (aktuell):** Qwen3-30B-A3B-Q4_K_M (MoE, ~18 GB, 40K ctx) — Umstellung von der 35B via `be444d0` (2026-06-26), Start-Skript `start-qwen3-30b.sh`. Das 35B (Qwen3.6-35B-A3B-UD-Q4_K_M, `start-qwen3.6-35b.sh`) bleibt installiert und ist per `STAGE5_MODEL`/`STAGE5_START` **revertierbar**. Geladen via `llama-server` (systemd user unit `llama-server.service`, Port 8090).
+- **Routing:** `STAGE5_BACKEND=llamacpp` in `scheduled_cycle.sh` aktiviert den Pfad — gegated nur darauf, dass das in `STAGE5_MODEL` gesetzte **Start-Skript** (aktuell `start-qwen3-30b.sh`) existiert und das erwartete GGUF referenziert, **nicht** darauf, worauf `start-active.sh` beim Start zeigt. Content-Gen versucht damit **immer** das gesetzte Modell, egal welches Modell (oder keines) bei Pipeline-Start geladen war.
+- **GPU-Handover:** `pipeline/gpu_handover.py` (`content_gen_on_llamacpp`) **hängt vor Stage 6 den Symlink `start-active.sh` selbst auf das Content-Gen-Start-Skript um** (speichert das vorherige Ziel), entlädt die Ollama-Modelle, startet llama-server, und stoppt es nach Stage 6 wieder + **stellt den Symlink zurück** (wie die 8B-/Embedding-Handover). Der Pre-Flight prüft danach konsistent das nun gesetzte Modell — OOM-Schutz bleibt. Stages 7–9 nutzen Ollama wieder (Qwen3 8B für Reclassify on-demand). MODEL_START_SCRIPTS mappt beide GGUFs (30B + 35B) auf ihre Start-Skripte.
 - **Content-Guard:** Wortzahl-Validator retryt bis zu 3× bei vorzeitig terminierten Body-Strings (Grammar-Artefakt bei temp 0.7). In den ersten vier Nachtläufen war die "alle 3 Versuche failed"-Rate <0,25 %.
-- **Rückbau:** `STAGE5_BACKEND=ollama` (Env-Override) erzwingt den Ollama-14B-Pfad. Alternativ das 35B-Start-Skript `start-qwen3.6-35b.sh` entfernen/umbenennen → `scheduled_cycle.sh` fällt automatisch auf Ollama zurück. (Das bloße Umhängen von `start-active.sh` deaktiviert den Pfad **nicht** mehr — der Handover hängt selbst auf die 35B um.)
+- **Rückbau:** `STAGE5_BACKEND=ollama` (Env-Override) erzwingt den Ollama-14B-Pfad. Alternativ das Content-Gen-Start-Skript entfernen/umbenennen → `scheduled_cycle.sh` fällt automatisch auf Ollama zurück. **Zurück auf 35B:** `STAGE5_MODEL=Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` + `STAGE5_START=…/start-qwen3.6-35b.sh` setzen. (Das bloße Umhängen von `start-active.sh` deaktiviert den Pfad **nicht** — der Handover hängt selbst um.)
 - **Zugehörige Goals:** offene Erweiterung der Quellen-Architektur, siehe `goals/` und `pipeline_expansion_prompt.md`.
 
 ## Technische Hinweise
