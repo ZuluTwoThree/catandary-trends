@@ -225,12 +225,16 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     → Analytischer, professioneller Ton
     → Quellennennung + Backlink Pflicht
     → MUSS sich substanziell vom Original unterscheiden
+    → HARD RULE Sprache: title + body IMMER Englisch, auch bei
+      nicht-englischer (z. B. deutscher) Quelle → übersetzen, nie echoen
     → Temperatur: 0.6-0.8
     │
     ▼
-[Schritt 6] ÜBERSETZUNG DE (Qwen3 14B)
-    → Deutsche Version des EN-Artikels
-    → Gleiche Struktur (Hook → Kontext → Ausblick)
+[Schritt 6] ÜBERSETZUNG DE — ENTFÄLLT (seit ~2026-06)
+    → DE-Content wurde geskippt: `title_de`/`summary_de`/`body_de` bleiben NULL.
+      Pipeline erzeugt nur EN-Content (`title_en`/`body_en`). Die DE-Spalten im
+      Datenmodell bleiben für evtl. spätere Reaktivierung erhalten, werden aber
+      nicht mehr befüllt.
     │
     ▼
 [Schritt 7] INSERT (trends Tabelle, Status: "draft")
@@ -335,7 +339,7 @@ CREATE TABLE trends (
     id SERIAL PRIMARY KEY,
     raw_entry_id INTEGER REFERENCES raw_entries(id),
     title_en TEXT NOT NULL,
-    title_de TEXT,
+    title_de TEXT,                     -- *_de-Spalten bleiben NULL (DE-Content seit ~2026-06 geskippt, Spalten für spätere Reaktivierung erhalten)
     slug TEXT UNIQUE NOT NULL,
     summary_en TEXT,
     summary_de TEXT,

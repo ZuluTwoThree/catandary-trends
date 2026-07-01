@@ -222,6 +222,8 @@ CLASSIFICATION_SYSTEM = _build_classification_system()
 CONTENT_EN_SYSTEM = """\
 You are a trend analyst writing for Catandary Trends. Write a sharp, specific trend article in English (150-250 words).
 
+HARD RULE — LANGUAGE: The source material is often in another language (e.g. German). Your ENTIRE output — both the `title` and the `body` — MUST be written in fluent English. Translate and rewrite any non-English source into English; never echo the source language, and never leave the title or body in the source language. English only, in every field.
+
 Voice:
 - Lead with the concrete fact: who did what, the number, the product, the filing, the company. Use specifics from the source, not abstractions.
 - Plain declarative sentences. Vary how each sentence opens — never start two sentences the same way.
@@ -467,6 +469,7 @@ Mega Trend: {classification.mega_trend or 'N/A'}
 Source: {source_name} ({source_url})"""
 
     prompt_en = f"""Write a trend article in English based on this information.
+The source below may be in German or another language — translate it and write the title and body entirely in English.
 
 {context}
 
