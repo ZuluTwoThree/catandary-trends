@@ -29,7 +29,10 @@ from pathlib import Path
 
 import httpx
 
-from pipeline.config import DATA_DIR, LOG_LEVEL, OLLAMA_HOST
+from pipeline.config import (
+    DATA_DIR, LOG_LEVEL, OLLAMA_HOST,
+    STAGE_8B_BACKEND, STAGE5_BACKEND, EMBED_BACKEND,
+)
 
 logging.basicConfig(
     level=LOG_LEVEL,
@@ -116,6 +119,45 @@ def check_gpu(model: str = "qwen3:14b") -> bool:
     return True
 
 
+MIN_GPU_TOTAL_GB = 20.0
+
+
+def check_gpu_nvidia_smi(min_total_gb: float = MIN_GPU_TOTAL_GB) -> bool:
+    """GPU-health preflight for the llama.cpp path — loads NO model and needs NO
+    Ollama. Confirms via `nvidia-smi` that a healthy CUDA GPU with enough total
+    VRAM is present. The per-stage llama-server (started by the GPU handovers)
+    loads with fixed GPU layers and has its own ready-check + OOM guard, so a
+    heavyweight canary load here is unnecessary — unlike the Ollama path, which
+    must load qwen3:14b to detect silent CPU-offload.
+    """
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name,memory.total,memory.used",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if out.returncode != 0 or not out.stdout.strip():
+            logger.error("GPU check (nvidia-smi) FAIL: rc=%d %s",
+                         out.returncode, (out.stderr or "").strip()[:200])
+            return False
+        name, total, used = [x.strip() for x in out.stdout.strip().splitlines()[0].split(",")]
+        total_gb, used_gb = float(total) / 1024, float(used) / 1024
+        if total_gb < min_total_gb:
+            logger.error("GPU check FAIL: %s has %.1f GB total (< %.0f GB required)",
+                         name, total_gb, min_total_gb)
+            return False
+        logger.info("GPU check OK (nvidia-smi, no model load): %s — %.0f GB total, %.1f GB used",
+                    name, total_gb, used_gb)
+        return True
+    except FileNotFoundError:
+        logger.error("GPU check FAIL: nvidia-smi not found — no NVIDIA GPU?")
+        return False
+    except Exception as e:  # noqa: BLE001
+        logger.error("GPU check (nvidia-smi) error: %s", e)
+        return False
+
+
 def run_poll() -> dict:
     """Run feed polling and return stats."""
     from pipeline.feed_poller import run_poll as _poll
@@ -151,7 +193,7 @@ def main():
     parser.add_argument("--min-id", type=int, default=0,
                         help="only process raw_entries with id > MIN_ID — scope to a fresh poll "
                              "so a run never picks up a large unrelated backfill backlog")
-    parser.add_argument("--dry-run", action="store_true", help="Check Ollama health + show stats, no processing")
+    parser.add_argument("--dry-run", action="store_true", help="Show unprocessed stats, no processing (no backend/GPU checks)")
     args = parser.parse_args()
 
     cycle_start = time.time()
@@ -161,32 +203,36 @@ def main():
     logger.info("CYCLE START — %s", timestamp)
     logger.info("=" * 60)
 
-    # Step 1: Ollama health check
-    if not args.skip_poll or not args.skip_llm:
-        ollama_ok = check_ollama()
-        if not ollama_ok and not args.skip_llm:
-            logger.error("ABORT: Ollama is not available. Cannot run LLM pipeline.")
-            result = {
-                "timestamp": timestamp,
-                "status": "aborted",
-                "reason": "ollama_unavailable",
-                "duration_s": round(time.time() - cycle_start, 1),
-            }
-            write_cycle_log(result)
-            sys.exit(1)
+    # Which GPU backend(s) do the LLM stages use? (STAGE_8B = stages 2/3/4/8,
+    # STAGE5 = content-gen, EMBED = embeddings.) When all are on llama.cpp, the
+    # whole cycle runs on the llama-server — Ollama is not needed at all. Ollama
+    # is only required when some GPU stage is still routed to it (the defaults).
+    gpu_backends = {STAGE_8B_BACKEND, STAGE5_BACKEND, EMBED_BACKEND}
+    uses_ollama = "ollama" in gpu_backends
 
-    # Step 1b: GPU placement check (only when LLM will run, skip on dry-run)
+    def _abort(reason: str):
+        logger.error("ABORT: %s", reason)
+        write_cycle_log({
+            "timestamp": timestamp, "status": "aborted", "reason": reason,
+            "duration_s": round(time.time() - cycle_start, 1),
+        })
+        sys.exit(1)
+
+    # Step 1: LLM backend health check (only matters when LLM will run)
+    if not args.skip_llm:
+        if uses_ollama:
+            if not check_ollama():
+                _abort("ollama_unavailable")
+        else:
+            logger.info("LLM stages on llama.cpp (backends=%s) — Ollama not required "
+                        "(managed by GPU handovers)", sorted(gpu_backends))
+
+    # Step 1b: GPU health check (skip on dry-run). Ollama path loads qwen3:14b as
+    # a CPU-offload canary; llama.cpp path checks nvidia-smi only (no model load).
     if not args.skip_llm and not args.dry_run:
-        if not check_gpu():
-            logger.error("ABORT: GPU not available — refusing to run LLM pipeline on CPU.")
-            result = {
-                "timestamp": timestamp,
-                "status": "aborted",
-                "reason": "gpu_unavailable",
-                "duration_s": round(time.time() - cycle_start, 1),
-            }
-            write_cycle_log(result)
-            sys.exit(1)
+        gpu_ok = check_gpu() if uses_ollama else check_gpu_nvidia_smi()
+        if not gpu_ok:
+            _abort("gpu_unavailable")
 
     # Dry run: just report status
     if args.dry_run:
