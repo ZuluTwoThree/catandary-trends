@@ -785,6 +785,75 @@ cross_industry:
     feed_url: https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20Releases
     type: press_wire
     lead_time_tier: market
+  funding_announcements:
+  # Funding-program announcements (Bund + Länder + EU) — announcement level, NOT
+  # project detail. The Förderdatenbank RSS catalog page is a JS-SPA behind bot
+  # protection, but the feed .xml itself is plain and pollable. Verified 2026-07-01:
+  # HTTP 200, text/xml, 10 items, no bot-wall. type=press_wire so poll_cross_industry
+  # polls it (it skips type=api); vertical CROSS is assigned automatically.
+  - name: Förderdatenbank des Bundes
+    feed_url: https://www.foerderdatenbank.de/FDB/DE/Service/RSS/Functions/foerderprogram_rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
+  # Companion press-release feed (Förderaufrufe / ministry announcements). Both
+  # feeds are title-driven: RSS items carry title+link+date only — the full
+  # program detail lives on linked pages that are behind a Radware captcha wall
+  # (not server-fetchable), so link-following can't enrich these. Title is
+  # descriptive enough for classification + embedding (announcement tier).
+  - name: Förderdatenbank des Bundes (Pressemitteilungen)
+    feed_url: https://www.foerderdatenbank.de/FDB/DE/Service/RSS/Functions/pressemitteilung_rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
+  # BMBF Förderberatung (foerderinfo.bund.de) — official federal R&D/innovation
+  # funding CALLS ("Bekanntmachungen" / Förderrichtlinien). Richer than the
+  # Förderdatenbank feeds: items carry a <description> with the program summary
+  # (what is funded) and link to the Bundesanzeiger. Not bot-walled. The 10
+  # thematic feeds are NOT subsets of "alle" (each is the 20 most-recent within
+  # its topic), so together they broaden coverage. Verified 2026-07-01.
+  - name: Förderinfo Bund – Bekanntmachungen (alle)
+    feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-alle/rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
+  - name: Förderinfo Bund – Bildung, Hochschulen & Wissenschaft
+    feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-bildung-hochschulen-wissenschaft/rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
+  - name: Förderinfo Bund – Gesundheit & Ernährung
+    feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-gesundheit-ernaehrung/rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
+  - name: Förderinfo Bund – Internationales
+    feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-internationales/rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
+  - name: Förderinfo Bund – Klima & Energie
+    feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-klima-energie/rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
+  - name: Förderinfo Bund – KMU-Förderung
+    feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-kmu-foerderung/rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
+  - name: Förderinfo Bund – Kommunikation
+    feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-kommunikation/rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
+  - name: Förderinfo Bund – Mobilität
+    feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-mobilitaet/rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
+  - name: Förderinfo Bund – Schlüsseltechnologien
+    feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-schluesseltechnologien/rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
+  - name: Förderinfo Bund – Sicherheit
+    feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-sicherheit/rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
+  - name: Förderinfo Bund – Sozial-, Geistes- & Sozialwissenschaften
+    feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-sozial-geistes-sozialwissenschaften/rssnewsfeed.xml
+    type: press_wire
+    lead_time_tier: market
   science:
   - name: Nature (main)
     feed_url: https://www.nature.com/nature.rss
@@ -884,3 +953,37 @@ radar:
   - gaming industry market trend
   - travel experience innovation
   - sports tech adoption trend
+
+# ---------------------------------------------------------------------------
+# Funding APIs (public research/innovation grants — early foresight signal).
+#
+# NOT polled as RSS. These are pulled by scripts/ingest_funding.py, which
+# registers a real source row per API (source_type='api', vertical='CROSS')
+# via db.upsert_source and inserts each award as a dated raw_entry. This block
+# is documentation/registry only — the feed_poller iterates `verticals` and
+# `cross_industry`, never `funding_apis`, so listing the API URLs here can't
+# break polling. Each entry captures WHAT is concretely funded (project title +
+# objective/abstract) plus funder, country/region (hotspot clustering) and amount.
+#
+#   python scripts/ingest_funding.py --backend all  --since 2024-01-01   # nsf+nih+openaire
+#   python scripts/ingest_funding.py --backend ukri --since 2024-01-01   # opt-in
+funding_apis:
+- name: NSF Awards (US Federal Research Funding)
+  feed_url: https://api.nsf.gov/services/v1/awards.json
+  backend: nsf
+  scope: US federal research; abstractText + awardee state + obligated amount
+- name: NIH RePORTER (US Biomedical Funding)
+  feed_url: https://api.reporter.nih.gov/v2/projects/search
+  backend: nih
+  scope: US biomedical; abstract_text + org state/country + award amount
+- name: OpenAIRE Projects (EU + National Funders)
+  feed_url: https://api.openaire.eu/search/projects
+  backend: openaire
+  scope: EU (Horizon Europe/CORDIS) + national funders of many countries;
+    summary + funder + jurisdiction(country) + funded amount. The "all countries /
+    tech-hotspot" backbone — sharded by strategic technology keywords.
+- name: UKRI Gateway to Research (UK)
+  feed_url: https://gtr.ukri.org/gtr/api/projects
+  backend: ukri
+  scope: UK research & innovation; abstractText + lead funder. Opt-in (no
+    server-side date filter — client-filtered by project start year).
