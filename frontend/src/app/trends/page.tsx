@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import {
   getTrendsFiltered,
   getTrendsFilteredCount,
+  getTrendsCount,
   getVerticalCounts,
   getVerticalCountsScoped,
   getMegaTrends,
@@ -39,6 +40,9 @@ export default async function TrendsPage({
     (a, b) => a + b,
     0
   );
+  // Full analyzed corpus (all pipeline signals, not just published) — the real
+  // scale, a trust signal that the published-count alone undersells.
+  const analyzedTotal = getTrendsCount();
 
   // Mega trend options (top 12 by count, respecting status)
   const megaOptions = getMegaTrends("published")
@@ -57,6 +61,7 @@ export default async function TrendsPage({
       <TrendsListJsonLd />
       <TrendsHero
         totalSignals={totalPublished}
+        analyzedTotal={analyzedTotal}
         verticalCounts={globalVerticalCounts}
       />
 

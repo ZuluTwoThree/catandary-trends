@@ -1,3 +1,14 @@
+import MobileNav from "./MobileNav";
+
+const NAV_ITEMS = [
+  { href: "/trends", label: "Trends" },
+  { href: "/trends/mega", label: "Mega Trends" },
+  { href: "/trends/cross-vertical", label: "Cross-Industry" },
+  { href: "/trends/foresight", label: "Foresight" },
+  { href: "/trends/foresight/clusters", label: "Clusters" },
+  { href: "https://catandary.de", label: "Catandary", external: true },
+];
+
 export default function Header() {
   return (
     <header className="border-b border-border">
@@ -7,22 +18,17 @@ export default function Header() {
             Catandary<span className="text-accent">.</span>
           </span>
         </a>
-        <nav className="flex items-center gap-1">
-          {[
-            { href: "/trends", label: "Trends" },
-            { href: "/trends/mega", label: "Mega Trends" },
-            { href: "/trends/cross-vertical", label: "Cross-Industry" },
-            { href: "/trends/foresight", label: "Foresight" },
-            { href: "/trends/foresight/clusters", label: "Clusters" },
-            { href: "https://catandary.de", label: "Catandary", external: true },
-          ].map((item) => (
+
+        {/* Desktop nav */}
+        <nav className="hidden md:flex items-center gap-1">
+          {NAV_ITEMS.map((item) => (
             <a
               key={item.href}
               href={item.href}
               {...(item.external
                 ? { target: "_blank", rel: "noopener noreferrer" }
                 : {})}
-              className="hidden md:inline font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-paper px-3 py-1.5 transition-colors"
+              className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-paper px-3 py-1.5 transition-colors"
             >
               {item.label}
             </a>
@@ -34,6 +40,9 @@ export default function Header() {
             Newsletter
           </a>
         </nav>
+
+        {/* Mobile nav (hamburger + drawer) */}
+        <MobileNav items={NAV_ITEMS} />
       </div>
     </header>
   );

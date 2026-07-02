@@ -1,8 +1,10 @@
 import { VERTICALS } from "@/lib/types";
 
 interface TrendsHeroProps {
-  /** Total published signals in current scope (vertical-filtered or global). */
+  /** Curated, published articles (the free reading layer). */
   totalSignals?: number;
+  /** All analyzed signals across the pipeline (the real corpus — a trust signal). */
+  analyzedTotal?: number;
   /** Published-signal counts per vertical id. */
   verticalCounts?: Record<string, number>;
 }
@@ -18,6 +20,7 @@ function formatStamp(date: Date): string {
 
 export default function TrendsHero({
   totalSignals,
+  analyzedTotal,
   verticalCounts,
 }: TrendsHeroProps = {}) {
   // Server-rendered stamp. Deterministic per render, not live-ticking — that's fine:
@@ -25,6 +28,8 @@ export default function TrendsHero({
   const stamp = formatStamp(new Date());
   const totalFmt =
     totalSignals !== undefined ? totalSignals.toLocaleString("en-US") : null;
+  const analyzedFmt =
+    analyzedTotal !== undefined ? analyzedTotal.toLocaleString("en-US") : null;
 
   return (
     <section className="relative pt-10 pb-12 mb-12 overflow-hidden">
@@ -43,12 +48,21 @@ export default function TrendsHero({
           <span className="hidden sm:inline text-muted/70">
             Catandary / Signal Intelligence
           </span>
-          {totalFmt && (
+          {analyzedFmt && (
             <>
               <span className="hidden sm:inline text-border">——</span>
-              <span>
-                <span className="text-accent">{totalFmt}</span>
-                <span className="text-muted/70"> / Signals</span>
+              <span title="Signals analyzed across research, patents, funding and market sources">
+                <span className="text-accent">{analyzedFmt}</span>
+                <span className="text-muted/70"> analyzed</span>
+              </span>
+            </>
+          )}
+          {totalFmt && (
+            <>
+              <span className="text-border">·</span>
+              <span title="Curated articles published in the free reading layer">
+                <span className="text-paper">{totalFmt}</span>
+                <span className="text-muted/70"> curated</span>
               </span>
             </>
           )}
@@ -98,8 +112,9 @@ export default function TrendsHero({
             Abstract
           </div>
           <p className="font-sans text-[15px] leading-[1.55] text-text max-w-[34ch]">
-            Curated trend signals from eight industry verticals — distilled
-            daily from trade press, research, and industry insiders.
+            See where industries are heading — before it&apos;s mainstream. We
+            track research, patents, funding and market signals across eight
+            verticals to surface trends early.
           </p>
         </div>
       </div>

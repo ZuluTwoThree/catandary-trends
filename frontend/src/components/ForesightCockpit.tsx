@@ -8,6 +8,19 @@ import {
   VERTICALS,
   type Vertical,
 } from "@/lib/types";
+import type { ForesightCluster } from "@/lib/foresight";
+import ClusterCard from "./foresight/ClusterCard";
+
+// Concrete example searches so a first-time user never faces a blank box —
+// one click runs a real search and teaches what the tool does.
+const EXAMPLE_QUERIES = [
+  "longevity microbiome",
+  "solid-state batteries",
+  "GLP-1",
+  "creator economy",
+  "carbon capture",
+  "generative AI",
+];
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,7 +82,11 @@ const TIER_CONFIG = {
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
-export default function ForesightCockpit() {
+export default function ForesightCockpit({
+  topClusters = [],
+}: {
+  topClusters?: ForesightCluster[];
+} = {}) {
   const [query, setQuery] = useState("");
   const [vertical, setVertical] = useState<string | null>(null);
   const [data, setData] = useState<SearchResponse | null>(null);
@@ -118,6 +135,14 @@ export default function ForesightCockpit() {
     [doSearch, query]
   );
 
+  const onExample = useCallback(
+    (q: string) => {
+      setQuery(q);
+      doSearch(q, vertical);
+    },
+    [doSearch, vertical]
+  );
+
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
   const a = data?.analytics;
@@ -134,8 +159,8 @@ export default function ForesightCockpit() {
           Foresight <span className="italic">Cockpit</span>
         </h1>
         <p className="font-sans text-text text-base max-w-2xl leading-relaxed">
-          Semantic trend search with signal analysis, lead-time tracking, and
-          cross-vertical insights.
+          Search any topic and see how it&apos;s moving — across research,
+          patents, funding and the market, with the trends that surround it.
         </p>
       </div>
 
@@ -258,15 +283,47 @@ export default function ForesightCockpit() {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — value-first: example searches + what's moving now, so a
+          first-time user immediately sees something useful and learns by example. */}
       {!data && !loading && !error && (
-        <div className="text-center py-20 space-y-3 border border-dashed border-border">
-          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-            Awaiting Query
+        <div className="space-y-10">
+          <div className="space-y-3">
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+              —— Try a search
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {EXAMPLE_QUERIES.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => onExample(q)}
+                  className="font-mono text-[11px] tracking-[0.04em] text-paper border border-border px-3 py-1.5 hover:border-accent hover:text-accent hover:bg-accent/5 transition-colors"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
           </div>
-          <p className="font-sans text-sm text-muted">
-            Enter a search term to discover trend signals
-          </p>
+
+          {topClusters.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-baseline justify-between">
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+                  —— Moving right now
+                </div>
+                <a
+                  href="/trends/foresight/clusters"
+                  className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-paper transition-colors"
+                >
+                  All clusters →
+                </a>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {topClusters.map((c) => (
+                  <ClusterCard key={c.id} cluster={c} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

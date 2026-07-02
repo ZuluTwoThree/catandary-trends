@@ -92,9 +92,9 @@ export default function MegaTrendsPage({
                       <span>Mega</span>
                     )}
                     <span className="text-border">·</span>
-                    <span><span className="text-accent tabular-nums">{(mt.signals_30d ?? 0).toLocaleString("en-US")}</span> in 30d</span>
+                    <span title="New signals in the last 30 days"><span className="text-accent tabular-nums">{(mt.signals_30d ?? 0).toLocaleString("en-US")}</span> in last 30 days</span>
                     <span className="text-border">·</span>
-                    <span><span className="text-paper tabular-nums">{mt.count.toLocaleString("en-US")}</span> total</span>
+                    <span title="Total signals mapped to this mega-trend"><span className="text-paper tabular-nums">{mt.count.toLocaleString("en-US")}</span> total</span>
                   </div>
                   {mt.momentum && (
                     <span
