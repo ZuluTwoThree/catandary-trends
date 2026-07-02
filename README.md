@@ -214,7 +214,15 @@ Routes:
 - `/trends/mega` — mega-trends with momentum tracking
 - `/trends/pestel/[dimension]` — PESTEL cut
 - `/trends/foresight` — Foresight Cockpit (hybrid FTS5 + embedding search with analytics)
+- `/trends/foresight/clusters` — Cluster Explorer: data-driven trend clusters over the full signal space (momentum, source corroboration, evidence links). Reads persisted snapshots from `pipeline/foresight_snapshot.py` (`foresight_runs`/`foresight_clusters`)
 - `/api/search?q=...&vertical=FOOD&limit=20` — hybrid search API (RRF fusion)
+- `/api/foresight/clusters?scope=global` (or `?vertical=FOOD`) — latest cluster snapshot per scope
+
+Note: `frontend/next.config.ts` sets `output: "standalone"`. The local production
+server is run as `npx next start -p 3001` (behind the `deploy/Caddyfile` reverse
+proxy). To regenerate the cluster snapshots the page reads, run
+`python -m pipeline.foresight_snapshot --all-verticals` (GPU-free; ~5 min over the
+signal space) — schedule it after large ingests.
 
 ## Tests
 
