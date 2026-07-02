@@ -457,6 +457,72 @@ export function getTrendsFilteredCount(
   }
 }
 
+/** Corpus stats for the methodology / trust page. */
+export function getMethodologyStats(): {
+  analyzed: number;
+  published: number;
+  sources: number;
+  megaTrends: number;
+  tierCounts: Record<string, number>;
+  dateSpan: { first: string | null; last: string | null };
+} {
+  const db = getDb();
+  try {
+    const analyzed = (db.prepare("SELECT COUNT(*) c FROM trends").get() as { c: number }).c;
+    const published = (
+      db.prepare("SELECT COUNT(*) c FROM trends WHERE status = 'published'").get() as { c: number }
+    ).c;
+    const sources = (
+      db.prepare("SELECT COUNT(*) c FROM sources WHERE active = 1").get() as { c: number }
+    ).c;
+    const megaTrends = (
+      db
+        .prepare(
+          "SELECT COUNT(DISTINCT mega_trend) c FROM trends WHERE mega_trend IS NOT NULL AND mega_trend != ''"
+        )
+        .get() as { c: number }
+    ).c;
+    // Lead-time tiers via source_type + patent flag (mirrors lead_time_discoverer).
+    const tierRows = db
+      .prepare(
+        `SELECT
+           CASE
+             WHEN re.pub_number IS NOT NULL THEN 'patent'
+             WHEN s.source_type = 'research' THEN 'science'
+             WHEN s.source_type = 'api' AND (s.name LIKE '%NSF%' OR s.name LIKE '%NIH%'
+                  OR s.name LIKE '%OpenAIRE%' OR s.name LIKE '%UKRI%' OR s.name LIKE '%RePORTER%'
+                  OR s.name LIKE '%Gateway to Research%') THEN 'funding'
+             WHEN s.source_type = 'api' AND (s.name LIKE '%arXiv%' OR s.name LIKE '%rxiv%'
+                  OR s.name LIKE '%Preprint%') THEN 'science'
+             ELSE 'market'
+           END AS tier,
+           COUNT(*) AS c
+         FROM trends t
+         JOIN raw_entries re ON t.raw_entry_id = re.id
+         JOIN sources s ON re.source_id = s.id
+         GROUP BY tier`
+      )
+      .all() as Array<{ tier: string; c: number }>;
+    const tierCounts: Record<string, number> = {};
+    for (const r of tierRows) tierCounts[r.tier] = r.c;
+    const span = db
+      .prepare(
+        "SELECT MIN(substr(published_date,1,7)) f, MAX(substr(published_date,1,7)) l FROM raw_entries WHERE published_date IS NOT NULL AND published_date <= datetime('now')"
+      )
+      .get() as { f: string | null; l: string | null };
+    return {
+      analyzed,
+      published,
+      sources,
+      megaTrends,
+      tierCounts,
+      dateSpan: { first: span.f, last: span.l },
+    };
+  } finally {
+    db.close();
+  }
+}
+
 export function getTopSourcesByCount(
   limit: number = 20,
   status: string = "published"

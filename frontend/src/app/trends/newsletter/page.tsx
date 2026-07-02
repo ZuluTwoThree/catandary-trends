@@ -268,6 +268,15 @@ export default function NewsletterPage() {
         </p>
       </div>
 
+      {/* Signup — above the fold: the newsletter is the primary lead magnet, so
+          the email capture sits at the top, not buried under the full briefing. */}
+      <section className="mb-14">
+        <SignupForm />
+        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted mt-3">
+          Free · one email per week · no spam
+        </p>
+      </section>
+
       {loading ? (
         <div className="border border-border bg-card/40 p-12 text-center">
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted animate-pulse">
