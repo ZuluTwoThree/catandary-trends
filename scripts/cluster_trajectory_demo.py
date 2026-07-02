@@ -14,7 +14,6 @@ import argparse
 import json
 import sys
 from collections import Counter
-from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -24,7 +23,6 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
 from pipeline.db import get_connection
-from pipeline.llm_processor import bytes_to_embedding
 
 SPARK = "▁▂▃▄▅▆▇█"
 
@@ -36,16 +34,30 @@ def sparkline(counts: list[int]) -> str:
     return "".join(SPARK[min(len(SPARK) - 1, int(c / hi * (len(SPARK) - 1)))] for c in counts)
 
 
-def load(vertical: str, status: str, limit: int, patents_only: bool = False) -> list[dict]:
-    # status: "all" = every status; else a single status or comma list
-    where = ["t.primary_vertical = ?", "t.embedding IS NOT NULL"]
-    params: list = [vertical]
-    if patents_only:
-        where.append("r.pub_number IS NOT NULL")  # only patent signals
+def load(vertical: str, status: str, limit: int, patents_only: bool = False,
+         source_like: str | None = None) -> list[dict]:
+    # status: "all" = every status; else a single status or comma list.
+    # vertical: "ALL"/empty = no vertical filter (e.g. the funding pool spans all
+    # verticals after classification). source_like: comma-separated substrings
+    # matched (OR) against t.source_name — e.g. "NSF,NIH,OpenAIRE,UKRI" isolates
+    # the funding signal pool regardless of vertical.
+    where: list[str] = []
+    params: list = []
     if status and status.lower() != "all":
         sts = [s.strip() for s in status.split(",")]
-        where.insert(0, f"t.status IN ({','.join('?' * len(sts))})")
-        params = sts + params
+        where.append(f"t.status IN ({','.join('?' * len(sts))})")
+        params += sts
+    if vertical and vertical.upper() != "ALL":
+        where.append("t.primary_vertical = ?")
+        params.append(vertical)
+    where.append("t.embedding IS NOT NULL")
+    if patents_only:
+        where.append("r.pub_number IS NOT NULL")  # only patent signals
+    if source_like:
+        pats = [p.strip() for p in source_like.split(",") if p.strip()]
+        if pats:
+            where.append("(" + " OR ".join(["t.source_name LIKE ?"] * len(pats)) + ")")
+            params += [f"%{p}%" for p in pats]
     sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, t.status, "
            "       r.published_date, t.embedding "
            "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id "
@@ -58,13 +70,13 @@ def load(vertical: str, status: str, limit: int, patents_only: bool = False) -> 
     out = []
     for r in rows:
         emb = r["embedding"]
-        try:
-            vec = bytes_to_embedding(emb) if isinstance(emb, (bytes, bytearray)) else None
-        except Exception:
-            vec = None
-        if not vec:
+        # Keep the raw float32 bytes; decode to a numpy matrix in bulk (main()).
+        # Decoding each to a Python list here materialises ~46 GB at 400k signals
+        # (the Stage-5 OOM pattern) — frombuffer on the raw bytes avoids it.
+        if not isinstance(emb, (bytes, bytearray)) or len(emb) < 4:
             continue
-        r["_vec"] = vec
+        r["_emb"] = bytes(emb)
+        r["embedding"] = None  # drop the duplicate blob to keep memory flat
         out.append(r)
     return out
 
@@ -92,28 +104,40 @@ def pick_k(X: np.ndarray, lo: int = 6, hi: int = 14) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--vertical", default="FOOD")
+    ap.add_argument("--vertical", default="FOOD", help="primary_vertical, or ALL for no vertical filter")
     ap.add_argument("--status", default="signal")
     ap.add_argument("--k", type=int, help="cluster count (default: silhouette-chosen)")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--patents-only", action="store_true", help="only patent signals (pub_number set)")
+    ap.add_argument("--source-like", default=None,
+                    help="comma-separated substrings matched (OR) against source_name, "
+                         "e.g. 'NSF,NIH,OpenAIRE,UKRI' for the funding signal pool")
     ap.add_argument("--sov", action="store_true",
                     help="Share-of-Voice: each cluster's share of the vertical's monthly "
                          "volume + Δ-share early→late (removes the source-growth bias)")
     args = ap.parse_args()
 
-    rows = load(args.vertical, args.status, args.limit, args.patents_only)
+    rows = load(args.vertical, args.status, args.limit, args.patents_only, args.source_like)
     label = "patent signals" if args.patents_only else "signals"
-    print(f"{args.vertical} {label} (status={args.status}) with embedding: {len(rows)}")
+    scope = args.source_like if args.source_like else args.vertical
+    print(f"{scope} {label} (status={args.status}) with embedding: {len(rows)}")
     if len(rows) < 20:
         print("Too few signals for a meaningful demo.")
         return 0
 
-    X = np.asarray([r["_vec"] for r in rows], dtype=np.float32)
+    # Build the matrix straight from the raw bytes (no Python-list intermediary).
+    _dim = len(rows[0]["_emb"]) // 4
+    X = np.empty((len(rows), _dim), dtype=np.float32)
+    for _i, _r in enumerate(rows):
+        X[_i] = np.frombuffer(_r["_emb"], dtype=np.float32)
+        _r["_emb"] = None  # free the raw bytes as we go (~6.5 GB at full-pool scale)
     X /= np.clip(np.linalg.norm(X, axis=1, keepdims=True), 1e-9, None)  # spherical k-means
     k = args.k or pick_k(X)
-    print(f"clustering into k={k} (cosine/spherical KMeans) ...\n")
-    km = KMeans(n_clusters=k, n_init=8, random_state=42).fit(X)
+    # n_init=8 is fine at demo scale; at full-pool scale (400k×4096) it's the cost
+    # driver, so drop to 3 restarts above 50k points (KMeans is stable here).
+    n_init = 8 if X.shape[0] <= 50000 else 3
+    print(f"clustering {X.shape[0]} × {X.shape[1]} into k={k} (cosine/spherical KMeans, n_init={n_init}) ...\n")
+    km = KMeans(n_clusters=k, n_init=n_init, random_state=42).fit(X)
     labels = km.labels_
 
     # global month axis + per-month total (the SoV denominator)
@@ -150,7 +174,7 @@ def main() -> int:
     if sov and meaningful:
         print(f"SoV-Fenster: früh {months[min(early_idx)]}..{months[max(early_idx)]}  vs  "
               f"spät {months[min(late_idx)]}..{months[max(late_idx)]}  "
-              f"(Anteil am monatlichen {args.vertical}-Volumen)")
+              f"(Anteil am monatlichen {scope}-Volumen)")
     print()
 
     sov_rows = []
