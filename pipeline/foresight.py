@@ -41,6 +41,14 @@ GENERIC_TAGS = {
 MOMENTUM_RISING_PP = 1.0
 MOMENTUM_DECLINING_PP = -1.0
 
+# Momentum is judged inside the most recent N months only. The corpus mixes
+# acquisition eras (patent/research back-file dominates 2002-2020, RSS the
+# recent years); an all-history SoV window measures that source-composition
+# shift, not the trend (validation 2026-07-02 caught -60pp "declines" that
+# were just the patent ingest window ending). Within a recent window the
+# composition is near-stable, so share-of-voice means what it claims.
+MOMENTUM_WINDOW_MONTHS = 36
+
 MINIBATCH_ABOVE = 100_000  # switch to MiniBatchKMeans above this many points
 
 
@@ -78,6 +86,10 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     if until:
         where.append("r.published_date < ?")
         params.append(until)
+    # Bogus future dates from malformed RSS/API records (observed up to 2029)
+    # would stretch the month axis and hollow out the recent-window analysis.
+    # Rows with NULL dates stay in (they cluster; they just carry no trajectory).
+    where.append("(r.published_date IS NULL OR r.published_date <= datetime('now'))")
     sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, "
            "       t.primary_vertical, t.status, t.source_url, "
            "       r.published_date, t.embedding "
@@ -154,12 +166,24 @@ def month_key(d) -> str | None:
 
 
 def derive_label(tags: list[str], fallback: str = "Unlabelled cluster") -> str:
-    """Human-readable label from the top thematic tags (geo/generic filtered)."""
-    themal = [t for t in tags if t and t.lower() not in GENERIC_TAGS]
-    picked = themal[:2] if themal else tags[:1]
+    """Human-readable label from the top thematic tags (geo/generic filtered).
+
+    Tag variants that normalize to the same phrase ('clinical_trials' vs
+    'clinical trials') count as one — otherwise the label doubles up."""
+    seen: set[str] = set()
+    themal: list[str] = []
+    for t in tags:
+        if not t:
+            continue
+        norm = t.lower().replace("_", " ").strip()
+        if norm in GENERIC_TAGS or t.lower() in GENERIC_TAGS or norm in seen:
+            continue
+        seen.add(norm)
+        themal.append(norm)
+    picked = themal[:2] if themal else [tags[0].lower().replace("_", " ")] if tags else []
     if not picked:
         return fallback
-    return " · ".join(p.replace("_", " ").title() for p in picked)
+    return " · ".join(p.title() for p in picked)
 
 
 def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
@@ -181,8 +205,10 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
         if mk in midx:
             totals[midx[mk]] += 1
 
-    # SoV windows: only months with enough volume, early/late thirds
-    meaningful = [i for i in range(len(months)) if totals[i] >= 5]
+    # SoV windows: only the most recent MOMENTUM_WINDOW_MONTHS with enough
+    # volume (source composition is near-stable there), early/late thirds.
+    window_start = max(0, len(months) - MOMENTUM_WINDOW_MONTHS)
+    meaningful = [i for i in range(window_start, len(months)) if totals[i] >= 5]
     third = max(1, len(meaningful) // 3) if meaningful else 0
     early_idx = set(meaningful[:third])
     late_idx = set(meaningful[-third:]) if third else set()
@@ -221,7 +247,7 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
         momentum = ("rising" if delta_pp > MOMENTUM_RISING_PP
                     else "declining" if delta_pp < MOMENTUM_DECLINING_PP
                     else "stable")
-        if len(months) < 6:
+        if len(meaningful) < 6:
             momentum, delta_pp = "unknown", 0.0
 
         top_tags = [t for t, _ in tags.most_common(12)]

@@ -75,6 +75,27 @@ def migrate_foresight_tables() -> None:
                      "ON foresight_runs(scope, created_at)")
 
 
+def prune_old_runs(keep_per_scope: int = 1) -> int:
+    """Keep only the newest `keep_per_scope` runs per scope (+ their clusters).
+    Runs accumulate on every snapshot; the frontend only reads the latest."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, scope FROM foresight_runs ORDER BY scope, id DESC").fetchall()
+        seen: dict[str, int] = {}
+        stale: list[int] = []
+        for r in rows:
+            rid = r["id"] if isinstance(r, dict) else r[0]
+            scope = r["scope"] if isinstance(r, dict) else r[1]
+            seen[scope] = seen.get(scope, 0) + 1
+            if seen[scope] > keep_per_scope:
+                stale.append(rid)
+        if stale:
+            ph = ",".join("?" * len(stale))
+            conn.execute(f"DELETE FROM foresight_clusters WHERE run_id IN ({ph})", stale)
+            conn.execute(f"DELETE FROM foresight_runs WHERE id IN ({ph})", stale)
+        return len(stale)
+
+
 def run_snapshot(scope: str, status: str = "signal,published",
                  k: int | None = None, k_range: tuple[int, int] | None = None,
                  limit: int = 0, source_like: str | None = None,
@@ -151,7 +172,8 @@ def main() -> int:
                            limit=args.limit, source_like=args.source_like,
                            tier=args.tier)
         done += 1 if rid else 0
-    print(f"{done}/{len(scopes)} snapshots persisted.")
+    pruned = prune_old_runs(keep_per_scope=1)
+    print(f"{done}/{len(scopes)} snapshots persisted ({pruned} stale runs pruned).")
     return 0
 
 
