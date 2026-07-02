@@ -797,8 +797,8 @@ def insert_trend(entry_id: int, data: dict) -> int:
                     verticals, primary_vertical, pestel, tags,
                     trend_signal_type, mega_trend, trend_level,
                     brands, regions, trend_score, confidence,
-                    source_url, source_name, embedding
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    source_url, source_name, embedding, status
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 RETURNING id""",
                 (
                     entry_id,
@@ -819,6 +819,9 @@ def insert_trend(entry_id: int, data: dict) -> int:
                     data["source_url"],
                     data.get("source_name"),
                     str(embedding_val) if embedding_val else None,
+                    # signal-mode rows must keep status='signal' — landing as
+                    # 'draft' would let auto_publish push content-less rows live
+                    data.get("status") or "draft",
                 ),
             )
             return cursor.lastrowid
