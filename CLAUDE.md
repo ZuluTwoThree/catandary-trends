@@ -712,7 +712,7 @@ catandary-trends/
 
 ### Weiterentwicklung
 
-**`BACKLOG.md` im Repo-Root ist die zentrale Sammlung offener Feature-Ideen, verworfener Ansätze mit Begründung, und aufgeschobener Verbesserungen.** Vor jeder neuen Feature-Planung **immer zuerst dort reinschauen** — es enthält Kontext zu Ideen, die schon durchdacht oder angetestet wurden (z.B. Dry-Runs, Methodik-Notizen, Wiedervorlage-Kriterien). Neue Ideen, die nicht sofort umgesetzt werden, dort ablegen statt im Code oder Chat verloren gehen zu lassen.
+**Das Backlog lebt seit 2026-07-02 in den [GitHub Issues](https://github.com/ZuluTwoThree/catandary-trends/issues)** (Labels: `foresight`, `acquisition`, `pipeline`, `frontend`, `content-quality`, `ops`, `prio-high`). Vor jeder neuen Feature-Planung **immer zuerst `gh issue list` prüfen** — die Issues enthalten den Kontext zu Ideen, die schon durchdacht oder angetestet wurden (Dry-Runs, Methodik-Notizen, Wiedervorlage-Kriterien). Neue Ideen, die nicht sofort umgesetzt werden, als Issue anlegen statt im Code oder Chat verloren gehen zu lassen. `BACKLOG.md` im Repo-Root ist nur noch die Issue-Übersicht + Meilenstein-Historie (Volltexte der alten Items: Git-Historie, Stand `1fd18e5`).
 
 Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direkt auf `main` oder in Feature-Branches entwickelt. Aktuelle Prioritäten:
 
