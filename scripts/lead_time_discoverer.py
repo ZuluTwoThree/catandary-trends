@@ -114,7 +114,10 @@ def onset_month(members: list[dict], onset_frac: float, min_signals: int) -> tup
     total = len(months)
     if total < min_signals:
         return None, total
-    target = max(1, int(onset_frac * total))
+    # Require at least 3 signals before declaring onset, so a single mis-clustered
+    # old patent/paper can't set the tier's onset month (robustness over the raw
+    # earliest-signal date).
+    target = max(3, int(onset_frac * total))
     counts: Counter = Counter(months)
     cum = 0
     for mo in sorted(counts):
