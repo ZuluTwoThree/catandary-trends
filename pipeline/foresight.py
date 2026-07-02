@@ -165,25 +165,79 @@ def month_key(d) -> str | None:
     return s if len(s) == 7 and s[4] == "-" else None
 
 
-def derive_label(tags: list[str], fallback: str = "Unlabelled cluster") -> str:
-    """Human-readable label from the top thematic tags (geo/generic filtered).
+# Acronyms that .title() would mangle ("AI" -> "Ai"). Display form per token.
+ACRONYM_DISPLAY = {
+    "ai": "AI", "ml": "ML", "ar": "AR", "vr": "VR", "xr": "XR", "llm": "LLM",
+    "llms": "LLMs", "ev": "EV", "evs": "EVs", "iot": "IoT", "api": "API",
+    "apis": "APIs", "ux": "UX", "ui": "UI", "5g": "5G", "6g": "6G",
+    "mrna": "mRNA", "dna": "DNA", "rna": "RNA", "crispr": "CRISPR", "co2": "CO2",
+    "esg": "ESG", "b2b": "B2B", "d2c": "D2C", "saas": "SaaS", "nlp": "NLP",
+    "gpu": "GPU", "suv": "SUV", "hvac": "HVAC", "3d": "3D", "usa": "USA",
+}
 
-    Tag variants that normalize to the same phrase ('clinical_trials' vs
-    'clinical trials') count as one — otherwise the label doubles up."""
+
+def _norm_tag(t: str) -> str:
+    """Normalize a tag for dedup/comparison: lowercase, and unify the underscore/
+    hyphen/space variants ('plant_based' == 'plant-based' == 'plant based') so
+    they don't produce separate labels for the same concept."""
+    return (t or "").lower().replace("_", " ").replace("-", " ").strip()
+
+
+def _pretty(tag_norm: str) -> str:
+    """Title-case a normalized tag, keeping known acronyms uppercase."""
+    return " ".join(ACRONYM_DISPLAY.get(w, w.capitalize()) for w in tag_norm.split())
+
+
+def _distinct_thematic(tags: list[str]) -> list[str]:
+    """Normalized, generic-filtered, variant-deduped thematic tags, in order."""
     seen: set[str] = set()
-    themal: list[str] = []
+    out: list[str] = []
     for t in tags:
         if not t:
             continue
-        norm = t.lower().replace("_", " ").strip()
+        norm = _norm_tag(t)
         if norm in GENERIC_TAGS or t.lower() in GENERIC_TAGS or norm in seen:
             continue
         seen.add(norm)
-        themal.append(norm)
+        out.append(norm)
+    return out
+
+
+def derive_label(tags: list[str], fallback: str = "Unlabelled cluster") -> str:
+    """Human-readable label from the top thematic tags (geo/generic filtered,
+    acronym-aware, variant-deduped). Frequency-ordered; see `distinctive_label`
+    for the cross-cluster distinctiveness variant used by analyze()."""
+    themal = _distinct_thematic(tags)
     picked = themal[:2] if themal else [tags[0].lower().replace("_", " ")] if tags else []
     if not picked:
         return fallback
-    return " · ".join(p.title() for p in picked)
+    return " · ".join(_pretty(p) for p in picked)
+
+
+def distinctive_label(tag_counter: Counter, size: int, tag_df: dict[str, int],
+                      n_clusters: int, fallback: str = "Unlabelled cluster") -> str:
+    """Label a cluster by its most DISTINCTIVE tags (tf-idf across clusters), not
+    just its most frequent. Fixes the 'every FOOD cluster is Plant-Based' problem:
+    a tag common to many clusters (df high) is downweighted, so each cluster
+    surfaces what sets it apart (cultivated meat vs plant-based milk vs …).
+    `tag_df` = number of clusters each normalized tag appears in."""
+    # Sum counts of tag variants that normalize to the same concept
+    # ('plant-based' + 'plant based' → one entry) before scoring.
+    norm_counts: Counter = Counter()
+    for tag, cnt in tag_counter.items():
+        norm = _norm_tag(tag)
+        if norm and norm not in GENERIC_TAGS:
+            norm_counts[norm] += cnt
+    scored: list[tuple[float, str]] = []
+    for norm, cnt in norm_counts.items():
+        tf = cnt / max(size, 1)
+        idf = np.log(n_clusters / (1 + tag_df.get(norm, 0))) + 1.0  # +1 keeps it positive
+        scored.append((tf * idf, norm))
+    scored.sort(key=lambda x: -x[0])
+    picked = [norm for _, norm in scored[:2]]
+    if not picked:
+        return derive_label([t for t, _ in tag_counter.most_common(6)], fallback)
+    return " · ".join(_pretty(p) for p in picked)
 
 
 def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
@@ -253,7 +307,8 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
         top_tags = [t for t, _ in tags.most_common(12)]
         clusters.append({
             "cluster_idx": cid,
-            "label": derive_label(top_tags, fallback=f"Cluster {cid}"),
+            "_tag_counter": tags,           # kept for the distinctiveness pass below
+            "label": derive_label(top_tags, fallback=f"Cluster {cid}"),  # provisional
             "size": len(members),
             "cohesion": round(cohesion, 4),
             "mega_trend": dom,
@@ -271,4 +326,20 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
                 for i in range(len(months))
             ],
         })
+
+    # Second pass: relabel each cluster by tag distinctiveness across clusters, so
+    # near-identical clusters (e.g. the plant-based cluster of FOOD) surface what
+    # sets them apart rather than repeating the vertical's dominant tag. tag_df =
+    # in how many clusters each normalized tag ranks in the top 20.
+    tag_df: Counter = Counter()
+    for c in clusters:
+        top20 = [t for t, _ in c["_tag_counter"].most_common(20)]
+        for norm in {_norm_tag(t) for t in top20}:
+            if norm:
+                tag_df[norm] += 1
+    n_c = len(clusters)
+    for c in clusters:
+        c["label"] = distinctive_label(c["_tag_counter"], c["size"], tag_df, n_c,
+                                       fallback=c["label"])
+        del c["_tag_counter"]
     return {"months": months, "totals": totals, "clusters": clusters}
