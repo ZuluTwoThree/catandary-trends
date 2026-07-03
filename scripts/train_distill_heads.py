@@ -104,12 +104,20 @@ def _stream_trends(sample: int) -> tuple[np.ndarray, list[dict]]:
 
 
 def _load_filtered(max_n: int) -> np.ndarray:
-    """Negatives for the relevance head: filtered_out embedding blobs (BYTEA)."""
+    """Negatives for the relevance head: filtered_out embedding blobs (BYTEA).
+
+    Only TRUE-irrelevance negatives — exclude entries filtered for reasons
+    orthogonal to relevance (duplicates can be perfectly relevant; errors/too-old
+    aren't judgments of relevance). Keeps not_relevant + off-foresight-noise
+    (~92% of filtered_out); drops the ~8% duplicate/error/too_old contamination."""
     t0 = time.time()
+    excl = ("(filter_reason IS NULL OR (filter_reason NOT LIKE '%duplicate%' "
+            "AND filter_reason NOT LIKE '%error%' AND filter_reason NOT LIKE 'too_old%' "
+            "AND filter_reason NOT LIKE '%advertorial%' AND filter_reason NOT LIKE '%sponsored%'))")
     with db_mod.get_connection() as c:
         rows = c.execute(
             "SELECT embedding_blob FROM raw_entries "
-            "WHERE filtered_out = TRUE AND embedding_blob IS NOT NULL "
+            f"WHERE filtered_out = TRUE AND embedding_blob IS NOT NULL AND {excl} "
             + (f"LIMIT {int(max_n)}" if max_n else "")).fetchall()
     X = np.empty((len(rows), DIM), dtype=np.float32)
     kept = 0
@@ -139,6 +147,8 @@ def main() -> int:
     ap.add_argument("--holdout", type=float, default=0.10)
     ap.add_argument("--neg-cap", type=int, default=0, help="cap on relevance negatives (0 = all)")
     ap.add_argument("--skip-relevance", action="store_true")
+    ap.add_argument("--relevance-only", action="store_true",
+                    help="retrain ONLY the relevance head, keep the other 3 heads")
     args = ap.parse_args()
 
     t_all = time.time()
@@ -152,56 +162,63 @@ def main() -> int:
     te, tr = idx[:n_te], idx[n_te:]
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    report: dict = {
+    # --relevance-only keeps the existing report and just refreshes the relevance key
+    existing = {}
+    rep_path = Path(DATA_DIR, "distill_heads_report.json")
+    if args.relevance_only and rep_path.exists():
+        existing = json.loads(rep_path.read_text())
+    report: dict = existing or {
         "generated": datetime.now(timezone.utc).isoformat(),
         "n_train": int(n - n_te), "n_holdout": int(n_te), "dim": DIM,
         "backend": "postgres" if db_mod.USE_POSTGRES else "sqlite",
     }
 
-    # --- vertical ---
-    t0 = time.time()
-    yv = np.asarray([r["primary_vertical"] for r in rows])
-    clf_v = _head().fit(X[tr], yv[tr])
-    report["vertical"] = {
-        "top1_agreement": round(float((clf_v.predict(X[te]) == yv[te]).mean()), 4),
-        "classes": len(clf_v.classes_), "train_s": round(time.time() - t0, 1)}
-    joblib.dump(clf_v, MODELS_DIR / "vertical.joblib")
-    print("vertical:", report["vertical"])
+    if not args.relevance_only:
+        # --- vertical ---
+        t0 = time.time()
+        yv = np.asarray([r["primary_vertical"] for r in rows])
+        clf_v = _head().fit(X[tr], yv[tr])
+        report["vertical"] = {
+            "top1_agreement": round(float((clf_v.predict(X[te]) == yv[te]).mean()), 4),
+            "classes": len(clf_v.classes_), "train_s": round(time.time() - t0, 1)}
+        joblib.dump(clf_v, MODELS_DIR / "vertical.joblib")
+        print("vertical:", report["vertical"])
 
-    # --- mega-trend (labeled rows only) ---
-    t0 = time.time()
-    m_mask = np.asarray([bool(r["mega_trend"]) for r in rows])
-    ym = np.asarray([r["mega_trend"] or "" for r in rows])
-    m_tr = tr[m_mask[tr]]; m_te = te[m_mask[te]]
-    clf_m = _head().fit(X[m_tr], ym[m_tr])
-    scores = clf_m.decision_function(X[m_te])
-    order = np.argsort(-scores, axis=1)
-    classes = np.asarray(clf_m.classes_)
-    top1 = float((classes[order[:, 0]] == ym[m_te]).mean())
-    top3 = float(np.mean([ym[m_te][i] in classes[order[i, :3]] for i in range(len(m_te))]))
-    report["mega_trend"] = {"top1_agreement": round(top1, 4),
-                            "top3_agreement": round(top3, 4),
-                            "classes": len(classes), "train_s": round(time.time() - t0, 1)}
-    joblib.dump(clf_m, MODELS_DIR / "mega.joblib")
-    print("mega:", report["mega_trend"])
+    if not args.relevance_only:
+        # --- mega-trend (labeled rows only) ---
+        t0 = time.time()
+        m_mask = np.asarray([bool(r["mega_trend"]) for r in rows])
+        ym = np.asarray([r["mega_trend"] or "" for r in rows])
+        m_tr = tr[m_mask[tr]]; m_te = te[m_mask[te]]
+        clf_m = _head().fit(X[m_tr], ym[m_tr])
+        scores = clf_m.decision_function(X[m_te])
+        order = np.argsort(-scores, axis=1)
+        classes = np.asarray(clf_m.classes_)
+        top1 = float((classes[order[:, 0]] == ym[m_te]).mean())
+        top3 = float(np.mean([ym[m_te][i] in classes[order[i, :3]] for i in range(len(m_te))]))
+        report["mega_trend"] = {"top1_agreement": round(top1, 4),
+                                "top3_agreement": round(top3, 4),
+                                "classes": len(classes), "train_s": round(time.time() - t0, 1)}
+        joblib.dump(clf_m, MODELS_DIR / "mega.joblib")
+        print("mega:", report["mega_trend"])
 
-    # --- pestel ---
-    t0 = time.time()
-    mlb = MultiLabelBinarizer(classes=PESTEL_DIMS)
-    Y = mlb.fit_transform([r["pestel"] for r in rows])
-    clf_p = OneVsRestClassifier(_head(), n_jobs=-1).fit(X[tr], Y[tr])
-    P = clf_p.predict(X[te])
-    tp = float(np.logical_and(P == 1, Y[te] == 1).sum())
-    fp = float(np.logical_and(P == 1, Y[te] == 0).sum())
-    fn = float(np.logical_and(P == 0, Y[te] == 1).sum())
-    prec = tp / (tp + fp) if tp + fp else 0.0
-    rec = tp / (tp + fn) if tp + fn else 0.0
-    report["pestel"] = {
-        "micro_f1": round(2 * prec * rec / (prec + rec) if prec + rec else 0.0, 4),
-        "micro_precision": round(prec, 4), "micro_recall": round(rec, 4),
-        "train_s": round(time.time() - t0, 1)}
-    joblib.dump(clf_p, MODELS_DIR / "pestel.joblib")
-    print("pestel:", report["pestel"])
+        # --- pestel ---
+        t0 = time.time()
+        mlb = MultiLabelBinarizer(classes=PESTEL_DIMS)
+        Y = mlb.fit_transform([r["pestel"] for r in rows])
+        clf_p = OneVsRestClassifier(_head(), n_jobs=-1).fit(X[tr], Y[tr])
+        P = clf_p.predict(X[te])
+        tp = float(np.logical_and(P == 1, Y[te] == 1).sum())
+        fp = float(np.logical_and(P == 1, Y[te] == 0).sum())
+        fn = float(np.logical_and(P == 0, Y[te] == 1).sum())
+        prec = tp / (tp + fp) if tp + fp else 0.0
+        rec = tp / (tp + fn) if tp + fn else 0.0
+        report["pestel"] = {
+            "micro_f1": round(2 * prec * rec / (prec + rec) if prec + rec else 0.0, 4),
+            "micro_precision": round(prec, 4), "micro_recall": round(rec, 4),
+            "train_s": round(time.time() - t0, 1)}
+        joblib.dump(clf_p, MODELS_DIR / "pestel.joblib")
+        print("pestel:", report["pestel"])
 
     # --- relevance (calibrated; needs embed_filtered negatives) ---
     if not args.skip_relevance:
