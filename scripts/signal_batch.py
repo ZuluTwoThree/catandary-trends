@@ -293,7 +293,7 @@ def run(limit: int, execute: bool, embed_chunk: int,
 
     if not execute:
         if backend == "local":
-            print(f"\nbackend=local (llama.cpp :8090) — $0, ~165 req/min/stage at saturation.")
+            print("\nbackend=local (llama.cpp :8090) — $0, ~165 req/min/stage at saturation.")
         else:
             est_cost = (len(entries) / 1000.0) * COST_PER_1K_BATCHED
             print(f"\nProjected Batch-API cost (−50%, ~${COST_PER_1K_BATCHED}/1k): ~${est_cost:.2f} for {len(entries)} entries.")
@@ -447,6 +447,139 @@ def run(limit: int, execute: bool, embed_chunk: int,
     return 0
 
 
+def _distill_signal_type(e: dict) -> str:
+    """Deterministic trend_signal_type from the source (distill heads don't emit
+    it). Mirrors the lead-time tier map — patents/preprints/funding are the
+    early-tier signals that matter most for foresight."""
+    st = (e.get("source_type") or "").lower()
+    sn = (e.get("source_name") or "").lower()
+    if e.get("pub_number"):
+        return "patent"
+    if st == "research" or any(m in sn for m in ("arxiv", "rxiv", "preprint")):
+        return "research"
+    if st == "api" and any(m in sn for m in ("nsf", "nih", "reporter", "openaire", "ukri")):
+        return "funding"
+    return "market_shift"
+
+
+def run_distill(limit: int, execute: bool, embed_chunk: int,
+                include: list[str], exclude: list[str], workers: int = 24,
+                min_id: int = 0, source_type: str = "",
+                relevance_threshold: float = 0.5) -> int:
+    """Mass-ingest classification WITHOUT the LLM: embed each survivor, then run
+    the distilled heads (pipeline/distill) for relevance/vertical/mega/PESTEL.
+    ~0 marginal cost per item; the only GPU step is the shared embedding pass.
+    Taxonomy-bounded — novelty stays with the discovery loop."""
+    from pipeline.distill import DistillClassifier
+    t0 = time.time()
+    try:
+        clf = DistillClassifier.load()
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}")
+        return 2
+    print(f"distill heads: {clf.meta['heads']} | relevance head: {clf.has_relevance_head}")
+    if not clf.has_relevance_head:
+        print("  WARNING: no relevance head — every embedded, non-duplicate entry is "
+              "kept as a signal (train it via embed_filtered.py + train_distill_heads.py).")
+
+    entries = pull_unprocessed(limit, include, exclude, min_id, source_type)
+    print(f"Unprocessed in scope: {len(entries)}")
+    if not entries:
+        return 0
+    if not execute:
+        print(f"\nDRY-RUN (backend=distill) — would embed + distill-classify {len(entries)} "
+              "entries at ~0 cost. Re-run with --execute.")
+        return 0
+
+    survivors = title_dedup(entries, commit=True)
+    print(f"After title dedup: {len(survivors)}")
+
+    # ---- embed + distill-classify + vectorized dedup (single pass) ----
+    _recent = get_recent_embeddings(days=30)
+    R = None
+    if _recent:
+        _dim = len(_recent[0][1]) // 4
+        R = np.empty((len(_recent), _dim), dtype=np.float32)
+        for _i, (_, _b) in enumerate(_recent):
+            R[_i] = np.frombuffer(_b, dtype=np.float32)
+        R = _norm_rows(R)
+    thr = DUPLICATE_SIMILARITY_THRESHOLD
+    logger.info("distill: %d recent embeddings for dedup", len(_recent))
+
+    _llama_stopped = free_vram_for_embeddings()
+    kept_buf: np.ndarray | None = None
+    kept_count = filtered = created = not_relevant = 0
+    for i in range(0, len(survivors), embed_chunk):
+        chunk = survivors[i:i + embed_chunk]
+        texts = [f"{e['title']}\n{(e['excerpt'] or '')[:500]}" for e in chunk]
+        vecs = embed_batch(texts)
+        valid = [(e, v) for e, v in zip(chunk, vecs) if v is not None]
+        for e, v in zip(chunk, vecs):
+            if v is None:
+                mark_filtered(e["id"], "embedding_error"); filtered += 1
+        if not valid:
+            continue
+        B = np.asarray([v for _, v in valid], dtype=np.float32)
+        Bn = _norm_rows(B)
+        preds = clf.classify_batch(B)  # distill handles its own normalization
+        if kept_buf is None:
+            kept_buf = np.empty((len(survivors), Bn.shape[1]), dtype=np.float32)
+        rec_max = (Bn @ R.T).max(axis=1) if R is not None and R.shape[0] else np.zeros(len(valid))
+        prev_max = ((Bn @ kept_buf[:kept_count].T).max(axis=1)
+                    if kept_count else np.zeros(len(valid)))
+        chunk_start = kept_count
+        for j, (e, v) in enumerate(valid):
+            pred = preds[j]
+            # relevance gate (only when the head exists)
+            if pred["relevance"] is not None and pred["relevance"] < relevance_threshold:
+                mark_filtered(e["id"], f"not_relevant_distill:{pred['relevance']:.2f}")
+                not_relevant += 1
+                continue
+            is_dup = rec_max[j] > thr or prev_max[j] > thr
+            if not is_dup and kept_count > chunk_start:
+                if float((kept_buf[chunk_start:kept_count] @ Bn[j]).max()) > thr:
+                    is_dup = True
+            if is_dup:
+                mark_filtered(e["id"], "duplicate: embedding"); filtered += 1
+                continue
+            kept_buf[kept_count] = Bn[j]
+            kept_count += 1
+            # insert as signal
+            try:
+                title = e["title"] or "(untitled signal)"
+                vert = pred["primary_vertical"]
+                conf = pred["relevance"] if pred["relevance"] is not None else pred["vertical_confidence"]
+                sig_type = _distill_signal_type(e)
+                insert_trend(e["id"], {
+                    "title_en": title, "title_de": None, "summary_en": None,
+                    "summary_de": None, "body_en": None, "body_de": None,
+                    "slug": f"{slugify(title, max_length=70)}-{e['id']}",
+                    "verticals": [vert], "primary_vertical": vert,
+                    "pestel": pred["pestel"], "tags": [],
+                    "trend_signal_type": sig_type, "mega_trend": pred["mega_trend"],
+                    "trend_level": "micro", "brands": [], "regions": [],
+                    "trend_score": compute_crs(
+                        confidence=conf, num_verticals=1, num_pestel=len(pred["pestel"]),
+                        signal_type=sig_type, source_type=e.get("source_type")) / 100.0,
+                    "confidence": conf, "source_url": e["url"],
+                    "source_name": e.get("source_name", "Unknown"),
+                    "embedding": embedding_to_bytes(v), "status": "signal",
+                })
+                mark_processed(e["id"])
+                created += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.error("[%s] distill insert error: %s", e["id"], exc)
+                mark_processed(e["id"])
+        if (i // embed_chunk) % 20 == 0:
+            logger.info("  distill %d/%d (kept %d, not_relevant %d)",
+                        min(i + embed_chunk, len(survivors)), len(survivors), created, not_relevant)
+    if _llama_stopped:
+        restart_llama()
+    print(f"\nDone in {time.time()-t0:.0f}s: {created} signals inserted, "
+          f"{not_relevant} not-relevant, {filtered} filtered (from {len(entries)}).")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=0, help="0 = no limit (whole scope)")
@@ -455,8 +588,11 @@ def main() -> int:
     ap.add_argument("--embed-chunk", type=int, default=64, help="texts per embedding request")
     ap.add_argument("--execute", action="store_true",
                     help="actually classify (Anthropic = costs money); default is dry-run")
-    ap.add_argument("--backend", choices=["anthropic", "local"], default="anthropic",
-                    help="local = concurrent llama.cpp :8090 ($0); anthropic = Message Batches")
+    ap.add_argument("--backend", choices=["anthropic", "local", "distill"], default="anthropic",
+                    help="local = concurrent llama.cpp :8090 ($0); anthropic = Message "
+                         "Batches; distill = embedding heads, no LLM (mass backfill)")
+    ap.add_argument("--relevance-threshold", type=float, default=0.5,
+                    help="distill backend: min relevance-head prob to keep (if head trained)")
     ap.add_argument("--workers", type=int, default=24, help="local backend concurrency")
     ap.add_argument("--min-id", type=int, default=0,
                     help="only entries with id > MIN_ID — scope to a fresh ingest (e.g. patents)")
@@ -465,6 +601,10 @@ def main() -> int:
     args = ap.parse_args()
     inc = [v.strip().upper() for v in args.verticals.split(",")] if args.verticals else []
     exc = [v.strip().upper() for v in args.exclude_verticals.split(",")] if args.exclude_verticals else []
+    if args.backend == "distill":
+        return run_distill(args.limit, args.execute, args.embed_chunk, inc, exc,
+                           args.workers, args.min_id, args.source_type,
+                           args.relevance_threshold)
     return run(args.limit, args.execute, args.embed_chunk, inc, exc,
                args.backend, args.workers, args.min_id, args.source_type)
 
