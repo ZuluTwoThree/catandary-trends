@@ -39,3 +39,8 @@ CREATE INDEX IF NOT EXISTS idx_trends_mega        ON trends (mega_trend) WHERE m
 -- indexed) and builds the partial HNSW index over published rows:
 --   CREATE INDEX idx_trends_emb1024_pub_hnsw ON trends
 --     USING hnsw (embedding_1024 vector_cosine_ops) WHERE status = 'published';
+
+-- FK child-column index: Postgres does NOT auto-index a referencing column, so
+-- deleting/updating a raw_entry triggered a full trends scan per row (a 6764-row
+-- DELETE hung for minutes). Required for any raw_entries maintenance at scale.
+CREATE INDEX IF NOT EXISTS idx_trends_raw_entry ON trends(raw_entry_id);

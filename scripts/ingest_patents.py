@@ -254,7 +254,7 @@ def parse_exchange_document(doc: dict) -> dict | None:
                 break
 
     # Publication reference: country + doc-number + kind + date (epodoc form).
-    pub_number, pub_date = "", None
+    pub_number, pub_date, _pub_concat = "", None, ""
     for did in _as_list(bib.get("publication-reference", {}).get("document-id")):
         if not isinstance(did, dict):
             continue
@@ -262,7 +262,11 @@ def parse_exchange_document(doc: dict) -> dict | None:
             country = _text(did.get("country"))
             number = _text(did.get("doc-number"))
             kind = _text(did.get("kind"))
-            pub_number = f"{country}{number}{kind}"
+            # Canonical node key is dashed (country-number-kind), matching the
+            # HF/BDDS ingest + patent_links graph. kind_code() splits on the last
+            # dash — an undashed key would silently break the citation-graph join.
+            pub_number = f"{country}-{number}-{kind}" if country and number else ""
+            _pub_concat = f"{country}{number}{kind}"  # espacenet url uses the concatenated form
             pub_date = _text(did.get("date")) or pub_date
     # date is YYYYMMDD → ISO
     if pub_date and len(pub_date) == 8:
@@ -285,7 +289,7 @@ def parse_exchange_document(doc: dict) -> dict | None:
             if sec:
                 cpc.append(f"{sec}{cls}")
 
-    url = f"https://worldwide.espacenet.com/patent/search/family/publication/{pub_number}" if pub_number else ""
+    url = f"https://worldwide.espacenet.com/patent/search/family/publication/{_pub_concat}" if pub_number else ""
     return {"title": title, "abstract": abstract, "pub_number": pub_number,
             "pub_date": pub_date, "applicant": applicant, "cpc": cpc, "url": url}
 
@@ -348,7 +352,9 @@ def ingest(vertical: str, cpc: str | None, after: str, before: str,
                         stats["inserted"] += 1
                         continue
                     eid = db.insert_raw_entry(source_id, rec["url"], rec["title"],
-                                              record_to_excerpt(rec)[:2000], rec["pub_date"])
+                                              record_to_excerpt(rec)[:2000], rec["pub_date"],
+                                              pub_number=rec["pub_number"],
+                                              kind_code=kind_code(rec["pub_number"]))
                     stats["duplicates" if eid is None else "inserted"] += 1
                 _throttle_sleep()  # honor OPS X-Throttling-Control (fair usage)
             logger.info("  CPC %s done: fetched=%d inserted=%d dup=%d",
@@ -701,7 +707,7 @@ def selftest() -> int:
     rec = parse_exchange_document(docs[0])
     assert rec is not None
     assert rec["title"] == "Fermented plant protein product and method", rec["title"]
-    assert rec["pub_number"] == "EP4123456A1", rec["pub_number"]
+    assert rec["pub_number"] == "EP-4123456-A1", rec["pub_number"]
     assert rec["pub_date"] == "2024-05-15", rec["pub_date"]
     assert rec["applicant"] == "NOVA FOODS GMBH", rec["applicant"]
     assert rec["cpc"] == ["A23", "C12"], rec["cpc"]
