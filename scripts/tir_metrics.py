@@ -39,6 +39,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from pipeline import db as db_mod
 from pipeline.db import get_connection
 from pipeline.llm_processor import bytes_to_embedding
 
@@ -60,9 +61,14 @@ def year_of(pub_number: str, corpus_year: dict[str, int]) -> int | None:
 
 
 def load_patents(vertical: str, limit: int) -> list[dict]:
-    """Patent signals for a vertical: embedding + pub_number + year + tags/mega_trend."""
-    sql = ("SELECT t.id, re.pub_number AS pub_number, t.embedding, t.tags, t.mega_trend, "
-           "       substr(re.published_date,1,4) AS yr "
+    """Patent signals for a vertical: embedding + pub_number + year + tags/mega_trend.
+    Postgres-aware: embedding is a pgvector (cast + parse), published_date a
+    timestamp (cast to text before substr), tags jsonb (already a list)."""
+    emb_col = "t.embedding::text" if db_mod.USE_POSTGRES else "t.embedding"
+    date_col = ("substr(re.published_date::text,1,4)" if db_mod.USE_POSTGRES
+                else "substr(re.published_date,1,4)")
+    sql = (f"SELECT t.id, re.pub_number AS pub_number, {emb_col} AS embedding, "
+           f"       t.tags, t.mega_trend, {date_col} AS yr "
            "FROM trends t JOIN raw_entries re ON t.raw_entry_id = re.id "
            "WHERE t.primary_vertical = ? AND t.status='signal' "
            "AND t.embedding IS NOT NULL AND re.pub_number IS NOT NULL")
@@ -73,12 +79,40 @@ def load_patents(vertical: str, limit: int) -> list[dict]:
     out = []
     with get_connection() as c:
         for r in c.execute(sql, params).fetchall():
-            vec = bytes_to_embedding(r["embedding"]) if isinstance(r["embedding"], (bytes, bytearray)) else None
+            raw = db_mod._vector_to_bytes(r["embedding"])
+            vec = bytes_to_embedding(raw) if isinstance(raw, (bytes, bytearray)) else None
             if vec is None:
                 continue
-            out.append({"pub": r["pub_number"], "vec": vec, "tags": r["tags"] or "",
+            tags = r["tags"]
+            if isinstance(tags, list):  # PG jsonb arrives parsed
+                tags = ",".join(str(t) for t in tags)
+            out.append({"pub": r["pub_number"], "vec": vec, "tags": tags or "",
                         "mega": r["mega_trend"], "year": int(r["yr"]) if r["yr"] else None})
     return out
+
+
+def load_corpus_years() -> dict[str, int]:
+    """pub_number -> publication year for EVERY patent raw entry (all verticals,
+    incl. unprocessed back-file rows). Cited patents are mostly outside the
+    analyzed vertical's signal set — resolving their year from the whole corpus
+    (instead of parsing it out of the number, which fails for CN/EP formats)
+    is what makes Cycle Time / Immediacy actually computable."""
+    years: dict[str, int] = {}
+    date_col = ("substr(published_date::text,1,4)" if db_mod.USE_POSTGRES
+                else "substr(published_date,1,4)")
+    with get_connection() as c:
+        for r in c.execute(
+                f"SELECT pub_number, {date_col} AS yr FROM raw_entries "
+                "WHERE pub_number IS NOT NULL AND published_date IS NOT NULL").fetchall():
+            pub = r["pub_number"] if isinstance(r, dict) else r[0]
+            yr = r["yr"] if isinstance(r, dict) else r[1]
+            try:
+                y = int(yr)
+            except (TypeError, ValueError):
+                continue
+            if 1900 <= y <= 2030:
+                years[pub] = y
+    return years
 
 
 def load_forward_index(examiner_only: bool) -> dict[str, list[str]]:
@@ -140,7 +174,8 @@ def main() -> int:
     print(f"{args.vertical} patent signals with embedding+pub_number: {len(items)}")
     if len(items) < 50:
         print("too few patents for clustering"); return 1
-    corpus_year = {it["pub"]: it["year"] for it in items if it["year"]}
+    corpus_year = load_corpus_years()  # ALL patent entries, not just this vertical
+    print(f"corpus year map: {len(corpus_year)} patents with known publication year")
     fwd = load_forward_index(args.examiner_only)
     bwd = backward_index()
     print(f"citation graph: {sum(len(v) for v in fwd.values())} forward edges"
