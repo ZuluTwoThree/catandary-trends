@@ -451,9 +451,13 @@ def _migrate_stage_cache_columns():
     """Add stage-cache columns to existing raw_entries tables. Idempotent."""
     with get_connection() as conn:
         for col, sqlite_type, pg_type in _STAGE_CACHE_COLUMNS:
-            typ = pg_type if USE_POSTGRES else sqlite_type
+            if USE_POSTGRES:
+                # Native idempotence — a caught failure would still abort the
+                # PG transaction and poison every later statement on this conn.
+                conn.execute(f"ALTER TABLE raw_entries ADD COLUMN IF NOT EXISTS {col} {pg_type}")
+                continue
             try:
-                conn.execute(f"ALTER TABLE raw_entries ADD COLUMN {col} {typ}")
+                conn.execute(f"ALTER TABLE raw_entries ADD COLUMN {col} {sqlite_type}")
             except Exception as e:
                 msg = str(e).lower()
                 if "duplicate column" in msg or "already exists" in msg:
@@ -729,7 +733,7 @@ def get_unprocessed_entries(limit: int = 50, min_id: int = 0) -> list[dict]:
         rows = conn.execute(
             "SELECT re.*, s.name as source_name, s.vertical as source_vertical, s.source_type as source_type "
             "FROM raw_entries re JOIN sources s ON re.source_id = s.id "
-            "WHERE re.processed = 0 AND re.filtered_out = 0 AND re.id > ? "
+            "WHERE re.processed = FALSE AND re.filtered_out = FALSE AND re.id > ? "
             "ORDER BY re.fetched_at ASC LIMIT ?",
             (min_id, limit),
         ).fetchall()
@@ -740,7 +744,7 @@ def mark_filtered(entry_id: int, reason: str):
     """Mark an entry as filtered out."""
     with get_connection() as conn:
         conn.execute(
-            "UPDATE raw_entries SET processed = 1, filtered_out = 1, filter_reason = ? WHERE id = ?",
+            "UPDATE raw_entries SET processed = TRUE, filtered_out = TRUE, filter_reason = ? WHERE id = ?",
             (reason, entry_id),
         )
 
@@ -748,7 +752,7 @@ def mark_filtered(entry_id: int, reason: str):
 def mark_processed(entry_id: int):
     """Mark an entry as processed."""
     with get_connection() as conn:
-        conn.execute("UPDATE raw_entries SET processed = 1 WHERE id = ?", (entry_id,))
+        conn.execute("UPDATE raw_entries SET processed = TRUE WHERE id = ?", (entry_id,))
 
 
 _STAGE_TO_COLUMN = {
@@ -790,6 +794,10 @@ def insert_trend(entry_id: int, data: dict) -> int:
                 import struct
                 n = len(embedding_val) // 4
                 embedding_val = list(struct.unpack(f"{n}f", embedding_val))
+            # embedding_1024 = Matryoshka prefix for the ANN search column
+            # (partial HNSW index; the 4096-dim col can't be HNSW-indexed).
+            # Without this, new trends would be invisible to /api/search.
+            emb_1024 = embedding_val[:1024] if embedding_val else None
             cursor = conn.execute(
                 """INSERT INTO trends (
                     raw_entry_id, title_en, title_de, slug,
@@ -797,8 +805,8 @@ def insert_trend(entry_id: int, data: dict) -> int:
                     verticals, primary_vertical, pestel, tags,
                     trend_signal_type, mega_trend, trend_level,
                     brands, regions, trend_score, confidence,
-                    source_url, source_name, embedding, status
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    source_url, source_name, embedding, embedding_1024, status
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 RETURNING id""",
                 (
                     entry_id,
@@ -819,6 +827,7 @@ def insert_trend(entry_id: int, data: dict) -> int:
                     data["source_url"],
                     data.get("source_name"),
                     str(embedding_val) if embedding_val else None,
+                    str(emb_1024) if emb_1024 else None,
                     # signal-mode rows must keep status='signal' — landing as
                     # 'draft' would let auto_publish push content-less rows live
                     data.get("status") or "draft",
@@ -927,9 +936,11 @@ def update_trend_status(trend_id: int, status: str, auto_published: bool = False
     """Update trend status."""
     with get_connection() as conn:
         if status == "published":
+            # Python bool adapts correctly on both backends (SQLite stores 0/1,
+            # psycopg2 maps to boolean — an int literal would fail on PG).
             conn.execute(
                 "UPDATE trends SET status = ?, published_at = ?, auto_published = ? WHERE id = ?",
-                (status, _now_iso(), 1 if auto_published else 0, trend_id),
+                (status, _now_iso(), bool(auto_published), trend_id),
             )
         else:
             conn.execute(
@@ -991,21 +1002,36 @@ def get_recent_titles(days: int = 30) -> list[str]:
         return [row["title_en"] if isinstance(row, dict) else row[0] for row in rows]
 
 
+def _vector_to_bytes(v) -> bytes | None:
+    """Normalize an embedding to a float32 buffer. SQLite already stores bytes;
+    Postgres/pgvector returns a text literal '[f1,f2,…]' — parse + pack so that
+    downstream np.frombuffer consumers (dedup matrices) work on both backends."""
+    if v is None or isinstance(v, (bytes, bytearray)):
+        return v
+    if isinstance(v, memoryview):
+        return v.tobytes()
+    s = str(v).strip().strip("[]")
+    if not s:
+        return None
+    import numpy as _np
+    return _np.array(s.split(","), dtype=_np.float32).tobytes()
+
+
 def get_recent_embeddings(days: int = 30) -> list[tuple[int, bytes]]:
     """Get embeddings from the last N days for dedup checking."""
     with get_connection() as conn:
         if USE_POSTGRES:
             rows = conn.execute(
-                "SELECT id, embedding FROM trends "
+                "SELECT id, embedding::text AS embedding FROM trends "
                 "WHERE embedding IS NOT NULL AND created_at > NOW() - INTERVAL '%s days'",
                 (days,),
             ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT id, embedding FROM trends "
-                "WHERE embedding IS NOT NULL AND created_at > datetime('now', ?)",
-                (f"-{days} days",),
-            ).fetchall()
+            return [(row["id"], _vector_to_bytes(row["embedding"])) for row in rows]
+        rows = conn.execute(
+            "SELECT id, embedding FROM trends "
+            "WHERE embedding IS NOT NULL AND created_at > datetime('now', ?)",
+            (f"-{days} days",),
+        ).fetchall()
         return [(row["id"] if isinstance(row, dict) else row[0],
                  row["embedding"] if isinstance(row, dict) else row[1])
                 for row in rows]

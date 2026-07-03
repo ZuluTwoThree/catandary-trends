@@ -15,12 +15,14 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from datetime import datetime
 
 import numpy as np
 from sklearn.cluster import HDBSCAN, KMeans, MiniBatchKMeans
 from sklearn.decomposition import PCA
 from sklearn.metrics import adjusted_rand_score
 
+from pipeline import db as db_mod
 from pipeline.db import get_connection
 from pipeline.foresight import derive_label, month_key
 
@@ -52,8 +54,9 @@ def tier_of(source_type: str | None, source_name: str | None, pub_number) -> str
 def load_scope(scope: str, status: str = "signal,published", limit: int = 0) -> list[dict]:
     """scope: 'global' | 'vertical:FOOD' | 'pair:FOOD&HEALTH'. Cross-vertical pair =
     rows whose `verticals` JSON contains BOTH codes."""
+    # CURRENT_TIMESTAMP is portable (SQLite + Postgres); datetime('now') is not.
     where = ["t.embedding IS NOT NULL",
-             "(r.published_date IS NULL OR r.published_date <= datetime('now'))"]
+             "(r.published_date IS NULL OR r.published_date <= CURRENT_TIMESTAMP)"]
     params: list = []
     if status and status.lower() != "all":
         sts = [s.strip() for s in status.split(",")]
@@ -64,12 +67,15 @@ def load_scope(scope: str, status: str = "signal,published", limit: int = 0) -> 
         params.append(scope.split(":", 1)[1])
     elif scope.startswith("pair:"):
         a, b = scope.split(":", 1)[1].split("&")
-        # JSON array membership via LIKE on the quoted code (verticals are UPPER codes)
-        where.append("t.verticals LIKE ? AND t.verticals LIKE ?")
+        # JSON array membership via LIKE on the quoted code (verticals are UPPER
+        # codes). Works on both backends (jsonb::text under PG via the cast below).
+        vt = "t.verticals::text" if db_mod.USE_POSTGRES else "t.verticals"
+        where.append(f"{vt} LIKE ? AND {vt} LIKE ?")
         params += [f'%"{a}"%', f'%"{b}"%']
+    emb_col = "t.embedding::text" if db_mod.USE_POSTGRES else "t.embedding"
     sql = ("SELECT t.id, t.title_en, t.tags, t.source_name, t.primary_vertical, "
            "       t.verticals, t.mega_trend, r.published_date, r.pub_number, "
-           "       s.source_type, t.embedding "
+           f"       s.source_type, {emb_col} AS embedding "
            "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id "
            "JOIN sources s ON r.source_id = s.id "
            f"WHERE {' AND '.join(where)}")
@@ -80,18 +86,22 @@ def load_scope(scope: str, status: str = "signal,published", limit: int = 0) -> 
         rows = [dict(r) for r in c.execute(sql, params).fetchall()]
     out = []
     for r in rows:
-        emb = r["embedding"]
+        emb = db_mod._vector_to_bytes(r["embedding"])
         if not isinstance(emb, (bytes, bytearray)) or len(emb) < 4:
             continue
         r["_emb"] = bytes(emb)
         r["embedding"] = None
         r["_tier"] = tier_of(r["source_type"], r["source_name"], r["pub_number"])
+        if isinstance(r["published_date"], datetime):
+            r["published_date"] = r["published_date"].isoformat()
         try:
-            r["tags"] = json.loads(r["tags"]) if r["tags"] else []
+            tags = r["tags"]
+            r["tags"] = tags if isinstance(tags, list) else (json.loads(tags) if tags else [])
         except Exception:
             r["tags"] = []
         try:
-            r["_verts"] = json.loads(r["verticals"]) if r["verticals"] else []
+            verts = r["verticals"]
+            r["_verts"] = verts if isinstance(verts, list) else (json.loads(verts) if verts else [])
         except Exception:
             r["_verts"] = []
         out.append(r)

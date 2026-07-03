@@ -21,11 +21,13 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from datetime import datetime
 
 import numpy as np
 from sklearn.cluster import KMeans, MiniBatchKMeans
 from sklearn.metrics import silhouette_score
 
+from pipeline import db as db_mod
 from pipeline.db import get_connection
 
 # Tags that make bad cluster labels (geographies, signal types, generic terms).
@@ -89,10 +91,14 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     # Bogus future dates from malformed RSS/API records (observed up to 2029)
     # would stretch the month axis and hollow out the recent-window analysis.
     # Rows with NULL dates stay in (they cluster; they just carry no trajectory).
-    where.append("(r.published_date IS NULL OR r.published_date <= datetime('now'))")
+    # CURRENT_TIMESTAMP is portable (SQLite + Postgres); datetime('now') is not.
+    where.append("(r.published_date IS NULL OR r.published_date <= CURRENT_TIMESTAMP)")
+    # Under Postgres the embedding is a pgvector — cast to text and parse; under
+    # SQLite it is the raw float32 blob.
+    emb_col = "t.embedding::text" if db_mod.USE_POSTGRES else "t.embedding"
     sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, "
            "       t.primary_vertical, t.status, t.source_url, "
-           "       r.published_date, t.embedding "
+           f"       r.published_date, {emb_col} AS embedding "
            "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id "
            f"WHERE {' AND '.join(where)}")
     if limit:
@@ -102,13 +108,16 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
         rows = [dict(r) for r in c.execute(sql, params).fetchall()]
     out = []
     for r in rows:
-        emb = r["embedding"]
+        emb = db_mod._vector_to_bytes(r["embedding"])
         if not isinstance(emb, (bytes, bytearray)) or len(emb) < 4:
             continue
         r["_emb"] = bytes(emb)
         r["embedding"] = None  # drop duplicate blob reference, keep memory flat
+        if isinstance(r["published_date"], datetime):
+            r["published_date"] = r["published_date"].isoformat()
         try:
-            r["tags"] = json.loads(r["tags"]) if r["tags"] else []
+            tags = r["tags"]
+            r["tags"] = tags if isinstance(tags, list) else (json.loads(tags) if tags else [])
         except Exception:
             r["tags"] = []
         out.append(r)

@@ -121,13 +121,27 @@ def _classify_one(title: str, summary: str) -> dict | None:
     return {"primary": primary, "verticals": [primary] + secondaries}
 
 
-def reclassify_drafts() -> dict:
-    """Reclassify all draft trends. Returns stats dict."""
+def _open_conn():
+    """Backend-appropriate raw connection (long-lived with periodic commits —
+    the get_connection context manager doesn't fit this loop's shape).
+    Returns (conn, cursor, paramstyle-placeholder)."""
+    from pipeline.db import USE_POSTGRES, DATABASE_URL
+    if USE_POSTGRES:
+        import psycopg2
+        import psycopg2.extras
+        conn = psycopg2.connect(DATABASE_URL)
+        c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        return conn, c, "%s"
     conn = sqlite3.connect(DATABASE_PATH, timeout=60)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=60000")
     conn.row_factory = sqlite3.Row
-    c = conn.cursor()
+    return conn, conn.cursor(), "?"
+
+
+def reclassify_drafts() -> dict:
+    """Reclassify all draft trends. Returns stats dict."""
+    conn, c, ph = _open_conn()
 
     c.execute("SELECT id, title_en, summary_en, primary_vertical FROM trends WHERE status = 'draft' ORDER BY id")
     rows = c.fetchall()
@@ -162,7 +176,7 @@ def reclassify_drafts() -> dict:
             logger.info("Reclassify #%d: %s -> %s  %s", tid, old_primary, new_primary, title[:55])
 
         c.execute(
-            "UPDATE trends SET primary_vertical = ?, verticals = ? WHERE id = ?",
+            f"UPDATE trends SET primary_vertical = {ph}, verticals = {ph} WHERE id = {ph}",
             (new_primary, json.dumps(new_verticals), tid),
         )
 

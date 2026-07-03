@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from pipeline.config import DATA_DIR, LOG_LEVEL, MODEL_GENERATE, load_mega_trends
+from pipeline import db as db_mod
 from pipeline.db import get_connection
 
 import os as _os
@@ -545,7 +546,7 @@ def build_mega_trend_radar(data: dict) -> list[dict]:
 # 5. Newsletter edition storage
 # ---------------------------------------------------------------------------
 
-NEWSLETTER_EDITIONS_SCHEMA = """
+NEWSLETTER_EDITIONS_SCHEMA_SQLITE = """
 CREATE TABLE IF NOT EXISTS newsletter_editions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     year INTEGER NOT NULL,
@@ -560,22 +561,52 @@ CREATE TABLE IF NOT EXISTS newsletter_editions (
 );
 """
 
+NEWSLETTER_EDITIONS_SCHEMA_PG = """
+CREATE TABLE IF NOT EXISTS newsletter_editions (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL,
+    week INTEGER NOT NULL,
+    editorial TEXT,
+    vertical_summaries TEXT,
+    mega_trend_radar TEXT,
+    trend_refs TEXT,
+    total_signals INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(year, week)
+);
+"""
+
 
 def init_newsletter_table():
     """Ensure newsletter_editions table exists."""
     with get_connection() as conn:
-        conn.execute(NEWSLETTER_EDITIONS_SCHEMA)
+        conn.execute(NEWSLETTER_EDITIONS_SCHEMA_PG if db_mod.USE_POSTGRES
+                     else NEWSLETTER_EDITIONS_SCHEMA_SQLITE)
 
 
 def save_newsletter_edition(edition: dict):
-    """Save a newsletter edition to the database."""
+    """Save a newsletter edition to the database (upsert on year+week)."""
     init_newsletter_table()
+    upsert = (
+        "INSERT INTO newsletter_editions "
+        "(year, week, editorial, vertical_summaries, "
+        "mega_trend_radar, trend_refs, total_signals) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT (year, week) DO UPDATE SET "
+        "editorial = EXCLUDED.editorial, "
+        "vertical_summaries = EXCLUDED.vertical_summaries, "
+        "mega_trend_radar = EXCLUDED.mega_trend_radar, "
+        "trend_refs = EXCLUDED.trend_refs, "
+        "total_signals = EXCLUDED.total_signals"
+    ) if db_mod.USE_POSTGRES else (
+        "INSERT OR REPLACE INTO newsletter_editions "
+        "(year, week, editorial, vertical_summaries, "
+        "mega_trend_radar, trend_refs, total_signals) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)"
+    )
     with get_connection() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO newsletter_editions "
-            "(year, week, editorial, vertical_summaries, "
-            "mega_trend_radar, trend_refs, total_signals) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            upsert,
             (
                 edition["year"],
                 edition["week"],

@@ -222,7 +222,7 @@ def pull_unprocessed(limit: int, include: list[str], exclude: list[str],
     """Unprocessed entries, optionally scoped by source vertical (include/exclude),
     by source_type (e.g. 'api' = the funding ingests only), and to id > min_id
     (to classify only a fresh ingest, not older backlog)."""
-    where = ["re.processed = 0", "re.filtered_out = 0"]
+    where = ["re.processed = FALSE", "re.filtered_out = FALSE"]
     params: list = []
     if source_type:
         where.append("s.source_type = ?")

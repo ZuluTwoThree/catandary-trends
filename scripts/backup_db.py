@@ -86,6 +86,27 @@ def prune_old(folder: Path, prefix: str, keep_days: int) -> int:
     return removed
 
 
+def snapshot_postgres(dest_dir: Path, date_tag: str) -> int | None:
+    """pg_dump the production Postgres DB (custom format, compressed) into
+    dest_dir. Since the 2026-07-03 cutover the live data is in Postgres — the
+    SQLite snapshot alone would silently back up a frozen fallback copy.
+    Returns file size, or None if pg_dump is unavailable/fails (non-fatal:
+    the SQLite snapshot still runs)."""
+    import subprocess
+    target = dest_dir / f"catandary-pg-{date_tag}.dump"
+    staging = target.with_suffix(".tmp")
+    try:
+        subprocess.run(
+            ["pg_dump", "-d", "catandary", "-Fc", "-Z", "6", "-f", str(staging)],
+            check=True, capture_output=True, timeout=3600)
+        os.replace(str(staging), str(target))
+        return target.stat().st_size
+    except Exception as e:  # noqa: BLE001
+        log(f"  pg_dump failed (non-fatal): {e!r}")
+        staging.unlink(missing_ok=True)
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--db", type=Path, default=DEFAULT_DB,
@@ -96,6 +117,8 @@ def main() -> int:
                     help="Destination directory (repeat for multiple targets)")
     ap.add_argument("--keep-days", type=int, default=DEFAULT_KEEP_DAYS,
                     help="Prune snapshots older than this many days")
+    ap.add_argument("--skip-postgres", action="store_true",
+                    help="only snapshot SQLite (skip pg_dump)")
     args = ap.parse_args()
 
     if not args.db.exists():
@@ -117,6 +140,11 @@ def main() -> int:
 
             if args.env.exists():
                 shutil.copy2(args.env, dest_path / f"env-{date_tag}")
+
+            if not args.skip_postgres:
+                pg_size = snapshot_postgres(dest_path, date_tag)
+                if pg_size:
+                    log(f"  {dest}: postgres dump {pg_size/1e6:.1f} MB")
 
             removed_db = prune_old(dest_path, "catandary", args.keep_days)
             removed_env = prune_old(dest_path, "env", args.keep_days)

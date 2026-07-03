@@ -28,6 +28,7 @@ import json
 import logging
 import time
 
+from pipeline import db as db_mod
 from pipeline.db import get_connection
 from pipeline.foresight import analyze, build_matrix, cluster_signals, load_signals
 
@@ -43,20 +44,25 @@ DEFAULT_K_RANGE = {"global": (16, 30), "vertical": (8, 16)}
 def migrate_foresight_tables() -> None:
     """Create the artifact tables. Idempotent, additive, standalone (not part of
     db.init_db so the live pipeline never touches this migration)."""
+    # Backend-specific bits: SERIAL vs AUTOINCREMENT, CURRENT_TIMESTAMP default.
+    pk = ("id SERIAL PRIMARY KEY" if db_mod.USE_POSTGRES
+          else "id INTEGER PRIMARY KEY AUTOINCREMENT")
+    created = ("created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if db_mod.USE_POSTGRES
+               else "created_at TEXT DEFAULT (datetime('now'))")
     with get_connection() as conn:
         conn.execute(
             "CREATE TABLE IF NOT EXISTS foresight_runs ("
-            " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            f" {pk},"
             " scope TEXT NOT NULL,"            # 'global' | 'vertical:FOOD' | …
             " tier TEXT,"                      # lead-time tier label (radar ring), nullable
             " status_filter TEXT,"
             " k INTEGER, signals INTEGER,"
             " first_month TEXT, last_month TEXT,"
-            " created_at TEXT DEFAULT (datetime('now')))"
+            f" {created})"
         )
         conn.execute(
             "CREATE TABLE IF NOT EXISTS foresight_clusters ("
-            " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            f" {pk},"
             " run_id INTEGER NOT NULL REFERENCES foresight_runs(id),"
             " cluster_idx INTEGER,"
             " label TEXT,"
@@ -120,9 +126,12 @@ def run_snapshot(scope: str, status: str = "signal,published",
     months = result["months"]
 
     with get_connection() as conn:
+        # RETURNING id under PG (the wrapper's .lastrowid reads it); plain
+        # lastrowid under SQLite.
+        returning = " RETURNING id" if db_mod.USE_POSTGRES else ""
         cur = conn.execute(
             "INSERT INTO foresight_runs (scope, tier, status_filter, k, signals,"
-            " first_month, last_month) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            f" first_month, last_month) VALUES (?, ?, ?, ?, ?, ?, ?){returning}",
             (scope, tier, status, k_used, len(rows),
              months[0] if months else None, months[-1] if months else None))
         run_id = cur.lastrowid
