@@ -24,9 +24,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pipeline import anthropic_client
+from pipeline.auto_publisher import _body_complete
+from pipeline.config import STAGE5_MIN_BODY_WORDS
 from pipeline.db import get_connection
-from pipeline.llm_processor import CONTENT_EN_SYSTEM, content_is_clean
+from pipeline.llm_processor import CONTENT_EN_SYSTEM
 from pipeline.models import GeneratedContent
+
+
+def _acceptable(gc: GeneratedContent) -> bool:
+    """Repair acceptance: the new body must be COMPLETE (not truncated) and long
+    enough — but we do NOT reject on clichés here (a complete slightly-clichéd
+    body still beats leaving a truncated one in place)."""
+    body = (gc.body or "").strip()
+    return len(body.split()) >= STAGE5_MIN_BODY_WORDS and _body_complete(body)
 
 TRUNCATED_SQL = (
     "SELECT t.id AS tid, r.title, r.excerpt, r.extraction_json, r.classification_json, "
@@ -119,7 +129,7 @@ def main() -> int:
             return row["tid"], "error", str(e)[:80], None
         if gc is None:
             return row["tid"], "error", "None result", None
-        if not content_is_clean(gc):
+        if not _acceptable(gc):
             return row["tid"], "still_bad", None, None
         return row["tid"], "ok", None, gc
 
