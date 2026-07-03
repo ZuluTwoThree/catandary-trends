@@ -617,9 +617,15 @@ def parse_docdb_document(doc) -> dict | None:
 
 
 def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
-                scratch: str, dry_run: bool) -> dict:
+                scratch: str, dry_run: bool, cpc_filter: str = "",
+                max_outer: int = 0) -> dict:
     """Download the latest delivery of a BDDS DOCDB product, parse the nested
-    per-country XML, filter to our CPC classes + [after, before), insert."""
+    per-country XML, filter to our CPC classes + [after, before), insert.
+
+    cpc_filter: keep only patents with a CPC code starting with this prefix
+    (e.g. 'A23C' for dairy) — narrows a bounded sample. max_outer: cap on the
+    number of outer delivery files downloaded (the full back-file is 162 files
+    / tens of GB — cap it for a bounded validation run)."""
     db.init_db()
     af, bf = int(after.replace("-", "")), int(before.replace("-", ""))
     src_ids: dict[str, int] = {}
@@ -632,11 +638,17 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                           headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}).json()
         delivery = prod["deliveries"][0]
         did = delivery["deliveryId"]
-        logger.info("[bdds] product %s delivery %s '%s' — %d files",
-                    product_id, did, delivery.get("deliveryName"), len(delivery["files"]))
+        logger.info("[bdds] product %s delivery %s '%s' — %d files (cpc_filter=%s, max_outer=%s)",
+                    product_id, did, delivery.get("deliveryName"), len(delivery["files"]),
+                    cpc_filter or "-", max_outer or "all")
+        outer_done = 0
         for f in delivery["files"]:
             if not f["fileName"].lower().endswith(".zip"):
                 continue  # skip coherence CSVs and other non-DOCDB delivery files
+            if max_outer and outer_done >= max_outer:
+                logger.info("  reached max_outer=%d — stopping", max_outer)
+                break
+            outer_done += 1
             zpath = os.path.join(scratch, f["fileName"])
             logger.info("  downloading %s ...", f["fileName"])
             with client.stream("GET", f"{BDDS_API}/products/{product_id}/delivery/{did}/file/{f['fileId']}/download",
@@ -661,6 +673,8 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                             continue
                         rec = parse_docdb_document(docu)
                         if rec is None:
+                            continue
+                        if cpc_filter and not any(c.startswith(cpc_filter) for c in rec["cpc"]):
                             continue
                         st["matched"] += 1
                         if dry_run:
@@ -781,7 +795,9 @@ def main() -> int:
     ap.add_argument("--after", help="YYYY-MM-DD (inclusive)")
     ap.add_argument("--before", help="YYYY-MM-DD (exclusive)")
     ap.add_argument("--max-pages", type=int, default=20, help="epo-ops: pages (×100) per CPC class")
-    ap.add_argument("--max-files", type=int, default=49, help="hf-gpatents: parquet files to scan (≤49)")
+    ap.add_argument("--max-files", type=int, default=49, help="hf-gpatents/bdds: inner files to scan per outer (0=all)")
+    ap.add_argument("--max-outer", type=int, default=0, help="epo-bdds: cap on outer delivery files (0=all; the back file is 162)")
+    ap.add_argument("--cpc-filter", help="epo-bdds: keep only CPC codes with this prefix (e.g. A23C)")
     ap.add_argument("--scratch", default="/tmp", help="hf-gpatents: temp dir for parquet downloads")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--selftest", action="store_true", help="validate parsing without network/creds")
@@ -794,7 +810,8 @@ def main() -> int:
     if args.source == "hf-gpatents":
         ingest_hf_gpatents(args.after, args.before, args.max_files, args.dry_run, args.scratch)
     elif args.source == "epo-bdds":
-        ingest_bdds(args.product, args.after, args.before, args.max_files, args.scratch, args.dry_run)
+        ingest_bdds(args.product, args.after, args.before, args.max_files, args.scratch,
+                    args.dry_run, cpc_filter=args.cpc_filter or "", max_outer=args.max_outer)
     else:
         if not args.vertical:
             ap.error("epo-ops needs --vertical")

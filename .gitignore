@@ -56,3 +56,6 @@ prompts_for_review.txt
 
 # trained distillation heads (reproducible via scripts/train_distill_heads.py)
 models/
+
+# Reference PDFs (blueprints, CPC documentation) — local only
+pdf/
