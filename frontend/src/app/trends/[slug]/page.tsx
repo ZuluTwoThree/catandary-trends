@@ -12,7 +12,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const trend = getTrendBySlug(slug);
+  const trend = await getTrendBySlug(slug);
   if (!trend) return { title: "Trend not found" };
 
   return {
@@ -32,14 +32,16 @@ export default async function TrendArticlePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const trend = getTrendBySlug(slug);
+  const trend = await getTrendBySlug(slug);
   if (!trend) notFound();
 
-  const related = getTrends({
-    status: "published",
-    vertical: trend.primary_vertical,
-    limit: 4,
-  })
+  const related = (
+    await getTrends({
+      status: "published",
+      vertical: trend.primary_vertical,
+      limit: 4,
+    })
+  )
     .filter((t) => t.id !== trend.id)
     .slice(0, 3);
 

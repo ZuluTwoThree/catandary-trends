@@ -30,22 +30,22 @@ export default async function TrendsPage({
   const filters = parseFilterParams(raw);
 
   // Main result set
-  const trends = getTrendsFiltered(filters);
-  const total = getTrendsFilteredCount(filters);
+  const trends = await getTrendsFiltered(filters);
+  const total = await getTrendsFilteredCount(filters);
 
   // Counts for filter controls
-  const scopedVerticalCounts = getVerticalCountsScoped(filters);
-  const globalVerticalCounts = getVerticalCounts("published");
+  const scopedVerticalCounts = await getVerticalCountsScoped(filters);
+  const globalVerticalCounts = await getVerticalCounts("published");
   const totalPublished = Object.values(globalVerticalCounts).reduce(
     (a, b) => a + b,
     0
   );
   // Full analyzed corpus (all pipeline signals, not just published) — the real
   // scale, a trust signal that the published-count alone undersells.
-  const analyzedTotal = getTrendsCount();
+  const analyzedTotal = await getTrendsCount();
 
   // Mega trend options (top 12 by count, respecting status)
-  const megaOptions = getMegaTrends("published")
+  const megaOptions = (await getMegaTrends("published"))
     .slice(0, 12)
     .map((m) => ({
       key: m.mega_trend,
@@ -54,7 +54,7 @@ export default async function TrendsPage({
     }));
 
   // Source options (top 20 for exclude dropdown)
-  const sourceOptions = getTopSourcesByCount(20, "published");
+  const sourceOptions = await getTopSourcesByCount(20, "published");
 
   return (
     <div className="mx-auto max-w-7xl px-6 md:px-10 py-10">

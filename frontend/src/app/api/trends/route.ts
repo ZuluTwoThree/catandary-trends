@@ -12,9 +12,9 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
   const offset = parseInt(searchParams.get("offset") || "0");
 
-  const trends = getTrends({ status, vertical, limit, offset });
-  const total = getTrendsCount({ status, vertical });
-  const verticalCounts = getVerticalCounts(status);
+  const trends = await getTrends({ status, vertical, limit, offset });
+  const total = await getTrendsCount({ status, vertical });
+  const verticalCounts = await getVerticalCounts(status);
 
   return NextResponse.json({
     trends,

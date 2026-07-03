@@ -16,10 +16,10 @@ export async function GET(request: Request) {
     url.searchParams.get("scope") ||
     (vertical ? `vertical:${vertical.toUpperCase()}` : "global");
 
-  const data = getLatestClusterRun(scope);
+  const data = await getLatestClusterRun(scope);
   if (!data) {
     return NextResponse.json(
-      { scope, run: null, clusters: [], available_scopes: getClusterScopes() },
+      { scope, run: null, clusters: [], available_scopes: await getClusterScopes() },
       { status: 200 }
     );
   }
@@ -27,6 +27,6 @@ export async function GET(request: Request) {
     scope,
     run: data.run,
     clusters: data.clusters,
-    available_scopes: getClusterScopes(),
+    available_scopes: await getClusterScopes(),
   });
 }

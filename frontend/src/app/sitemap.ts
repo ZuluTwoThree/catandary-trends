@@ -3,11 +3,11 @@ import { getTrends, getMegaTrends } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://catandary.de";
 
-  const trends = getTrends({ limit: 500 });
-  const megaTrends = getMegaTrends();
+  const trends = await getTrends({ limit: 500 });
+  const megaTrends = await getMegaTrends();
 
   const trendUrls: MetadataRoute.Sitemap = trends.map((trend) => ({
     url: `${baseUrl}/trends/${trend.slug}`,

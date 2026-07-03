@@ -57,8 +57,8 @@ function Stat({ value, label }: { value: string; label: string }) {
   );
 }
 
-export default function MethodologyPage() {
-  const s = getMethodologyStats();
+export default async function MethodologyPage() {
+  const s = await getMethodologyStats();
 
   return (
     <div className="mx-auto max-w-4xl px-6 md:px-10 py-14">

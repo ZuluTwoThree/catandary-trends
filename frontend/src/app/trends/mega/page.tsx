@@ -11,10 +11,10 @@ export const metadata = {
     "Langfristige Cross-Industry Mega-Trends mit Momentum-Tracking aus dem Catandary-Signalnetzwerk.",
 };
 
-export default function MegaTrendsRoute() {
-  const megaTrends = getMegaTrends("published");
+export default async function MegaTrendsRoute() {
+  const megaTrends = await getMegaTrends("published");
   const displayMegaTrends =
-    megaTrends.length > 0 ? megaTrends : getMegaTrends();
+    megaTrends.length > 0 ? megaTrends : await getMegaTrends();
 
   const MOMENTUM_ORDER = { emerging: 0, rising: 1, stable: 2, declining: 3 };
 

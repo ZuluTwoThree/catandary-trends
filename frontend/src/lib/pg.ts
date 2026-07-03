@@ -1,0 +1,47 @@
+import { Pool } from "pg";
+
+/**
+ * PostgreSQL connection pool (singleton per server process).
+ *
+ * Connects via DATABASE_URL when set, otherwise over the local unix socket
+ * (peer auth) to the `catandary` DB — mirrors the pipeline's pipeline/db.py.
+ * Survives Next.js dev-mode HMR via globalThis stashing.
+ */
+declare global {
+  // eslint-disable-next-line no-var
+  var __catandaryPool: Pool | undefined;
+}
+
+function makePool(): Pool {
+  const url = process.env.DATABASE_URL;
+  const pool = url
+    ? new Pool({ connectionString: url, max: 10 })
+    : new Pool({ host: "/var/run/postgresql", database: "catandary", max: 10 });
+  pool.on("error", (err) => console.error("pg pool error:", err.message));
+  return pool;
+}
+
+export function getPool(): Pool {
+  if (!globalThis.__catandaryPool) {
+    globalThis.__catandaryPool = makePool();
+  }
+  return globalThis.__catandaryPool;
+}
+
+/** Query helper: rows only. */
+export async function q<T = Record<string, unknown>>(
+  text: string,
+  params: unknown[] = []
+): Promise<T[]> {
+  const res = await getPool().query(text, params as never[]);
+  return res.rows as T[];
+}
+
+/** Query helper: first row or null. */
+export async function q1<T = Record<string, unknown>>(
+  text: string,
+  params: unknown[] = []
+): Promise<T | null> {
+  const rows = await q<T>(text, params);
+  return rows[0] ?? null;
+}

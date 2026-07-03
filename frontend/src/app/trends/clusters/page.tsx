@@ -11,16 +11,16 @@ export const metadata = {
     "Cross-Industry Trend-Cluster und Mega-Trend-Übersicht. Powered by Catandary Foresight.",
 };
 
-export default function ClustersPage() {
-  const megaTrends = getMegaTrends("published").slice(0, 8);
-  const displayMega = megaTrends.length > 0 ? megaTrends : getMegaTrends().slice(0, 8);
+export default async function ClustersPage() {
+  const megaTrends = (await getMegaTrends("published")).slice(0, 8);
+  const displayMega = megaTrends.length > 0 ? megaTrends : (await getMegaTrends()).slice(0, 8);
 
-  const crossVertical = getCrossVerticalTrends({ status: "published", limit: 6 });
+  const crossVertical = await getCrossVerticalTrends({ status: "published", limit: 6 });
   const displayCross = crossVertical.length > 0
     ? crossVertical
-    : getCrossVerticalTrends({ limit: 6 });
+    : await getCrossVerticalTrends({ limit: 6 });
 
-  const topTrends = getTopTrendsByEngagement(6);
+  const topTrends = await getTopTrendsByEngagement(6);
 
   const enrichedMega = displayMega.map((mt) => ({
     ...mt,

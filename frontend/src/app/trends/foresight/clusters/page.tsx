@@ -27,10 +27,10 @@ export default async function ClustersExplorerPage({
   const requested = typeof raw.vertical === "string" ? raw.vertical.toUpperCase() : null;
   const scope = requested ? `vertical:${requested}` : "global";
 
-  const available = new Set(getClusterScopes());
+  const available = new Set(await getClusterScopes());
   const data =
-    getLatestClusterRun(scope) ??
-    (scope !== "global" ? getLatestClusterRun("global") : null);
+    (await getLatestClusterRun(scope)) ??
+    (scope !== "global" ? await getLatestClusterRun("global") : null);
 
   // Default sort: what's moving — rising first (by SoV delta), then size.
   const clusters = (data?.clusters ?? [])

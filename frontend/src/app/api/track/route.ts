@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Database from "better-sqlite3";
-import path from "path";
+import { q, q1 } from "@/lib/pg";
 
 export const dynamic = "force-dynamic";
-
-const DB_PATH =
-  process.env.DATABASE_PATH ||
-  path.join(process.cwd(), "..", "data", "catandary.db");
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,31 +16,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid event" }, { status: 400 });
     }
 
-    const db = new Database(DB_PATH);
-    try {
-      const existing = db
-        .prepare("SELECT id FROM trend_metrics WHERE trend_id = ?")
-        .get(trend_id) as { id: number } | undefined;
+    const existing = await q1<{ id: number }>(
+      "SELECT id FROM trend_metrics WHERE trend_id = $1",
+      [trend_id]
+    );
 
-      if (!existing) {
-        db.prepare(
-          "INSERT INTO trend_metrics (trend_id, page_views, shares, updated_at) VALUES (?, ?, ?, datetime('now'))"
-        ).run(
-          trend_id,
-          event === "page_view" ? 1 : 0,
-          event === "share" ? 1 : 0
-        );
-      } else {
-        const column = event === "page_view" ? "page_views" : "shares";
-        db.prepare(
-          `UPDATE trend_metrics SET ${column} = ${column} + 1, updated_at = datetime('now') WHERE trend_id = ?`
-        ).run(trend_id);
-      }
-
-      return NextResponse.json({ ok: true });
-    } finally {
-      db.close();
+    if (!existing) {
+      await q(
+        "INSERT INTO trend_metrics (trend_id, page_views, shares, updated_at) VALUES ($1, $2, $3, NOW())",
+        [trend_id, event === "page_view" ? 1 : 0, event === "share" ? 1 : 0]
+      );
+    } else {
+      const column = event === "page_view" ? "page_views" : "shares";
+      await q(
+        `UPDATE trend_metrics SET ${column} = COALESCE(${column}, 0) + 1, updated_at = NOW() WHERE trend_id = $1`,
+        [trend_id]
+      );
     }
+
+    return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Track error:", error);
     return NextResponse.json({ error: "Tracking failed" }, { status: 500 });

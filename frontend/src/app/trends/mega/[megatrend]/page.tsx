@@ -29,7 +29,7 @@ export async function generateMetadata({
   params: Promise<{ megatrend: string }>;
 }): Promise<Metadata> {
   const { megatrend } = await params;
-  const allMega = getMegaTrends();
+  const allMega = await getMegaTrends();
   const match = findMegaTrend(megatrend, allMega);
   if (!match) return { title: "Mega-Trend nicht gefunden" };
 
@@ -48,13 +48,13 @@ export default async function MegaTrendPage({
   params: Promise<{ megatrend: string }>;
 }) {
   const { megatrend } = await params;
-  const allMega = getMegaTrends();
+  const allMega = await getMegaTrends();
   const match = findMegaTrend(megatrend, allMega);
   if (!match) notFound();
 
-  let trends = getTrendsByMegaTrend(match.mega_trend, { status: "published" });
+  let trends = await getTrendsByMegaTrend(match.mega_trend, { status: "published" });
   if (trends.length === 0) {
-    trends = getTrendsByMegaTrend(match.mega_trend);
+    trends = await getTrendsByMegaTrend(match.mega_trend);
   }
 
   return (

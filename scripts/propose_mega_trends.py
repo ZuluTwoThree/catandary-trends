@@ -41,11 +41,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
 import yaml
-from sklearn.cluster import KMeans
+from pydantic import BaseModel
+from sklearn.cluster import KMeans, MiniBatchKMeans
 from sklearn.metrics import silhouette_score
 
 from pipeline.config import (
-    PROJECT_ROOT, load_mega_trends, STAGE_8B_MODEL, STAGE_8B_BACKEND,
+    PROJECT_ROOT, load_mega_trends,
 )
 from pipeline.db import get_connection
 
@@ -98,11 +99,20 @@ def pick_k(X: np.ndarray, lo: int, hi: int) -> int:
         return max(2, min(lo, n // 20))
     sample = X if n <= 4000 else X[np.random.default_rng(42).choice(n, 4000, replace=False)]
     best_k, best_s = lo, -1.0
+    scores: list[tuple[int, float]] = []
     for k in range(lo, hi + 1):
         labels = KMeans(n_clusters=k, n_init=4, random_state=42).fit_predict(sample)
         s = silhouette_score(sample, labels, sample_size=min(2000, len(sample)), random_state=42)
+        scores.append((k, s))
         if s > best_s:
             best_k, best_s = k, s
+    # Show the silhouette-vs-k curve so the "natural k" is visible (a peak inside
+    # the range = a real optimum; a rise all the way to `hi` = the data supports
+    # even finer granularity and the range should be widened).
+    print("k-scan (silhouette on a 4k sample):")
+    print("  " + "  ".join(f"{k}:{s:.3f}" + ("*" if k == best_k else "") for k, s in scores))
+    at_edge = " [AT UPPER EDGE — widen --k-range to find the true optimum]" if best_k == hi else ""
+    print(f"  → chosen k={best_k} (silhouette {best_s:.3f}){at_edge}\n")
     return best_k
 
 
@@ -129,27 +139,37 @@ def sov_momentum(members: list[dict], all_month_totals: Counter, months: list[st
 
 
 # ------------------------------------------------------------------ LLM labeling
-def llm_label(top_tags: list[str], titles: list[str]) -> dict | None:
-    """Name + describe a NEW candidate cluster via the local llama-server."""
-    from pydantic import BaseModel
+class MegaLabel(BaseModel):
+    name_en: str
+    name_de: str
+    description: str
 
-    class MegaLabel(BaseModel):
-        name_en: str
-        name_de: str
-        description: str
 
-    from pipeline import llamacpp_client
-    sys_p = ("You name cross-industry MEGA-TRENDS (10-25 year horizon) for a trend "
-             "intelligence taxonomy. Given representative signal titles and tags, "
-             "output a broad, durable mega-trend name (not a narrow product), a "
-             "German name, and a one-sentence description. Broad and timeless, not "
-             "a passing micro-trend.")
+_LABEL_SYS = ("You name cross-industry MEGA-TRENDS (10-25 year horizon) for a trend "
+              "intelligence taxonomy. Given representative signal titles and tags, "
+              "output a broad, durable mega-trend name (not a narrow product), a "
+              "German name, and a one-sentence description. Broad and timeless, not "
+              "a passing micro-trend.")
+
+
+def llm_label(top_tags: list[str], titles: list[str], model: str,
+              backend: str = "anthropic") -> dict | None:
+    """Name + describe a NEW candidate cluster. backend='anthropic' uses the
+    given Claude model (better naming quality); 'local' uses the llama-server 8B."""
     prompt = ("Representative titles:\n- " + "\n- ".join(titles[:8]) +
               "\n\nTop tags: " + ", ".join(top_tags[:12]) +
               "\n\nName this mega-trend.")
     try:
-        r = llamacpp_client.chat_structured(model=STAGE_8B_MODEL, prompt=prompt,
-                                            schema=MegaLabel, system=sys_p, temperature=0.3)
+        if backend == "anthropic":
+            from pipeline import anthropic_client
+            r = anthropic_client.chat_structured(model=model, prompt=prompt,
+                                                 schema=MegaLabel, system=_LABEL_SYS,
+                                                 temperature=None)
+        else:
+            from pipeline import llamacpp_client
+            r = llamacpp_client.chat_structured(model=model, prompt=prompt,
+                                                schema=MegaLabel, system=_LABEL_SYS,
+                                                temperature=0.3)
         return r.model_dump() if r else None
     except Exception:
         return None
@@ -188,6 +208,10 @@ def main() -> int:
                     help="absolute cohesion floor for a NEW candidate (the effective bar is "
                          "max(this, median cluster cohesion) — below it a no-dominant cluster is NOISE)")
     ap.add_argument("--no-label", action="store_true", help="skip LLM naming (use tag-derived names)")
+    ap.add_argument("--label-backend", choices=["anthropic", "local"], default="anthropic",
+                    help="NEW-candidate naming: anthropic (better) | local llama-server 8B")
+    ap.add_argument("--label-model", default="claude-sonnet-5",
+                    help="model for NEW-candidate naming (anthropic backend)")
     ap.add_argument("--out", default=str(PROJECT_ROOT / "mega_trends.candidate.yaml"))
     args = ap.parse_args()
 
@@ -200,8 +224,18 @@ def main() -> int:
 
     lo, hi = (int(x) for x in args.k_range.split(","))
     k = args.k or pick_k(X, lo, hi)
-    print(f"clustering {X.shape[0]}×{X.shape[1]} into k={k} at mega-altitude (spherical KMeans) ...\n")
-    km = KMeans(n_clusters=k, n_init=8, random_state=42).fit(X)
+    # Full KMeans (n_init=8) is too costly above ~100k points; MiniBatchKMeans
+    # gives near-identical mega-altitude clusters far faster (rows are L2-normalized
+    # → Euclidean ≈ cosine).
+    if X.shape[0] > 100_000:
+        print(f"clustering {X.shape[0]}×{X.shape[1]} into k={k} at mega-altitude "
+              f"(MiniBatchKMeans) ...\n")
+        km = MiniBatchKMeans(n_clusters=k, batch_size=4096, n_init=3,
+                             random_state=42).fit(X)
+    else:
+        print(f"clustering {X.shape[0]}×{X.shape[1]} into k={k} at mega-altitude "
+              f"(spherical KMeans) ...\n")
+        km = KMeans(n_clusters=k, n_init=8, random_state=42).fit(X)
     labels, centroids = km.labels_, km.cluster_centers_
 
     # global monthly totals (SoV denominator)
@@ -274,8 +308,9 @@ def main() -> int:
         print(f"     • {a['rep'][0][:88] if a['rep'] else '—'}")
         if a["verdict"] == "NEW":
             label = None
-            if not args.no_label and STAGE_8B_BACKEND == "llamacpp":
-                label = llm_label(a["tags"], a["rep"])
+            if not args.no_label:
+                label = llm_label(a["tags"], a["rep"],
+                                  model=args.label_model, backend=args.label_backend)
             if (label or {}).get("name_en"):
                 name_en = label["name_en"]
             else:

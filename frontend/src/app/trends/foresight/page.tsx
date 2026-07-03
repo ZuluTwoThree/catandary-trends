@@ -9,10 +9,10 @@ export const metadata = {
     "Semantische Trend-Suche mit Signal-Timeline, Lead-Time-Analyse und Cross-Vertical-Insights.",
 };
 
-export default function ForesightRoute() {
+export default async function ForesightRoute() {
   // Default content for the empty state: the top rising clusters, so the page
   // shows value before any query (value-first, low-threshold UX).
-  const run = getLatestClusterRun("global");
+  const run = await getLatestClusterRun("global");
   const topClusters = (run?.clusters ?? [])
     .slice()
     .sort((a, b) => b.sov_delta_pp - a.sov_delta_pp || b.size - a.size)

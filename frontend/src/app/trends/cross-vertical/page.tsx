@@ -11,10 +11,10 @@ export const metadata = {
     "Trend-Signale, die mehrere Branchen gleichzeitig betreffen.",
 };
 
-export default function CrossVerticalPage() {
-  let trends = getCrossVerticalTrends({ status: "published", limit: 50 });
+export default async function CrossVerticalPage() {
+  let trends = await getCrossVerticalTrends({ status: "published", limit: 50 });
   if (trends.length === 0) {
-    trends = getCrossVerticalTrends({ limit: 50 });
+    trends = await getCrossVerticalTrends({ limit: 50 });
   }
 
   return (
