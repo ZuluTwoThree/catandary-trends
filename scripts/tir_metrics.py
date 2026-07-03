@@ -15,15 +15,22 @@ cluster, the validated patent metrics from the citation graph (`patent_links`):
                             (shorter ⇒ faster TIR; best-effort, cited year parsed)
   - Hub patent             = the cluster's most forward-cited (foundational) patent
 
-Clusters are ranked by Immediate Importance — a relative "which trend is improving
-fastest" ordering (absolute k% needs the calibrated regression + performance data).
+Domain scoping: --vertical (primary_vertical) or --cpc PREFIX (via patent_cpc,
+e.g. A23C = dairy) — the latter defines the domain the way the TIR literature
+does (a CPC technology area), with the embedding clusters as its semantic
+sub-themes.
 
-Caveats: forward citations counted are *within-corpus* (our ingested patents) —
-broader/absolute counts need the full citation graph (DOCDB world pull). SPNP
-network centrality (Triulzi, ~64% variance) is a TODO once the graph is broad.
+Ranking: by Immediate Importance (the r≈0.76 metric) when forward citations are
+live; otherwise by Cycle Time (backward-only, computable on any graph) with the
+forward metrics honestly marked data-gated. Forward metrics need OUR patents to
+be cited by other in-corpus patents → near-empty until the broad DOCDB back-file
+(#8/#14) makes the graph dense in both directions. SPNP network centrality
+(Triulzi, ~64% variance) is a TODO once the graph is broad. Absolute k% needs the
+calibrated regression + performance data.
 
     python scripts/tir_metrics.py --vertical TECH
-    python scripts/tir_metrics.py --vertical HEALTH --k 8 --examiner-only
+    python scripts/tir_metrics.py --cpc A23C --k 3        # dairy sub-domains
+    python scripts/tir_metrics.py --vertical HEALTH --examiner-only
 """
 from __future__ import annotations
 
@@ -60,8 +67,10 @@ def year_of(pub_number: str, corpus_year: dict[str, int]) -> int | None:
     return None
 
 
-def load_patents(vertical: str, limit: int) -> list[dict]:
+def load_patents(vertical: str, limit: int, cpc: str = "") -> list[dict]:
     """Patent signals for a vertical: embedding + pub_number + year + tags/mega_trend.
+    `cpc` scopes to a CPC prefix via patent_cpc (e.g. 'A23C' = dairy) — the
+    domain is then CPC-defined and the clusters are its semantic sub-themes.
     Postgres-aware: embedding is a pgvector (cast + parse), published_date a
     timestamp (cast to text before substr), tags jsonb (already a list)."""
     emb_col = "t.embedding::text" if db_mod.USE_POSTGRES else "t.embedding"
@@ -70,9 +79,16 @@ def load_patents(vertical: str, limit: int) -> list[dict]:
     sql = (f"SELECT t.id, re.pub_number AS pub_number, {emb_col} AS embedding, "
            f"       t.tags, t.mega_trend, {date_col} AS yr "
            "FROM trends t JOIN raw_entries re ON t.raw_entry_id = re.id "
-           "WHERE t.primary_vertical = ? AND t.status='signal' "
+           "WHERE t.status='signal' "
            "AND t.embedding IS NOT NULL AND re.pub_number IS NOT NULL")
-    params = [vertical]
+    params: list = []
+    if cpc:
+        sql += (" AND EXISTS (SELECT 1 FROM patent_cpc pc "
+                "WHERE pc.pub_number = re.pub_number AND pc.cpc LIKE ?)")
+        params.append(cpc + "%")
+    else:
+        sql += " AND t.primary_vertical = ?"
+        params.append(vertical)
     if limit:
         sql += " LIMIT ?"
         params.append(limit)
@@ -123,7 +139,10 @@ def load_forward_index(examiner_only: bool) -> dict[str, list[str]]:
     if examiner_only:
         q += " AND category='EXA'"
     with get_connection() as c:
-        for src, dst in c.execute(q).fetchall():
+        for r in c.execute(q).fetchall():
+            # access by name: the PG wrapper yields dict rows — tuple-unpacking
+            # them silently binds the COLUMN NAMES, collapsing the whole graph
+            src, dst = (r["src_pub"], r["dst_pub"]) if isinstance(r, dict) else (r[0], r[1])
             fwd[dst].append(src)
     return fwd
 
@@ -132,7 +151,8 @@ def backward_index() -> dict[str, list[str]]:
     """src_pub -> list of cited dst_pub (backward citations, for Cycle Time)."""
     bwd: dict[str, list[str]] = defaultdict(list)
     with get_connection() as c:
-        for src, dst in c.execute("SELECT src_pub, dst_pub FROM patent_links WHERE link_type='cites'").fetchall():
+        for r in c.execute("SELECT src_pub, dst_pub FROM patent_links WHERE link_type='cites'").fetchall():
+            src, dst = (r["src_pub"], r["dst_pub"]) if isinstance(r, dict) else (r[0], r[1])
             bwd[src].append(dst)
     return bwd
 
@@ -164,16 +184,18 @@ def top_tags(items: list[dict], n=5) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description="TIR metrics on patent clusters")
     ap.add_argument("--vertical", default="TECH")
+    ap.add_argument("--cpc", default="", help="scope by CPC prefix via patent_cpc (e.g. A23C) instead of vertical")
     ap.add_argument("--k", type=int, help="cluster count (default: silhouette)")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--examiner-only", action="store_true",
                     help="count only examiner (EXA) citations — drops applicant self-cites")
     args = ap.parse_args()
 
-    items = load_patents(args.vertical, args.limit)
-    print(f"{args.vertical} patent signals with embedding+pub_number: {len(items)}")
+    items = load_patents(args.vertical, args.limit, cpc=args.cpc)
+    scope = args.cpc or args.vertical
+    print(f"{scope} patent signals with embedding+pub_number: {len(items)}")
     if len(items) < 50:
-        print("too few patents for clustering"); return 1
+        print("too few patents for clustering (need >=50)"); return 1
     corpus_year = load_corpus_years()  # ALL patent entries, not just this vertical
     print(f"corpus year map: {len(corpus_year)} patents with known publication year")
     fwd = load_forward_index(args.examiner_only)
@@ -225,19 +247,41 @@ def main() -> int:
             "tags": top_tags(members),
         })
 
-    rows.sort(key=lambda r: -r["imm"])  # rank by Immediate Importance (the r≈0.76 metric)
-    print("Cluster-Ranking nach predicted-TIR (Immediate Importance = ø Forward-Zitate in 3 J):\n")
+    # Forward metrics (Immediate Importance / Forward-Rate) need OUR patents to be
+    # CITED by other in-corpus patents — near-empty until the broad DOCDB back-file
+    # lands (#8). When forward coverage is negligible, ranking by Immediate
+    # Importance is meaningless; fall back to the backward-only signal that IS
+    # computable now — Cycle Time (shorter ⇒ faster TIR) among clusters with enough
+    # coverage. This keeps the ranking honest and correct on the current graph.
+    total_fwd = sum(r["fwd"] * r["n"] for r in rows)
+    forward_live = total_fwd >= 1.0
+    if forward_live:
+        rows.sort(key=lambda r: -r["imm"])
+        basis = "Immediate Importance (ø Forward-Zitate in 3 J, r≈0.76)"
+    else:
+        # shorter cycle time first; clusters without coverage sink to the bottom
+        rows.sort(key=lambda r: (r["cycle"] if r["cyc_cov"] >= 20 else 1e9))
+        basis = "Cycle Time (Forward-Metriken noch daten-gegated → siehe Hinweis)"
+
+    print(f"Cluster-Ranking nach predicted-TIR — Basis: {basis}\n")
     for i, r in enumerate(rows, 1):
         cyc = f"{r['cycle']:.0f}J" if r["cycle"] is not None else "n/a"
         rec = f"{r['recency']:.0f}" if r["recency"] else "?"
+        ii = f"{r['imm']:.2f}" if forward_live else "n/a*"
+        fr = f"{r['fwd']:.2f}" if forward_live else "n/a*"
         print(f"━━ #{i}  Cluster {r['lab']}  ·  {r['n']} Patente  ·  mega={r['mega']}")
-        print(f"   ⭐ Immediate Importance: {r['imm']:.2f}   | Forward-Rate: {r['fwd']:.2f}"
-              f"   | Recency: {rec}   | Cycle Time: {cyc} (cov {r['cyc_cov']})")
-        print(f"   Hub-Patent: {r['hub']} ({r['hub_cites']} Forward-Zitate)")
+        print(f"   Cycle Time: {cyc} (cov {r['cyc_cov']})   | Recency: {rec}"
+              f"   | Immediate Importance: {ii}   | Forward-Rate: {fr}")
+        if forward_live:
+            print(f"   Hub-Patent: {r['hub']} ({r['hub_cites']} Forward-Zitate)")
         print(f"   Tags: {', '.join(r['tags'])}\n")
 
-    print("Lesart: höhere Immediate Importance + neuere Recency + kürzere Cycle Time")
-    print("        ⇒ höhere Technology Improvement Rate (schneller verbesserndes Feld).")
+    print("Lesart: kürzere Cycle Time + neuere Recency (+ höhere Immediate Importance,")
+    print("        sobald verfügbar) ⇒ höhere Technology Improvement Rate.")
+    if not forward_live:
+        print("\n* Forward-Metriken (Immediate Importance / Forward-Rate) benötigen einen")
+        print("  beidseitig dichten Zitationsgraphen — erst mit dem DOCDB-Back-File (#8/#14)")
+        print("  aussagekräftig. Cycle Time ist backward-only und schon jetzt korrekt.")
     print("TODO: SPNP-Netzwerk-Zentralität (Triulzi, ~64% Varianz) — braucht breiteren Graphen (DOCDB).")
     return 0
 

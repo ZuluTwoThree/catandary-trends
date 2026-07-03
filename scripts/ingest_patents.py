@@ -618,7 +618,7 @@ def parse_docdb_document(doc) -> dict | None:
 
 def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                 scratch: str, dry_run: bool, cpc_filter: str = "",
-                max_outer: int = 0) -> dict:
+                max_outer: int = 0, skip_outer: int = 0) -> dict:
     """Download the latest delivery of a BDDS DOCDB product, parse the nested
     per-country XML, filter to our CPC classes + [after, before), insert.
 
@@ -642,9 +642,13 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                     product_id, did, delivery.get("deliveryName"), len(delivery["files"]),
                     cpc_filter or "-", max_outer or "all")
         outer_done = 0
+        outer_seen = 0
         for f in delivery["files"]:
             if not f["fileName"].lower().endswith(".zip"):
                 continue  # skip coherence CSVs and other non-DOCDB delivery files
+            outer_seen += 1
+            if skip_outer and outer_seen <= skip_outer:
+                continue  # resume: outer files already processed in a previous run
             if max_outer and outer_done >= max_outer:
                 logger.info("  reached max_outer=%d — stopping", max_outer)
                 break
@@ -797,6 +801,7 @@ def main() -> int:
     ap.add_argument("--max-pages", type=int, default=20, help="epo-ops: pages (×100) per CPC class")
     ap.add_argument("--max-files", type=int, default=49, help="hf-gpatents/bdds: inner files to scan per outer (0=all)")
     ap.add_argument("--max-outer", type=int, default=0, help="epo-bdds: cap on outer delivery files (0=all; the back file is 162)")
+    ap.add_argument("--skip-outer", type=int, default=0, help="epo-bdds: skip the first N outer files (resume a previous run)")
     ap.add_argument("--cpc-filter", help="epo-bdds: keep only CPC codes with this prefix (e.g. A23C)")
     ap.add_argument("--scratch", default="/tmp", help="hf-gpatents: temp dir for parquet downloads")
     ap.add_argument("--dry-run", action="store_true")
@@ -811,7 +816,8 @@ def main() -> int:
         ingest_hf_gpatents(args.after, args.before, args.max_files, args.dry_run, args.scratch)
     elif args.source == "epo-bdds":
         ingest_bdds(args.product, args.after, args.before, args.max_files, args.scratch,
-                    args.dry_run, cpc_filter=args.cpc_filter or "", max_outer=args.max_outer)
+                    args.dry_run, cpc_filter=args.cpc_filter or "", max_outer=args.max_outer,
+                    skip_outer=args.skip_outer)
     else:
         if not args.vertical:
             ap.error("epo-ops needs --vertical")
