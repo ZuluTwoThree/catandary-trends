@@ -90,6 +90,14 @@ def vertical_for_cpc(cpc_list) -> str | None:
     return None
 
 
+def _dashed_key(country: str, number: str, kind: str) -> str:
+    """Canonical patent node key: country-number-kind (e.g. AU-2012247900-B9).
+    The shared format across OPS/BDDS/HF ingest + the patent_links graph — the
+    citation-graph joins and kind_code() all assume the dashes."""
+    country, number, kind = (country or "").strip(), (number or "").strip(), (kind or "").strip()
+    return f"{country}-{number}-{kind}" if country and number else ""
+
+
 def kind_code(pub_number: str) -> str:
     """Patent kind code = trailing segment of the publication number (US-123-B2 -> B2).
     A1/A2 = application (first publication), B1/B2 = grant, U = utility model, T = translation."""
@@ -546,12 +554,20 @@ def parse_docdb_document(doc) -> dict | None:
     bib = doc.find(f"{_EXCH}bibliographic-data")
     if bib is None:
         return None
-    pub = ""
-    for pr in bib.findall(f"{_EXCH}publication-reference"):
-        if pr.get("data-format") == "epodoc":
-            pub = _dt(pr.find("document-id/doc-number"))
+    # Canonical DASHED key (country-number-kind), matching the citation graph +
+    # the OPS/HF ingest. The exchange-document carries country/doc-number/kind as
+    # attributes with the FULL kind; the epodoc doc-number is concatenated AND
+    # truncates the kind (B9 -> B), which would orphan the patent from the graph.
+    pub = _dashed_key(doc.get("country", ""), doc.get("doc-number", ""), doc.get("kind", ""))
+    if not pub:  # fallback to the data-format="docdb" publication-reference
+        for pr in bib.findall(f"{_EXCH}publication-reference"):
+            if pr.get("data-format") == "docdb":
+                did = pr.find("document-id")
+                if did is not None:
+                    pub = _dashed_key(_dt(did.find("country")), _dt(did.find("doc-number")),
+                                      _dt(did.find("kind")))
     if not pub:
-        pub = f"{doc.get('country','')}{doc.get('doc-number','')}{doc.get('kind','')}"
+        return None
     title = next((_dt(t) for t in bib.findall(f"{_EXCH}invention-title") if t.get("lang") == "en"), "")
     if not title:
         return None
@@ -580,17 +596,24 @@ def parse_docdb_document(doc) -> dict | None:
     links = []
     for pc in doc.iter():  # citations live under references-cited/citation/patcit
         if pc.tag.endswith("patcit"):
-            d = _dt(pc.find("document-id/doc-number"))
+            did = pc.find("document-id")
+            # cited doc-id also carries country/doc-number/kind — build the dashed
+            # dst so edges match the node keys (a bare doc-number never joined).
+            d = _dashed_key(_dt(did.find("country")), _dt(did.find("doc-number")),
+                            _dt(did.find("kind"))) if did is not None else ""
             if d:
                 links.append((pub, d, "cites", None))
     for fm in doc.iter(f"{_EXCH}family-member"):
-        d = _dt(fm.find(".//doc-number"))
+        did = fm.find("document-id")
+        d = _dashed_key(_dt(did.find("country")), _dt(did.find("doc-number")),
+                        _dt(did.find("kind"))) if did is not None else ""
         if d and d != pub:
             links.append((pub, d, "family", None))
     return {"title": title, "abstract": abstract, "pub_number": pub, "pub_date": pub_date,
             "applicant": applicant, "cpc": cpc[:8], "cpc_struct": cpc_struct, "vertical": vert,
-            "url": f"https://worldwide.espacenet.com/patent/search/publication/{pub}",
-            "kind_code": doc.get("kind", ""), "links": links}
+            # espacenet url uses the concatenated form (no dashes)
+            "url": f"https://worldwide.espacenet.com/patent/search/publication/{pub.replace('-', '')}",
+            "kind_code": doc.get("kind", "") or kind_code(pub), "links": links}
 
 
 def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
