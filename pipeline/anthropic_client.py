@@ -47,14 +47,18 @@ def _get_client():
 
 
 def _parse_kwargs(model: str, prompt: str, schema: type[T],
-                  system: str | None, temperature: float) -> dict:
+                  system: str | None, temperature: float | None) -> dict:
     kwargs = {
         "model": model,
         "max_tokens": _MAX_TOKENS,
-        "temperature": temperature,
         "messages": [{"role": "user", "content": prompt}],
         "output_format": schema,
     }
+    # The Claude 5 family (e.g. claude-sonnet-5) rejects `temperature` outright.
+    # Only send it when set — callers pass None (or it's dropped on the deprecation
+    # error below) to omit it and use the model's default.
+    if temperature is not None:
+        kwargs["temperature"] = temperature
     if system:
         # Cache the (large, stable) system prefix — read at ~0.1x on subsequent
         # calls within the 5-min TTL. The taxonomy/mega-trend block dominates the
@@ -65,7 +69,7 @@ def _parse_kwargs(model: str, prompt: str, schema: type[T],
 
 
 def chat_structured(model: str, prompt: str, schema: type[T],
-                    system: str | None = None, temperature: float = 0.0,
+                    system: str | None = None, temperature: float | None = 0.0,
                     fallback_model: str | None = None) -> T | None:
     """Synchronous structured call to Claude. Returns a validated `schema`
     instance, or `None` on refusal / exhausted retries (callers treat `None` as
@@ -75,9 +79,10 @@ def chat_structured(model: str, prompt: str, schema: type[T],
         logger.error("anthropic backend unavailable (no ANTHROPIC_API_KEY or SDK)")
         return None
 
+    temp: float | None = temperature
     for attempt in range(MAX_RETRIES):
         try:
-            resp = client.messages.parse(**_parse_kwargs(model, prompt, schema, system, temperature))
+            resp = client.messages.parse(**_parse_kwargs(model, prompt, schema, system, temp))
             if getattr(resp, "stop_reason", None) == "refusal":
                 logger.warning("anthropic refusal for %s", model)
                 return None
@@ -86,6 +91,12 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                 return out
             raise ValueError("parsed_output is None")
         except Exception as e:  # noqa: BLE001 — mirror ollama_client behaviour
+            # Newer models deprecate `temperature`; drop it and retry immediately
+            # (don't burn a backoff on a fixable request error).
+            if temp is not None and "temperature" in str(e) and "deprecated" in str(e):
+                logger.info("anthropic: %s rejects temperature — retrying without it", model)
+                temp = None
+                continue
             logger.warning("anthropic attempt %d/%d failed (%s): %s",
                            attempt + 1, MAX_RETRIES, model, e)
             if attempt < MAX_RETRIES - 1:
