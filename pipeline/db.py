@@ -611,6 +611,127 @@ def insert_patent_cpc(rows: list[tuple]) -> int:
         return len(rows)
 
 
+# --- OpenAlex graph layer (issue #9) — science analog of the patent graph -----
+
+def _migrate_openalex_graph():
+    """Science-signal graph layer (issue #9), mirroring the patent graph:
+    raw_entries.openalex_id = node key (analog pub_number);
+    openalex_citations = referenced_works edges (analog patent_links);
+    openalex_topics = Topic/Subfield/Field/Domain rows (analog patent_cpc);
+    openalex_meta = native forward-velocity (cited_by_count, counts_by_year)
+    + type (preprint = earliest tier) + is_retracted (negative signal).
+    Idempotent."""
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            conn.execute("ALTER TABLE raw_entries ADD COLUMN IF NOT EXISTS openalex_id TEXT")
+        else:
+            try:
+                conn.execute("ALTER TABLE raw_entries ADD COLUMN openalex_id TEXT")
+            except Exception as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS openalex_citations ("
+            " src_id TEXT NOT NULL,"      # citing work (our ingested work)
+            " dst_id TEXT NOT NULL,"      # referenced work (OpenAlex id, self-contained)
+            " UNIQUE(src_id, dst_id))")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_oacit_src ON openalex_citations(src_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_oacit_dst ON openalex_citations(dst_id)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS openalex_topics ("
+            " work_id TEXT NOT NULL,"
+            " topic_id TEXT NOT NULL,"    # T####
+            " topic TEXT," " subfield TEXT," " field TEXT," " domain TEXT,"
+            " score REAL,"
+            " is_primary INTEGER DEFAULT 0,"
+            " UNIQUE(work_id, topic_id))")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_oatop_work ON openalex_topics(work_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_oatop_sub ON openalex_topics(subfield)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS openalex_meta ("
+            " work_id TEXT PRIMARY KEY,"
+            " cited_by_count INTEGER,"
+            " counts_by_year TEXT,"       # JSON [{year, cited_by_count}, …]
+            " work_type TEXT,"            # article | preprint | review | …
+            " is_retracted INTEGER DEFAULT 0)")
+
+
+def insert_openalex_citations(rows: list[tuple]) -> int:
+    """Batch (src_id, dst_id) edges; idempotent on UNIQUE(src,dst)."""
+    if not rows:
+        return 0
+    with get_connection() as conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO openalex_citations (src_id, dst_id) VALUES (?, ?)", rows)
+        return len(rows)
+
+
+def insert_openalex_topics(rows: list[tuple]) -> int:
+    """Batch (work_id, topic_id, topic, subfield, field, domain, score, is_primary)."""
+    if not rows:
+        return 0
+    with get_connection() as conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO openalex_topics "
+            "(work_id, topic_id, topic, subfield, field, domain, score, is_primary) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)", rows)
+        return len(rows)
+
+
+def insert_openalex_meta(rows: list[tuple]) -> int:
+    """Batch (work_id, cited_by_count, counts_by_year_json, work_type, is_retracted).
+    Upsert — a re-ingest refreshes the forward-velocity counters."""
+    if not rows:
+        return 0
+    # dedup within-batch by work_id (keep last) — ON CONFLICT DO UPDATE can't hit
+    # the same target row twice in one statement (a work can recur across pages)
+    rows = list({r[0]: r for r in rows}.values())
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            import psycopg2.extras
+            cur = conn._conn.cursor()
+            psycopg2.extras.execute_values(
+                cur,
+                "INSERT INTO openalex_meta (work_id, cited_by_count, counts_by_year, "
+                "work_type, is_retracted) VALUES %s "
+                "ON CONFLICT (work_id) DO UPDATE SET cited_by_count = EXCLUDED.cited_by_count, "
+                "counts_by_year = EXCLUDED.counts_by_year, is_retracted = EXCLUDED.is_retracted",
+                rows, page_size=max(len(rows), 1000))
+            return len(rows)
+        conn.executemany(
+            "INSERT OR REPLACE INTO openalex_meta (work_id, cited_by_count, counts_by_year, "
+            "work_type, is_retracted) VALUES (?, ?, ?, ?, ?)", rows)
+        return len(rows)
+
+
+def insert_raw_entries_batch_oa(rows: list[tuple]) -> int:
+    """Bulk raw-entry insert incl. openalex_id (node key). Row shape:
+    (source_id, url, title, excerpt, published_date, openalex_id)."""
+    if not rows:
+        return 0
+    rows = list({r[1]: r for r in rows}.values())  # dedup by url within batch
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            import psycopg2.extras
+            cur = conn._conn.cursor()
+            # On a url-conflict (the work was already ingested as a text-layer
+            # journal/concept entry), backfill the openalex_id node key so the
+            # existing row joins the graph — don't just skip it.
+            psycopg2.extras.execute_values(
+                cur,
+                "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date, "
+                "openalex_id) VALUES %s ON CONFLICT (url) DO UPDATE SET "
+                "openalex_id = COALESCE(raw_entries.openalex_id, EXCLUDED.openalex_id)",
+                rows, page_size=max(len(rows), 1000))
+            return max(cur.rowcount, 0)
+        for r in rows:
+            conn.execute(
+                "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date, openalex_id) "
+                "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(url) DO UPDATE SET "
+                "openalex_id = COALESCE(raw_entries.openalex_id, excluded.openalex_id)", r)
+        return len(rows)
+
+
 def backfill_patent_cpc_from_excerpt(batch: int = 5000) -> int:
     """One-off: populate patent_cpc for already-ingested patents by parsing the
     'CPC: ...' field out of their excerpt (lossy — only the ≤6 codes the excerpt
@@ -662,6 +783,7 @@ def init_db():
     _migrate_trends_sort_date()
     _migrate_patent_graph()
     _migrate_patent_cpc()
+    _migrate_openalex_graph()
 
 
 # --- Source Operations ---

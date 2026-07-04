@@ -147,6 +147,64 @@ def landing_url(work: dict) -> str:
     return loc.get("landing_page_url") or work.get("doi") or work.get("id") or ""
 
 
+def _short(oa_id: str) -> str:
+    """OpenAlex URL id -> short id (https://openalex.org/W123 -> W123)."""
+    return (oa_id or "").rsplit("/", 1)[-1]
+
+
+# --- Graph layer (issue #9): Subfield display-name -> Catandary vertical.
+# Deterministic like vertical_for_cpc, but on the OpenAlex topic hierarchy
+# (domain->field->subfield). Keyword-matched on the subfield (then field) name so
+# it survives OpenAlex re-numbering; unmapped -> CROSS (kept, refinable later).
+SUBFIELD_VERTICAL: list[tuple[str, str]] = [
+    # FOOD
+    ("food science", "FOOD"), ("agronomy", "FOOD"), ("crop science", "FOOD"),
+    ("animal science", "FOOD"), ("horticulture", "FOOD"), ("agricultural", "FOOD"),
+    ("soil science", "FOOD"), ("aquaculture", "FOOD"),
+    # HEALTH
+    ("medicine", "HEALTH"), ("pharmacology", "HEALTH"), ("pharmaceutical", "HEALTH"),
+    ("immunology", "HEALTH"), ("microbiology", "HEALTH"), ("genetics", "HEALTH"),
+    ("biochemistry", "HEALTH"), ("neuroscience", "HEALTH"), ("oncology", "HEALTH"),
+    ("cardiology", "HEALTH"), ("physiology", "HEALTH"), ("cell biology", "HEALTH"),
+    ("molecular biology", "HEALTH"), ("nursing", "HEALTH"), ("public health", "HEALTH"),
+    ("psychiatry", "HEALTH"), ("epidemiology", "HEALTH"), ("endocrinology", "HEALTH"),
+    ("nutrition", "HEALTH"), ("biotechnology", "HEALTH"),
+    # TECH
+    ("artificial intelligence", "TECH"), ("computer", "TECH"), ("software", "TECH"),
+    ("signal processing", "TECH"), ("electrical", "TECH"), ("electronic", "TECH"),
+    ("information systems", "TECH"), ("human-computer", "TECH"), ("telecommunication", "TECH"),
+    ("computer vision", "TECH"), ("machine learning", "TECH"), ("robotics", "TECH"),
+    ("semiconductor", "TECH"),
+    # ECO
+    ("environmental", "ECO"), ("renewable energy", "ECO"), ("ecology", "ECO"),
+    ("pollution", "ECO"), ("climate", "ECO"), ("waste", "ECO"), ("sustainability", "ECO"),
+    ("energy engineering", "ECO"), ("water", "ECO"), ("atmospheric", "ECO"),
+    # BIZ
+    ("business", "BIZ"), ("economics", "BIZ"), ("finance", "BIZ"), ("management", "BIZ"),
+    ("marketing", "BIZ"), ("accounting", "BIZ"),
+    # DESIGN
+    ("architecture", "DESIGN"), ("building", "DESIGN"), ("urban", "DESIGN"),
+    # FASHION
+    ("textile", "FASHION"), ("polymer", "FASHION"),
+    # LIFESTYLE
+    ("tourism", "LIFESTYLE"), ("media", "LIFESTYLE"), ("communication", "LIFESTYLE"),
+    ("sports science", "LIFESTYLE"), ("education", "LIFESTYLE"),
+]
+
+
+def vertical_for_topic(primary_topic: dict | None) -> str:
+    """Route a work to a vertical by its primary topic's subfield (then field)
+    display name. Unmapped -> CROSS (never dropped)."""
+    if not primary_topic:
+        return "CROSS"
+    for level in ("subfield", "field"):
+        name = ((primary_topic.get(level) or {}).get("display_name") or "").lower()
+        for kw, vert in SUBFIELD_VERTICAL:
+            if kw in name:
+                return vert
+    return "CROSS"
+
+
 # --- Concept-expansion mode (issue #4): pull the SCIENCE tier by topic across ALL
 # journals, not journal-by-journal. Targets the pre-2020 research history the
 # lead-time validation found missing (science->market lead reads ~0 because the
@@ -205,6 +263,105 @@ def iter_works_by_concept(client: httpx.Client, cid: str, after: str, before: st
             yield w
         cursor = data.get("meta", {}).get("next_cursor")
         time.sleep(0.2)
+
+
+def iter_works_graph(client: httpx.Client, filt: str):
+    """Cursor-paginate works with the FULL graph select (issue #9): referenced_works
+    (citation edges), topics (domain layer), cited_by_count + counts_by_year
+    (native forward velocity), type + is_retracted."""
+    cursor = "*"
+    while cursor:
+        data = _get(client, f"{OPENALEX}/works", {
+            "filter": filt, "per_page": 100, "cursor": cursor,
+            "select": "id,title,publication_date,abstract_inverted_index,doi,"
+                      "primary_location,type,cited_by_count,counts_by_year,"
+                      "is_retracted,referenced_works,primary_topic,topics",
+        })
+        if data is None:
+            return
+        for w in data.get("results", []):
+            yield w
+        cursor = data.get("meta", {}).get("next_cursor")
+        time.sleep(0.15)
+
+
+def ingest_topic_graph(scope: str, after: str, before: str, min_citations: int,
+                       cap: int, dry_run: bool) -> dict:
+    """Graph-layer ingest (issue #9). `scope` = an OpenAlex topic id (T#####),
+    a subfield id (subfields/####), or a free-text search. Pulls each work as a
+    SCIENCE-tier node (raw_entries.openalex_id) + citation edges + topic rows +
+    native forward-velocity meta. GPU-free, no LLM (vertical is topic-derived)."""
+    st = {"works": 0, "inserted": 0, "duplicates": 0, "skipped": 0,
+          "edges": 0, "topics": 0}
+    raw_buf, cit_buf, top_buf, meta_buf = [], [], [], []
+    src_ids: dict[str, int] = {}
+
+    if scope.upper().startswith("T") and scope[1:].isdigit():
+        filt = f"primary_topic.id:{scope}"
+    elif scope.startswith("subfields/"):
+        filt = f"primary_topic.subfield.id:https://openalex.org/{scope}"
+    else:
+        filt = f"default.search:{scope}"
+    filt += (f",from_publication_date:{after},to_publication_date:{before}"
+             f",cited_by_count:>{min_citations}")
+
+    with httpx.Client(headers=HEADERS) as client:
+        logger.info("[openalex-graph] scope=%s | %s..%s | cited>%d cap=%d",
+                    scope, after, before, min_citations, cap)
+        for w in iter_works_graph(client, filt):
+            st["works"] += 1
+            wid = _short(w.get("id"))
+            url = landing_url(w)
+            title = (w.get("title") or "").strip()
+            if not wid or not url or not title:
+                st["skipped"] += 1
+                continue
+            vert = vertical_for_topic(w.get("primary_topic"))
+            if dry_run:
+                st["inserted"] += 1
+                if st["inserted"] >= cap:
+                    break
+                continue
+            if vert not in src_ids:
+                src_ids[vert] = db.upsert_source(
+                    name=f"OpenAlex Science ({vert})",
+                    feed_url=f"openalex://science/{vert}", source_type="research", vertical=vert)
+            excerpt = "[Science · OpenAlex] " + reconstruct_abstract(
+                w.get("abstract_inverted_index"))
+            raw_buf.append((src_ids[vert], url, title, excerpt[:2000],
+                            w.get("publication_date"), wid))
+            for dst in w.get("referenced_works", []):
+                cit_buf.append((wid, _short(dst)))
+            for i, tp in enumerate(w.get("topics", []) or []):
+                top_buf.append((wid, _short(tp.get("id")), (tp.get("display_name") or "")[:120],
+                                ((tp.get("subfield") or {}).get("display_name") or "")[:80],
+                                ((tp.get("field") or {}).get("display_name") or "")[:80],
+                                ((tp.get("domain") or {}).get("display_name") or "")[:60],
+                                tp.get("score"), 1 if i == 0 else 0))
+            import json as _json
+            meta_buf.append((wid, w.get("cited_by_count"),
+                             _json.dumps(w.get("counts_by_year") or []),
+                             w.get("type"), 1 if w.get("is_retracted") else 0))
+            st["inserted"] += 1
+            if len(raw_buf) >= 2000:
+                ins = db.insert_raw_entries_batch_oa(raw_buf)
+                st["duplicates"] += len(raw_buf) - ins
+                st["edges"] += db.insert_openalex_citations(cit_buf)
+                st["topics"] += db.insert_openalex_topics(top_buf)
+                db.insert_openalex_meta(meta_buf)
+                raw_buf.clear(); cit_buf.clear(); top_buf.clear(); meta_buf.clear()
+            if st["inserted"] >= cap:
+                break
+        if raw_buf:
+            ins = db.insert_raw_entries_batch_oa(raw_buf)
+            st["duplicates"] += len(raw_buf) - ins
+            st["edges"] += db.insert_openalex_citations(cit_buf)
+            st["topics"] += db.insert_openalex_topics(top_buf)
+            db.insert_openalex_meta(meta_buf)
+    tag = "[dry] würde einfügen" if dry_run else "eingefügt"
+    print(f"[graph] {scope}: {st['works']} works | {tag} {st['inserted']} | "
+          f"{st['duplicates']} dup | {st['edges']} edges | {st['topics']} topics | {st['skipped']} skip")
+    return st
 
 
 def ingest_concept(concept: str, vertical: str, after: str, before: str,
@@ -305,8 +462,18 @@ def main() -> int:
                     help="concept mode: only works with cited_by_count above this "
                          "(noise gate; meaningful for pre-2020 works)")
     ap.add_argument("--cap", type=int, default=3000, help="concept mode: max inserts per concept")
+    ap.add_argument("--graph", help="graph mode (#9): OpenAlex topic id (T#####), "
+                    "subfield id (subfields/####), or free-text search — ingests the "
+                    "full graph layer (nodes + citation edges + topics + forward velocity)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+
+    # Graph mode (issue #9) — the science graph layer
+    if args.graph:
+        db.init_db()  # ensure openalex_* tables exist
+        s = ingest_topic_graph(args.graph, args.after, args.before,
+                               args.min_citations, args.cap, args.dry_run)
+        return 0 if s["works"] or args.dry_run else 1
 
     # Journal mode (unchanged)
     if args.source_name:
