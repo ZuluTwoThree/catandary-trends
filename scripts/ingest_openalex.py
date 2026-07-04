@@ -285,6 +285,26 @@ def iter_works_graph(client: httpx.Client, filt: str):
         time.sleep(0.15)
 
 
+def science_subfields(vertical_filter: str = "") -> list[tuple[str, str, str]]:
+    """(subfield_id, display_name, vertical) for every OpenAlex subfield that
+    routes to one of our verticals (via vertical_for_topic on the subfield name).
+    Fetched live so it stays in sync with OpenAlex's 252-subfield taxonomy.
+    vertical_filter='' → all non-CROSS; else that vertical only."""
+    out: list[tuple[str, str, str]] = []
+    with httpx.Client(headers=HEADERS) as client:
+        data = _get(client, f"{OPENALEX}/subfields",
+                    {"per_page": 200, "select": "id,display_name"})
+    for s in (data or {}).get("results", []):
+        name = s.get("display_name") or ""
+        vert = vertical_for_topic({"subfield": {"display_name": name}})
+        if vert == "CROSS":
+            continue
+        if vertical_filter and vert != vertical_filter.upper():
+            continue
+        out.append((s["id"].rsplit("/", 1)[-1], name, vert))
+    return out
+
+
 def ingest_topic_graph(scope: str, after: str, before: str, min_citations: int,
                        cap: int, dry_run: bool) -> dict:
     """Graph-layer ingest (issue #9). `scope` = an OpenAlex topic id (T#####),
@@ -465,8 +485,27 @@ def main() -> int:
     ap.add_argument("--graph", help="graph mode (#9): OpenAlex topic id (T#####), "
                     "subfield id (subfields/####), or free-text search — ingests the "
                     "full graph layer (nodes + citation edges + topics + forward velocity)")
+    ap.add_argument("--science-sweep", metavar="VERTICAL",
+                    help="broaden science: graph-ingest EVERY relevant OpenAlex subfield "
+                         "(a vertical, or ALL). Deep historical science backbone.")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+
+    # Science sweep (#9 breadth) — graph-ingest across all relevant subfields
+    if args.science_sweep:
+        db.init_db()
+        vf = "" if args.science_sweep.upper() == "ALL" else args.science_sweep
+        subs = science_subfields(vf)
+        logger.info("[science-sweep] %d subfields | %s..%s | cited>%d cap=%d/subfield",
+                    len(subs), args.after, args.before, args.min_citations, args.cap)
+        grand = 0
+        for sid, name, vert in subs:
+            logger.info("── subfield %s (%s → %s)", sid, name, vert)
+            s = ingest_topic_graph(f"subfields/{sid}", args.after, args.before,
+                                   args.min_citations, args.cap, args.dry_run)
+            grand += s["inserted"]
+        logger.info("[science-sweep] DONE: %d inserted across %d subfields", grand, len(subs))
+        return 0
 
     # Graph mode (issue #9) — the science graph layer
     if args.graph:
