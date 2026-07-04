@@ -457,7 +457,7 @@ def _distill_signal_type(e: dict) -> str:
         return "patent"
     if st == "research" or any(m in sn for m in ("arxiv", "rxiv", "preprint")):
         return "research"
-    if st == "api" and any(m in sn for m in ("nsf", "nih", "reporter", "openaire", "ukri")):
+    if st == "api" and any(m in sn for m in ("nsf", "nih", "reporter", "openaire", "ukri", "form d")):
         return "funding"
     return "market_shift"
 
