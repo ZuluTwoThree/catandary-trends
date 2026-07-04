@@ -88,6 +88,9 @@ def _safe_insert(source_id: int, url: str, title: str, excerpt: str,
     """db.insert_raw_entry with retry on transient SQLite write-lock contention
     (the signal pipeline may be writing the same DB). Duplicates return None and
     are handled inside insert_raw_entry."""
+    # Postgres rejects NUL (0x00) in text — some NIH/OpenAIRE abstracts carry them.
+    title = (title or "").replace("\x00", "")
+    excerpt = (excerpt or "").replace("\x00", "")
     for i in range(tries):
         try:
             return db.insert_raw_entry(source_id, url, title, excerpt, pub)
