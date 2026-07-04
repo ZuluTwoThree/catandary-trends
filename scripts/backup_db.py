@@ -119,15 +119,18 @@ def main() -> int:
                     help="Prune snapshots older than this many days")
     ap.add_argument("--skip-postgres", action="store_true",
                     help="only snapshot SQLite (skip pg_dump)")
+    ap.add_argument("--skip-sqlite", action="store_true",
+                    help="skip the SQLite snapshot (it is the frozen fallback since "
+                         "the Postgres migration — one archived copy suffices)")
     args = ap.parse_args()
 
-    if not args.db.exists():
+    if not args.skip_sqlite and not args.db.exists():
         log(f"ERROR: source DB missing: {args.db}")
         return 1
 
     date_tag = datetime.now().strftime("%Y-%m-%d")
-    db_size_mb = args.db.stat().st_size / 1e6
-    log(f"backup start — DB={args.db} ({db_size_mb:.1f} MB), "
+    src = "postgres-only" if args.skip_sqlite else f"{args.db} ({args.db.stat().st_size/1e6:.1f} MB)"
+    log(f"backup start — DB={src}, "
         f"{len(args.dest)} destination(s), keep_days={args.keep_days}")
 
     failures = 0
@@ -135,8 +138,12 @@ def main() -> int:
         dest_path = Path(dest)
         try:
             t0 = time.time()
-            snap_path = dest_path / f"catandary-{date_tag}.db.gz"
-            size = snapshot_db(args.db, snap_path)
+
+            if not args.skip_sqlite:
+                snap_path = dest_path / f"catandary-{date_tag}.db.gz"
+                size = snapshot_db(args.db, snap_path)
+                ratio = size / args.db.stat().st_size
+                log(f"  {dest}: sqlite {size/1e6:.1f} MB ({ratio*100:.0f}% of source)")
 
             if args.env.exists():
                 shutil.copy2(args.env, dest_path / f"env-{date_tag}")
@@ -148,10 +155,7 @@ def main() -> int:
 
             removed_db = prune_old(dest_path, "catandary", args.keep_days)
             removed_env = prune_old(dest_path, "env", args.keep_days)
-
-            ratio = size / args.db.stat().st_size
-            log(f"  {dest}: {size/1e6:.1f} MB ({ratio*100:.0f}% of source), "
-                f"pruned {removed_db}+{removed_env} old, {time.time()-t0:.1f}s")
+            log(f"  {dest}: pruned {removed_db}+{removed_env} old, {time.time()-t0:.1f}s")
         except Exception as e:
             log(f"  {dest}: FAILED ({e!r})")
             failures += 1
