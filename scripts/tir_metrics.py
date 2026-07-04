@@ -107,54 +107,70 @@ def load_patents(vertical: str, limit: int, cpc: str = "") -> list[dict]:
     return out
 
 
-def load_corpus_years() -> dict[str, int]:
-    """pub_number -> publication year for EVERY patent raw entry (all verticals,
-    incl. unprocessed back-file rows). Cited patents are mostly outside the
-    analyzed vertical's signal set — resolving their year from the whole corpus
-    (instead of parsing it out of the number, which fails for CN/EP formats)
-    is what makes Cycle Time / Immediacy actually computable."""
-    years: dict[str, int] = {}
-    date_col = ("substr(published_date::text,1,4)" if db_mod.USE_POSTGRES
-                else "substr(published_date,1,4)")
+def _iter_scoped(c, sql_pg: str, sql_lite: str, pubs: list[str]):
+    """Run a scope-parameterized query: PG gets the whole list as an ARRAY
+    (= ANY), SQLite gets chunked IN-lists."""
+    if db_mod.USE_POSTGRES:
+        yield from c.execute(sql_pg, (pubs,)).fetchall()
+    else:
+        for i in range(0, len(pubs), 900):
+            chunk = pubs[i:i + 900]
+            ph = ",".join("?" * len(chunk))
+            yield from c.execute(sql_lite.format(ph=ph), chunk).fetchall()
+
+
+def scoped_citation_stats(pubs: list[str], examiner_only: bool):
+    """Forward/backward citation stats for the scope pubs only, resolved in SQL.
+    (The full graph — 112M edges post-back-file — no longer fits in RAM; loading
+    it whole OOM-killed the run. The scope is a few thousand embedded patents,
+    so scoped index lookups + a year join return only what main() consumes.)
+
+    Returns (fwd_cnt, fwd_years, bwd_years):
+      fwd_cnt[pub]   = number of citing patents (forward rate / hub)
+      fwd_years[pub] = publication years of citing patents, where known (immediacy)
+      bwd_years[pub] = publication years of cited patents, where known (cycle time)
+    """
+    fwd_cnt: dict[str, int] = defaultdict(int)
+    fwd_years: dict[str, list[int]] = defaultdict(list)
+    bwd_years: dict[str, list[int]] = defaultdict(list)
+    cat = " AND pl.category='EXA'" if examiner_only else ""
+    dexpr_pg = "substr(r.published_date::text,1,4)"
+    dexpr_lite = "substr(r.published_date,1,4)"
+
+    def _year(v):
+        try:
+            y = int(v)
+        except (TypeError, ValueError):
+            return None
+        return y if 1900 <= y <= 2030 else None
+
     with get_connection() as c:
-        for r in c.execute(
-                f"SELECT pub_number, {date_col} AS yr FROM raw_entries "
-                "WHERE pub_number IS NOT NULL AND published_date IS NOT NULL").fetchall():
-            pub = r["pub_number"] if isinstance(r, dict) else r[0]
-            yr = r["yr"] if isinstance(r, dict) else r[1]
-            try:
-                y = int(yr)
-            except (TypeError, ValueError):
-                continue
-            if 1900 <= y <= 2030:
-                years[pub] = y
-    return years
-
-
-def load_forward_index(examiner_only: bool) -> dict[str, list[str]]:
-    """dst_pub -> list of citing src_pub (forward citations, inverted graph).
-    examiner_only drops applicant (APP) citations — a self-citation proxy."""
-    fwd: dict[str, list[str]] = defaultdict(list)
-    q = "SELECT src_pub, dst_pub FROM patent_links WHERE link_type='cites'"
-    if examiner_only:
-        q += " AND category='EXA'"
-    with get_connection() as c:
-        for r in c.execute(q).fetchall():
-            # access by name: the PG wrapper yields dict rows — tuple-unpacking
-            # them silently binds the COLUMN NAMES, collapsing the whole graph
-            src, dst = (r["src_pub"], r["dst_pub"]) if isinstance(r, dict) else (r[0], r[1])
-            fwd[dst].append(src)
-    return fwd
-
-
-def backward_index() -> dict[str, list[str]]:
-    """src_pub -> list of cited dst_pub (backward citations, for Cycle Time)."""
-    bwd: dict[str, list[str]] = defaultdict(list)
-    with get_connection() as c:
-        for r in c.execute("SELECT src_pub, dst_pub FROM patent_links WHERE link_type='cites'").fetchall():
-            src, dst = (r["src_pub"], r["dst_pub"]) if isinstance(r, dict) else (r[0], r[1])
-            bwd[src].append(dst)
-    return bwd
+        # forward: who cites the scope, and in which year (year of the CITING src)
+        fwd_pg = (f"SELECT pl.dst_pub AS pub, {dexpr_pg} AS yr FROM patent_links pl "
+                  "LEFT JOIN raw_entries r ON r.pub_number = pl.src_pub "
+                  f"WHERE pl.link_type='cites'{cat} AND pl.dst_pub = ANY(?)")
+        fwd_lite = (f"SELECT pl.dst_pub AS pub, {dexpr_lite} AS yr FROM patent_links pl "
+                    "LEFT JOIN raw_entries r ON r.pub_number = pl.src_pub "
+                    f"WHERE pl.link_type='cites'{cat} AND pl.dst_pub IN ({{ph}})")
+        for r in _iter_scoped(c, fwd_pg, fwd_lite, pubs):
+            pub, yr = (r["pub"], r["yr"]) if isinstance(r, dict) else (r[0], r[1])
+            fwd_cnt[pub] += 1
+            y = _year(yr)
+            if y:
+                fwd_years[pub].append(y)
+        # backward: whom the scope cites, in which year (year of the CITED dst)
+        bwd_pg = (f"SELECT pl.src_pub AS pub, {dexpr_pg} AS yr FROM patent_links pl "
+                  "LEFT JOIN raw_entries r ON r.pub_number = pl.dst_pub "
+                  "WHERE pl.link_type='cites' AND pl.src_pub = ANY(?)")
+        bwd_lite = (f"SELECT pl.src_pub AS pub, {dexpr_lite} AS yr FROM patent_links pl "
+                    "LEFT JOIN raw_entries r ON r.pub_number = pl.dst_pub "
+                    "WHERE pl.link_type='cites' AND pl.src_pub IN ({ph})")
+        for r in _iter_scoped(c, bwd_pg, bwd_lite, pubs):
+            pub, yr = (r["pub"], r["yr"]) if isinstance(r, dict) else (r[0], r[1])
+            y = _year(yr)
+            if y:
+                bwd_years[pub].append(y)
+    return fwd_cnt, fwd_years, bwd_years
 
 
 def pick_k(X: np.ndarray, lo=6, hi=12) -> int:
@@ -196,11 +212,10 @@ def main() -> int:
     print(f"{scope} patent signals with embedding+pub_number: {len(items)}")
     if len(items) < 50:
         print("too few patents for clustering (need >=50)"); return 1
-    corpus_year = load_corpus_years()  # ALL patent entries, not just this vertical
-    print(f"corpus year map: {len(corpus_year)} patents with known publication year")
-    fwd = load_forward_index(args.examiner_only)
-    bwd = backward_index()
-    print(f"citation graph: {sum(len(v) for v in fwd.values())} forward edges"
+    scope_pubs = [it["pub"] for it in items]
+    fwd_cnt, fwd_years, bwd_years = scoped_citation_stats(scope_pubs, args.examiner_only)
+    print(f"citation graph (scoped in SQL): {sum(fwd_cnt.values())} forward edges onto "
+          f"{len(fwd_cnt)} scope patents"
           f"{' (examiner-only)' if args.examiner_only else ''}\n")
 
     X = np.asarray([it["vec"] for it in items], dtype=np.float32)
@@ -221,19 +236,16 @@ def main() -> int:
         hub = (None, -1)
         for m in members:
             my = m["year"]
-            citers = fwd.get(m["pub"], [])
-            fwd_list.append(len(citers))
-            if len(citers) > hub[1]:
-                hub = (m["pub"], len(citers))
+            n_citers = fwd_cnt.get(m["pub"], 0)
+            fwd_list.append(n_citers)
+            if n_citers > hub[1]:
+                hub = (m["pub"], n_citers)
             if my:
-                imm = sum(1 for s in citers
-                          if (sy := year_of(s, corpus_year)) and 0 <= sy - my <= 3)
+                imm = sum(1 for sy in fwd_years.get(m["pub"], ()) if 0 <= sy - my <= 3)
                 imm_list.append(imm)
-            # Cycle Time: ages of this patent's backward citations (where cited year known)
-            if my:
-                for dst in bwd.get(m["pub"], []):
-                    dy = year_of(dst, corpus_year)
-                    if dy and 0 <= my - dy <= 60:
+                # Cycle Time: ages of this patent's backward citations (where cited year known)
+                for dy in bwd_years.get(m["pub"], ()):
+                    if 0 <= my - dy <= 60:
                         cyc_list.append(my - dy)
         rows.append({
             "lab": lab, "n": len(members),
