@@ -109,22 +109,43 @@ def probe_wp(client, base: str) -> int | None:
     return None
 
 
-def db_trade_domains() -> list[tuple[str, str, str]]:
-    """(base_url, name, vertical) for all active trade_media/press_wire sources —
-    the universe to sweep for WordPress archives (--all/--probe)."""
-    seen: dict[str, tuple[str, str]] = {}
-    with db.get_connection() as c:
-        rows = c.execute(
-            "SELECT feed_url, name, vertical FROM sources "
-            "WHERE source_type IN ('trade_media','press_wire') AND active = true").fetchall()
-    for r in rows:
-        url = r["feed_url"] if isinstance(r, dict) else r[0]
-        name = r["name"] if isinstance(r, dict) else r[1]
-        vert = (r["vertical"] if isinstance(r, dict) else r[2]) or "CROSS"
-        d = domain_of(url)
-        if d and not d.startswith("wp") and d not in seen:
-            seen[d] = (name, vert)
-    return [(f"https://{d}", nv[0], nv[1]) for d, nv in seen.items()]
+def yaml_wp_targets(skip_capped: bool) -> list[dict]:
+    """Trade/press sources from sources.yaml with their per-source WP strategy
+    (wp_categories scoping, ingest_cap). The deep backfill skips `ingest_cap`
+    sources — those are the flagged entertainment/low-yield giants (Variety,
+    Hollywood Reporter, WWD, Robb Report …) that add little foresight and are
+    already GPU-expensive to filter; and keeps each clean source's category
+    scoping. One entry per domain."""
+    cfg = load_sources()
+    seen: set[str] = set()
+    out: list[dict] = []
+    for vert, groups in cfg.get("verticals", {}).items():
+        for key in ("sources", "science"):
+            for s in groups.get(key, []) or []:
+                if not isinstance(s, dict):
+                    continue
+                if s.get("type") not in (None, "trade_media", "press_wire"):
+                    continue
+                d = domain_of(s.get("feed_url", ""))
+                if not d or d in seen:
+                    continue
+                if skip_capped and s.get("ingest_cap"):
+                    continue  # flagged entertainment/low-yield giant — skip the deep pull
+                seen.add(d)
+                out.append({
+                    "base": f"https://{d}", "name": s.get("name") or d,
+                    "feed_url": s.get("feed_url", ""), "type": s.get("type", "trade_media"),
+                    "vertical": vert, "cap": s.get("ingest_cap"),
+                    "categories": _csv_ids(s.get("wp_categories")),
+                    "categories_exclude": _csv_ids(s.get("wp_categories_exclude")),
+                })
+    return out
+
+
+def _csv_ids(v):
+    if v is None:
+        return None
+    return ",".join(str(x) for x in v) if isinstance(v, (list, tuple)) else str(v)
 
 
 def ingest_one(client, base: str, source_name: str, feed_url: str, source_type: str,
@@ -170,7 +191,9 @@ def ingest_one(client, base: str, source_name: str, feed_url: str, source_type: 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source-name", help="single-source mode (from sources.yaml)")
-    ap.add_argument("--all", action="store_true", help="sweep every WP-capable trade source (from DB)")
+    ap.add_argument("--all", action="store_true", help="deep-sweep WP-capable trade sources (sources.yaml)")
+    ap.add_argument("--include-capped", action="store_true",
+                    help="--all: also include the ingest_cap'd entertainment giants (default: skip)")
     ap.add_argument("--probe", action="store_true", help="only list WP-capable sources + archive sizes")
     ap.add_argument("--base-url", help="override; else derived from sources.yaml feed_url")
     ap.add_argument("--after", help="YYYY-MM-DD (inclusive)")
@@ -190,26 +213,31 @@ def main():
         # --probe: list which trade sources expose the WP API + archive sizes
         if args.probe:
             wp = []
-            for base, name, vert in db_trade_domains():
-                total = probe_wp(client, base)
+            for tgt in yaml_wp_targets(skip_capped=not args.include_capped):
+                total = probe_wp(client, tgt["base"])
                 if total:
-                    wp.append((base, name, vert, total))
-                    print(f"  {base[8:]:34s} {vert:9s} ~{total:>7} posts  ({name[:26]})")
-            print(f"\n{len(wp)} WordPress-capable trade sources.")
+                    wp.append(tgt)
+                    print(f"  {tgt['base'][8:]:34s} {tgt['vertical']:9s} ~{total:>7} posts  ({tgt['name'][:26]})")
+            print(f"\n{len(wp)} WordPress-capable trade sources"
+                  f"{' (incl. capped)' if args.include_capped else ' (entertainment giants skipped)'}.")
             return
 
-        # --all: sweep every WP-capable trade source (breadth backfill)
+        # --all: deep-sweep, respecting each source's sources.yaml strategy
         if args.all:
             if not (args.after and args.before):
                 ap.error("--all needs --after and --before")
-            srcs = db_trade_domains()
-            print(f"[wp-all] scanning {len(srcs)} domains for WordPress | {args.after}..{args.before}")
+            tgts = yaml_wp_targets(skip_capped=not args.include_capped)
+            print(f"[wp-all] {len(tgts)} candidate domains | {args.after}..{args.before} | "
+                  f"{'incl. capped' if args.include_capped else 'entertainment giants skipped'}")
             grand = 0
-            for base, name, vert in srcs:
-                if probe_wp(client, base) is None:
+            for tgt in tgts:
+                if probe_wp(client, tgt["base"]) is None:
                     continue
-                st = ingest_one(client, base, name, base, "trade_media", vert,
-                                args.after, args.before, args.max_per_month, None, None, args.dry_run)
+                # deep backfill: no cap for the clean sources, but keep their
+                # category scoping (the existing relevance strategy)
+                st = ingest_one(client, tgt["base"], tgt["name"], tgt["feed_url"], tgt["type"],
+                                tgt["vertical"], args.after, args.before, args.max_per_month,
+                                tgt["categories"], tgt["categories_exclude"], args.dry_run)
                 grand += st["inserted"]
             print(f"\n[wp-all] DONE: {grand} inserted across WordPress archives")
             return
