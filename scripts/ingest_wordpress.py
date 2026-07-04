@@ -97,12 +97,84 @@ def fetch_month(client, base, after, before, cap=None, categories=None, categori
     return posts
 
 
+def probe_wp(client, base: str) -> int | None:
+    """Total post count if the WP REST API is live, else None."""
+    try:
+        r = client.get(f"{base}/wp-json/wp/v2/posts", params={"per_page": 1, "_fields": "id"},
+                       timeout=12, follow_redirects=True)
+        if r.status_code == 200 and isinstance(r.json(), list):
+            return int(r.headers.get("X-WP-Total", "0"))
+    except Exception:
+        return None
+    return None
+
+
+def db_trade_domains() -> list[tuple[str, str, str]]:
+    """(base_url, name, vertical) for all active trade_media/press_wire sources —
+    the universe to sweep for WordPress archives (--all/--probe)."""
+    seen: dict[str, tuple[str, str]] = {}
+    with db.get_connection() as c:
+        rows = c.execute(
+            "SELECT feed_url, name, vertical FROM sources "
+            "WHERE source_type IN ('trade_media','press_wire') AND active = true").fetchall()
+    for r in rows:
+        url = r["feed_url"] if isinstance(r, dict) else r[0]
+        name = r["name"] if isinstance(r, dict) else r[1]
+        vert = (r["vertical"] if isinstance(r, dict) else r[2]) or "CROSS"
+        d = domain_of(url)
+        if d and not d.startswith("wp") and d not in seen:
+            seen[d] = (name, vert)
+    return [(f"https://{d}", nv[0], nv[1]) for d, nv in seen.items()]
+
+
+def ingest_one(client, base: str, source_name: str, feed_url: str, source_type: str,
+               vertical: str, after: str, before: str, cap, categories,
+               categories_exclude, dry_run: bool) -> dict:
+    """Ingest one WordPress site's archive over [after, before). Batched inserts."""
+    source_id = -1 if dry_run else db.upsert_source(
+        name=source_name, feed_url=feed_url or base, source_type=source_type, vertical=vertical)
+    stats = {"fetched": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
+    buf: list[tuple] = []
+    for a, b in month_chunks(after, before):
+        posts = fetch_month(client, base, a, b, cap=cap,
+                            categories=categories, categories_exclude=categories_exclude)
+        stats["fetched"] += len(posts)
+        for p in posts:
+            url = (p.get("link") or "").strip()
+            title = strip_html(p.get("title", {}).get("rendered", ""))
+            excerpt = strip_html(p.get("excerpt", {}).get("rendered", ""))
+            if not excerpt:
+                excerpt = strip_html(p.get("content", {}).get("rendered", ""))[:2000]
+            pub = (p.get("date") or "")[:19].replace("T", " ")
+            if not url or not title:
+                stats["skipped"] += 1
+                continue
+            if dry_run:
+                stats["inserted"] += 1
+                continue
+            buf.append((source_id, url, title, excerpt[:2000], pub or None))
+            if len(buf) >= 2000:
+                ins = db.insert_raw_entries_market_batch(buf)
+                stats["inserted"] += ins
+                stats["duplicates"] += len(buf) - ins
+                buf.clear()
+    if buf and not dry_run:
+        ins = db.insert_raw_entries_market_batch(buf)
+        stats["inserted"] += ins
+        stats["duplicates"] += len(buf) - ins
+    print(f"  {source_name}: fetched {stats['fetched']} | inserted {stats['inserted']} | "
+          f"{stats['duplicates']} dup | {stats['skipped']} skip")
+    return stats
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--source-name", required=True)
+    ap.add_argument("--source-name", help="single-source mode (from sources.yaml)")
+    ap.add_argument("--all", action="store_true", help="sweep every WP-capable trade source (from DB)")
+    ap.add_argument("--probe", action="store_true", help="only list WP-capable sources + archive sizes")
     ap.add_argument("--base-url", help="override; else derived from sources.yaml feed_url")
-    ap.add_argument("--after", required=True, help="YYYY-MM-DD (inclusive)")
-    ap.add_argument("--before", required=True, help="YYYY-MM-DD (exclusive)")
+    ap.add_argument("--after", help="YYYY-MM-DD (inclusive)")
+    ap.add_argument("--before", help="YYYY-MM-DD (exclusive)")
     ap.add_argument("--max-per-month", type=int, help="cap posts/month (overrides sources.yaml ingest_cap)")
     ap.add_argument("--categories", help="comma-sep WP category IDs to INCLUDE (overrides sources.yaml wp_categories)")
     ap.add_argument("--categories-exclude", help="comma-sep WP category IDs to EXCLUDE (overrides wp_categories_exclude)")
@@ -114,52 +186,50 @@ def main():
             return None
         return ",".join(str(x) for x in v) if isinstance(v, (list, tuple)) else str(v)
 
-    src = find_source(args.source_name)
-    if not src and not args.base_url:
-        print(f"Quelle '{args.source_name}' nicht in sources.yaml und kein --base-url"); sys.exit(1)
-    base = args.base_url or f"https://{domain_of(src['feed_url'])}"
-    vertical = src["vertical"] if src else "FOOD"
-    cap = args.max_per_month or (src or {}).get("ingest_cap")  # per-source cap for noisy giants
-    categories = args.categories or _csv((src or {}).get("wp_categories"))
-    categories_exclude = args.categories_exclude or _csv((src or {}).get("wp_categories_exclude"))
-    catinfo = (f" | cats={categories}" if categories else "") + \
-              (f" | cats_excl={categories_exclude}" if categories_exclude else "")
-    print(f"[wp] {args.source_name} @ {base} | {args.after} .. {args.before} | "
-          f"dry_run={args.dry_run}{f' | cap={cap}/month' if cap else ''}{catinfo}")
-
-    source_id = -1 if args.dry_run else db.upsert_source(
-        name=args.source_name, feed_url=(src or {}).get("feed_url", base),
-        source_type=(src or {}).get("type", "trade_media"), vertical=vertical)
-
-    stats = {"fetched": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
     with httpx.Client(headers=HEADERS) as client:
-        for after, before in month_chunks(args.after, args.before):
-            posts = fetch_month(client, base, after, before, cap=cap,
-                                categories=categories, categories_exclude=categories_exclude)
-            stats["fetched"] += len(posts)
-            for p in posts:
-                url = (p.get("link") or "").strip()
-                title = strip_html(p.get("title", {}).get("rendered", ""))
-                excerpt = strip_html(p.get("excerpt", {}).get("rendered", ""))
-                if not excerpt:
-                    excerpt = strip_html(p.get("content", {}).get("rendered", ""))[:2000]
-                pub = (p.get("date") or "")[:19].replace("T", " ")
-                if not url or not title:
-                    stats["skipped"] += 1
-                    continue
-                if args.dry_run:
-                    stats["inserted"] += 1
-                    continue
-                eid = db.insert_raw_entry(source_id, url, title, excerpt[:2000], pub or None)
-                stats["duplicates" if eid is None else "inserted"] += 1
-            tag = "[dry] " if args.dry_run else ""
-            print(f"  {tag}{after[:7]}: {len(posts)} posts")
+        # --probe: list which trade sources expose the WP API + archive sizes
+        if args.probe:
+            wp = []
+            for base, name, vert in db_trade_domains():
+                total = probe_wp(client, base)
+                if total:
+                    wp.append((base, name, vert, total))
+                    print(f"  {base[8:]:34s} {vert:9s} ~{total:>7} posts  ({name[:26]})")
+            print(f"\n{len(wp)} WordPress-capable trade sources.")
+            return
 
-    print(f"\n{args.source_name}: fetched {stats['fetched']} | "
-          f"{'würde einfügen' if args.dry_run else 'eingefügt'} {stats['inserted']} | "
-          f"{stats['duplicates']} dup | {stats['skipped']} skip")
-    if not args.dry_run and stats["inserted"]:
-        print(f"  -> {stats['inserted']} neue datierte raw_entries (processed=0)")
+        # --all: sweep every WP-capable trade source (breadth backfill)
+        if args.all:
+            if not (args.after and args.before):
+                ap.error("--all needs --after and --before")
+            srcs = db_trade_domains()
+            print(f"[wp-all] scanning {len(srcs)} domains for WordPress | {args.after}..{args.before}")
+            grand = 0
+            for base, name, vert in srcs:
+                if probe_wp(client, base) is None:
+                    continue
+                st = ingest_one(client, base, name, base, "trade_media", vert,
+                                args.after, args.before, args.max_per_month, None, None, args.dry_run)
+                grand += st["inserted"]
+            print(f"\n[wp-all] DONE: {grand} inserted across WordPress archives")
+            return
+
+        # single-source mode (sources.yaml, with optional category scoping)
+        if not (args.source_name and args.after and args.before):
+            ap.error("need --probe, --all, or --source-name with --after/--before")
+        src = find_source(args.source_name)
+        if not src and not args.base_url:
+            print(f"Quelle '{args.source_name}' nicht in sources.yaml und kein --base-url"); sys.exit(1)
+        base = args.base_url or f"https://{domain_of(src['feed_url'])}"
+        vertical = src["vertical"] if src else "FOOD"
+        cap = args.max_per_month or (src or {}).get("ingest_cap")
+        categories = args.categories or _csv((src or {}).get("wp_categories"))
+        categories_exclude = args.categories_exclude or _csv((src or {}).get("wp_categories_exclude"))
+        print(f"[wp] {args.source_name} @ {base} | {args.after} .. {args.before}"
+              f"{f' | cap={cap}/month' if cap else ''}")
+        ingest_one(client, base, args.source_name, (src or {}).get("feed_url", base),
+                   (src or {}).get("type", "trade_media"), vertical, args.after, args.before,
+                   cap, categories, categories_exclude, args.dry_run)
 
 
 if __name__ == "__main__":

@@ -704,6 +704,28 @@ def insert_openalex_meta(rows: list[tuple]) -> int:
         return len(rows)
 
 
+def insert_raw_entries_market_batch(rows: list[tuple]) -> int:
+    """Bulk market-tier raw-entry insert (WordPress archives, GDELT, …). Row shape:
+    (source_id, url, title, excerpt, published_date). Dedup on url. Returns inserted."""
+    if not rows:
+        return 0
+    rows = list({r[1]: r for r in rows}.values())  # dedup by url within batch
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            import psycopg2.extras
+            cur = conn._conn.cursor()
+            psycopg2.extras.execute_values(
+                cur,
+                "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date) "
+                "VALUES %s ON CONFLICT (url) DO NOTHING",
+                rows, page_size=max(len(rows), 1000))
+            return max(cur.rowcount, 0)
+        conn.executemany(
+            "INSERT OR IGNORE INTO raw_entries (source_id, url, title, excerpt, published_date) "
+            "VALUES (?, ?, ?, ?, ?)", rows)
+        return len(rows)
+
+
 def insert_raw_entries_batch_oa(rows: list[tuple]) -> int:
     """Bulk raw-entry insert incl. openalex_id (node key). Row shape:
     (source_id, url, title, excerpt, published_date, openalex_id)."""
