@@ -618,7 +618,8 @@ def parse_docdb_document(doc) -> dict | None:
 
 def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                 scratch: str, dry_run: bool, cpc_filter: str = "",
-                max_outer: int = 0, skip_outer: int = 0) -> dict:
+                max_outer: int = 0, skip_outer: int = 0,
+                keep_files: bool = False) -> dict:
     """Download the latest delivery of a BDDS DOCDB product, parse the nested
     per-country XML, filter to our CPC classes + [after, before), insert.
 
@@ -629,6 +630,7 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
     db.init_db()
     af, bf = int(after.replace("-", "")), int(before.replace("-", ""))
     src_ids: dict[str, int] = {}
+    raw_buf: list[tuple] = []
     link_buf: list[tuple] = []
     cpc_buf: list[tuple] = []
     st = {"docs": 0, "matched": 0, "inserted": 0, "duplicates": 0, "links": 0, "cpc": 0}
@@ -654,13 +656,22 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                 break
             outer_done += 1
             zpath = os.path.join(scratch, f["fileName"])
-            logger.info("  downloading %s ...", f["fileName"])
-            with client.stream("GET", f"{BDDS_API}/products/{product_id}/delivery/{did}/file/{f['fileId']}/download",
-                               headers={"Authorization": f"Bearer {token}"}) as r:
-                r.raise_for_status()
-                with open(zpath, "wb") as fh:
-                    for chunk in r.iter_bytes(1 << 20):
-                        fh.write(chunk)
+            if os.path.exists(zpath) and os.path.getsize(zpath) > 1 << 20:
+                # archived from a previous run (--keep-files) → parse from disk
+                logger.info("  reusing archived %s (%.0f MB)", f["fileName"],
+                            os.path.getsize(zpath) / 1e6)
+            else:
+                logger.info("  downloading %s ...", f["fileName"])
+                # token can expire (~20 min) over a many-file run — refresh per file
+                token = bdds_token(client)
+                staging = zpath + ".part"
+                with client.stream("GET", f"{BDDS_API}/products/{product_id}/delivery/{did}/file/{f['fileId']}/download",
+                                   headers={"Authorization": f"Bearer {token}"}) as r:
+                    r.raise_for_status()
+                    with open(staging, "wb") as fh:
+                        for chunk in r.iter_bytes(1 << 20):
+                            fh.write(chunk)
+                os.replace(staging, zpath)
             with zipfile.ZipFile(zpath) as z:
                 inner = [n for n in z.namelist() if n.endswith(".zip") and "/DOC/" in n]
                 for name in (inner[:max_files] if max_files else inner):
@@ -687,10 +698,16 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                         if v not in src_ids:
                             src_ids[v] = db.upsert_source(name=f"EPO DOCDB ({v})",
                                 feed_url=f"bdds://docdb/{v}", source_type="api", vertical=v)
-                        eid = db.insert_raw_entry(src_ids[v], rec["url"], rec["title"],
-                            record_to_excerpt(rec)[:2000], rec["pub_date"],
-                            pub_number=rec["pub_number"], kind_code=rec["kind_code"])
-                        st["duplicates" if eid is None else "inserted"] += 1
+                        # batched raw-entry insert — per-row insert_raw_entry opens
+                        # a connection per patent (~100/s = days at back-file scale)
+                        raw_buf.append((src_ids[v], rec["url"], rec["title"],
+                                        record_to_excerpt(rec)[:2000], rec["pub_date"],
+                                        rec["pub_number"], rec["kind_code"]))
+                        if len(raw_buf) >= 5000:
+                            ins = db.insert_raw_entries_batch(raw_buf)
+                            st["inserted"] += ins
+                            st["duplicates"] += len(raw_buf) - ins
+                            raw_buf.clear()
                         if rec["links"]:
                             link_buf.extend(rec["links"])
                             if len(link_buf) >= 5000:
@@ -701,10 +718,17 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                             st["cpc"] += db.insert_patent_cpc(cpc_buf); cpc_buf.clear()
                     logger.info("  %s — docs=%d matched=%d inserted=%d edges=%d",
                                 name.split("/")[-1], st["docs"], st["matched"], st["inserted"], st["links"])
-            try:
-                os.remove(zpath)
-            except OSError:
-                pass
+            if keep_files:
+                pass  # archived in scratch for later re-parse (different scopes, full-text)
+            else:
+                try:
+                    os.remove(zpath)
+                except OSError:
+                    pass
+        if raw_buf:
+            ins = db.insert_raw_entries_batch(raw_buf)
+            st["inserted"] += ins
+            st["duplicates"] += len(raw_buf) - ins
         if link_buf:
             st["links"] += db.insert_patent_links(link_buf)
         if cpc_buf:
@@ -803,7 +827,8 @@ def main() -> int:
     ap.add_argument("--max-outer", type=int, default=0, help="epo-bdds: cap on outer delivery files (0=all; the back file is 162)")
     ap.add_argument("--skip-outer", type=int, default=0, help="epo-bdds: skip the first N outer files (resume a previous run)")
     ap.add_argument("--cpc-filter", help="epo-bdds: keep only CPC codes with this prefix (e.g. A23C)")
-    ap.add_argument("--scratch", default="/tmp", help="hf-gpatents: temp dir for parquet downloads")
+    ap.add_argument("--scratch", default="/tmp", help="temp/archive dir for downloads")
+    ap.add_argument("--keep-files", action="store_true", help="epo-bdds: keep downloaded zips in --scratch (archive; reused on re-runs)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--selftest", action="store_true", help="validate parsing without network/creds")
     args = ap.parse_args()
@@ -817,7 +842,7 @@ def main() -> int:
     elif args.source == "epo-bdds":
         ingest_bdds(args.product, args.after, args.before, args.max_files, args.scratch,
                     args.dry_run, cpc_filter=args.cpc_filter or "", max_outer=args.max_outer,
-                    skip_outer=args.skip_outer)
+                    skip_outer=args.skip_outer, keep_files=args.keep_files)
     else:
         if not args.vertical:
             ap.error("epo-ops needs --vertical")

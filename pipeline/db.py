@@ -723,6 +723,32 @@ def insert_raw_entry(source_id: int, url: str, title: str, excerpt: str,
             raise
 
 
+def insert_raw_entries_batch(rows: list[tuple]) -> int:
+    """Bulk raw-entry insert for mass ingest (the DOCDB back-file is ~16M rows —
+    the per-row insert_raw_entry opens a connection per patent, ~100/s ≈ 44h;
+    batched this is ~1-2h). Row shape mirrors insert_raw_entry:
+    (source_id, url, title, excerpt, published_date, pub_number, kind_code).
+    Duplicates (url) are skipped. Returns inserted count."""
+    if not rows:
+        return 0
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            import psycopg2.extras
+            cur = conn._conn.cursor()
+            # page_size >= len(rows) → one statement → cur.rowcount is the exact
+            # number actually inserted (ON CONFLICT skips don't count).
+            psycopg2.extras.execute_values(
+                cur,
+                "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date, "
+                "pub_number, kind_code) VALUES %s ON CONFLICT (url) DO NOTHING",
+                rows, page_size=max(len(rows), 1000))
+            return max(cur.rowcount, 0)
+        conn.executemany(
+            "INSERT OR IGNORE INTO raw_entries (source_id, url, title, excerpt, "
+            "published_date, pub_number, kind_code) VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
+        return len(rows)  # approximation under SQLite (dups not separable cheaply)
+
+
 def get_unprocessed_entries(limit: int = 50, min_id: int = 0) -> list[dict]:
     """Get raw entries that haven't been processed yet.
 
