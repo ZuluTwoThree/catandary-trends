@@ -43,7 +43,7 @@ export async function getTechnologies(): Promise<TechInsight[]> {
   return q<TechInsight>(
     `SELECT symbol, name, vertical, payload, updated_at::text
      FROM cpc_insights
-     ORDER BY (payload->>'lead_years_science_vs_market') DESC NULLS LAST, name`
+     ORDER BY (payload->'patent_dynamics'->>'cycle_time_years')::float ASC NULLS LAST, name`
   );
 }
 

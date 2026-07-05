@@ -6,9 +6,9 @@ import TechnologyCard from "@/components/foresight/TechnologyCard";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Technology Lead Times — Catandary Foresight",
+  title: "Technology Axes — Catandary Foresight",
   description:
-    "How far research, patents and funding run ahead of the market — per technology, measured across 20M signals on the full innovation maturity chain.",
+    "How fast each technology field iterates — innovation cycles, key patents and convergence, measured across 20M signals on the full innovation maturity chain.",
 };
 
 /**
@@ -56,13 +56,13 @@ export default async function TechnologyExplorerPage() {
           </span>
         </div>
         <h1 className="font-display text-4xl md:text-[52px] leading-[1.05] tracking-tight text-paper mb-4">
-          Research runs <span className="italic">years ahead</span> of the market
+          Where innovation moves <span className="italic">fastest</span>
         </h1>
         <p className="font-sans text-text text-lg leading-relaxed max-w-2xl">
-          For each technology we overlay when it appeared in{" "}
-          <span className="text-paper">research, patents, funding and market coverage</span> —
-          measured in our own data, evidence one click away. Sorted by how far
-          research leads.
+          For each technology we overlay its evidence across{" "}
+          <span className="text-paper">research, patents, funding and market coverage</span>{" "}
+          and measure how fast the field iterates — from our own data, evidence
+          one click away. Fastest-moving fields first.
         </p>
 
         {/* Trust banner (#23): the real corpus scale behind the claim */}

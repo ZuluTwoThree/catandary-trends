@@ -71,16 +71,27 @@ function Sparkline({ series, takeoff }: { series: Record<string, number>; takeof
   );
 }
 
+/**
+ * Plain-language dynamics statement from measures that genuinely differ per
+ * technology (innovation cycle, patent center of gravity). The cross-tier
+ * lead-time claim is deliberately NOT shown yet: with the historical
+ * science/market classification still landing, takeoff years sit on the
+ * acquisition-window floor and would read as a uniform fake "15 years" —
+ * re-enable once tier depth is fully embedded (validation directive).
+ */
 function leadSentence(t: TechInsight): string {
-  const sci = t.payload.lead_years_science_vs_market;
-  const pat = t.payload.lead_years_patent_vs_market;
-  if (sci && sci >= 2) {
-    return `Research ran ~${sci} years ahead of market coverage.`;
+  const cycle = t.payload.patent_dynamics.cycle_time_years;
+  const med = t.payload.lead_time.patent?.median;
+  const parts: string[] = [];
+  if (cycle !== undefined) {
+    if (cycle <= 3) parts.push(`Fast-moving field — ideas turn into new patents in ~${cycle} years`);
+    else if (cycle <= 6) parts.push(`Steady field — ~${cycle} years from idea to follow-on patent`);
+    else parts.push(`Long-cycle field — ~${cycle} years between patent generations`);
   }
-  if (pat && pat >= 2) {
-    return `Patent activity ran ~${pat} years ahead of market coverage.`;
+  if (med) {
+    parts.push(med >= 2021 ? `activity centers on ${med}` : `activity centered around ${med}`);
   }
-  return "Signals move closely across the maturity chain.";
+  return parts.length ? parts.join(", ") + "." : "Evidence across the full maturity chain.";
 }
 
 export default function TechnologyCard({ tech }: { tech: TechInsight }) {
