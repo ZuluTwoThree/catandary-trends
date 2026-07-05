@@ -62,7 +62,7 @@ def fetch_month(client, base, after, before, cap=None, categories=None, categori
     `categories` / `categories_exclude` are comma-separated WP category IDs for
     server-side topic scoping (e.g. keep Foodtech, drop Delivery & Commerce) so
     noise is never even fetched."""
-    posts, page = [], 1
+    posts, page, timed_out = [], 1, False
     per_page = min(100, cap) if cap else 100
     cat_params = {}
     if categories:
@@ -75,9 +75,11 @@ def fetch_month(client, base, after, before, cap=None, categories=None, categori
                 "after": after, "before": before, "per_page": per_page, "page": page,
                 "_fields": "date,link,title,excerpt,content", "orderby": "date", "order": "asc",
                 **cat_params,
-            }, timeout=30, follow_redirects=True)
+            }, timeout=12, follow_redirects=True)
         except Exception as exc:
-            print(f"    fetch error {after[:7]} p{page}: {type(exc).__name__}")
+            name = type(exc).__name__
+            timed_out = "Timeout" in name or "Connect" in name
+            print(f"    fetch error {after[:7]} p{page}: {name}")
             break
         if r.status_code == 400:  # page beyond range
             break
@@ -89,12 +91,12 @@ def fetch_month(client, base, after, before, cap=None, categories=None, categori
             break
         posts.extend(batch)
         if cap and len(posts) >= cap:
-            return posts[:cap]
+            return posts[:cap], timed_out
         if page >= int(r.headers.get("X-WP-TotalPages", 1)):
             break
         page += 1
         time.sleep(0.3)
-    return posts
+    return posts, timed_out
 
 
 def probe_wp(client, base: str) -> int | None:
@@ -156,9 +158,16 @@ def ingest_one(client, base: str, source_name: str, feed_url: str, source_type: 
         name=source_name, feed_url=feed_url or base, source_type=source_type, vertical=vertical)
     stats = {"fetched": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
     buf: list[tuple] = []
+    consec_timeouts = 0
     for a, b in month_chunks(after, before):
-        posts = fetch_month(client, base, a, b, cap=cap,
-                            categories=categories, categories_exclude=categories_exclude)
+        posts, timed_out = fetch_month(client, base, a, b, cap=cap,
+                                       categories=categories, categories_exclude=categories_exclude)
+        # circuit breaker: a slow/rate-limiting source that times out month after
+        # month would burn 12s each across ~300 months — bail after 6 in a row.
+        consec_timeouts = consec_timeouts + 1 if timed_out else 0
+        if consec_timeouts >= 6:
+            print(f"  {source_name}: 6 consecutive timeouts — skipping (rate-limited/down)")
+            break
         stats["fetched"] += len(posts)
         for p in posts:
             url = (p.get("link") or "").strip()
