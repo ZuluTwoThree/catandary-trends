@@ -108,6 +108,23 @@ def probe_wp(client, base: str) -> int | None:
             return int(r.headers.get("X-WP-Total", "0"))
     except Exception:
         return None
+
+
+def oldest_post_date(client, base: str) -> str | None:
+    """The site's earliest post date (YYYY-MM-DD), or None. Lets a deep sweep
+    start at the archive's real beginning instead of grinding ~150 empty
+    pre-founding months per source."""
+    try:
+        r = client.get(f"{base}/wp-json/wp/v2/posts",
+                       params={"order": "asc", "orderby": "date", "per_page": 1, "_fields": "date"},
+                       timeout=12, follow_redirects=True)
+        if r.status_code == 200:
+            data = r.json()
+            if data and data[0].get("date"):
+                return data[0]["date"][:10]
+    except Exception:
+        return None
+    return None
     return None
 
 
@@ -159,7 +176,13 @@ def ingest_one(client, base: str, source_name: str, feed_url: str, source_type: 
     stats = {"fetched": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
     buf: list[tuple] = []
     consec_timeouts = 0
-    for a, b in month_chunks(after, before):
+    # start at the archive's real beginning — skip empty pre-founding months
+    eff_after = after
+    oldest = oldest_post_date(client, base)
+    if oldest and oldest > after[:10]:
+        eff_after = oldest + "T00:00:00"
+        print(f"  {source_name}: archive starts {oldest} — skipping empty months before it")
+    for a, b in month_chunks(eff_after, before):
         posts, timed_out = fetch_month(client, base, a, b, cap=cap,
                                        categories=categories, categories_exclude=categories_exclude)
         # circuit breaker: a slow/rate-limiting source that times out month after
