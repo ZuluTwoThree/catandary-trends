@@ -73,6 +73,56 @@ def _counter_to_series(years: dict) -> dict[str, int]:
     return {str(y): int(n) for y, n in sorted(years.items())}
 
 
+def tier_year_totals() -> dict[str, dict[int, int]]:
+    """Denominator for share-of-tier normalization: total signals per tier per
+    year across the WHOLE corpus. Dividing a technology's per-year counts by
+    these removes the acquisition-density artifact (the 2020 RSS-onset cliff) —
+    a steady 2%-of-research technology then reads flat, not as a 2020 jump."""
+    totals: dict[str, dict[int, int]] = {"science": {}, "funding": {}, "market": {}, "patent": {}}
+    with get_connection() as c:
+        # embedded non-patent tiers
+        for r in c.execute(
+                "SELECT CASE WHEN s.source_type='research' OR s.name ILIKE '%%openalex%%' "
+                "            OR s.name ILIKE '%%rxiv%%' THEN 'science' "
+                "       WHEN s.name ILIKE '%%nsf%%' OR s.name ILIKE '%%nih%%' "
+                "            OR s.name ILIKE '%%openaire%%' OR s.name ILIKE '%%ukri%%' "
+                "            OR s.name ILIKE '%%form d%%' THEN 'funding' "
+                "       ELSE 'market' END AS tier, "
+                "       substr(r.published_date::text,1,4) AS yr, COUNT(*) AS n "
+                "FROM trends t JOIN raw_entries r ON t.raw_entry_id=r.id "
+                "JOIN sources s ON r.source_id=s.id "
+                "WHERE t.embedding_1024 IS NOT NULL AND r.published_date IS NOT NULL "
+                "  AND r.pub_number IS NULL GROUP BY tier, yr").fetchall():
+            tier = r["tier"] if isinstance(r, dict) else r[0]
+            yr, n = (r["yr"], r["n"]) if isinstance(r, dict) else (r[1], r[2])
+            try:
+                totals[tier][int(yr)] = int(n)
+            except (TypeError, ValueError):
+                pass
+        # patents: native corpus totals per year
+        for r in c.execute(
+                "SELECT substr(published_date::text,1,4) AS yr, COUNT(*) AS n "
+                "FROM raw_entries WHERE pub_number IS NOT NULL "
+                "AND published_date IS NOT NULL GROUP BY yr").fetchall():
+            yr, n = (r["yr"], r["n"]) if isinstance(r, dict) else (r[0], r[1])
+            try:
+                totals["patent"][int(yr)] = int(n)
+            except (TypeError, ValueError):
+                pass
+    return totals
+
+
+def _share_series(years: dict, tier_totals: dict[int, int]) -> dict[str, float]:
+    """Per-year share of the tier (parts per 10,000, rounded) — bounded, compact,
+    and comparable across tiers whose absolute volumes differ by 10^4."""
+    out: dict[str, float] = {}
+    for y, n in sorted(years.items()):
+        tot = tier_totals.get(y, 0)
+        if tot >= 30:  # tiny denominators (pre-coverage years) are noise — skip
+            out[str(y)] = round(10000 * n / tot, 1)
+    return out
+
+
 def patent_dynamics(cpc: str) -> dict:
     """Domain-level citation-graph metrics, computed in SQL (scoped — the
     112M-edge graph never enters RAM)."""
@@ -131,7 +181,7 @@ def convergence(cpc: str, limit: int = 8) -> list[dict]:
     return out
 
 
-def build_one(cpc: str, name: str, vertical: str) -> dict:
+def build_one(cpc: str, name: str, vertical: str, totals: dict[str, dict[int, int]]) -> dict:
     t0 = time.time()
     tiers = projected_tier_years(cpc, LEADTIME_THRESHOLD)
     tiers["patent"] = patent_years(cpc)
@@ -141,7 +191,8 @@ def build_one(cpc: str, name: str, vertical: str) -> dict:
         lead[tier] = {"n": n, "first": min(years) if years else None,
                       "takeoff": takeoff(years),
                       "median": (round(median_year(years)) if years else None),
-                      "series": _counter_to_series(years)}
+                      "series": _counter_to_series(years),
+                      "share_series": _share_series(years, totals.get(tier, {}))}
     sci_to, mkt_to = lead["science"]["takeoff"], lead["market"]["takeoff"]
     pat_to = lead["patent"]["takeoff"]
     payload = {
@@ -183,8 +234,11 @@ def main() -> int:
                 conn.execute("UPDATE cpc_insights SET name = ?, vertical = ? WHERE symbol = ?",
                              (name, vertical, cpc))
         print(f"names refreshed for {len(todo)} technologies."); return 0
+    totals = tier_year_totals()
+    print(f"tier-year totals loaded (science yrs={len(totals['science'])}, "
+          f"market yrs={len(totals['market'])})")
     for cpc, name, vertical in todo:
-        p = build_one(cpc, name, vertical)
+        p = build_one(cpc, name, vertical, totals)
         lt = p["lead_years_science_vs_market"]
         print(f"  {cpc} {name[:40]:42s} patents={p['lead_time']['patent']['n']:>9,} "
               f"lead(sci→mkt)={lt if lt is not None else '—'} "

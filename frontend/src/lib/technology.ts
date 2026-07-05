@@ -17,6 +17,9 @@ export interface TierLead {
   median: number | null;
   /** year (as string) -> signal count */
   series: Record<string, number>;
+  /** year -> share of the tier's total that year (basis points); acquisition-
+   *  density-normalized, so it shows real composition, not the RSS-onset cliff */
+  share_series: Record<string, number>;
 }
 
 export interface TechPayload {

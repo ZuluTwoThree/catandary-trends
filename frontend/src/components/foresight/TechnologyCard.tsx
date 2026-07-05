@@ -22,11 +22,11 @@ const TIER_LABEL: Record<TierName, string> = {
 
 const TIER_ORDER: TierName[] = ["science", "patent", "funding", "market"];
 
-function Sparkline({ series, takeoff }: { series: Record<string, number>; takeoff: number | null }) {
+function Sparkline({ shareSeries, label }: { shareSeries: Record<string, number>; label: string }) {
   const w = 222;
   const h = 22;
   const bw = w / YEARS.length;
-  const max = Math.max(1, ...Object.values(series));
+  const max = Math.max(1, ...Object.values(shareSeries));
   return (
     <svg
       width={w}
@@ -34,12 +34,12 @@ function Sparkline({ series, takeoff }: { series: Record<string, number>; takeof
       viewBox={`0 0 ${w} ${h}`}
       className="shrink-0"
       role="img"
-      aria-label={`Signals per year, ${X0}–${X1}`}
+      aria-label={`Share of tier per year, ${X0}–${X1}`}
     >
       {YEARS.map((y, i) => {
-        const n = series[String(y)] ?? 0;
-        if (n === 0) return null;
-        const bh = Math.max(1.5, (n / max) * (h - 2));
+        const bp = shareSeries[String(y)] ?? 0;
+        if (bp === 0) return null;
+        const bh = Math.max(1.5, (bp / max) * (h - 2));
         return (
           <rect
             key={y}
@@ -50,23 +50,10 @@ function Sparkline({ series, takeoff }: { series: Record<string, number>; takeof
             rx={0.75}
             className="fill-accent/70"
           >
-            <title>{`${y}: ${n.toLocaleString("en-US")} signals`}</title>
+            <title>{`${y}: ${(bp / 100).toFixed(2)}% of ${label.toLowerCase()} activity`}</title>
           </rect>
         );
       })}
-      {takeoff && takeoff >= X0 && (
-        <line
-          x1={(takeoff - X0) * bw + bw / 2}
-          y1={0}
-          x2={(takeoff - X0) * bw + bw / 2}
-          y2={h}
-          className="stroke-paper/50"
-          strokeWidth={1}
-          strokeDasharray="2 2"
-        >
-          <title>{`Takeoff ${takeoff}`}</title>
-        </line>
-      )}
     </svg>
   );
 }
@@ -116,16 +103,24 @@ export default function TechnologyCard({ tech }: { tech: TechInsight }) {
         {TIER_ORDER.map((tier) => {
           const lead = payload.lead_time[tier];
           if (!lead) return null;
+          const hasShare = Object.keys(lead.share_series ?? {}).length > 0;
           return (
             <div key={tier} className="flex items-center gap-3">
               <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted w-16 shrink-0">
                 {TIER_LABEL[tier]}
               </span>
-              <Sparkline series={lead.series} takeoff={lead.takeoff} />
+              {hasShare ? (
+                <Sparkline shareSeries={lead.share_series} label={TIER_LABEL[tier]} />
+              ) : (
+                <span
+                  className="shrink-0 font-mono text-[9px] text-muted italic flex items-center"
+                  style={{ width: 222, height: 22 }}
+                >
+                  coverage building…
+                </span>
+              )}
               <span className="font-mono text-[11px] text-text tabular-nums whitespace-nowrap">
-                {lead.n > 0
-                  ? `${lead.n.toLocaleString("en-US")}${lead.takeoff ? ` · from ${lead.takeoff}` : ""}`
-                  : "—"}
+                {lead.n > 0 ? lead.n.toLocaleString("en-US") : "—"}
               </span>
             </div>
           );
@@ -137,6 +132,9 @@ export default function TechnologyCard({ tech }: { tech: TechInsight }) {
             <span>{X1}</span>
           </div>
         </div>
+        <p className="font-mono text-[9px] text-muted ml-[76px]">
+          share of each tier&apos;s activity per year · count at right
+        </p>
       </div>
 
       <footer className="flex flex-col gap-2 border-t border-border pt-3">
