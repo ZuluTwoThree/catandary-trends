@@ -218,15 +218,19 @@ def _norm_rows(M: np.ndarray) -> np.ndarray:
 
 
 def pull_unprocessed(limit: int, include: list[str], exclude: list[str],
-                     min_id: int = 0, source_type: str = "") -> list[dict]:
+                     min_id: int = 0, source_type: str = "", no_patents: bool = False) -> list[dict]:
     """Unprocessed entries, optionally scoped by source vertical (include/exclude),
     by source_type (e.g. 'api' = the funding ingests only), and to id > min_id
-    (to classify only a fresh ingest, not older backlog)."""
+    (to classify only a fresh ingest, not older backlog). no_patents excludes
+    patent rows (pub_number IS NOT NULL) — they share source_type='api' with the
+    funding ingests but are handled natively via CPC, never distill-classified."""
     where = ["re.processed = FALSE", "re.filtered_out = FALSE"]
     params: list = []
     if source_type:
         where.append("s.source_type = ?")
         params.append(source_type)
+    if no_patents:
+        where.append("re.pub_number IS NULL")
     if min_id:
         where.append("re.id > ?")
         params.append(min_id)
@@ -465,7 +469,7 @@ def _distill_signal_type(e: dict) -> str:
 def run_distill(limit: int, execute: bool, embed_chunk: int,
                 include: list[str], exclude: list[str], workers: int = 24,
                 min_id: int = 0, source_type: str = "",
-                relevance_threshold: float = 0.5) -> int:
+                relevance_threshold: float = 0.5, no_patents: bool = False) -> int:
     """Mass-ingest classification WITHOUT the LLM: embed each survivor, then run
     the distilled heads (pipeline/distill) for relevance/vertical/mega/PESTEL.
     ~0 marginal cost per item; the only GPU step is the shared embedding pass.
@@ -482,7 +486,7 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
         print("  WARNING: no relevance head — every embedded, non-duplicate entry is "
               "kept as a signal (train it via embed_filtered.py + train_distill_heads.py).")
 
-    entries = pull_unprocessed(limit, include, exclude, min_id, source_type)
+    entries = pull_unprocessed(limit, include, exclude, min_id, source_type, no_patents)
     print(f"Unprocessed in scope: {len(entries)}")
     if not entries:
         return 0
@@ -598,13 +602,16 @@ def main() -> int:
                     help="only entries with id > MIN_ID — scope to a fresh ingest (e.g. patents)")
     ap.add_argument("--source-type", default="",
                     help="only sources of this source_type (e.g. 'api' = the funding ingests)")
+    ap.add_argument("--no-patents", action="store_true",
+                    help="exclude patent rows (pub_number set) — they share source_type='api' "
+                         "with funding but are handled natively via CPC, not distill")
     args = ap.parse_args()
     inc = [v.strip().upper() for v in args.verticals.split(",")] if args.verticals else []
     exc = [v.strip().upper() for v in args.exclude_verticals.split(",")] if args.exclude_verticals else []
     if args.backend == "distill":
         return run_distill(args.limit, args.execute, args.embed_chunk, inc, exc,
                            args.workers, args.min_id, args.source_type,
-                           args.relevance_threshold)
+                           args.relevance_threshold, args.no_patents)
     return run(args.limit, args.execute, args.embed_chunk, inc, exc,
                args.backend, args.workers, args.min_id, args.source_type)
 
