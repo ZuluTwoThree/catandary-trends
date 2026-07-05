@@ -184,13 +184,14 @@ def patent_dynamics(cpc: str) -> dict:
             out["top_patents"] = top
             out["hub"] = top[0]
         # immediate importance: avg forward cites arriving within 3y of the cited
-        # patent's publication, over a domain sample (the truncation-robust
-        # importance signal from Benson & Magee)
+        # patent's publication (truncation-robust importance, Benson & Magee) —
+        # same 2000–2015 cohort + unbiased sample as cycle time
         r = c.execute(
-            "WITH dom AS (SELECT DISTINCT pc.pub_number FROM patent_cpc pc "
-            "             JOIN raw_entries rd ON rd.pub_number = pc.pub_number "
-            "             WHERE substr(pc.cpc,1,4) = ? AND rd.published_date IS NOT NULL "
-            "               AND rd.published_date < NOW() - INTERVAL '3 years' LIMIT 30000) "
+            "WITH dom AS (SELECT pc.pub_number FROM patent_cpc pc "
+            "  JOIN raw_entries rd ON rd.pub_number = pc.pub_number "
+            "  WHERE substr(pc.cpc,1,4) = ? AND rd.published_date >= '2000-01-01' "
+            "    AND rd.published_date < '2016-01-01' "
+            "  GROUP BY pc.pub_number ORDER BY md5(pc.pub_number) LIMIT 25000) "
             "SELECT (SELECT COUNT(*) FROM dom) AS n_dom, COUNT(*) AS cites3y "
             "FROM dom "
             "JOIN patent_links pl ON pl.dst_pub = dom.pub_number AND pl.link_type='cites' "
@@ -204,12 +205,23 @@ def patent_dynamics(cpc: str) -> dict:
             c3 = int((r["cites3y"] if isinstance(r, dict) else r[1]) or 0)
             if n_dom >= 100:
                 out["immediate_importance"] = round(c3 / n_dom, 3)
-        # cycle time: median backward-citation age over a domain sample
+        # Cycle time + immediate importance on a FIXED COHORT (2000–2015) with an
+        # unbiased sample (md5 order, not insertion order). The cohort bounds kill
+        # two artifacts that inverted the first calibration: (a) insertion-order
+        # LIMIT sampled the recently loaded CN back-file (recent-cites-recent →
+        # fake-short cycle times), and (b) truncation — citations to pre-1990 art
+        # have no in-corpus year, so long ages silently dropped and slow domains
+        # (construction, CT ~15y) looked fast. Within 2000–2015 backward art is
+        # mostly ≥1990 (resolvable) and forward 3y windows are complete.
         rows = c.execute(
+            "WITH dom AS (SELECT pc.pub_number FROM patent_cpc pc "
+            "  JOIN raw_entries rd ON rd.pub_number = pc.pub_number "
+            "  WHERE substr(pc.cpc,1,4) = ? AND rd.published_date >= '2000-01-01' "
+            "    AND rd.published_date < '2016-01-01' "
+            "  GROUP BY pc.pub_number ORDER BY md5(pc.pub_number) LIMIT 25000) "
             "SELECT substr(rs.published_date::text,1,4)::int - "
             "       substr(rd.published_date::text,1,4)::int AS age "
-            "FROM (SELECT DISTINCT pub_number FROM patent_cpc "
-            "      WHERE substr(cpc,1,4) = ? LIMIT 30000) dom "
+            "FROM dom "
             "JOIN patent_links pl ON pl.src_pub = dom.pub_number AND pl.link_type='cites' "
             "JOIN raw_entries rs ON rs.pub_number = pl.src_pub "
             "JOIN raw_entries rd ON rd.pub_number = pl.dst_pub "
@@ -290,6 +302,9 @@ def main() -> int:
     ap.add_argument("--cpc", help="single subclass (must be in the curated list)")
     ap.add_argument("--names-only", action="store_true",
                     help="update name/vertical from the curated list without recomputing")
+    ap.add_argument("--dynamics-only", action="store_true",
+                    help="recompute patent_dynamics + TIR calibration only (skips the "
+                         "lead-time ANN pass — fast iteration on the citation metrics)")
     args = ap.parse_args()
     if not USE_POSTGRES:
         print("cpc_insights targets Postgres"); return 1
@@ -303,19 +318,38 @@ def main() -> int:
                 conn.execute("UPDATE cpc_insights SET name = ?, vertical = ? WHERE symbol = ?",
                              (name, vertical, cpc))
         print(f"names refreshed for {len(todo)} technologies."); return 0
-    totals = tier_year_totals()
-    print(f"tier-year totals loaded (science yrs={len(totals['science'])}, "
-          f"market yrs={len(totals['market'])})")
     metrics: dict[str, dict] = {}
-    for cpc, name, vertical in todo:
-        p = build_one(cpc, name, vertical, totals)
-        metrics[cpc] = p["patent_dynamics"]
-        lt = p["lead_years_science_vs_market"]
-        print(f"  {cpc} {name[:40]:42s} patents={p['lead_time']['patent']['n']:>9,} "
-              f"lead(sci→mkt)={lt if lt is not None else '—'} "
-              f"cycle={p['patent_dynamics'].get('cycle_time_years','—')}J "
-              f"II={p['patent_dynamics'].get('immediate_importance','—')} "
-              f"({p['built_in_s']}s)")
+    if args.dynamics_only:
+        for cpc, name, _v in todo:
+            t0 = time.time()
+            dyn = patent_dynamics(cpc)
+            ii, ct = dyn.get("immediate_importance"), dyn.get("cycle_time_years")
+            if ii and ct and ct > 0:
+                dyn["tir_index"] = round(ii / ct, 4)
+            dyn.pop("tir_pct", None)  # stale calibration must not survive
+            metrics[cpc] = dyn
+            with get_connection() as conn:
+                cur = conn._conn.cursor()
+                cur.execute("UPDATE cpc_insights SET payload = jsonb_set(payload, "
+                            "'{patent_dynamics}', %s::jsonb) WHERE symbol = %s",
+                            (json.dumps(dyn), cpc))
+                conn._conn.commit()
+            print(f"  {cpc} {name[:38]:40s} cycle={dyn.get('cycle_time_years','—')}J "
+                  f"II={dyn.get('immediate_importance','—')} "
+                  f"index={dyn.get('tir_index','—')} ({time.time()-t0:.0f}s)")
+    else:
+        totals = tier_year_totals()
+        print(f"tier-year totals loaded (science yrs={len(totals['science'])}, "
+              f"market yrs={len(totals['market'])})")
+        for cpc, name, vertical in todo:
+            p = build_one(cpc, name, vertical, totals)
+            metrics[cpc] = p["patent_dynamics"]
+            lt = p["lead_years_science_vs_market"]
+            print(f"  {cpc} {name[:40]:42s} patents={p['lead_time']['patent']['n']:>9,} "
+                  f"lead(sci→mkt)={lt if lt is not None else '—'} "
+                  f"cycle={p['patent_dynamics'].get('cycle_time_years','—')}J "
+                  f"II={p['patent_dynamics'].get('immediate_importance','—')} "
+                  f"({p['built_in_s']}s)")
 
     # --- second pass: calibrate the TIR index to %/yr on the anchor domains ---
     import math
@@ -329,6 +363,12 @@ def main() -> int:
                 if v:
                     metrics.setdefault(sym, {})["tir_index"] = float(v)
     cal = fit_tir_calibration(metrics)
+    if cal and cal[1] <= 0:
+        # methodological sanity: more immediacy×importance MUST mean faster
+        # improvement. A non-positive slope means the metric inputs are still
+        # polluted — publishing would invert reality (AI slow, pharma fast).
+        print(f"TIR calibration REJECTED: slope {cal[1]:.3f} <= 0 — tir_pct not written.")
+        cal = None
     if cal:
         a, b = cal
         print(f"TIR calibration: ln(k) = {a:.3f} + {b:.3f}·ln(index) "
