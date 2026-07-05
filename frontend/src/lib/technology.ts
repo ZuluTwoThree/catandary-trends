@@ -22,14 +22,29 @@ export interface TierLead {
   share_series: Record<string, number>;
 }
 
+export interface TopPatent {
+  pub: string;
+  cites: number;
+  title: string;
+  year?: string | null;
+}
+
 export interface TechPayload {
   lead_time: Record<TierName, TierLead>;
   lead_years_science_vs_market: number | null;
   lead_years_patent_vs_market: number | null;
   patent_dynamics: {
-    hub?: { pub: string; cites: number; title: string };
+    hub?: TopPatent;
+    /** top-cited patents in the domain, browsable (forward citations) */
+    top_patents?: TopPatent[];
     cycle_time_years?: number;
     cycle_cov?: number;
+    /** blueprint §2.1.1 index: immediate importance × 1/cycle-time */
+    tir_index?: number;
+    /** predicted Technology Improvement Rate, %/yr — index calibrated on
+     *  published Benson–Magee domain rates */
+    tir_pct?: number;
+    immediate_importance?: number;
   };
   convergence: { cpc: string; title: string; total: number; recent_share: number }[];
 }

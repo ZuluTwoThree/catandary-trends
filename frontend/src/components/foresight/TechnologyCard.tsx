@@ -82,10 +82,18 @@ function leadSentence(t: TechInsight): string {
   return parts.length ? parts.join(", ") + "." : "Evidence across the full maturity chain.";
 }
 
+/** Convergence chips carry CPC legalese titles — keep the first clause and let
+ *  CSS truncate handle the rest (full title in the tooltip). */
+function shortPartnerLabel(p: { cpc: string; title: string }): string {
+  if (!p.title) return p.cpc;
+  return p.title.split(";")[0].toLowerCase();
+}
+
 export default function TechnologyCard({ tech }: { tech: TechInsight }) {
   const { payload } = tech;
-  const hub = payload.patent_dynamics.hub;
   const cycle = payload.patent_dynamics.cycle_time_years;
+  const tir = payload.patent_dynamics.tir_pct;
+  const topPatents = payload.patent_dynamics.top_patents ?? [];
   const partners = (payload.convergence ?? []).slice(0, 3);
 
   return (
@@ -141,40 +149,65 @@ export default function TechnologyCard({ tech }: { tech: TechInsight }) {
       </div>
 
       <footer className="flex flex-col gap-2 border-t border-border pt-3">
-        <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-text tabular-nums">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] text-text tabular-nums">
+          {tir !== undefined && (
+            <span title="Predicted Technology Improvement Rate — immediacy × importance from the citation graph, calibrated on published Benson–Magee domain rates">
+              <span className="font-display text-lg text-paper">≈{tir}%</span>
+              <span className="text-muted">/yr improvement (predicted)</span>
+            </span>
+          )}
           <span>
             {payload.lead_time.patent.n.toLocaleString("en-US")}{" "}
             <span className="text-muted">patents</span>
           </span>
           {cycle !== undefined && (
             <span>
-              {cycle} y <span className="text-muted">innovation cycle</span>
+              {cycle} y <span className="text-muted">cycle</span>
             </span>
           )}
-          {hub && (
-            <a
-              href={espacenetUrl(hub.pub)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent hover:underline"
-              title={hub.title || hub.pub}
-            >
-              key patent · {hub.cites.toLocaleString("en-US")} citations ↗
-            </a>
-          )}
         </div>
+        {topPatents.length > 0 && (
+          <details className="group">
+            <summary className="cursor-pointer font-mono text-[11px] text-accent hover:underline list-none">
+              top {topPatents.length} cited patents{" "}
+              <span className="text-muted group-open:hidden">▸</span>
+              <span className="text-muted hidden group-open:inline">▾</span>
+            </summary>
+            <ol className="mt-2 flex flex-col gap-1 max-h-56 overflow-y-auto pr-1">
+              {topPatents.map((tp, i) => (
+                <li key={tp.pub} className="flex items-baseline gap-2 font-mono text-[10px]">
+                  <span className="text-muted w-4 shrink-0 text-right">{i + 1}.</span>
+                  <a
+                    href={espacenetUrl(tp.pub)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent hover:underline shrink-0"
+                  >
+                    {tp.pub} ↗
+                  </a>
+                  <span className="text-muted shrink-0 tabular-nums">
+                    {tp.cites.toLocaleString("en-US")}×{tp.year ? ` · ${tp.year}` : ""}
+                  </span>
+                  <span className="text-text truncate min-w-0" title={tp.title}>
+                    {tp.title || "—"}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </details>
+        )}
         {partners.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted shrink-0">
               converges with
             </span>
             {partners.map((p) => (
               <span
                 key={p.cpc}
-                className="font-mono text-[10px] text-text border border-border px-1.5 py-0.5"
-                title={p.title}
+                className="font-mono text-[10px] text-text border border-border px-1.5 py-0.5 max-w-[180px] truncate"
+                title={`${p.cpc} — ${p.title}`}
               >
-                {p.title ? p.title.toLowerCase().slice(0, 34) : p.cpc}
+                {shortPartnerLabel(p)}
               </span>
             ))}
           </div>

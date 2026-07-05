@@ -60,6 +60,43 @@ CURATED: list[tuple[str, str, str]] = [
 
 LEADTIME_THRESHOLD = 0.55
 
+# --- TIR calibration (blueprint §2.1.1) ---------------------------------------
+# The blueprint's TIR core: Importance (forward-citation strength, truncation-
+# robust via cites-within-3y) × Immediacy (inverse Cycle Time). That yields an
+# INDEX; to report %/yr we re-fit on known data (the blueprint's explicit
+# alternative to reusing paper coefficients): a log-log regression anchored on
+# domains with published, widely replicated improvement rates (Benson & Magee
+# 2015 measured k; Farmer & Lafond 2016). Anchors are documented estimates:
+TIR_ANCHORS: dict[str, float] = {
+    "H02S": 10.3,  # solar photovoltaics (B&M 2015 measured ~10%/yr)
+    "H01M": 7.7,   # batteries / electrical energy storage (B&M ~7.7%/yr)
+    "F03D": 5.5,   # wind power (~5-6%/yr)
+    "H04W": 19.7,  # wireless communication (B&M ~20%/yr)
+    "E04B": 2.5,   # construction — slow-moving low anchor (~2-3%/yr)
+}
+
+
+def fit_tir_calibration(metrics: dict[str, dict]) -> tuple[float, float] | None:
+    """ln(k) = a + b·ln(index) fitted over the anchor domains present in this
+    run. Returns (a, b) or None if fewer than 3 anchors have a valid index."""
+    import math
+    xs, ys = [], []
+    for sym, k in TIR_ANCHORS.items():
+        idx = (metrics.get(sym) or {}).get("tir_index")
+        if idx and idx > 0:
+            xs.append(math.log(idx))
+            ys.append(math.log(k))
+    if len(xs) < 3:
+        return None
+    n = len(xs)
+    mx, my = sum(xs) / n, sum(ys) / n
+    sxx = sum((x - mx) ** 2 for x in xs)
+    if sxx == 0:
+        return None
+    b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sxx
+    a = my - b * mx
+    return a, b
+
 
 def migrate() -> None:
     with get_connection() as conn:
@@ -128,18 +165,45 @@ def patent_dynamics(cpc: str) -> dict:
     112M-edge graph never enters RAM)."""
     out: dict = {}
     with get_connection() as c:
-        # hub patent: most-cited patent WITHIN the domain (forward citations)
-        r = c.execute(
-            "SELECT pl.dst_pub AS pub, COUNT(*) AS n, MIN(re.title) AS title "
+        # top-cited patents WITHIN the domain (forward citations) — browsable list
+        rows = c.execute(
+            "SELECT pl.dst_pub AS pub, COUNT(*) AS n, MIN(re.title) AS title, "
+            "       MIN(substr(re.published_date::text,1,4)) AS yr "
             "FROM patent_links pl "
             "JOIN patent_cpc pc ON pc.pub_number = pl.dst_pub AND substr(pc.cpc,1,4) = ? "
             "LEFT JOIN raw_entries re ON re.pub_number = pl.dst_pub "
             "WHERE pl.link_type = 'cites' "
-            "GROUP BY pl.dst_pub ORDER BY n DESC LIMIT 1", (cpc,)).fetchone()
+            "GROUP BY pl.dst_pub ORDER BY n DESC LIMIT 15", (cpc,)).fetchall()
+        top = []
+        for r in rows:
+            top.append({"pub": r["pub"] if isinstance(r, dict) else r[0],
+                        "cites": int(r["n"] if isinstance(r, dict) else r[1]),
+                        "title": ((r["title"] if isinstance(r, dict) else r[2]) or "")[:180],
+                        "year": (r["yr"] if isinstance(r, dict) else r[3])})
+        if top:
+            out["top_patents"] = top
+            out["hub"] = top[0]
+        # immediate importance: avg forward cites arriving within 3y of the cited
+        # patent's publication, over a domain sample (the truncation-robust
+        # importance signal from Benson & Magee)
+        r = c.execute(
+            "WITH dom AS (SELECT DISTINCT pc.pub_number FROM patent_cpc pc "
+            "             JOIN raw_entries rd ON rd.pub_number = pc.pub_number "
+            "             WHERE substr(pc.cpc,1,4) = ? AND rd.published_date IS NOT NULL "
+            "               AND rd.published_date < NOW() - INTERVAL '3 years' LIMIT 30000) "
+            "SELECT (SELECT COUNT(*) FROM dom) AS n_dom, COUNT(*) AS cites3y "
+            "FROM dom "
+            "JOIN patent_links pl ON pl.dst_pub = dom.pub_number AND pl.link_type='cites' "
+            "JOIN raw_entries rs ON rs.pub_number = pl.src_pub "
+            "JOIN raw_entries rd ON rd.pub_number = dom.pub_number "
+            "WHERE rs.published_date IS NOT NULL "
+            "  AND rs.published_date <= rd.published_date + INTERVAL '3 years'",
+            (cpc,)).fetchone()
         if r:
-            out["hub"] = {"pub": r["pub"] if isinstance(r, dict) else r[0],
-                          "cites": int(r["n"] if isinstance(r, dict) else r[1]),
-                          "title": (r["title"] if isinstance(r, dict) else r[2]) or ""}
+            n_dom = int((r["n_dom"] if isinstance(r, dict) else r[0]) or 0)
+            c3 = int((r["cites3y"] if isinstance(r, dict) else r[1]) or 0)
+            if n_dom >= 100:
+                out["immediate_importance"] = round(c3 / n_dom, 3)
         # cycle time: median backward-citation age over a domain sample
         rows = c.execute(
             "SELECT substr(rs.published_date::text,1,4)::int - "
@@ -195,11 +259,16 @@ def build_one(cpc: str, name: str, vertical: str, totals: dict[str, dict[int, in
                       "share_series": _share_series(years, totals.get(tier, {}))}
     sci_to, mkt_to = lead["science"]["takeoff"], lead["market"]["takeoff"]
     pat_to = lead["patent"]["takeoff"]
+    dyn = patent_dynamics(cpc)
+    # blueprint §2.1.1: TIR index = Importance (cites-in-3y) × Immediacy (1/CT)
+    ii, ct = dyn.get("immediate_importance"), dyn.get("cycle_time_years")
+    if ii and ct and ct > 0:
+        dyn["tir_index"] = round(ii / ct, 4)
     payload = {
         "lead_time": lead,
         "lead_years_science_vs_market": (mkt_to - sci_to) if sci_to and mkt_to else None,
         "lead_years_patent_vs_market": (mkt_to - pat_to) if pat_to and mkt_to else None,
-        "patent_dynamics": patent_dynamics(cpc),
+        "patent_dynamics": dyn,
         "convergence": convergence(cpc),
         "built_in_s": round(time.time() - t0, 1),
     }
@@ -237,13 +306,48 @@ def main() -> int:
     totals = tier_year_totals()
     print(f"tier-year totals loaded (science yrs={len(totals['science'])}, "
           f"market yrs={len(totals['market'])})")
+    metrics: dict[str, dict] = {}
     for cpc, name, vertical in todo:
         p = build_one(cpc, name, vertical, totals)
+        metrics[cpc] = p["patent_dynamics"]
         lt = p["lead_years_science_vs_market"]
         print(f"  {cpc} {name[:40]:42s} patents={p['lead_time']['patent']['n']:>9,} "
               f"lead(sci→mkt)={lt if lt is not None else '—'} "
               f"cycle={p['patent_dynamics'].get('cycle_time_years','—')}J "
+              f"II={p['patent_dynamics'].get('immediate_importance','—')} "
               f"({p['built_in_s']}s)")
+
+    # --- second pass: calibrate the TIR index to %/yr on the anchor domains ---
+    import math
+    # when a partial run (--cpc) lacks anchors, pull stored indices for them
+    if len([s for s in TIR_ANCHORS if (metrics.get(s) or {}).get("tir_index")]) < 3:
+        with get_connection() as c:
+            for sym in TIR_ANCHORS:
+                r = c.execute("SELECT payload->'patent_dynamics'->>'tir_index' AS i "
+                              "FROM cpc_insights WHERE symbol = ?", (sym,)).fetchone()
+                v = (r["i"] if isinstance(r, dict) else r[0]) if r else None
+                if v:
+                    metrics.setdefault(sym, {})["tir_index"] = float(v)
+    cal = fit_tir_calibration(metrics)
+    if cal:
+        a, b = cal
+        print(f"TIR calibration: ln(k) = {a:.3f} + {b:.3f}·ln(index) "
+              f"({len([s for s in TIR_ANCHORS if (metrics.get(s) or {}).get('tir_index')])} anchors)")
+        with get_connection() as conn:
+            cur = conn._conn.cursor()
+            for cpc, _, _ in todo:
+                idx = (metrics.get(cpc) or {}).get("tir_index")
+                if not idx or idx <= 0:
+                    continue
+                k = max(0.5, min(80.0, math.exp(a + b * math.log(idx))))
+                cur.execute(
+                    "UPDATE cpc_insights SET payload = jsonb_set(payload, "
+                    "'{patent_dynamics,tir_pct}', to_jsonb(round(%s::numeric,1))) "
+                    "WHERE symbol = %s", (k, cpc))
+                print(f"    {cpc}: TIR ≈ {k:.1f} %/Jahr")
+            conn._conn.commit()
+    else:
+        print("TIR calibration skipped: <3 anchor domains with a valid index.")
     print(f"\n{len(todo)} technologies persisted to cpc_insights.")
     return 0
 
