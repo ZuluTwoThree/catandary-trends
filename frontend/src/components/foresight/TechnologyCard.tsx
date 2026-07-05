@@ -29,10 +29,11 @@ function Sparkline({ shareSeries, label }: { shareSeries: Record<string, number>
   const max = Math.max(1, ...Object.values(shareSeries));
   return (
     <svg
-      width={w}
+      width="100%"
       height={h}
       viewBox={`0 0 ${w} ${h}`}
-      className="shrink-0"
+      preserveAspectRatio="none"
+      className="block w-full"
       role="img"
       aria-label={`Share of tier per year, ${X0}–${X1}`}
     >
@@ -88,10 +89,12 @@ export default function TechnologyCard({ tech }: { tech: TechInsight }) {
   const partners = (payload.convergence ?? []).slice(0, 3);
 
   return (
-    <article className="border border-border bg-card/40 p-5 flex flex-col gap-4">
+    <article className="border border-border bg-card/40 p-4 sm:p-5 flex flex-col gap-4 overflow-hidden">
       <header className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl text-paper leading-snug">{tech.name}</h2>
+        <div className="min-w-0">
+          <h2 className="font-display text-lg sm:text-xl text-paper leading-snug break-words">
+            {tech.name}
+          </h2>
           <p className="font-sans text-sm text-text mt-1">{leadSentence(tech)}</p>
         </div>
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted border border-border px-2 py-1 shrink-0">
@@ -105,34 +108,34 @@ export default function TechnologyCard({ tech }: { tech: TechInsight }) {
           if (!lead) return null;
           const hasShare = Object.keys(lead.share_series ?? {}).length > 0;
           return (
-            <div key={tier} className="flex items-center gap-3">
-              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted w-16 shrink-0">
+            <div key={tier} className="flex items-center gap-2 sm:gap-3">
+              <span className="font-mono text-[9px] sm:text-[10px] uppercase tracking-[0.1em] text-muted w-14 sm:w-16 shrink-0">
                 {TIER_LABEL[tier]}
               </span>
-              {hasShare ? (
-                <Sparkline shareSeries={lead.share_series} label={TIER_LABEL[tier]} />
-              ) : (
-                <span
-                  className="shrink-0 font-mono text-[9px] text-muted italic flex items-center"
-                  style={{ width: 222, height: 22 }}
-                >
-                  coverage building…
-                </span>
-              )}
-              <span className="font-mono text-[11px] text-text tabular-nums whitespace-nowrap">
+              <div className="flex-1 min-w-0">
+                {hasShare ? (
+                  <Sparkline shareSeries={lead.share_series} label={TIER_LABEL[tier]} />
+                ) : (
+                  <span className="font-mono text-[9px] text-muted italic flex items-center h-[22px]">
+                    coverage building…
+                  </span>
+                )}
+              </div>
+              <span className="font-mono text-[10px] sm:text-[11px] text-text tabular-nums shrink-0 w-16 text-right">
                 {lead.n > 0 ? lead.n.toLocaleString("en-US") : "—"}
               </span>
             </div>
           );
         })}
-        <div className="flex items-center gap-3">
-          <span className="w-16 shrink-0" />
-          <div className="flex justify-between font-mono text-[9px] text-muted" style={{ width: 222 }}>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="w-14 sm:w-16 shrink-0" />
+          <div className="flex-1 min-w-0 flex justify-between font-mono text-[9px] text-muted">
             <span>{X0}</span>
             <span>{X1}</span>
           </div>
+          <span className="w-16 shrink-0" />
         </div>
-        <p className="font-mono text-[9px] text-muted ml-[76px]">
+        <p className="font-mono text-[9px] text-muted">
           share of each tier&apos;s activity per year · count at right
         </p>
       </div>
