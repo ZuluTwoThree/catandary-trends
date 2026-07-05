@@ -123,7 +123,7 @@ def generate_for(rows) -> dict:
                         "UPDATE trends SET title_en=?, summary_en=?, body_en=?, "
                         "status=?, published_at=?, auto_published=? WHERE id=?",
                         (en.title, en.summary, en.body, status,
-                         _now_iso() if publish else None, 1 if publish else 0, row["id"]))
+                         _now_iso() if publish else None, bool(publish), row["id"]))
                 stats["published" if publish else "draft"] += 1
                 if i % 10 == 0:
                     logger.info("content-gen %d/%d (%d published, %d draft, %d err)",
