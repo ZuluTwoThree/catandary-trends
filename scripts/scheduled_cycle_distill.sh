@@ -48,6 +48,12 @@ echo "----- 2/3 distill classification (embed + heads, min-id $WATERMARK) -----"
 $PY scripts/run_distill_batch.py --min-id "$WATERMARK" --limit 0
 
 echo "----- 3/3 content generation for fresh signals (since $SINCE) -----"
+# Pin the production content path (llama.cpp 30B, own GPU handover) — the
+# Ollama fallback's VRAM pre-flight fails while llama-server rests (~13 GB).
+STAGE5_START="/home/dirk/llama.cpp/start-qwen3-30b.sh"
+if [ -x "$STAGE5_START" ]; then
+  export STAGE5_BACKEND=llamacpp
+fi
 $PY scripts/generate_content.py --since "$SINCE" --limit "$CONTENT_LIMIT"
 
 echo "===== distill cycle done $(date '+%F %T') ====="
