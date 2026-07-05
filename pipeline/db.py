@@ -1187,20 +1187,26 @@ def _vector_to_bytes(v) -> bytes | None:
     return _np.array(s.split(","), dtype=_np.float32).tobytes()
 
 
-def get_recent_embeddings(days: int = 30) -> list[tuple[int, bytes]]:
-    """Get embeddings from the last N days for dedup checking."""
+def get_recent_embeddings(days: int = 30, limit: int = 120_000) -> list[tuple[int, bytes]]:
+    """Get embeddings from the last N days for dedup checking, newest first and
+    capped at `limit` rows. The cap bounds RAM: a mass backfill can insert 500k+
+    signals in a day, and loading them all as a 4096-d matrix (~8 GB at 500k)
+    OOM-killed the run under concurrent load. The newest `limit` rows are more
+    than enough to catch duplicates of a fresh batch (dups are recent)."""
     with get_connection() as conn:
         if USE_POSTGRES:
             rows = conn.execute(
                 "SELECT id, embedding::text AS embedding FROM trends "
-                "WHERE embedding IS NOT NULL AND created_at > NOW() - INTERVAL '%s days'",
-                (days,),
+                "WHERE embedding IS NOT NULL AND created_at > NOW() - INTERVAL '%s days' "
+                "ORDER BY id DESC LIMIT %s",
+                (days, limit),
             ).fetchall()
             return [(row["id"], _vector_to_bytes(row["embedding"])) for row in rows]
         rows = conn.execute(
             "SELECT id, embedding FROM trends "
-            "WHERE embedding IS NOT NULL AND created_at > datetime('now', ?)",
-            (f"-{days} days",),
+            "WHERE embedding IS NOT NULL AND created_at > datetime('now', ?) "
+            "ORDER BY id DESC LIMIT ?",
+            (f"-{days} days", limit),
         ).fetchall()
         return [(row["id"] if isinstance(row, dict) else row[0],
                  row["embedding"] if isinstance(row, dict) else row[1])
