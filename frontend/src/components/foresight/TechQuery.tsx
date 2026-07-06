@@ -450,24 +450,22 @@ export default function TechQuery() {
               {evLoading ? (
                 <p className="font-mono text-[11px] text-muted animate-pulse">loading sources…</p>
               ) : evSignals && evSignals.length > 0 ? (
-                <ol className="flex flex-col gap-1.5 max-h-72 overflow-y-auto pr-1">
+                <ol className="flex flex-col gap-2.5 max-h-72 overflow-y-auto pr-1">
                   {evSignals.map((s, i) => (
-                    <li key={i} className="flex items-baseline gap-2 text-[12px]">
-                      <span className="font-mono text-[10px] text-muted tabular-nums shrink-0 w-9">
-                        {s.year ?? "—"}
-                      </span>
+                    <li key={i} className="text-[12px] leading-snug">
                       <a
                         href={s.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-sans text-text hover:text-accent hover:underline min-w-0"
+                        className="font-sans text-text hover:text-accent hover:underline break-words"
                       >
                         {s.title}
                       </a>
-                      <span className="font-mono text-[9px] text-muted shrink-0 whitespace-nowrap">
-                        {s.cites ? `${s.cites.toLocaleString("en-US")}× · ` : ""}
-                        {s.source}
-                      </span>
+                      <div className="font-mono text-[9px] text-muted mt-0.5">
+                        {s.year ?? "—"}
+                        {s.cites ? ` · ${s.cites.toLocaleString("en-US")}× cited` : ""} ·{" "}
+                        {s.source.split("(")[0].trim()}
+                      </div>
                     </li>
                   ))}
                 </ol>
