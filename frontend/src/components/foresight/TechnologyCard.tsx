@@ -157,9 +157,9 @@ export default function TechnologyCard({ tech }: { tech: TechInsight }) {
       <footer className="flex flex-col gap-2 border-t border-border pt-3">
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] text-text tabular-nums">
           {tir !== undefined && (
-            <span title="Predicted Technology Improvement Rate — immediacy × importance from the citation graph, calibrated on published Benson–Magee domain rates">
+            <span title="Predicted Technology Improvement Rate via SPNP patent-network centrality (Singh, Triulzi & Magee, MIT, Research Policy 2021), calibrated on their published domain rates">
               <span className="font-display text-lg text-paper">≈{tir}%</span>
-              <span className="text-muted">/yr improvement (predicted)</span>
+              <span className="text-muted">/yr improvement (MIT-method est.)</span>
             </span>
           )}
           <span>

@@ -108,6 +108,30 @@ export default async function TechnologyExplorerPage() {
         </div>
       )}
 
+      {/* Methodology / trust — the USP: improvement rates on the actual MIT method */}
+      <div className="mt-8 border border-border bg-card/40 px-5 py-4">
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">
+          —— How we predict improvement rates
+        </div>
+        <p className="font-sans text-sm text-text leading-relaxed max-w-3xl">
+          Technology Improvement Rates use the peer-reviewed{" "}
+          <span className="text-paper">Search Path Node Pair (SPNP) patent-network centrality</span>{" "}
+          method of{" "}
+          <a
+            href="https://doi.org/10.1016/j.respol.2021.104294"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:underline"
+          >
+            Singh, Triulzi &amp; Magee (MIT), Research Policy 2021 ↗
+          </a>
+          , computed on our 112M-edge citation graph and calibrated against their published
+          domain rates (rank correlation 0.83, R² 0.79). Rates are directional predictions,
+          not measured performance; very fast software fields and thinly-covered classes carry
+          wider uncertainty.
+        </p>
+      </div>
+
       {/* Display-only tier concept (real gating = issue #17) */}
       <div className="mt-12 border border-border bg-card/40 p-6">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-3">
