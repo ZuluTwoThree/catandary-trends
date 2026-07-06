@@ -353,7 +353,7 @@ def ingest_ukri(since: str, limit: int, dry_run: bool) -> dict:
                 if not pid or not title:
                     stats["skipped"] += 1
                     continue
-                url = f"https://gtr.ukri.org/projects?ref={pid}"
+                url = f"https://gtr.ukri.org/project/{pid}"
                 funder = "UKRI" + (f"/{p['leadFunder']}" if p.get("leadFunder") else "")
                 abstract = p.get("abstractText") or p.get("techAbstractText") or ""
                 excerpt = _excerpt(funder, "UK", "", abstract)
