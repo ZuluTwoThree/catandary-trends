@@ -60,14 +60,20 @@ function Sparkline({ shareSeries, label }: { shareSeries: Record<string, number>
 }
 
 /**
- * Plain-language dynamics statement from measures that genuinely differ per
- * technology (innovation cycle, patent center of gravity). The cross-tier
- * lead-time claim is deliberately NOT shown yet: with the historical
- * science/market classification still landing, takeoff years sit on the
- * acquisition-window floor and would read as a uniform fake "15 years" —
- * re-enable once tier depth is fully embedded (validation directive).
+ * Card headline sentence. The lead-time claim (the product's core promise) is
+ * shown ONLY where it is genuinely measured: market takeoff must be clear of
+ * the market corpus floor (≥2003). Science takeoff sits at the 1990 window
+ * floor for every broad domain (research predates our window), so the lead is
+ * a LOWER BOUND and always phrased "N+ years". Everything else falls back to
+ * the dynamics statement (innovation cycle + patent center of gravity).
  */
 function leadSentence(t: TechInsight): string {
+  const sci = t.payload.lead_time.science?.takeoff;
+  const mkt = t.payload.lead_time.market?.takeoff;
+  const lead = t.payload.lead_years_science_vs_market;
+  if (sci && mkt && lead && mkt >= 2003 && lead >= 5) {
+    return `In our data, research ran ${lead}+ years ahead of market coverage.`;
+  }
   const cycle = t.payload.patent_dynamics.cycle_time_years;
   const med = t.payload.lead_time.patent?.median;
   const parts: string[] = [];
