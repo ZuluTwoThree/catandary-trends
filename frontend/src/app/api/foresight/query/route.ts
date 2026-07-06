@@ -1,9 +1,23 @@
 import { NextResponse } from "next/server";
 import { execFile } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
+
+/** Repo root, found by walking up from cwd — robust to whether the server runs
+ *  with cwd at the repo root (dev) or the frontend/ dir (standalone prod). */
+function repoRoot(): string {
+  let dir = process.cwd();
+  for (let i = 0; i < 5; i++) {
+    if (fs.existsSync(path.join(dir, "scripts", "tech_query.py"))) return dir;
+    const up = path.dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return process.cwd();
+}
 
 /**
  * GET /api/foresight/query?q=<phrase>&threshold=0.45  (Super Pro+ on-demand scope)
@@ -23,16 +37,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "query must be 4–200 characters" }, { status: 400 });
   }
 
-  const repoRoot = path.resolve(process.cwd(), "..");
-  const py = path.join(repoRoot, ".venv", "bin", "python");
-  const script = path.join(repoRoot, "scripts", "tech_query.py");
+  const root = repoRoot();
+  const py = path.join(root, ".venv", "bin", "python");
+  const script = path.join(root, "scripts", "tech_query.py");
 
   try {
     const result = await new Promise<string>((resolve, reject) => {
       execFile(
         py,
         [script, q, "--threshold", String(threshold), "--json"],
-        { cwd: repoRoot, timeout: 110_000, maxBuffer: 4 * 1024 * 1024 },
+        { cwd: root, timeout: 110_000, maxBuffer: 4 * 1024 * 1024 },
         (err, stdout) => {
           if (err) return reject(err);
           resolve(stdout);
