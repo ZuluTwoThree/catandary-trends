@@ -50,6 +50,12 @@ const TIER_LABEL: Record<string, string> = {
   funding: "Funding",
   market: "Market",
 };
+const TIER_NOUN: Record<string, string> = {
+  science: "papers",
+  patent: "patents",
+  funding: "grants",
+  market: "articles",
+};
 const EXAMPLES = [
   "recombinant food protein for cheesemaking",
   "solid-state battery electrolyte",
@@ -92,6 +98,14 @@ interface DeepTir {
   error?: string;
 }
 
+interface EvidenceSignal {
+  title: string;
+  year: string | null;
+  source: string;
+  url: string;
+  cites?: number;
+}
+
 export default function TechQuery() {
   const [q, setQ] = useState("");
   const [threshold, setThreshold] = useState(0.45);
@@ -100,6 +114,34 @@ export default function TechQuery() {
   const [err, setErr] = useState<string | null>(null);
   const [deep, setDeep] = useState<DeepTir | null>(null);
   const [deepLoading, setDeepLoading] = useState(false);
+  const [evTier, setEvTier] = useState<string | null>(null);
+  const [evLoading, setEvLoading] = useState(false);
+  const [evSignals, setEvSignals] = useState<EvidenceSignal[] | null>(null);
+
+  async function showEvidence(tier: string) {
+    if (evTier === tier) {
+      setEvTier(null); // toggle off
+      return;
+    }
+    setEvTier(tier);
+    setEvLoading(true);
+    setEvSignals(null);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 115_000);
+    try {
+      const r = await fetch(
+        `/api/foresight/query/evidence?q=${encodeURIComponent(q.trim())}&tier=${tier}&threshold=${threshold}`,
+        { signal: ctrl.signal }
+      );
+      const data = await r.json();
+      setEvSignals(r.ok && !data.error ? (data.signals as EvidenceSignal[]) : []);
+    } catch {
+      setEvSignals([]);
+    } finally {
+      clearTimeout(timer);
+      setEvLoading(false);
+    }
+  }
 
   async function runDeep(cpc: string) {
     if (deepLoading) return;
@@ -135,6 +177,8 @@ export default function TechQuery() {
     setErr(null);
     setRes(null);
     setDeep(null);
+    setEvTier(null);
+    setEvSignals(null);
     // never leave the button stuck on "Analyzing…" if the GPU handover stalls
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 115_000);
@@ -338,13 +382,22 @@ export default function TechQuery() {
             ))}
           </div>
 
-          {/* tier timelines */}
+          {/* tier timelines — click a row to see the underlying sources */}
           <div className="flex flex-col gap-1.5">
             {(["science", "patent", "funding", "market"] as const).map((tier) => {
               const t = res.tiers[tier];
               const has = t && Object.keys(t.series).length > 0;
+              const noun = TIER_NOUN[tier];
               return (
-                <div key={tier} className="flex items-center gap-2 sm:gap-3">
+                <button
+                  key={tier}
+                  onClick={() => has && showEvidence(tier)}
+                  disabled={!has}
+                  className={`flex items-center gap-2 sm:gap-3 text-left w-full py-0.5 rounded-sm transition-colors ${
+                    has ? "hover:bg-accent/10 cursor-pointer" : "cursor-default"
+                  } ${evTier === tier ? "bg-accent/10" : ""}`}
+                  title={has ? `Show the ${noun} behind this` : undefined}
+                >
                   <span className="font-mono text-[9px] sm:text-[10px] uppercase tracking-[0.1em] text-muted w-14 sm:w-16 shrink-0">
                     {TIER_LABEL[tier]}
                   </span>
@@ -357,12 +410,17 @@ export default function TechQuery() {
                       </span>
                     )}
                   </div>
-                  <span className="font-mono text-[10px] text-text tabular-nums shrink-0 w-24 text-right">
-                    {t && t.n > 0
-                      ? `${t.n.toLocaleString("en-US")}${t.takeoff ? ` · from ${t.takeoff}` : ""}`
-                      : "—"}
+                  <span className="font-mono text-[10px] text-text tabular-nums shrink-0 w-28 text-right">
+                    {t && t.n > 0 ? (
+                      <>
+                        {t.n.toLocaleString("en-US")} {noun}
+                        {has && <span className="text-accent"> ›</span>}
+                      </>
+                    ) : (
+                      "—"
+                    )}
                   </span>
-                </div>
+                </button>
               );
             })}
             <div className="flex items-center gap-2 sm:gap-3">
@@ -371,14 +429,59 @@ export default function TechQuery() {
                 <span>{X0}</span>
                 <span>{X1}</span>
               </div>
-              <span className="w-24 shrink-0" />
+              <span className="w-28 shrink-0" />
             </div>
           </div>
 
+          {/* evidence panel — the actual sources behind the clicked tier */}
+          {evTier && (
+            <div className="border border-accent/40 bg-card/60 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-accent">
+                  {TIER_LABEL[evTier]} evidence
+                </span>
+                <button
+                  onClick={() => setEvTier(null)}
+                  className="font-mono text-[10px] text-muted hover:text-paper"
+                >
+                  close ✕
+                </button>
+              </div>
+              {evLoading ? (
+                <p className="font-mono text-[11px] text-muted animate-pulse">loading sources…</p>
+              ) : evSignals && evSignals.length > 0 ? (
+                <ol className="flex flex-col gap-1.5 max-h-72 overflow-y-auto pr-1">
+                  {evSignals.map((s, i) => (
+                    <li key={i} className="flex items-baseline gap-2 text-[12px]">
+                      <span className="font-mono text-[10px] text-muted tabular-nums shrink-0 w-9">
+                        {s.year ?? "—"}
+                      </span>
+                      <a
+                        href={s.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-sans text-text hover:text-accent hover:underline min-w-0"
+                      >
+                        {s.title}
+                      </a>
+                      <span className="font-mono text-[9px] text-muted shrink-0 whitespace-nowrap">
+                        {s.cites ? `${s.cites.toLocaleString("en-US")}× · ` : ""}
+                        {s.source}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="font-mono text-[11px] text-muted">no sources found</p>
+              )}
+            </div>
+          )}
+
           <p className="font-mono text-[10px] text-muted">
-            Research/Funding/Market show each year&apos;s <span className="text-text">share of that
-            tier</span> (so the timeline reflects real momentum, not how much we happen to have
-            collected); Patents are native counts. Count · first-ramp year at right.
+            Each row is a maturity tier — <span className="text-text">click any bar to see the exact
+            papers, patents or filings behind it</span>. Research/Funding/Market bars show each
+            year&apos;s share of that tier (real momentum, not collection volume); Patents are native
+            counts.
           </p>
         </div>
       )}
