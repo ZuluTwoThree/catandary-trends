@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline.db import USE_POSTGRES, get_connection
 from scripts.cpc_leadtime import (median_year, patent_years, projected_tier_years,
                                   takeoff)
+from scripts.spnp_centrality import domain_k as spnp_domain_k
 
 # Curated technology axes: (cpc, display name, vertical). Klartext names — the
 # frontend shows these, not the CPC legalese.
@@ -183,28 +184,15 @@ def patent_dynamics(cpc: str) -> dict:
         if top:
             out["top_patents"] = top
             out["hub"] = top[0]
-        # immediate importance: avg forward cites arriving within 3y of the cited
-        # patent's publication (truncation-robust importance, Benson & Magee) —
-        # same 2000–2015 cohort + unbiased sample as cycle time
-        r = c.execute(
-            "WITH dom AS (SELECT pc.pub_number FROM patent_cpc pc "
-            "  JOIN raw_entries rd ON rd.pub_number = pc.pub_number "
-            "  WHERE substr(pc.cpc,1,4) = ? AND rd.published_date >= '2000-01-01' "
-            "    AND rd.published_date < '2016-01-01' "
-            "  GROUP BY pc.pub_number ORDER BY md5(pc.pub_number) LIMIT 25000) "
-            "SELECT (SELECT COUNT(*) FROM dom) AS n_dom, COUNT(*) AS cites3y "
-            "FROM dom "
-            "JOIN patent_links pl ON pl.dst_pub = dom.pub_number AND pl.link_type='cites' "
-            "JOIN raw_entries rs ON rs.pub_number = pl.src_pub "
-            "JOIN raw_entries rd ON rd.pub_number = dom.pub_number "
-            "WHERE rs.published_date IS NOT NULL "
-            "  AND rs.published_date <= rd.published_date + INTERVAL '3 years'",
-            (cpc,)).fetchone()
-        if r:
-            n_dom = int((r["n_dom"] if isinstance(r, dict) else r[0]) or 0)
-            c3 = int((r["cites3y"] if isinstance(r, dict) else r[1]) or 0)
-            if n_dom >= 100:
-                out["immediate_importance"] = round(c3 / n_dom, 3)
+    # TIR = the MIT method (SPNP centrality, Singh/Triulzi/Magee 2021), refit on
+    # published domain rates. Replaces the old II×1/cycle-time proxy that put
+    # semiconductors LAST. domain_k reads the prebuilt patent_spnp table.
+    dk = spnp_domain_k(cpc)
+    if dk.get("K_pct") is not None:
+        out["tir_pct"] = dk["K_pct"]
+        out["tir_X"] = dk["X"]
+        out["tir_method"] = "spnp"
+    with get_connection() as c:
         # Cycle time + immediate importance on a FIXED COHORT (2000–2015) with an
         # unbiased sample (md5 order, not insertion order). The cohort bounds kill
         # two artifacts that inverted the first calibration: (a) insertion-order
@@ -271,11 +259,7 @@ def build_one(cpc: str, name: str, vertical: str, totals: dict[str, dict[int, in
                       "share_series": _share_series(years, totals.get(tier, {}))}
     sci_to, mkt_to = lead["science"]["takeoff"], lead["market"]["takeoff"]
     pat_to = lead["patent"]["takeoff"]
-    dyn = patent_dynamics(cpc)
-    # blueprint §2.1.1: TIR index = Importance (cites-in-3y) × Immediacy (1/CT)
-    ii, ct = dyn.get("immediate_importance"), dyn.get("cycle_time_years")
-    if ii and ct and ct > 0:
-        dyn["tir_index"] = round(ii / ct, 4)
+    dyn = patent_dynamics(cpc)  # includes tir_pct via SPNP (MIT method)
     payload = {
         "lead_time": lead,
         "lead_years_science_vs_market": (mkt_to - sci_to) if sci_to and mkt_to else None,
@@ -322,11 +306,7 @@ def main() -> int:
     if args.dynamics_only:
         for cpc, name, _v in todo:
             t0 = time.time()
-            dyn = patent_dynamics(cpc)
-            ii, ct = dyn.get("immediate_importance"), dyn.get("cycle_time_years")
-            if ii and ct and ct > 0:
-                dyn["tir_index"] = round(ii / ct, 4)
-            dyn.pop("tir_pct", None)  # stale calibration must not survive
+            dyn = patent_dynamics(cpc)  # tir_pct via SPNP (MIT method)
             metrics[cpc] = dyn
             with get_connection() as conn:
                 cur = conn._conn.cursor()
@@ -335,8 +315,7 @@ def main() -> int:
                             (json.dumps(dyn), cpc))
                 conn._conn.commit()
             print(f"  {cpc} {name[:38]:40s} cycle={dyn.get('cycle_time_years','—')}J "
-                  f"II={dyn.get('immediate_importance','—')} "
-                  f"index={dyn.get('tir_index','—')} ({time.time()-t0:.0f}s)")
+                  f"TIR={dyn.get('tir_pct','—')}% ({time.time()-t0:.0f}s)")
     else:
         totals = tier_year_totals()
         print(f"tier-year totals loaded (science yrs={len(totals['science'])}, "
@@ -348,46 +327,9 @@ def main() -> int:
             print(f"  {cpc} {name[:40]:42s} patents={p['lead_time']['patent']['n']:>9,} "
                   f"lead(sci→mkt)={lt if lt is not None else '—'} "
                   f"cycle={p['patent_dynamics'].get('cycle_time_years','—')}J "
-                  f"II={p['patent_dynamics'].get('immediate_importance','—')} "
-                  f"({p['built_in_s']}s)")
-
-    # --- second pass: calibrate the TIR index to %/yr on the anchor domains ---
-    import math
-    # when a partial run (--cpc) lacks anchors, pull stored indices for them
-    if len([s for s in TIR_ANCHORS if (metrics.get(s) or {}).get("tir_index")]) < 3:
-        with get_connection() as c:
-            for sym in TIR_ANCHORS:
-                r = c.execute("SELECT payload->'patent_dynamics'->>'tir_index' AS i "
-                              "FROM cpc_insights WHERE symbol = ?", (sym,)).fetchone()
-                v = (r["i"] if isinstance(r, dict) else r[0]) if r else None
-                if v:
-                    metrics.setdefault(sym, {})["tir_index"] = float(v)
-    cal = fit_tir_calibration(metrics)
-    if cal and cal[1] <= 0:
-        # methodological sanity: more immediacy×importance MUST mean faster
-        # improvement. A non-positive slope means the metric inputs are still
-        # polluted — publishing would invert reality (AI slow, pharma fast).
-        print(f"TIR calibration REJECTED: slope {cal[1]:.3f} <= 0 — tir_pct not written.")
-        cal = None
-    if cal:
-        a, b = cal
-        print(f"TIR calibration: ln(k) = {a:.3f} + {b:.3f}·ln(index) "
-              f"({len([s for s in TIR_ANCHORS if (metrics.get(s) or {}).get('tir_index')])} anchors)")
-        with get_connection() as conn:
-            cur = conn._conn.cursor()
-            for cpc, _, _ in todo:
-                idx = (metrics.get(cpc) or {}).get("tir_index")
-                if not idx or idx <= 0:
-                    continue
-                k = max(0.5, min(80.0, math.exp(a + b * math.log(idx))))
-                cur.execute(
-                    "UPDATE cpc_insights SET payload = jsonb_set(payload, "
-                    "'{patent_dynamics,tir_pct}', to_jsonb(round(%s::numeric,1))) "
-                    "WHERE symbol = %s", (k, cpc))
-                print(f"    {cpc}: TIR ≈ {k:.1f} %/Jahr")
-            conn._conn.commit()
-    else:
-        print("TIR calibration skipped: <3 anchor domains with a valid index.")
+                  f"TIR={p['patent_dynamics'].get('tir_pct','—')}% ({p['built_in_s']}s)")
+    # TIR now comes straight from the SPNP domain_k (MIT method) inside
+    # patent_dynamics — no second-pass index calibration needed.
     print(f"\n{len(todo)} technologies persisted to cpc_insights.")
     return 0
 
