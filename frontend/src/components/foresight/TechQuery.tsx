@@ -87,18 +87,29 @@ export default function TechQuery() {
 
   async function run(phrase: string) {
     const query = phrase.trim();
-    if (query.length < 4) return;
+    if (query.length < 4 || loading) return;
     setLoading(true);
     setErr(null);
     setRes(null);
+    // never leave the button stuck on "Analyzing…" if the GPU handover stalls
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 115_000);
     try {
-      const r = await fetch(`/api/foresight/query?q=${encodeURIComponent(query)}&threshold=0.45`);
+      const r = await fetch(
+        `/api/foresight/query?q=${encodeURIComponent(query)}&threshold=0.45`,
+        { signal: ctrl.signal }
+      );
       const data = (await r.json()) as QueryResult;
       if (!r.ok || data.error) setErr(data.error || "query failed");
       else setRes(data);
-    } catch {
-      setErr("network error");
+    } catch (e) {
+      setErr(
+        e instanceof DOMException && e.name === "AbortError"
+          ? "timed out — try a narrower phrase"
+          : "network error"
+      );
     } finally {
+      clearTimeout(timer);
       setLoading(false);
     }
   }
