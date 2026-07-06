@@ -117,54 +117,79 @@ def patent_years_for_cpc(cpc: str) -> Counter:
     return years
 
 
+def compute(query: str, threshold: float) -> dict:
+    """Structured result: nearest CPCs, per-tier year series + ramp takeoff,
+    and the derived TIR / lead-time findings."""
+    vec = embed_query(query)
+    cpcs = nearest_cpcs(vec)
+    tiers = tier_years_for_vec(vec, threshold)
+    tiers["patent"] = patent_years_for_cpc(cpcs[0]["symbol"]) if cpcs else Counter()
+
+    tier_out: dict[str, dict] = {}
+    takeoffs: dict[str, int | None] = {}
+    for tier in ("science", "patent", "funding", "market"):
+        ys = tiers.get(tier) or Counter()
+        to = ramp_takeoff(ys)
+        takeoffs[tier] = to
+        med = median_year(ys)
+        tier_out[tier] = {
+            "n": sum(ys.values()), "first": min(ys) if ys else None,
+            "takeoff": to, "median": round(med) if med else None,
+            "series": {str(y): int(n) for y, n in sorted(ys.items())},
+        }
+
+    sci, mkt, pat = takeoffs["science"], takeoffs["market"], takeoffs["patent"]
+    top = cpcs[0] if cpcs else None
+    return {
+        "query": query, "threshold": threshold,
+        "nearest_cpcs": cpcs, "tiers": tier_out,
+        "tir_pct": top["tir_pct"] if top else None,
+        "tir_cpc": top["symbol"] if top else None,
+        "cycle_time_years": top["cycle"] if top else None,
+        "lead_science_market": (mkt - sci) if (sci and mkt and mkt >= 2003) else None,
+        "lead_patent_market": (mkt - pat) if (pat and mkt and mkt >= 2003) else None,
+        "market_floored": bool(mkt and mkt < 2003),
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Ad-hoc technology TIR + lead-time query (#28)")
     ap.add_argument("query", help="free-text technology phrase")
     ap.add_argument("--threshold", type=float, default=0.60,
                     help="max cosine distance signal↔query (default 0.60)")
+    ap.add_argument("--json", action="store_true", help="machine-readable output")
     args = ap.parse_args()
     if not db_mod.USE_POSTGRES:
         print("targets Postgres (pgvector)"); return 1
 
+    res = compute(args.query, args.threshold)
+    if args.json:
+        import json
+        print(json.dumps(res))
+        return 0
+
     print(f"\n━━━━━ Query: \"{args.query}\"  (threshold {args.threshold})")
-    vec = embed_query(args.query)
-
-    cpcs = nearest_cpcs(vec)
-    tiers = tier_years_for_vec(vec, args.threshold)
-    # patent tier from the single nearest CPC (native depth)
-    tiers["patent"] = patent_years_for_cpc(cpcs[0]["symbol"]) if cpcs else Counter()
-
     print("\nNearest technology classes (CPC):")
-    for c in cpcs:
+    for c in res["nearest_cpcs"]:
         tir = f"TIR ≈ {c['tir_pct']}%/yr" if c["tir_pct"] else "TIR n/a"
         print(f"  {c['symbol']} · {c['vertical']:9s} d={c['dist']}  {c['title'][:52]}  [{tir}]")
-
     print("\nLead-time tiers (signals matching the query):")
-    takeoffs: dict[str, int | None] = {}
     for tier in ("science", "patent", "funding", "market"):
-        ys = tiers.get(tier) or Counter()
-        n = sum(ys.values())
-        to = ramp_takeoff(ys)
-        takeoffs[tier] = to
-        med = median_year(ys)
-        print(f"  {tier:8s} n={n:>8,}  first={min(ys) if ys else '—'}  "
-              f"takeoff={to or '—'}  median={f'{med:.0f}' if med else '—'}")
+        t = res["tiers"][tier]
+        ys = Counter({int(y): n for y, n in t["series"].items()})
+        print(f"  {tier:8s} n={t['n']:>8,}  first={t['first'] or '—'}  "
+              f"takeoff={t['takeoff'] or '—'}  median={t['median'] or '—'}")
         print(f"           {BARS_Y0}–{BARS_Y1}  {sparkline(ys, BARS_Y0, BARS_Y1)}")
-
-    sci, mkt, pat = takeoffs["science"], takeoffs["market"], takeoffs["patent"]
     print("\nFindings:")
-    if cpcs and cpcs[0]["tir_pct"]:
-        print(f"  • Predicted TIR ≈ {cpcs[0]['tir_pct']} %/yr "
-              f"(cycle {cpcs[0]['cycle']}y, via {cpcs[0]['symbol']})")
-    if sci and mkt and mkt >= 2003:
-        print(f"  • Research ran ~{mkt - sci}+ years ahead of market coverage "
-              f"(science {sci} → market {mkt})")
-    elif mkt and mkt < 2003:
-        print(f"  • Market coverage from {mkt} — near the corpus floor; lead-time is a "
-              "lower bound only")
-    if pat and mkt and mkt >= 2003:
-        print(f"  • Patents ran ~{mkt - pat}+ years ahead of market (patents {pat})")
-    print("  (thin tiers / small n = the phrase is niche; widen --threshold to broaden)")
+    if res["tir_pct"]:
+        print(f"  • Predicted TIR ≈ {res['tir_pct']} %/yr "
+              f"(cycle {res['cycle_time_years']}y, via {res['tir_cpc']})")
+    if res["lead_science_market"]:
+        print(f"  • Research ran ~{res['lead_science_market']}+ years ahead of market")
+    elif res["market_floored"]:
+        print("  • Market coverage near the corpus floor; lead-time is a lower bound only")
+    if res["lead_patent_market"]:
+        print(f"  • Patents ran ~{res['lead_patent_market']}+ years ahead of market")
     return 0
 
 

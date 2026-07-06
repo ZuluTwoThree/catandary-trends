@@ -2,6 +2,7 @@ import Link from "next/link";
 import { q1 } from "@/lib/pg";
 import { getTechnologies } from "@/lib/technology";
 import TechnologyCard from "@/components/foresight/TechnologyCard";
+import TechQuery from "@/components/foresight/TechQuery";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,15 @@ export default async function TechnologyExplorerPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Super Pro+ on-demand scope — ask any technology, computed live */}
+      <div className="mb-10">
+        <TechQuery />
+      </div>
+
+      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-4">
+        —— Curated technologies
       </div>
 
       {technologies.length === 0 ? (
