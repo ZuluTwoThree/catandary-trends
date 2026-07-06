@@ -109,6 +109,60 @@ def tier_years_for_vec(vec1024: list[float], threshold: float) -> dict[str, Coun
     return out
 
 
+def evidence(vec1024: list[float], tier: str, threshold: float,
+             year: int | None = None, limit: int = 30) -> list[dict]:
+    """The underlying signals behind a tier's bar: for science/funding/market the
+    nearest matching trends (title, year, source, original URL); for patent the
+    domain's top-cited patents with an Espacenet link. This is the evidence a
+    click on a sparkline surfaces."""
+    vlit = "[" + ",".join(f"{x:.6f}" for x in vec1024) + "]"
+    out: list[dict] = []
+    with get_connection() as c:
+        if tier == "patent":
+            cpcs = nearest_cpcs(vec1024, k=1)
+            if not cpcs:
+                return out
+            rows = c.execute(
+                "SELECT pl.dst_pub AS pub, COUNT(*) AS n, MIN(re.title) AS title, "
+                "       MIN(substr(re.published_date::text,1,4)) AS yr "
+                "FROM patent_links pl "
+                "JOIN patent_cpc pc ON pc.pub_number=pl.dst_pub AND substr(pc.cpc,1,4)=? "
+                "LEFT JOIN raw_entries re ON re.pub_number=pl.dst_pub "
+                "WHERE pl.link_type='cites' GROUP BY pl.dst_pub "
+                "ORDER BY n DESC LIMIT ?", (cpcs[0]["symbol"], limit)).fetchall()
+            for r in rows:
+                r = dict(r)
+                pub = r["pub"]
+                out.append({"title": (r["title"] or pub), "year": r["yr"],
+                            "source": f"Patent · {cpcs[0]['symbol']}",
+                            "cites": int(r["n"]),
+                            "url": "https://worldwide.espacenet.com/patent/search?q=pn%3D%22"
+                                   + pub.replace("-", "") + "%22"})
+            return out
+        # embedded non-patent tiers
+        params: list = [threshold]
+        yr_clause = ""
+        if year:
+            yr_clause = "AND substr(r.published_date::text,1,4)=? "
+            params.append(str(year))
+        params.append(tier)
+        params.append(limit)
+        sql = (f"SELECT t.title_en AS title, substr(r.published_date::text,1,4) AS yr, "
+               "       s.name AS source, r.url AS url, "
+               f"       (t.embedding_1024 <=> '{vlit}'::vector) AS dist "
+               "FROM trends t JOIN raw_entries r ON t.raw_entry_id=r.id "
+               "JOIN sources s ON r.source_id=s.id "
+               "WHERE t.embedding_1024 IS NOT NULL AND r.published_date IS NOT NULL "
+               f"AND r.pub_number IS NULL AND t.embedding_1024 <=> '{vlit}'::vector < ? "
+               f"{yr_clause}AND {tier_expr()} = ? "
+               "ORDER BY dist LIMIT ?")
+        for r in c.execute(sql, params).fetchall():
+            r = dict(r)
+            out.append({"title": r["title"], "year": r["yr"], "source": r["source"],
+                        "url": r["url"], "dist": round(float(r["dist"]), 3)})
+    return out
+
+
 def nearest_cpcs(vec1024: list[float], k: int = 3) -> list[dict]:
     """Nearest CPC subclasses (by embedded definition) → carry their TIR."""
     vlit = "[" + ",".join(f"{x:.6f}" for x in vec1024) + "]"
@@ -234,9 +288,20 @@ def main() -> int:
     ap.add_argument("--threshold", type=float, default=0.60,
                     help="max cosine distance signal↔query (default 0.60)")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
+    ap.add_argument("--evidence", metavar="TIER",
+                    help="return the underlying signals for a tier "
+                         "(science|patent|funding|market) instead of the summary")
+    ap.add_argument("--year", type=int, help="--evidence: restrict to one year")
     args = ap.parse_args()
     if not db_mod.USE_POSTGRES:
         print("targets Postgres (pgvector)"); return 1
+
+    if args.evidence:
+        import json
+        vec = embed_query(args.query)
+        ev = evidence(vec, args.evidence, args.threshold, args.year)
+        print(json.dumps({"tier": args.evidence, "year": args.year, "signals": ev}))
+        return 0
 
     res = compute(args.query, args.threshold)
     if args.json:
