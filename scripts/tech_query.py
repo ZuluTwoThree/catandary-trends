@@ -121,7 +121,7 @@ def compute(query: str, threshold: float) -> dict:
     """Structured result: nearest CPCs, per-tier year series + ramp takeoff,
     and the derived TIR / lead-time findings."""
     vec = embed_query(query)
-    cpcs = nearest_cpcs(vec)
+    cpcs = nearest_cpcs(vec, k=12)
     tiers = tier_years_for_vec(vec, threshold)
     tiers["patent"] = patent_years_for_cpc(cpcs[0]["symbol"]) if cpcs else Counter()
 
@@ -139,13 +139,18 @@ def compute(query: str, threshold: float) -> dict:
         }
 
     sci, mkt, pat = takeoffs["science"], takeoffs["market"], takeoffs["patent"]
-    top = cpcs[0] if cpcs else None
+    # TIR is precomputed only for the curated classes; use the NEAREST modeled
+    # class (first hit carrying a tir_pct), and flag when it isn't the very
+    # nearest so the UI can say "via <class>".
+    tir_src = next((c for c in cpcs if c.get("tir_pct") is not None), None)
     return {
         "query": query, "threshold": threshold,
-        "nearest_cpcs": cpcs, "tiers": tier_out,
-        "tir_pct": top["tir_pct"] if top else None,
-        "tir_cpc": top["symbol"] if top else None,
-        "cycle_time_years": top["cycle"] if top else None,
+        "nearest_cpcs": cpcs[:6], "tiers": tier_out,
+        "tir_pct": tir_src["tir_pct"] if tir_src else None,
+        "tir_cpc": tir_src["symbol"] if tir_src else None,
+        "tir_via": (tir_src["curated"] or tir_src["symbol"]) if tir_src else None,
+        "tir_is_nearest": bool(tir_src and cpcs and tir_src["symbol"] == cpcs[0]["symbol"]),
+        "cycle_time_years": tir_src["cycle"] if tir_src else None,
         "lead_science_market": (mkt - sci) if (sci and mkt and mkt >= 2003) else None,
         "lead_patent_market": (mkt - pat) if (pat and mkt and mkt >= 2003) else None,
         "market_floored": bool(mkt and mkt < 2003),

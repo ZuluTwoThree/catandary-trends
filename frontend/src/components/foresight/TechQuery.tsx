@@ -30,6 +30,8 @@ interface QueryResult {
   tiers: Record<string, Tier>;
   tir_pct: number | null;
   tir_cpc: string | null;
+  tir_via: string | null;
+  tir_is_nearest: boolean;
   cycle_time_years: number | null;
   lead_science_market: number | null;
   lead_patent_market: number | null;
@@ -184,7 +186,10 @@ export default function TechQuery() {
             {res.tir_pct != null && (
               <div>
                 <span className="font-display text-3xl text-paper">≈{res.tir_pct}%</span>
-                <span className="font-mono text-[11px] text-muted">/yr improvement (predicted)</span>
+                <span className="font-mono text-[11px] text-muted">
+                  /yr improvement (predicted)
+                  {!res.tir_is_nearest && res.tir_via ? ` · via ${res.tir_via}` : ""}
+                </span>
               </div>
             )}
             {res.lead_science_market != null && (
