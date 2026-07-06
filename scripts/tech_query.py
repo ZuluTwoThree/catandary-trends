@@ -50,6 +50,41 @@ def embed_query(text: str) -> list[float]:
     return list(emb)[:1024]
 
 
+def embedded_tier_totals() -> dict[str, dict[int, int]]:
+    """Corpus-wide signals per embedded tier per year (science/funding/market) —
+    the denominator for share normalization, which removes the 2020 RSS-onset
+    density cliff. Patents are native (no cliff) so they stay raw. Fast: one
+    GROUP BY over trends, no 18M-patent scan."""
+    totals: dict[str, dict[int, int]] = {"science": {}, "funding": {}, "market": {}}
+    sql = (f"SELECT {tier_expr()} AS tier, substr(r.published_date::text,1,4) AS yr, "
+           "COUNT(*) AS n FROM trends t JOIN raw_entries r ON t.raw_entry_id=r.id "
+           "JOIN sources s ON r.source_id=s.id "
+           "WHERE t.embedding_1024 IS NOT NULL AND r.published_date IS NOT NULL "
+           "AND r.pub_number IS NULL GROUP BY tier, yr")
+    with get_connection() as c:
+        for r in c.execute(sql).fetchall():
+            tier = r["tier"] if isinstance(r, dict) else r[0]
+            yr = r["yr"] if isinstance(r, dict) else r[1]
+            n = r["n"] if isinstance(r, dict) else r[2]
+            try:
+                if tier in totals:
+                    totals[tier][int(yr)] = int(n)
+            except (TypeError, ValueError):
+                pass
+    return totals
+
+
+def share_series(years: Counter, tier_totals: dict[int, int]) -> Counter:
+    """Per-year share of the tier (parts per 10,000); years with a tiny
+    denominator (<30, pre-coverage) are dropped as noise."""
+    out: Counter = Counter()
+    for y, n in years.items():
+        tot = tier_totals.get(y, 0)
+        if tot >= 30:
+            out[y] = round(10000 * n / tot, 1)
+    return out
+
+
 def tier_years_for_vec(vec1024: list[float], threshold: float) -> dict[str, Counter]:
     """science/funding/market year histograms for signals within `threshold`
     cosine distance of the query vector (patents are added separately, native)."""
@@ -124,35 +159,71 @@ def compute(query: str, threshold: float) -> dict:
     cpcs = nearest_cpcs(vec, k=12)
     tiers = tier_years_for_vec(vec, threshold)
     tiers["patent"] = patent_years_for_cpc(cpcs[0]["symbol"]) if cpcs else Counter()
+    totals = embedded_tier_totals()
 
     tier_out: dict[str, dict] = {}
     takeoffs: dict[str, int | None] = {}
     for tier in ("science", "patent", "funding", "market"):
         ys = tiers.get(tier) or Counter()
-        to = ramp_takeoff(ys)
+        # patents are native (no RSS cliff) → raw; embedded tiers → share-of-tier
+        # so the 2020 acquisition-density cliff doesn't masquerade as a trend
+        plot = ys if tier == "patent" else share_series(ys, totals.get(tier, {}))
+        to = ramp_takeoff(plot)          # takeoff on the de-cliffed series
         takeoffs[tier] = to
         med = median_year(ys)
         tier_out[tier] = {
             "n": sum(ys.values()), "first": min(ys) if ys else None,
             "takeoff": to, "median": round(med) if med else None,
-            "series": {str(y): int(n) for y, n in sorted(ys.items())},
+            "series": {str(y): round(v, 1) for y, v in sorted(plot.items())},
+            "is_share": tier != "patent",
         }
 
     sci, mkt, pat = takeoffs["science"], takeoffs["market"], takeoffs["patent"]
+    # lead-time sanity: only claim a lead when research genuinely PRECEDES market
+    # by a plausible margin; a negative/zero/tiny gap is "concurrent", not "-4y"
+    lead_sm = (mkt - sci) if (sci and mkt and mkt >= 2003 and mkt - sci >= 2) else None
+    lead_pm = (mkt - pat) if (pat and mkt and mkt >= 2003 and mkt - pat >= 2) else None
+    concurrent = bool(sci and mkt and (mkt - sci) < 2 and not lead_sm)
     # TIR is precomputed only for the curated classes; use the NEAREST modeled
     # class (first hit carrying a tir_pct), and flag when it isn't the very
     # nearest so the UI can say "via <class>".
     tir_src = next((c for c in cpcs if c.get("tir_pct") is not None), None)
+    tir = tir_src["tir_pct"] if tir_src else None
+
+    # P1: one-sentence plain-language verdict (stage clause + speed clause)
+    mkt_n = tier_out["market"]["n"]
+    stage = None
+    if lead_sm and lead_sm >= 8:
+        stage = f"Research ran ~{lead_sm}+ years ahead of the market"
+    elif concurrent:
+        stage = "Research and market move closely together"
+    elif mkt_n < 80:
+        stage = "Early-stage — market coverage is still thin"
+    speed = None
+    if tir is not None:
+        speed = (f"improving fast (~{tir}%/yr)" if tir >= 10
+                 else f"slow-moving (~{tir}%/yr)" if tir <= 4
+                 else f"~{tir}%/yr improvement")
+    if stage and speed:
+        verdict = f"{stage}; {speed}."
+    elif stage:
+        verdict = f"{stage}."
+    elif speed:
+        verdict = speed[0].upper() + speed[1:] + "."
+    else:
+        verdict = None
+
     return {
-        "query": query, "threshold": threshold,
+        "query": query, "threshold": threshold, "verdict": verdict,
         "nearest_cpcs": cpcs[:6], "tiers": tier_out,
         "tir_pct": tir_src["tir_pct"] if tir_src else None,
         "tir_cpc": tir_src["symbol"] if tir_src else None,
         "tir_via": (tir_src["curated"] or tir_src["symbol"]) if tir_src else None,
         "tir_is_nearest": bool(tir_src and cpcs and tir_src["symbol"] == cpcs[0]["symbol"]),
         "cycle_time_years": tir_src["cycle"] if tir_src else None,
-        "lead_science_market": (mkt - sci) if (sci and mkt and mkt >= 2003) else None,
-        "lead_patent_market": (mkt - pat) if (pat and mkt and mkt >= 2003) else None,
+        "lead_science_market": lead_sm,
+        "lead_patent_market": lead_pm,
+        "concurrent": concurrent,
         "market_floored": bool(mkt and mkt < 2003),
     }
 
@@ -191,6 +262,8 @@ def main() -> int:
               f"(cycle {res['cycle_time_years']}y, via {res['tir_cpc']})")
     if res["lead_science_market"]:
         print(f"  • Research ran ~{res['lead_science_market']}+ years ahead of market")
+    elif res.get("concurrent"):
+        print("  • Research and market move roughly together (concurrent)")
     elif res["market_floored"]:
         print("  • Market coverage near the corpus floor; lead-time is a lower bound only")
     if res["lead_patent_market"]:

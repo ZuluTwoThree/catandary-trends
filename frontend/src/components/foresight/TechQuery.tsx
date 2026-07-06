@@ -26,6 +26,7 @@ interface Tier {
 interface QueryResult {
   query: string;
   threshold: number;
+  verdict: string | null;
   nearest_cpcs: Cpc[];
   tiers: Record<string, Tier>;
   tir_pct: number | null;
@@ -35,6 +36,7 @@ interface QueryResult {
   cycle_time_years: number | null;
   lead_science_market: number | null;
   lead_patent_market: number | null;
+  concurrent: boolean;
   market_floored: boolean;
   error?: string;
 }
@@ -92,6 +94,7 @@ interface DeepTir {
 
 export default function TechQuery() {
   const [q, setQ] = useState("");
+  const [threshold, setThreshold] = useState(0.45);
   const [loading, setLoading] = useState(false);
   const [res, setRes] = useState<QueryResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -137,7 +140,7 @@ export default function TechQuery() {
     const timer = setTimeout(() => ctrl.abort(), 115_000);
     try {
       const r = await fetch(
-        `/api/foresight/query?q=${encodeURIComponent(query)}&threshold=0.45`,
+        `/api/foresight/query?q=${encodeURIComponent(query)}&threshold=${threshold}`,
         { signal: ctrl.signal }
       );
       const data = (await r.json()) as QueryResult;
@@ -211,6 +214,26 @@ export default function TechQuery() {
         ))}
       </div>
 
+      {/* P2: plain-language breadth control */}
+      <div className="mt-3 flex items-center gap-3 max-w-md">
+        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted shrink-0">
+          match
+        </span>
+        <span className="font-mono text-[10px] text-muted">precise</span>
+        <input
+          type="range"
+          min={0.35}
+          max={0.6}
+          step={0.05}
+          value={threshold}
+          onChange={(e) => setThreshold(Number(e.target.value))}
+          disabled={loading}
+          className="flex-1 accent-accent"
+          aria-label="match breadth"
+        />
+        <span className="font-mono text-[10px] text-muted">broad</span>
+      </div>
+
       {loading && (
         <p className="mt-5 font-mono text-xs text-muted animate-pulse">
           Embedding your phrase and projecting it across the maturity chain… (~10–30s)
@@ -220,9 +243,16 @@ export default function TechQuery() {
 
       {res && !loading && (
         <div className="mt-6 flex flex-col gap-5">
+          {/* plain-language verdict */}
+          {res.verdict && (
+            <p className="font-sans text-base text-paper leading-snug border-l-2 border-accent pl-3">
+              {res.verdict}
+            </p>
+          )}
+
           {/* headline findings */}
           <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-            {(res.tir_pct != null || deep?.tir_pct != null) && (
+            {res.tir_pct != null || deep?.tir_pct != null ? (
               <div>
                 <span className="font-display text-3xl text-paper">
                   ≈{deep?.tir_pct ?? res.tir_pct}%
@@ -239,13 +269,21 @@ export default function TechQuery() {
                   )}
                 </span>
               </div>
+            ) : (
+              <div className="font-mono text-[11px] text-muted">
+                improvement rate not yet modeled for this class — run Deep analysis below
+              </div>
             )}
-            {res.lead_science_market != null && (
+            {res.lead_science_market != null ? (
               <div>
                 <span className="font-display text-3xl text-paper">{res.lead_science_market}+</span>
                 <span className="font-mono text-[11px] text-muted"> yrs research led the market</span>
               </div>
-            )}
+            ) : res.concurrent ? (
+              <div className="font-mono text-[11px] text-muted">research & market move together</div>
+            ) : res.market_floored ? (
+              <div className="font-mono text-[11px] text-muted">market coverage recent — lead is a lower bound</div>
+            ) : null}
             {res.cycle_time_years != null && (
               <div>
                 <span className="font-display text-3xl text-paper">{res.cycle_time_years}</span>
@@ -291,10 +329,10 @@ export default function TechQuery() {
             {res.nearest_cpcs.slice(0, 3).map((c) => (
               <span
                 key={c.symbol}
-                className="font-mono text-[10px] text-text border border-border px-1.5 py-0.5 max-w-[220px] truncate"
+                className="font-mono text-[10px] text-text border border-border px-1.5 py-0.5 max-w-[240px] truncate"
                 title={`${c.symbol} — ${c.title}${c.tir_pct ? ` · TIR ${c.tir_pct}%/yr` : ""}`}
               >
-                {c.curated || c.symbol}
+                {c.curated || c.title.split(";")[0].toLowerCase()}
                 {c.tir_pct ? ` · ${c.tir_pct}%/yr` : ""}
               </span>
             ))}
@@ -338,8 +376,9 @@ export default function TechQuery() {
           </div>
 
           <p className="font-mono text-[10px] text-muted">
-            Ramp takeoff = first year at ≥15% of peak · science sits at the 1990 window floor, so
-            lead time is a lower bound (“N+”). Evidence is the underlying signals per tier.
+            Research/Funding/Market show each year&apos;s <span className="text-text">share of that
+            tier</span> (so the timeline reflects real momentum, not how much we happen to have
+            collected); Patents are native counts. Count · first-ramp year at right.
           </p>
         </div>
       )}
