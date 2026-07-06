@@ -104,6 +104,7 @@ interface EvidenceSignal {
   source: string;
   url: string;
   cites?: number;
+  confidence?: "strong" | "related" | "weak";
 }
 
 export default function TechQuery() {
@@ -117,6 +118,7 @@ export default function TechQuery() {
   const [evTier, setEvTier] = useState<string | null>(null);
   const [evLoading, setEvLoading] = useState(false);
   const [evSignals, setEvSignals] = useState<EvidenceSignal[] | null>(null);
+  const [showWeak, setShowWeak] = useState(false);
 
   async function showEvidence(tier: string) {
     if (evTier === tier) {
@@ -126,6 +128,7 @@ export default function TechQuery() {
     setEvTier(tier);
     setEvLoading(true);
     setEvSignals(null);
+    setShowWeak(false);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 115_000);
     try {
@@ -450,25 +453,70 @@ export default function TechQuery() {
               {evLoading ? (
                 <p className="font-mono text-[11px] text-muted animate-pulse">loading sources…</p>
               ) : evSignals && evSignals.length > 0 ? (
-                <ol className="flex flex-col gap-2.5 max-h-72 overflow-y-auto pr-1">
-                  {evSignals.map((s, i) => (
-                    <li key={i} className="text-[12px] leading-snug">
-                      <a
-                        href={s.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-sans text-text hover:text-accent hover:underline break-words"
-                      >
-                        {s.title}
-                      </a>
-                      <div className="font-mono text-[9px] text-muted mt-0.5">
-                        {s.year ?? "—"}
-                        {s.cites ? ` · ${s.cites.toLocaleString("en-US")}× cited` : ""} ·{" "}
-                        {s.source.split("(")[0].trim()}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
+                (() => {
+                  const strong = evSignals.filter((s) => s.confidence !== "weak");
+                  const weak = evSignals.filter((s) => s.confidence === "weak");
+                  const shown = showWeak ? [...strong, ...weak] : strong;
+                  return (
+                    <>
+                      <ol className="flex flex-col gap-2.5 max-h-72 overflow-y-auto pr-1">
+                        {(shown.length ? shown : evSignals).map((s, i) => (
+                          <li key={i} className="text-[12px] leading-snug">
+                            <span className="flex items-baseline gap-1.5">
+                              {s.confidence && (
+                                <span
+                                  className={`font-mono text-[8px] uppercase tracking-wider px-1 py-px shrink-0 border ${
+                                    s.confidence === "strong"
+                                      ? "text-accent border-accent/50"
+                                      : s.confidence === "related"
+                                        ? "text-muted border-border"
+                                        : "text-muted/70 border-border/60"
+                                  }`}
+                                  title={
+                                    s.confidence === "strong"
+                                      ? "Strong match to your query"
+                                      : s.confidence === "related"
+                                        ? "Related to your query"
+                                        : "Weakly related — shown for completeness"
+                                  }
+                                >
+                                  {s.confidence === "strong"
+                                    ? "●●●"
+                                    : s.confidence === "related"
+                                      ? "●●○"
+                                      : "●○○"}
+                                </span>
+                              )}
+                              <a
+                                href={s.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-sans text-text hover:text-accent hover:underline break-words min-w-0"
+                              >
+                                {s.title}
+                              </a>
+                            </span>
+                            <div className="font-mono text-[9px] text-muted mt-0.5 pl-0.5">
+                              {s.year ?? "—"}
+                              {s.cites ? ` · ${s.cites.toLocaleString("en-US")}× cited` : ""} ·{" "}
+                              {s.source.split("(")[0].trim()}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                      {weak.length > 0 && (
+                        <button
+                          onClick={() => setShowWeak((v) => !v)}
+                          className="mt-2 font-mono text-[10px] text-accent hover:underline"
+                        >
+                          {showWeak
+                            ? "hide weaker matches"
+                            : `show ${weak.length} weaker match${weak.length > 1 ? "es" : ""} ▸`}
+                        </button>
+                      )}
+                    </>
+                  );
+                })()
               ) : (
                 <p className="font-mono text-[11px] text-muted">no sources found</p>
               )}

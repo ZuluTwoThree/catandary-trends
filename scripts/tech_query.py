@@ -139,7 +139,11 @@ def evidence(vec1024: list[float], tier: str, threshold: float,
                             "url": "https://worldwide.espacenet.com/patent/search?q=pn%3D%22"
                                    + pub.replace("-", "") + "%22"})
             return out
-        # embedded non-patent tiers
+        # embedded non-patent tiers.  P1: require a substantial abstract — grants
+        # with only an ALL-CAPS title and no abstract (e.g. FDA feed-ban admin
+        # records mis-filed in NIH RePORTER) embed on surface words and produce
+        # off-topic matches. length(excerpt) > 60 keeps the ~40-char funding
+        # prefix from passing while dropping the abstract-less noise.
         params: list = [threshold]
         yr_clause = ""
         if year:
@@ -153,13 +157,21 @@ def evidence(vec1024: list[float], tier: str, threshold: float,
                "FROM trends t JOIN raw_entries r ON t.raw_entry_id=r.id "
                "JOIN sources s ON r.source_id=s.id "
                "WHERE t.embedding_1024 IS NOT NULL AND r.published_date IS NOT NULL "
-               f"AND r.pub_number IS NULL AND t.embedding_1024 <=> '{vlit}'::vector < ? "
+               "AND r.pub_number IS NULL AND length(r.excerpt) > 60 "
+               f"AND t.embedding_1024 <=> '{vlit}'::vector < ? "
                f"{yr_clause}AND {tier_expr()} = ? "
                "ORDER BY dist LIMIT ?")
-        for r in c.execute(sql, params).fetchall():
-            r = dict(r)
+        rows = [dict(r) for r in c.execute(sql, params).fetchall()]
+        # P0/P2: absolute-distance confidence — honest and consistent across
+        # tiers (a 0.16 match IS stronger than a 0.42 one). The frontend shows
+        # strong+related by default and tucks 'weak' behind a "show weaker"
+        # toggle, so off-topic grants (prostate-cancer antibodies at 0.42) don't
+        # sit next to real hits (microbial caseins at 0.40) as equals.
+        for r in rows:
+            d = float(r["dist"])
+            conf = "strong" if d < 0.32 else "related" if d < 0.42 else "weak"
             out.append({"title": r["title"], "year": r["yr"], "source": r["source"],
-                        "url": r["url"], "dist": round(float(r["dist"]), 3)})
+                        "url": r["url"], "dist": round(d, 3), "confidence": conf})
     return out
 
 
