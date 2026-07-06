@@ -81,11 +81,49 @@ function Spark({ series }: { series: Record<string, number> }) {
   );
 }
 
+interface DeepTir {
+  cpc: string;
+  title: string;
+  tir_pct: number | null;
+  cycle_time_years: number | null;
+  computed_in_s: number;
+  error?: string;
+}
+
 export default function TechQuery() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [res, setRes] = useState<QueryResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [deep, setDeep] = useState<DeepTir | null>(null);
+  const [deepLoading, setDeepLoading] = useState(false);
+
+  async function runDeep(cpc: string) {
+    if (deepLoading) return;
+    setDeepLoading(true);
+    setDeep(null);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 115_000);
+    try {
+      const r = await fetch(`/api/foresight/tir?cpc=${encodeURIComponent(cpc)}`, {
+        signal: ctrl.signal,
+      });
+      const data = (await r.json()) as DeepTir;
+      setDeep(r.ok && !data.error ? data : { ...data, error: data.error || "failed" });
+    } catch (e) {
+      setDeep({
+        cpc,
+        title: "",
+        tir_pct: null,
+        cycle_time_years: null,
+        computed_in_s: 0,
+        error: e instanceof DOMException && e.name === "AbortError" ? "timed out" : "failed",
+      });
+    } finally {
+      clearTimeout(timer);
+      setDeepLoading(false);
+    }
+  }
 
   async function run(phrase: string) {
     const query = phrase.trim();
@@ -93,6 +131,7 @@ export default function TechQuery() {
     setLoading(true);
     setErr(null);
     setRes(null);
+    setDeep(null);
     // never leave the button stuck on "Analyzing…" if the GPU handover stalls
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 115_000);
@@ -183,12 +222,21 @@ export default function TechQuery() {
         <div className="mt-6 flex flex-col gap-5">
           {/* headline findings */}
           <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-            {res.tir_pct != null && (
+            {(res.tir_pct != null || deep?.tir_pct != null) && (
               <div>
-                <span className="font-display text-3xl text-paper">≈{res.tir_pct}%</span>
+                <span className="font-display text-3xl text-paper">
+                  ≈{deep?.tir_pct ?? res.tir_pct}%
+                </span>
                 <span className="font-mono text-[11px] text-muted">
-                  /yr improvement (predicted)
-                  {!res.tir_is_nearest && res.tir_via ? ` · via ${res.tir_via}` : ""}
+                  /yr improvement{" "}
+                  {deep?.tir_pct != null ? (
+                    <span className="text-accent">(measured · {deep.title.split(";")[0].toLowerCase()})</span>
+                  ) : (
+                    <>
+                      (predicted)
+                      {!res.tir_is_nearest && res.tir_via ? ` · via ${res.tir_via}` : ""}
+                    </>
+                  )}
                 </span>
               </div>
             )}
@@ -205,6 +253,35 @@ export default function TechQuery() {
               </div>
             )}
           </div>
+
+          {/* deep analysis: compute the real TIR for the ACTUAL nearest class */}
+          {res.nearest_cpcs.length > 0 && !deep && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={() => runDeep(res.nearest_cpcs[0].symbol)}
+                disabled={deepLoading}
+                className="font-mono text-[11px] uppercase tracking-[0.12em] px-3 py-1.5 border border-accent/60 text-accent hover:bg-accent hover:text-card disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-accent transition-colors"
+              >
+                {deepLoading ? "Computing on the graph…" : "▸ Deep analysis"}
+              </button>
+              <span className="font-mono text-[10px] text-muted">
+                {deepLoading
+                  ? "measuring TIR for the exact nearest class (~1 min)"
+                  : `refine the predicted rate to the measured value for ${res.nearest_cpcs[0].symbol}`}
+              </span>
+            </div>
+          )}
+          {deep?.error && (
+            <p className="font-mono text-[11px] text-serious">⚠ deep analysis {deep.error}</p>
+          )}
+          {deep?.tir_pct != null && (
+            <p className="font-mono text-[10px] text-muted">
+              measured on the citation graph in {deep.computed_in_s}s ·
+              {res.tir_pct != null
+                ? ` proxy was ≈${res.tir_pct}% (Δ ${Math.abs(deep.tir_pct - res.tir_pct).toFixed(1)}pp)`
+                : " no proxy was available"}
+            </p>
+          )}
 
           {/* nearest technology classes */}
           <div className="flex flex-wrap gap-1.5">
