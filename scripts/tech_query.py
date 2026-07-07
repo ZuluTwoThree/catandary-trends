@@ -205,14 +205,18 @@ def evidence(vec1024: list[float], tier: str, threshold: float,
                f"{yr_clause}AND {tier_expr()} = ? "
                "ORDER BY dist LIMIT ?")
         rows = [dict(r) for r in c.execute(sql, params).fetchall()]
-        # P0/P2: absolute-distance confidence — honest and consistent across
-        # tiers (a 0.16 match IS stronger than a 0.42 one). The frontend shows
-        # strong+related by default and tucks 'weak' behind a "show weaker"
-        # toggle, so off-topic grants (prostate-cancer antibodies at 0.42) don't
-        # sit next to real hits (microbial caseins at 0.40) as equals.
+        # P0/P2: confidence RELATIVE to this query's best match in the tier.
+        # Absolute thresholds were tried but break under embedding drift — the
+        # GPU handover can shift the whole distance level (~0.15 seen), so a
+        # fixed 0.32 cutoff flips a paper strong↔related between runs. Relative
+        # deltas are drift-invariant: within 0.04 of the best = strong, within
+        # 0.09 = related, beyond = weak (hidden). The abstract filter (P1) has
+        # already removed the truly off-topic; this just grades the remainder.
+        best = float(rows[0]["dist"]) if rows else 0.0
         for r in rows:
             d = float(r["dist"])
-            conf = "strong" if d < 0.32 else "related" if d < 0.42 else "weak"
+            delta = d - best
+            conf = "strong" if delta < 0.04 else "related" if delta < 0.09 else "weak"
             out.append({"title": r["title"], "year": r["yr"], "source": r["source"],
                         "url": r["url"], "dist": round(d, 3), "confidence": conf})
     return out
