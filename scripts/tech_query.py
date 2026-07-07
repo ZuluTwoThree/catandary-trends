@@ -14,6 +14,7 @@ and read TIR/cycle-time off the nearest CPC technology class.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -109,11 +110,22 @@ def tier_years_for_vec(vec1024: list[float], threshold: float) -> dict[str, Coun
     return out
 
 
+_STOP = {"for", "the", "and", "with", "from", "into", "via", "using", "based",
+         "new", "novel", "food", "foods", "system", "systems", "method", "methods"}
+
+
+def _espacenet(pub: str) -> str:
+    return ("https://worldwide.espacenet.com/patent/search?q=pn%3D%22"
+            + pub.replace("-", "") + "%22")
+
+
 def evidence(vec1024: list[float], tier: str, threshold: float,
-             year: int | None = None, limit: int = 30) -> list[dict]:
+             year: int | None = None, limit: int = 30, query_text: str = "") -> list[dict]:
     """The underlying signals behind a tier's bar: for science/funding/market the
     nearest matching trends (title, year, source, original URL); for patent the
-    domain's top-cited patents with an Espacenet link. This is the evidence a
+    query-relevant patents in the nearest CPC class (full-text on title+abstract,
+    ranked by relevance × citations), falling back to the class's top-cited
+    patents only when the query has no textual matches. This is the evidence a
     click on a sparkline surfaces."""
     vlit = "[" + ",".join(f"{x:.6f}" for x in vec1024) + "]"
     out: list[dict] = []
@@ -122,6 +134,40 @@ def evidence(vec1024: list[float], tier: str, threshold: float,
             cpcs = nearest_cpcs(vec1024, k=1)
             if not cpcs:
                 return out
+            cpc = cpcs[0]["symbol"]
+            # Hybrid: patents in the class whose title+abstract match the query,
+            # ranked by text relevance × log(citations). Patents aren't embedded,
+            # so this is how we get QUERY-relevant (not just domain-central) hits.
+            words = [w for w in re.findall(r"[a-z]{4,}", query_text.lower())
+                     if w not in _STOP]
+            tsq = " | ".join(dict.fromkeys(words))  # OR, de-duped, order-preserving
+            rows = []
+            if tsq:
+                rows = [dict(r) for r in c.execute(
+                    "WITH dom AS (SELECT DISTINCT ON (re.pub_number) re.pub_number pub, "
+                    "   re.title, re.published_date pd, "
+                    "   ts_rank(to_tsvector('english', coalesce(re.title,'')||' '|| "
+                    "     coalesce(re.excerpt,'')), to_tsquery('english', ?)) rank "
+                    " FROM raw_entries re JOIN patent_cpc pc ON pc.pub_number=re.pub_number "
+                    " WHERE substr(pc.cpc,1,4)=? AND re.pub_number IS NOT NULL "
+                    "   AND to_tsvector('english', coalesce(re.title,'')||' '|| "
+                    "     coalesce(re.excerpt,'')) @@ to_tsquery('english', ?) "
+                    " ORDER BY re.pub_number) "
+                    "SELECT dom.pub, dom.title, substr(dom.pd::text,1,4) yr, "
+                    "  (SELECT COUNT(*) FROM patent_links pl WHERE pl.dst_pub=dom.pub "
+                    "    AND pl.link_type='cites') cites, dom.rank "
+                    "FROM dom ORDER BY dom.rank * ln((SELECT COUNT(*) FROM patent_links pl "
+                    "  WHERE pl.dst_pub=dom.pub AND pl.link_type='cites')+2) DESC LIMIT ?",
+                    (tsq, cpc, tsq, limit)).fetchall()]
+            if len(rows) >= 3:
+                for r in rows:
+                    out.append({"title": (r["title"] or r["pub"]), "year": r["yr"],
+                                "source": f"Patent · {cpc}", "cites": int(r["cites"] or 0),
+                                "confidence": "related", "url": _espacenet(r["pub"])})
+                return out
+            # Fallback: no query text matches → the class's most-cited patents,
+            # honestly labelled so the user knows these are domain-central, not
+            # query-specific.
             rows = c.execute(
                 "SELECT pl.dst_pub AS pub, COUNT(*) AS n, MIN(re.title) AS title, "
                 "       MIN(substr(re.published_date::text,1,4)) AS yr "
@@ -129,15 +175,12 @@ def evidence(vec1024: list[float], tier: str, threshold: float,
                 "JOIN patent_cpc pc ON pc.pub_number=pl.dst_pub AND substr(pc.cpc,1,4)=? "
                 "LEFT JOIN raw_entries re ON re.pub_number=pl.dst_pub "
                 "WHERE pl.link_type='cites' GROUP BY pl.dst_pub "
-                "ORDER BY n DESC LIMIT ?", (cpcs[0]["symbol"], limit)).fetchall()
+                "ORDER BY n DESC LIMIT ?", (cpc, limit)).fetchall()
             for r in rows:
                 r = dict(r)
-                pub = r["pub"]
-                out.append({"title": (r["title"] or pub), "year": r["yr"],
-                            "source": f"Patent · {cpcs[0]['symbol']}",
-                            "cites": int(r["n"]),
-                            "url": "https://worldwide.espacenet.com/patent/search?q=pn%3D%22"
-                                   + pub.replace("-", "") + "%22"})
+                out.append({"title": (r["title"] or r["pub"]), "year": r["yr"],
+                            "source": f"Patent · {cpc} (most-cited in class)",
+                            "cites": int(r["n"]), "url": _espacenet(r["pub"])})
             return out
         # embedded non-patent tiers.  P1: require a substantial abstract — grants
         # with only an ALL-CAPS title and no abstract (e.g. FDA feed-ban admin
@@ -311,7 +354,7 @@ def main() -> int:
     if args.evidence:
         import json
         vec = embed_query(args.query)
-        ev = evidence(vec, args.evidence, args.threshold, args.year)
+        ev = evidence(vec, args.evidence, args.threshold, args.year, query_text=args.query)
         print(json.dumps({"tier": args.evidence, "year": args.year, "signals": ev}))
         return 0
 
