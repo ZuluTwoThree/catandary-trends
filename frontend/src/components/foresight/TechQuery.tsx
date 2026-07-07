@@ -38,6 +38,7 @@ interface QueryResult {
   lead_patent_market: number | null;
   concurrent: boolean;
   market_floored: boolean;
+  off_topic?: boolean;
   error?: string;
 }
 
@@ -288,7 +289,22 @@ export default function TechQuery() {
       )}
       {err && <p className="mt-5 font-mono text-xs text-serious">⚠ {err}</p>}
 
-      {res && !loading && (
+      {res && !loading && res.off_topic && (
+        <div className="mt-6 border border-border bg-card/40 p-5">
+          <p className="font-sans text-base text-paper leading-snug">
+            That doesn&apos;t look like a technology or method.
+          </p>
+          <p className="font-sans text-sm text-text mt-2 leading-relaxed">
+            This tool maps a <span className="text-paper">technology or capability</span> — a
+            process, material, or method — across research → patents → funding → market. A person
+            or company name has no technology signature to project. Try what they{" "}
+            <span className="text-paper">make or do</span> instead — e.g. “recombinant casein”,
+            “solid-state battery electrolyte”, “mRNA cancer vaccine”.
+          </p>
+        </div>
+      )}
+
+      {res && !loading && !res.off_topic && (
         <div className="mt-6 flex flex-col gap-5">
           {/* plain-language verdict */}
           {res.verdict && (

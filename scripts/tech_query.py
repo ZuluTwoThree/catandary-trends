@@ -131,43 +131,50 @@ def evidence(vec1024: list[float], tier: str, threshold: float,
     out: list[dict] = []
     with get_connection() as c:
         if tier == "patent":
-            cpcs = nearest_cpcs(vec1024, k=1)
+            # Search the top-N nearest CPC classes, not just one: for "recombinant
+            # casein in cheesemaking" the nearest class is A23C (dairy processing),
+            # but the actual recombinant-casein patents live in C07K/C12N/A23J
+            # (proteins/genetic-engineering) — a single-class scope misses them.
+            cpcs = nearest_cpcs(vec1024, k=5)
             if not cpcs:
                 return out
-            cpc = cpcs[0]["symbol"]
-            # Hybrid: patents in the class whose title+abstract match the query,
-            # ranked by text relevance × log(citations). Patents aren't embedded,
-            # so this is how we get QUERY-relevant (not just domain-central) hits.
+            syms = [c["symbol"] for c in cpcs]
+            # Hybrid: patents across those classes whose title+abstract match the
+            # query. Rank by text relevance with only a MILD citation boost, so
+            # young startup patents (0 citations) aren't buried under old ones.
             words = [w for w in re.findall(r"[a-z]{4,}", query_text.lower())
                      if w not in _STOP]
             tsq = " | ".join(dict.fromkeys(words))  # OR, de-duped, order-preserving
             rows = []
             if tsq:
+                # dom: text-matching patents in the classes (GIN-indexed).
+                # top: keep the best ~150 by text relevance BEFORE the citation
+                # count subquery, so we count links for 150 rows, not thousands.
                 rows = [dict(r) for r in c.execute(
                     "WITH dom AS (SELECT DISTINCT ON (re.pub_number) re.pub_number pub, "
                     "   re.title, re.published_date pd, "
                     "   ts_rank(to_tsvector('english', coalesce(re.title,'')||' '|| "
                     "     coalesce(re.excerpt,'')), to_tsquery('english', ?)) rank "
                     " FROM raw_entries re JOIN patent_cpc pc ON pc.pub_number=re.pub_number "
-                    " WHERE substr(pc.cpc,1,4)=? AND re.pub_number IS NOT NULL "
+                    " WHERE substr(pc.cpc,1,4) = ANY(?) AND re.pub_number IS NOT NULL "
                     "   AND to_tsvector('english', coalesce(re.title,'')||' '|| "
                     "     coalesce(re.excerpt,'')) @@ to_tsquery('english', ?) "
-                    " ORDER BY re.pub_number) "
-                    "SELECT dom.pub, dom.title, substr(dom.pd::text,1,4) yr, "
-                    "  (SELECT COUNT(*) FROM patent_links pl WHERE pl.dst_pub=dom.pub "
-                    "    AND pl.link_type='cites') cites, dom.rank "
-                    "FROM dom ORDER BY dom.rank * ln((SELECT COUNT(*) FROM patent_links pl "
-                    "  WHERE pl.dst_pub=dom.pub AND pl.link_type='cites')+2) DESC LIMIT ?",
-                    (tsq, cpc, tsq, limit)).fetchall()]
+                    " ORDER BY re.pub_number), "
+                    "top AS (SELECT * FROM dom ORDER BY rank DESC LIMIT 150), "
+                    "ranked AS (SELECT pub, title, pd, rank, "
+                    "   (SELECT COUNT(*) FROM patent_links pl WHERE pl.dst_pub=top.pub "
+                    "     AND pl.link_type='cites') cites FROM top) "
+                    "SELECT pub, title, substr(pd::text,1,4) yr, cites, rank "
+                    "FROM ranked ORDER BY rank * (1 + 0.2*ln(cites+1)) DESC LIMIT ?",
+                    (tsq, syms, tsq, limit)).fetchall()]
             if len(rows) >= 3:
                 for r in rows:
                     out.append({"title": (r["title"] or r["pub"]), "year": r["yr"],
-                                "source": f"Patent · {cpc}", "cites": int(r["cites"] or 0),
+                                "source": "Patent", "cites": int(r["cites"] or 0),
                                 "confidence": "related", "url": _espacenet(r["pub"])})
                 return out
-            # Fallback: no query text matches → the class's most-cited patents,
-            # honestly labelled so the user knows these are domain-central, not
-            # query-specific.
+            # Fallback: no query text matches → the nearest class's most-cited
+            # patents, honestly labelled as domain-central, not query-specific.
             rows = c.execute(
                 "SELECT pl.dst_pub AS pub, COUNT(*) AS n, MIN(re.title) AS title, "
                 "       MIN(substr(re.published_date::text,1,4)) AS yr "
@@ -175,11 +182,11 @@ def evidence(vec1024: list[float], tier: str, threshold: float,
                 "JOIN patent_cpc pc ON pc.pub_number=pl.dst_pub AND substr(pc.cpc,1,4)=? "
                 "LEFT JOIN raw_entries re ON re.pub_number=pl.dst_pub "
                 "WHERE pl.link_type='cites' GROUP BY pl.dst_pub "
-                "ORDER BY n DESC LIMIT ?", (cpc, limit)).fetchall()
+                "ORDER BY n DESC LIMIT ?", (syms[0], limit)).fetchall()
             for r in rows:
                 r = dict(r)
                 out.append({"title": (r["title"] or r["pub"]), "year": r["yr"],
-                            "source": f"Patent · {cpc} (most-cited in class)",
+                            "source": f"Patent · {syms[0]} (most-cited in class)",
                             "cites": int(r["n"]), "url": _espacenet(r["pub"])})
             return out
         # embedded non-patent tiers.  P1: require a substantial abstract — grants
@@ -270,6 +277,18 @@ def compute(query: str, threshold: float) -> dict:
     and the derived TIR / lead-time findings."""
     vec = embed_query(query)
     cpcs = nearest_cpcs(vec, k=12)
+    # Off-topic guard: a person/brand name or non-technical phrase has no CPC
+    # anywhere near it (e.g. "Angela Merkel" → nearest 0.64 vs a real technology
+    # ~0.28). Without this, a name embeds diffusely into thousands of signals and
+    # the UI wrongly reports "early-stage". Bail with a clear, honest message.
+    nearest_dist = float(cpcs[0]["dist"]) if cpcs else 1.0
+    if nearest_dist > 0.55:
+        return {"query": query, "threshold": threshold, "verdict": None,
+                "off_topic": True, "nearest_dist": round(nearest_dist, 3),
+                "nearest_cpcs": [], "tiers": {}, "tir_pct": None, "tir_cpc": None,
+                "tir_via": None, "tir_is_nearest": False, "cycle_time_years": None,
+                "lead_science_market": None, "lead_patent_market": None,
+                "concurrent": False, "market_floored": False}
     tiers = tier_years_for_vec(vec, threshold)
     tiers["patent"] = patent_years_for_cpc(cpcs[0]["symbol"]) if cpcs else Counter()
     totals = embedded_tier_totals()
