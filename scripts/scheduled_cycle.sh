@@ -114,14 +114,31 @@ mkdir -p "$(dirname "$LOG")"
   # picks up an unrelated backfill backlog that shares the unprocessed pool
   # (the multi-year signal backfill is classified separately by signal_batch).
   echo
-  WATERMARK=$(python - <<'PY'
+  # Patents are now excluded at the source (get_unprocessed_entries filters
+  # pub_number IS NULL), so the cycle can safely process the whole non-patent
+  # unprocessed pool with min_id=0 — the old watermark-vs-backfill dance is no
+  # longer needed (and was broken: the RSS ids overlap the backfill's, so no
+  # min_id could separate them). WATERMARK stays 0.
+  WATERMARK=0
+  # SANITY GUARD: count the non-patent unprocessed backlog. A normal off-hours
+  # gap is dozens–hundreds; anything above 50k means something unexpected merged
+  # into the RSS pool — refuse rather than content-gen tens of thousands.
+  PENDING=$(python - <<'PY'
 from pipeline.db import get_connection
 with get_connection() as c:
-    print(c.execute("SELECT COALESCE(MAX(id), 0) FROM raw_entries").fetchone()[0])
+    r = c.execute("SELECT COUNT(*) AS n FROM raw_entries "
+                  "WHERE processed=FALSE AND filtered_out=FALSE AND pub_number IS NULL").fetchone()
+    print(r["n"] if isinstance(r, dict) else r[0])
 PY
 )
-  WATERMARK="${WATERMARK:-0}"
-  echo "----- watermark before poll: $WATERMARK (only entries polled after this are processed) -----"
+  PENDING="${PENDING:-0}"
+  echo "----- non-patent unprocessed backlog: $PENDING -----"
+  if [ "${PENDING}" -gt 50000 ]; then
+    echo "ABORT: $PENDING pending non-patent entries exceeds the 50k sanity cap — refusing."
+    ln -sf start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
+    systemctl --user start llama-server.service
+    exit 1
+  fi
 
   echo
   echo "----- run 1: full cycle (poll + LLM), batch $BATCH, min_id $WATERMARK -----"

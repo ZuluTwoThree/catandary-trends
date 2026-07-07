@@ -893,17 +893,26 @@ def insert_raw_entries_batch(rows: list[tuple]) -> int:
         return len(rows)  # approximation under SQLite (dups not separable cheaply)
 
 
-def get_unprocessed_entries(limit: int = 50, min_id: int = 0) -> list[dict]:
+def get_unprocessed_entries(limit: int = 50, min_id: int = 0,
+                            exclude_patents: bool = True) -> list[dict]:
     """Get raw entries that haven't been processed yet.
 
     `min_id` restricts to re.id > min_id — used to scope the RSS pipeline to
     freshly-polled entries so it doesn't pick up a large backfill backlog that
-    shares the unprocessed pool (the backfill is classified separately, locally)."""
+    shares the unprocessed pool (the backfill is classified separately, locally).
+
+    `exclude_patents` (default True) skips patent rows (pub_number IS NOT NULL).
+    This is the RSS content-generation pipeline; the 18M-patent backfill shares
+    the unprocessed pool AND overlaps the RSS id range, so min_id alone can't
+    keep it out — content-gen must never run on patents. Patents are embedded/
+    classified separately by signal_batch."""
+    patent_clause = "AND re.pub_number IS NULL " if exclude_patents else ""
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT re.*, s.name as source_name, s.vertical as source_vertical, s.source_type as source_type "
             "FROM raw_entries re JOIN sources s ON re.source_id = s.id "
             "WHERE re.processed = FALSE AND re.filtered_out = FALSE AND re.id > ? "
+            + patent_clause +
             "ORDER BY re.fetched_at ASC LIMIT ?",
             (min_id, limit),
         ).fetchall()
