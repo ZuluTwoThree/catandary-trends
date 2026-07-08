@@ -77,3 +77,57 @@ export async function getTechnology(symbol: string): Promise<TechInsight | null>
 export function espacenetUrl(pub: string): string {
   return `https://worldwide.espacenet.com/patent/search?q=pn%3D%22${pub.replace(/-/g, "")}%22`;
 }
+
+/**
+ * Technology context of a single trend (#28): its persisted nearest CPC
+ * subclasses from signal_cpc (embedding projection, confident matches only),
+ * enriched with the curated insight payload where the class is one of the
+ * Technology Explorer axes.
+ */
+
+/** Same projection gate as the pipeline (assign_cpc.CONFIDENT_DIST). */
+const CPC_CONFIDENT_DIST = 0.55;
+
+export interface TrendTechMatch {
+  symbol: string;
+  /** raw CPC caption (ALL-CAPS legalese) — use prettyCpcTitle() for display */
+  title: string;
+  dist: number;
+  /** curated display name when this class is a Technology Explorer axis */
+  curated_name: string | null;
+  tir_pct: number | null;
+  lead_years: number | null;
+  /** corpus signals confidently mapped to the same class */
+  siblings: number;
+}
+
+export async function getTrendTechContext(trendId: number): Promise<TrendTechMatch[]> {
+  // The block is a Foresight teaser, so every row must carry Foresight value:
+  // we project the trend's own embedding onto the CURATED technology axes only
+  // (the ~two dozen Technology Explorer classes that have lead-time + improve-
+  // ment-rate data and a page to click through to). A raw nearest-neighbour can
+  // land on a generic "Mixing" or "Crushing" class — semantically close but
+  // insight-free — so we deliberately don't surface those here. signal_cpc (raw
+  // top-3) stays the substrate for cross-tier fusion; this is the display path.
+  try {
+    return await q<TrendTechMatch>(
+      `SELECT d.symbol, d.title, (t.embedding_1024 <=> d.embedding_1024)::float AS dist,
+              i.name AS curated_name,
+              (i.payload->'patent_dynamics'->>'tir_pct')::float AS tir_pct,
+              (i.payload->>'lead_years_science_vs_market')::float AS lead_years,
+              (SELECT COUNT(*) FROM signal_cpc x
+                WHERE x.cpc = d.symbol AND x.dist < $2)::int AS siblings
+       FROM trends t
+       JOIN cpc_definitions d ON d.embedding_1024 IS NOT NULL
+       JOIN cpc_insights i ON i.symbol = d.symbol
+       WHERE t.id = $1 AND t.embedding_1024 IS NOT NULL
+         AND (t.embedding_1024 <=> d.embedding_1024) < $2
+       ORDER BY t.embedding_1024 <=> d.embedding_1024
+       LIMIT 3`,
+      [trendId, CPC_CONFIDENT_DIST]
+    );
+  } catch {
+    // table/column absent (pre-migration deploys) → article renders without it
+    return [];
+  }
+}

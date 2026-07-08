@@ -103,7 +103,10 @@ export default function TechnologyCard({ tech }: { tech: TechInsight }) {
   const partners = (payload.convergence ?? []).slice(0, 3);
 
   return (
-    <article className="border border-border bg-card/40 p-4 sm:p-5 flex flex-col gap-4 overflow-hidden">
+    <article
+      id={tech.symbol}
+      className="border border-border bg-card/40 p-4 sm:p-5 flex flex-col gap-4 overflow-hidden scroll-mt-20"
+    >
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="font-display text-lg sm:text-xl text-paper leading-snug break-words">

@@ -3,11 +3,13 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import type { Trend } from "@/lib/types";
+import type { TrendTechMatch } from "@/lib/technology";
 import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
 import PestelBadge from "./PestelBadge";
 import VerticalBadge from "./VerticalBadge";
 import TrendScore from "./TrendScore";
 import ForesightCta from "./ForesightCta";
+import TechContext from "./TechContext";
 
 const SIGNAL_TYPE_LABELS: Record<string, string> = {
   product_launch: "Product Launch",
@@ -23,9 +25,11 @@ const SIGNAL_TYPE_LABELS: Record<string, string> = {
 export default function TrendArticle({
   trend,
   related,
+  tech = [],
 }: {
   trend: Trend;
   related: Trend[];
+  tech?: TrendTechMatch[];
 }) {
   const vertical = getVerticalInfo(trend.primary_vertical);
 
@@ -201,6 +205,9 @@ export default function TrendArticle({
             ))}
           </div>
         )}
+
+        {/* Technology context (#28) — plain-language bridge into the Foresight backbone */}
+        <TechContext matches={tech} />
 
         {/* Source Link */}
         {trend.source_url && (

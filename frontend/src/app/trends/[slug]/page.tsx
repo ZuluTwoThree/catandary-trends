@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTrendBySlug, getTrends } from "@/lib/db";
+import { getTrendTechContext } from "@/lib/technology";
 import { TrendArticleJsonLd } from "@/components/JsonLd";
 import TrendArticle from "@/components/TrendArticle";
 import type { Metadata } from "next";
@@ -35,20 +36,20 @@ export default async function TrendArticlePage({
   const trend = await getTrendBySlug(slug);
   if (!trend) notFound();
 
-  const related = (
-    await getTrends({
+  const [relatedRaw, tech] = await Promise.all([
+    getTrends({
       status: "published",
       vertical: trend.primary_vertical,
       limit: 4,
-    })
-  )
-    .filter((t) => t.id !== trend.id)
-    .slice(0, 3);
+    }),
+    getTrendTechContext(trend.id),
+  ]);
+  const related = relatedRaw.filter((t) => t.id !== trend.id).slice(0, 3);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <TrendArticleJsonLd trend={trend} />
-      <TrendArticle trend={trend} related={related} />
+      <TrendArticle trend={trend} related={related} tech={tech} />
     </div>
   );
 }
