@@ -45,6 +45,7 @@ from pipeline.config import (
     STAGE5_MIN_BODY_WORDS,
     STAGE5_TARGET_BODY_WORDS,
     STAGE5_MODEL,
+    STAGE6_MIN_SCORE,
     STAGE_8B_BACKEND,
     STAGE_8B_MODEL,
     get_mega_trend_prompt_block,
@@ -303,6 +304,25 @@ _CLICHE_RE = re.compile(
 # (dependency-free, shared with the auto-publish gate). We re-roll such bodies —
 # and, because bounded re-rolls don't fully remove it, auto_publisher also HOLDS
 # any still-ungrounded body for review instead of publishing it.
+def pre_gen_score(entry: dict) -> float:
+    """CRS score (0-1) for a survivor, computed from relevance + classification —
+    all known BEFORE Stage 6. Same formula as the Stage-7 trend_score, so the
+    selective-gen gate (#12) and the stored score agree. Cached on the entry."""
+    if "_score" in entry:
+        return entry["_score"]
+    rel = entry["_relevance"]
+    cls = entry["_classification"]
+    score = compute_crs(
+        confidence=rel.confidence,
+        num_verticals=len(cls.verticals),
+        num_pestel=len(cls.pestel),
+        signal_type=cls.trend_signal_type,
+        source_type=entry.get("source_type"),
+    ) / 100.0
+    entry["_score"] = score
+    return score
+
+
 def make_content_guard(source: str):
     """content_is_clean + a grounding gate bound to this row's source text.
     Used as the llama.cpp `validate` callback so ungrounded-specific bodies get
@@ -973,12 +993,28 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
         next_survivors = []
         total_stage6 = len(survivors)
         cache_hits_stage6 = 0
-        needs_gen = any(not e.get("content_en_json") for e in survivors)
+        signal_only_count = 0
+        # Selective content-gen (#12): below the score bar, skip the expensive
+        # article and keep the row as a foresight signal. Cached content still
+        # promotes (already paid for). Marked here, inserted as signal at Stage 7.
+        to_generate = []
+        for entry in survivors:
+            if (STAGE6_MIN_SCORE > 0 and not entry.get("content_en_json")
+                    and pre_gen_score(entry) < STAGE6_MIN_SCORE):
+                entry["_signal_only"] = True
+                next_survivors.append(entry)
+                signal_only_count += 1
+            else:
+                to_generate.append(entry)
+        if signal_only_count:
+            logger.info("Stage 6 selective (#12): %d/%d below score %.2f → signal, %d to generate",
+                        signal_only_count, total_stage6, STAGE6_MIN_SCORE, len(to_generate))
+        needs_gen = any(not e.get("content_en_json") for e in to_generate)
         gpu_ctx = (gpu_handover.content_gen_on_llamacpp(STAGE5_MODEL)
                    if STAGE5_BACKEND == "llamacpp" and needs_gen
                    else nullcontext())
         with gpu_ctx:
-            for i, entry in enumerate(survivors, 1):
+            for i, entry in enumerate(to_generate, 1):
                 try:
                     cached = entry.get("content_en_json")
                     if cached:
@@ -998,15 +1034,16 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
                         continue
                     entry["_content_en"] = en
                     next_survivors.append(entry)
-                    if i % 10 == 0 or i == total_stage6:
-                        logger.info("Stage 6 progress: %d/%d (%.0f%%)", i, total_stage6, i / total_stage6 * 100)
+                    if i % 10 == 0 or i == len(to_generate):
+                        logger.info("Stage 6 progress: %d/%d (%.0f%%)", i, len(to_generate),
+                                    i / max(len(to_generate), 1) * 100)
                 except Exception as e:
                     logger.error("[%d] content EN error: %s", entry["id"], e)
                     mark_processed(entry["id"])
                     errors += 1
         survivors = next_survivors
-        logger.info("Stage 6 done in %.1fs: %d survivors (%d cache hits)",
-                    time.time() - t_stage, len(survivors), cache_hits_stage6)
+        logger.info("Stage 6 done in %.1fs: %d survivors (%d cache hits, %d signal-only)",
+                    time.time() - t_stage, len(survivors), cache_hits_stage6, signal_only_count)
 
     # ---- Stage 7: Insert trends ----
     t_stage = time.time()
@@ -1028,19 +1065,14 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
                 "trend_level": "micro",
                 "brands": [ext.brand_name] if ext.brand_name else [],
                 "regions": cls.regions,
-                "trend_score": compute_crs(
-                    confidence=rel.confidence,
-                    num_verticals=len(cls.verticals),
-                    num_pestel=len(cls.pestel),
-                    signal_type=cls.trend_signal_type,
-                    source_type=entry.get("source_type"),
-                ) / 100.0,
+                "trend_score": pre_gen_score(entry),  # cached; == the #12 gate score
                 "confidence": rel.confidence,
                 "source_url": entry["url"],
                 "source_name": entry.get("source_name", "Unknown"),
                 "embedding": embedding_to_bytes(entry["_embedding"]),
             }
-            if signal_mode:
+            if signal_mode or entry.get("_signal_only"):
+                # signal_mode = whole batch; _signal_only = below the #12 score bar
                 title = entry["title"] or "(untitled signal)"
                 trend_data = {
                     **common,

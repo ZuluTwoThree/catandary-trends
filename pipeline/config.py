@@ -72,6 +72,14 @@ DUPLICATE_SIMILARITY_THRESHOLD = 0.92
 AUTO_PUBLISH_CONFIDENCE = 0.85
 MAX_RETRIES = 3
 
+# Selective content generation (#12): Stage 6 (content-gen on the 30B) is the
+# pipeline bottleneck. When > 0, only survivors whose pre-gen CRS score (0-1,
+# derived from relevance + classification, known before Stage 6) clears this bar
+# get a written article; the rest are inserted as foresight signals (embedded +
+# classified, no article) — which the cluster/trajectory engine uses anyway.
+# Default 0.0 = off (every survivor gets an article, unchanged behaviour).
+STAGE6_MIN_SCORE = float(os.getenv("STAGE6_MIN_SCORE", "0.0"))
+
 # Grounding gate (#11): when on, auto_publisher holds any high-confidence draft
 # whose body contains a number/date/percentage absent from its source (a
 # fabricated specific) for manual review instead of publishing it. Trades some
