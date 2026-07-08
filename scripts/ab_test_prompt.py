@@ -237,7 +237,11 @@ def run(rows: list[dict], make_preview: bool) -> dict:
     logger.info("wrote data/content_ab_%s.{json,md}", ts)
     if make_preview:
         PREVIEW.parent.mkdir(parents=True, exist_ok=True)
-        PREVIEW.write_text(json.dumps({"generated": ts, "items": results[:12]}, indent=2))
+        # `generated` carries the report object (the dev preview page reads
+        # report.wins / report.mean_*); items are the judged A/B pairs.
+        PREVIEW.write_text(json.dumps(
+            {"generated": report, "ts": ts, "items": [r for r in results if r.get("scores")][:12]},
+            indent=2))
         logger.info("wrote %s (%d items)", PREVIEW, min(12, len(results)))
     print("\n" + render_md(report, results[:3]))
     return report
