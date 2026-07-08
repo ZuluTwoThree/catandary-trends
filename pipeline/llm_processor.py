@@ -67,6 +67,7 @@ from pipeline.models import (
 )
 from pipeline.auto_publisher import auto_publish
 from pipeline.crs import compute_crs
+from pipeline.grounding import ungrounded_specifics
 from pipeline.ollama_client import chat_structured, generate_embedding
 from pipeline import anthropic_client, gpu_handover, llamacpp_client
 from pipeline.reclassify import gate_mega_trends, reclassify_drafts
@@ -243,6 +244,41 @@ Also avoid (reword, don't just swap synonyms): "paving the way", "the era of", "
 Test each sentence: if it could open an article in any other industry, delete it and write the specific detail instead. Write the article, not a template."""
 
 
+# --- Content prompt v2 (issue #11): signal-type framing + forced concreteness.
+# Built on top of the v1 voice/language rules; adds (a) a concreteness mandate
+# that forces at least one specific figure/name/date from the source, with an
+# explicit no-fabrication clause, and (b) a per-signal-type angle injected into
+# the user prompt via signal_type_framing(). Validated A/B against v1 with
+# scripts/ab_test_prompt.py before wiring into the live path.
+CONTENT_EN_SYSTEM_V2 = CONTENT_EN_SYSTEM + """
+
+GROUNDING — every specific must come from the source:
+- Preserve the exact specifics the source gives — figures, proper names, dates. Don't blur "7,980 jobs" into "thousands" or drop the company name.
+- NEVER introduce a number, date, statistic, or named entity that is not present in the source text. Do not estimate, extrapolate, or invent a timeline (e.g. do not write "rolled out in May" unless the source says so). If the source is thin, write a shorter, more general article — an invented specific is a factual error, not a stylistic choice.
+- Prefer the mechanism over the claim: state what concretely changes and how, not that something is "significant" or "growing"."""
+
+
+# Per-signal-type angle — the single biggest lever after concreteness: a funding
+# note, a regulation, a research finding and a product launch each demand a
+# different lead. Injected into the user prompt (not the system) so it travels
+# with the row's classification.
+SIGNAL_TYPE_FRAMING = {
+    "product_launch": "Lead with what the product does differently and for whom; name the concrete capability, not the marketing promise.",
+    "research": "State the finding and how it was shown (method, sample size); separate what the evidence demonstrates from what is still speculation.",
+    "regulation": "Name the rule, the jurisdiction, who must comply and by when; state the concrete operational consequence for the affected players.",
+    "funding": "State the amount, stage and lead investor and what the capital concretely buys; avoid framing a single round as 'the future of' anything.",
+    "market_shift": "Name the specific companies or segments moving and the measurable change; avoid generic 'growing demand' language.",
+    "consumer_behavior": "Cite the specific behaviour change and the evidence for it (survey size, sales delta); avoid 'consumers are increasingly'.",
+    "partnership": "State who partnered, what each side brings, and the concrete first deliverable or milestone.",
+    "patent": "State what the patent claims and the practical capability it would enable; note it is a filing, not a shipped product.",
+}
+
+
+def signal_type_framing(signal_type: str | None) -> str | None:
+    """The v2 per-signal-type angle for the content prompt, or None if unknown."""
+    return SIGNAL_TYPE_FRAMING.get((signal_type or "").strip().lower())
+
+
 # Cliché guard — NARROW on purpose: only the template *signatures* that are both
 # high-signal and easily avoidable (sentence-opener templates + a few set phrases).
 # Earlier the guard also banned common-but-borderline fillers ("highlights",
@@ -259,6 +295,21 @@ _CLICHE_RE = re.compile(
     r"pav(e|es|ing) the way|the era of|continues? to evolve|companies that fail|"
     r"in the coming years|years to come|in the digital age|on a global scale"
     r")\b", re.IGNORECASE)
+
+
+# --- Grounding guard (#11): the concreteness push, and the base model itself,
+# invent plausible specifics ~1/3 of the time (a fake "by 2025" compliance
+# deadline, invented percentages). ungrounded_specifics lives in pipeline.grounding
+# (dependency-free, shared with the auto-publish gate). We re-roll such bodies —
+# and, because bounded re-rolls don't fully remove it, auto_publisher also HOLDS
+# any still-ungrounded body for review instead of publishing it.
+def make_content_guard(source: str):
+    """content_is_clean + a grounding gate bound to this row's source text.
+    Used as the llama.cpp `validate` callback so ungrounded-specific bodies get
+    re-rolled within the existing retry budget."""
+    def guard(c: "GeneratedContent") -> bool:
+        return content_is_clean(c) and not ungrounded_specifics(c.body, source)
+    return guard
 
 
 def content_is_clean(c: "GeneratedContent") -> bool:
@@ -474,12 +525,23 @@ Signal Type: {classification.trend_signal_type}
 Mega Trend: {classification.mega_trend or 'N/A'}
 Source: {source_name} ({source_url})"""
 
+    # v2 prompt (#11): per-signal-type angle injected with the row's classification.
+    # Proven judge win over v1 across a 30-trend stratified A/B
+    # (scripts/ab_test_prompt.py; every rubric dimension improved).
+    framing = signal_type_framing(classification.trend_signal_type)
+    framing_block = f"Signal-type framing: {framing}\n\n" if framing else ""
     prompt_en = f"""Write a trend article in English based on this information.
 The source below may be in German or another language — translate it and write the title and body entirely in English.
 
-{context}
+{framing_block}{context}
 
 """
+
+    # Grounding gate (#11): re-roll bodies that introduce a number/date not in the
+    # source. The model only sees the excerpt + claims, so anything else is
+    # fabricated (the harness measured ~1/3 of bodies inventing a specific).
+    source_text = f"{title} {excerpt} " + " ".join(extraction.key_claims or [])
+    guard = make_content_guard(source_text)
 
     if STAGE5_BACKEND == "llamacpp":
         # Route content gen to llama-server (GPU handover managed by the caller).
@@ -488,9 +550,9 @@ The source below may be in German or another language — translate it and write
             model=STAGE5_MODEL,
             prompt=prompt_en,
             schema=GeneratedContent,
-            system=CONTENT_EN_SYSTEM,
+            system=CONTENT_EN_SYSTEM_V2,
             temperature=0.7,
-            validate=content_is_clean,
+            validate=guard,
             max_validate_retries=3,  # Option B: allow re-rolls toward target length, then accept
         )
 
@@ -498,7 +560,7 @@ The source below may be in German or another language — translate it and write
         model=MODEL_GENERATE,
         prompt=prompt_en,
         schema=GeneratedContent,
-        system=CONTENT_EN_SYSTEM,
+        system=CONTENT_EN_SYSTEM_V2,
         temperature=0.7,
     )
 

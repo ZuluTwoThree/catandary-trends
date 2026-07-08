@@ -37,6 +37,14 @@ def seeded_db():
                   "VALUES (1, 1, 'http://x/1', 't1')")
         c.execute("INSERT INTO raw_entries (id, source_id, url, title) "
                   "VALUES (2, 1, 'http://x/2', 't2')")
+        # entry 3: source with NO date/number → a body citing "2027" is ungrounded
+        c.execute("INSERT INTO raw_entries (id, source_id, url, title, excerpt) "
+                  "VALUES (3, 1, 'http://x/3', 'MoJ strategy', "
+                  "'The Ministry published a circular economy strategy to cut waste.')")
+        # entry 4: source states the figure the body uses → grounded, publishable
+        c.execute("INSERT INTO raw_entries (id, source_id, url, title, excerpt) "
+                  "VALUES (4, 1, 'http://x/4', 'Jobs report', "
+                  "'The programme created 7,980 jobs across 36 firms in 2024.')")
     base = {"title_de": None, "summary_en": "s", "summary_de": None, "body_de": None,
             "verticals": ["TECH"], "primary_vertical": "TECH", "pestel": ["T"],
             "tags": ["x"], "trend_signal_type": "research", "mega_trend": None,
@@ -49,6 +57,14 @@ def seeded_db():
     # truncated, high confidence -> should be HELD as draft (the #18 gate)
     insert_trend(2, {**base, "title_en": "Truncated", "slug": "truncated-2",
                      "body_en": "The industry's initial focus on creating"})
+    # fabricated specific (invents "2027"), high confidence -> HELD (the #11 gate)
+    insert_trend(3, {**base, "title_en": "Fabricated", "slug": "fabricated-3",
+                     "body_en": "The Ministry's circular economy strategy sets a "
+                                "compliance deadline of 2027 for all suppliers."})
+    # grounded body (7,980 / 36 / 2024 all in source) -> publishable
+    insert_trend(4, {**base, "title_en": "Grounded", "slug": "grounded-4",
+                     "body_en": "The programme created 7,980 jobs across 36 firms "
+                                "in its 2024 review, a concrete social outcome."})
     try:
         yield
     finally:
@@ -57,10 +73,13 @@ def seeded_db():
 
 def test_truncated_body_is_held_not_published(seeded_db):
     stats = auto_publish(min_confidence=0.85)
-    assert stats["published"] == 1
+    assert stats["published"] == 2            # complete-1 + grounded-4
     assert stats["held_truncated"] == 1
+    assert stats["held_fabricated"] == 1
     with get_connection() as c:
         rows = {r["slug"]: r["status"] for r in
                 c.execute("SELECT slug, status FROM trends").fetchall()}
     assert rows["complete-1"] == "published"
-    assert rows["truncated-2"] == "draft"   # held for review, not auto-published
+    assert rows["truncated-2"] == "draft"     # held for review, not auto-published
+    assert rows["fabricated-3"] == "draft"    # #11 grounding gate holds it
+    assert rows["grounded-4"] == "published"  # every specific is in the source

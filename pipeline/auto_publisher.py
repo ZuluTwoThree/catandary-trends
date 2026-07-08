@@ -9,8 +9,9 @@ import argparse
 import logging
 import sys
 
-from pipeline.config import AUTO_PUBLISH_CONFIDENCE, LOG_LEVEL
-from pipeline.db import get_trends, init_db, update_trend_status
+from pipeline.config import AUTO_PUBLISH_CONFIDENCE, AUTO_PUBLISH_GROUNDING_GATE, LOG_LEVEL
+from pipeline.db import get_connection, get_trends, init_db, update_trend_status
+from pipeline.grounding import ungrounded_specifics
 
 logging.basicConfig(
     level=LOG_LEVEL,
@@ -34,6 +35,33 @@ def _body_complete(body: str | None) -> bool:
     return body.rstrip().endswith(_TERMINAL_PUNCT)
 
 
+def _source_text(raw_entry_id: int | None) -> str | None:
+    """Title + excerpt + extracted claims for a trend's source entry — the only
+    material the content model saw. None if unavailable (→ grounding gate skipped
+    for that row, fail-open)."""
+    if not raw_entry_id:
+        return None
+    try:
+        with get_connection() as conn:
+            r = conn.execute(
+                "SELECT title, excerpt, extraction_json FROM raw_entries WHERE id = ?",
+                (raw_entry_id,)).fetchone()
+        if not r:
+            return None
+        r = dict(r) if not isinstance(r, dict) else r
+        claims = ""
+        ej = r.get("extraction_json")
+        if ej:
+            import json as _json
+            try:
+                claims = " ".join((_json.loads(ej) or {}).get("key_claims") or [])
+            except Exception:
+                claims = ""
+        return f"{r.get('title') or ''} {r.get('excerpt') or ''} {claims}"
+    except Exception:
+        return None
+
+
 def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
                  dry_run: bool = False) -> dict:
     """Auto-publish drafts above the confidence threshold.
@@ -46,6 +74,7 @@ def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
     published = 0
     skipped = 0
     held_truncated = 0
+    held_fabricated = 0
 
     for trend in drafts:
         confidence = trend.get("confidence", 0.0) or 0.0
@@ -66,6 +95,19 @@ def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
             held_truncated += 1
             continue
 
+        # Grounding gate (#11): never auto-publish a body that invents a specific
+        # (a number/date/percentage absent from the source) — content re-rolls
+        # cut but don't eliminate it. Hold for review. Fail-open if the source
+        # can't be loaded (source is None → skip the check, don't block publish).
+        source = _source_text(trend.get("raw_entry_id")) if AUTO_PUBLISH_GROUNDING_GATE else None
+        if source is not None:
+            fabricated = ungrounded_specifics(trend.get("body_en") or "", source)
+            if fabricated:
+                logger.warning("Held #%d (ungrounded specifics %s, not auto-published): '%s'",
+                               trend_id, fabricated[:5], title[:60])
+                held_fabricated += 1
+                continue
+
         if dry_run:
             logger.info("[DRY RUN] Would publish #%d: '%s' (conf=%.2f)",
                         trend_id, title[:60], confidence)
@@ -75,11 +117,13 @@ def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
                         trend_id, title[:60], confidence)
         published += 1
 
-    logger.info("Auto-publish complete: %d published, %d skipped, %d held (truncated) "
-                "(threshold=%.2f%s)", published, skipped, held_truncated, min_confidence,
+    logger.info("Auto-publish complete: %d published, %d skipped, %d held (truncated), "
+                "%d held (fabricated specifics) (threshold=%.2f%s)",
+                published, skipped, held_truncated, held_fabricated, min_confidence,
                 ", DRY RUN" if dry_run else "")
 
-    return {"published": published, "skipped": skipped, "held_truncated": held_truncated}
+    return {"published": published, "skipped": skipped,
+            "held_truncated": held_truncated, "held_fabricated": held_fabricated}
 
 
 if __name__ == "__main__":

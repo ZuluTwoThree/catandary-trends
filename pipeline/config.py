@@ -72,6 +72,13 @@ DUPLICATE_SIMILARITY_THRESHOLD = 0.92
 AUTO_PUBLISH_CONFIDENCE = 0.85
 MAX_RETRIES = 3
 
+# Grounding gate (#11): when on, auto_publisher holds any high-confidence draft
+# whose body contains a number/date/percentage absent from its source (a
+# fabricated specific) for manual review instead of publishing it. Trades some
+# publish volume (~1/4 of drafts on the current corpus) for factual integrity —
+# set AUTO_PUBLISH_GROUNDING_GATE=0 to prioritise volume.
+AUTO_PUBLISH_GROUNDING_GATE = os.getenv("AUTO_PUBLISH_GROUNDING_GATE", "1") == "1"
+
 # Brave Search (radar discovery layer, pipeline/radar_discovery.py)
 BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
 
