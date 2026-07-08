@@ -606,11 +606,12 @@ git init
 git remote add origin git@github.com:ZuluTwoThree/catandary-trends.git
 ```
 
-**Branch-Strategie:**
-- `main` – stabiler, deployable Stand
-- `sprint/1-pipeline-mvp` – Sprint-Branch, wird nach Abschluss in main gemergt
-- `sprint/2-content-gen` – usw.
-- Feature-Branches optional bei komplexen Features
+**Branch-Strategie (seit 2026-07-08 — dev/main statt Sprint-Branches):**
+- `main` – stabiler, deployter Prototyp (**"save"**). Prod-Server 3001 läuft von hier. Nur bewusst per Merge aus `dev` aktualisieren.
+- `dev` – Integrations-Branch für laufende Arbeit. Hierhin committen; nach Stabilisierung → `main` mergen + 3001 neu bauen.
+- Feature-Branches optional bei komplexen Features (von `dev` abzweigen, in `dev` zurück).
+- `product/trend-radar` – archivierte, divergente Produkt-Variante (Sales-Kit/Pricing/Kunden-Portal, Stand 2026-06-11). **Nicht in main/dev mergen** (reaktiviert das entfernte Brave-Search-Radar, 213 Commits hinter main) — nur als Referenz/Teil-Extraktion.
+- Die alten `sprint/*`-Branches wurden 2026-07-08 gelöscht (waren vollständig in `main`).
 
 **Commit-Konventionen:**
 ```
@@ -622,31 +623,27 @@ docs: update README with setup instructions
 chore: add .gitignore, .env.example
 ```
 
-**Workflow pro Sprint:**
+**Workflow (dev → main):**
 ```bash
-# Sprint starten
-git checkout main
+# Laufende Arbeit auf dev
+git checkout dev
 git pull
-git checkout -b sprint/1-pipeline-mvp
 
 # Während der Arbeit: regelmäßig committen und pushen
 git add -A
 git commit -m "feat: implement feed poller for FOOD + TECH verticals"
-git push -u origin sprint/1-pipeline-mvp
+git push origin dev
 
-# Sprint abschließen
+# Stabilen Stand nach main übernehmen (bewusster Schritt)
 git checkout main
-git merge sprint/1-pipeline-mvp
+git merge dev
 git push origin main
-git tag -a v0.1.0 -m "Sprint 1: Pipeline MVP"
-git push origin --tags
+# danach 3001 neu bauen: cd frontend && npm run build && next start -p 3001 (ohne DATABASE_URL)
 ```
 
 **Claude Code soll autonom:**
-- Das Repo initialisieren falls noch nicht geschehen
-- `.gitignore` erstellen (Python, Node, .env, __pycache__, .next, node_modules, *.db)
+- Auf `dev` committen und pushen; `main` nur per bewusstem Merge aktualisieren (main bleibt der deploybare "save")
 - Nach jedem abgeschlossenen Feature committen und pushen
-- Sprint-Branch am Ende mergen und taggen
 - Keine manuellen Merge-Konflikte hinterlassen
 
 **Tags/Releases:**
