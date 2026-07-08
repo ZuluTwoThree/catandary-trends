@@ -37,6 +37,33 @@ logger = logging.getLogger(__name__)
 VERTICALS = ["FOOD", "TECH", "HEALTH", "ECO", "DESIGN",
              "FASHION", "BIZ", "LIFESTYLE"]
 
+_DISTILL = None  # cached DistillClassifier (load once)
+
+
+def _embedding_corroborates(trend_id: int, mega: str) -> bool:
+    """True if `mega` is among the distill head's top-2 for this trend's
+    embedding — the #39 gate. Guards LLM re-assignments so this reviewer can't
+    write a mega the embedding disagrees with (esports → future_of_food). Fails
+    open (returns True) if the head or embedding is unavailable, so the reviewer
+    still works without the distill model."""
+    global _DISTILL
+    try:
+        import numpy as np
+        if _DISTILL is None:
+            from pipeline.distill import DistillClassifier
+            _DISTILL = DistillClassifier.load()
+        with get_connection() as conn:
+            r = conn.execute("SELECT embedding FROM trends WHERE id = ?", (trend_id,)).fetchone()
+        emb = (r["embedding"] if isinstance(r, dict) else r[0]) if r else None
+        if not emb:
+            return True
+        v = np.array([float(x) for x in emb.strip("[]").split(",")]).reshape(1, -1)
+        pred = _DISTILL.classify_batch(v)[0]
+        return mega in (pred.get("mega_top3") or [])[:2]
+    except Exception as e:  # noqa: BLE001 — gate must never break the reviewer
+        logger.warning("Embedding-gate unavailable (%s) — allowing assignment", e)
+        return True
+
 # Process trends in batches to fit context window (~16K tokens)
 BATCH_SIZE = 25
 
@@ -157,6 +184,15 @@ def review_batch(trends: list[dict], system_prompt: str, dry_run: bool = False) 
             else:
                 logger.warning("Non-canonical mega_trend '%s' for trend %d, setting to None", new, tid)
                 new = None
+
+        # Embedding gate (#39): this reviewer re-assigns via LLM, which hallucinates
+        # (esports → future_of_food). Never write a mega the embedding doesn't
+        # corroborate — require it in the distill head's top-2, else None. Without
+        # this, running the reviewer (esp. only_null mode) would re-fill the gated
+        # NULLs with the exact errors #39 removed.
+        if new and not _embedding_corroborates(tid, new):
+            logger.info("Embedding-gate: '%s' not in top-2 for trend %d → None", new, tid)
+            new = None
 
         if old != new:
             if dry_run:
