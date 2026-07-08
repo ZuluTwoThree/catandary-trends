@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { href: "/trends/cross-vertical", label: "Cross-Industry" },
   { href: "/trends/foresight", label: "Foresight" },
   { href: "/trends/foresight/clusters", label: "Clusters" },
+  { href: "/trends/foresight/technology", label: "Technology" },
   { href: "https://catandary.de", label: "Catandary", external: true },
 ];
 

@@ -304,6 +304,32 @@ export default function ForesightCockpit({
             </div>
           </div>
 
+          {/* Entry points to the two explorers, so the hub isn't a dead end */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <a
+              href="/trends/foresight/technology"
+              className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                Technology Explorer →
+              </div>
+              <div className="font-sans text-sm text-text mt-1">
+                Per-technology improvement rate (MIT method) + research→market lead times
+              </div>
+            </a>
+            <a
+              href="/trends/foresight/clusters"
+              className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                Cluster Explorer →
+              </div>
+              <div className="font-sans text-sm text-text mt-1">
+                What&apos;s moving right now — momentum clusters across all verticals
+              </div>
+            </a>
+          </div>
+
           {topClusters.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-baseline justify-between">
