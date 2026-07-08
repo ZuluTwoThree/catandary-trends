@@ -469,8 +469,30 @@ def _migrate_trends_sort_date():
     """Add the indexed sort_date column (capped published date) + its indexes and
     auto-maintaining trigger to existing trends tables, and backfill rows. Idempotent.
     sort_date lets the frontend ORDER BY an index instead of a temp-b-tree over the
-    trends⋈raw_entries join (the /trends slowness). SQLite only."""
+    trends⋈raw_entries join (the /trends slowness)."""
     if USE_POSTGRES:
+        # Postgres path: a BEFORE INSERT trigger keeps sort_date populated. Without
+        # it (the SQLite-only trigger didn't carry over the 2026-07-03 migration)
+        # new trends got sort_date=NULL and floated to the top of ORDER BY
+        # sort_date DESC (NULLs sort first). Parity with the SQLite trigger below.
+        with get_connection() as conn:
+            cur = conn._conn.cursor()
+            cur.execute(
+                "CREATE OR REPLACE FUNCTION trends_set_sort_date() RETURNS trigger AS $$\n"
+                "BEGIN\n"
+                "  IF NEW.sort_date IS NULL THEN\n"
+                "    NEW.sort_date := LEAST(\n"
+                "      COALESCE((SELECT published_date FROM raw_entries WHERE id = NEW.raw_entry_id),\n"
+                "               COALESCE(NEW.created_at, now())),\n"
+                "      COALESCE(NEW.created_at, now()));\n"
+                "  END IF;\n"
+                "  RETURN NEW;\n"
+                "END;\n"
+                "$$ LANGUAGE plpgsql;")
+            cur.execute("DROP TRIGGER IF EXISTS trends_set_sort_date ON trends")
+            cur.execute("CREATE TRIGGER trends_set_sort_date BEFORE INSERT ON trends "
+                        "FOR EACH ROW EXECUTE FUNCTION trends_set_sort_date()")
+            conn._conn.commit()
         return
     with get_connection() as conn:
         first_time = False

@@ -78,7 +78,7 @@ export async function getTrends(options: {
     query += ` AND t.primary_vertical = $${params.length}`;
   }
   params.push(options.limit ?? 50, options.offset ?? 0);
-  query += ` ORDER BY t.sort_date DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
+  query += ` ORDER BY t.sort_date DESC NULLS LAST LIMIT $${params.length - 1} OFFSET $${params.length}`;
   return (await q(query, params)).map(parseTrendRow);
 }
 
@@ -116,7 +116,7 @@ export async function getTrendsByMegaTrend(megaTrend: string, options: {
     query += ` AND t.status = $${params.length}`;
   }
   params.push(options.limit ?? 50);
-  query += ` ORDER BY t.sort_date DESC LIMIT $${params.length}`;
+  query += ` ORDER BY t.sort_date DESC NULLS LAST LIMIT $${params.length}`;
   return (await q(query, params)).map(parseTrendRow);
 }
 
@@ -214,7 +214,7 @@ export async function getCrossVerticalTrends(options: {
     query += ` AND t.status = $${params.length}`;
   }
   params.push(options.limit ?? 20);
-  query += ` ORDER BY t.sort_date DESC, t.trend_score DESC LIMIT $${params.length}`;
+  query += ` ORDER BY t.sort_date DESC NULLS LAST, t.trend_score DESC LIMIT $${params.length}`;
   return (await q(query, params)).map(parseTrendRow);
 }
 
