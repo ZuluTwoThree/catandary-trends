@@ -68,7 +68,7 @@ from pipeline.auto_publisher import auto_publish
 from pipeline.crs import compute_crs
 from pipeline.ollama_client import chat_structured, generate_embedding
 from pipeline import anthropic_client, gpu_handover, llamacpp_client
-from pipeline.reclassify import reclassify_drafts
+from pipeline.reclassify import gate_mega_trends, reclassify_drafts
 
 logging.basicConfig(
     level=LOG_LEVEL,
@@ -1019,6 +1019,12 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
             reclass_stats = reclassify_drafts()
         logger.info("Stage 8 done in %.1fs: %d reclassified (%d changed)",
                     time.time() - t_stage, reclass_stats["total"], reclass_stats["changed"])
+
+        # Mega-trend plausibility gate (#39): null LLM-forced mega-trends the
+        # embedding disagrees with. CPU-only, no GPU handover needed.
+        mega_stats = gate_mega_trends()
+        logger.info("Stage 8b (mega-gate): %d/%d drafts nulled",
+                    mega_stats["nulled"], mega_stats["checked"])
 
         t_stage = time.time()
         pub_stats = auto_publish()

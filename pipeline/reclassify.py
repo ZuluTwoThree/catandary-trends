@@ -139,6 +139,46 @@ def _open_conn():
     return conn, conn.cursor(), "?"
 
 
+def gate_mega_trends() -> dict:
+    """Null out mega-trends the embedding strongly disagrees with (issue #39).
+
+    The LLM classifier sometimes forces a mega-trend that doesn't fit (a
+    superhero-movie box-office trend labelled 'future_of_food_and_agriculture').
+    After embedding, we re-check each draft's mega-trend against the distill
+    head's top-3 for that embedding; if the stored label isn't even a top-3
+    candidate, it's a genuine misassignment → set NULL. Same rule as the #39
+    backfill (scripts/fix_mega_abstain.py). Cheap, CPU-only, no GPU.
+    """
+    import numpy as np
+    try:
+        from pipeline.distill import DistillClassifier
+        clf = DistillClassifier.load()
+    except Exception as e:  # noqa: BLE001 — head missing → skip gate, don't crash cycle
+        logger.warning("Mega-gate skipped (distill head unavailable: %s)", e)
+        return {"checked": 0, "nulled": 0}
+
+    conn, c, ph = _open_conn()
+    c.execute("SELECT id, mega_trend, embedding FROM trends "
+              "WHERE status = 'draft' AND mega_trend IS NOT NULL AND embedding IS NOT NULL")
+    rows = c.fetchall()
+    checked = 0
+    nulled = 0
+    for row in rows:
+        emb = row["embedding"]
+        if not emb:
+            continue
+        v = np.array([float(x) for x in emb.strip("[]").split(",")]).reshape(1, -1)
+        pred = clf.classify_batch(v)[0]
+        checked += 1
+        if row["mega_trend"] not in (pred.get("mega_top3") or []):
+            c.execute(f"UPDATE trends SET mega_trend = NULL WHERE id = {ph}", (row["id"],))
+            nulled += 1
+    conn.commit()
+    conn.close()
+    logger.info("Mega-gate: %d/%d drafts had an implausible mega-trend nulled", nulled, checked)
+    return {"checked": checked, "nulled": nulled}
+
+
 def reclassify_drafts() -> dict:
     """Reclassify all draft trends. Returns stats dict."""
     conn, c, ph = _open_conn()

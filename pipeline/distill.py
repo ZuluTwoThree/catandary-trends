@@ -30,10 +30,14 @@ logger = logging.getLogger(__name__)
 
 MODELS_DIR = Path(PROJECT_ROOT) / "models" / "distill"
 PESTEL_DIMS = ["P", "E", "S", "T", "En", "L"]
-# Below this OvR decision score the top mega-trend class doesn't positively
-# claim the point → abstain (mega_trend=None) instead of forcing a wrong label.
-# 0.0 is the natural OvR boundary; validated against the #39 misassignments.
-MEGA_ABSTAIN_THRESHOLD = 0.0
+# Abstain (mega_trend=None) only when even the best class is DEEPLY rejected —
+# a gross no-fit like the Supergirl box-office trend (all 21 scores ≤ -1.6).
+# 0.0 (the OvR boundary) was too aggressive: 22% of plausible in-top-3 labels
+# sit at a slightly-negative max (p10 -0.66) and shouldn't be dropped. -1.0
+# keeps those and abstains only on genuine no-fits. Cross-label misassignments
+# (right vs wrong class) are handled separately by the top-3 plausibility gate
+# (mega_in_top3), used in the cycle and the #39 backfill.
+MEGA_ABSTAIN_THRESHOLD = -1.0
 
 
 def _normalize(X: np.ndarray) -> np.ndarray:
