@@ -40,6 +40,10 @@ STAGE5_MODEL = os.getenv("STAGE5_MODEL", "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf")
 # body is preferred over retrying for length: clear short text beats AI slop. The
 # guard retries on clichés or mid-sentence truncation, not on brevity.
 STAGE5_MIN_BODY_WORDS = int(os.getenv("STAGE5_MIN_BODY_WORDS", "25"))
+# Option B (#11): re-roll bodies below this word count (prompt targets 150-250w
+# but the 30B naturally lands ~100w; this pushes closer to spec at the cost of
+# more re-rolls). Still bounded by max_validate_retries, then accepted.
+STAGE5_TARGET_BODY_WORDS = int(os.getenv("STAGE5_TARGET_BODY_WORDS", "130"))
 
 # qwen3:8b stages backend (pipeline Stages 2 Relevance, 3 Extraction,
 # 4 Classification, 8 Reclassify).

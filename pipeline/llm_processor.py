@@ -43,6 +43,7 @@ from pipeline.config import (
     RELEVANCE_THRESHOLD,
     STAGE5_BACKEND,
     STAGE5_MIN_BODY_WORDS,
+    STAGE5_TARGET_BODY_WORDS,
     STAGE5_MODEL,
     STAGE_8B_BACKEND,
     STAGE_8B_MODEL,
@@ -170,7 +171,8 @@ Classify a single trend signal into the Catandary taxonomy. You must assign:
    - Sport architecture, stadiums, facility design → DESIGN
    - Sport nutrition products → FOOD
    - Sport wearables / biometrics tech itself → TECH
-9. **Most trends belong to ONE primary vertical.** Only add secondaries when the trend genuinely cannot be understood without two industries.
+9. **Mining, oil & gas, metals, minerals, commodities, raw-material extraction / exploration / drilling → ECO** (resources, energy, environment) — or **BIZ** if purely the company's finance/M&A/earnings. **NEVER FOOD** unless it is about edible agricultural produce. (No dedicated "materials/resources" vertical exists; without this rule mining PR mis-routes to FOOD.)
+10. **Most trends belong to ONE primary vertical.** Only add secondaries when the trend genuinely cannot be understood without two industries.
 
 ## Vertical classification examples
 - "CRISPR Advances Enable Faster Gene Editing in Crops" → verticals: ["TECH", "FOOD"]
@@ -260,15 +262,19 @@ _CLICHE_RE = re.compile(
 
 
 def content_is_clean(c: "GeneratedContent") -> bool:
-    """Content guard. Retries only on AI slop or a broken body — NOT on brevity:
-    a short, complete, cliché-free article is accepted as-is (clear short text
-    beats slop + wasted retries). Rejects only (a) a near-empty stub (garbage
-    floor), (b) a body cut off mid-sentence (no terminal punctuation), or
-    (c) banned cliché phrases."""
+    """Content guard. Rejects (→ re-roll) on: (a) a near-empty stub (hard garbage
+    floor), (b) a body cut off mid-sentence (no terminal punctuation), (c) banned
+    cliché phrases, or (d) BREVITY — below STAGE5_TARGET_BODY_WORDS (Option B,
+    #11: the prompt targets 150-250w but the model lands ~100w; re-roll toward
+    spec). The brevity re-roll is bounded by max_validate_retries, after which a
+    short-but-clean body is accepted rather than looping forever."""
     body = c.body.strip()
-    if len(body.split()) < STAGE5_MIN_BODY_WORDS:
+    words = len(body.split())
+    if words < STAGE5_MIN_BODY_WORDS:
         return False                                   # near-empty stub = real failure
     if not body.endswith((".", "!", "?", '"', "”")):   # cut off mid-sentence → retry
+        return False
+    if words < STAGE5_TARGET_BODY_WORDS:                # Option B: too short → re-roll
         return False
     return not _CLICHE_RE.search(f"{c.body}\n{c.summary}")
 
@@ -485,7 +491,7 @@ The source below may be in German or another language — translate it and write
             system=CONTENT_EN_SYSTEM,
             temperature=0.7,
             validate=content_is_clean,
-            max_validate_retries=1,  # one quick re-roll on clichés, then accept
+            max_validate_retries=3,  # Option B: allow re-rolls toward target length, then accept
         )
 
     return chat_structured(

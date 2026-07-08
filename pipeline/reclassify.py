@@ -62,7 +62,8 @@ CLASSIFY_SYSTEM = """You assign trends to the Catandary vertical taxonomy.
    - Sport architecture, stadiums, facility design → DESIGN
    - Sport nutrition products → FOOD
    - Sport wearables / biometrics tech itself → TECH
-9. **Most trends belong to ONE vertical.** Only add secondaries when the trend genuinely cannot be understood without two industries.
+9. **Mining, oil & gas, metals, minerals, commodities, raw-material extraction / exploration / drilling → ECO** (resources, energy, environment) — or **BIZ** if the story is purely the company's finance/M&A/earnings. **NEVER FOOD** unless it is about edible agricultural produce. (The taxonomy has no dedicated "materials/resources" vertical; without this rule the model mis-routes mining PR to FOOD.)
+10. **Most trends belong to ONE vertical.** Only add secondaries when the trend genuinely cannot be understood without two industries.
 
 ## Examples
 Title: "CRISPR Advances Enable Faster Gene Editing in Crops"
