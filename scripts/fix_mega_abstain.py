@@ -68,12 +68,12 @@ def main() -> int:
             # (Supergirl→food: food not in [AI, inclusive-design, fintech]).
             # This is precise regardless of absolute score, unlike a max<0
             # abstain which nulls 22% of plausible in-top-3 labels.
-            if stored not in (p.get("mega_top3") or []):
+            if stored not in (p.get("mega_top3") or [])[:2]:
                 to_null.append(r[0])
     cur.close()
 
     print(f"scanned {seen:,} published trends with a mega_trend")
-    print(f"→ {len(to_null):,} have a FORCED mega-trend (embedding disagrees, not in top-3) → set NULL")
+    print(f"→ {len(to_null):,} have a FORCED mega-trend (embedding disagrees, not in top-2) → set NULL")
     if seen:
         print(f"   = {100*len(to_null)/seen:.1f}% of labelled trends")
 

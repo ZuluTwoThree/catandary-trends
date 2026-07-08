@@ -145,8 +145,9 @@ def gate_mega_trends() -> dict:
     The LLM classifier sometimes forces a mega-trend that doesn't fit (a
     superhero-movie box-office trend labelled 'future_of_food_and_agriculture').
     After embedding, we re-check each draft's mega-trend against the distill
-    head's top-3 for that embedding; if the stored label isn't even a top-3
-    candidate, it's a genuine misassignment → set NULL. Same rule as the #39
+    head's top-2 for that embedding; if the stored label isn't among the top-2
+    candidates (top-3 was too lax — a wrong label as a weak 3rd survived, e.g.
+    Riot Games esports → future_of_food), it's a genuine misassignment → set NULL. Same rule as the #39
     backfill (scripts/fix_mega_abstain.py). Cheap, CPU-only, no GPU.
     """
     import numpy as np
@@ -170,7 +171,7 @@ def gate_mega_trends() -> dict:
         v = np.array([float(x) for x in emb.strip("[]").split(",")]).reshape(1, -1)
         pred = clf.classify_batch(v)[0]
         checked += 1
-        if row["mega_trend"] not in (pred.get("mega_top3") or []):
+        if row["mega_trend"] not in (pred.get("mega_top3") or [])[:2]:
             c.execute(f"UPDATE trends SET mega_trend = NULL WHERE id = {ph}", (row["id"],))
             nulled += 1
     conn.commit()
