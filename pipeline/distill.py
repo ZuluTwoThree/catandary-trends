@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 
 MODELS_DIR = Path(PROJECT_ROOT) / "models" / "distill"
 PESTEL_DIMS = ["P", "E", "S", "T", "En", "L"]
+# Below this OvR decision score the top mega-trend class doesn't positively
+# claim the point → abstain (mega_trend=None) instead of forcing a wrong label.
+# 0.0 is the natural OvR boundary; validated against the #39 misassignments.
+MEGA_ABSTAIN_THRESHOLD = 0.0
 
 
 def _normalize(X: np.ndarray) -> np.ndarray:
@@ -87,6 +91,13 @@ class DistillClassifier:
             m_scores = np.stack([-m_scores, m_scores], axis=1)
         m_classes = np.asarray(self._mega.classes_)
         m_order = np.argsort(-m_scores, axis=1)
+        # ABSTAIN: the OvR head always has an argmax, even for signals no
+        # mega-trend fits (e.g. a superhero-movie box-office LIFESTYLE trend).
+        # A max decision score < 0 means no class claims the point positively —
+        # emit mega_trend=None rather than forcing the nearest (which produced
+        # "future_of_food_and_agriculture" for off-topic trends). ~22% of
+        # published trends fall here (LIFESTYLE 56%). See issue #39.
+        m_topscore = m_scores[np.arange(n), m_order[:, 0]]
 
         p_pred = self._pestel.predict(Xn)
 
@@ -101,7 +112,8 @@ class DistillClassifier:
                 "primary_vertical": str(v_classes[top_v]),
                 "vertical_confidence": float(v_prob[i, top_v]),
                 "vertical_top2": [str(c) for c in v_classes[v_order[i, :2]]],
-                "mega_trend": str(m_classes[m_order[i, 0]]),
+                "mega_trend": (str(m_classes[m_order[i, 0]])
+                               if m_topscore[i] >= MEGA_ABSTAIN_THRESHOLD else None),
                 "mega_top3": [str(c) for c in m_classes[m_order[i, :3]]],
                 "pestel": [PESTEL_DIMS[j] for j in range(len(PESTEL_DIMS))
                            if p_pred[i, j] == 1],
