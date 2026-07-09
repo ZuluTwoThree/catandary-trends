@@ -94,6 +94,9 @@ function Delta({ a, b }: { a: number; b: number }) {
 }
 
 export default async function QualityPreviewPage() {
+  // Internal QA page — never expose on the public production site, even if a
+  // preview JSON happens to be present. Viewable only on a dev build.
+  if (process.env.NODE_ENV === "production") notFound();
   const data = await load();
   if (!data) notFound();
   const { generated: r, items, held, gate } = data;
