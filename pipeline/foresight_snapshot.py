@@ -105,7 +105,7 @@ def prune_old_runs(keep_per_scope: int = 1) -> int:
 def run_snapshot(scope: str, status: str = "signal,published",
                  k: int | None = None, k_range: tuple[int, int] | None = None,
                  limit: int = 0, source_like: str | None = None,
-                 tier: str | None = None) -> int | None:
+                 tier: str | None = None, dim1024: bool = False) -> int | None:
     """Cluster one scope and persist the artifacts. Returns run_id or None."""
     vertical = scope.split(":", 1)[1] if scope.startswith("vertical:") else None
     if k_range is None:
@@ -113,7 +113,7 @@ def run_snapshot(scope: str, status: str = "signal,published",
 
     t0 = time.time()
     rows = load_signals(status=status, vertical=vertical,
-                        source_like=source_like, limit=limit)
+                        source_like=source_like, limit=limit, dim1024=dim1024)
     logger.info("[%s] %d signals with embedding (status=%s%s)", scope, len(rows),
                 status, f", source_like={source_like}" if source_like else "")
     if len(rows) < MIN_SIGNALS:
@@ -165,6 +165,8 @@ def main() -> int:
                     help="comma substrings OR-matched on source_name (tier scoping)")
     ap.add_argument("--tier", default=None,
                     help="lead-time tier label stored on run+clusters (radar ring)")
+    ap.add_argument("--dim1024", action="store_true",
+                    help="cluster on the Matryoshka 1024-dim column (full-space runs)")
     args = ap.parse_args()
 
     if not args.scope and not args.all_verticals:
@@ -179,7 +181,7 @@ def main() -> int:
     for scope in scopes:
         rid = run_snapshot(scope, status=args.status, k=args.k, k_range=k_range,
                            limit=args.limit, source_like=args.source_like,
-                           tier=args.tier)
+                           tier=args.tier, dim1024=args.dim1024)
         done += 1 if rid else 0
     pruned = prune_old_runs(keep_per_scope=1)
     print(f"{done}/{len(scopes)} snapshots persisted ({pruned} stale runs pruned).")

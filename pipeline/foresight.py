@@ -58,13 +58,17 @@ MINIBATCH_ABOVE = 100_000  # switch to MiniBatchKMeans above this many points
 
 def load_signals(status: str = "signal,published", vertical: str | None = None,
                  source_like: str | None = None, limit: int = 0,
-                 since: str | None = None, until: str | None = None) -> list[dict]:
+                 since: str | None = None, until: str | None = None,
+                 dim1024: bool = False) -> list[dict]:
     """Load embedded trends joined to their raw entry's published_date.
 
     status: comma list or 'all'. vertical: primary_vertical or None/'ALL' for no
     filter. source_like: comma-separated substrings OR-matched against
     source_name (e.g. 'NSF,NIH,OpenAIRE,UKRI' = the funding pool).
     since/until: ISO date bounds on published_date (for time-window runs).
+    dim1024: load the Matryoshka 1024-dim column instead of the full 4096 —
+    4× less text to parse/hold, which is what makes the full 1.1M-signal space
+    tractable in memory; KMeans centroids are ~identical on the truncation.
     Embeddings are kept as raw bytes in row['_emb'] for build_matrix().
     """
     where: list[str] = []
@@ -76,7 +80,8 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     if vertical and vertical.upper() != "ALL":
         where.append("t.primary_vertical = ?")
         params.append(vertical)
-    where.append("t.embedding IS NOT NULL")
+    emb_field = "embedding_1024" if dim1024 else "embedding"
+    where.append(f"t.{emb_field} IS NOT NULL")
     if source_like:
         pats = [p.strip() for p in source_like.split(",") if p.strip()]
         if pats:
@@ -95,7 +100,7 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     where.append("(r.published_date IS NULL OR r.published_date <= CURRENT_TIMESTAMP)")
     # Under Postgres the embedding is a pgvector — cast to text and parse; under
     # SQLite it is the raw float32 blob.
-    emb_col = "t.embedding::text" if db_mod.USE_POSTGRES else "t.embedding"
+    emb_col = f"t.{emb_field}::text" if db_mod.USE_POSTGRES else f"t.{emb_field}"
     sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, "
            "       t.primary_vertical, t.status, t.source_url, "
            f"       r.published_date, {emb_col} AS embedding "
