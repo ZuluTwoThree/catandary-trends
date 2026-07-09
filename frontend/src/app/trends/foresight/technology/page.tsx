@@ -3,6 +3,7 @@ import { q1 } from "@/lib/pg";
 import { getTechnologies } from "@/lib/technology";
 import TechnologyCard from "@/components/foresight/TechnologyCard";
 import TechQuery from "@/components/foresight/TechQuery";
+import TirTrajectory from "@/components/foresight/TirTrajectory";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +83,11 @@ export default async function TechnologyExplorerPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* On-demand TIR trajectory (#36/#42): free text → fine CPC domain → K(t) */}
+      <div className="mb-6">
+        <TirTrajectory />
       </div>
 
       {/* Super Pro+ on-demand scope — ask any technology, computed live */}
