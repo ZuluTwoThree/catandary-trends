@@ -43,6 +43,15 @@ trainiert auf den **bereits vorhandenen LLM-Labels**.
 
 ## Lazy-Layer (Extraction + Content)
 
+> **Status 2026-07-09 (#8 geschlossen):** `ensure_embeddings(ids, cap, timeout)`
+> wird NICHT gebaut — jeder geplante Konsument ist inzwischen anders gelöst:
+> Patent-Evidenz über den Volltext-GIN-Index (`idx_re_patent_fts`, ts_rank),
+> Technologie-Scoping über native CPC + embedded CPC-Definitionen (#28,
+> `signal_cpc` mit 100 % Signal-Abdeckung), klassifizierter Signal-Korpus über
+> Distill-Batch-Embedding (`signal_batch --backend distill`). Nur 0,1 % der
+> 18,7M Patente sind embedded und alle Features funktionieren. Falls #27
+> (multilingualer Korpus) Patent-Embeddings braucht: Bulk-Pass dort, nicht lazy.
+
 - **Extraction:** spaCy-NER auf dem Quelltext (brand/product) on-demand, oder LLM
   lazy — nur für angefragte/publizierte Signale.
 - **Content-Gen:** lazy per Query über `ensure_embeddings(ids, cap, timeout)` +
@@ -76,7 +85,7 @@ Klassifikator nachtrainieren. So bleibt Novelty erhalten, ohne pro Item ein LLM.
                            → LLM-Fallback oder status='draft' für Review
 3. Ingest-Pfad             signal_batch-Variante "embedding-first": embed → Klassifikator-Heads
                            → status='signal' (kein LLM-Classify)
-4. Lazy-Layer              ensure_embeddings + lazy Content-Gen-Hook + NER-Extraction
+4. Lazy-Layer              (ensure_embeddings entfallen, s. o.) lazy Content-Gen-Hook + NER-Extraction
 5. Discovery-Loop          periodischer LLM-Pass auf Cluster-Zentren → Taxonomie + Retrain
 6. Skalieren               DOCDB Back-File + OpenAlex pre-2020 durchziehen (Postgres)
 ```
