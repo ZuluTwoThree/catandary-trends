@@ -64,7 +64,7 @@ def ensure_vram(min_free_mib: int = MIN_FREE_VRAM_MIB) -> None:
             f"then re-run; restart it afterwards with `systemctl --user start llama-server.service`.")
 
 
-def select_signals(ids, vertical, since, limit, min_score=0.0):
+def select_signals(ids, vertical, since, limit):
     where = ["t.status = 'signal'"]
     params: list = []
     if ids:
@@ -76,17 +76,12 @@ def select_signals(ids, vertical, since, limit, min_score=0.0):
     if since:
         where.append("r.published_date >= ?")
         params.append(since)
-    if min_score and min_score > 0:
-        # Selective promotion (#12): only turn higher-value signals into written
-        # articles; the rest stay foresight signals (still power the clusters).
-        where.append("t.trend_score >= ?")
-        params.append(min_score)
     sql = (
         "SELECT t.id, t.confidence, r.title, r.excerpt, r.url, "
         "       r.extraction_json, r.classification_json, s.name AS source_name "
         "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id "
         "LEFT JOIN sources s ON r.source_id = s.id "
-        f"WHERE {' AND '.join(where)} ORDER BY t.trend_score DESC NULLS LAST, r.published_date DESC"
+        f"WHERE {' AND '.join(where)} ORDER BY r.published_date DESC"
     )
     if limit:
         sql += " LIMIT ?"
@@ -148,8 +143,6 @@ def main() -> int:
     ap.add_argument("--all", action="store_true", help="process all signals (chunked)")
     ap.add_argument("--chunk", type=int, default=200)
     ap.add_argument("--dry-run", action="store_true", help="count matching signals only")
-    ap.add_argument("--min-score", type=float, default=0.0,
-                    help="only promote signals with trend_score >= this (#12 selective gen)")
     args = ap.parse_args()
 
     ids = [int(x) for x in args.ids.split(",")] if args.ids else None
@@ -158,7 +151,7 @@ def main() -> int:
         return 2
 
     limit = None if args.all else (args.limit or 200)
-    rows = select_signals(ids, args.vertical, args.since, limit, min_score=args.min_score)
+    rows = select_signals(ids, args.vertical, args.since, limit)
     print(f"{len(rows)} signals match.")
     if args.dry_run or not rows:
         return 0
