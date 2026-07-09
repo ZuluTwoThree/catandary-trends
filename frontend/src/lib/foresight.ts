@@ -122,6 +122,105 @@ export async function getLatestClusterRun(
   }
 }
 
+/* ----------------------------- Lead-time layer ---------------------------- */
+/**
+ * Cross-tier lead-time (#9/#2): the four lead-time tiers (research → patents →
+ * funding → market) projected onto the shared CPC axis, read from the batch-
+ * built cpc_tier_series / cpc_tier_totals / cpc_leadtime_summary. SoV (share of
+ * a tier's yearly volume) is the honest unit — it normalizes out each tier's
+ * different corpus depth, so the curves are comparable. A headline lead-time is
+ * surfaced ONLY where the corpus can prove it (reliable = genuine in-window
+ * emergence in both compared tiers); otherwise we show the curves, no number.
+ */
+
+export type TierName = "science" | "patent" | "funding" | "market";
+
+export interface LeadTech {
+  cpc: string;
+  title: string;
+  curated_name: string | null;
+  lead_science_vs_market: number | null;
+  science_takeoff: number | null;
+  market_takeoff: number | null;
+  reliable: boolean;
+  science_n: number;
+  market_n: number;
+}
+
+/** Cleaned display name for a CPC — curated Explorer name, else tidied caption. */
+export function cpcDisplayName(title: string, curated: string | null): string {
+  if (curated) return curated;
+  let t = title.split(/[;(]/)[0].replace(/,?\s*NOT OTHERWISE PROVIDED FOR/gi, "");
+  t = t.replace(/\s+/g, " ").trim().toLowerCase();
+  t = t.charAt(0).toUpperCase() + t.slice(1);
+  // restore bracketed acronyms: "[uav]" → "[UAV]"
+  return t.replace(/\[([^\]]+)\]/g, (_, a: string) => `[${a.toUpperCase()}]`);
+}
+
+/** Reliable emerging technologies with a credible research→market lead. */
+export async function getLeadTimeTechnologies(limit = 12): Promise<LeadTech[]> {
+  try {
+    const rows = await q<LeadTech>(
+      `SELECT s.cpc, d.title, i.name AS curated_name,
+              s.lead_science_vs_market, s.science_takeoff, s.market_takeoff,
+              (s.reliable = 1) AS reliable, s.science_n, s.market_n
+       FROM cpc_leadtime_summary s
+       JOIN cpc_definitions d ON d.symbol = s.cpc
+       LEFT JOIN cpc_insights i ON i.symbol = s.cpc
+       WHERE s.reliable = 1 AND s.lead_science_vs_market > 0
+       -- curated Explorer axes first (recognizable names), then by market
+       -- prominence — so the default view opens on a technology people know
+       ORDER BY (i.name IS NULL), s.market_n DESC
+       LIMIT $1`,
+      [limit]
+    );
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
+export interface TierPoint { year: number; sov: number; n: number }
+
+/** Per-tier yearly SoV curve for one CPC (SoV = share of that tier's year). */
+export async function getTierCurves(
+  cpc: string
+): Promise<{ tiers: Record<TierName, TierPoint[]>; lead: LeadTech | null }> {
+  const empty = { science: [], patent: [], funding: [], market: [] } as Record<
+    TierName,
+    TierPoint[]
+  >;
+  try {
+    const rows = await q<{ tier: TierName; year: number; sov: number; n: number }>(
+      `SELECT s.tier, s.year, (s.n::float / NULLIF(t.total, 0)) AS sov, s.n
+       FROM cpc_tier_series s
+       JOIN cpc_tier_totals t ON t.tier = s.tier AND t.year = s.year
+       WHERE s.cpc = $1 AND s.year >= 1995
+       ORDER BY s.year`,
+      [cpc.toUpperCase()]
+    );
+    const tiers = { science: [], patent: [], funding: [], market: [] } as Record<
+      TierName,
+      TierPoint[]
+    >;
+    for (const r of rows) {
+      if (r.tier in tiers && r.sov != null)
+        tiers[r.tier].push({ year: r.year, sov: r.sov, n: r.n });
+    }
+    const lead = await q1<LeadTech>(
+      `SELECT s.cpc, d.title, i.name AS curated_name, s.lead_science_vs_market,
+              s.science_takeoff, s.market_takeoff, (s.reliable = 1) AS reliable,
+              s.science_n, s.market_n
+       FROM cpc_leadtime_summary s JOIN cpc_definitions d ON d.symbol = s.cpc
+       LEFT JOIN cpc_insights i ON i.symbol = s.cpc WHERE s.cpc = $1`,
+      [cpc.toUpperCase()]
+    );
+    return { tiers: rows.length ? tiers : empty, lead };
+  } catch {
+    return { tiers: empty, lead: null };
+  }
+}
+
 /** Scopes that actually have persisted runs (drives the tab row). */
 export async function getClusterScopes(): Promise<string[]> {
   try {

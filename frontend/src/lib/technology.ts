@@ -111,15 +111,20 @@ export async function getTrendTechContext(trendId: number): Promise<TrendTechMat
   // top-3) stays the substrate for cross-tier fusion; this is the display path.
   try {
     return await q<TrendTechMatch>(
+      // lead_years now comes from the honest cpc_leadtime_summary and is shown
+      // ONLY where reliable=1 (both tiers genuinely emerged in-window). The old
+      // cpc_insights payload lead could report a 13y "lead" for an established
+      // field like dairy — a corpus-depth artifact — which we no longer surface.
       `SELECT d.symbol, d.title, (t.embedding_1024 <=> d.embedding_1024)::float AS dist,
               i.name AS curated_name,
               (i.payload->'patent_dynamics'->>'tir_pct')::float AS tir_pct,
-              (i.payload->>'lead_years_science_vs_market')::float AS lead_years,
+              CASE WHEN ls.reliable = 1 THEN ls.lead_science_vs_market END AS lead_years,
               (SELECT COUNT(*) FROM signal_cpc x
                 WHERE x.cpc = d.symbol AND x.dist < $2)::int AS siblings
        FROM trends t
        JOIN cpc_definitions d ON d.embedding_1024 IS NOT NULL
        JOIN cpc_insights i ON i.symbol = d.symbol
+       LEFT JOIN cpc_leadtime_summary ls ON ls.cpc = d.symbol
        WHERE t.id = $1 AND t.embedding_1024 IS NOT NULL
          AND (t.embedding_1024 <=> d.embedding_1024) < $2
        ORDER BY t.embedding_1024 <=> d.embedding_1024

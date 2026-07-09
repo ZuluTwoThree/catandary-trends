@@ -1,5 +1,10 @@
+import Link from "next/link";
 import ForesightCockpit from "@/components/ForesightCockpit";
-import { getLatestClusterRun } from "@/lib/foresight";
+import {
+  getLatestClusterRun,
+  getLeadTimeTechnologies,
+  cpcDisplayName,
+} from "@/lib/foresight";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +17,10 @@ export const metadata = {
 export default async function ForesightRoute() {
   // Default content for the empty state: the top rising clusters, so the page
   // shows value before any query (value-first, low-threshold UX).
-  const run = await getLatestClusterRun("global");
+  const [run, leads] = await Promise.all([
+    getLatestClusterRun("global"),
+    getLeadTimeTechnologies(3),
+  ]);
   const topClusters = (run?.clusters ?? [])
     .slice()
     .sort((a, b) => b.sov_delta_pp - a.sov_delta_pp || b.size - a.size)
@@ -20,6 +28,32 @@ export default async function ForesightRoute() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
+      {/* Lead-time proof strip (#23): the USP, above the fold, one click to the
+          full view. Only real, reliable leads. */}
+      {leads.length > 0 && (
+        <Link
+          href="/trends/foresight/lead-time"
+          className="block mb-8 border border-border bg-card/40 hover:bg-card transition-colors px-5 py-4"
+        >
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+              —— Lead time: research ahead of the market
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              see all →
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-x-8 gap-y-2">
+            {leads.map((t) => (
+              <span key={t.cpc} className="font-sans text-sm text-text">
+                <span className="text-paper">{cpcDisplayName(t.title, t.curated_name)}</span>
+                {" — research "}
+                <span className="text-accent">~{t.lead_science_vs_market}y ahead</span>
+              </span>
+            ))}
+          </div>
+        </Link>
+      )}
       <ForesightCockpit topClusters={topClusters} />
     </div>
   );
