@@ -238,7 +238,9 @@ The product core: reasoning **in the data**, not in generated text.
 | Capability | Entry point | Method |
 |---|---|---|
 | Trend discovery (two layers) | `scripts/discover_trends.py` → `pipeline/discovery.py` | PCA 4096→50, then **scope layer** (KMeans partition per vertical / cross-vertical pair — customer-facing sub-themes) and **mega layer** (HDBSCAN density, characterized on reach-entropy × maturity × durability) |
-| Cluster snapshots & momentum | `pipeline/foresight_snapshot.py` | SoV time series per cluster, persisted to `foresight_runs`/`foresight_clusters` for the frontend; `--all-verticals` after large ingests |
+| Cluster snapshots & momentum | `pipeline/foresight_snapshot.py` | SoV time series per cluster, persisted to `foresight_runs`/`foresight_clusters` for the frontend. `--dim1024` clusters the **full ~1.1M-signal space** (Matryoshka 1024-d column); `--all-verticals` after large ingests. Validated: `scripts/foresight_validation.py` → 23/24 known-trend recovery, 6/6 momentum plausibility |
+| Cross-tier fusion (lead time) | `scripts/build_cpc_tier_series.py` | materializes all four tiers on the shared CPC axis — `cpc_tier_series` (per cpc/tier/year), `cpc_tier_totals` (SoV denominators), `cpc_leadtime_summary`. Lead-time uses SoV S-curve takeoff over each pair's **common support window** + emergence/signal gates, so only technologies the corpus can prove get a `reliable` lead (no fabricated long leads); reads from the #28 `signal_cpc` projection |
+| Field-normalized science velocity | `scripts/openalex_velocity.py` | `velocity_3y` (native `counts_by_year`) + subfield percentile (`velocity_pctl`); retracted works excluded as a negative signal |
 | Technology Improvement Rate | `scripts/tir_metrics.py --cpc A23C` | patent-cluster metrics from the citation graph: **Cycle Time** (median backward-citation age), **Immediate Importance** (fwd cites ≤ 3 y, r≈0.76), hub patents. Citation queries are **scoped in SQL** — the 112M-edge graph must never be loaded into RAM |
 | Science-front metrics | `scripts/science_metrics.py` | citation velocity, field-normalized impact percentiles, front hubs, retraction rate — per OpenAlex topic |
 | **CPC technology backbone** | `scripts/parse_cpc.py` → `scripts/embed_cpc.py` | all 653 CPC subclass definitions parsed and embedded (multilingual) + HNSW index → any signal from any tier projects onto CPC via ANN |
@@ -265,7 +267,12 @@ Routes:
 - `/trends` — main grid with vertical filter
 - `/trends/[slug]` — single trend article
 - `/trends/vertical/[v]`, `/trends/pestel/[dimension]`, `/trends/mega`
-- `/trends/foresight` — Foresight Cockpit (hybrid search + analytics)
+- `/trends/foresight` — Foresight Cockpit (hybrid search + analytics), with a
+  lead-time proof strip above the fold
+- `/trends/foresight/lead-time` — **Lead-time view**: the four innovation tiers
+  (research → patents → funding → market) as per-peak-indexed SoV curves over
+  time; the research↔market gap is the lead, shown as a headline number only
+  where the corpus can prove it (`reliable`)
 - `/trends/foresight/clusters` — Cluster Explorer over the full signal space
   (momentum, source corroboration, evidence links; reads persisted snapshots)
 - `/api/search?q=...&vertical=FOOD&limit=20` — hybrid search API (RRF)
