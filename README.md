@@ -244,6 +244,9 @@ The product core: reasoning **in the data**, not in generated text.
 | Technology Improvement Rate | `scripts/tir_metrics.py --cpc A23C` | patent-cluster metrics from the citation graph: **Cycle Time** (median backward-citation age), **Immediate Importance** (fwd cites ≤ 3 y, r≈0.76), hub patents. Citation queries are **scoped in SQL** — the 112M-edge graph must never be loaded into RAM |
 | Science-front metrics | `scripts/science_metrics.py` | citation velocity, field-normalized impact percentiles, front hubs, retraction rate — per OpenAlex topic |
 | **CPC technology backbone** | `scripts/parse_cpc.py` → `scripts/embed_cpc.py` | all 653 CPC subclass definitions parsed and embedded (multilingual) + HNSW index → any signal from any tier projects onto CPC via ANN |
+| **Fine CPC index** (#42) | `scripts/parse_cpc_scheme.py` → `scripts/embed_cpc_fine.py` | the full CPC scheme (261k fine codes with title + hierarchy path) in `cpc_fine`; the ~102k with ≥50 patents embedded + HNSW → free text resolves to the specific fine codes that describe a technology (A23C20/025 = plant-based cheese), not a coarse subclass |
+| **TIR trajectory** K(t) (#36) | `scripts/tir_trajectory.py --like "H01M10/052%"` | year-by-year improvement rate for a technology = a UNION of fine CPC codes; direction (accelerating/steady/maturing/decelerating) from the recent complete window. Honest gates: per-window MIN_N, ~7y citation-maturity truncation (greyed), absolute K withheld outside the calibrated range. Validated 6/6 (`scripts/tir_trajectory_validate.py`) |
+| **On-demand technology** (#42+#36) | `scripts/tech_trajectory.py "protein recovery by electrodialysis"` | free text → nearest fine CPC domain → K(t) trajectory + S-curve direction, end-to-end. Powers `/api/foresight/trajectory` + the Technology Explorer input |
 | Cross-tier lead time | `scripts/cpc_leadtime.py --cpc H02S` | patents via native CPC (full corpus), science/funding/market via embedding projection → per-tier takeoff years and lead-time estimates on one axis |
 | Empirical technology axes | `scripts/build_cpc_cooccurrence.py --top H01M` | CPC pair co-occurrence per year over the back-file (44M pairs): combinations sharpen coarse classes (H01M+B60L = EV batteries, +B09B/Y02W = battery recycling) and rising pairs flag cross-domain convergence |
 | Mega-trend proposer | `scripts/propose_mega_trends.py` | data-driven candidate mega-trends vs. the canonical `mega_trends.yaml` |
@@ -269,6 +272,9 @@ Routes:
 - `/trends/vertical/[v]`, `/trends/pestel/[dimension]`, `/trends/mega`
 - `/trends/foresight` — Foresight Cockpit (hybrid search + analytics), with a
   lead-time proof strip above the fold
+- `/trends/foresight/technology` — Technology Explorer, with an **on-demand TIR
+  trajectory** input (#36/#42): describe a technology in words → its year-by-year
+  improvement rate K(t) on a time axis + S-curve direction, honest gates built in
 - `/trends/foresight/lead-time` — **Lead-time view**: the four innovation tiers
   (research → patents → funding → market) as per-peak-indexed SoV curves over
   time; the research↔market gap is the lead, shown as a headline number only
