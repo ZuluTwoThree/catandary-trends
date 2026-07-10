@@ -548,9 +548,17 @@ def _dt(e) -> str:
     return (e.text or "").strip() if e is not None else ""
 
 
-def parse_docdb_document(doc) -> dict | None:
-    """One DOCDB exch:exchange-document → normalized record, or None if it has no
-    English title or no in-scope CPC class."""
+def parse_docdb_document(doc, require_en: bool = True,
+                         require_vertical: bool = True) -> dict | None:
+    """One DOCDB exch:exchange-document → normalized record, or None.
+
+    Default (require_en/require_vertical=True) keeps the signal-quality corpus:
+    English title + one of our 8 verticals. The GRAPH backfill (#35/#27) relaxes
+    both — the citation graph / TIR needs only date+CPC+citations (language- and
+    vertical-agnostic), so non-EN and out-of-vertical patents are kept as graph
+    nodes. They still carry a pub_number, so `get_unprocessed_entries` (pub_number
+    IS NULL) structurally excludes them from the content/signal pipeline — they
+    densify the graph without polluting the foresight signal set."""
     bib = doc.find(f"{_EXCH}bibliographic-data")
     if bib is None:
         return None
@@ -568,9 +576,14 @@ def parse_docdb_document(doc) -> dict | None:
                                       _dt(did.find("kind")))
     if not pub:
         return None
-    title = next((_dt(t) for t in bib.findall(f"{_EXCH}invention-title") if t.get("lang") == "en"), "")
+    titles = bib.findall(f"{_EXCH}invention-title")
+    title = next((_dt(t) for t in titles if t.get("lang") == "en"), "")
     if not title:
-        return None
+        if require_en:
+            return None
+        # graph backfill: fall back to any-language title (multilingual embedding
+        # / on-demand display translation handle it downstream, #27), else the key
+        title = next((_dt(t) for t in titles if _dt(t)), "") or f"[{pub}]"
     cpc_struct: list[tuple[str, bool]] = []  # (symbol, inventive)
     pcs = bib.find(f"{_EXCH}patent-classifications")
     if pcs is not None:
@@ -583,7 +596,9 @@ def parse_docdb_document(doc) -> dict | None:
     cpc = [c for c, _ in cpc_struct]
     vert = vertical_for_cpc([{"code": c, "inventive": inv} for c, inv in cpc_struct])
     if vert is None:
-        return None
+        if require_vertical:
+            return None
+        vert = "CROSS"  # graph backfill: out-of-vertical node (CHECK-safe)
     ab = next((a for a in doc.findall(f"{_EXCH}abstract") if a.get("lang") == "en"), None)
     abstract = " ".join(_dt(p) for p in ab.findall(f"{_EXCH}p")) if ab is not None else ""
     date = doc.get("date-publ", "")
@@ -619,7 +634,7 @@ def parse_docdb_document(doc) -> dict | None:
 def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                 scratch: str, dry_run: bool, cpc_filter: str = "",
                 max_outer: int = 0, skip_outer: int = 0,
-                keep_files: bool = False) -> dict:
+                keep_files: bool = False, graph_backfill: bool = False) -> dict:
     """Download the latest delivery of a BDDS DOCDB product, parse the nested
     per-country XML, filter to our CPC classes + [after, before), insert.
 
@@ -686,7 +701,9 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                         date = docu.get("date-publ", "")
                         if not (len(date) == 8 and af <= int(date) < bf):
                             continue
-                        rec = parse_docdb_document(docu)
+                        rec = parse_docdb_document(
+                            docu, require_en=not graph_backfill,
+                            require_vertical=not graph_backfill)
                         if rec is None:
                             continue
                         if cpc_filter and not any(c.startswith(cpc_filter) for c in rec["cpc"]):
@@ -829,6 +846,10 @@ def main() -> int:
     ap.add_argument("--cpc-filter", help="epo-bdds: keep only CPC codes with this prefix (e.g. A23C)")
     ap.add_argument("--scratch", default="/tmp", help="temp/archive dir for downloads")
     ap.add_argument("--keep-files", action="store_true", help="epo-bdds: keep downloaded zips in --scratch (archive; reused on re-runs)")
+    ap.add_argument("--graph-backfill", action="store_true",
+                    help="epo-bdds: densify the citation graph — keep non-EN AND "
+                         "out-of-vertical patents as graph nodes (#35/#27). They "
+                         "carry a pub_number so the signal pipeline still skips them.")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--selftest", action="store_true", help="validate parsing without network/creds")
     args = ap.parse_args()
@@ -842,7 +863,8 @@ def main() -> int:
     elif args.source == "epo-bdds":
         ingest_bdds(args.product, args.after, args.before, args.max_files, args.scratch,
                     args.dry_run, cpc_filter=args.cpc_filter or "", max_outer=args.max_outer,
-                    skip_outer=args.skip_outer, keep_files=args.keep_files)
+                    skip_outer=args.skip_outer, keep_files=args.keep_files,
+                    graph_backfill=args.graph_backfill)
     else:
         if not args.vertical:
             ap.error("epo-ops needs --vertical")
