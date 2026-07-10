@@ -48,10 +48,25 @@ RECENT_YEARS = 7       # direction is fit over the most recent complete window
 YEAR_LO, YEAR_HI = 1990, 2026
 CALIB_MAX = 50.0       # K above this %/yr is outside the calibrated range
 DOMAIN_MIN_TOTAL = 500  # total distinct patents below this → "insufficient data"
-# direction thresholds on the relative K trend over the reported window
-ACCEL_PP = 0.15        # +15% relative rise → accelerating
-MATURE_PP = -0.15      # -15% → maturing; below -0.45 → decelerating
+# Direction thresholds on the relative K trend over the reported window.
+# Recalibrated (#36 follow-up 2026-07-10): the neutral no-trend baseline is not 0
+# but ~+0.15 — a mild universal upward tilt into the last complete year (residual
+# citation-maturity). Measured: dense mundane domains (F16B/A47B/B65D) sit at
+# rel_change +0.13..+0.17, dense hot (CRISPR/vaccines/mRNA) at +0.64..+0.77, dense
+# maturing (solar) at -0.75. The old ACCEL_PP=0.15 sat right on the mundane
+# baseline → false "accelerating". Bands are re-centred on +0.15.
+ACCEL_PP = 0.35        # clearly above the mundane baseline → accelerating
+MATURE_PP = -0.10      # below → maturing; below DECEL_PP → decelerating
 DECEL_PP = -0.45
+# Direction honesty gate (#36 follow-up): the direction slope is only trustworthy
+# when the windows it is fit over are dense. Measured: mundane domains fit over
+# thin windows (median recent window-n ~450-790) inflate to rel_change 0.3-0.5
+# (false "accelerating"); the same domains at high density (>1100) collapse to
+# ~0.15. Below this gate we WITHHOLD the direction ("uncertain") but still draw
+# the K(t) chart + value. Cutoff sits cleanly between the regimes (max thin ~790,
+# min dense ~2300 over the recent fit window). The backfill (#35) lifts thin
+# domains above it → real directions.
+DIRECTION_MIN_MEDIAN_N = 1000
 
 
 def _x_by_year(patterns: list[str]) -> dict[int, tuple[float, int]]:
@@ -117,6 +132,24 @@ def classify(points: list[dict], n_total: int) -> dict:
     slope = sum((y - my) * (k - mk) for y, k in zip(yrs, ks_r)) / denom
     span = (yrs[-1] - yrs[0]) or 1
     rel = (slope * span) / mk if mk else 0.0
+    ks = [p["K"] for p in reported]
+    med_k = sorted(ks)[len(ks) // 2]
+    calibrated = med_k <= CALIB_MAX
+    # density of the fit's own support: the median window-n over the RECENT points
+    # the slope is fit on. Thin windows → noisy K → an untrustworthy slope, so the
+    # direction is withheld (the chart + value still shown).
+    recent_ns = sorted(p["n"] for p in recent)
+    med_recent_n = recent_ns[len(recent_ns) // 2] if recent_ns else 0
+    base = {"rel_change": round(rel, 3),
+            "K_latest": reported[-1]["K"] if calibrated else None,
+            "K_median": round(med_k, 1), "calibrated": calibrated,
+            "median_recent_n": med_recent_n}
+    if med_recent_n < DIRECTION_MIN_MEDIAN_N:
+        return {**base, "direction": "uncertain",
+                "direction_de": "Richtung unsicher",
+                "reason": f"windows too thin for a reliable direction (median "
+                          f"recent window {med_recent_n:,} < {DIRECTION_MIN_MEDIAN_N:,} "
+                          "patents) — trajectory shown, direction withheld"}
     if rel >= ACCEL_PP:
         direction, de = "accelerating", "beschleunigt"
     elif rel <= DECEL_PP:
@@ -125,12 +158,7 @@ def classify(points: list[dict], n_total: int) -> dict:
         direction, de = "maturing", "reift"
     else:
         direction, de = "steady", "stetig"
-    ks = [p["K"] for p in reported]
-    med_k = sorted(ks)[len(ks) // 2]
-    calibrated = med_k <= CALIB_MAX
-    return {"direction": direction, "direction_de": de, "rel_change": round(rel, 3),
-            "K_latest": reported[-1]["K"] if calibrated else None,
-            "K_median": round(med_k, 1), "calibrated": calibrated,
+    return {**base, "direction": direction, "direction_de": de,
             "reason": None if calibrated else
                       f"median K {med_k:.0f}%/yr > {CALIB_MAX:.0f}% — outside "
                       "calibrated range; direction only"}

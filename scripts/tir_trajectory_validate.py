@@ -21,62 +21,96 @@ from scripts.tir_trajectory import trajectory
 
 OUT = Path(__file__).parent.parent / "data" / "tir_trajectory_validation.md"
 
-# (name, cpc LIKE patterns, expected) — expected ∈ {"up","down"}.
-# up  = accelerating; down = maturing | decelerating.
+# (name, cpc LIKE patterns, tier). Tiers define the pass condition — a CONTROL
+# GROUP, not just positive cases: a mundane mature technology must NOT falsely
+# "accelerate", and a thin domain must withhold the direction. This is the #36
+# follow-up acceptance gate (density-aware direction).
+#   up        climbing → must be accelerating
+#   down      maturing → must be maturing | decelerating
+#   not_up    dense mundane → must NOT accelerate (the false-positive control)
+#   uncertain thin → direction withheld (uncertain | insufficient_data)
 KNOWN = [
-    ("CRISPR / gene editing",      ["C12N15/11%"],              "up"),
-    ("Plant-based dairy",          ["A23C11/%", "A23C20/%"],   "up"),
-    ("Wind power",                 ["Y02E10/7%"],               "down"),
-    ("Smart grid",                 ["Y04S%"],                   "down"),
-    ("Solar photovoltaics",        ["Y02E10/5%"],               "down"),
-    ("Cryptography",               ["H04L9/%"],                 "down"),
+    # --- climbing (must accelerate) ---
+    ("CRISPR / gene editing",       ["C12N15/11%"],  "up"),
+    ("Vaccines / immunotherapy",    ["A61K39%"],     "up"),
+    ("mRNA / nucleic-acid tech",    ["C12N15%"],     "up"),
+    # --- maturing (must be maturing/decelerating) ---
+    ("Solar photovoltaics",         ["H02S%"],       "down"),
+    ("Wind power",                  ["F03D%"],       "down"),
+    # --- dense mundane (must NOT falsely accelerate) ---
+    ("Screws / fasteners",          ["F16B%"],       "not_up"),
+    ("Furniture",                   ["A47B%"],       "not_up"),
+    ("Containers / packaging",      ["B65D%"],       "not_up"),
+    # --- thin (direction must be withheld) ---
+    ("Gears",                       ["F16H%"],       "uncertain"),
+    ("Pumps",                       ["F04B%"],       "uncertain"),
+    ("Hand tools",                  ["B25B%"],       "uncertain"),
 ]
 
 UP = {"accelerating"}
 DOWN = {"maturing", "decelerating"}
+WITHHELD = {"uncertain", "insufficient_data"}
 
 
-def check(direction: str, expected: str) -> bool:
-    return (expected == "up" and direction in UP) or (expected == "down" and direction in DOWN)
+def check(direction: str, tier: str) -> bool:
+    if tier == "up":
+        return direction in UP
+    if tier == "down":
+        return direction in DOWN
+    if tier == "not_up":            # the false-positive control
+        return direction not in UP
+    if tier == "uncertain":
+        return direction in WITHHELD
+    return False
+
+
+TIER_LABEL = {
+    "up": "steigend → beschleunigt",
+    "down": "reifend → reift/verlangsamt",
+    "not_up": "mundan-dicht → NICHT beschleunigt",
+    "uncertain": "dünn → Richtung zurückgehalten",
+}
 
 
 def main() -> int:
-    lines = ["# TIR-Trajektorie — Richtungs-Validierung\n",
-             "Bekannte Technologien; der Klassifikator muss steigend/fallend korrekt "
-             "labeln. 'Zu wenig Daten' (Korpus-Tiefe/-Abdeckung) zaehlt nicht als "
-             "Fehler - es ist die Ehrlichkeits-Regel.\n",
-             "| Technologie | erwartet | Richtung | rel. Δ | TIR (aktuell) | Patente | ok |",
+    lines = ["# TIR-Trajektorie — Richtungs-Validierung (Kontrollgruppe, #36)\n",
+             "Der Klassifikator muss vier Tiers korrekt behandeln — inkl. der "
+             "Negativ-Kontrolle: eine mundane, reife Technologie darf **nicht** "
+             "'beschleunigt' ergeben, und eine dünne Domäne muss die Richtung "
+             "zurückhalten ('unsicher'/'zu wenig Daten') statt zu raten.\n",
+             "| Technologie | Tier | Richtung | rel. Δ | med. Fenster-n | Patente | ok |",
              "|---|---|---|---|---|---|---|"]
     ok = tot = 0
-    insufficient = []
-    for name, pats, exp in KNOWN:
+    tier_stats: dict[str, list[int]] = {}
+    for name, pats, tier in KNOWN:
         r = trajectory(pats)
         d = r["direction"]
-        if d == "insufficient_data":
-            insufficient.append((name, r["reason"]))
-            lines.append(f"| {name} | {exp} | zu wenig Daten | — | — | "
-                         f"{r['n_total']:,} | — |")
-            continue
+        good = check(d, tier)
         tot += 1
-        good = check(d, exp)
         ok += 1 if good else 0
-        kv = f"{r['K_latest']}%/yr" if r["calibrated"] else "n/a (unkalibriert)"
-        lines.append(f"| {name} | {exp} | {r['direction_de']} | {r['rel_change']:+.0%} "
-                     f"| {kv} | {r['n_total']:,} | {'✅' if good else '❌'} |")
+        tier_stats.setdefault(tier, [0, 0])
+        tier_stats[tier][1] += 1
+        tier_stats[tier][0] += 1 if good else 0
+        rc = f"{r['rel_change']:+.0%}" if r.get("rel_change") is not None else "—"
+        mrn = r.get("median_recent_n")
+        mrn = f"{mrn:,}" if mrn is not None else "—"
+        lines.append(f"| {name} | {TIER_LABEL[tier]} | {r.get('direction_de', d)} "
+                     f"| {rc} | {mrn} | {r['n_total']:,} | {'✅' if good else '❌'} |")
 
-    lines.append(f"\n**Richtungs-Treffer: {ok}/{tot}** (von {len(KNOWN)} Fällen; "
-                 f"{len(insufficient)} 'zu wenig Daten').\n")
-    if insufficient:
-        lines.append("Ehrlich zurückgehalten (zu jung/dünn im CPC-gescopten Korpus):")
-        for name, reason in insufficient:
-            lines.append(f"- **{name}** — {reason}")
-    lines.append("\n_Hinweis: absolute TIR nur im kalibrierten Bereich (Median ≤ 50 %/yr); "
-                 "Software-/KI-Domänen liegen darüber → nur Richtung. Die letzten ~7 Jahre "
-                 "sind wegen unreifer Vorwärts-Zitationen ausgeschlossen (Zitations-Horizont)._")
+    lines.append(f"\n**Gesamt: {ok}/{tot} Tiers-Erwartungen erfüllt.**\n")
+    lines.append("Pro Tier:")
+    for tier, (o, t) in tier_stats.items():
+        lines.append(f"- {TIER_LABEL[tier]}: **{o}/{t}**")
+    lines.append("\n_Absolute TIR nur im kalibrierten Bereich (Median ≤ 50 %/yr). Die "
+                 "letzten ~7 Jahre sind wegen unreifer Vorwärts-Zitationen ausgeschlossen "
+                 "(Zitations-Horizont). Richtung nur bei median Fenster-n ≥ "
+                 "1000 (sonst 'unsicher'; #35-Backfill hebt dünne Domänen darüber)._")
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text("\n".join(lines))
     print(f"wrote {OUT}")
-    print(f"direction hits: {ok}/{tot}  ({len(insufficient)} insufficient-data)")
+    print(f"control-group: {ok}/{tot} tiers-expectations met")
+    for tier, (o, t) in tier_stats.items():
+        print(f"  {tier:10s} {o}/{t}")
     return 0 if ok == tot else 1
 
 

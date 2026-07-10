@@ -32,6 +32,7 @@ const DIR_LABEL: Record<string, string> = {
   steady: "stetig",
   maturing: "reift",
   decelerating: "verlangsamt sich",
+  uncertain: "Richtung unsicher",
   insufficient_data: "zu wenig Daten",
 };
 const DIR_COLOR: Record<string, string> = {
@@ -39,6 +40,7 @@ const DIR_COLOR: Record<string, string> = {
   steady: "#8a8d82",
   maturing: "#fb923c",
   decelerating: "#fb7185",
+  uncertain: "#8a8d82",
   insufficient_data: "#8a8d82",
 };
 
@@ -192,10 +194,19 @@ export default function TirTrajectory() {
                 </span>
               </div>
               {res.points && <Chart points={res.points} />}
-              <p className="font-sans text-[11px] text-muted mt-2 max-w-3xl">
-                Durchgezogen = verlässlich gemessen; ausgegraut = letzte Jahre (Vorwärts-Zitationen
-                noch unreif, ~7-Jahre-Horizont). Richtung aus dem jüngsten verlässlichen Fenster.
-              </p>
+              {dir === "uncertain" ? (
+                <p className="font-sans text-[11px] text-muted mt-2 max-w-3xl border-l-2 border-border pl-3">
+                  Die Trajektorie ist gemessen, aber die <span className="text-text">Trendrichtung
+                  halten wir zurück</span>: in dieser Technologie sind zu wenige Patente pro Jahr,
+                  um beschleunigt/reift verlässlich zu unterscheiden. Ehrlich: lieber keine Richtung
+                  als eine geratene. (Mehr Patentabdeckung würde das auflösen.)
+                </p>
+              ) : (
+                <p className="font-sans text-[11px] text-muted mt-2 max-w-3xl">
+                  Durchgezogen = verlässlich gemessen; ausgegraut = letzte Jahre (Vorwärts-Zitationen
+                  noch unreif, ~7-Jahre-Horizont). Richtung aus dem jüngsten verlässlichen Fenster.
+                </p>
+              )}
             </>
           )}
         </div>
