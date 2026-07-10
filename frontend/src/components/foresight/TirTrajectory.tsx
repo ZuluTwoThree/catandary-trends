@@ -43,12 +43,15 @@ const DIR_COLOR: Record<string, string> = {
 };
 
 function Chart({ points }: { points: Point[] }) {
-  const W = 720, H = 240, PAD = { t: 16, r: 16, b: 26, l: 34 };
+  const W = 720, H = 240, PAD = { t: 22, r: 16, b: 26, l: 40 };
   if (points.length < 2) return null;
   const xs = points.map((p) => p.year);
   const ys = points.map((p) => p.K);
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
-  const y1 = Math.max(...ys, 1) * 1.1;
+  // round the axis top to a nice number so ticks read cleanly (no 30.8)
+  const rawMax = Math.max(...ys, 1);
+  const step = rawMax > 40 ? 20 : rawMax > 20 ? 10 : rawMax > 8 ? 5 : 2;
+  const y1 = Math.ceil((rawMax * 1.08) / step) * step;
   const px = (yr: number) => PAD.l + ((yr - x0) / Math.max(x1 - x0, 1)) * (W - PAD.l - PAD.r);
   const py = (k: number) => H - PAD.b - (k / y1) * (H - PAD.t - PAD.b);
 
@@ -59,10 +62,14 @@ function Chart({ points }: { points: Point[] }) {
   // solid = complete; dashed/grey = the truncated tail (join at lastComplete)
   const tail = points.filter((p) => p.year >= lastComplete);
 
-  const yticks = [0, y1 / 2, y1].map((v) => Math.round(v));
+  const yticks: number[] = [];
+  for (let v = 0; v <= y1 + 0.001; v += step) yticks.push(v);
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img"
          aria-label="TIR trajectory over time">
+      {/* y-axis unit, above the plot so it never collides with a tick */}
+      <text x={PAD.l} y={PAD.t - 8} textAnchor="middle"
+            style={{ font: "8px ui-monospace, monospace" }} fill="#8a8d82">%/yr</text>
       {yticks.map((v) => (
         <g key={v}>
           <line x1={PAD.l} x2={W - PAD.r} y1={py(v)} y2={py(v)} stroke="#2a2d25" strokeWidth={1} />
@@ -91,9 +98,6 @@ function Chart({ points }: { points: Point[] }) {
         <path d={seg(tail)} fill="none" stroke="#8a8d82" strokeWidth={1.5}
               strokeDasharray="3 3" strokeLinejoin="round" strokeLinecap="round" />
       )}
-      {/* y-axis unit */}
-      <text x={PAD.l - 6} y={PAD.t + 2} textAnchor="end"
-            style={{ font: "8px ui-mono, monospace" }} fill="#8a8d82">%/yr</text>
     </svg>
   );
 }
