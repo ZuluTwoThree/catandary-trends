@@ -41,6 +41,9 @@ from pipeline.config import (
     EMBED_BACKEND,
     EMBED_MODEL,
     RELEVANCE_THRESHOLD,
+    RSS_CLASSIFY_MODE,
+    DISTILL_REL_HIGH,
+    DISTILL_REL_LOW,
     STAGE5_BACKEND,
     STAGE5_MIN_BODY_WORDS,
     STAGE5_TARGET_BODY_WORDS,
@@ -721,6 +724,148 @@ def process_entry(entry: dict) -> dict | None:
     return trend_data
 
 
+_DISTILL_CLF = None  # cached DistillClassifier
+
+
+def relevance_band(rel: float | None, has_head: bool,
+                   low: float = DISTILL_REL_LOW, high: float = DISTILL_REL_HIGH) -> str:
+    """Hybrid relevance routing (pure, unit-tested): 'keep' / 'drop' / 'llm'.
+    Distill decides the confident tails; the uncertain middle (and the no-head
+    case) go to the 8B LLM."""
+    if not has_head or rel is None:
+        return "llm"
+    if rel >= high:
+        return "keep"
+    if rel < low:
+        return "drop"
+    return "llm"
+
+
+def _distill_signal_type(e: dict) -> str:
+    """Deterministic trend_signal_type (distill heads don't emit it) — mirrors
+    scripts/signal_batch._distill_signal_type / the lead-time tier map."""
+    st = (e.get("source_type") or "").lower()
+    sn = (e.get("source_name") or "").lower()
+    if e.get("pub_number"):
+        return "patent"
+    if st == "research" or any(m in sn for m in ("arxiv", "rxiv", "preprint")):
+        return "research"
+    if st == "api" and any(m in sn for m in ("nsf", "nih", "reporter", "openaire", "ukri", "form d")):
+        return "funding"
+    return "market_shift"
+
+
+def hybrid_classify(survivors: list[dict]) -> tuple[list[dict], int, int]:
+    """#41 embed-first + distill classification with a HYBRID relevance gate.
+
+    Embeds every survivor, runs the distill heads (vertical/mega/PESTEL/relevance),
+    and gates relevance in three bands: distill keeps the confident-relevant
+    (>= DISTILL_REL_HIGH), drops the confident-irrelevant (< DISTILL_REL_LOW), and
+    routes ONLY the uncertain middle to the 8B LLM relevance filter (the fallback
+    that the eval showed is still needed there). Extraction stays on the 8B for the
+    survivors (brand names for content-gen). Sets entry['_relevance'],
+    ['_extraction'], ['_classification'] and persists the embedding so Stage 5
+    finds it cached and only dedups. Returns (survivors, filtered_delta, errors).
+
+    Raises if the distill heads can't load — the caller falls back to the LLM path.
+    """
+    global _DISTILL_CLF
+    if _DISTILL_CLF is None:
+        from pipeline.distill import DistillClassifier
+        _DISTILL_CLF = DistillClassifier.load()
+    clf = _DISTILL_CLF
+    filtered = errors = 0
+
+    # ---- embed-first (persist so Stage 5 finds it cached → dedup only) ----
+    def _embed_one(text):
+        return (llamacpp_client.generate_embedding(text, model=EMBED_MODEL)
+                if EMBED_BACKEND == "llamacpp" else generate_embedding(MODEL_EMBEDDING, text))
+    to_embed = [e for e in survivors if not e.get("embedding_blob")]
+    gpu_ctx_embed = (gpu_handover.embed_on_llamacpp(EMBED_MODEL)
+                     if EMBED_BACKEND == "llamacpp" and to_embed else nullcontext())
+    with gpu_ctx_embed:
+        emb_res = dict(zip((e["id"] for e in to_embed), _concurrent(
+            lambda e: _embed_one(f"{e['title']}\n{(e['excerpt'] or '')[:500]}"), to_embed)))
+    embedded = []
+    for entry in survivors:
+        cached = entry.get("embedding_blob")
+        emb = bytes_to_embedding(cached) if cached else emb_res.get(entry["id"])
+        if emb is None:
+            mark_filtered(entry["id"], "embedding_error"); filtered += 1
+            continue
+        if not cached:
+            blob = embedding_to_bytes(emb)
+            save_stage_result(entry["id"], "embedding", blob)
+            entry["embedding_blob"] = blob   # Stage 5 will now treat it as cached
+        entry["_emb_vec"] = emb
+        embedded.append(entry)
+
+    # ---- distill heads (CPU, batched) ----
+    X = np.asarray([e["_emb_vec"] for e in embedded], dtype=np.float32)
+    preds = clf.classify_batch(X) if len(embedded) else []
+    has_rel = clf.has_relevance_head
+
+    # ---- hybrid relevance: confident tails by distill, uncertain band → 8B ----
+    kept, uncertain = [], []
+    for entry, pred in zip(embedded, preds):
+        entry["_distill"] = pred
+        rel = pred.get("relevance")
+        band = relevance_band(rel, has_rel)
+        if band == "keep":
+            kept.append(entry)
+        elif band == "drop":
+            mark_filtered(entry["id"], f"not_relevant_distill:{rel:.2f}"); filtered += 1
+        else:
+            uncertain.append(entry)                        # grey band / no head → 8B
+    logger.info("Hybrid relevance: %d distill-kept, %d → 8B fallback, %d distill-dropped",
+                len(kept), len(uncertain), filtered)
+
+    # 8B relevance only for the uncertain band + extraction for all kept survivors
+    gpu_ctx_8b = (gpu_handover.eight_b_on_llamacpp(STAGE_8B_MODEL)
+                  if STAGE_8B_BACKEND == "llamacpp" and (uncertain or kept) else nullcontext())
+    with gpu_ctx_8b:
+        if uncertain:
+            rel_res = dict(zip((e["id"] for e in uncertain), _concurrent(
+                lambda e: step_relevance_filter(e["title"], e["excerpt"] or "",
+                                                e.get("source_vertical", "TECH")), uncertain)))
+            for entry in uncertain:
+                r = rel_res.get(entry["id"])
+                if r is None or not r.is_relevant or r.confidence < RELEVANCE_THRESHOLD:
+                    mark_filtered(entry["id"], "not_relevant: (8B band)"); filtered += 1
+                    continue
+                kept.append(entry)
+        # extraction (brand names) on the 8B for the kept survivors
+        to_ext = [e for e in kept if not e.get("extraction_json")]
+        ext_res = dict(zip((e["id"] for e in to_ext), _concurrent(
+            lambda e: step_extraction(e["title"], e["excerpt"] or ""), to_ext)))
+
+    # build the per-entry RelevanceResult / ClassificationResult from distill
+    out = []
+    for entry in kept:
+        try:
+            pred = entry["_distill"]
+            ext = (ExtractionResult.model_validate_json(entry["extraction_json"])
+                   if entry.get("extraction_json") else (ext_res.get(entry["id"]) or ExtractionResult()))
+            if not entry.get("extraction_json"):
+                save_stage_result(entry["id"], "extraction", ext)
+            entry["_extraction"] = ext
+            conf = pred.get("relevance") or pred.get("vertical_confidence") or 0.7
+            entry["_relevance"] = RelevanceResult(
+                is_relevant=True, confidence=float(conf),
+                primary_vertical=pred["primary_vertical"], reason="distill")
+            cls = ClassificationResult(
+                verticals=[pred["primary_vertical"]], pestel=pred["pestel"], tags=[],
+                trend_signal_type=_distill_signal_type(entry),
+                mega_trend=pred["mega_trend"], regions=[])
+            save_stage_result(entry["id"], "classification", cls)
+            entry["_classification"] = cls
+            out.append(entry)
+        except Exception as e:  # noqa: BLE001
+            logger.error("[%d] hybrid build error: %s", entry["id"], e)
+            mark_processed(entry["id"]); errors += 1
+    return out, filtered, errors
+
+
 def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int = 0):
     """Stage-by-stage batch pipeline.
 
@@ -776,102 +921,119 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
     logger.info("Stage 1 done in %.1fs: %d → %d (%d title dups)",
                 time.time() - t_stage, len(entries), len(survivors), filtered)
 
-    # ---- Stages 2-4: Relevance / Extraction / Classification (Qwen3 8B) ----
+    # ---- Stages 2-4: Relevance / Extraction / Classification ----
+    # #41 hybrid (default): embed-first + distill heads for vertical/mega/PESTEL +
+    # hybrid relevance (8B only for the uncertain band), extraction on the 8B.
+    # Falls back to the full 8B path on any distill error or RSS_CLASSIFY_MODE=llm.
+    used_hybrid = False
+    if RSS_CLASSIFY_MODE == "hybrid" and survivors:
+        try:
+            t_stage = time.time()
+            survivors, f_delta, e_delta = hybrid_classify(survivors)
+            filtered += f_delta
+            errors += e_delta
+            used_hybrid = True
+            logger.info("Stages 2-4 (hybrid distill) done in %.1fs: %d survivors",
+                        time.time() - t_stage, len(survivors))
+        except Exception as e:  # noqa: BLE001 — never break the cycle on distill issues
+            logger.warning("Hybrid classify unavailable (%s) — falling back to 8B LLM path", e)
+
     # When STAGE_8B_BACKEND=llamacpp, swap the GPU to the 8B llama-server for
     # the duration of these three contiguous loops; restore the symlink on
     # exit so Stage 6's 35B handover finds start-active.sh as expected.
     gpu_ctx_8b = (gpu_handover.eight_b_on_llamacpp(STAGE_8B_MODEL)
-                  if STAGE_8B_BACKEND == "llamacpp" and survivors
+                  if STAGE_8B_BACKEND == "llamacpp" and survivors and not used_hybrid
                   else nullcontext())
-    with gpu_ctx_8b:
-        # ---- Stage 2: Relevance filter (Qwen3 8B) ----
-        t_stage = time.time()
-        next_survivors = []
-        cache_hits_stage2 = 0
-        # Dispatch the LLM calls for uncached entries concurrently, then apply the
-        # cache/save/filter logic sequentially (DB writes stay single-threaded).
-        to_call = [e for e in survivors if not e.get("relevance_json")]
-        rel_res = dict(zip((e["id"] for e in to_call), _concurrent(
-            lambda e: step_relevance_filter(e["title"], e["excerpt"] or "", e.get("source_vertical", "TECH")), to_call)))
-        for entry in survivors:
-            try:
-                cached = entry.get("relevance_json")
-                if cached:
-                    rel = RelevanceResult.model_validate_json(cached)
-                    cache_hits_stage2 += 1
-                else:
-                    rel = rel_res.get(entry["id"])
-                    if rel is not None:
-                        save_stage_result(entry["id"], "relevance", rel)
-                if rel is None:
-                    mark_filtered(entry["id"], "relevance_filter_error")
-                    filtered += 1
-                    continue
-                if not rel.is_relevant or rel.confidence < RELEVANCE_THRESHOLD:
-                    mark_filtered(entry["id"], f"not_relevant: {rel.reason}")
-                    filtered += 1
-                    continue
-                entry["_relevance"] = rel
-                next_survivors.append(entry)
-            except Exception as e:
-                logger.error("[%d] relevance error: %s", entry["id"], e)
-                mark_processed(entry["id"])
-                errors += 1
-        survivors = next_survivors
-        logger.info("Stage 2 done in %.1fs: %d survivors (%d cache hits, workers=%d)",
-                    time.time() - t_stage, len(survivors), cache_hits_stage2, CLASSIFY_WORKERS)
+    if not used_hybrid:
+        with gpu_ctx_8b:
+            # ---- Stage 2: Relevance filter (Qwen3 8B) ----
+            t_stage = time.time()
+            next_survivors = []
+            cache_hits_stage2 = 0
+            # Dispatch the LLM calls for uncached entries concurrently, then apply the
+            # cache/save/filter logic sequentially (DB writes stay single-threaded).
+            to_call = [e for e in survivors if not e.get("relevance_json")]
+            rel_res = dict(zip((e["id"] for e in to_call), _concurrent(
+                lambda e: step_relevance_filter(e["title"], e["excerpt"] or "", e.get("source_vertical", "TECH")), to_call)))
+            for entry in survivors:
+                try:
+                    cached = entry.get("relevance_json")
+                    if cached:
+                        rel = RelevanceResult.model_validate_json(cached)
+                        cache_hits_stage2 += 1
+                    else:
+                        rel = rel_res.get(entry["id"])
+                        if rel is not None:
+                            save_stage_result(entry["id"], "relevance", rel)
+                    if rel is None:
+                        mark_filtered(entry["id"], "relevance_filter_error")
+                        filtered += 1
+                        continue
+                    if not rel.is_relevant or rel.confidence < RELEVANCE_THRESHOLD:
+                        mark_filtered(entry["id"], f"not_relevant: {rel.reason}")
+                        filtered += 1
+                        continue
+                    entry["_relevance"] = rel
+                    next_survivors.append(entry)
+                except Exception as e:
+                    logger.error("[%d] relevance error: %s", entry["id"], e)
+                    mark_processed(entry["id"])
+                    errors += 1
+            survivors = next_survivors
+            logger.info("Stage 2 done in %.1fs: %d survivors (%d cache hits, workers=%d)",
+                        time.time() - t_stage, len(survivors), cache_hits_stage2, CLASSIFY_WORKERS)
 
-        # ---- Stage 3: Extraction (Qwen3 8B) ----
-        t_stage = time.time()
-        cache_hits_stage3 = 0
-        to_call = [e for e in survivors if not e.get("extraction_json")]
-        ext_res = dict(zip((e["id"] for e in to_call), _concurrent(
-            lambda e: step_extraction(e["title"], e["excerpt"] or ""), to_call)))
-        for entry in survivors:
-            try:
-                cached = entry.get("extraction_json")
-                if cached:
-                    entry["_extraction"] = ExtractionResult.model_validate_json(cached)
-                    cache_hits_stage3 += 1
-                else:
-                    ext = ext_res.get(entry["id"]) or ExtractionResult()
-                    save_stage_result(entry["id"], "extraction", ext)
-                    entry["_extraction"] = ext
-            except Exception as e:
-                logger.error("[%d] extraction error: %s", entry["id"], e)
-                entry["_extraction"] = ExtractionResult()
-        logger.info("Stage 3 done in %.1fs (%d cache hits)", time.time() - t_stage, cache_hits_stage3)
+            # ---- Stage 3: Extraction (Qwen3 8B) ----
+            t_stage = time.time()
+            cache_hits_stage3 = 0
+            to_call = [e for e in survivors if not e.get("extraction_json")]
+            ext_res = dict(zip((e["id"] for e in to_call), _concurrent(
+                lambda e: step_extraction(e["title"], e["excerpt"] or ""), to_call)))
+            for entry in survivors:
+                try:
+                    cached = entry.get("extraction_json")
+                    if cached:
+                        entry["_extraction"] = ExtractionResult.model_validate_json(cached)
+                        cache_hits_stage3 += 1
+                    else:
+                        ext = ext_res.get(entry["id"]) or ExtractionResult()
+                        save_stage_result(entry["id"], "extraction", ext)
+                        entry["_extraction"] = ext
+                except Exception as e:
+                    logger.error("[%d] extraction error: %s", entry["id"], e)
+                    entry["_extraction"] = ExtractionResult()
+            logger.info("Stage 3 done in %.1fs (%d cache hits)", time.time() - t_stage, cache_hits_stage3)
 
-        # ---- Stage 4: Classification (Qwen3 8B) ----
-        t_stage = time.time()
-        next_survivors = []
-        cache_hits_stage4 = 0
-        to_call = [e for e in survivors if not e.get("classification_json")]
-        cls_res = dict(zip((e["id"] for e in to_call), _concurrent(
-            lambda e: step_classification(e["title"], e["excerpt"] or "", e["_extraction"]), to_call)))
-        for entry in survivors:
-            try:
-                cached = entry.get("classification_json")
-                if cached:
-                    cls = ClassificationResult.model_validate_json(cached)
-                    cache_hits_stage4 += 1
-                else:
-                    cls = cls_res.get(entry["id"])
-                    if cls is not None:
-                        save_stage_result(entry["id"], "classification", cls)
-                if cls is None:
-                    mark_filtered(entry["id"], "classification_error")
-                    filtered += 1
-                    continue
-                entry["_classification"] = cls
-                next_survivors.append(entry)
-            except Exception as e:
-                logger.error("[%d] classification error: %s", entry["id"], e)
-                mark_processed(entry["id"])
-                errors += 1
-        survivors = next_survivors
-        logger.info("Stage 4 done in %.1fs: %d survivors (%d cache hits)",
-                    time.time() - t_stage, len(survivors), cache_hits_stage4)
+            # ---- Stage 4: Classification (Qwen3 8B) ----
+            t_stage = time.time()
+            next_survivors = []
+            cache_hits_stage4 = 0
+            to_call = [e for e in survivors if not e.get("classification_json")]
+            cls_res = dict(zip((e["id"] for e in to_call), _concurrent(
+                lambda e: step_classification(e["title"], e["excerpt"] or "", e["_extraction"]), to_call)))
+            for entry in survivors:
+                try:
+                    cached = entry.get("classification_json")
+                    if cached:
+                        cls = ClassificationResult.model_validate_json(cached)
+                        cache_hits_stage4 += 1
+                    else:
+                        cls = cls_res.get(entry["id"])
+                        if cls is not None:
+                            save_stage_result(entry["id"], "classification", cls)
+                    if cls is None:
+                        mark_filtered(entry["id"], "classification_error")
+                        filtered += 1
+                        continue
+                    entry["_classification"] = cls
+                    next_survivors.append(entry)
+                except Exception as e:
+                    logger.error("[%d] classification error: %s", entry["id"], e)
+                    mark_processed(entry["id"])
+                    errors += 1
+            survivors = next_survivors
+            logger.info("Stage 4 done in %.1fs: %d survivors (%d cache hits)",
+                        time.time() - t_stage, len(survivors), cache_hits_stage4)
 
     # ---- Stage 5: Embeddings + dedup (load recent embeddings ONCE) ----
     # When EMBED_BACKEND=llamacpp, hand the GPU over to a llama-server in

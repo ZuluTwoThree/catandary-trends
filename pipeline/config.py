@@ -72,6 +72,16 @@ DUPLICATE_SIMILARITY_THRESHOLD = 0.92
 AUTO_PUBLISH_CONFIDENCE = 0.85
 MAX_RETRIES = 3
 
+# RSS-cycle classification backend (#41). "hybrid" (default) does embed-first +
+# distill heads for vertical/mega/PESTEL (GPU-free, seconds) and a HYBRID
+# relevance gate: distill decides the confident tails, the 8B LLM only judges the
+# uncertain band [DISTILL_REL_LOW, DISTILL_REL_HIGH). Extraction (brand names) and
+# content-gen stay on the LLM. "llm" reverts to the full 8B path (Stages 2-4).
+# Falls back to "llm" automatically if the distill heads can't be loaded.
+RSS_CLASSIFY_MODE = os.getenv("RSS_CLASSIFY_MODE", "hybrid")  # hybrid | llm
+DISTILL_REL_HIGH = float(os.getenv("DISTILL_REL_HIGH", "0.7"))   # >= → relevant (distill)
+DISTILL_REL_LOW = float(os.getenv("DISTILL_REL_LOW", "0.3"))     # < → not relevant (distill)
+
 # Grounding gate (#11): when on, auto_publisher holds any high-confidence draft
 # whose body contains a number/date/percentage absent from its source (a
 # fabricated specific) for manual review instead of publishing it. Trades some
