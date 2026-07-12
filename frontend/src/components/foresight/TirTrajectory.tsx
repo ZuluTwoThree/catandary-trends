@@ -10,7 +10,7 @@ import { useState } from "react";
  * range (only the direction shown), and a too-thin domain says so.
  */
 
-interface Point { year: number; K: number; n: number; complete: boolean }
+interface Point { year: number; K: number; K_lo?: number; K_hi?: number; n: number; complete: boolean }
 interface Code { symbol: string; title: string; n_patents: number; dist: number }
 interface Traj {
   query?: string;
@@ -50,8 +50,9 @@ function Chart({ points }: { points: Point[] }) {
   const xs = points.map((p) => p.year);
   const ys = points.map((p) => p.K);
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
-  // round the axis top to a nice number so ticks read cleanly (no 30.8)
-  const rawMax = Math.max(...ys, 1);
+  // round the axis top to a nice number so ticks read cleanly (no 30.8).
+  // scale to the top of the uncertainty band so the envelope never clips.
+  const rawMax = Math.max(...points.map((p) => p.K_hi ?? p.K), 1);
   const step = rawMax > 40 ? 20 : rawMax > 20 ? 10 : rawMax > 8 ? 5 : 2;
   const y1 = Math.ceil((rawMax * 1.08) / step) * step;
   const px = (yr: number) => PAD.l + ((yr - x0) / Math.max(x1 - x0, 1)) * (W - PAD.l - PAD.r);
@@ -61,6 +62,14 @@ function Chart({ points }: { points: Point[] }) {
   const lastComplete = complete.length ? complete[complete.length - 1].year : x0;
   const seg = (pts: Point[]) =>
     pts.map((p, i) => `${i ? "L" : "M"}${px(p.year).toFixed(1)},${py(p.K).toFixed(1)}`).join(" ");
+  // filled envelope between K_hi (forward) and K_lo (back) — the calibration band
+  const band = (pts: Point[]) => {
+    const withCI = pts.filter((p) => p.K_hi != null && p.K_lo != null);
+    if (withCI.length < 2) return "";
+    const up = withCI.map((p, i) => `${i ? "L" : "M"}${px(p.year).toFixed(1)},${py(p.K_hi as number).toFixed(1)}`).join(" ");
+    const dn = [...withCI].reverse().map((p) => `L${px(p.year).toFixed(1)},${py(p.K_lo as number).toFixed(1)}`).join(" ");
+    return `${up} ${dn} Z`;
+  };
   // solid = complete; dashed/grey = the truncated tail (join at lastComplete)
   const tail = points.filter((p) => p.year >= lastComplete);
 
@@ -93,6 +102,10 @@ function Chart({ points }: { points: Point[] }) {
             Zitationen noch unreif
           </text>
         </>
+      )}
+      {/* calibration uncertainty band (~68%) under the complete line */}
+      {band(complete) && (
+        <path d={band(complete)} fill="#d4ff3a" opacity={0.1} stroke="none" />
       )}
       <path d={seg(complete)} fill="none" stroke="#d4ff3a" strokeWidth={2.5}
             strokeLinejoin="round" strokeLinecap="round" />
@@ -204,7 +217,9 @@ export default function TirTrajectory() {
               ) : (
                 <p className="font-sans text-[11px] text-muted mt-2 max-w-3xl">
                   Durchgezogen = verlässlich gemessen; ausgegraut = letzte Jahre (Vorwärts-Zitationen
-                  noch unreif, ~7-Jahre-Horizont). Richtung aus dem jüngsten verlässlichen Fenster.
+                  noch unreif, ~7-Jahre-Horizont). Das schattierte Band ist die Unsicherheit der
+                  Kalibrierung (~68 %) — der TIR ist eine Schätzung mit Spanne, keine Punktzahl.
+                  Richtung aus dem jüngsten verlässlichen Fenster.
                 </p>
               )}
             </>

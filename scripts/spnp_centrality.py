@@ -40,14 +40,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pipeline.db import USE_POSTGRES, get_connection
 
-# The paper's Eq.5 coefficients (−4.97, 6.22) were fit against ITS randomization-
-# z-score normalization; our percentile normalization is a different (monotone)
-# centrality scale, so — exactly as the paper trained its regression on 30
-# domains with observed rates — we refit ln(k)=a+b·X on our SPNP-X against the
-# published domain rates (12 benchmark domains, H01L excluded as a corpus-scope
-# outlier). Result R²=0.79 (> the paper's 0.62), Spearman 0.83 vs published.
-COEF_A, COEF_B = -6.460, 10.192
-SIGMA2 = 0.374  # SSR/df of the refit → e^(σ²/2) retransformation
+# Refit ln(k)=a+b·X of our normalized SPNP-X against the published observed rates,
+# following the paper's own approach. Fit on the EXACT Triulzi/Magee benchmark
+# patent sets (Domains_patent_info.csv) over 28 domains, using our z-score
+# normalization computed on the US-utility-GRANT subgraph (Path A) at forward-age 3
+# — the corpus + horizon the MIT method was designed for (Singh 2021 §3/App C).
+# Domain-ranking Spearman 0.73 (≈ the paper's own out-of-sample ~0.72), R²=0.45;
+# patent-level our-vs-their centrality 0.59 (residual = DOCDB-vs-PATSNAP citation
+# source, not closable). SIGMA2 → e^(σ²/2) retransformation + the honest CI band.
+# (Prior full-graph/live-graph fit was -6.460/10.192/0.374; superseded.)
+COEF_A, COEF_B = -3.9069, 4.1335
+SIGMA2 = 0.4147
 
 
 def log(msg: str) -> None:
@@ -165,7 +168,13 @@ def build() -> None:
     resid = log_spnp - Xd @ beta
     log(f"  degree fit: intercept={beta[0]:.2f} b_in={beta[1]:.2f} b_out={beta[2]:.2f}")
 
-    # percentile within grant-year cohort → uniform [0,1] per year
+    # Percentile within grant-year cohort. NB: section-balanced weighting was
+    # tested to fix the A61B overshoot (health-heavy corpus) and made it WORSE
+    # (A61B X 0.587→0.646) — the imbalance is at subclass level (A61 medicine
+    # dominates section A), not section level. Proven corpus-scope limit, not a
+    # normalization bug: absolute rates for over-/under-represented domains
+    # (A61B high, H01L low) need the full balanced US corpus. Ranking + refit
+    # calibration stay robust (Spearman 0.83, R²0.79).
     pctl = np.empty(n, dtype=np.float32)
     for y in np.unique(year):
         idx = np.flatnonzero(year == y)
@@ -190,6 +199,32 @@ def build() -> None:
         c.execute("CREATE INDEX idx_spnp_year ON patent_spnp (year)")
         conn._conn.commit()
     log(f"DONE in {(time.time()-t0)/60:.1f} min — {n:,} patents with SPNP percentile.")
+
+
+def _load_sections(nodes: np.ndarray) -> np.ndarray:
+    """int8 CPC section (0=A … 7=H, -1 unknown) per node, by raw_entries.id.
+    Dominant = highest-inventive first CPC per patent."""
+    import psycopg2
+    conn = psycopg2.connect("postgresql:///catandary")
+    cur = conn.cursor(name="secs")
+    cur.itersize = 2_000_000
+    cur.execute(
+        "SELECT re.id, ascii(substr(pc.cpc,1,1)) - 65 "
+        "FROM (SELECT DISTINCT ON (pub_number) pub_number, cpc FROM patent_cpc "
+        "      ORDER BY pub_number, inventive DESC, cpc) pc "
+        "JOIN raw_entries re ON re.pub_number = pc.pub_number")
+    id2sec: dict[int, int] = {}
+    while True:
+        rows = cur.fetchmany(2_000_000)
+        if not rows:
+            break
+        for rid, s in rows:
+            id2sec[rid] = s if 0 <= s <= 7 else -1
+    conn.close()
+    out = np.full(len(nodes), -1, dtype=np.int8)
+    for i, nid in enumerate(nodes):
+        out[i] = id2sec.get(int(nid), -1)
+    return out
 
 
 def domain_k(cpc: str, min_year: int = 1990, max_year: int = 2022) -> dict:

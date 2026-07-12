@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -69,14 +70,20 @@ DECEL_PP = -0.45
 DIRECTION_MIN_MEDIAN_N = 1000
 
 
+# Finalized (calibrated) source tables: the US-utility-grant SPNP + its CPC map,
+# joined directly on pub_number (no raw_entries). Env-overridable so the live swap
+# is a one-liner: rename the staging tables to the canonical names and set these.
+CPC_TABLE = os.getenv("TIR_CPC_TABLE", "patent_cpc_grant")
+SPNP_TABLE = os.getenv("TIR_SPNP_TABLE", "patent_spnp_staging")
+
+
 def _x_by_year(patterns: list[str]) -> dict[int, tuple[float, int]]:
     """year -> (mean spnp_pctl, n_patents) for patents carrying ANY pattern."""
     like = " OR ".join("pc.cpc LIKE %s" for _ in patterns)
     sql = (
         "SELECT sp.year, AVG(sp.spnp_pctl) x, COUNT(*) n FROM ("
-        "  SELECT DISTINCT re.id FROM raw_entries re JOIN patent_cpc pc "
-        "    ON pc.pub_number = re.pub_number WHERE (" + like + ")"
-        ") p JOIN patent_spnp sp ON sp.raw_id = p.id "
+        f"  SELECT DISTINCT pc.pub_number FROM {CPC_TABLE} pc WHERE (" + like + ")"
+        f") p JOIN {SPNP_TABLE} sp ON sp.pub_number = p.pub_number "
         f"WHERE sp.year BETWEEN {YEAR_LO - WINDOW} AND {YEAR_HI} "
         "GROUP BY sp.year ORDER BY sp.year")
     with get_connection() as c:
@@ -88,6 +95,13 @@ def _x_by_year(patterns: list[str]) -> dict[int, tuple[float, int]]:
 
 def _k_from_x(x: float) -> float:
     return 100.0 * math.exp(COEF_A + COEF_B * x) * math.exp(SIGMA2 / 2)
+
+
+# The calibration residual (SIGMA2) is real spread, not noise to hide: a domain's
+# X maps to a lognormal band around the point K, not a single number. One residual
+# SD in log-space → a multiplicative factor; we report a ~68% band (K/f, K·f) so the
+# frontend can draw the uncertainty envelope instead of a false-precision line.
+CI_FACTOR = math.exp(math.sqrt(SIGMA2))
 
 
 def build_points(by_year: dict, now_year: int = YEAR_HI) -> list[dict]:
@@ -104,7 +118,10 @@ def build_points(by_year: dict, now_year: int = YEAR_HI) -> list[dict]:
         if len(xs) < WINDOW or n < MIN_N:
             continue
         x = sum(xs) / len(xs)
-        points.append({"year": t, "K": round(_k_from_x(x), 1), "n": n,
+        k = _k_from_x(x)
+        points.append({"year": t, "K": round(k, 1),
+                       "K_lo": round(k / CI_FACTOR, 1),
+                       "K_hi": round(k * CI_FACTOR, 1), "n": n,
                        "complete": t <= last_complete})
     return points
 
