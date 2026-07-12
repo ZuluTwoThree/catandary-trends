@@ -2,8 +2,7 @@ import Link from "next/link";
 import { q1 } from "@/lib/pg";
 import { getTechnologies } from "@/lib/technology";
 import TechnologyCard from "@/components/foresight/TechnologyCard";
-import TechQuery from "@/components/foresight/TechQuery";
-import TirTrajectory from "@/components/foresight/TirTrajectory";
+import TechnologyTool from "@/components/foresight/TechnologyTool";
 
 export const dynamic = "force-dynamic";
 
@@ -85,14 +84,10 @@ export default async function TechnologyExplorerPage() {
         </div>
       </div>
 
-      {/* On-demand TIR trajectory (#36/#42): free text → fine CPC domain → K(t) */}
-      <div className="mb-6">
-        <TirTrajectory />
-      </div>
-
-      {/* Super Pro+ on-demand scope — ask any technology, computed live */}
+      {/* Merged on-demand tool (#28/#36/#42/#43): one input → user-selectable CPC
+          domain → one canonical TIR trajectory + cross-tier lead time. */}
       <div className="mb-10">
-        <TechQuery />
+        <TechnologyTool />
       </div>
 
       <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-4">
