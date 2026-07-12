@@ -122,11 +122,22 @@ def leadtime(vec: list[float], sel_codes: list[str], threshold: float = 0.55) ->
             "series": {str(y): round(v, 1) for y, v in sorted(plot.items())},
             "is_share": tier != "patent"}
     sci, mkt, pat = takeoffs["science"], takeoffs["market"], takeoffs["patent"]
-    lead_sm = (mkt - sci) if (sci and mkt and mkt >= 2003 and mkt - sci >= 2) else None
-    lead_pm = (mkt - pat) if (pat and mkt and mkt >= 2003 and mkt - pat >= 2) else None
-    concurrent = bool(sci and mkt and (mkt - sci) < 2 and not lead_sm)
+    # A tier whose ramp "takes off" at the very first observable years didn't take
+    # off THEN — the field predates our 1990 data window, so its takeoff is pinned
+    # to the floor and any market-minus-takeoff "lead" is a boundary artifact, not a
+    # real research→market lead. Only claim a lead when research/patents genuinely
+    # emerge INSIDE the window (takeoff ≥ FLOOR+3).
+    FLOOR = 1990
+    sci_established = bool(sci and sci <= FLOOR + 3)
+    pat_established = bool(pat and pat <= FLOOR + 3)
+    lead_sm = (mkt - sci) if (sci and mkt and not sci_established
+                              and mkt >= 2003 and mkt - sci >= 2) else None
+    lead_pm = (mkt - pat) if (pat and mkt and not pat_established
+                              and mkt >= 2003 and mkt - pat >= 2) else None
+    concurrent = bool(sci and mkt and not sci_established and (mkt - sci) < 2 and not lead_sm)
     return {"tiers": tier_out, "lead_science_market": lead_sm,
             "lead_patent_market": lead_pm, "concurrent": concurrent,
+            "established": sci_established and pat_established,
             "market_floored": bool(mkt and mkt < 2003)}
 
 
@@ -147,22 +158,25 @@ def analyze_query(query: str) -> dict:
 
 
 def _verdict(traj: dict, lead: dict) -> str | None:
-    """Plain-language one-liner: innovation-chain stage + the single canonical TIR
-    (from the trajectory, never a competing number)."""
+    """Plain-language one-liner: innovation-chain stage + the single canonical TIR.
+    Uses the robust K_MEDIAN (not the spike-prone last complete year — recent cohorts
+    carry a citation-immaturity bump that inflates K_latest)."""
     lead_sm = lead.get("lead_science_market")
     mkt_n = (lead.get("tiers", {}).get("market") or {}).get("n", 0)
     stage = None
-    if lead_sm and lead_sm >= 8:
+    if lead.get("established"):
+        stage = "Established field — research and patents predate our data window"
+    elif lead_sm and lead_sm >= 8:
         stage = f"Research ran ~{lead_sm}+ years ahead of the market"
     elif lead.get("concurrent"):
         stage = "Research and market move closely together"
     elif mkt_n < 80:
         stage = "Early-stage — market coverage is still thin"
-    k = traj.get("K_latest") if traj and traj.get("calibrated") else None
+    k = traj.get("K_median") if traj and traj.get("calibrated") else None
     speed = None
     if k is not None:
-        speed = (f"improving fast (~{k}%/yr)" if k >= 10
-                 else f"slow-moving (~{k}%/yr)" if k <= 4 else f"~{k}%/yr improvement")
+        speed = (f"improving fast (~{k}%/yr)" if k >= 12
+                 else f"slow-moving (~{k}%/yr)" if k <= 8 else f"~{k}%/yr improvement")
     if stage and speed:
         return f"{stage}; {speed}."
     if stage:

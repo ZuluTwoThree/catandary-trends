@@ -12,8 +12,8 @@ import { useState } from "react";
 interface Point { year: number; K: number; K_lo?: number; K_hi?: number; n: number; complete: boolean }
 interface Traj {
   points?: Point[]; direction?: string; direction_de?: string;
-  K_latest?: number | null; calibrated?: boolean | null; n_total?: number;
-  reason?: string | null;
+  K_latest?: number | null; K_median?: number | null;
+  calibrated?: boolean | null; n_total?: number; reason?: string | null;
 }
 interface Candidate { symbol: string; title: string; dist: number; n: number; default: boolean }
 interface Tier { n: number; first: number | null; takeoff: number | null; median: number | null; series: Record<string, number>; is_share: boolean }
@@ -22,6 +22,7 @@ interface Lead {
   lead_science_market: number | null;
   lead_patent_market: number | null;
   concurrent: boolean;
+  established?: boolean;
 }
 interface Analysis {
   query?: string; off_topic?: boolean; nearest_dist?: number;
@@ -231,7 +232,7 @@ export default function TechnologyTool() {
               </span>
               <span className="font-sans text-sm text-text">
                 {traj?.calibrated
-                  ? <>aktueller TIR <span className="text-paper">~{traj.K_latest}%/Jahr</span></>
+                  ? <>typischer TIR <span className="text-paper">~{traj.K_median}%/Jahr</span></>
                   : <span className="text-muted">außerhalb des kalibrierten Bereichs</span>}
               </span>
               {rerun && <span className="font-mono text-[10px] text-muted animate-pulse">aktualisiere…</span>}
@@ -263,9 +264,14 @@ export default function TechnologyTool() {
                   })}
                 </div>
                 <p className="font-sans text-[11px] text-muted mt-3">
-                  {lead.lead_science_market ? <>Forschung lief ~<span className="text-text">{lead.lead_science_market} Jahre</span> vor dem Markt. </> : null}
-                  {lead.lead_patent_market ? <>Patente ~<span className="text-text">{lead.lead_patent_market} Jahre</span> vor dem Markt. </> : null}
-                  {lead.concurrent ? "Forschung und Markt bewegen sich zeitgleich." : null}
+                  {lead.established
+                    ? "Etablierte Technologie — Forschung und Patente existierten schon vor unserem Datenfenster (1990). Ein Research-→-Markt-Vorlauf ist hier nicht messbar."
+                    : <>
+                        {lead.lead_science_market ? <>Forschung lief ~<span className="text-text">{lead.lead_science_market} Jahre</span> vor dem Markt. </> : null}
+                        {lead.lead_patent_market ? <>Patente ~<span className="text-text">{lead.lead_patent_market} Jahre</span> vor dem Markt. </> : null}
+                        {lead.concurrent ? "Forschung und Markt bewegen sich zeitgleich." : null}
+                        {!lead.lead_science_market && !lead.lead_patent_market && !lead.concurrent ? "Kein klarer Tier-Vorlauf messbar." : null}
+                      </>}
                 </p>
               </div>
             )}
