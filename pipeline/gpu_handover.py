@@ -104,8 +104,15 @@ def _vram_used_mib() -> int | None:
 
 
 def _wait_vram_below(mib: int, timeout: int = 90) -> bool:
-    """Poll until VRAM usage drops below `mib`. Returns True if reached."""
+    """Poll until VRAM usage drops below `mib`, OR until it has clearly STOPPED
+    dropping (a coexisting app — e.g. ComfyUI — holds resident VRAM that will never
+    fall for us; once our own models have unloaded, waiting the full timeout is
+    pointless and used to add ~90s to every embed). Returns True if the target was
+    reached, False if it proceeded on stability/timeout — callers proceed either way;
+    the subsequent model load is what actually enforces the room."""
     deadline = time.time() + timeout
+    prev = None
+    stable = 0
     while time.time() < deadline:
         used = _vram_used_mib()
         if used is None:
@@ -113,6 +120,16 @@ def _wait_vram_below(mib: int, timeout: int = 90) -> bool:
         logger.info("  VRAM used: %d MiB (target < %d)", used, mib)
         if used < mib:
             return True
+        # not meaningfully decreasing (≤50 MiB drop) for two consecutive polls →
+        # our unload is done and the remainder is third-party; stop waiting.
+        if prev is not None and used >= prev - 50:
+            stable += 1
+            if stable >= 2:
+                logger.info("  VRAM stable at %d MiB (third-party resident) — proceeding", used)
+                return False
+        else:
+            stable = 0
+        prev = used
         time.sleep(3)
     return False
 

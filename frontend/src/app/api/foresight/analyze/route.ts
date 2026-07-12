@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 180;
 
 /** Repo root by walking up from cwd (dev = repo root, prod = frontend/). */
 function repoRoot(): string {
@@ -63,8 +63,8 @@ export async function GET(request: Request) {
       execFile(
         py,
         [script, ...args],
-        { cwd: root, timeout: 110_000, maxBuffer: 8 * 1024 * 1024 },
-        (err, stdout) => {
+        { cwd: root, timeout: 170_000, maxBuffer: 8 * 1024 * 1024 },
+        (err: (Error & { killed?: boolean; signal?: string }) | null, stdout) => {
           if (err) return reject(err);
           resolve(stdout);
         }
@@ -73,10 +73,14 @@ export async function GET(request: Request) {
     const line = result.trim().split("\n").filter(Boolean).pop() || "{}";
     return NextResponse.json(JSON.parse(line));
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    const timedOut = /timed out|ETIMEDOUT/.test(msg);
+    // execFile's own timeout kills with SIGTERM and an err WITHOUT "timed out" in
+    // the message — classify it as a timeout too so slow GPU handovers surface a
+    // clear retry hint instead of a bare "analysis failed".
+    const err = e as (Error & { killed?: boolean; signal?: string });
+    const msg = err instanceof Error ? err.message : String(e);
+    const timedOut = /timed out|ETIMEDOUT/.test(msg) || err?.killed === true || err?.signal === "SIGTERM";
     return NextResponse.json(
-      { error: timedOut ? "computation timed out — try a narrower phrase" : "analysis failed" },
+      { error: timedOut ? "Berechnung dauert zu lange — bitte erneut versuchen (GPU wird geladen)" : "analysis failed" },
       { status: timedOut ? 504 : 500 }
     );
   }
