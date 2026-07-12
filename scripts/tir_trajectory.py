@@ -33,7 +33,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pipeline.db import get_connection
-from scripts.spnp_centrality import COEF_A, COEF_B, SIGMA2
+
+# US-utility-GRANT calibration — the on-demand trajectory measures X on the US-grant
+# subgraph (patent_spnp_staging), a different centrality scale than the full graph, so
+# it carries its OWN fit (NOT spnp_centrality's full-graph COEF_A/B). Refit ln(k)=a+b·X
+# against the EXACT Triulzi/Magee 28-domain benchmark patent sets, z-score-normalized
+# SPNP on the US-grant subgraph at forward-age 3 — the corpus + horizon the MIT method
+# was designed for. Domain-ranking Spearman 0.73 (≈ paper out-of-sample), R²=0.45;
+# patent-level our-vs-their centrality 0.59 (residual = DOCDB vs PATSNAP, not closable).
+COEF_A, COEF_B = -3.9069, 4.1335
+SIGMA2 = 0.4147  # → e^(σ²/2) retransformation + the honest CI band
 
 # --- tunables (the honesty gates) --------------------------------------------
 WINDOW = 5              # rolling-window years for each K(t) point

@@ -40,17 +40,19 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pipeline.db import USE_POSTGRES, get_connection
 
-# Refit ln(k)=a+b·X of our normalized SPNP-X against the published observed rates,
-# following the paper's own approach. Fit on the EXACT Triulzi/Magee benchmark
-# patent sets (Domains_patent_info.csv) over 28 domains, using our z-score
-# normalization computed on the US-utility-GRANT subgraph (Path A) at forward-age 3
-# — the corpus + horizon the MIT method was designed for (Singh 2021 §3/App C).
-# Domain-ranking Spearman 0.73 (≈ the paper's own out-of-sample ~0.72), R²=0.45;
-# patent-level our-vs-their centrality 0.59 (residual = DOCDB-vs-PATSNAP citation
-# source, not closable). SIGMA2 → e^(σ²/2) retransformation + the honest CI band.
-# (Prior full-graph/live-graph fit was -6.460/10.192/0.374; superseded.)
-COEF_A, COEF_B = -3.9069, 4.1335
-SIGMA2 = 0.4147
+# FULL-GRAPH calibration (domain_k below runs on the full patent_spnp graph). The
+# paper's Eq.5 coefficients were fit against ITS randomization z-score normalization;
+# our percentile normalization is a different (monotone) centrality scale, so — as
+# the paper trained its regression on domains with observed rates — we refit
+# ln(k)=a+b·X on our full-graph SPNP-X against the published domain rates (12
+# benchmark domains). R²=0.79, Spearman 0.83 vs published.
+#
+# NB: this pair is bound to the FULL-graph X (patent_spnp). The on-demand K(t)
+# trajectory runs on the US-utility-GRANT subgraph and has its OWN calibration
+# (US-grant X is a different scale, ~0.2–0.3 correlated with the full graph) — see
+# GRANT_COEF_A/B in scripts/tir_trajectory.py. Do not cross the two.
+COEF_A, COEF_B = -6.460, 10.192
+SIGMA2 = 0.374  # SSR/df of the refit → e^(σ²/2) retransformation
 
 
 def log(msg: str) -> None:
