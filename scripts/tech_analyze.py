@@ -172,7 +172,7 @@ def _verdict(traj: dict, lead: dict) -> str | None:
         stage = "Research and market move closely together"
     elif mkt_n < 80:
         stage = "Early-stage — market coverage is still thin"
-    k = traj.get("K_recent") if traj and traj.get("calibrated") else None
+    k = traj.get("K_median") if traj and traj.get("calibrated") else None
     speed = None
     if k is not None:
         speed = (f"improving fast (~{k}%/yr)" if k >= 12

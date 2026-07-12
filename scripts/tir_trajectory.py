@@ -60,7 +60,14 @@ COEF_A, COEF_B, SIGMA2 = _CALIB.get(SUBSTRATE, _CALIB["full"])
 
 # --- tunables (the honesty gates) --------------------------------------------
 WINDOW = 5              # rolling-window years for each K(t) point
-MIN_N = 300            # min patents in a window to report that year
+# Min patents in a window to PLOT that year. Sized so genuinely thin but real
+# domains (cheese ~27 patents/yr → ~140/window in its mid-century era) still show
+# their history instead of being silently dropped — a mean SPNP percentile over
+# ~100 patents is stable (SE≈0.03), and the early-sparse shading + CI band flag the
+# lower confidence. Dense domains are unaffected; the whole-domain floor
+# (DOMAIN_MIN_TOTAL) and the separate direction-density gate still guard against
+# noise. (Was 300, which hid decades of real data for lighter-patented fields.)
+MIN_N = 100
 # Empirically, a domain's mean SPNP percentile peaks ~2018-2019 and then droops
 # for EVERY domain — patents granted after ~2019 haven't accumulated enough of
 # the forward-citation descendant tree for their centrality RANK to stabilize

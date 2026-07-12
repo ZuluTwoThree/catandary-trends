@@ -194,8 +194,9 @@ def patent_dynamics(cpc: str) -> dict:
     out["tir_direction"] = tj.get("direction")
     out["tir_n"] = tj.get("n_total")
     out["tir_earliest"] = tj.get("earliest_year")
-    if tj.get("calibrated") and tj.get("K_recent") is not None:
-        out["tir_pct"] = tj["K_recent"]              # current typical rate (recent median)
+    if tj.get("calibrated") and tj.get("K_median") is not None:
+        out["tir_pct"] = tj["K_median"]              # typical rate over measured history
+                                                     # (robust to the recent immaturity spike)
     elif tj.get("calibrated") is False:
         out["tir_status"] = "above_calibrated_range"  # very fast digital → direction only
     else:

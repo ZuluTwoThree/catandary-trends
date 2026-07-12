@@ -241,7 +241,7 @@ export default function TechnologyTool() {
               </span>
               <span className="font-sans text-sm text-text">
                 {traj?.calibrated
-                  ? <>aktueller TIR <span className="text-paper">~{traj.K_recent}%/Jahr</span></>
+                  ? <>typischer TIR <span className="text-paper">~{traj.K_median}%/Jahr</span></>
                   : <span className="text-muted">außerhalb des kalibrierten Bereichs</span>}
               </span>
               {traj?.earliest_year && (
@@ -257,8 +257,9 @@ export default function TechnologyTool() {
             <p className="font-sans text-[11px] text-muted mt-2 max-w-3xl">
               Die Kurve beginnt am frühesten dichten Jahr dieser Technologie. Schattiert
               links = frühe Zitationen spärlich (vor ~1976), rechts = jüngste Jahre noch
-              unreif. Band = Kalibrierungs-Unsicherheit (~68 %). „Aktueller TIR" = Median
-              der jüngsten verlässlichen Jahre (nicht der historische Peak).
+              unreif. Band = Kalibrierungs-Unsicherheit (~68 %). „Typischer TIR" = Median
+              über die gemessene Historie (robust gegen den Immaturitäts-Ausschlag der
+              jüngsten Jahre); die Richtung zeigt den aktuellen Trend.
             </p>
 
             {/* cross-tier lead time */}
