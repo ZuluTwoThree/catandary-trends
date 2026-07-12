@@ -69,7 +69,13 @@ MIN_N = 300            # min patents in a window to report that year
 # excluded from the direction fit. This is the honest citation-maturity horizon.
 TRUNC_YEARS = 7        # last N years have immature citation centrality → grey
 RECENT_YEARS = 7       # direction is fit over the most recent complete window
-YEAR_LO, YEAR_HI = 1990, 2026
+# Per-query floor: we no longer hard-start at 1990. The graph carries dated,
+# cited patents back to the 19th century, so each technology begins at ITS OWN
+# earliest dense year — cheese ~1950s, perovskite ~2000s — surfaced automatically
+# by the MIN_N gate below. YEAR_LO is only an absolute sanity floor.
+YEAR_LO, YEAR_HI = 1900, 2026
+EARLY_SPARSE_YEAR = 1976  # before this, backward citations are sparse (pre-digital
+                          # USPTO records) → flag those points as lower-confidence
 CALIB_MAX = 50.0       # K above this %/yr is outside the calibrated range
 DOMAIN_MIN_TOTAL = 500  # total distinct patents below this → "insufficient data"
 # Direction thresholds on the relative K trend over the reported window.
@@ -157,7 +163,8 @@ def build_points(by_year: dict, now_year: int = YEAR_HI) -> list[dict]:
         points.append({"year": t, "K": round(k, 1),
                        "K_lo": round(k / CI_FACTOR, 1),
                        "K_hi": round(k * CI_FACTOR, 1), "n": n,
-                       "complete": t <= last_complete})
+                       "complete": t <= last_complete,
+                       "early_sparse": t < EARLY_SPARSE_YEAR})
     return points
 
 
@@ -192,10 +199,15 @@ def classify(points: list[dict], n_total: int) -> dict:
     # direction is withheld (the chart + value still shown).
     recent_ns = sorted(p["n"] for p in recent)
     med_recent_n = recent_ns[len(recent_ns) // 2] if recent_ns else 0
+    # K_recent = median over the RECENT complete window — the CURRENT typical rate,
+    # the honest headline once the chart spans decades (a full-history median would
+    # let a mid-century innovation peak re-inflate a now-mature technology).
+    med_recent_k = sorted(ks_r)[len(ks_r) // 2]
     base = {"rel_change": round(rel, 3),
             "K_latest": reported[-1]["K"] if calibrated else None,
-            "K_median": round(med_k, 1), "calibrated": calibrated,
-            "median_recent_n": med_recent_n}
+            "K_median": round(med_k, 1),
+            "K_recent": round(med_recent_k, 1) if calibrated else None,
+            "calibrated": calibrated, "median_recent_n": med_recent_n}
     if med_recent_n < DIRECTION_MIN_MEDIAN_N:
         return {**base, "direction": "uncertain",
                 "direction_de": "Richtung unsicher",
@@ -221,7 +233,14 @@ def trajectory(patterns: list[str], now_year: int = YEAR_HI) -> dict:
     total = sum(n for _, n in by_year.values())
     points = build_points(by_year, now_year)
     res = classify(points, total)
-    res.update({"patterns": patterns, "n_total": total, "points": points})
+    # earliest_year = the literal earliest year this technology appears in the
+    # citation graph (its earliest cited/citing patent) — a per-query fact. The
+    # curve itself starts at the earliest DENSE year (points[0]); the two can
+    # differ when the earliest patents are a lone pre-industrial outlier.
+    dated = [y for y, (x, n) in by_year.items() if x is not None]
+    res.update({"patterns": patterns, "n_total": total, "points": points,
+                "earliest_year": min(dated) if dated else None,
+                "earliest_dense_year": points[0]["year"] if points else None})
     return res
 
 

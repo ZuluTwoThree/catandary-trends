@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline.db import USE_POSTGRES, get_connection
 from scripts.cpc_leadtime import (median_year, patent_years, projected_tier_years,
                                   takeoff)
-from scripts.spnp_centrality import domain_k as spnp_domain_k
+from scripts.tir_trajectory import trajectory
 
 # Curated technology axes: (cpc, display name, vertical). Klartext names — the
 # frontend shows these, not the CPC legalese.
@@ -184,14 +184,18 @@ def patent_dynamics(cpc: str) -> dict:
         if top:
             out["top_patents"] = top
             out["hub"] = top[0]
-    # TIR = the MIT method (SPNP centrality, Singh/Triulzi/Magee 2021), refit on
-    # published domain rates. Replaces the old II×1/cycle-time proxy that put
-    # semiconductors LAST. domain_k reads the prebuilt patent_spnp table.
-    dk = spnp_domain_k(cpc)
-    if dk.get("K_pct") is not None:
-        out["tir_pct"] = dk["K_pct"]
-        out["tir_X"] = dk["X"]
-        out["tir_method"] = "spnp"
+    # TIR = the MIT method (SPNP centrality, Singh/Triulzi/Magee 2021) on the #35
+    # full-ARCHIVE substrate — the SAME engine + calibration the on-demand merged
+    # tool uses, so a curated card and the live tool can never disagree. Headline is
+    # the robust K_MEDIAN (not the immaturity-spiked last year); direction carried
+    # for the card badge.
+    tj = trajectory([cpc + "%"])
+    if tj.get("calibrated") and tj.get("K_recent") is not None:
+        out["tir_pct"] = tj["K_recent"]   # current typical rate (recent-window median)
+        out["tir_method"] = "spnp-fullarchive"
+        out["tir_direction"] = tj.get("direction")
+        out["tir_n"] = tj.get("n_total")
+        out["tir_earliest"] = tj.get("earliest_year")
     with get_connection() as c:
         # Cycle time + immediate importance on a FIXED COHORT (2000–2015) with an
         # unbiased sample (md5 order, not insertion order). The cohort bounds kill

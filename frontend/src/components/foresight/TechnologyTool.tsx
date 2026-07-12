@@ -9,11 +9,12 @@ import { useState } from "react";
  * time (research→patent→funding→market). Replaces the two divergent tools.
  */
 
-interface Point { year: number; K: number; K_lo?: number; K_hi?: number; n: number; complete: boolean }
+interface Point { year: number; K: number; K_lo?: number; K_hi?: number; n: number; complete: boolean; early_sparse?: boolean }
 interface Traj {
   points?: Point[]; direction?: string; direction_de?: string;
-  K_latest?: number | null; K_median?: number | null;
+  K_latest?: number | null; K_median?: number | null; K_recent?: number | null;
   calibrated?: boolean | null; n_total?: number; reason?: string | null;
+  earliest_year?: number | null; earliest_dense_year?: number | null;
 }
 interface Candidate { symbol: string; title: string; dist: number; n: number; default: boolean }
 interface Tier { n: number; first: number | null; takeoff: number | null; median: number | null; series: Record<string, number>; is_share: boolean }
@@ -67,6 +68,8 @@ function Chart({ points }: { points: Point[] }) {
     return `${up} ${dn} Z`;
   };
   const tail = points.filter((p) => p.year >= lastComplete);
+  // left-edge "sparse early citations" boundary: first year that is no longer flagged
+  const firstDense = points.find((p) => !p.early_sparse)?.year ?? x0;
   const yticks: number[] = [];
   for (let v = 0; v <= y1 + 0.001; v += step) yticks.push(v);
   return (
@@ -81,6 +84,12 @@ function Chart({ points }: { points: Point[] }) {
       {[x0, Math.round((x0 + lastComplete) / 2), lastComplete, x1].map((yr) => (
         <text key={yr} x={px(yr)} y={H - PAD.b + 15} textAnchor="middle" style={{ font: "9px ui-monospace, monospace" }} fill="#8a8d82">{yr}</text>
       ))}
+      {firstDense > x0 && (
+        <>
+          <rect x={px(x0)} y={PAD.t} width={px(firstDense) - px(x0)} height={H - PAD.t - PAD.b} fill="#8a8d82" opacity={0.06} />
+          <text x={(px(x0) + px(firstDense)) / 2} y={PAD.t + 10} textAnchor="middle" style={{ font: "8px ui-sans-serif, system-ui" }} fill="#8a8d82">frühe Zitationen spärlich</text>
+        </>
+      )}
       {x1 > lastComplete && (
         <>
           <rect x={px(lastComplete)} y={PAD.t} width={px(x1) - px(lastComplete)} height={H - PAD.t - PAD.b} fill="#8a8d82" opacity={0.06} />
@@ -232,9 +241,12 @@ export default function TechnologyTool() {
               </span>
               <span className="font-sans text-sm text-text">
                 {traj?.calibrated
-                  ? <>typischer TIR <span className="text-paper">~{traj.K_median}%/Jahr</span></>
+                  ? <>aktueller TIR <span className="text-paper">~{traj.K_recent}%/Jahr</span></>
                   : <span className="text-muted">außerhalb des kalibrierten Bereichs</span>}
               </span>
+              {traj?.earliest_year && (
+                <span className="font-mono text-[10px] text-muted">früheste Zitation {traj.earliest_year}</span>
+              )}
               {rerun && <span className="font-mono text-[10px] text-muted animate-pulse">aktualisiere…</span>}
             </div>
 
@@ -243,7 +255,10 @@ export default function TechnologyTool() {
               : <p className="font-sans text-sm text-muted border-l-2 border-border pl-3">Zu wenig Patentdaten in dieser Auswahl für eine Trajektorie — wähle mehr Klassen links.</p>}
 
             <p className="font-sans text-[11px] text-muted mt-2 max-w-3xl">
-              Durchgezogen = verlässlich; ausgegraut = letzte Jahre (Zitationen noch unreif). Band = Kalibrierungs-Unsicherheit (~68 %).
+              Die Kurve beginnt am frühesten dichten Jahr dieser Technologie. Schattiert
+              links = frühe Zitationen spärlich (vor ~1976), rechts = jüngste Jahre noch
+              unreif. Band = Kalibrierungs-Unsicherheit (~68 %). „Aktueller TIR" = Median
+              der jüngsten verlässlichen Jahre (nicht der historische Peak).
             </p>
 
             {/* cross-tier lead time */}
