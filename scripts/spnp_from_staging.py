@@ -222,7 +222,8 @@ def _load_cache(path):
 
 
 def build(staging: str, limit: int = 0, class_chars: int = 3, randomize: int = 0,
-          age_cap: int = 0, cache: str = "", us_utility: bool = False) -> None:
+          age_cap: int = 0, cache: str = "", us_utility: bool = False,
+          out_table: str = "patent_spnp_staging", year_only_pctl: bool = False) -> None:
     t0 = time.time()
     if cache and os.path.exists(cache + ".npz"):
         log(f"loading cached connected graph from {cache} …")
@@ -282,14 +283,22 @@ def build(staging: str, limit: int = 0, class_chars: int = 3, randomize: int = 0
         resid = log_spnp - Xd @ beta
         del Xd, log_spnp, indeg, outdeg
         log(f"  degree fit: intercept={beta[0]:.2f} b_in={beta[1]:.2f} b_out={beta[2]:.2f}")
-        pctl = _grouped_percentile(resid, year, cls)
+        # year-only percentile (cls=0) for a cross-domain-comparable scale: the
+        # trajectory's domain X IS a CPC set, so a (year×class) percentile would rank
+        # each patent within its own class → every domain collapses to ~0.5 and the
+        # cross-domain signal (the thing K measures) is destroyed. year-only ranks
+        # against the technology-neutral population — and on the balanced full-archive
+        # corpus that is exactly what pulls the A61B over-centrality back to true (#35).
+        pctl_cls = np.zeros(n, dtype=np.int32) if year_only_pctl else cls
+        pctl = _grouped_percentile(resid, year, pctl_cls)
 
-    log("writing patent_spnp_staging (COPY) …")
+    log(f"writing {out_table} (COPY) …")
+    copy_sql = f"COPY {out_table} FROM STDIN WITH (FORMAT csv)"
     pubs = nodes_pub.to_pylist()
     with get_connection() as conn:
         c = conn._conn.cursor()
-        c.execute("DROP TABLE IF EXISTS patent_spnp_staging")
-        c.execute("CREATE TABLE patent_spnp_staging (pub_number TEXT PRIMARY KEY, "
+        c.execute(f"DROP TABLE IF EXISTS {out_table}")
+        c.execute(f"CREATE TABLE {out_table} (pub_number TEXT PRIMARY KEY, "
                   "year SMALLINT, spnp_pctl REAL)")
         out = io.StringIO()
         written = 0
@@ -298,10 +307,10 @@ def build(staging: str, limit: int = 0, class_chars: int = 3, randomize: int = 0
                 continue  # undated → not in any cohort, skip
             out.write(f"{pubs[i]},{year[i]},{pctl[i]:.6f}\n")
             if out.tell() > 50_000_000:
-                out.seek(0); c.copy_expert("COPY patent_spnp_staging FROM STDIN WITH (FORMAT csv)", out)
+                out.seek(0); c.copy_expert(copy_sql, out)
                 written += out.tell(); out = io.StringIO()
-        out.seek(0); c.copy_expert("COPY patent_spnp_staging FROM STDIN WITH (FORMAT csv)", out)
-        c.execute("CREATE INDEX idx_spnp_stg_year ON patent_spnp_staging (year)")
+        out.seek(0); c.copy_expert(copy_sql, out)
+        c.execute(f"CREATE INDEX idx_{out_table}_year ON {out_table} (year)")
         conn._conn.commit()
     log(f"DONE in {(time.time()-t0)/60:.1f} min — {n:,} graph nodes, SPNP percentile written.")
 
@@ -326,9 +335,15 @@ def main() -> int:
     ap.add_argument("--us-utility", action="store_true",
                     help="Path A: restrict to the US utility-patent subgraph (the "
                          "MIT-method corpus) before computing SPNP")
+    ap.add_argument("--out-table", default="patent_spnp_staging",
+                    help="destination table (default patent_spnp_staging; use "
+                         "patent_spnp_full for the #35 technology-balanced backfill)")
+    ap.add_argument("--year-only-pctl", action="store_true",
+                    help="rank the degree residual within grant-YEAR only (cross-domain-"
+                         "comparable, matches patent_spnp) instead of (year×class)")
     args = ap.parse_args()
     build(args.staging, args.limit, args.class_chars, args.randomize, args.age_cap,
-          args.cache, args.us_utility)
+          args.cache, args.us_utility, args.out_table, args.year_only_pctl)
     return 0
 
 

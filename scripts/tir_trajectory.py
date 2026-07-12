@@ -33,27 +33,30 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pipeline.db import get_connection
-from scripts.spnp_centrality import COEF_A as FULL_A, COEF_B as FULL_B, SIGMA2 as FULL_S2
 
-# Two substrates for X, deliberately kept apart (they are different centrality
-# scales, ~0.2–0.3 correlated — see issue #36):
-#   • "full"  (DEFAULT, the live tool) — X measured on the DB full graph
-#     (patent_spnp, 112M DOCDB edges): continuous years, all verticals incl. food,
-#     multinational. This is the coverage the tool needs for arbitrary queries.
-#     Calibration = spnp_centrality's full-graph fit (Spearman 0.83 on 12 domains).
-#   • "grant" — X measured on the US-utility-grant archive subgraph
-#     (patent_spnp_staging): calibration-accurate against the EXACT Triulzi/Magee
-#     28 benchmark sets (Spearman 0.73), the peer-reviewed MIT corpus — but gappy
-#     (archive missing US grants 2001-04, 2011-15) and US-only, so NOT for live
-#     measurement. Kept for validation/USP evidence (TIR_SUBSTRATE=grant).
-# The finalization briefly crossed these (measured on grant, too sparse); reverted
-# to full-graph measurement per owner decision 2026-07-12.
+# X-substrate + its own calibration, deliberately kept apart (each is a different
+# centrality scale, so its ln(k)=a+b·X fit is bound to its own graph):
+#   • "full" (DEFAULT) — X on the #35 technology-balanced full-ARCHIVE graph
+#     (patent_spnp_full, 42.4M nodes / 145.5M edges, all countries+domains,
+#     continuous years). This is the dense measurement substrate: battery/tech
+#     ~34× denser than the old DB graph, A61B over-centrality corrected by the
+#     balanced corpus. Fit on the 23 Magee benchmark domains: R²=0.42, Spearman
+#     0.65 (COEF_A below = ln-percent fit −1.4233 minus ln(100), since _k_from_x
+#     ×100 expects a ln-fraction intercept). Tables: patent_spnp_full/patent_cpc_full.
+#   • "db" — X on the old DB full graph (patent_spnp, 9.1M, raw_id-keyed). Thin for
+#     CN-heavy tech (batteries starved). Kept as the pre-#35 path (TIR_SUBSTRATE=db).
+#   • "grant" — X on the US-utility-grant archive subgraph (patent_spnp_usgrant):
+#     calibration-accurate vs the EXACT Triulzi/Magee sets (Spearman 0.73, the
+#     peer-reviewed MIT corpus) but gappy years + US-only. Validation/USP evidence
+#     only (TIR_SUBSTRATE=grant).
 SUBSTRATE = os.getenv("TIR_SUBSTRATE", "full")
-_GRANT_A, _GRANT_B, _GRANT_S2 = -3.9069, 4.1335, 0.4147
-if SUBSTRATE == "grant":
-    COEF_A, COEF_B, SIGMA2 = _GRANT_A, _GRANT_B, _GRANT_S2
-else:
-    COEF_A, COEF_B, SIGMA2 = FULL_A, FULL_B, FULL_S2
+_CALIB = {
+    #            COEF_A,               COEF_B,   SIGMA2
+    "full":  (-1.4233 - math.log(100), 7.4484, 0.4516),
+    "db":    (-6.460,                  10.192,  0.374),
+    "grant": (-3.9069,                 4.1335,  0.4147),
+}
+COEF_A, COEF_B, SIGMA2 = _CALIB.get(SUBSTRATE, _CALIB["full"])
 
 # --- tunables (the honesty gates) --------------------------------------------
 WINDOW = 5              # rolling-window years for each K(t) point
@@ -97,19 +100,25 @@ def _x_by_year(patterns: list[str]) -> dict[int, tuple[float, int]]:
     (raw_id); the grant path joins patent_cpc_grant→patent_spnp_staging (pub_number).
     Both compute the same aggregate — AVG(spnp_pctl) per year — on their own graph."""
     like = " OR ".join("pc.cpc LIKE %s" for _ in patterns)
-    if SUBSTRATE == "grant":
-        sql = (
-            "SELECT sp.year, AVG(sp.spnp_pctl) x, COUNT(*) n FROM ("
-            "  SELECT DISTINCT pc.pub_number FROM patent_cpc_grant pc WHERE (" + like + ")"
-            ") p JOIN patent_spnp_staging sp ON sp.pub_number = p.pub_number "
-            f"WHERE sp.year BETWEEN {YEAR_LO - WINDOW} AND {YEAR_HI} "
-            "GROUP BY sp.year ORDER BY sp.year")
-    else:
+    # (cpc_table, spnp_table) per substrate; "db" joins via raw_entries.id, the
+    # others join directly on pub_number.
+    cpc_t, spnp_t = {
+        "full":  ("patent_cpc_full",  "patent_spnp_full"),
+        "grant": ("patent_cpc_grant", "patent_spnp_usgrant"),
+    }.get(SUBSTRATE, ("patent_cpc", "patent_spnp"))
+    if SUBSTRATE == "db":
         sql = (
             "SELECT sp.year, AVG(sp.spnp_pctl) x, COUNT(*) n FROM ("
             "  SELECT DISTINCT re.id FROM raw_entries re "
             "    JOIN patent_cpc pc ON pc.pub_number = re.pub_number WHERE (" + like + ")"
             ") p JOIN patent_spnp sp ON sp.raw_id = p.id "
+            f"WHERE sp.year BETWEEN {YEAR_LO - WINDOW} AND {YEAR_HI} "
+            "GROUP BY sp.year ORDER BY sp.year")
+    else:
+        sql = (
+            "SELECT sp.year, AVG(sp.spnp_pctl) x, COUNT(*) n FROM ("
+            f"  SELECT DISTINCT pc.pub_number FROM {cpc_t} pc WHERE (" + like + ")"
+            f") p JOIN {spnp_t} sp ON sp.pub_number = p.pub_number "
             f"WHERE sp.year BETWEEN {YEAR_LO - WINDOW} AND {YEAR_HI} "
             "GROUP BY sp.year ORDER BY sp.year")
     with get_connection() as c:
