@@ -357,3 +357,147 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
                                        fallback=c["label"])
         del c["_tag_counter"]
     return {"months": months, "totals": totals, "clusters": clusters}
+
+
+# -------------------------------------------------------------------- lineage
+# Cross-window cluster evolution (issue #2 phase 1): cluster each rolling time
+# window independently, then match clusters across consecutive windows by
+# centroid cosine. The resulting graph carries emergence / continuation /
+# split / merge / decline plus semantic drift — the "where is this trend
+# going" substrate the single-window snapshots cannot express.
+
+MATCH_SIM = 0.80          # centroid cosine >= this = same theme across windows
+LINEAGE_MIN_SIGNALS = 300  # windows below this are recorded as gaps, not clustered
+
+
+def _add_months(d: datetime, months: int) -> datetime:
+    y, m = divmod(d.year * 12 + (d.month - 1) + months, 12)
+    return d.replace(year=y, month=m + 1, day=1)
+
+
+def window_bounds(since: str, until: str, step_months: int = 3,
+                  span_months: int = 12) -> list[tuple[str, str]]:
+    """Rolling (start, end) ISO-date windows covering [since, until).
+
+    Windows overlap when span > step (default: quarterly step, 12-month span —
+    9 months of shared data makes cross-window matches stable). The last
+    window is the first one whose end reaches `until`.
+    """
+    start = datetime.fromisoformat(since).replace(day=1)
+    stop = datetime.fromisoformat(until)
+    out: list[tuple[str, str]] = []
+    while True:
+        end = _add_months(start, span_months)
+        out.append((start.date().isoformat(), end.date().isoformat()))
+        if end >= stop:
+            break
+        start = _add_months(start, step_months)
+    return out
+
+
+def _relation(out_deg: int, in_deg: int) -> str:
+    if out_deg > 1 and in_deg > 1:
+        return "split_merge"
+    if out_deg > 1:
+        return "split"
+    if in_deg > 1:
+        return "merge"
+    return "continue"
+
+
+def build_lineage(status: str = "signal,published", vertical: str | None = None,
+                  since: str = "2016-01-01", until: str | None = None,
+                  step_months: int = 3, span_months: int = 12,
+                  k_range: tuple[int, int] = (6, 14), dim1024: bool = False,
+                  min_signals: int = LINEAGE_MIN_SIGNALS,
+                  match_sim: float = MATCH_SIM,
+                  progress=None) -> dict:
+    """Cluster every window, then match consecutive windows by centroid cosine.
+
+    Returns {"windows": [...], "nodes": [...], "edges": [...]}.
+    nodes: one per (window, cluster) with label/size/sov_share/cohesion/top_tags,
+      a `status` of "emerged" / "declined" / "" (relative to the neighbouring
+      computed windows) and the L2-normalized centroid as float32 bytes.
+    edges: between consecutive computed windows with cosine `sim`, a
+      relation (continue/split/merge/split_merge) and drift = 1 - sim.
+    Windows with fewer than `min_signals` dated signals become gaps
+    ({"computed": False}) and break lineage chains deliberately — matching
+    across a data hole would fabricate continuity.
+    """
+    until = until or datetime.now().date().isoformat()
+    bounds = window_bounds(since, until, step_months, span_months)
+    windows: list[dict] = []
+    per_win: list[dict | None] = []
+    for ws, we in bounds:
+        rows = load_signals(status=status, vertical=vertical, since=ws, until=we,
+                            dim1024=dim1024)
+        info = {"start": ws, "end": we, "n": len(rows), "computed": False}
+        if len(rows) < min_signals:
+            windows.append(info)
+            per_win.append(None)
+            continue
+        X = build_matrix(rows)
+        labels, centroids, k = cluster_signals(X, k_range=k_range)
+        res = analyze(rows, X, labels, centroids)
+        cn = centroids / np.clip(np.linalg.norm(centroids, axis=1, keepdims=True),
+                                 1e-9, None)
+        info.update(computed=True, k=k)
+        windows.append(info)
+        per_win.append({"clusters": res["clusters"], "centroids": cn.astype(np.float32),
+                        "total": len(rows)})
+        del X, rows
+        if progress:
+            progress(f"window {ws}..{we}: n={info['n']} k={k}")
+
+    nodes: list[dict] = []
+    node_at: dict[tuple[int, int], int] = {}  # (window_idx, cluster_idx) -> node idx
+    for wi, pw in enumerate(per_win):
+        if pw is None:
+            continue
+        for c in pw["clusters"]:
+            node_at[(wi, c["cluster_idx"])] = len(nodes)
+            nodes.append({
+                "window_idx": wi,
+                "window_start": windows[wi]["start"],
+                "window_end": windows[wi]["end"],
+                "cluster_idx": c["cluster_idx"],
+                "label": c["label"], "size": c["size"],
+                "sov_share": round(c["size"] / pw["total"], 4),
+                "cohesion": c["cohesion"],
+                "top_tags": c["top_tags"][:8],
+                "rep_trend_ids": c["rep_trend_ids"],
+                "centroid": pw["centroids"][c["cluster_idx"]].tobytes(),
+                "status": "",
+            })
+
+    edges: list[dict] = []
+    computed_idx = [i for i, pw in enumerate(per_win) if pw is not None]
+    for a, b in zip(computed_idx, computed_idx[1:]):
+        if b != a + 1:
+            continue  # gap between them — no matching across data holes
+        S = per_win[a]["centroids"] @ per_win[b]["centroids"].T
+        pairs = [(i, j, float(S[i, j]))
+                 for i in range(S.shape[0]) for j in range(S.shape[1])
+                 if S[i, j] >= match_sim]
+        out_deg = Counter(i for i, _, _ in pairs)
+        in_deg = Counter(j for _, j, _ in pairs)
+        for i, j, sim in pairs:
+            edges.append({
+                "from_node": node_at[(a, i)], "to_node": node_at[(b, j)],
+                "sim": round(sim, 4), "drift": round(1.0 - sim, 4),
+                "relation": _relation(out_deg[i], in_deg[j]),
+            })
+
+    has_out = {e["from_node"] for e in edges}
+    has_in = {e["to_node"] for e in edges}
+    first_w = computed_idx[0] if computed_idx else -1
+    last_w = computed_idx[-1] if computed_idx else -1
+    for ni, n in enumerate(nodes):
+        wi = n["window_idx"]
+        prev_computed = wi - 1 in computed_idx
+        next_computed = wi + 1 in computed_idx
+        if wi != first_w and prev_computed and ni not in has_in:
+            n["status"] = "emerged"
+        elif wi != last_w and next_computed and ni not in has_out:
+            n["status"] = "declined"
+    return {"windows": windows, "nodes": nodes, "edges": edges}

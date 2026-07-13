@@ -30,7 +30,8 @@ import time
 
 from pipeline import db as db_mod
 from pipeline.db import get_connection
-from pipeline.foresight import analyze, build_matrix, cluster_signals, load_signals
+from pipeline.foresight import (analyze, build_lineage, build_matrix,
+                                cluster_signals, load_signals)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger("foresight_snapshot")
@@ -79,6 +80,42 @@ def migrate_foresight_tables() -> None:
                      "ON foresight_clusters(run_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fruns_scope "
                      "ON foresight_runs(scope, created_at)")
+        # Lineage artifacts (issue #2 phase 1): cross-window cluster evolution.
+        blob = "BYTEA" if db_mod.USE_POSTGRES else "BLOB"
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS foresight_lineage_runs ("
+            f" {pk},"
+            " scope TEXT NOT NULL,"
+            " status_filter TEXT,"
+            " step_months INTEGER, span_months INTEGER,"
+            " first_window TEXT, last_window TEXT,"
+            " windows INTEGER, nodes INTEGER, edges INTEGER,"
+            f" {created})"
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS foresight_lineage_nodes ("
+            f" {pk},"
+            " run_id INTEGER NOT NULL REFERENCES foresight_lineage_runs(id),"
+            " node_idx INTEGER,"              # index within the run (edge refs)
+            " window_start TEXT, window_end TEXT,"
+            " cluster_idx INTEGER,"
+            " label TEXT, size INTEGER, sov_share REAL, cohesion REAL,"
+            " top_tags TEXT, rep_trend_ids TEXT,"   # JSON arrays
+            " status TEXT,"                   # '' | 'emerged' | 'declined'
+            f" centroid {blob})"
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS foresight_lineage_edges ("
+            f" {pk},"
+            " run_id INTEGER NOT NULL REFERENCES foresight_lineage_runs(id),"
+            " from_node INTEGER, to_node INTEGER,"  # node_idx values within the run
+            " sim REAL, drift REAL,"
+            " relation TEXT)"                 # continue | split | merge | split_merge
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_flnodes_run "
+                     "ON foresight_lineage_nodes(run_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_fledges_run "
+                     "ON foresight_lineage_edges(run_id)")
 
 
 def prune_old_runs(keep_per_scope: int = 1) -> int:
@@ -100,6 +137,83 @@ def prune_old_runs(keep_per_scope: int = 1) -> int:
             conn.execute(f"DELETE FROM foresight_clusters WHERE run_id IN ({ph})", stale)
             conn.execute(f"DELETE FROM foresight_runs WHERE id IN ({ph})", stale)
         return len(stale)
+
+
+def prune_old_lineage_runs(keep_per_scope: int = 1) -> int:
+    """Same policy as prune_old_runs, for the lineage tables."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, scope FROM foresight_lineage_runs ORDER BY scope, id DESC"
+        ).fetchall()
+        seen: dict[str, int] = {}
+        stale: list[int] = []
+        for r in rows:
+            rid = r["id"] if isinstance(r, dict) else r[0]
+            scope = r["scope"] if isinstance(r, dict) else r[1]
+            seen[scope] = seen.get(scope, 0) + 1
+            if seen[scope] > keep_per_scope:
+                stale.append(rid)
+        if stale:
+            ph = ",".join("?" * len(stale))
+            conn.execute(f"DELETE FROM foresight_lineage_edges WHERE run_id IN ({ph})", stale)
+            conn.execute(f"DELETE FROM foresight_lineage_nodes WHERE run_id IN ({ph})", stale)
+            conn.execute(f"DELETE FROM foresight_lineage_runs WHERE id IN ({ph})", stale)
+        return len(stale)
+
+
+def run_lineage(scope: str, status: str = "signal,published",
+                since: str = "2016-01-01", until: str | None = None,
+                step_months: int = 3, span_months: int = 12,
+                k_range: tuple[int, int] | None = None,
+                dim1024: bool = False,
+                min_signals: int | None = None) -> int | None:
+    """Build and persist a cross-window lineage for one scope. Returns run_id."""
+    vertical = scope.split(":", 1)[1] if scope.startswith("vertical:") else None
+    if k_range is None:
+        k_range = DEFAULT_K_RANGE["vertical" if vertical else "global"]
+
+    t0 = time.time()
+    kwargs = {} if min_signals is None else {"min_signals": min_signals}
+    res = build_lineage(status=status, vertical=vertical, since=since, until=until,
+                        step_months=step_months, span_months=span_months,
+                        k_range=k_range, dim1024=dim1024,
+                        progress=lambda m: logger.info("[%s] %s", scope, m),
+                        **kwargs)
+    computed = [w for w in res["windows"] if w["computed"]]
+    if not computed:
+        logger.warning("[%s] no window reached LINEAGE_MIN_SIGNALS — nothing persisted",
+                       scope)
+        return None
+
+    with get_connection() as conn:
+        returning = " RETURNING id" if db_mod.USE_POSTGRES else ""
+        cur = conn.execute(
+            "INSERT INTO foresight_lineage_runs (scope, status_filter, step_months,"
+            " span_months, first_window, last_window, windows, nodes, edges)"
+            f" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?){returning}",
+            (scope, status, step_months, span_months,
+             computed[0]["start"], computed[-1]["start"],
+             len(computed), len(res["nodes"]), len(res["edges"])))
+        run_id = cur.lastrowid
+        for idx, n in enumerate(res["nodes"]):
+            conn.execute(
+                "INSERT INTO foresight_lineage_nodes (run_id, node_idx, window_start,"
+                " window_end, cluster_idx, label, size, sov_share, cohesion, top_tags,"
+                " rep_trend_ids, status, centroid) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (run_id, idx, n["window_start"], n["window_end"], n["cluster_idx"],
+                 n["label"], n["size"], n["sov_share"], n["cohesion"],
+                 json.dumps(n["top_tags"]), json.dumps(n["rep_trend_ids"]),
+                 n["status"], n["centroid"]))
+        for e in res["edges"]:
+            conn.execute(
+                "INSERT INTO foresight_lineage_edges (run_id, from_node, to_node,"
+                " sim, drift, relation) VALUES (?,?,?,?,?,?)",
+                (run_id, e["from_node"], e["to_node"], e["sim"], e["drift"],
+                 e["relation"]))
+    logger.info("[%s] lineage run %d persisted: %d windows, %d nodes, %d edges, %.0fs",
+                scope, run_id, len(computed), len(res["nodes"]), len(res["edges"]),
+                time.time() - t0)
+    return run_id
 
 
 def run_snapshot(scope: str, status: str = "signal,published",
@@ -167,6 +281,12 @@ def main() -> int:
                     help="lead-time tier label stored on run+clusters (radar ring)")
     ap.add_argument("--dim1024", action="store_true",
                     help="cluster on the Matryoshka 1024-dim column (full-space runs)")
+    ap.add_argument("--lineage", action="store_true",
+                    help="build a cross-window lineage instead of a single snapshot")
+    ap.add_argument("--since", default="2016-01-01", help="lineage: first window start")
+    ap.add_argument("--until", default=None, help="lineage: coverage end (default today)")
+    ap.add_argument("--step", type=int, default=3, help="lineage: window step in months")
+    ap.add_argument("--span", type=int, default=12, help="lineage: window span in months")
     args = ap.parse_args()
 
     if not args.scope and not args.all_verticals:
@@ -179,12 +299,20 @@ def main() -> int:
               if args.all_verticals else [])
     done = 0
     for scope in scopes:
-        rid = run_snapshot(scope, status=args.status, k=args.k, k_range=k_range,
-                           limit=args.limit, source_like=args.source_like,
-                           tier=args.tier, dim1024=args.dim1024)
+        if args.lineage:
+            rid = run_lineage(scope, status=args.status, since=args.since,
+                              until=args.until, step_months=args.step,
+                              span_months=args.span, k_range=k_range,
+                              dim1024=args.dim1024)
+        else:
+            rid = run_snapshot(scope, status=args.status, k=args.k, k_range=k_range,
+                               limit=args.limit, source_like=args.source_like,
+                               tier=args.tier, dim1024=args.dim1024)
         done += 1 if rid else 0
-    pruned = prune_old_runs(keep_per_scope=1)
-    print(f"{done}/{len(scopes)} snapshots persisted ({pruned} stale runs pruned).")
+    pruned = (prune_old_lineage_runs(keep_per_scope=1) if args.lineage
+              else prune_old_runs(keep_per_scope=1))
+    kind = "lineages" if args.lineage else "snapshots"
+    print(f"{done}/{len(scopes)} {kind} persisted ({pruned} stale runs pruned).")
     return 0
 
 
