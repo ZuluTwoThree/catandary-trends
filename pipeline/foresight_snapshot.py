@@ -226,10 +226,16 @@ def run_snapshot(scope: str, status: str = "signal,published",
         k_range = DEFAULT_K_RANGE["vertical" if vertical else "global"]
 
     t0 = time.time()
+    # Canonical tier scoping (TIER_FILTERS in the engine): a known tier label
+    # scopes the load by itself; an explicit --source-like still overrides.
+    from pipeline.foresight import TIER_FILTERS
+    tier_scope = tier if (tier in TIER_FILTERS and not source_like) else None
     rows = load_signals(status=status, vertical=vertical,
-                        source_like=source_like, limit=limit, dim1024=dim1024)
-    logger.info("[%s] %d signals with embedding (status=%s%s)", scope, len(rows),
-                status, f", source_like={source_like}" if source_like else "")
+                        source_like=source_like, limit=limit, dim1024=dim1024,
+                        tier=tier_scope)
+    logger.info("[%s] %d signals with embedding (status=%s%s%s)", scope, len(rows),
+                status, f", source_like={source_like}" if source_like else "",
+                f", tier={tier_scope}" if tier_scope else "")
     if len(rows) < MIN_SIGNALS:
         logger.warning("[%s] below MIN_SIGNALS=%d — skipping", scope, MIN_SIGNALS)
         return None

@@ -56,15 +56,32 @@ MINIBATCH_ABOVE = 100_000  # switch to MiniBatchKMeans above this many points
 
 # ---------------------------------------------------------------- data loading
 
+# Canonical lead-time tier → source mapping (issue #2/#3). Preprint servers are
+# source_type='api' but belong to the science tier; patents and funding share
+# 'api' and are told apart by source name. LIKE patterns are bound params —
+# literal % in the SQL breaks under the ?→%s psycopg2 wrapper.
+TIER_FILTERS: dict[str, tuple[str, list[str]]] = {
+    "science": ("(s.source_type = 'research' OR t.source_name LIKE ?)",
+                ["%Preprints%"]),
+    "patent": ("(t.source_name LIKE ? OR t.source_name LIKE ?)",
+               ["Google Patents%", "EPO %"]),
+    "funding": ("(" + " OR ".join(["t.source_name LIKE ?"] * 5) + ")",
+                ["NIH RePORTER%", "NSF %", "OpenAIRE%", "UKRI%", "SEC Form D%"]),
+    "market": ("s.source_type IN ('trade_media', 'press_wire', 'brand')", []),
+}
+
+
 def load_signals(status: str = "signal,published", vertical: str | None = None,
                  source_like: str | None = None, limit: int = 0,
                  since: str | None = None, until: str | None = None,
-                 dim1024: bool = False) -> list[dict]:
+                 dim1024: bool = False, tier: str | None = None) -> list[dict]:
     """Load embedded trends joined to their raw entry's published_date.
 
     status: comma list or 'all'. vertical: primary_vertical or None/'ALL' for no
     filter. source_like: comma-separated substrings OR-matched against
     source_name (e.g. 'NSF,NIH,OpenAIRE,UKRI' = the funding pool).
+    tier: canonical lead-time tier scope (TIER_FILTERS key) — the maintained
+    replacement for hand-rolled source_like tier pools.
     since/until: ISO date bounds on published_date (for time-window runs).
     dim1024: load the Matryoshka 1024-dim column instead of the full 4096 —
     4× less text to parse/hold, which is what makes the full 1.1M-signal space
@@ -73,6 +90,12 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     """
     where: list[str] = []
     params: list = []
+    if tier:
+        if tier not in TIER_FILTERS:
+            raise ValueError(f"unknown tier {tier!r} (known: {sorted(TIER_FILTERS)})")
+        cond, tier_params = TIER_FILTERS[tier]
+        where.append(cond)
+        params += tier_params
     if status and status.lower() != "all":
         sts = [s.strip() for s in status.split(",")]
         where.append(f"t.status IN ({','.join('?' * len(sts))})")
@@ -101,10 +124,11 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     # Under Postgres the embedding is a pgvector — cast to text and parse; under
     # SQLite it is the raw float32 blob.
     emb_col = f"t.{emb_field}::text" if db_mod.USE_POSTGRES else f"t.{emb_field}"
+    src_join = (" LEFT JOIN sources s ON r.source_id = s.id" if tier else "")
     sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, "
            "       t.primary_vertical, t.status, t.source_url, "
            f"       r.published_date, {emb_col} AS embedding "
-           "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id "
+           f"FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id{src_join} "
            f"WHERE {' AND '.join(where)}")
     if limit:
         sql += " LIMIT ?"
