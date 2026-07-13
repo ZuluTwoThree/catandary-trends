@@ -1,2 +1,5 @@
 *.tsbuildinfo
 public/quality_preview.json
+
+# env files (secrets)
+.env*
