@@ -46,6 +46,16 @@ const TIER_LABEL: Record<string, string> = {
 };
 const EXAMPLES = ["processed cheese", "solid-state battery electrolyte", "mRNA vaccine manufacturing", "perovskite tandem solar cells"];
 
+// CPC subgroup titles are frequently lowercase fragments that only make sense as a
+// continuation of the parent group ("by addition of preservatives", "characterised
+// by …"). Shown alone they read as gibberish; prefix an ellipsis so it's obviously a
+// sub-facet, and tidy whitespace/trailing separators.
+function cpcLabel(raw: string | undefined): string {
+  const t = (raw || "").replace(/\s+/g, " ").replace(/[;,\s]+$/, "").trim();
+  if (!t) return "—";
+  return /^[a-z]/.test(t) ? `… ${t}` : t;
+}
+
 /* ---- K(t) trajectory chart (with calibration uncertainty band) ---- */
 function Chart({ points }: { points: Point[] }) {
   const W = 720, H = 240, PAD = { t: 22, r: 16, b: 26, l: 40 };
@@ -73,7 +83,7 @@ function Chart({ points }: { points: Point[] }) {
   const yticks: number[] = [];
   for (let v = 0; v <= y1 + 0.001; v += step) yticks.push(v);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="TIR trajectory over time">
+    <svg viewBox={`0 0 ${W} ${H}`} className="block w-full max-w-full h-auto" role="img" aria-label="TIR trajectory over time">
       <text x={PAD.l} y={PAD.t - 8} textAnchor="middle" style={{ font: "8px ui-monospace, monospace" }} fill="#8a8d82">%/yr</text>
       {yticks.map((v) => (
         <g key={v}>
@@ -167,7 +177,7 @@ export default function TechnologyTool() {
   const selN = res?.candidates?.filter((c) => sel.has(c.symbol)).reduce((s, c) => s + c.n, 0) ?? 0;
 
   return (
-    <section className="border border-accent/40 bg-accent/5 p-5 sm:p-6">
+    <section className="border border-accent/40 bg-accent/5 p-4 sm:p-6 overflow-x-clip">
       <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">
         —— Technologie-Analyse · Verbesserungsrate & Innovationskette
       </div>
@@ -206,7 +216,7 @@ export default function TechnologyTool() {
       {res && !loading && !res.off_topic && (
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,260px)_1fr]">
           {/* left: user-selectable CPC classes */}
-          <div>
+          <div className="min-w-0">
             <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-2">
               Patentklassen — deine Auswahl ({sel.size})
             </div>
@@ -216,10 +226,10 @@ export default function TechnologyTool() {
                 return (
                   <button key={c.symbol} onClick={() => toggle(c.symbol)} disabled={rerun}
                     className={`w-full text-left flex items-start gap-2 px-2 py-1.5 border transition-colors ${on ? "border-accent/50 bg-accent/10" : "border-border hover:border-border/80"} disabled:opacity-60`}>
-                    <span className={`mt-0.5 font-mono text-[11px] ${on ? "text-accent" : "text-muted"}`}>{on ? "☑" : "☐"}</span>
+                    <span className={`mt-0.5 font-mono text-[11px] shrink-0 ${on ? "text-accent" : "text-muted"}`}>{on ? "☑" : "☐"}</span>
                     <span className="min-w-0 flex-1">
-                      <span className="font-mono text-[11px] text-paper">{c.symbol}</span>
-                      <span className="block font-sans text-[11px] text-muted leading-tight truncate">{c.title}</span>
+                      <span className="font-mono text-[11px] text-paper break-words">{c.symbol}</span>
+                      <span className="block font-sans text-[11px] text-muted leading-tight break-words">{cpcLabel(c.title)}</span>
                     </span>
                     <span className="font-mono text-[10px] text-muted shrink-0 tabular-nums">{c.n.toLocaleString("de")}</span>
                   </button>
@@ -271,7 +281,7 @@ export default function TechnologyTool() {
                     const tr = lead.tiers?.[t];
                     if (!tr) return null;
                     return (
-                      <div key={t} className="grid grid-cols-[70px_1fr_auto] items-center gap-3">
+                      <div key={t} className="grid grid-cols-[52px_1fr_auto] sm:grid-cols-[70px_1fr_auto] items-center gap-2 sm:gap-3">
                         <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text">{TIER_LABEL[t]}</span>
                         <span className="min-w-0"><Spark series={tr.series} /></span>
                         <span className="font-mono text-[10px] text-muted tabular-nums shrink-0">{tr.median ? `~${tr.median}` : "—"}</span>
