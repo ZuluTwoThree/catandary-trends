@@ -25,11 +25,12 @@ interface Lead {
   concurrent: boolean;
   established?: boolean;
 }
+interface HubPatent { pub: string; cites: number; title: string; year: string | null; url: string }
 interface Analysis {
   query?: string; off_topic?: boolean; nearest_dist?: number;
   candidates?: Candidate[]; selection?: string[];
   trajectory?: Traj | null; leadtime?: Lead | null; verdict?: string | null;
-  error?: string;
+  top_patents?: HubPatent[]; error?: string;
 }
 
 const DIR_LABEL: Record<string, string> = {
@@ -166,7 +167,7 @@ export default function TechnologyTool() {
       const codes = Array.from(next).join(",");
       const r = await fetch(`/api/foresight/analyze?codes=${encodeURIComponent(codes)}`);
       const data = (await r.json()) as Analysis;
-      if (r.ok && data.trajectory) setRes({ ...res, trajectory: data.trajectory });
+      if (r.ok && data.trajectory) setRes({ ...res, trajectory: data.trajectory, top_patents: data.top_patents });
     } catch { /* keep previous trajectory on transient error */ }
     finally { setRerun(false); }
   }
@@ -299,6 +300,27 @@ export default function TechnologyTool() {
                         {!lead.lead_science_market && !lead.lead_patent_market && !lead.concurrent ? "Kein klarer Tier-Vorlauf messbar." : null}
                       </>}
                 </p>
+              </div>
+            )}
+
+            {/* most-cited (landmark) patents in the selection */}
+            {res.top_patents && res.top_patents.length > 0 && (
+              <div className="mt-5 border-t border-border pt-4">
+                <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-3">
+                  Meistzitierte Patente in dieser Auswahl
+                </div>
+                <ul className="space-y-1.5">
+                  {res.top_patents.map((p) => (
+                    <li key={p.pub} className="flex items-start gap-3">
+                      <span className="font-mono text-[11px] text-accent tabular-nums shrink-0 w-14 text-right">{p.cites}×</span>
+                      <a href={p.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 group">
+                        <span className="font-sans text-[12px] text-text group-hover:text-paper break-words">{p.title || p.pub}</span>{" "}
+                        <span className="font-mono text-[10px] text-muted whitespace-nowrap">{p.pub}{p.year ? ` · ${p.year}` : ""} ↗</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 font-mono text-[10px] text-muted">Vorwärts-Zitationen im Korpus · Klick öffnet Espacenet</p>
               </div>
             )}
           </div>

@@ -101,6 +101,33 @@ def _patent_years_full(codes: list[str]) -> Counter:
     return years
 
 
+def top_patents(sel_codes: list[str], limit: int = 8) -> list[dict]:
+    """The most FORWARD-CITED patents carrying the selected classes — the domain's
+    landmark/hub patents (the 'meistzitierte Patente' evidence). Counts on the DB
+    citation graph (patent_links) and pulls the title from raw_entries."""
+    if not sel_codes:
+        return []
+    like = " OR ".join("pc.cpc LIKE %s" for _ in sel_codes)
+    sql = (
+        "WITH dom AS (SELECT DISTINCT pc.pub_number FROM patent_cpc pc WHERE (" + like + ")) "
+        "SELECT pl.dst_pub pub, COUNT(*) cites, "
+        "       MIN(re.title) title, MIN(substr(re.published_date::text,1,4)) yr "
+        "FROM patent_links pl JOIN dom ON dom.pub_number = pl.dst_pub "
+        "LEFT JOIN raw_entries re ON re.pub_number = pl.dst_pub "
+        "WHERE pl.link_type = 'cites' "
+        "GROUP BY pl.dst_pub ORDER BY cites DESC LIMIT %s")
+    out = []
+    with get_connection() as c:
+        cur = c._conn.cursor()
+        cur.execute(sql, tuple(s + "%" for s in sel_codes) + (limit,))
+        for pub, cites, title, yr in cur.fetchall():
+            out.append({"pub": pub, "cites": int(cites),
+                        "title": (title or "").strip()[:160], "year": yr,
+                        "url": "https://worldwide.espacenet.com/patent/search?q=pn%3D%22"
+                               + (pub or "").replace("-", "") + "%22"})
+    return out
+
+
 def leadtime(vec: list[float], sel_codes: list[str], threshold: float = 0.55) -> dict:
     """Cross-tier timing (research→patent→funding→market). Phrase-level semantic
     lens; NO TIR (the canonical TIR is the trajectory's). Patent tier scoped to the
@@ -154,7 +181,7 @@ def analyze_query(query: str) -> dict:
     lead = leadtime(vec, sel)
     return {"query": query, "off_topic": False, "candidates": cands,
             "selection": sel, "trajectory": traj, "leadtime": lead,
-            "verdict": _verdict(traj, lead)}
+            "top_patents": top_patents(sel), "verdict": _verdict(traj, lead)}
 
 
 def _verdict(traj: dict, lead: dict) -> str | None:
@@ -187,9 +214,10 @@ def _verdict(traj: dict, lead: dict) -> str | None:
 
 
 def analyze_codes(codes: list[str]) -> dict:
-    """Re-analyze the trajectory for an explicit user selection (no embedding)."""
+    """Re-analyze the trajectory + hub patents for an explicit user selection (no
+    embedding — pure SQL, so a checkbox toggle stays fast)."""
     traj = trajectory([c + "%" for c in codes])
-    return {"selection": codes, "trajectory": traj}
+    return {"selection": codes, "trajectory": traj, "top_patents": top_patents(codes)}
 
 
 def main() -> int:
