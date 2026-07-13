@@ -1,0 +1,139 @@
+import Link from "next/link";
+import { getLatestClusterRun } from "@/lib/foresight";
+import { VERTICALS } from "@/lib/types";
+import TierGate from "@/components/TierGate";
+import ExportButton from "@/components/foresight/ExportButton";
+
+export const dynamic = "force-dynamic";
+
+export const metadata = {
+  title: "Foresight Dossier — Catandary Trends",
+  description: "A printable one-page trend dossier: what's rising, holding and cooling in a scope.",
+};
+
+function momentumWord(m: string, pp: number): string {
+  if (m === "rising") return `rising (+${pp.toFixed(1)} pts share)`;
+  if (m === "declining") return `cooling (${pp.toFixed(1)} pts share)`;
+  if (m === "stable") return "holding steady";
+  return "—";
+}
+
+/**
+ * Printable foresight dossier (Epic W3.7) — the artefact an analyst hands on.
+ * Clean, dense, print-CSS optimised (no chrome when printed). Pro-gated. Single
+ * vertical selector. Reads the persisted snapshot.
+ */
+export default async function DossierPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  const requested = typeof sp.vertical === "string" ? sp.vertical.toUpperCase() : null;
+  const scope = requested ? `vertical:${requested}` : "global";
+  const data =
+    (await getLatestClusterRun(scope)) ??
+    (scope !== "global" ? await getLatestClusterRun("global") : null);
+
+  const asOf = data?.run.created_at
+    ? new Date(data.run.created_at + "Z").toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+
+  const clusters = (data?.clusters ?? [])
+    .slice()
+    .sort((a, b) => b.sov_delta_pp - a.sov_delta_pp);
+  const rising = clusters.filter((c) => c.momentum === "rising");
+  const cooling = clusters.filter((c) => c.momentum === "declining");
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-8">
+      <div className="mb-6 flex items-start justify-between gap-4 print:hidden">
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/trends/foresight/dossier"
+            className={`rounded-full px-3 py-1 text-sm ${requested ? "opacity-60" : "font-semibold underline"}`}
+          >
+            All
+          </Link>
+          {VERTICALS.map((v) => (
+            <Link
+              key={v.id}
+              href={`/trends/foresight/dossier?vertical=${v.id}`}
+              className={`rounded-full px-3 py-1 text-sm ${requested === v.id ? "font-semibold underline" : "opacity-60"}`}
+            >
+              {v.label}
+            </Link>
+          ))}
+        </div>
+        <ExportButton scope={scope} />
+      </div>
+
+      <TierGate need="pro" feature="The exportable dossier">
+        <article className="dossier">
+          <header className="mb-5 border-b border-current/15 pb-4">
+            <div className="text-xs uppercase tracking-wider opacity-60">
+              Catandary Foresight Dossier
+            </div>
+            <h1 className="mt-1 text-2xl font-bold">
+              {requested ? VERTICALS.find((v) => v.id === requested)?.label : "All industries"}
+            </h1>
+            <p className="mt-1 text-sm opacity-70">
+              {data ? `${data.clusters.length} trend clusters` : "no data"}
+              {asOf ? ` · as of ${asOf}` : ""}
+            </p>
+          </header>
+
+          <section className="mb-6">
+            <h2 className="mb-2 text-sm font-bold uppercase tracking-wide">Rising</h2>
+            {rising.length ? (
+              <ol className="space-y-2">
+                {rising.slice(0, 10).map((c) => (
+                  <li key={c.id} className="text-sm">
+                    <span className="font-semibold">{c.label}</span> —{" "}
+                    {momentumWord(c.momentum, c.sov_delta_pp)}, {c.size.toLocaleString("en-US")}{" "}
+                    signals from {c.n_sources} sources
+                    {c.top_tags.length ? (
+                      <span className="opacity-60"> · {c.top_tags.slice(0, 4).join(", ")}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-sm opacity-60">No clearly rising clusters in this scope.</p>
+            )}
+          </section>
+
+          {cooling.length > 0 && (
+            <section className="mb-6">
+              <h2 className="mb-2 text-sm font-bold uppercase tracking-wide">Cooling</h2>
+              <ol className="space-y-2">
+                {cooling.slice(0, 6).map((c) => (
+                  <li key={c.id} className="text-sm">
+                    <span className="font-semibold">{c.label}</span> —{" "}
+                    {momentumWord(c.momentum, c.sov_delta_pp)}
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+
+          <footer className="mt-8 border-t border-current/15 pt-3 text-xs opacity-55">
+            Generated by Catandary Trends · evidence-based foresight with primary
+            sources · catandary.de
+          </footer>
+        </article>
+      </TierGate>
+
+      <style>{`
+        @media print {
+          .dossier { font-size: 11pt; }
+          a[href]:after { content: ""; }
+        }
+      `}</style>
+    </div>
+  );
+}
