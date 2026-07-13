@@ -111,14 +111,16 @@ def _load_filtered(max_n: int) -> np.ndarray:
     aren't judgments of relevance). Keeps not_relevant + off-foresight-noise
     (~92% of filtered_out); drops the ~8% duplicate/error/too_old contamination."""
     t0 = time.time()
-    excl = ("(filter_reason IS NULL OR (filter_reason NOT LIKE '%duplicate%' "
-            "AND filter_reason NOT LIKE '%error%' AND filter_reason NOT LIKE 'too_old%' "
-            "AND filter_reason NOT LIKE '%advertorial%' AND filter_reason NOT LIKE '%sponsored%'))")
+    # Patterns as bound params — literal % in the SQL would be read as psycopg2
+    # placeholders (IndexError) under the ?→%s wrapper.
+    pats = ["%duplicate%", "%error%", "too_old%", "%advertorial%", "%sponsored%"]
+    excl = "(filter_reason IS NULL OR (" + " AND ".join(
+        ["filter_reason NOT LIKE ?"] * len(pats)) + "))"
     with db_mod.get_connection() as c:
         rows = c.execute(
             "SELECT embedding_blob FROM raw_entries "
             f"WHERE filtered_out = TRUE AND embedding_blob IS NOT NULL AND {excl} "
-            + (f"LIMIT {int(max_n)}" if max_n else "")).fetchall()
+            + (f"LIMIT {int(max_n)}" if max_n else ""), tuple(pats)).fetchall()
     X = np.empty((len(rows), DIM), dtype=np.float32)
     kept = 0
     for r in rows:
