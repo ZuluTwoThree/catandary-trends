@@ -8,6 +8,7 @@ import {
 import { VERTICALS } from "@/lib/types";
 import ThreadSparkline from "@/components/foresight/ThreadSparkline";
 import ForesightCta from "@/components/ForesightCta";
+import TierGate from "@/components/TierGate";
 
 export const dynamic = "force-dynamic";
 
@@ -151,26 +152,30 @@ export default async function EvolutionPage({
               </div>
             </section>
           )}
-          {ongoing.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-lg font-semibold">Established & moving</h2>
-              <div className="evo-list">
-                {ongoing.map((t) => (
-                  <ThreadRow key={t.key} t={t} color={color} />
-                ))}
-              </div>
-            </section>
-          )}
-          {fading.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-lg font-semibold">Fading</h2>
-              <div className="evo-list">
-                {fading.map((t) => (
-                  <ThreadRow key={t.key} t={t} color={color} />
-                ))}
-              </div>
-            </section>
-          )}
+          {/* Emerging is the free hook; the full established/fading picture is
+              the Pro drill-down (gate transparent while the paywall is off). */}
+          <TierGate need="pro" feature="The full trend evolution">
+            {ongoing.length > 0 && (
+              <section>
+                <h2 className="mb-3 text-lg font-semibold">Established & moving</h2>
+                <div className="evo-list">
+                  {ongoing.map((t) => (
+                    <ThreadRow key={t.key} t={t} color={color} />
+                  ))}
+                </div>
+              </section>
+            )}
+            {fading.length > 0 && (
+              <section className="mt-10">
+                <h2 className="mb-3 text-lg font-semibold">Fading</h2>
+                <div className="evo-list">
+                  {fading.map((t) => (
+                    <ThreadRow key={t.key} t={t} color={color} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </TierGate>
         </div>
       )}
 
