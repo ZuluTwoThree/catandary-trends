@@ -119,18 +119,21 @@ def migrate_foresight_tables() -> None:
 
 
 def prune_old_runs(keep_per_scope: int = 1) -> int:
-    """Keep only the newest `keep_per_scope` runs per scope (+ their clusters).
-    Runs accumulate on every snapshot; the frontend only reads the latest."""
+    """Keep only the newest `keep_per_scope` runs per (scope, tier) (+ clusters).
+    Tier-scoped radar runs all share scope='global' but different tiers, so the
+    key must include tier — otherwise each tier run prunes the previous one."""
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT id, scope FROM foresight_runs ORDER BY scope, id DESC").fetchall()
-        seen: dict[str, int] = {}
+            "SELECT id, scope, tier FROM foresight_runs ORDER BY scope, tier, id DESC"
+        ).fetchall()
+        seen: dict[tuple, int] = {}
         stale: list[int] = []
         for r in rows:
             rid = r["id"] if isinstance(r, dict) else r[0]
-            scope = r["scope"] if isinstance(r, dict) else r[1]
-            seen[scope] = seen.get(scope, 0) + 1
-            if seen[scope] > keep_per_scope:
+            key = ((r["scope"] if isinstance(r, dict) else r[1]),
+                   (r["tier"] if isinstance(r, dict) else r[2]))
+            seen[key] = seen.get(key, 0) + 1
+            if seen[key] > keep_per_scope:
                 stale.append(rid)
         if stale:
             ph = ",".join("?" * len(stale))

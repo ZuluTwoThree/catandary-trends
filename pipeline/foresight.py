@@ -512,16 +512,36 @@ def build_lineage(status: str = "signal,published", vertical: str | None = None,
                 "relation": _relation(out_deg[i], in_deg[j]),
             })
 
-    has_out = {e["from_node"] for e in edges}
-    has_in = {e["to_node"] for e in edges}
-    first_w = computed_idx[0] if computed_idx else -1
-    last_w = computed_idx[-1] if computed_idx else -1
-    for ni, n in enumerate(nodes):
-        wi = n["window_idx"]
-        prev_computed = wi - 1 in computed_idx
-        next_computed = wi + 1 in computed_idx
-        if wi != first_w and prev_computed and ni not in has_in:
-            n["status"] = "emerged"
-        elif wi != last_w and next_computed and ni not in has_out:
-            n["status"] = "declined"
+    # Emergence / decline: comparing against the *adjacent* window is useless
+    # when windows overlap (span > step) — 9 of 12 shared months means almost
+    # every cluster has a neighbour match, so nothing ever looks new. Judge
+    # instead against the nearest NON-overlapping window (>= span months apart),
+    # i.e. "did this theme exist as a distinct cluster a full span ago / will it
+    # a full span from now". overlap_steps windows on each side share data.
+    overlap_steps = max(1, span_months // max(step_months, 1))
+    comp_set = set(computed_idx)
+
+    def _ref_before(wi: int) -> int | None:
+        for r in range(wi - overlap_steps, computed_idx[0] - 1, -1):
+            if r in comp_set:
+                return r
+        return None
+
+    def _ref_after(wi: int) -> int | None:
+        for r in range(wi + overlap_steps, computed_idx[-1] + 1):
+            if r in comp_set:
+                return r
+        return None
+
+    def _matches(wi: int, ci: int, ref: int) -> bool:
+        cen = per_win[wi]["centroids"][ci]
+        return bool((per_win[ref]["centroids"] @ cen).max() >= match_sim)
+
+    for n in nodes:
+        wi, ci = n["window_idx"], n["cluster_idx"]
+        before, after = _ref_before(wi), _ref_after(wi)
+        if before is not None and not _matches(wi, ci, before):
+            n["status"] = "emerged"      # absent a full span ago
+        elif after is not None and not _matches(wi, ci, after):
+            n["status"] = "declined"     # gone a full span from now
     return {"windows": windows, "nodes": nodes, "edges": edges}

@@ -30,16 +30,16 @@ def _emb(vec):
 
 
 def _seed_db():
-    """Theme A (axis 0): every month 2024-01..2024-12. Theme B (axis 1): only
-    2024-07..2024-12 — must show up as an emergence in the window that first
-    contains it."""
+    """Theme A (axis 0): every month 2022-01..2024-12 (spans all windows).
+    Theme B (axis 1): only 2024-01..2024-12 — absent a full span before 2024,
+    so it must be flagged 'emerged' once it appears as its own cluster."""
     if os.path.exists(TEST_DB):
         os.remove(TEST_DB)
     init_db()
     migrate_foresight_tables()
     rng = np.random.default_rng(11)
-    months_a = [f"2024-{m:02d}" for m in range(1, 13)]
-    months_b = [f"2024-{m:02d}" for m in range(7, 13)]
+    months_a = [f"{y}-{m:02d}" for y in (2022, 2023, 2024) for m in range(1, 13)]
+    months_b = [f"2024-{m:02d}" for m in range(1, 13)]
     with get_connection() as conn:
         conn.execute("INSERT INTO sources (id, name, feed_url, source_type, vertical)"
                      " VALUES (1, 'Src', 'http://s', 'trade_media', 'TECH')")
@@ -88,10 +88,10 @@ def test_window_bounds_rolls_and_covers():
 
 def test_lineage_continue_and_emergence():
     res = foresight.build_lineage(
-        status="signal", since="2024-01-01", until="2024-12-31",
-        step_months=3, span_months=6, k_range=(2, 3), min_signals=20)
+        status="signal", since="2022-01-01", until="2024-12-31",
+        step_months=6, span_months=12, k_range=(2, 3), min_signals=20)
     computed = [w for w in res["windows"] if w["computed"]]
-    assert len(computed) >= 3
+    assert len(computed) >= 4
     assert res["nodes"] and res["edges"]
 
     # every edge carries sane fields
@@ -108,14 +108,15 @@ def test_lineage_continue_and_emergence():
     linked = {e["from_node"] for e in res["edges"]} | {e["to_node"] for e in res["edges"]}
     assert set(a_nodes) <= linked
 
-    # theme B (edge-ai) is absent early and flagged as emerged where it appears
+    # theme B (edge-ai) is absent a full span before 2024 → flagged emerged when
+    # it first appears as its own cluster (judged against the non-overlapping
+    # window a full span earlier, not the overlapping neighbour)
     b_nodes = [n for n in res["nodes"]
                if "edge" in " ".join(n["top_tags"]).lower()]
     assert b_nodes
-    first_b = min(n["window_idx"] for n in b_nodes)
-    assert first_b > 0
-    emerged = [n for n in b_nodes if n["window_idx"] == first_b]
-    assert any(n["status"] == "emerged" for n in emerged)
+    assert any(n["status"] == "emerged" for n in b_nodes)
+    # theme A, present throughout, is never flagged emerged
+    assert all(res["nodes"][i]["status"] != "emerged" for i in a_nodes)
 
     # SoV shares within a window sum to ~1
     for wi in a_windows:
@@ -124,17 +125,17 @@ def test_lineage_continue_and_emergence():
 
 
 def test_gap_windows_break_chains():
-    # restrict to a period with a data hole in the middle by raising min_signals
+    # every window below min_signals → all gaps, no nodes/edges
     res = foresight.build_lineage(
-        status="signal", since="2024-01-01", until="2024-12-31",
-        step_months=3, span_months=3, k_range=(2, 3), min_signals=10**6)
+        status="signal", since="2022-01-01", until="2024-12-31",
+        step_months=6, span_months=12, k_range=(2, 3), min_signals=10**6)
     assert all(not w["computed"] for w in res["windows"])
     assert res["nodes"] == [] and res["edges"] == []
 
 
 def test_lineage_persistence_roundtrip():
-    run_id = run_lineage("vertical:TECH", status="signal", since="2024-01-01",
-                         until="2024-12-31", step_months=3, span_months=6,
+    run_id = run_lineage("vertical:TECH", status="signal", since="2022-01-01",
+                         until="2024-12-31", step_months=6, span_months=12,
                          k_range=(2, 3), min_signals=20)
     assert run_id is not None
     with get_connection() as conn:
@@ -156,8 +157,8 @@ def test_lineage_persistence_roundtrip():
         assert len(n["centroid"]) == DIM * 4
 
     # prune keeps exactly the newest run per scope
-    run_id2 = run_lineage("vertical:TECH", status="signal", since="2024-01-01",
-                          until="2024-12-31", step_months=3, span_months=6,
+    run_id2 = run_lineage("vertical:TECH", status="signal", since="2022-01-01",
+                          until="2024-12-31", step_months=6, span_months=12,
                           k_range=(2, 3), min_signals=20)
     assert prune_old_lineage_runs(keep_per_scope=1) == 1
     with get_connection() as conn:
