@@ -153,6 +153,37 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     return out
 
 
+def source_weights_from_pass_rate(target: float = 0.5, floor: float = 0.2,
+                                  min_processed: int = 50) -> dict[str, float]:
+    """Build {source_name: weight} from each source's signal pass-rate (#2 phase 2).
+
+    weight = clamp(pass_rate / target, floor, 1.0): a source that converts
+    `target` (default 50%) or more of its processed entries into signals gets
+    full voice; noisier feeds are down-weighted, but never below `floor` (they
+    still count, just less). Sources with < min_processed entries are left at
+    1.0 (too little evidence to penalise). Read-only aggregate over raw_entries
+    joined to the trends they became — the same measure source_signal_yield.py
+    reports, folded into the foresight maths instead of only being printed.
+    """
+    sql = (
+        "SELECT s.name AS source, "
+        "  COUNT(*) FILTER (WHERE r.processed) AS processed, "
+        "  COUNT(*) FILTER (WHERE EXISTS "
+        "     (SELECT 1 FROM trends t WHERE t.raw_entry_id = r.id)) AS signals "
+        "FROM raw_entries r JOIN sources s ON r.source_id = s.id "
+        "WHERE s.name IS NOT NULL GROUP BY s.name"
+    )
+    weights: dict[str, float] = {}
+    with get_connection() as c:
+        for row in c.execute(sql).fetchall():
+            proc = row["processed"] or 0
+            if proc < min_processed:
+                continue
+            pr = (row["signals"] or 0) / proc
+            weights[row["source"]] = float(min(1.0, max(floor, pr / target)))
+    return weights
+
+
 def build_matrix(rows: list[dict]) -> np.ndarray:
     """Raw float32 bytes → L2-row-normalized matrix; frees each row's bytes."""
     dim = len(rows[0]["_emb"]) // 4
@@ -279,7 +310,7 @@ def distinctive_label(tag_counter: Counter, size: int, tag_df: dict[str, int],
 
 
 def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
-            centroids: np.ndarray) -> dict:
+            centroids: np.ndarray, source_weights: dict[str, float] | None = None) -> dict:
     """Per-cluster analysis + global month axis.
 
     Returns {"months": [...], "totals": [...], "clusters": [cluster-dict, ...]}
@@ -288,14 +319,27 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
     series (count + share of the scope's monthly volume) and SoV momentum
     (Δ share between the early and late thirds of the sufficiently-dense
     months — share-of-voice removes the source-onboarding growth bias).
+
+    source_weights (#2 phase 2): optional {source_name: weight in [0,1]} that
+    down-weights noisy sources in the SHARE / momentum maths (a low-pass-rate
+    feed contributes less voice) while raw counts — size, n, n_sources — stay
+    unweighted for display honesty. None (default) = every source weight 1.0,
+    i.e. byte-identical to the unweighted behaviour.
     """
+    def _w(r: dict) -> float:
+        if not source_weights:
+            return 1.0
+        return source_weights.get(r["source_name"], 1.0)
+
     months = sorted({m for r in rows if (m := month_key(r["published_date"]))})
     midx = {m: i for i, m in enumerate(months)}
-    totals = [0] * len(months)
+    totals = [0] * len(months)          # raw monthly volume (display / density gate)
+    wtotals = [0.0] * len(months)       # weighted monthly volume (share denominator)
     for r in rows:
         mk = month_key(r["published_date"])
         if mk in midx:
             totals[midx[mk]] += 1
+            wtotals[midx[mk]] += _w(r)
 
     # SoV windows: only the most recent MOMENTUM_WINDOW_MONTHS with enough
     # volume (source composition is near-stable there), early/late thirds.
@@ -305,9 +349,9 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
     early_idx = set(meaningful[:third])
     late_idx = set(meaningful[-third:]) if third else set()
 
-    def share(series: list[int], idxs: set[int]) -> float:
+    def share(series: list[float], idxs: set[int]) -> float:
         num = sum(series[i] for i in idxs)
-        den = sum(totals[i] for i in idxs)
+        den = sum(wtotals[i] for i in idxs)
         return num / den if den else 0.0
 
     idx_by_cluster: dict[int, list[int]] = {}
@@ -329,12 +373,14 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
             m["primary_vertical"] for m in members if m["primary_vertical"]).most_common(3)]
         sources = {m["source_name"] for m in members if m["source_name"]}
 
-        series = [0] * len(months)
+        series = [0] * len(months)          # raw counts (display)
+        wseries = [0.0] * len(months)       # weighted counts (share/momentum)
         for m in members:
             mk = month_key(m["published_date"])
             if mk in midx:
                 series[midx[mk]] += 1
-        se, sl = share(series, early_idx), share(series, late_idx)
+                wseries[midx[mk]] += _w(m)
+        se, sl = share(wseries, early_idx), share(wseries, late_idx)
         delta_pp = (sl - se) * 100
         momentum = ("rising" if delta_pp > MOMENTUM_RISING_PP
                     else "declining" if delta_pp < MOMENTUM_DECLINING_PP
@@ -360,7 +406,7 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
             "rep_titles": [(r["title_en"] or "")[:120] for r in reps],
             "monthly_series": [
                 {"m": months[i], "n": series[i],
-                 "share": round(series[i] / totals[i], 4) if totals[i] else 0.0}
+                 "share": round(wseries[i] / wtotals[i], 4) if wtotals[i] else 0.0}
                 for i in range(len(months))
             ],
         })

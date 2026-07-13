@@ -222,7 +222,8 @@ def run_lineage(scope: str, status: str = "signal,published",
 def run_snapshot(scope: str, status: str = "signal,published",
                  k: int | None = None, k_range: tuple[int, int] | None = None,
                  limit: int = 0, source_like: str | None = None,
-                 tier: str | None = None, dim1024: bool = False) -> int | None:
+                 tier: str | None = None, dim1024: bool = False,
+                 noise_weight: bool = False) -> int | None:
     """Cluster one scope and persist the artifacts. Returns run_id or None."""
     vertical = scope.split(":", 1)[1] if scope.startswith("vertical:") else None
     if k_range is None:
@@ -245,7 +246,12 @@ def run_snapshot(scope: str, status: str = "signal,published",
 
     X = build_matrix(rows)
     labels, centroids, k_used = cluster_signals(X, k=k, k_range=k_range)
-    result = analyze(rows, X, labels, centroids)
+    sw = None
+    if noise_weight:
+        from pipeline.foresight import source_weights_from_pass_rate
+        sw = source_weights_from_pass_rate()
+        logger.info("[%s] noise-weighting active: %d sources weighted", scope, len(sw))
+    result = analyze(rows, X, labels, centroids, source_weights=sw)
     months = result["months"]
 
     with get_connection() as conn:
@@ -296,6 +302,8 @@ def main() -> int:
     ap.add_argument("--until", default=None, help="lineage: coverage end (default today)")
     ap.add_argument("--step", type=int, default=3, help="lineage: window step in months")
     ap.add_argument("--span", type=int, default=12, help="lineage: window span in months")
+    ap.add_argument("--noise-weight", action="store_true",
+                    help="down-weight low-pass-rate sources in share/momentum (#2)")
     args = ap.parse_args()
 
     if not args.scope and not args.all_verticals:
@@ -316,7 +324,8 @@ def main() -> int:
         else:
             rid = run_snapshot(scope, status=args.status, k=args.k, k_range=k_range,
                                limit=args.limit, source_like=args.source_like,
-                               tier=args.tier, dim1024=args.dim1024)
+                               tier=args.tier, dim1024=args.dim1024,
+                               noise_weight=args.noise_weight)
         done += 1 if rid else 0
     pruned = (prune_old_lineage_runs(keep_per_scope=1) if args.lineage
               else prune_old_runs(keep_per_scope=1))
