@@ -53,6 +53,7 @@ SUBSTRATE = os.getenv("TIR_SUBSTRATE", "full")
 _CALIB = {
     #            COEF_A,               COEF_B,   SIGMA2
     "full":  (-1.4233 - math.log(100), 7.4484, 0.4516),
+    "fullz": (-3.3074 - math.log(100), 11.0833, 0.5067),  # z-score-null normalization (#35)
     "db":    (-6.460,                  10.192,  0.374),
     "grant": (-3.9069,                 4.1335,  0.4147),
 }
@@ -117,6 +118,7 @@ def _x_by_year(patterns: list[str]) -> dict[int, tuple[float, int]]:
     # others join directly on pub_number.
     cpc_t, spnp_t = {
         "full":  ("patent_cpc_full",  "patent_spnp_full"),
+        "fullz": ("patent_cpc_full",  "patent_spnp_full_z"),
         "grant": ("patent_cpc_grant", "patent_spnp_usgrant"),
     }.get(SUBSTRATE, ("patent_cpc", "patent_spnp"))
     if SUBSTRATE == "db":
