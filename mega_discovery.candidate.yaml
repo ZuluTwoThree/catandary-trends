@@ -1,0 +1,47 @@
+_meta:
+  generated: '2026-07-05T04:04:25.664392+00:00'
+  note: PROPOSAL ONLY — read-only; curate into mega_trends.yaml by hand.
+  signals: 50000
+  n_themes: 3
+  noise_frac: 0.701
+  stability_ari: 0.566
+  method: PCA->HDBSCAN, two-axis (reach+maturity) characterization
+proposed_new:
+- key: digital_convergence_of_entertainment_play_commerce
+  name_en: Digital Convergence of Entertainment, Play & Commerce
+  name_de: Digitale Konvergenz von Unterhaltung, Spiel und Kommerz
+  description: Consumer technology, media franchises, gaming platforms, and financial
+    innovation are increasingly merging into interconnected digital ecosystems that
+    reshape how entertainment is created, owned, and monetized across generations.
+  mega_score: 0.519
+  reach: 0.829
+  maturity_span: 1
+  durability: 0.399
+  lead_tier: null
+  lead_months: null
+  signal_count: 3011
+  verticals:
+  - BIZ
+  - TECH
+  - DESIGN
+  _provenance: cluster 2, purity 0.25
+split_candidates: {}
+canonical_orphans:
+- artificial_intelligence_and_automation
+- clean_energy_transition
+- electric_and_autonomous_mobility
+- new_luxury_and_premiumization
+- regenerative_design_and_net_positive
+- inclusive_and_human_centric_design
+- future_of_food_and_agriculture
+- connected_living_and_smart_spaces
+- creator_economy_and_platform_shift
+- bio_revolution_and_new_materials
+- circular_economy_and_zero_waste
+- climate_resilience_and_adaptation
+- experience_economy_and_immersive_design
+- cultural_heritage_and_identity
+- digital_trust_and_data_sovereignty
+- mental_health_and_neuro_wellness
+- wearable_technology_and_augmented_living
+- virtual_worlds_consolidation
