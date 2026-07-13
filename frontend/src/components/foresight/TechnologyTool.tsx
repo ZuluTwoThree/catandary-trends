@@ -57,19 +57,72 @@ function cpcLabel(raw: string | undefined): string {
   return /^[a-z]/.test(t) ? `… ${t}` : t;
 }
 
-/* ---- K(t) trajectory chart (with calibration uncertainty band) ---- */
-function Chart({ points }: { points: Point[] }) {
-  const W = 720, H = 240, PAD = { t: 22, r: 16, b: 26, l: 40 };
+/* ---- trajectory chart: rate (%/yr, linear + CI band) or cumulative (index, log) ---- */
+function Chart({ points, mode, earliestYear }: { points: Point[]; mode: "rate" | "cumulative"; earliestYear?: number | null }) {
+  const W = 720, H = 240, PAD = { t: 22, r: 16, b: 26, l: 44 };
   if (points.length < 2) return null;
-  const xs = points.map((p) => p.year);
-  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const firstYr = points[0].year;
+  // x-axis ALWAYS anchored at the earliest citation year; the span before the first
+  // measurable point (few citations / central patents) is greyed.
+  const x0 = Math.min(earliestYear ?? firstYr, firstYr);
+  const x1 = Math.max(...points.map((p) => p.year));
+  const px = (yr: number) => PAD.l + ((yr - x0) / Math.max(x1 - x0, 1)) * (W - PAD.l - PAD.r);
+  const plotH = H - PAD.t - PAD.b;
+  const complete = points.filter((p) => p.complete);
+  const lastComplete = complete.length ? complete[complete.length - 1].year : x1;
+  const xlabels = [x0, Math.round((x0 + x1) / 2), lastComplete, x1].filter((v, i, a) => a.indexOf(v) === i);
+
+  // shared frame: sparse-early band [x0 → firstYr] + recent-immature band
+  const frame = (
+    <>
+      {xlabels.map((yr) => (
+        <text key={yr} x={px(yr)} y={H - PAD.b + 15} textAnchor="middle" style={{ font: "9px ui-monospace, monospace" }} fill="#8a8d82">{yr}</text>
+      ))}
+      {firstYr > x0 && (
+        <>
+          <rect x={px(x0)} y={PAD.t} width={px(firstYr) - px(x0)} height={plotH} fill="#8a8d82" opacity={0.08} />
+          <text x={(px(x0) + px(firstYr)) / 2} y={PAD.t + 10} textAnchor="middle" style={{ font: "8px ui-sans-serif, system-ui" }} fill="#8a8d82">wenige Zitationen · spärlich</text>
+        </>
+      )}
+      {x1 > lastComplete && (
+        <>
+          <rect x={px(lastComplete)} y={PAD.t} width={px(x1) - px(lastComplete)} height={plotH} fill="#8a8d82" opacity={0.06} />
+          <text x={(px(lastComplete) + px(x1)) / 2} y={PAD.t + 10} textAnchor="middle" style={{ font: "8px ui-sans-serif, system-ui" }} fill="#8a8d82">noch unreif</text>
+        </>
+      )}
+    </>
+  );
+
+  if (mode === "cumulative") {
+    // compound (1+K/100) over complete points; index = 1.0 at the first complete year
+    let cum = 1;
+    const cs = complete.map((p, i) => { if (i > 0) cum *= 1 + p.K / 100; return { year: p.year, y: cum }; });
+    const yMax = Math.max(...cs.map((s) => s.y), 2);
+    const logMax = Math.log10(yMax) || 1;
+    const py = (v: number) => H - PAD.b - (Math.log10(Math.max(v, 1)) / logMax) * plotH;
+    const decades: number[] = [];
+    for (let e = 0; Math.pow(10, e) <= yMax * 1.05; e++) decades.push(Math.pow(10, e));
+    const seg = cs.map((s, i) => `${i ? "L" : "M"}${px(s.year).toFixed(1)},${py(s.y).toFixed(1)}`).join(" ");
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full max-w-full h-auto" role="img" aria-label="cumulative improvement index over time">
+        <text x={PAD.l} y={PAD.t - 8} textAnchor="middle" style={{ font: "8px ui-monospace, monospace" }} fill="#8a8d82">×seit Start</text>
+        {decades.map((v) => (
+          <g key={v}>
+            <line x1={PAD.l} x2={W - PAD.r} y1={py(v)} y2={py(v)} stroke="#2a2d25" strokeWidth={1} />
+            <text x={PAD.l - 6} y={py(v) + 3} textAnchor="end" style={{ font: "9px ui-monospace, monospace" }} fill="#8a8d82">{v >= 1000 ? `${v / 1000}k` : v}×</text>
+          </g>
+        ))}
+        {frame}
+        <path d={seg} fill="none" stroke="#d4ff3a" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  // rate mode (linear, with CI band)
   const rawMax = Math.max(...points.map((p) => p.K_hi ?? p.K), 1);
   const step = rawMax > 40 ? 20 : rawMax > 20 ? 10 : rawMax > 8 ? 5 : 2;
   const y1 = Math.ceil((rawMax * 1.08) / step) * step;
-  const px = (yr: number) => PAD.l + ((yr - x0) / Math.max(x1 - x0, 1)) * (W - PAD.l - PAD.r);
-  const py = (k: number) => H - PAD.b - (k / y1) * (H - PAD.t - PAD.b);
-  const complete = points.filter((p) => p.complete);
-  const lastComplete = complete.length ? complete[complete.length - 1].year : x0;
+  const py = (k: number) => H - PAD.b - (k / y1) * plotH;
   const seg = (pts: Point[]) => pts.map((p, i) => `${i ? "L" : "M"}${px(p.year).toFixed(1)},${py(p.K).toFixed(1)}`).join(" ");
   const band = (pts: Point[]) => {
     const w = pts.filter((p) => p.K_hi != null && p.K_lo != null);
@@ -79,12 +132,10 @@ function Chart({ points }: { points: Point[] }) {
     return `${up} ${dn} Z`;
   };
   const tail = points.filter((p) => p.year >= lastComplete);
-  // left-edge "sparse early citations" boundary: first year that is no longer flagged
-  const firstDense = points.find((p) => !p.early_sparse)?.year ?? x0;
   const yticks: number[] = [];
   for (let v = 0; v <= y1 + 0.001; v += step) yticks.push(v);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="block w-full max-w-full h-auto" role="img" aria-label="TIR trajectory over time">
+    <svg viewBox={`0 0 ${W} ${H}`} className="block w-full max-w-full h-auto" role="img" aria-label="TIR rate over time">
       <text x={PAD.l} y={PAD.t - 8} textAnchor="middle" style={{ font: "8px ui-monospace, monospace" }} fill="#8a8d82">%/yr</text>
       {yticks.map((v) => (
         <g key={v}>
@@ -92,27 +143,18 @@ function Chart({ points }: { points: Point[] }) {
           <text x={PAD.l - 6} y={py(v) + 3} textAnchor="end" style={{ font: "9px ui-monospace, monospace" }} fill="#8a8d82">{v}</text>
         </g>
       ))}
-      {[x0, Math.round((x0 + lastComplete) / 2), lastComplete, x1].map((yr) => (
-        <text key={yr} x={px(yr)} y={H - PAD.b + 15} textAnchor="middle" style={{ font: "9px ui-monospace, monospace" }} fill="#8a8d82">{yr}</text>
-      ))}
-      {firstDense > x0 && (
-        <>
-          <rect x={px(x0)} y={PAD.t} width={px(firstDense) - px(x0)} height={H - PAD.t - PAD.b} fill="#8a8d82" opacity={0.06} />
-          <text x={(px(x0) + px(firstDense)) / 2} y={PAD.t + 10} textAnchor="middle" style={{ font: "8px ui-sans-serif, system-ui" }} fill="#8a8d82">frühe Zitationen spärlich</text>
-        </>
-      )}
-      {x1 > lastComplete && (
-        <>
-          <rect x={px(lastComplete)} y={PAD.t} width={px(x1) - px(lastComplete)} height={H - PAD.t - PAD.b} fill="#8a8d82" opacity={0.06} />
-          <text x={(px(lastComplete) + px(x1)) / 2} y={PAD.t + 10} textAnchor="middle" style={{ font: "8px ui-sans-serif, system-ui" }} fill="#8a8d82">Zitationen noch unreif</text>
-        </>
-      )}
+      {frame}
       {band(complete) && <path d={band(complete)} fill="#d4ff3a" opacity={0.1} stroke="none" />}
       <path d={seg(complete)} fill="none" stroke="#d4ff3a" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
       {tail.length >= 2 && <path d={seg(tail)} fill="none" stroke="#8a8d82" strokeWidth={1.5} strokeDasharray="3 3" strokeLinejoin="round" strokeLinecap="round" />}
     </svg>
   );
 }
+
+const PHASE: Record<string, string> = {
+  accelerating: "Wachstumsphase", steady: "etabliert", maturing: "Reife",
+  decelerating: "Sättigung", uncertain: "", insufficient_data: "",
+};
 
 /* ---- tier activity sparkline ---- */
 function Spark({ series }: { series: Record<string, number> }) {
@@ -138,6 +180,7 @@ export default function TechnologyTool() {
   const [res, setRes] = useState<Analysis | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [err, setErr] = useState<string | null>(null);
+  const [mode, setMode] = useState<"rate" | "cumulative">("rate");
 
   async function run(phrase: string) {
     const query = phrase.trim();
@@ -256,21 +299,34 @@ export default function TechnologyTool() {
                   : <span className="text-muted">außerhalb des kalibrierten Bereichs</span>}
               </span>
               {traj?.earliest_year && (
-                <span className="font-mono text-[10px] text-muted">früheste Zitation {traj.earliest_year}</span>
+                <span className="font-mono text-[10px] text-muted">
+                  seit {traj.earliest_year} · {2026 - traj.earliest_year} J.{PHASE[dir] ? ` · ${PHASE[dir]}` : ""}
+                </span>
               )}
               {rerun && <span className="font-mono text-[10px] text-muted animate-pulse">aktualisiere…</span>}
             </div>
 
-            {traj?.points && traj.points.length >= 2
-              ? <Chart points={traj.points} />
-              : <p className="font-sans text-sm text-muted border-l-2 border-border pl-3">Zu wenig Patentdaten in dieser Auswahl für eine Trajektorie — wähle mehr Klassen links.</p>}
+            {traj?.points && traj.points.length >= 2 ? (
+              <>
+                {/* rate ↔ cumulative toggle */}
+                <div className="flex gap-1 mb-2">
+                  {(["rate", "cumulative"] as const).map((m) => (
+                    <button key={m} onClick={() => setMode(m)}
+                      className={`font-mono text-[10px] uppercase tracking-[0.12em] px-2 py-1 border transition-colors ${mode === m ? "border-accent/60 text-accent bg-accent/10" : "border-border text-muted hover:text-text"}`}>
+                      {m === "rate" ? "Rate %/Jahr" : "Kumuliert ×"}
+                    </button>
+                  ))}
+                </div>
+                <Chart points={traj.points} mode={mode} earliestYear={traj.earliest_year} />
+              </>
+            ) : (
+              <p className="font-sans text-sm text-muted border-l-2 border-border pl-3">Zu wenig Patentdaten in dieser Auswahl für eine Trajektorie — wähle mehr Klassen links.</p>
+            )}
 
             <p className="font-sans text-[11px] text-muted mt-2 max-w-3xl">
-              Die Kurve beginnt am frühesten dichten Jahr dieser Technologie. Schattiert
-              links = frühe Zitationen spärlich (vor ~1976), rechts = jüngste Jahre noch
-              unreif. Band = Kalibrierungs-Unsicherheit (~68 %). „Typischer TIR" = Median
-              über die gemessene Historie (robust gegen den Immaturitäts-Ausschlag der
-              jüngsten Jahre); die Richtung zeigt den aktuellen Trend.
+              {mode === "cumulative"
+                ? <>Kumulierter Fortschritts-Index (Start = 1× am frühesten Zitationsjahr), das Integral der Rate — Log-Achse, sodass die Steigung der TIR entspricht und Reife als Abflachen sichtbar wird. Relativer Index, keine absolute Leistung.</>
+                : <>Die X-Achse beginnt am frühesten Zitationsjahr; die spärliche Frühphase (wenige Patente) und die jüngsten unreifen Jahre sind ausgegraut. Band = Kalibrierungs-Unsicherheit (~68 %). „Typischer TIR" = Median über die gemessene Historie; die Richtung zeigt den aktuellen Trend.</>}
             </p>
 
             {/* cross-tier lead time */}
