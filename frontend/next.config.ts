@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // NB: no `output: "standalone"` — the deployment runs `next start -p 3001`
+  // (deploy/ecosystem.config.js / README / CLAUDE.md), which serves the normal
+  // .next build. standalone emits a separate .next/standalone/server.js that
+  // `next start` ignores, so it only produced a startup warning + a dead dir.
   // The dev server is reached over Tailscale (100.64.0.0/10 CGNAT range), not
   // localhost. Next 16 blocks its client JS / HMR resources for any non-localhost
   // origin by default, which stops "use client" components from hydrating (the
