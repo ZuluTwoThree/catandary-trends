@@ -66,22 +66,34 @@ function Chart({ points, mode, earliestYear }: { points: Point[]; mode: "rate" |
   // measurable point (few citations / central patents) is greyed.
   const x0 = Math.min(earliestYear ?? firstYr, firstYr);
   const x1 = Math.max(...points.map((p) => p.year));
-  const px = (yr: number) => PAD.l + ((yr - x0) / Math.max(x1 - x0, 1)) * (W - PAD.l - PAD.r);
+  const plotW = W - PAD.l - PAD.r;
   const plotH = H - PAD.t - PAD.b;
+  // Piecewise x-axis: the data-FREE sparse era [x0 → firstYr] is COMPRESSED into a
+  // narrow strip (a broken axis) so the measured span gets the room; the data era
+  // [firstYr → x1] is linear. Anchored at the earliest citation year either way.
+  const hasSparse = firstYr > x0;
+  const compW = hasSparse ? Math.min(46, plotW * 0.09) : 0;
+  const px = (yr: number) =>
+    yr <= firstYr
+      ? PAD.l + ((yr - x0) / Math.max(firstYr - x0, 1)) * compW
+      : PAD.l + compW + ((yr - firstYr) / Math.max(x1 - firstYr, 1)) * (plotW - compW);
   const complete = points.filter((p) => p.complete);
   const lastComplete = complete.length ? complete[complete.length - 1].year : x1;
-  const xlabels = [x0, Math.round((x0 + x1) / 2), lastComplete, x1].filter((v, i, a) => a.indexOf(v) === i);
+  const xlabels = [x0, firstYr, lastComplete, x1].filter((v, i, a) => a.indexOf(v) === i);
+  const cx = (hasSparse ? (px(x0) + px(firstYr)) / 2 : 0);
 
-  // shared frame: sparse-early band [x0 → firstYr] + recent-immature band
+  // shared frame: compressed sparse-early strip [x0 → firstYr] + recent-immature band
   const frame = (
     <>
       {xlabels.map((yr) => (
         <text key={yr} x={px(yr)} y={H - PAD.b + 15} textAnchor="middle" style={{ font: "9px ui-monospace, monospace" }} fill="#8a8d82">{yr}</text>
       ))}
-      {firstYr > x0 && (
+      {hasSparse && (
         <>
-          <rect x={px(x0)} y={PAD.t} width={px(firstYr) - px(x0)} height={plotH} fill="#8a8d82" opacity={0.08} />
-          <text x={(px(x0) + px(firstYr)) / 2} y={PAD.t + 10} textAnchor="middle" style={{ font: "8px ui-sans-serif, system-ui" }} fill="#8a8d82">wenige Zitationen · spärlich</text>
+          <rect x={px(x0)} y={PAD.t} width={compW} height={plotH} fill="#8a8d82" opacity={0.1} />
+          {/* axis-break marker + vertical label (the strip is too narrow for horizontal text) */}
+          <line x1={px(firstYr)} x2={px(firstYr)} y1={PAD.t} y2={H - PAD.b} stroke="#8a8d82" strokeWidth={1} strokeDasharray="2 2" opacity={0.5} />
+          <text x={cx} y={PAD.t + plotH / 2} textAnchor="middle" transform={`rotate(-90 ${cx} ${PAD.t + plotH / 2})`} style={{ font: "7px ui-sans-serif, system-ui" }} fill="#8a8d82">spärlich · gestaucht</text>
         </>
       )}
       {x1 > lastComplete && (
@@ -326,7 +338,7 @@ export default function TechnologyTool() {
             <p className="font-sans text-[11px] text-muted mt-2 max-w-3xl">
               {mode === "cumulative"
                 ? <>Kumulierter Fortschritts-Index (Start = 1× am frühesten Zitationsjahr), das Integral der Rate — Log-Achse, sodass die Steigung der TIR entspricht und Reife als Abflachen sichtbar wird. Relativer Index, keine absolute Leistung.</>
-                : <>Die X-Achse beginnt am frühesten Zitationsjahr; die spärliche Frühphase (wenige Patente) und die jüngsten unreifen Jahre sind ausgegraut. Band = Kalibrierungs-Unsicherheit (~68 %). „Typischer TIR" = Median über die gemessene Historie; die Richtung zeigt den aktuellen Trend.</>}
+                : <>Die X-Achse beginnt am frühesten Zitationsjahr; die datenarme Frühphase ist als gebrochene Achse <span className="text-text">gestaucht</span> und ausgegraut, die jüngsten unreifen Jahre ebenso. Band = Kalibrierungs-Unsicherheit (~68 %). „Typischer TIR" = Median über die gemessene Historie; die Richtung zeigt den aktuellen Trend.</>}
             </p>
 
             {/* cross-tier lead time */}
