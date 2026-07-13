@@ -54,6 +54,11 @@ _CALIB = {
     #            COEF_A,               COEF_B,   SIGMA2
     "full":  (-1.4233 - math.log(100), 7.4484, 0.4516),
     "fullz": (-3.3074 - math.log(100), 11.0833, 0.5067),  # z-score-null normalization (#35)
+    # z-score null WITH age-3 forward cap (#45): addresses composition drift AND
+    # the citation-immaturity edge together. Benchmark: Spearman 0.700 / R² 0.457
+    # / SIGMA2 0.421 — better than 'full' (0.65/0.42/0.45); mundane flat, hot
+    # domains high, no C12N15 collapse. The full Singh/Triulzi/Magee method.
+    "fullz3": (-3.0188 - math.log(100), 10.5145, 0.4212),
     "db":    (-6.460,                  10.192,  0.374),
     "grant": (-3.9069,                 4.1335,  0.4147),
 }
@@ -119,6 +124,7 @@ def _x_by_year(patterns: list[str]) -> dict[int, tuple[float, int]]:
     cpc_t, spnp_t = {
         "full":  ("patent_cpc_full",  "patent_spnp_full"),
         "fullz": ("patent_cpc_full",  "patent_spnp_full_z"),
+        "fullz3": ("patent_cpc_full", "patent_spnp_full_z3"),
         "grant": ("patent_cpc_grant", "patent_spnp_usgrant"),
     }.get(SUBSTRATE, ("patent_cpc", "patent_spnp"))
     if SUBSTRATE == "db":
