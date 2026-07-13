@@ -19,4 +19,9 @@ _(werden im Laufe der Nacht hier ergänzt)_
 - **W2.2 Entitlement-Gating** + **W2.3 Stripe** (env-gated): Tier-Matrix (free/starter/pro/superpro), `TierGate` (Teaser + Upgrade-Karte), Pricing-Seite, Checkout+Webhook (dependency-free via fetch/crypto), Admin-CLI `set_user_tier.py`. Gating beidseitig getestet. Hinter `PAYWALL_ENABLED` (Default aus).
 - Dev-Server auf **3004** läuft (Paywall aus = normaler Zustand) für dein Review: `/account/signin`, `/trends/pricing`.
 
-_(wird weiter ergänzt)_
+- **W2.5 Newsletter-Sender** (`#16`): Resend-Batch, signierter One-Click-Unsubscribe (Python↔Frontend-Round-Trip getestet), Idempotenz (`sent_at`), Dry-Run. Cron-Zeile (Mo 9:00 generate && send) vorbereitet, auskommentiert bis DNS verifiziert.
+- **W2.3 Stripe** (env-gated): Checkout + Webhook (dependency-free), wartet auf deinen Stripe-Account zum End-to-End-Test.
+- **W2.7 Rechtstexte-Entwürfe**: `docs/legal/` (Impressum/Datenschutz/AGB/Widerruf) — **DRAFTs, Anwaltsprüfung nötig**, Platzhalter + AVV-Checkliste.
+- **W0.6 vollständig verifiziert** (Restore mit vector-Extension: trends 1.117.625 Zeilen; Scratch-DB gedroppt, 161GB frei).
+
+_(wird weiter ergänzt — als Nächstes W2.6 Landing + Welle-3-Tasks)_

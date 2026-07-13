@@ -15,6 +15,7 @@ import Pagination from "@/components/Pagination";
 import TrendsHero from "@/components/TrendsHero";
 import TrendsEmpty from "@/components/TrendsEmpty";
 import ForesightCta from "@/components/ForesightCta";
+import MovingNow from "@/components/MovingNow";
 import FilterBar from "@/components/filters/FilterBar";
 import ActiveChips from "@/components/filters/ActiveChips";
 import { TrendsListJsonLd } from "@/components/JsonLd";
@@ -64,6 +65,11 @@ export default async function TrendsPage({
         analyzedTotal={analyzedTotal}
         verticalCounts={globalVerticalCounts}
       />
+
+      {/* Value-first: what's moving right now (rising clusters) above the feed */}
+      <Suspense fallback={null}>
+        <MovingNow />
+      </Suspense>
 
       {/* Filter controls */}
       <Suspense fallback={null}>
