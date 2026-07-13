@@ -638,7 +638,9 @@ git push origin dev
 git checkout main
 git merge dev
 git push origin main
-# danach 3001 neu bauen: cd frontend && npm run build && next start -p 3001 (ohne DATABASE_URL)
+# danach 3001 neu bauen + Neustart über systemd (seit 2026-07-13, #38):
+# cd frontend && npm run build && systemctl --user restart catandary-frontend
+# (Unit: deploy/systemd/catandary-frontend.service — ohne DATABASE_URL, Socket-Default; Autostart via Linger)
 ```
 
 **Claude Code soll autonom:**
