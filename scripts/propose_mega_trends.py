@@ -52,13 +52,16 @@ from pipeline.db import get_connection
 
 
 # ----------------------------------------------------------------- data loading
-def load_signals(status: str, limit: int) -> list[dict]:
+def load_signals(status: str, limit: int, vertical: str | None = None) -> list[dict]:
     where = ["t.embedding IS NOT NULL"]
     params: list = []
     if status and status.lower() != "all":
         sts = [s.strip() for s in status.split(",")]
         where.append(f"t.status IN ({','.join('?' * len(sts))})")
         params += sts
+    if vertical and vertical.upper() != "ALL":
+        where.append("t.primary_vertical = ?")
+        params.append(vertical.upper())
     sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.primary_vertical, "
            "       r.published_date, t.embedding "
            "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id "
@@ -212,11 +215,16 @@ def main() -> int:
                     help="NEW-candidate naming: anthropic (better) | local llama-server 8B")
     ap.add_argument("--label-model", default="claude-sonnet-5",
                     help="model for NEW-candidate naming (anthropic backend)")
+    ap.add_argument("--vertical", default=None,
+                    help="scope to one primary_vertical (e.g. LIFESTYLE) for macro/micro "
+                         "discovery in that vertical; default = all verticals (mega altitude)")
     ap.add_argument("--out", default=str(PROJECT_ROOT / "mega_trends.candidate.yaml"))
     args = ap.parse_args()
 
-    rows = load_signals(args.status, args.limit)
-    print(f"signals (status={args.status}) with embedding: {len(rows)}")
+    rows = load_signals(args.status, args.limit, vertical=args.vertical)
+    print(f"signals (status={args.status}"
+          f"{', vertical=' + args.vertical if args.vertical else ''}) "
+          f"with embedding: {len(rows)}")
     if len(rows) < 200:
         print("Too few signals for a meaningful proposal.")
         return 0
