@@ -10,7 +10,11 @@ Autonome Nachtarbeit an Welle 2. Alles auf `epic/alpha`, hinter Feature-Flags (P
 
 ## ❓ Entscheidungen (bis 7:30 zurückgestellt, gesammelt)
 
-_(werden im Laufe der Nacht hier ergänzt)_
+1. **Auth: custom Magic-Link statt NextAuth** — abhängigkeitsfrei gebaut, um Build-Risiko auf Next 16 zu vermeiden. Bitte absegnen oder Wechsel wünschen.
+2. **Volltext-Fetcher (#11 W3.1):** braucht `trafilatura` (neuer Python-Dep). Ich habe ihn **nicht** unbeaufsichtigt installiert. OK, ihn in requirements aufzunehmen? Dann baue ich den Fetcher (größter Content-Qualitäts-Hebel).
+3. **Lead-Tracking** (`docs/gtm/lead_tracking.md`): personenfreie, cookielose Zähl-Events — so bauen (kein Consent-Banner) oder anders?
+4. **Filter-Bar einklappen + Lead-Time-Story-Grafik** — bewusst fürs UX-Gate zurückgestellt; baue ich nach deinem Blick.
+5. **Prod-Merge:** `epic/alpha` ist ~20 Commits vor `dev`. Wann erster wellenweiser Merge (Auth/Paywall bleiben per Flag aus auf Prod)?
 
 ## ✅ In der Nacht erledigt
 
@@ -24,4 +28,17 @@ _(werden im Laufe der Nacht hier ergänzt)_
 - **W2.7 Rechtstexte-Entwürfe**: `docs/legal/` (Impressum/Datenschutz/AGB/Widerruf) — **DRAFTs, Anwaltsprüfung nötig**, Platzhalter + AVV-Checkliste.
 - **W0.6 vollständig verifiziert** (Restore mit vector-Extension: trends 1.117.625 Zeilen; Scratch-DB gedroppt, 161GB frei).
 
-_(wird weiter ergänzt — als Nächstes W2.6 Landing + Welle-3-Tasks)_
+- **W2.6 Landing value-first**: „What's moving"-Leiste (steigende Cluster, Klartext + Radar-Link) über dem Grid. Sub-Hero existierte schon.
+- **W3.7 Export** (Agentur-Segment): CSV-Export der Cluster + druckfähige **Dossier**-Seite (`/trends/foresight/dossier`), Pro-gated. Getestet.
+- **W4 GTM-Assets**: `docs/gtm/` — Rollout-Stufenplan, Lead-Tracking-Plan, Segment-1-Pager.
+
+### Zum Anschauen auf 3004 (Dev-Server, Paywall AUS = Normalzustand)
+- `/trends` (Landing mit „What's moving"), `/trends/foresight/radar`, `/trends/foresight/evolution?vertical=HEALTH`
+- `/trends/foresight/dossier?vertical=HEALTH`, `/trends/pricing`, `/account/signin` (Magic-Link-Flow, Link erscheint in der Konsole/Server-Log)
+
+### Noch laufend / gated
+- **z3-Build (#45)** läuft noch (~1,5h Compute, langsame Spätrunden); danach validiere ich die 4 Kriterien + entscheide das TIR-Substrat autonom.
+- **W1.6 Mega-Taxonomie**: LIFESTYLE-Discovery hinter z3 eingereiht; danach brauche ich deine **Label-Kuratierung** (Entscheidung, s. u. bei Owner-Tasks).
+
+### Gesamtstand Epic
+Welle 0 ✅ · Welle 1 ✅ (bis auf z3-Validierung + W1.6-Kuratierung) · Welle 2 ✅ (bis auf Owner-Gates Stripe/DNS) · Welle 3 teilweise (Export ✅). Alle Tests grün (115 Python + Frontend-tsc). 4 Issues geschlossen (#28/#35/#38/#41).
