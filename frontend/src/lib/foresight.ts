@@ -336,3 +336,195 @@ export async function getRadarData(vertical: string | null = null): Promise<Rada
     return empty;
   }
 }
+
+/* ------------------------------- Lineage view ------------------------------ */
+/**
+ * Cross-window cluster lineage (#2 phase 1): trend evolution over time —
+ * emergence / continuation / split / merge / decline and semantic drift, read
+ * from foresight_lineage_{runs,nodes,edges} (built by run_lineage). The
+ * frontend reads the latest lineage per scope; no clustering in the request
+ * path. Centroid bytes are intentionally not shipped to the client.
+ */
+export interface LineageNode {
+  node_idx: number;
+  window_start: string;
+  window_end: string;
+  label: string;
+  size: number;
+  sov_share: number;
+  cohesion: number;
+  top_tags: string[];
+  status: "" | "emerged" | "declined";
+}
+
+export interface LineageEdge {
+  from_node: number;
+  to_node: number;
+  sim: number;
+  drift: number;
+  relation: "continue" | "split" | "merge" | "split_merge";
+}
+
+export interface LineageData {
+  scope: string;
+  first_window: string | null;
+  last_window: string | null;
+  windows: number;
+  nodes: LineageNode[];
+  edges: LineageEdge[];
+}
+
+export async function getLatestLineage(scope: string): Promise<LineageData | null> {
+  try {
+    const run = await q1<{
+      id: number;
+      first_window: string | null;
+      last_window: string | null;
+      windows: number;
+    }>(
+      "SELECT id, first_window, last_window, windows FROM foresight_lineage_runs " +
+        "WHERE scope = $1 ORDER BY id DESC LIMIT 1",
+      [scope]
+    );
+    if (!run) return null;
+    const nodes = await q(
+      "SELECT node_idx, window_start, window_end, label, size, sov_share, cohesion, " +
+        "top_tags, status FROM foresight_lineage_nodes WHERE run_id = $1 ORDER BY node_idx",
+      [run.id]
+    );
+    const edges = await q(
+      "SELECT from_node, to_node, sim, drift, relation FROM foresight_lineage_edges " +
+        "WHERE run_id = $1",
+      [run.id]
+    );
+    return {
+      scope,
+      first_window: run.first_window,
+      last_window: run.last_window,
+      windows: run.windows,
+      nodes: nodes.map((n) => ({
+        node_idx: n.node_idx as number,
+        window_start: n.window_start as string,
+        window_end: n.window_end as string,
+        label: (n.label as string) || "Cluster",
+        size: n.size as number,
+        sov_share: (n.sov_share as number) ?? 0,
+        cohesion: (n.cohesion as number) ?? 0,
+        top_tags: parseJson<string[]>(n.top_tags, []),
+        status: (n.status as LineageNode["status"]) || "",
+      })),
+      edges: edges.map((e) => ({
+        from_node: e.from_node as number,
+        to_node: e.to_node as number,
+        sim: (e.sim as number) ?? 0,
+        drift: (e.drift as number) ?? 0,
+        relation: (e.relation as LineageEdge["relation"]) || "continue",
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Scopes that have a persisted lineage (drives the selector). */
+export async function getLineageScopes(): Promise<string[]> {
+  try {
+    const rows = await q<{ scope: string }>(
+      "SELECT DISTINCT scope FROM foresight_lineage_runs ORDER BY scope"
+    );
+    return rows.map((r) => r.scope);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Thread a lineage into human-readable theme trajectories: follow each chain
+ * forward through 'continue'/'split' edges from its earliest node, so a theme
+ * becomes one ordered series of (window, share, size) points. Split/merge are
+ * annotated but do not fork the primary thread (we follow the strongest
+ * successor). Threads are classified by their endpoints: 'emerging' (starts
+ * with an emerged node in the recent half), 'fading' (ends declined),
+ * 'ongoing'. Pure read-side shaping — no DB access.
+ */
+export interface LineageThread {
+  key: number; // node_idx of the thread head
+  label: string;
+  kind: "emerging" | "fading" | "ongoing";
+  points: { window_start: string; share: number; size: number }[];
+  peak_share: number;
+  latest_share: number;
+  drift: number; // 1 - similarity accumulated along the thread (semantic move)
+}
+
+export function threadLineage(data: LineageData): LineageThread[] {
+  const byIdx = new Map(data.nodes.map((n) => [n.node_idx, n]));
+  // strongest successor per node (continue/split), and set of nodes that are a successor
+  const bestNext = new Map<number, LineageEdge>();
+  const hasPred = new Set<number>();
+  for (const e of data.edges) {
+    hasPred.add(e.to_node);
+    const cur = bestNext.get(e.from_node);
+    if (!cur || e.sim > cur.sim) bestNext.set(e.from_node, e);
+  }
+  const windowsSorted = [...new Set(data.nodes.map((n) => n.window_start))].sort();
+  const recentCut = windowsSorted[Math.floor(windowsSorted.length / 2)] ?? "";
+
+  const threads: LineageThread[] = [];
+  const consumed = new Set<number>();
+
+  const walk = (start: LineageNode): { thread: LineageThread; lastStatus: string } => {
+    const points: LineageThread["points"] = [];
+    let cur: LineageNode | undefined = start;
+    let drift = 0;
+    let lastStatus: LineageNode["status"] = "";
+    const guard = new Set<number>();
+    while (cur && !guard.has(cur.node_idx)) {
+      guard.add(cur.node_idx);
+      consumed.add(cur.node_idx);
+      points.push({ window_start: cur.window_start, share: cur.sov_share, size: cur.size });
+      lastStatus = cur.status;
+      const nx = bestNext.get(cur.node_idx);
+      if (!nx) break;
+      drift += nx.drift;
+      cur = byIdx.get(nx.to_node);
+    }
+    const peak = Math.max(...points.map((p) => p.share), 0);
+    return {
+      thread: {
+        key: start.node_idx,
+        label: start.label,
+        kind: "ongoing",
+        points,
+        peak_share: peak,
+        latest_share: points[points.length - 1]?.share ?? 0,
+        drift: Number(drift.toFixed(3)),
+      },
+      lastStatus,
+    };
+  };
+
+  // 1. Emerging seeds first: an emerged node in the recent half starts its own
+  //    thread even when an overlapping neighbour precedes it (that neighbour is
+  //    only a step old, not a full span — the emergence is real).
+  const emergedSeeds = data.nodes
+    .filter((n) => n.status === "emerged" && n.window_start >= recentCut)
+    .sort((a, b) => b.size - a.size);
+  for (const seed of emergedSeeds) {
+    if (consumed.has(seed.node_idx)) continue;
+    const { thread } = walk(seed);
+    if (thread.points.length) threads.push({ ...thread, kind: "emerging" });
+  }
+
+  // 2. Remaining chain heads → ongoing, or fading if they end declined.
+  const heads = data.nodes
+    .filter((n) => !hasPred.has(n.node_idx) && !consumed.has(n.node_idx))
+    .sort((a, b) => b.size - a.size);
+  for (const head of heads) {
+    if (consumed.has(head.node_idx)) continue;
+    const { thread, lastStatus } = walk(head);
+    if (!thread.points.length) continue;
+    threads.push({ ...thread, kind: lastStatus === "declined" ? "fading" : "ongoing" });
+  }
+  return threads;
+}
