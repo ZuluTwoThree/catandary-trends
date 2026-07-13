@@ -36,9 +36,12 @@ Autonome Nachtarbeit an Welle 2. Alles auf `epic/alpha`, hinter Feature-Flags (P
 - `/trends` (Landing mit „What's moving"), `/trends/foresight/radar`, `/trends/foresight/evolution?vertical=HEALTH`
 - `/trends/foresight/dossier?vertical=HEALTH`, `/trends/pricing`, `/account/signin` (Magic-Link-Flow, Link erscheint in der Konsole/Server-Log)
 
+### z3 fertig + validiert (W1.5 / #45) — **deine Entscheidung nötig**
+`patent_spnp_full_z3` gebaut (42,4M Knoten). **Benchmark klar besser als Default** (Spearman 0,700 vs 0,65). Aber Trajektorien zeigen einen **Trade-off**: z3 behebt die Hot-Domain-Kompression (Li-Batterie liest `full` fälschlich als „reifend", z3 korrekt „beschleunigt"), erkauft mit einem mundane-Artefakt (F16B). Ich habe z3 als `TIR_SUBSTRATE=fullz3` verdrahtet, **Default bei `full` gelassen** (produktsichtbarer Wechsel = deine Entscheidung). Empfehlung + Details in #45. → **Wechsel zu fullz3?**
+
 ### Noch laufend / gated
-- **z3-Build (#45)** läuft noch (~1,5h Compute, langsame Spätrunden); danach validiere ich die 4 Kriterien + entscheide das TIR-Substrat autonom.
-- **W1.6 Mega-Taxonomie**: LIFESTYLE-Discovery hinter z3 eingereiht; danach brauche ich deine **Label-Kuratierung** (Entscheidung, s. u. bei Owner-Tasks).
+- **run_full_cycle** (dein Wunsch): akquiriert neue Signale, läuft aktiv auf GPU (95 %). Ergebnis melde ich bei Abschluss.
+- **W1.6 Mega-Taxonomie**: LIFESTYLE-Discovery hinter den Cycle eingereiht (CPU-Kontention vermeiden); danach brauche ich deine **Label-Kuratierung**.
 
 ### Gesamtstand Epic
 Welle 0 ✅ · Welle 1 ✅ (bis auf z3-Validierung + W1.6-Kuratierung) · Welle 2 ✅ (bis auf Owner-Gates Stripe/DNS) · Welle 3 teilweise (Export ✅). Alle Tests grün (115 Python + Frontend-tsc). 4 Issues geschlossen (#28/#35/#38/#41).
