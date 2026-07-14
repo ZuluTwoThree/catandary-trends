@@ -52,8 +52,19 @@ mkdir -p "$(dirname "$LOG")"
   # therefore gate only on the 35B START SCRIPT existing and referencing the
   # expected GGUF — not on start-active.sh's current target. Fall back to Ollama
   # only if that start script is missing/misconfigured (avoids a hard crash).
-  export STAGE5_MODEL="Qwen3-30B-A3B-Q4_K_M.gguf"
-  STAGE5_START="/home/dirk/llama.cpp/start-qwen3-30b.sh"
+  # Model choice (#11, 2026-07-14): switched 30B → Gemma-4-26B-A4B after a
+  # controlled A/B (same entries/prompt/temp, only the model swaps; n=70 across
+  # two runs, Fisher p=0.013):
+  #   qwen3-30b   32.9% of bodies invent a specific · 0.65 invented tokens · 145 words
+  #   gemma4-26b   8.6% ·············································· 0.10 ······ 175 words
+  # Four other levers were refuted first (prompt prohibition, re-roll, full text,
+  # temperature) — fabrication is MODEL-specific. Qwen invented e.g. a fake city
+  # law ("Ordinance 2023-47") to satisfy the concreteness mandate; Gemma reports
+  # the source's real specifics and lands inside the 150-250 word target the 30B
+  # undershoots. Revert = point these two back at the 30B (both registered in
+  # gpu_handover.MODEL_START_SCRIPTS).
+  export STAGE5_MODEL="gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf"
+  STAGE5_START="/home/dirk/llama.cpp/start-gemma4-26b.sh"
   if [ -f "$STAGE5_START" ] && grep -q "$STAGE5_MODEL" "$STAGE5_START" 2>/dev/null; then
     export STAGE5_BACKEND=llamacpp
     echo "----- Stage-6 backend: llamacpp ($STAGE5_MODEL), handover swaps symlink to 30B -----"
