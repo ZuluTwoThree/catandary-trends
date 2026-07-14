@@ -36,8 +36,8 @@ Autonome Nachtarbeit an Welle 2. Alles auf `epic/alpha`, hinter Feature-Flags (P
 - `/trends` (Landing mit „What's moving"), `/trends/foresight/radar`, `/trends/foresight/evolution?vertical=HEALTH`
 - `/trends/foresight/dossier?vertical=HEALTH`, `/trends/pricing`, `/account/signin` (Magic-Link-Flow, Link erscheint in der Konsole/Server-Log)
 
-### z3 fertig + validiert (W1.5 / #45) — **deine Entscheidung nötig**
-`patent_spnp_full_z3` gebaut (42,4M Knoten). **Benchmark klar besser als Default** (Spearman 0,700 vs 0,65). Aber Trajektorien zeigen einen **Trade-off**: z3 behebt die Hot-Domain-Kompression (Li-Batterie liest `full` fälschlich als „reifend", z3 korrekt „beschleunigt"), erkauft mit einem mundane-Artefakt (F16B). Ich habe z3 als `TIR_SUBSTRATE=fullz3` verdrahtet, **Default bei `full` gelassen** (produktsichtbarer Wechsel = deine Entscheidung). Empfehlung + Details in #45. → **Wechsel zu fullz3?**
+### z3 / TIR-Substrat (W1.5 / #45) — ✅ ERLEDIGT (Owner-Entscheidung umgesetzt)
+fullz3 ist jetzt Default. **Richtungs-Labels (reift/beschleunigt/stetig) entfernt** — wir zeigen nur den verlässlichen TIR-Wert + Klartext-Erklärung, Deutung überlassen wir dem Kunden. Das FOOD-Artefakt war rein in der Richtung → damit weg. Karten neu gebaut auf fullz3. Genauigkeits-Claim ehrlich korrigiert (0,70/0,46). Verifiziert, Prod unberührt. Details in #45.
 
 ### run_full_cycle (dein Wunsch) — erledigt
 Sauber durch (exit 0): **917 neue Trends** akquiriert (368 auto-published bei conf≥0,85, 549 als Draft zurückgehalten), 0 Fehler, llama-server neu gestartet. Die neuen Signale sind live in der DB.
