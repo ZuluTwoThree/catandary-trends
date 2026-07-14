@@ -186,6 +186,24 @@ mega_trends:
   icon: 📱
   description_de: Content-Monetarisierung, Creator-Tools, dezentrale Medien, Plattformökonomie, digital-native
     Marken.
+- key: platformization_of_culture
+  name_en: Platformization of Culture
+  name_de: Plattformisierung der Kultur
+  description: Digital platforms become the central intermediaries controlling how creative content
+    is produced, distributed, monetized and experienced across the entertainment industries — the
+    structural counterpart to the creator economy (which is about the creators, not the gatekeepers).
+  horizon: 10-20 years
+  momentum: rising
+  cluster_strength: weak
+  signal_count: 2529
+  verticals:
+  - LIFESTYLE
+  - BIZ
+  - TECH
+  icon: 🎭
+  description_de: Digitale Plattformen werden zu den zentralen Intermediären, die bestimmen, wie
+    kreative Inhalte produziert, verteilt, monetarisiert und erlebt werden — das strukturelle
+    Gegenstück zur Creator Economy (dort die Creator, hier die Gatekeeper).
 - key: bio_revolution_and_new_materials
   name_en: Bio-Revolution & New Materials
   name_de: Bio-Revolution & Neue Materialien
