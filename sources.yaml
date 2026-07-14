@@ -32,6 +32,7 @@ verticals:
       type: trade_media
       lead_time_tier: now
     - name: Nation's Restaurant News
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.nrn.com/rss.xml
       type: trade_media
@@ -510,6 +511,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Electrek
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://electrek.co/feed/
       type: trade_media
@@ -546,16 +548,19 @@ verticals:
       type: trade_media
       lead_time_tier: now
     - name: Wallpaper
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.wallpaper.com/rss
       type: trade_media
       lead_time_tier: now
     - name: Designboom
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.designboom.com/feed/
       type: trade_media
       lead_time_tier: now
     - name: Design Milk
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://design-milk.com/feed/
       type: trade_media
@@ -566,6 +571,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Yanko Design
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.yankodesign.com/feed/
       type: trade_media
@@ -591,22 +597,26 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Glossy
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.glossy.co/feed/
       type: trade_media
       lead_time_tier: now
     - name: Fashionista
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       feed_url: https://fashionista.com/.rss/full/
       type: trade_media
       ingest_cap: 50   # low yield (~33%) — cap backfill
       lead_time_tier: now
     - name: Vogue UK
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.vogue.co.uk/feed/rss
       type: trade_media
       ingest_cap: 50   # low yield (~18%) — cap backfill
       lead_time_tier: now
     - name: Guardian Fashion
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.theguardian.com/fashion/rss
       type: trade_media
@@ -621,6 +631,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: WWD
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.wwd.com/feed/
       # foresight-value only (drop Fashion Features/Show Reviews/Scoops/Celebrity/Parties/People)
@@ -692,6 +703,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Nation's Restaurant News
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.nrn.com/rss.xml
       type: trade_media
@@ -702,11 +714,13 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Tagesschau Wirtschaft
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.tagesschau.de/wirtschaft/index~rss2.xml
       type: trade_media
       lead_time_tier: now
     - name: Axios
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       feed_url: https://api.axios.com/feed/
       type: trade_media
       lead_time_tier: now
@@ -755,6 +769,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: OMR
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://omr.com/de/feed
       type: trade_media
@@ -775,16 +790,19 @@ verticals:
       type: trade_media
       lead_time_tier: future
     - name: GamesIndustry.biz
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.gamesindustry.biz/feed
       type: trade_media
       lead_time_tier: now
     - name: Creative Bloq
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.creativebloq.com/feed
       type: trade_media
       lead_time_tier: now
     - name: Hypebeast
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.hypebeast.com/feed/
       # foresight-value only (drop Fashion/Music/Footwear drops/Entertainment/Sports/Gaming)
@@ -812,23 +830,27 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Robb Report
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://robbreport.com/feed/
       type: trade_media
       ingest_cap: 50   # luxury listings-heavy — cap backfill
       lead_time_tier: now
     - name: Luxury Daily
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.luxurydaily.com/feed/
       type: trade_media
       lead_time_tier: now
     - name: Highsnobiety
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.highsnobiety.com/feed/
       type: trade_media
       ingest_cap: 50   # low yield (~30%) — cap backfill
       lead_time_tier: now
     - name: Skift
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://skift.com/feed/
       type: trade_media
@@ -844,11 +866,13 @@ verticals:
       type: trade_media
       lead_time_tier: future
     - name: Guardian Culture
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.theguardian.com/culture/rss
       type: trade_media
       lead_time_tier: now
     - name: Hollywood Reporter
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.hollywoodreporter.com/feed/
       # foresight-value only — Business/Digital/Politics (drop Movies/TV/Reviews/Gossip)
@@ -857,6 +881,7 @@ verticals:
       ingest_cap: 50   # high-volume gossip, low yield (~19%) — cap backfill
       lead_time_tier: now
     - name: Tubefilter
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.tubefilter.com/feed/
       type: trade_media
@@ -867,6 +892,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Variety
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://variety.com/feed/
       # foresight-value only — business of media (drop News/Reviews/Awards/Box Office firehose)
@@ -875,6 +901,7 @@ verticals:
       ingest_cap: 50   # high-volume, low trend-signal yield (~22%) — cap backfill
       lead_time_tier: now
     - name: PocketGamer.biz
+      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.pocketgamer.biz/rss/
       type: trade_media

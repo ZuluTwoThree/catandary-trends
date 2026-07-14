@@ -51,6 +51,7 @@ from pipeline.config import (
     STAGE_8B_BACKEND,
     STAGE_8B_MODEL,
     get_mega_trend_prompt_block,
+    source_relevance_min,
 )
 from pipeline.db import (
     get_recent_embeddings,
@@ -825,10 +826,15 @@ def hybrid_classify(survivors: list[dict]) -> tuple[list[dict], int, int]:
 
     # ---- hybrid relevance: confident tails by distill, uncertain band → 8B ----
     kept, uncertain = [], []
+    rel_min = source_relevance_min()
     for entry, pred in zip(embedded, preds):
         entry["_distill"] = pred
         rel = pred.get("relevance")
-        band = relevance_band(rel, has_rel)
+        # Per-source cap (#13/value-report): raise the drop-gate for low-foresight
+        # sources so their marginal content is filtered, while borderline still
+        # goes to the 8B and strong signals pass unchanged.
+        src_min = rel_min.get(entry.get("source_name") or "", 0.0)
+        band = relevance_band(rel, has_rel, low=max(DISTILL_REL_LOW, src_min))
         if band == "keep":
             kept.append(entry)
         elif band == "drop":
@@ -848,7 +854,9 @@ def hybrid_classify(survivors: list[dict]) -> tuple[list[dict], int, int]:
                                                 e.get("source_vertical", "TECH")), uncertain)))
             for entry in uncertain:
                 r = rel_res.get(entry["id"])
-                if r is None or not r.is_relevant or r.confidence < RELEVANCE_THRESHOLD:
+                thr = max(RELEVANCE_THRESHOLD,
+                          rel_min.get(entry.get("source_name") or "", 0.0))
+                if r is None or not r.is_relevant or r.confidence < thr:
                     mark_filtered(entry["id"], "not_relevant: (8B band)"); filtered += 1
                     continue
                 kept.append(entry)

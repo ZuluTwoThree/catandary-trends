@@ -115,6 +115,40 @@ def load_sources() -> dict:
         return yaml.safe_load(f)
 
 
+_REL_MIN_CACHE: dict[str, float] | None = None
+
+
+def source_relevance_min() -> dict[str, float]:
+    """{source_name: relevance_min} from sources.yaml — the per-source cap.
+
+    A capped source must clear a HIGHER relevance bar to enter the corpus: its
+    marginal content is dropped, its borderline content still goes to the 8B for
+    a proper look, its strong signals pass unchanged. Used to damp low-foresight
+    'now'-tier sources (market confirmation) without losing their good signals.
+    Cached — sources.yaml is static at runtime.
+    """
+    global _REL_MIN_CACHE
+    if _REL_MIN_CACHE is None:
+        cfg = load_sources()
+        out: dict[str, float] = {}
+
+        def put(s: dict) -> None:
+            v = s.get("relevance_min")
+            if v is not None:
+                # duplicates (a source listed under two verticals): keep the strictest
+                out[s["name"]] = max(float(v), out.get(s["name"], 0.0))
+
+        for _v, g in (cfg.get("verticals") or {}).items():
+            for k in ("sources", "science"):
+                for s in g.get(k) or []:
+                    put(s)
+        for _g, e in (cfg.get("cross_industry") or {}).items():
+            for s in e or []:
+                put(s)
+        _REL_MIN_CACHE = out
+    return _REL_MIN_CACHE
+
+
 def load_mega_trends() -> list[dict]:
     """Load canonical mega-trends taxonomy from mega_trends.yaml."""
     path = PROJECT_ROOT / "mega_trends.yaml"
