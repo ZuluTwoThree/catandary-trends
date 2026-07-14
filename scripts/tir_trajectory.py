@@ -98,9 +98,20 @@ DOMAIN_MIN_TOTAL = 500  # total distinct patents below this → "insufficient da
 # rel_change +0.13..+0.17, dense hot (CRISPR/vaccines/mRNA) at +0.64..+0.77, dense
 # maturing (solar) at -0.75. The old ACCEL_PP=0.15 sat right on the mundane
 # baseline → false "accelerating". Bands are re-centred on +0.15.
-ACCEL_PP = 0.35        # clearly above the mundane baseline → accelerating
-MATURE_PP = -0.10      # below → maturing; below DECEL_PP → decelerating
-DECEL_PP = -0.45
+# Direction bands are SUBSTRATE-SPECIFIC: each substrate has a different neutral
+# no-trend baseline (its universal recent drift), so the bands must be centred on
+# that substrate's baseline or mundane domains misread. Half-widths are shared
+# (+0.20 accel / -0.25 maturing / -0.60 declining from neutral); only the centre
+# moves. Neutral = median rel_change over 12 mundane mechanical domains (#45):
+#   full   neutral -0.16  →  bands  0.04 / -0.41 / -0.76  (legacy: kept the
+#          historical 0.35/-0.10/-0.45 to not disturb the live 'full' cards)
+#   fullz3 neutral +0.24  →  bands  0.44 / -0.01 / -0.36
+_BANDS = {
+    #          ACCEL,  MATURE,  DECEL
+    "full":   (0.35,  -0.10,  -0.45),   # historical calibration (#36), unchanged
+    "fullz3": (0.44,  -0.01,  -0.36),   # re-centred on fullz3 neutral +0.243 (#45)
+}
+ACCEL_PP, MATURE_PP, DECEL_PP = _BANDS.get(SUBSTRATE, _BANDS["full"])
 # Direction honesty gate (#36 follow-up): the direction slope is only trustworthy
 # when the windows it is fit over are dense. Measured: mundane domains fit over
 # thin windows (median recent window-n ~450-790) inflate to rel_change 0.3-0.5
