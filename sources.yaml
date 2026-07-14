@@ -714,13 +714,11 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Tagesschau Wirtschaft
-      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
       feed_url: https://www.tagesschau.de/wirtschaft/index~rss2.xml
       type: trade_media
       lead_time_tier: now
     - name: Axios
-      relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       feed_url: https://api.axios.com/feed/
       type: trade_media
       lead_time_tier: now
