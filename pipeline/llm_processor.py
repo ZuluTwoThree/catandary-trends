@@ -82,6 +82,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# How much of the source text each stage reads. Since #11 `excerpt` carries the
+# fetched full article (raw_content, ~4.4k chars avg) when available, not just the
+# ~400-char RSS teaser — so the old 1000/1500 caps threw away ~77% of it and the
+# full-text lever stayed unrealised (measured: fabrication 35.1% full-text vs
+# 31.1% excerpt, i.e. no gain). Extraction and content-gen now read the article.
+# Relevance stays short (decidable from the opening); the 8B runs at 208K ctx, so
+# this is cheap.
+#
+# DO NOT raise the dedup slice (title + excerpt[:500], step_dedup_check): the 1.1M
+# stored embeddings were computed with exactly that recipe — changing it breaks
+# cosine comparability against the entire history.
+EXTRACT_CHARS = 4000
+CONTENT_CHARS = 4000
+RELEVANCE_CHARS = 1500
+
 # --- Prompts ---
 
 RELEVANCE_SYSTEM = """\
@@ -381,7 +396,7 @@ Classify the vertical based purely on the content, not on where the source comes
 
 Title: {title}
 
-Excerpt: {excerpt[:1500]}"""
+Excerpt: {excerpt[:RELEVANCE_CHARS]}"""
 
     if CLASSIFY_BACKEND == "anthropic":
         return anthropic_client.chat_structured(
@@ -417,7 +432,7 @@ def step_extraction(title: str, excerpt: str) -> ExtractionResult | None:
 
 Title: {title}
 
-Text: {excerpt[:1500]}"""
+Text: {excerpt[:EXTRACT_CHARS]}"""
 
     # Effective model after the NuExtract→qwen3:8b fallback (NuExtract disabled).
     resolved_model = MODEL_EXTRACT if MODEL_EXTRACT != "nuextract" else "qwen3:8b"
@@ -518,7 +533,7 @@ def step_generate_content_en(title: str, excerpt: str, extraction: ExtractionRes
                               source_url: str, source_name: str) -> GeneratedContent | None:
     """Step 5: Generate English trend article."""
     context = f"""Original Title: {title}
-Original Excerpt: {excerpt[:1000]}
+Original Excerpt: {excerpt[:CONTENT_CHARS]}
 Brand: {extraction.brand_name or 'Unknown'}
 Product: {extraction.product_name or 'Unknown'}
 Key Claims: {', '.join(extraction.key_claims[:5]) if extraction.key_claims else 'N/A'}
