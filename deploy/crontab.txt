@@ -11,5 +11,11 @@ PYTHON=/opt/catandary-trends/.venv/bin/python
 # Mega-Trend Reviewer (1st of month, 03:00)
 0 3 1 * * cd $CATANDARY_DIR && $PYTHON -m pipeline.mega_trend_reviewer >> data/mega_trend_reviewer.log 2>&1
 
-# Weekly Newsletter (Monday 9:00) — uncomment when ready
-# 0 9 * * 1 cd $CATANDARY_DIR && $PYTHON -m pipeline.newsletter_generator >> data/newsletter.log 2>&1
+# Weekly Newsletter (Monday 9:00) — generate then send, only if generation
+# succeeds (&&). Uncomment when the Resend sending domain is DNS-verified.
+# The sender is idempotent (sent_at) and no-ops with 0 confirmed subscribers.
+# 0 9 * * 1 cd $CATANDARY_DIR && $PYTHON -m pipeline.newsletter_generator >> data/newsletter.log 2>&1 && $PYTHON -m pipeline.newsletter_sender --latest >> data/newsletter.log 2>&1
+
+# Monthly source-quality check: pass-rate watch, vertical balance, feed health,
+# RSS-vs-WP yield — posts the report to issue #13 (1st of month, 08:00)
+0 8 1 * * cd $CATANDARY_DIR && $PYTHON scripts/monthly_source_check.py --post-issue >> data/source_check.log 2>&1

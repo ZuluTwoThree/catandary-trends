@@ -49,11 +49,16 @@ from pipeline.db import get_connection
 #     calibration-accurate vs the EXACT Triulzi/Magee sets (Spearman 0.73, the
 #     peer-reviewed MIT corpus) but gappy years + US-only. Validation/USP evidence
 #     only (TIR_SUBSTRATE=grant).
-SUBSTRATE = os.getenv("TIR_SUBSTRATE", "full")
+SUBSTRATE = os.getenv("TIR_SUBSTRATE", "fullz3")
 _CALIB = {
     #            COEF_A,               COEF_B,   SIGMA2
     "full":  (-1.4233 - math.log(100), 7.4484, 0.4516),
     "fullz": (-3.3074 - math.log(100), 11.0833, 0.5067),  # z-score-null normalization (#35)
+    # z-score null WITH age-3 forward cap (#45): addresses composition drift AND
+    # the citation-immaturity edge together. Benchmark: Spearman 0.700 / R² 0.457
+    # / SIGMA2 0.421 — better than 'full' (0.65/0.42/0.45); mundane flat, hot
+    # domains high, no C12N15 collapse. The full Singh/Triulzi/Magee method.
+    "fullz3": (-3.0188 - math.log(100), 10.5145, 0.4212),
     "db":    (-6.460,                  10.192,  0.374),
     "grant": (-3.9069,                 4.1335,  0.4147),
 }
@@ -93,9 +98,20 @@ DOMAIN_MIN_TOTAL = 500  # total distinct patents below this → "insufficient da
 # rel_change +0.13..+0.17, dense hot (CRISPR/vaccines/mRNA) at +0.64..+0.77, dense
 # maturing (solar) at -0.75. The old ACCEL_PP=0.15 sat right on the mundane
 # baseline → false "accelerating". Bands are re-centred on +0.15.
-ACCEL_PP = 0.35        # clearly above the mundane baseline → accelerating
-MATURE_PP = -0.10      # below → maturing; below DECEL_PP → decelerating
-DECEL_PP = -0.45
+# Direction bands are SUBSTRATE-SPECIFIC: each substrate has a different neutral
+# no-trend baseline (its universal recent drift), so the bands must be centred on
+# that substrate's baseline or mundane domains misread. Half-widths are shared
+# (+0.20 accel / -0.25 maturing / -0.60 declining from neutral); only the centre
+# moves. Neutral = median rel_change over 12 mundane mechanical domains (#45):
+#   full   neutral -0.16  →  bands  0.04 / -0.41 / -0.76  (legacy: kept the
+#          historical 0.35/-0.10/-0.45 to not disturb the live 'full' cards)
+#   fullz3 neutral +0.24  →  bands  0.44 / -0.01 / -0.36
+_BANDS = {
+    #          ACCEL,  MATURE,  DECEL
+    "full":   (0.35,  -0.10,  -0.45),   # historical calibration (#36), unchanged
+    "fullz3": (0.44,  -0.01,  -0.36),   # re-centred on fullz3 neutral +0.243 (#45)
+}
+ACCEL_PP, MATURE_PP, DECEL_PP = _BANDS.get(SUBSTRATE, _BANDS["full"])
 # Direction honesty gate (#36 follow-up): the direction slope is only trustworthy
 # when the windows it is fit over are dense. Measured: mundane domains fit over
 # thin windows (median recent window-n ~450-790) inflate to rel_change 0.3-0.5
@@ -119,6 +135,7 @@ def _x_by_year(patterns: list[str]) -> dict[int, tuple[float, int]]:
     cpc_t, spnp_t = {
         "full":  ("patent_cpc_full",  "patent_spnp_full"),
         "fullz": ("patent_cpc_full",  "patent_spnp_full_z"),
+        "fullz3": ("patent_cpc_full", "patent_spnp_full_z3"),
         "grant": ("patent_cpc_grant", "patent_spnp_usgrant"),
     }.get(SUBSTRATE, ("patent_cpc", "patent_spnp"))
     if SUBSTRATE == "db":

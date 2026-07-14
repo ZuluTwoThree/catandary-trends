@@ -33,15 +33,6 @@ interface Analysis {
   top_patents?: HubPatent[]; error?: string;
 }
 
-const DIR_LABEL: Record<string, string> = {
-  accelerating: "beschleunigt", steady: "stetig", maturing: "reift",
-  decelerating: "verlangsamt sich", uncertain: "Richtung unsicher",
-  insufficient_data: "zu wenig Daten",
-};
-const DIR_COLOR: Record<string, string> = {
-  accelerating: "#bde63a", steady: "#8a8d82", maturing: "#fb923c",
-  decelerating: "#fb7185", uncertain: "#8a8d82", insufficient_data: "#8a8d82",
-};
 const TIER_LABEL: Record<string, string> = {
   science: "Research", patent: "Patents", funding: "Funding", market: "Market",
 };
@@ -163,11 +154,6 @@ function Chart({ points, mode, earliestYear }: { points: Point[]; mode: "rate" |
   );
 }
 
-const PHASE: Record<string, string> = {
-  accelerating: "Wachstumsphase", steady: "etabliert", maturing: "Reife",
-  decelerating: "Sättigung", uncertain: "", insufficient_data: "",
-};
-
 /* ---- tier activity sparkline ---- */
 function Spark({ series }: { series: Record<string, number> }) {
   const X0 = 1990, X1 = 2026;
@@ -228,7 +214,6 @@ export default function TechnologyTool() {
   }
 
   const traj = res?.trajectory;
-  const dir = traj?.direction || "";
   const lead = res?.leadtime;
   const selN = res?.candidates?.filter((c) => sel.has(c.symbol)).reduce((s, c) => s + c.n, 0) ?? 0;
 
@@ -301,22 +286,30 @@ export default function TechnologyTool() {
           <div className="min-w-0">
             {res.verdict && <p className="font-sans text-sm text-paper mb-3 leading-snug">{res.verdict}</p>}
 
-            <div className="flex flex-wrap items-baseline gap-3 mb-2">
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] px-2 py-0.5 border" style={{ color: DIR_COLOR[dir], borderColor: DIR_COLOR[dir] + "80" }}>
-                {traj?.direction_de || DIR_LABEL[dir] || "—"}
-              </span>
-              <span className="font-sans text-sm text-text">
-                {traj?.calibrated
-                  ? <>typischer TIR <span className="text-paper">~{traj.K_median}%/Jahr</span></>
-                  : <span className="text-muted">außerhalb des kalibrierten Bereichs</span>}
-              </span>
+            <div className="flex flex-wrap items-baseline gap-3 mb-1">
+              {traj?.calibrated ? (
+                <span className="font-sans text-text">
+                  Technology Improvement Rate{" "}
+                  <span className="font-mono text-lg text-paper tabular-nums">~{traj.K_median}%</span>
+                  <span className="text-muted"> /Jahr</span>
+                </span>
+              ) : (
+                <span className="font-sans text-sm text-muted">
+                  Verbessert sich schneller, als wir verlässlich beziffern (außerhalb des kalibrierten Bereichs)
+                </span>
+              )}
               {traj?.earliest_year && (
                 <span className="font-mono text-[10px] text-muted">
-                  seit {traj.earliest_year} · {2026 - traj.earliest_year} J.{PHASE[dir] ? ` · ${PHASE[dir]}` : ""}
+                  gemessen seit {traj.earliest_year} · {2026 - traj.earliest_year} J. Daten
                 </span>
               )}
               {rerun && <span className="font-mono text-[10px] text-muted animate-pulse">aktualisiere…</span>}
             </div>
+            <p className="font-sans text-[11px] text-muted mb-2 max-w-3xl">
+              TIR = wie schnell sich die patentierte Leistungsfähigkeit dieses Feldes pro Jahr
+              verbessert (MIT-Methode: SPNP-Zitationszentralität, Singh/Triulzi/Magee 2021). Die
+              Einordnung überlassen wir Ihnen.
+            </p>
 
             {traj?.points && traj.points.length >= 2 ? (
               <>
@@ -338,7 +331,7 @@ export default function TechnologyTool() {
             <p className="font-sans text-[11px] text-muted mt-2 max-w-3xl">
               {mode === "cumulative"
                 ? <>Kumulierter Fortschritts-Index (Start = 1× am frühesten Zitationsjahr), das Integral der Rate — Log-Achse, sodass die Steigung der TIR entspricht und Reife als Abflachen sichtbar wird. Relativer Index, keine absolute Leistung.</>
-                : <>Die X-Achse beginnt am frühesten Zitationsjahr; die datenarme Frühphase ist als gebrochene Achse <span className="text-text">gestaucht</span> und ausgegraut, die jüngsten unreifen Jahre ebenso. Band = Kalibrierungs-Unsicherheit (~68 %). „Typischer TIR" = Median über die gemessene Historie; die Richtung zeigt den aktuellen Trend.</>}
+                : <>Die X-Achse beginnt am frühesten Zitationsjahr; die datenarme Frühphase ist als gebrochene Achse <span className="text-text">gestaucht</span> und ausgegraut, die jüngsten unreifen Jahre ebenso. Band = Kalibrierungs-Unsicherheit (~68 %). Der TIR-Wert ist der Median über die gemessene Historie.</>}
             </p>
 
             {/* cross-tier lead time */}

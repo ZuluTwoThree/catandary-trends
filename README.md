@@ -262,7 +262,9 @@ Dark-mode card grid, PESTEL badges, vertical tabs, hybrid search (Postgres FTS
 ```bash
 cd frontend
 npm run dev                  # http://localhost:3001 (3000 is taken by Open WebUI)
-npm run build && npm start   # production: npx next start -p 3001, behind deploy/Caddyfile
+npm run build && systemctl --user restart catandary-frontend
+                             # production (port 3001) runs as a systemd user unit
+                             # (deploy/systemd/catandary-frontend.service), behind deploy/Caddyfile
 ```
 
 Routes:
