@@ -49,7 +49,7 @@ from pipeline.db import get_connection
 #     calibration-accurate vs the EXACT Triulzi/Magee sets (Spearman 0.73, the
 #     peer-reviewed MIT corpus) but gappy years + US-only. Validation/USP evidence
 #     only (TIR_SUBSTRATE=grant).
-SUBSTRATE = os.getenv("TIR_SUBSTRATE", "full")
+SUBSTRATE = os.getenv("TIR_SUBSTRATE", "fullz3")
 _CALIB = {
     #            COEF_A,               COEF_B,   SIGMA2
     "full":  (-1.4233 - math.log(100), 7.4484, 0.4516),
