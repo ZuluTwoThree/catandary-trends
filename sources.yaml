@@ -2,86 +2,107 @@ verticals:
   FOOD:
     sources:
     - name: FoodNavigator
+      fulltext: true
       feed_url: https://www.foodnavigator.com/arc/outboundfeeds/rss/
       type: trade_media
       lead_time_tier: market
     - name: Food Dive
+      fulltext: true
       feed_url: https://www.fooddive.com/feeds/news/
       type: trade_media
       lead_time_tier: market
     - name: BeverageDaily
+      fulltext: true
       feed_url: https://www.beveragedaily.com/arc/outboundfeeds/rss/
       type: trade_media
       lead_time_tier: market
     - name: DairyReporter
+      fulltext: true
       feed_url: https://www.dairyreporter.com/arc/outboundfeeds/rss/
       type: trade_media
       lead_time_tier: market
     - name: FoodTec Insider
+      fulltext: true
       feed_url: https://www.foodtec-insider.de/rss.xml
       type: trade_media
       lead_time_tier: market
     - name: Eater
+      fulltext: true
       feed_url: https://www.eater.com/rss/index.xml
       type: trade_media
       lead_time_tier: now
     - name: Nation's Restaurant News
+      fulltext: true
       feed_url: https://www.nrn.com/rss.xml
       type: trade_media
       lead_time_tier: now
     - name: AgFunderNews
+      fulltext: true
       feed_url: https://agfundernews.com/feed
       type: trade_media
       lead_time_tier: market
     - name: Good Food Institute
+      fulltext: true
       feed_url: https://gfi.org/feed
       type: trade_media
       lead_time_tier: future
     - name: Green Queen
+      fulltext: true
       feed_url: https://www.greenqueen.com.hk/feed
       type: trade_media
       lead_time_tier: market
     - name: Civil Eats
+      fulltext: true
       feed_url: https://feeds.feedburner.com/CivilEats
       type: trade_media
       lead_time_tier: market
     - name: Lebensmittelzeitung
+      fulltext: true
       feed_url: https://www.lebensmittelzeitung.net/feed/
       type: trade_media
       lead_time_tier: market
     - name: Plant Based News
+      fulltext: true
       feed_url: https://plantbasednews.org/feed/
       type: trade_media
       lead_time_tier: future
     - name: Food Navigator USA
+      fulltext: true
       feed_url: https://www.foodnavigator-usa.com/arc/outboundfeeds/rss/
       type: trade_media
       lead_time_tier: market
     - name: Food Navigator Asia
+      fulltext: true
       feed_url: https://www.foodnavigator-asia.com/arc/outboundfeeds/rss/
       type: trade_media
       lead_time_tier: market
     - name: Food Safety News
+      fulltext: true
       feed_url: https://www.foodsafetynews.com/feed
       type: trade_media
       lead_time_tier: market
     - name: Food Manufacture
+      fulltext: true
       feed_url: https://www.foodmanufacture.co.uk/arc/outboundfeeds/rss/
       type: trade_media
       lead_time_tier: market
     - name: Grocery Dive
+      fulltext: true
       feed_url: https://www.grocerydive.com/feeds/news/
       type: trade_media
       lead_time_tier: market
     - name: Guardian Food
+      fulltext: true
       feed_url: https://www.theguardian.com/food/rss
       type: trade_media
       lead_time_tier: now
     - name: Just Food
+      fulltext: true
       feed_url: https://www.just-food.com/feed/
       type: trade_media
       lead_time_tier: market
     - name: vegconomist
+      fulltext: true
       feed_url: https://vegconomist.com/feed/
       type: trade_media
       lead_time_tier: market
@@ -95,14 +116,17 @@ verticals:
       # Future of Grocery, Funding, Startups, Future of Drink.
       wp_categories: [86, 3774, 2583, 95, 982, 252, 573, 936, 266, 623]
     - name: The Food Institute
+      fulltext: true
       feed_url: https://foodinstitute.com/feed/
       type: trade_media
       lead_time_tier: market
     - name: Food+Tech Connect
+      fulltext: true
       feed_url: https://foodtechconnect.com/feed/
       type: trade_media
       lead_time_tier: market
     - name: Forward Fooding
+      fulltext: true
       feed_url: https://forwardfooding.com/feed/
       type: trade_media
       lead_time_tier: market
@@ -116,6 +140,7 @@ verticals:
       type: research
       lead_time_tier: future
     - name: Frontiers in Sustainable Food Systems
+      fulltext: true
       feed_url: https://www.frontiersin.org/journals/sustainable-food-systems/rss
       type: research
       lead_time_tier: future
@@ -124,6 +149,7 @@ verticals:
       type: research
       lead_time_tier: future
     - name: FAO Newsroom
+      fulltext: true
       feed_url: https://www.fao.org/feeds/fao-newsroom-rss
       type: research
       lead_time_tier: future
@@ -150,16 +176,19 @@ verticals:
   TECH:
     sources:
     - name: TechCrunch
+      fulltext: true
       feed_url: https://techcrunch.com/feed/
       # foresight-value categories only (drop Media & Entertainment / generic TC / Gaming / Social)
       wp_categories: [577047203, 17396, 577030455, 577234943, 449223024, 449557044, 577030454, 577030453, 576957003, 576601119, 577123751, 2401, 21587494, 174, 426637499, 577065682, 577051039, 577052803, 577052802]
       type: trade_media
       lead_time_tier: market
     - name: The Verge
+      fulltext: true
       feed_url: https://www.theverge.com/rss/index.xml
       type: trade_media
       lead_time_tier: market
     - name: Ars Technica
+      fulltext: true
       feed_url: https://feeds.arstechnica.com/arstechnica/index
       type: trade_media
       lead_time_tier: market
@@ -172,18 +201,22 @@ verticals:
       type: trade_media
       lead_time_tier: future
     - name: IEEE Spectrum
+      fulltext: true
       feed_url: https://spectrum.ieee.org/feeds/feed.rss
       type: trade_media
       lead_time_tier: future
     - name: Wired
+      fulltext: true
       feed_url: https://www.wired.com/feed/rss
       type: trade_media
       lead_time_tier: market
     - name: IoT Tech News
+      fulltext: true
       feed_url: https://www.iottechnews.com/feed/
       type: trade_media
       lead_time_tier: market
     - name: Semiconductor Engineering
+      fulltext: true
       feed_url: https://semiengineering.com/feed/
       type: trade_media
       lead_time_tier: future
@@ -196,18 +229,22 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: t3n
+      fulltext: true
       feed_url: https://t3n.de/rss.xml
       type: trade_media
       lead_time_tier: market
     - name: Netzpolitik.org
+      fulltext: true
       feed_url: https://netzpolitik.org/feed/
       type: trade_media
       lead_time_tier: market
     - name: Norwegian SciTech News
+      fulltext: true
       feed_url: https://norwegianscitechnews.com/feed
       type: trade_media
       lead_time_tier: future
     - name: KrASIA
+      fulltext: true
       feed_url: https://console.kr-asia.com/feed
       type: trade_media
       lead_time_tier: market
@@ -216,18 +253,22 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Guardian Technology
+      fulltext: true
       feed_url: https://www.theguardian.com/technology/rss
       type: trade_media
       lead_time_tier: market
     - name: Hacker News Best
+      fulltext: true
       feed_url: https://hnrss.org/best
       type: api
       lead_time_tier: now
     - name: heise online
+      fulltext: true
       feed_url: https://www.heise.de/rss/heise-atom.xml
       type: trade_media
       lead_time_tier: market
     - name: Golem
+      fulltext: true
       feed_url: https://rss.golem.de/rss.php?feed=RSS2.0
       type: trade_media
       lead_time_tier: market
@@ -241,18 +282,22 @@ verticals:
       type: research
       lead_time_tier: future
     - name: IEEE Spectrum AI
+      fulltext: true
       feed_url: https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss
       type: research
       lead_time_tier: future
     - name: IEEE Spectrum Robotics
+      fulltext: true
       feed_url: https://spectrum.ieee.org/feeds/topic/robotics.rss
       type: research
       lead_time_tier: future
     - name: Tech Xplore AI/ML
+      fulltext: true
       feed_url: https://techxplore.com/rss-feed/machine-learning-ai-news/
       type: research
       lead_time_tier: future
     - name: Ars Technica Science
+      fulltext: true
       feed_url: https://feeds.arstechnica.com/arstechnica/science
       type: research
       lead_time_tier: future
@@ -261,12 +306,14 @@ verticals:
       type: research
       lead_time_tier: future
     - name: MIT News
+      fulltext: true
       feed_url: https://news.mit.edu/rss/feed
       type: research
       lead_time_tier: future
   HEALTH:
     sources:
     - name: STAT News
+      fulltext: true
       feed_url: https://www.statnews.com/feed/
       type: trade_media
       lead_time_tier: market
@@ -276,6 +323,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Nutraingredients
+      fulltext: true
       feed_url: https://www.nutraingredients.com/arc/outboundfeeds/rss/
       type: trade_media
       lead_time_tier: market
@@ -313,18 +361,22 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: MedTech Dive
+      fulltext: true
       feed_url: https://www.medtechdive.com/feeds/news/
       type: trade_media
       lead_time_tier: market
     - name: Deutsches Ärzteblatt
+      fulltext: true
       feed_url: https://www.aerzteblatt.de/rss/news
       type: trade_media
       lead_time_tier: market
     - name: Healthcare Dive
+      fulltext: true
       feed_url: https://www.healthcaredive.com/feeds/news/
       type: trade_media
       lead_time_tier: market
     - name: MedCity News
+      fulltext: true
       feed_url: https://medcitynews.com/feed/
       type: trade_media
       lead_time_tier: market
@@ -342,6 +394,7 @@ verticals:
       type: research
       lead_time_tier: future
     - name: Medical Xpress
+      fulltext: true
       feed_url: https://medicalxpress.com/rss-feed/
       type: research
       lead_time_tier: future
@@ -363,52 +416,64 @@ verticals:
       type: research
       lead_time_tier: future
     - name: WHO News
+      fulltext: true
       feed_url: https://www.who.int/rss-feeds/news-english.xml
       type: research
       lead_time_tier: future
     - name: Drug Discovery Trends
+      fulltext: true
       feed_url: https://www.drugdiscoverytrends.com/feed/
       type: trade_media
       lead_time_tier: market
   ECO:
     sources:
     - name: CleanTechnica
+      fulltext: true
       feed_url: https://cleantechnica.com/feed/
       type: trade_media
       lead_time_tier: market
     - name: Packaging Dive
+      fulltext: true
       feed_url: https://www.packagingdive.com/feeds/news/
       type: trade_media
       lead_time_tier: market
     - name: Carbon Brief
+      fulltext: true
       feed_url: https://www.carbonbrief.org/feed/
       type: trade_media
       lead_time_tier: future
     - name: Renewable Energy World
+      fulltext: true
       feed_url: https://www.renewableenergyworld.com/feed/
       type: trade_media
       lead_time_tier: market
     - name: Carbon Herald
+      fulltext: true
       feed_url: https://www.carbonherald.com/feed/
       type: trade_media
       lead_time_tier: market
     - name: Grist
+      fulltext: true
       feed_url: https://www.grist.org/feed/
       type: trade_media
       lead_time_tier: market
     - name: Trellis
+      fulltext: true
       feed_url: https://trellis.net/feed
       type: trade_media
       lead_time_tier: market
     - name: ESG Today
+      fulltext: true
       feed_url: https://www.esgtoday.com/feed
       type: trade_media
       lead_time_tier: market
     - name: Circular Online
+      fulltext: true
       feed_url: https://www.circularonline.co.uk/feed
       type: trade_media
       lead_time_tier: market
     - name: Modern Farmer
+      fulltext: true
       feed_url: https://www.modernfarmer.com/feed/
       type: trade_media
       lead_time_tier: market
@@ -421,10 +486,12 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Guardian Environment
+      fulltext: true
       feed_url: https://www.theguardian.com/environment/rss
       type: trade_media
       lead_time_tier: market
     - name: Canary Media
+      fulltext: true
       feed_url: https://www.canarymedia.com/rss.xml
       type: trade_media
       lead_time_tier: market
@@ -433,14 +500,17 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: pv magazine Deutschland
+      fulltext: true
       feed_url: https://www.pv-magazine.de/feed/
       type: trade_media
       lead_time_tier: market
     - name: CleanThinking
+      fulltext: true
       feed_url: https://www.cleanthinking.de/feed/
       type: trade_media
       lead_time_tier: market
     - name: Electrek
+      fulltext: true
       feed_url: https://electrek.co/feed/
       type: trade_media
       lead_time_tier: now
@@ -476,22 +546,27 @@ verticals:
       type: trade_media
       lead_time_tier: now
     - name: Wallpaper
+      fulltext: true
       feed_url: https://www.wallpaper.com/rss
       type: trade_media
       lead_time_tier: now
     - name: Designboom
+      fulltext: true
       feed_url: https://www.designboom.com/feed/
       type: trade_media
       lead_time_tier: now
     - name: Design Milk
+      fulltext: true
       feed_url: https://design-milk.com/feed/
       type: trade_media
       lead_time_tier: now
     - name: Architectural Record
+      fulltext: true
       feed_url: https://www.architecturalrecord.com/rss/articles
       type: trade_media
       lead_time_tier: market
     - name: Yanko Design
+      fulltext: true
       feed_url: https://www.yankodesign.com/feed/
       type: trade_media
       lead_time_tier: now
@@ -516,6 +591,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Glossy
+      fulltext: true
       feed_url: https://www.glossy.co/feed/
       type: trade_media
       lead_time_tier: now
@@ -525,11 +601,13 @@ verticals:
       ingest_cap: 50   # low yield (~33%) — cap backfill
       lead_time_tier: now
     - name: Vogue UK
+      fulltext: true
       feed_url: https://www.vogue.co.uk/feed/rss
       type: trade_media
       ingest_cap: 50   # low yield (~18%) — cap backfill
       lead_time_tier: now
     - name: Guardian Fashion
+      fulltext: true
       feed_url: https://www.theguardian.com/fashion/rss
       type: trade_media
       lead_time_tier: now
@@ -538,10 +616,12 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: TextilWirtschaft
+      fulltext: true
       feed_url: https://www.textilwirtschaft.de/news/feed/
       type: trade_media
       lead_time_tier: market
     - name: WWD
+      fulltext: true
       feed_url: https://www.wwd.com/feed/
       # foresight-value only (drop Fashion Features/Show Reviews/Scoops/Celebrity/Parties/People)
       wp_categories: [26831, 344376264, 344417288, 31236264, 13412480, 43868619, 3651, 344417292, 32893, 344417290, 2512674, 344412699, 3342]
@@ -564,6 +644,7 @@ verticals:
   BIZ:
     sources:
     - name: Retail Dive
+      fulltext: true
       feed_url: https://www.retaildive.com/feeds/news/
       type: trade_media
       lead_time_tier: market
@@ -584,36 +665,44 @@ verticals:
       type: trade_media
       lead_time_tier: future
     - name: Horizont
+      fulltext: true
       feed_url: https://www.horizont.net/news/feed/
       type: trade_media
       lead_time_tier: market
     - name: Gründerszene
+      fulltext: true
       feed_url: https://www.businessinsider.de/gruenderszene/feed/
       # foresight-value only — Wirtschaft/Tech/Business/Finanzen/Mobility/Science (drop Panorama/Leben/Politik-allg.)
       wp_categories: [146, 1, 223749, 149, 3776, 223748, 1832, 91954, 230733, 223754, 127081, 223742, 1833, 223745, 400]
       type: trade_media
       lead_time_tier: market
     - name: brutkasten
+      fulltext: true
       feed_url: https://brutkasten.com/feed
       type: trade_media
       lead_time_tier: market
     - name: Asia Times
+      fulltext: true
       feed_url: https://asiatimes.com/feed/
       type: trade_media
       lead_time_tier: market
     - name: Restaurant Business
+      fulltext: true
       feed_url: https://www.restaurantbusinessonline.com/feed
       type: trade_media
       lead_time_tier: market
     - name: Nation's Restaurant News
+      fulltext: true
       feed_url: https://www.nrn.com/rss.xml
       type: trade_media
       lead_time_tier: market
     - name: DW Wirtschaft
+      fulltext: true
       feed_url: https://rss.dw.com/xml/rss-de-eco
       type: trade_media
       lead_time_tier: market
     - name: Tagesschau Wirtschaft
+      fulltext: true
       feed_url: https://www.tagesschau.de/wirtschaft/index~rss2.xml
       type: trade_media
       lead_time_tier: now
@@ -622,6 +711,7 @@ verticals:
       type: trade_media
       lead_time_tier: now
     - name: Politico Europe
+      fulltext: true
       feed_url: https://www.politico.eu/feed/
       type: trade_media
       lead_time_tier: market
@@ -630,34 +720,42 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Guardian Business
+      fulltext: true
       feed_url: https://www.theguardian.com/business/rss
       type: trade_media
       lead_time_tier: market
     - name: Supply Chain Dive
+      fulltext: true
       feed_url: https://www.supplychaindive.com/feeds/news/
       type: trade_media
       lead_time_tier: market
     - name: Marketing Dive
+      fulltext: true
       feed_url: https://www.marketingdive.com/feeds/news/
       type: trade_media
       lead_time_tier: market
     - name: EU-Startups
+      fulltext: true
       feed_url: https://www.eu-startups.com/feed/
       type: trade_media
       lead_time_tier: market
     - name: WirtschaftsWoche
+      fulltext: true
       feed_url: https://www.wiwo.de/contentexport/feed/rss/schlagzeilen
       type: trade_media
       lead_time_tier: market
     - name: Handelsblatt Schlagzeilen
+      fulltext: true
       feed_url: https://www.handelsblatt.com/contentexport/feed/schlagzeilen
       type: trade_media
       lead_time_tier: market
     - name: Sifted
+      fulltext: true
       feed_url: https://sifted.eu/feed
       type: trade_media
       lead_time_tier: market
     - name: OMR
+      fulltext: true
       feed_url: https://omr.com/de/feed
       type: trade_media
       lead_time_tier: now
@@ -677,66 +775,81 @@ verticals:
       type: trade_media
       lead_time_tier: future
     - name: GamesIndustry.biz
+      fulltext: true
       feed_url: https://www.gamesindustry.biz/feed
       type: trade_media
       lead_time_tier: now
     - name: Creative Bloq
+      fulltext: true
       feed_url: https://www.creativebloq.com/feed
       type: trade_media
       lead_time_tier: now
     - name: Hypebeast
+      fulltext: true
       feed_url: https://www.hypebeast.com/feed/
       # foresight-value only (drop Fashion/Music/Footwear drops/Entertainment/Sports/Gaming)
       wp_categories: [16, 52, 25946, 5889, 2487, 151209]
       type: trade_media
       lead_time_tier: now
     - name: Impact Alpha
+      fulltext: true
       feed_url: https://impactalpha.com/feed/
       type: trade_media
       lead_time_tier: market
     - name: Social Enterprise UK
+      fulltext: true
       feed_url: https://www.socialenterprise.org.uk/feed/
       type: trade_media
       lead_time_tier: market
     - name: EdTech Magazine
+      fulltext: true
       feed_url: https://edtechmagazine.com/higher/rss.xml
       type: trade_media
       lead_time_tier: market
     - name: Nonprofit Quarterly
+      fulltext: true
       feed_url: https://nonprofitquarterly.org/feed/
       type: trade_media
       lead_time_tier: market
     - name: Robb Report
+      fulltext: true
       feed_url: https://robbreport.com/feed/
       type: trade_media
       ingest_cap: 50   # luxury listings-heavy — cap backfill
       lead_time_tier: now
     - name: Luxury Daily
+      fulltext: true
       feed_url: https://www.luxurydaily.com/feed/
       type: trade_media
       lead_time_tier: now
     - name: Highsnobiety
+      fulltext: true
       feed_url: https://www.highsnobiety.com/feed/
       type: trade_media
       ingest_cap: 50   # low yield (~30%) — cap backfill
       lead_time_tier: now
     - name: Skift
+      fulltext: true
       feed_url: https://skift.com/feed/
       type: trade_media
       lead_time_tier: now
     - name: Platformer
+      fulltext: true
       feed_url: https://platformer.news/rss/
       type: trade_media
       lead_time_tier: future
     - name: Rest of World
+      fulltext: true
       feed_url: https://restofworld.org/feed/latest
       type: trade_media
       lead_time_tier: future
     - name: Guardian Culture
+      fulltext: true
       feed_url: https://www.theguardian.com/culture/rss
       type: trade_media
       lead_time_tier: now
     - name: Hollywood Reporter
+      fulltext: true
       feed_url: https://www.hollywoodreporter.com/feed/
       # foresight-value only — Business/Digital/Politics (drop Movies/TV/Reviews/Gossip)
       wp_categories: [64, 65850, 65851, 65843]
@@ -744,14 +857,17 @@ verticals:
       ingest_cap: 50   # high-volume gossip, low yield (~19%) — cap backfill
       lead_time_tier: now
     - name: Tubefilter
+      fulltext: true
       feed_url: https://www.tubefilter.com/feed/
       type: trade_media
       lead_time_tier: now
     - name: Music Business Worldwide
+      fulltext: true
       feed_url: https://www.musicbusinessworldwide.com/feed/
       type: trade_media
       lead_time_tier: market
     - name: Variety
+      fulltext: true
       feed_url: https://variety.com/feed/
       # foresight-value only — business of media (drop News/Reviews/Awards/Box Office firehose)
       wp_categories: [46658504, 4269, 401512229]
@@ -759,6 +875,7 @@ verticals:
       ingest_cap: 50   # high-volume, low trend-signal yield (~22%) — cap backfill
       lead_time_tier: now
     - name: PocketGamer.biz
+      fulltext: true
       feed_url: https://www.pocketgamer.biz/rss/
       type: trade_media
       lead_time_tier: now
@@ -772,6 +889,7 @@ verticals:
       type: research
       lead_time_tier: future
     - name: APS News & Research
+      fulltext: true
       feed_url: https://www.psychologicalscience.org/feed
       type: research
       lead_time_tier: future
@@ -825,18 +943,22 @@ cross_industry:
     type: press_wire
     lead_time_tier: market
   - name: Förderinfo Bund – Internationales
+    fulltext: true
     feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-internationales/rssnewsfeed.xml
     type: press_wire
     lead_time_tier: market
   - name: Förderinfo Bund – Klima & Energie
+    fulltext: true
     feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-klima-energie/rssnewsfeed.xml
     type: press_wire
     lead_time_tier: market
   - name: Förderinfo Bund – KMU-Förderung
+    fulltext: true
     feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-kmu-foerderung/rssnewsfeed.xml
     type: press_wire
     lead_time_tier: market
   - name: Förderinfo Bund – Kommunikation
+    fulltext: true
     feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-kommunikation/rssnewsfeed.xml
     type: press_wire
     lead_time_tier: market
@@ -845,10 +967,12 @@ cross_industry:
     type: press_wire
     lead_time_tier: market
   - name: Förderinfo Bund – Schlüsseltechnologien
+    fulltext: true
     feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-schluesseltechnologien/rssnewsfeed.xml
     type: press_wire
     lead_time_tier: market
   - name: Förderinfo Bund – Sicherheit
+    fulltext: true
     feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-sicherheit/rssnewsfeed.xml
     type: press_wire
     lead_time_tier: market
@@ -867,22 +991,27 @@ cross_industry:
     openalex_id: S3880285   # name doesn't match OpenAlex journal "Science" (2k works/yr)
     lead_time_tier: future
   - name: Phys.org
+    fulltext: true
     feed_url: https://phys.org/rss-feed/
     type: research
     lead_time_tier: future
   - name: ScienceDaily Top
+    fulltext: true
     feed_url: https://www.sciencedaily.com/rss/top.xml
     type: research
     lead_time_tier: future
   - name: Quanta Magazine
+    fulltext: true
     feed_url: https://www.quantamagazine.org/feed/
     type: research
     lead_time_tier: future
   - name: New Scientist Technology
+    fulltext: true
     feed_url: https://www.newscientist.com/subject/technology/feed/
     type: research
     lead_time_tier: future
   - name: Science News
+    fulltext: true
     feed_url: https://www.sciencenews.org/feed
     type: research
     lead_time_tier: future
@@ -891,6 +1020,7 @@ cross_industry:
     type: research
     lead_time_tier: future
   - name: DW Wissenschaft
+    fulltext: true
     feed_url: https://rss.dw.com/xml/rss-de-wissenschaft
     type: research
     lead_time_tier: future
@@ -904,14 +1034,17 @@ cross_industry:
     lead_time_tier: future
     fulltext: true          # CC-licensed; robots OK (#11)
   - name: EU Parliament Press
+    fulltext: true
     feed_url: https://www.europarl.europa.eu/rss/doc/press-releases/en.xml
     type: research
     lead_time_tier: future
   - name: idw Pressemitteilungen
+    fulltext: true
     feed_url: https://idw-online.de/pages/de/pressreleasesrss
     type: research
     lead_time_tier: future
   - name: Fraunhofer Presse
+    fulltext: true
     feed_url: https://www.fraunhofer.de/de/rss/presse.rss
     type: research
     lead_time_tier: future
