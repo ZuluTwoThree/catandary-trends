@@ -39,9 +39,11 @@ Autonome Nachtarbeit an Welle 2. Alles auf `epic/alpha`, hinter Feature-Flags (P
 ### z3 fertig + validiert (W1.5 / #45) — **deine Entscheidung nötig**
 `patent_spnp_full_z3` gebaut (42,4M Knoten). **Benchmark klar besser als Default** (Spearman 0,700 vs 0,65). Aber Trajektorien zeigen einen **Trade-off**: z3 behebt die Hot-Domain-Kompression (Li-Batterie liest `full` fälschlich als „reifend", z3 korrekt „beschleunigt"), erkauft mit einem mundane-Artefakt (F16B). Ich habe z3 als `TIR_SUBSTRATE=fullz3` verdrahtet, **Default bei `full` gelassen** (produktsichtbarer Wechsel = deine Entscheidung). Empfehlung + Details in #45. → **Wechsel zu fullz3?**
 
-### Noch laufend / gated
-- **run_full_cycle** (dein Wunsch): akquiriert neue Signale, läuft aktiv auf GPU (95 %). Ergebnis melde ich bei Abschluss.
-- **W1.6 Mega-Taxonomie**: LIFESTYLE-Discovery hinter den Cycle eingereiht (CPU-Kontention vermeiden); danach brauche ich deine **Label-Kuratierung**.
+### run_full_cycle (dein Wunsch) — erledigt
+Sauber durch (exit 0): **917 neue Trends** akquiriert (368 auto-published bei conf≥0,85, 549 als Draft zurückgehalten), 0 Fehler, llama-server neu gestartet. Die neuen Signale sind live in der DB.
+
+### W1.6 Mega-Taxonomie — Kandidaten fertig, **deine Kuratierung nötig**
+LIFESTYLE-Discovery gefahren (46.877 Signale) → `lifestyle_mega.candidate.yaml`. **3 Kandidaten** für die Entertainment/Social/Culture-Lücke: `evolution_of_social_media_platforms` + `platformization_of_culture` (net-neu), `the_rise_of_the_creator_economy` (überlappt evtl. bestehendes). + 1 Split-Kandidat. Details + meine Einordnung in #40. → **Welche in `mega_trends.yaml`?** Danach fahre ich Retrain + Reclassify. (Dabei einen weiteren Post-Postgres-Bug im Proposer gefixt.)
 
 ### Gesamtstand Epic
 Welle 0 ✅ · Welle 1 ✅ (bis auf z3-Validierung + W1.6-Kuratierung) · Welle 2 ✅ (bis auf Owner-Gates Stripe/DNS) · Welle 3 teilweise (Export ✅). Alle Tests grün (115 Python + Frontend-tsc). 4 Issues geschlossen (#28/#35/#38/#41).
