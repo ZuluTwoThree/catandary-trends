@@ -68,6 +68,8 @@ def main() -> int:
     ap.add_argument("--group", choices=["a", "rest", "all"], default="a",
                     help="a = gate-held (conf>=0.85), rest = relevance-uncertain")
     ap.add_argument("--execute", action="store_true", help="write the new bodies back")
+    ap.add_argument("--samples", type=int, default=0,
+                    help="print N before/after pairs for qualitative review")
     args = ap.parse_args()
 
     drafts = load_drafts(args.n, args.group)
@@ -75,6 +77,7 @@ def main() -> int:
           f"{'' if args.execute else '  [DRY RUN]'}\n")
 
     before_bad = after_bad = fixed = still_bad = failed = 0
+    samples: list[tuple] = []
     ctx = (gpu_handover.content_gen_on_llamacpp(STAGE5_MODEL)
            if STAGE5_BACKEND == "llamacpp" else __import__("contextlib").nullcontext())
     with ctx:
@@ -92,6 +95,8 @@ def main() -> int:
                 fixed += 1
             elif now:
                 still_bad += 1
+            if len(samples) < args.samples:
+                samples.append((d, new, was, now))
             if args.execute:
                 with get_connection() as c:
                     c.execute("UPDATE trends SET body_en = ?, title_en = ? WHERE id = ?",
@@ -109,6 +114,17 @@ def main() -> int:
     print(f"  Generierung fehlgeschlagen:            {failed}")
     if not args.execute:
         print("\n(DRY RUN — nichts in die DB geschrieben. --execute zum Anwenden.)")
+
+    if samples:
+        import textwrap
+        w = lambda s: textwrap.fill(s, 74, initial_indent="  ", subsequent_indent="  ")  # noqa: E731
+        for d, new, was, now in samples:
+            print(f"\n{'='*76}\nQUELLE : {d['source_name']}  ·  draft #{d['id']}")
+            print(f"TITEL  : {(d['raw_title'] or d['title_en'])[:70]}")
+            print(f"\n--- ALT (30B) · erfunden: {', '.join(was) if was else '— keine'}")
+            print(w((d["body_en"] or "")[:900]))
+            print(f"\n--- NEU (Gemma) · erfunden: {', '.join(now) if now else '— keine'}")
+            print(w(new.body[:900]))
     return 0
 
 
