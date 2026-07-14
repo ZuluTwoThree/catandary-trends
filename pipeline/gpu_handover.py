@@ -54,6 +54,9 @@ MODEL_START_SCRIPTS: dict[str, Path] = {
     # CLASSIFY_WORKERS=24 fans out across its slots. Swapped out for Stage 5/6.
     "Qwen3-8B-UD-Q4_K_XL.gguf":        LLAMA_CPP_ROOT / "start-qwen3-8b-208k.sh",
     "Qwen3-Embedding-8B-Q4_K_M.gguf":  LLAMA_CPP_ROOT / "start-qwen3-emb.sh",
+    # Content-gen candidate under evaluation (#11): Gemma 4 26B-A4B MoE (QAT).
+    # Registered so the handover can swap it in for A/B runs against the 30B.
+    "gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf": LLAMA_CPP_ROOT / "start-gemma4-26b.sh",
 }
 
 # The 208K classifier is the only valid *resting* state for start-active.sh:
