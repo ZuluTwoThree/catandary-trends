@@ -616,7 +616,10 @@ def process_entry(entry: dict) -> dict | None:
     """
     entry_id = entry["id"]
     title = entry["title"]
-    excerpt = entry["excerpt"] or ""
+    # Prefer the fetched full article text (raw_content, #11) over the short RSS
+    # excerpt when present — the stages slice the first ~1-1.5k chars, which is
+    # far richer than a ~70-word teaser and cuts the fabrication rate.
+    excerpt = (entry.get("raw_content") or entry["excerpt"] or "")
     source_vertical = entry.get("source_vertical", "TECH")
     source_name = entry.get("source_name", "Unknown")
     source_url = entry["url"]

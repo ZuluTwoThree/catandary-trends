@@ -781,9 +781,11 @@ cross_industry:
     feed_url: https://www.prnewswire.com/rss/news-releases-list.rss
     type: press_wire
     lead_time_tier: market
+    fulltext: true          # press releases meant for distribution; robots OK (#11)
   - name: GlobeNewswire
     feed_url: https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20Releases
     type: press_wire
+    fulltext: true          # press releases meant for distribution; robots OK (#11)
     lead_time_tier: market
   funding_announcements:
   # Funding-program announcements (Bund + Länder + EU) — announcement level, NOT
@@ -900,6 +902,7 @@ cross_industry:
     feed_url: https://theconversation.com/articles.atom
     type: research
     lead_time_tier: future
+    fulltext: true          # CC-licensed; robots OK (#11)
   - name: EU Parliament Press
     feed_url: https://www.europarl.europa.eu/rss/doc/press-releases/en.xml
     type: research
