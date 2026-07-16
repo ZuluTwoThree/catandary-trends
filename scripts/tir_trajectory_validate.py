@@ -41,10 +41,13 @@ KNOWN = [
     ("Screws / fasteners",          ["F16B%"],       "not_up"),
     ("Furniture",                   ["A47B%"],       "not_up"),
     ("Containers / packaging",      ["B65D%"],       "not_up"),
-    # --- thin (direction must be withheld) ---
-    ("Gears",                       ["F16H%"],       "uncertain"),
-    ("Pumps",                       ["F04B%"],       "uncertain"),
-    ("Hand tools",                  ["B25B%"],       "uncertain"),
+    # Gears/Pumps/Hand tools were "uncertain" (thin) pre-backfill; the #35 backfill +
+    # gap-close (2026-07-16) lifted them to dense mundane (median recent window
+    # 18k-47k), so they now belong in the not-falsely-accelerate control (the density
+    # gate they used to test no longer withholds them).
+    ("Gears",                       ["F16H%"],       "not_up"),
+    ("Pumps",                       ["F04B%"],       "not_up"),
+    ("Hand tools",                  ["B25B%"],       "not_up"),
 ]
 
 UP = {"accelerating"}

@@ -90,16 +90,17 @@ MIN_N = 100
 # TIR_TRUNC_YEARS. (NB: the CPC-migration cliff — e.g. H01L→H10* semiconductors
 # ~2023, #43 — can mimic a droop for a MIGRATED domain; that is a domain-definition
 # artifact, not immaturity, and is orthogonal to this horizon.)
-# PREPARED, NOT YET DEFAULT (owner-gated, product-facing): fullz3's evidence points
-# to a last-complete year of ~2022 (TRUNC=4). The before/after (docs/tir_truncation_
-# before_after.md) shows this recovers 2020-2022 (solid n) AND sharpens recency — the
-# F16B/mundane false-"accelerating" becomes "steady" — but the recent edge STILL
-# carries a mild downward maturity/data-arrival tilt, so the direction-band neutral
-# baseline (ACCEL_PP=+0.15, calibrated to the OLD 2019 edge) is now mis-centred and
-# several headlines flip to "decelerating". Flipping the default to 4 must therefore
-# be paired with re-centring the direction bands (next step). Until then the default
-# stays 7 and 4 is opt-in via TIR_TRUNC_YEARS=4.
-_TRUNC: dict[str, int] = {}  # all substrates default to 7 until bands re-centred
+# PREPARED + COMPLETE, owner-gated flip (product-facing): fullz3's evidence points to
+# a last-complete year of ~2022 (TRUNC=4), recovering 2020-2022 (solid n). The full
+# package — TRUNC=4 AND the re-centred direction bands it requires — is validated in
+# docs/tir_truncation_before_after.md (control group 9/11, identical to prod; hot
+# domains still accelerate, mundane don't). The bands below auto-switch with the TRUNC
+# horizon, so the flip is a ONE-LINER: set _TRUNC = {"fullz3": 4}. Default stays 7 →
+# prod byte-identical (verified :3001 = 2019/accelerating); 4 is opt-in via
+# TIR_TRUNC_YEARS=4. NB: at the 2022 edge single-domain DIRECTION is noisier (large
+# mundane spread the median re-centring can't remove) — curve/K reliable, direction
+# with a bit more caveat.
+_TRUNC: dict[str, int] = {}  # {"fullz3": 4} to flip; empty = all substrates on 7
 TRUNC_YEARS = int(os.getenv("TIR_TRUNC_YEARS", _TRUNC.get(SUBSTRATE, 7)))
 RECENT_YEARS = 7       # direction is fit over the most recent complete window
 # Per-query floor: we no longer hard-start at 1990. The graph carries dated,
@@ -131,7 +132,22 @@ _BANDS = {
     "full":   (0.35,  -0.10,  -0.45),   # historical calibration (#36), unchanged
     "fullz3": (0.44,  -0.01,  -0.36),   # re-centred on fullz3 neutral +0.243 (#45)
 }
-ACCEL_PP, MATURE_PP, DECEL_PP = _BANDS.get(SUBSTRATE, _BANDS["full"])
+# The fullz3 neutral baseline is measured at the LAST-COMPLETE edge, so it moves with
+# TRUNC_YEARS: the 2020-2022 edge (TRUNC=4) carries a much stronger downward
+# maturity/data-arrival tilt than the 2019 edge — the mundane basket median drops
+# from +0.227 (2019) to -0.220 (2022): dense mechanical domains that cannot possibly
+# "decelerate in innovation" (furniture -0.66, building -0.84, containers -0.55) sit
+# deep negative, i.e. it is an edge artifact the band must absorb, not a real trend.
+# Same fixed half-widths (+0.20/-0.25/-0.60). Measured 2026-07-16 over 12 dense
+# mundane mechanical domains (F16B/A47B/B65D/B23C/F16D/B62D/E04B/B65G/F16K/B60R/
+# F16H/B25B); validated via tir_trajectory_validate.py. Prod (TRUNC=7) stays on the
+# tuple above, byte-identical; the re-centred tuple is used only when TRUNC=4 is
+# opted in (TIR_TRUNC_YEARS=4) — the two must flip together or directions misread.
+_FULLZ3_BANDS_TRUNC4 = (-0.02, -0.47, -0.82)  # neutral -0.220 + half-widths
+if SUBSTRATE == "fullz3" and TRUNC_YEARS <= 4:
+    ACCEL_PP, MATURE_PP, DECEL_PP = _FULLZ3_BANDS_TRUNC4
+else:
+    ACCEL_PP, MATURE_PP, DECEL_PP = _BANDS.get(SUBSTRATE, _BANDS["full"])
 # Direction honesty gate (#36 follow-up): the direction slope is only trustworthy
 # when the windows it is fit over are dense. Measured: mundane domains fit over
 # thin windows (median recent window-n ~450-790) inflate to rel_change 0.3-0.5

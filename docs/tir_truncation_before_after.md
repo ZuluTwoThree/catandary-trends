@@ -46,13 +46,78 @@ Ist „letztes vollständiges Jahr = 2019" (`TRUNC_YEARS=7`) für `fullz3` noch 
 
 **Aber ein simpler Flip ist nicht sauber:** Der jüngste Rand (2020–2022) trägt noch eine **milde Abwärts-Neigung** (Rest-Immaturität + Zitationsdaten-Nachlauf, vom Age-3-Cap reduziert aber nicht eliminiert). Die Richtungsbänder (`ACCEL_PP=+0,15`, kalibriert auf den ALTEN 2019-Rand) sind damit **fehlzentriert**: die mundane Baseline liegt am neuen Rand bei ~0 (F16B +0,01, Wireless −0,13) statt +0,15. Ohne Re-Zentrierung kippen mehrere Headlines nach `decelerating` (Batterie, Solar) — teils real (reifende Felder), teils Rand-Bias, nicht sauber trennbar.
 
-## Umgesetzt
+## Richtungsband-Re-Zentrierung (Teil 2 des Pakets)
 
-- `TRUNC_YEARS` ist jetzt **substrat-bewusst + env-gated**: `TIR_TRUNC_YEARS` überschreibt; ohne Override bleibt **alles bei 7** (Prod unverändert, verifiziert: :3001 zeigt weiter 2019/accelerating). Der Code trägt die Begründung + den Recommendation-Kommentar.
-- Opt-in-Test: `TIR_TRUNC_YEARS=4 …`.
+Die mundane Baseline (Median rel_change über 12 dichte mechanische Domänen — F16B/
+A47B/B65D/B23C/F16D/B62D/E04B/B65G/F16K/B60R/F16H/B25B) verschiebt sich mit dem
+Rand:
 
-## Empfehlung (Owner-Entscheidung)
+| Horizont | mundane Neutral | Bänder (ACCEL / MATURE / DECEL), Halbweiten +0,20/−0,25/−0,60 |
+|---|--:|---|
+| TRUNC=7 (2019, Prod) | **+0,227** | 0,44 / −0,01 / −0,36 |
+| TRUNC=4 (2022) | **−0,220** | −0,02 / −0,47 / −0,82 |
 
-1. **Nicht** TRUNC=4 als stillen Default flippen (product-facing, kippt Headlines).
-2. **Paket schnüren:** TRUNC=4 **plus** Richtungsband-Re-Zentrierung (neue mundane Baseline am 2020–2022-Rand messen → `ACCEL_PP/DECEL_PP/MATURE_PP` um ~0,15 nach unten verschieben), dann Kontroll-Domänen validieren (F16B steady, KI/CRISPR beschleunigend/reifend, Solar reifend). Erst dann Default-Flip.
-3. Alternativ konservativ **TRUNC=5** (letztes Jahr 2021) prüfen, falls der 2022-Rand zu unreif erscheint.
+Der Rand kippt also die Baseline um ~0,45 nach unten — Möbel −0,66, Bau −0,84,
+Behälter −0,55: Domänen, die unmöglich „in der Innovationsrate reifen", also ein
+**Rand-Artefakt**, das das Band absorbieren muss. `fullz3` schaltet die Bänder jetzt
+**mit dem TRUNC-Horizont mit** (Prod TRUNC=7 byte-identisch; die re-zentrierten
+Bänder greifen nur bei TRUNC≤4).
+
+## Kontrollgruppen-Validierung (fairer Vergleich, gleiche Erwartungen)
+
+`tir_trajectory_validate.py`, Tiers an die Post-Backfill-Dichte angepasst (Zahnräder/
+Pumpen/Handwerkzeug sind nicht mehr dünn → jetzt „mundan, darf nicht beschleunigen"):
+
+**Beide Einstellungen: 9/11.** Die Re-Zentrierung kompensiert den Rand-Shift
+vollständig — TRUNC=4 ist **gleich gut** wie Prod und gewinnt zusätzlich 3 Jahre Kurve.
+
+| Domäne | Tier | DIR@7 (rel) | DIR@4 (rel) | Bewertung |
+|---|---|---|---|---|
+| CRISPR | steigend | accelerating (+0,50) | **accelerating** (+0,25) | ✅ beide |
+| Impfstoffe | steigend | accelerating (+0,44) | **accelerating** (+0,07) | ✅ beide |
+| mRNA | steigend | accelerating (+0,64) | **accelerating** (+0,05) | ✅ beide |
+| Solar | reifend | maturing (−0,03) | maturing (−0,56) | ✅ beide |
+| **Wind** | reifend | **accelerating** (+0,49) ❌ | steady (−0,20) ❌ | @4 *weniger* falsch |
+| **Schrauben F16B** | mundan | accelerating (+0,68) ❌ | accelerating (+0,01) ❌ | Ausreißer, beide |
+| Möbel | mundan | steady (+0,13) | maturing (−0,66) | ✅ beide (kein accel) |
+| Behälter | mundan | steady (+0,15) | maturing (−0,55) | ✅ beide |
+| Zahnräder | mundan | steady (+0,32) | steady (−0,05) | ✅ beide |
+| Pumpen | mundan | maturing (−0,02) | maturing (−0,72) | ✅ beide |
+| Handwerkzeug | mundan | maturing (−0,05) | maturing (−0,76) | ✅ beide |
+
+Die **2 verbleibenden Fehler scheitern bei BEIDEN** Einstellungen, sind also nicht
+durch die TRUNC-Änderung verursacht: **F16B** ist ein echter Flach-Ausreißer (bleibt
++0,01, während die anderen mundanen Domänen einbrechen → relativ „beschleunigend");
+**Wind** ist grenzwertig — und liest bei TRUNC=4 *besser* („steady" statt fälschlich
+„accelerating" wie in Prod).
+
+**Ehrliche Rest-Grenze:** Der 2022-Rand hat große mundane Streuung (−0,84 … +0,01);
+die Re-Zentrierung korrigiert den Median, nicht die Streuung. Einige mundane Domänen
+lesen daher „maturing" (Möbel/Behälter) statt „steady" — für die Kontrolle „darf nicht
+beschleunigen" unschädlich, aber ein Zeichen, dass Einzel-Richtungen am neuen Rand
+rauschiger sind. **Verlässlich am Rand: die Kurve/K-Werte; die Richtung mit etwas
+mehr Vorbehalt.**
+
+## Umgesetzt (env-gated, Prod unverändert)
+
+- `TRUNC_YEARS` substrat-bewusst + `TIR_TRUNC_YEARS`-Override; Default überall **7**.
+- fullz3-Bänder schalten **automatisch mit** dem TRUNC-Horizont (TRUNC≤4 → re-zentriert).
+- `tir_trajectory_validate.py`-Tiers auf Post-Backfill-Dichte aktualisiert.
+- Verifiziert: Prod :3001 unverändert (2019/accelerating, Bänder 0,44/−0,01/−0,36).
+  Opt-in-Test: `TIR_TRUNC_YEARS=4 …`.
+
+## Default-Flip = Einzeiler (Owner-Freigabe)
+
+Das Paket ist vollständig. Um es scharf zu schalten, in `tir_trajectory.py` **eine
+Zeile** ändern:
+
+```python
+_TRUNC: dict[str, int] = {"fullz3": 4}   # vorher: {}
+```
+
+Das setzt TRUNC_YEARS=4 für fullz3 → die re-zentrierten Bänder greifen automatisch mit.
+Kein weiterer Eingriff, keine Substrat- oder Frontend-Änderung nötig.
+
+**Empfehlung:** Flip vertretbar (gleiche Kontrollgruppen-Qualität, 3 Jahre mehr
+Signal). Falls der 2022-Rand zu rauschig erscheint, konservativ **TRUNC=5** (2021)
+als Zwischenschritt — dann müsste die Baseline für TRUNC=5 einmal nachgemessen werden.
