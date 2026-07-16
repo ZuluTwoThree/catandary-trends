@@ -25,11 +25,11 @@ def log(m): print(f"{time.strftime('%H:%M:%S')} {m}", flush=True)
 
 
 def main() -> int:
+    global OUT, SRC_TABLE
     ap = argparse.ArgumentParser(description="build patent_cpc_full from staging nodes")
     ap.add_argument("--out", default=OUT, help="destination cpc table")
     ap.add_argument("--src", default=SRC_TABLE, help="SPNP table whose pub set to keep")
     args = ap.parse_args()
-    global OUT, SRC_TABLE
     OUT, SRC_TABLE = args.out, args.src
     idx_suffix = OUT.replace("patent_cpc_", "")  # unique index names per table
     t0 = time.time()
