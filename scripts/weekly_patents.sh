@@ -52,9 +52,19 @@ BEFORE=$(date -d '+1 year' +%F)
 from pipeline.db import get_connection
 from datetime import date, timedelta
 
-# Two months back: recent enough to catch a stall, old enough that DOCDB's
-# classification/citation lag has largely filled it in.
-d = (date.today().replace(day=1) - timedelta(days=1)).replace(day=1) - timedelta(days=1)
+# THREE months back, not two. The 2026-07-16 catch-up measured where DOCDB's
+# classification/citation lag actually settles:
+#
+#   2026-04 (m-3)  177,837  123%   filled
+#   2026-05 (m-2)   82,973   57%   still filling
+#   2026-06 (m-1)   79,695   55%   still filling
+#
+# A month needs ~3 months before its CPC codes and citations have arrived, so
+# checking m-2 would raise a false alarm on a perfectly healthy corpus. m-3 is
+# the earliest window where a real stall is distinguishable from normal lag.
+d = date.today().replace(day=1)
+for _ in range(3):
+    d = (d - timedelta(days=1)).replace(day=1)
 month = d.strftime("%Y-%m")
 with get_connection() as c:
     r = c.execute("SELECT COUNT(*) AS n FROM raw_entries WHERE pub_number IS NOT NULL "
