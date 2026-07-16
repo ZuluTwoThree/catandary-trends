@@ -1,0 +1,102 @@
+# TIR-Verlässlichkeit: Umsetzungsplan
+
+**Branch:** `feat/tir-reliability` · **Stand:** 2026-07-16 · **Bezug:** #45, #43, [[tir-computation-state]], [[tir-centrality-normalization-method]], [[usp-tir-mit-research]]
+
+## Ausgangslage (belegt)
+
+- Default-Substrat ist `fullz3` (`patent_spnp_full_z3`, z-Score-Null + Age-3-Cap), gebaut aus **eingefrorenen** Staging-Shards vom 2026-07-11 / `full_graph_cache`. Benchmark: **Spearman 0,700 · R² 0,457 · σ²=0,421** gegen 23 selbst-transkribierte Magee-Domänen.
+- `patent_links` steht bei **113,58 Mio.** Kanten (Substrate auf 112,0 Mio. gerechnet). Die +1,58 Mio. sind 1,4 %, konzentriert am Rand 2025/26 — den `TRUNC_YEARS=7` (letztes vollständiges Jahr = 2019) ohnehin abschneidet. **→ Neu-Rechnen des Netzwerks allein bewegt die berichteten Werte praktisch nicht.**
+- **Neuer Hebel entdeckt:** `/mnt/data-hdd/Domains_patent_info.csv` (348 MB, 30 Domänen, per-Patent) + `performance_time_series.csv` (29 Domänen, echte Performance-Zeitreihen) sind der **originale Singh/Triulzi/Magee-Datensatz**. Spalte `SPNP_count_t3_randomized_zscore_RPbyYear` ist **exakt das X des Papers** — das, was `fullz3` nachbaut. Bisher völlig ungenutzt.
+
+## Ziel
+
+TIR **absolut** verlässlicher machen (der einzige verbleibende große Vorbehalt aus #45) und das Substrat vom eingefrorenen Snapshot in einen wartbaren Zustand bringen — ohne das freigegebene Frontend-Verhalten (#36) zu brechen.
+
+## Nicht-Ziele
+
+- Kein Umbau der Trajectory-UX (freigegeben, #36).
+- Keine Default-Substrat-Umschaltung ohne Owner-Freigabe (product-facing, wie schon bei fullz3).
+- Kein multilingualer Korpus (#27), kein OpenAlex (#9/#51) — separate Stränge.
+
+---
+
+## Workstream 1 — Kalibrierung gegen den echten MIT-Datensatz *(größter Hebel, keine neuen Patentdaten)*
+
+**Warum zuerst:** Hebt die *absolute* Genauigkeit (R²=0,457 heute) und macht den USP „basiert auf aktueller MIT-Forschung" **belegbar statt nur zitierbar** — Ehrlichkeits-Gate aus [[usp-tir-mit-research]]. Reine CPU/Numpy-Arbeit, Stunden nicht Tage, kein GPU, kein Rebuild nötig.
+
+### 1a. Ground-Truth-K je Domäne herleiten
+- `performance_time_series.csv` einlesen → pro der 29 Domänen ein exponentieller Fit `log(perf) ~ Jahr`, Steigung = wahres K. Das ersetzt unsere 23 handübertragenen Magee-Raten durch **die Zielgröße, gegen die das Paper selbst kalibriert**.
+- Deliverable: `scripts/mit_ground_truth.py` → Tabelle/CSV `domain, K_true, n_years, r2_fit`.
+
+### 1b. Unser SPNP patentgenau gegen MIT validieren
+- Join `Domains_patent_info.patent_number` ↔ unsere `patent_spnp_full*` (US-Grant-Pub-Numbers normalisieren, Format `US-XXXXXXX-B2`).
+- Vergleich unser `spnp_pctl` vs. MIT `SPNP_count_t3_randomized_zscore_RPbyYear` **pro Patent**: Spearman + Bland-Altman. Deckt auf, ob unsere Normalisierung driftet (offener Punkt in [[tir-centrality-normalization-method]]) — und **auf welchem Substrat** (`full`/`fullz`/`fullz3`) sie am nächsten an MIT liegt.
+- Deliverable: `scripts/validate_spnp_vs_mit.py` → Report je Substrat.
+
+### 1c. Neu kalibrieren gegen echte Domänen-Mitgliedschaft
+- `recalibrate_full.py` erweitern: statt CPC-Muster-Proxy die **MIT-eigenen patent_number-Sets** als Domänen-Scope nutzen (entfernt die CPC-Mapping-Fehlerquelle komplett). X = Mittel unseres `spnp_pctl` über die echten Domänen-Patente; Ziel = K_true aus 1a.
+- Refit `ln(K)=a+b·X` je Substrat; das Substrat mit bestem Out-of-Sample (LOO-CV Spearman/R²) gewinnt.
+- Deliverable: neue `_CALIB[...]`-Koeffizienten + CV-Report. **Akzeptanz:** R² > 0,457 **und** patent-level Spearman vs MIT (1b) ≥ 0,7 auf dem gewählten Substrat.
+
+### 1d. Entscheidung Default-Substrat + Koeffizienten
+- Evidenz-Paket an Owner (wie #45): welcher Substrat+Fit, was gewinnt/verliert (Trajectory-Spot-Check gegen die alten Referenzdomänen aus [[tir-computation-state]]: Batterie/Halbleiter/Käse/F16B).
+- **Owner-Gate.** Erst nach Freigabe `SUBSTRATE`-Default / `_CALIB` in `tir_trajectory.py` ändern.
+
+---
+
+## Workstream 2 — Truncation-Frontier *(der eigentliche Verlässlichkeits-Frontier am „Jetzt")*
+
+**Warum:** Ein Foresight-Tool wird an der Aussage über *jetzt* gemessen; heute ist verlässlich nur ≤2019 (`TRUNC_YEARS=7`). Das ist die tiefste Grenze — und **kein Datenvolumen-Problem**, sondern ein Methodenproblem (Forward-Zitat-Reifung).
+
+### 2a. Age-Cap-Kohortierung ausreizen
+- `fullz3` nutzt Age-3. Prüfen, wie nah an heute berichtet werden **darf**, wenn Zentralität konsequent bei `grant+N` gemessen wird (Kohorten bei fixem Alter vergleichbar → jüngere Jahre werden berichtbar statt ausgegraut). Kandidaten N∈{2,3,5} — MIT liefert `SPNP_count_t2/t3/t5/t8_...` als Referenz, wie weit man gehen kann.
+- **Akzeptanz:** letztes verlässliches Jahr rückt nachweisbar näher an heute, ohne dass mundane Domänen (F16B/B23C) fälschlich „beschleunigen".
+
+### 2b. Truncation-Flag datengetrieben statt Konstante
+- `TRUNC_YEARS=7` durch ein **substrat-/domänen-gemessenes** Reifungshorizont-Kriterium ersetzen (ab wann stabilisiert sich der mittlere Perzentil-Rang der Kohorte?), abgeleitet aus 2a. Konservativ, mit Ehrlichkeits-Ausgrauung wie bisher.
+- **Nur** vorschlagen, wenn 2a einen echten Gewinn zeigt; sonst dokumentieren, dass 7 der ehrliche Horizont bleibt.
+
+---
+
+## Workstream 3 — Lebendiges Substrat *(Hygiene-Voraussetzung; hier gehört „inkl. neuer Kanten neu rechnen" hin)*
+
+**Warum:** Das Substrat ist ein Snapshot vom 2026-07-11 und veraltet still. Aktuell **kann** es nicht wachsen — `catchup_bdds.py` verwirft die Downloads (`/tmp`, kein `--keep-files`), kein Pfad führt ins Staging. Ohne diesen Fix ist jeder künftige Rebuild ein No-op.
+
+### 3a. Staging-Leak schließen (Voraussetzung)
+- `catchup_bdds.py`: `--keep-files --scratch /mnt/data-hdd/bdds_frontfile` durchreichen, damit Wochendaten als Zips erhalten bleiben. Cron (`weekly_patents.sh`, #50) entsprechend.
+- **Akzeptanz:** nach einem Wochenlauf liegen die Zips auf der HDD und `parse_patents_to_staging.py` (resumable) erzeugt daraus neue `nodes-/edges-`Shards.
+
+### 3b. Substrat-Rebuild-Kadenz definieren
+- Skript, das Front-File-Shards ins Staging parst → SPNP (`spnp_from_staging.py`, Graph-Cache-Reuse) → CPC → Rekalibrierung (WS1-Pipeline), als **ein** reproduzierbarer Lauf. Quartalsweise oder bei ≥X % Kantenwachstum.
+- **Realismus-Hinweis im Doc:** Ein Rebuild verschiebt den Truncation-Horizont **nicht** (das leistet nur WS2 + Jahre akkumulierter Zitate). Der Wert von WS3 ist Währung/Reproduzierbarkeit, nicht Sofort-Genauigkeit.
+- **Erst dann** lohnt „Netzwerk inkl. der 113,58 Mio. Kanten neu rechnen" — als Teil dieser Kadenz, nicht als Einzelaktion.
+
+---
+
+## Reihenfolge & Abhängigkeiten
+
+```
+WS1 (Kalibrierung)  ──► liefert Rekalibrier-Pipeline + Substrat-Entscheidung
+   │                     (nutzt vorhandene Substrate, kein Rebuild)
+   ├──► WS2 (Truncation) baut auf 1b/1c auf (MIT t2/t3/t5 als Referenz)
+   └──► WS3 (Substrat)   nutzt WS1-Rekalibrierung als letzten Schritt jedes Rebuilds
+WS3a (Leak-Fix) kann sofort parallel — reine Ops, blockiert nichts, verhindert weiteren Datenverlust
+```
+
+**Empfohlener Start:** WS3a (5-Zeilen-Ops-Fix, stoppt die wachsende Lücke) **parallel** zu WS1a–1c (der echte Genauigkeitsgewinn). WS1d + WS2 nach Owner-Gate.
+
+## Risiken
+
+- **MIT-Pub-Number-Matching:** ihre `patent_number` ist US-Grant-ID ohne Kind-Code; unser Node-Set ist `US-…-B2`. Matching-Quote in 1b messen, bevor 1c darauf baut (Fallback: `patent_spnp_usgrant`, das ist der US-Grant-Subgraph).
+- **Substrat-Wechsel ist product-facing:** strikt hinter Owner-Gate (WS1d), inkl. Trajectory-Spot-Checks gegen die freigegebenen Referenzformen.
+- **HDD-Platz:** Front-File-Zips + neue Shards — vor 3b `df -h /mnt/data-hdd` prüfen.
+
+## Rollback
+
+Alle Substrate sind env-gated (`TIR_SUBSTRATE`); Koeffizienten in `_CALIB`. Kein Schritt löscht bestehende Tabellen (neue `--out-table`). Default-Umschaltung ist eine einzelne Zeile, revertierbar.
+
+## Offene Owner-Entscheidungen
+
+1. Default-Substrat nach WS1 wechseln — ja/nein (Evidenz kommt aus 1d).
+2. Truncation-Horizont datengetrieben lockern (WS2b) — nur falls 2a Gewinn zeigt.
+3. Rebuild-Kadenz (WS3b): Quartal vs. Schwellenwert.
