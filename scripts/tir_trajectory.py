@@ -74,13 +74,33 @@ WINDOW = 5              # rolling-window years for each K(t) point
 # (DOMAIN_MIN_TOTAL) and the separate direction-density gate still guard against
 # noise. (Was 300, which hid decades of real data for lighter-patented fields.)
 MIN_N = 100
-# Empirically, a domain's mean SPNP percentile peaks ~2018-2019 and then droops
-# for EVERY domain — patents granted after ~2019 haven't accumulated enough of
-# the forward-citation descendant tree for their centrality RANK to stabilize
-# (it regresses toward the cohort mean 0.5). So the reliably-measurable window
-# ends ~7 years before present; more recent years are flagged incomplete and
-# excluded from the direction fit. This is the honest citation-maturity horizon.
-TRUNC_YEARS = 7        # last N years have immature citation centrality → grey
+# Citation-maturity horizon — SUBSTRATE-SPECIFIC. On the 'full' substrate (degree
+# regression, NO forward-age cap) a domain's mean SPNP percentile peaks ~2018-2019
+# and then droops for every domain: patents granted after ~2019 haven't accumulated
+# enough of the forward-citation descendant tree for their centrality RANK to
+# stabilize (it regresses toward the cohort mean 0.5), so the reliably-measurable
+# window ends ~7 years before present. But 'fullz3' applies an age-3 FORWARD CAP —
+# it measures every patent's centrality at grant+3, so its cohorts are comparable
+# ~3 years sooner. Empirically (2026-07-16, gap-closed graph) hot domains with solid
+# n hold their centrality with NO regression to 0.5 through ~2022-2023 — AI G06N:
+# mean pctl 0.657/0.662/0.613 at 2022/23/24 over 95k+ patents/yr; battery H01M10
+# solid 31-35k/yr to 2024. Bounded by our citation-data arrival (dense to ~2024),
+# fullz3's last fully-complete year is ~2022 → TRUNC=4 (vs 7 for 'full'). This
+# recovers ~3 years of the most recent, most valuable signal. Override with
+# TIR_TRUNC_YEARS. (NB: the CPC-migration cliff — e.g. H01L→H10* semiconductors
+# ~2023, #43 — can mimic a droop for a MIGRATED domain; that is a domain-definition
+# artifact, not immaturity, and is orthogonal to this horizon.)
+# PREPARED, NOT YET DEFAULT (owner-gated, product-facing): fullz3's evidence points
+# to a last-complete year of ~2022 (TRUNC=4). The before/after (docs/tir_truncation_
+# before_after.md) shows this recovers 2020-2022 (solid n) AND sharpens recency — the
+# F16B/mundane false-"accelerating" becomes "steady" — but the recent edge STILL
+# carries a mild downward maturity/data-arrival tilt, so the direction-band neutral
+# baseline (ACCEL_PP=+0.15, calibrated to the OLD 2019 edge) is now mis-centred and
+# several headlines flip to "decelerating". Flipping the default to 4 must therefore
+# be paired with re-centring the direction bands (next step). Until then the default
+# stays 7 and 4 is opt-in via TIR_TRUNC_YEARS=4.
+_TRUNC: dict[str, int] = {}  # all substrates default to 7 until bands re-centred
+TRUNC_YEARS = int(os.getenv("TIR_TRUNC_YEARS", _TRUNC.get(SUBSTRATE, 7)))
 RECENT_YEARS = 7       # direction is fit over the most recent complete window
 # Per-query floor: we no longer hard-start at 1990. The graph carries dated,
 # cited patents back to the 19th century, so each technology begins at ITS OWN
