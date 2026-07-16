@@ -83,6 +83,9 @@ def main() -> int:
     ap.add_argument("--kind", choices=["crdel", "amend", "both"], default="crdel",
                     help="Cr-Del carries new publications; Amend only revises existing ones")
     ap.add_argument("--limit", type=int, default=0, help="stop after N deliveries")
+    ap.add_argument("--retries", type=int, default=3,
+                    help="attempts per delivery before skipping it (transient "
+                         "ReadTimeouts are normal over a multi-hour run)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -113,11 +116,25 @@ def main() -> int:
                "--after", args.after, "--before", args.before, "--max-files", "0"]
         if args.dry_run:
             cmd.append("--dry-run")
-        r = subprocess.run(cmd, cwd=str(Path(__file__).parent.parent))
-        if r.returncode != 0:
-            print(f"!! Lieferung {d['id']} fehlgeschlagen (rc={r.returncode}) — Abbruch, "
-                  f"Stand ist gespeichert, erneuter Aufruf setzt hier auf")
-            return 1
+        # Retry transient failures instead of killing the run. These are large
+        # downloads (up to ~730k docs per delivery) over a ~2h window, so an
+        # httpx.ReadTimeout is expected, not exceptional — the first amend run
+        # died on one after 5 of 29 deliveries. Partial work is not lost: entries
+        # are inserted per file and raw_entries dedups on url, so a retry resumes
+        # rather than duplicating.
+        for attempt in range(1, args.retries + 1):
+            r = subprocess.run(cmd, cwd=str(Path(__file__).parent.parent))
+            if r.returncode == 0:
+                break
+            if attempt < args.retries:
+                wait = 30 * attempt
+                print(f"!! Lieferung {d['id']} rc={r.returncode} — Versuch {attempt}/"
+                      f"{args.retries} fehlgeschlagen, warte {wait}s", flush=True)
+                time.sleep(wait)
+        else:
+            print(f"!! Lieferung {d['id']} nach {args.retries} Versuchen aufgegeben — "
+                  f"überspringe. Stand gespeichert, späterer Aufruf holt sie nach.")
+            continue    # skip, do not abort: one bad delivery must not cost the other 28
         if not args.dry_run:
             done.add(d["id"])
             state["done"] = sorted(done)
