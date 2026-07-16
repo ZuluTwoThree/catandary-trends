@@ -42,6 +42,28 @@ TIR **absolut** verlässlicher machen (der einzige verbleibende große Vorbehalt
 - Evidenz-Paket an Owner (wie #45): welcher Substrat+Fit, was gewinnt/verliert (Trajectory-Spot-Check gegen die alten Referenzdomänen aus [[tir-computation-state]]: Batterie/Halbleiter/Käse/F16B).
 - **Owner-Gate.** Erst nach Freigabe `SUBSTRATE`-Default / `_CALIB` in `tir_trajectory.py` ändern.
 
+### 1e. Prädiktor-Experiment: *zitierte* vs. eigene Zentralität *(NEU — aus Patent-Volltext US12099572B2 + Literatur, 2026-07-17)*
+**Befund:** Der kanonische MIT-Prädiktor ist **nicht** die Eigen-Zentralität der Domänen-Patente, sondern die **mittlere Zentralität der von ihnen *zitierten* Patente** (Patenttext: „average centrality of the patents **cited by** each patent"; Literatur: „technologies whose patents **cite** very central patents improve faster"). Paper-Güte: **r=0,80 / R²=0,64**, OOS 0,72 — deutlich über unserem R²=0,46. Das könnte die Lücke erklären.
+- **Experiment:** In 1c beide Prädiktoren gegen die MIT-Ground-Truth fitten:
+  - (A) aktuell: `AVG(spnp_pctl)` über die **eigenen** Domänen-Patente.
+  - (B) MIT-kanonisch: mittlere Zentralität der **zitierten** Patente (Spalte `meanSPNPcited_1year_before_randomized_zscore_RPbyYear` in `Domains_patent_info.csv`; für unser Substrat: pro Domänen-Patent die mittlere `spnp_pctl` seiner Rückwärts-Nachbarn in `patent_links`, dann Domänen-Mittel).
+- **Akzeptanz:** der bessere Prädiktor (LOO-CV R²) wird der neue `_x_by_year`-Kern. Ziel R² → Richtung 0,64.
+
+### 1f. Weitere kanonische Parameter aus dem Patent-Volltext *(NEU)*
+- **Randomisierungen R=1000** statt 100 für das Produktions-`_z3` (Patent nennt 1000 als kanonisch; #45 hatte es als Option). Stabilere z-Scores, adressiert die Optik/Wireless-Kompression.
+- **t+3 bestätigt** — unser Age-3-Cap ist exakt die MIT-Wahl (grant+3). ✅ keine Änderung nötig, aber jetzt belegbar.
+- **Domänen-Qualitäts-Filter (optional):** MIT verwirft Klassen-Overlaps unter der **Zufallserwartung** (Signifikanztest), nicht nur < n. Idee für unsere Ad-hoc-CPC-Domänen als Rausch-Schutz.
+- **Validierungs-Messlatten:** r=0,80 / R²=0,64 (kreuzschnittlich), 0,72 OOS post-1990 — als Zielwerte in 1c/1d führen.
+
+### 1g. Literatur-Anschluss *(NEU — Zitations-Hülle in `docs/tir_literature/`)*
+Weiterentwicklungen, die WS1/WS2 informieren (Volltexte OA in `/mnt/data-hdd/tir_literature/pdfs`):
+- **Jiang & Luo 2021** (deep neural embeddings über die 1757 Domänen + Rates) — Blaupause für unser Embedding-Domänen-Scoping.
+- **Rezazadegan et al. 2024** (TIR für AI-Subdomänen via Zentralität) — feine Subdomänen (#43).
+- **Ho et al. 2025** (Multilayer: Patente+Publikationen+Trials+Markt) — Multi-Source-Layer (#9).
+- **Lai et al. 2026** („effects of prediction time points") — vor WS2b (Truncation) lesen.
+- **Park et al. 2025 / Sarica & Luo 2023** (Declining Disruptiveness = Datenartefakt durch Null-Zitat-Werke) — bestätigt unseren Kompositions-Drift-Befund, liefert Korrekturmethodik.
+- **Fronzetti Colladon 2025** (Composite-Zentralität Katz/Degree/Betweenness + Text-Mining) — SPNP allein ist nicht mehr State-of-the-Art; mit Embeddings+breiterem Korpus potenziell vor GetFocus/TechNext.
+
 ---
 
 ## Workstream 2 — Truncation-Frontier *(der eigentliche Verlässlichkeits-Frontier am „Jetzt")*
