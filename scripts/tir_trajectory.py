@@ -159,7 +159,18 @@ _BANDS = {
 # tuple above, byte-identical; the re-centred tuple is used only when TRUNC=4 is
 # opted in (TIR_TRUNC_YEARS=4) — the two must flip together or directions misread.
 _FULLZ3_BANDS_TRUNC4 = (-0.02, -0.47, -0.82)  # neutral -0.220 + half-widths
-if SUBSTRATE == "fullz3" and TRUNC_YEARS <= 4:
+# The cited predictor (WS1) lives on a DIFFERENT X-scale, so its mundane baseline
+# differs: measured 2026-07-18 over the same 12 dense mechanical domains, the cited
+# neutral is -0.158 (tighter spread -0.07..-0.30 than the TRUNC=4 edge → cleaner
+# direction). Same half-widths. Used only when TIR_PREDICTOR=cited — the predictor
+# and its bands must flip together or every domain misreads "maturing".
+_FULLZ3_BANDS_CITED = (-0.008, -0.348, -0.608)  # cited neutral -0.158 + 0.75×half-widths
+# cited-X komprimiert die rel_change-Spanne (hot +0.01..+0.13, mundane ~-0.16, solar
+# -0.37) ggü. own → Halbweiten auf ~0.75× skaliert (0.15/-0.19/-0.45 statt 0.20/
+# -0.25/-0.60), sonst lesen reifende/steigende Domänen als "steady".
+if SUBSTRATE == "fullz3" and PREDICTOR == "cited":
+    ACCEL_PP, MATURE_PP, DECEL_PP = _FULLZ3_BANDS_CITED
+elif SUBSTRATE == "fullz3" and TRUNC_YEARS <= 4:
     ACCEL_PP, MATURE_PP, DECEL_PP = _FULLZ3_BANDS_TRUNC4
 else:
     ACCEL_PP, MATURE_PP, DECEL_PP = _BANDS.get(SUBSTRATE, _BANDS["full"])
