@@ -42,12 +42,16 @@ TIR **absolut** verlässlicher machen (der einzige verbleibende große Vorbehalt
 - Evidenz-Paket an Owner (wie #45): welcher Substrat+Fit, was gewinnt/verliert (Trajectory-Spot-Check gegen die alten Referenzdomänen aus [[tir-computation-state]]: Batterie/Halbleiter/Käse/F16B).
 - **Owner-Gate.** Erst nach Freigabe `SUBSTRATE`-Default / `_CALIB` in `tir_trajectory.py` ändern.
 
-### 1e. Prädiktor-Experiment: *zitierte* vs. eigene Zentralität *(NEU — aus Patent-Volltext US12099572B2 + Literatur, 2026-07-17)*
-**Befund:** Der kanonische MIT-Prädiktor ist **nicht** die Eigen-Zentralität der Domänen-Patente, sondern die **mittlere Zentralität der von ihnen *zitierten* Patente** (Patenttext: „average centrality of the patents **cited by** each patent"; Literatur: „technologies whose patents **cite** very central patents improve faster"). Paper-Güte: **r=0,80 / R²=0,64**, OOS 0,72 — deutlich über unserem R²=0,46. Das könnte die Lücke erklären.
-- **Experiment:** In 1c beide Prädiktoren gegen die MIT-Ground-Truth fitten:
-  - (A) aktuell: `AVG(spnp_pctl)` über die **eigenen** Domänen-Patente.
-  - (B) MIT-kanonisch: mittlere Zentralität der **zitierten** Patente (Spalte `meanSPNPcited_1year_before_randomized_zscore_RPbyYear` in `Domains_patent_info.csv`; für unser Substrat: pro Domänen-Patent die mittlere `spnp_pctl` seiner Rückwärts-Nachbarn in `patent_links`, dann Domänen-Mittel).
-- **Akzeptanz:** der bessere Prädiktor (LOO-CV R²) wird der neue `_x_by_year`-Kern. Ziel R² → Richtung 0,64.
+### 1e. Prädiktor-Experiment: *zitierte* vs. eigene Zentralität — ✅ ENTSCHIEDEN (2026-07-18, `scripts/mit_calibrate.py`)
+**Befund bestätigt am ORIGINAL-MIT-Datensatz** (29 Domänen, K_true aus `performance_time_series.csv`, X aus `Domains_patent_info.csv`):
+
+| Prädiktor | R² | Spearman | LOO-R² (OOS) |
+|---|---|---|---|
+| A — eigene Zentralität (`SPNP_count_t3`, unser aktueller) | 0,549 | 0,788 | 0,489 |
+| **B — zitierte Zentralität (`meanSPNPcited`, Patent-kanonisch)** | **0,621** | **0,831** | **0,557** |
+
+**B schlägt A durchgängig** und reproduziert den publizierten Paper-Wert (r≈0,80). Unsere A-Koeffizienten (a=−5,10/b=6,23) liegen fast exakt auf dem Paper K=e^(6,16·X−5,02) → Pipeline liest MIT korrekt.
+- **Umsetzung (läuft):** cited-Zentralität ist live zu teuer (18s/Domäne via `patent_links`-Join) → **einmal vorberechnet** in `patent_citedspnp_full_z3` (pub_number→mean spnp_pctl der zitierten Patente; `scripts/build_cited_spnp.py`). Dann `_x_by_year` env-gated auf cited umstellen (`TIR_PREDICTOR=cited`), rekalibrieren (cited-X-Skala liegt höher: Batterie 0,655 vs 0,461), before/after → Owner-Flip.
 
 ### 1f. Weitere kanonische Parameter aus dem Patent-Volltext *(NEU)*
 - **Randomisierungen R=1000** statt 100 für das Produktions-`_z3` (Patent nennt 1000 als kanonisch; #45 hatte es als Option). Stabilere z-Scores, adressiert die Optik/Wireless-Kompression.
