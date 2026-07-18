@@ -584,6 +584,15 @@ catandary.de/trends/newsletter             → Newsletter-Signup
 
 ## Anweisungen für Claude Code (Autonomer Arbeitsmodus)
 
+### ⚖️ Konstitutionelle Bedingung: Doku spiegelt immer die Realität
+
+**Verbindlich bei jeder Arbeit in diesem Repo:** Die Repo-Dokumentation (`CLAUDE.md`, `README.md`, `docs/`) muss stets die **tatsächlichen aktuellen Bedingungen** des Repos widerspiegeln.
+
+- **Ändert eine Arbeit reale Bedingungen** (Modelle, Backends, Defaults, Konfiguration, DB-Schema, Branch-Zustand, Pipeline-Verhalten, Cron/Deploy), wird die betroffene Doku **im selben Zug** mitgezogen — niemals stale Doku hinterlassen.
+- **Gegen die Realität verifizieren, nicht die alte Doku fortschreiben:** aktive Start-Skripte/GGUFs/Env in `scheduled_cycle.sh`, `config.py`-Defaults, Schema in `pipeline/db.py` etc. tatsächlich prüfen statt annehmen.
+- **Doku-Stand auf `dev` UND `epic/alpha` konsistent halten** (z. B. via isoliertem `git worktree`, ohne einen laufenden Cycle im Haupt-Tree zu stören).
+- Ursprung dieser Regel (2026-07-18): Content-Gen lief real längst auf Gemma-4-26B, während CLAUDE.md/README noch 30B/35B nannten — solche Drift ist ab jetzt konstitutionell auszuschließen.
+
 ### Arbeitsweise
 
 Claude Code soll **möglichst autonom** arbeiten. Das bedeutet:
