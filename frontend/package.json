@@ -9,7 +9,7 @@
     "prebuild": "node scripts/generate-mega-trends.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.2",
@@ -29,6 +29,8 @@
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.10",
     "typescript": "^6.0.2"
   },
   "overrides": {

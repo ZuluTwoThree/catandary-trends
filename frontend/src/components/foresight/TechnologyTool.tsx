@@ -97,9 +97,13 @@ function Chart({ points, mode, earliestYear }: { points: Point[]; mode: "rate" |
   );
 
   if (mode === "cumulative") {
-    // compound (1+K/100) over complete points; index = 1.0 at the first complete year
-    let cum = 1;
-    const cs = complete.map((p, i) => { if (i > 0) cum *= 1 + p.K / 100; return { year: p.year, y: cum }; });
+    // compound (1+K/100) over complete points; index = 1.0 at the first complete year.
+    // Compute each cumulative value independently (no render-scope mutation): y_i is
+    // the product of (1+K_j/100) for j=1..i (complete is small — years, not rows).
+    const cs = complete.map((p, i) => ({
+      year: p.year,
+      y: complete.slice(1, i + 1).reduce((acc, q) => acc * (1 + q.K / 100), 1),
+    }));
     const yMax = Math.max(...cs.map((s) => s.y), 2);
     const logMax = Math.log10(yMax) || 1;
     const py = (v: number) => H - PAD.b - (Math.log10(Math.max(v, 1)) / logMax) * plotH;

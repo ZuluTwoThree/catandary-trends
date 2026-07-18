@@ -8,7 +8,7 @@ import { Pool } from "pg";
  * Survives Next.js dev-mode HMR via globalThis stashing.
  */
 declare global {
-  // eslint-disable-next-line no-var
+  // `var` is required for a global augmentation (let/const don't create globals).
   var __catandaryPool: Pool | undefined;
 }
 

@@ -36,7 +36,7 @@ export default async function UnsubscribePage({
     <div className="mx-auto max-w-lg px-4 py-20 text-center">
       {ok ? (
         <>
-          <h1 className="text-2xl font-bold">You're unsubscribed</h1>
+          <h1 className="text-2xl font-bold">You&apos;re unsubscribed</h1>
           <p className="mt-3 text-sm opacity-70">
             {email} will no longer receive the Catandary Trends newsletter. You can
             re-subscribe any time from the newsletter page.
