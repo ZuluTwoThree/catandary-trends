@@ -64,6 +64,21 @@ _CALIB = {
 }
 COEF_A, COEF_B, SIGMA2 = _CALIB.get(SUBSTRATE, _CALIB["full"])
 
+# WS1 Prädiktor-Wahl (2026-07-18): "own" = Zentralität der Domänen-Patente (Default,
+# Prod); "cited" = mittlere Zentralität der von ihnen ZITIERTEN Patente — der
+# kanonische MIT-Prädiktor (Patent US12099572B2). Rigoros gegen die EXAKTEN
+# MIT-K_true auf unserem Substrat getestet (scripts/mit_calibrate_substrate.py, mit
+# cited aus dem STAGING-Graphen = gleiche Abdeckung wie own): cited schlägt own
+# klar — R²=0,574 vs 0,521 · Spearman 0,764 vs 0,712 · LOO 0,516 vs 0,459. cited ist
+# vorberechnet in patent_citedspnp_full_z3 (scripts/build_cited_spnp_staging.py), also
+# live so schnell wie own. Env-gated: Default bleibt own → Prod unverändert; der Flip
+# braucht zusätzlich re-zentrierte Richtungsbänder (cited-X-Skala) — daher owner-gated.
+PREDICTOR = os.getenv("TIR_PREDICTOR", "own")
+if PREDICTOR == "cited" and SUBSTRATE == "fullz3":
+    # MIT-K_true-Fit auf cited-X (ln(K_fraction)=a+b·X, a ist bereits Fraction-
+    # Intercept → KEIN −ln(100), _k_from_x macht ×100). a=−5.5622, b=5.5036.
+    COEF_A, COEF_B, SIGMA2 = (-5.5622, 5.5036, 0.4930)
+
 # --- tunables (the honesty gates) --------------------------------------------
 WINDOW = 5              # rolling-window years for each K(t) point
 # Min patents in a window to PLOT that year. Sized so genuinely thin but real
@@ -180,6 +195,17 @@ def _x_by_year(patterns: list[str]) -> dict[int, tuple[float, int]]:
             "  SELECT DISTINCT re.id FROM raw_entries re "
             "    JOIN patent_cpc pc ON pc.pub_number = re.pub_number WHERE (" + like + ")"
             ") p JOIN patent_spnp sp ON sp.raw_id = p.id "
+            f"WHERE sp.year BETWEEN {YEAR_LO - WINDOW} AND {YEAR_HI} "
+            "GROUP BY sp.year ORDER BY sp.year")
+    elif PREDICTOR == "cited" and SUBSTRATE == "fullz3":
+        # cited-Prädiktor: X = Mittel der cited_pctl (Zentralität der zitierten
+        # Patente) je Domänen-Patent; Jahr weiter aus dem SPNP-Substrat. Beide
+        # pub_number-indiziert → so schnell wie der own-Pfad.
+        sql = (
+            "SELECT sp.year, AVG(cs.cited_pctl) x, COUNT(*) n FROM ("
+            f"  SELECT DISTINCT pc.pub_number FROM {cpc_t} pc WHERE (" + like + ")"
+            f") p JOIN {spnp_t} sp ON sp.pub_number = p.pub_number "
+            "JOIN patent_citedspnp_full_z3 cs ON cs.pub_number = p.pub_number "
             f"WHERE sp.year BETWEEN {YEAR_LO - WINDOW} AND {YEAR_HI} "
             "GROUP BY sp.year ORDER BY sp.year")
     else:
