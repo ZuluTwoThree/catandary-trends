@@ -13,6 +13,13 @@
  */
 import { NextResponse } from "next/server";
 import { getPool, q, q1 } from "@/lib/pg";
+import { rateLimitInfo, clientIp } from "@/lib/rateLimit";
+
+// Every search embeds the query (local GPU) + runs several DB aggregates, so an
+// unguarded public GET is a resource-exhaustion vector (#5-hardening). Per-IP
+// sliding-window limit; the trajectory route keeps its own stricter gate.
+const SEARCH_RL_LIMIT = 30; // requests …
+const SEARCH_RL_WINDOW_MS = 60_000; // … per minute per client
 
 const OLLAMA_URL =
   process.env.OLLAMA_CLIENT_HOST || "http://127.0.0.1:11434";
@@ -345,6 +352,14 @@ export async function GET(request: Request) {
 
   if (!query) {
     return NextResponse.json({ error: "q parameter required" }, { status: 400 });
+  }
+
+  const rl = rateLimitInfo(`search:${clientIp(request)}`, SEARCH_RL_LIMIT, SEARCH_RL_WINDOW_MS);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "rate limit exceeded — please slow down" },
+      { status: 429, headers: { "retry-after": String(rl.retryAfterSec) } }
+    );
   }
 
   const t0 = Date.now();
