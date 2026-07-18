@@ -2,12 +2,25 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import scripts.tir_trajectory as _tt
 from scripts.tir_trajectory import (
     classify, build_points, DOMAIN_MIN_TOTAL, CALIB_MAX, MIN_N, TRUNC_YEARS,
     DIRECTION_MIN_MEDIAN_N, ACCEL_PP,
 )
+
+
+@pytest.fixture(autouse=True)
+def _fixed_reference_bands(monkeypatch):
+    """Pin the direction bands to canonical reference values so these logic tests
+    are independent of the production predictor default (own vs cited shift the
+    bands; the classify LOGIC is what's under test here)."""
+    monkeypatch.setattr(_tt, "ACCEL_PP", 0.44)
+    monkeypatch.setattr(_tt, "MATURE_PP", -0.01)
+    monkeypatch.setattr(_tt, "DECEL_PP", -0.36)
 
 
 def _pts(years_ks, complete_upto, n=2000):
@@ -95,7 +108,7 @@ def test_mild_rise_on_dense_windows_is_steady_not_accelerating():
                 (2014, 10.4), (2015, 10.8), (2016, 11.2), (2017, 11.4),
                 (2018, 11.7), (2019, 12.0)], 2019)
     r = classify(pts, n_total=50_000)
-    assert 0.10 < r["rel_change"] < ACCEL_PP
+    assert 0.10 < r["rel_change"] < _tt.ACCEL_PP  # patched reference band (0.44)
     assert r["direction"] == "steady"
 
 

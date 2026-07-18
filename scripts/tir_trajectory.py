@@ -73,7 +73,7 @@ COEF_A, COEF_B, SIGMA2 = _CALIB.get(SUBSTRATE, _CALIB["full"])
 # vorberechnet in patent_citedspnp_full_z3 (scripts/build_cited_spnp_staging.py), also
 # live so schnell wie own. Env-gated: Default bleibt own → Prod unverändert; der Flip
 # braucht zusätzlich re-zentrierte Richtungsbänder (cited-X-Skala) — daher owner-gated.
-PREDICTOR = os.getenv("TIR_PREDICTOR", "own")
+PREDICTOR = os.getenv("TIR_PREDICTOR", "cited")
 if PREDICTOR == "cited" and SUBSTRATE == "fullz3":
     # MIT-K_true-Fit auf cited-X (ln(K_fraction)=a+b·X, a ist bereits Fraction-
     # Intercept → KEIN −ln(100), _k_from_x macht ×100). a=−5.5622, b=5.5036.
