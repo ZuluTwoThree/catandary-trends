@@ -621,9 +621,9 @@ git remote add origin git@github.com:ZuluTwoThree/catandary-trends.git
 - `main` – stabiler, deployter Prototyp (**"save"**). Prod-Server 3001 läuft von hier. Nur bewusst per Merge aus `dev` aktualisieren.
 - `dev` – Integrations-Branch für laufende Arbeit. Hierhin committen; nach Stabilisierung → `main` mergen + 3001 neu bauen.
 - Feature-Branches optional bei komplexen Features (von `dev` abzweigen, in `dev` zurück).
-- `product/trend-radar` – archivierte, divergente Produkt-Variante (Sales-Kit/Pricing/Kunden-Portal, Stand 2026-06-11). **Nicht in main/dev mergen** (reaktiviert das entfernte Brave-Search-Radar, 213 Commits hinter main) — nur als Referenz/Teil-Extraktion.
-- **Gelöschte Branches** (alle vollständig in `main`): `sprint/*` (2026-07-08), sowie `hardening/release-candidate` + `epic/alpha` (2026-07-19, nach dem Release-Merge `dev`→`main` PR #62). `epic/alpha` war die Alpha-Epic-Arbeit (Foresight/Monetarisierung/UX/Newsletter); ihre 2 Restcommits waren inhaltsgleiche Doku-Syncs, deren Endzustand in `main` steht. Offener Alpha-Rest = Owner-Gates (Stripe/Resend/UX/Labels), kein Code-Blocker (siehe `docs/issue_status.md`).
-- **Aktiv sind nur noch `main` + `dev`** (plus die Archiv-Referenz `product/trend-radar` auf dem Remote).
+- `product/trend-radar` – **Branch am 2026-07-19 gelöscht, als Tag `archive/product-trend-radar-2026-06-11` (57eecaf) archiviert.** War die divergente Produkt-Variante (Sales-Kit/Pricing/Kunden-Portal, Stand 2026-06-11, 338 hinter main). **Nicht in main/dev mergen** (reaktiviert das entfernte Brave-Search-Radar + Aggregator-Sourcing, gegen das Legal-Primärquellen-Prinzip). Bergbar aus dem Tag (extrahieren, nicht mergen): das Sales-/Business-Material unter `docs/sales/`, `docs/BUSINESS_PLAN.md`, `docs/SETUP_VERKAUF.md` — nutzt aber die **alte** 4-Tier-Preisstruktur (basic/team/pro/agency), abgelöst durch Starter/Pro/Super Pro+ + Hypercare.
+- **Gelöschte Branches** (alle vollständig in `main` bzw. als Tag gesichert): `sprint/*` (2026-07-08), sowie `hardening/release-candidate` + `epic/alpha` (2026-07-19, nach dem Release-Merge `dev`→`main` PR #62). `epic/alpha` war die Alpha-Epic-Arbeit (Foresight/Monetarisierung/UX/Newsletter); ihre 2 Restcommits waren inhaltsgleiche Doku-Syncs, deren Endzustand in `main` steht. Offener Alpha-Rest = Owner-Gates (Stripe/Resend/UX/Labels), kein Code-Blocker (siehe `docs/issue_status.md`).
+- **Aktiv sind nur noch `main` + `dev`.** Archiv-Referenzen liegen als `archive/*`-Tags (nicht als Branches).
 
 **Commit-Konventionen:**
 ```
