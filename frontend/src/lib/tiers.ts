@@ -6,8 +6,15 @@ import type { Tier } from "./auth";
  * (cluster explorer + alerts), Pro = the foresight differentiators (lead-time,
  * TIR, radar, export), Super Pro+ = ask the engine (on-demand, API).
  *
- * Prices are placeholders until the owner sets the $100–500 points; the UI
- * reads `priceHint` and the Stripe layer reads STRIPE_PRICE_<TIER> env ids.
+ * Prices finalized by the owner 2026-07-19: Free €0, Starter €99/mo, Pro €499/mo,
+ * Super Pro+ €799/mo. The UI reads `priceHint`; the actual charge amounts live in
+ * Stripe Price objects referenced by STRIPE_PRICE_<TIER> env ids (not hardcoded).
+ *
+ * A fourth offering — Hypercare (individual Trend & Foresight) — is deliberately
+ * NOT a subscription tier: it is a sales-led, day-rate consulting engagement
+ * handled off-Stripe (invoice). It lives in HYPERCARE below, is kept out of the
+ * `Tier` union and the checkout/webhook path, and is surfaced on the pricing page
+ * as a "talk to us" card rather than a self-serve checkout.
  */
 export interface TierInfo {
   id: Tier;
@@ -37,7 +44,7 @@ export const TIERS: TierInfo[] = [
     id: "starter",
     label: "Starter",
     rank: 1,
-    priceHint: "€—/mo",
+    priceHint: "€99/mo",
     blurb: "Watch what's moving: the cluster explorer with momentum and evidence.",
     features: [
       "Everything in Free",
@@ -50,7 +57,7 @@ export const TIERS: TierInfo[] = [
     id: "pro",
     label: "Pro",
     rank: 2,
-    priceHint: "€—/mo",
+    priceHint: "€499/mo",
     blurb: "The foresight edge: lead-time, technology trajectories and export.",
     features: [
       "Everything in Starter",
@@ -64,7 +71,7 @@ export const TIERS: TierInfo[] = [
     id: "superpro",
     label: "Super Pro+",
     rank: 3,
-    priceHint: "€—/mo",
+    priceHint: "€799/mo",
     blurb: "Ask the engine your own questions: on-demand analysis and API.",
     features: [
       "Everything in Pro",
@@ -75,6 +82,33 @@ export const TIERS: TierInfo[] = [
     ],
   },
 ];
+
+/**
+ * Hypercare — a sales-led, day-rate consulting engagement, NOT a subscription
+ * tier. Intentionally separate from `Tier`/`TIERS` so it never enters the Stripe
+ * checkout or the subscription webhook. Surfaced on the pricing page with a
+ * contact CTA; billing is handled off-Stripe (invoice). Prices per the owner
+ * 2026-07-19: €1,499/day, €999/day from the 2nd engagement.
+ */
+export interface SalesOffer {
+  label: string;
+  blurb: string;
+  priceHint: string;
+  features: string[];
+}
+
+export const HYPERCARE: SalesOffer = {
+  label: "Hypercare",
+  priceHint: "€1,499/day",
+  blurb:
+    "Individual Trend & Foresight hypercare — dedicated, hands-on analyst support tailored to your questions. A bespoke engagement, not a subscription.",
+  features: [
+    "Everything in Super Pro+",
+    "Dedicated analyst engagement (day-rate)",
+    "Bespoke scopes, briefings & deliverables",
+    "€999/day from the 2nd engagement",
+  ],
+};
 
 const RANK: Record<Tier, number> = { free: 0, starter: 1, pro: 2, superpro: 3 };
 
