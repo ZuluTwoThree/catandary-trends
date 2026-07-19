@@ -36,10 +36,22 @@ def migrate() -> None:
             " tier TEXT NOT NULL DEFAULT 'free',"       # free|starter|pro|superpro
             " stripe_customer_id TEXT,"
             " stripe_subscription_id TEXT,"
+            # timestamp of the newest subscription-lifecycle event already applied to
+            # tier — the webhook only writes tier when an event is at least this new,
+            # so an out-of-order redelivery cannot resurrect a cancelled paid tier.
+            " sub_event_at TIMESTAMP,"
             " newsletter_opt_in BOOLEAN DEFAULT FALSE,"
             " last_login_at TIMESTAMP,"
             f" {created})"
         )
+        # Additive back-fill for DBs created before sub_event_at existed. Postgres
+        # supports IF NOT EXISTS; SQLite does not, so tolerate a duplicate-column error.
+        try:
+            conn.execute("ALTER TABLE app_users ADD COLUMN "
+                         + ("IF NOT EXISTS " if db_mod.USE_POSTGRES else "")
+                         + "sub_event_at TIMESTAMP")
+        except Exception:
+            pass  # column already present
         conn.execute(
             "CREATE TABLE IF NOT EXISTS magic_tokens ("
             f" {pk},"

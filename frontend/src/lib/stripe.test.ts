@@ -99,6 +99,7 @@ describe("webhook handler — order independence & idempotency", () => {
     const { POST } = await loadWebhook();
     const event = {
       type: "customer.subscription.updated",
+      created: 1000,
       data: {
         object: {
           id: "sub_1",
@@ -111,16 +112,19 @@ describe("webhook handler — order independence & idempotency", () => {
     };
     const res = await postEvent(POST, event, sign(JSON.stringify(event), SECRET));
     expect(res.status).toBe(200);
-    const call = sqlCall(/WHERE id = \$2/);
-    expect(call).toBeDefined();
-    expect(call!.sql).toMatch(/tier = \$3/);
-    expect(call!.params).toEqual(["cus_1", 42, "pro"]);
+    // ids persisted (customer + subscription id) on the primary user-id path
+    const ids = sqlCall(/stripe_customer_id = COALESCE.*WHERE id = \$3/s);
+    expect(ids!.params).toEqual(["cus_1", "sub_1", 42]);
+    // tier applied, guarded by event time
+    const tier = sqlCall(/SET tier = \$1, sub_event_at = to_timestamp\(\$2\) WHERE id = \$3/);
+    expect(tier!.params).toEqual(["pro", 1000, 42]);
   });
 
   it("checkout.completed sets customer, subscription and tier by user id", async () => {
     const { POST } = await loadWebhook();
     const event = {
       type: "checkout.session.completed",
+      created: 1234,
       data: {
         object: {
           customer: "cus_9",
@@ -132,45 +136,49 @@ describe("webhook handler — order independence & idempotency", () => {
     };
     const res = await postEvent(POST, event, sign(JSON.stringify(event), SECRET));
     expect(res.status).toBe(200);
-    const call = sqlCall(/stripe_customer_id = COALESCE/);
-    expect(call!.sql).toMatch(/tier = \$4/);
-    expect(call!.params).toEqual(["cus_9", "sub_9", 7, "starter"]);
+    const ids = sqlCall(/stripe_customer_id = COALESCE.*WHERE id = \$3/s);
+    expect(ids!.params).toEqual(["cus_9", "sub_9", 7]);
+    const tier = sqlCall(/SET tier = \$1, sub_event_at = to_timestamp\(\$2\) WHERE id = \$3/);
+    expect(tier!.params).toEqual(["starter", 1234, 7]);
   });
 
   it("trialing status counts as an active paid tier", async () => {
     const { POST } = await loadWebhook();
     const event = {
       type: "customer.subscription.updated",
+      created: 500,
       data: { object: { id: "s", customer: "c", status: "trialing", metadata: { user_id: "5" }, items: { data: [{ price: { id: "price_super" } }] } } },
     };
     await postEvent(POST, event, sign(JSON.stringify(event), SECRET));
-    const call = sqlCall(/WHERE id = \$2/);
-    expect(call!.params).toEqual(["c", 5, "superpro"]);
+    const tier = sqlCall(/SET tier = \$1, sub_event_at/);
+    expect(tier!.params).toEqual(["superpro", 500, 5]);
   });
 
-  it("subscription.deleted downgrades to free by user id", async () => {
+  it("subscription.deleted downgrades to free by user id, guarded by event time", async () => {
     const { POST } = await loadWebhook();
     const event = {
       type: "customer.subscription.deleted",
+      created: 900,
       data: { object: { id: "s", customer: "c", metadata: { user_id: "8" } } },
     };
     await postEvent(POST, event, sign(JSON.stringify(event), SECRET));
     const call = sqlCall(/tier = 'free'/);
-    expect(call!.sql).toMatch(/WHERE id = \$1/);
-    expect(call!.params).toEqual([8]);
+    expect(call!.sql).toMatch(/WHERE id = \$2/);
+    expect(call!.sql).toMatch(/sub_event_at <= to_timestamp\(\$1\)/);
+    expect(call!.params).toEqual([900, 8]);
   });
 
   it("does NOT change tier for an active but unknown price (no wrong downgrade)", async () => {
     const { POST } = await loadWebhook();
     const event = {
       type: "customer.subscription.updated",
+      created: 700,
       data: { object: { id: "s", customer: "c", status: "active", metadata: { user_id: "3" }, items: { data: [{ price: { id: "price_unmapped" } }] } } },
     };
     await postEvent(POST, event, sign(JSON.stringify(event), SECRET));
-    const call = sqlCall(/WHERE id = \$2/);
-    expect(call).toBeDefined();
-    expect(call!.sql).not.toMatch(/tier =/); // tier left untouched
-    expect(call!.params).toEqual(["c", 3]);
+    // ids still persisted, but no tier write at all
+    expect(sqlCall(/stripe_customer_id = COALESCE.*WHERE id = \$3/s)).toBeDefined();
+    expect(sqlCall(/SET tier =/)).toBeUndefined();
   });
 
   it("rejects an invalid signature with 400", async () => {
@@ -185,6 +193,7 @@ describe("webhook handler — order independence & idempotency", () => {
     const { POST } = await loadWebhook();
     const event = {
       type: "customer.subscription.deleted",
+      created: 900,
       data: { object: { id: "s", customer: "c", metadata: { user_id: "8" } } },
     };
     const sig = sign(JSON.stringify(event), SECRET);
@@ -193,5 +202,111 @@ describe("webhook handler — order independence & idempotency", () => {
     const frees = q.mock.calls.filter((c) => /tier = 'free'/.test(String(c[0])));
     expect(frees).toHaveLength(2);
     expect(frees[0][1]).toEqual(frees[1][1]); // same params → same effect
+  });
+});
+
+/**
+ * Reordering resistance, tested against a stateful fake that honours the SQL
+ * ordering guard (sub_event_at <= event time). This exercises the actual outcome
+ * — the final tier — not just which statements were emitted.
+ */
+describe("webhook handler — event reordering cannot resurrect a cancelled tier", () => {
+  /** minimal app_users store emulating the guarded UPDATEs the webhook emits. */
+  function useStore() {
+    const users = new Map<number, { tier: string; sub_event_at: number | null; customer: string | null; sub: string | null }>();
+    users.set(1, { tier: "free", sub_event_at: null, customer: null, sub: null });
+    q.mockImplementation(async (sql: string, params: unknown[] = []) => {
+      const u = users.get(Number(params[params.length - 1])) ??
+        // customer-keyed statements key on the last param too in our tests (unused here)
+        undefined;
+      if (/SET tier = \$1, sub_event_at = to_timestamp\(\$2\) WHERE id = \$3/.test(sql)) {
+        const [tier, created, id] = params as [string, number, number];
+        const row = users.get(id)!;
+        if (row.sub_event_at == null || row.sub_event_at <= created) {
+          row.tier = tier;
+          row.sub_event_at = created;
+        }
+      } else if (/tier = 'free'.*WHERE id = \$2/s.test(sql)) {
+        const [created, id] = params as [number, number];
+        const row = users.get(id)!;
+        if (row.sub_event_at == null || row.sub_event_at <= created) {
+          row.tier = "free";
+          row.sub_event_at = created;
+          row.sub = null;
+        }
+      } else if (/stripe_customer_id = COALESCE.*WHERE id = \$3/s.test(sql)) {
+        const [cust, sub, id] = params as [string | null, string | null, number];
+        const row = users.get(id)!;
+        row.customer = row.customer ?? cust;
+        row.sub = row.sub ?? sub;
+      }
+      void u;
+      return [];
+    });
+    return users;
+  }
+
+  function updatedEvent(created: number, status = "active") {
+    return {
+      type: "customer.subscription.updated",
+      created,
+      data: { object: { id: "sub_1", customer: "cus_1", status, metadata: { user_id: "1", tier: "pro", price_id: "price_pro" }, items: { data: [{ price: { id: "price_pro" } }] } } },
+    };
+  }
+  function checkoutEvent(created: number) {
+    return {
+      type: "checkout.session.completed",
+      created,
+      data: { object: { customer: "cus_1", subscription: "sub_1", metadata: { user_id: "1", tier: "pro", price_id: "price_pro" } } },
+    };
+  }
+  function deletedEvent(created: number) {
+    return {
+      type: "customer.subscription.deleted",
+      created,
+      data: { object: { id: "sub_1", customer: "cus_1", metadata: { user_id: "1" } } },
+    };
+  }
+  const send = async (POST: (r: Request) => Promise<Response>, ev: unknown) =>
+    postEvent(POST, ev, sign(JSON.stringify(ev), SECRET));
+
+  it("deleted(newer) then updated(older active): stays free", async () => {
+    const { POST } = await loadWebhook();
+    const users = useStore();
+    await send(POST, deletedEvent(2000));
+    await send(POST, updatedEvent(1000));
+    expect(users.get(1)!.tier).toBe("free");
+  });
+
+  it("updated(older active) then deleted(newer): ends free", async () => {
+    const { POST } = await loadWebhook();
+    const users = useStore();
+    await send(POST, updatedEvent(1000));
+    await send(POST, deletedEvent(2000));
+    expect(users.get(1)!.tier).toBe("free");
+  });
+
+  it("deleted(newer) then checkout(older): stays free", async () => {
+    const { POST } = await loadWebhook();
+    const users = useStore();
+    await send(POST, deletedEvent(2000));
+    await send(POST, checkoutEvent(1000));
+    expect(users.get(1)!.tier).toBe("free");
+  });
+
+  it("checkout(older) then deleted(newer): ends free", async () => {
+    const { POST } = await loadWebhook();
+    const users = useStore();
+    await send(POST, checkoutEvent(1000));
+    await send(POST, deletedEvent(2000));
+    expect(users.get(1)!.tier).toBe("free");
+  });
+
+  it("a genuine re-subscribe after cancel still upgrades (newer checkout wins)", async () => {
+    const { POST } = await loadWebhook();
+    const users = useStore();
+    await send(POST, deletedEvent(2000)); // cancelled
+    await send(POST, checkoutEvent(3000)); // later, real re-subscribe
+    expect(users.get(1)!.tier).toBe("pro");
   });
 });
