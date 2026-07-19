@@ -51,6 +51,7 @@ from pipeline.config import (
     STAGE_8B_BACKEND,
     STAGE_8B_MODEL,
     get_mega_trend_prompt_block,
+    source_relevance_min,
 )
 from pipeline.db import (
     get_recent_embeddings,
@@ -81,6 +82,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+# How much of the source text each stage reads. Since #11 `excerpt` carries the
+# fetched full article (raw_content, ~4.4k chars avg) when available, not just the
+# ~400-char RSS teaser — so the old 1000/1500 caps threw away ~77% of it and the
+# full-text lever stayed unrealised (measured: fabrication 35.1% full-text vs
+# 31.1% excerpt, i.e. no gain). Extraction and content-gen now read the article.
+# Relevance stays short (decidable from the opening); the 8B runs at 208K ctx, so
+# this is cheap.
+#
+# DO NOT raise the dedup slice (title + excerpt[:500], step_dedup_check): the 1.1M
+# stored embeddings were computed with exactly that recipe — changing it breaks
+# cosine comparability against the entire history.
+EXTRACT_CHARS = 4000
+CONTENT_CHARS = 4000
+RELEVANCE_CHARS = 1500
 
 # --- Prompts ---
 
@@ -381,7 +397,7 @@ Classify the vertical based purely on the content, not on where the source comes
 
 Title: {title}
 
-Excerpt: {excerpt[:1500]}"""
+Excerpt: {excerpt[:RELEVANCE_CHARS]}"""
 
     if CLASSIFY_BACKEND == "anthropic":
         return anthropic_client.chat_structured(
@@ -417,7 +433,7 @@ def step_extraction(title: str, excerpt: str) -> ExtractionResult | None:
 
 Title: {title}
 
-Text: {excerpt[:1500]}"""
+Text: {excerpt[:EXTRACT_CHARS]}"""
 
     # Effective model after the NuExtract→qwen3:8b fallback (NuExtract disabled).
     resolved_model = MODEL_EXTRACT if MODEL_EXTRACT != "nuextract" else "qwen3:8b"
@@ -518,7 +534,7 @@ def step_generate_content_en(title: str, excerpt: str, extraction: ExtractionRes
                               source_url: str, source_name: str) -> GeneratedContent | None:
     """Step 5: Generate English trend article."""
     context = f"""Original Title: {title}
-Original Excerpt: {excerpt[:1000]}
+Original Excerpt: {excerpt[:CONTENT_CHARS]}
 Brand: {extraction.brand_name or 'Unknown'}
 Product: {extraction.product_name or 'Unknown'}
 Key Claims: {', '.join(extraction.key_claims[:5]) if extraction.key_claims else 'N/A'}
@@ -616,7 +632,10 @@ def process_entry(entry: dict) -> dict | None:
     """
     entry_id = entry["id"]
     title = entry["title"]
-    excerpt = entry["excerpt"] or ""
+    # Prefer the fetched full article text (raw_content, #11) over the short RSS
+    # excerpt when present — the stages slice the first ~1-1.5k chars, which is
+    # far richer than a ~70-word teaser and cuts the fabrication rate.
+    excerpt = (entry.get("raw_content") or entry["excerpt"] or "")
     source_vertical = entry.get("source_vertical", "TECH")
     source_name = entry.get("source_name", "Unknown")
     source_url = entry["url"]
@@ -807,10 +826,15 @@ def hybrid_classify(survivors: list[dict]) -> tuple[list[dict], int, int]:
 
     # ---- hybrid relevance: confident tails by distill, uncertain band → 8B ----
     kept, uncertain = [], []
+    rel_min = source_relevance_min()
     for entry, pred in zip(embedded, preds):
         entry["_distill"] = pred
         rel = pred.get("relevance")
-        band = relevance_band(rel, has_rel)
+        # Per-source cap (#13/value-report): raise the drop-gate for low-foresight
+        # sources so their marginal content is filtered, while borderline still
+        # goes to the 8B and strong signals pass unchanged.
+        src_min = rel_min.get(entry.get("source_name") or "", 0.0)
+        band = relevance_band(rel, has_rel, low=max(DISTILL_REL_LOW, src_min))
         if band == "keep":
             kept.append(entry)
         elif band == "drop":
@@ -830,7 +854,9 @@ def hybrid_classify(survivors: list[dict]) -> tuple[list[dict], int, int]:
                                                 e.get("source_vertical", "TECH")), uncertain)))
             for entry in uncertain:
                 r = rel_res.get(entry["id"])
-                if r is None or not r.is_relevant or r.confidence < RELEVANCE_THRESHOLD:
+                thr = max(RELEVANCE_THRESHOLD,
+                          rel_min.get(entry.get("source_name") or "", 0.0))
+                if r is None or not r.is_relevant or r.confidence < thr:
                     mark_filtered(entry["id"], "not_relevant: (8B band)"); filtered += 1
                     continue
                 kept.append(entry)

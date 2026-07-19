@@ -1,0 +1,12 @@
+# MOVED — the canonical cron configuration now lives in deploy/crontab.txt.
+#
+# This root-level file used to duplicate the deploy template with divergent paths
+# and a different (partial) job set, so the two disagreed. There is now a single
+# source of truth. Edit and install from there:
+#
+#     $EDITOR deploy/crontab.txt      # set CATANDARY_DIR / PYTHON / LOG_DIR
+#     crontab deploy/crontab.txt
+#
+# External/opt-in jobs (weekly BDDS patent ingest, weekly newsletter) are documented
+# there but left DISABLED — enable them deliberately once their prerequisites
+# (EPO BDDS access, DNS-verified Resend domain) are in place.

@@ -2,9 +2,19 @@ import { NextResponse } from "next/server";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { rateLimit, clientIp, ConcurrencyGate } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
+
+// --- resource guards (#55): this route shells to Python + a GPU embedding handover,
+// so an unguarded public GET is a resource-exhaustion vector. Single-server, in-process.
+const RL_LIMIT = 6;               // requests …
+const RL_WINDOW_MS = 60_000;      // … per minute per IP
+const MAX_CONCURRENT = 2;         // simultaneous heavy computations (GPU handover)
+const CACHE_TTL_MS = 10 * 60_000; // normalized-query result cache
+const gate = new ConcurrencyGate(MAX_CONCURRENT);
+const cache = new Map<string, { at: number; body: unknown }>();
 
 /** Repo root by walking up from cwd (dev = repo root, prod = frontend/). */
 function repoRoot(): string {
@@ -32,6 +42,29 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "query must be 4–200 characters" }, { status: 400 });
   }
 
+  // Normalized-query cache: cheap repeated/popular queries never hit Python/GPU.
+  const cacheKey = q.toLowerCase().replace(/\s+/g, " ");
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
+    return NextResponse.json(cached.body, { headers: { "x-cache": "hit" } });
+  }
+
+  // Per-IP rate limit.
+  if (!rateLimit(`traj:${clientIp(request)}`, RL_LIMIT, RL_WINDOW_MS)) {
+    return NextResponse.json(
+      { error: "rate limit exceeded — please wait a moment" },
+      { status: 429, headers: { "retry-after": "30" } }
+    );
+  }
+
+  // Global concurrency gate: refuse rather than pile up GPU handovers / Node workers.
+  if (!gate.tryAcquire()) {
+    return NextResponse.json(
+      { error: "analysis service busy — try again shortly" },
+      { status: 503, headers: { "retry-after": "15" } }
+    );
+  }
+
   const root = repoRoot();
   const py = path.join(root, ".venv", "bin", "python");
   const script = path.join(root, "scripts", "tech_trajectory.py");
@@ -51,7 +84,9 @@ export async function GET(request: Request) {
     // tech_trajectory --json prints one compact JSON line last; earlier lines
     // may be GPU-handover logs
     const line = result.trim().split("\n").filter(Boolean).pop() || "{}";
-    return NextResponse.json(JSON.parse(line));
+    const body = JSON.parse(line);
+    cache.set(cacheKey, { at: Date.now(), body });
+    return NextResponse.json(body, { headers: { "x-cache": "miss" } });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const timedOut = /timed out|ETIMEDOUT/.test(msg);
@@ -59,5 +94,7 @@ export async function GET(request: Request) {
       { error: timedOut ? "computation timed out — try a narrower phrase" : "trajectory failed" },
       { status: timedOut ? 504 : 500 }
     );
+  } finally {
+    gate.release();
   }
 }

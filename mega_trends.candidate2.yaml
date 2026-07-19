@@ -1,0 +1,62 @@
+_meta:
+  generated: '2026-07-03T10:17:25.321681+00:00'
+  note: PROPOSAL ONLY — review + merge into mega_trends.yaml by hand.
+  signals: 523510
+  k: 30
+  status: signal,published
+proposed_new:
+- key: advanced_materials_engineering_at_the_atomic_scale
+  name_en: Advanced Materials Engineering at the Atomic Scale
+  name_de: Fortschrittliche Materialtechnik im atomaren Maßstab
+  description: The precise design and manipulation of matter at the nano- and atomic
+    scale—spanning novel materials like perovskites, liquid metals, and 2D semiconductors—is
+    driving breakthroughs in energy storage, electronics, and sensing that will underpin
+    next-generation technologies for decades.
+  horizon: unknown (review)
+  momentum: rising
+  cluster_strength: weak
+  signal_count: 18227
+  verticals:
+  - TECH
+  - FASHION
+  - ECO
+  _provenance: cluster 23, purity 0.31, cohesion 0.37
+split_candidates:
+  artificial_intelligence_and_automation:
+  - 11
+  - 4
+  - 12
+  - 5
+  - 24
+  climate_resilience_and_adaptation:
+  - 1
+  - 19
+  personalized_health_and_longevity:
+  - 27
+  - 20
+  - 29
+  - 13
+  - 0
+  - 10
+  future_of_food_and_agriculture:
+  - 8
+  - 6
+  - 26
+  clean_energy_transition:
+  - 25
+  - 3
+  - 16
+  financial_innovation_and_inclusion:
+  - 2
+  - 9
+  - 17
+canonical_orphans:
+- inclusive_and_human_centric_design
+- connected_living_and_smart_spaces
+- creator_economy_and_platform_shift
+- circular_economy_and_zero_waste
+- experience_economy_and_immersive_design
+- cultural_heritage_and_identity
+- mental_health_and_neuro_wellness
+- wearable_technology_and_augmented_living
+- virtual_worlds_consolidation

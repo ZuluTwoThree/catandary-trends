@@ -808,6 +808,59 @@ def backfill_patent_cpc_from_excerpt(batch: int = 5000) -> int:
     return total
 
 
+def _migrate_embedding_1024():
+    """Add the 1024-dim Matryoshka-prefix ANN column + partial HNSW index the search
+    API / technology views depend on (#52). Idempotent; Postgres only (SQLite keeps
+    raw embedding bytes). scripts/build_ann_index.py backfills existing rows from the
+    4096-dim vectors; this guarantees a FRESH schema already has the column so the
+    first insert_trend() (which writes embedding_1024) doesn't fail."""
+    if not USE_POSTGRES:
+        return
+    with get_connection() as conn:
+        cur = conn._conn.cursor()
+        cur.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS embedding_1024 VECTOR(1024)")
+        # partial HNSW over published rows — matches api/search ANN assumptions and
+        # pg_finalize.sql. Instant on an empty table; IF NOT EXISTS on a built one.
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_trends_emb1024_pub_hnsw ON trends "
+                    "USING hnsw (embedding_1024 vector_cosine_ops) WHERE status = 'published'")
+        conn._conn.commit()
+
+
+def _migrate_source_lead_time_tier():
+    """Create + populate the source_name→lead_time_tier lookup the search API LEFT
+    JOINs (#53). Without it a fresh/rebuilt Postgres 500s on /api/search. Idempotent:
+    CREATE IF NOT EXISTS + upsert from sources.yaml. Postgres only (SQLite builds it
+    via scripts/setup_fts5.py)."""
+    if not USE_POSTGRES:
+        return
+    import yaml
+    from psycopg2.extras import execute_values
+    tier_map: dict[str, str] = {}
+    sources_yaml = Path(__file__).parent.parent / "sources.yaml"
+    if sources_yaml.exists():
+        def _walk(node):
+            if isinstance(node, list):
+                for i in node:
+                    _walk(i)
+            elif isinstance(node, dict):
+                if "name" in node and "lead_time_tier" in node:
+                    tier_map[node["name"]] = node["lead_time_tier"]
+                for v in node.values():
+                    _walk(v)
+        _walk(yaml.safe_load(sources_yaml.read_text(encoding="utf-8")))
+    with get_connection() as conn:
+        cur = conn._conn.cursor()
+        cur.execute("CREATE TABLE IF NOT EXISTS source_lead_time_tier ("
+                    "source_name TEXT PRIMARY KEY, "
+                    "lead_time_tier TEXT CHECK (lead_time_tier IN ('future','market','now')))")
+        if tier_map:
+            execute_values(cur,
+                "INSERT INTO source_lead_time_tier (source_name, lead_time_tier) VALUES %s "
+                "ON CONFLICT (source_name) DO UPDATE SET lead_time_tier = EXCLUDED.lead_time_tier",
+                list(tier_map.items()))
+        conn._conn.commit()
+
+
 def init_db():
     """Initialize database schema."""
     if USE_POSTGRES:
@@ -828,6 +881,8 @@ def init_db():
     _migrate_patent_graph()
     _migrate_patent_cpc()
     _migrate_openalex_graph()
+    _migrate_embedding_1024()
+    _migrate_source_lead_time_tier()
 
 
 # --- Source Operations ---
@@ -1191,7 +1246,7 @@ def get_recent_titles(days: int = 30) -> list[str]:
         if USE_POSTGRES:
             rows = conn.execute(
                 "SELECT title_en FROM trends "
-                "WHERE title_en IS NOT NULL AND created_at > NOW() - INTERVAL '%s days'",
+                "WHERE title_en IS NOT NULL AND created_at > NOW() - make_interval(days => %s)",
                 (days,),
             ).fetchall()
         else:
@@ -1228,7 +1283,7 @@ def get_recent_embeddings(days: int = 30, limit: int = 120_000) -> list[tuple[in
         if USE_POSTGRES:
             rows = conn.execute(
                 "SELECT id, embedding::text AS embedding FROM trends "
-                "WHERE embedding IS NOT NULL AND created_at > NOW() - INTERVAL '%s days' "
+                "WHERE embedding IS NOT NULL AND created_at > NOW() - make_interval(days => %s) "
                 "ORDER BY id DESC LIMIT %s",
                 (days, limit),
             ).fetchall()

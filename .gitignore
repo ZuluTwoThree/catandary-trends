@@ -59,3 +59,7 @@ models/
 
 # Reference PDFs (blueprints, CPC documentation) — local only
 pdf/
+
+# env files (secrets)
+.env*
+!.env.example

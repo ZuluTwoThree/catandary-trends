@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { PARAM, buildQueryString } from "@/lib/filter-params";
 
 /**
@@ -10,14 +10,18 @@ import { PARAM, buildQueryString } from "@/lib/filter-params";
 export default function SearchInput() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initial = searchParams.get(PARAM.search) ?? "";
-  const [value, setValue] = useState(initial);
+  const paramValue = searchParams.get(PARAM.search) ?? "";
+  const [value, setValue] = useState(paramValue);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Keep local state in sync if URL changes externally (e.g. chip removal)
-  useEffect(() => {
-    setValue(searchParams.get(PARAM.search) ?? "");
-  }, [searchParams]);
+  // Keep local state in sync if the URL changes externally (e.g. chip removal).
+  // Adjust-state-during-render (React's sanctioned pattern) instead of a
+  // setState-in-effect: track the last URL value and reset only when it changes.
+  const [lastParam, setLastParam] = useState(paramValue);
+  if (paramValue !== lastParam) {
+    setLastParam(paramValue);
+    setValue(paramValue);
+  }
 
   function commit(v: string) {
     const qs = buildQueryString(searchParams, {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { PARAM, buildQueryString } from "@/lib/filter-params";
 
 /**
@@ -10,13 +10,17 @@ import { PARAM, buildQueryString } from "@/lib/filter-params";
 export default function ScoreSlider() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initial = parseInt(searchParams.get(PARAM.minScore) ?? "0", 10) || 0;
-  const [value, setValue] = useState(initial);
+  const paramValue = parseInt(searchParams.get(PARAM.minScore) ?? "0", 10) || 0;
+  const [value, setValue] = useState(paramValue);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    setValue(parseInt(searchParams.get(PARAM.minScore) ?? "0", 10) || 0);
-  }, [searchParams]);
+  // Sync with the URL via adjust-state-during-render (not setState-in-effect):
+  // reset local state only when the external param actually changes.
+  const [lastParam, setLastParam] = useState(paramValue);
+  if (paramValue !== lastParam) {
+    setLastParam(paramValue);
+    setValue(paramValue);
+  }
 
   function commit(v: number) {
     const qs = buildQueryString(searchParams, {

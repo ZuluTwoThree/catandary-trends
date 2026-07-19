@@ -105,7 +105,7 @@ Copy `.env.example` → `.env`. The switches that matter:
 | `DATABASE_PATH` | SQLite path — only used by the frozen fallback and the test suite |
 | `STAGE_8B_BACKEND` | relevance/extract/classify/reclassify: `ollama` \| `llamacpp` |
 | `EMBED_BACKEND` | embeddings: `ollama` \| `llamacpp` |
-| `STAGE5_BACKEND` | content generation: `ollama` (qwen3:14b) \| `llamacpp` (Qwen3-30B-A3B MoE — current; the 35B remains installed and revertible via `STAGE5_MODEL`/`STAGE5_START`) |
+| `STAGE5_BACKEND` | content generation: `ollama` (qwen3:14b) \| `llamacpp` (**Gemma-4-26B-A4B** — current since #11/2026-07-14; Qwen3-30B-A3B and 35B remain installed and revertible via `STAGE5_MODEL`/`STAGE5_START`) |
 | `CLASSIFY_BACKEND` | `ollama` \| `llamacpp` \| `anthropic` (moves stages 2/3/4/8 off-GPU, API cost) |
 | `OPENALEX_API_KEY`, `EPO_OPS_*`, `EPO_LOGIN`/`EPO_PASSWORD` | acquisition APIs (science / patents) |
 
@@ -133,7 +133,7 @@ RSS feeds ──► feed_poller ──► raw_entries
                         3. structured extract   │ 8B  (llama.cpp / Ollama /
                         4. NER + classify       ┘      Anthropic)
                         5. dedup via embedding  (qwen3-embedding, cosine > 0.92)
-                        6. content EN           (llama.cpp 30B / Ollama 14B)
+                        6. content EN           (llama.cpp Gemma-26B / Ollama 14B)
                         7. insert trends        (draft | signal)
                         8. reclassify verticals (8B)
                         9. auto-publish         (confidence ≥ 0.85)
@@ -262,7 +262,9 @@ Dark-mode card grid, PESTEL badges, vertical tabs, hybrid search (Postgres FTS
 ```bash
 cd frontend
 npm run dev                  # http://localhost:3001 (3000 is taken by Open WebUI)
-npm run build && npm start   # production: npx next start -p 3001, behind deploy/Caddyfile
+npm run build && systemctl --user restart catandary-frontend
+                             # production (port 3001) runs as a systemd user unit
+                             # (deploy/systemd/catandary-frontend.service), behind deploy/Caddyfile
 ```
 
 Routes:

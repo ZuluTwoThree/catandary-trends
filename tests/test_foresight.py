@@ -105,6 +105,60 @@ def test_cluster_and_analyze_recovers_structure():
     assert verts == ["FOOD", "TECH"]
 
 
+def test_source_weights_backward_compatible():
+    # source_weights=None must produce byte-identical output to omitting it
+    rows = foresight.load_signals(status="signal")
+    X = foresight.build_matrix(rows)
+    labels, centroids, _ = foresight.cluster_signals(X, k=2)
+    base = foresight.analyze(rows, X, labels, centroids)
+    same = foresight.analyze(rows, X, labels, centroids, source_weights=None)
+    assert json.dumps(base, sort_keys=True) == json.dumps(same, sort_keys=True)
+    # a uniform weight of 1.0 for every source is also identical (shares invariant)
+    uni = {"TestSrc A": 1.0, "TestSrc B": 1.0}
+    same2 = foresight.analyze(rows, X, labels, centroids, source_weights=uni)
+    assert json.dumps(base, sort_keys=True) == json.dumps(same2, sort_keys=True)
+
+
+def test_source_weights_shift_share():
+    # Co-temporal mixed sources: two clusters in the SAME month, one fed by a
+    # noisy source. Down-weighting that source must lower its cluster's share
+    # (and raise the clean cluster's), while raw sizes stay put.
+    n = 20
+    rows, embs = [], []
+    for i in range(2 * n):
+        clean = i < n
+        base = np.array([1.0, 0.05] if clean else [0.05, 1.0], dtype=np.float32)
+        base += np.random.default_rng(i).normal(0, 0.01, 2).astype(np.float32)
+        embs.append(base)
+        rows.append({
+            "id": i, "title_en": f"t{i}", "mega_trend": None,
+            "tags": ["clean" if clean else "noisy"],
+            "source_name": "CleanSrc" if clean else "NoisySrc",
+            "primary_vertical": "FOOD" if clean else "TECH",
+            "status": "signal", "source_url": None,
+            "published_date": "2024-03-15",  # all same month
+        })
+    X = np.array(embs, dtype=np.float32)
+    X /= np.linalg.norm(X, axis=1, keepdims=True)
+    labels = np.array([0] * n + [1] * n)
+    centroids = np.array([[1.0, 0.05], [0.05, 1.0]], dtype=np.float32)
+
+    base = foresight.analyze(rows, X, labels, centroids)
+    weighted = foresight.analyze(rows, X, labels, centroids,
+                                 source_weights={"NoisySrc": 0.2})
+
+    def cluster_for(res, vert):
+        return next(c for c in res["clusters"] if c["verticals"][0] == vert)
+
+    # raw size unchanged (display honesty)
+    assert cluster_for(base, "TECH")["size"] == cluster_for(weighted, "TECH")["size"]
+    # noisy cluster loses share, clean cluster gains it
+    assert cluster_for(weighted, "TECH")["monthly_series"][0]["share"] < \
+        cluster_for(base, "TECH")["monthly_series"][0]["share"]
+    assert cluster_for(weighted, "FOOD")["monthly_series"][0]["share"] > \
+        cluster_for(base, "FOOD")["monthly_series"][0]["share"]
+
+
 def test_derive_label_skips_generic_tags():
     assert foresight.derive_label(["innovation", "fermentation"]) == "Fermentation"
     assert foresight.derive_label(["precision_fermentation", "alt_protein"]) \

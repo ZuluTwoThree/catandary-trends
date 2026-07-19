@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python tests + PostgreSQL/pgvector
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: catandary_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # Dedicated throwaway DB — the integration fixture refuses anything not named *test*.
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/catandary_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+      - name: Run the full test suite (SQLite units + Postgres integration)
+        run: python -m pytest -q
+
+  frontend:
+    name: Frontend lint + build + audit + tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install (clean, from lockfile)
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests (vitest)
+        run: npm test
+      - name: Audit (fail on high)
+        run: npm audit --audit-level=high
+      - name: Build
+        run: npm run build
+      - name: Generated mega-trends is in sync
+        run: npm run gen:mega-trends
+      - name: Working tree is clean (build + generator produced no diff)
+        run: git diff --exit-code

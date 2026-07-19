@@ -1,0 +1,70 @@
+_meta:
+  generated: '2026-07-14T00:02:51.814618+00:00'
+  note: PROPOSAL ONLY — review + merge into mega_trends.yaml by hand.
+  signals: 46877
+  k: 8
+  status: signal,published
+proposed_new:
+- key: the_rise_of_the_creator_economy
+  name_en: The Rise of the Creator Economy
+  name_de: Der Aufstieg der Kreativwirtschaft
+  description: Individual content creators and influencers have evolved into a durable,
+    professionalized economic force—building media brands, monetizing audiences across
+    platforms, and reshaping entertainment, marketing, and commerce over the long
+    term.
+  horizon: unknown (review)
+  momentum: rising
+  cluster_strength: weak
+  signal_count: 5842
+  verticals:
+  - LIFESTYLE
+  _provenance: cluster 6, purity 0.31, cohesion 0.39
+- key: evolution_of_social_media_platforms
+  name_en: Evolution of Social Media Platforms
+  name_de: Entwicklung sozialer Medienplattformen
+  description: Social platforms continuously evolve their features, formats, and engagement
+    mechanics to capture attention, retain users, and redefine how people connect
+    and share online.
+  horizon: unknown (review)
+  momentum: rising
+  cluster_strength: weak
+  signal_count: 4971
+  verticals:
+  - LIFESTYLE
+  _provenance: cluster 2, purity 0.26, cohesion 0.38
+- key: platformization_of_culture
+  name_en: Platformization of Culture
+  name_de: Plattformisierung der Kultur
+  description: Digital platforms increasingly become the central intermediaries controlling
+    how creative content is produced, distributed, monetized, and experienced across
+    entertainment industries.
+  horizon: unknown (review)
+  momentum: rising
+  cluster_strength: weak
+  signal_count: 2529
+  verticals:
+  - LIFESTYLE
+  _provenance: cluster 3, purity 0.21, cohesion 0.41
+split_candidates:
+  inclusive_and_human_centric_design:
+  - 4
+  - 1
+  - 5
+canonical_orphans:
+- clean_energy_transition
+- electric_and_autonomous_mobility
+- financial_innovation_and_inclusion
+- new_luxury_and_premiumization
+- regenerative_design_and_net_positive
+- future_of_food_and_agriculture
+- connected_living_and_smart_spaces
+- bio_revolution_and_new_materials
+- circular_economy_and_zero_waste
+- climate_resilience_and_adaptation
+- experience_economy_and_immersive_design
+- cultural_heritage_and_identity
+- digital_trust_and_data_sovereignty
+- mental_health_and_neuro_wellness
+- wearable_technology_and_augmented_living
+- virtual_worlds_consolidation
+- geopolitical_disruption_and_supply_chain_resilience

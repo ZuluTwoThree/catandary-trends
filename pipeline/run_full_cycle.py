@@ -280,6 +280,19 @@ def main():
     else:
         logger.info("SKIP: Feed polling (--skip-poll)")
 
+    # Step 3b: Full-text enrichment (#11) — fill raw_content for opt-in sources
+    # before the LLM stages, so classification + content-gen work from the real
+    # article, not the RSS teaser. Only opt-in sources (sources.yaml fulltext:true),
+    # robots-respecting; no-op if none pending. Non-fatal on error.
+    if not args.skip_llm and not args.skip_poll:
+        try:
+            from pipeline.article_fetcher import fetch_batch
+            filled = fetch_batch(limit=args.batch)
+            if filled:
+                logger.info("Full-text: enriched %d entries before LLM", filled)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Full-text enrichment skipped (non-fatal): %r", e)
+
     # Step 4: LLM processing (newly polled entries)
     llm_stats = None
     if not args.skip_llm:

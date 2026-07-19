@@ -11,6 +11,7 @@ import sys
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from urllib.parse import urljoin, urlparse
 
 import feedparser
 import httpx
@@ -84,11 +85,12 @@ def fetch_feed(source_name: str, feed_url: str) -> list[dict]:
         if feed.bozo and not feed.entries:
             logger.warning("%s: parse error: %s", source_name, feed.bozo_exception)
             return []
+        # (see normalize_entry_url below for why entry links get validated)
 
         cutoff = datetime.now(timezone.utc) - timedelta(days=90)
         entries = []
         for entry in feed.entries:
-            url = entry.get("link")
+            url = normalize_entry_url(entry.get("link"), feed_url)
             title = entry.get("title", "").strip()
             if not url or not title:
                 continue
@@ -111,9 +113,48 @@ def fetch_feed(source_name: str, feed_url: str) -> list[dict]:
         logger.info("%s: fetched %d entries", source_name, len(entries))
         return entries
 
+
     except Exception as e:
         logger.error("%s: fetch failed: %s", source_name, e)
         return []
+
+
+def normalize_entry_url(raw: str | None, feed_url: str) -> str | None:
+    """Repair or reject a feed's entry link. Returns None if it cannot resolve.
+
+    Feed links are not trustworthy and a dead backlink breaks the source
+    attribution the whole free layer rests on, so entries we cannot cite are
+    dropped at ingest rather than published with a broken link. Two real defects
+    seen in production:
+
+    - HOST 'undefined' (William Reed feeds): "https://www.foodnavigator.comundefined?..."
+      — a JS `undefined` spliced in where the path belongs, leaving an empty
+      path and a nonexistent host. Unrecoverable.
+    - SITE-RELATIVE links (Harvard Business Review): "/2026/07/some-slug" with no
+      host. Recoverable against the feed's own URL.
+
+    Detection is deliberately narrow: it keys on the HOSTNAME ending in
+    undefined/null, NOT on the string appearing anywhere. Three legitimate
+    articles in the corpus carry "undefined" in the path as a real word
+    (designboom's "undefined playground", semiengineering's "undefined state
+    fault") — a substring filter would destroy those working links.
+    """
+    url = (raw or "").strip()
+    if not url:
+        return None
+    if url.startswith("//"):
+        url = "https:" + url
+    elif not url.lower().startswith(("http://", "https://")):
+        url = urljoin(feed_url, url)          # site-relative → resolve against the feed
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return None
+    host = parsed.netloc.lower()
+    if host.endswith(("undefined", "null")) or not parsed.path.strip("/"):
+        # A host-only link cites the homepage, not the article — it is not a
+        # source reference, and by the next poll it points at unrelated content.
+        return None
+    return url
 
 
 _TAG_RE = re.compile(r"<[^>]+>")

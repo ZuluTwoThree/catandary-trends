@@ -56,15 +56,32 @@ MINIBATCH_ABOVE = 100_000  # switch to MiniBatchKMeans above this many points
 
 # ---------------------------------------------------------------- data loading
 
+# Canonical lead-time tier → source mapping (issue #2/#3). Preprint servers are
+# source_type='api' but belong to the science tier; patents and funding share
+# 'api' and are told apart by source name. LIKE patterns are bound params —
+# literal % in the SQL breaks under the ?→%s psycopg2 wrapper.
+TIER_FILTERS: dict[str, tuple[str, list[str]]] = {
+    "science": ("(s.source_type = 'research' OR t.source_name LIKE ?)",
+                ["%Preprints%"]),
+    "patent": ("(t.source_name LIKE ? OR t.source_name LIKE ?)",
+               ["Google Patents%", "EPO %"]),
+    "funding": ("(" + " OR ".join(["t.source_name LIKE ?"] * 5) + ")",
+                ["NIH RePORTER%", "NSF %", "OpenAIRE%", "UKRI%", "SEC Form D%"]),
+    "market": ("s.source_type IN ('trade_media', 'press_wire', 'brand')", []),
+}
+
+
 def load_signals(status: str = "signal,published", vertical: str | None = None,
                  source_like: str | None = None, limit: int = 0,
                  since: str | None = None, until: str | None = None,
-                 dim1024: bool = False) -> list[dict]:
+                 dim1024: bool = False, tier: str | None = None) -> list[dict]:
     """Load embedded trends joined to their raw entry's published_date.
 
     status: comma list or 'all'. vertical: primary_vertical or None/'ALL' for no
     filter. source_like: comma-separated substrings OR-matched against
     source_name (e.g. 'NSF,NIH,OpenAIRE,UKRI' = the funding pool).
+    tier: canonical lead-time tier scope (TIER_FILTERS key) — the maintained
+    replacement for hand-rolled source_like tier pools.
     since/until: ISO date bounds on published_date (for time-window runs).
     dim1024: load the Matryoshka 1024-dim column instead of the full 4096 —
     4× less text to parse/hold, which is what makes the full 1.1M-signal space
@@ -73,6 +90,12 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     """
     where: list[str] = []
     params: list = []
+    if tier:
+        if tier not in TIER_FILTERS:
+            raise ValueError(f"unknown tier {tier!r} (known: {sorted(TIER_FILTERS)})")
+        cond, tier_params = TIER_FILTERS[tier]
+        where.append(cond)
+        params += tier_params
     if status and status.lower() != "all":
         sts = [s.strip() for s in status.split(",")]
         where.append(f"t.status IN ({','.join('?' * len(sts))})")
@@ -101,10 +124,11 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     # Under Postgres the embedding is a pgvector — cast to text and parse; under
     # SQLite it is the raw float32 blob.
     emb_col = f"t.{emb_field}::text" if db_mod.USE_POSTGRES else f"t.{emb_field}"
+    src_join = (" LEFT JOIN sources s ON r.source_id = s.id" if tier else "")
     sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, "
            "       t.primary_vertical, t.status, t.source_url, "
            f"       r.published_date, {emb_col} AS embedding "
-           "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id "
+           f"FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id{src_join} "
            f"WHERE {' AND '.join(where)}")
     if limit:
         sql += " LIMIT ?"
@@ -127,6 +151,37 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
             r["tags"] = []
         out.append(r)
     return out
+
+
+def source_weights_from_pass_rate(target: float = 0.5, floor: float = 0.2,
+                                  min_processed: int = 50) -> dict[str, float]:
+    """Build {source_name: weight} from each source's signal pass-rate (#2 phase 2).
+
+    weight = clamp(pass_rate / target, floor, 1.0): a source that converts
+    `target` (default 50%) or more of its processed entries into signals gets
+    full voice; noisier feeds are down-weighted, but never below `floor` (they
+    still count, just less). Sources with < min_processed entries are left at
+    1.0 (too little evidence to penalise). Read-only aggregate over raw_entries
+    joined to the trends they became — the same measure source_signal_yield.py
+    reports, folded into the foresight maths instead of only being printed.
+    """
+    sql = (
+        "SELECT s.name AS source, "
+        "  COUNT(*) FILTER (WHERE r.processed) AS processed, "
+        "  COUNT(*) FILTER (WHERE EXISTS "
+        "     (SELECT 1 FROM trends t WHERE t.raw_entry_id = r.id)) AS signals "
+        "FROM raw_entries r JOIN sources s ON r.source_id = s.id "
+        "WHERE s.name IS NOT NULL GROUP BY s.name"
+    )
+    weights: dict[str, float] = {}
+    with get_connection() as c:
+        for row in c.execute(sql).fetchall():
+            proc = row["processed"] or 0
+            if proc < min_processed:
+                continue
+            pr = (row["signals"] or 0) / proc
+            weights[row["source"]] = float(min(1.0, max(floor, pr / target)))
+    return weights
 
 
 def build_matrix(rows: list[dict]) -> np.ndarray:
@@ -255,7 +310,7 @@ def distinctive_label(tag_counter: Counter, size: int, tag_df: dict[str, int],
 
 
 def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
-            centroids: np.ndarray) -> dict:
+            centroids: np.ndarray, source_weights: dict[str, float] | None = None) -> dict:
     """Per-cluster analysis + global month axis.
 
     Returns {"months": [...], "totals": [...], "clusters": [cluster-dict, ...]}
@@ -264,14 +319,27 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
     series (count + share of the scope's monthly volume) and SoV momentum
     (Δ share between the early and late thirds of the sufficiently-dense
     months — share-of-voice removes the source-onboarding growth bias).
+
+    source_weights (#2 phase 2): optional {source_name: weight in [0,1]} that
+    down-weights noisy sources in the SHARE / momentum maths (a low-pass-rate
+    feed contributes less voice) while raw counts — size, n, n_sources — stay
+    unweighted for display honesty. None (default) = every source weight 1.0,
+    i.e. byte-identical to the unweighted behaviour.
     """
+    def _w(r: dict) -> float:
+        if not source_weights:
+            return 1.0
+        return source_weights.get(r["source_name"], 1.0)
+
     months = sorted({m for r in rows if (m := month_key(r["published_date"]))})
     midx = {m: i for i, m in enumerate(months)}
-    totals = [0] * len(months)
+    totals = [0] * len(months)          # raw monthly volume (display / density gate)
+    wtotals = [0.0] * len(months)       # weighted monthly volume (share denominator)
     for r in rows:
         mk = month_key(r["published_date"])
         if mk in midx:
             totals[midx[mk]] += 1
+            wtotals[midx[mk]] += _w(r)
 
     # SoV windows: only the most recent MOMENTUM_WINDOW_MONTHS with enough
     # volume (source composition is near-stable there), early/late thirds.
@@ -281,9 +349,9 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
     early_idx = set(meaningful[:third])
     late_idx = set(meaningful[-third:]) if third else set()
 
-    def share(series: list[int], idxs: set[int]) -> float:
+    def share(series: list[float], idxs: set[int]) -> float:
         num = sum(series[i] for i in idxs)
-        den = sum(totals[i] for i in idxs)
+        den = sum(wtotals[i] for i in idxs)
         return num / den if den else 0.0
 
     idx_by_cluster: dict[int, list[int]] = {}
@@ -305,12 +373,14 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
             m["primary_vertical"] for m in members if m["primary_vertical"]).most_common(3)]
         sources = {m["source_name"] for m in members if m["source_name"]}
 
-        series = [0] * len(months)
+        series = [0] * len(months)          # raw counts (display)
+        wseries = [0.0] * len(months)       # weighted counts (share/momentum)
         for m in members:
             mk = month_key(m["published_date"])
             if mk in midx:
                 series[midx[mk]] += 1
-        se, sl = share(series, early_idx), share(series, late_idx)
+                wseries[midx[mk]] += _w(m)
+        se, sl = share(wseries, early_idx), share(wseries, late_idx)
         delta_pp = (sl - se) * 100
         momentum = ("rising" if delta_pp > MOMENTUM_RISING_PP
                     else "declining" if delta_pp < MOMENTUM_DECLINING_PP
@@ -336,7 +406,7 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
             "rep_titles": [(r["title_en"] or "")[:120] for r in reps],
             "monthly_series": [
                 {"m": months[i], "n": series[i],
-                 "share": round(series[i] / totals[i], 4) if totals[i] else 0.0}
+                 "share": round(wseries[i] / wtotals[i], 4) if wtotals[i] else 0.0}
                 for i in range(len(months))
             ],
         })
@@ -357,3 +427,167 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
                                        fallback=c["label"])
         del c["_tag_counter"]
     return {"months": months, "totals": totals, "clusters": clusters}
+
+
+# -------------------------------------------------------------------- lineage
+# Cross-window cluster evolution (issue #2 phase 1): cluster each rolling time
+# window independently, then match clusters across consecutive windows by
+# centroid cosine. The resulting graph carries emergence / continuation /
+# split / merge / decline plus semantic drift — the "where is this trend
+# going" substrate the single-window snapshots cannot express.
+
+MATCH_SIM = 0.80          # centroid cosine >= this = same theme across windows
+LINEAGE_MIN_SIGNALS = 300  # windows below this are recorded as gaps, not clustered
+
+
+def _add_months(d: datetime, months: int) -> datetime:
+    y, m = divmod(d.year * 12 + (d.month - 1) + months, 12)
+    return d.replace(year=y, month=m + 1, day=1)
+
+
+def window_bounds(since: str, until: str, step_months: int = 3,
+                  span_months: int = 12) -> list[tuple[str, str]]:
+    """Rolling (start, end) ISO-date windows covering [since, until).
+
+    Windows overlap when span > step (default: quarterly step, 12-month span —
+    9 months of shared data makes cross-window matches stable). The last
+    window is the first one whose end reaches `until`.
+    """
+    start = datetime.fromisoformat(since).replace(day=1)
+    stop = datetime.fromisoformat(until)
+    out: list[tuple[str, str]] = []
+    while True:
+        end = _add_months(start, span_months)
+        out.append((start.date().isoformat(), end.date().isoformat()))
+        if end >= stop:
+            break
+        start = _add_months(start, step_months)
+    return out
+
+
+def _relation(out_deg: int, in_deg: int) -> str:
+    if out_deg > 1 and in_deg > 1:
+        return "split_merge"
+    if out_deg > 1:
+        return "split"
+    if in_deg > 1:
+        return "merge"
+    return "continue"
+
+
+def build_lineage(status: str = "signal,published", vertical: str | None = None,
+                  since: str = "2016-01-01", until: str | None = None,
+                  step_months: int = 3, span_months: int = 12,
+                  k_range: tuple[int, int] = (6, 14), dim1024: bool = False,
+                  min_signals: int = LINEAGE_MIN_SIGNALS,
+                  match_sim: float = MATCH_SIM,
+                  progress=None) -> dict:
+    """Cluster every window, then match consecutive windows by centroid cosine.
+
+    Returns {"windows": [...], "nodes": [...], "edges": [...]}.
+    nodes: one per (window, cluster) with label/size/sov_share/cohesion/top_tags,
+      a `status` of "emerged" / "declined" / "" (relative to the neighbouring
+      computed windows) and the L2-normalized centroid as float32 bytes.
+    edges: between consecutive computed windows with cosine `sim`, a
+      relation (continue/split/merge/split_merge) and drift = 1 - sim.
+    Windows with fewer than `min_signals` dated signals become gaps
+    ({"computed": False}) and break lineage chains deliberately — matching
+    across a data hole would fabricate continuity.
+    """
+    until = until or datetime.now().date().isoformat()
+    bounds = window_bounds(since, until, step_months, span_months)
+    windows: list[dict] = []
+    per_win: list[dict | None] = []
+    for ws, we in bounds:
+        rows = load_signals(status=status, vertical=vertical, since=ws, until=we,
+                            dim1024=dim1024)
+        info = {"start": ws, "end": we, "n": len(rows), "computed": False}
+        if len(rows) < min_signals:
+            windows.append(info)
+            per_win.append(None)
+            continue
+        X = build_matrix(rows)
+        labels, centroids, k = cluster_signals(X, k_range=k_range)
+        res = analyze(rows, X, labels, centroids)
+        cn = centroids / np.clip(np.linalg.norm(centroids, axis=1, keepdims=True),
+                                 1e-9, None)
+        info.update(computed=True, k=k)
+        windows.append(info)
+        per_win.append({"clusters": res["clusters"], "centroids": cn.astype(np.float32),
+                        "total": len(rows)})
+        del X, rows
+        if progress:
+            progress(f"window {ws}..{we}: n={info['n']} k={k}")
+
+    nodes: list[dict] = []
+    node_at: dict[tuple[int, int], int] = {}  # (window_idx, cluster_idx) -> node idx
+    for wi, pw in enumerate(per_win):
+        if pw is None:
+            continue
+        for c in pw["clusters"]:
+            node_at[(wi, c["cluster_idx"])] = len(nodes)
+            nodes.append({
+                "window_idx": wi,
+                "window_start": windows[wi]["start"],
+                "window_end": windows[wi]["end"],
+                "cluster_idx": c["cluster_idx"],
+                "label": c["label"], "size": c["size"],
+                "sov_share": round(c["size"] / pw["total"], 4),
+                "cohesion": c["cohesion"],
+                "top_tags": c["top_tags"][:8],
+                "rep_trend_ids": c["rep_trend_ids"],
+                "centroid": pw["centroids"][c["cluster_idx"]].tobytes(),
+                "status": "",
+            })
+
+    edges: list[dict] = []
+    computed_idx = [i for i, pw in enumerate(per_win) if pw is not None]
+    for a, b in zip(computed_idx, computed_idx[1:]):
+        if b != a + 1:
+            continue  # gap between them — no matching across data holes
+        S = per_win[a]["centroids"] @ per_win[b]["centroids"].T
+        pairs = [(i, j, float(S[i, j]))
+                 for i in range(S.shape[0]) for j in range(S.shape[1])
+                 if S[i, j] >= match_sim]
+        out_deg = Counter(i for i, _, _ in pairs)
+        in_deg = Counter(j for _, j, _ in pairs)
+        for i, j, sim in pairs:
+            edges.append({
+                "from_node": node_at[(a, i)], "to_node": node_at[(b, j)],
+                "sim": round(sim, 4), "drift": round(1.0 - sim, 4),
+                "relation": _relation(out_deg[i], in_deg[j]),
+            })
+
+    # Emergence / decline: comparing against the *adjacent* window is useless
+    # when windows overlap (span > step) — 9 of 12 shared months means almost
+    # every cluster has a neighbour match, so nothing ever looks new. Judge
+    # instead against the nearest NON-overlapping window (>= span months apart),
+    # i.e. "did this theme exist as a distinct cluster a full span ago / will it
+    # a full span from now". overlap_steps windows on each side share data.
+    overlap_steps = max(1, span_months // max(step_months, 1))
+    comp_set = set(computed_idx)
+
+    def _ref_before(wi: int) -> int | None:
+        for r in range(wi - overlap_steps, computed_idx[0] - 1, -1):
+            if r in comp_set:
+                return r
+        return None
+
+    def _ref_after(wi: int) -> int | None:
+        for r in range(wi + overlap_steps, computed_idx[-1] + 1):
+            if r in comp_set:
+                return r
+        return None
+
+    def _matches(wi: int, ci: int, ref: int) -> bool:
+        cen = per_win[wi]["centroids"][ci]
+        return bool((per_win[ref]["centroids"] @ cen).max() >= match_sim)
+
+    for n in nodes:
+        wi, ci = n["window_idx"], n["cluster_idx"]
+        before, after = _ref_before(wi), _ref_after(wi)
+        if before is not None and not _matches(wi, ci, before):
+            n["status"] = "emerged"      # absent a full span ago
+        elif after is not None and not _matches(wi, ci, after):
+            n["status"] = "declined"     # gone a full span from now
+    return {"windows": windows, "nodes": nodes, "edges": edges}

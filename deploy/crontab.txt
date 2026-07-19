@@ -1,15 +1,41 @@
-# Catandary Trends – Cron Jobs
-# Install: crontab deploy/crontab.txt
-# Adjust paths to match your deployment directory
+# Catandary Trends — canonical cron configuration (single source of truth).
+#
+# Install:  edit the three paths below, then  `crontab deploy/crontab.txt`.
+# This replaces the former root-level crontab.txt (now a pointer). Paths are
+# variables so the SAME file works on the dev box (/home/dirk/...) and a deploy
+# host (/opt/...) — change them HERE only, never inline below. No competing
+# /opt-vs-/home truths.
+CATANDARY_DIR=/home/dirk/projects/catandary-trends
+PYTHON=/home/dirk/projects/catandary-trends/.venv/bin/python
+LOG_DIR=/home/dirk/logs
 
-CATANDARY_DIR=/opt/catandary-trends
-PYTHON=/opt/catandary-trends/.venv/bin/python
+# --- core pipeline (active) ---------------------------------------------------
+# Full pipeline cycle: poll + LLM + reclassify + auto-publish (every 4 hours).
+30 */4 * * *  cd $CATANDARY_DIR && $PYTHON -m pipeline.run_full_cycle --batch 400 >> $LOG_DIR/catandary-cycle.log 2>&1
 
-# Full pipeline cycle: poll + LLM + reclassify + auto-publish (every 4 hours)
-30 */4 * * * cd $CATANDARY_DIR && $PYTHON -m pipeline.run_full_cycle --batch 400 >> data/cycle.log 2>&1
+# Nightly DB backup (02:45; keep 7 days).
+45 2 * * *    $PYTHON $CATANDARY_DIR/scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 7 >> $LOG_DIR/catandary-backup.log 2>&1
 
-# Mega-Trend Reviewer (1st of month, 03:00)
-0 3 1 * * cd $CATANDARY_DIR && $PYTHON -m pipeline.mega_trend_reviewer >> data/mega_trend_reviewer.log 2>&1
+# Weekly source discovery (Sunday 06:00).
+0 6 * * 0     $PYTHON $CATANDARY_DIR/scripts/discovery_loop.py >> $LOG_DIR/catandary-discovery-loop.log 2>&1
 
-# Weekly Newsletter (Monday 9:00) — uncomment when ready
-# 0 9 * * 1 cd $CATANDARY_DIR && $PYTHON -m pipeline.newsletter_generator >> data/newsletter.log 2>&1
+# Mega-Trend reviewer (1st of month, 03:00).
+0 3 1 * *     cd $CATANDARY_DIR && $PYTHON -m pipeline.mega_trend_reviewer >> $LOG_DIR/catandary-mega-reviewer.log 2>&1
+
+# Monthly source-quality check → posts the report to issue #13 (1st of month, 08:00).
+0 8 1 * *     cd $CATANDARY_DIR && $PYTHON $CATANDARY_DIR/scripts/monthly_source_check.py --post-issue >> $LOG_DIR/catandary-source-check.log 2>&1
+
+# --- external / opt-in (DISABLED — uncomment to enable) -----------------------
+# These depend on external services/credentials and are intentionally NOT active
+# by default. Uncomment deliberately after the prerequisite is in place.
+#
+# Weekly BDDS patent ingest (#49/#50). External EPO BDDS download; --kind both is
+# baked into the script because Amend deliveries carry the citations SPNP/TIR need.
+# weekly_patents.sh now exits NON-ZERO on a failed ingest OR a low-density month,
+# so cron mail / a supervisor flags a stall instead of a masked green run.
+# 0 5 * * 2   $CATANDARY_DIR/scripts/weekly_patents.sh
+#
+# Weekly newsletter (Monday 09:00). Requires a DNS-verified Resend sending domain.
+# generate && send; the sender is idempotent (sent_at) and no-ops with 0 confirmed
+# subscribers. See issue #16 (automation) and #60 (W22–W29 content backlog).
+# 0 9 * * 1   cd $CATANDARY_DIR && $PYTHON -m pipeline.newsletter_generator >> $LOG_DIR/catandary-newsletter.log 2>&1 && $PYTHON -m pipeline.newsletter_sender --latest >> $LOG_DIR/catandary-newsletter.log 2>&1

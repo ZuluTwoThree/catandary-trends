@@ -127,9 +127,10 @@ export default async function TechnologyExplorerPage() {
             Singh, Triulzi &amp; Magee (MIT), Research Policy 2021 ↗
           </a>
           , computed on our 112M-edge citation graph and calibrated against their published
-          domain rates (rank correlation 0.83, R² 0.79). Rates are directional predictions,
-          not measured performance; very fast software fields and thinly-covered classes carry
-          wider uncertainty.
+          domain rates (rank correlation 0.70, R² 0.46 on the balanced full-archive substrate).
+          These are estimates from patent-network structure, not measured product performance;
+          very fast software fields and thinly-covered classes carry wider uncertainty. We show
+          the rate and its evidence — the interpretation is yours.
         </p>
       </div>
 

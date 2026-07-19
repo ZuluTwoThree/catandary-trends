@@ -78,9 +78,7 @@ function leadSentence(t: TechInsight): string {
   const med = t.payload.lead_time.patent?.median;
   const parts: string[] = [];
   if (cycle !== undefined) {
-    if (cycle <= 3) parts.push(`Fast-moving field — ideas turn into new patents in ~${cycle} years`);
-    else if (cycle <= 6) parts.push(`Steady field — ~${cycle} years from idea to follow-on patent`);
-    else parts.push(`Long-cycle field — ~${cycle} years between patent generations`);
+    parts.push(`~${cycle} years from idea to follow-on patent (cycle time)`);
   }
   if (med) {
     parts.push(med >= 2021 ? `activity centers on ${med}` : `activity centered around ${med}`);

@@ -91,7 +91,18 @@ def snapshot_postgres(dest_dir: Path, date_tag: str) -> int | None:
     dest_dir. Since the 2026-07-03 cutover the live data is in Postgres — the
     SQLite snapshot alone would silently back up a frozen fallback copy.
     Returns file size, or None if pg_dump is unavailable/fails (non-fatal:
-    the SQLite snapshot still runs)."""
+    the SQLite snapshot still runs).
+
+    RESTORE PROCEDURE (verified 2026-07-13, see docs/restore_runbook.md):
+    the dump restores raw_entries/patent_links/etc. cleanly, BUT the
+    vector-typed tables (trends.embedding, cpc/openalex embeddings) need the
+    pgvector extension to exist in the target FIRST — pg_restore cannot create
+    it (not superuser). So a bare `createdb + pg_restore` silently drops the
+    `trends` table and everything referencing it. Always:
+        createdb catandary_restore && \
+        sudo -u postgres psql -d catandary_restore -c 'CREATE EXTENSION vector' && \
+        pg_restore -d catandary_restore -j4 --no-owner --no-privileges <dump>
+    """
     import subprocess
     target = dest_dir / f"catandary-pg-{date_tag}.dump"
     staging = target.with_suffix(".tmp")

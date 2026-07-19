@@ -58,8 +58,8 @@ def collect(min_id: int, since: str | None) -> list[dict]:
     wsql = " AND ".join(where)
 
     rows_sql = f"""
-        SELECT COALESCE(s.name, '?')        AS source,
-               COALESCE(s.vertical, '?')    AS vertical,
+        SELECT COALESCE(s.name, '-')        AS source,
+               COALESCE(s.vertical, '-')    AS vertical,
                r.id                          AS rid,
                r.processed                   AS processed,
                r.filtered_out                AS filtered_out,

@@ -13,6 +13,13 @@
  */
 import { NextResponse } from "next/server";
 import { getPool, q, q1 } from "@/lib/pg";
+import { rateLimitInfo, clientIp } from "@/lib/rateLimit";
+
+// Every search embeds the query (local GPU) + runs several DB aggregates, so an
+// unguarded public GET is a resource-exhaustion vector (#5-hardening). Per-IP
+// sliding-window limit; the trajectory route keeps its own stricter gate.
+const SEARCH_RL_LIMIT = 30; // requests …
+const SEARCH_RL_WINDOW_MS = 60_000; // … per minute per client
 
 const OLLAMA_URL =
   process.env.OLLAMA_CLIENT_HOST || "http://127.0.0.1:11434";
@@ -23,6 +30,10 @@ const ANN_DIM = 1024;
 
 const RRF_K = 60; // RRF smoothing constant
 const ANALYTICS_MIN_N = 30; // minimum hits for analytics overlays
+// Cap the analytics ID set so a broad query ("AI", "protein") can't materialize a
+// huge int[] and drive several corpus-wide aggregates in one request (#56). Beyond
+// this we report analytics as `sampled` (newest N) instead of scanning everything.
+const ANALYTICS_MAX_IDS = 8000;
 
 /** Must textually match the idx_trends_fts GIN index expression. */
 const FTS_VECTOR =
@@ -89,6 +100,9 @@ async function ftsAllIds(query: string, vertical: string | null): Promise<number
     params.push(vertical);
     sql += ` AND t.primary_vertical = $${params.length}`;
   }
+  // Bound the analytics ID set (#56): newest ANALYTICS_MAX_IDS+1 so the caller can
+  // detect truncation and flag the analytics as sampled.
+  sql += ` ORDER BY t.id DESC LIMIT ${ANALYTICS_MAX_IDS + 1}`;
   try {
     return (await q<{ id: number }>(sql, params)).map((r) => r.id);
   } catch {
@@ -184,7 +198,7 @@ function rrfMerge(
 // ---------------------------------------------------------------------------
 // Analytics computation (runs on the full match set, not just top-K)
 // ---------------------------------------------------------------------------
-async function computeAnalytics(ids: number[]) {
+async function computeAnalytics(ids: number[], sampled = false) {
   const n = ids.length;
   const hasEnough = n >= ANALYTICS_MIN_N;
 
@@ -192,6 +206,7 @@ async function computeAnalytics(ids: number[]) {
     return {
       total_matches: n,
       has_enough_data: false,
+      sampled,
       timeline: [],
       lead_time: {},
       pestel: {},
@@ -286,15 +301,27 @@ async function computeAnalytics(ids: number[]) {
       "SELECT COUNT(*)::int as c FROM trends WHERE status = 'published'"
     ))?.c ?? 1;
 
+  // Document frequency for ALL candidate tags in ONE corpus pass (#56) — replaces
+  // up to 50 corpus-wide `tags::text ILIKE` full scans (one per tag). Normalize the
+  // stored tags the same way as the TF keys (underscore→space, lower) and match the
+  // candidate set exactly.
+  const candidateTags = topTfTags.filter(([, tf]) => tf >= 2).map(([tag]) => tag);
+  const dfMap: Record<string, number> = {};
+  if (candidateTags.length) {
+    const dfRows = await q<{ norm: string; df: number }>(
+      `SELECT lower(replace(tag.t, '_', ' ')) AS norm, COUNT(DISTINCT tr.id)::int AS df
+       FROM trends tr, jsonb_array_elements_text(tr.tags) AS tag(t)
+       WHERE tr.status = 'published'
+         AND lower(replace(tag.t, '_', ' ')) = ANY($1)
+       GROUP BY norm`,
+      [candidateTags]
+    );
+    for (const r of dfRows) dfMap[r.norm] = r.df;
+  }
   const coOccurrence: Array<{ tag: string; count: number; tfidf: number }> = [];
   for (const [tag, tf] of topTfTags) {
     if (tf < 2) continue; // skip singletons in result set
-    const dfRow = await q1<{ c: number }>(
-      `SELECT COUNT(*)::int as c FROM trends
-       WHERE status = 'published' AND tags::text ILIKE $1`,
-      [`%"${tag}"%`]
-    );
-    const df = dfRow?.c || 1;
+    const df = dfMap[tag] || 1;
     const idf = Math.log(totalDocs / df);
     coOccurrence.push({ tag, count: tf, tfidf: Math.round(tf * idf * 100) / 100 });
   }
@@ -303,6 +330,7 @@ async function computeAnalytics(ids: number[]) {
   return {
     total_matches: n,
     has_enough_data: hasEnough,
+    sampled,
     timeline,
     lead_time: Object.fromEntries(leadTime.map((r) => [r.tier, r.count])),
     pestel: pestelCounts,
@@ -324,6 +352,14 @@ export async function GET(request: Request) {
 
   if (!query) {
     return NextResponse.json({ error: "q parameter required" }, { status: 400 });
+  }
+
+  const rl = rateLimitInfo(`search:${clientIp(request)}`, SEARCH_RL_LIMIT, SEARCH_RL_WINDOW_MS);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "rate limit exceeded — please slow down" },
+      { status: 429, headers: { "retry-after": String(rl.retryAfterSec) } }
+    );
   }
 
   const t0 = Date.now();
@@ -352,13 +388,15 @@ export async function GET(request: Request) {
   // 4. RRF merge
   const merged = rrfMerge(ftsResults, embResults, limit);
 
-  // 5. Collect ALL matching IDs for analytics (full lexical set + semantic hits)
-  const allMatchIds = new Set(await ftsAllIds(query, vertical));
+  // 5. Collect matching IDs for analytics (bounded lexical set + semantic hits)
+  const ftsIds = await ftsAllIds(query, vertical);
+  const sampled = ftsIds.length > ANALYTICS_MAX_IDS;
+  const allMatchIds = new Set(sampled ? ftsIds.slice(0, ANALYTICS_MAX_IDS) : ftsIds);
   for (const r of embResults) allMatchIds.add(r.id);
   const allIds = [...allMatchIds];
 
-  // 6. Analytics
-  const analytics = await computeAnalytics(allIds);
+  // 6. Analytics (flagged `sampled` when the match set was truncated)
+  const analytics = await computeAnalytics(allIds, sampled);
 
   // 7. Hydrate top results
   const topIds = merged.map((m) => m.id);

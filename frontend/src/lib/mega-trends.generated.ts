@@ -141,6 +141,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     ]
   },
   {
+    "key": "platformization_of_culture",
+    "name_en": "Platformization of Culture",
+    "description_en": "Digital platforms become the central intermediaries controlling how creative content is produced, distributed, monetized and experienced across the entertainment industries — the structural counterpart to the creator economy (which is about the creators, not the gatekeepers).",
+    "icon": "🎭",
+    "verticals": [
+      "LIFESTYLE",
+      "BIZ",
+      "TECH"
+    ]
+  },
+  {
     "key": "bio_revolution_and_new_materials",
     "name_en": "Bio-Revolution & New Materials",
     "description_en": "Biotech-derived materials, synthetic biology, mycelium/algae/cellulose-based products, lab-grown alternatives, biomimicry.",

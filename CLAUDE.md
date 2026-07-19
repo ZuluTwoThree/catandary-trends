@@ -8,7 +8,7 @@ Catandary Trends ist eine branchenübergreifende Trend-Intelligence-Plattform, d
 - Branchenübergreifend mit eigenständiger Catandary-Taxonomie (Vertikale + PESTEL + Mega/Macro/Micro)
 - Nur legale Primärquellen (RSS-Feeds von Fachmedien, Presseverteilern, Marken-Newsrooms)
 - Keine Aggregator-Seiten scrapen (Trendhunter etc.)
-- Alle LLM-Verarbeitung lokal auf der **RTX 3090 (24 GB)** (produktive Linux-Workstation; VRAM per `nvidia-smi` verifizieren). Stage 6 optional auf llama.cpp 30B (Qwen3-30B-A3B MoE, aktuell; 35B als revertierbare Alternative).
+- Alle LLM-Verarbeitung lokal auf der **RTX 3090 (24 GB)** (produktive Linux-Workstation; VRAM per `nvidia-smi` verifizieren). Stage 6 (Content-Gen) auf llama.cpp **Gemma-4-26B-A4B** (aktuell seit #11 / 2026-07-14; Qwen3-30B-A3B und 35B bleiben installiert + revertierbar).
 - Cloud-APIs nur als Fallback für komplexe Synthese-Aufgaben
 - Modularer Aufbau: Neue Vertikale können ohne Architekturänderung hinzugefügt werden
 
@@ -59,7 +59,7 @@ Die Mega/Macro-Einordnung wird auf der Free-Seite nur angeteasert – die vollst
 - **GPU:** NVIDIA RTX 3090 (24 GB GDDR6X) — die produktive lokale Karte (per `nvidia-smi` bestätigt). Vor jeder VRAM-/Koexistenz-Entscheidung trotzdem `nvidia-smi` prüfen (llama-server hält ~22 GB im Ruhezustand). *(Frühere Doku nannte alternativ eine 16-GB-Karte; produktiv ist es die 3090.)*
 - **Modelle laufen sequentiell** (nicht parallel) – VRAM wird zwischen Schritten freigegeben
 - **Peak-VRAM Ollama-Pfad:** ~10.7 GB (Qwen3 14B Q4_K_M) — passt auf der 24-GB-Karte mit Headroom
-- **Optionaler llama.cpp-Pfad für Stage 6 (Content-Gen):** Qwen3-30B-A3B-Q4_K_M (MoE, ~18 GB, 40K ctx — aktuelles Modell seit 2026-06-26, `be444d0`) **oder** revertierbar Qwen3.6-35B-A3B-UD-Q4_K_M (~24 GB) — passt nur auf die 24-GB-Karte, mit Mid-Pipeline-GPU-Handover (siehe `pipeline/gpu_handover.py`). Default-Backend bleibt Ollama.
+- **llama.cpp-Pfad für Stage 6 (Content-Gen), aktuell:** **Gemma-4-26B-A4B-it-qat-UD-Q4_K_XL** (`start-gemma4-26b.sh`) — Umstellung von Qwen3-30B via #11 (2026-07-14) nach einem kontrollierten A/B: das 30B erfand in 32,9 % der Bodies erfundene Spezifika (fake Gesetze/Städte), das Gemma-26B nur 8,6 % und trifft zudem das 150–250-Wörter-Ziel, das das 30B unterschritt. Qwen3-30B-A3B-Q4_K_M (~18 GB) und Qwen3.6-35B-A3B (~24 GB) bleiben installiert und sind per `STAGE5_MODEL`/`STAGE5_START` **revertierbar**. Mid-Pipeline-GPU-Handover (siehe `pipeline/gpu_handover.py`). Default-Backend (ohne `scheduled_cycle.sh`) bleibt Ollama.
 - **Ollama-Konfiguration:** `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_KEEP_ALIVE=5m`
 
 ---
@@ -166,12 +166,14 @@ Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein au
 | 2. Strukturierte Extraktion | NuExtract 3.8B | ~4 GB | ~200+ t/s | Ollama (`ollama pull nuextract`) — derzeit Fallback auf qwen3:8b |
 | 3. NER (Markennamen) | Qwen3 8B Q4_K_M | ~6.5 GB | ~129 t/s | Ollama |
 | 4. Klassifizierung | Qwen3 8B Q4_K_M | ~6.5 GB | ~129 t/s | Ollama |
-| 5. Content-Generierung (EN) | Qwen3 14B Q4_K_M **oder** Qwen3-30B-A3B-Q4_K_M (MoE, aktuell; 35B revertierbar) | ~10.7 GB / ~18 GB | ~80 t/s / ~117 t/s | Ollama (Default) **oder** llama.cpp (`STAGE5_BACKEND=llamacpp`, nur 24-GB-Karte, mit GPU-Handover) |
+| 5. Content-Generierung (EN) | Qwen3 14B Q4_K_M (Ollama-Fallback) **oder** Gemma-4-26B-A4B (llama.cpp, aktuell; 30B/35B revertierbar) | ~10.7 GB / ~16 GB | ~80 t/s / ~110 t/s | Ollama (Default) **oder** llama.cpp (`STAGE5_BACKEND=llamacpp`, nur 24-GB-Karte, mit GPU-Handover) |
 | 6. Embeddings | Qwen3-Embedding 8B | ~5–6 GB | Batch | Ollama (`ollama pull qwen3-embedding`) |
 
-> **⚠️ Backend-Realität (Stand 2026-07-01):** Die „Backend"-Spalte zeigt den **Config-Default** (`ollama` — Modell-Refs oben). **Produktiv läuft der ganze Cycle aber auf llama.cpp:** `scheduled_cycle.sh` setzt `STAGE_8B_BACKEND`/`EMBED_BACKEND`/`STAGE5_BACKEND=llamacpp`, sodass **alle** LLM-Stages (Relevanz/Extraktion/Klassifizierung/Reclassify auf dem 208K-8B, Embeddings, Content-Gen auf dem 30B) über den **llama-server (:8090)** laufen — Beleg: ein realer Cycle machte 3.922 `/v1/chat/completions` + 60 `/v1/embeddings` auf :8090 und **0** Inferenz-Calls auf Ollama. Ollama bleibt der **Default/Fallback** (greift nur, wenn `STAGE*_BACKEND=ollama`), plus optional `CLASSIFY_BACKEND=anthropic` für Stages 2/3/4/8 off-GPU.
+> **⚠️ Backend-Realität (Stand 2026-07-01):** Die „Backend"-Spalte zeigt den **Config-Default** (`ollama` — Modell-Refs oben). **Produktiv läuft der ganze Cycle aber auf llama.cpp:** `scheduled_cycle.sh` setzt `STAGE_8B_BACKEND`/`EMBED_BACKEND`/`STAGE5_BACKEND=llamacpp`, sodass **alle** LLM-Stages (Relevanz/Extraktion/Klassifizierung/Reclassify auf dem 208K-8B, Embeddings, Content-Gen auf dem Gemma-4-26B) über den **llama-server (:8090)** laufen — Beleg: ein realer Cycle machte 3.922 `/v1/chat/completions` + 60 `/v1/embeddings` auf :8090 und **0** Inferenz-Calls auf Ollama. Ollama bleibt der **Default/Fallback** (greift nur, wenn `STAGE*_BACKEND=ollama`), plus optional `CLASSIFY_BACKEND=anthropic` für Stages 2/3/4/8 off-GPU.
 >
 > **Kein Ollama-Zwang mehr im Full Cycle:** `run_full_cycle` erkennt seit 2026-07-01 die aktiven GPU-Backends. Läuft alles auf llama.cpp, wird der frühere Ollama-Preflight (`check_ollama` + `check_gpu` lädt qwen3:14b als CPU-Offload-Canary) **übersprungen** und stattdessen `check_gpu_nvidia_smi()` genutzt (nur `nvidia-smi`, kein Modell-Load). → **Ein llama.cpp-Cycle braucht Ollama nicht** (nicht mal laufend). Nur wenn ein GPU-Stage auf `ollama` steht, wird Ollama geprüft/benötigt.
+>
+> **Hybrid-Klassifikation ist Default im RSS-Cycle (seit 2026-07-11, #41, `7d03d14`):** `RSS_CLASSIFY_MODE=hybrid` — embed-first, dann **Distill-Embedding-Heads** für Vertical/Mega/PESTEL (GPU-frei, Sekunden statt Minuten). Relevanz als **Hybrid-Gate**: Distill entscheidet die sicheren Ränder (≥0.7 behalten, <0.3 verwerfen), nur das unsichere Band geht ans 8B (~21 % real). Extraktion (Markennamen) + Content-Gen bleiben LLM. Embeddings werden persistiert (auch für Gefilterte — Trend-Drift-Hedge), Stage 5 macht nur noch Dedup. Fallback: `RSS_CLASSIFY_MODE=llm` = alter Voll-8B-Pfad; lädt der Head nicht, fällt der Cycle automatisch zurück. Referenzwerte Prod-Cycle 2026-07-12: 0 Fehler, Stage-8-Korrekturquote ~3,5 % (Drift-Wächter: Retrain bei dauerhaft >30 % oder 8B-Band >35 %).
 
 **Alternative Modelle zum Testen:**
 - Relevanz-Filter: Gemma 3 4B (`ollama pull gemma3:4b`, ~3.5 GB) – noch schneller
@@ -220,7 +222,7 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     → Wenn >0.92 Similarity: als Duplikat markieren, Ende
     │
     ▼
-[Schritt 5] CONTENT-GENERIERUNG EN (Qwen3 14B)
+[Schritt 5] CONTENT-GENERIERUNG EN (llama.cpp Gemma-4-26B / Ollama 14B)
     → Eigener Trend-Artikel (150-250 Wörter)
     → Analytischer, professioneller Ton
     → Quellennennung + Backlink Pflicht
@@ -582,6 +584,15 @@ catandary.de/trends/newsletter             → Newsletter-Signup
 
 ## Anweisungen für Claude Code (Autonomer Arbeitsmodus)
 
+### ⚖️ Konstitutionelle Bedingung: Doku spiegelt immer die Realität
+
+**Verbindlich bei jeder Arbeit in diesem Repo:** Die Repo-Dokumentation (`CLAUDE.md`, `README.md`, `docs/`) muss stets die **tatsächlichen aktuellen Bedingungen** des Repos widerspiegeln.
+
+- **Ändert eine Arbeit reale Bedingungen** (Modelle, Backends, Defaults, Konfiguration, DB-Schema, Branch-Zustand, Pipeline-Verhalten, Cron/Deploy), wird die betroffene Doku **im selben Zug** mitgezogen — niemals stale Doku hinterlassen.
+- **Gegen die Realität verifizieren, nicht die alte Doku fortschreiben:** aktive Start-Skripte/GGUFs/Env in `scheduled_cycle.sh`, `config.py`-Defaults, Schema in `pipeline/db.py` etc. tatsächlich prüfen statt annehmen.
+- **Doku-Stand auf `dev` UND `epic/alpha` konsistent halten** (z. B. via isoliertem `git worktree`, ohne einen laufenden Cycle im Haupt-Tree zu stören).
+- Ursprung dieser Regel (2026-07-18): Content-Gen lief real längst auf Gemma-4-26B, während CLAUDE.md/README noch 30B/35B nannten — solche Drift ist ab jetzt konstitutionell auszuschließen.
+
 ### Arbeitsweise
 
 Claude Code soll **möglichst autonom** arbeiten. Das bedeutet:
@@ -610,6 +621,7 @@ git remote add origin git@github.com:ZuluTwoThree/catandary-trends.git
 - `main` – stabiler, deployter Prototyp (**"save"**). Prod-Server 3001 läuft von hier. Nur bewusst per Merge aus `dev` aktualisieren.
 - `dev` – Integrations-Branch für laufende Arbeit. Hierhin committen; nach Stabilisierung → `main` mergen + 3001 neu bauen.
 - Feature-Branches optional bei komplexen Features (von `dev` abzweigen, in `dev` zurück).
+- `epic/alpha` – Branch der Alpha-Epic-Arbeit (Foresight-Engine/Monetarisierung/UX/Newsletter). **Stand 2026-07-18 vollständig in `dev` gemergt** (direkter Vorfahr, 0 eigene Commits, ~32 dahinter) — Merge epic/alpha→dev ist ein No-op; Branch kann nachgezogen oder gelöscht werden. Offener Alpha-Rest = Owner-Gates (Stripe/Resend/UX/Labels), kein Code-Blocker (siehe `docs/issue_status.md`).
 - `product/trend-radar` – archivierte, divergente Produkt-Variante (Sales-Kit/Pricing/Kunden-Portal, Stand 2026-06-11). **Nicht in main/dev mergen** (reaktiviert das entfernte Brave-Search-Radar, 213 Commits hinter main) — nur als Referenz/Teil-Extraktion.
 - Die alten `sprint/*`-Branches wurden 2026-07-08 gelöscht (waren vollständig in `main`).
 
@@ -638,7 +650,9 @@ git push origin dev
 git checkout main
 git merge dev
 git push origin main
-# danach 3001 neu bauen: cd frontend && npm run build && next start -p 3001 (ohne DATABASE_URL)
+# danach 3001 neu bauen + Neustart über systemd (seit 2026-07-13, #38):
+# cd frontend && npm run build && systemctl --user restart catandary-frontend
+# (Unit: deploy/systemd/catandary-frontend.service — ohne DATABASE_URL, Socket-Default; Autostart via Linger)
 ```
 
 **Claude Code soll autonom:**
@@ -751,15 +765,15 @@ Keine offenen Ergänzungen. Lebensmittelzeitung wurde in `sources.yaml` eingebun
 
 ---
 
-## Stage-6 auf llama.cpp (optional; 30B aktuell seit 2026-06-26, 35B revertierbar)
+## Stage-6 auf llama.cpp (Content-Gen; Gemma-4-26B aktuell seit #11 / 2026-07-14; 30B/35B revertierbar)
 
 Auf der 24-GB-Karte kann Stage 6 (Content-Generierung) auf ein deutlich größeres Modell umgeleitet werden:
 
-- **Modell (aktuell):** Qwen3-30B-A3B-Q4_K_M (MoE, ~18 GB, 40K ctx) — Umstellung von der 35B via `be444d0` (2026-06-26), Start-Skript `start-qwen3-30b.sh`. Das 35B (Qwen3.6-35B-A3B-UD-Q4_K_M, `start-qwen3.6-35b.sh`) bleibt installiert und ist per `STAGE5_MODEL`/`STAGE5_START` **revertierbar**. Geladen via `llama-server` (systemd user unit `llama-server.service`, Port 8090).
-- **Routing:** `STAGE5_BACKEND=llamacpp` in `scheduled_cycle.sh` aktiviert den Pfad — gegated nur darauf, dass das in `STAGE5_MODEL` gesetzte **Start-Skript** (aktuell `start-qwen3-30b.sh`) existiert und das erwartete GGUF referenziert, **nicht** darauf, worauf `start-active.sh` beim Start zeigt. Content-Gen versucht damit **immer** das gesetzte Modell, egal welches Modell (oder keines) bei Pipeline-Start geladen war.
-- **GPU-Handover:** `pipeline/gpu_handover.py` (`content_gen_on_llamacpp`) **hängt vor Stage 6 den Symlink `start-active.sh` selbst auf das Content-Gen-Start-Skript um** (speichert das vorherige Ziel), entlädt die Ollama-Modelle, startet llama-server, und stoppt es nach Stage 6 wieder + **stellt den Symlink zurück** (wie die 8B-/Embedding-Handover). Der Pre-Flight prüft danach konsistent das nun gesetzte Modell — OOM-Schutz bleibt. Stages 7–9 nutzen Ollama wieder (Qwen3 8B für Reclassify on-demand). MODEL_START_SCRIPTS mappt beide GGUFs (30B + 35B) auf ihre Start-Skripte.
+- **Modell (aktuell):** **Gemma-4-26B-A4B-it-qat-UD-Q4_K_XL** (~16 GB), Start-Skript `start-gemma4-26b.sh`. Umstellung von Qwen3-30B via **#11 (2026-07-14)** nach kontrolliertem A/B (n=70, Fisher p=0.013): 30B erfand in **32,9 %** der Bodies fake Spezifika (z. B. „Ordinance 2023-47"), Gemma-26B nur **8,6 %** und trifft das 150–250-Wörter-Ziel (das 30B unterschritt). Qwen3-30B-A3B (`start-qwen3-30b.sh`) und Qwen3.6-35B (`start-qwen3.6-35b.sh`) bleiben installiert und sind per `STAGE5_MODEL`/`STAGE5_START` **revertierbar**. Geladen via `llama-server` (systemd user unit `llama-server.service`, Port 8090).
+- **Routing:** `STAGE5_BACKEND=llamacpp` in `scheduled_cycle.sh` aktiviert den Pfad — gegated nur darauf, dass das in `STAGE5_MODEL` gesetzte **Start-Skript** (aktuell `start-gemma4-26b.sh`) existiert und das erwartete GGUF referenziert, **nicht** darauf, worauf `start-active.sh` beim Start zeigt. Content-Gen versucht damit **immer** das gesetzte Modell, egal welches Modell (oder keines) bei Pipeline-Start geladen war.
+- **GPU-Handover:** `pipeline/gpu_handover.py` (`content_gen_on_llamacpp`) **hängt vor Stage 6 den Symlink `start-active.sh` selbst auf das Content-Gen-Start-Skript um** (speichert das vorherige Ziel), entlädt die Ollama-Modelle, startet llama-server, und stoppt es nach Stage 6 wieder + **stellt den Symlink zurück** (wie die 8B-/Embedding-Handover). Der Pre-Flight prüft danach konsistent das nun gesetzte Modell — OOM-Schutz bleibt. Stages 7–9 nutzen Ollama wieder (Qwen3 8B für Reclassify on-demand). MODEL_START_SCRIPTS mappt die Content-Gen-GGUFs (Gemma-26B + 30B + 35B) auf ihre Start-Skripte.
 - **Content-Guard:** Wortzahl-Validator retryt bis zu 3× bei vorzeitig terminierten Body-Strings (Grammar-Artefakt bei temp 0.7). In den ersten vier Nachtläufen war die "alle 3 Versuche failed"-Rate <0,25 %.
-- **Rückbau:** `STAGE5_BACKEND=ollama` (Env-Override) erzwingt den Ollama-14B-Pfad. Alternativ das Content-Gen-Start-Skript entfernen/umbenennen → `scheduled_cycle.sh` fällt automatisch auf Ollama zurück. **Zurück auf 35B:** `STAGE5_MODEL=Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` + `STAGE5_START=…/start-qwen3.6-35b.sh` setzen. (Das bloße Umhängen von `start-active.sh` deaktiviert den Pfad **nicht** — der Handover hängt selbst um.)
+- **Rückbau:** `STAGE5_BACKEND=ollama` (Env-Override) erzwingt den Ollama-14B-Pfad. Alternativ das Content-Gen-Start-Skript entfernen/umbenennen → `scheduled_cycle.sh` fällt automatisch auf Ollama zurück. **Zurück auf 30B/35B:** in `scheduled_cycle.sh` `STAGE5_MODEL`/`STAGE5_START` auf `start-qwen3-30b.sh` bzw. `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` + `start-qwen3.6-35b.sh` zeigen lassen. (Das bloße Umhängen von `start-active.sh` deaktiviert den Pfad **nicht** — der Handover hängt selbst um.)
 - **Zugehörige Goals:** offene Erweiterung der Quellen-Architektur, siehe `goals/` und `pipeline_expansion_prompt.md`.
 
 ## Technische Hinweise

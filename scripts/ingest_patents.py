@@ -634,9 +634,17 @@ def parse_docdb_document(doc, require_en: bool = True,
 def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                 scratch: str, dry_run: bool, cpc_filter: str = "",
                 max_outer: int = 0, skip_outer: int = 0,
-                keep_files: bool = False, graph_backfill: bool = False) -> dict:
-    """Download the latest delivery of a BDDS DOCDB product, parse the nested
-    per-country XML, filter to our CPC classes + [after, before), insert.
+                keep_files: bool = False, graph_backfill: bool = False,
+                delivery_id: int = 0) -> dict:
+    """Download ONE delivery of a BDDS DOCDB product, parse the nested per-country
+    XML, filter to our CPC classes + [after, before), insert.
+
+    delivery_id: which delivery to fetch. 0 (default) = the newest, preserving the
+    original behaviour. Product 3 (front file) publishes a delivery per WEEK, and
+    only ever fetching deliveries[0] means a run picks up the current week and
+    silently leaves every week since the last run behind — which is how the corpus
+    ended up with ~950k patents missing between the Feb-2026 back file and now
+    (see scripts/catchup_bdds.py, which walks the backlog).
 
     cpc_filter: keep only patents with a CPC code starting with this prefix
     (e.g. 'A23C' for dairy) — narrows a bounded sample. max_outer: cap on the
@@ -653,7 +661,13 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
         token = bdds_token(client)
         prod = client.get(f"{BDDS_API}/products/{product_id}",
                           headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}).json()
-        delivery = prod["deliveries"][0]
+        if delivery_id:
+            delivery = next((d for d in prod["deliveries"]
+                             if int(d["deliveryId"]) == int(delivery_id)), None)
+            if delivery is None:
+                raise SystemExit(f"delivery {delivery_id} not offered by product {product_id}")
+        else:
+            delivery = prod["deliveries"][0]
         did = delivery["deliveryId"]
         logger.info("[bdds] product %s delivery %s '%s' — %d files (cpc_filter=%s, max_outer=%s)",
                     product_id, did, delivery.get("deliveryName"), len(delivery["files"]),
@@ -843,6 +857,9 @@ def main() -> int:
     ap.add_argument("--max-files", type=int, default=49, help="hf-gpatents/bdds: inner files to scan per outer (0=all)")
     ap.add_argument("--max-outer", type=int, default=0, help="epo-bdds: cap on outer delivery files (0=all; the back file is 162)")
     ap.add_argument("--skip-outer", type=int, default=0, help="epo-bdds: skip the first N outer files (resume a previous run)")
+    ap.add_argument("--delivery", type=int, default=0,
+                    help="epo-bdds: deliveryId to fetch (0=newest). Product 3 ships one "
+                         "delivery per week — use scripts/catchup_bdds.py to walk the backlog")
     ap.add_argument("--cpc-filter", help="epo-bdds: keep only CPC codes with this prefix (e.g. A23C)")
     ap.add_argument("--scratch", default="/tmp", help="temp/archive dir for downloads")
     ap.add_argument("--keep-files", action="store_true", help="epo-bdds: keep downloaded zips in --scratch (archive; reused on re-runs)")
@@ -864,7 +881,7 @@ def main() -> int:
         ingest_bdds(args.product, args.after, args.before, args.max_files, args.scratch,
                     args.dry_run, cpc_filter=args.cpc_filter or "", max_outer=args.max_outer,
                     skip_outer=args.skip_outer, keep_files=args.keep_files,
-                    graph_backfill=args.graph_backfill)
+                    graph_backfill=args.graph_backfill, delivery_id=args.delivery)
     else:
         if not args.vertical:
             ap.error("epo-ops needs --vertical")

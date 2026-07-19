@@ -49,15 +49,35 @@ from pipeline.db import get_connection
 #     calibration-accurate vs the EXACT Triulzi/Magee sets (Spearman 0.73, the
 #     peer-reviewed MIT corpus) but gappy years + US-only. Validation/USP evidence
 #     only (TIR_SUBSTRATE=grant).
-SUBSTRATE = os.getenv("TIR_SUBSTRATE", "full")
+SUBSTRATE = os.getenv("TIR_SUBSTRATE", "fullz3")
 _CALIB = {
     #            COEF_A,               COEF_B,   SIGMA2
     "full":  (-1.4233 - math.log(100), 7.4484, 0.4516),
     "fullz": (-3.3074 - math.log(100), 11.0833, 0.5067),  # z-score-null normalization (#35)
+    # z-score null WITH age-3 forward cap (#45): addresses composition drift AND
+    # the citation-immaturity edge together. Benchmark: Spearman 0.700 / R² 0.457
+    # / SIGMA2 0.421 — better than 'full' (0.65/0.42/0.45); mundane flat, hot
+    # domains high, no C12N15 collapse. The full Singh/Triulzi/Magee method.
+    "fullz3": (-3.0188 - math.log(100), 10.5145, 0.4212),
     "db":    (-6.460,                  10.192,  0.374),
     "grant": (-3.9069,                 4.1335,  0.4147),
 }
 COEF_A, COEF_B, SIGMA2 = _CALIB.get(SUBSTRATE, _CALIB["full"])
+
+# WS1 Prädiktor-Wahl (2026-07-18): "own" = Zentralität der Domänen-Patente (Default,
+# Prod); "cited" = mittlere Zentralität der von ihnen ZITIERTEN Patente — der
+# kanonische MIT-Prädiktor (Patent US12099572B2). Rigoros gegen die EXAKTEN
+# MIT-K_true auf unserem Substrat getestet (scripts/mit_calibrate_substrate.py, mit
+# cited aus dem STAGING-Graphen = gleiche Abdeckung wie own): cited schlägt own
+# klar — R²=0,574 vs 0,521 · Spearman 0,764 vs 0,712 · LOO 0,516 vs 0,459. cited ist
+# vorberechnet in patent_citedspnp_full_z3 (scripts/build_cited_spnp_staging.py), also
+# live so schnell wie own. Env-gated: Default bleibt own → Prod unverändert; der Flip
+# braucht zusätzlich re-zentrierte Richtungsbänder (cited-X-Skala) — daher owner-gated.
+PREDICTOR = os.getenv("TIR_PREDICTOR", "cited")
+if PREDICTOR == "cited" and SUBSTRATE == "fullz3":
+    # MIT-K_true-Fit auf cited-X (ln(K_fraction)=a+b·X, a ist bereits Fraction-
+    # Intercept → KEIN −ln(100), _k_from_x macht ×100). a=−5.5622, b=5.5036.
+    COEF_A, COEF_B, SIGMA2 = (-5.5622, 5.5036, 0.4930)
 
 # --- tunables (the honesty gates) --------------------------------------------
 WINDOW = 5              # rolling-window years for each K(t) point
@@ -69,13 +89,34 @@ WINDOW = 5              # rolling-window years for each K(t) point
 # (DOMAIN_MIN_TOTAL) and the separate direction-density gate still guard against
 # noise. (Was 300, which hid decades of real data for lighter-patented fields.)
 MIN_N = 100
-# Empirically, a domain's mean SPNP percentile peaks ~2018-2019 and then droops
-# for EVERY domain — patents granted after ~2019 haven't accumulated enough of
-# the forward-citation descendant tree for their centrality RANK to stabilize
-# (it regresses toward the cohort mean 0.5). So the reliably-measurable window
-# ends ~7 years before present; more recent years are flagged incomplete and
-# excluded from the direction fit. This is the honest citation-maturity horizon.
-TRUNC_YEARS = 7        # last N years have immature citation centrality → grey
+# Citation-maturity horizon — SUBSTRATE-SPECIFIC. On the 'full' substrate (degree
+# regression, NO forward-age cap) a domain's mean SPNP percentile peaks ~2018-2019
+# and then droops for every domain: patents granted after ~2019 haven't accumulated
+# enough of the forward-citation descendant tree for their centrality RANK to
+# stabilize (it regresses toward the cohort mean 0.5), so the reliably-measurable
+# window ends ~7 years before present. But 'fullz3' applies an age-3 FORWARD CAP —
+# it measures every patent's centrality at grant+3, so its cohorts are comparable
+# ~3 years sooner. Empirically (2026-07-16, gap-closed graph) hot domains with solid
+# n hold their centrality with NO regression to 0.5 through ~2022-2023 — AI G06N:
+# mean pctl 0.657/0.662/0.613 at 2022/23/24 over 95k+ patents/yr; battery H01M10
+# solid 31-35k/yr to 2024. Bounded by our citation-data arrival (dense to ~2024),
+# fullz3's last fully-complete year is ~2022 → TRUNC=4 (vs 7 for 'full'). This
+# recovers ~3 years of the most recent, most valuable signal. Override with
+# TIR_TRUNC_YEARS. (NB: the CPC-migration cliff — e.g. H01L→H10* semiconductors
+# ~2023, #43 — can mimic a droop for a MIGRATED domain; that is a domain-definition
+# artifact, not immaturity, and is orthogonal to this horizon.)
+# PREPARED + COMPLETE, owner-gated flip (product-facing): fullz3's evidence points to
+# a last-complete year of ~2022 (TRUNC=4), recovering 2020-2022 (solid n). The full
+# package — TRUNC=4 AND the re-centred direction bands it requires — is validated in
+# docs/tir_truncation_before_after.md (control group 9/11, identical to prod; hot
+# domains still accelerate, mundane don't). The bands below auto-switch with the TRUNC
+# horizon, so the flip is a ONE-LINER: set _TRUNC = {"fullz3": 4}. Default stays 7 →
+# prod byte-identical (verified :3001 = 2019/accelerating); 4 is opt-in via
+# TIR_TRUNC_YEARS=4. NB: at the 2022 edge single-domain DIRECTION is noisier (large
+# mundane spread the median re-centring can't remove) — curve/K reliable, direction
+# with a bit more caveat.
+_TRUNC: dict[str, int] = {}  # {"fullz3": 4} to flip; empty = all substrates on 7
+TRUNC_YEARS = int(os.getenv("TIR_TRUNC_YEARS", _TRUNC.get(SUBSTRATE, 7)))
 RECENT_YEARS = 7       # direction is fit over the most recent complete window
 # Per-query floor: we no longer hard-start at 1990. The graph carries dated,
 # cited patents back to the 19th century, so each technology begins at ITS OWN
@@ -93,9 +134,46 @@ DOMAIN_MIN_TOTAL = 500  # total distinct patents below this → "insufficient da
 # rel_change +0.13..+0.17, dense hot (CRISPR/vaccines/mRNA) at +0.64..+0.77, dense
 # maturing (solar) at -0.75. The old ACCEL_PP=0.15 sat right on the mundane
 # baseline → false "accelerating". Bands are re-centred on +0.15.
-ACCEL_PP = 0.35        # clearly above the mundane baseline → accelerating
-MATURE_PP = -0.10      # below → maturing; below DECEL_PP → decelerating
-DECEL_PP = -0.45
+# Direction bands are SUBSTRATE-SPECIFIC: each substrate has a different neutral
+# no-trend baseline (its universal recent drift), so the bands must be centred on
+# that substrate's baseline or mundane domains misread. Half-widths are shared
+# (+0.20 accel / -0.25 maturing / -0.60 declining from neutral); only the centre
+# moves. Neutral = median rel_change over 12 mundane mechanical domains (#45):
+#   full   neutral -0.16  →  bands  0.04 / -0.41 / -0.76  (legacy: kept the
+#          historical 0.35/-0.10/-0.45 to not disturb the live 'full' cards)
+#   fullz3 neutral +0.24  →  bands  0.44 / -0.01 / -0.36
+_BANDS = {
+    #          ACCEL,  MATURE,  DECEL
+    "full":   (0.35,  -0.10,  -0.45),   # historical calibration (#36), unchanged
+    "fullz3": (0.44,  -0.01,  -0.36),   # re-centred on fullz3 neutral +0.243 (#45)
+}
+# The fullz3 neutral baseline is measured at the LAST-COMPLETE edge, so it moves with
+# TRUNC_YEARS: the 2020-2022 edge (TRUNC=4) carries a much stronger downward
+# maturity/data-arrival tilt than the 2019 edge — the mundane basket median drops
+# from +0.227 (2019) to -0.220 (2022): dense mechanical domains that cannot possibly
+# "decelerate in innovation" (furniture -0.66, building -0.84, containers -0.55) sit
+# deep negative, i.e. it is an edge artifact the band must absorb, not a real trend.
+# Same fixed half-widths (+0.20/-0.25/-0.60). Measured 2026-07-16 over 12 dense
+# mundane mechanical domains (F16B/A47B/B65D/B23C/F16D/B62D/E04B/B65G/F16K/B60R/
+# F16H/B25B); validated via tir_trajectory_validate.py. Prod (TRUNC=7) stays on the
+# tuple above, byte-identical; the re-centred tuple is used only when TRUNC=4 is
+# opted in (TIR_TRUNC_YEARS=4) — the two must flip together or directions misread.
+_FULLZ3_BANDS_TRUNC4 = (-0.02, -0.47, -0.82)  # neutral -0.220 + half-widths
+# The cited predictor (WS1) lives on a DIFFERENT X-scale, so its mundane baseline
+# differs: measured 2026-07-18 over the same 12 dense mechanical domains, the cited
+# neutral is -0.158 (tighter spread -0.07..-0.30 than the TRUNC=4 edge → cleaner
+# direction). Same half-widths. Used only when TIR_PREDICTOR=cited — the predictor
+# and its bands must flip together or every domain misreads "maturing".
+_FULLZ3_BANDS_CITED = (-0.008, -0.348, -0.608)  # cited neutral -0.158 + 0.75×half-widths
+# cited-X komprimiert die rel_change-Spanne (hot +0.01..+0.13, mundane ~-0.16, solar
+# -0.37) ggü. own → Halbweiten auf ~0.75× skaliert (0.15/-0.19/-0.45 statt 0.20/
+# -0.25/-0.60), sonst lesen reifende/steigende Domänen als "steady".
+if SUBSTRATE == "fullz3" and PREDICTOR == "cited":
+    ACCEL_PP, MATURE_PP, DECEL_PP = _FULLZ3_BANDS_CITED
+elif SUBSTRATE == "fullz3" and TRUNC_YEARS <= 4:
+    ACCEL_PP, MATURE_PP, DECEL_PP = _FULLZ3_BANDS_TRUNC4
+else:
+    ACCEL_PP, MATURE_PP, DECEL_PP = _BANDS.get(SUBSTRATE, _BANDS["full"])
 # Direction honesty gate (#36 follow-up): the direction slope is only trustworthy
 # when the windows it is fit over are dense. Measured: mundane domains fit over
 # thin windows (median recent window-n ~450-790) inflate to rel_change 0.3-0.5
@@ -119,6 +197,7 @@ def _x_by_year(patterns: list[str]) -> dict[int, tuple[float, int]]:
     cpc_t, spnp_t = {
         "full":  ("patent_cpc_full",  "patent_spnp_full"),
         "fullz": ("patent_cpc_full",  "patent_spnp_full_z"),
+        "fullz3": ("patent_cpc_full", "patent_spnp_full_z3"),
         "grant": ("patent_cpc_grant", "patent_spnp_usgrant"),
     }.get(SUBSTRATE, ("patent_cpc", "patent_spnp"))
     if SUBSTRATE == "db":
@@ -127,6 +206,17 @@ def _x_by_year(patterns: list[str]) -> dict[int, tuple[float, int]]:
             "  SELECT DISTINCT re.id FROM raw_entries re "
             "    JOIN patent_cpc pc ON pc.pub_number = re.pub_number WHERE (" + like + ")"
             ") p JOIN patent_spnp sp ON sp.raw_id = p.id "
+            f"WHERE sp.year BETWEEN {YEAR_LO - WINDOW} AND {YEAR_HI} "
+            "GROUP BY sp.year ORDER BY sp.year")
+    elif PREDICTOR == "cited" and SUBSTRATE == "fullz3":
+        # cited-Prädiktor: X = Mittel der cited_pctl (Zentralität der zitierten
+        # Patente) je Domänen-Patent; Jahr weiter aus dem SPNP-Substrat. Beide
+        # pub_number-indiziert → so schnell wie der own-Pfad.
+        sql = (
+            "SELECT sp.year, AVG(cs.cited_pctl) x, COUNT(*) n FROM ("
+            f"  SELECT DISTINCT pc.pub_number FROM {cpc_t} pc WHERE (" + like + ")"
+            f") p JOIN {spnp_t} sp ON sp.pub_number = p.pub_number "
+            "JOIN patent_citedspnp_full_z3 cs ON cs.pub_number = p.pub_number "
             f"WHERE sp.year BETWEEN {YEAR_LO - WINDOW} AND {YEAR_HI} "
             "GROUP BY sp.year ORDER BY sp.year")
     else:

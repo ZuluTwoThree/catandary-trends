@@ -167,3 +167,38 @@ class TestSourceDiscovery:
             })
         assert get_discovery_count("test.com") == 5
         assert get_discovery_count("other.com") == 0
+
+
+class TestPgHygieneFixes:
+    """Regression guards for the P1 Postgres-schema/query fixes (#52/#53/#54).
+
+    The Postgres-specific behaviour is validated against live Postgres; the test
+    harness forces SQLite (conftest sets DATABASE_URL=""), so here we lock in the
+    query shape + migration wiring that regressed before, and confirm the migrations
+    no-op cleanly on SQLite."""
+
+    def test_recent_dedup_use_safe_interval_binding(self):
+        # #54: the fragile `INTERVAL '%s days'` (placeholder inside a string literal)
+        # must not come back — the Postgres path uses make_interval(days => %s).
+        import inspect
+        from pipeline import db as _db
+        src = inspect.getsource(_db.get_recent_titles) + inspect.getsource(_db.get_recent_embeddings)
+        assert "INTERVAL '%s" not in src, "reverted to unsafe interval literal (#54)"
+        assert "make_interval(days => %s)" in src
+
+    def test_recent_getters_run_on_sqlite(self):
+        # both getters must work on the SQLite path (no crash, list result)
+        from pipeline.db import get_recent_titles, get_recent_embeddings
+        assert isinstance(get_recent_titles(7), list)
+        assert isinstance(get_recent_embeddings(7, limit=10), list)
+
+    def test_schema_migrations_are_wired_and_noop_on_sqlite(self):
+        # #52/#53: init_db must call the new idempotent migrations, and they must be
+        # safe no-ops under SQLite (USE_POSTGRES guard).
+        import inspect
+        from pipeline import db as _db
+        init_src = inspect.getsource(_db.init_db)
+        assert "_migrate_embedding_1024()" in init_src
+        assert "_migrate_source_lead_time_tier()" in init_src
+        _db._migrate_embedding_1024()          # no-op on SQLite, must not raise
+        _db._migrate_source_lead_time_tier()
