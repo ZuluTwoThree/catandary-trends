@@ -590,7 +590,7 @@ catandary.de/trends/newsletter             → Newsletter-Signup
 
 - **Ändert eine Arbeit reale Bedingungen** (Modelle, Backends, Defaults, Konfiguration, DB-Schema, Branch-Zustand, Pipeline-Verhalten, Cron/Deploy), wird die betroffene Doku **im selben Zug** mitgezogen — niemals stale Doku hinterlassen.
 - **Gegen die Realität verifizieren, nicht die alte Doku fortschreiben:** aktive Start-Skripte/GGUFs/Env in `scheduled_cycle.sh`, `config.py`-Defaults, Schema in `pipeline/db.py` etc. tatsächlich prüfen statt annehmen.
-- **Doku-Stand auf `dev` UND `epic/alpha` konsistent halten** (z. B. via isoliertem `git worktree`, ohne einen laufenden Cycle im Haupt-Tree zu stören).
+- **Doku-Stand auf `dev` und `main` konsistent halten** (`dev` sofort mitziehen; `main` erhält den Stand beim bewussten Release-Merge). *(Der frühere Parallel-Zweig `epic/alpha` wurde am 2026-07-19 gelöscht — es gibt keinen zweiten Doku-Branch mehr zu pflegen.)*
 - Ursprung dieser Regel (2026-07-18): Content-Gen lief real längst auf Gemma-4-26B, während CLAUDE.md/README noch 30B/35B nannten — solche Drift ist ab jetzt konstitutionell auszuschließen.
 
 ### Arbeitsweise
@@ -621,9 +621,9 @@ git remote add origin git@github.com:ZuluTwoThree/catandary-trends.git
 - `main` – stabiler, deployter Prototyp (**"save"**). Prod-Server 3001 läuft von hier. Nur bewusst per Merge aus `dev` aktualisieren.
 - `dev` – Integrations-Branch für laufende Arbeit. Hierhin committen; nach Stabilisierung → `main` mergen + 3001 neu bauen.
 - Feature-Branches optional bei komplexen Features (von `dev` abzweigen, in `dev` zurück).
-- `epic/alpha` – Branch der Alpha-Epic-Arbeit (Foresight-Engine/Monetarisierung/UX/Newsletter). **Stand 2026-07-18 vollständig in `dev` gemergt** (direkter Vorfahr, 0 eigene Commits, ~32 dahinter) — Merge epic/alpha→dev ist ein No-op; Branch kann nachgezogen oder gelöscht werden. Offener Alpha-Rest = Owner-Gates (Stripe/Resend/UX/Labels), kein Code-Blocker (siehe `docs/issue_status.md`).
 - `product/trend-radar` – archivierte, divergente Produkt-Variante (Sales-Kit/Pricing/Kunden-Portal, Stand 2026-06-11). **Nicht in main/dev mergen** (reaktiviert das entfernte Brave-Search-Radar, 213 Commits hinter main) — nur als Referenz/Teil-Extraktion.
-- Die alten `sprint/*`-Branches wurden 2026-07-08 gelöscht (waren vollständig in `main`).
+- **Gelöschte Branches** (alle vollständig in `main`): `sprint/*` (2026-07-08), sowie `hardening/release-candidate` + `epic/alpha` (2026-07-19, nach dem Release-Merge `dev`→`main` PR #62). `epic/alpha` war die Alpha-Epic-Arbeit (Foresight/Monetarisierung/UX/Newsletter); ihre 2 Restcommits waren inhaltsgleiche Doku-Syncs, deren Endzustand in `main` steht. Offener Alpha-Rest = Owner-Gates (Stripe/Resend/UX/Labels), kein Code-Blocker (siehe `docs/issue_status.md`).
+- **Aktiv sind nur noch `main` + `dev`** (plus die Archiv-Referenz `product/trend-radar` auf dem Remote).
 
 **Commit-Konventionen:**
 ```
