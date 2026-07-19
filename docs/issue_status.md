@@ -36,7 +36,7 @@ live) plus die Alpha-Review-Fixes (#52–#56) und neue Backlog-Issues hinzu.
 | **#58** | TIR-Prädiktor: Spillover (Pichler & Lafond) | Neu, Backlog (echte Methoden-Erweiterung, +20-28% OOS). |
 | **#59** | TIR-Domänen: Embedding-Landscape + Multilayer | Neu, Backlog (überlappt #43/#9). |
 | **#47/#48** | Content-Reparatur 30B-Ära · Source-Link-Integrität | offen. |
-| **#60** | Newsletter-Ausgaben erzeugen (ohne Versand) | **Erledigt 2026-07-19:** Lücke W22–W29 rückwirkend generiert (Backend llama.cpp, geladenes Qwen3.6-35B auf :8090), `newsletter_editions` damit lückenlos W15–W29, HTML/JSON-Previews unter `data/newsletters/` (`latest.html` = W29). Kein Versand — `newsletter_sender.py` unangetastet, kein Resend-Call. Schließbar. |
+| **#60** | Content-Rückstand Newsletter W22–W29 | **Erledigt + geschlossen 2026-07-19** (Owner-Entscheidung: Option 1, nur archivieren). W22–W29 rückwirkend generiert (Backend llama.cpp, Qwen3.6-35B auf :8090), `newsletter_editions` lückenlos W15–W29, HTML/JSON unter `data/newsletters/`. Qualitäts-Sichtung: alle 8 mit 3 Absätzen/8 Vertikalen/7 Radar-Einträgen; 4 Editorials (W23/24/25/28) wegen Banned-Phrase-Verstößen regeneriert, danach alle clean. Kein Versand — `newsletter_sender.py` unangetastet. Cron-Reaktivierung bleibt #16. |
 
 ## 🔴 Backlog-Folge-Features
 
