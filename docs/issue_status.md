@@ -1,4 +1,4 @@
-# Issue-Status (Stand 2026-07-18)
+# Issue-Status (Stand 2026-07-19)
 
 Übersicht der offenen GitHub-Issues. **Merge-Status:** Das Alpha-Epic ist inzwischen
 **vollständig in `dev`** — `epic/alpha` ist ein direkter Vorfahr von `dev` (0 eigene
@@ -36,6 +36,7 @@ live) plus die Alpha-Review-Fixes (#52–#56) und neue Backlog-Issues hinzu.
 | **#58** | TIR-Prädiktor: Spillover (Pichler & Lafond) | Neu, Backlog (echte Methoden-Erweiterung, +20-28% OOS). |
 | **#59** | TIR-Domänen: Embedding-Landscape + Multilayer | Neu, Backlog (überlappt #43/#9). |
 | **#47/#48** | Content-Reparatur 30B-Ära · Source-Link-Integrität | offen. |
+| **#60** | Newsletter-Ausgaben erzeugen (ohne Versand) | **Erledigt 2026-07-19:** Lücke W22–W29 rückwirkend generiert (Backend llama.cpp, geladenes Qwen3.6-35B auf :8090), `newsletter_editions` damit lückenlos W15–W29, HTML/JSON-Previews unter `data/newsletters/` (`latest.html` = W29). Kein Versand — `newsletter_sender.py` unangetastet, kein Resend-Call. Schließbar. |
 
 ## 🔴 Backlog-Folge-Features
 
