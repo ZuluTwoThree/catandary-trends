@@ -40,6 +40,7 @@ export async function POST(request: Request) {
   try {
     const url = await createCheckoutSession({
       priceId,
+      tier: tier as Exclude<import("@/lib/auth").Tier, "free">,
       email: session.email,
       userId: session.id,
       customerId: row?.stripe_customer_id ?? null,

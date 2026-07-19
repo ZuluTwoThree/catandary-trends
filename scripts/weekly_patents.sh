@@ -49,6 +49,7 @@ BEFORE=$(date -d '+1 year' +%F)
   echo
   echo "----- Dichte-Wächter -----"
   python - <<'PY'
+import sys
 from pipeline.db import get_connection
 from datetime import date, timedelta
 
@@ -75,7 +76,22 @@ pct = n / NORM * 100
 print(f"{month}: {n:,} Patente ({pct:.0f}% des Normalwerts {NORM:,})")
 if pct < 50:
     print(f"WARNUNG: {month} liegt unter 50% — Ingest prüfen (#49/#50)")
+    sys.exit(3)  # machine-detectable low-density signal (non-zero exit)
 PY
+  DENSITY_RC=$?
+
   echo
-  echo "weekly_patents.sh end $(date -Iseconds) (rc=$RC)"
+  # Overall status: fail (non-zero) if the ingest itself failed OR the density
+  # guard tripped, so cron mail / a supervisor sees the stall instead of a masked
+  # green run. A catchup error always dominates, so the density guard can never
+  # hide a failed ingest.
+  FINAL_RC=0
+  if [ "$RC" -ne 0 ]; then
+    FINAL_RC="$RC"
+  elif [ "$DENSITY_RC" -ne 0 ]; then
+    FINAL_RC="$DENSITY_RC"
+  fi
+  echo "weekly_patents.sh end $(date -Iseconds) (catchup_rc=$RC density_rc=$DENSITY_RC final_rc=$FINAL_RC)"
 } >> "$LOG" 2>&1
+
+exit "${FINAL_RC:-1}"

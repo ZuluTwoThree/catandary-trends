@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, PoolClient } from "pg";
 
 /**
  * PostgreSQL connection pool (singleton per server process).
@@ -8,7 +8,7 @@ import { Pool } from "pg";
  * Survives Next.js dev-mode HMR via globalThis stashing.
  */
 declare global {
-  // eslint-disable-next-line no-var
+  // `var` is required for a global augmentation (let/const don't create globals).
   var __catandaryPool: Pool | undefined;
 }
 
@@ -44,4 +44,32 @@ export async function q1<T = Record<string, unknown>>(
 ): Promise<T | null> {
   const rows = await q<T>(text, params);
   return rows[0] ?? null;
+}
+
+/**
+ * Run `fn` inside a single BEGIN/COMMIT transaction on one pooled client. On any
+ * throw the transaction is rolled back (so partial writes never persist) and the
+ * error re-thrown; the client is always released. Use this when several writes
+ * must be all-or-nothing — e.g. consuming a magic token AND upserting its user,
+ * where a burnt token with no user would lock the address out permanently.
+ */
+export async function withTransaction<T>(
+  fn: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (e) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // rollback itself failed (e.g. broken connection) — the original error matters
+    }
+    throw e;
+  } finally {
+    client.release();
+  }
 }

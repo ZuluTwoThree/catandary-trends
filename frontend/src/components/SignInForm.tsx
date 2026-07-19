@@ -54,7 +54,7 @@ export default function SignInForm({ error }: { error?: string }) {
     <div className="signin-card">
       <h1 className="signin-title">Sign in to Catandary Trends</h1>
       <p className="signin-line">
-        Enter your email and we'll send a one-click sign-in link — no password.
+        Enter your email and we&apos;ll send a one-click sign-in link — no password.
       </p>
       {error === "link" && (
         <p className="signin-error">That link was invalid or expired. Request a new one.</p>

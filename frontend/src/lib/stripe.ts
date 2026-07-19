@@ -13,6 +13,12 @@ export const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY || "";
 export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 export const stripeConfigured = Boolean(STRIPE_SECRET);
 
+/** All valid webhook signing secrets. Comma-separated STRIPE_WEBHOOK_SECRET lets an
+ *  old + new secret both verify during a Stripe signing-secret rotation window. */
+function webhookSecrets(): string[] {
+  return STRIPE_WEBHOOK_SECRET.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
 const PRICE_ENV: Record<Exclude<Tier, "free">, string> = {
   starter: "STRIPE_PRICE_STARTER",
   pro: "STRIPE_PRICE_PRO",
@@ -49,6 +55,7 @@ async function stripePost(path: string, form: Record<string, string>): Promise<a
 /** Create a subscription Checkout Session, return its redirect URL. */
 export async function createCheckoutSession(opts: {
   priceId: string;
+  tier: Tier;
   email: string;
   userId: number;
   successUrl: string;
@@ -62,7 +69,16 @@ export async function createCheckoutSession(opts: {
     success_url: opts.successUrl,
     cancel_url: opts.cancelUrl,
     client_reference_id: String(opts.userId),
+    // On the SESSION (for checkout.session.completed):
     "metadata[user_id]": String(opts.userId),
+    "metadata[tier]": opts.tier,
+    "metadata[price_id]": opts.priceId,
+    // Propagated onto the SUBSCRIPTION so customer.subscription.* events can resolve
+    // the user + tier independently of whether checkout.session.completed arrived
+    // first (Stripe does not guarantee event ordering).
+    "subscription_data[metadata][user_id]": String(opts.userId),
+    "subscription_data[metadata][tier]": opts.tier,
+    "subscription_data[metadata][price_id]": opts.priceId,
     // EU VAT — Stripe Tax; harmless if not enabled on the account
     "automatic_tax[enabled]": "true",
   };
@@ -78,23 +94,38 @@ export async function createCheckoutSession(opts: {
  * timestamps older than 5 minutes (replay protection).
  */
 export function verifyWebhook(rawBody: string, sigHeader: string | null): any | null {
-  if (!STRIPE_WEBHOOK_SECRET || !sigHeader) return null;
-  const parts = Object.fromEntries(
-    sigHeader.split(",").map((kv) => kv.split("=") as [string, string])
-  );
-  const t = parts["t"];
-  const v1 = parts["v1"];
-  if (!t || !v1) return null;
-  if (Math.abs(Date.now() / 1000 - Number(t)) > 300) return null;
-  const expected = crypto
-    .createHmac("sha256", STRIPE_WEBHOOK_SECRET)
-    .update(`${t}.${rawBody}`)
-    .digest("hex");
-  if (
-    v1.length !== expected.length ||
-    !crypto.timingSafeEqual(Buffer.from(v1), Buffer.from(expected))
-  )
-    return null;
+  const secrets = webhookSecrets();
+  if (!secrets.length || !sigHeader) return null;
+  // Parse the timestamp and ALL v1 signatures. The header may legitimately carry
+  // several `v1=` entries (e.g. during a rotation) — the previous Object.fromEntries
+  // collapsed duplicate keys and kept only the last, silently rejecting valid events.
+  let t = "";
+  const v1s: string[] = [];
+  for (const part of sigHeader.split(",")) {
+    const idx = part.indexOf("=");
+    if (idx < 0) continue;
+    const k = part.slice(0, idx).trim();
+    const v = part.slice(idx + 1).trim();
+    if (k === "t") t = v;
+    else if (k === "v1") v1s.push(v);
+  }
+  if (!t || !v1s.length) return null;
+  if (!Number.isFinite(Number(t)) || Math.abs(Date.now() / 1000 - Number(t)) > 300) return null;
+  const signed = `${t}.${rawBody}`;
+  // Valid if ANY provided v1 matches ANY configured secret (constant-time compare).
+  const ok = secrets.some((secret) => {
+    const expected = crypto.createHmac("sha256", secret).update(signed).digest("hex");
+    const expBuf = Buffer.from(expected);
+    return v1s.some((v1) => {
+      if (v1.length !== expected.length) return false;
+      try {
+        return crypto.timingSafeEqual(Buffer.from(v1), expBuf);
+      } catch {
+        return false;
+      }
+    });
+  });
+  if (!ok) return null;
   try {
     return JSON.parse(rawBody);
   } catch {

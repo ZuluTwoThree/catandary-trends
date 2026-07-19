@@ -1,5 +1,12 @@
-45 2 * * * /home/dirk/projects/catandary-trends/.venv/bin/python /home/dirk/projects/catandary-trends/scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 7 >> /home/dirk/logs/catandary-backup.log 2>&1
-0 6 * * 0 /home/dirk/projects/catandary-trends/.venv/bin/python /home/dirk/projects/catandary-trends/scripts/discovery_loop.py >> /home/dirk/logs/catandary-discovery-loop.log 2>&1
-0 8 1 * * /home/dirk/projects/catandary-trends/.venv/bin/python /home/dirk/projects/catandary-trends/scripts/monthly_source_check.py --post-issue >> /home/dirk/logs/catandary-source-check.log 2>&1
-# Wöchentlicher BDDS-Patent-Ingest (#50) — --kind both: Amend trägt die Zitationen
-0 5 * * 2    /home/dirk/projects/catandary-trends/scripts/weekly_patents.sh
+# MOVED — the canonical cron configuration now lives in deploy/crontab.txt.
+#
+# This root-level file used to duplicate the deploy template with divergent paths
+# and a different (partial) job set, so the two disagreed. There is now a single
+# source of truth. Edit and install from there:
+#
+#     $EDITOR deploy/crontab.txt      # set CATANDARY_DIR / PYTHON / LOG_DIR
+#     crontab deploy/crontab.txt
+#
+# External/opt-in jobs (weekly BDDS patent ingest, weekly newsletter) are documented
+# there but left DISABLED — enable them deliberately once their prerequisites
+# (EPO BDDS access, DNS-verified Resend domain) are in place.

@@ -23,7 +23,7 @@ export default async function MovingNow() {
     <section className="mb-10">
       <div className="mb-3 flex items-baseline justify-between">
         <h2 className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
-          <span className="text-accent">What's moving</span>
+          <span className="text-accent">What&apos;s moving</span>
           <span className="text-muted/70"> / rising clusters</span>
         </h2>
         <Link
