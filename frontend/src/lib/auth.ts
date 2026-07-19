@@ -23,6 +23,28 @@ const COOKIE = "cat_session";
 const SESSION_DAYS = 30;
 const TOKEN_TTL_MIN = 15;
 
+/** production build (read at call time so tests can toggle it). */
+export function isProduction(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
+/**
+ * Fail loud when auth is enabled in production but misconfigured, rather than
+ * running silently insecure (empty HMAC secret; a 'console' transport that only
+ * logs the link so nobody can sign in AND would leak it; missing Resend key).
+ * All checks read env at call time. Throws on any problem.
+ */
+export function assertAuthConfigured(): void {
+  if (process.env.AUTH_ENABLED !== "1" || !isProduction()) return;
+  const problems: string[] = [];
+  if (!process.env.AUTH_SECRET || process.env.AUTH_SECRET.length < 16)
+    problems.push("AUTH_SECRET missing or shorter than 16 chars");
+  if ((process.env.EMAIL_TRANSPORT || "console") !== "resend")
+    problems.push("EMAIL_TRANSPORT must be 'resend' in production (console leaks/undeliverable)");
+  if (!process.env.RESEND_API_KEY) problems.push("RESEND_API_KEY missing");
+  if (problems.length) throw new Error(`auth misconfigured for production: ${problems.join("; ")}`);
+}
+
 export type Tier = "free" | "starter" | "pro" | "superpro";
 
 export interface SessionUser {
@@ -126,19 +148,17 @@ export async function createMagicToken(
  * any failure (invalid/expired/used).
  */
 export async function consumeMagicToken(raw: string): Promise<number | null> {
-  const row = await q1<{
-    id: number;
-    email: string;
-    used: boolean;
-    expired: boolean;
-    newsletter_opt_in: boolean;
-  }>(
-    "SELECT id, email, used, (expires_at < NOW()) AS expired, newsletter_opt_in " +
-      "FROM magic_tokens WHERE token_hash = $1",
+  // Atomic compare-and-set: the UPDATE ... WHERE used=FALSE ... RETURNING is a
+  // single statement, so of two concurrent requests only ONE flips the row and
+  // gets a result — the other sees no row and returns null. (The old SELECT-then-
+  // UPDATE let both pass the check and consume the same token twice.)
+  const row = await q1<{ email: string; newsletter_opt_in: boolean }>(
+    "UPDATE magic_tokens SET used = TRUE " +
+      "WHERE token_hash = $1 AND used = FALSE AND expires_at > NOW() " +
+      "RETURNING email, newsletter_opt_in",
     [hashToken(raw)]
   );
-  if (!row || row.used || row.expired) return null;
-  await q("UPDATE magic_tokens SET used = TRUE WHERE id = $1", [row.id]);
+  if (!row) return null;
 
   const optIn = row.newsletter_opt_in;
   const user = await q1<{ id: number }>(
@@ -179,23 +199,38 @@ export async function sendMagicLink(email: string, raw: string): Promise<string>
   const link = `${base}/api/auth/callback?token=${encodeURIComponent(raw)}`;
   const transport = process.env.EMAIL_TRANSPORT || "console";
 
-  if (transport === "resend" && process.env.RESEND_API_KEY) {
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: process.env.NEWSLETTER_FROM || "Catandary Trends <trends@catandary.de>",
-        to: [email],
-        subject: "Your Catandary Trends sign-in link",
-        html:
-          `<p>Click to sign in to Catandary Trends (valid ${TOKEN_TTL_MIN} minutes):</p>` +
-          `<p><a href="${link}">Sign in</a></p>` +
-          `<p style="color:#888;font-size:12px">If you didn't request this, ignore this email.</p>`,
-      }),
-    }).catch((e) => console.error("resend send failed:", e));
+  if (transport === "resend") {
+    if (!process.env.RESEND_API_KEY) {
+      throw new Error("RESEND_API_KEY missing — cannot send magic link");
+    }
+    let res: Response;
+    try {
+      res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: process.env.NEWSLETTER_FROM || "Catandary Trends <trends@catandary.de>",
+          to: [email],
+          subject: "Your Catandary Trends sign-in link",
+          html:
+            `<p>Click to sign in to Catandary Trends (valid ${TOKEN_TTL_MIN} minutes):</p>` +
+            `<p><a href="${link}">Sign in</a></p>` +
+            `<p style="color:#888;font-size:12px">If you didn't request this, ignore this email.</p>`,
+        }),
+      });
+    } catch (e) {
+      // Network/transport failure — surface it; do NOT report success.
+      throw new Error(`resend request failed: ${e instanceof Error ? e.message : e}`);
+    }
+    if (!res.ok) {
+      // Non-2xx (e.g. 422 invalid, 401 bad key, 429) — fetch does not throw on
+      // these, so an unchecked call would silently "succeed". Surface it.
+      const detail = await res.text().catch(() => "");
+      throw new Error(`resend returned ${res.status}: ${detail.slice(0, 200)}`);
+    }
   } else {
     console.log(`[auth] magic link for ${email}: ${link}`);
   }
