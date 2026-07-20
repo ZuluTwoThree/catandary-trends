@@ -9,7 +9,8 @@ import argparse
 import logging
 import sys
 
-from pipeline.config import AUTO_PUBLISH_CONFIDENCE, AUTO_PUBLISH_GROUNDING_GATE, LOG_LEVEL
+from pipeline.config import (AUTO_PUBLISH_CONFIDENCE, AUTO_PUBLISH_GROUNDING_GATE,
+                             AUTO_PUBLISH_LIMIT, LOG_LEVEL)
 from pipeline.db import get_connection, get_trends, init_db, update_trend_status
 from pipeline.grounding import ungrounded_specifics
 
@@ -63,14 +64,18 @@ def _source_text(raw_entry_id: int | None) -> str | None:
 
 
 def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
-                 dry_run: bool = False) -> dict:
+                 dry_run: bool = False, limit: int = AUTO_PUBLISH_LIMIT) -> dict:
     """Auto-publish drafts above the confidence threshold.
+
+    `limit` caps how many drafts are scanned in one run. It defaults to
+    AUTO_PUBLISH_LIMIT (generous) so a run drains the whole draft pool rather
+    than leaving a permanent backlog of publishable high-confidence drafts.
 
     Returns stats dict with counts.
     """
     init_db()
 
-    drafts = get_trends(status="draft", limit=500)
+    drafts = get_trends(status="draft", limit=limit)
     published = 0
     skipped = 0
     held_truncated = 0
@@ -132,7 +137,10 @@ if __name__ == "__main__":
                         help=f"Minimum confidence to auto-publish (default: {AUTO_PUBLISH_CONFIDENCE})")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be published without actually publishing")
+    parser.add_argument("--limit", type=int, default=AUTO_PUBLISH_LIMIT,
+                        help=f"Max drafts to scan in one run (default: {AUTO_PUBLISH_LIMIT})")
     args = parser.parse_args()
 
-    result = auto_publish(min_confidence=args.min_confidence, dry_run=args.dry_run)
+    result = auto_publish(min_confidence=args.min_confidence, dry_run=args.dry_run,
+                          limit=args.limit)
     sys.exit(0 if result["published"] >= 0 else 1)

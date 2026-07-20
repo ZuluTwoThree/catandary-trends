@@ -70,6 +70,12 @@ EMBED_MODEL = os.getenv("EMBED_MODEL", "Qwen3-Embedding-8B-Q4_K_M.gguf")
 RELEVANCE_THRESHOLD = 0.6
 DUPLICATE_SIMILARITY_THRESHOLD = 0.92
 AUTO_PUBLISH_CONFIDENCE = 0.85
+# Max drafts the auto-publisher scans per run. Must exceed the number of drafts
+# a cycle can leave behind, otherwise publishable high-confidence drafts pile up
+# as a permanent backlog (each run only ever reaches the first N). Set generously
+# so a run drains the whole draft pool — sub-threshold drafts are skipped cheaply,
+# so the real cost is bounded by the high-confidence subset actually published.
+AUTO_PUBLISH_LIMIT = int(os.getenv("AUTO_PUBLISH_LIMIT", "20000"))
 MAX_RETRIES = 3
 
 # RSS-cycle classification backend (#41). "hybrid" (default) does embed-first +
