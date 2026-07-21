@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Catandary — evidence-based, local-first trend & foresight intelligence. Reads the whole innovation chain (science, patents, funding, market) and cites every number to its primary source.">
+<meta name="robots" content="noindex">
+<meta property="og:title" content="Catandary — Evidence-Based Trend & Foresight Intelligence">
+<meta property="og:description" content="See it in the research before you see it in the market.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230a0c0a'/%3E%3Cg stroke='%23d4ff3a' stroke-width='2'%3E%3Cline x1='16' y1='4' x2='16' y2='28'/%3E%3Cline x1='4' y1='16' x2='28' y2='16'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='%23d4ff3a' stroke-width='2'/%3E%3C/svg%3E">
+<title>Catandary — Evidence-Based Trend & Foresight Intelligence</title>
+<style>
+  /* ============================================================
+     CATANDARY LAUNCH — "The Instrument"
+     Deliberate single-theme dark identity (the product is a
+     mission-control readout). Honors the app's Editorial-
+     Intelligence system: chartreuse on ink, mono labels, grain,
+     corner brackets, crosshair, live-dot.
+     ============================================================ */
+  :root {
+    --ink:        #0a0c0a;   /* green-biased near-black — chosen ground */
+    --surface:    #111310;
+    --surface-2:  #161914;
+    --edge:       #2a2d25;
+    --rule:       #3a3d35;
+    --text:       #d8d5c8;
+    --paper:      #f4f1e8;
+    --muted:      #8a8d82;
+    --accent:     #d4ff3a;   /* chartreuse — the single hero accent */
+    --accent-deep:#a8cc28;
+    --warn:       #ff6b3a;
+    /* lead-time tier palette (also the data-viz palette) */
+    --t-science:  #a78bfa;
+    --t-patent:   #60a5fa;
+    --t-funding:  #34d399;
+    --t-market:   #d4ff3a;
+    --rising:     #22c55e;
+    --stable:     #a3a3a3;
+    --declining:  #ef4444;
+
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono:  ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans:  system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+    --maxw: 1200px;
+    --gutter: clamp(1.1rem, 4vw, 3rem);
+    --section-y: clamp(4.5rem, 11vh, 8.5rem);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+    background-image: radial-gradient(ellipse 80% 55% at 50% -5%, rgba(212,255,58,.045), transparent 70%);
+    background-attachment: fixed;
+  }
+  /* film-grain overlay */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 200; pointer-events: none;
+    opacity: .035; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  ::selection { background: var(--accent); color: #0a0c0a; }
+  a { color: inherit; text-decoration: none; }
+  img, svg, canvas { max-width: 100%; display: block; }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 500; color: var(--paper); text-wrap: balance; letter-spacing: -0.015em; margin: 0; }
+  p { margin: 0; }
+  .tnum { font-variant-numeric: tabular-nums; }
+
+  /* ---- skip link + focus ---- */
+  .skip { position: absolute; left: -999px; top: 0; z-index: 400; background: var(--accent); color: #0a0c0a; padding: .6rem 1rem; font-family: var(--mono); font-size: .7rem; }
+  .skip:focus { left: 8px; top: 8px; }
+  a:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px;
+  }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding-inline: var(--gutter); }
+
+  /* ---- eyebrow ---- */
+  .eyebrow {
+    font-family: var(--mono); font-size: .625rem; text-transform: uppercase;
+    letter-spacing: .24em; color: var(--accent); display: inline-flex; align-items: center; gap: .75rem;
+  }
+  .eyebrow::before { content: ""; width: 26px; height: 1px; background: currentColor; }
+  .eyebrow.plain::before { display: none; }
+
+  /* ---- status bar ---- */
+  .statusbar {
+    position: sticky; top: 0; z-index: 120;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding: .55rem var(--gutter);
+    font-family: var(--mono); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--muted); background: rgba(10,12,10,.82); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--edge);
+  }
+  .statusbar .lhs { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+  .statusbar .brand { color: var(--paper); letter-spacing: .2em; }
+  .statusbar .sep { color: var(--rule); }
+  .statusbar .rhs { display: flex; align-items: center; gap: 1.1rem; }
+  .statusbar .navlink { color: var(--muted); transition: color .2s; }
+  .statusbar .navlink:hover { color: var(--accent); }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 1.9s steps(1,end) infinite; }
+  @keyframes pulse { 0%,60%{opacity:1} 61%,100%{opacity:.25} }
+  .hide-sm { display: inline; }
+  @media (max-width: 720px){ .hide-sm { display: none; } }
+
+  /* ---- hero ---- */
+  .hero { position: relative; padding-top: clamp(3rem, 8vh, 6rem); padding-bottom: clamp(2rem,5vh,4rem); }
+  .hero-grid { display: grid; grid-template-columns: 1fr; gap: clamp(2rem,4vw,3.5rem); }
+  @media (min-width: 940px){ .hero-grid { grid-template-columns: 1.05fr .95fr; align-items: center; } }
+  h1.hero-h {
+    font-size: clamp(2.5rem, 6.2vw, 5rem); line-height: 1.02; margin: 1.4rem 0 0;
+  }
+  h1.hero-h em { font-style: italic; color: var(--accent); }
+  .hero-sub { margin-top: 1.5rem; font-size: clamp(1rem,1.3vw,1.18rem); color: var(--text); max-width: 34em; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2rem; }
+  .btn {
+    display: inline-flex; align-items: center; gap: .55rem; padding: .8rem 1.3rem;
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase;
+    border: 1px solid var(--edge); background: transparent; color: var(--paper); cursor: pointer;
+    transition: border-color .2s, background .2s, color .2s, transform .1s;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--accent); color: #0a0c0a; border-color: var(--accent); font-weight: 600; }
+  .btn-primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .btn .arw { transition: transform .2s; }
+  .btn:hover .arw { transform: translateX(3px); }
+
+  /* proof counter */
+  .proof { margin-top: 2.4rem; border-top: 1px dashed var(--edge); padding-top: 1.3rem; display: grid; grid-template-columns: repeat(2,1fr); gap: 1.1rem 1.4rem; max-width: 34em; }
+  @media (min-width: 560px){ .proof { grid-template-columns: repeat(4,1fr); } }
+  .proof .num { font-family: var(--serif); font-size: clamp(1.5rem,3vw,2.1rem); color: var(--paper); line-height: 1; }
+  .proof .lbl { font-family: var(--mono); font-size: .56rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-top: .5rem; }
+
+  /* hero instrument panel */
+  .instrument {
+    position: relative; border: 1px solid var(--edge); background: linear-gradient(180deg, rgba(22,25,20,.6), rgba(17,19,16,.3));
+    aspect-ratio: 1 / 0.82; min-height: 340px;
+  }
+  .instrument .cap { position: absolute; top: .7rem; left: .8rem; right: .8rem; display: flex; justify-content: space-between; font-family: var(--mono); font-size: .56rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); z-index: 2; }
+  .instrument canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .corner { position: absolute; width: 14px; height: 14px; z-index: 3; }
+  .corner.tl { top:-1px; left:-1px; border-top:2px solid var(--accent); border-left:2px solid var(--accent); }
+  .corner.br { bottom:-1px; right:-1px; border-bottom:2px solid var(--accent); border-right:2px solid var(--accent); }
+
+  /* ---- generic section ---- */
+  .section { padding-block: var(--section-y); border-top: 1px solid var(--edge); }
+  .section.tight { padding-block: clamp(3rem,7vh,5rem); }
+  .kicker { margin-bottom: 1.5rem; }
+  h2.section-h { font-size: clamp(1.8rem,3.6vw,3rem); line-height: 1.06; }
+  .lede { font-size: clamp(1.05rem,1.5vw,1.35rem); color: var(--text); max-width: 30em; margin-top: 1.1rem; }
+  .serif-accent { color: var(--paper); }
+
+  /* problem */
+  .problem-grid { display: grid; gap: 2rem; grid-template-columns: 1fr; }
+  @media (min-width: 860px){ .problem-grid { grid-template-columns: 1fr 1fr; align-items: end; } }
+  .problem-big { font-family: var(--serif); font-size: clamp(1.7rem,3.4vw,2.7rem); line-height: 1.12; color: var(--paper); }
+  .problem-big b { color: var(--accent); font-weight: 500; font-style: italic; }
+
+  /* mechanism steps */
+  .steps { display: grid; gap: 1px; grid-template-columns: 1fr; background: var(--edge); border: 1px solid var(--edge); margin-top: 2.5rem; }
+  @media (min-width: 760px){ .steps { grid-template-columns: repeat(4,1fr); } }
+  .step { background: var(--surface); padding: 1.6rem 1.4rem 1.8rem; position: relative; }
+  .step .no { font-family: var(--mono); font-size: .62rem; letter-spacing: .18em; color: var(--accent); }
+  .step h3 { font-size: 1.35rem; margin: .7rem 0 .5rem; }
+  .step p { font-size: .9rem; color: var(--muted); }
+  .step .tag { display:inline-block; margin-top: .9rem; font-family: var(--mono); font-size: .58rem; letter-spacing:.1em; text-transform: uppercase; color: var(--text); border:1px solid var(--edge); padding:.2rem .5rem; }
+
+  /* pillars */
+  .pillars { display: grid; gap: 1px; grid-template-columns: 1fr; background: var(--edge); border: 1px solid var(--edge); margin-top: 2.5rem; }
+  @media (min-width: 680px){ .pillars { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 1000px){ .pillars { grid-template-columns: repeat(3,1fr); } }
+  .pillar { background: var(--surface); padding: 1.7rem 1.5rem; }
+  .pillar .ic { width: 34px; height: 34px; margin-bottom: 1rem; }
+  .pillar h3 { font-size: 1.28rem; margin-bottom: .5rem; }
+  .pillar p { font-size: .9rem; color: var(--muted); }
+  .pillar .ev { margin-top: .9rem; font-family: var(--mono); font-size: .58rem; letter-spacing: .06em; color: var(--text); border-top: 1px dashed var(--edge); padding-top: .7rem; }
+  .pillar.span2 { grid-column: 1 / -1; }
+  @media (min-width: 1000px){ .pillar.wide { grid-column: span 2; } }
+
+  /* interactive demo */
+  .demo { border: 1px solid var(--edge); background: var(--surface); margin-top: 2.5rem; }
+  .demo-head { display: flex; flex-wrap: wrap; gap: .5rem; padding: 1rem 1.2rem; border-bottom: 1px solid var(--edge); align-items: center; }
+  .chip {
+    font-family: var(--mono); font-size: .66rem; letter-spacing: .05em; text-transform: uppercase;
+    padding: .45rem .8rem; border: 1px solid var(--edge); background: transparent; color: var(--muted); cursor: pointer; transition: all .18s;
+  }
+  .chip:hover { color: var(--paper); border-color: var(--rule); }
+  .chip[aria-pressed="true"] { color: #0a0c0a; background: var(--accent); border-color: var(--accent); }
+  .demo-body { display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--edge); }
+  @media (min-width: 820px){ .demo-body { grid-template-columns: 1.15fr .85fr; } }
+  .demo-pane { background: var(--surface); padding: 1.4rem 1.4rem 1.7rem; }
+  .demo-pane .pane-label { font-family: var(--mono); font-size: .58rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-bottom: 1rem; }
+  .chartbox { position: relative; width: 100%; aspect-ratio: 16/9; min-height: 200px; }
+  .chartbox canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .verdict { display: flex; align-items: baseline; gap: .8rem; margin-top: 1rem; flex-wrap: wrap; }
+  .verdict .v-rate { font-family: var(--serif); font-size: 1.8rem; color: var(--paper); }
+  .v-badge { font-family: var(--mono); font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; padding: .3rem .6rem; border: 1px solid currentColor; }
+  .demo-note { font-size: .8rem; color: var(--muted); margin-top: 1.1rem; border-top: 1px dashed var(--edge); padding-top: .9rem; }
+
+  /* lead-time lanes (svg-ish) */
+  .lanes { display: grid; gap: .55rem; }
+  .lane { display: grid; grid-template-columns: 84px 1fr; align-items: center; gap: .7rem; }
+  .lane .lname { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); text-align: right; }
+  .lane .track { position: relative; height: 12px; background: rgba(255,255,255,.03); border: 1px solid var(--edge); }
+  .lane .fill { position: absolute; top: -1px; bottom: -1px; opacity: .9; }
+  .lane .dot { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 6px currentColor; }
+  .axis { display: grid; grid-template-columns: 84px 1fr; gap: .7rem; margin-top: .4rem; }
+  .axis .ticks { display: flex; justify-content: space-between; font-family: var(--mono); font-size: .52rem; color: var(--muted); letter-spacing: .06em; }
+
+  /* momentum board */
+  .board { display: grid; gap: 1px; grid-template-columns: 1fr; background: var(--edge); border: 1px solid var(--edge); margin-top: 2.5rem; }
+  @media (min-width: 620px){ .board { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 940px){ .board { grid-template-columns: repeat(3,1fr); } }
+  .mcard { background: var(--surface); padding: 1.3rem 1.3rem 1.4rem; border-left: 3px solid var(--vc, var(--edge)); position: relative; }
+  .mcard .vv { font-family: var(--mono); font-size: .55rem; letter-spacing: .14em; text-transform: uppercase; color: var(--vc, var(--muted)); }
+  .mcard h3 { font-size: 1.12rem; margin: .55rem 0 .8rem; line-height: 1.15; }
+  .mcard .mrow { display: flex; align-items: center; justify-content: space-between; gap: .8rem; margin-top: .7rem; }
+  .mom { font-family: var(--mono); font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; display: inline-flex; align-items: center; gap: .4rem; }
+  .mom.up { color: var(--rising); }
+  .mom.down { color: var(--declining); }
+  .mspark { width: 96px; height: 26px; }
+
+  /* comparison */
+  .compare { display: grid; gap: 1px; grid-template-columns: 1fr; background: var(--edge); border: 1px solid var(--edge); margin-top: 2.5rem; }
+  @media (min-width: 820px){ .compare { grid-template-columns: repeat(3,1fr); } }
+  .col { background: var(--surface); padding: 1.7rem 1.5rem; }
+  .col.mid { background: var(--surface-2); position: relative; }
+  .col.mid::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--accent); }
+  .col h3 { font-size: 1.15rem; margin-bottom: .3rem; }
+  .col .who { font-family: var(--mono); font-size: .56rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 1.1rem; display: block; }
+  .col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .7rem; }
+  .col li { font-size: .88rem; color: var(--text); padding-left: 1.3rem; position: relative; }
+  .col li::before { content: "—"; position: absolute; left: 0; color: var(--muted); }
+  .col.mid li::before { content: "→"; color: var(--accent); }
+
+  /* pricing */
+  .prices { display: grid; gap: 1px; grid-template-columns: 1fr; background: var(--edge); border: 1px solid var(--edge); margin-top: 2.5rem; }
+  @media (min-width: 640px){ .prices { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 1040px){ .prices { grid-template-columns: repeat(4,1fr); } }
+  .price { background: var(--surface); padding: 1.5rem 1.3rem 1.6rem; display: flex; flex-direction: column; }
+  .price.feat { background: var(--surface-2); box-shadow: inset 0 2px 0 var(--accent); }
+  .price .pname { font-family: var(--mono); font-size: .6rem; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+  .price .amt { font-family: var(--serif); font-size: 2rem; color: var(--paper); margin: .6rem 0 .1rem; }
+  .price .amt small { font-family: var(--mono); font-size: .7rem; color: var(--muted); letter-spacing: .04em; }
+  .price .blurb { font-size: .82rem; color: var(--muted); min-height: 3.2em; }
+  .price ul { list-style: none; margin: 1rem 0 1.3rem; padding: 0; display: grid; gap: .5rem; flex: 1; }
+  .price li { font-size: .8rem; color: var(--text); padding-left: 1.1rem; position: relative; }
+  .price li::before { content: "+"; position: absolute; left: 0; color: var(--accent-deep); }
+  .price .btn { justify-content: center; width: 100%; }
+  .hypercare { margin-top: 1px; background: var(--surface); border: 1px solid var(--edge); border-top: none; padding: 1.4rem 1.5rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
+  .hypercare .hc-l { max-width: 40em; }
+  .hypercare .amt { font-family: var(--serif); font-size: 1.4rem; color: var(--paper); }
+
+  /* faq */
+  .faq { margin-top: 2.2rem; border-top: 1px solid var(--edge); }
+  details { border-bottom: 1px solid var(--edge); }
+  summary { cursor: pointer; padding: 1.2rem .2rem; font-family: var(--serif); font-size: clamp(1.05rem,1.6vw,1.3rem); color: var(--paper); list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; font-family: var(--mono); color: var(--accent); font-size: 1.3rem; transition: transform .2s; }
+  details[open] summary::after { transform: rotate(45deg); }
+  details p { padding: 0 .2rem 1.4rem; color: var(--text); font-size: .95rem; max-width: 60em; }
+
+  /* newsletter / final cta */
+  .final { text-align: center; }
+  .final h2 { font-size: clamp(2rem,5vw,3.6rem); line-height: 1.03; }
+  .final .lede { margin-inline: auto; }
+  .nlform { margin: 2.2rem auto 0; max-width: 30rem; display: flex; gap: .5rem; flex-wrap: wrap; }
+  .nlform input { flex: 1; min-width: 200px; background: var(--surface); border: 1px solid var(--edge); color: var(--paper); padding: .85rem 1rem; font-family: var(--mono); font-size: .8rem; }
+  .nlform input::placeholder { color: var(--muted); }
+  .nl-note { font-family: var(--mono); font-size: .58rem; letter-spacing: .08em; color: var(--muted); margin-top: 1rem; text-transform: uppercase; }
+  .nl-ok { color: var(--accent); }
+
+  /* footer */
+  footer { border-top: 1px solid var(--edge); padding-block: 3rem 4rem; }
+  .foot-grid { display: grid; gap: 2rem; grid-template-columns: 1fr; }
+  @media (min-width: 760px){ .foot-grid { grid-template-columns: 1.4fr 1fr 1fr; } }
+  .foot-brand .mark { font-family: var(--serif); font-size: 1.5rem; color: var(--paper); }
+  .foot-brand p { font-size: .82rem; color: var(--muted); margin-top: .8rem; max-width: 28em; }
+  .foot-col h4 { font-family: var(--mono); font-size: .58rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 0 0 1rem; font-weight: 400; }
+  .foot-col a { display: block; font-size: .85rem; color: var(--text); padding: .28rem 0; transition: color .2s; }
+  .foot-col a:hover { color: var(--accent); }
+  .foot-legal { margin-top: 2.5rem; border-top: 1px dashed var(--edge); padding-top: 1.4rem; display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; font-family: var(--mono); font-size: .58rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); align-items: center; justify-content: space-between; }
+
+  /* crosshair deco */
+  .crosshair { position: relative; width: 11px; height: 11px; display: inline-block; }
+  .crosshair::before, .crosshair::after { content: ""; position: absolute; background: var(--accent); }
+  .crosshair::before { left: 50%; top: 0; bottom: 0; width: 1px; transform: translateX(-50%); }
+  .crosshair::after { top: 50%; left: 0; right: 0; height: 1px; transform: translateY(-50%); }
+
+  /* reveal */
+  .reveal { opacity: 0; transform: translateY(14px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* ---- launch countdown band ---- */
+  .lp-cd { border-bottom: 1px solid var(--edge); background: rgba(17,19,16,.55); }
+  .cd-inner { display: flex; align-items: center; justify-content: space-between; gap: .9rem 1.6rem; flex-wrap: wrap; padding-block: .85rem; }
+  .cd-units { display: flex; align-items: flex-start; gap: .8rem; }
+  .cd-unit { display: flex; flex-direction: column; align-items: center; min-width: 42px; }
+  .cd-n { font-family: var(--mono); font-size: 1.4rem; color: var(--paper); font-variant-numeric: tabular-nums; line-height: 1; }
+  .cd-l { font-family: var(--mono); font-size: .5rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-top: .4rem; }
+  .cd-sep { font-family: var(--mono); color: var(--rule); font-size: 1.25rem; line-height: 1; }
+  .cd-date { font-family: var(--mono); font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+  .cd-live { font-family: var(--mono); color: var(--accent); letter-spacing: .16em; text-transform: uppercase; font-size: .85rem; display: inline-flex; align-items: center; gap: .5rem; }
+  @media (max-width: 620px){
+    .cd-inner { justify-content: center; text-align: center; }
+    .cd-n { font-size: 1.2rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { scroll-behavior: auto !important; }
+    .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .live-dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- ============ STATUS BAR ============ -->
+<div class="statusbar" role="banner">
+  <div class="lhs">
+    <span class="live-dot" aria-hidden="true"></span>
+    <span class="brand">CATANDARY</span>
+    <span class="sep hide-sm">//</span>
+    <span class="hide-sm">Trend &amp; Foresight Intelligence</span>
+  </div>
+  <nav class="rhs" aria-label="Primary">
+    <a class="navlink hide-sm" href="#mechanism">Method</a>
+    <a class="navlink hide-sm" href="#engine">Engine</a>
+    <a class="navlink hide-sm" href="#pricing">Pricing</a>
+    <a class="navlink" href="#subscribe">Briefing&nbsp;→</a>
+  </nav>
+</div>
+
+<!-- ============ LAUNCH COUNTDOWN ============ -->
+<section class="lp-cd" aria-label="Countdown to public launch">
+  <div class="wrap cd-inner">
+    <span class="eyebrow">Public launch</span>
+    <div class="cd-units" id="countdown" role="timer" aria-label="Time remaining until launch">
+      <div class="cd-unit"><span class="cd-n" id="cd-d">—</span><span class="cd-l">Days</span></div>
+      <span class="cd-sep" aria-hidden="true">:</span>
+      <div class="cd-unit"><span class="cd-n" id="cd-h">—</span><span class="cd-l">Hrs</span></div>
+      <span class="cd-sep" aria-hidden="true">:</span>
+      <div class="cd-unit"><span class="cd-n" id="cd-m">—</span><span class="cd-l">Min</span></div>
+      <span class="cd-sep" aria-hidden="true">:</span>
+      <div class="cd-unit"><span class="cd-n" id="cd-s">—</span><span class="cd-l">Sec</span></div>
+    </div>
+    <span class="cd-date">01 Sep 2026 &middot; 09:00 CEST</span>
+  </div>
+</section>
+
+<main id="main">
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">Evidence-based foresight</span>
+      <h1 class="hero-h">See it in the research <em>before</em> you see it in the market.</h1>
+      <p class="hero-sub">
+        Catandary reads the whole innovation chain — science, patents, funding, market —
+        and turns over a million signals into trend clusters, momentum and
+        technology-improvement rates. Every number traces back to the primary source you
+        can click.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#subscribe">Get the weekly briefing</a>
+        <a class="btn" href="#engine">Explore the live engine <span class="arw">→</span></a>
+      </div>
+      <div class="proof" aria-label="Corpus at a glance">
+        <div><div class="num tnum" data-count="1059838">0</div><div class="lbl">Signals analysed</div></div>
+        <div><div class="num tnum" data-count="60482">0</div><div class="lbl">Articles published</div></div>
+        <div><div class="num tnum" data-count="243">0</div><div class="lbl">Primary sources</div></div>
+        <div><div class="num" data-static="100%">100%</div><div class="lbl">Local analysis</div></div>
+      </div>
+    </div>
+
+    <div class="instrument" id="instrument">
+      <span class="corner tl" aria-hidden="true"></span>
+      <span class="corner br" aria-hidden="true"></span>
+      <div class="cap"><span>Lead-time reader</span><span>science → market</span></div>
+      <canvas id="flow" aria-label="Animated diagram: innovation signals flowing across four lead-time tiers — science, patents, funding, market — and converging into a rising trend cluster."></canvas>
+    </div>
+  </div>
+</header>
+
+<!-- ============ PROBLEM ============ -->
+<section class="section" aria-labelledby="problem-h">
+  <div class="wrap">
+    <span class="eyebrow kicker" id="problem-h">The gap</span>
+    <div class="problem-grid reveal">
+      <p class="problem-big">
+        By the time a trend is a headline, it is already late. The signal was in the
+        <b>research years earlier</b>, then in the patents, then in the funding — long
+        before it reached the market you read about.
+      </p>
+      <p>
+        Most trend tools only watch the market: press releases and news, the last stop on
+        the chain. So they tell you what already happened, hand you a number with no
+        source, and leave you unable to defend it to a stakeholder. Catandary was built to
+        read the earlier stages — and to show its working every step of the way.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MECHANISM ============ -->
+<section class="section" id="mechanism" aria-labelledby="mech-h">
+  <div class="wrap">
+    <span class="eyebrow kicker">How it works</span>
+    <h2 class="section-h" id="mech-h">Four moves from raw signal to defensible insight.</h2>
+    <div class="steps reveal">
+      <div class="step">
+        <span class="no">01 · Collect</span>
+        <h3>Read the chain</h3>
+        <p>Only legal primary sources — RSS, official APIs and open datasets — across science, patents, funding and market. No aggregators, no scraping.</p>
+        <span class="tag">243 sources</span>
+      </div>
+      <div class="step">
+        <span class="no">02 · Classify</span>
+        <h3>Locally, on one GPU</h3>
+        <p>Local models tag each signal on 8 industry verticals, 6 PESTEL dimensions and a mega/macro/micro horizon. Nothing leaves the machine.</p>
+        <span class="tag">8 × 6 × 3 taxonomy</span>
+      </div>
+      <div class="step">
+        <span class="no">03 · Cluster</span>
+        <h3>Find what's moving</h3>
+        <p>Signals group by meaning into trend clusters, ranked by momentum — measured as share of attention, so a growing corpus can't fake a growing trend.</p>
+        <span class="tag">221 live clusters</span>
+      </div>
+      <div class="step">
+        <span class="no">04 · Attribute</span>
+        <h3>Show the source</h3>
+        <p>Every trend links back to the primary source it was built from. Any article that invents a figure or date is held for review, not published.</p>
+        <span class="tag">source enforced</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PILLARS ============ -->
+<section class="section" aria-labelledby="pil-h">
+  <div class="wrap">
+    <span class="eyebrow kicker">Why it's different</span>
+    <h2 class="section-h" id="pil-h">Foresight you can actually cite.</h2>
+    <div class="pillars reveal">
+      <article class="pillar">
+        <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="2" y="30" width="6" height="8" fill="#a78bfa"/><rect x="12" y="24" width="6" height="14" fill="#60a5fa"/><rect x="22" y="18" width="6" height="20" fill="#34d399"/><rect x="32" y="10" width="6" height="28" fill="#d4ff3a"/></svg>
+        <h3>The whole chain, one corpus</h3>
+        <p>Science, patents, funding and market signals sit on a single lead-time axis, so you see how <em>early</em> a theme is — not just that it has arrived.</p>
+        <div class="ev">Evidence · 4 tiers, ~42.6M patents to 1990</div>
+      </article>
+      <article class="pillar">
+        <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="11" stroke="#d4ff3a" stroke-width="2"/><path d="M24 24l12 12" stroke="#d4ff3a" stroke-width="2"/></svg>
+        <h3>Evidence, not vibes</h3>
+        <p>Every trend, cluster and rate links to its primary source. A grounding gate holds back any generated figure that isn't in the source material.</p>
+        <div class="ev">Evidence · source_url NOT NULL + grounding gate</div>
+      </article>
+      <article class="pillar">
+        <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M3 30C10 30 12 8 20 8s10 22 17 22" stroke="#d4ff3a" stroke-width="2" fill="none"/><circle cx="37" cy="30" r="3" fill="#d4ff3a"/></svg>
+        <h3>Improvement rates that mean something</h3>
+        <p>A Technology Improvement Rate built on the peer-reviewed SPNP method (Singh, Triulzi &amp; Magee, 2021), read over a ~109-million-edge patent-citation graph.</p>
+        <div class="ev">Method · peer-reviewed, not proprietary</div>
+      </article>
+      <article class="pillar">
+        <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 4l14 6v9c0 9-6 14-14 17-8-3-14-8-14-17V10z" stroke="#d4ff3a" stroke-width="2" fill="none"/><path d="M14 20l4 4 8-9" stroke="#d4ff3a" stroke-width="2" fill="none"/></svg>
+        <h3>Honest by construction</h3>
+        <p>The engine withholds rates it can't trust — too recent, or off the calibrated range — and only puts a lead-time number where the data proves it. It says "unknown" when it doesn't know.</p>
+        <div class="ev">Validation · 23/24 known trends recovered, 6/6 momentum correct</div>
+      </article>
+      <article class="pillar">
+        <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="4" y="4" width="32" height="32" rx="2" stroke="#d4ff3a" stroke-width="2"/><rect x="11" y="11" width="18" height="18" fill="#d4ff3a" opacity=".25"/><circle cx="20" cy="20" r="3" fill="#d4ff3a"/></svg>
+        <h3>Local, open, affordable</h3>
+        <p>Runs on local models and open data — no per-token cloud cost, no single-vendor lock-in — which is what puts board-grade foresight at a self-service price.</p>
+        <div class="ev">Cost · one 24GB GPU, no cloud in the loop</div>
+      </article>
+      <article class="pillar">
+        <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="16" stroke="#8a8d82" stroke-width="1.5"/><circle cx="20" cy="20" r="9" stroke="#8a8d82" stroke-width="1.5"/><circle cx="27" cy="13" r="3" fill="#d4ff3a"/><circle cx="14" cy="24" r="2.4" fill="#60a5fa"/></svg>
+        <h3>The deliverable teams already think in</h3>
+        <p>A trend radar with lead-time rings, cluster momentum, and one-click evidence — the format an innovation team hands to a board, without the enterprise procurement.</p>
+        <div class="ev">Product · radar · clusters · technology · export</div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ INTERACTIVE DEMO ============ -->
+<section class="section" id="engine" aria-labelledby="demo-h">
+  <div class="wrap">
+    <span class="eyebrow kicker">Read the instrument</span>
+    <h2 class="section-h" id="demo-h">Pick a technology. Watch it read.</h2>
+    <p class="lede">Two questions the engine answers for any technology: <span class="serif-accent">how early is it</span> across the innovation chain, and <span class="serif-accent">how fast is it actually improving</span>.</p>
+
+    <div class="demo reveal">
+      <div class="demo-head" role="group" aria-label="Choose a technology">
+        <button class="chip" data-tech="battery" aria-pressed="true">Solid-state battery</button>
+        <button class="chip" data-tech="crispr" aria-pressed="false">CRISPR gene editing</button>
+        <button class="chip" data-tech="solar" aria-pressed="false">Solar PV</button>
+        <button class="chip" data-tech="ml" aria-pressed="false">Machine learning</button>
+      </div>
+      <div class="demo-body">
+        <div class="demo-pane">
+          <div class="pane-label">Improvement-rate trajectory · K(t)</div>
+          <div class="chartbox"><canvas id="tir" aria-label="Line chart of a technology's improvement-rate trajectory over time, with an uncertainty band and a greyed recent-years zone the engine treats as not yet reliable."></canvas></div>
+          <div class="verdict">
+            <span class="v-rate" id="tir-rate">—</span>
+            <span class="v-badge" id="tir-badge" style="color:var(--rising)">—</span>
+          </div>
+          <p class="demo-note" id="tir-note">Illustrative shape and direction from our validation set. The live engine returns the figures — and greys out any year too recent to trust.</p>
+        </div>
+        <div class="demo-pane">
+          <div class="pane-label">Where it is on the chain · lead-time tiers</div>
+          <div class="lanes" id="lanes">
+            <div class="lane"><span class="lname" style="color:var(--t-science)">Science</span><div class="track"><span class="fill" style="background:var(--t-science)"></span><span class="dot" style="color:var(--t-science);background:var(--t-science)"></span></div></div>
+            <div class="lane"><span class="lname" style="color:var(--t-patent)">Patents</span><div class="track"><span class="fill" style="background:var(--t-patent)"></span><span class="dot" style="color:var(--t-patent);background:var(--t-patent)"></span></div></div>
+            <div class="lane"><span class="lname" style="color:var(--t-funding)">Funding</span><div class="track"><span class="fill" style="background:var(--t-funding)"></span><span class="dot" style="color:var(--t-funding);background:var(--t-funding)"></span></div></div>
+            <div class="lane"><span class="lname" style="color:var(--t-market)">Market</span><div class="track"><span class="fill" style="background:var(--t-market)"></span><span class="dot" style="color:var(--t-market);background:var(--t-market)"></span></div></div>
+          </div>
+          <div class="axis"><span></span><div class="ticks"><span>1995</span><span>2005</span><span>2015</span><span>2026</span></div></div>
+          <p class="demo-note" id="lead-note">Research led the market here by an estimated several years — the offset Catandary measures per technology, and only headlines where the corpus can prove it.</p>
+        </div>
+      </div>
+    </div>
+    <div class="cta-row">
+      <a class="btn" href="#subscribe">Get this in your inbox weekly <span class="arw">→</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MOMENTUM BOARD ============ -->
+<section class="section" aria-labelledby="mov-h">
+  <div class="wrap">
+    <span class="eyebrow kicker">Live intelligence</span>
+    <h2 class="section-h" id="mov-h">What's moving now.</h2>
+    <p class="lede">Clusters the engine surfaced bottom-up, ranked by share-of-voice momentum. These six were hand-checked against public reality — and all six matched.</p>
+    <div class="board reveal" id="board"></div>
+    <div class="cta-row"><a class="btn" href="#engine">See the full cluster board <span class="arw">→</span></a></div>
+  </div>
+</section>
+
+<!-- ============ TRUST / TECHNOLOGY ============ -->
+<section class="section" aria-labelledby="trust-h">
+  <div class="wrap">
+    <span class="eyebrow kicker">Technology &amp; trust</span>
+    <h2 class="section-h" id="trust-h">Built to be checked.</h2>
+    <div class="pillars reveal" style="margin-top:2.2rem">
+      <article class="pillar">
+        <h3>Local-first analysis</h3>
+        <p>Filtering, classification, embeddings and article generation all run on local models on the owner's own GPU. Cloud is a scoped, one-time backfill exception — never the operating mode.</p>
+        <div class="ev">Scope · applies to the content pipeline. Account &amp; email data use named EU processors (Stripe, Resend, Hetzner).</div>
+      </article>
+      <article class="pillar">
+        <h3>Attribution enforced at the data layer</h3>
+        <p>A trend without a source URL can't physically exist — it's a NOT-NULL column, not a template convention. And a grounding check holds any article that introduces an unsourced figure.</p>
+        <div class="ev">Honesty · no fabricated numbers reach auto-publish</div>
+      </article>
+      <article class="pillar">
+        <h3>Tested, backed up, recoverable</h3>
+        <p>Continuous integration runs the suite against a real vector database on every change; nightly backups have a verified restore of 20-million-plus rows. Ops maturity, not aspiration.</p>
+        <div class="ev">Reliability · CI + verified restore runbook</div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DIFFERENTIATION ============ -->
+<section class="section" aria-labelledby="cmp-h">
+  <div class="wrap">
+    <span class="eyebrow kicker">Where it sits</span>
+    <h2 class="section-h" id="cmp-h">Between the black box and the enterprise contract.</h2>
+    <div class="compare reveal">
+      <div class="col">
+        <h3>Keyword trend tools</h3>
+        <span class="who">≈ €0–100 / mo</span>
+        <ul>
+          <li>Watch the market only — the last stop</li>
+          <li>A score with no source behind it</li>
+          <li>Opaque scoring you can't defend</li>
+          <li>No patent or science signal</li>
+        </ul>
+      </div>
+      <div class="col mid">
+        <h3>Catandary</h3>
+        <span class="who">€0 free · €99–799 / mo</span>
+        <ul>
+          <li>The whole chain: science → patents → funding → market</li>
+          <li>Every number one click from its primary source</li>
+          <li>Peer-reviewed improvement-rate method, shown openly</li>
+          <li>Honest gates: withholds what it can't prove</li>
+          <li>Local models → self-service price</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Enterprise foresight suites</h3>
+        <span class="who">€50k+ / year</span>
+        <ul>
+          <li>Powerful, broad coverage</li>
+          <li>Closed methodology, long procurement</li>
+          <li>Priced for large organisations</li>
+          <li>Rarely traceable to the raw source</li>
+        </ul>
+      </div>
+    </div>
+    <p class="demo-note" style="max-width:60em">Positioning, not a benchmark: the €50k+ and keyword-tool boundaries are our read of the market, offered to show where Catandary aims — not a head-to-head test.</p>
+  </div>
+</section>
+
+<!-- ============ PRICING ============ -->
+<section class="section" id="pricing" aria-labelledby="price-h">
+  <div class="wrap">
+    <span class="eyebrow kicker">Access</span>
+    <h2 class="section-h" id="price-h">Start free. Grow into the engine.</h2>
+    <p class="lede">The free layer is the real product — 60,000+ curated articles and a weekly briefing. The paid tiers open the foresight engine.</p>
+    <div class="prices reveal">
+      <div class="price">
+        <span class="pname">Free</span>
+        <div class="amt">€0</div>
+        <p class="blurb">Curated trend articles, browsing, search and the weekly newsletter.</p>
+        <ul><li>Published trend articles</li><li>Vertical &amp; PESTEL browsing</li><li>Search</li><li>Weekly newsletter</li><li>Corpus counter &amp; mega-trend teasers</li></ul>
+        <a class="btn btn-primary" href="#subscribe">Start free</a>
+      </div>
+      <div class="price">
+        <span class="pname">Starter</span>
+        <div class="amt">€99<small>/mo</small></div>
+        <p class="blurb">Watch what's moving: the cluster explorer with momentum and evidence.</p>
+        <ul><li>Everything in Free</li><li>Cluster explorer</li><li>Trend radar</li><li>Saved searches &amp; alerts</li></ul>
+        <a class="btn" href="#subscribe">Request early access</a>
+      </div>
+      <div class="price feat">
+        <span class="pname">Pro</span>
+        <div class="amt">€499<small>/mo</small></div>
+        <p class="blurb">The foresight edge: lead-time, technology trajectories and export.</p>
+        <ul><li>Everything in Starter</li><li>Technology explorer &amp; CPC lead-time</li><li>TIR metrics &amp; trajectory</li><li>Trend evolution &amp; lineage</li><li>CSV / dossier export</li></ul>
+        <a class="btn btn-primary" href="#subscribe">Request early access</a>
+      </div>
+      <div class="price">
+        <span class="pname">Super Pro+</span>
+        <div class="amt">€799<small>/mo</small></div>
+        <p class="blurb">Ask the engine your own questions: on-demand analysis and API.</p>
+        <ul><li>Everything in Pro</li><li>On-demand analysis of your scopes</li><li>API access <em>— coming soon</em></li><li>Raw evidence graph</li><li>Custom reports</li></ul>
+        <a class="btn" href="#subscribe">Request early access</a>
+      </div>
+    </div>
+    <div class="hypercare">
+      <div class="hc-l">
+        <div class="amt">Hypercare · €1,499<small style="font-family:var(--mono);font-size:.7rem;color:var(--muted)">/day</small></div>
+        <p style="font-size:.85rem;color:var(--muted);margin-top:.4rem">Dedicated, hands-on analyst support tailored to your questions — a bespoke engagement, not a subscription. €999/day from the second engagement.</p>
+      </div>
+      <a class="btn" href="mailto:trends@catandary.de?subject=Catandary%20Hypercare">Talk to us</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="section" aria-labelledby="faq-h">
+  <div class="wrap">
+    <span class="eyebrow kicker">Questions</span>
+    <h2 class="section-h" id="faq-h">The honest answers.</h2>
+    <div class="faq reveal">
+      <details open><summary>Where does the data come from?</summary><p>243 legal primary sources — trade-press RSS feeds, official APIs and open datasets across science (OpenAlex, preprints), patents, public funding, and market news. No aggregator scraping; every source is curated by hand. Each published trend keeps a working link to the original.</p></details>
+      <details><summary>Is the foresight method proprietary?</summary><p>No — and we'd rather be clear about that. The Technology Improvement Rate is built on a published, peer-reviewed method (SPNP citation centrality; Singh, Triulzi &amp; Magee, Research Policy, 2021). Others use it too. Our edge is the corpus, the calibration, the evidence transparency and the price — not a secret formula.</p></details>
+      <details><summary>How accurate is it — really?</summary><p>On our own corpus the engine recovered 23 of 24 known trends bottom-up and matched 6 of 6 hand-checked momentum-direction calls against public reality. It withholds absolute improvement rates it can't yet trust (recent years, or beyond the calibrated range) and only headlines a lead-time number where the data proves it. Direction and shape are the reliable output; we say so.</p></details>
+      <details><summary>Is my data private?</summary><p>The trend-analysis pipeline runs entirely on local models — the source corpus never touches a cloud API. If you create an account, the data needed to run it (your email for login and the newsletter, payment status for billing) is processed by named EU-based providers (Resend, Stripe, Hetzner). We use no third-party analytics and no tracking cookies.</p></details>
+      <details><summary>Who is it for?</summary><p>Corporate innovation and foresight teams who need a radar they can defend; agencies and consultants who need cited trend dossiers per client industry; and independent analysts who want data-driven "what's rising" without an enterprise contract.</p></details>
+      <details><summary>What does it cost?</summary><p>The content layer and weekly briefing are free. The foresight engine is €99 (Starter), €499 (Pro) or €799 (Super Pro+) per month, with a sales-led Hypercare day-rate for bespoke work. The paid tiers are opening in early access.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FINAL CTA ============ -->
+<section class="section final" id="subscribe" aria-labelledby="final-h">
+  <div class="wrap">
+    <span class="eyebrow plain kicker" style="justify-content:center">Foresight you can cite</span>
+    <h2 id="final-h">See it early.<br>Then prove it.</h2>
+    <p class="lede">One email a week: the trends that are rising across science, patents and funding — before they reach the market — each linked to its source.</p>
+    <form class="nlform" id="nlform" novalidate>
+      <label for="nl-email" style="position:absolute;left:-999px">Email address</label>
+      <input id="nl-email" type="email" name="email" placeholder="you@company.com" autocomplete="email" required>
+      <button class="btn btn-primary" type="submit">Subscribe</button>
+    </form>
+    <p class="nl-note" id="nl-note">No spam · unsubscribe anytime · cookieless</p>
+  </div>
+</section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <div class="mark">Catandary <span class="crosshair" aria-hidden="true"></span></div>
+      <p>Evidence-based, local-first trend &amp; foresight intelligence. Reads the whole innovation chain — science to market — and cites its sources.</p>
+    </div>
+    <div class="foot-col">
+      <h4>Product</h4>
+      <a href="#engine">The engine</a>
+      <a href="#mechanism">How we measure</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#subscribe">Weekly briefing</a>
+    </div>
+    <div class="foot-col">
+      <h4>Company</h4>
+      <a href="mailto:trends@catandary.de">Contact</a>
+      <a href="#">Impressum <span style="color:var(--muted)">· in prep.</span></a>
+      <a href="#">Datenschutz <span style="color:var(--muted)">· in prep.</span></a>
+    </div>
+  </div>
+  <div class="wrap foot-legal">
+    <span>© 2026 Catandary · catandary.de</span>
+    <span>Built locally in Germany · runs on local models · cites its sources</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- count-up ---------- */
+  function fmt(n){ return n.toLocaleString("en-US"); }
+  function countUp(el){
+    var target = parseInt(el.getAttribute("data-count"),10);
+    if(reduce){ el.textContent = fmt(target); return; }
+    var start = null, dur = 1600;
+    function tick(ts){
+      if(!start) start = ts;
+      var p = Math.min((ts-start)/dur, 1);
+      var eased = 1 - Math.pow(1-p, 3);
+      el.textContent = fmt(Math.round(target*eased));
+      if(p<1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+  var counted = false;
+  var proof = document.querySelector(".proof");
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(e.isIntersecting && !counted){
+        counted = true;
+        document.querySelectorAll(".proof .num[data-count]").forEach(countUp);
+      }
+    });
+  }, {threshold:.4});
+  if(proof) io.observe(proof);
+
+  /* ---------- reveal-on-scroll ---------- */
+  var rio = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add("in"); rio.unobserve(e.target); } });
+  }, {threshold:.12});
+  document.querySelectorAll(".reveal").forEach(function(el){
+    if(reduce){ el.classList.add("in"); } else { rio.observe(el); }
+  });
+
+  /* ---------- helper: crisp canvas ---------- */
+  function fit(canvas){
+    var dpr = Math.min(window.devicePixelRatio||1, 2);
+    var r = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.round(r.width*dpr));
+    canvas.height = Math.max(1, Math.round(r.height*dpr));
+    var ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return {ctx:ctx, w:r.width, h:r.height};
+  }
+
+  /* ================= HERO: lead-time flow ================= */
+  (function(){
+    var canvas = document.getElementById("flow");
+    if(!canvas) return;
+    var tiers = [
+      {name:"SCIENCE", color:"#a78bfa"},
+      {name:"PATENTS", color:"#60a5fa"},
+      {name:"FUNDING", color:"#34d399"},
+      {name:"MARKET",  color:"#d4ff3a"}
+    ];
+    var ctx, W, H, marks=[], laneY=[], t0=0, raf=null, visible=true, momentum=[];
+    function setup(){
+      var f = fit(canvas); ctx=f.ctx; W=f.w; H=f.h;
+      var top = H*0.16, bottom = H*0.62, span = bottom-top;
+      laneY = tiers.map(function(_,i){ return top + span*(i/(tiers.length-1)); });
+      // seed momentum curve baseline points
+      momentum = [];
+      for(var i=0;i<40;i++){ momentum.push(0.5 + 0.28*Math.sin(i/6) * (i/40)); }
+    }
+    function spawn(){
+      var lane = Math.floor(Math.random()*tiers.length);
+      // earlier tiers spawn a touch more often
+      if(Math.random() < 0.35) lane = Math.floor(Math.random()*2);
+      marks.push({
+        lane: lane,
+        x: -0.03,
+        speed: 0.04 + Math.random()*0.05 + (3-lane)*0.006,
+        r: 1.6 + Math.random()*1.8,
+        a: 0,
+        life: 0
+      });
+    }
+    function draw(ts){
+      if(!t0) t0=ts;
+      var dt = Math.min((ts - (draw._last||ts))/1000, 0.05); draw._last = ts;
+      ctx.clearRect(0,0,W,H);
+      var leftPad = W*0.06, rightPad = W*0.10, plotW = W - leftPad - rightPad;
+      var convX = leftPad + plotW*0.82;
+
+      // lane rails + labels
+      ctx.font = "9px ui-monospace, monospace";
+      ctx.textBaseline = "middle";
+      tiers.forEach(function(tt,i){
+        var y = laneY[i];
+        ctx.strokeStyle = "rgba(255,255,255,0.05)";
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(leftPad, y); ctx.lineTo(leftPad+plotW, y); ctx.stroke();
+        ctx.fillStyle = "rgba(138,141,130,0.75)";
+        ctx.fillText(tt.name, leftPad, y-8);
+        // tier tick dot
+        ctx.fillStyle = tt.color; ctx.globalAlpha = .55;
+        ctx.beginPath(); ctx.arc(leftPad, y, 2, 0, 7); ctx.fill(); ctx.globalAlpha=1;
+      });
+
+      // convergence node
+      var nodeY = laneY[3] - (laneY[3]-laneY[0])*0.15;
+      // time axis
+      ctx.strokeStyle = "rgba(58,61,53,0.6)";
+      ctx.beginPath(); ctx.moveTo(leftPad, H*0.70); ctx.lineTo(leftPad+plotW, H*0.70); ctx.stroke();
+
+      // marks
+      if(!reduce){
+        marks.forEach(function(m){
+          m.x += m.speed*dt* (visible?1:0);
+          m.life += dt;
+          m.a = Math.min(m.a + dt*3, 1);
+          var y = laneY[m.lane];
+          var px = leftPad + plotW*m.x;
+          // pull toward convergence after 0.7
+          if(m.x > 0.6){
+            var k = (m.x-0.6)/0.4;
+            y = y*(1-k) + nodeY*k;
+          }
+          if(px > convX){ m.a -= dt*1.6; }
+          if(m.a<=0) return;
+          ctx.globalAlpha = m.a*0.9;
+          ctx.fillStyle = tiers[m.lane].color;
+          ctx.beginPath(); ctx.arc(px, y, m.r, 0, 7); ctx.fill();
+          // faint trail
+          ctx.globalAlpha = m.a*0.18;
+          ctx.beginPath(); ctx.moveTo(px, y); ctx.lineTo(px-14, y); ctx.strokeStyle=tiers[m.lane].color; ctx.lineWidth=m.r*0.9; ctx.stroke();
+          ctx.globalAlpha = 1;
+        });
+        marks = marks.filter(function(m){ return m.a>0 && m.x<1.05; });
+      } else {
+        // static poster: a few dots per lane
+        tiers.forEach(function(tt,i){
+          for(var k=0;k<4;k++){
+            ctx.fillStyle=tt.color; ctx.globalAlpha=.8;
+            ctx.beginPath(); ctx.arc(leftPad+plotW*(0.1+k*0.16), laneY[i], 2.4,0,7); ctx.fill();
+          }
+        });
+        ctx.globalAlpha=1;
+      }
+
+      // convergence cluster node (pulsing)
+      var pulse = reduce?0.6:(0.55 + 0.12*Math.sin(ts/500));
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = "#d4ff3a";
+      ctx.beginPath(); ctx.arc(convX, nodeY, 6.5, 0, 7); ctx.fill();
+      ctx.globalAlpha = 0.25;
+      ctx.beginPath(); ctx.arc(convX, nodeY, 13, 0, 7); ctx.strokeStyle="#d4ff3a"; ctx.lineWidth=1; ctx.stroke();
+      ctx.globalAlpha = 1;
+      // cluster label
+      ctx.fillStyle = "rgba(244,241,232,0.85)";
+      ctx.font = "9px ui-monospace, monospace";
+      ctx.fillText("CLUSTER", convX+16, nodeY-1);
+
+      // momentum curve along the bottom
+      if(!reduce){
+        // advance momentum slowly
+        if(!draw._mAcc) draw._mAcc=0;
+        draw._mAcc += dt;
+        if(draw._mAcc > 0.12){
+          draw._mAcc = 0;
+          momentum.push(momentum[momentum.length-1] + (Math.random()-0.42)*0.05);
+          if(momentum.length>44) momentum.shift();
+          momentum = momentum.map(function(v){ return Math.max(0.12, Math.min(0.92, v)); });
+        }
+      }
+      var my0 = H*0.74, myH = H*0.20;
+      ctx.beginPath();
+      momentum.forEach(function(v,i){
+        var x = leftPad + plotW*(i/(momentum.length-1));
+        var y = my0 + myH*(1-v);
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.strokeStyle = "#d4ff3a"; ctx.lineWidth = 1.6; ctx.stroke();
+      // end dot + rising tag
+      var lv = momentum[momentum.length-1];
+      var ex = leftPad+plotW, ey = my0+myH*(1-lv);
+      ctx.fillStyle="#d4ff3a"; ctx.beginPath(); ctx.arc(ex-1, ey, 2.6,0,7); ctx.fill();
+      ctx.fillStyle="rgba(34,197,94,0.95)"; ctx.font="8px ui-monospace, monospace";
+      ctx.fillText("↗ RISING", ex-56, my0-2);
+
+      if(!reduce){
+        if(marks.length < 22 && Math.random()<0.5) spawn();
+        raf = requestAnimationFrame(draw);
+      }
+    }
+    function start(){ if(raf) cancelAnimationFrame(raf); if(reduce){ draw(0); } else { for(var i=0;i<12;i++){ marks.push({lane:i%4,x:Math.random(),speed:0.04+Math.random()*0.05,r:1.6+Math.random()*1.8,a:1,life:0}); } raf=requestAnimationFrame(draw); } }
+    setup(); start();
+    var vio = new IntersectionObserver(function(es){ es.forEach(function(e){ visible = e.isIntersecting; }); }, {threshold:.05});
+    vio.observe(canvas);
+    var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt=setTimeout(function(){ setup(); if(reduce) draw(0); }, 150); });
+  })();
+
+  /* ================= TIR trajectory chart ================= */
+  (function(){
+    var canvas = document.getElementById("tir");
+    if(!canvas) return;
+    // Illustrative curves (0..1 relative rate) — direction/shape drawn from the
+    // validation set; not live figures. lead = [science,patent,funding,market] positions 0..1 on the axis.
+    var DATA = {
+      battery: { pts:[.28,.30,.34,.40,.50,.62,.72,.80,.85,.88], rate:"≈ 9%/yr", verdict:"Steady", color:"#34d399",
+                 lead:[.30,.42,.58,.78], note:"Solid-state battery: research and patents run well ahead of a market that's only now scaling." },
+      crispr:  { pts:[.20,.24,.32,.46,.62,.78,.88,.93,.96,.97], rate:"accelerating", verdict:"Accelerating", color:"#22c55e",
+                 lead:[.22,.40,.60,.72], note:"CRISPR: a steep science-led take-off — the engine reads the acceleration in the citation graph." },
+      solar:   { pts:[.35,.48,.60,.70,.78,.83,.86,.88,.89,.90], rate:"maturing", verdict:"Maturing", color:"#60a5fa",
+                 lead:[.20,.34,.52,.62], note:"Solar PV: a maturing S-curve — fast improvement earlier, flattening as it industrialises." },
+      ml:      { pts:[.22,.26,.30,.38,.50,.66,.82,.92,.97,.99], rate:"accelerating", verdict:"Accelerating", color:"#d4ff3a",
+                 lead:[.30,.46,.66,.80], note:"Machine learning: a rising cluster and a steep recent trajectory — the engine flags the surge." }
+    };
+    var cur = "battery";
+    function draw(){
+      var f = fit(canvas), ctx=f.ctx, W=f.w, H=f.h;
+      var d = DATA[cur];
+      ctx.clearRect(0,0,W,H);
+      var padL=8, padR=8, padT=12, padB=16;
+      var pw = W-padL-padR, ph = H-padT-padB;
+      // grid
+      ctx.strokeStyle="rgba(58,61,53,0.4)"; ctx.lineWidth=1;
+      for(var g=0; g<=3; g++){ var y=padT+ph*(g/3); ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+pw,y); ctx.stroke(); }
+      // greyed "unreliable recent years" zone (last ~20%)
+      var cut = 0.80;
+      ctx.fillStyle="rgba(255,255,255,0.035)";
+      ctx.fillRect(padL+pw*cut, padT, pw*(1-cut), ph);
+      ctx.strokeStyle="rgba(138,141,130,0.35)"; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.moveTo(padL+pw*cut,padT); ctx.lineTo(padL+pw*cut,padT+ph); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle="rgba(138,141,130,0.7)"; ctx.font="8px ui-monospace, monospace"; ctx.textBaseline="top";
+      ctx.fillText("not yet reliable", padL+pw*cut+4, padT+2);
+
+      var pts = d.pts, n=pts.length;
+      function X(i){ return padL + pw*(i/(n-1)); }
+      function Y(v){ return padT + ph*(1-v); }
+      // CI band
+      ctx.beginPath();
+      pts.forEach(function(v,i){ var x=X(i), y=Y(Math.min(1,v+0.07)); if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+      for(var i=n-1;i>=0;i--){ ctx.lineTo(X(i), Y(Math.max(0,pts[i]-0.07))); }
+      ctx.closePath(); ctx.fillStyle = hexA(d.color,0.12); ctx.fill();
+      // line
+      ctx.beginPath();
+      pts.forEach(function(v,i){ var x=X(i), y=Y(v); if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+      ctx.strokeStyle=d.color; ctx.lineWidth=2; ctx.stroke();
+      // end dot
+      ctx.fillStyle=d.color; ctx.beginPath(); ctx.arc(X(n-1), Y(pts[n-1]), 3, 0, 7); ctx.fill();
+
+      // update verdict + lanes + notes
+      var rateEl=document.getElementById("tir-rate"), badge=document.getElementById("tir-badge");
+      rateEl.textContent = d.rate;
+      badge.textContent = d.verdict; badge.style.color = d.color;
+      document.getElementById("tir-note").textContent = "Illustrative shape and direction from our validation set — the live engine returns the figures and greys out years too recent to trust.";
+      document.getElementById("lead-note").textContent = d.note;
+      // lanes
+      var lanes = document.querySelectorAll("#lanes .lane");
+      d.lead.forEach(function(pos, i){
+        var track = lanes[i]; if(!track) return;
+        var fill = track.querySelector(".fill"), dot = track.querySelector(".dot");
+        fill.style.left="0"; fill.style.width=(pos*100)+"%"; fill.style.opacity=".28";
+        dot.style.left=(pos*100)+"%";
+      });
+    }
+    function hexA(hex,a){ var r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return "rgba("+r+","+g+","+b+","+a+")"; }
+    var chips = document.querySelectorAll(".chip[data-tech]");
+    chips.forEach(function(c){
+      c.addEventListener("click", function(){
+        chips.forEach(function(x){ x.setAttribute("aria-pressed","false"); });
+        c.setAttribute("aria-pressed","true");
+        cur = c.getAttribute("data-tech"); draw();
+      });
+    });
+    draw();
+    var rt2; window.addEventListener("resize", function(){ clearTimeout(rt2); rt2=setTimeout(draw,150); });
+  })();
+
+  /* ================= momentum board ================= */
+  (function(){
+    var board = document.getElementById("board");
+    if(!board) return;
+    var CARDS = [
+      {v:"TECH", vc:"#a78bfa", name:"Machine Learning · Deep Learning", dir:"up", pp:"+6.3 pp", spark:[3,3,4,4,5,6,7,9,10,12]},
+      {v:"FOOD", vc:"#f97316", name:"Functional Beverages · Health", dir:"up", pp:"+4.9 pp", spark:[4,4,5,5,6,7,7,8,9,10]},
+      {v:"TECH", vc:"#a78bfa", name:"Chip Design · Semiconductor", dir:"up", pp:"+2.4 pp", spark:[6,6,6,7,7,7,8,8,9,9]},
+      {v:"HEALTH", vc:"#34d399", name:"Gut Microbiome · Nutrition", dir:"up", pp:"+1.5 pp", spark:[5,5,6,6,6,7,7,7,8,8]},
+      {v:"ECO", vc:"#22d3ee", name:"Carbon Capture · Climate Policy", dir:"up", pp:"+1.0 pp", spark:[4,5,5,5,6,6,6,7,7,7]},
+      {v:"TECH", vc:"#a78bfa", name:"Electric Vehicles · Automotive", dir:"down", pp:"−2.5 pp", spark:[9,9,8,8,8,7,7,6,6,6]}
+    ];
+    function spark(vals, color){
+      var w=96,h=26,max=Math.max.apply(null,vals),min=Math.min.apply(null,vals),rng=(max-min)||1;
+      var pts = vals.map(function(v,i){ var x=i/(vals.length-1)*(w-4)+2; var y=h-2-((v-min)/rng)*(h-6); return x.toFixed(1)+","+y.toFixed(1); }).join(" ");
+      var last = pts.split(" ").pop().split(",");
+      return '<svg class="mspark" viewBox="0 0 '+w+' '+h+'" fill="none" aria-hidden="true"><polyline points="'+pts+'" stroke="'+color+'" stroke-width="1.6"/><circle cx="'+last[0]+'" cy="'+last[1]+'" r="2" fill="'+color+'"/></svg>';
+    }
+    board.innerHTML = CARDS.map(function(c){
+      var up = c.dir==="up";
+      var col = up? "#22c55e":"#ef4444";
+      var glyph = up? "↗":"↘";
+      return '<article class="mcard" style="--vc:'+c.vc+'">'
+        + '<span class="vv">'+c.v+'</span>'
+        + '<h3>'+c.name+'</h3>'
+        + '<div class="mrow"><span class="mom '+(up?"up":"down")+'">'+glyph+' '+(up?"Rising":"Declining")+' · '+c.pp+'</span>'
+        + spark(c.spark, col) + '</div></article>';
+    }).join("");
+  })();
+
+  /* ================= newsletter (preview) ================= */
+  (function(){
+    var form = document.getElementById("nlform"), note=document.getElementById("nl-note");
+    if(!form) return;
+    form.addEventListener("submit", function(e){
+      e.preventDefault();
+      var email = document.getElementById("nl-email").value.trim();
+      if(!email || email.indexOf("@")<1){ note.textContent="Please enter a valid email address."; note.classList.remove("nl-ok"); return; }
+      note.innerHTML = '<span class="nl-ok">Thanks — you\'re on the list.</span> (Preview: the live form connects to the Catandary newsletter.)';
+      form.reset();
+    });
+  })();
+
+  /* ================= launch countdown ================= */
+  (function(){
+    var target = new Date("2026-09-01T09:00:00+02:00").getTime(); /* 01 Sep 2026, 09:00 CEST */
+    var box = document.getElementById("countdown");
+    var d = document.getElementById("cd-d"), h = document.getElementById("cd-h"),
+        m = document.getElementById("cd-m"), s = document.getElementById("cd-s");
+    if(!box || !d) return;
+    function pad(n){ return (n<10?"0":"")+n; }
+    function tick(){
+      var diff = target - Date.now();
+      if(diff <= 0){
+        box.innerHTML = '<span class="cd-live"><span class="live-dot" aria-hidden="true"></span>We are live</span>';
+        return;
+      }
+      var sec = Math.floor(diff/1000);
+      var days = Math.floor(sec/86400); sec -= days*86400;
+      var hrs = Math.floor(sec/3600); sec -= hrs*3600;
+      var mins = Math.floor(sec/60); sec -= mins*60;
+      d.textContent = days; h.textContent = pad(hrs); m.textContent = pad(mins); s.textContent = pad(sec);
+      setTimeout(tick, 1000);
+    }
+    tick();
+  })();
+})();
+</script>
+
+</body>
+</html>
