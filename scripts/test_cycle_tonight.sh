@@ -10,6 +10,13 @@
 # the systemd 8B server on :8090 at the end, so the 05:30 newsletter has an LLM.
 set -u
 
+# cron has no systemd user session — `systemctl --user` fails with
+# "Failed to connect to bus" unless XDG_RUNTIME_DIR points at the (lingering)
+# user runtime dir. Linger is enabled, so /run/user/<uid> exists; export it so
+# the GPU handovers inside the pipeline can start/stop llama-server.service.
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+
 REPO="/home/dirk/projects/catandary-trends"
 LOG="/home/dirk/logs/catandary-test-cycle-$(date +%Y%m%d-%H%M).log"
 mkdir -p "$(dirname "$LOG")"
