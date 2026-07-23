@@ -6,13 +6,18 @@ import {
   SORT_LABELS,
   VALID_SORT_BY,
   buildQueryString,
+  type SortOption,
 } from "@/lib/filter-params";
-import type { TrendsSortBy } from "@/lib/db";
 
 export default function SortSelect() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const current = (searchParams.get(PARAM.sort) ?? "date_desc") as TrendsSortBy;
+  const rawSort = searchParams.get(PARAM.sort) ?? "date_desc";
+  // Unknown/legacy sort keys (e.g. old `source_date_desc` links) fall back
+  // to the default so the select always shows a real option.
+  const current: SortOption = (VALID_SORT_BY as readonly string[]).includes(rawSort)
+    ? (rawSort as SortOption)
+    : "date_desc";
 
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const v = e.target.value;
@@ -34,7 +39,7 @@ export default function SortSelect() {
         value={current}
         onChange={handleChange}
         aria-label="Sort by"
-        className="bg-transparent font-mono text-[10px] uppercase tracking-[0.12em] text-paper px-3 py-2 outline-none appearance-none cursor-pointer pr-8"
+        className="bg-transparent font-mono text-[10px] uppercase tracking-[0.12em] text-paper px-3 py-2 appearance-none cursor-pointer pr-8"
         style={{
           backgroundImage:
             "linear-gradient(45deg, transparent 50%, var(--color-muted) 50%), linear-gradient(135deg, var(--color-muted) 50%, transparent 50%)",

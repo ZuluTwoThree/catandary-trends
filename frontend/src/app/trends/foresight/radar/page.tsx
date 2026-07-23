@@ -3,6 +3,7 @@ import { getRadarData } from "@/lib/foresight";
 import { VERTICALS } from "@/lib/types";
 import TrendRadar from "@/components/foresight/TrendRadar";
 import ForesightCta from "@/components/ForesightCta";
+import TierGate from "@/components/TierGate";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,9 @@ export const metadata = {
   description:
     "The market-standard foresight radar: trend clusters placed by innovation stage (research → market) and industry, with momentum and evidence.",
 };
+
+/** Blips shown free before the Starter gate (value teaser, ONB-03/KEY-01). */
+const FREE_PREVIEW = 8;
 
 /**
  * Low-threshold UX: loads with a finished default radar (all verticals). The
@@ -36,38 +40,48 @@ export default async function RadarPage({
       })
     : null;
 
+  const previewBlips = data.blips
+    .slice()
+    .sort((a, b) => b.sov_delta_pp - a.sov_delta_pp)
+    .slice(0, FREE_PREVIEW);
+
+  const chip = (active: boolean) =>
+    `font-mono text-[10px] uppercase tracking-[0.14em] px-3 py-1.5 border transition-colors ${
+      active
+        ? "text-accent border-accent bg-accent/10"
+        : "text-muted border-border hover:text-paper"
+    }`;
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Trend Radar</h1>
-        <p className="mt-2 max-w-2xl text-sm opacity-70">
+      <div className="mb-8">
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-4">
+          —— Foresight · Radar
+        </div>
+        <h1 className="font-display text-4xl md:text-[52px] leading-[1.05] tracking-tight text-paper mb-4">
+          The trend <span className="italic">radar</span>
+        </h1>
+        <p className="font-sans text-text text-lg leading-relaxed max-w-2xl">
           Every dot is a trend cluster from our full signal space. The further
           out, the earlier the stage it lives in — research on the rim, the
           market at the centre. Watch what is climbing toward the middle.
-          {asOf ? ` As of ${asOf}.` : ""}
+          {asOf ? (
+            <span className="text-muted"> Updated {asOf}.</span>
+          ) : null}
         </p>
       </div>
 
       {/* Single allowed control: the vertical selector */}
-      <div className="mb-8 flex flex-wrap gap-2">
-        <Link
-          href="/trends/foresight/radar"
-          className={`rounded-full px-3 py-1 text-sm ${
-            requested ? "opacity-60 hover:opacity-100" : "font-semibold underline"
-          }`}
-        >
+      <div className="mb-8 flex flex-wrap gap-1">
+        <Link href="/trends/foresight/radar" className={chip(!requested)}>
           All industries
         </Link>
         {VERTICALS.map((v) => (
           <Link
             key={v.id}
             href={`/trends/foresight/radar?vertical=${v.id}`}
-            className={`rounded-full px-3 py-1 text-sm ${
-              requested === v.id
-                ? "font-semibold underline"
-                : "opacity-60 hover:opacity-100"
-            }`}
-            style={requested === v.id ? { color: v.color } : undefined}
+            className={chip(requested === v.id)}
+            style={requested === v.id ? { color: v.color, borderColor: v.color } : undefined}
           >
             {v.label}
           </Link>
@@ -75,18 +89,33 @@ export default async function RadarPage({
       </div>
 
       {data.blips.length > 0 ? (
-        <TrendRadar blips={data.blips} vertical={requested} />
+        <TierGate
+          need="starter"
+          feature="The full radar"
+          benefit={`Starter places all ${data.blips.length} clusters of this view on the radar — every industry, every innovation stage, with the evidence one click away.`}
+          teaser={
+            <div>
+              <TrendRadar blips={previewBlips} vertical={requested} />
+              <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                Free preview — the {Math.min(FREE_PREVIEW, data.blips.length)} fastest-rising of{" "}
+                {data.blips.length} clusters
+              </p>
+            </div>
+          }
+        >
+          <TrendRadar blips={data.blips} vertical={requested} />
+        </TierGate>
       ) : (
-        <div className="rounded-xl border border-current/10 p-8 text-center">
-          <p className="text-lg font-semibold">Radar is warming up</p>
-          <p className="mx-auto mt-2 max-w-md text-sm opacity-70">
+        <div className="border border-border bg-card/40 p-8 text-center">
+          <p className="font-display text-[22px] text-paper">Radar is warming up</p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted leading-relaxed">
             The tier-scoped snapshots that place clusters on the innovation-stage
             rings are still being built. In the meantime, explore the same trends
             grouped by momentum in the cluster view.
           </p>
           <Link
             href="/trends/foresight/clusters"
-            className="mt-4 inline-block text-sm font-semibold underline"
+            className="mt-4 inline-block font-mono text-[11px] uppercase tracking-[0.14em] text-accent hover:underline"
           >
             Open the cluster explorer →
           </Link>

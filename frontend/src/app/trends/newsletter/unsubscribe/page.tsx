@@ -1,9 +1,13 @@
+import Link from "next/link";
 import { q } from "@/lib/pg";
 import { verifyUnsubscribe } from "@/lib/unsubscribe";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Unsubscribe — Catandary Trends" };
+export const metadata = {
+  title: "Unsubscribe — Catandary Trends",
+  description: "Manage your Catandary Trends briefing subscription.",
+};
 
 /**
  * One-click unsubscribe landing (GET, per RFC 8058 also reachable via the
@@ -51,9 +55,9 @@ export default async function UnsubscribePage({
           </p>
         </>
       )}
-      <a href="/trends/newsletter" className="mt-6 inline-block text-sm font-semibold underline">
+      <Link href="/trends/newsletter" className="mt-6 inline-block text-sm font-semibold underline">
         Back to the newsletter →
-      </a>
+      </Link>
     </div>
   );
 }

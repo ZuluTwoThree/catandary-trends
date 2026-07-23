@@ -61,6 +61,14 @@ export function assertAuthConfigured(): void {
 
 export type Tier = "free" | "starter" | "pro" | "superpro";
 
+/**
+ * Guard for post-signin redirect targets carried through the magic-link flow:
+ * only same-origin absolute paths, no protocol-relative ("//host") escapes.
+ */
+export function isSafeInternalPath(path: string | undefined | null): path is string {
+  return typeof path === "string" && path.startsWith("/") && !path.startsWith("//");
+}
+
 export interface SessionUser {
   id: number;
   email: string;
@@ -231,9 +239,18 @@ async function syncNewsletterSubscriber(email: string): Promise<void> {
  * night/dev default while DNS is unverified). Returns the link so callers can
  * surface it in dev.
  */
-export async function sendMagicLink(email: string, raw: string): Promise<string> {
-  const base = process.env.PUBLIC_BASE_URL || "http://localhost:3004";
-  const link = `${base}/api/auth/callback?token=${encodeURIComponent(raw)}`;
+export async function sendMagicLink(
+  email: string,
+  raw: string,
+  opts?: { next?: string; base?: string }
+): Promise<string> {
+  // Prefer the explicit PUBLIC_BASE_URL, then the caller's request origin —
+  // the old hardcoded :3004 fallback produced dead links (ARCH-19).
+  const base = process.env.PUBLIC_BASE_URL || opts?.base || "http://localhost:3001";
+  const next = isSafeInternalPath(opts?.next) ? opts?.next : undefined;
+  const link =
+    `${base}/api/auth/callback?token=${encodeURIComponent(raw)}` +
+    (next ? `&next=${encodeURIComponent(next)}` : "");
   const transport = process.env.EMAIL_TRANSPORT || "console";
 
   if (transport === "resend") {

@@ -85,7 +85,12 @@ export default function MegaTrendHeader({
         <div className="border-l-[3px] border-accent pl-5 py-2">
           <p className="font-sans text-sm text-paper">
             Want the full mega-trend forecast?{" "}
-            <span className="text-accent">Discover Catandary Foresight →</span>
+            <Link
+              href="/trends/foresight"
+              className="text-accent hover:underline"
+            >
+              Open Catandary Foresight →
+            </Link>
           </p>
         </div>
       </div>

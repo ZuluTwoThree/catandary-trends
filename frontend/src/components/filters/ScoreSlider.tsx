@@ -5,7 +5,9 @@ import { useRef, useState } from "react";
 import { PARAM, buildQueryString } from "@/lib/filter-params";
 
 /**
- * Min-score slider (0–100). Debounced to avoid flooding the router on drag.
+ * Min-CRS slider (0–100). Intermediate drag values update the URL via
+ * router.replace (debounced, no history spam); releasing the thumb (pointer
+ * up / blur) commits the final value with router.push.
  */
 export default function ScoreSlider() {
   const router = useRouter();
@@ -22,25 +24,40 @@ export default function ScoreSlider() {
     setValue(paramValue);
   }
 
-  function commit(v: number) {
+  function navigate(v: number, method: "push" | "replace") {
     const qs = buildQueryString(searchParams, {
       [PARAM.minScore]: v > 0 ? String(v) : null,
     });
-    router.push(`/trends${qs}`);
+    router[method](`/trends${qs}`);
   }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const v = parseInt(e.target.value, 10);
     setValue(v);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => commit(v), 250);
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      navigate(v, "replace");
+    }, 250);
+  }
+
+  /** Commit on release (pointer up / blur): push a real history entry. */
+  function handleCommit(e: React.SyntheticEvent<HTMLInputElement>) {
+    const v = parseInt(e.currentTarget.value, 10);
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    // Skip no-op commits (e.g. blur right after the debounced replace ran).
+    if (v === paramValue) return;
+    navigate(v, "push");
   }
 
   return (
     <div className="border border-border p-3">
       <div className="flex items-center justify-between mb-2">
         <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted">
-          Min Score
+          Min CRS
         </span>
         <span className="font-mono text-[11px] text-accent tabular-nums">
           ≥ {value}
@@ -53,13 +70,15 @@ export default function ScoreSlider() {
         step={5}
         value={value}
         onChange={handleChange}
-        aria-label="Minimum trend score"
+        onPointerUp={handleCommit}
+        onBlur={handleCommit}
+        aria-label="Minimum CRS score"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={value}
         className="score-slider w-full"
       />
-      <div className="flex justify-between mt-1 font-mono text-[9px] text-muted/60 tabular-nums">
+      <div className="flex justify-between mt-1 font-mono text-[9px] text-muted tabular-nums">
         <span>0</span>
         <span>50</span>
         <span>100</span>
@@ -76,7 +95,6 @@ export default function ScoreSlider() {
             var(--color-border) ${value}%,
             var(--color-border) 100%
           );
-          outline: none;
           cursor: pointer;
         }
         .score-slider::-webkit-slider-thumb {

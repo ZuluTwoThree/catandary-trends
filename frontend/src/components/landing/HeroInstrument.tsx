@@ -12,10 +12,11 @@ import { useEffect, useRef } from "react";
 type Mark = { lane: number; x: number; speed: number; r: number; a: number };
 
 const TIERS = [
-  { name: "SCIENCE", color: "#a78bfa" },
-  { name: "PATENTS", color: "#60a5fa" },
-  { name: "FUNDING", color: "#34d399" },
-  { name: "MARKET", color: "#d4ff3a" },
+  // Canonical tier palette — keep in sync with TierCurveChart / --t-* tokens.
+  { name: "SCIENCE", color: "#22d3ee" },
+  { name: "PATENTS", color: "#a78bfa" },
+  { name: "FUNDING", color: "#fb923c" },
+  { name: "MARKET", color: "#bde63a" },
 ];
 
 export default function HeroInstrument() {

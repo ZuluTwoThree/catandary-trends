@@ -5,7 +5,9 @@ import { useRef, useState } from "react";
 import { PARAM, buildQueryString } from "@/lib/filter-params";
 
 /**
- * FTS5-backed search box. 300ms debounce, pushes to `?q=` on commit.
+ * FTS5-backed search box. 300ms debounce updates `?q=` via router.replace
+ * (no history spam while typing); an explicit Enter/blur commit uses
+ * router.push so the search lands as a real history entry.
  */
 export default function SearchInput() {
   const router = useRouter();
@@ -23,23 +25,36 @@ export default function SearchInput() {
     setValue(paramValue);
   }
 
-  function commit(v: string) {
+  function navigate(v: string, method: "push" | "replace") {
     const qs = buildQueryString(searchParams, {
       [PARAM.search]: v.trim() || null,
     });
-    router.push(`/trends${qs}`);
+    router[method](`/trends${qs}`);
+  }
+
+  /** Explicit commit (Enter / blur / clear): push a real history entry. */
+  function commit(v: string) {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    // Skip no-op commits (e.g. blur right after the debounced replace ran).
+    if (v.trim() === paramValue) return;
+    navigate(v, "push");
   }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const v = e.target.value;
     setValue(v);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => commit(v), 300);
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      navigate(v, "replace");
+    }, 300);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
       commit(value);
     } else if (e.key === "Escape") {
       setValue("");
@@ -56,19 +71,21 @@ export default function SearchInput() {
         className="font-mono text-[9px] uppercase tracking-[0.22em] text-accent px-3 flex items-center border-r border-border select-none"
         aria-hidden="true"
       >
-        ?&nbsp;Query
+        Search
       </span>
       <input
         type="search"
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        placeholder="e.g. longevity microbiome"
-        aria-label="Search trends"
-        className="flex-1 bg-transparent font-mono text-[11px] text-paper placeholder:text-muted/60 px-3 py-2 outline-none min-w-0"
+        onBlur={() => commit(value)}
+        placeholder="Search trends…"
+        aria-label="Search"
+        className="flex-1 bg-transparent font-mono text-[11px] text-paper placeholder:text-muted px-3 py-2 min-w-0"
       />
       {value && (
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
             setValue("");
             commit("");

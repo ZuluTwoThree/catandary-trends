@@ -84,13 +84,13 @@ function Chart({ points, mode, earliestYear }: { points: Point[]; mode: "rate" |
           <rect x={px(x0)} y={PAD.t} width={compW} height={plotH} fill="#8a8d82" opacity={0.1} />
           {/* axis-break marker + vertical label (the strip is too narrow for horizontal text) */}
           <line x1={px(firstYr)} x2={px(firstYr)} y1={PAD.t} y2={H - PAD.b} stroke="#8a8d82" strokeWidth={1} strokeDasharray="2 2" opacity={0.5} />
-          <text x={cx} y={PAD.t + plotH / 2} textAnchor="middle" transform={`rotate(-90 ${cx} ${PAD.t + plotH / 2})`} style={{ font: "7px ui-sans-serif, system-ui" }} fill="#8a8d82">spärlich · gestaucht</text>
+          <text x={cx} y={PAD.t + plotH / 2} textAnchor="middle" transform={`rotate(-90 ${cx} ${PAD.t + plotH / 2})`} style={{ font: "7px ui-sans-serif, system-ui" }} fill="#8a8d82">sparse · compressed</text>
         </>
       )}
       {x1 > lastComplete && (
         <>
           <rect x={px(lastComplete)} y={PAD.t} width={px(x1) - px(lastComplete)} height={plotH} fill="#8a8d82" opacity={0.06} />
-          <text x={(px(lastComplete) + px(x1)) / 2} y={PAD.t + 10} textAnchor="middle" style={{ font: "8px ui-sans-serif, system-ui" }} fill="#8a8d82">noch unreif</text>
+          <text x={(px(lastComplete) + px(x1)) / 2} y={PAD.t + 10} textAnchor="middle" style={{ font: "8px ui-sans-serif, system-ui" }} fill="#8a8d82">still immature</text>
         </>
       )}
     </>
@@ -112,7 +112,7 @@ function Chart({ points, mode, earliestYear }: { points: Point[]; mode: "rate" |
     const seg = cs.map((s, i) => `${i ? "L" : "M"}${px(s.year).toFixed(1)},${py(s.y).toFixed(1)}`).join(" ");
     return (
       <svg viewBox={`0 0 ${W} ${H}`} className="block w-full max-w-full h-auto" role="img" aria-label="cumulative improvement index over time">
-        <text x={PAD.l} y={PAD.t - 8} textAnchor="middle" style={{ font: "8px ui-monospace, monospace" }} fill="#8a8d82">×seit Start</text>
+        <text x={PAD.l} y={PAD.t - 8} textAnchor="middle" style={{ font: "8px ui-monospace, monospace" }} fill="#8a8d82">× since start</text>
         {decades.map((v) => (
           <g key={v}>
             <line x1={PAD.l} x2={W - PAD.r} y1={py(v)} y2={py(v)} stroke="#2a2d25" strokeWidth={1} />
@@ -193,10 +193,10 @@ export default function TechnologyTool() {
     try {
       const r = await fetch(`/api/foresight/analyze?q=${encodeURIComponent(query)}`, { signal: ctrl.signal });
       const data = (await r.json()) as Analysis;
-      if (!r.ok || data.error) setErr(data.error || "Analyse fehlgeschlagen");
+      if (!r.ok || data.error) setErr(data.error || "Analysis failed — please try again.");
       else { setRes(data); setSel(new Set(data.selection || [])); }
     } catch (e) {
-      setErr(e instanceof DOMException && e.name === "AbortError" ? "Zeitüberschreitung — versuch eine engere Phrase" : "Netzwerkfehler");
+      setErr(e instanceof DOMException && e.name === "AbortError" ? "This took too long — try a narrower phrase." : "Network error — please try again.");
     } finally { clearTimeout(timer); setLoading(false); }
   }
 
@@ -224,21 +224,22 @@ export default function TechnologyTool() {
   return (
     <section className="border border-accent/40 bg-accent/5 p-4 sm:p-6 overflow-x-clip">
       <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">
-        —— Technologie-Analyse · Verbesserungsrate & Innovationskette
+        —— Technology Analysis · Improvement Rate & Innovation Chain
       </div>
       <p className="font-sans text-sm text-text leading-relaxed mb-4 max-w-3xl">
-        Beschreibe eine Technologie. Wir lösen sie auf feine Patentklassen auf —{" "}
-        <span className="text-paper">du wählst, welche</span> — und zeigen für genau
-        diese Auswahl die Verbesserungsrate über die Zeit und wie früh Forschung dem
-        Markt vorausging. Aus dem Patent-Zitationsgraphen (1990–2026).
+        Describe a technology. We resolve it into fine-grained patent classes —{" "}
+        <span className="text-paper">you choose which</span> — and show, for exactly
+        that selection, the improvement rate over time and how far research ran ahead
+        of the market. Built from the patent citation graph (1990–2026).
       </p>
 
       <form onSubmit={(e) => { e.preventDefault(); run(q); }} className="flex flex-col sm:flex-row gap-2">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="z. B. processed cheese" maxLength={200}
-          className="flex-1 min-w-0 bg-ink border border-border px-3 py-2 font-sans text-sm text-paper placeholder:text-muted focus:outline-none focus:border-accent" />
+        <label htmlFor="tech-analyze-query" className="sr-only">Technology to analyze</label>
+        <input id="tech-analyze-query" value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. processed cheese" maxLength={200}
+          className="flex-1 min-w-0 bg-ink border border-border px-3 py-2 font-sans text-sm text-paper placeholder:text-muted focus:border-accent" />
         <button type="submit" disabled={loading || q.trim().length < 4}
           className="font-mono text-xs uppercase tracking-[0.14em] px-4 py-2 border border-accent text-accent hover:bg-accent hover:text-card disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-accent transition-colors shrink-0">
-          {loading ? "Analysiere…" : "Analysieren"}
+          {loading ? "Analyzing…" : "Analyze"}
         </button>
       </form>
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -248,13 +249,17 @@ export default function TechnologyTool() {
         ))}
       </div>
 
-      {loading && <p className="mt-5 font-mono text-xs text-muted animate-pulse">Phrase wird eingebettet und auf Patentklassen aufgelöst… (~10–30s)</p>}
-      {err && <p className="mt-5 font-mono text-xs text-red-400">⚠ {err}</p>}
+      {loading && (
+        <p role="status" className="mt-5 font-mono text-xs text-muted animate-pulse">
+          Analyzing — reading the patent graph… this can take up to ~2 minutes.
+        </p>
+      )}
+      {err && <p role="alert" className="mt-5 font-mono text-xs text-red-400">⚠ {err}</p>}
 
       {res && !loading && res.off_topic && (
         <div className="mt-6 border border-border bg-card/40 p-5">
-          <p className="font-sans text-base text-paper">Das sieht nicht nach einer Technologie aus.</p>
-          <p className="font-sans text-sm text-text mt-2">Beschreibe einen Prozess, ein Material oder eine Methode (nächste Klasse {res.nearest_dist} zu weit entfernt).</p>
+          <p className="font-sans text-base text-paper">That doesn&rsquo;t look like a technology.</p>
+          <p className="font-sans text-sm text-text mt-2">Describe a process, a material, or a method (nearest patent class is {res.nearest_dist} away — too far off).</p>
         </div>
       )}
 
@@ -263,26 +268,26 @@ export default function TechnologyTool() {
           {/* left: user-selectable CPC classes */}
           <div className="min-w-0">
             <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-2">
-              Patentklassen — deine Auswahl ({sel.size})
+              Patent classes — your selection ({sel.size})
             </div>
             <div className="space-y-1 max-h-[320px] overflow-y-auto pr-1">
               {res.candidates?.map((c) => {
                 const on = sel.has(c.symbol);
                 return (
-                  <button key={c.symbol} onClick={() => toggle(c.symbol)} disabled={rerun}
+                  <button key={c.symbol} onClick={() => toggle(c.symbol)} disabled={rerun} aria-pressed={on}
                     className={`w-full text-left flex items-start gap-2 px-2 py-1.5 border transition-colors ${on ? "border-accent/50 bg-accent/10" : "border-border hover:border-border/80"} disabled:opacity-60`}>
                     <span className={`mt-0.5 font-mono text-[11px] shrink-0 ${on ? "text-accent" : "text-muted"}`}>{on ? "☑" : "☐"}</span>
                     <span className="min-w-0 flex-1">
                       <span className="font-mono text-[11px] text-paper break-words">{c.symbol}</span>
                       <span className="block font-sans text-[11px] text-muted leading-tight break-words">{cpcLabel(c.title)}</span>
                     </span>
-                    <span className="font-mono text-[10px] text-muted shrink-0 tabular-nums">{c.n.toLocaleString("de")}</span>
+                    <span className="font-mono text-[10px] text-muted shrink-0 tabular-nums">{c.n.toLocaleString("en-US")}</span>
                   </button>
                 );
               })}
             </div>
             <p className="mt-2 font-mono text-[10px] text-muted">
-              {selN.toLocaleString("de")} Patente gewählt · Häkchen ändern rechnet live neu
+              {selN.toLocaleString("en-US")} patents selected · toggle classes to recalculate live
             </p>
           </div>
 
@@ -295,24 +300,24 @@ export default function TechnologyTool() {
                 <span className="font-sans text-text">
                   Technology Improvement Rate{" "}
                   <span className="font-mono text-lg text-paper tabular-nums">~{traj.K_median}%</span>
-                  <span className="text-muted"> /Jahr</span>
+                  <span className="text-muted"> /year</span>
                 </span>
               ) : (
                 <span className="font-sans text-sm text-muted">
-                  Verbessert sich schneller, als wir verlässlich beziffern (außerhalb des kalibrierten Bereichs)
+                  Improving faster than we can reliably quantify (outside the calibrated range)
                 </span>
               )}
               {traj?.earliest_year && (
                 <span className="font-mono text-[10px] text-muted">
-                  gemessen seit {traj.earliest_year} · {2026 - traj.earliest_year} J. Daten
+                  measured since {traj.earliest_year} · {2026 - traj.earliest_year} yrs of data
                 </span>
               )}
-              {rerun && <span className="font-mono text-[10px] text-muted animate-pulse">aktualisiere…</span>}
+              {rerun && <span role="status" className="font-mono text-[10px] text-muted animate-pulse">updating…</span>}
             </div>
             <p className="font-sans text-[11px] text-muted mb-2 max-w-3xl">
-              TIR = wie schnell sich die patentierte Leistungsfähigkeit dieses Feldes pro Jahr
-              verbessert (MIT-Methode: SPNP-Zitationszentralität, Singh/Triulzi/Magee 2021). Die
-              Einordnung überlassen wir Ihnen.
+              TIR = how fast this field&rsquo;s patented performance improves per year
+              (MIT method: SPNP citation centrality, Singh/Triulzi/Magee 2021). How to
+              read it is up to you.
             </p>
 
             {traj?.points && traj.points.length >= 2 ? (
@@ -320,28 +325,28 @@ export default function TechnologyTool() {
                 {/* rate ↔ cumulative toggle */}
                 <div className="flex gap-1 mb-2">
                   {(["rate", "cumulative"] as const).map((m) => (
-                    <button key={m} onClick={() => setMode(m)}
+                    <button key={m} onClick={() => setMode(m)} aria-pressed={mode === m}
                       className={`font-mono text-[10px] uppercase tracking-[0.12em] px-2 py-1 border transition-colors ${mode === m ? "border-accent/60 text-accent bg-accent/10" : "border-border text-muted hover:text-text"}`}>
-                      {m === "rate" ? "Rate %/Jahr" : "Kumuliert ×"}
+                      {m === "rate" ? "Rate %/yr" : "Cumulative ×"}
                     </button>
                   ))}
                 </div>
                 <Chart points={traj.points} mode={mode} earliestYear={traj.earliest_year} />
               </>
             ) : (
-              <p className="font-sans text-sm text-muted border-l-2 border-border pl-3">Zu wenig Patentdaten in dieser Auswahl für eine Trajektorie — wähle mehr Klassen links.</p>
+              <p className="font-sans text-sm text-muted border-l-2 border-border pl-3">Not enough patent data in this selection for a trajectory — select more classes on the left.</p>
             )}
 
             <p className="font-sans text-[11px] text-muted mt-2 max-w-3xl">
               {mode === "cumulative"
-                ? <>Kumulierter Fortschritts-Index (Start = 1× am frühesten Zitationsjahr), das Integral der Rate — Log-Achse, sodass die Steigung der TIR entspricht und Reife als Abflachen sichtbar wird. Relativer Index, keine absolute Leistung.</>
-                : <>Die X-Achse beginnt am frühesten Zitationsjahr; die datenarme Frühphase ist als gebrochene Achse <span className="text-text">gestaucht</span> und ausgegraut, die jüngsten unreifen Jahre ebenso. Band = Kalibrierungs-Unsicherheit (~68 %). Der TIR-Wert ist der Median über die gemessene Historie.</>}
+                ? <>Cumulative progress index (start = 1× at the earliest citation year), the integral of the rate — log scale, so the slope matches the TIR and maturity shows up as flattening. A relative index, not absolute performance.</>
+                : <>The x-axis starts at the earliest citation year; the data-sparse early era is <span className="text-text">compressed</span> as a broken axis and greyed out, as are the most recent immature years. Band = calibration uncertainty (~68%). The TIR value is the median over the measured history.</>}
             </p>
 
             {/* cross-tier lead time */}
             {lead && (
               <div className="mt-5 border-t border-border pt-4">
-                <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-3">Innovationskette — wann tauchte es je Tier auf</div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-3">Innovation chain — when it appeared in each tier</div>
                 <div className="space-y-2">
                   {(["science", "patent", "funding", "market"] as const).map((t) => {
                     const tr = lead.tiers?.[t];
@@ -357,12 +362,12 @@ export default function TechnologyTool() {
                 </div>
                 <p className="font-sans text-[11px] text-muted mt-3">
                   {lead.established
-                    ? "Etablierte Technologie — Forschung und Patente existierten schon vor unserem Datenfenster (1990). Ein Research-→-Markt-Vorlauf ist hier nicht messbar."
+                    ? "Established technology — research and patents already existed before our data window (1990). A research-to-market lead can't be measured here."
                     : <>
-                        {lead.lead_science_market ? <>Forschung lief ~<span className="text-text">{lead.lead_science_market} Jahre</span> vor dem Markt. </> : null}
-                        {lead.lead_patent_market ? <>Patente ~<span className="text-text">{lead.lead_patent_market} Jahre</span> vor dem Markt. </> : null}
-                        {lead.concurrent ? "Forschung und Markt bewegen sich zeitgleich." : null}
-                        {!lead.lead_science_market && !lead.lead_patent_market && !lead.concurrent ? "Kein klarer Tier-Vorlauf messbar." : null}
+                        {lead.lead_science_market ? <>Research ran ~<span className="text-text">{lead.lead_science_market} years</span> ahead of the market. </> : null}
+                        {lead.lead_patent_market ? <>Patents ~<span className="text-text">{lead.lead_patent_market} years</span> ahead of the market. </> : null}
+                        {lead.concurrent ? "Research and market are moving in step." : null}
+                        {!lead.lead_science_market && !lead.lead_patent_market && !lead.concurrent ? "No clear lead between tiers is measurable." : null}
                       </>}
                 </p>
               </div>
@@ -372,7 +377,7 @@ export default function TechnologyTool() {
             {res.top_patents && res.top_patents.length > 0 && (
               <div className="mt-5 border-t border-border pt-4">
                 <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-3">
-                  Meistzitierte Patente in dieser Auswahl
+                  Most-cited patents in this selection
                 </div>
                 <ul className="space-y-1.5">
                   {res.top_patents.map((p) => (
@@ -385,7 +390,7 @@ export default function TechnologyTool() {
                     </li>
                   ))}
                 </ul>
-                <p className="mt-2 font-mono text-[10px] text-muted">Vorwärts-Zitationen im Korpus · Klick öffnet Espacenet</p>
+                <p className="mt-2 font-mono text-[10px] text-muted">Forward citations within the corpus · click opens Espacenet</p>
               </div>
             )}
           </div>

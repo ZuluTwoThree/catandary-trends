@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
-        { error: "Bitte gib eine gültige Email-Adresse ein." },
+        { error: "Please enter a valid email address." },
         { status: 400 }
       );
     }
@@ -89,20 +89,20 @@ export async function POST(request: NextRequest) {
           [existing.id]
         );
         return NextResponse.json({
-          message: "Willkommen zurück! Du bist wieder angemeldet.",
+          message: "Welcome back — you're subscribed again.",
         });
       }
-      return NextResponse.json({ message: "Du bist bereits angemeldet." });
+      return NextResponse.json({ message: "You're already subscribed." });
     }
 
     await q("INSERT INTO newsletter_subscribers (email) VALUES ($1)", [email]);
     return NextResponse.json({
-      message: "Erfolgreich angemeldet! Du erhältst bald die ersten Trends.",
+      message: "You're subscribed — the first briefing lands Monday.",
     });
   } catch (error) {
     console.error("Newsletter signup error:", error);
     return NextResponse.json(
-      { error: "Ein Fehler ist aufgetreten. Bitte versuche es erneut." },
+      { error: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }

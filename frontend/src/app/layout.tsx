@@ -48,8 +48,13 @@ export default function RootLayout({
       className={`dark ${plexSerif.variable} ${plexMono.variable} ${plexSans.variable}`}
     >
       <body className="bg-background text-foreground min-h-screen antialiased">
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
         <Header />
-        <main>{children}</main>
+        <main id="main" tabIndex={-1}>
+          {children}
+        </main>
         <Footer />
       </body>
     </html>

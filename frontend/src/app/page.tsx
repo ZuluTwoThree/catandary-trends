@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getMethodologyStats } from "@/lib/db";
+import { PAYWALL_ENABLED } from "@/lib/entitlement";
 import HeroInstrument from "@/components/landing/HeroInstrument";
 import TechReader from "@/components/landing/TechReader";
 import MomentumBoard from "@/components/landing/MomentumBoard";
@@ -25,6 +26,11 @@ export const metadata: Metadata = {
 const FALLBACK = { analyzed: 1059838, published: 60482, sources: 243 };
 
 export default async function LandingPage() {
+  // One monetisation story across landing, pricing and product (ONB-06):
+  // while checkout is live the CTAs say so; before that, early access.
+  const stripeReady = PAYWALL_ENABLED && Boolean(process.env.STRIPE_SECRET_KEY);
+  const paidCta = stripeReady ? "Choose plan" : "Request early access";
+
   let stats = FALLBACK;
   try {
     const s = await getMethodologyStats();
@@ -159,10 +165,10 @@ export default async function LandingPage() {
             <div className="lp-pillars">
               <article className="lp-pillar">
                 <svg className="lp-ic" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-                  <rect x="2" y="30" width="6" height="8" fill="#a78bfa" />
-                  <rect x="12" y="24" width="6" height="14" fill="#60a5fa" />
-                  <rect x="22" y="18" width="6" height="20" fill="#34d399" />
-                  <rect x="32" y="10" width="6" height="28" fill="#d4ff3a" />
+                  <rect x="2" y="30" width="6" height="8" fill="var(--t-science)" />
+                  <rect x="12" y="24" width="6" height="14" fill="var(--t-patent)" />
+                  <rect x="22" y="18" width="6" height="20" fill="var(--t-funding)" />
+                  <rect x="32" y="10" width="6" height="28" fill="var(--t-market)" />
                 </svg>
                 <h3>The whole chain, one corpus</h3>
                 <p>
@@ -181,7 +187,7 @@ export default async function LandingPage() {
                   Every trend, cluster and rate links to its primary source. A grounding gate
                   holds back any generated figure that isn&apos;t in the source material.
                 </p>
-                <div className="lp-ev">Evidence · source_url NOT NULL + grounding gate</div>
+                <div className="lp-ev">Evidence · every trend keeps its source link, enforced</div>
               </article>
               <article className="lp-pillar">
                 <svg className="lp-ic" viewBox="0 0 40 40" fill="none" aria-hidden="true">
@@ -306,9 +312,9 @@ export default async function LandingPage() {
               <article className="lp-pillar">
                 <h3>Attribution enforced at the data layer</h3>
                 <p>
-                  A trend without a source URL can&apos;t physically exist — it&apos;s a
-                  NOT-NULL column, not a template convention. And a grounding check holds any
-                  article that introduces an unsourced figure.
+                  A trend without a source link can&apos;t physically exist — the data
+                  layer rejects it, it&apos;s not a style convention. And a grounding
+                  check holds any article that introduces an unsourced figure.
                 </p>
                 <div className="lp-ev">Honesty · no fabricated numbers reach auto-publish</div>
               </article>
@@ -420,7 +426,7 @@ export default async function LandingPage() {
                   <li>Saved searches &amp; alerts</li>
                 </ul>
                 <Link className="lp-btn" href="/trends/pricing">
-                  Request early access
+                  {paidCta}
                 </Link>
               </div>
               <div className="lp-price feat">
@@ -439,7 +445,7 @@ export default async function LandingPage() {
                   <li>CSV / dossier export</li>
                 </ul>
                 <Link className="lp-btn lp-btn-primary" href="/trends/pricing">
-                  Request early access
+                  {paidCta}
                 </Link>
               </div>
               <div className="lp-price">
@@ -460,7 +466,7 @@ export default async function LandingPage() {
                   <li>Custom reports</li>
                 </ul>
                 <Link className="lp-btn" href="/trends/pricing">
-                  Request early access
+                  {paidCta}
                 </Link>
               </div>
             </div>
@@ -546,7 +552,10 @@ export default async function LandingPage() {
               <p>
                 The content layer and weekly briefing are free. The foresight engine is €99
                 (Starter), €499 (Pro) or €799 (Super Pro+) per month, with a sales-led Hypercare
-                day-rate for bespoke work. The paid tiers are opening in early access.
+                day-rate for bespoke work.{" "}
+                {stripeReady
+                  ? "Paid plans are live — monthly billing, cancel anytime."
+                  : "The paid tiers are opening in early access."}
               </p>
             </details>
           </div>

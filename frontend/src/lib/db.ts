@@ -14,6 +14,23 @@ import type {
  * All functions are async; JSONB columns arrive pre-parsed from pg.
  */
 
+/**
+ * In-process TTL cache for expensive aggregate queries (ONB-01/ARCH-02: the
+ * landing and methodology pages ran full-table COUNTs over ~1M rows on every
+ * request → 7-9s TTFB). Counters may lag reality by up to the TTL — fine for
+ * trust numbers that move hourly. Single-server deployment, so process-local
+ * state is authoritative enough.
+ */
+const ttlCache = new Map<string, { at: number; value: unknown }>();
+
+async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  const hit = ttlCache.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
+  const value = await fn();
+  ttlCache.set(key, { at: Date.now(), value });
+  return value;
+}
+
 function asArray(v: unknown): string[] {
   if (Array.isArray(v)) return v as string[];
   if (typeof v === "string" && v) {
@@ -91,6 +108,18 @@ export async function getTrendsCount(options: {
   status?: string;
   vertical?: Vertical;
 } = {}): Promise<number> {
+  // status/vertical form a tiny keyspace — safe to cache (10 min).
+  return cached(
+    `trends-count:${options.status ?? "all"}:${options.vertical ?? "all"}`,
+    600_000,
+    () => fetchTrendsCount(options)
+  );
+}
+
+async function fetchTrendsCount(options: {
+  status?: string;
+  vertical?: Vertical;
+} = {}): Promise<number> {
   const params: unknown[] = [];
   let query = "SELECT COUNT(*)::int as cnt FROM trends t WHERE 1=1";
   if (options.status) {
@@ -162,6 +191,12 @@ function loadMegaTrendYaml(): Record<string, {
 }
 
 export async function getMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
+  return cached(`mega-trends:${status ?? "all"}`, 600_000, () =>
+    fetchMegaTrends(status)
+  );
+}
+
+async function fetchMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
   const params: unknown[] = [];
   let query = `SELECT t.mega_trend, COUNT(*)::int as cnt,
      STRING_AGG(DISTINCT t.primary_vertical, ',') as verts,
@@ -201,21 +236,6 @@ export async function getMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
       signals_30d: r.signals_30d || 0,
     };
   });
-}
-
-export async function getCrossVerticalTrends(options: {
-  status?: string;
-  limit?: number;
-} = {}): Promise<Trend[]> {
-  const params: unknown[] = [];
-  let query = TREND_SELECT + " WHERE jsonb_array_length(t.verticals) > 1";
-  if (options.status) {
-    params.push(options.status);
-    query += ` AND t.status = $${params.length}`;
-  }
-  params.push(options.limit ?? 20);
-  query += ` ORDER BY t.sort_date DESC NULLS LAST, t.trend_score DESC LIMIT $${params.length}`;
-  return (await q(query, params)).map(parseTrendRow);
 }
 
 export async function getTopTrendsByEngagement(limit: number = 10): Promise<Trend[]> {
@@ -375,15 +395,25 @@ export async function getTrendsFilteredCount(
   return row?.cnt ?? 0;
 }
 
-/** Corpus stats for the methodology / trust page. */
-export async function getMethodologyStats(): Promise<{
+export interface MethodologyStats {
   analyzed: number;
   published: number;
   sources: number;
   megaTrends: number;
   tierCounts: Record<string, number>;
   dateSpan: { first: string | null; last: string | null };
-}> {
+}
+
+/**
+ * Corpus stats for the landing / methodology trust pages. Cached 1h — these
+ * are full-table aggregations over ~1M rows that used to run per request and
+ * made both pages take 7-9s (ONB-01/ARCH-02).
+ */
+export async function getMethodologyStats(): Promise<MethodologyStats> {
+  return cached("methodology-stats", 3_600_000, fetchMethodologyStats);
+}
+
+async function fetchMethodologyStats(): Promise<MethodologyStats> {
   const analyzed = (await q1<{ c: number }>("SELECT COUNT(*)::int c FROM trends"))?.c ?? 0;
   const published =
     (await q1<{ c: number }>("SELECT COUNT(*)::int c FROM trends WHERE status = 'published'"))?.c ?? 0;
@@ -432,6 +462,15 @@ export async function getTopSourcesByCount(
   limit: number = 20,
   status: string = "published"
 ): Promise<Array<{ source_name: string; count: number }>> {
+  return cached(`top-sources:${limit}:${status}`, 3_600_000, () =>
+    fetchTopSourcesByCount(limit, status)
+  );
+}
+
+async function fetchTopSourcesByCount(
+  limit: number,
+  status: string
+): Promise<Array<{ source_name: string; count: number }>> {
   const statusClause = status === "all" ? "" : " AND status = $2";
   const params: unknown[] = status === "all" ? [limit] : [limit, status];
   const rows = await q<{ source_name: string; cnt: number }>(
@@ -473,6 +512,12 @@ export async function getVerticalCountsScoped(
 }
 
 export async function getVerticalCounts(status?: string): Promise<Record<string, number>> {
+  return cached(`vertical-counts:${status ?? "all"}`, 600_000, () =>
+    fetchVerticalCounts(status)
+  );
+}
+
+async function fetchVerticalCounts(status?: string): Promise<Record<string, number>> {
   const params: unknown[] = [];
   let query = "SELECT primary_vertical, COUNT(*)::int as cnt FROM trends t WHERE 1=1";
   if (status) {

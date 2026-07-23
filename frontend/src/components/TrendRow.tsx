@@ -23,6 +23,17 @@ export default function TrendRow({ trend }: { trend: Trend }) {
   const scorePct =
     trend.trend_score != null ? Math.round(trend.trend_score * 100) : null;
 
+  // CRS tier color — same three steps as `TrendScore` (DS-07: no hardcoded
+  // accent duplicate; the tiering must show here too).
+  const scoreColor =
+    scorePct == null
+      ? null
+      : scorePct >= 80
+        ? "var(--color-accent)"
+        : scorePct >= 65
+          ? "var(--color-accent-deep)"
+          : "var(--color-warn)";
+
   return (
     <Link
       href={`/trends/${trend.slug}`}
@@ -66,14 +77,17 @@ export default function TrendRow({ trend }: { trend: Trend }) {
         {/* Score bar — col 5 */}
         <div className="col-span-12 sm:col-span-3 md:col-span-2 flex items-center gap-2">
           <div className="flex-1 h-[3px] bg-border relative overflow-hidden">
-            {scorePct != null && (
+            {scorePct != null && scoreColor && (
               <span
-                className="absolute inset-y-0 left-0 bg-accent"
-                style={{ width: `${scorePct}%` }}
+                className="absolute inset-y-0 left-0"
+                style={{ width: `${scorePct}%`, backgroundColor: scoreColor }}
               />
             )}
           </div>
-          <span className="font-mono text-[10px] tabular-nums text-muted w-7 text-right">
+          <span
+            className="font-mono text-[10px] tabular-nums text-muted w-7 text-right"
+            style={scoreColor ? { color: scoreColor } : undefined}
+          >
             {scorePct != null ? scorePct : "—"}
           </span>
         </div>

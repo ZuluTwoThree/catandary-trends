@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canAccess } from "@/lib/entitlement";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -25,6 +26,14 @@ function repoRoot(): string {
  * and year are validated before use.
  */
 export async function GET(request: Request) {
+  // Entitlement guard (CONF-02): Super Pro+ data must not be free over the raw
+  // API while the paywall is on. No-op while PAYWALL_ENABLED=0.
+  if (!(await canAccess("superpro"))) {
+    return NextResponse.json(
+      { error: "This data is part of the Super Pro+ plan", upgrade: "/trends/pricing" },
+      { status: 402 }
+    );
+  }
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") || "").trim();
   const tier = (url.searchParams.get("tier") || "").toLowerCase();

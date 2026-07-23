@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { AUTH_ENABLED, consumeMagicToken, setSessionCookie } from "@/lib/auth";
+import {
+  AUTH_ENABLED,
+  consumeMagicToken,
+  isSafeInternalPath,
+  setSessionCookie,
+} from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +18,15 @@ export async function GET(request: Request) {
   if (!AUTH_ENABLED) {
     return NextResponse.redirect(`${base}/trends`);
   }
-  const token = new URL(request.url).searchParams.get("token") || "";
+  const params = new URL(request.url).searchParams;
+  const token = params.get("token") || "";
   const uid = token ? await consumeMagicToken(token) : null;
   if (uid == null) {
     return NextResponse.redirect(`${base}/account/signin?error=link`);
   }
   await setSessionCookie(uid);
-  return NextResponse.redirect(`${base}/account`);
+  // Optional validated post-signin destination (e.g. back to /trends/pricing
+  // when the user was interrupted mid-checkout) — internal paths only.
+  const next = params.get("next");
+  return NextResponse.redirect(`${base}${isSafeInternalPath(next) ? next : "/account"}`);
 }

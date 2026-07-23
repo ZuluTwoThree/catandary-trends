@@ -31,7 +31,7 @@ export async function generateMetadata({
   const { megatrend } = await params;
   const allMega = await getMegaTrends();
   const match = findMegaTrend(megatrend, allMega);
-  if (!match) return { title: "Mega-Trend nicht gefunden" };
+  if (!match) return { title: "Mega-trend not found" };
 
   const info = getMegaTrendInfo(match.mega_trend);
   const displayName = info?.name_en ?? match.mega_trend;

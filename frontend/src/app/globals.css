@@ -4,15 +4,20 @@
   /* ===== Core palette — Option A "Editorial Intelligence" ===== */
   --color-background: #0a0c0a;       /* --ink */
   --color-foreground: #d8d5c8;       /* --text */
+  --color-ink: #0a0c0a;              /* dark text on accent surfaces (text-ink) */
+  --color-text: #d8d5c8;             /* alias of foreground (text-text) */
   --color-paper: #f4f1e8;            /* bright text on dark surfaces */
   --color-card: #111310;             /* --surface */
   --color-card-hover: #161914;       /* --surface-hover */
   --color-border: #2a2d25;           /* --edge */
+  --color-border-strong: #4d5147;    /* interactive control borders (>=3:1 on ink) */
   --color-rule: #3a3d35;             /* secondary divider */
   --color-muted: #8a8d82;
   --color-accent: #d4ff3a;           /* chartreuse */
   --color-accent-deep: #a8cc28;
   --color-warn: #ff6b3a;
+  --color-rising: #22c55e;           /* semantic: momentum up */
+  --color-declining: #ef4444;        /* semantic: momentum down */
 
   /* ===== Vertical palette ===== */
   --color-v-food: #f97316;
@@ -57,6 +62,30 @@ body::before {
   opacity: 0.03;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   mix-blend-mode: overlay;
+}
+
+/* ===== Focus system (WCAG 2.4.7 / 2.4.11) ===== */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Skip link — visually hidden until focused */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 200;
+  padding: 0.6rem 1rem;
+  background: var(--color-accent);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.skip-link:focus-visible {
+  left: 0;
 }
 
 /* ===== Utility classes ===== */
@@ -197,10 +226,12 @@ body::before {
    lead-time tier palette + momentum semantics. Home route only.
    ============================================================ */
 :root {
-  --t-science: #a78bfa;   /* science — earliest */
-  --t-patent:  #60a5fa;   /* patents */
-  --t-funding: #34d399;   /* funding */
-  --t-market:  #d4ff3a;   /* market — now */
+  /* Lead-time tier palette — canonical mapping, matching TierCurveChart
+     (DS-03: landing and product previously disagreed on what violet means). */
+  --t-science: #22d3ee;   /* science — earliest */
+  --t-patent:  #a78bfa;   /* patents */
+  --t-funding: #fb923c;   /* funding */
+  --t-market:  #bde63a;   /* market — now */
   --lp-rising: #22c55e;
   --lp-declining: #ef4444;
   --lp-maxw: 1200px;

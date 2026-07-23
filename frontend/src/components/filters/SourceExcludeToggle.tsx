@@ -29,6 +29,7 @@ export default function SourceExcludeToggle({
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -46,12 +47,21 @@ export default function SourceExcludeToggle({
     router.push(`/trends${qs}`);
   }
 
+  /** Escape closes the dropdown and returns focus to the trigger. */
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape" && open) {
+      e.stopPropagation();
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+  }
+
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative" onKeyDown={handleKeyDown}>
       <button
+        ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        aria-haspopup="listbox"
         className="flex items-stretch border border-border hover:border-rule transition-colors"
       >
         <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted px-3 flex items-center border-r border-border whitespace-nowrap">
@@ -70,7 +80,8 @@ export default function SourceExcludeToggle({
 
       {open && (
         <div
-          role="listbox"
+          role="group"
+          aria-label="Exclude sources"
           className="absolute top-full left-0 mt-1 z-20 bg-card border border-border min-w-[280px] max-h-[320px] overflow-y-auto shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)]"
         >
           {options.length === 0 ? (
@@ -83,9 +94,9 @@ export default function SourceExcludeToggle({
               return (
                 <button
                   key={o.source_name}
+                  type="button"
                   onClick={() => handleToggle(o.source_name)}
-                  role="option"
-                  aria-selected={isExcluded}
+                  aria-pressed={isExcluded}
                   className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors border-b border-border last:border-b-0 hover:bg-white/[0.03] ${
                     isExcluded ? "bg-warn/10" : ""
                   }`}

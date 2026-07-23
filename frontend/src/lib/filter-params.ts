@@ -46,12 +46,19 @@ export const VALID_SIGNAL_TYPES: TrendSignalType[] = [
   "patent",
 ];
 
-export const VALID_SORT_BY: TrendsSortBy[] = [
+/**
+ * Sort options offered in the UI. `source_date_desc` was removed — it produced
+ * an order identical to `date_desc`, so it only added a confusing choice.
+ * Unknown/legacy sort keys fall back to the default both here (parse) and in
+ * the DB layer.
+ */
+export type SortOption = Exclude<TrendsSortBy, "source_date_desc">;
+
+export const VALID_SORT_BY: SortOption[] = [
   "date_desc",
   "date_asc",
   "score_desc",
   "engagement_desc",
-  "source_date_desc",
 ];
 
 export const VALID_DATE_RANGE: TrendsDateRange[] = ["1d", "7d", "30d", "all"];
@@ -59,12 +66,11 @@ export const VALID_DATE_RANGE: TrendsDateRange[] = ["1d", "7d", "30d", "all"];
 export const VALID_VIEW_MODE: TrendsViewMode[] = ["grid", "list"];
 
 // Human-readable labels for sort options (used in SortSelect)
-export const SORT_LABELS: Record<TrendsSortBy, string> = {
+export const SORT_LABELS: Record<SortOption, string> = {
   date_desc: "Newest first",
   date_asc: "Oldest first",
-  score_desc: "Signal strength",
+  score_desc: "Highest CRS",
   engagement_desc: "Most read",
-  source_date_desc: "Source date",
 };
 
 export const SIGNAL_TYPE_LABELS: Record<TrendSignalType, string> = {
@@ -130,6 +136,22 @@ function filterWhitelist<T extends string>(
   return values.filter((x): x is T => (whitelist as readonly string[]).includes(x));
 }
 
+/**
+ * Case-insensitive whitelist filter: matches input values against the
+ * whitelist ignoring case and returns the *canonical* whitelist spelling
+ * (so `?v=food` or `?pestel=en` behave like `?v=FOOD` / `?pestel=En`).
+ */
+function filterWhitelistCaseInsensitive<T extends string>(
+  values: string[],
+  whitelist: readonly T[]
+): T[] {
+  return values
+    .map((x) =>
+      whitelist.find((w) => w.toUpperCase() === x.toUpperCase())
+    )
+    .filter((x): x is T => x !== undefined);
+}
+
 export interface ParsedFilters extends TrendsFilterOptions {
   /** View mode is a UI-layer concern (grid/list); DB doesn't care. */
   view: TrendsViewMode;
@@ -141,11 +163,11 @@ export const PAGE_SIZE = 12;
 export const LIST_PAGE_SIZE = 30;
 
 export function parseFilterParams(raw: RawParams): ParsedFilters {
-  const verticals = filterWhitelist(
+  const verticals = filterWhitelistCaseInsensitive(
     splitList(getParam(raw, PARAM.verticals)),
     VALID_VERTICALS
   );
-  const pestel = filterWhitelist(
+  const pestel = filterWhitelistCaseInsensitive(
     splitList(getParam(raw, PARAM.pestel)),
     VALID_PESTEL
   );

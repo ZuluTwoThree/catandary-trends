@@ -71,15 +71,34 @@ export default async function EvolutionPage({
   const scope = requested ? `vertical:${requested}` : "global";
 
   const scopes = new Set(await getLineageScopes());
-  const data =
+  let data =
     (await getLatestLineage(scope)) ??
     (scope !== "global" ? await getLatestLineage("global") : null);
 
-  const color = requested
-    ? VERTICALS.find((v) => v.id === requested)?.color ?? "#94a3b8"
-    : "#94a3b8";
+  let threads = data ? threadLineage(data) : [];
 
-  const threads = data ? threadLineage(data) : [];
+  // If the default (global) scope has no lineage yet but a vertical scope
+  // does, show the richest available one instead of an empty page — with a
+  // notice explaining what the visitor is looking at.
+  let fallbackVertical: (typeof VERTICALS)[number] | null = null;
+  if (!requested && threads.length === 0) {
+    for (const v of VERTICALS) {
+      if (!scopes.has(`vertical:${v.id}`)) continue;
+      const candidate = await getLatestLineage(`vertical:${v.id}`);
+      if (!candidate) continue;
+      const candidateThreads = threadLineage(candidate);
+      if (candidateThreads.length > threads.length) {
+        data = candidate;
+        threads = candidateThreads;
+        fallbackVertical = v;
+      }
+    }
+  }
+
+  const activeVerticalId = requested ?? fallbackVertical?.id ?? null;
+  const color = activeVerticalId
+    ? VERTICALS.find((v) => v.id === activeVerticalId)?.color ?? "#94a3b8"
+    : "#94a3b8";
   const emerging = threads
     .filter((t) => t.kind === "emerging")
     .sort((a, b) => b.latest_share - a.latest_share);
@@ -110,7 +129,7 @@ export default async function EvolutionPage({
       <div className="mb-8 flex flex-wrap gap-2">
         <Link
           href="/trends/foresight/evolution"
-          className={`rounded-full px-3 py-1 text-sm ${requested ? "opacity-60 hover:opacity-100" : "font-semibold underline"}`}
+          className={`rounded-full px-3 py-1 text-sm ${activeVerticalId ? "opacity-60 hover:opacity-100" : "font-semibold underline"}`}
         >
           All industries
         </Link>
@@ -118,20 +137,29 @@ export default async function EvolutionPage({
           <Link
             key={v.id}
             href={`/trends/foresight/evolution?vertical=${v.id}`}
-            className={`rounded-full px-3 py-1 text-sm ${requested === v.id ? "font-semibold underline" : "opacity-60 hover:opacity-100"}`}
-            style={requested === v.id ? { color: v.color } : undefined}
+            className={`rounded-full px-3 py-1 text-sm ${activeVerticalId === v.id ? "font-semibold underline" : "opacity-60 hover:opacity-100"}`}
+            style={activeVerticalId === v.id ? { color: v.color } : undefined}
           >
             {v.label}
           </Link>
         ))}
       </div>
 
+      {fallbackVertical && (
+        <p className="mb-6 border-l-2 pl-3 text-sm opacity-80" style={{ borderColor: color }}>
+          Currently available for {fallbackVertical.label} — more industries
+          follow as snapshots build.
+        </p>
+      )}
+
       {threads.length === 0 ? (
         <div className="rounded-xl border border-current/10 p-8 text-center">
-          <p className="text-lg font-semibold">Evolution is being computed</p>
+          <p className="text-lg font-semibold">No evolution snapshots yet</p>
           <p className="mx-auto mt-2 max-w-md text-sm opacity-70">
-            The cross-window lineage for this scope is still being built. Explore
-            the current trend clusters in the meantime.
+            Trend evolution is built from snapshots of the signal space that are
+            computed periodically — the first ones for this view are still on
+            the way. Until then, explore what&apos;s moving right now in the
+            trend clusters.
           </p>
           <Link
             href="/trends/foresight/clusters"
@@ -154,7 +182,11 @@ export default async function EvolutionPage({
           )}
           {/* Emerging is the free hook; the full established/fading picture is
               the Pro drill-down (gate transparent while the paywall is off). */}
-          <TierGate need="pro" feature="The full trend evolution">
+          <TierGate
+            need="pro"
+            feature="The full trend evolution"
+            benefit="See how today's clusters emerged — the lineage of every trend, back through the corpus."
+          >
             {ongoing.length > 0 && (
               <section>
                 <h2 className="mb-3 text-lg font-semibold">Established & moving</h2>
