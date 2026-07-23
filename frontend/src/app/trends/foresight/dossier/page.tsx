@@ -52,10 +52,14 @@ export default async function DossierPage({
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="mb-6 flex items-start justify-between gap-4 print:hidden">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1">
           <Link
             href="/trends/foresight/dossier"
-            className={`rounded-full px-3 py-1 text-sm ${requested ? "opacity-60" : "font-semibold underline"}`}
+            className={`font-mono text-[10px] uppercase tracking-[0.14em] px-3 py-1.5 border transition-colors ${
+              requested
+                ? "text-muted border-border hover:text-paper"
+                : "text-accent border-accent bg-accent/10"
+            }`}
           >
             All
           </Link>
@@ -63,25 +67,35 @@ export default async function DossierPage({
             <Link
               key={v.id}
               href={`/trends/foresight/dossier?vertical=${v.id}`}
-              className={`rounded-full px-3 py-1 text-sm ${requested === v.id ? "font-semibold underline" : "opacity-60"}`}
+              className={`font-mono text-[10px] uppercase tracking-[0.14em] px-3 py-1.5 border transition-colors ${
+                requested === v.id
+                  ? "text-accent border-accent bg-accent/10"
+                  : "text-muted border-border hover:text-paper"
+              }`}
             >
               {v.label}
             </Link>
           ))}
         </div>
-        <ExportButton scope={scope} />
       </div>
 
-      <TierGate need="pro" feature="The exportable dossier">
+      <TierGate
+        need="pro"
+        feature="The exportable dossier"
+        benefit="Hand your team a cited one-pager: what's rising, holding and cooling in a scope — as CSV or print-ready PDF, every line backed by sources."
+      >
+        <div className="mb-5 flex justify-end print:hidden">
+          <ExportButton scope={scope} />
+        </div>
         <article className="dossier">
-          <header className="mb-5 border-b border-current/15 pb-4">
-            <div className="text-xs uppercase tracking-wider opacity-60">
+          <header className="mb-5 border-b border-border pb-4">
+            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
               Catandary Foresight Dossier
             </div>
-            <h1 className="mt-1 text-2xl font-bold">
+            <h1 className="mt-1.5 font-display text-[28px] text-paper">
               {requested ? VERTICALS.find((v) => v.id === requested)?.label : "All industries"}
             </h1>
-            <p className="mt-1 text-sm opacity-70">
+            <p className="mt-1 text-sm text-muted">
               {data ? `${data.clusters.length} trend clusters` : "no data"}
               {asOf ? ` · as of ${asOf}` : ""}
             </p>

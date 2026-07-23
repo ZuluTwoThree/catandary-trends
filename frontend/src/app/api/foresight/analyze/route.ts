@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canAccess } from "@/lib/entitlement";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -31,6 +32,14 @@ function repoRoot(): string {
  * ONE resolution, ONE TIR — the two views can never diverge again.
  */
 export async function GET(request: Request) {
+  // Entitlement guard (CONF-02): Super Pro+ data must not be free over the raw
+  // API while the paywall is on. No-op while PAYWALL_ENABLED=0.
+  if (!(await canAccess("superpro"))) {
+    return NextResponse.json(
+      { error: "This data is part of the Super Pro+ plan", upgrade: "/trends/pricing" },
+      { status: 402 }
+    );
+  }
   const sp = new URL(request.url).searchParams;
   const q = (sp.get("q") || "").trim();
   const codesRaw = (sp.get("codes") || "").trim();
@@ -44,12 +53,12 @@ export async function GET(request: Request) {
       .filter((c) => /^[A-Z0-9/]{2,20}$/.test(c))
       .slice(0, 20);
     if (codes.length === 0) {
-      return NextResponse.json({ error: "no valid CPC codes" }, { status: 400 });
+      return NextResponse.json({ error: "No valid patent classes selected." }, { status: 400 });
     }
     args = ["--codes", ...codes, "--json"];
   } else {
     if (q.length < 4 || q.length > 200) {
-      return NextResponse.json({ error: "query must be 4–200 characters" }, { status: 400 });
+      return NextResponse.json({ error: "Enter between 4 and 200 characters." }, { status: 400 });
     }
     args = ["--query", q, "--json"];
   }
@@ -80,7 +89,7 @@ export async function GET(request: Request) {
     const msg = err instanceof Error ? err.message : String(e);
     const timedOut = /timed out|ETIMEDOUT/.test(msg) || err?.killed === true || err?.signal === "SIGTERM";
     return NextResponse.json(
-      { error: timedOut ? "Berechnung dauert zu lange — bitte erneut versuchen (GPU wird geladen)" : "analysis failed" },
+      { error: timedOut ? "This analysis is taking longer than usual — please try again in a minute." : "Analysis failed — please try again." },
       { status: timedOut ? 504 : 500 }
     );
   }

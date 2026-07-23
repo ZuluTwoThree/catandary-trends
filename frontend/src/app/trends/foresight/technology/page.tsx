@@ -3,6 +3,10 @@ import { q1 } from "@/lib/pg";
 import { getTechnologies } from "@/lib/technology";
 import TechnologyCard from "@/components/foresight/TechnologyCard";
 import TechnologyTool from "@/components/foresight/TechnologyTool";
+import TierGate from "@/components/TierGate";
+
+/** Curated cards shown free before the Pro gate (value teaser, ONB-03/KEY-01). */
+const FREE_PREVIEW = 3;
 
 export const dynamic = "force-dynamic";
 
@@ -48,13 +52,8 @@ export default async function TechnologyExplorerPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="mb-10">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-            —— Technology Axes
-          </div>
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-paper bg-accent/20 border border-accent/40 px-2 py-0.5">
-            Pro preview
-          </span>
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-4">
+          —— Technology Axes
         </div>
         <h1 className="font-display text-4xl md:text-[52px] leading-[1.05] tracking-tight text-paper mb-4">
           Where innovation moves <span className="italic">fastest</span>
@@ -85,9 +84,16 @@ export default async function TechnologyExplorerPage() {
       </div>
 
       {/* Merged on-demand tool (#28/#36/#42/#43): one input → user-selectable CPC
-          domain → one canonical TIR trajectory + cross-tier lead time. */}
+          domain → one canonical TIR trajectory + cross-tier lead time.
+          Super Pro+ per the tier matrix ("analyze any topic you bring"). */}
       <div className="mb-10">
-        <TechnologyTool />
+        <TierGate
+          need="superpro"
+          feature="On-demand analysis"
+          benefit="Bring your own technology or topic and the engine reads it live — improvement rate, lead time and the evidence behind both. The curated technologies below show the format."
+        >
+          <TechnologyTool />
+        </TierGate>
       </div>
 
       <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-4">
@@ -98,15 +104,34 @@ export default async function TechnologyExplorerPage() {
         <div className="border border-border bg-card/40 p-10 text-center">
           <p className="font-sans text-text mb-2">Technology insights are being computed.</p>
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-            run scripts/build_cpc_insights.py
+            Check back shortly — the first analysis run has not been persisted yet.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {technologies.map((t) => (
-            <TechnologyCard key={t.symbol} tech={t} />
-          ))}
-        </div>
+        <TierGate
+          need="pro"
+          feature="The full technology library"
+          benefit={`Pro opens all ${technologies.length} curated technologies — lead times, improvement rates, key patents and convergence, each backed by clickable evidence.`}
+          teaser={
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {technologies.slice(0, FREE_PREVIEW).map((t) => (
+                  <TechnologyCard key={t.symbol} tech={t} />
+                ))}
+              </div>
+              <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                Free preview — showing {Math.min(FREE_PREVIEW, technologies.length)} of{" "}
+                {technologies.length} technologies
+              </p>
+            </div>
+          }
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {technologies.map((t) => (
+              <TechnologyCard key={t.symbol} tech={t} />
+            ))}
+          </div>
+        </TierGate>
       )}
 
       {/* Methodology / trust — the USP: improvement rates on the actual MIT method */}
@@ -134,39 +159,14 @@ export default async function TechnologyExplorerPage() {
         </p>
       </div>
 
-      {/* Display-only tier concept (real gating = issue #17) */}
-      <div className="mt-12 border border-border bg-card/40 p-6">
-        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-3">
-          —— Plans
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[
-            ["Free", "Curated trend articles, browsing, newsletter"],
-            ["Starter", "Cluster explorer: momentum & source corroboration"],
-            ["Pro", "Technology lead times, key patents, convergence axes"],
-            ["Super Pro+", "Your own scopes on demand, API access, raw evidence graph"],
-          ].map(([tier, desc], i) => (
-            <div
-              key={tier}
-              className={`border p-4 ${i === 2 ? "border-accent/50 bg-accent/5" : "border-border"}`}
-            >
-              <div className="font-display text-lg text-paper mb-1">{tier}</div>
-              <p className="font-sans text-sm text-text leading-snug">{desc}</p>
-              {i === 2 && (
-                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-accent mt-2">
-                  this page
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-        <p className="font-sans text-sm text-muted mt-4">
-          You are viewing the Pro preview.{" "}
-          <Link href="/trends/newsletter" className="text-accent hover:underline">
-            Get notified when plans launch →
-          </Link>
-        </p>
-      </div>
+      {/* One consistent monetisation message across the product (ONB-06):
+          plans are live — link to them instead of a stale "launching soon". */}
+      <p className="mt-12 font-sans text-sm text-muted">
+        This page is part of the Pro plan.{" "}
+        <Link href="/trends/pricing" className="text-accent hover:underline">
+          See plans →
+        </Link>
+      </p>
     </div>
   );
 }
