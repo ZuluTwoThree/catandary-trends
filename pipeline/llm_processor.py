@@ -47,6 +47,7 @@ from pipeline.config import (
     STAGE5_BACKEND,
     STAGE5_MIN_BODY_WORDS,
     STAGE5_TARGET_BODY_WORDS,
+    STAGE5_MAX_BODY_WORDS,
     STAGE5_MODEL,
     STAGE_8B_BACKEND,
     STAGE_8B_MODEL,
@@ -71,7 +72,7 @@ from pipeline.models import (
 )
 from pipeline.auto_publisher import auto_publish
 from pipeline.crs import compute_crs
-from pipeline.grounding import ungrounded_specifics
+from pipeline.grounding import ungrounded_specifics, source_from_parts
 from pipeline.ollama_client import chat_structured, generate_embedding
 from pipeline import anthropic_client, gpu_handover, llamacpp_client
 from pipeline.reclassify import gate_mega_trends, reclassify_drafts
@@ -151,7 +152,8 @@ def is_advertorial(title: str, excerpt: str = "") -> bool:
 
 EXTRACTION_SYSTEM = """\
 You are a precise information extractor. Extract ONLY information that is explicitly stated in the text.
-Do not infer, guess, or add information. If something is not mentioned, leave it as null or empty."""
+Do not infer, guess, or add information. If something is not mentioned, leave it as null or empty.
+Copy figures, dates and direct quotes VERBATIM, exactly as they appear (keep the original number and date formatting); never round, convert, rephrase or invent them."""
 
 _CLASSIFICATION_SYSTEM_TEMPLATE = """\
 You are a trend classifier for Catandary Trends, a cross-industry trend intelligence platform.
@@ -345,6 +347,8 @@ def content_is_clean(c: "GeneratedContent") -> bool:
     if not body.endswith((".", "!", "?", '"', "”")):   # cut off mid-sentence → retry
         return False
     if words < STAGE5_TARGET_BODY_WORDS:                # Option B: too short → re-roll
+        return False
+    if STAGE5_MAX_BODY_WORDS and words > STAGE5_MAX_BODY_WORDS:  # #11: runaway → re-roll
         return False
     return not _CLICHE_RE.search(f"{c.body}\n{c.summary}")
 
@@ -557,9 +561,13 @@ The source below may be in German or another language — translate it and write
 """
 
     # Grounding gate (#11): re-roll bodies that introduce a number/date not in the
-    # source. The model only sees the excerpt + claims, so anything else is
-    # fabricated (the harness measured ~1/3 of bodies inventing a specific).
-    source_text = f"{title} {excerpt} " + " ".join(extraction.key_claims or [])
+    # source. The model sees the excerpt (raw_content when available) + the
+    # extracted specifics, so anything else is fabricated (the harness measured
+    # ~1/3 of bodies inventing a specific). Build the source from the same parts
+    # the auto-publish gate rebuilds, so the two stay consistent.
+    source_text = source_from_parts(title, excerpt, extraction.key_claims,
+                                    extraction.key_figures, extraction.dates,
+                                    extraction.quotes, extraction.geography)
     guard = make_content_guard(source_text)
 
     if STAGE5_BACKEND == "llamacpp":

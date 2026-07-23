@@ -44,6 +44,11 @@ STAGE5_MIN_BODY_WORDS = int(os.getenv("STAGE5_MIN_BODY_WORDS", "25"))
 # but the 30B naturally lands ~100w; this pushes closer to spec at the cost of
 # more re-rolls). Still bounded by max_validate_retries, then accepted.
 STAGE5_TARGET_BODY_WORDS = int(os.getenv("STAGE5_TARGET_BODY_WORDS", "130"))
+# Symmetric max-word guard (#11), mirror of the MIN floor: re-roll a runaway body
+# above this ceiling (the prompt targets 150-250w). Set well above target so it
+# only catches genuine overruns, and it is bounded by max_validate_retries (a
+# still-too-long body is accepted after the budget, never looped). 0 disables it.
+STAGE5_MAX_BODY_WORDS = int(os.getenv("STAGE5_MAX_BODY_WORDS", "320"))
 
 # qwen3:8b stages backend (pipeline Stages 2 Relevance, 3 Extraction,
 # 4 Classification, 8 Reclassify).

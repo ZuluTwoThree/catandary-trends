@@ -63,6 +63,18 @@ def test_content_guard_accepts_clean_long_body():
     assert content_is_clean(_content(body)) is True
 
 
+def test_content_guard_rejects_runaway_body():
+    # #11 symmetric max-word guard: a runaway body far over STAGE5_MAX_BODY_WORDS
+    # is re-rolled (bounded by retries at the call site, then accepted).
+    from pipeline import llm_processor
+    from pipeline.llm_processor import content_is_clean
+
+    long_ok = ("Detail one. " + "word " * (llm_processor.STAGE5_MAX_BODY_WORDS - 20)).strip() + "."
+    assert content_is_clean(_content(long_ok)) is True
+    runaway = ("Detail one. " + "word " * (llm_processor.STAGE5_MAX_BODY_WORDS + 50)).strip() + "."
+    assert content_is_clean(_content(runaway)) is False
+
+
 def test_fabrication_detector_flags_ungrounded_year():
     from scripts.ab_test_prompt import fabricated_specifics
 

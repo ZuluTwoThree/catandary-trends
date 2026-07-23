@@ -36,6 +36,20 @@ def _norm_token(t: str) -> str:
     return t
 
 
+def source_from_parts(title: str | None, excerpt: str | None, *token_lists) -> str:
+    """Assemble the grounding source from the material the content model saw:
+    title + excerpt (raw_content when available) + any extractive token lists
+    (key_claims, key_figures, dates, quotes, geography). Centralising this keeps
+    the content re-roll guard and the auto-publish gate in sync (#11) — the gate
+    must check the body against the SAME specifics the model was given, otherwise
+    a figure present only in the full text gets falsely flagged as fabricated."""
+    parts: list[str] = [title or "", excerpt or ""]
+    for lst in token_lists:
+        if lst:
+            parts.append(" ".join(str(x) for x in lst))
+    return " ".join(p for p in parts if p)
+
+
 def ungrounded_specifics(body: str, source: str) -> list[str]:
     """Concrete tokens (year / number / % / money) in `body` that do not appear
     in `source` (title + excerpt + extracted claims). Empty list = grounded.
