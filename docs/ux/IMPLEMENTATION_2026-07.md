@@ -207,8 +207,9 @@ superpro) folgen dem `tierAllows`-Pfad, der durch die neue Testmatrix abgedeckt 
 Nachbewertung von `/trends/cross-vertical` (war im Audit nur Randbefund): irreführender
 Zähler (Query-Limit als Bestand), keine Zeittiefe/Filter (statisch die 50 neuesten, alle vom
 selben Tag), kein analytischer Mehrwert gegenüber dem Haupt-Feed, Status-loser Query-Fallback.
-**Owner-Entscheidung: streichen** — Cross-Vertical-Signale sind im Haupt-Feed filterbar und
-auf jeder Karte sichtbar („Cross:"-Zeile). Umgesetzt (Feature-Matrix-Kategorie *Deprecate*):
-Seite + `CrossVerticalHeader` + `getCrossVerticalTrends` entfernt, Nav-/Sitemap-Einträge raus,
-CLAUDE.md-Routing bereinigt, 308-Redirect `/trends/cross-vertical` → `/trends` für Alt-Links.
-Nebenbei: letzte deutsche Meta-Description (`/trends/mega`) auf Englisch.
+**Owner-Entscheidung: ersatzlos streichen** — Cross-Vertical-Signale sind im Haupt-Feed
+filterbar und auf jeder Karte sichtbar („Cross:"-Zeile); die Seite war nie öffentlich, daher
+auch kein Redirect (die Route existiert schlicht nicht mehr, wie nie enthalten). Umgesetzt
+(Feature-Matrix-Kategorie *Deprecate*): Seite + `CrossVerticalHeader` + `getCrossVerticalTrends`
+entfernt, Nav-/Sitemap-Einträge raus, CLAUDE.md-Routing bereinigt.
+Nebenbei: restliche deutsche Strings entfernt (u. a. Meta-Description `/trends/mega`).
