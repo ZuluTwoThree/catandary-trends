@@ -1,0 +1,67 @@
+name: Security Audit
+
+# Dependency vulnerabilities are deliberately NOT part of CI.
+# A CVE published today says nothing about the commit pushed today, so gating
+# every push on `npm audit` turned unrelated work red (and mailed us about it).
+#
+# Instead this runs when it is actually actionable:
+#   - weekly, to catch newly published advisories
+#   - whenever a dependency manifest changes, i.e. when *we* pulled a vuln in
+#   - on demand, e.g. as a pre-release check before merging dev -> main
+on:
+  schedule:
+    # Mondays 06:00 UTC. Scheduled runs only ever use the default branch (main).
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+  push:
+    branches: [main, dev]
+    paths:
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "requirements.txt"
+      - ".github/workflows/security-audit.yml"
+  pull_request:
+    paths:
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "requirements.txt"
+      - ".github/workflows/security-audit.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  npm:
+    name: npm audit (frontend)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      # Resolves the tree straight from package-lock.json — no install needed.
+      - name: npm audit (fail on high)
+        run: npm audit --audit-level=high
+
+  python:
+    name: pip-audit (Python deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pip install pip-audit
+      # -r audits the declared dependency tree only. Auditing the environment
+      # instead would report advisories against pip/setuptools themselves,
+      # which are runner tooling and not something this repo ships.
+      - name: pip-audit
+        run: pip-audit -r requirements.txt --progress-spinner off

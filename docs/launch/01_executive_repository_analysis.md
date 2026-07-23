@@ -41,7 +41,7 @@ black-box keyword tools and €50 k+/yr enterprise innovation suites.
 | **Data** | PostgreSQL 16 + pgvector (prod), SQLite (test/CI/frozen fallback) from one schema (`pipeline/db.py`); HNSW ANN on a 1024-dim Matryoshka prefix |
 | **Frontend** | Next.js 16 (App Router) + React 19 + Tailwind v4 + TypeScript; IBM Plex Serif/Mono/Sans; "Editorial Intelligence" dark theme (chartreuse `#d4ff3a` on ink `#0a0c0a`) |
 | **Monetization** | Dependency-free magic-link auth (HMAC session cookie), dependency-free Stripe (signature-verified, idempotent webhook), env-gated paywall/entitlement, 4 tiers + Hypercare |
-| **Ops** | Hetzner VPS + Caddy (auto-HTTPS) + systemd user unit; nightly `pg_dump` + verified restore runbook; GitHub Actions CI (pytest against real pgvector, lint, vitest, `npm audit --high`, build, clean-tree check) |
+| **Ops** | Hetzner VPS + Caddy (auto-HTTPS) + systemd user unit; nightly `pg_dump` + verified restore runbook; GitHub Actions CI (pytest against real pgvector, lint, vitest, build, clean-tree check) plus a separate weekly/on-dependency-change Security Audit workflow (`npm audit --high`, `pip-audit`) |
 
 **Core objects (glossary the site must teach):** *signal*, *trend* (curated article),
 *vertical* (8), *PESTEL* (6), *mega/macro/micro*, *lead-time tier* (4), *cluster*,
