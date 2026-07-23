@@ -199,3 +199,16 @@ sich die Instanz wieder wie die gewohnte Voll-Demo (alle Gates dieser Umsetzung 
 Getestete Personas/Tiers im Smoke-Test: anonym/Free (Gates, Teaser, Sign-up-Pfad), Checkout-Umweg
 (Sign-in-Kontext), API-Konsument (402/400-Verhalten). Eingeloggte Tier-Durchstiche (starter/pro/
 superpro) folgen dem `tierAllows`-Pfad, der durch die neue Testmatrix abgedeckt ist.
+
+---
+
+## 4. Nachtrag 2026-07-23 — Cross-Industry-Seite gestrichen (Owner-Entscheidung)
+
+Nachbewertung von `/trends/cross-vertical` (war im Audit nur Randbefund): irreführender
+Zähler (Query-Limit als Bestand), keine Zeittiefe/Filter (statisch die 50 neuesten, alle vom
+selben Tag), kein analytischer Mehrwert gegenüber dem Haupt-Feed, Status-loser Query-Fallback.
+**Owner-Entscheidung: streichen** — Cross-Vertical-Signale sind im Haupt-Feed filterbar und
+auf jeder Karte sichtbar („Cross:"-Zeile). Umgesetzt (Feature-Matrix-Kategorie *Deprecate*):
+Seite + `CrossVerticalHeader` + `getCrossVerticalTrends` entfernt, Nav-/Sitemap-Einträge raus,
+CLAUDE.md-Routing bereinigt, 308-Redirect `/trends/cross-vertical` → `/trends` für Alt-Links.
+Nebenbei: letzte deutsche Meta-Description (`/trends/mega`) auf Englisch.

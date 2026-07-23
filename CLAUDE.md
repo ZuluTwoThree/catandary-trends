@@ -517,7 +517,6 @@ CREATE EXTENSION vector;
 /trends/[slug]                   → Einzelner Trend-Artikel
 /trends/vertical/[v]             → Redirect auf /trends?v=<VERTICAL>
 /trends/mega, /trends/mega/[m]   → Mega-Trend-Übersicht + Detail
-/trends/cross-vertical           → Cross-Industry-Trends
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
   /radar /clusters /technology /lead-time /evolution /dossier
                                    (Tier-gegated: radar+clusters=Starter, technology+lead-time+

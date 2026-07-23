@@ -238,21 +238,6 @@ async function fetchMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
   });
 }
 
-export async function getCrossVerticalTrends(options: {
-  status?: string;
-  limit?: number;
-} = {}): Promise<Trend[]> {
-  const params: unknown[] = [];
-  let query = TREND_SELECT + " WHERE jsonb_array_length(t.verticals) > 1";
-  if (options.status) {
-    params.push(options.status);
-    query += ` AND t.status = $${params.length}`;
-  }
-  params.push(options.limit ?? 20);
-  query += ` ORDER BY t.sort_date DESC NULLS LAST, t.trend_score DESC LIMIT $${params.length}`;
-  return (await q(query, params)).map(parseTrendRow);
-}
-
 export async function getTopTrendsByEngagement(limit: number = 10): Promise<Trend[]> {
   const rows = await q(
     `SELECT ${TREND_COLS},

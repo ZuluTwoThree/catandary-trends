@@ -8,11 +8,12 @@ export interface NavItem {
   label: string;
 }
 
-/** Top-level content sections. */
+/** Top-level content sections. Cross-Industry was removed as a standalone
+ *  page (owner decision 2026-07-23) — cross-vertical signals are filterable
+ *  in the main /trends feed and visible on every card's "Cross:" row. */
 export const PRIMARY_NAV: NavItem[] = [
   { href: "/trends", label: "Trends" },
   { href: "/trends/mega", label: "Mega Trends" },
-  { href: "/trends/cross-vertical", label: "Cross-Industry" },
 ];
 
 /** The Foresight tool suite — grouped under one "Foresight" entry. */

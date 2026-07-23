@@ -13,6 +13,18 @@ const nextConfig: NextConfig = {
     "100.115.179.37",
     "*.ts.net", // Tailscale MagicDNS names, if reached by hostname
   ],
+  async redirects() {
+    return [
+      // Standalone Cross-Industry page removed (owner decision 2026-07-23):
+      // it duplicated the main feed — cross-vertical signals are filterable
+      // there and every card shows its "Cross:" verticals. Keep old links alive.
+      {
+        source: "/trends/cross-vertical",
+        destination: "/trends",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
