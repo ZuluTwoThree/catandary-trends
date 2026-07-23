@@ -20,6 +20,29 @@ ACADEMIC_HOSTS = ("onlinelibrary.wiley.com", "nature.com", "sciencedirect", "fro
                   "cell.com", "pnas.org", "bmj.com", "thelancet.com", "acs.org",
                   "iopscience", "rsc.org", "plos.org", "ssrn.com", "arxiv.org")
 
+# Press / institutional outlets that the academic heuristic otherwise mis-routes
+# to ACADEMIC — by a research/science tag or a coincidental domain substring —
+# even though OpenAlex has NO journal for them, so they'd yield 0 works (silent
+# content loss). They must fall through to the WP probe or the sitemap/OTHER
+# path instead. Checked BEFORE the academic fallthrough (#4). An explicit
+# `ingest_via` in sources.yaml still overrides everything.
+PRESS_HOSTS = ("theconversation.com", "who.int", "fao.org", "nytimes.com",
+               "sciencedaily.com", "hbr.org")
+
+
+def is_press_host(domain: str) -> bool:
+    return any(h in domain for h in PRESS_HOSTS)
+
+
+def is_academic_src(src: dict, domain: str) -> bool:
+    """Pure routing decision: is this an academic/OpenAlex source? A known press
+    host is never academic (#4), even when tagged research/science."""
+    if is_press_host(domain):
+        return False
+    typ = (src.get("type") or "").lower()
+    return (src.get("group") in ("science",) or typ in ("science", "research")
+            or any(h in domain for h in ACADEMIC_HOSTS))
+
 
 def collect_sources(cfg):
     out = []
@@ -38,9 +61,7 @@ def collect_sources(cfg):
 
 def classify(src):
     domain = domain_of(src.get("feed_url", ""))
-    typ = (src.get("type") or "").lower()
-    is_academic = (src.get("group") in ("science",) or typ in ("science", "research")
-                   or any(h in domain for h in ACADEMIC_HOSTS))
+    is_academic = is_academic_src(src, domain)
     # An explicit `ingest_via` in sources.yaml overrides the heuristic.
     forced = (src.get("ingest_via") or "").upper()
     if forced in ("WP", "ACADEMIC", "OTHER"):
