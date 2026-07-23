@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { TIERS, HYPERCARE } from "@/lib/tiers";
-import { viewerTier, PAYWALL_ENABLED } from "@/lib/entitlement";
-import { AUTH_ENABLED } from "@/lib/auth";
+import { PAYWALL_ENABLED } from "@/lib/entitlement";
+import { AUTH_ENABLED, getSession } from "@/lib/auth";
 import CheckoutButton from "@/components/CheckoutButton";
 
 export const dynamic = "force-dynamic";
@@ -13,73 +13,105 @@ export const metadata = {
 };
 
 /**
- * Pricing page. Shows the four tiers with the owner's feature matrix. Checkout
- * buttons appear only when Stripe is configured (PAYWALL_ENABLED + keys);
- * otherwise a "coming soon" note so the page is honest during the alpha.
+ * Pricing page, Editorial-Intelligence styling (DS-04: this page used to run
+ * on a second, generic design system — precisely where people pay). Logic
+ * fixes: "Your current plan" only for signed-in viewers (COPY-09), checkout
+ * buttons only when Stripe is configured, cancelled-checkout notice, billing
+ * transparency line (COPY-25).
  */
-export default async function PricingPage() {
-  const current = AUTH_ENABLED ? await viewerTier() : null;
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  const cancelled = sp.checkout === "cancelled";
+  const session = AUTH_ENABLED ? await getSession() : null;
+  const current = session?.tier ?? null;
   const stripeReady = PAYWALL_ENABLED && Boolean(process.env.STRIPE_SECRET_KEY);
-  // Sales-led offering: no self-serve checkout, just a contact route. Address is
-  // overridable via env; defaults to the existing catandary.de inbox.
   const contactEmail = process.env.CONTACT_EMAIL || "trends@catandary.de";
   const hypercareMailto = `mailto:${contactEmail}?subject=${encodeURIComponent(
     "Hypercare Trend & Foresight enquiry"
   )}`;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
-      <div className="mb-2 text-center">
-        <h1 className="text-3xl font-bold tracking-tight">Plans</h1>
-        <p className="mx-auto mt-2 max-w-2xl text-sm opacity-70">
-          Evidence-based foresight with clickable primary sources — the free feed
-          is the lead magnet, the paid tiers are where the lead-time edge lives.
+    <div className="mx-auto max-w-6xl px-6 py-12">
+      <div className="mb-10">
+        <span className="eyebrow">Access</span>
+        <h1 className="font-display text-[44px] md:text-[56px] leading-[1.02] tracking-[-0.02em] text-paper mt-4">
+          Start free. Grow into <span className="italic text-accent">the engine</span>.
+        </h1>
+        <p className="mt-4 max-w-2xl text-[15px] leading-[1.6] text-muted">
+          The curated feed and weekly briefing are free — the paid tiers add the
+          lead-time edge: see what&apos;s rising months before the market, with
+          evidence you can cite.
           {!stripeReady && " Paid tiers open soon; the alpha runs in preview."}
         </p>
-        <Link href="/trends/methodology" className="mt-2 inline-block text-sm underline opacity-80">
+        <Link
+          href="/trends/methodology"
+          className="mt-3 inline-block font-mono text-[11px] uppercase tracking-[0.14em] text-accent hover:underline"
+        >
           How we measure →
         </Link>
       </div>
 
-      <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+      {cancelled && (
+        <div
+          role="status"
+          className="mb-8 border border-border bg-card px-5 py-4 text-[14px] text-foreground"
+        >
+          Checkout cancelled — nothing was charged. Your plan is unchanged; you
+          can pick one whenever you&apos;re ready.
+        </div>
+      )}
+
+      <div className="grid gap-px bg-border border border-border md:grid-cols-2 lg:grid-cols-4">
         {TIERS.map((t) => {
-          const isCurrent = current === t.id;
+          const isCurrent = session != null && current === t.id;
+          const featured = t.id === "pro";
           return (
             <div
               key={t.id}
-              className={`flex flex-col rounded-2xl border p-5 ${
-                t.id === "pro" ? "border-current/40" : "border-current/12"
+              className={`flex flex-col p-6 ${
+                featured ? "bg-card-hover shadow-[inset_0_2px_0_var(--color-accent)]" : "bg-card"
               }`}
             >
-              <div className="text-xs font-semibold uppercase tracking-wide opacity-60">
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
                 {t.label}
               </div>
-              <div className="mt-1 text-2xl font-bold">{t.priceHint}</div>
-              <p className="mt-2 text-sm opacity-75">{t.blurb}</p>
-              <ul className="mt-4 flex-1 space-y-1.5 text-sm">
+              <div className="font-display text-[32px] text-paper mt-2">
+                {t.priceHint.replace("/mo", "")}
+                {t.priceHint.includes("/mo") && (
+                  <span className="font-mono text-[11px] text-muted tracking-[0.04em]"> /mo</span>
+                )}
+              </div>
+              <p className="mt-2 text-[13px] leading-[1.55] text-muted min-h-[3.2em]">{t.blurb}</p>
+              <ul className="mt-4 flex-1 space-y-2">
                 {t.features.map((f) => (
-                  <li key={f} className="flex gap-2">
-                    <span className="opacity-50">·</span>
-                    <span>{f}</span>
+                  <li key={f} className="relative pl-4 text-[13px] leading-[1.5] text-foreground">
+                    <span className="absolute left-0 text-accent-deep" aria-hidden="true">
+                      +
+                    </span>
+                    {f}
                   </li>
                 ))}
               </ul>
-              <div className="mt-5">
+              <div className="mt-6">
                 {isCurrent ? (
-                  <div className="rounded-lg border border-current/20 py-2 text-center text-sm opacity-70">
+                  <div className="border border-border py-2.5 text-center font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
                     Your current plan
                   </div>
                 ) : t.id === "free" ? (
                   <Link
-                    href={AUTH_ENABLED ? "/account/signin" : "/trends"}
-                    className="block rounded-lg border border-current/20 py-2 text-center text-sm font-semibold hover:bg-current/5"
+                    href={AUTH_ENABLED && !session ? "/account/signin" : "/trends"}
+                    className="block border border-border-strong py-2.5 text-center font-mono text-[11px] uppercase tracking-[0.14em] text-paper hover:border-accent transition-colors"
                   >
-                    {AUTH_ENABLED ? "Sign up free" : "Browse free"}
+                    {AUTH_ENABLED && !session ? "Sign up free" : "Browse free"}
                   </Link>
                 ) : stripeReady ? (
-                  <CheckoutButton tier={t.id} label={`Choose ${t.label}`} />
+                  <CheckoutButton tier={t.id} label={`Choose ${t.label}`} featured={featured} />
                 ) : (
-                  <div className="rounded-lg border border-dashed border-current/20 py-2 text-center text-sm opacity-60">
+                  <div className="border border-dashed border-border py-2.5 text-center font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
                     Coming soon
                   </div>
                 )}
@@ -89,22 +121,30 @@ export default async function PricingPage() {
         })}
       </div>
 
+      {stripeReady && (
+        <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+          Monthly billing via Stripe · cancel anytime · prices excl. VAT
+        </p>
+      )}
+
       {/* Hypercare — sales-led, day-rate. Deliberately outside the subscription
           grid: a bespoke engagement with a contact CTA, never a Stripe checkout. */}
-      <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-current/25 bg-current/[0.03] p-6 md:flex-row md:items-center md:justify-between">
+      <div className="mt-8 border border-border bg-card p-6 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
         <div className="md:max-w-3xl">
           <div className="flex items-baseline gap-3">
-            <span className="text-xs font-semibold uppercase tracking-wide opacity-60">
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
               {HYPERCARE.label}
             </span>
-            <span className="text-2xl font-bold">{HYPERCARE.priceHint}</span>
+            <span className="font-display text-[24px] text-paper">{HYPERCARE.priceHint}</span>
           </div>
-          <p className="mt-2 text-sm opacity-75">{HYPERCARE.blurb}</p>
-          <ul className="mt-3 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+          <p className="mt-2 text-[13px] leading-[1.55] text-muted">{HYPERCARE.blurb}</p>
+          <ul className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
             {HYPERCARE.features.map((f) => (
-              <li key={f} className="flex gap-2">
-                <span className="opacity-50">·</span>
-                <span>{f}</span>
+              <li key={f} className="relative pl-4 text-[13px] leading-[1.5] text-foreground">
+                <span className="absolute left-0 text-accent-deep" aria-hidden="true">
+                  +
+                </span>
+                {f}
               </li>
             ))}
           </ul>
@@ -112,9 +152,9 @@ export default async function PricingPage() {
         <div className="shrink-0">
           <a
             href={hypercareMailto}
-            className="block rounded-lg border border-current/30 px-5 py-2 text-center text-sm font-semibold hover:bg-current/5"
+            className="block border border-border-strong px-5 py-2.5 text-center font-mono text-[11px] uppercase tracking-[0.14em] text-paper hover:border-accent transition-colors"
           >
-            Talk to us
+            Email us about Hypercare
           </a>
         </div>
       </div>

@@ -148,7 +148,7 @@ export default function MegaTrendsPage({
                 </div>
 
                 <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent/70 mt-5">
-                  Full Forecast / Catandary Foresight →
+                  Open mega-trend →
                 </p>
               </Link>
             );

@@ -27,7 +27,8 @@ const TECHS: Tech[] = [
   { key: "ml", label: "Machine learning", pts: [0.22, 0.26, 0.3, 0.38, 0.5, 0.66, 0.82, 0.92, 0.97, 0.99], rate: "accelerating", verdict: "Accelerating", color: "#d4ff3a", lead: [0.3, 0.46, 0.66, 0.8], note: "Machine learning: a rising cluster and a steep recent trajectory — the engine flags the surge." },
 ];
 
-const TIER_COLORS = ["#a78bfa", "#60a5fa", "#34d399", "#d4ff3a"];
+// Canonical tier palette — keep in sync with TierCurveChart / --t-* tokens.
+const TIER_COLORS = ["#22d3ee", "#a78bfa", "#fb923c", "#bde63a"];
 const TIER_NAMES = ["Science", "Patents", "Funding", "Market"];
 
 function hexA(hex: string, a: number) {
