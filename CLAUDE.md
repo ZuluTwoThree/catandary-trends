@@ -467,24 +467,25 @@ cross_industry:
 
 ## Frontend: Catandary Trends Website
 
-### Tech-Stack
+### Tech-Stack (Ist-Stand 2026-07-23)
 
-- **Framework:** Next.js 14 (App Router) + TypeScript
-- **Styling:** Tailwind CSS
-- **DB-Anbindung:** Drizzle ORM + PostgreSQL (mit pgvector)
-- **Hosting:** Hetzner VPS (bestehend)
+- **Framework:** Next.js 16 (App Router, Turbopack-Dev) + TypeScript + React 19
+- **Styling:** Tailwind CSS v4 (`@theme`-Tokens in `frontend/src/app/globals.css` — Designsystem „Editorial Intelligence": IBM Plex Serif/Mono/Sans, Ink `#0a0c0a`, Akzent Chartreuse `#d4ff3a`, scharfe Kanten)
+- **DB-Anbindung:** eigener `pg`-Layer (`frontend/src/lib/pg.ts` + `db.ts`) auf PostgreSQL/pgvector, Socket-Default (kein Drizzle); teure Aggregat-Queries laufen über einen In-Process-TTL-Cache in `db.ts`
+- **Auth/Paywall:** Magic-Link-Auth (`lib/auth.ts`) + Tier-Entitlements (`lib/entitlement.ts`, `lib/tiers.ts`, `TierGate`), Stripe-Checkout/Webhook; alles hinter `AUTH_ENABLED`/`PAYWALL_ENABLED` (Gates aus = alles offen)
+- **Hosting:** Hetzner VPS (bestehend), lokal Port 3001 via systemd user unit `catandary-frontend`
 - **Reverse Proxy:** Caddy (automatisches HTTPS via Let's Encrypt)
-- **Domain:** catandary.de (Trends unter catandary.de/trends)
-- **Newsletter:** Resend (oder Buttondown)
-- **Process Manager:** PM2 oder systemd für Next.js + Pipeline-Prozesse
+- **Domain:** catandary.de (Landing `/`, Trends unter `/trends`)
+- **Newsletter:** Resend (Domain send.catandary.de)
+- **Tests:** Vitest (`frontend/src/lib/*.test.ts`)
 
 ### Deployment auf Hetzner
 
 ```
-# Caddy-Konfiguration (Caddyfile)
+# Caddy-Konfiguration (Caddyfile) — App läuft lokal auf :3001
 catandary.de {
     # Next.js App
-    reverse_proxy localhost:3000
+    reverse_proxy localhost:3001
 
     # Statische Assets cachen
     @static path /trends/_next/static/*
@@ -492,32 +493,44 @@ catandary.de {
 }
 
 # Oder als Subdomain falls bestehende Seite nicht stören:
-# trends.catandary.de { reverse_proxy localhost:3000 }
+# trends.catandary.de { reverse_proxy localhost:3001 }
 ```
 
 ```bash
-# Deployment-Workflow auf Hetzner
+# Deployment-Workflow (lokal wie Hetzner) — systemd statt PM2 (seit #38)
 git pull origin main
-npm run build
-pm2 restart catandary-trends
+cd frontend && npm run build
+systemctl --user restart catandary-frontend
+# Unit: deploy/systemd/catandary-frontend.service (Socket-Default, Autostart via Linger)
 
-# PostgreSQL + pgvector auf Hetzner
+# PostgreSQL + pgvector
 sudo apt install postgresql postgresql-contrib
 # pgvector Extension installieren
 CREATE EXTENSION vector;
 ```
 
-### Routing
+### Routing (Ist-Stand 2026-07-23)
 
 ```
-catandary.de/trends                        → Hauptseite (alle Vertikale, Card-Grid)
-catandary.de/trends/vertical/[v]           → Vertikale-Übersicht (z.B. /vertical/food)
-catandary.de/trends/[slug]                 → Einzelner Trend-Artikel
-catandary.de/trends/pestel/[dimension]     → PESTEL-Dimension (z.B. /pestel/technological)
-catandary.de/trends/mega/[megatrend]       → Mega-Trend-Cluster (Teaser für Foresight)
-catandary.de/trends/search                 → Volltextsuche + Filter
-catandary.de/trends/newsletter             → Newsletter-Signup
+/                                → Landing („The Instrument", Wertversprechen + Pricing-Teaser)
+/trends                          → Hauptfeed (Card-Grid, Filter-Bar inkl. Suche ?q= — es gibt KEINE separate /trends/search-Route)
+/trends/[slug]                   → Einzelner Trend-Artikel
+/trends/vertical/[v]             → Redirect auf /trends?v=<VERTICAL>
+/trends/mega, /trends/mega/[m]   → Mega-Trend-Übersicht + Detail
+/trends/cross-vertical           → Cross-Industry-Trends
+/trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
+  /radar /clusters /technology /lead-time /evolution /dossier
+                                   (Tier-gegated: radar+clusters=Starter, technology+lead-time+
+                                    evolution+dossier=Pro, On-Demand-Analyzer=Super Pro+;
+                                    Free-Teaser bleibt sichtbar — „gate at the value drill-down")
+/trends/methodology              → Methodik-/Trust-Seite
+/trends/pricing                  → Pläne (Stripe-Checkout wenn konfiguriert)
+/trends/newsletter (+/unsubscribe) → Newsletter-Signup/-Abmeldung
+/account, /account/signin        → Konto + Magic-Link-Login (nur bei AUTH_ENABLED=1)
+/imprint, /privacy               → Rechtstexte (Impressum-Adressblock = Owner-Gate vor Public-Launch)
 ```
+
+Hinweis: Ein DE/EN-Switcher existiert nicht mehr — die Produktsprache ist durchgehend Englisch (DE-Content-Spalten bleiben NULL, s.o.).
 
 ### Design-Richtung
 
