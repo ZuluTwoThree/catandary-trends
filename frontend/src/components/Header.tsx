@@ -1,52 +1,64 @@
+import Link from "next/link";
+import { AUTH_ENABLED, getSession } from "@/lib/auth";
+import { PRIMARY_NAV, PLANS_NAV } from "@/lib/nav";
+import NavLink from "./NavLink";
+import ForesightMenu from "./ForesightMenu";
 import MobileNav from "./MobileNav";
 
-const NAV_ITEMS = [
-  { href: "/trends", label: "Trends" },
-  { href: "/trends/mega", label: "Mega Trends" },
-  { href: "/trends/cross-vertical", label: "Cross-Industry" },
-  { href: "/trends/foresight", label: "Foresight" },
-  { href: "/trends/foresight/radar", label: "Radar" },
-  { href: "/trends/foresight/evolution", label: "Evolution" },
-  { href: "/trends/foresight/lead-time", label: "Lead Time" },
-  { href: "/trends/foresight/clusters", label: "Clusters" },
-  { href: "/trends/foresight/technology", label: "Technology" },
-  { href: "https://catandary.de", label: "Catandary", external: true },
-];
+const LINK_CLASS =
+  "font-mono text-[11px] uppercase tracking-[0.14em] px-3 py-1.5 transition-colors";
 
-export default function Header() {
+/**
+ * Global header. Session-aware: with auth enabled it always offers a way in
+ * (Sign in / Account) — previously the entire monetisation funnel was
+ * unreachable from the navigation (ONB-02 / ARCH-05 / COPY-12).
+ */
+export default async function Header() {
+  const session = AUTH_ENABLED ? await getSession() : null;
+
   return (
     <header className="border-b border-border">
-      <div className="mx-auto max-w-7xl px-6 md:px-12 h-16 flex items-center justify-between">
-        <a href="/trends" className="group">
+      <div className="mx-auto max-w-7xl px-6 md:px-12 h-16 flex items-center justify-between gap-4">
+        <Link href="/" className="group shrink-0" aria-label="Catandary home">
           <span className="font-display text-[22px] font-normal tracking-tight text-paper">
             Catandary<span className="text-accent">.</span>
           </span>
-        </a>
+        </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-1">
-          {NAV_ITEMS.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              {...(item.external
-                ? { target: "_blank", rel: "noopener noreferrer" }
-                : {})}
-              className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-paper px-3 py-1.5 transition-colors"
-            >
+        <nav aria-label="Main" className="hidden lg:flex items-center gap-1">
+          {PRIMARY_NAV.map((item) => (
+            <NavLink key={item.href} href={item.href} className={LINK_CLASS}>
               {item.label}
-            </a>
+            </NavLink>
           ))}
-          <a
-            href="/trends/newsletter"
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent px-3 py-1.5 border border-accent bg-accent/5 hover:bg-accent/15 transition-colors"
-          >
-            Newsletter
-          </a>
+          <ForesightMenu />
+          <NavLink href={PLANS_NAV.href} className={LINK_CLASS}>
+            {PLANS_NAV.label}
+          </NavLink>
         </nav>
 
-        {/* Mobile nav (hamburger + drawer) */}
-        <MobileNav items={NAV_ITEMS} />
+        <div className="hidden lg:flex items-center gap-2 shrink-0">
+          {AUTH_ENABLED &&
+            (session ? (
+              <NavLink href="/account" className={LINK_CLASS}>
+                Account
+              </NavLink>
+            ) : (
+              <NavLink href="/account/signin" className={LINK_CLASS}>
+                Sign in
+              </NavLink>
+            ))}
+          <Link
+            href="/trends/newsletter"
+            className="font-mono text-[11px] uppercase tracking-[0.14em] text-accent px-3 py-1.5 border border-accent bg-accent/5 hover:bg-accent/15 transition-colors"
+          >
+            Newsletter
+          </Link>
+        </div>
+
+        {/* Mobile nav (hamburger + drawer), < lg */}
+        <MobileNav authEnabled={AUTH_ENABLED} signedIn={Boolean(session)} />
       </div>
     </header>
   );
