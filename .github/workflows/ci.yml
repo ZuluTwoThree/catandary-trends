@@ -3,9 +3,13 @@ name: CI
 # Correctness gates only — this workflow goes red when *our* code is broken.
 # Dependency vulnerabilities live in security-audit.yml, so a newly published
 # CVE can no longer fail an unrelated commit.
+#
+# push stays unfiltered on purpose: feature branches here are often merged into
+# dev directly instead of via a PR, so the push run is their only pre-merge
+# signal. Branches with an open PR therefore get two runs (branch + merge
+# result) — that is duplicate work, not duplicate breakage.
 on:
   push:
-    branches: [main, dev]
   pull_request:
 
 # Cancel superseded runs on the same ref.
@@ -20,6 +24,7 @@ jobs:
   python:
     name: Python tests + PostgreSQL/pgvector
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -51,6 +56,7 @@ jobs:
   frontend:
     name: Frontend lint + build + tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: frontend

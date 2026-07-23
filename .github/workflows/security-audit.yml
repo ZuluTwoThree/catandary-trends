@@ -38,6 +38,7 @@ jobs:
   npm:
     name: npm audit (frontend)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -53,6 +54,7 @@ jobs:
   python:
     name: pip-audit (Python deps)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
