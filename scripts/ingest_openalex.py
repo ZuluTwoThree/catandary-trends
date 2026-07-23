@@ -265,6 +265,86 @@ def iter_works_by_concept(client: httpx.Client, cid: str, after: str, before: st
         time.sleep(0.2)
 
 
+# --- Citation-free fresh sweep (issue #51): the cited-concept pull above is
+# gated on cited_by_count and sorted by it, so recent works (which have no
+# citations yet) are structurally excluded — exactly the works a LEAD signal
+# needs. This mode pulls citation-free, freshest-first, and stays separate from
+# the #9 graph path so the established citation graph is untouched.
+def count_works(client: httpx.Client, filt: str) -> int | None:
+    """meta.count for a works filter, without pulling the works (#51 Step 1:
+    size the corpus before deciding to ingest it)."""
+    data = _get(client, f"{OPENALEX}/works", {"filter": filt, "per_page": 1, "select": "id"})
+    if data is None:
+        return None
+    return (data.get("meta") or {}).get("count")
+
+
+def iter_works_fresh(client: httpx.Client, cid: str, after: str, before: str):
+    """Citation-FREE, freshest-first works for a concept (#51 lead sweep). No
+    cited_by_count gate (recent works have none — that's the point); sorted
+    publication_date:desc so the newest works arrive first (a per-shard cap then
+    takes the freshest slice)."""
+    c = cid.rsplit("/", 1)[-1]  # C12345
+    filt = (f"concepts.id:{c},from_publication_date:{after},"
+            f"to_publication_date:{before}")
+    cursor = "*"
+    while cursor:
+        data = _get(client, f"{OPENALEX}/works", {
+            "filter": filt, "per_page": 100, "cursor": cursor,
+            "sort": "publication_date:desc",
+            "select": "id,title,publication_date,abstract_inverted_index,doi,"
+                      "primary_location,cited_by_count",
+        })
+        if data is None:
+            return
+        for w in data.get("results", []):
+            yield w
+        cursor = data.get("meta", {}).get("next_cursor")
+        time.sleep(0.2)
+
+
+def measure_fresh_corpus(after: str, before: str, vertical_filter: str) -> dict:
+    """#51 Step 1: size the citation-FREE fresh corpus over the curated concepts
+    for the date range via meta.count, WITHOUT pulling anything. Prints per-concept
+    counts + a summed total and the Go/No-Go verdict (issue thresholds: <200k →
+    defer, >1M → full sweep). Note: concepts overlap, so the sum is an upper bound
+    on unique works, useful for relative sizing."""
+    if vertical_filter.upper() == "ALL":
+        jobs = [(c, v) for v, cs in CONCEPT_SHARDS.items() for c in cs]
+    else:
+        v = vertical_filter.upper()
+        jobs = [(c, v) for c in CONCEPT_SHARDS.get(v, [])]
+        if not jobs:
+            logger.error("no curated concepts for vertical %s", v)
+            return {"total": 0, "rows": [], "verdict": "n/a"}
+    rows: list[tuple[str, str, int | None]] = []
+    total = 0
+    print(f"{'concept':32s} {'vert':9s} {'count':>12s}   [{after}..{before}, citation-free]")
+    with httpx.Client(headers=HEADERS) as client:
+        for concept, vert in jobs:
+            resolved = resolve_concept_id(client, concept)
+            if not resolved:
+                rows.append((concept, vert, None))
+                print(f"{concept:32s} {vert:9s} {'RESOLVE-ERR':>12s}")
+                continue
+            cid, _disp = resolved
+            c = cid.rsplit("/", 1)[-1]
+            filt = (f"concepts.id:{c},from_publication_date:{after},"
+                    f"to_publication_date:{before}")
+            n = count_works(client, filt)
+            rows.append((concept, vert, n))
+            if n:
+                total += n
+            print(f"{concept:32s} {vert:9s} {(format(n, ',') if n is not None else 'ERR'):>12s}")
+            time.sleep(0.1)
+    verdict = ("DEFER (<200k)" if total < 200_000 else
+               "FULL SWEEP (>1M)" if total > 1_000_000 else
+               "PARTIAL (200k-1M) — pull the strongest verticals first")
+    print(f"{'TOTAL (sum, overlap-inflated)':32s} {'':9s} {total:>12,}")
+    print(f"Verdict: {verdict}")
+    return {"total": total, "rows": rows, "verdict": verdict}
+
+
 def iter_works_graph(client: httpx.Client, filt: str):
     """Cursor-paginate works with the FULL graph select (issue #9): referenced_works
     (citation edges), topics (domain layer), cited_by_count + counts_by_year
@@ -385,10 +465,15 @@ def ingest_topic_graph(scope: str, after: str, before: str, min_citations: int,
 
 
 def ingest_concept(concept: str, vertical: str, after: str, before: str,
-                   min_citations: int, cap: int, dry_run: bool) -> dict:
+                   min_citations: int, cap: int, dry_run: bool,
+                   fresh: bool = False) -> dict:
     """Ingest a concept's works as SCIENCE-tier raw_entries (source_type=research
     so the lead-time tier map treats them as science). Excerpt prefixed
-    `[Science · <concept>]` to carry the tier into the embedding."""
+    `[Science · <concept>]` to carry the tier into the embedding.
+
+    fresh=True (#51): citation-free, freshest-first — the lead-signal sweep. Uses
+    a distinct source (`OpenAlex fresh: …`) so it never mixes with the cited pull
+    or the #9 citation graph."""
     stats = {"works": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
     with httpx.Client(headers=HEADERS) as client:
         resolved = resolve_concept_id(client, concept)
@@ -396,12 +481,18 @@ def ingest_concept(concept: str, vertical: str, after: str, before: str,
             logger.error("OpenAlex: could not resolve concept '%s'", concept)
             return stats
         cid, disp = resolved
-        logger.info("[openalex-concept] %s -> %s (%s) | %s..%s | cited>%d cap=%d",
-                    concept, cid, disp, after, before, min_citations, cap)
+        logger.info("[openalex-concept%s] %s -> %s (%s) | %s..%s | %s cap=%d",
+                    " · FRESH" if fresh else "", concept, cid, disp, after, before,
+                    "citation-free" if fresh else f"cited>{min_citations}", cap)
+        src_name = f"OpenAlex fresh: {disp}" if fresh else f"OpenAlex: {disp}"
+        src_feed = (f"{OPENALEX}/works?concept={cid.rsplit('/',1)[-1]}"
+                    + ("&fresh=1" if fresh else ""))
         source_id = -1 if dry_run else db.upsert_source(
-            name=f"OpenAlex: {disp}", feed_url=f"{OPENALEX}/works?concept={cid.rsplit('/',1)[-1]}",
+            name=src_name, feed_url=src_feed,
             source_type="research", vertical=vertical)
-        for w in iter_works_by_concept(client, cid, after, before, min_citations):
+        works_iter = (iter_works_fresh(client, cid, after, before) if fresh
+                      else iter_works_by_concept(client, cid, after, before, min_citations))
+        for w in works_iter:
             stats["works"] += 1
             url = landing_url(w)
             title = (w.get("title") or "").strip()
@@ -488,8 +579,20 @@ def main() -> int:
     ap.add_argument("--science-sweep", metavar="VERTICAL",
                     help="broaden science: graph-ingest EVERY relevant OpenAlex subfield "
                          "(a vertical, or ALL). Deep historical science backbone.")
+    ap.add_argument("--fresh", action="store_true",
+                    help="concept mode (#51): citation-FREE, freshest-first lead sweep "
+                         "(no cited_by_count gate; separate 'OpenAlex fresh:' sources)")
+    ap.add_argument("--measure", action="store_true",
+                    help="#51 Step 1: only measure meta.count of the citation-free corpus "
+                         "over the curated concepts for --vertical (or ALL) in the date "
+                         "range; writes nothing. Use to size before ingesting.")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+
+    # Measurement (#51 Step 1) — count-only, no DB, no writes
+    if args.measure:
+        measure_fresh_corpus(args.after, args.before, args.vertical or "ALL")
+        return 0
 
     # Science sweep (#9 breadth) — graph-ingest across all relevant subfields
     if args.science_sweep:
@@ -540,7 +643,8 @@ def main() -> int:
     grand = {"works": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
     for concept, vert in jobs:
         s = ingest_concept(concept, vert, args.after, args.before,
-                           args.min_citations, args.cap, args.dry_run)
+                           args.min_citations, args.cap, args.dry_run,
+                           fresh=args.fresh)
         for k in grand:
             grand[k] += s.get(k, 0)
     tag = "[dry] würde einfügen" if args.dry_run else "eingefügt"
