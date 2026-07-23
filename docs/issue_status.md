@@ -1,52 +1,70 @@
-# Issue-Status (Stand 2026-07-19)
+# Issue-Status (Stand 2026-07-23 — nach Backlog-Audit)
 
-Übersicht der offenen GitHub-Issues. **Merge-Status:** Das Alpha-Epic ist inzwischen
-**vollständig in `dev`** — `epic/alpha` ist ein direkter Vorfahr von `dev` (0 eigene
-Commits, 32 dahinter). Ein Merge epic/alpha→dev ist ein No-op; der Branch kann
-nachgezogen oder gelöscht werden. Seit dem letzten Stand (14.7.) kam die
-**TIR-Vertiefung** (geschlossenes Zitiernetz, MIT-Kalibrierung, cited-Prädiktor
-live) plus die Alpha-Review-Fixes (#52–#56) und neue Backlog-Issues hinzu.
+Vollständiges evidenzbasiertes Audit **aller** offenen Issues am 2026-07-23 (Referenz
+`main`=`5902e51`, „erledigt"-Basis = main **+ dev + offene PRs**, Union über
+`UI_UX_Audit`=`62c610d`). Jede Close/Done-Aussage wurde adversarial gegengeprüft.
+**Ergebnis:** 4 geschlossen, 5 auf Restscope reduziert, 1 neu (#66) → Backlog **24 → 21 offen**.
+Jedes offene Issue hat on-GitHub einen Audit-Kommentar mit Restscope + Akzeptanzkriterien + DoR/DoD.
 
-## 🟢 Inhaltlich fertig — schließbar
+## ✅ Geschlossen 2026-07-23 (verifiziert erledigt)
 
-| # | Titel | Stand |
+| # | Titel | Beleg |
 |---|---|---|
-| **#45** | TIR-Daten-Genauigkeit (Age-3-Cap z-Score) | **Original-Scope erledigt UND deutlich übertroffen.** fullz3 Default; dazu seit 15.7.: geschlossenes Zitiernetz (113,6M Kanten), substrat-bewusster TRUNC, MIT-Kalibrierung, **cited-Prädiktor scharf** (R² 0,574 vs 0,521, Kontrollgruppe 10/11). Der Kern („Kompositions-Drift neutralisieren") ist erledigt → schließbar. Restarbeit (temporale Konstruktion, WS2 PageRank) lebt in `docs/tir_reliability_plan.md`/`tir_cited_predictor.md`. |
-| **#2** | Foresight-Engine v1 | Kern komplett + verifiziert (`pipeline/foresight.py`: `window_bounds`/`build_lineage`, GLP-1-validiert, 2 Bugs gefixt). Rest (S-Kurven-Fit, Alt-Skript-Archiv) = Politur. Schließbar. |
-| **#13** | Quellen-Qualität | `scripts/monthly_source_check.py` + Cron (`deploy/crontab.txt`, 1./Monat 08:00, `--post-issue`) automatisiert, Erstreport gepostet (41 Alerts). Schließbar **oder** als lebendes Quality-Log offen lassen (Owner-Wahl). |
+| #13 | Quellen-Qualität | `scripts/monthly_source_check.py` + Monats-Cron (`0 8 1 * *`), alle 4 Checks, Erstbericht gepostet |
+| #47 | Content-Reparatur 30B-Ära | `scripts/regen_published.py`, 4 Batches, Audit 44,0% → 3,1% (DoD <10%) |
+| #50 | Wöchentl. BDDS-Patent-Cron | `scripts/weekly_patents.sh` live, Lauf 2026-07-21 exit 0, Dichte 124% |
+| #57 | Wettbewerbs-/IP-Analyse TIR | GetFocus/TechNext = identische SPNP-Methode, US12099572B2 kein EU-Blocker → **Folge #66** |
 
-## 🟡 Gebaut (in dev) — wartet auf Owner-Gates / externes Setup
+*(Bereits vor diesem Audit geschlossen: #2, #45, #52–#56, #60.)*
 
-| # | Titel | Was fehlt (keine Merges) |
-|---|---|---|
-| **#17** | Monetarisierung | Auth+Entitlement+Stripe+Rechtstexte flag-gegated. Fehlt: Stripe-Account, Resend-DNS, Preispunkte. |
-| **#3** | Foresight-Viz | Radar + Evolution + Export/Dossier fertig. Offen: Workbench (Saved Queries/Velocity-Alerts). |
-| **#16** | Newsletter-Automatisierung | Sender + Unsubscribe + Cron fertig. Fehlt: Resend-DNS-Verifizierung. |
-| **#44** | UX-Überarbeitung | Landing „What's moving" fertig. Offen: Owner-UX-Review (Filter-Bar, Lead-Time-Grafik, Lesbarkeit). |
-| **#40** | Mega-Taxonomie LIFESTYLE | 3 Kandidaten fertig. Fehlt: Owner-Label-Kuratierung → Retrain + Reclassify. |
+## 🟡 Auf Restscope reduziert (near-complete, Kern in main)
 
-## 🔵 Neu seit 14.7. — TIR-Vertiefung + Alpha-Review-Fixes
+| # | Restscope |
+|---|---|
+| #3 | Radar/Evolution/Dossier live; offen: **Saved Queries + Velocity-Alerts** (dep #17/#16, localStorage-only startbar) + `tiers.ts`-Ehrlichkeitsfix |
+| #4 | Ingester-Baukasten in main; offen: **CMS-Adapter** (Ghost/Substack/Arc/Drupal) + Router-Cleanup in `probe_source_apis` |
+| #11 | Volltext-Fetch aktiv; offen: **reichere Extraktion** + neue Felder `key_implication`/`what_to_watch` |
+| #40 | 1/3 Kandidat in main, Head inert; offen: **Reclassify → Retrain** (Head auf 22 Klassen) · **[P1]** |
+| #43 | K(t)-Kern in main; offen: **`technology_domain`** + additive feine/domänen-gekeyte Tier-Serie + Frontend-Reihe |
 
-| # | Titel | Stand |
-|---|---|---|
-| **#57** | Wettbewerbs-/IP-Analyse TIR | **Fertig** (GetFocus/TechNext auf SPNP, Patent US12099572B2 kein EU-Blocker, unsere Methode nicht patentierbar). Referenz-Issue → schließbar oder als Doku offen. |
-| **#49/#50** | BDDS-Patent-Aktualität + Wochen-Cron | Backlog aufgeholt + Cron gebaut (`weekly_patents.sh`, Dichte-Wächter m-3). Prüfen ob schließbar. |
-| **#52/#53/#54** | Fixes: embedding_1024, source_lead_time_tier, Interval-Filter | Prod-hygiene aus dem Alpha-Review — offen, prio-high. |
-| **#55/#56** | Trajectory-API gaten/rate-limiten · /api/search bounden | Ops/Sicherheit — offen. |
-| **#58** | TIR-Prädiktor: Spillover (Pichler & Lafond) | Neu, Backlog (echte Methoden-Erweiterung, +20-28% OOS). |
-| **#59** | TIR-Domänen: Embedding-Landscape + Multilayer | Neu, Backlog (überlappt #43/#9). |
-| **#47/#48** | Content-Reparatur 30B-Ära · Source-Link-Integrität | offen. |
-| **#60** | Content-Rückstand Newsletter W22–W29 | **Erledigt + geschlossen 2026-07-19** (Owner-Entscheidung: Option 1, nur archivieren). W22–W29 rückwirkend generiert (Backend llama.cpp, Qwen3.6-35B auf :8090), `newsletter_editions` lückenlos W15–W29, HTML/JSON unter `data/newsletters/`. Qualitäts-Sichtung: alle 8 mit 3 Absätzen/8 Vertikalen/7 Radar-Einträgen; 4 Editorials (W23/24/25/28) wegen Banned-Phrase-Verstößen regeneriert, danach alle clean. Kein Versand — `newsletter_sender.py` unangetastet. Cron-Reaktivierung bleibt #16. |
+## 🔴 Launch-Bündel (P1, teils `blocked` = Owner-/Extern-Gate)
 
-## 🔴 Backlog-Folge-Features
+| # | Stand |
+|---|---|
+| #64 | Umbrella-Launch. main `/`=307→/trends, `/imprint`+`/privacy`=**404**, Gates OFF. dep #44/#17/#16/#63/#66 · **[blocked]** |
+| #63 | Header-Login/Logout-Fix nur auf `UI_UX_Audit` (`5bc8ef2`) → **Merge nach main** |
+| #17 | Stack gehärtet, flag-OFF; offen: **Stripe-E2E-Test + Rechtstexte live + Gates AN** · **[blocked]** |
+| #44 | Landing/Newsletter live; offen: FilterBar-Collapse + Lead-Time-Grafik + Owner-UX-Review |
+| #16 | Sender fertig, Resend-DNS geklärt; offen: **Cron scharf + realer Sende-Beleg** (braucht Abonnenten) · **[blocked]** |
+| #66 | **NEU** — kein Methoden-USP (Folge #57) → öffentliche Copy auf Kalibrierung/Korpus/GTM umstellen (gate #64) |
 
-#4 (Quellen-Acquisition), #5 (Regulatory Disclosures), #7 (Patent-Layer), #9/#51
-(OpenAlex-Layer — #51: Korpus zitationsselektiert, erst lösen), #11 (Content-Volltext),
-#27 (Multilingualer Patent-Korpus), #43 (CPC feine Codes), #46 (Firmen-Newsrooms).
+## 🔵 Vertrauen/Daten (vor Launch-Claims umsetzen)
 
-## Zusammenfassung
-- **3 schließbar:** #45 (übertroffen), #2, #13 · dazu #57 (Referenz) evtl. schließbar.
-- **5 Owner-Gates:** #17, #3, #16, #44, #40 (extern: Stripe/Resend; Owner: UX/Labels).
-- **Prod-Hygiene offen:** #52, #53, #54, #55, #56.
-- **Backlog:** #4, #5, #7, #9/#51, #11, #27, #43, #46, #47, #48, #58, #59.
-- **Kein Issue blockiert die Alpha** — sie hängt an externem Setup + Owner-Entscheidungen.
+| # | Restscope |
+|---|---|
+| #49 | Backfile aufgeholt; offen: **SPNP-Substrate + TIR-Rebuild** (113,6M Kanten) + neue Patente embedden · **[P1]** |
+| #51 | Befund code-bestätigt (zitationsselektiert); offen: **zitationsfreier Frisch-Sweep** als eigener Ingest-Modus |
+| #9 | Graph-Layer/Velocity/Fusion in main; offen: **Co-Citation Research-Fronts** (`build_research_fronts.py`, dep #51) |
+
+## ⚪ Backlog (Akquise / Forschung)
+
+#5 Regulatory Disclosures (EDGAR/DART/EDINET/RNS — voll offen) · #7 Patent-Layer (Legal
+Events/Assignee/Family-Dedup/OPS-Citations) · #27 Multilingual Patent (Datencheck → CJK-Embedding,
+dep #35) · #46 Firmen-Newsrooms + Demand-Tier (dep #11/#4) · #48 Publisher-Link-Rot-Politik +
+Frontend-Fallback · #58 TIR-Spillover (Pichler & Lafond) · #59 Embedding-Domänen + Multilayer (dep #43/#9/#58)
+
+## Umsetzungs-Wellen
+
+- **Welle 0 (Vertrauen, vor Launch-Claims):** #49, #51
+- **Welle 1 (Launch, P1):** #66 → #63 → #44 → #17 → #16 → #64  · Enabler: `UI_UX_Audit` → `main` + Rebuild
+- **Welle 2 (Foresight-Kern):** #9, #3, #43, #40
+- **Welle 3 (Qualität/Akquise):** #11, #48, #4, #46
+- **Welle 4 (Forschung):** #5, #7, #27, #58, #59
+
+## Branch-Hinweis (Launch-Merge-Falle)
+
+`main` und `dev` sind **divergiert** — `main` trägt das Stripe/Pricing-Hardening (#61/#62),
+das `dev` fehlt. `UI_UX_Audit` = Superset (Hardening + `dev` + UX-Sweep inkl. Rechtsseiten +
+#63-Fix). **PR #65 (`dev`→`main`) ist ein Subset** — bringt die Landing, aber **nicht**
+`/imprint`+`/privacy` und **nicht** #63. Für den Public-Launch `UI_UX_Audit` → `main` mergen
+(bzw. `UI_UX_Audit` in `dev` nachziehen) und dann `main` bauen + `systemctl --user restart catandary-frontend`.
