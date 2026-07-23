@@ -1,6 +1,6 @@
 import { getMegaTrendInfo } from "@/lib/types";
 import type { ForesightCluster } from "@/lib/foresight";
-import MomentumBadge, { momentumText } from "./MomentumBadge";
+import MomentumBadge from "./MomentumBadge";
 import Sparkline from "./Sparkline";
 
 const SPARK_MONTHS = 36; // readability: recent window, not the 2002+ tail
@@ -11,11 +11,24 @@ export default function ClusterCard({ cluster }: { cluster: ForesightCluster }) 
   const points = series.map((p) => p.share);
   const months = series.map((p) => p.m);
 
-  // Plain-language summary — numbers stay in tooltips/meta (low-threshold UX)
-  const summary = `${cluster.momentum === "unknown" ? "Newly observed" : cluster.momentum === "rising" ? "Gaining ground" : cluster.momentum === "declining" ? "Cooling off" : "Holding steady"} — ${momentumText(cluster.momentum)}, confirmed by ${cluster.n_sources.toLocaleString("en-US")} independent source${cluster.n_sources === 1 ? "" : "s"}.`;
+  // Plain-language summary — one statement plus corroboration, no repeated
+  // momentum phrase (COPY-16); detail numbers stay in the badge tooltip.
+  const corroboration = `confirmed by ${cluster.n_sources.toLocaleString("en-US")} independent source${cluster.n_sources === 1 ? "" : "s"}`;
+  const deltaText = `${cluster.sov_delta_pp > 0 ? "+" : ""}${cluster.sov_delta_pp.toFixed(1)} pp share of attention`;
+  const summary =
+    cluster.momentum === "rising"
+      ? `Gaining ground (${deltaText}) — ${corroboration}.`
+      : cluster.momentum === "declining"
+        ? `Cooling off (${deltaText}) — ${corroboration}.`
+        : cluster.momentum === "unknown"
+          ? `Newly observed (still too early to call a direction) — ${corroboration}.`
+          : `Holding steady — ${corroboration}.`;
 
   return (
-    <article className="border border-border bg-card/40 p-6 hover:bg-card hover:border-accent/40 transition-colors flex flex-col gap-3">
+    <article
+      id={`cluster-${cluster.id}`}
+      className="border border-border bg-card/40 p-6 hover:bg-card hover:border-accent/40 transition-colors flex flex-col gap-3"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted flex items-center gap-3 flex-wrap">
           <span>

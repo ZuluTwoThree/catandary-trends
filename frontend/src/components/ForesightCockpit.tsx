@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
   getVerticalInfo,
@@ -21,6 +22,10 @@ const EXAMPLE_QUERIES = [
   "carbon capture",
   "generative AI",
 ];
+
+// Queries shorter than this never trigger a request — avoids burning searches
+// (and rate limit) on single keystrokes.
+const MIN_QUERY_CHARS = 3;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,6 +74,32 @@ interface SearchResponse {
   results: SearchResult[];
 }
 
+interface SearchError {
+  message: string;
+  /** 402: link the message to the pricing page. */
+  pricingLink?: boolean;
+}
+
+/** Map an HTTP error status to user-facing copy — never expose raw status codes. */
+function errorForStatus(status: number, retryAfter: string | null): SearchError {
+  if (status === 429) {
+    const secs = retryAfter ? parseInt(retryAfter, 10) : NaN;
+    return {
+      message:
+        Number.isFinite(secs) && secs > 0
+          ? `Too many searches — available again in about ${secs} second${secs === 1 ? "" : "s"}.`
+          : "Too many searches — available again in a moment.",
+    };
+  }
+  if (status === 402) {
+    return {
+      message: "This search depth is part of a paid plan.",
+      pricingLink: true,
+    };
+  }
+  return { message: "Search is briefly unavailable — please try again." };
+}
+
 // ---------------------------------------------------------------------------
 // Lead-time tier config
 // ---------------------------------------------------------------------------
@@ -91,26 +122,32 @@ export default function ForesightCockpit({
   const [vertical, setVertical] = useState<string | null>(null);
   const [data, setData] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<SearchError | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const doSearch = useCallback(
     async (q: string, v: string | null) => {
-      if (!q.trim()) {
+      const trimmed = q.trim();
+      if (trimmed.length < MIN_QUERY_CHARS) {
         setData(null);
+        setError(null);
         return;
       }
       setLoading(true);
       setError(null);
       try {
-        const params = new URLSearchParams({ q: q.trim(), limit: "20" });
+        const params = new URLSearchParams({ q: trimmed, limit: "20" });
         if (v) params.set("vertical", v);
         const resp = await fetch(`/api/search?${params}`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        if (!resp.ok) {
+          setError(errorForStatus(resp.status, resp.headers.get("retry-after")));
+          return;
+        }
         const json: SearchResponse = await resp.json();
         setData(json);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Search failed");
+      } catch {
+        // Network failure or malformed response
+        setError({ message: "Search is briefly unavailable — please try again." });
       } finally {
         setLoading(false);
       }
@@ -172,14 +209,21 @@ export default function ForesightCockpit({
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Enter search term..."
+            aria-label="Search the signal space"
             className="w-full border border-border bg-card px-4 py-3 font-sans text-paper
                        placeholder:text-muted placeholder:font-mono placeholder:text-[12px] placeholder:uppercase placeholder:tracking-[0.12em]
-                       focus:outline-none focus:border-accent transition-colors"
-            autoFocus
+                       focus:border-accent transition-colors"
           />
           {loading && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <div className="h-4 w-4 animate-spin border-2 border-border border-t-accent" />
+            <div
+              role="status"
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+            >
+              <div
+                className="h-4 w-4 animate-spin border-2 border-border border-t-accent"
+                aria-hidden="true"
+              />
+              <span className="sr-only">Searching…</span>
             </div>
           )}
         </div>
@@ -220,8 +264,22 @@ export default function ForesightCockpit({
 
       {/* Error */}
       {error && (
-        <div className="border border-warn/40 bg-warn/10 px-4 py-3 text-warn font-mono text-xs uppercase tracking-[0.12em]">
-          {error}
+        <div
+          role="alert"
+          className="border border-warn/40 bg-warn/10 px-4 py-3 text-warn font-sans text-sm"
+        >
+          {error.message}
+          {error.pricingLink && (
+            <>
+              {" "}
+              <Link
+                href="/trends/pricing"
+                className="underline underline-offset-2 hover:text-paper transition-colors"
+              >
+                See plans →
+              </Link>
+            </>
+          )}
         </div>
       )}
 
@@ -234,7 +292,7 @@ export default function ForesightCockpit({
             <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted pb-2 border-b border-border">
               <span>
                 <span className="text-paper">{data.analytics.total_matches}</span>
-                <span> matches{data.meta.embedding_available ? "" : " (FTS only)"}</span>
+                <span> matches{data.meta.embedding_available ? "" : " (text match only)"}</span>
               </span>
               <span>{data.took_ms}ms</span>
             </div>
@@ -306,7 +364,7 @@ export default function ForesightCockpit({
 
           {/* Entry points to the two explorers, so the hub isn't a dead end */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <a
+            <Link
               href="/trends/foresight/technology"
               className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
             >
@@ -316,8 +374,8 @@ export default function ForesightCockpit({
               <div className="font-sans text-sm text-text mt-1">
                 Per-technology improvement rate (MIT method) + research→market lead times
               </div>
-            </a>
-            <a
+            </Link>
+            <Link
               href="/trends/foresight/clusters"
               className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
             >
@@ -327,7 +385,7 @@ export default function ForesightCockpit({
               <div className="font-sans text-sm text-text mt-1">
                 What&apos;s moving right now — momentum clusters across all verticals
               </div>
-            </a>
+            </Link>
           </div>
 
           {topClusters.length > 0 && (
@@ -336,12 +394,12 @@ export default function ForesightCockpit({
                 <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
                   —— Moving right now
                 </div>
-                <a
+                <Link
                   href="/trends/foresight/clusters"
                   className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-paper transition-colors"
                 >
                   All clusters →
-                </a>
+                </Link>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {topClusters.map((c) => (

@@ -26,6 +26,7 @@ export default function ActiveChips({ filters }: { filters: ParsedFilters }) {
 
   return (
     <div
+      role="group"
       className="flex flex-wrap items-center gap-2 py-3 border-y border-border"
       aria-label="Active filters"
     >
@@ -36,6 +37,7 @@ export default function ActiveChips({ filters }: { filters: ParsedFilters }) {
         <button
           key={c.key}
           onClick={() => apply(c.mutation)}
+          aria-label={`Remove filter: ${c.label}`}
           className="group inline-flex items-center gap-1.5 border border-border hover:border-warn px-2 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-paper transition-colors"
         >
           <span className="truncate max-w-[24ch]">{c.label}</span>

@@ -105,7 +105,7 @@ export default function TrendRadar({
         <svg
           viewBox={`0 0 ${SIZE} ${SIZE}`}
           className="radar-svg"
-          role="img"
+          role="group"
           aria-label="Trend radar: clusters by lead-time tier and vertical"
         >
           {/* Tier rings */}
@@ -167,16 +167,28 @@ export default function TrendRadar({
             <g
               key={`${b.tier}-${b.id}`}
               className="radar-blip"
+              role="button"
+              aria-label={`${b.label}, ${TIER_LABEL[b.tier]}, ${momentumPlain(b.momentum, b.sov_delta_pp)}, ${b.size.toLocaleString("en-US")} signals`}
               onMouseEnter={() => setActive(b)}
               onMouseLeave={() => setActive((cur) => (cur?.id === b.id ? null : cur))}
               onClick={() => setActive(b)}
               tabIndex={0}
               onFocus={() => setActive(b)}
             >
+              {/* Invisible enlarged tap target for touch */}
+              <circle
+                cx={b.x}
+                cy={b.y}
+                r={Math.max(b.r, 14)}
+                fill="transparent"
+                stroke="none"
+                aria-hidden="true"
+              />
               <circle
                 cx={b.x}
                 cy={b.y}
                 r={b.r}
+                className="radar-blip-dot"
                 fill={vColor(b.vertical)}
                 fillOpacity={active && active.id === b.id ? 0.95 : 0.6}
                 stroke={vColor(b.vertical)}
@@ -196,7 +208,7 @@ export default function TrendRadar({
       </div>
 
       {/* Readout panel — plain language, evidence one click away */}
-      <aside className="radar-readout">
+      <aside className="radar-readout" aria-live="polite">
         {active ? (
           <div>
             <div className="radar-readout-tier" style={{ color: vColor(active.vertical) }}>
@@ -263,13 +275,14 @@ export default function TrendRadar({
         .radar-stage { min-width: 0; }
         .radar-svg { width: 100%; height: auto; display: block; overflow: visible; }
         .radar-ring { stroke: currentColor; stroke-opacity: 0.14; }
-        .radar-ring-label { fill: currentColor; fill-opacity: 0.45; font-size: 11px; text-anchor: middle; letter-spacing: 0.04em; }
+        .radar-ring-label { fill: currentColor; fill-opacity: 0.45; font-size: 11px; text-anchor: middle; letter-spacing: 0.04em; font-family: var(--font-mono); }
         .radar-spoke { stroke: currentColor; stroke-opacity: 0.08; }
-        .radar-seg-label { font-size: 12px; font-weight: 600; letter-spacing: 0.03em; }
-        .radar-blip { cursor: pointer; outline: none; }
-        .radar-blip circle { transition: fill-opacity 0.12s ease; }
-        .radar-blip:focus circle, .radar-blip:hover circle { fill-opacity: 0.95; }
-        .radar-blip-glyph { font-size: 11px; fill: #0b0f14; font-weight: 700; pointer-events: none; }
+        .radar-seg-label { font-size: 12px; font-weight: 600; letter-spacing: 0.03em; font-family: var(--font-mono); }
+        .radar-blip { cursor: pointer; }
+        .radar-blip .radar-blip-dot { transition: fill-opacity 0.12s ease; }
+        .radar-blip:focus .radar-blip-dot, .radar-blip:hover .radar-blip-dot { fill-opacity: 0.95; }
+        .radar-blip:focus-visible .radar-blip-dot { stroke: var(--color-accent); stroke-width: 2px; stroke-opacity: 1; }
+        .radar-blip-glyph { font-size: 11px; fill: #0b0f14; font-weight: 700; pointer-events: none; font-family: var(--font-mono); }
         .radar-readout { border: 1px solid currentColor; border-color: color-mix(in srgb, currentColor 14%, transparent); border-radius: 14px; padding: 1.1rem 1.2rem; min-height: 260px; }
         .radar-readout-tier { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
         .radar-readout-title { font-size: 1.05rem; font-weight: 700; margin: 0.35rem 0 0.5rem; }

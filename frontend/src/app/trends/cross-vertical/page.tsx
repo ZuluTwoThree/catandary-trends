@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Cross-Industry Trends — Catandary Trends",
   description:
-    "Trend-Signale, die mehrere Branchen gleichzeitig betreffen.",
+    "Trend signals that affect multiple industries at once.",
 };
 
 export default async function CrossVerticalPage() {
