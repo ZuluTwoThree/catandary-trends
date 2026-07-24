@@ -202,8 +202,12 @@ def _verdict(traj: dict, lead: dict) -> str | None:
     k = traj.get("K_median") if traj and traj.get("calibrated") else None
     speed = None
     if k is not None:
-        speed = (f"improving fast (~{k}%/yr)" if k >= 12
-                 else f"slow-moving (~{k}%/yr)" if k <= 8 else f"~{k}%/yr improvement")
+        # Label the figure explicitly as the median over the measured history —
+        # K_latest can differ a lot (citation immaturity), and an unlabeled
+        # number next to the chart's last point reads as a contradiction.
+        speed = (f"improving fast (median ~{k}%/yr over the measured history)" if k >= 12
+                 else f"slow-moving (median ~{k}%/yr over the measured history)" if k <= 8
+                 else f"median ~{k}%/yr improvement over the measured history")
     if stage and speed:
         return f"{stage}; {speed}."
     if stage:

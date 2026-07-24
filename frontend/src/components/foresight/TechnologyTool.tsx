@@ -183,11 +183,14 @@ export default function TechnologyTool() {
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [err, setErr] = useState<string | null>(null);
   const [mode, setMode] = useState<"rate" | "cumulative">("rate");
+  const [elapsed, setElapsed] = useState(0);       // Sekunden seit Analyse-Start
 
   async function run(phrase: string) {
     const query = phrase.trim();
     if (query.length < 4 || loading) return;
     setLoading(true); setErr(null); setRes(null); setSel(new Set());
+    setElapsed(0);
+    const tick = setInterval(() => setElapsed((s) => s + 1), 1000);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 115_000);
     try {
@@ -197,7 +200,7 @@ export default function TechnologyTool() {
       else { setRes(data); setSel(new Set(data.selection || [])); }
     } catch (e) {
       setErr(e instanceof DOMException && e.name === "AbortError" ? "This took too long — try a narrower phrase." : "Network error — please try again.");
-    } finally { clearTimeout(timer); setLoading(false); }
+    } finally { clearTimeout(timer); clearInterval(tick); setLoading(false); }
   }
 
   // toggle a CPC class → re-run ONLY the trajectory for the new selection (no GPU)
@@ -242,16 +245,40 @@ export default function TechnologyTool() {
           {loading ? "Analyzing…" : "Analyze"}
         </button>
       </form>
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {EXAMPLES.map((ex) => (
           <button key={ex} onClick={() => { setQ(ex); run(ex); }} disabled={loading}
             className="font-mono text-[10px] text-muted border border-border px-2 py-1 hover:text-accent hover:border-accent/50 disabled:opacity-40">{ex}</button>
         ))}
+        <details className="relative">
+          <summary className="list-none cursor-pointer font-mono text-[10px] text-muted border border-dashed border-border px-2 py-1 hover:text-accent hover:border-accent/50 select-none [&::-webkit-details-marker]:hidden">
+            ⓘ How to search well
+          </summary>
+          <div className="absolute left-0 z-20 mt-1 w-[min(22rem,80vw)] border border-border bg-card p-3 shadow-lg">
+            <p className="font-sans text-[12px] text-text leading-relaxed">
+              <span className="text-paper">Describe a concrete technology, material or
+              process</span> in 2–6 words — e.g. &quot;solid-state battery&quot;,
+              &quot;vertical farming&quot;, &quot;heat pump&quot;.
+            </p>
+            <ul className="mt-2 font-sans text-[12px] text-muted leading-relaxed list-disc pl-4 space-y-1">
+              <li>No company or product names, no abstract trends (&quot;future of work&quot;).</li>
+              <li>The search maps your words to the <span className="text-text">closest
+                  patent class</span> — for niche topics this can miss.</li>
+              <li>So check under <span className="text-text">&quot;Measuring&quot;</span> whether the
+                  matched field is your topic — the classes on the left are deselectable.</li>
+            </ul>
+          </div>
+        </details>
       </div>
 
       {loading && (
-        <p role="status" className="mt-5 font-mono text-xs text-muted animate-pulse">
-          Analyzing — reading the patent graph… this can take up to ~2 minutes.
+        <p role="status" className="mt-5 font-mono text-xs text-muted animate-pulse" aria-live="polite">
+          {elapsed < 25
+            ? "1/3 · Finding matching patent classes (GPU model loading)…"
+            : elapsed < 60
+            ? "2/3 · Measuring the citation network of the matched classes…"
+            : "3/3 · Computing improvement rate & innovation chain — large fields can take ~2 min…"}
+          {" "}<span className="tabular-nums">{elapsed}s</span>
         </p>
       )}
       {err && <p role="alert" className="mt-5 font-mono text-xs text-red-400">⚠ {err}</p>}
@@ -293,6 +320,24 @@ export default function TechnologyTool() {
 
           {/* right: trajectory + lead-time */}
           <div className="min-w-0">
+            {/* The measured field in plain language — makes a neighbouring-domain
+                embedding mismatch immediately visible. */}
+            {(() => {
+              const selTitles = (res.candidates || [])
+                .filter((c) => sel.has(c.symbol))
+                .map((c) => cpcLabel(c.title))
+                .filter(Boolean);
+              if (!selTitles.length) return null;
+              const shown = selTitles.slice(0, 3).join(" · ");
+              const more = selTitles.length - 3;
+              return (
+                <p className="font-sans text-[12px] text-text mb-2 border-l-2 border-accent/50 pl-2">
+                  <span className="text-muted">Measuring:</span>{" "}
+                  <span className="text-paper">{shown}{more > 0 ? ` · +${more} more` : ""}</span>
+                  <span className="text-muted"> — not what you meant? Adjust the selection on the left.</span>
+                </p>
+              );
+            })()}
             {res.verdict && <p className="font-sans text-sm text-paper mb-3 leading-snug">{res.verdict}</p>}
 
             <div className="flex flex-wrap items-baseline gap-3 mb-1">
@@ -302,9 +347,14 @@ export default function TechnologyTool() {
                   <span className="font-mono text-lg text-paper tabular-nums">~{traj.K_median}%</span>
                   <span className="text-muted"> /year</span>
                 </span>
-              ) : (
+              ) : traj?.calibrated === false ? (
                 <span className="font-sans text-sm text-muted">
                   Improving faster than we can reliably quantify (outside the calibrated range)
+                </span>
+              ) : (
+                /* calibrated == null → data too thin, NOT "too fast" */
+                <span className="font-sans text-sm text-muted">
+                  Not enough patent data for a reliable rate — extend the selection on the left.
                 </span>
               )}
               {traj?.earliest_year && (
