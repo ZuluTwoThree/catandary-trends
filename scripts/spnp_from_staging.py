@@ -223,7 +223,8 @@ def _load_cache(path):
 
 def build(staging: str, limit: int = 0, class_chars: int = 3, randomize: int = 0,
           age_cap: int = 0, cache: str = "", us_utility: bool = False,
-          out_table: str = "patent_spnp_staging", year_only_pctl: bool = False) -> None:
+          out_table: str = "patent_spnp_staging", year_only_pctl: bool = False,
+          seed: int = 0) -> None:
     t0 = time.time()
     if cache and os.path.exists(cache + ".npz"):
         log(f"loading cached connected graph from {cache} …")
@@ -269,7 +270,8 @@ def build(staging: str, limit: int = 0, class_chars: int = 3, randomize: int = 0
 
     if randomize > 0:
         log(f"randomization null: {randomize}× degree+age+class-preserving swaps → z-score …")
-        z = _randomized_zscore(n, year, cls, src_c, dst_c, log_spnp, randomize, fmask=fmask)
+        z = _randomized_zscore(n, year, cls, src_c, dst_c, log_spnp, randomize,
+                               seed=seed, fmask=fmask)
         del src_c, dst_c, log_spnp
         log("year-cohort percentiles of z-score …")
         pctl = _grouped_percentile(z, year, np.zeros(n, dtype=np.int32))
@@ -341,9 +343,13 @@ def main() -> int:
     ap.add_argument("--year-only-pctl", action="store_true",
                     help="rank the degree residual within grant-YEAR only (cross-domain-"
                          "comparable, matches patent_spnp) instead of (year×class)")
+    ap.add_argument("--seed", type=int, default=0,
+                    help="RNG seed for the randomization null (default 0 = "
+                         "historical behavior; vary for replicate/ablation runs)")
     args = ap.parse_args()
     build(args.staging, args.limit, args.class_chars, args.randomize, args.age_cap,
-          args.cache, args.us_utility, args.out_table, args.year_only_pctl)
+          args.cache, args.us_utility, args.out_table, args.year_only_pctl,
+          args.seed)
     return 0
 
 
