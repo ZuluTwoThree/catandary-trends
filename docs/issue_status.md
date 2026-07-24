@@ -42,7 +42,7 @@ Jedes offene Issue hat on-GitHub einen Audit-Kommentar mit Restscope + Akzeptanz
 
 | # | Restscope |
 |---|---|
-| #49 | Backfile aufgeholt; offen: **SPNP-Substrate + TIR-Rebuild** (113,6M Kanten) + neue Patente embedden · **[P1]** |
+| #49 | Backfile aufgeholt. **SPNP-Substrate-Rebuild ERLEDIGT** — `patent_spnp_full` neu gebaut **16.07** (auf `extended_graph_cache`, 42,58M Knoten; Vorgänger → `patent_spnp_full_old`), cited-Substrat `patent_citedspnp_full_z3` **18.07**; Graph = **145,5M Kanten** (Staging, 259,6M roh → 56,1 % strictly-backward), NICHT „vom 06.07". Offen nur noch: TIR-Re-Eval (**läuft aktiv**, Direction-Holdout/Ablationen 24.07) + Catch-up-Kurve verifizieren + `--kind amend`-Nutzen. · **[P1→P2]** |
 | #51 | Befund code-bestätigt (zitationsselektiert); offen: **zitationsfreier Frisch-Sweep** als eigener Ingest-Modus |
 | #9 | Graph-Layer/Velocity/Fusion in main; offen: **Co-Citation Research-Fronts** (`build_research_fronts.py`, dep #51) |
 
@@ -55,16 +55,17 @@ Frontend-Fallback · #58 TIR-Spillover (Pichler & Lafond) · #59 Embedding-Domä
 
 ## Umsetzungs-Wellen
 
-- **Welle 0 (Vertrauen, vor Launch-Claims):** #49, #51
-- **Welle 1 (Launch, P1):** #66 → #63 → #44 → #17 → #16 → #64  · Enabler: `UI_UX_Audit` → `main` + Rebuild
+- **Welle 0 (Vertrauen, vor Launch-Claims):** #51 (#49-Substrate erledigt; TIR-Re-Eval läuft)
+- **Welle 1 (Launch, P1):** #66 → #63 → #44 → #17 → #16 → #64  · Enabler: `dev` → `main` + Rebuild (dev trägt jetzt UX-Sweep + #63)
 - **Welle 2 (Foresight-Kern):** #9, #3, #43, #40
 - **Welle 3 (Qualität/Akquise):** #11, #48, #4, #46
 - **Welle 4 (Forschung):** #5, #7, #27, #58, #59
 
-## Branch-Hinweis (Launch-Merge-Falle)
+## Branch-Hinweis (Stand 24.07)
 
-`main` und `dev` sind **divergiert** — `main` trägt das Stripe/Pricing-Hardening (#61/#62),
-das `dev` fehlt. `UI_UX_Audit` = Superset (Hardening + `dev` + UX-Sweep inkl. Rechtsseiten +
-#63-Fix). **PR #65 (`dev`→`main`) ist ein Subset** — bringt die Landing, aber **nicht**
-`/imprint`+`/privacy` und **nicht** #63. Für den Public-Launch `UI_UX_Audit` → `main` mergen
-(bzw. `UI_UX_Audit` in `dev` nachziehen) und dann `main` bauen + `systemctl --user restart catandary-frontend`.
+`UI_UX_Audit` wurde **in `dev` gemergt und gelöscht** — `dev` trägt jetzt den UX-Sweep inkl.
+Rechtsseiten (`/imprint`+`/privacy`) und den **#63-Header-Fix** (`5bc8ef2`). `main` ist über Nacht
+um ~12 Commits (TIR-Paper-Analysen + MIT-Benchmark + UX-Audit-Fixes, „from dev") vorgezogen, hat
+aber den **#63-Fix noch nicht** (`/`=307, `/imprint`=404 auf main). Für den Public-Launch daher
+**`dev` → `main` mergen** (dev ist jetzt der Superset), dann `main` bauen +
+`systemctl --user restart catandary-frontend`. `dev`/`main` divergieren (Cherry-picks „from dev").
