@@ -337,8 +337,8 @@ def main() -> int:
                   f"lead(sci→mkt)={lt if lt is not None else '—'} "
                   f"cycle={p['patent_dynamics'].get('cycle_time_years','—')}J "
                   f"TIR={p['patent_dynamics'].get('tir_pct','—')}% ({p['built_in_s']}s)")
-    # TIR now comes straight from the SPNP domain_k (MIT method) inside
-    # patent_dynamics — no second-pass index calibration needed.
+    # TIR now comes straight from tir_trajectory.trajectory (active substrate/
+    # predictor defaults) inside patent_dynamics — no second-pass calibration.
     print(f"\n{len(todo)} technologies persisted to cpc_insights.")
     return 0
 

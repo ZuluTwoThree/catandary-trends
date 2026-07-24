@@ -64,15 +64,16 @@ _CALIB = {
 }
 COEF_A, COEF_B, SIGMA2 = _CALIB.get(SUBSTRATE, _CALIB["full"])
 
-# WS1 Prädiktor-Wahl (2026-07-18): "own" = Zentralität der Domänen-Patente (Default,
-# Prod); "cited" = mittlere Zentralität der von ihnen ZITIERTEN Patente — der
-# kanonische MIT-Prädiktor (Patent US12099572B2). Rigoros gegen die EXAKTEN
-# MIT-K_true auf unserem Substrat getestet (scripts/mit_calibrate_substrate.py, mit
-# cited aus dem STAGING-Graphen = gleiche Abdeckung wie own): cited schlägt own
-# klar — R²=0,574 vs 0,521 · Spearman 0,764 vs 0,712 · LOO 0,516 vs 0,459. cited ist
-# vorberechnet in patent_citedspnp_full_z3 (scripts/build_cited_spnp_staging.py), also
-# live so schnell wie own. Env-gated: Default bleibt own → Prod unverändert; der Flip
-# braucht zusätzlich re-zentrierte Richtungsbänder (cited-X-Skala) — daher owner-gated.
+# WS1 Prädiktor-Wahl: "cited" = mittlere Zentralität der von den Domänen-Patenten
+# ZITIERTEN Patente — der kanonische MIT-Prädiktor (Patent US12099572B2) und seit
+# e0f462c (2026-07-18) der DEFAULT; "own" = Eigen-Zentralität, als Env-Fallback
+# (TIR_PREDICTOR=own) erhalten. Rigoros gegen die EXAKTEN MIT-K_true auf unserem
+# Substrat getestet (scripts/mit_calibrate_substrate.py, mit cited aus dem
+# STAGING-Graphen = gleiche Abdeckung wie own): cited schlägt own klar — R²=0,574
+# vs 0,521 · Spearman 0,764 vs 0,712 · LOO 0,516 vs 0,459. cited ist vorberechnet
+# in patent_citedspnp_full_z3 (scripts/build_cited_spnp_staging.py), also live so
+# schnell wie own. Die re-zentrierten Richtungsbänder (cited-X-Skala) greifen
+# unten automatisch. Externe Validierung: docs/tir_mit_method_comparison.md §7.
 PREDICTOR = os.getenv("TIR_PREDICTOR", "cited")
 if PREDICTOR == "cited" and SUBSTRATE == "fullz3":
     # MIT-K_true-Fit auf cited-X (ln(K_fraction)=a+b·X, a ist bereits Fraction-
