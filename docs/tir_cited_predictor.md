@@ -1,6 +1,6 @@
 # TIR cited-Prädiktor (WS1) — Owner-Entscheidungsdoku
 
-**Stand:** 2026-07-18 · **Env-Gate:** `TIR_PREDICTOR=cited` (Default `own` → Prod unverändert) · **Bezug:** #45, WS1 in `docs/tir_reliability_plan.md`, Patent US12099572B2 (#57)
+**Stand:** 2026-07-24 · **Flip vollzogen:** Code-Default ist `cited` seit Commit `e0f462c` (2026-07-18); `TIR_PREDICTOR=own` bleibt als Env-Fallback · **Bezug:** #45, WS1 in `docs/tir_reliability_plan.md`, Patent US12099572B2 (#57)
 
 ## Kern: zitierte statt eigene Zentralität
 
@@ -19,7 +19,7 @@ Der kanonische MIT-Prädiktor ist nicht die Eigen-Zentralität der Domänen-Pate
 - `_x_by_year` joint bei `TIR_PREDICTOR=cited` die cited-Tabelle.
 - cited-Kalibrierung `(-5.5622, 5.5036, 0.4930)` (MIT-K_true-Fit).
 - **Richtungsbänder re-zentriert** (cited-X-Skala): mundane Neutral **−0,158** (12 dichte mechanische Domänen), Halbweiten auf ~0,75× skaliert (cited-rel_change ist komprimiert) → **Bänder (−0,008 / −0,348 / −0,608)**.
-- Default bleibt `own` + Bänder (0,44/−0,01/−0,36) → **Prod byte-identisch** (verifiziert, 12/12 Tests grün).
+- Vor dem Flip war der Default `own` + Bänder (0,44/−0,01/−0,36) → Prod byte-identisch (verifiziert, 12/12 Tests grün); seit `e0f462c` ist `cited` der Default und `own` der Env-Fallback.
 
 ## Kontrollgruppen-Validierung (fairer Vergleich)
 
@@ -42,10 +42,10 @@ cited ist **besser** — perfekte mundane Kontrolle (6/6, kein Falsch-„acceler
 
 MIT nutzt cited-Zentralität ~1 J. vor dem Zitieren; wir nutzen den age-3-gecappten Endwert. Der Age-3-Cap liefert bereits Alters-Normalisierung → Großteil des Effekts abgedeckt; unser 0,574 nah an MITs temporalem 0,621 (Rest plausibler global-vs-US-Graph). Faithful Rekonstruktion = per-Jahr-SPNP-Snapshots (teuer) → **zurückgestellt**, nur falls nach dem Flip noch Genauigkeit fehlt.
 
-## Owner-Flip = Einzeiler
+## Owner-Flip — VOLLZOGEN (`e0f462c`, 2026-07-18)
 
 ```python
 # scripts/tir_trajectory.py
 PREDICTOR = os.getenv("TIR_PREDICTOR", "cited")   # vorher "own"
 ```
-Prädiktor, Kalibrierung und re-zentrierte Bänder greifen dann automatisch zusammen. **Empfehlung:** vertretbar (bessere absolute Genauigkeit + Kontrollgruppe), mit dem dokumentierten Direction-Trade-off.
+Prädiktor, Kalibrierung und re-zentrierte Bänder greifen automatisch zusammen; `TIR_PREDICTOR=own` stellt bei Bedarf den alten Pfad wieder her. Externe Validierung des cited-Pfads: Erst-Abgleich gegen die 1757 MIT-Prognosen (US-only Spearman 0,704 über 526 Subklassen) — siehe `docs/tir_mit_method_comparison.md` §7.
