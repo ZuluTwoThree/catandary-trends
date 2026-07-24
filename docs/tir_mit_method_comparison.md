@@ -212,6 +212,47 @@ TIR zählt die richtige Technologie-Nachbarschaft, nicht die exakte Set-Grenze.
 Das rechtfertigt den CPC-Pattern-Proxy des Produkts quantitativ.
 (Skript `com_signatures.py`, Ergebnis `com_signatures_result.json`.)
 
+## 7c. Patentweiser Normalisierungs-Crosswalk (2026-07-24)
+
+2.974.440 US-Grants patentweise gejoint (unsere fullz3-Perzentile vs. die
+publizierten MIT-Normalisierungswerte aus `All_patents_info.csv`):
+
+| Paar | Pearson | Spearman | n |
+|---|---|---|---|
+| unsere own vs. MIT own@t3 (like-for-like) | 0,509 | 0,537 | 2,73 M |
+| unsere cited (age-3-Endwert) vs. MIT cited@t−1 | 0,516 | 0,541 | 2,52 M |
+| unsere own vs. MIT own@2015 | 0,228 | 0,238 | 2,94 M |
+| **MIT-intern: own@t3 vs. own@2015** | **0,448** | 0,448 | 2,73 M |
+| MIT-intern: own@t3 vs. cited@t−1 | 0,752 | 0,752 | 2,54 M |
+| wir-intern: own vs. cited | 0,612 | 0,615 | 2,91 M |
+
+**Einordnung:** Patent-Level-Zentralität ist inhärent verrauscht — selbst MITs
+eigene zwei Messpunkte (t+3 vs. 2015) korrelieren nur mit 0,448. Unsere 0,51
+gegen deren t3-Wert liegt darüber; erst die Domänen-Mittelung erzeugt die
+0,68–0,80 aus §7b. Die K5-Approximation (cited@age-3 statt @t−1) kostet
+patentweise nichts Messbares. Ära-Stabilität (cited): 1980–84: 0,30 →
+1990–94: 0,53 → 2000–04: 0,66 (frühe Jahre = dünnere historische
+Zitationsabdeckung im DOCDB). Lineare Übersetzungsfits: MIT_own_t3 =
+0,446·X_ours+0,221 bzw. MIT_cited_t1 = 0,672·X_ours+0,071 (resid SD je ~0,25).
+
+**Übersetzungstest (Kompressions-Frage):** Ein linearer Crosswalk lässt die
+Domänen-Ränge mathematisch unverändert (linearer Map im Exponenten). Informativ
+sind nur die Level: Die Software-Topdomänen erreichen auch in MIT-Skala + MIT-
+Gl. 13 nur ~45–47 %/a (MIT publiziert 160–216). **Die High-End-Kompression ist
+also kein Artefakt unserer Refit-Steigung, sondern steckt im Top-Tail der
+gemessenen X-Verteilung — global-linear nicht behebbar.** Konsequenz: das
+CALIB_MAX-Withhold bleibt die ehrliche Behandlung; Alternative wäre eine
+Tail-spezifische Kalibrierung (Future Work).
+
+## 7d. CPC-Migrations-Fix H01L→H10x (2026-07-24)
+
+DOCDB reklassifiziert rückwirkend: `H01L%` matcht nur noch 8.978 Zeilen, die
+H10-Familie 1,34 M distinct Patente. Fix: `CPC_MIGRATIONS`-Map +
+`expand_cpc_patterns()` in `tir_trajectory.py` (greift in allen konsolidierten
+Pfaden). Halbleiter-Domäne: **852 → 1.011.919 Patente**, K = 12,4 %/a,
+Richtung „steady" statt Migrations-Artefakt. Grenze: Nur Subklassen-Patterns
+werden expandiert (keine 1:1-Gruppen-Konkordanz).
+
 ## 8. Nächste Schritte
 
 1. ~~Doku-Drift fixen~~ ✓ erledigt 2026-07-24 (`tir_cited_predictor.md`,
@@ -221,8 +262,12 @@ Das rechtfertigt den CPC-Pattern-Proxy des Produkts quantitativ.
    statt `spnp_centrality.domain_k` (db+own+alte Koeffizienten);
    cpc_insights-Snapshots auf fullz3+cited neu gebaut. Ein Codepfad, eine Zahl.
 3. ~~Feiner Abgleich (Domänen-Surrogate statt IPC4)~~ ✓ erledigt 2026-07-24 — §7b.
-4. R=1000-Build als Genauigkeits-Upgrade erwägen (`tir_reliability_plan.md`).
-5. H01L/H10x-Migrations-Mapping (#43) vor jedem Halbleiter-Claim.
-6. Offen: patentweiser Normalisierungs-Crosswalk (unsere Perzentile vs. deren
-   `randomized_zscore_RPbyYear` auf den Überlapp-Patenten) und 2015-Snapshot-X
-   für punktgenaue Level-Vergleiche einzelner Domänen.
+4. ~~Patentweiser Normalisierungs-Crosswalk~~ ✓ erledigt 2026-07-24 — §7c.
+   (2015-Snapshot-Level-Vergleiche weitgehend durch MITs eigene Spaltenpaare
+   ersetzbar; echter Snapshot-Build nur bei explizitem Bedarf.)
+5. ~~H01L/H10x-Migrations-Mapping (#43-Teilaspekt)~~ ✓ erledigt 2026-07-24 — §7d.
+6. R=1000-Build als Genauigkeits-Upgrade erwägen (`tir_reliability_plan.md`) —
+   Kosten ~19–22 h Single-Core-CPU für nur √R-Rauschgewinn (Faktor 3,2);
+   Crosswalk-Befund (Patent-Level-Rauschen dominiert ohnehin) senkt die Priorität.
+7. Tail-/nichtlineare Kalibrierung fürs High-End erforschen (statt CALIB_MAX
+   nur zurückzuhalten) — siehe §7c.
