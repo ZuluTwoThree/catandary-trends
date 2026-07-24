@@ -186,6 +186,38 @@ else:
 DIRECTION_MIN_MEDIAN_N = 1000
 
 
+# CPC-Migrations-Map (#43): DOCDB wendet CPC-Reorganisationen RÜCKWIRKEND an —
+# ein LIKE auf den historischen Code sieht nur den Rest-Bestand und produziert
+# einen künstlichen Einbruch (der "Migrations-Cliff", s.o.). Messbeispiel H01L:
+# nur noch 8.978 Zeilen unter H01L%, aber 1,34M distinct Patente unter H10*.
+# Subklassen-Patterns über einen alten Code werden deshalb vor der Query um die
+# Nachfolger-Subklassen erweitert, damit die Domäne die GANZE Technologie misst.
+# Kuratiert über cpc_definitions-Titel (H01L: "SEMICONDUCTOR DEVICES NOT COVERED
+# BY CLASS H10"): Reorg 2023/2025 → H10B (Memories), H10D (anorganische
+# Halbleiter-Bauelemente), H10F (Photodetektoren/PV), H10H (LEDs), H10K
+# (organische Elektronik), H10N (sonstige Solid-State); H10P/H10W (jüngerer
+# Split, in unserer cpc_definitions noch ohne Titel, 422k/447k Zeilen) gehören
+# nach Bestandsprüfung ebenfalls zum ehemaligen H01L-Korpus.
+# Grenze: Nur SUBKLASSEN-Patterns ("H01L%") werden expandiert. Feinere Patterns
+# ("H01L21/%") bleiben unangetastet — es gibt keine 1:1-Gruppen-Konkordanz; wer
+# fein unterhalb eines migrierten Codes abfragt, muss die Nachfolger-Gruppen
+# selbst kuratieren.
+CPC_MIGRATIONS: dict[str, list[str]] = {
+    "H01L": ["H10B", "H10D", "H10F", "H10H", "H10K", "H10N", "H10P", "H10W"],
+}
+
+
+def expand_cpc_patterns(patterns: list[str]) -> list[str]:
+    """Subklassen-Pattern über migrierte Codes um Nachfolger-Subklassen erweitern."""
+    out: list[str] = []
+    for p in patterns:
+        out.append(p)
+        base = p.rstrip("%")
+        for succ in CPC_MIGRATIONS.get(base.upper(), []):
+            out.append(succ + "%")
+    return out
+
+
 def _x_by_year(patterns: list[str]) -> dict[int, tuple[float, int]]:
     """year -> (mean spnp_pctl, n_patents) for patents carrying ANY pattern.
 
@@ -329,6 +361,7 @@ def classify(points: list[dict], n_total: int) -> dict:
 
 
 def trajectory(patterns: list[str], now_year: int = YEAR_HI) -> dict:
+    patterns = expand_cpc_patterns(patterns)
     by_year = _x_by_year(patterns)
     total = sum(n for _, n in by_year.values())
     points = build_points(by_year, now_year)
