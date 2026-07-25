@@ -10,10 +10,14 @@ import { useState } from "react";
  */
 
 interface Point { year: number; K: number; K_lo?: number; K_hi?: number; n: number; complete: boolean; early_sparse?: boolean }
+// NB: the API additionally returns direction/direction_de/reason — deliberately
+// NOT typed here: direction labels are withdrawn from all frontend views (#68;
+// preregistered holdout 4/10 — TIR is a relative development measure, not an
+// early-warning signal). Do not reintroduce without a validated momentum signal.
 interface Traj {
-  points?: Point[]; direction?: string; direction_de?: string;
+  points?: Point[];
   K_latest?: number | null; K_median?: number | null; K_recent?: number | null;
-  calibrated?: boolean | null; n_total?: number; reason?: string | null;
+  calibrated?: boolean | null; n_total?: number;
   earliest_year?: number | null; earliest_dense_year?: number | null;
 }
 interface Candidate { symbol: string; title: string; dist: number; n: number; default: boolean }

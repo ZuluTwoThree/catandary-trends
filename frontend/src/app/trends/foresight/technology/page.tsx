@@ -151,8 +151,12 @@ export default async function TechnologyExplorerPage() {
           >
             Singh, Triulzi &amp; Magee (MIT), Research Policy 2021 ↗
           </a>
-          , computed on our 112M-edge citation graph and calibrated against their published
-          domain rates (rank correlation 0.70, R² 0.46 on the balanced full-archive substrate).
+          , computed on our worldwide 145M-edge citation graph and calibrated against the
+          original MIT ground-truth performance series (Spearman 0.76, R² 0.57 on their exact
+          benchmark patent sets; our estimates reproduce the 1,757 published MIT domain
+          forecasts at rank correlation 0.68). The rate is a{" "}
+          <span className="text-paper">relative measure of development speed</span> — use it to
+          compare fields against each other, not as an early-warning signal for adoption booms.
           These are estimates from patent-network structure, not measured product performance;
           very fast software fields and thinly-covered classes carry wider uncertainty. We show
           the rate and its evidence — the interpretation is yours.
