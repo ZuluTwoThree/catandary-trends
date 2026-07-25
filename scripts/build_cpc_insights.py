@@ -187,8 +187,10 @@ def patent_dynamics(cpc: str) -> dict:
     # TIR = the MIT method (SPNP centrality, Singh/Triulzi/Magee 2021) on the #35
     # full-ARCHIVE substrate — the SAME engine + calibration the on-demand merged
     # tool uses, so a curated card and the live tool can never disagree. Headline is
-    # the robust K_MEDIAN (not the immaturity-spiked last year); direction carried
-    # for the card badge.
+    # the robust K_MEDIAN (not the immaturity-spiked last year). tir_direction
+    # wird mitgespeichert, ist aber ein NICHT-UI-Feld (Forschung/Validierung):
+    # Richtungs-Labels sind aus allen Frontend-Ansichten zurückgenommen (#68,
+    # Holdout 4/10 — Spezifität validiert, Sensitivität nicht).
     tj = trajectory([cpc + "%"])
     out["tir_method"] = "spnp-fullarchive"
     out["tir_direction"] = tj.get("direction")

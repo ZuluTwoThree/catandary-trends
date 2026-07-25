@@ -271,3 +271,10 @@ werden expandiert (keine 1:1-Gruppen-Konkordanz).
    Crosswalk-Befund (Patent-Level-Rauschen dominiert ohnehin) senkt die Priorität.
 7. Tail-/nichtlineare Kalibrierung fürs High-End erforschen (statt CALIB_MAX
    nur zurückzuhalten) — siehe §7c.
+8. **Produktentscheidung (Owner, 2026-07-25, #68):** TIR wird als **relative
+   Entwicklung** positioniert, nicht als Früherkennung. Konsequenz aus dem
+   vorregistrierten Richtungs-Holdout (4/10 — Spezifität validiert,
+   Sensitivität nicht; Konstrukt-Mismatch Volumen-Boom ≠ Zentralitäts-Trend):
+   Richtungs-Labels sind aus allen Frontend-Ansichten zurückgenommen;
+   Backend-Berechnung bleibt (Forschung/Validierung). Wiedereinführung nur als
+   validiertes Momentum-Signal (Zentralitäts-Trend × Volumen-/Takeoff-Trend).
