@@ -260,14 +260,14 @@ export default function TechnologyTool() {
           <div className="absolute left-0 z-20 mt-1 w-[min(22rem,80vw)] border border-border bg-card p-3 shadow-lg">
             <p className="font-sans text-[12px] text-text leading-relaxed">
               <span className="text-paper">Beschreibe eine konkrete Technologie, ein Material
-              oder ein Verfahren</span> in 2–6 Wörtern — z.&nbsp;B. „Feststoffbatterie",
-              „vertikale Landwirtschaft", „Wärmepumpe".
+              oder ein Verfahren</span> in 2–6 Wörtern — z.&nbsp;B. „Feststoffbatterie“,
+              „vertikale Landwirtschaft“, „Wärmepumpe“.
             </p>
             <ul className="mt-2 font-sans text-[12px] text-muted leading-relaxed list-disc pl-4 space-y-1">
-              <li>Keine Firmen- oder Produktnamen, keine abstrakten Trends („Zukunft der Arbeit").</li>
+              <li>Keine Firmen- oder Produktnamen, keine abstrakten Trends („Zukunft der Arbeit“).</li>
               <li>Die Suche ordnet deine Worte der <span className="text-text">ähnlichsten
                   Patentklasse</span> zu — bei Nischenthemen kann das danebengehen.</li>
-              <li>Prüfe deshalb unter <span className="text-text">„Gemessen wird"</span>, ob das
+              <li>Prüfe deshalb unter <span className="text-text">„Gemessen wird“</span>, ob das
                   gefundene Feld deinem Thema entspricht — die Klassen links sind abwählbar.</li>
             </ul>
           </div>
