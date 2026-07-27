@@ -1,0 +1,38 @@
+# Ziel:  /newsletter/.htaccess
+# Docroot ist /usr/www/users/<login>/ , diese Dateien liegen darunter in /newsletter/.
+#
+# Warum das wichtig ist: Auf Hetzner-Webhosting gibt es kein beschreibbares
+# Verzeichnis oberhalb des Docroots (gemessen 2026-07-26). Die Config mit
+# DB-Passwort und Resend-Key liegt also zwangsläufig im Web-Bereich. Diese
+# Regeln sperren sie ab. Zweiter Schutz: es sind .php-Dateien — Apache führt
+# sie aus, statt Quelltext auszuliefern.
+
+Options -Indexes
+
+# Nichts direkt aufrufbar, was kein Endpunkt ist:
+#   nl_config.php  Secrets
+#   _lib.php       gemeinsame Helfer (greift auch _selftest.php)
+#   cron.php       nur per Cronjob
+#   *.sql *.py     DB-Struktur und Sync-Skript
+<FilesMatch "^(nl_config|_.*|cron)\.php$|\.(sql|py|md)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# Backup-/Editor-Reste nie ausliefern (nl_config.php~ , .bak , .save …).
+# Ohne diese Regel gäbe Apache sie als KLARTEXT aus, weil die Endung nicht
+# mehr .php ist — der klassische Weg, wie Zugangsdaten leaken.
+<FilesMatch "(~|\.bak|\.old|\.orig|\.save|\.swp)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
