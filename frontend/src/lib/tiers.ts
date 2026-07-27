@@ -31,9 +31,10 @@ export const TIERS: TierInfo[] = [
     label: "Free",
     rank: 0,
     priceHint: "€0",
-    blurb: "Curated trend articles, browsing, search and the weekly newsletter.",
+    blurb: "Curated trend articles from the last 28 days, browsing, search and the weekly newsletter.",
     features: [
-      "Published trend articles with primary sources",
+      // Window per FREE_ARCHIVE_DAYS in lib/entitlement.ts (issue #70) — keep in sync.
+      "Trend articles from the last 28 days — each with its primary source",
       "Browse by industry & PESTEL dimension",
       "Full-text search",
       "Weekly newsletter",
@@ -48,6 +49,7 @@ export const TIERS: TierInfo[] = [
     blurb: "Watch what's moving: the cluster explorer with momentum and evidence.",
     features: [
       "Everything in Free",
+      "The full trend-article archive",
       "See what's rising: trend clusters ranked by momentum",
       "Trend radar — clusters mapped from research to market",
       "Every cluster backed by clickable evidence",

@@ -81,6 +81,8 @@ const TREND_SELECT = `SELECT ${TREND_COLS},
 export async function getTrends(options: {
   status?: string;
   vertical?: Vertical;
+  /** Free archive window (issue #70): only rows with sort_date within N days. */
+  max_age_days?: number | null;
   limit?: number;
   offset?: number;
 } = {}): Promise<Trend[]> {
@@ -93,6 +95,10 @@ export async function getTrends(options: {
   if (options.vertical) {
     params.push(options.vertical);
     query += ` AND t.primary_vertical = $${params.length}`;
+  }
+  if (options.max_age_days != null) {
+    params.push(`${options.max_age_days} days`);
+    query += ` AND t.sort_date >= NOW() - $${params.length}::interval`;
   }
   params.push(options.limit ?? 50, options.offset ?? 0);
   query += ` ORDER BY t.sort_date DESC NULLS LAST LIMIT $${params.length - 1} OFFSET $${params.length}`;
@@ -107,10 +113,12 @@ export async function getTrendBySlug(slug: string): Promise<Trend | null> {
 export async function getTrendsCount(options: {
   status?: string;
   vertical?: Vertical;
+  /** Free archive window (issue #70) — part of the cache key below. */
+  max_age_days?: number | null;
 } = {}): Promise<number> {
-  // status/vertical form a tiny keyspace — safe to cache (10 min).
+  // status/vertical/window form a tiny keyspace — safe to cache (10 min).
   return cached(
-    `trends-count:${options.status ?? "all"}:${options.vertical ?? "all"}`,
+    `trends-count:${options.status ?? "all"}:${options.vertical ?? "all"}:${options.max_age_days ?? "all"}`,
     600_000,
     () => fetchTrendsCount(options)
   );
@@ -119,6 +127,7 @@ export async function getTrendsCount(options: {
 async function fetchTrendsCount(options: {
   status?: string;
   vertical?: Vertical;
+  max_age_days?: number | null;
 } = {}): Promise<number> {
   const params: unknown[] = [];
   let query = "SELECT COUNT(*)::int as cnt FROM trends t WHERE 1=1";
@@ -130,12 +139,18 @@ async function fetchTrendsCount(options: {
     params.push(options.vertical);
     query += ` AND t.primary_vertical = $${params.length}`;
   }
+  if (options.max_age_days != null) {
+    params.push(`${options.max_age_days} days`);
+    query += ` AND t.sort_date >= NOW() - $${params.length}::interval`;
+  }
   const row = await q1<{ cnt: number }>(query, params);
   return row?.cnt ?? 0;
 }
 
 export async function getTrendsByMegaTrend(megaTrend: string, options: {
   status?: string;
+  /** Free archive window (issue #70). */
+  max_age_days?: number | null;
   limit?: number;
 } = {}): Promise<Trend[]> {
   const params: unknown[] = [megaTrend];
@@ -143,6 +158,10 @@ export async function getTrendsByMegaTrend(megaTrend: string, options: {
   if (options.status) {
     params.push(options.status);
     query += ` AND t.status = $${params.length}`;
+  }
+  if (options.max_age_days != null) {
+    params.push(`${options.max_age_days} days`);
+    query += ` AND t.sort_date >= NOW() - $${params.length}::interval`;
   }
   params.push(options.limit ?? 50);
   query += ` ORDER BY t.sort_date DESC NULLS LAST LIMIT $${params.length}`;
@@ -279,6 +298,9 @@ export interface TrendsFilterOptions {
   exclude_sources?: string[];
   min_trend_score?: number; // 0–100 (percentage UX), converted to 0–1 internally
   date_range?: TrendsDateRange;
+  /** Free archive window (issue #70): hard cap on sort_date age in days,
+   *  ANDed with any user-chosen date_range. null/undefined = unlimited. */
+  max_age_days?: number | null;
   search?: string;
   sort_by?: TrendsSortBy;
   limit?: number;
@@ -341,6 +363,10 @@ function buildFilterClauses(options: TrendsFilterOptions): {
       : options.date_range === "7d" ? "7 days"
       : "30 days";
     where.push(`t.sort_date >= NOW() - ${p(interval)}::interval`);
+  }
+
+  if (options.max_age_days != null) {
+    where.push(`t.sort_date >= NOW() - ${p(`${options.max_age_days} days`)}::interval`);
   }
 
   const search = options.search?.trim();

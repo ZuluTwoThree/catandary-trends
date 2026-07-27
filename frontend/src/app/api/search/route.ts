@@ -14,6 +14,7 @@
 import { NextResponse } from "next/server";
 import { getPool, q, q1 } from "@/lib/pg";
 import { rateLimitInfo, clientIp } from "@/lib/rateLimit";
+import { archiveWindowDays } from "@/lib/entitlement";
 
 // Every search embeds the query (local GPU) + runs several DB aggregates, so an
 // unguarded public GET is a resource-exhaustion vector (#5-hardening). Per-IP
@@ -70,7 +71,8 @@ function toAnnLiteral(vec: number[]): string {
 async function ftsSearch(
   query: string,
   vertical: string | null,
-  maxResults: number
+  maxResults: number,
+  maxAgeDays: number | null
 ): Promise<Array<{ id: number }>> {
   const params: unknown[] = [query];
   let sql = `SELECT t.id FROM trends t
@@ -79,6 +81,10 @@ async function ftsSearch(
   if (vertical) {
     params.push(vertical);
     sql += ` AND t.primary_vertical = $${params.length}`;
+  }
+  if (maxAgeDays != null) {
+    params.push(`${maxAgeDays} days`);
+    sql += ` AND t.sort_date >= NOW() - $${params.length}::interval`;
   }
   params.push(maxResults * 3);
   sql += ` ORDER BY ts_rank(${FTS_VECTOR}, websearch_to_tsquery('english', $1)) DESC
@@ -91,7 +97,11 @@ async function ftsSearch(
 }
 
 /** ALL lexical matching IDs (no limit) for analytics */
-async function ftsAllIds(query: string, vertical: string | null): Promise<number[]> {
+async function ftsAllIds(
+  query: string,
+  vertical: string | null,
+  maxAgeDays: number | null
+): Promise<number[]> {
   const params: unknown[] = [query];
   let sql = `SELECT t.id FROM trends t
      WHERE ${FTS_VECTOR} @@ websearch_to_tsquery('english', $1)
@@ -99,6 +109,10 @@ async function ftsAllIds(query: string, vertical: string | null): Promise<number
   if (vertical) {
     params.push(vertical);
     sql += ` AND t.primary_vertical = $${params.length}`;
+  }
+  if (maxAgeDays != null) {
+    params.push(`${maxAgeDays} days`);
+    sql += ` AND t.sort_date >= NOW() - $${params.length}::interval`;
   }
   // Bound the analytics ID set (#56): newest ANALYTICS_MAX_IDS+1 so the caller can
   // detect truncation and flag the analytics as sampled.
@@ -117,7 +131,8 @@ async function annSearch(
   qVec: number[],
   vertical: string | null,
   k: number,
-  threshold: number
+  threshold: number,
+  maxAgeDays: number | null
 ): Promise<Array<{ id: number; score: number }>> {
   const lit = toAnnLiteral(qVec);
   const params: unknown[] = [lit];
@@ -131,6 +146,10 @@ async function annSearch(
   if (vertical) {
     params.push(vertical);
     sql += ` AND primary_vertical = $${params.length}`;
+  }
+  if (maxAgeDays != null) {
+    params.push(`${maxAgeDays} days`);
+    sql += ` AND sort_date >= NOW() - $${params.length}::interval`;
   }
   params.push(k);
   sql += ` ORDER BY embedding_1024 <=> $1::vector LIMIT $${params.length}`;
@@ -364,16 +383,20 @@ export async function GET(request: Request) {
 
   const t0 = Date.now();
 
+  // Free archive window (issue #70): the public search API must not leak
+  // archive articles to free viewers — enforced in all three query paths.
+  const windowDays = await archiveWindowDays();
+
   // 1. Embed query + lexical search (parallel)
   const [qVec, ftsResults] = await Promise.all([
     embedQuery(query),
-    ftsSearch(query, vertical, limit),
+    ftsSearch(query, vertical, limit, windowDays),
   ]);
 
   // 2. Semantic ANN search (pgvector HNSW on the 1024-dim prefix)
   let embResults: Array<{ id: number; score: number }> = [];
   if (qVec) {
-    embResults = await annSearch(qVec, vertical, limit * 3, threshold);
+    embResults = await annSearch(qVec, vertical, limit * 3, threshold, windowDays);
   }
 
   // 3. Low-confidence handling: no lexical hits = query term doesn't appear
@@ -389,7 +412,7 @@ export async function GET(request: Request) {
   const merged = rrfMerge(ftsResults, embResults, limit);
 
   // 5. Collect matching IDs for analytics (bounded lexical set + semantic hits)
-  const ftsIds = await ftsAllIds(query, vertical);
+  const ftsIds = await ftsAllIds(query, vertical, windowDays);
   const sampled = ftsIds.length > ANALYTICS_MAX_IDS;
   const allMatchIds = new Set(sampled ? ftsIds.slice(0, ANALYTICS_MAX_IDS) : ftsIds);
   for (const r of embResults) allMatchIds.add(r.id);

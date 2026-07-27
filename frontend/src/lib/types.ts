@@ -40,6 +40,9 @@ export interface Trend {
   auto_published: boolean;
   published_at: string | null;
   created_at: string;
+  /** Timeline date the queries order by and the free archive window (#70)
+   *  filters on: the source date capped to now (aliased in TREND_COLS). */
+  sort_date: string | null;
 }
 
 export interface VerticalInfo {
