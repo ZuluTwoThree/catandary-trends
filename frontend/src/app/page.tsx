@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getMethodologyStats } from "@/lib/db";
 import { PAYWALL_ENABLED } from "@/lib/entitlement";
 import HeroInstrument from "@/components/landing/HeroInstrument";
+import LaunchCountdown from "@/components/landing/LaunchCountdown";
 import TechReader from "@/components/landing/TechReader";
 import MomentumBoard from "@/components/landing/MomentumBoard";
 import ProofCounter from "@/components/landing/ProofCounter";
@@ -52,6 +53,9 @@ export default async function LandingPage() {
 
   return (
     <>
+      {/* ===== LAUNCH COUNTDOWN ===== */}
+      <LaunchCountdown />
+
       {/* ===== HERO ===== */}
       <header className="lp-hero">
         <div className="lp-wrap lp-hero-grid">
@@ -96,8 +100,8 @@ export default async function LandingPage() {
               <p>
                 Most trend tools only watch the market: press releases and news, the last stop
                 on the chain. So they tell you what already happened, hand you a number with no
-                source, and leave you unable to defend it. Catandary was built to read the
-                earlier stages — and to show its working every step of the way.
+                source, and leave you unable to defend it to a stakeholder. Catandary was built
+                to read the earlier stages — and to show its working every step of the way.
               </p>
             </div>
           </Reveal>
@@ -114,38 +118,38 @@ export default async function LandingPage() {
           <Reveal>
             <div className="lp-steps">
               <div className="lp-step">
-                <span className="lp-no">01 · Collect</span>
-                <h3>Read the chain</h3>
+                <span className="lp-no">01 · Acquisition</span>
+                <h3>We read the chain</h3>
                 <p>
-                  Only legal primary sources — RSS, official APIs and open datasets — across
-                  science, patents, funding and market. No aggregators, no scraping.
+                  Referencing primary sources from open datasets across science, patents,
+                  funding and market. No aggregator APIs, no scraping.
                 </p>
-                <span className="lp-tag">243 sources</span>
+                <span className="lp-tag">~250 sources</span>
               </div>
               <div className="lp-step">
                 <span className="lp-no">02 · Classify</span>
-                <h3>Locally, on one GPU</h3>
+                <h3>All local infrastructure</h3>
                 <p>
-                  Local models tag each signal on 8 industry verticals, 6 PESTEL dimensions
-                  and a mega/macro/micro horizon. Nothing leaves the machine.
+                  We tag each signal on 8 industry verticals, 6 PESTEL dimensions and a
+                  mega/macro/micro horizon. Nothing leaks into the cloud.
                 </p>
                 <span className="lp-tag">8 × 6 × 3 taxonomy</span>
               </div>
               <div className="lp-step">
                 <span className="lp-no">03 · Cluster</span>
-                <h3>Find what&apos;s moving</h3>
+                <h3>Reason what&apos;s moving</h3>
                 <p>
-                  Signals group by meaning into trend clusters, ranked by momentum — measured
-                  as share of attention, so a growing corpus can&apos;t fake a growing trend.
+                  We group signals by meaning into clusters and rank by momentum — measured as
+                  share of attention. Our growing corpus can&apos;t fake a growing trend.
                 </p>
                 <span className="lp-tag">221 live clusters</span>
               </div>
               <div className="lp-step">
                 <span className="lp-no">04 · Attribute</span>
-                <h3>Show the source</h3>
+                <h3>We show the source</h3>
                 <p>
-                  Every trend links back to the primary source it was built from. Any article
-                  that invents a figure or date is held for review, not published.
+                  Every signal links to the primary source it was built from. Any trend we
+                  publish is based on data available for review.
                 </p>
                 <span className="lp-tag">source enforced</span>
               </div>
@@ -187,7 +191,7 @@ export default async function LandingPage() {
                   Every trend, cluster and rate links to its primary source. A grounding gate
                   holds back any generated figure that isn&apos;t in the source material.
                 </p>
-                <div className="lp-ev">Evidence · every trend keeps its source link, enforced</div>
+                <div className="lp-ev">Evidence · source_url NOT NULL + grounding gate</div>
               </article>
               <article className="lp-pillar">
                 <svg className="lp-ic" viewBox="0 0 40 40" fill="none" aria-hidden="true">
@@ -196,8 +200,9 @@ export default async function LandingPage() {
                 </svg>
                 <h3>Improvement rates that mean something</h3>
                 <p>
-                  A Technology Improvement Rate built on the peer-reviewed SPNP method (Singh,
-                  Triulzi &amp; Magee, 2021), read over a ~109-million-edge patent-citation graph.
+                  Our Technology Improvement Estimate is built on peer-reviewed scientific
+                  models developed at MIT. We process about 150 million data points from the
+                  global patent body.
                 </p>
                 <div className="lp-ev">Method · peer-reviewed, not proprietary</div>
               </article>
@@ -208,11 +213,11 @@ export default async function LandingPage() {
                 </svg>
                 <h3>Honest by construction</h3>
                 <p>
-                  The engine withholds rates it can&apos;t trust — too recent, or off the
-                  calibrated range — and only puts a lead-time number where the data proves it.
-                  It says &ldquo;unknown&rdquo; when it doesn&apos;t know.
+                  Our algorithm withholds information it can&apos;t trust — too recent, too noisy
+                  or off the calibrated range — we publish only what the data proves. It says so
+                  when we don&apos;t know.
                 </p>
-                <div className="lp-ev">Validation · 23/24 known trends, 6/6 momentum</div>
+                <div className="lp-ev">Validation · known trends recovered and momentum confirmed</div>
               </article>
               <article className="lp-pillar">
                 <svg className="lp-ic" viewBox="0 0 40 40" fill="none" aria-hidden="true">
@@ -222,10 +227,10 @@ export default async function LandingPage() {
                 </svg>
                 <h3>Local, open, affordable</h3>
                 <p>
-                  Runs on local models and open data — no per-token cloud cost, no single-vendor
+                  Runs on local infrastructure and open data — no cloud cost, no vendor
                   lock-in — which is what puts board-grade foresight at a self-service price.
                 </p>
-                <div className="lp-ev">Cost · one 24GB GPU, no cloud in the loop</div>
+                <div className="lp-ev">Cost · all local machines, no cloud in the loop</div>
               </article>
               <article className="lp-pillar">
                 <svg className="lp-ic" viewBox="0 0 40 40" fill="none" aria-hidden="true">
@@ -252,10 +257,10 @@ export default async function LandingPage() {
         <div className="lp-wrap">
           <span className="lp-eyebrow lp-kicker">Read the instrument</span>
           <h2 className="lp-section-h" id="lp-demo-h">
-            Pick a technology. Watch it read.
+            Choose a technology. Type and watch it read.
           </h2>
           <p className="lp-lede">
-            Two questions the engine answers for any technology:{" "}
+            Two questions our engine answers for any technology:{" "}
             <span className="lp-hi">how early is it</span> across the innovation chain, and{" "}
             <span className="lp-hi">how fast is it actually improving</span>.
           </p>
@@ -300,32 +305,30 @@ export default async function LandingPage() {
               <article className="lp-pillar">
                 <h3>Local-first analysis</h3>
                 <p>
-                  Filtering, classification, embeddings and article generation all run on local
-                  models on the owner&apos;s own GPU. Cloud is a scoped, one-time backfill
-                  exception — never the operating mode.
+                  Filtering, classification, and our algorithms all run on our own local
+                  infrastructure. Cloud is not the operating mode.
                 </p>
                 <div className="lp-ev">
-                  Scope · applies to the content pipeline. Account &amp; email data use named EU
-                  processors (Stripe, Resend, Hetzner).
+                  Scope · applies to the content pipeline. Account &amp; email data use only
+                  reputable processors.
                 </div>
               </article>
               <article className="lp-pillar">
                 <h3>Attribution enforced at the data layer</h3>
                 <p>
-                  A trend without a source link can&apos;t physically exist — the data
-                  layer rejects it, it&apos;s not a style convention. And a grounding
-                  check holds any article that introduces an unsourced figure.
+                  In our database a trend without a source can&apos;t physically exist. And a
+                  grounding check holds any article that introduces an unsourced figure.
                 </p>
-                <div className="lp-ev">Honesty · no fabricated numbers reach auto-publish</div>
+                <div className="lp-ev">Honesty · no fabricated info reaches publish</div>
               </article>
               <article className="lp-pillar">
                 <h3>Tested, backed up, recoverable</h3>
                 <p>
-                  Continuous integration runs the suite against a real vector database on every
-                  change; nightly backups have a verified restore of 20-million-plus rows. Ops
+                  Continuous integration runs the suite against a real database on every change;
+                  nightly backups have verified restores of 20-million-plus records. Ops
                   maturity, not aspiration.
                 </p>
-                <div className="lp-ev">Reliability · CI + verified restore runbook</div>
+                <div className="lp-ev">Reliability · CI &amp; verified restore runbook</div>
               </article>
             </div>
           </Reveal>
@@ -357,9 +360,9 @@ export default async function LandingPage() {
                 <ul>
                   <li>The whole chain: science → patents → funding → market</li>
                   <li>Every number one click from its primary source</li>
-                  <li>Peer-reviewed improvement-rate method, shown openly</li>
+                  <li>Peer-reviewed scientific method, shown openly</li>
                   <li>Honest gates: withholds what it can&apos;t prove</li>
-                  <li>Local models → self-service price</li>
+                  <li>Local mode → self-service price</li>
                 </ul>
               </div>
               <div className="lp-col">
@@ -398,10 +401,11 @@ export default async function LandingPage() {
                 <span className="lp-pname">Free</span>
                 <div className="lp-amt">€0</div>
                 <p className="lp-blurb">
-                  Curated trend articles, browsing, search and the weekly newsletter.
+                  Curated trend articles from the last 28 days, browsing, search and the weekly
+                  newsletter.
                 </p>
                 <ul>
-                  <li>Published trend articles</li>
+                  <li>Trend articles from the last 28 days</li>
                   <li>Vertical &amp; PESTEL browsing</li>
                   <li>Search</li>
                   <li>Weekly newsletter</li>
@@ -421,6 +425,7 @@ export default async function LandingPage() {
                 </p>
                 <ul>
                   <li>Everything in Free</li>
+                  <li>Full trend-article archive</li>
                   <li>Cluster explorer</li>
                   <li>Trend radar</li>
                   <li>Saved searches &amp; alerts</li>
@@ -430,7 +435,9 @@ export default async function LandingPage() {
                 </Link>
               </div>
               <div className="lp-price feat">
-                <span className="lp-pname">Pro</span>
+                <span className="lp-pname">
+                  Pro <span style={{ color: "var(--color-muted)" }}>· coming soon</span>
+                </span>
                 <div className="lp-amt">
                   €499<small>/mo</small>
                 </div>
@@ -439,8 +446,8 @@ export default async function LandingPage() {
                 </p>
                 <ul>
                   <li>Everything in Starter</li>
-                  <li>Technology explorer &amp; CPC lead-time</li>
-                  <li>TIR metrics &amp; trajectory</li>
+                  <li>Technology explorer &amp; lead-time analysis</li>
+                  <li>Tech improvement metrics</li>
                   <li>Trend evolution &amp; lineage</li>
                   <li>CSV / dossier export</li>
                 </ul>
@@ -449,7 +456,9 @@ export default async function LandingPage() {
                 </Link>
               </div>
               <div className="lp-price">
-                <span className="lp-pname">Super Pro+</span>
+                <span className="lp-pname">
+                  Super Pro+ <span style={{ color: "var(--color-muted)" }}>· coming soon</span>
+                </span>
                 <div className="lp-amt">
                   €799<small>/mo</small>
                 </div>
@@ -474,17 +483,17 @@ export default async function LandingPage() {
           <div className="lp-hypercare">
             <div>
               <div className="lp-amt">
-                Hypercare · €1,499
+                Individual Analysis · €1,499
                 <small style={{ fontFamily: "var(--font-mono)", fontSize: ".7rem", color: "var(--color-muted)" }}>
                   /day
                 </small>
               </div>
               <p style={{ fontSize: ".85rem", color: "var(--color-muted)", marginTop: ".4rem", maxWidth: "40em" }}>
                 Dedicated, hands-on analyst support tailored to your questions — a bespoke
-                engagement, not a subscription. €999/day from the second engagement.
+                engagement and scope, not a subscription. €999/day from the second engagement.
               </p>
             </div>
-            <a className="lp-btn" href="mailto:trends@catandary.de?subject=Catandary%20Hypercare">
+            <a className="lp-btn" href="mailto:trends@catandary.de?subject=Catandary%20Individual%20Analysis">
               Talk to us
             </a>
           </div>
@@ -502,57 +511,55 @@ export default async function LandingPage() {
             <details open>
               <summary>Where does the data come from?</summary>
               <p>
-                243 legal primary sources — trade-press RSS feeds, official APIs and open
-                datasets across science (OpenAlex, preprints), patents, public funding, and
-                market news. No aggregator scraping; every source is curated by hand. Each
-                published trend keeps a working link to the original.
+                ~250 primary sources — official APIs and open datasets across science, patents,
+                public funding, and market news. No aggregator scraping; every source is curated
+                by hand. Each published trend keeps a working link to the original.
               </p>
             </details>
             <details>
               <summary>Is the foresight method proprietary?</summary>
               <p>
-                No — and we&apos;d rather be clear about that. The Technology Improvement Rate is
-                built on a published, peer-reviewed method (SPNP citation centrality; Singh,
-                Triulzi &amp; Magee, Research Policy, 2021). Others use it too. Our edge is the
-                corpus, the calibration, the evidence transparency and the price — not a secret
-                formula.
+                No — and we&apos;d rather be clear about that. Our Technology Improvement
+                Estimate comes from peer-reviewed research at MIT. Others use it too. Our edge is
+                the data corpus, the calibration, the evidence transparency and the price — not a
+                secret formula.
               </p>
             </details>
             <details>
               <summary>How accurate is it — really?</summary>
               <p>
-                On our own corpus the engine recovered 23 of 24 known trends bottom-up and
-                matched 6 of 6 hand-checked momentum-direction calls against public reality. It
-                withholds absolute improvement rates it can&apos;t yet trust (recent years, or
-                beyond the calibrated range) and only headlines a lead-time number where the data
-                proves it. Direction and shape are the reliable output; we say so.
+                On our own corpus the engine recovered known trends bottom-up and matched
+                hand-checked momentum-direction calls against public reality. It withholds
+                absolute improvement rates it can&apos;t yet trust and only headlines a number
+                where the data proves it. Direction and shape are the most reliable output; we
+                say so.
               </p>
             </details>
             <details>
               <summary>Is my data private?</summary>
               <p>
-                The trend-analysis pipeline runs entirely on local models — the source corpus
-                never touches a cloud API. If you create an account, the data needed to run it
-                (your email for login and the newsletter, payment status for billing) is
-                processed by named EU-based providers (Resend, Stripe, Hetzner). We use no
-                third-party analytics and no tracking cookies.
+                The trend-analysis pipeline runs entirely on local infrastructure — the source
+                corpus never touches a cloud API. If you create an account, the data needed to
+                run it (your email for login and the newsletter and payment status for billing)
+                is processed by EU-based providers. We use no third-party analytics.
               </p>
             </details>
             <details>
               <summary>Who is it for?</summary>
               <p>
-                Corporate innovation and foresight teams who need a radar they can defend;
-                agencies and consultants who need cited trend dossiers per client industry; and
-                independent analysts who want data-driven &ldquo;what&apos;s rising&rdquo; without
-                an enterprise contract.
+                Corporate innovation and foresight teams who need technology data they can
+                defend; investors, agencies and consultants who need cited trend dossiers per
+                client industry; and independent analysts who want data-driven
+                &ldquo;what&apos;s rising&rdquo; without an enterprise contract.
               </p>
             </details>
             <details>
               <summary>What does it cost?</summary>
               <p>
-                The content layer and weekly briefing are free. The foresight engine is €99
-                (Starter), €499 (Pro) or €799 (Super Pro+) per month, with a sales-led Hypercare
-                day-rate for bespoke work.{" "}
+                The last 28 days of trend articles and the weekly briefing are free. The full
+                archive and the foresight engine are €99 (Starter), €499 (Pro) or €799 (Super
+                Pro+) per month, with a sales-led individual day-rate for bespoke analytics
+                work.{" "}
                 {stripeReady
                   ? "Paid plans are live — monthly billing, cancel anytime."
                   : "The paid tiers are opening in early access."}
