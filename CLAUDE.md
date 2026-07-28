@@ -408,25 +408,36 @@ CREATE TABLE trend_clusters (
 
 ## Automatisierung & Scheduling
 
-### Cron-Jobs
+### Cron-Jobs (realer Stand seit 2026-07-28)
 
 ```
-# RSS-Feeds pollen (alle 4 Stunden)
-0 */4 * * *  python pipeline/feed_poller.py
+# Env-Zeilen sind Pflicht: cron hat keine systemd-User-Session — ohne
+# XDG_RUNTIME_DIR schlagen die GPU-Handover (`systemctl --user`) still fehl.
+XDG_RUNTIME_DIR=/run/user/1000
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 
-# LLM-Pipeline für neue Einträge (alle 4 Stunden, nach Polling)
-30 */4 * * * python pipeline/llm_processor.py
+# Full Cycle Mo–Fr 04:00 (Feed-Polling + LLM-Pipeline + Auto-Publish in einem
+# Lauf via scheduled_cycle.sh; Wrapper räumt vorher ALLES VRAM frei, auch
+# manuell gestartete llama-server). Log: ~/logs/catandary-full-cycle-*.log
+0 4 * * 1-5  scripts/full_cycle_cron.sh
 
-# Auto-Publish ist in die LLM-Pipeline integriert (Stage 9+10: Reclassify → Auto-Publish)
-# Standalone-Lauf nur als Fallback nötig:
-# python pipeline/auto_publisher.py  (nutzt AUTO_PUBLISH_CONFIDENCE=0.85 aus config.py)
+# DB-Backup (täglich 02:45)
+45 2 * * *   .venv/bin/python scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 7
 
-# Wöchentlicher Newsletter (Montag 9:00)
-0 9 * * 1    python pipeline/newsletter_generator.py
+# Source-Discovery-Loop (Sonntag 06:00)
+0 6 * * 0    .venv/bin/python scripts/discovery_loop.py
 
-# Source-Discovery Report (Freitag 17:00)
-0 17 * * 5   python pipeline/source_report.py
+# Monatlicher Quellen-Check mit Issue-Post (1. des Monats, 08:00)
+0 8 1 * *    .venv/bin/python scripts/monthly_source_check.py --post-issue
+
+# Wöchentlicher Patent-Sweep (Dienstag 05:00)
+0 5 * * 2    scripts/weekly_patents.sh
 ```
+
+Auto-Publish ist in die LLM-Pipeline integriert (Stage 8+9: Reclassify → Auto-Publish);
+Standalone-Lauf nur als Fallback: `python pipeline/auto_publisher.py`
+(nutzt `AUTO_PUBLISH_CONFIDENCE=0.85` aus config.py). Ein Newsletter-Cron ist
+derzeit **nicht** eingerichtet (`pipeline/newsletter_generator.py` läuft manuell).
 
 ### Feed-Poller Architektur
 
