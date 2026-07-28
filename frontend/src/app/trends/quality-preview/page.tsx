@@ -57,7 +57,7 @@ function markFabrications(body: string, flagged: string[]) {
   const flagSet = new Set(flagged);
   return parts.map((p, i) =>
     flagSet.has(p) ? (
-      <mark key={i} className="bg-red-500/25 text-red-300 px-0.5 rounded-sm">
+      <mark key={i} className="bg-warn/25 text-warn px-0.5">
         {p}
       </mark>
     ) : (
@@ -89,7 +89,7 @@ const DIMS: [keyof Scores, string][] = [
 
 function Delta({ a, b }: { a: number; b: number }) {
   const d = Math.round((b - a) * 100) / 100;
-  const col = d > 0 ? "text-accent" : d < 0 ? "text-red-400" : "text-muted";
+  const col = d > 0 ? "text-accent" : d < 0 ? "text-warn" : "text-muted";
   return <span className={`${col} tabular-nums`}>{d > 0 ? `+${d}` : d}</span>;
 }
 
@@ -136,8 +136,8 @@ export default async function QualityPreviewPage() {
       </div>
 
       {held && held.length > 0 && gate && (
-        <div className="mb-12 border border-red-500/30 bg-red-500/[0.03] p-5">
-          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-red-300 mb-2">
+        <div className="mb-12 border border-warn/30 bg-warn/[0.03] p-5">
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-warn mb-2">
             —— Integrity gate: fabricated specifics held for review
           </div>
           <p className="font-sans text-text leading-relaxed max-w-3xl mb-5">
@@ -151,7 +151,7 @@ export default async function QualityPreviewPage() {
           </p>
           <div className="space-y-4">
             {held.map((h) => (
-              <div key={h.id} className="border-l-2 border-red-500/40 pl-4">
+              <div key={h.id} className="border-l-2 border-warn/40 pl-4">
                 <p className="font-sans text-xs text-muted italic mb-1">
                   Source: {h.source_title}
                 </p>

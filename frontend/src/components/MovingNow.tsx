@@ -42,12 +42,13 @@ export default async function MovingNow() {
             <Link
               key={c.id}
               href={`/trends/foresight/clusters?vertical=${c.verticals[0] ?? ""}`}
-              className="group rounded-lg border border-border p-4 transition-colors hover:border-accent/50"
+              className="group border border-border border-l-[3px] p-4 transition-colors hover:bg-accent/[0.02]"
+              style={{ borderLeftColor: v?.color ?? "var(--color-accent)" }}
             >
               <div className="flex items-center gap-2">
                 {v && (
                   <span
-                    className="inline-block h-2 w-2 rounded-full"
+                    className="inline-block h-[3px] w-2"
                     style={{ background: v.color }}
                   />
                 )}

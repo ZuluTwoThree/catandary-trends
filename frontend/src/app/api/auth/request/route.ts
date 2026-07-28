@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "auth temporarily unavailable" }, { status: 503 });
   }
 
-  let body: { email?: string; newsletter?: boolean };
+  let body: { email?: string; newsletter?: boolean; next?: string };
   try {
     body = await request.json();
   } catch {
@@ -62,7 +62,10 @@ export async function POST(request: Request) {
 
   let link: string;
   try {
-    link = await sendMagicLink(email, raw);
+    link = await sendMagicLink(email, raw, {
+      next: body.next,
+      base: new URL(request.url).origin,
+    });
   } catch (e) {
     // A real send failure (Resend non-2xx / network) must NOT report success.
     console.error("magic link send failed:", e);

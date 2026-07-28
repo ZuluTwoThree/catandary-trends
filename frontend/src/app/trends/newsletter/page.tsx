@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import Link from "next/link";
 import { getVerticalInfo, type Vertical } from "@/lib/types";
 
@@ -88,6 +88,7 @@ function SignupForm() {
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [message, setMessage] = useState("");
+  const inputId = useId();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -114,42 +115,62 @@ function SignupForm() {
   }
 
   return (
-    <div className="border border-border bg-card/40 p-6">
-      {status === "success" ? (
-        <div className="text-center py-4">
-          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">
-            —— Subscribed
+    <div>
+      <div className="border border-border bg-card/40 p-6">
+        {status === "success" ? (
+          <div className="text-center py-4" role="status">
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">
+              —— Subscribed
+            </div>
+            <p className="font-sans text-sm text-paper">{message}</p>
           </div>
-          <p className="font-sans text-sm text-paper">{message}</p>
-        </div>
-      ) : (
-        <form
-          className="flex flex-col sm:flex-row gap-2"
-          onSubmit={handleSubmit}
-        >
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Your email address"
-            className="flex-1 bg-background border border-border px-4 py-3 font-sans text-sm text-paper placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
-            required
-            disabled={status === "loading"}
-          />
-          <button
-            type="submit"
-            disabled={status === "loading"}
-            className="bg-accent text-ink px-6 py-3 font-mono text-[10px] uppercase tracking-[0.18em] hover:bg-accent-deep transition-colors whitespace-nowrap disabled:opacity-50"
+        ) : (
+          <form
+            className="flex flex-col sm:flex-row gap-2"
+            onSubmit={handleSubmit}
           >
-            {status === "loading" ? "Subscribing…" : "Subscribe"}
-          </button>
-        </form>
-      )}
-      {status === "error" && (
-        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-warn mt-3">
-          {message}
-        </p>
-      )}
+            <label htmlFor={inputId} className="sr-only">
+              Email address
+            </label>
+            <input
+              id={inputId}
+              type="email"
+              name="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Your email address"
+              className="flex-1 bg-background border border-border px-4 py-3 font-sans text-sm text-paper placeholder:text-muted focus:border-accent transition-colors"
+              required
+              disabled={status === "loading"}
+            />
+            <button
+              type="submit"
+              disabled={status === "loading"}
+              className="bg-accent text-ink px-6 py-3 font-mono text-[10px] uppercase tracking-[0.18em] hover:bg-accent-deep transition-colors whitespace-nowrap disabled:opacity-50"
+            >
+              {status === "loading" ? "Subscribing…" : "Subscribe"}
+            </button>
+          </form>
+        )}
+        {status === "error" && (
+          <p
+            role="alert"
+            className="font-mono text-[10px] uppercase tracking-[0.14em] text-warn mt-3"
+          >
+            {message}
+          </p>
+        )}
+      </div>
+      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted mt-3">
+        One email a week. Unsubscribe anytime.{" "}
+        <Link
+          href="/privacy"
+          className="underline hover:text-accent transition-colors"
+        >
+          Privacy
+        </Link>
+      </p>
     </div>
   );
 }
@@ -178,6 +199,11 @@ function WeekSelector({
       <button
         onClick={() => prevEdition && onSelect(prevEdition.year, prevEdition.week)}
         disabled={!prevEdition}
+        aria-label={
+          prevEdition
+            ? `Previous briefing: week ${prevEdition.week}/${prevEdition.year}`
+            : "No earlier briefing"
+        }
         className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
         ← W{prevEdition ? `${prevEdition.week}` : "—"}
@@ -191,7 +217,8 @@ function WeekSelector({
             const [y, w] = e.target.value.split("-").map(Number);
             onSelect(y, w);
           }}
-          className="bg-transparent text-accent border-none font-mono text-[10px] uppercase tracking-[0.14em] cursor-pointer focus:outline-none"
+          aria-label="Select briefing week"
+          className="bg-transparent text-accent border-none font-mono text-[10px] uppercase tracking-[0.14em] cursor-pointer"
         >
           {archive.map((a) => (
             <option
@@ -209,6 +236,11 @@ function WeekSelector({
       <button
         onClick={() => nextEdition && onSelect(nextEdition.year, nextEdition.week)}
         disabled={!nextEdition}
+        aria-label={
+          nextEdition
+            ? `Next briefing: week ${nextEdition.week}/${nextEdition.year}`
+            : "No later briefing"
+        }
         className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
         W{nextEdition ? `${nextEdition.week}` : "—"} →
@@ -268,19 +300,19 @@ export default function NewsletterPage() {
         </p>
       </div>
 
-      {/* Signup — above the fold: the newsletter is the primary lead magnet, so
-          the email capture sits at the top, not buried under the full briefing. */}
+      {/* Signup — above the fold: the email capture sits at the top, not
+          buried under the full briefing. */}
       <section className="mb-14">
         <SignupForm />
-        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted mt-3">
-          Free · one email per week · no spam
-        </p>
       </section>
 
       {loading ? (
-        <div className="border border-border bg-card/40 p-12 text-center">
+        <div
+          className="border border-border bg-card/40 p-12 text-center"
+          role="status"
+        >
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted animate-pulse">
-            Loading…
+            This week&apos;s briefing is loading…
           </div>
         </div>
       ) : !edition ? (
@@ -470,9 +502,6 @@ export default function NewsletterPage() {
           —— Subscribe
         </div>
         <SignupForm />
-        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted mt-3">
-          No spam. One email per week with the most important trend signals.
-        </p>
       </section>
     </div>
   );

@@ -62,7 +62,10 @@ export default function TrendArticle({
   return (
     <>
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-8">
+      <nav
+        aria-label="Breadcrumb"
+        className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-8"
+      >
         <Link href="/trends" className="hover:text-paper transition-colors">
           Trends
         </Link>
@@ -146,7 +149,7 @@ export default function TrendArticle({
         )}
 
         {/* Meta info */}
-        <div className="border-t border-border pt-6 mt-10 grid grid-cols-2 md:grid-cols-4 gap-6">
+        <dl className="border-t border-border pt-6 mt-10 grid grid-cols-2 md:grid-cols-4 gap-6">
           {trend.trend_signal_type && (
             <div>
               <dt className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-2">
@@ -190,7 +193,7 @@ export default function TrendArticle({
               <dd className="text-sm text-paper">{trend.regions.join(", ")}</dd>
             </div>
           )}
-        </div>
+        </dl>
 
         {/* Tags */}
         {trend.tags.length > 0 && (
@@ -212,9 +215,9 @@ export default function TrendArticle({
         {/* Source Link */}
         {trend.source_url && (
           <div className="mt-10 border border-border p-5">
-            <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-2">
+            <h2 className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-2">
               Original Source
-            </div>
+            </h2>
             <a
               href={trend.source_url}
               target="_blank"
@@ -230,9 +233,9 @@ export default function TrendArticle({
       {/* Related Trends */}
       {related.length > 0 && (
         <section className="mt-16">
-          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">
-            —— Related in {vertical.label}
-          </div>
+          <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">
+            <span aria-hidden="true">—— </span>Related in {vertical.label}
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {related.map((r) => {
               const rv = getVerticalInfo(r.primary_vertical);

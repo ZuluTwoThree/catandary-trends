@@ -25,8 +25,8 @@ export default function TrendsEmpty({
 
   return (
     <div className="border border-border border-dashed px-8 py-16 text-center">
-      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted mb-4">
-        —— 404 · No signals
+      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted mb-4">
+        —— 0 results
       </div>
 
       <h2 className="font-display text-[32px] leading-[1.1] text-paper mb-4">
@@ -61,11 +61,7 @@ export default function TrendsEmpty({
           </div>
           <button
             onClick={clearAll}
-            className="font-mono text-[10px] uppercase tracking-[0.18em] bg-accent text-ink px-5 py-3 hover:bg-accent-deep transition-colors"
-            style={{
-              backgroundColor: "var(--color-accent)",
-              color: "var(--color-background)",
-            }}
+            className="font-mono text-[11px] uppercase tracking-[0.18em] bg-accent text-ink px-5 py-3 hover:bg-accent-deep transition-colors"
           >
             Clear all filters →
           </button>

@@ -6,6 +6,8 @@ import {
   cpcDisplayName,
 } from "@/lib/foresight";
 import TierCurveChart from "@/components/foresight/TierCurveChart";
+import TierGate from "@/components/TierGate";
+import { canAccess } from "@/lib/entitlement";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +32,12 @@ export default async function LeadTimePage({
   if (techs.length === 0) notFound();
 
   const { cpc } = await searchParams;
-  const active = techs.find((t) => t.cpc === cpc?.toUpperCase()) ?? techs[0];
+  // Free viewers get the showcase technology only — otherwise the ?cpc= deep
+  // link would route around the Pro gate on the picker below.
+  const isPro = await canAccess("pro");
+  const active = isPro
+    ? techs.find((t) => t.cpc === cpc?.toUpperCase()) ?? techs[0]
+    : techs[0];
   const { tiers, lead } = await getTierCurves(active.cpc);
   const name = cpcDisplayName(active.title, active.curated_name);
   const leadYears = active.lead_science_vs_market;
@@ -90,42 +97,50 @@ export default async function LeadTimePage({
         the lead time — the window the paid Foresight layer turns into a forecast.
       </p>
 
-      {/* Pick another technology (single visible control — low-threshold) */}
+      {/* Pick another technology (single visible control — low-threshold).
+          The first technology above stays free as the hook; the full picker
+          is Pro (ONB-03/KEY-01: pricing sells lead-time as a Pro feature). */}
       <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-3">
         —— Technologies where research measurably led the market
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {techs.map((t) => {
-          const tn = cpcDisplayName(t.title, t.curated_name);
-          const on = t.cpc === active.cpc;
-          return (
-            <Link
-              key={t.cpc}
-              href={`/trends/foresight/lead-time?cpc=${t.cpc}`}
-              scroll={false}
-              className={`border p-4 transition-colors ${
-                on
-                  ? "border-accent/60 bg-accent/5"
-                  : "border-border bg-card/40 hover:bg-card"
-              }`}
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="font-display text-[17px] text-paper leading-snug">
-                  {tn}
-                </span>
-                {t.lead_science_vs_market != null && (
-                  <span className="font-mono text-[11px] text-accent whitespace-nowrap">
-                    ~{t.lead_science_vs_market}y
+      <TierGate
+        need="pro"
+        feature="The full lead-time library"
+        benefit={`Pro opens all ${techs.length} technologies with proven research-to-market lead times — pick any of them and read its four-tier curves.`}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {techs.map((t) => {
+            const tn = cpcDisplayName(t.title, t.curated_name);
+            const on = t.cpc === active.cpc;
+            return (
+              <Link
+                key={t.cpc}
+                href={`/trends/foresight/lead-time?cpc=${t.cpc}`}
+                scroll={false}
+                className={`border p-4 transition-colors ${
+                  on
+                    ? "border-accent/60 bg-accent/5"
+                    : "border-border bg-card/40 hover:bg-card"
+                }`}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-display text-[17px] text-paper leading-snug">
+                    {tn}
                   </span>
-                )}
-              </div>
-              <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mt-1">
-                research {t.science_takeoff} → market {t.market_takeoff}
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+                  {t.lead_science_vs_market != null && (
+                    <span className="font-mono text-[11px] text-accent whitespace-nowrap">
+                      ~{t.lead_science_vs_market}y
+                    </span>
+                  )}
+                </div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mt-1">
+                  research {t.science_takeoff} → market {t.market_takeoff}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </TierGate>
 
       <div className="mt-10 border border-border bg-card/40 px-5 py-4">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">

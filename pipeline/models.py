@@ -55,6 +55,17 @@ class ExtractionResult(BaseModel):
     product_name: str | None = Field(default=None, description="Product or service name")
     source_type: str | None = Field(default=None, description="Type of source (press release, article, etc.)")
     key_claims: list[str] = Field(default_factory=list, description="Key claims from the text")
+    # --- Richer extraction (#11): purely extractive specifics. Copy tokens
+    # VERBATIM as they appear (keep the source's number/date formatting); never
+    # infer. Besides being useful metadata, key_figures/dates feed the grounding
+    # gate (pipeline.grounding): a figure the source actually states is added to
+    # the "grounded" set, so a correctly-cited number in the body is no longer
+    # held as fabricated by the auto-publish gate — the source that gate rebuilds
+    # is otherwise narrower than the full text the content model saw.
+    key_figures: list[str] = Field(default_factory=list, description="Specific numbers, statistics, amounts or percentages stated verbatim in the text (e.g. '7,980 jobs', '29,5 %', '$2B')")
+    quotes: list[str] = Field(default_factory=list, description="Direct quotations from the text")
+    dates: list[str] = Field(default_factory=list, description="Dates, years or timeframes explicitly stated in the text (e.g. '2027', 'by Q3 2025')")
+    geography: list[str] = Field(default_factory=list, description="Places, regions, countries or jurisdictions mentioned in the text")
 
 
 # --- Step 3: NER + Classification ---

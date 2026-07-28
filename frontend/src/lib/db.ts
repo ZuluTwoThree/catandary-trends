@@ -14,6 +14,23 @@ import type {
  * All functions are async; JSONB columns arrive pre-parsed from pg.
  */
 
+/**
+ * In-process TTL cache for expensive aggregate queries (ONB-01/ARCH-02: the
+ * landing and methodology pages ran full-table COUNTs over ~1M rows on every
+ * request → 7-9s TTFB). Counters may lag reality by up to the TTL — fine for
+ * trust numbers that move hourly. Single-server deployment, so process-local
+ * state is authoritative enough.
+ */
+const ttlCache = new Map<string, { at: number; value: unknown }>();
+
+async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  const hit = ttlCache.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
+  const value = await fn();
+  ttlCache.set(key, { at: Date.now(), value });
+  return value;
+}
+
 function asArray(v: unknown): string[] {
   if (Array.isArray(v)) return v as string[];
   if (typeof v === "string" && v) {
@@ -64,6 +81,8 @@ const TREND_SELECT = `SELECT ${TREND_COLS},
 export async function getTrends(options: {
   status?: string;
   vertical?: Vertical;
+  /** Free archive window (issue #70): only rows with sort_date within N days. */
+  max_age_days?: number | null;
   limit?: number;
   offset?: number;
 } = {}): Promise<Trend[]> {
@@ -76,6 +95,10 @@ export async function getTrends(options: {
   if (options.vertical) {
     params.push(options.vertical);
     query += ` AND t.primary_vertical = $${params.length}`;
+  }
+  if (options.max_age_days != null) {
+    params.push(`${options.max_age_days} days`);
+    query += ` AND t.sort_date >= NOW() - $${params.length}::interval`;
   }
   params.push(options.limit ?? 50, options.offset ?? 0);
   query += ` ORDER BY t.sort_date DESC NULLS LAST LIMIT $${params.length - 1} OFFSET $${params.length}`;
@@ -90,6 +113,21 @@ export async function getTrendBySlug(slug: string): Promise<Trend | null> {
 export async function getTrendsCount(options: {
   status?: string;
   vertical?: Vertical;
+  /** Free archive window (issue #70) — part of the cache key below. */
+  max_age_days?: number | null;
+} = {}): Promise<number> {
+  // status/vertical/window form a tiny keyspace — safe to cache (10 min).
+  return cached(
+    `trends-count:${options.status ?? "all"}:${options.vertical ?? "all"}:${options.max_age_days ?? "all"}`,
+    600_000,
+    () => fetchTrendsCount(options)
+  );
+}
+
+async function fetchTrendsCount(options: {
+  status?: string;
+  vertical?: Vertical;
+  max_age_days?: number | null;
 } = {}): Promise<number> {
   const params: unknown[] = [];
   let query = "SELECT COUNT(*)::int as cnt FROM trends t WHERE 1=1";
@@ -101,12 +139,18 @@ export async function getTrendsCount(options: {
     params.push(options.vertical);
     query += ` AND t.primary_vertical = $${params.length}`;
   }
+  if (options.max_age_days != null) {
+    params.push(`${options.max_age_days} days`);
+    query += ` AND t.sort_date >= NOW() - $${params.length}::interval`;
+  }
   const row = await q1<{ cnt: number }>(query, params);
   return row?.cnt ?? 0;
 }
 
 export async function getTrendsByMegaTrend(megaTrend: string, options: {
   status?: string;
+  /** Free archive window (issue #70). */
+  max_age_days?: number | null;
   limit?: number;
 } = {}): Promise<Trend[]> {
   const params: unknown[] = [megaTrend];
@@ -114,6 +158,10 @@ export async function getTrendsByMegaTrend(megaTrend: string, options: {
   if (options.status) {
     params.push(options.status);
     query += ` AND t.status = $${params.length}`;
+  }
+  if (options.max_age_days != null) {
+    params.push(`${options.max_age_days} days`);
+    query += ` AND t.sort_date >= NOW() - $${params.length}::interval`;
   }
   params.push(options.limit ?? 50);
   query += ` ORDER BY t.sort_date DESC NULLS LAST LIMIT $${params.length}`;
@@ -162,6 +210,12 @@ function loadMegaTrendYaml(): Record<string, {
 }
 
 export async function getMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
+  return cached(`mega-trends:${status ?? "all"}`, 600_000, () =>
+    fetchMegaTrends(status)
+  );
+}
+
+async function fetchMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
   const params: unknown[] = [];
   let query = `SELECT t.mega_trend, COUNT(*)::int as cnt,
      STRING_AGG(DISTINCT t.primary_vertical, ',') as verts,
@@ -201,21 +255,6 @@ export async function getMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
       signals_30d: r.signals_30d || 0,
     };
   });
-}
-
-export async function getCrossVerticalTrends(options: {
-  status?: string;
-  limit?: number;
-} = {}): Promise<Trend[]> {
-  const params: unknown[] = [];
-  let query = TREND_SELECT + " WHERE jsonb_array_length(t.verticals) > 1";
-  if (options.status) {
-    params.push(options.status);
-    query += ` AND t.status = $${params.length}`;
-  }
-  params.push(options.limit ?? 20);
-  query += ` ORDER BY t.sort_date DESC NULLS LAST, t.trend_score DESC LIMIT $${params.length}`;
-  return (await q(query, params)).map(parseTrendRow);
 }
 
 export async function getTopTrendsByEngagement(limit: number = 10): Promise<Trend[]> {
@@ -259,6 +298,9 @@ export interface TrendsFilterOptions {
   exclude_sources?: string[];
   min_trend_score?: number; // 0–100 (percentage UX), converted to 0–1 internally
   date_range?: TrendsDateRange;
+  /** Free archive window (issue #70): hard cap on sort_date age in days,
+   *  ANDed with any user-chosen date_range. null/undefined = unlimited. */
+  max_age_days?: number | null;
   search?: string;
   sort_by?: TrendsSortBy;
   limit?: number;
@@ -323,6 +365,10 @@ function buildFilterClauses(options: TrendsFilterOptions): {
     where.push(`t.sort_date >= NOW() - ${p(interval)}::interval`);
   }
 
+  if (options.max_age_days != null) {
+    where.push(`t.sort_date >= NOW() - ${p(`${options.max_age_days} days`)}::interval`);
+  }
+
   const search = options.search?.trim();
   if (search && search.length > 0) {
     where.push(`${FTS_VECTOR} @@ websearch_to_tsquery('english', ${p(search)})`);
@@ -375,15 +421,25 @@ export async function getTrendsFilteredCount(
   return row?.cnt ?? 0;
 }
 
-/** Corpus stats for the methodology / trust page. */
-export async function getMethodologyStats(): Promise<{
+export interface MethodologyStats {
   analyzed: number;
   published: number;
   sources: number;
   megaTrends: number;
   tierCounts: Record<string, number>;
   dateSpan: { first: string | null; last: string | null };
-}> {
+}
+
+/**
+ * Corpus stats for the landing / methodology trust pages. Cached 1h — these
+ * are full-table aggregations over ~1M rows that used to run per request and
+ * made both pages take 7-9s (ONB-01/ARCH-02).
+ */
+export async function getMethodologyStats(): Promise<MethodologyStats> {
+  return cached("methodology-stats", 3_600_000, fetchMethodologyStats);
+}
+
+async function fetchMethodologyStats(): Promise<MethodologyStats> {
   const analyzed = (await q1<{ c: number }>("SELECT COUNT(*)::int c FROM trends"))?.c ?? 0;
   const published =
     (await q1<{ c: number }>("SELECT COUNT(*)::int c FROM trends WHERE status = 'published'"))?.c ?? 0;
@@ -432,6 +488,15 @@ export async function getTopSourcesByCount(
   limit: number = 20,
   status: string = "published"
 ): Promise<Array<{ source_name: string; count: number }>> {
+  return cached(`top-sources:${limit}:${status}`, 3_600_000, () =>
+    fetchTopSourcesByCount(limit, status)
+  );
+}
+
+async function fetchTopSourcesByCount(
+  limit: number,
+  status: string
+): Promise<Array<{ source_name: string; count: number }>> {
   const statusClause = status === "all" ? "" : " AND status = $2";
   const params: unknown[] = status === "all" ? [limit] : [limit, status];
   const rows = await q<{ source_name: string; cnt: number }>(
@@ -473,6 +538,12 @@ export async function getVerticalCountsScoped(
 }
 
 export async function getVerticalCounts(status?: string): Promise<Record<string, number>> {
+  return cached(`vertical-counts:${status ?? "all"}`, 600_000, () =>
+    fetchVerticalCounts(status)
+  );
+}
+
+async function fetchVerticalCounts(status?: string): Promise<Record<string, number>> {
   const params: unknown[] = [];
   let query = "SELECT primary_vertical, COUNT(*)::int as cnt FROM trends t WHERE 1=1";
   if (status) {

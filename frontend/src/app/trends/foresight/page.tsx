@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Foresight Cockpit — Catandary Trends",
   description:
-    "Semantische Trend-Suche mit Signal-Timeline, Lead-Time-Analyse und Cross-Vertical-Insights.",
+    "Semantic trend search with signal timeline, lead-time analysis and cross-vertical insights.",
 };
 
 export default async function ForesightRoute() {

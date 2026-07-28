@@ -3,6 +3,10 @@ import { getClusterScopes, getLatestClusterRun } from "@/lib/foresight";
 import { VERTICALS } from "@/lib/types";
 import ClusterCard from "@/components/foresight/ClusterCard";
 import ForesightCta from "@/components/ForesightCta";
+import TierGate from "@/components/TierGate";
+
+/** Clusters shown free before the Starter gate (value teaser, ONB-03/KEY-01). */
+const FREE_PREVIEW = 3;
 
 export const dynamic = "force-dynamic";
 
@@ -109,11 +113,30 @@ export default async function ClustersExplorerPage({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {clusters.map((c) => (
-            <ClusterCard key={c.id} cluster={c} />
-          ))}
-        </div>
+        <TierGate
+          need="starter"
+          feature="The full cluster board"
+          benefit={`Starter opens all ${clusters.length} clusters in this view — momentum, source corroboration and the evidence links behind each one.`}
+          teaser={
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {clusters.slice(0, FREE_PREVIEW).map((c) => (
+                  <ClusterCard key={c.id} cluster={c} />
+                ))}
+              </div>
+              <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                Free preview — showing {Math.min(FREE_PREVIEW, clusters.length)} of{" "}
+                {clusters.length} clusters
+              </p>
+            </div>
+          }
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {clusters.map((c) => (
+              <ClusterCard key={c.id} cluster={c} />
+            ))}
+          </div>
+        </TierGate>
       )}
 
       <div className="mt-12">

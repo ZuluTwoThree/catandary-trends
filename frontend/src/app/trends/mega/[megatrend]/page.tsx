@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { archiveWindowDays } from "@/lib/entitlement";
 import { getMegaTrends, getTrendsByMegaTrend } from "@/lib/db";
 import { getMegaTrendInfo } from "@/lib/types";
 import TrendCard from "@/components/TrendCard";
@@ -31,7 +32,7 @@ export async function generateMetadata({
   const { megatrend } = await params;
   const allMega = await getMegaTrends();
   const match = findMegaTrend(megatrend, allMega);
-  if (!match) return { title: "Mega-Trend nicht gefunden" };
+  if (!match) return { title: "Mega-trend not found" };
 
   const info = getMegaTrendInfo(match.mega_trend);
   const displayName = info?.name_en ?? match.mega_trend;
@@ -52,9 +53,13 @@ export default async function MegaTrendPage({
   const match = findMegaTrend(megatrend, allMega);
   if (!match) notFound();
 
-  let trends = await getTrendsByMegaTrend(match.mega_trend, { status: "published" });
+  const windowDays = await archiveWindowDays(); // issue #70
+  let trends = await getTrendsByMegaTrend(match.mega_trend, {
+    status: "published",
+    max_age_days: windowDays,
+  });
   if (trends.length === 0) {
-    trends = await getTrendsByMegaTrend(match.mega_trend);
+    trends = await getTrendsByMegaTrend(match.mega_trend, { max_age_days: windowDays });
   }
 
   return (

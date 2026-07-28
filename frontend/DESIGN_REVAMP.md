@@ -240,3 +240,26 @@ The frontend uses a generic dark-mode Tailwind setup: Inter font, purple accent 
 **Option C** has the most visual wow-factor but risks feeling more "consumer" than "B2B intelligence."
 
 **Option D** is the boldest departure — memorable but polarizing. The light mode alone would differentiate it from every competitor.
+
+---
+
+## Implemented (Stand 2026-07-23)
+
+Umgesetzt ist **Option A „Editorial Intelligence" in der Farb- und Formensprache**, aber mit
+**IBM-Plex-Typografie** statt der oben vorgeschlagenen Fraunces/JetBrains/Source-Sans-Kombination:
+
+- Display: **IBM Plex Serif** (`--font-display`), Daten/Labels: **IBM Plex Mono**, Body: **IBM Plex Sans**
+  (geladen via `next/font` in `src/app/layout.tsx`)
+- Token-Quelle ist `src/app/globals.css` (`@theme`): Ink `#0a0c0a`, Foreground `#d8d5c8`,
+  Paper `#f4f1e8`, Akzent Chartreuse `#d4ff3a` (+ `--color-accent-deep`), Warn `#ff6b3a`,
+  8 Vertical-Farben, semantische Tokens `--color-rising`/`--color-declining`,
+  `--color-border-strong` für interaktive Controls, `--color-ink`/`--color-text`-Aliase
+- Formensprache: scharfe Kanten (kein `rounded` im Editorial-Kontext), Corner-Brackets on hover,
+  Mono-Eyebrows mit führender Linie, Grain-Overlay, `reveal`-Stagger-Animationen
+  (respektieren `prefers-reduced-motion`)
+- Lead-Time-Tier-Palette (kanonisch, identisch auf Landing + Produkt-Charts seit UI_UX_Audit):
+  Science `#22d3ee` · Patents `#a78bfa` · Funding `#fb923c` · Market `#bde63a` (`:root --t-*`)
+- Globales Fokus-System: `:focus-visible` mit 2px-Akzent-Outline in `globals.css`
+- Seit dem UI_UX_Audit-Branch laufen auch die Monetarisierungs-Screens (Pricing, Sign-in,
+  TierGate, Account) auf diesen Tokens — das frühere zweite, generische Design (rounded-2xl,
+  Grün `#16a34a`) ist entfernt.

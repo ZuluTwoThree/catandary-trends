@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canAccess } from "@/lib/entitlement";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -27,6 +28,14 @@ function repoRoot(): string {
  * argv — no injection).
  */
 export async function GET(request: Request) {
+  // Entitlement guard (CONF-02): Pro data must not be free over the raw
+  // API while the paywall is on. No-op while PAYWALL_ENABLED=0.
+  if (!(await canAccess("pro"))) {
+    return NextResponse.json(
+      { error: "This data is part of the Pro plan", upgrade: "/trends/pricing" },
+      { status: 402 }
+    );
+  }
   const cpc = (new URL(request.url).searchParams.get("cpc") || "").toUpperCase();
   if (!/^[A-H][0-9]{2}[A-Z]$/.test(cpc)) {
     return NextResponse.json({ error: "invalid CPC subclass" }, { status: 400 });

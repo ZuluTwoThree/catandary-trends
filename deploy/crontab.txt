@@ -9,6 +9,16 @@ CATANDARY_DIR=/home/dirk/projects/catandary-trends
 PYTHON=/home/dirk/projects/catandary-trends/.venv/bin/python
 LOG_DIR=/home/dirk/logs
 
+# systemd user-bus for `systemctl --user` from cron. Cron has no login session,
+# so without XDG_RUNTIME_DIR any `systemctl --user` call dies with "Failed to
+# connect to bus" — which silently breaks the llama.cpp GPU handover (it can't
+# start/stop llama-server.service) and leaves the whole LLM cycle producing 0
+# completions (observed 2026-07-22). Linger is enabled, so /run/user/1000 exists.
+# Harmless for the Ollama-path jobs; required for anything using scheduled_cycle.sh
+# or the systemctl-managed llama-server.
+XDG_RUNTIME_DIR=/run/user/1000
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+
 # --- core pipeline (active) ---------------------------------------------------
 # Full pipeline cycle: poll + LLM + reclassify + auto-publish (every 4 hours).
 30 */4 * * *  cd $CATANDARY_DIR && $PYTHON -m pipeline.run_full_cycle --batch 400 >> $LOG_DIR/catandary-cycle.log 2>&1

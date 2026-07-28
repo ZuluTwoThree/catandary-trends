@@ -213,7 +213,7 @@ export default function TierCurveChart({
           <thead>
             <tr>
               <th>Tier</th>
-              <th>Peak SoV year</th>
+              <th>Peak year (share of voice)</th>
             </tr>
           </thead>
           <tbody>

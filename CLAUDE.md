@@ -408,25 +408,36 @@ CREATE TABLE trend_clusters (
 
 ## Automatisierung & Scheduling
 
-### Cron-Jobs
+### Cron-Jobs (realer Stand seit 2026-07-28)
 
 ```
-# RSS-Feeds pollen (alle 4 Stunden)
-0 */4 * * *  python pipeline/feed_poller.py
+# Env-Zeilen sind Pflicht: cron hat keine systemd-User-Session — ohne
+# XDG_RUNTIME_DIR schlagen die GPU-Handover (`systemctl --user`) still fehl.
+XDG_RUNTIME_DIR=/run/user/1000
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 
-# LLM-Pipeline für neue Einträge (alle 4 Stunden, nach Polling)
-30 */4 * * * python pipeline/llm_processor.py
+# Full Cycle Mo–Fr 04:00 (Feed-Polling + LLM-Pipeline + Auto-Publish in einem
+# Lauf via scheduled_cycle.sh; Wrapper räumt vorher ALLES VRAM frei, auch
+# manuell gestartete llama-server). Log: ~/logs/catandary-full-cycle-*.log
+0 4 * * 1-5  scripts/full_cycle_cron.sh
 
-# Auto-Publish ist in die LLM-Pipeline integriert (Stage 9+10: Reclassify → Auto-Publish)
-# Standalone-Lauf nur als Fallback nötig:
-# python pipeline/auto_publisher.py  (nutzt AUTO_PUBLISH_CONFIDENCE=0.85 aus config.py)
+# DB-Backup (täglich 02:45)
+45 2 * * *   .venv/bin/python scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 7
 
-# Wöchentlicher Newsletter (Montag 9:00)
-0 9 * * 1    python pipeline/newsletter_generator.py
+# Source-Discovery-Loop (Sonntag 06:00)
+0 6 * * 0    .venv/bin/python scripts/discovery_loop.py
 
-# Source-Discovery Report (Freitag 17:00)
-0 17 * * 5   python pipeline/source_report.py
+# Monatlicher Quellen-Check mit Issue-Post (1. des Monats, 08:00)
+0 8 1 * *    .venv/bin/python scripts/monthly_source_check.py --post-issue
+
+# Wöchentlicher Patent-Sweep (Dienstag 05:00)
+0 5 * * 2    scripts/weekly_patents.sh
 ```
+
+Auto-Publish ist in die LLM-Pipeline integriert (Stage 8+9: Reclassify → Auto-Publish);
+Standalone-Lauf nur als Fallback: `python pipeline/auto_publisher.py`
+(nutzt `AUTO_PUBLISH_CONFIDENCE=0.85` aus config.py). Ein Newsletter-Cron ist
+derzeit **nicht** eingerichtet (`pipeline/newsletter_generator.py` läuft manuell).
 
 ### Feed-Poller Architektur
 
@@ -467,24 +478,25 @@ cross_industry:
 
 ## Frontend: Catandary Trends Website
 
-### Tech-Stack
+### Tech-Stack (Ist-Stand 2026-07-23)
 
-- **Framework:** Next.js 14 (App Router) + TypeScript
-- **Styling:** Tailwind CSS
-- **DB-Anbindung:** Drizzle ORM + PostgreSQL (mit pgvector)
-- **Hosting:** Hetzner VPS (bestehend)
+- **Framework:** Next.js 16 (App Router, Turbopack-Dev) + TypeScript + React 19
+- **Styling:** Tailwind CSS v4 (`@theme`-Tokens in `frontend/src/app/globals.css` — Designsystem „Editorial Intelligence": IBM Plex Serif/Mono/Sans, Ink `#0a0c0a`, Akzent Chartreuse `#d4ff3a`, scharfe Kanten)
+- **DB-Anbindung:** eigener `pg`-Layer (`frontend/src/lib/pg.ts` + `db.ts`) auf PostgreSQL/pgvector, Socket-Default (kein Drizzle); teure Aggregat-Queries laufen über einen In-Process-TTL-Cache in `db.ts`
+- **Auth/Paywall:** Magic-Link-Auth (`lib/auth.ts`) + Tier-Entitlements (`lib/entitlement.ts`, `lib/tiers.ts`, `TierGate`), Stripe-Checkout/Webhook; alles hinter `AUTH_ENABLED`/`PAYWALL_ENABLED` (Gates aus = alles offen)
+- **Hosting:** Hetzner VPS (bestehend), lokal Port 3001 via systemd user unit `catandary-frontend`
 - **Reverse Proxy:** Caddy (automatisches HTTPS via Let's Encrypt)
-- **Domain:** catandary.de (Trends unter catandary.de/trends)
-- **Newsletter:** Resend (oder Buttondown)
-- **Process Manager:** PM2 oder systemd für Next.js + Pipeline-Prozesse
+- **Domain:** catandary.de (Landing `/`, Trends unter `/trends`)
+- **Newsletter:** Resend (Domain send.catandary.de)
+- **Tests:** Vitest (`frontend/src/lib/*.test.ts`)
 
 ### Deployment auf Hetzner
 
 ```
-# Caddy-Konfiguration (Caddyfile)
+# Caddy-Konfiguration (Caddyfile) — App läuft lokal auf :3001
 catandary.de {
     # Next.js App
-    reverse_proxy localhost:3000
+    reverse_proxy localhost:3001
 
     # Statische Assets cachen
     @static path /trends/_next/static/*
@@ -492,32 +504,43 @@ catandary.de {
 }
 
 # Oder als Subdomain falls bestehende Seite nicht stören:
-# trends.catandary.de { reverse_proxy localhost:3000 }
+# trends.catandary.de { reverse_proxy localhost:3001 }
 ```
 
 ```bash
-# Deployment-Workflow auf Hetzner
+# Deployment-Workflow (lokal wie Hetzner) — systemd statt PM2 (seit #38)
 git pull origin main
-npm run build
-pm2 restart catandary-trends
+cd frontend && npm run build
+systemctl --user restart catandary-frontend
+# Unit: deploy/systemd/catandary-frontend.service (Socket-Default, Autostart via Linger)
 
-# PostgreSQL + pgvector auf Hetzner
+# PostgreSQL + pgvector
 sudo apt install postgresql postgresql-contrib
 # pgvector Extension installieren
 CREATE EXTENSION vector;
 ```
 
-### Routing
+### Routing (Ist-Stand 2026-07-23)
 
 ```
-catandary.de/trends                        → Hauptseite (alle Vertikale, Card-Grid)
-catandary.de/trends/vertical/[v]           → Vertikale-Übersicht (z.B. /vertical/food)
-catandary.de/trends/[slug]                 → Einzelner Trend-Artikel
-catandary.de/trends/pestel/[dimension]     → PESTEL-Dimension (z.B. /pestel/technological)
-catandary.de/trends/mega/[megatrend]       → Mega-Trend-Cluster (Teaser für Foresight)
-catandary.de/trends/search                 → Volltextsuche + Filter
-catandary.de/trends/newsletter             → Newsletter-Signup
+/                                → Landing („The Instrument", Wertversprechen + Pricing-Teaser)
+/trends                          → Hauptfeed (Card-Grid, Filter-Bar inkl. Suche ?q= — es gibt KEINE separate /trends/search-Route)
+/trends/[slug]                   → Einzelner Trend-Artikel
+/trends/vertical/[v]             → Redirect auf /trends?v=<VERTICAL>
+/trends/mega, /trends/mega/[m]   → Mega-Trend-Übersicht + Detail
+/trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
+  /radar /clusters /technology /lead-time /evolution /dossier
+                                   (Tier-gegated: radar+clusters=Starter, technology+lead-time+
+                                    evolution+dossier=Pro, On-Demand-Analyzer=Super Pro+;
+                                    Free-Teaser bleibt sichtbar — „gate at the value drill-down")
+/trends/methodology              → Methodik-/Trust-Seite
+/trends/pricing                  → Pläne (Stripe-Checkout wenn konfiguriert)
+/trends/newsletter (+/unsubscribe) → Newsletter-Signup/-Abmeldung
+/account, /account/signin        → Konto + Magic-Link-Login (nur bei AUTH_ENABLED=1)
+/imprint, /privacy               → Rechtstexte (Impressum-Adressblock = Owner-Gate vor Public-Launch)
 ```
+
+Hinweis: Ein DE/EN-Switcher existiert nicht mehr — die Produktsprache ist durchgehend Englisch (DE-Content-Spalten bleiben NULL, s.o.).
 
 ### Design-Richtung
 
@@ -590,7 +613,7 @@ catandary.de/trends/newsletter             → Newsletter-Signup
 
 - **Ändert eine Arbeit reale Bedingungen** (Modelle, Backends, Defaults, Konfiguration, DB-Schema, Branch-Zustand, Pipeline-Verhalten, Cron/Deploy), wird die betroffene Doku **im selben Zug** mitgezogen — niemals stale Doku hinterlassen.
 - **Gegen die Realität verifizieren, nicht die alte Doku fortschreiben:** aktive Start-Skripte/GGUFs/Env in `scheduled_cycle.sh`, `config.py`-Defaults, Schema in `pipeline/db.py` etc. tatsächlich prüfen statt annehmen.
-- **Doku-Stand auf `dev` UND `epic/alpha` konsistent halten** (z. B. via isoliertem `git worktree`, ohne einen laufenden Cycle im Haupt-Tree zu stören).
+- **Doku-Stand auf `dev` und `main` konsistent halten** (`dev` sofort mitziehen; `main` erhält den Stand beim bewussten Release-Merge). *(Der frühere Parallel-Zweig `epic/alpha` wurde am 2026-07-19 gelöscht — es gibt keinen zweiten Doku-Branch mehr zu pflegen.)*
 - Ursprung dieser Regel (2026-07-18): Content-Gen lief real längst auf Gemma-4-26B, während CLAUDE.md/README noch 30B/35B nannten — solche Drift ist ab jetzt konstitutionell auszuschließen.
 
 ### Arbeitsweise
@@ -621,9 +644,9 @@ git remote add origin git@github.com:ZuluTwoThree/catandary-trends.git
 - `main` – stabiler, deployter Prototyp (**"save"**). Prod-Server 3001 läuft von hier. Nur bewusst per Merge aus `dev` aktualisieren.
 - `dev` – Integrations-Branch für laufende Arbeit. Hierhin committen; nach Stabilisierung → `main` mergen + 3001 neu bauen.
 - Feature-Branches optional bei komplexen Features (von `dev` abzweigen, in `dev` zurück).
-- `epic/alpha` – Branch der Alpha-Epic-Arbeit (Foresight-Engine/Monetarisierung/UX/Newsletter). **Stand 2026-07-18 vollständig in `dev` gemergt** (direkter Vorfahr, 0 eigene Commits, ~32 dahinter) — Merge epic/alpha→dev ist ein No-op; Branch kann nachgezogen oder gelöscht werden. Offener Alpha-Rest = Owner-Gates (Stripe/Resend/UX/Labels), kein Code-Blocker (siehe `docs/issue_status.md`).
-- `product/trend-radar` – archivierte, divergente Produkt-Variante (Sales-Kit/Pricing/Kunden-Portal, Stand 2026-06-11). **Nicht in main/dev mergen** (reaktiviert das entfernte Brave-Search-Radar, 213 Commits hinter main) — nur als Referenz/Teil-Extraktion.
-- Die alten `sprint/*`-Branches wurden 2026-07-08 gelöscht (waren vollständig in `main`).
+- `product/trend-radar` – **Branch am 2026-07-19 gelöscht, als Tag `archive/product-trend-radar-2026-06-11` (57eecaf) archiviert.** War die divergente Produkt-Variante (Sales-Kit/Pricing/Kunden-Portal, Stand 2026-06-11, 338 hinter main). **Nicht in main/dev mergen** (reaktiviert das entfernte Brave-Search-Radar + Aggregator-Sourcing, gegen das Legal-Primärquellen-Prinzip). Bergbar aus dem Tag (extrahieren, nicht mergen): das Sales-/Business-Material unter `docs/sales/`, `docs/BUSINESS_PLAN.md`, `docs/SETUP_VERKAUF.md` — nutzt aber die **alte** 4-Tier-Preisstruktur (basic/team/pro/agency), abgelöst durch Starter/Pro/Super Pro+ + Hypercare.
+- **Gelöschte Branches** (alle vollständig in `main` bzw. als Tag gesichert): `sprint/*` (2026-07-08), sowie `hardening/release-candidate` + `epic/alpha` (2026-07-19, nach dem Release-Merge `dev`→`main` PR #62). `epic/alpha` war die Alpha-Epic-Arbeit (Foresight/Monetarisierung/UX/Newsletter); ihre 2 Restcommits waren inhaltsgleiche Doku-Syncs, deren Endzustand in `main` steht. Offener Alpha-Rest = Owner-Gates (Stripe/Resend/UX/Labels), kein Code-Blocker (siehe `docs/issue_status.md`).
+- **Aktiv sind nur noch `main` + `dev`.** Archiv-Referenzen liegen als `archive/*`-Tags (nicht als Branches).
 
 **Commit-Konventionen:**
 ```

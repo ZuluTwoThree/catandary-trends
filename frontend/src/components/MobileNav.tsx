@@ -1,41 +1,85 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-interface NavItem {
-  href: string;
-  label: string;
-  external?: boolean;
-}
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { PRIMARY_NAV, FORESIGHT_NAV, PLANS_NAV } from "@/lib/nav";
 
 /**
- * Mobile navigation (< md). The desktop nav is `hidden md:inline`, which left
- * the strongest pages (Foresight, Clusters, Mega Trends) unreachable on phones.
- * This adds a hamburger + full-screen drawer with every nav target.
+ * Mobile navigation (< lg): hamburger + full-screen drawer with the grouped
+ * nav (Explore / Foresight / Account). Dialog semantics with a focus trap:
+ * focus moves into the drawer on open and returns to the hamburger on close
+ * (A11Y-04).
  */
-export default function MobileNav({ items }: { items: NavItem[] }) {
-  const [open, setOpen] = useState(false);
+export default function MobileNav({
+  authEnabled,
+  signedIn,
+}: {
+  authEnabled: boolean;
+  signedIn: boolean;
+}) {
+  // Drawer is "open" only for the pathname it was opened on — navigating
+  // away closes it by derivation, no state-sync effect needed.
+  const [openedOn, setOpenedOn] = useState<string | null>(null);
+  const pathname = usePathname();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const open = openedOn === pathname;
+  const setOpen = (v: boolean) => setOpenedOn(v ? pathname : null);
 
-  // Lock body scroll while the drawer is open; close on Escape.
+  // Lock body scroll, trap focus, close on Escape, restore focus on close.
   useEffect(() => {
     if (!open) return;
+    const trigger = triggerRef.current;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    closeRef.current?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpenedOn(null);
+        return;
+      }
+      if (e.key !== "Tab" || !drawerRef.current) return;
+      const focusables = drawerRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled])'
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
+      trigger?.focus();
     };
   }, [open]);
 
+  const itemClass = (href: string) =>
+    `py-3.5 border-b border-border/60 font-mono text-[13px] uppercase tracking-[0.14em] transition-colors ${
+      pathname === href ? "text-accent" : "text-muted hover:text-paper"
+    }`;
+
+  const groupLabel =
+    "pt-6 pb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-accent";
+
   return (
-    <div className="md:hidden">
+    <div className="lg:hidden">
       <button
+        ref={triggerRef}
         type="button"
         aria-label={open ? "Close menu" : "Open menu"}
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!open)}
         className="flex flex-col justify-center gap-[5px] w-11 h-11 -mr-2 items-center text-paper"
       >
         <span
@@ -56,12 +100,19 @@ export default function MobileNav({ items }: { items: NavItem[] }) {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 bg-background/98 backdrop-blur-sm">
+        <div
+          ref={drawerRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation"
+          className="fixed inset-0 z-50 bg-background/98 backdrop-blur-sm overflow-y-auto"
+        >
           <div className="flex items-center justify-between h-16 px-6 border-b border-border">
             <span className="font-display text-[22px] tracking-tight text-paper">
               Catandary<span className="text-accent">.</span>
             </span>
             <button
+              ref={closeRef}
               type="button"
               aria-label="Close menu"
               onClick={() => setOpen(false)}
@@ -70,27 +121,50 @@ export default function MobileNav({ items }: { items: NavItem[] }) {
               ×
             </button>
           </div>
-          <nav className="flex flex-col px-6 py-4">
-            {items.map((item) => (
-              <a
+          <nav className="flex flex-col px-6 pb-10" aria-label="Mobile">
+            <div className={groupLabel}>Explore</div>
+            {PRIMARY_NAV.map((item) => (
+              <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setOpen(false)}
-                {...(item.external
-                  ? { target: "_blank", rel: "noopener noreferrer" }
-                  : {})}
-                className="font-mono text-[13px] uppercase tracking-[0.14em] text-muted hover:text-paper py-4 border-b border-border/60 transition-colors"
+                aria-current={pathname === item.href ? "page" : undefined}
+                className={itemClass(item.href)}
               >
                 {item.label}
-              </a>
+              </Link>
             ))}
-            <a
+
+            <div className={groupLabel}>Foresight</div>
+            {FORESIGHT_NAV.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={pathname === item.href ? "page" : undefined}
+                className={itemClass(item.href)}
+              >
+                {item.label}
+              </Link>
+            ))}
+
+            <div className={groupLabel}>Account</div>
+            <Link href={PLANS_NAV.href} className={itemClass(PLANS_NAV.href)}>
+              {PLANS_NAV.label}
+            </Link>
+            {authEnabled && (
+              <Link
+                href={signedIn ? "/account" : "/account/signin"}
+                className={itemClass(signedIn ? "/account" : "/account/signin")}
+              >
+                {signedIn ? "Account" : "Sign in"}
+              </Link>
+            )}
+
+            <Link
               href="/trends/newsletter"
-              onClick={() => setOpen(false)}
-              className="mt-6 text-center font-mono text-[12px] uppercase tracking-[0.14em] text-accent px-3 py-3 border border-accent bg-accent/5 hover:bg-accent/15 transition-colors"
+              className="mt-8 text-center font-mono text-[12px] uppercase tracking-[0.14em] text-accent px-3 py-3 border border-accent bg-accent/5 hover:bg-accent/15 transition-colors"
             >
               Newsletter
-            </a>
+            </Link>
           </nav>
         </div>
       )}

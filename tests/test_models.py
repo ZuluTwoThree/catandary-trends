@@ -94,6 +94,27 @@ class TestExtractionResult:
         e2 = ExtractionResult.model_validate_json(e.model_dump_json())
         assert e == e2
 
+    def test_rich_extraction_fields_default_empty(self):
+        # #11: new extractive fields default to empty lists (backward-compatible
+        # with rows extracted before they existed).
+        e = ExtractionResult()
+        assert e.key_figures == []
+        assert e.quotes == []
+        assert e.dates == []
+        assert e.geography == []
+
+    def test_rich_extraction_roundtrip(self):
+        e = ExtractionResult(
+            key_claims=["cuts emissions"],
+            key_figures=["7,980 jobs", "29,5 %"],
+            quotes=['"a turning point"'],
+            dates=["2027", "by Q3 2025"],
+            geography=["EU", "Germany"],
+        )
+        e2 = ExtractionResult.model_validate_json(e.model_dump_json())
+        assert e == e2
+        assert "7,980 jobs" in e2.key_figures and "2027" in e2.dates
+
 
 class TestClassificationResult:
     def test_valid_classification(self):

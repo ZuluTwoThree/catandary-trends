@@ -83,7 +83,7 @@ export default function TrendCard({ trend }: { trend: Trend }) {
           <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
             {sourceLabel}
             {trend.source_name ? (
-              <span className="text-muted/60"> / {trend.source_name}</span>
+              <span className="text-muted"> / {trend.source_name}</span>
             ) : null}
           </span>
           <TrendScore score={trend.trend_score} />

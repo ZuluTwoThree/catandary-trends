@@ -9,9 +9,10 @@ import argparse
 import logging
 import sys
 
-from pipeline.config import AUTO_PUBLISH_CONFIDENCE, AUTO_PUBLISH_GROUNDING_GATE, LOG_LEVEL
+from pipeline.config import (AUTO_PUBLISH_CONFIDENCE, AUTO_PUBLISH_GROUNDING_GATE,
+                             AUTO_PUBLISH_LIMIT, LOG_LEVEL)
 from pipeline.db import get_connection, get_trends, init_db, update_trend_status
-from pipeline.grounding import ungrounded_specifics
+from pipeline.grounding import ungrounded_specifics, source_from_parts
 
 logging.basicConfig(
     level=LOG_LEVEL,
@@ -36,41 +37,56 @@ def _body_complete(body: str | None) -> bool:
 
 
 def _source_text(raw_entry_id: int | None) -> str | None:
-    """Title + excerpt + extracted claims for a trend's source entry — the only
-    material the content model saw. None if unavailable (→ grounding gate skipped
-    for that row, fail-open)."""
+    """The source material the content model actually saw, for the grounding gate:
+    title + full text (raw_content when present, else the RSS excerpt) + the
+    extracted specifics (claims/figures/dates/quotes/geography). None if
+    unavailable (→ grounding gate skipped for that row, fail-open).
+
+    Must mirror step_generate_content_en's source: content-gen prefers
+    `raw_content or excerpt` (#11), so checking the body against only the short
+    RSS excerpt would falsely flag a figure that is in the full text — the very
+    false-hold this build avoids."""
     if not raw_entry_id:
         return None
     try:
         with get_connection() as conn:
             r = conn.execute(
-                "SELECT title, excerpt, extraction_json FROM raw_entries WHERE id = ?",
+                "SELECT title, raw_content, excerpt, extraction_json FROM raw_entries WHERE id = ?",
                 (raw_entry_id,)).fetchone()
         if not r:
             return None
         r = dict(r) if not isinstance(r, dict) else r
-        claims = ""
+        ext: dict = {}
         ej = r.get("extraction_json")
         if ej:
             import json as _json
             try:
-                claims = " ".join((_json.loads(ej) or {}).get("key_claims") or [])
+                ext = _json.loads(ej) or {}
             except Exception:
-                claims = ""
-        return f"{r.get('title') or ''} {r.get('excerpt') or ''} {claims}"
+                ext = {}
+        body_source = r.get("raw_content") or r.get("excerpt") or ""
+        return source_from_parts(
+            r.get("title"), body_source,
+            ext.get("key_claims"), ext.get("key_figures"),
+            ext.get("dates"), ext.get("quotes"), ext.get("geography"),
+        )
     except Exception:
         return None
 
 
 def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
-                 dry_run: bool = False) -> dict:
+                 dry_run: bool = False, limit: int = AUTO_PUBLISH_LIMIT) -> dict:
     """Auto-publish drafts above the confidence threshold.
+
+    `limit` caps how many drafts are scanned in one run. It defaults to
+    AUTO_PUBLISH_LIMIT (generous) so a run drains the whole draft pool rather
+    than leaving a permanent backlog of publishable high-confidence drafts.
 
     Returns stats dict with counts.
     """
     init_db()
 
-    drafts = get_trends(status="draft", limit=500)
+    drafts = get_trends(status="draft", limit=limit)
     published = 0
     skipped = 0
     held_truncated = 0
@@ -132,7 +148,10 @@ if __name__ == "__main__":
                         help=f"Minimum confidence to auto-publish (default: {AUTO_PUBLISH_CONFIDENCE})")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be published without actually publishing")
+    parser.add_argument("--limit", type=int, default=AUTO_PUBLISH_LIMIT,
+                        help=f"Max drafts to scan in one run (default: {AUTO_PUBLISH_LIMIT})")
     args = parser.parse_args()
 
-    result = auto_publish(min_confidence=args.min_confidence, dry_run=args.dry_run)
+    result = auto_publish(min_confidence=args.min_confidence, dry_run=args.dry_run,
+                          limit=args.limit)
     sys.exit(0 if result["published"] >= 0 else 1)

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import {
   getTrendsFiltered,
   getTrendsFilteredCount,
@@ -9,6 +10,7 @@ import {
   getTopSourcesByCount,
 } from "@/lib/db";
 import { parseFilterParams } from "@/lib/filter-params";
+import { archiveWindowDays } from "@/lib/entitlement";
 import TrendCard from "@/components/TrendCard";
 import TrendRow from "@/components/TrendRow";
 import Pagination from "@/components/Pagination";
@@ -30,32 +32,57 @@ export default async function TrendsPage({
   const raw = await searchParams;
   const filters = parseFilterParams(raw);
 
-  // Main result set
-  const trends = await getTrendsFiltered(filters);
-  const total = await getTrendsFilteredCount(filters);
+  // Free archive window (issue #70): server-side cap on how far back the feed
+  // reaches for free viewers. null (paywall off / Starter+) leaves it open.
+  filters.max_age_days = await archiveWindowDays();
 
-  // Counts for filter controls
-  const scopedVerticalCounts = await getVerticalCountsScoped(filters);
-  const globalVerticalCounts = await getVerticalCounts("published");
+  // One parallel round-trip instead of seven sequential ones (ARCH-11); the
+  // aggregate queries are additionally TTL-cached in lib/db.
+  const [
+    trends,
+    total,
+    scopedVerticalCounts,
+    globalVerticalCounts,
+    analyzedTotal,
+    megaTrends,
+    sourceOptions,
+  ] = await Promise.all([
+    getTrendsFiltered(filters),
+    getTrendsFilteredCount(filters),
+    getVerticalCountsScoped(filters),
+    getVerticalCounts("published"),
+    // Full analyzed corpus (all pipeline signals, not just published) — the
+    // real scale, a trust signal the published-count alone undersells.
+    getTrendsCount(),
+    getMegaTrends("published"),
+    getTopSourcesByCount(20, "published"),
+  ]);
+
+  // A page number beyond the end is a dead end (KEY-10) — snap to the last
+  // real page instead of rendering a misleading "no trends match" state.
+  const perPage = filters.limit ?? 12;
+  const lastPage = Math.max(1, Math.ceil(total / perPage));
+  if (filters.page > lastPage) {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(raw)) {
+      if (typeof v === "string" && k !== "page") params.set(k, v);
+    }
+    if (lastPage > 1) params.set("page", String(lastPage));
+    const qs = params.toString();
+    redirect(`/trends${qs ? `?${qs}` : ""}`);
+  }
+
   const totalPublished = Object.values(globalVerticalCounts).reduce(
     (a, b) => a + b,
     0
   );
-  // Full analyzed corpus (all pipeline signals, not just published) — the real
-  // scale, a trust signal that the published-count alone undersells.
-  const analyzedTotal = await getTrendsCount();
 
   // Mega trend options (top 12 by count, respecting status)
-  const megaOptions = (await getMegaTrends("published"))
-    .slice(0, 12)
-    .map((m) => ({
-      key: m.mega_trend,
-      name: m.name_en,
-      count: m.count,
-    }));
-
-  // Source options (top 20 for exclude dropdown)
-  const sourceOptions = await getTopSourcesByCount(20, "published");
+  const megaOptions = megaTrends.slice(0, 12).map((m) => ({
+    key: m.mega_trend,
+    name: m.name_en,
+    count: m.count,
+  }));
 
   return (
     <div className="mx-auto max-w-7xl px-6 md:px-10 py-10">
@@ -104,6 +131,7 @@ export default async function TrendsPage({
       </div>
 
       {/* Results */}
+      <h2 className="sr-only">Latest signals</h2>
       {trends.length === 0 ? (
         <Suspense fallback={null}>
           <TrendsEmpty filters={filters} />

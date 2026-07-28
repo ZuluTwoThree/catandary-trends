@@ -31,13 +31,14 @@ export const TIERS: TierInfo[] = [
     label: "Free",
     rank: 0,
     priceHint: "€0",
-    blurb: "Curated trend articles, browsing, search and the weekly newsletter.",
+    blurb: "Curated trend articles from the last 28 days, browsing, search and the weekly newsletter.",
     features: [
-      "Published trend articles",
-      "Vertical & PESTEL browsing",
-      "Search",
+      // Window per FREE_ARCHIVE_DAYS in lib/entitlement.ts (issue #70) — keep in sync.
+      "Trend articles from the last 28 days — each with its primary source",
+      "Browse by industry & PESTEL dimension",
+      "Full-text search",
       "Weekly newsletter",
-      "Corpus counter & mega-trend teasers",
+      "Mega-trend overviews",
     ],
   },
   {
@@ -48,9 +49,10 @@ export const TIERS: TierInfo[] = [
     blurb: "Watch what's moving: the cluster explorer with momentum and evidence.",
     features: [
       "Everything in Free",
-      "Cluster explorer (momentum, corroboration, evidence links)",
-      "Trend radar",
-      "Saved searches & alerts",
+      "The full trend-article archive",
+      "See what's rising: trend clusters ranked by momentum",
+      "Trend radar — clusters mapped from research to market",
+      "Every cluster backed by clickable evidence",
     ],
   },
   {
@@ -61,10 +63,10 @@ export const TIERS: TierInfo[] = [
     blurb: "The foresight edge: lead-time, technology trajectories and export.",
     features: [
       "Everything in Starter",
-      "Technology explorer: CPC lead-time axes",
-      "TIR metrics (cycle time, immediate importance)",
-      "Trend evolution & lineage",
-      "CSV / dossier export",
+      "Know how early you are: research-to-market lead times per technology",
+      "See how fast a technology improves — peer-reviewed improvement rates (TIR)",
+      "Trend evolution: how today's clusters emerged",
+      "Hand your team a cited dossier — CSV & print export",
     ],
   },
   {
@@ -75,10 +77,10 @@ export const TIERS: TierInfo[] = [
     blurb: "Ask the engine your own questions: on-demand analysis and API.",
     features: [
       "Everything in Pro",
-      "On-demand analysis of your own scopes (lazy-embed)",
-      "API access",
-      "Raw evidence graph",
+      "Analyze any technology or topic you bring — on demand",
+      "Raw evidence graph behind every answer",
       "Custom reports",
+      "API access — coming soon",
     ],
   },
 ];

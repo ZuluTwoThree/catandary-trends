@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Mega-Trends — Catandary Trends",
   description:
-    "Langfristige Cross-Industry Mega-Trends mit Momentum-Tracking aus dem Catandary-Signalnetzwerk.",
+    "Long-term structural mega-trends with momentum tracking, mapped across all eight industry verticals.",
 };
 
 export default async function MegaTrendsRoute() {
