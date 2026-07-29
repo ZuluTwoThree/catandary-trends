@@ -4,6 +4,8 @@ import Link from "next/link";
 import type { Trend } from "@/lib/types";
 import { getVerticalInfo } from "@/lib/types";
 import PestelBadge from "./PestelBadge";
+import HorizonDots from "./HorizonDots";
+import type { TrendHorizonProfile } from "@/lib/radar-shared";
 import TrendScore from "./TrendScore";
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
@@ -15,7 +17,16 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   api: "Data",
 };
 
-export default function TrendCard({ trend }: { trend: Trend }) {
+export default function TrendCard({
+  trend,
+  horizons,
+  horizonRegion,
+}: {
+  trend: Trend;
+  /** Horizon profile of the radar field this trend belongs to (optional). */
+  horizons?: TrendHorizonProfile;
+  horizonRegion?: string;
+}) {
   const vertical = getVerticalInfo(trend.primary_vertical);
   const title = trend.title_en;
   const summary = trend.summary_en;
@@ -75,6 +86,17 @@ export default function TrendCard({ trend }: { trend: Trend }) {
             {trend.pestel.map((p) => (
               <PestelBadge key={p} dimension={p} />
             ))}
+          </div>
+        )}
+
+        {/* Horizon profile of the radar field, when this trend belongs to one */}
+        {horizons && (
+          <div className="mb-3">
+            <HorizonDots
+              scopeLabel={horizons.scope_label}
+              cells={horizons.cells}
+              region={horizonRegion}
+            />
           </div>
         )}
 

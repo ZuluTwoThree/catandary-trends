@@ -2,10 +2,20 @@
 
 **Stand:** 2026-07-30 · Branch `dev` · Bezug: Issue #3 (Foresight-Visualisierungen), Owner-Vorgabe „Radar soll strategisches Tool sein, kein Trend-Dump"
 
-Dieses Dokument ist ein **Entscheidungspapier**, keine Umsetzung. Teil 1 ist der
-verifizierte Befund am bestehenden Radar, Teil 2 das Zielbild, Teil 3–5 sind
-Optionen zur Auswahl (Positionierung, Layout, Trendkarten-Icon), Teil 6 die
-Datenlücken, die vor einer Umsetzung geschlossen werden müssen.
+Teil 1 ist der verifizierte Befund am bestehenden Radar, Teil 2 das Zielbild,
+Teil 3–5 die Optionen (Positionierung, Layout, Trendkarten-Icon), Teil 6 die
+Datenlücken. **Teil 7 hält die getroffenen Entscheidungen und die erste
+Umsetzung fest**, einschließlich der Fehlklassifikationen, die der Kalibrierlauf
+aufgedeckt hat.
+
+## Entscheidungen (Owner, 2026-07-30)
+
+| Frage | Entscheidung |
+|---|---|
+| Positionierung | **Hybrid je Dimension** (§3.6): Technologie über TIR/Takeoff, Regulatorik über Meilenstein-Gates je Jurisdiktion, Markt über Produktstarts je Region; Override-Schicht vorgesehen |
+| Layout | **Matrix als Arbeitsansicht + Polar als Export** (§4, Layout 2 + 1) |
+| Trendkarten | **Profil-Punkte** (§5, Variante iii) |
+| Erster Schnitt | **Referenz-Radar „Alternative Proteine"** mit 8 Feldern |
 
 ---
 
@@ -374,3 +384,88 @@ Sinnvoll nur, wenn der Trend in einem definierten Feld liegt; sonst kein Badge
 5. **Kein Cron für Snapshots** (siehe 1.6) — muss mit der Umsetzung eingerichtet werden, sonst ist das neue Radar in zwei Wochen so alt wie das alte.
 6. **Patent-Signale im Trend-Korpus sind dünn** (12 im Test-Scope). Die Technologie-Dimension muss den Patent-**Graphen** anzapfen (Option D), nicht die Patent-Trends.
 
+
+---
+
+## 7. Umsetzung, Stand 2026-07-30
+
+### 7.1 Was gebaut ist
+
+| Baustein | Ort |
+|---|---|
+| Horizont-Engine (Jurisdiktions-Normalisierung, Regulatorik-Sub-Typen, Gates, Kopplung) | `pipeline/radar_horizons.py` |
+| Referenz-Radar „Alternative Proteine", 8 Felder | `pipeline/radar_seed.py` |
+| Tabellen `radar_configs / radar_scopes / radar_runs / radar_cells / radar_scope_trends` | `radar_horizons.SCHEMA` |
+| Read-Layer (server) + client-sichere Typen/Labels | `frontend/src/lib/radar.ts`, `radar-shared.ts` |
+| Matrix- und Polar-Ansicht mit geteiltem Readout | `frontend/src/components/foresight/HorizonBoard.tsx` |
+| Profil-Punkte auf Trendkarten + Batch-Lookup | `frontend/src/components/HorizonDots.tsx`, `radar.getTrendHorizonsBatch` |
+| Seite (Horizont-Radar Standard, altes Radar unter `?view=evidence`) | `frontend/src/app/trends/foresight/radar/page.tsx` |
+| Neuberechnung im Cron (GPU-frei, ~25 s, nach dem Full Cycle) | `scripts/full_cycle_cron.sh` |
+| Regressionstests der Kalibrierfälle | `tests/test_radar_horizons.py` (36 Tests) |
+
+Ergebnis des Referenz-Radars: **128 Zellen, 78 eingeordnet (60 %), 50 bewusst
+„unbekannt"**. Die Zielzeile reproduziert die Owner-Hypothese:
+
+| Precision Fermentation | Technologie | Regulatorik | Markt |
+|---|---|---|---|
+| US | H2 | **H1** (8 Zulassungen seit 2022) | **H1** (29 Produktstarts, 3 mit Handelsbezug) |
+| EU | H2 | **H3** (keine Zulassung, 4 Konsultations-/Reformsignale) | **H3** (auf H3 gekoppelt) |
+| IL | H2 | **H1** (2 Zulassungen seit 2023) | **H1** (6 Produktstarts) |
+
+### 7.2 Drei Fehler, die erst der Kalibrierlauf sichtbar machte
+
+Der erste Lauf setzte **alle** Zellen auf H1 — plausibel aussehend und falsch.
+Aufgedeckt hat das ausschließlich das Domänenwissen des Owners („in der EU gibt
+es keine Zulassung"). Die Ursachen sind grundsätzlich und in Tests fixiert:
+
+1. **`regions` ist nicht die zulassende Jurisdiktion.** „Vivici Secures FDA ‚No
+   Questions' Letter" trägt `regions=[EU]`, weil Vivici niederländisch ist —
+   belegt aber eine **US**-Zulassung. Ohne Korrektur wandert eine US-Freigabe in
+   die EU-Zelle und macht ein blockiertes Feld handlungsfähig. **Fix:** für
+   `granted` zählt nur die im Text genannte **Behörde** (FDA→US, EFSA→EU …),
+   ergänzt um die explizite Jurisdiktionsnennung („Approval In Israel").
+2. **Ein Tag ist kein Beweis.** „Precision Fermentation Leaders In Europe Form A
+   Coalition **To Advance** Regulatory Approval" trägt den Tag
+   `regulatory_approval`, sagt aber das Gegenteil: es gibt keine Zulassung,
+   deshalb wird für eine geworben. **Fix:** Absichts-Guard (`REG_INTENT`) — der
+   Text muss die Zulassung bestätigen, nicht anstreben.
+3. **Der Patentanker traf das Produktfeld, nicht das Verfahren.** Precision
+   Fermentation verankerte auf **A23C („Dairy Products")** mit Markt-Takeoff 2021
+   aus *traditioneller* Milchwirtschaft → „technologisch etabliert". Ein
+   Kategorienfehler. **Fix:** der CPC-Weg gilt nur bei `reliable=1` (18 von 681
+   Klassen), und der Signalmix-Fallback ist **hart auf H2 gedeckelt**, weil aus
+   Signalen keine Skalen- und Kostenreife ablesbar ist.
+
+Dazu zwei Struktur-Erkenntnisse:
+
+4. **Markt an Zulassung koppeln.** In regulierten Domänen kann der Markt nicht
+   reifer sein als die Zulassung — ohne Genehmigung gibt es keinen zulässigen
+   Markt. Das ist die kausale Aussage hinter dem EU-Beispiel und fängt zugleich
+   Produktsignale ab, die Auslandsstarts europäischer Firmen betreffen
+   (`couple_market_to_regulation`, aktiv über `radar_configs.regulated`).
+5. **Anwesenheit und Abwesenheit brauchen verschiedene Schwellen.** Eine einzige
+   behördliche Zulassung belegt H1 für sich. Nur die *Abwesenheits*-Schlüsse
+   (H2/H3) brauchen eine Mindest-Evidenz, weil dort aus fehlenden Signalen etwas
+   gefolgert wird.
+
+### 7.3 Offene Kalibrierpunkte (Owner-Review)
+
+- **Unregulierte Felder brauchen kein Zulassungs-Gate.** `plant-based-meat` steht
+  regulatorisch auf H3, weil keine Zulassungssignale existieren — für Plant-Based
+  ist aber **keine** Zulassung erforderlich. „Keine Zulassung nötig" ≠
+  „blockiert". Nötig: ein Feld-Flag `requires_approval`, das die Dimension sonst
+  auf „nicht zutreffend" stellt.
+- **Zulassungen sind anwendungsspezifisch.** Cultivated Meat steht in der EU auf
+  H1 wegen „Bene Meat Technologies Receives First-Ever EU Approval for Cultivated
+  Meat **for Pet Food**" — korrekt, aber für Humanlebensmittel irreführend. Die
+  Evidenz macht es prüfbar; die Trennung Human/Tierfutter ist eine Verfeinerung.
+- **Scope-Präzision.** Die Terme sind handkuratiert; `%mycelial%` oder
+  `%microalgae%` fangen Randfälle. Ein Embedding-basierter Scope mit
+  Nutzer-Verfeinerung (wie die CPC-Checkboxen im Technologie-Tool) ist der
+  nächste Ausbauschritt.
+- **Analyst-Override (Option E)** ist im Schema angelegt
+  (`radar_cells.override_horizon` / `override_note`, im Frontend als ✎ markiert),
+  hat aber noch keine Bedien-Oberfläche.
+- **PESTEL-Radar:** die Engine ist dimensionsagnostisch; ein zweites
+  `dimension_set='pestel'` braucht nur PESTEL-Zellenfunktionen, keine neue
+  Architektur.
