@@ -82,6 +82,10 @@ mkdir -p "$(dirname "$LOG")"
   # restores it afterwards — phase 2-4 then runs parallel (CLASSIFY_WORKERS=24).
   # Fail-safe: missing script or wrong GGUF reference → fall back to Ollama.
   export STAGE_8B_MODEL="Qwen3-8B-UD-Q4_K_XL.gguf"
+  # 2048 statt Default 1024: die richer extraction (#11) sprengt bei langen
+  # Volltexten sonst das Token-Limit → JSON-Truncation, 3 verlorene Retries
+  # (14× im Cron-Lauf 2026-07-29).
+  export LLAMACPP_MAX_TOKENS=2048
   ACTIVE_8B="/home/dirk/llama.cpp/start-qwen3-8b-208k.sh"
   if [ -f "$ACTIVE_8B" ] && grep -q "$STAGE_8B_MODEL" "$ACTIVE_8B" 2>/dev/null; then
     export STAGE_8B_BACKEND=llamacpp
