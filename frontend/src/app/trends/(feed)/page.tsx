@@ -9,6 +9,7 @@ import {
   getMegaTrends,
   getTopSourcesByCount,
 } from "@/lib/db";
+import { getTrendHorizonsBatch } from "@/lib/radar";
 import { parseFilterParams } from "@/lib/filter-params";
 import { archiveWindowDays } from "@/lib/entitlement";
 import TrendCard from "@/components/TrendCard";
@@ -57,6 +58,10 @@ export default async function TrendsPage({
     getMegaTrends("published"),
     getTopSourcesByCount(20, "published"),
   ]);
+
+  // Horizon profiles for the cards: one query for the whole page instead of one
+  // per card. Trends that belong to no radar field simply get no badge.
+  const horizonProfiles = await getTrendHorizonsBatch(trends.map((t) => t.id));
 
   // A page number beyond the end is a dead end (KEY-10) — snap to the last
   // real page instead of rendering a misleading "no trends match" state.
@@ -145,7 +150,11 @@ export default async function TrendsPage({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {trends.map((trend) => (
-            <TrendCard key={trend.id} trend={trend} />
+            <TrendCard
+              key={trend.id}
+              trend={trend}
+              horizons={horizonProfiles[trend.id]}
+            />
           ))}
         </div>
       )}

@@ -49,5 +49,22 @@ mkdir -p "$(dirname "$LOG")"
   RC=$?
   echo "----- scheduled_cycle.sh exit code: $RC -----"
 
+  # Horizont-Radar neu berechnen (GPU-frei, reines SQL, ~25 s). Muss nach dem
+  # Cycle laufen, damit die neuen Trends drin sind. Ohne diesen Schritt veraltet
+  # das Radar monoton — genau der Fehler des alten Lead-Time-Radars, das als
+  # Einmal-Artefakt vom 13.07. stehenblieb (docs/radar_redesign_proposal.md §1.6).
+  echo "----- recomputing horizon radars -----"
+  cd "$REPO" || exit 1
+  for RADAR in $("$REPO/.venv/bin/python" - <<'EOF'
+from pipeline.db import get_connection
+with get_connection() as c:
+    for r in c.execute("SELECT slug FROM radar_configs ORDER BY slug").fetchall():
+        print(r["slug"])
+EOF
+  ); do
+    "$REPO/.venv/bin/python" -m pipeline.radar_horizons --config "$RADAR"
+    echo "  radar $RADAR rc=$?"
+  done
+
   echo "full_cycle_cron.sh end  $(date -Iseconds)  (rc=$RC)"
 } >> "$LOG" 2>&1
