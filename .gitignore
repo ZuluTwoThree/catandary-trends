@@ -8,6 +8,10 @@ build/
 *.egg
 .venv/
 venv/
+# Auch als Symlink ignorieren: ein Worktree teilt die venv des Haupt-Checkouts,
+# und '.venv/' mit Schraegstrich greift nur bei echten Verzeichnissen.
+.venv
+.env
 env/
 
 # Environment
