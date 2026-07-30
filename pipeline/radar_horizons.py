@@ -356,6 +356,20 @@ def migrate() -> None:
             "ALTER TABLE radar_configs ADD COLUMN IF NOT EXISTS regulated "
             "BOOLEAN DEFAULT false;"
         )
+        # Query-Radare (2026-07-30). Alle Defaults erhalten das bisherige
+        # Verhalten, damit die geseedeten Radare kein Re-Seed brauchen.
+        conn.executescript(
+            "ALTER TABLE radar_configs ADD COLUMN IF NOT EXISTS kind "
+            "TEXT NOT NULL DEFAULT 'curated';"
+            "ALTER TABLE radar_configs ADD COLUMN IF NOT EXISTS query_text TEXT;"
+            "ALTER TABLE radar_configs ADD COLUMN IF NOT EXISTS archived "
+            "BOOLEAN DEFAULT false;"
+            "ALTER TABLE radar_scopes ADD COLUMN IF NOT EXISTS selector "
+            "TEXT NOT NULL DEFAULT 'terms';"
+            "ALTER TABLE radar_scopes ADD COLUMN IF NOT EXISTS query_text TEXT;"
+            "ALTER TABLE radar_scopes ADD COLUMN IF NOT EXISTS phrase TEXT;"
+            "ALTER TABLE radar_scopes ADD COLUMN IF NOT EXISTS centroid BYTEA;"
+        )
         conn.commit()
     log.info("radar_* Tabellen migriert")
 
@@ -397,20 +411,40 @@ def couple_market_to_regulation(market: dict, regulatory: dict, region: str) -> 
 # ---------------------------------------------------------------------------
 # Scope-Auflösung
 # ---------------------------------------------------------------------------
+# Die 10 Spalten SIND der Vertrag zwischen Scope-Auswahl und Zellenlogik: jede
+# Auswahlart muss exakt diese Form liefern, dann bleiben alle cell_*-Funktionen
+# unverändert. Zeitachse ist raw_entries.published_date — `sort_date` ist für
+# 52 % der Zeilen NULL.
+SCOPE_COLUMNS = """t.id, t.title_en, t.summary_en, t.trend_signal_type, t.regions,
+               t.tags, t.pestel, t.primary_vertical,
+               COALESCE(r.published_date, t.created_at)::date AS event_date,
+               (t.tags IS NOT NULL AND jsonb_array_length(t.tags) > 0) AS semantic"""
+
+# MUSS wortgleich zum Index `idx_trends_fts` bleiben — und zu FTS_VECTOR in
+# frontend/src/app/api/search/route.ts:39-41. Jede Abweichung degradiert still
+# von einem 6-ms-Index-Scan auf einen Seq Scan über 1,13 Mio. Zeilen; das Ergebnis
+# bleibt korrekt, nur eben 250-2400× langsamer. Der Test in
+# tests/test_radar_query.py hält beide Fassungen zeichengleich.
+FTS_VECTOR = (
+    "to_tsvector('english', coalesce(t.title_en,'') || ' ' || "
+    "coalesce(t.summary_en,'') || ' ' || coalesce(t.tags::text,''))"
+)
+
+# Ober- und Untergrenze einer Query-Treffermenge.
+MAX_SCOPE_ROWS = 25_000   # darüber ist eine Query kein "Feld" mehr
+MIN_SCOPE_ROWS = 60       # darunter verweigert das Radar die Aussage
+
+
 def load_scope_signals(conn, include: list[str], exclude: list[str]) -> list[dict]:
-    """Alle Trends eines Technologiefelds laden.
+    """Alle Trends eines Technologiefelds laden — kuratierter Term-Pfad.
 
     Term-basiert (ILIKE) mit expliziten Ausschlüssen — auditierbar und ohne
     GPU-Abhängigkeit. Der Ausschluss ist nicht Kosmetik: ein naives
     '%fermentation%' fängt traditionelle Fermentation, Silage- und
     Futtermittelzusätze mit ein (docs/radar_redesign_proposal.md §6.4).
-    Zeitachse ist raw_entries.published_date, nicht sort_date.
     """
-    sql = """
-        SELECT t.id, t.title_en, t.summary_en, t.trend_signal_type, t.regions,
-               t.tags, t.pestel, t.primary_vertical,
-               COALESCE(r.published_date, t.created_at)::date AS event_date,
-               (t.tags IS NOT NULL AND jsonb_array_length(t.tags) > 0) AS semantic
+    sql = f"""
+        SELECT {SCOPE_COLUMNS}
         FROM trends t
         LEFT JOIN raw_entries r ON r.id = t.raw_entry_id
         WHERE (t.title_en ILIKE ANY(%s) OR t.summary_en ILIKE ANY(%s))
@@ -420,6 +454,94 @@ def load_scope_signals(conn, include: list[str], exclude: list[str]) -> list[dic
         sql += " AND NOT (t.title_en ILIKE ANY(%s))"
         params.append(exclude)
     return conn.execute(sql, tuple(params)).fetchall()
+
+
+def build_query_sql(
+    query: str,
+    phrase: str | None = None,
+    ids: list[int] | None = None,
+    limit: int = MAX_SCOPE_ROWS,
+) -> tuple[str, list]:
+    """SQL + Parameter für einen FTS-ausgewählten Scope. PUR, ohne DB testbar.
+
+    `query`  — die Basis-Query des Radars (bindet das gesamte Feld)
+    `phrase` — zusätzliche Teilfeld-Phrase (UND-verknüpft)
+    `ids`    — optionale Einschränkung auf eine vorab bestimmte Trend-Menge
+               (Zentroid-Zuweisung); wirkt zusätzlich zur Query, nie statt ihrer,
+               damit ein gespeichertes Teilfeld nie aus seinem Radar herauswächst.
+
+    Parser ist `websearch_to_tsquery` — die nutzerseitige Variante (Phrasen in
+    Anführungszeichen, OR, führendes Minus). NIE `to_tsquery`: das wirft bei
+    beliebiger Nutzereingabe eine Exception.
+    """
+    sql = f"""
+        SELECT {SCOPE_COLUMNS}
+        FROM trends t
+        LEFT JOIN raw_entries r ON r.id = t.raw_entry_id
+        WHERE {FTS_VECTOR} @@ websearch_to_tsquery('english', %s)
+    """
+    params: list = [query]
+    if phrase:
+        sql += f" AND {FTS_VECTOR} @@ websearch_to_tsquery('english', %s)"
+        params.append(phrase)
+    if ids is not None:
+        sql += " AND t.id = ANY(%s)"
+        params.append(ids)
+    sql += " LIMIT %s"
+    params.append(int(limit))
+    return sql, params
+
+
+def count_query_signals(conn, query: str) -> int:
+    """Trefferzahl der nackten Basis-Query (~6 ms) — der Vorab-Flug.
+
+    Entscheidet vor jeder Arbeit, ob eine Query zu breit oder zu dünn ist, damit
+    ein pathologischer Fall nicht erst das Concurrency-Gate blockiert.
+    """
+    row = conn.execute(
+        f"SELECT count(*)::int AS n FROM trends t "
+        f"WHERE {FTS_VECTOR} @@ websearch_to_tsquery('english', %s)",
+        (query,),
+    ).fetchone()
+    return int(row["n"]) if row else 0
+
+
+def load_query_signals(
+    conn,
+    query: str,
+    *,
+    phrase: str | None = None,
+    ids: list[int] | None = None,
+    limit: int = MAX_SCOPE_ROWS,
+) -> list[dict]:
+    """Wie load_scope_signals, aber über Postgres-FTS ausgewählt."""
+    sql, params = build_query_sql(query, phrase, ids, limit)
+    return conn.execute(sql, tuple(params)).fetchall()
+
+
+def resolve_scope(conn, scope: dict) -> list[dict]:
+    """DIE Naht. Bestimmt, welche Trends ein Feld ausmachen.
+
+    Verzweigt auf `scope['selector']`, nicht auf NULL-Schnüffelei:
+      'terms'  → kuratierter ILIKE-Pfad, unverändert
+      'query'  → FTS über Basis-Query (+ optionale Teilfeld-Phrase)
+
+    Alle drei Wege liefern dieselben 10 Spalten, weshalb sämtliche
+    cell_*-Funktionen davon nichts mitbekommen.
+    """
+    selector = (scope.get("selector") or "terms").lower()
+    if selector == "query":
+        return load_query_signals(
+            conn,
+            scope.get("query_text") or "",
+            phrase=scope.get("phrase"),
+            ids=scope.get("ids"),
+        )
+    inc = scope.get("include_terms")
+    inc = json.loads(inc) if isinstance(inc, str) else (inc or [])
+    exc = scope.get("exclude_terms")
+    exc = json.loads(exc) if isinstance(exc, str) else (exc or [])
+    return load_scope_signals(conn, inc, exc)
 
 
 def _recent(rows: list[dict], months: int, today: date) -> list[dict]:
@@ -794,6 +916,155 @@ def cell_environmental(rows: list[dict], region: str, today: date) -> dict:
 # ---------------------------------------------------------------------------
 # Lauf
 # ---------------------------------------------------------------------------
+def compute_cells(conn, rows: list[dict], *, regions: list[str],
+                  dimension_set: str = "strategic", regulated: bool = False,
+                  today: date | None = None) -> list[dict]:
+    """Alle Zellen EINES Scopes. Ohne run_id, ohne scope_slug, ohne Schreiben.
+
+    Herausgelöst aus compute(), damit derselbe Code den nächtlichen Batch-Lauf
+    und den On-Demand-Pfad bedient — zwei Implementierungen derselben
+    Einordnung wären zwei Wahrheiten. `conn` braucht nur cell_technology
+    (der signal_cpc-Anker), alle übrigen Zellen sind rein.
+
+    Rückgabe: [{dimension, region, horizon, score, n_signals, method,
+                rationale, evidence}, …]
+    """
+    today = today or date.today()
+    out: list[dict] = []
+
+    tech = cell_technology(conn, rows, today)
+    out.append({
+        "dimension": "T" if dimension_set == "pestel" else "technology",
+        "region": ANY_REGION, "horizon": tech["horizon"], "score": tech.get("score"),
+        "n_signals": tech["n_signals"], "method": tech["method"],
+        "rationale": tech["rationale"], "evidence": tech.get("evidence", []),
+    })
+
+    for region in regions:
+        if dimension_set == "pestel":
+            # Dieselben Gate-Primitiven durch die PESTEL-Linse:
+            # L = Zulassungs-Gates, S = Adoption, E = Wirtschaft,
+            # P = politische Unterstützung, En = Umwelt-Sichtbarkeit.
+            per_region = (("L", cell_regulatory(rows, region, today)),
+                          ("E", cell_economic(rows, region, today)),
+                          ("S", cell_adoption(rows, region, today)),
+                          ("P", cell_political(rows, region, today)),
+                          ("En", cell_environmental(rows, region, today)))
+        else:
+            reg = cell_regulatory(rows, region, today)
+            mkt = cell_market(rows, region, today)
+            if regulated:
+                mkt = couple_market_to_regulation(mkt, reg, region)
+            per_region = (("regulatory", reg), ("market", mkt),
+                          ("adoption", cell_adoption(rows, region, today)))
+        for dim, c in per_region:
+            out.append({
+                "dimension": dim, "region": region, "horizon": c["horizon"],
+                "score": c.get("score"), "n_signals": c["n_signals"],
+                "method": c["method"], "rationale": c["rationale"],
+                "evidence": c.get("evidence", []),
+            })
+    return out
+
+
+def compute_query_radar(conn, query: str, subfields: list[dict] | None = None, *,
+                        regions: list[str] | None = None,
+                        dimension_set: str = "strategic",
+                        regulated: bool = False,
+                        today: date | None = None,
+                        name: str | None = None) -> dict:
+    """Ein vollständiges Radar für eine Freitext-Query — OHNE Persistenz.
+
+    Schreibt nichts nach radar_runs/radar_cells/radar_scope_trends. Liefert
+    exakt die Form, die lib/radar.ts getRadar() erzeugt (RadarView), erweitert um
+    `origin` und eine aufgelöste `evidence`-Map. Das ist die tragende
+    Entscheidung dieses Pfads: er ist ein ZWEITER PRODUZENT DESSELBEN VERTRAGS,
+    kein zweiter Renderpfad — deshalb bleiben HorizonArc und HorizonBoard
+    unverändert.
+
+    subfields: [{'slug','label','phrase','ids'}, …]
+               Leer/None → die Query selbst ist das einzige Feld. Das ist der
+               ehrliche Rückfall, wenn keine Zerlegung möglich oder gewollt ist.
+    """
+    today = today or date.today()
+    regions = [r for r in (regions or ["US", "EU", "GLOBAL"]) if r in JURISDICTIONS]
+    regions = regions or ["GLOBAL"]
+
+    if not subfields:
+        subfields = [{"slug": "query", "label": name or query, "phrase": None}]
+
+    scopes_out: list[dict] = []
+    cells_out: list[dict] = []
+    n_signals = 0
+    ev_ids: set[int] = set()
+
+    for sf in subfields:
+        rows = load_query_signals(
+            conn, query, phrase=sf.get("phrase"), ids=sf.get("ids")
+        )
+        n_signals += len(rows)
+        scopes_out.append({
+            "slug": sf["slug"],
+            "label": sf.get("label") or sf["slug"],
+            "n_signals": len(rows),
+        })
+        for c in compute_cells(conn, rows, regions=regions,
+                               dimension_set=dimension_set,
+                               regulated=regulated, today=today):
+            ev = c["evidence"] or []
+            ev_ids.update(ev)
+            cells_out.append({
+                "scope_slug": sf["slug"],
+                "dimension": c["dimension"],
+                "region": c["region"],
+                "horizon": c["horizon"],
+                "effective": c["horizon"],   # Overrides gibt es nur für gespeicherte Radare
+                "score": c["score"],
+                "n_signals": c["n_signals"],
+                "method": c["method"],
+                "rationale": c["rationale"],
+                "evidence": ev,
+                "override_horizon": None,
+                "override_note": None,
+            })
+
+    # Evidenz einmal auflösen — der Client soll nie nachladen müssen.
+    evidence: dict[str, dict] = {}
+    if ev_ids:
+        for r in conn.execute(
+            "SELECT id, title_en, source_url, source_name FROM trends "
+            "WHERE id = ANY(%s)", (sorted(ev_ids),)
+        ).fetchall():
+            evidence[str(r["id"])] = {
+                "id": r["id"], "title": r["title_en"],
+                "source_url": r["source_url"], "source_name": r["source_name"],
+            }
+
+    order = (["T", "L", "E", "S", "P", "En"] if dimension_set == "pestel"
+             else ["technology", "regulatory", "market", "adoption"])
+    dims = [d for d in order if any(c["dimension"] == d for c in cells_out)]
+
+    return {
+        "config": {
+            "slug": "__query__",
+            "name": name or query,
+            "description": None,
+            "regions": regions,
+            "regulated": regulated,
+            "kind": "query",
+        },
+        "scopes": [{"slug": s["slug"], "label": s["label"]} for s in scopes_out],
+        "dimensions": dims,
+        "regions": regions,
+        "cells": cells_out,
+        "generated": None,          # nicht persistiert → kein Lauf-Datum
+        "n_signals": n_signals,
+        "origin": {"kind": "query", "query": query,
+                   "field_signals": {s["slug"]: s["n_signals"] for s in scopes_out}},
+        "evidence": evidence,
+    }
+
+
 def compute(config_slug: str, today: date | None = None) -> int:
     today = today or date.today()
     with get_connection() as conn:
@@ -811,7 +1082,8 @@ def compute(config_slug: str, today: date | None = None) -> int:
         dimension_set = cfg.get("dimension_set") or "strategic"
 
         scopes = conn.execute(
-            "SELECT slug, label, include_terms, exclude_terms FROM radar_scopes "
+            "SELECT slug, label, include_terms, exclude_terms, selector, "
+            "query_text, phrase FROM radar_scopes "
             "WHERE config_id = %s ORDER BY sort_order, id",
             (cfg["id"],),
         ).fetchall()
@@ -826,11 +1098,7 @@ def compute(config_slug: str, today: date | None = None) -> int:
 
         n_cells = n_signals = 0
         for sc in scopes:
-            inc = sc["include_terms"]
-            inc = json.loads(inc) if isinstance(inc, str) else (inc or [])
-            exc = sc["exclude_terms"]
-            exc = json.loads(exc) if isinstance(exc, str) else (exc or [])
-            rows = load_scope_signals(conn, inc, exc)
+            rows = resolve_scope(conn, dict(sc))
             n_signals += len(rows)
             log.info("scope %-22s %6d Signale", sc["slug"], len(rows))
 
@@ -841,34 +1109,14 @@ def compute(config_slug: str, today: date | None = None) -> int:
                     [(run_id, sc["slug"], r["id"]) for r in rows],
                 )
 
-            cells: list[tuple] = []
-            tech = cell_technology(conn, rows, today)
-            tech_dim = "T" if dimension_set == "pestel" else "technology"
-            cells.append((run_id, sc["slug"], tech_dim, ANY_REGION,
-                          tech["horizon"], tech.get("score"), tech["n_signals"],
-                          tech["method"], tech["rationale"],
-                          json.dumps(tech.get("evidence", []))))
-            for region in regions:
-                if dimension_set == "pestel":
-                    # Dieselben Gate-Primitiven durch die PESTEL-Linse:
-                    # L = Zulassungs-Gates, S = Adoption, E = Wirtschaft,
-                    # P = politische Unterstützung, En = Umwelt-Sichtbarkeit.
-                    per_region = (("L", cell_regulatory(rows, region, today)),
-                                  ("E", cell_economic(rows, region, today)),
-                                  ("S", cell_adoption(rows, region, today)),
-                                  ("P", cell_political(rows, region, today)),
-                                  ("En", cell_environmental(rows, region, today)))
-                else:
-                    reg = cell_regulatory(rows, region, today)
-                    mkt = cell_market(rows, region, today)
-                    if regulated:
-                        mkt = couple_market_to_regulation(mkt, reg, region)
-                    per_region = (("regulatory", reg), ("market", mkt),
-                                  ("adoption", cell_adoption(rows, region, today)))
-                for dim, c in per_region:
-                    cells.append((run_id, sc["slug"], dim, region, c["horizon"],
-                                  c.get("score"), c["n_signals"], c["method"],
-                                  c["rationale"], json.dumps(c.get("evidence", []))))
+            cells = [
+                (run_id, sc["slug"], c["dimension"], c["region"], c["horizon"],
+                 c["score"], c["n_signals"], c["method"], c["rationale"],
+                 json.dumps(c["evidence"]))
+                for c in compute_cells(conn, rows, regions=regions,
+                                       dimension_set=dimension_set,
+                                       regulated=regulated, today=today)
+            ]
             conn.executemany(
                 "INSERT INTO radar_cells (run_id, scope_slug, dimension, region, "
                 "horizon, score, n_signals, method, rationale, evidence) "

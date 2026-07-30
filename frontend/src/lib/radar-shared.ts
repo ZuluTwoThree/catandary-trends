@@ -81,10 +81,19 @@ export interface RadarConfigMeta {
   description: string | null;
   regions: string[];
   regulated: boolean;
+  /** 'curated' = seeded in radar_seed.py, 'query' = built from a free-text query. */
+  kind?: "curated" | "query";
 }
 
 export interface RadarView {
   config: RadarConfigMeta;
+  /** Set only on on-demand query radars (compute_query_radar) — never persisted. */
+  origin?: { kind: "query"; query: string; field_signals?: Record<string, number> };
+  /** Resolved evidence titles, shipped with query radars so the client never refetches. */
+  evidence?: Record<
+    number | string,
+    { id: number; title: string; source_url: string | null; source_name: string | null }
+  >;
   scopes: RadarScope[];
   dimensions: string[];
   regions: string[];
