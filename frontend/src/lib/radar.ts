@@ -18,7 +18,16 @@ export * from "./radar-shared";
  * Degrades to null/[] when the tables do not exist yet.
  */
 
-const DIMENSION_ORDER = ["technology", "regulatory", "market", "adoption"];
+// Canonical display order, covering BOTH dimension sets. A radar declares its
+// set in radar_configs.dimension_set; the read layer just keeps whichever
+// dimensions the run actually produced, in this order. Omitting the PESTEL codes
+// here silently emptied the PESTEL radar (2026-07-30).
+const DIMENSION_ORDER = [
+  // strategic
+  "technology", "regulatory", "market", "adoption",
+  // PESTEL, in the canonical P-E-S-T-E-L reading order
+  "P", "E", "S", "T", "En", "L",
+];
 
 function parseJson<T>(v: unknown, fallback: T): T {
   if (v == null) return fallback;

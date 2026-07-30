@@ -408,7 +408,7 @@ def load_scope_signals(conn, include: list[str], exclude: list[str]) -> list[dic
     """
     sql = """
         SELECT t.id, t.title_en, t.summary_en, t.trend_signal_type, t.regions,
-               t.tags, t.primary_vertical,
+               t.tags, t.pestel, t.primary_vertical,
                COALESCE(r.published_date, t.created_at)::date AS event_date,
                (t.tags IS NOT NULL AND jsonb_array_length(t.tags) > 0) AS semantic
         FROM trends t
@@ -678,6 +678,119 @@ def cell_technology(conn, rows: list[dict], today: date) -> dict:
             "evidence": []}
 
 
+def pestel_of(row) -> set[str]:
+    """PESTEL-Dimensionen eines Trends (LLM-Klassifikation, Stage 3)."""
+    raw = row.get("pestel")
+    vals = json.loads(raw) if isinstance(raw, str) else (raw or [])
+    return {str(v) for v in vals if v}
+
+
+# ---------------------------------------------------------------------------
+# PESTEL-Dimensions-Set (dimension_set='pestel')
+# ---------------------------------------------------------------------------
+# Dieselben Gate-Primitiven, durch die PESTEL-Linse: T und L sind die
+# Technologie- bzw. Zulassungs-Gates, S die Adoption, E zählt wirtschaftliche
+# Aktivität, P politische Unterstützung vs. Widerstand. En misst ausdrücklich
+# nur die SICHTBARKEIT des Umweltarguments im Signalraum — mehr gibt der Korpus
+# ehrlich nicht her, und die Begründung sagt das auch so.
+PESTEL_DIMENSIONS = ("P", "E", "S", "T", "En", "L")
+
+
+def cell_economic(rows: list[dict], region: str, today: date) -> dict:
+    """E: wirtschaftliche Aktivität — Finanzierung + Produktstarts je Region."""
+    pool = [r for r in _recent(rows, LAUNCH_WINDOW_MONTHS, today)
+            if region in regions_of(r)]
+    funding = [r for r in pool if r["trend_signal_type"] == "funding"]
+    launches = [r for r in pool if r["trend_signal_type"] == "product_launch"]
+    n = len(funding) + len(launches)
+    if n < MIN_N_MARKET:
+        return {"horizon": None, "n_signals": n, "method": "gates",
+                "rationale": f"Zu wenige Wirtschaftssignale für {region} ({n}).",
+                "evidence": []}
+    ev = sorted(funding + launches, key=lambda r: r["event_date"] or date.min,
+                reverse=True)
+    if launches and funding:
+        h, sc, why = "H1", 0.85, (f"{len(funding)} Finanzierungs- und {len(launches)} "
+                                  f"Produktsignale in {region} — kommerzielle Aktivität auf beiden Seiten")
+    elif funding:
+        h, sc, why = "H2", 0.5, (f"{len(funding)} Finanzierungssignale, aber erst "
+                                 f"{len(launches)} Produktstarts in {region} — Kapital vor Markt")
+    else:
+        h, sc, why = "H2", 0.45, (f"{len(launches)} Produktstarts ohne sichtbare "
+                                  f"Finanzierungssignale in {region}")
+    return {"horizon": h, "n_signals": n, "method": "gates", "score": sc,
+            "rationale": why + ".", "evidence": [r["id"] for r in ev[:5]]}
+
+
+def cell_political(rows: list[dict], region: str, today: date) -> dict:
+    """P: politische Unterstützung — Strategie/Förderprogramme vs. Blockade.
+
+    Bewertet die POLITISCHE GROSSWETTERLAGE, nicht die erteilte Zulassung
+    (das ist L): Strategien, Roadmaps und öffentliche Förderung = Unterstützung;
+    Verbote und explizite Blockaden = Gegenwind.
+    """
+    regs = [r for r in _recent(rows, PATHWAY_WINDOW_MONTHS, today)
+            if r["trend_signal_type"] == "regulation" and region in regions_of(r)
+            and "P" in pestel_of(r)]
+    support = [r for r in regs if reg_subtype(r) in ("forming", "filed")]
+    gaps = [r for r in regs if reg_subtype(r) == "gap"]
+    n = len(regs)
+    if n < MIN_N_REGULATORY:
+        return {"horizon": None, "n_signals": n, "method": "gates",
+                "rationale": f"Zu wenige politische Signale für {region} ({n}).",
+                "evidence": []}
+    ev = sorted(regs, key=lambda r: r["event_date"] or date.min, reverse=True)
+    if len(support) >= 3 and len(support) > 2 * len(gaps):
+        h, sc, why = "H1", 0.8, (f"{len(support)} Unterstützungssignale (Strategie, "
+                                 f"Roadmap, Förderprogramm) gegen {len(gaps)} Gegenwind-Signale in {region}")
+    elif support:
+        h, sc, why = "H2", 0.5, (f"{len(support)} Unterstützungs- gegen {len(gaps)} "
+                                 f"Gegenwind-Signale in {region} — politisch in Bewegung")
+    else:
+        h, sc, why = "H3", 0.2, (f"Nur Gegenwind- oder keine Unterstützungssignale "
+                                 f"in {region} ({len(gaps)} Blockade-Signale)")
+    return {"horizon": h, "n_signals": n, "method": "gates", "score": sc,
+            "rationale": why + ".", "evidence": [r["id"] for r in ev[:5]]}
+
+
+def cell_environmental(rows: list[dict], region: str, today: date) -> dict:
+    """En: Sichtbarkeit des Umweltarguments im Signalraum dieses Felds.
+
+    Ausdrücklich KEINE Ökobilanz — gemessen wird, wie präsent die Umweltdimension
+    in den Signalen ist und ob sie zunimmt. Die Formulierung der Begründung
+    macht diese Grenze explizit.
+    """
+    sem = [r for r in rows if r["semantic"] and region in regions_of(r)]
+    if region == "GLOBAL":
+        sem = [r for r in rows if r["semantic"]]
+    tagged = [r for r in sem if "En" in pestel_of(r)]
+    n = len(sem)
+    if n < 20:
+        return {"horizon": None, "n_signals": len(tagged), "method": "semantic_mix",
+                "rationale": f"Zu wenige semantische Signale für {region} ({n}).",
+                "evidence": []}
+    share = len(tagged) / n
+    recent = [r for r in _recent(tagged, 12, today)]
+    ev = sorted(tagged, key=lambda r: r["event_date"] or date.min, reverse=True)
+    if share >= 0.35 and recent:
+        h, sc = "H1", 0.8
+        why = (f"Das Umweltargument trägt: {len(tagged)} von {n} Signalen "
+               f"({share:.0%}) sind Umwelt-getaggt, {len(recent)} davon aus den "
+               "letzten 12 Monaten")
+    elif share >= 0.15:
+        h, sc = "H2", 0.5
+        why = (f"Umweltbezug präsent, aber nicht dominant: {share:.0%} der "
+               f"{n} Signale")
+    else:
+        h, sc = "H3", 0.2
+        why = f"Umweltbezug randständig: {share:.0%} der {n} Signale"
+    return {"horizon": h, "n_signals": len(tagged), "method": "semantic_mix",
+            "score": sc,
+            "rationale": why + ". Gemessen ist Sichtbarkeit im Signalraum, "
+                         "keine Ökobilanz.",
+            "evidence": [r["id"] for r in ev[:5]]}
+
+
 # ---------------------------------------------------------------------------
 # Lauf
 # ---------------------------------------------------------------------------
@@ -685,7 +798,7 @@ def compute(config_slug: str, today: date | None = None) -> int:
     today = today or date.today()
     with get_connection() as conn:
         cfg = conn.execute(
-            "SELECT id, slug, name, regions, window_months, regulated "
+            "SELECT id, slug, name, regions, window_months, regulated, dimension_set "
             "FROM radar_configs WHERE slug = %s",
             (config_slug,),
         ).fetchone()
@@ -695,6 +808,7 @@ def compute(config_slug: str, today: date | None = None) -> int:
         regions = json.loads(regions) if isinstance(regions, str) else (regions or [])
         regions = [r for r in regions if r in JURISDICTIONS] or ["GLOBAL"]
         regulated = bool(cfg.get("regulated"))
+        dimension_set = cfg.get("dimension_set") or "strategic"
 
         scopes = conn.execute(
             "SELECT slug, label, include_terms, exclude_terms FROM radar_scopes "
@@ -729,18 +843,29 @@ def compute(config_slug: str, today: date | None = None) -> int:
 
             cells: list[tuple] = []
             tech = cell_technology(conn, rows, today)
-            cells.append((run_id, sc["slug"], "technology", ANY_REGION,
+            tech_dim = "T" if dimension_set == "pestel" else "technology"
+            cells.append((run_id, sc["slug"], tech_dim, ANY_REGION,
                           tech["horizon"], tech.get("score"), tech["n_signals"],
                           tech["method"], tech["rationale"],
                           json.dumps(tech.get("evidence", []))))
             for region in regions:
-                reg = cell_regulatory(rows, region, today)
-                mkt = cell_market(rows, region, today)
-                if regulated:
-                    mkt = couple_market_to_regulation(mkt, reg, region)
-                ado = cell_adoption(rows, region, today)
-                for dim, c in (("regulatory", reg), ("market", mkt),
-                               ("adoption", ado)):
+                if dimension_set == "pestel":
+                    # Dieselben Gate-Primitiven durch die PESTEL-Linse:
+                    # L = Zulassungs-Gates, S = Adoption, E = Wirtschaft,
+                    # P = politische Unterstützung, En = Umwelt-Sichtbarkeit.
+                    per_region = (("L", cell_regulatory(rows, region, today)),
+                                  ("E", cell_economic(rows, region, today)),
+                                  ("S", cell_adoption(rows, region, today)),
+                                  ("P", cell_political(rows, region, today)),
+                                  ("En", cell_environmental(rows, region, today)))
+                else:
+                    reg = cell_regulatory(rows, region, today)
+                    mkt = cell_market(rows, region, today)
+                    if regulated:
+                        mkt = couple_market_to_regulation(mkt, reg, region)
+                    per_region = (("regulatory", reg), ("market", mkt),
+                                  ("adoption", cell_adoption(rows, region, today)))
+                for dim, c in per_region:
                     cells.append((run_id, sc["slug"], dim, region, c["horizon"],
                                   c.get("score"), c["n_signals"], c["method"],
                                   c["rationale"], json.dumps(c.get("evidence", []))))

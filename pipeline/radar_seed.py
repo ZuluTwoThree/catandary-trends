@@ -121,8 +121,30 @@ SCOPES: list[dict] = [
 ]
 
 
+# PESTEL-Zwilling: dieselben acht Felder, aber als PESTEL-Einordnung
+# (P/E/S/T/En/L statt Technologie/Regulatorik/Markt/Adoption). Belegt die
+# Mehr-Radar-Fähigkeit: gleiche Engine, anderes Dimensions-Set.
+CONFIG_PESTEL = {
+    **CONFIG,
+    "slug": "alt-protein-pestel",
+    "name": "Alternative Proteine · PESTEL",
+    "description": (
+        "Dieselben acht Proteintechnologien, eingeordnet entlang der sechs "
+        "PESTEL-Dimensionen je Jurisdiktion."
+    ),
+    "dimension_set": "pestel",
+    # Die Markt↔Zulassungs-Kopplung ist zwischen L und E nicht definiert.
+    "regulated": False,
+}
+
+
 def seed() -> None:
-    """Konfiguration idempotent anlegen/aktualisieren."""
+    """Konfigurationen idempotent anlegen/aktualisieren."""
+    for cfg in (CONFIG, CONFIG_PESTEL):
+        _seed_one(cfg)
+
+
+def _seed_one(CONFIG: dict) -> None:
     with get_connection() as conn:
         row = conn.execute("SELECT id FROM radar_configs WHERE slug = %s",
                            (CONFIG["slug"],)).fetchone()

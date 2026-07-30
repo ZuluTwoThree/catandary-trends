@@ -68,47 +68,64 @@ export default async function RadarPage({
 
   // ---- Horizon radar (default) --------------------------------------------
   if (view) {
+    const placed = view.cells.filter((c) => c.effective).length;
     return (
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        <div className="mb-8">
-          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-4">
-            —— Foresight · Radar
+      <div className="rdr">
+        {/* Masthead: an instrument plate, not a page header */}
+        <header className="rdr-head">
+          <div className="rdr-plate">
+            <span className="rdr-eyebrow">Foresight · Instrument 01</span>
+            <h1 className="rdr-title">
+              The horizon <em>arc</em>
+            </h1>
+            <p className="rdr-lede">
+              {view.config.description ??
+                "Technology fields placed on strategic horizons per dimension and jurisdiction."}{" "}
+              A field rarely sits on one horizon: it can be technologically ready,
+              blocked by regulation in one market, and already on sale in another.
+            </p>
           </div>
-          <h1 className="font-display text-4xl md:text-[52px] leading-[1.05] tracking-tight text-paper mb-4">
-            The horizon <span className="italic">radar</span>
-          </h1>
-          <p className="font-sans text-text text-lg leading-relaxed max-w-2xl">
-            {view.config.description ??
-              "Technology fields placed on strategic horizons per dimension and jurisdiction."}{" "}
-            A field rarely sits on one horizon: it can be technologically ready
-            while still being blocked by regulation in one market and already on
-            sale in another.
-            {view.generated ? (
-              <span className="text-muted"> Updated {asOf(view.generated)}.</span>
-            ) : null}
-          </p>
-        </div>
+          <dl className="rdr-specs">
+            <div>
+              <dt>Fields</dt>
+              <dd>{view.scopes.length}</dd>
+            </div>
+            <div>
+              <dt>Dimensions</dt>
+              <dd>{view.dimensions.length}</dd>
+            </div>
+            <div>
+              <dt>Placements</dt>
+              <dd>{placed}</dd>
+            </div>
+            <div>
+              <dt>Signals</dt>
+              <dd>{view.n_signals.toLocaleString("en-US")}</dd>
+            </div>
+            <div>
+              <dt>Reading</dt>
+              <dd>{asOf(view.generated) ?? "—"}</dd>
+            </div>
+          </dl>
+        </header>
 
         {radars.length > 1 && (
-          <div className="mb-6 flex flex-wrap items-center gap-1">
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mr-1">
-              Radar
-            </span>
+          <nav className="rdr-tabs" aria-label="Radar">
             {radars.map((r) => (
               <Link
                 key={r.slug}
                 href={`/trends/foresight/radar?radar=${r.slug}`}
-                className={chip(r.slug === view.config.slug)}
+                className={`rdr-tab ${r.slug === view.config.slug ? "is-on" : ""}`}
               >
                 {r.name}
               </Link>
             ))}
-          </div>
+          </nav>
         )}
 
         <TierGate
           need="starter"
-          feature="The full horizon radar"
+          feature="The full horizon arc"
           benefit={`Starter opens all ${view.scopes.length} technology fields across every dimension and jurisdiction — each placement with its reasoning and its sources.`}
           teaser={
             <div>
@@ -116,9 +133,9 @@ export default async function RadarPage({
                 view={{ ...view, scopes: view.scopes.slice(0, 3) }}
                 evidence={evidenceMap}
               />
-              <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              <p className="rdr-note">
                 Free preview — {Math.min(3, view.scopes.length)} of{" "}
-                {view.scopes.length} technology fields
+                {view.scopes.length} fields
               </p>
             </div>
           }
@@ -126,24 +143,87 @@ export default async function RadarPage({
           <HorizonBoard view={view} evidence={evidenceMap} />
         </TierGate>
 
-        <p className="mt-8 font-sans text-sm text-muted leading-relaxed max-w-3xl">
-          Placement is computed per dimension, not by one score: technology from
-          the patent record where the lead-time is reliable, regulation from
-          approval milestones attributed to the <em>named authority</em> (not the
-          company&apos;s home country), market from product launches in that
-          jurisdiction.{" "}
-          {view.config.regulated
-            ? "In this regulated domain a market cannot be rated ahead of its approval — without a licence there is no lawful market."
-            : null}{" "}
-          Where the evidence is too thin, the cell stays empty.{" "}
-          <Link href="/trends/foresight/radar?view=evidence" className="text-accent hover:underline">
-            The corpus-wide signal-source view is here →
-          </Link>
-        </p>
+        {/* Method footer — the honest small print, set as a spec sheet */}
+        <section className="rdr-method">
+          <h2 className="rdr-method-h">How a placement is made</h2>
+          <div className="rdr-method-grid">
+            <div>
+              <span className="rdr-method-k">Technology</span>
+              <p>
+                From the patent record — takeoff years per CPC class, used only
+                where the lead-time is flagged reliable. Otherwise the signal mix,
+                capped at H2: scale and cost maturity are not readable from
+                signals.
+              </p>
+            </div>
+            <div>
+              <span className="rdr-method-k">Regulatory</span>
+              <p>
+                Approval milestones attributed to the <em>named authority</em> —
+                FDA to the US, EFSA to the EU — never to the company&apos;s home
+                country. A consultation is not an open route to market.
+              </p>
+            </div>
+            <div>
+              <span className="rdr-method-k">Market</span>
+              <p>
+                Product launches in that jurisdiction, with retail and scale
+                markers.{" "}
+                {view.config.regulated
+                  ? "In this regulated domain the market cannot be rated ahead of its approval — without a licence there is no lawful market."
+                  : "No approval coupling in this domain."}
+              </p>
+            </div>
+            <div>
+              <span className="rdr-method-k">Silence</span>
+              <p>
+                Where evidence is too thin, the cell stays empty. A dash is a
+                statement: the corpus does not support a call.
+              </p>
+            </div>
+          </div>
+          <p className="rdr-method-foot">
+            <Link href="/trends/foresight/radar?view=evidence">
+              Signal-source overview (the corpus map) →
+            </Link>
+          </p>
+        </section>
 
-        <div className="mt-12">
+        <div className="rdr-cta">
           <ForesightCta />
         </div>
+
+        <style>{`
+          .rdr { max-width: 78rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+          .rdr-head { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2.5rem; align-items: end; padding-bottom: 1.6rem; margin-bottom: 1.4rem; border-bottom: 1px solid var(--color-border); }
+          @media (max-width: 900px) { .rdr-head { grid-template-columns: 1fr; align-items: start; gap: 1.6rem; } }
+          .rdr-eyebrow { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .3em; text-transform: uppercase; color: var(--color-accent); display: block; margin-bottom: 1rem; }
+          .rdr-title { font-family: var(--font-display); font-size: clamp(2.6rem, 6.5vw, 4.6rem); line-height: .98; letter-spacing: -.025em; color: var(--color-paper); margin: 0 0 1.1rem; }
+          .rdr-title em { font-style: italic; color: var(--color-accent); }
+          .rdr-lede { font-size: 1.02rem; line-height: 1.65; color: var(--color-text); max-width: 42em; margin: 0; }
+          .rdr-specs { display: grid; grid-template-columns: repeat(5, auto); gap: 0 1.6rem; margin: 0; }
+          @media (max-width: 900px) { .rdr-specs { grid-template-columns: repeat(3, auto); gap: 1rem 1.6rem; } }
+          .rdr-specs dt { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--color-muted); }
+          .rdr-specs dd { font-family: var(--font-mono); font-size: 1.15rem; color: var(--color-paper); margin: .3rem 0 0; font-variant-numeric: tabular-nums; }
+
+          .rdr-tabs { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: 1.6rem; }
+          .rdr-tab { font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; padding: .45rem .9rem; border: 1px solid var(--color-border); color: var(--color-muted); text-decoration: none; transition: color .18s, border-color .18s; }
+          .rdr-tab:hover { color: var(--color-paper); border-color: var(--color-paper); }
+          .rdr-tab.is-on { color: var(--color-accent); border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+
+          .rdr-note { margin-top: .8rem; font-family: var(--font-mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--color-muted); }
+
+          .rdr-method { margin-top: 3.5rem; padding-top: 1.6rem; border-top: 1px solid var(--color-border); }
+          .rdr-method-h { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .26em; text-transform: uppercase; color: var(--color-muted); margin: 0 0 1.4rem; font-weight: 400; }
+          .rdr-method-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1.6rem 2rem; }
+          .rdr-method-k { display: block; font-family: var(--font-mono); font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: var(--color-accent); margin-bottom: .5rem; }
+          .rdr-method-grid p { font-size: .84rem; line-height: 1.6; color: var(--color-muted); margin: 0; }
+          .rdr-method-grid em { color: var(--color-text); font-style: italic; }
+          .rdr-method-foot { margin: 1.8rem 0 0; font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
+          .rdr-method-foot a { color: var(--color-accent); text-decoration: none; }
+          .rdr-method-foot a:hover { text-decoration: underline; }
+          .rdr-cta { margin-top: 3rem; }
+        `}</style>
       </div>
     );
   }
