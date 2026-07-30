@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { rateLimit, clientIp, ConcurrencyGate } from "@/lib/rateLimit";
+import { ResponseCache } from "@/lib/responseCache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
@@ -17,7 +18,10 @@ const RL_WINDOW_MS = 60_000;
 const MAX_CONCURRENT = 2;          // gleichzeitige schwere Berechnungen
 const CACHE_TTL_MS = 10 * 60_000;  // Cache für normalisierte Freitext-Queries
 const gate = new ConcurrencyGate(MAX_CONCURRENT);
-const cache = new Map<string, { at: number; body: unknown }>();
+// Begrenzt statt roher Map: die frühere Fassung hatte weder Größenlimit noch
+// Verdrängung, Einträge verfielen nur beim erneuten Lesen — ein Strom
+// unterschiedlicher Queries ließ sie über die Prozesslebensdauer wachsen.
+const cache = new ResponseCache<unknown>({ maxEntries: 200, ttlMs: CACHE_TTL_MS });
 
 /** Repo root by walking up from cwd (dev = repo root, prod = frontend/). */
 function repoRoot(): string {
@@ -79,8 +83,8 @@ export async function GET(request: Request) {
   const cacheKey = codesRaw ? null : q.toLowerCase().replace(/\s+/g, " ");
   if (cacheKey) {
     const hit = cache.get(cacheKey);
-    if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
-      return NextResponse.json(hit.body, { headers: { "x-cache": "hit" } });
+    if (hit) {
+      return NextResponse.json(hit, { headers: { "x-cache": "hit" } });
     }
   }
 
@@ -119,7 +123,7 @@ export async function GET(request: Request) {
     });
     const line = result.trim().split("\n").filter(Boolean).pop() || "{}";
     const body = JSON.parse(line);
-    if (cacheKey) cache.set(cacheKey, { at: Date.now(), body });
+    if (cacheKey) cache.set(cacheKey, body);
     return NextResponse.json(body, cacheKey ? { headers: { "x-cache": "miss" } } : undefined);
   } catch (e) {
     // execFile's own timeout kills with SIGTERM and an err WITHOUT "timed out" in
