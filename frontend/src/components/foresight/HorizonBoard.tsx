@@ -3,29 +3,28 @@
 import { useMemo, useState } from "react";
 import {
   ANY_REGION,
-  DIMENSION_META,
   HORIZON_META,
   cellFor,
+  dimensionStyle,
   type Horizon,
   type RadarCell,
   type RadarView,
 } from "@/lib/radar-shared";
+import HorizonArc from "./HorizonArc";
 
 /**
- * Horizon board: one dataset, two readings.
+ * The instrument: one dataset, two readings, one readout.
  *
- *   matrix — the working view. Rows are technology fields, columns are
- *            dimensions, each cell an H-badge. Overlap is structurally
- *            impossible and a field's whole profile reads across one row, which
- *            is the actual strategic statement ("technologically H2, but
- *            regulatorily H3 in the EU").
- *   radar  — the presentation view. Rings are H1/H2/H3 (act in the centre),
- *            sectors are dimensions. Blips are numbered against a legend rather
- *            than labelled in place, so nothing collides and nothing has to be
- *            hovered to be identified.
+ *   arc    — a 180° horizon dial. Bands are H1/H2/H3 from the baseline outward,
+ *            sectors are the dimensions (PESTEL or strategic). Blips are
+ *            numbered against the legend, so nothing needs a label in place and
+ *            nothing can collide.
+ *   matrix — the same cells as a table. Rows are fields, columns dimensions.
+ *            Overlap is impossible by construction and a field's whole profile
+ *            reads across one row — which is the actual strategic statement.
  *
- * Every cell carries its rationale and its evidence, and a cell with too little
- * evidence stays empty instead of guessing.
+ * A cell with too little evidence stays empty rather than guessing, and every
+ * placement carries its reasoning and its sources in the readout.
  */
 
 interface EvidenceItem {
@@ -35,14 +34,7 @@ interface EvidenceItem {
   source_name: string | null;
 }
 
-const SIZE = 620;
-const CX = SIZE / 2;
-const CY = SIZE / 2;
-// H1 innermost: the closer to the centre, the sooner you must act.
-const RING_R: Record<Horizon, number> = { H1: 112, H2: 186, H3: 260 };
-const DOT_R = 8;
-
-type Mode = "matrix" | "radar";
+type Mode = "arc" | "matrix";
 
 export default function HorizonBoard({
   view,
@@ -51,7 +43,7 @@ export default function HorizonBoard({
   view: RadarView;
   evidence: Record<number, EvidenceItem>;
 }) {
-  const [mode, setMode] = useState<Mode>("matrix");
+  const [mode, setMode] = useState<Mode>("arc");
   const [region, setRegion] = useState<string>(
     view.regions.includes("GLOBAL") ? "GLOBAL" : view.regions[0] ?? "GLOBAL"
   );
@@ -61,66 +53,22 @@ export default function HorizonBoard({
     ? cellFor(view, sel.scope, sel.dimension, region)
     : null;
   const selScope = sel ? view.scopes.find((s) => s.slug === sel.scope) : null;
+  const selStyle = sel ? dimensionStyle(sel.dimension) : null;
 
-  // Numbered legend — the polar view identifies blips by index, so a dot never
-  // needs a label of its own and labels can never collide.
   const scopeIndex = useMemo(
     () => new Map(view.scopes.map((s, i) => [s.slug, i + 1])),
     [view.scopes]
   );
 
-  const blips = useMemo(() => {
-    const dims = view.dimensions;
-    if (!dims.length) return [];
-    const seg = (2 * Math.PI) / dims.length;
-    const out: {
-      key: string;
-      scope: string;
-      dimension: string;
-      n: number;
-      x: number;
-      y: number;
-      horizon: Horizon;
-    }[] = [];
-    dims.forEach((dim, di) => {
-      // Group by ring first so placement can spread within (sector × ring).
-      const byRing: Record<Horizon, string[]> = { H1: [], H2: [], H3: [] };
-      view.scopes.forEach((s) => {
-        const c = cellFor(view, s.slug, dim, region);
-        if (c?.effective) byRing[c.effective].push(s.slug);
-      });
-      (Object.keys(byRing) as Horizon[]).forEach((h) => {
-        const members = byRing[h];
-        const base = -Math.PI / 2 + di * seg;
-        const usable = seg * 0.82;
-        const start = base + (seg - usable) / 2;
-        members.forEach((slug, i) => {
-          const t = members.length === 1 ? 0.5 : i / (members.length - 1);
-          const a = start + usable * t;
-          // Alternate radially when a cell is crowded: keeps circles apart even
-          // if the arc gets tight.
-          const r = RING_R[h] + (members.length > 5 ? (i % 2 ? 11 : -11) : 0);
-          out.push({
-            key: `${dim}-${slug}`,
-            scope: slug,
-            dimension: dim,
-            n: scopeIndex.get(slug) ?? 0,
-            x: CX + r * Math.cos(a),
-            y: CY + r * Math.sin(a),
-            horizon: h,
-          });
-        });
-      });
-    });
-    return out;
-  }, [view, region, scopeIndex]);
-
-  const chip = (active: boolean) =>
-    `font-mono text-[10px] uppercase tracking-[0.14em] px-3 py-1.5 border transition-colors ${
-      active
-        ? "text-accent border-accent bg-accent/10"
-        : "text-muted border-border hover:text-paper"
-    }`;
+  // Coverage is a trust statement, not decoration: how much of the grid the
+  // engine was willing to place at all.
+  const coverage = useMemo(() => {
+    const rel = view.cells.filter(
+      (c) => c.region === region || c.region === ANY_REGION
+    );
+    const placed = rel.filter((c) => c.effective).length;
+    return { placed, total: rel.length };
+  }, [view.cells, region]);
 
   const selEvidence = (selCell?.evidence ?? [])
     .map((id) => evidence[id])
@@ -128,31 +76,48 @@ export default function HorizonBoard({
 
   return (
     <div className="hb">
-      {/* Controls: view mode + jurisdiction. Two controls, no configuration duty. */}
-      <div className="mb-5 flex flex-wrap items-center gap-4">
-        <div className="flex flex-wrap gap-1">
-          <button className={chip(mode === "matrix")} onClick={() => setMode("matrix")}>
-            Matrix
-          </button>
-          <button className={chip(mode === "radar")} onClick={() => setMode("radar")}>
-            Radar
-          </button>
+      {/* ---- Instrument switches -------------------------------------- */}
+      <div className="hb-switches">
+        <div className="hb-switch-group" role="group" aria-label="View">
+          {(["arc", "matrix"] as Mode[]).map((m) => (
+            <button
+              key={m}
+              className={`hb-switch ${mode === m ? "is-on" : ""}`}
+              onClick={() => setMode(m)}
+              aria-pressed={mode === m}
+            >
+              {m === "arc" ? "Arc" : "Matrix"}
+            </button>
+          ))}
         </div>
-        <div className="flex flex-wrap items-center gap-1">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mr-1">
-            Jurisdiction
-          </span>
+        <div className="hb-switch-group" role="group" aria-label="Jurisdiction">
+          <span className="hb-switch-legend">Jurisdiction</span>
           {view.regions.map((r) => (
-            <button key={r} className={chip(region === r)} onClick={() => setRegion(r)}>
+            <button
+              key={r}
+              className={`hb-switch ${region === r ? "is-on" : ""}`}
+              onClick={() => setRegion(r)}
+              aria-pressed={region === r}
+            >
               {r}
             </button>
           ))}
         </div>
+        <span className="hb-coverage">
+          {coverage.placed}/{coverage.total} placed
+        </span>
       </div>
 
       <div className="hb-grid">
-        <div className="min-w-0">
-          {mode === "matrix" ? (
+        <div className="hb-stage">
+          {mode === "arc" ? (
+            <HorizonArc
+              view={view}
+              region={region}
+              selected={sel}
+              onSelect={setSel}
+            />
+          ) : (
             <div className="hb-scroll">
               <table className="hb-table">
                 <caption className="sr-only">
@@ -161,13 +126,16 @@ export default function HorizonBoard({
                 <thead>
                   <tr>
                     <th scope="col" className="hb-th hb-th-field">
-                      Technology field
+                      Field
                     </th>
-                    {view.dimensions.map((d) => (
-                      <th key={d} scope="col" className="hb-th" title={DIMENSION_META[d]?.blurb}>
-                        {DIMENSION_META[d]?.label ?? d}
-                      </th>
-                    ))}
+                    {view.dimensions.map((d) => {
+                      const st = dimensionStyle(d);
+                      return (
+                        <th key={d} scope="col" className="hb-th" title={st.blurb}>
+                          <span style={{ color: st.color }}>{st.short}</span>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -180,15 +148,14 @@ export default function HorizonBoard({
                       {view.dimensions.map((d) => {
                         const c = cellFor(view, s.slug, d, region);
                         const h = c?.effective ?? null;
-                        const active =
-                          sel?.scope === s.slug && sel?.dimension === d;
+                        const active = sel?.scope === s.slug && sel?.dimension === d;
                         return (
                           <td key={d} className="hb-td">
                             <button
                               className={`hb-cell ${active ? "is-active" : ""}`}
                               onClick={() => setSel({ scope: s.slug, dimension: d })}
-                              aria-label={`${s.label}, ${DIMENSION_META[d]?.label ?? d}: ${
-                                h ? `${h} — ${HORIZON_META[h].action}` : "not enough evidence"
+                              aria-label={`${s.label}, ${dimensionStyle(d).label}: ${
+                                h ? `${h} ${HORIZON_META[h].action}` : "not enough evidence"
                               }`}
                             >
                               {h ? (
@@ -205,17 +172,7 @@ export default function HorizonBoard({
                                 <span className="hb-badge hb-badge-empty">–</span>
                               )}
                               {c?.override_horizon ? (
-                                <span className="hb-ov" title="Analyst override">
-                                  ✎
-                                </span>
-                              ) : null}
-                              {c?.region === ANY_REGION ? (
-                                <span
-                                  className="hb-any"
-                                  title="Not jurisdiction-specific — patent maturity is global"
-                                >
-                                  ·
-                                </span>
+                                <span className="hb-mark" title="Analyst override">✎</span>
                               ) : null}
                             </button>
                           </td>
@@ -226,203 +183,180 @@ export default function HorizonBoard({
                 </tbody>
               </table>
             </div>
-          ) : (
-            <div>
-              <svg
-                viewBox={`0 0 ${SIZE} ${SIZE}`}
-                className="hb-svg"
-                role="group"
-                aria-label={`Horizon radar for ${region}: rings are H1 to H3, sectors are dimensions`}
-              >
-                {(["H3", "H2", "H1"] as Horizon[]).map((h) => (
-                  <g key={h}>
-                    <circle cx={CX} cy={CY} r={RING_R[h]} className="hb-ring" fill="none" />
-                    <text x={CX} y={CY - RING_R[h] + 14} className="hb-ring-label">
-                      {h} · {HORIZON_META[h].action}
-                    </text>
-                  </g>
-                ))}
-                {view.dimensions.map((d, i) => {
-                  const seg = 360 / view.dimensions.length;
-                  const a = (-90 + i * seg) * (Math.PI / 180);
-                  const la = (-90 + (i + 0.5) * seg) * (Math.PI / 180);
-                  const lr = RING_R.H3 + 26;
-                  return (
-                    <g key={d}>
-                      <line
-                        x1={CX}
-                        y1={CY}
-                        x2={CX + RING_R.H3 * Math.cos(a)}
-                        y2={CY + RING_R.H3 * Math.sin(a)}
-                        className="hb-spoke"
-                      />
-                      <text
-                        x={CX + lr * Math.cos(la)}
-                        y={CY + lr * Math.sin(la)}
-                        className="hb-seg-label"
-                        textAnchor="middle"
-                      >
-                        {(DIMENSION_META[d]?.label ?? d).toUpperCase()}
-                      </text>
-                    </g>
-                  );
-                })}
-                {blips.map((b) => {
-                  const active =
-                    sel?.scope === b.scope && sel?.dimension === b.dimension;
-                  return (
-                    <g
-                      key={b.key}
-                      className="hb-blip"
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`${b.n}: ${
-                        view.scopes.find((s) => s.slug === b.scope)?.label
-                      }, ${DIMENSION_META[b.dimension]?.label}, ${b.horizon}`}
-                      onClick={() => setSel({ scope: b.scope, dimension: b.dimension })}
-                      onFocus={() => setSel({ scope: b.scope, dimension: b.dimension })}
-                    >
-                      <circle cx={b.x} cy={b.y} r={14} fill="transparent" aria-hidden="true" />
-                      <circle
-                        cx={b.x}
-                        cy={b.y}
-                        r={DOT_R}
-                        fill={HORIZON_META[b.horizon].color}
-                        fillOpacity={active ? 1 : 0.72}
-                        stroke={HORIZON_META[b.horizon].color}
-                      />
-                      <text x={b.x} y={b.y + 3.4} className="hb-blip-n" textAnchor="middle">
-                        {b.n}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-              <ol className="hb-legend">
-                {view.scopes.map((s) => (
-                  <li key={s.slug}>
-                    <span className="hb-num">{scopeIndex.get(s.slug)}</span>
-                    {s.label}
-                  </li>
-                ))}
-              </ol>
-            </div>
           )}
+
+          {/* Legend — editorial, doubles as the click target list */}
+          <ol className="hb-legend">
+            {view.scopes.map((s) => {
+              const on = sel?.scope === s.slug;
+              return (
+                <li key={s.slug}>
+                  <button
+                    className={`hb-legend-btn ${on ? "is-on" : ""}`}
+                    onClick={() =>
+                      setSel({
+                        scope: s.slug,
+                        dimension: sel?.dimension ?? view.dimensions[0],
+                      })
+                    }
+                  >
+                    <span className="hb-num">{scopeIndex.get(s.slug)}</span>
+                    <span className="hb-legend-label">{s.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
         </div>
 
-        {/* Readout: why this cell says what it says, and what it is built on. */}
+        {/* ---- Readout ------------------------------------------------- */}
         <aside className="hb-readout" aria-live="polite">
-          {selCell && selScope ? (
-            <div>
-              <div className="hb-readout-kicker">
-                {DIMENSION_META[selCell.dimension]?.label ?? selCell.dimension}
-                {selCell.region === ANY_REGION ? " · all jurisdictions" : ` · ${region}`}
+          {selCell && selScope && selStyle ? (
+            <div className="hb-read">
+              <div className="hb-read-head" style={{ borderColor: selStyle.color }}>
+                <span className="hb-read-dim" style={{ color: selStyle.color }}>
+                  {selStyle.short} · {selStyle.label}
+                </span>
+                <span className="hb-read-region">
+                  {selCell.region === ANY_REGION ? "all jurisdictions" : region}
+                </span>
               </div>
-              <h3 className="hb-readout-title">{selScope.label}</h3>
+              <h3 className="hb-read-title">{selScope.label}</h3>
               {selCell.effective ? (
-                <p
-                  className="hb-readout-h"
-                  style={{ color: HORIZON_META[selCell.effective].color }}
-                >
-                  {selCell.effective} — {HORIZON_META[selCell.effective].action}
+                <p className="hb-read-h">
+                  <span
+                    className="hb-read-hbadge"
+                    style={{
+                      color: HORIZON_META[selCell.effective].color,
+                      borderColor: HORIZON_META[selCell.effective].color,
+                    }}
+                  >
+                    {selCell.effective}
+                  </span>
+                  <span className="hb-read-action">
+                    {HORIZON_META[selCell.effective].action}
+                  </span>
                 </p>
               ) : (
-                <p className="hb-readout-h hb-muted">Not enough evidence</p>
+                <p className="hb-read-h">
+                  <span className="hb-read-hbadge hb-badge-empty">–</span>
+                  <span className="hb-read-action hb-muted">Not enough evidence</span>
+                </p>
               )}
-              <p className="hb-readout-line">{selCell.rationale}</p>
+              <p className="hb-read-line">{selCell.rationale}</p>
               {selCell.override_note ? (
-                <p className="hb-readout-line hb-ovnote">
+                <p className="hb-read-line hb-ovnote">
                   Analyst note: {selCell.override_note}
                 </p>
               ) : null}
-              <p className="hb-readout-meta">
+              <p className="hb-read-meta">
                 {selCell.n_signals.toLocaleString("en-US")} signals ·{" "}
                 {selCell.method.replace(/_/g, " ")}
               </p>
               {selEvidence.length > 0 && (
-                <ul className="hb-evidence">
-                  {selEvidence.map((e) =>
-                    e.source_url ? (
-                      <li key={e.id}>
-                        <a href={e.source_url} target="_blank" rel="noopener noreferrer">
-                          {e.title}
-                        </a>
-                        {e.source_name ? <span className="hb-src"> — {e.source_name}</span> : null}
-                      </li>
-                    ) : (
-                      <li key={e.id}>{e.title}</li>
-                    )
-                  )}
-                </ul>
+                <>
+                  <p className="hb-read-evh">Evidence</p>
+                  <ul className="hb-evidence">
+                    {selEvidence.map((e) =>
+                      e.source_url ? (
+                        <li key={e.id}>
+                          <a href={e.source_url} target="_blank" rel="noopener noreferrer">
+                            {e.title}
+                          </a>
+                          {e.source_name ? (
+                            <span className="hb-src"> — {e.source_name}</span>
+                          ) : null}
+                        </li>
+                      ) : (
+                        <li key={e.id}>{e.title}</li>
+                      )
+                    )}
+                  </ul>
+                </>
               )}
             </div>
           ) : (
-            <div>
-              <p className="hb-readout-title">How to read this</p>
-              <p className="hb-readout-line">
-                Each cell is a recommendation for one technology field on one
-                dimension: <strong>H1 act now</strong>, <strong>H2 build</strong>,{" "}
-                <strong>H3 watch</strong>. A field usually sits on different
-                horizons per dimension — that difference is the point.
-              </p>
-              <p className="hb-readout-line hb-muted">
-                Pick a cell for the reasoning and the sources behind it. A dash
-                means the evidence was too thin to place it, so we don&apos;t.
+            <div className="hb-read">
+              <p className="hb-read-evh">Reading the instrument</p>
+              <p className="hb-read-line">
+                Distance from the baseline is <em>how soon you have to act</em>.
+                Sectors are the dimensions. A field usually sits on different
+                horizons per dimension — that difference is the whole point.
               </p>
               <dl className="hb-key">
                 {(["H1", "H2", "H3"] as Horizon[]).map((h) => (
                   <div key={h}>
                     <dt style={{ color: HORIZON_META[h].color }}>
-                      {h} · {HORIZON_META[h].action}
+                      {h} — {HORIZON_META[h].action}
                     </dt>
                     <dd>{HORIZON_META[h].blurb}</dd>
                   </div>
                 ))}
               </dl>
+              <p className="hb-read-line hb-muted">
+                Pick any blip or cell for the reasoning and the sources behind it.
+                A dash means the evidence was too thin to place it — so we
+                don&apos;t.
+              </p>
             </div>
           )}
         </aside>
       </div>
 
       <style>{`
-        .hb-grid { display: grid; grid-template-columns: minmax(0,1fr) 330px; gap: 1.5rem; align-items: start; }
-        @media (max-width: 940px) { .hb-grid { grid-template-columns: 1fr; } }
+        .hb-switches { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.6rem; padding-bottom: .9rem; border-bottom: 1px solid var(--color-border); margin-bottom: 1.6rem; }
+        .hb-switch-group { display: flex; align-items: center; gap: .35rem; }
+        .hb-switch-legend { font-family: var(--font-mono); font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: var(--color-muted); margin-right: .3rem; }
+        .hb-switch { font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; padding: .4rem .8rem; border: 1px solid var(--color-border); background: transparent; color: var(--color-muted); cursor: pointer; transition: color .18s, border-color .18s, background .18s; }
+        .hb-switch:hover { color: var(--color-paper); border-color: var(--color-paper); }
+        .hb-switch.is-on { color: var(--color-ink); background: var(--color-accent); border-color: var(--color-accent); font-weight: 600; }
+        .hb-coverage { margin-left: auto; font-family: var(--font-mono); font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--color-muted); }
+
+        .hb-grid { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 2rem; align-items: start; }
+        @media (max-width: 1000px) { .hb-grid { grid-template-columns: 1fr; } }
+        .hb-stage { min-width: 0; }
+
+        .hb-legend { list-style: none; padding: 0; margin: 1.2rem 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: .1rem .8rem; border-top: 1px solid var(--color-border); padding-top: .9rem; }
+        .hb-legend-btn { display: flex; align-items: center; gap: .5rem; width: 100%; padding: .3rem .2rem; background: none; border: 0; cursor: pointer; text-align: left; color: var(--color-text); font-size: .82rem; transition: color .15s; }
+        .hb-legend-btn:hover, .hb-legend-btn.is-on { color: var(--color-accent); }
+        .hb-legend-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hb-num { display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; flex: none; border: 1px solid var(--color-border); font-family: var(--font-mono); font-size: 9px; color: var(--color-muted); }
+
         .hb-scroll { overflow-x: auto; }
-        .hb-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-        .hb-th { text-align: center; padding: 0.5rem 0.6rem; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
-        .hb-th-field { text-align: left; min-width: 14rem; }
-        .hb-row-h { text-align: left; font-weight: 400; padding: 0.55rem 0.6rem; color: var(--color-paper); border-bottom: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent); white-space: nowrap; }
-        .hb-num { display: inline-flex; align-items: center; justify-content: center; width: 1.15rem; height: 1.15rem; margin-right: 0.5rem; border: 1px solid var(--color-border); font-family: var(--font-mono); font-size: 9px; color: var(--color-muted); }
-        .hb-td { text-align: center; padding: 0.3rem 0.4rem; border-bottom: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent); }
-        .hb-cell { position: relative; display: inline-flex; align-items: center; gap: 2px; padding: 0.25rem 0.3rem; background: none; border: 1px solid transparent; cursor: pointer; }
+        .hb-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+        .hb-th { text-align: center; padding: .55rem .6rem; font-family: var(--font-mono); font-size: 9px; letter-spacing: .18em; border-bottom: 1px solid var(--color-border); white-space: nowrap; }
+        .hb-th-field { text-align: left; min-width: 13rem; color: var(--color-muted); }
+        .hb-row-h { text-align: left; font-weight: 400; padding: .6rem; color: var(--color-paper); border-bottom: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent); white-space: nowrap; display: flex; align-items: center; gap: .5rem; }
+        .hb-td { text-align: center; padding: .3rem .4rem; border-bottom: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent); }
+        .hb-cell { display: inline-flex; align-items: center; gap: 2px; padding: .25rem .3rem; background: none; border: 1px solid transparent; cursor: pointer; }
         .hb-cell:hover, .hb-cell:focus-visible { border-color: var(--color-border); }
         .hb-cell.is-active { border-color: var(--color-accent); }
-        .hb-badge { display: inline-block; min-width: 2.1rem; padding: 0.1rem 0.35rem; border: 1px solid; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; }
-        .hb-badge-empty { color: var(--color-muted); border-color: var(--color-border); opacity: 0.7; }
-        .hb-ov, .hb-any { font-size: 9px; color: var(--color-muted); }
-        .hb-svg { width: 100%; height: auto; display: block; overflow: visible; }
-        .hb-ring { stroke: currentColor; stroke-opacity: 0.16; }
-        .hb-ring-label { fill: currentColor; fill-opacity: 0.5; font-size: 10px; text-anchor: middle; letter-spacing: 0.08em; font-family: var(--font-mono); text-transform: uppercase; }
-        .hb-spoke { stroke: currentColor; stroke-opacity: 0.1; }
-        .hb-seg-label { font-size: 10px; letter-spacing: 0.14em; font-family: var(--font-mono); fill: var(--color-muted); }
-        .hb-blip { cursor: pointer; }
-        .hb-blip-n { font-size: 9px; font-family: var(--font-mono); fill: #0a0c0a; font-weight: 700; pointer-events: none; }
-        .hb-blip:focus-visible circle { stroke: var(--color-accent); stroke-width: 2px; }
-        .hb-legend { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 0.35rem 1rem; font-size: 0.82rem; color: var(--color-text); }
-        .hb-readout { border: 1px solid color-mix(in srgb, currentColor 14%, transparent); padding: 1.1rem 1.2rem; min-height: 300px; }
-        .hb-readout-kicker { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-muted); }
-        .hb-readout-title { font-size: 1.05rem; font-weight: 600; margin: 0.4rem 0 0.5rem; color: var(--color-paper); }
-        .hb-readout-h { font-family: var(--font-mono); font-size: 0.85rem; letter-spacing: 0.1em; text-transform: uppercase; margin: 0 0 0.6rem; }
-        .hb-readout-line { font-size: 0.88rem; line-height: 1.55; margin: 0 0 0.7rem; color: var(--color-text); }
-        .hb-readout-meta { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-muted); margin: 0 0 0.7rem; }
-        .hb-ovnote { border-left: 2px solid var(--color-accent); padding-left: 0.6rem; }
+        .hb-badge { display: inline-block; min-width: 2.1rem; padding: .12rem .4rem; border: 1px solid; font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; }
+        .hb-badge-empty { color: var(--color-muted); border-color: var(--color-border); opacity: .7; }
+        .hb-mark { font-size: 9px; color: var(--color-muted); }
+
+        .hb-readout { position: sticky; top: 1.5rem; border: 1px solid var(--color-border); background: var(--color-card); }
+        .hb-read { padding: 1.25rem 1.35rem; }
+        .hb-read-head { display: flex; justify-content: space-between; align-items: baseline; gap: .8rem; border-left: 2px solid; padding-left: .65rem; margin-bottom: .8rem; }
+        .hb-read-dim { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; }
+        .hb-read-region { font-family: var(--font-mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--color-muted); }
+        .hb-read-title { font-family: var(--font-display); font-size: 1.4rem; line-height: 1.15; color: var(--color-paper); margin: 0 0 .7rem; letter-spacing: -.01em; }
+        .hb-read-h { display: flex; align-items: center; gap: .6rem; margin: 0 0 .9rem; }
+        .hb-read-hbadge { display: inline-block; min-width: 2.3rem; text-align: center; padding: .18rem .45rem; border: 1px solid; font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; }
+        .hb-read-action { font-family: var(--font-mono); font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--color-paper); }
+        .hb-read-line { font-size: .875rem; line-height: 1.6; margin: 0 0 .8rem; color: var(--color-text); }
+        .hb-read-line em { color: var(--color-paper); font-style: italic; }
+        .hb-read-meta { font-family: var(--font-mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--color-muted); margin: 0 0 1rem; padding-top: .7rem; border-top: 1px dashed var(--color-border); }
+        .hb-read-evh { font-family: var(--font-mono); font-size: 9px; letter-spacing: .22em; text-transform: uppercase; color: var(--color-accent); margin: 0 0 .6rem; }
+        .hb-ovnote { border-left: 2px solid var(--color-accent); padding-left: .6rem; }
         .hb-muted { color: var(--color-muted); }
-        .hb-evidence { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.45rem; }
-        .hb-evidence a { font-size: 0.8rem; line-height: 1.35; text-decoration: underline; text-underline-offset: 2px; }
-        .hb-src { opacity: 0.55; }
-        .hb-key { margin: 1rem 0 0; }
-        .hb-key dt { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 0.6rem; }
-        .hb-key dd { margin: 0.15rem 0 0; font-size: 0.8rem; color: var(--color-muted); line-height: 1.45; }
+        .hb-evidence { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .55rem; }
+        .hb-evidence a { font-size: .8rem; line-height: 1.4; text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent); }
+        .hb-evidence a:hover { color: var(--color-accent); }
+        .hb-src { opacity: .5; font-size: .75rem; }
+        .hb-key { margin: 1rem 0; }
+        .hb-key dt { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; margin-top: .7rem; }
+        .hb-key dd { margin: .2rem 0 0; font-size: .8rem; color: var(--color-muted); line-height: 1.5; }
       `}</style>
     </div>
   );
