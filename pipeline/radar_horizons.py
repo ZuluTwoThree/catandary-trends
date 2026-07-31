@@ -185,6 +185,13 @@ REG_INTENT = re.compile(
     r"push(es|ed)? for|lobb(y|ies|ying)|urge[sd]?|demand(s|ed)?|"
     r"seek(s|ing)? |applies for|appl(y|ied) for|submits?|submitted|awaiting|"
     r"pave the way|path(way)? to|road ?map|toward|prepar(e|es|ing)|"
+    # „Nähert sich der Zulassung" ist der Beleg, dass es sie NICHT gibt.
+    # Kalibrierlauf 2026-07-31: „Impossible Foods Approaches EU Approval
+    # Following Second Positive EFSA Opinion" galt als erteilte EU-Zulassung und
+    # hob ein regulatorisch blockiertes Feld auf H1.
+    r"approach(es|ed|ing)?|near(s|ing|ed)? (approval|authorisation|authorization)|"
+    r"clos(e|es|ing) in on|on track (for|to)|steps? closer|"
+    r"positive opinion|draft opinion|recommend(s|ed)? (approval|authorisation)|"
     r"could|would|may |might |propose[sd]?|plan(s|ned)? to|aims? to)\b",
     re.I,
 )
@@ -400,10 +407,10 @@ def couple_market_to_regulation(market: dict, regulatory: dict, region: str) -> 
         "score": min(market.get("score") or 1.0, regulatory.get("score") or 1.0),
         "method": market["method"] + "+reg_coupled",
         "rationale": (
-            f"{market['rationale']} Auf {capped} begrenzt, weil {region} "
-            f"regulatorisch {rh} ist: ohne Zulassung kein zulässiger Markt — "
-            "die Produktsignale betreffen dann Starts außerhalb dieser "
-            "Jurisdiktion."
+            f"{market['rationale']} Capped at {capped} because {region} is "
+            f"regulatorily {rh}: without an approval there is no lawful market — "
+            "the product signals then describe launches outside this "
+            "jurisdiction."
         ),
     }
 
@@ -597,8 +604,8 @@ def cell_regulatory(rows: list[dict], region: str, today: date) -> dict:
     # über die Jurisdiktion vorliegt.
     if not granted and len(in_region) < MIN_N_REGULATORY:
         return {"horizon": None, "n_signals": len(in_region), "method": "gates",
-                "rationale": f"Zu wenige Regulatorik-Signale für {region} "
-                             f"({len(in_region)}) — keine Aussage.", "evidence": []}
+                "rationale": f"Too few regulatory signals for {region} "
+                             f"({len(in_region)}) — no call.", "evidence": []}
 
     if granted:
         ev = sorted(granted, key=lambda r: r["event_date"] or date.min, reverse=True)
@@ -606,10 +613,10 @@ def cell_regulatory(rows: list[dict], region: str, today: date) -> dict:
         return {
             "horizon": "H1", "n_signals": n_region, "method": "gates",
             "score": 1.0,
-            "rationale": f"{len(granted)} von der zuständigen {region}-Behörde "
-                         f"erteilte Zulassung(en)"
-                         + (f" seit {years[0]}" if years else "")
-                         + " — regulatorisch handlungsfähig.",
+            "rationale": f"{len(granted)} approval(s) granted by the responsible "
+                         f"{region} authority"
+                         + (f" since {years[0]}" if years else "")
+                         + " — clear to act.",
             "evidence": [r["id"] for r in ev[:5]],
         }
     if filed:
@@ -617,24 +624,23 @@ def cell_regulatory(rows: list[dict], region: str, today: date) -> dict:
         return {
             "horizon": "H2", "n_signals": n_region, "method": "gates",
             "score": 0.55,
-            "rationale": f"Keine erteilte Zulassung in {region}, aber {len(filed)} "
-                         f"laufende(s) Verfahren (Antrag, Prüfung) in den letzten "
-                         f"{PATHWAY_WINDOW_MONTHS} Monaten — Weg ist beschritten.",
+            "rationale": f"No granted approval in {region}, but {len(filed)} "
+                         f"live proceeding(s) (filing, review) in the last "
+                         f"{PATHWAY_WINDOW_MONTHS} months — the route is being walked.",
             "evidence": [r["id"] for r in ev[:5]],
         }
     ev = sorted(gaps + forming, key=lambda r: r["event_date"] or date.min,
                 reverse=True)
     parts = []
     if forming:
-        parts.append(f"{len(forming)} Signale zu Konsultation/Strategie/Reformruf")
+        parts.append(f"{len(forming)} signals on consultation, strategy or calls for reform")
     if gaps:
-        parts.append(f"{len(gaps)} Signale benennen die Lücke ausdrücklich")
+        parts.append(f"{len(gaps)} signals name the gap explicitly")
     return {
         "horizon": "H3", "n_signals": n_region, "method": "gates", "score": 0.15,
-        "rationale": f"Keine erteilte Zulassung und kein laufendes Verfahren in "
-                     f"{region}"
+        "rationale": f"No granted approval and no live proceeding in {region}"
                      + (" — " + ", ".join(parts) if parts else "")
-                     + ": der Zulassungsweg wird erst gebaut.",
+                     + ": the route to market is still being built.",
         "evidence": [r["id"] for r in ev[:5]],
     }
 
@@ -647,7 +653,7 @@ def cell_market(rows: list[dict], region: str, today: date) -> dict:
                        LAUNCH_WINDOW_MONTHS, today)
     if len(in_region) < MIN_N_MARKET:
         return {"horizon": None, "n_signals": len(in_region), "method": "gates",
-                "rationale": f"Zu wenige Signale für {region} ({len(in_region)}).",
+                "rationale": f"Too few signals for {region} ({len(in_region)}).",
                 "evidence": []}
     scaled = [r for r in launches
               if MARKET_SCALE.search(f"{r['title_en'] or ''} {r['summary_en'] or ''}")]
@@ -656,25 +662,25 @@ def cell_market(rows: list[dict], region: str, today: date) -> dict:
         return {
             "horizon": "H1", "n_signals": len(in_region), "method": "gates",
             "score": 0.9,
-            "rationale": f"{len(launches)} Produktstarts in {region} "
-                         f"({LAUNCH_WINDOW_MONTHS} Monate)"
-                         + (f", davon {len(scaled)} mit Handels-/Skalierungsbezug"
+            "rationale": f"{len(launches)} product launches in {region} "
+                         f"(last {LAUNCH_WINDOW_MONTHS} months)"
+                         + (f", {len(scaled)} of them with retail or scale evidence"
                             if scaled else "")
-                         + " — im Markt.",
+                         + " — on the market.",
             "evidence": [r["id"] for r in ev[:5]],
         }
     if launches:
         return {
             "horizon": "H2", "n_signals": len(in_region), "method": "gates",
             "score": 0.5,
-            "rationale": f"{len(launches)} Produktstart(e) in {region}, aber kein "
-                         "Handels-/Skalierungsnachweis — früher Markteintritt.",
+            "rationale": f"{len(launches)} product launch(es) in {region}, but no "
+                         "retail or scale evidence — early market entry.",
             "evidence": [r["id"] for r in ev[:5]],
         }
     return {
         "horizon": "H3", "n_signals": len(in_region), "method": "gates", "score": 0.1,
-        "rationale": f"Keine Produktstarts in {region} in den letzten "
-                     f"{LAUNCH_WINDOW_MONTHS} Monaten.",
+        "rationale": f"No product launches in {region} in the last "
+                     f"{LAUNCH_WINDOW_MONTHS} months.",
         "evidence": [],
     }
 
@@ -688,16 +694,16 @@ def cell_adoption(rows: list[dict], region: str, today: date) -> dict:
     cb = [r for r in pool if r["trend_signal_type"] == "consumer_behavior"]
     if len(pool) < MIN_N_ADOPTION:
         return {"horizon": None, "n_signals": len(pool), "method": "gates",
-                "rationale": f"Zu wenige Nachfragesignale für {region} ({len(pool)}).",
+                "rationale": f"Too few demand signals for {region} ({len(pool)}).",
                 "evidence": []}
     ev = sorted(pool, key=lambda r: r["event_date"] or date.min, reverse=True)
     if len(cb) >= 3:
-        h, sc, why = "H1", 0.85, f"{len(cb)} Verbrauchersignale in {region} — Nachfrage belegt."
+        h, sc, why = "H1", 0.85, f"{len(cb)} consumer signals in {region} — demand is evidenced."
     elif cb:
-        h, sc, why = "H2", 0.5, f"{len(cb)} Verbrauchersignal(e) in {region} — Nachfrage entsteht."
+        h, sc, why = "H2", 0.5, f"{len(cb)} consumer signal(s) in {region} — demand is forming."
     else:
-        h, sc, why = "H3", 0.2, (f"Nur Marktbewegung ohne Verbrauchersignale in "
-                                 f"{region} — Nachfrage unbelegt.")
+        h, sc, why = "H3", 0.2, (f"Market movement only, no consumer signals in "
+                                 f"{region} — demand unevidenced.")
     return {"horizon": h, "n_signals": len(pool), "method": "gates", "score": sc,
             "rationale": why, "evidence": [r["id"] for r in ev[:5]]}
 
@@ -739,27 +745,27 @@ def cell_technology(conn, rows: list[dict], today: date) -> dict:
         sci, pat, mkt = (anchor["science_takeoff"], anchor["patent_takeoff"],
                          anchor["market_takeoff"])
         cpc, title = anchor["cpc"], (anchor["title"] or "").strip()
-        base = (f"Patentanker {cpc}"
+        base = (f"Patent anchor {cpc}"
                 + (f" ({title[:48]})" if title else "")
-                + f", {anchor['n']} Signale zugeordnet, Lead-Time als belastbar markiert")
+                + f", {anchor['n']} signals matched, lead-time flagged reliable")
         if mkt and mkt <= today.year - MARKET_TAKEOFF_SETTLED_YEARS:
             return {"horizon": "H1", "score": 0.9, "method": "cpc_takeoff",
                     "n_signals": anchor["n"],
-                    "rationale": f"{base}: Markt-Takeoff {mkt} — technologisch etabliert.",
+                    "rationale": f"{base}: market takeoff {mkt} — technologically established.",
                     "evidence": []}
         if pat:
             return {"horizon": "H2", "score": 0.55, "method": "cpc_takeoff",
                     "n_signals": anchor["n"],
-                    "rationale": f"{base}: Patent-Takeoff {pat}"
-                                 + (f", Markt-Takeoff erst {mkt}" if mkt else
-                                    ", noch kein Markt-Takeoff")
-                                 + " — in der Übergangsphase.",
+                    "rationale": f"{base}: patent takeoff {pat}"
+                                 + (f", market takeoff only {mkt}" if mkt else
+                                    ", no market takeoff yet")
+                                 + " — in transition.",
                     "evidence": []}
         if sci:
             return {"horizon": "H3", "score": 0.2, "method": "cpc_takeoff",
                     "n_signals": anchor["n"],
-                    "rationale": f"{base}: nur Forschungs-Takeoff {sci} — "
-                                 "vorwettbewerblich.",
+                    "rationale": f"{base}: research takeoff {sci} only — "
+                                 "pre-competitive.",
                     "evidence": []}
 
     # Fallback: semantischer Mix (nur LLM-Pfad, sonst misst man Quellenmix).
@@ -771,13 +777,13 @@ def cell_technology(conn, rows: list[dict], today: date) -> dict:
     sem = [r for r in _recent(rows, 36, today) if r["semantic"]]
     unreliable = ""
     if anchor and anchor["n"] >= 5:
-        unreliable = (f" Nächster Patentanker wäre {anchor['cpc']}, dessen Lead-Time "
-                      "ist aber nicht als belastbar markiert und bleibt daher außen vor.")
+        unreliable = (f" The nearest patent anchor would be {anchor['cpc']}, but its "
+                      "lead-time is not flagged reliable, so it is left out.")
     if len(sem) < MIN_N_TECH_FALLBACK:
         return {"horizon": None, "score": None, "method": "semantic_mix",
                 "n_signals": len(sem),
-                "rationale": "Kein belastbarer Patentanker und zu wenige "
-                             f"semantische Signale ({len(sem)}) — keine Aussage."
+                "rationale": "No reliable patent anchor and too few semantic "
+                             f"signals ({len(sem)}) — no call."
                              + unreliable,
                 "evidence": []}
     n = len(sem)
@@ -787,16 +793,16 @@ def cell_technology(conn, rows: list[dict], today: date) -> dict:
     share = applied / n
     if share >= 0.10:
         h, sc = "H2", 0.5
-        why = (f"{applied} von {n} semantischen Signalen sind angewandt "
-               f"(Produkt/Partnerschaft), {research} forschungsseitig — das Verfahren "
-               "funktioniert, Skalen- und Kostenreife ist aus Signalen nicht belegbar")
+        why = (f"{applied} of {n} semantic signals are applied "
+               f"(product/partnership), {research} still research-side — the process "
+               "works; scale and cost maturity are not readable from signals")
     else:
         h, sc = "H3", 0.2
-        why = (f"nur {applied} von {n} Signalen angewandt, {research} forschungsseitig "
-               "— vorwettbewerblich")
+        why = (f"only {applied} of {n} signals applied, {research} research-side "
+               "— pre-competitive")
     return {"horizon": h, "score": sc, "method": "semantic_mix", "n_signals": n,
-            "rationale": f"Ohne belastbaren Patentanker, aus dem Signalmix: {why}. "
-                         f"H1 ist auf diesem Weg ausgeschlossen.{unreliable}",
+            "rationale": f"No reliable patent anchor, from the signal mix: {why}. "
+                         f"H1 is unreachable on this path.{unreliable}",
             "evidence": []}
 
 
@@ -827,19 +833,19 @@ def cell_economic(rows: list[dict], region: str, today: date) -> dict:
     n = len(funding) + len(launches)
     if n < MIN_N_MARKET:
         return {"horizon": None, "n_signals": n, "method": "gates",
-                "rationale": f"Zu wenige Wirtschaftssignale für {region} ({n}).",
+                "rationale": f"Too few economic signals for {region} ({n}).",
                 "evidence": []}
     ev = sorted(funding + launches, key=lambda r: r["event_date"] or date.min,
                 reverse=True)
     if launches and funding:
-        h, sc, why = "H1", 0.85, (f"{len(funding)} Finanzierungs- und {len(launches)} "
-                                  f"Produktsignale in {region} — kommerzielle Aktivität auf beiden Seiten")
+        h, sc, why = "H1", 0.85, (f"{len(funding)} funding and {len(launches)} product "
+                                  f"signals in {region} — commercial activity on both sides")
     elif funding:
-        h, sc, why = "H2", 0.5, (f"{len(funding)} Finanzierungssignale, aber erst "
-                                 f"{len(launches)} Produktstarts in {region} — Kapital vor Markt")
+        h, sc, why = "H2", 0.5, (f"{len(funding)} funding signals but only "
+                                 f"{len(launches)} product launches in {region} — capital ahead of market")
     else:
-        h, sc, why = "H2", 0.45, (f"{len(launches)} Produktstarts ohne sichtbare "
-                                  f"Finanzierungssignale in {region}")
+        h, sc, why = "H2", 0.45, (f"{len(launches)} product launches with no visible "
+                                  f"funding signals in {region}")
     return {"horizon": h, "n_signals": n, "method": "gates", "score": sc,
             "rationale": why + ".", "evidence": [r["id"] for r in ev[:5]]}
 
@@ -859,18 +865,18 @@ def cell_political(rows: list[dict], region: str, today: date) -> dict:
     n = len(regs)
     if n < MIN_N_REGULATORY:
         return {"horizon": None, "n_signals": n, "method": "gates",
-                "rationale": f"Zu wenige politische Signale für {region} ({n}).",
+                "rationale": f"Too few political signals for {region} ({n}).",
                 "evidence": []}
     ev = sorted(regs, key=lambda r: r["event_date"] or date.min, reverse=True)
     if len(support) >= 3 and len(support) > 2 * len(gaps):
-        h, sc, why = "H1", 0.8, (f"{len(support)} Unterstützungssignale (Strategie, "
-                                 f"Roadmap, Förderprogramm) gegen {len(gaps)} Gegenwind-Signale in {region}")
+        h, sc, why = "H1", 0.8, (f"{len(support)} supportive signals (strategy, roadmap, "
+                                 f"funding programme) against {len(gaps)} headwind signals in {region}")
     elif support:
-        h, sc, why = "H2", 0.5, (f"{len(support)} Unterstützungs- gegen {len(gaps)} "
-                                 f"Gegenwind-Signale in {region} — politisch in Bewegung")
+        h, sc, why = "H2", 0.5, (f"{len(support)} supportive against {len(gaps)} headwind "
+                                 f"signals in {region} — politically in motion")
     else:
-        h, sc, why = "H3", 0.2, (f"Nur Gegenwind- oder keine Unterstützungssignale "
-                                 f"in {region} ({len(gaps)} Blockade-Signale)")
+        h, sc, why = "H3", 0.2, (f"Headwind only, or no supportive signals in "
+                                 f"{region} ({len(gaps)} blocking signals)")
     return {"horizon": h, "n_signals": n, "method": "gates", "score": sc,
             "rationale": why + ".", "evidence": [r["id"] for r in ev[:5]]}
 
@@ -889,27 +895,27 @@ def cell_environmental(rows: list[dict], region: str, today: date) -> dict:
     n = len(sem)
     if n < 20:
         return {"horizon": None, "n_signals": len(tagged), "method": "semantic_mix",
-                "rationale": f"Zu wenige semantische Signale für {region} ({n}).",
+                "rationale": f"Too few semantic signals for {region} ({n}).",
                 "evidence": []}
     share = len(tagged) / n
     recent = [r for r in _recent(tagged, 12, today)]
     ev = sorted(tagged, key=lambda r: r["event_date"] or date.min, reverse=True)
     if share >= 0.35 and recent:
         h, sc = "H1", 0.8
-        why = (f"Das Umweltargument trägt: {len(tagged)} von {n} Signalen "
-               f"({share:.0%}) sind Umwelt-getaggt, {len(recent)} davon aus den "
-               "letzten 12 Monaten")
+        why = (f"The environmental case carries: {len(tagged)} of {n} signals "
+               f"({share:.0%}) are environment-tagged, {len(recent)} of them from "
+               "the last 12 months")
     elif share >= 0.15:
         h, sc = "H2", 0.5
-        why = (f"Umweltbezug präsent, aber nicht dominant: {share:.0%} der "
-               f"{n} Signale")
+        why = (f"Environmental framing present but not dominant: {share:.0%} of "
+               f"{n} signals")
     else:
         h, sc = "H3", 0.2
-        why = f"Umweltbezug randständig: {share:.0%} der {n} Signale"
+        why = f"Environmental framing marginal: {share:.0%} of {n} signals"
     return {"horizon": h, "n_signals": len(tagged), "method": "semantic_mix",
             "score": sc,
-            "rationale": why + ". Gemessen ist Sichtbarkeit im Signalraum, "
-                         "keine Ökobilanz.",
+            "rationale": why + ". This measures visibility in the signal space, "
+                         "not a life-cycle assessment.",
             "evidence": [r["id"] for r in ev[:5]]}
 
 

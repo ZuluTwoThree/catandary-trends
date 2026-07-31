@@ -69,17 +69,15 @@ def main() -> int:
         if n > MAX_SCOPE_ROWS:
             print(json.dumps({
                 "error": "too_broad", "n_signals": n, "cap": MAX_SCOPE_ROWS,
-                "message": (f"Diese Query umfasst {n:,} Signale — zu breit, um als "
-                            "ein Feld gelesen zu werden. Grenze sie enger ein.")
-                           .replace(",", "."),
+                "message": (f"That covers {n:,} signals — too broad to read as one "
+                            "field. Add a word to narrow it."),
             }))
             return 0
         if n < MIN_SCOPE_ROWS:
             print(json.dumps({
                 "error": "too_thin", "n_signals": n, "floor": MIN_SCOPE_ROWS,
-                "message": (f"Nur {n} Signale — zu wenig für eine belastbare "
-                            "Einordnung. Das Radar verweigert die Aussage lieber, "
-                            "als sie zu raten."),
+                "message": (f"Only {n} signals — too little to place with confidence. "
+                            "The radar withholds the call rather than guessing it."),
             }))
             return 0
 
