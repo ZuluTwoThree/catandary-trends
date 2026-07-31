@@ -86,6 +86,23 @@ def test_reg_subtype_lobbying_is_not_an_approval():
     assert reg_subtype(row) == "forming"
 
 
+def test_reg_subtype_approaching_is_not_granted():
+    """Zweiter Fund desselben Musters (Kalibrierlauf 2026-07-31).
+
+    „Approaches EU Approval" trägt den Tag `regulatory_approval` und nennt mit
+    EFSA eine EU-Behörde — belegt aber das Gegenteil: es gibt noch keine
+    Zulassung. Ohne diesen Guard hob der Titel ein regulatorisch blockiertes
+    Feld auf H1.
+    """
+    row = _row(
+        "Impossible Foods Approaches EU Approval Following Second Positive EFSA Opinion",
+        ["regulatory_approval"],
+    )
+    assert reg_subtype(row) != "granted"
+    assert reg_subtype(_row("Startup nears approval for novel food")) != "granted"
+    assert reg_subtype(_row("Agency issues positive opinion on the dossier")) != "granted"
+
+
 def test_reg_subtype_filed_vs_forming():
     # Laufendes Verfahren → H2
     assert reg_subtype(_row(
@@ -161,7 +178,9 @@ def test_market_cannot_outrank_regulation_in_regulated_domain():
     out = couple_market_to_regulation(market, regulatory, "EU")
     assert out["horizon"] == "H3"
     assert "reg_coupled" in out["method"]
-    assert "ohne Zulassung" in out["rationale"]
+    # Begründungstexte sind nutzerseitig und daher englisch (Produktsprache),
+    # während Kommentare und Docstrings deutsch bleiben.
+    assert "without an approval" in out["rationale"]
 
 
 def test_coupling_leaves_consistent_cells_alone():
