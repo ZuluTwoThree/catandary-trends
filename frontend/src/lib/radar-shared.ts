@@ -146,9 +146,25 @@ export interface RadarCell {
   override_note: string | null;
 }
 
+export interface ScopeMeta {
+  rep_titles?: string[];
+  top_tags?: string[];
+  size?: number;
+  cohesion?: number;
+  momentum?: "rising" | "declining" | "stable" | "unknown";
+  sov_delta_pp?: number;
+  mega_trend?: string | null;
+  scope?: string;
+  foresight_run?: number;
+  /** Woraus das Cluster besteht — Produktstrom oder Erkenntnisstrom. */
+  composition?: { applied?: number; research?: number; regulation?: number; n?: number };
+}
+
 export interface RadarScope {
   slug: string;
   label: string;
+  /** Nur bei Cluster-Radaren gesetzt: was das Feld ausmacht. */
+  meta?: ScopeMeta | null;
 }
 
 export interface RadarConfigMeta {

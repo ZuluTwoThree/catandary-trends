@@ -96,10 +96,20 @@ export async function getRadar(slug: string): Promise<RadarView | null> {
     const prev = runs[1] ?? null;
     if (!run) return null;
 
-    const scopes = await q<{ slug: string; label: string }>(
-      "SELECT slug, label FROM radar_scopes WHERE config_id = $1 ORDER BY sort_order, id",
+    const scopeRows = await q<{ slug: string; label: string; meta: unknown }>(
+      `SELECT slug, label, meta FROM radar_scopes
+         WHERE config_id = $1 ORDER BY sort_order, id`,
       [cfg.id]
     );
+    // `meta` trägt bei Cluster-Radaren, WAS das Feld ist: seine fünf zentralsten
+    // Signale, seine Größe, seine Kohäsion und sein Anteilstrend. Ohne das wäre
+    // ein Cluster für den Leser ein Name ohne Inhalt — genau der Mangel, an dem
+    // die getippte Query scheiterte.
+    const scopes = scopeRows.map((s) => ({
+      slug: s.slug,
+      label: s.label,
+      meta: parseJson<Record<string, unknown> | null>(s.meta, null),
+    }));
 
     const rows = await q<{
       scope_slug: string;

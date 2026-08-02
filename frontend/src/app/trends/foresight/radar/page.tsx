@@ -4,7 +4,6 @@ import { getEvidence, getRadar, listRadars } from "@/lib/radar";
 import { VERTICALS } from "@/lib/types";
 import TrendRadar from "@/components/foresight/TrendRadar";
 import HorizonBoard from "@/components/foresight/HorizonBoard";
-import QueryRadar from "@/components/foresight/QueryRadar";
 import ForesightCta from "@/components/ForesightCta";
 import TierGate from "@/components/TierGate";
 import { parseRadarParams } from "@/lib/radar-params";
@@ -72,51 +71,12 @@ export default async function RadarPage({
   // ---- Query mode: the user brought their own topic ------------------------
   // Rendered before the saved-radar branch because `q` wins over `radar`
   // (parseRadarParams enforces the same precedence).
-  if (params.q) {
-    return (
-      <div className="rdr">
-        <header className="rdr-head">
-          <div className="rdr-plate">
-            <span className="rdr-eyebrow">Foresight · Instrument 01</span>
-            <h1 className="rdr-title">
-              Your <em>query</em>
-            </h1>
-            <p className="rdr-lede">
-              A horizon radar built from your own phrase, computed against the
-              live corpus. Nothing is stored — reload or share the URL and it is
-              rebuilt.
-            </p>
-          </div>
-        </header>
-        <nav className="rdr-tabs" aria-label="Radar">
-          {radars.map((r) => (
-            <Link
-              key={r.slug}
-              href={`/trends/foresight/radar?radar=${r.slug}`}
-              className="rdr-tab"
-            >
-              {r.name}
-            </Link>
-          ))}
-          <span className="rdr-tab is-on">Your query</span>
-        </nav>
-        <TierGate
-          need="superpro"
-          feature="Building a radar from your own query"
-          benefit="Super Pro+ turns any phrase you bring into a horizon radar — every placement with its reasoning and its sources."
-        >
-          <QueryRadar
-            initialQuery={params.q}
-            dim={params.dim}
-            regulated={params.regulated}
-          />
-        </TierGate>
-        <div className="rdr-cta">
-          <ForesightCta />
-        </div>
-      </div>
-    );
-  }
+  // Der Freitext-Query-Pfad ist am 2026-08-02 entfallen (Owner-Entscheidung).
+  // Eine getippte Query definiert ihr Feld über Wörter: sie trennt benachbarte
+  // Technologien schlecht, und was sie eingesammelt hat, bleibt für den Leser
+  // unsichtbar. Radare werden jetzt aus den Trendclustern der Foresight-Analyse
+  // gespeist — die sind über die Lage im Embedding-Raum definiert, also disjunkt,
+  // und bringen ihre eigenen Belege mit (pipeline/radar_clusters.py).
 
   // ---- Horizon radar (default) --------------------------------------------
   if (view) {
@@ -175,7 +135,6 @@ export default async function RadarPage({
           </nav>
         )}
 
-        <QueryRadar initialQuery="" dim={params.dim} regulated={params.regulated} />
 
         <TierGate
           need="starter"

@@ -893,6 +893,13 @@ def migrate() -> None:
             "ALTER TABLE radar_scopes ADD COLUMN IF NOT EXISTS query_text TEXT;"
             "ALTER TABLE radar_scopes ADD COLUMN IF NOT EXISTS phrase TEXT;"
             "ALTER TABLE radar_scopes ADD COLUMN IF NOT EXISTS centroid BYTEA;"
+            # Cluster-Radare (2026-08-02): ein Feld ist kein getippter Begriff
+            # mehr, sondern ein aus den Embeddings entstandenes Cluster. Die
+            # Herkunft steht explizit da, damit `resolve_scope` sie auflösen kann
+            # und ein Leser sieht, woher das Feld stammt.
+            "ALTER TABLE radar_scopes ADD COLUMN IF NOT EXISTS cluster_run_id INTEGER;"
+            "ALTER TABLE radar_scopes ADD COLUMN IF NOT EXISTS cluster_idx INTEGER;"
+            "ALTER TABLE radar_scopes ADD COLUMN IF NOT EXISTS meta JSONB;"
         )
         # Die Grundlage einer Zelle (2026-08-02): granted/denied/blockade/filed/
         # trial vs. silent/uncovered/unreadable/unregulated/blind/unconfirmed.
@@ -982,6 +989,9 @@ FTS_VECTOR = (
 
 # Ober- und Untergrenze einer Query-Treffermenge.
 MAX_SCOPE_ROWS = 25_000   # darüber ist eine Query kein "Feld" mehr
+# Cluster werden im Batch gerechnet, nicht im Request — dort darf mehr geladen
+# werden. Die Grenze schützt nur den Speicher, nicht eine Antwortzeit.
+MAX_CLUSTER_ROWS = 40_000
 MIN_SCOPE_ROWS = 60       # darunter verweigert das Radar die Aussage
 
 
@@ -1076,6 +1086,33 @@ def load_query_signals(
     return conn.execute(sql, tuple(params)).fetchall()
 
 
+def load_cluster_signals(conn, run_id: int, cluster_idx: int,
+                         limit: int = MAX_CLUSTER_ROWS) -> list[dict]:
+    """Alle Trends eines Foresight-Clusters.
+
+    Der Cluster-Pfad ist der einzige, der sein Feld nicht über Wörter definiert,
+    sondern über die Lage im Embedding-Raum. Genau das war der Grund für die
+    Umstellung: eine getippte Query trennt Felder schlecht (die Punkte
+    unterschieden sich zu wenig) und ihre Zusammensetzung ist für den Leser
+    nicht nachvollziehbar. Ein Cluster bringt seine eigenen Belege mit — die
+    fünf zentralsten Signale sind seine Definition.
+
+    Sortiert nach Datum absteigend und gedeckelt: die größten TECH-Cluster haben
+    über 40.000 Mitglieder, und die Zellenlogik braucht keine vollständige
+    Aufzählung, sondern Repräsentativität über die Zeit.
+    """
+    sql = f"""
+        SELECT {SCOPE_COLUMNS}
+        FROM foresight_cluster_members m
+        JOIN trends t ON t.id = m.trend_id
+        LEFT JOIN raw_entries r ON r.id = t.raw_entry_id
+        WHERE m.run_id = %s AND m.cluster_idx = %s
+        ORDER BY COALESCE(r.published_date, t.created_at) DESC
+        LIMIT %s
+    """
+    return conn.execute(sql, (run_id, cluster_idx, limit)).fetchall()
+
+
 def resolve_scope(conn, scope: dict) -> list[dict]:
     """DIE Naht. Bestimmt, welche Trends ein Feld ausmachen.
 
@@ -1087,6 +1124,9 @@ def resolve_scope(conn, scope: dict) -> list[dict]:
     cell_*-Funktionen davon nichts mitbekommen.
     """
     selector = (scope.get("selector") or "terms").lower()
+    if selector == "cluster":
+        return load_cluster_signals(conn, scope["cluster_run_id"],
+                                    scope["cluster_idx"])
     if selector == "query":
         return load_query_signals(
             conn,
@@ -2450,7 +2490,8 @@ def compute(config_slug: str, today: date | None = None) -> int:
 
         scopes = conn.execute(
             "SELECT slug, label, include_terms, exclude_terms, selector, "
-            "query_text, phrase FROM radar_scopes "
+            "query_text, phrase, cluster_run_id, cluster_idx, meta "
+            "FROM radar_scopes "
             "WHERE config_id = %s ORDER BY sort_order, id",
             (cfg["id"],),
         ).fetchall()

@@ -42,6 +42,25 @@ MIN_SIGNALS = 200
 DEFAULT_K_RANGE = {"global": (16, 30), "vertical": (8, 16)}
 
 
+def _centroid_bytes(centroids, idx: int):
+    import numpy as np
+    cen = centroids[idx]
+    cen = cen / max(float(np.linalg.norm(cen)), 1e-9)
+    return cen.astype(np.float32).tobytes()
+
+
+def _has_column(conn, table: str, col: str) -> bool:
+    try:
+        if db_mod.USE_POSTGRES:
+            return bool(conn.execute(
+                "SELECT 1 FROM information_schema.columns WHERE table_name=%s "
+                "AND column_name=%s", (table, col)).fetchone())
+        return any(r[1] == col for r in
+                   conn.execute(f"PRAGMA table_info({table})").fetchall())
+    except Exception:
+        return False
+
+
 def migrate_foresight_tables() -> None:
     """Create the artifact tables. Idempotent, additive, standalone (not part of
     db.init_db so the live pipeline never touches this migration)."""
@@ -78,6 +97,22 @@ def migrate_foresight_tables() -> None:
         )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fclusters_run "
                      "ON foresight_clusters(run_id)")
+        # Zentroid + volle Mitgliedschaft (2026-08-02): Grundlage des
+        # Cluster-Radars. Bis dahin speicherte ein Lauf nur fünf Repräsentanten
+        # je Cluster — genug für eine Karte, zu wenig für eine Horizont-Analyse.
+        conn.executescript(
+            "ALTER TABLE foresight_clusters ADD COLUMN IF NOT EXISTS centroid BYTEA;"
+            if db_mod.USE_POSTGRES else
+            "ALTER TABLE foresight_clusters ADD COLUMN centroid BLOB;"
+        ) if not _has_column(conn, "foresight_clusters", "centroid") else None
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS foresight_cluster_members ("
+            " run_id INTEGER NOT NULL,"
+            " cluster_idx INTEGER NOT NULL,"
+            " trend_id INTEGER NOT NULL,"
+            " PRIMARY KEY (run_id, cluster_idx, trend_id))")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_fcmembers_run "
+                     "ON foresight_cluster_members(run_id, cluster_idx)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fruns_scope "
                      "ON foresight_runs(scope, created_at)")
         # Lineage artifacts (issue #2 phase 1): cross-window cluster evolution.
@@ -269,12 +304,24 @@ def run_snapshot(scope: str, status: str = "signal,published",
                 "INSERT INTO foresight_clusters (run_id, cluster_idx, label, size,"
                 " cohesion, mega_trend, mega_purity, verticals, top_tags, n_sources,"
                 " momentum, sov_delta_pp, tier, rep_trend_ids, rep_titles,"
-                " monthly_series) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " monthly_series, centroid) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (run_id, c["cluster_idx"], c["label"], c["size"], c["cohesion"],
                  c["mega_trend"], c["mega_purity"], json.dumps(c["verticals"]),
                  json.dumps(c["top_tags"]), c["n_sources"], c["momentum"],
                  c["sov_delta_pp"], tier, json.dumps(c["rep_trend_ids"]),
-                 json.dumps(c["rep_titles"]), json.dumps(c["monthly_series"])))
+                 json.dumps(c["rep_titles"]), json.dumps(c["monthly_series"]),
+                 # Zentroid aus der Matrix des Laufs, L2-normalisiert — die
+                 # Grundlage, um später neue Signale einem Cluster zuzuordnen.
+                 _centroid_bytes(centroids, c["cluster_idx"])))
+            # Mitgliedschaft separat — als Tabelle, nicht als JSON-Feld: ein
+            # Cluster hat bis zu 42.000 Mitglieder, und das Radar fragt sie
+            # gezielt ab.
+            mem = c.get("_member_ids") or []
+            if mem:
+                conn.executemany(
+                    "INSERT INTO foresight_cluster_members (run_id, cluster_idx,"
+                    " trend_id) VALUES (?, ?, ?)",
+                    [(run_id, c["cluster_idx"], tid) for tid in mem])
     logger.info("[%s] run %d persisted: k=%d, %d clusters, %.0fs",
                 scope, run_id, k_used, len(result["clusters"]), time.time() - t0)
     return run_id

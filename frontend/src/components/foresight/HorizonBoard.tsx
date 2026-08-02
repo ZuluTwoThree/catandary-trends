@@ -14,6 +14,7 @@ import {
 } from "@/lib/radar-shared";
 import HorizonArc from "./HorizonArc";
 import FieldReadout, { ReadoutStrip } from "./FieldReadout";
+import FieldIdentity from "./FieldIdentity";
 
 /**
  * The instrument: one dataset, two readings, one readout.
@@ -129,6 +130,12 @@ export default function HorizonBoard({
                 setSel({ scope: slug, dimension: view.dimensions[0] })
               }
             />
+            {(() => {
+              const meta = view.scopes.find(
+                (s) => s.slug === pick.scope_slug
+              )?.meta;
+              return meta ? <FieldIdentity meta={meta} /> : null;
+            })()}
             <FieldReadout readout={pick} compact={rs.length > 1} />
           </>
         );
