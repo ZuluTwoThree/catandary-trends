@@ -317,3 +317,91 @@ def test_adoption_absence_is_no_call_when_market_is_established():
     # Ohne etablierten Markt bleibt Abwesenheit eine echte H3-Aussage.
     assert cell_adoption(rows, "US", today, market_horizon="H3")["horizon"] == "H3"
     assert cell_adoption(rows, "US", today)["horizon"] == "H3"
+
+
+# --------------------------------------------------------------------------
+# Kalibrierlauf 2026-08-02, zweite Runde: sechs Suchbegriffe gegen die Realität
+# geprüft (u. a. per Websuche). Vier Fehlaussagen, vier Fixes.
+# --------------------------------------------------------------------------
+from pipeline.radar_horizons import MARKET_PILOT, MIN_N_GRANTED, cell_market, compute_cells
+
+
+def _reg(title, region="EU", tags=None, day=(2026, 3, 1)):
+    return {"id": abs(hash(title)) % 10**6, "trend_signal_type": "regulation",
+            "title_en": title, "summary_en": "", "tags": tags or [],
+            "regions": [region], "event_date": date(*day), "semantic": True}
+
+
+def test_regulatory_friction_is_not_a_blockade():
+    """Gene Therapy stand in der EU auf H3 'expliziter Gegenwind' — bei 11+
+    EMA-Zulassungen in der Realität. Ausloeser waren 'Regulatory Uncertainty'
+    und 'FDA shifts'. Unsicherheit verlangsamt einen offenen Weg, sie
+    verschliesst ihn nicht."""
+    today = date(2026, 8, 2)
+    rows = [_reg("Regulatory Uncertainty Shapes Global Gene Therapy Strategy"),
+            _reg("Regulatory complexity creates barriers and delays for developers"),
+            _reg("Industry flags hurdles and lag in the approval pipeline")]
+    cell = cell_regulatory(rows, "EU", today, regulated=False)
+    assert cell["horizon"] is None, "Reibung darf keine Blockade-Aussage erzeugen"
+
+
+def test_explicit_ban_still_counts_as_blockade():
+    today = date(2026, 8, 2)
+    # Bewusst ohne Verfahrensvokabular: "pending"/"under review" wären ein
+    # LAUFENDES Verfahren (H2) und würden die Blockade-Aussage zu Recht schlagen.
+    rows = [_reg("Regulator rejects the dairy analogue outright"),
+            _reg("Member state bans the product from sale")]
+    cell = cell_regulatory(rows, "EU", today, regulated=False)
+    assert cell["horizon"] == "H3"
+    assert "headwind" in cell["rationale"]
+
+
+def test_single_approval_does_not_carry_a_jurisdiction():
+    """Ein einzelnes Silage-Signal hob Precision Fermentation in der EU auf H1;
+    dieselbe Mechanik machte aus einer Tierfutter-Zulassung eine Aussage ueber
+    Humanlebensmittel (Proposal §7.3). Echte Zulassungen werden mehrfach
+    berichtet."""
+    today = date(2026, 8, 2)
+    noise = [_reg(f"EU consultation round {i} on the framework") for i in range(8)]
+    one = [_reg("Bene Meat Receives First-Ever EU Approval for Pet Food",
+                tags=["regulatory_approval"])]
+    assert cell_regulatory(noise + one, "EU", today)["horizon"] != "H1"
+    two = one + [_reg("Second firm secures EU approval for the same process",
+                      tags=["regulatory_approval"], day=(2026, 5, 1))]
+    assert cell_regulatory(noise + two, "EU", today)["horizon"] == "H1"
+    assert MIN_N_GRANTED == 2
+
+
+def test_pilot_plants_do_not_prove_a_market():
+    """Direct Air Capture stand in der EU auf H1 'on the market' — gestuetzt auf
+    Ucaneos Berliner Anlage mit 150 t CO2/Jahr, kommerzieller Ausbau ab 2027.
+    Eine Pilotanlage belegt Machbarkeit, nicht Kaeuflichkeit."""
+    today = date(2026, 8, 2)
+    rows = [{"id": i, "trend_signal_type": "product_launch",
+             "title_en": "Ucaneo launches first-of-a-kind pilot DAC facility in Berlin",
+             "summary_en": "", "tags": ["x"], "regions": ["EU"], "pestel": [],
+             "event_date": date(2026, 5, 1), "semantic": True} for i in range(6)]
+    cell = cell_market(rows, "EU", today)
+    assert cell["horizon"] == "H2"
+    assert "pilot" in cell["rationale"].lower()
+    assert MARKET_PILOT.search("first-of-a-kind pilot plant")
+
+
+def test_technology_cannot_be_pre_competitive_beside_approvals():
+    """Gene Therapy: 70 erteilte US-Zulassungen im Korpus, Technologie trotzdem
+    H3 — weil klinische Forschung 98 % des Signalvolumens stellt. Das ist die
+    Signatur eines reifen regulierten Felds, nicht eines unreifen."""
+    today = date(2026, 8, 2)
+    rows = ([{"id": 1000 + i, "trend_signal_type": "research", "title_en": "trial",
+              "summary_en": "", "tags": ["t"], "regions": ["US"], "pestel": [],
+              "event_date": date(2026, 1, 1), "semantic": True} for i in range(40)]
+            + [_reg("FDA approves the therapy for a rare disease", region="US",
+                    tags=["regulatory_approval"]),
+               _reg("FDA clears a second gene therapy for market", region="US",
+                    tags=["regulatory_approval"], day=(2026, 4, 1))])
+    cells = compute_cells(_NoAnchorConn(), rows, regions=["US"], today=today)
+    tech = [c for c in cells if c["dimension"] == "technology"][0]
+    assert tech["horizon"] == "H2", "Zulassungen widerlegen 'vorwettbewerblich'"
+    assert "coherence" in tech["method"]
+    # Aber nicht bis H1: Skalen- und Kostenreife bleibt unbelegt.
+    assert tech["horizon"] != "H1"
