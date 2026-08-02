@@ -391,6 +391,20 @@ export default function HorizonArc({
               <text x={b.x} y={b.y + 3.6} className="arc-dot-n" textAnchor="middle">
                 {b.n}
               </text>
+              {/* Bei wenigen Feldern steht der Name direkt am Punkt. Eine Zahl
+                  zwingt sonst bei jedem Blick in die Legende — bei zwei oder
+                  drei verglichenen Feldern ist das reine Reibung. Ab vier
+                  Feldern kollidieren die Namen, dann bleibt es bei der Zahl. */}
+              {view.scopes.length <= 3 && (
+                <text
+                  x={b.x}
+                  y={b.y - 16}
+                  className="arc-dot-label"
+                  textAnchor="middle"
+                >
+                  {view.scopes.find((s) => s.slug === b.scope)?.label}
+                </text>
+              )}
             </g>
           );
         })}
@@ -419,6 +433,12 @@ export default function HorizonArc({
         .arc-sector-label {
           font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.26em;
           font-weight: 500;
+        }
+        .arc-dot-label {
+          font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .08em;
+          text-transform: uppercase; fill: var(--color-paper); fill-opacity: .75;
+          paint-order: stroke; stroke: var(--color-ink); stroke-width: 3px;
+          stroke-linejoin: round; pointer-events: none;
         }
         .arc-band-label {
           font-family: var(--font-display); font-size: 20px; font-style: italic;

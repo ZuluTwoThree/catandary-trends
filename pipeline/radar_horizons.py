@@ -310,6 +310,32 @@ def blockade_match(text: str, field_terms: list[str] | None = None):
     return None
 
 
+# Mehrere Felder in einer Query: Semikolon, Komma oder " vs " trennen. Die
+# Trennzeichen sind bewusst schlicht — ein Nutzer, der vergleichen will, tippt
+# genau so.
+QUERY_SPLIT = re.compile(r"\s*(?:;|\bvs\.?\b|\bversus\b|,)\s*", re.I)
+MAX_QUERY_TERMS = 4      # darüber wird der Bogen unlesbar und der Lauf teuer
+
+
+def split_query_terms(query: str) -> list[str]:
+    parts = [p.strip() for p in QUERY_SPLIT.split(query or "") if p.strip()]
+    seen, out = set(), []
+    for p in parts:
+        k = p.lower()
+        if k not in seen and len(p) >= Q_MIN_TERM:
+            seen.add(k)
+            out.append(p)
+    return out[:MAX_QUERY_TERMS]
+
+
+Q_MIN_TERM = 3
+
+
+def slugify_term(term: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", (term or "").lower()).strip("-")
+    return (s or "field")[:40]
+
+
 def field_terms_of(*sources: str) -> list[str]:
     """Feldbegriffe aus Query oder kuratierten ILIKE-Termen — klein, ohne %,
     ohne Füllwörter. Nur damit ist der Objektbezug einer Blockade prüfbar."""
@@ -868,6 +894,15 @@ def migrate() -> None:
             "ALTER TABLE radar_scopes ADD COLUMN IF NOT EXISTS phrase TEXT;"
             "ALTER TABLE radar_scopes ADD COLUMN IF NOT EXISTS centroid BYTEA;"
         )
+        # Die Grundlage einer Zelle (2026-08-02): granted/denied/blockade/filed/
+        # trial vs. silent/uncovered/unreadable/unregulated/blind/unconfirmed.
+        # Ohne sie sind alle sechs Schweige-Gründe im Frontend derselbe Strich —
+        # die gesamte Kalibrierarbeit bleibt für den Nutzer unsichtbar.
+        conn.executescript(
+            "ALTER TABLE radar_cells ADD COLUMN IF NOT EXISTS basis TEXT;"
+            "ALTER TABLE radar_cells ADD COLUMN IF NOT EXISTS lead_time JSONB;"
+            "ALTER TABLE radar_runs ADD COLUMN IF NOT EXISTS readouts JSONB;"
+        )
         conn.commit()
     log.info("radar_* Tabellen migriert")
 
@@ -1005,6 +1040,13 @@ def build_query_sql(
     sql += " LIMIT %s"
     params.append(int(limit))
     return sql, params
+
+
+def count_query_terms(conn, query: str) -> list[tuple[str, int]]:
+    """Trefferzahl je Begriff — für Vergleichs-Queries der einzig sinnvolle
+    Vorab-Flug: `a; b; c` als ein tsquery zu zählen misst nichts."""
+    return [(term, count_query_signals(conn, term))
+            for term in (split_query_terms(query) or [query])]
 
 
 def count_query_signals(conn, query: str) -> int:
@@ -1576,19 +1618,6 @@ def cell_technology(conn, rows: list[dict], today: date) -> dict:
     # Pfad las das Radar Lithium-Ionen als H2/H3, weil laufende Forschung den
     # Mix forschungsseitig färbt: News messen Veränderung, nicht Zustand.
     hist = _market_history(rows, today)
-    if hist["established"]:
-        return {
-            "horizon": "H1", "score": 0.9, "method": "market_history",
-            "n_signals": hist["launches"],
-            "rationale": (
-                f"Established at scale: market signals in {hist['active_years']} "
-                f"distinct years since {hist['first_year']} and "
-                f"{hist['launches']} product launches across the corpus. The "
-                "research volume in this field reflects ongoing refinement, "
-                "not immaturity."
-            ),
-            "evidence": [],
-        }
 
     ids = [r["id"] for r in rows]
     anchor = None
@@ -1633,6 +1662,48 @@ def cell_technology(conn, rows: list[dict], today: date) -> dict:
         containment = anchor["n"] / anchor["corpus_n"]
     specific = containment >= ANCHOR_MIN_CONTAINMENT
 
+    # Der Lead-Time-Kontext wird IMMER mitgegeben, auch wenn der Anker den
+    # Horizont nicht setzen darf. Das Radar zeigte bisher das Band und verschwieg
+    # die Jahre, die es erzeugt haben — für eine Investitionsentscheidung ist
+    # genau das die fehlende Achse.
+    #
+    # Ausdrücklich KEINE Prognose. Wir geben wieder, wie lange vergleichbare
+    # Technologien DIESER Patentklasse historisch von der Forschung zum Markt
+    # gebraucht haben, und sagen dazu, wie gut die Klasse zum Feld passt. Die
+    # Owner-Regel (TIR = relative Entwicklung, nicht Früherkennung, #68) verlangt
+    # diese Trennung: „Klassen wie diese brauchten X Jahre" ist eine Aussage über
+    # die Vergangenheit, „wird 2029 verfügbar" wäre eine über die Zukunft.
+    lead = None
+    if anchor and anchor["n"] >= 5:
+        sci, pat, mkt = (anchor["science_takeoff"], anchor["patent_takeoff"],
+                         anchor["market_takeoff"])
+        lead = {
+            "cpc": anchor["cpc"],
+            "title": (anchor["title"] or "").strip() or None,
+            "science_takeoff": sci, "patent_takeoff": pat, "market_takeoff": mkt,
+            "reliable": bool(anchor["reliable"]),
+            "containment": round(containment, 3),
+            "matched": anchor["n"],
+            # Der historische Vorlauf der KLASSE, nicht des Felds.
+            "science_to_market": (mkt - sci) if (sci and mkt and mkt > sci) else None,
+            "patent_to_market": (mkt - pat) if (pat and mkt and mkt > pat) else None,
+            "fits_field": bool(anchor["reliable"] and specific),
+        }
+
+    if hist["established"]:
+        return {
+            "horizon": "H1", "score": 0.9, "method": "market_history",
+            "n_signals": hist["launches"], "lead_time": lead,
+            "rationale": (
+                f"Established at scale: market signals in {hist['active_years']} "
+                f"distinct years since {hist['first_year']} and "
+                f"{hist['launches']} product launches across the corpus. The "
+                "research volume in this field reflects ongoing refinement, "
+                "not immaturity."
+            ),
+            "evidence": [],
+        }
+
     if anchor and anchor["n"] >= 5 and anchor["reliable"] and specific:
         sci, pat, mkt = (anchor["science_takeoff"], anchor["patent_takeoff"],
                          anchor["market_takeoff"])
@@ -1642,12 +1713,12 @@ def cell_technology(conn, rows: list[dict], today: date) -> dict:
                 + f", {anchor['n']} signals matched, lead-time flagged reliable")
         if mkt and mkt <= today.year - MARKET_TAKEOFF_SETTLED_YEARS:
             return {"horizon": "H1", "score": 0.9, "method": "cpc_takeoff",
-                    "n_signals": anchor["n"],
+                    "n_signals": anchor["n"], "lead_time": lead,
                     "rationale": f"{base}: market takeoff {mkt} — technologically established.",
                     "evidence": []}
         if pat:
             return {"horizon": "H2", "score": 0.55, "method": "cpc_takeoff",
-                    "n_signals": anchor["n"],
+                    "n_signals": anchor["n"], "lead_time": lead,
                     "rationale": f"{base}: patent takeoff {pat}"
                                  + (f", market takeoff only {mkt}" if mkt else
                                     ", no market takeoff yet")
@@ -1655,7 +1726,7 @@ def cell_technology(conn, rows: list[dict], today: date) -> dict:
                     "evidence": []}
         if sci:
             return {"horizon": "H3", "score": 0.2, "method": "cpc_takeoff",
-                    "n_signals": anchor["n"],
+                    "n_signals": anchor["n"], "lead_time": lead,
                     "rationale": f"{base}: research takeoff {sci} only — "
                                  "pre-competitive.",
                     "evidence": []}
@@ -1677,7 +1748,7 @@ def cell_technology(conn, rows: list[dict], today: date) -> dict:
                       f"{why}, so it is left out.")
     if len(sem) < MIN_N_TECH_FALLBACK:
         return {"horizon": None, "score": None, "method": "semantic_mix",
-                "n_signals": len(sem),
+                "n_signals": len(sem), "lead_time": lead,
                 "rationale": "No reliable patent anchor and too few semantic "
                              f"signals ({len(sem)}) — no call."
                              + unreliable,
@@ -1697,6 +1768,7 @@ def cell_technology(conn, rows: list[dict], today: date) -> dict:
         why = (f"only {applied} of {n} signals applied, {research} research-side "
                "— pre-competitive")
     return {"horizon": h, "score": sc, "method": "semantic_mix", "n_signals": n,
+            "lead_time": lead,
             "rationale": f"No reliable patent anchor, from the signal mix: {why}. "
                          f"H1 is unreachable on this path.{unreliable}",
             "evidence": []}
@@ -2049,6 +2121,184 @@ def field_coherence(conn, rows: list[dict]) -> dict:
             "patent_share": round(patent, 3), "is_field": is_field, "note": note}
 
 
+# ---------------------------------------------------------------------------
+# Klartext-Readout mit Technology Readiness Level
+# ---------------------------------------------------------------------------
+# Ein Nutzer, der eine Investitionsentscheidung trifft, braucht einen Satz, den
+# er ins Memo kopieren kann — nicht vier Buchstabenpaare. TRL ist dafür die
+# richtige Sprache, weil sie in Industrie, EU-Förderung und Beschaffung längst
+# etabliert ist: „TRL 6" ist in einem Lenkungskreis sofort anschlussfähig,
+# „H2 / MKT" nicht.
+#
+# WICHTIG: wir schätzen ein TRL-BAND, keinen Punktwert. Ein exaktes TRL setzt
+# Einblick in ein konkretes Entwicklungsprogramm voraus; wir sehen ein
+# Signalfeld. Das Band wird deshalb aus den Zellen ABGELEITET und die Ableitung
+# offengelegt — dieselbe Disziplin wie bei den Horizonten.
+TRL_BANDS: list[tuple[tuple[int, int], str, str]] = [
+    ((1, 3), "Research",
+     "principles observed and formulated, proof of concept at best"),
+    ((4, 5), "Validation",
+     "validated in the laboratory and in a relevant environment"),
+    ((6, 7), "Demonstration",
+     "demonstrated at pilot or pre-commercial scale in an operational setting"),
+    ((8, 8), "Qualification",
+     "the system is complete and qualified; first commercial units exist"),
+    ((9, 9), "Operations",
+     "proven in operation, sold and run at commercial scale"),
+]
+
+
+def _trl_band(tech: dict | None, markets: list[dict]) -> tuple[int, int]:
+    """TRL-Band aus Technologie- und Marktzellen.
+
+    Gewertet werden die BENANNTEN Jurisdiktionen, nicht die Weltspalte. Die ist
+    die Vereinigung aller Signale und damit für fast jedes Feld „kommerziell" —
+    mit ihr landeten alle acht Alt-Protein-Felder auf demselben Band 7–8, von
+    der reifen Extrusionsindustrie bis zum vorkommerziellen Molecular Farming.
+    Ein Band, das nicht unterscheidet, ist keine Messung. Die Weltspalte trägt
+    nur, wenn keine benannte Jurisdiktion etwas hergibt — dann aber gedeckelt.
+    """
+    th = (tech or {}).get("horizon")
+    named = [c for c in markets if c["region"] != WORLD]
+    world = [c for c in markets if c["region"] == WORLD]
+
+    def _has(cells, basis):
+        return any(c.get("basis") == basis for c in cells)
+
+    trading = _has(named, "trading")
+    commercial = _has(named, "commercial")
+    entry = _has(named, "entry")
+    n_h1 = sum(1 for c in named if c["horizon"] == "H1")
+
+    if not named or all(c["horizon"] is None for c in named):
+        # Nur die Weltspalte spricht: die Technologie existiert irgendwo, aber
+        # kein Markt ist lokalisierbar. Höchstens Demonstration.
+        if _has(world, "trading") or _has(world, "commercial"):
+            return (6, 7)
+        if _has(world, "entry"):
+            return (5, 6)
+
+    if th == "H1" and trading:
+        return (9, 9)
+    if th == "H1" and (commercial or n_h1 >= 2):
+        return (8, 9)
+    if trading:
+        return (8, 8) if th != "H3" else (7, 8)
+    if commercial and n_h1 >= 2:
+        return (7, 8)
+    if commercial:
+        return (7, 7)
+    if entry:
+        return (6, 7) if th != "H3" else (5, 6)
+    if th == "H1":
+        return (8, 9)
+    if th == "H2":
+        return (4, 6)
+    if th == "H3":
+        return (1, 3)
+    if any(c["horizon"] == "H3" for c in markets):
+        return (1, 4)
+    return (0, 0)      # nichts Belastbares
+
+
+def readout(cells: list[dict], scope_label: str,
+            lead_time: dict | None = None) -> dict:
+    """Ein Absatz Klartext über einem Feld — die Zusammenfassung fürs Memo."""
+    tech = next((c for c in cells if c["dimension"] in ("technology", "T")), None)
+    markets = [c for c in cells if c["dimension"] == "market"]
+    regs = [c for c in cells if c["dimension"] in ("regulatory", "L")]
+    ados = [c for c in cells if c["dimension"] == "adoption"]
+
+    lo, hi = _trl_band(tech, markets)
+    label = why = None
+    for (a, b), name, blurb in TRL_BANDS:
+        if lo and a <= lo <= b:
+            label, why = name, blurb
+            break
+
+    parts: list[str] = []
+    if tech and tech.get("horizon"):
+        parts.append(tech["rationale"].split(".")[0].strip() + ".")
+
+    sells = [c["region"] for c in markets if c["horizon"] == "H1"]
+    enters = [c["region"] for c in markets if c["horizon"] == "H2"]
+    absent = [c["region"] for c in markets if c["horizon"] == "H3"]
+    if sells:
+        parts.append(f"It is on the market in {_join(sells)}.")
+    if enters:
+        parts.append(f"First entry — pilots or early launches — in {_join(enters)}.")
+    if absent:
+        parts.append(f"No market visible in {_join(absent)}.")
+    if not (sells or enters or absent):
+        parts.append("No jurisdiction shows readable market evidence.")
+
+    cleared = [c["region"] for c in regs if c["horizon"] == "H1"]
+    blocked = [c["region"] for c in regs if c["horizon"] == "H3"]
+    running = [c["region"] for c in regs if c["horizon"] == "H2"]
+    if cleared:
+        parts.append(f"Approvals are granted in {_join(cleared)}.")
+    if running:
+        parts.append(f"Proceedings are live in {_join(running)}.")
+    if blocked:
+        parts.append(f"A blockade is on record in {_join(blocked)}.")
+    if not regs or all(c["horizon"] is None for c in regs):
+        parts.append("No approval regime is visible for this field — treat "
+                     "regulation as an open question, not as a cleared one.")
+
+    demand = [c["region"] for c in ados if c["horizon"] == "H1"]
+    if demand:
+        parts.append(f"Demand is evidenced in {_join(demand)}.")
+
+    # Der Lead-Time-Kontext ist ausdrücklich Vergangenheit, keine Prognose.
+    if lead_time and lead_time.get("science_to_market"):
+        fit = ("its patent class matches the field closely"
+               if lead_time.get("fits_field") else
+               "its patent class is broader than the field, so read this as a "
+               "loose reference")
+        parts.append(
+            f"For historical context: technologies in patent class "
+            f"{lead_time['cpc']} took {lead_time['science_to_market']} years from "
+            f"research take-off ({lead_time['science_takeoff']}) to market "
+            f"take-off ({lead_time['market_takeoff']}) — {fit}. That is what "
+            "comparable classes did, not a forecast for this one."
+        )
+
+    stance = {
+        (9, 9): "Decide now: this is an operating market, and the question is "
+                "position, not feasibility.",
+        (8, 9): "Commit selectively: the technology is qualified, the market is "
+                "forming around it.",
+        (8, 8): "Commit selectively: first commercial units exist.",
+        (8, 8): "Commit selectively: first commercial units exist, sustained "
+                "trade is evidenced.",
+        (7, 8): "Build capability: demonstrated and entering commerce, but the "
+                "trade is not yet running.",
+        (7, 7): "Build capability: one jurisdiction shows commerce, the rest do "
+                "not — treat it as a beachhead, not a market.",
+        (6, 7): "Build optionality: demonstrated, not yet a running market.",
+        (5, 6): "Build optionality: validated, commercial proof still missing.",
+        (4, 6): "Keep an option open: the process works, scale and cost are "
+                "unproven.",
+        (1, 4): "Watch: too early to plan around.",
+        (1, 3): "Watch: research stage, no route to market yet.",
+    }.get((lo, hi), "Not enough evidence to take a position.")
+
+    return {
+        "trl_low": lo or None, "trl_high": hi or None,
+        "trl_label": label, "trl_blurb": why,
+        "text": " ".join(parts),
+        "stance": stance,
+        "scope": scope_label,
+    }
+
+
+def _join(xs: list[str]) -> str:
+    named = [("worldwide" if x == WORLD else x) for x in dict.fromkeys(xs)]
+    if len(named) == 1:
+        return named[0]
+    return ", ".join(named[:-1]) + " and " + named[-1]
+
+
 def compute_query_radar(conn, query: str, subfields: list[dict] | None = None, *,
                         regions: list[str] | None = None,
                         dimension_set: str = "strategic",
@@ -2073,16 +2323,27 @@ def compute_query_radar(conn, query: str, subfields: list[dict] | None = None, *
     regions = regions or ["GLOBAL"]
 
     if not subfields:
-        subfields = [{"slug": "query", "label": name or query, "phrase": None}]
+        terms = split_query_terms(query)
+        if len(terms) > 1:
+            # Vergleichsmodus: jeder Begriff wird ein eigenes Feld mit eigener
+            # Query. Eine Entscheidung lautet nie "X ja/nein", sondern "X statt
+            # Y" — und die Darstellung trägt das längst (das kuratierte Radar
+            # zeigt acht Felder).
+            subfields = [{"slug": slugify_term(x), "label": x, "query": x}
+                         for x in terms]
+        else:
+            subfields = [{"slug": "query", "label": name or query, "phrase": None}]
 
     scopes_out: list[dict] = []
     cells_out: list[dict] = []
     n_signals = 0
     ev_ids: set[int] = set()
 
+    readouts: list[dict] = []
     for sf in subfields:
+        sf_query = sf.get("query") or query
         rows = load_query_signals(
-            conn, query, phrase=sf.get("phrase"), ids=sf.get("ids")
+            conn, sf_query, phrase=sf.get("phrase"), ids=sf.get("ids")
         )
         n_signals += len(rows)
         scopes_out.append({
@@ -2090,11 +2351,19 @@ def compute_query_radar(conn, query: str, subfields: list[dict] | None = None, *
             "label": sf.get("label") or sf["slug"],
             "n_signals": len(rows),
         })
-        terms = field_terms_of(query, sf.get("phrase") or "")
-        for c in compute_cells(conn, rows, regions=regions,
-                               dimension_set=dimension_set,
-                               regulated=regulated, today=today,
-                               field_terms=terms):
+        terms = field_terms_of(sf_query, sf.get("phrase") or "")
+        sf_cells = compute_cells(conn, rows, regions=regions,
+                                 dimension_set=dimension_set,
+                                 regulated=regulated, today=today,
+                                 field_terms=terms)
+        tech_cell = next((c for c in sf_cells
+                          if c["dimension"] in ("technology", "T")), None)
+        readouts.append({
+            "scope_slug": sf["slug"],
+            **readout(sf_cells, sf.get("label") or sf["slug"],
+                      (tech_cell or {}).get("lead_time")),
+        })
+        for c in sf_cells:
             ev = c["evidence"] or []
             ev_ids.update(ev)
             cells_out.append({
@@ -2107,6 +2376,8 @@ def compute_query_radar(conn, query: str, subfields: list[dict] | None = None, *
                 "n_signals": c["n_signals"],
                 "method": c["method"],
                 "rationale": c["rationale"],
+                "basis": c.get("basis"),
+                "lead_time": c.get("lead_time"),
                 "evidence": ev,
                 "override_horizon": None,
                 "override_note": None,
@@ -2129,11 +2400,18 @@ def compute_query_radar(conn, query: str, subfields: list[dict] | None = None, *
     dims = [d for d in order if any(c["dimension"] == d for c in cells_out)]
 
     # Feld-Prüfung über die Vereinigung aller Teilfeld-Treffer.
-    all_rows = load_query_signals(conn, query)
+    seen_ids: set[int] = set()
+    all_rows: list[dict] = []
+    for term in (split_query_terms(query) or [query]):
+        for r in load_query_signals(conn, term):
+            if r["id"] not in seen_ids:
+                seen_ids.add(r["id"])
+                all_rows.append(r)
     field_check = field_coherence(conn, all_rows)
 
     return {
         "field_check": field_check,
+        "readouts": readouts,
         "config": {
             "slug": "__query__",
             "name": name or query,
@@ -2186,6 +2464,7 @@ def compute(config_slug: str, today: date | None = None) -> int:
         run_id = run["id"]
 
         n_cells = n_signals = 0
+        all_readouts: list[dict] = []
         for sc in scopes:
             rows = resolve_scope(conn, dict(sc))
             n_signals += len(rows)
@@ -2198,25 +2477,36 @@ def compute(config_slug: str, today: date | None = None) -> int:
                     [(run_id, sc["slug"], r["id"]) for r in rows],
                 )
 
+            scope_cells = compute_cells(conn, rows, regions=regions,
+                                        dimension_set=dimension_set,
+                                        regulated=regulated, today=today,
+                                        field_terms=scope_field_terms(dict(sc)))
+            tech_cell = next((c for c in scope_cells
+                              if c["dimension"] in ("technology", "T")), None)
+            all_readouts.append({
+                "scope_slug": sc["slug"],
+                **readout(scope_cells, sc["label"],
+                          (tech_cell or {}).get("lead_time")),
+            })
             cells = [
                 (run_id, sc["slug"], c["dimension"], c["region"], c["horizon"],
                  c["score"], c["n_signals"], c["method"], c["rationale"],
-                 json.dumps(c["evidence"]))
-                for c in compute_cells(conn, rows, regions=regions,
-                                       dimension_set=dimension_set,
-                                       regulated=regulated, today=today,
-                                       field_terms=scope_field_terms(dict(sc)))
+                 json.dumps(c["evidence"]), c.get("basis"),
+                 json.dumps(c.get("lead_time")) if c.get("lead_time") else None)
+                for c in scope_cells
             ]
             conn.executemany(
                 "INSERT INTO radar_cells (run_id, scope_slug, dimension, region, "
-                "horizon, score, n_signals, method, rationale, evidence) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "horizon, score, n_signals, method, rationale, evidence, basis, "
+                "lead_time) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 cells,
             )
             n_cells += len(cells)
 
-        conn.execute("UPDATE radar_runs SET n_cells = %s, n_signals = %s WHERE id = %s",
-                     (n_cells, n_signals, run_id))
+        conn.execute("UPDATE radar_runs SET n_cells = %s, n_signals = %s, "
+                     "readouts = %s WHERE id = %s",
+                     (n_cells, n_signals, json.dumps(all_readouts), run_id))
         # Alte Runs derselben Konfiguration aufräumen (nur den neuesten behalten +1).
         old = conn.execute(
             "SELECT id FROM radar_runs WHERE config_id = %s ORDER BY id DESC OFFSET 2",

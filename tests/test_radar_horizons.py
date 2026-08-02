@@ -805,3 +805,89 @@ def test_a_cross_cutting_theme_is_flagged_not_placed():
 def test_field_thresholds_are_ordered_sanely():
     assert FIELD_FOCUS2_MIN > FIELD_FOCUS1_MIN
     assert FIELD_PATENT_STRONG > FIELD_PATENT_MIN
+
+
+# ==========================================================================
+# Nutzerprobe 2026-08-02: das Radar als Entscheidungswerkzeug durchgespielt.
+# Ergebnis war eine Tabellenzeile — `TEC H2 · REG – · MKT H2 · ADO –` — und die
+# Feststellung, dass damit niemand entscheidet. Es fehlten drei Achsen: wann,
+# wohin, im Vergleich wozu.
+# ==========================================================================
+from pipeline.radar_horizons import (  # noqa: E402
+    ANY_REGION, MAX_QUERY_TERMS, readout, slugify_term, split_query_terms,
+)
+
+
+def _mk(dim, region, horizon, basis=None, rationale="x."):
+    return {"dimension": dim, "region": region, "horizon": horizon,
+            "basis": basis, "rationale": rationale, "n_signals": 10,
+            "method": "gates", "evidence": []}
+
+
+def test_a_comparison_query_becomes_several_fields():
+    """Eine Entscheidung lautet nie 'X ja/nein', sondern 'X statt Y'. Das
+    Suchfeld nahm genau eine Phrase."""
+    assert split_query_terms("solid state battery; sodium ion battery") == [
+        "solid state battery", "sodium ion battery"]
+    assert split_query_terms("heat pump vs gas boiler") == ["heat pump", "gas boiler"]
+    # Ein einzelner Begriff bleibt einer — kein versehentliches Zerlegen.
+    assert split_query_terms("carbon capture") == ["carbon capture"]
+    # Deckel, damit der Bogen lesbar und der Lauf bezahlbar bleibt.
+    assert len(split_query_terms(";".join(f"field {i}" for i in range(9)))) \
+        == MAX_QUERY_TERMS
+    assert slugify_term("Solid State Battery") == "solid-state-battery"
+
+
+def test_trl_needs_running_trade_to_reach_nine():
+    """Der Unterschied zwischen TRL 8 und 9 ist, ob ein System kommerziell
+    LÄUFT. Mit Produktmeldungen allein landete Cultivated Meat auf 8-9
+    ('System komplett und qualifiziert') — für ein paar Restaurantstarts."""
+    tech_h1 = _mk("technology", ANY_REGION, "H1")
+    trade = [_mk("market", "US", "H1", "trading")]
+    launches = [_mk("market", "US", "H1", "commercial")]
+    assert readout([tech_h1, *trade], "x")["trl_high"] == 9
+    assert readout([tech_h1, *launches], "x")["trl_low"] == 8
+    assert readout([_mk("technology", ANY_REGION, "H2"), *launches],
+                   "x")["trl_high"] == 7
+
+
+def test_trl_ignores_the_world_column_when_a_jurisdiction_speaks():
+    """Die Weltspalte ist die Vereinigung aller Signale und damit für fast jedes
+    Feld 'kommerziell'. Mit ihr landeten alle acht Alt-Protein-Felder auf
+    demselben Band — von reifer Extrusion bis vorkommerziellem Molecular
+    Farming."""
+    tech = _mk("technology", ANY_REGION, "H2")
+    world_only = [_mk("market", WORLD, "H1", "commercial"),
+                  _mk("market", "US", None, "silent")]
+    named = [_mk("market", WORLD, "H1", "commercial"),
+             _mk("market", "US", "H1", "commercial"),
+             _mk("market", "EU", "H1", "commercial")]
+    assert readout([tech, *world_only], "x")["trl_high"] < \
+        readout([tech, *named], "x")["trl_high"]
+
+
+def test_the_readout_states_where_it_sells_and_where_it_is_blocked():
+    """Der Satz, den ein Nutzer ins Memo kopiert."""
+    cells = [_mk("technology", ANY_REGION, "H2", rationale="The process works."),
+             _mk("market", "US", "H1", "commercial"),
+             _mk("market", "EU", "H3", "absence"),
+             _mk("regulatory", "US", "H1", "granted"),
+             _mk("regulatory", "EU", "H3", "blockade")]
+    out = readout(cells, "cultivated meat")
+    assert "on the market in US" in out["text"]
+    assert "No market visible in EU" in out["text"]
+    assert "Approvals are granted in US" in out["text"]
+    assert "blockade is on record in EU" in out["text"]
+    assert out["stance"]
+
+
+def test_lead_time_context_is_past_tense_never_a_forecast():
+    """Owner-Regel: TIR ist relative Entwicklung, nicht Früherkennung (#68).
+    Der Klassen-Vorlauf ist Kontext über die VERGANGENHEIT."""
+    out = readout([_mk("technology", ANY_REGION, "H2")], "x",
+                  {"cpc": "H01M", "science_takeoff": 2004, "market_takeoff": 2014,
+                   "science_to_market": 10, "fits_field": True})
+    assert "took 10 years" in out["text"]
+    assert "not a forecast" in out["text"]
+    for banned in ("will be", "expected in", "by 2029", "predicts"):
+        assert banned not in out["text"]

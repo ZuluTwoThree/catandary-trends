@@ -82,11 +82,18 @@ export async function getRadar(slug: string): Promise<RadarView | null> {
     );
     if (!cfg) return null;
 
-    const run = await q1<{ id: number; created_at: string; n_signals: number }>(
-      `SELECT id, created_at::text AS created_at, n_signals
-         FROM radar_runs WHERE config_id = $1 ORDER BY id DESC LIMIT 1`,
+    // Die beiden jüngsten Läufe: der neue trägt die Aussage, der ältere die
+    // Veränderung. Ein Radar ohne Vorlauf ist eine Momentaufnahme; erst der
+    // Vergleich macht daraus Foresight — „seit dem letzten Lauf von H3 auf H2"
+    // ist eine andere Entscheidung als „steht seit zwei Jahren auf H2".
+    const runs = await q<{ id: number; created_at: string; n_signals: number;
+                           readouts: unknown }>(
+      `SELECT id, created_at::text AS created_at, n_signals, readouts
+         FROM radar_runs WHERE config_id = $1 ORDER BY id DESC LIMIT 2`,
       [cfg.id]
     );
+    const run = runs[0];
+    const prev = runs[1] ?? null;
     if (!run) return null;
 
     const scopes = await q<{ slug: string; label: string }>(
@@ -106,12 +113,28 @@ export async function getRadar(slug: string): Promise<RadarView | null> {
       evidence: unknown;
       override_horizon: string | null;
       override_note: string | null;
+      basis: string | null;
+      lead_time: unknown;
     }>(
       `SELECT scope_slug, dimension, region, horizon, score, n_signals, method,
-              rationale, evidence, override_horizon, override_note
+              rationale, evidence, override_horizon, override_note, basis, lead_time
          FROM radar_cells WHERE run_id = $1`,
       [run.id]
     );
+
+    // Vorlauf nur als Horizont-Karte — mehr braucht der Vergleich nicht.
+    const before = new Map<string, string | null>();
+    if (prev) {
+      const old = await q<{ scope_slug: string; dimension: string; region: string;
+                            horizon: string | null }>(
+        `SELECT scope_slug, dimension, region, horizon
+           FROM radar_cells WHERE run_id = $1`,
+        [prev.id]
+      );
+      for (const o of old) {
+        before.set(`${o.scope_slug}|${o.dimension}|${o.region}`, o.horizon);
+      }
+    }
 
     const cells: RadarCell[] = rows.map((r) => {
       const computed = (r.horizon as Horizon | null) ?? null;
@@ -129,6 +152,12 @@ export async function getRadar(slug: string): Promise<RadarView | null> {
         evidence: parseJson<number[]>(r.evidence, []),
         override_horizon: override,
         override_note: r.override_note,
+        basis: r.basis,
+        lead_time: parseJson<Record<string, unknown> | null>(r.lead_time, null),
+        previous: prev
+          ? ((before.get(`${r.scope_slug}|${r.dimension}|${r.region}`) ??
+              null) as Horizon | null)
+          : undefined,
       };
     });
 
@@ -152,6 +181,8 @@ export async function getRadar(slug: string): Promise<RadarView | null> {
       regions: regions.length ? regions : present,
       cells,
       generated: run.created_at,
+      previous_generated: prev?.created_at ?? null,
+      readouts: parseJson<unknown[]>(run.readouts, []) as never,
       n_signals: run.n_signals ?? 0,
     };
   } catch {

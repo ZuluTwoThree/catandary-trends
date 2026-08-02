@@ -34,7 +34,7 @@ from pipeline.radar_horizons import (
     MAX_SCOPE_ROWS,
     MIN_SCOPE_ROWS,
     compute_query_radar,
-    count_query_signals,
+    count_query_terms,
 )
 
 # Ein kalter Treffer kostet 8-20 s (der raw_entries-Join); ohne Deckel würde er
@@ -65,19 +65,26 @@ def main() -> int:
 
         # Vorab-Flug (~6 ms): entscheidet über zu breit / zu dünn, BEVOR
         # irgendetwas gerechnet wird.
-        n = count_query_signals(conn, query)
-        if n > MAX_SCOPE_ROWS:
+        # Bei einer Vergleichs-Query („a; b; c") wird JEDER Begriff geprüft:
+        # ein zu dünner Begriff macht die ganze Gegenüberstellung wertlos, und
+        # die Summe zu prüfen würde ihn verstecken.
+        counts = count_query_terms(conn, query)
+        worst = max(counts, key=lambda kv: kv[1])
+        thin = [t for t, n in counts if n < MIN_SCOPE_ROWS]
+        if worst[1] > MAX_SCOPE_ROWS:
             print(json.dumps({
-                "error": "too_broad", "n_signals": n, "cap": MAX_SCOPE_ROWS,
-                "message": (f"That covers {n:,} signals — too broad to read as one "
-                            "field. Add a word to narrow it."),
+                "error": "too_broad", "n_signals": worst[1], "cap": MAX_SCOPE_ROWS,
+                "message": (f"“{worst[0]}” covers {worst[1]:,} signals — too broad "
+                            "to read as one field. Add a word to narrow it."),
             }))
             return 0
-        if n < MIN_SCOPE_ROWS:
+        if thin:
+            n_thin = dict(counts)[thin[0]]
             print(json.dumps({
-                "error": "too_thin", "n_signals": n, "floor": MIN_SCOPE_ROWS,
-                "message": (f"Only {n} signals — too little to place with confidence. "
-                            "The radar withholds the call rather than guessing it."),
+                "error": "too_thin", "n_signals": n_thin, "floor": MIN_SCOPE_ROWS,
+                "message": (f"“{thin[0]}” has only {n_thin} signals — too little to "
+                            "place with confidence. The radar withholds the call "
+                            "rather than guessing it."),
             }))
             return 0
 

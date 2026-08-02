@@ -811,3 +811,75 @@ Branche liegen, ohne Technologiefelder zu sein — `venice biennale`, `nsf grant
 mildert das die Schweige-Disziplin ab: `nsf grant` etwa liefert ohnehin in jeder
 Zelle „keine Aussage". Ein Kategorien-Test bräuchte eine gepflegte Ontologie,
 kein weiteres statistisches Maß.
+
+---
+
+## 10. Nutzerprobe 2026-08-02 und die sieben Ausbauten
+
+Bis hierher war jede Prüfung eine Prüfung der *Richtigkeit*. Diese hier prüfte
+den **Nutzen**: das Radar im Browser durchgespielt mit einer echten Frage —
+„Sollen wir unsere Produktplattform 2029 auf Feststoffbatterien auslegen?"
+
+Das Ergebnis nach 454 Signalen Analyse war eine Tabellenzeile:
+`TEC H2 · REG – · MKT H2 · ADO –`. Der Begründungstext war exzellent und benannte
+seine eigenen Grenzen. Entscheiden konnte man damit trotzdem nicht — es fehlten
+drei Achsen: **wann, wohin, im Vergleich wozu.**
+
+| # | Fund | Ausbau |
+|---|---|---|
+| 1 | Das Band steht da, die Jahre, die es erzeugt haben, nicht | `lead_time` an der Technologiezelle: CPC-Klasse, Science-/Patent-/Markt-Takeoff, Containment. **Ausdrücklich Vergangenheit:** „Klassen wie diese brauchten 10 Jahre von der Forschung zum Markt", nie „wird 2029 verfügbar" — die Owner-Regel #68 (TIR = relative Entwicklung, keine Früherkennung) ist im Test `test_lead_time_context_is_past_tense_never_a_forecast` festgeschrieben |
+| 2 | Momentaufnahme statt Foresight | `getRadar()` liest die **zwei jüngsten Läufe** und hängt jeder Zelle ihren vorigen Horizont an; die Matrix zeigt „was H3". `radar_runs` war ohnehin historisiert |
+| 3 | Das Suchfeld nahm eine Phrase, eine Entscheidung ist ein Vergleich | Mehrfach-Query: `a; b; c` oder `a vs b`, bis zu vier Felder, jedes mit eigenem Scope. Der Vorab-Flug prüft **jeden** Begriff einzeln — ein zu dünner macht die Gegenüberstellung wertlos |
+| 4 | Sechs Schweige-Gründe, ein Strich | `basis` wird persistiert (`radar_cells.basis`) und im Frontend als Kurzwort gezeigt: *no regime · not covered · regime unseen · no market data · unconfirmed · no signal* |
+| 5 | Start auf der großzügigsten Spalte | Voreinstellung ist die erste **benannte** Jurisdiktion; „Worldwide" bleibt einen Klick entfernt |
+| 6 | Vier Buchstabenpaare sind keine Aussage | **TRL-Readout** über dem Bogen: Band 1–9, Ableitung, Klartextabsatz, Haltungssatz |
+| 7 | Nummerierte Punkte, deutsche Beschriftung | Namen direkt am Blip bei ≤3 Feldern; Seed vollständig auf Englisch |
+
+### 10.1 Warum TRL — und warum ein Band
+
+TRL ist in Industrie, EU-Förderung und Beschaffung etabliert: „TRL 6–7" ist in
+einem Lenkungskreis sofort anschlussfähig, „H2 / MKT" nicht.
+
+Gezeigt wird ein **Band, kein Punktwert.** Ein exaktes TRL setzt Einblick in ein
+konkretes Entwicklungsprogramm voraus; wir sehen ein Signalfeld. Zwei
+Kalibrierungen waren nötig, bis das Band überhaupt etwas unterschied:
+
+- **Handel schlägt Ankündigung.** Erst mit Handels-Evidenz (Umsatz, Stückzahlen,
+  installierte Basis, Erstattung) wird TRL 9 erreicht; eine Reihe von
+  Markteinführungen belegt Qualifikation, nicht Betrieb. Ohne diese Trennung
+  stand Cultivated Meat auf 8–9 („System komplett und qualifiziert") — für ein
+  paar Restaurantstarts.
+- **Benannte Jurisdiktionen statt Weltspalte.** Die Weltspalte ist die
+  Vereinigung aller Signale und damit für fast jedes Feld „kommerziell". Mit ihr
+  landeten **alle acht** Alt-Protein-Felder auf demselben Band 7–8, von der
+  reifen Extrusionsindustrie bis zum vorkommerziellen Molecular Farming.
+
+Danach streut das Band über die 52 Kalibrierfelder sinnvoll:
+
+| TRL | 1–3 | 5–6 | 6–7 | 7 | 7–8 | 8–9 | 9 |
+|---|---|---|---|---|---|---|---|
+| Felder | 2 | 7 | 16 | 14 | 8 | 4 | 1 |
+
+Stichprobe: Xenotransplantation 1–3 · 6G 5–6 · Feststoffbatterie 6–7 ·
+Gentherapie 7 · Lithium-Ionen, Wärmepumpe, Elektroauto 8–9.
+
+### 10.2 Was die Vergleichs-Query liefert
+
+`solid state battery; sodium ion battery; lithium ion battery` — ein Radar, drei
+benannte Felder, drei Bänder nebeneinander:
+
+```
+solid state battery    TRL 6–7   Build optionality: demonstrated, not yet a running market.
+sodium ion battery     TRL 7     Build capability: one jurisdiction shows commerce,
+                                 the rest do not — treat it as a beachhead, not a market.
+lithium ion battery    TRL 8–9   Commit selectively: the technology is qualified,
+                                 the market is forming around it.
+```
+
+Das ist die Entscheidungsvorlage, die der Nutzerprobe fehlte.
+
+### 10.3 Nebenbefund
+
+`pipeline/radar_seed.py` hatte **keinen `__main__`-Block** — `python -m
+pipeline.radar_seed` tat stillschweigend nichts. Aufgefallen, als die englischen
+Labels nach dem Seed-Lauf nicht ankamen. Ergänzt.
