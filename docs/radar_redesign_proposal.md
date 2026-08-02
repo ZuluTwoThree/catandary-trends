@@ -469,3 +469,38 @@ Dazu zwei Struktur-Erkenntnisse:
 - **PESTEL-Radar:** die Engine ist dimensionsagnostisch; ein zweites
   `dimension_set='pestel'` braucht nur PESTEL-Zellenfunktionen, keine neue
   Architektur.
+
+### 7.4 Kalibrierung 2026-08-02: der Lithium-Ionen-Fund (Owner)
+
+**Befund:** „Lithium Ion Battery" landete fast durchgängig auf H3/H2, obwohl die
+Technologie längst diffundiert ist. Drei Ursachen, alle struktureller Natur:
+
+1. **News messen Veränderung, nicht Zustand.** Der Signalmix im 36-Monats-Fenster
+   liest reife Technik systematisch als unreif: laufende Forschung (Feststoff-
+   Elektrolyte, Silizium-Anoden) färbt den Mix forschungsseitig, und niemand
+   schreibt 2026 „Verbraucher kaufen jetzt Lithium-Akkus" — das war 1995–2010
+   eine Nachricht. **Fix:** Etablierungs-Gate über die kumulative Markt-Historie
+   des Scopes selbst: erstes aktives Marktjahr ≥10 Jahre zurück, ≥8 aktive Jahre
+   (≥3 Marktsignale), ≥30 Produktstarts über die Historie → Technologie H1
+   (`method='market_history'`). Kalibriert an 8 Fällen: die diffundierten
+   (Li-Ion 2012, Solar 2011, EV 2010, Wärmepumpen 2012) trennen sich mit 8
+   Jahren Abstand von den jungen (Quantum/PF/SSB/Cultivated Meat 2020–2021).
+2. **Abwesenheit eines Zulassungsregimes ist keine Blockade.** „Keine Zulassung
+   gefunden" ergab H3 („Weg wird erst gebaut") für eine Technologie, die keine
+   Zulassung braucht. **Fix:** `cell_regulatory` erhält `regulated`; in
+   unregulierten Domänen macht Abwesenheit **kein Urteil**, H3 braucht dort
+   positive Gegenwind-Evidenz (Verbote/Blockaden ≥2). Das löst zugleich das in
+   §7.3 notierte `requires_approval`-Problem (plant-based-meat).
+3. **Adoption H3 neben Markt H1 war inkohärent** — wer kauft sonst die
+   gestarteten Produkte? **Fix:** fehlende Verbrauchersignale sind nur dann eine
+   H3-Aussage, wenn auch der Markt fehlt; bei etabliertem Markt (H1) schweigt
+   die Zelle mit Begründung. Die Kopplung bleibt intakt: ist der Markt auf H3
+   gedeckelt (EU-Precision-Fermentation), bleibt Adoption H3.
+
+**Verworfen als Alternative:** CPC-Klassen-Takeoffs breiter zu nutzen. Messung:
+H01M meldet Patent-Takeoff „2026" (Frontfile-Artefakt), A23C/A23J Markt-Takeoff
+„2021" (die Alt-Protein-Welle selbst); die Anker-Distanz trennt den richtigen
+Anker (Li-Ion→H01M, 0,473) nicht vom Kategorienfehler (PF→A23C, 0,462).
+
+Referenz §7.1 nach dem Umbau unverändert; beabsichtigte Änderung: Adoption-
+Zellen neben ungekoppeltem H1-Markt sagen jetzt „kein Urteil" statt H3.

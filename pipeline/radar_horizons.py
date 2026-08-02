@@ -298,6 +298,20 @@ LAUNCH_WINDOW_MONTHS = 36    # Produktstarts: nur die jüngeren zählen
 # Zulassungen sind dauerhaft und werden ohne Fenster gezählt.
 MARKET_TAKEOFF_SETTLED_YEARS = 2  # Markt-Takeoff muss so lange her sein für H1
 
+# Etablierungs-Gate: kumulative Markt-Historie des Scopes statt Klassen-Takeoffs.
+# Kalibriert 2026-08-02 an 8 Fällen: diffundierte Technologien (Li-Ion, Solar,
+# EV, Wärmepumpen) haben ihr erstes aktives Marktjahr 2010-2012 und >=8 aktive
+# Jahre; junge Felder (Quantum, Precision Fermentation, Solid-State, Cultivated
+# Meat) starten 2020-2021 mit <=7 aktiven Jahren. Acht Jahre Abstand zwischen
+# den Gruppen — die Schwellen liegen in der Mitte, nicht an der Kante.
+# Die CPC-Klassen-Takeoffs sind als Alternative geprüft und verworfen: H01M
+# meldet Patent-Takeoff "2026" (Frontfile-Artefakt), A23C Markt-Takeoff "2021"
+# (die Alt-Protein-Welle selbst, nicht Milchwirtschaft).
+ESTABLISHED_MIN_FIRST_AGE = 10   # erstes aktives Marktjahr min. so viele Jahre her
+ESTABLISHED_MIN_ACTIVE_YEARS = 8 # Jahre mit >=3 Marktsignalen
+ESTABLISHED_MIN_LAUNCHES = 30    # kumulative Produktstarts über die Historie
+ESTABLISHED_YEAR_MIN_N = 3       # so viele Marktsignale machen ein Jahr "aktiv"
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS radar_configs (
     id SERIAL PRIMARY KEY,
@@ -551,6 +565,38 @@ def resolve_scope(conn, scope: dict) -> list[dict]:
     return load_scope_signals(conn, inc, exc)
 
 
+def _market_history(rows: list[dict], today: date) -> dict:
+    """Kumulative Markt-Historie eines Scopes — der Diffusions-Nachweis.
+
+    News berichten über VERÄNDERUNG, nicht über Zustand: eine längst
+    diffundierte Technologie (Li-Ionen) erzeugt im 36-Monats-Fenster
+    Forschungs- und Inkrement-Meldungen, aber niemand schreibt 2026 "Verbraucher
+    kaufen jetzt Lithium-Akkus". Ein Fenster-Blick liest reife Technik deshalb
+    systematisch als unreif. Die Historie über den ganzen Korpus ist dagegen
+    eindeutig: Marktsignale in vielen Jahren, beginnend weit vor dem Fenster.
+    """
+    years: dict[int, int] = {}
+    launches = 0
+    for r in rows:
+        st = r["trend_signal_type"]
+        is_market = st == "product_launch" or (st == "market_shift" and r["semantic"])
+        if not is_market or not r["event_date"]:
+            continue
+        years[r["event_date"].year] = years.get(r["event_date"].year, 0) + 1
+        if st == "product_launch":
+            launches += 1
+    active = sorted(y for y, n in years.items() if n >= ESTABLISHED_YEAR_MIN_N)
+    first = active[0] if active else None
+    established = bool(
+        first is not None
+        and first <= today.year - ESTABLISHED_MIN_FIRST_AGE
+        and len(active) >= ESTABLISHED_MIN_ACTIVE_YEARS
+        and launches >= ESTABLISHED_MIN_LAUNCHES
+    )
+    return {"first_year": first, "active_years": len(active),
+            "launches": launches, "established": established}
+
+
 def _recent(rows: list[dict], months: int, today: date) -> list[dict]:
     cutoff = today - timedelta(days=int(months * 30.44))
     return [r for r in rows if r["event_date"] and r["event_date"] >= cutoff]
@@ -559,10 +605,18 @@ def _recent(rows: list[dict], months: int, today: date) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Dimensionen
 # ---------------------------------------------------------------------------
-def cell_regulatory(rows: list[dict], region: str, today: date) -> dict:
+def cell_regulatory(rows: list[dict], region: str, today: date,
+                    regulated: bool = True) -> dict:
     """Meilenstein-Gates pro Jurisdiktion.
 
     Zulassung erteilt → H1 · Antrag läuft → H2 · Pfad erst im Aufbau / Lücke → H3.
+
+    `regulated` steuert, was ABWESENHEIT bedeutet — der Li-Ionen-Fund vom
+    2026-08-02: für Batterien existiert kein Zulassungsregime, und "keine
+    Zulassung gefunden" wurde trotzdem als H3 "blockiert" gelesen. In einer
+    unregulierten Domäne ist Abwesenheit von Zulassungen aber KEINE Aussage über
+    den Marktzugang; H3 braucht dort positive Gegenwind-Evidenz (Verbote,
+    Blockaden). Ohne die schweigt die Zelle.
 
     Zuordnung zur Jurisdiktion: für 'granted' zählt ausschließlich die im Text
     genannte **Behörde** (FDA → US, EFSA → EU …). Ein Zulassungssignal ohne
@@ -631,6 +685,24 @@ def cell_regulatory(rows: list[dict], region: str, today: date) -> dict:
         }
     ev = sorted(gaps + forming, key=lambda r: r["event_date"] or date.min,
                 reverse=True)
+    if not regulated:
+        # Unregulierte Domäne: H3 nur bei ausdrücklichem Gegenwind.
+        if len(gaps) >= MIN_N_REGULATORY:
+            return {
+                "horizon": "H3", "n_signals": n_region, "method": "gates",
+                "score": 0.15,
+                "rationale": f"{len(gaps)} signals in {region} name explicit "
+                             "regulatory headwind (bans, blocks, barriers).",
+                "evidence": [r["id"] for r in ev[:5]],
+            }
+        return {
+            "horizon": None, "n_signals": n_region, "method": "gates",
+            "rationale": f"No approval regime identified for this field in "
+                         f"{region} — in an unregulated domain that is not a "
+                         "barrier, so this dimension makes no call. Switch on "
+                         "“Approval required” if approvals do gate this field.",
+            "evidence": [],
+        }
     parts = []
     if forming:
         parts.append(f"{len(forming)} signals on consultation, strategy or calls for reform")
@@ -685,8 +757,15 @@ def cell_market(rows: list[dict], region: str, today: date) -> dict:
     }
 
 
-def cell_adoption(rows: list[dict], region: str, today: date) -> dict:
-    """Nachfrage-/Verhaltensseite: consumer_behavior + semantische Marktbewegung."""
+def cell_adoption(rows: list[dict], region: str, today: date,
+                  market_horizon: str | None = None) -> dict:
+    """Nachfrage-/Verhaltensseite: consumer_behavior + semantische Marktbewegung.
+
+    `market_horizon` entscheidet, was FEHLENDE Verbrauchersignale bedeuten:
+    bei einem etablierten Markt (H1) spiegelt die Abwesenheit nur, worüber News
+    berichten — niemand schreibt 2026 "Verbraucher nutzen jetzt Lithium-Akkus".
+    Abwesenheit als H3 zu werten ist nur belastbar, wenn auch der Markt fehlt.
+    """
     pool = [r for r in _recent(rows, LAUNCH_WINDOW_MONTHS, today)
             if region in regions_of(r)
             and (r["trend_signal_type"] == "consumer_behavior"
@@ -701,6 +780,12 @@ def cell_adoption(rows: list[dict], region: str, today: date) -> dict:
         h, sc, why = "H1", 0.85, f"{len(cb)} consumer signals in {region} — demand is evidenced."
     elif cb:
         h, sc, why = "H2", 0.5, f"{len(cb)} consumer signal(s) in {region} — demand is forming."
+    elif market_horizon == "H1":
+        return {"horizon": None, "n_signals": len(pool), "method": "gates",
+                "rationale": f"No direct demand-side signals in {region} — with "
+                             "an established market this reflects what news "
+                             "covers, not absent demand. No call.",
+                "evidence": []}
     else:
         h, sc, why = "H3", 0.2, (f"Market movement only, no consumer signals in "
                                  f"{region} — demand unevidenced.")
@@ -716,6 +801,26 @@ def cell_technology(conn, rows: list[dict], today: date) -> dict:
     patentierbare Felder ab. Ohne belastbaren CPC-Anker fällt die Dimension auf
     den semantischen Signalmix zurück — und sagt das im Klartext.
     """
+    # Diffusions-Nachweis zuerst: eine Technologie mit vieljähriger, weit vor
+    # dem News-Fenster beginnender Markt-Historie IST skalenreif — genau der
+    # Beleg, den die H2-Deckelung des Signalmixes zu Recht verlangt. Ohne diesen
+    # Pfad las das Radar Lithium-Ionen als H2/H3, weil laufende Forschung den
+    # Mix forschungsseitig färbt: News messen Veränderung, nicht Zustand.
+    hist = _market_history(rows, today)
+    if hist["established"]:
+        return {
+            "horizon": "H1", "score": 0.9, "method": "market_history",
+            "n_signals": hist["launches"],
+            "rationale": (
+                f"Established at scale: market signals in {hist['active_years']} "
+                f"distinct years since {hist['first_year']} and "
+                f"{hist['launches']} product launches across the corpus. The "
+                "research volume in this field reflects ongoing refinement, "
+                "not immaturity."
+            ),
+            "evidence": [],
+        }
+
     ids = [r["id"] for r in rows]
     anchor = None
     if ids:
@@ -951,18 +1056,22 @@ def compute_cells(conn, rows: list[dict], *, regions: list[str],
             # Dieselben Gate-Primitiven durch die PESTEL-Linse:
             # L = Zulassungs-Gates, S = Adoption, E = Wirtschaft,
             # P = politische Unterstützung, En = Umwelt-Sichtbarkeit.
-            per_region = (("L", cell_regulatory(rows, region, today)),
+            per_region = (("L", cell_regulatory(rows, region, today,
+                                                regulated=regulated)),
                           ("E", cell_economic(rows, region, today)),
                           ("S", cell_adoption(rows, region, today)),
                           ("P", cell_political(rows, region, today)),
                           ("En", cell_environmental(rows, region, today)))
         else:
-            reg = cell_regulatory(rows, region, today)
+            reg = cell_regulatory(rows, region, today, regulated=regulated)
             mkt = cell_market(rows, region, today)
             if regulated:
                 mkt = couple_market_to_regulation(mkt, reg, region)
+            # Adoption sieht den GEKOPPELTEN Markt-Horizont: ist der Markt auf
+            # H3 gedeckelt, bleibt Abwesenheit von Nachfrage eine H3-Aussage.
             per_region = (("regulatory", reg), ("market", mkt),
-                          ("adoption", cell_adoption(rows, region, today)))
+                          ("adoption", cell_adoption(rows, region, today,
+                                                     market_horizon=mkt["horizon"])))
         for dim, c in per_region:
             out.append({
                 "dimension": dim, "region": region, "horizon": c["horizon"],
