@@ -24,9 +24,9 @@ const CRITERIA: { key: string; label: string; body: string; note?: string }[] = 
     key: "TEC",
     label: "Technology",
     body:
-      "Takeoff years from the patent record — when research, patents and market first picked up for the matching patent class.",
+      "The field's own cumulative market history — how many years its market signals go back — plus the patent record where its lead-time is flagged reliable.",
     note:
-      `Only used where that lead-time is flagged reliable, which holds for few classes. Otherwise the signal mix decides, and it is capped at H2: how far a process has scaled, and at what cost, is not readable from signals.`,
+      `A field with market signals across ${T.establishedActiveYears}+ years, starting ${T.establishedFirstAge}+ years back, counts as established (H1) even while research continues — news covers change, not state, so ongoing research says nothing against maturity. Without that history the signal mix decides, capped at H2: scale and cost maturity are not readable from signals.`,
   },
   {
     key: "REG",
@@ -34,7 +34,7 @@ const CRITERIA: { key: string; label: string; body: string; note?: string }[] = 
     body:
       "Approval milestones, attributed to the authority named in the text — FDA to the US, EFSA to the EU — not to where the company sits.",
     note:
-      "Approval granted → H1. A live filing under review → H2. Consultations, strategies and calls for reform → H3: a route being built is not a route you can use.",
+      "Approval granted → H1. A live filing under review → H2. Consultations, strategies and calls for reform → H3: a route being built is not a route you can use. Without “approval required” switched on, absent approvals make no call at all — batteries need none, so their absence is not a barrier.",
   },
   {
     key: "MKT",

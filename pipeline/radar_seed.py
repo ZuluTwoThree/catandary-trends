@@ -133,8 +133,11 @@ CONFIG_PESTEL = {
         "PESTEL-Dimensionen je Jurisdiktion."
     ),
     "dimension_set": "pestel",
-    # Die Markt↔Zulassungs-Kopplung ist zwischen L und E nicht definiert.
-    "regulated": False,
+    # regulated steuert seit 2026-08-02 auch, wie die L-Zelle ABWESENHEIT liest
+    # (reguliert: fehlende Zulassung = blockiert). Lebensmittel sind
+    # zulassungspflichtig, also True; die Markt↔L-Kopplung existiert im
+    # PESTEL-Zweig ohnehin nicht.
+    "regulated": True,
 }
 
 

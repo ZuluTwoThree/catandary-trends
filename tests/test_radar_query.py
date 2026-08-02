@@ -174,6 +174,14 @@ def test_thresholds_match_the_frontend_help_text():
     # Beide Fenster sind gleich lang; der Hilfetext nennt nur eine Zahl.
     assert LAUNCH_WINDOW_MONTHS == PATHWAY_WINDOW_MONTHS == as_int["windowMonths"]
 
+    from pipeline.radar_horizons import (
+        ESTABLISHED_MIN_ACTIVE_YEARS, ESTABLISHED_MIN_FIRST_AGE,
+        ESTABLISHED_MIN_LAUNCHES,
+    )
+    assert as_int["establishedFirstAge"] == ESTABLISHED_MIN_FIRST_AGE
+    assert as_int["establishedActiveYears"] == ESTABLISHED_MIN_ACTIVE_YEARS
+    assert as_int["establishedLaunches"] == ESTABLISHED_MIN_LAUNCHES
+
 
 
 def test_scope_bounds_are_sane():

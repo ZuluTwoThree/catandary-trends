@@ -199,3 +199,121 @@ def test_coupling_is_noop_without_a_known_regulatory_horizon():
     regulatory = {"horizon": None, "score": None, "method": "gates",
                   "rationale": "zu wenig", "n_signals": 1}
     assert couple_market_to_regulation(market, regulatory, "UK")["horizon"] == "H1"
+
+
+# --------------------------------------------------------------------------
+# Li-Ionen-Kalibrierung (Owner-Befund 2026-08-02): "fast durchgängig H3,
+# obwohl Diffusion stattgefunden hat". Drei Ursachen, drei Fixes.
+# --------------------------------------------------------------------------
+from pipeline.radar_horizons import (
+    ESTABLISHED_MIN_ACTIVE_YEARS,
+    ESTABLISHED_MIN_FIRST_AGE,
+    ESTABLISHED_MIN_LAUNCHES,
+    _market_history,
+    cell_adoption,
+    cell_technology,
+)
+
+
+def _mk_rows(first_year, last_year, per_year=4, sig="product_launch"):
+    return [
+        {"id": y * 100 + i, "title_en": f"Launch {y}-{i}", "summary_en": "",
+         "trend_signal_type": sig, "regions": ["US"], "tags": ["x"],
+         "pestel": [], "semantic": True, "event_date": date(y, 6, 1)}
+        for y in range(first_year, last_year + 1)
+        for i in range(per_year)
+    ]
+
+
+class _NoAnchorConn:
+    """Anker-Abfrage liefert nichts — erzwingt Fallback-Pfade."""
+
+    def execute(self, sql, params=None):
+        return self
+
+    def fetchone(self):
+        return None
+
+    def fetchall(self):
+        return []
+
+
+def test_established_market_history_lifts_technology_to_h1():
+    """Der Li-Ionen-Fall: vieljährige Markt-Historie IST der Skalen-Nachweis.
+
+    News messen Veränderung, nicht Zustand — laufende Forschung färbte den
+    Signalmix forschungsseitig und deckelte eine längst diffundierte
+    Technologie auf H2/H3.
+    """
+    today = date(2026, 8, 2)
+    rows = _mk_rows(2011, 2026)  # 16 Jahre, 64 Launches
+    hist = _market_history(rows, today)
+    assert hist["established"]
+    cell = cell_technology(_NoAnchorConn(), rows, today)
+    assert cell["horizon"] == "H1"
+    assert cell["method"] == "market_history"
+    assert "2011" in cell["rationale"]
+
+
+def test_recent_market_history_does_not_count_as_established():
+    """Gegenprobe Quantum/Precision Fermentation: Markt erst seit 2020/21 —
+    egal wie viele Signale, das Etablierungs-Gate darf nicht öffnen."""
+    today = date(2026, 8, 2)
+    rows = _mk_rows(2020, 2026, per_year=40)  # 280 Launches, aber jung
+    assert not _market_history(rows, today)["established"]
+    cell = cell_technology(_NoAnchorConn(), rows, today)
+    assert cell["horizon"] != "H1"
+
+
+def test_established_needs_sustained_years_not_just_an_old_first_signal():
+    # Ein alter Ausreißer plus junge Welle: erstes aktives Jahr alt genug,
+    # aber zu wenige aktive Jahre insgesamt.
+    today = date(2026, 8, 2)
+    rows = _mk_rows(2010, 2010) + _mk_rows(2023, 2026)
+    assert not _market_history(rows, today)["established"]
+
+
+def test_unregulated_absence_is_no_call_not_blocked():
+    """Batterien brauchen keine Zulassung — 'keine Zulassung gefunden' ist dort
+    keine Blockade-Aussage. H3 hieße 'beobachten, Weg wird erst gebaut' für
+    eine Technologie in jedem Telefon."""
+    today = date(2026, 8, 2)
+    rows = [
+        {"id": i, "trend_signal_type": "regulation",
+         "title_en": "Panel discusses battery standards roadmap",
+         "summary_en": "", "tags": [], "regions": ["US"],
+         "event_date": date(2026, 3, 1), "semantic": True}
+        for i in range(4)
+    ]
+    assert cell_regulatory(rows, "US", today, regulated=False)["horizon"] is None
+    # Dieselben Signale in einer regulierten Domäne: Abwesenheit = blockiert.
+    assert cell_regulatory(rows, "US", today, regulated=True)["horizon"] == "H3"
+
+
+def test_unregulated_explicit_bans_still_read_as_headwind():
+    today = date(2026, 8, 2)
+    rows = [
+        {"id": i, "trend_signal_type": "regulation",
+         "title_en": "City bans e-bike batteries from public transit",
+         "summary_en": "", "tags": [], "regions": ["US"],
+         "event_date": date(2026, 3, 1), "semantic": True}
+        for i in range(3)
+    ]
+    cell = cell_regulatory(rows, "US", today, regulated=False)
+    assert cell["horizon"] == "H3"
+    assert "headwind" in cell["rationale"]
+
+
+def test_adoption_absence_is_no_call_when_market_is_established():
+    """Wer kauft sonst die Produkte? Adoption H3 neben Markt H1 war inkohärent."""
+    today = date(2026, 8, 2)
+    rows = [
+        {"id": 1, "trend_signal_type": "market_shift", "title_en": "x",
+         "summary_en": "", "tags": ["t"], "regions": ["US"],
+         "event_date": date(2026, 1, 1), "semantic": True}
+        for _ in range(5)
+    ]
+    assert cell_adoption(rows, "US", today, market_horizon="H1")["horizon"] is None
+    # Ohne etablierten Markt bleibt Abwesenheit eine echte H3-Aussage.
+    assert cell_adoption(rows, "US", today, market_horizon="H3")["horizon"] == "H3"
+    assert cell_adoption(rows, "US", today)["horizon"] == "H3"

@@ -111,4 +111,10 @@ export const RADAR_THRESHOLDS = {
   minTechFallback: 20,
   /** Rolling window for launches and for pathway signals, in months. */
   windowMonths: 36,
+  /** Established-technology gate: first active market year at least this many years back … */
+  establishedFirstAge: 10,
+  /** … with at least this many years of ≥3 market signals … */
+  establishedActiveYears: 8,
+  /** … and this many product launches across the whole corpus history. */
+  establishedLaunches: 30,
 } as const;
