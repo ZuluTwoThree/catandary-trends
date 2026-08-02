@@ -402,6 +402,17 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
             "n_sources": len(sources),
             "momentum": momentum,
             "sov_delta_pp": round(delta_pp, 2),
+            # Die VOLLE Mitgliedschaft, nicht nur die fünf Repräsentanten. Sie
+            # ist die Grundlage des Cluster-Radars: erst mit ihr lässt sich für
+            # ein Cluster dieselbe Horizont-Analyse rechnen wie für ein
+            # kuratiertes Feld. Ohne sie bliebe nur der Umweg über Stichworte —
+            # also wieder eine Query.
+            # Unterstrich-Präfix wie `_tag_counter`: Nutzlast für den
+            # Persistenz-Schritt, nicht Teil der JSON-Antwort. Der Zentroid
+            # steht bewusst NICHT hier — er ist ein bytes-Objekt und würde
+            # `json.dumps(result)` brechen, das ein Test zum Vergleich zweier
+            # Läufe benutzt. Der Aufrufer hat die Zentroid-Matrix ohnehin.
+            "_member_ids": [r["id"] for r in members],
             "rep_trend_ids": [r["id"] for r in reps],
             "rep_titles": [(r["title_en"] or "")[:120] for r in reps],
             "monthly_series": [

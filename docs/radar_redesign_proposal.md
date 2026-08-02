@@ -883,3 +883,79 @@ Das ist die Entscheidungsvorlage, die der Nutzerprobe fehlte.
 `pipeline/radar_seed.py` hatte **keinen `__main__`-Block** — `python -m
 pipeline.radar_seed` tat stillschweigend nichts. Aufgefallen, als die englischen
 Labels nach dem Seed-Lauf nicht ankamen. Ergänzt.
+
+---
+
+## 11. Cluster-Radare: die Query fällt weg (Owner-Entscheidung 2026-08-02)
+
+Die Nutzerkritik am Query-Radar war zweiteilig und beide Hälften trafen: „Die
+Punkte differenzieren mir zu wenig" und „die Platzierung der Punkte ist nicht
+intuitiv eindeutig nachvollziehbar durch die genannten Beispiele."
+
+Beides folgt aus derselben Ursache. **Eine Freitext-Query definiert ihr Feld über
+Wörter.** „solid state battery" und „sodium ion battery" teilen Vokabular, ihre
+Punkte liegen dicht beieinander — Trennung ist Zufall, nicht Konstruktion. Und
+welche Signale die Query eingesammelt hat, sieht der Leser nie: die fünf Belege
+in einer Zelle sind die Auslöser eines Gates, keine Beschreibung des Felds.
+
+**Ein Cluster hat beide Eigenschaften umgekehrt.** Es ist über die Lage im
+Embedding-Raum definiert und damit disjunkt zu seinen Nachbarn. Und es bringt
+seine Definition mit: die fünf zentralsten Signale SIND das Feld.
+
+### 11.1 Was dafür gebaut wurde
+
+| Baustein | Warum |
+|---|---|
+| `foresight_cluster_members` + `foresight_clusters.centroid` | Ein Lauf speicherte bisher nur **fünf Repräsentanten** je Cluster — genug für eine Karte, zu wenig für eine Horizont-Analyse. Jetzt liegt die volle Mitgliedschaft vor: 2,25 Mio. Zuordnungen über 9 Scopes |
+| `load_cluster_signals()` + `resolve_scope`-Zweig `selector='cluster'` | Ein Cluster wird ein Scope wie jeder andere — danach rechnet `compute()` **unverändert** weiter. Der Cluster-Pfad fügt der Engine nichts hinzu, er füllt sie nur anders |
+| `pipeline/radar_clusters.py` | Aus einem Foresight-Lauf wird eine `radar_configs`-Zeile, aus jedem Cluster ein Feld. Dadurch erben Cluster-Radare Readouts, `basis`, TRL und Delta-Historie geschenkt |
+| `FieldIdentity.tsx` | Beantwortet **vor** jeder Aussage, was das Feld ist: die fünf zentralsten Signale, Größe, Kohäsion, Zusammensetzung und der Anteilstrend |
+
+Der Anteilstrend ist der Nebengewinn: `momentum` und `sov_delta_pp` rechnet die
+Cluster-Analyse längst — steigender oder fallender Anteil am Signalaufkommen.
+Das ist die **Richtungsachse**, deren Fehlen die Nutzerprobe als schwersten
+Mangel benannte, und sie ist als Aussage über unseren Korpus formuliert, nicht
+als Marktprognose.
+
+### 11.2 Drei Kalibrierungen, die nötig waren
+
+**Signalgattungen und Disziplinen sind keine Felder.** Der erste FOOD-Lauf setzte
+„Food Safety · Regulatory Approval" (EFSA-Futtermittelgutachten) auf TRL 8–9 —
+für einen Begutachtungsstrom, für den ein Reifegrad keine Bedeutung hat.
+Gemessen trennt weder der Patentanteil (0,89 — **höher** als Plant-Based Meat mit
+0,19) noch der Vertikalenfokus; das Label selbst ist das verlässlichste Merkmal.
+
+**Aber der Label-Filter darf nicht am ersten Wort scheitern.** Labels sind
+zweiteilig: „Climate Policy · **Renewables**" wurde wegen „Policy" verworfen,
+ebenso „Cancer **Research** · Cancer Treatment". Verworfen wird jetzt erst, wenn
+KEIN Teil ein Feld benennt; angezeigt wird der Teil, der eines ist.
+
+**Keine Schwelle auf den Anteil angewandter Signale.** Als Filter ausprobiert und
+verworfen: er warf „Offshore Wind · Renewables" (4 % angewandt) hinaus — einen
+92-GW-Industriezweig. Genau der Fehlschluss, den die Technologie-Dimension schon
+einmal machte. Die Zusammensetzung wird deshalb **angezeigt** statt zum
+Ausschlusskriterium gemacht.
+
+Dazu eine Dubletten-Prüfung: nach dem Abtrennen der Disziplinen fielen Labels
+zusammen — ECO lieferte „Renewables", „Renewables · Solar Energy", „Solar Energy
+· Renewables" und „Offshore Wind · Renewables" nebeneinander.
+
+### 11.3 Stand
+
+Neun Cluster-Radare, 3–8 Felder je Scope. TECH etwa: Machine Learning (TRL 8–9,
++9,7 pp), Electric Vehicles (7–8, −2,5 pp), Chip Design · Chip Manufacturing
+(8–9), Gene Expression (6–7, −8,4 pp).
+
+### 11.4 Was daran noch rau ist
+
+- **HEALTH und ECO bleiben dünn** (4 bzw. 3 Felder). Ihre Signalräume sind
+  wissenschaftsdominiert, die Clusterung erzeugt dort überwiegend Themen
+  („Health Disparities", „Healthcare Access") statt Technologien. Ein Radar mit
+  drei Feldern ist ehrlich, aber schwach — hier hilft nur eine feinere
+  Zerlegung (höheres k) oder ein Cluster-Lauf über den Markt-Tier statt über die
+  ganze Vertikale.
+- **TRL passt nicht auf jedes Cluster.** „Gene Expression" ist ein
+  Erkenntnisfeld; ein Reifegrad beschreibt es schlecht. Die Zusammensetzung
+  (`app=0 %`) steht daneben und sagt es, aber das Band wird trotzdem gezeigt.
+- **Die Cluster stammen aus Läufen vom 2026-08-02**; sie altern mit dem Korpus
+  und werden nur auf Knopfdruck neu gerechnet (Owner-Regel: kein Cron).
