@@ -93,7 +93,14 @@ export default function RadarSearchHelp() {
           <p className="rsh-p rsh-muted">
             Company and product names, and abstract themes like “future of work”,
             match the wording of articles rather than a field, and produce a radar
-            about the phrase instead of the technology.
+            about the phrase instead of the technology — the instrument says so
+            when it detects one.
+          </p>
+          <p className="rsh-p">
+            <strong>Compare up to four fields at once</strong> by separating them:
+            “solid state battery; sodium ion battery; lithium ion battery”, or
+            “heat pump vs gas boiler”. Each becomes its own field on the arc with
+            its own readiness band — a decision is rarely about one technology.
           </p>
         </section>
 
@@ -124,6 +131,14 @@ export default function RadarSearchHelp() {
           <p className="rsh-p rsh-muted">
             A field normally sits on different horizons per dimension and per
             jurisdiction. That spread is the reading, not an inconsistency.
+          </p>
+          <p className="rsh-p">
+            Above the arc these cells are summarised as a{" "}
+            <strong>Technology Readiness Level band</strong> (TRL 1–9) plus a
+            plain-sentence readout. The band is a range, never a point: an exact
+            TRL needs sight of a development programme, and we see a signal field.
+            It is derived from the cells and only reaches TRL 9 where a running
+            trade is evidenced — launch announcements alone stop at 8.
           </p>
         </section>
 

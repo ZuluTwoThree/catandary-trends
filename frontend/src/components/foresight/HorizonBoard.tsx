@@ -10,8 +10,10 @@ import {
   type RadarCell,
   type RadarView,
   regionLabel,
+  BASIS_META,
 } from "@/lib/radar-shared";
 import HorizonArc from "./HorizonArc";
+import FieldReadout, { ReadoutStrip } from "./FieldReadout";
 
 /**
  * The instrument: one dataset, two readings, one readout.
@@ -45,8 +47,12 @@ export default function HorizonBoard({
   evidence: Record<number, EvidenceItem>;
 }) {
   const [mode, setMode] = useState<Mode>("arc");
+  // Eine Entscheidung gilt immer für EINEN Markt. Die Weltspalte ist die
+  // Vereinigung aller Signale und damit die großzügigste Lesart — als
+  // Startansicht wäre der erste Eindruck systematisch der rosigste. Sie bleibt
+  // einen Klick entfernt, aber die Bühne gehört einer benannten Jurisdiktion.
   const [region, setRegion] = useState<string>(
-    view.regions.includes("GLOBAL") ? "GLOBAL" : view.regions[0] ?? "GLOBAL"
+    view.regions.find((r) => r !== "GLOBAL") ?? view.regions[0] ?? "GLOBAL"
   );
   const [sel, setSel] = useState<{ scope: string; dimension: string } | null>(null);
 
@@ -109,6 +115,25 @@ export default function HorizonBoard({
         </span>
       </div>
 
+      {(() => {
+        const rs = view.readouts ?? [];
+        if (!rs.length) return null;
+        const activeSlug = sel?.scope ?? view.scopes[0]?.slug ?? null;
+        const pick = rs.find((r) => r.scope_slug === activeSlug) ?? rs[0];
+        return (
+          <>
+            <ReadoutStrip
+              readouts={rs}
+              selected={pick.scope_slug}
+              onSelect={(slug) =>
+                setSel({ scope: slug, dimension: view.dimensions[0] })
+              }
+            />
+            <FieldReadout readout={pick} compact={rs.length > 1} />
+          </>
+        );
+      })()}
+
       <div className="hb-grid">
         <div className="hb-stage">
           {mode === "arc" ? (
@@ -170,8 +195,30 @@ export default function HorizonBoard({
                                   {h}
                                 </span>
                               ) : (
-                                <span className="hb-badge hb-badge-empty">–</span>
+                                <span
+                                  className="hb-badge hb-badge-empty"
+                                  title={
+                                    c?.basis && BASIS_META[c.basis]
+                                      ? BASIS_META[c.basis].label
+                                      : "Too little evidence to place"
+                                  }
+                                >
+                                  {c?.basis && BASIS_META[c.basis]
+                                    ? BASIS_META[c.basis].short
+                                    : "–"}
+                                </span>
                               )}
+                              {c && c.previous !== undefined &&
+                              c.previous !== c.effective ? (
+                                <span
+                                  className="hb-delta"
+                                  title={`Previous run: ${c.previous ?? "no call"}`}
+                                >
+                                  {c.previous === null
+                                    ? "new"
+                                    : `was ${c.previous}`}
+                                </span>
+                              ) : null}
                               {c?.override_horizon ? (
                                 <span className="hb-mark" title="Analyst override">✎</span>
                               ) : null}
@@ -340,6 +387,8 @@ export default function HorizonBoard({
         .hb-read { padding: 1.25rem 1.35rem; }
         .hb-read-head { display: flex; justify-content: space-between; align-items: baseline; gap: .8rem; border-left: 2px solid; padding-left: .65rem; margin-bottom: .8rem; }
         .hb-read-dim { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; }
+        .hb-badge-empty { font-size: 8.5px !important; letter-spacing: .04em; padding: .2rem .3rem; opacity: .65; text-transform: uppercase; }
+        .hb-delta { display: block; font-family: var(--font-mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-accent); margin-top: .2rem; }
         .hb-read-region { font-family: var(--font-mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--color-muted); }
         .hb-read-title { font-family: var(--font-display); font-size: 1.4rem; line-height: 1.15; color: var(--color-paper); margin: 0 0 .7rem; letter-spacing: -.01em; }
         .hb-read-h { display: flex; align-items: center; gap: .6rem; margin: 0 0 .9rem; }

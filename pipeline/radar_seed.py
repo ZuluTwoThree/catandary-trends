@@ -23,10 +23,10 @@ log = logging.getLogger(__name__)
 
 CONFIG = {
     "slug": "alt-protein",
-    "name": "Alternative Proteine",
+    "name": "Alternative Proteins",
     "description": (
-        "Acht Proteintechnologien entlang der Innovationskette, eingeordnet nach "
-        "Handlungshorizont je Dimension und Jurisdiktion."
+        "Eight protein technologies along the innovation chain, placed by "
+        "action horizon per dimension and jurisdiction."
     ),
     "dimension_set": "strategic",
     # Lebensmittel sind eine regulierte Domäne: ohne Zulassung kein zulässiger
@@ -64,7 +64,7 @@ SCOPES: list[dict] = [
     },
     {
         "slug": "mycoprotein",
-        "label": "Mycoprotein / Pilz-Protein",
+        "label": "Mycoprotein",
         "include": [
             "%mycoprotein%", "%mycelium protein%", "%fungal protein%",
             "%koji protein%", "%filamentous fungi%", "%mycelial%",
@@ -83,7 +83,7 @@ SCOPES: list[dict] = [
     },
     {
         "slug": "insect-protein",
-        "label": "Insekten-Protein",
+        "label": "Insect Protein",
         "include": [
             "%insect protein%", "%black soldier fly%", "%cricket protein%",
             "%insect farming%", "%edible insect%", "%mealworm%",
@@ -92,7 +92,7 @@ SCOPES: list[dict] = [
     },
     {
         "slug": "algae-protein",
-        "label": "Algen-Protein",
+        "label": "Algae Protein",
         "include": [
             "%microalgae%", "%algae protein%", "%algal protein%", "%spirulina%",
             "%chlorella%", "%seaweed protein%",
@@ -101,7 +101,7 @@ SCOPES: list[dict] = [
     },
     {
         "slug": "gas-fermentation",
-        "label": "Gas-Fermentation (CO₂-zu-Protein)",
+        "label": "Gas Fermentation (CO₂-to-Protein)",
         "include": [
             "%gas fermentation%", "%co2-to-protein%", "%co2 to protein%",
             "%air protein%", "%hydrogenotrophic%", "%power-to-protein%",
@@ -127,10 +127,10 @@ SCOPES: list[dict] = [
 CONFIG_PESTEL = {
     **CONFIG,
     "slug": "alt-protein-pestel",
-    "name": "Alternative Proteine · PESTEL",
+    "name": "Alternative Proteins · PESTEL",
     "description": (
-        "Dieselben acht Proteintechnologien, eingeordnet entlang der sechs "
-        "PESTEL-Dimensionen je Jurisdiktion."
+        "The same eight protein technologies, read along the six PESTEL "
+        "dimensions per jurisdiction."
     ),
     "dimension_set": "pestel",
     # regulated steuert seit 2026-08-02 auch, wie die L-Zelle ABWESENHEIT liest
@@ -191,3 +191,12 @@ def _seed_one(CONFIG: dict) -> None:
                 )
         conn.commit()
     log.info("Referenz-Radar %r mit %d Scopes angelegt", CONFIG["slug"], len(SCOPES))
+
+
+if __name__ == "__main__":
+    # Ohne diesen Block tat `python -m pipeline.radar_seed` stillschweigend
+    # nichts — die Datei definierte nur, führte aber nie aus. Gefunden am
+    # 2026-08-02, als die englischen Labels nach dem Seed-Lauf nicht ankamen.
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s [%(levelname)s] %(message)s")
+    seed()

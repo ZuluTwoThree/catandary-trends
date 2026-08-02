@@ -92,7 +92,8 @@ def run_term(conn, spec: dict, regions: list[str], today: date) -> dict:
         })
     return {**spec, "status": "ok", "n_signals": view["n_signals"],
             "seconds": round(time.time() - t0, 2), "cells": cells,
-            "field_check": view.get("field_check") or {}}
+            "field_check": view.get("field_check") or {},
+            "readouts": view.get("readouts") or []}
 
 
 GRID_DIMS = ("technology", "regulatory", "market", "adoption")

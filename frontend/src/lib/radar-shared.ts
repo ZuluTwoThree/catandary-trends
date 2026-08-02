@@ -77,6 +77,54 @@ export function regionLabel(r: string): string {
   return r === "GLOBAL" ? "Worldwide" : r;
 }
 
+export interface RadarReadout {
+  scope_slug: string;
+  scope: string;
+  trl_low: number | null;
+  trl_high: number | null;
+  trl_label: string | null;
+  trl_blurb: string | null;
+  text: string;
+  stance: string;
+}
+
+/**
+ * Warum eine Zelle sagt, was sie sagt — und vor allem, warum sie schweigt.
+ * Ohne diese Unterscheidung sind im Frontend alle sechs Schweige-Gründe
+ * derselbe Strich, und die ganze Kalibrierarbeit bleibt unsichtbar.
+ */
+export const BASIS_META: Record<string, { short: string; label: string }> = {
+  granted: { short: "approval", label: "An approval is on record" },
+  denied: { short: "refused", label: "A refusal is on record" },
+  blockade: { short: "blocked", label: "A ban or moratorium is on record" },
+  filed: { short: "filing", label: "A proceeding is live" },
+  trial: { short: "trials", label: "Studies are authorised, marketing is not" },
+  commercial: { short: "launches", label: "Commercial launches are on record" },
+  trading: { short: "trade", label: "Revenue, volume or reimbursement evidence" },
+  entry: { short: "entry", label: "Pilots or first launches" },
+  silent: { short: "no signal", label: "Nothing here speaks to this question" },
+  uncovered: {
+    short: "not covered",
+    label: "Our sources barely observe this jurisdiction — absence proves nothing",
+  },
+  unreadable: {
+    short: "regime unseen",
+    label: "This field's regime is not expressed as approvals we can detect",
+  },
+  unregulated: {
+    short: "no regime",
+    label: "No approval gates market entry here",
+  },
+  blind: {
+    short: "no market data",
+    label: "The corpus holds no product-launch signal for this field at all",
+  },
+  unconfirmed: {
+    short: "unconfirmed",
+    label: "It trades elsewhere and nothing blocks it here — likely a coverage gap",
+  },
+};
+
 export interface RadarCell {
   scope_slug: string;
   dimension: string;
@@ -89,6 +137,12 @@ export interface RadarCell {
   rationale: string;
   evidence: number[];
   override_horizon: Horizon | null;
+  /** Grundlage der Zelle — siehe BASIS_META. */
+  basis?: string | null;
+  /** Historischer Vorlauf der Patentklasse. Kontext, ausdrücklich keine Prognose. */
+  lead_time?: Record<string, unknown> | null;
+  /** Horizont im vorigen Lauf; `undefined` = es gibt keinen Vorlauf. */
+  previous?: Horizon | null;
   override_note: string | null;
 }
 
@@ -118,6 +172,10 @@ export interface RadarView {
    * Zufallszug 2026-08-02 zeigte "cost reduction" mit H1 in jeder Zelle.
    */
   field_check?: FieldCheck | null;
+  /** Klartext-Zusammenfassung je Feld, mit TRL-Band. */
+  readouts?: RadarReadout[];
+  /** Zeitpunkt des vorigen Laufs — die Basis jeder Veränderungsangabe. */
+  previous_generated?: string | null;
   /** Resolved evidence titles, shipped with query radars so the client never refetches. */
   evidence?: Record<
     number | string,
