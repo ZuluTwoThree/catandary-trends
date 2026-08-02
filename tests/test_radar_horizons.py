@@ -745,3 +745,63 @@ def test_coupling_still_fires_on_a_positively_identified_blockade():
            "rationale": "Italien verbietet den Verkauf.", "n_signals": 6,
            "basis": "blockade"}
     assert couple_market_to_regulation(market, reg, "EU")["horizon"] == "H3"
+
+
+# ==========================================================================
+# Zufallszug 2026-08-02: 50 Trendfelder gleichverteilt aus 7.037 Pipeline-Tags
+# gezogen (Seed 20260802). Er traf überwiegend Querschnittsthemen statt
+# Technologien — und deckte damit auf, dass das Radar sie bereitwillig platzierte:
+# „cost reduction" stand in JEDER Zelle auf H1, „disruption" fast durchgehend.
+# ==========================================================================
+from pipeline.radar_horizons import (  # noqa: E402
+    FIELD_FOCUS1_MIN, FIELD_FOCUS2_MIN, FIELD_PATENT_MIN, FIELD_PATENT_STRONG,
+    field_coherence,
+)
+
+
+class _CpcConn:
+    """Liefert eine feste Zahl CPC-zugeordneter Trends."""
+
+    def __init__(self, matched):
+        self.matched = matched
+
+    def execute(self, *a, **k):
+        return self
+
+    def fetchone(self):
+        return {"c": self.matched}
+
+
+def _vert(v, n):
+    return [{"id": i, "primary_vertical": v} for i in range(n)]
+
+
+def test_a_concrete_field_passes_the_field_check():
+    """Gemessen an echten Feldern: Elektroautos 0,87 Zwei-Branchen-Fokus,
+    grüner Wasserstoff 0,97, Gentherapie 1,00."""
+    rows = _vert("ECO", 65) + _vert("TECH", 22) + _vert("BIZ", 13)
+    out = field_coherence(_CpcConn(25), rows)     # nur 25 % patentabgebildet
+    assert out["is_field"], "Zwei Branchen tragen das Feld allein"
+    assert out["note"] is None
+
+
+def test_a_patent_heavy_field_passes_even_when_it_spans_industries():
+    rows = _vert("ECO", 33) + _vert("TECH", 30) + _vert("BIZ", 20) + _vert("FOOD", 17)
+    assert field_coherence(_CpcConn(78), rows)["is_field"]   # 78 % Patentanteil
+
+
+def test_a_cross_cutting_theme_is_flagged_not_placed():
+    """„cost reduction": 0,61 Zwei-Branchen-Fokus, 0,37 Patentanteil — und ein
+    Radar, das in jeder Zelle H1 sagte."""
+    rows = (_vert("TECH", 38) + _vert("BIZ", 23) + _vert("HEALTH", 15)
+            + _vert("ECO", 12) + _vert("FOOD", 12))
+    out = field_coherence(_CpcConn(37), rows)
+    assert not out["is_field"]
+    assert out["note"] and "cross-cutting theme" in out["note"]
+    # Der Text muss dem Nutzer sagen, was er stattdessen tun soll.
+    assert "concrete technology" in out["note"]
+
+
+def test_field_thresholds_are_ordered_sanely():
+    assert FIELD_FOCUS2_MIN > FIELD_FOCUS1_MIN
+    assert FIELD_PATENT_STRONG > FIELD_PATENT_MIN
