@@ -91,3 +91,24 @@ export function radarApiQuery(p: Pick<RadarParams, "q" | "fields" | "dim" | "reg
   if (p.regions?.length) sp.set("regions", p.regions.join(","));
   return sp.toString();
 }
+
+/**
+ * Thresholds mirrored from pipeline/radar_horizons.py so the help text can state
+ * them exactly. A tooltip that quotes stale numbers is worse than none — it
+ * teaches the user a rule the engine no longer follows. tests/test_radar_query.py
+ * asserts these stay in step with the Python constants.
+ */
+export const RADAR_THRESHOLDS = {
+  /** Fewer signals than this and the query returns no radar at all. */
+  minScopeRows: 60,
+  /** More than this and the query is refused as too broad to be one field. */
+  maxScopeRows: 25_000,
+  /** Per-jurisdiction minimums below which a single cell stays empty. */
+  minRegulatory: 2,
+  minMarket: 3,
+  minAdoption: 3,
+  /** Semantic signals needed for a technology call without a patent anchor. */
+  minTechFallback: 20,
+  /** Rolling window for launches and for pathway signals, in months. */
+  windowMonths: 36,
+} as const;

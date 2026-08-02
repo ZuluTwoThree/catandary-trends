@@ -145,8 +145,37 @@ def test_resolve_scope_parses_json_terms():
 
 
 # --------------------------------------------------------------------------
-# Grenzen
+# Grenzen — und ihr Gleichlauf mit dem Hilfetext im Frontend
 # --------------------------------------------------------------------------
+def test_thresholds_match_the_frontend_help_text():
+    """Die Hilfe im Radar nennt diese Zahlen wörtlich.
+
+    Ein Tooltip, der veraltete Schwellen behauptet, ist schlimmer als keiner: er
+    bringt dem Nutzer eine Regel bei, nach der die Engine nicht mehr arbeitet.
+    Deshalb sind die Werte in lib/radar-params.ts gespiegelt und werden hier
+    gegen die Python-Konstanten gehalten.
+    """
+    from pipeline.radar_horizons import (
+        MIN_N_ADOPTION, MIN_N_MARKET, MIN_N_REGULATORY, MIN_N_TECH_FALLBACK,
+        LAUNCH_WINDOW_MONTHS, PATHWAY_WINDOW_MONTHS,
+    )
+    ts = (REPO / "frontend/src/lib/radar-params.ts").read_text()
+    block = re.search(r"RADAR_THRESHOLDS = \{(.+?)\} as const", ts, re.S)
+    assert block, "RADAR_THRESHOLDS nicht in radar-params.ts gefunden"
+    got = dict(re.findall(r"(\w+):\s*([0-9_]+)", block.group(1)))
+    as_int = {k: int(v.replace("_", "")) for k, v in got.items()}
+
+    assert as_int["minScopeRows"] == MIN_SCOPE_ROWS
+    assert as_int["maxScopeRows"] == MAX_SCOPE_ROWS
+    assert as_int["minRegulatory"] == MIN_N_REGULATORY
+    assert as_int["minMarket"] == MIN_N_MARKET
+    assert as_int["minAdoption"] == MIN_N_ADOPTION
+    assert as_int["minTechFallback"] == MIN_N_TECH_FALLBACK
+    # Beide Fenster sind gleich lang; der Hilfetext nennt nur eine Zahl.
+    assert LAUNCH_WINDOW_MONTHS == PATHWAY_WINDOW_MONTHS == as_int["windowMonths"]
+
+
+
 def test_scope_bounds_are_sane():
     assert MIN_SCOPE_ROWS < MAX_SCOPE_ROWS
     # Untergrenze muss über den Mindest-Evidenz-Schwellen der Zellen liegen,
