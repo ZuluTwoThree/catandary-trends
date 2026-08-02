@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
-# One-off TEST wrapper: generate the current-week newsletter and SEND it via Resend
-# (2026-07-22, 05:30 via cron). Runs after the 01:00 test cycle, which leaves the
-# systemd 8B llama-server on :8090 — the generator reuses it (NEWSLETTER_LLM_BACKEND
-# =llamacpp), so no VRAM juggling. Defensive: if :8090 is down (cycle failed/overran),
-# start the systemd unit first. The sender is idempotent (sent_at) and delivers to
-# the confirmed subscribers (currently: molkereimeister@web.de).
+# Weekly newsletter: generate the current-week edition and SEND it via Resend.
+#
+# Content engine: Gemma-4-26B, ensured on :8090 below (owner decision 2026-08-02).
+# The sender is idempotent (sent_at) and delivers to the confirmed subscribers.
+#
+# NOT YET A CRON JOB — run manually. Before scheduling this weekly, three things
+# must be fixed (see docs/launch/newsletter-doi-php/EINBAU.md):
+#   1. PUBLIC_BASE_URL in the pipeline .env still points at localhost:3004, so
+#      every unsubscribe link in a sent mail is a dead localhost URL.
+#   2. The sender links /trends/newsletter/unsubscribe — a Next.js route that
+#      does not exist on the Hetzner webspace. Legally required before mailing
+#      anyone but ourselves.
+#   3. Confirmed subscribers live in MySQL on Hetzner; this sender reads local
+#      Postgres. The export bridge (export.php + sync_subscribers.py) has to run
+#      first, or real signups are never mailed.
 set -u
 
 # cron has no systemd user session — set XDG_RUNTIME_DIR so `systemctl --user`
@@ -25,18 +34,43 @@ export NEWSLETTER_LLM_BACKEND=llamacpp
 
   cd "$REPO" || { echo "ABORT: cannot cd $REPO"; exit 1; }
 
-  # Ensure an LLM is serving on :8090 (the generator needs it).
-  if ! curl -sf -m 3 http://127.0.0.1:8090/v1/models >/dev/null 2>&1; then
-    echo "----- :8090 down — starting llama-server.service -----"
-    systemctl --user start llama-server.service
-    for i in $(seq 1 15); do
-      sleep 2
-      curl -sf -m 3 http://127.0.0.1:8090/v1/models >/dev/null 2>&1 && { echo "  :8090 up"; break; }
-    done
+  # --- Ensure the CONTENT ENGINE is Gemma-4-26B ---------------------------
+  # Owner decision 2026-08-02 after an A/B on the 2026-W31 data: the 26B cites
+  # more grounded specifics (5 vs 3), forms cross-cutting theses instead of
+  # describing, and produced all 8 verticals in one pass where the 8B needed
+  # per-vertical retries. Previously this wrapper simply reused whatever the
+  # nightly cycle had left on :8090 — which made the newsletter's quality
+  # depend on chance. Same symlink-swap pattern scheduled_cycle.sh uses.
+  MODEL_ID() { curl -sf -m 3 http://127.0.0.1:8090/v1/models \
+      | "$PY" -c "import json,sys;print(json.load(sys.stdin)['data'][0]['id'])" 2>/dev/null; }
+
+  WANT="gemma-4-26B"
+  CUR="$(MODEL_ID)"
+  if [ -n "$CUR" ] && [[ "$CUR" == *"$WANT"* ]]; then
+    echo "----- :8090 already serving the content engine: $CUR -----"
   else
-    MODEL=$(curl -sf -m 3 http://127.0.0.1:8090/v1/models | "$PY" -c "import json,sys;print(json.load(sys.stdin)['data'][0]['id'])" 2>/dev/null)
-    echo "----- :8090 already serving: ${MODEL:-unknown} -----"
+    echo "----- :8090 serving '${CUR:-nothing}' — swapping to $WANT -----"
+    systemctl --user stop llama-server.service 2>/dev/null
+    sleep 3
+    ln -sfn start-gemma4-26b.sh /home/dirk/llama.cpp/start-active.sh \
+      || echo "  WARN: symlink swap failed — starting whatever is active"
+    systemctl --user start llama-server.service
+    for i in $(seq 1 30); do
+      sleep 3
+      CUR="$(MODEL_ID)"
+      [ -n "$CUR" ] && { echo "  :8090 up: $CUR (after $((i*3))s)"; break; }
+    done
   fi
+
+  if [ -z "$CUR" ]; then
+    echo "ABORT: no model serving on :8090 — refusing to generate"
+    echo "newsletter_tonight.sh end  $(date -Iseconds)  (gen=skipped send=skipped)"
+    exit 1
+  fi
+  case "$CUR" in
+    *"$WANT"*) : ;;
+    *) echo "  WARN: generating on '$CUR', not $WANT — quality may differ" ;;
+  esac
 
   echo "----- generating current-week newsletter (saves edition to DB) -----"
   "$PY" -m pipeline.newsletter_generator

@@ -20,6 +20,7 @@ from pathlib import Path
 from pipeline.config import DATA_DIR, LOG_LEVEL, MODEL_GENERATE, load_mega_trends
 from pipeline import db as db_mod
 from pipeline.db import get_connection
+from pipeline.llm_processor import is_title_duplicate, normalize_title
 
 import os as _os
 if _os.getenv("NEWSLETTER_LLM_BACKEND") == "llamacpp":
@@ -82,6 +83,95 @@ BANNED_PHRASES = (
 # 1. Data aggregation
 # ---------------------------------------------------------------------------
 
+# How many score-ordered candidates per vertical (and overall) we consider
+# before de-duplication. Must exceed the final pick count so that dropping a
+# duplicate is replaced by the next distinct signal instead of shortening the
+# list.
+TOP_CANDIDATE_POOL = 15
+
+# Cosine similarity above which two published signals are treated as the SAME
+# STORY for citation purposes.
+#
+# Why this differs from the ingest threshold: the pipeline de-duplicates at
+# DUPLICATE_SIMILARITY_THRESHOLD (0.92) when deciding whether an article is
+# worth publishing at all — deliberately strict, because two outlets covering
+# one study with different angles are legitimately two articles. A weekly
+# digest that cites only three signals per vertical has the opposite need:
+# there, two write-ups of the same study read as sloppy, unchecked output.
+# Measured on the 2026-W31 FOOD collision (two Campylobacter/poultry pieces
+# from Food Safety News and Guardian Environment): the duplicate pair scored
+# 0.845, while genuinely distinct signals in the same vertical scored 0.31-0.34
+# — a wide, safe gap. 0.80 sits in the middle of it.
+# NB: their titles only reach fuzz.ratio 0.667, so the title-level check alone
+# (threshold 0.90) can never catch this class — the embedding is what works.
+NEWSLETTER_DUP_THRESHOLD = float(
+    _os.getenv("NEWSLETTER_DUP_THRESHOLD", "0.80")
+)
+
+
+def _duplicate_pairs(trend_ids: list[int]) -> set[tuple[int, int]]:
+    """Pairs of trend ids whose embeddings are near-identical.
+
+    Computed inside Postgres via pgvector, so no embedding ever crosses the
+    wire — only the handful of colliding id pairs comes back. Returns an empty
+    set (i.e. de-duplication silently disabled) on SQLite, on a missing
+    embedding column, or on any query error: a newsletter must still be
+    generated when the similarity lookup is unavailable.
+    """
+    ids = sorted({int(i) for i in trend_ids if i is not None})
+    if len(ids) < 2 or not db_mod.USE_POSTGRES:
+        return set()
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(
+                # Aliased: the PG wrapper yields dict rows, and two columns both
+                # named "id" would collapse into one key.
+                "SELECT a.id AS a_id, b.id AS b_id FROM trends a JOIN trends b ON a.id < b.id "
+                "WHERE a.id = ANY(?) AND b.id = ANY(?) "
+                "  AND a.embedding_1024 IS NOT NULL AND b.embedding_1024 IS NOT NULL "
+                "  AND (1 - (a.embedding_1024 <=> b.embedding_1024)) >= ?",
+                (ids, ids, NEWSLETTER_DUP_THRESHOLD),
+            ).fetchall()
+    except Exception as e:  # noqa: BLE001 — never block the newsletter
+        logger.warning("Duplicate check unavailable (%s) — citing unfiltered", e)
+        return set()
+
+    pairs = set()
+    for r in rows:
+        if hasattr(r, "keys"):
+            a, b = r["a_id"], r["b_id"]
+        else:
+            a, b = r[0], r[1]
+        pairs.add((int(a), int(b)))
+    if pairs:
+        logger.info("Duplicate check: %d near-identical pair(s) among %d candidates",
+                    len(pairs), len(ids))
+    return pairs
+
+
+def _pick_distinct(candidates: list[dict], dup_pairs: set[tuple[int, int]],
+                   limit: int) -> list[dict]:
+    """Take up to `limit` candidates, skipping ones that duplicate an earlier
+    pick. Candidates arrive score-ordered, so the stronger signal of a pair is
+    always the one kept. Falls back to the title check for pairs the embedding
+    lookup could not judge (missing vector, SQLite)."""
+    picked: list[dict] = []
+    picked_titles: list[str] = []
+    for t in candidates:
+        if len(picked) >= limit:
+            break
+        tid = t.get("id")
+        if any((min(tid, p["id"]), max(tid, p["id"])) in dup_pairs for p in picked):
+            logger.debug("Skipping near-duplicate signal %s: %s", tid, t.get("title_en"))
+            continue
+        is_dup, _ = is_title_duplicate(t.get("title_en") or "", picked_titles)
+        if is_dup:
+            continue
+        picked.append(t)
+        picked_titles.append(normalize_title(t.get("title_en") or ""))
+    return picked
+
+
 def get_weekly_newsletter_data(days: int = 7, week_start: str | None = None,
                                week_end: str | None = None) -> dict:
     """Fetch published trends for a date range and aggregate for editorial.
@@ -138,23 +228,29 @@ def get_weekly_newsletter_data(days: int = 7, week_start: str | None = None,
 
     # Aggregate
     mega_trend_map = {mt["key"]: mt for mt in load_mega_trends()}
+
     overall_mega_counts: Counter = Counter()
     overall_signal_types: Counter = Counter()
     verticals: dict[str, dict] = {}
 
+    # Candidate pool per vertical: a generous slice of the score-ordered list,
+    # from which _pick_distinct() then draws the final picks. Collecting more
+    # than we need is what makes de-duplication possible — dropping a duplicate
+    # must not shrink the citation list.
     for t in trends:
         v = t["primary_vertical"]
         if v not in verticals:
             verticals[v] = {
                 "count": 0,
+                "candidates": [],
                 "top_trends": [],
                 "mega_trend_counts": Counter(),
                 "signal_types": Counter(),
             }
         vd = verticals[v]
         vd["count"] += 1
-        if len(vd["top_trends"]) < 5:
-            vd["top_trends"].append(t)
+        if len(vd["candidates"]) < TOP_CANDIDATE_POOL:
+            vd["candidates"].append(t)
 
         mt = t.get("mega_trend")
         if mt:
@@ -165,6 +261,17 @@ def get_weekly_newsletter_data(days: int = 7, week_start: str | None = None,
         if st:
             vd["signal_types"][st] += 1
             overall_signal_types[st] += 1
+
+    # De-duplicate the cited signals (one similarity lookup for all candidates).
+    overall_candidates = trends[:TOP_CANDIDATE_POOL]
+    dup_pairs = _duplicate_pairs(
+        [t["id"] for vd in verticals.values() for t in vd["candidates"]]
+        + [t["id"] for t in overall_candidates]
+    )
+    for vd in verticals.values():
+        vd["top_trends"] = _pick_distinct(vd["candidates"], dup_pairs, 5)
+        del vd["candidates"]
+    top_overall = _pick_distinct(overall_candidates, dup_pairs, 10)
 
     # Calendar week
     now = datetime.now(timezone.utc)
@@ -178,7 +285,7 @@ def get_weekly_newsletter_data(days: int = 7, week_start: str | None = None,
         "mega_trend_counts": overall_mega_counts,
         "mega_trend_map": mega_trend_map,
         "signal_types": overall_signal_types,
-        "top_trends": trends[:10],
+        "top_trends": top_overall,
     }
 
 
