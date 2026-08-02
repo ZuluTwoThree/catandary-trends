@@ -504,3 +504,28 @@ Anker (Li-Ion→H01M, 0,473) nicht vom Kategorienfehler (PF→A23C, 0,462).
 
 Referenz §7.1 nach dem Umbau unverändert; beabsichtigte Änderung: Adoption-
 Zellen neben ungekoppeltem H1-Markt sagen jetzt „kein Urteil" statt H3.
+
+### 7.5 Kalibrierlauf 2026-08-02, zweite Runde (sechs Suchbegriffe, extern validiert)
+
+Sechs Begriffe durchs gefixte Radar, verdächtige Zellen bis auf die Belege
+geprüft, Realitätsabgleich per Websuche. **Vier Fehlaussagen, vier Fixes** — und
+eine Zelle, die zu Unrecht verdächtigt wurde.
+
+| Fall | Radar sagte | Realität | Fix |
+|---|---|---|---|
+| Gene Therapy · Reg EU | H3 „expliziter Gegenwind" | **11+ EMA-Zulassungen** (Casgevy u. a.); Auslöser waren „Regulatory Uncertainty" und „FDA shifts" | `REG_GAP` auf echte Blockaden verengt (Verbot, Ablehnung, Entzug, Moratorium). Unsicherheit, Verzögerung, Hürden = **Reibung**, kein verschlossener Weg. → jetzt „kein Urteil" |
+| Gene Therapy · Technologie | H3 „vorwettbewerblich" | 70 erteilte US-Zulassungen **im eigenen Korpus**; Signalmix sah 1,9 % angewandt, weil klinische Forschung 98 % des Volumens stellt | **Kohärenz-Boden**: eine Technologie mit Zulassungen oder laufendem Markt kann nicht vorwettbewerblich sein → H2 (nicht H1: Skalen-/Kostenreife bleibt unbelegt) |
+| Direct Air Capture · Markt EU | H1 „on the market" | Ucaneo Berlin = **150 t CO₂/Jahr**, kommerzieller Ausbau ab 2027 | `MARKET_PILOT`: Pilot-, Demo- und First-of-a-kind-Meldungen zählen für H2, nicht für H1 |
+| Precision Fermentation · Reg EU | H1 aus **einem** Silage-Signal | keine EU-Zulassung | `MIN_N_GRANTED = 2`: eine einzelne Meldung trägt keine Jurisdiktions-Aussage |
+| Quantum Computing · Markt EU | H1 | **belastbar**: IQM hat 23 Systeme verkauft, erster Privatkunden-Verkauf 04/2026 (Polen); AQT liefert nach Polen | kein Fix — die *Aussage* stimmt. Die Belegliste enthält aber Rauschen (Kunstinstallation, Bildungsartikel, Ökosystem-Verzeichnis als `product_launch`), das erst Schnitt 2 bereinigt |
+
+**Nebenwirkung, die ein dokumentiertes Problem löst:** `MIN_N_GRANTED = 2`
+beendet auch den Pet-Food-Fall aus §7.3 — Cultivated Meat stand in der EU auf
+H1 wegen *einer* Tierfutter-Zulassung und steht jetzt auf H2. Im kuratierten
+Radar änderten sich **5 von 128 Zellen**, alle in diese Richtung; die
+Referenzzeile §7.1 ist unverändert.
+
+**Offen und bewusst nicht gefixt:** Die Regulatorik-Dimension misst
+Korpus-Abdeckung mit, nicht nur Realität — Gene Therapy hat in der EU
+Zulassungen, im (US-lastigen) Korpus aber keine EU-attribuierten. „Kein Urteil"
+ist dafür die ehrliche Antwort; eine Aussage wäre es nicht.

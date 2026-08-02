@@ -164,10 +164,17 @@ REG_PATHWAY = re.compile(
     r"strategy|standard[- ]setting|harmoni[sz]ation)\b",
     re.I,
 )
+# NUR echte Blockaden. Kalibrierlauf 2026-08-02: „Regulatory Uncertainty Shapes
+# Global Gene Therapy Strategy" zählte als Blockade und setzte die EU-Zelle auf
+# H3 — für ein Feld mit 11+ EMA-Zulassungen. Unsicherheit, Verzögerung, Hürden
+# und Komplexität sind REIBUNG; sie verlangsamen einen offenen Weg, sie
+# verschließen ihn nicht. Wer H3 („beobachten, kein Weg") behauptet, braucht ein
+# Verbot, eine Ablehnung oder einen Entzug.
 REG_GAP = re.compile(
-    r"\b(no approval|not approved|lack of|absence of|ban(ned|s)?|prohibit(ed|s)?|"
-    r"block(ed|s)?|reject(ed|s)?|delay(ed|s)?|lag|barrier|hurdle|"
-    r"black box|bottleneck|stalled|uncertainty)\b",
+    r"\b(no approval|not approved|never approved|approval denied|"
+    r"ban(ned|s)?|prohibit(ed|s|ion)?|outlaw(ed|s)?|"
+    r"reject(ed|s|ion)?|refus(ed|al)|withdraw(n|s|al)?|suspend(ed|s|sion)?|"
+    r"revok(ed|es)|moratorium|halt(ed|s)? (sales|approval|use))\b",
     re.I,
 )
 
@@ -279,6 +286,18 @@ def reg_subtype(row) -> str:
 
 
 # Marktreife-Marker: unterscheidet "Produkt angekündigt" von "im Handel".
+# Pilot- und Demonstrationsanlagen belegen Machbarkeit, nicht Marktverfügbarkeit.
+# Kalibrierlauf 2026-08-02: Direct Air Capture stand in der EU auf H1 („on the
+# market"), gestützt auf Ucaneos Berliner Anlage — 150 t CO2/Jahr, kommerzieller
+# Ausbau ab 2027. Das ist der Beweis, dass es funktioniert, nicht dass man es
+# kaufen kann.
+MARKET_PILOT = re.compile(
+    r"\b(pilot|demonstration|demo (plant|facility|unit)|prototype|test ?bed|"
+    r"first[- ]of[- ]a[- ]kind|proof of concept|trial (plant|run)|"
+    r"pre[- ]commercial|research (facility|plant)|experiment)\b",
+    re.I,
+)
+
 MARKET_SCALE = re.compile(
     r"\b(retail|shelves|shelf|supermarket|grocery|whole foods|walmart|tesco|"
     r"nationwide|roll ?out|scal(e|ing|es) (up|to)|commercial (launch|production|scale)|"
@@ -290,6 +309,12 @@ MARKET_SCALE = re.compile(
 # Schwellen
 # ---------------------------------------------------------------------------
 MIN_N_REGULATORY = 2      # unter 2 Regulatorik-Signalen: keine Aussage
+# Eine EINZELNE Zulassungsmeldung trägt keine Jurisdiktions-Aussage: im
+# Kalibrierlauf 2026-08-02 hob ein einziges fehlklassifiziertes Silage-Signal
+# Precision Fermentation in der EU auf H1 (Scope-Verunreinigung, vgl. §7.3).
+# Echte Zulassungen werden mehrfach berichtet — die acht US-GRAS-Freigaben
+# ebenso wie die zwei israelischen.
+MIN_N_GRANTED = 2
 MIN_N_MARKET = 3
 MIN_N_ADOPTION = 3
 MIN_N_TECH_FALLBACK = 20  # ohne CPC-Anker: mindestens so viele semantische Signale
@@ -661,7 +686,12 @@ def cell_regulatory(rows: list[dict], region: str, today: date,
                 "rationale": f"Too few regulatory signals for {region} "
                              f"({len(in_region)}) — no call.", "evidence": []}
 
-    if granted:
+    if len(granted) == 1 and len(regs) >= 8:
+        # Genau ein Zulassungssignal in einem gut belegten Scope: zu dünn für H1,
+        # aber ein Hinweis auf ein laufendes Verfahren.
+        filed = filed + granted
+        granted = []
+    if len(granted) >= MIN_N_GRANTED or (granted and len(regs) < 8):
         ev = sorted(granted, key=lambda r: r["event_date"] or date.min, reverse=True)
         years = sorted({r["event_date"].year for r in ev if r["event_date"]})
         return {
@@ -727,17 +757,27 @@ def cell_market(rows: list[dict], region: str, today: date) -> dict:
         return {"horizon": None, "n_signals": len(in_region), "method": "gates",
                 "rationale": f"Too few signals for {region} ({len(in_region)}).",
                 "evidence": []}
-    scaled = [r for r in launches
-              if MARKET_SCALE.search(f"{r['title_en'] or ''} {r['summary_en'] or ''}")]
+    # Pilot- und Demonstrationsmeldungen zählen für den Übergang (H2), nicht für
+    # Marktverfügbarkeit (H1): sie belegen, dass es funktioniert, nicht dass man
+    # es kaufen kann.
+    def _txt(r):
+        return f"{r['title_en'] or ''} {r['summary_en'] or ''}"
+
+    pilot_ids = {r["id"] for r in launches if MARKET_PILOT.search(_txt(r))}
+    pilots = [r for r in launches if r["id"] in pilot_ids]
+    commercial = [r for r in launches if r["id"] not in pilot_ids]
+    scaled = [r for r in commercial if MARKET_SCALE.search(_txt(r))]
     ev = sorted(launches, key=lambda r: r["event_date"] or date.min, reverse=True)
-    if len(launches) >= 5 or (launches and scaled):
+    if len(commercial) >= 5 or (commercial and scaled):
         return {
             "horizon": "H1", "n_signals": len(in_region), "method": "gates",
             "score": 0.9,
-            "rationale": f"{len(launches)} product launches in {region} "
+            "rationale": f"{len(commercial)} commercial product launches in {region} "
                          f"(last {LAUNCH_WINDOW_MONTHS} months)"
                          + (f", {len(scaled)} of them with retail or scale evidence"
                             if scaled else "")
+                         + (f"; {len(pilots)} further signals are pilots and do not count"
+                            if pilots else "")
                          + " — on the market.",
             "evidence": [r["id"] for r in ev[:5]],
         }
@@ -745,8 +785,14 @@ def cell_market(rows: list[dict], region: str, today: date) -> dict:
         return {
             "horizon": "H2", "n_signals": len(in_region), "method": "gates",
             "score": 0.5,
-            "rationale": f"{len(launches)} product launch(es) in {region}, but no "
-                         "retail or scale evidence — early market entry.",
+            "rationale": (
+                f"{len(pilots)} pilot or demonstration signal(s) in {region}"
+                + (f" and {len(commercial)} other launch(es)" if commercial else "")
+                + " — feasibility shown, not yet purchasable."
+                if pilots else
+                f"{len(commercial)} product launch(es) in {region}, but no "
+                "retail or scale evidence — early market entry."
+            ),
             "evidence": [r["id"] for r in ev[:5]],
         }
     return {
@@ -1051,6 +1097,8 @@ def compute_cells(conn, rows: list[dict], *, regions: list[str],
         "rationale": tech["rationale"], "evidence": tech.get("evidence", []),
     })
 
+    tech_idx = 0  # die Technologie-Zelle steht immer an Position 0
+
     for region in regions:
         if dimension_set == "pestel":
             # Dieselben Gate-Primitiven durch die PESTEL-Linse:
@@ -1078,6 +1126,32 @@ def compute_cells(conn, rows: list[dict], *, regions: list[str],
                 "score": c.get("score"), "n_signals": c["n_signals"],
                 "method": c["method"], "rationale": c["rationale"],
                 "evidence": c.get("evidence", []),
+            })
+
+    # Kohärenz-Boden: eine Technologie mit erteilten Zulassungen oder einem
+    # laufenden Markt ist nicht "vorwettbewerblich". Kalibrierlauf 2026-08-02:
+    # Gene Therapy stand auf Technologie H3, obwohl der Korpus 70 erteilte
+    # US-Zulassungen enthält — der Signalmix sah nur 1,9 % angewandte Signale,
+    # weil klinische Forschung das Volumen dominiert. Das ist die Signatur eines
+    # reifen regulierten Therapiefelds, nicht die eines unreifen. Angehoben wird
+    # auf H2, nicht auf H1: Skalen- und Kostenreife bleibt unbelegt.
+    tech = out[tech_idx]
+    if tech["horizon"] == "H3" and tech["method"] == "semantic_mix":
+        proof = [c for c in out[1:]
+                 if c["horizon"] == "H1" and c["dimension"] in
+                 ("regulatory", "market", "L")]
+        if proof:
+            kinds = sorted({("approvals" if c["dimension"] in ("regulatory", "L")
+                             else "a live market") for c in proof})
+            tech.update({
+                "horizon": "H2", "score": 0.5,
+                "method": "semantic_mix+coherence",
+                "rationale": (
+                    f"{tech['rationale']} Raised to H2: the same field shows "
+                    f"{' and '.join(kinds)} in at least one jurisdiction, so it "
+                    "cannot be pre-competitive. The research volume reflects a "
+                    "field under active clinical or industrial development."
+                ),
             })
     return out
 
