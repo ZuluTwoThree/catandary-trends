@@ -2584,3 +2584,132 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# ---------------------------------------------------------------------------
+# Signalwolke: jedes Signal einzeln platzieren
+# ---------------------------------------------------------------------------
+# Die Zellenlogik klassifiziert JEDES Signal, bevor sie aggregiert — welchen
+# Sub-Typ ein Regulatorik-Signal hat, ob eine Produktmeldung Pilot oder Handel
+# ist, ob ein Signal Forschung oder Anwendung ist. Diese Information wird beim
+# Zusammenfassen auf 32 Zellen weggeworfen.
+#
+# Die Wolke wirft sie nicht weg. Sie zeigt die VERTEILUNG statt ihres Mittels:
+# wo die Masse eines Felds liegt, wie breit sie streut, wo einzelne Ausreißer
+# sitzen. Und jeder Punkt ist ein echtes Signal mit Titel und Quelle — die
+# Nachvollziehbarkeit, die einer aggregierten Zelle fehlt.
+#
+# Dieselben Klassifikatoren wie in den Zellen, damit Wolke und Zelle nie
+# auseinanderlaufen: eine Zelle IST das Mittel ihrer Punkte.
+
+CLOUD_DIMENSIONS = ("technology", "regulatory", "market", "adoption")
+
+
+def place_signal(row, today: date, field_terms: list[str] | None = None) -> dict | None:
+    """Ein Signal auf (Dimension, Stufe) abbilden.
+
+    Stufe 1 = H1 (belegt Marktzugang / Zulassung / Nachfrage),
+    Stufe 2 = H2 (Übergang: Antrag, Pilot, erste Einführung),
+    Stufe 3 = H3 (vorwettbewerblich: Forschung, Patent, versperrter Weg).
+
+    Gibt None zurück, wenn ein Signal für keine Dimension etwas belegt — das ist
+    der Regelfall für Meinungsstücke und Nachrichten-Roundups, und sie gehören
+    nicht in die Wolke.
+    """
+    st = row.get("trend_signal_type")
+    text = _text(row)
+
+    if st == "regulation":
+        sub = reg_subtype(row, field_terms)
+        stage = {"granted": 1, "filed": 2, "trial": 2,
+                 "forming": 3, "gap": 3, "denied": 3}.get(sub)
+        if not stage:
+            return None
+        return {"dim": "regulatory", "stage": stage, "kind": sub}
+
+    if st == "product_launch":
+        if ESSAY_TITLE.search(_title(row)):
+            return None            # Kommentar ist kein Ereignis
+        if MARKET_PILOT.search(text):
+            return {"dim": "market", "stage": 2, "kind": "pilot"}
+        if MARKET_SCALE.search(text) or MARKET_MAGNITUDE.search(text):
+            return {"dim": "market", "stage": 1, "kind": "trade"}
+        return {"dim": "market", "stage": 2, "kind": "launch"}
+
+    if st in ("research", "patent"):
+        return {"dim": "technology", "stage": 3, "kind": st}
+
+    if st == "partnership":
+        return {"dim": "technology", "stage": 2, "kind": "partnership"}
+
+    if st == "consumer_behavior":
+        return {"dim": "adoption", "stage": 1, "kind": "consumer"}
+
+    if st == "market_shift":
+        if DEMAND_MARKERS.search(text):
+            return {"dim": "adoption", "stage": 2, "kind": "demand"}
+        if MARKET_SCALE.search(text) or MARKET_MAGNITUDE.search(text):
+            return {"dim": "market", "stage": 1, "kind": "trade"}
+        return None
+
+    if st == "funding":
+        return {"dim": "technology", "stage": 2, "kind": "funding"}
+
+    return None
+
+
+def signal_cloud(rows: list[dict], *, today: date | None = None,
+                 field_terms: list[str] | None = None,
+                 cap: int = 4000) -> dict:
+    """Alle platzierbaren Signale eines Felds als Punktwolke.
+
+    Gedeckelt nach Aktualität: ein Cluster hat bis zu 40.000 Mitglieder, und
+    jenseits einiger tausend Punkte sieht ein Auge ohnehin nur noch Fläche. Was
+    weggelassen wurde, steht in der Antwort — ein stiller Schnitt wäre eine
+    Behauptung über Vollständigkeit, die nicht stimmt.
+    """
+    today = today or date.today()
+    dated = sorted((r for r in rows if r["event_date"]),
+                   key=lambda r: r["event_date"])
+    placed = []
+    dropped = 0
+    for r in dated:
+        p = place_signal(r, today, field_terms)
+        if p:
+            placed.append((r, p))
+        else:
+            dropped += 1
+
+    # Systematische Stichprobe über die ZEIT, nicht die jüngsten N. Nach
+    # Aktualität zu deckeln sah zuerst vernünftig aus, tötete aber genau die
+    # Achse, für die die Wolke gebaut ist: bei einem großen Cluster stammten
+    # alle 4.000 gezeigten Punkte aus demselben Jahr, die Historie verschwand.
+    # Ein gleichmäßiger Schnitt durch die chronologisch sortierte Liste erhält
+    # die Verteilung über die Jahre — sichtbar wird dann, wie ein Feld nach
+    # innen wandert.
+    step = max(1, len(placed) // cap) if cap else 1
+    sample = placed[::step][:cap]
+    points = []
+    for r, p in sample:
+        points.append({
+            "id": r["id"],
+            "d": CLOUD_DIMENSIONS.index(p["dim"]),
+            "s": p["stage"],
+            "k": p["kind"],
+            "y": r["event_date"].year,
+            "t": (r.get("title_en") or "")[:120],
+            "r": sorted(regions_of(r))[:2],
+        })
+    per_dim = {d: sum(1 for p in points if CLOUD_DIMENSIONS[p["d"]] == d)
+               for d in CLOUD_DIMENSIONS}
+    return {
+        "points": points,
+        "n_total": len(rows),
+        "n_placed": len(placed),
+        "n_shown": len(points),
+        "n_unplaceable": dropped,
+        "sample_step": step,
+        "capped": step > 1,
+        "per_dimension": per_dim,
+        "dimensions": list(CLOUD_DIMENSIONS),
+    }

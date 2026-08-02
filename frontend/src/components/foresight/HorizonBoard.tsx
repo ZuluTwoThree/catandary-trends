@@ -15,6 +15,7 @@ import {
 import HorizonArc from "./HorizonArc";
 import FieldReadout, { ReadoutStrip } from "./FieldReadout";
 import FieldIdentity from "./FieldIdentity";
+import SignalCloud from "./SignalCloud";
 
 /**
  * The instrument: one dataset, two readings, one readout.
@@ -38,7 +39,7 @@ interface EvidenceItem {
   source_name: string | null;
 }
 
-type Mode = "arc" | "matrix";
+type Mode = "arc" | "matrix" | "cloud";
 
 export default function HorizonBoard({
   view,
@@ -87,14 +88,14 @@ export default function HorizonBoard({
       {/* ---- Instrument switches -------------------------------------- */}
       <div className="hb-switches">
         <div className="hb-switch-group" role="group" aria-label="View">
-          {(["arc", "matrix"] as Mode[]).map((m) => (
+          {(["arc", "matrix", "cloud"] as Mode[]).map((m) => (
             <button
               key={m}
               className={`hb-switch ${mode === m ? "is-on" : ""}`}
               onClick={() => setMode(m)}
               aria-pressed={mode === m}
             >
-              {m === "arc" ? "Arc" : "Matrix"}
+              {m === "arc" ? "Arc" : m === "matrix" ? "Matrix" : "Signals"}
             </button>
           ))}
         </div>
@@ -162,7 +163,18 @@ export default function HorizonBoard({
 
       <div className="hb-grid">
         <div className="hb-stage">
-          {mode === "arc" ? (
+          {mode === "cloud" ? (
+            // Die Wolke braucht ein Feld, keine Jurisdiktion: sie zeigt JEDES
+            // Signal des Felds mit der Stufe, die es selbst belegt.
+            <SignalCloud
+              radar={view.config.slug}
+              scope={sel?.scope ?? view.scopes[0]?.slug ?? ""}
+              label={
+                view.scopes.find((s) => s.slug === (sel?.scope ?? view.scopes[0]?.slug))
+                  ?.label ?? ""
+              }
+            />
+          ) : mode === "arc" ? (
             <HorizonArc
               view={view}
               region={region}
