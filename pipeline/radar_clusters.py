@@ -118,6 +118,23 @@ def _composition(conn, run_id: int, cluster_idx: int) -> dict:
     }
 
 
+def scope_title(scope: str) -> tuple[str, str]:
+    """Anzeigename und Umschreibung eines Scopes.
+
+    `mega:clean_energy_transition` ist ein Schlüssel, kein Titel — ungefiltert
+    stand im Frontend „Mega:Clean_Energy_Transition · Trend clusters".
+    """
+    if scope.startswith("mega:"):
+        key = scope.split(":", 1)[1].replace("_", " ")
+        title = " ".join(w.capitalize() if w not in ("and", "of", "the") else w
+                         for w in key.split())
+        return title, f"{title} mega-trend"
+    if scope.startswith("vertical:"):
+        v = scope.split(":", 1)[1]
+        return v.title(), f"{v} signal space"
+    return "Cross-industry", "whole corpus"
+
+
 def scope_slug(scope: str) -> str:
     return "cl-" + re.sub(r"[^a-z0-9]+", "-", scope.lower()).strip("-")
 
@@ -179,13 +196,13 @@ def build(scope: str, *, max_fields: int = MAX_FIELDS,
             return None
 
         slug = scope_slug(scope)
-        pretty = scope.replace("vertical:", "").replace("global", "Cross-industry")
-        name = f"{pretty.title()} · Trend clusters"
+        pretty, kind_word = scope_title(scope)
+        name = f"{pretty} · Trend clusters"
         desc = (
-            f"The {len(picked)} largest trend clusters of the {pretty} signal "
-            f"space, found by grouping {run['signals']:,} embedded signals — not "
-            "by a search term. Each field carries its own defining signals and "
-            "its share-of-voice trend."
+            f"The {len(picked)} largest trend clusters of the {kind_word}, found "
+            f"by grouping {run['signals']:,} embedded signals — not by a search "
+            "term. Each field carries its own defining signals and its "
+            "share-of-voice trend."
         )
         row = conn.execute("SELECT id FROM radar_configs WHERE slug = %s",
                            (slug,)).fetchone()

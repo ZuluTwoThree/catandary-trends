@@ -74,7 +74,8 @@ TIER_FILTERS: dict[str, tuple[str, list[str]]] = {
 def load_signals(status: str = "signal,published", vertical: str | None = None,
                  source_like: str | None = None, limit: int = 0,
                  since: str | None = None, until: str | None = None,
-                 dim1024: bool = False, tier: str | None = None) -> list[dict]:
+                 dim1024: bool = False, tier: str | None = None,
+                 mega_trend: str | None = None) -> list[dict]:
     """Load embedded trends joined to their raw entry's published_date.
 
     status: comma list or 'all'. vertical: primary_vertical or None/'ALL' for no
@@ -103,6 +104,12 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     if vertical and vertical.upper() != "ALL":
         where.append("t.primary_vertical = ?")
         params.append(vertical)
+    # Mega-Trend als Scope (2026-08-03): dieselbe Zerlegung eine Ebene höher.
+    # Ein Mega-Trend ist die Klammer, seine Cluster sind die Felder darin —
+    # „Clean Energy Transition" zerfällt in Photovoltaik, Speicher, Netze.
+    if mega_trend:
+        where.append("t.mega_trend = ?")
+        params.append(mega_trend)
     emb_field = "embedding_1024" if dim1024 else "embedding"
     where.append(f"t.{emb_field} IS NOT NULL")
     if source_like:

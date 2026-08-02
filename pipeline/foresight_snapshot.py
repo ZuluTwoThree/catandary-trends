@@ -37,9 +37,25 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 logger = logging.getLogger("foresight_snapshot")
 
 VERTICALS = ["FOOD", "TECH", "HEALTH", "ECO", "DESIGN", "FASHION", "BIZ", "LIFESTYLE"]
+
+
+
 MIN_SIGNALS = 200
 
-DEFAULT_K_RANGE = {"global": (16, 30), "vertical": (8, 16)}
+# Ein Mega-Trend ist enger als eine Vertikale, aber breiter als ein Feld — seine
+# Zerlegung soll die Technologien darin zeigen, nicht seine Unterthemen.
+DEFAULT_K_RANGE = {"global": (16, 30), "vertical": (8, 16), "mega": (6, 12)}
+
+
+def all_mega_trends(min_signals: int = MIN_SIGNALS) -> list[str]:
+    """Alle Mega-Trends mit genug eingebetteten Signalen für einen Lauf."""
+    with get_connection() as conn:
+        return [r["mega_trend"] for r in conn.execute(
+            "SELECT mega_trend, count(*) AS n FROM trends "
+            "WHERE mega_trend IS NOT NULL AND mega_trend <> '' "
+            "AND embedding_1024 IS NOT NULL "
+            "GROUP BY mega_trend HAVING count(*) >= %s ORDER BY count(*) DESC",
+            (min_signals,)).fetchall()]
 
 
 def _centroid_bytes(centroids, idx: int):
@@ -261,15 +277,17 @@ def run_snapshot(scope: str, status: str = "signal,published",
                  noise_weight: bool = False) -> int | None:
     """Cluster one scope and persist the artifacts. Returns run_id or None."""
     vertical = scope.split(":", 1)[1] if scope.startswith("vertical:") else None
+    mega = scope.split(":", 1)[1] if scope.startswith("mega:") else None
     if k_range is None:
-        k_range = DEFAULT_K_RANGE["vertical" if vertical else "global"]
+        k_range = DEFAULT_K_RANGE[
+            "mega" if mega else "vertical" if vertical else "global"]
 
     t0 = time.time()
     # Canonical tier scoping (TIER_FILTERS in the engine): a known tier label
     # scopes the load by itself; an explicit --source-like still overrides.
     from pipeline.foresight import TIER_FILTERS
     tier_scope = tier if (tier in TIER_FILTERS and not source_like) else None
-    rows = load_signals(status=status, vertical=vertical,
+    rows = load_signals(mega_trend=mega, status=status, vertical=vertical,
                         source_like=source_like, limit=limit, dim1024=dim1024,
                         tier=tier_scope)
     logger.info("[%s] %d signals with embedding (status=%s%s%s)", scope, len(rows),
@@ -331,6 +349,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Persist foresight cluster snapshots")
     ap.add_argument("--scope", default=None,
                     help="'global' or 'vertical:<V>' (e.g. vertical:FOOD)")
+    ap.add_argument("--all-megas", action="store_true",
+                    help="jeden Mega-Trend mit genug Signalen als eigenen Scope")
     ap.add_argument("--all-verticals", action="store_true",
                     help="run global + one snapshot per vertical")
     ap.add_argument("--status", default="signal,published")
@@ -353,14 +373,15 @@ def main() -> int:
                     help="down-weight low-pass-rate sources in share/momentum (#2)")
     args = ap.parse_args()
 
-    if not args.scope and not args.all_verticals:
-        ap.error("need --scope or --all-verticals")
+    if not args.scope and not args.all_verticals and not args.all_megas:
+        ap.error("need --scope, --all-verticals or --all-megas")
     k_range = tuple(int(x) for x in args.k_range.split(",")) if args.k_range else None
 
     migrate_foresight_tables()
     scopes = ([args.scope] if args.scope else []) + \
              (["global"] + [f"vertical:{v}" for v in VERTICALS]
-              if args.all_verticals else [])
+              if args.all_verticals else []) + \
+             ([f"mega:{m}" for m in all_mega_trends()] if args.all_megas else [])
     done = 0
     for scope in scopes:
         if args.lineage:

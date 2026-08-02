@@ -132,14 +132,7 @@ export default function RadarSearchHelp() {
             A field normally sits on different horizons per dimension and per
             jurisdiction. That spread is the reading, not an inconsistency.
           </p>
-          <p className="rsh-p">
-            Above the arc these cells are summarised as a{" "}
-            <strong>Technology Readiness Level band</strong> (TRL 1–9) plus a
-            plain-sentence readout. The band is a range, never a point: an exact
-            TRL needs sight of a development programme, and we see a signal field.
-            It is derived from the cells and only reaches TRL 9 where a running
-            trade is evidenced — launch announcements alone stop at 8.
-          </p>
+          
         </section>
 
         {/* 3 — when nothing comes back */}
