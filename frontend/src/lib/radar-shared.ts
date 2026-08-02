@@ -55,6 +55,20 @@ export const DIMENSION_META: Record<string, { label: string; blurb: string }> = 
 
 export const ANY_REGION = "*";
 
+/**
+ * Anzeigename einer Jurisdiktion.
+ *
+ * "GLOBAL" bedeutet seit dem Kalibrierlauf 2026-08-02 nicht mehr "Signale, die
+ * wir nicht verorten konnten" (das waren rund die Hälfte aller Signale und als
+ * Spalte gelesen strategisch wertlos), sondern WELTWEIT: die Vereinigung aller
+ * Signale des Felds. Die Spalte beantwortet damit "gibt es das irgendwo?" neben
+ * "gibt es das hier?" — und das Label muss das sagen, sonst liest der Nutzer
+ * weiter eine Region.
+ */
+export function regionLabel(r: string): string {
+  return r === "GLOBAL" ? "Worldwide" : r;
+}
+
 export interface RadarCell {
   scope_slug: string;
   dimension: string;

@@ -1,0 +1,86 @@
+# Kalibrier-Korpus des Horizont-Radars — 50 Technologiefelder
+#
+# Format:  Begriff | Domäne | reguliert(1/0)
+#
+# Auswahlprinzip: nicht die 50 interessantesten Felder, sondern 50, die den
+# Messbereich AUFSPANNEN. Ein Kalibrierkorpus aus lauter Emerging Tech würde nur
+# beweisen, dass das Radar H3 sagen kann. Deshalb bewusst gemischt:
+#
+#   * Reifegrad     — diffundiert (Li-Ion, Wärmepumpe, EV, mRNA) bis
+#                     vorwettbewerblich (Xenotransplantation, Neuromorphic)
+#   * Regulierung   — Regime vorhanden (Pharma, Novel Food, Nuklear, Luftfahrt)
+#                     vs. keines (Batterien, Chips, Software)
+#   * Jurisdiktions-Spreizung — Felder, die in US und EU nachweislich AUSEINANDER
+#                     liegen (Cultivated Meat, Gentherapie, autonomes Fahren,
+#                     GLP-1) sind die eigentliche Prüfung: ein Radar, das überall
+#                     dasselbe sagt, misst nichts.
+#   * Korpus-Dichte — von ~100 bis ~20.000 Signalen, damit die Schwellen an
+#                     beiden Rändern belastet werden.
+#
+# `reguliert` = eine behördliche Zulassung gattet den Marktzugang tatsächlich.
+# Falsch gesetzt kappt es den Markt (bei 1) oder lässt Blockaden verschwinden
+# (bei 0) — das Feld ist Teil der Prüfung, nicht bloß Konfiguration.
+
+# ---- Energie & Klima ------------------------------------------------------
+lithium ion battery        | ECO    | 0
+solid state battery        | ECO    | 0
+sodium ion battery         | ECO    | 0
+green hydrogen             | ECO    | 0
+direct air capture         | ECO    | 0
+carbon capture storage     | ECO    | 0
+heat pump                  | ECO    | 0
+offshore wind              | ECO    | 0
+perovskite solar cell      | ECO    | 0
+small modular reactor      | ECO    | 1
+sustainable aviation fuel  | ECO    | 1
+grid scale energy storage  | ECO    | 0
+geothermal energy          | ECO    | 0
+agrivoltaics               | ECO    | 0
+
+# ---- Mobilität -----------------------------------------------------------
+electric vehicle           | ECO    | 0
+autonomous driving         | TECH   | 1
+electric aircraft          | TECH   | 1
+hydrogen fuel cell vehicle | ECO    | 0
+
+# ---- Gesundheit & Biotech ------------------------------------------------
+gene therapy               | HEALTH | 1
+mrna vaccine               | HEALTH | 1
+crispr gene editing        | HEALTH | 1
+car t cell therapy         | HEALTH | 1
+glp-1 weight loss drug     | HEALTH | 1
+continuous glucose monitor | HEALTH | 1
+digital therapeutics       | HEALTH | 1
+psychedelic therapy        | HEALTH | 1
+liquid biopsy              | HEALTH | 1
+ai drug discovery          | HEALTH | 0
+organ on a chip            | HEALTH | 0
+xenotransplantation        | HEALTH | 1
+microbiome therapeutics    | HEALTH | 1
+
+# ---- Ernährung -----------------------------------------------------------
+precision fermentation     | FOOD   | 1
+cultivated meat            | FOOD   | 1
+plant based meat           | FOOD   | 0
+vertical farming           | FOOD   | 0
+insect protein             | FOOD   | 1
+mycoprotein                | FOOD   | 1
+
+# ---- Rechnen, Netze, Software --------------------------------------------
+quantum computing          | TECH   | 0
+large language model       | TECH   | 0
+ai inference chip          | TECH   | 0
+neuromorphic computing     | TECH   | 0
+silicon photonics          | TECH   | 0
+homomorphic encryption     | TECH   | 0
+6g network                 | TECH   | 1
+brain computer interface   | TECH   | 1
+humanoid robot             | TECH   | 0
+digital twin               | TECH   | 0
+satellite internet         | TECH   | 1
+
+# ---- Material & Industrie ------------------------------------------------
+green steel                | ECO    | 0
+bioplastics                | ECO    | 1
+additive manufacturing     | DESIGN | 0
+battery recycling          | ECO    | 0

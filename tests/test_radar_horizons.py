@@ -160,8 +160,12 @@ def test_regulatory_cell_ignores_approvals_of_other_jurisdictions():
          "event_date": date(2026, 5, 1), "semantic": True},
     ]
     eu = cell_regulatory(rows, "EU", today)
-    # Die US-Zulassung darf die EU nicht handlungsfähig machen.
-    assert eu["horizon"] == "H3"
+    # Die US-Zulassung darf die EU nicht handlungsfähig machen. Seit der
+    # asymmetrischen Beweislast (2026-08-02) ist die EU-Antwort hier "keine
+    # Aussage" statt H3: EIN Konsultationssignal traegt keine Behauptung ueber
+    # das Fehlen eines Zulassungswegs.
+    assert eu["horizon"] is None
+    assert eu["basis"] == "silent"
     us = cell_regulatory(rows, "US", today)
     # Umgekehrt zählt sie für die USA, obwohl regions=[EU] steht.
     assert us["horizon"] == "H1"
@@ -174,7 +178,8 @@ def test_market_cannot_outrank_regulation_in_regulated_domain():
     market = {"horizon": "H1", "score": 0.9, "method": "gates",
               "rationale": "16 Produktstarts in EU.", "n_signals": 40}
     regulatory = {"horizon": "H3", "score": 0.15, "method": "gates",
-                  "rationale": "Keine Zulassung.", "n_signals": 4}
+                  "rationale": "Zulassung verweigert.", "n_signals": 4,
+                  "basis": "denied"}
     out = couple_market_to_regulation(market, regulatory, "EU")
     assert out["horizon"] == "H3"
     assert "reg_coupled" in out["method"]
@@ -283,11 +288,22 @@ def test_unregulated_absence_is_no_call_not_blocked():
          "title_en": "Panel discusses battery standards roadmap",
          "summary_en": "", "tags": [], "regions": ["US"],
          "event_date": date(2026, 3, 1), "semantic": True}
-        for i in range(4)
+        for i in range(MIN_N_NEGATIVE)
     ]
+    # Damit die Absenz überhaupt lesbar ist, muss das Feld ANDERSWO eine
+    # Zulassung zeigen — sonst ist "keine gefunden" ein Sensor-Ausfall, kein
+    # Befund. Hier: eine EFSA-Zulassung, also EU, während wir US bewerten.
+    elsewhere = {"id": 99, "trend_signal_type": "regulation",
+                 "title_en": "EFSA approves the battery coating additive",
+                 "summary_en": "", "tags": [], "regions": ["EU"],
+                 "event_date": date(2026, 2, 1), "semantic": True}
+    rows = rows + [elsewhere]
     assert cell_regulatory(rows, "US", today, regulated=False)["horizon"] is None
-    # Dieselben Signale in einer regulierten Domäne: Abwesenheit = blockiert.
+    # Dieselben Signale in einer regulierten Domäne: Abwesenheit = blockiert —
+    # aber erst ab MIN_N_NEGATIVE, weil eine negative Aussage teurer ist.
     assert cell_regulatory(rows, "US", today, regulated=True)["horizon"] == "H3"
+    assert cell_regulatory(rows[:MIN_N_NEGATIVE - 1] + [elsewhere], "US", today,
+                           regulated=True)["horizon"] is None
 
 
 def test_unregulated_explicit_bans_still_read_as_headwind():
@@ -299,9 +315,13 @@ def test_unregulated_explicit_bans_still_read_as_headwind():
          "event_date": date(2026, 3, 1), "semantic": True}
         for i in range(3)
     ]
-    cell = cell_regulatory(rows, "US", today, regulated=False)
+    cell = cell_regulatory(rows, "US", today, regulated=False,
+                           field_terms=["batter", "e-bike"])
     assert cell["horizon"] == "H3"
-    assert "headwind" in cell["rationale"]
+    assert "blockade" in cell["rationale"]
+    # Ohne Feldbezug zaehlt ein mehrdeutiges "bans" NICHT — sonst macht ein
+    # Verbot der Konkurrenztechnologie das eigene Feld blockiert.
+    assert cell_regulatory(rows, "US", today, regulated=False)["horizon"] is None
 
 
 def test_adoption_absence_is_no_call_when_market_is_established():
@@ -311,7 +331,7 @@ def test_adoption_absence_is_no_call_when_market_is_established():
         {"id": 1, "trend_signal_type": "market_shift", "title_en": "x",
          "summary_en": "", "tags": ["t"], "regions": ["US"],
          "event_date": date(2026, 1, 1), "semantic": True}
-        for _ in range(5)
+        for _ in range(MIN_N_NEGATIVE)
     ]
     assert cell_adoption(rows, "US", today, market_horizon="H1")["horizon"] is None
     # Ohne etablierten Markt bleibt Abwesenheit eine echte H3-Aussage.
@@ -323,7 +343,9 @@ def test_adoption_absence_is_no_call_when_market_is_established():
 # Kalibrierlauf 2026-08-02, zweite Runde: sechs Suchbegriffe gegen die Realität
 # geprüft (u. a. per Websuche). Vier Fehlaussagen, vier Fixes.
 # --------------------------------------------------------------------------
-from pipeline.radar_horizons import MARKET_PILOT, MIN_N_GRANTED, cell_market, compute_cells
+from pipeline.radar_horizons import (MARKET_PILOT, MIN_N_GRANTED,
+                                     MIN_N_NEGATIVE, cell_market,
+                                     compute_cells)
 
 
 def _reg(title, region="EU", tags=None, day=(2026, 3, 1)):
@@ -349,11 +371,14 @@ def test_explicit_ban_still_counts_as_blockade():
     today = date(2026, 8, 2)
     # Bewusst ohne Verfahrensvokabular: "pending"/"under review" wären ein
     # LAUFENDES Verfahren (H2) und würden die Blockade-Aussage zu Recht schlagen.
-    rows = [_reg("Regulator rejects the dairy analogue outright"),
-            _reg("Member state bans the product from sale")]
-    cell = cell_regulatory(rows, "EU", today, regulated=False)
+    rows = [_reg("Regulator rejects cultivated meat for the retail market"),
+            _reg("Member state bans cultivated meat from sale", day=(2026, 4, 1)),
+            _reg("Second member state prohibits cultivated meat outright",
+                 day=(2026, 5, 1))]
+    cell = cell_regulatory(rows, "EU", today, regulated=False,
+                           field_terms=["cultivated", "meat"])
     assert cell["horizon"] == "H3"
-    assert "headwind" in cell["rationale"]
+    assert "blockade" in cell["rationale"]
 
 
 def test_single_approval_does_not_carry_a_jurisdiction():
@@ -405,3 +430,300 @@ def test_technology_cannot_be_pre_competitive_beside_approvals():
     assert "coherence" in tech["method"]
     # Aber nicht bis H1: Skalen- und Kostenreife bleibt unbelegt.
     assert tech["horizon"] != "H1"
+
+
+# ==========================================================================
+# Kalibrierlauf 2026-08-02, dritte Runde: 52 Technologiefelder, sieben
+# Fach-Scouts mit Websuche. ~340 geprüfte Zellen, 150+ belegte Fehlaussagen.
+# Die Scouts fanden UNABHÄNGIG VONEINANDER dieselben Mechanismen; jeder Test
+# hier fixiert einen davon, nicht den Einzelfall.
+# ==========================================================================
+from pipeline.radar_horizons import (  # noqa: E402
+    ANCHOR_MIN_CONTAINMENT, ESSAY_TITLE, MIN_N_NEGATIVE, MIN_N_REGULATORY,
+    REG_COVERAGE_SHARE,
+    WORLD, blockade_match, dedupe_events, field_terms_of, in_jurisdiction,
+    mentions_field, reg_subtype,
+)
+
+
+class _NoCpc:
+    """cell_technology fragt den CPC-Anker ab; hier gibt es keinen."""
+    def execute(self, *a, **k):
+        return self
+    def fetchone(self):
+        return None
+
+
+def _sig(title, typ="product_launch", region="US", day=(2026, 3, 1), tags=("t",)):
+    return {"id": abs(hash(title)) % 10**7, "trend_signal_type": typ,
+            "title_en": title, "summary_en": "", "tags": list(tags),
+            "regions": [region], "event_date": date(*day), "semantic": True}
+
+
+# -- 1. Schweigen ist kein Befund ------------------------------------------
+def test_unmatched_regulation_signal_is_other_not_forming():
+    """Der folgenschwerste Fehler: 'forming' war der DEFAULT-Rückgabewert, also
+    die Antwort auf 'kein Muster hat gegriffen'. Korpusweit fielen 92,6 % aller
+    Regulatorik-Signale in einen Eimer, dessen Bedeutung 'der Zulassungsweg wird
+    erst gebaut' ist."""
+    assert reg_subtype(_sig("Gene therapy makers wonder if they can make a "
+                            "profit in Europe", "regulation", tags=[])) == "other"
+    assert reg_subtype(_sig("Uniqure hemophilia B programme on hold after a "
+                            "patient cancer diagnosis", "regulation",
+                            tags=[])) == "other"
+    # Ein echtes Pfad-Signal bleibt 'forming'.
+    assert reg_subtype(_sig("EU opens a public consultation on the novel food "
+                            "pathway", "regulation", tags=[])) == "forming"
+
+
+def test_negative_calls_need_more_evidence_than_positive_ones():
+    """Alle sieben Scouts fanden dasselbe: das Radar verweigerte die Aussage bei
+    n=2 und behauptete 'kein Weg zum Markt' bei n=3. Eine positive Aussage stützt
+    sich auf einen gefundenen Beleg, eine negative darauf, dass einer gefunden
+    worden WÄRE."""
+    assert MIN_N_NEGATIVE > MIN_N_REGULATORY
+    assert MIN_N_NEGATIVE > MIN_N_GRANTED
+
+
+def test_absence_is_never_a_call_in_a_thinly_covered_jurisdiction():
+    """Gemessen: 93,4 % der zuordenbaren Zulassungen sind US-amerikanisch, 4,1 %
+    europäisch. 'Keine EU-Zulassung gefunden' ist damit fast immer eine Aussage
+    über unsere Quellen. Die Scouts fanden diese Fehlaussage für mRNA-Impfstoffe,
+    CAR-T, Gentherapie, Insektenprotein und Mycoprotein — alle in der EU
+    zugelassen."""
+    today = date(2026, 8, 2)
+    rows = [_sig(f"EU debates the approval framework, part {i}", "regulation",
+                 region="EU", tags=[]) for i in range(MIN_N_NEGATIVE + 2)]
+    rows.append(_sig("FDA approves the therapy", "regulation", region="US"))
+    cell = cell_regulatory(rows, "EU", today, regulated=True)
+    assert cell["horizon"] is None
+    assert cell["basis"] == "uncovered"
+    assert REG_COVERAGE_SHARE["EU"] < REG_COVERAGE_SHARE["US"]
+
+
+def test_absence_needs_an_approval_visible_somewhere_in_the_field():
+    """SAF wird von einer bindenden EU-Beimischungsquote und elf ASTM-Pfaden
+    getragen, von denen keiner als 'Zulassung' formuliert ist. Findet sich für
+    ein Feld NIRGENDS eine Zulassung, ist der Erkenner blind — nicht der Weg
+    versperrt."""
+    today = date(2026, 8, 2)
+    rows = [_sig(f"US opens a consultation on the blending mandate ({i})",
+                 "regulation", tags=[]) for i in range(MIN_N_NEGATIVE + 2)]
+    cell = cell_regulatory(rows, "US", today, regulated=True)
+    assert cell["horizon"] is None
+    assert cell["basis"] == "unreadable"
+
+
+# -- 2. Vorzeichen und Stadium ---------------------------------------------
+def test_a_rejection_is_not_an_approval():
+    """Psychedelika standen auf 'H1, 5 approvals since 2023 — clear to act'; drei
+    der vier Belege meldeten ABLEHNUNGEN. Ursache war der Tag-Pfad: bei einer
+    Ablehnungsmeldung vergibt die Klassifikation plausibel 'fda approval'."""
+    assert reg_subtype(_sig("FDA rejects MDMA-assisted therapy for PTSD",
+                            "regulation", tags=["fda approval"])) == "denied"
+    assert reg_subtype(_sig("Agency issues a complete response letter",
+                            "regulation", tags=["drug approval"])) == "denied"
+
+
+def test_permission_to_study_is_not_permission_to_sell():
+    """'FDA approves first xenotransplantation clinical trial' hob ein Feld ohne
+    einzige Marktzulassung auf 'clear to act'."""
+    assert reg_subtype(_sig("FDA approves first xenotransplantation clinical trial",
+                            "regulation")) == "trial"
+    assert reg_subtype(_sig("FDA approves Paradromics' brain-computer interface "
+                            "trial for speech restoration", "regulation")) == "trial"
+    assert reg_subtype(_sig("Neuralink receives FDA approval to implant and test "
+                            "its device in people", "regulation")) == "trial"
+
+
+def test_a_tag_alone_never_carries_an_approval():
+    """Der Tag darf nur stützen, was der Text als Entscheidung meldet."""
+    assert reg_subtype(_sig("The clinical threshold of neural integration",
+                            "regulation", tags=["fda approval"])) != "granted"
+
+
+def test_an_approval_counts_whatever_stage_3_typed_it():
+    """Die beiden FDA-Zulassungen für orales Wegovy liegen im Korpus als
+    `product_launch`; die Regulatorik-Zelle sah sie nie und meldete für den
+    größten Medikamentenstart der Geschichte 'kein Zulassungsweg in den USA'."""
+    today = date(2026, 8, 2)
+    rows = [_sig("FDA approves oral Wegovy for chronic weight management",
+                 "product_launch"),
+            _sig("FDA approves orforglipron, the first oral GLP-1 pill",
+                 "product_launch", day=(2026, 4, 1))]
+    cell = cell_regulatory(rows, "US", today, regulated=True,
+                           field_terms=["wegovy", "glp", "oral"])
+    assert cell["horizon"] == "H1"
+
+
+# -- 3. Objektbezug einer Blockade -----------------------------------------
+def test_a_ban_on_the_rival_technology_is_not_a_headwind():
+    """'EU formally bans sale of gas and diesel cars from 2035' zählte als
+    regulatorischer Gegenwind GEGEN Elektroautos — es ist der stärkste denkbare
+    Rückenwind."""
+    txt = "EU formally bans sale of gas and diesel cars from 2035"
+    assert blockade_match(txt, ["electric", "vehicle"]) is None
+    assert blockade_match("Italy bans cultivated meat production and sale",
+                          ["cultivated", "meat"]) is not None
+
+
+def test_an_unrelated_ban_never_counts():
+    assert blockade_match("Norway suspends Arctic seabed mining operations",
+                          ["battery", "lithium"]) is None
+    assert blockade_match("eBay announces ban on private sales of electric bicycles",
+                          ["vehicle", "electric car"]) is None
+
+
+# -- 4. Der Scope muss das Feld auch nennen --------------------------------
+def test_signals_that_never_mention_the_field_do_not_count():
+    """'CIRANDA Announces Two New Baking Chips' trug die Marktzelle von 'organ on
+    a chip'; 'Ponnath Secures Organic Pork Supply via Vertical Integration' die
+    von 'vertical farming'."""
+    terms = field_terms_of("cultivated meat")
+    assert not mentions_field(_sig("Nvidia unveils a new inference accelerator"),
+                              terms)
+    assert mentions_field(_sig("Mosa Meat files its EU novel food dossier"), terms)
+    # Bewusste Grenze: ein einzelner Begriff genügt, damit Zulassungsmeldungen
+    # nicht verloren gehen, die das Feld nur mit einem Wort nennen. Homonyme
+    # ("chip") bleiben damit drin — das loest erst die Teilfeld-Zerlegung.
+
+
+# -- 5. Meinungsstücke sind keine Produktstarts ----------------------------
+def test_commentary_is_not_a_product_launch():
+    """Sodium-Ion stand in den USA auf H1 wegen '9 commercial product launches',
+    deren sichtbare Belege null Produkteinführungen enthielten."""
+    for t in ["The Sodium Shift: Why Lithium's Reign May End",
+              "The Solid-State Illusion",
+              "Beyond Lithium: Rethinking Grid Storage",
+              "The Decoupling of Decarbonization: Why Heat Pump Financing Matters"]:
+        assert ESSAY_TITLE.search(t), t
+    for t in ["CATL launches its first sodium-ion battery pack",
+              "Dexcom Stelo now available over the counter"]:
+        assert not ESSAY_TITLE.search(t), t
+
+
+# -- 6. Ein Ereignis, drei Meldungen ---------------------------------------
+def test_the_same_event_counts_once():
+    """'3 approvals since 2024' für Mycoprotein/US war EIN GRAS-Bescheid,
+    berichtet von drei Fachmedien."""
+    rows = [_sig("Better Meat Co secures FDA GRAS letter for mycoprotein",
+                 day=(2026, 3, 1)),
+            _sig("Better Meat Co wins FDA GRAS status for its mycoprotein",
+                 day=(2026, 3, 3)),
+            _sig("FDA grants Better Meat Co GRAS clearance for mycoprotein",
+                 day=(2026, 3, 5))]
+    assert len(dedupe_events(rows)) == 1
+    # Zwei echte, verschiedene Ereignisse bleiben zwei.
+    assert len(dedupe_events([rows[0], _sig("Onego Bio receives GRAS letter for "
+                                            "animal-free egg protein")])) == 2
+
+
+# -- 7. Ein etablierter Markt hört auf, sich anzukündigen -------------------
+def test_running_trade_reaches_h1_without_launch_events():
+    """Guardants Bluttest (>1 Mrd. $ Umsatz), NatureWorks' PLA-Werk (seit 2002)
+    und Starlink (12 Mio. Kunden) galten als 'nicht am Markt', weil ihre
+    Markteinführung vor dem Fenster lag."""
+    today = date(2026, 8, 2)
+    rows = [_sig("Guardant reports 982 million dollars of assay revenue",
+                 "market_shift"),
+            _sig("Natera runs 770,000 clinical MRD tests in the year",
+                 "market_shift", day=(2026, 4, 1)),
+            _sig("Medicare sets reimbursement at 1,495 dollars per test",
+                 "market_shift", day=(2026, 5, 1)),
+            _sig("Installed base passes 3.5 million users", "consumer_behavior",
+                 day=(2026, 6, 1))]
+    cell = cell_market(rows, "US", today)
+    assert cell["horizon"] == "H1"
+    assert cell["basis"] == "trading"
+
+
+def test_market_absence_is_no_call_when_the_field_sells_elsewhere():
+    """mRNA-Impfstoffe und CAR-T standen auf 'kein Markt in der EU'."""
+    today = date(2026, 8, 2)
+    rows = ([_sig(f"US retail rollout continues ({i})") for i in range(6)]
+            + [_sig(f"EU regulatory commentary ({i})", "market_shift", region="EU")
+               for i in range(MIN_N_NEGATIVE + 1)])
+    cells = compute_cells(_NoCpc(), rows, regions=["US", "EU"], today=today)
+    eu = [c for c in cells if c["dimension"] == "market" and c["region"] == "EU"][0]
+    assert eu["horizon"] is None
+    assert eu["basis"] == "unconfirmed"
+
+
+def test_market_is_silent_when_the_field_has_no_launch_signal_at_all():
+    """Für mRNA-Impfstoffe, CAR-T, Silicon Photonics und neuromorphes Rechnen
+    enthält der Korpus null Produktmeldungen — in keinem Jahr, in keiner Region.
+    Dann misst die Dimension nichts."""
+    today = date(2026, 8, 2)
+    rows = [_sig(f"Research advances again ({i})", "research")
+            for i in range(MIN_N_NEGATIVE + 3)]
+    cell = cell_market(rows, "US", today)
+    assert cell["horizon"] is None
+    assert cell["basis"] == "blind"
+
+
+# -- 8. Nachfrage ist nicht nur die Verbraucherstimme ----------------------
+def test_procurement_counts_as_demand():
+    """Nachfrage nach Netzspeichern, Offshore-Wind oder SMR erscheint als
+    Auktion, Abnahmevertrag oder Erstattungsentscheid — vier Felder mit
+    veröffentlichten Zuschlagspreisen standen auf 'demand unevidenced'."""
+    today = date(2026, 8, 2)
+    rows = [_sig("Italy's storage auction clears 10 GWh at a set price",
+                 "market_shift"),
+            _sig("Google signs a 500 MW offtake contract for the reactor",
+                 "partnership", day=(2026, 4, 1)),
+            _sig("Utility procurement adds 24 GW of orders", "market_shift",
+                 day=(2026, 5, 1))]
+    cell = cell_adoption(rows, "US", today)
+    assert cell["horizon"] == "H1"
+
+
+# -- 9. Der Patentanker darf nicht die Reife seiner Oberklasse vererben ----
+def test_anchor_containment_threshold_separates_class_from_field():
+    """G06N (maschinelles Lernen insgesamt) verankerte gleichzeitig Large Language
+    Models, neuromorphes Rechnen UND Brain-Computer-Interfaces und vererbte allen
+    dreien seinen Markt-Takeoff 2023. Gemessenes Containment: B33Y/Additive
+    Manufacturing 0,205 gegen G06N/BCI 0,014."""
+    assert 0.014 < ANCHOR_MIN_CONTAINMENT < 0.205
+    assert ANCHOR_MIN_CONTAINMENT > 0.035   # G06N/neuromorphic
+    assert ANCHOR_MIN_CONTAINMENT < 0.101   # H10K/Perowskit
+
+
+# -- 10. Die Weltspalte ist eine Frage, kein Restposten --------------------
+def test_world_column_is_the_union_not_the_unlocatable_rest():
+    """'GLOBAL' war das Etikett für Artikel ohne Geografie — 49-56 % aller
+    Signale. Als Spalte gelesen beantwortete sie 'was steht in dem, was wir nicht
+    verorten konnten?'. Jetzt heißt sie: gibt es das irgendwo?"""
+    row = _sig("A launch in Japan", region="APAC")
+    assert in_jurisdiction(row, WORLD)
+    assert not in_jurisdiction(row, "US")
+
+
+def test_world_regulatory_counts_an_approval_from_any_authority():
+    today = date(2026, 8, 2)
+    rows = [_sig("Singapore Food Agency approves the cultivated product",
+                 "regulation", region="APAC"),
+            _sig("FDA approves the cultivated product", "regulation",
+                 region="US", day=(2026, 4, 1))]
+    assert cell_regulatory(rows, WORLD, today)["horizon"] == "H1"
+
+
+# -- 11. Kopplung darf beobachteten Handel nicht überschreiben -------------
+def test_coupling_does_not_fire_on_an_absence_derived_regulatory_call():
+    """SAF/US las wörtlich: '7 commercial product launches — on the market.
+    Capped at H3 …' — das Radar hatte die richtige Antwort, erkannte den
+    Widerspruch und löste ihn zugunsten des schwächeren Schlusses auf."""
+    market = {"horizon": "H1", "score": 0.9, "method": "gates",
+              "rationale": "7 launches.", "n_signals": 40, "basis": "commercial"}
+    for weak in ("absence", "silent", "uncovered", None):
+        reg = {"horizon": "H3", "score": 0.15, "method": "gates",
+               "rationale": "nichts gefunden", "n_signals": 6, "basis": weak}
+        assert couple_market_to_regulation(market, reg, "EU")["horizon"] == "H1"
+
+
+def test_coupling_still_fires_on_a_positively_identified_blockade():
+    market = {"horizon": "H1", "score": 0.9, "method": "gates",
+              "rationale": "x", "n_signals": 40, "basis": "commercial"}
+    reg = {"horizon": "H3", "score": 0.15, "method": "gates",
+           "rationale": "Italien verbietet den Verkauf.", "n_signals": 6,
+           "basis": "blockade"}
+    assert couple_market_to_regulation(market, reg, "EU")["horizon"] == "H3"

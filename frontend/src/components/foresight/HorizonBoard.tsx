@@ -9,6 +9,7 @@ import {
   type Horizon,
   type RadarCell,
   type RadarView,
+  regionLabel,
 } from "@/lib/radar-shared";
 import HorizonArc from "./HorizonArc";
 
@@ -99,7 +100,7 @@ export default function HorizonBoard({
               onClick={() => setRegion(r)}
               aria-pressed={region === r}
             >
-              {r}
+              {regionLabel(r)}
             </button>
           ))}
         </div>
@@ -121,7 +122,7 @@ export default function HorizonBoard({
             <div className="hb-scroll">
               <table className="hb-table">
                 <caption className="sr-only">
-                  Horizon per technology field and dimension for {region}
+                  Horizon per technology field and dimension for {regionLabel(region)}
                 </caption>
                 <thead>
                   <tr>
@@ -218,7 +219,7 @@ export default function HorizonBoard({
                   {selStyle.short} · {selStyle.label}
                 </span>
                 <span className="hb-read-region">
-                  {selCell.region === ANY_REGION ? "all jurisdictions" : region}
+                  {selCell.region === ANY_REGION ? "all jurisdictions" : regionLabel(region)}
                 </span>
               </div>
               <h3 className="hb-read-title">{selScope.label}</h3>
