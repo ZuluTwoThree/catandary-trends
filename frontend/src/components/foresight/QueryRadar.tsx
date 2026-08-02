@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import HorizonBoard from "./HorizonBoard";
+import RadarSearchHelp from "./RadarSearchHelp";
 import type { RadarView } from "@/lib/radar-shared";
 import {
   Q_MAX,
@@ -129,6 +130,7 @@ export default function QueryRadar({
       </form>
 
       <div className="qr-opts">
+        <RadarSearchHelp />
         <button
           className={`qr-opt ${dim === "pestel" ? "is-on" : ""}`}
           onClick={() => commit({ dim: dim === "pestel" ? "strategic" : "pestel" })}
