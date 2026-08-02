@@ -53,6 +53,14 @@ export const DIMENSION_META: Record<string, { label: string; blurb: string }> = 
   },
 };
 
+export interface FieldCheck {
+  is_field: boolean;
+  vertical_focus: number;
+  vertical_focus2: number;
+  patent_share: number;
+  note: string | null;
+}
+
 export const ANY_REGION = "*";
 
 /**
@@ -103,6 +111,13 @@ export interface RadarView {
   config: RadarConfigMeta;
   /** Set only on on-demand query radars (compute_query_radar) — never persisted. */
   origin?: { kind: "query"; query: string; field_signals?: Record<string, number> };
+  /**
+   * Nur bei On-Demand-Query-Radaren: misst, ob die Query überhaupt ein
+   * Technologiefeld beschreibt. Ist `is_field` falsch, sind die Horizonte eine
+   * Aussage über den Sprachgebrauch der Presse, nicht über Reife — der
+   * Zufallszug 2026-08-02 zeigte "cost reduction" mit H1 in jeder Zelle.
+   */
+  field_check?: FieldCheck | null;
   /** Resolved evidence titles, shipped with query radars so the client never refetches. */
   evidence?: Record<
     number | string,

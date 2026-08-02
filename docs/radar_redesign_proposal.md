@@ -729,3 +729,85 @@ fängt neben Wellenkraft auch „a wave of energy investment". Das ist die
 Scope-Qualität einer generischen Phrase, kein Fehler der Einordnung; das
 Hilfe-Panel warnt bereits vor abstrakten Begriffen, und die Teilfeld-Zerlegung
 (Schnitt 2) ist der eigentliche Hebel dagegen.
+
+---
+
+## 9. Zufallszug 2026-08-02: was eine unvoreingenommene Stichprobe findet
+
+Die 52 Kalibrierfelder hatte ich ausgewählt — also konnte der Test nur finden,
+womit ich gerechnet hatte. Deshalb ein zweiter Durchgang **ohne jede
+Vorauswahl**: 50 Begriffe, gleichverteilt gezogen aus den **7.037
+Pipeline-Tags** mit mindestens 60 Signalen, Seed 20260802, ohne Bereinigung
+(`data/radar_random50.md`).
+
+Der Zug traf, was in einem Nachrichtenkorpus eben überwiegt: Querschnittsthemen
+und Signalgattungen statt Technologien — „equity", „disruption", „licensing",
+„market research", „deutschland", „venice biennale", „nsf grant".
+
+### 9.1 Was gut lief
+
+Die Dimensionslogik hielt der fremden Stichprobe stand:
+
+- `it infrastructure` (26.018 Signale) korrekt als **zu breit** abgewiesen.
+- `viral replication`, `metabolic engineering`, `antiviral mechanisms`,
+  `nsf grant` — **durchgehend „keine Aussage"**. Forschungsthemen ohne Markt;
+  genau das Richtige.
+- `tissue engineering`, `anaerobic digestion`, `optical technology`, `e-bike`:
+  plausible, differenzierte Einordnungen.
+
+### 9.2 Was der Zufall aufdeckte — und die Auswahl nicht konnte
+
+**Das Radar platzierte Querschnittsthemen bereitwillig, als wären sie
+Technologien.** `cost reduction` stand in **jeder** Zelle auf H1, `disruption`
+und `user interaction` fast durchgehend. Das ist die schädlichste denkbare
+Ausgabe, weil sie nach einer Aussage aussieht: Wer „digital transformation"
+eintippt, bekommt ein vollständig grünes Radar, das nichts bedeutet.
+
+Das Hilfe-Panel *warnte* zwar vor abstrakten Begriffen — die Engine *prüfte* es
+aber nicht. Eine Warnung, die nur der Text kennt, ist keine.
+
+### 9.3 Die Feld-Prüfung
+
+Zwei **unabhängige** Eigenschaften eines echten Technologiefelds, beide messbar:
+
+1. **Branchenfokus.** Ein Feld lebt in ein bis zwei Vertikalen, ein Thema in
+   allen. Gezählt werden die zwei größten, nicht die größte — echte Felder sind
+   oft zweivertikal (Elektroautos ECO+TECH 0,87; grüner Wasserstoff ECO+BIZ
+   0,97), während Themen auch darüber hinaus streuen (`cost reduction` 0,61).
+2. **Patentabbildung.** Für Technologien gibt es CPC-Klassen, für „Diversität"
+   nicht.
+
+Einzeln trennt keine sauber — Offshore-Wind ist scharf fokussiert (0,98) und
+schlecht patentabgebildet (0,12), `climate science` umgekehrt. Zusammen schon:
+
+```
+is_field =  focus2 >= 0.85                       # zwei Branchen tragen es allein
+         or patent >= 0.70                       # oder die Patente tragen es
+         or (focus1 >= 0.50 and patent >= 0.30)  # oder beide zusammen
+```
+
+| Korpus | als „kein Feld" markiert |
+|---|---|
+| 52 kuratierte Technologiefelder | **0** — kein einziger Fehlalarm |
+| 50 zufällige Pipeline-Tags | **21 von 49** |
+
+Die 21 sind durchweg richtig getroffen: cost reduction, disruption, diversity,
+equity, licensing, market research, marketing strategy, business ethics,
+community building, deutschland, revenue decline, public finance, tech failure,
+digital content, data access, cultural branding, housing affordability, gender
+equality, public private partnership, sustainable agriculture, ai in travel.
+
+**Kein hartes Verbot, sondern eine Ansage.** Das Radar wird gebaut und
+angezeigt, aber mit einem sichtbaren Hinweis darüber: *„This reads as a
+cross-cutting theme rather than a technology field … expect the horizons to look
+uniformly positive and to mean little."* Ein Nutzer darf jede Query stellen; er
+darf nur nicht getäuscht werden, was die Antwort bedeutet.
+
+### 9.4 Grenze der Methode
+
+Der Test misst **Streuung**, nicht **Kategorie**. Begriffe, die scharf in einer
+Branche liegen, ohne Technologiefelder zu sein — `venice biennale`, `nsf grant`,
+`inflation reduction act`, `clinical trials` — bestehen ihn. In der Praxis
+mildert das die Schweige-Disziplin ab: `nsf grant` etwa liefert ohnehin in jeder
+Zelle „keine Aussage". Ein Kategorien-Test bräuchte eine gepflegte Ontologie,
+kein weiteres statistisches Maß.

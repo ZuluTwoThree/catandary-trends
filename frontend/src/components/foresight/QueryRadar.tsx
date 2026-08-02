@@ -180,6 +180,13 @@ export default function QueryRadar({
         </div>
       )}
 
+      {view && !loading && view.field_check && !view.field_check.is_field && (
+        <div className="qr-warn" role="note">
+          <p className="qr-warn-h">Not a technology field</p>
+          <p className="qr-warn-b">{view.field_check.note}</p>
+        </div>
+      )}
+
       {view && !loading && <HorizonBoard view={view} evidence={view.evidence ?? {}} />}
 
       <style>{`
@@ -198,6 +205,9 @@ export default function QueryRadar({
         .qr-status { margin: 1.2rem 0; font-family: var(--font-mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--color-accent); }
         .qr-err { margin: 1.4rem 0; border-left: 2px solid var(--color-border); padding-left: .9rem; }
         .qr-err-h { font-family: var(--font-mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--color-paper); margin: 0 0 .35rem; }
+        .qr-warn { margin: 1.4rem 0; border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent); border-left-width: 2px; padding: .8rem .9rem; background: color-mix(in srgb, var(--color-accent) 5%, transparent); }
+        .qr-warn-h { font-family: var(--font-mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--color-accent); margin: 0 0 .35rem; }
+        .qr-warn-b { font-size: .85rem; color: var(--color-text); margin: 0; max-width: 52em; line-height: 1.6; }
         .qr-err-b { font-size: .88rem; color: var(--color-muted); margin: 0; max-width: 48em; line-height: 1.55; }
       `}</style>
     </div>

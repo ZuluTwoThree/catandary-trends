@@ -91,7 +91,8 @@ def run_term(conn, spec: dict, regions: list[str], today: date) -> dict:
             ],
         })
     return {**spec, "status": "ok", "n_signals": view["n_signals"],
-            "seconds": round(time.time() - t0, 2), "cells": cells}
+            "seconds": round(time.time() - t0, 2), "cells": cells,
+            "field_check": view.get("field_check") or {}}
 
 
 GRID_DIMS = ("technology", "regulatory", "market", "adoption")
@@ -113,6 +114,8 @@ def to_markdown(results: list[dict], regions: list[str]) -> str:
             continue
         by = {(c["dimension"], c["region"]): c for c in r["cells"]}
         tech = by.get(("technology", "*"), {}).get("horizon") or "—"
+        if not (r.get("field_check") or {}).get("is_field", True):
+            tech = "*kein Feld*"
         cols = [tech]
         for reg in regions:
             for dim in ("regulatory", "market", "adoption"):

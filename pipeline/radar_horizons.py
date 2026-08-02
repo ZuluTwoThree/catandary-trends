@@ -1980,6 +1980,75 @@ def compute_cells(conn, rows: list[dict], *, regions: list[str],
     return out
 
 
+# Ist die Query überhaupt ein FELD?
+#
+# Der Zufallszug vom 2026-08-02 (50 Felder gleichverteilt aus 7.037 Pipeline-Tags)
+# traf überwiegend Querschnittsthemen und Signalgattungen statt Technologien —
+# und das Radar platzierte sie bereitwillig: „cost reduction" stand in JEDER
+# Zelle auf H1, „disruption" und „user interaction" fast durchgehend. Ein Nutzer,
+# der „digital transformation" eintippt, bekommt ein durchgehend grünes Radar,
+# das nichts bedeutet. Das ist die schädlichste Ausgabe überhaupt, weil sie nach
+# einer Aussage aussieht.
+#
+# Zwei UNABHÄNGIGE Eigenschaften eines echten Felds, beide gemessen:
+#   * Branchenfokus — ein Feld lebt in einer Vertikalen, ein Thema in allen
+#   * Patentabbildung — für Technologien gibt es Patentklassen, für „Diversität"
+#     nicht
+#
+# Einzeln trennt keine sauber (Offshore-Wind ist hoch fokussiert, aber schlecht
+# patentabgebildet: 0,89/0,12), zusammen schon. Gemessen an 15 echten Feldern
+# und 12 abstrakten Themen: alle 15 echten bestehen, 10 von 12 abstrakten fallen
+# durch. Die zwei Durchrutscher — „fashion design", „user interaction" — sind
+# echte Gestaltungsdisziplinen und damit Grenzfälle, keine Fehlurteile.
+# Der Branchenfokus zählt die ZWEI größten Vertikalen, nicht die größte. Echte
+# Felder sind oft zweivertikal — Elektroautos leben in ECO und TECH (0,65 / 0,87),
+# grüner Wasserstoff in ECO und BIZ (0,49 / 0,97) —, Querschnittsthemen dagegen
+# streuen auch über zwei hinaus (cost reduction 0,38 / 0,61).
+FIELD_FOCUS2_MIN = 0.85   # zwei Branchen tragen das Feld allein
+FIELD_PATENT_STRONG = 0.70  # oder die Patentabbildung trägt es allein
+FIELD_FOCUS1_MIN = 0.50   # sonst müssen Fokus und Patente zusammen tragen
+FIELD_PATENT_MIN = 0.30
+
+
+def field_coherence(conn, rows: list[dict]) -> dict:
+    """Misst, ob eine Treffermenge ein Technologiefeld beschreibt oder ein Thema."""
+    vc: dict[str, int] = {}
+    for r in rows:
+        v = r.get("primary_vertical")
+        if v:
+            vc[v] = vc.get(v, 0) + 1
+    tot = sum(vc.values())
+    ranked = sorted(vc.values(), reverse=True)
+    focus = ranked[0] / tot if tot else 0.0
+    focus2 = sum(ranked[:2]) / tot if tot else 0.0
+
+    patent = 0.0
+    ids = [r["id"] for r in rows]
+    if ids and conn is not None:
+        row = conn.execute(
+            "SELECT count(DISTINCT trend_id) AS c FROM signal_cpc "
+            "WHERE trend_id = ANY(%s) AND dist < 0.55", (ids,)
+        ).fetchone()
+        patent = (row["c"] / len(ids)) if row else 0.0
+
+    is_field = (focus2 >= FIELD_FOCUS2_MIN
+                or patent >= FIELD_PATENT_STRONG
+                or (focus >= FIELD_FOCUS1_MIN and patent >= FIELD_PATENT_MIN))
+    note = None
+    if not is_field:
+        note = (
+            "This reads as a cross-cutting theme rather than a technology field: "
+            f"its signals spread across industries (the two largest account for "
+            f"{focus2:.0%}) and only {patent:.0%} map to a patent class. The "
+            "horizons below then describe how the phrase is used in the press, not "
+            "the maturity of a technology — expect them to look uniformly positive "
+            "and to mean little. Name a concrete technology, material or process "
+            "for a reading you can act on."
+        )
+    return {"vertical_focus": round(focus, 3), "vertical_focus2": round(focus2, 3),
+            "patent_share": round(patent, 3), "is_field": is_field, "note": note}
+
+
 def compute_query_radar(conn, query: str, subfields: list[dict] | None = None, *,
                         regions: list[str] | None = None,
                         dimension_set: str = "strategic",
@@ -2059,7 +2128,12 @@ def compute_query_radar(conn, query: str, subfields: list[dict] | None = None, *
              else ["technology", "regulatory", "market", "adoption"])
     dims = [d for d in order if any(c["dimension"] == d for c in cells_out)]
 
+    # Feld-Prüfung über die Vereinigung aller Teilfeld-Treffer.
+    all_rows = load_query_signals(conn, query)
+    field_check = field_coherence(conn, all_rows)
+
     return {
+        "field_check": field_check,
         "config": {
             "slug": "__query__",
             "name": name or query,
