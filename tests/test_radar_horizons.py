@@ -64,9 +64,13 @@ def test_reg_subtype_granted_on_real_approvals():
     assert reg_subtype(_row(
         "Remilk's Precision Fermentation Dairy Is the Second to Earn U.S. GRAS Status",
         ["gras_status"])) == "granted"
+    # Seit 2026-08-02 NICHT mehr 'granted': eine Freigabe für Hundefutter räumt
+    # den Lebensmittelpfad nicht frei. Genau diese Verwechslung setzte die
+    # EU-Zelle von Cultivated Meat auf "clear to act" (Bene Meat, Eintrag im
+    # Futtermittel-Katalog).
     assert reg_subtype(_row(
         "FDA Clears Precision Fermentation Lamb Protein for Dog Food",
-        ["regulatory_approval"])) == "granted"
+        ["regulatory_approval"])) == "other"
     assert reg_subtype(_row(
         "Onego Bio Receives FDA “No Questions” Letter for Egg Protein")) == "granted"
 
@@ -298,12 +302,21 @@ def test_unregulated_absence_is_no_call_not_blocked():
                  "summary_en": "", "tags": [], "regions": ["EU"],
                  "event_date": date(2026, 2, 1), "semantic": True}
     rows = rows + [elsewhere]
+    # Seit der zweiten Prüfrunde gilt das UNABHÄNGIG vom Regulierungs-Schalter:
+    # die Absenz-H3 ist ersatzlos gestrichen. Sie lag in jedem geprüften Fall
+    # falsch, weil Zulassungen oft nachrangig erteilt werden (Bundesstaat,
+    # Notified Body, Norm) oder älter sind als das Nachrichtenfenster. H3 setzt
+    # nur noch ein positiv festgestelltes Hindernis.
     assert cell_regulatory(rows, "US", today, regulated=False)["horizon"] is None
-    # Dieselben Signale in einer regulierten Domäne: Abwesenheit = blockiert —
-    # aber erst ab MIN_N_NEGATIVE, weil eine negative Aussage teurer ist.
-    assert cell_regulatory(rows, "US", today, regulated=True)["horizon"] == "H3"
-    assert cell_regulatory(rows[:MIN_N_NEGATIVE - 1] + [elsewhere], "US", today,
-                           regulated=True)["horizon"] is None
+    assert cell_regulatory(rows, "US", today, regulated=True)["horizon"] is None
+    # Mit einem echten Hindernis sagt dieselbe Zelle sehr wohl H3.
+    blocked = rows + [
+        {"id": 500 + i, "trend_signal_type": "regulation",
+         "title_en": "State bans the battery chemistry from sale outright",
+         "summary_en": "", "tags": [], "regions": ["US"],
+         "event_date": date(2026, 3, 1), "semantic": True} for i in range(3)]
+    assert cell_regulatory(blocked, "US", today, regulated=True,
+                           field_terms=["battery", "chemistry"])["horizon"] == "H3"
 
 
 def test_unregulated_explicit_bans_still_read_as_headwind():
@@ -388,7 +401,12 @@ def test_single_approval_does_not_carry_a_jurisdiction():
     berichtet."""
     today = date(2026, 8, 2)
     noise = [_reg(f"EU consultation round {i} on the framework") for i in range(8)]
-    one = [_reg("Bene Meat Receives First-Ever EU Approval for Pet Food",
+    # Das Tierfutter-Signal zählt inzwischen GAR NICHT mehr — anderer
+    # Regulierungspfad. Für die Schwellen-Aussage hier ein Signal auf dem
+    # richtigen Pfad, das aber allein bleibt.
+    assert reg_subtype(_reg("Bene Meat Receives First-Ever EU Approval for Pet Food",
+                            tags=["regulatory_approval"])) == "other"
+    one = [_reg("EFSA authorises the novel food for sale",
                 tags=["regulatory_approval"])]
     assert cell_regulatory(noise + one, "EU", today)["horizon"] != "H1"
     two = one + [_reg("Second firm secures EU approval for the same process",

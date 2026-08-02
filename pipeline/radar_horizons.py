@@ -219,6 +219,19 @@ BLOCKADE_WINDOW = 80   # Zeichen links und rechts der Blockade
 # Freeway Suspension Signals Growing Safety Scrutiny" trugen gemeinsam die
 # Aussage „die US-Route für autonomes Fahren ist geschlossen" — während Waymo
 # rund 500.000 bezahlte Fahrten pro Woche durchführte.
+# Ein VORGESCHLAGENES Verbot ist keins, und ein von der Kommission als
+# „unjustified" zurückgewiesenes erst recht nicht. Die EU-Zelle von Cultivated
+# Meat stand auf „Route geschlossen", getragen von einer österreichischen
+# Petition und zwei Meldungen darüber, dass Brüssel das ungarische Verbot für
+# unzulässig hält.
+BLOCKADE_PROPOSED = re.compile(
+    r"\b(propos(e|es|ed|al)|petition|draft|bill\b|plans? to|seeks? to|"
+    r"aims? to|calls? for|would (ban|prohibit)|considering|debate[sd]?|"
+    r"unjustified|unlawful|illegal|challenge[sd]?|contest(ed|s)?|"
+    r"criticis|criticiz|opposes?|pushback)\b",
+    re.I,
+)
+
 BLOCKADE_LIFTED = re.compile(
     r"\b(lift(s|ed|ing)?|overturn(s|ed)?|repeal(s|ed)?|reversed?|"
     r"struck down|end(s|ed|ing)?|expir(e|es|ed)|"
@@ -234,6 +247,41 @@ REG_GAP = re.compile(
 )
 
 
+# Eine Blockade ist ein HOHEITLICHER Akt. „Waymo's Freeway Suspension Signals
+# Growing Safety Scrutiny" ist eine Betriebspause des Unternehmens und trug
+# dennoch die Aussage „die US-Route für autonomes Fahren ist geschlossen" —
+# während Waymo rund 500.000 bezahlte Fahrten pro Woche fuhr.
+GOVERNMENTAL = re.compile(
+    r"\b(government|federal|state|states|parliament|congress|senate|commission|"
+    r"ministry|minister|agency|regulator|regulatory|authority|authorities|court|"
+    r"judge|law|legal|act\b|bill\b|directive|regulation|statute|ordinance|"
+    r"member state|county|municipal|city|town|province|eu\b|brussels)\b",
+    re.I,
+)
+
+# Ein benannter Staat IST der hoheitliche Akteur — „Italy bans cultivated meat"
+# nennt keine Behörde und ist trotzdem eindeutig. Die Namen stammen aus derselben
+# Jurisdiktions-Liste, die auch `normalize_region` benutzt: eine Quelle, keine
+# zweite Pflegeliste.
+_JURISDICTION_NAMES = sorted(
+    {re.escape(n) for n in (_EU_MEMBERS | _US_TERMS | _UK_TERMS | _APAC_TERMS)
+     if len(n) > 3},
+    key=len, reverse=True,
+)
+GOVERNMENTAL_NAMES = re.compile(r"\b(" + "|".join(_JURISDICTION_NAMES) + r")\b", re.I)
+
+# Eine Kennzeichnungsregel ist kein Marktverbot. Der EU-Trilog vom 5. März 2026
+# beschränkt 31 Fleisch-Bezeichnungen, lässt „Burger" und „Wurst" aber
+# ausdrücklich zu — Plant-Based Meat wird EU-weit frei verkauft. Das Radar las
+# daraus „Route geschlossen", direkt neben seiner eigenen Marktzelle H1.
+BLOCKADE_LABELLING = re.compile(
+    r"\b(label(l?ing|s)?|naming|names?|denomination|designation|wording|"
+    r"advertis(ing|ement)|marketing claim|terminology|\bterms?\b|"
+    r"may not be called|cannot be called)\b",
+    re.I,
+)
+
+
 def blockade_match(text: str, field_terms: list[str] | None = None):
     """Blockiert dieser Text DAS FELD — oder bloß irgendetwas?
 
@@ -241,18 +289,23 @@ def blockade_match(text: str, field_terms: list[str] | None = None):
     übersehene Blockade kostet eine H3-Aussage, eine erfundene behauptet einem
     Kunden gegenüber ein Verbot, das es nicht gibt.
     """
+    # Eine Regel über NAMEN verschließt keinen Markt — vor allen anderen Prüfungen.
+    if BLOCKADE_LABELLING.search(text):
+        return None
     m = REG_GAP_EXPLICIT.search(text)
     if m:
         return m
     if not field_terms:
         return None
+    if not (GOVERNMENTAL.search(text) or GOVERNMENTAL_NAMES.search(text)):
+        return None      # mehrdeutige Blockade ohne hoheitlichen Akteur
     low = text.lower()
     for m in REG_GAP_OBJECT.finditer(text):
         window = low[max(0, m.start() - BLOCKADE_WINDOW):m.end() + BLOCKADE_WINDOW]
         if not any(t in window for t in field_terms):
             continue
-        if BLOCKADE_LIFTED.search(window):
-            continue          # das Verbot fällt gerade, es blockiert nicht
+        if BLOCKADE_LIFTED.search(window) or BLOCKADE_PROPOSED.search(window):
+            continue          # das Verbot fällt gerade oder gibt es noch nicht
         return m
     return None
 
@@ -353,6 +406,16 @@ JURISDICTION_PHRASE: list[tuple[re.Pattern, str]] = [
 # for PTSD"). Ursache ist der Tag-Pfad: die Stage-3-Klassifikation vergibt bei
 # einer Ablehnungsmeldung plausibel den Tag „fda approval", und der Tag allein
 # genügte. Ein negativer Bescheid muss den Zulassungspfad deshalb hart schlagen.
+# Regulierungspfade, die neben dem gefragten herlaufen: Tierfutter, Heimtier-
+# nahrung, Veterinärmedizin, Silage. Eine Freigabe dort belegt nichts für den
+# Lebensmittel- oder Humanpfad.
+OTHER_ROUTE = re.compile(
+    r"\b(pet food|petfood|animal feed|feed material|feed additive|fodder|silage|"
+    r"veterinary|animal nutrition|dog food|cat food|aquafeed)\b", re.I,
+)
+OTHER_ROUTE_TERMS = {"feed", "petfood", "fodder", "silage", "veterinary",
+                     "aquafeed"}
+
 REG_DENIED = re.compile(
     r"\b(reject(s|ed)|refus(es|ed)|declin(es|ed) to approve|turns? down|"
     r"denie[sd]|complete response letter|\bcrl\b|non[- ]approvable|"
@@ -434,6 +497,15 @@ def reg_subtype(row, field_terms: list[str] | None = None) -> str:
     tag_ok = tag_hit and re.search(
         r"\b(approval|approved|authoris?z?ation|authoris?z?ed|cleared|clearance|"
         r"granted|no questions letter)\b", text, re.I)
+    # Eine Zulassung auf einem ANDEREN Regulierungspfad räumt diesen nicht frei.
+    # Die EU-Zelle von Cultivated Meat stand auf „clear to act", getragen von
+    # Bene Meats Eintrag im Futtermittel-Katalog — eine Registrierung für
+    # Tierfutter, nicht einmal eine Zulassung, und in keinem Fall eine für
+    # Lebensmittel. Fragt jemand ausdrücklich nach dem Futtermittelpfad, bleibt
+    # das Signal gültig.
+    if OTHER_ROUTE.search(text) and not (
+            field_terms and any(t in OTHER_ROUTE_TERMS for t in field_terms)):
+        return "other"
     if (tag_ok or REG_GRANTED.search(text)) and not intent:
         # Vorzeichen und Stadium schlagen die Zulassungsformulierung — in dieser
         # Reihenfolge, weil ein abgelehnter Antrag zugleich ein Antrag ist.
@@ -1243,15 +1315,16 @@ def cell_regulatory(rows: list[dict], region: str, today: date,
     # als „Zulassung" formuliert ist. Dann schweigt die Zelle.
     granted_anywhere = any(reg_subtype(r, field_terms) == "granted"
                            for r in candidates)
-    if regulated and n_path >= MIN_N_NEGATIVE and observable and granted_anywhere:
-        return {
-            "horizon": "H3", "n_signals": n_path, "method": "gates",
-            "score": 0.15, "basis": "absence",
-            "rationale": f"{n_path} signals discuss the regulatory route in {region} "
-                         f"— filings, consultations, calls for reform — but none "
-                         "reports a granted approval: the route is still being built.",
-            "evidence": _ev(forming, gaps, filed),
-        }
+    # Die Absenz-H3 ist ERSATZLOS gestrichen (2026-08-02, nach der zweiten
+    # Prüfrunde). Sie war der letzte Ort, an dem aus Schweigen ein Befund wurde,
+    # und sie lag in jedem geprüften Fall falsch: „kein Zulassungsweg in den USA"
+    # für autonomes Fahren, während Waymo mit staatlichen Genehmigungen rund
+    # 500.000 bezahlte Fahrten pro Woche fuhr; dasselbe für SAF (bindende
+    # EU-Quote), mRNA-Impfstoffe und CCS. Der Grund ist strukturell: Zulassungen
+    # sind oft nachrangig (Bundesstaat, Notified Body, Norm) oder schlicht älter
+    # als das Nachrichtenfenster. H3 setzt ab jetzt ausschließlich ein POSITIV
+    # festgestelltes Hindernis — eine Ablehnung oder ein in Kraft gesetztes
+    # Verbot. Alles andere schweigt.
     if regulated and n_path >= MIN_N_NEGATIVE and not observable:
         share = REG_COVERAGE_SHARE.get(region, 0.0)
         return {

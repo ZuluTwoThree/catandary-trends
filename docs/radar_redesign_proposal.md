@@ -675,3 +675,57 @@ Die letzten drei sind **Korpus**-Grenzen: sie verlangen andere Quellen
 (EU-Amtsblätter, Komponentenmärkte), keine andere Schwelle. Das ist der
 Unterschied, der zählt — und beide Sorten stehen jetzt sichtbar in der
 Belegliste statt hinter einem Horizont.
+
+### 8.7 Letzter Schnitt: die Absenz-H3 fällt ganz
+
+Nach der zweiten Prüfrunde blieb ein Ort, an dem aus Schweigen ein Befund wurde:
+die Regulatorik durfte H3 setzen, wenn genug Pfad-Signale vorlagen, die
+Jurisdiktion beobachtbar war und das Feld anderswo Zulassungen zeigte.
+
+Sie lag in **jedem** geprüften Fall falsch — „kein Zulassungsweg in den USA" für
+autonomes Fahren, während Waymo mit CPUC- und DMV-Genehmigungen rund 500.000
+bezahlte Fahrten pro Woche fuhr; dasselbe für SAF (bindende EU-Quote), für
+mRNA-Impfstoffe und für CCS. Der Grund ist strukturell und durch keine Schwelle
+zu heilen: Zulassungen werden häufig nachrangig erteilt (Bundesstaat, Notified
+Body, Norm) oder sind schlicht älter als das Nachrichtenfenster.
+
+**H3 setzt jetzt ausschließlich ein positiv festgestelltes Hindernis** — eine
+Ablehnung oder ein in Kraft gesetztes Verbot. Dazu drei Präzisierungen, was als
+Hindernis zählt:
+
+- **Ein hoheitlicher Akteur muss handeln.** „Waymo's Freeway Suspension" ist
+  eine Betriebspause des Unternehmens. Die Jurisdiktionsnamen dafür stammen aus
+  derselben Liste wie `normalize_region` — eine Quelle, keine zweite Pflegeliste.
+- **Ein vorgeschlagenes Verbot ist keins.** Eine österreichische Petition und
+  zwei Meldungen, dass Brüssel Ungarns Verbot für „unjustified" hält, trugen die
+  EU-Zelle von Cultivated Meat.
+- **Eine Kennzeichnungsregel ist kein Marktverbot.** Der EU-Trilog beschränkt
+  31 Fleisch-Bezeichnungen und lässt „Burger" ausdrücklich zu; Plant-Based Meat
+  wird EU-weit frei verkauft. Das Radar las „Route geschlossen" — direkt neben
+  seiner eigenen Marktzelle H1.
+
+Der H3-Anteil liegt danach bei **3 %** (vorher 26 %), und die drei genannten
+Zellen stehen auf „keine Aussage" bzw. korrekt.
+
+### 8.8 Generalisierung: das Holdout
+
+Der eigentliche Test ist nicht, ob die 52 kalibrierten Felder stimmen — das
+könnte Überanpassung sein —, sondern ob **ungesehene** Felder sich genauso
+verhalten. 20 Begriffe, die nie in die Kalibrierung eingingen, über alle acht
+Vertikale (`data/radar_holdout.md`):
+
+| | H1 | H2 | H3 | keine Aussage |
+|---|---|---|---|---|
+| Kalibrierung (52 Felder) | 30 % | 20 % | 3 % | 45 % |
+| **Holdout (20 Felder)** | **37 %** | **21 %** | **0 %** | **41 %** |
+
+Die Verteilungen decken sich. Kein H3-Ausbruch, keine Zelle, die aus dünner
+Evidenz Sicherheit erfindet, zwei Begriffe sauber als „zu dünn" abgewiesen
+(`cell cultured seafood` 52 Signale, `biobased textiles` 23). Die Mechanismen
+sind also allgemein und nicht auf den Kalibrierkorpus zugeschnitten.
+
+**Sichtbare Grenze im Holdout:** `wave energy` erhält Technologie H1 — die Query
+fängt neben Wellenkraft auch „a wave of energy investment". Das ist die
+Scope-Qualität einer generischen Phrase, kein Fehler der Einordnung; das
+Hilfe-Panel warnt bereits vor abstrakten Begriffen, und die Teilfeld-Zerlegung
+(Schnitt 2) ist der eigentliche Hebel dagegen.
