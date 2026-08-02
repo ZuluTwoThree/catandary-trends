@@ -125,6 +125,25 @@ export default function HorizonBoard({
           <>
             <ReadoutStrip
               readouts={rs}
+              rows={Object.fromEntries(
+                view.scopes.map((sc) => [
+                  sc.slug,
+                  {
+                    momentum: sc.meta?.momentum,
+                    delta: sc.meta?.sov_delta_pp,
+                    // Das Horizont-Profil in der gewählten Jurisdiktion — vier
+                    // Zeichenpaare, die Felder tatsächlich unterscheiden. Der
+                    // Haltungssatz tat das nicht: vier Cluster desselben
+                    // Mega-Trends bekamen denselben.
+                    profile: view.dimensions
+                      .map((d) => {
+                        const c = cellFor(view, sc.slug, d, region);
+                        return `${dimensionStyle(d).short} ${c?.effective ?? "–"}`;
+                      })
+                      .join("  ·  "),
+                  },
+                ])
+              )}
               selected={pick.scope_slug}
               onSelect={(slug) =>
                 setSel({ scope: slug, dimension: view.dimensions[0] })

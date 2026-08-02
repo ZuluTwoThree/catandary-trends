@@ -1,4 +1,13 @@
-"""Referenz-Radar „Alternative Proteine" — der erste Horizont-Radar.
+"""STILLGELEGT (2026-08-03).
+
+Die beiden Alt-Protein-Referenzradare sind auf Owner-Entscheidung entfernt
+worden; Radare entstehen jetzt ausschließlich aus den Trendclustern
+(`pipeline/radar_clusters.py`). Dieses Modul bleibt als Vorlage für ein
+handkuratiertes Radar erhalten — der `radar_scopes`-Term-Pfad, den es benutzt,
+ist in der Engine weiterhin unterstützt und getestet. Ein Aufruf legt die
+Konfigurationen wieder an.
+
+Referenz-Radar „Alternative Proteine" — der erste Horizont-Radar.
 
 Bewusst handkuratiert: acht Technologiefelder mit expliziten Ein- und
 Ausschlusstermen. Der Ausschluss ist nicht Kosmetik — ein naives

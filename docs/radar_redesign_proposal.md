@@ -959,3 +959,36 @@ Neun Cluster-Radare, 3–8 Felder je Scope. TECH etwa: Machine Learning (TRL 8�
   (`app=0 %`) steht daneben und sagt es, aber das Band wird trotzdem gezeigt.
 - **Die Cluster stammen aus Läufen vom 2026-08-02**; sie altern mit dem Korpus
   und werden nur auf Knopfdruck neu gerechnet (Owner-Regel: kein Cron).
+
+### 11.5 Nachtrag 2026-08-03: TRL raus, Mega-Trends rein, Selektor
+
+Drei Owner-Entscheidungen nach dem ersten Cluster-Lauf.
+
+**TRL ist aus der Anzeige entfernt.** Auf Erkenntnis-Cluster wie „Gene
+Expression" passt ein Reifegrad nicht, und ein Band, das für ein Drittel der
+Felder keine Bedeutung hat, entwertet es für die übrigen. Berechnet wird es
+weiter — es trägt den Haltungssatz, der die eigentliche Aussage war.
+
+**Die Alt-Protein-Referenzradare sind entfernt.** `pipeline/radar_seed.py`
+bleibt als Vorlage für ein handkuratiertes Radar liegen; der Term-Pfad in der
+Engine ist weiterhin getestet.
+
+**Mega-Trends sind ein Clustering-Scope geworden.** `load_signals` filtert jetzt
+auch auf `mega_trend`, `foresight_snapshot --all-megas` fährt alle 21 durch, und
+`radar_clusters --all` baut daraus Radare. Das ist dieselbe Zerlegung eine Ebene
+höher: ein Mega-Trend ist die Klammer, seine Cluster sind die Felder darin —
+„Clean Energy Transition" zerfällt in Energieeffizienz/Materialien, Renewables,
+Smart Grid und Solar.
+
+**Der Selektor** gruppiert die inzwischen 29 Radare in zwei Leserichtungen:
+*By industry* fragt „was passiert in meiner Branche?", *By mega-trend* fragt
+„woraus besteht diese Bewegung, und wie weit ist jeder Teil?". Dieselbe Engine,
+zwei Schnitte durch denselben Signalraum.
+
+**Und eine Korrektur am Vergleich:** die Leiste zeigte je Feld den Haltungssatz —
+und vier Cluster desselben Mega-Trends bekamen denselben. Sie zeigt jetzt das
+Horizont-Profil in der gewählten Jurisdiktion plus den Anteilstrend
+(`TEC H1 · REG – · MKT H1 · ADO H1   +9,7 pp`). Das unterscheidet.
+
+Offen bleibt: `virtual_worlds_consolidation` (579 Signale) liefert kein Radar —
+alle seine Cluster liegen unter der Mindestgröße. 29 von 30 gebaut.

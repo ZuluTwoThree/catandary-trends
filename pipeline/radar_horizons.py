@@ -2323,6 +2323,11 @@ def readout(cells: list[dict], scope_label: str,
         (1, 3): "Watch: research stage, no route to market yet.",
     }.get((lo, hi), "Not enough evidence to take a position.")
 
+    # Das TRL-Band ist am 2026-08-03 aus der ANZEIGE entfernt worden
+    # (Owner-Entscheidung): auf Erkenntnis-Cluster wie „Gene Expression" passt
+    # ein Reifegrad nicht, und ein Band, das für ein Drittel der Felder keine
+    # Bedeutung hat, entwertet es für die übrigen. Berechnet wird es weiter —
+    # es trägt den Haltungssatz, der die eigentliche Aussage war.
     return {
         "trl_low": lo or None, "trl_high": hi or None,
         "trl_label": label, "trl_blurb": why,

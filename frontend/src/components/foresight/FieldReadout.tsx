@@ -17,8 +17,6 @@ import type { RadarReadout } from "@/lib/radar-shared";
  * an ihrer Stelle.
  */
 
-const SCALE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-
 /**
  * Vergleichsleiste: alle Felder mit ihrem TRL-Band nebeneinander.
  *
@@ -28,48 +26,57 @@ const SCALE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
  */
 export function ReadoutStrip({
   readouts,
+  rows,
   selected,
   onSelect,
 }: {
   readouts: RadarReadout[];
+  /** Je Feld: Anteilstrend und Horizont-Profil — das, was Felder TRENNT. */
+  rows: Record<string, { momentum?: string; delta?: number; profile: string }>;
   selected: string | null;
   onSelect: (slug: string) => void;
 }) {
   if (readouts.length < 2) return null;
   return (
     <div className="rs" role="group" aria-label="Readiness comparison">
-      {readouts.map((r) => {
-        const lo = r.trl_low ?? 0;
-        const hi = r.trl_high ?? 0;
-        return (
-          <button
-            key={r.scope_slug}
-            className={`rs-item ${selected === r.scope_slug ? "is-on" : ""}`}
-            onClick={() => onSelect(r.scope_slug)}
-            aria-pressed={selected === r.scope_slug}
+      {readouts.map((r) => (
+        <button
+          key={r.scope_slug}
+          className={`rs-item ${selected === r.scope_slug ? "is-on" : ""}`}
+          onClick={() => onSelect(r.scope_slug)}
+          aria-pressed={selected === r.scope_slug}
+        >
+          <span className="rs-name">{r.scope}</span>
+          <span className="rs-profile">{rows[r.scope_slug]?.profile ?? ""}</span>
+          <span
+            className={`rs-mom is-${
+              rows[r.scope_slug]?.momentum === "rising"
+                ? "up"
+                : rows[r.scope_slug]?.momentum === "declining"
+                  ? "down"
+                  : "flat"
+            }`}
           >
-            <span className="rs-name">{r.scope}</span>
-            <span className="rs-bar" aria-hidden="true">
-              {SCALE.map((n) => (
-                <span key={n} className={`rs-seg ${n >= lo && n <= hi ? "is-on" : ""}`} />
-              ))}
-            </span>
-            <span className="rs-trl">
-              {lo ? `TRL ${lo === hi ? lo : `${lo}–${hi}`}` : "not assessable"}
-            </span>
-          </button>
-        );
-      })}
+            {typeof rows[r.scope_slug]?.delta === "number"
+              ? `${(rows[r.scope_slug]!.delta ?? 0) > 0 ? "+" : ""}${(
+                  rows[r.scope_slug]!.delta ?? 0
+                ).toFixed(1)} pp`
+              : ""}
+          </span>
+        </button>
+      ))}
       <style>{`
         .rs { display: grid; gap: .4rem; margin-bottom: 1rem; }
-        .rs-item { display: grid; grid-template-columns: minmax(8rem, 14rem) 1fr auto; gap: .8rem; align-items: center; text-align: left; background: transparent; border: 1px solid var(--color-border); padding: .5rem .7rem; cursor: pointer; }
+        .rs-item { display: grid; grid-template-columns: minmax(9rem, 18rem) 1fr auto; gap: .9rem; align-items: baseline; text-align: left; background: transparent; border: 1px solid var(--color-border); padding: .5rem .7rem; cursor: pointer; }
         .rs-item:hover { border-color: var(--color-paper); }
         .rs-item.is-on { border-color: var(--color-accent); }
         .rs-name { font-size: .85rem; color: var(--color-paper); }
-        .rs-bar { display: flex; gap: 2px; }
-        .rs-seg { flex: 1; height: 6px; border: 1px solid var(--color-border); }
-        .rs-seg.is-on { background: var(--color-accent); border-color: var(--color-accent); }
-        .rs-trl { font-family: var(--font-mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--color-accent); white-space: nowrap; }
+        .rs-profile { font-family: var(--font-mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-muted); }
+        .rs-item.is-on .rs-profile { color: var(--color-text); }
+        .rs-mom { font-family: var(--font-mono); font-size: 9px; letter-spacing: .1em; white-space: nowrap; }
+        .rs-mom.is-up { color: var(--color-accent); }
+        .rs-mom.is-down { color: #ff7a59; }
+        .rs-mom.is-flat { color: var(--color-muted); }
       `}</style>
     </div>
   );
@@ -82,47 +89,18 @@ export default function FieldReadout({
   readout: RadarReadout;
   compact?: boolean;
 }) {
-  const { trl_low: lo, trl_high: hi } = readout;
-  const has = lo != null && hi != null;
-
   return (
     <section className={`fr ${compact ? "is-compact" : ""}`} aria-label="Readout">
       <div className="fr-head">
         <span className="fr-scope">{readout.scope}</span>
-        {has ? (
-          <span className="fr-trl">
-            TRL {lo === hi ? lo : `${lo}–${hi}`}
-            <span className="fr-trl-label"> · {readout.trl_label}</span>
-          </span>
-        ) : (
-          <span className="fr-trl fr-trl-none">TRL not assessable</span>
-        )}
+
       </div>
-
-      {has ? (
-        <div className="fr-scale" role="img"
-             aria-label={`Technology readiness level ${lo} to ${hi} of 9`}>
-          {SCALE.map((n) => (
-            <span
-              key={n}
-              className={`fr-step ${n >= (lo ?? 0) && n <= (hi ?? 0) ? "is-on" : ""}`}
-            >
-              {n}
-            </span>
-          ))}
-        </div>
-      ) : null}
-
-      {readout.trl_blurb ? (
-        <p className="fr-blurb">{readout.trl_blurb}</p>
-      ) : null}
 
       <p className="fr-text">{readout.text}</p>
       <p className="fr-stance">{readout.stance}</p>
       <p className="fr-caveat">
-        The band is derived from the cells below, not from a development
-        programme — read it as the range the evidence supports, and open any cell
-        for the reasoning.
+        Derived from the cells below — open any of them for the reasoning and the
+        sources behind it.
       </p>
 
       <style>{`

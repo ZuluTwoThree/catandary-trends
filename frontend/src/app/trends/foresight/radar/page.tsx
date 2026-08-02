@@ -4,6 +4,7 @@ import { getEvidence, getRadar, listRadars } from "@/lib/radar";
 import { VERTICALS } from "@/lib/types";
 import TrendRadar from "@/components/foresight/TrendRadar";
 import HorizonBoard from "@/components/foresight/HorizonBoard";
+import RadarSelector from "@/components/foresight/RadarSelector";
 import ForesightCta from "@/components/ForesightCta";
 import TierGate from "@/components/TierGate";
 import { parseRadarParams } from "@/lib/radar-params";
@@ -121,19 +122,7 @@ export default async function RadarPage({
           </dl>
         </header>
 
-        {radars.length > 1 && (
-          <nav className="rdr-tabs" aria-label="Radar">
-            {radars.map((r) => (
-              <Link
-                key={r.slug}
-                href={`/trends/foresight/radar?radar=${r.slug}`}
-                className={`rdr-tab ${r.slug === view.config.slug ? "is-on" : ""}`}
-              >
-                {r.name}
-              </Link>
-            ))}
-          </nav>
-        )}
+        <RadarSelector radars={radars} current={view.config.slug} />
 
 
         <TierGate
