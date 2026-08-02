@@ -529,3 +529,149 @@ Referenzzeile §7.1 ist unverändert.
 Korpus-Abdeckung mit, nicht nur Realität — Gene Therapy hat in der EU
 Zulassungen, im (US-lastigen) Korpus aber keine EU-attribuierten. „Kein Urteil"
 ist dafür die ehrliche Antwort; eine Aussage wäre es nicht.
+
+---
+
+## 8. Fachprüfung 2026-08-02: 52 Felder, sieben Scouts, zehn Mechanismen
+
+Die bisherigen Kalibrierläufe prüften eine Handvoll Begriffe. Diese Runde spannt
+den **Messbereich** auf: 52 Technologiefelder über acht Vertikale, gewählt nach
+Reifegrad (diffundiert bis vorwettbewerblich), Regulierungsform (Zulassung,
+Mandat, Standard, keines) und Korpusdichte (61 bis 15.482 Signale). Der Korpus
+liegt in `docs/radar_calibration_terms.txt`, der Lauf erzeugt
+`scripts/radar_calibrate.py` (Raster + Belegtitel je Zelle — ohne die Titel ist
+eine Zelle nicht widerlegbar).
+
+Geprüft haben sieben Fach-Scouts mit Websuche, je eine Domäne, adversarisch
+angesetzt: nicht „ist das plausibel", sondern „widerlege es". Zusammen prüften
+sie **~340 Zellen und belegten über 150 Fehlaussagen** — mit Quellenangabe.
+
+### 8.1 Was die Prüfung wirklich zutage förderte
+
+Die Einzelfehler waren nicht das Ergebnis. Das Ergebnis war, dass **sieben
+Scouts unabhängig voneinander dieselben Mechanismen benannten**. Vier Beispiele
+für ihre Schärfe:
+
+> „Das Radar behauptete *kein Weg zum Markt* bei n=3 und verweigerte die Aussage
+> bei n=2. Das ist die Beweislast verkehrt herum."
+
+> „SAF/US las wörtlich: *7 commercial product launches — on the market. Capped at
+> H3 …* — es hatte die richtige Antwort, erkannte den Widerspruch und löste ihn
+> zugunsten des schwächeren Schlusses auf."
+
+> „Ein Gesetz, das ruhig in Kraft ist, erzeugt keine Nachrichten. Nachrichten
+> messen Veränderung, ein Regime ist ein Zustand."
+
+> „Eine Dimension, die ihren Höchstwert nicht erreichen kann, ist keine Messung,
+> sondern eine Konstante."
+
+### 8.2 Die zehn Mechanismen und ihre Behebung
+
+| # | Mechanismus | Belegter Schaden | Fix |
+|---|---|---|---|
+| 1 | **`forming` war der Default-Rückgabewert** von `reg_subtype` — die Antwort auf „kein Muster hat gegriffen" bedeutete „der Zulassungsweg wird erst gebaut" | **70.603 von 76.262** Regulatorik-Signalen (92,6 %) landeten dort. Bei Gentherapie stützten 11 von 13 EU-Signalen ein H3, die über den Zulassungsweg nichts sagen (klinischer Hold, Erstattungs-Rückzug, News-Roundup) | neuer Sub-Typ `other`: Schweigen zählt für nichts |
+| 2 | **Symmetrische Beweislast** — negative Aussagen so billig wie positive | acht bestätigte Falschaussagen „kein Zulassungsweg" | `MIN_N_NEGATIVE = 6`; jede Absenz-Aussage liegt über jeder positiven |
+| 3 | **Absenz in unbeobachteten Jurisdiktionen** | **91,6 % der zuordenbaren Zulassungen sind US-amerikanisch, 4,6 % europäisch.** „Keine EU-Zulassung gefunden" war fast immer eine Aussage über die Quellen — falsch für mRNA, CAR-T, Gentherapie, Insektenprotein, Mycoprotein, alle in der EU zugelassen | `REG_COVERAGE_SHARE` + `MIN_COVERAGE_FOR_ABSENCE`; gemessen, per `scripts/measure_reg_coverage.py --check` nachrechenbar |
+| 4 | **Unsichtbare Regime** — ein Mandat oder Standard ist keine „Zulassung" | SAF (bindende ReFuelEU-Quote, 11 ASTM-Pfade), CCS (UIC Class VI), SMR, EU-Wasserstoff standen auf „kein Weg" | zeigt ein Feld **nirgends** eine Zulassung, schweigt die Zelle (`basis: unreadable`) |
+| 5 | **Vorzeichen- und Stadienblindheit** | „FDA rejects MDMA" zählte als Zulassung → Psychedelika „clear to act" bei null Zulassungen. „FDA approves … clinical trial" ebenso → Xenotransplantation und BCI „clear to act" | Sub-Typen `denied` und `trial`; ein Zulassungs-**Tag** allein trägt nichts mehr (korpusweit fielen dadurch 2.400 Schein-Zulassungen weg) |
+| 6 | **Blockade ohne Objektbezug** | „EU formally bans sale of gas and diesel cars from 2035" galt als Gegenwind **gegen** Elektroautos — der stärkste denkbare Rückenwind. Ebenso „eBay bans e-bike sales", „Norway suspends seabed mining" | zweistufiges `blockade_match`: eindeutige Formeln zählen immer, mehrdeutige („bans", „suspends") nur mit einem Feldbegriff in Reichweite |
+| 7 | **Kopplung überschrieb Beobachtung** | vier Felder: eine aus Schweigen abgeleitete Regulatorik-Zelle kappte einen belegten Markt | Kopplung feuert nur auf positiv festgestelltem Befund; Handels-Evidenz schlägt sie |
+| 8 | **Reife las sich als Abwesenheit** | Guardant (>1 Mrd. $ Umsatz), NatureWorks (PLA seit 2002), Starlink (12 Mio. Kunden), Dexcom (13,4 Mrd. $) galten als „nicht am Markt", weil ihre Einführungen vor dem 36-Monats-Fenster lagen | zweiter H1-Weg über **Handels-Evidenz** (Umsatz, Stückzahlen, installierte Basis, Erstattung), unabhängig von Ereignissen |
+| 9 | **Meinungsstücke als Produktstarts, ein Ereignis mehrfach gezählt** | Sodium-Ion/US „9 commercial launches", deren Belege null Einführungen enthielten; „3 approvals" für Mycoprotein waren **ein** GRAS-Bescheid in drei Fachmedien | `ESSAY_TITLE`-Filter + `dedupe_events` (Titelüberlappung ≥ 60 % in 30 Tagen) |
+| 10 | **Patentanker erbte die Reife seiner Oberklasse** | **G06N** (maschinelles Lernen insgesamt) verankerte LLMs, neuromorphes Rechnen **und** BCIs und gab allen dreien Markt-Takeoff 2023; B25J (Manipulatoren) gab humanoiden Robotern den Takeoff 2009 von Industriearmen | Spezifitäts-Gate `ANCHOR_MIN_CONTAINMENT = 0,09`. Gemessen: B33Y/Additive Manufacturing 0,205 · H01M/Li-Ionen 0,111 gegen G06N/Neuromorphic 0,035 · G06N/BCI 0,014 |
+
+Zwei weitere Änderungen fielen dabei an:
+
+- **Die Weltspalte ist jetzt eine Frage, kein Restposten.** `GLOBAL` war das
+  Etikett für Artikel ohne Geografie — 49–56 % aller Signale — und beantwortete
+  als Spalte gelesen „was steht in dem, was wir nicht verorten konnten?". Sie
+  bedeutet jetzt **weltweit** (Vereinigung aller Signale) und heißt im Frontend
+  „Worldwide".
+- **Nachfrage ist nicht nur die Verbraucherstimme.** Auktionen, Abnahmeverträge,
+  Ausschreibungen und Erstattungsentscheide zählen — vier Felder mit
+  veröffentlichten Zuschlagspreisen standen zuvor auf „demand unevidenced".
+
+### 8.3 Wirkung
+
+520 Zellen, **178 geändert (34 %)**: 36 falsche H3 wurden zu „keine Aussage",
+61 zu Unrecht verschwiegene oder unterschätzte Märkte wurden zu H1, 13 falsche
+H1 fielen (darunter Xenotransplantation „clear to act", BCI „technologisch
+etabliert", Psychedelika „clear to act").
+
+Die Verteilung über alle 52 Felder liegt jetzt bei rund **24 % H1 · 22 % H2 ·
+6 % H3 · 47 % keine Aussage**. Der hohe Schweige-Anteil ist das Ergebnis, nicht
+sein Ausbleiben: Regulatorik schweigt vor allem dort, wo gar kein Regime den
+Markteintritt gattet, und in Jurisdiktionen, die der Korpus nicht beobachtet.
+
+**20 Regressionstests** in `tests/test_radar_horizons.py` fixieren die
+Mechanismen — jeder benennt den realen Fall, der ihn erzwungen hat.
+
+### 8.4 Was bewusst offen bleibt
+
+1. **Homonyme im Scope.** „CIRANDA Announces Two New Baking Chips" zählt weiter
+   für „organ on a chip". Zwei Feldbegriffe zu verlangen behebt das, kostete im
+   Test aber mehr, als es einbrachte: mRNA, CRISPR und Digital Therapeutics
+   kippten von belegtem H1 in eine falsche H3-Aussage, weil Zulassungsmeldungen
+   das Feld oft nur mit einem Wort nennen. Gehört in die Teilfeld-Zerlegung
+   (Schnitt 2), nicht in eine Schwelle.
+2. **Jurisdiktion aus der Publikationssprache.** Mehrere Scouts fanden
+   deutschsprachige Artikel über US-Ereignisse in EU-Zellen. Das entsteht in
+   Stage 3 der Pipeline, nicht im Radar.
+3. **Belegqualität ≠ Aussagequalität.** Einzelne richtige Zellen stützen sich
+   auf sichtbar unpassende Belege (Kunstinstallation unter Quantum/EU). Das
+   Urteil stimmt, die Begründung ist angreifbar — und ein Kunde klickt.
+4. **Silicon Photonics bleibt falsch.** Ein Feld, das ausschließlich als
+   unsichtbares Bauteil verkauft wird, erzeugt keine Produktmeldungen; das Radar
+   sagt H3, richtig wäre H1. Hier hilft nur eine Quelle, die Komponentenmärkte
+   abbildet.
+
+### 8.5 Zweite Prüfrunde: was die Fixes bewirkt haben
+
+Dieselben Felder, dieselben Fach-Scouts, überarbeitetes Radar — diesmal mit der
+Vorher/Nachher-Gegenüberstellung je Zelle und der ausdrücklichen Frage nach
+**Rückschritten**.
+
+Alle vier Scouts bestätigten, dass die Schweige-Disziplin greift („the honest-`—`
+discipline works", „the H3-by-default failure mode is essentially gone"), und
+alle vier benannten **denselben** verbliebenen Mechanismus:
+
+> „The market axis still infers maturity from launch-article counts. That is the
+> same absence-of-evidence fallacy, relocated from H3 to H2."
+
+Daraus die letzten fünf Änderungen:
+
+| Fund | Fix |
+|---|---|
+| „California's ban on self-driving trucks **could soon be over**" zählte als Blockade | `BLOCKADE_LIFTED`: ein Verbot, das gerade fällt, blockiert nicht |
+| „SpaceX gets FCC approval for 7.500 more satellites" fiel auf H2 zurück, weil acht Kommentarstücke im Scope lagen | Nenner der Einzel-Zulassungs-Regel ist der **Pfad-Bestand**, nicht jedes regulatorisch getönte Signal |
+| „EFSA Clears GM Corynebacterium for L-Leucine" (Lebensmittel-**Zusatzstoff**) lieferte die Regulatorik-Zelle von „**additive** manufacturing" | `scope_verticals`: der lange Schwanz fremder Vertikalen wird abgeschnitten — zweite Verteidigungslinie, wo Wortabgleich versagt |
+| Reife Märkte fielen auf H2, weil sie keine Produktmeldungen mehr erzeugen | `MARKET_MAGNITUDE`: Zahl **plus Einheit** (100 GWh, 3,6 Mio. Einheiten, 12 Mio. Kunden) ist Handels-Evidenz — der Größenordnungstest statt des Meldungszählers |
+| Plant-Based Meat — ausdrücklich unreguliert — bekam „US: clear to act" aus drei Produktmeldungen (zwei aus Japan und Spanien) | in unregulierten Domänen trägt nur ein **Regulatorik-Signal** eine Zulassung; der quertypige Scan gilt dort nicht |
+
+**Gesamtwirkung über beide Runden**, 520 Zellen: **185 geändert (35 %)** —
+**100 falsche H3 aufgelöst**, **17 falsche H1 zurückgenommen**, 41 zuvor
+verschwiegene Märkte belegt. Verteilung jetzt **31 % H1 · 20 % H2 · 3 % H3 ·
+45 % keine Aussage** (vorher 6 % keine Aussage).
+
+Der Anteil H3 fiel von 26 % auf 3 %. Das ist das eigentliche Ergebnis: fast
+jedes H3 des alten Radars war eine Absenz-Behauptung, und fast jede davon war
+falsch.
+
+### 8.6 Bekannte Restfehler (Stand nach Runde 2)
+
+Ehrlich benannt, weil sie ein Kunde findet:
+
+| Feld · Zelle | Radar | belegte Wahrheit | Ursache |
+|---|---|---|---|
+| Autonomous Driving · Reg US | H3 | H1 (CPUC/DMV-Genehmigungen, NHTSA-Ausnahme für Zoox) | zwei Signale über Betriebs-*Pausen* und Sicherheitsprüfung lesen sich als Blockade |
+| Cultivated Meat · Reg EU | H1 | H2 (keine Novel-Food-Zulassung; Gourmey und Mosa Meat in Prüfung) | die Bene-Meat-**Futtermittel**-Registrierung trägt die Zelle weiterhin |
+| Plant-Based Meat · Reg EU | H3 | keine Aussage (Kennzeichnungsregel, kein Marktverbot) | eine Namensregel für „Veggie-Burger" zählt als Blockade |
+| Direct Air Capture · Markt EU | H1 | H2 (Ucaneo Berlin: 150 t/Jahr, kommerziell ab 2027) | die Größenordnung wird gelesen, aber nicht gewichtet |
+| Insect Protein · Reg EU | keine Aussage | H1 (vier Arten auf der Unionsliste) | EFSA-Zulassungen sind im Korpus als Fließtext, nicht als Entscheidungsmeldung |
+| Silicon Photonics · Technologie | H3 | H1 (>1 Mio. optische Engines/Jahr, in Transceivern verbaut) | ein Feld, das nur als unsichtbares Bauteil verkauft wird, erzeugt keine Produktmeldungen |
+
+Die ersten drei sind **Erkenner**-Fehler und in einer weiteren Runde behebbar.
+Die letzten drei sind **Korpus**-Grenzen: sie verlangen andere Quellen
+(EU-Amtsblätter, Komponentenmärkte), keine andere Schwelle. Das ist der
+Unterschied, der zählt — und beide Sorten stehen jetzt sichtbar in der
+Belegliste statt hinter einem Horizont.

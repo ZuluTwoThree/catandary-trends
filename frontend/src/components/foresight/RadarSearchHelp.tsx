@@ -26,29 +26,54 @@ const CRITERIA: { key: string; label: string; body: string; note?: string }[] = 
     body:
       "The field's own cumulative market history — how many years its market signals go back — plus the patent record where its lead-time is flagged reliable.",
     note:
-      `A field with market signals across ${T.establishedActiveYears}+ years, starting ${T.establishedFirstAge}+ years back, counts as established (H1) even while research continues — news covers change, not state, so ongoing research says nothing against maturity. Without that history the signal mix decides, capped at H2: scale and cost maturity are not readable from signals.`,
+      `A field with market signals across ${T.establishedActiveYears}+ years, starting ${T.establishedFirstAge}+ years back, counts as established (H1) even while research continues — news covers change, not state, so ongoing research says nothing against maturity. A field that demonstrably trades in more than one jurisdiction also reaches H1: sustained commerce is the cost proof a signal mix cannot give. A patent anchor only counts when its class is specific to the field, not a broad parent class whose take-off belongs to something else.`,
   },
   {
     key: "REG",
     label: "Regulatory",
     body:
-      "Approval milestones, attributed to the authority named in the text — FDA to the US, EFSA to the EU — not to where the company sits.",
+      "Decisions, attributed to the authority named in the text — FDA to the US, EMA or EFSA to the EU — not to where the company sits. A decision counts wherever it appears, even in an article filed as a product story.",
     note:
-      "Approval granted → H1. A live filing under review → H2. Consultations, strategies and calls for reform → H3: a route being built is not a route you can use. Without “approval required” switched on, absent approvals make no call at all — batteries need none, so their absence is not a barrier.",
+      "Approval granted → H1. A filing under review → H2. An authorisation that only permits studies (a trial clearance) → H2, never H1: permission to investigate is not permission to sell. A refusal or a named ban → H3. Everything else — commentary, consultations, funding rows — sets nothing.",
   },
   {
     key: "MKT",
     label: "Market",
     body:
-      `Product launches in that jurisdiction over the last ${T.windowMonths} months, weighted by retail and scale evidence.`,
+      `Distinct commercial launches in that jurisdiction over the last ${T.windowMonths} months — or, independently of any launch event, evidence of a running trade: revenue, shipments, installed base, reimbursement.`,
     note:
-      "With “approval required” switched on, the market can never be rated ahead of its approval — without a licence there is no lawful market.",
+      "That second route matters: an established product stops announcing itself, so judging by launch headlines alone reads maturity as absence. Pilots and demonstration plants count towards H2, not H1 — they show it works, not that you can buy it. Commentary essays are excluded from the count.",
   },
   {
     key: "ADO",
     label: "Adoption",
     body:
-      "Consumer- and demand-side signals, as opposed to company announcements.",
+      "Evidence of a buyer: consumer signals, and equally auctions, offtake contracts, procurement, subscribers and reimbursement decisions.",
+    note:
+      "Demand for grid storage or reactors arrives as a contract, never as a consumer voice — counting only consumers made whole industries look unwanted.",
+  },
+];
+
+const SILENCE: { key: string; body: string }[] = [
+  {
+    key: "Positive vs. negative",
+    body:
+      "“There is an approval” rests on a document we found. “There is none” rests on the assumption that we would have found it. The second claim therefore needs far more evidence than the first, and often it simply cannot be made.",
+  },
+  {
+    key: "Thin jurisdictions",
+    body:
+      "Of the approvals our sources let us attribute to a jurisdiction, about 92% are American. So “no EU approval visible” usually describes the sources, not European law. Outside the US the radar will not turn that silence into a horizon.",
+  },
+  {
+    key: "Invisible regimes",
+    body:
+      "A statute quietly in force generates no news. Where a field shows no approval anywhere — because its regime is a mandate, a standard or a permit rather than an approval — the radar says so instead of concluding the route is unbuilt.",
+  },
+  {
+    key: "Blind dimensions",
+    body:
+      "If the corpus holds no product-launch signal for a field at all, the market dimension has nothing to read and declines rather than reporting an empty market.",
   },
 ];
 
@@ -139,9 +164,27 @@ export default function RadarSearchHelp() {
             demand signals, or under {T.minTechFallback} for a technology call without
             a patent anchor.
           </p>
+        </section>
+
+        {/* 4 — why the radar stays silent, and why that is the product */}
+        <section className="rsh-sec">
+          <h3 className="rsh-h">Why a cell stays empty</h3>
+          <p className="rsh-p">
+            An empty cell is a deliberate answer, not a missing one. Absence of
+            evidence is not evidence of absence, and the radar will not print the
+            second when it only has the first.
+          </p>
+          <dl className="rsh-crit">
+            {SILENCE.map((s) => (
+              <div key={s.key} className="rsh-silence">
+                <dt>{s.key}</dt>
+                <dd>{s.body}</dd>
+              </div>
+            ))}
+          </dl>
           <p className="rsh-p rsh-muted">
-            An empty cell is deliberate. The radar withholds a placement it cannot
-            support rather than inferring one from thin evidence.
+            Every empty cell states its own reason when you open it. A dash you can
+            interrogate is worth more than a horizon you cannot trust.
           </p>
         </section>
       </div>
@@ -161,6 +204,8 @@ export default function RadarSearchHelp() {
         .rsh-muted { color: var(--color-muted); }
         .rsh-crit { margin: 0 0 .9rem; display: grid; gap: .6rem; }
         .rsh-crit > div { display: grid; grid-template-columns: 2.6rem 1fr; gap: .7rem; align-items: start; }
+        .rsh-crit > div.rsh-silence { grid-template-columns: 8.5rem 1fr; }
+        .rsh-silence dt { font-size: 8.5px; letter-spacing: .1em; padding: .25rem .3rem; text-transform: uppercase; }
         .rsh-crit dt { font-family: var(--font-mono); font-size: 9px; letter-spacing: .12em; color: var(--color-muted); border: 1px solid var(--color-border); text-align: center; padding: .15rem 0; }
         .rsh-crit dd { margin: 0; font-size: .82rem; line-height: 1.55; color: var(--color-text); }
         .rsh-crit-label { color: var(--color-paper); }
