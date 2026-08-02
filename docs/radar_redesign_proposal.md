@@ -992,3 +992,64 @@ Horizont-Profil in der gewählten Jurisdiktion plus den Anteilstrend
 
 Offen bleibt: `virtual_worlds_consolidation` (579 Signale) liefert kein Radar —
 alle seine Cluster liegen unter der Mindestgröße. 29 von 30 gebaut.
+
+---
+
+## 12. Signalwolke: jedes Signal einzeln platziert (2026-08-03)
+
+Ein dritter Ansatz neben Bogen und Matrix, auf Owner-Wunsch: **alle Signale
+eines Clusters oder Mega-Trends optisch im Radar**, nicht ihr Mittel.
+
+### 12.1 Der tragende Befund
+
+Die Zellenlogik klassifiziert **jedes einzelne Signal**, bevor sie aggregiert —
+welchen Sub-Typ ein Regulatorik-Signal hat, ob eine Produktmeldung Pilot oder
+Handel ist, ob ein Signal Forschung oder Anwendung ist. Beim Zusammenfassen auf
+32 Zellen wird diese Information weggeworfen.
+
+Die Wolke wirft sie nicht weg. `place_signal()` benutzt **dieselben
+Klassifikatoren** wie die Zellen, weshalb Wolke und Zelle nicht auseinanderlaufen
+können: eine Zelle ist sichtbar das Mittel ihrer Punkte.
+
+    Sektor  = Dimension, die das Signal belegt (TEC/REG/MKT/ADO)
+    Ring    = Stufe, die das Signal SELBST belegt (H1 innen … H3 außen)
+    Helligkeit = Aktualität
+    Punkt   = ein echtes Signal, mit Titel, Jahr und Jurisdiktion
+
+Was ein Mittelwert verschweigt und die Wolke zeigt: wie viel Masse hinter einer
+Einschätzung steht, wie breit sie streut, ob ein H1 auf tausend Signalen beruht
+oder auf dreien. Für „Machine Learning" (TECH) etwa sieht man auf einen Blick,
+dass das Feld im Korpus fast ausschließlich forschungsseitig belegt ist
+(3.904 TEC gegen 81 MKT) — und dass sein H1 auf der Markt-Historie ruht, nicht
+auf der Masse der Wolke.
+
+### 12.2 Zwei Entscheidungen, die den Ausschlag gaben
+
+**Nicht platzierbare Signale fliegen raus statt irgendwohin.** Meinungsstücke,
+Nachrichten-Roundups und undatierte Einträge belegen keine Stufe. Bei Machine
+Learning sind das 2.737 von 40.000. Sie werden gezählt und benannt, nicht am
+Rand geparkt.
+
+**Die Stichprobe läuft über die Zeit, nicht über die Aktualität.** Zuerst wurden
+die jüngsten 4.000 Punkte gezeigt — das tötete genau die Achse, für die die
+Wolke gebaut ist: alle Punkte stammten aus demselben Jahr. Jetzt wird
+gleichmäßig durch die chronologisch sortierte Liste geschnitten (jedes n-te
+Signal), und die Verteilung über 2002–2026 bleibt erhalten. Der Jahresregler
+macht die Bewegung nach innen sichtbar.
+
+### 12.3 Technik
+
+Canvas statt SVG (4.000 DOM-Knoten kosten spürbar Zeit; gebraucht wird je Punkt
+nur ein Kreis), Beschriftung als SVG darüber. Die Streuung innerhalb einer Zelle
+kommt aus einem deterministischen Hash der Signal-ID — derselbe Punkt liegt bei
+jeder Neuzeichnung an derselben Stelle. Berechnet wird auf Abruf über
+`scripts/radar_cloud.py`; das ist reine Klassifikation über schon geladene
+Zeilen, kein Modell und keine GPU.
+
+### 12.4 Offen
+
+- Die Wolke teilt sich die Bühne mit dem Erklärkasten und wird dadurch schmal.
+- Bei sehr forschungslastigen Clustern dominiert ein einziger Block optisch
+  alles andere — genau die Wahrheit, aber die kleinen Sektoren werden dadurch
+  schwer lesbar. Eine logarithmische Punktdichte je Sektor wäre die Antwort,
+  verzerrt aber die Aussage.
