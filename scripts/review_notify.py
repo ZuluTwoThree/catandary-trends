@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""Morning reminder for the grounding-hold review queue (issue #71).
+
+The nightly gate keeps back high-confidence drafts whose body states a figure
+or date the source does not support. Left alone they just pile up — this mails
+the owner a short digest so the queue actually gets worked.
+
+Deliberately quiet: NO mail when there is nothing to review. A reminder that
+arrives every day regardless is one you stop reading.
+
+    python -m scripts.review_notify --dry-run   # print, never send
+    python -m scripts.review_notify             # send if there is anything
+
+Runs after the nightly cycle (see scripts/full_cycle_cron.sh).
+"""
+from __future__ import annotations
+
+import argparse
+import html
+import logging
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import httpx
+
+from pipeline.db import get_connection
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
+logger = logging.getLogger("review_notify")
+
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+FROM_ADDR = os.getenv("NEWSLETTER_FROM", "Catandary Trends <trends@send.catandary.de>")
+# Where the review UI lives. Localhost by default: the queue is an internal tool
+# and the app is not public yet.
+REVIEW_URL = os.getenv("REVIEW_URL", "http://localhost:3001/trends/review")
+TO_ADDR = os.getenv("REVIEW_NOTIFY_TO", "molkereimeister@web.de")
+
+# Mirrors AUTO_PUBLISH_CONFIDENCE — only drafts the gate actually judged.
+CONFIDENCE_MIN = 0.85
+
+
+def fetch_queue() -> tuple[int, int, str | None, list[dict]]:
+    """(today, total, oldest_date, sample_of_todays_titles)"""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS total, "
+            "       COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE) AS today, "
+            "       MIN(created_at)::date::text AS oldest "
+            "  FROM trends WHERE status = 'draft' AND confidence >= ?",
+            (CONFIDENCE_MIN,),
+        ).fetchone()
+        r = dict(row) if hasattr(row, "keys") else {
+            "total": row[0], "today": row[1], "oldest": row[2]}
+
+        rows = conn.execute(
+            "SELECT title_en, source_name FROM trends "
+            " WHERE status = 'draft' AND confidence >= ? AND created_at >= CURRENT_DATE "
+            " ORDER BY created_at DESC LIMIT 20",
+            (CONFIDENCE_MIN,),
+        ).fetchall()
+    items = [dict(x) if hasattr(x, "keys") else {"title_en": x[0], "source_name": x[1]}
+             for x in rows]
+    return int(r["today"] or 0), int(r["total"] or 0), r["oldest"], items
+
+
+def build_mail(today: int, total: int, oldest: str | None,
+               items: list[dict]) -> tuple[str, str, str]:
+    subject = (f"Review: {today} article{'s' if today != 1 else ''} held overnight"
+               if today else f"Review queue: {total} waiting")
+
+    lines = [f"{today} article(s) were held by the quality gate last night."]
+    if total > today:
+        lines.append(f"{total} in the queue in total"
+                     + (f", oldest from {oldest}." if oldest else "."))
+    lines.append("")
+    lines.append("Each states a figure or date its source does not support, or")
+    lines.append("breaks off mid-sentence. Publish or reject — either way it")
+    lines.append("leaves the queue.")
+    lines.append("")
+    for it in items:
+        src = f"  [{it.get('source_name')}]" if it.get("source_name") else ""
+        lines.append(f"  - {it.get('title_en', '')}{src}")
+    if today > len(items):
+        lines.append(f"  … and {today - len(items)} more")
+    lines.append("")
+    lines.append(f"Review: {REVIEW_URL}")
+    text = "\n".join(lines)
+
+    rows_html = "".join(
+        f'<li style="margin-bottom:6px">{html.escape(str(it.get("title_en","")))}'
+        + (f' <span style="color:#888">— {html.escape(str(it.get("source_name")))}</span>'
+           if it.get("source_name") else "")
+        + "</li>"
+        for it in items
+    )
+    body_html = (
+        '<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.6">'
+        f"<p><strong>{today}</strong> article(s) were held by the quality gate last night."
+        + (f" {total} in the queue in total"
+           + (f", oldest from {html.escape(oldest)}." if oldest else ".")
+           if total > today else "")
+        + "</p>"
+        "<p style=\"color:#666;font-size:13px\">Each states a figure or date its source "
+        "does not support, or breaks off mid-sentence. Publish or reject — either way it "
+        "leaves the queue.</p>"
+        f'<ul style="font-size:14px;padding-left:18px">{rows_html}</ul>'
+        + (f'<p style="color:#666;font-size:13px">… and {today - len(items)} more</p>'
+           if today > len(items) else "")
+        + f'<p><a href="{html.escape(REVIEW_URL)}">Open the review queue</a></p></div>'
+    )
+    return subject, body_html, text
+
+
+def send(subject: str, body_html: str, text: str) -> bool:
+    if not RESEND_API_KEY:
+        logger.error("RESEND_API_KEY not set — cannot send")
+        return False
+    try:
+        r = httpx.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+            json={"from": FROM_ADDR, "to": [TO_ADDR], "subject": subject,
+                  "html": body_html, "text": text},
+            timeout=20,
+        )
+        r.raise_for_status()
+        return True
+    except Exception as e:  # noqa: BLE001
+        logger.error("send failed: %r", e)
+        return False
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Mail the grounding-hold review queue")
+    ap.add_argument("--dry-run", action="store_true", help="print, never send")
+    ap.add_argument("--force", action="store_true",
+                    help="send even when nothing was held (for testing the wiring)")
+    args = ap.parse_args()
+
+    today, total, oldest, items = fetch_queue()
+    logger.info("queue: %d held today, %d total, oldest %s", today, total, oldest)
+
+    if today == 0 and not args.force:
+        # The point of the quiet path: no daily noise when there is no work.
+        logger.info("nothing held today — no mail sent")
+        return 0
+
+    subject, body_html, text = build_mail(today, total, oldest, items)
+    if args.dry_run:
+        print(f"--- Subject: {subject}\n\n{text}")
+        return 0
+    ok = send(subject, body_html, text)
+    logger.info("mail %s to %s", "sent" if ok else "FAILED", TO_ADDR)
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

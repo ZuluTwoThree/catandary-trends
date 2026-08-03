@@ -49,5 +49,12 @@ mkdir -p "$(dirname "$LOG")"
   RC=$?
   echo "----- scheduled_cycle.sh exit code: $RC -----"
 
+  # Morning reminder for the grounding-hold review queue (#71). Stays silent
+  # when nothing was held, so a mail only ever arrives with real work in it.
+  # Never fails the cycle — the run itself already succeeded at this point.
+  echo "----- review queue notification -----"
+  "$REPO/.venv/bin/python" -m scripts.review_notify \
+    || echo "  (notification failed — non-fatal)"
+
   echo "full_cycle_cron.sh end  $(date -Iseconds)  (rc=$RC)"
 } >> "$LOG" 2>&1
