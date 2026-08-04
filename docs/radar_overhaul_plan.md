@@ -326,3 +326,71 @@ Tag über eine Stichprobe gedacht hat.
 Das Werkzeug muss das tragen, ohne es zu verstecken: Zahl der Bewertungen,
 Zahl der Bewerter, Streuung und Datum gehören an jeden Punkt. Ein Feld mit drei
 Bewertungen darf nicht aussehen wie eines mit dreihundert.
+
+---
+
+## 10. Umsetzung Schnitt 1–3 (2026-08-05)
+
+Owner-Freigabe: Arbeitsbereich = **Organisation** · Stichprobe **40–60** ·
+altes Radar **bleibt** unter `/trends/foresight/radar`.
+
+Gebaut und live unter `/trends/foresight/instrument`:
+
+**`pipeline/instrument.py`** — Schema (workspace, rater, rater_expertise,
+workspace_field, signal_relevance, field_assessment), Kurvenklassifikator,
+geschichtete Stichprobe, Fachnähe-Gewichtung, Aggregation.
+
+**`scripts/instrument.py`** — Prozessgrenze mit vier Befehlen (board, queue,
+rate, fields). Die Logik bleibt in Python, damit sie nicht in zwei Sprachen
+driftet.
+
+**`/api/foresight/instrument`** — GET Tafel und Warteschlange, POST Bewertung
+und Feld hinzufügen. Same-Origin-Prüfung, Feld-Schlüssel gegen Muster validiert.
+
+**`InstrumentPreview.tsx`** — der Messtisch, jetzt mit echten Daten.
+
+### 10.1 Was der Kurvenklassifikator liefert
+
+Gemessen an den TECH-, ECO- und FOOD-Clustern:
+
+| Feld | Stufe | Begründung |
+|---|---|---|
+| Venture Capital · AI | Etabliert | seit 17 Jahren stabil bei 16 % Anteil (Streuung 12 %) — Plateau |
+| Machine Learning · AI Research | Reifend | +22 % seit dem Tief, 36 % des Gipfels — Slope of Enlightenment |
+| User Experience · AI Integration | Volatil | 14 % des Gipfels ohne Erholung — Tal der Enttäuschungen |
+| Gene Expression | Entstehend | *(nach Zusammenführung mit der Evidenz)* |
+
+Die Rauschschwelle war nötig: ungefiltert hat **jede** Kurve ihr Maximum in den
+frühen 1990ern, wo zweistellige Signalzahlen Anteile von 0,58 erzeugen.
+
+### 10.2 Die Zusammenführung sagt Widersprüche, statt zu mitteln
+
+Bei den meisten Feldern meldet `merge_maturity` **`conflict`** — Kurve und
+Marktevidenz sind sich uneins. Das ist kein Defekt, sondern der interessanteste
+Befund: Aufmerksamkeit und Marktreife laufen regelmäßig auseinander. Gezeigt
+wird dann die **vorsichtigere** Lesart, und die Zelle nennt beide.
+
+### 10.3 Die Stichprobe
+
+48 Signale je Feld, geschichtet über acht Zeitscheiben **und** über die
+Signaltypen. Gemessen für Machine Learning: 8 Typen vertreten, Jahre von 2000
+bis 2026. Eine Auswahl nach Aktualität ließe jedes Feld jung erscheinen, eine
+nach Häufigkeit bestünde zu 40 % aus Marktbewegung — beides verzerrt die
+Relevanz, die daraus entsteht. Das Werkzeug sagt das unter dem Fortschritt.
+
+### 10.4 Fachnähe
+
+Selbstauskunft × Erfahrung, gedeckelt auf 0,25–4,0. Der Erfahrungsanteil
+sättigt logarithmisch: die ersten fünfzig Bewertungen zählen viel, die
+fünfhundertste kaum. Der Beständigkeitsanteil (Übereinstimmung mit den eigenen
+früheren Urteilen bei ähnlichen Signalen) ist vorgesehen, aber erst ab einem
+Bestand sinnvoll — Schnitt 4.
+
+### 10.5 Offen
+
+- **Beständigkeitsfaktor** und Streuungsanzeige je Punkt (Schnitt 4)
+- **Recherche-Agent** je Feld auf Knopfdruck (Schnitt 5)
+- **ML-Vorschlag** der Relevanz aus den bewerteten Signalen (Schnitt 6) — das
+  Trainingsset entsteht ab jetzt bei jeder Bewertung
+- Felder werden derzeit per CLI hinzugefügt (`instrument.py fields --add`);
+  eine Auswahloberfläche fehlt noch
