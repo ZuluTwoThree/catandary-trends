@@ -81,3 +81,54 @@ def test_percent_still_matches_across_formats():
     src = "Registrations rose 50% to a 26% share."
     body = "BEV registrations rose by 50%, reaching 26% of the market."
     assert ungrounded_specifics(body, src) == []
+
+
+# --- Quantities the source spells out in words (2026-08-04) -----------------
+# Measured cause of most holds in the live queue: German and English sources
+# routinely write "die Hälfte" / "one in five" where the body writes 50% / 20%.
+
+def test_half_in_source_grounds_fifty_percent():
+    src = "Around half of melanomas carry a mutation in a protein called BRAF."
+    assert ungrounded_specifics("mutations in approximately 50% of melanoma cases", src) == []
+
+
+def test_german_half_grounds_fifty_percent():
+    src = "Erstmals ist mehr als die Hälfte neu hochgeladener Songs auf Deezer KI"
+    assert ungrounded_specifics("AI accounted for over 50% of all new uploads", src) == []
+
+
+def test_quarter_and_fifth_and_ratio_forms():
+    assert ungrounded_specifics("cut demand by 25%", "um ein Viertel senken") == []
+    assert ungrounded_specifics("20 percent of power", "ein Fünftel des Landesstroms") == []
+    assert ungrounded_specifics("25% of IT ops work", "a quarter of the IT ops work") == []
+    assert ungrounded_specifics("20% of the cohort", "one in five face lasting struggles") == []
+
+
+def test_scaled_fraction():
+    assert ungrounded_specifics("a $500 billion bill", "New York Faces Half a Trillion in Costs") == []
+    assert ungrounded_specifics("committing €500 million", "Nestlé investiert halbe Milliarde") == []
+
+
+def test_spelled_cardinal_grounds_digit():
+    src = "Leerverkäufer erzielen Buchgewinne von etwa fünf Milliarden US-Dollar."
+    assert ungrounded_specifics("extracting $5 billion in paper profits", src) == []
+
+
+# --- and the limits: the gate must still catch real inventions -------------
+
+def test_word_quantities_do_not_ground_unrelated_figures():
+    """'half' implies 50 — it must NOT wave through an invented 150 or 70."""
+    src = "The 2026 El Niño is on track to be the strongest on record."
+    assert ungrounded_specifics("the strongest recorded in 150 years", src) == ["150"]
+
+
+def test_implied_digit_never_grounds_via_substring():
+    """A source cardinal 'five' implies '5'; a body '500,000' is NOT thereby
+    grounded — otherwise every figure containing the digit would pass."""
+    src = "The company named five priorities for the year."
+    assert ungrounded_specifics("a 500,000 unit shortfall", src) == ["500,000"]
+
+
+def test_vague_words_carry_no_number():
+    src = "Most patients benefited, and many reported fewer symptoms."
+    assert ungrounded_specifics("benefited 80% of patients", src) == ["80%"]
