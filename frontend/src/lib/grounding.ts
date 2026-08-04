@@ -82,6 +82,23 @@ function impliedTokens(text: string): Set<string> {
   return out;
 }
 
+
+/**
+ * Digits bound into a NAME are not a quantitative claim: COVID-19, LTG-001,
+ * PAC-3, MAI-Cyber-1. Requiring the prefix to be capitalised is what separates
+ * these from a real invented figure like "the under-25 demographic", where the
+ * lowercase word carries an actual (and in that case fabricated) measurement.
+ */
+const IDENTIFIER_DIGIT_RE = /(?:\b[A-Z][A-Za-z]*|[A-Z]{2,})-\d[\d.,]*/g;
+
+function identifierDigits(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const m of (text || "").matchAll(IDENTIFIER_DIGIT_RE)) {
+    out.add(m[0].split("-").pop()!);
+  }
+  return out;
+}
+
 /**
  * Reduce a number token to its bare digit run. Strips BOTH '.' and ',' —
  * English and German swap their thousands/decimal separators ("8,192" ==
@@ -107,9 +124,10 @@ export function ungroundedSpecifics(body: string, source: string): string[] {
   // allowance: "fünf" implies "5", and letting a bare "5" ground a body's
   // "150" by substring would gut the check.
   const implied = impliedTokens(source || "");
+  const names = identifierDigits(body);
   const bad: string[] = [];
   for (const t of concreteTokens(body)) {
-    if (srcRaw.has(t)) continue;
+    if (srcRaw.has(t) || names.has(t)) continue;
     const n = normToken(t);
     if (srcNorm.has(n) || implied.has(n)) continue;
     let contained = false;

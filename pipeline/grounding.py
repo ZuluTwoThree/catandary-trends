@@ -96,6 +96,21 @@ def _implied_tokens(text: str) -> set[str]:
     return out
 
 
+# Digits bound into a NAME are not a quantitative claim: COVID-19, LTG-001,
+# PAC-3, MAI-Cyber-1. Requiring the prefix to be capitalised is what separates
+# these from a real invented figure like "the under-25 demographic", where the
+# lowercase word carries an actual (and in that case fabricated) measurement.
+_IDENTIFIER_DIGIT_RE = re.compile(r"(?:\b[A-Z][A-Za-z]*|[A-Z]{2,})-\d[\d.,]*")
+
+
+def _identifier_digits(text: str) -> set[str]:
+    """Digit runs that occur only as part of a capitalised identifier."""
+    out: set[str] = set()
+    for m in _IDENTIFIER_DIGIT_RE.finditer(text or ""):
+        out.add(m.group(0).split("-")[-1])
+    return out
+
+
 def _norm_token(t: str) -> str:
     """Reduce a number token to its bare digit run for comparison. Strips BOTH
     '.' and ',' — English and German swap their thousands/decimal separators
@@ -135,9 +150,10 @@ def ungrounded_specifics(body: str, source: str) -> list[str]:
     # allowance: "fünf" implies "5", and letting a bare "5" ground a body's
     # "150" by substring would gut the check.
     implied = _implied_tokens(source or "")
+    names = _identifier_digits(body)
     bad: list[str] = []
     for t in _concrete_tokens(body):
-        if t in src_raw:
+        if t in src_raw or t in names:
             continue
         n = _norm_token(t)
         if n in src_norm or n in implied:
