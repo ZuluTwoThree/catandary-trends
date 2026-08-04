@@ -68,3 +68,17 @@ describe("sourceFromParts", () => {
     expect(ungroundedSpecifics(body, wide)).toEqual([]);
   });
 });
+
+describe("CJK sources (regression 2026-08-04)", () => {
+  it("sees a figure stated in a Japanese source", () => {
+    // \b finds no boundary between a digit and a CJK character, so the number
+    // was invisible and the body's correct figure was flagged as fabricated.
+    expect(
+      ungroundedSpecifics("covering 140 currencies across 180 countries.", "140以上の通貨、180以上の国・地域をカバーし")
+    ).toEqual([]);
+  });
+
+  it("does not mangle a Korean grouped number into '2,'", () => {
+    expect(ungroundedSpecifics("The bank serves 2,900 万 customers.", "약 2,900만 명의 고객을 보유")).not.toContain("2,");
+  });
+});

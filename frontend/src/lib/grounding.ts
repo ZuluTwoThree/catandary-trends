@@ -10,8 +10,15 @@
  * ones that break first if the two drift apart.
  */
 
-const YEAR_RE = /\b(?:19|20)\d{2}\b/g;
-const NUM_RE = /\b\d[\d,.]{1,}\b|\b\d+%|[$€£]\s?\d[\d,.]*/g;
+const YEAR_RE = /(?<!\d)(?:19|20)\d{2}(?!\d)/g;
+// Digit runs bounded by "no adjacent digit/separator" rather than \b.
+//
+// \b fails on CJK: in "140以上の通貨" both '0' and '以' are word characters, so
+// there is no boundary and the number stays invisible — the check then flags a
+// figure the (Japanese/Korean/Chinese) source plainly states as fabricated.
+// Measured on the live backlog 2026-08-04; it also fixes Korean "2,900만"
+// previously being read as the garbage token "2,".
+const NUM_RE = /(?<![\d.,])\d[\d.,]*%?|[$€£]\s?\d[\d,.]*/g;
 
 /** Years / numbers / percentages / money amounts appearing in `text`. */
 function concreteTokens(text: string): Set<string> {
