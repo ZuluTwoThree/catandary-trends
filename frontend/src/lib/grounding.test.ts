@@ -104,3 +104,13 @@ describe("quantities the source spells out in words (2026-08-04)", () => {
     expect(ungroundedSpecifics("benefited 80% of patients", "Most patients benefited, many reported fewer symptoms")).toEqual(["80%"]);
   });
 });
+
+describe("digits inside a capitalised name", () => {
+  it("are not treated as measurements", () => {
+    expect(ungroundedSpecifics("the largest exodus since the COVID-19 pandemic.", "Aktien im Wert von 243 Millionen")).toEqual([]);
+    expect(ungroundedSpecifics("its acute pain drug, LTG-001.", "Latigo reports mid-stage success")).toEqual([]);
+  });
+  it("but a lowercase hyphen figure still is one", () => {
+    expect(ungroundedSpecifics("demand from the under-25 demographic", "young adults living with their parents")).toEqual(["25"]);
+  });
+});

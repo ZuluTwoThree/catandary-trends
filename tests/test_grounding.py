@@ -132,3 +132,19 @@ def test_implied_digit_never_grounds_via_substring():
 def test_vague_words_carry_no_number():
     src = "Most patients benefited, and many reported fewer symptoms."
     assert ungrounded_specifics("benefited 80% of patients", src) == ["80%"]
+
+
+def test_digits_inside_a_capitalised_name_are_not_claims():
+    """COVID-19 / LTG-001 / PAC-3 are names, not measurements."""
+    assert ungrounded_specifics(
+        "the largest exodus since the COVID-19 pandemic.",
+        "Privatanleger verkaufen netto Aktien im Wert von 243 Millionen US-Dollar.") == []
+    assert ungrounded_specifics(
+        "its acute pain drug, LTG-001.", "Latigo reports mid-stage success") == []
+
+
+def test_lowercase_hyphen_figure_is_still_a_claim():
+    """'under-25' carries a real (here fabricated) measurement — the capital
+    letter is exactly what separates a name from a number."""
+    src = "More young adults are living with their parents."
+    assert ungrounded_specifics("demand from the under-25 demographic", src) == ["25"]
