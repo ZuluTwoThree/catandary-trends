@@ -131,15 +131,29 @@ export interface ReviewCounts {
   oldest: string | null;
 }
 
+/**
+ * Counts must match what the queue actually LISTS, so they are derived from the
+ * same filtered rows rather than from a COUNT(*) over all drafts.
+ *
+ * A plain SQL count is wrong here: a high-confidence draft can sit in the table
+ * with no objection at all (it simply hasn't reached the nightly auto-publisher
+ * yet). On 2026-08-04 that made the header claim 101 items against 29 the page
+ * could show — a number the reviewer would have to distrust every morning.
+ * Grounding runs in JS, so there is no SQL predicate for it.
+ */
 export async function getReviewCounts(): Promise<ReviewCounts> {
-  const r = await q1<{ total: number; today: number; oldest: string | null }>(
-    `SELECT COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE)::int AS today,
-            MIN(created_at)::date::text AS oldest
-       FROM trends WHERE status = 'draft' AND confidence >= $1`,
-    [REVIEW_CONFIDENCE_MIN]
-  );
-  return { total: r?.total ?? 0, today: r?.today ?? 0, oldest: r?.oldest ?? null };
+  const rows = await q<Row>(`${SELECT} ORDER BY t.created_at DESC LIMIT 500`, [
+    REVIEW_CONFIDENCE_MIN,
+  ]);
+  const held = rows.map(toItem).filter((i) => i.flagged.length > 0 || i.truncated);
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const dates = held.map((i) => i.createdAt).sort();
+  return {
+    total: held.length,
+    today: held.filter((i) => new Date(i.createdAt) >= startOfDay).length,
+    oldest: dates.length ? dates[0].slice(0, 10) : null,
+  };
 }
 
 /**
