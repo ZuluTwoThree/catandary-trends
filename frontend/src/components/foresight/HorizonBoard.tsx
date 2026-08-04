@@ -16,6 +16,7 @@ import HorizonArc from "./HorizonArc";
 import FieldReadout, { ReadoutStrip } from "./FieldReadout";
 import FieldIdentity from "./FieldIdentity";
 import SignalCloud from "./SignalCloud";
+import PortfolioBoard from "./PortfolioBoard";
 
 /**
  * The instrument: one dataset, two readings, one readout.
@@ -39,7 +40,7 @@ interface EvidenceItem {
   source_name: string | null;
 }
 
-type Mode = "arc" | "matrix" | "cloud";
+type Mode = "portfolio" | "arc" | "matrix" | "cloud";
 
 export default function HorizonBoard({
   view,
@@ -48,7 +49,10 @@ export default function HorizonBoard({
   view: RadarView;
   evidence: Record<number, EvidenceItem>;
 }) {
-  const [mode, setMode] = useState<Mode>("arc");
+  // Das Portfolio ist die Entscheidungsfläche (Blechschmidt Abb. 8.2) und
+  // damit die Startansicht; Bogen, Matrix und Wolke sind die Evidenzschicht
+  // darunter.
+  const [mode, setMode] = useState<Mode>("portfolio");
   // Eine Entscheidung gilt immer für EINEN Markt. Die Weltspalte ist die
   // Vereinigung aller Signale und damit die großzügigste Lesart — als
   // Startansicht wäre der erste Eindruck systematisch der rosigste. Sie bleibt
@@ -88,14 +92,20 @@ export default function HorizonBoard({
       {/* ---- Instrument switches -------------------------------------- */}
       <div className="hb-switches">
         <div className="hb-switch-group" role="group" aria-label="View">
-          {(["arc", "matrix", "cloud"] as Mode[]).map((m) => (
+          {(["portfolio", "arc", "matrix", "cloud"] as Mode[]).map((m) => (
             <button
               key={m}
               className={`hb-switch ${mode === m ? "is-on" : ""}`}
               onClick={() => setMode(m)}
               aria-pressed={mode === m}
             >
-              {m === "arc" ? "Arc" : m === "matrix" ? "Matrix" : "Signals"}
+              {m === "portfolio"
+                ? "Portfolio"
+                : m === "arc"
+                  ? "Arc"
+                  : m === "matrix"
+                    ? "Matrix"
+                    : "Signals"}
             </button>
           ))}
         </div>
@@ -163,7 +173,9 @@ export default function HorizonBoard({
 
       <div className="hb-grid">
         <div className="hb-stage">
-          {mode === "cloud" ? (
+          {mode === "portfolio" ? (
+            <PortfolioBoard view={view} />
+          ) : mode === "cloud" ? (
             // Die Wolke braucht ein Feld, keine Jurisdiktion: sie zeigt JEDES
             // Signal des Felds mit der Stufe, die es selbst belegt.
             <SignalCloud
