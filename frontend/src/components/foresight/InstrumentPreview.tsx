@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**
  * „Der Messtisch" — Gestaltungsvorlage des Radar-Neubaus.
@@ -42,43 +42,34 @@ const RELEVANCE = [
 ];
 
 type Field = {
-  key: string;
+  field_key: string;
   label: string;
   stage: string;
-  rel: string | null;
-  n: number;
-  raters: number;
+  basis: string;
+  note: string | null;
+  relevance: number | null;
+  rel_stage: string | null;
   spread: number;
-  basis: "curve" | "evidence" | "research" | "default";
+  n_rated: number;
+  n_raters: number;
+  sample_size: number;
 };
 
-const FIELDS: Field[] = [
-  { key: "ml", label: "Machine Learning", stage: "established", rel: "high", n: 58, raters: 3, spread: 0.4, basis: "evidence" },
-  { key: "chip", label: "Chip Design", stage: "established", rel: "medium", n: 41, raters: 2, spread: 0.9, basis: "curve" },
-  { key: "ev", label: "Electric Vehicles", stage: "maturing", rel: "medium", n: 36, raters: 2, spread: 0.5, basis: "evidence" },
-  { key: "ux", label: "UX · AI Integration", stage: "maturing", rel: "high", n: 44, raters: 3, spread: 1.4, basis: "curve" },
-  { key: "mat", label: "Sustainable Materials", stage: "volatile", rel: "low", n: 22, raters: 1, spread: 0, basis: "default" },
-  { key: "neuro", label: "Neuromorphic", stage: "volatile", rel: null, n: 0, raters: 0, spread: 0, basis: "default" },
-  { key: "gene", label: "Gene Expression", stage: "emerging", rel: null, n: 0, raters: 0, spread: 0, basis: "curve" },
-  { key: "photon", label: "Silicon Photonics", stage: "volatile", rel: null, n: 0, raters: 0, spread: 0, basis: "research" },
-];
+type Signal = {
+  id: number;
+  title: string;
+  summary: string;
+  source: string | null;
+  url: string | null;
+  type: string;
+  date: string;
+};
 
-const QUEUE = [
-  {
-    id: 1,
-    title: "Broadcom ships Tomahawk 6 with co-packaged optics to hyperscalers",
-    source: "Semiconductor Today",
-    date: "12 Jul 2026",
-    type: "product_launch",
-    field: "Silicon Photonics",
-    hint: 3,
-    why: "Ähnelt 8 Signalen, die Sie mit 3 oder 4 bewertet haben.",
-  },
-];
-
-const BASIS_LABEL: Record<Field["basis"], string> = {
+const BASIS_LABEL: Record<string, string> = {
   curve: "aus dem Verlaufsmuster",
   evidence: "aus Marktevidenz",
+  "curve+evidence": "Verlauf und Evidenz stimmen überein",
+  conflict: "Verlauf und Evidenz widersprechen sich",
   research: "aus Recherche",
   default: "nicht bestimmbar — Rückfall auf volatil",
 };
@@ -99,18 +90,105 @@ function curvePath(w: number, h: number): string {
 }
 
 export default function InstrumentPreview() {
-  const [rated, setRated] = useState<number[]>([]);
-  const [pick, setPick] = useState<number | null>(null);
-  const [open, setOpen] = useState<string | null>("ux");
+  const [fields, setFields] = useState<Field[]>([]);
+  const [open, setOpen] = useState<string | null>(null);
+  const [queue, setQueue] = useState<Signal[]>([]);
+  const [done, setDone] = useState(0);
+  const [weight, setWeight] = useState<{ weight: number; n_rated: number } | null>(null);
+  const [leaving, setLeaving] = useState<number | null>(null);
+  const [stack, setStack] = useState<number[]>([]);
+  const [busy, setBusy] = useState(true);
 
   const W = 760;
   const H = 132;
   const path = useMemo(() => curvePath(W, H), []);
-  const sig = QUEUE[0];
+
+  const loadBoard = useCallback(async () => {
+    const r = await fetch("/api/foresight/instrument?what=board");
+    const d = await r.json();
+    if (!d?.error) setFields(d.fields ?? []);
+    setBusy(false);
+  }, []);
+
+  const loadQueue = useCallback(async (field: string) => {
+    const r = await fetch(
+      `/api/foresight/instrument?what=queue&field=${encodeURIComponent(field)}`
+    );
+    const d = await r.json();
+    if (d?.error) return;
+    setQueue(d.signals ?? []);
+    setDone(d.done ?? 0);
+    setWeight(d.weight ?? null);
+  }, []);
+
+  useEffect(() => {
+    void loadBoard();
+  }, [loadBoard]);
+
+  useEffect(() => {
+    if (open) void loadQueue(open);
+    else setQueue([]);
+  }, [open, loadQueue]);
+
+  const sig = queue[0] ?? null;
+  const field = fields.find((f) => f.field_key === open) ?? null;
+
+  const rate = useCallback(
+    async (points: number | null) => {
+      if (!sig || !open) return;
+      setLeaving(sig.id);
+      setStack((s) => [...s, points ?? -1].slice(-6));
+      window.setTimeout(() => {
+        setQueue((q) => q.slice(1));
+        setLeaving(null);
+        setDone((d) => d + (points === null ? 0 : 1));
+      }, 300);
+      const r = await fetch("/api/foresight/instrument", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          field: open, trend: sig.id,
+          ...(points === null ? { skip: true } : { points }),
+        }),
+      });
+      const d = await r.json();
+      if (!d?.error) {
+        setFields((prev) =>
+          prev.map((f) =>
+            f.field_key === open
+              ? { ...f, stage: d.stage, basis: d.basis, note: d.note,
+                  relevance: d.relevance, rel_stage: relStage(d.relevance),
+                  spread: d.relevance_spread, n_rated: d.n_rated,
+                  n_raters: d.n_raters }
+              : f
+          )
+        );
+      }
+    },
+    [sig, open]
+  );
+
+  // Tastatur zuerst: 0–4 bewerten, → überspringen. Wer sechzig Signale sichtet,
+  // soll die Maus nicht anfassen müssen.
+  useEffect(() => {
+    if (!sig) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key >= "0" && e.key <= "4") {
+        e.preventDefault();
+        void rate(Number(e.key));
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        void rate(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sig, rate]);
+
+  const totalRated = fields.reduce((s, f) => s + f.n_rated, 0);
 
   return (
     <div className="ip">
-      {/* ---------------- Kopf: Instrumentenschild ---------------- */}
       <header className="ip-head">
         <div>
           <span className="ip-eyebrow">Foresight · Instrument 02</span>
@@ -119,130 +197,125 @@ export default function InstrumentPreview() {
           </h1>
           <p className="ip-lede">
             Sie bewerten Signale. Das Portfolio ordnet sich daraufhin selbst:
-            die <strong>Reife</strong> leiten wir aus Evidenz und Verlauf ab, die{" "}
+            die <strong>Reife</strong> leiten wir aus Verlauf und Evidenz ab, die{" "}
             <strong>Relevanz</strong> entsteht aus Ihren Bewertungen. Zwei
             Achsen, zwei Besitzer.
           </p>
         </div>
         <dl className="ip-specs">
+          <div><dt>Felder</dt><dd>{fields.length}</dd></div>
+          <div><dt>Bewertet</dt><dd>{totalRated}</dd></div>
           <div>
-            <dt>Felder</dt>
-            <dd>8</dd>
-          </div>
-          <div>
-            <dt>Bewertet</dt>
-            <dd>201</dd>
-          </div>
-          <div>
-            <dt>Bewerter</dt>
-            <dd>3</dd>
-          </div>
-          <div>
-            <dt>Stand</dt>
-            <dd>5. Aug 2026</dd>
+            <dt>Ihr Gewicht</dt>
+            <dd>{weight ? weight.weight.toFixed(2) : "—"}</dd>
           </div>
         </dl>
       </header>
 
-      {/* ---------------- Bewertungsstrecke ---------------- */}
+      {/* Bewertungsstrecke */}
       <section className="ip-rate" aria-label="Signale bewerten">
         <div className="ip-stack" aria-hidden="true">
-          {rated.slice(-6).map((v, i) => (
+          {stack.map((v, i) => (
             <span key={i} className="ip-stack-card" style={{ ["--i" as string]: i }}>
-              {v}
+              {v < 0 ? "–" : v}
             </span>
           ))}
         </div>
 
-        <article className={`ip-card ${pick !== null ? "is-gone" : ""}`}>
-          <div className="ip-card-meta">
-            <span>{sig.source}</span>
-            <span>{sig.date}</span>
-            <span className="ip-card-type">{sig.type.replace("_", " ")}</span>
-          </div>
-          <h2 className="ip-card-title">{sig.title}</h2>
-          <p className="ip-card-field">
-            gehört zu <strong>{sig.field}</strong>
+        {!open ? (
+          <p className="ip-idle">
+            Wählen Sie unten ein Feld, um seine Signale zu bewerten. Die Relevanz
+            eines Felds entsteht ausschließlich aus diesen Bewertungen — sie kann
+            Ihnen niemand abnehmen.
           </p>
-
-          <div className="ip-scale" role="group" aria-label="Relevanz 0 bis 4">
-            {[0, 1, 2, 3, 4].map((n) => (
-              <button
-                key={n}
-                className={`ip-key ${n === sig.hint ? "is-hint" : ""}`}
-                onClick={() => {
-                  setRated((r) => [...r, n]);
-                  setPick(n);
-                  window.setTimeout(() => setPick(null), 420);
-                }}
-              >
-                <span className="ip-key-n">{n}</span>
-                <span className="ip-key-l">
-                  {["irrelevant", "am Rand", "beachten", "wichtig", "zentral"][n]}
-                </span>
+        ) : !sig ? (
+          <p className="ip-idle">
+            {busy ? "Stichprobe wird gezogen…" : "Für dieses Feld liegt nichts mehr an. "}
+            {!busy && (
+              <button className="ip-linkbtn" onClick={() => void loadQueue(open)}>
+                Neue Stichprobe ziehen
               </button>
-            ))}
-          </div>
-
-          <p className="ip-suggest">
-            <span className="ip-sug-badge">Vorschlag {sig.hint}</span>
-            {sig.why} Er zählt nicht mit, bis Sie ihn bestätigen.
+            )}
           </p>
-        </article>
+        ) : (
+          <article className={`ip-card ${leaving === sig.id ? "is-gone" : ""}`}>
+            <div className="ip-card-meta">
+              <span>{sig.source ?? "ohne Quelle"}</span>
+              <span>{sig.date}</span>
+              <span className="ip-card-type">{sig.type.replace("_", " ")}</span>
+            </div>
+            <h2 className="ip-card-title">{sig.title}</h2>
+            {sig.summary ? <p className="ip-card-sum">{sig.summary}</p> : null}
+            <p className="ip-card-field">
+              gehört zu <strong>{field?.label}</strong>
+            </p>
 
-        <div className="ip-progress">
-          <span className="ip-k">Stichprobe</span>
-          <span className="ip-p-bar" aria-hidden="true">
-            <span style={{ width: `${Math.min(100, (rated.length / 48) * 100)}%` }} />
-          </span>
-          <span className="ip-p-n">{rated.length} / 48 für dieses Feld</span>
-          <span className="ip-p-note">
-            48 Signale, gezogen über die ganze Zeitspanne und alle Signaltypen —
-            nicht die 12 400 des Felds. Die Stichprobe ist repräsentativ, nicht
-            vollständig.
-          </span>
-        </div>
+            <div className="ip-scale" role="group" aria-label="Relevanz 0 bis 4">
+              {[0, 1, 2, 3, 4].map((n) => (
+                <button key={n} className="ip-key" onClick={() => void rate(n)}>
+                  <span className="ip-key-n">{n}</span>
+                  <span className="ip-key-l">
+                    {["irrelevant", "am Rand", "beachten", "wichtig", "zentral"][n]}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="ip-suggest">
+              Tastatur: <b>0</b>–<b>4</b> bewerten, <b>→</b> überspringen.
+            </p>
+          </article>
+        )}
+
+        {open ? (
+          <div className="ip-progress">
+            <span className="ip-k">Stichprobe</span>
+            <span className="ip-p-bar" aria-hidden="true">
+              <span
+                style={{
+                  width: `${Math.min(100, (done / (field?.sample_size ?? 48)) * 100)}%`,
+                }}
+              />
+            </span>
+            <span className="ip-p-n">
+              {done} / {field?.sample_size ?? 48} für dieses Feld
+            </span>
+            <span className="ip-p-note">
+              Die Stichprobe ist über die ganze Zeitspanne und alle Signaltypen
+              gezogen — sie ist repräsentativ, nicht vollständig. Eine Auswahl
+              nur der jüngsten Signale ließe jedes Feld jung erscheinen.
+            </span>
+          </div>
+        ) : null}
       </section>
 
-      {/* ---------------- Portfolio mit Kurvenrückgrat ---------------- */}
+      {/* Portfolio */}
       <section className="ip-pf" aria-label="Portfolio">
         <div className="ip-pf-head">
           <span className="ip-k">Portfolio</span>
-          <span className="ip-legend">
-            <i className="sw sw-set" /> von Ihnen gesetzt
-          </span>
-          <span className="ip-legend">
-            <i className="sw sw-sug" /> maschineller Vorschlag
-          </span>
+          <span className="ip-legend"><i className="sw sw-set" /> von Ihnen gesetzt</span>
+          <span className="ip-legend"><i className="sw sw-sug" /> Rückfall / geschätzt</span>
         </div>
 
         <div className="ip-pf-body">
-          {/* Die Achse erklärt sich: Kurve hinter den Stufen */}
           <div className="ip-axis" aria-hidden="true">
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
               <path d={path} className="ip-curve" />
               {STAGES.map((s) => (
-                <line
-                  key={s.key}
-                  x1={s.at * W}
-                  x2={s.at * W}
-                  y1={0}
-                  y2={H}
-                  className="ip-curve-tick"
-                />
+                <line key={s.key} x1={s.at * W} x2={s.at * W} y1={0} y2={H}
+                      className="ip-curve-tick" />
               ))}
             </svg>
             <div className="ip-axis-labels">
               {STAGES.map((s) => (
-                <span key={s.key} style={{ left: `${s.at * 100}%` }}>
-                  {s.label}
-                </span>
+                <span key={s.key} style={{ left: `${s.at * 100}%` }}>{s.label}</span>
               ))}
             </div>
             <p className="ip-axis-note">
               Diffusionskurve mit Aufmerksamkeitsbuckel. Die Reifestufen sitzen
               dort, wo ein Feld auf ihr steht — das ist die Herleitung, nicht
-              Zierde.
+              Zierde. Der Anteil am Signalaufkommen misst allerdings
+              Aufmerksamkeit, nicht Marktreife; deshalb zählt die Marktevidenz
+              gleichrangig mit.
             </p>
           </div>
 
@@ -265,26 +338,28 @@ export default function InstrumentPreview() {
                   <em>{s.band}</em>
                 </div>
                 {[null, ...RELEVANCE.map((r) => r.key)].map((rk, i) => {
-                  const items = FIELDS.filter(
-                    (f) => f.stage === s.key && (f.rel ?? null) === rk
+                  const items = fields.filter(
+                    (f) => f.stage === s.key && (f.rel_stage ?? null) === rk
                   );
                   return (
-                    <div
-                      key={`${s.key}-${rk ?? "void"}`}
-                      className={`ip-cell ${i === 0 ? "is-void" : ""}`}
-                    >
+                    <div key={`${s.key}-${rk ?? "void"}`}
+                         className={`ip-cell ${i === 0 ? "is-void" : ""}`}>
                       {items.map((f) => (
                         <button
-                          key={f.key}
-                          className={`ip-blip ${open === f.key ? "is-on" : ""} ${
+                          key={f.field_key}
+                          className={`ip-blip ${open === f.field_key ? "is-on" : ""} ${
                             f.basis === "default" ? "is-guess" : ""
                           }`}
-                          onClick={() => setOpen(open === f.key ? null : f.key)}
-                          style={{ ["--w" as string]: `${Math.min(1, 0.35 + f.n / 70)}` }}
+                          onClick={() =>
+                            setOpen(open === f.field_key ? null : f.field_key)
+                          }
+                          style={{
+                            ["--w" as string]: `${Math.min(1, 0.3 + f.n_rated / 60)}`,
+                          }}
                         >
                           <span className="ip-blip-l">{f.label}</span>
                           <span className="ip-blip-n">
-                            {f.n ? `${f.n} bewertet` : "unbewertet"}
+                            {f.n_rated ? `${f.n_rated} bewertet` : "unbewertet"}
                             {f.spread > 1 ? " · Bewerter uneins" : ""}
                           </span>
                         </button>
@@ -302,12 +377,7 @@ export default function InstrumentPreview() {
           </div>
         </div>
 
-        {open ? (
-          <FieldDrawer
-            field={FIELDS.find((f) => f.key === open)!}
-            onClose={() => setOpen(null)}
-          />
-        ) : null}
+        {field ? <FieldDrawer field={field} onClose={() => setOpen(null)} /> : null}
       </section>
 
       <Styles />
@@ -315,39 +385,46 @@ export default function InstrumentPreview() {
   );
 }
 
+function relStage(score: number | null): string | null {
+  if (score === null || score === undefined) return null;
+  return score >= 2.67 ? "high" : score >= 1.34 ? "medium" : "low";
+}
+
 function FieldDrawer({ field, onClose }: { field: Field; onClose: () => void }) {
   return (
     <aside className="ip-drawer">
       <div className="ip-drawer-head">
         <h3>{field.label}</h3>
-        <button onClick={onClose} aria-label="Schließen">
-          ✕
-        </button>
+        <button onClick={onClose} aria-label="Schließen">✕</button>
       </div>
       <div className="ip-drawer-grid">
         <div>
-          <span className="ip-k">Reife — {STAGES.find((s) => s.key === field.stage)!.label}</span>
+          <span className="ip-k">
+            Reife — {STAGES.find((s) => s.key === field.stage)?.label}
+          </span>
+          {/* Die Begründung sagt die Herkunft selbst — ein vorangestelltes
+              Etikett doppelte sie („aus dem Verlaufsmuster. Aus dem
+              Verlaufsmuster. Seit 17 Jahren…"). Nur wo sie es NICHT tut, steht
+              das Etikett davor. */}
           <p className="ip-drawer-t">
-            {BASIS_LABEL[field.basis]}
-            {field.basis === "default"
-              ? ". Weder Verlauf noch Marktevidenz sind eindeutig — das Feld "
-                + "steht deshalb auf volatil, dem einzigen Band, dessen "
-                + "Empfehlung „genauer hinsehen“ lautet."
-              : ". Verlauf und Evidenz stimmen überein."}
+            {field.basis === "conflict" || field.basis === "default" ? null : (
+              <em>{BASIS_LABEL[field.basis] ?? field.basis} · </em>
+            )}
+            {field.note}
           </p>
         </div>
         <div>
           <span className="ip-k">Relevanz — Ihre Bewertung</span>
           <p className="ip-drawer-t">
-            {field.n
-              ? `${field.n} Signale von ${field.raters} Bewerter${
-                  field.raters > 1 ? "n" : ""
-                }, gewichtet nach Fachnähe.${
+            {field.n_rated
+              ? `${field.n_rated} Signale von ${field.n_raters} Bewerter${
+                  field.n_raters > 1 ? "n" : ""
+                }, gewichtet nach Fachnähe. Mittel ${field.relevance}.${
                   field.spread > 1
-                    ? " Die Bewerter sind uneins — die Fachnahen liegen höher."
+                    ? " Die Bewerter sind uneins — die Streuung steht am Punkt."
                     : ""
                 }`
-              : "Noch nicht bewertet. Ihre Relevanz kann Ihnen niemand abnehmen: sie hängt von Ihrem Geschäft ab, nicht vom Signalraum."}
+              : "Noch nicht bewertet. Die Relevanz hängt von Ihrem Geschäft ab, nicht vom Signalraum — sie kann Ihnen niemand abnehmen."}
           </p>
         </div>
       </div>
@@ -442,6 +519,10 @@ function Styles() {
       .ip-drawer-head h3 { margin: 0; font-size: 1.05rem; font-weight: 400; color: var(--color-paper); }
       .ip-drawer-head button { margin-left: auto; background: transparent; border: 1px solid var(--color-border); color: var(--color-muted); cursor: pointer; padding: .05rem .4rem; }
       .ip-drawer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6rem; }
+      .ip-idle { font-size: .88rem; color: var(--color-muted); max-width: 46em; line-height: 1.6; margin: 0; }
+      .ip-linkbtn { background: none; border: none; border-bottom: 1px solid var(--color-accent); color: var(--color-accent); cursor: pointer; padding: 0; font: inherit; }
+      .ip-card-sum { font-size: .84rem; line-height: 1.5; color: #4a4940; margin: 0 0 .8rem; }
+      .ip-drawer-t em { font-style: normal; color: var(--color-paper); }
       .ip-drawer-t { font-size: .8rem; line-height: 1.55; color: var(--color-text); margin: .35rem 0 0; }
 
       @media (max-width: 900px) {
