@@ -152,7 +152,8 @@ export async function publishReviewed(id: number): Promise<boolean> {
   const rows = await q<{ id: number }>(
     `UPDATE trends
         SET status = 'published', auto_published = false,
-            published_at = COALESCE(published_at, NOW())
+            published_at = COALESCE(published_at, NOW()),
+            reviewed_at = NOW()
       WHERE id = $1 AND status = 'draft'
       RETURNING id`,
     [id]
@@ -160,10 +161,14 @@ export async function publishReviewed(id: number): Promise<boolean> {
   return rows.length > 0;
 }
 
-/** Reject a draft: it leaves the pool, so the nightly gate stops re-checking it. */
+/**
+ * Reject a draft: it leaves the pool, so the nightly gate stops re-checking it.
+ * reviewed_at records WHEN — without it a rejection left no trace at all and
+ * review progress was unmeasurable (#71).
+ */
 export async function rejectReviewed(id: number): Promise<boolean> {
   const rows = await q<{ id: number }>(
-    `UPDATE trends SET status = 'rejected'
+    `UPDATE trends SET status = 'rejected', reviewed_at = NOW()
       WHERE id = $1 AND status = 'draft'
       RETURNING id`,
     [id]

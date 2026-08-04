@@ -15,8 +15,15 @@ from __future__ import annotations
 
 import re
 
-_YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
-_NUM_RE = re.compile(r"\b\d[\d,.]{1,}\b|\b\d+%|[$€£]\s?\d[\d,.]*")
+_YEAR_RE = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)")
+# Digit runs bounded by "no adjacent digit/separator" rather than \b.
+#
+# \b fails on CJK: in "140以上の通貨" both '0' and '以' are word characters, so
+# there is no boundary and the number stays invisible — the check then flags a
+# figure the (Japanese/Korean/Chinese) source plainly states as fabricated.
+# Measured on the live backlog 2026-08-04; it also fixes Korean "2,900만"
+# previously being read as the garbage token "2,".
+_NUM_RE = re.compile(r"(?<![\d.,])\d[\d.,]*%?|[$€£]\s?\d[\d,.]*")
 
 
 def _concrete_tokens(text: str) -> set[str]:

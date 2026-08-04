@@ -60,3 +60,24 @@ def test_figure_in_fulltext_not_flagged_via_extraction():
     assert set(ungrounded_specifics(body, narrow)) == {"2027", "10,000"}  # falsely flagged
     wide = source_from_parts("Circular strategy", rss_excerpt, [], key_figures, dates)
     assert ungrounded_specifics(body, wide) == []                          # now grounded
+
+def test_cjk_source_numbers_are_seen():
+    """Regression 2026-08-04: a figure stated in a Japanese/Korean source was
+    flagged as fabricated because \b finds no boundary between a digit and a
+    CJK character, so the number stayed invisible to the check."""
+    src = "140以上の通貨、180以上の国・地域をカバーし"
+    body = "covering 140 currencies across 180 countries."
+    assert ungrounded_specifics(body, src) == []
+
+
+def test_korean_grouped_number_not_mangled():
+    """'2,900만' used to be read as the garbage token '2,'."""
+    src = "약 2,900만 명의 고객을 보유"
+    body = "The bank serves 2,900 万 customers."
+    assert "2,900" not in ungrounded_specifics(body, src)
+
+
+def test_percent_still_matches_across_formats():
+    src = "Registrations rose 50% to a 26% share."
+    body = "BEV registrations rose by 50%, reaching 26% of the market."
+    assert ungrounded_specifics(body, src) == []
