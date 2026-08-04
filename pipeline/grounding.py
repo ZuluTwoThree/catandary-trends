@@ -33,6 +33,69 @@ def _concrete_tokens(text: str) -> set[str]:
     return out
 
 
+# Quantities the source states as a WORD, which the body legitimately renders as
+# a numeral. Without this the gate reports its own blind spot as a fabrication:
+# "Around half of melanomas" -> "50% of melanoma cases" was held as invented.
+# Roughly half our sources are German, where this is the norm ("die Hälfte",
+# "ein Viertel", "ein Fünftel", "halbe Milliarde").
+#
+# Only EXACT, unambiguous equivalences belong here. A word like "many" or
+# "most" has no numeric value and must keep failing the check.
+_FRACTION_WORDS: dict[str, tuple[str, ...]] = {
+    # fraction -> the percentages a body may reasonably write for it
+    r"h[aä]lb\w*|hälfte|\bhalf\b": ("50",),
+    r"\bviertel\b|\bquarter\b": ("25",),
+    r"\bdrittel\b|\bthird\b": ("33", "34"),
+    r"\bfünftel\b|\bfuenftel\b|\bfifth\b": ("20",),
+    r"zwei\s+drittel|two[-\s]thirds": ("66", "67"),
+    r"drei\s+viertel|three[-\s]quarters": ("75",),
+    # "one in five" / "jeder Fünfte" style ratios
+    r"one\s+in\s+five|jede[rn]?\s+fünfte": ("20",),
+    r"one\s+in\s+four|jede[rn]?\s+vierte": ("25",),
+    r"one\s+in\s+three|jede[rn]?\s+dritte": ("33", "34"),
+}
+
+# Cardinals spelled out. Needed because a German source writes "fünf Milliarden
+# US-Dollar" where the English body writes "$5 billion".
+_CARDINAL_WORDS: dict[str, str] = {
+    "one": "1", "eins": "1", "ein": "1", "eine": "1",
+    "two": "2", "zwei": "2", "three": "3", "drei": "3",
+    "four": "4", "vier": "4", "five": "5", "fünf": "5", "fuenf": "5",
+    "six": "6", "sechs": "6", "seven": "7", "sieben": "7",
+    "eight": "8", "acht": "8", "nine": "9", "neun": "9",
+    "ten": "10", "zehn": "10", "eleven": "11", "elf": "11",
+    "twelve": "12", "zwölf": "12", "zwanzig": "20", "twenty": "20",
+}
+
+# A fraction directly modifying a magnitude ("half a trillion", "halbe
+# Milliarde") yields the scaled figure the body prints: 500 / 250 / 750.
+_SCALED_FRACTION_RE = re.compile(
+    r"(h[aä]lb\w*|\bhalf\b|\bviertel\b|\bquarter\b|drei\s+viertel|three[-\s]quarters)"
+    r"[\s\w]{0,12}?(milliarde\w*|billion|trillion|billionen|million\w*)",
+    re.IGNORECASE,
+)
+_SCALE_VALUE = {"h": "500", "v": "250", "q": "250", "d": "750", "t": "750"}
+
+
+def _implied_tokens(text: str) -> set[str]:
+    """Numerals a source implies in words. Source-side only — a body that spells
+    a figure out is not making a claim the check needs to police."""
+    if not text:
+        return set()
+    low = text.lower()
+    out: set[str] = set()
+    for pattern, values in _FRACTION_WORDS.items():
+        if re.search(pattern, low, re.IGNORECASE):
+            out.update(values)
+    for m in _SCALED_FRACTION_RE.finditer(low):
+        out.add(_SCALE_VALUE.get(m.group(1)[0], ""))
+    for word, digit in _CARDINAL_WORDS.items():
+        if re.search(rf"\b{word}\b", low):
+            out.add(digit)
+    out.discard("")
+    return out
+
+
 def _norm_token(t: str) -> str:
     """Reduce a number token to its bare digit run for comparison. Strips BOTH
     '.' and ',' — English and German swap their thousands/decimal separators
@@ -68,12 +131,18 @@ def ungrounded_specifics(body: str, source: str) -> list[str]:
         return []
     src_raw = _concrete_tokens(source or "")
     src_norm = {_norm_token(t) for t in src_raw}
+    # Word-implied numerals match EXACTLY and never feed the substring
+    # allowance: "fünf" implies "5", and letting a bare "5" ground a body's
+    # "150" by substring would gut the check.
+    implied = _implied_tokens(source or "")
     bad: list[str] = []
     for t in _concrete_tokens(body):
         if t in src_raw:
             continue
         n = _norm_token(t)
-        if n in src_norm or any(n in s or s in n for s in src_norm if len(n) > 2):
+        if n in src_norm or n in implied:
+            continue
+        if any(n in s or s in n for s in src_norm if len(n) > 2):
             continue
         bad.append(t)
     return bad

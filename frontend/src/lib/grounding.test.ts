@@ -82,3 +82,25 @@ describe("CJK sources (regression 2026-08-04)", () => {
     expect(ungroundedSpecifics("The bank serves 2,900 万 customers.", "약 2,900만 명의 고객을 보유")).not.toContain("2,");
   });
 });
+
+describe("quantities the source spells out in words (2026-08-04)", () => {
+  it("grounds a numeral against the word form, EN and DE", () => {
+    expect(ungroundedSpecifics("50% of melanoma cases", "Around half of melanomas carry a mutation")).toEqual([]);
+    expect(ungroundedSpecifics("over 50% of all new uploads", "mehr als die Hälfte neu hochgeladener Songs")).toEqual([]);
+    expect(ungroundedSpecifics("cut demand by 25%", "um ein Viertel senken")).toEqual([]);
+    expect(ungroundedSpecifics("20% of the cohort", "one in five face lasting struggles")).toEqual([]);
+  });
+
+  it("scales a fraction against a magnitude word", () => {
+    expect(ungroundedSpecifics("a $500 billion bill", "New York Faces Half a Trillion in Costs")).toEqual([]);
+    expect(ungroundedSpecifics("committing €500 million", "Nestlé investiert halbe Milliarde")).toEqual([]);
+  });
+
+  it("still catches inventions — a word quantity is not a blanket pass", () => {
+    // "half" implies 50; it must not wave through an invented 150.
+    expect(ungroundedSpecifics("strongest in 150 years", "on track to be the strongest on record")).toEqual(["150"]);
+    // an implied digit must never ground a larger figure by substring
+    expect(ungroundedSpecifics("a 500,000 unit shortfall", "named five priorities")).toEqual(["500,000"]);
+    expect(ungroundedSpecifics("benefited 80% of patients", "Most patients benefited, many reported fewer symptoms")).toEqual(["80%"]);
+  });
+});

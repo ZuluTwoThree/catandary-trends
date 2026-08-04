@@ -29,6 +29,60 @@ function concreteTokens(text: string): Set<string> {
 }
 
 /**
+ * Quantities the source states as a WORD, which the body legitimately renders
+ * as a numeral. Without this the gate reports its own blind spot as a
+ * fabrication: "Around half of melanomas" -> "50% of melanoma cases" was held
+ * as invented. Roughly half our sources are German, where this is the norm
+ * ("die Hälfte", "ein Viertel", "ein Fünftel", "halbe Milliarde").
+ *
+ * Only EXACT, unambiguous equivalences belong here — "many" or "most" has no
+ * numeric value and must keep failing the check.
+ */
+const FRACTION_WORDS: [RegExp, string[]][] = [
+  [/h[aä]lb\w*|hälfte|\bhalf\b/i, ["50"]],
+  [/\bviertel\b|\bquarter\b/i, ["25"]],
+  [/\bdrittel\b|\bthird\b/i, ["33", "34"]],
+  [/\bfünftel\b|\bfuenftel\b|\bfifth\b/i, ["20"]],
+  [/zwei\s+drittel|two[-\s]thirds/i, ["66", "67"]],
+  [/drei\s+viertel|three[-\s]quarters/i, ["75"]],
+  [/one\s+in\s+five|jede[rn]?\s+fünfte/i, ["20"]],
+  [/one\s+in\s+four|jede[rn]?\s+vierte/i, ["25"]],
+  [/one\s+in\s+three|jede[rn]?\s+dritte/i, ["33", "34"]],
+];
+
+/** Spelled-out cardinals: a German "fünf Milliarden" vs an English "$5 billion". */
+const CARDINAL_WORDS: Record<string, string> = {
+  one: "1", eins: "1", ein: "1", eine: "1", two: "2", zwei: "2",
+  three: "3", drei: "3", four: "4", vier: "4", five: "5", fünf: "5",
+  fuenf: "5", six: "6", sechs: "6", seven: "7", sieben: "7", eight: "8",
+  acht: "8", nine: "9", neun: "9", ten: "10", zehn: "10", eleven: "11",
+  elf: "11", twelve: "12", zwölf: "12", zwanzig: "20", twenty: "20",
+};
+
+/** "half a trillion" / "halbe Milliarde" -> the scaled figure the body prints. */
+const SCALED_FRACTION_RE =
+  /(h[aä]lb\w*|\bhalf\b|\bviertel\b|\bquarter\b|drei\s+viertel|three[-\s]quarters)[\s\w]{0,12}?(milliarde\w*|billion|trillion|billionen|million\w*)/gi;
+const SCALE_VALUE: Record<string, string> = { h: "500", v: "250", q: "250", d: "750", t: "750" };
+
+/** Numerals a source implies in words. Source-side only. */
+function impliedTokens(text: string): Set<string> {
+  const out = new Set<string>();
+  if (!text) return out;
+  const low = text.toLowerCase();
+  for (const [re, values] of FRACTION_WORDS) {
+    if (re.test(low)) for (const v of values) out.add(v);
+  }
+  for (const m of low.matchAll(SCALED_FRACTION_RE)) {
+    const v = SCALE_VALUE[m[1][0]];
+    if (v) out.add(v);
+  }
+  for (const [word, digit] of Object.entries(CARDINAL_WORDS)) {
+    if (new RegExp(`\\b${word}\\b`, "i").test(low)) out.add(digit);
+  }
+  return out;
+}
+
+/**
  * Reduce a number token to its bare digit run. Strips BOTH '.' and ',' —
  * English and German swap their thousands/decimal separators ("8,192" ==
  * "8.192" == 8192; "29.5" == "29,5"), and roughly half our sources are German,
@@ -49,11 +103,15 @@ export function ungroundedSpecifics(body: string, source: string): string[] {
   if (!body) return [];
   const srcRaw = concreteTokens(source || "");
   const srcNorm = new Set([...srcRaw].map(normToken));
+  // Word-implied numerals match EXACTLY and never feed the substring
+  // allowance: "fünf" implies "5", and letting a bare "5" ground a body's
+  // "150" by substring would gut the check.
+  const implied = impliedTokens(source || "");
   const bad: string[] = [];
   for (const t of concreteTokens(body)) {
     if (srcRaw.has(t)) continue;
     const n = normToken(t);
-    if (srcNorm.has(n)) continue;
+    if (srcNorm.has(n) || implied.has(n)) continue;
     let contained = false;
     if (n.length > 2) {
       for (const s of srcNorm) {
