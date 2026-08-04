@@ -282,3 +282,82 @@ unbelegt und wird trotzdem im selben Bild gezeigt wie die belegte Reife. Das
 Radar muss den Unterschied optisch führen — etwa Reife durchgezogen, Relevanz
 als vom Nutzer gesetzte Größe erkennbar —, sonst verkauft es eine Schätzung mit
 der Autorität einer Messung.
+
+---
+
+## 7. Umsetzung Schnitt 1+2 (2026-08-04)
+
+Owner-Entscheidungen: Portfolio 4×3 entwickeln · Relevanz bewerten **immer die
+Nutzer** (fallweise als Catandary-Dienstleistung) · Raster **leer mit sichtbarem
+maschinellem Vorschlag** · Blechschmidts vier Reifestufen **statt** H1/H2/H3.
+
+### 7.1 Trendreife als Punktwert
+
+`pipeline/radar_maturity.py`. Sechs Teilkriterien, je 0–4, gewichtet, jedes an
+eine überprüfbare Schwelle gebunden und mit ausformuliertem Ankertext — das ist
+Blechschmidts Reproduzierbarkeitsforderung (S. 101) in Code.
+
+| Kriterium | Gewicht | Frage |
+|---|---|---|
+| Marktverfügbarkeit | 3 | Kann man es heute kaufen? |
+| Regulatorischer Zugang | 2 | Ist der Weg zum Markt rechtlich offen? |
+| Nachfrage | 2 | Gibt es belegte Käufer? |
+| Ökosystem | 2 | Wie viele Akteure tragen das Feld? |
+| Anwendungsreife | 1 | Wie viel ist angewandt statt erforscht? |
+| Verstetigung | 2 | Wie lange trägt sich das Feld schon? |
+
+**Ein schweigendes Kriterium geht nicht als 0 in die Summe** — sonst bestraft
+fehlende Quellenabdeckung ein Feld, statt sie zu melden.
+
+Zwei Kalibrierungen waren nötig:
+
+- **Ökosystem misst Konzentration, nicht Anzahl.** Erst gezählte Quellen ließen
+  jedes große Cluster auf 4 landen — das misst Clustergröße. Der Anteil der
+  größten Quelle ist größenunabhängig und sagt, was gemeint ist.
+- **Der Spitzenwert der Marktverfügbarkeit verlangt Handel in MEHREREN
+  Jurisdiktionen.** Mit „Handel irgendwo = 4" standen alle FOOD-Cluster auf
+  „etabliert"; oben muss die Skala eng sein, sonst unterscheidet sie nichts.
+
+Danach spannt sie: Gene Expression 0,5 (entstehend) · Solar Energy 2,17 ·
+Cancer Treatment 2,6 · Machine Learning 3,0 · Chip Design 3,2 · Food Waste
+Reduction 3,5 (etabliert).
+
+### 7.2 Trendrelevanz — dem Nutzer gehörend
+
+Kriterienschema nach dem DB-Systel-Vorbild (S. 104), je Radar konfigurierbar:
+Umsatzpotenzial (×3) · Effizienzpotenzial (×2) · Disruptionspotenzial (×3) ·
+Regulatorisches (×2), je 0–4 mit ausformuliertem Anker für 0 und 4.
+
+**Das Raster startet leer.** Der maschinelle Vorschlag steht daneben, nicht
+darin — damit ein Abweichen sichtbar bleibt statt in einer Vorbelegung zu
+verschwinden. Vorgeschlagen wird nur, was wir wirklich messen: Disruption aus
+dem Anteilstrend, Regulatorisches aus der Regulatorik-Zelle. Für Umsatz- und
+Effizienzpotenzial sagt das Feld ausdrücklich: *„Unternehmensspezifisch — dazu
+kann unser Korpus nichts sagen. Diese Bewertung gehört Ihnen."*
+
+`radar_relevance_scores` trägt bereits `rated_by`, weil Blechschmidt mehrere
+Bewerter vorsieht und vor dem flachen Mitteln warnt (S. 102).
+
+### 7.3 Das Portfolio
+
+`PortfolioBoard.tsx`, Startansicht. Vier Reifezeilen × drei Relevanzspalten,
+jede Zelle mit ihrer Handlungsempfehlung aus den Achsenbändern
+(„Berücksichtigen · Proaktiv").
+
+**Eine fünfte Spalte links: „Unbewertet".** Ein Feld ohne Relevanzbewertung
+steht dort — *nicht* bei „gering", denn das wäre eine Aussage, die niemand
+getroffen hat. Das ist die optische Führung, die verhindert, dass eine
+Schätzung mit der Autorität einer Messung auftritt.
+
+Bogen, Matrix und Signalwolke bleiben als **Evidenzschicht** darunter.
+
+### 7.4 Offen
+
+- H1/H2/H3 stehen noch in Bogen und Matrix. Sie sind dort die Dimensionsstufen
+  je Jurisdiktion, nicht die Reifeachse — aber zwei Vokabulare nebeneinander
+  bleiben erklärungsbedürftig.
+- `rated_by` ist bis zur Auth ein Platzhalter; Schnitt 5 (mehrere Bewerter,
+  Streuung, Trendteam-Korrektur) braucht Konten.
+- Cultivated Meat landet auf 3,08 „etabliert", obwohl die Fachprüfung es in der
+  EU als blockiert und in den USA als begrenzt ausweist. Die Kriterien sind
+  einsehbar und begründet — aber die Gewichtung stimmt hier noch nicht.

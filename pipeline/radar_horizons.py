@@ -968,12 +968,12 @@ def couple_market_to_regulation(market: dict, regulatory: dict, region: str) -> 
 # ---------------------------------------------------------------------------
 # Scope-Auflösung
 # ---------------------------------------------------------------------------
-# Die 10 Spalten SIND der Vertrag zwischen Scope-Auswahl und Zellenlogik: jede
+# Die Spalten SIND der Vertrag zwischen Scope-Auswahl und Zellenlogik: jede
 # Auswahlart muss exakt diese Form liefern, dann bleiben alle cell_*-Funktionen
 # unverändert. Zeitachse ist raw_entries.published_date — `sort_date` ist für
 # 52 % der Zeilen NULL.
 SCOPE_COLUMNS = """t.id, t.title_en, t.summary_en, t.trend_signal_type, t.regions,
-               t.tags, t.pestel, t.primary_vertical,
+               t.tags, t.pestel, t.primary_vertical, t.source_name,
                COALESCE(r.published_date, t.created_at)::date AS event_date,
                (t.tags IS NOT NULL AND jsonb_array_length(t.tags) > 0) AS semantic"""
 
@@ -2527,6 +2527,18 @@ def compute(config_slug: str, today: date | None = None) -> int:
                                         dimension_set=dimension_set,
                                         regulated=regulated, today=today,
                                         field_terms=scope_field_terms(dict(sc)))
+            # Trendreife nach Blechschmidt: derselbe Zellenbestand, in seine
+            # Form gebracht. Der Import steht hier statt oben, weil
+            # radar_maturity aus radar_horizons importiert — ein Modul-Zyklus
+            # sonst.
+            from .radar_maturity import (maturity, seed_relevance_criteria,
+                                         store_maturity, suggest_relevance)
+            mat = maturity(rows, scope_cells, today=today)
+            meta = sc["meta"] if isinstance(sc["meta"], dict) else \
+                json.loads(sc["meta"] or "{}") if sc["meta"] else {}
+            store_maturity(conn, run_id, sc["slug"], mat,
+                           suggest_relevance(meta, mat))
+
             tech_cell = next((c for c in scope_cells
                               if c["dimension"] in ("technology", "T")), None)
             all_readouts.append({
@@ -2549,6 +2561,12 @@ def compute(config_slug: str, today: date | None = None) -> int:
                 cells,
             )
             n_cells += len(cells)
+
+        # Relevanz-Kriterien anlegen, falls das Radar noch keine hat. Sie
+        # bleiben UNBEWERTET — die Relevanz gehört dem Nutzer (Owner-
+        # Entscheidung 2026-08-04: leer, mit sichtbarem Vorschlag daneben).
+        from .radar_maturity import seed_relevance_criteria
+        seed_relevance_criteria(cfg["id"])
 
         conn.execute("UPDATE radar_runs SET n_cells = %s, n_signals = %s, "
                      "readouts = %s WHERE id = %s",
