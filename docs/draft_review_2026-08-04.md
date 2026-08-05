@@ -104,3 +104,30 @@ sich morgens in einem Durchgang erledigen lassen.
 `trends.reviewed_at` (Migration `scripts/migrate_reviewed_at.py`) hält ab sofort
 beide Entscheidungen fest, Veröffentlichen wie Verwerfen — vorher hinterließ eine
 Ablehnung überhaupt keine Spur und der Fortschritt war nicht messbar.
+
+---
+
+## Nachtrag 2026-08-05: drei weitere Fehlalarm-Klassen
+
+Aus dem ersten Nachtlauf nach den Fixes (5 Holds) meldete der Owner Artikel, die
+an Abkürzungen und Datumsformaten hängen blieben. Alle drei waren derselbe Typ —
+der Gate sieht eine Ziffernfolge, die keine Messgröße ist oder nur anders
+geschrieben steht als in der Quelle.
+
+| Klasse | Beispiel | Ursache |
+|---|---|---|
+| Ziffern **kleben** an einem Namen | `CO2`, `B2B`, `Inspire360`, `PM2.5` | Die Namensregel vom 04.08. verlangte einen Bindestrich (`COVID-19`) |
+| Dasselbe Datum, zwei Schreibweisen | Quelle „04 August 2026" ↔ Body „August 4, 2026" | Führende Nullen wurden nicht normalisiert; ein Tag ist mit 1–2 Zeichen zu kurz für die Substring-Toleranz |
+| **Mittelpunkt** als Dezimaltrenner | The Lancet: „13·4%" (U+00B7) ↔ Body „13.4%" | Dieselbe Familie wie die deutschen Komma/Punkt-Unterschiede |
+
+Die Namensregel bleibt eng: die Ziffern müssen **direkt anhängen**. „August 4"
+und „Under 25" sind getrennte Tokens und werden weiter geprüft.
+
+**Gegenzug zur Schärfe:** die Substring-Toleranz verlangt jetzt, dass *beide*
+Seiten länger als zwei Zeichen sind. Ohne führende Nullen würde ein Quell-„04"
+sonst ein erfundenes „400" durchwinken. Das kostet einen zusätzlichen echten
+Fund: **#1115523** nennt EU-AI-Act-Strafen (35 Mio. €, 7 % des Weltumsatzes) —
+die Quelle enthält keine einzige Zahl. Genau dafür existiert der Gate.
+
+Beanstandete Artikel in der Warteschlange: **30 → 17**. Die drei gemeldeten
+Artikel (#1132985, #1132597, #1132593) sind sauber und veröffentlicht.
