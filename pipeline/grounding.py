@@ -23,7 +23,7 @@ _YEAR_RE = re.compile(r"(?<!\d)(?:19|20)\d{2}(?!\d)")
 # figure the (Japanese/Korean/Chinese) source plainly states as fabricated.
 # Measured on the live backlog 2026-08-04; it also fixes Korean "2,900만"
 # previously being read as the garbage token "2,".
-_NUM_RE = re.compile(r"(?<![\d.,])\d[\d.,]*%?|[$€£]\s?\d[\d,.]*")
+_NUM_RE = re.compile(r"(?<![\d.,\u00b7])\d[\d.,\u00b7]*%?|[$€£]\s?\d[\d,.\u00b7]*")
 
 
 def _concrete_tokens(text: str) -> set[str]:
@@ -102,12 +102,22 @@ def _implied_tokens(text: str) -> set[str]:
 # lowercase word carries an actual (and in that case fabricated) measurement.
 _IDENTIFIER_DIGIT_RE = re.compile(r"(?:\b[A-Z][A-Za-z]*|[A-Z]{2,})-\d[\d.,]*")
 
+# The same thing without a hyphen, where the digits are welded to the name:
+# CO2, SO2, H2O, PM2.5, B2B, Inspire360, COVID19. Requiring the digits to be
+# ATTACHED (no space, no hyphen) is what keeps this narrow — "August 4" and
+# "Under 25" are separate tokens and stay subject to the check.
+_ATTACHED_DIGIT_RE = re.compile(r"\b[A-Z][A-Za-z]*\d[\d.,]*")
+
 
 def _identifier_digits(text: str) -> set[str]:
     """Digit runs that occur only as part of a capitalised identifier."""
     out: set[str] = set()
     for m in _IDENTIFIER_DIGIT_RE.finditer(text or ""):
         out.add(m.group(0).split("-")[-1])
+    for m in _ATTACHED_DIGIT_RE.finditer(text or ""):
+        digits = re.search(r"\d[\d.,]*", m.group(0))
+        if digits:
+            out.add(digits.group(0))
     return out
 
 
@@ -115,10 +125,17 @@ def _norm_token(t: str) -> str:
     """Reduce a number token to its bare digit run for comparison. Strips BOTH
     '.' and ',' — English and German swap their thousands/decimal separators
     ("8,192"=="8.192"==8192; "29.5"=="29,5"), and ~half our sources are German,
-    so keeping either separator would flag correct figures as fabricated."""
-    for ch in (",", ".", "$", "€", "£", "%", " "):
+    so keeping either separator would flag correct figures as fabricated. The
+    Lancet and other medical journals use a MIDDLE DOT ("13·4%") — same
+    reason, else every clinical figure from those sources reads as invented.
+
+    Leading zeros go too. A source dateline "Published online: 04 August 2026"
+    against a body "on August 4, 2026" is the same date, and without this the
+    day number reads as a fabricated figure — the day is too short (1-2 chars)
+    to reach the substring allowance."""
+    for ch in (",", ".", "\u00b7", "$", "€", "£", "%", " "):
         t = t.replace(ch, "")
-    return t
+    return t.lstrip("0") or "0"
 
 
 def source_from_parts(title: str | None, excerpt: str | None, *token_lists) -> str:
@@ -158,7 +175,10 @@ def ungrounded_specifics(body: str, source: str) -> list[str]:
         n = _norm_token(t)
         if n in src_norm or n in implied:
             continue
-        if any(n in s or s in n for s in src_norm if len(n) > 2):
+        # Both sides must be long enough. A short source token would otherwise
+        # swallow anything containing it — with leading zeros stripped, a
+        # source "04" would ground a body's invented "400".
+        if len(n) > 2 and any(len(s) > 2 and (n in s or s in n) for s in src_norm):
             continue
         bad.append(t)
     return bad

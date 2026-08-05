@@ -18,7 +18,7 @@ const YEAR_RE = /(?<!\d)(?:19|20)\d{2}(?!\d)/g;
 // figure the (Japanese/Korean/Chinese) source plainly states as fabricated.
 // Measured on the live backlog 2026-08-04; it also fixes Korean "2,900만"
 // previously being read as the garbage token "2,".
-const NUM_RE = /(?<![\d.,])\d[\d.,]*%?|[$€£]\s?\d[\d,.]*/g;
+const NUM_RE = /(?<![\d.,·])\d[\d.,·]*%?|[$€£]\s?\d[\d,.·]*/g;
 
 /** Years / numbers / percentages / money amounts appearing in `text`. */
 function concreteTokens(text: string): Set<string> {
@@ -90,11 +90,19 @@ function impliedTokens(text: string): Set<string> {
  * lowercase word carries an actual (and in that case fabricated) measurement.
  */
 const IDENTIFIER_DIGIT_RE = /(?:\b[A-Z][A-Za-z]*|[A-Z]{2,})-\d[\d.,]*/g;
+// The same without a hyphen, digits welded to the name: CO2, SO2, H2O, PM2.5,
+// B2B, Inspire360. Requiring them ATTACHED keeps it narrow — "August 4" and
+// "Under 25" are separate tokens and stay subject to the check.
+const ATTACHED_DIGIT_RE = /\b[A-Z][A-Za-z]*\d[\d.,]*/g;
 
 function identifierDigits(text: string): Set<string> {
   const out = new Set<string>();
   for (const m of (text || "").matchAll(IDENTIFIER_DIGIT_RE)) {
     out.add(m[0].split("-").pop()!);
+  }
+  for (const m of (text || "").matchAll(ATTACHED_DIGIT_RE)) {
+    const d = m[0].match(/\d[\d.,]*/);
+    if (d) out.add(d[0]);
   }
   return out;
 }
@@ -106,7 +114,10 @@ function identifierDigits(text: string): Set<string> {
  * so keeping either separator would flag correct figures as fabricated.
  */
 function normToken(t: string): string {
-  return t.replace(/[,.$€£% ]/g, "");
+  // Leading zeros go too: a source dateline "Published online: 04 August 2026"
+  // against a body "on August 4, 2026" is the same date, and the day number is
+  // too short (1-2 chars) to reach the substring allowance.
+  return t.replace(/[,.\u00b7$€£% ]/g, "").replace(/^0+(?=.)/, "");
 }
 
 /**
@@ -133,7 +144,9 @@ export function ungroundedSpecifics(body: string, source: string): string[] {
     let contained = false;
     if (n.length > 2) {
       for (const s of srcNorm) {
-        if (n.includes(s) || s.includes(n)) {
+        // A short source token would otherwise swallow anything containing it —
+        // with leading zeros stripped, "04" would ground an invented "400".
+        if (s.length > 2 && (n.includes(s) || s.includes(n))) {
           contained = true;
           break;
         }

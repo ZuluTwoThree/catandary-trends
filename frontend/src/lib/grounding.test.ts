@@ -114,3 +114,27 @@ describe("digits inside a capitalised name", () => {
     expect(ungroundedSpecifics("demand from the under-25 demographic", "young adults living with their parents")).toEqual(["25"]);
   });
 });
+
+describe("abbreviations and date formats (2026-08-05)", () => {
+  it("treats digits welded to a name as part of the name", () => {
+    expect(ungroundedSpecifics("cutting CO2 emissions", "Der Konzern senkt seinen Ausstoss")).toEqual([]);
+    expect(ungroundedSpecifics("a B2B hardware hybrid", "Peloton's Push Into Commercial Fitness")).toEqual([]);
+    expect(ungroundedSpecifics("a report from Inspire360", "More Gyms Are Integrating GLP-1s")).toEqual([]);
+  });
+
+  it("recognises the same date written two ways", () => {
+    expect(ungroundedSpecifics("on August 4, 2026", "Published online: 04 August 2026")).toEqual([]);
+  });
+
+  it("reads the medical middle-dot decimal separator", () => {
+    expect(ungroundedSpecifics("to 7.8%, compared to 13.4% (risk ratio 0.58).",
+      "the outcome was 7·8% versus 13·4% (risk ratio 0·58)")).toEqual([]);
+  });
+
+  it("still catches inventions around those forms", () => {
+    // stripping the leading zero must not let "04" wave through "400"
+    expect(ungroundedSpecifics("some 400 delegates attended", "Beginn am 04. August")).toEqual(["400"]);
+    // only WELDED digits are a name — "Under 25" is a measurement
+    expect(ungroundedSpecifics("Under 25 year olds stay home", "young adults living with parents")).toEqual(["25"]);
+  });
+});

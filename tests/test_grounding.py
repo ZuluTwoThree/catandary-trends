@@ -148,3 +148,42 @@ def test_lowercase_hyphen_figure_is_still_a_claim():
     letter is exactly what separates a name from a number."""
     src = "More young adults are living with their parents."
     assert ungrounded_specifics("demand from the under-25 demographic", src) == ["25"]
+
+
+# --- Abbreviations and date formats (2026-08-05) ----------------------------
+
+def test_digits_welded_to_a_name_are_not_claims():
+    """CO2 / B2B / Inspire360 — the digit is part of the name, not a figure."""
+    assert ungrounded_specifics("cutting CO2 emissions across the fleet",
+                                "Der Konzern senkt seinen Ausstoss deutlich") == []
+    assert ungrounded_specifics("a B2B hardware and subscription hybrid",
+                                "Peloton's Latest Push Into Commercial Fitness") == []
+    assert ungrounded_specifics("A new report from Inspire360 indicates",
+                                "More Gyms Are Integrating GLP-1s Into Their Offerings") == []
+    assert ungrounded_specifics("PM2.5 concentrations near the port",
+                                "Feinstaubbelastung am Hafen gemessen") == []
+
+
+def test_same_date_written_two_ways():
+    """'04 August 2026' and 'August 4, 2026' are one date, not a fabrication."""
+    src = "Nature Human Behaviour, Published online: 04 August 2026"
+    assert ungrounded_specifics("published in Nature Human Behaviour on August 4, 2026", src) == []
+
+
+def test_leading_zero_does_not_ground_a_bigger_number():
+    """Stripping the zero must not let '04' wave through an invented '400'."""
+    assert ungrounded_specifics("some 400 delegates attended",
+                                "Beginn am 04. August") == ["400"]
+
+
+def test_unattached_capitalised_number_is_still_checked():
+    """'Under 25' is a measurement; only WELDED digits count as a name."""
+    src = "More young adults are living with their parents."
+    assert ungrounded_specifics("Under 25 year olds are staying home", src) == ["25"]
+
+
+def test_medical_middle_dot_decimal_separator():
+    """The Lancet writes '13·4%' (U+00B7) where the body writes '13.4%'."""
+    src = "the composite outcome was 7·8% versus 13·4% (risk ratio 0·58)"
+    assert ungrounded_specifics(
+        "lowered the outcome to 7.8%, compared to 13.4% (risk ratio 0.58).", src) == []
