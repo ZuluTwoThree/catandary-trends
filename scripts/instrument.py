@@ -21,8 +21,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline.db import get_connection
 from pipeline.instrument import (SAMPLE_SIZE, STAGE_BAND, STAGE_LABEL,
                                  assess_field, ensure_rater, ensure_workspace,
-                                 expertise_weight, migrate, relevance_stage,
-                                 sample_for_rating)
+                                 expertise_weight, hint_points, migrate,
+                                 relevance_direction, relevance_stage,
+                                 sample_for_rating, score_against)
 
 
 def _cluster_meta(conn, field_key: str) -> tuple[list[dict], float | None, str | None]:
@@ -96,14 +97,21 @@ def cmd_queue(args) -> dict:
             "AND rater_id=%s AND field_key=%s", (wid, rid, args.field)).fetchone()["n"]
         _, _, vertical = _cluster_meta(conn, args.field)
         w = expertise_weight(conn, rid, wid, vertical)
+        # Vorschlag aus den bisherigen Bewertungen — global gelernt, nicht je
+        # Feld (siehe pipeline/instrument.py, relevance_direction).
+        direction, dmeta = relevance_direction(conn, wid)
+        scores = score_against(conn, direction, [r["id"] for r in rows]) \
+            if direction else {}
     return {
         "field": args.field, "done": total, "sample_size": SAMPLE_SIZE,
-        "weight": w,
+        "weight": w, "model": dmeta,
         "signals": [{
             "id": r["id"], "title": r["title_en"],
             "summary": (r["summary_en"] or "")[:260],
             "source": r["source_name"], "url": r["source_url"],
             "type": r["trend_signal_type"], "date": str(r["event_date"]),
+            "hint": (hint_points(scores[r["id"]]) if r["id"] in scores else None),
+            "hint_score": (round(scores[r["id"]], 3) if r["id"] in scores else None),
         } for r in rows],
     }
 

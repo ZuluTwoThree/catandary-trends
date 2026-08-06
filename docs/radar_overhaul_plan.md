@@ -421,3 +421,65 @@ mit Entfernen-Kreuz, darunter der Katalog nach Herkunft gruppiert und
 filterbar. Blechschmidts Warnung zur Flughöhe (S. 106) steht im Modul-Docstring
 — ein Radar aus konkreten Technologien taugt nicht für die Vorstandsdiskussion,
 und die drei Ebenen nebeneinander machen die Wahl bewusst.
+
+### 10.7 Erster Lernbefund (2026-08-06)
+
+98 Bewertungen über zwei Felder, davon 12 hoch (≥3). Verteilung stark linkslastig
+(45× „0", 32× „1") — realistisch: die meisten Signale sind nicht relevant.
+
+**Trennen die Embeddings das?** Leave-one-out gemessen:
+
+| Modell | AUC | Präzision@20 | Grundrate |
+|---|---|---|---|
+| Positiv-Schwerpunkt | 0,626 | 20 % | 12 % |
+| **Rocchio (positiv − negativ)** | **0,700** | **30 %** | 12 % |
+
+Rocchio gewinnt deutlich, weil die Negativen mitzählen: der Nutzer bewertet
+nicht „ähnlich zu etwas", sondern „ähnlich zu dem, was interessiert, **und**
+unähnlich zu dem, was nicht interessiert".
+
+**Der entscheidende Befund war aber ein anderer.** Feldweise gemessen:
+
+| Feld | AUC | Korrelation |
+|---|---|---|
+| `mega:future_of_food_and_agriculture` | **0,806** | +0,50 |
+| `cluster:63:2` („Venture Capital · AI") | **0,400** | −0,18 |
+
+Im VC/AI-Cluster liegt die AUC **unter Zufall** — und der Grund steht in den
+Daten: die fünf dort hoch bewerteten Signale handeln von GMO-Politik, Cultured
+Meat und Bodensensorik. Das Interesse des Nutzers ist **thematisch und quer zu
+den Feldern**; ein feldweises Modell lernt stattdessen die Semantik des Felds
+und geht dabei genau in die Irre.
+
+→ **Das Modell ist global, nicht je Feld.** `relevance_direction()` zieht die
+Richtung aus allen Bewertungen des Arbeitsbereichs.
+
+**Werden die übrigen Signale eingrenzbar?** Ja. Auf 30.000 ungesehene Signale
+angewandt stehen oben:
+
+```
++0.397  Swees Launches Soy Yogurt Line to Expand Beyond Cheese
++0.374  New Culture Secures Patent for Precision-Fermented Mozzarella Protein
++0.345  Plantopia Secures $9M to Scale Casein Production in Sprouted Oats
++0.343  Plant-Based Beta-Casein Yield Hits 1.26% in Molecular Farming Study
+…
+-0.240  Hybrid Cloud Readiness Dictates AI Integration Speed in Higher Education
+```
+
+Die obersten 500 verteilen sich auf 286 FOOD, 73 BIZ, 55 TECH, 53 ECO — das
+Modell findet also auch die food-nahen Signale in fremden Vertikalen, genau die
+Sorte, die der Nutzer im VC/AI-Cluster hoch bewertet hat.
+
+**Eingebaut:** die Warteschlange liefert je Signal einen Punktvorschlag
+(`hint`), sobald 25 Bewertungen mit mindestens 5 Positiven vorliegen. Die
+Schwellen sind an der gemessenen Verteilung geeicht (Spitze +0,40, Boden −0,24)
+und bewusst zurückhaltend — ein Vorschlag, der zu oft 4 sagt, wird weggeklickt
+statt gelesen. Er steht in Zinnober neben der Skala und **zählt nicht mit, bis
+der Nutzer ihn bestätigt**.
+
+### 10.8 Die Ebenen-Frage
+
+Der Katalog beginnt jetzt mit einer ausdrücklichen Frage — *„Auf welcher Ebene
+wollen Sie Signale bewerten?"* — statt still auf Cluster voreingestellt zu sein.
+Drei Antworten mit ihrer jeweiligen Reichweite (7 Branchen, 19 Mega-Trends, 250
+Cluster) und dem Hinweis, dass sie sich mischen, aber nicht verwechseln lassen.
