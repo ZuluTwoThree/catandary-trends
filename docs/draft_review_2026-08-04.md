@@ -131,3 +131,35 @@ die Quelle enthält keine einzige Zahl. Genau dafür existiert der Gate.
 
 Beanstandete Artikel in der Warteschlange: **30 → 17**. Die drei gemeldeten
 Artikel (#1132985, #1132597, #1132593) sind sauber und veröffentlicht.
+
+---
+
+## Nachtrag 2026-08-06: die Verschärfung hätte die Queue wieder wachsen lassen
+
+Anlass war eine Beobachtung des Owners („heute waren es nur wenige Drafts"). Der
+Betrieb bestätigt sich: 6 Holds aus 492 Artikeln mit Confidence ≥ 0.85 (1,2 %),
+zwischen 20:39 und 20:41 von Hand entschieden — die ganze Warteschlange in zwei
+Minuten. Pipeline-Durchsatz normal (881 Trends aus 1.471 Einträgen, rc=0).
+
+Beim Gegenprüfen fiel aber auf, dass die Substring-Verschärfung vom 05.08. einen
+Preis hatte: **16 von 3.384** automatisch veröffentlichten Artikeln der letzten
+neun Tage wären nach neuem Code beanstandet worden (0,47 %) — die Queue wäre also
+langsam wieder gewachsen. Die Ursachen waren erneut Artefakte:
+
+| Klasse | Beispiel | Quelle |
+|---|---|---|
+| **Bezeichner** mit Leerzeichen | „Scope 1 emissions", „Article 6 market", „MAX 8" | Namensregel verlangt anklebende Ziffern |
+| **Abgekürzte Dekade** | Body „the 1980s" ↔ Quelle „the '80s" | — |
+| **Skalenwort** | Body „2,500 products" ↔ Quelle „2.5 thousand products" | — |
+
+Die Bezeichner-Liste ist bewusst **explizit** (Scope, Article, Phase, Tier, Level,
+Class, Annex, MAX …) statt einer generischen Regel „Großbuchstabe + Leerzeichen +
+Zahl". Letztere würde auch „Under 25" und „August 4" entschuldigen — genau die
+Fälle, in denen die Zahl eine echte Aussage trägt. Ein Test hält das fest.
+
+Wirkung: 16 → 10 der auto-veröffentlichten Artikel. Die verbliebenen 10 sind
+weit überwiegend die bekannte Klasse „erfundene Jahreszahl im Schluss-Satz", die
+bewusst beanstandet bleibt.
+
+Parität diesmal über **3.937** Artikel aus neun Tagen verifiziert, null
+Abweichungen zwischen Python-Gate und TS-Oberfläche.

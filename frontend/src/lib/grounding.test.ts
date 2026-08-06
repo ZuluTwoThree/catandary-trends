@@ -138,3 +138,19 @@ describe("abbreviations and date formats (2026-08-05)", () => {
     expect(ungroundedSpecifics("Under 25 year olds stay home", "young adults living with parents")).toEqual(["25"]);
   });
 });
+
+describe("designators, decades, scaled words (2026-08-06)", () => {
+  it("treats designator numbers as names", () => {
+    expect(ungroundedSpecifics("a reduction in Scope 1 emissions", "what needs to be done on heat pumps")).toEqual([]);
+    expect(ungroundedSpecifics("entering the Article 6 market", "Methodology Cleared In UN Carbon Market")).toEqual([]);
+    expect(ungroundedSpecifics("larger than the MAX 8", "U.S. Clears Smallest Boeing 737 Max to Fly")).toEqual([]);
+  });
+  it("matches an abbreviated decade and a scaled word", () => {
+    expect(ungroundedSpecifics("popularized in the 1980s", "Carmakers Go Back to the '80s")).toEqual([]);
+    expect(ungroundedSpecifics("audited 2,500 products", "an audit of more than 2.5 thousand products")).toEqual([]);
+  });
+  it("still checks plain quantities", () => {
+    expect(ungroundedSpecifics("Under 25 year olds stay home", "young adults living with parents")).toEqual(["25"]);
+    expect(ungroundedSpecifics("Level 3 autonomy cut costs by 42%", "carmakers discuss autonomous driving")).toEqual(["42%"]);
+  });
+});

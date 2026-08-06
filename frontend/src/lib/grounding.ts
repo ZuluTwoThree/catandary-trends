@@ -64,6 +64,34 @@ const SCALED_FRACTION_RE =
   /(h[aä]lb\w*|\bhalf\b|\bviertel\b|\bquarter\b|drei\s+viertel|three[-\s]quarters)[\s\w]{0,12}?(milliarde\w*|billion|trillion|billionen|million\w*)/gi;
 const SCALE_VALUE: Record<string, string> = { h: "500", v: "250", q: "250", d: "750", t: "750" };
 
+
+/**
+ * Words whose following number is a DESIGNATOR, not a measurement: "Scope 1
+ * emissions", "Article 6 market", "737 MAX 8". A general "capitalised word +
+ * space + number" rule would be far too broad — it would also excuse "Under
+ * 25" and "August 4" — so this stays an explicit list of terms that name a
+ * thing rather than measure one. Heavy in ESG and regulatory copy.
+ */
+const DESIGNATOR_RE =
+  /\b(?:Scope|Article|Artikel|Phase|Tier|Level|Class|Klasse|Type|Typ|Model|Modell|Series|Serie|Chapter|Kapitel|Section|Paragraf|Annex|Anhang|Figure|Abbildung|Table|Tabelle|Stage|Stufe|Grade|Category|Kategorie|MAX|Mark|Version|Gen|Generation|Industry|Industrie|Web)\s+(\d[\d.,]*)/gi;
+
+function designatorDigits(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const m of (text || "").matchAll(DESIGNATOR_RE)) out.add(m[1]);
+  return out;
+}
+
+/** "the '80s" and "the 1980s" are the same decade. */
+const SHORT_DECADE_RE = /['\u2019](\d0)s\b/g;
+
+/** "2.5 thousand products" in the source vs "2,500 products" in the body. */
+const SCALED_NUMBER_RE =
+  /(\d+(?:[.,]\d+)?)\s*(thousand|tausend|million\w*|milliarde\w*|billion|trillion)/gi;
+const SCALE_FACTOR: [string, number][] = [
+  ["thousand", 1e3], ["tausend", 1e3], ["million", 1e6],
+  ["milliarde", 1e9], ["billion", 1e9], ["trillion", 1e12],
+];
+
 /** Numerals a source implies in words. Source-side only. */
 function impliedTokens(text: string): Set<string> {
   const out = new Set<string>();
@@ -78,6 +106,16 @@ function impliedTokens(text: string): Set<string> {
   }
   for (const [word, digit] of Object.entries(CARDINAL_WORDS)) {
     if (new RegExp(`\\b${word}\\b`, "i").test(low)) out.add(digit);
+  }
+  // "the '80s" -> the body's "1980s"; an apostrophised decade means the 20th
+  // century in every source we carry.
+  for (const m of (text || "").matchAll(SHORT_DECADE_RE)) out.add(`19${m[1]}`);
+  // "2.5 thousand products" -> the body's "2,500 products".
+  for (const m of low.matchAll(SCALED_NUMBER_RE)) {
+    const f = SCALE_FACTOR.find(([k]) => m[2].startsWith(k));
+    if (!f) continue;
+    const scaled = parseFloat(m[1].replace(",", ".")) * f[1];
+    if (Number.isInteger(scaled)) out.add(String(scaled));
   }
   return out;
 }
@@ -135,7 +173,7 @@ export function ungroundedSpecifics(body: string, source: string): string[] {
   // allowance: "fünf" implies "5", and letting a bare "5" ground a body's
   // "150" by substring would gut the check.
   const implied = impliedTokens(source || "");
-  const names = identifierDigits(body);
+  const names = new Set([...identifierDigits(body), ...designatorDigits(body)]);
   const bad: string[] = [];
   for (const t of concreteTokens(body)) {
     if (srcRaw.has(t) || names.has(t)) continue;

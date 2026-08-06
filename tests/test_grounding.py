@@ -187,3 +187,36 @@ def test_medical_middle_dot_decimal_separator():
     src = "the composite outcome was 7·8% versus 13·4% (risk ratio 0·58)"
     assert ungrounded_specifics(
         "lowered the outcome to 7.8%, compared to 13.4% (risk ratio 0.58).", src) == []
+
+
+# --- Designators, decades, scaled words (2026-08-06) ------------------------
+
+def test_designator_numbers_name_a_thing():
+    """'Scope 1' / 'Article 6' / 'MAX 8' name something; they do not measure."""
+    assert ungrounded_specifics("a reduction in Scope 1 emissions",
+                                "outlining what needs to be done on heat pumps") == []
+    assert ungrounded_specifics("projects entering the Article 6 market",
+                                "Renewable Energy Methodology Cleared In UN Carbon Market") == []
+    assert ungrounded_specifics("a different profile than the larger MAX 8",
+                                "U.S. Clears Smallest Boeing 737 Max to Fly") == []
+
+
+def test_abbreviated_decade():
+    """Source \"the '80s\", body \"the 1980s\" — one decade."""
+    assert ungrounded_specifics("a technology popularized in the 1980s",
+                                "Carmakers Go Back to the '80s With Turbo Engines") == []
+
+
+def test_scaled_word_number():
+    """Source \"2.5 thousand products\", body \"2,500 products\"."""
+    assert ungrounded_specifics("audited 2,500 products labeled for infants",
+                                "an audit of more than 2.5 thousand products") == []
+
+
+def test_designator_list_does_not_excuse_measurements():
+    """The list names things; a plain quantity must still be checked."""
+    src = "More young adults are living with their parents."
+    assert ungrounded_specifics("Under 25 year olds stay home", src) == ["25"]
+    # 'Level' is a designator, but a bare figure elsewhere still counts
+    assert ungrounded_specifics("Level 3 autonomy cut costs by 42%",
+                                "carmakers discuss autonomous driving") == ["42%"]
