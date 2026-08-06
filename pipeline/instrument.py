@@ -468,6 +468,85 @@ def assess_field(workspace_id: int, field_key: str,
             "n_raters": len(by_rater), **mat, "curve": curve}
 
 
+# ---------------------------------------------------------------------------
+# Vorschlag aus den bisherigen Bewertungen
+# ---------------------------------------------------------------------------
+# Gemessen am ersten echten Bestand (98 Bewertungen, 12 davon hoch):
+#
+#   Positiv-Schwerpunkt allein   AUC 0,626   Präzision@20 20 %
+#   Rocchio (positiv − negativ)  AUC 0,700   Präzision@20 30 %  (Grundrate 12 %)
+#
+# Rocchio gewinnt deutlich, weil die Negativen mitzählen: der Nutzer bewertet
+# nicht „ähnlich zu etwas", sondern „ähnlich zu dem, was ihn interessiert, und
+# unähnlich zu dem, was ihn nicht interessiert".
+#
+# ENTSCHEIDEND: das Modell ist GLOBAL, nicht je Feld. Feldweise trainiert
+# scheiterte es genau dort, wo es darauf ankam — im Cluster „Venture Capital ·
+# AI" lag die AUC bei 0,40 (unter Zufall), weil die hoch bewerteten Signale
+# darin von GMO, Cultured Meat und Bodensensorik handelten. Das Interesse des
+# Nutzers ist THEMATISCH und quer zu den Feldern; ein feldweises Modell lernt
+# stattdessen die Semantik des Felds.
+MIN_RATINGS_FOR_HINT = 25
+MIN_POSITIVES_FOR_HINT = 5
+HINT_THRESHOLD = 3
+
+
+def relevance_direction(conn, workspace_id: int) -> tuple[list[float] | None, dict]:
+    """Rocchio-Richtung aus allen Bewertungen des Arbeitsbereichs."""
+    import numpy as np
+    rows = conn.execute(
+        "SELECT sr.points, t.embedding_1024::text AS emb "
+        "FROM signal_relevance sr JOIN trends t ON t.id = sr.trend_id "
+        "WHERE sr.workspace_id=%s AND sr.points IS NOT NULL "
+        "  AND t.embedding_1024 IS NOT NULL", (workspace_id,)).fetchall()
+    n = len(rows)
+    pos_n = sum(1 for r in rows if r["points"] >= HINT_THRESHOLD)
+    meta = {"n": n, "positives": pos_n,
+            "ready": n >= MIN_RATINGS_FOR_HINT and pos_n >= MIN_POSITIVES_FOR_HINT}
+    if not meta["ready"]:
+        return None, meta
+    X = np.stack([np.fromstring(r["emb"].strip("[]"), sep=",", dtype=np.float32)
+                  for r in rows])
+    X /= np.clip(np.linalg.norm(X, axis=1, keepdims=True), 1e-9, None)
+    y = np.array([r["points"] for r in rows])
+    pos = y >= HINT_THRESHOLD
+    v = X[pos].mean(0) - X[~pos].mean(0)
+    nrm = float(np.linalg.norm(v))
+    if nrm < 1e-6:
+        return None, meta
+    return (v / nrm).tolist(), meta
+
+
+def score_against(conn, direction: list[float], trend_ids: list[int]) -> dict[int, float]:
+    """Kosinus der Signale zur Interessensrichtung."""
+    import numpy as np
+    if not direction or not trend_ids:
+        return {}
+    v = np.array(direction, dtype=np.float32)
+    rows = conn.execute(
+        "SELECT id, embedding_1024::text AS emb FROM trends "
+        "WHERE id = ANY(%s) AND embedding_1024 IS NOT NULL", (trend_ids,)).fetchall()
+    out = {}
+    for r in rows:
+        e = np.fromstring(r["emb"].strip("[]"), sep=",", dtype=np.float32)
+        nrm = float(np.linalg.norm(e))
+        if nrm > 0:
+            out[r["id"]] = float(e @ v / nrm)
+    return out
+
+
+def hint_points(score: float) -> int:
+    """Kosinus in einen Punktvorschlag übersetzen.
+
+    Die Schwellen sind an der gemessenen Verteilung geeicht: die Spitze der
+    30.000 ungesehenen Signale lag bei +0,40, der Boden bei −0,24. Bewusst
+    zurückhaltend — ein Vorschlag, der zu oft 4 sagt, wird weggeklickt statt
+    gelesen.
+    """
+    return (4 if score >= 0.28 else 3 if score >= 0.18 else
+            2 if score >= 0.08 else 1 if score >= 0.0 else 0)
+
+
 def relevance_stage(score: float | None) -> str | None:
     """Blechschmidts drei Relevanzstufen aus dem 0–4-Mittel."""
     if score is None:

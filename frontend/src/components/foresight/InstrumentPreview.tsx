@@ -64,6 +64,8 @@ type Signal = {
   url: string | null;
   type: string;
   date: string;
+  hint: number | null;
+  hint_score: number | null;
 };
 
 const BASIS_LABEL: Record<string, string> = {
@@ -96,6 +98,7 @@ export default function InstrumentPreview() {
   const [queue, setQueue] = useState<Signal[]>([]);
   const [done, setDone] = useState(0);
   const [weight, setWeight] = useState<{ weight: number; n_rated: number } | null>(null);
+  const [model, setModel] = useState<{ n: number; positives: number; ready: boolean } | null>(null);
   const [leaving, setLeaving] = useState<number | null>(null);
   const [stack, setStack] = useState<number[]>([]);
   const [busy, setBusy] = useState(true);
@@ -120,6 +123,7 @@ export default function InstrumentPreview() {
     setQueue(d.signals ?? []);
     setDone(d.done ?? 0);
     setWeight(d.weight ?? null);
+    setModel(d.model ?? null);
   }, []);
 
   useEffect(() => {
@@ -261,7 +265,11 @@ export default function InstrumentPreview() {
 
             <div className="ip-scale" role="group" aria-label="Relevanz 0 bis 4">
               {[0, 1, 2, 3, 4].map((n) => (
-                <button key={n} className="ip-key" onClick={() => void rate(n)}>
+                <button
+                  key={n}
+                  className={`ip-key ${sig.hint === n ? "is-hint" : ""}`}
+                  onClick={() => void rate(n)}
+                >
                   <span className="ip-key-n">{n}</span>
                   <span className="ip-key-l">
                     {["irrelevant", "am Rand", "beachten", "wichtig", "zentral"][n]}
@@ -269,7 +277,14 @@ export default function InstrumentPreview() {
                 </button>
               ))}
             </div>
-            <p className="ip-suggest">
+            {sig.hint !== null ? (
+              <p className="ip-suggest">
+                <span className="ip-sug-badge">Vorschlag {sig.hint}</span>
+                Aus Ihren bisherigen {model?.n} Bewertungen gelernt. Er zählt
+                nicht mit, bis Sie ihn bestätigen.
+              </p>
+            ) : null}
+            <p className="ip-suggest ip-keys">
               Tastatur: <b>0</b>–<b>4</b> bewerten, <b>→</b> überspringen.
             </p>
           </article>
@@ -482,6 +497,7 @@ function Styles() {
       .ip-key-l { font-family: var(--font-mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: #6b6a60; }
       .ip-key.is-hint { border-color: var(--sug); box-shadow: inset 0 -3px 0 var(--sug); }
 
+      .ip-keys { color: #8a897e !important; }
       .ip-suggest { margin: 1.1rem 0 0; font-size: .78rem; line-height: 1.5; color: #6b6a60; display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline; }
       .ip-sug-badge { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--paper); background: var(--sug); padding: .1rem .4rem; }
 

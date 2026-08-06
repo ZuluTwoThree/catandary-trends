@@ -43,7 +43,11 @@ export default function FieldPicker({
   onChange: () => void;
 }) {
   const [cat, setCat] = useState<Catalog | null>(null);
-  const [kind, setKind] = useState<keyof Catalog>("cluster");
+  // Keine Voreinstellung: die Flughöhe ist eine Entscheidung, keine
+  // Voreinstellung. Blechschmidt (S. 106) warnt ausdrücklich davor, sie zu
+  // verwechseln — ein Radar aus konkreten Technologien taugt nicht für die
+  // Managementdiskussion, eine Branche nicht für die Technologiewahl.
+  const [kind, setKind] = useState<keyof Catalog | null>(null);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [openList, setOpenList] = useState(false);
@@ -64,7 +68,7 @@ export default function FieldPicker({
   }, [cat]);
 
   const list = useMemo(() => {
-    if (!cat) return [];
+    if (!cat || !kind) return [];
     const needle = q.trim().toLowerCase();
     return cat[kind].filter(
       (e) =>
@@ -141,7 +145,36 @@ export default function FieldPicker({
 
       {openList && cat ? (
         <div className="fp-cat">
+          {!kind ? (
+            <div className="fp-ask">
+              <p className="fp-ask-q">
+                Auf welcher Ebene wollen Sie Signale bewerten?
+              </p>
+              <div className="fp-ask-opts">
+                {KINDS.map((k) => (
+                  <button key={k.key} className="fp-ask-o"
+                          onClick={() => setKind(k.key)}>
+                    <span className="fp-ask-l">{k.label}</span>
+                    <span className="fp-ask-n">
+                      {cat[k.key].filter((e) => !e.chosen).length} zur Auswahl
+                    </span>
+                    <span className="fp-ask-b">{k.blurb}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="fp-ask-note">
+                Die Ebenen beantworten verschiedene Fragen und lassen sich
+                mischen — aber nicht verwechseln: ein Radar aus konkreten
+                Technologien taugt nicht für eine Strategiediskussion, eine
+                ganze Branche nicht für die Technologiewahl.
+              </p>
+            </div>
+          ) : (
+          <>
           <div className="fp-kinds">
+            <button className="fp-kind" onClick={() => { setKind(null); setQ(""); }}>
+              ← Ebene
+            </button>
             {KINDS.map((k) => (
               <button
                 key={k.key}
@@ -197,6 +230,8 @@ export default function FieldPicker({
               </div>
             ))}
           </div>
+          </>
+          )}
         </div>
       ) : null}
 
@@ -231,6 +266,14 @@ export default function FieldPicker({
         .fp-add:hover { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 7%, transparent); }
         .fp-add-l { font-size: .8rem; color: var(--color-paper); line-height: 1.25; }
         .fp-add-m { font-family: var(--font-mono); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; color: var(--color-muted); }
+        .fp-ask-q { font-size: 1.05rem; color: var(--color-paper); margin: 0 0 .8rem; }
+        .fp-ask-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .5rem; }
+        .fp-ask-o { display: grid; gap: .25rem; text-align: left; padding: .9rem 1rem; border: 1px solid var(--color-border); background: transparent; cursor: pointer; transition: border-color .16s, transform .16s; }
+        .fp-ask-o:hover { border-color: var(--color-accent); transform: translateY(-2px); }
+        .fp-ask-l { font-size: .95rem; color: var(--color-paper); }
+        .fp-ask-n { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--color-accent); }
+        .fp-ask-b { font-size: .78rem; color: var(--color-muted); line-height: 1.45; }
+        .fp-ask-note { font-size: .74rem; color: var(--color-muted); margin: .9rem 0 0; max-width: 52em; line-height: 1.55; }
         .fp-add-r { font-size: .72rem; color: var(--color-muted); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       `}</style>
     </section>
