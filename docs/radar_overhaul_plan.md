@@ -483,3 +483,55 @@ Der Katalog beginnt jetzt mit einer ausdrücklichen Frage — *„Auf welcher Eb
 wollen Sie Signale bewerten?"* — statt still auf Cluster voreingestellt zu sein.
 Drei Antworten mit ihrer jeweiligen Reichweite (7 Branchen, 19 Mega-Trends, 250
 Cluster) und dem Hinweis, dass sie sich mischen, aber nicht verwechseln lassen.
+
+### 10.9 Nachmessung bei 146 Bewertungen und die Entdeckungsstrecke
+
+**Der Bestand wuchs von 98 auf 146 Bewertungen** (16 hoch statt 12). Gleiche
+Methode, gleicher Messaufbau (Rocchio, leave-one-out):
+
+| | 98 Bewertungen | 146 Bewertungen |
+|---|---|---|
+| AUC gepoolt | 0,700 | **0,753** |
+| Präzision@20 | 30 % | **40 %** |
+| Faktor über Grundrate | 2,5 | **3,7** |
+
+Die Kurve steigt also mit dem Bestand, wie erwartet — und schon 146 Bewertungen
+reichen für ein Modell, das jeden vierten Treffer richtig oben einsortiert statt
+jeden neunten.
+
+Feldweise mit Rocchio: `cluster:63:2` AUC **0,859**, `mega:future_of_food` AUC
+**0,872**. *Vorsicht bei der Lesart:* die früheren feldweisen Zahlen (0,400 /
+0,806) waren mit dem **Positiv-Schwerpunkt** gemessen, diese mit Rocchio. Der
+Sprung im VC/AI-Cluster geht deshalb zum Teil auf die Methode, nicht nur auf
+den Bestand. Sauber vergleichbar ist allein die gepoolte Reihe oben.
+
+### 10.10 „Wo sonst noch" — die Entdeckung quer zu den Feldern
+
+Die Owner-Idee fürs Onboarding: *Kunde grenzt Felder ein → wir analysieren die
+Signale → zeigen mehr interessante Treffer und daneben, was sich in anderen
+Clustern, Mega-Trends und Branchen in seinen Themen tut.*
+
+Das funktioniert nur, weil das Interessensmodell **global** ist. Über pgvector
+kostet die Suche über 1,13 Mio. Signale **0,02 s**.
+
+Zwei Fallen lagen auf dem Weg:
+
+1. **`hnsw.ef_search` steht standardmäßig auf 40 und deckelt die
+   Ergebnisliste.** Ein `LIMIT 600` lieferte trotzdem nur 40 Zeilen — die
+   Entdeckung blieb auf acht Varianten derselben Solein-Meldung sitzen. Der
+   Wert muss über dem LIMIT liegen (Obergrenze 1000).
+2. **Ohne Dublettenabgleich ist die Spitze eine einzige Nachricht.** Dieselbe
+   Meldung in drei Fachmedien ist eine Entdeckung, nicht drei.
+
+Danach: **538 eigenständige Treffer, 27 Gruppen, 22 davon nicht auf dem Tisch.**
+Das Thema „luftbasiertes Protein" taucht auf
+
+- in **TECH** als Patent (46 Treffer),
+- im Mega-Trend **Bio Revolution And New Materials** (22),
+- im Mega-Trend **Clean Energy Transition** als Verpackungsforschung (11),
+- im Cluster **Venture Capital · AI** als „The Industrialization of Atmospheric
+  Nutrition" (12),
+- im Cluster **Venture Capital · Funding Round** (20).
+
+`Discovery.tsx` zeigt das je Gruppe mit drei Beispieltreffern und einem Knopf
+„auf den Tisch legen" — der Onboarding-Moment, den der Owner beschrieben hat.

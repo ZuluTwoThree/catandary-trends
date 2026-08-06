@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import FieldPicker from "./FieldPicker";
+import Discovery from "./Discovery";
 
 /**
  * „Der Messtisch" — Gestaltungsvorlage des Radar-Neubaus.
@@ -224,6 +225,8 @@ export default function InstrumentPreview() {
           if (open) void loadQueue(open);
         }}
       />
+
+      <Discovery onAdd={() => void loadBoard()} />
 
       {/* Bewertungsstrecke */}
       <section className="ip-rate" aria-label="Signale bewerten">

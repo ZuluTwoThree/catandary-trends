@@ -547,6 +547,118 @@ def hint_points(score: float) -> int:
             2 if score >= 0.08 else 1 if score >= 0.0 else 0)
 
 
+# ---------------------------------------------------------------------------
+# Entdeckung: wo sonst noch passiert, was den Nutzer interessiert
+# ---------------------------------------------------------------------------
+# Der Grund, warum das überhaupt geht: das Interessensmodell ist GLOBAL (siehe
+# relevance_direction). Es kennt keine Feldgrenzen — und findet deshalb genau
+# die Signale, die im Thema des Nutzers liegen, aber in einem Cluster, einem
+# Mega-Trend oder einer Branche wohnen, die er gar nicht gewählt hat.
+#
+# Über pgvector kostet die Suche über 1,13 Mio. Signale 0,02 s (HNSW-Index).
+# Der teure Teil ist nicht das Finden, sondern das ENTDROSSELN: die reine
+# Spitzenliste bestand aus acht Varianten derselben Solein-Meldung. Ohne
+# Streuung ist eine Entdeckung keine.
+DISCOVER_POOL = 600       # so viele Nachbarn holen
+DISCOVER_PER_GROUP = 3    # so viele je Gruppe zeigen
+DISCOVER_MIN_SIM = 0.20   # darunter ist es nicht mehr „das Thema"
+
+
+def _dedupe_titles(rows: list[dict], overlap: float = 0.6) -> list[dict]:
+    """Nahezu gleiche Meldungen zusammenfassen — dieselbe Nachricht in drei
+    Fachmedien ist eine Entdeckung, nicht drei."""
+    import re
+    stop = {"the", "for", "and", "with", "from", "new", "its", "has", "will",
+            "that", "this", "into", "over", "after", "says"}
+    kept: list[tuple[frozenset, dict]] = []
+    for r in rows:
+        toks = frozenset(w for w in re.split(r"[^a-z0-9]+", (r["title"] or "").lower())
+                         if len(w) > 3 and w not in stop)
+        if any(toks and k and len(toks & k) / min(len(toks), len(k)) >= overlap
+               for k, _ in kept):
+            continue
+        kept.append((toks, r))
+    return [r for _, r in kept]
+
+
+def discover(conn, workspace_id: int, pool: int = DISCOVER_POOL) -> dict:
+    """Wo im Korpus liegt sonst noch, was den Nutzer interessiert?"""
+    direction, meta = relevance_direction(conn, workspace_id)
+    if not direction:
+        return {"ready": False, "model": meta, "groups": []}
+    lit = "[" + ",".join(f"{x:.6f}" for x in direction) + "]"
+    # hnsw.ef_search steht standardmäßig auf 40 und DECKELT die Ergebnisliste:
+    # ein LIMIT 600 lieferte trotzdem nur 40 Zeilen, und die Entdeckung blieb
+    # auf acht Varianten derselben Meldung sitzen. Der Wert muss über dem LIMIT
+    # liegen — er bestimmt, wie viele Kandidaten der Index überhaupt betrachtet.
+    conn.execute("SET LOCAL hnsw.ef_search = %s", (min(1000, max(64, pool * 2)),))
+
+    chosen = {r["field_key"] for r in conn.execute(
+        "SELECT field_key FROM workspace_field WHERE workspace_id=%s",
+        (workspace_id,)).fetchall()}
+
+    rows = conn.execute(
+        """SELECT t.id, t.title_en AS title, t.source_name, t.source_url,
+                  t.primary_vertical, t.mega_trend, t.trend_signal_type,
+                  1 - (t.embedding_1024 <=> %s::vector) AS sim,
+                  COALESCE(r.published_date, t.created_at)::date AS d
+             FROM trends t LEFT JOIN raw_entries r ON r.id = t.raw_entry_id
+            WHERE t.embedding_1024 IS NOT NULL AND t.title_en IS NOT NULL
+              AND t.id NOT IN (SELECT trend_id FROM signal_relevance
+                                WHERE workspace_id = %s)
+            ORDER BY t.embedding_1024 <=> %s::vector
+            LIMIT %s""", (lit, workspace_id, lit, pool)).fetchall()
+    rows = [dict(r) for r in rows if float(r["sim"]) >= DISCOVER_MIN_SIM]
+    rows = _dedupe_titles(rows)
+
+    # Cluster-Zugehörigkeit der Treffer nachschlagen (jüngster Lauf je Scope).
+    ids = [r["id"] for r in rows]
+    cl: dict[int, tuple[str, str]] = {}
+    if ids:
+        for m in conn.execute(
+            """SELECT m.trend_id, m.run_id, m.cluster_idx, fc.label
+                 FROM foresight_cluster_members m
+                 JOIN foresight_clusters fc
+                   ON fc.run_id = m.run_id AND fc.cluster_idx = m.cluster_idx
+                WHERE m.trend_id = ANY(%s)
+                  AND m.run_id IN (SELECT max(id) FROM foresight_runs
+                                    WHERE scope LIKE %s GROUP BY scope)""",
+            (ids, "vertical:%")).fetchall():
+            cl.setdefault(m["trend_id"],
+                          (f"cluster:{m['run_id']}:{m['cluster_idx']}", m["label"]))
+
+    groups: dict[str, dict] = {}
+    for r in rows:
+        for kind, key, label in (
+            ("cluster", *(cl.get(r["id"]) or (None, None))),
+            ("mega", f"mega:{r['mega_trend']}" if r["mega_trend"] else None,
+             (r["mega_trend"] or "").replace("_", " ").title() or None),
+            ("vertical", f"vertical:{r['primary_vertical']}"
+             if r["primary_vertical"] else None, r["primary_vertical"]),
+        ):
+            if not key:
+                continue
+            g = groups.setdefault(key, {
+                "kind": kind, "field_key": key, "label": label,
+                "on_table": key in chosen, "n": 0, "top_sim": 0.0, "hits": [],
+            })
+            g["n"] += 1
+            g["top_sim"] = max(g["top_sim"], float(r["sim"]))
+            if len(g["hits"]) < DISCOVER_PER_GROUP:
+                g["hits"].append({
+                    "id": r["id"], "title": r["title"], "sim": round(float(r["sim"]), 3),
+                    "source": r["source_name"], "url": r["source_url"],
+                    "type": r["trend_signal_type"], "date": str(r["d"]),
+                })
+
+    out = sorted(groups.values(), key=lambda g: (-g["n"], -g["top_sim"]))
+    return {
+        "ready": True, "model": meta, "n_hits": len(rows),
+        "groups": out,
+        "new_groups": sum(1 for g in out if not g["on_table"]),
+    }
+
+
 def relevance_stage(score: float | None) -> str | None:
     """Blechschmidts drei Relevanzstufen aus dem 0–4-Mittel."""
     if score is None:
