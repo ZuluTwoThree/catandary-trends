@@ -394,3 +394,30 @@ Bestand sinnvoll — Schnitt 4.
   Trainingsset entsteht ab jetzt bei jeder Bewertung
 - Felder werden derzeit per CLI hinzugefügt (`instrument.py fields --add`);
   eine Auswahloberfläche fehlt noch
+
+### 10.6 Feldauswahl (2026-08-06)
+
+Owner: *„ein Nutzer wird in der Regel nicht an allen Signalen aus allen
+Vertikalen interessiert sein."* Damit wird die Auswahl der **erste
+Arbeitsschritt**, nicht eine Einstellung im Hintergrund — und sie ist bereits
+die erste, grobe Relevanzaussage.
+
+`instrument.py catalog` liefert drei Flughöhen nebeneinander, weil sie
+verschiedene Fragen beantworten:
+
+| Ebene | Zahl | Frage |
+|---|---|---|
+| **Branche** | 8 | Was passiert in meinem Sektor? |
+| **Mega-Trend** | 21 | Woraus besteht diese Bewegung? |
+| **Cluster** | 253 | Dieses eine Feld. |
+
+Cluster erscheinen nur aus dem jüngsten Lauf je Scope, ab 300 Signalen und nur
+mit gespeicherter Mitgliedschaft — sonst ließe sich die Stichprobe nicht ziehen.
+Jeder Eintrag zeigt Größe, Anteilstrend und ein repräsentatives Signal, damit
+die Wahl informiert ist statt geraten.
+
+`FieldPicker.tsx` sitzt vor der Bewertungsstrecke: gewählte Felder als Marken
+mit Entfernen-Kreuz, darunter der Katalog nach Herkunft gruppiert und
+filterbar. Blechschmidts Warnung zur Flughöhe (S. 106) steht im Modul-Docstring
+— ein Radar aus konkreten Technologien taugt nicht für die Vorstandsdiskussion,
+und die drei Ebenen nebeneinander machen die Wahl bewusst.
