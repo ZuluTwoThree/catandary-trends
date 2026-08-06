@@ -54,6 +54,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "bad_rater" }, { status: 400 });
   }
   try {
+    if (what === "discover") {
+      return NextResponse.json(await run(["discover"]));
+    }
     if (what === "catalog") {
       return NextResponse.json(await run(["catalog"]));
     }

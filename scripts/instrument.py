@@ -23,7 +23,7 @@ from pipeline.instrument import (SAMPLE_SIZE, STAGE_BAND, STAGE_LABEL,
                                  assess_field, ensure_rater, ensure_workspace,
                                  expertise_weight, hint_points, migrate,
                                  relevance_direction, relevance_stage,
-                                 sample_for_rating, score_against)
+                                 sample_for_rating, score_against, discover)
 
 
 def _cluster_meta(conn, field_key: str) -> tuple[list[dict], float | None, str | None]:
@@ -132,6 +132,13 @@ def cmd_rate(args) -> dict:
         ms, ev, vertical = _cluster_meta(conn, args.field)
     return assess_field(wid, args.field, evidence_score=ev, series=ms,
                         vertical=vertical)
+
+
+def cmd_discover(args) -> dict:
+    wid = ensure_workspace(args.workspace, args.workspace.title())
+    with get_connection() as conn:
+        conn.execute("SET statement_timeout = 60000")
+        return discover(conn, wid)
 
 
 def cmd_catalog(args) -> dict:
@@ -250,7 +257,8 @@ def main() -> int:
         print(json.dumps({"ok": True}))
         return 0
     fn = {"board": cmd_board, "queue": cmd_queue, "rate": cmd_rate,
-          "fields": cmd_fields, "catalog": cmd_catalog}[args.cmd]
+          "fields": cmd_fields, "catalog": cmd_catalog,
+          "discover": cmd_discover}[args.cmd]
     print(json.dumps(fn(args), default=str))
     return 0
 
