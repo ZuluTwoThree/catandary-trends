@@ -54,6 +54,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "bad_rater" }, { status: 400 });
   }
   try {
+    if (what === "catalog") {
+      return NextResponse.json(await run(["catalog"]));
+    }
     if (what === "queue") {
       const field = url.searchParams.get("field") ?? "";
       if (!FIELD.test(field)) {
@@ -82,7 +85,7 @@ export async function POST(req: Request) {
 
   let body: {
     field?: string; trend?: number; points?: number | null;
-    skip?: boolean; rater?: string; add?: string; label?: string;
+    skip?: boolean; rater?: string; add?: string; remove?: string; label?: string;
   };
   try {
     body = await req.json();
@@ -103,6 +106,12 @@ export async function POST(req: Request) {
         await run(["fields", "--add", body.add,
                    ...(body.label ? ["--label", body.label.slice(0, 120)] : [])])
       );
+    }
+    if (body.remove) {
+      if (!FIELD.test(body.remove)) {
+        return NextResponse.json({ error: "bad_field" }, { status: 400 });
+      }
+      return NextResponse.json(await run(["fields", "--remove", body.remove]));
     }
     const field = body.field ?? "";
     if (!FIELD.test(field) || !Number.isInteger(body.trend)) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import FieldPicker from "./FieldPicker";
 
 /**
  * „Der Messtisch" — Gestaltungsvorlage des Radar-Neubaus.
@@ -211,6 +212,14 @@ export default function InstrumentPreview() {
           </div>
         </dl>
       </header>
+
+      {/* Auswahl der Interessensfelder — der erste Arbeitsschritt */}
+      <FieldPicker
+        onChange={() => {
+          void loadBoard();
+          if (open) void loadQueue(open);
+        }}
+      />
 
       {/* Bewertungsstrecke */}
       <section className="ip-rate" aria-label="Signale bewerten">

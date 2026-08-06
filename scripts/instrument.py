@@ -126,11 +126,84 @@ def cmd_rate(args) -> dict:
                         vertical=vertical)
 
 
+def cmd_catalog(args) -> dict:
+    """Was der Nutzer auf den Tisch legen kann.
+
+    Drei Flughöhen, wie im Auftrag: Vertikale (die Branche), Mega-Trend (die
+    große Bewegung), Cluster (das konkrete Feld). Ein Nutzer beobachtet in der
+    Regel nicht alles — die Auswahl ist deshalb der erste Arbeitsschritt, nicht
+    eine Einstellung im Hintergrund.
+    """
+    wid = ensure_workspace(args.workspace, args.workspace.title())
+    out: dict[str, list] = {"vertical": [], "mega": [], "cluster": []}
+    with get_connection() as conn:
+        conn.execute("SET statement_timeout = 120000")
+        chosen = {r["field_key"] for r in conn.execute(
+            "SELECT field_key FROM workspace_field WHERE workspace_id=%s",
+            (wid,)).fetchall()}
+
+        for r in conn.execute(
+            "SELECT primary_vertical AS v, count(*) AS n FROM trends "
+            "WHERE primary_vertical IS NOT NULL GROUP BY 1 ORDER BY n DESC"
+        ).fetchall():
+            out["vertical"].append({
+                "field_key": f"vertical:{r['v']}", "label": r["v"],
+                "n": r["n"], "group": "Branche", "chosen": f"vertical:{r['v']}" in chosen,
+            })
+
+        for r in conn.execute(
+            "SELECT mega_trend AS m, count(*) AS n FROM trends "
+            "WHERE mega_trend IS NOT NULL AND mega_trend <> '' "
+            "GROUP BY 1 HAVING count(*) >= 500 ORDER BY n DESC"
+        ).fetchall():
+            key = f"mega:{r['m']}"
+            out["mega"].append({
+                "field_key": key,
+                "label": r["m"].replace("_", " ").title(),
+                "n": r["n"], "group": "Mega-Trend", "chosen": key in chosen,
+            })
+
+        # Cluster nur aus dem jüngsten Lauf je Scope, und nur solche mit
+        # gespeicherter Mitgliedschaft — sonst wäre die Stichprobe nicht ziehbar.
+        for r in conn.execute(
+            """SELECT fc.run_id, fc.cluster_idx, fc.label, fc.size, fc.momentum,
+                      fc.sov_delta_pp, fc.rep_titles, fr.scope
+                 FROM foresight_clusters fc
+                 JOIN foresight_runs fr ON fr.id = fc.run_id
+                WHERE fc.run_id IN (SELECT max(id) FROM foresight_runs GROUP BY scope)
+                  AND fc.size >= 300
+                  AND EXISTS (SELECT 1 FROM foresight_cluster_members m
+                               WHERE m.run_id = fc.run_id)
+                ORDER BY fr.scope, fc.size DESC"""
+        ).fetchall():
+            key = f"cluster:{r['run_id']}:{r['cluster_idx']}"
+            reps = r["rep_titles"] if isinstance(r["rep_titles"], list) \
+                else json.loads(r["rep_titles"] or "[]")
+            scope = r["scope"]
+            pretty = (scope.replace("vertical:", "")
+                      .replace("mega:", "")
+                      .replace("_", " ").title()
+                      if scope != "global" else "Branchenübergreifend")
+            out["cluster"].append({
+                "field_key": key, "label": r["label"], "n": r["size"],
+                "group": pretty, "momentum": r["momentum"],
+                "delta": r["sov_delta_pp"], "reps": reps[:2],
+                "chosen": key in chosen,
+            })
+    return {"catalog": out, "n_chosen": len(chosen)}
+
+
 def cmd_fields(args) -> dict:
     wid = ensure_workspace(args.workspace, args.workspace.title())
     with get_connection() as conn:
         if args.add:
             _, _, vertical = _cluster_meta(conn, args.add)
+            kind, _, rest = args.add.partition(":")
+            if kind == "vertical":
+                vertical = rest
+            if not args.label:
+                args.label = (rest.replace("_", " ").title()
+                              if kind in ("mega", "vertical") else args.add)
             conn.execute(
                 "INSERT INTO workspace_field (workspace_id, field_key, label,"
                 " vertical, sort_order) VALUES (%s,%s,%s,%s,%s) "
@@ -150,7 +223,8 @@ def cmd_fields(args) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["board", "queue", "rate", "fields", "migrate"])
+    ap.add_argument("cmd", choices=["board", "queue", "rate", "fields",
+                                    "catalog", "migrate"])
     ap.add_argument("--workspace", default="catandary")
     ap.add_argument("--rater", default="owner")
     ap.add_argument("--field", default=None)
@@ -168,7 +242,7 @@ def main() -> int:
         print(json.dumps({"ok": True}))
         return 0
     fn = {"board": cmd_board, "queue": cmd_queue, "rate": cmd_rate,
-          "fields": cmd_fields}[args.cmd]
+          "fields": cmd_fields, "catalog": cmd_catalog}[args.cmd]
     print(json.dumps(fn(args), default=str))
     return 0
 
