@@ -92,6 +92,18 @@ def _implied_tokens(text: str) -> set[str]:
     for word, digit in _CARDINAL_WORDS.items():
         if re.search(rf"\b{word}\b", low):
             out.add(digit)
+    # "the '80s" -> the body's "1980s"; assume the 20th century, which is what
+    # an apostrophised decade means in every source we carry.
+    for m in _SHORT_DECADE_RE.finditer(text or ""):
+        out.add(f"19{m.group(1)}")
+    # "2.5 thousand products" -> the body's "2,500 products".
+    for m in _SCALED_NUMBER_RE.finditer(low):
+        factor = next((v for k, v in _SCALE_FACTOR.items() if m.group(2).startswith(k)), 0)
+        if factor:
+            value = float(m.group(1).replace(",", "."))
+            scaled = value * factor
+            if scaled == int(scaled):
+                out.add(str(int(scaled)))
     out.discard("")
     return out
 
@@ -107,6 +119,39 @@ _IDENTIFIER_DIGIT_RE = re.compile(r"(?:\b[A-Z][A-Za-z]*|[A-Z]{2,})-\d[\d.,]*")
 # ATTACHED (no space, no hyphen) is what keeps this narrow — "August 4" and
 # "Under 25" are separate tokens and stay subject to the check.
 _ATTACHED_DIGIT_RE = re.compile(r"\b[A-Z][A-Za-z]*\d[\d.,]*")
+
+
+# Words whose following number is a DESIGNATOR, not a measurement: "Scope 1
+# emissions", "Article 6 market", "737 MAX 8", "Phase 2 results". A general
+# "capitalised word + space + number" rule would be far too broad — it would
+# also excuse "Under 25" and "August 4" — so this stays an explicit list of
+# terms that name a thing rather than measure one. Heavy in ESG and regulatory
+# copy, which is a large share of this corpus.
+_DESIGNATOR_RE = re.compile(
+    r"\b(?:Scope|Article|Artikel|Phase|Tier|Level|Class|Klasse|Type|Typ|Model|"
+    r"Modell|Series|Serie|Chapter|Kapitel|Section|Paragraf|Annex|Anhang|Figure|"
+    r"Abbildung|Table|Tabelle|Stage|Stufe|Grade|Category|Kategorie|MAX|Mark|"
+    r"Version|Gen|Generation|Industry|Industrie|Web)\s+(\d[\d.,]*)",
+    re.IGNORECASE,
+)
+
+# "the '80s" and "the 1980s" are the same decade. Without this the body's
+# expanded form reads as a fabricated year.
+_SHORT_DECADE_RE = re.compile(r"['’](\d0)s\b")
+
+# "2.5 thousand products" in the source vs "2,500 products" in the body.
+_SCALED_NUMBER_RE = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*(thousand|tausend|million\w*|milliarde\w*|billion|trillion)",
+    re.IGNORECASE,
+)
+_SCALE_FACTOR = {"thousand": 1_000, "tausend": 1_000, "million": 1_000_000,
+                 "milliarde": 1_000_000_000, "billion": 1_000_000_000,
+                 "trillion": 1_000_000_000_000}
+
+
+def _designator_digits(text: str) -> set[str]:
+    """Numbers that name a thing rather than measure one."""
+    return {m.group(1) for m in _DESIGNATOR_RE.finditer(text or "")}
 
 
 def _identifier_digits(text: str) -> set[str]:
@@ -167,7 +212,7 @@ def ungrounded_specifics(body: str, source: str) -> list[str]:
     # allowance: "fünf" implies "5", and letting a bare "5" ground a body's
     # "150" by substring would gut the check.
     implied = _implied_tokens(source or "")
-    names = _identifier_digits(body)
+    names = _identifier_digits(body) | _designator_digits(body)
     bad: list[str] = []
     for t in _concrete_tokens(body):
         if t in src_raw or t in names:
