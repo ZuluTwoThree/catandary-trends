@@ -213,17 +213,28 @@ def vertical_for_topic(primary_topic: dict | None) -> str:
 # (works pre-2020 have accumulated citations, so the gate is meaningful there).
 CONCEPT_SHARDS: dict[str, list[str]] = {
     "TECH": ["artificial intelligence", "machine learning", "robotics",
-             "quantum computing", "semiconductor", "computer vision"],
+             "quantum computing", "semiconductor", "computer vision",
+             # 2026-08 taxonomy expansion — science coverage for the new keys
+             # quantum_information_science / next_generation_semiconductors /
+             # orbital_economy_expansion (docs/mega_taxonomy_decision_2026-08-07.md)
+             "quantum information", "photonics", "aerospace engineering",
+             "space exploration", "satellite"],
     "HEALTH": ["immunotherapy", "gene therapy", "obesity", "neurodegeneration",
-               "precision medicine", "microbiome"],
+               "precision medicine", "microbiome",
+               # digital_healthcare_integration
+               "telemedicine", "digital health", "health informatics"],
     "FOOD": ["food science", "alternative protein", "fermentation",
              "sustainable agriculture", "food security"],
     "ECO": ["renewable energy", "carbon capture", "battery", "photovoltaics",
             "climate change mitigation"],
-    "BIZ": ["financial technology", "supply chain management", "electronic commerce"],
+    "BIZ": ["financial technology", "supply chain management", "electronic commerce",
+            # evolution_of_work_models
+            "human resource management", "remote work", "organizational behavior"],
     "FASHION": ["textile", "biomaterials", "cosmetics"],
     "DESIGN": ["sustainable architecture", "urban design"],
-    "LIFESTYLE": ["social media", "video games", "creator economy"],
+    "LIFESTYLE": ["social media", "video games", "creator economy",
+                  # education_and_lifelong_learning
+                  "educational technology", "higher education", "lifelong learning"],
 }
 
 

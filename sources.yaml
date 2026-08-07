@@ -273,6 +273,42 @@ verticals:
       feed_url: https://rss.golem.de/rss.php?feed=RSS2.0
       type: trade_media
       lead_time_tier: market
+    # --- 2026-08 Taxonomie-Ausbau: Quantum / Semiconductor / Orbital (Feeds verifiziert 2026-08-07;
+    #     EE Times, IEEE Spectrum, Electrek existieren bereits als aktive DB-Quellen) ---
+    - name: The Quantum Insider
+      fulltext: true
+      feed_url: https://thequantuminsider.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: NVIDIA Blog
+      fulltext: true
+      feed_url: https://blogs.nvidia.com/feed/
+      type: brand
+      lead_time_tier: market
+    - name: Intel Newsroom
+      fulltext: true
+      feed_url: https://newsroom.intel.com/feed/
+      type: brand
+      lead_time_tier: market
+    - name: IBM Newsroom
+      fulltext: true
+      feed_url: https://newsroom.ibm.com/announcements?pagetemplate=rss
+      type: brand
+      lead_time_tier: market
+    - name: SpaceNews
+      fulltext: true
+      feed_url: https://spacenews.com/feed/
+      type: trade_media
+      lead_time_tier: market
+    - name: NASA News
+      fulltext: true
+      feed_url: https://www.nasa.gov/feed/
+      type: brand
+      lead_time_tier: market
+    - name: ESA Space News
+      feed_url: https://www.esa.int/rssfeed/Our_Activities/Space_News
+      type: brand
+      lead_time_tier: market
     science:
     - name: Nature Machine Intelligence
       feed_url: https://www.nature.com/natmachintell.rss
@@ -380,6 +416,12 @@ verticals:
       fulltext: true
       feed_url: https://medcitynews.com/feed/
       type: trade_media
+      lead_time_tier: market
+    # --- 2026-08 Taxonomie-Ausbau: Digital Health (verifiziert 2026-08-07) ---
+    - name: Rock Health Blog
+      fulltext: true
+      feed_url: https://rockhealth.com/feed/
+      type: brand
       lead_time_tier: market
     science:
     - name: Nature Medicine
@@ -516,6 +558,13 @@ verticals:
       feed_url: https://electrek.co/feed/
       type: trade_media
       lead_time_tier: now
+    # --- 2026-08 Taxonomie-Ausbau: E-Mobilität (aktivierter Key electric_and_autonomous_mobility;
+    #     Electrek existiert bereits als aktive DB-Quelle) ---
+    - name: InsideEVs
+      fulltext: true
+      feed_url: https://insideevs.com/rss/articles/all/
+      type: trade_media
+      lead_time_tier: market
     science:
     - name: Nature Sustainability
       feed_url: https://www.nature.com/natsustain.rss
@@ -772,6 +821,17 @@ verticals:
       feed_url: https://omr.com/de/feed
       type: trade_media
       lead_time_tier: now
+    # --- 2026-08 Taxonomie-Ausbau: Future of Work (verifiziert 2026-08-07) ---
+    - name: HR Dive
+      fulltext: true
+      feed_url: https://www.hrdive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: WorkLife
+      fulltext: true
+      feed_url: https://www.worklife.news/feed/
+      type: trade_media
+      lead_time_tier: market
     science:
     - name: Harvard Business Review
       feed_url: http://feeds.harvardbusiness.org/harvardbusiness
@@ -904,6 +964,27 @@ verticals:
       feed_url: https://www.pocketgamer.biz/rss/
       type: trade_media
       lead_time_tier: now
+    # --- 2026-08 Taxonomie-Ausbau: Education & Lifelong Learning (verifiziert 2026-08-07) ---
+    - name: EdSurge
+      fulltext: true
+      feed_url: https://www.edsurge.com/articles_rss
+      type: trade_media
+      lead_time_tier: market
+    - name: Higher Ed Dive
+      fulltext: true
+      feed_url: https://www.highereddive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+    - name: Coursera Blog
+      fulltext: true
+      feed_url: https://blog.coursera.org/feed/
+      type: brand
+      lead_time_tier: market
+    - name: Class Central Report
+      fulltext: true
+      feed_url: https://www.classcentral.com/report/feed/
+      type: trade_media
+      lead_time_tier: market
     science:
     - name: Nature Human Behaviour
       feed_url: https://www.nature.com/nathumbehav.rss
