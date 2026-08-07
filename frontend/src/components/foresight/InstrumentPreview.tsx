@@ -269,35 +269,50 @@ export default function InstrumentPreview() {
             <dt>Your weight</dt>
             <dd>{weight ? weight.weight.toFixed(2) : "—"}</dd>
           </div>
-          <div className="ip-reset">
-            <dt>Session</dt>
-            <dd>
-              {confirmReset ? (
-                <span className="ip-confirm">
-                  <button className="ip-danger" onClick={() => void reset()}>
-                    erase
-                  </button>
-                  <button className="ip-cancel" onClick={() => setConfirmReset(false)}>
-                    keep
-                  </button>
-                </span>
-              ) : (
-                <button className="ip-resetbtn" onClick={() => setConfirmReset(true)}>
-                  reset
-                </button>
-              )}
-            </dd>
-          </div>
         </dl>
       </header>
 
-      {confirmReset ? (
-        <p className="ip-warn">
-          Reset erases all {totalRated} ratings and clears your topics. The
-          learned interest model goes with them. Nothing else is touched — the
-          signal corpus is untouched.
-        </p>
-      ) : null}
+      {/* Der Neustart gehört dorthin, wo ein Lauf BEGINNT — nicht in den
+          Kennzahlenblock. Dort stand er zuerst, als kleiner Knopf unter
+          „Session", und wurde prompt für den Sweep-Knopf im Portfolio
+          gehalten. Ein Knopf, der 175 Bewertungen löscht, muss sich benennen. */}
+      <section className="ip-run">
+        <div className="ip-run-l">
+          <span className="ip-k">Rating run</span>
+          <p>
+            {totalRated
+              ? `${totalRated} ratings on record across ${fields.length} topic${
+                  fields.length === 1 ? "" : "s"
+                }. They are what the interest model is built from.`
+              : "Nothing rated yet. Name a topic below and start."}
+          </p>
+        </div>
+        {confirmReset ? (
+          <div className="ip-run-confirm">
+            <p>
+              Erases all {totalRated} ratings, your {fields.length} topic
+              {fields.length === 1 ? "" : "s"} and the learned interest model.
+              The signal corpus itself is untouched. This cannot be undone.
+            </p>
+            <div>
+              <button className="ip-danger" onClick={() => void reset()}>
+                erase and start over
+              </button>
+              <button className="ip-cancel" onClick={() => setConfirmReset(false)}>
+                cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            className="ip-resetbtn"
+            onClick={() => setConfirmReset(true)}
+            disabled={!totalRated && !fields.length}
+          >
+            ↺ start a fresh run
+          </button>
+        )}
+      </section>
 
       {/* Choosing what you follow — the first act of work */}
       <FieldPicker
@@ -404,8 +419,9 @@ export default function InstrumentPreview() {
             onClick={() => void runProjection()}
             disabled={projecting}
           >
-            {projecting ? "sweeping 1.13 M signals…" : "sweep the whole signal space"}
+            {projecting ? "sweeping 1.13 M signals…" : "sweep for more like this"}
           </button>
+          <span className="ip-legend ip-readonly">changes nothing · ~4 s</span>
         </div>
 
         {proj && !proj.ready ? (
@@ -626,13 +642,18 @@ function Styles() {
       .ip-specs { display: flex; gap: 1.6rem; margin: 0; }
       .ip-specs dt { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--color-muted); }
       .ip-specs dd { font-family: var(--font-mono); font-size: 1.15rem; color: var(--color-paper); margin: .2rem 0 0; }
-      .ip-reset dd { display: flex; gap: .3rem; }
-      .ip-resetbtn, .ip-danger, .ip-cancel { font-family: var(--font-mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; padding: .3rem .6rem; border: 1px solid var(--color-border); background: transparent; color: var(--color-muted); cursor: pointer; }
-      .ip-resetbtn:hover { border-color: var(--sug); color: var(--sug); }
-      .ip-confirm { display: flex; gap: .3rem; }
-      .ip-danger { border-color: var(--sug); background: var(--sug); color: var(--paper); }
+      .ip-run { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; padding: 1rem 0 .2rem; }
+      .ip-run-l p { font-size: .82rem; line-height: 1.5; color: var(--color-muted); margin: .25rem 0 0; max-width: 44em; }
+      .ip-resetbtn { margin-left: auto; font-family: var(--font-mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; padding: .6rem 1.1rem; border: 1px solid var(--color-border); background: transparent; color: var(--color-muted); cursor: pointer; transition: border-color .16s, color .16s; }
+      .ip-resetbtn:hover:not(:disabled) { border-color: var(--sug); color: var(--sug); }
+      .ip-resetbtn:disabled { opacity: .3; cursor: not-allowed; }
+      .ip-run-confirm { margin-left: auto; border: 1px solid var(--sug); border-left-width: 2px; padding: .7rem .9rem; background: color-mix(in srgb, var(--sug) 8%, transparent); max-width: 34rem; }
+      .ip-run-confirm p { font-size: .8rem; line-height: 1.5; color: var(--color-text); margin: 0 0 .6rem; }
+      .ip-run-confirm div { display: flex; gap: .4rem; }
+      .ip-danger, .ip-cancel { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; padding: .45rem .9rem; border: 1px solid var(--color-border); background: transparent; color: var(--color-muted); cursor: pointer; }
+      .ip-danger { border-color: var(--sug); background: var(--sug); color: var(--paper); font-weight: 600; }
       .ip-cancel:hover { color: var(--color-paper); border-color: var(--color-paper); }
-      .ip-warn { border-left: 2px solid var(--sug); padding: .6rem .9rem; margin: 1rem 0 0; font-size: .82rem; line-height: 1.55; color: var(--color-text); background: color-mix(in srgb, var(--sug) 8%, transparent); }
+      .ip-readonly { margin-left: 0 !important; }
 
       .ip-k { font-family: var(--font-mono); font-size: 9px; letter-spacing: .22em; text-transform: uppercase; color: var(--color-accent); }
 
