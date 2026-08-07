@@ -23,7 +23,9 @@ from pipeline.instrument import (SAMPLE_SIZE, STAGE_BAND, STAGE_LABEL,
                                  assess_field, ensure_rater, ensure_workspace,
                                  expertise_weight, hint_points, migrate,
                                  relevance_direction, relevance_stage,
-                                 sample_for_rating, score_against, discover)
+                                 sample_for_rating, score_against, discover,
+                                 field_series, field_trend_ids, reset_workspace,
+                                 project)
 
 
 def _cluster_meta(conn, field_key: str) -> tuple[list[dict], float | None, str | None]:
@@ -130,8 +132,44 @@ def cmd_rate(args) -> dict:
              None if args.skip else args.points, bool(args.skip)))
         conn.commit()
         ms, ev, vertical = _cluster_meta(conn, args.field)
+        if not ms:
+            ms = field_series(conn, args.field)
     return assess_field(wid, args.field, evidence_score=ev, series=ms,
                         vertical=vertical)
+
+
+def cmd_search(args) -> dict:
+    """Vorschau auf ein Suchfeld, bevor es auf den Tisch kommt."""
+    wid = ensure_workspace(args.workspace, args.workspace.title())
+    key = f"search:{args.q}"
+    with get_connection() as conn:
+        conn.execute("SET statement_timeout = 60000")
+        ids = field_trend_ids(conn, key, limit=40_000)
+        preview = []
+        if ids:
+            preview = [dict(r) for r in conn.execute(
+                """SELECT t.id, t.title_en, t.source_name, t.trend_signal_type,
+                          COALESCE(r.published_date, t.created_at)::date AS d
+                     FROM trends t LEFT JOIN raw_entries r ON r.id = t.raw_entry_id
+                    WHERE t.id = ANY(%s)
+                    ORDER BY COALESCE(r.published_date, t.created_at) DESC
+                    LIMIT 6""", (ids[:5000],)).fetchall()]
+        series = field_series(conn, key)
+    from pipeline.instrument import curve_position
+    cp = curve_position(series)
+    return {
+        "query": args.q, "field_key": key, "n": len(ids),
+        "months": len(series),
+        "stage": cp.get("stage"), "stage_reason": cp.get("reason"),
+        "preview": [{"id": p["id"], "title": p["title_en"],
+                     "source": p["source_name"], "type": p["trend_signal_type"],
+                     "date": str(p["d"])} for p in preview],
+    }
+
+
+def cmd_reset(args) -> dict:
+    wid = ensure_workspace(args.workspace, args.workspace.title())
+    return reset_workspace(wid, keep_fields=args.keep_fields)
 
 
 def cmd_discover(args) -> dict:
@@ -217,7 +255,8 @@ def cmd_fields(args) -> dict:
             if kind == "vertical":
                 vertical = rest
             if not args.label:
-                args.label = (rest.replace("_", " ").title()
+                args.label = (rest if kind == "search" else
+                              rest.replace("_", " ").title()
                               if kind in ("mega", "vertical") else args.add)
             conn.execute(
                 "INSERT INTO workspace_field (workspace_id, field_key, label,"
@@ -227,6 +266,8 @@ def cmd_fields(args) -> dict:
                 (wid, args.add, args.label or args.add, vertical, 0))
             conn.commit()
             ms, ev, vertical = _cluster_meta(conn, args.add)
+            if not ms:
+                ms = field_series(conn, args.add)
             assess_field(wid, args.add, evidence_score=ev, series=ms,
                          vertical=vertical)
         if args.remove:
@@ -236,10 +277,19 @@ def cmd_fields(args) -> dict:
     return cmd_board(args)
 
 
+def cmd_project(args) -> dict:
+    """Den gesamten Signalraum gegen das gelernte Interesse ins Radar legen."""
+    wid = ensure_workspace(args.workspace, args.workspace.title())
+    with get_connection() as conn:
+        conn.execute("SET statement_timeout = 60000")
+        return project(conn, wid)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["board", "queue", "rate", "fields",
-                                    "catalog", "migrate"])
+                                    "catalog", "discover", "search", "reset",
+                                    "project", "migrate"])
     ap.add_argument("--workspace", default="catandary")
     ap.add_argument("--rater", default="owner")
     ap.add_argument("--field", default=None)
@@ -250,6 +300,8 @@ def main() -> int:
     ap.add_argument("--add", default=None)
     ap.add_argument("--remove", default=None)
     ap.add_argument("--label", default=None)
+    ap.add_argument("--q", default=None)
+    ap.add_argument("--keep-fields", action="store_true")
     args = ap.parse_args()
 
     if args.cmd == "migrate":
@@ -258,7 +310,8 @@ def main() -> int:
         return 0
     fn = {"board": cmd_board, "queue": cmd_queue, "rate": cmd_rate,
           "fields": cmd_fields, "catalog": cmd_catalog,
-          "discover": cmd_discover}[args.cmd]
+          "discover": cmd_discover, "search": cmd_search,
+          "reset": cmd_reset, "project": cmd_project}[args.cmd]
     print(json.dumps(fn(args), default=str))
     return 0
 

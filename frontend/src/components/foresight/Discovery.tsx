@@ -3,18 +3,18 @@
 import { useEffect, useState } from "react";
 
 /**
- * „Wo sonst noch" — die Entdeckung quer zu den gewählten Feldern.
+ * “Where else” — discovery across the topics you did not choose.
  *
- * Das ist die Auszahlung des Signalpfads und zugleich der stärkste
- * Onboarding-Moment: der Nutzer bewertet EIN Feld zu Ende, und das Werkzeug
- * zeigt ihm daraufhin, wo sein Thema sonst noch lebt — in Clustern,
- * Mega-Trends und Branchen, die er gar nicht gewählt hat.
+ * This is the payoff of the rating run and the strongest onboarding moment:
+ * a user rates ONE topic to the end, and the tool shows them where their
+ * interest also lives — in clusters, mega-trends and industries they never
+ * picked.
  *
- * Möglich ist das nur, weil das Interessensmodell global ist und keine
- * Feldgrenzen kennt (siehe pipeline/instrument.py). Gemessen am ersten
- * Bestand: das Thema „luftbasiertes Protein" tauchte in TECH als Patent auf,
- * im Mega-Trend Clean Energy als Verpackungsforschung und im Cluster „Venture
- * Capital · AI" als „The Industrialization of Atmospheric Nutrition".
+ * It only works because the interest model is global and knows no topic
+ * boundaries (see pipeline/instrument.py). Measured on the first real set:
+ * “air-based protein” surfaced in TECH as a patent, under the Clean Energy
+ * mega-trend as packaging research, and in the cluster “Venture Capital · AI”
+ * as “The Industrialization of Atmospheric Nutrition”.
  */
 
 type Hit = {
@@ -27,7 +27,7 @@ type Group = {
   on_table: boolean; n: number; top_sim: number; hits: Hit[];
 };
 
-const KIND_LABEL = { vertical: "Branche", mega: "Mega-Trend", cluster: "Cluster" };
+const KIND_LABEL = { vertical: "Industry", mega: "Mega-trend", cluster: "Cluster" };
 
 export default function Discovery({ onAdd }: { onAdd: () => void }) {
   const [data, setData] = useState<{
@@ -64,34 +64,34 @@ export default function Discovery({ onAdd }: { onAdd: () => void }) {
   return (
     <section className="dc">
       <div className="dc-head">
-        <span className="dc-k">Wo sonst noch</span>
+        <span className="dc-k">Where else</span>
         {data?.ready ? (
           <span className="dc-n">
-            {data.n_hits} Treffer in Ihrem Thema · {data.new_groups} Felder, die
-            nicht auf dem Tisch liegen
+            {data.n_hits} matches in your interest · {data.new_groups} topics
+            not on your table
           </span>
         ) : (
-          <span className="dc-n">aus Ihren Bewertungen gelernt</span>
+          <span className="dc-n">learned from your ratings</span>
         )}
         <button className="dc-toggle" onClick={() => setOpen(!open)}>
-          {open ? "schließen" : "ansehen"}
+          {open ? "close" : "look"}
         </button>
       </div>
 
       {open ? (
         !data ? (
-          <p className="dc-msg">Korpus wird abgesucht…</p>
+          <p className="dc-msg">Sweeping the corpus…</p>
         ) : !data.ready ? (
           <p className="dc-msg">
-            Noch zu wenige Bewertungen. Ab 25 Bewertungen mit mindestens 5
-            hohen kann das Werkzeug Ihr Thema im übrigen Korpus wiederfinden.
+            Not enough ratings yet. From 25 ratings with at least 5 high ones,
+            the tool can find your interest again across the rest of the corpus.
           </p>
         ) : (
           <>
             <p className="dc-lede">
-              Ihr Interessensprofil kennt keine Feldgrenzen. Diese Cluster,
-              Mega-Trends und Branchen tragen Signale in Ihrem Thema, obwohl Sie
-              sie nicht gewählt haben.
+              Your interest profile knows no topic boundaries. These clusters,
+              mega-trends and industries carry signals in your interest even
+              though you never chose them.
             </p>
             <div className="dc-groups">
               {fresh.slice(0, 9).map((g) => (
@@ -99,7 +99,7 @@ export default function Discovery({ onAdd }: { onAdd: () => void }) {
                   <div className="dc-g-head">
                     <span className="dc-g-kind">{KIND_LABEL[g.kind]}</span>
                     <h4>{g.label}</h4>
-                    <span className="dc-g-n">{g.n} Treffer</span>
+                    <span className="dc-g-n">{g.n} matches</span>
                   </div>
                   <ul>
                     {g.hits.map((h) => (
@@ -120,7 +120,7 @@ export default function Discovery({ onAdd }: { onAdd: () => void }) {
                     onClick={() => void add(g)}
                     disabled={busy === g.field_key}
                   >
-                    auf den Tisch legen
+                    put on the table
                   </button>
                 </article>
               ))}

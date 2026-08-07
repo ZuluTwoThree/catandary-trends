@@ -8,13 +8,16 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 /**
- * Der Messtisch — eine Route für Tafel, Warteschlange und Bewertung.
+ * The plotting table — one route for board, queue, rating and projection.
  *
- * Die Logik bleibt in Python (`scripts/instrument.py`): Kurvenklassifikator,
- * geschichtete Stichprobe und Fachnähe-Gewichtung sind kalibrierte Verfahren,
- * und eine zweite Implementierung in TypeScript garantiert stille Drift. Der
- * Prozessstart kostet ~50 ms — für eine Bewertung, die ein Mensch tippt, ist
- * das nichts.
+ * The logic stays in Python (`scripts/instrument.py`): curve classifier,
+ * stratified sample, expertise weighting and the relevance calibration are
+ * measured procedures, and a second implementation in TypeScript would
+ * guarantee silent drift. Process start costs ~50 ms — nothing next to a
+ * rating a human types.
+ *
+ * `project` is the expensive one (~3.5 s: HNSW sweep over 1.13M signals plus a
+ * sampled relevance estimate per field), hence maxDuration 30.
  */
 
 function repoRoot(): string {
@@ -26,7 +29,7 @@ function repoRoot(): string {
   return process.cwd();
 }
 
-const FIELD = /^(cluster:\d+:\d+|mega:[a-z0-9_]+|vertical:[A-Z]+)$/;
+const FIELD = /^(cluster:\d+:\d+|mega:[a-z0-9_]+|vertical:[A-Z]+|search:.{1,80})$/;
 const HANDLE = /^[a-z0-9_-]{1,32}$/;
 
 async function run(args: string[]) {
@@ -54,8 +57,18 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "bad_rater" }, { status: 400 });
   }
   try {
+    if (what === "search") {
+      const term = (url.searchParams.get("q") ?? "").trim().slice(0, 80);
+      if (term.length < 2) {
+        return NextResponse.json({ error: "too_short" }, { status: 400 });
+      }
+      return NextResponse.json(await run(["search", "--q", term]));
+    }
     if (what === "discover") {
       return NextResponse.json(await run(["discover"]));
+    }
+    if (what === "project") {
+      return NextResponse.json(await run(["project"]));
     }
     if (what === "catalog") {
       return NextResponse.json(await run(["catalog"]));
@@ -88,7 +101,8 @@ export async function POST(req: Request) {
 
   let body: {
     field?: string; trend?: number; points?: number | null;
-    skip?: boolean; rater?: string; add?: string; remove?: string; label?: string;
+    skip?: boolean; rater?: string; add?: string; remove?: string;
+    label?: string; reset?: boolean;
   };
   try {
     body = await req.json();
@@ -109,6 +123,9 @@ export async function POST(req: Request) {
         await run(["fields", "--add", body.add,
                    ...(body.label ? ["--label", body.label.slice(0, 120)] : [])])
       );
+    }
+    if (body.reset) {
+      return NextResponse.json(await run(["reset"]));
     }
     if (body.remove) {
       if (!FIELD.test(body.remove)) {
