@@ -305,8 +305,11 @@ def main() -> int:
     ap.add_argument("--min-mega-score", type=float, default=0.45,
                     help="min mega_score for a low-purity cluster to be NEW (else EMERGING)")
     ap.add_argument("--no-label", action="store_true")
-    ap.add_argument("--label-backend", choices=["anthropic", "local"], default="anthropic")
-    ap.add_argument("--label-model", default="claude-sonnet-5")
+    # Default is the local llama-server (:8090) — Gemma-4-26B is resident there and
+    # strong at exactly this task; the Anthropic path needs API credit and stays
+    # available via --label-backend anthropic --label-model claude-sonnet-5.
+    ap.add_argument("--label-backend", choices=["anthropic", "local"], default="local")
+    ap.add_argument("--label-model", default="gemma-4-26B-A4B-it-qat-UD-Q4_K_XL")
     ap.add_argument("--out", default=str(PROJECT_ROOT / "mega_discovery.candidate.yaml"))
     args = ap.parse_args()
 
