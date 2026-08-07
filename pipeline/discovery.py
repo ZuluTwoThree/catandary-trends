@@ -102,10 +102,14 @@ def load_scope_meta(scope: str, status: str = "signal,published",
     """
     emb_field = "embedding_1024" if dim1024 else "embedding"
     where, params = _scope_filters(scope, status, emb_field)
+    # ORDER BY id: without it the row order is physical (changes with vacuum/
+    # updates), which silently reshuffles plan_sample's per-source pools — two
+    # runs of the same command would draw DIFFERENT samples. Deterministic
+    # order makes dry-run and execute see the same world.
     sql = ("SELECT t.id, t.source_name, r.pub_number, s.source_type "
            "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id "
            "JOIN sources s ON r.source_id = s.id "
-           f"WHERE {' AND '.join(where)}")
+           f"WHERE {' AND '.join(where)} ORDER BY t.id")
     with get_connection() as c:
         rows = c.execute(sql, params).fetchall()
     return [{"id": r["id"], "source_name": r["source_name"],
@@ -255,9 +259,10 @@ def load_scope(scope: str, status: str = "signal,published", limit: int = 0,
             rows = []
             for i in range(0, len(uniq), ID_CHUNK):
                 chunk = uniq[i:i + ID_CHUNK]
-                q = f"{sql} AND t.id IN ({','.join('?' * len(chunk))})"
+                q = f"{sql} AND t.id IN ({','.join('?' * len(chunk))}) ORDER BY t.id"
                 rows += [dict(r) for r in c.execute(q, params + chunk).fetchall()]
         else:
+            sql += " ORDER BY t.id"  # deterministic row (=matrix) order across runs
             if limit:
                 sql += " LIMIT ?"
                 params = params + [limit]

@@ -198,11 +198,29 @@ def main() -> int:
         classes = np.asarray(clf_m.classes_)
         top1 = float((classes[order[:, 0]] == ym[m_te]).mean())
         top3 = float(np.mean([ym[m_te][i] in classes[order[i, :3]] for i in range(len(m_te))]))
+        # per-class holdout recall — the aggregate hides whether SMALL classes
+        # (the 2026-08 taxonomy expansion seeds a few thousand rows each) are
+        # reachable at all; a class with recall ~0 is dead weight in the yaml
+        per_class = {}
+        y_te = ym[m_te]
+        pred1, pred3 = classes[order[:, 0]], classes[order[:, :3]]
+        for c in classes:
+            m = y_te == c
+            if m.sum() >= 10:
+                per_class[str(c)] = {
+                    "n_holdout": int(m.sum()),
+                    "recall_top1": round(float((pred1[m] == c).mean()), 3),
+                    "recall_top3": round(float(np.mean([c in pred3[i]
+                                          for i in np.where(m)[0]])), 3)}
         report["mega_trend"] = {"top1_agreement": round(top1, 4),
                                 "top3_agreement": round(top3, 4),
-                                "classes": len(classes), "train_s": round(time.time() - t0, 1)}
+                                "classes": len(classes), "train_s": round(time.time() - t0, 1),
+                                "per_class": per_class}
         joblib.dump(clf_m, MODELS_DIR / "mega.joblib")
-        print("mega:", report["mega_trend"])
+        print("mega:", {k: v for k, v in report["mega_trend"].items() if k != "per_class"})
+        for c, m in sorted(per_class.items(), key=lambda kv: kv[1]["n_holdout"])[:12]:
+            print(f"  small class {c}: n={m['n_holdout']} "
+                  f"top1={m['recall_top1']} top3={m['recall_top3']}")
 
         # --- pestel ---
         t0 = time.time()

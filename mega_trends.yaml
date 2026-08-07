@@ -374,3 +374,104 @@ mega_trends:
   icon: 🌐
   description_de: Zoll-Auswirkungen, Handelskriege, Energiesicherheit, Lieferketten-Diversifizierung,
     Reshoring, geopolitisches Risiko, Sanktionen.
+- key: quantum_information_science
+  name_en: Quantum Information Science
+  name_de: Quanteninformatik
+  description: Manipulating and processing information at atomic and subatomic scales —
+    quantum computing hardware, error correction, quantum networking and sensing, and the
+    surrounding materials and control-systems research moving toward fault tolerance.
+  horizon: 10-25 years
+  momentum: rising
+  cluster_strength: emerging
+  signal_count: 0
+  verticals:
+  - TECH
+  - BIZ
+  icon: ⚛️
+  description_de: Informationsverarbeitung auf atomarer und subatomarer Ebene — Quantenhardware,
+    Fehlerkorrektur, Quantennetzwerke und -sensorik samt Material- und Steuerungsforschung.
+- key: next_generation_semiconductors
+  name_en: Next-Generation Semiconductor Architectures
+  name_de: Halbleiter-Architekturen der nächsten Generation
+  description: The evolution of chip design and manufacturing beyond classical scaling —
+    advanced packaging, specialized accelerators, neuromorphic and photonic approaches,
+    and the geopolitically charged buildout of fabrication capacity.
+  horizon: 10-20 years
+  momentum: rising
+  cluster_strength: emerging
+  signal_count: 0
+  verticals:
+  - TECH
+  - BIZ
+  - ECO
+  icon: 💾
+  description_de: Chip-Design und -Fertigung jenseits des klassischen Scalings — Advanced
+    Packaging, Spezialbeschleuniger, neuromorphe und photonische Ansätze, Fab-Ausbau.
+- key: orbital_economy_expansion
+  name_en: Orbital Economy Expansion
+  name_de: Ausbau der Orbitalwirtschaft
+  description: Commercialization and industrialization of Earth orbit and beyond — scalable
+    launch systems, satellite constellations and services, in-orbit manufacturing and
+    logistics, and the supporting robotics and ground infrastructure.
+  horizon: 10-25 years
+  momentum: emerging
+  cluster_strength: emerging
+  signal_count: 0
+  verticals:
+  - TECH
+  - BIZ
+  - ECO
+  icon: 🚀
+  description_de: Kommerzialisierung des Erdorbits — skalierbare Startsysteme, Satelliten-
+    Konstellationen und -Dienste, Fertigung und Logistik im Orbit, Robotik und Bodeninfrastruktur.
+- key: evolution_of_work_models
+  name_en: Evolution of Work Models
+  name_de: Wandel der Arbeitsmodelle
+  description: Structural transformation of how, where and under what conditions work is
+    organized and compensated — remote and hybrid work, workplace culture and monitoring,
+    labor rights, skills shifts and the renegotiation of the employer-employee contract.
+  horizon: 5-15 years
+  momentum: rising
+  cluster_strength: emerging
+  signal_count: 0
+  verticals:
+  - BIZ
+  - LIFESTYLE
+  - TECH
+  icon: 💼
+  description_de: Strukturwandel von Organisation, Ort und Bedingungen der Arbeit — Remote/Hybrid,
+    Unternehmenskultur und Monitoring, Arbeitsrechte, Skill-Verschiebungen.
+- key: education_and_lifelong_learning
+  name_en: Education & Lifelong Learning
+  name_de: Bildung & lebenslanges Lernen
+  description: Continuous transformation of educational pathways — EdTech and digital
+    delivery, STEM pipelines and student retention, workforce reskilling, equity of access,
+    and the shift from front-loaded degrees to lifelong skill formation.
+  horizon: 10-25 years
+  momentum: emerging
+  cluster_strength: emerging
+  signal_count: 0
+  verticals:
+  - LIFESTYLE
+  - TECH
+  - BIZ
+  icon: 🎓
+  description_de: Wandel der Bildungswege — EdTech, STEM-Pipelines, Reskilling, Zugangsgerechtigkeit
+    und der Übergang vom Frontal-Abschluss zu lebenslangem Kompetenzaufbau.
+- key: digital_healthcare_integration
+  name_en: Digital Healthcare Integration
+  name_de: Digitale Gesundheitsintegration
+  description: Digital health technologies maturing from pilots into standardized,
+    reimbursed components of clinical care — telehealth, remote monitoring, provider IT,
+    healthcare access platforms and the operational integration of health data.
+  horizon: 5-15 years
+  momentum: rising
+  cluster_strength: emerging
+  signal_count: 0
+  verticals:
+  - HEALTH
+  - TECH
+  - BIZ
+  icon: 🩺
+  description_de: Digitale Gesundheitstechnologien auf dem Weg vom Pilotprojekt zum
+    erstatteten Standard — Telemedizin, Remote Monitoring, Versorgungs-IT, Datenintegration.

@@ -185,6 +185,39 @@ def test_plan_sample_caps_a_dominant_source():
     assert len(ids) == 1000  # the other 20 sources absorb what the cap took away
 
 
+def test_seed_mapping_matches_and_abstains():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "seed_mega_keys",
+        __file__.replace("tests/test_discovery.py", "scripts/seed_mega_keys.py"))
+    smk = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(smk)
+    rules = smk.MAPPINGS["artificial_intelligence_and_automation"]
+    # the quantum cluster's real top tags (D-run) must map to the quantum key
+    assert smk.match_cluster(
+        ["quantum computing", "nanotechnology", "scientific research", "funding",
+         "quantum physics", "astrophysics"], rules) == "quantum_information_science"
+    # a deep-learning cluster hits no signature twice → stays with the attractor
+    assert smk.match_cluster(
+        ["machine learning", "ai", "deep learning", "ai research"], rules) is None
+    # normalisation: underscore/case variants still count as hits
+    assert smk.match_cluster(
+        ["Chip_Design", "SEMICONDUCTOR", "foo"], rules) == "next_generation_semiconductors"
+    # strong marker in the top-3 maps on its own (EV cluster identity)
+    ce_rules = smk.MAPPINGS["clean_energy_transition"]
+    assert smk.match_cluster(
+        ["electric vehicles", "sustainability", "renewable energy",
+         "electric_vehicles", "clean energy"], ce_rules) == "electric_and_autonomous_mobility"
+    # …but not from further down the tag list
+    assert smk.match_cluster(
+        ["renewables", "solar_power", "clean energy", "electric vehicles"],
+        ce_rules) is None
+    # expansion gate: default = median core similarity, percentile overridable
+    sims = np.array([0.9, 0.8, 0.7, 0.6, 0.5])
+    assert smk.expansion_threshold(sims) == 0.7
+    assert 0.5 < smk.expansion_threshold(sims, pctl=25) < 0.7
+
+
 def test_plan_sample_is_deterministic_and_reports_a_binding_cap():
     meta = _meta({("market", "a"): 300, ("market", "b"): 300})
     a, _ = discovery.plan_sample(meta, 200, seed=7)

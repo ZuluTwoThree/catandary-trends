@@ -271,5 +271,70 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "LIFESTYLE",
       "TECH"
     ]
+  },
+  {
+    "key": "quantum_information_science",
+    "name_en": "Quantum Information Science",
+    "description_en": "Manipulating and processing information at atomic and subatomic scales — quantum computing hardware, error correction, quantum networking and sensing, and the surrounding materials and control-systems research moving toward fault tolerance.",
+    "icon": "⚛️",
+    "verticals": [
+      "TECH",
+      "BIZ"
+    ]
+  },
+  {
+    "key": "next_generation_semiconductors",
+    "name_en": "Next-Generation Semiconductor Architectures",
+    "description_en": "The evolution of chip design and manufacturing beyond classical scaling — advanced packaging, specialized accelerators, neuromorphic and photonic approaches, and the geopolitically charged buildout of fabrication capacity.",
+    "icon": "💾",
+    "verticals": [
+      "TECH",
+      "BIZ",
+      "ECO"
+    ]
+  },
+  {
+    "key": "orbital_economy_expansion",
+    "name_en": "Orbital Economy Expansion",
+    "description_en": "Commercialization and industrialization of Earth orbit and beyond — scalable launch systems, satellite constellations and services, in-orbit manufacturing and logistics, and the supporting robotics and ground infrastructure.",
+    "icon": "🚀",
+    "verticals": [
+      "TECH",
+      "BIZ",
+      "ECO"
+    ]
+  },
+  {
+    "key": "evolution_of_work_models",
+    "name_en": "Evolution of Work Models",
+    "description_en": "Structural transformation of how, where and under what conditions work is organized and compensated — remote and hybrid work, workplace culture and monitoring, labor rights, skills shifts and the renegotiation of the employer-employee contract.",
+    "icon": "💼",
+    "verticals": [
+      "BIZ",
+      "LIFESTYLE",
+      "TECH"
+    ]
+  },
+  {
+    "key": "education_and_lifelong_learning",
+    "name_en": "Education & Lifelong Learning",
+    "description_en": "Continuous transformation of educational pathways — EdTech and digital delivery, STEM pipelines and student retention, workforce reskilling, equity of access, and the shift from front-loaded degrees to lifelong skill formation.",
+    "icon": "🎓",
+    "verticals": [
+      "LIFESTYLE",
+      "TECH",
+      "BIZ"
+    ]
+  },
+  {
+    "key": "digital_healthcare_integration",
+    "name_en": "Digital Healthcare Integration",
+    "description_en": "Digital health technologies maturing from pilots into standardized, reimbursed components of clinical care — telehealth, remote monitoring, provider IT, healthcare access platforms and the operational integration of health data.",
+    "icon": "🩺",
+    "verticals": [
+      "HEALTH",
+      "TECH",
+      "BIZ"
+    ]
   }
 ];
