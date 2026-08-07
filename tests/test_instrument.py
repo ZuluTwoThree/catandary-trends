@@ -76,3 +76,38 @@ def test_stage_texts_are_english():
                  merge_maturity({"stage": "maturing", "reason": "x"}, None)["note"],
                  merge_maturity({"stage": "maturing", "reason": "x"}, 3.5)["note"]):
         assert not any(w in text for w in german), text
+
+
+# ---------------------------------------------------------------------------
+# Bestätigung vor dem Neustart
+# ---------------------------------------------------------------------------
+def test_reset_preview_counts_orphaned_ratings():
+    """Die Bestätigung darf NICHT die Zahl der Tafel nennen.
+
+    Nimmt ein Nutzer ein Feld vom Tisch, bleiben dessen Bewertungen in
+    signal_relevance stehen und speisen weiter das globale Interessensmodell —
+    die Tafel zeigt sie nicht mehr. Real gemessen: Tafel 3, gelöscht 9. Eine
+    Bestätigung, die untertreibt, ist schlimmer als gar keine, deshalb holt der
+    Dialog die Zahlen vom Server statt sie aus der Tafel zu summieren.
+
+    Hier als SQL-Formtest ohne DB: die Waisen-Zählung muss gegen
+    workspace_field korrelieren, nicht gegen die angezeigten Felder.
+    """
+    import inspect
+    from pipeline.instrument import reset_preview
+    src = inspect.getsource(reset_preview)
+    assert "NOT EXISTS" in src and "workspace_field" in src, (
+        "orphaned muss über die Abwesenheit in workspace_field bestimmt werden")
+    assert "orphaned" in src and "ratings" in src
+
+
+def test_reset_preview_runs_before_the_delete():
+    """reset_workspace muss den Vorher-Stand mitliefern — sonst kann niemand
+    hinterher prüfen, ob die Bestätigung die Wahrheit gesagt hat."""
+    import inspect
+    from pipeline.instrument import reset_workspace
+    src = inspect.getsource(reset_workspace)
+    before = src.index("reset_preview(")
+    delete = src.index("DELETE FROM signal_relevance")
+    assert before < delete, "Vorschau muss VOR dem Löschen gezogen werden"
+    assert '"before": before' in src

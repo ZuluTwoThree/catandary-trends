@@ -70,6 +70,12 @@ export async function GET(req: Request) {
     if (what === "project") {
       return NextResponse.json(await run(["project"]));
     }
+    // Was ein Neustart löschen würde. GET, weil es nichts ändert — und weil
+    // die Bestätigung sonst die Zahlen der Tafel nennen müsste, die zu niedrig
+    // sind (siehe reset_preview in pipeline/instrument.py).
+    if (what === "reset_preview") {
+      return NextResponse.json(await run(["reset-preview"]));
+    }
     if (what === "catalog") {
       return NextResponse.json(await run(["catalog"]));
     }

@@ -25,6 +25,7 @@ from pipeline.instrument import (SAMPLE_SIZE, STAGE_BAND, STAGE_LABEL,
                                  relevance_direction, relevance_stage,
                                  sample_for_rating, score_against, discover,
                                  field_series, field_trend_ids, reset_workspace,
+                                 reset_preview,
                                  project)
 
 
@@ -277,6 +278,11 @@ def cmd_fields(args) -> dict:
     return cmd_board(args)
 
 
+def cmd_reset_preview(args) -> dict:
+    """Was ein Neustart löschen würde — die Zahlen für die Bestätigung."""
+    return reset_preview(ensure_workspace(args.workspace, args.workspace.title()))
+
+
 def cmd_project(args) -> dict:
     """Den gesamten Signalraum gegen das gelernte Interesse ins Radar legen."""
     wid = ensure_workspace(args.workspace, args.workspace.title())
@@ -289,7 +295,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["board", "queue", "rate", "fields",
                                     "catalog", "discover", "search", "reset",
-                                    "project", "migrate"])
+                                    "reset-preview", "project", "migrate"])
     ap.add_argument("--workspace", default="catandary")
     ap.add_argument("--rater", default="owner")
     ap.add_argument("--field", default=None)
@@ -311,7 +317,8 @@ def main() -> int:
     fn = {"board": cmd_board, "queue": cmd_queue, "rate": cmd_rate,
           "fields": cmd_fields, "catalog": cmd_catalog,
           "discover": cmd_discover, "search": cmd_search,
-          "reset": cmd_reset, "project": cmd_project}[args.cmd]
+          "reset": cmd_reset, "reset-preview": cmd_reset_preview,
+          "project": cmd_project}[args.cmd]
     print(json.dumps(fn(args), default=str))
     return 0
 

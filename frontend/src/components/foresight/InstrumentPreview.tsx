@@ -86,6 +86,18 @@ type Blip = {
   hits: { id: number; title: string; source: string | null; url: string | null }[];
 };
 
+/** Was ein Neustart wirklich löscht — vom Server, nicht aus der Tafel
+ *  geschätzt. Die Tafel zählt nur Felder, die noch auf dem Tisch liegen. */
+type ResetPreview = {
+  ratings: number;
+  orphaned: number;
+  skipped: number;
+  fields: number;
+  raters: number;
+  field_labels: string[];
+  model_was_ready: boolean;
+};
+
 type Projection = {
   ready: boolean;
   model: { n: number; positives: number; ready: boolean };
@@ -129,7 +141,8 @@ export default function InstrumentPreview() {
   const [busy, setBusy] = useState(true);
   const [proj, setProj] = useState<Projection | null>(null);
   const [projecting, setProjecting] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmReset, setConfirmReset] = useState<ResetPreview | null>(null);
+  const [askingReset, setAskingReset] = useState(false);
 
   const W = 760;
   const H = 132;
@@ -162,8 +175,16 @@ export default function InstrumentPreview() {
     if (!d?.error) setProj(d);
   }, []);
 
+  const askReset = useCallback(async () => {
+    setAskingReset(true);
+    const r = await fetch("/api/foresight/instrument?what=reset_preview");
+    const d = await r.json();
+    setAskingReset(false);
+    if (!d?.error) setConfirmReset(d);
+  }, []);
+
   const reset = useCallback(async () => {
-    setConfirmReset(false);
+    setConfirmReset(null);
     setBusy(true);
     await fetch("/api/foresight/instrument", {
       method: "POST",
@@ -288,17 +309,49 @@ export default function InstrumentPreview() {
           </p>
         </div>
         {confirmReset ? (
-          <div className="ip-run-confirm">
-            <p>
-              Erases all {totalRated} ratings, your {fields.length} topic
-              {fields.length === 1 ? "" : "s"} and the learned interest model.
-              The signal corpus itself is untouched. This cannot be undone.
+          <div className="ip-run-confirm" role="alertdialog" aria-label="Confirm reset">
+            <h3>Erase this rating run?</h3>
+            <ul className="ip-run-list">
+              <li>
+                <b>{confirmReset.ratings}</b> ratings
+                {confirmReset.orphaned > 0 ? (
+                  <em>
+                    {" "}
+                    — {confirmReset.orphaned} of them on topics you already took
+                    off the table. They are not on the board but still feed the
+                    model, so they go too.
+                  </em>
+                ) : null}
+              </li>
+              {confirmReset.skipped > 0 ? (
+                <li><b>{confirmReset.skipped}</b> skipped signals</li>
+              ) : null}
+              <li>
+                <b>{confirmReset.fields}</b> topic
+                {confirmReset.fields === 1 ? "" : "s"}
+                {confirmReset.field_labels.length ? (
+                  <em> — {confirmReset.field_labels.join(", ")}</em>
+                ) : null}
+              </li>
+              <li>
+                the learned interest model
+                {confirmReset.model_was_ready ? (
+                  <em> — currently active; proposals stop until you rate 25 again</em>
+                ) : (
+                  <em> — not active yet</em>
+                )}
+              </li>
+            </ul>
+            <p className="ip-run-safe">
+              Untouched: the signal corpus, every published trend, and any other
+              workspace. Only this rating run is erased — and it cannot be
+              undone.
             </p>
             <div>
               <button className="ip-danger" onClick={() => void reset()}>
-                erase and start over
+                yes, erase {confirmReset.ratings} ratings
               </button>
-              <button className="ip-cancel" onClick={() => setConfirmReset(false)}>
+              <button className="ip-cancel" onClick={() => setConfirmReset(null)}>
                 cancel
               </button>
             </div>
@@ -306,10 +359,10 @@ export default function InstrumentPreview() {
         ) : (
           <button
             className="ip-resetbtn"
-            onClick={() => setConfirmReset(true)}
-            disabled={!totalRated && !fields.length}
+            onClick={() => void askReset()}
+            disabled={askingReset || (!totalRated && !fields.length)}
           >
-            ↺ start a fresh run
+            {askingReset ? "checking…" : "↺ start a fresh run"}
           </button>
         )}
       </section>
@@ -648,6 +701,13 @@ function Styles() {
       .ip-resetbtn:hover:not(:disabled) { border-color: var(--sug); color: var(--sug); }
       .ip-resetbtn:disabled { opacity: .3; cursor: not-allowed; }
       .ip-run-confirm { margin-left: auto; border: 1px solid var(--sug); border-left-width: 2px; padding: .7rem .9rem; background: color-mix(in srgb, var(--sug) 8%, transparent); max-width: 34rem; }
+      .ip-run-confirm h3 { margin: 0 0 .5rem; font-size: .95rem; font-weight: 500; color: var(--color-paper); }
+      .ip-run-list { list-style: none; margin: 0 0 .6rem; padding: 0; display: grid; gap: .3rem; }
+      .ip-run-list li { font-size: .8rem; line-height: 1.45; color: var(--color-text); padding-left: .9rem; position: relative; }
+      .ip-run-list li::before { content: "✕"; position: absolute; left: 0; color: var(--sug); font-size: .7rem; top: .15rem; }
+      .ip-run-list b { color: var(--color-paper); font-weight: 600; }
+      .ip-run-list em { font-style: normal; color: var(--color-muted); }
+      .ip-run-safe { font-size: .76rem !important; color: var(--color-muted) !important; border-top: 1px solid var(--color-border); padding-top: .5rem; }
       .ip-run-confirm p { font-size: .8rem; line-height: 1.5; color: var(--color-text); margin: 0 0 .6rem; }
       .ip-run-confirm div { display: flex; gap: .4rem; }
       .ip-danger, .ip-cancel { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; padding: .45rem .9rem; border: 1px solid var(--color-border); background: transparent; color: var(--color-muted); cursor: pointer; }
