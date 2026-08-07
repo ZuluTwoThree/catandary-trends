@@ -145,24 +145,3 @@ kommen, nicht aus Zwangs-Migration.
 müssen die neuen Heads in den main-Worktree kopiert werden
 (`cp ct-dev/models/distill/*.joblib ct-dev/models/distill/meta.json → catandary-trends/models/distill/`),
 sonst klassifiziert der Prod-Cycle weiter mit 21 Klassen gegen die 28er-yaml.
-
----
-
-## Ergebnis-Nachtrag (2026-08-08): Seeds → Retrain → Reclassify ausgeführt
-
-| Schritt | Ergebnis |
-|---|---|
-| Seeds (`seed_mega_keys.py --execute`) | 46.061 Umlabelungen (Audit `seed_applied_20260807T204340Z.jsonl`) |
-| Retrain (`train_distill_heads.py`) | mega-Head **28 Klassen**, top1 0,843 / top3 0,976 (vorher 0,870/0,982 bei 21 — leichter Rückgang durch 7 kleine Klassen erwartbar). Neue Keys erreichbar: top3 0,61–0,99; `platformization_of_culture` (vorher untrainierbar) top3 0,95 |
-| Reclassify (`reclassify_mega.py --execute --include-null`) | 738.224 gescannt, **2.732 Moves (0,4 %)** — die Gates (#39-Korroboration + positiver Score + Ziel-Set) sind bewusst konservativ. `mental_health_and_neuro_wellness` wurde nach Dry-Run-Sichtung aus dem Ziel-Set genommen (Head zog Pandemie-/Sozialkrisen-News dorthin) |
-
-**Verteilung nachher:** alle 28 Keys besetzt (kein leerer Key mehr); die 4 Attraktoren halten **62,4 %** (vorher 65,0 %).
-
-**Ehrliche Einordnung des 50-%-Ziels:** nicht erreicht — und das ist ein Befund, keine
-Lücke. Die Attraktor-Kerne (Drug Discovery/Clinical, Deep Learning, Fintech/VC,
-Solar/Storage) *gehören* zu ihren Keys; die Discovery hat gezeigt, dass die
-abtrennbaren Sub-Themen ~46k Signale groß sind, nicht ~200k. Der Rest der
-Konzentration ist Korpus-Komposition (NIH/TechCrunch-Masse), nicht Fehlklassifikation.
-Weiteres Schrumpfen käme nur über `--targets all` (unvalidierter Attraktor↔Attraktor-Churn)
-oder Quellen-Diversifizierung — Letzteres ist mit den 15 neuen Feeds + 128,6k
-OpenAlex-Works angestoßen. Neue Signale werden ab jetzt vom 28-Klassen-Head geroutet.
