@@ -23,6 +23,10 @@ Fine-grained, human-interpretable trends **within a homogeneous slice**:
 - **Per vertical** (`primary_vertical`): FOOD, TECH, … → the industry's Macro/Micro trends.
 - **Per cross-vertical pair** (`verticals` ⊇ {A,B}): HEALTH&TECH, ECO&FOOD, … → intersection
   trends. Only pairs with enough signal/source/time depth (~30 scopes; see the scope analysis).
+- **Per canonical mega-trend** (`--mega <key>`, or `NULL` for the unlabelled rest):
+  the slice that answers *"is this one theme or five?"* — SPLIT evidence for curation.
+  Added 2026-08-07 because global density clustering leaves ~88 % of the corpus as
+  background and therefore cannot see the shape of an over-broad label from outside.
 Reduced-dim + HDBSCAN per scope → clean, labelled clusters (Sonnet 5). This is the
 "lens" for customers: it says *where* trends live and what the sub-themes are.
 
@@ -68,12 +72,16 @@ curates. → living taxonomy (issue #2).
    0.944 / Spearman 0.933 against the 4096-D cosine geometry, mean |Δcos| 0.022,
    top-10-neighbour overlap 0.77 — fine for large samples, but the default stays
    4096-D because a 50k draw is affordable at full width.
-2. **Reduce** 4096-D → ~50-D via `PCA` (randomized, fast, deterministic). *(UMAP is a
-   later refinement; it needs `umap-learn` and is non-deterministic but better preserves
-   local density for HDBSCAN.)*
+2. **Reduce** 4096-D → `PCA` (randomized, fast, deterministic): ~50-D for the scope
+   layer, **30-D for the mega layer** (calibrated 2026-08-07 — see
+   `docs/mega_discovery_calibration.md`). *(UMAP is a later refinement; it needs
+   `umap-learn` and is non-deterministic but better preserves local density for HDBSCAN.)*
 3. **Cluster** with `sklearn.cluster.HDBSCAN` on the reduced space — variable density,
    **labels background as noise (−1)** instead of forcing every point into a cluster; no
-   `k` to choose.
+   `k` to choose. Selection method **`leaf`** (calibrated default): `eom` merges the
+   density hierarchy upward and at 1.13M signals returned one 7.6–11.3k super-blob in
+   every setting tried. `leaf` costs a higher noise fraction (~88 %) — which is the
+   same fact stated honestly: only the dense cores are themes.
 4. **Characterize** each cluster:
    - `size`, `n_sources` (corroboration), top tags, representatives (nearest to medoid).
    - **`vertical_entropy`** = normalized Shannon entropy over the members' `verticals`

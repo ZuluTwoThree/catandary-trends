@@ -110,6 +110,19 @@ def discovery_build(rows):
 
 
 # ----------------------------------------------------------------- sampling
+def test_mega_scope_selects_one_canonical_and_its_orphans():
+    with get_connection() as c:
+        c.execute("UPDATE trends SET mega_trend='clean_energy_transition' "
+                  "WHERE primary_vertical='TECH'")
+    try:
+        assert len(discovery.load_scope("mega:clean_energy_transition", "signal")) == 40
+        assert len(discovery.load_scope("mega:NULL", "signal")) == 40
+        assert len(discovery.load_scope("mega:no_such_key", "signal")) == 0
+    finally:
+        with get_connection() as c:
+            c.execute("UPDATE trends SET mega_trend=NULL")
+
+
 def test_load_scope_meta_covers_the_same_scope_without_embeddings():
     meta = discovery.load_scope_meta("global", "signal")
     assert len(meta) == 80

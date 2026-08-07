@@ -8,6 +8,9 @@ maturity). NEW mega-candidates are named by Claude Sonnet 5.
   python scripts/discover_trends.py --layer scope --vertical FOOD
   python scripts/discover_trends.py --layer scope --pair HEALTH,TECH
   python scripts/discover_trends.py --layer scope --all-scopes
+  # …and inside one canonical mega-trend: is it one theme or five? (SPLIT evidence)
+  python scripts/discover_trends.py --layer scope --mega personalized_health_and_longevity \
+      --sample 40000 --k 8
 
   # Mega layer (global themes, two-axis characterization, verdicts vs canonical)
   python scripts/discover_trends.py --layer mega                  # tier-balanced, source-capped
@@ -51,7 +54,13 @@ VIABLE_PAIRS = [
 # proportional draw hands density clustering the ingest bias instead of the trend
 # structure. Default draw is tier-balanced and source-capped (see plan_sample).
 MEGA_MAX_POINTS = 50_000
-MEGA_REDUCE_DIM = 15
+# Calibrated 2026-08-07 on the 1.13M corpus (scripts/tune_mega_clustering.py,
+# docs/mega_discovery_calibration.md): 30-D + 'leaf' is the stable optimum
+# (ARI 0.84). The previous 15-D + 'eom' default returned one 7.6-11.3k super-blob
+# in every configuration — 'eom' merges the density hierarchy upward, which at
+# this corpus heterogeneity means "one theme that is really twenty".
+MEGA_REDUCE_DIM = 30
+MEGA_CLUSTER_METHOD = "leaf"
 
 
 # ------------------------------------------------------------- Sonnet labeling
@@ -135,7 +144,7 @@ def run_scope(scope: str, args) -> None:
     if not lr:
         return
     rows, Xr = lr
-    labels, _ = discovery.cluster_partition(Xr)  # partition: every signal placed
+    labels, _ = discovery.cluster_partition(Xr, args.k)  # partition: every signal placed
     res = discovery.characterize(rows, Xr, labels)
     print(f"  {res['n_clusters']} sub-themes, {round(time.time()-t0,1)}s")
     print(f"\n── {scope} · trends (by size) ──")
@@ -146,6 +155,7 @@ def run_scope(scope: str, args) -> None:
               f"reach={c['vertical_entropy']:.2f} tiers={c['maturity_span']} "
               f"dur={c['durability']:.2f} lead={lead}")
         print(f"     tags: {', '.join(c['top_tags'][:6])}")
+        print(f"     • {c['rep_titles'][0][:88] if c['rep_titles'] else '—'}")
 
 
 def run_mega(args) -> None:
@@ -155,7 +165,8 @@ def run_mega(args) -> None:
         print("  too few — skipping")
         return
     Xr = discovery.reduce_dims(build_matrix(rows), MEGA_REDUCE_DIM)
-    labels = discovery.cluster_density(Xr, args.min_cluster_size)  # density + noise
+    labels = discovery.cluster_density(Xr, args.min_cluster_size,
+                                       method=args.cluster_method)  # density + noise
     res = discovery.characterize(rows, Xr, labels)
     print(f"  {res['n_clusters']} themes, {res['noise_frac']*100:.0f}% noise, "
           f"{round(time.time()-t0,1)}s")
@@ -187,7 +198,8 @@ def run_mega(args) -> None:
     splits = {mt: cids for mt, cids in dom_clusters.items() if len(cids) >= 2}
 
     # stability
-    ari = discovery.stability_ari(Xr, labels, min_cluster_size=args.min_cluster_size)
+    ari = discovery.stability_ari(Xr, labels, min_cluster_size=args.min_cluster_size,
+                                  method=args.cluster_method)
 
     order = {"NEW": 0, "MERGE": 1, "MIXED": 2, "EMERGING": 3, "COVERED": 4}
     clusters.sort(key=lambda c: (order[c["verdict"]], -c["mega_score"]))
@@ -263,6 +275,10 @@ def main() -> int:
     ap.add_argument("--layer", choices=["scope", "mega"], required=True)
     ap.add_argument("--vertical", help="scope layer: one vertical")
     ap.add_argument("--pair", help="scope layer: 'A,B' cross-vertical pair")
+    ap.add_argument("--mega", help="scope layer: one canonical mega_trend key (or NULL) "
+                                   "— the slice that shows whether it is one theme or five")
+    ap.add_argument("--k", type=int, default=None,
+                    help="scope layer: number of sub-themes (default scales 5-10 with size)")
     ap.add_argument("--all-scopes", action="store_true",
                     help="scope layer: all 8 verticals + viable pairs")
     ap.add_argument("--status", default="signal,published")
@@ -278,7 +294,11 @@ def main() -> int:
     ap.add_argument("--dim1024", action="store_true",
                     help="cluster the 1024-D Matryoshka prefix (4x less to load)")
     ap.add_argument("--reduce-dim", type=int, default=50)
-    ap.add_argument("--min-cluster-size", type=int, default=None)
+    ap.add_argument("--min-cluster-size", type=int, default=None,
+                    help="mega layer: HDBSCAN min_cluster_size (default max(100, n/300))")
+    ap.add_argument("--cluster-method", choices=["eom", "leaf"], default=MEGA_CLUSTER_METHOD,
+                    help="mega layer: leaf = balanced themes (calibrated default); "
+                         "eom = few large density modes, produces a super-blob here")
     ap.add_argument("--top", type=int, default=15, help="scope: clusters to print")
     ap.add_argument("--new-purity", type=float, default=0.35)
     ap.add_argument("--covered-purity", type=float, default=0.55)
@@ -303,8 +323,10 @@ def main() -> int:
             run_scope(f"pair:{a}&{b}", args)
         elif args.vertical:
             run_scope(f"vertical:{args.vertical.upper()}", args)
+        elif args.mega:
+            run_scope(f"mega:{args.mega}", args)
         else:
-            ap.error("scope layer needs --vertical / --pair / --all-scopes")
+            ap.error("scope layer needs --vertical / --pair / --mega / --all-scopes")
     return 0
 
 

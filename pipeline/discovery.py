@@ -57,8 +57,11 @@ ID_CHUNK = 5000  # ids per IN(...) batch when loading a drawn sample
 def _scope_filters(scope: str, status: str, emb_field: str) -> tuple[list[str], list]:
     """WHERE fragments + params shared by the metadata pass and the embedding load.
 
-    scope: 'global' | 'vertical:FOOD' | 'pair:FOOD&HEALTH'. Cross-vertical pair =
-    rows whose `verticals` JSON contains BOTH codes.
+    scope: 'global' | 'vertical:FOOD' | 'pair:FOOD&HEALTH' | 'mega:<key>'.
+    Cross-vertical pair = rows whose `verticals` JSON contains BOTH codes.
+    'mega:<key>' = the signals currently carrying one canonical mega-trend — the
+    slice you cluster to answer "is this one theme or five?" (SPLIT evidence);
+    'mega:NULL' = the signals no canonical label fits.
     """
     # CURRENT_TIMESTAMP is portable (SQLite + Postgres); datetime('now') is not.
     where = [f"t.{emb_field} IS NOT NULL",
@@ -78,6 +81,13 @@ def _scope_filters(scope: str, status: str, emb_field: str) -> tuple[list[str], 
         vt = "t.verticals::text" if db_mod.USE_POSTGRES else "t.verticals"
         where.append(f"{vt} LIKE ? AND {vt} LIKE ?")
         params += [f'%"{a}"%', f'%"{b}"%']
+    elif scope.startswith("mega:"):
+        key = scope.split(":", 1)[1]
+        if key.upper() == "NULL":
+            where.append("t.mega_trend IS NULL")
+        else:
+            where.append("t.mega_trend = ?")
+            params.append(key)
     return where, params
 
 
@@ -284,14 +294,20 @@ def reduce_dims(X: np.ndarray, n_components: int = 50) -> np.ndarray:
                random_state=42).fit_transform(X).astype(np.float32)
 
 
+def effective_mcs(n: int, min_cluster_size: int | None) -> int:
+    """The min_cluster_size a run actually uses. Shared by the clustering and its
+    stability check so the two never validate different configurations."""
+    return min_cluster_size or max(100, n // 300)
+
+
 def cluster_density(Xr: np.ndarray, min_cluster_size: int | None = None,
                     min_samples: int | None = None, method: str = "eom") -> np.ndarray:
     """HDBSCAN on the reduced space (MEGA layer). -1 = noise (background, not a
     trend) — honest about how much of the corpus is a real dense theme vs diffuse.
     method='eom' (default) = few large density modes (mega-appropriate); 'leaf' =
     more, finer themes but higher noise."""
-    mcs = min_cluster_size or max(100, Xr.shape[0] // 300)
-    hdb = HDBSCAN(min_cluster_size=mcs, min_samples=(min_samples or 5),
+    hdb = HDBSCAN(min_cluster_size=effective_mcs(Xr.shape[0], min_cluster_size),
+                  min_samples=(min_samples or 5),
                   cluster_selection_method=method, metric="euclidean",
                   copy=True, n_jobs=-1)
     return hdb.fit_predict(Xr)
@@ -453,13 +469,21 @@ def characterize(rows: list[dict], Xr: np.ndarray, labels: np.ndarray) -> dict:
 
 # ------------------------------------------------------------------- stability
 def stability_ari(Xr: np.ndarray, labels: np.ndarray, frac: float = 0.8,
-                  min_cluster_size: int | None = None) -> float:
+                  min_cluster_size: int | None = None, min_samples: int | None = None,
+                  method: str = "eom") -> float:
     """Re-cluster a random `frac` subsample; ARI of the two labelings on the shared
     points. High (→1) = clusters are stable/real; low (→0) = noise. HDBSCAN is
-    deterministic on fixed data, so we perturb via subsampling."""
+    deterministic on fixed data, so we perturb via subsampling.
+
+    The re-clustering must use the SAME parameters as the run being validated —
+    it did not until 2026-08-07 (it fell back to its own min_cluster_size default
+    and to HDBSCAN's min_samples/'eom' regardless of what the run used), so the
+    number it reported was parameter sensitivity, not stability."""
     n = Xr.shape[0]
     rng = np.random.default_rng(7)
     sub = rng.choice(n, int(frac * n), replace=False)
-    mcs = min_cluster_size or max(30, Xr.shape[0] // 400)
-    lab2 = HDBSCAN(min_cluster_size=mcs, metric="euclidean", n_jobs=-1).fit_predict(Xr[sub])
+    lab2 = HDBSCAN(min_cluster_size=effective_mcs(n, min_cluster_size),
+                   min_samples=(min_samples or 5),
+                   cluster_selection_method=method, metric="euclidean",
+                   copy=True, n_jobs=-1).fit_predict(Xr[sub])
     return float(adjusted_rand_score(labels[sub], lab2))
