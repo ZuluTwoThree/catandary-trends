@@ -73,6 +73,9 @@ export async function GET(req: Request) {
     // Was ein Neustart löschen würde. GET, weil es nichts ändert — und weil
     // die Bestätigung sonst die Zahlen der Tafel nennen müsste, die zu niedrig
     // sind (siehe reset_preview in pipeline/instrument.py).
+    if (what === "automation") {
+      return NextResponse.json(await run(["automation"]));
+    }
     if (what === "reset_preview") {
       return NextResponse.json(await run(["reset-preview"]));
     }
@@ -108,7 +111,7 @@ export async function POST(req: Request) {
   let body: {
     field?: string; trend?: number; points?: number | null;
     skip?: boolean; rater?: string; add?: string; remove?: string;
-    label?: string; reset?: boolean;
+    label?: string; reset?: boolean; automate?: string; unautomate?: string;
   };
   try {
     body = await req.json();
@@ -128,6 +131,15 @@ export async function POST(req: Request) {
       return NextResponse.json(
         await run(["fields", "--add", body.add,
                    ...(body.label ? ["--label", body.label.slice(0, 120)] : [])])
+      );
+    }
+    if (body.automate || body.unautomate) {
+      const key = (body.automate ?? body.unautomate) as string;
+      if (!FIELD.test(key)) {
+        return NextResponse.json({ error: "bad_field" }, { status: 400 });
+      }
+      return NextResponse.json(
+        await run([body.automate ? "automate" : "unautomate", "--field", key])
       );
     }
     if (body.reset) {
