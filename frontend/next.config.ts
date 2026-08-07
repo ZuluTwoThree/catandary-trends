@@ -12,6 +12,11 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: [
     "100.115.179.37",
     "*.ts.net", // Tailscale MagicDNS names, if reached by hostname
+    // LAN access to the dev instance on :3004 — without this Next 16 blocks the
+    // client JS for non-localhost origins and NOTHING hydrates: the page renders
+    // but every "use client" control is dead (radar cells unclickable, 2026-07-30).
+    "192.168.178.78",
+    "192.168.178.*",
   ],
 };
 
