@@ -57,6 +57,8 @@ type Field = {
   n_rated: number;
   n_raters: number;
   sample_size: number;
+  automated: boolean;
+  automated_accuracy: number | null;
 };
 
 type Signal = {
@@ -84,6 +86,33 @@ type Blip = {
   basis: string;
   note: string | null;
   hits: { id: number; title: string; source: string | null; url: string | null }[];
+};
+
+/** Fortschritt zur Automatisierung. Gezählt werden POSITIVE Bewertungen, nicht
+ *  Bewertungen — das ist der gemessene Engpass (docs/instrument_learning_curve.md).
+ *  `accuracy` ist Präzision an der Spitze, um einen Eimer nach unten korrigiert. */
+type Automation = {
+  positives: number;
+  rated: number;
+  model_ready: boolean;
+  unlocked: boolean;
+  accuracy: number | null;
+  min_positives: number;
+  next_at: number | null;
+  next_accuracy: number | null;
+  needed: number;
+  hit_rate: number | null;
+};
+
+type AutoResult = {
+  ok: boolean;
+  field_key?: string;
+  scored?: number;
+  flagged_relevant?: number;
+  accuracy?: number;
+  threshold?: { cut: number; f1: number; precision_in_sample: number;
+                recall_in_sample: number } | null;
+  top?: { id: number; points: number; title: string; source: string | null; url: string | null }[];
 };
 
 /** Was ein Neustart wirklich löscht — vom Server, nicht aus der Tafel
@@ -143,6 +172,9 @@ export default function InstrumentPreview() {
   const [projecting, setProjecting] = useState(false);
   const [confirmReset, setConfirmReset] = useState<ResetPreview | null>(null);
   const [askingReset, setAskingReset] = useState(false);
+  const [auto, setAuto] = useState<Automation | null>(null);
+  const [autoResult, setAutoResult] = useState<AutoResult | null>(null);
+  const [automating, setAutomating] = useState(false);
 
   const W = 760;
   const H = 132;
@@ -151,7 +183,10 @@ export default function InstrumentPreview() {
   const loadBoard = useCallback(async () => {
     const r = await fetch("/api/foresight/instrument?what=board");
     const d = await r.json();
-    if (!d?.error) setFields(d.fields ?? []);
+    if (!d?.error) {
+      setFields(d.fields ?? []);
+      setAuto(d.automation ?? null);
+    }
     setBusy(false);
   }, []);
 
@@ -165,6 +200,7 @@ export default function InstrumentPreview() {
     setDone(d.done ?? 0);
     setWeight(d.weight ?? null);
     setModel(d.model ?? null);
+    if (d.automation) setAuto(d.automation);
   }, []);
 
   const runProjection = useCallback(async () => {
@@ -197,6 +233,20 @@ export default function InstrumentPreview() {
     setDone(0);
     setProj(null);
     setModel(null);
+    setAutoResult(null);
+    await loadBoard();
+  }, [loadBoard]);
+
+  const automate = useCallback(async (key: string, on: boolean) => {
+    setAutomating(true);
+    const r = await fetch("/api/foresight/instrument", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(on ? { automate: key } : { unautomate: key }),
+    });
+    const d = await r.json();
+    setAutomating(false);
+    setAutoResult(on && d?.ok ? d : null);
     await loadBoard();
   }, [loadBoard]);
 
@@ -232,6 +282,7 @@ export default function InstrumentPreview() {
       });
       const d = await r.json();
       if (!d?.error) {
+        if (d.automation) setAuto(d.automation);
         setFields((prev) =>
           prev.map((f) =>
             f.field_key === open
@@ -439,27 +490,68 @@ export default function InstrumentPreview() {
           </article>
         )}
 
-        {open ? (
-          <div className="ip-progress">
-            <span className="ip-k">Sample</span>
-            <span className="ip-p-bar" aria-hidden="true">
-              <span
-                style={{
-                  width: `${Math.min(100, (done / (field?.sample_size ?? 48)) * 100)}%`,
-                }}
-              />
-            </span>
-            <span className="ip-p-n">
-              {done} / {field?.sample_size ?? 48} on this topic
-            </span>
-            <span className="ip-p-note">
-              The sample is stratified across the full time span and every
-              signal type — representative, not exhaustive. Taking only the most
-              recent signals would make every topic look young.
-            </span>
-          </div>
+        {open && auto ? (
+          <AutomationBar
+            auto={auto}
+            field={field}
+            done={done}
+            busy={automating}
+            onAutomate={() => void automate(open, true)}
+          />
         ) : null}
       </section>
+
+      {autoResult?.ok ? (
+        <div className="ip-autoresult">
+          <h3>
+            Model rated {autoResult.scored?.toLocaleString("en-US")} signals —{" "}
+            {autoResult.flagged_relevant?.toLocaleString("en-US")} came out relevant
+          </h3>
+          <p>
+            That is{" "}
+            {autoResult.scored
+              ? Math.round(
+                  ((autoResult.flagged_relevant ?? 0) / autoResult.scored) * 100
+                )
+              : 0}{" "}
+            % of the topic, against a {Math.round((auto?.hit_rate ?? 0) * 100)} %
+            hit rate in what you rated by hand. The cut-off is not a fixed
+            number — it is the one that best separates your own relevant
+            ratings from your irrelevant ones
+            {autoResult.threshold ? (
+              <>
+                {" "}
+                (precision {Math.round(autoResult.threshold.precision_in_sample * 100)} %,
+                recall {Math.round(autoResult.threshold.recall_in_sample * 100)} % on
+                your own ratings — optimistic, since it was chosen on them)
+              </>
+            ) : null}
+            . On unseen signals expect around{" "}
+            <b>{Math.round((autoResult.accuracy ?? 0) * 100)} %</b> at the top of
+            the ranking. The tail stays uncertain, and even a well-trained model
+            misses over half of everything relevant. Read the first twelve and
+            see whether you agree — that is the only check that counts.
+          </p>
+          <ol>
+            {autoResult.top?.map((h) => (
+              <li key={h.id}>
+                <b>{h.points.toFixed(1)}</b>{" "}
+                {h.url ? (
+                  <a href={h.url} target="_blank" rel="noreferrer">{h.title}</a>
+                ) : (
+                  h.title
+                )}
+              </li>
+            ))}
+          </ol>
+          <button
+            className="ip-undo"
+            onClick={() => open && void automate(open, false)}
+          >
+            hand it back to me
+          </button>
+        </div>
+      ) : null}
 
       {/* Portfolio */}
       <section className="ip-pf" aria-label="Portfolio">
@@ -597,6 +689,100 @@ export default function InstrumentPreview() {
       </section>
 
       <Styles />
+    </div>
+  );
+}
+
+/**
+ * Fortschritt zur Automatisierung.
+ *
+ * Bis 2026-08-07 stand hier „12 / 48 for this topic" — eine Zahl, die zwar
+ * stimmte, aber das Falsche zählte. Gemessen (docs/instrument_learning_curve.md)
+ * hängt die Güte des Modells nicht an der Zahl der Bewertungen, sondern an der
+ * Zahl der POSITIVEN darunter: bei 5–7 Positiven liegt die Präzision an der
+ * Spitze bei 52 %, bei 18–27 bei 72 %. Wer 48 Signale sichtet und dabei zwei
+ * relevante findet, ist trotz voller Leiste kaum weiter.
+ *
+ * Die Leiste zeigt deshalb die Positiven — und, weil das ohne Bezug eine nackte
+ * Zahl wäre, was sie freischalten und mit welcher Genauigkeit.
+ */
+function AutomationBar({
+  auto, field, done, busy, onAutomate,
+}: {
+  auto: Automation;
+  field: Field | null;
+  done: number;
+  busy: boolean;
+  onAutomate: () => void;
+}) {
+  const pct = Math.min(100, (auto.positives / auto.min_positives) * 100);
+  // Erwartete Restarbeit bei der bisher beobachteten Trefferquote. Ohne
+  // belastbare Quote wird nicht geschätzt, sondern geschwiegen.
+  const toSift =
+    auto.hit_rate && auto.hit_rate > 0.01
+      ? Math.ceil(auto.needed / auto.hit_rate)
+      : null;
+
+  return (
+    <div className="ip-progress">
+      <span className="ip-k">{field?.automated ? "Automated" : "Automation"}</span>
+      <span className={`ip-p-bar ${auto.unlocked ? "is-full" : ""}`} aria-hidden="true">
+        <span style={{ width: `${pct}%` }} />
+      </span>
+
+      {field?.automated ? (
+        <span className="ip-p-n is-on">
+          this topic is rated by the model
+          {field.automated_accuracy
+            ? ` · ~${Math.round(field.automated_accuracy * 100)}% precision`
+            : ""}
+        </span>
+      ) : auto.unlocked ? (
+        <span className="ip-p-n is-on">
+          {auto.positives} relevant found — automation unlocked at ~
+          {Math.round((auto.accuracy ?? 0) * 100)}% precision
+        </span>
+      ) : auto.positives < 5 ? (
+        <span className="ip-p-n">
+          {auto.positives} of {auto.min_positives} relevant signals — the model
+          needs 5 before it can suggest anything
+        </span>
+      ) : (
+        <span className="ip-p-n">
+          {auto.needed} more relevant {auto.needed === 1 ? "signal" : "signals"}{" "}
+          until automation unlocks at ~
+          {Math.round((auto.accuracy ?? 0.5) * 100)}→
+          {Math.round((auto.next_accuracy ?? 0.71) * 100)}% precision
+        </span>
+      )}
+
+      {auto.unlocked && !field?.automated ? (
+        <button className="ip-automate" onClick={onAutomate} disabled={busy}>
+          {busy ? "rating the field…" : "⚡ Automate relevance rating"}
+        </button>
+      ) : null}
+
+      <span className="ip-p-note">
+        {field?.automated ? (
+          <>
+            Every signal in this topic now carries a model score instead of your
+            judgement. Nothing was written into your ratings — the model does not
+            train on its own output. Rate more by hand any time; the estimate
+            follows.
+          </>
+        ) : (
+          <>
+            {done} rated on this topic, {auto.positives} of {auto.rated} rated
+            relevant overall ({auto.hit_rate
+              ? `${Math.round(auto.hit_rate * 100)}%`
+              : "—"} hit rate)
+            {toSift && !auto.unlocked ? `, so roughly ${toSift} more to sift` : ""}.
+            What the model learns from is the <b>relevant</b> ones — 48 signals
+            with two hits move it barely at all. Measured: at 5–7 relevant the
+            top of the ranking is 52 % right, at 18–27 it is 72 %.
+          </>
+        )}
+      </span>
     </div>
   );
 }
@@ -748,7 +934,23 @@ function Styles() {
       .ip-p-bar { height: 3px; background: color-mix(in srgb, var(--color-paper) 14%, transparent); display: block; }
       .ip-p-bar span { display: block; height: 100%; background: var(--color-accent); transition: width .3s; }
       .ip-p-n { font-family: var(--font-mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--color-muted); }
-      .ip-p-note { grid-column: 1 / -1; font-size: .74rem; line-height: 1.5; color: var(--color-muted); max-width: 46em; }
+      .ip-p-note { grid-column: 1 / -1; font-size: .74rem; line-height: 1.5; color: var(--color-muted); max-width: 52em; }
+      .ip-p-note b { color: var(--color-text); font-weight: 500; }
+      .ip-p-bar.is-full span { background: var(--sug); }
+      .ip-p-n.is-on { color: var(--sug); }
+      .ip-automate { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; padding: .45rem 1rem; border: 1px solid var(--sug); background: var(--sug); color: var(--paper); font-weight: 600; cursor: pointer; justify-self: start; }
+      .ip-automate:hover:not(:disabled) { background: transparent; color: var(--sug); }
+      .ip-automate:disabled { opacity: .55; cursor: wait; }
+      .ip-autoresult { border: 1px solid var(--sug); border-left-width: 2px; background: color-mix(in srgb, var(--sug) 7%, transparent); padding: .8rem 1rem; margin: 1rem 0 0; }
+      .ip-autoresult h3 { margin: 0 0 .4rem; font-size: .95rem; font-weight: 500; color: var(--color-paper); }
+      .ip-autoresult p { font-size: .8rem; line-height: 1.55; color: var(--color-text); margin: 0 0 .6rem; max-width: 56em; }
+      .ip-autoresult ol { margin: 0; padding-left: 1.2rem; display: grid; gap: .2rem; }
+      .ip-autoresult li { font-size: .78rem; line-height: 1.35; color: var(--color-muted); }
+      .ip-autoresult li b { font-family: var(--font-mono); font-size: 9px; color: var(--sug); }
+      .ip-autoresult a { color: var(--color-text); text-decoration: none; border-bottom: 1px solid var(--color-border); }
+      .ip-autoresult a:hover { color: var(--color-accent); border-color: var(--color-accent); }
+      .ip-undo { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; padding: .3rem .7rem; border: 1px solid var(--color-border); background: transparent; color: var(--color-muted); cursor: pointer; margin-top: .6rem; }
+      .ip-undo:hover { border-color: var(--color-paper); color: var(--color-paper); }
 
       /* Portfolio */
       .ip-pf { border-top: 1px solid var(--color-border); padding-top: 2rem; }

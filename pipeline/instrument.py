@@ -115,9 +115,25 @@ CREATE TABLE IF NOT EXISTS field_assessment (
 """
 
 
+# Additiv und idempotent — Bestandstabellen müssen ohne Neuanlage mitziehen.
+ADDITIVE = [
+    "ALTER TABLE workspace_field ADD COLUMN IF NOT EXISTS automated BOOLEAN DEFAULT false",
+    "ALTER TABLE workspace_field ADD COLUMN IF NOT EXISTS automated_at TIMESTAMP",
+    "ALTER TABLE workspace_field ADD COLUMN IF NOT EXISTS automated_accuracy REAL",
+    # Maschinell gesetzte Bewertungen sind als solche kenntlich und fließen
+    # NICHT ins Training zurück (siehe automate_field).
+    "ALTER TABLE signal_relevance ADD COLUMN IF NOT EXISTS by_model BOOLEAN DEFAULT false",
+]
+
+
 def migrate() -> None:
     with get_connection() as conn:
         conn.executescript(SCHEMA)
+        for stmt in ADDITIVE:
+            try:
+                conn.execute(stmt)
+            except Exception as e:          # SQLite kennt IF NOT EXISTS hier nicht
+                log.debug("additive Migration übersprungen: %s (%s)", stmt[:60], e)
         conn.commit()
     log.info("Messtisch-Tabellen migriert")
 
@@ -621,6 +637,7 @@ def relevance_direction(conn, workspace_id: int) -> tuple[list[float] | None, di
         "SELECT sr.points, t.embedding_1024::text AS emb "
         "FROM signal_relevance sr JOIN trends t ON t.id = sr.trend_id "
         "WHERE sr.workspace_id=%s AND sr.points IS NOT NULL "
+        "  AND COALESCE(sr.by_model, false) = false "
         "  AND t.embedding_1024 IS NOT NULL", (workspace_id,)).fetchall()
     n = len(rows)
     pos_n = sum(1 for r in rows if r["points"] >= HINT_THRESHOLD)
@@ -838,6 +855,7 @@ def relevance_calibration(conn, workspace_id: int,
         "SELECT sr.points, t.embedding_1024::text AS emb "
         "FROM signal_relevance sr JOIN trends t ON t.id = sr.trend_id "
         "WHERE sr.workspace_id=%s AND sr.points IS NOT NULL "
+        "  AND COALESCE(sr.by_model, false) = false "
         "  AND t.embedding_1024 IS NOT NULL", (workspace_id,)).fetchall()
     if len(rows) < MIN_RATINGS_FOR_HINT:
         return (0.0, 0.0)
@@ -1024,3 +1042,199 @@ def project(conn, workspace_id: int, pool: int = PROJECT_POOL) -> dict:
     blips.sort(key=lambda b: (-(b["relevance"] or 0), -b["n"]))
     return {"ready": True, "model": meta, "n_hits": len(rows),
             "n_placed": sum(b["n"] for b in blips), "blips": blips}
+
+
+# ---------------------------------------------------------------------------
+# Automatisierung der Relevanzbewertung
+# ---------------------------------------------------------------------------
+# Ab wann darf die Maschine den Rest eines Felds selbst bewerten? Die Antwort
+# hängt NICHT an der Zahl der Bewertungen, sondern an der Zahl der POSITIVEN —
+# gemessen auf `search:dairy` (4.144 Signale, fünf lexikalische Zielkonzepte,
+# 30–60 Wiederholungen je Punkt; docs/instrument_learning_curve.md):
+#
+#     Positive   AUC     Präzision@50
+#      3–4       0,838      50 %
+#      5–7       0,838      52 %
+#      8–11      0,873      60 %
+#     12–17      0,875      71 %
+#     18–27      0,885      72 %
+#     28–44      0,893      76 %
+#     45+        0,942      82 %
+#
+# Die Tabelle unten verschiebt diese Werte um EINEN EIMER nach unten. Grund:
+# die Messung ist optimistisch. Ein lexikalisches Konzept („cheese") ist in
+# sich konsistent, ein menschliches Interesse nicht — dieselbe Meldung bekommt
+# an verschiedenen Tagen 1 oder 3. Die realen Anker aus dem Owner-Bestand
+# (98 Bewertungen → AUC 0,700; 146 → 0,753) liegen deutlich unter den
+# simulierten 0,86–0,87 bei gleichem Volumen. Eine Anzeige, die die
+# Simulationszahl verspricht, verspricht etwas, das das Werkzeug nicht hält.
+#
+# Der genannte Prozentsatz ist PRÄZISION AN DER SPITZE (von dem, was die
+# Maschine relevant nennt, ist so viel wirklich relevant) — nicht „Trefferquote
+# über alle 4.144". Diese Unterscheidung steht auch im Frontend, weil sie den
+# Unterschied zwischen einem brauchbaren und einem irreführenden Versprechen
+# ausmacht.
+AUTOMATION_TIERS = [
+    (5,  0.50), (8,  0.52), (12, 0.60),
+    (18, 0.71), (28, 0.72), (45, 0.76),
+]
+AUTOMATION_MIN_POSITIVES = 18   # erste Stufe über 70 % — darunter kein Angebot
+AUTOMATION_SCORE_CAP = 40_000
+
+
+def automation_status(conn, workspace_id: int) -> dict:
+    """Wie weit ist der Nutzer von der Automatisierung entfernt?
+
+    Zählt POSITIVE (Punkte ≥ HINT_THRESHOLD) über den ganzen Arbeitsbereich,
+    nicht je Feld — das Interessensmodell ist global (siehe
+    relevance_direction), also zahlt jede positive Bewertung überall ein.
+    """
+    row = conn.execute(
+        "SELECT count(*) FILTER (WHERE points >= %s) AS pos, "
+        "       count(*) FILTER (WHERE points IS NOT NULL) AS rated "
+        "FROM signal_relevance WHERE workspace_id=%s "
+        "  AND COALESCE(by_model, false) = false",
+        (HINT_THRESHOLD, workspace_id)).fetchone()
+    pos, rated = int(row["pos"]), int(row["rated"])
+
+    acc = next((a for thr, a in reversed(AUTOMATION_TIERS) if pos >= thr), None)
+    nxt = next((thr for thr, _ in AUTOMATION_TIERS if pos < thr), None)
+    nxt_acc = next((a for thr, a in AUTOMATION_TIERS if pos < thr), None)
+    return {
+        "positives": pos, "rated": rated,
+        "model_ready": rated >= MIN_RATINGS_FOR_HINT and pos >= MIN_POSITIVES_FOR_HINT,
+        "unlocked": pos >= AUTOMATION_MIN_POSITIVES,
+        "accuracy": acc, "min_positives": AUTOMATION_MIN_POSITIVES,
+        "next_at": nxt, "next_accuracy": nxt_acc,
+        "needed": max(0, AUTOMATION_MIN_POSITIVES - pos),
+        # Erwartungswert, wie viele Signale noch zu sichten sind: bei der real
+        # beobachteten Positivrate. Ohne Bewertungen keine Schätzung — dann
+        # sagen wir es, statt eine Zahl zu erfinden.
+        "hit_rate": round(pos / rated, 3) if rated >= 20 else None,
+    }
+
+
+def score_ids(conn, direction: list[float], ids: list[int]) -> list[tuple[int, float]]:
+    """Kosinus für viele IDs — serverseitig gerechnet.
+
+    `score_against` holt Embeddings als Text; bei 120 Zeilen egal, bei 4.144
+    wären das ~17 MB über den Draht. pgvector rechnet das an Ort und Stelle.
+    """
+    lit = "[" + ",".join(f"{x:.6f}" for x in direction) + "]"
+    rows = conn.execute(
+        "SELECT id, 1 - (embedding_1024 <=> %s::vector) AS sim FROM trends "
+        "WHERE id = ANY(%s) AND embedding_1024 IS NOT NULL",
+        (lit, ids[:AUTOMATION_SCORE_CAP])).fetchall()
+    return [(int(r["id"]), float(r["sim"])) for r in rows]
+
+
+def decision_threshold(conn, workspace_id: int,
+                       direction: list[float]) -> dict | None:
+    """Ab welchem Kosinus nennt die Maschine ein Signal relevant?
+
+    Nicht setzbar, nur lernbar. Der erste Bau schwellte die geeichten Punkte bei
+    HINT_THRESHOLD (3) ab — und meldete auf einem Feld mit erkennbar richtiger
+    Rangfolge **null** relevante Signale. Grund: `relevance_calibration` schätzt
+    einen ERWARTUNGSWERT. Bewertet ein Nutzer bimodal (0 oder 4), staucht die
+    Kleinste-Quadrate-Gerade den Vorhersagebereich zur Mitte — gemessen 0,5–2,7,
+    während die Wahrheit 0 oder 4 ist. Eine feste Schwelle darüber trifft
+    entweder nichts oder alles.
+
+    Stattdessen: der Kosinus-Schnitt, der auf den EIGENEN Bewertungen des
+    Nutzers das F1 maximiert. Das ist eine echte Entscheidungsgrenze, sie passt
+    sich an, wie breit oder eng jemand „relevant" auslegt, und sie ist am
+    eigenen Bestand nachrechenbar.
+
+    Die zurückgegebenen Präzisions-/Recall-Werte sind IN-SAMPLE (die Schwelle
+    ist auf denselben Daten gewählt) und daher optimistisch — die belastbare
+    Erwartung liefert AUTOMATION_TIERS aus der Messreihe.
+    """
+    import numpy as np
+    rows = conn.execute(
+        "SELECT sr.points, t.embedding_1024::text AS emb "
+        "FROM signal_relevance sr JOIN trends t ON t.id = sr.trend_id "
+        "WHERE sr.workspace_id=%s AND sr.points IS NOT NULL "
+        "  AND COALESCE(sr.by_model, false) = false "
+        "  AND t.embedding_1024 IS NOT NULL", (workspace_id,)).fetchall()
+    if len(rows) < MIN_RATINGS_FOR_HINT:
+        return None
+    v = np.array(direction, dtype=np.float32)
+    X = np.stack([np.fromstring(r["emb"].strip("[]"), sep=",", dtype=np.float32)
+                  for r in rows])
+    X /= np.clip(np.linalg.norm(X, axis=1, keepdims=True), 1e-9, None)
+    s = X @ v
+    y = np.array([int(r["points"]) >= HINT_THRESHOLD for r in rows])
+    if y.sum() < MIN_POSITIVES_FOR_HINT or (~y).sum() < 3:
+        return None
+    best = None
+    for cut in np.unique(np.round(s, 4)):
+        pred = s >= cut
+        tp = int((pred & y).sum())
+        if tp == 0:
+            continue
+        prec, rec = tp / int(pred.sum()), tp / int(y.sum())
+        f1 = 2 * prec * rec / (prec + rec)
+        if best is None or f1 > best["f1"]:
+            best = {"cut": float(cut), "f1": round(f1, 3),
+                    "precision_in_sample": round(prec, 3),
+                    "recall_in_sample": round(rec, 3)}
+    return best
+
+
+def automate_field(conn, workspace_id: int, field_key: str) -> dict:
+    """Der Rest des Felds wird von der Maschine bewertet.
+
+    Bewusst werden KEINE Zeilen in `signal_relevance` geschrieben. Täte man
+    das, träte das Modell beim nächsten Training über die eigenen Ausgaben an —
+    eine Rückkopplung, die jede Fehleinschätzung verstärkt und mit jedem Lauf
+    sicherer aussehen ließe. Stattdessen wird das Feld als automatisiert
+    markiert; seine Relevanz kommt dann aus der Modellschätzung über das ganze
+    Feld statt aus dem Mittel der Handbewertungen.
+    """
+    st = automation_status(conn, workspace_id)
+    if not st["unlocked"]:
+        return {"ok": False, "reason": "locked", **st}
+    direction, meta = relevance_direction(conn, workspace_id)
+    if not direction:
+        return {"ok": False, "reason": "model_not_ready", **st}
+
+    ids = field_trend_ids(conn, field_key)
+    scored = score_ids(conn, direction, ids)
+    a0, b0 = relevance_calibration(conn, workspace_id, direction)
+    def pts(s): return (min(4.0, max(0.0, a0 + b0 * s)) if b0 else float(hint_points(s)))
+    thr = decision_threshold(conn, workspace_id, direction)
+    cut = thr["cut"] if thr else 0.0
+    vals = [(i, pts(s), s) for i, s in scored]
+    vals.sort(key=lambda v: -v[2])          # nach Kosinus, nicht nach der Gerade
+    relevant = [v for v in vals if v[2] >= cut]
+
+    conn.execute(
+        "UPDATE workspace_field SET automated = true, automated_at = CURRENT_TIMESTAMP, "
+        "automated_accuracy = %s WHERE workspace_id=%s AND field_key=%s",
+        (st["accuracy"], workspace_id, field_key))
+    conn.commit()
+
+    top_ids = [i for i, _, _ in vals[:12]]
+    titles = {r["id"]: (r["title_en"], r["source_name"], r["source_url"])
+              for r in conn.execute(
+                  "SELECT id, title_en, source_name, source_url FROM trends "
+                  "WHERE id = ANY(%s)", (top_ids,)).fetchall()} if top_ids else {}
+    return {
+        "ok": True, "field_key": field_key, "scored": len(vals),
+        "flagged_relevant": len(relevant),
+        "mean_points": round(statistics.mean([v[1] for v in vals]), 2) if vals else None,
+        "accuracy": st["accuracy"], "positives": st["positives"],
+        "threshold": thr,
+        "top": [{"id": i, "points": round(p, 2), "sim": round(s, 3),
+                 "title": titles.get(i, ("", None, None))[0],
+                 "source": titles.get(i, ("", None, None))[1],
+                 "url": titles.get(i, ("", None, None))[2]}
+                for i, p, s in vals[:12] if i in titles],
+    }
+
+
+def unautomate_field(conn, workspace_id: int, field_key: str) -> dict:
+    conn.execute("UPDATE workspace_field SET automated = false "
+                 "WHERE workspace_id=%s AND field_key=%s", (workspace_id, field_key))
+    conn.commit()
+    return {"ok": True, "field_key": field_key, "automated": False}

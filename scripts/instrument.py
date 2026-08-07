@@ -25,7 +25,8 @@ from pipeline.instrument import (SAMPLE_SIZE, STAGE_BAND, STAGE_LABEL,
                                  relevance_direction, relevance_stage,
                                  sample_for_rating, score_against, discover,
                                  field_series, field_trend_ids, reset_workspace,
-                                 reset_preview,
+                                 reset_preview, automation_status,
+                                 automate_field, unautomate_field,
                                  project)
 
 
@@ -62,7 +63,8 @@ def cmd_board(args) -> dict:
     with get_connection() as conn:
         conn.execute("SET statement_timeout = 60000")
         fields = conn.execute(
-            "SELECT field_key, label, vertical FROM workspace_field "
+            "SELECT field_key, label, vertical, COALESCE(automated,false) AS automated, "
+            "       automated_accuracy FROM workspace_field "
             "WHERE workspace_id=%s ORDER BY sort_order, label", (wid,)).fetchall()
         for f in fields:
             a = conn.execute(
@@ -85,8 +87,11 @@ def cmd_board(args) -> dict:
                 "spread": (a["relevance_spread"] if a else 0),
                 "n_rated": rated, "n_raters": (a["n_raters"] if a else 0),
                 "sample_size": SAMPLE_SIZE,
+                "automated": bool(f["automated"]),
+                "automated_accuracy": f["automated_accuracy"],
             })
-    return {"workspace": args.workspace, "fields": out}
+        auto = automation_status(conn, wid)
+    return {"workspace": args.workspace, "fields": out, "automation": auto}
 
 
 def cmd_queue(args) -> dict:
@@ -105,9 +110,11 @@ def cmd_queue(args) -> dict:
         direction, dmeta = relevance_direction(conn, wid)
         scores = score_against(conn, direction, [r["id"] for r in rows]) \
             if direction else {}
+    with get_connection() as conn:
+        auto = automation_status(conn, wid)
     return {
         "field": args.field, "done": total, "sample_size": SAMPLE_SIZE,
-        "weight": w, "model": dmeta,
+        "weight": w, "model": dmeta, "automation": auto,
         "signals": [{
             "id": r["id"], "title": r["title_en"],
             "summary": (r["summary_en"] or "")[:260],
@@ -135,8 +142,14 @@ def cmd_rate(args) -> dict:
         ms, ev, vertical = _cluster_meta(conn, args.field)
         if not ms:
             ms = field_series(conn, args.field)
-    return assess_field(wid, args.field, evidence_score=ev, series=ms,
-                        vertical=vertical)
+        # Der Automatisierungsstand ändert sich mit JEDER Bewertung — die
+        # Oberfläche zeigt ihn live, also kommt er hier gleich mit zurück,
+        # statt einen zweiten Roundtrip zu kosten.
+        auto = automation_status(conn, wid)
+    out = assess_field(wid, args.field, evidence_score=ev, series=ms,
+                       vertical=vertical)
+    out["automation"] = auto
+    return out
 
 
 def cmd_search(args) -> dict:
@@ -278,6 +291,26 @@ def cmd_fields(args) -> dict:
     return cmd_board(args)
 
 
+def cmd_automation(args) -> dict:
+    """Fortschritt zur Automatisierung — zählt POSITIVE, nicht Bewertungen."""
+    wid = ensure_workspace(args.workspace, args.workspace.title())
+    with get_connection() as conn:
+        return automation_status(conn, wid)
+
+
+def cmd_automate(args) -> dict:
+    wid = ensure_workspace(args.workspace, args.workspace.title())
+    with get_connection() as conn:
+        conn.execute("SET statement_timeout = 60000")
+        return automate_field(conn, wid, args.field)
+
+
+def cmd_unautomate(args) -> dict:
+    wid = ensure_workspace(args.workspace, args.workspace.title())
+    with get_connection() as conn:
+        return unautomate_field(conn, wid, args.field)
+
+
 def cmd_reset_preview(args) -> dict:
     """Was ein Neustart löschen würde — die Zahlen für die Bestätigung."""
     return reset_preview(ensure_workspace(args.workspace, args.workspace.title()))
@@ -295,7 +328,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["board", "queue", "rate", "fields",
                                     "catalog", "discover", "search", "reset",
-                                    "reset-preview", "project", "migrate"])
+                                    "reset-preview", "project", "automation",
+                                    "automate", "unautomate", "migrate"])
     ap.add_argument("--workspace", default="catandary")
     ap.add_argument("--rater", default="owner")
     ap.add_argument("--field", default=None)
@@ -318,7 +352,8 @@ def main() -> int:
           "fields": cmd_fields, "catalog": cmd_catalog,
           "discover": cmd_discover, "search": cmd_search,
           "reset": cmd_reset, "reset-preview": cmd_reset_preview,
-          "project": cmd_project}[args.cmd]
+          "project": cmd_project, "automation": cmd_automation,
+          "automate": cmd_automate, "unautomate": cmd_unautomate}[args.cmd]
     print(json.dumps(fn(args), default=str))
     return 0
 
