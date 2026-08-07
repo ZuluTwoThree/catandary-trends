@@ -218,6 +218,33 @@ def test_seed_mapping_matches_and_abstains():
     assert 0.5 < smk.expansion_threshold(sims, pctl=25) < 0.7
 
 
+def test_reclassify_decide_gates():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "reclassify_mega",
+        __file__.replace("tests/test_discovery.py", "scripts/reclassify_mega.py"))
+    rm = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rm)
+    classes = np.array(["a_attractor", "new_key", "other"])
+    allowed = {"new_key"}
+    # clear call: top1=new_key positive, stored not in top-2 → move
+    s = np.array([-0.5, 1.2, 0.1])
+    assert rm.decide("a_attractor", classes, s, allowed) == "new_key"
+    # stored corroborated (in top-2) → keep, even though top1 differs
+    s = np.array([0.8, 1.2, -1.0])
+    assert rm.decide("a_attractor", classes, s, allowed) is None
+    # top1 negative → nobody claims the point → keep
+    s = np.array([-0.5, -0.1, -1.0])
+    assert rm.decide("a_attractor", classes, s, allowed) is None
+    # target filter: head prefers a non-target class → keep
+    s = np.array([-0.5, 0.1, 1.0])
+    assert rm.decide("a_attractor", classes, s, allowed) is None
+    assert rm.decide("a_attractor", classes, s, None) == "other"  # --targets all
+    # NULL row: positive top1 in targets → assign
+    s = np.array([-0.5, 1.2, 0.1])
+    assert rm.decide(None, classes, s, allowed) == "new_key"
+
+
 def test_plan_sample_is_deterministic_and_reports_a_binding_cap():
     meta = _meta({("market", "a"): 300, ("market", "b"): 300})
     a, _ = discovery.plan_sample(meta, 200, seed=7)
