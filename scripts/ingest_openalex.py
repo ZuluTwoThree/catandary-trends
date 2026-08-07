@@ -228,8 +228,9 @@ CONCEPT_SHARDS: dict[str, list[str]] = {
     "ECO": ["renewable energy", "carbon capture", "battery", "photovoltaics",
             "climate change mitigation"],
     "BIZ": ["financial technology", "supply chain management", "electronic commerce",
-            # evolution_of_work_models
-            "human resource management", "remote work", "organizational behavior"],
+            # evolution_of_work_models ("remote work" ist kein OpenAlex-Konzept —
+            # das kanonische Konzept heisst "telecommuting")
+            "human resource management", "telecommuting", "organizational behavior"],
     "FASHION": ["textile", "biomaterials", "cosmetics"],
     "DESIGN": ["sustainable architecture", "urban design"],
     "LIFESTYLE": ["social media", "video games", "creator economy",
