@@ -49,11 +49,15 @@ EXPANSION_TARGETS = [
     "quantum_information_science", "next_generation_semiconductors",
     "orbital_economy_expansion", "evolution_of_work_models",
     "education_and_lifelong_learning", "digital_healthcare_integration",
-    "electric_and_autonomous_mobility", "mental_health_and_neuro_wellness",
+    "electric_and_autonomous_mobility",
     "climate_resilience_and_adaptation", "platformization_of_culture",
     "creator_economy_and_platform_shift", "regenerative_design_and_net_positive",
     "new_luxury_and_premiumization", "experience_economy_and_immersive_design",
     "bio_revolution_and_new_materials",
+    # mental_health_and_neuro_wellness bewusst NICHT im Set: der Dry-Run
+    # 2026-08-08 zeigte, dass der Head dorthin Pandemie-/Sozialkrisen-News zieht
+    # (Corona-Schlagzeilen, Arbeitsmigration) — kein Neuro-Wellness. Der Key ist
+    # nicht ausgehungert (44k); echte Neuro-Signale erreichen ihn im Cycle.
 ]
 
 

@@ -110,3 +110,38 @@ zielt auf ein Problem, das die Daten nicht zeigen. Die Reihenfolge muss sich dre
 
 **Owner-Gate:** Punkt 2 ist eine Kuratier-Entscheidung (welche Sub-Themen werden
 eigene Keys, welche gehen auf bestehende Keys), Punkt 3 hängt davon ab.
+
+---
+
+## Ergebnis-Nachtrag (2026-08-08): Umsetzung Seeds → Retrain → Reclassify
+
+**Owner-Freigabe** („nimm alle 15") am 2026-08-07; komplette Kette gefahren.
+
+| Schritt | Ergebnis |
+|---|---|
+| Taxonomie | 22 → **28 Keys** (`c50f1ff`), Frontend synchron |
+| Seeds (`seed_mega_keys.py`) | **46.061** Umlabelungen (deterministisch, Audit-JSONL) |
+| Retrain (`train_distill_heads.py`) | mega-Head **28 Klassen**, top1 0,843 / top3 0,976 (vorher 0,870/0,982 bei 21 — leichter Aggregat-Rückgang durch 7 kleine Klassen). Neue Keys erreichbar: top3 0,61–0,99; `platformization_of_culture` (vorher untrainierbar) top3 0,95 |
+| Reclassify (`reclassify_mega.py`) | **2.732** Moves (0,4 % von 738k gescannt) — #39-Gate (stored nicht in top-2) + positiver top1 + Target-Set. `mental_health` aus dem Target-Set genommen: der Head zog Pandemie-/Sozialkrisen-News dorthin (Dry-Run-Befund) |
+| Quellen | +15 verifizierte Feeds (`19fbf48`), OpenAlex **+129,3k** Works (15 Konzepte × 2 Fenster; „remote work" → „telecommuting") |
+
+**Verteilung nachher:** kein Key bei 0. Neue Keys: digital_healthcare 10.983 ·
+orbital 6.970 · next_gen_semiconductors 3.840 · quantum 2.988 · platformization
+2.915 · education 2.204 · work_models 1.420. Catch-all `inclusive_…` 37,5k → 25,6k
+(−32 %). Aktivierte B-Keys: climate_resilience +4k, regenerative +7,2k, EV +3,9k,
+luxury +2,2k, creator +2,3k.
+
+**Ehrliche Einordnung:** Die 4 Attraktoren halten weiter **62,4 %** (vorher 65,4 %) —
+das ursprüngliche Ziel „<50 %" wurde bewusst NICHT erzwungen. Der Rest der
+Attraktor-Masse ist zum Großteil *korrekt* gelabelt (NIH-Biomedizin IST
+personalized_health; die Komposition des Korpus ist die Ursache, Befund 1). Die
+konservativen Gates (Median-Kern-Similarity + Margin beim Seeding; top-2-
+Korroboration beim Reclassify) haben sich als richtig erwiesen — der Dry-Run-Fund
+der mental_health-Fehlflanke hätte bei laxeren Schwellen 57k Signale verschmutzt.
+Weitere Verschiebung soll aus künftigen Cycle-Klassifikationen mit dem 28er-Head
+kommen, nicht aus Zwangs-Migration.
+
+**Deployment-Hinweis:** `models/distill/` ist gitignored — beim dev→main-Merge
+müssen die neuen Heads in den main-Worktree kopiert werden
+(`cp ct-dev/models/distill/*.joblib ct-dev/models/distill/meta.json → catandary-trends/models/distill/`),
+sonst klassifiziert der Prod-Cycle weiter mit 21 Klassen gegen die 28er-yaml.

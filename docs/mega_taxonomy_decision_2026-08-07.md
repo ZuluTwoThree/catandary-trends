@@ -5,7 +5,22 @@ Grundlage: `docs/mega_discovery_findings_2026-08-07.md` (kalibrierte Läufe auf 
 (llama-server :8090, `data/discovery/new_key_labels.yaml`) — der Anthropic-Pfad
 ist ohne Guthaben; `--label-backend local` ist seit heute der Default.
 
-**Status: VORSCHLAG — Owner kuratiert. `mega_trends.yaml` unangetastet.**
+**Status: UMGESETZT (Owner-Freigabe 2026-08-07, „nimm alle 15").** Verlauf:
+
+- ✅ **A1–A6 in `mega_trends.yaml`** (22 → 28 Keys, Commit `c50f1ff`), Frontend synchron.
+- ✅ **Seeds:** `scripts/seed_mega_keys.py` — 46.061 Umlabelungen (deterministischer
+  Dry-Run == Execute; Audit `data/discovery/seed_applied_20260807T204340Z.jsonl`).
+- ⚠️ **Zwei B-Positionen bewusst NICHT als Seed umgesetzt:** *Neuro →
+  mental_health* (die reproduzierten Cluster sind ML-/Krebs-/Grundlagenforschung,
+  kein Neuro-Wellness — die breite Signatur hätte 57k falsch verschoben) und
+  *Perowskit → bio_revolution* (kein Lauf isoliert einen sauberen
+  Materials-Cluster; die Regel hätte Battery/Storage mitgerissen, das laut C
+  in clean_energy bleibt). Beide Ziele bleiben im Reclassify-Target-Set — der
+  Head entscheidet je Signal.
+- ✅ **Quellen:** 15 verifizierte Feeds (Commit `19fbf48`), OpenAlex +128,6k
+  Works über 15 Konzepte für die Science-Abdeckung der neuen Keys.
+- ✅ **Retrain + Reclassify:** siehe `docs/mega_discovery_findings_2026-08-07.md`
+  (Ergebnis-Nachtrag) und Issue #40.
 
 ## A · Kandidaten für NEUE Keys (kein bestehender Key passt)
 

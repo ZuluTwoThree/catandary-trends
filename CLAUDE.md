@@ -152,7 +152,7 @@ Quellen werden pro Vertikale organisiert. Neue Vertikale starten mit 3-5 Kernque
 
 ### Quellenwachstum
 
-Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein automatisches Scraping oder Aggregator-Quellen. Trendhunter und Brave Search Radar wurden entfernt (2026-04-12) — **137 aktive RSS-Primärquellen** (Stand 2026-05-29) decken alle 8 Vertikale ab. Ausbau auf nicht-RSS-Quellentypen siehe `pipeline_expansion_prompt.md` und Goal Contract unter `goals/`.
+Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein automatisches Scraping oder Aggregator-Quellen. Trendhunter und Brave Search Radar wurden entfernt (2026-04-12) — **257 aktive Quellen** (Stand 2026-08-07; RSS-Primärquellen + OpenAlex/Patente/Funding-Pseudoquellen) decken alle 8 Vertikale ab. 2026-08-07 kamen 15 verifizierte Feeds für die Taxonomie-Erweiterung dazu (Quantum/Semis/Space/Digital Health/Future of Work/Education — u. a. The Quantum Insider, NVIDIA/Intel/IBM Newsroom, SpaceNews, NASA/ESA, Rock Health, HR Dive, EdSurge). Ausbau auf nicht-RSS-Quellentypen siehe `pipeline_expansion_prompt.md` und Goal Contract unter `goals/`.
 
 ---
 
@@ -762,11 +762,13 @@ Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direk
 
 ---
 
-## Quellenbalance & Pipeline-Optimierung (Stand: 2026-05-29)
+## Quellenbalance & Pipeline-Optimierung
 
-### Ist-Zustand
+### Ist-Zustand (Stand 2026-08-07)
 
-137 aktive Quellen (87 Trade Media, 48 Research, 2 Press Wire). 38.689 Raw Entries, 26.374 published Trends, 21 kanonische Mega-Trends.
+257 aktive Quellen. 21,6 Mio. Raw Entries, 1.134.488 Trends (67.035 published), **28 kanonische Mega-Trends** (22 + 6 neue Keys aus der Taxonomie-Erweiterung 2026-08-07: Quantum Information Science, Next-Gen Semiconductors, Orbital Economy, Evolution of Work Models, Education & Lifelong Learning, Digital Healthcare Integration — siehe `docs/mega_taxonomy_decision_2026-08-07.md`).
+
+*(Die folgende Tabelle ist der historische Snapshot 2026-05-29 — nur published Trends der Frühphase; der heutige Korpus ist backfill-dominiert.)*
 
 | Vertical | Trends | Anteil | Bewertung |
 |----------|--------|--------|-----------|
