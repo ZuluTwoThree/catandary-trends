@@ -10,8 +10,9 @@ maturity). NEW mega-candidates are named by Claude Sonnet 5.
   python scripts/discover_trends.py --layer scope --all-scopes
 
   # Mega layer (global themes, two-axis characterization, verdicts vs canonical)
-  python scripts/discover_trends.py --layer mega
-  python scripts/discover_trends.py --layer mega --limit 120000   # faster sample
+  python scripts/discover_trends.py --layer mega                  # tier-balanced, source-capped
+  python scripts/discover_trends.py --layer mega --strata proportional --source-cap 0
+  python scripts/discover_trends.py --layer mega --sample 150000 --dim1024
 """
 from __future__ import annotations
 
@@ -25,7 +26,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import numpy as np
 import yaml
 from pydantic import BaseModel
 
@@ -45,9 +45,11 @@ VIABLE_PAIRS = [
 ]
 
 
-# Mega layer runs HDBSCAN, which is costly at 100k+ points. Mega-themes are large
-# (tens of thousands of signals) → a random ~50k sample captures them reliably, and
-# HDBSCAN is fast in a low-dim space. (Scope layer clusters the full slice with KMeans.)
+# Mega layer runs HDBSCAN, which is costly at 100k+ points → we cluster a sample.
+# WHICH sample matters more than its size: the corpus is not a neutral mix (two
+# feeds hold ~25 % of it, and the market tier outweighs the early tiers 3:1), so a
+# proportional draw hands density clustering the ingest bias instead of the trend
+# structure. Default draw is tier-balanced and source-capped (see plan_sample).
 MEGA_MAX_POINTS = 50_000
 MEGA_REDUCE_DIM = 15
 
@@ -89,10 +91,37 @@ def _slug(name: str) -> str:
 
 
 # -------------------------------------------------------------- cluster+report
+def _draw(scope: str, args, default_sample: int = 0):
+    """Pick the signals to cluster and load them with embeddings.
+
+    Returns (rows, sample_report). Without --sample the scope layer still loads
+    the full slice (KMeans partitions everything); the mega layer always samples.
+    """
+    want = args.sample or default_sample
+    meta = discovery.load_scope_meta(scope, args.status, args.dim1024)
+    print(f"[{scope}] {len(meta)} signals with embedding")
+    if want and len(meta) > want:
+        ids, rep = discovery.plan_sample(meta, want, args.strata, args.source_cap, args.seed)
+        print(f"  drawing {rep['drawn']} of {len(meta)} · strata={rep['strata']}"
+              + (f" · source cap {args.source_cap:.0%} (max {rep['per_source_max']})"
+                 if args.source_cap else " · no source cap"))
+        for tier, c in sorted(rep["tiers"].items()):
+            print(f"    {tier:<8} avail {c['available']:>7} → drawn {c['drawn']:>6}")
+        if rep["sources_capped"]:
+            top = list(rep["sources_capped"].items())[:5]
+            print("    capped: " + ", ".join(f"{s} {v['drawn']}/{v['available']}"
+                                             for s, v in top))
+        rows = discovery.load_scope(scope, args.status, ids=ids, dim1024=args.dim1024)
+    else:
+        rep = {"requested": want, "drawn": len(meta), "strata": "none (full scope)",
+               "source_cap": 0}
+        rows = discovery.load_scope(scope, args.status, args.limit, dim1024=args.dim1024)
+    return rows, rep
+
+
 def _load_reduce(scope: str, args):
     """Load a scope, build the embedding matrix, PCA-reduce. Returns (rows, Xr) or None."""
-    rows = discovery.load_scope(scope, args.status, args.limit)
-    print(f"[{scope}] {len(rows)} signals with embedding")
+    rows, _ = _draw(scope, args)
     if len(rows) < 200:
         print("  too few — skipping\n")
         return None
@@ -121,15 +150,10 @@ def run_scope(scope: str, args) -> None:
 
 def run_mega(args) -> None:
     t0 = time.time()
-    rows = discovery.load_scope("global", args.status, args.limit)
-    print(f"[global] {len(rows)} signals with embedding")
+    rows, sample_rep = _draw("global", args, MEGA_MAX_POINTS)
     if len(rows) < 200:
         print("  too few — skipping")
         return
-    if len(rows) > MEGA_MAX_POINTS:
-        idx = sorted(np.random.default_rng(42).choice(len(rows), MEGA_MAX_POINTS, replace=False))
-        rows = [rows[i] for i in idx]
-        print(f"  sampled to {len(rows)} for density clustering (mega-themes survive sampling)")
     Xr = discovery.reduce_dims(build_matrix(rows), MEGA_REDUCE_DIM)
     labels = discovery.cluster_density(Xr, args.min_cluster_size)  # density + noise
     res = discovery.characterize(rows, Xr, labels)
@@ -221,7 +245,9 @@ def run_mega(args) -> None:
                   "note": "PROPOSAL ONLY — read-only; curate into mega_trends.yaml by hand.",
                   "signals": len(rows), "n_themes": res["n_clusters"],
                   "noise_frac": res["noise_frac"], "stability_ari": round(ari, 3),
-                  "method": "PCA->HDBSCAN, two-axis (reach+maturity) characterization"},
+                  "embedding_dim": "1024 (Matryoshka prefix)" if args.dim1024 else "4096",
+                  "method": "PCA->HDBSCAN, two-axis (reach+maturity) characterization",
+                  "sample": sample_rep},
         "proposed_new": candidates,
         "split_candidates": {mt: cids for mt, cids in splits.items()},
         "canonical_orphans": orphan,
@@ -240,7 +266,17 @@ def main() -> int:
     ap.add_argument("--all-scopes", action="store_true",
                     help="scope layer: all 8 verticals + viable pairs")
     ap.add_argument("--status", default="signal,published")
-    ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--limit", type=int, default=0,
+                    help="raw SQL LIMIT (physical row order, NOT random) — smoke tests only")
+    ap.add_argument("--sample", type=int, default=0,
+                    help=f"signals to draw (mega default {MEGA_MAX_POINTS}; scope: full slice)")
+    ap.add_argument("--strata", choices=["tier", "proportional"], default="tier",
+                    help="tier = balance the 4 lead-time tiers; proportional = corpus mix")
+    ap.add_argument("--source-cap", type=float, default=0.05,
+                    help="max share of the sample one source may hold (0 = off)")
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--dim1024", action="store_true",
+                    help="cluster the 1024-D Matryoshka prefix (4x less to load)")
     ap.add_argument("--reduce-dim", type=int, default=50)
     ap.add_argument("--min-cluster-size", type=int, default=None)
     ap.add_argument("--top", type=int, default=15, help="scope: clusters to print")

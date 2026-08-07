@@ -107,3 +107,77 @@ def test_vertical_entropy_bounds():
 def discovery_build(rows):
     from pipeline.foresight import build_matrix
     return build_matrix(rows)
+
+
+# ----------------------------------------------------------------- sampling
+def test_load_scope_meta_covers_the_same_scope_without_embeddings():
+    meta = discovery.load_scope_meta("global", "signal")
+    assert len(meta) == 80
+    assert {m["_tier"] for m in meta} == {"market", "science"}
+    assert all(m["id"] and m["source_name"] for m in meta)
+
+
+def test_load_scope_by_ids_returns_exactly_those_rows():
+    ids = [m["id"] for m in discovery.load_scope_meta("global", "signal")[:7]]
+    rows = discovery.load_scope("global", "signal", ids=ids)
+    assert sorted(r["id"] for r in rows) == sorted(ids)
+    assert all(r["_emb"] for r in rows)
+
+
+def _meta(spec):
+    """{(tier, source): count} → meta rows with unique ids."""
+    out, nid = [], 0
+    for (tier, src), n in spec.items():
+        for _ in range(n):
+            nid += 1
+            out.append({"id": nid, "source_name": src, "_tier": tier})
+    return out
+
+
+def test_plan_sample_balances_tiers_and_redistributes_thin_ones():
+    meta = _meta({**{("market", f"m{i}"): 200 for i in range(10)},
+                  **{("science", f"s{i}"): 50 for i in range(4)},
+                  ("patent", "p0"): 30})
+    ids, rep = discovery.plan_sample(meta, 300, strata="tier", source_cap=0)
+    drawn = {t: c["drawn"] for t, c in rep["tiers"].items()}
+    assert len(ids) == 300 == sum(drawn.values())
+    assert drawn["patent"] == 30  # thin tier: take all it has
+    # market holds 82 % of this corpus — balanced sampling must not hand it 82 %
+    assert drawn["market"] / 300 < 0.6
+    assert drawn["science"] > 30
+
+
+def test_plan_sample_without_cap_stays_proportional():
+    """source_cap=0 must mean 'draw the corpus as it is' — not 'equalise sources'.
+    Equalising is a far stronger intervention and would silently rewrite what the
+    'legacy/proportional' comparison run is supposed to show."""
+    from collections import Counter
+    meta = _meta({("market", "giant"): 8000, ("market", "small"): 2000})
+    src_of = {m["id"]: m["source_name"] for m in meta}
+    ids, _ = discovery.plan_sample(meta, 1000, strata="proportional", source_cap=0)
+    counts = Counter(src_of[i] for i in ids)
+    assert 750 <= counts["giant"] <= 850  # ≈ its 80 % share, not a 50/50 split
+
+
+def test_plan_sample_caps_a_dominant_source():
+    from collections import Counter
+    meta = _meta({("market", "giant"): 5000,
+                  **{("market", f"s{i}"): 100 for i in range(20)}})
+    src_of = {m["id"]: m["source_name"] for m in meta}
+    ids, rep = discovery.plan_sample(meta, 1000, strata="proportional", source_cap=0.05)
+    counts = Counter(src_of[i] for i in ids)
+    assert counts["giant"] <= 50  # 5 % of 1000, not the 96 % it holds in the pool
+    capped = rep["sources_capped"]["giant [market]"]
+    assert capped["available"] == 5000 and capped["drawn"] == counts["giant"]
+    assert len(ids) == 1000  # the other 20 sources absorb what the cap took away
+
+
+def test_plan_sample_is_deterministic_and_reports_a_binding_cap():
+    meta = _meta({("market", "a"): 300, ("market", "b"): 300})
+    a, _ = discovery.plan_sample(meta, 200, seed=7)
+    b, _ = discovery.plan_sample(meta, 200, seed=7)
+    c, _ = discovery.plan_sample(meta, 200, seed=8)
+    assert a == b and a != c
+    # only 2 sources, cap 5 % of 200 = 10 each → 20 drawn, and the run says so
+    ids, rep = discovery.plan_sample(meta, 200, source_cap=0.05)
+    assert rep["requested"] == 200 and rep["drawn"] == len(ids) == 20

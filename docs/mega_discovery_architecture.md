@@ -41,8 +41,33 @@ curates. → living taxonomy (issue #2).
 
 ## Method (v1 — sklearn only, deterministic)
 
+0. **Draw the sample** (`load_scope_meta` → `plan_sample` → `load_scope(ids=…)`).
+   The mega layer clusters a sample, so *which* signals it draws decides what it can
+   find. Two properties of the corpus (1.13M signals, 2026-08) make a naive draw
+   misleading, so the draw is an explicit, reported step:
+   - **The corpus is not a neutral mix.** Two feeds hold ~25 % of it (NIH RePORTER
+     13.1 %, TechCrunch 11.5 %; 243 sources total). Uncapped, density clustering
+     returns their house style as "themes". → `--source-cap` (default 0.05) caps any
+     single source's share of the sample; the freed quota is redistributed
+     **proportionally**, not equally (equalising sources would make a 300-signal blog
+     as loud as a 130k wire — a much stronger claim than "no feed may dominate").
+   - **The tiers are 3:1 lopsided** (market 638k · science 253k · funding 175k ·
+     patent 60k). A proportional draw buries the early tiers — which is precisely
+     what Axis B exists to measure. → `--strata tier` (default) balances the four
+     lead-time tiers; `--strata proportional` keeps the corpus mix for comparison.
+   - The old path used SQL `LIMIT n` **without `ORDER BY`** = the physically first
+     n rows (≈ ingest order), i.e. an unreported, time-biased slice. `--limit` still
+     exists for smoke tests and is documented as such; analysis uses `plan_sample`.
+   - The realised composition (per-tier draw, which sources hit the cap, shortfalls)
+     is printed and written into the candidate YAML's `_meta.sample` — a run's
+     sampling is auditable after the fact.
 1. **Load** embedded signals for the scope (reuse `pipeline.foresight.load_signals`
    + a cross-vertical `verticals ⊇ {A,B}` filter). Drop bogus future dates.
+   `--dim1024` loads the Matryoshka 1024-prefix instead of the full vector (4× less
+   text to parse). Fidelity measured on 1500 random signals (2026-08-07): Pearson
+   0.944 / Spearman 0.933 against the 4096-D cosine geometry, mean |Δcos| 0.022,
+   top-10-neighbour overlap 0.77 — fine for large samples, but the default stays
+   4096-D because a 50k draw is affordable at full width.
 2. **Reduce** 4096-D → ~50-D via `PCA` (randomized, fast, deterministic). *(UMAP is a
    later refinement; it needs `umap-learn` and is non-deterministic but better preserves
    local density for HDBSCAN.)*

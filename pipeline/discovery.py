@@ -51,11 +51,17 @@ def tier_of(source_type: str | None, source_name: str | None, pub_number) -> str
 
 
 # ------------------------------------------------------------------ scope load
-def load_scope(scope: str, status: str = "signal,published", limit: int = 0) -> list[dict]:
-    """scope: 'global' | 'vertical:FOOD' | 'pair:FOOD&HEALTH'. Cross-vertical pair =
-    rows whose `verticals` JSON contains BOTH codes."""
+ID_CHUNK = 5000  # ids per IN(...) batch when loading a drawn sample
+
+
+def _scope_filters(scope: str, status: str, emb_field: str) -> tuple[list[str], list]:
+    """WHERE fragments + params shared by the metadata pass and the embedding load.
+
+    scope: 'global' | 'vertical:FOOD' | 'pair:FOOD&HEALTH'. Cross-vertical pair =
+    rows whose `verticals` JSON contains BOTH codes.
+    """
     # CURRENT_TIMESTAMP is portable (SQLite + Postgres); datetime('now') is not.
-    where = ["t.embedding IS NOT NULL",
+    where = [f"t.{emb_field} IS NOT NULL",
              "(r.published_date IS NULL OR r.published_date <= CURRENT_TIMESTAMP)"]
     params: list = []
     if status and status.lower() != "all":
@@ -72,18 +78,180 @@ def load_scope(scope: str, status: str = "signal,published", limit: int = 0) -> 
         vt = "t.verticals::text" if db_mod.USE_POSTGRES else "t.verticals"
         where.append(f"{vt} LIKE ? AND {vt} LIKE ?")
         params += [f'%"{a}"%', f'%"{b}"%']
-    emb_col = "t.embedding::text" if db_mod.USE_POSTGRES else "t.embedding"
+    return where, params
+
+
+def load_scope_meta(scope: str, status: str = "signal,published",
+                    dim1024: bool = False) -> list[dict]:
+    """Scope membership WITHOUT embeddings: {id, source_name, _tier}.
+
+    Cheap enough to run over the whole corpus — it is the embedding column that
+    makes a full load expensive (under Postgres every vector arrives as a text
+    literal that has to be parsed). Running this first turns sampling into an
+    actual sampling decision instead of 'whatever rows the planner hands back'.
+    """
+    emb_field = "embedding_1024" if dim1024 else "embedding"
+    where, params = _scope_filters(scope, status, emb_field)
+    sql = ("SELECT t.id, t.source_name, r.pub_number, s.source_type "
+           "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id "
+           "JOIN sources s ON r.source_id = s.id "
+           f"WHERE {' AND '.join(where)}")
+    with get_connection() as c:
+        rows = c.execute(sql, params).fetchall()
+    return [{"id": r["id"], "source_name": r["source_name"],
+             "_tier": tier_of(r["source_type"], r["source_name"], r["pub_number"])}
+            for r in rows]
+
+
+# ------------------------------------------------------------------- sampling
+def _balance_targets(avail: dict[str, int], n: int) -> dict[str, int]:
+    """Equal share per stratum, with the shortfall of thin strata redistributed
+    to the strata that still have signals left."""
+    out = {k: 0 for k in avail}
+    rem, pool = min(n, sum(avail.values())), {k: v for k, v in avail.items() if v > 0}
+    while rem > 0 and pool:
+        share = max(1, rem // len(pool))
+        for k in list(pool):
+            take = min(share, pool[k], rem)
+            out[k] += take
+            pool[k] -= take
+            rem -= take
+            if pool[k] == 0:
+                del pool[k]
+            if rem == 0:
+                break
+    return out
+
+
+def _capped_allocate(avail: dict[str, int], target: int, cap: int) -> dict[str, int]:
+    """Split `target` draws over sources **proportionally to what they hold**, with
+    no source above `cap`. The cap is the whole intervention: a feed that owns 13 %
+    of the corpus is trimmed to its ceiling and its quota flows to the others by
+    the same proportional rule. (Equalising every source instead would make a
+    300-signal blog as loud as a 130k-signal wire — a different, much stronger
+    claim than 'no single feed may dominate'.)
+
+    Solved as a water-filling scale factor λ: alloc_s = min(⌊avail_s·λ⌋, cap).
+    The sum can fall short of `target` when the caps bind everywhere — callers
+    report that instead of pretending the sample is what was asked for."""
+    ceilings = {s: min(a, cap) for s, a in avail.items()}
+    target = min(target, sum(ceilings.values()))
+    if target <= 0:
+        return {s: 0 for s in avail}
+    lo, hi = 0.0, 1.0
+    for _ in range(50):  # bisect for the largest λ that still fits under target
+        mid = (lo + hi) / 2
+        if sum(min(int(a * mid), ceilings[s]) for s, a in avail.items()) < target:
+            lo = mid
+        else:
+            hi = mid
+    alloc = {s: min(int(a * lo), ceilings[s]) for s, a in avail.items()}
+    rem = target - sum(alloc.values())  # integer flooring leaves a remainder
+    for s in sorted(avail, key=lambda s: (-avail[s], s)):
+        if rem <= 0:
+            break
+        take = min(ceilings[s] - alloc[s], rem)
+        alloc[s] += take
+        rem -= take
+    return alloc
+
+
+def plan_sample(meta: list[dict], n: int, strata: str = "tier",
+                source_cap: float = 0.05, seed: int = 42) -> tuple[list[int], dict]:
+    """Decide WHICH signals get clustered — the decision `LIMIT n` used to make by
+    accident (SQL LIMIT without ORDER BY = physical row order ≈ ingest order).
+
+    strata='tier'          balance the four lead-time tiers so a thin early-tier
+                           theme is not drowned by market volume (Axis B is the
+                           point of the mega layer; proportional sampling buries it)
+    strata='proportional'  keep the corpus mix (legacy behaviour, for comparison)
+    source_cap             max share of the sample a single source may hold
+                           (0 = off). Two feeds hold ~25 % of the corpus
+                           (NIH RePORTER 13 %, TechCrunch 12 %); uncapped, density
+                           clustering returns their house style as 'themes'.
+
+    Returns (ids, report). The report goes into the candidate YAML so a run's
+    composition is auditable after the fact.
+    """
+    rng = np.random.default_rng(seed)
+    n = max(0, min(n, len(meta)))
+    by_tier: dict[str, list[dict]] = {}
+    for m in meta:
+        by_tier.setdefault(m["_tier"], []).append(m)
+    avail_tier = {t: len(v) for t, v in by_tier.items()}
+    if strata == "tier":
+        targets = _balance_targets(avail_tier, n)
+    else:
+        tot = max(1, len(meta))
+        targets = {t: int(round(n * c / tot)) for t, c in avail_tier.items()}
+    cap = max(1, int(source_cap * n)) if source_cap else n
+
+    picked: list[int] = []
+    comp: dict[str, dict] = {}
+    capped: dict[str, dict] = {}
+    for tier in sorted(by_tier):
+        by_src: dict[str, list[int]] = {}
+        for m in by_tier[tier]:
+            by_src.setdefault(m["source_name"] or "(unknown)", []).append(m["id"])
+        alloc = _capped_allocate({s: len(v) for s, v in by_src.items()},
+                                 targets.get(tier, 0), cap)
+        drawn = 0
+        for src, k in alloc.items():
+            if k <= 0:
+                continue
+            ids = by_src[src]
+            if k >= len(ids):
+                take = ids
+            else:
+                take = [ids[i] for i in rng.choice(len(ids), k, replace=False)]
+            picked.extend(take)
+            drawn += len(take)
+            if source_cap and k >= cap and len(ids) > k:  # trimmed by the cap
+                capped[f"{src} [{tier}]"] = {"available": len(ids), "drawn": k}
+        comp[tier] = {"available": len(by_tier[tier]),
+                      "target": targets.get(tier, 0), "drawn": drawn}
+    report = {"requested": n, "drawn": len(picked), "strata": strata,
+              "source_cap": source_cap, "per_source_max": cap if source_cap else None,
+              "seed": seed, "tiers": comp,
+              "sources_capped": dict(sorted(capped.items(),
+                                            key=lambda kv: -kv[1]["available"])[:15])}
+    return picked, report
+
+
+def load_scope(scope: str, status: str = "signal,published", limit: int = 0,
+               ids: list[int] | None = None, dim1024: bool = False) -> list[dict]:
+    """Load a scope with embeddings.
+
+    ids: restrict to these trend ids — the sampling path (see plan_sample).
+    limit: raw SQL LIMIT. It carries NO ORDER BY, so it returns the physically
+      first n rows (≈ ingest order), not a random sample — usable for a smoke
+      test, wrong for anything you draw conclusions from. Prefer ids.
+    dim1024: load the Matryoshka 1024-prefix column instead of the full 4096-D
+      vector — 4× less text to parse and hold, which is what makes large samples
+      tractable; PCA to ~15-50 dims is unaffected in practice.
+    """
+    emb_field = "embedding_1024" if dim1024 else "embedding"
+    where, params = _scope_filters(scope, status, emb_field)
+    emb_col = f"t.{emb_field}::text" if db_mod.USE_POSTGRES else f"t.{emb_field}"
     sql = ("SELECT t.id, t.title_en, t.tags, t.source_name, t.primary_vertical, "
            "       t.verticals, t.mega_trend, r.published_date, r.pub_number, "
            f"       s.source_type, {emb_col} AS embedding "
            "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id "
            "JOIN sources s ON r.source_id = s.id "
            f"WHERE {' AND '.join(where)}")
-    if limit:
-        sql += " LIMIT ?"
-        params.append(limit)
     with get_connection() as c:
-        rows = [dict(r) for r in c.execute(sql, params).fetchall()]
+        if ids is not None:
+            uniq = list(dict.fromkeys(int(i) for i in ids))
+            rows = []
+            for i in range(0, len(uniq), ID_CHUNK):
+                chunk = uniq[i:i + ID_CHUNK]
+                q = f"{sql} AND t.id IN ({','.join('?' * len(chunk))})"
+                rows += [dict(r) for r in c.execute(q, params + chunk).fetchall()]
+        else:
+            if limit:
+                sql += " LIMIT ?"
+                params = params + [limit]
+            rows = [dict(r) for r in c.execute(sql, params).fetchall()]
     out = []
     for r in rows:
         emb = db_mod._vector_to_bytes(r["embedding"])
