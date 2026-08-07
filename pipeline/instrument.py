@@ -374,6 +374,44 @@ def field_series(conn, field_key: str) -> list[dict]:
             for r in rows]
 
 
+def reset_preview(workspace_id: int) -> dict:
+    """Was ein Neustart wirklich löschen würde — VOR dem Löschen.
+
+    Existiert, weil die Bestätigung sonst untertreibt: die Tafel zählt nur
+    Bewertungen zu Feldern, die noch auf dem Tisch liegen. Nimmt man ein Feld
+    herunter, bleiben seine Bewertungen stehen und speisen weiter das globale
+    Interessensmodell — real gemessen 175 Zeilen, während die Oberfläche 18
+    zeigte. Eine Bestätigung, die zu niedrige Zahlen nennt, ist schlimmer als
+    gar keine.
+    """
+    with get_connection() as conn:
+        row = conn.execute(
+            """SELECT
+                 (SELECT count(*) FROM signal_relevance
+                   WHERE workspace_id=%s AND points IS NOT NULL) AS ratings,
+                 (SELECT count(*) FROM signal_relevance sr
+                   WHERE sr.workspace_id=%s AND sr.points IS NOT NULL
+                     AND NOT EXISTS (SELECT 1 FROM workspace_field wf
+                                      WHERE wf.workspace_id = sr.workspace_id
+                                        AND wf.field_key = sr.field_key)) AS orphaned,
+                 (SELECT count(*) FROM signal_relevance
+                   WHERE workspace_id=%s AND points IS NULL) AS skipped,
+                 (SELECT count(*) FROM workspace_field
+                   WHERE workspace_id=%s) AS fields,
+                 (SELECT count(DISTINCT rater_id) FROM signal_relevance
+                   WHERE workspace_id=%s) AS raters""",
+            (workspace_id,) * 5).fetchone()
+        labels = [r["label"] for r in conn.execute(
+            "SELECT label FROM workspace_field WHERE workspace_id=%s "
+            "ORDER BY sort_order, label", (workspace_id,)).fetchall()]
+    d = {k: int(row[k]) for k in ("ratings", "orphaned", "skipped", "fields", "raters")}
+    d["field_labels"] = labels
+    # Das Modell schaltet ab MIN_RATINGS_FOR_HINT frei — das ist der Verlust,
+    # den ein Nutzer am ehesten unterschätzt.
+    d["model_was_ready"] = d["ratings"] >= MIN_RATINGS_FOR_HINT
+    return d
+
+
 def reset_workspace(workspace_id: int, *, keep_fields: bool = False) -> dict:
     """Alles zurücksetzen — für Nutzertests.
 
@@ -381,6 +419,7 @@ def reset_workspace(workspace_id: int, *, keep_fields: bool = False) -> dict:
     Arbeitsbereich und die Bewerter bleiben stehen, damit die Sitzung nicht
     abreißt.
     """
+    before = reset_preview(workspace_id)
     with get_connection() as conn:
         n = conn.execute(
             "SELECT count(*) AS n FROM signal_relevance WHERE workspace_id=%s",
@@ -393,7 +432,7 @@ def reset_workspace(workspace_id: int, *, keep_fields: bool = False) -> dict:
             conn.execute("DELETE FROM workspace_field WHERE workspace_id=%s",
                          (workspace_id,))
         conn.commit()
-    return {"deleted_ratings": int(n), "fields_kept": keep_fields}
+    return {"deleted_ratings": int(n), "fields_kept": keep_fields, "before": before}
 
 
 def sample_for_rating(conn, workspace_id: int, rater_id: int, field_key: str,
