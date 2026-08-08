@@ -3,12 +3,15 @@
 # nach dem BDDS-Ingest um 05:00 — weekly_patents.sh braucht i. d. R. <1h; ein
 # noch laufender Ingest ist unkritisch, dann rechnet die Woche drauf nach).
 #
-# Kette (alles CPU/SQL, GPU-frei):
-#   1. build_cpc_tier_series  — Cross-Tier-Zeitreihen je CPC-Subclass (Voll-Rebuild;
-#                               nimmt die neuen Cr-Del-Patente + Amend-CPC/Zitationen auf)
-#   2. build_cpc_insights     — Frontend-Payloads der kuratierten Technologien
-#   3. assign_cpc             — Signal→CPC-Projektion, inkrementell (ON CONFLICT
-#                               DO NOTHING; erfasst neue embedded Signale)
+# Kette (alles CPU/SQL, GPU-frei) — Reihenfolge ist inhaltlich zwingend:
+#   1. assign_cpc             — Signal→CPC-Projektion, inkrementell (erfasst die
+#                               seit letzter Woche neu embeddeten Signale ZUERST,
+#                               damit sie in die Serien dieser Woche einfließen)
+#   2. build_cpc_tier_series  — Cross-Tier-Zeitreihen je CPC-Subclass (Voll-Rebuild;
+#                               nimmt neue Cr-Del-Patente + Amend-CPC/Zitationen
+#                               nativ und die frische signal_cpc-Projektion auf)
+#   3. build_cpc_insights     — Frontend-Payloads der kuratierten Technologien
+#                               (liest die eben gebauten Serien)
 #
 # BEWUSST NICHT im Cron:
 #   - Radare (Owner-Entscheid 2026-07-30: nur auf Knopfdruck, Radar = Dokument
@@ -31,7 +34,7 @@ mkdir -p "$(dirname "$LOG")"
   source .venv/bin/activate
 
   RC=0
-  for STEP in "build_cpc_tier_series" "build_cpc_insights" "assign_cpc"; do
+  for STEP in "assign_cpc" "build_cpc_tier_series" "build_cpc_insights"; do
     echo; echo "----- $STEP $(date -Iseconds) -----"
     T0=$(date +%s)
     python -u "scripts/${STEP}.py" || RC=$?
