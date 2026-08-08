@@ -218,6 +218,28 @@ def test_seed_mapping_matches_and_abstains():
     assert 0.5 < smk.expansion_threshold(sims, pctl=25) < 0.7
 
 
+def test_faded_hype_and_megatrend_gates():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "measure_mega_axes",
+        __file__.replace("tests/test_discovery.py", "scripts/measure_mega_axes.py"))
+    ax = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ax)
+    # megatrend: threshold 0.50 inclusive (clean_energy case), veto wins
+    assert ax.qualifies_megatrend(0.50, 4, 48) is True
+    assert ax.qualifies_megatrend(0.49, 4, 48) is False
+    assert ax.qualifies_megatrend(0.66, 3, 48) is False      # tiers fehlen
+    assert ax.qualifies_megatrend(0.66, 4, 0) is False       # kein Lead
+    assert ax.qualifies_megatrend(0.84, 4, 140, veto="catch-all") is False
+    # faded hype: the virtual_worlds pattern (peak 239 in 2022, 16 in last 12mo)
+    assert ax.qualifies_faded_hype(2022, 239, 16, 2026, megatrend=False) is True
+    assert ax.qualifies_faded_hype(2022, 239, 16, 2026, megatrend=True) is False
+    assert ax.qualifies_faded_hype(2025, 239, 16, 2026, megatrend=False) is False  # zu frisch
+    assert ax.qualifies_faded_hype(2022, 80, 5, 2026, megatrend=False) is False    # nie substanziell
+    assert ax.qualifies_faded_hype(2022, 239, 90, 2026, megatrend=False) is False  # lebt noch (38%)
+    assert ax.qualifies_faded_hype(None, 0, 0, 2026, megatrend=False) is False
+
+
 def test_reclassify_decide_gates():
     import importlib.util
     spec = importlib.util.spec_from_file_location(

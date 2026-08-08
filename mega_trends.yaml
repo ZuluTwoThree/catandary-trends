@@ -25,6 +25,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: TECH
     dom_share: 0.73
+    peak_year: 2026
+    peak_market_n: 10010
+    last12_market_n: 11868
+    faded_hype: false
   megatrend: false
 - key: personalized_health_and_longevity
   name_en: Personalized Health & Longevity
@@ -49,6 +53,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: HEALTH
     dom_share: 0.65
+    peak_year: 2016
+    peak_market_n: 4548
+    last12_market_n: 5223
+    faded_hype: false
   megatrend: false
 - key: clean_energy_transition
   name_en: Clean Energy Transition
@@ -74,6 +82,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: ECO
     dom_share: 0.56
+    peak_year: 2021
+    peak_market_n: 5521
+    last12_market_n: 6143
+    faded_hype: false
   megatrend: true
 - key: electric_and_autonomous_mobility
   name_en: Electric & Autonomous Mobility
@@ -98,6 +110,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: TECH
     dom_share: 0.52
+    peak_year: 2024
+    peak_market_n: 3234
+    last12_market_n: 3342
+    faded_hype: false
   megatrend: true
 - key: financial_innovation_and_inclusion
   name_en: Financial Innovation & Inclusion
@@ -121,6 +137,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: BIZ
     dom_share: 0.69
+    peak_year: 2020
+    peak_market_n: 10299
+    last12_market_n: 9570
+    faded_hype: false
   megatrend: true
 - key: new_luxury_and_premiumization
   name_en: New Luxury & Premiumization
@@ -146,6 +166,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: FASHION
     dom_share: 0.51
+    peak_year: 2024
+    peak_market_n: 3087
+    last12_market_n: 3449
+    faded_hype: false
   megatrend: false
 - key: regenerative_design_and_net_positive
   name_en: Regenerative Design & Net Positive
@@ -171,6 +195,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: ECO
     dom_share: 0.38
+    peak_year: 2021
+    peak_market_n: 2657
+    last12_market_n: 2974
+    faded_hype: false
   megatrend: true
 - key: inclusive_and_human_centric_design
   name_en: Inclusive & Human-Centric Design
@@ -198,6 +226,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: LIFESTYLE
     dom_share: 0.36
+    peak_year: 2026
+    peak_market_n: 2080
+    last12_market_n: 2543
+    faded_hype: false
   megatrend: false
 - key: future_of_food_and_agriculture
   name_en: Future of Food & Agriculture
@@ -223,6 +255,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: FOOD
     dom_share: 0.51
+    peak_year: 2021
+    peak_market_n: 5006
+    last12_market_n: 4588
+    faded_hype: false
   megatrend: true
 - key: connected_living_and_smart_spaces
   name_en: Connected Living & Smart Spaces
@@ -250,6 +286,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: TECH
     dom_share: 0.47
+    peak_year: 2020
+    peak_market_n: 710
+    last12_market_n: 281
+    faded_hype: false
   megatrend: false
 - key: creator_economy_and_platform_shift
   name_en: Creator Economy & Platform Shift
@@ -275,6 +315,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: LIFESTYLE
     dom_share: 0.46
+    peak_year: 2021
+    peak_market_n: 976
+    last12_market_n: 687
+    faded_hype: false
   megatrend: false
 - key: platformization_of_culture
   name_en: Platformization of Culture
@@ -301,6 +345,10 @@ mega_trends:
     lead_tier: null
     dom_vertical: BIZ
     dom_share: 0.69
+    peak_year: 2019
+    peak_market_n: 294
+    last12_market_n: 153
+    faded_hype: false
   megatrend: false
 - key: bio_revolution_and_new_materials
   name_en: Bio-Revolution & New Materials
@@ -327,6 +375,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: TECH
     dom_share: 0.74
+    peak_year: 2024
+    peak_market_n: 486
+    last12_market_n: 137
+    faded_hype: false
   megatrend: false
 - key: circular_economy_and_zero_waste
   name_en: Circular Economy & Zero Waste
@@ -353,6 +405,10 @@ mega_trends:
     lead_tier: patent
     dom_vertical: ECO
     dom_share: 0.54
+    peak_year: 2021
+    peak_market_n: 660
+    last12_market_n: 505
+    faded_hype: false
   megatrend: true
 - key: climate_resilience_and_adaptation
   name_en: Climate Resilience & Adaptation
@@ -378,6 +434,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: ECO
     dom_share: 0.65
+    peak_year: 2024
+    peak_market_n: 2366
+    last12_market_n: 2818
+    faded_hype: false
   megatrend: true
 - key: experience_economy_and_immersive_design
   name_en: Experience Economy & Immersive Design
@@ -403,6 +463,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: LIFESTYLE
     dom_share: 0.53
+    peak_year: 2024
+    peak_market_n: 787
+    last12_market_n: 801
+    faded_hype: false
   megatrend: true
 - key: cultural_heritage_and_identity
   name_en: Cultural Heritage & Identity Renaissance
@@ -428,6 +492,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: LIFESTYLE
     dom_share: 0.41
+    peak_year: 2024
+    peak_market_n: 243
+    last12_market_n: 217
+    faded_hype: false
   megatrend: false
 - key: digital_trust_and_data_sovereignty
   name_en: Digital Trust & Data Sovereignty
@@ -452,6 +520,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: BIZ
     dom_share: 0.42
+    peak_year: 2026
+    peak_market_n: 2944
+    last12_market_n: 3525
+    faded_hype: false
   megatrend: true
 - key: mental_health_and_neuro_wellness
   name_en: Mental Health & Neuro-Wellness
@@ -476,6 +548,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: HEALTH
     dom_share: 0.64
+    peak_year: 2020
+    peak_market_n: 3151
+    last12_market_n: 2019
+    faded_hype: false
   megatrend: true
 - key: wearable_technology_and_augmented_living
   name_en: Wearable Technology & Augmented Living
@@ -500,6 +576,10 @@ mega_trends:
     lead_tier: patent
     dom_vertical: TECH
     dom_share: 0.59
+    peak_year: 2014
+    peak_market_n: 292
+    last12_market_n: 238
+    faded_hype: false
   megatrend: false
 - key: virtual_worlds_consolidation
   name_en: Virtual Worlds Consolidation & Post-Metaverse Reckoning
@@ -526,6 +606,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: TECH
     dom_share: 0.46
+    peak_year: 2022
+    peak_market_n: 238
+    last12_market_n: 18
+    faded_hype: true
   megatrend: false
 - key: geopolitical_disruption_and_supply_chain_resilience
   name_en: Geopolitical Disruption & Supply Chain Resilience
@@ -551,6 +635,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: BIZ
     dom_share: 0.53
+    peak_year: 2026
+    peak_market_n: 2704
+    last12_market_n: 3343
+    faded_hype: false
   megatrend: true
 - key: quantum_information_science
   name_en: Quantum Information Science
@@ -575,6 +663,10 @@ mega_trends:
     lead_tier: funding
     dom_vertical: TECH
     dom_share: 0.76
+    peak_year: 2022
+    peak_market_n: 25
+    last12_market_n: 14
+    faded_hype: false
   megatrend: false
 - key: next_generation_semiconductors
   name_en: Next-Generation Semiconductor Architectures
@@ -600,6 +692,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: TECH
     dom_share: 0.79
+    peak_year: 2025
+    peak_market_n: 308
+    last12_market_n: 333
+    faded_hype: false
   megatrend: false
 - key: orbital_economy_expansion
   name_en: Orbital Economy Expansion
@@ -625,6 +721,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: TECH
     dom_share: 0.67
+    peak_year: 2026
+    peak_market_n: 651
+    last12_market_n: 802
+    faded_hype: false
   megatrend: false
 - key: evolution_of_work_models
   name_en: Evolution of Work Models
@@ -650,6 +750,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: BIZ
     dom_share: 0.46
+    peak_year: 2021
+    peak_market_n: 216
+    last12_market_n: 186
+    faded_hype: false
   megatrend: false
 - key: education_and_lifelong_learning
   name_en: Education & Lifelong Learning
@@ -675,6 +779,10 @@ mega_trends:
     lead_tier: science
     dom_vertical: LIFESTYLE
     dom_share: 0.37
+    peak_year: 2022
+    peak_market_n: 13
+    last12_market_n: 4
+    faded_hype: false
   megatrend: false
 - key: digital_healthcare_integration
   name_en: Digital Healthcare Integration
@@ -700,4 +808,8 @@ mega_trends:
     lead_tier: science
     dom_vertical: HEALTH
     dom_share: 0.59
+    peak_year: 2026
+    peak_market_n: 1312
+    last12_market_n: 1658
+    faded_hype: false
   megatrend: true

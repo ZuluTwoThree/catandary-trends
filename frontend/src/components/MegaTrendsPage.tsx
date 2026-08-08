@@ -18,6 +18,8 @@ interface MegaTrendItem {
     measured_at: string; reach: number; tiers: number;
     lead_months: number | null; lead_tier?: string | null;
     dom_vertical: string; dom_share: number;
+    peak_year?: number | null; peak_market_n?: number;
+    last12_market_n?: number; faded_hype?: boolean;
   } | null;
   cluster_strength?: "strong" | "moderate" | "fragmented";
   horizon?: string;
@@ -130,6 +132,20 @@ export default function MegaTrendsPage({
                       {mt.measured.dom_vertical} Domain
                     </span>
                   )}
+                  {mt.measured?.faded_hype && (
+                    <span
+                      className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em] px-2 py-0.5 border cursor-help"
+                      title={`Media coverage peaked in ${mt.measured.peak_year} (${(mt.measured.peak_market_n ?? 0).toLocaleString("en-US")} market signals) and has fallen to ${(mt.measured.last12_market_n ?? 0).toLocaleString("en-US")} in the last 12 months — much was written, little proved durable. Measured ${mt.measured.measured_at}.`}
+                      style={{
+                        color: "#c9a227",
+                        borderColor: "#c9a22755",
+                        backgroundColor: "#c9a22710",
+                      }}
+                    >
+                      <span>◇</span>
+                      <span>Faded Hype {mt.measured.peak_year}</span>
+                    </span>
+                  )}
                   {mt.momentum && (
                     <span
                       className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em] px-2 py-0.5 border cursor-help"
@@ -164,6 +180,10 @@ export default function MegaTrendsPage({
                       {mt.megatrend && mt.measured.lead_months != null ? (
                         <>{" · "}{mt.measured.lead_tier ?? "early"}→market{" "}
                         <span className="text-paper">+{mt.measured.lead_months} mo</span></>
+                      ) : mt.measured.faded_hype ? (
+                        <>{" · "}peak <span className="text-paper">{mt.measured.peak_market_n}</span>{" "}
+                        ({mt.measured.peak_year}) → last 12 mo{" "}
+                        <span className="text-paper">{mt.measured.last12_market_n}</span></>
                       ) : mt.measured.dom_share >= 0.65 ? (
                         <>{" · "}{mt.measured.dom_vertical} holds{" "}
                         <span className="text-paper">{Math.round(mt.measured.dom_share * 100)}%</span></>

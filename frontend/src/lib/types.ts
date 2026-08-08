@@ -108,6 +108,12 @@ export interface MegaTrendInfo {
     lead_tier?: string | null;
     dom_vertical: string;
     dom_share: number;
+    /** Market-tier hype curve: peak year vs the trailing 12 months. */
+    peak_year?: number | null;
+    peak_market_n?: number;
+    last12_market_n?: number;
+    /** Measured faded-hype flag: peaked hard >=2 years ago, collapsed since. */
+    faded_hype?: boolean;
   } | null;
 }
 

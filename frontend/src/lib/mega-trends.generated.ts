@@ -24,7 +24,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 125,
       "lead_tier": "science",
       "dom_vertical": "TECH",
-      "dom_share": 0.73
+      "dom_share": 0.73,
+      "peak_year": 2026,
+      "peak_market_n": 10010,
+      "last12_market_n": 11868,
+      "faded_hype": false
     }
   },
   {
@@ -46,7 +50,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 141,
       "lead_tier": "science",
       "dom_vertical": "HEALTH",
-      "dom_share": 0.65
+      "dom_share": 0.65,
+      "peak_year": 2016,
+      "peak_market_n": 4548,
+      "last12_market_n": 5223,
+      "faded_hype": false
     }
   },
   {
@@ -68,7 +76,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 48,
       "lead_tier": "science",
       "dom_vertical": "ECO",
-      "dom_share": 0.56
+      "dom_share": 0.56,
+      "peak_year": 2021,
+      "peak_market_n": 5521,
+      "last12_market_n": 6143,
+      "faded_hype": false
     }
   },
   {
@@ -90,7 +102,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 17,
       "lead_tier": "science",
       "dom_vertical": "TECH",
-      "dom_share": 0.52
+      "dom_share": 0.52,
+      "peak_year": 2024,
+      "peak_market_n": 3234,
+      "last12_market_n": 3342,
+      "faded_hype": false
     }
   },
   {
@@ -111,7 +127,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 179,
       "lead_tier": "science",
       "dom_vertical": "BIZ",
-      "dom_share": 0.69
+      "dom_share": 0.69,
+      "peak_year": 2020,
+      "peak_market_n": 10299,
+      "last12_market_n": 9570,
+      "faded_hype": false
     }
   },
   {
@@ -134,7 +154,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 221,
       "lead_tier": "science",
       "dom_vertical": "FASHION",
-      "dom_share": 0.51
+      "dom_share": 0.51,
+      "peak_year": 2024,
+      "peak_market_n": 3087,
+      "last12_market_n": 3449,
+      "faded_hype": false
     }
   },
   {
@@ -156,7 +180,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 111,
       "lead_tier": "science",
       "dom_vertical": "ECO",
-      "dom_share": 0.38
+      "dom_share": 0.38,
+      "peak_year": 2021,
+      "peak_market_n": 2657,
+      "last12_market_n": 2974,
+      "faded_hype": false
     }
   },
   {
@@ -179,7 +207,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 140,
       "lead_tier": "science",
       "dom_vertical": "LIFESTYLE",
-      "dom_share": 0.36
+      "dom_share": 0.36,
+      "peak_year": 2026,
+      "peak_market_n": 2080,
+      "last12_market_n": 2543,
+      "faded_hype": false
     }
   },
   {
@@ -201,7 +233,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 159,
       "lead_tier": "science",
       "dom_vertical": "FOOD",
-      "dom_share": 0.51
+      "dom_share": 0.51,
+      "peak_year": 2021,
+      "peak_market_n": 5006,
+      "last12_market_n": 4588,
+      "faded_hype": false
     }
   },
   {
@@ -225,7 +261,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 0,
       "lead_tier": "science",
       "dom_vertical": "TECH",
-      "dom_share": 0.47
+      "dom_share": 0.47,
+      "peak_year": 2020,
+      "peak_market_n": 710,
+      "last12_market_n": 281,
+      "faded_hype": false
     }
   },
   {
@@ -247,7 +287,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": -71,
       "lead_tier": "science",
       "dom_vertical": "LIFESTYLE",
-      "dom_share": 0.46
+      "dom_share": 0.46,
+      "peak_year": 2021,
+      "peak_market_n": 976,
+      "last12_market_n": 687,
+      "faded_hype": false
     }
   },
   {
@@ -268,7 +312,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": null,
       "lead_tier": null,
       "dom_vertical": "BIZ",
-      "dom_share": 0.69
+      "dom_share": 0.69,
+      "peak_year": 2019,
+      "peak_market_n": 294,
+      "last12_market_n": 153,
+      "faded_hype": false
     }
   },
   {
@@ -291,7 +339,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 160,
       "lead_tier": "science",
       "dom_vertical": "TECH",
-      "dom_share": 0.74
+      "dom_share": 0.74,
+      "peak_year": 2024,
+      "peak_market_n": 486,
+      "last12_market_n": 137,
+      "faded_hype": false
     }
   },
   {
@@ -314,7 +366,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 33,
       "lead_tier": "patent",
       "dom_vertical": "ECO",
-      "dom_share": 0.54
+      "dom_share": 0.54,
+      "peak_year": 2021,
+      "peak_market_n": 660,
+      "last12_market_n": 505,
+      "faded_hype": false
     }
   },
   {
@@ -336,7 +392,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 36,
       "lead_tier": "science",
       "dom_vertical": "ECO",
-      "dom_share": 0.65
+      "dom_share": 0.65,
+      "peak_year": 2024,
+      "peak_market_n": 2366,
+      "last12_market_n": 2818,
+      "faded_hype": false
     }
   },
   {
@@ -358,7 +418,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 118,
       "lead_tier": "science",
       "dom_vertical": "LIFESTYLE",
-      "dom_share": 0.53
+      "dom_share": 0.53,
+      "peak_year": 2024,
+      "peak_market_n": 787,
+      "last12_market_n": 801,
+      "faded_hype": false
     }
   },
   {
@@ -380,7 +444,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": -5,
       "lead_tier": "science",
       "dom_vertical": "LIFESTYLE",
-      "dom_share": 0.41
+      "dom_share": 0.41,
+      "peak_year": 2024,
+      "peak_market_n": 243,
+      "last12_market_n": 217,
+      "faded_hype": false
     }
   },
   {
@@ -402,7 +470,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 71,
       "lead_tier": "science",
       "dom_vertical": "BIZ",
-      "dom_share": 0.42
+      "dom_share": 0.42,
+      "peak_year": 2026,
+      "peak_market_n": 2944,
+      "last12_market_n": 3525,
+      "faded_hype": false
     }
   },
   {
@@ -424,7 +496,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 117,
       "lead_tier": "science",
       "dom_vertical": "HEALTH",
-      "dom_share": 0.64
+      "dom_share": 0.64,
+      "peak_year": 2020,
+      "peak_market_n": 3151,
+      "last12_market_n": 2019,
+      "faded_hype": false
     }
   },
   {
@@ -446,7 +522,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": -42,
       "lead_tier": "patent",
       "dom_vertical": "TECH",
-      "dom_share": 0.59
+      "dom_share": 0.59,
+      "peak_year": 2014,
+      "peak_market_n": 292,
+      "last12_market_n": 238,
+      "faded_hype": false
     }
   },
   {
@@ -467,7 +547,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": -12,
       "lead_tier": "science",
       "dom_vertical": "TECH",
-      "dom_share": 0.46
+      "dom_share": 0.46,
+      "peak_year": 2022,
+      "peak_market_n": 238,
+      "last12_market_n": 18,
+      "faded_hype": true
     }
   },
   {
@@ -489,7 +573,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 108,
       "lead_tier": "science",
       "dom_vertical": "BIZ",
-      "dom_share": 0.53
+      "dom_share": 0.53,
+      "peak_year": 2026,
+      "peak_market_n": 2704,
+      "last12_market_n": 3343,
+      "faded_hype": false
     }
   },
   {
@@ -509,7 +597,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 9,
       "lead_tier": "funding",
       "dom_vertical": "TECH",
-      "dom_share": 0.76
+      "dom_share": 0.76,
+      "peak_year": 2022,
+      "peak_market_n": 25,
+      "last12_market_n": 14,
+      "faded_hype": false
     }
   },
   {
@@ -530,7 +622,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 139,
       "lead_tier": "science",
       "dom_vertical": "TECH",
-      "dom_share": 0.79
+      "dom_share": 0.79,
+      "peak_year": 2025,
+      "peak_market_n": 308,
+      "last12_market_n": 333,
+      "faded_hype": false
     }
   },
   {
@@ -551,7 +647,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": -40,
       "lead_tier": "science",
       "dom_vertical": "TECH",
-      "dom_share": 0.67
+      "dom_share": 0.67,
+      "peak_year": 2026,
+      "peak_market_n": 651,
+      "last12_market_n": 802,
+      "faded_hype": false
     }
   },
   {
@@ -572,7 +672,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": -95,
       "lead_tier": "science",
       "dom_vertical": "BIZ",
-      "dom_share": 0.46
+      "dom_share": 0.46,
+      "peak_year": 2021,
+      "peak_market_n": 216,
+      "last12_market_n": 186,
+      "faded_hype": false
     }
   },
   {
@@ -593,7 +697,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 147,
       "lead_tier": "science",
       "dom_vertical": "LIFESTYLE",
-      "dom_share": 0.37
+      "dom_share": 0.37,
+      "peak_year": 2022,
+      "peak_market_n": 13,
+      "last12_market_n": 4,
+      "faded_hype": false
     }
   },
   {
@@ -614,7 +722,11 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "lead_months": 107,
       "lead_tier": "science",
       "dom_vertical": "HEALTH",
-      "dom_share": 0.59
+      "dom_share": 0.59,
+      "peak_year": 2026,
+      "peak_market_n": 1312,
+      "last12_market_n": 1658,
+      "faded_hype": false
     }
   }
 ];

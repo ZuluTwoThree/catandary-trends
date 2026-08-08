@@ -64,6 +64,27 @@ def qualifies_megatrend(reach: float, span: int, lead_months: int | None,
             and lead_months is not None and lead_months > 0)
 
 
+# ---- Faded-hype badge (owner decision 2026-08-08) ---------------------------
+# The honest label for a theme the media wrote about heavily years ago with
+# little durable follow-through (the metaverse pattern). Measured on the
+# MARKET tier only — hype is a media phenomenon, and market-tier volume is
+# immune to the science/patent backfills that shift other tiers' date spread.
+FADED_MIN_PEAK = 100        # the hype must have had substance (market signals/yr)
+FADED_RATIO = 0.25          # last 12 months must be below this fraction of peak
+FADED_YEARS_SINCE_PEAK = 2  # and the peak must lie at least this far back
+
+
+def qualifies_faded_hype(peak_year: int | None, peak_n: int, last12_n: int,
+                         this_year: int, megatrend: bool) -> bool:
+    """A theme is 'faded hype' when its market coverage peaked hard, years ago,
+    and has since collapsed — and it is not an earned Megatrend."""
+    if megatrend or peak_year is None:
+        return False
+    return (peak_n >= FADED_MIN_PEAK
+            and this_year - peak_year >= FADED_YEARS_SINCE_PEAK
+            and last12_n <= FADED_RATIO * peak_n)
+
+
 def month_key(d) -> str | None:
     if not d:
         return None
@@ -136,10 +157,22 @@ def measure_key(members: list[dict]) -> dict:
     dom_share = dom_n / sum(dom.values()) if dom else 0.0
     market_share = totals["market"] / max(len(members), 1)
     score = 0.40 * reach + 0.35 * (span / 4.0) + 0.25 * presence
+    # market-tier hype curve: yearly peak + trailing 12 months (faded-hype axis)
+    market_months = [m for x in members if x["_tier"] == "market"
+                     and (m := month_key(x["published_date"]))]
+    by_year = Counter(m[:4] for m in market_months)
+    peak_year, peak_n = None, 0
+    if by_year:
+        y, n_ = max(by_year.items(), key=lambda kv: (kv[1], kv[0]))
+        peak_year, peak_n = int(y), n_
+    today = date.today()
+    cutoff = f"{today.year - 1:04d}-{today.month:02d}"
+    last12_n = sum(1 for m in market_months if m > cutoff)
     return {"n": len(members), "reach": reach, "span": span, "onsets": onsets,
             "lead_tier": lead_tier, "lead_months": lead_months,
             "presence": presence, "mega_score": score,
-            "dom_v": dom_v, "dom_share": dom_share, "market_share": market_share}
+            "dom_v": dom_v, "dom_share": dom_share, "market_share": market_share,
+            "peak_year": peak_year, "peak_market_n": peak_n, "last12_market_n": last12_n}
 
 
 def _month_range(a: str, b: str):
@@ -197,6 +230,11 @@ def main() -> int:
             if not r:
                 mt["megatrend"] = False
                 continue
+            mt["megatrend"] = qualifies_megatrend(
+                r["reach"], r["span"], r["lead_months"], mt.get("megatrend_veto"))
+            faded = qualifies_faded_hype(r["peak_year"], r["peak_market_n"],
+                                         r["last12_market_n"], date.today().year,
+                                         mt["megatrend"])
             mt["measured"] = {
                 "measured_at": date.today().isoformat(),
                 "reach": round(r["reach"], 2),
@@ -205,16 +243,23 @@ def main() -> int:
                 "lead_tier": r["lead_tier"],
                 "dom_vertical": r["dom_v"],
                 "dom_share": round(r["dom_share"], 2),
+                "peak_year": r["peak_year"],
+                "peak_market_n": r["peak_market_n"],
+                "last12_market_n": r["last12_market_n"],
+                "faded_hype": faded,
             }
-            mt["megatrend"] = qualifies_megatrend(
-                r["reach"], r["span"], r["lead_months"], mt.get("megatrend_veto"))
             stamped += 1
         ypath.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False,
                                         width=100), encoding="utf-8")
         n_mega = sum(1 for mt in data["mega_trends"] if mt.get("megatrend"))
+        faded_keys = [mt["key"] for mt in data["mega_trends"]
+                      if (mt.get("measured") or {}).get("faded_hype")]
         print(f"\n→ mega_trends.yaml: {stamped} Keys vermessen, "
               f"{n_mega} tragen das Megatrend-Badge "
               f"(reach ≥ {MEGATREND_REACH_MIN}, 4 Tiers, Lead > 0, Vetos berücksichtigt)")
+        print(f"  Faded-Hype-Badge: {len(faded_keys)} — {faded_keys or '—'} "
+              f"(Peak ≥ {FADED_MIN_PEAK} Markt-Signale/Jahr, ≥ {FADED_YEARS_SINCE_PEAK} Jahre her, "
+              f"letzte 12 Monate ≤ {FADED_RATIO:.0%} des Peaks)")
 
     out = Path(args.out or f"docs/mega_axes_{date.today().isoformat()}.md")
     doc = ["# Drei-Achsen-Messung der kanonischen Mega-Trend-Keys",

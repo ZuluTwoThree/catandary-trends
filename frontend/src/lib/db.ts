@@ -192,6 +192,8 @@ export interface MegaTrendInfo {
     measured_at: string; reach: number; tiers: number;
     lead_months: number | null; lead_tier?: string | null;
     dom_vertical: string; dom_share: number;
+    peak_year?: number | null; peak_market_n?: number;
+    last12_market_n?: number; faded_hype?: boolean;
   } | null;
 }
 

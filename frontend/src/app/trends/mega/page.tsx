@@ -28,8 +28,10 @@ export default async function MegaTrendsRoute() {
     cluster_strength: mt.cluster_strength,
     horizon: mt.horizon,
   })).sort((a, b) => {
-    // earned Megatrends lead the grid, then momentum, then volume
+    // earned Megatrends lead the grid, faded hype sinks last, then momentum, then volume
     if (Boolean(a.megatrend) !== Boolean(b.megatrend)) return a.megatrend ? -1 : 1;
+    const fa = Boolean(a.measured?.faded_hype), fb = Boolean(b.measured?.faded_hype);
+    if (fa !== fb) return fa ? 1 : -1;
     const ma = MOMENTUM_ORDER[a.momentum ?? "stable"] ?? 2;
     const mb = MOMENTUM_ORDER[b.momentum ?? "stable"] ?? 2;
     if (ma !== mb) return ma - mb;
