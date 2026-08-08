@@ -408,7 +408,7 @@ CREATE TABLE trend_clusters (
 
 ## Automatisierung & Scheduling
 
-### Cron-Jobs (realer Stand seit 2026-07-28)
+### Cron-Jobs (realer Stand seit 2026-08-09)
 
 ```
 # Env-Zeilen sind Pflicht: cron hat keine systemd-User-Session — ohne
@@ -430,8 +430,20 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Monatlicher Quellen-Check mit Issue-Post (1. des Monats, 08:00)
 0 8 1 * *    .venv/bin/python scripts/monthly_source_check.py --post-issue
 
-# Wöchentlicher Patent-Sweep (Dienstag 05:00)
+# Wöchentlicher Patent-Sweep (Dienstag 05:00; --kind both = Cr-Del + Amend,
+# Amend trägt CPC-Codes + Zitationskanten nach — hält den SPNP/TIR-Graph aktuell)
 0 5 * * 2    scripts/weekly_patents.sh
+
+# Patentbasierte Rechnungen nach dem Sweep (Dienstag 08:00, seit 2026-08-09):
+# build_cpc_tier_series + build_cpc_insights + assign_cpc (alles CPU/SQL).
+# Radare + TIR-/SPNP-Forschungsläufe bewusst NICHT im Cron (Owner: on-demand).
+0 8 * * 2    scripts/weekly_patent_analytics.sh
+
+# Nicht-RSS-Ingester wöchentlich (Samstag 05:00, seit 2026-08-09): Preprints
+# (arXiv/bioRxiv/medRxiv, 14-Tage-Fenster) + Funding (NSF/NIH/OpenAIRE/UKRI,
+# 45 Tage) + SEC Form D (Vorquartal, nur im 1. Quartalsmonat) + sofortige
+# Distill-Verarbeitung der Neuzugänge via signal_batch_embedded (GPU-Handover).
+0 5 * * 6    scripts/weekly_ingesters.sh
 ```
 
 Auto-Publish ist in die LLM-Pipeline integriert (Stage 8+9: Reclassify → Auto-Publish);

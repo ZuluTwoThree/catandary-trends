@@ -9,3 +9,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 0 5 * * 2    /home/dirk/projects/catandary-trends/scripts/weekly_patents.sh
 # Full Cycle Mo–Fr 04:00 (Wrapper räumt erst ALLES VRAM frei, Log: ~/logs/catandary-full-cycle-*.log)
 0 4 * * 1-5 /home/dirk/projects/catandary-trends/scripts/full_cycle_cron.sh
+
+# Nicht-RSS-Ingester wöchentlich (#4): Preprints + Funding (+ Form D im Quartalsmonat)
+# inkl. Distill-Verarbeitung der Neuzugänge (GPU-Handover; Samstag = GPU frei).
+# Existenz-Guard: Skript liegt bis zum nächsten dev→main-Merge nur auf dev.
+0 5 * * 6 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_ingesters.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_ingesters.sh || echo "$(date -Iseconds) skip weekly_ingesters (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-ingesters-skip.log
+# Patentbasierte Rechnungen wöchentlich nach dem BDDS-Ingest (Di 05:00 → Refresh 08:00):
+# cpc_tier_series + cpc_insights + signal→CPC. Radare + TIR-Forschung bewusst NICHT im Cron.
+0 8 * * 2 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_patent_analytics.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_patent_analytics.sh || echo "$(date -Iseconds) skip weekly_patent_analytics (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-patent-analytics-skip.log
