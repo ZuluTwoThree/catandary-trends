@@ -75,10 +75,71 @@ export default function MegaTrendsPage({
           Mega Signal <span className="italic">Themes</span>
         </h1>
         <p className="font-sans text-text text-lg leading-relaxed max-w-2xl">
-          The curated themes every signal is mapped into, with measured momentum.
-          Themes that span industries, are evidenced across the whole innovation
-          chain and led the market carry the <span className="text-paper">Megatrend</span> mark.
+          Every signal we track lands in one of these themes. The badges are
+          earned from measurement, never hand-assigned — and the numbers behind
+          each badge are printed on its card.
         </p>
+      </div>
+
+      {/* Legend: what the badges and the measured line mean, in plain words */}
+      <div className="mb-10 border border-dashed border-border bg-card/30 p-5">
+        <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted mb-4">
+          How to read these cards
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
+          <div className="flex items-baseline gap-3">
+            <span className="shrink-0 inline-flex items-center font-mono text-[9px] uppercase tracking-[0.12em] px-2 py-0.5 bg-accent text-ink font-bold">
+              Megatrend
+            </span>
+            <span className="font-sans text-[13px] text-text leading-snug">
+              Spans several industries, has evidence all the way from research to
+              market — and research got there first.
+            </span>
+          </div>
+          <div className="flex items-baseline gap-3">
+            <span className="shrink-0 inline-flex items-center font-mono text-[9px] uppercase tracking-[0.12em] px-2 py-0.5 border"
+              style={{ color: "#a78bfa", borderColor: "#a78bfa55", backgroundColor: "#a78bfa10" }}>
+              Domain
+            </span>
+            <span className="font-sans text-[13px] text-text leading-snug">
+              A deep field, not a cross-industry shift: two thirds or more of its
+              signals sit in a single industry.
+            </span>
+          </div>
+          <div className="flex items-baseline gap-3">
+            <span className="shrink-0 inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em] px-2 py-0.5 border"
+              style={{ color: "#c9a227", borderColor: "#c9a22755", backgroundColor: "#c9a22710" }}>
+              <span>◇</span><span>Faded Hype</span>
+            </span>
+            <span className="font-sans text-[13px] text-text leading-snug">
+              Coverage peaked years ago and has collapsed since — much was
+              written, little proved durable.
+            </span>
+          </div>
+          <div className="flex items-baseline gap-3">
+            <span className="shrink-0 inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.12em] px-2 py-0.5 border"
+              style={{ color: "#22c55e", borderColor: "#22c55e55", backgroundColor: "#22c55e10" }}>
+              ↗ → ↘
+            </span>
+            <span className="font-sans text-[13px] text-text leading-snug">
+              Momentum: the theme&apos;s share of new signals, last 90 days vs the
+              90 before. Too little data — no badge, no guess.
+            </span>
+          </div>
+          <div className="flex items-baseline gap-3 md:col-span-2">
+            <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.12em] text-muted pt-0.5">
+              Measured ·
+            </span>
+            <span className="font-sans text-[13px] text-text leading-snug">
+              The numbers behind the badges: <span className="text-paper">reach</span> =
+              how evenly signals spread across our eight industries (0–1) ·{" "}
+              <span className="text-paper">tiers</span> = evidence in research,
+              patents, funding, market ·{" "}
+              <span className="text-paper">lead</span> = how many months research
+              ran ahead of market coverage. Hover any number for detail.
+            </span>
+          </div>
+        </div>
       </div>
 
       {megaTrends.length === 0 ? (
@@ -175,18 +236,33 @@ export default function MegaTrendsPage({
                 <div className="pt-4 border-t border-dashed border-border">
                   {mt.measured && (
                     <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mb-3 tabular-nums">
-                      Measured · reach <span className="text-paper">{mt.measured.reach.toFixed(2)}</span>
-                      {" · "}<span className="text-paper">{mt.measured.tiers}/4</span> tiers
+                      Measured{" · "}
+                      <span className="cursor-help" title={`Reach ${mt.measured.reach.toFixed(2)} of 1: how evenly this theme's signals spread across our eight industries. 0 = a single industry, 1 = all eight equally.`}>
+                        reach <span className="text-paper">{mt.measured.reach.toFixed(2)}</span>
+                      </span>
+                      {" · "}
+                      <span className="cursor-help" title={`Evidence in ${mt.measured.tiers} of 4 innovation tiers: research, patents, funding, market coverage.`}>
+                        <span className="text-paper">{mt.measured.tiers}/4</span> tiers
+                      </span>
                       {mt.megatrend && mt.measured.lead_months != null ? (
-                        <>{" · "}{mt.measured.lead_tier ?? "early"}→market{" "}
-                        <span className="text-paper">+{mt.measured.lead_months} mo</span></>
+                        <>{" · "}
+                        <span className="cursor-help" title={`${mt.measured.lead_tier ?? "Early"} signals appeared ${mt.measured.lead_months} months before market coverage picked the theme up.`}>
+                          {mt.measured.lead_tier ?? "early"}→market{" "}
+                          <span className="text-paper">+{mt.measured.lead_months} mo</span>
+                        </span></>
                       ) : mt.measured.faded_hype ? (
-                        <>{" · "}peak <span className="text-paper">{mt.measured.peak_market_n}</span>{" "}
-                        ({mt.measured.peak_year}) → last 12 mo{" "}
-                        <span className="text-paper">{mt.measured.last12_market_n}</span></>
+                        <>{" · "}
+                        <span className="cursor-help" title={`Market signals per year: ${mt.measured.peak_market_n} at the ${mt.measured.peak_year} peak vs ${mt.measured.last12_market_n} in the last 12 months.`}>
+                          peak <span className="text-paper">{mt.measured.peak_market_n}</span>{" "}
+                          ({mt.measured.peak_year}) → last 12 mo{" "}
+                          <span className="text-paper">{mt.measured.last12_market_n}</span>
+                        </span></>
                       ) : mt.measured.dom_share >= 0.65 ? (
-                        <>{" · "}{mt.measured.dom_vertical} holds{" "}
-                        <span className="text-paper">{Math.round(mt.measured.dom_share * 100)}%</span></>
+                        <>{" · "}
+                        <span className="cursor-help" title={`${Math.round(mt.measured.dom_share * 100)}% of this theme's signals sit in ${mt.measured.dom_vertical} — the reason it reads as a domain, not a cross-industry shift.`}>
+                          {mt.measured.dom_vertical} holds{" "}
+                          <span className="text-paper">{Math.round(mt.measured.dom_share * 100)}%</span>
+                        </span></>
                       ) : null}
                     </div>
                   )}
