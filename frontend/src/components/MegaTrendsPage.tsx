@@ -10,7 +10,8 @@ interface MegaTrendItem {
   verticals: string[];
   verticalInfos: VerticalInfo[];
   slug: string;
-  momentum?: "rising" | "stable" | "declining" | "emerging";
+  /** Measured (90d share vs prior 90d, lib/momentum.ts); null = no claim. */
+  momentum?: "rising" | "stable" | "declining" | "emerging" | null;
   cluster_strength?: "strong" | "moderate" | "fragmented";
   horizon?: string;
   description?: string;
@@ -28,22 +29,25 @@ function formatFirstSeen(iso: string | null | undefined): string | null {
   }
 }
 
+// Measured, not asserted: the key's share of published signals in the last
+// 90 days vs the 90 days before (lib/momentum.ts). Keys with too few signals
+// for a directional claim carry no badge at all — no claim beats a wrong one.
 const MOMENTUM_CONFIG = {
   rising: {
     label: "Rising", color: "#22c55e", glyph: "↗",
-    tooltip: "Signal frequency is clearly increasing — the trend is gaining traction across sources.",
+    tooltip: "Share of published signals in the last 90 days is at least 15% above the 90 days before.",
   },
   stable: {
     label: "Stable", color: "#a3a3a3", glyph: "→",
-    tooltip: "Signal frequency is steady — the trend is established with no clear up- or downward shift.",
+    tooltip: "Share of published signals in the last 90 days is within ±15% of the 90 days before.",
   },
   declining: {
     label: "Declining", color: "#ef4444", glyph: "↘",
-    tooltip: "Signal frequency is decreasing — the trend is losing momentum relative to earlier periods.",
+    tooltip: "Share of published signals in the last 90 days is at least 15% below the 90 days before.",
   },
   emerging: {
     label: "Emerging", color: "#a855f7", glyph: "◆",
-    tooltip: "Early-stage signal — small absolute volume but sharp recent growth, worth watching.",
+    tooltip: "No published signals in the prior 90-day window — this theme only just started appearing.",
   },
 } as const;
 

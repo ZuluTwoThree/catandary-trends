@@ -314,14 +314,24 @@ def _format_top_trends(trends: list[dict], max_summary: int = 120) -> str:
 
 
 def _format_mega_trend_momentum(data: dict) -> str:
-    """Format top mega-trends with human-readable names, counts and momentum."""
+    """Format top mega-trends with human-readable names, counts and MEASURED
+    momentum (pipeline.mega_momentum — 90d share vs the 90d before). The yaml
+    momentum field was a hand-typed claim (19 of 26 contradicted the data,
+    2026-08-08) and is deliberately not used; keys too thin for a directional
+    call get no momentum word instead of a guess."""
+    from pipeline.mega_momentum import measure
+    try:
+        measured = measure()
+    except Exception:  # noqa: BLE001 — newsletter must not die on a DB hiccup
+        measured = {}
     top_mts = data["mega_trend_counts"].most_common(7)
     parts = []
     for key, count in top_mts:
         mt_info = data["mega_trend_map"].get(key, {})
         name = mt_info.get("name_en", key.replace("_", " ").title())
-        momentum = mt_info.get("momentum", "stable")
-        parts.append(f"{name} ({count} signals, {momentum})")
+        momentum = (measured.get(key) or {}).get("momentum")
+        parts.append(f"{name} ({count} signals, {momentum})" if momentum
+                     else f"{name} ({count} signals)")
     return ", ".join(parts)
 
 

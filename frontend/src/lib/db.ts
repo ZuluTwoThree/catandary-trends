@@ -2,6 +2,7 @@ import path from "path";
 import fs from "fs";
 import yaml from "js-yaml";
 import { q, q1 } from "./pg";
+import { classifyMomentum, type MegaMomentum } from "./momentum";
 import type {
   Trend,
   Vertical,
@@ -174,7 +175,9 @@ export interface MegaTrendInfo {
   verticals: string[];
   name_en: string;
   description: string;
-  momentum: "rising" | "stable" | "declining" | "emerging";
+  /** MEASURED (share of published signals, last 90d vs the 90d before) — see
+   *  lib/momentum.ts. null = too few signals for a directional claim. */
+  momentum: MegaMomentum | null;
   cluster_strength: "strong" | "moderate" | "fragmented";
   signal_count: number;
   horizon: string;
@@ -186,7 +189,7 @@ export interface MegaTrendInfo {
 
 function loadMegaTrendYaml(): Record<string, {
   name_en: string; description: string;
-  momentum: string; cluster_strength: string; signal_count: number; horizon: string;
+  cluster_strength: string; signal_count: number; horizon: string;
 }> {
   const yamlPath = path.join(process.cwd(), "..", "mega_trends.yaml");
   try {
@@ -197,7 +200,9 @@ function loadMegaTrendYaml(): Record<string, {
       map[mt.key as string] = {
         name_en: mt.name_en as string,
         description: mt.description as string,
-        momentum: (mt.momentum as string) || "stable",
+        // momentum deliberately NOT read from yaml: it was a hand-typed claim,
+        // and 19 of 26 contradicted the data (2026-08-08). Measured instead
+        // in fetchMegaTrends via classifyMomentum().
         cluster_strength: (mt.cluster_strength as string) || "fragmented",
         signal_count: (mt.signal_count as number) || 0,
         horizon: (mt.horizon as string) || "",
@@ -220,7 +225,10 @@ async function fetchMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
   let query = `SELECT t.mega_trend, COUNT(*)::int as cnt,
      STRING_AGG(DISTINCT t.primary_vertical, ',') as verts,
      MIN(t.sort_date)::text as first_seen,
-     SUM(CASE WHEN t.sort_date >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END)::int as signals_30d
+     SUM(CASE WHEN t.sort_date >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END)::int as signals_30d,
+     SUM(CASE WHEN t.sort_date >= NOW() - INTERVAL '90 days' THEN 1 ELSE 0 END)::int as recent90,
+     SUM(CASE WHEN t.sort_date >= NOW() - INTERVAL '180 days'
+              AND t.sort_date <  NOW() - INTERVAL '90 days' THEN 1 ELSE 0 END)::int as prior90
      FROM trends t
      WHERE t.mega_trend IS NOT NULL AND t.mega_trend != ''`;
   if (status) {
@@ -235,9 +243,15 @@ async function fetchMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
     verts: string;
     first_seen: string | null;
     signals_30d: number;
+    recent90: number;
+    prior90: number;
   }>(query, params);
 
   const yamlData = loadMegaTrendYaml();
+  // normalization base: the whole labeled corpus in the same windows — shares,
+  // not raw counts, so corpus growth doesn't read as trend growth
+  const totalRecent = rows.reduce((s, r) => s + r.recent90, 0);
+  const totalPrior = rows.reduce((s, r) => s + r.prior90, 0);
 
   return rows.map((r) => {
     const meta = yamlData[r.mega_trend] || {};
@@ -247,7 +261,7 @@ async function fetchMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
       verticals: r.verts ? r.verts.split(",") : [],
       name_en: meta.name_en || r.mega_trend.replace(/_/g, " "),
       description: meta.description || "",
-      momentum: (meta.momentum || "stable") as MegaTrendInfo["momentum"],
+      momentum: classifyMomentum(r.recent90, r.prior90, totalRecent, totalPrior),
       cluster_strength: (meta.cluster_strength || "fragmented") as MegaTrendInfo["cluster_strength"],
       signal_count: r.signals_30d || 0,
       horizon: meta.horizon || "",
