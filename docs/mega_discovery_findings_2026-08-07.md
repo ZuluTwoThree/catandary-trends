@@ -145,3 +145,27 @@ kommen, nicht aus Zwangs-Migration.
 müssen die neuen Heads in den main-Worktree kopiert werden
 (`cp ct-dev/models/distill/*.joblib ct-dev/models/distill/meta.json → catandary-trends/models/distill/`),
 sonst klassifiziert der Prod-Cycle weiter mit 21 Klassen gegen die 28er-yaml.
+
+---
+
+## Nachtrag 2026-08-09: OpenAlex-Batch verarbeitet + Konzept-Reclassify
+
+`signal_batch --backend distill --source-type research`: **118.347 Signale** aus
+128.627 Einträgen (7.858 nicht relevant, ~2.400 Dubletten), 128 Min. Der
+28er-Head zog die akademischen Abstracts jedoch überwiegend in die Attraktoren
+(Quantum-Papers 72 % → AI, EdTech 81 % → AI, orbital +0) — die Seeds der neuen
+Keys stammten aus Markt-Signalen, Wissenschaftssprache liegt woanders im Raum.
+
+Fix: `scripts/reclassify_concept_sources.py` — das Ingest-Konzept (Ground-Truth-
+Metadatum der Quelle) schlägt den Ziel-Key vor, der Head korroboriert per Top-3
+(#39-Gate). **53.447 umgeroutet**; Endstand: quantum 21,7k · education 14,7k ·
+digital_healthcare 37,3k · semis 4,6k.
+
+**Learning:** Bei Aerospace/Satellite/HRM/Telecommuting verweigerte das Gate
+fast vollständig — zu Recht: „aerospace engineering" ist breiter als
+Orbitalwirtschaft, „human resource management" breiter als Work-Models. Für die
+Science-Abdeckung von `orbital_economy_expansion` und `evolution_of_work_models`
+braucht es enger geschnittene OpenAlex-Topics (z. B. commercial spaceflight,
+remote work), nicht laxere Gates. Nach dem nächsten Head-Retrain (der die
+korrigierten Labels als Teacher sieht) lohnt ein erneuter Lauf des
+Konzept-Reclassify — die Korroboration sollte dann deutlich öfter greifen.
