@@ -45,6 +45,24 @@ from pipeline.discovery import _onset, _months_between, tier_of, vertical_entrop
 
 BATCH = 20_000
 
+# ---- Megatrend badge rule (owner decision 2026-08-08) -----------------------
+# The layer is called "Mega Signal Themes"; the word "Megatrend" is an EARNED,
+# measured attribute of individual themes: broad (reach), evidenced across the
+# whole innovation chain (all 4 tiers), and led by the early tiers (lead > 0).
+# Threshold 0.50 was set deliberately so clean_energy_transition (reach 0.50)
+# qualifies. A theme can carry `megatrend_veto` in mega_trends.yaml to be
+# excluded despite the numbers — the catch-all guard (vertical entropy rewards
+# incoherence, so a wastebasket can top the reach axis).
+MEGATREND_REACH_MIN = 0.50
+
+
+def qualifies_megatrend(reach: float, span: int, lead_months: int | None,
+                        veto=None) -> bool:
+    if veto:
+        return False
+    return (reach >= MEGATREND_REACH_MIN and span == 4
+            and lead_months is not None and lead_months > 0)
+
 
 def month_key(d) -> str | None:
     if not d:
@@ -139,6 +157,9 @@ def main() -> int:
     ap.add_argument("--threshold", type=float, default=0.45,
                     help="reference line (= discover_trends --min-mega-score)")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--write-yaml", action="store_true",
+                    help="write measured axes + megatrend flag into mega_trends.yaml "
+                         "(and drop the retired hand-typed momentum field)")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -164,6 +185,36 @@ def main() -> int:
     lines.append(f"◀ = mega_score >= {args.threshold} (Referenz: discover_trends "
                  f"--min-mega-score): {len(qualified)} von {len(order)} Keys")
     print("\n".join(lines))
+
+    if args.write_yaml:
+        import yaml
+        ypath = Path("mega_trends.yaml")
+        data = yaml.safe_load(ypath.read_text(encoding="utf-8"))
+        stamped = 0
+        for mt in data["mega_trends"]:
+            r = results.get(mt["key"])
+            mt.pop("momentum", None)  # retired: hand-typed claim, nothing reads it
+            if not r:
+                mt["megatrend"] = False
+                continue
+            mt["measured"] = {
+                "measured_at": date.today().isoformat(),
+                "reach": round(r["reach"], 2),
+                "tiers": r["span"],
+                "lead_months": r["lead_months"],
+                "lead_tier": r["lead_tier"],
+                "dom_vertical": r["dom_v"],
+                "dom_share": round(r["dom_share"], 2),
+            }
+            mt["megatrend"] = qualifies_megatrend(
+                r["reach"], r["span"], r["lead_months"], mt.get("megatrend_veto"))
+            stamped += 1
+        ypath.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False,
+                                        width=100), encoding="utf-8")
+        n_mega = sum(1 for mt in data["mega_trends"] if mt.get("megatrend"))
+        print(f"\n→ mega_trends.yaml: {stamped} Keys vermessen, "
+              f"{n_mega} tragen das Megatrend-Badge "
+              f"(reach ≥ {MEGATREND_REACH_MIN}, 4 Tiers, Lead > 0, Vetos berücksichtigt)")
 
     out = Path(args.out or f"docs/mega_axes_{date.today().isoformat()}.md")
     doc = ["# Drei-Achsen-Messung der kanonischen Mega-Trend-Keys",

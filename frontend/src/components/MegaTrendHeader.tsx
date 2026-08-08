@@ -26,7 +26,7 @@ export default function MegaTrendHeader({
           href="/trends/mega"
           className="hover:text-paper transition-colors"
         >
-          Mega Trends
+          Mega Signal Themes
         </Link>
         <span className="text-border">/</span>
         <span className="text-paper">{displayName}</span>
@@ -34,7 +34,7 @@ export default function MegaTrendHeader({
 
       <div className="mb-10">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-4">
-          —— Mega Trend
+          —— Signal Theme
         </div>
         <h1 className="font-display text-4xl md:text-[52px] leading-[1.05] tracking-tight text-paper mb-5">
           {displayName}
@@ -84,7 +84,7 @@ export default function MegaTrendHeader({
         </div>
         <div className="border-l-[3px] border-accent pl-5 py-2">
           <p className="font-sans text-sm text-paper">
-            Want the full mega-trend forecast?{" "}
+            Want the full theme forecast?{" "}
             <Link
               href="/trends/foresight"
               className="text-accent hover:underline"

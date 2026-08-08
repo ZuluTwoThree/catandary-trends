@@ -622,7 +622,7 @@ function MegaTrendDistribution({ megaTrends }: { megaTrends: Analytics["mega_tre
   const max = megaTrends[0]?.count ?? 1;
 
   return (
-    <AnalyticsCard title="Mega Trends">
+    <AnalyticsCard title="Signal Themes">
       <div className="space-y-2">
         {megaTrends.slice(0, 8).map((mt) => {
           const info = getMegaTrendInfo(mt.mega_trend);

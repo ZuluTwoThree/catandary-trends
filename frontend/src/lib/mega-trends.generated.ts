@@ -15,7 +15,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "FOOD",
       "DESIGN",
       "LIFESTYLE"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.48,
+      "tiers": 4,
+      "lead_months": 125,
+      "lead_tier": "science",
+      "dom_vertical": "TECH",
+      "dom_share": 0.73
+    }
   },
   {
     "key": "personalized_health_and_longevity",
@@ -27,7 +37,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "TECH",
       "FOOD",
       "FASHION"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.42,
+      "tiers": 4,
+      "lead_months": 141,
+      "lead_tier": "science",
+      "dom_vertical": "HEALTH",
+      "dom_share": 0.65
+    }
   },
   {
     "key": "clean_energy_transition",
@@ -39,7 +59,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "TECH",
       "BIZ",
       "LIFESTYLE"
-    ]
+    ],
+    "megatrend": true,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.5,
+      "tiers": 4,
+      "lead_months": 48,
+      "lead_tier": "science",
+      "dom_vertical": "ECO",
+      "dom_share": 0.56
+    }
   },
   {
     "key": "electric_and_autonomous_mobility",
@@ -51,7 +81,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "ECO",
       "DESIGN",
       "BIZ"
-    ]
+    ],
+    "megatrend": true,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.62,
+      "tiers": 4,
+      "lead_months": 17,
+      "lead_tier": "science",
+      "dom_vertical": "TECH",
+      "dom_share": 0.52
+    }
   },
   {
     "key": "financial_innovation_and_inclusion",
@@ -62,7 +102,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "BIZ",
       "TECH",
       "LIFESTYLE"
-    ]
+    ],
+    "megatrend": true,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.53,
+      "tiers": 4,
+      "lead_months": 179,
+      "lead_tier": "science",
+      "dom_vertical": "BIZ",
+      "dom_share": 0.69
+    }
   },
   {
     "key": "new_luxury_and_premiumization",
@@ -75,7 +125,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "DESIGN",
       "FOOD",
       "BIZ"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.66,
+      "tiers": 3,
+      "lead_months": 221,
+      "lead_tier": "science",
+      "dom_vertical": "FASHION",
+      "dom_share": 0.51
+    }
   },
   {
     "key": "regenerative_design_and_net_positive",
@@ -87,7 +147,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "DESIGN",
       "FOOD",
       "FASHION"
-    ]
+    ],
+    "megatrend": true,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.77,
+      "tiers": 4,
+      "lead_months": 111,
+      "lead_tier": "science",
+      "dom_vertical": "ECO",
+      "dom_share": 0.38
+    }
   },
   {
     "key": "inclusive_and_human_centric_design",
@@ -100,7 +170,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "HEALTH",
       "TECH",
       "FASHION"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.84,
+      "tiers": 4,
+      "lead_months": 140,
+      "lead_tier": "science",
+      "dom_vertical": "LIFESTYLE",
+      "dom_share": 0.36
+    }
   },
   {
     "key": "future_of_food_and_agriculture",
@@ -112,7 +192,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "TECH",
       "HEALTH",
       "ECO"
-    ]
+    ],
+    "megatrend": true,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.65,
+      "tiers": 4,
+      "lead_months": 159,
+      "lead_tier": "science",
+      "dom_vertical": "FOOD",
+      "dom_share": 0.51
+    }
   },
   {
     "key": "connected_living_and_smart_spaces",
@@ -126,7 +216,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "BIZ",
       "ECO",
       "LIFESTYLE"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.74,
+      "tiers": 4,
+      "lead_months": 0,
+      "lead_tier": "science",
+      "dom_vertical": "TECH",
+      "dom_share": 0.47
+    }
   },
   {
     "key": "creator_economy_and_platform_shift",
@@ -138,7 +238,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "TECH",
       "BIZ",
       "FASHION"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.6,
+      "tiers": 2,
+      "lead_months": -71,
+      "lead_tier": "science",
+      "dom_vertical": "LIFESTYLE",
+      "dom_share": 0.46
+    }
   },
   {
     "key": "platformization_of_culture",
@@ -149,7 +259,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "LIFESTYLE",
       "BIZ",
       "TECH"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.47,
+      "tiers": 1,
+      "lead_months": null,
+      "lead_tier": null,
+      "dom_vertical": "BIZ",
+      "dom_share": 0.69
+    }
   },
   {
     "key": "bio_revolution_and_new_materials",
@@ -162,7 +282,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "FASHION",
       "FOOD",
       "HEALTH"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.44,
+      "tiers": 4,
+      "lead_months": 160,
+      "lead_tier": "science",
+      "dom_vertical": "TECH",
+      "dom_share": 0.74
+    }
   },
   {
     "key": "circular_economy_and_zero_waste",
@@ -175,7 +305,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "FASHION",
       "FOOD",
       "BIZ"
-    ]
+    ],
+    "megatrend": true,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.66,
+      "tiers": 4,
+      "lead_months": 33,
+      "lead_tier": "patent",
+      "dom_vertical": "ECO",
+      "dom_share": 0.54
+    }
   },
   {
     "key": "climate_resilience_and_adaptation",
@@ -187,7 +327,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "DESIGN",
       "FOOD",
       "LIFESTYLE"
-    ]
+    ],
+    "megatrend": true,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.59,
+      "tiers": 4,
+      "lead_months": 36,
+      "lead_tier": "science",
+      "dom_vertical": "ECO",
+      "dom_share": 0.65
+    }
   },
   {
     "key": "experience_economy_and_immersive_design",
@@ -199,7 +349,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "BIZ",
       "LIFESTYLE",
       "FOOD"
-    ]
+    ],
+    "megatrend": true,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.69,
+      "tiers": 4,
+      "lead_months": 118,
+      "lead_tier": "science",
+      "dom_vertical": "LIFESTYLE",
+      "dom_share": 0.53
+    }
   },
   {
     "key": "cultural_heritage_and_identity",
@@ -211,7 +371,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "FASHION",
       "LIFESTYLE",
       "FOOD"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.74,
+      "tiers": 3,
+      "lead_months": -5,
+      "lead_tier": "science",
+      "dom_vertical": "LIFESTYLE",
+      "dom_share": 0.41
+    }
   },
   {
     "key": "digital_trust_and_data_sovereignty",
@@ -223,7 +393,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "BIZ",
       "LIFESTYLE",
       "HEALTH"
-    ]
+    ],
+    "megatrend": true,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.65,
+      "tiers": 4,
+      "lead_months": 71,
+      "lead_tier": "science",
+      "dom_vertical": "BIZ",
+      "dom_share": 0.42
+    }
   },
   {
     "key": "mental_health_and_neuro_wellness",
@@ -235,7 +415,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "TECH",
       "FASHION",
       "LIFESTYLE"
-    ]
+    ],
+    "megatrend": true,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.56,
+      "tiers": 4,
+      "lead_months": 117,
+      "lead_tier": "science",
+      "dom_vertical": "HEALTH",
+      "dom_share": 0.64
+    }
   },
   {
     "key": "wearable_technology_and_augmented_living",
@@ -247,7 +437,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "HEALTH",
       "FASHION",
       "DESIGN"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.56,
+      "tiers": 4,
+      "lead_months": -42,
+      "lead_tier": "patent",
+      "dom_vertical": "TECH",
+      "dom_share": 0.59
+    }
   },
   {
     "key": "virtual_worlds_consolidation",
@@ -258,7 +458,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "LIFESTYLE",
       "TECH",
       "BIZ"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.64,
+      "tiers": 2,
+      "lead_months": -12,
+      "lead_tier": "science",
+      "dom_vertical": "TECH",
+      "dom_share": 0.46
+    }
   },
   {
     "key": "geopolitical_disruption_and_supply_chain_resilience",
@@ -270,7 +480,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "ECO",
       "LIFESTYLE",
       "TECH"
-    ]
+    ],
+    "megatrend": true,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.59,
+      "tiers": 4,
+      "lead_months": 108,
+      "lead_tier": "science",
+      "dom_vertical": "BIZ",
+      "dom_share": 0.53
+    }
   },
   {
     "key": "quantum_information_science",
@@ -280,7 +500,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
     "verticals": [
       "TECH",
       "BIZ"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.4,
+      "tiers": 4,
+      "lead_months": 9,
+      "lead_tier": "funding",
+      "dom_vertical": "TECH",
+      "dom_share": 0.76
+    }
   },
   {
     "key": "next_generation_semiconductors",
@@ -291,7 +521,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "TECH",
       "BIZ",
       "ECO"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.39,
+      "tiers": 4,
+      "lead_months": 139,
+      "lead_tier": "science",
+      "dom_vertical": "TECH",
+      "dom_share": 0.79
+    }
   },
   {
     "key": "orbital_economy_expansion",
@@ -302,7 +542,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "TECH",
       "BIZ",
       "ECO"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.49,
+      "tiers": 2,
+      "lead_months": -40,
+      "lead_tier": "science",
+      "dom_vertical": "TECH",
+      "dom_share": 0.67
+    }
   },
   {
     "key": "evolution_of_work_models",
@@ -313,7 +563,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "BIZ",
       "LIFESTYLE",
       "TECH"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.62,
+      "tiers": 2,
+      "lead_months": -95,
+      "lead_tier": "science",
+      "dom_vertical": "BIZ",
+      "dom_share": 0.46
+    }
   },
   {
     "key": "education_and_lifelong_learning",
@@ -324,7 +584,17 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "LIFESTYLE",
       "TECH",
       "BIZ"
-    ]
+    ],
+    "megatrend": false,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.77,
+      "tiers": 3,
+      "lead_months": 147,
+      "lead_tier": "science",
+      "dom_vertical": "LIFESTYLE",
+      "dom_share": 0.37
+    }
   },
   {
     "key": "digital_healthcare_integration",
@@ -335,6 +605,16 @@ export const MEGA_TRENDS: MegaTrendInfo[] = [
       "HEALTH",
       "TECH",
       "BIZ"
-    ]
+    ],
+    "megatrend": true,
+    "measured": {
+      "measured_at": "2026-08-08",
+      "reach": 0.62,
+      "tiers": 4,
+      "lead_months": 107,
+      "lead_tier": "science",
+      "dom_vertical": "HEALTH",
+      "dom_share": 0.59
+    }
   }
 ];

@@ -409,7 +409,7 @@ export default async function LandingPage() {
                   <li>Vertical &amp; PESTEL browsing</li>
                   <li>Search</li>
                   <li>Weekly newsletter</li>
-                  <li>Corpus counter &amp; mega-trend teasers</li>
+                  <li>Corpus counter &amp; signal-theme teasers</li>
                 </ul>
                 <Link className="lp-btn lp-btn-primary" href="/trends/newsletter">
                   Start free

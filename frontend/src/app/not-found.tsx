@@ -28,7 +28,7 @@ export default function NotFound() {
           href="/trends/mega"
           className="font-mono text-[11px] uppercase tracking-[0.18em] border border-border text-muted px-5 py-3 hover:text-paper hover:border-accent/40 transition-colors"
         >
-          Mega trends
+          Signal themes
         </Link>
         <Link
           href="/"

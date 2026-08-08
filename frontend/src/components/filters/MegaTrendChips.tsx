@@ -42,7 +42,7 @@ export default function MegaTrendChips({
     <div className="border border-border p-3">
       <div className="flex items-center justify-between mb-2">
         <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted">
-          Mega-Trend
+          Theme
         </span>
         {options.length > 6 && (
           <button

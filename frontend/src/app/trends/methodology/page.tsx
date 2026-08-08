@@ -147,7 +147,7 @@ export default async function MethodologyPage() {
           {[
             ["Collect", "We pull only legal primary sources — RSS feeds, official APIs and open datasets. No aggregators, no scraping of third-party content."],
             ["Filter", "Each item is judged for relevance and de-duplicated, so noise and repeats never reach the analysis."],
-            ["Classify", "Local models assign industry verticals, PESTEL dimensions, signal type and a canonical mega-trend."],
+            ["Classify", "Local models assign industry verticals, PESTEL dimensions, signal type and a canonical signal theme."],
             ["Cluster", "Signals are grouped by meaning (their embeddings), revealing trend clusters and their momentum over time."],
             ["Attribute", "Every published article and every cluster links back to the primary sources it is built from."],
           ].map(([step, desc], i) => (

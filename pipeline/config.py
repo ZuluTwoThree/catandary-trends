@@ -174,10 +174,11 @@ def get_mega_trend_keys() -> list[str]:
 
 
 def get_mega_trend_prompt_block() -> str:
-    """Build the mega-trend section for the classification prompt."""
+    """Build the mega-trend section for the classification prompt.
+
+    No momentum annotation: that was the hand-typed yaml claim (removed
+    2026-08-08 — 19 of 26 contradicted the measurement), and assigning a
+    signal to a theme doesn't depend on the theme's current momentum anyway.
+    """
     trends = load_mega_trends()
-    lines = []
-    for mt in trends:
-        momentum = mt.get("momentum", "stable")
-        lines.append(f'- {mt["key"]} [{momentum}]: {mt["description"]}')
-    return "\n".join(lines)
+    return "\n".join(f'- {mt["key"]}: {mt["description"]}' for mt in trends)

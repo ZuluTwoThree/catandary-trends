@@ -644,7 +644,14 @@ def parse_vertical_summaries(raw: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 def build_mega_trend_radar(data: dict) -> list[dict]:
-    """Build mega-trend radar entries for the newsletter."""
+    """Build the signal-themes radar entries for the newsletter. Momentum is
+    MEASURED (pipeline.mega_momentum); themes too thin for a directional call
+    carry momentum=None and render without an arrow."""
+    from pipeline.mega_momentum import measure
+    try:
+        measured = measure()
+    except Exception:  # noqa: BLE001 — newsletter must not die on a DB hiccup
+        measured = {}
     radar = []
     for key, count in data["mega_trend_counts"].most_common(7):
         mt_info = data["mega_trend_map"].get(key, {})
@@ -653,7 +660,7 @@ def build_mega_trend_radar(data: dict) -> list[dict]:
             "name_en": mt_info.get("name_en", key.replace("_", " ").title()),
             "name_de": mt_info.get("name_de", ""),
             "icon": mt_info.get("icon", ""),
-            "momentum": mt_info.get("momentum", "stable"),
+            "momentum": (measured.get(key) or {}).get("momentum"),
             "signal_count": count,
         })
     return radar
@@ -796,7 +803,7 @@ def generate_html(edition: dict) -> str:
     period_label = f"Week {week}/{year}"
     title_text = f"Catandary Trends — {period_label}"
     editorial_title = "Weekly Overview"
-    radar_title = "Mega-Trend Radar"
+    radar_title = "Signal Themes Radar"
     cta_text = "View all trends"
     foresight_text = "Deeper analysis? \u2192 Catandary Foresight"
     signals_label = "signals"
@@ -847,11 +854,13 @@ def generate_html(edition: dict) -> str:
         name = mt.get("name_en", "")
         icon = mt.get("icon", "")
         count = mt.get("signal_count", 0)
-        momentum = mt.get("momentum", "stable")
-        arrow = {"rising": "\u2191", "emerging": "\u2191\u2191", "declining": "\u2193", "stable": "\u2192"}.get(momentum, "\u2192")
+        momentum = mt.get("momentum")  # measured; None = too thin for a claim
+        arrows = {"rising": "\u2191", "emerging": "\u2191\u2191", "declining": "\u2193", "stable": "\u2192"}
+        momentum_html = (f' <span style="color: #9ca3af;">({arrows[momentum]} {momentum})</span>'
+                         if momentum in arrows else "")
         radar_items += f"""
         <tr><td style="padding: 6px 0; color: #d1d5db; font-size: 14px;">
-          {icon} {name}: <strong>{count}</strong> {signals_label} <span style="color: #9ca3af;">({arrow} {momentum})</span>
+          {icon} {name}: <strong>{count}</strong> {signals_label}{momentum_html}
         </td></tr>"""
 
     return f"""<!DOCTYPE html>
@@ -881,7 +890,7 @@ def generate_html(edition: dict) -> str:
           {vertical_sections}
         </td></tr>
 
-        <!-- Mega-Trend Radar -->
+        <!-- Signal Themes Radar -->
         <tr><td style="padding: 0 24px 24px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 16px;">
             <tr><td style="padding: 10px 14px; background: #1e1e2e; border-radius: 8px 8px 0 0;">

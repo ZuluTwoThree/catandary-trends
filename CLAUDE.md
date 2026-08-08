@@ -527,7 +527,7 @@ CREATE EXTENSION vector;
 /trends                          → Hauptfeed (Card-Grid, Filter-Bar inkl. Suche ?q= — es gibt KEINE separate /trends/search-Route)
 /trends/[slug]                   → Einzelner Trend-Artikel
 /trends/vertical/[v]             → Redirect auf /trends?v=<VERTICAL>
-/trends/mega, /trends/mega/[m]   → Mega-Trend-Übersicht + Detail
+/trends/mega, /trends/mega/[m]   → „Mega Signal Themes"-Übersicht (28 kuratierte Themes; „Megatrend" ist verdientes, gemessenes Badge — 12 Keys, Regel in scripts/measure_mega_axes.py) + Detail
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
   /radar /clusters /technology /lead-time /evolution /dossier
                                    (Tier-gegated: radar+clusters=Starter, technology+lead-time+

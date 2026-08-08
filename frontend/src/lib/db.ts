@@ -185,10 +185,19 @@ export interface MegaTrendInfo {
   first_seen: string | null;
   /** Number of signals published in the last 30 days. */
   signals_30d: number;
+  /** Earned Megatrend badge (measured; see measure_mega_axes.py). */
+  megatrend: boolean;
+  /** Measurement snapshot backing the badge (reach/tiers/lead/dominance). */
+  measured: {
+    measured_at: string; reach: number; tiers: number;
+    lead_months: number | null; lead_tier?: string | null;
+    dom_vertical: string; dom_share: number;
+  } | null;
 }
 
 function loadMegaTrendYaml(): Record<string, {
   name_en: string; description: string;
+  megatrend: boolean; measured: MegaTrendInfo["measured"];
   cluster_strength: string; signal_count: number; horizon: string;
 }> {
   const yamlPath = path.join(process.cwd(), "..", "mega_trends.yaml");
@@ -200,6 +209,8 @@ function loadMegaTrendYaml(): Record<string, {
       map[mt.key as string] = {
         name_en: mt.name_en as string,
         description: mt.description as string,
+        megatrend: Boolean(mt.megatrend),
+        measured: (mt.measured as Record<string, unknown>) ?? null,
         // momentum deliberately NOT read from yaml: it was a hand-typed claim,
         // and 19 of 26 contradicted the data (2026-08-08). Measured instead
         // in fetchMegaTrends via classifyMomentum().
@@ -262,6 +273,8 @@ async function fetchMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
       name_en: meta.name_en || r.mega_trend.replace(/_/g, " "),
       description: meta.description || "",
       momentum: classifyMomentum(r.recent90, r.prior90, totalRecent, totalPrior),
+      megatrend: Boolean(meta.megatrend),
+      measured: meta.measured ?? null,
       cluster_strength: (meta.cluster_strength || "fragmented") as MegaTrendInfo["cluster_strength"],
       signal_count: r.signals_30d || 0,
       horizon: meta.horizon || "",

@@ -164,7 +164,7 @@ export default function TrendArticle({
             return (
               <div>
                 <dt className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-2">
-                  Mega Trend
+                  Signal Theme
                 </dt>
                 <dd className="text-sm">
                   <Link

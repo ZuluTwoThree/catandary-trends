@@ -95,6 +95,20 @@ export interface MegaTrendInfo {
   description_en: string;
   icon: string;
   verticals: Vertical[];
+  /** Earned Megatrend badge — measured, not asserted (owner rule 2026-08-08:
+   *  reach >= 0.50 AND all 4 innovation tiers AND early-tier lead > 0, minus
+   *  curation veto). Written by scripts/measure_mega_axes.py --write-yaml. */
+  megatrend?: boolean;
+  /** The measurement backing the badge (snapshot, stamped). */
+  measured?: {
+    measured_at: string;
+    reach: number;
+    tiers: number;
+    lead_months: number | null;
+    lead_tier?: string | null;
+    dom_vertical: string;
+    dom_share: number;
+  } | null;
 }
 
 export function getMegaTrendInfo(key: string): MegaTrendInfo | undefined {

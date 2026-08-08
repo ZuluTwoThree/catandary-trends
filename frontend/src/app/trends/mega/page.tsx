@@ -6,9 +6,9 @@ import ForesightCta from "@/components/ForesightCta";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Mega-Trends — Catandary Trends",
+  title: "Mega Signal Themes — Catandary Trends",
   description:
-    "Long-term structural mega-trends with momentum tracking, mapped across all eight industry verticals.",
+    "The curated signal themes every signal is mapped into — with measured momentum, and an earned Megatrend mark where reach, maturity and lead time back it.",
 };
 
 export default async function MegaTrendsRoute() {
@@ -28,6 +28,8 @@ export default async function MegaTrendsRoute() {
     cluster_strength: mt.cluster_strength,
     horizon: mt.horizon,
   })).sort((a, b) => {
+    // earned Megatrends lead the grid, then momentum, then volume
+    if (Boolean(a.megatrend) !== Boolean(b.megatrend)) return a.megatrend ? -1 : 1;
     const ma = MOMENTUM_ORDER[a.momentum ?? "stable"] ?? 2;
     const mb = MOMENTUM_ORDER[b.momentum ?? "stable"] ?? 2;
     if (ma !== mb) return ma - mb;

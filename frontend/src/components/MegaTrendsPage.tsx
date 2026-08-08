@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { VerticalInfo, MegaTrendInfo } from "@/lib/types";
-import { getMegaTrendInfo } from "@/lib/types";
+import type { VerticalInfo, MegaTrendInfo, Vertical } from "@/lib/types";
+import { getMegaTrendInfo, getVerticalInfo } from "@/lib/types";
 
 interface MegaTrendItem {
   mega_trend: string;
@@ -12,6 +12,13 @@ interface MegaTrendItem {
   slug: string;
   /** Measured (90d share vs prior 90d, lib/momentum.ts); null = no claim. */
   momentum?: "rising" | "stable" | "declining" | "emerging" | null;
+  /** Earned Megatrend badge (measured axes, see measure_mega_axes.py). */
+  megatrend?: boolean;
+  measured?: {
+    measured_at: string; reach: number; tiers: number;
+    lead_months: number | null; lead_tier?: string | null;
+    dom_vertical: string; dom_share: number;
+  } | null;
   cluster_strength?: "strong" | "moderate" | "fragmented";
   horizon?: string;
   description?: string;
@@ -60,20 +67,21 @@ export default function MegaTrendsPage({
     <>
       <div className="mb-12">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-4">
-          —— Structural Shifts
+          —— The Signal Map
         </div>
         <h1 className="font-display text-4xl md:text-[52px] leading-[1.05] tracking-tight text-paper mb-4">
-          Mega <span className="italic">Trends</span>
+          Mega Signal <span className="italic">Themes</span>
         </h1>
         <p className="font-sans text-text text-lg leading-relaxed max-w-2xl">
-          Long-term structural shifts reshaping industries over the next
-          10–25 years.
+          The curated themes every signal is mapped into, with measured momentum.
+          Themes that span industries, are evidenced across the whole innovation
+          chain and led the market carry the <span className="text-paper">Megatrend</span> mark.
         </p>
       </div>
 
       {megaTrends.length === 0 ? (
         <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
-          No mega trends discovered yet. Check back soon.
+          No signal themes yet. Check back soon.
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -98,8 +106,30 @@ export default function MegaTrendsPage({
                     <span className="text-border">·</span>
                     <span title="New signals in the last 30 days"><span className="text-accent tabular-nums">{(mt.signals_30d ?? 0).toLocaleString("en-US")}</span> in last 30 days</span>
                     <span className="text-border">·</span>
-                    <span title="Total signals mapped to this mega-trend"><span className="text-paper tabular-nums">{mt.count.toLocaleString("en-US")}</span> total</span>
+                    <span title="Total signals mapped to this theme"><span className="text-paper tabular-nums">{mt.count.toLocaleString("en-US")}</span> total</span>
                   </div>
+                  <span className="inline-flex items-center gap-1.5">
+                  {mt.megatrend && mt.measured && (
+                    <span
+                      className="inline-flex items-center font-mono text-[9px] uppercase tracking-[0.12em] px-2 py-0.5 bg-accent text-ink font-bold cursor-help"
+                      title={`Earned: spans industries (reach ${mt.measured.reach.toFixed(2)}), evidenced across all 4 innovation tiers, ${mt.measured.lead_tier ?? "early"} tier led the market by ${mt.measured.lead_months ?? "—"} months. Measured ${mt.measured.measured_at}.`}
+                    >
+                      Megatrend
+                    </span>
+                  )}
+                  {!mt.megatrend && mt.measured && mt.measured.dom_share >= 0.65 && (
+                    <span
+                      className="inline-flex items-center font-mono text-[9px] uppercase tracking-[0.12em] px-2 py-0.5 border cursor-help"
+                      title={`${Math.round(mt.measured.dom_share * 100)}% of signals sit in one vertical — a deep field, not a cross-industry shift. Measured ${mt.measured.measured_at}.`}
+                      style={{
+                        color: getVerticalInfo(mt.measured.dom_vertical as Vertical).color,
+                        borderColor: getVerticalInfo(mt.measured.dom_vertical as Vertical).color + "55",
+                        backgroundColor: getVerticalInfo(mt.measured.dom_vertical as Vertical).color + "10",
+                      }}
+                    >
+                      {mt.measured.dom_vertical} Domain
+                    </span>
+                  )}
                   {mt.momentum && (
                     <span
                       className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em] px-2 py-0.5 border cursor-help"
@@ -114,6 +144,7 @@ export default function MegaTrendsPage({
                       <span>{MOMENTUM_CONFIG[mt.momentum].label}</span>
                     </span>
                   )}
+                  </span>
                 </div>
 
                 <h2 className="font-display text-[22px] leading-tight text-paper group-hover:text-accent transition-colors mb-2">
@@ -126,6 +157,19 @@ export default function MegaTrendsPage({
                 )}
 
                 <div className="pt-4 border-t border-dashed border-border">
+                  {mt.measured && (
+                    <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mb-3 tabular-nums">
+                      Measured · reach <span className="text-paper">{mt.measured.reach.toFixed(2)}</span>
+                      {" · "}<span className="text-paper">{mt.measured.tiers}/4</span> tiers
+                      {mt.megatrend && mt.measured.lead_months != null ? (
+                        <>{" · "}{mt.measured.lead_tier ?? "early"}→market{" "}
+                        <span className="text-paper">+{mt.measured.lead_months} mo</span></>
+                      ) : mt.measured.dom_share >= 0.65 ? (
+                        <>{" · "}{mt.measured.dom_vertical} holds{" "}
+                        <span className="text-paper">{Math.round(mt.measured.dom_share * 100)}%</span></>
+                      ) : null}
+                    </div>
+                  )}
                   <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-3">
                     Affected Verticals
                   </div>
@@ -152,7 +196,7 @@ export default function MegaTrendsPage({
                 </div>
 
                 <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent/70 mt-5">
-                  Open mega-trend →
+                  Open theme →
                 </p>
               </Link>
             );

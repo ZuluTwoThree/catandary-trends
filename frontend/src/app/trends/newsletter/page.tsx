@@ -8,7 +8,8 @@ interface MegaTrendRadar {
   key: string;
   name_en: string;
   icon: string;
-  momentum: string;
+  /** Measured; null/absent = too thin for a directional claim. */
+  momentum?: string | null;
   signal_count: number;
 }
 
@@ -429,13 +430,14 @@ export default function NewsletterPage() {
           {edition.mega_trend_radar && edition.mega_trend_radar.length > 0 && (
             <section className="mb-12">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">
-                03 — Mega-Trend Radar
+                03 — Signal Themes Radar
               </div>
               <div className="border border-border bg-card/40 p-5">
                 <div className="space-y-3">
                   {edition.mega_trend_radar.map((mt) => {
-                    const glyph =
-                      MOMENTUM_GLYPHS[mt.momentum] || MOMENTUM_GLYPHS.stable;
+                    const glyph = mt.momentum
+                      ? MOMENTUM_GLYPHS[mt.momentum] ?? null
+                      : null;
                     return (
                       <div
                         key={mt.key}
@@ -447,7 +449,7 @@ export default function NewsletterPage() {
                         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted inline-flex items-center gap-2">
                           <span className="text-paper">{mt.signal_count}</span>
                           <span>Signals</span>
-                          <span className="text-accent">{glyph}</span>
+                          {glyph && <span className="text-accent">{glyph}</span>}
                         </span>
                       </div>
                     );
