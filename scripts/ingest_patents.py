@@ -608,6 +608,25 @@ def parse_docdb_document(doc, require_en: bool = True,
         applicant = _dt(an.find("name"))
         if applicant:
             break
+    # strukturiert fuer patent_assignee_raw (2026-08-09, #7): bester Format-Rang
+    # je Sequenz — docdba (ASCII) > original > docdb; Reihenfolge wie
+    # scripts/extract_bdds_attrs.py, damit Weekly und Back-File identisch schreiben
+    _fmt_pref = {"docdba": 0, "original": 1, "docdb": 2}
+    _best: dict[int, tuple[int, str, str]] = {}
+    for ap_el in doc.iter(f"{_EXCH}applicant"):
+        try:
+            seq = int(ap_el.get("sequence", "0"))
+        except ValueError:
+            continue
+        fmt = ap_el.get("data-format", "docdb")
+        nm = ap_el.find(f"{_EXCH}applicant-name/name")
+        name = _dt(nm)
+        if not name:
+            continue
+        rank = _fmt_pref.get(fmt, 9)
+        if seq not in _best or rank < _best[seq][0]:
+            _best[seq] = (rank, name[:500], fmt)
+    applicants = [(seq, name, fmt) for seq, (_, name, fmt) in sorted(_best.items())]
     links = []
     for pc in doc.iter():  # citations live under references-cited/citation/patcit
         if pc.tag.endswith("patcit"):
@@ -625,7 +644,9 @@ def parse_docdb_document(doc, require_en: bool = True,
         if d and d != pub:
             links.append((pub, d, "family", None))
     return {"title": title, "abstract": abstract, "pub_number": pub, "pub_date": pub_date,
-            "applicant": applicant, "cpc": cpc[:8], "cpc_struct": cpc_struct, "vertical": vert,
+            "applicant": applicant, "applicants": applicants,
+            "family_id": (doc.get("family-id") if (doc.get("family-id") or "").isdigit() else None),
+            "cpc": cpc[:8], "cpc_struct": cpc_struct, "vertical": vert,
             # espacenet url uses the concatenated form (no dashes)
             "url": f"https://worldwide.espacenet.com/patent/search/publication/{pub.replace('-', '')}",
             "kind_code": doc.get("kind", "") or kind_code(pub), "links": links}
@@ -656,7 +677,10 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
     raw_buf: list[tuple] = []
     link_buf: list[tuple] = []
     cpc_buf: list[tuple] = []
-    st = {"docs": 0, "matched": 0, "inserted": 0, "duplicates": 0, "links": 0, "cpc": 0}
+    fam_buf: list[tuple] = []   # (pub_number, family_id)          → patent_family
+    asg_buf: list[tuple] = []   # (pub_number, seq, name, fmt)      → patent_assignee_raw
+    st = {"docs": 0, "matched": 0, "inserted": 0, "duplicates": 0, "links": 0, "cpc": 0,
+          "family": 0, "assignees": 0}
     with httpx.Client(timeout=600, headers={"User-Agent": "catandary-trends/patents"}) as client:
         token = bdds_token(client)
         prod = client.get(f"{BDDS_API}/products/{product_id}",
@@ -747,6 +771,14 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
                             cpc_buf.append((rec["pub_number"], code, db.cpc_subclass(code), 1 if inv else 0))
                         if len(cpc_buf) >= 5000:
                             st["cpc"] += db.insert_patent_cpc(cpc_buf); cpc_buf.clear()
+                        if rec.get("family_id"):
+                            fam_buf.append((rec["pub_number"], int(rec["family_id"])))
+                        for seq, nm, fmt in rec.get("applicants", []):
+                            asg_buf.append((rec["pub_number"], seq, nm, fmt))
+                        if len(fam_buf) >= 5000:
+                            st["family"] += db.insert_patent_family(fam_buf); fam_buf.clear()
+                        if len(asg_buf) >= 5000:
+                            st["assignees"] += db.insert_patent_assignees(asg_buf); asg_buf.clear()
                     logger.info("  %s — docs=%d matched=%d inserted=%d edges=%d",
                                 name.split("/")[-1], st["docs"], st["matched"], st["inserted"], st["links"])
             if keep_files:
@@ -764,6 +796,10 @@ def ingest_bdds(product_id: int, after: str, before: str, max_files: int,
             st["links"] += db.insert_patent_links(link_buf)
         if cpc_buf:
             st["cpc"] += db.insert_patent_cpc(cpc_buf)
+        if fam_buf:
+            st["family"] += db.insert_patent_family(fam_buf)
+        if asg_buf:
+            st["assignees"] += db.insert_patent_assignees(asg_buf)
     tag = "[dry] " if dry_run else ""
     logger.info("%sBDDS DOCDB: docs %d | matched %d | %s %d | %d dup | %d edges | %d cpc", tag,
                 st["docs"], st["matched"], "würde einfügen" if dry_run else "eingefügt",

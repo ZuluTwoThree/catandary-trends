@@ -633,6 +633,32 @@ def insert_patent_cpc(rows: list[tuple]) -> int:
         return len(rows)
 
 
+def insert_patent_family(rows: list[tuple]) -> int:
+    """Batch-insert (pub_number, family_id) — DOCDB-simple-family aus dem
+    exchange-document-Attribut (#7, 2026-08-09). Idempotent via PK pub_number;
+    Tabelle wird von scripts/extract_bdds_attrs.py angelegt (Back-File) und hier
+    vom Weekly-Ingest weitergefuehrt."""
+    if not rows:
+        return 0
+    with get_connection() as conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO patent_family (pub_number, family_id) "
+            "VALUES (?, ?)", rows)
+        return len(rows)
+
+
+def insert_patent_assignees(rows: list[tuple]) -> int:
+    """Batch-insert (pub_number, seq, name, fmt) — Anmelder-Rohnamen, bester
+    Format-Rang je Sequenz (docdba > original > docdb), analog extract_bdds_attrs."""
+    if not rows:
+        return 0
+    with get_connection() as conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO patent_assignee_raw (pub_number, seq, name, fmt) "
+            "VALUES (?, ?, ?, ?)", rows)
+        return len(rows)
+
+
 # --- OpenAlex graph layer (issue #9) — science analog of the patent graph -----
 
 def _migrate_openalex_graph():
