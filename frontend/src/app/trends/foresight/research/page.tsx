@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getResearchSignals, getResearchStats } from "@/lib/db";
 import { MEGA_TRENDS } from "@/lib/mega-trends.generated";
+import TierGate from "@/components/TierGate";
+import { canAccess } from "@/lib/entitlement";
 
 export const dynamic = "force-dynamic";
 
@@ -33,14 +35,20 @@ export default async function ResearchExplorerPage({
   const theme = (sp.theme ?? "").trim();
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
+  // Owner-Entscheid 2026-08-09 (#72): Explorer ist Starter-gegated. Ohne
+  // Zugriff wird die Suche gar nicht erst ausgefuehrt — der Teaser laedt nur
+  // die drei neuesten Eintraege (Suchparameter bleiben serverseitig wirkungslos).
+  const allowed = await canAccess("starter");
   const [stats, { rows, total }] = await Promise.all([
     getResearchStats(),
-    getResearchSignals({
-      q: qText || undefined,
-      mega: theme || undefined,
-      limit: PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
-    }),
+    allowed
+      ? getResearchSignals({
+          q: qText || undefined,
+          mega: theme || undefined,
+          limit: PAGE_SIZE,
+          offset: (page - 1) * PAGE_SIZE,
+        })
+      : getResearchSignals({ limit: 3, offset: 0 }),
   ]);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const qs = (p: number) => {
@@ -70,6 +78,32 @@ export default async function ResearchExplorerPage({
         </p>
       </div>
 
+      <TierGate
+        need="starter"
+        feature="The searchable research corpus"
+        benefit={`Starter opens full-text search across all ${stats.total.toLocaleString("en-US")} papers, preprints and grants — with theme filters and direct source links.`}
+        teaser={
+          <div>
+            <div className="flex flex-col divide-y divide-border border-t border-b border-border">
+              {rows.map((r) => (
+                <article key={r.trend_id} className="py-5">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted mb-1.5">
+                    <span className="text-paper">{fmtDate(r.published)}</span>
+                    {r.concept && <span> · {r.concept}</span>}
+                  </div>
+                  <h2 className="font-display text-[19px] leading-snug text-paper mb-1.5">{r.title}</h2>
+                  {r.abstract && (
+                    <p className="font-sans text-sm text-text leading-relaxed line-clamp-2 max-w-3xl">{r.abstract}</p>
+                  )}
+                </article>
+              ))}
+            </div>
+            <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              Free preview — the 3 newest of {stats.total.toLocaleString("en-US")} research signals
+            </p>
+          </div>
+        }
+      >
       {/* Suche + Theme-Filter als GET-Form — Server-gerendert, keine Client-Logik */}
       <form
         method="GET"
@@ -182,6 +216,8 @@ export default async function ResearchExplorerPage({
           )}
         </nav>
       )}
+
+      </TierGate>
 
       <p className="mt-10 font-sans text-[13px] text-muted max-w-3xl border-t border-dashed border-border pt-4">
         Corpus: OpenAlex works (incl. a citation-free 2025+ fresh sweep), arXiv /
