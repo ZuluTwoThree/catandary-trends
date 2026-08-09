@@ -28,3 +28,4 @@ numpy>=1.26
 scikit-learn>=1.4
 pyarrow>=14
 trafilatura>=2.1  # full-text article extraction (#11)
+pytrends>=4.9
