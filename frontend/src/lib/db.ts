@@ -344,6 +344,134 @@ export async function getResearchStats(): Promise<{ total: number; last30d: numb
 }
 
 
+export interface PatentSignal {
+  pub_number: string;
+  title: string;
+  abstract: string | null;
+  url: string;
+  published: string | null;
+  assignee: string | null;
+  family_id: number | null;
+  family_size: number | null;
+  cpcs: string[];
+}
+
+/** Patent Explorer (#74): FTS directly on raw_entries via the existing
+ *  idx_re_patent_fts GIN index (19.6M patents — no materialization needed).
+ *  Result counts are clamped at 10k (a full COUNT over millions is slower
+ *  than the search itself); callers render "10,000+". */
+const PATENT_FTS =
+  "to_tsvector('english', COALESCE(r.title,'') || ' ' || COALESCE(r.excerpt,''))";
+const PATENT_COUNT_CLAMP = 10000;
+
+// Anreicherungs-Spalten pro Trefferzeile (Assignee, Familie, CPC-Chips) —
+// identisch für beide Query-Pfade unten.
+const PATENT_ROW_COLS = `
+       r.pub_number, r.title, NULLIF(r.excerpt, '') as abstract, r.url,
+       LEAST(r.published_date, NOW())::date::text as published,
+       asg.name as assignee,
+       pf.family_id,
+       (SELECT COUNT(*)::int FROM patent_family pf2
+        WHERE pf2.family_id = pf.family_id) as family_size,
+       COALESCE(cp.subs, '{}') as cpcs`;
+const PATENT_ROW_JOINS = `
+     LEFT JOIN LATERAL (
+       SELECT a.name FROM patent_assignee_raw a
+       WHERE a.pub_number = r.pub_number ORDER BY a.seq LIMIT 1) asg ON TRUE
+     LEFT JOIN patent_family pf ON pf.pub_number = r.pub_number
+     LEFT JOIN LATERAL (
+       SELECT array_agg(DISTINCT pc.subclass) as subs FROM (
+         SELECT subclass FROM patent_cpc
+         WHERE pub_number = r.pub_number LIMIT 6) pc) cp ON TRUE`;
+
+export async function getPatentSignals(options: {
+  q?: string;
+  cpc?: string;
+  country?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{ rows: PatentSignal[]; total: number; clamped: boolean }> {
+  const limit = options.limit ?? 25;
+  const offset = options.offset ?? 0;
+  const params: unknown[] = [];
+  let countSql: string;
+  let rowSql: string;
+
+  if (options.cpc && !options.q) {
+    // Browse-Pfad Technologie-Facette: patent_cpc (128M Zeilen) ist dafür
+    // unbrauchbar (>240s gemessen) — die materialisierte Tabelle
+    // patent_explorer_cpc (scripts/build_patent_explorer_index.py, kuratierte
+    // Subclasses) liefert die Datums-Sortierung direkt aus ihrem Index.
+    params.push(options.cpc);
+    let w = `pcc.subclass = $1`;
+    if (options.country) {
+      params.push(options.country + "-%");
+      w += ` AND pcc.pub_number LIKE $${params.length}`;
+    }
+    countSql = `SELECT COUNT(*)::int as cnt FROM (
+       SELECT 1 FROM patent_explorer_cpc pcc WHERE ${w}
+       LIMIT ${PATENT_COUNT_CLAMP + 1}) x`;
+    params.push(limit, offset);
+    rowSql = `SELECT ${PATENT_ROW_COLS}
+     FROM patent_explorer_cpc pcc
+     JOIN raw_entries r ON r.pub_number = pcc.pub_number
+     ${PATENT_ROW_JOINS}
+     WHERE ${w}
+     ORDER BY pcc.published DESC
+     LIMIT $${params.length - 1} OFFSET $${params.length}`;
+  } else {
+    const where: string[] = ["r.pub_number IS NOT NULL"];
+    if (options.q) {
+      params.push(options.q);
+      where.push(`${PATENT_FTS} @@ websearch_to_tsquery('english', $${params.length})`);
+    }
+    if (options.cpc) {
+      params.push(options.cpc);
+      where.push(`EXISTS (SELECT 1 FROM patent_cpc pc
+                  WHERE pc.pub_number = r.pub_number AND pc.subclass = $${params.length})`);
+    }
+    if (options.country) {
+      params.push(options.country + "-%");
+      where.push(`r.pub_number LIKE $${params.length}`);
+    }
+    const w = where.join(" AND ");
+    countSql = `SELECT COUNT(*)::int as cnt FROM (
+       SELECT 1 FROM raw_entries r WHERE ${w} LIMIT ${PATENT_COUNT_CLAMP + 1}) x`;
+    const rank = options.q
+      ? `ts_rank(${PATENT_FTS}, websearch_to_tsquery('english', $1)) DESC, `
+      : "";
+    params.push(limit, offset);
+    // ORDER BY ohne NULLS LAST: idx_raw_patent_pubdate ist DESC (= NULLS
+    // FIRST) — nur so trägt der Index die Sortierung. Patente ohne
+    // published_date gibt es nicht (0 von 19,6M, gemessen 2026-08-09).
+    rowSql = `SELECT ${PATENT_ROW_COLS}
+     FROM raw_entries r
+     ${PATENT_ROW_JOINS}
+     WHERE ${w}
+     ORDER BY ${rank}r.published_date DESC
+     LIMIT $${params.length - 1} OFFSET $${params.length}`;
+  }
+
+  const countRow = await q1<{ cnt: number }>(countSql, params.slice(0, -2));
+  const total = countRow?.cnt ?? 0;
+  const rows = await q<PatentSignal>(rowSql, params);
+  return {
+    rows: rows.map((r) => ({ ...r, cpcs: (r.cpcs as unknown as string[]) ?? [] })),
+    total: Math.min(total, PATENT_COUNT_CLAMP),
+    clamped: total > PATENT_COUNT_CLAMP,
+  };
+}
+
+export async function getPatentStats(): Promise<{ total: number; assignees: number }> {
+  return cached("patent-stats", 3_600_000, async () => {
+    const row = await q1<{ total: number; assignees: number }>(
+      `SELECT (SELECT COUNT(*)::int FROM raw_entries WHERE pub_number IS NOT NULL) as total,
+              (SELECT COUNT(DISTINCT pub_number)::int FROM patent_assignee_raw) as assignees`);
+    return { total: row?.total ?? 0, assignees: row?.assignees ?? 0 };
+  });
+}
+
+
 export async function getTopTrendsByEngagement(limit: number = 10): Promise<Trend[]> {
   const rows = await q(
     `SELECT ${TREND_COLS},

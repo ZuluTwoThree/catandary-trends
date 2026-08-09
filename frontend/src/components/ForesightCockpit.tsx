@@ -362,7 +362,7 @@ export default function ForesightCockpit({
             </div>
           </div>
 
-          {/* Entry points to the two explorers, so the hub isn't a dead end */}
+          {/* Entry points to the explorers, so the hub isn't a dead end */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Link
               href="/trends/foresight/technology"
@@ -395,6 +395,17 @@ export default function ForesightCockpit({
               </div>
               <div className="font-sans text-sm text-text mt-1">
                 What your peers publish — 430k+ searchable papers, preprints and grants
+              </div>
+            </Link>
+            <Link
+              href="/trends/foresight/patents"
+              className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                Patent Explorer →
+              </div>
+              <div className="font-sans text-sm text-text mt-1">
+                What gets protected — 19M+ searchable patents with abstracts and technology facets
               </div>
             </Link>
           </div>

@@ -12,6 +12,9 @@
 #                               nativ und die frische signal_cpc-Projektion auf)
 #   3. build_cpc_insights     — Frontend-Payloads der kuratierten Technologien
 #                               (liest die eben gebauten Serien)
+#   4. build_patent_explorer_index — materialisierter CPC-Browse-Index des
+#                               Patent Explorers (nach dem Ingest, damit die
+#                               neuen Wochen-Patente browsebar werden)
 #
 # BEWUSST NICHT im Cron:
 #   - Radare (Owner-Entscheid 2026-07-30: nur auf Knopfdruck, Radar = Dokument
@@ -34,7 +37,7 @@ mkdir -p "$(dirname "$LOG")"
   source .venv/bin/activate
 
   RC=0
-  for STEP in "assign_cpc" "build_cpc_tier_series" "build_cpc_insights"; do
+  for STEP in "assign_cpc" "build_cpc_tier_series" "build_cpc_insights" "build_patent_explorer_index"; do
     echo; echo "----- $STEP $(date -Iseconds) -----"
     T0=$(date +%s)
     python -u "scripts/${STEP}.py" || RC=$?
