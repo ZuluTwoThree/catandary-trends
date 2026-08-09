@@ -386,6 +386,17 @@ export default function ForesightCockpit({
                 What&apos;s moving right now — momentum clusters across all verticals
               </div>
             </Link>
+            <Link
+              href="/trends/foresight/research"
+              className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                Research Explorer →
+              </div>
+              <div className="font-sans text-sm text-text mt-1">
+                What your peers publish — 430k+ searchable papers, preprints and grants
+              </div>
+            </Link>
           </div>
 
           {topClusters.length > 0 && (

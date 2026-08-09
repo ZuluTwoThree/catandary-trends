@@ -286,6 +286,64 @@ async function fetchMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
   });
 }
 
+export interface ResearchSignal {
+  trend_id: number;
+  title: string;
+  abstract: string | null;
+  url: string;
+  source: string | null;
+  concept: string | null;
+  published: string | null;
+  mega_trend: string | null;
+  vertical: string | null;
+}
+
+/** Research Explorer (#72): FTS over the materialized research_signals table
+ *  (built by scripts/build_research_index.py — 434k abstracts, GIN-indexed).
+ *  Returns one page of results + the total match count. */
+export async function getResearchSignals(options: {
+  q?: string;
+  mega?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{ rows: ResearchSignal[]; total: number }> {
+  const params: unknown[] = [];
+  const where: string[] = [];
+  if (options.q) {
+    params.push(options.q);
+    where.push(`tsv @@ websearch_to_tsquery('english', $${params.length})`);
+  }
+  if (options.mega) {
+    params.push(options.mega);
+    where.push(`mega_trend = $${params.length}`);
+  }
+  const w = where.length ? ` WHERE ${where.join(" AND ")}` : "";
+  const totalRow = await q1<{ cnt: number }>(
+    `SELECT COUNT(*)::int as cnt FROM research_signals${w}`, params);
+  const rank = options.q
+    ? `ts_rank(tsv, websearch_to_tsquery('english', $1)) DESC, `
+    : "";
+  params.push(options.limit ?? 25, options.offset ?? 0);
+  const rows = await q<ResearchSignal>(
+    `SELECT trend_id, title, abstract, url, source, concept, published::text as published,
+            mega_trend, vertical
+     FROM research_signals${w}
+     ORDER BY ${rank}published DESC NULLS LAST
+     LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+  return { rows, total: totalRow?.cnt ?? 0 };
+}
+
+export async function getResearchStats(): Promise<{ total: number; last30d: number }> {
+  return cached("research-stats", 600_000, async () => {
+    const row = await q1<{ total: number; last30d: number }>(
+      `SELECT COUNT(*)::int as total,
+              SUM(CASE WHEN published >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END)::int as last30d
+       FROM research_signals`);
+    return { total: row?.total ?? 0, last30d: row?.last30d ?? 0 };
+  });
+}
+
+
 export async function getTopTrendsByEngagement(limit: number = 10): Promise<Trend[]> {
   const rows = await q(
     `SELECT ${TREND_COLS},

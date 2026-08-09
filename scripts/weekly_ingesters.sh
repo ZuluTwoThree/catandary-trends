@@ -66,6 +66,10 @@ with get_connection() as c:
   python -u scripts/signal_batch_embedded.py --source-type research --min-id "$MIN_ID" || RC=$?
   python -u scripts/signal_batch_embedded.py --source-type api --no-patents --min-id "$MIN_ID" || RC=$?
 
+  # Research-Explorer-Index (#72) nach der Verarbeitung neu materialisieren
+  echo; echo "----- Research-Index-Rebuild -----"
+  python -u scripts/build_research_index.py || RC=$?
+
   echo; echo "weekly_ingesters.sh end $(date -Iseconds) (rc=$RC)"
   exit "$RC"
 } >> "$LOG" 2>&1
