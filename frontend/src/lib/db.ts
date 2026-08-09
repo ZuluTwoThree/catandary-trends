@@ -471,6 +471,37 @@ export async function getPatentStats(): Promise<{ total: number; assignees: numb
   });
 }
 
+/** Technologie-Intelligenz aus den PATSTAT-TIP-Referenztabellen (#14):
+ *  Top-Anmelder (harmonisierte PSN-Namen) + Sektor-Zeilen für die
+ *  Uni→Industrie-Transfer-Kurve. Anmeldejahre nur bis 2023 — jüngere
+ *  Anmeldungen sind wegen der 18-Monats-Publikationsfrist systematisch
+ *  untererfasst und würden einen fallenden Trend vortäuschen. */
+export interface PatentTechApplicant {
+  rank: number;
+  name: string;
+  sector: string | null;
+  ctry: string | null;
+  families: number;
+}
+
+export async function getPatentTechIntel(cpc: string): Promise<{
+  applicants: PatentTechApplicant[];
+  sectorRows: { filing_year: number; psn_sector: string; families: number }[];
+} | null> {
+  return cached(`patent-tech-${cpc}`, 3_600_000, async () => {
+    const applicants = await q<PatentTechApplicant>(
+      `SELECT rank, psn_name as name, psn_sector as sector, ctry, families
+       FROM tip_leading_applicants WHERE cpc_subclass = $1
+       ORDER BY rank LIMIT 10`, [cpc]);
+    if (applicants.length === 0) return null;
+    const sectorRows = await q<{ filing_year: number; psn_sector: string; families: number }>(
+      `SELECT filing_year, psn_sector, families FROM tip_sector_shares
+       WHERE cpc_subclass = $1 AND filing_year BETWEEN 2010 AND 2023
+       ORDER BY filing_year`, [cpc]);
+    return { applicants, sectorRows };
+  });
+}
+
 
 export async function getTopTrendsByEngagement(limit: number = 10): Promise<Trend[]> {
   const rows = await q(

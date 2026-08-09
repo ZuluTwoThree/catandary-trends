@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getPatentSignals, getPatentStats } from "@/lib/db";
+import { getPatentSignals, getPatentStats, getPatentTechIntel } from "@/lib/db";
+import { computeTransferSeries } from "@/lib/transfer";
 import TierGate from "@/components/TierGate";
 import { canAccess } from "@/lib/entitlement";
 
@@ -80,7 +81,7 @@ export default async function PatentExplorerPage({
   // Starter-gegated wie der Research Explorer (#73/#74): ohne Tier läuft die
   // Suche serverseitig nicht — der Teaser zeigt nur die 3 neuesten Patente.
   const allowed = await canAccess("starter");
-  const [stats, { rows, total, clamped }] = await Promise.all([
+  const [stats, { rows, total, clamped }, intel] = await Promise.all([
     getPatentStats(),
     allowed
       ? getPatentSignals({
@@ -91,7 +92,13 @@ export default async function PatentExplorerPage({
           offset: (page - 1) * PAGE_SIZE,
         })
       : getPatentSignals({ limit: 3, offset: 0 }),
+    allowed && cpc ? getPatentTechIntel(cpc) : Promise.resolve(null),
   ]);
+  const transfer = intel ? computeTransferSeries(intel.sectorRows) : [];
+  const maxFamilies = intel ? Math.max(...intel.applicants.map((a) => a.families)) : 0;
+  const maxShare = transfer.reduce((m, p) => Math.max(m, p.uniShare ?? 0), 0);
+  const firstShare = transfer.find((p) => p.uniShare !== null)?.uniShare ?? null;
+  const lastShare = [...transfer].reverse().find((p) => p.uniShare !== null)?.uniShare ?? null;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const totalLabel = `${total.toLocaleString("en-US")}${clamped ? "+" : ""}`;
   const qs = (p: number) => {
@@ -189,6 +196,87 @@ export default async function PatentExplorerPage({
           Search
         </button>
       </form>
+
+      {intel && (
+        <section className="mb-8 border border-border-strong">
+          <div className="border-b border-border px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+            —— Technology intelligence · {CPC_OPTIONS.find(([c]) => c === cpc)?.[1]} ({cpc})
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+            <div className="p-4">
+              <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-3">
+                Leading applicants · patent families since 2015
+              </h3>
+              <ol className="space-y-1.5">
+                {intel.applicants.map((a) => (
+                  <li key={a.rank} className="relative">
+                    <div
+                      className="absolute inset-y-0 left-0 bg-accent/10"
+                      style={{ width: `${(a.families / maxFamilies) * 100}%` }}
+                    />
+                    <div className="relative flex items-baseline gap-2 px-1.5 py-0.5">
+                      <span className="font-mono text-[9px] text-muted w-4 shrink-0">{a.rank}</span>
+                      <span className="font-sans text-[13px] text-paper truncate" title={a.name}>
+                        {a.name}
+                      </span>
+                      {a.sector && a.sector !== "COMPANY" && (
+                        <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-accent/80 shrink-0">
+                          {a.sector}
+                        </span>
+                      )}
+                      <span className="font-mono text-[10px] text-muted ml-auto shrink-0">
+                        {a.ctry?.trim() && <span>{a.ctry.trim()} · </span>}
+                        {a.families.toLocaleString("en-US")}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <div className="p-4">
+              <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-3">
+                University → industry transfer · share of families with a university applicant
+              </h3>
+              {transfer.length > 0 && maxShare > 0 ? (
+                <>
+                  <div className="flex items-end gap-[3px] h-28" role="img"
+                       aria-label="University share of patent families per filing year">
+                    {transfer.map((p) => (
+                      <div key={p.year} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+                        <div
+                          className="w-full bg-accent/60"
+                          style={{ height: `${((p.uniShare ?? 0) / maxShare) * 100}%` }}
+                          title={`${p.year}: ${((p.uniShare ?? 0) * 100).toFixed(1)}% of ${p.total.toLocaleString("en-US")} families`}
+                        />
+                        {p.year % 5 === 0 && (
+                          <span className="font-mono text-[8px] text-muted">{p.year}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {firstShare !== null && lastShare !== null && (
+                    <p className="mt-3 font-sans text-[13px] text-text">
+                      University share {transfer[0].year}:{" "}
+                      <span className="text-paper">{(firstShare * 100).toFixed(1)}%</span>
+                      {" → "}{transfer[transfer.length - 1].year}:{" "}
+                      <span className="text-paper">{(lastShare * 100).toFixed(1)}%</span>
+                      {lastShare < firstShare
+                        ? " — the technology is moving from labs into industry."
+                        : " — research institutions still drive this field."}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="font-sans text-[13px] text-muted">No sector data for this technology.</p>
+              )}
+            </div>
+          </div>
+          <div className="border-t border-border px-4 py-2 font-mono text-[9px] uppercase tracking-[0.12em] text-muted">
+            Source: PATSTAT Global (EPO), harmonized applicant names (PSN). Filing years shown
+            through 2023 — younger filings are under-counted due to the 18-month publication lag.
+          </div>
+        </section>
+      )}
 
       <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-5">
         {totalLabel} results

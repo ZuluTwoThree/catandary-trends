@@ -42,7 +42,8 @@ TABLES = {
              families INTEGER NOT NULL,
              PRIMARY KEY (cpc_subclass, rank))""",
         lambda r: (r["cpc_subclass"], int(r["rank"]), r["psn_name"],
-                   r["psn_sector"] or None, r["person_ctry_code"] or None,
+                   r["psn_sector"].strip() or None,
+                   r["person_ctry_code"].strip() or None,
                    int(r["families"])),
         6,
     ),
@@ -85,6 +86,37 @@ TABLES = {
 
 YEAR_COLS = {"filing_year", "event_year", "publn_year"}
 
+# Legende der INPADOC-Ereignis-Kategorien für tip_legal_event_curve.
+# Quelle: WIPO ST.27 (Revision Okt 2024), Key-Event-Liste §33 — verifiziert
+# gegen das Original-PDF am 2026-08-09. Der PATSTAT-Katalog (TLS803) sagt
+# "largely aligned with ST.27"; 'Z' und ' ' sind INPADOC-Zusätze ohne
+# ST.27-Entsprechung (nicht klassifiziert / unbekannt).
+EVENT_CATEGORIES = [
+    ("A", "Application filed"),
+    ("B", "Application discontinued"),
+    ("C", "Application revived"),
+    ("D", "Search and/or examination requested or commenced"),
+    ("E", "Pre-grant review requested"),
+    ("F", "IP right granted"),
+    ("G", "Protection beyond IP right term granted"),
+    ("H", "IP right ceased"),
+    ("K", "IP right revived"),
+    ("L", "IP right review requested"),
+    ("M", "IP right maintained"),
+    ("N", "Application or IP right terminated"),
+    ("P", "Document modified"),
+    ("Q", "Document published"),
+    ("R", "Party data change recorded"),
+    ("S", "Licensing information recorded"),
+    ("T", "Administrative procedure adjusted"),
+    ("U", "Fee paid"),
+    ("V", "Appeal requested"),
+    ("W", "Other event occurred"),
+    ("Y", "Event information corrected or deleted"),
+    ("Z", "Not classified (INPADOC addition, no ST.27 equivalent)"),
+    (" ", "Unknown category"),
+]
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -120,6 +152,12 @@ def main() -> int:
         cur.executemany(f"INSERT INTO {table} VALUES ({ph})", rows)
         print(f"{table}: {len(rows):,} Zeilen"
               + (f" ({dropped} × Jahr-9999 gefiltert)" if dropped else ""))
+    cur.execute("DROP TABLE IF EXISTS tip_event_category")
+    cur.execute("""CREATE TABLE tip_event_category (
+                     code TEXT PRIMARY KEY, title TEXT NOT NULL)""")
+    cur.executemany("INSERT INTO tip_event_category VALUES (%s, %s)",
+                    EVENT_CATEGORIES)
+    print(f"tip_event_category: {len(EVENT_CATEGORIES)} Zeilen (ST.27-Legende)")
     conn.commit()
     conn.close()
     return 0
