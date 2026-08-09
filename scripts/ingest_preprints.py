@@ -15,7 +15,9 @@ Backends:
   medrxiv   same API family, server 'medrxiv' — health/medical preprints.
 
 Each record becomes a raw_entry (processed=0) under a per-source row
-(source_type='api', vertical='CROSS'); the signal pipeline classifies the real
+(source_type='research', vertical='CROSS' — 'research' hält Preprints im
+Research Explorer sichtbar; bis 2026-08-09 stand hier fälschlich 'api', die
+drei Quellen wurden per UPDATE nachgezogen); the signal pipeline classifies the real
 vertical/PESTEL/mega-trend. The excerpt is prefixed `[Preprint · <shard>]` so
 the tier survives into the embedding (mirrors the funding-prefix pattern).
 
@@ -110,7 +112,7 @@ def _excerpt(shard: str, abstract: str) -> str:
 def ingest_arxiv(since: str, limit: int, dry_run: bool) -> dict:
     stats = {"seen": 0, "inserted": 0, "duplicates": 0, "skipped": 0, "old": 0}
     source_id = -1 if dry_run else db.upsert_source(
-        "arXiv Preprints", ARXIV_API, "api", "CROSS")
+        "arXiv Preprints", ARXIV_API, "research", "CROSS")
     cats = [c for cs in ARXIV_SHARDS.values() for c in cs]
     per_shard = max(100, limit // max(1, len(cats)))
     page = 100  # arXiv recommends <=1000; 100 keeps memory + retries small
@@ -165,7 +167,7 @@ def _ingest_rxiv(server: str, since: str, limit: int, dry_run: bool) -> dict:
     stats = {"seen": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
     source_id = -1 if dry_run else db.upsert_source(
         f"{server} Preprints", f"https://api.biorxiv.org/details/{server}",
-        "api", "CROSS")
+        "research", "CROSS")
     until = date.today().isoformat()
     cursor = 0
     with httpx.Client(headers=HEADERS, follow_redirects=True) as client:
