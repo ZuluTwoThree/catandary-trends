@@ -61,14 +61,27 @@ def fetch(client, url):
         return ""
 
 
-def discover(client, domain, after, before) -> list[tuple[str, str]]:
-    """Return [(url, lastmod)] in [after, before) from the sitemap tree."""
+_ARCHIVE_YEAR = re.compile(r"_archive_(\d{4})\.xml")
+
+
+def discover(client, domain, after, before, max_sitemaps: int = 60) -> list[tuple[str, str]]:
+    """Return [(url, lastmod)] in [after, before) from the sitemap tree.
+
+    max_sitemaps: Crawl-Grenze. Der Default 60 reicht für normale Sites; The
+    Conversation hat einen Index mit 225 Sub-Sitemaps (#4) — dort höher setzen.
+    Jahres-Prefilter: Sub-Sitemaps im Muster ..._archive_<YYYY>.xml (The-
+    Conversation-Konvention, je Region×Jahr) werden übersprungen, wenn das Jahr
+    außerhalb des Fensters liegt — spart Hunderte nutzloser Fetches."""
     seen, out = set(), []
     queue = [f"https://{domain}/sitemap.xml", f"https://{domain}/sitemap_index.xml"]
     visited = set()
+    y_lo, y_hi = int(after[:4]), int(before[:4])
     while queue:
         sm = queue.pop()
         if sm in visited:
+            continue
+        m = _ARCHIVE_YEAR.search(sm)
+        if m and not (y_lo <= int(m.group(1)) <= y_hi):
             continue
         visited.add(sm)
         xml = fetch(client, sm)
@@ -89,7 +102,7 @@ def discover(client, domain, after, before) -> list[tuple[str, str]]:
                 continue
             seen.add(url)
             out.append((url, date))
-        if len(visited) > 60:  # bound the crawl
+        if len(visited) > max_sitemaps:  # bound the crawl
             break
     return out
 
@@ -103,7 +116,7 @@ def og_meta(client, url):
     return (t.group(1) if t else "").strip(), (d.group(1) if d else "").strip()
 
 
-def ingest(name, after, before, dry_run, max_fetch=300) -> dict:
+def ingest(name, after, before, dry_run, max_fetch=300, max_sitemaps=60) -> dict:
     src = find_source_entry(name)
     if not src:
         logger.error("source '%s' not in sources.yaml", name)
@@ -112,7 +125,7 @@ def ingest(name, after, before, dry_run, max_fetch=300) -> dict:
     vertical = src["vertical"]
     stats = {"urls": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
     with httpx.Client(headers=HEADERS) as client:
-        urls = discover(client, domain, after, before)
+        urls = discover(client, domain, after, before, max_sitemaps=max_sitemaps)
         stats["urls"] = len(urls)
         logger.info("[sitemap] %s (%s): %d URLs in range", name, domain, len(urls))
         if dry_run:
@@ -140,8 +153,11 @@ def main() -> int:
     ap.add_argument("--before", required=True)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--max-fetch", type=int, default=300)
+    ap.add_argument("--max-sitemaps", type=int, default=60,
+                    help="Crawl-Grenze im Sitemap-Baum (The Conversation: 250)")
     args = ap.parse_args()
-    ingest(args.source_name, args.after, args.before, args.dry_run, args.max_fetch)
+    ingest(args.source_name, args.after, args.before, args.dry_run, args.max_fetch,
+           args.max_sitemaps)
     return 0
 
 
