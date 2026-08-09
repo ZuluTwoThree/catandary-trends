@@ -47,10 +47,17 @@ HEADERS = {"User-Agent": UA}
 # arXiv firehose problem): frontier categories with product lead-time, not the
 # whole of maths/physics.
 ARXIV_SHARDS: dict[str, list[str]] = {
-    "TECH": ["cs.AI", "cs.LG", "cs.RO", "cs.CV", "cs.CL", "quant-ph", "cs.AR", "cs.ET"],
+    "TECH": ["cs.AI", "cs.LG", "cs.RO", "cs.CV", "cs.CL", "quant-ph", "cs.AR", "cs.ET",
+             # 2026-08-09, Paket A (#4): Science-Vorwaertsfenster fuer die neuen
+             # Themes — Orbital (astro-ph.EP/IM, space-ph) + Halbleiter-Physik
+             # (mes-hall, app-ph); quant-ph deckte Quantum bereits
+             "astro-ph.EP", "astro-ph.IM", "physics.space-ph",
+             "cond-mat.mes-hall", "physics.app-ph"],
     "HEALTH": ["q-bio.QM", "q-bio.GN", "q-bio.NC"],
     "ECO": ["physics.ao-ph", "cond-mat.mtrl-sci"],
     "BIZ": ["econ.GN", "q-fin.TR"],
+    # education_and_lifelong_learning: CS-Education/Gesellschaft + Physik-Didaktik
+    "LIFESTYLE": ["cs.CY", "physics.ed-ph"],
 }
 
 ARXIV_API = "https://export.arxiv.org/api/query"

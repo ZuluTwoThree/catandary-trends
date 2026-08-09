@@ -65,6 +65,12 @@ TECH_SHARDS = [
     "circular economy", "sustainable materials", "alternative protein",
     "microbiome", "longevity ageing", "space satellite", "fusion energy",
     "green hydrogen", "neuromorphic", "digital twin", "advanced manufacturing",
+    # 2026-08-09, Paket A (#4): Funding-Abdeckung fuer die neuen Themes
+    "digital health", "telemedicine", "health informatics",
+    "education technology", "lifelong learning",
+    "remote work", "future of work",
+    "spacecraft", "satellite constellation", "space launch",
+    "quantum communication", "photonics",
 ]
 
 
