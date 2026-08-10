@@ -1,17 +1,21 @@
-"""TIP-Notebook-Zelle für PATSTAT-Runde 2 (Owner-Auftrag 2026-08-10).
+# TIP-Notebook-Zelle für PATSTAT-Runde 2 (Owner-Auftrag 2026-08-10).
+#
+# Kein Script für die Workstation — diese Datei wird KOMPLETT markiert und als
+# EINE Zelle in das Notebook auf tip.epo.org eingefügt. Sie führt alle acht
+# Abfragen aus scripts/tip_queries_round2.sql nacheinander aus, schreibt je
+# eine CSV und fängt Fehler pro Abfrage ab, damit ein Dialekt-Problem nicht
+# die restlichen sieben killt.
+#
+# Vorher einmalig in einer EIGENEN Zelle (nur nötig, wenn der Kernel neu ist) —
+# die zwei Zeilen ohne die "# "-Präfixe und ohne Einrückung:
+#
+# from epo.tipdata.patstat import PatstatClient
+# patstat = PatstatClient(env='PROD')
+#
+# Der Kopf steht bewusst als #-Kommentar statt als Docstring: ein Docstring
+# verleitet dazu, mitten im Block zu kopieren, und das abschließende """
+# öffnet dann in der Zelle eine neue Zeichenkette (Owner-Stolperstein 08-10).
 
-Kein Script für die Workstation — diese Datei wird als EINE Zelle in das
-Notebook auf tip.epo.org kopiert (nach der Setup-Zelle mit PatstatClient).
-Sie führt alle acht Abfragen aus scripts/tip_queries_round2.sql nacheinander
-aus, schreibt je eine CSV und fängt Fehler pro Abfrage ab, damit ein
-Dialekt-Problem nicht die restlichen sieben killt.
-
-Setup-Zelle (einmalig, falls der Kernel neu ist) — buendig kopieren, fuehrende
-Leerzeichen quittiert Jupyter mit IndentationError:
-
-from epo.tipdata.patstat import PatstatClient
-patstat = PatstatClient(env='PROD')
-"""
 import pandas as pd, time
 
 CPCS = ("'A01H','A23C','A23J','A23L','A61B','A61K','A63F','B09B','B25J','B33Y',"
