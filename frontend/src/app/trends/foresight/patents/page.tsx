@@ -280,9 +280,12 @@ export default async function PatentExplorerPage({
                             style={{ height: `${px}px` }}
                             title={`${p.year}: ${(share * 100).toFixed(1)}% of ${p.total.toLocaleString("en-US")} families`}
                           />
-                          {p.year % 5 === 0 && (
-                            <span className="font-mono text-[8px] text-muted">{p.year}</span>
-                          )}
+                          {/* Label-Slot in JEDER Spalte (meist leer), sonst schiebt
+                              die Jahreszahl ihren Balken hoch — Baseline-Versatz
+                              (Owner-Befund 2026-08-10) */}
+                          <span className="font-mono text-[8px] text-muted h-3 leading-3">
+                            {p.year % 5 === 0 ? p.year : " "}
+                          </span>
                         </div>
                       );
                     })}
