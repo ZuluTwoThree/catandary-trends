@@ -432,3 +432,56 @@ run("ep_oppositions", sql_opp)
 # ENDE ZELLE 9  —  danach alle acht CSVs herunterladen und per Taildrop
 #                  schicken. Fertig.
 # #############################################################################
+
+
+# #############################################################################
+# ANFANG ZELLE 10  —  NACHZÜGLER: Median-Lag Paper→Patent  -> npl_share.csv
+#                     (ersetzt die Datei aus Zelle 2; Owner-Auftrag 2026-08-11)
+#
+#   Zelle 2 lieferte den Lag leer: npl_publn_date liegt auf TIP in einem
+#   Format, das SAFE_CAST AS DATE nicht parst. Diese Zelle zeigt erst die
+#   Top-Formate (Diagnose), dann rechnet sie den Lag JAHRESGENAU über die
+#   ersten vier Ziffern — robust gegen YYYYMMDD, YYYY-MM-DD und reine
+#   Jahresangaben. Spalte heißt jetzt median_lag_years.
+#   Zelle 1 muss im Kernel stehen (run/CPC_CTE).
+# #############################################################################
+diag = pd.DataFrame(patstat.sql_query("""
+SELECT npl_publn_date AS beispiel, COUNT(*) AS n
+FROM tls214_npl_publn
+WHERE npl_publn_date IS NOT NULL AND npl_publn_date <> ''
+GROUP BY 1 ORDER BY 2 DESC LIMIT 15
+""", use_legacy_sql=False))
+print("Häufigste npl_publn_date-Werte (Diagnose):")
+print(diag.to_string())
+
+sql_npl_v2 = f"""
+{CPC_CTE},
+cit AS (
+  SELECT p.appln_id,
+         EXTRACT(YEAR FROM p.publn_date) AS publn_year,
+         COALESCE(c.cited_npl_publn_id, '0') AS cited_npl_publn_id,
+         SAFE_CAST(SUBSTR(CAST(n.npl_publn_date AS STRING), 1, 4) AS INT64) AS npl_year
+  FROM tls212_citation c
+  JOIN tls211_pat_publn p ON p.pat_publn_id = c.pat_publn_id
+  LEFT JOIN tls214_npl_publn n ON n.npl_publn_id = c.cited_npl_publn_id
+  WHERE p.publn_date >= DATE '2010-01-01'
+)
+SELECT k.cpc_subclass,
+       c.publn_year,
+       COUNT(*) AS citations,
+       SUM(CASE WHEN c.cited_npl_publn_id <> '0' THEN 1 ELSE 0 END) AS npl_citations,
+       APPROX_QUANTILES(
+         CASE WHEN c.cited_npl_publn_id <> '0'
+               AND c.npl_year BETWEEN 1950 AND c.publn_year
+              THEN c.publn_year - c.npl_year END,
+         100)[SAFE_OFFSET(50)] AS median_lag_years
+FROM cit c
+JOIN cpc k ON k.appln_id = c.appln_id
+GROUP BY 1, 2
+ORDER BY 1, 2
+"""
+
+run("npl_share", sql_npl_v2)
+# #############################################################################
+# ENDE ZELLE 10  —  danach nur npl_share.csv neu herunterladen + Taildrop.
+# #############################################################################

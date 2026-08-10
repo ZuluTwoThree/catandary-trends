@@ -487,7 +487,7 @@ export interface PatentTechApplicant {
 export async function getPatentTechIntel(cpc: string): Promise<{
   applicants: PatentTechApplicant[];
   sectorRows: { filing_year: number; psn_sector: string; families: number }[];
-  npl: { publn_year: number; citations: number; npl_citations: number }[];
+  npl: { publn_year: number; citations: number; npl_citations: number; median_lag_years: number | null }[];
   survival: { filing_year: number; cohort_size: number; age_years: number; cessations: number }[];
   countries: { filing_year: number; ctry: string; families: number }[];
   intl: { filing_year: number; families: number; multi_office_families: number; pct_families: number }[];
@@ -509,8 +509,9 @@ export async function getPatentTechIntel(cpc: string): Promise<{
           `SELECT filing_year, psn_sector, families FROM tip_sector_shares
            WHERE cpc_subclass = $1 AND filing_year BETWEEN 2010 AND 2023
            ORDER BY filing_year`, [cpc]),
-        q<{ publn_year: number; citations: number; npl_citations: number }>(
-          `SELECT publn_year, citations, npl_citations FROM tip_npl_share
+        q<{ publn_year: number; citations: number; npl_citations: number; median_lag_years: number | null }>(
+          `SELECT publn_year, citations, npl_citations, median_lag_years
+           FROM tip_npl_share
            WHERE cpc_subclass = $1 AND publn_year BETWEEN 2010 AND 2023
            ORDER BY publn_year`, [cpc]),
         q<{ filing_year: number; cohort_size: number; age_years: number; cessations: number }>(

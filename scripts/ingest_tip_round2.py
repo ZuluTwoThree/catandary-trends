@@ -39,10 +39,15 @@ TABLES = {
         """CREATE TABLE tip_npl_share (
              cpc_subclass TEXT NOT NULL, publn_year INTEGER NOT NULL,
              citations BIGINT NOT NULL, npl_citations BIGINT NOT NULL,
-             median_lag_days INTEGER,
+             median_lag_years INTEGER,
              PRIMARY KEY (cpc_subclass, publn_year))""",
+        # Zelle 10 liefert median_lag_years (jahresgenau); die alte Zelle-2-CSV
+        # hatte median_lag_days (kam leer, Format-Problem) — beide akzeptieren.
         lambda r: (r["cpc_subclass"], _i(r["publn_year"]), _i(r["citations"]),
-                   _i(r["npl_citations"]), _i(r["median_lag_days"])), 5),
+                   _i(r["npl_citations"]),
+                   _i(r.get("median_lag_years"))
+                   if r.get("median_lag_years") is not None
+                   else (_i(r.get("median_lag_days")) or 0) // 365 or None), 5),
     "survival.csv": (
         "tip_survival",
         """CREATE TABLE tip_survival (

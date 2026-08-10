@@ -113,6 +113,7 @@ export default async function PatentExplorerPage({
     ? {
         nplNow: nplShare(intel.npl, 2023),
         npl2010: nplShare(intel.npl, 2010),
+        nplLag: intel.npl.find((r) => r.publn_year === 2023)?.median_lag_years ?? null,
         ceased10: ceasedWithin(intel.survival, 2013, 10),
         ceased10Old: ceasedWithin(intel.survival, 2005, 10),
         top5: topCountries(intel.countries, 2023, 5),
@@ -317,6 +318,10 @@ export default async function PatentExplorerPage({
                 <p className="font-sans text-[12px] text-text mt-1">
                   of citations in 2023 patents point to scientific literature, not other
                   patents{iv.npl2010 !== null && <> ({pct(iv.npl2010)} in 2010)</>}.
+                  {iv.nplLag !== null && (
+                    <> The science cited is typically {iv.nplLag} years old — the
+                    research→patent lead time of this field.</>
+                  )}
                 </p>
               </div>
               <div className="p-4">
