@@ -35,6 +35,8 @@
 
 -- ----------------------------------------------------------------------------
 -- Q5 · Wissenschafts-Verknüpfung: Anteil Nicht-Patent-Literatur an allen
+--      (TIP-Eigenheit: cited_npl_publn_id ist STRING, '0' = Patent-Zitat;
+--       npl_publn_date via SAFE_CAST — Befund 2026-08-10)
 --      Zitationen je Achse & Publikationsjahr + Median-Lag Paper→Patent.
 --      → npl_share.csv   Produkt: misst, wie forschungsgetrieben ein Feld ist,
 --        und wie lange Wissenschaft bis ins Patent braucht (Lead-Time-Beleg für
@@ -49,8 +51,8 @@ cit AS (
   SELECT p.appln_id,
          EXTRACT(YEAR FROM p.publn_date) AS publn_year,
          p.publn_date,
-         c.cited_npl_publn_id,
-         n.npl_publn_date
+         COALESCE(c.cited_npl_publn_id, '0') AS cited_npl_publn_id,
+         SAFE_CAST(n.npl_publn_date AS DATE) AS npl_publn_date
   FROM tls212_citation c
   JOIN tls211_pat_publn p ON p.pat_publn_id = c.pat_publn_id
   LEFT JOIN tls214_npl_publn n ON n.npl_publn_id = c.cited_npl_publn_id
@@ -59,9 +61,9 @@ cit AS (
 SELECT k.cpc_subclass,
        c.publn_year,
        COUNT(*) AS citations,
-       SUM(CASE WHEN c.cited_npl_publn_id > 0 THEN 1 ELSE 0 END) AS npl_citations,
+       SUM(CASE WHEN c.cited_npl_publn_id <> '0' THEN 1 ELSE 0 END) AS npl_citations,
        APPROX_QUANTILES(
-         CASE WHEN c.cited_npl_publn_id > 0
+         CASE WHEN c.cited_npl_publn_id <> '0'
                AND c.npl_publn_date IS NOT NULL
                AND c.npl_publn_date > DATE '1950-01-01'
                AND c.npl_publn_date <= c.publn_date

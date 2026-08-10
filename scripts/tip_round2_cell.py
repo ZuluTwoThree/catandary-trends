@@ -21,14 +21,14 @@
 #  ZELLEN-ÜBERSICHT (Zeilennummern in dieser Datei)
 #  -----------------------------------------------
 #    ZELLE 1:  Zeile  44 bis 106   Setup (zuerst!)
-#    ZELLE 2:  Zeile 109 bis 153   Q5  npl_share
-#    ZELLE 3:  Zeile 156 bis 210   Q6  survival
-#    ZELLE 4:  Zeile 213 bis 244   Q7  country_race
-#    ZELLE 5:  Zeile 247 bis 281   Q8  internationalization
-#    ZELLE 6:  Zeile 284 bis 322   Q9  collaborations
-#    ZELLE 7:  Zeile 325 bis 361   Q10 cpc_groups
-#    ZELLE 8:  Zeile 364 bis 394   Q11 nace2_bridge
-#    ZELLE 9:  Zeile 397 bis 427   Q12 ep_oppositions
+#    ZELLE 2:  Zeile 109 bis 159   Q5  npl_share
+#    ZELLE 3:  Zeile 162 bis 216   Q6  survival
+#    ZELLE 4:  Zeile 219 bis 250   Q7  country_race
+#    ZELLE 5:  Zeile 253 bis 287   Q8  internationalization
+#    ZELLE 6:  Zeile 290 bis 328   Q9  collaborations
+#    ZELLE 7:  Zeile 331 bis 367   Q10 cpc_groups
+#    ZELLE 8:  Zeile 370 bis 400   Q11 nace2_bridge
+#    ZELLE 9:  Zeile 403 bis 433   Q12 ep_oppositions
 #
 #  NANO-TIPPS
 #  ----------
@@ -117,14 +117,20 @@ print("Setup fertig. Verbindung steht, run() ist definiert.")
 #   ACHTUNG: langsamste Abfrage (Zitationstabelle ~1 Mrd. Zeilen).
 #   Mehrere Minuten sind normal — nicht abbrechen.
 # #############################################################################
+
+# TIP-Eigenheit (Befund 2026-08-10): cited_npl_publn_id ist auf BigQuery ein
+# STRING ('0' = zitiert wird ein Patent, nicht Literatur) — daher der
+# String-Vergleich. npl_publn_date wird per SAFE_CAST typrobust gemacht;
+# unparsebare Teil-Daten ('2015-00-00') werden dabei zu NULL und fallen
+# aus der Lag-Rechnung, nicht aus der Zählung.
 sql_npl = f"""
 {CPC_CTE},
 cit AS (
   SELECT p.appln_id,
          EXTRACT(YEAR FROM p.publn_date) AS publn_year,
          p.publn_date,
-         c.cited_npl_publn_id,
-         n.npl_publn_date
+         COALESCE(c.cited_npl_publn_id, '0') AS cited_npl_publn_id,
+         SAFE_CAST(n.npl_publn_date AS DATE) AS npl_publn_date
   FROM tls212_citation c
   JOIN tls211_pat_publn p ON p.pat_publn_id = c.pat_publn_id
   LEFT JOIN tls214_npl_publn n ON n.npl_publn_id = c.cited_npl_publn_id
@@ -133,9 +139,9 @@ cit AS (
 SELECT k.cpc_subclass,
        c.publn_year,
        COUNT(*) AS citations,
-       SUM(CASE WHEN c.cited_npl_publn_id > 0 THEN 1 ELSE 0 END) AS npl_citations,
+       SUM(CASE WHEN c.cited_npl_publn_id <> '0' THEN 1 ELSE 0 END) AS npl_citations,
        APPROX_QUANTILES(
-         CASE WHEN c.cited_npl_publn_id > 0
+         CASE WHEN c.cited_npl_publn_id <> '0'
                AND c.npl_publn_date IS NOT NULL
                AND c.npl_publn_date > DATE '1950-01-01'
                AND c.npl_publn_date <= c.publn_date
