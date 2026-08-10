@@ -1,8 +1,15 @@
 import Link from "next/link";
 import { getPatentSignals, getPatentStats, getPatentTechIntel } from "@/lib/db";
 import { computeTransferSeries } from "@/lib/transfer";
+import {
+  nplShare, ceasedWithin, topCountries, countryShare,
+  oppositionRate, emergingGroups,
+} from "@/lib/patent-intel";
 import TierGate from "@/components/TierGate";
 import { canAccess } from "@/lib/entitlement";
+
+const pct = (v: number | null, digits = 0) =>
+  v === null ? "—" : `${(v * 100).toFixed(digits)}%`;
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +106,25 @@ export default async function PatentExplorerPage({
   const maxShare = transfer.reduce((m, p) => Math.max(m, p.uniShare ?? 0), 0);
   const firstShare = transfer.find((p) => p.uniShare !== null)?.uniShare ?? null;
   const lastShare = [...transfer].reverse().find((p) => p.uniShare !== null)?.uniShare ?? null;
+  // Kennzahlen aus den Runde-2-Tabellen (#75); Jahreswahl konservativ:
+  // 2023 = letztes vollständiges Anmeldejahr, Kohorte 2013 = jüngste mit
+  // 10 beobachtbaren Jahren, EP-Quote 2022 (Einsprüche laufen 9 Monate).
+  const iv = intel
+    ? {
+        nplNow: nplShare(intel.npl, 2023),
+        npl2010: nplShare(intel.npl, 2010),
+        ceased10: ceasedWithin(intel.survival, 2013, 10),
+        ceased10Old: ceasedWithin(intel.survival, 2005, 10),
+        top5: topCountries(intel.countries, 2023, 5),
+        top5Then: (c: string) => countryShare(intel.countries, 2015, c),
+        intlNow: intel.intl.find((r) => r.filing_year === 2023) ?? null,
+        intlThen: intel.intl.find((r) => r.filing_year === 2015) ?? null,
+        oppNow: oppositionRate(intel.oppositions, 2022),
+        oppThen: oppositionRate(intel.oppositions, 2012),
+        rising: emergingGroups(intel.groups, 2018, 3),
+        naceTotal: intel.nace.reduce((s, r) => s + r.weighted_applications, 0),
+      }
+    : null;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const totalLabel = `${total.toLocaleString("en-US")}${clamped ? "+" : ""}`;
   const qs = (p: number) => {
@@ -239,20 +265,30 @@ export default async function PatentExplorerPage({
               </h3>
               {transfer.length > 0 && maxShare > 0 ? (
                 <>
-                  <div className="flex items-end gap-[3px] h-28" role="img"
+                  {/* Balkenhöhen in px statt %: der Spalten-Div hat keine feste
+                      Höhe, Prozent würde dort zu 0 auflösen (Bug-Report Owner
+                      2026-08-10 — Balken waren unsichtbar, nur Jahre zu sehen). */}
+                  <div className="flex items-end gap-[3px]" role="img"
                        aria-label="University share of patent families per filing year">
-                    {transfer.map((p) => (
-                      <div key={p.year} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                        <div
-                          className="w-full bg-accent/60"
-                          style={{ height: `${((p.uniShare ?? 0) / maxShare) * 100}%` }}
-                          title={`${p.year}: ${((p.uniShare ?? 0) * 100).toFixed(1)}% of ${p.total.toLocaleString("en-US")} families`}
-                        />
-                        {p.year % 5 === 0 && (
-                          <span className="font-mono text-[8px] text-muted">{p.year}</span>
-                        )}
-                      </div>
-                    ))}
+                    {transfer.map((p) => {
+                      const share = p.uniShare ?? 0;
+                      const px = share > 0 ? Math.max(3, Math.round((share / maxShare) * 96)) : 0;
+                      return (
+                        <div key={p.year} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+                          <div
+                            className="w-full bg-accent/60"
+                            style={{ height: `${px}px` }}
+                            title={`${p.year}: ${(share * 100).toFixed(1)}% of ${p.total.toLocaleString("en-US")} families`}
+                          />
+                          {/* Label-Slot in JEDER Spalte (meist leer), sonst schiebt
+                              die Jahreszahl ihren Balken hoch — Baseline-Versatz
+                              (Owner-Befund 2026-08-10) */}
+                          <span className="font-mono text-[8px] text-muted h-3 leading-3">
+                            {p.year % 5 === 0 ? p.year : " "}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                   {firstShare !== null && lastShare !== null && (
                     <p className="mt-3 font-sans text-[13px] text-text">
@@ -271,9 +307,137 @@ export default async function PatentExplorerPage({
               )}
             </div>
           </div>
+          {iv && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 border-t border-border divide-y sm:divide-x divide-border">
+              <div className="p-4">
+                <h4 className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-1.5">
+                  Science intensity
+                </h4>
+                <div className="font-display text-2xl text-paper">{pct(iv.nplNow)}</div>
+                <p className="font-sans text-[12px] text-text mt-1">
+                  of citations in 2023 patents point to scientific literature, not other
+                  patents{iv.npl2010 !== null && <> ({pct(iv.npl2010)} in 2010)</>}.
+                </p>
+              </div>
+              <div className="p-4">
+                <h4 className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-1.5">
+                  Holding power
+                </h4>
+                <div className="font-display text-2xl text-paper">
+                  {iv.ceased10 === null ? "—" : pct(1 - iv.ceased10)}
+                </div>
+                <p className="font-sans text-[12px] text-text mt-1">
+                  of granted patents (2013 cohort) were still maintained after 10
+                  years{iv.ceased10Old !== null && <> — 2005 cohort: {pct(1 - iv.ceased10Old)}</>}.
+                  Short holding = owners losing faith.
+                </p>
+              </div>
+              <div className="p-4">
+                <h4 className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-1.5">
+                  Investment confidence
+                </h4>
+                <div className="font-display text-2xl text-paper">
+                  {iv.intlNow ? pct(iv.intlNow.multi_office_families / iv.intlNow.families) : "—"}
+                </div>
+                <p className="font-sans text-[12px] text-text mt-1">
+                  of 2023 families were filed at 2+ patent offices
+                  {iv.intlThen && <> ({pct(iv.intlThen.multi_office_families / iv.intlThen.families)} in 2015)</>}
+                  — international filings cost real money.
+                </p>
+              </div>
+              <div className="p-4">
+                <h4 className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-1.5">
+                  Country race · 2023 filings
+                </h4>
+                <ol className="space-y-1 mt-1.5">
+                  {iv.top5.map((c) => {
+                    const then = iv.top5Then(c.ctry);
+                    return (
+                      <li key={c.ctry} className="flex items-baseline gap-2 font-mono text-[11px]">
+                        <span className="text-paper w-7">{c.ctry}</span>
+                        <div className="flex-1 h-1.5 bg-accent/10">
+                          <div className="h-full bg-accent/60" style={{ width: `${c.share * 100}%` }} />
+                        </div>
+                        <span className="text-muted">{pct(c.share)}
+                          {then !== null && <span className="text-muted/60"> ({pct(then)} ’15)</span>}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+              <div className="p-4">
+                <h4 className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-1.5">
+                  Emerging subfields · avg. families/yr since 2018 vs before
+                </h4>
+                {iv.rising.length === 0 ? (
+                  <p className="font-sans text-[12px] text-muted mt-1">No subfield data.</p>
+                ) : (
+                  <ol className="space-y-1 mt-1.5">
+                    {iv.rising.map((g) => (
+                      <li key={g.group} className="flex items-baseline gap-2 font-mono text-[11px]">
+                        <span className="text-paper">{g.group}</span>
+                        <span className="text-accent">+{Math.round(g.growth * 100)}%</span>
+                        <span className="text-muted/70">
+                          {Math.round(g.baseAvg).toLocaleString("en-US")} → {Math.round(g.recentAvg).toLocaleString("en-US")}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+              <div className="p-4">
+                <h4 className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-1.5">
+                  Contested at the EPO
+                </h4>
+                <div className="font-display text-2xl text-paper">{pct(iv.oppNow, 1)}</div>
+                <p className="font-sans text-[12px] text-text mt-1">
+                  of 2022 EP grants drew an opposition
+                  {iv.oppThen !== null && <> ({pct(iv.oppThen, 1)} in 2012)</>} —
+                  competitors spend money fighting patents they fear.
+                </p>
+              </div>
+              {intel.collabs.length > 0 && (
+                <div className="p-4 sm:col-span-2">
+                  <h4 className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-1.5">
+                    Top lab-to-industry pairs · co-filings since 2015
+                  </h4>
+                  <ol className="space-y-1 mt-1.5">
+                    {intel.collabs.map((c) => (
+                      <li key={c.rank} className="font-sans text-[12px] text-text truncate">
+                        <span className="text-paper">{c.university}</span>
+                        <span className="text-muted"> × </span>
+                        <span className="text-paper">{c.company}</span>
+                        <span className="font-mono text-[10px] text-muted"> · {c.families} families</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+              {intel.nace.length > 0 && iv.naceTotal > 0 && (
+                <div className="p-4">
+                  <h4 className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-1.5">
+                    Industries owning this technology
+                  </h4>
+                  <ol className="space-y-1 mt-1.5">
+                    {intel.nace.map((s, i) => (
+                      <li key={i} className="font-sans text-[12px] text-text">
+                        {s.nace2_descr ?? "Other"}{" "}
+                        <span className="font-mono text-[10px] text-muted">
+                          {pct(s.weighted_applications / iv.naceTotal)}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </div>
+          )}
           <div className="border-t border-border px-4 py-2 font-mono text-[9px] uppercase tracking-[0.12em] text-muted">
             Source: PATSTAT Global (EPO), harmonized applicant names (PSN). Filing years shown
             through 2023 — younger filings are under-counted due to the 18-month publication lag.
+            Industry shares are among the top-3 mapped sectors; opposition rate = oppositions
+            filed vs. none within the 9-month window.
           </div>
         </section>
       )}
