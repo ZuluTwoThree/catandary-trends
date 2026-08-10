@@ -487,6 +487,14 @@ export interface PatentTechApplicant {
 export async function getPatentTechIntel(cpc: string): Promise<{
   applicants: PatentTechApplicant[];
   sectorRows: { filing_year: number; psn_sector: string; families: number }[];
+  npl: { publn_year: number; citations: number; npl_citations: number }[];
+  survival: { filing_year: number; cohort_size: number; age_years: number; cessations: number }[];
+  countries: { filing_year: number; ctry: string; families: number }[];
+  intl: { filing_year: number; families: number; multi_office_families: number; pct_families: number }[];
+  collabs: { rank: number; university: string; company: string; families: number }[];
+  groups: { cpc_group: string; filing_year: number; families: number }[];
+  nace: { nace2_descr: string | null; weighted_applications: number }[];
+  oppositions: { event_year: number; event_code: string; applications: number }[];
 } | null> {
   return cached(`patent-tech-${cpc}`, 3_600_000, async () => {
     const applicants = await q<PatentTechApplicant>(
@@ -494,11 +502,41 @@ export async function getPatentTechIntel(cpc: string): Promise<{
        FROM tip_leading_applicants WHERE cpc_subclass = $1
        ORDER BY rank LIMIT 10`, [cpc]);
     if (applicants.length === 0) return null;
-    const sectorRows = await q<{ filing_year: number; psn_sector: string; families: number }>(
-      `SELECT filing_year, psn_sector, families FROM tip_sector_shares
-       WHERE cpc_subclass = $1 AND filing_year BETWEEN 2010 AND 2023
-       ORDER BY filing_year`, [cpc]);
-    return { applicants, sectorRows };
+    // Runde-2-Referenztabellen (#75) — alles winzige Aggregate, ein Roundtrip je Block
+    const [sectorRows, npl, survival, countries, intl, collabs, groups, nace, oppositions] =
+      await Promise.all([
+        q<{ filing_year: number; psn_sector: string; families: number }>(
+          `SELECT filing_year, psn_sector, families FROM tip_sector_shares
+           WHERE cpc_subclass = $1 AND filing_year BETWEEN 2010 AND 2023
+           ORDER BY filing_year`, [cpc]),
+        q<{ publn_year: number; citations: number; npl_citations: number }>(
+          `SELECT publn_year, citations, npl_citations FROM tip_npl_share
+           WHERE cpc_subclass = $1 AND publn_year BETWEEN 2010 AND 2023
+           ORDER BY publn_year`, [cpc]),
+        q<{ filing_year: number; cohort_size: number; age_years: number; cessations: number }>(
+          `SELECT filing_year, cohort_size, age_years, cessations FROM tip_survival
+           WHERE cpc_subclass = $1`, [cpc]),
+        q<{ filing_year: number; ctry: string; families: number }>(
+          `SELECT filing_year, ctry, families FROM tip_country_race
+           WHERE cpc_subclass = $1`, [cpc]),
+        q<{ filing_year: number; families: number; multi_office_families: number; pct_families: number }>(
+          `SELECT filing_year, families, multi_office_families, pct_families
+           FROM tip_internationalization WHERE cpc_subclass = $1
+           ORDER BY filing_year`, [cpc]),
+        q<{ rank: number; university: string; company: string; families: number }>(
+          `SELECT rank, university, company, families FROM tip_collaborations
+           WHERE cpc_subclass = $1 ORDER BY rank LIMIT 3`, [cpc]),
+        q<{ cpc_group: string; filing_year: number; families: number }>(
+          `SELECT cpc_group, filing_year, families FROM tip_cpc_groups
+           WHERE cpc_subclass = $1`, [cpc]),
+        q<{ nace2_descr: string | null; weighted_applications: number }>(
+          `SELECT nace2_descr, weighted_applications FROM tip_nace2_bridge
+           WHERE cpc_subclass = $1 ORDER BY weighted_applications DESC LIMIT 3`, [cpc]),
+        q<{ event_year: number; event_code: string; applications: number }>(
+          `SELECT event_year, event_code, applications FROM tip_ep_oppositions
+           WHERE cpc_subclass = $1 AND event_code IN ('26','26N')`, [cpc]),
+      ]);
+    return { applicants, sectorRows, npl, survival, countries, intl, collabs, groups, nace, oppositions };
   });
 }
 
