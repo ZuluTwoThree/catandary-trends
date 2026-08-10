@@ -6,10 +6,11 @@ Sie führt alle acht Abfragen aus scripts/tip_queries_round2.sql nacheinander
 aus, schreibt je eine CSV und fängt Fehler pro Abfrage ab, damit ein
 Dialekt-Problem nicht die restlichen sieben killt.
 
-Setup-Zelle (einmalig, falls der Kernel neu ist):
+Setup-Zelle (einmalig, falls der Kernel neu ist) — buendig kopieren, fuehrende
+Leerzeichen quittiert Jupyter mit IndentationError:
 
-    from epo.tipdata.patstat import PatstatClient
-    patstat = PatstatClient(env='PROD')
+from epo.tipdata.patstat import PatstatClient
+patstat = PatstatClient(env='PROD')
 """
 import pandas as pd, time
 
