@@ -265,20 +265,27 @@ export default async function PatentExplorerPage({
               </h3>
               {transfer.length > 0 && maxShare > 0 ? (
                 <>
-                  <div className="flex items-end gap-[3px] h-28" role="img"
+                  {/* Balkenhöhen in px statt %: der Spalten-Div hat keine feste
+                      Höhe, Prozent würde dort zu 0 auflösen (Bug-Report Owner
+                      2026-08-10 — Balken waren unsichtbar, nur Jahre zu sehen). */}
+                  <div className="flex items-end gap-[3px]" role="img"
                        aria-label="University share of patent families per filing year">
-                    {transfer.map((p) => (
-                      <div key={p.year} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                        <div
-                          className="w-full bg-accent/60"
-                          style={{ height: `${((p.uniShare ?? 0) / maxShare) * 100}%` }}
-                          title={`${p.year}: ${((p.uniShare ?? 0) * 100).toFixed(1)}% of ${p.total.toLocaleString("en-US")} families`}
-                        />
-                        {p.year % 5 === 0 && (
-                          <span className="font-mono text-[8px] text-muted">{p.year}</span>
-                        )}
-                      </div>
-                    ))}
+                    {transfer.map((p) => {
+                      const share = p.uniShare ?? 0;
+                      const px = share > 0 ? Math.max(3, Math.round((share / maxShare) * 96)) : 0;
+                      return (
+                        <div key={p.year} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+                          <div
+                            className="w-full bg-accent/60"
+                            style={{ height: `${px}px` }}
+                            title={`${p.year}: ${(share * 100).toFixed(1)}% of ${p.total.toLocaleString("en-US")} families`}
+                          />
+                          {p.year % 5 === 0 && (
+                            <span className="font-mono text-[8px] text-muted">{p.year}</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                   {firstShare !== null && lastShare !== null && (
                     <p className="mt-3 font-sans text-[13px] text-text">
