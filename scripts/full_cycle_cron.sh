@@ -52,8 +52,12 @@ mkdir -p "$(dirname "$LOG")"
   # Morning reminder for the grounding-hold review queue (#71). Stays silent
   # when nothing was held, so a mail only ever arrives with real work in it.
   # Never fails the cycle — the run itself already succeeded at this point.
+  # `-m scripts.review_notify` resolves the package from the CURRENT directory,
+  # and cron starts in $HOME — so this failed with "No module named scripts" in
+  # every run from 2026-08-04 to 2026-08-10 and no mail was ever sent. The `||`
+  # made it non-fatal, which is why it stayed invisible. Run it from the repo.
   echo "----- review queue notification -----"
-  "$REPO/.venv/bin/python" -m scripts.review_notify \
+  ( cd "$REPO" && "$REPO/.venv/bin/python" -m scripts.review_notify ) \
     || echo "  (notification failed — non-fatal)"
 
   echo "full_cycle_cron.sh end  $(date -Iseconds)  (rc=$RC)"
