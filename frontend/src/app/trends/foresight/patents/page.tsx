@@ -114,6 +114,10 @@ export default async function PatentExplorerPage({
         nplNow: nplShare(intel.npl, 2023),
         npl2010: nplShare(intel.npl, 2010),
         nplLag: intel.npl.find((r) => r.publn_year === 2023)?.median_lag_years ?? null,
+        nplLagThen: intel.npl.find((r) => r.publn_year === 2010)?.median_lag_years ?? null,
+        lagSeries: intel.npl
+          .filter((r) => r.median_lag_years !== null)
+          .map((r) => ({ year: r.publn_year, lag: r.median_lag_years as number })),
         ceased10: ceasedWithin(intel.survival, 2013, 10),
         ceased10Old: ceasedWithin(intel.survival, 2005, 10),
         top5: topCountries(intel.countries, 2023, 5),
@@ -318,12 +322,49 @@ export default async function PatentExplorerPage({
                 <p className="font-sans text-[12px] text-text mt-1">
                   of citations in 2023 patents point to scientific literature, not other
                   patents{iv.npl2010 !== null && <> ({pct(iv.npl2010)} in 2010)</>}.
-                  {iv.nplLag !== null && (
-                    <> The science cited is typically {iv.nplLag} years old — the
-                    research→patent lead time of this field.</>
-                  )}
                 </p>
               </div>
+              {iv.nplLag !== null && (
+                <div className="p-4">
+                  <h4 className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent mb-1.5">
+                    Research → patent lead time
+                  </h4>
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <div className="font-display text-2xl text-paper">
+                        {iv.nplLag} yrs
+                      </div>
+                      <p className="font-sans text-[12px] text-text mt-1">
+                        median age of the science cited in 2023 patents.
+                        {iv.nplLagThen !== null && iv.nplLag < iv.nplLagThen && (
+                          <> Down from {iv.nplLagThen} in 2010 — this field is
+                          absorbing research faster.</>
+                        )}
+                        {iv.nplLagThen !== null && iv.nplLag > iv.nplLagThen && (
+                          <> Up from {iv.nplLagThen} in 2010 — patents lean on
+                          ever-older science.</>
+                        )}
+                        {iv.nplLagThen !== null && iv.nplLag === iv.nplLagThen && (
+                          <> Stable since 2010.</>
+                        )}
+                      </p>
+                    </div>
+                    {iv.lagSeries.length > 1 && (
+                      <div className="flex items-end gap-[2px]" role="img"
+                           aria-label="Median research age per publication year">
+                        {iv.lagSeries.map((p) => (
+                          <div
+                            key={p.year}
+                            className="w-[7px] bg-accent/60"
+                            style={{ height: `${Math.max(3, Math.round((p.lag / Math.max(...iv.lagSeries.map((x) => x.lag))) * 44))}px` }}
+                            title={`${p.year}: ${p.lag} years`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="p-4">
                 <h4 className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-1.5">
                   Holding power
