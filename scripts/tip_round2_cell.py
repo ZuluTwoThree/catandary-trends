@@ -20,15 +20,15 @@
 #
 #  ZELLEN-ÜBERSICHT (Zeilennummern in dieser Datei)
 #  -----------------------------------------------
-#    ZELLE 1:  Zeile  44 bis 91    Setup (zuerst!)
-#    ZELLE 2:  Zeile  94 bis 138   Q5  npl_share
-#    ZELLE 3:  Zeile 141 bis 195   Q6  survival
-#    ZELLE 4:  Zeile 198 bis 229   Q7  country_race
-#    ZELLE 5:  Zeile 232 bis 266   Q8  internationalization
-#    ZELLE 6:  Zeile 269 bis 307   Q9  collaborations
-#    ZELLE 7:  Zeile 310 bis 346   Q10 cpc_groups
-#    ZELLE 8:  Zeile 349 bis 379   Q11 nace2_bridge
-#    ZELLE 9:  Zeile 382 bis 412   Q12 ep_oppositions
+#    ZELLE 1:  Zeile  44 bis 106   Setup (zuerst!)
+#    ZELLE 2:  Zeile 109 bis 153   Q5  npl_share
+#    ZELLE 3:  Zeile 156 bis 210   Q6  survival
+#    ZELLE 4:  Zeile 213 bis 244   Q7  country_race
+#    ZELLE 5:  Zeile 247 bis 281   Q8  internationalization
+#    ZELLE 6:  Zeile 284 bis 322   Q9  collaborations
+#    ZELLE 7:  Zeile 325 bis 361   Q10 cpc_groups
+#    ZELLE 8:  Zeile 364 bis 394   Q11 nace2_bridge
+#    ZELLE 9:  Zeile 397 bis 427   Q12 ep_oppositions
 #
 #  NANO-TIPPS
 #  ----------
@@ -66,6 +66,21 @@ WITH cpc AS (
 )"""
 
 
+def ursache(e, tiefe=6):
+    """Die echte BigQuery-Meldung aus der Exception-Kette holen.
+
+    Der TIP-Client faengt BadRequest ab und wirft darueber eine generische
+    QueryException ("BigQuery Standard SQL dialect is currently selected"),
+    die nichts ueber den Fehler sagt — der Klartext steckt nur in
+    __context__. Ohne diese Funktion ist jeder SQL-Fehler blind.
+    """
+    teile, cur = [], e
+    while cur is not None and tiefe:
+        teile.append(f"{type(cur).__name__}: {cur}")
+        cur, tiefe = (cur.__context__ or cur.__cause__), tiefe - 1
+    return "\n--- verursacht durch ---\n".join(teile)
+
+
 def run(name, sql):
     """Abfrage ausfuehren, als <name>.csv speichern, Ergebnis melden.
 
@@ -81,7 +96,7 @@ def run(name, sql):
         print(df.head(5).to_string(max_colwidth=40))
         return df
     except Exception as e:
-        print(f"FEHLER bei {name} nach {time.time()-t0:.0f}s:\n{e}")
+        print(f"FEHLER bei {name} nach {time.time()-t0:.0f}s:\n{ursache(e)}")
         return None
 
 
