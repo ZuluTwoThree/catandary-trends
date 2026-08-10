@@ -1,27 +1,63 @@
-# TIP-Notebook-Zelle für PATSTAT-Runde 2 (Owner-Auftrag 2026-08-10).
+# =============================================================================
+#  PATSTAT-RUNDE 2  —  NEUN NOTEBOOK-ZELLEN FÜR tip.epo.org
+#  (Owner-Auftrag 2026-08-10, Issue #75; SQL dokumentiert in
+#   scripts/tip_queries_round2.sql)
+# =============================================================================
 #
-# Kein Script für die Workstation — diese Datei wird KOMPLETT markiert und als
-# EINE Zelle in das Notebook auf tip.epo.org eingefügt. Sie führt alle acht
-# Abfragen aus scripts/tip_queries_round2.sql nacheinander aus, schreibt je
-# eine CSV und fängt Fehler pro Abfrage ab, damit ein Dialekt-Problem nicht
-# die restlichen sieben killt.
+#  SO BENUTZT DU DIESE DATEI
+#  -------------------------
+#  * Jeder Block zwischen "ANFANG ZELLE n" und "ENDE ZELLE n" kommt in EINE
+#    eigene Zelle im Notebook. Die Kommentarzeilen (#) dürfen mitkopiert
+#    werden, die stören nicht.
+#  * ZELLE 1 muss ZUERST laufen — sie baut die Verbindung auf und definiert
+#    CPC_CTE und die Hilfsfunktion run(), die alle anderen Zellen brauchen.
+#  * Danach sind ZELLE 2 bis ZELLE 9 voneinander unabhängig: Reihenfolge egal,
+#    einzeln wiederholbar, eine kaputte Zelle blockiert die anderen nicht.
+#  * Jede Zelle schreibt genau eine CSV ins Notebook-Verzeichnis und zeigt
+#    die ersten fünf Zeilen zur Kontrolle.
+#  * Am Ende: alle acht CSVs im Datei-Browser links per Rechtsklick
+#    herunterladen und per Taildrop schicken.
 #
-# Vorher einmalig in einer EIGENEN Zelle (nur nötig, wenn der Kernel neu ist) —
-# die zwei Zeilen ohne die "# "-Präfixe und ohne Einrückung:
+#  ZELLEN-ÜBERSICHT (Zeilennummern in dieser Datei)
+#  -----------------------------------------------
+#    ZELLE 1:  Zeile  44 bis 91    Setup (zuerst!)
+#    ZELLE 2:  Zeile  94 bis 138   Q5  npl_share
+#    ZELLE 3:  Zeile 141 bis 195   Q6  survival
+#    ZELLE 4:  Zeile 198 bis 229   Q7  country_race
+#    ZELLE 5:  Zeile 232 bis 266   Q8  internationalization
+#    ZELLE 6:  Zeile 269 bis 307   Q9  collaborations
+#    ZELLE 7:  Zeile 310 bis 346   Q10 cpc_groups
+#    ZELLE 8:  Zeile 349 bis 379   Q11 nace2_bridge
+#    ZELLE 9:  Zeile 382 bis 412   Q12 ep_oppositions
 #
-# from epo.tipdata.patstat import PatstatClient
-# patstat = PatstatClient(env='PROD')
+#  NANO-TIPPS
+#  ----------
+#    nano -l scripts/tip_round2_cell.py   Datei mit Zeilennummern öffnen
+#    Strg+_                               zu einer Zeilennummer springen
+#    Alt+A                                Markierung beginnen
+#    Alt+6                                markierten Bereich kopieren
+#    Strg+W                               suchen (z. B. nach "ANFANG ZELLE 5")
 #
-# Der Kopf steht bewusst als #-Kommentar statt als Docstring: ein Docstring
-# verleitet dazu, mitten im Block zu kopieren, und das abschließende """
-# öffnet dann in der Zelle eine neue Zeichenkette (Owner-Stolperstein 08-10).
+# =============================================================================
 
-import pandas as pd, time
 
+# #############################################################################
+# ANFANG ZELLE 1 von 9  —  SETUP.  Muss zuerst laufen, danach nie wieder
+#                          (außer der Kernel wurde neu gestartet).
+# #############################################################################
+from epo.tipdata.patstat import PatstatClient
+import pandas as pd
+import time
+
+patstat = PatstatClient(env='PROD')
+
+# Unsere 26 kuratierten Technologie-Achsen (= build_cpc_insights.CURATED
+# plus B64G Raumfahrt, H10K organische Elektronik, H01L Halbleiter).
 CPCS = ("'A01H','A23C','A23J','A23L','A61B','A61K','A63F','B09B','B25J','B33Y',"
         "'C12N','C25B','D01F','E04B','F03D','G06N','G06Q','G09B','G16H','G16Y',"
         "'H01M','H02S','H04W','B64G','H10K','H01L'")
 
+# Gemeinsamer Kopf fast aller Abfragen: Anmeldungen -> CPC-Achse.
 CPC_CTE = f"""
 WITH cpc AS (
   SELECT DISTINCT appln_id, SUBSTR(cpc_class_symbol, 1, 4) AS cpc_subclass
@@ -29,10 +65,44 @@ WITH cpc AS (
   WHERE SUBSTR(cpc_class_symbol, 1, 4) IN ({CPCS})
 )"""
 
-QUERIES = {}
 
-# Q5 — Wissenschafts-Verknuepfung: NPL-Anteil + Median-Lag Paper -> Patent
-QUERIES["npl_share"] = f"""
+def run(name, sql):
+    """Abfrage ausfuehren, als <name>.csv speichern, Ergebnis melden.
+
+    Faengt Fehler ab und gibt sie lesbar aus, damit ein Problem in einer
+    Zelle nicht den Kernel-Zustand oder die anderen Abfragen stoert.
+    """
+    t0 = time.time()
+    try:
+        df = pd.DataFrame(patstat.sql_query(sql, use_legacy_sql=False))
+        df.to_csv(f"{name}.csv", index=False)
+        print(f"OK — {name}: {len(df):,} Zeilen in {time.time()-t0:.0f}s "
+              f"-> {name}.csv\n")
+        print(df.head(5).to_string(max_colwidth=40))
+        return df
+    except Exception as e:
+        print(f"FEHLER bei {name} nach {time.time()-t0:.0f}s:\n{e}")
+        return None
+
+
+print("Setup fertig. Verbindung steht, run() ist definiert.")
+# #############################################################################
+# ENDE ZELLE 1
+# #############################################################################
+
+
+# #############################################################################
+# ANFANG ZELLE 2 von 9  —  Q5  WISSENSCHAFTS-VERKNÜPFUNG   -> npl_share.csv
+#
+#   Misst je Technologie und Jahr, welcher Anteil der zitierten Literatur
+#   wissenschaftliche Papers sind (statt anderer Patente) und wie viele Tage
+#   im Median zwischen Paper und zitierendem Patent liegen.
+#   Produktnutzen: belegt die Kette Research-Tier -> Patent-Tier mit Zahlen.
+#
+#   ACHTUNG: langsamste Abfrage (Zitationstabelle ~1 Mrd. Zeilen).
+#   Mehrere Minuten sind normal — nicht abbrechen.
+# #############################################################################
+sql_npl = f"""
 {CPC_CTE},
 cit AS (
   SELECT p.appln_id,
@@ -62,8 +132,24 @@ GROUP BY 1, 2
 ORDER BY 1, 2
 """
 
-# Q6 — Ueberlebenskurven: Alter beim Fallenlassen (ST.27-Kategorie H)
-QUERIES["survival"] = f"""
+run("npl_share", sql_npl)
+# #############################################################################
+# ENDE ZELLE 2
+# #############################################################################
+
+
+# #############################################################################
+# ANFANG ZELLE 3 von 9  —  Q6  ÜBERLEBENSKURVEN            -> survival.csv
+#
+#   Für erteilte Patente der Anmeldejahrgänge 2000-2015: in welchem Alter
+#   werden sie fallengelassen (ST.27-Kategorie H, "IP right ceased")?
+#   cohort_size steht auf jeder Zeile und ist der Nenner für die Kurve.
+#   Produktnutzen: die ehrliche patentseitige "Faded Hype"-Messung —
+#   kurze Haltedauer heißt, das Feld überzeugt seine eigenen Anmelder nicht.
+#
+#   ACHTUNG: zweitlangsamste Abfrage (Rechtsstandstabelle ~500 Mio. Zeilen).
+# #############################################################################
+sql_survival = f"""
 {CPC_CTE},
 grants AS (
   SELECT k.cpc_subclass, a.appln_id, a.appln_filing_date,
@@ -103,8 +189,21 @@ WHERE a.age_years IS NULL OR a.age_years BETWEEN 0 AND 25
 ORDER BY 1, 2, 4
 """
 
-# Q7 — Laender-Rennen je Achse und Anmeldejahr
-QUERIES["country_race"] = f"""
+run("survival", sql_survival)
+# #############################################################################
+# ENDE ZELLE 3
+# #############################################################################
+
+
+# #############################################################################
+# ANFANG ZELLE 4 von 9  —  Q7  LÄNDER-RENNEN             -> country_race.csv
+#
+#   Patentfamilien je Technologie, Anmeldejahr und Sitzland des Anmelders
+#   (2010-2023). Länder mit weniger als 25 Familien fallen raus, damit die
+#   Datei klein bleibt.
+#   Produktnutzen: "wer gewinnt Anteile" — Kurven fürs Geopolitik-Thema.
+# #############################################################################
+sql_country = f"""
 {CPC_CTE},
 fam AS (
   SELECT DISTINCT k.cpc_subclass, a.docdb_family_id,
@@ -124,8 +223,22 @@ HAVING COUNT(*) >= 25
 ORDER BY 1, 2, 4 DESC
 """
 
-# Q8 — Internationalisierung (Mehr-Amt-Familien, PCT-Anteil)
-QUERIES["internationalization"] = f"""
+run("country_race", sql_country)
+# #############################################################################
+# ENDE ZELLE 4
+# #############################################################################
+
+
+# #############################################################################
+# ANFANG ZELLE 5 von 9  —  Q8  INTERNATIONALISIERUNG
+#                                              -> internationalization.csv
+#
+#   Je Technologie und Jahr: wie viele Patentfamilien bei mehr als einem Amt
+#   angemeldet wurden und wie viele den PCT-Weg (WO) genommen haben.
+#   Produktnutzen: Auslandsanmeldungen kosten richtig Geld — ein ehrlicher
+#   Indikator dafür, wie sehr Anmelder an ein Feld glauben.
+# #############################################################################
+sql_intl = f"""
 {CPC_CTE},
 fam AS (
   SELECT k.cpc_subclass, a.docdb_family_id,
@@ -147,8 +260,21 @@ GROUP BY 1, 2
 ORDER BY 1, 2
 """
 
-# Q9 — Uni-Firma-Ko-Anmeldungen, Top 15 je Achse
-QUERIES["collaborations"] = f"""
+run("internationalization", sql_intl)
+# #############################################################################
+# ENDE ZELLE 5
+# #############################################################################
+
+
+# #############################################################################
+# ANFANG ZELLE 6 von 9  —  Q9  UNI-FIRMA-KOLLABORATIONEN -> collaborations.csv
+#
+#   Top-15-Paare je Technologie: welche Universität meldet gemeinsam mit
+#   welcher Firma an (Anmeldungen ab 2015, harmonisierte PSN-Namen).
+#   Produktnutzen: Transfer 2.0 — nicht nur "wie viel Uni steckt drin",
+#   sondern wer konkret mit wem baut.
+# #############################################################################
+sql_collab = f"""
 {CPC_CTE},
 pers AS (
   SELECT DISTINCT k.cpc_subclass, a.docdb_family_id, p.psn_name, p.psn_sector
@@ -175,8 +301,22 @@ WHERE rn <= 15
 ORDER BY 1, 2
 """
 
-# Q10 — Sub-Trends auf CPC-Hauptgruppen-Ebene
-QUERIES["cpc_groups"] = f"""
+run("collaborations", sql_collab)
+# #############################################################################
+# ENDE ZELLE 6
+# #############################################################################
+
+
+# #############################################################################
+# ANFANG ZELLE 7 von 9  —  Q10 SUB-TRENDS (CPC-GRUPPEN)    -> cpc_groups.csv
+#
+#   Zeitreihen eine Ebene feiner als unsere Achsen: Hauptgruppen wie G06N10
+#   (Quantencomputing) getrennt von G06N3 (neuronale Netze). Nur Gruppen mit
+#   mindestens 500 Familien insgesamt.
+#   Produktnutzen: aufkommende Teilfelder werden sichtbar, die in der groben
+#   Subclass-Summe untergehen.
+# #############################################################################
+sql_groups = f"""
 WITH grp AS (
   SELECT a.docdb_family_id,
          SUBSTR(c.cpc_class_symbol, 1, 4) AS cpc_subclass,
@@ -200,8 +340,21 @@ FROM agg a JOIN big b ON b.cpc_group = a.cpc_group
 ORDER BY 1, 2, 3
 """
 
-# Q11 — NACE2-Branchenbruecke
-QUERIES["nace2_bridge"] = f"""
+run("cpc_groups", sql_groups)
+# #############################################################################
+# ENDE ZELLE 7
+# #############################################################################
+
+
+# #############################################################################
+# ANFANG ZELLE 8 von 9  —  Q11 NACE2-BRANCHENBRÜCKE       -> nace2_bridge.csv
+#
+#   Das gewichtete amtliche Mapping von Technologie auf Wirtschaftszweig,
+#   inklusive Klartext-Bezeichnung der NACE2-Codes.
+#   Produktnutzen: datenbasierte Brücke von den CPC-Achsen zu unseren acht
+#   Verticals, statt die Zuordnung von Hand zu verdrahten.
+# #############################################################################
+sql_nace = f"""
 {CPC_CTE},
 n AS (
   SELECT k.cpc_subclass, na.nace2_code,
@@ -220,8 +373,22 @@ FROM n LEFT JOIN lbl l ON l.nace2_code = n.nace2_code
 ORDER BY 1, n.weighted_applications DESC
 """
 
-# Q12 — EP-Einsprueche, Bedeutung der Codes direkt aus TLS803
-QUERIES["ep_oppositions"] = f"""
+run("nace2_bridge", sql_nace)
+# #############################################################################
+# ENDE ZELLE 8
+# #############################################################################
+
+
+# #############################################################################
+# ANFANG ZELLE 9 von 9  —  Q12 EP-EINSPRÜCHE            -> ep_oppositions.csv
+#
+#   Einspruchsbezogene Rechtsstandsereignisse am Europäischen Patentamt
+#   (Codes 26* und 27*) je Technologie und Jahr — die Bedeutung jedes Codes
+#   kommt als Klartext aus der amtlichen Tabelle TLS803, nicht aus Annahmen.
+#   Produktnutzen: wo Wettbewerber Geld für Einsprüche ausgeben, steht
+#   kommerzieller Wert — Konflikt-Intensität als Signal.
+# #############################################################################
+sql_opp = f"""
 {CPC_CTE}
 SELECT k.cpc_subclass,
        EXTRACT(YEAR FROM l.event_publn_date) AS event_year,
@@ -239,18 +406,8 @@ GROUP BY 1, 2, 3, 4
 ORDER BY 1, 2, 3
 """
 
-# --- Lauf: jede Abfrage einzeln, Fehler stoppen die restlichen nicht ---------
-results = {}
-for name, sql in QUERIES.items():
-    t0 = time.time()
-    try:
-        df = pd.DataFrame(patstat.sql_query(sql, use_legacy_sql=False))
-        df.to_csv(f"{name}.csv", index=False)
-        results[name] = len(df)
-        print(f"OK      {name:22s} {len(df):>7,} Zeilen  {time.time()-t0:6.0f}s  -> {name}.csv")
-    except Exception as e:
-        results[name] = f"FEHLER: {e}"
-        print(f"FEHLER  {name:22s} nach {time.time()-t0:.0f}s: {str(e)[:400]}")
-
-print("\nFertig. Erfolgreich:", [k for k, v in results.items() if isinstance(v, int)])
-print("Fehlgeschlagen:      ", [k for k, v in results.items() if not isinstance(v, int)])
+run("ep_oppositions", sql_opp)
+# #############################################################################
+# ENDE ZELLE 9  —  danach alle acht CSVs herunterladen und per Taildrop
+#                  schicken. Fertig.
+# #############################################################################
