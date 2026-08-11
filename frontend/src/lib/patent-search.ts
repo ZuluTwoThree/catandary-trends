@@ -31,10 +31,12 @@ export interface QueryChip {
 export interface ParsedPatentQuery {
   /** Restlicher Freitext für die Volltextsuche ("" wenn nichts übrig). */
   text: string;
-  /** Exakte Publikationsnummer inkl. Kind-Code (US-2023120329-A1). */
-  pubExact?: string;
-  /** Präfix ohne Kind-Code (US-11734097-) — trifft alle Kinds. */
-  pubPrefix?: string;
+  /** Exakte Publikationsnummern inkl. Kind-Code — mehrere, weil dieselbe
+   *  Veröffentlichung je nach Quelle unterschiedlich geschrieben wird
+   *  (siehe numberVariants). */
+  pubExact?: string[];
+  /** Präfixe ohne Kind-Code (US-11734097-) — treffen alle Kind-Codes. */
+  pubPrefix?: string[];
   /** CPC-Subclass (G06N). */
   cpc?: string;
   /** Volle CPC-Gruppe als Präfix (G06N10/40) — braucht Stufe 2. */
@@ -56,6 +58,23 @@ const YEAR_RE = /\b(\d{4})\b/g;
 
 const inYearRange = (y: number) => y >= YEAR_MIN && y <= YEAR_MAX;
 
+/** Schreibvarianten einer Publikationsnummer.
+ *
+ *  US-Offenlegungen werden amtlich als Jahr + 7-stellige Seriennummer
+ *  geschrieben (US20230397640A1), das EPO-DOCDB-Format — unsere Quelle — lässt
+ *  die führende Null der Seriennummer weg (US-2023397640-A1). Beide Formen
+ *  stecken im Korpus (2,72 Mio. zehnstellig, 126k elfstellig, gemessen
+ *  2026-08-12), und Nutzer kopieren mal die eine, mal die andere. Also beide
+ *  abfragen statt den Treffer zu verlieren. */
+function numberVariants(num: string): string[] {
+  const out = [num];
+  const year = parseInt(num.slice(0, 4), 10);
+  if (!(year >= YEAR_MIN && year <= YEAR_MAX)) return out;
+  if (num.length === 11 && num[4] === "0") out.push(num.slice(0, 4) + num.slice(5));
+  if (num.length === 10) out.push(num.slice(0, 4) + "0" + num.slice(4));
+  return out;
+}
+
 /** Erkanntes Teilstück aus dem Freitext schneiden (durch Leerzeichen
  *  ersetzen, damit nachfolgende Regexe keine Wortgrenzen verlieren). */
 function cut(s: string, start: number, len: number): string {
@@ -75,13 +94,13 @@ export function parsePatentQuery(raw: string): ParsedPatentQuery {
     const num = rawNum.replace(/\//g, "");
     // Vierstellige Zahl ohne Kind-Code ist eher ein Jahr als eine Nummer
     if (num.length <= 4 && !kind) continue;
-    const base = `${auth.toUpperCase()}-${num}`;
+    const variants = numberVariants(num).map((n) => `${auth.toUpperCase()}-${n}`);
     if (kind) {
-      out.pubExact = `${base}-${kind.toUpperCase()}`;
-      out.chips.push({ kind: "patent", label: out.pubExact });
+      out.pubExact = variants.map((v) => `${v}-${kind.toUpperCase()}`);
+      out.chips.push({ kind: "patent", label: out.pubExact[0] });
     } else {
-      out.pubPrefix = `${base}-`;
-      out.chips.push({ kind: "patent", label: `${base} (alle Kinds)` });
+      out.pubPrefix = variants.map((v) => `${v}-`);
+      out.chips.push({ kind: "patent", label: `${variants[0]} (any kind code)` });
     }
     rest = cut(rest, m.index ?? 0, full.length);
     break; // eine Nummer pro Anfrage genügt

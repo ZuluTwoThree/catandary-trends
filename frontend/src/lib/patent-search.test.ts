@@ -4,18 +4,26 @@ import { parsePatentQuery } from "./patent-search";
 describe("parsePatentQuery — Publikationsnummern", () => {
   it("erkennt die gängigen Schreibweisen und normalisiert sie", () => {
     for (const q of ["US11734097B2", "US 11734097 B2", "us-11734097-b2", "US 11734097B2"]) {
-      expect(parsePatentQuery(q).pubExact, q).toBe("US-11734097-B2");
+      expect(parsePatentQuery(q).pubExact, q).toContain("US-11734097-B2");
     }
   });
 
   it("liefert ein Präfix, wenn der Kind-Code fehlt", () => {
     const p = parsePatentQuery("EP 3866123");
-    expect(p.pubPrefix).toBe("EP-3866123-");
+    expect(p.pubPrefix).toContain("EP-3866123-");
     expect(p.pubExact).toBeUndefined();
   });
 
   it("erkennt das EPO-Format mit Schrägstrich", () => {
-    expect(parsePatentQuery("US 2023/120329 A1").pubExact).toBe("US-2023120329-A1");
+    expect(parsePatentQuery("US 2023/120329 A1").pubExact).toContain("US-2023120329-A1");
+  });
+
+  it("findet US-Offenlegungen in beiden Schreibweisen (führende Null der Seriennummer)", () => {
+    // amtlich US20230397640A1, im DOCDB-Korpus US-2023397640-A1
+    const p = parsePatentQuery("US20230397640A1");
+    expect(p.pubExact).toEqual(["US-20230397640-A1", "US-2023397640-A1"]);
+    // und andersherum, wenn jemand die DOCDB-Form kopiert
+    expect(parsePatentQuery("US2023397640A1").pubExact).toContain("US-20230397640-A1");
   });
 
   it("ignoriert unbekannte Länderkürzel (kein Fehlalarm auf Produktnamen)", () => {

@@ -388,10 +388,12 @@ export async function getPatentSignals(options: {
   q?: string;
   cpc?: string;
   country?: string;
-  /** Exakte Publikationsnummer (US-2023120329-A1) — Router-Pfad #78 */
-  pubExact?: string;
-  /** Nummern-Präfix ohne Kind-Code (US-11734097-) */
-  pubPrefix?: string;
+  /** Exakte Publikationsnummern (US-2023120329-A1) — Router-Pfad #78.
+   *  Mehrere, weil dieselbe Veröffentlichung amtlich und im DOCDB-Format
+   *  unterschiedlich geschrieben wird (führende Null der Seriennummer). */
+  pubExact?: string[];
+  /** Nummern-Präfixe ohne Kind-Code (US-11734097-) */
+  pubPrefix?: string[];
   yearFrom?: number;
   yearTo?: number;
   limit?: number;
@@ -406,11 +408,16 @@ export async function getPatentSignals(options: {
   // Nummern-Pfad: exakter Treffer bzw. alle Kind-Codes einer Nummer. Läuft
   // über idx_raw_pubnum_pattern (text_pattern_ops — die DB-Collation
   // de_DE.UTF-8 macht den normalen btree für Präfixe unbrauchbar).
-  if (options.pubExact || options.pubPrefix) {
-    const where = options.pubExact
-      ? `r.pub_number = $1`
-      : `r.pub_number LIKE $1`;
-    params.push(options.pubExact ?? `${options.pubPrefix}%`);
+  if (options.pubExact?.length || options.pubPrefix?.length) {
+    // Explizite OR-Kette statt = ANY(...) / LIKE ANY(...): nur so bekommt
+    // jede Variante ihren eigenen Index-Range-Scan (Bitmap-OR).
+    const exact = options.pubExact ?? [];
+    const prefixes = options.pubPrefix ?? [];
+    const terms = [
+      ...exact.map((v) => { params.push(v); return `r.pub_number = $${params.length}`; }),
+      ...prefixes.map((p) => { params.push(`${p}%`); return `r.pub_number LIKE $${params.length}`; }),
+    ];
+    const where = `(${terms.join(" OR ")})`;
     countSql = `SELECT COUNT(*)::int as cnt FROM raw_entries r WHERE ${where}`;
     params.push(limit, offset);
     rowSql = `SELECT ${PATENT_ROW_COLS}

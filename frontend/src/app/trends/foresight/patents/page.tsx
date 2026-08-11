@@ -629,6 +629,11 @@ export default async function PatentExplorerPage({
         publications plus later-arriving classifications and citations). Assignee
         names and family links are being backfilled from our archived deliveries;
         coverage grows daily. Every entry links to its Espacenet record.
+        Publication numbers are shown in EPO DOCDB form
+        (<span className="font-mono">US-2023397640-A1</span>); the official US
+        style with the leading zero in the serial
+        (<span className="font-mono">US20230397640A1</span>) finds the same
+        record.
       </p>
     </div>
   );
