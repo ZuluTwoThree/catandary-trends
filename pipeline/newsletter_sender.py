@@ -29,7 +29,11 @@ import httpx
 
 from pipeline import db as db_mod
 from pipeline.db import get_connection
-from pipeline.newsletter_generator import get_latest_newsletter, generate_html
+from pipeline.newsletter_generator import (
+    decode_edition_row,
+    get_latest_newsletter,
+    generate_html,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger("newsletter_sender")
@@ -90,7 +94,14 @@ def send_edition(edition: dict, dry_run: bool, force: bool) -> int:
     logger.info("edition %s-W%s: %d confirmed subscribers%s",
                 edition.get("year"), edition.get("week"), len(recipients),
                 " (DRY RUN)" if dry_run else "")
+    # Render BEFORE the dry-run exit. A dry run whose whole point is "would this
+    # send work?" must exercise the template, otherwise it green-lights an
+    # edition that blows up on the real attempt — which is exactly what happened
+    # on 2026-08-12 (JSON columns left as strings, generate_html crashed on
+    # .items() while the dry run had reported success).
+    base_html = generate_html(edition)
     if dry_run:
+        logger.info("rendered %d chars of HTML", len(base_html))
         if recipients:
             logger.info("sample unsubscribe link: %s", unsubscribe_url(recipients[0]))
         return len(recipients)
@@ -100,7 +111,6 @@ def send_edition(edition: dict, dry_run: bool, force: bool) -> int:
         logger.error("RESEND_API_KEY not set — cannot send")
         return 0
 
-    base_html = generate_html(edition)
     sent = 0
     with httpx.Client(timeout=30) as client:
         for i in range(0, len(recipients), BATCH):
@@ -141,7 +151,9 @@ def get_edition(year: int | None, week: int | None) -> dict | None:
             row = conn.execute(
                 "SELECT * FROM newsletter_editions WHERE year = ? AND week = ?",
                 (year, week)).fetchone()
-        return dict(row) if row else None
+        # Same decoding as get_latest_newsletter — a raw dict() leaves the JSON
+        # columns as strings and generate_html() then fails on .items().
+        return decode_edition_row(row) if row else None
     return get_latest_newsletter()
 
 

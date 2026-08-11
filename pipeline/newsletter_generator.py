@@ -744,6 +744,26 @@ def save_newsletter_edition(edition: dict):
     logger.info("Saved newsletter edition %d-W%02d", edition["year"], edition["week"])
 
 
+def decode_edition_row(row) -> dict:
+    """Turn a newsletter_editions row into the shape generate_html() expects.
+
+    The three JSON columns come back as TEXT and must be decoded, or every
+    consumer trips over `'str' object has no attribute 'items'`. This lived
+    inline in get_latest_newsletter(), so the sender's --year/--week path —
+    which builds its dict separately — never decoded them and could not render
+    a single edition. It only stayed hidden because every real send so far used
+    --latest (2026-08-12).
+    """
+    d = dict(row) if hasattr(row, "keys") else {}
+    for field in ("vertical_summaries", "mega_trend_radar", "trend_refs"):
+        if field in d and isinstance(d[field], str):
+            try:
+                d[field] = json.loads(d[field])
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return d
+
+
 def get_latest_newsletter() -> dict | None:
     """Get the most recent newsletter edition."""
     init_newsletter_table()
@@ -753,14 +773,7 @@ def get_latest_newsletter() -> dict | None:
         ).fetchone()
     if not row:
         return None
-    d = dict(row) if hasattr(row, "keys") else {}
-    for field in ("vertical_summaries", "mega_trend_radar", "trend_refs"):
-        if field in d and isinstance(d[field], str):
-            try:
-                d[field] = json.loads(d[field])
-            except (json.JSONDecodeError, TypeError):
-                pass
-    return d
+    return decode_edition_row(row)
 
 
 def get_newsletter_editions(limit: int = 12) -> list[dict]:
