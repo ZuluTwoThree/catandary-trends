@@ -189,3 +189,62 @@ export async function rejectReviewed(id: number): Promise<boolean> {
   );
   return rows.length > 0;
 }
+
+/** How often one signal may be sent back before we stop trying. */
+export const MAX_REGENERATION_ATTEMPTS = 2;
+
+export type RequeueResult =
+  | { ok: true }
+  | { ok: false; reason: "not_draft" | "no_source" | "attempts_exhausted" };
+
+/**
+ * Send a defective draft back to be written again (issue #71).
+ *
+ * A body that breaks off mid-sentence is a failed generation, not a bad story —
+ * rejecting it threw the signal away for good. This resets the underlying
+ * raw_entry so the next nightly cycle runs it through the whole pipeline again
+ * and the current Stage-6 model writes a fresh article.
+ *
+ * The old row is marked rejected rather than left as a draft, for two reasons:
+ * it keeps an audit trail of the failed attempt, and — decisively — its
+ * embedding would otherwise still sit in the 30-day dedup window and kill the
+ * regenerated article as a duplicate of itself. get_recent_embeddings() skips
+ * hand-rejected rows (reviewed_at IS NOT NULL), which is exactly this case.
+ *
+ * Order matters: the trend is retired FIRST. If the second statement then
+ * fails, the outcome is a plain rejection — never an unprocessed entry whose
+ * old draft is still live, which would yield two articles for one signal.
+ */
+export async function requeueForRegeneration(id: number): Promise<RequeueResult> {
+  const row = await q1<{ raw_entry_id: number | null; attempts: number }>(
+    `SELECT t.raw_entry_id,
+            (SELECT COUNT(*)::int FROM trends p
+              WHERE p.raw_entry_id = t.raw_entry_id
+                AND p.status = 'rejected' AND p.reviewed_at IS NOT NULL) AS attempts
+       FROM trends t
+      WHERE t.id = $1 AND t.status = 'draft'`,
+    [id]
+  );
+  if (!row) return { ok: false, reason: "not_draft" };
+  if (row.raw_entry_id == null) return { ok: false, reason: "no_source" };
+  // Counts earlier failed attempts on this signal, so a source that truncates
+  // every time cannot bounce through the pipeline forever.
+  if (row.attempts >= MAX_REGENERATION_ATTEMPTS)
+    return { ok: false, reason: "attempts_exhausted" };
+
+  const retired = await q<{ id: number }>(
+    `UPDATE trends SET status = 'rejected', reviewed_at = NOW()
+      WHERE id = $1 AND status = 'draft'
+      RETURNING id`,
+    [id]
+  );
+  if (!retired.length) return { ok: false, reason: "not_draft" };
+
+  await q(
+    `UPDATE raw_entries
+        SET processed = FALSE, filtered_out = FALSE, filter_reason = NULL
+      WHERE id = $1`,
+    [row.raw_entry_id]
+  );
+  return { ok: true };
+}

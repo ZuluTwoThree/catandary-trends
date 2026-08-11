@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { canReview } from "@/lib/review-access";
 import { getHeldDrafts, getReviewCounts, type ReviewItem } from "@/lib/review";
-import { publishAction, rejectAction } from "./actions";
+import { publishAction, rejectAction, requeueAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +96,22 @@ function Card({ item }: { item: ReviewItem }) {
             Publish
           </button>
         </form>
+        {/* A body that breaks off mid-sentence is a failed generation, not a
+            bad story — offer to have it written again instead of losing the
+            signal. Only shown where it applies, so the default two-choice
+            decision stays two choices. */}
+        {item.truncated && (
+          <form action={requeueAction}>
+            <input type="hidden" name="id" value={item.id} />
+            <button
+              type="submit"
+              className="border border-accent/50 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-accent hover:bg-accent/10 transition-colors"
+              title="Sends the source entry back through the pipeline tonight; the current model writes a new article."
+            >
+              Write again
+            </button>
+          </form>
+        )}
         <form action={rejectAction}>
           <input type="hidden" name="id" value={item.id} />
           <button
@@ -141,8 +157,11 @@ export default async function ReviewPage({
         <p className="mt-3 max-w-2xl text-[14px] leading-[1.65] text-muted">
           These articles were kept out of publication because the body states a
           figure or date the source does not support — or because it breaks off
-          mid-sentence. Compare both columns and decide. Whatever you decide, the
-          article leaves the queue and the nightly gate stops re-checking it.
+          mid-sentence. Compare both columns and decide; either way the article
+          leaves the queue and the nightly gate stops re-checking it. Where the
+          text simply broke off, <span className="text-accent">Write again</span>{" "}
+          sends the source back through tonight&rsquo;s pipeline instead, so the
+          signal is not lost to a failed generation.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em]">
           <span className="text-paper">{counts.today} today</span>

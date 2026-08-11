@@ -67,3 +67,36 @@ class TestCosineSimilarity:
             b = [random.uniform(-1, 1) for _ in range(50)]
             sim = cosine_similarity(a, b)
             assert -1.0 <= sim <= 1.0 + 1e-6
+
+
+class TestDedupExcludesHandRejected:
+    """A reviewer rejects the TEXT, not the story (#71).
+
+    Their rejected article used to stay in the 30-day dedup window and killed
+    the next outlet's coverage of the same event as a duplicate, so the story
+    was lost. Sweep rejections (advertorials) must KEEP blocking, because there
+    the source is the problem — reviewed_at is what tells the two apart.
+    """
+
+    def _insert(self, conn, tid, status, reviewed):
+        conn.execute(
+            "INSERT INTO trends (id, title_en, slug, source_url, status, "
+            " reviewed_at, embedding, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+            (tid, f"T{tid}", f"t-{tid}", "https://example.com", status,
+             reviewed, b"\x00" * 16),
+        )
+
+    def test_hand_rejected_leaves_the_window_sweep_rejected_stays(self):
+        from pipeline.db import get_connection, get_recent_embeddings, init_db
+        init_db()
+        with get_connection() as conn:
+            self._insert(conn, 900001, "published", None)
+            self._insert(conn, 900002, "rejected", "2026-08-11 09:00:00")  # by hand
+            self._insert(conn, 900003, "rejected", None)                   # sweep
+            self._insert(conn, 900004, "draft", None)
+
+        ids = {i for i, _ in get_recent_embeddings(days=30, limit=1000)}
+        assert 900002 not in ids, "hand-rejected must not block a re-cover"
+        assert 900003 in ids, "sweep rejection must keep suppressing follow-ups"
+        assert 900001 in ids and 900004 in ids, "normal rows must still dedup"
