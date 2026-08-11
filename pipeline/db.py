@@ -100,6 +100,11 @@ CREATE TABLE IF NOT EXISTS trends (
     status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'rejected', 'signal')),
     auto_published INTEGER DEFAULT 0,
     published_at TEXT,
+    -- Set by BOTH review decisions (publish and reject), so review progress is
+    -- measurable either way — a rejection used to leave no trace at all (#71).
+    -- Also separates a human rejection from an automated sweep, which
+    -- get_recent_embeddings() relies on.
+    reviewed_at TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     sort_date TEXT
 );
@@ -234,6 +239,8 @@ CREATE TABLE IF NOT EXISTS trends (
     status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'rejected', 'signal')),
     auto_published BOOLEAN DEFAULT false,
     published_at TIMESTAMP,
+    -- See the SQLite schema above: written by both review decisions (#71).
+    reviewed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     sort_date TIMESTAMP            -- parity with SQLite _migrate_trends_sort_date
 );
@@ -463,6 +470,25 @@ def _migrate_stage_cache_columns():
                 if "duplicate column" in msg or "already exists" in msg:
                     continue
                 raise
+
+
+def _migrate_reviewed_at():
+    """Add trends.reviewed_at to pre-existing databases. Idempotent.
+
+    The column shipped as a standalone script (scripts/migrate_reviewed_at.py)
+    and was applied to production by hand, but was never wired into init_db —
+    so a fresh clone or a second environment lacked it. get_recent_embeddings()
+    now filters on it, which would turn that gap into a hard failure of the
+    dedup step rather than a missing feature (#71).
+    """
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            conn.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP")
+            return
+        rows = conn.execute("PRAGMA table_info(trends)").fetchall()
+        names = [(r[1] if not hasattr(r, "keys") else r["name"]) for r in rows]
+        if "reviewed_at" not in names:
+            conn.execute("ALTER TABLE trends ADD COLUMN reviewed_at TEXT")
 
 
 def _migrate_trends_sort_date():
@@ -904,6 +930,7 @@ def init_db():
         logger.info("SQLite database initialized at %s", get_db_path())
     _migrate_stage_cache_columns()
     _migrate_trends_sort_date()
+    _migrate_reviewed_at()
     _migrate_patent_graph()
     _migrate_patent_cpc()
     _migrate_openalex_graph()
@@ -1304,12 +1331,22 @@ def get_recent_embeddings(days: int = 30, limit: int = 120_000) -> list[tuple[in
     capped at `limit` rows. The cap bounds RAM: a mass backfill can insert 500k+
     signals in a day, and loading them all as a 4096-d matrix (~8 GB at 500k)
     OOM-killed the run under concurrent load. The newest `limit` rows are more
-    than enough to catch duplicates of a fresh batch (dups are recent)."""
+    than enough to catch duplicates of a fresh batch (dups are recent).
+
+    Hand-rejected articles are excluded. A reviewer rejects the TEXT (an invented
+    figure, a truncated body), not the story — but their embedding used to sit in
+    this window for 30 days and silently killed the next outlet's coverage of the
+    same event as a duplicate, so the story was lost entirely. Sweep rejections
+    (advertorials, reviewed_at IS NULL) DO stay: there the source is the problem
+    and suppressing follow-ups is the point. reviewed_at is what separates them.
+    """
+    reviewed_clause = "AND NOT (status = 'rejected' AND reviewed_at IS NOT NULL) "
     with get_connection() as conn:
         if USE_POSTGRES:
             rows = conn.execute(
                 "SELECT id, embedding::text AS embedding FROM trends "
                 "WHERE embedding IS NOT NULL AND created_at > NOW() - make_interval(days => %s) "
+                + reviewed_clause +
                 "ORDER BY id DESC LIMIT %s",
                 (days, limit),
             ).fetchall()
@@ -1317,6 +1354,7 @@ def get_recent_embeddings(days: int = 30, limit: int = 120_000) -> list[tuple[in
         rows = conn.execute(
             "SELECT id, embedding FROM trends "
             "WHERE embedding IS NOT NULL AND created_at > datetime('now', ?) "
+            + reviewed_clause +
             "ORDER BY id DESC LIMIT ?",
             (f"-{days} days", limit),
         ).fetchall()

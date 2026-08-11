@@ -163,3 +163,58 @@ bewusst beanstandet bleibt.
 
 Parität diesmal über **3.937** Artikel aus neun Tagen verifiziert, null
 Abweichungen zwischen Python-Gate und TS-Oberfläche.
+
+---
+
+## Nachtrag 2026-08-12: was mit verworfenen Artikeln geschieht
+
+Auf die Frage des Owners hin nachgesehen — es war nirgends dokumentiert.
+
+**Bisher:** `status='rejected'` + `reviewed_at`, Zeile bleibt dauerhaft in
+`trends` (kein Aufräum-Prozess). Aus dem Produkt verschwunden, weil
+`buildFilterClauses` (`frontend/src/lib/db.ts:575`) auf `status='published'`
+vorbelegt ist. Der `raw_entry` bleibt `processed=true`, es entsteht also kein
+neuer Artikel. Zählt weiter in die „analysiert"-Zahl der Methodik-Seite — was
+korrekt ist, er *wurde* analysiert.
+
+**Das Problem:** `get_recent_embeddings` hatte keinen Status-Filter. Verworfene
+Artikel blieben damit 30 Tage im Duplikat-Vergleich. Beim Review verwerfen wir
+aber den *Text*, nicht die *Geschichte* — ein Artikel mit erfundener Zahl
+blockierte so die saubere Zweitfassung derselben Meldung. Die Betroffenheit war
+fast vollständig auf Handentscheidungen konzentriert: 36 von 37 lagen im
+Dedup-Fenster, gegenüber 5 von 136 Sweep-Ablehnungen.
+
+**Gelöst (Owner-Entscheidung):**
+
+1. `get_recent_embeddings` schließt `status='rejected' AND reviewed_at IS NOT
+   NULL` aus — nur Handentscheidungen. Advertorial-Sweeps behalten ihre
+   Sperrwirkung, dort ist die Quelle das Problem. `reviewed_at` ist der Marker,
+   der beide Fälle trennt.
+
+2. Neuer Knopf **„Write again"**, nur bei abgeschnittenen Bodies sichtbar. Er
+   legt den alten Artikel still und setzt den `raw_entry` auf unverarbeitet
+   zurück, sodass der nächste Nachtlauf ihn komplett neu durch die Pipeline
+   schickt. Ein Deckel von zwei Versuchen pro Signal verhindert, dass eine
+   Quelle, die immer abbricht, endlos kreist.
+
+   *Warum stillgelegt statt „zurück auf draft":* Bliebe die alte Zeile ein
+   Draft, läge ihr Embedding weiter im Dedup-Fenster und würde die
+   Neufassung als Duplikat ihrer selbst töten. Beide Änderungen greifen also
+   ineinander. Zusätzlich hält die stillgelegte Zeile den Fehlversuch fest.
+
+   Die Reihenfolge der beiden Schreibvorgänge ist die Sicherheitseigenschaft:
+   erst stilllegen, dann öffnen. Scheitert der zweite Schritt, ist das Ergebnis
+   eine gewöhnliche Ablehnung — nie ein offener Eintrag neben einem lebenden
+   Draft, was zwei Artikel aus einem Signal ergäbe.
+
+**Dabei gefunden:** `reviewed_at` fehlte im Schema von `pipeline/db.py`. Die
+Spalte kam per Einzelskript in die Live-DB, wurde aber nie in `init_db`
+nachgezogen — eine frische Datenbank hatte sie nicht. Mit dem neuen Dedup-Filter
+wäre daraus ein harter Fehler des Dedup-Schritts geworden statt eines fehlenden
+Features. Spalte jetzt in beiden Schemata plus idempotente Migration
+`_migrate_reviewed_at()`, in `init_db` verdrahtet. (Dasselbe Muster wie die
+Stripe-Webhook-Lücke vom 19.07.)
+
+Verifiziert gegen die Live-DB in einer Transaktion mit Rollback: Artikel wird
+stillgelegt, Eintrag wieder geöffnet, und die Abfrage des Cycles findet ihn
+danach tatsächlich wieder. 182 Python- + 143 Frontend-Tests grün.
