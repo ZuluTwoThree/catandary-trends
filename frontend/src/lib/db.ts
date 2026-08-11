@@ -388,6 +388,12 @@ export async function getPatentSignals(options: {
   q?: string;
   cpc?: string;
   country?: string;
+  /** Exakte Publikationsnummer (US-2023120329-A1) — Router-Pfad #78 */
+  pubExact?: string;
+  /** Nummern-Präfix ohne Kind-Code (US-11734097-) */
+  pubPrefix?: string;
+  yearFrom?: number;
+  yearTo?: number;
   limit?: number;
   offset?: number;
 } = {}): Promise<{ rows: PatentSignal[]; total: number; clamped: boolean }> {
@@ -396,6 +402,44 @@ export async function getPatentSignals(options: {
   const params: unknown[] = [];
   let countSql: string;
   let rowSql: string;
+
+  // Nummern-Pfad: exakter Treffer bzw. alle Kind-Codes einer Nummer. Läuft
+  // über idx_raw_pubnum_pattern (text_pattern_ops — die DB-Collation
+  // de_DE.UTF-8 macht den normalen btree für Präfixe unbrauchbar).
+  if (options.pubExact || options.pubPrefix) {
+    const where = options.pubExact
+      ? `r.pub_number = $1`
+      : `r.pub_number LIKE $1`;
+    params.push(options.pubExact ?? `${options.pubPrefix}%`);
+    countSql = `SELECT COUNT(*)::int as cnt FROM raw_entries r WHERE ${where}`;
+    params.push(limit, offset);
+    rowSql = `SELECT ${PATENT_ROW_COLS}
+     FROM raw_entries r
+     ${PATENT_ROW_JOINS}
+     WHERE ${where}
+     ORDER BY r.published_date DESC
+     LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    const countRow = await q1<{ cnt: number }>(countSql, params.slice(0, -2));
+    const rows = await q<PatentSignal>(rowSql, params);
+    return {
+      rows: rows.map((r) => ({ ...r, cpcs: (r.cpcs as unknown as string[]) ?? [] })),
+      total: countRow?.cnt ?? 0,
+      clamped: false,
+    };
+  }
+
+  const yearClause = (col: string) => {
+    const parts: string[] = [];
+    if (options.yearFrom !== undefined) {
+      params.push(`${options.yearFrom}-01-01`);
+      parts.push(`${col} >= $${params.length}::date`);
+    }
+    if (options.yearTo !== undefined) {
+      params.push(`${options.yearTo}-12-31`);
+      parts.push(`${col} <= $${params.length}::date`);
+    }
+    return parts;
+  };
 
   if (options.cpc && !options.q) {
     // Browse-Pfad Technologie-Facette: patent_cpc (128M Zeilen) ist dafür
@@ -408,6 +452,7 @@ export async function getPatentSignals(options: {
       params.push(options.country + "-%");
       w += ` AND pcc.pub_number LIKE $${params.length}`;
     }
+    for (const c of yearClause("pcc.published")) w += ` AND ${c}`;
     countSql = `SELECT COUNT(*)::int as cnt FROM (
        SELECT 1 FROM patent_explorer_cpc pcc WHERE ${w}
        LIMIT ${PATENT_COUNT_CLAMP + 1}) x`;
@@ -434,10 +479,21 @@ export async function getPatentSignals(options: {
       params.push(options.country + "-%");
       where.push(`r.pub_number LIKE $${params.length}`);
     }
+    where.push(...yearClause("r.published_date"));
     const w = where.join(" AND ");
     countSql = `SELECT COUNT(*)::int as cnt FROM (
        SELECT 1 FROM raw_entries r WHERE ${w} LIMIT ${PATENT_COUNT_CLAMP + 1}) x`;
-    const rank = options.q
+    // Sortier-Entscheidung erst NACH dem (billigen) Zähl-Lauf: ts_rank über
+    // eine riesige Treffermenge kostet Sekunden (gemessen: 13s für
+    // '"solid state" -lithium'), weil jede Zeile bewertet und sortiert werden
+    // muss. Ist die Menge geclampt (= sehr häufige Anfrage), liegen die
+    // Treffer dicht — dann findet der Datums-Index die neuesten 25 sofort,
+    // und "neueste zuerst" ist bei Zehntausenden Treffern ohnehin nützlicher
+    // als eine Relevanz-Reihung, die kaum trennt.
+    const countRow = await q1<{ cnt: number }>(countSql, [...params]);
+    const total = countRow?.cnt ?? 0;
+    const clamped = total > PATENT_COUNT_CLAMP;
+    const rank = options.q && !clamped
       ? `ts_rank(${PATENT_FTS}, websearch_to_tsquery('english', $1)) DESC, `
       : "";
     params.push(limit, offset);
@@ -450,6 +506,12 @@ export async function getPatentSignals(options: {
      WHERE ${w}
      ORDER BY ${rank}r.published_date DESC
      LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    const rows = await q<PatentSignal>(rowSql, params);
+    return {
+      rows: rows.map((r) => ({ ...r, cpcs: (r.cpcs as unknown as string[]) ?? [] })),
+      total: Math.min(total, PATENT_COUNT_CLAMP),
+      clamped,
+    };
   }
 
   const countRow = await q1<{ cnt: number }>(countSql, params.slice(0, -2));

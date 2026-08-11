@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getPatentSignals, getPatentStats, getPatentTechIntel } from "@/lib/db";
 import { computeTransferSeries } from "@/lib/transfer";
+import { parsePatentQuery } from "@/lib/patent-search";
 import {
   nplShare, ceasedWithin, topCountries, countryShare,
   oppositionRate, emergingGroups,
@@ -76,11 +77,21 @@ export default async function PatentExplorerPage({
 }) {
   const sp = await searchParams;
   const qText = (sp.q ?? "").trim();
+  // Smart-Router (#78): Publikationsnummern, CPC-Codes und Jahre aus dem
+  // Freitext holen, bevor der Rest an die Volltextsuche geht.
+  const parsed = parsePatentQuery(qText);
   // Facetten gegen die kuratierten Listen validieren — der CPC-Browse-Pfad
   // läuft über die materialisierte patent_explorer_cpc, die nur diese
   // Subclasses enthält; freie Codes würden fälschlich "0 results" zeigen.
   const cpcRaw = (sp.cpc ?? "").trim().toUpperCase();
-  const cpc = CPC_OPTIONS.some(([c]) => c === cpcRaw) ? cpcRaw : "";
+  const dropdownCpc = CPC_OPTIONS.some(([c]) => c === cpcRaw) ? cpcRaw : "";
+  const parsedCurated = !!parsed.cpc && CPC_OPTIONS.some(([c]) => c === parsed.cpc);
+  // Nicht kuratierte Subclass ohne Suchtext hat keinen schnellen Pfad
+  // (Stufe 2 baut den Browse-Index auf alle ~650 aus) → ehrlicher Hinweis
+  // statt Timeout oder falscher Nulltreffer.
+  const uncoveredCpc = parsed.cpc && !parsedCurated && !parsed.text ? parsed.cpc : "";
+  const cpc = dropdownCpc || (parsed.cpc && !uncoveredCpc ? parsed.cpc : "");
+  const searchText = uncoveredCpc ? qText : parsed.text;
   const countryRaw = (sp.country ?? "").trim().toUpperCase();
   const country = COUNTRIES.some(([c]) => c === countryRaw) ? countryRaw : "";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
@@ -92,9 +103,13 @@ export default async function PatentExplorerPage({
     getPatentStats(),
     allowed
       ? getPatentSignals({
-          q: qText || undefined,
+          q: searchText || undefined,
           cpc: cpc || undefined,
           country: country || undefined,
+          pubExact: parsed.pubExact,
+          pubPrefix: parsed.pubPrefix,
+          yearFrom: parsed.yearFrom,
+          yearTo: parsed.yearTo,
           limit: PAGE_SIZE,
           offset: (page - 1) * PAGE_SIZE,
         })
@@ -194,7 +209,7 @@ export default async function PatentExplorerPage({
           type="search"
           name="q"
           defaultValue={qText}
-          placeholder="Search titles and abstracts — e.g. solid state battery"
+          placeholder="Topic, patent number or CPC code — e.g. solid state battery 2023"
           className="flex-1 min-w-[220px] bg-card border border-border-strong px-4 py-2.5 font-sans text-sm text-paper placeholder:text-muted focus:outline-none focus:border-accent"
           aria-label="Search patents"
         />
@@ -227,6 +242,13 @@ export default async function PatentExplorerPage({
           Search
         </button>
       </form>
+
+      <p className="-mt-6 mb-8 font-sans text-[12px] text-muted">
+        Paste a patent number (<span className="font-mono">US11734097B2</span>), a CPC class
+        (<span className="font-mono">H01M</span>) or a year — they become filters automatically.
+        For text: <span className="font-mono">&quot;exact phrase&quot;</span>,{" "}
+        <span className="font-mono">OR</span>, and <span className="font-mono">-exclude</span> work.
+      </p>
 
       {intel && (
         <section className="mb-8 border border-border-strong">
@@ -488,9 +510,33 @@ export default async function PatentExplorerPage({
         </section>
       )}
 
+      {/* Was der Router aus der Eingabe gemacht hat — sichtbar, damit eine
+          Fehldeutung auffällt statt stillschweigend das Ergebnis zu verzerren */}
+      {(parsed.chips.length > 0 || uncoveredCpc) && (
+        <div className="mb-5 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em]">
+          <span className="text-muted">Understood as</span>
+          {parsed.chips.map((c) => (
+            <span key={c.kind + c.label}
+                  className="border border-accent/40 text-accent px-2 py-0.5">
+              {c.kind === "patent" ? "Patent " : c.kind === "cpc" ? "Class " : "Year "}
+              {c.label}
+            </span>
+          ))}
+          {searchText && (
+            <span className="border border-border text-text px-2 py-0.5">Text {searchText}</span>
+          )}
+          {uncoveredCpc && (
+            <span className="text-muted normal-case tracking-normal font-sans text-[12px]">
+              — {uncoveredCpc} is not one of the {CPC_OPTIONS.length} browsable technology
+              classes yet, so this ran as a text search.
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-5">
         {totalLabel} results
-        {qText && <> for <span className="text-paper">&ldquo;{qText}&rdquo;</span></>}
+        {searchText && <> for <span className="text-paper">&ldquo;{searchText}&rdquo;</span></>}
         {cpc && <> in <span className="text-paper">{CPC_OPTIONS.find(([c]) => c === cpc)?.[1] ?? cpc}</span></>}
         {country && <> at <span className="text-paper">{country}</span></>}
         {" · "}page {page}/{pages}
