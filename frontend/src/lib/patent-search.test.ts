@@ -95,3 +95,34 @@ describe("parsePatentQuery — Kombination und Freitext", () => {
     expect(parsePatentQuery("   ").chips).toHaveLength(0);
   });
 });
+
+describe("parsePatentQuery — Firmen-Operator", () => {
+  it("erkennt company:, firma: und assignee:", () => {
+    for (const op of ["company", "firma", "assignee"]) {
+      expect(parsePatentQuery(`${op}:samsung`).company, op).toBe("samsung");
+    }
+  });
+
+  it("hält mehrteilige Namen in Anführungszeichen zusammen", () => {
+    const p = parsePatentQuery('company:"Toyota Motor" battery');
+    expect(p.company).toBe("Toyota Motor");
+    expect(p.text).toBe("battery");
+  });
+
+  it("kombiniert Firma mit Thema, Klasse und Jahr", () => {
+    const p = parsePatentQuery("company:toyota solid state H01M 2023");
+    expect(p.company).toBe("toyota");
+    expect(p.cpc).toBe("H01M");
+    expect(p.yearFrom).toBe(2023);
+    expect(p.text).toBe("solid state");
+  });
+
+  it("verträgt ein Leerzeichen nach dem Doppelpunkt", () => {
+    expect(parsePatentQuery("company: battery").company).toBe("battery");
+  });
+
+  it("greift nicht ohne Wert und nicht ohne Operator", () => {
+    expect(parsePatentQuery("company:").company).toBeUndefined();
+    expect(parsePatentQuery("battery").company).toBeUndefined();
+  });
+});

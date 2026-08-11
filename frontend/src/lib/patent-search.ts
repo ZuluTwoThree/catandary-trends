@@ -24,7 +24,7 @@ const YEAR_MIN = 1990;
 const YEAR_MAX = 2026;
 
 export interface QueryChip {
-  kind: "patent" | "cpc" | "year";
+  kind: "patent" | "cpc" | "year" | "company";
   label: string;
 }
 
@@ -37,6 +37,8 @@ export interface ParsedPatentQuery {
   pubExact?: string[];
   /** Präfixe ohne Kind-Code (US-11734097-) — treffen alle Kind-Codes. */
   pubPrefix?: string[];
+  /** Anmelder-Filter aus `company:…` bzw. `firma:…`. */
+  company?: string;
   /** CPC-Subclass (G06N). */
   cpc?: string;
   /** Volle CPC-Gruppe als Präfix (G06N10/40) — braucht Stufe 2. */
@@ -85,6 +87,22 @@ export function parsePatentQuery(raw: string): ParsedPatentQuery {
   const out: ParsedPatentQuery = { text: "", chips: [] };
   let rest = (raw ?? "").trim();
   if (!rest) return out;
+
+  // 0. Expliziter Anmelder-Operator: company:"Toyota Motor" | firma:samsung
+  //    Zuerst, damit ein Firmenname in Anführungszeichen nicht von den
+  //    Muster-Regexen zerpflückt wird.
+  // Leerzeichen nach dem Doppelpunkt erlaubt ("company: samsung") — getippt
+  // wird beides, und ein Operator ohne Wert soll einfach nicht greifen.
+  const COMPANY_RE = /\b(?:company|firma|assignee):\s*("([^"]+)"|(\S+))/i;
+  const cm = rest.match(COMPANY_RE);
+  if (cm) {
+    const value = (cm[2] ?? cm[3] ?? "").trim();
+    if (value) {
+      out.company = value;
+      out.chips.push({ kind: "company", label: value });
+      rest = cut(rest, cm.index ?? 0, cm[0].length);
+    }
+  }
 
   // 1. Publikationsnummer — zuerst, sonst frisst die Jahres-Regex die Ziffern
   PUB_RE.lastIndex = 0;
