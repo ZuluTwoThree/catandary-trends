@@ -36,6 +36,25 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://catandary.de"
 
+# --- Site design tokens (frontend/src/app/globals.css) ----------------------
+# The email must read as the same product as the website, so the palette is
+# copied from the @theme block rather than re-invented. Keep in sync.
+INK = "#0a0c0a"        # --color-background
+SURFACE = "#111310"    # --color-card
+EDGE = "#2a2d25"       # --color-border
+PAPER = "#f4f1e8"      # bright text on dark
+TEXT = "#d8d5c8"       # body copy
+MUTED = "#8a8d82"      # --color-muted
+ACCENT = "#d4ff3a"     # chartreuse
+
+# Per-vertical hues, matching VERTICALS in frontend/src/lib/types.ts — the
+# 3px left edge of a card is how the site signals which vertical it belongs to.
+VERTICAL_COLORS = {
+    "FOOD": "#f97316", "TECH": "#a78bfa", "HEALTH": "#34d399", "ECO": "#22d3ee",
+    "DESIGN": "#f472b6", "FASHION": "#fb7185", "BIZ": "#60a5fa",
+    "LIFESTYLE": "#c084fc",
+}
+
 VERTICAL_LABELS = {
     "FOOD": ("Food & Beverage", "\U0001f37d"),
     "TECH": ("Technology & AI", "\U0001f4bb"),
@@ -454,7 +473,7 @@ def linkify_editorial(text: str, data: dict) -> str:
             continue
         url = mt_links[name]
         if name in text:
-            link = f'<a href="{url}" style="color: #60a5fa; text-decoration: none;">{name}</a>'
+            link = f'<a href="{url}" style="color: {ACCENT}; text-decoration: none;">{name}</a>'
             text = text.replace(name, link, 1)
             linked.add(name)
 
@@ -463,7 +482,7 @@ def linkify_editorial(text: str, data: dict) -> str:
             continue
         url = trend_links[title]
         if title in text:
-            link = f'<a href="{url}" style="color: #60a5fa; text-decoration: none;">{title}</a>'
+            link = f'<a href="{url}" style="color: {ACCENT}; text-decoration: none;">{title}</a>'
             text = text.replace(title, link, 1)
             linked.add(title)
 
@@ -796,13 +815,27 @@ def _md_links_to_html(text: str) -> str:
     """Convert markdown [text](url) links to HTML <a> tags."""
     return re.sub(
         r'\[([^\]]+)\]\(([^)]+)\)',
-        rf'<a href="{BASE_URL}\2" style="color: #60a5fa; text-decoration: none;">\1</a>',
+        rf'<a href="{BASE_URL}\2" style="color: {ACCENT}; text-decoration: none;">\1</a>',
         text,
     )
 
 
 def generate_html(edition: dict) -> str:
-    """Generate newsletter HTML from an edition dict."""
+    """Render an edition as email HTML in the site's "Editorial Intelligence" look.
+
+    Mirrors frontend/src/app/globals.css and TrendCard.tsx: ink ground, chartreuse
+    accent, serif headlines, monospace micro-labels with wide tracking, square
+    corners, and the 3px vertical-coloured left edge that identifies a card.
+
+    Email constraints shape the translation: tables instead of grid, inline
+    styles only (several clients drop <style>), and no web fonts — IBM Plex is
+    unavailable in a mail client, so the stacks fall back to Georgia for the
+    serif voice and a monospace stack for labels. Square corners and hairline
+    borders survive everywhere, and they carry most of the identity.
+
+    The literal `{{UNSUBSCRIBE_URL}}` placeholder (doubled braces below, since
+    this is an f-string) is substituted per recipient by the sender.
+    """
     editorial = _md_links_to_html(edition.get("editorial", ""))
     vert_summaries = {
         k: _md_links_to_html(v) for k, v in edition.get("vertical_summaries", {}).items()
@@ -813,31 +846,38 @@ def generate_html(edition: dict) -> str:
     week = edition.get("week", 0)
     total = edition.get("total_signals", 0)
 
-    period_label = f"Week {week}/{year}"
-    title_text = f"Catandary Trends — {period_label}"
-    editorial_title = "Weekly Overview"
-    radar_title = "Signal Themes Radar"
-    cta_text = "View all trends"
-    foresight_text = "Deeper analysis? \u2192 Catandary Foresight"
-    signals_label = "signals"
+    serif = "Georgia, 'Times New Roman', Times, serif"
+    mono = "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+    sans = "'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
 
-    # Editorial paragraphs
+    def eyebrow(text: str, color: str = MUTED) -> str:
+        return (f'<div style="font-family: {mono}; font-size: 10px; '
+                f'letter-spacing: 0.16em; text-transform: uppercase; color: {color};">'
+                f'{text}</div>')
+
+    # Hidden preheader: the inbox preview line. Without it clients show the
+    # wordmark and the eyebrow, which is the same for every issue.
+    first_sentence = re.sub(r"<[^>]+>", "", edition.get("editorial", "")).strip()
+    first_sentence = re.split(r"(?<=\.)\s", first_sentence)[0][:160] if first_sentence else ""
+
     editorial_html = ""
     for para in editorial.split("\n\n"):
         para = para.strip()
         if para:
-            editorial_html += f'<p style="color: #d1d5db; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">{para}</p>\n'
+            editorial_html += (
+                f'<p style="font-family: {sans}; color: {TEXT}; font-size: 15px; '
+                f'line-height: 1.7; margin: 0 0 14px;">{para}</p>\n')
 
-    # Vertical sections
+    # --- Vertical cards -----------------------------------------------------
     vertical_sections = ""
     for v in VERTICAL_ORDER:
         summary = vert_summaries.get(v, "")
         if not summary:
             continue
-        label, icon = VERTICAL_LABELS.get(v, (v, ""))
+        label = VERTICAL_LABELS.get(v, (v, ""))[0]
+        color = VERTICAL_COLORS.get(v, ACCENT)
         v_trends = trend_refs.get(v, [])
-        count = len(v_trends) if v_trends else ""
-        count_str = f" ({count} {signals_label})" if count else ""
+        count_str = f"{len(v_trends)} signals" if v_trends else ""
 
         trend_items = ""
         for t in v_trends[:3]:
@@ -845,93 +885,106 @@ def generate_html(edition: dict) -> str:
             slug = t.get("slug", "")
             source = t.get("source_name", "")
             trend_items += f"""
-            <tr><td style="padding: 8px 0; border-bottom: 1px solid #2a2a2a;">
-              <a href="{BASE_URL}/trends/{slug}" style="color: #60a5fa; text-decoration: none; font-weight: 600; font-size: 14px;">{t_title}</a>
-              <span style="color: #6b7280; font-size: 12px; margin-left: 8px;">{source}</span>
-            </td></tr>"""
+              <tr><td style="padding: 10px 0 0; border-top: 1px dashed {EDGE};">
+                <a href="{BASE_URL}/trends/{slug}" style="font-family: {serif}; color: {PAPER}; font-size: 15px; line-height: 1.35; text-decoration: underline; text-underline-offset: 2px;">{t_title}</a>
+                <div style="font-family: {mono}; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: {MUTED}; padding-top: 5px;">{source}</div>
+              </td></tr>"""
 
         vertical_sections += f"""
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 24px;">
-          <tr><td style="padding: 10px 14px; background: #1e1e2e; border-radius: 8px 8px 0 0;">
-            <span style="font-size: 15px; font-weight: 700; color: #e2e8f0;">{icon} {label}{count_str}</span>
-          </td></tr>
-          <tr><td style="padding: 12px 14px;">
-            <p style="color: #d1d5db; font-size: 14px; line-height: 1.6; margin: 0 0 12px;">{summary}</p>
-            <table width="100%" cellpadding="0" cellspacing="0">{trend_items}</table>
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom: 14px; border: 1px solid {EDGE}; border-left: 3px solid {color}; background: {SURFACE};">
+          <tr><td style="padding: 18px 20px 20px;">
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="font-family: {mono}; font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: {color};">
+                  <span style="display: inline-block; width: 10px; height: 3px; background: {color}; vertical-align: middle; margin-right: 7px;">&nbsp;</span>{v}
+                  <span style="color: {MUTED};">&nbsp;&middot;&nbsp;{label}</span>
+                </td>
+                <td align="right" style="font-family: {mono}; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: {MUTED};">{count_str}</td>
+              </tr>
+            </table>
+            <p style="font-family: {sans}; color: {TEXT}; font-size: 14px; line-height: 1.6; margin: 12px 0 16px;">{summary}</p>
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">{trend_items}</table>
           </td></tr>
         </table>"""
 
-    # Mega-trend radar
+    # --- Signal themes radar ------------------------------------------------
+    arrows = {"rising": "&uarr;", "emerging": "&uarr;&uarr;",
+              "declining": "&darr;", "stable": "&rarr;"}
     radar_items = ""
     for mt in radar:
         name = mt.get("name_en", "")
-        icon = mt.get("icon", "")
         count = mt.get("signal_count", 0)
         momentum = mt.get("momentum")  # measured; None = too thin for a claim
-        arrows = {"rising": "\u2191", "emerging": "\u2191\u2191", "declining": "\u2193", "stable": "\u2192"}
-        momentum_html = (f' <span style="color: #9ca3af;">({arrows[momentum]} {momentum})</span>'
-                         if momentum in arrows else "")
+        mom = (f'<span style="color: {MUTED};">{arrows[momentum]} {momentum}</span>'
+               if momentum in arrows else "")
         radar_items += f"""
-        <tr><td style="padding: 6px 0; color: #d1d5db; font-size: 14px;">
-          {icon} {name}: <strong>{count}</strong> {signals_label}{momentum_html}
-        </td></tr>"""
+          <tr>
+            <td style="padding: 9px 0; border-top: 1px dashed {EDGE}; font-family: {sans}; font-size: 14px; color: {PAPER};">{name}</td>
+            <td align="right" style="padding: 9px 0; border-top: 1px dashed {EDGE}; font-family: {mono}; font-size: 11px; letter-spacing: 0.08em; color: {ACCENT}; white-space: nowrap;">{count}&nbsp;&nbsp;{mom}</td>
+          </tr>"""
 
     return f"""<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
-<body style="margin: 0; padding: 0; background: #0f0f17; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background: #0f0f17;">
-    <tr><td align="center" style="padding: 20px;">
-      <table width="600" cellpadding="0" cellspacing="0" style="background: #161622; border-radius: 12px; overflow: hidden;">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<title>Catandary Trends &mdash; Week {week}/{year}</title>
+</head>
+<body style="margin: 0; padding: 0; background: {INK}; -webkit-text-size-adjust: 100%;">
+  <div style="display: none; max-height: 0; overflow: hidden; opacity: 0; color: {INK};">{first_sentence}</div>
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background: {INK};">
+    <tr><td align="center" style="padding: 28px 12px 40px;">
+      <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="width: 600px; max-width: 100%; border: 1px solid {EDGE}; background: {INK};">
 
-        <!-- Header -->
-        <tr><td style="padding: 32px 24px; text-align: center; border-bottom: 1px solid #2a2a2a;">
-          <div style="font-size: 24px; font-weight: 700; color: #e2e8f0;">
-            Catandary <span style="color: #60a5fa;">Trends</span>
+        <!-- Masthead -->
+        <tr><td style="padding: 30px 24px 22px; border-bottom: 1px solid {EDGE};">
+          <div style="font-family: {serif}; font-size: 25px; letter-spacing: -0.01em; color: {PAPER};">Catandary<span style="color: {ACCENT};">.</span></div>
+          <div style="font-family: {mono}; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: {MUTED}; padding-top: 9px;">
+            Week {week}&thinsp;/&thinsp;{year} &nbsp;&middot;&nbsp; {total:,} signals &nbsp;&middot;&nbsp; 8 verticals
           </div>
-          <div style="font-size: 14px; color: #9ca3af; margin-top: 8px;">{period_label} &middot; {total} {signals_label}</div>
         </td></tr>
 
         <!-- Editorial -->
-        <tr><td style="padding: 24px;">
-          <h2 style="margin: 0 0 16px; font-size: 18px; color: #e2e8f0; font-weight: 700;">{editorial_title}</h2>
+        <tr><td style="padding: 26px 24px 6px;">
+          {eyebrow("Weekly overview")}
+          <h1 style="font-family: {serif}; font-size: 27px; line-height: 1.2; letter-spacing: -0.015em; color: {PAPER}; font-weight: normal; margin: 10px 0 16px;">What moved this week</h1>
           {editorial_html}
         </td></tr>
 
         <!-- Verticals -->
-        <tr><td style="padding: 0 24px 24px;">
+        <tr><td style="padding: 20px 24px 6px;">
+          {eyebrow("By vertical")}
+          <div style="height: 14px; line-height: 14px;">&nbsp;</div>
           {vertical_sections}
         </td></tr>
 
-        <!-- Signal Themes Radar -->
-        <tr><td style="padding: 0 24px 24px;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 16px;">
-            <tr><td style="padding: 10px 14px; background: #1e1e2e; border-radius: 8px 8px 0 0;">
-              <span style="font-size: 15px; font-weight: 700; color: #e2e8f0;">{radar_title}</span>
-            </td></tr>
-            <tr><td style="padding: 12px 14px;">
-              <table width="100%" cellpadding="0" cellspacing="0">{radar_items}</table>
-            </td></tr>
-          </table>
+        <!-- Radar -->
+        <tr><td style="padding: 14px 24px 8px;">
+          {eyebrow("Signal themes radar")}
+          <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top: 12px;">{radar_items}</table>
         </td></tr>
 
         <!-- CTA -->
-        <tr><td style="padding: 0 24px 24px; text-align: center;">
-          <a href="{BASE_URL}/trends" style="display: inline-block; background: #3b82f6; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
-            {cta_text}
-          </a>
-          <div style="margin-top: 16px;">
-            <a href="{BASE_URL}" style="color: #60a5fa; font-size: 13px; text-decoration: none;">
-              {foresight_text}
-            </a>
+        <tr><td style="padding: 28px 24px 30px;">
+          <table cellpadding="0" cellspacing="0" role="presentation">
+            <tr><td style="background: {ACCENT};">
+              <a href="{BASE_URL}/trends" style="display: inline-block; padding: 13px 30px; font-family: {mono}; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: {INK}; text-decoration: none;">View all trends</a>
+            </td></tr>
+          </table>
+          <div style="font-family: {mono}; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: {MUTED}; padding-top: 16px;">
+            Deeper analysis &rarr; <a href="{BASE_URL}" style="color: {ACCENT}; text-decoration: none;">Catandary Foresight</a>
           </div>
         </td></tr>
 
         <!-- Footer -->
-        <tr><td style="padding: 16px 24px; border-top: 1px solid #2a2a2a; text-align: center;">
-          <p style="color: #6b7280; font-size: 12px; margin: 0;">
-            &copy; {datetime.now().year} Catandary. Powered by Catandary Foresight.
-          </p>
+        <tr><td style="padding: 18px 24px 22px; border-top: 1px solid {EDGE};">
+          <div style="font-family: {mono}; font-size: 10px; line-height: 1.8; letter-spacing: 0.1em; text-transform: uppercase; color: {MUTED};">
+            &copy; {datetime.now().year} Catandary &nbsp;&middot;&nbsp; Built locally in Germany<br>
+            You receive this because you subscribed to Catandary Trends.<br>
+            <a href="{{{{UNSUBSCRIBE_URL}}}}" style="color: {MUTED}; text-decoration: underline;">Unsubscribe</a>
+          </div>
         </td></tr>
 
       </table>
@@ -939,7 +992,6 @@ def generate_html(edition: dict) -> str:
   </table>
 </body>
 </html>"""
-
 
 # ---------------------------------------------------------------------------
 # 7. Main orchestration

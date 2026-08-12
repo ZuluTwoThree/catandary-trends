@@ -73,13 +73,31 @@ def confirmed_subscribers() -> list[str]:
     return [r["email"] for r in rows]
 
 
+UNSUB_TOKEN = "{{UNSUBSCRIBE_URL}}"
+
+
 def _wrap_html(body_html: str, email: str) -> str:
+    """Put the recipient's unsubscribe link into the template's own footer.
+
+    The template carries a {{UNSUBSCRIBE_URL}} placeholder so the link sits
+    inside the design. It used to be appended as a light-styled block AFTER
+    </html> — malformed, and it hung under the dark email as a white slab.
+
+    The append path is kept as a fallback: an older stored edition, or any
+    future template that forgets the placeholder, must still ship a working
+    unsubscribe link. Dropping it silently would be a legal problem, not a
+    cosmetic one (§ 7 UWG, Art. 21 DSGVO).
+    """
     unsub = unsubscribe_url(email)
+    if UNSUB_TOKEN in body_html:
+        return body_html.replace(UNSUB_TOKEN, unsub)
+    logger.warning("template has no %s placeholder — appending plain footer",
+                   UNSUB_TOKEN)
     footer = (
-        '<hr style="margin-top:32px;border:none;border-top:1px solid #ddd">'
-        '<p style="color:#888;font-size:12px">You receive this because you '
-        'subscribed to Catandary Trends. '
-        f'<a href="{unsub}">Unsubscribe</a>.</p>'
+        '<hr style="margin-top:32px;border:none;border-top:1px solid #2a2d25">'
+        '<p style="color:#8a8d82;font-size:12px;font-family:sans-serif">'
+        'You receive this because you subscribed to Catandary Trends. '
+        f'<a href="{unsub}" style="color:#8a8d82">Unsubscribe</a>.</p>'
     )
     return body_html + footer
 
