@@ -14,7 +14,11 @@
 #                               (liest die eben gebauten Serien)
 #   4. build_patent_explorer_index — materialisierter CPC-Browse-Index des
 #                               Patent Explorers (nach dem Ingest, damit die
-#                               neuen Wochen-Patente browsebar werden)
+#                               neuen Wochen-Patente browsebar werden).
+#                               Seit #78 Stufe 2 ALLE ~650 Subclasses statt 26
+#                               → deutlich laengere Laufzeit als die frueheren
+#                               ~3,5 min; Voll-Rebuild mit Staging + atomarem
+#                               Swap, die Seite sieht nie einen Zwischenstand.
 #
 # BEWUSST NICHT im Cron:
 #   - Radare (Owner-Entscheid 2026-07-30: nur auf Knopfdruck, Radar = Dokument

@@ -388,6 +388,16 @@ export async function getPatentSignals(options: {
   q?: string;
   cpc?: string;
   country?: string;
+  /** Exakte Publikationsnummern (US-2023120329-A1) — Router-Pfad #78.
+   *  Mehrere, weil dieselbe Veröffentlichung amtlich und im DOCDB-Format
+   *  unterschiedlich geschrieben wird (führende Null der Seriennummer). */
+  pubExact?: string[];
+  /** Nummern-Präfixe ohne Kind-Code (US-11734097-) */
+  pubPrefix?: string[];
+  /** Anmelder-Teilstring (Trigramm-Suche über patent_assignee_raw.name) */
+  company?: string;
+  yearFrom?: number;
+  yearTo?: number;
   limit?: number;
   offset?: number;
 } = {}): Promise<{ rows: PatentSignal[]; total: number; clamped: boolean }> {
@@ -396,6 +406,103 @@ export async function getPatentSignals(options: {
   const params: unknown[] = [];
   let countSql: string;
   let rowSql: string;
+
+  // Nummern-Pfad: exakter Treffer bzw. alle Kind-Codes einer Nummer. Läuft
+  // über idx_raw_pubnum_pattern (text_pattern_ops — die DB-Collation
+  // de_DE.UTF-8 macht den normalen btree für Präfixe unbrauchbar).
+  if (options.pubExact?.length || options.pubPrefix?.length) {
+    // Explizite OR-Kette statt = ANY(...) / LIKE ANY(...): nur so bekommt
+    // jede Variante ihren eigenen Index-Range-Scan (Bitmap-OR).
+    const exact = options.pubExact ?? [];
+    const prefixes = options.pubPrefix ?? [];
+    const terms = [
+      ...exact.map((v) => { params.push(v); return `r.pub_number = $${params.length}`; }),
+      ...prefixes.map((p) => { params.push(`${p}%`); return `r.pub_number LIKE $${params.length}`; }),
+    ];
+    const where = `(${terms.join(" OR ")})`;
+    countSql = `SELECT COUNT(*)::int as cnt FROM raw_entries r WHERE ${where}`;
+    params.push(limit, offset);
+    rowSql = `SELECT ${PATENT_ROW_COLS}
+     FROM raw_entries r
+     ${PATENT_ROW_JOINS}
+     WHERE ${where}
+     ORDER BY r.published_date DESC
+     LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    const countRow = await q1<{ cnt: number }>(countSql, params.slice(0, -2));
+    const rows = await q<PatentSignal>(rowSql, params);
+    return {
+      rows: rows.map((r) => ({ ...r, cpcs: (r.cpcs as unknown as string[]) ?? [] })),
+      total: countRow?.cnt ?? 0,
+      clamped: false,
+    };
+  }
+
+  // Firmen-Pfad (#78 Stufe 2). EXISTS statt einer eigenen DISTINCT-Liste:
+  // mit dem GIN-Trigramm auf patent_assignee_raw.name schätzt der Planer die
+  // Selektivität richtig und treibt selbst von der Anmelder-Seite — gemessen
+  // 0,01–0,13s für seltene wie für große Anmelder. Eine handgebaute
+  // DISTINCT-Unterabfrage war deutlich langsamer (Toyota 8,4s), weil sie alle
+  // Treffer dedupliziert, bevor das LIMIT greifen kann.
+  if (options.company) {
+    params.push(`%${options.company}%`);
+    const nameParam = `$${params.length}`;
+    const companyExists = `EXISTS (SELECT 1 FROM patent_assignee_raw a
+        WHERE a.pub_number = r.pub_number AND a.name ILIKE ${nameParam})`;
+    const extra: string[] = [];
+    if (options.q) {
+      params.push(options.q);
+      extra.push(`${PATENT_FTS} @@ websearch_to_tsquery('english', $${params.length})`);
+    }
+    if (options.cpc) {
+      params.push(options.cpc);
+      extra.push(`EXISTS (SELECT 1 FROM patent_cpc pc
+                  WHERE pc.pub_number = r.pub_number AND pc.subclass = $${params.length})`);
+    }
+    if (options.country) {
+      params.push(options.country + "-%");
+      extra.push(`r.pub_number LIKE $${params.length}`);
+    }
+    if (options.yearFrom !== undefined) {
+      params.push(`${options.yearFrom}-01-01`);
+      extra.push(`r.published_date >= $${params.length}::date`);
+    }
+    if (options.yearTo !== undefined) {
+      params.push(`${options.yearTo}-12-31`);
+      extra.push(`r.published_date <= $${params.length}::date`);
+    }
+    const w = ["r.pub_number IS NOT NULL", companyExists, ...extra].join(" AND ");
+    const countRow = await q1<{ cnt: number }>(
+      `SELECT COUNT(*)::int as cnt FROM (
+         SELECT 1 FROM raw_entries r WHERE ${w}
+         LIMIT ${PATENT_COUNT_CLAMP + 1}) x`, [...params]);
+    const total = countRow?.cnt ?? 0;
+    params.push(limit, offset);
+    const rows = await q<PatentSignal>(
+      `SELECT ${PATENT_ROW_COLS}
+       FROM raw_entries r
+       ${PATENT_ROW_JOINS}
+       WHERE ${w}
+       ORDER BY r.published_date DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+    return {
+      rows: rows.map((r) => ({ ...r, cpcs: (r.cpcs as unknown as string[]) ?? [] })),
+      total: Math.min(total, PATENT_COUNT_CLAMP),
+      clamped: total > PATENT_COUNT_CLAMP,
+    };
+  }
+
+  const yearClause = (col: string) => {
+    const parts: string[] = [];
+    if (options.yearFrom !== undefined) {
+      params.push(`${options.yearFrom}-01-01`);
+      parts.push(`${col} >= $${params.length}::date`);
+    }
+    if (options.yearTo !== undefined) {
+      params.push(`${options.yearTo}-12-31`);
+      parts.push(`${col} <= $${params.length}::date`);
+    }
+    return parts;
+  };
 
   if (options.cpc && !options.q) {
     // Browse-Pfad Technologie-Facette: patent_cpc (128M Zeilen) ist dafür
@@ -408,6 +515,7 @@ export async function getPatentSignals(options: {
       params.push(options.country + "-%");
       w += ` AND pcc.pub_number LIKE $${params.length}`;
     }
+    for (const c of yearClause("pcc.published")) w += ` AND ${c}`;
     countSql = `SELECT COUNT(*)::int as cnt FROM (
        SELECT 1 FROM patent_explorer_cpc pcc WHERE ${w}
        LIMIT ${PATENT_COUNT_CLAMP + 1}) x`;
@@ -434,10 +542,21 @@ export async function getPatentSignals(options: {
       params.push(options.country + "-%");
       where.push(`r.pub_number LIKE $${params.length}`);
     }
+    where.push(...yearClause("r.published_date"));
     const w = where.join(" AND ");
     countSql = `SELECT COUNT(*)::int as cnt FROM (
        SELECT 1 FROM raw_entries r WHERE ${w} LIMIT ${PATENT_COUNT_CLAMP + 1}) x`;
-    const rank = options.q
+    // Sortier-Entscheidung erst NACH dem (billigen) Zähl-Lauf: ts_rank über
+    // eine riesige Treffermenge kostet Sekunden (gemessen: 13s für
+    // '"solid state" -lithium'), weil jede Zeile bewertet und sortiert werden
+    // muss. Ist die Menge geclampt (= sehr häufige Anfrage), liegen die
+    // Treffer dicht — dann findet der Datums-Index die neuesten 25 sofort,
+    // und "neueste zuerst" ist bei Zehntausenden Treffern ohnehin nützlicher
+    // als eine Relevanz-Reihung, die kaum trennt.
+    const countRow = await q1<{ cnt: number }>(countSql, [...params]);
+    const total = countRow?.cnt ?? 0;
+    const clamped = total > PATENT_COUNT_CLAMP;
+    const rank = options.q && !clamped
       ? `ts_rank(${PATENT_FTS}, websearch_to_tsquery('english', $1)) DESC, `
       : "";
     params.push(limit, offset);
@@ -450,6 +569,12 @@ export async function getPatentSignals(options: {
      WHERE ${w}
      ORDER BY ${rank}r.published_date DESC
      LIMIT $${params.length - 1} OFFSET $${params.length}`;
+    const rows = await q<PatentSignal>(rowSql, params);
+    return {
+      rows: rows.map((r) => ({ ...r, cpcs: (r.cpcs as unknown as string[]) ?? [] })),
+      total: Math.min(total, PATENT_COUNT_CLAMP),
+      clamped,
+    };
   }
 
   const countRow = await q1<{ cnt: number }>(countSql, params.slice(0, -2));
@@ -460,6 +585,27 @@ export async function getPatentSignals(options: {
     total: Math.min(total, PATENT_COUNT_CLAMP),
     clamped: total > PATENT_COUNT_CLAMP,
   };
+}
+
+/** "Meintest du Firma …?" — prüft den Suchtext gegen die harmonisierten
+ *  PATSTAT-Anmeldernamen (tip_leading_applicants, 1.300 Zeilen, gecacht).
+ *  Bewusst gegen diese kleine Liste statt gegen die 22,5M Rohnamen: sie
+ *  enthält genau die Akteure, nach denen Nutzer suchen, ist in Millisekunden
+ *  durchsucht und liefert die aufgeräumte Schreibweise. */
+export async function suggestCompany(text: string): Promise<string | null> {
+  const t = text.trim();
+  if (t.length < 3) return null;
+  const names = await cached("psn-names", 3_600_000, async () =>
+    q<{ psn_name: string; families: number }>(
+      `SELECT psn_name, SUM(families)::int as families FROM tip_leading_applicants
+       GROUP BY 1 ORDER BY 2 DESC`));
+  const needle = t.toLowerCase();
+  // Nur wenn der Name mit dem Suchtext BEGINNT — sonst schlüge "battery"
+  // jede "… BATTERY CO" vor und der Hinweis würde bei Fachbegriffen zum
+  // Rauschen. Liste ist nach Familienzahl sortiert, der erste Treffer ist
+  // also der größte Anmelder dieses Namens.
+  const hit = names.find((n) => n.psn_name.toLowerCase().startsWith(needle));
+  return hit ? hit.psn_name : null;
 }
 
 export async function getPatentStats(): Promise<{ total: number; assignees: number }> {

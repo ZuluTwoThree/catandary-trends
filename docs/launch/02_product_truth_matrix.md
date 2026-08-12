@@ -47,6 +47,7 @@ a **V** row here (or a **D** row explicitly framed as "in development / early ac
 | D5 | GDPR/DSGVO readiness | `docs/legal/*.draft.md` | "German legal pages **in preparation**"; never "GDPR compliant" |
 | D6 | Newsletter automation | `newsletter_sender.py`, #16, Resend verified | "**weekly** newsletter"; don't imply a large list (1 subscriber) |
 | D7 | Cookieless funnel analytics | `lead_tracking.md` | internal only — not a public claim |
+| D8 | Custom-Vertical on demand ("Ihre Branche in ~2 Tagen als vollwertige Technologie-Achse") | Alle Bausteine einzeln V-belegt: 205-GB-Back-File lokal (`/mnt/data-hdd/bdds_backfile`), `ingest_patents.py ingest_bdds(cpc_filter=…)`, Assignee-Re-Parse 9h gemessen (#7), TIP-Runden-Workflow 2× durchexerziert (#14/#75), Panel je Achse live (#74). **Aber:** noch nie end-to-end für eine kundenfremde Branche (z. B. E21 Bergbau) durchgeführt | Sales-Gespräch/Angebot: "Ihre Branche ist **auf Anfrage binnen weniger Tage** als eigene Technologie-Achse im System — mit Anmelder-Ranking, Länder-Rennen, Lead-Times und Transfer-Kurven." **Nicht** als Website-Copy mit fixem "2 Tage"-Versprechen, bis einmal real erbracht (dann → V mit gemessener Dauer) |
 
 ## C. HYPOTHESIS — DO NOT PUBLISH without explicit owner sign-off
 

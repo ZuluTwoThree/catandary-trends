@@ -8,13 +8,17 @@ B64G). This script materializes `patent_explorer_cpc` — one row per
 (curated subclass, patent) with the publication date — so the browse query is
 a single (subclass, published DESC) index scan.
 
-Curated set = build_cpc_insights.CURATED (23 technology axes) plus the
-2026-08 taxonomy additions B64G / H10K / H01L that are not yet part of the
-insights pages. Full rebuild with staging table + atomic swap, idempotent.
-Refreshed weekly by weekly_patent_analytics.sh (after assign_cpc, so freshly
-classified patents enter the same week).
+Seit #78 Stufe 2 werden ALLE Subclasses materialisiert (~650, ~70M Zeilen),
+nicht mehr nur die 26 kuratierten Achsen — freie CPC-Eingaben im Suchfeld
+brauchen denselben schnellen Pfad. `--curated-only` stellt den alten,
+schlankeren Stand wieder her (26 Achsen, ~9M Zeilen).
+
+Full rebuild mit Staging-Tabelle + atomarem Swap, idempotent. Wöchentlich
+von weekly_patent_analytics.sh aufgerufen (nach assign_cpc, damit frisch
+klassifizierte Patente in derselben Woche browsebar werden).
 
     python scripts/build_patent_explorer_index.py
+    python scripts/build_patent_explorer_index.py --curated-only
 """
 from __future__ import annotations
 
@@ -42,7 +46,12 @@ def explorer_subclasses() -> list[str]:
 
 
 def main() -> int:
+    import argparse
     import psycopg2
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--curated-only", action="store_true",
+                    help="nur die 26 kuratierten Achsen (alter Stand vor #78 Stufe 2)")
+    args = ap.parse_args()
     subs = explorer_subclasses()
     t0 = time.time()
     conn = psycopg2.connect(db_mod.DATABASE_URL)
@@ -57,13 +66,31 @@ def main() -> int:
     cur.execute("CREATE TABLE patent_explorer_cpc_new (LIKE patent_explorer_cpc)")
     # DISTINCT: patent_cpc ist auf (pub_number, cpc) eindeutig — pro Subclass
     # kann ein Patent mehrere Gruppen tragen (G06N10/20 + G06N10/40 etc.).
-    cur.execute("""
-        INSERT INTO patent_explorer_cpc_new
-        SELECT DISTINCT pc.subclass, pc.pub_number,
-               LEAST(r.published_date, NOW())::date
-        FROM patent_cpc pc
-        JOIN raw_entries r ON r.pub_number = pc.pub_number
-        WHERE pc.subclass = ANY(%s)""", (subs,))
+    #
+    # Seit #78 Stufe 2 ALLE Subclasses (~650, ~70M Zeilen) statt nur der 26
+    # kuratierten: sonst laufen freie CPC-Eingaben im Suchfeld entweder in
+    # einen >240s-Scan oder in einen irreführenden Nulltreffer.
+    if args.curated_only:
+        cur.execute("""
+            INSERT INTO patent_explorer_cpc_new
+            SELECT DISTINCT pc.subclass, pc.pub_number,
+                   LEAST(r.published_date, NOW())::date
+            FROM patent_cpc pc
+            JOIN raw_entries r ON r.pub_number = pc.pub_number
+            WHERE pc.subclass = ANY(%s)""", (subs,))
+    else:
+        # subclass IS NOT NULL: 5,9 Mio. Zeilen (4,6 %) tragen keine Subclass —
+        # überwiegend japanische F-Term-/FI-Codes ('3E068/AA40'), die keine CPC
+        # sind, plus ein Rest CPC-Codes mit verirrter führender Ziffer
+        # ('4F21S43/237'). Per Subclass browsebar ist beides nicht; die
+        # Recovery des zweiten Teils ist ein eigener Datenqualitäts-Fix.
+        cur.execute("""
+            INSERT INTO patent_explorer_cpc_new
+            SELECT DISTINCT pc.subclass, pc.pub_number,
+                   LEAST(r.published_date, NOW())::date
+            FROM patent_cpc pc
+            JOIN raw_entries r ON r.pub_number = pc.pub_number
+            WHERE pc.subclass IS NOT NULL""")
     n = cur.rowcount
     cur.execute("""CREATE INDEX ON patent_explorer_cpc_new
                    (subclass, published DESC)""")
@@ -73,7 +100,8 @@ def main() -> int:
     cur.execute("ANALYZE patent_explorer_cpc")
     conn.commit()
     conn.close()
-    print(f"patent_explorer_cpc: {n:,} Zeilen ({len(subs)} Subclasses) "
+    scope = f"{len(subs)} kuratierte" if args.curated_only else "alle"
+    print(f"patent_explorer_cpc: {n:,} Zeilen ({scope} Subclasses) "
           f"in {time.time()-t0:.0f}s")
     return 0
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { getPatentSignals, getPatentStats, getPatentTechIntel } from "@/lib/db";
+import { getPatentSignals, getPatentStats, getPatentTechIntel, suggestCompany } from "@/lib/db";
 import { computeTransferSeries } from "@/lib/transfer";
+import { parsePatentQuery } from "@/lib/patent-search";
 import {
   nplShare, ceasedWithin, topCountries, countryShare,
   oppositionRate, emergingGroups,
@@ -76,11 +77,16 @@ export default async function PatentExplorerPage({
 }) {
   const sp = await searchParams;
   const qText = (sp.q ?? "").trim();
-  // Facetten gegen die kuratierten Listen validieren — der CPC-Browse-Pfad
-  // läuft über die materialisierte patent_explorer_cpc, die nur diese
-  // Subclasses enthält; freie Codes würden fälschlich "0 results" zeigen.
+  // Smart-Router (#78): Publikationsnummern, CPC-Codes und Jahre aus dem
+  // Freitext holen, bevor der Rest an die Volltextsuche geht.
+  const parsed = parsePatentQuery(qText);
+  // Dropdown-Wert gegen die kuratierte Liste validieren (nur diese 26 haben
+  // ein Technology-Panel). Aus dem Freitext ist seit #78 Stufe 2 JEDE
+  // Subclass zulässig — patent_explorer_cpc deckt alle ~650 ab.
   const cpcRaw = (sp.cpc ?? "").trim().toUpperCase();
-  const cpc = CPC_OPTIONS.some(([c]) => c === cpcRaw) ? cpcRaw : "";
+  const dropdownCpc = CPC_OPTIONS.some(([c]) => c === cpcRaw) ? cpcRaw : "";
+  const cpc = dropdownCpc || parsed.cpc || "";
+  const searchText = parsed.text;
   const countryRaw = (sp.country ?? "").trim().toUpperCase();
   const country = COUNTRIES.some(([c]) => c === countryRaw) ? countryRaw : "";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
@@ -88,18 +94,27 @@ export default async function PatentExplorerPage({
   // Starter-gegated wie der Research Explorer (#73/#74): ohne Tier läuft die
   // Suche serverseitig nicht — der Teaser zeigt nur die 3 neuesten Patente.
   const allowed = await canAccess("starter");
-  const [stats, { rows, total, clamped }, intel] = await Promise.all([
+  const [stats, { rows, total, clamped }, intel, companyHint] = await Promise.all([
     getPatentStats(),
     allowed
       ? getPatentSignals({
-          q: qText || undefined,
+          q: searchText || undefined,
           cpc: cpc || undefined,
           country: country || undefined,
+          pubExact: parsed.pubExact,
+          pubPrefix: parsed.pubPrefix,
+          company: parsed.company,
+          yearFrom: parsed.yearFrom,
+          yearTo: parsed.yearTo,
           limit: PAGE_SIZE,
           offset: (page - 1) * PAGE_SIZE,
         })
       : getPatentSignals({ limit: 3, offset: 0 }),
     allowed && cpc ? getPatentTechIntel(cpc) : Promise.resolve(null),
+    // Vorschlag nur, wenn nicht ohnehin schon nach einer Firma gefiltert wird
+    allowed && !parsed.company && searchText
+      ? suggestCompany(searchText)
+      : Promise.resolve(null),
   ]);
   const transfer = intel ? computeTransferSeries(intel.sectorRows) : [];
   const maxFamilies = intel ? Math.max(...intel.applicants.map((a) => a.families)) : 0;
@@ -194,7 +209,7 @@ export default async function PatentExplorerPage({
           type="search"
           name="q"
           defaultValue={qText}
-          placeholder="Search titles and abstracts — e.g. solid state battery"
+          placeholder="Topic, patent number or CPC code — e.g. solid state battery 2023"
           className="flex-1 min-w-[220px] bg-card border border-border-strong px-4 py-2.5 font-sans text-sm text-paper placeholder:text-muted focus:outline-none focus:border-accent"
           aria-label="Search patents"
         />
@@ -228,10 +243,33 @@ export default async function PatentExplorerPage({
         </button>
       </form>
 
+      <p className="-mt-6 mb-8 font-sans text-[12px] text-muted">
+        Paste a patent number (<span className="font-mono">US11734097B2</span>), a CPC class
+        (<span className="font-mono">H01M</span>) or a year — they become filters automatically.
+        Search by applicant with <span className="font-mono">company:samsung</span> or{" "}
+        <span className="font-mono">company:&quot;Toyota Motor&quot;</span>. For text:{" "}
+        <span className="font-mono">&quot;exact phrase&quot;</span>,{" "}
+        <span className="font-mono">OR</span>, and <span className="font-mono">-exclude</span> work.
+      </p>
+
+      {/* "Meintest du die Firma?" — der Suchtext trifft einen harmonisierten
+          PATSTAT-Anmeldernamen, gesucht wurde aber im Volltext */}
+      {companyHint && (
+        <p className="-mt-6 mb-8 font-sans text-[13px] text-text">
+          Looking for the company?{" "}
+          <Link
+            href={`/trends/foresight/patents?q=${encodeURIComponent(`company:"${companyHint}"`)}`}
+            className="text-accent hover:underline"
+          >
+            Show patents filed by {companyHint} →
+          </Link>
+        </p>
+      )}
+
       {intel && (
         <section className="mb-8 border border-border-strong">
           <div className="border-b border-border px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-            —— Technology intelligence · {CPC_OPTIONS.find(([c]) => c === cpc)?.[1]} ({cpc})
+            —— Technology intelligence · {CPC_OPTIONS.find(([c]) => c === cpc)?.[1] ?? cpc} ({cpc})
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
             <div className="p-4">
@@ -488,9 +526,28 @@ export default async function PatentExplorerPage({
         </section>
       )}
 
+      {/* Was der Router aus der Eingabe gemacht hat — sichtbar, damit eine
+          Fehldeutung auffällt statt stillschweigend das Ergebnis zu verzerren */}
+      {parsed.chips.length > 0 && (
+        <div className="mb-5 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em]">
+          <span className="text-muted">Understood as</span>
+          {parsed.chips.map((c) => (
+            <span key={c.kind + c.label}
+                  className="border border-accent/40 text-accent px-2 py-0.5">
+              {c.kind === "patent" ? "Patent " : c.kind === "cpc" ? "Class "
+                : c.kind === "company" ? "Applicant " : "Year "}
+              {c.label}
+            </span>
+          ))}
+          {searchText && (
+            <span className="border border-border text-text px-2 py-0.5">Text {searchText}</span>
+          )}
+        </div>
+      )}
+
       <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-5">
         {totalLabel} results
-        {qText && <> for <span className="text-paper">&ldquo;{qText}&rdquo;</span></>}
+        {searchText && <> for <span className="text-paper">&ldquo;{searchText}&rdquo;</span></>}
         {cpc && <> in <span className="text-paper">{CPC_OPTIONS.find(([c]) => c === cpc)?.[1] ?? cpc}</span></>}
         {country && <> at <span className="text-paper">{country}</span></>}
         {" · "}page {page}/{pages}
@@ -498,8 +555,19 @@ export default async function PatentExplorerPage({
 
       {rows.length === 0 ? (
         <p className="font-sans text-sm text-muted border border-dashed border-border p-6">
-          No results. Try fewer or broader terms — the search covers English
-          titles and abstracts.
+          {parsed.company ? (
+            <>
+              No patents found for applicant <span className="text-paper">{parsed.company}</span>.
+              Applicant names come from the raw EPO data and are not harmonized — try a
+              shorter fragment (<span className="font-mono">company:bosch</span> rather than
+              the full legal name), or a different spelling.
+            </>
+          ) : (
+            <>
+              No results. Try fewer or broader terms — the text search covers English
+              titles and abstracts.
+            </>
+          )}
         </p>
       ) : (
         <div className="flex flex-col divide-y divide-border border-t border-b border-border">
@@ -531,22 +599,23 @@ export default async function PatentExplorerPage({
                 </p>
               )}
               <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted flex flex-wrap items-center gap-x-4 gap-y-1">
-                {r.cpcs.slice(0, 4).map((c) =>
-                  CPC_OPTIONS.some(([code]) => code === c) ? (
+                {/* Seit Stufe 2 ist jede Subclass browsebar — kuratierte über
+                    das Dropdown (mit Panel), alle anderen über den Freitext */}
+                {r.cpcs.slice(0, 4).map((c) => {
+                  const curated = CPC_OPTIONS.find(([code]) => code === c);
+                  return (
                     <Link
                       key={c}
-                      href={`/trends/foresight/patents?cpc=${c}`}
+                      href={curated
+                        ? `/trends/foresight/patents?cpc=${c}`
+                        : `/trends/foresight/patents?q=${c}`}
                       className="border border-border px-1.5 py-0.5 hover:border-accent hover:text-accent transition-colors"
-                      title={CPC_OPTIONS.find(([code]) => code === c)?.[1]}
+                      title={curated?.[1] ?? `CPC ${c}`}
                     >
                       {c}
                     </Link>
-                  ) : (
-                    <span key={c} className="border border-border px-1.5 py-0.5" title={`CPC ${c}`}>
-                      {c}
-                    </span>
-                  )
-                )}
+                  );
+                })}
                 <a
                   href={r.url}
                   target="_blank"
@@ -583,6 +652,11 @@ export default async function PatentExplorerPage({
         publications plus later-arriving classifications and citations). Assignee
         names and family links are being backfilled from our archived deliveries;
         coverage grows daily. Every entry links to its Espacenet record.
+        Publication numbers are shown in EPO DOCDB form
+        (<span className="font-mono">US-2023397640-A1</span>); the official US
+        style with the leading zero in the serial
+        (<span className="font-mono">US20230397640A1</span>) finds the same
+        record.
       </p>
     </div>
   );
