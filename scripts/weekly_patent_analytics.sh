@@ -19,6 +19,10 @@
 #                               → deutlich laengere Laufzeit als die frueheren
 #                               ~3,5 min; Voll-Rebuild mit Staging + atomarem
 #                               Swap, die Seite sieht nie einen Zwischenstand.
+#   5. build_patent_search_index — gespeicherte tsvector-Suchtabelle des
+#                               Explorers (#78 Stufe 3). INKREMENTELL per
+#                               Wasserstand: nur die neuen Patente der Woche,
+#                               nicht die 22 GB Gesamtbestand.
 #
 # BEWUSST NICHT im Cron:
 #   - Radare (Owner-Entscheid 2026-07-30: nur auf Knopfdruck, Radar = Dokument
@@ -41,7 +45,8 @@ mkdir -p "$(dirname "$LOG")"
   source .venv/bin/activate
 
   RC=0
-  for STEP in "assign_cpc" "build_cpc_tier_series" "build_cpc_insights" "build_patent_explorer_index"; do
+  for STEP in "assign_cpc" "build_cpc_tier_series" "build_cpc_insights" \
+              "build_patent_explorer_index" "build_patent_search_index"; do
     echo; echo "----- $STEP $(date -Iseconds) -----"
     T0=$(date +%s)
     python -u "scripts/${STEP}.py" || RC=$?

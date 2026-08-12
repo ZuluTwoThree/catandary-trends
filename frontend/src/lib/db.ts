@@ -356,13 +356,18 @@ export interface PatentSignal {
   cpcs: string[];
 }
 
-/** Patent Explorer (#74): FTS directly on raw_entries via the existing
- *  idx_re_patent_fts GIN index (19.6M patents — no materialization needed).
- *  Result counts are clamped at 10k (a full COUNT over millions is slower
- *  than the search itself); callers render "10,000+". */
-const PATENT_FTS =
-  "to_tsvector('english', COALESCE(r.title,'') || ' ' || COALESCE(r.excerpt,''))";
+/** Patent Explorer (#74/#78): Volltextsuche über die materialisierte Tabelle
+ *  `patent_search` (scripts/build_patent_search_index.py) — gespeicherter
+ *  tsvector mit Titel=A/Abstract=B statt eines Ausdrucks-Index auf
+ *  raw_entries. Nur so ist der Phrasen-Recheck billig (er liest eine Spalte,
+ *  statt den Text pro Kandidatenzeile neu zu zerlegen) und Titeltreffer
+ *  ranken vor Abstract-Treffern.
+ *  Trefferzahlen sind bei 10k gedeckelt (ein vollständiges COUNT über
+ *  Millionen dauert länger als die Suche selbst); Aufrufer zeigen "10,000+". */
 const PATENT_COUNT_CLAMP = 10000;
+/** Gewichte für ts_rank: {D, C, B, A} — Titel (A) zählt 4x so viel wie der
+ *  Abstract (B). */
+const PATENT_RANK_WEIGHTS = "'{0.1, 0.2, 0.4, 1.0}'::float4[]";
 
 // Anreicherungs-Spalten pro Trefferzeile (Assignee, Familie, CPC-Chips) —
 // identisch für beide Query-Pfade unten.
@@ -451,7 +456,9 @@ export async function getPatentSignals(options: {
     const extra: string[] = [];
     if (options.q) {
       params.push(options.q);
-      extra.push(`${PATENT_FTS} @@ websearch_to_tsquery('english', $${params.length})`);
+      // Textfilter im Firmen-Pfad ebenfalls über patent_search (#78 Stufe 3)
+      extra.push(`EXISTS (SELECT 1 FROM patent_search ps WHERE ps.id = r.id
+                  AND ps.tsv @@ websearch_to_tsquery('english', $${params.length}))`);
     }
     if (options.cpc) {
       params.push(options.cpc);
@@ -527,12 +534,60 @@ export async function getPatentSignals(options: {
      WHERE ${w}
      ORDER BY pcc.published DESC
      LIMIT $${params.length - 1} OFFSET $${params.length}`;
+  } else if (options.q) {
+    // Volltext-Pfad über patent_search: Filter, Sortierung und Ranking laufen
+    // komplett in der schlanken Suchtabelle, raw_entries wird erst für die
+    // 25 Anzeigezeilen angefasst.
+    params.push(options.q);
+    const tq = `websearch_to_tsquery('english', $${params.length})`;
+    const where: string[] = [`ps.tsv @@ ${tq}`];
+    if (options.cpc) {
+      params.push(options.cpc);
+      where.push(`EXISTS (SELECT 1 FROM patent_explorer_cpc pcc
+                  WHERE pcc.pub_number = ps.pub_number
+                    AND pcc.subclass = $${params.length})`);
+    }
+    if (options.country) {
+      params.push(options.country + "-%");
+      where.push(`ps.pub_number LIKE $${params.length}`);
+    }
+    where.push(...yearClause("ps.published"));
+    const w = where.join(" AND ");
+    countSql = `SELECT COUNT(*)::int as cnt FROM (
+       SELECT 1 FROM patent_search ps WHERE ${w} LIMIT ${PATENT_COUNT_CLAMP + 1}) x`;
+    const countRow = await q1<{ cnt: number }>(countSql, [...params]);
+    const total = countRow?.cnt ?? 0;
+    const clamped = total > PATENT_COUNT_CLAMP;
+    // Relevanz-Reihung nur bei überschaubarer Treffermenge: bei Zehntausenden
+    // Treffern müsste jede Zeile bewertet und sortiert werden, und die
+    // Reihung trennt dort ohnehin kaum — dann ist "neueste zuerst" sowohl
+    // schneller (Datums-Index) als auch nützlicher.
+    // Die Reihung muss die Treffer-Unterabfrage überleben: der Rang wird als
+    // Spalte mitgenommen und außen erneut angewandt — ein äußeres
+    // "ORDER BY published" allein würde die Relevanz-Sortierung zerstören.
+    const rankCol = clamped
+      ? `0::float4 AS rk`
+      : `ts_rank(${PATENT_RANK_WEIGHTS}, ps.tsv, ${tq}) AS rk`;
+    const order = clamped
+      ? `ps.published DESC`
+      : `ts_rank(${PATENT_RANK_WEIGHTS}, ps.tsv, ${tq}) DESC, ps.published DESC`;
+    params.push(limit, offset);
+    rowSql = `SELECT ${PATENT_ROW_COLS}
+     FROM (SELECT ps.id, ps.pub_number, ps.published, ${rankCol}
+           FROM patent_search ps
+           WHERE ${w} ORDER BY ${order}
+           LIMIT $${params.length - 1} OFFSET $${params.length}) hit
+     JOIN raw_entries r ON r.id = hit.id
+     ${PATENT_ROW_JOINS}
+     ORDER BY hit.rk DESC, hit.published DESC`;
+    const rows = await q<PatentSignal>(rowSql, params);
+    return {
+      rows: rows.map((r) => ({ ...r, cpcs: (r.cpcs as unknown as string[]) ?? [] })),
+      total: Math.min(total, PATENT_COUNT_CLAMP),
+      clamped,
+    };
   } else {
     const where: string[] = ["r.pub_number IS NOT NULL"];
-    if (options.q) {
-      params.push(options.q);
-      where.push(`${PATENT_FTS} @@ websearch_to_tsquery('english', $${params.length})`);
-    }
     if (options.cpc) {
       params.push(options.cpc);
       where.push(`EXISTS (SELECT 1 FROM patent_cpc pc
@@ -546,19 +601,6 @@ export async function getPatentSignals(options: {
     const w = where.join(" AND ");
     countSql = `SELECT COUNT(*)::int as cnt FROM (
        SELECT 1 FROM raw_entries r WHERE ${w} LIMIT ${PATENT_COUNT_CLAMP + 1}) x`;
-    // Sortier-Entscheidung erst NACH dem (billigen) Zähl-Lauf: ts_rank über
-    // eine riesige Treffermenge kostet Sekunden (gemessen: 13s für
-    // '"solid state" -lithium'), weil jede Zeile bewertet und sortiert werden
-    // muss. Ist die Menge geclampt (= sehr häufige Anfrage), liegen die
-    // Treffer dicht — dann findet der Datums-Index die neuesten 25 sofort,
-    // und "neueste zuerst" ist bei Zehntausenden Treffern ohnehin nützlicher
-    // als eine Relevanz-Reihung, die kaum trennt.
-    const countRow = await q1<{ cnt: number }>(countSql, [...params]);
-    const total = countRow?.cnt ?? 0;
-    const clamped = total > PATENT_COUNT_CLAMP;
-    const rank = options.q && !clamped
-      ? `ts_rank(${PATENT_FTS}, websearch_to_tsquery('english', $1)) DESC, `
-      : "";
     params.push(limit, offset);
     // ORDER BY ohne NULLS LAST: idx_raw_patent_pubdate ist DESC (= NULLS
     // FIRST) — nur so trägt der Index die Sortierung. Patente ohne
@@ -567,14 +609,8 @@ export async function getPatentSignals(options: {
      FROM raw_entries r
      ${PATENT_ROW_JOINS}
      WHERE ${w}
-     ORDER BY ${rank}r.published_date DESC
+     ORDER BY r.published_date DESC
      LIMIT $${params.length - 1} OFFSET $${params.length}`;
-    const rows = await q<PatentSignal>(rowSql, params);
-    return {
-      rows: rows.map((r) => ({ ...r, cpcs: (r.cpcs as unknown as string[]) ?? [] })),
-      total: Math.min(total, PATENT_COUNT_CLAMP),
-      clamped,
-    };
   }
 
   const countRow = await q1<{ cnt: number }>(countSql, params.slice(0, -2));
