@@ -218,3 +218,43 @@ Stripe-Webhook-Lücke vom 19.07.)
 Verifiziert gegen die Live-DB in einer Transaktion mit Rollback: Artikel wird
 stillgelegt, Eintrag wieder geöffnet, und die Abfrage des Cycles findet ihn
 danach tatsächlich wieder. 182 Python- + 143 Frontend-Tests grün.
+
+---
+
+## Nachtrag 2026-08-12: Newsletter-Links zeigen auf die Quelle
+
+Owner-Entscheidung: Ein zitiertes Signal verlinkt die Redaktion, die es
+gemeldet hat — nicht unsere eigene Zusammenfassung davon. „So ist das
+Versprechen des Newsletters." Deckt sich mit der Repo-Regel
+„Quellennennung ist Pflicht" und gilt **dauerhaft**, nicht nur solange
+catandary.de/trends noch 404 liefert.
+
+Umgesetzt am **E-Mail-Rand**, nicht in der Speicherung: die Ausgabe speichert
+weiterhin relative Markdown-Links (`[Titel](/trends/slug)`), weil die
+Archivseite auf der Website dieselbe Zeile rendert und dort interne Navigation
+richtig ist. `_md_links_to_html()` schreibt beim Rendern der Mail um:
+
+| Ziel im gespeicherten Text | in der Mail |
+|---|---|
+| `/trends/<slug>` | die `source_url` des Signals |
+| `/trends/mega` | Site-Link, nur solange `PUBLIC_SITE_LIVE=1` |
+| `http(s)://…` | unverändert |
+
+Ein Site-Link, der nicht eingelöst werden kann, wird zu **Klartext** statt zu
+einem garantierten 404. Der Schalter `PUBLIC_SITE_LIVE` (Standard: aus) steuert
+auch den CTA — solange die Seite dunkel ist, zeigt er auf die Landing-Seite,
+die tatsächlich antwortet.
+
+Dafür nötig: `source_url` wird jetzt in der Wochenabfrage geladen und in
+`trend_refs` mitgeführt. Die bereits gespeicherte KW-32-Ausgabe wurde
+nachträglich befüllt (24 von 24 Zitaten), ohne den Fließtext neu zu erzeugen.
+
+**Dabei gefunden:** die Preheader-Zeile — der Vorschautext im Posteingang —
+wurde aus dem *rohen* Markdown gebaut und entfernte nur HTML-Tags. Im
+Posteingang stand also wörtlich `[Titel](/trends/slug)`. Sie nutzt jetzt den
+konvertierten Text. Ein Test hält das fest.
+
+Neun Tests in `tests/test_newsletter_links.py` sichern das Routing ab, inklusive
+der Fälle, die leicht zurückfallen: dass die Quelle **auch bei live geschalteter
+Seite** gewinnt, und dass ein unbekannter Slug nicht still die URL eines anderen
+Signals erbt.
