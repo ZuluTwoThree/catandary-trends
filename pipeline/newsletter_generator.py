@@ -34,6 +34,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Does catandary.de already serve /trends? Until it does, every link into the
+# site is a 404, so mega-trend mentions render as plain text and the CTA points
+# at the landing page instead. Citation links are NOT affected — those go to the
+# original source either way (see below).
+PUBLIC_SITE_LIVE = _os.getenv("PUBLIC_SITE_LIVE", "0") == "1"
+
 BASE_URL = "https://catandary.de"
 
 # --- Site design tokens (frontend/src/app/globals.css) ----------------------
@@ -209,7 +215,7 @@ def get_weekly_newsletter_data(days: int = 7, week_start: str | None = None,
             rows = conn.execute(
                 "SELECT id, title_en, title_de, slug, summary_en, summary_de, "
                 "primary_vertical, mega_trend, tags, pestel, trend_signal_type, "
-                "trend_score, confidence, source_name, created_at "
+                "trend_score, confidence, source_name, source_url, created_at "
                 "FROM trends WHERE status = 'published' AND created_at > ? AND created_at < ? "
                 "ORDER BY trend_score DESC, created_at DESC",
                 (cutoff, upper),
@@ -218,7 +224,7 @@ def get_weekly_newsletter_data(days: int = 7, week_start: str | None = None,
             rows = conn.execute(
                 "SELECT id, title_en, title_de, slug, summary_en, summary_de, "
                 "primary_vertical, mega_trend, tags, pestel, trend_signal_type, "
-                "trend_score, confidence, source_name, created_at "
+                "trend_score, confidence, source_name, source_url, created_at "
                 "FROM trends WHERE status = 'published' AND created_at > ? "
                 "ORDER BY trend_score DESC, created_at DESC",
                 (cutoff,),
@@ -233,7 +239,8 @@ def get_weekly_newsletter_data(days: int = 7, week_start: str | None = None,
             "primary_vertical": row[6], "mega_trend": row[7],
             "tags": row[8], "pestel": row[9], "trend_signal_type": row[10],
             "trend_score": row[11], "confidence": row[12],
-            "source_name": row[13], "created_at": row[14],
+            "source_name": row[13], "source_url": row[14],
+            "created_at": row[15],
         }
         # Parse JSON fields
         for field in ("tags", "pestel"):
@@ -457,7 +464,9 @@ def linkify_editorial(text: str, data: dict) -> str:
     mt_links = {}
     for key, mt_info in data["mega_trend_map"].items():
         name = mt_info.get("name_en", "")
-        if name and len(name) > 5:
+        # A mega-trend is an aggregate; it has no single source to point at.
+        # So this one link genuinely depends on the site being reachable.
+        if name and len(name) > 5 and PUBLIC_SITE_LIVE:
             mt_links[name] = f"{BASE_URL}/trends/mega"
 
     trend_links = {}
@@ -465,8 +474,11 @@ def linkify_editorial(text: str, data: dict) -> str:
         for t in vd["top_trends"]:
             title = t.get("title_en", "")
             slug = t.get("slug", "")
-            if title and slug and len(title) > 10:
-                trend_links[title] = f"{BASE_URL}/trends/{slug}"
+            src = t.get("source_url", "")
+            if title and src and len(title) > 10:
+                # To the source, not to /trends/[slug] — same promise as the
+                # citation list below.
+                trend_links[title] = src
 
     for name in sorted(mt_links.keys(), key=len, reverse=True):
         if name in linked:
@@ -811,13 +823,47 @@ def get_newsletter_editions(limit: int = 12) -> list[dict]:
 # 6. HTML generation (for preview / email)
 # ---------------------------------------------------------------------------
 
-def _md_links_to_html(text: str) -> str:
-    """Convert markdown [text](url) links to HTML <a> tags."""
-    return re.sub(
-        r'\[([^\]]+)\]\(([^)]+)\)',
-        rf'<a href="{BASE_URL}\2" style="color: {ACCENT}; text-decoration: none;">\1</a>',
-        text,
-    )
+def _md_links_to_html(text: str, trend_refs: dict | None = None) -> str:
+    """Convert the stored markdown links into email-ready <a> tags.
+
+    The edition stores RELATIVE links ([Title](/trends/slug), [Name](/trends/mega))
+    because the website's newsletter archive renders the same record and wants
+    internal navigation. Email has the opposite obligation: a cited signal must
+    lead to the outlet that reported it — that is what the newsletter promises,
+    and it is verifiable regardless of whether our own page exists yet.
+
+    So the rewrite happens here, at the email seam, leaving storage canonical:
+      /trends/<slug>  -> the signal's source_url (looked up via trend_refs)
+      /trends/mega    -> a site link, kept only while PUBLIC_SITE_LIVE
+      http(s)://...   -> left untouched
+    A site link that cannot be honoured becomes plain text rather than a
+    guaranteed 404.
+    """
+    by_slug = {}
+    for refs in (trend_refs or {}).values():
+        for t in refs:
+            if t.get("slug") and t.get("source_url"):
+                by_slug[t["slug"]] = t["source_url"]
+
+    def repl(m: re.Match) -> str:
+        label, href = m.group(1), m.group(2)
+        if href.startswith(("http://", "https://")):
+            target = href
+        elif href.startswith("/trends/"):
+            slug = href[len("/trends/"):]
+            target = by_slug.get(slug)
+            if not target:
+                # /trends/mega and any signal we did not cite: only linkable
+                # once the site actually serves those routes.
+                target = f"{BASE_URL}{href}" if PUBLIC_SITE_LIVE else None
+        else:
+            target = f"{BASE_URL}{href}" if PUBLIC_SITE_LIVE else None
+        if not target:
+            return label
+        return (f'<a href="{target}" style="color: {ACCENT}; '
+                f'text-decoration: none;">{label}</a>')
+
+    return re.sub(r'\[([^\]]+)\]\(([^)]+)\)', repl, text)
 
 
 def generate_html(edition: dict) -> str:
@@ -836,15 +882,21 @@ def generate_html(edition: dict) -> str:
     The literal `{{UNSUBSCRIBE_URL}}` placeholder (doubled braces below, since
     this is an f-string) is substituted per recipient by the sender.
     """
-    editorial = _md_links_to_html(edition.get("editorial", ""))
+    trend_refs = edition.get("trend_refs", {})
+    editorial = _md_links_to_html(edition.get("editorial", ""), trend_refs)
     vert_summaries = {
-        k: _md_links_to_html(v) for k, v in edition.get("vertical_summaries", {}).items()
+        k: _md_links_to_html(v, trend_refs)
+        for k, v in edition.get("vertical_summaries", {}).items()
     }
     radar = edition.get("mega_trend_radar", [])
-    trend_refs = edition.get("trend_refs", {})
     year = edition.get("year", 0)
     week = edition.get("week", 0)
     total = edition.get("total_signals", 0)
+
+    # /trends only exists once the site is live; until then the landing page is
+    # the only address that answers.
+    cta_url = f"{BASE_URL}/trends" if PUBLIC_SITE_LIVE else BASE_URL
+    cta_label = "View all trends" if PUBLIC_SITE_LIVE else "Catandary.de"
 
     serif = "Georgia, 'Times New Roman', Times, serif"
     mono = "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
@@ -857,7 +909,10 @@ def generate_html(edition: dict) -> str:
 
     # Hidden preheader: the inbox preview line. Without it clients show the
     # wordmark and the eyebrow, which is the same for every issue.
-    first_sentence = re.sub(r"<[^>]+>", "", edition.get("editorial", "")).strip()
+    # Built from the CONVERTED editorial, not the stored one: the stored text is
+    # markdown, so stripping only HTML tags left "[Title](/trends/slug)" showing
+    # verbatim in the inbox preview line.
+    first_sentence = re.sub(r"<[^>]+>", "", editorial).strip()
     first_sentence = re.split(r"(?<=\.)\s", first_sentence)[0][:160] if first_sentence else ""
 
     editorial_html = ""
@@ -882,12 +937,20 @@ def generate_html(edition: dict) -> str:
         trend_items = ""
         for t in v_trends[:3]:
             t_title = t.get("title", "")
-            slug = t.get("slug", "")
             source = t.get("source_name", "")
+            # Straight to the outlet that reported it. A signal we cannot link
+            # to its source is still listed, just not as a link — better than
+            # pointing at a page that may not exist.
+            href = t.get("source_url", "")
+            title_html = (
+                f'<a href="{href}" style="font-family: {serif}; color: {PAPER}; font-size: 15px; line-height: 1.35; text-decoration: underline; text-underline-offset: 2px;">{t_title}</a>'
+                if href else
+                f'<span style="font-family: {serif}; color: {PAPER}; font-size: 15px; line-height: 1.35;">{t_title}</span>'
+            )
             trend_items += f"""
               <tr><td style="padding: 10px 0 0; border-top: 1px dashed {EDGE};">
-                <a href="{BASE_URL}/trends/{slug}" style="font-family: {serif}; color: {PAPER}; font-size: 15px; line-height: 1.35; text-decoration: underline; text-underline-offset: 2px;">{t_title}</a>
-                <div style="font-family: {mono}; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: {MUTED}; padding-top: 5px;">{source}</div>
+                {title_html}
+                <div style="font-family: {mono}; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: {MUTED}; padding-top: 5px;">{source}{' &nearr;' if href else ''}</div>
               </td></tr>"""
 
         vertical_sections += f"""
@@ -970,7 +1033,7 @@ def generate_html(edition: dict) -> str:
         <tr><td style="padding: 28px 24px 30px;">
           <table cellpadding="0" cellspacing="0" role="presentation">
             <tr><td style="background: {ACCENT};">
-              <a href="{BASE_URL}/trends" style="display: inline-block; padding: 13px 30px; font-family: {mono}; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: {INK}; text-decoration: none;">View all trends</a>
+              <a href="{cta_url}" style="display: inline-block; padding: 13px 30px; font-family: {mono}; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: {INK}; text-decoration: none;">{cta_label}</a>
             </td></tr>
           </table>
           <div style="font-family: {mono}; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: {MUTED}; padding-top: 16px;">
@@ -1038,6 +1101,11 @@ def generate_newsletter(days: int = 7, skip_llm: bool = False,
                 "title": t["title_en"],
                 "slug": t["slug"],
                 "source_name": t.get("source_name", ""),
+                # The newsletter's promise: a cited signal links to the outlet
+                # that reported it, not to our own summary of it. Kept even
+                # once the site is live — it is what makes the citation
+                # verifiable (CLAUDE.md: "Quellennennung ist Pflicht").
+                "source_url": t.get("source_url", ""),
             }
             for t in vd["top_trends"][:3]
         ]
