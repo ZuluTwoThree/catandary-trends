@@ -1,71 +1,73 @@
-# Issue-Status (Stand 2026-07-23 — nach Backlog-Audit)
+# Issue-Status (Stand 2026-08-15 — Launch-Audit)
 
-Vollständiges evidenzbasiertes Audit **aller** offenen Issues am 2026-07-23 (Referenz
-`main`=`5902e51`, „erledigt"-Basis = main **+ dev + offene PRs**, Union über
-`UI_UX_Audit`=`62c610d`). Jede Close/Done-Aussage wurde adversarial gegengeprüft.
-**Ergebnis:** 4 geschlossen, 5 auf Restscope reduziert, 1 neu (#66) → Backlog **24 → 21 offen**.
-Jedes offene Issue hat on-GitHub einen Audit-Kommentar mit Restscope + Akzeptanzkriterien + DoR/DoD.
+Vollständiges evidenzbasiertes Audit **aller** offenen Issues am 2026-08-15 (Referenz `main`
+= `5a38f50`, gegengeprüft gegen `dev` und `feature/foresight-radar`). Jede „erledigt"-Aussage
+wurde gegen Code, Datenbank, crontab und die laufenden Instanzen geprüft — nicht gegen die
+Issue-Kommentare. **Ergebnis: 8 geschlossen, 2 neu → Backlog 31 → 25 offen.**
 
-## ✅ Geschlossen 2026-07-23 (verifiziert erledigt)
+**Der Taktgeber ist der Countdown auf catandary.de: 01.09.2026, 09:00 CEST.**
+
+## ✅ Geschlossen 2026-08-15 (verifiziert erledigt)
 
 | # | Titel | Beleg |
 |---|---|---|
-| #13 | Quellen-Qualität | `scripts/monthly_source_check.py` + Monats-Cron (`0 8 1 * *`), alle 4 Checks, Erstbericht gepostet |
-| #47 | Content-Reparatur 30B-Ära | `scripts/regen_published.py`, 4 Batches, Audit 44,0% → 3,1% (DoD <10%) |
-| #50 | Wöchentl. BDDS-Patent-Cron | `scripts/weekly_patents.sh` live, Lauf 2026-07-21 exit 0, Dichte 124% |
-| #57 | Wettbewerbs-/IP-Analyse TIR | GetFocus/TechNext = identische SPNP-Methode, US12099572B2 kein EU-Blocker → **Folge #66** |
+| #40 | Megatrend-Taxonomie + Retrain | 28 Keys in `mega_trends.yaml`, `models/distill/meta.json` trained 2026-08-07 mit `classes: 28`, Reclassify-Zahlen alle > 0, LIFESTYLE-Abstain 6,5 % |
+| #75 | PATSTAT-Runde 2 | alle 8 `tip_*`-Tabellen in der DB mit den genannten Zeilenzahlen, Frontend-Panel rendert |
+| #74 | Patent Explorer | `patents/page.tsx` live, `patent_search` 19,67 M, `patent_explorer_cpc` alle ~650 Subclasses |
+| #49 | Patent-Aktualität + Cron | Cron aktiv, neuestes Patent 2026-08-05, Catch-up-Kurve auf ~104 % Normalniveau, TIR-Re-Eval abgeschlossen |
+| #63 | Header-Login/Logout | `Header.tsx` session-aware (Sign in / Account) |
+| #66 | USP-Ehrlichkeit | Copy sagt aktiv „Method · peer-reviewed, not proprietary" (App **und** Live-Landing) |
+| #44 | UX-Epic | alle vier Pakete umgesetzt (FilterBar-Collapse, Lead-Time-Story, Artikel-Typo, Signup above fold) |
+| #4 | Quellen-Acquisition | CMS-Adapter + Router-Cleanup + Sitemap-Scope in main, Weekly-Ingester laufen; Reste → #81 |
 
-*(Bereits vor diesem Audit geschlossen: #2, #45, #52–#56, #60.)*
+## 🆕 Neu angelegt
 
-## 🟡 Auf Restscope reduziert (near-complete, Kern in main)
+| # | Warum |
+|---|---|
+| **#82** | **Public Hosting** — `catandary.de/trends` = **404**. Die Domain zeigt auf Hetzner *Webhosting* (shared Apache, kann kein Next). Die App läuft nur auf `localhost:3001`. Stand vorher in keinem Issue und blockt #64/#17/#16. |
+| **#81** | Quellen-Hygiene — 6 tote Feeds, 40 stille Quellen, drei fehlende Wächter; bündelt die Kleinreste aus #4/#46/#51/#76. |
+
+## 🔴 Welle 0 — Launch-Blocker (bis 01.09.)
+
+| # | Was konkret fehlt | Gate |
+|---|---|---|
+| **#82** | Hosting-Variante entscheiden + aufsetzen. Empfehlung: kleiner Hetzner-VPS als TLS-Kopf, App + 391-GB-DB bleiben lokal, Verbindung über den bereits laufenden Tailscale-Tunnel — passt zum „runs on our local infrastructure"-Claim. | Owner-Entscheid |
+| **#64** | Vier P0-Punkte, drei davon Minuten-Arbeit: Impressum-Platzhalter (`imprint/page.tsx:13-15`), falscher Claim „Saved searches & alerts" (`page.tsx:431` + live), `REVIEW_ENABLED=0` für die öffentliche Umgebung, OG-Bild fehlt. | — |
+| **#78/#80** | Beides fertig auf `dev`, unmerged: Patent-Ranking (Prod zahlt 22,4 s auf Phrasensuche) und der 45-M-Research-Explorer (Prod zeigt noch 510k). Ein Merge erledigt beide. | — |
+| **#16** | Versandkette an vier Stellen offen: `AUTH_SECRET` in `.env` ≠ `frontend/.env.local` → **jeder Abmeldelink ungültig**; `export.php` nicht deployed; kein Sync-Cron; Abmelde-Route nicht öffentlich. | dep #82 |
+| **#17** | Stripe-Testmode ist real eingerichtet (3 Prices lösen auf: 99/499/799 €). Fehlt: E2E-Beleg (braucht öffentliche Webhook-URL), Rechtstexte in der App, Admin-Rolle statt „jeder darf reviewen", Gates umlegen. | dep #82 |
+
+## 🟡 Welle 1 — Vertrauensschulden, bevor Publikum draufschaut
 
 | # | Restscope |
 |---|---|
-| #3 | Radar/Evolution/Dossier live; offen: **Saved Queries + Velocity-Alerts** (dep #17/#16, localStorage-only startbar) + `tiers.ts`-Ehrlichkeitsfix |
-| #4 | Ingester-Baukasten in main; offen: **CMS-Adapter** (Ghost/Substack/Arc/Drupal) + Router-Cleanup in `probe_source_apis` |
-| #11 | Volltext-Fetch aktiv; offen: **reichere Extraktion** + neue Felder `key_implication`/`what_to_watch` |
-| #40 | 1/3 Kandidat in main, Head inert; offen: **Reclassify → Retrain** (Head auf 22 Klassen) · **[P1]** |
-| #43 | K(t)-Kern in main; offen: **`technology_domain`** + additive feine/domänen-gekeyte Tier-Serie + Frontend-Reihe |
+| #67 | Query-Gate greift nicht — reproduziert: „my cat is sad on tuesdays" → CPC *cat toilets*, `off_topic:false`. Distanzschwelle allein reicht nicht; Vorschlag Margin + Korpus-Treffer + ehrliche Rückfrage. |
+| #3 | Saved Queries + Velocity-Alerts liefern (oder den Claim streichen, s. #64) + Ehrlichkeitstest auf die Landing-Copy ausweiten. |
+| #48 | Link-Rot: Skript da (`check_source_links.py`), aber kein Cron und kein Frontend-Fallback für tote Backlinks. |
+| #71 | Benachrichtigung läuft; offen: Zugriffsschutz (`canReview()` = true für jeden bei `AUTH_ENABLED=0`) und die Halde selbst (29 Holds, ältester 29.07.). |
+| #81 | Quellen-Hygiene (s. o.). |
+| #11 | Nur noch `key_implication`/`what_to_watch` — erst Eval-Harness-Variante + A/B, dann DB/Anzeige. |
 
-## 🔴 Launch-Bündel (P1, teils `blocked` = Owner-/Extern-Gate)
+## 🔵 Welle 2 — Produkt-Tiefe nach dem Launch
 
-| # | Stand |
-|---|---|
-| #64 | Umbrella-Launch. main `/`=307→/trends, `/imprint`+`/privacy`=**404**, Gates OFF. dep #44/#17/#16/#63/#66 · **[blocked]** |
-| #63 | Header-Login/Logout-Fix nur auf `UI_UX_Audit` (`5bc8ef2`) → **Merge nach main** |
-| #17 | Stack gehärtet, flag-OFF; offen: **Stripe-E2E-Test + Rechtstexte live + Gates AN** · **[blocked]** |
-| #44 | Landing/Newsletter live; offen: FilterBar-Collapse + Lead-Time-Grafik + Owner-UX-Review |
-| #16 | Sender fertig, Resend-DNS geklärt; offen: **Cron scharf + realer Sende-Beleg** (braucht Abonnenten) · **[blocked]** |
-| #66 | **NEU** — kein Methoden-USP (Folge #57) → öffentliche Copy auf Kalibrierung/Korpus/GTM umstellen (gate #64) |
+#73 Research Pulse (0 % umgesetzt; Explorer als Vorbedingung steht) · #9 Co-Citation Research-Fronts
+(`build_research_fronts.py` fehlt; **Achtung:** der #80-Snapshot speichert kein `referenced_works`) ·
+#43 `technology_domain` + domänen-gekeyte Tier-Serie (auf allen Branches unangetastet) ·
+#79 5,9 M `patent_cpc`-Zeilen ohne Subclass (rein datenseitig, kein Gate) · #46 Reddit/HN-Demand-Tier
 
-## 🔵 Vertrauen/Daten (vor Launch-Claims umsetzen)
+## ⚪ Welle 3 — Forschung / Ausbau
 
-| # | Restscope |
-|---|---|
-| #49 | Backfile aufgeholt. **SPNP-Substrate-Rebuild ERLEDIGT** — `patent_spnp_full` neu gebaut **16.07** (auf `extended_graph_cache`, 42,58M Knoten; Vorgänger → `patent_spnp_full_old`), cited-Substrat `patent_citedspnp_full_z3` **18.07**; Graph = **145,5M Kanten** (Staging, 259,6M roh → 56,1 % strictly-backward), NICHT „vom 06.07". Offen nur noch: TIR-Re-Eval (**läuft aktiv**, Direction-Holdout/Ablationen 24.07) + Catch-up-Kurve verifizieren + `--kind amend`-Nutzen. · **[P1→P2]** |
-| #51 | Befund code-bestätigt (zitationsselektiert); offen: **zitationsfreier Frisch-Sweep** als eigener Ingest-Modus |
-| #9 | Graph-Layer/Velocity/Fusion in main; offen: **Co-Citation Research-Fronts** (`build_research_fronts.py`, dep #51) |
+#7 Legal Events skalieren + Familien-Dedup im Analyse-Layer · #77 Patent-Embeddings (bewusst
+ruhend; erbt den Patent-Signal-Embedding-Rest aus #49) · #27 Multilingual — Gate durch #35
+gefallen, Schritt 1 ist billig und rein lesend · #5 EDGAR/DART/EDINET/RNS (0 % Code; Form D
+gehört zu #4, nicht hierher) · #58 TIR-Spillover · #59 Embedding-Domänen + Multilayer ·
+#76 PATSTAT-Editions-Rhythmus (nächster Refresh ~Okt 2026)
 
-## ⚪ Backlog (Akquise / Forschung)
+## Systemzustand am Audit-Tag
 
-#5 Regulatory Disclosures (EDGAR/DART/EDINET/RNS — voll offen) · #7 Patent-Layer (Legal
-Events/Assignee/Family-Dedup/OPS-Citations) · #27 Multilingual Patent (Datencheck → CJK-Embedding,
-dep #35) · #46 Firmen-Newsrooms + Demand-Tier (dep #11/#4) · #48 Publisher-Link-Rot-Politik +
-Frontend-Fallback · #58 TIR-Spillover (Pichler & Lafond) · #59 Embedding-Domänen + Multilayer (dep #43/#9/#58)
-
-## Umsetzungs-Wellen
-
-- **Welle 0 (Vertrauen, vor Launch-Claims):** #51 (#49-Substrate erledigt; TIR-Re-Eval läuft)
-- **Welle 1 (Launch, P1):** #66 → #63 → #44 → #17 → #16 → #64  · Enabler: `dev` → `main` + Rebuild (dev trägt jetzt UX-Sweep + #63)
-- **Welle 2 (Foresight-Kern):** #9, #3, #43, #40
-- **Welle 3 (Qualität/Akquise):** #11, #48, #4, #46
-- **Welle 4 (Forschung):** #5, #7, #27, #58, #59
-
-## Branch-Hinweis (Stand 24.07)
-
-`UI_UX_Audit` wurde **in `dev` gemergt und gelöscht** — `dev` trägt jetzt den UX-Sweep inkl.
-Rechtsseiten (`/imprint`+`/privacy`) und den **#63-Header-Fix** (`5bc8ef2`). `main` ist über Nacht
-um ~12 Commits (TIR-Paper-Analysen + MIT-Benchmark + UX-Audit-Fixes, „from dev") vorgezogen, hat
-aber den **#63-Fix noch nicht** (`/`=307, `/imprint`=404 auf main). Für den Public-Launch daher
-**`dev` → `main` mergen** (dev ist jetzt der Superset), dann `main` bauen +
-`systemctl --user restart catandary-frontend`. `dev`/`main` divergieren (Cherry-picks „from dev").
+- **Tests grün:** 191 pytest (8 skipped) · 162 vitest (14 Dateien) · eslint sauber · `npm run build` erfolgreich · alle 18 lokalen Routen HTTP 200
+- **Pipeline gesund:** Full Cycle 14.08. exit 0; 69.542 published (2.507 in 7 Tagen), 1.331.106 Signale
+- **DB:** 391 GB — `research_corpus` 141 GB · `trends` 45 GB · `raw_entries` 41 GB · Patent-Layer ~125 GB. Root-FS zu 86 % voll; **35 GB in `*_old`-Tabellen** (`patent_cpc_full_old`, `patent_spnp_full_old`, `patent_spnp_full_z3_old`) sind reklamierbar. `~/logs` = 11 GB ohne Rotation.
+- **Quellen:** 325 aktiv (CLAUDE.md nennt noch 257 — in #81 zum Nachziehen vermerkt)
+- **Branches:** `main` = deployte Instanz (:3001); `dev` liegt vor main (#78 Stufe 3 + #80-Strecke); `feature/foresight-radar` geparkt (39 Commits) und enthält **keinen** Restscope aus #3/#43/#58/#59
+- **Nicht-Blocker, aber Hygiene:** `tsc --noEmit` meldet 7 Fehler — 2 aus stale `.next/dev`-Typen (gelöschte Route `trends/cross-vertical`), 5 aus `stripe.test.ts` (`/s`-Regex-Flag bei `target: ES2017`). Beide harmlos, beide in einer Minute weg.
