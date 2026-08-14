@@ -49,6 +49,7 @@ export default async function ResearchExplorerPage({
   // Disziplinen); Theme bzw. keine Eingabe → kuratierte Signal-Schicht wie
   // bisher. Nur die Signal-Schicht speist Foresight.
   const corpusMode = !!(parsed.text || parsed.doi || parsed.arxiv || topic
+    || parsed.author || parsed.institution || parsed.journal
     || parsed.yearFrom !== undefined);
 
   // Owner-Entscheid (#72): Starter-gegated — ohne Tier wird keine Suche
@@ -68,6 +69,9 @@ export default async function ResearchExplorerPage({
     const filter = {
       q: parsed.text || undefined,
       topic: topic || undefined,
+      author: parsed.author,
+      institution: parsed.institution,
+      journal: parsed.journal,
       yearFrom: parsed.yearFrom,
       yearTo: parsed.yearTo,
     };
@@ -193,7 +197,10 @@ export default async function ResearchExplorerPage({
       <p className="mb-6 font-sans text-[12px] text-muted">
         Paste a DOI (<span className="font-mono">10.1038/…</span>) or arXiv ID
         (<span className="font-mono">2504.10470</span>) to jump to a paper; years
-        become filters. Text supports <span className="font-mono">&quot;exact phrase&quot;</span>,{" "}
+        become filters. Try <span className="font-mono">author:&quot;Jennifer Doudna&quot;</span>,{" "}
+        <span className="font-mono">institution:ETH</span> or{" "}
+        <span className="font-mono">journal:Nature</span>. Text supports{" "}
+        <span className="font-mono">&quot;exact phrase&quot;</span>,{" "}
         <span className="font-mono">OR</span> and <span className="font-mono">-exclude</span>.
         Search queries all {fmtInt(corpusStats.total)} papers; the theme picker
         browses the curated signal layer.
@@ -204,7 +211,8 @@ export default async function ResearchExplorerPage({
           <span className="text-muted">Understood as</span>
           {parsed.chips.map((c) => (
             <span key={c.kind + c.label} className="border border-accent/40 text-accent px-2 py-0.5">
-              {c.kind === "doi" ? "DOI " : c.kind === "arxiv" ? "" : "Year "}{c.label}
+              {{ doi: "DOI ", arxiv: "", year: "Year ", author: "Author ",
+                 institution: "Institution ", journal: "Journal " }[c.kind]}{c.label}
             </span>
           ))}
           {parsed.text && (
@@ -230,7 +238,7 @@ export default async function ResearchExplorerPage({
                   : `all ${fmtInt(agg.n)} matches`}
               </span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+            <div className={`grid grid-cols-1 divide-y md:divide-y-0 md:divide-x divide-border ${agg.institutions.length > 0 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
               <div className="p-4">
                 <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-3">
                   Publications per year
@@ -275,6 +283,33 @@ export default async function ResearchExplorerPage({
                   ))}
                 </ol>
               </div>
+              {agg.institutions.length > 0 && (() => {
+                const maxInst = Math.max(...agg.institutions.map((i) => i.n), 1);
+                return (
+                  <div className="p-4">
+                    <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-3"
+                        title="Lead institution of the first author, from OpenAlex affiliation data">
+                      Leading institutions
+                    </h3>
+                    <ol className="space-y-1.5">
+                      {agg.institutions.map((i) => (
+                        <li key={i.institution} className="relative">
+                          <div className="absolute inset-y-0 left-0 bg-accent/10"
+                               style={{ width: `${(i.n / maxInst) * 100}%` }} />
+                          <div className="relative flex items-baseline gap-2 px-1.5 py-0.5">
+                            <Link href={`/trends/foresight/research?q=${encodeURIComponent(`institution:"${i.institution}"`)}`}
+                                  className="font-sans text-[13px] text-paper truncate hover:text-accent"
+                                  title={i.institution}>
+                              {i.institution}
+                            </Link>
+                            <span className="font-mono text-[10px] text-muted ml-auto shrink-0">{fmtInt(i.n)}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                );
+              })()}
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-border divide-x divide-border">
               <div className="p-3">
@@ -308,7 +343,7 @@ export default async function ResearchExplorerPage({
             {agg.rising.length > 0 && (
               <div className="border-t border-border p-4">
                 <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent mb-2"
-                    title="Most-cited works from the last three years in these results, normalized to citations per year">
+                    title="Works from the last three years with the most citations gathered in 2025–2026 — measured from OpenAlex citation curves">
                   Rising papers
                 </h3>
                 <ol className="space-y-1">

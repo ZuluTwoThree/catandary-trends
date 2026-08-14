@@ -5,7 +5,7 @@
  */
 
 export interface ResearchChip {
-  kind: "doi" | "arxiv" | "year";
+  kind: "doi" | "arxiv" | "year" | "author" | "institution" | "journal";
   label: string;
 }
 
@@ -15,6 +15,10 @@ export interface ParsedResearchQuery {
   doi?: string;
   /** arXiv-ID (2504.10470 bzw. mit Version). */
   arxiv?: string;
+  /** Anmelder-Operatoren: author:"…" / institution:"…" / journal:"…" */
+  author?: string;
+  institution?: string;
+  journal?: string;
   yearFrom?: number;
   yearTo?: number;
   chips: ResearchChip[];
@@ -40,6 +44,21 @@ export function parseResearchQuery(raw: string): ParsedResearchQuery {
   const out: ParsedResearchQuery = { text: "", chips: [] };
   let rest = (raw ?? "").trim();
   if (!rest) return out;
+
+  // Operatoren zuerst — mehrteilige Namen in Anführungszeichen bleiben ganz
+  for (const [key, re] of [
+    ["author", /\b(?:author|autor):\s*("([^"]+)"|(\S+))/i],
+    ["institution", /\b(?:institution|inst):\s*("([^"]+)"|(\S+))/i],
+    ["journal", /\b(?:journal|source):\s*("([^"]+)"|(\S+))/i],
+  ] as const) {
+    const m = rest.match(re);
+    if (!m) continue;
+    const value = (m[2] ?? m[3] ?? "").trim();
+    if (!value) continue;
+    (out as Record<string, unknown>)[key] = value;
+    out.chips.push({ kind: key, label: value });
+    rest = cut(rest, m.index ?? 0, m[0].length);
+  }
 
   const dm = rest.match(DOI_RE);
   if (dm) {

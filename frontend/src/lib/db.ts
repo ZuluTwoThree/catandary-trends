@@ -368,11 +368,43 @@ const RC_COLS = `rc.id, rc.doi, rc.title, rc.abstract,
        rc.cited_by_count, rc.fwci, rc.is_retracted`;
 const RC_CLAMP = 10000;
 
+
+/** Operator-Treffermenge (author:/institution:/journal:) — treibt von der
+ *  Nebentabelle (Trigram bzw. ILIKE) mit 10k-Deckel. Die Gegenrichtung
+ *  (EXISTS je Korpus-Zeile) detoastet bei großen Institutionen die tsv über
+ *  Hunderttausende Zeilen: 'Max Planck' x 'quantum' = 21,5s gemessen
+ *  (#80, 2026-08-15). Kleine Namen bleiben exakt, Riesen-Namen werden zur
+ *  ehrlichen Stichprobe (opClamped). Langfristig sauber: Namen als
+ *  C/D-Label-Lexeme in die tsv beim nächsten Voll-Rebuild (in #80 notiert). */
+async function researchOperatorHits(options: {
+  author?: string; institution?: string; journal?: string;
+}): Promise<{ ids: string[]; opClamped: boolean } | null> {
+  const parts: { table: string; col: string; val: string }[] = [];
+  if (options.author) parts.push({ table: "research_authors_flat", col: "authors", val: options.author });
+  if (options.institution) parts.push({ table: "research_authors_flat", col: "institutions", val: options.institution });
+  if (options.journal) parts.push({ table: "research_work_journal", col: "journal", val: options.journal });
+  if (parts.length === 0) return null;
+  let ids: Set<string> | null = null;
+  let opClamped = false;
+  for (const p of parts) {
+    const rows = await q<{ work_id: string }>(
+      `SELECT work_id FROM ${p.table} WHERE ${p.col} ILIKE $1 LIMIT ${RC_CLAMP + 1}`,
+      [`%${p.val}%`]);
+    if (rows.length > RC_CLAMP) opClamped = true;
+    const cur = new Set(rows.slice(0, RC_CLAMP).map((r) => r.work_id));
+    ids = ids === null ? cur : new Set([...ids].filter((x) => cur.has(x)));
+  }
+  return { ids: [...(ids ?? [])], opClamped };
+}
+
 export async function getResearchCorpus(options: {
   q?: string;
   doi?: string;
   arxiv?: string;
   topic?: string;
+  author?: string;
+  institution?: string;
+  journal?: string;
   yearFrom?: number;
   yearTo?: number;
   limit?: number;
@@ -413,6 +445,12 @@ export async function getResearchCorpus(options: {
     params.push(options.yearTo);
     where.push(`year <= $${params.length}`);
   }
+  const op = await researchOperatorHits(options);
+  if (op) {
+    if (op.ids.length === 0) return { rows: [], total: 0, clamped: false };
+    params.push(op.ids);
+    where.push(`id = ANY($${params.length})`);
+  }
   if (where.length === 0) {
     // Kein Filter: neueste Werke (Datums-Index), Count = Cache-Statistik
     const stats = await getResearchCorpusStats();
@@ -452,6 +490,7 @@ export async function getResearchCorpus(options: {
        ORDER BY hit.hit_pub DESC`, params);
     return { rows, total: RC_CLAMP, clamped: true };
   }
+  const opClamped = op?.opClamped ?? false;
   // Überschaubare Menge: Treffer EINMAL materialisieren (inkl. tsv), dann
   // zählen + ranken NUR über die Materialisierung. Direkt auf der Tabelle
   // gerankt entscheidet der Planer bei parametrisierten Jahres-Filtern
@@ -479,13 +518,14 @@ export async function getResearchCorpus(options: {
          SELECT 1 FROM research_corpus WHERE ${w} LIMIT ${RC_CLAMP + 1}) x`,
       params.slice(0, -2));
     const total = countRow?.cnt ?? 0;
-    return { rows: [], total: Math.min(total, RC_CLAMP), clamped: total > RC_CLAMP };
+    return { rows: [], total: Math.min(total, RC_CLAMP),
+             clamped: total > RC_CLAMP || opClamped };
   }
   const total = rows[0].full_cnt;
   return {
     rows: rows.map(({ full_cnt: _full_cnt, ...r }) => r as ResearchWork),
     total: Math.min(total, RC_CLAMP),
-    clamped: total > RC_CLAMP,
+    clamped: total > RC_CLAMP || opClamped,
   };
 }
 
@@ -500,6 +540,7 @@ export interface ResearchAggregates {
   landmarks: number;
   medianCites: number | null;
   rising: { id: string; doi: string | null; title: string; year: number; cited_by_count: number }[];
+  institutions: { institution: string; n: number }[];
 }
 
 /** Treffer-Statistiken für das Result-Intelligence-Panel (#80): aggregiert
@@ -511,6 +552,9 @@ export interface ResearchAggregates {
 export async function getResearchAggregates(options: {
   q?: string;
   topic?: string;
+  author?: string;
+  institution?: string;
+  journal?: string;
   yearFrom?: number;
   yearTo?: number;
 } = {}): Promise<ResearchAggregates | null> {
@@ -532,6 +576,12 @@ export async function getResearchAggregates(options: {
     params.push(options.yearTo);
     where.push(`year <= $${params.length}`);
   }
+  const op = await researchOperatorHits(options);
+  if (op) {
+    if (op.ids.length === 0) return null;
+    params.push(op.ids);
+    where.push(`id = ANY($${params.length})`);
+  }
   if (where.length === 0) return null;
   const w = where.join(" AND ");
   // Kein Panel für Riesen-Mengen: "die 10k neuesten Treffer" eines häufigen
@@ -551,6 +601,7 @@ export async function getResearchAggregates(options: {
   const row = await q1<{
     n: number; reviews: number; retracted: number; landmarks: number;
     median_cites: number | null; years: unknown; topics: unknown; rising: unknown;
+    institutions: unknown;
   }>(
     `WITH hit AS (
        SELECT id FROM research_corpus WHERE ${w} LIMIT ${RC_CLAMP}),
@@ -573,10 +624,15 @@ export async function getResearchAggregates(options: {
           WHERE topic IS NOT NULL GROUP BY topic
           ORDER BY COUNT(*) DESC LIMIT 6) t) AS topics,
        (SELECT json_agg(t) FROM (
-          SELECT id, doi, title, year, cited_by_count FROM hits
-          WHERE year >= 2023 AND cited_by_count >= 5
-          ORDER BY cited_by_count::float / GREATEST(2026 - year, 1) DESC
-          LIMIT 3) t) AS rising`,
+          SELECT h.id, h.doi, h.title, h.year, h.cited_by_count FROM hits h
+          JOIN research_citation_recent cr ON cr.work_id = h.id
+          WHERE h.year >= 2023
+          ORDER BY cr.cites_recent DESC LIMIT 3) t) AS rising,
+       (SELECT json_agg(t) FROM (
+          SELECT wi.institution, COUNT(*)::int AS n FROM hits h
+          JOIN research_work_inst wi ON wi.work_id = h.id
+          WHERE wi.institution IS NOT NULL
+          GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 5) t) AS institutions`,
     params);
   if (!row || !row.n) return null;
   return {
@@ -589,6 +645,7 @@ export async function getResearchAggregates(options: {
     landmarks: row.landmarks,
     medianCites: row.median_cites === null ? null : Number(row.median_cites),
     rising: (row.rising as ResearchAggregates["rising"]) ?? [],
+    institutions: (row.institutions as ResearchAggregates["institutions"]) ?? [],
   };
 }
 

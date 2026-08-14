@@ -63,3 +63,25 @@ describe("parseResearchQuery — Kombination", () => {
     expect(parseResearchQuery("").chips).toHaveLength(0);
   });
 });
+
+describe("parseResearchQuery — Operatoren", () => {
+  it("erkennt author/institution/journal mit Anführungszeichen", () => {
+    const p = parseResearchQuery('author:"Sandip Basak" institution:"Max Planck" battery');
+    expect(p.author).toBe("Sandip Basak");
+    expect(p.institution).toBe("Max Planck");
+    expect(p.text).toBe("battery");
+  });
+
+  it("journal:-Kurzform ohne Anführungszeichen", () => {
+    const p = parseResearchQuery("journal:Nature perovskite");
+    expect(p.journal).toBe("Nature");
+    expect(p.text).toBe("perovskite");
+  });
+
+  it("kombiniert Operator mit Jahr", () => {
+    const p = parseResearchQuery("institution:ETH 2024");
+    expect(p.institution).toBe("ETH");
+    expect(p.yearFrom).toBe(2024);
+    expect(p.chips.map((c) => c.kind)).toEqual(["institution", "year"]);
+  });
+});
