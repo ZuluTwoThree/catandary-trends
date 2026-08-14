@@ -343,6 +343,160 @@ export async function getResearchStats(): Promise<{ total: number; last30d: numb
   });
 }
 
+// ---------------------------------------------------------------------------
+// Research-Korpus-Suchschicht (#80): 45,9M OpenAlex-Werke aller Disziplinen
+// in `research_corpus` (scripts/ingest_openalex_snapshot.py) — gespeicherter
+// tsvector Titel=A/Abstract=B, getrennt von der kuratierten Signal-Schicht.
+// ---------------------------------------------------------------------------
+
+export interface ResearchWork {
+  id: string;
+  doi: string | null;
+  title: string;
+  abstract: string;
+  published: string | null;
+  year: number | null;
+  type: string | null;
+  topic: string | null;
+  cited_by_count: number | null;
+  fwci: number | null;
+  is_retracted: boolean | null;
+}
+
+const RC_COLS = `rc.id, rc.doi, rc.title, rc.abstract,
+       rc.published::text as published, rc.year, rc.type, rc.topic,
+       rc.cited_by_count, rc.fwci, rc.is_retracted`;
+const RC_CLAMP = 10000;
+
+export async function getResearchCorpus(options: {
+  q?: string;
+  doi?: string;
+  arxiv?: string;
+  topic?: string;
+  yearFrom?: number;
+  yearTo?: number;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{ rows: ResearchWork[]; total: number; clamped: boolean }> {
+  const limit = options.limit ?? 25;
+  const offset = options.offset ?? 0;
+
+  // Direktpfad DOI / arXiv-ID: die doi-Spalte trägt die volle OpenAlex-URL-
+  // Form (https://doi.org/10.…, kleingeschrieben); arXiv-Werke haben den
+  // DataCite-DOI 10.48550/arxiv.<id>. Läuft über idx_rc_doi.
+  if (options.doi || options.arxiv) {
+    const doi = options.doi
+      ? `https://doi.org/${options.doi}`
+      : `https://doi.org/10.48550/arxiv.${options.arxiv!.replace(/v\d+$/, "")}`;
+    const rows = await q<ResearchWork>(
+      `SELECT ${RC_COLS} FROM research_corpus rc WHERE rc.doi = $1 LIMIT 5`, [doi]);
+    return { rows, total: rows.length, clamped: false };
+  }
+
+  const params: unknown[] = [];
+  const where: string[] = [];
+  let tq = "";
+  if (options.q) {
+    params.push(options.q);
+    tq = `websearch_to_tsquery('english', $${params.length})`;
+    where.push(`tsv @@ ${tq}`);
+  }
+  if (options.topic) {
+    params.push(options.topic);
+    where.push(`topic = $${params.length}`);
+  }
+  if (options.yearFrom !== undefined) {
+    params.push(options.yearFrom);
+    where.push(`year >= $${params.length}`);
+  }
+  if (options.yearTo !== undefined) {
+    params.push(options.yearTo);
+    where.push(`year <= $${params.length}`);
+  }
+  if (where.length === 0) {
+    // Kein Filter: neueste Werke (Datums-Index), Count = Cache-Statistik
+    const stats = await getResearchCorpusStats();
+    params.push(limit, offset);
+    const rows = await q<ResearchWork>(
+      `SELECT ${RC_COLS} FROM research_corpus rc
+       ORDER BY rc.published DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+    return { rows, total: Math.min(stats.total, RC_CLAMP), clamped: true };
+  }
+  const w = where.join(" AND ");
+  // Zwei-Pfad-Logik wie patent_search (#78), mit einer Verschärfung für den
+  // 45M-Korpus: Bei häufigen Begriffen ("battery") muss der GIN-Index erst
+  // Millionen Fundstellen sammeln, bevor ein LIMIT greift — der Count-Clamp
+  // selbst kostete >20s. Deshalb zuerst der Planer-SCHÄTZWERT (EXPLAIN, ms,
+  // ohne Ausführung): große Mengen gehen direkt in den Datums-Pfad (dort sind
+  // häufige Begriffe dicht → Index-Walk findet 25 Treffer sofort), nur
+  // überschaubare Mengen werden exakt gezählt und nach Relevanz gerankt.
+  const planRow = await q1<Record<string, unknown>>(
+    `EXPLAIN (FORMAT JSON) SELECT 1 FROM research_corpus WHERE ${w}`,
+    [...params]);
+  const planJson = planRow?.["QUERY PLAN"] as
+    | { Plan?: { "Plan Rows"?: number } }[] | undefined;
+  const estimate = planJson?.[0]?.Plan?.["Plan Rows"] ?? 0;
+  let total: number;
+  let clamped: boolean;
+  if (estimate > 100_000) {
+    total = RC_CLAMP + 1;
+    clamped = true;
+  } else {
+    const countRow = await q1<{ cnt: number }>(
+      `SELECT COUNT(*)::int as cnt FROM (
+         SELECT 1 FROM research_corpus WHERE ${w} LIMIT ${RC_CLAMP + 1}) x`,
+      [...params]);
+    total = countRow?.cnt ?? 0;
+    clamped = total > RC_CLAMP;
+  }
+  // ORDER BY ohne NULLS LAST: idx_rc_published ist DESC (= NULLS FIRST) —
+  // nur so trägt der Index; Werke ohne Datum gibt es nicht (0 von 45,3M,
+  // gemessen 2026-08-14).
+  const order = options.q && !clamped
+    ? `ts_rank(${PATENT_RANK_WEIGHTS}, tsv, ${tq}) DESC, published DESC`
+    : `published DESC`;
+  params.push(limit, offset);
+  // Treffer-IDs zuerst schmal holen, Spalten danach per Self-Join (Muster
+  // patent_search #78): mit breiten Spalten kippt der Planer vom schnellen
+  // Datums-Index-Walk in Bitmap+Sort — gemessen 22s statt 0,5s fuer 'battery'.
+  const rankCol = options.q && !clamped
+    ? `ts_rank(${PATENT_RANK_WEIGHTS}, tsv, ${tq}) AS rk`
+    : `0::float4 AS rk`;
+  const rows = await q<ResearchWork>(
+    `SELECT ${RC_COLS.replace(/^/, "")} FROM (
+       SELECT id AS hit_id, published AS hit_pub, ${rankCol}
+       FROM research_corpus WHERE ${w} ORDER BY ${order}
+       LIMIT $${params.length - 1} OFFSET $${params.length}) hit
+     JOIN research_corpus rc ON rc.id = hit.hit_id
+     ORDER BY hit.rk DESC, hit.hit_pub DESC`, params);
+  return { rows, total: Math.min(total, RC_CLAMP), clamped };
+}
+
+export async function getResearchCorpusStats(): Promise<{ total: number; topics: number }> {
+  return cached("research-corpus-stats", 3_600_000, async () => {
+    // Beide Zahlen aus Meta-/Statistik-Tabellen — COUNT(*) bzw.
+    // COUNT(DISTINCT) über die 45M-Tabelle kosteten beim Kaltstart ~30-40s
+    // und liefen nach jedem Server-Neustart erneut. Gepflegt vom
+    // Snapshot-Ingest/Sync (#80).
+    const row = await q1<{ total: number; topics: number }>(
+      `SELECT (SELECT total::int FROM research_corpus_meta) as total,
+              (SELECT COUNT(*)::int FROM research_corpus_topics) as topics`);
+    return { total: row?.total ?? 0, topics: row?.topics ?? 0 };
+  });
+}
+
+/** Topic-Facette für die Datalist — aus der materialisierten Statistik-
+ *  Tabelle research_corpus_topics (Aufbau im Snapshot-Ingest/Sync, 4,5k
+ *  Zeilen), nie aus der 45M-Tabelle selbst. */
+export async function getResearchTopics(): Promise<string[]> {
+  return cached("research-corpus-topics", 3_600_000, async () => {
+    const rows = await q<{ topic: string }>(
+      `SELECT topic FROM research_corpus_topics ORDER BY n DESC LIMIT 500`);
+    return rows.map((r) => r.topic);
+  });
+}
+
 
 export interface PatentSignal {
   pub_number: string;
