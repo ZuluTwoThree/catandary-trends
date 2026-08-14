@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   getResearchSignals, getResearchStats,
   getResearchCorpus, getResearchCorpusStats, getResearchTopics,
+  getResearchAggregates, type ResearchAggregates,
 } from "@/lib/db";
 import { MEGA_TRENDS } from "@/lib/mega-trends.generated";
 import { parseResearchQuery } from "@/lib/research-search";
@@ -60,19 +61,29 @@ export default async function ResearchExplorerPage({
 
   let corpus: Awaited<ReturnType<typeof getResearchCorpus>> = { rows: [], total: 0, clamped: false };
   let signals: Awaited<ReturnType<typeof getResearchSignals>> = { rows: [], total: 0 };
+  let agg: ResearchAggregates | null = null;
   if (!allowed) {
     signals = await getResearchSignals({ limit: 3, offset: 0 });
   } else if (corpusMode) {
-    corpus = await getResearchCorpus({
+    const filter = {
       q: parsed.text || undefined,
-      doi: parsed.doi,
-      arxiv: parsed.arxiv,
       topic: topic || undefined,
       yearFrom: parsed.yearFrom,
       yearTo: parsed.yearTo,
-      limit: PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
-    });
+    };
+    [corpus, agg] = await Promise.all([
+      getResearchCorpus({
+        ...filter,
+        doi: parsed.doi,
+        arxiv: parsed.arxiv,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      }),
+      // Statistik-Panel nur für Filter-Suchen (nicht für DOI/arXiv-Direkttreffer)
+      parsed.doi || parsed.arxiv
+        ? Promise.resolve(null)
+        : getResearchAggregates(filter),
+    ]);
   } else {
     signals = await getResearchSignals({
       mega: theme || undefined, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
@@ -155,7 +166,7 @@ export default async function ResearchExplorerPage({
           list="rc-topics"
           defaultValue={topic}
           placeholder="Research topic…"
-          className="bg-card border border-border-strong px-3 py-2.5 font-sans text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent sm:max-w-[220px]"
+          className="bg-card border border-border-strong px-3 py-2.5 font-sans text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent sm:min-w-[340px] sm:flex-1"
           aria-label="Filter by research topic"
         />
         <datalist id="rc-topics">
@@ -202,6 +213,131 @@ export default async function ResearchExplorerPage({
         </div>
       )}
 
+      {/* Result-Intelligence-Panel (#80) — Aggregat über die (bis zu 10k
+          neuesten) Treffer; Stil-Verwandter des Patent-Technology-Panels.
+          Erst ab 50 Treffern: darunter sagen Statistiken nichts. */}
+      {corpusMode && agg && agg.n >= 50 && (() => {
+        const maxYear = Math.max(...agg.years.map((y) => y.n), 1);
+        const maxTopic = Math.max(...agg.topics.map((t) => t.n), 1);
+        const pctOf = (v: number) => `${((v / agg.n) * 100).toFixed(v / agg.n >= 0.1 ? 0 : 1)}%`;
+        return (
+          <section className="mb-8 border border-border-strong">
+            <div className="border-b border-border px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+              —— Result intelligence
+              <span className="text-muted normal-case tracking-normal font-sans text-[11px]">
+                {"  "}· {agg.sampled
+                  ? `based on a sample of ${fmtInt(agg.n)} matches`
+                  : `all ${fmtInt(agg.n)} matches`}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+              <div className="p-4">
+                <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-3">
+                  Publications per year
+                </h3>
+                <div className="flex items-end gap-[3px]" role="img"
+                     aria-label="Publications per year in these results">
+                  {agg.years.map((y) => (
+                    <div key={y.year} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+                      <div
+                        className="w-full bg-accent/60"
+                        style={{ height: `${Math.max(3, Math.round((y.n / maxYear) * 88))}px` }}
+                        title={`${y.year}: ${fmtInt(y.n)} papers`}
+                      />
+                      {/* Label-Slot in JEDER Spalte — sonst Baseline-Versatz */}
+                      <span className="font-mono text-[8px] text-muted h-3 leading-3">
+                        {y.year % 5 === 0 ? y.year : " "}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="p-4">
+                <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-3">
+                  Where this research lives
+                </h3>
+                <ol className="space-y-1.5">
+                  {agg.topics.map((t) => (
+                    <li key={t.topic} className="relative">
+                      <div className="absolute inset-y-0 left-0 bg-accent/10"
+                           style={{ width: `${(t.n / maxTopic) * 100}%` }} />
+                      <div className="relative flex items-baseline gap-2 px-1.5 py-0.5">
+                        <Link href={`/trends/foresight/research?topic=${encodeURIComponent(t.topic)}`}
+                              className="font-sans text-[13px] text-paper truncate hover:text-accent"
+                              title={t.topic}>
+                          {t.topic}
+                        </Link>
+                        <span className="font-mono text-[10px] text-muted ml-auto shrink-0">
+                          {fmtInt(t.n)}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-border divide-x divide-border">
+              <div className="p-3">
+                <div className="font-display text-xl text-paper">{pctOf(agg.reviews)}</div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mt-0.5">
+                  review articles
+                </div>
+              </div>
+              <div className="p-3">
+                <div className="font-display text-xl text-paper">
+                  {agg.medianCites === null ? "—" : fmtInt(Math.round(agg.medianCites))}
+                </div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mt-0.5">
+                  median citations
+                </div>
+              </div>
+              <div className="p-3">
+                <div className="font-display text-xl text-paper">{fmtInt(agg.landmarks)}</div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mt-0.5"
+                     title="Works with field-weighted citation impact ≥ 25 — the top 1% of their field">
+                  landmark works
+                </div>
+              </div>
+              <div className="p-3">
+                <div className="font-display text-xl text-paper">{pctOf(agg.retracted)}</div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mt-0.5">
+                  retracted
+                </div>
+              </div>
+            </div>
+            {agg.rising.length > 0 && (
+              <div className="border-t border-border p-4">
+                <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent mb-2"
+                    title="Most-cited works from the last three years in these results, normalized to citations per year">
+                  Rising papers
+                </h3>
+                <ol className="space-y-1">
+                  {agg.rising.map((r) => (
+                    <li key={r.id} className="font-sans text-[13px] text-text truncate">
+                      <a href={r.doi ?? `https://openalex.org/${r.id}`}
+                         target="_blank" rel="noopener noreferrer"
+                         className="text-paper hover:text-accent" title={r.title}>
+                        {r.title}
+                      </a>
+                      <span className="font-mono text-[10px] text-muted">
+                        {" "}· {r.year} · {fmtInt(r.cited_by_count)} citations
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+          </section>
+        );
+      })()}
+
+      {corpusMode && !agg && !parsed.doi && !parsed.arxiv && corpus.clamped && (
+        <p className="mb-5 font-sans text-[12px] text-muted">
+          Result statistics appear once the query narrows below ~100k matches —
+          add a year range, a phrase, or a topic.
+        </p>
+      )}
+
       <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-5">
         {totalLabel} {corpusMode ? "papers" : "signals"}
         {parsed.text && <> for <span className="text-paper">&ldquo;{parsed.text}&rdquo;</span></>}
@@ -235,7 +371,20 @@ export default async function ResearchExplorerPage({
                       <Link href={`/trends/foresight/research?topic=${encodeURIComponent(r.topic)}`}
                             className="hover:text-accent">{r.topic}</Link>
                     )}
-                    {r.type && r.type !== "article" && <span>{r.type}</span>}
+                    {r.type === "review" ? (
+                      <span className="border border-accent/50 text-accent px-1.5 py-0.5"
+                            title="Review article — a synthesis of the field's state of knowledge">
+                        REVIEW
+                      </span>
+                    ) : r.type && r.type !== "article" ? (
+                      <span>{r.type}</span>
+                    ) : null}
+                    {(r.fwci ?? 0) >= 25 && (
+                      <span className="bg-accent/15 border border-accent/50 text-accent px-1.5 py-0.5"
+                            title="Landmark work — field-weighted citation impact ≥ 25, the top 1% of its field">
+                        LANDMARK
+                      </span>
+                    )}
                     {r.is_retracted && (
                       <span className="border border-red-500/60 text-red-400 px-1.5 py-0.5">
                         RETRACTED

@@ -437,40 +437,159 @@ export async function getResearchCorpus(options: {
   const planJson = planRow?.["QUERY PLAN"] as
     | { Plan?: { "Plan Rows"?: number } }[] | undefined;
   const estimate = planJson?.[0]?.Plan?.["Plan Rows"] ?? 0;
-  let total: number;
-  let clamped: boolean;
   if (estimate > 100_000) {
-    total = RC_CLAMP + 1;
-    clamped = true;
-  } else {
-    const countRow = await q1<{ cnt: number }>(
-      `SELECT COUNT(*)::int as cnt FROM (
-         SELECT 1 FROM research_corpus WHERE ${w} LIMIT ${RC_CLAMP + 1}) x`,
-      [...params]);
-    total = countRow?.cnt ?? 0;
-    clamped = total > RC_CLAMP;
+    // Riesen-Menge: Datums-Walk (Treffer sind dicht → 25 Zeilen sofort);
+    // Trefferzahl bleibt "10.000+". ORDER BY ohne NULLS LAST: idx_rc_published
+    // ist DESC (= NULLS FIRST), Werke ohne Datum gibt es nicht (0 von 45,3M).
+    // Schmaler ID-Select + Self-Join gegen den Planer-Kipp (22s vs 0,5s).
+    params.push(limit, offset);
+    const rows = await q<ResearchWork>(
+      `SELECT ${RC_COLS} FROM (
+         SELECT id AS hit_id, published AS hit_pub
+         FROM research_corpus WHERE ${w} ORDER BY published DESC
+         LIMIT $${params.length - 1} OFFSET $${params.length}) hit
+       JOIN research_corpus rc ON rc.id = hit.hit_id
+       ORDER BY hit.hit_pub DESC`, params);
+    return { rows, total: RC_CLAMP, clamped: true };
   }
-  // ORDER BY ohne NULLS LAST: idx_rc_published ist DESC (= NULLS FIRST) —
-  // nur so trägt der Index; Werke ohne Datum gibt es nicht (0 von 45,3M,
-  // gemessen 2026-08-14).
-  const order = options.q && !clamped
-    ? `ts_rank(${PATENT_RANK_WEIGHTS}, tsv, ${tq}) DESC, published DESC`
-    : `published DESC`;
+  // Überschaubare Menge: Treffer EINMAL materialisieren (inkl. tsv), dann
+  // zählen + ranken NUR über die Materialisierung. Direkt auf der Tabelle
+  // gerankt entscheidet der Planer bei parametrisierten Jahres-Filtern
+  // unvorhersehbar und detoastet tsv weit über die Treffermenge hinaus —
+  // gemessen 4,4s statt <1s für 'perovskite 2019-2023' (#80, 2026-08-15).
+  const rankExpr = options.q
+    ? `ts_rank(${PATENT_RANK_WEIGHTS}, m.tsv, ${tq})`
+    : `0::float4`;
   params.push(limit, offset);
-  // Treffer-IDs zuerst schmal holen, Spalten danach per Self-Join (Muster
-  // patent_search #78): mit breiten Spalten kippt der Planer vom schnellen
-  // Datums-Index-Walk in Bitmap+Sort — gemessen 22s statt 0,5s fuer 'battery'.
-  const rankCol = options.q && !clamped
-    ? `ts_rank(${PATENT_RANK_WEIGHTS}, tsv, ${tq}) AS rk`
-    : `0::float4 AS rk`;
-  const rows = await q<ResearchWork>(
-    `SELECT ${RC_COLS.replace(/^/, "")} FROM (
-       SELECT id AS hit_id, published AS hit_pub, ${rankCol}
-       FROM research_corpus WHERE ${w} ORDER BY ${order}
+  const rows = await q<ResearchWork & { full_cnt: number }>(
+    `WITH m AS MATERIALIZED (
+       SELECT id, published, tsv FROM research_corpus
+       WHERE ${w} LIMIT ${RC_CLAMP + 1})
+     SELECT ${RC_COLS}, hit.full_cnt FROM (
+       SELECT m.id AS hit_id, m.published AS hit_pub, ${rankExpr} AS rk,
+              (SELECT COUNT(*)::int FROM m) AS full_cnt
+       FROM m ORDER BY rk DESC, m.published DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}) hit
      JOIN research_corpus rc ON rc.id = hit.hit_id
      ORDER BY hit.rk DESC, hit.hit_pub DESC`, params);
-  return { rows, total: Math.min(total, RC_CLAMP), clamped };
+  if (rows.length === 0) {
+    // Leere Seite (offset hinter dem Ende oder null Treffer): Count separat
+    const countRow = await q1<{ cnt: number }>(
+      `SELECT COUNT(*)::int as cnt FROM (
+         SELECT 1 FROM research_corpus WHERE ${w} LIMIT ${RC_CLAMP + 1}) x`,
+      params.slice(0, -2));
+    const total = countRow?.cnt ?? 0;
+    return { rows: [], total: Math.min(total, RC_CLAMP), clamped: total > RC_CLAMP };
+  }
+  const total = rows[0].full_cnt;
+  return {
+    rows: rows.map(({ full_cnt: _full_cnt, ...r }) => r as ResearchWork),
+    total: Math.min(total, RC_CLAMP),
+    clamped: total > RC_CLAMP,
+  };
+}
+
+export interface ResearchAggregates {
+  /** Basis der Aggregation (bis RC_CLAMP neueste Treffer). */
+  n: number;
+  sampled: boolean;
+  years: { year: number; n: number }[];
+  topics: { topic: string; n: number }[];
+  reviews: number;
+  retracted: number;
+  landmarks: number;
+  medianCites: number | null;
+  rising: { id: string; doi: string | null; title: string; year: number; cited_by_count: number }[];
+}
+
+/** Treffer-Statistiken für das Result-Intelligence-Panel (#80): aggregiert
+ *  über die bis zu 10.000 NEUESTEN Treffer der Filterkombination — bei
+ *  geclampten Mengen also eine ehrliche Stichprobe, die Seite sagt das dazu.
+ *  Rising = meistzitierte junge Werke (ab 2023) der Treffermenge, normiert
+ *  auf Zitationen/Jahr; Landmark = fwci >= 25 (Top 1 % feldnormierter
+ *  Impact, Perzentile gemessen 2026-08-14). */
+export async function getResearchAggregates(options: {
+  q?: string;
+  topic?: string;
+  yearFrom?: number;
+  yearTo?: number;
+} = {}): Promise<ResearchAggregates | null> {
+  const params: unknown[] = [];
+  const where: string[] = [];
+  if (options.q) {
+    params.push(options.q);
+    where.push(`tsv @@ websearch_to_tsquery('english', $${params.length})`);
+  }
+  if (options.topic) {
+    params.push(options.topic);
+    where.push(`topic = $${params.length}`);
+  }
+  if (options.yearFrom !== undefined) {
+    params.push(options.yearFrom);
+    where.push(`year >= $${params.length}`);
+  }
+  if (options.yearTo !== undefined) {
+    params.push(options.yearTo);
+    where.push(`year <= $${params.length}`);
+  }
+  if (where.length === 0) return null;
+  const w = where.join(" AND ");
+  // Kein Panel für Riesen-Mengen: "die 10k neuesten Treffer" eines häufigen
+  // Begriffs erzwingen einen Datums-Walk mit Hunderttausenden tsv-Rechecks
+  // (battery 23s, mit Jahresfilter 120s+ gemessen) — dafür existiert kein
+  // billiger exakter Pfad. Unter ~100k Treffern nimmt der Planer den
+  // GIN-/Topic-Index OHNE Datums-Sortierung: schnell, und bis 10k sogar die
+  // vollständige Menge. Die Seite fordert bei null zum Eingrenzen auf.
+  const planRow2 = await q1<Record<string, unknown>>(
+    `EXPLAIN (FORMAT JSON) SELECT 1 FROM research_corpus WHERE ${w}`,
+    [...params]);
+  const plan2 = planRow2?.["QUERY PLAN"] as
+    | { Plan?: { "Plan Rows"?: number } }[] | undefined;
+  if ((plan2?.[0]?.Plan?.["Plan Rows"] ?? 0) > 100_000) return null;
+  // Schmaler Treffer-Select + Self-Join (Planer-Kipp-Schutz wie oben), dann
+  // alle Aggregate in EINEM Roundtrip als JSON-Unterabfragen.
+  const row = await q1<{
+    n: number; reviews: number; retracted: number; landmarks: number;
+    median_cites: number | null; years: unknown; topics: unknown; rising: unknown;
+  }>(
+    `WITH hit AS (
+       SELECT id FROM research_corpus WHERE ${w} LIMIT ${RC_CLAMP}),
+     hits AS (
+       SELECT rc.id, rc.doi, rc.title, rc.year, rc.topic, rc.type,
+              rc.cited_by_count, rc.fwci, rc.is_retracted
+       FROM hit JOIN research_corpus rc ON rc.id = hit.id)
+     SELECT
+       (SELECT COUNT(*)::int FROM hits) AS n,
+       (SELECT COUNT(*)::int FROM hits WHERE type = 'review') AS reviews,
+       (SELECT COUNT(*)::int FROM hits WHERE is_retracted) AS retracted,
+       (SELECT COUNT(*)::int FROM hits WHERE fwci >= 25) AS landmarks,
+       (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY cited_by_count)
+          FROM hits) AS median_cites,
+       (SELECT json_agg(t) FROM (
+          SELECT year, COUNT(*)::int AS n FROM hits
+          WHERE year IS NOT NULL GROUP BY year ORDER BY year) t) AS years,
+       (SELECT json_agg(t) FROM (
+          SELECT topic, COUNT(*)::int AS n FROM hits
+          WHERE topic IS NOT NULL GROUP BY topic
+          ORDER BY COUNT(*) DESC LIMIT 6) t) AS topics,
+       (SELECT json_agg(t) FROM (
+          SELECT id, doi, title, year, cited_by_count FROM hits
+          WHERE year >= 2023 AND cited_by_count >= 5
+          ORDER BY cited_by_count::float / GREATEST(2026 - year, 1) DESC
+          LIMIT 3) t) AS rising`,
+    params);
+  if (!row || !row.n) return null;
+  return {
+    n: row.n,
+    sampled: row.n >= RC_CLAMP,
+    years: (row.years as ResearchAggregates["years"]) ?? [],
+    topics: (row.topics as ResearchAggregates["topics"]) ?? [],
+    reviews: row.reviews,
+    retracted: row.retracted,
+    landmarks: row.landmarks,
+    medianCites: row.median_cites === null ? null : Number(row.median_cites),
+    rising: (row.rising as ResearchAggregates["rising"]) ?? [],
+  };
 }
 
 export async function getResearchCorpusStats(): Promise<{ total: number; topics: number }> {
