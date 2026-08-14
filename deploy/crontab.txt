@@ -17,3 +17,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Patentbasierte Rechnungen wöchentlich nach dem BDDS-Ingest (Di 05:00 → Refresh 08:00):
 # cpc_tier_series + cpc_insights + signal→CPC. Radare + TIR-Forschung bewusst NICHT im Cron.
 0 8 * * 2 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_patent_analytics.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_patent_analytics.sh || echo "$(date -Iseconds) skip weekly_patent_analytics (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-patent-analytics-skip.log
+
+# OpenAlex-Monats-Sync (#80): neue Snapshot-Partitionen → research_corpus +
+# Journal-/Autoren-Nebentabellen + Statistik-Refresh. Amend-Analog, CPU/Netz.
+0 7 5 * * [ -x /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh ] && /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh || echo "$(date -Iseconds) skip sync_openalex (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-openalex-skip.log
