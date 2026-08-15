@@ -63,7 +63,7 @@ export function parseResearchQuery(raw: string): ParsedResearchQuery {
     if (!m) continue;
     const value = (m[2] ?? m[3] ?? "").trim();
     if (!value) continue;
-    (out as Record<string, unknown>)[key] = value;
+    out[key] = value;
     out.chips.push({ kind: key, label: value });
     rest = cut(rest, m.index ?? 0, m[0].length);
   }
