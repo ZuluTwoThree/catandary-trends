@@ -35,12 +35,15 @@ const fmtInt = (n: number) => n.toLocaleString("en-US");
 export default async function ResearchExplorerPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; theme?: string; topic?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; theme?: string; topic?: string; flag?: string; page?: string }>;
 }) {
   const sp = await searchParams;
   const qText = (sp.q ?? "").trim();
   const theme = (sp.theme ?? "").trim();
   const topic = (sp.topic ?? "").trim();
+  const flagRaw = (sp.flag ?? "").trim();
+  const flag = flagRaw === "landmark" || flagRaw === "review"
+    ? (flagRaw as "landmark" | "review") : undefined;
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
   // Smart-Router (#80): DOI, arXiv-ID und Jahre aus dem Freitext ziehen
@@ -49,7 +52,7 @@ export default async function ResearchExplorerPage({
   // Disziplinen); Theme bzw. keine Eingabe → kuratierte Signal-Schicht wie
   // bisher. Nur die Signal-Schicht speist Foresight.
   const corpusMode = !!(parsed.text || parsed.doi || parsed.arxiv || topic
-    || parsed.author || parsed.institution || parsed.journal
+    || parsed.author || parsed.institution || parsed.journal || flag
     || parsed.yearFrom !== undefined);
 
   // Owner-Entscheid (#72): Starter-gegated — ohne Tier wird keine Suche
@@ -72,6 +75,7 @@ export default async function ResearchExplorerPage({
       author: parsed.author,
       institution: parsed.institution,
       journal: parsed.journal,
+      flag,
       yearFrom: parsed.yearFrom,
       yearTo: parsed.yearTo,
     };
@@ -101,9 +105,19 @@ export default async function ResearchExplorerPage({
     if (qText) u.set("q", qText);
     if (theme) u.set("theme", theme);
     if (topic) u.set("topic", topic);
+    if (flag) u.set("flag", flag);
     if (p > 1) u.set("page", String(p));
     const s = u.toString();
     return `/trends/foresight/research${s ? `?${s}` : ""}`;
+  };
+
+  const withFlag = (f: "landmark" | "review" | null) => {
+    const u = new URLSearchParams();
+    if (qText) u.set("q", qText);
+    if (topic) u.set("topic", topic);
+    if (f) u.set("flag", f);
+    const str = u.toString();
+    return `/trends/foresight/research${str ? `?${str}` : ""}`;
   };
 
   return (
@@ -206,7 +220,7 @@ export default async function ResearchExplorerPage({
         browses the curated signal layer.
       </p>
 
-      {corpusMode && parsed.chips.length > 0 && (
+      {corpusMode && (parsed.chips.length > 0 || flag) && (
         <div className="mb-5 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em]">
           <span className="text-muted">Understood as</span>
           {parsed.chips.map((c) => (
@@ -217,6 +231,13 @@ export default async function ResearchExplorerPage({
           ))}
           {parsed.text && (
             <span className="border border-border text-text px-2 py-0.5">Text {parsed.text}</span>
+          )}
+          {flag && (
+            <Link href={withFlag(null)}
+                  className="bg-accent/15 border border-accent/50 text-accent px-2 py-0.5 hover:bg-accent/25"
+                  title="Remove this filter">
+              {flag === "landmark" ? "Landmark works" : "Review articles"} ×
+            </Link>
           )}
         </div>
       )}
@@ -312,12 +333,14 @@ export default async function ResearchExplorerPage({
               })()}
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-border divide-x divide-border">
-              <div className="p-3">
+              <Link href={withFlag(flag === "review" ? null : "review")}
+                    className={`p-3 block hover:bg-accent/5 transition-colors ${flag === "review" ? "bg-accent/10" : ""}`}
+                    title="Filter these results to review articles">
                 <div className="font-display text-xl text-paper">{pctOf(agg.reviews)}</div>
                 <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mt-0.5">
-                  review articles
+                  review articles →
                 </div>
-              </div>
+              </Link>
               <div className="p-3">
                 <div className="font-display text-xl text-paper">
                   {agg.medianCites === null ? "—" : fmtInt(Math.round(agg.medianCites))}
@@ -326,13 +349,14 @@ export default async function ResearchExplorerPage({
                   median citations
                 </div>
               </div>
-              <div className="p-3">
+              <Link href={withFlag(flag === "landmark" ? null : "landmark")}
+                    className={`p-3 block hover:bg-accent/5 transition-colors ${flag === "landmark" ? "bg-accent/10" : ""}`}
+                    title="Works with field-weighted citation impact ≥ 25 — the top 1% of their field. Click to filter.">
                 <div className="font-display text-xl text-paper">{fmtInt(agg.landmarks)}</div>
-                <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mt-0.5"
-                     title="Works with field-weighted citation impact ≥ 25 — the top 1% of their field">
-                  landmark works
+                <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mt-0.5">
+                  landmark works →
                 </div>
-              </div>
+              </Link>
               <div className="p-3">
                 <div className="font-display text-xl text-paper">{pctOf(agg.retracted)}</div>
                 <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mt-0.5">
@@ -408,6 +432,7 @@ export default async function ResearchExplorerPage({
         {totalLabel} {corpusMode ? "papers" : "signals"}
         {parsed.text && <> for <span className="text-paper">&ldquo;{parsed.text}&rdquo;</span></>}
         {topic && <> in <span className="text-paper">{topic}</span></>}
+        {flag && <> · <span className="text-accent">{flag === "landmark" ? "landmark works only" : "review articles only"}</span></>}
         {!corpusMode && theme && (
           <> in <span className="text-paper">
             {MEGA_TRENDS.find((m) => m.key === theme)?.name_en ?? theme}
@@ -444,18 +469,20 @@ export default async function ResearchExplorerPage({
                       </Link>
                     )}
                     {r.type === "review" ? (
-                      <span className="border border-accent/50 text-accent px-1.5 py-0.5"
-                            title="Review article — a synthesis of the field's state of knowledge">
+                      <Link href={withFlag("review")}
+                            className="border border-accent/50 text-accent px-1.5 py-0.5 hover:bg-accent/10"
+                            title="Review article — a synthesis of the field's state of knowledge. Click to filter.">
                         REVIEW
-                      </span>
+                      </Link>
                     ) : r.type && r.type !== "article" ? (
                       <span>{r.type}</span>
                     ) : null}
                     {(r.fwci ?? 0) >= 25 && (
-                      <span className="bg-accent/15 border border-accent/50 text-accent px-1.5 py-0.5"
-                            title="Landmark work — field-weighted citation impact ≥ 25, the top 1% of its field">
+                      <Link href={withFlag("landmark")}
+                            className="bg-accent/15 border border-accent/50 text-accent px-1.5 py-0.5 hover:bg-accent/25"
+                            title="Landmark work — field-weighted citation impact ≥ 25, the top 1% of its field. Click to filter.">
                         LANDMARK
-                      </span>
+                      </Link>
                     )}
                     {r.is_retracted && (
                       <span className="border border-red-500/60 text-red-400 px-1.5 py-0.5">

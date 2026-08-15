@@ -407,6 +407,9 @@ export async function getResearchCorpus(options: {
   author?: string;
   institution?: string;
   journal?: string;
+  /** Klick-Filter aus Panel-Kacheln/Badges (#80): landmark = fwci >= 25,
+   *  review = type='review'. Partielle Indizes tragen den Browse-Pfad. */
+  flag?: "landmark" | "review";
   yearFrom?: number;
   yearTo?: number;
   limit?: number;
@@ -447,6 +450,11 @@ export async function getResearchCorpus(options: {
   if (options.yearTo !== undefined) {
     params.push(options.yearTo);
     where.push(`year <= $${params.length}`);
+  }
+  if (options.flag === "landmark") {
+    where.push(`fwci >= 25`);
+  } else if (options.flag === "review") {
+    where.push(`type = 'review'`);
   }
   const op = await researchOperatorHits(options);
   if (op) {
@@ -574,6 +582,7 @@ export async function getResearchAggregates(options: {
   author?: string;
   institution?: string;
   journal?: string;
+  flag?: "landmark" | "review";
   yearFrom?: number;
   yearTo?: number;
 } = {}): Promise<ResearchAggregates | null> {
@@ -594,6 +603,11 @@ export async function getResearchAggregates(options: {
   if (options.yearTo !== undefined) {
     params.push(options.yearTo);
     where.push(`year <= $${params.length}`);
+  }
+  if (options.flag === "landmark") {
+    where.push(`fwci >= 25`);
+  } else if (options.flag === "review") {
+    where.push(`type = 'review'`);
   }
   const op = await researchOperatorHits(options);
   if (op) {
