@@ -214,7 +214,7 @@ export default async function ResearchExplorerPage({
           list="rc-topics"
           defaultValue={topic}
           placeholder="Research topic…"
-          className="bg-card border border-border-strong px-3 py-2.5 font-sans text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent sm:min-w-[340px] sm:flex-1"
+          className="bg-card border border-border-strong px-3 py-2.5 font-sans text-sm text-text placeholder:text-muted focus:outline-none focus:border-accent w-full sm:w-auto sm:flex-[2_1_460px] sm:min-w-[460px]"
           aria-label="Filter by research topic"
         />
         <datalist id="rc-topics">
