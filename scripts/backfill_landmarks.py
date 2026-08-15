@@ -82,13 +82,18 @@ def main() -> int:
 
     with httpx.Client(timeout=120) as client:
         while cursor:
-            for attempt in range(4):
+            # Grunddrossel unter dem 10/s-Fair-Use + hartes Backoff: der erste
+            # Lauf flog trotz 4x5s-Retries bei Seite ~900 mit 429 raus.
+            time.sleep(0.15)
+            for attempt, wait in enumerate((10, 30, 60, 120, 240)):
                 r = client.get(API, params={
                     "filter": FILTER, "select": SELECT, "per-page": 200,
                     "cursor": cursor, "mailto": "trends@catandary.de"})
                 if r.status_code == 200:
                     break
-                time.sleep(5 * (attempt + 1))
+                print(f"  HTTP {r.status_code}, warte {wait}s "
+                      f"(Versuch {attempt+1}/5)", flush=True)
+                time.sleep(wait)
             else:
                 print(f"ABBRUCH: API {r.status_code} — Lauf ist idempotent, "
                       "neu starten", flush=True)

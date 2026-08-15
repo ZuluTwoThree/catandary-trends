@@ -93,7 +93,13 @@ export function parsePatentQuery(raw: string): ParsedPatentQuery {
   //    Muster-Regexen zerpflückt wird.
   // Leerzeichen nach dem Doppelpunkt erlaubt ("company: samsung") — getippt
   // wird beides, und ein Operator ohne Wert soll einfach nicht greifen.
-  const COMPANY_RE = /\b(?:company|firma|assignee):\s*("([^"]+)"|(\S+))/i;
+  // Mehrteilige Namen ohne Quotes: großgeschriebene Folgewörter gehören zum
+  // Namen (company:Toyota Motor battery → "Toyota Motor" + Text "battery");
+  // gleiche Heuristik wie research-search.ts.
+  // KEIN i-Flag (würde die Titlecase-Klasse des Tails aushebeln) —
+  // Case-Toleranz der Operatornamen explizit.
+  const COMPANY_RE =
+    /\b(?:[Cc]ompany|COMPANY|[Ff]irma|FIRMA|[Aa]ssignee|ASSIGNEE):\s*("([^"]+)"|(\S+(?:\s+[A-ZÀ-Þ][a-zà-þß'’-]+)*))/;
   const cm = rest.match(COMPANY_RE);
   if (cm) {
     const value = (cm[2] ?? cm[3] ?? "").trim();

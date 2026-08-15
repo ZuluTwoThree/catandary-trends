@@ -85,3 +85,28 @@ describe("parseResearchQuery — Operatoren", () => {
     expect(p.chips.map((c) => c.kind)).toEqual(["institution", "year"]);
   });
 });
+
+describe("parseResearchQuery — Namens-Heuristik ohne Anführungszeichen", () => {
+  it("frisst großgeschriebene Folgewörter, stoppt bei Kleinschreibung", () => {
+    const p = parseResearchQuery("author:Jennifer Doudna crispr");
+    expect(p.author).toBe("Jennifer Doudna");
+    expect(p.text).toBe("crispr");
+  });
+
+  it("ALLCAPS bleibt Suchtext (CRISPR ist kein Nachname)", () => {
+    const p = parseResearchQuery("author:doudna CRISPR");
+    expect(p.author).toBe("doudna");
+    expect(p.text).toBe("CRISPR");
+  });
+
+  it("mehrteilige Institution ohne Quotes + Jahr", () => {
+    const p = parseResearchQuery("institution:Max Planck quantum");
+    expect(p.institution).toBe("Max Planck");
+    expect(p.text).toBe("quantum");
+  });
+
+  it("Operator in Großschreibung", () => {
+    expect(parseResearchQuery("AUTHOR:Emmanuelle Charpentier").author)
+      .toBe("Emmanuelle Charpentier");
+  });
+});

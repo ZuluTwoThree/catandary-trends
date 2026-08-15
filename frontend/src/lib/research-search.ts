@@ -45,11 +45,19 @@ export function parseResearchQuery(raw: string): ParsedResearchQuery {
   let rest = (raw ?? "").trim();
   if (!rest) return out;
 
-  // Operatoren zuerst — mehrteilige Namen in Anführungszeichen bleiben ganz
+  // Operatoren zuerst. Mehrteilige Namen: Anführungszeichen ODER Heuristik —
+  // ohne Quotes gehören großgeschriebene Folgewörter (Titlecase) zum Namen
+  // (author:Jennifer Doudna crispr → Name "Jennifer Doudna", Text "crispr").
+  // ALLCAPS (CRISPR) und Kleingeschriebenes bleiben Suchtext; die Chips
+  // zeigen die Deutung, Quotes übersteuern (Owner-Befund 2026-08-15).
+  // KEIN i-Flag: es würde die Titlecase-Klasse des Namens-Tails aushebeln
+  // (dann fräße author:Jennifer Doudna crispr auch "crispr" — Bug 2026-08-15).
+  // Case-Toleranz für die Operatornamen stattdessen explizit.
+  const NAME_TAIL = String.raw`(?:\s+[A-ZÀ-Þ][a-zà-þß'’-]+)*`;
   for (const [key, re] of [
-    ["author", /\b(?:author|autor):\s*("([^"]+)"|(\S+))/i],
-    ["institution", /\b(?:institution|inst):\s*("([^"]+)"|(\S+))/i],
-    ["journal", /\b(?:journal|source):\s*("([^"]+)"|(\S+))/i],
+    ["author", new RegExp(String.raw`\b[Aa](?:uthor|utor|UTHOR|UTOR):\s*("([^"]+)"|(\S+${NAME_TAIL}))`)],
+    ["institution", new RegExp(String.raw`\b[Ii](?:nstitution|nst|NSTITUTION|NST):\s*("([^"]+)"|(\S+${NAME_TAIL}))`)],
+    ["journal", new RegExp(String.raw`\b(?:[Jj]ournal|JOURNAL|[Ss]ource|SOURCE):\s*("([^"]+)"|(\S+${NAME_TAIL}))`)],
   ] as const) {
     const m = rest.match(re);
     if (!m) continue;
