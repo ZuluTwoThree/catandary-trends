@@ -63,7 +63,11 @@ cur.execute("ALTER TABLE research_corpus_topics_new RENAME TO research_corpus_to
 cur.execute("""DROP TABLE IF EXISTS research_topic_years_new;
 CREATE TABLE research_topic_years_new AS
   SELECT topic, year, COUNT(*)::int AS n FROM research_corpus
-  WHERE topic IS NOT NULL AND year BETWEEN 2010 AND 2026 GROUP BY 1,2""")
+  WHERE topic IS NOT NULL AND year BETWEEN 2010 AND 2026
+    AND cited_by_count >= 1  -- gleiche Huerde fuer alle Jahre: der Korpus-
+    -- Zitations-Floor (alt braucht >=1 Zitat, jung nicht) wuerde sonst
+    -- kuenstliches Wachstum in ALLEN Topics erzeugen (#83, 2026-08-15)
+  GROUP BY 1,2""")
 cur.execute("ALTER TABLE research_topic_years_new ADD PRIMARY KEY (topic, year)")
 cur.execute("DROP TABLE IF EXISTS research_topic_years")
 cur.execute("ALTER TABLE research_topic_years_new RENAME TO research_topic_years")

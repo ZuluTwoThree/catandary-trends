@@ -753,7 +753,8 @@ export async function getNplLagYears(cpc: string): Promise<number | null> {
 }
 
 /** Wachstum je Topic: Ø Werke/Jahr 2023–2025 vs. 2019–2021 (aus dem
- *  Sync-gepflegten Aggregat research_topic_years). */
+ *  Sync-gepflegten Aggregat research_topic_years — nur ZITIERTE Werke,
+ *  damit der Korpus-Zitations-Floor keine Scheinwachstums erzeugt). */
 export async function getTopicTrends(topics: string[]): Promise<Map<string, number>> {
   if (topics.length === 0) return new Map();
   const rows = await q<{ topic: string; recent: number; base: number }>(
