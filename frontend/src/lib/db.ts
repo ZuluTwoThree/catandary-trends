@@ -361,11 +361,13 @@ export interface ResearchWork {
   cited_by_count: number | null;
   fwci: number | null;
   is_retracted: boolean | null;
+  journal: string | null;
 }
 
 const RC_COLS = `rc.id, rc.doi, rc.title, rc.abstract,
        rc.published::text as published, rc.year, rc.type, rc.topic,
-       rc.cited_by_count, rc.fwci, rc.is_retracted`;
+       rc.cited_by_count, rc.fwci, rc.is_retracted, wj.journal`;
+const RC_JOINS = `LEFT JOIN research_work_journal wj ON wj.work_id = rc.id`;
 const RC_CLAMP = 10000;
 
 
@@ -421,7 +423,8 @@ export async function getResearchCorpus(options: {
       ? `https://doi.org/${options.doi}`
       : `https://doi.org/10.48550/arxiv.${options.arxiv!.replace(/v\d+$/, "")}`;
     const rows = await q<ResearchWork>(
-      `SELECT ${RC_COLS} FROM research_corpus rc WHERE rc.doi = $1 LIMIT 5`, [doi]);
+      `SELECT ${RC_COLS} FROM research_corpus rc ${RC_JOINS}
+       WHERE rc.doi = $1 LIMIT 5`, [doi]);
     return { rows, total: rows.length, clamped: false };
   }
 
@@ -456,7 +459,7 @@ export async function getResearchCorpus(options: {
     const stats = await getResearchCorpusStats();
     params.push(limit, offset);
     const rows = await q<ResearchWork>(
-      `SELECT ${RC_COLS} FROM research_corpus rc
+      `SELECT ${RC_COLS} FROM research_corpus rc ${RC_JOINS}
        ORDER BY rc.published DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
     return { rows, total: Math.min(stats.total, RC_CLAMP), clamped: true };
@@ -487,6 +490,7 @@ export async function getResearchCorpus(options: {
          FROM research_corpus WHERE ${w} ORDER BY published DESC
          LIMIT $${params.length - 1} OFFSET $${params.length}) hit
        JOIN research_corpus rc ON rc.id = hit.hit_id
+       ${RC_JOINS}
        ORDER BY hit.hit_pub DESC`, params);
     return { rows, total: RC_CLAMP, clamped: true };
   }
@@ -510,6 +514,7 @@ export async function getResearchCorpus(options: {
        FROM m ORDER BY rk DESC, m.published DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}) hit
      JOIN research_corpus rc ON rc.id = hit.hit_id
+     ${RC_JOINS}
      ORDER BY hit.rk DESC, hit.hit_pub DESC`, params);
   if (rows.length === 0) {
     // Leere Seite (offset hinter dem Ende oder null Treffer): Count separat
@@ -541,7 +546,21 @@ export interface ResearchAggregates {
   medianCites: number | null;
   rising: { id: string; doi: string | null; title: string; year: number; cited_by_count: number }[];
   institutions: { institution: string; n: number }[];
+  journals: { journal: string; n: number }[];
 }
+
+/** Generische Repositorien — fuer den "Top journals"-Panelblock gefiltert
+ *  (primary_location zeigt bei OA-Werken oft aufs Repository, nicht aufs
+ *  Journal); die journal:-Suche selbst bleibt ungefiltert. */
+const REPO_VENUES = [
+  "Zenodo (CERN European Organization for Nuclear Research)",
+  "arXiv (Cornell University)", "PubMed", "PubMed Central",
+  "DOAJ (DOAJ: Directory of Open Access Journals)", "Figshare",
+  "bioRxiv (Cold Spring Harbor Laboratory)",
+  "medRxiv (Cold Spring Harbor Laboratory)", "SSRN Electronic Journal",
+  "Research Square (Research Square)", "OSF Preprints (OSF)",
+  "HAL (Le Centre pour la Communication Scientifique Directe)",
+];
 
 /** Treffer-Statistiken für das Result-Intelligence-Panel (#80): aggregiert
  *  über die bis zu 10.000 NEUESTEN Treffer der Filterkombination — bei
@@ -601,7 +620,7 @@ export async function getResearchAggregates(options: {
   const row = await q1<{
     n: number; reviews: number; retracted: number; landmarks: number;
     median_cites: number | null; years: unknown; topics: unknown; rising: unknown;
-    institutions: unknown;
+    institutions: unknown; journals: unknown;
   }>(
     `WITH hit AS (
        SELECT id FROM research_corpus WHERE ${w} LIMIT ${RC_CLAMP}),
@@ -632,8 +651,13 @@ export async function getResearchAggregates(options: {
           SELECT wi.institution, COUNT(*)::int AS n FROM hits h
           JOIN research_work_inst wi ON wi.work_id = h.id
           WHERE wi.institution IS NOT NULL
-          GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 5) t) AS institutions`,
-    params);
+          GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 5) t) AS institutions,
+       (SELECT json_agg(t) FROM (
+          SELECT wj.journal, COUNT(*)::int AS n FROM hits h
+          JOIN research_work_journal wj ON wj.work_id = h.id
+          WHERE wj.journal <> ALL($${params.length + 1})
+          GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 5) t) AS journals`,
+    [...params, REPO_VENUES]);
   if (!row || !row.n) return null;
   return {
     n: row.n,
@@ -646,6 +670,7 @@ export async function getResearchAggregates(options: {
     medianCites: row.median_cites === null ? null : Number(row.median_cites),
     rising: (row.rising as ResearchAggregates["rising"]) ?? [],
     institutions: (row.institutions as ResearchAggregates["institutions"]) ?? [],
+    journals: (row.journals as ResearchAggregates["journals"]) ?? [],
   };
 }
 

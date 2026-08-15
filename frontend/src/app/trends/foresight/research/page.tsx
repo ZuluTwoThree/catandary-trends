@@ -340,8 +340,10 @@ export default async function ResearchExplorerPage({
                 </div>
               </div>
             </div>
+            {(agg.rising.length > 0 || agg.journals.length > 0) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 border-t border-border divide-y md:divide-y-0 md:divide-x divide-border">
             {agg.rising.length > 0 && (
-              <div className="border-t border-border p-4">
+              <div className="p-4">
                 <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent mb-2"
                     title="Works from the last three years with the most citations gathered in 2025–2026 — measured from OpenAlex citation curves">
                   Rising papers
@@ -361,6 +363,35 @@ export default async function ResearchExplorerPage({
                   ))}
                 </ol>
               </div>
+            )}
+            {agg.journals.length > 0 && (() => {
+              const maxJ = Math.max(...agg.journals.map((j) => j.n), 1);
+              return (
+                <div className="p-4">
+                  <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-2"
+                      title="Journals publishing these results — general repositories (arXiv, Zenodo, PubMed …) excluded">
+                    Top journals
+                  </h3>
+                  <ol className="space-y-1">
+                    {agg.journals.map((j) => (
+                      <li key={j.journal} className="relative">
+                        <div className="absolute inset-y-0 left-0 bg-accent/10"
+                             style={{ width: `${(j.n / maxJ) * 100}%` }} />
+                        <div className="relative flex items-baseline gap-2 px-1.5 py-0.5">
+                          <Link href={`/trends/foresight/research?q=${encodeURIComponent(`journal:"${j.journal}"`)}`}
+                                className="font-sans text-[13px] text-paper truncate hover:text-accent"
+                                title={j.journal}>
+                            {j.journal}
+                          </Link>
+                          <span className="font-mono text-[10px] text-muted ml-auto shrink-0">{fmtInt(j.n)}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              );
+            })()}
+            </div>
             )}
           </section>
         );
@@ -405,6 +436,12 @@ export default async function ResearchExplorerPage({
                     {r.topic && (
                       <Link href={`/trends/foresight/research?topic=${encodeURIComponent(r.topic)}`}
                             className="hover:text-accent">{r.topic}</Link>
+                    )}
+                    {r.journal && (
+                      <Link href={`/trends/foresight/research?q=${encodeURIComponent(`journal:"${r.journal}"`)}`}
+                            className="hover:text-accent truncate max-w-[220px]" title={r.journal}>
+                        {r.journal}
+                      </Link>
                     )}
                     {r.type === "review" ? (
                       <span className="border border-accent/50 text-accent px-1.5 py-0.5"
