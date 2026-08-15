@@ -82,15 +82,24 @@ def main() -> int:
 
     with httpx.Client(timeout=120) as client:
         while cursor:
-            # Grunddrossel unter dem 10/s-Fair-Use + hartes Backoff: der erste
-            # Lauf flog trotz 4x5s-Retries bei Seite ~900 mit 429 raus.
-            time.sleep(0.15)
+            # Sanfte Drossel (~2 Calls/s): Nach dem grossen Snapshot-Tag hat
+            # OpenAlex uns in einen laengeren 429-Cooldown gesetzt — der
+            # zweite Lauf kam gar nicht erst rein. Lieber langsam und durch.
+            time.sleep(0.5)
             for attempt, wait in enumerate((10, 30, 60, 120, 240)):
                 r = client.get(API, params={
                     "filter": FILTER, "select": SELECT, "per-page": 200,
                     "cursor": cursor, "mailto": "trends@catandary.de"})
                 if r.status_code == 200:
                     break
+                retry_after = int(r.headers.get("retry-after") or 0)
+                if r.status_code == 429 and retry_after > 300:
+                    # Tageslimit (Retry-After in Stunden) — Retries sind
+                    # sinnlos UND unhoeflich. Sauber raus, aussen neu planen.
+                    print(f"TAGESLIMIT: Retry-After {retry_after}s "
+                          f"(~{retry_after/3600:.1f}h) — Abbruch, idempotent "
+                          "neu starten nach Ablauf", flush=True)
+                    return 2
                 print(f"  HTTP {r.status_code}, warte {wait}s "
                       f"(Versuch {attempt+1}/5)", flush=True)
                 time.sleep(wait)
