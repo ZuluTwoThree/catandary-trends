@@ -3,6 +3,7 @@ import {
   getResearchSignals, getResearchStats,
   getResearchCorpus, getResearchCorpusStats, getResearchTopics,
   getResearchAggregates, type ResearchAggregates,
+  getTopicTrends, getEmergingTopics, getNplLagYears,
 } from "@/lib/db";
 import { MEGA_TRENDS } from "@/lib/mega-trends.generated";
 import { parseResearchQuery } from "@/lib/research-search";
@@ -18,6 +19,19 @@ export const metadata = {
 };
 
 const PAGE_SIZE = 25;
+
+/** Kuratierte Topic→CPC-Zuordnung für die Patent-Brücke — nur eindeutige
+ *  Fälle; Substring-Match auf den OpenAlex-Topic-Namen. */
+const TOPIC_CPC: [string, string][] = [
+  ["Perovskite", "H10K"], ["Solar Cell", "H02S"], ["Photovoltaic", "H02S"],
+  ["Machine Learning", "G06N"], ["Artificial Intelligence", "G06N"],
+  ["Neural Network", "G06N"], ["Quantum", "G06N"], ["Robot", "B25J"],
+  ["Batter", "H01M"], ["Wireless", "H04W"], ["Semiconductor", "H01L"],
+  ["Hydrogen", "C25B"], ["Wind Energy", "F03D"], ["Recycl", "B09B"],
+  ["CRISPR", "C12N"], ["Gene Editing", "C12N"], ["Genetic", "C12N"],
+  ["Cheese", "A23C"], ["Dairy", "A23C"], ["Wearable", "G16H"],
+  ["Additive Manufactur", "B33Y"], ["3D Print", "B33Y"],
+];
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
@@ -35,7 +49,7 @@ const fmtInt = (n: number) => n.toLocaleString("en-US");
 export default async function ResearchExplorerPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; theme?: string; topic?: string; flag?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; theme?: string; topic?: string; flag?: string; nr?: string; page?: string }>;
 }) {
   const sp = await searchParams;
   const qText = (sp.q ?? "").trim();
@@ -44,6 +58,7 @@ export default async function ResearchExplorerPage({
   const flagRaw = (sp.flag ?? "").trim();
   const flag = flagRaw === "landmark" || flagRaw === "review"
     ? (flagRaw as "landmark" | "review") : undefined;
+  const noRetracted = sp.nr === "1";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
   // Smart-Router (#80): DOI, arXiv-ID und Jahre aus dem Freitext ziehen
@@ -52,7 +67,8 @@ export default async function ResearchExplorerPage({
   // Disziplinen); Theme bzw. keine Eingabe → kuratierte Signal-Schicht wie
   // bisher. Nur die Signal-Schicht speist Foresight.
   const corpusMode = !!(parsed.text || parsed.doi || parsed.arxiv || topic
-    || parsed.author || parsed.institution || parsed.journal || flag
+    || parsed.author || parsed.institution || parsed.journal
+    || parsed.funder || parsed.country || flag
     || parsed.yearFrom !== undefined);
 
   // Owner-Entscheid (#72): Starter-gegated — ohne Tier wird keine Suche
@@ -75,6 +91,9 @@ export default async function ResearchExplorerPage({
       author: parsed.author,
       institution: parsed.institution,
       journal: parsed.journal,
+      funder: parsed.funder,
+      country: parsed.country,
+      noRetracted,
       flag,
       yearFrom: parsed.yearFrom,
       yearTo: parsed.yearTo,
@@ -97,6 +116,15 @@ export default async function ResearchExplorerPage({
       mega: theme || undefined, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
     });
   }
+  const topicTrends = agg
+    ? await getTopicTrends(agg.topics.map((t) => t.topic))
+    : new Map<string, number>();
+  const bridgeCpc = topic
+    ? TOPIC_CPC.find(([sub]) => topic.toLowerCase().includes(sub.toLowerCase()))?.[1]
+    : undefined;
+  const bridgeLag = bridgeCpc ? await getNplLagYears(bridgeCpc) : null;
+  const emerging = allowed && !corpusMode && !theme ? await getEmergingTopics() : [];
+
   const total = corpusMode ? corpus.total : signals.total;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const totalLabel = `${fmtInt(total)}${corpusMode && corpus.clamped ? "+" : ""}`;
@@ -106,6 +134,7 @@ export default async function ResearchExplorerPage({
     if (theme) u.set("theme", theme);
     if (topic) u.set("topic", topic);
     if (flag) u.set("flag", flag);
+    if (noRetracted) u.set("nr", "1");
     if (p > 1) u.set("page", String(p));
     const s = u.toString();
     return `/trends/foresight/research${s ? `?${s}` : ""}`;
@@ -116,6 +145,7 @@ export default async function ResearchExplorerPage({
     if (qText) u.set("q", qText);
     if (topic) u.set("topic", topic);
     if (f) u.set("flag", f);
+    if (noRetracted) u.set("nr", "1");
     const str = u.toString();
     return `/trends/foresight/research${str ? `?${str}` : ""}`;
   };
@@ -201,6 +231,11 @@ export default async function ResearchExplorerPage({
             <option key={mt.key} value={mt.key}>{mt.name_en}</option>
           ))}
         </select>
+        <label className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-muted cursor-pointer select-none">
+          <input type="checkbox" name="nr" value="1" defaultChecked={noRetracted}
+                 className="accent-[#d4ff3a]" />
+          exclude retracted
+        </label>
         <button
           type="submit"
           className="bg-accent text-ink font-mono text-[11px] uppercase tracking-[0.14em] px-6 py-2.5 font-bold hover:bg-accent-deep transition-colors"
@@ -226,7 +261,8 @@ export default async function ResearchExplorerPage({
           {parsed.chips.map((c) => (
             <span key={c.kind + c.label} className="border border-accent/40 text-accent px-2 py-0.5">
               {{ doi: "DOI ", arxiv: "", year: "Year ", author: "Author ",
-                 institution: "Institution ", journal: "Journal " }[c.kind]}{c.label}
+                 institution: "Institution ", journal: "Journal ",
+                 funder: "Funder ", country: "Country " }[c.kind]}{c.label}
             </span>
           ))}
           {parsed.text && (
@@ -245,7 +281,9 @@ export default async function ResearchExplorerPage({
       {/* Result-Intelligence-Panel (#80) — Aggregat über die (bis zu 10k
           neuesten) Treffer; Stil-Verwandter des Patent-Technology-Panels.
           Erst ab 50 Treffern: darunter sagen Statistiken nichts. */}
-      {corpusMode && agg && agg.n >= 50 && (() => {
+      {corpusMode && agg
+        && agg.n >= (parsed.author || parsed.institution || parsed.funder ? 10 : 50)
+        && (() => {
         const maxYear = Math.max(...agg.years.map((y) => y.n), 1);
         const maxTopic = Math.max(...agg.topics.map((t) => t.n), 1);
         const pctOf = (v: number) => `${((v / agg.n) * 100).toFixed(v / agg.n >= 0.1 ? 0 : 1)}%`;
@@ -297,6 +335,17 @@ export default async function ResearchExplorerPage({
                           {t.topic}
                         </Link>
                         <span className="font-mono text-[10px] text-muted ml-auto shrink-0">
+                          {(() => {
+                            const g = topicTrends.get(t.topic);
+                            if (g === undefined) return null;
+                            const up = g >= 0.15; const down = g <= -0.15;
+                            return (
+                              <span className={up ? "text-accent" : down ? "text-muted/70" : "text-muted"}
+                                    title={`Publications 2023–25 vs 2019–21: ${g >= 0 ? "+" : ""}${Math.round(g * 100)}%`}>
+                                {up ? "↗ " : down ? "↘ " : "→ "}
+                              </span>
+                            );
+                          })()}
                           {fmtInt(t.n)}
                         </span>
                       </div>
@@ -332,7 +381,7 @@ export default async function ResearchExplorerPage({
                 );
               })()}
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 border-t border-border divide-x divide-border">
+            <div className="grid grid-cols-2 sm:grid-cols-5 border-t border-border divide-x divide-border">
               <Link href={withFlag(flag === "review" ? null : "review")}
                     className={`p-3 block hover:bg-accent/5 transition-colors ${flag === "review" ? "bg-accent/10" : ""}`}
                     title="Filter these results to review articles">
@@ -363,9 +412,19 @@ export default async function ResearchExplorerPage({
                   retracted
                 </div>
               </div>
+              <div className="p-3"
+                   title="Share of all citations to these works that were earned in 2025–2026 — how much attention the field is getting right now">
+                <div className="font-display text-xl text-paper">
+                  {agg.attention === null ? "—" : `${(agg.attention * 100).toFixed(0)}%`}
+                </div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mt-0.5">
+                  attention now
+                </div>
+              </div>
             </div>
-            {(agg.rising.length > 0 || agg.journals.length > 0) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 border-t border-border divide-y md:divide-y-0 md:divide-x divide-border">
+            {(agg.rising.length > 0 || agg.journals.length > 0
+              || agg.countries.length > 0 || agg.funders.length > 0) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 border-t border-border divide-y divide-border">
             {agg.rising.length > 0 && (
               <div className="p-4">
                 <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent mb-2"
@@ -415,7 +474,76 @@ export default async function ResearchExplorerPage({
                 </div>
               );
             })()}
+            {agg.countries.length > 0 && (() => {
+              const maxC = Math.max(...agg.countries.map((c) => c.n), 1);
+              return (
+                <div className="p-4 md:border-r md:border-border">
+                  <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-2"
+                      title="Country of the first author's lead institution">
+                    Where it&apos;s researched
+                  </h3>
+                  <ol className="space-y-1">
+                    {agg.countries.map((c) => (
+                      <li key={c.country} className="relative">
+                        <div className="absolute inset-y-0 left-0 bg-accent/10"
+                             style={{ width: `${(c.n / maxC) * 100}%` }} />
+                        <div className="relative flex items-baseline gap-2 px-1.5 py-0.5">
+                          <Link href={`/trends/foresight/research?q=${encodeURIComponent(`country:${c.country}${parsed.text ? ` ${parsed.text}` : ""}`)}${topic ? `&topic=${encodeURIComponent(topic)}` : ""}`}
+                                className="font-mono text-[12px] text-paper hover:text-accent">
+                            {c.country}
+                          </Link>
+                          <span className="font-mono text-[10px] text-muted ml-auto shrink-0">{fmtInt(c.n)}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              );
+            })()}
+            {agg.funders.length > 0 && (() => {
+              const maxF = Math.max(...agg.funders.map((f) => f.n), 1);
+              return (
+                <div className="p-4">
+                  <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-2"
+                      title="Funding bodies acknowledged by these works — money moves before markets">
+                    Who funds this
+                  </h3>
+                  <ol className="space-y-1">
+                    {agg.funders.map((f) => (
+                      <li key={f.funder} className="relative">
+                        <div className="absolute inset-y-0 left-0 bg-accent/10"
+                             style={{ width: `${(f.n / maxF) * 100}%` }} />
+                        <div className="relative flex items-baseline gap-2 px-1.5 py-0.5">
+                          <Link href={`/trends/foresight/research?q=${encodeURIComponent(`funder:"${f.funder}"`)}`}
+                                className="font-sans text-[13px] text-paper truncate hover:text-accent"
+                                title={f.funder}>
+                            {f.funder}
+                          </Link>
+                          <span className="font-mono text-[10px] text-muted ml-auto shrink-0">{fmtInt(f.n)}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              );
+            })()}
             </div>
+            )}
+            {bridgeCpc && bridgeLag !== null && (
+              <div className="border-t border-border px-4 py-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                  Innovation chain
+                </span>
+                <span className="font-sans text-[13px] text-text">
+                  Research in this field typically reaches patents in{" "}
+                  <span className="text-paper font-display">{bridgeLag} years</span>
+                  {" "}(PATSTAT, curated topic→CPC mapping).
+                </span>
+                <Link href={`/trends/foresight/patents?cpc=${bridgeCpc}`}
+                      className="font-mono text-[10px] uppercase tracking-[0.12em] text-accent hover:underline ml-auto">
+                  Patent Explorer: {bridgeCpc} →
+                </Link>
+              </div>
             )}
           </section>
         );
@@ -442,6 +570,25 @@ export default async function ResearchExplorerPage({
         {corpusMode
           ? <> · full corpus, all disciplines</>
           : <> · curated signal layer</>}
+        {corpusMode && parsed.text && (
+          <>
+            {" · "}
+            <Link href={`/trends/foresight/patents?q=${encodeURIComponent(parsed.text)}`}
+                  className="text-accent hover:underline normal-case tracking-normal">
+              search this in patents →
+            </Link>
+          </>
+        )}
+        {corpusMode && total > 0 && (
+          <>
+            {" · "}
+            <a href={`/trends/foresight/research/export${qs(1).includes("?") ? qs(1).slice(qs(1).indexOf("?")) : ""}`}
+               className="text-accent/80 hover:text-accent normal-case tracking-normal"
+               title="Download up to 1,000 results as CSV (Pro)">
+              CSV export
+            </a>
+          </>
+        )}
       </div>
 
       {corpusMode ? (
@@ -518,6 +665,45 @@ export default async function ResearchExplorerPage({
             })}
           </div>
         )
+      ) : emerging.length > 0 && !theme ? (
+        <>
+          <section className="mb-8 border border-border-strong">
+            <div className="border-b border-border px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-accent"
+                 title="OpenAlex topics with the strongest growth: average papers/year 2023–25 vs 2019–21, minimum base 200/yr">
+              —— Emerging research fields
+            </div>
+            <ol className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 divide-border">
+              {emerging.map((e, i) => (
+                <li key={e.topic} className={`px-4 py-2 flex items-baseline gap-2 ${i % 2 === 0 ? "sm:border-r sm:border-border" : ""} ${i >= 2 ? "sm:border-t sm:border-border" : ""}`}>
+                  <span className="font-mono text-[10px] text-muted w-5">{i + 1}</span>
+                  <Link href={`/trends/foresight/research?topic=${encodeURIComponent(e.topic)}`}
+                        className="font-sans text-[14px] text-paper truncate hover:text-accent" title={e.topic}>
+                    {e.topic}
+                  </Link>
+                  <span className="font-mono text-[11px] text-accent ml-auto shrink-0">
+                    +{Math.round(e.growth * 100)}%
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </section>
+          <div className="flex flex-col divide-y divide-border border-t border-b border-border">
+            {signals.rows.map((r) => (
+              <article key={r.trend_id} className="py-5">
+                <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted mb-1.5">
+                  <span className="text-paper">{fmtDate(r.published)}</span>
+                  {r.concept && <span> · {r.concept}</span>}
+                </div>
+                <h2 className="font-display text-[19px] leading-snug text-paper mb-1.5">
+                  <a href={r.url} target="_blank" rel="noopener noreferrer" className="hover:text-accent transition-colors">{r.title}</a>
+                </h2>
+                {r.abstract && (
+                  <p className="font-sans text-sm text-text leading-relaxed line-clamp-2 max-w-3xl">{r.abstract}</p>
+                )}
+              </article>
+            ))}
+          </div>
+        </>
       ) : signals.rows.length === 0 ? (
         <p className="font-sans text-sm text-muted border border-dashed border-border p-6">
           No signals in this theme yet.

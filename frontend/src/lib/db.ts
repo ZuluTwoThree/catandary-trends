@@ -380,18 +380,24 @@ const RC_CLAMP = 10000;
  *  C/D-Label-Lexeme in die tsv beim nächsten Voll-Rebuild (in #80 notiert). */
 async function researchOperatorHits(options: {
   author?: string; institution?: string; journal?: string;
+  funder?: string; country?: string;
 }): Promise<{ ids: string[]; opClamped: boolean } | null> {
-  const parts: { table: string; col: string; val: string }[] = [];
+  const parts: { table: string; col: string; val: string; exact?: boolean }[] = [];
   if (options.author) parts.push({ table: "research_authors_flat", col: "authors", val: options.author });
   if (options.institution) parts.push({ table: "research_authors_flat", col: "institutions", val: options.institution });
   if (options.journal) parts.push({ table: "research_work_journal", col: "journal", val: options.journal });
+  if (options.funder) parts.push({ table: "research_work_funder", col: "funder", val: options.funder });
+  if (options.country) parts.push({ table: "research_work_inst", col: "country",
+                                    val: options.country.toUpperCase(), exact: true });
   if (parts.length === 0) return null;
   let ids: Set<string> | null = null;
   let opClamped = false;
   for (const p of parts) {
     const rows = await q<{ work_id: string }>(
-      `SELECT work_id FROM ${p.table} WHERE ${p.col} ILIKE $1 LIMIT ${RC_CLAMP + 1}`,
-      [`%${p.val}%`]);
+      p.exact
+        ? `SELECT work_id FROM ${p.table} WHERE ${p.col} = $1 LIMIT ${RC_CLAMP + 1}`
+        : `SELECT work_id FROM ${p.table} WHERE ${p.col} ILIKE $1 LIMIT ${RC_CLAMP + 1}`,
+      [p.exact ? p.val : `%${p.val}%`]);
     if (rows.length > RC_CLAMP) opClamped = true;
     const cur = new Set(rows.slice(0, RC_CLAMP).map((r) => r.work_id));
     if (ids === null) {
@@ -412,6 +418,11 @@ export async function getResearchCorpus(options: {
   author?: string;
   institution?: string;
   journal?: string;
+  funder?: string;
+  /** Zwei-Buchstaben-Code (Land der Lead-Institution, research_work_inst). */
+  country?: string;
+  /** Zurückgezogene Werke ausblenden. */
+  noRetracted?: boolean;
   /** Klick-Filter aus Panel-Kacheln/Badges (#80): landmark = fwci >= 25,
    *  review = type='review'. Partielle Indizes tragen den Browse-Pfad. */
   flag?: "landmark" | "review";
@@ -455,6 +466,9 @@ export async function getResearchCorpus(options: {
   if (options.yearTo !== undefined) {
     params.push(options.yearTo);
     where.push(`year <= $${params.length}`);
+  }
+  if (options.noRetracted) {
+    where.push(`NOT is_retracted`);
   }
   if (options.flag === "landmark") {
     // fwci allein belohnt Ausreisser zitierungsarmer Felder (Theologie-Artikel
@@ -564,6 +578,10 @@ export interface ResearchAggregates {
   rising: { id: string; doi: string | null; title: string; year: number; cited_by_count: number }[];
   institutions: { institution: string; n: number }[];
   journals: { journal: string; n: number }[];
+  countries: { country: string; n: number }[];
+  funders: { funder: string; n: number }[];
+  /** Anteil der Zitationen aus 2025/26 an allen Zitationen der Treffer. */
+  attention: number | null;
 }
 
 /** Generische Repositorien — fuer den "Top journals"-Panelblock gefiltert
@@ -591,6 +609,9 @@ export async function getResearchAggregates(options: {
   author?: string;
   institution?: string;
   journal?: string;
+  funder?: string;
+  country?: string;
+  noRetracted?: boolean;
   flag?: "landmark" | "review";
   yearFrom?: number;
   yearTo?: number;
@@ -612,6 +633,9 @@ export async function getResearchAggregates(options: {
   if (options.yearTo !== undefined) {
     params.push(options.yearTo);
     where.push(`year <= $${params.length}`);
+  }
+  if (options.noRetracted) {
+    where.push(`NOT is_retracted`);
   }
   if (options.flag === "landmark") {
     // fwci allein belohnt Ausreisser zitierungsarmer Felder (Theologie-Artikel
@@ -647,7 +671,8 @@ export async function getResearchAggregates(options: {
   const row = await q1<{
     n: number; reviews: number; retracted: number; landmarks: number;
     median_cites: number | null; years: unknown; topics: unknown; rising: unknown;
-    institutions: unknown; journals: unknown;
+    institutions: unknown; journals: unknown; countries: unknown;
+    funders: unknown; attention: number | null;
   }>(
     `WITH hit AS (
        SELECT id FROM research_corpus WHERE ${w} LIMIT ${RC_CLAMP}),
@@ -683,7 +708,19 @@ export async function getResearchAggregates(options: {
           SELECT wj.journal, COUNT(*)::int AS n FROM hits h
           JOIN research_work_journal wj ON wj.work_id = h.id
           WHERE wj.journal <> ALL($${params.length + 1})
-          GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 5) t) AS journals`,
+          GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 5) t) AS journals,
+       (SELECT json_agg(t) FROM (
+          SELECT wi.country, COUNT(*)::int AS n FROM hits h
+          JOIN research_work_inst wi ON wi.work_id = h.id
+          WHERE wi.country IS NOT NULL
+          GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 5) t) AS countries,
+       (SELECT json_agg(t) FROM (
+          SELECT f.funder, COUNT(DISTINCT h.id)::int AS n FROM hits h
+          JOIN research_work_funder f ON f.work_id = h.id
+          GROUP BY 1 ORDER BY COUNT(DISTINCT h.id) DESC LIMIT 5) t) AS funders,
+       (SELECT SUM(cr.cites_recent)::float / NULLIF(SUM(cr.cites_total), 0)
+          FROM hits h JOIN research_citation_recent cr ON cr.work_id = h.id
+        ) AS attention`,
     [...params, REPO_VENUES]);
   if (!row || !row.n) return null;
   return {
@@ -698,7 +735,59 @@ export async function getResearchAggregates(options: {
     rising: (row.rising as ResearchAggregates["rising"]) ?? [],
     institutions: (row.institutions as ResearchAggregates["institutions"]) ?? [],
     journals: (row.journals as ResearchAggregates["journals"]) ?? [],
+    countries: (row.countries as ResearchAggregates["countries"]) ?? [],
+    funders: (row.funders as ResearchAggregates["funders"]) ?? [],
+    attention: row.attention === null ? null : Number(row.attention),
   };
+}
+
+/** Research→Patent-Lead-Time einer CPC-Achse (Median-Alter der 2023
+ *  zitierten Forschung, tip_npl_share) — für die Patent-Brücke im Panel. */
+export async function getNplLagYears(cpc: string): Promise<number | null> {
+  return cached(`npl-lag-${cpc}`, 3_600_000, async () => {
+    const row = await q1<{ median_lag_years: number | null }>(
+      `SELECT median_lag_years FROM tip_npl_share
+       WHERE cpc_subclass = $1 AND publn_year = 2023`, [cpc]);
+    return row?.median_lag_years ?? null;
+  });
+}
+
+/** Wachstum je Topic: Ø Werke/Jahr 2023–2025 vs. 2019–2021 (aus dem
+ *  Sync-gepflegten Aggregat research_topic_years). */
+export async function getTopicTrends(topics: string[]): Promise<Map<string, number>> {
+  if (topics.length === 0) return new Map();
+  const rows = await q<{ topic: string; recent: number; base: number }>(
+    `SELECT topic,
+            AVG(n) FILTER (WHERE year BETWEEN 2023 AND 2025) AS recent,
+            AVG(n) FILTER (WHERE year BETWEEN 2019 AND 2021) AS base
+     FROM research_topic_years WHERE topic = ANY($1)
+     GROUP BY topic`, [topics]);
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    if (r.base && Number(r.base) >= 20) {
+      m.set(r.topic, Number(r.recent ?? 0) / Number(r.base) - 1);
+    }
+  }
+  return m;
+}
+
+/** Emerging research fields: wachstumsstärkste Topics (Basis-Floor gegen
+ *  Quasi-Null-Basen, Muster emergingGroups). Gecacht 1h. */
+export async function getEmergingTopics(): Promise<
+  { topic: string; growth: number; recent: number }[]
+> {
+  return cached("emerging-topics", 3_600_000, async () => {
+    const rows = await q<{ topic: string; growth: number; recent: number }>(
+      `SELECT topic,
+              (AVG(n) FILTER (WHERE year BETWEEN 2023 AND 2025)
+               / NULLIF(AVG(n) FILTER (WHERE year BETWEEN 2019 AND 2021), 0) - 1) AS growth,
+              COALESCE(AVG(n) FILTER (WHERE year BETWEEN 2023 AND 2025), 0)::int AS recent
+       FROM research_topic_years
+       GROUP BY topic
+       HAVING AVG(n) FILTER (WHERE year BETWEEN 2019 AND 2021) >= 200
+       ORDER BY 2 DESC NULLS LAST LIMIT 10`);
+    return rows.map((r) => ({ ...r, growth: Number(r.growth) }));
+  });
 }
 
 export async function getResearchCorpusStats(): Promise<{ total: number; topics: number }> {
