@@ -452,7 +452,11 @@ export async function getResearchCorpus(options: {
     where.push(`year <= $${params.length}`);
   }
   if (options.flag === "landmark") {
-    where.push(`fwci >= 25`);
+    // fwci allein belohnt Ausreisser zitierungsarmer Felder (Theologie-Artikel
+    // mit 18 Zitationen = fwci 72; 43% der fwci>=25-Werke hatten <100
+    // Zitationen — Owner-Befund 2026-08-15). Landmark = feldnormierte
+    // Exzellenz UND absolute Substanz.
+    where.push(`fwci >= 25 AND cited_by_count >= 100`);
   } else if (options.flag === "review") {
     where.push(`type = 'review'`);
   }
@@ -605,7 +609,11 @@ export async function getResearchAggregates(options: {
     where.push(`year <= $${params.length}`);
   }
   if (options.flag === "landmark") {
-    where.push(`fwci >= 25`);
+    // fwci allein belohnt Ausreisser zitierungsarmer Felder (Theologie-Artikel
+    // mit 18 Zitationen = fwci 72; 43% der fwci>=25-Werke hatten <100
+    // Zitationen — Owner-Befund 2026-08-15). Landmark = feldnormierte
+    // Exzellenz UND absolute Substanz.
+    where.push(`fwci >= 25 AND cited_by_count >= 100`);
   } else if (options.flag === "review") {
     where.push(`type = 'review'`);
   }
@@ -646,7 +654,7 @@ export async function getResearchAggregates(options: {
        (SELECT COUNT(*)::int FROM hits) AS n,
        (SELECT COUNT(*)::int FROM hits WHERE type = 'review') AS reviews,
        (SELECT COUNT(*)::int FROM hits WHERE is_retracted) AS retracted,
-       (SELECT COUNT(*)::int FROM hits WHERE fwci >= 25) AS landmarks,
+       (SELECT COUNT(*)::int FROM hits WHERE fwci >= 25 AND cited_by_count >= 100) AS landmarks,
        (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY cited_by_count)
           FROM hits) AS median_cites,
        (SELECT json_agg(t) FROM (

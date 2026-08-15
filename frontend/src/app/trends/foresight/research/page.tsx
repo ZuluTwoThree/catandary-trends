@@ -351,7 +351,7 @@ export default async function ResearchExplorerPage({
               </div>
               <Link href={withFlag(flag === "landmark" ? null : "landmark")}
                     className={`p-3 block hover:bg-accent/5 transition-colors ${flag === "landmark" ? "bg-accent/10" : ""}`}
-                    title="Works with field-weighted citation impact ≥ 25 — the top 1% of their field. Click to filter.">
+                    title="Top 1% field-weighted citation impact AND at least 100 citations — field-normalized excellence with absolute substance. Click to filter.">
                 <div className="font-display text-xl text-paper">{fmtInt(agg.landmarks)}</div>
                 <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted mt-0.5">
                   landmark works →
@@ -477,10 +477,10 @@ export default async function ResearchExplorerPage({
                     ) : r.type && r.type !== "article" ? (
                       <span>{r.type}</span>
                     ) : null}
-                    {(r.fwci ?? 0) >= 25 && (
+                    {(r.fwci ?? 0) >= 25 && (r.cited_by_count ?? 0) >= 100 && (
                       <Link href={withFlag("landmark")}
                             className="bg-accent/15 border border-accent/50 text-accent px-1.5 py-0.5 hover:bg-accent/25"
-                            title="Landmark work — field-weighted citation impact ≥ 25, the top 1% of its field. Click to filter.">
+                            title="Landmark work — top 1% field-weighted citation impact AND at least 100 citations. Click to filter.">
                         LANDMARK
                       </Link>
                     )}
