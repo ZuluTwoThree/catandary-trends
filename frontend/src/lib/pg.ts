@@ -9,23 +9,31 @@ import { Pool, PoolClient } from "pg";
  */
 declare global {
   // `var` is required for a global augmentation (let/const don't create globals).
-  var __catandaryPool: Pool | undefined;
+  var __catandaryPoolV2: Pool | undefined;
 }
 
 function makePool(): Pool {
   const url = process.env.DATABASE_URL;
+  // statement_timeout: Seiten-Queries dürfen nie zu Zombies werden. Ein vom
+  // Client abgebrochener Request (Browser weg, curl-Timeout) lässt die
+  // Postgres-Query sonst weiterlaufen — auf dem 45M-Korpus liefen so 8-Minuten-
+  // Geister, die alle nachfolgenden Anfragen ausbremsten (#80, 2026-08-15).
+  // 20s ist weit über jedem legitimen Seiten-Query (Ziel < 2s) und weit unter
+  // Schaden. Gilt nur für Frontend-Verbindungen — Pipeline/Scripts haben
+  // eigene Verbindungen ohne Limit.
+  const common = { max: 10, statement_timeout: 20_000 };
   const pool = url
-    ? new Pool({ connectionString: url, max: 10 })
-    : new Pool({ host: "/var/run/postgresql", database: "catandary", max: 10 });
+    ? new Pool({ connectionString: url, ...common })
+    : new Pool({ host: "/var/run/postgresql", database: "catandary", ...common });
   pool.on("error", (err) => console.error("pg pool error:", err.message));
   return pool;
 }
 
 export function getPool(): Pool {
-  if (!globalThis.__catandaryPool) {
-    globalThis.__catandaryPool = makePool();
+  if (!globalThis.__catandaryPoolV2) {
+    globalThis.__catandaryPoolV2 = makePool();
   }
-  return globalThis.__catandaryPool;
+  return globalThis.__catandaryPoolV2;
 }
 
 /** Query helper: rows only. */

@@ -343,6 +343,383 @@ export async function getResearchStats(): Promise<{ total: number; last30d: numb
   });
 }
 
+// ---------------------------------------------------------------------------
+// Research-Korpus-Suchschicht (#80): 45,9M OpenAlex-Werke aller Disziplinen
+// in `research_corpus` (scripts/ingest_openalex_snapshot.py) — gespeicherter
+// tsvector Titel=A/Abstract=B, getrennt von der kuratierten Signal-Schicht.
+// ---------------------------------------------------------------------------
+
+export interface ResearchWork {
+  id: string;
+  doi: string | null;
+  title: string;
+  abstract: string;
+  published: string | null;
+  year: number | null;
+  type: string | null;
+  topic: string | null;
+  cited_by_count: number | null;
+  fwci: number | null;
+  is_retracted: boolean | null;
+  journal: string | null;
+}
+
+const RC_COLS = `rc.id, rc.doi, rc.title, rc.abstract,
+       rc.published::text as published, rc.year, rc.type, rc.topic,
+       rc.cited_by_count, rc.fwci, rc.is_retracted, wj.journal`;
+const RC_JOINS = `LEFT JOIN research_work_journal wj ON wj.work_id = rc.id`;
+const RC_CLAMP = 10000;
+
+
+/** Operator-Treffermenge (author:/institution:/journal:) — treibt von der
+ *  Nebentabelle (Trigram bzw. ILIKE) mit 10k-Deckel. Die Gegenrichtung
+ *  (EXISTS je Korpus-Zeile) detoastet bei großen Institutionen die tsv über
+ *  Hunderttausende Zeilen: 'Max Planck' x 'quantum' = 21,5s gemessen
+ *  (#80, 2026-08-15). Kleine Namen bleiben exakt, Riesen-Namen werden zur
+ *  ehrlichen Stichprobe (opClamped). Langfristig sauber: Namen als
+ *  C/D-Label-Lexeme in die tsv beim nächsten Voll-Rebuild (in #80 notiert). */
+async function researchOperatorHits(options: {
+  author?: string; institution?: string; journal?: string;
+}): Promise<{ ids: string[]; opClamped: boolean } | null> {
+  const parts: { table: string; col: string; val: string }[] = [];
+  if (options.author) parts.push({ table: "research_authors_flat", col: "authors", val: options.author });
+  if (options.institution) parts.push({ table: "research_authors_flat", col: "institutions", val: options.institution });
+  if (options.journal) parts.push({ table: "research_work_journal", col: "journal", val: options.journal });
+  if (parts.length === 0) return null;
+  let ids: Set<string> | null = null;
+  let opClamped = false;
+  for (const p of parts) {
+    const rows = await q<{ work_id: string }>(
+      `SELECT work_id FROM ${p.table} WHERE ${p.col} ILIKE $1 LIMIT ${RC_CLAMP + 1}`,
+      [`%${p.val}%`]);
+    if (rows.length > RC_CLAMP) opClamped = true;
+    const cur = new Set(rows.slice(0, RC_CLAMP).map((r) => r.work_id));
+    ids = ids === null ? cur : new Set([...ids].filter((x) => cur.has(x)));
+  }
+  return { ids: [...(ids ?? [])], opClamped };
+}
+
+export async function getResearchCorpus(options: {
+  q?: string;
+  doi?: string;
+  arxiv?: string;
+  topic?: string;
+  author?: string;
+  institution?: string;
+  journal?: string;
+  /** Klick-Filter aus Panel-Kacheln/Badges (#80): landmark = fwci >= 25,
+   *  review = type='review'. Partielle Indizes tragen den Browse-Pfad. */
+  flag?: "landmark" | "review";
+  yearFrom?: number;
+  yearTo?: number;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{ rows: ResearchWork[]; total: number; clamped: boolean }> {
+  const limit = options.limit ?? 25;
+  const offset = options.offset ?? 0;
+
+  // Direktpfad DOI / arXiv-ID: die doi-Spalte trägt die volle OpenAlex-URL-
+  // Form (https://doi.org/10.…, kleingeschrieben); arXiv-Werke haben den
+  // DataCite-DOI 10.48550/arxiv.<id>. Läuft über idx_rc_doi.
+  if (options.doi || options.arxiv) {
+    const doi = options.doi
+      ? `https://doi.org/${options.doi}`
+      : `https://doi.org/10.48550/arxiv.${options.arxiv!.replace(/v\d+$/, "")}`;
+    const rows = await q<ResearchWork>(
+      `SELECT ${RC_COLS} FROM research_corpus rc ${RC_JOINS}
+       WHERE rc.doi = $1 LIMIT 5`, [doi]);
+    return { rows, total: rows.length, clamped: false };
+  }
+
+  const params: unknown[] = [];
+  const where: string[] = [];
+  let tq = "";
+  if (options.q) {
+    params.push(options.q);
+    tq = `websearch_to_tsquery('english', $${params.length})`;
+    where.push(`tsv @@ ${tq}`);
+  }
+  if (options.topic) {
+    params.push(options.topic);
+    where.push(`topic = $${params.length}`);
+  }
+  if (options.yearFrom !== undefined) {
+    params.push(options.yearFrom);
+    where.push(`year >= $${params.length}`);
+  }
+  if (options.yearTo !== undefined) {
+    params.push(options.yearTo);
+    where.push(`year <= $${params.length}`);
+  }
+  if (options.flag === "landmark") {
+    // fwci allein belohnt Ausreisser zitierungsarmer Felder (Theologie-Artikel
+    // mit 18 Zitationen = fwci 72; 43% der fwci>=25-Werke hatten <100
+    // Zitationen — Owner-Befund 2026-08-15). Landmark = feldnormierte
+    // Exzellenz UND absolute Substanz.
+    where.push(`fwci >= 25 AND cited_by_count >= 100`);
+  } else if (options.flag === "review") {
+    where.push(`type = 'review'`);
+  }
+  const op = await researchOperatorHits(options);
+  if (op) {
+    if (op.ids.length === 0) return { rows: [], total: 0, clamped: false };
+    params.push(op.ids);
+    where.push(`id = ANY($${params.length})`);
+  }
+  if (where.length === 0) {
+    // Kein Filter: neueste Werke (Datums-Index), Count = Cache-Statistik
+    const stats = await getResearchCorpusStats();
+    params.push(limit, offset);
+    const rows = await q<ResearchWork>(
+      `SELECT ${RC_COLS} FROM research_corpus rc ${RC_JOINS}
+       ORDER BY rc.published DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+    return { rows, total: Math.min(stats.total, RC_CLAMP), clamped: true };
+  }
+  const w = where.join(" AND ");
+  // Zwei-Pfad-Logik wie patent_search (#78), mit einer Verschärfung für den
+  // 45M-Korpus: Bei häufigen Begriffen ("battery") muss der GIN-Index erst
+  // Millionen Fundstellen sammeln, bevor ein LIMIT greift — der Count-Clamp
+  // selbst kostete >20s. Deshalb zuerst der Planer-SCHÄTZWERT (EXPLAIN, ms,
+  // ohne Ausführung): große Mengen gehen direkt in den Datums-Pfad (dort sind
+  // häufige Begriffe dicht → Index-Walk findet 25 Treffer sofort), nur
+  // überschaubare Mengen werden exakt gezählt und nach Relevanz gerankt.
+  const planRow = await q1<Record<string, unknown>>(
+    `EXPLAIN (FORMAT JSON) SELECT 1 FROM research_corpus WHERE ${w}`,
+    [...params]);
+  const planJson = planRow?.["QUERY PLAN"] as
+    | { Plan?: { "Plan Rows"?: number } }[] | undefined;
+  const estimate = planJson?.[0]?.Plan?.["Plan Rows"] ?? 0;
+  if (estimate > 100_000) {
+    // Riesen-Menge: Datums-Walk (Treffer sind dicht → 25 Zeilen sofort);
+    // Trefferzahl bleibt "10.000+". ORDER BY ohne NULLS LAST: idx_rc_published
+    // ist DESC (= NULLS FIRST), Werke ohne Datum gibt es nicht (0 von 45,3M).
+    // Schmaler ID-Select + Self-Join gegen den Planer-Kipp (22s vs 0,5s).
+    params.push(limit, offset);
+    const rows = await q<ResearchWork>(
+      `SELECT ${RC_COLS} FROM (
+         SELECT id AS hit_id, published AS hit_pub
+         FROM research_corpus WHERE ${w} ORDER BY published DESC
+         LIMIT $${params.length - 1} OFFSET $${params.length}) hit
+       JOIN research_corpus rc ON rc.id = hit.hit_id
+       ${RC_JOINS}
+       ORDER BY hit.hit_pub DESC`, params);
+    return { rows, total: RC_CLAMP, clamped: true };
+  }
+  const opClamped = op?.opClamped ?? false;
+  // Überschaubare Menge: Treffer EINMAL materialisieren (inkl. tsv), dann
+  // zählen + ranken NUR über die Materialisierung. Direkt auf der Tabelle
+  // gerankt entscheidet der Planer bei parametrisierten Jahres-Filtern
+  // unvorhersehbar und detoastet tsv weit über die Treffermenge hinaus —
+  // gemessen 4,4s statt <1s für 'perovskite 2019-2023' (#80, 2026-08-15).
+  const rankExpr = options.q
+    ? `ts_rank(${PATENT_RANK_WEIGHTS}, m.tsv, ${tq})`
+    : `0::float4`;
+  params.push(limit, offset);
+  const rows = await q<ResearchWork & { full_cnt: number }>(
+    `WITH m AS MATERIALIZED (
+       SELECT id, published, tsv FROM research_corpus
+       WHERE ${w} LIMIT ${RC_CLAMP + 1})
+     SELECT ${RC_COLS}, hit.full_cnt FROM (
+       SELECT m.id AS hit_id, m.published AS hit_pub, ${rankExpr} AS rk,
+              (SELECT COUNT(*)::int FROM m) AS full_cnt
+       FROM m ORDER BY rk DESC, m.published DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}) hit
+     JOIN research_corpus rc ON rc.id = hit.hit_id
+     ${RC_JOINS}
+     ORDER BY hit.rk DESC, hit.hit_pub DESC`, params);
+  if (rows.length === 0) {
+    // Leere Seite (offset hinter dem Ende oder null Treffer): Count separat
+    const countRow = await q1<{ cnt: number }>(
+      `SELECT COUNT(*)::int as cnt FROM (
+         SELECT 1 FROM research_corpus WHERE ${w} LIMIT ${RC_CLAMP + 1}) x`,
+      params.slice(0, -2));
+    const total = countRow?.cnt ?? 0;
+    return { rows: [], total: Math.min(total, RC_CLAMP),
+             clamped: total > RC_CLAMP || opClamped };
+  }
+  const total = rows[0].full_cnt;
+  return {
+    rows: rows.map(({ full_cnt: _full_cnt, ...r }) => r as ResearchWork),
+    total: Math.min(total, RC_CLAMP),
+    clamped: total > RC_CLAMP || opClamped,
+  };
+}
+
+export interface ResearchAggregates {
+  /** Basis der Aggregation (bis RC_CLAMP neueste Treffer). */
+  n: number;
+  sampled: boolean;
+  years: { year: number; n: number }[];
+  topics: { topic: string; n: number }[];
+  reviews: number;
+  retracted: number;
+  landmarks: number;
+  medianCites: number | null;
+  rising: { id: string; doi: string | null; title: string; year: number; cited_by_count: number }[];
+  institutions: { institution: string; n: number }[];
+  journals: { journal: string; n: number }[];
+}
+
+/** Generische Repositorien — fuer den "Top journals"-Panelblock gefiltert
+ *  (primary_location zeigt bei OA-Werken oft aufs Repository, nicht aufs
+ *  Journal); die journal:-Suche selbst bleibt ungefiltert. */
+const REPO_VENUES = [
+  "Zenodo (CERN European Organization for Nuclear Research)",
+  "arXiv (Cornell University)", "PubMed", "PubMed Central",
+  "DOAJ (DOAJ: Directory of Open Access Journals)", "Figshare",
+  "bioRxiv (Cold Spring Harbor Laboratory)",
+  "medRxiv (Cold Spring Harbor Laboratory)", "SSRN Electronic Journal",
+  "Research Square (Research Square)", "OSF Preprints (OSF)",
+  "HAL (Le Centre pour la Communication Scientifique Directe)",
+];
+
+/** Treffer-Statistiken für das Result-Intelligence-Panel (#80): aggregiert
+ *  über die bis zu 10.000 NEUESTEN Treffer der Filterkombination — bei
+ *  geclampten Mengen also eine ehrliche Stichprobe, die Seite sagt das dazu.
+ *  Rising = meistzitierte junge Werke (ab 2023) der Treffermenge, normiert
+ *  auf Zitationen/Jahr; Landmark = fwci >= 25 (Top 1 % feldnormierter
+ *  Impact, Perzentile gemessen 2026-08-14). */
+export async function getResearchAggregates(options: {
+  q?: string;
+  topic?: string;
+  author?: string;
+  institution?: string;
+  journal?: string;
+  flag?: "landmark" | "review";
+  yearFrom?: number;
+  yearTo?: number;
+} = {}): Promise<ResearchAggregates | null> {
+  const params: unknown[] = [];
+  const where: string[] = [];
+  if (options.q) {
+    params.push(options.q);
+    where.push(`tsv @@ websearch_to_tsquery('english', $${params.length})`);
+  }
+  if (options.topic) {
+    params.push(options.topic);
+    where.push(`topic = $${params.length}`);
+  }
+  if (options.yearFrom !== undefined) {
+    params.push(options.yearFrom);
+    where.push(`year >= $${params.length}`);
+  }
+  if (options.yearTo !== undefined) {
+    params.push(options.yearTo);
+    where.push(`year <= $${params.length}`);
+  }
+  if (options.flag === "landmark") {
+    // fwci allein belohnt Ausreisser zitierungsarmer Felder (Theologie-Artikel
+    // mit 18 Zitationen = fwci 72; 43% der fwci>=25-Werke hatten <100
+    // Zitationen — Owner-Befund 2026-08-15). Landmark = feldnormierte
+    // Exzellenz UND absolute Substanz.
+    where.push(`fwci >= 25 AND cited_by_count >= 100`);
+  } else if (options.flag === "review") {
+    where.push(`type = 'review'`);
+  }
+  const op = await researchOperatorHits(options);
+  if (op) {
+    if (op.ids.length === 0) return null;
+    params.push(op.ids);
+    where.push(`id = ANY($${params.length})`);
+  }
+  if (where.length === 0) return null;
+  const w = where.join(" AND ");
+  // Kein Panel für Riesen-Mengen: "die 10k neuesten Treffer" eines häufigen
+  // Begriffs erzwingen einen Datums-Walk mit Hunderttausenden tsv-Rechecks
+  // (battery 23s, mit Jahresfilter 120s+ gemessen) — dafür existiert kein
+  // billiger exakter Pfad. Unter ~100k Treffern nimmt der Planer den
+  // GIN-/Topic-Index OHNE Datums-Sortierung: schnell, und bis 10k sogar die
+  // vollständige Menge. Die Seite fordert bei null zum Eingrenzen auf.
+  const planRow2 = await q1<Record<string, unknown>>(
+    `EXPLAIN (FORMAT JSON) SELECT 1 FROM research_corpus WHERE ${w}`,
+    [...params]);
+  const plan2 = planRow2?.["QUERY PLAN"] as
+    | { Plan?: { "Plan Rows"?: number } }[] | undefined;
+  if ((plan2?.[0]?.Plan?.["Plan Rows"] ?? 0) > 100_000) return null;
+  // Schmaler Treffer-Select + Self-Join (Planer-Kipp-Schutz wie oben), dann
+  // alle Aggregate in EINEM Roundtrip als JSON-Unterabfragen.
+  const row = await q1<{
+    n: number; reviews: number; retracted: number; landmarks: number;
+    median_cites: number | null; years: unknown; topics: unknown; rising: unknown;
+    institutions: unknown; journals: unknown;
+  }>(
+    `WITH hit AS (
+       SELECT id FROM research_corpus WHERE ${w} LIMIT ${RC_CLAMP}),
+     hits AS (
+       SELECT rc.id, rc.doi, rc.title, rc.year, rc.topic, rc.type,
+              rc.cited_by_count, rc.fwci, rc.is_retracted
+       FROM hit JOIN research_corpus rc ON rc.id = hit.id)
+     SELECT
+       (SELECT COUNT(*)::int FROM hits) AS n,
+       (SELECT COUNT(*)::int FROM hits WHERE type = 'review') AS reviews,
+       (SELECT COUNT(*)::int FROM hits WHERE is_retracted) AS retracted,
+       (SELECT COUNT(*)::int FROM hits WHERE fwci >= 25 AND cited_by_count >= 100) AS landmarks,
+       (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY cited_by_count)
+          FROM hits) AS median_cites,
+       (SELECT json_agg(t) FROM (
+          SELECT year, COUNT(*)::int AS n FROM hits
+          WHERE year IS NOT NULL GROUP BY year ORDER BY year) t) AS years,
+       (SELECT json_agg(t) FROM (
+          SELECT topic, COUNT(*)::int AS n FROM hits
+          WHERE topic IS NOT NULL GROUP BY topic
+          ORDER BY COUNT(*) DESC LIMIT 6) t) AS topics,
+       (SELECT json_agg(t) FROM (
+          SELECT h.id, h.doi, h.title, h.year, h.cited_by_count FROM hits h
+          JOIN research_citation_recent cr ON cr.work_id = h.id
+          WHERE h.year >= 2023
+          ORDER BY cr.cites_recent DESC LIMIT 3) t) AS rising,
+       (SELECT json_agg(t) FROM (
+          SELECT wi.institution, COUNT(*)::int AS n FROM hits h
+          JOIN research_work_inst wi ON wi.work_id = h.id
+          WHERE wi.institution IS NOT NULL
+          GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 5) t) AS institutions,
+       (SELECT json_agg(t) FROM (
+          SELECT wj.journal, COUNT(*)::int AS n FROM hits h
+          JOIN research_work_journal wj ON wj.work_id = h.id
+          WHERE wj.journal <> ALL($${params.length + 1})
+          GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 5) t) AS journals`,
+    [...params, REPO_VENUES]);
+  if (!row || !row.n) return null;
+  return {
+    n: row.n,
+    sampled: row.n >= RC_CLAMP,
+    years: (row.years as ResearchAggregates["years"]) ?? [],
+    topics: (row.topics as ResearchAggregates["topics"]) ?? [],
+    reviews: row.reviews,
+    retracted: row.retracted,
+    landmarks: row.landmarks,
+    medianCites: row.median_cites === null ? null : Number(row.median_cites),
+    rising: (row.rising as ResearchAggregates["rising"]) ?? [],
+    institutions: (row.institutions as ResearchAggregates["institutions"]) ?? [],
+    journals: (row.journals as ResearchAggregates["journals"]) ?? [],
+  };
+}
+
+export async function getResearchCorpusStats(): Promise<{ total: number; topics: number }> {
+  return cached("research-corpus-stats", 3_600_000, async () => {
+    // Beide Zahlen aus Meta-/Statistik-Tabellen — COUNT(*) bzw.
+    // COUNT(DISTINCT) über die 45M-Tabelle kosteten beim Kaltstart ~30-40s
+    // und liefen nach jedem Server-Neustart erneut. Gepflegt vom
+    // Snapshot-Ingest/Sync (#80).
+    const row = await q1<{ total: number; topics: number }>(
+      `SELECT (SELECT total::int FROM research_corpus_meta) as total,
+              (SELECT COUNT(*)::int FROM research_corpus_topics) as topics`);
+    return { total: row?.total ?? 0, topics: row?.topics ?? 0 };
+  });
+}
+
+/** Topic-Facette für die Datalist — aus der materialisierten Statistik-
+ *  Tabelle research_corpus_topics (Aufbau im Snapshot-Ingest/Sync, 4,5k
+ *  Zeilen), nie aus der 45M-Tabelle selbst. */
+export async function getResearchTopics(): Promise<string[]> {
+  return cached("research-corpus-topics", 3_600_000, async () => {
+    const rows = await q<{ topic: string }>(
+      `SELECT topic FROM research_corpus_topics ORDER BY n DESC LIMIT 500`);
+    return rows.map((r) => r.topic);
+  });
+}
+
 
 export interface PatentSignal {
   pub_number: string;
@@ -356,13 +733,18 @@ export interface PatentSignal {
   cpcs: string[];
 }
 
-/** Patent Explorer (#74): FTS directly on raw_entries via the existing
- *  idx_re_patent_fts GIN index (19.6M patents — no materialization needed).
- *  Result counts are clamped at 10k (a full COUNT over millions is slower
- *  than the search itself); callers render "10,000+". */
-const PATENT_FTS =
-  "to_tsvector('english', COALESCE(r.title,'') || ' ' || COALESCE(r.excerpt,''))";
+/** Patent Explorer (#74/#78): Volltextsuche über die materialisierte Tabelle
+ *  `patent_search` (scripts/build_patent_search_index.py) — gespeicherter
+ *  tsvector mit Titel=A/Abstract=B statt eines Ausdrucks-Index auf
+ *  raw_entries. Nur so ist der Phrasen-Recheck billig (er liest eine Spalte,
+ *  statt den Text pro Kandidatenzeile neu zu zerlegen) und Titeltreffer
+ *  ranken vor Abstract-Treffern.
+ *  Trefferzahlen sind bei 10k gedeckelt (ein vollständiges COUNT über
+ *  Millionen dauert länger als die Suche selbst); Aufrufer zeigen "10,000+". */
 const PATENT_COUNT_CLAMP = 10000;
+/** Gewichte für ts_rank: {D, C, B, A} — Titel (A) zählt 4x so viel wie der
+ *  Abstract (B). */
+const PATENT_RANK_WEIGHTS = "'{0.1, 0.2, 0.4, 1.0}'::float4[]";
 
 // Anreicherungs-Spalten pro Trefferzeile (Assignee, Familie, CPC-Chips) —
 // identisch für beide Query-Pfade unten.
@@ -451,7 +833,9 @@ export async function getPatentSignals(options: {
     const extra: string[] = [];
     if (options.q) {
       params.push(options.q);
-      extra.push(`${PATENT_FTS} @@ websearch_to_tsquery('english', $${params.length})`);
+      // Textfilter im Firmen-Pfad ebenfalls über patent_search (#78 Stufe 3)
+      extra.push(`EXISTS (SELECT 1 FROM patent_search ps WHERE ps.id = r.id
+                  AND ps.tsv @@ websearch_to_tsquery('english', $${params.length}))`);
     }
     if (options.cpc) {
       params.push(options.cpc);
@@ -527,12 +911,60 @@ export async function getPatentSignals(options: {
      WHERE ${w}
      ORDER BY pcc.published DESC
      LIMIT $${params.length - 1} OFFSET $${params.length}`;
+  } else if (options.q) {
+    // Volltext-Pfad über patent_search: Filter, Sortierung und Ranking laufen
+    // komplett in der schlanken Suchtabelle, raw_entries wird erst für die
+    // 25 Anzeigezeilen angefasst.
+    params.push(options.q);
+    const tq = `websearch_to_tsquery('english', $${params.length})`;
+    const where: string[] = [`ps.tsv @@ ${tq}`];
+    if (options.cpc) {
+      params.push(options.cpc);
+      where.push(`EXISTS (SELECT 1 FROM patent_explorer_cpc pcc
+                  WHERE pcc.pub_number = ps.pub_number
+                    AND pcc.subclass = $${params.length})`);
+    }
+    if (options.country) {
+      params.push(options.country + "-%");
+      where.push(`ps.pub_number LIKE $${params.length}`);
+    }
+    where.push(...yearClause("ps.published"));
+    const w = where.join(" AND ");
+    countSql = `SELECT COUNT(*)::int as cnt FROM (
+       SELECT 1 FROM patent_search ps WHERE ${w} LIMIT ${PATENT_COUNT_CLAMP + 1}) x`;
+    const countRow = await q1<{ cnt: number }>(countSql, [...params]);
+    const total = countRow?.cnt ?? 0;
+    const clamped = total > PATENT_COUNT_CLAMP;
+    // Relevanz-Reihung nur bei überschaubarer Treffermenge: bei Zehntausenden
+    // Treffern müsste jede Zeile bewertet und sortiert werden, und die
+    // Reihung trennt dort ohnehin kaum — dann ist "neueste zuerst" sowohl
+    // schneller (Datums-Index) als auch nützlicher.
+    // Die Reihung muss die Treffer-Unterabfrage überleben: der Rang wird als
+    // Spalte mitgenommen und außen erneut angewandt — ein äußeres
+    // "ORDER BY published" allein würde die Relevanz-Sortierung zerstören.
+    const rankCol = clamped
+      ? `0::float4 AS rk`
+      : `ts_rank(${PATENT_RANK_WEIGHTS}, ps.tsv, ${tq}) AS rk`;
+    const order = clamped
+      ? `ps.published DESC`
+      : `ts_rank(${PATENT_RANK_WEIGHTS}, ps.tsv, ${tq}) DESC, ps.published DESC`;
+    params.push(limit, offset);
+    rowSql = `SELECT ${PATENT_ROW_COLS}
+     FROM (SELECT ps.id, ps.pub_number, ps.published, ${rankCol}
+           FROM patent_search ps
+           WHERE ${w} ORDER BY ${order}
+           LIMIT $${params.length - 1} OFFSET $${params.length}) hit
+     JOIN raw_entries r ON r.id = hit.id
+     ${PATENT_ROW_JOINS}
+     ORDER BY hit.rk DESC, hit.published DESC`;
+    const rows = await q<PatentSignal>(rowSql, params);
+    return {
+      rows: rows.map((r) => ({ ...r, cpcs: (r.cpcs as unknown as string[]) ?? [] })),
+      total: Math.min(total, PATENT_COUNT_CLAMP),
+      clamped,
+    };
   } else {
     const where: string[] = ["r.pub_number IS NOT NULL"];
-    if (options.q) {
-      params.push(options.q);
-      where.push(`${PATENT_FTS} @@ websearch_to_tsquery('english', $${params.length})`);
-    }
     if (options.cpc) {
       params.push(options.cpc);
       where.push(`EXISTS (SELECT 1 FROM patent_cpc pc
@@ -546,19 +978,6 @@ export async function getPatentSignals(options: {
     const w = where.join(" AND ");
     countSql = `SELECT COUNT(*)::int as cnt FROM (
        SELECT 1 FROM raw_entries r WHERE ${w} LIMIT ${PATENT_COUNT_CLAMP + 1}) x`;
-    // Sortier-Entscheidung erst NACH dem (billigen) Zähl-Lauf: ts_rank über
-    // eine riesige Treffermenge kostet Sekunden (gemessen: 13s für
-    // '"solid state" -lithium'), weil jede Zeile bewertet und sortiert werden
-    // muss. Ist die Menge geclampt (= sehr häufige Anfrage), liegen die
-    // Treffer dicht — dann findet der Datums-Index die neuesten 25 sofort,
-    // und "neueste zuerst" ist bei Zehntausenden Treffern ohnehin nützlicher
-    // als eine Relevanz-Reihung, die kaum trennt.
-    const countRow = await q1<{ cnt: number }>(countSql, [...params]);
-    const total = countRow?.cnt ?? 0;
-    const clamped = total > PATENT_COUNT_CLAMP;
-    const rank = options.q && !clamped
-      ? `ts_rank(${PATENT_FTS}, websearch_to_tsquery('english', $1)) DESC, `
-      : "";
     params.push(limit, offset);
     // ORDER BY ohne NULLS LAST: idx_raw_patent_pubdate ist DESC (= NULLS
     // FIRST) — nur so trägt der Index die Sortierung. Patente ohne
@@ -567,14 +986,8 @@ export async function getPatentSignals(options: {
      FROM raw_entries r
      ${PATENT_ROW_JOINS}
      WHERE ${w}
-     ORDER BY ${rank}r.published_date DESC
+     ORDER BY r.published_date DESC
      LIMIT $${params.length - 1} OFFSET $${params.length}`;
-    const rows = await q<PatentSignal>(rowSql, params);
-    return {
-      rows: rows.map((r) => ({ ...r, cpcs: (r.cpcs as unknown as string[]) ?? [] })),
-      total: Math.min(total, PATENT_COUNT_CLAMP),
-      clamped,
-    };
   }
 
   const countRow = await q1<{ cnt: number }>(countSql, params.slice(0, -2));

@@ -394,7 +394,7 @@ export default function ForesightCockpit({
                 Research Explorer →
               </div>
               <div className="font-sans text-sm text-text mt-1">
-                What your peers publish — 430k+ searchable papers, preprints and grants
+                What your peers publish — 45.9M searchable papers across all disciplines
               </div>
             </Link>
             <Link

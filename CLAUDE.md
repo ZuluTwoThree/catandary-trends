@@ -439,6 +439,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Radare + TIR-/SPNP-Forschungsläufe bewusst NICHT im Cron (Owner: on-demand).
 0 8 * * 2    scripts/weekly_patent_analytics.sh
 
+# OpenAlex-Monats-Sync (5. des Monats 07:00, seit 2026-08-15, #80): neue
+# Snapshot-Partitionen → research_corpus (45M-Suchschicht) + Journal-/
+# Autoren-Nebentabellen + Statistik-Refresh (Amend-Analog, CPU/Netz)
+0 7 5 * *    scripts/sync_openalex_monthly.sh
+
 # Nicht-RSS-Ingester wöchentlich (Samstag 05:00, seit 2026-08-09): Preprints
 # (arXiv/bioRxiv/medRxiv, 14-Tage-Fenster) + Funding (NSF/NIH/OpenAIRE/UKRI,
 # 45 Tage) + SEC Form D (Vorquartal, nur im 1. Quartalsmonat) + sofortige
