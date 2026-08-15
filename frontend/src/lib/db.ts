@@ -394,7 +394,12 @@ async function researchOperatorHits(options: {
       [`%${p.val}%`]);
     if (rows.length > RC_CLAMP) opClamped = true;
     const cur = new Set(rows.slice(0, RC_CLAMP).map((r) => r.work_id));
-    ids = ids === null ? cur : new Set([...ids].filter((x) => cur.has(x)));
+    if (ids === null) {
+      ids = cur;
+    } else {
+      const prev: Set<string> = ids;
+      ids = new Set([...prev].filter((x) => cur.has(x)));
+    }
   }
   return { ids: [...(ids ?? [])], opClamped };
 }
