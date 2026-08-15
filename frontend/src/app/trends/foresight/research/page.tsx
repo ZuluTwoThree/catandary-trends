@@ -654,11 +654,18 @@ export default async function ResearchExplorerPage({
                   <p className="font-sans text-sm text-text leading-relaxed line-clamp-3 max-w-3xl">
                     {r.abstract}
                   </p>
-                  <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em]">
+                  <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] flex gap-4">
                     <a href={href} target="_blank" rel="noopener noreferrer"
                        className="text-accent/70 hover:text-accent">
                       {r.doi ? "DOI →" : "OpenAlex →"}
                     </a>
+                    {r.oa_url && (
+                      <a href={r.oa_url} target="_blank" rel="noopener noreferrer"
+                         className="text-accent/70 hover:text-accent"
+                         title="Free full text (open access)">
+                        Full text (OA) →
+                      </a>
+                    )}
                   </div>
                 </article>
               );

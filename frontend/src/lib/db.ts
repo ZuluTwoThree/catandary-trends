@@ -362,12 +362,15 @@ export interface ResearchWork {
   fwci: number | null;
   is_retracted: boolean | null;
   journal: string | null;
+  /** Open-Access-Volltext-Link (research_work_oa), null wenn Paywall. */
+  oa_url: string | null;
 }
 
 const RC_COLS = `rc.id, rc.doi, rc.title, rc.abstract,
        rc.published::text as published, rc.year, rc.type, rc.topic,
-       rc.cited_by_count, rc.fwci, rc.is_retracted, wj.journal`;
-const RC_JOINS = `LEFT JOIN research_work_journal wj ON wj.work_id = rc.id`;
+       rc.cited_by_count, rc.fwci, rc.is_retracted, wj.journal, oa.oa_url`;
+const RC_JOINS = `LEFT JOIN research_work_journal wj ON wj.work_id = rc.id
+     LEFT JOIN research_work_oa oa ON oa.work_id = rc.id`;
 const RC_CLAMP = 10000;
 
 
