@@ -31,7 +31,7 @@ Issue-Kommentare. **Ergebnis: 8 geschlossen, 2 neu → Backlog 31 → 25 offen.*
 
 | # | Was konkret fehlt | Gate |
 |---|---|---|
-| **#82** | Hosting-Variante entscheiden + aufsetzen. Empfehlung: kleiner Hetzner-VPS als TLS-Kopf, App + 391-GB-DB bleiben lokal, Verbindung über den bereits laufenden Tailscale-Tunnel — passt zum „runs on our local infrastructure"-Claim. | Owner-Entscheid |
+| **#82** | Hosting-Variante entscheiden + aufsetzen. Empfehlung: kleiner Hetzner-VPS als TLS-Kopf, App + 391-GB-DB bleiben lokal, Verbindung über den bereits laufenden Tailscale-Tunnel — passt zum „runs on our local infrastructure"-Claim. Geprüfter Aufbau inkl. Caddyfile im Issue. **Vor dem DNS-Umzug Pflicht:** `nl_client_ip()` patchen, sonst speichert die DOI-Strecke die Proxy-IP statt der des Anmelders und der Einwilligungsnachweis ist wertlos. Postgres läuft zudem auf Werkseinstellungen (`shared_buffers` 128 MB bei 62 GB RAM). | Owner-Entscheid |
 | **#64** | Vier P0-Punkte, drei davon Minuten-Arbeit: Impressum-Platzhalter (`imprint/page.tsx:13-15`), falscher Claim „Saved searches & alerts" (`page.tsx:431` + live), `REVIEW_ENABLED=0` für die öffentliche Umgebung, OG-Bild fehlt. | — |
 | **#78/#80** | Beides fertig auf `dev`, unmerged: Patent-Ranking (Prod zahlt 22,4 s auf Phrasensuche) und der 45-M-Research-Explorer (Prod zeigt noch 510k). Ein Merge erledigt beide. | — |
 | **#16** | Versandkette an vier Stellen offen: `AUTH_SECRET` in `.env` ≠ `frontend/.env.local` → **jeder Abmeldelink ungültig**; `export.php` nicht deployed; kein Sync-Cron; Abmelde-Route nicht öffentlich. | dep #82 |
