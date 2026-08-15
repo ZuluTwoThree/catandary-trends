@@ -551,6 +551,15 @@ export default async function PatentExplorerPage({
         {cpc && <> in <span className="text-paper">{CPC_OPTIONS.find(([c]) => c === cpc)?.[1] ?? cpc}</span></>}
         {country && <> at <span className="text-paper">{country}</span></>}
         {" · "}page {page}/{pages}
+        {searchText && (
+          <>
+            {" · "}
+            <Link href={`/trends/foresight/research?q=${encodeURIComponent(searchText)}`}
+                  className="text-accent hover:underline normal-case tracking-normal">
+              search this in research →
+            </Link>
+          </>
+        )}
       </div>
 
       {rows.length === 0 ? (

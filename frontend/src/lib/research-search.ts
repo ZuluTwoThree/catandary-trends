@@ -5,7 +5,7 @@
  */
 
 export interface ResearchChip {
-  kind: "doi" | "arxiv" | "year" | "author" | "institution" | "journal";
+  kind: "doi" | "arxiv" | "year" | "author" | "institution" | "journal" | "funder" | "country";
   label: string;
 }
 
@@ -19,6 +19,9 @@ export interface ParsedResearchQuery {
   author?: string;
   institution?: string;
   journal?: string;
+  funder?: string;
+  /** Zwei-Buchstaben-Ländercode (Lead-Institution). */
+  country?: string;
   yearFrom?: number;
   yearTo?: number;
   chips: ResearchChip[];
@@ -58,6 +61,7 @@ export function parseResearchQuery(raw: string): ParsedResearchQuery {
     ["author", new RegExp(String.raw`\b[Aa](?:uthor|utor|UTHOR|UTOR):\s*("([^"]+)"|(\S+${NAME_TAIL}))`)],
     ["institution", new RegExp(String.raw`\b[Ii](?:nstitution|nst|NSTITUTION|NST):\s*("([^"]+)"|(\S+${NAME_TAIL}))`)],
     ["journal", new RegExp(String.raw`\b(?:[Jj]ournal|JOURNAL|[Ss]ource|SOURCE):\s*("([^"]+)"|(\S+${NAME_TAIL}))`)],
+    ["funder", new RegExp(String.raw`\b(?:[Ff]under|FUNDER|[Ff]örderer|[Ff]oerderer):\s*("([^"]+)"|(\S+${NAME_TAIL}))`)],
   ] as const) {
     const m = rest.match(re);
     if (!m) continue;
@@ -66,6 +70,13 @@ export function parseResearchQuery(raw: string): ParsedResearchQuery {
     out[key] = value;
     out.chips.push({ kind: key, label: value });
     rest = cut(rest, m.index ?? 0, m[0].length);
+  }
+
+  const cm = rest.match(/\b[Cc](?:ountry|OUNTRY):\s*([A-Za-z]{2})\b/);
+  if (cm) {
+    out.country = cm[1].toUpperCase();
+    out.chips.push({ kind: "country", label: out.country });
+    rest = cut(rest, cm.index ?? 0, cm[0].length);
   }
 
   const dm = rest.match(DOI_RE);

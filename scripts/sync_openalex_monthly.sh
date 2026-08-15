@@ -36,16 +36,19 @@ mkdir -p "$(dirname "$LOG")"
   source .venv/bin/activate
 
   RC=0
-  echo; echo "----- 1/4 Snapshot-Ingest (neue Partitionen) -----"
+  echo; echo "----- 1/5 Snapshot-Ingest (neue Partitionen) -----"
   python -u scripts/ingest_openalex_snapshot.py --workers 4 || RC=$?
 
-  echo; echo "----- 2/4 Journal-Enrichment (neue Partitionen) -----"
+  echo; echo "----- 2/5 Journal-Enrichment (neue Partitionen) -----"
   python -u scripts/enrich_openalex_journals.py --workers 4 || RC=$?
 
-  echo; echo "----- 3/4 Archiv-Extrakt (Autoren/Institutionen/Zitationen) -----"
+  echo; echo "----- 3/5 Archiv-Extrakt (Autoren/Institutionen/Zitationen) -----"
   python -u scripts/extract_openalex_archive.py --workers 4 || RC=$?
 
-  echo; echo "----- 4/4 Statistik-Tabellen -----"
+  echo; echo "----- 4/5 Funder/OA-Enrichment (neue Partitionen) -----"
+  python -u scripts/enrich_openalex_funders_oa.py --workers 4 || RC=$?
+
+  echo; echo "----- 5/5 Statistik-Tabellen -----"
   python - <<'PY' || RC=$?
 import psycopg2, os
 from dotenv import load_dotenv; load_dotenv('.env')
@@ -57,6 +60,17 @@ CREATE TABLE research_corpus_topics_new AS
 cur.execute("ALTER TABLE research_corpus_topics_new ADD PRIMARY KEY (topic)")
 cur.execute("DROP TABLE IF EXISTS research_corpus_topics")
 cur.execute("ALTER TABLE research_corpus_topics_new RENAME TO research_corpus_topics")
+cur.execute("""DROP TABLE IF EXISTS research_topic_years_new;
+CREATE TABLE research_topic_years_new AS
+  SELECT topic, year, COUNT(*)::int AS n FROM research_corpus
+  WHERE topic IS NOT NULL AND year BETWEEN 2010 AND 2026
+    AND cited_by_count >= 1  -- gleiche Huerde fuer alle Jahre: der Korpus-
+    -- Zitations-Floor (alt braucht >=1 Zitat, jung nicht) wuerde sonst
+    -- kuenstliches Wachstum in ALLEN Topics erzeugen (#83, 2026-08-15)
+  GROUP BY 1,2""")
+cur.execute("ALTER TABLE research_topic_years_new ADD PRIMARY KEY (topic, year)")
+cur.execute("DROP TABLE IF EXISTS research_topic_years")
+cur.execute("ALTER TABLE research_topic_years_new RENAME TO research_topic_years")
 cur.execute("SELECT COUNT(*) FROM research_corpus")
 n = cur.fetchone()[0]
 cur.execute("""INSERT INTO research_corpus_meta (singleton, total) VALUES (TRUE, %s)
