@@ -24,6 +24,7 @@ Abbruch einfach neu starten.
 """
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -90,6 +91,13 @@ def main() -> int:
 
     def get_with_backoff(client, params) -> "httpx.Response | int":
         """200-Response oder Exitcode (2 = Tageslimit, 1 = harter Fehler)."""
+        # Seit 2026-02 ist die OpenAlex-API usage-based: ohne Key 1.000
+        # Credits/Tag/IP (gemessen 2026-08-16; Listen-Call = 1 Credit),
+        # mit kostenlosem Key $1/Tag = 10.000 Listen-Calls. Key kommt aus
+        # OPENALEX_API_KEY (.env) — openalex.org/settings/api.
+        api_key = os.getenv("OPENALEX_API_KEY")
+        if api_key:
+            params = {**params, "api_key": api_key}
         for attempt, wait in enumerate((10, 30, 60, 120, 240)):
             r = client.get(API, params=params)
             if r.status_code == 200:
