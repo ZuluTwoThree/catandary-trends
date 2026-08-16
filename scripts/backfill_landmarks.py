@@ -6,8 +6,14 @@ Felder ausgeschlossen — genau die Werke, in die Forschung diffundiert
 (Laser-/LED-Argument des Owners). Dieser Lauf holt sie über die OpenAlex-
 API gezielt nach: **Jahr < 2010, Englisch, Abstract vorhanden, Artikel/
 Review, fwci >= 25** (das Landmark-Kriterium, Top 1 % feldnormierter
-Impact) — gemessen 248.043 Werke, via Cursor-Paging ~1.250 Calls, weit
-unter dem Fair-Use-Limit (100k/Tag).
+Impact) — gemessen 248.043 Werke.
+
+Läuft **jahresweise** (seit 2026-08-16): Das reale API-Tageskontingent
+lag weit unter den dokumentierten 100k Calls — ein globaler Cursor-Walk
+verbrannte es bei jedem Neustart mit bereits geladenen Werken (Lauf 4:
+120k re-gelesen, +296 neu). Jetzt: 1 group_by-Call liefert die Soll-Zahl
+je Jahr, fertige Jahrgänge stehen in openalex_landmark_state und werden
+übersprungen; nur unvollständige Jahre werden gewalkt (neueste zuerst).
 
 Füllt research_corpus UND die Nebentabellen (authors_flat, work_journal,
 citation_recent) in einem Durchgang — die API liefert authorships,
@@ -31,11 +37,11 @@ from pipeline import db as db_mod  # noqa: E402
 from scripts.ingest_openalex_snapshot import reconstruct  # noqa: E402
 
 API = "https://api.openalex.org/works"
-FILTER = ("publication_year:<2010,language:en,has_abstract:true,"
-          "type:article|review,fwci:>25")
+FILTER_BASE = "language:en,has_abstract:true,type:article|review,fwci:>25"
 SELECT = ("id,doi,title,publication_date,publication_year,type,"
           "abstract_inverted_index,cited_by_count,counts_by_year,fwci,"
           "is_retracted,primary_topic,authorships,primary_location")
+MAILTO = "trends@catandary.de"
 AUTHOR_CAP = 30
 INSERT_TMPL = ("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
                "setweight(to_tsvector('english', left(%s, 2000)), 'A') || "
@@ -50,8 +56,10 @@ def main() -> int:
     conn = psycopg2.connect(db_mod.DATABASE_URL)
     conn.autocommit = True
     cur = conn.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS openalex_landmark_state ("
+                "year INTEGER PRIMARY KEY, api_count INTEGER, "
+                "done BOOLEAN DEFAULT FALSE)")
     t0 = time.time()
-    cursor = "*"
     total = inserted = 0
     rc_buf: list[tuple] = []
     af_buf: list[tuple] = []
@@ -80,33 +88,41 @@ def main() -> int:
                 psycopg2.extras.execute_values(cur, sql, buf, page_size=500)
                 buf.clear()
 
-    with httpx.Client(timeout=120) as client:
+    def get_with_backoff(client, params) -> "httpx.Response | int":
+        """200-Response oder Exitcode (2 = Tageslimit, 1 = harter Fehler)."""
+        for attempt, wait in enumerate((10, 30, 60, 120, 240)):
+            r = client.get(API, params=params)
+            if r.status_code == 200:
+                return r
+            retry_after = int(r.headers.get("retry-after") or 0)
+            if r.status_code == 429 and retry_after > 300:
+                # Tageslimit (Retry-After in Stunden) — Retries sind
+                # sinnlos UND unhoeflich. Sauber raus, aussen neu planen.
+                print(f"TAGESLIMIT: Retry-After {retry_after}s "
+                      f"(~{retry_after/3600:.1f}h) — Abbruch, idempotent "
+                      "neu starten nach Ablauf", flush=True)
+                return 2
+            print(f"  HTTP {r.status_code}, warte {wait}s "
+                  f"(Versuch {attempt+1}/5)", flush=True)
+            time.sleep(wait)
+        print(f"ABBRUCH: API {r.status_code} — Lauf ist idempotent, "
+              "neu starten", flush=True)
+        return 1
+
+    def walk_year(client, year: int) -> int:
+        """Cursor-Walk über einen Jahrgang. 0 = komplett, sonst Exitcode."""
+        nonlocal total
+        cursor = "*"
+        year_n = 0
         while cursor:
-            # Sanfte Drossel (~2 Calls/s): Nach dem grossen Snapshot-Tag hat
-            # OpenAlex uns in einen laengeren 429-Cooldown gesetzt — der
-            # zweite Lauf kam gar nicht erst rein. Lieber langsam und durch.
+            # Sanfte Drossel (~2 Calls/s) — Fair-Use, siehe Doku oben.
             time.sleep(0.5)
-            for attempt, wait in enumerate((10, 30, 60, 120, 240)):
-                r = client.get(API, params={
-                    "filter": FILTER, "select": SELECT, "per-page": 200,
-                    "cursor": cursor, "mailto": "trends@catandary.de"})
-                if r.status_code == 200:
-                    break
-                retry_after = int(r.headers.get("retry-after") or 0)
-                if r.status_code == 429 and retry_after > 300:
-                    # Tageslimit (Retry-After in Stunden) — Retries sind
-                    # sinnlos UND unhoeflich. Sauber raus, aussen neu planen.
-                    print(f"TAGESLIMIT: Retry-After {retry_after}s "
-                          f"(~{retry_after/3600:.1f}h) — Abbruch, idempotent "
-                          "neu starten nach Ablauf", flush=True)
-                    return 2
-                print(f"  HTTP {r.status_code}, warte {wait}s "
-                      f"(Versuch {attempt+1}/5)", flush=True)
-                time.sleep(wait)
-            else:
-                print(f"ABBRUCH: API {r.status_code} — Lauf ist idempotent, "
-                      "neu starten", flush=True)
-                return 1
+            r = get_with_backoff(client, {
+                "filter": f"{FILTER_BASE},publication_year:{year}",
+                "select": SELECT, "per-page": 200,
+                "cursor": cursor, "mailto": MAILTO})
+            if isinstance(r, int):
+                return r
             j = r.json()
             cursor = j["meta"].get("next_cursor")
             for w in j["results"]:
@@ -116,6 +132,7 @@ def main() -> int:
                 if not wid or not title or len(abstract) < 50:
                     continue
                 total += 1
+                year_n += 1
                 topic = w.get("primary_topic")
                 topic = topic.get("display_name") if isinstance(topic, dict) else None
                 rc_buf.append((wid, w.get("doi"), title, abstract,
@@ -148,9 +165,49 @@ def main() -> int:
                     cr_buf.append((wid, recent, ctotal))
             if len(rc_buf) >= 1000:
                 flush()
-            if total and total % 20_000 < 200:
-                print(f"  {total:,} verarbeitet, {inserted:,} neu, "
+            if year_n and year_n % 20_000 < 200:
+                print(f"  {year}: {year_n:,} verarbeitet, "
                       f"{time.time()-t0:.0f}s", flush=True)
+        return 0
+
+    with httpx.Client(timeout=120) as client:
+        # 1 Call: Soll-Zahl je Jahr (group_by liefert alle Jahrgänge sortiert
+        # nach Count; per-page=200 deckt 200 Jahre ab — mehr gibt es nicht).
+        r = get_with_backoff(client, {
+            "filter": f"{FILTER_BASE},publication_year:<2010",
+            "group_by": "publication_year", "per-page": 200, "mailto": MAILTO})
+        if isinstance(r, int):
+            return r
+        groups: dict[int, int] = {}
+        for g in r.json().get("group_by", []):
+            try:
+                groups[int(g["key"])] = int(g["count"])
+            except (TypeError, ValueError):
+                continue
+        cur.execute("SELECT year, COUNT(*) FROM research_corpus "
+                    "WHERE year < 2010 GROUP BY 1")
+        dbc = dict(cur.fetchall())
+        cur.execute("SELECT year FROM openalex_landmark_state WHERE done")
+        done = {row[0] for row in cur.fetchall()}
+        todo = [(y, n) for y, n in sorted(groups.items(), reverse=True)
+                if n > 0 and y not in done and dbc.get(y, 0) < n]
+        missing = sum(n - dbc.get(y, 0) for y, n in todo)
+        print(f"Plan: {len(todo)} unvollständige Jahrgänge, "
+              f"~{missing:,} fehlende Werke "
+              f"({len(done)} Jahre bereits done)", flush=True)
+        for year, api_n in todo:
+            rc = walk_year(client, year)
+            flush()
+            if rc != 0:
+                print(f"  {year} unvollständig — Abbruch mit Code {rc} "
+                      f"(bisher {inserted:,} neu)", flush=True)
+                return rc
+            cur.execute(
+                "INSERT INTO openalex_landmark_state (year, api_count, done) "
+                "VALUES (%s, %s, TRUE) ON CONFLICT (year) DO UPDATE SET "
+                "api_count = EXCLUDED.api_count, done = TRUE", (year, api_n))
+            print(f"  {year} done: Soll {api_n:,}, DB vorher "
+                  f"{dbc.get(year, 0):,}", flush=True)
     flush()
     # Statistik-/Aggregat-Tabellen bleiben dem Monats-Sync überlassen — bis
     # dahin fehlen die Backfill-Werke in Topic-Zahlen, nicht in der Suche.
