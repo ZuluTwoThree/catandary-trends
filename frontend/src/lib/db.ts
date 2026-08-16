@@ -819,6 +819,60 @@ export async function getResearchTopics(): Promise<string[]> {
 }
 
 
+/* ---------- Paper-Detailseite + Live-Features (#83) ---------- */
+
+export interface ResearchWorkDetail extends ResearchWork {
+  authors: string | null;
+  institutions: string | null;
+}
+
+/** Ein Werk per OpenAlex-ID (PK-Lookup) inkl. Autoren-/Institutions-Strings. */
+export async function getResearchWorkById(
+  id: string,
+): Promise<ResearchWorkDetail | null> {
+  const row = await q1<ResearchWorkDetail>(
+    `SELECT ${RC_COLS}, af.authors, af.institutions
+     FROM research_corpus rc ${RC_JOINS}
+     LEFT JOIN research_authors_flat af ON af.work_id = rc.id
+     WHERE rc.id = $1`,
+    [id]);
+  return row ?? null;
+}
+
+export interface CorpusRef {
+  id: string;
+  title: string;
+  year: number | null;
+  cited_by_count: number | null;
+  doi: string | null;
+}
+
+/** OpenAlex-IDs (references/related/citing) gegen den lokalen Korpus
+ *  auflösen — PK-Lookup, Reihenfolge: meistzitiert zuerst. */
+export async function resolveCorpusIds(ids: string[]): Promise<CorpusRef[]> {
+  if (!ids.length) return [];
+  const rows = await q<CorpusRef>(
+    `SELECT id, title, year, cited_by_count, doi FROM research_corpus
+     WHERE id = ANY($1) ORDER BY cited_by_count DESC NULLS LAST`,
+    [ids.slice(0, 2000)]);
+  return rows;
+}
+
+/** Lokales Typeahead (#83): Distinct-Aggregate (36k Funder / 82k
+ *  Institutionen / ~100k Journals) — ILIKE-Scan reicht, keine API. */
+export async function suggestLocal(
+  kind: "journal" | "funder" | "institution", qText: string,
+): Promise<{ v: string; n: number }[]> {
+  const table = kind === "journal" ? "research_journals"
+    : kind === "funder" ? "research_funders" : "research_institutions";
+  const col = kind === "journal" ? "journal"
+    : kind === "funder" ? "funder" : "institution";
+  return q<{ v: string; n: number }>(
+    `SELECT ${col} AS v, n FROM ${table}
+     WHERE ${col} ILIKE $1 ORDER BY n DESC LIMIT 8`,
+    [`%${qText}%`]);
+}
+
 export interface PatentSignal {
   pub_number: string;
   title: string;
