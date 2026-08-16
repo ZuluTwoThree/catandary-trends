@@ -364,13 +364,20 @@ export interface ResearchWork {
   journal: string | null;
   /** Open-Access-Volltext-Link (research_work_oa), null wenn Paywall. */
   oa_url: string | null;
+  /** Autorenliste, "; "-getrennt (research_authors_flat, max 30 Namen). */
+  authors: string | null;
 }
 
 const RC_COLS = `rc.id, rc.doi, rc.title, rc.abstract,
        rc.published::text as published, rc.year, rc.type, rc.topic,
-       rc.cited_by_count, rc.fwci, rc.is_retracted, wj.journal, oa.oa_url`;
+       rc.cited_by_count, rc.fwci, rc.is_retracted, wj.journal, oa.oa_url,
+       af.authors`;
+// Alle drei Joins sind PK-Lookups auf work_id und laufen erst NACH der
+// Begrenzung auf die Seitenzeilen (Self-Join-Muster) — Messung 2026-08-16:
+// kein Laufzeitunterschied gegenüber dem Stand ohne Autoren-Join.
 const RC_JOINS = `LEFT JOIN research_work_journal wj ON wj.work_id = rc.id
-     LEFT JOIN research_work_oa oa ON oa.work_id = rc.id`;
+     LEFT JOIN research_work_oa oa ON oa.work_id = rc.id
+     LEFT JOIN research_authors_flat af ON af.work_id = rc.id`;
 const RC_CLAMP = 10000;
 
 
@@ -822,18 +829,16 @@ export async function getResearchTopics(): Promise<string[]> {
 /* ---------- Paper-Detailseite + Live-Features (#83) ---------- */
 
 export interface ResearchWorkDetail extends ResearchWork {
-  authors: string | null;
   institutions: string | null;
 }
 
-/** Ein Werk per OpenAlex-ID (PK-Lookup) inkl. Autoren-/Institutions-Strings. */
+/** Ein Werk per OpenAlex-ID (PK-Lookup) inkl. Institutions-String. */
 export async function getResearchWorkById(
   id: string,
 ): Promise<ResearchWorkDetail | null> {
   const row = await q1<ResearchWorkDetail>(
-    `SELECT ${RC_COLS}, af.authors, af.institutions
+    `SELECT ${RC_COLS}, af.institutions
      FROM research_corpus rc ${RC_JOINS}
-     LEFT JOIN research_authors_flat af ON af.work_id = rc.id
      WHERE rc.id = $1`,
     [id]);
   return row ?? null;

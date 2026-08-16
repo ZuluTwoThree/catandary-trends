@@ -7,6 +7,7 @@ import {
 } from "@/lib/db";
 import { MEGA_TRENDS } from "@/lib/mega-trends.generated";
 import { parseResearchQuery } from "@/lib/research-search";
+import { splitAuthors } from "@/lib/research-authors";
 import TierGate from "@/components/TierGate";
 import ResearchTypeahead from "@/components/ResearchTypeahead";
 import { canAccess } from "@/lib/entitlement";
@@ -793,6 +794,22 @@ export default async function ResearchExplorerPage({
                       {r.title}
                     </Link>
                   </h2>
+                  {(() => {
+                    const { shown, more } = splitAuthors(r.authors);
+                    if (!shown.length) return null;
+                    return (
+                      <div className="font-sans text-[12px] text-muted mb-1.5 max-w-3xl">
+                        {shown.map((a, i) => (
+                          <span key={a + i}>
+                            {i > 0 && ", "}
+                            <Link href={`/trends/foresight/research?q=${encodeURIComponent(`author:"${a}"`)}`}
+                                  className="hover:text-accent">{a}</Link>
+                          </span>
+                        ))}
+                        {more > 0 && <span className="text-muted/70"> +{more} more</span>}
+                      </div>
+                    );
+                  })()}
                   <p className="font-sans text-sm text-text leading-relaxed line-clamp-3 max-w-3xl">
                     {r.abstract}
                   </p>
