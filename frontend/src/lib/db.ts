@@ -362,12 +362,24 @@ export interface ResearchWork {
   fwci: number | null;
   is_retracted: boolean | null;
   journal: string | null;
+  /** Open-Access-Volltext-Link (research_work_oa), null wenn Paywall. */
+  oa_url: string | null;
+  /** Autorenliste, "; "-getrennt (research_authors_flat, max 30 Namen). */
+  authors: string | null;
+  /** Zitationen seit 2025 — nur in der Rising-Liste gesetzt (flag='rising'). */
+  cites_recent?: number | null;
 }
 
 const RC_COLS = `rc.id, rc.doi, rc.title, rc.abstract,
        rc.published::text as published, rc.year, rc.type, rc.topic,
-       rc.cited_by_count, rc.fwci, rc.is_retracted, wj.journal`;
-const RC_JOINS = `LEFT JOIN research_work_journal wj ON wj.work_id = rc.id`;
+       rc.cited_by_count, rc.fwci, rc.is_retracted, wj.journal, oa.oa_url,
+       af.authors`;
+// Alle drei Joins sind PK-Lookups auf work_id und laufen erst NACH der
+// Begrenzung auf die Seitenzeilen (Self-Join-Muster) — Messung 2026-08-16:
+// kein Laufzeitunterschied gegenüber dem Stand ohne Autoren-Join.
+const RC_JOINS = `LEFT JOIN research_work_journal wj ON wj.work_id = rc.id
+     LEFT JOIN research_work_oa oa ON oa.work_id = rc.id
+     LEFT JOIN research_authors_flat af ON af.work_id = rc.id`;
 const RC_CLAMP = 10000;
 
 
@@ -424,8 +436,12 @@ export async function getResearchCorpus(options: {
   /** Zurückgezogene Werke ausblenden. */
   noRetracted?: boolean;
   /** Klick-Filter aus Panel-Kacheln/Badges (#80): landmark = fwci >= 25,
-   *  review = type='review'. Partielle Indizes tragen den Browse-Pfad. */
-  flag?: "landmark" | "review";
+   *  review = type='review'. Partielle Indizes tragen den Browse-Pfad.
+   *  rising (#83) ist kein reiner Filter, sondern die Panel-Definition als
+   *  eigene Liste: Werke ab 2023 mit Zitationen seit 2025, nach diesen
+   *  sortiert — identisch zur „Rising papers"-Kachel, damit Teaser und
+   *  Klickziel dieselbe Menge zeigen. */
+  flag?: "landmark" | "review" | "rising";
   yearFrom?: number;
   yearTo?: number;
   limit?: number;
@@ -478,6 +494,13 @@ export async function getResearchCorpus(options: {
     where.push(`fwci >= 25 AND cited_by_count >= 100`);
   } else if (options.flag === "review") {
     where.push(`type = 'review'`);
+  } else if (options.flag === "rising") {
+    // Identisch zur Aggregat-Klausel: Jahres-Schnitt UND „hat frische
+    // Zitationen". Beide Seiten müssen dieselbe Menge kappen, sonst zählt
+    // das Panel 10.000 und die Liste 3.961 (Befund 2026-08-17). Kostet
+    // gemessen 0,1 s auf 10k Zeilen. Sortiert wird unten im eigenen Zweig.
+    where.push(`year >= 2023 AND EXISTS (SELECT 1 FROM research_citation_recent cr
+      WHERE cr.work_id = research_corpus.id AND cr.cites_recent > 0)`);
   }
   const op = await researchOperatorHits(options);
   if (op) {
@@ -496,6 +519,33 @@ export async function getResearchCorpus(options: {
     return { rows, total: Math.min(stats.total, RC_CLAMP), clamped: true };
   }
   const w = where.join(" AND ");
+  // Rising-Liste (#83): eigener Zweig VOR dem Estimate-Gate — die Sortierung
+  // nach Zitations-Zuwachs darf nie in den Datums-Walk kippen, sonst zeigte
+  // der Klick auf die „Rising papers"-Kachel etwas anderes als die Kachel.
+  // Wie das Panel über die (bis zu 10k) Treffer gerechnet, also derselbe
+  // Ausschnitt und damit konsistent zum Teaser.
+  if (options.flag === "rising") {
+    params.push(limit, offset);
+    const rows = await q<ResearchWork & { full_cnt: number }>(
+      `WITH m AS MATERIALIZED (
+         SELECT id FROM research_corpus WHERE ${w} LIMIT ${RC_CLAMP + 1}),
+       r AS MATERIALIZED (
+         SELECT m.id, cr.cites_recent FROM m
+         JOIN research_citation_recent cr ON cr.work_id = m.id
+         WHERE cr.cites_recent > 0)
+       SELECT ${RC_COLS}, hit.rk AS cites_recent, hit.full_cnt FROM (
+         SELECT r.id AS hit_id, r.cites_recent AS rk,
+                (SELECT COUNT(*)::int FROM r) AS full_cnt
+         FROM r ORDER BY r.cites_recent DESC
+         LIMIT $${params.length - 1} OFFSET $${params.length}) hit
+       JOIN research_corpus rc ON rc.id = hit.hit_id
+       ${RC_JOINS}
+       ORDER BY hit.rk DESC`, params);
+    if (rows.length === 0) return { rows: [], total: 0, clamped: false };
+    const total = rows[0].full_cnt;
+    return { rows, total: Math.min(total, RC_CLAMP),
+             clamped: total > RC_CLAMP || (op?.opClamped ?? false) };
+  }
   // Zwei-Pfad-Logik wie patent_search (#78), mit einer Verschärfung für den
   // 45M-Korpus: Bei häufigen Begriffen ("battery") muss der GIN-Index erst
   // Millionen Fundstellen sammeln, bevor ein LIMIT greift — der Count-Clamp
@@ -612,7 +662,7 @@ export async function getResearchAggregates(options: {
   funder?: string;
   country?: string;
   noRetracted?: boolean;
-  flag?: "landmark" | "review";
+  flag?: "landmark" | "review" | "rising";
   yearFrom?: number;
   yearTo?: number;
 } = {}): Promise<ResearchAggregates | null> {
@@ -645,6 +695,13 @@ export async function getResearchAggregates(options: {
     where.push(`fwci >= 25 AND cited_by_count >= 100`);
   } else if (options.flag === "review") {
     where.push(`type = 'review'`);
+  } else if (options.flag === "rising") {
+    // Das Panel muss GENAU die Liste beschreiben: derselbe Jahres-Schnitt
+    // UND dieselbe Bedingung „hat frische Zitationen" wie der Join im
+    // Listen-Zweig — sonst zeigte die Statistik ein anderes Set als die
+    // Treffer darunter (Befund 2026-08-17: median citations 0).
+    where.push(`year >= 2023 AND EXISTS (SELECT 1 FROM research_citation_recent cr
+      WHERE cr.work_id = research_corpus.id AND cr.cites_recent > 0)`);
   }
   const op = await researchOperatorHits(options);
   if (op) {
@@ -698,7 +755,7 @@ export async function getResearchAggregates(options: {
           SELECT h.id, h.doi, h.title, h.year, h.cited_by_count FROM hits h
           JOIN research_citation_recent cr ON cr.work_id = h.id
           WHERE h.year >= 2023
-          ORDER BY cr.cites_recent DESC LIMIT 3) t) AS rising,
+          ORDER BY cr.cites_recent DESC LIMIT 5) t) AS rising,
        (SELECT json_agg(t) FROM (
           SELECT wi.institution, COUNT(*)::int AS n FROM hits h
           JOIN research_work_inst wi ON wi.work_id = h.id
@@ -815,6 +872,58 @@ export async function getResearchTopics(): Promise<string[]> {
   });
 }
 
+
+/* ---------- Paper-Detailseite + Live-Features (#83) ---------- */
+
+export interface ResearchWorkDetail extends ResearchWork {
+  institutions: string | null;
+}
+
+/** Ein Werk per OpenAlex-ID (PK-Lookup) inkl. Institutions-String. */
+export async function getResearchWorkById(
+  id: string,
+): Promise<ResearchWorkDetail | null> {
+  const row = await q1<ResearchWorkDetail>(
+    `SELECT ${RC_COLS}, af.institutions
+     FROM research_corpus rc ${RC_JOINS}
+     WHERE rc.id = $1`,
+    [id]);
+  return row ?? null;
+}
+
+export interface CorpusRef {
+  id: string;
+  title: string;
+  year: number | null;
+  cited_by_count: number | null;
+  doi: string | null;
+}
+
+/** OpenAlex-IDs (references/related/citing) gegen den lokalen Korpus
+ *  auflösen — PK-Lookup, Reihenfolge: meistzitiert zuerst. */
+export async function resolveCorpusIds(ids: string[]): Promise<CorpusRef[]> {
+  if (!ids.length) return [];
+  const rows = await q<CorpusRef>(
+    `SELECT id, title, year, cited_by_count, doi FROM research_corpus
+     WHERE id = ANY($1) ORDER BY cited_by_count DESC NULLS LAST`,
+    [ids.slice(0, 2000)]);
+  return rows;
+}
+
+/** Lokales Typeahead (#83): Distinct-Aggregate (36k Funder / 82k
+ *  Institutionen / ~100k Journals) — ILIKE-Scan reicht, keine API. */
+export async function suggestLocal(
+  kind: "journal" | "funder" | "institution", qText: string,
+): Promise<{ v: string; n: number }[]> {
+  const table = kind === "journal" ? "research_journals"
+    : kind === "funder" ? "research_funders" : "research_institutions";
+  const col = kind === "journal" ? "journal"
+    : kind === "funder" ? "funder" : "institution";
+  return q<{ v: string; n: number }>(
+    `SELECT ${col} AS v, n FROM ${table}
+     WHERE ${col} ILIKE $1 ORDER BY n DESC LIMIT 8`,
+    [`%${qText}%`]);
+}
 
 export interface PatentSignal {
   pub_number: string;

@@ -23,8 +23,8 @@ export async function GET(req: NextRequest) {
   const parsed = parseResearchQuery((sp.get("q") ?? "").trim());
   const topic = (sp.get("topic") ?? "").trim();
   const flagRaw = (sp.get("flag") ?? "").trim();
-  const flag = flagRaw === "landmark" || flagRaw === "review"
-    ? (flagRaw as "landmark" | "review") : undefined;
+  const flag = flagRaw === "landmark" || flagRaw === "review" || flagRaw === "rising"
+    ? (flagRaw as "landmark" | "review" | "rising") : undefined;
   const hasFilter = parsed.text || parsed.doi || parsed.arxiv || topic
     || parsed.author || parsed.institution || parsed.journal
     || parsed.funder || parsed.country || flag
@@ -48,14 +48,14 @@ export async function GET(req: NextRequest) {
     limit: 1000,
     offset: 0,
   });
-  const header = ["title", "year", "type", "topic", "journal",
+  const header = ["title", "authors", "year", "type", "topic", "journal",
     "cited_by_count", "fwci", "is_retracted", "doi", "openalex_id"];
   const lines = [header.join(",")];
   for (const r of rows) {
     lines.push([
-      csvField(r.title), r.year ?? "", r.type ?? "", csvField(r.topic),
-      csvField(r.journal), r.cited_by_count ?? "", r.fwci ?? "",
-      r.is_retracted ? "true" : "false", csvField(r.doi),
+      csvField(r.title), csvField(r.authors), r.year ?? "", r.type ?? "",
+      csvField(r.topic), csvField(r.journal), r.cited_by_count ?? "",
+      r.fwci ?? "", r.is_retracted ? "true" : "false", csvField(r.doi),
       `https://openalex.org/${r.id}`,
     ].join(","));
   }

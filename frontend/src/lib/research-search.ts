@@ -27,6 +27,46 @@ export interface ParsedResearchQuery {
   chips: ResearchChip[];
 }
 
+/* ---------- Typeahead (#83) ---------- */
+
+export interface TypeaheadContext {
+  kind: "author" | "institution" | "journal" | "funder";
+  /** Index des Operator-Beginns im Text (für den Ersatz beim Auswählen). */
+  opStart: number;
+  /** Das getippte Operator-Wort (Original-Schreibweise, ohne ":"). */
+  opWord: string;
+  /** Bereits getippter (Teil-)Wert hinter dem Operator. */
+  value: string;
+}
+
+const TYPEAHEAD_RE =
+  /(author|autor|institution|inst|journal|source|funder|förderer|foerderer):\s*"?([^":]*)$/i;
+const TYPEAHEAD_KIND: Record<string, TypeaheadContext["kind"]> = {
+  author: "author", autor: "author",
+  institution: "institution", inst: "institution",
+  journal: "journal", source: "journal",
+  funder: "funder", förderer: "funder", foerderer: "funder",
+};
+
+/** Erkennt, ob der Nutzer gerade einen Operator-Wert tippt (Textende).
+ *  Case-insensitiv ist hier richtig — anders als beim Parsen fertiger
+ *  Queries geht es nur um den Operator-Präfix, nie um Namens-Heuristik. */
+export function typeaheadContext(text: string): TypeaheadContext | null {
+  const m = text.match(TYPEAHEAD_RE);
+  if (!m || m.index === undefined) return null;
+  const kind = TYPEAHEAD_KIND[m[1].toLowerCase()];
+  if (!kind) return null;
+  return { kind, opStart: m.index, opWord: m[1], value: m[2].trim() };
+}
+
+/** Baut den Text nach Auswahl eines Vorschlags: Operator-Wert wird durch
+ *  den gequoteten Vorschlag ersetzt, Rest bleibt stehen. */
+export function applyTypeahead(
+  text: string, ctx: TypeaheadContext, chosen: string,
+): string {
+  return `${text.slice(0, ctx.opStart)}${ctx.opWord}:"${chosen}" `;
+}
+
 const YEAR_MIN = 2010;
 const YEAR_MAX = 2026;
 

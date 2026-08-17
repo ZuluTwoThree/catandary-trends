@@ -7,8 +7,14 @@ import {
 } from "@/lib/db";
 import { MEGA_TRENDS } from "@/lib/mega-trends.generated";
 import { parseResearchQuery } from "@/lib/research-search";
+import AuthorLine from "@/components/AuthorLine";
 import TierGate from "@/components/TierGate";
+import ResearchTypeahead from "@/components/ResearchTypeahead";
 import { canAccess } from "@/lib/entitlement";
+import {
+  liveAccess, consumeLive, liveLatest, liveSpotlight,
+  LIVE_DAILY_LIMIT, type LiveHit, type Spotlight,
+} from "@/lib/openalex-live";
 
 export const dynamic = "force-dynamic";
 
@@ -46,18 +52,32 @@ function fmtDate(iso: string | null): string {
 
 const fmtInt = (n: number) => n.toLocaleString("en-US");
 
+/** ISO-3166-Code → Klarname (Intl, keine Abhängigkeit). Einmal auf
+ *  Modulebene gebaut — der Konstruktor ist teuer. `of()` gibt bei
+ *  unbekannten Codes den Code zurück; das behandeln wir als „kein Name". */
+const REGION_NAMES = new Intl.DisplayNames(["en"], { type: "region" });
+function countryName(code: string): string | null {
+  const up = code.toUpperCase();
+  try {
+    const name = REGION_NAMES.of(up);
+    return name && name !== up ? name : null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function ResearchExplorerPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; theme?: string; topic?: string; flag?: string; nr?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; theme?: string; topic?: string; flag?: string; nr?: string; page?: string; live?: string }>;
 }) {
   const sp = await searchParams;
   const qText = (sp.q ?? "").trim();
   const theme = (sp.theme ?? "").trim();
   const topic = (sp.topic ?? "").trim();
   const flagRaw = (sp.flag ?? "").trim();
-  const flag = flagRaw === "landmark" || flagRaw === "review"
-    ? (flagRaw as "landmark" | "review") : undefined;
+  const flag = flagRaw === "landmark" || flagRaw === "review" || flagRaw === "rising"
+    ? (flagRaw as "landmark" | "review" | "rising") : undefined;
   const noRetracted = sp.nr === "1";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
@@ -116,6 +136,42 @@ export default async function ResearchExplorerPage({
       mega: theme || undefined, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
     });
   }
+  // ---- Live-API-Features (#83, Owner-Regel 2026-08-16): Super Pro,
+  // max. 25 Live-Abfragen/Tag, Dev/Admins unbegrenzt. Explizit per
+  // ?live=1 ausgelöst (nie automatisch beim Blättern), Cache-Treffer
+  // sind budgetfrei. Spotlight bei author:/institution:-Suchen,
+  // sonst „Latest (live)" bei Topic-/Text-Suchen.
+  const liveRequested = sp.live === "1";
+  const spotlightTarget: ["author" | "institution", string] | null =
+    parsed.author ? ["author", parsed.author]
+    : parsed.institution ? ["institution", parsed.institution] : null;
+  const latestPossible = !spotlightTarget && !!(topic || parsed.text);
+  const liveEligible = corpusMode && (spotlightTarget !== null || latestPossible);
+  const superpro = allowed && (await canAccess("superpro"));
+  let spotlight: Spotlight | null = null;
+  let latest: LiveHit[] | null = null;
+  let liveInfo: { used: number; unlimited: boolean; exhausted: boolean } | null = null;
+  if (liveRequested && liveEligible && superpro) {
+    const access = await liveAccess();
+    if (access.unlimited || access.remaining > 0) {
+      if (spotlightTarget) {
+        const r = await liveSpotlight(spotlightTarget[0], spotlightTarget[1]);
+        spotlight = r.data;
+        if (r.fresh) await consumeLive(access);
+        liveInfo = { used: access.used + (r.fresh && !access.unlimited ? 1 : 0),
+                     unlimited: access.unlimited, exhausted: false };
+      } else if (latestPossible) {
+        const r = await liveLatest({ topic: topic || undefined, text: parsed.text || undefined });
+        latest = r.data;
+        if (r.fresh) await consumeLive(access);
+        liveInfo = { used: access.used + (r.fresh && !access.unlimited ? 1 : 0),
+                     unlimited: access.unlimited, exhausted: false };
+      }
+    } else {
+      liveInfo = { used: access.used, unlimited: false, exhausted: true };
+    }
+  }
+
   const topicTrends = agg
     ? await getTopicTrends(agg.topics.map((t) => t.topic))
     : new Map<string, number>();
@@ -140,7 +196,7 @@ export default async function ResearchExplorerPage({
     return `/trends/foresight/research${s ? `?${s}` : ""}`;
   };
 
-  const withFlag = (f: "landmark" | "review" | null) => {
+  const withFlag = (f: "landmark" | "review" | "rising" | null) => {
     const u = new URLSearchParams();
     if (qText) u.set("q", qText);
     if (topic) u.set("topic", topic);
@@ -154,7 +210,7 @@ export default async function ResearchExplorerPage({
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-8">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-4">
-          —— What your peers publish
+          —— Where ideas surface first
         </div>
         <h1 className="font-display text-4xl md:text-[44px] leading-[1.05] tracking-tight text-paper mb-4">
           Research <span className="italic">Explorer</span>
@@ -200,13 +256,13 @@ export default async function ResearchExplorerPage({
         action="/trends/foresight/research"
         className="mb-2 flex flex-col sm:flex-row gap-3 flex-wrap"
       >
-        <input
-          type="search"
+        <ResearchTypeahead
           name="q"
           defaultValue={qText}
           placeholder="Topic, DOI or arXiv ID — e.g. processed cheese 2020-2024"
-          className="flex-1 min-w-[220px] bg-card border border-border-strong px-4 py-2.5 font-sans text-sm text-paper placeholder:text-muted focus:outline-none focus:border-accent"
-          aria-label="Search research papers"
+          className="bg-card border border-border-strong px-4 py-2.5 font-sans text-sm text-paper placeholder:text-muted focus:outline-none focus:border-accent"
+          ariaLabel="Search research papers"
+          authorEnabled={superpro}
         />
         <input
           type="text"
@@ -272,7 +328,8 @@ export default async function ResearchExplorerPage({
             <Link href={withFlag(null)}
                   className="bg-accent/15 border border-accent/50 text-accent px-2 py-0.5 hover:bg-accent/25"
                   title="Remove this filter">
-              {flag === "landmark" ? "Landmark works" : "Review articles"} ×
+              {flag === "landmark" ? "Landmark works"
+                : flag === "rising" ? "Rising papers" : "Review articles"} ×
             </Link>
           )}
         </div>
@@ -427,21 +484,27 @@ export default async function ResearchExplorerPage({
             <div className="grid grid-cols-1 md:grid-cols-2 border-t border-border divide-y divide-border">
             {agg.rising.length > 0 && (
               <div className="p-4">
-                <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent mb-2"
-                    title="Works from the last three years with the most citations gathered in 2025–2026 — measured from OpenAlex citation curves">
-                  Rising papers
+                <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] mb-2">
+                  <Link href={withFlag(flag === "rising" ? null : "rising")}
+                        className="text-accent hover:underline"
+                        title="Works from the last three years with the most citations gathered in 2025–2026 — measured from OpenAlex citation curves. Click for the full list.">
+                    Rising papers →
+                  </Link>
                 </h3>
-                <ol className="space-y-1">
+                {/* Volle Titel statt truncate (Owner 2026-08-17): Paper-Titel
+                    sind lang, die Kürzung machte sie unlesbar. Meta wandert
+                    in eine eigene Zeile, damit der Umbruch sauber bricht. */}
+                <ol className="space-y-2.5">
                   {agg.rising.map((r) => (
-                    <li key={r.id} className="font-sans text-[13px] text-text truncate">
+                    <li key={r.id} className="font-sans text-[13px] leading-snug">
                       <a href={r.doi ?? `https://openalex.org/${r.id}`}
                          target="_blank" rel="noopener noreferrer"
-                         className="text-paper hover:text-accent" title={r.title}>
+                         className="text-paper hover:text-accent">
                         {r.title}
                       </a>
-                      <span className="font-mono text-[10px] text-muted">
-                        {" "}· {r.year} · {fmtInt(r.cited_by_count)} citations
-                      </span>
+                      <div className="font-mono text-[10px] text-muted mt-0.5">
+                        {r.year} · {fmtInt(r.cited_by_count)} citations
+                      </div>
                     </li>
                   ))}
                 </ol>
@@ -483,19 +546,25 @@ export default async function ResearchExplorerPage({
                     Where it&apos;s researched
                   </h3>
                   <ol className="space-y-1">
-                    {agg.countries.map((c) => (
+                    {agg.countries.map((c) => {
+                      const name = countryName(c.country);
+                      return (
                       <li key={c.country} className="relative">
                         <div className="absolute inset-y-0 left-0 bg-accent/10"
                              style={{ width: `${(c.n / maxC) * 100}%` }} />
                         <div className="relative flex items-baseline gap-2 px-1.5 py-0.5">
                           <Link href={`/trends/foresight/research?q=${encodeURIComponent(`country:${c.country}${parsed.text ? ` ${parsed.text}` : ""}`)}${topic ? `&topic=${encodeURIComponent(topic)}` : ""}`}
-                                className="font-mono text-[12px] text-paper hover:text-accent">
-                            {c.country}
+                                className="flex items-baseline gap-2 min-w-0 text-paper hover:text-accent">
+                            <span className="font-mono text-[12px] shrink-0">{c.country}</span>
+                            {name && (
+                              <span className="font-sans text-[11px] text-muted truncate">{name}</span>
+                            )}
                           </Link>
                           <span className="font-mono text-[10px] text-muted ml-auto shrink-0">{fmtInt(c.n)}</span>
                         </div>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ol>
                 </div>
               );
@@ -560,7 +629,8 @@ export default async function ResearchExplorerPage({
         {totalLabel} {corpusMode ? "papers" : "signals"}
         {parsed.text && <> for <span className="text-paper">&ldquo;{parsed.text}&rdquo;</span></>}
         {topic && <> in <span className="text-paper">{topic}</span></>}
-        {flag && <> · <span className="text-accent">{flag === "landmark" ? "landmark works only" : "review articles only"}</span></>}
+        {flag && <> · <span className="text-accent">{flag === "landmark" ? "landmark works only"
+          : flag === "rising" ? "rising papers, most recent citations first" : "review articles only"}</span></>}
         {!corpusMode && theme && (
           <> in <span className="text-paper">
             {MEGA_TRENDS.find((m) => m.key === theme)?.name_en ?? theme}
@@ -589,7 +659,108 @@ export default async function ResearchExplorerPage({
             </a>
           </>
         )}
+        {liveEligible && superpro && !liveRequested && (
+          <>
+            {" · "}
+            <Link href={(() => { const b = qs(page); return b.includes("?") ? `${b}&live=1` : `${b}?live=1`; })()}
+                  className="text-accent hover:underline normal-case tracking-normal"
+                  title={spotlightTarget
+                    ? "Fetch a live profile for this name from OpenAlex (1 of 25 daily live lookups)"
+                    : "Fetch the newest papers live from OpenAlex — fresher than the snapshot (1 of 25 daily live lookups)"}>
+              {spotlightTarget ? "live profile →" : "latest live →"}
+            </Link>
+          </>
+        )}
       </div>
+
+      {liveInfo?.exhausted && (
+        <p className="mb-6 font-sans text-[13px] text-muted border border-dashed border-border p-4">
+          Daily live budget used ({LIVE_DAILY_LIMIT}/{LIVE_DAILY_LIMIT}) — live features
+          reset at midnight. Snapshot results below are unaffected.
+        </p>
+      )}
+
+      {spotlight && (
+        <section className="mb-8 border border-border-strong bg-card p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+              —— Live profile
+            </h2>
+            {liveInfo && !liveInfo.unlimited && (
+              <span className="font-mono text-[10px] text-muted">
+                live lookups today: {liveInfo.used}/{LIVE_DAILY_LIMIT}
+              </span>
+            )}
+          </div>
+          <div className="font-display text-2xl text-paper leading-tight">
+            {spotlight.name}
+            {spotlight.country && (
+              <span className="font-mono text-[11px] text-muted ml-3 align-middle">{spotlight.country}</span>
+            )}
+          </div>
+          {spotlight.hint && (
+            <div className="font-sans text-[13px] text-muted mt-1">{spotlight.hint}</div>
+          )}
+          <div className="flex flex-wrap gap-x-8 gap-y-2 mt-4 font-mono text-[11px] uppercase tracking-[0.1em] text-muted">
+            {spotlight.works_count !== null && (
+              <span><span className="text-paper text-sm">{fmtInt(spotlight.works_count)}</span> works</span>
+            )}
+            {spotlight.cited_by_count !== null && (
+              <span><span className="text-paper text-sm">{fmtInt(spotlight.cited_by_count)}</span> citations</span>
+            )}
+            {spotlight.h_index !== null && (
+              <span title="h-index">h <span className="text-paper text-sm">{spotlight.h_index}</span></span>
+            )}
+            {spotlight.i10_index !== null && (
+              <span title="Papers with at least 10 citations">i10 <span className="text-paper text-sm">{fmtInt(spotlight.i10_index)}</span></span>
+            )}
+            {spotlight.orcid && (
+              <a href={spotlight.orcid} target="_blank" rel="noopener noreferrer"
+                 className="text-accent/70 hover:text-accent">ORCID →</a>
+            )}
+            {spotlight.homepage && (
+              <a href={spotlight.homepage} target="_blank" rel="noopener noreferrer"
+                 className="text-accent/70 hover:text-accent">Homepage →</a>
+            )}
+          </div>
+        </section>
+      )}
+
+      {latest && latest.length > 0 && (
+        <section className="mb-8 border border-border-strong bg-card p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+            <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+              —— Latest (live) · last 60 days
+            </h2>
+            {liveInfo && !liveInfo.unlimited && (
+              <span className="font-mono text-[10px] text-muted">
+                live lookups today: {liveInfo.used}/{LIVE_DAILY_LIMIT}
+              </span>
+            )}
+          </div>
+          <p className="font-sans text-[12px] text-muted mb-3">
+            Fresh from the live index — newer than our snapshot, not yet
+            citation-filtered.
+          </p>
+          <ul>
+            {latest.map((h) => (
+              <li key={h.id} className="py-2 border-b border-border last:border-b-0">
+                <a href={h.doi ?? `https://openalex.org/${h.id}`} target="_blank"
+                   rel="noopener noreferrer"
+                   className="font-sans text-[13px] text-paper hover:text-accent leading-snug">
+                  {h.title}
+                </a>
+                <div className="font-mono text-[10px] text-muted mt-0.5">
+                  {h.published ?? h.year ?? "—"}
+                  {h.cited_by_count !== null && h.cited_by_count > 0 && (
+                    <> · {fmtInt(h.cited_by_count)} citations</>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {corpusMode ? (
         corpus.rows.length === 0 ? (
@@ -637,6 +808,11 @@ export default async function ResearchExplorerPage({
                       </span>
                     )}
                     <span className="ml-auto">
+                      {flag === "rising" && r.cites_recent != null && (
+                        <span className="text-accent" title="Citations gathered in 2025–2026 — the ranking criterion">
+                          +{fmtInt(r.cites_recent)} since 2025 ·{" "}
+                        </span>
+                      )}
                       {fmtInt(r.cited_by_count ?? 0)} citations
                       {r.fwci !== null && r.fwci !== undefined && (
                         <span title="Field-weighted citation impact — 1.0 = average for the field">
@@ -646,19 +822,27 @@ export default async function ResearchExplorerPage({
                     </span>
                   </div>
                   <h2 className="font-display text-[19px] leading-snug text-paper mb-1.5">
-                    <a href={href} target="_blank" rel="noopener noreferrer"
-                       className="hover:text-accent transition-colors">
+                    <Link href={`/trends/foresight/research/paper/${r.id}`}
+                          className="hover:text-accent transition-colors">
                       {r.title}
-                    </a>
+                    </Link>
                   </h2>
+                  <AuthorLine authors={r.authors} className="mb-1.5 max-w-3xl" />
                   <p className="font-sans text-sm text-text leading-relaxed line-clamp-3 max-w-3xl">
                     {r.abstract}
                   </p>
-                  <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em]">
+                  <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] flex gap-4">
                     <a href={href} target="_blank" rel="noopener noreferrer"
                        className="text-accent/70 hover:text-accent">
                       {r.doi ? "DOI →" : "OpenAlex →"}
                     </a>
+                    {r.oa_url && (
+                      <a href={r.oa_url} target="_blank" rel="noopener noreferrer"
+                         className="text-accent/70 hover:text-accent"
+                         title="Free full text (open access)">
+                        Full text →
+                      </a>
+                    )}
                   </div>
                 </article>
               );

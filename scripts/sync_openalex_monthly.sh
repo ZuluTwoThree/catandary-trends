@@ -71,6 +71,19 @@ CREATE TABLE research_topic_years_new AS
 cur.execute("ALTER TABLE research_topic_years_new ADD PRIMARY KEY (topic, year)")
 cur.execute("DROP TABLE IF EXISTS research_topic_years")
 cur.execute("ALTER TABLE research_topic_years_new RENAME TO research_topic_years")
+for src, dst, cols in [
+    ("research_topic_funders", "research_funders",
+     "funder, SUM(n)::int AS n"),
+    ("research_topic_institutions", "research_institutions",
+     "institution, MAX(country) AS country, SUM(n)::int AS n"),
+]:
+    # Typeahead-Aggregate (#83) — klein, aus den Topic-Aggregaten abgeleitet
+    key = cols.split(",")[0].strip()
+    cur.execute(f"DROP TABLE IF EXISTS {dst}_new")
+    cur.execute(f"CREATE TABLE {dst}_new AS SELECT {cols} FROM {src} GROUP BY {key}")
+    cur.execute(f"ALTER TABLE {dst}_new ADD PRIMARY KEY ({key})")
+    cur.execute(f"DROP TABLE IF EXISTS {dst}")
+    cur.execute(f"ALTER TABLE {dst}_new RENAME TO {dst}")
 cur.execute("SELECT COUNT(*) FROM research_corpus")
 n = cur.fetchone()[0]
 cur.execute("""INSERT INTO research_corpus_meta (singleton, total) VALUES (TRUE, %s)

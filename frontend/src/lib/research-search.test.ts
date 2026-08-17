@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseResearchQuery } from "./research-search";
+import { parseResearchQuery, typeaheadContext, applyTypeahead } from "./research-search";
 
 describe("parseResearchQuery — DOI", () => {
   it("erkennt nackte DOIs und doi.org-URLs, normalisiert auf Kleinschreibung", () => {
@@ -108,5 +108,26 @@ describe("parseResearchQuery — Namens-Heuristik ohne Anführungszeichen", () =
   it("Operator in Großschreibung", () => {
     expect(parseResearchQuery("AUTHOR:Emmanuelle Charpentier").author)
       .toBe("Emmanuelle Charpentier");
+  });
+});
+
+describe("typeaheadContext — Operator-Erkennung am Textende (#83)", () => {
+  it("erkennt author: mit Teilwert und mappt Aliasse", () => {
+    expect(typeaheadContext("crispr author:Doud")).toMatchObject({ kind: "author", value: "Doud" });
+    expect(typeaheadContext("inst:Max Pl")).toMatchObject({ kind: "institution", value: "Max Pl" });
+    expect(typeaheadContext("source:Nat")).toMatchObject({ kind: "journal", value: "Nat" });
+    expect(typeaheadContext("FUNDER:nsf")).toMatchObject({ kind: "funder", value: "nsf" });
+  });
+  it("ignoriert Text ohne Operator und abgeschlossene Quotes", () => {
+    expect(typeaheadContext("processed cheese")).toBeNull();
+    expect(typeaheadContext('author:"Jennifer Doudna" crispr')).toBeNull();
+  });
+  it("toleriert offene Quotes beim Tippen", () => {
+    expect(typeaheadContext('author:"Jenni')).toMatchObject({ kind: "author", value: "Jenni" });
+  });
+  it("applyTypeahead ersetzt den Wert gequotet und erhaelt den Resttext", () => {
+    const t = "crispr author:Doud";
+    const ctx = typeaheadContext(t)!;
+    expect(applyTypeahead(t, ctx, "Jennifer Doudna")).toBe('crispr author:"Jennifer Doudna" ');
   });
 });
