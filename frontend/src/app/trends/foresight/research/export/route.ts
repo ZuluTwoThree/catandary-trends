@@ -23,8 +23,8 @@ export async function GET(req: NextRequest) {
   const parsed = parseResearchQuery((sp.get("q") ?? "").trim());
   const topic = (sp.get("topic") ?? "").trim();
   const flagRaw = (sp.get("flag") ?? "").trim();
-  const flag = flagRaw === "landmark" || flagRaw === "review"
-    ? (flagRaw as "landmark" | "review") : undefined;
+  const flag = flagRaw === "landmark" || flagRaw === "review" || flagRaw === "rising"
+    ? (flagRaw as "landmark" | "review" | "rising") : undefined;
   const hasFilter = parsed.text || parsed.doi || parsed.arxiv || topic
     || parsed.author || parsed.institution || parsed.journal
     || parsed.funder || parsed.country || flag

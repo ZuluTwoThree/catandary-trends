@@ -62,8 +62,8 @@ export default async function ResearchExplorerPage({
   const theme = (sp.theme ?? "").trim();
   const topic = (sp.topic ?? "").trim();
   const flagRaw = (sp.flag ?? "").trim();
-  const flag = flagRaw === "landmark" || flagRaw === "review"
-    ? (flagRaw as "landmark" | "review") : undefined;
+  const flag = flagRaw === "landmark" || flagRaw === "review" || flagRaw === "rising"
+    ? (flagRaw as "landmark" | "review" | "rising") : undefined;
   const noRetracted = sp.nr === "1";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
@@ -182,7 +182,7 @@ export default async function ResearchExplorerPage({
     return `/trends/foresight/research${s ? `?${s}` : ""}`;
   };
 
-  const withFlag = (f: "landmark" | "review" | null) => {
+  const withFlag = (f: "landmark" | "review" | "rising" | null) => {
     const u = new URLSearchParams();
     if (qText) u.set("q", qText);
     if (topic) u.set("topic", topic);
@@ -314,7 +314,8 @@ export default async function ResearchExplorerPage({
             <Link href={withFlag(null)}
                   className="bg-accent/15 border border-accent/50 text-accent px-2 py-0.5 hover:bg-accent/25"
                   title="Remove this filter">
-              {flag === "landmark" ? "Landmark works" : "Review articles"} ×
+              {flag === "landmark" ? "Landmark works"
+                : flag === "rising" ? "Rising papers" : "Review articles"} ×
             </Link>
           )}
         </div>
@@ -469,9 +470,12 @@ export default async function ResearchExplorerPage({
             <div className="grid grid-cols-1 md:grid-cols-2 border-t border-border divide-y divide-border">
             {agg.rising.length > 0 && (
               <div className="p-4">
-                <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent mb-2"
-                    title="Works from the last three years with the most citations gathered in 2025–2026 — measured from OpenAlex citation curves">
-                  Rising papers
+                <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] mb-2">
+                  <Link href={withFlag(flag === "rising" ? null : "rising")}
+                        className="text-accent hover:underline"
+                        title="Works from the last three years with the most citations gathered in 2025–2026 — measured from OpenAlex citation curves. Click for the full list.">
+                    Rising papers →
+                  </Link>
                 </h3>
                 <ol className="space-y-1">
                   {agg.rising.map((r) => (
@@ -602,7 +606,8 @@ export default async function ResearchExplorerPage({
         {totalLabel} {corpusMode ? "papers" : "signals"}
         {parsed.text && <> for <span className="text-paper">&ldquo;{parsed.text}&rdquo;</span></>}
         {topic && <> in <span className="text-paper">{topic}</span></>}
-        {flag && <> · <span className="text-accent">{flag === "landmark" ? "landmark works only" : "review articles only"}</span></>}
+        {flag && <> · <span className="text-accent">{flag === "landmark" ? "landmark works only"
+          : flag === "rising" ? "rising papers, most recent citations first" : "review articles only"}</span></>}
         {!corpusMode && theme && (
           <> in <span className="text-paper">
             {MEGA_TRENDS.find((m) => m.key === theme)?.name_en ?? theme}
@@ -780,6 +785,11 @@ export default async function ResearchExplorerPage({
                       </span>
                     )}
                     <span className="ml-auto">
+                      {flag === "rising" && r.cites_recent != null && (
+                        <span className="text-accent" title="Citations gathered in 2025–2026 — the ranking criterion">
+                          +{fmtInt(r.cites_recent)} since 2025 ·{" "}
+                        </span>
+                      )}
                       {fmtInt(r.cited_by_count ?? 0)} citations
                       {r.fwci !== null && r.fwci !== undefined && (
                         <span title="Field-weighted citation impact — 1.0 = average for the field">
