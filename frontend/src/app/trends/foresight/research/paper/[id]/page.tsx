@@ -8,7 +8,7 @@ import {
   LIVE_DAILY_LIMIT, type LiveWork, type LiveHit,
 } from "@/lib/openalex-live";
 import TierGate from "@/components/TierGate";
-import { splitAuthors } from "@/lib/research-authors";
+import AuthorLine from "@/components/AuthorLine";
 import { canAccess } from "@/lib/entitlement";
 
 export const dynamic = "force-dynamic";
@@ -141,22 +141,7 @@ export default async function PaperDetailPage({
       </h1>
 
       <div className="font-sans text-[13px] text-muted mb-6 space-y-1">
-        {(() => {
-          const { shown, more } = splitAuthors(w.authors, 12);
-          if (!shown.length) return null;
-          return (
-            <div className="text-text">
-              {shown.map((a, i) => (
-                <span key={a + i}>
-                  {i > 0 && ", "}
-                  <Link href={`/trends/foresight/research?q=${encodeURIComponent(`author:"${a}"`)}`}
-                        className="hover:text-accent">{a}</Link>
-                </span>
-              ))}
-              {more > 0 && <span className="text-muted"> +{more} more</span>}
-            </div>
-          );
-        })()}
+        <AuthorLine authors={w.authors} limit={12} className="text-[13px]" />
         {w.institutions && <div>{w.institutions}</div>}
         <div>
           {w.journal && <span className="text-text">{w.journal}</span>}
