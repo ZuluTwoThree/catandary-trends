@@ -52,6 +52,20 @@ function fmtDate(iso: string | null): string {
 
 const fmtInt = (n: number) => n.toLocaleString("en-US");
 
+/** ISO-3166-Code → Klarname (Intl, keine Abhängigkeit). Einmal auf
+ *  Modulebene gebaut — der Konstruktor ist teuer. `of()` gibt bei
+ *  unbekannten Codes den Code zurück; das behandeln wir als „kein Name". */
+const REGION_NAMES = new Intl.DisplayNames(["en"], { type: "region" });
+function countryName(code: string): string | null {
+  const up = code.toUpperCase();
+  try {
+    const name = REGION_NAMES.of(up);
+    return name && name !== up ? name : null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function ResearchExplorerPage({
   searchParams,
 }: {
@@ -196,7 +210,7 @@ export default async function ResearchExplorerPage({
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-8">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-4">
-          —— What your peers publish
+          —— Where ideas surface first
         </div>
         <h1 className="font-display text-4xl md:text-[44px] leading-[1.05] tracking-tight text-paper mb-4">
           Research <span className="italic">Explorer</span>
@@ -532,19 +546,25 @@ export default async function ResearchExplorerPage({
                     Where it&apos;s researched
                   </h3>
                   <ol className="space-y-1">
-                    {agg.countries.map((c) => (
+                    {agg.countries.map((c) => {
+                      const name = countryName(c.country);
+                      return (
                       <li key={c.country} className="relative">
                         <div className="absolute inset-y-0 left-0 bg-accent/10"
                              style={{ width: `${(c.n / maxC) * 100}%` }} />
                         <div className="relative flex items-baseline gap-2 px-1.5 py-0.5">
                           <Link href={`/trends/foresight/research?q=${encodeURIComponent(`country:${c.country}${parsed.text ? ` ${parsed.text}` : ""}`)}${topic ? `&topic=${encodeURIComponent(topic)}` : ""}`}
-                                className="font-mono text-[12px] text-paper hover:text-accent">
-                            {c.country}
+                                className="flex items-baseline gap-2 min-w-0 text-paper hover:text-accent">
+                            <span className="font-mono text-[12px] shrink-0">{c.country}</span>
+                            {name && (
+                              <span className="font-sans text-[11px] text-muted truncate">{name}</span>
+                            )}
                           </Link>
                           <span className="font-mono text-[10px] text-muted ml-auto shrink-0">{fmtInt(c.n)}</span>
                         </div>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ol>
                 </div>
               );
