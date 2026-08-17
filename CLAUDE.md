@@ -421,6 +421,12 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # manuell gestartete llama-server). Log: ~/logs/catandary-full-cycle-*.log
 0 4 * * 1-5  scripts/full_cycle_cron.sh
 
+# Waechter (seit 2026-08-17): meldet per Mail, wenn der Nachtlauf keine
+# end-Zeile mit Exit-Code geschrieben hat. Der Wrapper schreibt sie als letzte
+# Handlung — stirbt er vorher (Stromausfall 17.08.), fehlt sie einfach und
+# niemand merkt es. Schweigen = alles in Ordnung. Wochenenden sind ausgenommen.
+45 7 * * 1-5 cd <repo> && .venv/bin/python -m scripts.cycle_watchdog
+
 # DB-Backup (täglich 02:45)
 45 2 * * *   .venv/bin/python scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 7
 
