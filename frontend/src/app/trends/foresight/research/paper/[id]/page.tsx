@@ -172,7 +172,8 @@ export default async function PaperDetailPage({
         )}
         {(live?.oa_url ?? w.oa_url) && (
           <a href={live?.oa_url ?? w.oa_url ?? "#"} target="_blank" rel="noopener noreferrer"
-             className="text-accent/70 hover:text-accent">Full text (OA) →</a>
+             className="text-accent/70 hover:text-accent"
+             title="Free full text (open access)">Full text →</a>
         )}
       </div>
 

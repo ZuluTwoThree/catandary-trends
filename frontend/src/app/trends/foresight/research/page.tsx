@@ -807,7 +807,7 @@ export default async function ResearchExplorerPage({
                       <a href={r.oa_url} target="_blank" rel="noopener noreferrer"
                          className="text-accent/70 hover:text-accent"
                          title="Free full text (open access)">
-                        Full text (OA) →
+                        Full text →
                       </a>
                     )}
                   </div>
