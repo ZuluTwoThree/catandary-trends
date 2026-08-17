@@ -477,17 +477,20 @@ export default async function ResearchExplorerPage({
                     Rising papers →
                   </Link>
                 </h3>
-                <ol className="space-y-1">
+                {/* Volle Titel statt truncate (Owner 2026-08-17): Paper-Titel
+                    sind lang, die Kürzung machte sie unlesbar. Meta wandert
+                    in eine eigene Zeile, damit der Umbruch sauber bricht. */}
+                <ol className="space-y-2.5">
                   {agg.rising.map((r) => (
-                    <li key={r.id} className="font-sans text-[13px] text-text truncate">
+                    <li key={r.id} className="font-sans text-[13px] leading-snug">
                       <a href={r.doi ?? `https://openalex.org/${r.id}`}
                          target="_blank" rel="noopener noreferrer"
-                         className="text-paper hover:text-accent" title={r.title}>
+                         className="text-paper hover:text-accent">
                         {r.title}
                       </a>
-                      <span className="font-mono text-[10px] text-muted">
-                        {" "}· {r.year} · {fmtInt(r.cited_by_count)} citations
-                      </span>
+                      <div className="font-mono text-[10px] text-muted mt-0.5">
+                        {r.year} · {fmtInt(r.cited_by_count)} citations
+                      </div>
                     </li>
                   ))}
                 </ol>
