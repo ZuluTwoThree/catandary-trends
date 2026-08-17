@@ -258,3 +258,43 @@ Neun Tests in `tests/test_newsletter_links.py` sichern das Routing ab, inklusive
 der Fälle, die leicht zurückfallen: dass die Quelle **auch bei live geschalteter
 Seite** gewinnt, und dass ein unbekannter Slug nicht still die URL eines anderen
 Signals erbt.
+
+---
+
+## Vorfall 2026-08-17: Nachtlauf durch unsauberen Neustart abgebrochen
+
+Die Maschine startete um **06:21 unsauber neu** — kein `shutdown`-Eintrag in
+`last`, letzte Logzeile aus Nullbytes, vorheriger Boot lief seit dem 30.07.
+durch. Der 04:00-Lauf war um 06:20:52 noch in der Content-Generierung.
+
+Damit liefen **Stufe 8 (Reclassify) und Stufe 9 (Auto-Publish) nie**:
+
+| | |
+|---|---|
+| Trends erzeugt | 858 |
+| davon veröffentlicht | 0 (sonst ~55 %) |
+| unverarbeitete RSS-Einträge | **0** — Ingestion und Generierung waren fertig |
+| Drafts gesamt | 10.105 |
+| Morgen-Mail | kam nicht, der Wrapper erreichte die Stelle nicht mehr |
+
+Weil nichts unverarbeitet war, wäre ein voller Cycle falsch gewesen: ~3
+GPU-Stunden für nichts, mit dem Risiko, Artikel doppelt zu erzeugen. Der
+Wiederanlauf `scripts/resume_cycle.sh` macht deshalb **nur die fehlenden
+Schlussstufen** — Stage-8-Modell aufsetzen, `reclassify_drafts()`,
+`auto_publisher`, `review_notify`, danach das vorgefundene Modell
+zurückstellen.
+
+Geplant per einmaligem systemd-Timer auf **18.08. 02:00** (Owner-Entscheidung),
+mit Deadline-Riegel **03:45**: `full_cycle_cron.sh` gibt um 04:00 als Erstes
+allen VRAM frei und würde einen laufenden Wiederanlauf mitten im Schreiben
+töten — sich selbst sauber zu stoppen ist besser als gekillt zu werden.
+Trockenlauf sagt 486 Veröffentlichungen, 36 wegen erfundener Zahlen und 4 wegen
+abgeschnittener Bodies zurückgehalten.
+
+**Beim Smoke-Test des systemd-Dienstes gefunden:** `config.py` lädt die `.env`
+über `load_dotenv()`, das gegen das **aktuelle Verzeichnis** auflöst. Von
+woanders gestartet bleibt `DATABASE_URL` leer und die Pipeline fällt still auf
+die alte lokale SQLite-Datei zurück — sie liefe komplett durch und meldete
+Erfolg, nur gegen die falsche Datenbank (dort 3.564 Drafts statt 10.105).
+Das Skript prüft jetzt vor jeder Arbeit `db.USE_POSTGRES` und bricht sonst laut
+ab. Beide Richtungen verifiziert.
