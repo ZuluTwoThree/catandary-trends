@@ -43,7 +43,14 @@ STAGE5_MIN_BODY_WORDS = int(os.getenv("STAGE5_MIN_BODY_WORDS", "25"))
 # Option B (#11): re-roll bodies below this word count (prompt targets 150-250w
 # but the 30B naturally lands ~100w; this pushes closer to spec at the cost of
 # more re-rolls). Still bounded by max_validate_retries, then accepted.
-STAGE5_TARGET_BODY_WORDS = int(os.getenv("STAGE5_TARGET_BODY_WORDS", "130"))
+# Untergrenze, unterhalb derer der Content-Guard neu wuerfelt.
+# Owner-Entscheidung 2026-08-19: ~100 Woerter sind als Artikellaenge in
+# Ordnung. Vorher stand hier 130 — bei einem Produktions-Median von 109
+# loesten damit 80,6 % aller Artikel eine Neuwuerfelung aus, die nach
+# aufgebrauchtem Retry-Budget ohnehin akzeptiert wurde (gemessen an 4.848
+# veroeffentlichten Artikeln, 14 Tage). Jeder dieser Neuwuerfe ist eine
+# volle Generierung auf dem 26B. Mit 100 faellt die Quote auf 29,1 %.
+STAGE5_TARGET_BODY_WORDS = int(os.getenv("STAGE5_TARGET_BODY_WORDS", "100"))
 # Symmetric max-word guard (#11), mirror of the MIN floor: re-roll a runaway body
 # above this ceiling (the prompt targets 150-250w). Set well above target so it
 # only catches genuine overruns, and it is bounded by max_validate_retries (a

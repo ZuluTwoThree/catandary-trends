@@ -336,9 +336,16 @@ def make_content_guard(source: str):
 def content_is_clean(c: "GeneratedContent") -> bool:
     """Content guard. Rejects (→ re-roll) on: (a) a near-empty stub (hard garbage
     floor), (b) a body cut off mid-sentence (no terminal punctuation), (c) banned
-    cliché phrases, or (d) BREVITY — below STAGE5_TARGET_BODY_WORDS (Option B,
-    #11: the prompt targets 150-250w but the model lands ~100w; re-roll toward
-    spec). The brevity re-roll is bounded by max_validate_retries, after which a
+    cliché phrases, or (d) BREVITY — below STAGE5_TARGET_BODY_WORDS.
+
+    On brevity: the prompt asks for 150-250 words and the model reliably lands
+    near 100. The owner accepted ~100 as the working length (2026-08-19), so the
+    floor sits there and only catches genuine stubs. It deliberately does NOT
+    match the prompt: asking high is what produces ~100 in the first place, and
+    lowering the ASK would likely shorten the output further. The floor is a
+    safety net, not the target.
+
+    The brevity re-roll is bounded by max_validate_retries, after which a
     short-but-clean body is accepted rather than looping forever."""
     body = c.body.strip()
     words = len(body.split())

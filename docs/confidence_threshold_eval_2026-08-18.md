@@ -46,7 +46,15 @@ mit, die keine Signale sind.
 
 ## Zwei Nebenbefunde, die schwerer wiegen
 
-**1. Die Artikel sind zu kurz — und zwar seit dem Modellwechsel.**
+**1. Die Artikel sind kürzer als das dokumentierte Ziel — seit dem Modellwechsel.**
+
+> **Erledigt (Owner, 19.08.2026): ~100 Wörter sind als Artikellänge in Ordnung.**
+> Damit ist nicht die Länge das Problem, sondern die stale Doku und ein zu hoch
+> gesetzter Guard. Beides korrigiert: `STAGE5_TARGET_BODY_WORDS` von 130 auf 100
+> (bei Median 109 lösten sonst **80,6 %** aller Artikel eine Neuwürfelung aus, die
+> nach aufgebrauchtem Budget ohnehin akzeptiert wurde — jede davon eine volle
+> Generierung auf dem 26B; mit 100 fällt die Quote auf 29,1 %). Der Prompt fragt
+> bewusst weiterhin 150–250: hoch fragen ist das, was ~100 erzeugt.
 
 Zielkorridor 150–250 Wörter. Median heute **109**, im Ziel nur **2,5 %**
 (n=5.308, veröffentlicht, 14 Tage). Der Einbruch ist tagesgenau:
