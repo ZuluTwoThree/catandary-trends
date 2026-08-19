@@ -78,10 +78,13 @@ def _tsv(z: zipfile.ZipFile, name: str) -> list[dict]:
 
 
 def _filing_date(s: str) -> str | None:
+    # Aeltere Quartals-Sets fuehren FILING_DATE mit Uhrzeit
+    # ("2014-03-31 17:30:58") — Zeitanteil vor dem Parsen abschneiden.
+    s = (s or "").strip().split(" ")[0]
     for fmt in ("%d-%b-%Y", "%Y-%m-%d"):
         try:
-            return datetime.strptime(s.strip(), fmt).date().isoformat()
-        except (ValueError, AttributeError):
+            return datetime.strptime(s, fmt).date().isoformat()
+        except ValueError:
             continue
     return None
 
@@ -162,11 +165,54 @@ def ingest_quarter(client: httpx.Client, quarter: str, dry_run: bool) -> dict:
     return st
 
 
+def repair_quarter(client: httpx.Client, quarter: str) -> dict:
+    """Fuellt published_date fuer Alt-Eintraege nach, die eingefuegt wurden,
+    solange _filing_date das aeltere 'YYYY-MM-DD HH:MM:SS'-Format nicht las
+    (54% der Zeilen standen auf NULL). Laedt das Quartal erneut und updatet
+    per EDGAR-URL; nur Zeilen mit published_date IS NULL werden angefasst."""
+    st = {"quarter": quarter, "pairs": 0, "updated": 0}
+    url = f"{BASE}/{quarter}_d.zip"
+    try:
+        r = client.get(url, timeout=120, follow_redirects=True)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("  %s: download error %s", quarter, type(e).__name__)
+        return st
+    if r.status_code != 200 or r.content[:2] != b"PK":
+        logger.info("  %s: not available (HTTP %d)", quarter, r.status_code)
+        return st
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    prim: dict[str, dict] = {}
+    for iss in _tsv(z, "ISSUERS"):
+        if iss.get("IS_PRIMARYISSUER_FLAG") == "true" or iss["ACCESSIONNUMBER"] not in prim:
+            prim[iss["ACCESSIONNUMBER"]] = iss
+    pairs: list[tuple[str, str]] = []
+    for sub in _tsv(z, "FORMDSUBMISSION"):
+        date = _filing_date(sub.get("FILING_DATE", ""))
+        cik = (prim.get(sub["ACCESSIONNUMBER"], {}).get("CIK") or "").strip()
+        if not date or not cik:
+            continue
+        acc = sub["ACCESSIONNUMBER"]
+        edgar = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc.replace('-','')}/{acc}-index.htm"
+        pairs.append((date, edgar))
+    st["pairs"] = len(pairs)
+    with db.get_connection() as conn:
+        for date, edgar in pairs:
+            cur = conn.execute(
+                "UPDATE raw_entries SET published_date = ? "
+                "WHERE url = ? AND published_date IS NULL", (date, edgar))
+            if cur.rowcount and cur.rowcount > 0:
+                st["updated"] += cur.rowcount
+    logger.info("  %s: %d filings dated | %d rows repaired", quarter, st["pairs"], st["updated"])
+    return st
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Ingest SEC Form D as a startup-funding signal (#4)")
     ap.add_argument("--since", type=int, default=2010, help="start year (Form D electronic from 2008)")
     ap.add_argument("--quarter", help="single quarter, e.g. 2024q1")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--repair-dates", action="store_true",
+                    help="nur fehlende published_date aus neu geladenen Datasets nachtragen")
     args = ap.parse_args()
 
     if not args.dry_run:
@@ -177,10 +223,15 @@ def main() -> int:
         logger.info("[sec-form-d] %d quarters | since=%s | dry=%s",
                     len(quarters), args.since, args.dry_run)
         for q in quarters:
-            st = ingest_quarter(client, q, args.dry_run)
-            grand += st["inserted"]
+            if args.repair_dates:
+                st = repair_quarter(client, q)
+                grand += st["updated"]
+            else:
+                st = ingest_quarter(client, q, args.dry_run)
+                grand += st["inserted"]
             time.sleep(0.5)  # be polite to SEC
-    logger.info("[sec-form-d] DONE: %d startup-funding signals inserted", grand)
+    logger.info("[sec-form-d] DONE: %d rows %s", grand,
+                "date-repaired" if args.repair_dates else "inserted")
     return 0
 
 

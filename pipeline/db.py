@@ -421,6 +421,10 @@ class _PgCursorWrapper:
             return row["id"]
         return None
 
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
     def fetchone(self):
         return self._cursor.fetchone()
 
