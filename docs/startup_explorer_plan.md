@@ -1,6 +1,6 @@
 # Startup Explorer — Plan (Datenakquise zuerst)
 
-**Stand:** 2026-08-19 · **Status:** Entwurf, Owner-Review ausstehend
+**Stand:** 2026-08-20 · **Status:** freigegeben (Owner 19.08.), Phase 0 abgeschlossen — Issue [#87](https://github.com/ZuluTwoThree/catandary-trends/issues/87)
 **Owner-Vorentscheidungen (19.08.):** Geo-Fokus global (US-Dominanz akzeptiert, transparent ausgewiesen) · Grundeinheit = **Firma mit Event-Historie** · Paid-API-Budget bis ~100 €/Monat, falls der Hebel groß ist.
 **Recherche-Grundlage:** Drei Web-Verifikationsläufe am 2026-08-19 (freie Register, freie Startup-Signal-APIs, Paid-Anbieter-Preise) + lokale DB-Vermessung. Alle Preise/Limits/Lizenzen wurden live geprüft, nicht aus Erinnerung übernommen; Schätzungen sind als solche markiert.
 
@@ -29,10 +29,10 @@ Wissenschaft           Technologie           Kommerzialisierung    Konsum/Markt
 
 | Quelle | Inhalt | Volumen / Historie | Frische | Lizenz |
 |---|---|---|---|---|
-| **SEC Form D** (Datasets) | US-Privatplatzierungen: Issuer, Ort, Branche, Beträge (total/sold), Officers („Related Persons"), Gründungsjahr-Bucket | 2008 Q1 – 2026 Q2; **im Haus: 120k Einträge 2020–2026 = ~115k Firmen**; Backfill 2008–2020 verdoppelt bis verdreifacht den Firmenstamm (Schätzung) | quartalsweise (~Wochen nach Quartalsende) | Public Domain |
+| **SEC Form D** (Datasets) | US-Privatplatzierungen: Issuer, Ort, Branche, Beträge (total/sold), Officers („Related Persons"), Gründungsjahr-Bucket | Bulk-Datasets real **ab 2012** (2008q1 ist ein Stub, 2008–2011 publiziert die SEC nicht als Bulk); **im Haus komplett: 119.999 Einträge 2012–2026Q1 = ~115k Firmen, 100 % datiert** (Datumsreparatur 2026-08-20) | quartalsweise (2026Q2 noch nicht erschienen) | Public Domain |
 | **SBIR/STTR** (sbir.gov API/Bulk) | Staatliches Startup-R&D-Funding: Firma, UEI, Betrag, Agency, Phase, **Mitarbeiterzahl**, Company-URL, Abstract | alle Awards seit 1983 (Größenordnung ~180k; beim Ingest verifizieren) | laufend; API aktuell „undergoing maintenance" → Bulk-CSV-Fallback | Public Domain |
 | **CORDIS** (HE + H2020 + FP7, data.europa.eu) | EU-Förderprojekte: Organisationen mit **SME-Flag**, Land, ecContribution, Projekt-Abstract; **EIC-Accelerator-Grants enthalten** (702 Companies, 4,7 Mrd. € seit 2021) | drei Rahmenprogramme, Bulk CSV/JSON | **monatlich** (letzter Dump 2026-08-07) | **CC BY 4.0** (Attribution) |
-| **Bereits im Haus** | NIH/NSF/OpenAIRE/UKRI-Awards (265k) + **~106k Presse-Funding-Meldungen** im Roh-Korpus (9–14k/Jahr; „raises $X", „Series B") + 219.832 Trends mit `trend_signal_type='funding'` | seit ~2005 bzw. 2014 | täglich (Full Cycle) | Eigenkorpus |
+| **Bereits im Haus** | NIH/NSF/OpenAIRE/UKRI-Awards (265k) + **~23k Presse-Funding-Meldungen** aus Fachpresse/Wires („raises $X", „Series B"; die frühere 106k-Zählung enthielt die Form-D-Signale selbst) + 219.832 Trends mit `trend_signal_type='funding'` | seit ~2005 bzw. 2014 | täglich (Full Cycle) | Eigenkorpus |
 | **Companies House UK** | UK-Vollregister: Name, Nummer, **Gründungsdatum, SIC-Codes**, Adresse, Status; Officers via API | Monats-Snapshot ~470 MB (~5,5M Firmen, Schätzung) | monatlich + **Echtzeit-Streaming-API** (600 req/5min REST) | OGL v3 (Attribution) |
 | **GLEIF LEI** (Golden Copy) | 3,02M aktive LEIs global: Name, Adressen, Rechtsform, **Registerbehörde + lokale Register-ID** | global, Level-2-Eigentumsketten | 3×/Tag Bulk, Delta-Files | **CC0** |
 | **Wikidata** (SPARQL) | Enrichment: ~765k Firmen-Items, 171k mit Gründungsdatum; Gründer, Website, Querverweise zu Registern/LEI | Top-Firmen („notable") | laufend | **CC0** |
@@ -59,7 +59,7 @@ Wissenschaft           Technologie           Kommerzialisierung    Konsum/Markt
 
 Geprüft gegen die fünf Anforderungen, die Research/Patent Explorer definieren:
 
-1. **Großer durchsuchbarer Korpus** — ✅ **Ja.** Realistisch **300–500k startup-relevante Firmen** mit mindestens einem datierten Event (verankert: 115k Form-D-Firmen aus nur 6 Jahren; + Backfill 2008–2020, SBIR-Firmen, CORDIS-SMEs, Presse-Extraktion, junges UK-Subset). Kleiner als 19M Patente — aber die Einheit ist reicher (Profil statt Dokument).
+1. **Großer durchsuchbarer Korpus** — ✅ **Ja.** Realistisch **250–400k startup-relevante Firmen** mit mindestens einem datierten Event (gemessen nach Phase 0: 115k Form-D-Firmen 2012–2026, 126,6k SBIR-Firmen, ~52k CORDIS-SME-Beteiligungen, 20k Presse-Runden; + junges UK-Subset in Phase 1; Überschneidungen löst die Entity Resolution). Kleiner als 19M Patente — aber die Einheit ist reicher (Profil statt Dokument).
 2. **Facetten** — ✅ Vertical (vorhandene Distill-Heads klassifizieren Abstracts/Beschreibungen GPU-frei), Geografie, Event-Typ (Reg D / Grant / SBIR-Phase / Presse-Runde / Marke / Clearance), Betragsklasse, Jahr.
 3. **Detailseiten mit Substanz** — ✅ Funding-Timeline + Patent-Brücke + Grant-/Paper-Historie + Marken. Das ist mehr Tiefe pro Firma als jede freie Alternative.
 4. **Frische** — ✅ mit Transparenz: Presse täglich, CH-Streaming Echtzeit, CORDIS monatlich, **Form D quartalsweise (Lag offen ausweisen, wie beim Research-Korpus üblich)**.
@@ -117,11 +117,11 @@ CREATE TABLE startup_research_links (company_id INTEGER, openalex_id TEXT, kind 
 
 ## 5. Akquise-Plan in Phasen
 
-**Phase 0 — Bestand heben (CPU/Netz, keine neuen Quellenverträge):**
-1. Form-D-Backfill 2008–2020 (`ingest_secform_d.py --since 2008` — Ingester existiert, Datasets bis 2008 Q1 verifiziert; Q2/2026 nachziehen).
-2. SBIR/STTR-Ingester neu (API oder Bulk-CSV; „maintenance"-Status beachten).
-3. CORDIS-Bulk-Ingester neu (HE + H2020; Filter SME-Flag=true + relevante activityTypes; CC-BY-Attribution im Datensatz mitführen).
-4. **Presse-Funding-Extraktion:** Regex-Vorfilter über die ~106k Treffer im Roh-Korpus → strukturierte Extraktion {Firma, Betrag, Runde, Investoren} per 8B/Distill (Muster `signal_batch_embedded`, GPU-Handover vorhanden). Das ist die einzige freie Quelle für Investor-Namen und Serien-Labels.
+**Phase 0 — Bestand heben (CPU/Netz, keine neuen Quellenverträge): ✅ abgeschlossen 2026-08-20**
+1. ~~Form-D-Backfill~~ → Bestand war bereits vollständig (SEC-Bulk existiert real erst ab 2012); stattdessen **Datumsreparatur**: 62.761 Zeilen nachdatiert (`--repair-dates`, Parser-Fix für das alte FILING_DATE-Format), Korpus jetzt 100 % datiert. 2026Q2 erscheint erst noch (Quartals-Pull als Folgeaufgabe).
+2. ✅ `scripts/ingest_sbir.py`: **183.944 SBIR/STTR-Awards** (1983–2024) aus dem offiziellen Bulk-CSV (die Awards-API liefert derzeit 403 „maintenance"), 126.577 Firmen; CSV-Cache in `data/` behält DUNS/Website/Mitarbeiterzahl für Phase 1. Frische-Lag der Quelle: neueste Awards ~2024.
+3. ✅ `scripts/ingest_cordis.py`: **51.815 CORDIS-SME-Förderungen** (HE 21.314 + H2020 30.501; Filter SME=true ∧ activityType=PRC) mit Land, ecContribution, Projekt-Abstract.
+4. ✅ `scripts/extract_press_rounds.py` + Staging-Tabelle `startup_press_rounds`: Regex-Volllauf über **22.991 Presse-Meldungen → 20.099 (87 %) mit Firma+Betrag**, 265 VC-Fonds-Meldungen ausgefiltert. Investoren-Namen liefert die LLM-Stufe: 200er-Sample validiert (91 % Firma+Betrag, Investoren sauber); **Folgeaufgabe:** `--mode upgrade` über die ~20k Zeilen (~5 h auf dem lokalen LLM, außerhalb des Nachtlauf-Fensters).
 
 **Phase 1 — Firmenstamm + Entity Resolution:**
 5. GLEIF Golden Copy (CC0) als Resolution-Backbone laden.
