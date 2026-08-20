@@ -27,6 +27,10 @@ TIMEOUT = float(os.getenv("LLAMACPP_TIMEOUT", "600"))
 # Grammar-constrained decoding force-closes JSON when the budget is hit, which
 # yields valid-but-truncated output — so give enough room to finish naturally.
 MAX_TOKENS = int(os.getenv("LLAMACPP_MAX_TOKENS", "1024"))
+# Ceiling for the truncation retry below: an attempt that hit the length
+# limit gets a bigger budget, but never an unbounded one — a runaway
+# enumeration must fail loudly rather than generate for minutes.
+TRUNCATION_MAX_TOKENS = int(os.getenv("LLAMACPP_TRUNCATION_MAX_TOKENS", "8192"))
 
 
 def chat(model: str, prompt: str, system: str | None = None,
@@ -123,9 +127,23 @@ def chat_structured(model: str, prompt: str, schema: type[T],
             if not raw.strip():
                 raise ValueError("Empty response from model")
             if choice.get("finish_reason") == "length":
-                logger.warning("Output truncated (finish_reason=length, "
-                               "max_tokens=%d) — consider raising LLAMACPP_MAX_TOKENS",
-                               MAX_TOKENS)
+                # Give the NEXT attempt more room instead of replaying the same
+                # request. At temperature 0 an identical payload should yield an
+                # identical truncation — that retries succeeded at all was down
+                # to llama.cpp not being bit-deterministic (batch composition
+                # shifts float reduction order). Hoping for numerical noise is
+                # not error handling. Doubling is capped so one pathological
+                # input cannot drag the whole run into huge generations.
+                grown = min(MAX_TOKENS * (2 ** (attempt + 1)), TRUNCATION_MAX_TOKENS)
+                if grown > payload["max_tokens"]:
+                    logger.warning("Output truncated (finish_reason=length at "
+                                   "max_tokens=%d) — retrying with %d",
+                                   payload["max_tokens"], grown)
+                    payload["max_tokens"] = grown
+                else:
+                    logger.warning("Output truncated at the %d-token ceiling — "
+                                   "the prompt or schema is the problem, not the limit",
+                                   payload["max_tokens"])
             result = schema.model_validate_json(_strip_fences(raw))
             if validate is not None and not validate(result):
                 vfails += 1
