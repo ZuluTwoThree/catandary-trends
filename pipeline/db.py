@@ -37,6 +37,12 @@ CREATE TABLE IF NOT EXISTS sources (
     vertical TEXT CHECK (vertical IN ('FOOD','TECH','HEALTH','ECO','DESIGN','FASHION','BIZ','LIFESTYLE','CROSS')),
     sub_categories TEXT DEFAULT '[]',
     active INTEGER DEFAULT 1,
+    -- Feeds this source the LLM content cycle? FALSE for pseudo-sources whose
+    -- entries are signal data, not article material (funding awards, grants).
+    -- The entry-level analogue of pub_number for patents: get_unprocessed_entries
+    -- filters on it, so a mass funding ingest can never flood the RSS pool
+    -- (2026-08-20: 235k SBIR/CORDIS rows tripped the cycle's 50k sanity abort).
+    llm_pipeline INTEGER DEFAULT 1,
     auto_discovered INTEGER DEFAULT 0,
     discovery_count INTEGER DEFAULT 0,
     last_fetched TEXT,
@@ -177,6 +183,8 @@ CREATE TABLE IF NOT EXISTS sources (
     vertical TEXT CHECK (vertical IN ('FOOD','TECH','HEALTH','ECO','DESIGN','FASHION','BIZ','LIFESTYLE','CROSS')),
     sub_categories JSONB DEFAULT '[]',
     active BOOLEAN DEFAULT true,
+    -- See the SQLite schema above: FALSE = signal-only source, never article material.
+    llm_pipeline BOOLEAN DEFAULT true,
     auto_discovered BOOLEAN DEFAULT false,
     discovery_count INTEGER DEFAULT 0,
     last_fetched TIMESTAMP,
@@ -474,6 +482,25 @@ def _migrate_stage_cache_columns():
                 if "duplicate column" in msg or "already exists" in msg:
                     continue
                 raise
+
+
+def _migrate_sources_llm_pipeline():
+    """Add sources.llm_pipeline to pre-existing databases. Idempotent.
+
+    TRUE (default) = entries feed the LLM content cycle. FALSE = signal-only
+    pseudo-source (funding, grants): embedded + distill-classified by
+    signal_batch, but never turned into articles. Wired into init_db — the
+    standalone-script-only migration was the gap that broke the Stripe webhook
+    (2026-07-19) and nearly broke dedup (2026-08-12)."""
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            conn.execute("ALTER TABLE sources ADD COLUMN IF NOT EXISTS "
+                         "llm_pipeline BOOLEAN DEFAULT true")
+            return
+        rows = conn.execute("PRAGMA table_info(sources)").fetchall()
+        names = [(r[1] if not hasattr(r, "keys") else r["name"]) for r in rows]
+        if "llm_pipeline" not in names:
+            conn.execute("ALTER TABLE sources ADD COLUMN llm_pipeline INTEGER DEFAULT 1")
 
 
 def _migrate_reviewed_at():
@@ -935,6 +962,7 @@ def init_db():
     _migrate_stage_cache_columns()
     _migrate_trends_sort_date()
     _migrate_reviewed_at()
+    _migrate_sources_llm_pipeline()
     _migrate_patent_graph()
     _migrate_patent_cpc()
     _migrate_openalex_graph()
@@ -944,8 +972,14 @@ def init_db():
 
 # --- Source Operations ---
 
-def upsert_source(name: str, feed_url: str, source_type: str, vertical: str) -> int:
-    """Insert or update a source. Returns source id."""
+def upsert_source(name: str, feed_url: str, source_type: str, vertical: str,
+                  llm_pipeline: bool = True) -> int:
+    """Insert or update a source. Returns source id.
+
+    `llm_pipeline=False` marks a signal-only pseudo-source (funding, grants):
+    its entries get embedded and distill-classified, but the content cycle
+    never writes articles from them. Existing sources keep their stored flag —
+    like every other column, upsert does not overwrite."""
     with get_connection() as conn:
         row = conn.execute(
             "SELECT id FROM sources WHERE feed_url = ?", (feed_url,)
@@ -955,15 +989,16 @@ def upsert_source(name: str, feed_url: str, source_type: str, vertical: str) -> 
 
         if USE_POSTGRES:
             cursor = conn.execute(
-                "INSERT INTO sources (name, feed_url, source_type, vertical) "
-                "VALUES (%s, %s, %s, %s) RETURNING id",
-                (name, feed_url, source_type, vertical),
+                "INSERT INTO sources (name, feed_url, source_type, vertical, llm_pipeline) "
+                "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                (name, feed_url, source_type, vertical, llm_pipeline),
             )
             return cursor.lastrowid
         else:
             cursor = conn.execute(
-                "INSERT INTO sources (name, feed_url, source_type, vertical) VALUES (?, ?, ?, ?)",
-                (name, feed_url, source_type, vertical),
+                "INSERT INTO sources (name, feed_url, source_type, vertical, llm_pipeline) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (name, feed_url, source_type, vertical, int(llm_pipeline)),
             )
             return cursor.lastrowid
 
@@ -1046,6 +1081,10 @@ def get_unprocessed_entries(limit: int = 50, min_id: int = 0,
             "SELECT re.*, s.name as source_name, s.vertical as source_vertical, s.source_type as source_type "
             "FROM raw_entries re JOIN sources s ON re.source_id = s.id "
             "WHERE re.processed = FALSE AND re.filtered_out = FALSE AND re.id > ? "
+            # Source-level analogue of the patent clause: signal-only sources
+            # (funding, grants) never yield article material. COALESCE keeps
+            # rows from pre-migration DBs where the column is NULL.
+            "AND COALESCE(s.llm_pipeline, TRUE) = TRUE "
             + patent_clause +
             "ORDER BY re.fetched_at ASC LIMIT ?",
             (min_id, limit),
