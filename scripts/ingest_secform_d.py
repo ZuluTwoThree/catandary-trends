@@ -117,7 +117,9 @@ def ingest_quarter(client: httpx.Client, quarter: str, dry_run: bool) -> dict:
     src_id = -1 if dry_run else db.upsert_source(
         name="SEC Form D (Startup Private Offerings)",
         feed_url="https://www.sec.gov/structureddata/data/form-d-data-sets",
-        source_type="api", vertical="CROSS")
+        source_type="api", vertical="CROSS",
+        llm_pipeline=False,  # signal-only: funding entries never become articles
+    )
 
     buf: list[tuple] = []
     for acc, sub in subs.items():

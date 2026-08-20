@@ -202,3 +202,53 @@ class TestPgHygieneFixes:
         assert "_migrate_source_lead_time_tier()" in init_src
         _db._migrate_embedding_1024()          # no-op on SQLite, must not raise
         _db._migrate_source_lead_time_tier()
+
+
+class TestLlmPipelineFlag:
+    """Signal-only sources must never reach the content cycle (2026-08-20).
+
+    A 235k SBIR/CORDIS funding ingest landed in the unprocessed pool and
+    aborted the nightly run on the 50k sanity cap. Funding entries are signal
+    data, not article material — the source-level flag is the analogue of the
+    entry-level pub_number exclusion for patents.
+    """
+
+    def _mk_source(self, name, flag):
+        from pipeline.db import upsert_source
+        return upsert_source(name, f"https://example.com/{name}", "api", "BIZ",
+                             llm_pipeline=flag)
+
+    def _mk_entry(self, conn, sid, url):
+        conn.execute(
+            "INSERT INTO raw_entries (source_id, url, title, excerpt) "
+            "VALUES (?, ?, ?, ?)", (sid, url, "T", "E"))
+
+    def test_flagged_source_entries_never_reach_the_cycle(self):
+        from pipeline.db import get_connection, get_unprocessed_entries, init_db
+        init_db()
+        funding = self._mk_source("sbir-test", False)
+        rss = self._mk_source("hn-test", True)
+        with get_connection() as conn:
+            self._mk_entry(conn, funding, "https://example.com/award/1")
+            self._mk_entry(conn, rss, "https://example.com/story/1")
+        got = {e["source_name"] for e in get_unprocessed_entries(limit=100)}
+        assert "hn-test" in got, "normal api sources (Hacker News) must keep flowing"
+        assert "sbir-test" not in got, "funding entries must be invisible to the cycle"
+
+    def test_null_flag_counts_as_true(self):
+        """Rows from a pre-migration DB have NULL — they must keep flowing,
+        otherwise the migration would silently stop the whole pipeline."""
+        from pipeline.db import get_connection, get_unprocessed_entries, init_db
+        init_db()
+        sid = self._mk_source("legacy-test", True)
+        with get_connection() as conn:
+            conn.execute("UPDATE sources SET llm_pipeline = NULL WHERE id = ?", (sid,))
+            self._mk_entry(conn, sid, "https://example.com/legacy/1")
+        got = {e["source_name"] for e in get_unprocessed_entries(limit=100)}
+        assert "legacy-test" in got
+
+    def test_migration_is_idempotent(self):
+        from pipeline import db as m
+        m.init_db()
+        m._migrate_sources_llm_pipeline()
+        m._migrate_sources_llm_pipeline()   # second run must not raise

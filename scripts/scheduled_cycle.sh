@@ -140,9 +140,16 @@ mkdir -p "$(dirname "$LOG")"
   # into the RSS pool — refuse rather than content-gen tens of thousands.
   PENDING=$(python - <<'PY'
 from pipeline.db import get_connection
+# Counts the SAME pool get_unprocessed_entries serves: sources flagged
+# llm_pipeline=FALSE (funding/grant pseudo-sources) are excluded like patents.
+# Without that alignment a funding ingest trips this guard for entries the
+# cycle would never touch (2026-08-20: 235k SBIR/CORDIS rows, aborted run).
 with get_connection() as c:
-    r = c.execute("SELECT COUNT(*) AS n FROM raw_entries "
-                  "WHERE processed=FALSE AND filtered_out=FALSE AND pub_number IS NULL").fetchone()
+    r = c.execute("SELECT COUNT(*) AS n FROM raw_entries re "
+                  "JOIN sources s ON re.source_id = s.id "
+                  "WHERE re.processed=FALSE AND re.filtered_out=FALSE "
+                  "AND re.pub_number IS NULL "
+                  "AND COALESCE(s.llm_pipeline, TRUE) = TRUE").fetchone()
     print(r["n"] if isinstance(r, dict) else r[0])
 PY
 )
