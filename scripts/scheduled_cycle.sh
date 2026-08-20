@@ -139,17 +139,23 @@ mkdir -p "$(dirname "$LOG")"
   # gap is dozens–hundreds; anything above 50k means something unexpected merged
   # into the RSS pool — refuse rather than content-gen tens of thousands.
   PENDING=$(python - <<'PY'
+from pipeline.config import CYCLE_MAX_PER_SOURCE
 from pipeline.db import get_connection
-# Counts the SAME pool get_unprocessed_entries serves: sources flagged
-# llm_pipeline=FALSE (funding/grant pseudo-sources) are excluded like patents.
-# Without that alignment a funding ingest trips this guard for entries the
-# cycle would never touch (2026-08-20: 235k SBIR/CORDIS rows, aborted run).
+# Counts the INTAKE a run would actually feed to content generation — the
+# per-source cap applied, exactly like get_unprocessed_entries. Owner rule
+# 2026-08-20: a mass ingest must not abort the whole night (235k SBIR/CORDIS
+# rows did); it now contributes at most CYCLE_MAX_PER_SOURCE entries per run
+# and the rest waits for signal_batch, so this count stays honest AND small.
 with get_connection() as c:
-    r = c.execute("SELECT COUNT(*) AS n FROM raw_entries re "
-                  "JOIN sources s ON re.source_id = s.id "
-                  "WHERE re.processed=FALSE AND re.filtered_out=FALSE "
-                  "AND re.pub_number IS NULL "
-                  "AND COALESCE(s.llm_pipeline, TRUE) = TRUE").fetchone()
+    r = c.execute(
+        "WITH ranked AS (SELECT ROW_NUMBER() OVER ("
+        "  PARTITION BY re.source_id ORDER BY re.fetched_at, re.id) AS rn "
+        "  FROM raw_entries re JOIN sources s ON re.source_id = s.id "
+        "  WHERE re.processed=FALSE AND re.filtered_out=FALSE "
+        "  AND re.pub_number IS NULL "
+        "  AND COALESCE(s.llm_pipeline, TRUE) = TRUE) "
+        "SELECT COUNT(*) AS n FROM ranked WHERE rn <= ?",
+        (CYCLE_MAX_PER_SOURCE,)).fetchone()
     print(r["n"] if isinstance(r, dict) else r[0])
 PY
 )

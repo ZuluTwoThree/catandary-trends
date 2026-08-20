@@ -459,6 +459,16 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 0 5 * * 6    scripts/weekly_ingesters.sh
 ```
 
+**Mengenbremse statt Quellen-Verbot (Owner-Präzisierung 2026-08-20):** Funding-News
+dürfen über den regulären Cycle zu Artikeln werden. Verhindert wird nur, dass ein
+Massen-Ingest en masse in die Content-Generierung läuft (235k SBIR/CORDIS-Zeilen
+brachen den 04:00-Lauf an der 50k-Grenze ab): `get_unprocessed_entries` nimmt pro
+Quelle und Lauf höchstens `CYCLE_MAX_PER_SOURCE` (Default 200; RSS-Normalbetrieb
+liegt bei p95 ≈ 70/Tag) — der Rest bleibt liegen und gehört dem Distill-Pfad
+(`signal_batch`). Die 50k-Sanity-Zählung in `scheduled_cycle.sh` zählt denselben
+gebremsten Intake. Zusätzlich existiert `sources.llm_pipeline` als manueller
+Notschalter (FALSE = Quelle liefert nie Artikelmaterial; aktuell nirgends gesetzt).
+
 Auto-Publish ist in die LLM-Pipeline integriert (Stage 8+9: Reclassify → Auto-Publish);
 Standalone-Lauf nur als Fallback: `python pipeline/auto_publisher.py`
 (nutzt `AUTO_PUBLISH_CONFIDENCE=0.85` aus config.py). Ein Newsletter-Cron ist

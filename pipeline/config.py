@@ -43,6 +43,16 @@ STAGE5_MIN_BODY_WORDS = int(os.getenv("STAGE5_MIN_BODY_WORDS", "25"))
 # Option B (#11): re-roll bodies below this word count (prompt targets 150-250w
 # but the 30B naturally lands ~100w; this pushes closer to spec at the cost of
 # more re-rolls). Still bounded by max_validate_retries, then accepted.
+# Obergrenze, wie viele Eintraege EINER Quelle ein einzelner Cycle-Lauf in die
+# Content-Generierung nimmt. Owner-Praezisierung 2026-08-20: Funding-News duerfen
+# ueber den regulaeren Cycle zu Artikeln werden — verhindert werden soll nur,
+# dass ein Massen-Ingest en masse in die Content-Generierung laeuft (235k
+# SBIR/CORDIS-Zeilen brachen den 04:00-Lauf ab). Normale RSS-Quellen liegen bei
+# Median 6 / p95 70 Eintraegen pro Tag (gemessen 14 Tage) — 200 trifft also nie
+# den Normalbetrieb, aber jeden Dump. Der Rest bleibt liegen und gehoert dem
+# Distill-Pfad (signal_batch).
+CYCLE_MAX_PER_SOURCE = int(os.getenv("CYCLE_MAX_PER_SOURCE", "200"))
+
 # Untergrenze, unterhalb derer der Content-Guard neu wuerfelt.
 # Owner-Entscheidung 2026-08-19: ~100 Woerter sind als Artikellaenge in
 # Ordnung. Vorher stand hier 130 — bei einem Produktions-Median von 109
