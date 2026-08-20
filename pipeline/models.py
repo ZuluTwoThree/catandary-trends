@@ -50,22 +50,37 @@ class RelevanceResultSlim(BaseModel):
 # --- Step 2: Structured Extraction ---
 
 class ExtractionResult(BaseModel):
-    """Output of the structured extraction step (purely extractive)."""
+    """Output of the structured extraction step (purely extractive).
+
+    Every list is capped. Uncapped, the model dutifully enumerated every place
+    and date in a long article and ran past max_tokens mid-JSON — 55 truncated
+    extractions in one run (2026-08-20), 14 of which gave up after three
+    identical retries and fell back to an EMPTY result. Measured list sizes in
+    normal operation: median 0, p95 0-3 items. A cap of 10 therefore never
+    truncates real content; it only stops the runaway enumeration.
+    """
     brand_name: str | None = Field(default=None, description="Brand or company name mentioned")
     product_name: str | None = Field(default=None, description="Product or service name")
     source_type: str | None = Field(default=None, description="Type of source (press release, article, etc.)")
-    key_claims: list[str] = Field(default_factory=list, description="Key claims from the text")
+    key_claims: list[str] = Field(default_factory=list, max_length=10,
+                                  description="Up to 10 key claims from the text")
     # --- Richer extraction (#11): purely extractive specifics. Copy tokens
     # VERBATIM as they appear (keep the source's number/date formatting); never
     # infer. Besides being useful metadata, key_figures/dates feed the grounding
     # gate (pipeline.grounding): a figure the source actually states is added to
     # the "grounded" set, so a correctly-cited number in the body is no longer
     # held as fabricated by the auto-publish gate — the source that gate rebuilds
-    # is otherwise narrower than the full text the content model saw.
-    key_figures: list[str] = Field(default_factory=list, description="Specific numbers, statistics, amounts or percentages stated verbatim in the text (e.g. '7,980 jobs', '29,5 %', '$2B')")
-    quotes: list[str] = Field(default_factory=list, description="Direct quotations from the text")
-    dates: list[str] = Field(default_factory=list, description="Dates, years or timeframes explicitly stated in the text (e.g. '2027', 'by Q3 2025')")
-    geography: list[str] = Field(default_factory=list, description="Places, regions, countries or jurisdictions mentioned in the text")
+    # is otherwise narrower than the full text the content model saw. That link
+    # is why an empty extraction is not harmless: it shrinks the grounding
+    # source and makes correctly-cited figures look invented.
+    key_figures: list[str] = Field(default_factory=list, max_length=10,
+                                   description="Up to 10 specific numbers, statistics, amounts or percentages stated verbatim in the text (e.g. '7,980 jobs', '29,5 %', '$2B')")
+    quotes: list[str] = Field(default_factory=list, max_length=5,
+                              description="Up to 5 direct quotations from the text")
+    dates: list[str] = Field(default_factory=list, max_length=10,
+                             description="Up to 10 dates, years or timeframes explicitly stated in the text (e.g. '2027', 'by Q3 2025')")
+    geography: list[str] = Field(default_factory=list, max_length=10,
+                                 description="Up to 10 places, regions, countries or jurisdictions mentioned in the text")
 
 
 # --- Step 3: NER + Classification ---

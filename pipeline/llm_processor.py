@@ -95,7 +95,18 @@ logger = logging.getLogger(__name__)
 # DO NOT raise the dedup slice (title + excerpt[:500], step_dedup_check): the 1.1M
 # stored embeddings were computed with exactly that recipe — changing it breaks
 # cosine comparability against the entire history.
-EXTRACT_CHARS = 4000
+# How much source text the extraction stage reads. Raised 4000 -> 12000 on
+# 2026-08-20 after measuring the real corpus: of the articles that carry full
+# text (article_fetcher, 28 % of articles and ~95 % of freshly polled RSS),
+# the median is 4,680 chars and p90 is 8,043 — so the old limit cut 58 % of
+# them mid-article, and the extraction never saw the figures and dates in the
+# second half. 12000 matches article_fetcher.MAX_TEXT_CHARS exactly: nothing
+# longer is ever stored, so a larger value would be dead configuration.
+#
+# Safe only together with the capped lists in ExtractionResult: more input
+# means more extractable items, which is precisely what used to overrun
+# max_tokens. The caps bound the OUTPUT, this bounds the INPUT.
+EXTRACT_CHARS = 12_000
 CONTENT_CHARS = 4000
 RELEVANCE_CHARS = 1500
 
