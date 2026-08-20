@@ -252,3 +252,53 @@ class TestLlmPipelineFlag:
         m.init_db()
         m._migrate_sources_llm_pipeline()
         m._migrate_sources_llm_pipeline()   # second run must not raise
+
+class TestPerSourceCap:
+    """One source must not flood a cycle run (owner rule 2026-08-20).
+
+    Funding news MAY become articles through the regular cycle — the 235k
+    SBIR/CORDIS ingest aborting the whole night is what must never recur.
+    The cap bounds each source's contribution per run; the remainder stays
+    unprocessed for signal_batch.
+    """
+
+    def _seed(self, n_big, n_small):
+        from pipeline.db import get_connection, upsert_source, init_db
+        init_db()
+        big = upsert_source("dump-src", "https://example.com/dump", "api", "BIZ")
+        small = upsert_source("rss-src", "https://example.com/rss", "trade_media", "TECH")
+        with get_connection() as conn:
+            for i in range(n_big):
+                conn.execute("INSERT INTO raw_entries (source_id,url,title) VALUES (?,?,?)",
+                             (big, f"https://example.com/d/{i}", f"D{i}"))
+            for i in range(n_small):
+                conn.execute("INSERT INTO raw_entries (source_id,url,title) VALUES (?,?,?)",
+                             (small, f"https://example.com/r/{i}", f"R{i}"))
+        return big, small
+
+    def test_dump_is_capped_normal_source_flows_fully(self):
+        from pipeline.db import get_unprocessed_entries
+        self._seed(n_big=30, n_small=5)
+        got = get_unprocessed_entries(limit=1000, per_source_cap=10)
+        by = {}
+        for e in got:
+            by[e["source_name"]] = by.get(e["source_name"], 0) + 1
+        assert by.get("dump-src") == 10, "the dump contributes exactly the cap"
+        assert by.get("rss-src") == 5, "a normal source keeps flowing in full"
+
+    def test_oldest_entries_win_within_a_source(self):
+        """FIFO within the source — the cap must not starve old entries by
+        letting newer ones jump the queue across runs."""
+        from pipeline.db import get_unprocessed_entries
+        self._seed(n_big=8, n_small=0)
+        got = [e["title"] for e in get_unprocessed_entries(limit=100, per_source_cap=3)
+               if e["title"].startswith("D")]
+        assert got == ["D0", "D1", "D2"]
+
+    def test_default_cap_comes_from_config(self):
+        from pipeline.config import CYCLE_MAX_PER_SOURCE
+        from pipeline.db import get_unprocessed_entries
+        self._seed(n_big=CYCLE_MAX_PER_SOURCE + 25, n_small=0)
+        got = get_unprocessed_entries(limit=100000)
+        assert len(got) == CYCLE_MAX_PER_SOURCE
+

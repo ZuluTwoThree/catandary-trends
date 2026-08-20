@@ -1059,7 +1059,8 @@ def insert_raw_entries_batch(rows: list[tuple]) -> int:
 
 
 def get_unprocessed_entries(limit: int = 50, min_id: int = 0,
-                            exclude_patents: bool = True) -> list[dict]:
+                            exclude_patents: bool = True,
+                            per_source_cap: int | None = None) -> list[dict]:
     """Get raw entries that haven't been processed yet.
 
     `min_id` restricts to re.id > min_id — used to scope the RSS pipeline to
@@ -1070,20 +1071,41 @@ def get_unprocessed_entries(limit: int = 50, min_id: int = 0,
     This is the RSS content-generation pipeline; the 18M-patent backfill shares
     the unprocessed pool AND overlaps the RSS id range, so min_id alone can't
     keep it out — content-gen must never run on patents. Patents are embedded/
-    classified separately by signal_batch."""
+    classified separately by signal_batch.
+
+    `per_source_cap` (default CYCLE_MAX_PER_SOURCE) bounds how many entries ONE
+    source contributes per call. Owner rule 2026-08-20: funding news may become
+    articles through the regular cycle — what must never happen is a mass ingest
+    (235k SBIR/CORDIS rows) flooding content generation. Normal RSS sources run
+    at p95 ≈ 70 entries/day, so the default 200 never touches regular operation;
+    a dump contributes its oldest `cap` entries per run and the rest waits for
+    signal_batch. Sources flagged llm_pipeline=FALSE stay excluded entirely
+    (manual kill switch; COALESCE keeps NULL from pre-migration DBs flowing)."""
+    if per_source_cap is None:
+        from pipeline.config import CYCLE_MAX_PER_SOURCE
+        per_source_cap = CYCLE_MAX_PER_SOURCE
     patent_clause = "AND re.pub_number IS NULL " if exclude_patents else ""
     with get_connection() as conn:
+        # rank on a slim id-only scan first — the outer join fetches full rows
+        # (raw_content!) only for the ≤ cap×sources winners, so a 200k dump does
+        # not get materialised just to be discarded.
         rows = conn.execute(
-            "SELECT re.*, s.name as source_name, s.vertical as source_vertical, s.source_type as source_type "
-            "FROM raw_entries re JOIN sources s ON re.source_id = s.id "
-            "WHERE re.processed = FALSE AND re.filtered_out = FALSE AND re.id > ? "
-            # Source-level analogue of the patent clause: signal-only sources
-            # (funding, grants) never yield article material. COALESCE keeps
-            # rows from pre-migration DBs where the column is NULL.
-            "AND COALESCE(s.llm_pipeline, TRUE) = TRUE "
+            "WITH ranked AS ("
+            "  SELECT re.id AS rid, ROW_NUMBER() OVER ("
+            "           PARTITION BY re.source_id ORDER BY re.fetched_at ASC, re.id ASC"
+            "         ) AS rn "
+            "    FROM raw_entries re JOIN sources s ON re.source_id = s.id "
+            "   WHERE re.processed = FALSE AND re.filtered_out = FALSE AND re.id > ? "
+            "     AND COALESCE(s.llm_pipeline, TRUE) = TRUE "
             + patent_clause +
-            "ORDER BY re.fetched_at ASC LIMIT ?",
-            (min_id, limit),
+            ") "
+            "SELECT re.*, s.name as source_name, s.vertical as source_vertical, "
+            "       s.source_type as source_type "
+            "  FROM ranked JOIN raw_entries re ON re.id = ranked.rid "
+            "  JOIN sources s ON re.source_id = s.id "
+            " WHERE ranked.rn <= ? "
+            " ORDER BY re.fetched_at ASC LIMIT ?",
+            (min_id, per_source_cap, limit),
         ).fetchall()
         return [dict(row) for row in rows]
 

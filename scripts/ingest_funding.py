@@ -148,9 +148,7 @@ def ingest_nsf(since: str, limit: int, dry_run: bool) -> dict:
     end_mdy = date.today().strftime("%m/%d/%Y")
     source_id = -1 if dry_run else db.upsert_source(
         "NSF Awards (US Federal Research Funding)",
-        "https://api.nsf.gov/services/v1/awards.json", "api", "CROSS",
-        llm_pipeline=False,  # signal-only: funding entries never become articles
-    )
+        "https://api.nsf.gov/services/v1/awards.json", "api", "CROSS")
     fields = ("id,title,abstractText,awardeeStateCode,awardeeName,date,startDate,"
               "fundsObligatedAmt,fundProgramName")
     rpp, offset = 25, 1
@@ -202,9 +200,7 @@ def ingest_nih(since: str, limit: int, dry_run: bool) -> dict:
     years = list(range(since_year, date.today().year + 1))
     source_id = -1 if dry_run else db.upsert_source(
         "NIH RePORTER (US Biomedical Funding)",
-        "https://api.reporter.nih.gov/v2/projects/search", "api", "CROSS",
-        llm_pipeline=False,  # signal-only: funding entries never become articles
-    )
+        "https://api.reporter.nih.gov/v2/projects/search", "api", "CROSS")
     include = ["ProjectTitle", "AbstractText", "Organization", "FiscalYear",
                "ApplId", "ProjectStartDate", "AwardAmount", "AgencyIcAdmin"]
     with httpx.Client(headers=HEADERS) as client:
@@ -269,9 +265,7 @@ def ingest_openaire(since: str, limit: int, dry_run: bool) -> dict:
     future_cap = f"{date.today().year + 3}-12-31"
     source_id = -1 if dry_run else db.upsert_source(
         "OpenAIRE Projects (EU + National Funders)",
-        "https://api.openaire.eu/search/projects", "api", "CROSS",
-        llm_pipeline=False,  # signal-only: funding entries never become articles
-    )
+        "https://api.openaire.eu/search/projects", "api", "CROSS")
     per_shard = max(300, limit // max(1, len(TECH_SHARDS)))
     with httpx.Client(headers=HEADERS) as client:
         for kw in TECH_SHARDS:
@@ -346,9 +340,7 @@ def ingest_ukri(since: str, limit: int, dry_run: bool) -> dict:
     since_year = int(since[:4])
     source_id = -1 if dry_run else db.upsert_source(
         "UKRI Gateway to Research (UK)",
-        "https://gtr.ukri.org/gtr/api/projects", "api", "CROSS",
-        llm_pipeline=False,  # signal-only: funding entries never become articles
-    )
+        "https://gtr.ukri.org/gtr/api/projects", "api", "CROSS")
     page, size, max_pages = 1, 100, 400  # bounded: no server-side date filter
     with httpx.Client(headers={**HEADERS, "Accept": "application/json"}) as client:
         while stats["inserted"] < limit and page <= max_pages:
