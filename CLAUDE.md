@@ -195,10 +195,16 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     → Wenn nein: archivieren als "gefiltert", Ende
     │
     ▼
-[Schritt 2] STRUKTURIERTE EXTRAKTION (NuExtract)
-    Template: {brand_name, product_name, source_type, key_claims}
-    → Rein extraktiv, nur Text der im Original steht
-    → Temperatur: 0
+[Schritt 2] STRUKTURIERTE EXTRAKTION (Qwen3 8B; NuExtract-Fallback deaktiviert)
+    Template: {brand_name, product_name, source_type, key_claims,
+               key_figures, dates, quotes, geography}  (Listen gedeckelt)
+    → Rein extraktiv, nur Text der im Original steht; Temperatur: 0
+    → EXTRACTION_STRICT=1 (Default seit 2026-08-21): alle Felder Pflicht,
+      quotes/geography werden auf Wörtlichkeit gefiltert (~5,3 s/Artikel)
+    → key_figures kommen NICHT vom Modell: deterministisch per Regex aus der
+      Quelle, jeder Eintrag mit wörtlichem Satzkontext (figures_with_context)
+    → Alle Felder gehen in den Content-Prompt von Schritt 5 (seit 2026-08-21;
+      vorher nur brand/product/claims — Artikel dadurch ~170 statt ~110 Wörter)
     │
     ▼
 [Schritt 3] NER + KLASSIFIZIERUNG (Qwen3 8B)

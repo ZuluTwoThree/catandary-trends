@@ -53,13 +53,14 @@ STAGE5_MIN_BODY_WORDS = int(os.getenv("STAGE5_MIN_BODY_WORDS", "25"))
 # Distill-Pfad (signal_batch).
 CYCLE_MAX_PER_SOURCE = int(os.getenv("CYCLE_MAX_PER_SOURCE", "200"))
 
-# Strenge Extraktion (Owner-Entscheidung offen, gemessen 2026-08-21):
-# 1 = alle Schema-Felder als Pflicht anfordern + Zitate/Orte auf Woertlichkeit
-# filtern. Wirkung an 40 Artikeln: brand_name 0/40 -> 40/40, key_claims ~0 -> 274,
-# Spekulationsquote 32,5 % -> 22,5 %. Preis: die Extraktion wird von 1,1 auf
-# 5,3 Sekunden pro Artikel langsamer (bei 24 parallelen Slots ca. 9 -> 45 Minuten
-# pro Nachtlauf). Default aus, bis die Kosten-Nutzen-Abwaegung entschieden ist.
-EXTRACTION_STRICT = os.getenv("EXTRACTION_STRICT", "0") == "1"
+# Strenge Extraktion (Owner-Entscheidung 2026-08-21: AN als Default):
+# alle Schema-Felder werden als Pflicht angefordert + Zitate/Orte auf
+# Woertlichkeit gefiltert. Wirkung an 40 Artikeln: brand_name 0/40 -> 40/40,
+# key_claims ~0 -> 274, Spekulationsquote 32,5 % -> 22,5 %. Preis: die
+# Extraktion dauert 5,3 statt 1,1 Sekunden pro Artikel (bei 24 parallelen
+# Slots ca. 9 -> 45 Minuten pro Nachtlauf) — Owner hat das abgewogen und
+# akzeptiert. EXTRACTION_STRICT=0 ist der Rueckweg ohne Codeaenderung.
+EXTRACTION_STRICT = os.getenv("EXTRACTION_STRICT", "1") == "1"
 
 # Untergrenze, unterhalb derer der Content-Guard neu wuerfelt.
 # Owner-Entscheidung 2026-08-19: ~100 Woerter sind als Artikellaenge in
