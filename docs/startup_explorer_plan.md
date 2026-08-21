@@ -121,6 +121,12 @@ Kante, weil es genau die Substanz-Aussage entwertet, die das Produkt verkauft.
 Deshalb: jede Kante speichert `match_method` und `match_score`, und das Frontend
 zählt **nur Stufe 1 und 2** als belegte Substanz.
 
+**Embedding-Entscheidungen (Owner 2026-08-21):**
+- `signal_batch` persistiert Gefilterten-Embeddings jetzt statt sie zu verwerfen (Fix `865269c` — der Distill-Pfad hatte den schon berechneten Vektor bei Aussortierten weggeworfen; betraf jeden Samstags-Cron und alle Backfills).
+- **Dokumentierte Ausnahme:** Quellen mit Ingester-generierten Template-Excerpts (SEC Form D) werden nicht embedded — der Vektor würde die Schablone messen, nicht die Firma. Liste: `TEMPLATE_EXCERPT_SOURCES` in `signal_batch.py` / `embed_filtered.py`.
+- **Backfill:** die 83.541 gefilterten SBIR/CORDIS-Zeilen (echte Projekt-Abstracts) werden per `embed_filtered.py --source-like 'SBIR%' --source-like '%CORDIS%'` nachgeholt.
+- **Kein** Blanket-Backfill des übrigen Gefiltert-ohne-Embedding-Backlogs (~590k weitere über alle Quelltypen, v. a. trade_media/research) im Rahmen von #87 — das ist Drift-Hedge-Scope, kein Startup-Explorer-Scope.
+
 ---
 
 ## 5. Akquise-Plan in Phasen
@@ -136,6 +142,7 @@ zählt **nur Stufe 1 und 2** als belegte Substanz.
 6. Companies-House-Snapshot: Subset junger Firmen + tech-relevante SIC-Codes (nicht alle ~5,5M).
 7. Wikidata-Enrichment für gematchte Firmen (Gründer, Website, Gründungsdatum).
 8. Resolution-Lauf nach §4; `startup_companies` aufbauen; Distill-Vertical-Klassifikation.
+9. **Firmen-Embedding** (Owner-Reihenfolge 2026-08-21): ein Vektor pro *Firma* (`startup_companies.embedding_1024`, ANN-Index), lokal via Qwen3-Embedding-8B. Embedded wird der beste verfügbare Text je Firma — SBIR/CORDIS-Abstract → Presse-Volltext → Patent-Abstracts (Brücke) → notfalls die Form-D-Industriezeile. Speist die semantische Explorer-Suche („solid state battery startups") und die Vertical-Klassifikation. Filing-Embeddings sind nur Zulieferer; für Form-D-only-Firmen sind Patente/Presse ohnehin der bessere semantische Anker.
 
 **Phase 2 — Signale:**
 9. HN Launch/Show HN (Backfill via Algolia-Suche + laufend), EUIPO-Marken-Bulk, USPTO-Marken (nach ODP-Login-Einrichtung), ClinicalTrials/openFDA fürs HEALTH-Subset, GitHub-Orgs fürs TECH-Subset, USAspending (Small-Business).
