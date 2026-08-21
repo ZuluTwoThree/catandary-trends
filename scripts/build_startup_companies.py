@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from pipeline.company_norm import (
     cik_from_edgar_url, norm_company_name, pic_from_cordis_url,
 )
+from scripts.ingest_secform_d import INDUSTRY_VERTICAL
 from pipeline.db import get_connection
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
@@ -396,12 +397,14 @@ def write(groups: list[Group], dry_run: bool) -> None:
             usd = [float(e["amount"]) for e in g.events
                    if e["amount"] and e["currency"] == "USD"
                    and not _corroborates_regd(e, g.events)]
+            vert = INDUSTRY_VERTICAL.get((g.sector or "").upper())
             comp_buf.append((
                 next_id, name[:500], norm_company_name(name)[:500],
                 g.country, g.region, (g.city or None),
                 g.website, g.sector, g.cik, g.duns, g.pic,
                 g.employees, dates[0], dates[-1], len(g.events),
                 sum(usd) if usd else None,
+                json.dumps([vert] if vert else []),
             ))
             for alias in {n.strip() for n in g.names if n.strip() and n.strip() != name}:
                 alias_buf.append((next_id, alias[:500], "phase0"))
@@ -416,8 +419,8 @@ def write(groups: list[Group], dry_run: bool) -> None:
             conn.executemany(
                 "INSERT INTO startup_companies (id, name, name_norm, country, region, "
                 "city, website, sector, cik, duns, pic, employees, first_event_at, "
-                "last_event_at, event_count, total_funding_usd) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "last_event_at, event_count, total_funding_usd, verticals) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 comp_buf[i:i + 5000])
         for i in range(0, len(alias_buf), 5000):
             conn.executemany(
