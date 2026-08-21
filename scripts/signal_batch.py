@@ -80,6 +80,23 @@ def p_classification(title: str, excerpt: str, ext: ExtractionResult) -> str:
             f"Key Claims: {', '.join(ext.key_claims[:5]) if ext.key_claims else 'None'}")
 
 
+# Quellen, deren Excerpts unsere eigenen Template-Saetze sind (Ingester-generiert,
+# z. B. "X filed a Reg-D private offering. Industry: Y. Total offering $Z.").
+# Ein Embedding darueber misst die Schablone, nicht den Inhalt — fuer diese
+# Quellen wird das Gefilterten-Embedding bewusst NICHT persistiert
+# (dokumentierte Ausnahme von der Drift-Hedge-Regel; Owner 2026-08-21,
+# docs/startup_explorer_plan.md).
+TEMPLATE_EXCERPT_SOURCES = ("SEC Form D",)
+
+
+def _filtered_embedding(e: dict, vec) -> bytes | None:
+    """Blob fuer mark_filtered, wenn die Quelle echten Text traegt."""
+    name = e.get("source_name") or ""
+    if any(name.startswith(p) for p in TEMPLATE_EXCERPT_SOURCES):
+        return None
+    return embedding_to_bytes(vec)
+
+
 # --- batched embeddings ------------------------------------------------------
 
 def embed_batch(texts: list[str]) -> list[list[float] | None]:
@@ -400,7 +417,7 @@ def run(limit: int, execute: bool, embed_chunk: int,
                 if float((kept_buf[chunk_start:kept_count] @ Bn[j]).max()) > thr:
                     is_dup = True
             if is_dup:
-                mark_filtered(e["id"], "duplicate: embedding")
+                mark_filtered(e["id"], "duplicate: embedding", _filtered_embedding(e, v))
                 continue
             e["_embedding"] = v          # store the ORIGINAL (unnormalized) vector
             kept_buf[kept_count] = Bn[j]
@@ -536,7 +553,8 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
             pred = preds[j]
             # relevance gate (only when the head exists)
             if pred["relevance"] is not None and pred["relevance"] < relevance_threshold:
-                mark_filtered(e["id"], f"not_relevant_distill:{pred['relevance']:.2f}")
+                mark_filtered(e["id"], f"not_relevant_distill:{pred['relevance']:.2f}",
+                              _filtered_embedding(e, v))
                 not_relevant += 1
                 continue
             is_dup = rec_max[j] > thr or prev_max[j] > thr
@@ -544,7 +562,8 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
                 if float((kept_buf[chunk_start:kept_count] @ Bn[j]).max()) > thr:
                     is_dup = True
             if is_dup:
-                mark_filtered(e["id"], "duplicate: embedding"); filtered += 1
+                mark_filtered(e["id"], "duplicate: embedding", _filtered_embedding(e, v))
+                filtered += 1
                 continue
             kept_buf[kept_count] = Bn[j]
             kept_count += 1

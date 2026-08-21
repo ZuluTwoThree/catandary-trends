@@ -1110,13 +1110,25 @@ def get_unprocessed_entries(limit: int = 50, min_id: int = 0,
         return [dict(row) for row in rows]
 
 
-def mark_filtered(entry_id: int, reason: str):
-    """Mark an entry as filtered out."""
+def mark_filtered(entry_id: int, reason: str, embedding_blob: bytes | None = None):
+    """Mark an entry as filtered out.
+
+    embedding_blob: if the caller already computed the entry's embedding (the
+    distill path embeds BEFORE the relevance gate), persist it here instead of
+    discarding it — the drift-hedge policy (owner 2026-07-02) wants embeddings
+    for filtered signals too, and at this point the vector is free."""
     with get_connection() as conn:
-        conn.execute(
-            "UPDATE raw_entries SET processed = TRUE, filtered_out = TRUE, filter_reason = ? WHERE id = ?",
-            (reason, entry_id),
-        )
+        if embedding_blob is not None:
+            conn.execute(
+                "UPDATE raw_entries SET processed = TRUE, filtered_out = TRUE, "
+                "filter_reason = ?, embedding_blob = ? WHERE id = ?",
+                (reason, embedding_blob, entry_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE raw_entries SET processed = TRUE, filtered_out = TRUE, filter_reason = ? WHERE id = ?",
+                (reason, entry_id),
+            )
 
 
 def mark_processed(entry_id: int):
