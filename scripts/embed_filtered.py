@@ -35,17 +35,34 @@ logging.basicConfig(level=LOG_LEVEL,
                     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("embed_filtered")
 
+# Quellen mit Ingester-generierten Template-Excerpts (z. B. SEC Form D) sind
+# vom Drift-Hedge ausgenommen: das Embedding wuerde die Schablone messen, nicht
+# den Inhalt (Owner 2026-08-21, docs/startup_explorer_plan.md). Muss zur
+# TEMPLATE_EXCERPT_SOURCES-Liste in scripts/signal_batch.py passen.
+TEMPLATE_EXCERPT_PATTERNS = ("SEC Form D%",)
+
 FETCH_SQL = (
-    "SELECT id, title, excerpt FROM raw_entries "
-    "WHERE filtered_out = TRUE AND embedding_blob IS NULL AND title IS NOT NULL "
-    "ORDER BY id"
+    "SELECT re.id, re.title, re.excerpt FROM raw_entries re "
+    "JOIN sources s ON s.id = re.source_id "
+    "WHERE re.filtered_out = TRUE AND re.embedding_blob IS NULL "
+    "AND re.title IS NOT NULL"
 )
 
 
-def load_todo(limit: int) -> list[dict]:
-    sql = FETCH_SQL + (" LIMIT ?" if limit else "")
+def load_todo(limit: int, source_like: list[str]) -> list[dict]:
+    sql, params = FETCH_SQL, []
+    for pat in TEMPLATE_EXCERPT_PATTERNS:
+        sql += " AND s.name NOT LIKE ?"
+        params.append(pat)
+    if source_like:
+        sql += " AND (" + " OR ".join("s.name LIKE ?" for _ in source_like) + ")"
+        params += source_like
+    sql += " ORDER BY re.id"
+    if limit:
+        sql += " LIMIT ?"
+        params.append(limit)
     with get_connection() as c:
-        return [dict(r) for r in c.execute(sql, (limit,) if limit else ()).fetchall()]
+        return [dict(r) for r in c.execute(sql, params).fetchall()]
 
 
 def main() -> int:
@@ -54,9 +71,12 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=16,
                     help="concurrent requests against the --parallel llama-server")
     ap.add_argument("--commit-every", type=int, default=500)
+    ap.add_argument("--source-like", action="append", default=[],
+                    help="nur Quellen, deren Name diesem LIKE-Muster entspricht "
+                         "(wiederholbar; z. B. --source-like 'SBIR%%')")
     args = ap.parse_args()
 
-    todo = load_todo(args.limit)
+    todo = load_todo(args.limit, args.source_like)
     logger.info("filtered_out entries without embedding: %d", len(todo))
     if not todo:
         return 0
