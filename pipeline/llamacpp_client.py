@@ -72,11 +72,31 @@ def _strip_fences(raw: str) -> str:
     return cleaned
 
 
+def _json_schema(schema, require_all_fields: bool):
+    """The schema sent to llama-server.
+
+    Pydantic marks only fields WITHOUT a default as required, and every field of
+    ExtractionResult has one — so `required` was absent entirely and the grammar
+    happily let the model omit brand_name, key_claims and quotes. It did:
+    measured 0/14 brands and 0 claims across 14 articles. Listing every property
+    as required forces a value for each (an empty list is still a legal value,
+    so nothing is fabricated by construction).
+
+    Opt-in per call: relevance and classification are unaffected, since forcing
+    fields there would change decisions rather than fill in evidence.
+    """
+    js = schema.model_json_schema()
+    if require_all_fields and "properties" in js:
+        js["required"] = list(js["properties"].keys())
+    return js
+
+
 def chat_structured(model: str, prompt: str, schema: type[T],
                     system: str | None = None, temperature: float = 0.0,
                     fallback_model: str | None = None,
                     validate: Callable[[T], bool] | None = None,
-                    max_validate_retries: int | None = None) -> T | None:
+                    max_validate_retries: int | None = None,
+                    require_all_fields: bool = False) -> T | None:
     """Structured output against llama-server (OpenAI json_schema response_format).
 
     Mirrors pipeline.ollama_client.chat_structured: retry loop, markdown fence
@@ -106,7 +126,7 @@ def chat_structured(model: str, prompt: str, schema: type[T],
             "type": "json_schema",
             "json_schema": {
                 "name": schema.__name__,
-                "schema": schema.model_json_schema(),
+                "schema": _json_schema(schema, require_all_fields),
                 "strict": True,
             },
         },
