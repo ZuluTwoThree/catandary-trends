@@ -178,7 +178,15 @@ def llm_extract(client: httpx.Client, model: str, title: str, excerpt: str) -> d
         return None
     if not isinstance(obj, dict):
         return None
-    inv = [str(x)[:120] for x in (obj.get("investors") or []) if x][:10]
+    # Grounding-Gate (gleiche Philosophie wie pipeline/grounding.py): das 8B
+    # erfindet plausible VC-Namen, wenn der Text keine Investoren nennt
+    # (gemessen 2026-08-21: ~8,5 % der Nennungen nicht belegt, darunter
+    # "Bessemer"/"Y Combinator" zu Texten ohne jede Investor-Angabe). Nur
+    # Namen behalten, die woertlich in Titel+Excerpt stehen — lieber eine
+    # echte Nennung verlieren als eine erfundene anzeigen.
+    _src = f"{title or ''} {excerpt or ''}".lower()
+    inv = [str(x)[:120] for x in (obj.get("investors") or [])
+           if x and str(x).lower() in _src][:10]
     amt = obj.get("amount")
     amt = float(amt) if isinstance(amt, (int, float)) and amt > 0 else None
     return {"company": (obj.get("company") or None),
