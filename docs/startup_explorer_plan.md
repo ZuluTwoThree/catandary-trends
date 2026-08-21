@@ -113,6 +113,14 @@ CREATE TABLE startup_research_links (company_id INTEGER, openalex_id TEXT, kind 
 2. **Normalisierter Name + Geo** (Suffix-Stripping Inc/Ltd/GmbH, Jurisdiktion): Merge nur bei eindeutigem Treffer.
 3. **Embedding-Fuzzy** (bestehende Embedding-Infra) nur als Kandidaten-Vorschlag mit hoher Schwelle; darunter **ungemergt lassen** — ein Duplikat ist billiger als ein falscher Merge.
 
+**Warum Stufe 2 zwingend ein Geo-/Sektor-Gate braucht (gemessen 2026-08-21):** Ein
+Probelauf des Namens-Matchings gegen `patent_assignee_raw` *ohne* zweites Merkmal gab
+„Realize, Inc." **60 fremde Patente** — „realize" kommt in vielen Anmeldernamen als
+Wortbestandteil vor. Ein falsch zugeordnetes Patent ist teurer als eine fehlende
+Kante, weil es genau die Substanz-Aussage entwertet, die das Produkt verkauft.
+Deshalb: jede Kante speichert `match_method` und `match_score`, und das Frontend
+zählt **nur Stufe 1 und 2** als belegte Substanz.
+
 ---
 
 ## 5. Akquise-Plan in Phasen
@@ -133,7 +141,7 @@ CREATE TABLE startup_research_links (company_id INTEGER, openalex_id TEXT, kind 
 9. HN Launch/Show HN (Backfill via Algolia-Suche + laufend), EUIPO-Marken-Bulk, USPTO-Marken (nach ODP-Login-Einrichtung), ClinicalTrials/openFDA fürs HEALTH-Subset, GitHub-Orgs fürs TECH-Subset, USAspending (Small-Business).
 
 **Phase 3 — Brücken + Frontend:**
-10. Patent-Brücke: Assignee-Namen aus `patent_assignee_raw` gegen den Firmenstamm matchen (gleiche Normalisierung wie §4 Stufe 2).
+10. Patent-Brücke: Assignee-Namen aus `patent_assignee_raw` gegen den Firmenstamm matchen (gleiche Normalisierung wie §4 Stufe 2). **Ergiebigkeit vorab gemessen (2026-08-21, Stichprobe):** über *alle* Form-D-Filer treffen nur **3 %**, über die Technologie-Industriegruppen (Biotechnology / Other Technology / Computers) **27 %**. Der Mechanismus selbst ist verifiziert (Gegenprobe Moderna, OpenAI, Anthropic, Databricks, Rivian, Ginkgo — alle im Patentkorpus gefunden). Die niedrige Gesamtquote ist **kein Korpus-Qualitätsproblem** — der Form-D-Ingest filtert Fonds/Immobilien bereits über das Industrie-Mapping heraus, der Bestand ist zu ~60 % Tech/Health (Other Technology 39,6 %, Other Health Care 10,6 %, Biotechnology 7,5 %). Sie besagt schlicht, dass die meisten Firmen nicht patentieren, was für Software und Dienstleistungen normal ist. Konsequenz also **nicht** den Korpus beschneiden, sondern die Erwartung im Frontend richtig setzen: die Patent-Brücke ist ein Merkmal der Tech-Teilmenge, keine Eigenschaft jedes Profils — ein Profil ohne Patente ist ein gültiges Profil, keine Datenlücke.
 11. Research-/Grant-Brücke analog.
 12. Frontend `/trends/foresight/ventures` (Explorer-Seite nach dem Muster von `patents/page.tsx`: Suche, Facetten, Stats, PAGE_SIZE 25) + Profilseite. TierGate-Vorschlag: Teaser frei, Suche Starter, Timeline/Brücken Pro — finale Gating-Entscheidung beim Owner.
 13. Cron-Integration: CORDIS/CH/GLEIF monatlich (Muster `sync_openalex_monthly.sh`), Form D quartalsweise, SBIR + Presse-Extraktion in `weekly_ingesters.sh`.
