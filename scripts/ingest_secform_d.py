@@ -38,7 +38,30 @@ logger = logging.getLogger(__name__)
 
 # SEC requires a descriptive User-Agent with contact info.
 UA = {"User-Agent": "CatandaryTrends research (trends@catandary.de)"}
-BASE = "https://www.sec.gov/files/structureddata/data/form-d-data-sets"
+# Die SEC hat den Ablageort mit 2026q2 umgezogen: neue Quartale liegen unter
+# datastandardsinnovation/, die aelteren bleiben unter structureddata/. Beide
+# Basen werden der Reihe nach probiert.
+BASES = (
+    "https://www.sec.gov/files/datastandardsinnovation/data/form-d-data-sets",
+    "https://www.sec.gov/files/structureddata/data/form-d-data-sets",
+)
+
+
+def _fetch_quarter_zip(client, quarter):
+    """Laedt das Quartals-ZIP von der ersten Basis, die es liefert."""
+    last_status = 0
+    for base in BASES:
+        url = f"{base}/{quarter}_d.zip"
+        try:
+            r = client.get(url, timeout=120, follow_redirects=True)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("  %s: download error %s", quarter, type(e).__name__)
+            return None
+        if r.status_code == 200 and r.content[:2] == b"PK":
+            return r
+        last_status = r.status_code
+    logger.info("  %s: not available (HTTP %d)", quarter, last_status)
+    return None
 
 # SEC INDUSTRYGROUPTYPE -> Catandary vertical. Operating-company industries only;
 # anything not mapped (Pooled Investment Fund, REITS, Real Estate, Banking,
@@ -99,14 +122,8 @@ def _amount(s: str) -> str:
 
 def ingest_quarter(client: httpx.Client, quarter: str, dry_run: bool) -> dict:
     st = {"quarter": quarter, "filings": 0, "inserted": 0, "dups": 0, "skipped": 0}
-    url = f"{BASE}/{quarter}_d.zip"
-    try:
-        r = client.get(url, timeout=120, follow_redirects=True)
-    except Exception as e:  # noqa: BLE001
-        logger.warning("  %s: download error %s", quarter, type(e).__name__)
-        return st
-    if r.status_code != 200 or r.content[:2] != b"PK":
-        logger.info("  %s: not available (HTTP %d)", quarter, r.status_code)
+    r = _fetch_quarter_zip(client, quarter)
+    if r is None:
         return st
     z = zipfile.ZipFile(io.BytesIO(r.content))
     subs = {s["ACCESSIONNUMBER"]: s for s in _tsv(z, "FORMDSUBMISSION")}
@@ -171,14 +188,8 @@ def repair_quarter(client: httpx.Client, quarter: str) -> dict:
     (54% der Zeilen standen auf NULL). Laedt das Quartal erneut und updatet
     per EDGAR-URL; nur Zeilen mit published_date IS NULL werden angefasst."""
     st = {"quarter": quarter, "pairs": 0, "updated": 0}
-    url = f"{BASE}/{quarter}_d.zip"
-    try:
-        r = client.get(url, timeout=120, follow_redirects=True)
-    except Exception as e:  # noqa: BLE001
-        logger.warning("  %s: download error %s", quarter, type(e).__name__)
-        return st
-    if r.status_code != 200 or r.content[:2] != b"PK":
-        logger.info("  %s: not available (HTTP %d)", quarter, r.status_code)
+    r = _fetch_quarter_zip(client, quarter)
+    if r is None:
         return st
     z = zipfile.ZipFile(io.BytesIO(r.content))
     prim: dict[str, dict] = {}
