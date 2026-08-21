@@ -196,6 +196,17 @@ zählt **nur Stufe 1 und 2** als belegte Substanz.
 | Offene ToS-Details | openFDA-510(k)-Applicant-Feld, GitHub-ToS-Weiterverwendung, EUIPO-Lizenzklauseln, EIC-Data-Hub-Export — je beim Bau der Quelle verifizieren |
 | Product Hunt / YC | nur nach schriftlicher Freigabe; bis dahin Launch-Signal ausschließlich via Hacker News |
 
+### Attributionspflichten — verbindlich vor öffentlicher Sichtbarkeit (Owner 2026-08-21)
+
+Die lizenzrechtlich geforderten Nennungen **werden als Attributionssätze eingebaut** —
+zentral auf `/trends/methodology` und als Quellen-Fußnote auf den Firmenprofilen,
+BEVOR Companies-House- oder CORDIS-Daten öffentlich angezeigt werden. Das ist ein
+Pflicht-Checklistenpunkt von Phase 3 Schritt 12 (Frontend), kein Optional:
+
+- **Companies House (OGL v3):** „Contains Companies House data © Crown copyright and database right."
+- **CORDIS (CC BY 4.0):** „Contains data from the European Union's CORDIS database (© European Union), licensed under CC BY 4.0. Data has been processed (filtered, classified, linked) by Catandary."
+- **GLEIF, Wikidata (CC0) und SEC/SBIR (Public Domain):** Nennung nicht verpflichtend, wird aus Transparenzgründen trotzdem gesetzt — konsistent mit der Quellennennungs-Pflicht des Gesamtprodukts.
+
 ## 8. Nächste Schritte
 
 1. Owner-Review dieses Plans (insb. TierGate-Zuordnung §5.12 und ob der PDL/PredictLeads-Pilot grundsätzlich gewollt ist).
