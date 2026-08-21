@@ -46,6 +46,7 @@ from pipeline.config import (
     DISTILL_REL_LOW,
     STAGE5_BACKEND,
     STAGE5_MIN_BODY_WORDS,
+    EXTRACTION_STRICT,
     STAGE5_TARGET_BODY_WORDS,
     STAGE5_MAX_BODY_WORDS,
     STAGE5_MODEL,
@@ -72,7 +73,8 @@ from pipeline.models import (
 )
 from pipeline.auto_publisher import auto_publish
 from pipeline.crs import compute_crs
-from pipeline.grounding import ungrounded_specifics, source_from_parts
+from pipeline.grounding import (figures_with_context, source_from_parts,
+                                ungrounded_specifics, verbatim_only)
 from pipeline.ollama_client import chat_structured, generate_embedding
 from pipeline import anthropic_client, gpu_handover, llamacpp_client
 from pipeline.reclassify import gate_mega_trends, reclassify_drafts
@@ -476,6 +478,10 @@ Text: {excerpt[:EXTRACT_CHARS]}"""
             schema=ExtractionResult,
             system=EXTRACTION_SYSTEM,
             temperature=0.0,
+            # Every field of ExtractionResult has a default, so Pydantic marked
+            # none as required and the grammar let the model omit them — it did,
+            # for brand_name, key_claims and quotes on all 14 test articles.
+            require_all_fields=EXTRACTION_STRICT,
         )
 
     return chat_structured(
@@ -555,11 +561,23 @@ def step_generate_content_en(title: str, excerpt: str, extraction: ExtractionRes
                               classification: ClassificationResult,
                               source_url: str, source_name: str) -> GeneratedContent | None:
     """Step 5: Generate English trend article."""
+    # Everything the extraction found goes in. Until 2026-08-21 the prompt used
+    # three of eight fields and dropped key_figures, dates, quotes and geography
+    # — precisely the four the grounding gate then judged the finished body
+    # against. The writer was asked for an evidence-dense article and handed no
+    # evidence, which is the likeliest driver of the 43.7 % speculation rate.
+    def _block(label: str, items: list[str], sep: str = "\n  - ") -> str:
+        return f"{label}:{sep}{sep.join(items)}\n" if items else ""
+
     context = f"""Original Title: {title}
 Original Excerpt: {excerpt[:CONTENT_CHARS]}
 Brand: {extraction.brand_name or 'Unknown'}
 Product: {extraction.product_name or 'Unknown'}
-Key Claims: {', '.join(extraction.key_claims[:5]) if extraction.key_claims else 'N/A'}
+{_block("Figures stated in the source (verbatim — use these, invent none)", extraction.key_figures)}\
+{_block("Key Claims", extraction.key_claims[:8])}\
+{_block("Dates stated in the source", extraction.dates, sep=", ")}\
+{_block("Quotes", extraction.quotes[:3])}\
+{_block("Places", extraction.geography, sep=", ")}\
 Verticals: {', '.join(classification.verticals)}
 PESTEL: {', '.join(classification.pestel)}
 Signal Type: {classification.trend_signal_type}
@@ -694,6 +712,22 @@ def process_entry(entry: dict) -> dict | None:
     if extraction is None:
         logger.warning("[%d] Extraction failed, using defaults", entry_id)
         extraction = ExtractionResult()
+
+    # key_figures come from the SOURCE, not the model. Measured 2026-08-21 on 14
+    # articles: of 44 LLM-produced key_figures exactly ONE was both verbatim and
+    # actually a number — the model writes summarising sentences ("Over £13
+    # billion lost on the FTSE 100") rather than extracting tokens. Correct in
+    # substance, but its own words, so a verbatim check rejects them and the
+    # grounding gate cannot use them. The regex found 188 figures across the same
+    # articles, verbatim by construction, at zero GPU cost. Each entry carries the
+    # sentence around the number, because "$70" alone is not evidence.
+    extraction.key_figures = figures_with_context(excerpt)
+    # Quotes and places must be copied, not paraphrased — anything the source
+    # does not literally contain is dropped. key_claims are deliberately exempt:
+    # a claim condenses, so a verbatim rule would empty the field.
+    if EXTRACTION_STRICT:
+        extraction.quotes = verbatim_only(extraction.quotes, excerpt)
+        extraction.geography = verbatim_only(extraction.geography, excerpt)
 
     logger.info("[%d] Extracted: brand=%s, product=%s", entry_id, extraction.brand_name, extraction.product_name)
 

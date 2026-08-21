@@ -89,3 +89,54 @@ class TestTruncationRetry:
         m.chat_structured(model="m", prompt="p", schema=Strict)
         assert max(captured) <= m.TRUNCATION_MAX_TOKENS, (
             f"one pathological input must not trigger unbounded generation: {captured}")
+
+
+class TestDeterministicFigures:
+    """key_figures come from the source via regex, not from the model.
+
+    Measured 2026-08-21: of 44 model-produced key_figures exactly ONE was both
+    verbatim and a number — it writes summarising sentences, not tokens. The
+    regex found 188 across the same articles, verbatim by construction.
+    """
+
+    def test_every_snippet_is_verbatim(self):
+        from pipeline.grounding import figures_with_context
+        src = ("Revenue rose to $16.7 billion in Q2, up 16.3%. "
+               "The company hired 7,980 people. No numbers here at all.")
+        for snip in figures_with_context(src):
+            core = snip.strip("…").split("…")[0]
+            assert core in " ".join(src.split()), f"not verbatim: {snip!r}"
+
+    def test_sentences_without_figures_are_skipped(self):
+        from pipeline.grounding import figures_with_context
+        out = figures_with_context("Nothing quantitative is said here. Or here.")
+        assert out == []
+
+    def test_denser_sentences_come_first(self):
+        """A writer should see the richest evidence first when the list is cut."""
+        from pipeline.grounding import figures_with_context
+        src = "One mention of 2026. Revenue hit $5 billion, up 12% across 30 markets."
+        assert "5" in figures_with_context(src, limit=1)[0]
+
+    def test_empty_input_is_safe(self):
+        from pipeline.grounding import figures_with_context
+        assert figures_with_context("") == []
+        assert figures_with_context(None) == []
+
+
+class TestVerbatimFilter:
+    def test_keeps_only_what_the_source_contains(self):
+        from pipeline.grounding import verbatim_only
+        src = "Chancellor Olaf Scholz spoke in Berlin about the plan."
+        assert verbatim_only(["Berlin", "Munich"], src) == ["Berlin"]
+
+    def test_tolerates_whitespace_and_typography(self):
+        """Must fail on real divergence, not on a line break or curly quote."""
+        from pipeline.grounding import verbatim_only
+        src = "He said:\n  “the plan   works”."
+        assert verbatim_only(['"the plan works"'], src) == ['"the plan works"']
+
+    def test_empty_inputs(self):
+        from pipeline.grounding import verbatim_only
+        assert verbatim_only([], "text") == []
+        assert verbatim_only(["x"], "") == []

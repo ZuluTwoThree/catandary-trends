@@ -227,3 +227,73 @@ def ungrounded_specifics(body: str, source: str) -> list[str]:
             continue
         bad.append(t)
     return bad
+
+# --- Deterministic figure extraction (2026-08-21) ---------------------------
+# Measured on 14 articles: asking the 8B for key_figures yielded 44 items of
+# which exactly ONE was both verbatim and actually a number. The model does not
+# extract tokens, it writes summarising sentences ("Over £13 billion lost on the
+# FTSE 100") — correct in substance, but its own words, so a verbatim check
+# rejects them and the grounding gate cannot use them. A regex finds 188 figures
+# across the same articles, all verbatim by construction, at zero GPU cost.
+#
+# The snippet matters as much as the number: "$70" alone tells a writer nothing,
+# while the sentence it sits in is evidence. Both come straight from the source,
+# so nothing here can invent anything.
+
+_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def figures_with_context(text: str, limit: int = 10, window: int = 160) -> list[str]:
+    """Figures from `text`, each with the verbatim sentence around it.
+
+    Ordered by information density (most distinct figures first), deduplicated
+    per sentence, capped at `limit`. Returns [] for empty input.
+    """
+    if not text:
+        return []
+    clean = _TAG_RE.sub(" ", text)
+    scored: list[tuple[int, str]] = []
+    seen: set[str] = set()
+    for sent in _SENT_SPLIT.split(clean):
+        sent = " ".join(sent.split())
+        if not sent or len(sent) < 8:
+            continue
+        toks = _concrete_tokens(sent)
+        if not toks:
+            continue
+        if len(sent) > window:
+            # keep the part around the first figure rather than a blunt prefix
+            first = min((sent.find(t) for t in toks if sent.find(t) >= 0), default=0)
+            start = max(0, first - window // 3)
+            sent = ("…" if start else "") + sent[start:start + window].rstrip() + "…"
+        key = sent.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        scored.append((len(toks), sent))
+    scored.sort(key=lambda x: -x[0])
+    return [s for _, s in scored[:limit]]
+
+def _norm_for_match(s: str) -> str:
+    """Whitespace and typographic variants unified, so the check fails on real
+    divergence rather than on a line break or a curly apostrophe."""
+    s = s.replace("\u2019", "'").replace("\u201c", '"').replace("\u201d", '"')
+    s = s.replace("\u2013", "-").replace("\u2014", "-").replace("\u00a0", " ")
+    return " ".join(s.split()).lower()
+
+
+def verbatim_only(items: list[str], source: str) -> list[str]:
+    """Keep only entries that actually appear in `source`.
+
+    Applied to quotes and geography, where verbatim copying is both expected and
+    achievable. NOT to key_claims: a claim is meant to condense, so requiring it
+    verbatim would empty the field. And not to key_figures either — those no
+    longer come from the model at all (figures_with_context).
+    """
+    if not items or not source:
+        return []
+    src = _norm_for_match(source)
+    return [it for it in items
+            if it and len(it.strip()) > 1 and _norm_for_match(it) in src]
+
