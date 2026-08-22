@@ -197,6 +197,38 @@ PY
     echo "no fresh backlog → skipping run 2"
   fi
 
+  # >>> Stage 10: Draft-Richter auf dem lokalen 27B (Owner 2026-08-22) >>>
+  # Beurteilt die frischen Drafts UNTER der Auto-Publish-Schwelle nach den
+  # Kriterien der Haiku-Volldurchsicht (71,6 % davon sind publizierbar) und gibt
+  # frei oder haelt zurueck — verworfen wird nie. Jede Freigabe laeuft durch
+  # dieselben deterministischen Gates wie der Auto-Publisher (Grounding,
+  # Truncation, Dedup gegen Published). Zahlen landen in
+  # data/draft_judge_last.json und damit in der Morgen-Mail.
+  # Abschalten: DRAFT_JUDGE=0. Dauer: ~340 Artikel x ~2-3 s auf --parallel 1.
+  if [ "${DRAFT_JUDGE:-1}" = "1" ]; then
+    echo
+    echo "----- stage 10: draft judge on Qwen3.8-27B -----"
+    systemctl --user stop llama-server.service 2>/dev/null
+    sleep 3
+    ln -sf start-qwen3.8-27b.sh /home/dirk/llama.cpp/start-active.sh
+    systemctl --user start llama-server.service
+    JUDGE_UP=0
+    for i in $(seq 1 40); do
+      sleep 3
+      curl -sf -m 3 http://127.0.0.1:8090/v1/models >/dev/null 2>&1 && { JUDGE_UP=1; break; }
+    done
+    if [ "$JUDGE_UP" = "1" ]; then
+      python -m pipeline.draft_judge --since-hours 30
+      RCJ=$?
+      echo "----- draft judge exit code: $RCJ -----"
+    else
+      echo "----- draft judge SKIPPED: 27B server came not up -----"
+    fi
+    systemctl --user stop llama-server.service 2>/dev/null
+    sleep 3
+  fi
+  # <<< Stage 10 <<<
+
   echo
   # Force the symlink back to the canonical 208K classifier before the final start.
   # A hard-killed mid-cycle handover (OOM/SIGKILL) can leave start-active.sh on a

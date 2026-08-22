@@ -258,6 +258,16 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
 [Schritt 9] AUTO-PUBLISH
     → Status: "draft" → "published" wenn confidence >= 0.85
     → Niedrigere Confidence bleibt als Draft für manuelles Review
+    │
+    ▼
+[Schritt 10] DRAFT-RICHTER (Qwen3.8-27B lokal; seit 2026-08-22, DRAFT_JUDGE=0 schaltet ab)
+    → Beurteilt die frischen Drafts UNTER der Schwelle redaktionell
+      (Kriterien der Haiku-Volldurchsicht: 71,6 % davon sind publizierbar,
+      Confidence trennt kaum — docs/confidence_threshold_entscheidung_2026-08-21.md)
+    → publish nur bei signal=true UND Kategorie ok; sonst ZURÜCKHALTEN, nie verwerfen
+    → Jede Freigabe durch dieselben Gates wie Auto-Publish: Grounding,
+      Truncation, pgvector-Dedup gegen Published (pipeline/draft_judge.py)
+    → auto_published=true; Zahlen → data/draft_judge_last.json → Morgen-Mail
 ```
 
 ### Structured Output: Produktionsreife Absicherung
