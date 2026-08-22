@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import json
 import logging
 import os
 import sys
@@ -66,8 +67,29 @@ def fetch_queue() -> tuple[int, int, str | None, list[dict]]:
     return int(r["today"] or 0), int(r["total"] or 0), r["oldest"], items
 
 
+def judge_stats() -> dict | None:
+    """Last night's draft-judge numbers (pipeline.draft_judge), if fresh.
+
+    The judge writes data/draft_judge_last.json at the end of stage 10; a stale
+    file (older than 24h — e.g. the judge was skipped or failed) must not show
+    up as if it ran, so freshness gates the section."""
+    import datetime
+    p = Path("data/draft_judge_last.json")
+    if not p.exists():
+        return None
+    try:
+        d = json.loads(p.read_text())
+        ts = datetime.datetime.fromisoformat(d["date"])
+        age = datetime.datetime.now(datetime.timezone.utc) - ts
+        if age.total_seconds() > 24 * 3600 or d.get("dry_run"):
+            return None
+        return d
+    except (json.JSONDecodeError, KeyError, ValueError):
+        return None
+
+
 def build_mail(today: int, total: int, oldest: str | None,
-               items: list[dict]) -> tuple[str, str, str]:
+               items: list[dict], judge: dict | None = None) -> tuple[str, str, str]:
     subject = (f"Review: {today} article{'s' if today != 1 else ''} held overnight"
                if today else f"Review queue: {total} waiting")
 
@@ -86,6 +108,15 @@ def build_mail(today: int, total: int, oldest: str | None,
     if today > len(items):
         lines.append(f"  … and {today - len(items)} more")
     lines.append("")
+    if judge:
+        cats = ", ".join(f"{k}={v}" for k, v in sorted(judge.get("categories", {}).items()))
+        lines.append(f"Draft judge (Qwen3.8-27B, sub-threshold drafts): "
+                     f"{judge.get('judged', 0)} judged, {judge.get('released', 0)} released, "
+                     f"{judge.get('held', 0)} held, {judge.get('gate_blocked', 0)} gate-blocked, "
+                     f"{judge.get('dup_blocked', 0)} duplicates.")
+        if cats:
+            lines.append(f"  Categories: {cats}")
+        lines.append("")
     lines.append(f"Review: {REVIEW_URL}")
     text = "\n".join(lines)
 
@@ -141,14 +172,19 @@ def main() -> int:
     args = ap.parse_args()
 
     today, total, oldest, items = fetch_queue()
-    logger.info("queue: %d held today, %d total, oldest %s", today, total, oldest)
+    judge = judge_stats()
+    logger.info("queue: %d held today, %d total, oldest %s | judge: %s",
+                today, total, oldest,
+                f"{judge['released']} released / {judge['held']} held" if judge else "no fresh run")
 
-    if today == 0 and not args.force:
-        # The point of the quiet path: no daily noise when there is no work.
-        logger.info("nothing held today — no mail sent")
+    # Quiet only when there is truly nothing to report: no held articles AND no
+    # judge run. A night where the judge released 200 articles deserves a mail
+    # even if the >=0.85 gate held nothing.
+    if today == 0 and judge is None and not args.force:
+        logger.info("nothing held today, no judge run — no mail sent")
         return 0
 
-    subject, body_html, text = build_mail(today, total, oldest, items)
+    subject, body_html, text = build_mail(today, total, oldest, items, judge)
     if args.dry_run:
         print(f"--- Subject: {subject}\n\n{text}")
         return 0
