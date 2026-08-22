@@ -48,6 +48,8 @@ DDL = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_sc_cik ON startup_companies (cik) WHERE cik IS NOT NULL",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_sc_pic ON startup_companies (pic) WHERE pic IS NOT NULL",
     "CREATE INDEX IF NOT EXISTS idx_sc_duns ON startup_companies (duns) WHERE duns IS NOT NULL",
+    # Nachträglich (Wikidata-Enrichment): Gründer-Personen — einzige freie Quelle
+    "ALTER TABLE startup_companies ADD COLUMN IF NOT EXISTS founders JSONB DEFAULT '[]'",
 
     # Namensvarianten je Firma (Quelle + Original-Schreibweise).
     """CREATE TABLE IF NOT EXISTS startup_aliases (
