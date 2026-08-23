@@ -137,17 +137,17 @@ zählt **nur Stufe 1 und 2** als belegte Substanz.
 3. ✅ `scripts/ingest_cordis.py`: **51.815 CORDIS-SME-Förderungen** (HE 21.314 + H2020 30.501; Filter SME=true ∧ activityType=PRC) mit Land, ecContribution, Projekt-Abstract.
 4. ✅ `scripts/extract_press_rounds.py` + Staging-Tabelle `startup_press_rounds`: Regex-Volllauf über **22.991 Presse-Meldungen → 20.099 (87 %) mit Firma+Betrag**, 265 VC-Fonds-Meldungen ausgefiltert. Investoren-Namen liefert die LLM-Stufe: 200er-Sample validiert (91 % Firma+Betrag, Investoren sauber); **Folgeaufgabe:** `--mode upgrade` über die ~20k Zeilen (~5 h auf dem lokalen LLM, außerhalb des Nachtlauf-Fensters).
 
-**Phase 1 — Firmenstamm + Entity Resolution:**
+**Phase 1 — Firmenstamm + Entity Resolution: ✅ abgeschlossen 2026-08-23** (145.038 Firmen, GLEIF/CH/Wikidata-Enrichment, Firmen-Embeddings + Vertical-Klassifikation)
 5. GLEIF Golden Copy (CC0) als Resolution-Backbone laden.
 6. Companies-House-Snapshot: Subset junger Firmen + tech-relevante SIC-Codes (nicht alle ~5,5M).
 7. Wikidata-Enrichment für gematchte Firmen (Gründer, Website, Gründungsdatum).
 8. Resolution-Lauf nach §4; `startup_companies` aufbauen; Distill-Vertical-Klassifikation.
 9. **Firmen-Embedding** (Owner-Reihenfolge 2026-08-21): ein Vektor pro *Firma* (`startup_companies.embedding_1024`, ANN-Index), lokal via Qwen3-Embedding-8B. Embedded wird der beste verfügbare Text je Firma — SBIR/CORDIS-Abstract → Presse-Volltext → Patent-Abstracts (Brücke) → notfalls die Form-D-Industriezeile. Speist die semantische Explorer-Suche („solid state battery startups") und die Vertical-Klassifikation. Filing-Embeddings sind nur Zulieferer; für Form-D-only-Firmen sind Patente/Presse ohnehin der bessere semantische Anker.
 
-**Phase 2 — Signale:**
+**Phase 2 — Signale: ✅ Kern abgeschlossen 2026-08-23** (HN-Launches 3.374 · FDA-510(k) 11.545 · ClinicalTrials 24.717; offen: Marken [USPTO-Login-Gate/EUIPO-Lizenzprüfung], GitHub, USAspending)
 9. HN Launch/Show HN (Backfill via Algolia-Suche + laufend), EUIPO-Marken-Bulk, USPTO-Marken (nach ODP-Login-Einrichtung), ClinicalTrials/openFDA fürs HEALTH-Subset, GitHub-Orgs fürs TECH-Subset, USAspending (Small-Business).
 
-**Phase 3 — Brücken + Frontend:**
+**Phase 3 — Brücken + Frontend: ✅ Kern abgeschlossen 2026-08-23** (Patent-Brücke 578.829 tech-bestätigte Kanten/19.721 Firmen + Research-Brücke; /trends/foresight/ventures + Firmenprofil mit Attributionssätzen; offen: Cron-Integration nach dev→main-Merge)
 10. Patent-Brücke: Assignee-Namen aus `patent_assignee_raw` gegen den Firmenstamm matchen (gleiche Normalisierung wie §4 Stufe 2). **Ergiebigkeit vorab gemessen (2026-08-21, Stichprobe):** über *alle* Form-D-Filer treffen nur **3 %**, über die Technologie-Industriegruppen (Biotechnology / Other Technology / Computers) **27 %**. Der Mechanismus selbst ist verifiziert (Gegenprobe Moderna, OpenAI, Anthropic, Databricks, Rivian, Ginkgo — alle im Patentkorpus gefunden). Die niedrige Gesamtquote ist **kein Korpus-Qualitätsproblem** — der Form-D-Ingest filtert Fonds/Immobilien bereits über das Industrie-Mapping heraus, der Bestand ist zu ~60 % Tech/Health (Other Technology 39,6 %, Other Health Care 10,6 %, Biotechnology 7,5 %). Sie besagt schlicht, dass die meisten Firmen nicht patentieren, was für Software und Dienstleistungen normal ist. Konsequenz also **nicht** den Korpus beschneiden, sondern die Erwartung im Frontend richtig setzen: die Patent-Brücke ist ein Merkmal der Tech-Teilmenge, keine Eigenschaft jedes Profils — ein Profil ohne Patente ist ein gültiges Profil, keine Datenlücke.
 11. Research-/Grant-Brücke analog.
 12. Frontend `/trends/foresight/ventures` (Explorer-Seite nach dem Muster von `patents/page.tsx`: Suche, Facetten, Stats, PAGE_SIZE 25) + Profilseite. TierGate-Vorschlag: Teaser frei, Suche Starter, Timeline/Brücken Pro — finale Gating-Entscheidung beim Owner.

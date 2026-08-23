@@ -7,7 +7,7 @@ import { q, q1 } from "./pg";
  * Konventionen wie die anderen Explorer: parametrisierte Queries, excluded-
  * Firmen (Fondsvehikel, Presse-Artefakte) sind überall herausgefiltert, und
  * als "belegte Substanz" zählt die Patent-Brücke NUR tech-bestätigt
- * (match_score >= 0.9) — die Stufe-1-Namensmatches bleiben unsichtbar
+ * (match_score >= 0.85; die Spalte ist REAL, 0.9 wäre dort 0.8999…) — die Stufe-1-Namensmatches bleiben unsichtbar
  * (Plan §4: lieber schweigen als falsch behaupten).
  */
 
@@ -43,7 +43,7 @@ export async function getVentureStats(): Promise<VentureStats> {
         JOIN startup_companies c ON c.id = e.company_id
         WHERE c.excluded IS NULL) AS events,
       (SELECT COUNT(DISTINCT company_id) FROM startup_patent_links
-        WHERE match_score >= 0.9) AS with_patents,
+        WHERE match_score >= 0.85) AS with_patents,
       (SELECT COUNT(*) FROM (
          SELECT e.company_id FROM startup_events e
          JOIN startup_companies c ON c.id = e.company_id
@@ -105,7 +105,7 @@ export async function searchVentures(options: {
             c.total_funding_usd::float8 AS total_funding_usd,
             c.founded_date::text,
             EXISTS (SELECT 1 FROM startup_patent_links l
-                    WHERE l.company_id = c.id AND l.match_score >= 0.9) AS has_patents,
+                    WHERE l.company_id = c.id AND l.match_score >= 0.85) AS has_patents,
             EXISTS (SELECT 1 FROM startup_research_links r
                     WHERE r.company_id = c.id) AS has_research,
             COUNT(*) OVER() AS total
@@ -159,11 +159,11 @@ export async function getVenture(id: number) {
               LEAST(r.published_date, NOW())::date::text AS published
        FROM startup_patent_links l
        LEFT JOIN raw_entries r ON r.pub_number = l.pub_number
-       WHERE l.company_id = $1 AND l.match_score >= 0.9
+       WHERE l.company_id = $1 AND l.match_score >= 0.85
        ORDER BY r.published_date DESC NULLS LAST LIMIT 25`, [id]),
     q1<{ n: string }>(
       `SELECT COUNT(*) AS n FROM startup_patent_links
-       WHERE company_id = $1 AND match_score >= 0.9`, [id]),
+       WHERE company_id = $1 AND match_score >= 0.85`, [id]),
     q<{ openalex_id: string }>(
       `SELECT openalex_id FROM startup_research_links
        WHERE company_id = $1 LIMIT 5`, [id]),

@@ -581,6 +581,9 @@ CREATE EXTENSION vector;
 /trends/mega, /trends/mega/[m]   → „Mega Signal Themes"-Übersicht (28 kuratierte Themes; „Megatrend" ist verdientes, gemessenes Badge — 12 Keys, Regel in scripts/measure_mega_axes.py) + Detail
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
   /radar /clusters /technology /lead-time /evolution /dossier
+  /research /patents               (Research-/Patent-Explorer)
+  /ventures, /ventures/company/[id] → Startup Explorer (#87, seit 2026-08-23):
+                                     Firmen-Korpus mit Evidenz-Timeline + Brücken
                                    (Tier-gegated: radar+clusters=Starter, technology+lead-time+
                                     evolution+dossier=Pro, On-Demand-Analyzer=Super Pro+;
                                     Free-Teaser bleibt sichtbar — „gate at the value drill-down")

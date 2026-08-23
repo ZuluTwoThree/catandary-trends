@@ -132,8 +132,11 @@ def build_patent_links() -> None:
             set match_method = 'name+tech', match_score = 0.9
             from compat where compat.company_id = l.company_id
         """)
+        # match_score ist REAL: 0.9 wird als 0.899999976 gespeichert — ein
+        # Vergleich gegen das numerische Literal 0.9 schlaegt fehl (Befund
+        # 2026-08-23: "0 Firmen tech-bestaetigt" trotz 19.721 Updates).
         n2 = conn.execute("select count(distinct company_id) f from startup_patent_links "
-                          "where match_score >= 0.9").fetchone()
+                          "where match_method = 'name+tech'").fetchone()
         logger.info("Stufe 2: %s Firmen tech-bestätigt (%.0fs)", n2["f"], time.time() - t0)
 
 
