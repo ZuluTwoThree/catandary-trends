@@ -155,12 +155,12 @@ export async function getVenture(id: number) {
        FROM startup_events WHERE company_id = $1
        ORDER BY event_date DESC LIMIT 200`, [id]),
     q<VenturePatent>(
-      `SELECT l.pub_number, r.title,
+      `SELECT DISTINCT ON (l.pub_number) l.pub_number, r.title,
               LEAST(r.published_date, NOW())::date::text AS published
        FROM startup_patent_links l
        LEFT JOIN raw_entries r ON r.pub_number = l.pub_number
        WHERE l.company_id = $1 AND l.match_score >= 0.85
-       ORDER BY r.published_date DESC NULLS LAST LIMIT 25`, [id]),
+       ORDER BY l.pub_number, r.published_date DESC NULLS LAST LIMIT 25`, [id]),
     q1<{ n: string }>(
       `SELECT COUNT(*) AS n FROM startup_patent_links
        WHERE company_id = $1 AND match_score >= 0.85`, [id]),
