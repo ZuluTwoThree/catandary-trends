@@ -72,50 +72,87 @@ def snapshot_db(src: Path, target_gz: Path) -> int:
 
 
 def prune_old(folder: Path, prefix: str, keep_days: int) -> int:
-    """Delete files matching <prefix>-* older than keep_days. Returns count removed."""
+    """Delete files/dump directories matching <prefix>-* older than keep_days.
+    Directories are the -Fd Postgres dumps (and stale .tmp staging dirs)."""
     if not folder.exists():
         return 0
     cutoff = datetime.now() - timedelta(days=keep_days)
     removed = 0
     for p in folder.glob(f"{prefix}-*"):
-        if not p.is_file():
-            continue
         if datetime.fromtimestamp(p.stat().st_mtime) < cutoff:
-            p.unlink()
+            if p.is_dir():
+                shutil.rmtree(p)
+            else:
+                p.unlink()
             removed += 1
     return removed
 
 
-def snapshot_postgres(dest_dir: Path, date_tag: str) -> int | None:
-    """pg_dump the production Postgres DB (custom format, compressed) into
-    dest_dir. Since the 2026-07-03 cutover the live data is in Postgres — the
-    SQLite snapshot alone would silently back up a frozen fallback copy.
-    Returns file size, or None if pg_dump is unavailable/fails (non-fatal:
-    the SQLite snapshot still runs).
+def snapshot_postgres(dest_dir: Path, date_tag: str, timeout: int = 10800) -> int:
+    """pg_dump the production Postgres DB into dest_dir as a parallel,
+    zstd-compressed directory-format dump (catandary-pg-<date>.dumpdir).
+    Since the 2026-07-03 cutover the live data is in Postgres — the SQLite
+    snapshot alone would silently back up a frozen fallback copy.
 
-    RESTORE PROCEDURE (verified 2026-07-13, see docs/restore_runbook.md):
-    the dump restores raw_entries/patent_links/etc. cleanly, BUT the
-    vector-typed tables (trends.embedding, cpc/openalex embeddings) need the
-    pgvector extension to exist in the target FIRST — pg_restore cannot create
-    it (not superuser). So a bare `createdb + pg_restore` silently drops the
-    `trends` table and everything referencing it. Always:
+    Fatal on failure since 2026-08-24: the previous -Fc/-Z6 single-thread dump
+    ran into its 1h timeout every night from 2026-07-13 on, this function
+    swallowed the error, and main() still logged "backup OK" — 42 nights with
+    no restorable Postgres backup and no alarm. Any failure now raises, the
+    destination counts as FAILED (exit 1), and scripts/cycle_watchdog.py
+    additionally checks the dump artifact itself on weekday mornings.
+
+    The dump is verified before it is renamed into place: pg_restore --list
+    must succeed and contain at least as many TABLE DATA entries as the live
+    DB has public tables. Reference run 2026-08-23: 445-GB DB → 113-GB dump
+    in 17.5 min with -j 4 + zstd:3.
+
+    RESTORE PROCEDURE (see docs/restore_runbook.md): the vector-typed tables
+    (trends.embedding, cpc/openalex embeddings) need the pgvector extension in
+    the target FIRST — pg_restore cannot create it (not superuser). So a bare
+    `createdb + pg_restore` silently drops the `trends` table and everything
+    referencing it. Always:
         createdb catandary_restore && \
         sudo -u postgres psql -d catandary_restore -c 'CREATE EXTENSION vector' && \
-        pg_restore -d catandary_restore -j4 --no-owner --no-privileges <dump>
+        pg_restore -d catandary_restore -j4 --no-owner --no-privileges \
+            catandary-pg-<date>.dumpdir
     """
     import subprocess
-    target = dest_dir / f"catandary-pg-{date_tag}.dump"
-    staging = target.with_suffix(".tmp")
+    target = dest_dir / f"catandary-pg-{date_tag}.dumpdir"
+    staging = target.with_name(target.name + ".tmp")
+    if staging.exists():
+        shutil.rmtree(staging)
     try:
         subprocess.run(
-            ["pg_dump", "-d", "catandary", "-Fc", "-Z", "6", "-f", str(staging)],
-            check=True, capture_output=True, timeout=3600)
-        os.replace(str(staging), str(target))
-        return target.stat().st_size
-    except Exception as e:  # noqa: BLE001
-        log(f"  pg_dump failed (non-fatal): {e!r}")
-        staging.unlink(missing_ok=True)
-        return None
+            ["pg_dump", "-d", "catandary", "-Fd", "-j", "4",
+             "--compress=zstd:3", "-f", str(staging)],
+            check=True, capture_output=True, timeout=timeout)
+        toc = subprocess.run(
+            ["pg_restore", "--list", str(staging)],
+            check=True, capture_output=True, text=True, timeout=600)
+        n_data = sum(1 for ln in toc.stdout.splitlines() if " TABLE DATA " in ln)
+        live = subprocess.run(
+            ["psql", "-d", "catandary", "-Atc",
+             "SELECT count(*) FROM pg_tables WHERE schemaname='public'"],
+            check=True, capture_output=True, text=True, timeout=60)
+        n_live = int(live.stdout.strip())
+        if n_data < n_live:
+            raise RuntimeError(
+                f"dump TOC has {n_data} TABLE DATA entries but the live DB has "
+                f"{n_live} public tables — dump incomplete")
+        if target.exists():
+            shutil.rmtree(target)
+        os.rename(str(staging), str(target))
+        log(f"  verified: {n_data} TABLE DATA entries (live: {n_live} tables)")
+        return sum(f.stat().st_size for f in target.iterdir() if f.is_file())
+    except subprocess.CalledProcessError as e:
+        err = e.stderr
+        if isinstance(err, bytes):
+            err = err.decode(errors="replace")
+        raise RuntimeError(
+            f"{e.cmd[0]} rc={e.returncode}: {(err or '').strip()[-2000:]}") from e
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
 
 
 def main() -> int:
@@ -130,6 +167,8 @@ def main() -> int:
                     help="Prune snapshots older than this many days")
     ap.add_argument("--skip-postgres", action="store_true",
                     help="only snapshot SQLite (skip pg_dump)")
+    ap.add_argument("--pg-timeout", type=int, default=10800,
+                    help="pg_dump timeout in seconds (reference run: ~18 min)")
     ap.add_argument("--skip-sqlite", action="store_true",
                     help="skip the SQLite snapshot (it is the frozen fallback since "
                          "the Postgres migration — one archived copy suffices)")
@@ -160,9 +199,9 @@ def main() -> int:
                 shutil.copy2(args.env, dest_path / f"env-{date_tag}")
 
             if not args.skip_postgres:
-                pg_size = snapshot_postgres(dest_path, date_tag)
-                if pg_size:
-                    log(f"  {dest}: postgres dump {pg_size/1e6:.1f} MB")
+                pg_size = snapshot_postgres(dest_path, date_tag,
+                                            timeout=args.pg_timeout)
+                log(f"  {dest}: postgres dump {pg_size/1e9:.1f} GB (verified)")
 
             removed_db = prune_old(dest_path, "catandary", args.keep_days)
             removed_env = prune_old(dest_path, "env", args.keep_days)

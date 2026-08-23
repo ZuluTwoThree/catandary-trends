@@ -1,9 +1,20 @@
 # Postgres Restore Runbook
 
 Verified 2026-07-13 (Epic W0.6). The daily backup (`scripts/backup_db.py` →
-`/mnt/data-hdd/backups/catandary/catandary-pg-<date>.dump`, `pg_dump -Fc`) is
-structurally sound: a full restore recovers **20.5M raw_entries, 112M
-patent_links** and every non-vector table exactly.
+`/mnt/data-hdd/backups/catandary/catandary-pg-<date>.dumpdir`) is structurally
+sound: a full restore recovers **20.5M raw_entries, 112M patent_links** and
+every non-vector table exactly.
+
+> **Format change 2026-08-24:** the backup is now a **directory-format dump**
+> (`pg_dump -Fd -j 4 --compress=zstd:3`, ~113 GB, ~18 min) instead of the old
+> single-file `-Fc` dump. Background: the `-Fc` dump had been dying on its
+> 1-hour timeout every night since 2026-07-13 while the log still said
+> "backup OK" — 42 nights without a restorable backup. Failures are fatal now,
+> each dump is verified with `pg_restore --list` against the live table count,
+> and `scripts/cycle_watchdog.py` checks the artifact on weekday mornings.
+> `pg_restore` handles the directory exactly like the old file — just point it
+> at the `.dumpdir` path. (`-Fc` dumps from before the change restore the same
+> way.)
 
 ## The one gotcha: pgvector must exist in the target first
 
@@ -25,7 +36,7 @@ sudo -u postgres psql -d catandary_restore -c 'CREATE EXTENSION vector'
 
 # 3. restore (parallel, ignore ownership/ACLs that reference roles you may lack)
 pg_restore -d catandary_restore -j4 --no-owner --no-privileges \
-    /mnt/data-hdd/backups/catandary/catandary-pg-<date>.dump
+    /mnt/data-hdd/backups/catandary/catandary-pg-<date>.dumpdir
 
 # 4. verify a vector-typed table came back
 psql -d catandary_restore -c 'SELECT count(*) FROM trends'

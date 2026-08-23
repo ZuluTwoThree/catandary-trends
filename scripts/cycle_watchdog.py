@@ -11,6 +11,11 @@ raises no alarm. It surfaced only because the owner happened to ask.
 The check is deliberately about the END of the run, not its content: a cycle
 that finishes with rc=0 is assumed fine (the review-queue mail covers quality).
 
+Since 2026-08-24 the watchdog also checks the nightly 02:45 Postgres backup —
+by artifact, not by log: backup_db.py logged "backup OK" for 42 nights
+(2026-07-13 .. 2026-08-23) while pg_dump died on its timeout every time, so
+the only evidence that counts is the dump directory itself.
+
 Silence means healthy — a mail only ever arrives when something is wrong, which
 is what makes it worth reading.
 
@@ -47,6 +52,12 @@ START_RE = re.compile(r"full_cycle_cron\.sh start\s+(\S+)")
 # Processes that mean "the run is still going", so a missing end line is a slow
 # run rather than a dead one — a different problem with a different answer.
 RUNNING_HINTS = ("scheduled_cycle.sh", "run_full_cycle", "full_cycle_cron.sh")
+
+# Where the 02:45 backup cron writes its Postgres dump (backup_db.py, -Fd).
+BACKUP_DIR = Path("/mnt/data-hdd/backups/catandary")
+BACKUP_LOG = LOG_DIR / "catandary-backup.log"
+# A full dump is ~113 GB (2026-08-23); anything under this is a truncated run.
+BACKUP_MIN_BYTES = 1_000_000_000
 
 
 def cycle_is_running() -> bool:
@@ -151,6 +162,47 @@ def inspect(stamp: str) -> dict:
             "tail": tail}
 
 
+def inspect_backup(stamp: str) -> dict:
+    """Judge the 02:45 Postgres backup for the given YYYYMMDD stamp.
+
+    The artifact is the evidence, not the log: for 42 nights the log said
+    "backup OK" while pg_dump had died on its timeout and no dump existed.
+    The backup runs daily at 02:45 and takes ~20 min, so by watchdog time
+    (07:45) the dump directory for today must exist, be complete (toc.dat
+    present — pg_dump writes it last) and be plausibly sized.
+    """
+    date_tag = datetime.strptime(stamp, "%Y%m%d").strftime("%Y-%m-%d")
+    dump = BACKUP_DIR / f"catandary-pg-{date_tag}.dumpdir"
+    tail: list[str] = []
+    log_path = BACKUP_LOG if BACKUP_LOG.exists() else None
+    if log_path:
+        tail = [ln for ln in log_path.read_text(errors="replace").splitlines()
+                if ln.strip()][-12:]
+
+    if dump.is_dir() and (dump / "toc.dat").exists():
+        size = sum(f.stat().st_size for f in dump.iterdir() if f.is_file())
+        if size >= BACKUP_MIN_BYTES:
+            return {"ok": True, "kind": "backup", "log": log_path,
+                    "headline": f"backup present ({size/1e9:.0f} GB)",
+                    "detail": "", "tail": tail}
+        return {"ok": False, "kind": "backup", "log": log_path,
+                "headline": "The nightly Postgres backup is implausibly small",
+                "detail": f"{dump} holds only {size/1e6:.0f} MB — a full dump "
+                          "is around 113 GB. The dump directory exists but its "
+                          "content does not look like a complete backup.",
+                "tail": tail}
+
+    return {"ok": False, "kind": "backup", "log": log_path,
+            "headline": "The nightly Postgres backup is missing",
+            "detail": f"Expected {dump} — the 02:45 backup_db.py run either "
+                      "did not start, failed, or is still unfinished hours "
+                      "later. Until a dump for today exists, the newest "
+                      "restorable state is the previous day. Run manually: "
+                      ".venv/bin/python scripts/backup_db.py --dest "
+                      f"{BACKUP_DIR} --skip-sqlite --keep-days 7",
+            "tail": tail}
+
+
 def build_mail(v: dict, stamp: str) -> tuple[str, str, str]:
     nice = datetime.strptime(stamp, "%Y%m%d").strftime("%d.%m.%Y")
     subject = f"Catandary: {v['headline'].lower()} ({nice})"
@@ -198,17 +250,25 @@ def main() -> int:
     args = ap.parse_args()
 
     stamp = args.date or date.today().strftime("%Y%m%d")
-    v = inspect(stamp)
-    logger.info("%s: %s (%s)", stamp, v["headline"], v["kind"])
+    cycle_v = inspect(stamp)
+    backup_v = inspect_backup(stamp)
+    logger.info("%s: cycle: %s (%s)", stamp, cycle_v["headline"], cycle_v["kind"])
+    logger.info("%s: backup: %s", stamp, backup_v["headline"])
 
-    if v["ok"] and not args.force:
-        return 0  # silence means healthy
+    problems = [v for v in (cycle_v, backup_v) if not v["ok"]]
+    if not problems:
+        if not args.force:
+            return 0  # silence means healthy
+        problems = [cycle_v]
 
-    subject, body_html, text = build_mail(v, stamp)
-    if args.dry_run:
-        print(f"\nSubject: {subject}\n\n{text}\n")
-        return 0
-    return 0 if send(subject, body_html, text) else 1
+    sent_ok = True
+    for v in problems:
+        subject, body_html, text = build_mail(v, stamp)
+        if args.dry_run:
+            print(f"\nSubject: {subject}\n\n{text}\n")
+        else:
+            sent_ok = send(subject, body_html, text) and sent_ok
+    return 0 if sent_ok else 1
 
 
 if __name__ == "__main__":

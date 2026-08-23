@@ -443,9 +443,16 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # end-Zeile mit Exit-Code geschrieben hat. Der Wrapper schreibt sie als letzte
 # Handlung — stirbt er vorher (Stromausfall 17.08.), fehlt sie einfach und
 # niemand merkt es. Schweigen = alles in Ordnung. Wochenenden sind ausgenommen.
+# Seit 2026-08-24 prüft er zusätzlich das heutige Backup-ARTEFAKT (existiert
+# catandary-pg-<Datum>.dumpdir, toc.dat da, ≥1 GB?) — Log-Zeilen zählen nicht.
 45 7 * * 1-5 cd <repo> && .venv/bin/python -m scripts.cycle_watchdog
 
-# DB-Backup (täglich 02:45)
+# DB-Backup (täglich 02:45). Seit 2026-08-24: pg_dump -Fd -j4 + zstd:3 →
+# catandary-pg-<Datum>.dumpdir (~113 GB, ~18 min), verifiziert per
+# pg_restore --list gegen die Live-Tabellenzahl, Fehler FATAL. Der alte
+# -Fc/-Z6-Dump lief ab 13.07. jede Nacht in den 1-h-Timeout, wurde als
+# "non-fatal" verschluckt und meldete trotzdem "backup OK" — 42 Nächte ohne
+# restaurierbares Postgres-Backup. Restore: docs/restore_runbook.md.
 45 2 * * *   .venv/bin/python scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 7
 
 # Source-Discovery-Loop (Sonntag 06:00)
