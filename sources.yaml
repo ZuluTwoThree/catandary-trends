@@ -107,6 +107,11 @@ verticals:
       feed_url: https://vegconomist.com/feed/
       type: trade_media
       lead_time_tier: market
+    - name: Cultivated X
+      fulltext: true
+      feed_url: https://cultivated-x.com/feed/
+      type: trade_media
+      lead_time_tier: market
     - name: The Spoon
       feed_url: https://thespoon.tech/feed/
       type: trade_media
