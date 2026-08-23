@@ -70,6 +70,16 @@ with get_connection() as c:
   echo; echo "----- Research-Index-Rebuild -----"
   python -u scripts/build_research_index.py || RC=$?
 
+  # ---- Startup Explorer (#87): Signal-Nachschub, alles CPU/Netz ----
+  # Presse-Runden: nur neue Eintraege (LEFT JOIN in candidates), Regex-Stufe.
+  # Die LLM-Nachveredelung (Investoren) bleibt bewusst on-demand — sie braucht
+  # den 8B-Chat-Server und gehoert nicht in dieses GPU-Fenster.
+  echo; echo "----- Startup-Explorer-Signale (#87) -----"
+  python -u scripts/extract_press_rounds.py --mode regex --limit 5000 || RC=$?
+  python -u scripts/ingest_hn_launches.py --since-days 30 || RC=$?
+  python -u scripts/ingest_clinical_trials.py || RC=$?
+  python -u scripts/ingest_fda_510k.py || RC=$?
+
   echo; echo "weekly_ingesters.sh end $(date -Iseconds) (rc=$RC)"
   exit "$RC"
 } >> "$LOG" 2>&1

@@ -472,7 +472,15 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # (arXiv/bioRxiv/medRxiv, 14-Tage-Fenster) + Funding (NSF/NIH/OpenAIRE/UKRI,
 # 45 Tage) + SEC Form D (Vorquartal, nur im 1. Quartalsmonat) + sofortige
 # Distill-Verarbeitung der Neuzugänge via signal_batch_embedded (GPU-Handover).
+# Seit 2026-08-23 (#87) zusätzlich die Startup-Explorer-Signale: Presse-Regex,
+# HN-Launches (30-Tage-Fenster), ClinicalTrials-Sweep, FDA-510(k)-Bulk.
 0 5 * * 6    scripts/weekly_ingesters.sh
+
+# Startup-Explorer-Quellen monatlich (6. 12:00, seit 2026-08-23, #87): CORDIS +
+# SBIR (--refresh) + GLEIF + Companies House + GLEIF/CH-Enrichment + Distill
+# der Neuzugänge + HDD-Download-Cleanup. Firmenstamm-Rebuild, Wikidata und
+# Brücken bewusst NICHT im Cron (Rebuild würde Enrichment verwerfen) — on-demand.
+0 12 6 * *   scripts/monthly_startup_sources.sh
 ```
 
 **Mengenbremse statt Quellen-Verbot (Owner-Präzisierung 2026-08-20):** Funding-News

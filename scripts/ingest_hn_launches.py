@@ -80,15 +80,18 @@ def fetch(client: httpx.Client, query: str, start: int, end: int) -> list[dict]:
 def main() -> int:
     ap = argparse.ArgumentParser(description="HN-Launch-Signale (#87 Phase 2)")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--since-days", type=int, default=0,
+                    help="nur die letzten N Tage sichten (0 = Voll-Backfill ab 2013)")
     args = ap.parse_args()
     idx = load_unique_name_index()
     now = int(time.time())
+    since = now - args.since_days * 86400 if args.since_days else SINCE
     st = {"hits": 0, "parsed": 0, "matched": 0}
     events: list[tuple] = []
     with httpx.Client(headers=UA) as client:
         for phrase in ('"Launch HN"', '"Show HN"'):
             # Jahresfenster halten jede Query unter dem 1.000er-Deckel-Loop
-            for y0 in range(SINCE, now, 365 * 24 * 3600):
+            for y0 in range(since, now, 365 * 24 * 3600):
                 hits = fetch(client, phrase, y0, min(y0 + 365 * 24 * 3600, now))
                 st["hits"] += len(hits)
                 for h in hits:
