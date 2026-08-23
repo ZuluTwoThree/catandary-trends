@@ -1,6 +1,7 @@
 import Link from "next/link";
 import TierGate from "@/components/TierGate";
 import VentureAttribution from "@/components/VentureAttribution";
+import WipBadge from "@/components/WipBadge";
 import { canAccess } from "@/lib/entitlement";
 import {
   getVentureStats, searchVentures, VENTURE_EVENT_TYPES, type VentureRow,
@@ -100,7 +101,7 @@ export default async function VenturesPage({
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-8">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-4">
-          —— The venture tier
+          —— The venture tier <WipBadge />
         </div>
         <h1 className="font-display text-4xl md:text-[44px] leading-[1.05] tracking-tight text-paper mb-4">
           Startup <span className="italic">Explorer</span>
@@ -111,7 +112,8 @@ export default async function VenturesPage({
           press-verified rounds, launches and regulatory milestones.{" "}
           {fmtInt(stats.with_patents)} companies carry patent-confirmed
           technology substance. No valuations, no scraped databases — every
-          event links to its source.
+          event links to its source. This explorer is a work in progress:
+          sources, matching and bridges are still expanding.
         </p>
       </div>
 

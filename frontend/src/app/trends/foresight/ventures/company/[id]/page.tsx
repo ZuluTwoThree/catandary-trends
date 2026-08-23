@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import TierGate from "@/components/TierGate";
 import VentureAttribution from "@/components/VentureAttribution";
+import WipBadge from "@/components/WipBadge";
 import { getVenture, VENTURE_EVENT_TYPES, type VentureEvent } from "@/lib/ventures";
 
 export const dynamic = "force-dynamic";
@@ -87,7 +88,7 @@ export default async function VentureCompanyPage({
         <Link href="/trends/foresight/ventures" className="text-accent hover:underline">
           Startup Explorer
         </Link>
-        {" "}—— company profile
+        {" "}—— company profile <WipBadge />
       </div>
       <h1 className="font-display text-4xl leading-[1.05] tracking-tight text-paper mb-3">
         {c.name}
