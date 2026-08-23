@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { typeaheadContext, applyTypeahead, type TypeaheadContext } from "@/lib/research-search";
 
 /** Suchfeld mit Operator-Typeahead (#83): tippt der Nutzer author:/
@@ -25,14 +25,14 @@ export default function ResearchTypeahead({
   const [hi, setHi] = useState(-1);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const listId = useId();
 
+  // Schließen bei ungültigem Kontext passiert im onChange-Handler, nicht hier —
+  // synchrones setState im Effect-Body verbietet react-hooks/set-state-in-effect.
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
     const c = typeaheadContext(value);
-    if (!c || c.value.length < 2 || (c.kind === "author" && !authorEnabled)) {
-      setOpen(false); setCtx(null);
-      return;
-    }
+    if (!c || c.value.length < 2 || (c.kind === "author" && !authorEnabled)) return;
     timer.current = setTimeout(async () => {
       abort.current?.abort();
       abort.current = new AbortController();
@@ -60,7 +60,14 @@ export default function ResearchTypeahead({
         type="search"
         name={name}
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          const next = e.target.value;
+          setValue(next);
+          const c = typeaheadContext(next);
+          if (!c || c.value.length < 2 || (c.kind === "author" && !authorEnabled)) {
+            setOpen(false); setCtx(null);
+          }
+        }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={(e) => {
           if (!open) return;
@@ -72,14 +79,21 @@ export default function ResearchTypeahead({
         placeholder={placeholder}
         className={`w-full ${className}`}
         aria-label={ariaLabel}
+        role="combobox"
         aria-expanded={open}
+        aria-controls={listId}
+        aria-activedescendant={open && hi >= 0 ? `${listId}-opt-${hi}` : undefined}
         aria-autocomplete="list"
         autoComplete="off"
       />
       {open && (
-        <ul className="absolute z-30 left-0 right-0 top-full mt-1 bg-card border border-border-strong shadow-xl max-h-72 overflow-y-auto">
+        <ul
+          id={listId}
+          role="listbox"
+          className="absolute z-30 left-0 right-0 top-full mt-1 bg-card border border-border-strong shadow-xl max-h-72 overflow-y-auto"
+        >
           {items.map((it, i) => (
-            <li key={it.v}>
+            <li key={it.v} id={`${listId}-opt-${i}`} role="option" aria-selected={i === hi}>
               <button
                 type="button"
                 onMouseDown={(e) => { e.preventDefault(); pick(it.v); }}
