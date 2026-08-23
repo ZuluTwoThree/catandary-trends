@@ -408,6 +408,17 @@ export default function ForesightCockpit({
                 What gets protected — 19M+ searchable patents with abstracts and technology facets
               </div>
             </Link>
+            <Link
+              href="/trends/foresight/ventures"
+              className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                Startup Explorer <span className="text-muted">· work in progress</span> →
+              </div>
+              <div className="font-sans text-sm text-text mt-1">
+                Who commercializes it — companies with dated funding, grant and regulatory evidence
+              </div>
+            </Link>
           </div>
 
           {topClusters.length > 0 && (
