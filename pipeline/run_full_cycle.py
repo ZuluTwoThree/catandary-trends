@@ -284,7 +284,10 @@ def main():
     # before the LLM stages, so classification + content-gen work from the real
     # article, not the RSS teaser. Only opt-in sources (sources.yaml fulltext:true),
     # robots-respecting; no-op if none pending. Non-fatal on error.
-    if not args.skip_llm and not args.skip_poll:
+    # Runs in --skip-poll drain runs too (2026-08-25): the backlog drains were
+    # exactly the runs whose entries reached content-gen text-less — 84% of the
+    # first judge night's candidates had an empty raw_content because of this.
+    if not args.skip_llm:
         try:
             from pipeline.article_fetcher import fetch_batch
             filled = fetch_batch(limit=args.batch)

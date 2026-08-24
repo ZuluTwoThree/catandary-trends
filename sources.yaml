@@ -234,6 +234,7 @@ verticals:
       feed_url: https://www.theregister.com/headlines.atom
       type: trade_media
       lead_time_tier: market
+      # fulltext: bewusst aus — Fetch geblockt/Paywall (Einzel-URL-Test 2026-08-25)
     - name: t3n
       fulltext: true
       feed_url: https://t3n.de/rss.xml
@@ -392,6 +393,7 @@ verticals:
       feed_url: https://athletechnews.com/feed/
       type: trade_media
       lead_time_tier: market
+      # fulltext: bewusst aus — Fetch geblockt/Paywall (Einzel-URL-Test 2026-08-25)
     - name: Nutritional Outlook
       feed_url: https://www.nutritionaloutlook.com/rss.xml
       type: trade_media
@@ -400,6 +402,7 @@ verticals:
       feed_url: https://endpts.com/feed/
       type: trade_media
       lead_time_tier: market
+      # fulltext: bewusst aus — Fetch geblockt/Paywall (Einzel-URL-Test 2026-08-25)
     - name: Healthcare IT News
       active: false  # 2026-06-12: 403/Timeout von Mac-IP; Ersatz vorhanden, vom Prod-System ggf. reaktivieren
       feed_url: https://www.healthcareitnews.com/feed
@@ -618,10 +621,12 @@ verticals:
       feed_url: https://www.dezeen.com/feed/
       type: trade_media
       lead_time_tier: now
+      # fulltext: bewusst aus — Fetch geblockt/Paywall (Einzel-URL-Test 2026-08-25)
     - name: ArchDaily
       feed_url: https://www.archdaily.com/feed
       type: trade_media
       lead_time_tier: now
+      fulltext: true
     - name: Wallpaper
       relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
@@ -671,6 +676,7 @@ verticals:
       feed_url: https://www.businessoffashion.com/feed/
       type: trade_media
       lead_time_tier: market
+      fulltext: true
     - name: Glossy
       relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
@@ -744,14 +750,17 @@ verticals:
       feed_url: https://www.fastcompany.com/latest/rss
       type: trade_media
       lead_time_tier: market
+      # fulltext: bewusst aus — Fetch geblockt/Paywall (Einzel-URL-Test 2026-08-25)
     - name: Finextra
       feed_url: https://www.finextra.com/rss/headlines.aspx
       type: trade_media
       lead_time_tier: market
+      # fulltext: bewusst aus — Fetch geblockt/Paywall (Einzel-URL-Test 2026-08-25)
     - name: Retail Insider
       feed_url: https://www.retail-insider.com/feed/
       type: trade_media
       lead_time_tier: market
+      # fulltext: bewusst aus — Fetch geblockt/Paywall (Einzel-URL-Test 2026-08-25)
     - name: McKinsey Insights
       feed_url: https://www.mckinsey.com/insights/rss
       type: trade_media
@@ -803,6 +812,7 @@ verticals:
       feed_url: https://api.axios.com/feed/
       type: trade_media
       lead_time_tier: now
+      # fulltext: bewusst aus — Fetch geblockt/Paywall (Einzel-URL-Test 2026-08-25)
     - name: Politico Europe
       fulltext: true
       feed_url: https://www.politico.eu/feed/
@@ -812,6 +822,7 @@ verticals:
       feed_url: https://rss.nytimes.com/services/xml/rss/nyt/Business.xml
       type: trade_media
       lead_time_tier: market
+      # fulltext: bewusst aus — Fetch geblockt/Paywall (Einzel-URL-Test 2026-08-25)
     - name: Guardian Business
       fulltext: true
       feed_url: https://www.theguardian.com/business/rss

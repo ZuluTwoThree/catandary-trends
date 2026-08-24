@@ -57,6 +57,10 @@ NOT signals (no_signal): consumer buying advice and deals, how-to and support
 content, sports results, celebrity news, local crime, horoscopes, individual
 stock-picking, event announcements without a development.
 source_mismatch: the draft asserts things the SOURCE clearly does not support.
+When the SOURCE is only a headline or short teaser, do NOT use source_mismatch
+merely because the draft elaborates beyond it — reserve it for drafts that
+contradict the SOURCE or invent specific facts (laws, figures, names, places)
+absent from it.
 broken_text: cut off mid-sentence or garbled. thin_content: a signal, but says
 nothing concrete. ok: none of the above.
 
@@ -144,6 +148,7 @@ def _fetch_candidates(since_hours: int, limit: int) -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT t.id, t.title_en, t.body_en, t.confidence, t.source_name, "
+            "       re.id AS re_id, re.url AS re_url, "
             "       re.title AS re_title, re.raw_content, re.excerpt, re.extraction_json "
             "  FROM trends t LEFT JOIN raw_entries re ON re.id = t.raw_entry_id "
             " WHERE t.status = 'draft' AND (t.confidence < 0.85 OR t.confidence IS NULL) "
@@ -154,9 +159,49 @@ def _fetch_candidates(since_hours: int, limit: int) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def _enrich_candidates(cands: list[dict]) -> int:
+    """Backfill missing full text before judging (2026-08-25, issue #11).
+
+    The article fetcher only touches processed=FALSE entries, so anything that
+    reached content-gen text-less stays text-less forever — and the judge then
+    compares the draft against a two-line teaser (41% of the first night's
+    rejections were source_mismatch, several of them wrong). Same legal
+    guardrails as the fetcher: opt-in sources only, robots.txt, throttled.
+    Fetched text is written back to raw_entries so every later stage sees it.
+    Never raises — a fetch problem must not stop the judge.
+    """
+    try:
+        from pipeline.article_fetcher import fetch_fulltext, fulltext_source_names
+        names = fulltext_source_names()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("candidate enrichment unavailable: %r", e)
+        return 0
+    filled = 0
+    for d in cands:
+        if d.get("raw_content") or not d.get("re_url"):
+            continue
+        if d.get("source_name") not in names:
+            continue
+        try:
+            text = fetch_fulltext(d["re_url"])
+        except Exception:  # noqa: BLE001
+            text = None
+        if not text:
+            continue
+        d["raw_content"] = text
+        try:
+            with get_connection() as conn:
+                conn.execute("UPDATE raw_entries SET raw_content = ? WHERE id = ?",
+                             (text, d["re_id"]))
+            filled += 1
+        except Exception as e:  # noqa: BLE001
+            logger.warning("  #%s fulltext not persisted: %r", d["id"], e)
+    return filled
+
+
 def judge_one(d: dict) -> JudgeVerdict | None:
     from pipeline import llamacpp_client
-    src = ((d["re_title"] or "") + " | " + (d["raw_content"] or d["excerpt"] or ""))[:1400]
+    src = ((d["re_title"] or "") + " | " + (d["raw_content"] or d["excerpt"] or ""))[:4000]
     prompt = (f"SOURCE ({d['source_name'] or 'unknown'}):\n{src}\n\n"
               f"DRAFT ARTICLE:\n{d['title_en']}\n\n{(d['body_en'] or '')[:2200]}\n\n"
               'Answer with JSON only: {"publish": true/false, "signal": true/false, '
@@ -179,6 +224,10 @@ def judge_recent_drafts(since_hours: int = 30, limit: int = 600,
              "judged": 0, "released": 0, "held": 0, "gate_blocked": 0,
              "dup_blocked": 0, "errors": 0, "categories": {}, "dry_run": dry_run}
     logger.info("draft judge: %d candidates (last %dh)", len(cands), since_hours)
+    enriched = _enrich_candidates(cands)
+    stats["fulltext_filled"] = enriched
+    if enriched:
+        logger.info("draft judge: backfilled full text for %d candidates", enriched)
     for d in cands:
         v = judge_one(d)
         if v is None:
