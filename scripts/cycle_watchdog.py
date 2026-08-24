@@ -199,7 +199,7 @@ def inspect_backup(stamp: str) -> dict:
                       "later. Until a dump for today exists, the newest "
                       "restorable state is the previous day. Run manually: "
                       ".venv/bin/python scripts/backup_db.py --dest "
-                      f"{BACKUP_DIR} --skip-sqlite --keep-days 7",
+                      f"{BACKUP_DIR} --skip-sqlite --keep-days 4",
             "tail": tail}
 
 

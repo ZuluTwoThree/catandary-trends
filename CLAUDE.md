@@ -453,7 +453,8 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # -Fc/-Z6-Dump lief ab 13.07. jede Nacht in den 1-h-Timeout, wurde als
 # "non-fatal" verschluckt und meldete trotzdem "backup OK" — 42 Nächte ohne
 # restaurierbares Postgres-Backup. Restore: docs/restore_runbook.md.
-45 2 * * *   .venv/bin/python scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 7
+# keep-days 4 = Owner-Entscheidung 2026-08-24 (~480 GB Steady-State).
+45 2 * * *   .venv/bin/python scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4
 
 # Source-Discovery-Loop (Sonntag 06:00)
 0 6 * * 0    .venv/bin/python scripts/discovery_loop.py
