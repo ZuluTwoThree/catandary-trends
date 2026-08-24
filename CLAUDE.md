@@ -499,7 +499,12 @@ Quelle und Lauf höchstens `CYCLE_MAX_PER_SOURCE` (Default 200; RSS-Normalbetrie
 liegt bei p95 ≈ 70/Tag) — der Rest bleibt liegen und gehört dem Distill-Pfad
 (`signal_batch`). Die 50k-Sanity-Zählung in `scheduled_cycle.sh` zählt denselben
 gebremsten Intake. Zusätzlich existiert `sources.llm_pipeline` als manueller
-Notschalter (FALSE = Quelle liefert nie Artikelmaterial; aktuell nirgends gesetzt).
+Notschalter (FALSE = Quelle liefert nie Artikelmaterial). **Gesetzt für „SEC
+Form D" (id 260, Owner 2026-08-24):** die Reg-D-Stubs fluteten den Draft-Richter
+(248 von 546 Gehaltenen am 24.08.) und sind als Drei-Datenpunkte-Meldungen kein
+Artikelmaterial — sie bleiben Signale über den Distill-Pfad. Redaktionelle
+Funding-News aus Fachmedien dürfen weiterhin Artikel werden (Präzisierung
+2026-08-20 bleibt gültig).
 
 Auto-Publish ist in die LLM-Pipeline integriert (Stage 8+9: Reclassify → Auto-Publish);
 Standalone-Lauf nur als Fallback: `python pipeline/auto_publisher.py`
