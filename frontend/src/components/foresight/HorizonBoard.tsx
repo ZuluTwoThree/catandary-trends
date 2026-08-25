@@ -49,10 +49,18 @@ export default function HorizonBoard({
   view: RadarView;
   evidence: Record<number, EvidenceItem>;
 }) {
-  // Das Portfolio ist die Entscheidungsfläche (Blechschmidt Abb. 8.2) und
-  // damit die Startansicht; Bogen, Matrix und Wolke sind die Evidenzschicht
-  // darunter.
-  const [mode, setMode] = useState<Mode>("portfolio");
+  // Das Portfolio ist die Entscheidungsfläche (Blechschmidt Abb. 8.2) — aber es
+  // ist eine EINGABEfläche: die Relevanzachse bewertet der Nutzer selbst, wir
+  // liefern nur die Reifeachse. Solange nichts bewertet ist, stehen alle Felder
+  // in der Spalte links vom Raster und die 4×4-Matrix ist buchstäblich leer.
+  //
+  // Stand 2026-08-25: in der ganzen Datenbank existiert EINE Relevanzbewertung
+  // (radar_relevance_scores). Für 28 der 29 Radare war die Startansicht also ein
+  // leeres Gitter — der erste Eindruck des teuersten Produktteils. Der Bogen ist
+  // die Ansicht, die aus vorhandener Evidenz immer etwas zeigt, und damit der
+  // richtige Einstieg; das Portfolio bleibt einen Klick entfernt und wird als
+  // Startansicht wieder sinnvoll, sobald Bewertungen vorliegen.
+  const [mode, setMode] = useState<Mode>("arc");
   // Eine Entscheidung gilt immer für EINEN Markt. Die Weltspalte ist die
   // Vereinigung aller Signale und damit die großzügigste Lesart — als
   // Startansicht wäre der erste Eindruck systematisch der rosigste. Sie bleibt

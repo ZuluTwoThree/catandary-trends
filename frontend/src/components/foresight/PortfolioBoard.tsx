@@ -24,16 +24,16 @@ import type { RadarView } from "@/lib/radar-shared";
  */
 
 const MATURITY = [
-  { key: "established", label: "Etabliert", band: "Implementieren" },
-  { key: "maturing", label: "Reifend", band: "Berücksichtigen" },
-  { key: "volatile", label: "Volatil", band: "Verstehen" },
-  { key: "emerging", label: "Entstehend", band: "Beobachten" },
+  { key: "established", label: "Established", band: "Implement" },
+  { key: "maturing", label: "Maturing", band: "Factor in" },
+  { key: "volatile", label: "Volatile", band: "Understand" },
+  { key: "emerging", label: "Emerging", band: "Watch" },
 ];
 
 const RELEVANCE = [
-  { key: "low", label: "Gering", band: "Opportunistisch" },
-  { key: "medium", label: "Mittel", band: "Gleichwertig" },
-  { key: "high", label: "Hoch", band: "Proaktiv" },
+  { key: "low", label: "Low", band: "Opportunistic" },
+  { key: "medium", label: "Medium", band: "Balanced" },
+  { key: "high", label: "High", band: "Proactive" },
 ];
 
 /** Blechschmidts zwölf Handlungsempfehlungen, aus den Achsenbändern gebildet. */
@@ -149,17 +149,17 @@ export default function PortfolioBoard({ view }: { view: RadarView }) {
       <div className="pf-legend">
         <span className="pf-k">Portfolio</span>
         <span className="pf-v">
-          Trendreife — von uns aus Evidenz abgeleitet
+          Trend maturity — derived by us from evidence
         </span>
         <span className="pf-v pf-user">
-          Trendrelevanz — von Ihnen bewertet
+          Trend relevance — rated by you
         </span>
-        {saving ? <span className="pf-v">speichert…</span> : null}
+        {saving ? <span className="pf-v">saving…</span> : null}
       </div>
 
       <div className="pf-grid">
         <div className="pf-corner" />
-        {["Unbewertet", ...RELEVANCE.map((r) => r.label)].map((l, i) => (
+        {["Unrated", ...RELEVANCE.map((r) => r.label)].map((l, i) => (
           <div key={l} className={`pf-colh ${i === 0 ? "is-empty" : ""}`}>
             {l}
             {i > 0 ? <span className="pf-band">{RELEVANCE[i - 1].band}</span> : null}
@@ -180,7 +180,7 @@ export default function PortfolioBoard({ view }: { view: RadarView }) {
                 <div
                   key={`${m.key}-${rk ?? "none"}`}
                   className={`pf-cell ${i === 0 ? "is-empty" : ""}`}
-                  title={rk ? advice(m.key, rk) : "Noch nicht bewertet"}
+                  title={rk ? advice(m.key, rk) : "Not rated yet"}
                 >
                   {cellItems.map((it) => (
                     <button
@@ -205,10 +205,9 @@ export default function PortfolioBoard({ view }: { view: RadarView }) {
 
       {unrated.length ? (
         <p className="pf-hint">
-          {unrated.length} von {placed.length} Feldern sind noch nicht bewertet
-          und stehen deshalb links außerhalb des Rasters — nicht bei „gering“.
-          Ihre Relevanz kann Ihnen niemand abnehmen: sie hängt von Ihrem
-          Geschäft ab, nicht vom Signalraum.
+          {unrated.length} of {placed.length} fields are not rated yet, so they
+          sit in the column left of the grid — not under “Low”. Nobody can rate
+          relevance for you: it depends on your business, not on the signal space.
         </p>
       ) : null}
 
@@ -291,7 +290,7 @@ function RelevancePanel({
         </div>
       ) : null}
 
-      <p className="rp-h">Trendrelevanz — Ihre Bewertung</p>
+      <p className="rp-h">Trend relevance — your rating</p>
       <div className="rp-rel">
         {criteria.map((c) => {
           const hint = maturity?.relevance_hint?.[c.key];
