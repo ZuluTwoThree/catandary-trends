@@ -24,7 +24,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   const foresightUrls: MetadataRoute.Sitemap = [
-    "radar",
     "clusters",
     "technology",
     "lead-time",

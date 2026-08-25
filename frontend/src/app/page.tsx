@@ -241,11 +241,10 @@ export default async function LandingPage() {
                 </svg>
                 <h3>The deliverable teams already think in</h3>
                 <p>
-                  A trend radar with lead-time rings, cluster momentum, and one-click evidence —
-                  the format an innovation team hands to a board, without the enterprise
-                  procurement.
+                  Cluster momentum with one-click evidence — the format an innovation
+                  team hands to a board, without the enterprise procurement.
                 </p>
-                <div className="lp-ev">Product · radar · clusters · technology · export</div>
+                <div className="lp-ev">Product · clusters · technology · lead-time · export</div>
               </article>
             </div>
           </Reveal>
@@ -427,7 +426,6 @@ export default async function LandingPage() {
                   <li>Everything in Free</li>
                   <li>Full trend-article archive</li>
                   <li>Cluster explorer</li>
-                  <li>Trend radar</li>
                   <li>Saved searches &amp; alerts</li>
                 </ul>
                 <Link className="lp-btn" href="/trends/pricing">

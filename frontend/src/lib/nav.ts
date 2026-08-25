@@ -17,7 +17,6 @@ export const PRIMARY_NAV: NavItem[] = [
 /** The Foresight tool suite — grouped under one "Foresight" entry. */
 export const FORESIGHT_NAV: NavItem[] = [
   { href: "/trends/foresight", label: "Cockpit" },
-  { href: "/trends/foresight/radar", label: "Radar" },
   { href: "/trends/foresight/clusters", label: "Clusters" },
   { href: "/trends/foresight/technology", label: "Technology" },
   { href: "/trends/foresight/lead-time", label: "Lead Time" },
