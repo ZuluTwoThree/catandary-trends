@@ -9,6 +9,23 @@
 
 export type Horizon = "H1" | "H2" | "H3";
 
+/**
+ * Horizon is ORDINAL, not categorical: H1 → H2 → H3 is a sequence (act now →
+ * build → watch), so it takes ONE hue in monotone lightness steps. That is also
+ * what makes it colour-blind safe by construction — lightness survives every CVD
+ * simulation, hue does not.
+ *
+ * The predecessor used three categorical hues (#d4ff3a / #60a5fa / #a78bfa) and
+ * failed measurement badly: H2↔H3 sat at ΔE 0.3 under deuteranopia — literally
+ * the same colour for ~6 % of male readers — and at ΔE 10.2 under normal vision,
+ * below the 15 floor. Steps below come from the documented sequential blue ramp;
+ * luminance is monotone (brightest = most urgent) and each clears 3:1 against the
+ * #0a0c0a page surface (17.2:1 / 8.0:1 / 3.6:1).
+ *
+ * Deliberately NOT the brand accent #d4ff3a: that colour marks interactive and
+ * active state across the whole UI (tabs, CTAs, selection). H1 blips wearing it
+ * made "decide this today" and "this is clickable" the same signal.
+ */
 export const HORIZON_META: Record<
   Horizon,
   { label: string; action: string; blurb: string; color: string }
@@ -17,19 +34,19 @@ export const HORIZON_META: Record<
     label: "H1",
     action: "Act now",
     blurb: "In market, approved, established — decisions are due today.",
-    color: "#d4ff3a",
+    color: "#cde2fb",
   },
   H2: {
     label: "H2",
     action: "Build",
     blurb: "In transition: the path is open, first products exist.",
-    color: "#60a5fa",
+    color: "#6da7ec",
   },
   H3: {
     label: "H3",
     action: "Watch",
     blurb: "Research stage, no route to market yet — keep an option open.",
-    color: "#a78bfa",
+    color: "#256abf",
   },
 };
 

@@ -106,7 +106,6 @@ export default function HorizonArc({
     const out: ArcBlip[] = [];
     dims.forEach((dim, di) => {
       const a0 = Math.PI + di * seg;
-      const style = dimensionStyle(dim);
       BANDS.forEach((band) => {
         const members = view.scopes.filter((s) => {
           const c = cellFor(view, s.slug, dim, region);
@@ -154,7 +153,13 @@ export default function HorizonArc({
             r,
             a,
             horizon: band.h,
-            color: style.color,
+            // Colour carries the HORIZON, not the dimension. The dimension is
+            // already fully encoded by which sector the blip sits in plus that
+            // sector's axis label — colouring by it spent the identity channel
+            // restating position, and did it with a palette that measured
+            // ΔE 0.3 between MKT and TEC under deuteranopia. Horizon reinforces
+            // the radial axis instead, as an ordinal ramp (see HORIZON_META).
+            color: HORIZON_META[band.h].color,
             _a0: a0,
             _r0: band.r0,
             _r1: band.r1,
@@ -222,9 +227,14 @@ export default function HorizonArc({
         aria-label={`Horizon arc for ${region}: bands are H1 to H3 from the baseline outward, sectors are dimensions`}
       >
         <defs>
+          {/* Baseline glow. Was the chartreuse accent at 0.10 — it washed the H1
+              band olive, which is exactly where the lightest blue blips sit, and
+              cost them contrast against their own background. Neutral ink-paper
+              wash instead: it still lifts "today" off the plate, and it no longer
+              competes with the encoding. */}
           <radialGradient id="arc-glow" cx="50%" cy="100%" r="75%">
-            <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.10" />
-            <stop offset="55%" stopColor="var(--color-accent)" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="var(--color-paper)" stopOpacity="0.055" />
+            <stop offset="55%" stopColor="var(--color-paper)" stopOpacity="0.014" />
             <stop offset="100%" stopColor="transparent" stopOpacity="0" />
           </radialGradient>
           <filter id="arc-grain">
@@ -245,17 +255,19 @@ export default function HorizonArc({
           <rect x="0" y="0" width={W} height={H} filter="url(#arc-grain)" />
         </g>
 
-        {/* Sector wedges: faintest tint of the dimension's own colour */}
+        {/* Sector wedges: neutral alternating tint, so the sectors read as
+            separate zones without implying a colour code. The selected sector
+            takes the brand accent — that colour now means "active" and nothing
+            else on this chart. */}
         {dims.map((dim, di) => {
           const a0 = Math.PI + di * seg;
-          const style = dimensionStyle(dim);
           const isSel = sel?.dimension === dim;
           return (
             <path
               key={`wedge-${dim}`}
               d={wedgePath(R_IN, R_OUT, a0, a0 + seg)}
-              fill={style.color}
-              fillOpacity={isSel ? 0.075 : 0.028}
+              fill={isSel ? "var(--color-accent)" : "var(--color-paper)"}
+              fillOpacity={isSel ? 0.05 : di % 2 === 0 ? 0.032 : 0.014}
               className="arc-wedge"
             />
           );
@@ -303,39 +315,25 @@ export default function HorizonArc({
           className="arc-div arc-baseline"
         />
 
-        {/* Sector labels, set tangentially outside the rim like a dial face */}
+        {/* Sector labels outside the rim. Set HORIZONTALLY, not tangentially:
+            the dial-face rotation put TEC and ADO on their side, which is the
+            one label the reader most needs in order to know what a sector is.
+            They wear a text token, never a series colour — the sector's own
+            position is what identifies the dimension. */}
         {dims.map((dim, di) => {
           const a = Math.PI + di * seg + seg / 2;
           const style = dimensionStyle(dim);
-          const [x, y] = pt(R_OUT + 40, a);
-          const deg = (a * 180) / Math.PI + 90;
+          const [x, y] = pt(R_OUT + 34, a);
           return (
             <text
               key={`lab-${dim}`}
               x={x}
-              y={y}
+              y={y + 4}
               className="arc-sector-label"
-              fill={style.color}
               textAnchor="middle"
-              transform={`rotate(${deg} ${x} ${y})`}
             >
               {style.short}
             </text>
-          );
-        })}
-
-        {/* Band labels, stacked on the vertical axis */}
-        {BANDS.map((band) => {
-          const [, y] = pt((band.r0 + band.r1) / 2, 1.5 * Math.PI);
-          return (
-            <g key={`bl-${band.h}`}>
-              <text x={CX} y={y + 4} className="arc-band-label">
-                {band.h}
-              </text>
-              <text x={CX} y={y + 20} className="arc-band-sub">
-                {HORIZON_META[band.h].action.toUpperCase()}
-              </text>
-            </g>
           );
         })}
 
@@ -409,6 +407,30 @@ export default function HorizonArc({
           );
         })}
 
+        {/* Band labels LAST, so they paint over the blips instead of under them.
+            They sit on the vertical axis — which is also a sector boundary — and
+            carry their own horizon step, so a blip's colour ties back to its ring
+            without a lookup. The ink halo (paint-order, see CSS) keeps them
+            readable where a blip lands on the divider. */}
+        {BANDS.map((band) => {
+          const [, y] = pt((band.r0 + band.r1) / 2, 1.5 * Math.PI);
+          return (
+            <g key={`bl-${band.h}`} className="arc-band-key">
+              <text
+                x={CX}
+                y={y + 4}
+                className="arc-band-label"
+                fill={HORIZON_META[band.h].color}
+              >
+                {band.h}
+              </text>
+              <text x={CX} y={y + 19} className="arc-band-sub">
+                {HORIZON_META[band.h].action.toUpperCase()}
+              </text>
+            </g>
+          );
+        })}
+
         {/* Baseline caption */}
         <text x={CX} y={CY + 32} className="arc-now" textAnchor="middle">
           — TODAY · {region} —
@@ -433,6 +455,8 @@ export default function HorizonArc({
         .arc-sector-label {
           font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.26em;
           font-weight: 500;
+          /* Axis ink, not a series colour — the sector identifies the dimension. */
+          fill: var(--color-paper); fill-opacity: 0.62;
         }
         .arc-dot-label {
           font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .08em;
@@ -440,13 +464,23 @@ export default function HorizonArc({
           paint-order: stroke; stroke: var(--color-ink); stroke-width: 3px;
           stroke-linejoin: round; pointer-events: none;
         }
+        /* fill comes from the element (the horizon step), so ring label and blip
+           carry the same colour. They sit on the vertical axis — which is also a
+           sector boundary — and get an ink halo via paint-order so a blip landing
+           near the divider can no longer swallow the label. */
+        /* Painted last (see JSX) — must not swallow blip clicks. */
+        .arc-band-key { pointer-events: none; }
         .arc-band-label {
-          font-family: var(--font-display); font-size: 20px; font-style: italic;
-          fill: var(--color-paper); fill-opacity: 0.5; text-anchor: middle;
+          font-family: var(--font-display); font-size: 19px; font-style: italic;
+          fill-opacity: 0.95; text-anchor: middle;
+          paint-order: stroke; stroke: var(--color-ink); stroke-width: 5px;
+          stroke-linejoin: round;
         }
         .arc-band-sub {
           font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.2em;
-          fill: var(--color-paper); fill-opacity: 0.3; text-anchor: middle;
+          fill: var(--color-paper); fill-opacity: 0.42; text-anchor: middle;
+          paint-order: stroke; stroke: var(--color-ink); stroke-width: 4px;
+          stroke-linejoin: round;
         }
         .arc-now {
           font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.32em;

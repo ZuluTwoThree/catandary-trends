@@ -414,10 +414,13 @@ export default function HorizonBoard({
         @media (max-width: 1000px) { .hb-grid { grid-template-columns: 1fr; } }
         .hb-stage { min-width: 0; }
 
-        .hb-legend { list-style: none; padding: 0; margin: 1.2rem 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: .1rem .8rem; border-top: 1px solid var(--color-border); padding-top: .9rem; }
-        .hb-legend-btn { display: flex; align-items: center; gap: .5rem; width: 100%; padding: .3rem .2rem; background: none; border: 0; cursor: pointer; text-align: left; color: var(--color-text); font-size: .82rem; transition: color .15s; }
+        .hb-legend { list-style: none; padding: 0; margin: 1.2rem 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .25rem .8rem; border-top: 1px solid var(--color-border); padding-top: .9rem; }
+        .hb-legend-btn { display: flex; align-items: flex-start; gap: .5rem; width: 100%; padding: .3rem .2rem; background: none; border: 0; cursor: pointer; text-align: left; color: var(--color-text); font-size: .82rem; transition: color .15s; }
         .hb-legend-btn:hover, .hb-legend-btn.is-on { color: var(--color-accent); }
-        .hb-legend-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* The legend is the only place a field's full name sits next to its
+           number — truncating it ("Space Exploration · Consu…") cut away exactly
+           the distinguishing half. Wrap instead of ellipsis. */
+        .hb-legend-label { overflow-wrap: anywhere; line-height: 1.35; }
         .hb-num { display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; flex: none; border: 1px solid var(--color-border); font-family: var(--font-mono); font-size: 9px; color: var(--color-muted); }
 
         .hb-scroll { overflow-x: auto; }
