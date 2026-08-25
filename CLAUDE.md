@@ -267,6 +267,11 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     → publish nur bei signal=true UND Kategorie ok; sonst ZURÜCKHALTEN, nie verwerfen
     → Jede Freigabe durch dieselben Gates wie Auto-Publish: Grounding,
       Truncation, pgvector-Dedup gegen Published (pipeline/draft_judge.py)
+    → Jeder beurteilte Draft wird judged_at-gestempelt und nie erneut
+      beurteilt (seit 2026-08-25 — vorher richtete der Judge dieselbe
+      gehaltene Kohorte jede Nacht neu und die frischen Drafts verhungerten
+      am 600er-Limit); Kandidaten holen sich vorher fehlenden Volltext
+      (nur Opt-in-Quellen, fulltext_filled in der JSON)
     → auto_published=true; Zahlen → data/draft_judge_last.json → Morgen-Mail
 ```
 

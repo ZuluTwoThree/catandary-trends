@@ -91,6 +91,69 @@ class TestPublishDraft:
         assert row["reviewed_at"] is not None and row["published_at"] is not None
 
 
+class TestJudgedAtStamp:
+    """Every verdicted draft is stamped once (2026-08-25): without the stamp
+    the judge re-judged the same held cohort nightly (oldest ids first) and
+    fresh drafts never reached the 600-slot window."""
+
+    @pytest.fixture(autouse=True)
+    def _cleanup(self):
+        yield
+        with get_connection() as conn:
+            conn.execute("DELETE FROM trends WHERE slug LIKE 'judge-%'")
+            conn.execute("DELETE FROM raw_entries WHERE url LIKE 'https://example.com/j/%'")
+            conn.execute("DELETE FROM sources WHERE feed_url = 'https://example.com/judge'")
+
+    def _mk_draft(self):
+        init_db()
+        sid = upsert_source("judge-test", "https://example.com/judge", "api", "BIZ")
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT INTO raw_entries (source_id, url, title) VALUES (?, ?, ?)",
+                (sid, "https://example.com/j/stamp", "T"))
+            rid = conn.execute("SELECT id FROM raw_entries WHERE url = ?",
+                               ("https://example.com/j/stamp",)).fetchone()[0]
+            conn.execute(
+                "INSERT INTO trends (raw_entry_id, title_en, slug, source_url, status) "
+                "VALUES (?, ?, ?, ?, 'draft')", (rid, "T", "judge-stamp", "https://example.com"))
+            return conn.execute("SELECT id FROM trends WHERE slug = 'judge-stamp'").fetchone()[0]
+
+    def _judged_at(self, tid):
+        with get_connection() as conn:
+            return conn.execute("SELECT judged_at FROM trends WHERE id = ?", (tid,)).fetchone()[0]
+
+    def test_held_verdict_stamps_but_dry_run_does_not(self, tmp_path, monkeypatch):
+        import pipeline.draft_judge as dj
+        tid = self._mk_draft()
+        cand = {"id": tid, "title_en": "T", "body_en": "body", "confidence": 0.5,
+                "source_name": "judge-test", "re_id": None, "re_url": None,
+                "re_title": "T", "raw_content": "src", "excerpt": "src",
+                "extraction_json": None}
+        monkeypatch.setattr(dj, "STATS_PATH", tmp_path / "stats.json")
+        monkeypatch.setattr(dj, "_fetch_candidates", lambda h, l: [dict(cand)])
+        monkeypatch.setattr(dj, "judge_one", lambda d: dj.JudgeVerdict(
+            publish=False, signal=False, category="no_signal", note=""))
+
+        stats = dj.judge_recent_drafts(dry_run=True)
+        assert stats["held"] == 1 and self._judged_at(tid) is None
+
+        stats = dj.judge_recent_drafts(dry_run=False)
+        assert stats["held"] == 1 and self._judged_at(tid) is not None
+
+    def test_error_leaves_draft_unstamped_for_retry(self, tmp_path, monkeypatch):
+        import pipeline.draft_judge as dj
+        tid = self._mk_draft()
+        cand = {"id": tid, "title_en": "T", "body_en": "body", "confidence": 0.5,
+                "source_name": "judge-test", "re_id": None, "re_url": None,
+                "re_title": "T", "raw_content": "src", "excerpt": "src",
+                "extraction_json": None}
+        monkeypatch.setattr(dj, "STATS_PATH", tmp_path / "stats.json")
+        monkeypatch.setattr(dj, "_fetch_candidates", lambda h, l: [dict(cand)])
+        monkeypatch.setattr(dj, "judge_one", lambda d: None)
+        stats = dj.judge_recent_drafts(dry_run=False)
+        assert stats["errors"] == 1 and self._judged_at(tid) is None
+
+
 class TestMailFreshness:
     def test_stale_or_dry_run_stats_are_ignored(self, tmp_path, monkeypatch):
         """A judge that did not run tonight must not appear in the mail as if

@@ -111,6 +111,11 @@ CREATE TABLE IF NOT EXISTS trends (
     -- Also separates a human rejection from an automated sweep, which
     -- get_recent_embeddings() relies on.
     reviewed_at TEXT,
+    -- When the nightly draft judge (stage 10) last verdicted this draft — held
+    -- or released. NULL = never judged. The candidate query filters on it so a
+    -- held cohort is judged ONCE, not re-judged every night while it blocks
+    -- fresh drafts from the 600-slot window (2026-08-25 finding).
+    judged_at TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     sort_date TEXT
 );
@@ -249,6 +254,7 @@ CREATE TABLE IF NOT EXISTS trends (
     published_at TIMESTAMP,
     -- See the SQLite schema above: written by both review decisions (#71).
     reviewed_at TIMESTAMP,
+    judged_at TIMESTAMP,           -- stage-10 draft judge verdict stamp (see SQLite schema)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     sort_date TIMESTAMP            -- parity with SQLite _migrate_trends_sort_date
 );
@@ -520,6 +526,24 @@ def _migrate_reviewed_at():
         names = [(r[1] if not hasattr(r, "keys") else r["name"]) for r in rows]
         if "reviewed_at" not in names:
             conn.execute("ALTER TABLE trends ADD COLUMN reviewed_at TEXT")
+
+
+def _migrate_judged_at():
+    """Add trends.judged_at to pre-existing databases. Idempotent.
+
+    Stage-10 verdict stamp (held OR released). Without it the judge re-judged
+    the same held cohort every night (30h window, oldest ids first) and the
+    fresh drafts never reached the 600-slot window — on 2026-08-25 all 600
+    candidates were the previous day's already-held drafts. Wired into init_db
+    from day one (lesson of the reviewed_at/llm_pipeline migration gaps)."""
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            conn.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS judged_at TIMESTAMP")
+            return
+        rows = conn.execute("PRAGMA table_info(trends)").fetchall()
+        names = [(r[1] if not hasattr(r, "keys") else r["name"]) for r in rows]
+        if "judged_at" not in names:
+            conn.execute("ALTER TABLE trends ADD COLUMN judged_at TEXT")
 
 
 def _migrate_trends_sort_date():
@@ -962,6 +986,7 @@ def init_db():
     _migrate_stage_cache_columns()
     _migrate_trends_sort_date()
     _migrate_reviewed_at()
+    _migrate_judged_at()
     _migrate_sources_llm_pipeline()
     _migrate_patent_graph()
     _migrate_patent_cpc()

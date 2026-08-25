@@ -152,6 +152,7 @@ def _fetch_candidates(since_hours: int, limit: int) -> list[dict]:
             "       re.title AS re_title, re.raw_content, re.excerpt, re.extraction_json "
             "  FROM trends t LEFT JOIN raw_entries re ON re.id = t.raw_entry_id "
             " WHERE t.status = 'draft' AND (t.confidence < 0.85 OR t.confidence IS NULL) "
+            "   AND t.judged_at IS NULL "
             "   AND t.created_at > CURRENT_TIMESTAMP - make_interval(hours => ?) "
             " ORDER BY t.id LIMIT ?",
             (since_hours, limit),
@@ -232,8 +233,14 @@ def judge_recent_drafts(since_hours: int = 30, limit: int = 600,
         v = judge_one(d)
         if v is None:
             stats["errors"] += 1
-            continue
+            continue  # no judged_at stamp — an errored draft retries next night
         stats["judged"] += 1
+        # Stamp every verdicted draft (held or released) so it is judged once,
+        # not re-judged nightly while blocking fresh drafts (2026-08-25).
+        if not dry_run:
+            with get_connection() as conn:
+                conn.execute("UPDATE trends SET judged_at = CURRENT_TIMESTAMP "
+                             "WHERE id = ?", (d["id"],))
         cat = v.category if v.category in ("ok", "no_signal", "thin_content",
                                            "source_mismatch", "broken_text") else "other"
         stats["categories"][cat] = stats["categories"].get(cat, 0) + 1
