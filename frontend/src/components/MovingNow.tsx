@@ -26,12 +26,6 @@ export default async function MovingNow() {
           <span className="text-accent">What&apos;s moving</span>
           <span className="text-muted/70"> / rising clusters</span>
         </h2>
-        <Link
-          href="/trends/foresight/radar"
-          className="text-[11px] uppercase tracking-wider text-muted hover:text-accent"
-        >
-          Open radar →
-        </Link>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rising.map((c) => {
