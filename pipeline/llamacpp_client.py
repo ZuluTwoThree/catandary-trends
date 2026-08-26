@@ -96,7 +96,8 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                     fallback_model: str | None = None,
                     validate: Callable[[T], bool] | None = None,
                     max_validate_retries: int | None = None,
-                    require_all_fields: bool = False) -> T | None:
+                    require_all_fields: bool = False,
+                    max_tokens: int | None = None) -> T | None:
     """Structured output against llama-server (OpenAI json_schema response_format).
 
     Mirrors pipeline.ollama_client.chat_structured: retry loop, markdown fence
@@ -110,7 +111,11 @@ def chat_structured(model: str, prompt: str, schema: type[T],
     error retries, which keep the full MAX_RETRIES budget). Defaults to MAX_RETRIES-1.
     Set low (e.g. 1) for soft guards like the cliché check: one quick re-roll, then
     accept — avoids burning 3× GPU on output the model keeps producing anyway.
-    Content-guard retries skip the exponential backoff (the server is healthy)."""
+    Content-guard retries skip the exponential backoff (the server is healthy).
+    `max_tokens`: initial output budget for THIS call (default: module MAX_TOKENS).
+    Callers with predictably long JSON (e.g. an evidence audit) start high instead
+    of burning two truncation retries per call; the doubling-on-truncation ladder
+    then grows from this base, still capped at TRUNCATION_MAX_TOKENS."""
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -121,7 +126,7 @@ def chat_structured(model: str, prompt: str, schema: type[T],
         "messages": messages,
         "temperature": temperature,
         "stream": False,
-        "max_tokens": MAX_TOKENS,
+        "max_tokens": max_tokens or MAX_TOKENS,
         "response_format": {
             "type": "json_schema",
             "json_schema": {
@@ -154,7 +159,8 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                 # shifts float reduction order). Hoping for numerical noise is
                 # not error handling. Doubling is capped so one pathological
                 # input cannot drag the whole run into huge generations.
-                grown = min(MAX_TOKENS * (2 ** (attempt + 1)), TRUNCATION_MAX_TOKENS)
+                grown = min((max_tokens or MAX_TOKENS) * (2 ** (attempt + 1)),
+                            TRUNCATION_MAX_TOKENS)
                 if grown > payload["max_tokens"]:
                     logger.warning("Output truncated (finish_reason=length at "
                                    "max_tokens=%d) — retrying with %d",

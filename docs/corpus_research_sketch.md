@@ -216,18 +216,58 @@ Science & Technology) — und die Korrekturlesung (Rebrands, Gründerabgänge,
 Patent-Angriffe, FrieslandCampina-Ausstieg 08/2025) mündet in eine prüfbare
 Abzinsungsregel: Casein-Zeitpläne um 2–4 Jahre diskontieren.
 
+## Ausbau 2026-08-26 (spät): interne Korpora, Abdeckungspflicht, Coverage-Ledger
+
+Anlass war eine Owner-Rückfrage zum PF-Dossier v1: „bezieht das auch den
+Patent- und Research-Body ein, und wurde zu den offenen Fragen wirklich im Netz
+gesucht?" Beide Antworten waren Nein — v1 durchsuchte nur `trends`, und 6 von 8
+Lücken wurden nie im Web angefasst. Drei Umbauten stellen das ab:
+
+1. **Interne Korpora-Stufe (immer an, deterministisch).** Nach dem ersten Audit
+   wird JEDE Lücke gegen `research_corpus` (45,6 Mio. Arbeiten, `idx_rc_tsv`)
+   und `patent_search` (19,7 Mio. Filings, Titel via `raw_entries.pub_number`)
+   gefahren — kein Agent-Ermessen. Neue Belegarten `[paper]` (zitiert am DOI)
+   und `[patent]` (Google-Patents-Link; „belegt eine beanspruchte Erfindung,
+   nie ein funktionierendes Produkt"). Query-Bau: `(topic-Kopf, UND-verknüpft)
+   & (Lücken-Terme, ODER)` — der UND-Kopf aus den ersten zwei Topic-Wörtern
+   ist die Selektivitätsbremse (ein ODER-Anker traf Millionen Zeilen und lief
+   in den Sort-Tod); Ranking `ts_rank_cd` vor Zitatzahl (Zitatzahl allein
+   spülte berühmte, themenfremde Paper nach oben). `statement_timeout 20s`.
+2. **Web-Abdeckungspflicht.** `WebAction.target_gap` nummeriert, welcher Lücke
+   eine Aktion gilt; `finish` wird abgelehnt, solange Lücken unbehandelt sind
+   und Budget bleibt. Nach der Agent-Phase läuft ein deterministischer
+   Coverage-Sweep: jede nie angefasste Lücke bekommt genau eine Brave-Query;
+   der Fetch-Backstop liest eine Seite pro Lücke (global gedeckelt). „Nicht
+   gesucht" kann damit nicht mehr still passieren.
+3. **Coverage-Ledger.** Pro Lücke wird deterministisch protokolliert: Paper-/
+   Patent-Treffer, Web-Queries, zugelassene Quellen, gefetchte Seiten. Der
+   Ledger geht als Daten in den Report-Prompt („charakterisiere offene Fragen
+   aus dem Ledger, behaupte nie Recherche, die nicht stattfand") und wird
+   zusätzlich als code-generierter Anhang „Research coverage" unter das
+   Dossier gesetzt — die Abdeckungsauskunft hängt damit nicht am Modell.
+
+Dazu: `chat_structured` hat jetzt einen `max_tokens`-Parameter (Audit-Hops
+starten bei 4096 statt 1024 — vorher zwei Trunkierungs-Retries pro Audit),
+und `--web-steps` Default ist 8 (Web-Stufe an; 0 = offline).
+
+**Zitat-Kanonisierung, Origin-Mapping (nach dem v2-Lauf):** v2 strich 11
+Zitate, weil das Modell Korpus-Artikel an ihrer Original-URL zitierte (die
+steht in den Evidenznotizen direkt neben dem Eintrag) — bei 54 Katalog-
+einträgen wird das häufig. Der Kanonisierer löst jetzt auch die Origin-URL
+eines Eintrags auf und schreibt sie auf den kanonischen Link um; nur wirklich
+unbekannte URLs werden weiter gestrichen. `result.report_raw` bewahrt den
+Bericht vor der Kanonisierung für Diagnosen auf.
+
 ## Offen
 
 * Ranking: das OR-Retrieval holt breit; bei größeren Katalogen prüfen, ob
   Randtreffer die Belegdichte verwässern.
 * `--retrieval vector` ist implementiert, aber ungetestet (Embedding-Endpunkt).
-* Audit-Hop startet bei max_tokens=1024 und eskaliert in jedem Lauf zweimal
-  (kostet ~2–3 min): Startbudget für Audit-Hops anheben (llamacpp_client
-  bräuchte einen max_tokens-Parameter in chat_structured).
 * Qualitätsranking der Web-Treffer (Primärdomain > Fachpresse > Rest) — die
   Fetch-Pflicht siebt zwar, aber die Fetch-Auswahl des Agenten ist ungeranked.
-* `research_corpus` (45,6 Mio. Arbeiten) als Lückenschluss-Stufe VOR dem Web —
-  legal, lokal, und für Validierungsfragen die passendere Quelle.
+* Patent-Sweep-Präzision: `patent_search.tsv` ist dünn (Titelbasis), irrelevante
+  Filings erreichen den Katalog und müssen vom Audit ignoriert werden — CPC-
+  Vorfilter über die Vertikale wäre die saubere Kur.
 * Kein Streaming, keine Persistenz — ein Lauf, eine Datei. Für ein Produkt
   bräuchte es Lauf-Zustand in der DB.
 
