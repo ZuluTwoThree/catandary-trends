@@ -250,6 +250,14 @@ Dazu: `chat_structured` hat jetzt einen `max_tokens`-Parameter (Audit-Hops
 starten bei 4096 statt 1024 — vorher zwei Trunkierungs-Retries pro Audit),
 und `--web-steps` Default ist 8 (Web-Stufe an; 0 = offline).
 
+**v3-Lauf (dossiers v3, 752 s):** 18/65 zitiert über alle fünf Belegarten
+(5 Artikel / 6 Signale / 2 Paper / 5 Web), **1** gestrichenes Zitat statt 11 in
+v2. Alle 12 Lücken mit vollem Ledger-Nachweis: jede mindestens eine Web-Query,
+7 mit gefetchter Seite, 5 mit Papern, 6 mit Patent-Filings. Der code-generierte
+Coverage-Anhang steht unter dem Dossier — „unbeantwortet" heißt jetzt belegbar
+„gesucht in 45M Papern + 19M Patenten + Web, nichts Belastbares gefunden"
+statt „nicht nachgeschaut".
+
 **Zitat-Kanonisierung, Origin-Mapping (nach dem v2-Lauf):** v2 strich 11
 Zitate, weil das Modell Korpus-Artikel an ihrer Original-URL zitierte (die
 steht in den Evidenznotizen direkt neben dem Eintrag) — bei 54 Katalog-
