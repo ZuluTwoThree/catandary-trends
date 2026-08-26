@@ -911,7 +911,19 @@ def main() -> int:
 
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(result["report"], encoding="utf-8")
+        # Provenance header: a dossier meant as a foresight source must say what
+        # it is a snapshot OF — evidence date, corpus config, evidence mix. The
+        # report text itself stays clean; this wraps the file, not the model.
+        k = result["kinds"]
+        header = (
+            f"> **Foresight-Dossier** — Stand {result['finished_at'][:10]} · "
+            f"Frage: _{result['question'][:160]}{'…' if len(result['question']) > 160 else ''}_  \n"
+            f"> Belege: {k['article']} Korpus-Artikel · {k['signal']} Signale · "
+            f"{k['web']} Web-Treffer ({len(result['cited'])} zitiert, "
+            f"{result['stripped_citations']} gestrichen) · "
+            f"Modell {result['model']} · Retrieval {result['retrieval']}/{result['scope']}\n\n"
+        )
+        args.out.write_text(header + result["report"], encoding="utf-8")
         args.out.with_suffix(".json").write_text(
             json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
         logger.info("wrote %s (%d chars, %d/%d sources cited "
