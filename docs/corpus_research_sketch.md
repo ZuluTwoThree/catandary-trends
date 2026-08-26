@@ -169,13 +169,63 @@ sind am nächsten dran, aber selbst der Führende steht bei TRL 4.
   Qualitäts-Heuristik oder die Fetch-Pflicht, die dünne Quellen von selbst
   aussortiert.
 
+## Ausbau 2026-08-26 (abends): Fetch-Pflicht, Resolver, Dossier-Store, Schablone
+
+1. **Fetch-vor-Zitat-Pflicht.** Nur gefetchte Web-Seiten sind zitierfähig; der
+   Bericht bekommt nur sie in den Zitat-Katalog, `canonicalize_citations` läuft
+   gegen diesen gefilterten Katalog. Ein Auto-Fetch-Nachlauf liest bis zu 3 der
+   zuerst zugelassenen Treffer (robots-erlaubt), damit die Regel dünne Quellen
+   aussiebt statt die Web-Stufe zu löschen. Eine robots-geblockte Seite wird
+   nie zitierfähig.
+2. **Fetch-Resolver:** URL, Katalog-id (T9........) oder Titel-Containment.
+   (Vorher scheiterte ein Fetch, weil das Modell den Titel statt der URL übergab.)
+3. **Dossier-Store:** Tabelle `dossiers` (slug, version, topic, question,
+   report_md, result JSONB, model, created_at; UNIQUE slug+version), angelegt
+   on-demand vom Skript. `--slug X` speichert den Lauf als nächste Version —
+   damit ist ein Refresh gegen den Vorstand diffbar („BYD hat seit dem letzten
+   Stand erneut verschoben" ist selbst ein Signal). Refresh bleibt on-demand
+   (CLI mit demselben Slug), analog zur Radar-Regel: Dossier = datiertes
+   Dokument, kein Cron.
+4. **Foresight-Schablone:** `--foresight TOPIC` baut die Standardfrage
+   (Versprechen → Korrekturen → verifizierter Stand → Musterlesung) und nennt
+   bewusst **keine Akteure** — die liefert der Signalraum. Genau ein Argument:
+   Frage ODER --foresight.
+
+### Zweiter Themenlauf: Präzisionsfermentation von Milchproteinen
+
+Pool: 175 Artikel + 825 Signale zu „precision fermentation" (37/255 dairy-
+spezifisch). Lauf: `--foresight "precision fermentation of dairy proteins
+(animal-free casein and whey)" --slug precision-fermentation-dairy --steps 8
+--web-steps 8`.
+
+```
+850 s | Katalog 36 (11 Artikel / 15 Signale / 10 Web) | 24 zitiert
+Audit 16 → Re-Audit 23 belegte Behauptungen | 8 benannte Restlücken
+Fetch-Pflicht: 3 gefetchte Web-Seiten alle zitiert, 7 Snippet-only alle
+ausgesiebt (4 Zitatversuche entlinkt) — DairyNews7x7/Cultivated X/NXTaltfoods
+flogen automatisch raus
+dossiers: slug=precision-fermentation-dairy version=1
+```
+
+14 Akteure, alle aus dem Korpus (Perfect Day, Formo/Those Vegan Cowboys, Eden
+Brew, Standing Ovation, Alpine Bio ex-Nobell, Verley ex-Bon Vivant, New
+Culture, TurtleTree, Nestlé, FrieslandCampina …). Kernbefund: Whey ist
+kommerziell (Produkt, Verträge, Gujarat-Werk), Casein bleibt ein
+Wissenschaftsproblem (Mizellen-Assemblierung, 2026er-Review in Trends in Food
+Science & Technology) — und die Korrekturlesung (Rebrands, Gründerabgänge,
+Patent-Angriffe, FrieslandCampina-Ausstieg 08/2025) mündet in eine prüfbare
+Abzinsungsregel: Casein-Zeitpläne um 2–4 Jahre diskontieren.
+
 ## Offen
 
 * Ranking: das OR-Retrieval holt breit; bei größeren Katalogen prüfen, ob
   Randtreffer die Belegdichte verwässern.
 * `--retrieval vector` ist implementiert, aber ungetestet (Embedding-Endpunkt).
-* Web-Stufe: Fetch-vor-Zitat-Pflicht für Zahlenangaben; Qualitätsranking der
-  Web-Treffer (Primärdomain > Fachpresse > Rest) statt nur UGC-Blockliste.
+* Audit-Hop startet bei max_tokens=1024 und eskaliert in jedem Lauf zweimal
+  (kostet ~2–3 min): Startbudget für Audit-Hops anheben (llamacpp_client
+  bräuchte einen max_tokens-Parameter in chat_structured).
+* Qualitätsranking der Web-Treffer (Primärdomain > Fachpresse > Rest) — die
+  Fetch-Pflicht siebt zwar, aber die Fetch-Auswahl des Agenten ist ungeranked.
 * `research_corpus` (45,6 Mio. Arbeiten) als Lückenschluss-Stufe VOR dem Web —
   legal, lokal, und für Validierungsfragen die passendere Quelle.
 * Kein Streaming, keine Persistenz — ein Lauf, eine Datei. Für ein Produkt
