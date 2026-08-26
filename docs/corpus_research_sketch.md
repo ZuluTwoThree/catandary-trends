@@ -38,6 +38,40 @@ Agent-Query aus acht Wörtern traf damit 1 von 80.712 Artikeln. `search_fts()`
 läuft deshalb zweistufig — strenge UND-Lesart, dann OR über die inhaltstragenden
 Wörter, nach `ts_rank` sortiert.
 
+## Zwei Belegarten: Artikel und Signale
+
+Der publizierte Bestand ist nur die Spitze. `trends` enthält (Stand 2026-08-26):
+
+| status | Zeilen | body_en | title_en | embedding_1024 |
+|---|---|---|---|---|
+| `signal` | 1.498.066 | 0 | alle | alle |
+| `published` | 81.397 | alle | alle | alle |
+| `draft` | 4.358 | alle | alle | alle |
+
+Die 1,5 Mio. Signale sind klassifiziert und eingebettet, aber nie durch die
+Content-Generierung gelaufen. Sie haben Titel, Quelle, Datum, Vertikale,
+Mega-Trend und Tags — kein `summary_en`. Öffnen lässt sich ein Signal über
+`raw_entries.excerpt` (rund 60 % haben einen brauchbaren), `raw_content` ist bei
+ihnen leer.
+
+Warum das zählt, am Beispiel „solid-state battery":
+
+```
+publizierte Artikel:   45   2026-03 … 2026-08   22 Quellen
+Signale:              320   2011    … 2026      34 Quellen
+                            2026:111 2025:47 2024:44 2023:26 2022:22 2021:31 2020:19
+```
+
+Die Historie fehlt dem Korpus also nicht — sie liegt nur nicht in den Artikeln.
+In den Signalen stecken zusätzlich OpenAlex-Paper und EPO-Patentsätze.
+
+`--scope both` (Default) teilt das Katalogbudget und verschränkt beide Pools;
+sonst begraben 18-mal so viele Signale die eigene Analyse. Jeder Katalogeintrag
+ist als `[article]` oder `[signal]` markiert, die Prompts erklären den
+Unterschied, und ein Signal wird an seiner **Ursprungs-URL** zitiert — es hat
+keine Artikelseite, ein `catandary.de`-Link liefe ins Leere. In der Quellenliste
+steht bei ihnen `*(signal — not written up)*`.
+
 ## Erster Lauf (2026-08-26, Qwen3.8-27B auf `-c 65536`)
 
 Frage: Stand der Solid-State-Kommerzialisierung — laufende Pilotlinien, belegte
@@ -54,6 +88,36 @@ Der Bericht benennt seine Lücken selbst („The provided corpus does not contai
 specific details on the operational status of pilot lines for Toyota, Samsung,
 QuantumScape"). Stichprobe: „84 % Kapazität nach 350 Zyklen" deckt sich wörtlich
 mit dem zitierten Artikel.
+
+## Vergleichslauf mit Signalen (gleiche Frage, `--scope both`)
+
+```
+                   nur Artikel   Artikel+Signale
+Sekunden                 168,9             187,8
+Katalog                     11    15 (6 Art./9 Sig.)
+zitiert                     11                11
+gestrichene Zitate           0                 0
+Belegzeitraum      2024-05 … 2026-08   2020-04 … 2026-08
+```
+
+Inhaltlich ist der Unterschied größer als die Zahlen andeuten:
+
+* **QuantumScape** war im Artikel-Lauf eine ausdrückliche Lücke („cannot be
+  established from this evidence"). Mit Signalen entsteht eine Bahn: B-Samples
+  für OEM-Tests (10/2024) → Corning-Partnerschaft (09/2025) → Eagle-Line-Pilot
+  (02/2026).
+* **Eine gemessene Prognose-Korrektur:** Solid Power stellte 2022 Feststoff-EVs
+  „ab 2028" in Aussicht, CATL verschob 2026 auf „nicht vor 2030". Vier Jahre
+  Differenz zwischen zwei Akteuren, im Bericht ausdrücklich als Widerspruch
+  benannt. Im Artikel-Lauf war das strukturell unmöglich — 2022 liegt außerhalb
+  des publizierten Bestands.
+* Die Audit-Lücken wurden **schärfer** statt weniger: aus „wir wissen nichts über
+  QuantumScapes Pilotlinien" wurde „uns fehlt die Kapazitätsangabe der
+  Eagle Line".
+
+Nebenbeobachtung: der Audit-Hop lief einmal in `finish_reason=length` bei
+`max_tokens=1024` und wurde von `llamacpp_client` automatisch mit 2048
+wiederholt — die vorhandene Retry-Logik trägt.
 
 ## Offen
 
