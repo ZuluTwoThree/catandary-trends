@@ -272,6 +272,12 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       gehaltene Kohorte jede Nacht neu und die frischen Drafts verhungerten
       am 600er-Limit); Kandidaten holen sich vorher fehlenden Volltext
       (nur Opt-in-Quellen, fulltext_filled in der JSON)
+    → GPU-Handover mit zwei Guards (seit 2026-08-26): VRAM-Vorab-Check
+      (27B lässt nur ~1.1 GB Reserve — Fremdbelegung → SKIP mit klarer
+      Diagnose statt 240s-Timeout) + Modell-Identitäts-Check gegen
+      /v1/models (llama-server ignoriert den model-Namen im Request —
+      ohne Check würde ein geplatzter Symlink-Swap den Richter still
+      aufs 8B schicken). E2E-getestet 2026-08-26.
     → auto_published=true; Zahlen → data/draft_judge_last.json → Morgen-Mail
 ```
 
