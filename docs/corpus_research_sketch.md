@@ -119,11 +119,65 @@ Nebenbeobachtung: der Audit-Hop lief einmal in `finish_reason=length` bei
 `max_tokens=1024` und wurde von `llamacpp_client` automatisch mit 2048
 wiederholt — die vorhandene Retry-Logik trägt.
 
+## Web-Stufe: Lückenschluss über die Brave Search API (2026-08-26)
+
+Nach dem Korpus-Audit kann eine zweite Schleife die dort benannten Lücken
+(`missing` + `contradictions`) gezielt im Web verfolgen: eigener Agent-Loop
+(`search`/`fetch`/`finish`), eigener System-Prompt mit Quellendisziplin
+(Primärquelle > Peer-Review > Behörde > Fachpresse), danach Re-Audit über den
+kombinierten Katalog und erst dann der Bericht.
+
+* **Suche:** Brave Search API (`BRAVE_SEARCH_API_KEY` aus `.env`) — vertraglich,
+  kein SERP-Scraping. Damit bleibt das Primärquellen-Prinzip intakt; die
+  Suche *findet* eine Primärquelle, gelesen wird die Quelle selbst.
+* **Fetch:** `pipeline.article_fetcher.fetch_fulltext` — robots.txt-treu,
+  per-Host gedrosselt, trafilatura-Extraktion. Kein neuer Fetch-Pfad.
+* **Katalog:** Web-Treffer werden als dritte Belegart `[web]` geführt, an ihrer
+  Original-URL zitiert und in der Quellenliste als
+  `*(web — fetched to close a gap)*` markiert. Reine UGC-Plattformen (Reddit,
+  X, YouTube …) sind hart geblockt — Prompt-Disziplin allein reicht nicht,
+  weil Suchtreffer automatisch in den Katalog wandern.
+* **Budget:** `--web-steps` (Default 0 = aus), `--web-sources` (Default 10).
+
+### Dritter Lauf, gleiche Frage (`--web-steps 6`)
+
+```
+                   v1 Artikel   v2 +Signale   v3 +Web
+Katalog                    11            15        25 (6/9/10)
+zitiert                    11            11        13
+erfundene Zitate            0             0         0
+Audit-Lücken                4             5         4 (schärfer)
+Dauer                   169 s         188 s     323 s
+Brave-Queries               —             —         3
+```
+
+Was die Web-Stufe konkret schloss: **Honda pilotiert seit 01/2025 im Werk
+Sakura** und ist seit 06/2026 QuantumScape-Partner; **BYD nennt 400 Wh/kg** und
+den Zeitplan Einbau 2027 / Masse 2030; **CATL stufte sich 06/2026 selbst auf
+TRL 4 von 9** ein — die beste einzelne Erdung des gesamten Dossiers, weil sie
+die eigene 2027-Ankündigung relativiert. Kernaussage v3: die Chinesen-Incumbents
+sind am nächsten dran, aber selbst der Führende steht bei TRL 4.
+
+### Ehrliche Schwächen des Laufs
+
+* Der Agent hat nur gesucht, nie gefetcht — alle Web-Belege stützen sich auf
+  Such-Snippets statt auf gelesene Seiten. Für Zahlenangaben sollte der Prompt
+  künftig einen Fetch vor dem Zitieren verlangen.
+* Zwei zitierte Web-Quellen sind Graubereich (ts2.tech ist Aggregator-Content,
+  neware.net ein Herstellerblog, der BYD-Angaben nacherzählt). Die Blockliste
+  fängt UGC, aber keine minderwertige Fachpresse — hier fehlt entweder eine
+  Qualitäts-Heuristik oder die Fetch-Pflicht, die dünne Quellen von selbst
+  aussortiert.
+
 ## Offen
 
 * Ranking: das OR-Retrieval holt breit; bei größeren Katalogen prüfen, ob
   Randtreffer die Belegdichte verwässern.
 * `--retrieval vector` ist implementiert, aber ungetestet (Embedding-Endpunkt).
+* Web-Stufe: Fetch-vor-Zitat-Pflicht für Zahlenangaben; Qualitätsranking der
+  Web-Treffer (Primärdomain > Fachpresse > Rest) statt nur UGC-Blockliste.
+* `research_corpus` (45,6 Mio. Arbeiten) als Lückenschluss-Stufe VOR dem Web —
+  legal, lokal, und für Validierungsfragen die passendere Quelle.
 * Kein Streaming, keine Persistenz — ein Lauf, eine Datei. Für ein Produkt
   bräuchte es Lauf-Zustand in der DB.
 
