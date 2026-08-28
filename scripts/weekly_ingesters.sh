@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Wöchentlicher Nachschub der Nicht-RSS-Ingester (#4). Cron: 0 5 * * 6 (Samstag 05:00)
+# Wöchentlicher Nachschub der Nicht-RSS-Ingester (#4). Cron: 0 6 * * 6 (Samstag 06:00)
 #
 # Vorher waren Preprints/Funding/Form D Einmal-Schnappschüsse, die stillschweigend
 # veralteten (Befund 2026-08-09: keiner der Nicht-RSS-Ingester lief per Cron).
