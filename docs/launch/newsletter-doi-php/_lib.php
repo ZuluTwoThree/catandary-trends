@@ -47,27 +47,63 @@ function nl_db(): PDO
 }
 
 /**
- * Echte Client-IP. Auf Hetzner-Webhosting sitzt optional Varnish davor,
- * dann ist REMOTE_ADDR loopback/privat und die echte IP steht in X-Forwarded-For.
- * Wir nehmen NUR dann XFF, wenn REMOTE_ADDR nicht öffentlich ist – sonst wäre
- * der Header spoofbar und das Rate-Limit wertlos.
+ * Echte Client-IP.
+ *
+ * Fall A — Hetzner-Webhosting mit optionalem Varnish davor (Standardzustand,
+ * NL_TRUSTED_PROXIES leer): REMOTE_ADDR ist bei Varnish loopback/privat, die
+ * echte IP steht dann in X-Forwarded-For. Wir nehmen XFF NUR, wenn REMOTE_ADDR
+ * NICHT öffentlich ist – sonst wäre der Header von außen spoofbar und das
+ * Rate-Limit wertlos.
+ *
+ * Fall B — VPS-Reverse-Proxy davor (#82/#93, öffentliche IP): Ein Proxy mit
+ * öffentlicher IP fällt NICHT unter "REMOTE_ADDR ist privat" — Fall A würde
+ * ihn fälschlich wie den echten Client behandeln und die Proxy-IP für JEDE
+ * Anmeldung speichern (Einwilligungsnachweis wertlos, Rate-Limit ein einziger
+ * globaler Bucket). Deshalb: `NL_TRUSTED_PROXIES` (nl_config.php) listet
+ * bekannte eigene Proxy-IPs. Eine IP gilt als "eigener Hop", wenn sie dort
+ * eingetragen ist ODER privat/loopback/reserviert ist (Varnish-Fall bleibt
+ * so für Fall A unverändert erfasst). Ist REMOTE_ADDR selbst kein eigener
+ * Hop, wird X-Forwarded-For komplett ignoriert (Schutz gegen von außen
+ * gefälschte Header). Ist REMOTE_ADDR ein eigener Hop, wird die Kette von
+ * RECHTS (jüngster Hop zuerst) nach dem ersten NICHT-eigenen Eintrag
+ * durchsucht — das überspringt beliebig viele verkettete eigene Proxies
+ * (z. B. VPS *und* Varnish gleichzeitig) in einem Durchgang. Muster analog
+ * frontend/src/lib/rateLimit.ts::clientIp().
+ *
+ * NL_TRUSTED_PROXIES == [] => Verhalten ist bitidentisch zu vorher (nur die
+ * Fall-A-Heuristik greift).
  */
 function nl_client_ip(): string
 {
-    $remote = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-    $public = filter_var($remote, FILTER_VALIDATE_IP,
-        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-    if ($public !== false) {
-        return $remote;
+    nl_cfg(); // stellt sicher, dass nl_config.php (und damit NL_TRUSTED_PROXIES) geladen ist
+    $remote  = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $trusted = defined('NL_TRUSTED_PROXIES') ? NL_TRUSTED_PROXIES : [];
+    $trustedLower = array_map('strtolower', $trusted);
+
+    $isOwnHop = static function (string $ip) use ($trustedLower): bool {
+        if (in_array(strtolower($ip), $trustedLower, true)) {
+            return true;   // explizit gelistete eigene Infrastruktur (z. B. VPS)
+        }
+        // Privat/loopback/reserviert kann von außen nicht als REMOTE_ADDR
+        // ankommen -> nur eigene Infrastruktur (Varnish u. ä.) kann das sein.
+        return filter_var($ip, FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+    };
+
+    if (!$isOwnHop($remote)) {
+        return $remote;   // direkter, nicht-eigener Absender -> XFF nie vertrauen
     }
+
     foreach (array_reverse(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '')) as $cand) {
         $cand = trim($cand);
-        if (filter_var($cand, FILTER_VALIDATE_IP,
-            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
+        if ($cand === '' || filter_var($cand, FILTER_VALIDATE_IP) === false) {
+            continue;   // Unsinn im Header überspringen statt als IP zu übernehmen
+        }
+        if (!$isOwnHop($cand)) {
             return $cand;
         }
     }
-    return $remote;
+    return $remote;   // Kette leer oder komplett eigen -> das Beste, was wir haben
 }
 
 function nl_ua(): string

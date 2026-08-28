@@ -53,6 +53,30 @@ $RESEND_KEY = <<<'V'
 re_XXXXXXXX
 V;
 
+// --- Optionaler 8. Block: vertrauenswürdige Reverse-Proxies ------------------
+// NICHT Teil der sieben Pflicht-Ausfüll-Blöcke oben — bei der Hetzner-only-
+// Erstinstallation LEER LASSEN (Standardzustand, s. u.). Erst beim VPS-Go-Live
+// (#82/#93, DNS-Umzug auf den VPS) ausfüllen: siehe Schritt „Nächster Upload"
+// in EINBAU.md und die Checkliste NEWSLETTER_GOLIVE.md.
+//
+// Steht hier eine IP UND kommt eine Anfrage mit genau dieser REMOTE_ADDR an,
+// behandelt nl_client_ip() (_lib.php) deren X-Forwarded-For-Header als
+// vertrauenswürdig und liest die echte Client-IP daraus (von rechts, erster
+// nicht in dieser Liste stehender Eintrag). Leer = bisheriges Verhalten exakt
+// unverändert (alte Varnish-Heuristik: XFF nur wenn REMOTE_ADDR selbst schon
+// privat/loopback ist).
+//
+// PFLICHT vor dem DNS-Umzug auf den VPS, sonst tragen signup_ip / confirm_ip /
+// unsubscribe_ip / nl_consent_log.ip überall dieselbe VPS-IP statt der echten
+// Anmelder-IP ein — der Einwilligungsnachweis (Art. 7 Abs. 1 DSGVO) wäre
+// wertlos, und das Rate-Limit liefe für alle Besucher in einem gemeinsamen
+// Bucket.
+define('NL_TRUSTED_PROXIES', [
+    // 'VPS_IP_HIER',   // z. B. '203.0.113.7' — öffentliche IP des VPS-Proxys.
+    // Mehrere Einträge möglich (IPv4 und/oder IPv6), falls mehr als ein
+    // eigener Proxy in der Kette hängt.
+]);
+
 // ============================================================================
 //  AB HIER NICHTS MEHR ÄNDERN
 // ============================================================================

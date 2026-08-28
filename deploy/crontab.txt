@@ -28,3 +28,26 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # einmalig manuell gegen die Ziel-DB ausgeführt (additive Migration, NICHT in
 # db.init_db — ohne das läuft --mark ins Leere, siehe Skript-Docstring).
 0 7 2 * * /home/dirk/projects/catandary-trends/.venv/bin/python /home/dirk/projects/catandary-trends/scripts/check_source_links.py --per-source 12 --mark >> /home/dirk/logs/catandary-source-links.log 2>&1
+
+# Newsletter-Versandkette (#16) — NOCH NICHT AKTIV, siehe
+# docs/launch/newsletter-doi-php/NEWSLETTER_GOLIVE.md für die Restliste.
+# aktivieren wenn: export.php deployed + Secret-Angleich erledigt (#16)
+#
+# Wöchentliche Newsletter-Generierung + -Versand (Mo 09:00). generator und
+# sender sind getrennte Schritte (pipeline/newsletter_generator.py hat kein
+# Versand-Flag; pipeline/newsletter_sender.py --latest verschickt separat).
+# scripts/newsletter_tonight.sh kombiniert beide bereits inkl. Content-Engine-
+# Swap auf Gemma-4-26B und Abbruch des Versands bei fehlgeschlagener Generierung
+# — Skript-Kopf dokumentiert die 3 offenen Blocker (PUBLIC_BASE_URL zeigt noch
+# auf localhost, Unsubscribe-Route existiert nicht auf dem Webspace, Sync-
+# Bridge unten noch nicht aktiv). Bisher nur manuell gefahren.
+#0 9 * * 1 /home/dirk/projects/catandary-trends/scripts/newsletter_tonight.sh
+#
+# Subscriber-Sync täglich 08:30: zieht bestätigte/abgemeldete Adressen per
+# export.php vom Webspace (MySQL, System of Record der Einwilligung) in die
+# lokale Postgres-Tabelle newsletter_subscribers (docs/launch/newsletter-doi-php/
+# sync_subscribers.py — vor Aktivierung nach scripts/sync_subscribers.py kopieren,
+# Aufruf per -m braucht das Repo-Root im Python-Package-Pfad). Braucht
+# NL_EXPORT_URL + NL_EXPORT_TOKEN in .env (Token = export_token aus
+# nl_config.php auf dem Webspace, Secret-Angleich s. o.).
+#30 8 * * * cd /home/dirk/projects/catandary-trends && .venv/bin/python -m scripts.sync_subscribers >> /home/dirk/logs/catandary-newsletter-sync.log 2>&1
