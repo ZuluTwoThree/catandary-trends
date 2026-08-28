@@ -493,6 +493,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Distill-Verarbeitung der Neuzugänge via signal_batch_embedded (GPU-Handover).
 # Seit 2026-08-23 (#87) zusätzlich die Startup-Explorer-Signale: Presse-Regex,
 # HN-Launches (30-Tage-Fenster), ClinicalTrials-Sweep, FDA-510(k)-Bulk.
+# Seit 2026-08-28 (Owner) außerdem in den Signalraum: OpenAlex-Fresh-Sweep
+# (zitationsfrei, 14-Tage-Fenster, Cap 1500/Konzept — läuft über den
+# research-Distill-Schritt mit) + Patent-Signale (--patents-only: nur mit
+# Abstract, rollendes 60-Tage-Publikationsfenster, Limit 60k/Lauf; der
+# 19,6M-BDDS-Backlog bleibt bewusst außen vor).
 0 5 * * 6    scripts/weekly_ingesters.sh
 
 # Startup-Explorer-Quellen monatlich (6. 12:00, seit 2026-08-23, #87): CORDIS +
