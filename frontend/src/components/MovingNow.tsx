@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getLatestClusterRun } from "@/lib/foresight";
 import { getVerticalInfo } from "@/lib/types";
 import type { Vertical } from "@/lib/types";
+import { isPublicMode } from "@/lib/publicMode";
 
 /**
  * "What's moving right now" strip for the landing page (Epic W2.6). Value-first:
@@ -9,8 +10,13 @@ import type { Vertical } from "@/lib/types";
  * above the article grid — so a first-time visitor sees the product's edge in
  * ten seconds. Server component, reads the persisted snapshot (no clustering in
  * the request path). Renders nothing if no run exists yet (never an empty box).
+ *
+ * PUBLIC_MODE=1 (#93 Etappe 1): every card links into /trends/foresight/
+ * clusters, which 404s under that flag (proxy.ts) — so this renders
+ * nothing rather than a strip of dead links. Unset/0 changes nothing.
  */
 export default async function MovingNow() {
+  if (isPublicMode()) return null;
   const data = await getLatestClusterRun("global");
   if (!data) return null;
   const rising = data.clusters

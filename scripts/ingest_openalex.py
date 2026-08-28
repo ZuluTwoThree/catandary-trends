@@ -232,8 +232,18 @@ CONCEPT_SHARDS: dict[str, list[str]] = {
             # das kanonische Konzept heisst "telecommuting")
             "human resource management", "telecommuting", "organizational behavior"],
     "FASHION": ["textile", "biomaterials", "cosmetics"],
-    "DESIGN": ["sustainable architecture", "urban design"],
-    "LIFESTYLE": ["social media", "video games", "creator economy",
+    # "sustainable architecture" does not resolve against the OpenAlex concepts
+    # API (zero results, verified 2026-08-28, #81) — replaced by the two
+    # concepts that jointly cover the theme: "sustainable design" (C121217528,
+    # 33k works, the general sustainability-in-design concept) + "green
+    # building" (C2984362373, 14.6k works, the built-environment angle).
+    "DESIGN": ["sustainable design", "green building", "urban design"],
+    # "creator economy" does not resolve either (zero results, same check) —
+    # replaced by "influencer marketing" (C26011011, 44k works) + "user-generated
+    # content" (C101293273, 22k works), which together cover the monetization
+    # and content-production sides of the theme without duplicating the
+    # existing "social media" shard below.
+    "LIFESTYLE": ["social media", "video games", "influencer marketing", "user-generated content",
                   # education_and_lifelong_learning
                   "educational technology", "higher education", "lifelong learning"],
 }

@@ -210,22 +210,44 @@ PY
     echo "----- stage 10: draft judge on Qwen3.8-27B -----"
     systemctl --user stop llama-server.service 2>/dev/null
     sleep 3
-    ln -sf start-qwen3.8-27b.sh /home/dirk/llama.cpp/start-active.sh
-    systemctl --user start llama-server.service
-    JUDGE_UP=0
-    for i in $(seq 1 40); do
-      sleep 3
-      curl -sf -m 3 http://127.0.0.1:8090/v1/models >/dev/null 2>&1 && { JUDGE_UP=1; break; }
+    # VRAM-Vorab-Check (2026-08-26): das 27B belegt ~23.4 von 24.6 GB — schon
+    # ~1.1 GB Fremdbelegung kippen den Start in den OOM (Unsloth-Vorfall
+    # 26.08: 20.8 GB resident -> 240s-Timeout-Kaskade statt klarer Diagnose).
+    JUDGE_VRAM_OK=0
+    for i in $(seq 1 8); do
+      VRAM_USED=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1)
+      if [ -n "$VRAM_USED" ] && [ "$VRAM_USED" -lt 1100 ]; then JUDGE_VRAM_OK=1; break; fi
+      echo "  [$i/8] VRAM belegt: ${VRAM_USED:-?} MiB (27B braucht <1100 frei-Rest) — warte"
+      sleep 5
     done
-    if [ "$JUDGE_UP" = "1" ]; then
-      python -m pipeline.draft_judge --since-hours 30
-      RCJ=$?
-      echo "----- draft judge exit code: $RCJ -----"
+    if [ "$JUDGE_VRAM_OK" != "1" ]; then
+      echo "----- draft judge SKIPPED: VRAM von Fremdprozess belegt (${VRAM_USED:-?} MiB) -----"
     else
-      echo "----- draft judge SKIPPED: 27B server came not up -----"
+      ln -sf start-qwen3.8-27b.sh /home/dirk/llama.cpp/start-active.sh
+      systemctl --user start llama-server.service
+      JUDGE_UP=0
+      for i in $(seq 1 40); do
+        sleep 3
+        curl -sf -m 3 http://127.0.0.1:8090/v1/models >/dev/null 2>&1 && { JUDGE_UP=1; break; }
+      done
+      if [ "$JUDGE_UP" = "1" ]; then
+        # Identitäts-Check (2026-08-26): llama-server ignoriert den model-Namen
+        # im Request und antwortet mit dem geladenen Modell — ein fehlgeschlagener
+        # Symlink-Swap ließe den Richter stillschweigend auf dem 8B urteilen.
+        SERVED=$(curl -s -m 3 http://127.0.0.1:8090/v1/models 2>/dev/null)
+        if echo "$SERVED" | grep -q "Qwen3.8-27B"; then
+          python -m pipeline.draft_judge --since-hours 30
+          RCJ=$?
+          echo "----- draft judge exit code: $RCJ -----"
+        else
+          echo "----- draft judge SKIPPED: falsches Modell geladen ($SERVED) -----"
+        fi
+      else
+        echo "----- draft judge SKIPPED: 27B server came not up -----"
+      fi
+      systemctl --user stop llama-server.service 2>/dev/null
+      sleep 3
     fi
-    systemctl --user stop llama-server.service 2>/dev/null
-    sleep 3
   fi
   # <<< Stage 10 <<<
 

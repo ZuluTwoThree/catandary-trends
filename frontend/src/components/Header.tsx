@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AUTH_ENABLED, getSession } from "@/lib/auth";
+import { isPublicMode } from "@/lib/publicMode";
 import { PRIMARY_NAV, PLANS_NAV } from "@/lib/nav";
 import NavLink from "./NavLink";
 import ForesightMenu from "./ForesightMenu";
@@ -12,9 +13,15 @@ const LINK_CLASS =
  * Global header. Session-aware: with auth enabled it always offers a way in
  * (Sign in / Account) — previously the entire monetisation funnel was
  * unreachable from the navigation (ONB-02 / ARCH-05 / COPY-12).
+ *
+ * PUBLIC_MODE=1 (#93 Etappe 1) drops the Foresight menu, "Plans" and the
+ * account links — those routes 404 (proxy.ts), so leaving the links up
+ * would just be dead links. Unset/0 changes nothing.
  */
 export default async function Header() {
-  const session = AUTH_ENABLED ? await getSession() : null;
+  const publicMode = isPublicMode();
+  const showAccount = AUTH_ENABLED && !publicMode;
+  const session = showAccount ? await getSession() : null;
 
   return (
     <header className="border-b border-border">
@@ -32,14 +39,16 @@ export default async function Header() {
               {item.label}
             </NavLink>
           ))}
-          <ForesightMenu />
-          <NavLink href={PLANS_NAV.href} className={LINK_CLASS}>
-            {PLANS_NAV.label}
-          </NavLink>
+          {!publicMode && <ForesightMenu />}
+          {!publicMode && (
+            <NavLink href={PLANS_NAV.href} className={LINK_CLASS}>
+              {PLANS_NAV.label}
+            </NavLink>
+          )}
         </nav>
 
         <div className="hidden lg:flex items-center gap-2 shrink-0">
-          {AUTH_ENABLED &&
+          {showAccount &&
             (session ? (
               <NavLink href="/account" className={LINK_CLASS}>
                 Account
@@ -58,7 +67,11 @@ export default async function Header() {
         </div>
 
         {/* Mobile nav (hamburger + drawer), < lg */}
-        <MobileNav authEnabled={AUTH_ENABLED} signedIn={Boolean(session)} />
+        <MobileNav
+          authEnabled={showAccount}
+          signedIn={Boolean(session)}
+          publicMode={publicMode}
+        />
       </div>
     </header>
   );

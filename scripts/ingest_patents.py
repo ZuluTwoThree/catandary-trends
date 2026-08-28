@@ -588,6 +588,17 @@ def parse_docdb_document(doc, require_en: bool = True,
     pcs = bib.find(f"{_EXCH}patent-classifications")
     if pcs is not None:
         for pc in pcs.findall("patent-classification"):
+            # DOCDB bundles MULTIPLE national classification schemes under the same
+            # <patent-classification> tag — for JP-origin docs that's real CPC
+            # (scheme="CPCI") plus JPO's own "FI" and "FTERM" (F-term) schemes.
+            # FI's classification-symbol embeds a leading single digit (the IPC
+            # edition, e.g. "4A63F7  /02   328") and FTERM's ("2C005/CA04") isn't
+            # CPC-shaped at all — only "CPCI" covers both inventive and additional
+            # (see classification-value below) CPC entries (#79: 5.9M patent_cpc
+            # rows with subclass NULL traced to this scheme not being filtered).
+            scheme_el = pc.find("classification-scheme")
+            if scheme_el is None or scheme_el.get("scheme") != "CPCI":
+                continue
             s = _dt(pc.find("classification-symbol"))
             if s:
                 val = _dt(pc.find("classification-value"))  # 'I' inventive | 'A' additional

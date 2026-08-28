@@ -1,11 +1,21 @@
 import Link from "next/link";
+import { isPublicMode } from "@/lib/publicMode";
 
 /**
  * The recurring in-product upsell. Links stay inside the product (ARCH-13 —
  * it used to route to the external company site, dropping the visitor out of
  * the funnel) and promise what the paid tiers actually show (COPY-19).
+ *
+ * PUBLIC_MODE=1 (#93 Etappe 1): both targets it links to (/trends/foresight,
+ * /trends/pricing) 404 under that flag (proxy.ts), and this component
+ * is rendered on public, non-blocked pages (/trends, /trends/mega,
+ * /trends/methodology, article pages via TrendArticle) — so it renders
+ * nothing rather than a dead-end CTA. Its lead-gen replacement copy is a
+ * later step (#93 Etappe 2+), out of scope here. Unset/0 changes nothing.
  */
 export default function ForesightCta({ compact }: { compact?: boolean }) {
+  if (isPublicMode()) return null;
+
   if (compact) {
     return (
       <div className="mt-16 border border-accent/30 bg-accent/5 p-6">

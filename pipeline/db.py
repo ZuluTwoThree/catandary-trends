@@ -673,7 +673,13 @@ def insert_patent_links(rows: list[tuple]) -> int:
 
 
 import re as _re_cpc
-_CPC_SUBCLASS = _re_cpc.compile(r"^([A-HY]\d{2}[A-Z])")
+# Optional leading digit: BDDS ingests before the #79 fix mixed JP's national
+# "FI" classification scheme in with real CPC. FI symbols embed a stray leading
+# digit (historically the IPC edition) before an otherwise CPC-shaped symbol,
+# e.g. "4F21S43/237" — strip it so the real subclass ("F21S") is recovered.
+# JP F-term codes ("3E068/AA40") never match — after the digit there's no
+# valid [A-HY]\d{2}[A-Z] pattern — so they correctly still resolve to None.
+_CPC_SUBCLASS = _re_cpc.compile(r"^\d?([A-HY]\d{2}[A-Z])")
 
 
 def cpc_subclass(code: str) -> str | None:

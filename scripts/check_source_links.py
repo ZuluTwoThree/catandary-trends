@@ -28,10 +28,21 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import httpx
 
-from pipeline.db import get_connection
+from pipeline.db import get_connection, _now_iso
 
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/125.0 Safari/537.36")
+
+# 403/429 = the publisher blocks non-browser clients (Cloudflare et al). The
+# link is almost certainly fine for a real visitor, so counting it as "dead"
+# would manufacture a defect that does not exist. Only 404/410 (and hard
+# connection errors) mean the target is actually gone.
+DEAD_CODES = {404, 410}
+
+# A link only counts as *confirmed* dead (what the frontend shows a badge
+# for) once dead_links.check_count reaches this — a single blip (a flaky
+# publisher, a transient timeout) must never flag a healthy link. See #48.
+DEAD_STATUS_THRESHOLD = 2
 
 
 def sample(per_source: int) -> list[dict]:
@@ -66,11 +77,63 @@ async def run(rows: list[dict], concurrency: int) -> list[tuple]:
     return list(zip(rows, [c for c, _ in res], [e for _, e in res]))
 
 
+def classify_dead_status(code: int | None, err: str) -> str | None:
+    """Map one check result to the dead_links.status value, or None if the
+    link should be treated as alive. Mirrors the "really_dead" gate used for
+    the console report: only 404/410 and hard connection errors are dead —
+    403/429 (bot-block) is presumed alive and must never be marked."""
+    if code in DEAD_CODES:
+        return str(code)
+    if code is None:
+        return "conn_error"
+    return None
+
+
+def apply_marks(conn, results: list[tuple]) -> dict[str, int]:
+    """Upsert/resurrect dead_links rows from a batch of (row, code, err) results.
+
+    2-strike rule: a fresh dead result inserts (or bumps) check_count; a link
+    only becomes *confirmed* dead — the state the frontend badges — once
+    check_count reaches DEAD_STATUS_THRESHOLD. A result that resolves alive
+    (2xx/3xx, or a 403/429 bot-block) deletes any existing dead_links row for
+    that URL ("resurrection") — including a fresh 403 clearing a prior
+    conn_error/404 strike, since a bot-block is presumed alive.
+    """
+    stats = {"first_strike": 0, "confirmed": 0, "resurrected": 0}
+    for r, code, err in results:
+        url = r["source_url"]
+        status = classify_dead_status(code, err)
+        existing = conn.execute(
+            "SELECT check_count FROM dead_links WHERE url = ?", (url,)).fetchone()
+        if status is None:
+            if existing is not None:
+                conn.execute("DELETE FROM dead_links WHERE url = ?", (url,))
+                stats["resurrected"] += 1
+            continue
+        now = _now_iso()
+        if existing is None:
+            conn.execute(
+                "INSERT INTO dead_links (url, status, first_seen, last_checked, check_count) "
+                "VALUES (?, ?, ?, ?, 1)", (url, status, now, now))
+            stats["first_strike"] += 1
+        else:
+            new_count = existing["check_count"] + 1
+            conn.execute(
+                "UPDATE dead_links SET status = ?, last_checked = ?, check_count = ? "
+                "WHERE url = ?", (status, now, new_count, url))
+            if new_count >= DEAD_STATUS_THRESHOLD:
+                stats["confirmed"] += 1
+    return stats
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--per-source", type=int, default=15)
     ap.add_argument("--concurrency", type=int, default=12)
     ap.add_argument("--show", type=int, default=15, help="list N dead links")
+    ap.add_argument("--mark", action="store_true",
+                     help="persist dead links into dead_links (2-strike confirm; "
+                          "requires scripts/migrate_dead_links.py to have run)")
     args = ap.parse_args()
 
     rows = sample(args.per_source)
@@ -79,11 +142,6 @@ def main() -> int:
 
     res = asyncio.run(run(rows, args.concurrency))
 
-    # 403/429 = the publisher blocks non-browser clients (Cloudflare et al). The
-    # link is almost certainly fine for a real visitor, so counting it as "dead"
-    # would manufacture a defect that does not exist. Only 404/410 (and hard
-    # connection errors) mean the target is actually gone.
-    DEAD_CODES = {404, 410}
     per: dict[str, list[int]] = defaultdict(list)
     dead: list[tuple] = []
     hist: dict[str, int] = defaultdict(int)
@@ -128,6 +186,19 @@ def main() -> int:
         for r, code, err in dead[:args.show]:
             print(f"  [{code or err}] #{r['id']} {str(r['source_name'])[:20]:<22}"
                   f"{r['source_url'][:78]}")
+
+    if args.mark:
+        try:
+            with get_connection() as conn:
+                stats = apply_marks(conn, res)
+        except Exception as e:  # noqa: BLE001 — e.g. dead_links missing on this DB
+            print(f"\n--mark ÜBERSPRUNGEN: {type(e).__name__}: {e}\n"
+                  "(dead_links existiert vermutlich noch nicht — "
+                  "scripts/migrate_dead_links.py manuell ausführen)")
+            return 0
+        print(f"\n--mark: {stats['first_strike']} erster Fehlschlag, "
+              f"{stats['confirmed']} bestätigt tot (check_count>=2), "
+              f"{stats['resurrected']} wieder lebendig entfernt.")
     return 0
 
 

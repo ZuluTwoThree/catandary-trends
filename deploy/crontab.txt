@@ -21,3 +21,10 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # OpenAlex-Monats-Sync (#80): neue Snapshot-Partitionen → research_corpus +
 # Journal-/Autoren-Nebentabellen + Statistik-Refresh. Amend-Analog, CPU/Netz.
 0 7 5 * * [ -x /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh ] && /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh || echo "$(date -Iseconds) skip sync_openalex (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-openalex-skip.log
+
+# Monatlicher Source-Link-Check (#48): Stichprobe published Backlinks (HEAD/GET),
+# --mark upsertet bestätigt tote (404/410/ConnErr, 2-Strike) in dead_links; 403/429
+# (Bot-Block) wird nie markiert. Voraussetzung: scripts/migrate_dead_links.py wurde
+# einmalig manuell gegen die Ziel-DB ausgeführt (additive Migration, NICHT in
+# db.init_db — ohne das läuft --mark ins Leere, siehe Skript-Docstring).
+0 7 2 * * /home/dirk/projects/catandary-trends/.venv/bin/python /home/dirk/projects/catandary-trends/scripts/check_source_links.py --per-source 12 --mark >> /home/dirk/logs/catandary-source-links.log 2>&1

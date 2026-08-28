@@ -10,13 +10,20 @@ import { PRIMARY_NAV, FORESIGHT_NAV, PLANS_NAV } from "@/lib/nav";
  * nav (Explore / Foresight / Account). Dialog semantics with a focus trap:
  * focus moves into the drawer on open and returns to the hamburger on close
  * (A11Y-04).
+ *
+ * `publicMode` (#93 Etappe 1) drops the Foresight group and "Plans" — those
+ * routes 404 under PUBLIC_MODE=1 (proxy.ts). `authEnabled` is already
+ * computed by the caller as `AUTH_ENABLED && !publicMode`, so the Account
+ * link needs no separate check here.
  */
 export default function MobileNav({
   authEnabled,
   signedIn,
+  publicMode,
 }: {
   authEnabled: boolean;
   signedIn: boolean;
+  publicMode: boolean;
 }) {
   // Drawer is "open" only for the pathname it was opened on — navigating
   // away closes it by derivation, no state-sync effect needed.
@@ -134,29 +141,37 @@ export default function MobileNav({
               </Link>
             ))}
 
-            <div className={groupLabel}>Foresight</div>
-            {FORESIGHT_NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={pathname === item.href ? "page" : undefined}
-                className={itemClass(item.href)}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {!publicMode && (
+              <>
+                <div className={groupLabel}>Foresight</div>
+                {FORESIGHT_NAV.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={pathname === item.href ? "page" : undefined}
+                    className={itemClass(item.href)}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </>
+            )}
 
-            <div className={groupLabel}>Account</div>
-            <Link href={PLANS_NAV.href} className={itemClass(PLANS_NAV.href)}>
-              {PLANS_NAV.label}
-            </Link>
-            {authEnabled && (
-              <Link
-                href={signedIn ? "/account" : "/account/signin"}
-                className={itemClass(signedIn ? "/account" : "/account/signin")}
-              >
-                {signedIn ? "Account" : "Sign in"}
-              </Link>
+            {!publicMode && (
+              <>
+                <div className={groupLabel}>Account</div>
+                <Link href={PLANS_NAV.href} className={itemClass(PLANS_NAV.href)}>
+                  {PLANS_NAV.label}
+                </Link>
+                {authEnabled && (
+                  <Link
+                    href={signedIn ? "/account" : "/account/signin"}
+                    className={itemClass(signedIn ? "/account" : "/account/signin")}
+                  >
+                    {signedIn ? "Account" : "Sign in"}
+                  </Link>
+                )}
+              </>
             )}
 
             <Link

@@ -442,6 +442,13 @@ verticals:
       lead_time_tier: market
     # --- 2026-08 Taxonomie-Ausbau: Digital Health (verifiziert 2026-08-07) ---
     - name: Rock Health Blog
+      active: false  # deaktiviert 2026-08-28 (#81): Feed tot — technisch HTTP 200,
+      # aber eingefroren seit 2021 (neuestes Item 2021-08-26 bei Check 2026-08-28),
+      # also permanent älter als das 90-Tage-Cutoff im Poller -> nie ein Eintrag.
+      # rockhealth.com/insights leitet auf rockhealthcapital.com/insights/ um (Rock
+      # Health hat sich als Investor/Capital-Marke neu aufgestellt), aber auch die
+      # neue Domain verlinkt nur denselben alten, toten Feed. Keine funktionierende
+      # Alternative gefunden (rockhealthcapital.com/feed etc. -> 403/404).
       fulltext: true
       feed_url: https://rockhealth.com/feed/
       type: brand
@@ -544,6 +551,11 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Euractiv
+      active: false  # deaktiviert 2026-08-28 (#81): Feed tot — Cloudflare-Bot-Challenge
+      # ("Just a moment...", HTTP 403) auf jeden Request, verifiziert von der Prod-IP
+      # (ki-workstation) mit dem Prod-UA/-Headern aus pipeline/feed_poller.py — kein
+      # Mac-IP-Einzelfall wie MobiHealthNews/Healthcare IT News. Nie ein raw_entries-
+      # Eintrag seit Aufnahme (2026-06-12). Kein per curl auflösbarer Workaround.
       feed_url: https://www.euractiv.com/feed/
       type: trade_media
       lead_time_tier: market
@@ -871,6 +883,12 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: WorkLife
+      active: false  # deaktiviert 2026-08-28 (#81): Feed tot — technisch HTTP 200,
+      # aber eingefroren seit 2025-12-16 (neuestes Item bei Check 2026-08-28, >8
+      # Monate alt), also permanent älter als das 90-Tage-Cutoff im Poller -> nie
+      # ein Eintrag. Die Homepage selbst listet dieselben Dezember-2025-Artikel als
+      # neueste — die ganze Seite wirkt verwaist, nicht nur der Feed. Keine
+      # funktionierende Alternative gefunden.
       fulltext: true
       feed_url: https://www.worklife.news/feed/
       type: trade_media
@@ -882,6 +900,13 @@ verticals:
       type: brand
       lead_time_tier: market
     - name: Shopify News
+      active: false  # deaktiviert 2026-08-28 (#81): Feed tot — technisch HTTP 200,
+      # aber eingefroren seit 2023-12-07 (neuestes Feed-Item bei Check 2026-08-28),
+      # obwohl shopify.com/news selbst bis 2026-08-13 aktiv Artikel zeigt — der
+      # Feed-Generator wurde offenbar abgeschaltet, während die Seite weiterläuft.
+      # Mehrere alternative Pfade probiert (news/rss, news.rss, news/feed.xml,
+      # news/feed/rss.xml, newsroom/feed) -> alle 404. Keine funktionierende
+      # Alternative gefunden.
       fulltext: true
       feed_url: https://www.shopify.com/news/feed
       type: brand
@@ -1096,6 +1121,11 @@ cross_industry:
   # (what is funded) and link to the Bundesanzeiger. Not bot-walled. The 10
   # thematic feeds are NOT subsets of "alle" (each is the 20 most-recent within
   # its topic), so together they broaden coverage. Verified 2026-07-01.
+  # CAVEAT (2026-08-28, #81): at least "Mobilität" turned out to be a heavy
+  # real-world overlap with "alle" in practice (raw_entries.url is globally
+  # UNIQUE, and "alle" is listed/polled first) — see its own comment below.
+  # Not re-verified for the other 8 thematic feeds; worth a spot-check if one
+  # of them shows zero raw_entries despite a live feed.
   - name: Förderinfo Bund – Bekanntmachungen (alle)
     feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-alle/rssnewsfeed.xml
     type: press_wire
@@ -1129,6 +1159,14 @@ cross_industry:
     type: press_wire
     lead_time_tier: market
   - name: Förderinfo Bund – Mobilität
+    active: false  # deaktiviert 2026-08-28 (#81): kein URL-Defekt — Feed liefert
+    # (verifiziert per curl) valide, aktuelle Items. Nie ein raw_entries-Eintrag,
+    # weil "Förderinfo Bund – Bekanntmachungen (alle)" oben im Cycle zuerst
+    # gepollt wird und dieselben Item-URLs zuerst inserted (4 von 9 stichproben-
+    # artig geprüften Mobilität-Items waren bereits unter source_id der "alle"-
+    # Quelle in raw_entries); raw_entries.url ist global UNIQUE, also verliert
+    # Mobilität strukturell jedes Mal. Widerlegt die "nicht Teilmenge"-Annahme
+    # im Kommentar oben — zumindest für dieses eine thematische Feed.
     feed_url: https://www.foerderinfo.bund.de/foerderinfo/de/services/rss/bekanntmachungen-mobilitaet/rssnewsfeed.xml
     type: press_wire
     lead_time_tier: market

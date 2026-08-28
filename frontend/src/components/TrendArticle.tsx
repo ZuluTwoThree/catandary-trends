@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Trend } from "@/lib/types";
 import type { TrendTechMatch } from "@/lib/technology";
 import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
+import { archiveUrl, DEAD_SOURCE_NOTICE } from "@/lib/deadLinks";
 import PestelBadge from "./PestelBadge";
 import VerticalBadge from "./VerticalBadge";
 import TrendScore from "./TrendScore";
@@ -26,10 +27,14 @@ export default function TrendArticle({
   trend,
   related,
   tech = [],
+  sourceDead = false,
 }: {
   trend: Trend;
   related: Trend[];
   tech?: TrendTechMatch[];
+  /** #48: true once check_source_links.py --mark has confirmed (2 strikes)
+   *  the source_url is gone. Missing dead_links table degrades to false. */
+  sourceDead?: boolean;
 }) {
   const vertical = getVerticalInfo(trend.primary_vertical);
 
@@ -226,6 +231,19 @@ export default function TrendArticle({
             >
               {trend.source_name || trend.source_url}
             </a>
+            {sourceDead && (
+              <p className="mt-3 text-xs text-muted leading-relaxed">
+                {DEAD_SOURCE_NOTICE}.{" "}
+                <a
+                  href={archiveUrl(trend.source_url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent hover:underline"
+                >
+                  View archived copy
+                </a>
+              </p>
+            )}
           </div>
         )}
       </article>
