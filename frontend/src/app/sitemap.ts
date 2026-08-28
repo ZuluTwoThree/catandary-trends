@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getTrends, getMegaTrends } from "@/lib/db";
+import { getAllAnalyses } from "@/lib/analyses";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const trends = await getTrends({ limit: 5000 });
   const megaTrends = await getMegaTrends();
+  const analyses = getAllAnalyses();
+
+  const analysisUrls: MetadataRoute.Sitemap = analyses.map((a) => ({
+    url: `${baseUrl}/analysis/${a.slug}`,
+    lastModified: a.date,
+    changeFrequency: "monthly" as const,
+    priority: 0.7,
+  }));
 
   const trendUrls: MetadataRoute.Sitemap = trends.map((trend) => ({
     url: `${baseUrl}/trends/${trend.slug}`,
@@ -56,6 +65,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
+      url: `${baseUrl}/analysis`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/enquiry`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.6,
+    },
+    {
       url: `${baseUrl}/trends/foresight`,
       lastModified: new Date(),
       changeFrequency: "daily",
@@ -93,6 +114,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.2,
     },
     ...megaUrls,
+    ...analysisUrls,
     ...trendUrls,
   ];
 }

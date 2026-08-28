@@ -16,6 +16,9 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-6 md:px-12 py-6 flex flex-col md:flex-row items-center justify-between gap-3">
         <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
           <span>&copy; {new Date().getFullYear()} Catandary</span>
+          <Link href="/analysis" className={LINK}>
+            Analyses
+          </Link>
           <Link href="/trends/methodology" className={LINK}>
             How we measure
           </Link>

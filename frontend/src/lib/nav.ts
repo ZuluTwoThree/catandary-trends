@@ -8,10 +8,13 @@ export interface NavItem {
   label: string;
 }
 
-/** Top-level content sections. */
+/** Top-level content sections. `/analysis` (#93 Etappe 2) is visible in both
+ *  PUBLIC_MODE states — it isn't in the `isBlockedInPublicMode` prefix list,
+ *  so gating the link here would just hide a working route. */
 export const PRIMARY_NAV: NavItem[] = [
   { href: "/trends", label: "Trends" },
   { href: "/trends/mega", label: "Mega Trends" },
+  { href: "/analysis", label: "Analyses" },
 ];
 
 /** The Foresight tool suite — grouped under one "Foresight" entry. */

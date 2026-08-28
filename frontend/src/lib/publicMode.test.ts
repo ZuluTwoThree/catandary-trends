@@ -80,6 +80,11 @@ describe("isBlockedInPublicMode", () => {
     "/trends/newsletter/unsubscribe",
     "/imprint",
     "/privacy",
+    // #93 Etappe 2 — the analysis + enquiry routes are the new public lead-gen
+    // surface and must stay reachable in both PUBLIC_MODE states.
+    "/analysis",
+    "/analysis/some-analysis-slug",
+    "/enquiry",
   ];
 
   it.each(allowed)("does not block %s", (path) => {
