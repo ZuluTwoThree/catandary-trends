@@ -4,15 +4,14 @@ export const metadata = {
 };
 
 /**
- * Impressum (§ 5 DDG). The address block is intentionally rendered from
- * constants the owner must fill before public launch — shipping a fabricated
- * address would be worse than an explicit gap. Tracked as an owner gate in
- * docs/ux/IMPLEMENTATION_2026-07.md.
+ * Impressum (§ 5 DDG). Address block mirrors the operator block already
+ * published on the static landing at catandary.de (transferred 2026-08-28,
+ * closing the #64→#93 P0 item).
  */
 const OPERATOR = {
-  name: "[Owner: full legal name]",
-  address1: "[Owner: street and number]",
-  address2: "[Owner: postal code and city, Germany]",
+  name: "Dirk Herrmann",
+  address1: "Geiselharz 40/6",
+  address2: "88279 Amtzell, Germany",
   email: "trends@catandary.de",
 };
 
