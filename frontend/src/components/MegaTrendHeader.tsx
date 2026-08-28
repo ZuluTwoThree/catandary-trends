@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
 import type { Vertical } from "@/lib/types";
+import { isPublicMode } from "@/lib/publicMode";
 
 export default function MegaTrendHeader({
   megaTrend,
@@ -82,17 +83,22 @@ export default function MegaTrendHeader({
             );
           })}
         </div>
-        <div className="border-l-[3px] border-accent pl-5 py-2">
-          <p className="font-sans text-sm text-paper">
-            Want the full theme forecast?{" "}
-            <Link
-              href="/trends/foresight"
-              className="text-accent hover:underline"
-            >
-              Open Catandary Foresight →
-            </Link>
-          </p>
-        </div>
+        {/* PUBLIC_MODE=1 (#93 Etappe 1): /trends/foresight 404s under that
+            flag (proxy.ts), so this teaser would be a dead link. Unset/0
+            changes nothing. */}
+        {!isPublicMode() && (
+          <div className="border-l-[3px] border-accent pl-5 py-2">
+            <p className="font-sans text-sm text-paper">
+              Want the full theme forecast?{" "}
+              <Link
+                href="/trends/foresight"
+                className="text-accent hover:underline"
+              >
+                Open Catandary Foresight →
+              </Link>
+            </p>
+          </div>
+        )}
       </div>
     </>
   );

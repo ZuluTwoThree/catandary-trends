@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { TrendTechMatch } from "@/lib/technology";
+import { isPublicMode } from "@/lib/publicMode";
 
 /** "FOODS OR FOODSTUFFS; PREPARATION THEREOF (…)" → "Foods or foodstuffs".
  *  Inlined here (not imported from lib/technology) so this client-rendered
@@ -33,8 +34,15 @@ function prettyCpcTitle(m: Pick<TrendTechMatch, "title" | "curated_name">, maxLe
  * of the market — with the Technology Explorer one click away. Renders
  * nothing when the trend has no confident technology match (cultural /
  * lifestyle signals), so it never shows weak claims.
+ *
+ * PUBLIC_MODE=1 (#93 Etappe 1): the block's own "Explore this technology"
+ * link goes straight to /trends/foresight/technology, which 404s under that
+ * flag (proxy.ts) — and the block exists specifically to lead into that
+ * explorer, so it renders nothing rather than a teaser with a dead end.
+ * Unset/0 changes nothing.
  */
 export default function TechContext({ matches }: { matches: TrendTechMatch[] }) {
+  if (isPublicMode()) return null;
   if (matches.length === 0) return null;
   const top = matches[0];
   const topName = prettyCpcTitle(top);
