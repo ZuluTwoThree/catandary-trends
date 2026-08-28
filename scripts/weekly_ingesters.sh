@@ -8,10 +8,15 @@
 # Samstag früh ist die GPU frei (Full Cycle Mo–Fr 04:00, Discovery So 06:00).
 #
 # Idempotent: alle Ingester dedupen auf raw_entries.url; überlappende Fenster
-# (14/45 Tage) heilen verpasste Wochen. Die Verarbeitung ist per --min-id auf
-# die HEUTE eingefügten Zeilen begrenzt — der 19,5-Mio-Patent-Backlog unter
-# source_type='api' bleibt unangetastet (zusätzlich --no-patents, siehe
-# signal_batch-Caveat: Funding und Patente teilen sich source_type='api').
+# (14/45/60 Tage) heilen verpasste Wochen. Die Verarbeitung ist per --min-id auf
+# die HEUTE eingefügten Zeilen begrenzt — der 19,5-Mio-Patent-BACKLOG unter
+# source_type='api' bleibt unangetastet. Seit 2026-08-28 (Owner) fließen aber
+# die LAUFENDEN Patente in den Signalraum: eigener --patents-only-Pass mit
+# rollendem 60-Tage-Publikationsfenster + Mengendeckel (ohne --min-id, denn die
+# Patente kommen dienstags und liegen damit unter dem Samstags-Wasserstand).
+# Ebenfalls seit 2026-08-28: wöchentlicher OpenAlex-Fresh-Sweep (zitationsfrei,
+# #51/#81 §6) — seine Neuzugänge sind source_type='research' und laufen über
+# den bestehenden research-Verarbeitungsschritt mit.
 
 set -u
 
@@ -21,6 +26,11 @@ mkdir -p "$(dirname "$LOG")"
 
 SINCE_PREPRINTS=$(date -d '14 days ago' +%F)
 SINCE_FUNDING=$(date -d '45 days ago' +%F)
+SINCE_OA_FRESH=$(date -d '14 days ago' +%F)
+# --before ist Pflicht: der argparse-Default ist 2010er-Ära-bedingt 2020-01-01,
+# ein Fenster "2026 bis 2020" wäre leer (Messfehler-Falle, gefunden 2026-08-28).
+BEFORE_OA_FRESH=$(date -d '+1 day' +%F)
+SINCE_PATENTS=$(date -d '60 days ago' +%F)
 
 {
   echo "================================================================"
@@ -39,6 +49,15 @@ with get_connection() as c:
   RC=0
   echo; echo "----- Preprints (arXiv/bioRxiv/medRxiv) seit $SINCE_PREPRINTS -----"
   python -u scripts/ingest_preprints.py --backend all --since "$SINCE_PREPRINTS" || RC=$?
+
+  # OpenAlex-Fresh-Sweep (zitationsfrei, publikationsdatum-sortiert): die
+  # aktuellen Journal-Arbeiten, die der zitationsgegatete Korpus nie sieht
+  # (#51). Deckel je Konzept-Shard begrenzt das Volumen; URL-Dedup macht das
+  # überlappende Fenster gefahrlos. Neuzugänge = source_type='research' →
+  # werden unten vom research-Verarbeitungsschritt mit embedded.
+  echo; echo "----- OpenAlex fresh (zitationsfrei) $SINCE_OA_FRESH .. $BEFORE_OA_FRESH -----"
+  python -u scripts/ingest_openalex.py --fresh --vertical ALL \
+    --after "$SINCE_OA_FRESH" --before "$BEFORE_OA_FRESH" --cap 1500 || RC=$?
 
   echo; echo "----- Funding (NSF/NIH/OpenAIRE/UKRI) seit $SINCE_FUNDING -----"
   python -u scripts/ingest_funding.py --backend all --since "$SINCE_FUNDING" || RC=$?
@@ -65,6 +84,15 @@ with get_connection() as c:
   echo; echo "----- Verarbeitung der Neuzugänge (distill, min_id=$MIN_ID) -----"
   python -u scripts/signal_batch_embedded.py --source-type research --min-id "$MIN_ID" || RC=$?
   python -u scripts/signal_batch_embedded.py --source-type api --no-patents --min-id "$MIN_ID" || RC=$?
+
+  # Patent-Signale (Owner 2026-08-28): die dienstags ingestierten Patente in
+  # den embeddeten Signalraum. Bewusst OHNE --min-id (sie liegen unter dem
+  # Samstags-Wasserstand); Scope = Abstract vorhanden + rollendes 60-Tage-
+  # Publikationsfenster; --limit als Mengenbremse gegen Catch-up-Wochen
+  # (Rest bleibt unprocessed und heilt in der Folgewoche).
+  echo; echo "----- Patent-Signale (distill, published >= $SINCE_PATENTS) -----"
+  python -u scripts/signal_batch_embedded.py --source-type api --patents-only \
+    --published-after "$SINCE_PATENTS" --limit 60000 || RC=$?
 
   # Research-Explorer-Index (#72) nach der Verarbeitung neu materialisieren
   echo; echo "----- Research-Index-Rebuild -----"
