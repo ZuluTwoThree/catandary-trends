@@ -152,7 +152,8 @@ Quellen werden pro Vertikale organisiert. Neue Vertikale starten mit 3-5 Kernque
 
 ### Quellenwachstum
 
-Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein automatisches Scraping oder Aggregator-Quellen. Trendhunter und Brave Search Radar wurden entfernt (2026-04-12) — **257 aktive Quellen** (Stand 2026-08-07; RSS-Primärquellen + OpenAlex/Patente/Funding-Pseudoquellen) decken alle 8 Vertikale ab. 2026-08-07 kamen 15 verifizierte Feeds für die Taxonomie-Erweiterung dazu (Quantum/Semis/Space/Digital Health/Future of Work/Education — u. a. The Quantum Insider, NVIDIA/Intel/IBM Newsroom, SpaceNews, NASA/ESA, Rock Health, HR Dive, EdSurge). Ausbau auf nicht-RSS-Quellentypen siehe `pipeline_expansion_prompt.md` und Goal Contract unter `goals/`.
+Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein automatisches Scraping oder Aggregator-Quellen. Trendhunter und Brave Search Radar wurden entfernt (2026-04-12) — **322 aktive Quellen** (Stand 2026-08-28; RSS-Primärquellen + OpenAlex/Patente/Funding-Pseudoquellen) decken alle 8 Vertikale ab. 2026-08-07 kamen 15 verifizierte Feeds für die Taxonomie-Erweiterung dazu (Quantum/Semis/Space/Digital Health/Future of Work/Education — u. a. The Quantum Insider, NVIDIA/Intel/IBM Newsroom, SpaceNews, NASA/ESA, Rock Health, HR Dive, EdSurge). Ausbau auf nicht-RSS-Quellentypen siehe `pipeline_expansion_prompt.md` und Goal Contract unter `goals/`.
+*(Quellenzahl-Herleitung 2026-08-28, #81-Quellenhygiene: DB-SELECT `count(*) FROM sources WHERE active` lieferte 328 zum Messzeitpunkt; 6 in dieser Runde als tot befundene Feeds — Euractiv, Rock Health Blog, WorkLife, Shopify News, Förderinfo Bund – Mobilität, Environmental Leader — sind in `sources.yaml`/`scripts/apply_source_hygiene.py` deaktiviert, macht 328−6=**322**. Der DB-Flag-Schreibvorgang selbst ist noch NICHT ausgeführt — `sources.active` bleibt bis zum manuellen `apply_source_hygiene.py --apply` bei 328; dieser Wert hier ist der Soll-Zustand danach. Nebenfund derselben Runde: `sources.yaml` `active: false` synct nie automatisch zurück in die DB (`upsert_source` überschreibt `active` auf einer bestehenden Zeile nie, und der Poller überspringt inaktive Quellen VOR dem Upsert-Call) — 3 weitere, schon vor #81 auf `active: false` gesetzte Quellen (MobiHealthNews, Healthcare IT News, BMJ) hängen aus demselben Grund seit 2026-06-12 bei `active=true` in der DB fest. `apply_source_hygiene.py` behebt das generisch für alle acht; nach voller Anwendung sind es 328−9=319.)*
 
 ---
 
@@ -500,6 +501,15 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # der Neuzugänge + HDD-Download-Cleanup. Firmenstamm-Rebuild, Wikidata und
 # Brücken bewusst NICHT im Cron (Rebuild würde Enrichment verwerfen) — on-demand.
 0 12 6 * *   scripts/monthly_startup_sources.sh
+
+# Source-Link-Integrität monatlich (2. des Monats 07:00, Issue #48, vorbereitet
+# in deploy/crontab.txt — noch NICHT in die echte crontab installiert): Stichprobe
+# published Backlinks (HEAD/GET, ein Worker pro Host), --mark upsertet bestätigt
+# tote Links (404/410/ConnErr, erst nach 2 aufeinanderfolgenden Fehl-Checks) in
+# die neue Tabelle dead_links; 403/429 (Bot-Block) wird nie markiert. Setzt
+# scripts/migrate_dead_links.py voraus (additive Migration, s.u. — läuft NICHT
+# automatisch auf der Live-DB, muss einmalig von Hand ausgeführt werden).
+0 7 2 * *    scripts/check_source_links.py --per-source 12 --mark
 ```
 
 **Mengenbremse statt Quellen-Verbot (Owner-Präzisierung 2026-08-20):** Funding-News
@@ -850,9 +860,9 @@ Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direk
 
 ## Quellenbalance & Pipeline-Optimierung
 
-### Ist-Zustand (Stand 2026-08-07)
+### Ist-Zustand (Stand 2026-08-07, Quellenzahl aktualisiert 2026-08-28)
 
-257 aktive Quellen. 21,6 Mio. Raw Entries, 1.134.488 Trends (67.035 published), **28 kanonische Mega-Trends** (22 + 6 neue Keys aus der Taxonomie-Erweiterung 2026-08-07: Quantum Information Science, Next-Gen Semiconductors, Orbital Economy, Evolution of Work Models, Education & Lifelong Learning, Digital Healthcare Integration — siehe `docs/mega_taxonomy_decision_2026-08-07.md`).
+**322 aktive Quellen** (Stand 2026-08-28 — s. Herleitung unter „Quellenwachstum" oben; war 257 am 2026-08-07). 21,6 Mio. Raw Entries, 1.134.488 Trends (67.035 published), **28 kanonische Mega-Trends** (22 + 6 neue Keys aus der Taxonomie-Erweiterung 2026-08-07: Quantum Information Science, Next-Gen Semiconductors, Orbital Economy, Evolution of Work Models, Education & Lifelong Learning, Digital Healthcare Integration — siehe `docs/mega_taxonomy_decision_2026-08-07.md`). Die übrigen Zahlen dieser Zeile (Raw Entries, Trends, Mega-Trends) sind weiterhin der 2026-08-07-Snapshot, nicht neu gemessen.
 
 *(Die folgende Tabelle ist der historische Snapshot 2026-05-29 — nur published Trends der Frühphase; der heutige Korpus ist backfill-dominiert.)*
 
