@@ -1606,3 +1606,48 @@ async function fetchVerticalCounts(status?: string): Promise<Record<string, numb
   }
   return result;
 }
+
+/**
+ * Source-link-rot lookup (#48). dead_links is populated by
+ * `scripts/check_source_links.py --mark`, but that table only exists once
+ * `scripts/migrate_dead_links.py` has been run by hand against this DB — an
+ * additive migration in this repo is NEVER wired into automatic init, so a
+ * freshly deployed or not-yet-migrated DB legitimately lacks the table.
+ *
+ * to_regclass() is a cheap, non-throwing existence check (no exception on a
+ * missing relation, unlike SELECTing from it directly), and its result is
+ * cached for the process lifetime of the TTL so a still-missing table isn't
+ * re-checked on every article view. Everything is additionally wrapped in
+ * try/catch: any surprise here (permissions, a dropped connection) must
+ * degrade to "no badge", never crash the article page.
+ */
+async function deadLinksTableExists(): Promise<boolean> {
+  return cached("dead-links-table-exists", 600_000, async () => {
+    try {
+      const row = await q1<{ reg: string | null }>(
+        "SELECT to_regclass('public.dead_links')::text as reg"
+      );
+      return row?.reg != null;
+    } catch (e) {
+      console.error("dead_links existence check failed:", e);
+      return false;
+    }
+  });
+}
+
+/** Only a check_count >= 2 (confirmed, per the 2-strike rule in
+ *  check_source_links.py) is surfaced — a single blip never shows a badge. */
+export async function isSourceLinkDead(sourceUrl: string): Promise<boolean> {
+  if (!sourceUrl) return false;
+  try {
+    if (!(await deadLinksTableExists())) return false;
+    const row = await q1<{ url: string }>(
+      "SELECT url FROM dead_links WHERE url = $1 AND check_count >= 2",
+      [sourceUrl]
+    );
+    return row != null;
+  } catch (e) {
+    console.error("dead_links lookup failed:", e);
+    return false;
+  }
+}

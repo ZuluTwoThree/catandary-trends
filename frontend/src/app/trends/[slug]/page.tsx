@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getTrendBySlug, getTrends } from "@/lib/db";
+import { getTrendBySlug, getTrends, isSourceLinkDead } from "@/lib/db";
 import { getTrendTechContext } from "@/lib/technology";
 import {
   archiveWindowDays,
@@ -53,7 +53,7 @@ export default async function TrendArticlePage({
     windowDays
   );
 
-  const [relatedRaw, tech] = await Promise.all([
+  const [relatedRaw, tech, sourceDead] = await Promise.all([
     getTrends({
       status: "published",
       vertical: trend.primary_vertical,
@@ -61,6 +61,7 @@ export default async function TrendArticlePage({
       limit: 4,
     }),
     getTrendTechContext(trend.id),
+    isSourceLinkDead(trend.source_url),
   ]);
   const related = relatedRaw.filter((t) => t.id !== trend.id).slice(0, 3);
 
@@ -96,7 +97,7 @@ export default async function TrendArticlePage({
             </article>
           }
         >
-          <TrendArticle trend={trend} related={related} tech={tech} />
+          <TrendArticle trend={trend} related={related} tech={tech} sourceDead={sourceDead} />
         </TierGate>
       </div>
     );
@@ -105,7 +106,7 @@ export default async function TrendArticlePage({
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <TrendArticleJsonLd trend={trend} />
-      <TrendArticle trend={trend} related={related} tech={tech} />
+      <TrendArticle trend={trend} related={related} tech={tech} sourceDead={sourceDead} />
     </div>
   );
 }
