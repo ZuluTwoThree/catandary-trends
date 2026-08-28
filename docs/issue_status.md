@@ -51,6 +51,12 @@ Jede Aussage gegen Code, DB, crontab und die laufende Instanz (:3001) geprüft.
   (`upsert_source` aktualisiert das Flag nicht) — 3 seit Juni deaktivierte Quellen liefen still
   weiter; `scripts/apply_source_hygiene.py` behebt das nach Freigabe (9 Zeilen).
 
+- **#93 Etappe 1 (Kern):** `PUBLIC_MODE`-Gate gebaut (`frontend/src/proxy.ts` — Next 16 hat
+  `middleware.ts` zu `proxy.ts` umbenannt!) — Flag=1 blendet alle 25 „Fällt weg"-Routen aus und
+  versteckt die zugehörigen Links/Teaser; ungesetzt ändert sich nichts. Live gegen die echte DB
+  verifiziert (25/25 → 404, Bleibt-öffentlich → 200). Offen: Landing-Copy, physischer
+  Auth/Stripe-Rückbau, Etappe 2 (`/analysis`, `/enquiry`).
+
 *(Details und Testergebnisse: Commits auf `issue-audit` + Status-Kommentare in den Issues.)*
 
 ## 🔴 Welle 0 — der kritische Pfad zum 01.10. (alles andere wartet)
