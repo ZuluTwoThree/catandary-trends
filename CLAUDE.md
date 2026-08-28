@@ -483,12 +483,12 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Radare + TIR-/SPNP-Forschungsläufe bewusst NICHT im Cron (Owner: on-demand).
 0 8 * * 2    scripts/weekly_patent_analytics.sh
 
-# OpenAlex-Monats-Sync (5. des Monats 07:00, seit 2026-08-15, #80): neue
+# OpenAlex-Monats-Sync (5. des Monats 02:00, seit 2026-08-15, #80; 07:00→02:00 am 2026-08-29 entzerrt — Erstlauf 05.09. fällt auf einen Ingester-Samstag): neue
 # Snapshot-Partitionen → research_corpus (45M-Suchschicht) + Journal-/
 # Autoren-Nebentabellen + Statistik-Refresh (Amend-Analog, CPU/Netz)
-0 7 5 * *    scripts/sync_openalex_monthly.sh
+0 2 5 * *    scripts/sync_openalex_monthly.sh
 
-# Nicht-RSS-Ingester wöchentlich (Samstag 05:00, seit 2026-08-09): Preprints
+# Nicht-RSS-Ingester wöchentlich (Samstag 06:00, seit 2026-08-09; 05:00→06:00 am 2026-08-29 entzerrt): Preprints
 # (arXiv/bioRxiv/medRxiv, 14-Tage-Fenster) + Funding (NSF/NIH/OpenAIRE/UKRI,
 # 45 Tage) + SEC Form D (Vorquartal, nur im 1. Quartalsmonat) + sofortige
 # Distill-Verarbeitung der Neuzugänge via signal_batch_embedded (GPU-Handover).
@@ -499,7 +499,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # research-Distill-Schritt mit) + Patent-Signale (--patents-only: nur mit
 # Abstract, rollendes 60-Tage-Publikationsfenster, Limit 60k/Lauf; der
 # 19,6M-BDDS-Backlog bleibt bewusst außen vor).
-0 5 * * 6    scripts/weekly_ingesters.sh
+0 6 * * 6    scripts/weekly_ingesters.sh
 
 # Startup-Explorer-Quellen monatlich (6. 12:00, seit 2026-08-23, #87): CORDIS +
 # SBIR (--refresh) + GLEIF + Companies House + GLEIF/CH-Enrichment + Distill

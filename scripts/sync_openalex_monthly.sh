@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Monatlicher OpenAlex-Sync (#80) — das Amend-Gegenstück für den Research-
-# Korpus. Cron: 0 7 5 * * (5. des Monats, 07:00; GPU-frei, kollidiert mit
+# Korpus. Cron: 0 2 5 * * (5. des Monats, 02:00; entzerrt 2026-08-29; GPU-frei, kollidiert mit
 # keinem GPU-Fenster — BDDS Di 05:00 ist reine CPU/Netz-Arbeit).
 #
 # OpenAlex veröffentlicht ~monatlich ein Release; geänderte/neue Werke landen
