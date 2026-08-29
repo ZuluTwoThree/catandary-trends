@@ -108,6 +108,21 @@ with get_connection() as c:
   python -u scripts/ingest_clinical_trials.py || RC=$?
   python -u scripts/ingest_fda_510k.py || RC=$?
 
+  # LLM-Investoren-Nachveredelung (#94 Teil 2) — VORBEREITET, NICHT aktiv.
+  # Braucht den 8B-Chat-Server auf :8090; dieser Samstagslauf haelt an dieser
+  # Stelle aber schon den EMBEDDING-Server (signal_batch_embedded oben lief
+  # via GPU-Handover mit Qwen3-Embedding-8B, nicht dem 8B-Chat-Modell) — ein
+  # 8B-Chat-Lauf braeuchte danach einen eigenen Modell-Swap. Baustein dafuer:
+  # pipeline.gpu_handover.eight_b_on_llamacpp(STAGE_8B_MODEL) (Symlink-Swap
+  # + Ollama-Unload + Start + Restore-on-exit — dasselbe Muster wie Stages
+  # 2/3/4/8 im Full-Cycle), NICHT content_gen_on_llamacpp (laedt den
+  # Content-Gen-GGUF, nicht das 8B). Aktivierung erst nach --eval-Pruefung
+  # der Qualitaet (#94 Teil 2); vorher migrate_press_investor_enrichment.py
+  # manuell gegen die Live-DB laufen lassen (additive Migration, nicht in
+  # ensure_table()).
+  # echo; echo "----- Investoren-Nachveredelung (#94 Teil 2) -----"
+  # python -u scripts/extract_press_rounds.py --mode investors --apply --limit 2000 || RC=$?
+
   echo; echo "weekly_ingesters.sh end $(date -Iseconds) (rc=$RC)"
   exit "$RC"
 } >> "$LOG" 2>&1
