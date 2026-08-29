@@ -6,6 +6,7 @@ import {
   withinArchiveWindow,
   FREE_ARCHIVE_DAYS,
 } from "@/lib/entitlement";
+import { isPublicMode } from "@/lib/publicMode";
 import { TrendArticleJsonLd } from "@/components/JsonLd";
 import TrendArticle from "@/components/TrendArticle";
 import TierGate from "@/components/TierGate";
@@ -52,6 +53,13 @@ export default async function TrendArticlePage({
     trend.sort_date ?? trend.published_at,
     windowDays
   );
+
+  // #93: on the public showcase an out-of-window article is a hard 404 — the
+  // public dataset simply ends at the window (no tiers exist there, so the
+  // #70 upgrade card below would advertise a plan that cannot be bought and
+  // link into the blocked /trends/pricing route). Mirrors the real deploy,
+  // where the row is absent from the exported slice altogether.
+  if (inArchive && isPublicMode()) notFound();
 
   const [relatedRaw, tech, sourceDead] = await Promise.all([
     getTrends({
