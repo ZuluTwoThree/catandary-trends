@@ -16,8 +16,12 @@
 #
 # BEWUSST NICHT hier: der Firmenstamm-Rebuild (build_startup_companies
 # TRUNCATEt und wuerde Wikidata-/Embedding-Enrichment verwerfen), die
-# Wikidata-Anreicherung und die Bruecken — on-demand, bis ein inkrementeller
-# Update-Pfad existiert (siehe #87).
+# Wikidata-Anreicherung und die Bruecken — on-demand.
+#
+# Seit #94 (Teil 1) existiert scripts/update_startup_companies.py als
+# additiver Ersatz fuer den Rebuild-Schritt (matcht neue Form-D-/SBIR-/
+# CORDIS-/Presse-Kandidaten gegen den Bestand statt ihn zu ersetzen, siehe
+# den auskommentierten Schritt unten "nach verifiziertem Erstlauf aktivieren").
 
 set -u
 
@@ -54,6 +58,19 @@ with get_connection() as c:
 
   echo; echo "----- Enrichment (GLEIF/CH) -----"
   python -u scripts/enrich_startup_companies.py || RC=$?
+
+  # Firmenstamm-Update (additiv, #94 Teil 1): matcht alle bisher unverknuepften
+  # Form-D-/SBIR-/CORDIS-/Presse-Kandidaten gegen startup_companies (dieselbe
+  # Quellen-Vierheit wie build_startup_companies, Entity-Resolution importiert
+  # aus pipeline/startup_resolution.py, aber ohne TRUNCATE) — nicht nur die
+  # CORDIS/SBIR-Neuzugaenge von oben, auch der Form-D-/Presse-Rueckstau aus
+  # weekly_ingesters.sh, der seit dem Rebuild (23.08.) kein Ziel mehr fand.
+  # Erstlauf verifiziert 2026-08-29 (66 neue Firmen, Enrichment-Checksum
+  # unveraendert, Idempotenz-Nachlauf = 0). Stufe C (Embedding-Match) bleibt
+  # bis zur Schwellen-Kalibrierung aus (#94-Notiz) — Stufe A+B genuegen fuer
+  # den Monatsstrom.
+  echo; echo "----- Firmenstamm-Update (additiv, #94) -----"
+  python -u scripts/update_startup_companies.py --apply --no-embed-match || RC=$?
 
   # Neuzugaenge ins Signal-Netz (Funding-Quellen laufen unter source_type=api;
   # --no-patents wie im Weekly — Patente teilen sich den source_type).

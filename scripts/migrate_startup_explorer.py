@@ -50,6 +50,14 @@ DDL = [
     "CREATE INDEX IF NOT EXISTS idx_sc_duns ON startup_companies (duns) WHERE duns IS NOT NULL",
     # Nachträglich (Wikidata-Enrichment): Gründer-Personen — einzige freie Quelle
     "ALTER TABLE startup_companies ADD COLUMN IF NOT EXISTS founders JSONB DEFAULT '[]'",
+    # Nachträglich (manueller Merge-Audit nach dem Rebuild, Plan §7): markiert
+    # Fondsvehikel/Presse-Namensartefakte, die trotz der Ausschluss-Filter in
+    # ingest_secform_d.py/extract_press_rounds.py durchgerutscht sind. War auf
+    # der Live-DB bereits vorhanden, aber nie in dieser Migration nachgezogen
+    # (Doku-Drift, #94) — Werte 'fund_vehicle'/'press_name_artifact' werden seit
+    # #94 zusätzlich automatisiert von scripts/update_startup_companies.py für
+    # NEU angelegte Firmen gesetzt (pipeline.company_norm.classify_new_company_exclusion).
+    "ALTER TABLE startup_companies ADD COLUMN IF NOT EXISTS excluded TEXT",
 
     # Namensvarianten je Firma (Quelle + Original-Schreibweise).
     """CREATE TABLE IF NOT EXISTS startup_aliases (
