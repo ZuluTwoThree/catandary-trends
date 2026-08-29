@@ -520,6 +520,45 @@ def write_investor_enrichment(conn, raw_entry_id: int, investors: list[str],
         (json.dumps(investors), round_type, raw_entry_id))
 
 
+def sync_events_from_enriched(conn) -> int:
+    """Propagiert angereicherte Investoren in bereits materialisierte
+    startup_events-Zeilen. Noetig, weil load_press() die Runden nur beim
+    Materialisieren durchreicht — Events, die VOR der Anreicherung entstanden,
+    stuenden sonst dauerhaft auf []. Befuellt NUR leere Event-Investorenlisten
+    (nie bestehende ueberschreiben); idempotent. Befund 2026-08-29: alle 534
+    angereicherten Runden hatten bereits Events mit investors=[]."""
+    from pipeline.db import USE_POSTGRES
+    cast = "::jsonb" if USE_POSTGRES else ""
+    try:
+        cur = conn.execute(
+        f"UPDATE startup_events SET investors = pr.investors{cast} "
+        "FROM startup_press_rounds pr "
+        "WHERE startup_events.raw_entry_id = pr.raw_entry_id "
+        "AND pr.investors_enriched_at IS NOT NULL "
+        "AND pr.investors IS NOT NULL AND pr.investors != '[]' "
+        "AND (startup_events.investors IS NULL "
+        "     OR startup_events.investors::text IN ('[]', ''))"
+        if USE_POSTGRES else
+        "UPDATE startup_events SET investors = ("
+        "  SELECT pr.investors FROM startup_press_rounds pr"
+        "  WHERE pr.raw_entry_id = startup_events.raw_entry_id"
+        "  AND pr.investors_enriched_at IS NOT NULL"
+        "  AND pr.investors IS NOT NULL AND pr.investors != '[]') "
+        "WHERE (investors IS NULL OR investors IN ('[]', '')) "
+        "AND EXISTS (SELECT 1 FROM startup_press_rounds pr"
+        "  WHERE pr.raw_entry_id = startup_events.raw_entry_id"
+        "  AND pr.investors_enriched_at IS NOT NULL"
+        "  AND pr.investors IS NOT NULL AND pr.investors != '[]')")
+    except Exception as e:  # fehlende Tabelle (frische Test-DB) → kein Sync-Ziel
+        if "startup_events" in str(e):
+            logger.info("[press-rounds] Event-Sync uebersprungen: %s", e)
+            return 0
+        raise
+    n = cur.rowcount if cur.rowcount is not None else 0
+    logger.info("[press-rounds] Event-Sync: %d startup_events-Zeilen mit Investoren befuellt", n)
+    return n
+
+
 def enrich_investors(limit: int, apply: bool, gate_on_hint: bool = True,
                      model_override: str = "") -> int:
     """--mode investors main driver. Dry-run (apply=False) is the default and
@@ -580,6 +619,9 @@ def enrich_investors(limit: int, apply: bool, gate_on_hint: bool = True,
     logger.info("[press-rounds] INVESTOR-ENRICH DONE: %(done)d verarbeitet | "
                 "%(with_investors)d mit Investoren | %(empty)d leer (Grounding/keine Nennung) "
                 "| %(errors)d Fehler (nicht markiert, naechster Lauf erneut)", st)
+    with db.get_connection() as conn:
+        sync_events_from_enriched(conn)
+        conn.commit()
     return 0
 
 
@@ -682,6 +724,10 @@ def main() -> int:
     ap.add_argument("--eval", type=int, default=0, metavar="N",
                     help="mode=investors: N zufaellige Zeilen LLM vs. vorhandenes Ergebnis "
                          "vergleichen (rein lesend, kein Marker-Stempel)")
+    ap.add_argument("--sync-events", action="store_true",
+                    help="mode=investors: nur die Event-Propagation nachziehen "
+                         "(angereicherte Runden -> leere startup_events.investors; "
+                         "laeuft nach --apply automatisch, dies ist der Standalone-Nachzug)")
     ap.add_argument("--model", type=str, default="",
                     help="mode=investors: Override fuer das erwartete 8B-Chat-Modell "
                          "(Default: STAGE_8B_MODEL aus pipeline/config.py)")
@@ -698,6 +744,11 @@ def main() -> int:
     if args.mode == "investors":
         if args.eval:
             return eval_investor_enrichment(args.eval, model_override=args.model)
+        if args.sync_events:
+            with db.get_connection() as conn:
+                sync_events_from_enriched(conn)
+                conn.commit()
+            return 0
         return enrich_investors(limit, apply=args.apply,
                                 gate_on_hint=not args.all_candidates,
                                 model_override=args.model)

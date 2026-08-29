@@ -456,3 +456,32 @@ def test_migration_report_runs_after_apply(seeded_db):
     # seeded_db already has the marker column (simulates a migrated DB)
     assert migrate_mod.column_exists() is True
     migrate_mod.report()  # must not raise
+
+
+def test_sync_events_fills_only_empty(tmp_path, monkeypatch):
+    # Event-Propagation (#94 Teil 2 Nachtrag): angereicherte Runden fuellen
+    # NUR leere startup_events.investors; befuellte bleiben unberuehrt.
+    import os, importlib
+    db_file = tmp_path / "sync.db"
+    monkeypatch.setenv("DATABASE_PATH", str(db_file))
+    import pipeline.db as pdb
+    pdb.DATABASE_PATH = str(db_file)
+    from pipeline.db import get_connection
+    import scripts.extract_press_rounds as epr
+    with get_connection() as c:
+        c.execute("CREATE TABLE startup_press_rounds (raw_entry_id INTEGER, investors TEXT, investors_enriched_at TIMESTAMP)")
+        c.execute("CREATE TABLE startup_events (id INTEGER PRIMARY KEY, raw_entry_id INTEGER, investors TEXT)")
+        c.execute("INSERT INTO startup_press_rounds VALUES (1, '[\"Accel\"]', '2026-08-29')")
+        c.execute("INSERT INTO startup_press_rounds VALUES (2, '[\"Index\"]', '2026-08-29')")
+        c.execute("INSERT INTO startup_press_rounds VALUES (3, '[]', '2026-08-29')")
+        c.execute("INSERT INTO startup_events (raw_entry_id, investors) VALUES (1, '[]')")
+        c.execute("INSERT INTO startup_events (raw_entry_id, investors) VALUES (2, '[\"Bestand\"]')")
+        c.execute("INSERT INTO startup_events (raw_entry_id, investors) VALUES (3, NULL)")
+        n = epr.sync_events_from_enriched(c)
+        c.commit()
+        rows = {r["raw_entry_id"]: r["investors"] for r in c.execute(
+            "SELECT raw_entry_id, investors FROM startup_events").fetchall()}
+    assert rows[1] == '["Accel"]'      # leer -> befuellt
+    assert rows[2] == '["Bestand"]'    # bestehend -> unberuehrt
+    assert rows[3] is None             # Quelle leer -> kein Sync
+    assert n == 1
