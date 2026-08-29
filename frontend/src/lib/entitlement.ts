@@ -1,5 +1,6 @@
 import { getSession, type Tier } from "./auth";
 import { tierAllows } from "./tiers";
+import { isPublicMode } from "./publicMode";
 
 /**
  * Entitlement layer (Epic W2.2, issue #17). Gating is itself behind
@@ -39,11 +40,22 @@ export async function canAccess(need: Tier): Promise<boolean> {
 export const FREE_ARCHIVE_DAYS = 28;
 
 /**
+ * The public lead-gen deployment (#93) ships only the last 30 days of the
+ * feed — "30 Tage Trends" is the whole public data promise (~83 MB). On the
+ * real deployment the export itself is windowed; this flag-enforced window
+ * makes the workstation preview (PUBLIC_MODE=1) match it and is the safety
+ * net if a fuller dataset ever reaches a public instance.
+ */
+export const PUBLIC_ARCHIVE_DAYS = 30;
+
+/**
  * The archive window for the current viewer, in days — or null for unlimited
  * (paywall off, or Starter and above). Callers thread the value into query
- * options (`max_age_days`) or `withinArchiveWindow`.
+ * options (`max_age_days`) or `withinArchiveWindow`. PUBLIC_MODE wins over
+ * everything — the public showcase has no accounts, so no tier can widen it.
  */
 export async function archiveWindowDays(): Promise<number | null> {
+  if (isPublicMode()) return PUBLIC_ARCHIVE_DAYS;
   if (!PAYWALL_ENABLED) return null;
   return tierAllows(await viewerTier(), "starter") ? null : FREE_ARCHIVE_DAYS;
 }

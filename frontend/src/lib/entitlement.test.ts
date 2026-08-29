@@ -79,4 +79,29 @@ describe("archiveWindowDays", () => {
       expect(await mod.archiveWindowDays()).toBeNull();
     }
   });
+
+  // #93: the public showcase ships only the last 30 days — PUBLIC_MODE wins
+  // over paywall state AND any tier (no accounts exist on the public site).
+  it("PUBLIC_MODE=1 → PUBLIC_ARCHIVE_DAYS regardless of paywall", async () => {
+    process.env.PUBLIC_MODE = "1";
+    try {
+      for (const paywall of ["0", "1"] as const) {
+        const mod = await loadWith(paywall);
+        expect(await mod.archiveWindowDays()).toBe(mod.PUBLIC_ARCHIVE_DAYS);
+      }
+    } finally {
+      delete process.env.PUBLIC_MODE;
+    }
+  });
+
+  it("PUBLIC_MODE=1 → window even for a superpro session", async () => {
+    process.env.PUBLIC_MODE = "1";
+    try {
+      holder.session = { tier: "superpro" };
+      const mod = await loadWith("1");
+      expect(await mod.archiveWindowDays()).toBe(mod.PUBLIC_ARCHIVE_DAYS);
+    } finally {
+      delete process.env.PUBLIC_MODE;
+    }
+  });
 });
