@@ -468,6 +468,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # keep-days 4 = Owner-Entscheidung 2026-08-24 (~480 GB Steady-State).
 45 2 * * *   .venv/bin/python scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4
 
+# Newsletter-Website-Edition (Mo 09:00, seit 2026-08-29): generiert die
+# Vorwoche (deterministisch) nach newsletter_editions — /trends/newsletter
+# zeigt sie sofort. KEIN Versand (der wartet auf #16/Launch).
+0 9 * * 1    scripts/weekly_newsletter_publish.sh
+
 # Source-Discovery-Loop (Sonntag 06:00)
 0 6 * * 0    .venv/bin/python scripts/discovery_loop.py
 
@@ -534,8 +539,11 @@ Funding-News aus Fachmedien dürfen weiterhin Artikel werden (Präzisierung
 
 Auto-Publish ist in die LLM-Pipeline integriert (Stage 8+9: Reclassify → Auto-Publish);
 Standalone-Lauf nur als Fallback: `python pipeline/auto_publisher.py`
-(nutzt `AUTO_PUBLISH_CONFIDENCE=0.85` aus config.py). Ein Newsletter-Cron ist
-derzeit **nicht** eingerichtet (`pipeline/newsletter_generator.py` läuft manuell).
+(nutzt `AUTO_PUBLISH_CONFIDENCE=0.85` aus config.py). Newsletter: die **Website-
+Edition** läuft seit 2026-08-29 per Cron (Mo 09:00, `weekly_newsletter_publish.sh`
+— generiert die Vorwoche nach `newsletter_editions`, mit Full-Cycle-Kollisions-
+wächter und Gemma-Swap); der E-Mail-**Versand** bleibt manuell/gegated bis zur
+Launch-Kette (#16, `NEWSLETTER_GOLIVE.md`).
 
 ### Feed-Poller Architektur
 

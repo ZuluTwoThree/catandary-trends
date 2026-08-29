@@ -29,6 +29,13 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # db.init_db — ohne das läuft --mark ins Leere, siehe Skript-Docstring).
 0 7 2 * * /home/dirk/projects/catandary-trends/.venv/bin/python /home/dirk/projects/catandary-trends/scripts/check_source_links.py --per-source 12 --mark >> /home/dirk/logs/catandary-source-links.log 2>&1
 
+# Woechentliche Newsletter-EDITION fuer die Website (Owner 2026-08-29): Montag
+# 09:00 generiert die Vorwoche (deterministisch via %G/%V von vor 7 Tagen) und
+# speichert sie in newsletter_editions — /trends/newsletter zeigt sie sofort.
+# KEIN Versand (der bleibt unten gegated). Kollisionswaechter wartet auf einen
+# evtl. noch laufenden Full Cycle; idempotent (existierende Edition = no-op).
+0 9 * * 1 /home/dirk/projects/catandary-trends/scripts/weekly_newsletter_publish.sh
+
 # Newsletter-Versandkette (#16) — NOCH NICHT AKTIV, siehe
 # docs/launch/newsletter-doi-php/NEWSLETTER_GOLIVE.md für die Restliste.
 # aktivieren wenn: export.php deployed + Secret-Angleich erledigt (#16)
