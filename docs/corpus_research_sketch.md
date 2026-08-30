@@ -266,6 +266,40 @@ eines Eintrags auf und schreibt sie auf den kanonischen Link um; nur wirklich
 unbekannte URLs werden weiter gestrichen. `result.report_raw` bewahrt den
 Bericht vor der Kanonisierung für Diagnosen auf.
 
+## Firmen-Dossiers: `--company` — auch etablierte KMU (2026-08-30, Issue #95)
+
+Owner-Anforderung: Dossier auf Firmennamen-Eingabe, ausdrücklich nicht nur
+Startups. Testfall Askea Feinmechanik (Amtzell): 0 Treffer in trends, 0 im
+Startup-Korpus, 0 Patent-Assignees — der Normalfall für KMU. Der Modus dreht
+die Pipeline deshalb um:
+
+1. **Firmenauflösung web-first:** Brave-Suche Name+Ort → Modell wählt die
+   firmeneigene Domain aus den Treffern (`SiteChoice`), bis zu 4 Seiten werden
+   robots-treu gelesen (Startseite immer), daraus extrahiert ein zweiter Hop
+   das Profil (`CompanyProfile`: Branche, Produkte, Technologien,
+   Abnehmerbranchen — auf Englisch, denn sie seeden die Korpussuchen). Die
+   gelesenen Firmenseiten sind zitierfähige Primärquellen im Katalog.
+2. **Umfeld über Technologie-Begriffe:** `topic` = Profil-Technologien (bei
+   Askea: CNC milling/turning, laser processing, precision metrology) — damit
+   laufen Korpus-Schleife, interner Sweep und Web-Abdeckung unverändert, nur
+   eben übers Feld statt über den Namen.
+3. **Berichtssprache Deutsch** (Owner-Entscheidung für Firmen-Dossiers;
+   `--lang` überschreibt): Anweisung am ANFANG des Report-System-Prompts plus
+   als Schlusszeile des User-Prompts — ans Ende des System-Prompts gehängt
+   wurde sie vom 27B ignoriert (Askea v1 kam englisch heraus). Quellen-/
+   Coverage-Abschnitte, Marks und Herkunftskopf sind sprachbewusst (`_L10N`).
+
+Nebenbefunde aus Askea v1, beide gefixt: (a) eine abgelehnte Fetch-Aktion
+wurde dem Modell nicht zurückgemeldet — es wiederholte denselben Fetch
+fünfmal und verbrannte die Agent-Phase; Ablehnungen gehen jetzt mit Grund in
+den Folge-Prompt, und die Liste schon gelesener Seiten steht im Prompt.
+(b) Der Planer-Hop lief bei den längeren Firmen-Fragen in die
+1024er-Trunkierung → Startbudget 2048.
+
+Bewusste Grenzen: keine Handelsregister-/Bilanzdaten; Firmen ohne
+Korpus-Präsenz bekommen ihr Umfeld ausschließlich über die
+Technologie-Begriffe — der Ledger weist die Web-Lastigkeit aus.
+
 ## Offen
 
 * Ranking: das OR-Retrieval holt breit; bei größeren Katalogen prüfen, ob
