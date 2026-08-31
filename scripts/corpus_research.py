@@ -1468,6 +1468,9 @@ def main() -> int:
                          "the trend environment from the internal corpora")
     ap.add_argument("--lang", choices=("de", "en"), default=None,
                     help="report language (default: de for --company, en otherwise)")
+    ap.add_argument("--focus", metavar="TEXT",
+                    help="extra research emphasis appended to the built question "
+                         "(e.g. a specific portfolio, market or claim to chase)")
     ap.add_argument("--slug", help="store the run as the next version under "
                                    "this slug in the dossiers table")
     ap.add_argument("--steps", type=int, default=6, help="max agent actions")
@@ -1503,6 +1506,8 @@ def main() -> int:
                     profile.name, profile.sector, topic)
     else:
         question = args.question or foresight_question(args.foresight)
+    if args.focus:
+        question += f" Additional research emphasis: {args.focus}"
     try:
         result = run(question, args.steps, args.sources, args.retrieval,
                      args.per_query, args.scope, args.web_steps, args.web_sources,
