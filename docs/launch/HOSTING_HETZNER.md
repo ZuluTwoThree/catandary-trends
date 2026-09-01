@@ -1,62 +1,62 @@
-# Hosting the preview on Hetzner
+# Hosting the landing on Hetzner
 
-`preview.html` is a **complete, fully self-contained** HTML document — one file, no build,
-no server, no database, no external requests (all CSS, JS, fonts-stack, the grain texture,
-the favicon and every SVG are inline). It works by double-clicking it locally (`file://`)
-and on any static host. It is marked `noindex` so it won't be picked up by search engines
-while it's a preview.
+`preview.html` is the **versioned copy of the live landing** on `https://catandary.de/`
+(state 2026-09-01, uploaded 17:47 CEST). It is one self-contained HTML document — no build,
+no database; CSS, JS, font stack, grain texture and inline SVGs are embedded. It references
+three sibling files that live next to it in the webroot and in this folder:
 
-> Use **`preview.html`** for hosting (the standalone document).
-> `site_preview.html` is the fragment used for the Claude artifact preview only — don't
-> upload that one; it has no `<head>`/charset/viewport.
+| File | Purpose |
+|---|---|
+| `preview.html` | the page — upload **renamed to `index.html`** |
+| `mark.svg` | icon (`<link rel="icon" type="image/svg+xml" href="/mark.svg">`) |
+| `favicon.ico` | fallback icon, 16×16 + 32×32 (`<link rel="alternate icon">`) |
+| `robots.txt` | allow-all; the page itself still carries `<meta name="robots" content="noindex">` |
 
-## Option A — Hetzner Webhosting (shared webspace) — simplest
-1. Connect to your webspace with SFTP/FTP (host, user & password are in the Hetzner
-   *konsoleH* panel; use FileZilla or `sftp`).
-2. Upload `preview.html` into your document root (usually `public_html/`, `htdocs/`, or the
-   folder mapped to your domain).
-3. Open it:
-   - as a sub-page: `https://your-domain.de/preview.html`
-   - at the domain root: rename it to `index.html` before uploading (or alongside, so `/`
-     serves it).
-   `.html` is served as `text/html` automatically — nothing else to configure.
+The newsletter form posts to `/newsletter/subscribe.php` (double opt-in backend on the same
+webspace) — see `newsletter-doi-php/EINBAU.md` for that package and the upload order
+(`newsletter/` first, then the four files above).
+
+> **Provenance:** the version that went live on 2026-07-27 (DOI form with consent, legal
+> modal for Impressum/Datenschutz, OG meta tags, icon links) was never committed — the repo
+> only held the 2026-07-22 base plus the 2026-08-25 edits (`6df0581`: countdown 01.10.,
+> radar promise withdrawn). On 2026-09-01 the two were merged (live HTML + exactly those
+> five edits) and uploaded; that merged file is this `preview.html`.
+>
+> `site_preview.html` is the **stale** 2026-08-25 fragment used only for an early Claude
+> artifact preview — it has no DOI form, no legal modal, no `<head>`. Don't upload it and
+> **don't regenerate `preview.html` from it** (the old regenerate snippet would silently drop
+> the form and the modal). Edit `preview.html` directly.
+
+## Option A — Hetzner Webhosting (shared webspace) — what is in use
+1. Connect to the webspace with SFTP (host, user & password in the Hetzner *konsoleH* panel).
+2. Upload `preview.html` as `index.html` into the document root, plus `mark.svg`,
+   `favicon.ico`, `robots.txt` alongside.
+3. Verify: `curl -sI https://catandary.de/ | grep -i last-modified` and
+   `curl -s https://catandary.de/ | grep -o '2026-10-01T09:00:00+02:00'`.
 
 ```bash
-# from the folder that contains preview.html
+# from docs/launch
 sftp user@your-space.your-server.de
-# then, in the sftp prompt:
 cd public_html
-put preview.html
+put preview.html index.html
+put mark.svg
+put favicon.ico
+put robots.txt
 ```
 
-## Option B — Hetzner VPS / Cloud with Caddy (you already run Caddy)
-Drop the file into a served directory and point Caddy at it:
-```
-preview.catandary.de {
-    root * /var/www/catandary-preview
-    file_server
-}
-```
-Put `preview.html` there as `index.html` (`/var/www/catandary-preview/index.html`), reload
-Caddy — automatic HTTPS is handled for the named domain.
+## Option B — VPS with Caddy (the launch target, see `HOSTING_PUBLIC_VPS.md`)
+Once the app is served from the VPS, `/` is rendered by the Next.js landing route
+(`frontend/src/app/page.tsx`) and this static file is no longer needed.
 
 ## Notes
-- **Updating it:** re-run the generator to regenerate `preview.html` after any change to
-  `site_preview.html`:
-  ```bash
-  cd docs/launch && python3 - <<'PY'
-  src=open("site_preview.html",encoding="utf-8").read(); m="</style>"; i=src.find(m)
-  head=src[:i+len(m)]; body=src[i+len(m):].lstrip("\n")
-  open("preview.html","w",encoding="utf-8").write(
-    '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
-    '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-    '<meta name="robots" content="noindex">\n'+head+'\n</head>\n<body>\n'+body+'\n</body>\n</html>\n')
-  print("regenerated preview.html")
-  PY
-  ```
-- **Countdown:** targets `2026-09-01T09:00:00+02:00` (09:00 CEST). It's computed against the
-  visitor's clock as an absolute instant, so it's correct in any timezone. At zero it flips
-  to "We are live". To change the date, edit the `new Date("2026-09-01T09:00:00+02:00")`
-  line in `site_preview.html` and regenerate.
-- **Before a real public launch,** remove the `noindex` meta and swap the preview form/links
-  for the live production site (the Next.js `/` route), or point the domain at the app.
+- **Countdown:** targets `2026-10-01T09:00:00+02:00` (09:00 CEST), computed against the
+  visitor's clock as an absolute instant. At zero it flips to "We are live" — which is why
+  the file must be re-uploaded *before* the date if the launch moves again (on 2026-09-01 the
+  old 01.09. target expired on the live site while the repo already said 01.10.). To change
+  the date, edit **both** the `<span class="cd-date">` text and the
+  `new Date("2026-10-01T09:00:00+02:00")` line in `preview.html`.
+- **Still in the page and still open (#93):** the €99/499/799 tier table and the
+  "Explore the live engine" CTA reflect the withdrawn SaaS model — the "analyses instead of
+  platform" rewrite is the owner's voice and not done yet.
+- **Before the real public launch:** remove the `noindex` meta, then point the domain at
+  the app (`HOSTING_PUBLIC_VPS.md`).

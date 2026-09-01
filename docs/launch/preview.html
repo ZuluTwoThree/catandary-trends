@@ -3,18 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Catandary - evidence-based, local-first trend & foresight intelligence. Reads the whole innovation chain (science, patents, funding, market) and cites every number to its primary source.">
 <meta name="robots" content="noindex">
-<title>Catandary — Evidence-Based Trend & Foresight Intelligence</title>
+<meta property="og:title" content="Catandary - Evidence-Based Trend & Foresight Intelligence">
+<meta property="og:description" content="See it in the research before you see it in the market.">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/svg+xml" href="/mark.svg">
+<link rel="alternate icon" href="/favicon.ico">
+<title>Catandary - Evidence-Based Trend & Foresight Intelligence</title>
 <style>
   /* ============================================================
-     CATANDARY LAUNCH — "The Instrument"
+     CATANDARY LAUNCH - "The Instrument"
      Deliberate single-theme dark identity (the product is a
      mission-control readout). Honors the app's Editorial-
      Intelligence system: chartreuse on ink, mono labels, grain,
      corner brackets, crosshair, live-dot.
      ============================================================ */
   :root {
-    --ink:        #0a0c0a;   /* green-biased near-black — chosen ground */
+    --ink:        #0a0c0a;   /* green-biased near-black - chosen ground */
     --surface:    #111310;
     --surface-2:  #161914;
     --edge:       #2a2d25;
@@ -22,7 +28,7 @@
     --text:       #d8d5c8;
     --paper:      #f4f1e8;
     --muted:      #8a8d82;
-    --accent:     #d4ff3a;   /* chartreuse — the single hero accent */
+    --accent:     #d4ff3a;   /* chartreuse - the single hero accent */
     --accent-deep:#a8cc28;
     --warn:       #ff6b3a;
     /* lead-time tier palette (also the data-viz palette) */
@@ -236,7 +242,7 @@
   .col .who { font-family: var(--mono); font-size: .56rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 1.1rem; display: block; }
   .col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .7rem; }
   .col li { font-size: .88rem; color: var(--text); padding-left: 1.3rem; position: relative; }
-  .col li::before { content: "—"; position: absolute; left: 0; color: var(--muted); }
+  .col li::before { content: "-"; position: absolute; left: 0; color: var(--muted); }
   .col.mid li::before { content: "→"; color: var(--accent); }
 
   /* pricing */
@@ -275,6 +281,13 @@
   .nlform input::placeholder { color: var(--muted); }
   .nl-note { font-family: var(--mono); font-size: .58rem; letter-spacing: .08em; color: var(--muted); margin-top: 1rem; text-transform: uppercase; }
   .nl-ok { color: var(--accent); }
+  .nl-err { color: var(--warn); }
+  /* consent + legal hint (Double-Opt-in) */
+  .nl-consent { display: flex; gap: .6rem; align-items: flex-start; text-align: left; max-width: 30rem; margin: 1rem auto 0; font-size: .78rem; line-height: 1.5; color: var(--text); }
+  .nl-consent input { flex: 0 0 auto; margin-top: .2rem; accent-color: var(--accent); width: 1rem; height: 1rem; }
+  .nl-legal { max-width: 30rem; margin: .9rem auto 0; text-align: left; font-size: .68rem; line-height: 1.55; color: var(--muted); }
+  .nl-legal a { color: var(--accent); }
+  .nl-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
   /* footer */
   footer { border-top: 1px solid var(--edge); padding-block: 3rem 4rem; }
@@ -317,6 +330,22 @@
     .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
     .live-dot { animation: none; }
   }
+
+  /* ---- legal modal (Impressum / Datenschutz) ---- */
+  .legal-modal[hidden]{ display:none; }
+  .legal-modal{ position:fixed; inset:0; z-index:200; display:flex; align-items:flex-start; justify-content:center; padding:clamp(1rem,5vh,4rem) var(--gutter); overflow-y:auto; }
+  .legal-backdrop{ position:fixed; inset:0; background:rgba(5,6,5,.74); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); }
+  .legal-panel{ position:relative; z-index:1; width:100%; max-width:680px; background:var(--surface); border:1px solid var(--edge); border-radius:6px; padding:clamp(1.7rem,4vw,2.8rem); box-shadow:0 30px 80px -30px rgba(0,0,0,.85); }
+  .legal-close{ position:absolute; top:.7rem; right:.9rem; background:none; border:0; color:var(--muted); font-size:1.7rem; line-height:1; cursor:pointer; padding:.2rem .5rem; transition:color .2s; }
+  .legal-close:hover{ color:var(--accent); }
+  .legal-kicker{ font-family:var(--mono); font-size:.6rem; letter-spacing:.22em; text-transform:uppercase; color:var(--accent-deep); margin:0 0 .5rem; }
+  .legal-h{ font-family:var(--serif); font-size:clamp(1.55rem,4vw,2.15rem); color:var(--paper); margin:0 0 1.2rem; letter-spacing:-.01em; line-height:1.1; }
+  .legal-doc[hidden]{ display:none; }
+  .legal-doc h3{ font-family:var(--serif); font-size:1.05rem; color:var(--paper); margin:1.6rem 0 .3rem; }
+  .legal-doc p{ margin:.3rem 0; color:var(--text); font-size:.92rem; line-height:1.65; }
+  .legal-doc a{ color:var(--accent); }
+  .legal-mono{ font-family:var(--mono); font-size:.85rem; }
+  body.legal-open{ overflow:hidden; }
 </style>
 </head>
 <body>
@@ -343,13 +372,13 @@
   <div class="wrap cd-inner">
     <span class="eyebrow">Public launch</span>
     <div class="cd-units" id="countdown" role="timer" aria-label="Time remaining until launch">
-      <div class="cd-unit"><span class="cd-n" id="cd-d">—</span><span class="cd-l">Days</span></div>
+      <div class="cd-unit"><span class="cd-n" id="cd-d">-</span><span class="cd-l">Days</span></div>
       <span class="cd-sep" aria-hidden="true">:</span>
-      <div class="cd-unit"><span class="cd-n" id="cd-h">—</span><span class="cd-l">Hrs</span></div>
+      <div class="cd-unit"><span class="cd-n" id="cd-h">-</span><span class="cd-l">Hrs</span></div>
       <span class="cd-sep" aria-hidden="true">:</span>
-      <div class="cd-unit"><span class="cd-n" id="cd-m">—</span><span class="cd-l">Min</span></div>
+      <div class="cd-unit"><span class="cd-n" id="cd-m">-</span><span class="cd-l">Min</span></div>
       <span class="cd-sep" aria-hidden="true">:</span>
-      <div class="cd-unit"><span class="cd-n" id="cd-s">—</span><span class="cd-l">Sec</span></div>
+      <div class="cd-unit"><span class="cd-n" id="cd-s">-</span><span class="cd-l">Sec</span></div>
     </div>
     <span class="cd-date">01 Oct 2026 &middot; 09:00 CEST</span>
   </div>
@@ -364,7 +393,7 @@
       <span class="eyebrow">Evidence-based foresight</span>
       <h1 class="hero-h">See it in the research <em>before</em> you see it in the market.</h1>
       <p class="hero-sub">
-        Catandary reads the whole innovation chain — science, patents, funding, market —
+        Catandary reads the whole innovation chain - science, patents, funding, market -
         and turns over a million signals into trend clusters, momentum and
         technology-improvement rates. Every number traces back to the primary source you
         can click.
@@ -376,7 +405,7 @@
       <div class="proof" aria-label="Corpus at a glance">
         <div><div class="num tnum" data-count="1059838">0</div><div class="lbl">Signals analysed</div></div>
         <div><div class="num tnum" data-count="60482">0</div><div class="lbl">Articles published</div></div>
-        <div><div class="num tnum" data-count="243">0</div><div class="lbl">Primary sources</div></div>
+        <div><div class="num tnum" data-static="~250">~250</div><div class="lbl">Primary sources</div></div>
         <div><div class="num" data-static="100%">100%</div><div class="lbl">Local analysis</div></div>
       </div>
     </div>
@@ -385,7 +414,7 @@
       <span class="corner tl" aria-hidden="true"></span>
       <span class="corner br" aria-hidden="true"></span>
       <div class="cap"><span>Lead-time reader</span><span>science → market</span></div>
-      <canvas id="flow" aria-label="Animated diagram: innovation signals flowing across four lead-time tiers — science, patents, funding, market — and converging into a rising trend cluster."></canvas>
+      <canvas id="flow" aria-label="Animated diagram: innovation signals flowing across four lead-time tiers - science, patents, funding, market - and converging into a rising trend cluster."></canvas>
     </div>
   </div>
 </header>
@@ -397,14 +426,14 @@
     <div class="problem-grid reveal">
       <p class="problem-big">
         By the time a trend is a headline, it is already late. The signal was in the
-        <b>research years earlier</b>, then in the patents, then in the funding — long
+        <b>research years earlier</b>, then in the patents, then in the funding - long
         before it reached the market you read about.
       </p>
       <p>
         Most trend tools only watch the market: press releases and news, the last stop on
         the chain. So they tell you what already happened, hand you a number with no
         source, and leave you unable to defend it to a stakeholder. Catandary was built to
-        read the earlier stages — and to show its working every step of the way.
+        read the earlier stages - and to show its working every step of the way.
       </p>
     </div>
   </div>
@@ -417,27 +446,27 @@
     <h2 class="section-h" id="mech-h">Four moves from raw signal to defensible insight.</h2>
     <div class="steps reveal">
       <div class="step">
-        <span class="no">01 · Collect</span>
-        <h3>Read the chain</h3>
-        <p>Only legal primary sources — RSS, official APIs and open datasets — across science, patents, funding and market. No aggregators, no scraping.</p>
-        <span class="tag">243 sources</span>
+        <span class="no">01 · Acquisition</span>
+        <h3>We read the chain</h3>
+        <p>Referencing primary sources from open datasets across science, patents, funding and market. No aggregator APIs, no scraping.</p>
+        <span class="tag">~250 sources</span>
       </div>
       <div class="step">
         <span class="no">02 · Classify</span>
-        <h3>Locally, on one GPU</h3>
-        <p>Local models tag each signal on 8 industry verticals, 6 PESTEL dimensions and a mega/macro/micro horizon. Nothing leaves the machine.</p>
+        <h3>All local infrastructure</h3>
+        <p>We tag each signal on 8 industry verticals, 6 PESTEL dimensions and a mega/macro/micro horizon. Nothing leaks into the cloud.</p>
         <span class="tag">8 × 6 × 3 taxonomy</span>
       </div>
       <div class="step">
         <span class="no">03 · Cluster</span>
-        <h3>Find what's moving</h3>
-        <p>Signals group by meaning into trend clusters, ranked by momentum — measured as share of attention, so a growing corpus can't fake a growing trend.</p>
+        <h3>Reason what's moving</h3>
+        <p>We group signals by meaning into clusters and rank by momentum - measured as share of attention. Our growing corpus can't fake a growing trend.</p>
         <span class="tag">221 live clusters</span>
       </div>
       <div class="step">
         <span class="no">04 · Attribute</span>
-        <h3>Show the source</h3>
-        <p>Every trend links back to the primary source it was built from. Any article that invents a figure or date is held for review, not published.</p>
+        <h3>We show the source</h3>
+        <p>Every signal links to the primary source it was built from. Any trend we publish is based on data available for review.</p>
         <span class="tag">source enforced</span>
       </div>
     </div>
@@ -453,7 +482,7 @@
       <article class="pillar">
         <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="2" y="30" width="6" height="8" fill="#a78bfa"/><rect x="12" y="24" width="6" height="14" fill="#60a5fa"/><rect x="22" y="18" width="6" height="20" fill="#34d399"/><rect x="32" y="10" width="6" height="28" fill="#d4ff3a"/></svg>
         <h3>The whole chain, one corpus</h3>
-        <p>Science, patents, funding and market signals sit on a single lead-time axis, so you see how <em>early</em> a theme is — not just that it has arrived.</p>
+        <p>Science, patents, funding and market signals sit on a single lead-time axis, so you see how <em>early</em> a theme is - not just that it has arrived.</p>
         <div class="ev">Evidence · 4 tiers, ~42.6M patents to 1990</div>
       </article>
       <article class="pillar">
@@ -465,25 +494,25 @@
       <article class="pillar">
         <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M3 30C10 30 12 8 20 8s10 22 17 22" stroke="#d4ff3a" stroke-width="2" fill="none"/><circle cx="37" cy="30" r="3" fill="#d4ff3a"/></svg>
         <h3>Improvement rates that mean something</h3>
-        <p>A Technology Improvement Rate built on the peer-reviewed SPNP method (Singh, Triulzi &amp; Magee, 2021), read over a ~109-million-edge patent-citation graph.</p>
+        <p>Our Technology Improvement Estimate is built on peer-reviewed scientific models developed at MIT. We process about 150 million data points from the global patent body.</p>
         <div class="ev">Method · peer-reviewed, not proprietary</div>
       </article>
       <article class="pillar">
         <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 4l14 6v9c0 9-6 14-14 17-8-3-14-8-14-17V10z" stroke="#d4ff3a" stroke-width="2" fill="none"/><path d="M14 20l4 4 8-9" stroke="#d4ff3a" stroke-width="2" fill="none"/></svg>
         <h3>Honest by construction</h3>
-        <p>The engine withholds rates it can't trust — too recent, or off the calibrated range — and only puts a lead-time number where the data proves it. It says "unknown" when it doesn't know.</p>
-        <div class="ev">Validation · 23/24 known trends recovered, 6/6 momentum correct</div>
+        <p>Our algorithm withholds information it can't trust - too recent, too noisy or off the calibrated range - we publish only what the data proves. It says so when we don't know.</p>
+        <div class="ev">Validation · known trends recovered and momentum confirmed</div>
       </article>
       <article class="pillar">
         <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="4" y="4" width="32" height="32" rx="2" stroke="#d4ff3a" stroke-width="2"/><rect x="11" y="11" width="18" height="18" fill="#d4ff3a" opacity=".25"/><circle cx="20" cy="20" r="3" fill="#d4ff3a"/></svg>
         <h3>Local, open, affordable</h3>
-        <p>Runs on local models and open data — no per-token cloud cost, no single-vendor lock-in — which is what puts board-grade foresight at a self-service price.</p>
-        <div class="ev">Cost · one 24GB GPU, no cloud in the loop</div>
+        <p>Runs on local infrastructure and open data - no cloud cost, no vendor lock-in - which is what puts board-grade foresight at a self-service price.</p>
+        <div class="ev">Cost · all local machines, no cloud in the loop</div>
       </article>
       <article class="pillar">
         <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="16" stroke="#8a8d82" stroke-width="1.5"/><circle cx="20" cy="20" r="9" stroke="#8a8d82" stroke-width="1.5"/><circle cx="27" cy="13" r="3" fill="#d4ff3a"/><circle cx="14" cy="24" r="2.4" fill="#60a5fa"/></svg>
         <h3>The deliverable teams already think in</h3>
-        <p>Cluster momentum with one-click evidence, and how early each technology still is — the format an innovation team hands to a board, without the enterprise procurement.</p>
+        <p>Cluster momentum with one-click evidence, and how early each technology still is - the format an innovation team hands to a board, without the enterprise procurement.</p>
         <div class="ev">Product · clusters · technology · lead-time · export</div>
       </article>
     </div>
@@ -494,25 +523,24 @@
 <section class="section" id="engine" aria-labelledby="demo-h">
   <div class="wrap">
     <span class="eyebrow kicker">Read the instrument</span>
-    <h2 class="section-h" id="demo-h">Pick a technology. Watch it read.</h2>
-    <p class="lede">Two questions the engine answers for any technology: <span class="serif-accent">how early is it</span> across the innovation chain, and <span class="serif-accent">how fast is it actually improving</span>.</p>
+    <h2 class="section-h" id="demo-h">Choose a technology. Type and watch it read.</h2>
+    <p class="lede">Two questions our engine answers for any technology: <span class="serif-accent">how early is it</span> across the innovation chain, and <span class="serif-accent">how fast is it actually improving</span>.</p>
 
     <div class="demo reveal">
       <div class="demo-head" role="group" aria-label="Choose a technology">
-        <button class="chip" data-tech="battery" aria-pressed="true">Solid-state battery</button>
-        <button class="chip" data-tech="crispr" aria-pressed="false">CRISPR gene editing</button>
+        <button class="chip" data-tech="crispr" aria-pressed="true">CRISPR gene editing</button>
         <button class="chip" data-tech="solar" aria-pressed="false">Solar PV</button>
         <button class="chip" data-tech="ml" aria-pressed="false">Machine learning</button>
       </div>
       <div class="demo-body">
         <div class="demo-pane">
-          <div class="pane-label">Improvement-rate trajectory · K(t)</div>
+          <div class="pane-label">Improvement-rate trajectory</div>
           <div class="chartbox"><canvas id="tir" aria-label="Line chart of a technology's improvement-rate trajectory over time, with an uncertainty band and a greyed recent-years zone the engine treats as not yet reliable."></canvas></div>
           <div class="verdict">
-            <span class="v-rate" id="tir-rate">—</span>
-            <span class="v-badge" id="tir-badge" style="color:var(--rising)">—</span>
+            <span class="v-rate" id="tir-rate">-</span>
+            <span class="v-badge" id="tir-badge" style="color:var(--rising)">-</span>
           </div>
-          <p class="demo-note" id="tir-note">Illustrative shape and direction from our validation set. The live engine returns the figures — and greys out any year too recent to trust.</p>
+          <p class="demo-note" id="tir-note">CRISPR: a steep science-led take-off - the engine reads the acceleration in the citation graph. Illustrative shape - the live engine returns the figures.</p>
         </div>
         <div class="demo-pane">
           <div class="pane-label">Where it is on the chain · lead-time tiers</div>
@@ -523,7 +551,7 @@
             <div class="lane"><span class="lname" style="color:var(--t-market)">Market</span><div class="track"><span class="fill" style="background:var(--t-market)"></span><span class="dot" style="color:var(--t-market);background:var(--t-market)"></span></div></div>
           </div>
           <div class="axis"><span></span><div class="ticks"><span>1995</span><span>2005</span><span>2015</span><span>2026</span></div></div>
-          <p class="demo-note" id="lead-note">Research led the market here by an estimated several years — the offset Catandary measures per technology, and only headlines where the corpus can prove it.</p>
+          <p class="demo-note" id="lead-note">Research led the market here by an estimated several years - the offset Catandary measures per technology, and only headlines where the corpus can prove it.</p>
         </div>
       </div>
     </div>
@@ -538,7 +566,7 @@
   <div class="wrap">
     <span class="eyebrow kicker">Live intelligence</span>
     <h2 class="section-h" id="mov-h">What's moving now.</h2>
-    <p class="lede">Clusters the engine surfaced bottom-up, ranked by share-of-voice momentum. These six were hand-checked against public reality — and all six matched.</p>
+    <p class="lede">Clusters the engine surfaced bottom-up, ranked by share-of-voice momentum. These six were hand-checked against public reality - and all six matched.</p>
     <div class="board reveal" id="board"></div>
     <div class="cta-row"><a class="btn" href="#engine">See the full cluster board <span class="arw">→</span></a></div>
   </div>
@@ -552,18 +580,18 @@
     <div class="pillars reveal" style="margin-top:2.2rem">
       <article class="pillar">
         <h3>Local-first analysis</h3>
-        <p>Filtering, classification, embeddings and article generation all run on local models on the owner's own GPU. Cloud is a scoped, one-time backfill exception — never the operating mode.</p>
-        <div class="ev">Scope · applies to the content pipeline. Account &amp; email data use named EU processors (Stripe, Resend, Hetzner).</div>
+        <p>Filtering, classification, and our algorithms all run on our own local infrastructure. Cloud is not the operating mode.</p>
+        <div class="ev">Scope · applies to the content pipeline. Account &amp; email data use only reputable processors.</div>
       </article>
       <article class="pillar">
         <h3>Attribution enforced at the data layer</h3>
-        <p>A trend without a source URL can't physically exist — it's a NOT-NULL column, not a template convention. And a grounding check holds any article that introduces an unsourced figure.</p>
-        <div class="ev">Honesty · no fabricated numbers reach auto-publish</div>
+        <p>In our database a trend without a source can't physically exist. And a grounding check holds any article that introduces an unsourced figure.</p>
+        <div class="ev">Honesty · no fabricated info reaches publish</div>
       </article>
       <article class="pillar">
         <h3>Tested, backed up, recoverable</h3>
-        <p>Continuous integration runs the suite against a real vector database on every change; nightly backups have a verified restore of 20-million-plus rows. Ops maturity, not aspiration.</p>
-        <div class="ev">Reliability · CI + verified restore runbook</div>
+        <p>Continuous integration runs the suite against a real database on every change; nightly backups have verified restores of 20-million-plus records. Ops maturity, not aspiration.</p>
+        <div class="ev">Reliability · CI &amp; verified restore runbook</div>
       </article>
     </div>
   </div>
@@ -579,7 +607,7 @@
         <h3>Keyword trend tools</h3>
         <span class="who">≈ €0–100 / mo</span>
         <ul>
-          <li>Watch the market only — the last stop</li>
+          <li>Watch the market only - the last stop</li>
           <li>A score with no source behind it</li>
           <li>Opaque scoring you can't defend</li>
           <li>No patent or science signal</li>
@@ -591,9 +619,9 @@
         <ul>
           <li>The whole chain: science → patents → funding → market</li>
           <li>Every number one click from its primary source</li>
-          <li>Peer-reviewed improvement-rate method, shown openly</li>
+          <li>Peer-reviewed scientific method, shown openly</li>
           <li>Honest gates: withholds what it can't prove</li>
-          <li>Local models → self-service price</li>
+          <li>Local mode → self-service price</li>
         </ul>
       </div>
       <div class="col">
@@ -607,7 +635,7 @@
         </ul>
       </div>
     </div>
-    <p class="demo-note" style="max-width:60em">Positioning, not a benchmark: the €50k+ and keyword-tool boundaries are our read of the market, offered to show where Catandary aims — not a head-to-head test.</p>
+    <p class="demo-note" style="max-width:60em">Positioning, not a benchmark: the €50k+ and keyword-tool boundaries are our read of the market, offered to show where Catandary aims - not a head-to-head test.</p>
   </div>
 </section>
 
@@ -616,43 +644,43 @@
   <div class="wrap">
     <span class="eyebrow kicker">Access</span>
     <h2 class="section-h" id="price-h">Start free. Grow into the engine.</h2>
-    <p class="lede">The free layer is the real product — 60,000+ curated articles and a weekly briefing. The paid tiers open the foresight engine.</p>
+    <p class="lede">The free layer is the real product - 60,000+ curated articles and a weekly briefing. The paid tiers open the foresight engine.</p>
     <div class="prices reveal">
       <div class="price">
         <span class="pname">Free</span>
         <div class="amt">€0</div>
-        <p class="blurb">Curated trend articles, browsing, search and the weekly newsletter.</p>
-        <ul><li>Published trend articles</li><li>Vertical &amp; PESTEL browsing</li><li>Search</li><li>Weekly newsletter</li><li>Corpus counter &amp; mega-trend teasers</li></ul>
+        <p class="blurb">Curated trend articles from the last 28 days, browsing, search and the weekly newsletter.</p>
+        <ul><li>Trend articles from the last 28 days</li><li>Vertical &amp; PESTEL browsing</li><li>Search</li><li>Weekly newsletter</li><li>Corpus counter &amp; mega-trend teasers</li></ul>
         <a class="btn btn-primary" href="#subscribe">Start free</a>
       </div>
       <div class="price">
         <span class="pname">Starter</span>
         <div class="amt">€99<small>/mo</small></div>
         <p class="blurb">Watch what's moving: the cluster explorer with momentum and evidence.</p>
-        <ul><li>Everything in Free</li><li>Cluster explorer</li><li>Saved searches &amp; alerts</li></ul>
+        <ul><li>Everything in Free</li><li>Full trend-article archive</li><li>Cluster explorer</li><li>Saved searches &amp; alerts</li></ul>
         <a class="btn" href="#subscribe">Request early access</a>
       </div>
       <div class="price feat">
-        <span class="pname">Pro</span>
+        <span class="pname">Pro <span style="color:var(--muted)">· coming soon</span></span>
         <div class="amt">€499<small>/mo</small></div>
         <p class="blurb">The foresight edge: lead-time, technology trajectories and export.</p>
-        <ul><li>Everything in Starter</li><li>Technology explorer &amp; CPC lead-time</li><li>TIR metrics &amp; trajectory</li><li>Trend evolution &amp; lineage</li><li>CSV / dossier export</li></ul>
+        <ul><li>Everything in Starter</li><li>Technology explorer &amp; lead-time analysis</li><li>Tech improvement metrics</li><li>Trend evolution &amp; lineage</li><li>CSV / dossier export</li></ul>
         <a class="btn btn-primary" href="#subscribe">Request early access</a>
       </div>
       <div class="price">
-        <span class="pname">Super Pro+</span>
+        <span class="pname">Super Pro+ <span style="color:var(--muted)">· coming soon</span></span>
         <div class="amt">€799<small>/mo</small></div>
         <p class="blurb">Ask the engine your own questions: on-demand analysis and API.</p>
-        <ul><li>Everything in Pro</li><li>On-demand analysis of your scopes</li><li>API access <em>— coming soon</em></li><li>Raw evidence graph</li><li>Custom reports</li></ul>
+        <ul><li>Everything in Pro</li><li>On-demand analysis of your scopes</li><li>API access <em>- coming soon</em></li><li>Raw evidence graph</li><li>Custom reports</li></ul>
         <a class="btn" href="#subscribe">Request early access</a>
       </div>
     </div>
     <div class="hypercare">
       <div class="hc-l">
-        <div class="amt">Hypercare · €1,499<small style="font-family:var(--mono);font-size:.7rem;color:var(--muted)">/day</small></div>
-        <p style="font-size:.85rem;color:var(--muted);margin-top:.4rem">Dedicated, hands-on analyst support tailored to your questions — a bespoke engagement, not a subscription. €999/day from the second engagement.</p>
+        <div class="amt">Individual Analysis · €1,499<small style="font-family:var(--mono);font-size:.7rem;color:var(--muted)">/day</small></div>
+        <p style="font-size:.85rem;color:var(--muted);margin-top:.4rem">Dedicated, hands-on analyst support tailored to your questions - a bespoke engagement and scope, not a subscription. €999/day from the second engagement.</p>
       </div>
-      <a class="btn" href="mailto:trends@catandary.de?subject=Catandary%20Hypercare">Talk to us</a>
+      <a class="btn" href="mailto:trends@catandary.de?subject=Catandary%20Individual%20Analysis">Talk to us</a>
     </div>
   </div>
 </section>
@@ -663,12 +691,12 @@
     <span class="eyebrow kicker">Questions</span>
     <h2 class="section-h" id="faq-h">The honest answers.</h2>
     <div class="faq reveal">
-      <details open><summary>Where does the data come from?</summary><p>243 legal primary sources — trade-press RSS feeds, official APIs and open datasets across science (OpenAlex, preprints), patents, public funding, and market news. No aggregator scraping; every source is curated by hand. Each published trend keeps a working link to the original.</p></details>
-      <details><summary>Is the foresight method proprietary?</summary><p>No — and we'd rather be clear about that. The Technology Improvement Rate is built on a published, peer-reviewed method (SPNP citation centrality; Singh, Triulzi &amp; Magee, Research Policy, 2021). Others use it too. Our edge is the corpus, the calibration, the evidence transparency and the price — not a secret formula.</p></details>
-      <details><summary>How accurate is it — really?</summary><p>On our own corpus the engine recovered 23 of 24 known trends bottom-up and matched 6 of 6 hand-checked momentum-direction calls against public reality. It withholds absolute improvement rates it can't yet trust (recent years, or beyond the calibrated range) and only headlines a lead-time number where the data proves it. Direction and shape are the reliable output; we say so.</p></details>
-      <details><summary>Is my data private?</summary><p>The trend-analysis pipeline runs entirely on local models — the source corpus never touches a cloud API. If you create an account, the data needed to run it (your email for login and the newsletter, payment status for billing) is processed by named EU-based providers (Resend, Stripe, Hetzner). We use no third-party analytics and no tracking cookies.</p></details>
-      <details><summary>Who is it for?</summary><p>Corporate innovation and foresight teams who need trend calls they can defend; agencies and consultants who need cited trend dossiers per client industry; and independent analysts who want data-driven "what's rising" without an enterprise contract.</p></details>
-      <details><summary>What does it cost?</summary><p>The content layer and weekly briefing are free. The foresight engine is €99 (Starter), €499 (Pro) or €799 (Super Pro+) per month, with a sales-led Hypercare day-rate for bespoke work. The paid tiers are opening in early access.</p></details>
+      <details open><summary>Where does the data come from?</summary><p>~250 primary sources - official APIs and open datasets across science, patents, public funding, and market news. No aggregator scraping; every source is curated by hand. Each published trend keeps a working link to the original.</p></details>
+      <details><summary>Is the foresight method proprietary?</summary><p>No - and we'd rather be clear about that. Our Technology Improvement Estimate comes from peer-reviewed research at MIT. Others use it too. Our edge is the data corpus, the calibration, the evidence transparency and the price - not a secret formula.</p></details>
+      <details><summary>How accurate is it - really?</summary><p>On our own corpus the engine recovered known trends bottom-up and matched hand-checked momentum-direction calls against public reality. It withholds absolute improvement rates it can't yet trust and only headlines a number where the data proves it. Direction and shape are the most reliable output; we say so.</p></details>
+      <details><summary>Is my data private?</summary><p>The trend-analysis pipeline runs entirely on local infrastructure - the source corpus never touches a cloud API. If you create an account, the data needed to run it (your email for login and the newsletter and payment status for billing) is processed by EU-based providers. We use no third-party analytics.</p></details>
+      <details><summary>Who is it for?</summary><p>Corporate innovation and foresight teams who need technology data they can defend; investors, agencies and consultants who need cited trend dossiers per client industry; and independent analysts who want data-driven "what's rising" without an enterprise contract.</p></details>
+      <details><summary>What does it cost?</summary><p>The last 28 days of trend articles and the weekly briefing are free. The full archive and the foresight engine are €99 (Starter), €499 (Pro) or €799 (Super Pro+) per month, with a sales-led individual day-rate for bespoke analytics work. The paid tiers are opening in early access.</p></details>
     </div>
   </div>
 </section>
@@ -678,12 +706,34 @@
   <div class="wrap">
     <span class="eyebrow plain kicker" style="justify-content:center">Foresight you can cite</span>
     <h2 id="final-h">See it early.<br>Then prove it.</h2>
-    <p class="lede">One email a week: the trends that are rising across science, patents and funding — before they reach the market — each linked to its source.</p>
-    <form class="nlform" id="nlform" novalidate>
+    <p class="lede">One email a week: the trends that are rising across science, patents and funding - before they reach the market - each linked to its source.</p>
+    <form class="nlform" id="nlform" method="post" novalidate>
       <label for="nl-email" style="position:absolute;left:-999px">Email address</label>
       <input id="nl-email" type="email" name="email" placeholder="you@company.com" autocomplete="email" required>
+      <!-- Honeypot: hidden from humans, filled by naive bots. Cookieless bot check. -->
+      <div class="nl-hp" aria-hidden="true">
+        <label for="nl-website">Leave this field empty</label>
+        <input id="nl-website" type="text" name="website" tabindex="-1" autocomplete="off">
+      </div>
       <button class="btn btn-primary" type="submit">Subscribe</button>
     </form>
+
+    <label class="nl-consent" for="nl-consent">
+      <input type="checkbox" id="nl-consent" name="consent" required>
+      <span>Yes, send me the launch notice and the weekly Catandary newsletter by email. I can
+      withdraw this consent at any time via the unsubscribe link in every email or by writing to
+      contact@catandary.de.</span>
+    </label>
+
+    <p class="nl-legal">
+      We will first send you an email with a confirmation link - you are only subscribed once you
+      confirm (double opt-in). As proof of consent we store the time of signup and confirmation,
+      the IP address used and the wording of this notice; we keep that proof for three years even
+      after a withdrawal. Sending is handled by our processor Resend (Plus Five Five, Inc., USA).
+      No sharing with third parties for advertising, no open or click tracking.
+      Details in our <a href="#" data-legal="datenschutz">privacy policy</a>.
+    </p>
+
     <p class="nl-note" id="nl-note">No spam · unsubscribe anytime · cookieless</p>
   </div>
 </section>
@@ -695,7 +745,7 @@
   <div class="wrap foot-grid">
     <div class="foot-brand">
       <div class="mark">Catandary <span class="crosshair" aria-hidden="true"></span></div>
-      <p>Evidence-based, local-first trend &amp; foresight intelligence. Reads the whole innovation chain — science to market — and cites its sources.</p>
+      <p>Evidence-based, local-first trend &amp; foresight intelligence. Reads the whole innovation chain - science to market - and cites its sources.</p>
     </div>
     <div class="foot-col">
       <h4>Product</h4>
@@ -707,15 +757,61 @@
     <div class="foot-col">
       <h4>Company</h4>
       <a href="mailto:trends@catandary.de">Contact</a>
-      <a href="#">Impressum <span style="color:var(--muted)">· in prep.</span></a>
-      <a href="#">Datenschutz <span style="color:var(--muted)">· in prep.</span></a>
+      <a href="#" data-legal="impressum">Impressum</a>
+      <a href="#" data-legal="datenschutz">Datenschutz</a>
     </div>
   </div>
   <div class="wrap foot-legal">
     <span>© 2026 Catandary · catandary.de</span>
-    <span>Built locally in Germany · runs on local models · cites its sources</span>
+    <span>Built locally in Germany · runs on our local infrastructure · cites its sources</span>
   </div>
 </footer>
+
+<!-- ============ LEGAL MODAL (texts 1:1 from catandary.de) ============ -->
+<div id="legal-modal" class="legal-modal" role="dialog" aria-modal="true" aria-label="Rechtliche Hinweise" hidden>
+  <div class="legal-backdrop" data-legal-close></div>
+  <div class="legal-panel" role="document">
+    <button class="legal-close" type="button" data-legal-close aria-label="Schließen">&times;</button>
+
+    <section id="legal-impressum" class="legal-doc" hidden>
+      <p class="legal-kicker">Rechtliche Hinweise</p>
+      <h2 class="legal-h">Impressum</h2>
+      <p>Angaben gemäß § 5 DDG</p>
+      <h3>Anbieter</h3>
+      <p class="legal-mono">Dirk Herrmann<br>Geiselharz 40/6<br>88279 Amtzell<br>Deutschland</p>
+      <h3>Kontakt</h3>
+      <p class="legal-mono">E-Mail: <a href="mailto:contact@catandary.de">contact@catandary.de</a></p>
+    </section>
+
+    <section id="legal-datenschutz" class="legal-doc" hidden>
+      <p class="legal-kicker">Compliance &amp; Privacy</p>
+      <h2 class="legal-h">Datenschutzerklärung</h2>
+      <h3>1. Verantwortlicher</h3>
+      <p>Dirk Herrmann, Geiselharz 40/6, 88279 Amtzell, Deutschland<br>E-Mail: contact@catandary.de</p>
+      <h3>2. Hosting</h3>
+      <p>Unsere Website wird bei der <strong>Hetzner Online GmbH</strong>, Industriestr. 25, 91710 Gunzenhausen, Deutschland gehostet. Dabei verarbeitet Hetzner technische Daten, um die Website bereitzustellen und zu schützen.</p>
+      <h3>3. Server-Logfiles</h3>
+      <p>Bei Aufruf der Website werden technische Logdaten verarbeitet (z. B. IP-Adresse, Datum/Uhrzeit, abgerufene Seite, User-Agent).<br><strong>Zweck:</strong> Betrieb, Fehleranalyse, Sicherheit.<br><strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. f DSGVO.<br><strong>Speicherdauer:</strong> Bei Hetzner sind Webserver-Logs standardmäßig 7 Tage gespeichert.</p>
+      <h3>4. Kontakt per E-Mail</h3>
+      <p>Wenn du uns per E-Mail kontaktierst, verarbeiten wir deine Angaben zur Bearbeitung der Anfrage.<br><strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. b DSGVO und/oder Art. 6 Abs. 1 lit. f DSGVO.</p>
+      <h3>5. Empfänger</h3>
+      <p>Empfänger deiner Daten sind technische Dienstleister (insbesondere Hetzner als Hostinganbieter), soweit dies für Betrieb und Sicherheit erforderlich ist. Für den Versand von Bestätigungs- und Newsletter-E-Mails setzen wir zudem den in Abschnitt 7 genannten Versanddienstleister ein.</p>
+      <h3>6. Rechte</h3>
+      <p>Du hast die Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit sowie Widerspruch. Außerdem kannst du dich bei einer Datenschutzaufsichtsbehörde beschweren. Zuständig für uns ist der Landesbeauftragte für den Datenschutz und die Informationsfreiheit Baden-Württemberg, Lautenschlagerstraße 20, 70173 Stuttgart.</p>
+      <h3>7. Newsletter und Launch-Benachrichtigung</h3>
+      <p><strong>Verarbeitete Daten:</strong> Deine E-Mail-Adresse sowie – ausschließlich zum Nachweis deiner Einwilligung – der Zeitpunkt der Anmeldung, der Zeitpunkt deiner Bestätigung, die dabei verwendeten IP-Adressen, die Browser-Kennung (User-Agent) und der Wortlaut der Einwilligungserklärung in der zum Zeitpunkt deiner Anmeldung gültigen Fassung.</p>
+      <p><strong>Double-Opt-in:</strong> Nach deiner Anmeldung senden wir dir eine E-Mail mit einem Bestätigungslink. Erst wenn du dort bestätigst, nehmen wir dich in den Verteiler auf. Diese Bestätigungsmail enthält keine Werbung. Der Link ist 48 Stunden gültig; bestätigst du nicht, löschen wir die Anmeldedaten spätestens nach 30 Tagen vollständig.</p>
+      <p><strong>Zweck:</strong> Benachrichtigung über den Start von Catandary; Versand des wöchentlichen Catandary-Newsletters; Ermittlung des Interesses an unserem Angebot anhand der Anzahl der Anmeldungen; Nachweis und Dokumentation deiner Einwilligung; Schutz vor missbräuchlichen Fremdanmeldungen.</p>
+      <p><strong>Rechtsgrundlage:</strong> Für den Versand deine Einwilligung nach Art. 6 Abs. 1 lit. a DSGVO. Für die Protokollierung und die fortgesetzte Aufbewahrung des Einwilligungsnachweises Art. 6 Abs. 1 lit. c DSGVO i. V. m. Art. 5 Abs. 2 und Art. 7 Abs. 1 DSGVO sowie unser berechtigtes Interesse an der Abwehr unberechtigter Ansprüche nach Art. 6 Abs. 1 lit. f DSGVO. Wettbewerbsrechtlich beruht der Versand auf § 7 Abs. 2 Nr. 2 UWG.</p>
+      <p><strong>Versanddienstleister:</strong> Für den technischen Versand nutzen wir den Dienst <strong>Resend</strong> der <strong>Plus Five Five, Inc.</strong>, 2261 Market Street #5039, San Francisco, CA 94114, USA. Mit Plus Five Five, Inc. besteht ein Auftragsverarbeitungsvertrag nach Art. 28 DSGVO. Der Dienstleister verarbeitet deine Daten ausschließlich weisungsgebunden für den Versand und nicht für eigene Zwecke. Er setzt seinerseits Unterauftragsverarbeiter ein; die jeweils aktuelle Liste ist unter <a href="https://resend.com/legal/subprocessors" target="_blank" rel="noopener noreferrer">resend.com/legal/subprocessors</a> abrufbar.</p>
+      <p><strong>Übermittlung in die USA:</strong> Deine Daten werden in den Vereinigten Staaten verarbeitet und gespeichert. Das gilt auch dann, wenn E-Mails über einen europäischen Versandstandort ausgeliefert werden: Die Wahl der Versandregion steuert nur den Versandweg, nicht den Speicherort. Die Übermittlung stützt sich auf den Angemessenheitsbeschluss (EU) 2023/1795 (EU-US Data Privacy Framework), unter dem Plus Five Five, Inc. zertifiziert ist, sowie ergänzend auf die EU-Standardvertragsklauseln nach dem Durchführungsbeschluss (EU) 2021/914 (Modul 2), die Bestandteil des Auftragsverarbeitungsvertrags sind. Eine Kopie der Garantien erhältst du auf Anfrage unter contact@catandary.de. Trotz dieser Garantien lässt sich ein Zugriff US-amerikanischer Behörden nicht in jedem Fall ausschließen.</p>
+      <p><strong>Kein Tracking:</strong> Wir messen weder Öffnungen noch Klicks. Unsere E-Mails enthalten keine Zählpixel und keine getrackten Weiterleitungen. Wie viele Menschen sich angemeldet haben, ermitteln wir ausschließlich als Gesamtzahl aus unserer eigenen Datenbank – ohne Cookies und ohne Profilbildung.</p>
+      <p><strong>Speicherdauer:</strong> Deine E-Mail-Adresse speichern wir, bis du deine Einwilligung widerrufst. Nach dem Widerruf entfernen wir dich unverzüglich aus dem Verteiler. Die Nachweisdaten zu deiner Einwilligung bewahren wir danach noch drei Jahre auf – gerechnet ab dem Ende des Kalenderjahres, in dem der Widerruf zugegangen ist (§§ 195, 199 BGB) –, um im Streitfall die Rechtmäßigkeit des Versands belegen zu können. Anschließend löschen wir auch diese Daten. Versandprotokolle beim Dienstleister werden dort nach 30 Tagen gelöscht.</p>
+      <p><strong>Widerruf:</strong> Du kannst deine Einwilligung jederzeit mit Wirkung für die Zukunft widerrufen – über den Abmeldelink am Ende jeder E-Mail oder formlos an contact@catandary.de. Die Rechtmäßigkeit der bis zum Widerruf erfolgten Verarbeitung bleibt unberührt (Art. 7 Abs. 3 DSGVO).</p>
+      <p><strong>Freiwilligkeit:</strong> Die Angabe deiner E-Mail-Adresse ist freiwillig. Ohne Angabe können wir dir lediglich keinen Newsletter zusenden; andere Nachteile entstehen dir nicht.</p>
+    </section>
+  </div>
+</div>
 
 <script>
 (function(){
@@ -919,19 +1015,17 @@
   (function(){
     var canvas = document.getElementById("tir");
     if(!canvas) return;
-    // Illustrative curves (0..1 relative rate) — direction/shape drawn from the
+    // Illustrative curves (0..1 relative rate) - direction/shape drawn from the
     // validation set; not live figures. lead = [science,patent,funding,market] positions 0..1 on the axis.
     var DATA = {
-      battery: { pts:[.28,.30,.34,.40,.50,.62,.72,.80,.85,.88], rate:"≈ 9%/yr", verdict:"Steady", color:"#34d399",
-                 lead:[.30,.42,.58,.78], note:"Solid-state battery: research and patents run well ahead of a market that's only now scaling." },
-      crispr:  { pts:[.20,.24,.32,.46,.62,.78,.88,.93,.96,.97], rate:"accelerating", verdict:"Accelerating", color:"#22c55e",
-                 lead:[.22,.40,.60,.72], note:"CRISPR: a steep science-led take-off — the engine reads the acceleration in the citation graph." },
-      solar:   { pts:[.35,.48,.60,.70,.78,.83,.86,.88,.89,.90], rate:"maturing", verdict:"Maturing", color:"#60a5fa",
-                 lead:[.20,.34,.52,.62], note:"Solar PV: a maturing S-curve — fast improvement earlier, flattening as it industrialises." },
-      ml:      { pts:[.22,.26,.30,.38,.50,.66,.82,.92,.97,.99], rate:"accelerating", verdict:"Accelerating", color:"#d4ff3a",
-                 lead:[.30,.46,.66,.80], note:"Machine learning: a rising cluster and a steep recent trajectory — the engine flags the surge." }
+      crispr:  { pts:[.20,.24,.32,.46,.62,.78,.88,.93,.96,.97], rate:"accelerating", verdict:"Accelerating", icon:"↗", color:"#22c55e",
+                 lead:[.22,.40,.60,.72], note:"CRISPR: a steep science-led take-off - the engine reads the acceleration in the citation graph." },
+      solar:   { pts:[.35,.48,.60,.70,.78,.83,.86,.88,.89,.90], rate:"maturing", verdict:"Maturing", icon:"→", color:"#60a5fa",
+                 lead:[.20,.34,.52,.62], note:"Solar PV: a maturing S-curve - fast improvement earlier, flattening as it industrialises." },
+      ml:      { pts:[.22,.26,.30,.38,.50,.66,.82,.92,.97,.99], rate:"accelerating", verdict:"Accelerating", icon:"↗", color:"#d4ff3a",
+                 lead:[.30,.46,.66,.80], note:"Machine learning: a rising cluster and a steep recent trajectory - the engine flags the surge." }
     };
-    var cur = "battery";
+    var cur = "crispr";
     function draw(){
       var f = fit(canvas), ctx=f.ctx, W=f.w, H=f.h;
       var d = DATA[cur];
@@ -968,9 +1062,9 @@
       // update verdict + lanes + notes
       var rateEl=document.getElementById("tir-rate"), badge=document.getElementById("tir-badge");
       rateEl.textContent = d.rate;
-      badge.textContent = d.verdict; badge.style.color = d.color;
-      document.getElementById("tir-note").textContent = "Illustrative shape and direction from our validation set — the live engine returns the figures and greys out years too recent to trust.";
-      document.getElementById("lead-note").textContent = d.note;
+      badge.textContent = d.icon + " " + d.verdict; badge.style.color = d.color;
+      document.getElementById("tir-note").textContent = d.note +
+        " Illustrative shape - the live engine returns the figures.";
       // lanes
       var lanes = document.querySelectorAll("#lanes .lane");
       d.lead.forEach(function(pos, i){
@@ -1023,16 +1117,78 @@
     }).join("");
   })();
 
-  /* ================= newsletter (preview) ================= */
+  /* ================= newsletter signup (double opt-in) =================
+     NL_ENDPOINT = null  → the backend is not live yet. The form then says so
+     honestly and offers email instead. It NEVER claims a signup that did not
+     happen. Set the path once subscribe.php is deployed, e.g.
+     "/newsletter/subscribe.php" (same origin → no CORS).
+     ==================================================================== */
+  var NL_ENDPOINT = "/newsletter/subscribe.php";
+
   (function(){
-    var form = document.getElementById("nlform"), note=document.getElementById("nl-note");
-    if(!form) return;
+    var form = document.getElementById("nlform"),
+        note = document.getElementById("nl-note"),
+        consent = document.getElementById("nl-consent"),
+        button = form ? form.querySelector("button[type=submit]") : null;
+    if(!form || !note) return;
+
+    var DEFAULT_NOTE = note.innerHTML;
+
+    function say(msg, cls){
+      note.innerHTML = msg;
+      note.classList.remove("nl-ok", "nl-err");
+      if(cls) note.classList.add(cls);
+    }
+
     form.addEventListener("submit", function(e){
       e.preventDefault();
+
       var email = document.getElementById("nl-email").value.trim();
-      if(!email || email.indexOf("@")<1){ note.textContent="Please enter a valid email address."; note.classList.remove("nl-ok"); return; }
-      note.innerHTML = '<span class="nl-ok">Thanks — you\'re on the list.</span> (Preview: the live form connects to the Catandary newsletter.)';
-      form.reset();
+      if(!email || email.indexOf("@") < 1 || email.length > 254){
+        say("Please enter a valid email address.", "nl-err");
+        return;
+      }
+      if(consent && !consent.checked){
+        say("Please confirm the consent checkbox so we may email you.", "nl-err");
+        return;
+      }
+      // Honeypot: a filled hidden field means a bot. Fail silently.
+      var hp = document.getElementById("nl-website");
+      if(hp && hp.value !== ""){ say(DEFAULT_NOTE); form.reset(); return; }
+
+      if(!NL_ENDPOINT){
+        say('Signup opens shortly - the confirmation flow is not live yet, so nothing has been '
+          + 'stored. Write to <a href="mailto:contact@catandary.de?subject=Launch%20notice">'
+          + 'contact@catandary.de</a> and we will add you by hand.', "nl-err");
+        return;
+      }
+
+      if(button){ button.disabled = true; }
+      say("Sending ...");
+
+      var body = new FormData();
+      body.append("email", email);
+      body.append("consent", "1");
+      body.append("website", hp ? hp.value : "");
+
+      fetch(NL_ENDPOINT, { method: "POST", body: body, headers: { "Accept": "application/json" } })
+        .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ return {ok: r.ok, j: j}; }); })
+        .then(function(res){
+          if(res.ok){
+            // Deliberate wording: nothing is confirmed until the link is clicked.
+            say('<span class="nl-ok">Almost there - you\'re about to join the list.</span> '
+              + 'Please confirm via the link we just emailed you.');
+            form.reset();
+            if(consent) consent.checked = false;
+          } else {
+            say((res.j && res.j.error) || "That didn't work. Please try again in a moment.", "nl-err");
+          }
+        })
+        .catch(function(){
+          say('Connection failed. Please try again, or write to '
+            + '<a href="mailto:contact@catandary.de">contact@catandary.de</a>.', "nl-err");
+        })
+        .then(function(){ if(button){ button.disabled = false; } });
     });
   })();
 
@@ -1058,6 +1214,43 @@
       setTimeout(tick, 1000);
     }
     tick();
+  })();
+
+  /* ================= legal modal ================= */
+  (function(){
+    var modal = document.getElementById("legal-modal");
+    if(!modal) return;
+    var docs = {
+      impressum:   document.getElementById("legal-impressum"),
+      datenschutz: document.getElementById("legal-datenschutz")
+    };
+    var lastFocus = null;
+    function open(type){
+      var doc = docs[type];
+      if(!doc) return;
+      docs.impressum.hidden = true;
+      docs.datenschutz.hidden = true;
+      doc.hidden = false;
+      lastFocus = document.activeElement;
+      modal.hidden = false;
+      document.body.classList.add("legal-open");
+      var closeBtn = modal.querySelector(".legal-close");
+      if(closeBtn) closeBtn.focus();
+    }
+    function close(){
+      modal.hidden = true;
+      document.body.classList.remove("legal-open");
+      if(lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+    document.querySelectorAll("[data-legal]").forEach(function(el){
+      el.addEventListener("click", function(e){ e.preventDefault(); open(el.getAttribute("data-legal")); });
+    });
+    modal.querySelectorAll("[data-legal-close]").forEach(function(el){
+      el.addEventListener("click", close);
+    });
+    document.addEventListener("keydown", function(e){
+      if(e.key === "Escape" && !modal.hidden) close();
+    });
   })();
 })();
 </script>
