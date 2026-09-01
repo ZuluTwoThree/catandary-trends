@@ -645,6 +645,7 @@ CREATE EXTENSION vector;
 /trends/methodology              → Methodik-/Trust-Seite
 /trends/pricing                  → Pläne (Stripe-Checkout wenn konfiguriert)
 /trends/newsletter (+/unsubscribe) → Newsletter-Signup/-Abmeldung
+/trends/dossiers, /trends/dossiers/[slug] → Owner-only Dossier-Desk (Branch Agentic-Dossiers; DOSSIERS_ENABLED=1, in PUBLIC_MODE geblockt): Scouting-Dossier-Aufträge erteilen, Berichte + Endkontrolle lesen, Sign-off — siehe docs/agentic_dossiers.md
 /account, /account/signin        → Konto + Magic-Link-Login (nur bei AUTH_ENABLED=1)
 /imprint, /privacy               → Rechtstexte (Impressum-Adressblock = Owner-Gate vor Public-Launch)
 ```
@@ -913,6 +914,23 @@ Auf der 24-GB-Karte kann Stage 6 (Content-Generierung) auf ein deutlich größer
 - **Content-Guard:** Wortzahl-Validator retryt bis zu 3× bei vorzeitig terminierten Body-Strings (Grammar-Artefakt bei temp 0.7). In den ersten vier Nachtläufen war die "alle 3 Versuche failed"-Rate <0,25 %.
 - **Rückbau:** `STAGE5_BACKEND=ollama` (Env-Override) erzwingt den Ollama-14B-Pfad. Alternativ das Content-Gen-Start-Skript entfernen/umbenennen → `scheduled_cycle.sh` fällt automatisch auf Ollama zurück. **Zurück auf 30B/35B:** in `scheduled_cycle.sh` `STAGE5_MODEL`/`STAGE5_START` auf `start-qwen3-30b.sh` bzw. `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` + `start-qwen3.6-35b.sh` zeigen lassen. (Das bloße Umhängen von `start-active.sh` deaktiviert den Pfad **nicht** — der Handover hängt selbst um.)
 - **Zugehörige Goals:** offene Erweiterung der Quellen-Architektur, siehe `goals/` und `pipeline_expansion_prompt.md`.
+
+## Agentic Scouting-Dossiers (Owner-only; Branch `Agentic-Dossiers`)
+
+Der agentische Rechercheur (`scripts/corpus_research.py`) als Owner-Werkzeug —
+Details in `docs/agentic_dossiers.md`. Kern-Kontrakt (Owner 2026-09-01):
+Aufträge erteilt nur der Owner (`/trends/dossiers` oder
+`scripts/dossier_worker.py --order-new`), abgearbeitet wird **nur bei manuellem
+Worker-Start** (bewusst kein Cron), alles läuft **streng lokal** auf dem 27B
+(kein Cloud-Hop — proprietäre Dokumente), und jeder Lauf endet in `review`:
+erst die deterministische Agenten-Endkontrolle (`pipeline/dossier_check.py`,
+Zahlen-Grounding + Zitat-Bilanz), dann die finale Owner-Durchsicht mit
+Sign-off. Vor der Recherche injiziert die Quant-Vorstufe
+(`pipeline/dossier_quant.py`) die gemessene Innovationskette (tech_analyze:
+CPC → TIR → Lead-Time → Leitpatente) als zitierbare Evidenz. Tabellen
+`dossier_orders`/`dossiers` via `scripts/migrate_dossier_orders.py`
+(additiv, einmal manuell). GPU: `model_on_llamacpp` mit Stage-10-Guards
+(VRAM <1100 MiB Fremdbelegung, Identitäts-Check `/v1/models`).
 
 ## Technische Hinweise
 

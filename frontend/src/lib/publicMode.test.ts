@@ -48,6 +48,8 @@ describe("isBlockedInPublicMode", () => {
     "/trends/foresight/ventures/company/5",
     "/trends/review",
     "/trends/quality-preview",
+    "/trends/dossiers",
+    "/trends/dossiers/solid-state-batteries",
     "/trends/pricing",
     "/api/auth/callback",
     "/api/auth/logout",

@@ -250,6 +250,7 @@ The product core: reasoning **in the data**, not in generated text.
 | Cross-tier lead time | `scripts/cpc_leadtime.py --cpc H02S` | patents via native CPC (full corpus), science/funding/market via embedding projection → per-tier takeoff years and lead-time estimates on one axis |
 | Empirical technology axes | `scripts/build_cpc_cooccurrence.py --top H01M` | CPC pair co-occurrence per year over the back-file (44M pairs): combinations sharpen coarse classes (H01M+B60L = EV batteries, +B09B/Y02W = battery recycling) and rising pairs flag cross-domain convergence |
 | Mega-trend proposer | `scripts/propose_mega_trends.py` | data-driven candidate mega-trends vs. the canonical `mega_trends.yaml` |
+| **Agentic scouting dossiers** (owner-only) | `scripts/dossier_worker.py` → `scripts/corpus_research.py` | order-slip queue (`dossier_orders`) → deterministic quant preamble (`pipeline/dossier_quant.py`: CPC → TIR trajectory → lead-time → hub patents as citable evidence) → agentic research loop on the local 27B → deterministic end-control (`pipeline/dossier_check.py`: figure grounding + citation ledger) → versioned report in `dossiers`, always parked in `review` for the owner's sign-off at `/trends/dossiers`. Strictly local, strictly on-demand (no cron) — see `docs/agentic_dossiers.md` |
 
 ---
 
