@@ -793,20 +793,9 @@ def save_dossier(slug: str, topic: str, question: str, report_md: str,
     on-demand (re-run the CLI with the same slug), per the owner's radar rule:
     a dossier is a dated document, never a cron job.
     """
+    from pipeline.dossier_orders import _dossiers_ddl
     with get_connection() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS dossiers (
-                id SERIAL PRIMARY KEY,
-                slug TEXT NOT NULL,
-                version INTEGER NOT NULL,
-                topic TEXT,
-                question TEXT NOT NULL,
-                report_md TEXT NOT NULL,
-                result JSONB NOT NULL,
-                model TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE (slug, version)
-            )""")
+        conn.execute(_dossiers_ddl())
         row = conn.execute(
             "SELECT coalesce(max(version), 0) + 1 AS v FROM dossiers WHERE slug = ?",
             (slug,)).fetchone()
@@ -826,7 +815,7 @@ def save_dossier(slug: str, topic: str, question: str, report_md: str,
 def run(question: str, max_steps: int, max_sources: int,
         retrieval: str, per_query: int, scope: str = "both",
         web_steps: int = 8, max_web_sources: int = 12,
-        topic: str = "") -> dict:
+        topic: str = "", quant: dict | None = None) -> dict:
     t0 = time.time()
     _backend = search_vector if retrieval == "vector" else search_corpus
 
@@ -838,6 +827,24 @@ def run(question: str, max_steps: int, max_sources: int,
     used_queries: set[str] = set()
     opened: set[int] = set()
     trace: list[dict] = []
+
+    # --- quant preamble ---------------------------------------------------
+    # Deterministic measurement (pipeline/dossier_quant.py): the measured
+    # innovation-chain profile enters the catalog as citable evidence BEFORE
+    # the first model hop — measurement is not agent discretion, same reason
+    # the paper/patent gap sweep below runs deterministically. The note's own
+    # figures are thereby grounded material for the report and its check.
+    if quant:
+        for s in quant.get("sources") or []:
+            if s["id"] not in seen_ids:
+                seen_ids.add(s["id"])
+                sources.append(s)
+        if quant.get("note"):
+            notes.append(
+                "Deterministic measurement (cite it via the measurement "
+                "source in the catalog):\n" + quant["note"])
+            logger.info("quant preamble: %d measured source(s) injected",
+                        len(quant.get("sources") or []))
 
     # --- plan -------------------------------------------------------------
     plan = llamacpp_client.chat_structured(
@@ -1273,6 +1280,10 @@ def run(question: str, max_steps: int, max_sources: int,
                   for k in ("article", "signal", "paper", "patent", "web")},
         "ledger": ledger,
         "report_raw": report_raw,
+        # Full evidence notes: the agent end-control (pipeline/dossier_check.py)
+        # grounds every figure of the report against exactly this material.
+        "evidence": notes,
+        "quant": (quant or {}).get("summary"),
         "model": MODEL,
         "seconds": round(time.time() - t0, 1),
         "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -1301,6 +1312,10 @@ def main() -> int:
     ap.add_argument("--web-sources", type=int, default=12,
                     help="max web results the agent phase admits to the catalog")
     ap.add_argument("--out", type=Path, help="write the dossier here (.md; .json alongside)")
+    ap.add_argument("--quant", action="store_true",
+                    help="measure the innovation-chain profile first "
+                         "(pipeline/dossier_quant.py — needs Postgres and the "
+                         "embedding endpoint; degrades to a logged reason)")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -1309,10 +1324,18 @@ def main() -> int:
     if bool(args.question) == bool(args.foresight):
         ap.error("give exactly one of: a question, or --foresight TOPIC")
     question = args.question or foresight_question(args.foresight)
+    quant = None
+    if args.quant:
+        from pipeline.dossier_quant import build_quant_evidence
+        quant = build_quant_evidence(args.foresight or args.question)
+        if not quant["ok"]:
+            logger.warning("quant preamble unavailable (%s) — running without it",
+                           quant["reason"])
+            quant = None
     try:
         result = run(question, args.steps, args.sources, args.retrieval,
                      args.per_query, args.scope, args.web_steps, args.web_sources,
-                     topic=args.foresight or "")
+                     topic=args.foresight or "", quant=quant)
     except Exception as exc:                                        # noqa: BLE001
         logger.error("%s", exc)
         return 1
@@ -1337,6 +1360,9 @@ def main() -> int:
         version = save_dossier(args.slug, args.foresight or "", question,
                                result["report"], result)
         logger.info("stored as dossiers slug=%s version=%d", args.slug, version)
+    if args.out:
+        # JSON sidecar only when a file path exists — --slug alone used to
+        # crash here on args.out=None.
         args.out.with_suffix(".json").write_text(
             json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
         k = result["kinds"]
@@ -1345,7 +1371,7 @@ def main() -> int:
                     args.out, len(result["report"]), len(result["cited"]),
                     len(result["sources"]), k["article"], k["signal"],
                     k["paper"], k["patent"], k["web"], result["seconds"])
-    else:
+    if not args.slug and not args.out:
         print(result["report"])
     return 0
 
