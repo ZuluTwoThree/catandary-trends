@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Build-Verzeichnis per Env übersteuerbar: erlaubt einen ZWEITEN Dev-Server
+  // aus demselben Worktree (Next 16 lockt .next/dev pro Verzeichnis). Genutzt
+  // für die PUBLIC_MODE-Vorschau: NEXT_DIST_DIR=.next-public → Port 3999,
+  // während :3004 normal auf .next läuft. Ohne Env unverändert ".next".
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // NB: no `output: "standalone"` — the deployment runs `next start -p 3001`
   // (deploy/ecosystem.config.js / README / CLAUDE.md), which serves the normal
   // .next build. standalone emits a separate .next/standalone/server.js that
