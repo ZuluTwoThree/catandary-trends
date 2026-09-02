@@ -2,8 +2,7 @@ import { getMegaTrends } from "@/lib/db";
 import { getVerticalInfo } from "@/lib/types";
 import MegaTrendsPage from "@/components/MegaTrendsPage";
 import ForesightCta from "@/components/ForesightCta";
-
-export const dynamic = "force-dynamic";
+import { dynamicUnlessStatic } from "@/lib/renderMode";
 
 export const metadata = {
   title: "Mega Signal Themes — Catandary Trends",
@@ -12,6 +11,7 @@ export const metadata = {
 };
 
 export default async function MegaTrendsRoute() {
+  await dynamicUnlessStatic();
   const megaTrends = await getMegaTrends("published");
   const displayMegaTrends =
     megaTrends.length > 0 ? megaTrends : await getMegaTrends();

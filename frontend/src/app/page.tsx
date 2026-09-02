@@ -8,8 +8,7 @@ import TechReader from "@/components/landing/TechReader";
 import MomentumBoard from "@/components/landing/MomentumBoard";
 import ProofCounter from "@/components/landing/ProofCounter";
 import Reveal from "@/components/landing/Reveal";
-
-export const dynamic = "force-dynamic";
+import { dynamicUnlessStatic } from "@/lib/renderMode";
 
 export const metadata: Metadata = {
   title: "Catandary — See it in the research before you see it in the market",
@@ -27,6 +26,7 @@ export const metadata: Metadata = {
 const FALLBACK = { analyzed: 1059838, published: 60482, sources: 243 };
 
 export default async function LandingPage() {
+  await dynamicUnlessStatic();
   // One monetisation story across landing, pricing and product (ONB-06):
   // while checkout is live the CTAs say so; before that, early access.
   const stripeReady = PAYWALL_ENABLED && Boolean(process.env.STRIPE_SECRET_KEY);

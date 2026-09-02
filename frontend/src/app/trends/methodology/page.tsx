@@ -1,7 +1,6 @@
 import { getMethodologyStats } from "@/lib/db";
 import ForesightCta from "@/components/ForesightCta";
-
-export const dynamic = "force-dynamic";
+import { dynamicUnlessStatic } from "@/lib/renderMode";
 
 export const metadata = {
   title: "How We Measure — Catandary Trends",
@@ -58,6 +57,7 @@ function Stat({ value, label }: { value: string; label: string }) {
 }
 
 export default async function MethodologyPage() {
+  await dynamicUnlessStatic();
   const s = await getMethodologyStats();
 
   return (

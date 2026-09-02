@@ -7,6 +7,7 @@ import type { TrendTechMatch } from "@/lib/technology";
 import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
 import { archiveUrl, DEAD_SOURCE_NOTICE } from "@/lib/deadLinks";
 import { safeHref } from "@/lib/safeHref";
+import { isStaticExport } from "@/lib/renderMode";
 import PestelBadge from "./PestelBadge";
 import VerticalBadge from "./VerticalBadge";
 import TrendScore from "./TrendScore";
@@ -43,6 +44,9 @@ export default function TrendArticle({
   const sourceHref = safeHref(trend.source_url);
 
   useEffect(() => {
+    // No API on the static hosting (design 4.3): the page-view ping would
+    // only be a 404 in every visitor's console. Server logs cover it there.
+    if (isStaticExport()) return;
     fetch("/api/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

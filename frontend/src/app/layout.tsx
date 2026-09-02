@@ -26,7 +26,20 @@ const plexSans = IBM_Plex_Sans({
   display: "swap",
 });
 
+/**
+ * Absolute base for canonical/OG URLs (`alternates.canonical`, the default
+ * opengraph-image). Without it Next resolves them against
+ * http://localhost:<port> — visible in every exported page (spike
+ * 2026-09-02). PUBLIC_SITE_URL overrides for a staging host.
+ */
+const SITE_URL = process.env.PUBLIC_SITE_URL || "https://catandary.de";
+// Pre-launch switch (see robots.ts): PUBLIC_NOINDEX=1 keeps crawlers out
+// until the owner flips it for 2026-10-01.
+const NOINDEX = process.env.PUBLIC_NOINDEX === "1";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  ...(NOINDEX ? { robots: { index: false, follow: false } } : {}),
   title: "Catandary Trends — Cross-Industry Trend Intelligence",
   description:
     "Curated trend signals from eight industry verticals. Powered by Catandary Foresight.",

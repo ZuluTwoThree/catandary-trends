@@ -4,6 +4,16 @@ import { useState, useEffect, useCallback, useId } from "react";
 import Link from "next/link";
 import { getVerticalInfo, type Vertical } from "@/lib/types";
 import { safeHref } from "@/lib/safeHref";
+import { isStaticExport } from "@/lib/renderMode";
+
+/**
+ * Static hosting (design 4.2): the signup posts form-encoded to the PHP
+ * double-opt-in backend that already serves the landing page
+ * (docs/launch/newsletter-doi-php/subscribe.php — fields email, consent,
+ * honeypot `website`; JSON {ok, message} back). Consent is a real checkbox
+ * there because the backend refuses without it (Art. 7 DSGVO evidence).
+ */
+const PHP_SUBSCRIBE_ENDPOINT = "/newsletter/subscribe.php";
 
 interface MegaTrendRadar {
   key: string;
@@ -93,12 +103,33 @@ function SignupForm() {
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [message, setMessage] = useState("");
+  const [consent, setConsent] = useState(false);
   const inputId = useId();
+  const consentId = useId();
+  const staticSite = isStaticExport();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setStatus("loading");
     try {
+      if (staticSite) {
+        const body = new URLSearchParams({ email, consent: "1", website: "" });
+        const res = await fetch(PHP_SUBSCRIBE_ENDPOINT, {
+          method: "POST",
+          headers: { Accept: "application/json" },
+          body,
+        });
+        const data = (await res.json()) as { ok?: boolean; message?: string };
+        if (res.ok && data.ok) {
+          setStatus("success");
+          setMessage(data.message || "Check your inbox to confirm.");
+          setEmail("");
+        } else {
+          setStatus("error");
+          setMessage(data.message || "Signup failed.");
+        }
+        return;
+      }
       const res = await fetch("/api/newsletter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -131,31 +162,53 @@ function SignupForm() {
           </div>
         ) : (
           <form
-            className="flex flex-col sm:flex-row gap-2"
+            className="flex flex-col gap-3"
             onSubmit={handleSubmit}
           >
-            <label htmlFor={inputId} className="sr-only">
-              Email address
-            </label>
-            <input
-              id={inputId}
-              type="email"
-              name="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Your email address"
-              className="flex-1 bg-background border border-border px-4 py-3 font-sans text-sm text-paper placeholder:text-muted focus:border-accent transition-colors"
-              required
-              disabled={status === "loading"}
-            />
-            <button
-              type="submit"
-              disabled={status === "loading"}
-              className="bg-accent text-ink px-6 py-3 font-mono text-[10px] uppercase tracking-[0.18em] hover:bg-accent-deep transition-colors whitespace-nowrap disabled:opacity-50"
-            >
-              {status === "loading" ? "Subscribing…" : "Subscribe"}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label htmlFor={inputId} className="sr-only">
+                Email address
+              </label>
+              <input
+                id={inputId}
+                type="email"
+                name="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Your email address"
+                className="flex-1 bg-background border border-border px-4 py-3 font-sans text-sm text-paper placeholder:text-muted focus:border-accent transition-colors"
+                required
+                disabled={status === "loading"}
+              />
+              <button
+                type="submit"
+                disabled={status === "loading" || (staticSite && !consent)}
+                className="bg-accent text-ink px-6 py-3 font-mono text-[10px] uppercase tracking-[0.18em] hover:bg-accent-deep transition-colors whitespace-nowrap disabled:opacity-50"
+              >
+                {status === "loading" ? "Subscribing…" : "Subscribe"}
+              </button>
+            </div>
+            {staticSite && (
+              <label
+                htmlFor={consentId}
+                className="flex items-start gap-2 font-sans text-xs text-muted leading-relaxed cursor-pointer"
+              >
+                <input
+                  id={consentId}
+                  type="checkbox"
+                  name="consent"
+                  checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)}
+                  required
+                  className="mt-0.5 accent-[var(--color-accent)]"
+                />
+                <span>
+                  I agree to receive the weekly Catandary briefing by email. A
+                  confirmation link follows (double opt-in); unsubscribe anytime.
+                </span>
+              </label>
+            )}
           </form>
         )}
         {status === "error" && (
@@ -257,7 +310,11 @@ function WeekSelector({
 export default function NewsletterPage() {
   const [edition, setEdition] = useState<NewsletterEdition | null>(null);
   const [archive, setArchive] = useState<ArchiveEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Static hosting: no /api/newsletter to fetch from — the editions get
+  // materialised at build time in Schritt 6; until then the page shows the
+  // signup and a plain notice instead of firing 404s.
+  const staticSite = isStaticExport();
+  const [loading, setLoading] = useState(!staticSite);
 
   const loadEdition = useCallback(async (year?: number, week?: number) => {
     setLoading(true);
@@ -273,6 +330,7 @@ export default function NewsletterPage() {
   }, []);
 
   useEffect(() => {
+    if (staticSite) return;
     // Load archive list and latest edition in parallel
     Promise.all([
       fetch("/api/newsletter?list=true").then((r) => r.json()),
@@ -282,7 +340,7 @@ export default function NewsletterPage() {
       setEdition(editionData.edition || null);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+  }, [staticSite]);
 
   function handleWeekSelect(year: number, week: number) {
     loadEdition(year, week);
@@ -323,8 +381,9 @@ export default function NewsletterPage() {
       ) : !edition ? (
         <div className="border border-border bg-card/40 p-12 text-center mb-10">
           <p className="font-sans text-text">
-            No briefing available yet. The first briefing will be published
-            Monday.
+            {staticSite
+              ? "The briefing archive is being prepared for this site. Subscribe above to get each edition by email."
+              : "No briefing available yet. The first briefing will be published Monday."}
           </p>
         </div>
       ) : (

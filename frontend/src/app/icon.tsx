@@ -6,6 +6,9 @@ import { ImageResponse } from "next/og";
  * palette (globals.css); replace with a designed icon file (app/icon.png)
  * whenever one exists — a static file takes precedence over this route.
  */
+// Route handlers must be `force-static` (literal) for `output: "export"`;
+// no input varies here, so the workstation build renders it once as well.
+export const dynamic = "force-static";
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
 

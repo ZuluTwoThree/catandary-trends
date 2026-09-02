@@ -7,6 +7,11 @@ interface TrendsHeroProps {
   analyzedTotal?: number;
   /** Published-signal counts per vertical id. */
   verticalCounts?: Record<string, number>;
+  /** "As of" instant for the status bar. Undefined = render time (the
+   *  per-request workstation instance); the static export passes the newest
+   *  article's date instead, so the stamp is data-derived and the exported
+   *  page is byte-stable between builds. */
+  asOf?: string | Date | null;
 }
 
 function formatStamp(date: Date): string {
@@ -22,10 +27,14 @@ export default function TrendsHero({
   totalSignals,
   analyzedTotal,
   verticalCounts,
+  asOf,
 }: TrendsHeroProps = {}) {
   // Server-rendered stamp. Deterministic per render, not live-ticking — that's fine:
   // conveys "as-of" authority without introducing hydration churn.
-  const stamp = formatStamp(new Date());
+  const asOfDate = asOf ? new Date(asOf) : null;
+  const stamp = formatStamp(
+    asOfDate && !Number.isNaN(asOfDate.getTime()) ? asOfDate : new Date()
+  );
   const totalFmt =
     totalSignals !== undefined ? totalSignals.toLocaleString("en-US") : null;
   const analyzedFmt =
