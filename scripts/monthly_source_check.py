@@ -268,12 +268,12 @@ def check_openalex_density(now: datetime) -> tuple[list[str], list[str]]:
     with get_connection() as c:
         prior_count = c.execute(
             "SELECT COUNT(*) AS n FROM raw_entries r JOIN sources s ON s.id = r.source_id "
-            "WHERE s.name LIKE 'OpenAlex%' AND r.fetched_at >= ? AND r.fetched_at < ?",
-            (prior_start, last_start)).fetchone()["n"]
+            "WHERE s.name LIKE ? AND r.fetched_at >= ? AND r.fetched_at < ?",
+            ("OpenAlex%", prior_start, last_start)).fetchone()["n"]
         last_count = c.execute(
             "SELECT COUNT(*) AS n FROM raw_entries r JOIN sources s ON s.id = r.source_id "
-            "WHERE s.name LIKE 'OpenAlex%' AND r.fetched_at >= ? AND r.fetched_at < ?",
-            (last_start, this_start)).fetchone()["n"]
+            "WHERE s.name LIKE ? AND r.fetched_at >= ? AND r.fetched_at < ?",
+            ("OpenAlex%", last_start, this_start)).fetchone()["n"]
 
         days_since, corpus_total = None, None
         try:
