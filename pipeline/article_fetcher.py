@@ -6,12 +6,24 @@ the model inflates a teaser into 150-250 words — the root cause of the ~1/3
 fabrication rate the grounding gate catches. This enriches `raw_entries.raw_content`
 with the real article text so downstream stages work from substance, not a stub.
 
-Legal guardrails (repo principle: legal primary sources only):
+Legal guardrails (repo principle: legal primary sources only; legal basis for the
+copy itself is text and data mining, §44b UrhG — which is only available while no
+machine-readable reservation exists and the copy is deleted once no longer needed):
   - OPT-IN per source: only sources flagged `fulltext: true` in sources.yaml are
-    fetched. Default off. Start set: the press wires + The Conversation.
+    fetched. Default off. 160 of 238 RSS sources are opted in (commit eb0931c,
+    owner-approved after a robots + extractability probe; HBR, MIT Technology
+    Review, Project Syndicate, Nature and paywalled/blocked feeds stay out).
   - robots.txt is honoured (per-host cache).
-  - <= 1 request/second/host, descriptive User-Agent.
+  - TDM reservation is honoured (TDM_RESPECT=1, default on): a rights holder's
+    machine-readable opt-out (TDMRep header/meta, /.well-known/tdmrep.json,
+    `noai`/`noimageai` robots directives) means the full text is NOT stored —
+    the entry keeps only the feed's own title + teaser, like a non-opt-in source.
+    /.well-known/tdmrep.json is looked up at most once per host per day
+    (data/tdmrep_cache.json).
+  - <= 1 request/second/host, honest User-Agent with contact (CRAWLER_USER_AGENT).
   - No retroactive mass backfill — only unprocessed entries without raw_content.
+  - Retention: scripts/purge_raw_content.py NULLs stored full text once the
+    entry is processed and older than the judge window (default 90 days).
 
     python -m pipeline.article_fetcher            # fetch a batch (default 100)
     python -m pipeline.article_fetcher --limit 500
@@ -20,27 +32,57 @@ Legal guardrails (repo principle: legal primary sources only):
 from __future__ import annotations
 
 import argparse
+import fnmatch
+import html as html_lib
+import json
 import logging
+import os
+import re
 import time
 import urllib.robotparser
+from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
 import trafilatura
 
-from pipeline.config import load_sources
+from pipeline.config import DATA_DIR, load_sources
 from pipeline.db import get_connection
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger("article_fetcher")
 
-UA = "CatandaryTrends/1.0 (+https://catandary.de; trends@catandary.de)"
+# Honest crawler identity (compliance review 2026-09-02): product token, a URL
+# that explains what the bot does, and a mailbox for complaints. The same value
+# is used by pipeline.feed_poller — keep the defaults identical (tested).
+DEFAULT_USER_AGENT = ("CatandaryTrendsBot/1.0 "
+                      "(+https://catandary.de/trends/methodology; trends@catandary.de)")
+UA = os.getenv("CRAWLER_USER_AGENT", DEFAULT_USER_AGENT)
 MIN_TEXT_CHARS = 400          # below this the extraction is not worth keeping
 MAX_TEXT_CHARS = 12_000       # cap what we store (stages slice the first ~1.5k anyway)
 PER_HOST_DELAY = 1.0          # seconds between requests to the same host
 
+# --- TDM reservation (§44b Abs. 3 UrhG; TDMRep, W3C Community Group) ---------
+# A rights holder who reserves text and data mining in machine-readable form
+# takes the §44b exception away — so no full-text copy may be stored. Checked
+# signals, most specific first:
+#   (a) HTTP header  `TDM-Reservation: 1`
+#   (b) HTTP header  `X-Robots-Tag` carrying `noai` / `noimageai`
+#   (c) <meta name="tdm-reservation" content="1">
+#   (d) <meta name="robots" content="… noai …"> (conservative: not a TDM
+#       standard, but an explicit opt-out from AI use — treated as a reservation)
+#   (e) /.well-known/tdmrep.json per host (location patterns, cached one day)
+# TDM_RESPECT=0 switches the check off (for tests / a deliberate owner decision).
+TDM_RESPECT = os.getenv("TDM_RESPECT", "1") == "1"
+TDMREP_CACHE_PATH = Path(os.getenv("TDMREP_CACHE_PATH", str(DATA_DIR / "tdmrep_cache.json")))
+TDMREP_TTL_SECONDS = 24 * 3600      # max. one /.well-known/tdmrep.json request per host per day
+NOAI_TOKENS = frozenset({"noai", "noimageai"})
+_HEAD_SCAN_CHARS = 200_000          # <meta> lives in <head>; no need to regex a 2 MB page
+
 _robots: dict[str, urllib.robotparser.RobotFileParser | None] = {}
 _last_hit: dict[str, float] = {}
+_tdmrep_cache: dict[str, dict] | None = None
 
 
 def fulltext_source_names() -> set[str]:
@@ -89,32 +131,192 @@ def _throttle(host: str) -> None:
     _last_hit[host] = time.time()
 
 
-def fetch_fulltext(url: str, client: httpx.Client | None = None) -> str | None:
-    """Fetch + extract clean article text, or None (robots/blocked/too short)."""
+# --- TDM reservation: header + meta ------------------------------------------
+
+_META_TAG_RE = re.compile(r"<meta\b[^>]*>", re.IGNORECASE)
+_ATTR_RE = re.compile(r"""([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))""")
+
+
+def _meta_tags(page: str) -> list[dict[str, str]]:
+    """Attribute dicts of every <meta> tag in the first _HEAD_SCAN_CHARS."""
+    out: list[dict[str, str]] = []
+    for m in _META_TAG_RE.finditer(page[:_HEAD_SCAN_CHARS]):
+        attrs: dict[str, str] = {}
+        for a in _ATTR_RE.finditer(m.group(0)):
+            val = a.group(2) if a.group(2) is not None else (a.group(3) or a.group(4) or "")
+            attrs[a.group(1).lower()] = html_lib.unescape(val)
+        out.append(attrs)
+    return out
+
+
+def _directive_tokens(value: str) -> set[str]:
+    return {t.strip().lower() for t in re.split(r"[,\s]+", value or "") if t.strip()}
+
+
+def tdm_reservation_in_headers(headers) -> str | None:
+    """Reservation reason from HTTP response headers, or None."""
+    h = headers if isinstance(headers, httpx.Headers) else httpx.Headers(headers or {})
+    v = h.get("tdm-reservation")
+    if v is not None and v.strip() == "1":
+        return "header tdm-reservation: 1"
+    xr = h.get("x-robots-tag")
+    if xr and (_directive_tokens(xr) & NOAI_TOKENS):
+        return f"header x-robots-tag: {xr.strip()}"
+    return None
+
+
+def tdm_reservation_in_html(page: str) -> str | None:
+    """Reservation reason from <meta> tags, or None."""
+    if not page:
+        return None
+    for attrs in _meta_tags(page):
+        name = (attrs.get("name") or attrs.get("property") or "").strip().lower()
+        content = attrs.get("content", "")
+        if name == "tdm-reservation" and content.strip() == "1":
+            return "meta tdm-reservation: 1"
+        if name == "robots" and (_directive_tokens(content) & NOAI_TOKENS):
+            return f"meta robots: {content.strip()}"
+    return None
+
+
+# --- TDM reservation: /.well-known/tdmrep.json --------------------------------
+
+def _load_tdmrep_cache() -> dict[str, dict]:
+    global _tdmrep_cache
+    if _tdmrep_cache is None:
+        try:
+            data = json.loads(TDMREP_CACHE_PATH.read_text(encoding="utf-8"))
+            _tdmrep_cache = data if isinstance(data, dict) else {}
+        except Exception:
+            _tdmrep_cache = {}
+    return _tdmrep_cache
+
+
+def _save_tdmrep_cache() -> None:
+    if _tdmrep_cache is None:
+        return
+    try:
+        TDMREP_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp = TDMREP_CACHE_PATH.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(_tdmrep_cache, sort_keys=True), encoding="utf-8")
+        os.replace(tmp, TDMREP_CACHE_PATH)
+    except Exception as e:  # noqa: BLE001
+        logger.debug("tdmrep cache not written: %r", e)
+
+
+def tdmrep_rules(host: str, client: httpx.Client | None = None,
+                 now: float | None = None) -> list[dict] | None:
+    """Rules from https://<host>/.well-known/tdmrep.json, or None if the host
+    publishes none. Cached per host for TDMREP_TTL_SECONDS (also the negative
+    result) so a host is asked at most once a day."""
+    cache = _load_tdmrep_cache()
+    now = time.time() if now is None else now
+    entry = cache.get(host)
+    if entry and now - float(entry.get("checked_at", 0)) < TDMREP_TTL_SECONDS:
+        return entry.get("rules")
+    rules: list[dict] | None = None
+    try:
+        _throttle(host)
+        getter = client.get if client is not None else httpx.get
+        r = getter(f"https://{host}/.well-known/tdmrep.json", timeout=8,
+                   follow_redirects=True, headers={"User-Agent": UA})
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, list):
+                rules = [d for d in data if isinstance(d, dict)]
+    except Exception as e:  # noqa: BLE001
+        logger.debug("tdmrep.json lookup failed for %s: %r", host, e)
+        rules = None
+    cache[host] = {"checked_at": now, "rules": rules}
+    _save_tdmrep_cache()
+    return rules
+
+
+def _location_matches(pattern: str, path: str) -> bool:
+    pattern = (pattern or "").strip()
+    if not pattern:
+        return False
+    if not pattern.startswith("/"):
+        pattern = "/" + pattern
+    if pattern in ("/", "/*"):
+        return True
+    if fnmatch.fnmatchcase(path, pattern):
+        return True
+    # A bare directory ("/news") covers everything beneath it.
+    return "*" not in pattern and (path == pattern or path.startswith(pattern.rstrip("/") + "/"))
+
+
+def tdm_reservation_in_tdmrep(url: str, rules: list[dict] | None) -> str | None:
+    """Reservation reason from tdmrep.json rules for this URL, or None.
+    The first rule whose `location` matches the path decides (publishers list
+    the specific paths before the generic ones)."""
+    if not rules:
+        return None
+    path = urlparse(url).path or "/"
+    for rule in rules:
+        if _location_matches(str(rule.get("location", "")), path):
+            flag = str(rule.get("tdm-reservation", "")).strip().lower()
+            if flag in ("1", "true"):
+                return f"tdmrep.json location={rule.get('location')!r}"
+            return None
+    return None
+
+
+# --- fetch --------------------------------------------------------------------
+
+@dataclass
+class FetchResult:
+    """Outcome of one full-text fetch. `reason` explains an empty `text`:
+    robots | tdm:<signal> | http <status> | too_short | error <type>."""
+    text: str | None
+    reason: str | None = None
+
+    @property
+    def tdm_reserved(self) -> bool:
+        return bool(self.reason and self.reason.startswith("tdm:"))
+
+
+def fetch_fulltext_result(url: str, client: httpx.Client | None = None) -> FetchResult:
+    """Fetch + extract clean article text, with the reason when nothing is kept."""
     if not _robots_ok(url):
         logger.info("robots.txt disallows %s", url)
-        return None
+        return FetchResult(None, "robots")
     host = urlparse(url).netloc
-    _throttle(host)
     own = client is None
     client = client or httpx.Client(timeout=20, follow_redirects=True,
                                     headers={"User-Agent": UA})
     try:
+        if TDM_RESPECT:
+            why = tdm_reservation_in_tdmrep(url, tdmrep_rules(host, client))
+            if why:
+                logger.info("TDM reservation (%s) — full text not stored, feed teaser only: %s", why, url)
+                return FetchResult(None, f"tdm:{why}")
+        _throttle(host)
         r = client.get(url)
         if r.status_code != 200 or not r.text:
-            return None
+            return FetchResult(None, f"http {r.status_code}")
+        if TDM_RESPECT:
+            why = tdm_reservation_in_headers(r.headers) or tdm_reservation_in_html(r.text)
+            if why:
+                logger.info("TDM reservation (%s) — full text not stored, feed teaser only: %s", why, url)
+                return FetchResult(None, f"tdm:{why}")
         text = trafilatura.extract(
             r.text, include_comments=False, include_tables=False,
             no_fallback=False, favor_precision=True)
         if not text or len(text) < MIN_TEXT_CHARS:
-            return None
-        return text[:MAX_TEXT_CHARS]
+            return FetchResult(None, "too_short")
+        return FetchResult(text[:MAX_TEXT_CHARS])
     except Exception as e:  # noqa: BLE001
         logger.debug("fetch failed %s: %r", url, e)
-        return None
+        return FetchResult(None, f"error {type(e).__name__}")
     finally:
         if own:
             client.close()
+
+
+def fetch_fulltext(url: str, client: httpx.Client | None = None) -> str | None:
+    """Fetch + extract clean article text, or None (robots/TDM/blocked/too short)."""
+    return fetch_fulltext_result(url, client=client).text
 
 
 def fetch_batch(limit: int = 100) -> int:
@@ -131,19 +333,23 @@ def fetch_batch(limit: int = 100) -> int:
             "AND (re.raw_content IS NULL OR re.raw_content = '') "
             "ORDER BY re.id DESC LIMIT ?", (*names, limit)).fetchall()
     logger.info("%d entries to enrich from %d opt-in sources", len(rows), len(names))
-    filled = 0
+    filled = reserved = 0
     with httpx.Client(timeout=20, follow_redirects=True,
                       headers={"User-Agent": UA}) as client:
         for r in rows:
             rid = r["id"] if isinstance(r, dict) else r[0]
             url = r["url"] if isinstance(r, dict) else r[1]
-            text = fetch_fulltext(url, client=client)
-            if text:
+            res = fetch_fulltext_result(url, client=client)
+            if res.tdm_reserved:
+                reserved += 1
+                continue
+            if res.text:
                 with get_connection() as conn:
                     conn.execute("UPDATE raw_entries SET raw_content = ? WHERE id = ?",
-                                 (text, rid))
+                                 (res.text, rid))
                 filled += 1
-    logger.info("enriched %d/%d entries with full text", filled, len(rows))
+    logger.info("enriched %d/%d entries with full text (%d TDM-reserved, kept teaser only)",
+                filled, len(rows), reserved)
     return filled
 
 
@@ -153,9 +359,10 @@ def main() -> int:
     ap.add_argument("--url", help="fetch one URL and print the text (test)")
     args = ap.parse_args()
     if args.url:
-        text = fetch_fulltext(args.url)
-        print(f"--- {len(text) if text else 0} chars ---")
-        print((text or "(nothing extracted)")[:2000])
+        res = fetch_fulltext_result(args.url)
+        print(f"--- {len(res.text) if res.text else 0} chars"
+              f"{' — ' + res.reason if res.reason else ''} ---")
+        print((res.text or "(nothing extracted)")[:2000])
         return 0
     fetch_batch(args.limit)
     return 0

@@ -6,6 +6,7 @@ Fetches RSS/Atom feeds from configured sources and stores new entries in the dat
 
 import html
 import logging
+import os
 import re
 import sys
 import time
@@ -27,22 +28,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Browser-style UA: several quality sources (Endpoints, FDA, idw) serve
-# 403/redirects to plain bot UAs. 30s timeout covers slow feeds (idw ~20s).
+# Honest crawler identity (compliance review 2026-09-02): product token, a URL
+# that explains what the bot does, and a mailbox for complaints — overridable
+# via CRAWLER_USER_AGENT, default identical to pipeline.article_fetcher (tested).
+# No browser spoofing any more: until 2026-09-02 the poller announced itself as
+# Chrome because a few sources (Endpoints, FDA, idw) 403 plain bot UAs. A
+# publisher that blocks bots is expressing a wish, and the repo principle is to
+# respect it — such feeds now surface as 403 warnings (see fetch_feed) and are
+# handled per source (contact the publisher or deactivate), not by disguise.
+# There is no per-source `user_agent` field in sources.yaml; the value is global.
+# 30s timeout covers slow feeds (idw ~20s).
+DEFAULT_USER_AGENT = ("CatandaryTrendsBot/1.0 "
+                      "(+https://catandary.de/trends/methodology; trends@catandary.de)")
+USER_AGENT = os.getenv("CRAWLER_USER_AGENT", DEFAULT_USER_AGENT)
 HTTP_CLIENT = httpx.Client(
     timeout=30,
     follow_redirects=True,
     headers={
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36 "
-                      "CatandaryTrends/1.0 (RSS Feed Reader)",
+        "User-Agent": USER_AGENT,
         "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
     },
 )
 
-# Some publishers (e.g. Just Food) allow plain feed readers but block
-# browser UAs — the inverse of bot-protected sites. Retry 403s with this.
-FALLBACK_UA = "CatandaryTrends/1.0 (RSS Feed Reader)"
+# Retry a 403/406 once with the short token: some WAF rules trip on the URL or
+# the "@" in the full identity string, not on the bot itself. Still honest —
+# never a browser string.
+FALLBACK_UA = "CatandaryTrendsBot/1.0 (RSS Feed Reader)"
 
 
 def parse_published_date(entry: dict) -> str | None:
@@ -73,6 +84,13 @@ def fetch_feed(source_name: str, feed_url: str) -> list[dict]:
         resp = HTTP_CLIENT.get(feed_url)
         if resp.status_code in (403, 406):
             resp = HTTP_CLIENT.get(feed_url, headers={"User-Agent": FALLBACK_UA})
+            if resp.status_code in (403, 406):
+                # Bot block with an honest UA. By policy (compliance review
+                # 2026-09-02) we do not disguise as a browser — decide per
+                # source: ask the publisher, or set `active: false`.
+                logger.warning("%s: HTTP %d for %s — publisher blocks non-browser "
+                               "clients; no browser spoof by policy",
+                               source_name, resp.status_code, FALLBACK_UA.split(" ")[0])
         if resp.status_code >= 500:
             # transient upstream errors (idw etc.) — one retry after backoff
             time.sleep(3)
