@@ -45,7 +45,9 @@ trainiert auf den **bereits vorhandenen LLM-Labels**.
 
 > **Status 2026-07-09 (#8 geschlossen):** `ensure_embeddings(ids, cap, timeout)`
 > wird NICHT gebaut — jeder geplante Konsument ist inzwischen anders gelöst:
-> Patent-Evidenz über den Volltext-GIN-Index (`idx_re_patent_fts`, ts_rank),
+> Patent-Evidenz über den Volltext-GIN-Index (`idx_re_patent_fts`, ts_rank)
+> *(Index am 02.09.2026 gedroppt, 2,7 GB; der Patent-Explorer sucht seit #78 über die
+> materialisierte `patent_search` + `idx_patent_search_tsv`)*,
 > Technologie-Scoping über native CPC + embedded CPC-Definitionen (#28,
 > `signal_cpc` mit 100 % Signal-Abdeckung), klassifizierter Signal-Korpus über
 > Distill-Batch-Embedding (`signal_batch --backend distill`). Nur 0,1 % der

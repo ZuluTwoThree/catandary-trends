@@ -1,5 +1,18 @@
 # Issue-Status (Stand 2026-08-28 — Audit nach dem Geschäftsmodell-Wechsel)
 
+> **Nachtrag 02.09.2026** (vollständig: `docs/audits/2026-09-02_issue_audit.md`, `_compliance_review.md`,
+> `_security_review.md`, `_static_export_design.md`; Plan: `docs/launch/09_launch_plan_2026-09-02.md`):
+> - Alle vier manuellen DB-Schritte des 28.08.-Audits sind **erledigt** und gegen die Live-DB verifiziert:
+>   `migrate_dead_links.py` (dead_links: 124 Zeilen), `apply_source_hygiene.py --apply` (323 aktiv / 16 inaktiv),
+>   `backfill_cpc_subclass.py`, `DROP INDEX idx_re_patent_fts` (`pg_indexes` = 0).
+> - **#48 und #71 geschlossen** (02.09.); der Link-Check-Cron (`0 7 2 * *`) ist installiert und lief 02.09.
+> - **#81-Bugfix** (`1d59124`): OpenAlex-Wächter — LIKE-Muster parametrisiert (psycopg2 IndexError durch nacktes `%`).
+> - **#82 neu geschnitten**: Owner-Entscheid **statischer Export** aufs Hetzner-Webhosting statt VPS
+>   (`HOSTING_PUBLIC_VPS.md` archiviert); Umsetzung = Welle 2 im Plan.
+> - Überholt in diesem Dokument: „kein Newsletter-Cron" (Website-Edition läuft Mo 09:00 seit 29.08.), „dev +7 /
+>   Branch `issue-audit`" (gemergt 01.09., Branch gelöscht), die „manuell ausführen"-Hinweise unten.
+> - Weiterhin reklamierbar: `*_old`-Tabellen (~36 GB: `patent_cpc_full_old`, `patent_spnp_full_old`, `patent_spnp_full_z3_old`).
+
 Vollständiges Audit aller offenen Issues in der Nacht 2026-08-28 (Referenz `main` = `a6455bf`).
 Jede Aussage gegen Code, DB, crontab und die laufende Instanz (:3001) geprüft.
 **Ergebnis: 14 geschlossen, 1 neu (#94) → Backlog 36 → 23 offen.**

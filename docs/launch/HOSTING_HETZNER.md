@@ -44,9 +44,12 @@ put favicon.ico
 put robots.txt
 ```
 
-## Option B — VPS with Caddy (the launch target, see `HOSTING_PUBLIC_VPS.md`)
-Once the app is served from the VPS, `/` is rendered by the Next.js landing route
-(`frontend/src/app/page.tsx`) and this static file is no longer needed.
+## Option B — VPS with Caddy — **dropped (owner decision 2026-09-02)**
+The VPS path (`HOSTING_PUBLIC_VPS.md`) was never ordered and is off the table. The public
+site will be a **static export** of the Next.js app uploaded to the same webspace as this
+landing (design: `docs/audits/2026-09-02_static_export_design.md`, plan:
+`docs/launch/09_launch_plan_2026-09-02.md`). Until the export ships, this static file stays
+the whole public site; once it ships, `/` may be replaced by the exported landing route.
 
 ## Notes
 - **Countdown:** targets `2026-10-01T09:00:00+02:00` (09:00 CEST), computed against the
@@ -58,5 +61,5 @@ Once the app is served from the VPS, `/` is rendered by the Next.js landing rout
 - **Still in the page and still open (#93):** the €99/499/799 tier table and the
   "Explore the live engine" CTA reflect the withdrawn SaaS model — the "analyses instead of
   platform" rewrite is the owner's voice and not done yet.
-- **Before the real public launch:** remove the `noindex` meta, then point the domain at
-  the app (`HOSTING_PUBLIC_VPS.md`).
+- **Before the real public launch:** remove the `noindex` meta and upload the static export
+  next to it (no DNS change — same webspace; `HOSTING_PUBLIC_VPS.md` is archived).

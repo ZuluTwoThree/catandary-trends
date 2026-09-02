@@ -109,6 +109,11 @@ Mit der eigenen Adresse, Ende-zu-Ende, in dieser Reihenfolge:
 
 ## 7. VPS-Go-Live: `NL_TRUSTED_PROXIES` setzen (separates, späteres Ereignis)
 
+> **Stand 02.09.2026: entfällt.** Owner-Entscheid: statischer Export aufs Webhosting statt
+> VPS — es gibt keinen Reverse-Proxy vor dem Webspace, also keinen DNS-Umzug und nichts, dem
+> `nl_client_ip()` vertrauen müsste. `NL_TRUSTED_PROXIES` bleibt leer. Der Abschnitt bleibt
+> als Archiv stehen, falls je wieder ein Proxy davorgeschaltet wird.
+
 Erst wenn der VPS-Reverse-Proxy aus #82/#93 tatsächlich vor den Webspace
 geschaltet wird (DNS-Umzug `catandary.de` → VPS-IP): in der auf dem Webspace
 liegenden `nl_config.php` den `NL_TRUSTED_PROXIES`-Block auf die öffentliche

@@ -264,7 +264,9 @@ cd frontend
 npm run dev                  # http://localhost:3001 (3000 is taken by Open WebUI)
 npm run build && systemctl --user restart catandary-frontend
                              # production (port 3001) runs as a systemd user unit
-                             # (deploy/systemd/catandary-frontend.service), behind deploy/Caddyfile
+                             # (deploy/systemd/catandary-frontend.service). No reverse proxy is in
+                             # use — deploy/Caddyfile is a relic of the dropped VPS plan; the public
+                             # site will be a static export to the Hetzner webspace (owner, 2026-09-02)
 ```
 
 Routes:
@@ -363,7 +365,7 @@ catandary-trends/
 │   ├── backup_db.py / review_cli.py / verify_feeds.py
 │   └── generate_content.py    #   decoupled article generation
 ├── frontend/                  # Next.js app (catandary.de/trends)
-├── deploy/                    # Caddyfile, deploy script
+├── deploy/                    # systemd units, crontab template, deploy script (Caddyfile = historical)
 ├── tests/                     # pytest suite (SQLite-backed via conftest)
 └── data/                      # logs, frozen SQLite fallback
 ```
@@ -401,5 +403,6 @@ edges, to 1990), 293k funding records (incl. 117k SEC Form D startup rounds),
 ~700k market posts (WordPress archive depth to 2010). The CPC backbone (653
 embedded subclass definitions + 44M co-occurrence pairs) puts all tiers on a
 common technology axis. Active focus: cross-tier lead-time productization,
-embedding-based pipeline stages, Hetzner deployment — see the
+embedding-based pipeline stages, static export of the public pages to the
+Hetzner webspace (owner decision 2026-09-02, `docs/launch/09_launch_plan_2026-09-02.md`) — see the
 [issues](https://github.com/ZuluTwoThree/catandary-trends/issues).

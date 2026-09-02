@@ -150,10 +150,12 @@ Quellen werden pro Vertikale organisiert. Neue Vertikale starten mit 3-5 Kernque
 | Reddit (diverse Subreddits) | Offizielle API | Community-Signale |
 | Hacker News | RSS/API | Tech-Signale |
 
+*(Stand 2026-09-02: davon ist nur Hacker News produktiv — `scripts/ingest_hn_launches.py` im Samstagslauf. Exploding Topics, Google Trends/pytrends und Reddit sind **nicht implementiert**; die Tabelle ist eine Ideenliste, keine Quellenliste. Vereinzelte Erwähnungen in `pipeline/crs.py`/`radar_discovery.py` sind Radar-Altcode.)*
+
 ### Quellenwachstum
 
-Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein automatisches Scraping oder Aggregator-Quellen. Trendhunter und Brave Search Radar wurden entfernt (2026-04-12) — **322 aktive Quellen** (Stand 2026-08-28; RSS-Primärquellen + OpenAlex/Patente/Funding-Pseudoquellen) decken alle 8 Vertikale ab. 2026-08-07 kamen 15 verifizierte Feeds für die Taxonomie-Erweiterung dazu (Quantum/Semis/Space/Digital Health/Future of Work/Education — u. a. The Quantum Insider, NVIDIA/Intel/IBM Newsroom, SpaceNews, NASA/ESA, Rock Health, HR Dive, EdSurge). Ausbau auf nicht-RSS-Quellentypen siehe `pipeline_expansion_prompt.md` und Goal Contract unter `goals/`.
-*(Quellenzahl-Herleitung 2026-08-28, #81-Quellenhygiene: DB-SELECT `count(*) FROM sources WHERE active` lieferte 328 zum Messzeitpunkt; 6 in dieser Runde als tot befundene Feeds — Euractiv, Rock Health Blog, WorkLife, Shopify News, Förderinfo Bund – Mobilität, Environmental Leader — sind in `sources.yaml`/`scripts/apply_source_hygiene.py` deaktiviert, macht 328−6=**322**. Der DB-Flag-Schreibvorgang selbst ist noch NICHT ausgeführt — `sources.active` bleibt bis zum manuellen `apply_source_hygiene.py --apply` bei 328; dieser Wert hier ist der Soll-Zustand danach. Nebenfund derselben Runde: `sources.yaml` `active: false` synct nie automatisch zurück in die DB (`upsert_source` überschreibt `active` auf einer bestehenden Zeile nie, und der Poller überspringt inaktive Quellen VOR dem Upsert-Call) — 3 weitere, schon vor #81 auf `active: false` gesetzte Quellen (MobiHealthNews, Healthcare IT News, BMJ) hängen aus demselben Grund seit 2026-06-12 bei `active=true` in der DB fest. `apply_source_hygiene.py` behebt das generisch für alle acht; nach voller Anwendung sind es 328−9=319.)*
+Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein automatisches Scraping oder Aggregator-Quellen. Trendhunter und Brave Search Radar wurden entfernt (2026-04-12) — **323 aktive Quellen** (DB-Ist 2026-09-02, `SELECT count(*) FROM sources WHERE active`; RSS-Primärquellen + OpenAlex/Patente/Funding-Pseudoquellen) decken alle 8 Vertikale ab. 2026-08-07 kamen 15 verifizierte Feeds für die Taxonomie-Erweiterung dazu (Quantum/Semis/Space/Digital Health/Future of Work/Education — u. a. The Quantum Insider, NVIDIA/Intel/IBM Newsroom, SpaceNews, NASA/ESA, Rock Health, HR Dive, EdSurge). Ausbau auf nicht-RSS-Quellentypen siehe `pipeline_expansion_prompt.md` und Goal Contract unter `goals/`.
+*(Quellenzahl 2026-09-02: `scripts/apply_source_hygiene.py --apply` ist ausgeführt — die 6 in #81 (28.08.) als tot befundenen Feeds (Euractiv, Rock Health Blog, WorkLife, Shopify News, Förderinfo Bund – Mobilität, Environmental Leader) und die 3 schon vorher nur in `sources.yaml` deaktivierten (MobiHealthNews, Healthcare IT News, BMJ) stehen jetzt auch in der DB auf `active=false` (per SELECT verifiziert). DB-Ist 02.09.: **323 aktiv / 16 inaktiv / 339 gesamt**; die Differenz zur alten Rechnung 328−9=319 sind die vier am 29.08. angelegten OpenAlex-Fresh-Pseudoquellen (ids 347–350). Strukturbefund bleibt gültig: `sources.yaml` `active: false` synct nie automatisch in die DB (`upsert_source` überschreibt `active` auf einer bestehenden Zeile nie, und der Poller überspringt inaktive Quellen VOR dem Upsert-Call) — Deaktivierungen daher immer mit `apply_source_hygiene.py --apply` nachziehen.)*
 
 ---
 
@@ -390,7 +392,7 @@ CREATE TABLE trends (
     -- Entitäten
     brands JSONB DEFAULT '[]',
     companies JSONB DEFAULT '[]',
-    people JSONB DEFAULT '[]',
+    -- people: gibt es in der Live-DB NICHT (Schema-Check 2026-09-02); brands/companies = Organisationen
     regions JSONB DEFAULT '[]',
     -- Scoring
     trend_score REAL,
@@ -405,6 +407,9 @@ CREATE TABLE trends (
     auto_published BOOLEAN DEFAULT false,
     published_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    -- seit dem Ursprungs-Schema dazugekommen (Live-DB 2026-09-02): sort_date, embedding_1024
+    -- (pgvector-ANN auf dem 1024er-Matryoshka-Präfix), grounding_flags, grounding_checked_at,
+    -- reviewed_at, judged_at (Draft-Richter)
 );
 
 -- Engagement-Tracking (für späteres Foresight-Feedback)
@@ -438,7 +443,7 @@ CREATE TABLE trend_clusters (
 
 ## Automatisierung & Scheduling
 
-### Cron-Jobs (realer Stand seit 2026-08-09)
+### Cron-Jobs (realer Stand 2026-09-02 = `crontab -l`; Deploy-Template `deploy/crontab.txt` ist damit synchron)
 
 ```
 # Env-Zeilen sind Pflicht: cron hat keine systemd-User-Session — ohne
@@ -512,13 +517,14 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Brücken bewusst NICHT im Cron (Rebuild würde Enrichment verwerfen) — on-demand.
 0 12 6 * *   scripts/monthly_startup_sources.sh
 
-# Source-Link-Integrität monatlich (2. des Monats 07:00, Issue #48, vorbereitet
-# in deploy/crontab.txt — noch NICHT in die echte crontab installiert): Stichprobe
-# published Backlinks (HEAD/GET, ein Worker pro Host), --mark upsertet bestätigt
-# tote Links (404/410/ConnErr, erst nach 2 aufeinanderfolgenden Fehl-Checks) in
-# die neue Tabelle dead_links; 403/429 (Bot-Block) wird nie markiert. Setzt
-# scripts/migrate_dead_links.py voraus (additive Migration, s.u. — läuft NICHT
-# automatisch auf der Live-DB, muss einmalig von Hand ausgeführt werden).
+# Source-Link-Integrität monatlich (2. des Monats 07:00, Issue #48 — in der echten
+# crontab installiert; Cron-Lauf 02.09. 07:03 im Log, 12 bestätigt tot): Stichprobe published
+# Backlinks (HEAD/GET, ein Worker pro Host), --mark upsertet bestätigt tote Links
+# (404/410/ConnErr, erst nach 2 aufeinanderfolgenden Fehl-Checks) in die Tabelle
+# dead_links; 403/429 (Bot-Block) wird nie markiert. Die additive Migration
+# scripts/migrate_dead_links.py ist auf der Live-DB ausgeführt (dead_links: 124
+# Zeilen am 02.09.); sie läuft NICHT in init_db — auf einer frischen DB einmalig
+# von Hand nachziehen (bekannte Migrationslücke, s. docs/issue_status.md).
 0 7 2 * *    scripts/check_source_links.py --per-source 12 --mark
 ```
 
@@ -589,17 +595,20 @@ cross_industry:
 - **Framework:** Next.js 16 (App Router, Turbopack-Dev) + TypeScript + React 19
 - **Styling:** Tailwind CSS v4 (`@theme`-Tokens in `frontend/src/app/globals.css` — Designsystem „Editorial Intelligence": IBM Plex Serif/Mono/Sans, Ink `#0a0c0a`, Akzent Chartreuse `#d4ff3a`, scharfe Kanten)
 - **DB-Anbindung:** eigener `pg`-Layer (`frontend/src/lib/pg.ts` + `db.ts`) auf PostgreSQL/pgvector, Socket-Default (kein Drizzle); teure Aggregat-Queries laufen über einen In-Process-TTL-Cache in `db.ts`
-- **Auth/Paywall:** Magic-Link-Auth (`lib/auth.ts`) + Tier-Entitlements (`lib/entitlement.ts`, `lib/tiers.ts`, `TierGate`), Stripe-Checkout/Webhook; alles hinter `AUTH_ENABLED`/`PAYWALL_ENABLED` (Gates aus = alles offen)
-- **Hosting:** Hetzner VPS (bestehend), lokal Port 3001 via systemd user unit `catandary-frontend`
-- **Reverse Proxy:** Caddy (automatisches HTTPS via Let's Encrypt)
-- **Domain:** catandary.de (Landing `/`, Trends unter `/trends`)
+- **Auth/Paywall:** Magic-Link-Auth (`lib/auth.ts`) + Tier-Entitlements (`lib/entitlement.ts`, `lib/tiers.ts`, `TierGate`), Stripe-Checkout/Webhook; alles hinter `AUTH_ENABLED`/`PAYWALL_ENABLED` (Gates aus = alles offen). **Per #93 (kein SaaS, Owner 26.08.) zum Rückbau bestimmt** (Welle 3 in `docs/launch/09_launch_plan_2026-09-02.md`); bis dahin blendet `PUBLIC_MODE=1` (`frontend/src/proxy.ts`, Blockliste `lib/publicMode.ts`) `/account*`, `/trends/foresight*`, `/trends/review*`, `/trends/quality-preview*`, `/trends/pricing`, `/api/auth*`, `/api/stripe*`, `/api/foresight*` als 404 aus
+- **Hosting (Ist 2026-09-02):** **Es gibt keinen VPS.** `catandary.de` = statische Landing (`docs/launch/preview.html`) auf dem bestehenden Hetzner-**Webhosting** (Shared Webspace, kein Node); die Next-App läuft nur lokal auf der Workstation, Port 3001 via systemd user unit `catandary-frontend` — `/trends` & Co. sind öffentlich 404. **Owner-Entscheid 02.09.: öffentliche Website = statischer Export (`next build` mit `output: 'export'`) aufs Webhosting** — Design `docs/audits/2026-09-02_static_export_design.md`, Plan `docs/launch/09_launch_plan_2026-09-02.md` (#82-Neuschnitt, Welle 2). Der VPS-Pfad (`docs/launch/HOSTING_PUBLIC_VPS.md`) ist damit verworfen.
+- **Reverse Proxy:** keiner im Einsatz — `deploy/Caddyfile` ist ein Relikt der verworfenen VPS-Planung (s. „Deployment" unten)
+- **Laufende Instanzen (Workstation, 02.09.):** `:3001` = `next start` aus `~/projects/catandary-trends` (main, systemd, ohne `PUBLIC_MODE`); `:3004` = `next dev` aus `~/projects/ct-dev` (dev, **ohne** `PUBLIC_MODE`); `:3999` = `next dev` aus `ct-dev` mit `PUBLIC_MODE=1 NEXT_DIST_DIR=.next-public` = **die PUBLIC_MODE-Vorschau** (nicht :3004). Start (in tmux, keine systemd-Unit dafür): `cd ~/projects/ct-dev/frontend && PUBLIC_MODE=1 NEXT_DIST_DIR=.next-public npx next dev --turbopack -p 3999` — `NEXT_DIST_DIR` ist seit `21b3059` nötig, weil Next 16 `.next/dev` pro Verzeichnis lockt (zweiter Dev-Server aus demselben Worktree)
+- **Domain:** catandary.de (Landing `/` statisch live; `/trends` erst nach dem Export)
 - **Newsletter:** Resend (Domain send.catandary.de)
 - **Tests:** Vitest (`frontend/src/lib/*.test.ts`)
 
-### Deployment auf Hetzner
+### Deployment
+
+> **Historisch (verworfen 02.09.2026):** Der Caddy-Block darunter stammt aus der VPS-Planung (Hetzner Cloud + Caddy vor der Next-App, `docs/launch/HOSTING_PUBLIC_VPS.md`). Ein VPS wurde nie bestellt, Caddy läuft nirgends. Bleibt als Referenz stehen, falls der Pfad je wieder aufgemacht wird — **aktuell gilt der statische Export** (s. Hosting oben). Der Workflow-Block danach beschreibt weiterhin die **lokale** :3001-Instanz und ist aktuell.
 
 ```
-# Caddy-Konfiguration (Caddyfile) — App läuft lokal auf :3001
+# [HISTORISCH] Caddy-Konfiguration (Caddyfile) — App läuft lokal auf :3001
 catandary.de {
     # Next.js App
     reverse_proxy localhost:3001
@@ -614,7 +623,7 @@ catandary.de {
 ```
 
 ```bash
-# Deployment-Workflow (lokal wie Hetzner) — systemd statt PM2 (seit #38)
+# Deployment-Workflow der lokalen :3001-Instanz (main-Worktree ~/projects/catandary-trends) — systemd statt PM2 (seit #38)
 git pull origin main
 cd frontend && npm run build
 systemctl --user restart catandary-frontend
@@ -703,7 +712,7 @@ Hinweis: Ein DE/EN-Switcher existiert nicht mehr — die Produktsprache ist durc
 ## Technische Randbedingungen
 
 - **Domain:** catandary.de – alle URLs müssen dazu passen (catandary.de/trends/...)
-- **Hosting:** Hetzner VPS mit Caddy als Reverse Proxy
+- **Hosting:** Hetzner-Webhosting (statisch) — öffentlich nur der statische Export; die volle App bleibt lokal auf der Workstation (Owner-Entscheid 02.09.2026; kein VPS, kein Caddy)
 - **Kein Scraping von Aggregator-Seiten** – nur Primärquellen über RSS/API
 - **Quellennennung ist Pflicht** – jeder Artikel verlinkt zur Originalquelle
 - **Content muss eigenständig sein** – LLM-Texte substanziell anders als Original
@@ -759,7 +768,8 @@ git remote add origin git@github.com:ZuluTwoThree/catandary-trends.git
   - **Warum getrennt:** `dev` sollte für andere Entwicklung frei werden, ohne dass ein `dev`→`main`-Merge das unfertige Radar mitveröffentlicht (Owner 2026-08-07).
   - **Zustand bei Parkzeit:** lauffähig, 271 pytest / 142 vitest / tsc grün; läuft im Worktree `/home/dirk/projects/ct-dev` auf Port 3004.
   - **Wiederaufnahme:** auf dieser Branch weiterarbeiten, vorher `git rebase main` (die Nicht-Radar-Arbeit steckt bereits in `main`, es gab beim Parken keine Divergenz außerhalb der Radar-Dateien).
-- **Aktiv sind `main`, `dev` und `feature/foresight-radar`.** Archiv-Referenzen liegen als `archive/*`-Tags (nicht als Branches).
+- **Stand 2026-09-01:** `feature/foresight-radar` wurde gelöscht und als Tag `archive/foresight-radar-2026-08-07` gesichert; der Rückweg fürs Radar ist `feature/radar-rebase` (Worktree `/home/dirk/projects/ct-radar`, Plan #92). Der Absatz oben beschreibt den Parkzustand vom 07.08. (damals :3004 in `ct-dev`; heute läuft dort `dev`).
+- **Aktiv sind `main`, `dev` und `feature/radar-rebase`.** Archiv-Referenzen liegen als `archive/*`-Tags (nicht als Branches). Worktrees: `~/projects/catandary-trends`=main (:3001), `~/projects/ct-dev`=dev (:3004, :3999), `~/projects/ct-radar`=radar-rebase.
 
 **Commit-Konventionen:**
 ```
@@ -863,9 +873,11 @@ catandary-trends/
 
 Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direkt auf `main` oder in Feature-Branches entwickelt. Aktuelle Prioritäten:
 
-1. **Pipeline-Automatisierung** — Cron-Jobs einrichten (Orchestrator-Script `run_full_cycle.py`, siehe BACKLOG.md)
-2. **Newsletter** — `pipeline/newsletter_generator.py` fertigstellen, Anbindung an Resend/Buttondown
-3. **Deployment auf Hetzner** — Caddy + PM2, README aktualisieren
+1. **Statischer Export** der öffentlichen Seiten aufs Hetzner-Webhosting (#82/#93, Welle 2 in `docs/launch/09_launch_plan_2026-09-02.md`; Design `docs/audits/2026-09-02_static_export_design.md`)
+2. **Launch-Rest** — `unsubscribe.php` + Sender-Umbau (#16), Auth/Stripe-Rückbau + Landing-Copy (#93), Compliance-Punkte aus `docs/audits/2026-09-02_compliance_review.md`
+3. **Owner-App** — Korpus-Rechercheur-Frontend (#95), Query-Quality-Gate (#67), Research Pulse (#73), Newsletter-Deep-Dive (#96)
+
+*(Die früheren drei Punkte — Cron-Orchestrierung, Newsletter-Generator, „Hetzner Caddy + PM2" — sind erledigt bzw. überholt: alle Crons laufen (s. Cron-Block oben), die Newsletter-Website-Edition läuft per Cron seit 29.08., PM2 ist seit #38 durch systemd ersetzt, der VPS-Pfad ist verworfen.)*
 
 **Hinweis zur Vertical-Balance:** LIFESTYLE, DESIGN und FASHION sind die *Now*-Trendsignale im Foresight-Modell (kurze Lead-Zeit). Ihr kombinierter Anteil (~18 %) ist gesund — keine aktive Quellenausweitung nötig.
 
@@ -873,9 +885,9 @@ Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direk
 
 ## Quellenbalance & Pipeline-Optimierung
 
-### Ist-Zustand (Stand 2026-08-07, Quellenzahl aktualisiert 2026-08-28)
+### Ist-Zustand (Stand 2026-08-07, Quellenzahl aktualisiert 2026-09-02)
 
-**322 aktive Quellen** (Stand 2026-08-28 — s. Herleitung unter „Quellenwachstum" oben; war 257 am 2026-08-07). 21,6 Mio. Raw Entries, 1.134.488 Trends (67.035 published), **28 kanonische Mega-Trends** (22 + 6 neue Keys aus der Taxonomie-Erweiterung 2026-08-07: Quantum Information Science, Next-Gen Semiconductors, Orbital Economy, Evolution of Work Models, Education & Lifelong Learning, Digital Healthcare Integration — siehe `docs/mega_taxonomy_decision_2026-08-07.md`). Die übrigen Zahlen dieser Zeile (Raw Entries, Trends, Mega-Trends) sind weiterhin der 2026-08-07-Snapshot, nicht neu gemessen.
+**323 aktive Quellen** (DB-Ist 2026-09-02 — s. „Quellenwachstum" oben; war 257 am 2026-08-07, 322 als Soll-Wert am 2026-08-28). 21,6 Mio. Raw Entries, 1.134.488 Trends (67.035 published), **28 kanonische Mega-Trends** (22 + 6 neue Keys aus der Taxonomie-Erweiterung 2026-08-07: Quantum Information Science, Next-Gen Semiconductors, Orbital Economy, Evolution of Work Models, Education & Lifelong Learning, Digital Healthcare Integration — siehe `docs/mega_taxonomy_decision_2026-08-07.md`). Die übrigen Zahlen dieser Zeile (Raw Entries, Trends, Mega-Trends) sind weiterhin der 2026-08-07-Snapshot, nicht neu gemessen.
 
 *(Die folgende Tabelle ist der historische Snapshot 2026-05-29 — nur published Trends der Frühphase; der heutige Korpus ist backfill-dominiert.)*
 
@@ -916,9 +928,9 @@ Auf der 24-GB-Karte kann Stage 6 (Content-Generierung) auf ein deutlich größer
 
 ## Technische Hinweise
 
-- Ollama läuft als Windows-Exe auf `127.0.0.1:11434`. Env: `OLLAMA_CLIENT_HOST=http://127.0.0.1:11434`
-- Python: `C:\Users\Dirk\AppData\Local\Programs\Python\Python313\python.exe` (oder Git Bash: `/c/Users/Dirk/AppData/Local/Programs/Python/Python313/python.exe`); auf der Linux-Workstation `.venv/bin/python` im Repo
+- **Aktuell (Linux-Workstation, Stand 2026-09-02):** Python = `.venv/bin/python` im Repo. Ollama ist installiert (`~/.local/bin/ollama`), aber **kein systemd-Dienst und produktiv nicht aktiv** (Port 11434 am 02.09. leer) — der ganze Cycle läuft über den llama-server auf :8090 (s. „Backend-Realität" oben). Ollama nur manuell starten, wenn ein Stage auf `STAGE*_BACKEND=ollama` steht; Client-Adresse dann `OLLAMA_CLIENT_HOST` (Default `http://127.0.0.1:11434`, `pipeline/config.py`; `.env.example` setzt `OLLAMA_HOST` für den Server-Bind).
+- *(Historisch, Windows-Ära bis ~06/2026: Ollama als Windows-Exe, Python unter `C:\Users\Dirk\...\Python313`. Nicht mehr gültig.)*
 - LLM-Processor Default-Batch ist 10, für große Batches: `python -m pipeline.llm_processor 200`
 - Pipeline-Output in Datei umleiten (nicht pipen!): `python -m pipeline.llm_processor 200 > data/llm_processor.log 2>&1`
-- Frontend Dev-Server auf Port 3001 (Port 3000 belegt durch Open WebUI)
+- Frontend-Ports: `:3001` = Prod-Instanz (systemd, main-Worktree), `:3004` = Dev-Server aus `ct-dev`, `:3999` = PUBLIC_MODE-Vorschau aus `ct-dev` (Details im Frontend-Abschnitt). `npm run dev` ohne Argument nimmt 3001 — im Dev-Worktree immer `-p 3004` mitgeben. Port 3000 war für Open WebUI reserviert (am 02.09. lauscht dort nichts).
 - Qwen3 braucht `think=False` in Ollama-Calls (oder `enable_thinking=false` in llama.cpp) um Chain-of-Thought-Bloat zu vermeiden

@@ -1,5 +1,12 @@
 # Public Hosting der App — Runbook für den Launch 01.10. (#82, Stand 2026-08-28)
 
+> **Überholt durch Owner-Entscheid 02.09.2026 — statischer Export statt VPS.** Die öffentliche
+> Website wird als statischer `next build`-Export aufs bestehende Hetzner-Webhosting publiziert;
+> ein VPS wird nicht bestellt, Caddy/Tunnel/Push-Pfad entfallen. Maßgeblich sind
+> `docs/audits/2026-09-02_static_export_design.md` (Design) und
+> `docs/launch/09_launch_plan_2026-09-02.md` (Plan, #82-Neuschnitt). Dieses Dokument bleibt als
+> Archiv der verworfenen VPS-Variante stehen; nichts hieraus ist noch Arbeitsauftrag.
+
 Durch #93 ist die Hosting-Frage klein geworden: öffentlich ausgeliefert werden nur noch
 **~83 MB** (30-Tage-Feed, Analysen, Newsletter, Rechtsseiten) statt der 446-GB-Datenbank.
 Die Workstation bleibt Produktionswerkzeug und wird **nicht** Teil des öffentlichen Pfads.
