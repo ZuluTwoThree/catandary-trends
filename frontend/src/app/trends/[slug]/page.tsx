@@ -40,6 +40,8 @@ export default async function TrendArticlePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  // Published-only lookup (default of getTrendBySlug): a draft, rejected or
+  // signal row with this slug is a 404 here, not a page.
   const trend = await getTrendBySlug(slug);
   if (!trend) notFound();
 

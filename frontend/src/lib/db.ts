@@ -106,8 +106,20 @@ export async function getTrends(options: {
   return (await q(query, params)).map(parseTrendRow);
 }
 
-export async function getTrendBySlug(slug: string): Promise<Trend | null> {
-  const row = await q1(TREND_SELECT + " WHERE t.slug = $1", [slug]);
+/**
+ * Single article by slug. Published-only by default (security review
+ * 2026-09-02, E-6): slugs are derivable from titles and turn up in logs and
+ * newsletter refs, and the table also holds drafts, rejected articles and
+ * ~1.6M `signal` rows that must never render on a public URL. Internal
+ * tooling that needs to look at unpublished rows says so explicitly.
+ */
+export async function getTrendBySlug(
+  slug: string,
+  options: { includeUnpublished?: boolean } = {}
+): Promise<Trend | null> {
+  let query = TREND_SELECT + " WHERE t.slug = $1";
+  if (!options.includeUnpublished) query += " AND t.status = 'published'";
+  const row = await q1(query, [slug]);
   return row ? parseTrendRow(row) : null;
 }
 
