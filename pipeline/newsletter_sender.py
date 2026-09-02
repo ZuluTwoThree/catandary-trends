@@ -4,8 +4,19 @@
 The generator (newsletter_generator.py) writes editions into newsletter_editions
 and the frontend renders them; this module DELIVERS the latest edition to the
 confirmed subscribers. Batch send (Resend /emails/batch, <=100/call), a signed
-one-click unsubscribe link + List-Unsubscribe header, and idempotency via a
+unsubscribe link + RFC 8058 List-Unsubscribe headers, and idempotency via a
 sent_at column so an edition is never mailed twice.
+
+Unsubscribe (owner decision 2026-09-02: the public site is a static export on
+the Hetzner webspace, so the Next.js route /trends/newsletter/unsubscribe does
+not exist publicly): every mail links
+    https://catandary.de/newsletter/unsubscribe.php?t=<token>
+served by the PHP DOI package (docs/launch/newsletter-doi-php/unsubscribe.php).
+The token is HMAC-SHA256 over the address with NEWSLETTER_UNSUB_SECRET — the
+SAME value as `unsub_secret` (block 5) in nl_config.php on the webspace — and
+never expires; see unsubscribe_token() for the exact format. Fail closed: with
+the secret missing nothing is rendered or sent (a newsletter without a working
+withdrawal link is a legal defect, § 7 UWG / Art. 7 Abs. 3 DSGVO).
 
 Owner gates: RESEND_API_KEY (present) + a Resend-verified sending domain (SPF/
 DKIM) for real delivery. Until then use --dry-run (renders + counts, no send)
@@ -18,12 +29,12 @@ or EMAIL_TRANSPORT=console-equivalent via --dry-run.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import hmac
 import logging
 import os
 import time
-from urllib.parse import quote
 
 import httpx
 
@@ -40,9 +51,14 @@ logger = logging.getLogger("newsletter_sender")
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 FROM_ADDR = os.getenv("NEWSLETTER_FROM", "Catandary Trends <trends@catandary.de>")
-BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://catandary.de")
-# Reuse the auth secret so the frontend unsubscribe route can verify the token.
-SECRET = os.getenv("AUTH_SECRET", "")
+# Where unsubscribe.php lives: the public webspace, NOT the local Next instance
+# (PUBLIC_BASE_URL is the app's base and may legitimately be localhost).
+UNSUB_BASE = os.getenv("NEWSLETTER_PUBLIC_BASE", "https://catandary.de").rstrip("/")
+# Must equal `unsub_secret` (block 5) in nl_config.php on the webspace.
+UNSUB_SECRET = os.getenv("NEWSLETTER_UNSUB_SECRET", "")
+# The mailto: half of List-Unsubscribe — the address named in the consent text.
+UNSUB_MAILTO = os.getenv("NEWSLETTER_UNSUB_MAILTO", "contact@catandary.de")
+MIN_SECRET_LEN = 16  # same bar as frontend/src/lib/unsubscribe.ts
 BATCH = 100
 
 
@@ -56,13 +72,54 @@ def migrate() -> None:
                 pass  # already exists
 
 
+def _b64url(raw: bytes) -> str:
+    """Base64 with -_ and no = padding (RFC 4648 §5) — URL-safe, no quoting needed."""
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+
+def _normalize_email(email: str) -> bytes:
+    # bytes.lower() is ASCII-only — bit-identical to PHP 8.2's locale-free
+    # strtolower(), which is what subscribe.php stored and unsubscribe.php looks up.
+    return email.strip().encode("utf-8").lower()
+
+
+def unsubscribe_configured() -> bool:
+    return len(UNSUB_SECRET) >= MIN_SECRET_LEN and not UNSUB_SECRET.startswith("CHANGE_ME")
+
+
 def unsubscribe_token(email: str) -> str:
-    return hmac.new(SECRET.encode(), email.lower().encode(), hashlib.sha256).hexdigest()[:32]
+    """`<b64url(email)>.<b64url(HMAC-SHA256(secret, "unsub:" + email))>`.
+
+    Mirror of nl_unsub_token() in docs/launch/newsletter-doi-php/_lib.php — the
+    PHP side decodes the first half to find the subscriber and recomputes the
+    second half with hash_equals(). No expiry by design: the link at the end of
+    a three-year-old mail must still withdraw consent. Shared test vector in
+    tests/test_newsletter_sender.py and tests/test_newsletter_doi_php.py.
+    """
+    if not unsubscribe_configured():
+        raise RuntimeError(
+            "NEWSLETTER_UNSUB_SECRET missing or shorter than 16 chars — unsubscribe "
+            "links cannot be signed (must equal unsub_secret in nl_config.php)")
+    addr = _normalize_email(email)
+    mac = hmac.new(UNSUB_SECRET.encode("utf-8"), b"unsub:" + addr, hashlib.sha256).digest()
+    return f"{_b64url(addr)}.{_b64url(mac)}"
 
 
 def unsubscribe_url(email: str) -> str:
-    return (f"{BASE_URL}/trends/newsletter/unsubscribe"
-            f"?email={quote(email)}&token={unsubscribe_token(email)}")
+    return f"{UNSUB_BASE}/newsletter/unsubscribe.php?t={unsubscribe_token(email)}"
+
+
+def unsubscribe_headers(email: str) -> dict[str, str]:
+    """RFC 2369 + RFC 8058: mailto AND https target, plus the One-Click marker.
+
+    Gmail/Yahoo bulk-sender rules require both headers; the mailbox provider
+    then POSTs `List-Unsubscribe=One-Click` to the https URL, which
+    unsubscribe.php answers with 200 and no form.
+    """
+    return {
+        "List-Unsubscribe": f"<mailto:{UNSUB_MAILTO}?subject=unsubscribe>, <{unsubscribe_url(email)}>",
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    }
 
 
 def confirmed_subscribers() -> list[str]:
@@ -102,7 +159,23 @@ def _wrap_html(body_html: str, email: str) -> str:
     return body_html + footer
 
 
+def build_message(email: str, subject: str, base_html: str) -> dict:
+    """One Resend /emails(/batch) item; `headers` is Resend's custom-header field."""
+    return {
+        "from": FROM_ADDR,
+        "to": [email],
+        "subject": subject,
+        "html": _wrap_html(base_html, email),
+        "headers": unsubscribe_headers(email),
+    }
+
+
 def send_edition(edition: dict, dry_run: bool, force: bool) -> int:
+    if not unsubscribe_configured():
+        # Refuse even the dry run: its whole point is "would this send work?"
+        raise RuntimeError(
+            "NEWSLETTER_UNSUB_SECRET not set — refusing to render/send: every mail "
+            "needs a signed unsubscribe link (set it to the unsub_secret from nl_config.php)")
     if edition.get("sent_at") and not force:
         logger.info("edition %s-W%s already sent at %s — skipping (use --force)",
                     edition.get("year"), edition.get("week"), edition["sent_at"])
@@ -133,16 +206,7 @@ def send_edition(edition: dict, dry_run: bool, force: bool) -> int:
     with httpx.Client(timeout=30) as client:
         for i in range(0, len(recipients), BATCH):
             chunk = recipients[i:i + BATCH]
-            payload = [{
-                "from": FROM_ADDR,
-                "to": [email],
-                "subject": subject,
-                "html": _wrap_html(base_html, email),
-                "headers": {
-                    "List-Unsubscribe": f"<{unsubscribe_url(email)}>",
-                    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-                },
-            } for email in chunk]
+            payload = [build_message(email, subject, base_html) for email in chunk]
             try:
                 r = client.post("https://api.resend.com/emails/batch",
                                 headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
@@ -188,6 +252,10 @@ def main() -> int:
     migrate()
     if not (args.latest or (args.year and args.week) or args.dry_run):
         ap.error("need --latest, --dry-run, or --year+--week")
+    if not unsubscribe_configured():
+        logger.error("NEWSLETTER_UNSUB_SECRET missing/short — cannot sign unsubscribe "
+                     "links; nothing rendered or sent (see NEWSLETTER_GOLIVE.md step 3)")
+        return 1
     edition = get_edition(args.year, args.week)
     if not edition:
         logger.error("no matching edition found")

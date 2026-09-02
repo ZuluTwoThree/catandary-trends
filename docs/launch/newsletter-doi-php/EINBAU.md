@@ -1,10 +1,13 @@
 # Newsletter-Anmeldung einbauen — Schritt für Schritt
 
 Stand 2026-07-26 (Erstinstallation). Getestet gegen Hetzner Webhosting S (PHP 8.2.32,
-cURL vorhanden, Resend erreichbar). **Update 2026-08-28 (#16):** Abschnitt
-„Nächster Upload" unten dokumentiert den `NL_TRUSTED_PROXIES`-Patch, der vor dem
-VPS-DNS-Umzug (#82/#93) live sein muss, plus den aktuellen Live-Status von
-`export.php`. Go-Live-Restliste: `NEWSLETTER_GOLIVE.md`.
+cURL vorhanden, Resend erreichbar). **Update 2026-09-02 (#16):** Abschnitt
+„Nächster Upload" unten beschreibt das Abmelde-Paket (`unsubscribe.php`, RFC 8058
+One-Click) — Pflicht vor dem ersten Versand, weil die Website ein statischer
+Export ist und die frühere Next-Abmelderoute öffentlich nicht existiert. Der
+`NL_TRUSTED_PROXIES`-Patch vom 2026-08-28 ist damit gegenstandslos (kein Proxy
+vor dem Webspace) und nur noch als Archivnotiz enthalten. Go-Live-Restliste:
+`NEWSLETTER_GOLIVE.md`.
 
 **Reihenfolge ist wichtig:** erst der `newsletter/`-Ordner, dann testen, dann die
 neue Startseite. Sonst zeigt die Landing einen Verbindungsfehler, weil der
@@ -47,8 +50,11 @@ Die sieben Werte:
 2. **DB-Benutzer** (aus konsoleH)
 3. **DB-Passwort** (aus konsoleH)
 4. **app_secret**: neu erzeugen mit `openssl rand -hex 32`
-5. **unsub_secret**: **kein neuer Wert** — exakt das `AUTH_SECRET` aus
-   `frontend/.env.local` der Workstation
+5. **unsub_secret**: einmal erzeugen mit `openssl rand -hex 32` und **denselben
+   Wert** auf der Workstation in `.env` (Repo-Root) als `NEWSLETTER_UNSUB_SECRET`
+   eintragen — die Pipeline signiert damit die Abmeldelinks, `unsubscribe.php`
+   prüft sie. *(Bis 2026-09-02 stand hier „AUTH_SECRET aus frontend/.env.local";
+   das galt für die Next-Route, die es öffentlich nicht mehr gibt.)*
 6. **export_token**: neu erzeugen mit `openssl rand -hex 32`
 7. **Resend-Key**: aus dem Resend-Dashboard, beginnt mit `re_`
 
@@ -66,6 +72,7 @@ anlegen und hineinladen:
 |---|---|
 | `subscribe.php` | nimmt die Anmeldung an, verschickt die Bestätigungsmail |
 | `confirm.php` | Bestätigungsseite (Link aus der Mail) |
+| `unsubscribe.php` | Abmeldeseite (Link am Ende jeder Newsletter-Mail + One-Click-Button des Postfachs) |
 | `_lib.php` | gemeinsame Funktionen |
 | `nl_config.php` | deine Zugangsdaten |
 | `.htaccess` | Schutz — **`.htaccess.example` in `.htaccess` umbenennen!** |
@@ -127,68 +134,108 @@ Das Formular auf der Seite zeigt dann nach dem Absenden:
 
 ---
 
-## Nächster Upload — `NL_TRUSTED_PROXIES`-Patch + `export.php` (#16, Stand 2026-08-28)
+## Nächster Upload — Abmelde-Paket `unsubscribe.php` (#16, Stand 2026-09-02)
 
-**Warum:** Sobald der VPS-Reverse-Proxy aus #82/#93 vor den Webspace geschaltet
-wird (DNS-Umzug `catandary.de` → VPS-IP; der VPS reicht `/newsletter/*` an
-dieses Hetzner-Webhosting durch), sitzt dort erstmals ein Proxy mit
-**öffentlicher** IP davor. `REMOTE_ADDR` wechselt dann von der bisherigen
-Varnish-Loopback-IP auf die öffentliche VPS-IP — die alte Heuristik in
-`nl_client_ip()` ("XFF nur nehmen, wenn REMOTE_ADDR nicht öffentlich ist")
-würde diesen Fall nicht erkennen und für **jede** Anmeldung dieselbe VPS-IP
-speichern. Damit wäre `signup_ip`/`confirm_ip`/`unsubscribe_ip`/
-`nl_consent_log.ip` als Einwilligungsnachweis (Art. 7 Abs. 1 DSGVO) wertlos,
-und das IP-Rate-Limit liefe für alle Besucher in einem einzigen Bucket.
-**Dieser Patch muss vor dem DNS-Umzug live sein — nicht erst danach nachziehen.**
+**Warum:** Owner-Entscheid 02.09.2026 — die öffentliche Website wird ein
+statischer Export auf diesem Webhosting. Damit gibt es die Next-Route
+`/trends/newsletter/unsubscribe` (Abmeldung mit DB-Write) öffentlich nicht mehr.
+Bis zu diesem Paket baute `pipeline/newsletter_sender.py` genau diese URL in
+jede Mail — jeder Abmeldelink wäre tot gewesen (§ 7 UWG, Art. 7 Abs. 3 / Art. 21
+DSGVO: Widerruf muss so einfach sein wie die Einwilligung; Befund X-3 in
+`docs/audits/2026-09-02_security_review.md`, HOCH 1 im Compliance-Review).
+Der Sender zeigt jetzt auf `https://catandary.de/newsletter/unsubscribe.php?t=…`
+und setzt die RFC-8058-Header (`List-Unsubscribe` + `List-Unsubscribe-Post`),
+mit denen Gmail/Yahoo/Apple Mail den „Abmelden"-Button im Postfach anbieten.
+**Ohne dieses Paket auf dem Webspace darf kein Newsletter verschickt werden.**
 
-**Status `export.php` heute** (`curl -I https://catandary.de/newsletter/export.php`,
-geprüft 2026-08-28): **HTTP 404 — liegt noch nicht auf dem Webspace.** Zum
-Vergleich: `subscribe.php` antwortet korrekt mit HTTP 405 auf GET (live),
-`_lib.php`/`nl_config.php` korrekt mit HTTP 403 (gesperrt). `export.php` muss
-vor dem ersten `sync_subscribers.py`-Lauf hochgeladen sein, sonst läuft der
-Sync ins Leere.
+**Wie der Link funktioniert:** `?t=<b64url(E-Mail)>.<b64url(HMAC-SHA256)>`,
+signiert mit `unsub_secret` (Block 5) = `NEWSLETTER_UNSUB_SECRET` in der
+Workstation-`.env`. Kein Ablauf — der Link einer drei Jahre alten Mail muss
+noch gelten. **GET zeigt nur eine Seite mit Button** (Mail-Scanner und
+Link-Vorschauen rufen jeden Link auf — sie dürfen niemanden abmelden),
+**POST meldet ab**. Der One-Click-POST des Postfachs (Body
+`List-Unsubscribe=One-Click`) meldet sofort ab und bekommt eine schlichte
+200-Textantwort. Bereits abgemeldet / unbekannt → dieselbe Erfolgsantwort.
+Jede Abmeldung landet als Ereignis `unsubscribe` (Detail `form` oder
+`one-click`) in `nl_consent_log`, der Datensatz bekommt `status = unsubscribed`,
+`unsubscribed_at`, `unsubscribe_ip`. Kein Schema-Update nötig — `schema.sql`
+hatte Status und Spalten von Anfang an.
 
 Reihenfolge für dieses Upload-Paket:
 
-1. **`_lib.php` erneut hochladen** (überschreibt die aktuell laufende Version).
-   Enthält jetzt den `NL_TRUSTED_PROXIES`-fähigen `nl_client_ip()`.
-   Rückwärtskompatibel: solange `NL_TRUSTED_PROXIES` in `nl_config.php` leer
-   bleibt (Default), ist das Verhalten bitidentisch zur bisherigen Version —
-   nur die alte Varnish-Heuristik greift, die laufende Hetzner-only-Anmeldung
-   bricht durch diesen Upload nicht ab.
-2. **`nl_config.php` erneut hochladen** — enthält jetzt den neuen, optionalen
-   8. Block `NL_TRUSTED_PROXIES` (leer, s. u.). **Die bestehenden Zugangsdaten
-   (Blöcke 1–7) aus der aktuell auf dem Webspace liegenden Datei 1:1
-   übernehmen**, nicht neu erzeugen — sonst reißt DB-Zugriff und Unsubscribe-
-   Signatur ab. Nach dem Upload wieder per FTP auf Rechte 600 setzen.
-3. **`export.php` neu hochladen** (fehlt bisher komplett, s. o.). Zweck: Bridge
-   für `sync_subscribers.py` — liefert bestätigte/abgemeldete Adressen an die
-   Workstation.
-4. **Schutz erneut prüfen** wie in Schritt 4 oben: `_lib.php` und
+1. **`_lib.php` erneut hochladen** (überschreibt die laufende Version).
+   Enthält jetzt `nl_unsub_token()`/`nl_unsub_verify()`; alles Bisherige ist
+   unverändert, die laufende Anmeldung bricht durch den Upload nicht ab.
+2. **`unsubscribe.php` neu hochladen** (fehlt bisher komplett).
+3. **`nl_config.php` erneut hochladen** — Block 5 (`unsub_secret`) bekommt den
+   neuen, mit `openssl rand -hex 32` erzeugten Wert; **derselbe Wert** kommt auf
+   der Workstation als `NEWSLETTER_UNSUB_SECRET` in die `.env` (Repo-Root).
+   Die übrigen Zugangsdaten (Blöcke 1–4, 6, 7) aus der aktuell auf dem
+   Webspace liegenden Datei 1:1 übernehmen, nicht neu erzeugen — sonst reißen
+   DB-Zugriff und Export-Token ab. Block 8 (`NL_TRUSTED_PROXIES`) bleibt leer.
+   Nach dem Upload wieder per FTP auf Rechte 600 setzen.
+4. **`export.php` hochladen**, falls noch nicht geschehen (Stand 2026-08-28:
+   HTTP 404, lag noch nicht auf dem Webspace). Die Datei ist durch dieses
+   Paket unverändert — sie lieferte `status` (`confirmed`/`unsubscribed`) und
+   `unsubscribed_at` schon vorher; `sync_subscribers.py` spiegelt beides nach
+   Postgres, und der Sender mailt nur an `confirmed = TRUE AND unsubscribed_at
+   IS NULL`. Eine Abmeldung auf dem Webspace ist damit nach dem nächsten
+   Sync-Lauf lokal wirksam.
+5. **Schutz erneut prüfen** wie in Schritt 4 oben: `_lib.php` und
    `nl_config.php` müssen weiterhin 403/Fehlerseite liefern, niemals Quelltext.
-5. **Erst beim eigentlichen VPS-Go-Live** (nicht schon bei diesem Upload): in
-   `nl_config.php` den `NL_TRUSTED_PROXIES`-Block auf die öffentliche VPS-IP
-   setzen und erneut hochladen. Bis dahin schadet der leere Block nicht — er
-   ist der Default und entspricht dem heutigen (Hetzner-only) Verhalten.
+   Zusätzlich: `https://catandary.de/newsletter/unsubscribe.php` ohne `?t=`
+   muss HTTP 400 mit „Link invalid" zeigen (kein Stacktrace, keine Interna).
+6. **`cron.php` in konsoleH aktivieren** (Cronjob-Manager, Interpreter PHP 8.x,
+   Pfad `/usr/www/users/<ftp-login>/newsletter/cron.php`, alle 15 Minuten).
+   Ohne ihn werden unbestätigte Anmeldungen nie gelöscht (Art. 5 Abs. 1 lit. e
+   DSGVO — die Bestätigungsmail verspricht die Löschung nach 30 Tagen) und
+   Abgemeldete nie nach der Aufbewahrungsfrist entfernt. Bisher „später, nicht
+   dringend" — seit dem Compliance-Review 2026-09-02 Pflicht vor dem Versand.
 
-**Datei-Liste dieses Pakets:** `_lib.php`, `nl_config.php`, `export.php`.
-(`subscribe.php`, `confirm.php`, `cron.php`, `.htaccess` sind bereits live und
-durch diese Arbeit unverändert — nicht erneut hochladen, außer bei einem
-künftigen Code-Update dieser Dateien.)
+**Datei-Liste dieses Pakets:** `_lib.php`, `unsubscribe.php`, `nl_config.php`,
+`export.php` (falls noch nicht live). (`subscribe.php`, `confirm.php`,
+`cron.php`, `.htaccess` sind bereits live und durch diese Arbeit unverändert —
+nicht erneut hochladen.)
 
-Cron-Aktivierung, Secret-Angleich (`NL_EXPORT_URL`/`NL_EXPORT_TOKEN`), erster
-Testdurchlauf und Owner-Gates: siehe `NEWSLETTER_GOLIVE.md`.
+**Token-Vektor zum Gegenprüfen** (Secret `unsub-test-secret-0123456789`,
+Adresse ` Alice@Example.com `): beide Seiten müssen
+`YWxpY2VAZXhhbXBsZS5jb20.PJOENDIrCGd1sSH0sF3nXjKLc6NBV3j04aeaklwoQ7I`
+liefern. Python: `tests/test_newsletter_sender.py`. PHP (auf dem Webspace oder
+mit lokalem `php`, ohne Config-Datei):
+
+```bash
+php -r 'echo rtrim(strtr(base64_encode("alice@example.com"),"+/","-_"),"="), ".",
+  rtrim(strtr(base64_encode(hash_hmac("sha256","unsub:alice@example.com",
+  "unsub-test-secret-0123456789",true)),"+/","-_"),"="), "\n";'
+```
+
+Secret-Angleich (`NEWSLETTER_UNSUB_SECRET`, `NL_EXPORT_URL`/`NL_EXPORT_TOKEN`),
+Testdurchlauf inkl. Abmeldung und Owner-Gates: siehe `NEWSLETTER_GOLIVE.md`.
+
+### Archiv: `NL_TRUSTED_PROXIES`-Patch (2026-08-28) — nur bei Reverse-Proxy davor
+
+`_lib.php::nl_client_ip()` kann seit 2026-08-28 einen eigenen Reverse-Proxy
+mit öffentlicher IP (damals geplant: VPS aus #82/#93) als vertrauenswürdigen
+Hop behandeln, wenn dessen IP in `nl_config.php` Block 8 (`NL_TRUSTED_PROXIES`)
+steht. **Stand 2026-09-02 entfällt das:** statischer Export direkt auf diesem
+Webhosting, kein VPS, kein DNS-Umzug, kein Proxy. Der Block bleibt leer —
+das ist der Default und das laufende Hetzner-only-Verhalten. Sollte je wieder
+ein eigener Proxy davorgeschaltet werden, MUSS seine IP dort eingetragen
+werden, bevor DNS umzieht — sonst tragen `signup_ip`/`confirm_ip`/
+`unsubscribe_ip`/`nl_consent_log.ip` überall dieselbe Proxy-IP und der
+Einwilligungsnachweis (Art. 7 Abs. 1 DSGVO) ist wertlos.
 
 ---
 
 ## Später (nicht dringend)
 
-- **`cron.php`** als Cronjob in konsoleH eintragen (täglich): löscht
-  unbestätigte Anmeldungen nach 30 Tagen (Art. 5 Abs. 1 lit. e DSGVO) und alte
-  Throttle-Einträge. Im S-Paket ist genau ein Cronjob enthalten — der reicht.
-- **`export.php` + `sync_subscribers.py`**: holt die bestätigten Adressen auf die
-  Workstation in die Postgres-Tabelle `newsletter_subscribers`, aus der
-  `newsletter_sender.py` versendet. Upload-Details siehe „Nächster Upload" oben.
+- ~~**`cron.php`** als Cronjob in konsoleH eintragen~~ — **seit 2026-09-02
+  Pflicht vor dem Versand**, siehe „Nächster Upload" Punkt 6. Im S-Paket ist
+  genau ein Cronjob enthalten — der reicht.
+- **`export.php` + `sync_subscribers.py`**: holt die bestätigten UND die
+  abgemeldeten Adressen auf die Workstation in die Postgres-Tabelle
+  `newsletter_subscribers`, aus der `newsletter_sender.py` versendet.
+  Upload-Details siehe „Nächster Upload" oben.
 - ~~SPF und DMARC für `send.catandary.de` ergänzen~~ — **erledigt.** Verifiziert
   2026-08-28 per `dig`: SPF unter `send.send.catandary.de` (`v=spf1
   include:amazonses.com ~all`), DMARC unter `_dmarc.catandary.de`

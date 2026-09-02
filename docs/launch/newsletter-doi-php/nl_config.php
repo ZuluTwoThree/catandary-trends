@@ -37,10 +37,19 @@ CHANGE_ME_hex64
 V;
 
 // --- 5/7: Unsubscribe-Geheimnis ----------------------------------------------
-// KEIN neuer Wert! Exakt das AUTH_SECRET aus frontend/.env.local der
-// Workstation, sonst passen die Abmeldelinks der Pipeline nicht.
+// Signiert die Abmeldelinks (unsubscribe.php, HMAC-SHA256). Muss EXAKT dem Wert
+// von NEWSLETTER_UNSUB_SECRET in der .env (Repo-Root) der Workstation
+// entsprechen: pipeline/newsletter_sender.py erzeugt damit die Links in jeder
+// Mail, unsubscribe.php prüft sie. Einmal erzeugen (openssl rand -hex 32) und
+// auf BEIDEN Seiten eintragen. Weicht der Wert ab, ist jeder Abmeldelink in
+// jeder verschickten Mail ungültig. Mindestens 16 Zeichen; mit "CHANGE_ME"
+// beginnende Werte gelten als "nicht konfiguriert" -> unsubscribe.php lehnt
+// dann ALLES ab (fail closed), erzeugt also nie eine stille Fehlabmeldung.
+// (Bis 2026-09-02 stand hier "AUTH_SECRET aus frontend/.env.local" — das galt
+// für die Next-Route /trends/newsletter/unsubscribe, die es öffentlich seit dem
+// Umstieg auf den statischen Export nicht mehr gibt.)
 $UNSUB_SECRET = <<<'V'
-CHANGE_ME_same_as_AUTH_SECRET
+CHANGE_ME_same_as_NEWSLETTER_UNSUB_SECRET
 V;
 
 // --- 6/7: Export-Token (neu erzeugen:  openssl rand -hex 32) ------------------
@@ -54,10 +63,11 @@ re_XXXXXXXX
 V;
 
 // --- Optionaler 8. Block: vertrauenswürdige Reverse-Proxies ------------------
-// NICHT Teil der sieben Pflicht-Ausfüll-Blöcke oben — bei der Hetzner-only-
-// Erstinstallation LEER LASSEN (Standardzustand, s. u.). Erst beim VPS-Go-Live
-// (#82/#93, DNS-Umzug auf den VPS) ausfüllen: siehe Schritt „Nächster Upload"
-// in EINBAU.md und die Checkliste NEWSLETTER_GOLIVE.md.
+// NUR relevant, wenn je ein eigener Reverse-Proxy VOR diesen Webspace
+// geschaltet wird. Stand 2026-09-02 (Owner-Entscheid: statischer Export direkt
+// auf dem Hetzner-Webhosting, kein VPS davor) gibt es keinen solchen Proxy —
+// Block LEER LASSEN. Das ist der Standardzustand und entspricht dem laufenden
+// Hetzner-only-Verhalten. Der Block bleibt als Vorsorge stehen.
 //
 // Steht hier eine IP UND kommt eine Anfrage mit genau dieser REMOTE_ADDR an,
 // behandelt nl_client_ip() (_lib.php) deren X-Forwarded-For-Header als

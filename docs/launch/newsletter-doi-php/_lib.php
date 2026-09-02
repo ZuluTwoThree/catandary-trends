@@ -173,6 +173,98 @@ function nl_make_token(): array
     return [$selector, $verifier, $selector . '.' . $verifier, hash('sha256', $verifier)];
 }
 
+/* ---------------------------------------------------------------------------
+ * Abmelde-Token  (unsubscribe.php  <->  pipeline/newsletter_sender.py)
+ *
+ * Format:   <b64url(email)> . <b64url(HMAC-SHA256(unsub_secret, "unsub:" . email))>
+ *   - email: getrimmt + ASCII-lowercase (PHP 8.2 strtolower ist locale-frei,
+ *     die Python-Seite nutzt bytes.lower() — bitidentisch)
+ *   - b64url: Base64 mit "-_" statt "+/", ohne "="-Padding (RFC 4648 §5);
+ *     die HMAC-Hälfte ist damit immer exakt 43 Zeichen lang
+ *   - KEIN Ablauf: der Link steht am Ende jeder Mail und muss dauerhaft gelten
+ *   - Schlüssel: unsub_secret (nl_config.php Block 5) == NEWSLETTER_UNSUB_SECRET
+ *     in der Workstation-.env — derselbe Wert, sonst ist jeder Link ungültig
+ *   - fail closed: ohne brauchbares Secret wird NIE ein Token erzeugt oder
+ *     akzeptiert (Muster wie frontend/src/lib/unsubscribe.ts, Review E-7)
+ *
+ * Testvektor (beide Seiten müssen ihn liefern, s. tests/test_newsletter_sender.py
+ * und tests/test_newsletter_doi_php.py):
+ *   secret "unsub-test-secret-0123456789", email " Alice@Example.com "
+ *   -> YWxpY2VAZXhhbXBsZS5jb20.PJOENDIrCGd1sSH0sF3nXjKLc6NBV3j04aeaklwoQ7I
+ * ------------------------------------------------------------------------- */
+
+function nl_b64url(string $bin): string
+{
+    return rtrim(strtr(base64_encode($bin), '+/', '-_'), '=');
+}
+
+function nl_b64url_decode(string $s): ?string
+{
+    if ($s === '' || preg_match('/^[A-Za-z0-9_-]+$/', $s) !== 1) {
+        return null;
+    }
+    $pad = strlen($s) % 4;
+    if ($pad === 1) {
+        return null;                                   // keine gültige Base64-Länge
+    }
+    $bin = base64_decode(strtr($s, '-_', '+/') . str_repeat('=', $pad ? 4 - $pad : 0), true);
+    return $bin === false ? null : $bin;
+}
+
+/** Das Abmelde-Secret — oder null, wenn es nicht (richtig) gesetzt ist. */
+function nl_unsub_secret(): ?string
+{
+    $s = (string)(nl_cfg()['unsub_secret'] ?? '');
+    if (strlen($s) < 16 || str_starts_with($s, 'CHANGE_ME')) {
+        error_log('nl: unsub_secret not configured (nl_config.php block 5)');
+        return null;
+    }
+    return $s;
+}
+
+function nl_unsub_normalize_email(string $email): string
+{
+    return strtolower(trim($email));
+}
+
+/** Token für eine Adresse. Wirft, wenn kein Secret konfiguriert ist (fail closed). */
+function nl_unsub_token(string $email): string
+{
+    $secret = nl_unsub_secret();
+    if ($secret === null) {
+        throw new RuntimeException('unsub_secret missing');
+    }
+    $email = nl_unsub_normalize_email($email);
+    $mac   = hash_hmac('sha256', 'unsub:' . $email, $secret, true);
+    return nl_b64url($email) . '.' . nl_b64url($mac);
+}
+
+/**
+ * Prüft ein Token und liefert die (normalisierte) Adresse — oder null.
+ * Formprüfung vor jeder Rechnung; hash_equals gegen Timing-Unterschiede.
+ */
+function nl_unsub_verify(string $raw): ?string
+{
+    if (strlen($raw) > 400
+        || preg_match('/^([A-Za-z0-9_-]{4,344})\.([A-Za-z0-9_-]{43})$/', $raw, $m) !== 1) {
+        return null;
+    }
+    $email = nl_b64url_decode($m[1]);
+    if ($email === null || strlen($email) > 254 || strpbrk($email, "\r\n") !== false
+        || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return null;
+    }
+    $secret = nl_unsub_secret();
+    if ($secret === null) {
+        return null;                                   // unkonfiguriert -> nichts gilt
+    }
+    $expected = nl_b64url(hash_hmac('sha256', 'unsub:' . $email, $secret, true));
+    if (!hash_equals($expected, $m[2])) {
+        return null;
+    }
+    return nl_unsub_normalize_email($email);
+}
+
 function nl_valid_email(string $email): bool
 {
     if (strlen($email) > 254 || strpbrk($email, "\r\n") !== false) {

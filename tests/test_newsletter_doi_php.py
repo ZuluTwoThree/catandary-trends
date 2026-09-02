@@ -16,11 +16,22 @@ lets a VPS reverse-proxy (#82/#93, public IP) be trusted in addition to the
 pre-existing private/loopback (Varnish) case — getting this wrong makes the
 DSGVO Art. 7 consent-IP evidence worthless and collapses the IP rate limit
 into one shared bucket. See docs/launch/newsletter-doi-php/EINBAU.md
-("Naechster Upload") and NEWSLETTER_GOLIVE.md.
+("Naechster Upload") and NEWSLETTER_GOLIVE.md. (Since the 2026-09-02 owner
+decision — static export, no proxy — the list simply stays empty.)
+
+`nl_unsub_token()` / `nl_unsub_verify()` (2026-09-02, unsubscribe.php) must
+produce/accept exactly the token pipeline/newsletter_sender.py puts into every
+mail — the shared vector lives in tests/test_newsletter_sender.py.
+
+NL_PHP_BIN can point at a wrapper (e.g. around `docker run php:8.2-cli`) when
+no native php is installed; it must forward the NL_TEST_* env vars and see the
+same /tmp paths.
 """
 from __future__ import annotations
 
+import importlib
 import json
+import os
 import shutil
 import subprocess
 import textwrap
@@ -28,7 +39,7 @@ from pathlib import Path
 
 import pytest
 
-PHP_BIN = shutil.which("php")
+PHP_BIN = os.environ.get("NL_PHP_BIN") or shutil.which("php")
 pytestmark = pytest.mark.skipif(PHP_BIN is None, reason="no php CLI on PATH")
 
 DOI_DIR = Path(__file__).resolve().parent.parent / "docs" / "launch" / "newsletter-doi-php"
@@ -52,12 +63,33 @@ RUNNER_PHP = textwrap.dedent(
 )
 
 # Minimal stand-in for the real (secret-bearing, git-ignored) nl_config.php.
-# NL_TEST_TRUSTED is a JSON array of trusted proxy IPs (possibly empty).
+# NL_TEST_TRUSTED is a JSON array of trusted proxy IPs (possibly empty);
+# NL_TEST_UNSUB is the unsubscribe secret (empty = unconfigured).
 CONFIG_PHP_TEMPLATE = textwrap.dedent(
     """\
     <?php
     define('NL_TRUSTED_PROXIES', json_decode(getenv('NL_TEST_TRUSTED') ?: '[]', true));
-    return ['app_secret' => 'test-only'];
+    return ['app_secret' => 'test-only', 'unsub_secret' => getenv('NL_TEST_UNSUB') ?: ''];
+    """
+)
+
+# Unsubscribe-token runner: NL_TEST_OP=token  -> prints nl_unsub_token(NL_TEST_EMAIL)
+#                           NL_TEST_OP=verify -> prints nl_unsub_verify(NL_TEST_TOKEN) or "NULL"
+UNSUB_RUNNER_PHP = textwrap.dedent(
+    """\
+    <?php
+    declare(strict_types=1);
+    require __DIR__ . '/_lib.php';
+    if (getenv('NL_TEST_OP') === 'token') {
+        try {
+            echo nl_unsub_token((string)getenv('NL_TEST_EMAIL'));
+        } catch (RuntimeException $e) {
+            echo 'THROW:', $e->getMessage();
+        }
+    } else {
+        $r = nl_unsub_verify((string)getenv('NL_TEST_TOKEN'));
+        echo $r === null ? 'NULL' : $r;
+    }
     """
 )
 
@@ -69,6 +101,7 @@ def sandbox(tmp_path_factory) -> Path:
     (d / "_lib.php").write_text(LIB_PHP.read_text(encoding="utf-8"), encoding="utf-8")
     (d / "nl_config.php").write_text(CONFIG_PHP_TEMPLATE, encoding="utf-8")
     (d / "runner.php").write_text(RUNNER_PHP, encoding="utf-8")
+    (d / "unsub_runner.php").write_text(UNSUB_RUNNER_PHP, encoding="utf-8")
     return d
 
 
@@ -146,3 +179,42 @@ def test_garbage_xff_segments_are_skipped_not_returned(sandbox):
         ["203.0.113.7"],
     )
     assert got == "198.51.100.9"
+
+
+# --- unsubscribe token: PHP side must equal the Python sender ----------------
+
+from tests.test_newsletter_sender import EMAIL, EMAIL_RAW, SECRET, VECTOR  # noqa: E402
+
+
+def _unsub(sandbox: Path, op: str, *, secret: str = SECRET, email: str = "", token: str = "") -> str:
+    env = {
+        "NL_TEST_OP": op, "NL_TEST_UNSUB": secret, "NL_TEST_EMAIL": email,
+        "NL_TEST_TOKEN": token, "NL_TEST_TRUSTED": "[]", "PATH": "/usr/bin:/bin",
+    }
+    proc = subprocess.run(
+        [PHP_BIN, str(sandbox / "unsub_runner.php")],
+        capture_output=True, text=True, env=env, timeout=10, check=True,
+    )
+    return proc.stdout
+
+
+def test_php_unsub_token_matches_python_sender(sandbox, monkeypatch):
+    """The one property everything hangs on: both sides sign identically."""
+    monkeypatch.setenv("NEWSLETTER_UNSUB_SECRET", SECRET)
+    import pipeline.newsletter_sender as sender
+    sender = importlib.reload(sender)
+    assert sender.unsubscribe_token(EMAIL_RAW) == VECTOR
+    assert _unsub(sandbox, "token", email=EMAIL_RAW) == VECTOR
+
+
+def test_php_unsub_verify_roundtrip_and_tamper_rejection(sandbox):
+    assert _unsub(sandbox, "verify", token=VECTOR) == EMAIL
+    assert _unsub(sandbox, "verify", token=VECTOR[:-1] + "X") == "NULL"        # MAC changed
+    assert _unsub(sandbox, "verify", token="garbage") == "NULL"
+    assert _unsub(sandbox, "verify", token=VECTOR, secret="other-secret-0123456789") == "NULL"
+
+
+def test_php_unsub_fails_closed_without_secret(sandbox):
+    for bad in ("", "short", "CHANGE_ME_same_as_NEWSLETTER_UNSUB_SECRET"):
+        assert _unsub(sandbox, "verify", token=VECTOR, secret=bad) == "NULL"
+        assert _unsub(sandbox, "token", email=EMAIL, secret=bad).startswith("THROW:")
