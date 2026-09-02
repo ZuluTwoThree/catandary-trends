@@ -49,6 +49,45 @@ class RelevanceResultSlim(BaseModel):
 
 # --- Step 2: Structured Extraction ---
 
+# Quotation cap (compliance review 2026-09-02, §51 UrhG): a quotation is lawful
+# only to the extent the purpose requires it, and the content prompt forwards
+# every stored quote to the writer. Until 2026-09-02 the schema allowed five
+# quotes of unbounded length — a long article could push whole paragraphs of
+# the source into the prompt. Measured in production: quotes ≥ 60 chars appear
+# in 3 of the last 1,000 published bodies, so 200 chars / 3 quotes clips nothing
+# the articles actually use. The cap is applied by a validator (truncate at a
+# word boundary, keep the first three), never by rejection — a rejected
+# extraction retries and can end up EMPTY, which shrinks the grounding source
+# (see the list caps below for that lesson).
+QUOTE_MAX_CHARS = 200
+QUOTE_MAX_COUNT = 3
+
+
+def cap_quotes(quotes) -> list[str]:
+    """First QUOTE_MAX_COUNT non-empty quotes, each cut to QUOTE_MAX_CHARS at a
+    word boundary. A cut quote stays a verbatim prefix of the original, so the
+    verbatim filter (pipeline.grounding.verbatim_only) still accepts it."""
+    if not quotes:
+        return []
+    out: list[str] = []
+    for q in quotes:
+        if not isinstance(q, str):
+            continue
+        q = q.strip()
+        if not q:
+            continue
+        if len(q) > QUOTE_MAX_CHARS:
+            cut = q[:QUOTE_MAX_CHARS]
+            if " " in cut:
+                cut = cut[:cut.rfind(" ")]
+            q = cut.rstrip(" ,;:-–—")
+        if q:
+            out.append(q)
+        if len(out) >= QUOTE_MAX_COUNT:
+            break
+    return out
+
+
 class ExtractionResult(BaseModel):
     """Output of the structured extraction step (purely extractive).
 
@@ -75,12 +114,20 @@ class ExtractionResult(BaseModel):
     # source and makes correctly-cited figures look invented.
     key_figures: list[str] = Field(default_factory=list, max_length=10,
                                    description="Up to 10 specific numbers, statistics, amounts or percentages stated verbatim in the text (e.g. '7,980 jobs', '29,5 %', '$2B')")
-    quotes: list[str] = Field(default_factory=list, max_length=5,
-                              description="Up to 5 direct quotations from the text")
+    quotes: list[str] = Field(default_factory=list, max_length=QUOTE_MAX_COUNT,
+                              description=f"Up to {QUOTE_MAX_COUNT} short direct quotations from the text "
+                                          f"(at most {QUOTE_MAX_CHARS} characters each)")
     dates: list[str] = Field(default_factory=list, max_length=10,
                              description="Up to 10 dates, years or timeframes explicitly stated in the text (e.g. '2027', 'by Q3 2025')")
     geography: list[str] = Field(default_factory=list, max_length=10,
                                  description="Up to 10 places, regions, countries or jurisdictions mentioned in the text")
+
+    @field_validator("quotes", mode="before")
+    @classmethod
+    def _cap_quotes(cls, v):
+        # Runs before the max_length check, so an over-long model output is
+        # trimmed rather than rejected. Non-list input is left to pydantic.
+        return cap_quotes(v) if isinstance(v, list) else v
 
 
 # --- Step 3: NER + Classification ---
