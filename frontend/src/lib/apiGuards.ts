@@ -64,8 +64,11 @@ export type BodyResult<T> =
   | { ok: true; value: T }
   | { ok: false; status: number; error: string };
 
-/** Read the body as UTF-8, aborting once more than `maxBytes` have arrived. */
-async function readCapped(request: Request, maxBytes: number): Promise<string | null> {
+/**
+ * Read the body as UTF-8, aborting once more than `maxBytes` have arrived.
+ * `null` = too large (declared or actual).
+ */
+export async function readTextBody(request: Request, maxBytes: number): Promise<string | null> {
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > maxBytes) return null;
   const body = request.body;
@@ -96,7 +99,7 @@ export async function readJsonBody<T extends Record<string, unknown> = Record<st
 ): Promise<BodyResult<T>> {
   let text: string | null;
   try {
-    text = await readCapped(request, maxBytes);
+    text = await readTextBody(request, maxBytes);
   } catch {
     return { ok: false, status: 400, error: "bad request" };
   }

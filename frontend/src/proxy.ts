@@ -22,10 +22,32 @@ import { isPublicMode, isBlockedInPublicMode } from "@/lib/publicMode";
  * not-found.tsx) with a real 404 status — Proxy itself cannot call the
  * notFound() helper (that only works in Server Components / Route Handlers).
  */
+/**
+ * RFC 8058 one-click unsubscribe: the mail's List-Unsubscribe URL is the
+ * page path (built by pipeline/newsletter_sender.py) and providers POST
+ * `List-Unsubscribe=One-Click` to it. A page cannot read a POST body and
+ * — since the E-7 fix — no longer writes on render, so a plain POST to
+ * that path is handed to the route that does. Server Actions (marked by
+ * the next-action header) are left alone; the page has none today.
+ */
+const UNSUBSCRIBE_PAGE = "/trends/newsletter/unsubscribe";
+const UNSUBSCRIBE_ROUTE = "/api/newsletter/unsubscribe";
+
 export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (
+    pathname === UNSUBSCRIBE_PAGE &&
+    request.method === "POST" &&
+    !request.headers.has("next-action")
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = UNSUBSCRIBE_ROUTE; // query (email, token) travels along
+    return NextResponse.rewrite(url);
+  }
+
   if (!isPublicMode()) return NextResponse.next();
 
-  const { pathname } = request.nextUrl;
   if (!isBlockedInPublicMode(pathname)) return NextResponse.next();
 
   if (pathname.startsWith("/api/")) {
@@ -47,5 +69,6 @@ export const config = {
     "/api/auth/:path*",
     "/api/stripe/:path*",
     "/api/foresight/:path*",
+    "/trends/newsletter/unsubscribe",
   ],
 };
