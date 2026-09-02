@@ -138,6 +138,105 @@ Client-Navigation). Beim ersten Upload abarbeiten; schlägt eine Regel mit 500 f
 `AllowOverride` auf dem Webspace zu eng (`Options -Indexes` zuerst entfernen, dann
 `DirectorySlash`).
 
+## Statischer Export — Publish (Schritt 8, Stand 2026-09-02)
+
+Der Upload ist ein **Manifest-Delta**, kein Spiegel: `scripts/publish_static_site.py`
+vergleicht das lokale `frontend/.export/out.manifest.tsv` (sha256, Größe, Pfad) mit dem
+Remote-Manifest `trends/.publish-manifest.tsv`, das nach jedem erfolgreichen Lauf hochgeladen
+wird. Ein normaler Tag sind ~500 neue Artikelseiten, die Listing-/Sitemap-Dateien und ~500
+Löschungen — kein Hashing auf dem Webspace, kein Listing. Bis der Webspace-Zugang vorliegt,
+ist alles gegen `MODE=local` (Ordner) und einen privaten `sshd` auf 127.0.0.1 getestet
+(`tests/test_publish_static_site.py`, 65 Tests inkl. SFTP-E2E).
+
+**Was verwaltet wird — und was nie:** nur `REMOTE_ROOT/trends/**` und `REMOTE_ROOT/_next/**`
+(plus `trends/.htaccess`, `_next/.htaccess`, `trends/sitemap.xml`, `trends/index.json`, sofern
+der Build sie dort ablegt). Der Webroot ist Owner-verwaltet — `index.html` (Landing),
+`robots.txt`, `mark.svg`, `favicon.ico`, `newsletter/**` (PHP-DOI mit DB-Zugang) werden weder
+geschrieben noch gelöscht; jeder Pfad wird normalisiert und gegen die Teilbäume geprüft
+(`..`, absolute Pfade, Backslashes → Abbruch, Exit 2). Root-Dateien des Exports
+(`404.html`, `trends.html`, `sitemap.xml`, `imprint.html` …) werden als „outside scope"
+gezählt und **nicht** hochgeladen — sie müssen entweder vom Build unter `trends/` landen
+(`/trends` → `trends/index.html`) oder einmalig von Hand mit den Landing-Dateien mitgehen.
+
+**Reihenfolge (kein atomarer Swap auf Shared Hosting, also Reihenfolge = Konsistenz):**
+(a) neue/geänderte `_next/**`-Assets → (b) Artikelseiten + RSC-Payloads (`trends/<slug>-<id>.*`)
+→ (c) Listing/Index/Sitemap, `.htaccess` zuletzt → (d) Löschen abgelaufener Dateien, dann leere
+Verzeichnisse. Jede Datei wird als `<name>.publish-tmp` geschrieben und umbenannt. Alle 2000
+Operationen wird das Remote-Manifest als Checkpoint geschrieben; eine Phase läuft nur, wenn die
+vorige fehlerfrei war. **Abbruch mittendrin → nächster Lauf macht beim Checkpoint weiter**, kein
+Vollupload (getestet: `test_aborted_run_resumes_from_the_checkpoint`).
+
+**Sicherheitsnetze (Exit 2, Schwellen per Flag):** Config-Datei muss existieren und `0600`
+sein; `build_info.json` älter als 12 h (`--max-build-age-hours`) → Abbruch; weniger als 1000
+Artikel in `build_info` **oder** im Manifest (`--min-articles`) → Abbruch (Leer-Export nach
+DB-Fehler); mehr als 60 % der Remote-Dateien würden gelöscht (`--max-delete-pct`) → nur mit
+`--force`; 0 verwaltete Dateien im Manifest → Abbruch (Export-Layout verschoben). SFTP läuft mit
+1–4 Sessions (`CONNECTIONS`, Default 3 — Hetzner-Shared-Hosting verträgt keine 16).
+
+### Config: `~/.config/catandary/webspace.env` (chmod 600)
+
+```bash
+mkdir -p ~/.config/catandary && umask 077 && cat > ~/.config/catandary/webspace.env <<'CFG'
+MODE=sftp                  # sftp | rsync | local
+HOST=wpXXX.webspace-host.de  # aus konsoleH → Zugänge (SFTP)
+PORT=22
+USER=login
+PASSWORD='geheim#123'      # oder KEY_FILE=~/.ssh/id_ed25519 (falls das Paket SSH-Keys erlaubt)
+REMOTE_ROOT=/public_html   # Docroot laut EINBAU.md: /usr/www/users/<login>/ — prüfen!
+CONNECTIONS=3
+HOST_KEY_POLICY=strict     # beim allerersten Lauf accept-new, danach strict
+KNOWN_HOSTS=~/.ssh/known_hosts
+# optional, vom Cron-Wrapper an den Build durchgereicht:
+PUBLIC_NOINDEX=1           # zum Launch 01.10. auf 0
+# PUBLIC_WINDOW_DAYS=30
+CFG
+chmod 600 ~/.config/catandary/webspace.env
+```
+
+`MODE=rsync` (nur wenn das Paket SSH hat — Owner-Klärung): `rsync -rlt --delete
+--delay-updates` je Teilbaum (`_next/` zuerst, dann `trends/`), Owner-Dateien sind durch die
+Teilbaum-Ziele ausgeschlossen, das Manifest wird danach mitgeschrieben (Wechsel zu SFTP ohne
+Vollupload möglich). `MODE=local` + `LOCAL_DEST=/pfad` = Vorschau/Test in einen Ordner.
+
+### Erster SFTP-Dry-Run (Owner)
+
+```bash
+cd /home/dirk/projects/catandary-trends
+scripts/build_public_static.sh                                 # frischer Export (< 12 h)
+.venv/bin/python scripts/publish_static_site.py                # Dry-Run ist Default
+#   → verbindet sich, liest trends/.publish-manifest.tsv (fehlt beim ersten Mal → alles „new"),
+#     druckt je Phase Dateizahl + MB, schreibt NICHTS. Bei HOST_KEY_POLICY=accept-new wird der
+#     Host-Key in KNOWN_HOSTS gespeichert; danach auf strict stellen.
+.venv/bin/python scripts/publish_static_site.py --apply        # Erstupload (Stunden bei ~30k Dateien über SFTP)
+.venv/bin/python scripts/publish_static_site.py --apply --full # nur falls trends/ oder _next/ dort schon Dateien hatten
+```
+
+Danach die `.htaccess`-Checks aus `frontend/public-export/.htaccess` (Kommentarblock am Ende)
+abarbeiten. `--full` ist der Reparaturmodus: Remote-**Listing** (Pfad + Größe) statt Manifest
+ist die Wahrheit — Fremddateien in den Teilbäumen werden entfernt, größengleiche Dateien ohne
+bekannten Hash gelten als unverändert.
+
+### Betrieb
+
+| Was | Wo |
+|---|---|
+| Cron-Wrapper | `scripts/publish_static_site.sh`: Lock, Kollisionswächter (wartet bis 90 min auf einen laufenden Full Cycle), `build_public_static.sh`, dann `--apply`. Ohne `webspace.env`: stiller Skip (Exit 0). Reicht `PUBLIC_NOINDEX`/`PUBLIC_WINDOW_DAYS`/`PUBLIC_SITE_URL` aus der Config an den Build durch |
+| Cron-Zeile | `30 6 * * *` in `deploy/crontab.txt` — täglich, auch Sa/So (das 30-Tage-Fenster rollt ohne Cycle weiter). **Noch nicht in der echten crontab** (Zugang fehlt) |
+| Log | `~/logs/catandary-publish-<YYYYMMDD>.log` (Wrapper + Python im selben File) |
+| Summary | `data/publish_last.json` (Zeit, Commit, Modus, hoch/gelöscht/unverändert/übersprungen, Dauer, Fehler + Beispiele) — nur bei `--apply` geschrieben |
+| Wächter | `scripts/cycle_watchdog.py` (07:45): Summary muss vom Tag sein und `errors == 0`, sonst Mail (fehlt / veraltet / fehlgeschlagen / läuft noch). Schläft, solange `webspace.env` nicht existiert |
+| Exit-Codes | 0 ok · 1 Übertragungsfehler (Manifest-Checkpoint steht, erneut starten) · 2 verweigert (Config/Gate/Pfad) |
+| Lock | `frontend/.export/.lock` — dieselbe Datei wie der Build: ein Rebuild während des Uploads würde einen gemischten Baum hochladen |
+
+Ein `--apply` bei unverändertem Export ist ein No-op mit Summary (0 hoch, 0 gelöscht) — das
+ist der Wochenendfall, wenn kein Artikel das Fenster verlässt.
+
+**Dry-Run gegen den realen Export (02.09. 23:07, Build 22:48, MODE=local, leeres Ziel):**
+137.457 verwaltete Dateien / 1.616 MB — Assets 73 (1,4 MB), Artikel 137.061 (1.601 MB),
+Listing 323 (14,2 MB), 0 Löschungen, 55 Root-Dateien außerhalb des Scopes; Planung 0,9 s.
+Mit dem Wegfall der Segment-Payloads (Build-Schritt 2b) sinkt die Artikelzahl auf ~2 Dateien
+je Artikel (≈ 31k Dateien).
+
 ## Notes
 - **Countdown:** targets `2026-10-01T09:00:00+02:00` (09:00 CEST), computed against the
   visitor's clock as an absolute instant. At zero it flips to "We are live" — which is why
