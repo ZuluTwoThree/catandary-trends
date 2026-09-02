@@ -30,10 +30,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let trendUrls: MetadataRoute.Sitemap = [];
   let megaTrends: Awaited<ReturnType<typeof getMegaTrends>> = [];
   let newest: Date | null = null;
-  const touch = (d: string | null | undefined) => {
-    if (!d) return;
+  // DB timestamps arrive as Postgres text ("2026-09-02 09:15:06.3195");
+  // as a Date, Next serializes them W3C-style (the sitemap spec's format).
+  const asDate = (d: string | null | undefined): Date | undefined => {
+    if (!d) return undefined;
     const t = new Date(d);
-    if (!Number.isNaN(t.getTime()) && (!newest || t > newest)) newest = t;
+    return Number.isNaN(t.getTime()) ? undefined : t;
+  };
+  const touch = (d: string | null | undefined) => {
+    const t = asDate(d);
+    if (t && (!newest || t > newest)) newest = t;
   };
 
   try {
@@ -43,7 +49,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         touch(r.published_at ?? r.sort_date);
         return {
           url: `${SITE_URL}/trends/${r.slug}`,
-          lastModified: r.published_at ?? r.sort_date ?? undefined,
+          lastModified: asDate(r.published_at ?? r.sort_date),
           changeFrequency: "weekly" as const,
           priority: 0.8,
         };
@@ -54,7 +60,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         touch(trend.published_at || trend.created_at);
         return {
           url: `${SITE_URL}/trends/${trend.slug}`,
-          lastModified: trend.published_at || trend.created_at,
+          lastModified: asDate(trend.published_at || trend.created_at),
           changeFrequency: "weekly" as const,
           priority: 0.8,
         };

@@ -8,6 +8,10 @@ const config = [
   {
     ignores: [
       ".next/**",
+      // alternate dist dirs (NEXT_DIST_DIR=.next-public/.next-check) and the
+      // static-export staging/output tree (scripts/build_public_static.sh)
+      ".next-*/**",
+      ".export/**",
       "out/**",
       "node_modules/**",
       "next-env.d.ts",
