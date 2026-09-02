@@ -1,0 +1,160 @@
+# Catandary public site — Apache rules for the /trends/ tree of the static
+# export (Next.js output:"export", trailingSlash:false). Copied to
+# out/trends/.htaccess by scripts/build_public_static.sh. The webroot's own
+# .htaccess is OWNER-MANAGED and never written by the publisher — the few
+# lines it needs are listed at the end of this file (ROOT SNIPPET).
+#
+# Verified 2026-09-02 against Apache 2.4.68 (httpd:2.4 docker image,
+# AllowOverride All): every rule below has a curl check in the TEST PLAN.
+#
+# Layout the export produces under /trends/ (the feed's own page 1 is the
+# sibling file /trends.html in the parent directory):
+#   /trends/<slug>.html + .txt          article page + RSC payload (client nav)
+#   /trends/page/<n>.html               feed page n
+#   /trends/v/<vertical>.html           vertical feed, /trends/v/<v>/page/<n>.html
+#   /trends/mega.html, /trends/mega/<key>.html
+#   /trends/newsletter.html, /trends/newsletter/<yyyy>-w<ww>.html, …/unsubscribed.html
+#   /trends/index.json                  client-side search index
+#   /trends/sitemap.xml, /trends/expired.html, /trends/methodology.html
+
+Options -Indexes
+AddDefaultCharset UTF-8
+
+# Several page files have a directory of the same name next to them
+# (mega.html + mega/, v/tech.html + v/tech/, newsletter.html + newsletter/,
+# and the tree itself: /trends.html + trends/). mod_dir would answer the
+# extensionless URL with a 301 to the slash form before any rewrite runs,
+# so the slash redirect is off — and AllowNoSlash below makes mod_rewrite
+# look at directory URLs without a trailing slash at all (by default it
+# skips them and leaves them to mod_dir).
+DirectorySlash Off
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteOptions AllowNoSlash
+  RewriteBase /trends/
+
+  # 0. Segment-prefetch payloads are not shipped (removed by the build, the
+  #    links do not ask for them). Should a client still request one, answer
+  #    204 without a body: the router takes that as a cache miss and loads
+  #    the page's .txt payload instead.
+  RewriteRule ^(.*/)?__next\.[^/]+\.txt$ - [R=204,L]
+
+  # 1. The directory itself: /trends/ -> canonical /trends; /trends -> feed page 1.
+  RewriteCond %{REQUEST_URI} ^/trends/$
+  RewriteRule .* /trends [R=301,L]
+  RewriteCond %{REQUEST_URI} ^/trends$
+  RewriteRule .* /trends.html [L]
+
+  # 2. Extensionless page URL -> its .html file. Per-directory context: the
+  #    pattern sees the path relative to /trends/ (e.g. "mega", "<slug>",
+  #    "page/2", "v/tech/page/3", "newsletter/2026-w35").
+  RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.html -f
+  RewriteRule ^(.*)$ $1.html [L]
+
+  # 3. Trailing-slash form of a page -> canonical URL (%1 = the full URI
+  #    without the slash; $1 would be relative to /trends/ and land on /mega).
+  RewriteCond %{REQUEST_URI} ^(.+)/$
+  RewriteCond %{DOCUMENT_ROOT}%1.html -f
+  RewriteRule ^(.+)/$ %1 [R=301,L]
+
+  # 4. Legacy /trends/vertical/<V> (a redirect-only page of the app, not
+  #    exported) and any-case /trends/v/<V> -> the lowercase static route.
+  #    RewriteMap (tolower) is not available in .htaccess, hence one rule per
+  #    vertical; the RewriteCond keeps the already-canonical URL out of the
+  #    [NC] match (it would redirect to itself).
+  RewriteCond %{REQUEST_URI} !^/trends/v/[a-z]+(/page/[0-9]+)?$
+  RewriteRule ^(?:v|vertical)/food(/page/[0-9]+)?/?$ /trends/v/food$1 [R=301,L,NC]
+  RewriteCond %{REQUEST_URI} !^/trends/v/[a-z]+(/page/[0-9]+)?$
+  RewriteRule ^(?:v|vertical)/tech(/page/[0-9]+)?/?$ /trends/v/tech$1 [R=301,L,NC]
+  RewriteCond %{REQUEST_URI} !^/trends/v/[a-z]+(/page/[0-9]+)?$
+  RewriteRule ^(?:v|vertical)/health(/page/[0-9]+)?/?$ /trends/v/health$1 [R=301,L,NC]
+  RewriteCond %{REQUEST_URI} !^/trends/v/[a-z]+(/page/[0-9]+)?$
+  RewriteRule ^(?:v|vertical)/eco(/page/[0-9]+)?/?$ /trends/v/eco$1 [R=301,L,NC]
+  RewriteCond %{REQUEST_URI} !^/trends/v/[a-z]+(/page/[0-9]+)?$
+  RewriteRule ^(?:v|vertical)/design(/page/[0-9]+)?/?$ /trends/v/design$1 [R=301,L,NC]
+  RewriteCond %{REQUEST_URI} !^/trends/v/[a-z]+(/page/[0-9]+)?$
+  RewriteRule ^(?:v|vertical)/fashion(/page/[0-9]+)?/?$ /trends/v/fashion$1 [R=301,L,NC]
+  RewriteCond %{REQUEST_URI} !^/trends/v/[a-z]+(/page/[0-9]+)?$
+  RewriteRule ^(?:v|vertical)/biz(/page/[0-9]+)?/?$ /trends/v/biz$1 [R=301,L,NC]
+  RewriteCond %{REQUEST_URI} !^/trends/v/[a-z]+(/page/[0-9]+)?$
+  RewriteRule ^(?:v|vertical)/lifestyle(/page/[0-9]+)?/?$ /trends/v/lifestyle$1 [R=301,L,NC]
+
+  # 5. Expired article: every article slug ends in -<numeric id>. That shape
+  #    with no file behind it rolled out of the public window (~590/day)
+  #    -> 410 Gone with the branded page (ErrorDocument below). Pattern-based
+  #    on purpose: no 15k-line redirect map to maintain.
+  RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.html !-f
+  RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} !-f
+  RewriteRule ^[a-z0-9-]+-[0-9]+$ - [G,L]
+</IfModule>
+
+ErrorDocument 404 /404.html
+ErrorDocument 410 /trends/expired.html
+
+<IfModule mod_headers.c>
+  # Mirror of SECURITY_HEADERS in next.config.ts (headers() cannot ship in
+  # an export). Scope: everything under /trends/.
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "DENY"
+  # Pages, RSC payloads, sitemap, search index: revalidate on every visit
+  # (rebuilt daily; ETag/Last-Modified keep the revalidation at a 304).
+  <FilesMatch "\.(html|txt|xml|json)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml application/json image/svg+xml
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# ROOT SNIPPET — what the OWNER's webroot .htaccess needs (added once by hand;
+# the publisher never writes the webroot). Without it /trends and everything
+# below still work; these lines only cover the root-level pages of the
+# export (/imprint /privacy /enquiry /analysis, the 404 page, the OG image):
+#
+#   RewriteEngine On
+#   RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.html -f
+#   RewriteRule ^(.*)$ $1.html [L]
+#   ErrorDocument 404 /404.html
+#   <Files "opengraph-image">
+#     ForceType image/png
+#   </Files>
+#   <Files "icon">
+#     ForceType image/png
+#   </Files>
+#   Header always set X-Content-Type-Options "nosniff"
+#   Header always set Referrer-Policy "strict-origin-when-cross-origin"
+#   Header always set X-Frame-Options "DENY"
+#   <FilesMatch "\.(html|txt|xml)$">
+#     Header set Cache-Control "no-cache"
+#   </FilesMatch>
+#
+# NB: /trends (feed page 1) is the file /trends.html in the WEBROOT — rule 1
+# above maps the URL, but the response headers for that one file come from
+# the webroot's config, i.e. the Header lines of this snippet.
+#
+# and, in the owner's robots.txt:   Sitemap: https://catandary.de/trends/sitemap.xml
+#
+# TEST PLAN (curl -sI … ; all green on Apache 2.4.68 with this file in
+# out/trends/ and NO root .htaccess, 2026-09-02):
+#   /trends                    -> 200 text/html (feed page 1)
+#   /trends/                   -> 301 Location: /trends
+#   /trends/<slug>             -> 200            /trends/<slug>/  -> 301 /trends/<slug>
+#   /trends/<slug>.txt         -> 200 text/plain (RSC payload)
+#   /trends/<slug>/__next._tree.txt -> 204, no body
+#   /trends/mega               -> 200            /trends/mega/    -> 301 /trends/mega
+#   /trends/mega/<key>         -> 200
+#   /trends/page/2, /trends/v/tech, /trends/v/tech/page/2 -> 200
+#   /trends/v/TECH, /trends/vertical/tech, /trends/vertical/TECH/ -> 301 /trends/v/tech
+#   /trends/newsletter, /trends/newsletter/<yyyy>-w<ww>, /trends/newsletter/unsubscribed -> 200
+#   /trends/index.json         -> 200 application/json, Cache-Control: no-cache
+#   /trends/sitemap.xml        -> 200
+#   /trends/does-not-exist-123 -> 410, body = expired page
+#   /trends/does-not-exist     -> 404, body = 404.html
+#   /trends/<slug>             -> X-Frame-Options: DENY, Cache-Control: no-cache
+#   If a rule 500s on the webspace: AllowOverride may exclude Options/FileInfo
+#   — drop `Options -Indexes` first, then `DirectorySlash`/`RewriteOptions`.
+# ---------------------------------------------------------------------------

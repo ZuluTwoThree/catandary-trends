@@ -1,0 +1,20 @@
+# Catandary public site — cache policy for the Next.js build assets.
+# Copied to out/_next/.htaccess by scripts/build_public_static.sh.
+#
+# /_next/static/chunks/*, css/*, media/* are content-addressed (the hash is
+# in the file name), so they can be cached for a year. The three manifests
+# under /_next/static/catandary/ keep their name across builds (constant
+# build id) — no exported page references them, but should anything fetch
+# them, they must not be cached.
+Options -Indexes
+
+<IfModule mod_headers.c>
+  Header set Cache-Control "public, max-age=31536000, immutable"
+  <FilesMatch "^_(build|ssg|clientMiddleware)Manifest\.js$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE application/javascript text/javascript text/css image/svg+xml
+</IfModule>

@@ -21,6 +21,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/trends/",
       disallow: ["/api/", "/_next/", "/trends/expired"],
     },
-    sitemap: `${SITE_URL}/sitemap.xml`,
+    sitemap: `${SITE_URL}/trends/sitemap.xml`,
   };
 }

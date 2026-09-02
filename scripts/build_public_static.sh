@@ -47,7 +47,8 @@ die() { log "FATAL: $*" >&2; exit 1; }
 
 T0=$(date +%s)
 [ -f "$EXCLUDE_FILE" ] || die "missing $EXCLUDE_FILE"
-[ -f "$HTACCESS_DIR/.htaccess" ] || die "missing $HTACCESS_DIR/.htaccess"
+[ -f "$HTACCESS_DIR/trends/.htaccess" ] || die "missing $HTACCESS_DIR/trends/.htaccess"
+[ -f "$HTACCESS_DIR/_next/.htaccess" ] || die "missing $HTACCESS_DIR/_next/.htaccess"
 [ -d "$FRONTEND/node_modules" ] || die "frontend/node_modules missing — run npm ci first"
 command -v rsync >/dev/null || die "rsync not installed"
 
@@ -143,14 +144,28 @@ SEG_AFTER=$(find "$SITE/out" -type f -name '__next.*.txt' | wc -l)
 [ "$SEG_AFTER" = "0" ] || die "segment payloads survived the sweep: $SEG_AFTER"
 log "segment prefetch payloads removed: $SEG_BEFORE"
 
-# --- 3. verify -------------------------------------------------------------
+# --- 2c. the webroot stays the owner's --------------------------------------
+# index.html (the landing), robots.txt, mark.svg, favicon.ico and newsletter/
+# in the webroot are owner-managed; the publisher never uploads them. The
+# Next landing still renders (it is the future "/" once its copy is done,
+# #93 Etappe 4) but is set aside under a name nothing can mistake for the
+# live landing; its RSC payload goes — a client navigation to "/" then does
+# a full load of whatever the webroot serves. The export's robots.txt stays
+# in place for inspection; the owner's copy only needs the Sitemap: line
+# (see public-export/trends/.htaccess, ROOT SNIPPET).
 RAW="$SITE/out"
+[ -f "$RAW/index.html" ] || die "index.html (Next landing) missing"
+mv "$RAW/index.html" "$RAW/_landing_preview.html"
+rm -f "$RAW/index.txt"
+
+# --- 3. verify -------------------------------------------------------------
 [ -f "$RAW/404.html" ] || die "404.html missing"
-[ -f "$RAW/index.html" ] || die "index.html missing"
 [ -f "$RAW/trends.html" ] || die "trends.html missing"
 [ -f "$RAW/trends/expired.html" ] || die "trends/expired.html missing"
-[ -f "$RAW/sitemap.xml" ] || die "sitemap.xml missing"
+[ -f "$RAW/trends/sitemap.xml" ] || die "trends/sitemap.xml missing"
 [ -f "$RAW/robots.txt" ] || die "robots.txt missing"
+[ ! -e "$RAW/index.html" ] || die "index.html must not exist in the export (owner-managed webroot)"
+[ ! -e "$RAW/sitemap.xml" ] || die "sitemap.xml must live under trends/ (owner-managed webroot)"
 
 ARTICLES=$(find "$RAW/trends" -maxdepth 1 -type f -name '*.html' | grep -Ec -- '-[0-9]+\.html$' || true)
 MEGA=$(find "$RAW/trends/mega" -maxdepth 1 -type f -name '*.html' 2>/dev/null | wc -l)
@@ -163,14 +178,17 @@ DRAFTS=$( (grep -rl --include='*.html' --include='*.txt' -F '"status":"draft"' "
 [ "$DRAFTS" = "0" ] || die "$DRAFTS files carry a draft status in their payload"
 
 # Informational: known leftovers are the landing copy's Foresight/pricing
-# links (#93 Etappe 4 — owner copy) until that rewrite lands.
+# links (#93 Etappe 4 — owner copy; _landing_preview.html is not uploaded).
 for needle in 'localhost' '/api/' '/trends/foresight' '/trends/pricing'; do
   n=$( (grep -rl --include='*.html' -F -- "$needle" "$RAW" || true) | wc -l)
   log "html files containing '$needle': $n"
 done
 
-# --- 4. .htaccess + publish to OUT -----------------------------------------
+# --- 4. .htaccess (per directory, never the webroot) + publish to OUT --------
 cp -a "$HTACCESS_DIR/." "$RAW/"
+[ -f "$RAW/trends/.htaccess" ] || die "trends/.htaccess not in place"
+[ -f "$RAW/_next/.htaccess" ] || die "_next/.htaccess not in place"
+[ ! -e "$RAW/.htaccess" ] || die "a webroot .htaccess must not be part of the export"
 rm -rf "$OUT"
 mv "$RAW" "$OUT"
 log "published to $OUT"

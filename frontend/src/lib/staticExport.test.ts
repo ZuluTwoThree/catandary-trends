@@ -103,7 +103,7 @@ describe("the surviving app tree is exportable", () => {
       "src/app/trends/expired/page.tsx",
       "src/app/analysis/page.tsx",
       "src/app/analysis/[slug]/page.tsx",
-      "src/app/sitemap.ts",
+      "src/app/trends/sitemap.ts",
       "src/app/robots.ts",
       "src/app/not-found.tsx",
     ]) {
@@ -126,7 +126,7 @@ describe("the surviving app tree is exportable", () => {
   });
 
   it("metadata route handlers are force-static (the export requires the literal)", () => {
-    for (const f of ["src/app/sitemap.ts", "src/app/robots.ts", "src/app/icon.tsx", "src/app/opengraph-image.tsx"]) {
+    for (const f of ["src/app/trends/sitemap.ts", "src/app/robots.ts", "src/app/icon.tsx", "src/app/opengraph-image.tsx"]) {
       const src = fs.readFileSync(path.join(FRONTEND, f), "utf-8");
       expect(src, `${f} lacks force-static`).toMatch(/export\s+const\s+dynamic\s*=\s*["']force-static["']/);
     }
