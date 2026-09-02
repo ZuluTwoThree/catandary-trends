@@ -1,0 +1,35 @@
+# Paths left OUT of the static-export staging tree (scripts/build_public_static.sh,
+# rsync --exclude-from). One line per path, relative to frontend/.
+#
+# Two kinds of entries:
+#  1. The public-mode block list — the mirror of BLOCKED_PREFIXES in
+#     src/lib/publicMode.ts (src/lib/staticExport.test.ts checks both ways).
+#  2. What `output: "export"` cannot build at all: Proxy (middleware), every
+#     route handler under app/api, pages that read searchParams/write to the
+#     DB, and the redirect-only vertical route (Apache redirects it instead).
+# Plus build artefacts that must never be copied.
+
+# --- 1. BLOCKED_PREFIXES (publicMode.ts) ---
+src/app/account/
+src/app/trends/foresight/
+src/app/trends/review/
+src/app/trends/quality-preview/
+src/app/trends/pricing/
+# /api/auth, /api/stripe, /api/foresight fall under the whole api tree below
+
+# --- 2. Not exportable ---
+src/proxy.ts
+src/app/api/
+src/app/trends/newsletter/unsubscribe/
+src/app/trends/vertical/
+
+# --- artefacts ---
+node_modules/
+.next/
+.next-*/
+out/
+.export/
+.env
+.env.*
+*.tsbuildinfo
+tsconfig.tsbuildinfo

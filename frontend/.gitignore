@@ -3,3 +3,9 @@ public/quality_preview.json
 
 # env files (secrets)
 .env*
+
+# static-export staging + outputs (scripts/build_public_static.sh) and
+# alternate dist dirs (NEXT_DIST_DIR=.next-public/.next-check/…)
+.export/
+.next*/
+out/

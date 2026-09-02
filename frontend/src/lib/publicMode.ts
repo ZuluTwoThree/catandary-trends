@@ -25,7 +25,7 @@ export function isPublicMode(): boolean {
  * Keep in sync with the route tree under frontend/src/app — this list is a
  * manual mirror, not derived from the filesystem.
  */
-const BLOCKED_PREFIXES = [
+export const BLOCKED_PREFIXES = [
   "/account",
   "/trends/foresight",
   "/trends/review",
