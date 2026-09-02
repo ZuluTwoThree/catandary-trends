@@ -1,5 +1,6 @@
 import type { Trend } from "@/lib/types";
 import { getVerticalInfo } from "@/lib/types";
+import { serializeJsonLd } from "@/lib/jsonld";
 
 export function TrendArticleJsonLd({ trend }: { trend: Trend }) {
   const jsonLd = {
@@ -30,7 +31,8 @@ export function TrendArticleJsonLd({ trend }: { trend: Trend }) {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      // serializeJsonLd escapes < > & so DB-sourced strings cannot close the script tag (F-2).
+      dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
     />
   );
 }
@@ -53,7 +55,8 @@ export function TrendsListJsonLd() {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      // serializeJsonLd escapes < > & so DB-sourced strings cannot close the script tag (F-2).
+      dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
     />
   );
 }
