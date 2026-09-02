@@ -6,6 +6,7 @@ import type { Trend } from "@/lib/types";
 import type { TrendTechMatch } from "@/lib/technology";
 import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
 import { archiveUrl, DEAD_SOURCE_NOTICE } from "@/lib/deadLinks";
+import { safeHref } from "@/lib/safeHref";
 import PestelBadge from "./PestelBadge";
 import VerticalBadge from "./VerticalBadge";
 import TrendScore from "./TrendScore";
@@ -37,6 +38,9 @@ export default function TrendArticle({
   sourceDead?: boolean;
 }) {
   const vertical = getVerticalInfo(trend.primary_vertical);
+  // Feed-sourced URL: only http(s) becomes a link (F-3); anything else is
+  // shown as text so the attribution stays visible but inert.
+  const sourceHref = safeHref(trend.source_url);
 
   useEffect(() => {
     fetch("/api/track", {
@@ -223,19 +227,25 @@ export default function TrendArticle({
             <h2 className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-2">
               Original Source
             </h2>
-            <a
-              href={trend.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent hover:underline font-sans text-sm break-all"
-            >
-              {trend.source_name || trend.source_url}
-            </a>
-            {sourceDead && (
+            {sourceHref ? (
+              <a
+                href={sourceHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:underline font-sans text-sm break-all"
+              >
+                {trend.source_name || trend.source_url}
+              </a>
+            ) : (
+              <span className="font-sans text-sm break-all">
+                {trend.source_name || trend.source_url}
+              </span>
+            )}
+            {sourceDead && sourceHref && (
               <p className="mt-3 text-xs text-muted leading-relaxed">
                 {DEAD_SOURCE_NOTICE}.{" "}
                 <a
-                  href={archiveUrl(trend.source_url)}
+                  href={archiveUrl(sourceHref)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-accent hover:underline"

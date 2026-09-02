@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useId } from "react";
 import Link from "next/link";
 import { getVerticalInfo, type Vertical } from "@/lib/types";
+import { safeHref } from "@/lib/safeHref";
 
 interface MegaTrendRadar {
   key: string;
@@ -67,10 +68,13 @@ function RichText({ text, className }: { text: string; className?: string }) {
       {parts.map((part, i) => {
         const match = linkPattern.exec(part);
         if (match) {
+          // Generated edition text: only http(s)/relative targets become links (F-3).
+          const href = safeHref(match[2]);
+          if (!href) return <span key={i}>{match[1]}</span>;
           return (
             <Link
               key={i}
-              href={match[2]}
+              href={href}
               className="text-accent hover:underline transition-colors"
             >
               {match[1]}

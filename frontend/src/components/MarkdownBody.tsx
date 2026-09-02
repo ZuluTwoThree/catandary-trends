@@ -5,6 +5,7 @@ import {
   type MdHeadingLevel,
   type InlineNode,
 } from "@/lib/markdown";
+import { safeHref } from "@/lib/safeHref";
 
 /** Typography matches the trend article body (`TrendArticle.tsx`) and the
  *  methodology page — same font-sans/leading/size for running text, so an
@@ -31,11 +32,13 @@ function Inline({ nodes }: { nodes: InlineNode[] }) {
           );
         }
         if (n.type === "link") {
-          const isExternal = /^https?:\/\//.test(n.href);
+          const href = safeHref(n.href);
+          if (!href) return <span key={i}>{n.text}</span>; // F-3: unsafe scheme → text
+          const isExternal = /^https?:\/\//i.test(href);
           return isExternal ? (
             <a
               key={i}
-              href={n.href}
+              href={href}
               target="_blank"
               rel="noopener noreferrer"
               className="text-accent hover:underline"
@@ -43,7 +46,7 @@ function Inline({ nodes }: { nodes: InlineNode[] }) {
               {n.text}
             </a>
           ) : (
-            <Link key={i} href={n.href} className="text-accent hover:underline">
+            <Link key={i} href={href} className="text-accent hover:underline">
               {n.text}
             </Link>
           );

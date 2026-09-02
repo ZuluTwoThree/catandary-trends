@@ -1,6 +1,20 @@
 import type { NextConfig } from "next";
 
+// Baseline security headers (security review 2026-09-02, E-8). Deliberately
+// no CSP here — that needs nonce plumbing for Next's inline scripts. On the
+// static-export hosting the same three must be set via .htaccess, since
+// `headers()` only applies while a Node server answers.
+const SECURITY_HEADERS = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "X-Frame-Options", value: "DENY" },
+];
+
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
   // Build-Verzeichnis per Env übersteuerbar: erlaubt einen ZWEITEN Dev-Server
   // aus demselben Worktree (Next 16 lockt .next/dev pro Verzeichnis). Genutzt
   // für die PUBLIC_MODE-Vorschau: NEXT_DIST_DIR=.next-public → Port 3999,

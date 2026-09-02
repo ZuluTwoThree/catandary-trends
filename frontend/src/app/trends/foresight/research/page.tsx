@@ -7,6 +7,7 @@ import {
 } from "@/lib/db";
 import { MEGA_TRENDS } from "@/lib/mega-trends.generated";
 import { parseResearchQuery } from "@/lib/research-search";
+import { safeHref } from "@/lib/safeHref";
 import AuthorLine from "@/components/AuthorLine";
 import TierGate from "@/components/TierGate";
 import ResearchTypeahead from "@/components/ResearchTypeahead";
@@ -714,12 +715,12 @@ export default async function ResearchExplorerPage({
             {spotlight.i10_index !== null && (
               <span title="Papers with at least 10 citations">i10 <span className="text-paper text-sm">{fmtInt(spotlight.i10_index)}</span></span>
             )}
-            {spotlight.orcid && (
-              <a href={spotlight.orcid} target="_blank" rel="noopener noreferrer"
+            {safeHref(spotlight.orcid) && (
+              <a href={safeHref(spotlight.orcid)!} target="_blank" rel="noopener noreferrer"
                  className="text-accent/70 hover:text-accent">ORCID →</a>
             )}
-            {spotlight.homepage && (
-              <a href={spotlight.homepage} target="_blank" rel="noopener noreferrer"
+            {safeHref(spotlight.homepage) && (
+              <a href={safeHref(spotlight.homepage)!} target="_blank" rel="noopener noreferrer"
                  className="text-accent/70 hover:text-accent">Homepage →</a>
             )}
           </div>

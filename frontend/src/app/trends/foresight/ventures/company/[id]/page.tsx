@@ -4,6 +4,7 @@ import TierGate from "@/components/TierGate";
 import VentureAttribution from "@/components/VentureAttribution";
 import WipBadge from "@/components/WipBadge";
 import { getVenture, VENTURE_EVENT_TYPES, type VentureEvent } from "@/lib/ventures";
+import { safeHref } from "@/lib/safeHref";
 
 export const dynamic = "force-dynamic";
 
@@ -56,10 +57,14 @@ function EventRow({ e }: { e: VentureEvent }) {
           Investors: {e.investors.join(", ")}
         </span>
       )}
-      <a href={e.source_url} target="_blank" rel="noopener noreferrer"
-        className="font-mono text-[10px] uppercase tracking-wide text-muted underline hover:text-paper">
-        {e.source}
-      </a>
+      {safeHref(e.source_url) ? (
+        <a href={safeHref(e.source_url)!} target="_blank" rel="noopener noreferrer"
+          className="font-mono text-[10px] uppercase tracking-wide text-muted underline hover:text-paper">
+          {e.source}
+        </a>
+      ) : (
+        <span className="font-mono text-[10px] uppercase tracking-wide text-muted">{e.source}</span>
+      )}
     </li>
   );
 }
@@ -108,10 +113,10 @@ export default async function VentureCompanyPage({
       <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-6">
         {c.event_count} dated events
         {money && <span> · {money} documented funding</span>}
-        {c.website && (
+        {safeHref(c.website) && (
           <span>
             {" · "}
-            <a href={c.website} target="_blank" rel="noopener noreferrer"
+            <a href={safeHref(c.website)!} target="_blank" rel="noopener noreferrer"
               className="underline hover:text-paper">website</a>
           </span>
         )}
