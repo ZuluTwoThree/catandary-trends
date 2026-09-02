@@ -87,20 +87,42 @@ export function _resetRateLimit(): void {
 }
 
 /**
- * Spoofing-resistant client IP. `X-Forwarded-For` is a comma list
- * `clientSpoofable, …, appendedByCaddy`; the LEFTMOST entries are attacker-
- * controlled, the RIGHTMOST are appended by our own trusted proxies. We trust the
- * last `TRUSTED_PROXY_COUNT` hops (default 1 = Caddy) and read the entry just
- * inside them as the real client. Never trust a raw leftmost XFF value.
+ * Client key for per-IP limits.
+ *
+ * A route handler only sees headers, never the socket peer, so the only
+ * source of a client address is `X-Forwarded-For` / `X-Real-IP` — and those
+ * are attacker-controlled unless a proxy we run overwrites/appends them.
+ * Without a proxy in front (the workstation instance answers directly on
+ * :3001) trusting them lets any caller pick a fresh "IP" per request and
+ * every per-IP limit collapses (security review 2026-09-02, E-3).
+ *
+ * So the headers are consulted ONLY with `TRUST_PROXY=1` — set on a deployment
+ * that sits behind Caddy (which appends XFF and overwrites X-Real-IP). Then
+ * the last `TRUSTED_PROXY_COUNT` hops (default 1) are ours and the entry just
+ * inside them is the real client; a raw leftmost XFF value is never trusted.
+ * Without `TRUST_PROXY` every request shares one bucket — coarse, but not
+ * bypassable, and on a loopback-only instance the one bucket is the owner.
+ *
+ * Read per call (not at module load) so a test — or a config reload — can
+ * flip the flag without re-importing the module.
  */
-const TRUSTED_PROXIES = Math.max(1, parseInt(process.env.TRUSTED_PROXY_COUNT || "1", 10) || 1);
+export const DIRECT_CLIENT = "direct";
+
+function trustProxy(): boolean {
+  return process.env.TRUST_PROXY === "1";
+}
+
+function trustedProxyCount(): number {
+  return Math.max(1, parseInt(process.env.TRUSTED_PROXY_COUNT || "1", 10) || 1);
+}
 
 export function clientIp(request: Request): string {
+  if (!trustProxy()) return DIRECT_CLIENT;
   const xff = request.headers.get("x-forwarded-for");
   if (xff) {
     const parts = xff.split(",").map((s) => s.trim()).filter(Boolean);
     if (parts.length) {
-      const idx = parts.length - TRUSTED_PROXIES;
+      const idx = parts.length - trustedProxyCount();
       return parts[idx >= 0 ? idx : 0];
     }
   }
