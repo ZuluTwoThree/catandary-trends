@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
 import type { Vertical } from "@/lib/types";
 import { isPublicMode } from "@/lib/publicMode";
@@ -19,11 +20,12 @@ export default function MegaTrendHeader({
   return (
     <>
       <nav className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-8">
-        <Link href="/trends" className="hover:text-paper transition-colors">
+        <Link prefetch={linkPrefetch()} href="/trends" className="hover:text-paper transition-colors">
           Trends
         </Link>
         <span className="text-border">/</span>
         <Link
+          prefetch={linkPrefetch()}
           href="/trends/mega"
           className="hover:text-paper transition-colors"
         >
@@ -61,6 +63,7 @@ export default function MegaTrendHeader({
             const vInfo = getVerticalInfo(v as Vertical);
             return (
               <Link
+                prefetch={linkPrefetch()}
                 key={v}
                 href={`/trends?vertical=${v}`}
                 className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em] border px-2.5 py-1 transition-colors hover:opacity-80"
@@ -91,6 +94,7 @@ export default function MegaTrendHeader({
             <p className="font-sans text-sm text-paper">
               Want the full theme forecast?{" "}
               <Link
+                prefetch={linkPrefetch()}
                 href="/trends/foresight"
                 className="text-accent hover:underline"
               >

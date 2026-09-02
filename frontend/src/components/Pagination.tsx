@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import { useSearchParams } from "next/navigation";
 
 /**
@@ -49,6 +50,7 @@ export default function Pagination({
       className="flex items-center justify-center gap-2 mt-12 pt-6 border-t border-border"
     >
       <Link
+        prefetch={linkPrefetch()}
         href={hrefFor(page - 1)}
         aria-disabled={page <= 1 || undefined}
         tabIndex={page <= 1 ? -1 : undefined}
@@ -69,6 +71,7 @@ export default function Pagination({
             </span>
           ) : (
             <Link
+              prefetch={linkPrefetch()}
               key={p}
               href={hrefFor(p)}
               aria-current={p === page ? "page" : undefined}
@@ -86,6 +89,7 @@ export default function Pagination({
       </div>
 
       <Link
+        prefetch={linkPrefetch()}
         href={hrefFor(page + 1)}
         aria-disabled={page >= totalPages || undefined}
         tabIndex={page >= totalPages ? -1 : undefined}

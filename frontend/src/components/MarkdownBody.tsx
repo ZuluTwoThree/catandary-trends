@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import {
   parseMarkdown,
   parseInline,
@@ -46,7 +47,7 @@ function Inline({ nodes }: { nodes: InlineNode[] }) {
               {n.text}
             </a>
           ) : (
-            <Link key={i} href={href} className="text-accent hover:underline">
+            <Link prefetch={linkPrefetch()} key={i} href={href} className="text-accent hover:underline">
               {n.text}
             </Link>
           );

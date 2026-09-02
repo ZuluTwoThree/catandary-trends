@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import type { VerticalInfo, MegaTrendInfo, Vertical } from "@/lib/types";
 import { getMegaTrendInfo, getVerticalInfo } from "@/lib/types";
 
@@ -155,6 +156,7 @@ export default function MegaTrendsPage({
 
             return (
               <Link
+                prefetch={linkPrefetch()}
                 key={mt.mega_trend}
                 href={`/trends/mega/${mt.slug}`}
                 className="group block border border-border bg-card/40 p-6 hover:bg-card hover:border-accent/40 transition-colors"

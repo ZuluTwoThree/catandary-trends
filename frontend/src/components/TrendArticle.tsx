@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import type { Trend } from "@/lib/types";
 import type { TrendTechMatch } from "@/lib/technology";
 import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
@@ -79,11 +80,12 @@ export default function TrendArticle({
         aria-label="Breadcrumb"
         className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-8"
       >
-        <Link href="/trends" className="hover:text-paper transition-colors">
+        <Link prefetch={linkPrefetch()} href="/trends" className="hover:text-paper transition-colors">
           Trends
         </Link>
         <span className="text-border">/</span>
         <Link
+          prefetch={linkPrefetch()}
           href={`/trends?vertical=${trend.primary_vertical}`}
           className="inline-flex items-center gap-2 transition-colors hover:opacity-80"
           style={{ color: vertical.color }}
@@ -181,6 +183,7 @@ export default function TrendArticle({
                 </dt>
                 <dd className="text-sm">
                   <Link
+                    prefetch={linkPrefetch()}
                     href={`/trends/mega/${encodeURIComponent(trend.mega_trend.replace(/_/g, "-"))}`}
                     className="text-accent hover:underline"
                   >
@@ -273,6 +276,7 @@ export default function TrendArticle({
               const rv = getVerticalInfo(r.primary_vertical);
               return (
                 <Link
+                  prefetch={linkPrefetch()}
                   key={r.id}
                   href={`/trends/${r.slug}`}
                   className="border border-border border-l-[3px] bg-card/40 p-4 hover:bg-card transition-colors"

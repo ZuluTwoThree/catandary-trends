@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import { usePathname } from "next/navigation";
 
 /**
@@ -27,6 +28,7 @@ export default function NavLink({
   const active = pathname === href;
   return (
     <Link
+      prefetch={linkPrefetch()}
       href={href}
       aria-current={active ? "page" : undefined}
       onClick={onClick}

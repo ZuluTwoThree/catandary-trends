@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import { splitAuthors } from "@/lib/research-authors";
 
 /** Autoren-Zeile mit sichtbarer Klick-Affordanz (#83).
@@ -29,6 +30,7 @@ export default function AuthorLine({
         <span key={a + i}>
           {i > 0 && <span className="text-muted/60">, </span>}
           <Link
+            prefetch={linkPrefetch()}
             href={`/trends/foresight/research?q=${encodeURIComponent(`author:"${a}"`)}`}
             title={`All papers by ${a}`}
             className="text-text underline decoration-dotted decoration-border-strong underline-offset-[3px]

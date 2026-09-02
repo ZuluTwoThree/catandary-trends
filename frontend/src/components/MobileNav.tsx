@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import { usePathname } from "next/navigation";
 import { PRIMARY_NAV, FORESIGHT_NAV, PLANS_NAV } from "@/lib/nav";
 
@@ -132,6 +133,7 @@ export default function MobileNav({
             <div className={groupLabel}>Explore</div>
             {PRIMARY_NAV.map((item) => (
               <Link
+                prefetch={linkPrefetch()}
                 key={item.href}
                 href={item.href}
                 aria-current={pathname === item.href ? "page" : undefined}
@@ -146,6 +148,7 @@ export default function MobileNav({
                 <div className={groupLabel}>Foresight</div>
                 {FORESIGHT_NAV.map((item) => (
                   <Link
+                    prefetch={linkPrefetch()}
                     key={item.href}
                     href={item.href}
                     aria-current={pathname === item.href ? "page" : undefined}
@@ -160,11 +163,12 @@ export default function MobileNav({
             {!publicMode && (
               <>
                 <div className={groupLabel}>Account</div>
-                <Link href={PLANS_NAV.href} className={itemClass(PLANS_NAV.href)}>
+                <Link prefetch={linkPrefetch()} href={PLANS_NAV.href} className={itemClass(PLANS_NAV.href)}>
                   {PLANS_NAV.label}
                 </Link>
                 {authEnabled && (
                   <Link
+                    prefetch={linkPrefetch()}
                     href={signedIn ? "/account" : "/account/signin"}
                     className={itemClass(signedIn ? "/account" : "/account/signin")}
                   >
@@ -175,6 +179,7 @@ export default function MobileNav({
             )}
 
             <Link
+              prefetch={linkPrefetch()}
               href="/trends/newsletter"
               className="mt-8 text-center font-mono text-[12px] uppercase tracking-[0.14em] text-accent px-3 py-3 border border-accent bg-accent/5 hover:bg-accent/15 transition-colors"
             >

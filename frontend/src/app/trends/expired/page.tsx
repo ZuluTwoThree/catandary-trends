@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import type { Metadata } from "next";
 import { PUBLIC_ARCHIVE_DAYS } from "@/lib/entitlement";
 
@@ -31,18 +32,21 @@ export default function ExpiredPage() {
       </p>
       <div className="flex flex-wrap justify-center gap-3">
         <Link
+          prefetch={linkPrefetch()}
           href="/enquiry"
           className="font-mono text-[11px] uppercase tracking-[0.18em] bg-accent text-ink px-5 py-3 hover:bg-accent-deep transition-colors"
         >
           Ask about archive access →
         </Link>
         <Link
+          prefetch={linkPrefetch()}
           href="/trends"
           className="font-mono text-[11px] uppercase tracking-[0.18em] border border-border text-muted px-5 py-3 hover:text-paper hover:border-accent/40 transition-colors"
         >
           Current signals
         </Link>
         <Link
+          prefetch={linkPrefetch()}
           href="/trends/mega"
           className="font-mono text-[11px] uppercase tracking-[0.18em] border border-border text-muted px-5 py-3 hover:text-paper hover:border-accent/40 transition-colors"
         >

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import { getAllAnalyses, formatAnalysisDate } from "@/lib/analyses";
 
 export const metadata = {
@@ -41,7 +42,7 @@ export default function AnalysisIndexPage() {
             Each analysis is hand-built from the corpus, reviewed by a human,
             and dated with the exact data it was drawn from. Want one on a
             specific question?{" "}
-            <Link href="/enquiry" className="text-accent hover:underline">
+            <Link prefetch={linkPrefetch()} href="/enquiry" className="text-accent hover:underline">
               Ask us
             </Link>
             .
@@ -52,6 +53,7 @@ export default function AnalysisIndexPage() {
           {analyses.map((a) => (
             <li key={a.slug}>
               <Link
+                prefetch={linkPrefetch()}
                 href={`/analysis/${a.slug}`}
                 className="group flex flex-col md:flex-row md:items-baseline gap-2 md:gap-8 py-6 px-2 -mx-2 hover:bg-card/40 transition-colors"
               >

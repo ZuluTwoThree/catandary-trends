@@ -122,6 +122,27 @@ T2=$(date +%s)
 log "next build done in $((T2 - T1))s"
 [ -d "$SITE/out" ] || die "build produced no out/ directory"
 
+# --- 2b. drop the per-segment prefetch payloads ----------------------------
+# Next 16 writes, next to every page's .html and .txt, a directory of seven
+# `__next.*.txt` segment-prefetch files (client segment cache). There is no
+# switch for it in 16.2 (collectSegmentData runs unconditionally in
+# app-render.js; no `clientSegmentCache` key in config-shared.js) and they
+# were 78 % of the files (106k of 137k) and ~35 % of the bytes. They are
+# removed here: the router's fallback for a missing segment payload is the
+# page's `.txt` RSC payload (client/components/segment-cache/navigation.js:
+# a rejected route entry -> navigateToUnknownRoute -> fetchServerResponse,
+# which appends `.txt` in output:"export" mode) — client-side navigation
+# stays intact, verified headless (Playwright/Chromium against Apache 2.4,
+# 2026-09-02). Every public <Link> carries prefetch={linkPrefetch()} so the
+# export does not even request them; trends/.htaccess answers stragglers
+# with a bodyless 204.
+SEG_BEFORE=$(find "$SITE/out" -type f -name '__next.*.txt' | wc -l)
+find "$SITE/out" -type f -name '__next.*.txt' -delete
+find "$SITE/out" -depth -type d -empty -delete
+SEG_AFTER=$(find "$SITE/out" -type f -name '__next.*.txt' | wc -l)
+[ "$SEG_AFTER" = "0" ] || die "segment payloads survived the sweep: $SEG_AFTER"
+log "segment prefetch payloads removed: $SEG_BEFORE"
+
 # --- 3. verify -------------------------------------------------------------
 RAW="$SITE/out"
 [ -f "$RAW/404.html" ] || die "404.html missing"
@@ -195,6 +216,7 @@ cat > "$BUILD_INFO" <<JSON
   "articles": $ARTICLES,
   "mega_pages": $MEGA,
   "published_analyses": $PUBLISHED_ANALYSES,
+  "segment_payloads_removed": $SEG_BEFORE,
   "files": $FILES,
   "bytes": $BYTES,
   "build_seconds": $((T2 - T1)),

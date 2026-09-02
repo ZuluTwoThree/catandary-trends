@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import { AUTH_ENABLED, getSession } from "@/lib/auth";
 import { isPublicMode } from "@/lib/publicMode";
 import { PRIMARY_NAV, PLANS_NAV } from "@/lib/nav";
@@ -26,7 +27,7 @@ export default async function Header() {
   return (
     <header className="border-b border-border">
       <div className="mx-auto max-w-7xl px-6 md:px-12 h-16 flex items-center justify-between gap-4">
-        <Link href="/" className="group shrink-0" aria-label="Catandary home">
+        <Link prefetch={linkPrefetch()} href="/" className="group shrink-0" aria-label="Catandary home">
           <span className="font-display text-[22px] font-normal tracking-tight text-paper">
             Catandary<span className="text-accent">.</span>
           </span>
@@ -59,6 +60,7 @@ export default async function Header() {
               </NavLink>
             ))}
           <Link
+            prefetch={linkPrefetch()}
             href="/trends/newsletter"
             className="font-mono text-[11px] uppercase tracking-[0.14em] text-accent px-3 py-1.5 border border-accent bg-accent/5 hover:bg-accent/15 transition-colors"
           >

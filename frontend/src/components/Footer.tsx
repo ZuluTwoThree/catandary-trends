@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import { isPublicMode } from "@/lib/publicMode";
 
 const LINK = "hover:text-paper transition-colors";
@@ -16,24 +17,24 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-6 md:px-12 py-6 flex flex-col md:flex-row items-center justify-between gap-3">
         <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
           <span>&copy; {new Date().getFullYear()} Catandary</span>
-          <Link href="/analysis" className={LINK}>
+          <Link prefetch={linkPrefetch()} href="/analysis" className={LINK}>
             Analyses
           </Link>
-          <Link href="/trends/methodology" className={LINK}>
+          <Link prefetch={linkPrefetch()} href="/trends/methodology" className={LINK}>
             How we measure
           </Link>
           {!publicMode && (
-            <Link href="/trends/pricing" className={LINK}>
+            <Link prefetch={linkPrefetch()} href="/trends/pricing" className={LINK}>
               Plans
             </Link>
           )}
-          <Link href="/trends/newsletter" className={LINK}>
+          <Link prefetch={linkPrefetch()} href="/trends/newsletter" className={LINK}>
             Newsletter
           </Link>
-          <Link href="/imprint" className={LINK}>
+          <Link prefetch={linkPrefetch()} href="/imprint" className={LINK}>
             Imprint
           </Link>
-          <Link href="/privacy" className={LINK}>
+          <Link prefetch={linkPrefetch()} href="/privacy" className={LINK}>
             Privacy
           </Link>
         </span>

@@ -9,7 +9,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 const connection = vi.fn(async () => undefined);
 vi.mock("next/server", () => ({ connection }));
 
-import { isStaticExport, dynamicUnlessStatic } from "@/lib/renderMode";
+import { isStaticExport, dynamicUnlessStatic, linkPrefetch } from "@/lib/renderMode";
 
 afterEach(() => {
   delete process.env.STATIC_EXPORT;
@@ -51,5 +51,16 @@ describe("dynamicUnlessStatic", () => {
     process.env.STATIC_EXPORT = "1";
     await dynamicUnlessStatic();
     expect(connection).not.toHaveBeenCalled();
+  });
+});
+
+describe("linkPrefetch", () => {
+  it("leaves next/link at its default on the workstation", () => {
+    expect(linkPrefetch()).toBeUndefined();
+  });
+
+  it("disables link prefetching in the static export (no segment payloads exist there)", () => {
+    process.env.NEXT_PUBLIC_STATIC_EXPORT = "1";
+    expect(linkPrefetch()).toBe(false);
   });
 });

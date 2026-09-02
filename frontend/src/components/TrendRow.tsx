@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import type { Trend } from "@/lib/types";
 import { getVerticalInfo } from "@/lib/types";
 
@@ -36,6 +37,7 @@ export default function TrendRow({ trend }: { trend: Trend }) {
 
   return (
     <Link
+      prefetch={linkPrefetch()}
       href={`/trends/${trend.slug}`}
       className="group block border-b border-border last:border-b-0 hover:bg-accent/[0.02] transition-colors"
     >

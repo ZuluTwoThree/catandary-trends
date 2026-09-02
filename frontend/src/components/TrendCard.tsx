@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 import type { Trend } from "@/lib/types";
 import { getVerticalInfo } from "@/lib/types";
 import PestelBadge from "./PestelBadge";
@@ -37,7 +38,7 @@ export default function TrendCard({ trend }: { trend: Trend }) {
     ] ?? "Trade";
 
   return (
-    <Link href={`/trends/${trend.slug}`} className="block h-full">
+    <Link prefetch={linkPrefetch()} href={`/trends/${trend.slug}`} className="block h-full">
       <article
         className="brackets group h-full flex flex-col border border-border border-l-[3px] bg-transparent hover:bg-accent/[0.02] transition-colors px-6 py-7"
         style={{ borderLeftColor: vertical.color }}

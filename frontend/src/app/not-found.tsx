@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { linkPrefetch } from "@/lib/renderMode";
 
 /**
  * Branded 404 (ONB-07 / ARCH-16): the previous default was a blank body —
@@ -19,18 +20,21 @@ export default function NotFound() {
       </p>
       <div className="flex flex-wrap justify-center gap-3">
         <Link
+          prefetch={linkPrefetch()}
           href="/trends"
           className="font-mono text-[11px] uppercase tracking-[0.18em] bg-accent text-ink px-5 py-3 hover:bg-accent-deep transition-colors"
         >
           Browse all trends →
         </Link>
         <Link
+          prefetch={linkPrefetch()}
           href="/trends/mega"
           className="font-mono text-[11px] uppercase tracking-[0.18em] border border-border text-muted px-5 py-3 hover:text-paper hover:border-accent/40 transition-colors"
         >
           Signal themes
         </Link>
         <Link
+          prefetch={linkPrefetch()}
           href="/"
           className="font-mono text-[11px] uppercase tracking-[0.18em] border border-border text-muted px-5 py-3 hover:text-paper hover:border-accent/40 transition-colors"
         >

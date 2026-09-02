@@ -42,6 +42,24 @@ export async function dynamicUnlessStatic(): Promise<void> {
   await connection();
 }
 
+/**
+ * `prefetch` prop for every `next/link` on the public pages.
+ *
+ * The static export ships no per-segment prefetch payloads (the
+ * `<page>/__next.*.txt` files — 7 per page, 78 % of the export's files —
+ * are deleted after the build, see scripts/build_public_static.sh). Next
+ * 16's router prefetches a link by HEAD-ing the page and GET-ing its
+ * `__next._tree.txt`; without the file that is two wasted requests plus a
+ * console error per visible link. `prefetch={false}` turns the viewport
+ * AND hover prefetch off (client/app-dir/link.js: `prefetchEnabled`), and a
+ * click then fetches the page's `.txt` RSC payload instead — the
+ * pre-segment-cache navigation path, verified headless against Apache on
+ * 2026-09-02. Outside the export the prop stays at Next's default (`null`).
+ */
+export function linkPrefetch(): false | undefined {
+  return isStaticExport() ? false : undefined;
+}
+
 /* ---------- Metadata gate (static export only) ---------- */
 
 interface Deferred {
