@@ -2,6 +2,7 @@ import path from "path";
 import fs from "fs";
 import yaml from "js-yaml";
 import { q, q1 } from "./pg";
+import { windowStartIso } from "./archiveWindow";
 import { classifyMomentum, type MegaMomentum } from "./momentum";
 import type {
   Trend,
@@ -24,12 +25,31 @@ import type {
  */
 const ttlCache = new Map<string, { at: number; value: unknown }>();
 
-async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+const inflight = new Map<string, Promise<unknown>>();
+
+/** TTL cache that also dedupes CONCURRENT misses: while a value is being
+ *  fetched every caller shares the same promise instead of firing its own
+ *  query. Besides the thundering-herd saving, this is what makes the static
+ *  export deterministic — generateMetadata and the page body of the same
+ *  route await the same promise, so their RSC rows always stream in the same
+ *  order (two independent queries finished in either order under pool
+ *  contention and flipped the payload between builds). */
+function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   const hit = ttlCache.get(key);
-  if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
-  const value = await fn();
-  ttlCache.set(key, { at: Date.now(), value });
-  return value;
+  if (hit && Date.now() - hit.at < ttlMs) return Promise.resolve(hit.value as T);
+  let p = inflight.get(key) as Promise<T> | undefined;
+  if (!p) {
+    p = fn()
+      .then((value) => {
+        ttlCache.set(key, { at: Date.now(), value });
+        return value;
+      })
+      .finally(() => {
+        inflight.delete(key);
+      });
+    inflight.set(key, p);
+  }
+  return p;
 }
 
 function asArray(v: unknown): string[] {
@@ -71,10 +91,14 @@ const TREND_COLS =
    t.auto_published, t.published_at::text as published_at, t.created_at::text as created_at,
    t.sort_date::text as sort_date`;
 
-/** SELECT for trend queries — joins raw_entries for source_date + source_type,
- *  capping future dates to now. */
+/** SELECT for trend queries — joins raw_entries for source_date + source_type.
+ *  A future-dated feed timestamp is capped at the row's own created_at rather
+ *  than NOW(): with NOW() every render of such a row (3.1 % of the public
+ *  window) showed the render day as the source date and made the static
+ *  export non-deterministic (spike 2026-09-02, cause #4). NULL stays NULL —
+ *  the UI falls back to published_at/created_at anyway. */
 const TREND_SELECT = `SELECT ${TREND_COLS},
-   LEAST(re.published_date, NOW())::text as source_date, s.source_type as source_type
+   LEAST(re.published_date, t.created_at)::text as source_date, s.source_type as source_type
    FROM trends t
    LEFT JOIN raw_entries re ON t.raw_entry_id = re.id
    LEFT JOIN sources s ON re.source_id = s.id`;
@@ -98,11 +122,11 @@ export async function getTrends(options: {
     query += ` AND t.primary_vertical = $${params.length}`;
   }
   if (options.max_age_days != null) {
-    params.push(`${options.max_age_days} days`);
-    query += ` AND t.sort_date >= NOW() - $${params.length}::interval`;
+    params.push(windowStartIso(options.max_age_days));
+    query += ` AND t.sort_date >= $${params.length}::timestamptz`;
   }
   params.push(options.limit ?? 50, options.offset ?? 0);
-  query += ` ORDER BY t.sort_date DESC NULLS LAST LIMIT $${params.length - 1} OFFSET $${params.length}`;
+  query += ` ORDER BY t.sort_date DESC NULLS LAST, t.id DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
   return (await q(query, params)).map(parseTrendRow);
 }
 
@@ -121,6 +145,58 @@ export async function getTrendBySlug(
   if (!options.includeUnpublished) query += " AND t.status = 'published'";
   const row = await q1(query, [slug]);
   return row ? parseTrendRow(row) : null;
+}
+
+export interface PublicSlugRow {
+  slug: string;
+  sort_date: string | null;
+  published_at: string | null;
+}
+
+/**
+ * Every published slug inside the public window — the static export's page
+ * list (`generateStaticParams` of /trends/[slug]) and the sitemap. Newest
+ * first with the id tiebreaker, so the list itself is build-stable. Narrow
+ * projection on purpose: 14.7k rows of TREND_SELECT would drag bodies over
+ * the wire for nothing.
+ */
+export async function getPublicWindowSlugs(windowDays: number): Promise<PublicSlugRow[]> {
+  return q<PublicSlugRow>(
+    `SELECT t.slug, t.sort_date::text as sort_date, t.published_at::text as published_at
+       FROM trends t
+      WHERE t.status = 'published' AND t.sort_date >= $1::timestamptz
+      ORDER BY t.sort_date DESC, t.id DESC`,
+    [windowStartIso(windowDays)]
+  );
+}
+
+/**
+ * "Related" for an article page: the `limit` published PREDECESSORS in the
+ * same vertical — the rows right before it in (sort_date DESC, id DESC)
+ * order. A function of the article alone, not of the day it renders: the
+ * former "4 newest of the vertical" changed every article page at every new
+ * publish (~700 MB of churn per daily export; spike 2026-09-02, cause #5).
+ * Bounded below by the archive window when one applies, so the export never
+ * links to a slug it did not write (window-edge pages lose a related card
+ * on their last day instead of linking into a 410).
+ */
+export async function getRelatedPredecessors(
+  trend: Pick<Trend, "id" | "primary_vertical" | "sort_date">,
+  options: { limit?: number; max_age_days?: number | null } = {}
+): Promise<Trend[]> {
+  if (!trend.sort_date) return [];
+  const params: unknown[] = [trend.primary_vertical, trend.id, trend.sort_date];
+  let query =
+    TREND_SELECT +
+    ` WHERE t.status = 'published' AND t.primary_vertical = $1
+        AND (t.sort_date, t.id) < ($3::timestamp, $2::int)`;
+  if (options.max_age_days != null) {
+    params.push(windowStartIso(options.max_age_days));
+    query += ` AND t.sort_date >= $${params.length}::timestamptz`;
+  }
+  params.push(options.limit ?? 3);
+  query += ` ORDER BY t.sort_date DESC, t.id DESC LIMIT $${params.length}`;
+  return (await q(query, params)).map(parseTrendRow);
 }
 
 export async function getTrendsCount(options: {
@@ -153,8 +229,8 @@ async function fetchTrendsCount(options: {
     query += ` AND t.primary_vertical = $${params.length}`;
   }
   if (options.max_age_days != null) {
-    params.push(`${options.max_age_days} days`);
-    query += ` AND t.sort_date >= NOW() - $${params.length}::interval`;
+    params.push(windowStartIso(options.max_age_days));
+    query += ` AND t.sort_date >= $${params.length}::timestamptz`;
   }
   const row = await q1<{ cnt: number }>(query, params);
   return row?.cnt ?? 0;
@@ -173,11 +249,11 @@ export async function getTrendsByMegaTrend(megaTrend: string, options: {
     query += ` AND t.status = $${params.length}`;
   }
   if (options.max_age_days != null) {
-    params.push(`${options.max_age_days} days`);
-    query += ` AND t.sort_date >= NOW() - $${params.length}::interval`;
+    params.push(windowStartIso(options.max_age_days));
+    query += ` AND t.sort_date >= $${params.length}::timestamptz`;
   }
   params.push(options.limit ?? 50);
-  query += ` ORDER BY t.sort_date DESC NULLS LAST LIMIT $${params.length}`;
+  query += ` ORDER BY t.sort_date DESC NULLS LAST, t.id DESC LIMIT $${params.length}`;
   return (await q(query, params)).map(parseTrendRow);
 }
 
@@ -1320,7 +1396,7 @@ export async function getPatentTechIntel(cpc: string): Promise<{
 export async function getTopTrendsByEngagement(limit: number = 10): Promise<Trend[]> {
   const rows = await q(
     `SELECT ${TREND_COLS},
-        LEAST(re.published_date, NOW())::text as source_date, s.source_type as source_type,
+        LEAST(re.published_date, t.created_at)::text as source_date, s.source_type as source_type,
         COALESCE(m.page_views, 0) as views
      FROM trends t
      LEFT JOIN raw_entries re ON t.raw_entry_id = re.id
@@ -1426,7 +1502,7 @@ function buildFilterClauses(options: TrendsFilterOptions): {
   }
 
   if (options.max_age_days != null) {
-    where.push(`t.sort_date >= NOW() - ${p(`${options.max_age_days} days`)}::interval`);
+    where.push(`t.sort_date >= ${p(windowStartIso(options.max_age_days))}::timestamptz`);
   }
 
   const search = options.search?.trim();
@@ -1443,19 +1519,23 @@ function buildFilterClauses(options: TrendsFilterOptions): {
 
 const CAPPED_DATE = "t.sort_date";
 
+/** Every branch ends in `t.id` so ties are stable: feed timestamps sit on
+ *  full hours (744 tie groups / 3,114 rows in the 30-day window), and
+ *  Postgres returns tied rows in arbitrary order — page boundaries and the
+ *  static export flipped between builds without it (spike 2026-09-02, #6). */
 function buildOrderBy(sort: TrendsSortBy | undefined): string {
   switch (sort) {
     case "date_asc":
-      return `ORDER BY ${CAPPED_DATE} ASC`;
+      return `ORDER BY ${CAPPED_DATE} ASC, t.id ASC`;
     case "score_desc":
-      return `ORDER BY t.trend_score DESC NULLS LAST, ${CAPPED_DATE} DESC NULLS LAST`;
+      return `ORDER BY t.trend_score DESC NULLS LAST, ${CAPPED_DATE} DESC NULLS LAST, t.id DESC`;
     case "engagement_desc":
-      return `ORDER BY COALESCE(m.page_views, 0) DESC, ${CAPPED_DATE} DESC`;
+      return `ORDER BY COALESCE(m.page_views, 0) DESC, ${CAPPED_DATE} DESC, t.id DESC`;
     case "source_date_desc":
-      return `ORDER BY ${CAPPED_DATE} DESC NULLS LAST, t.created_at DESC`;
+      return `ORDER BY ${CAPPED_DATE} DESC NULLS LAST, t.created_at DESC, t.id DESC`;
     case "date_desc":
     default:
-      return `ORDER BY ${CAPPED_DATE} DESC NULLS LAST`;
+      return `ORDER BY ${CAPPED_DATE} DESC NULLS LAST, t.id DESC`;
   }
 }
 

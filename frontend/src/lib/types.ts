@@ -117,6 +117,13 @@ export interface MegaTrendInfo {
   } | null;
 }
 
+/** URL form of a mega-trend key: DB keys are ASCII snake_case, URLs use
+ *  hyphens (`/trends/mega/[megatrend]` maps them back). One place for the
+ *  cards, the article page, the sitemap and the export's page list. */
+export function megaTrendSlug(key: string): string {
+  return key.replace(/_/g, "-");
+}
+
 export function getMegaTrendInfo(key: string): MegaTrendInfo | undefined {
   return MEGA_TRENDS.find((mt) => mt.key === key);
 }

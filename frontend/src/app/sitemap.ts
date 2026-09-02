@@ -1,118 +1,126 @@
 import type { MetadataRoute } from "next";
-import { getTrends, getMegaTrends } from "@/lib/db";
+import { getTrends, getMegaTrends, getPublicWindowSlugs } from "@/lib/db";
 import { getAllAnalyses } from "@/lib/analyses";
+import { isPublicMode } from "@/lib/publicMode";
+import { isStaticExport } from "@/lib/renderMode";
+import { PUBLIC_ARCHIVE_DAYS } from "@/lib/entitlement";
+import { megaTrendSlug } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
+/**
+ * Route handlers need a literal `force-static` for `output: "export"`
+ * (Next checks the segment config, an env ternary is not allowed). The
+ * workstation build therefore renders the sitemap once at build time instead
+ * of per request — acceptable, the public sitemap is the exported one.
+ */
+export const dynamic = "force-static";
 
+const SITE_URL = process.env.PUBLIC_SITE_URL || "https://catandary.de";
+
+/**
+ * Deterministic on purpose (the export is diffed build against build): no
+ * `new Date()` anywhere — every `lastModified` comes from the data, and the
+ * hub pages take the newest article date. Public deployments (PUBLIC_MODE /
+ * static export) list only what exists there: the article window, the
+ * mega themes, analyses and the static pages. The workstation instance keeps
+ * its wider listing including the Foresight suite.
+ */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://catandary.de";
+  const publicOnly = isPublicMode() || isStaticExport();
 
-  const trends = await getTrends({ limit: 5000 });
-  const megaTrends = await getMegaTrends();
+  let trendUrls: MetadataRoute.Sitemap = [];
+  let megaTrends: Awaited<ReturnType<typeof getMegaTrends>> = [];
+  let newest: Date | null = null;
+  const touch = (d: string | null | undefined) => {
+    if (!d) return;
+    const t = new Date(d);
+    if (!Number.isNaN(t.getTime()) && (!newest || t > newest)) newest = t;
+  };
+
+  try {
+    if (publicOnly) {
+      const rows = await getPublicWindowSlugs(PUBLIC_ARCHIVE_DAYS);
+      trendUrls = rows.map((r) => {
+        touch(r.published_at ?? r.sort_date);
+        return {
+          url: `${SITE_URL}/trends/${r.slug}`,
+          lastModified: r.published_at ?? r.sort_date ?? undefined,
+          changeFrequency: "weekly" as const,
+          priority: 0.8,
+        };
+      });
+    } else {
+      const trends = await getTrends({ status: "published", limit: 5000 });
+      trendUrls = trends.map((trend) => {
+        touch(trend.published_at || trend.created_at);
+        return {
+          url: `${SITE_URL}/trends/${trend.slug}`,
+          lastModified: trend.published_at || trend.created_at,
+          changeFrequency: "weekly" as const,
+          priority: 0.8,
+        };
+      });
+    }
+    megaTrends = await getMegaTrends();
+  } catch (err) {
+    // No database at build time (CI builds the frontend without Postgres):
+    // the static URL set below still ships. The export build never takes
+    // this branch silently — build_public_static.sh fails on an empty
+    // article count.
+    if (isStaticExport()) throw err;
+    console.warn("sitemap: database unavailable, static URLs only —", (err as Error).message);
+  }
+
   const analyses = getAllAnalyses();
+  for (const a of analyses) touch(a.date);
+  // A fixed floor keeps the file stable even for an empty data set.
+  const hubDate = newest ?? new Date("2026-01-01T00:00:00Z");
 
   const analysisUrls: MetadataRoute.Sitemap = analyses.map((a) => ({
-    url: `${baseUrl}/analysis/${a.slug}`,
+    url: `${SITE_URL}/analysis/${a.slug}`,
     lastModified: a.date,
     changeFrequency: "monthly" as const,
     priority: 0.7,
   }));
 
-  const trendUrls: MetadataRoute.Sitemap = trends.map((trend) => ({
-    url: `${baseUrl}/trends/${trend.slug}`,
-    lastModified: trend.published_at || trend.created_at,
-    changeFrequency: "weekly" as const,
-    priority: 0.8,
-  }));
-
   const megaUrls: MetadataRoute.Sitemap = megaTrends.map((mt) => ({
-    url: `${baseUrl}/trends/mega/${encodeURIComponent(mt.mega_trend.toLowerCase().replace(/\s+/g, "-"))}`,
-    lastModified: new Date(),
+    url: `${SITE_URL}/trends/mega/${encodeURIComponent(megaTrendSlug(mt.mega_trend))}`,
+    lastModified: hubDate,
     changeFrequency: "weekly" as const,
     priority: 0.7,
   }));
 
-  const foresightUrls: MetadataRoute.Sitemap = [
-    "clusters",
-    "technology",
-    "lead-time",
-    "evolution",
-    "dossier",
-  ].map((page) => ({
-    url: `${baseUrl}/trends/foresight/${page}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly" as const,
-    priority: 0.8,
-  }));
+  const hub = (
+    path: string,
+    changeFrequency: "daily" | "weekly" | "monthly" | "yearly",
+    priority: number
+  ): MetadataRoute.Sitemap[number] => ({
+    url: `${SITE_URL}${path}`,
+    lastModified: hubDate,
+    changeFrequency,
+    priority,
+  });
+
+  const foresightUrls: MetadataRoute.Sitemap = publicOnly
+    ? []
+    : [
+        hub("/trends/foresight", "daily", 0.9),
+        ...["clusters", "technology", "lead-time", "evolution", "dossier"].map((page) =>
+          hub(`/trends/foresight/${page}`, "weekly", 0.8)
+        ),
+        hub("/trends/pricing", "monthly", 0.6),
+      ];
 
   return [
-    {
-      url: `${baseUrl}/`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 1,
-    },
-    {
-      url: `${baseUrl}/trends`,
-      lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 1,
-    },
-    {
-      url: `${baseUrl}/trends/mega`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/analysis`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/enquiry`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.6,
-    },
-    {
-      url: `${baseUrl}/trends/foresight`,
-      lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 0.9,
-    },
+    hub("/", "weekly", 1),
+    hub("/trends", "daily", 1),
+    hub("/trends/mega", "weekly", 0.9),
+    hub("/analysis", "weekly", 0.8),
+    hub("/enquiry", "monthly", 0.6),
     ...foresightUrls,
-    {
-      url: `${baseUrl}/trends/pricing`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.6,
-    },
-    {
-      url: `${baseUrl}/trends/methodology`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.6,
-    },
-    {
-      url: `${baseUrl}/trends/newsletter`,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.5,
-    },
-    {
-      url: `${baseUrl}/imprint`,
-      lastModified: new Date(),
-      changeFrequency: "yearly",
-      priority: 0.2,
-    },
-    {
-      url: `${baseUrl}/privacy`,
-      lastModified: new Date(),
-      changeFrequency: "yearly",
-      priority: 0.2,
-    },
+    hub("/trends/methodology", "monthly", 0.6),
+    hub("/trends/newsletter", "monthly", 0.5),
+    hub("/imprint", "yearly", 0.2),
+    hub("/privacy", "yearly", 0.2),
     ...megaUrls,
     ...analysisUrls,
     ...trendUrls,

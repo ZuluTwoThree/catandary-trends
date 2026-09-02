@@ -1,6 +1,7 @@
 import { getSession, type Tier } from "./auth";
 import { tierAllows } from "./tiers";
 import { isPublicMode } from "./publicMode";
+import { withinWindow, publicWindowDays } from "./archiveWindow";
 
 /**
  * Entitlement layer (Epic W2.2, issue #17). Gating is itself behind
@@ -42,11 +43,12 @@ export const FREE_ARCHIVE_DAYS = 28;
 /**
  * The public lead-gen deployment (#93) ships only the last 30 days of the
  * feed — "30 Tage Trends" is the whole public data promise (~83 MB). On the
- * real deployment the export itself is windowed; this flag-enforced window
+ * real deployment the export itself is windowed (same value, same env var
+ * PUBLIC_WINDOW_DAYS — see lib/archiveWindow.ts); this flag-enforced window
  * makes the workstation preview (PUBLIC_MODE=1) match it and is the safety
  * net if a fuller dataset ever reaches a public instance.
  */
-export const PUBLIC_ARCHIVE_DAYS = 30;
+export const PUBLIC_ARCHIVE_DAYS = publicWindowDays();
 
 /**
  * The archive window for the current viewer, in days — or null for unlimited
@@ -63,15 +65,13 @@ export async function archiveWindowDays(): Promise<number | null> {
 /**
  * Pure date check for a single article. Fails OPEN on missing or unparseable
  * dates: the window is a monetization boundary, not a security one — bad data
- * must never hide content.
+ * must never hide content. The bound is the day boundary from
+ * lib/archiveWindow.ts — the same one the SQL side (`max_age_days`) and the
+ * static export use, so page and query can never disagree about an article.
  */
 export function withinArchiveWindow(
   date: string | Date | null | undefined,
   windowDays: number | null
 ): boolean {
-  if (windowDays === null) return true;
-  if (!date) return true;
-  const t = date instanceof Date ? date.getTime() : Date.parse(date);
-  if (Number.isNaN(t)) return true;
-  return Date.now() - t <= windowDays * 86_400_000;
+  return withinWindow(date, windowDays);
 }

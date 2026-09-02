@@ -1,37 +1,83 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
-import { getTrendBySlug, getTrends, isSourceLinkDead } from "@/lib/db";
+import {
+  getTrendBySlug,
+  getPublicWindowSlugs,
+  getRelatedPredecessors,
+  isSourceLinkDead,
+} from "@/lib/db";
 import { getTrendTechContext } from "@/lib/technology";
 import {
   archiveWindowDays,
   withinArchiveWindow,
   FREE_ARCHIVE_DAYS,
+  PUBLIC_ARCHIVE_DAYS,
 } from "@/lib/entitlement";
 import { isPublicMode } from "@/lib/publicMode";
+import {
+  dynamicUnlessStatic,
+  isStaticExport,
+  metadataSettled,
+  afterMetadata,
+} from "@/lib/renderMode";
 import { TrendArticleJsonLd } from "@/components/JsonLd";
 import TrendArticle from "@/components/TrendArticle";
 import TierGate from "@/components/TierGate";
 import type { Metadata } from "next";
 
-export const dynamic = "force-dynamic";
+/**
+ * Static export (design Schritt 3): the page list is every published slug in
+ * the public window (PUBLIC_WINDOW_DAYS, default 30 — lib/archiveWindow.ts);
+ * anything else does not exist as a file and is Apache's 410/404. On the
+ * workstation the list is empty and the page renders per request as before
+ * (dynamicUnlessStatic below), so a slug published after the last build is
+ * never a 404 there. `dynamicParams` stays at its default: Next only accepts
+ * a static boolean there, and `false` would 404 every slug on the
+ * workstation — in the export it is moot, there is no server to serve an
+ * unlisted param anyway.
+ */
+export async function generateStaticParams() {
+  if (!isStaticExport()) return [];
+  const rows = await getPublicWindowSlugs(PUBLIC_ARCHIVE_DAYS);
+  return rows.map((r) => ({ slug: r.slug }));
+}
+
+/**
+ * One lookup per request, shared by generateMetadata and the page body
+ * (React request-scoped cache). Halves the queries — and keeps the export
+ * deterministic: with two independent queries the metadata rows and the
+ * page's client-component rows streamed in whichever order the pool
+ * answered, and ~5 % of article payloads flipped between builds.
+ */
+const loadTrend = cache((slug: string) => getTrendBySlug(slug));
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const { slug } = await params;
-  const trend = await getTrendBySlug(slug);
-  if (!trend) return { title: "Trend not found" };
+  try {
+    const { slug } = await params;
+    const trend = await loadTrend(slug);
+    if (!trend) return { title: "Trend not found" };
 
-  return {
-    title: `${trend.title_en} — Catandary Trends`,
-    description: trend.summary_en || undefined,
-    openGraph: {
-      title: trend.title_en,
+    // Path-relative: resolved against layout.tsx's metadataBase, so the
+    // exported HTML carries absolute canonical/OG URLs on the public host.
+    const canonical = `/trends/${trend.slug}`;
+    return {
+      title: `${trend.title_en} — Catandary Trends`,
       description: trend.summary_en || undefined,
-      type: "article",
-    },
-  };
+      alternates: { canonical },
+      openGraph: {
+        title: trend.title_en,
+        description: trend.summary_en || undefined,
+        type: "article",
+        url: canonical,
+      },
+    };
+  } finally {
+    metadataSettled(); // export determinism, see lib/renderMode.ts
+  }
 }
 
 export default async function TrendArticlePage({
@@ -39,10 +85,11 @@ export default async function TrendArticlePage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  await dynamicUnlessStatic();
   const { slug } = await params;
   // Published-only lookup (default of getTrendBySlug): a draft, rejected or
   // signal row with this slug is a 404 here, not a page.
-  const trend = await getTrendBySlug(slug);
+  const trend = await loadTrend(slug);
   if (!trend) notFound();
 
   // Free archive window (issue #70): articles older than the window are a
@@ -50,11 +97,15 @@ export default async function TrendArticlePage({
   // summary and metadata (SEO, backlinks, shares stay intact); only the body
   // is replaced by the upgrade card. Related articles are windowed too, so
   // the teaser never links free viewers into more gated pages.
+  //
+  // In the static export the slug list IS the window (generateStaticParams
+  // applied the same bound in SQL), so the per-article check is skipped —
+  // it could only ever disagree by a timezone edge and turn a listed page
+  // into a build-time notFound().
   const windowDays = await archiveWindowDays();
-  const inArchive = !withinArchiveWindow(
-    trend.sort_date ?? trend.published_at,
-    windowDays
-  );
+  const inArchive =
+    !isStaticExport() &&
+    !withinArchiveWindow(trend.sort_date ?? trend.published_at, windowDays);
 
   // #93: on the public showcase an out-of-window article is a hard 404 — the
   // public dataset simply ends at the window (no tiers exist there, so the
@@ -63,17 +114,16 @@ export default async function TrendArticlePage({
   // where the row is absent from the exported slice altogether.
   if (inArchive && isPublicMode()) notFound();
 
-  const [relatedRaw, tech, sourceDead] = await Promise.all([
-    getTrends({
-      status: "published",
-      vertical: trend.primary_vertical,
-      max_age_days: windowDays,
-      limit: 4,
-    }),
-    getTrendTechContext(trend.id),
+  // Related = the 3 predecessors of the same vertical (lib/db.ts) — stable
+  // per article, which keeps exported pages byte-identical across builds.
+  // The technology context is a pgvector query whose component renders
+  // nothing in public mode, so it is not even asked for there.
+  const [related, tech, sourceDead] = await Promise.all([
+    getRelatedPredecessors(trend, { limit: 3, max_age_days: windowDays }),
+    isPublicMode() ? Promise.resolve([]) : getTrendTechContext(trend.id),
     isSourceLinkDead(trend.source_url),
   ]);
-  const related = relatedRaw.filter((t) => t.id !== trend.id).slice(0, 3);
+  await afterMetadata(); // export determinism, see lib/renderMode.ts
 
   if (inArchive) {
     return (
