@@ -231,11 +231,12 @@ bekannten Hash gelten als unverändert.
 Ein `--apply` bei unverändertem Export ist ein No-op mit Summary (0 hoch, 0 gelöscht) — das
 ist der Wochenendfall, wenn kein Artikel das Fenster verlässt.
 
-**Dry-Run gegen den realen Export (02.09. 23:07, Build 22:48, MODE=local, leeres Ziel):**
-137.457 verwaltete Dateien / 1.616 MB — Assets 73 (1,4 MB), Artikel 137.061 (1.601 MB),
-Listing 323 (14,2 MB), 0 Löschungen, 55 Root-Dateien außerhalb des Scopes; Planung 0,9 s.
-Mit dem Wegfall der Segment-Payloads (Build-Schritt 2b) sinkt die Artikelzahl auf ~2 Dateien
-je Artikel (≈ 31k Dateien).
+**Dry-Run gegen den realen Export (02.09. 23:12, Build 23:08 nach Wegfall der
+Segment-Payloads, MODE=local, leeres Ziel):** 30.595 verwaltete Dateien / 964 MB — Assets 73
+(1,4 MB), Artikel 30.458 (954 MB), Listing 64 (8,8 MB), 0 Löschungen, 20 Root-Dateien
+außerhalb des Scopes (`index.html`, `404.html`, `trends.html`, `sitemap.xml`, `robots.txt`,
+`imprint`/`privacy`/`enquiry`/`analysis` … — s. o.); Planung < 1 s. (Vor dem Build-Schritt 2b
+waren es 137.457 Dateien / 1.616 MB.)
 
 ## Notes
 - **Countdown:** targets `2026-10-01T09:00:00+02:00` (09:00 CEST), computed against the
