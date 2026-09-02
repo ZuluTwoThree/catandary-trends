@@ -1,0 +1,1222 @@
+#!/usr/bin/env python3
+"""Incremental publish of the static export to the public webspace (Schritt 8
+of docs/audits/2026-09-02_static_export_design.md; operator notes in
+docs/launch/HOSTING_HETZNER.md, "Statischer Export — Publish").
+
+    scripts/publish_static_site.py                 # dry-run (default): plan + counts
+    scripts/publish_static_site.py --apply         # upload / delete
+    scripts/publish_static_site.py --apply --full  # repair: remote LISTING is the truth
+
+What it manages — and what it never touches
+-------------------------------------------
+The webroot of catandary.de is OWNER-managed: index.html (landing), robots.txt,
+mark.svg, favicon.ico and newsletter/** (PHP double-opt-in with database
+credentials). This script writes and deletes ONLY inside the managed subtrees
+REMOTE_ROOT/trends/** and REMOTE_ROOT/_next/**. Every remote path is
+normalised and checked against that rule before any operation; a manifest
+line with ".." aborts the run.
+
+How the delta is found
+----------------------
+The build (scripts/build_public_static.sh) leaves <out>.manifest.tsv
+(sha256, size, path per file). After a successful publish the managed subset
+of that manifest is uploaded to trends/.publish-manifest.tsv. The next run
+diffs local vs remote manifest: new + changed files are uploaded, files only
+in the remote manifest are deleted. No hashing of remote files, no listing —
+a normal day is ~500 new articles + listing pages + ~500 deletions.
+While uploading, the remote manifest is checkpointed every CHECKPOINT_EVERY
+operations, so an aborted run resumes where it stopped (no full re-upload).
+--full replaces the manifest with a remote LISTING (path + size) as the
+truth — repair mode after manual changes on the webspace or a lost manifest;
+files of equal size whose hash is unknown are assumed unchanged.
+
+Order of operations (no atomic swap on shared hosting, so order = consistency)
+  (a) new/changed _next/** assets       — pages reference them by hash
+  (b) new/changed article pages + their RSC/segment payloads
+  (c) listing / index / sitemap / .htaccess files — they link to (a)+(b)
+  (d) deletions of expired files, then empty directories
+Each phase runs only if the previous one had no error. Every file is written
+to <name>.publish-tmp and renamed, so a visitor never sees a half file.
+
+Safety nets (each refuses with exit 2; flags override the thresholds)
+  * config file must exist with mode 0600
+  * build_info older than --max-build-age-hours (12) → stale export
+  * fewer than --min-articles (1000) → empty export after a DB failure
+  * more than --max-delete-pct (60) of the remote files would go → --force
+  * zero managed files in the manifest → export layout changed
+
+Exit codes: 0 ok · 1 errors during transfer · 2 refused (config / gate / path).
+Log: ~/logs/catandary-publish-<YYYYMMDD>.log. Summary: data/publish_last.json
+(read by scripts/cycle_watchdog.py).
+
+Config (~/.config/catandary/webspace.env, KEY=VALUE, mode 0600):
+    MODE=sftp            # sftp | rsync | local
+    HOST=wpXXX.webspace-host.de
+    PORT=22
+    USER=login
+    PASSWORD=...         # or KEY_FILE=~/.ssh/id_ed25519
+    REMOTE_ROOT=/public_html
+    CONNECTIONS=3        # sftp: 1..4 parallel sessions (shared hosting!)
+    HOST_KEY_POLICY=strict   # strict (known_hosts must contain the host) | accept-new
+    KNOWN_HOSTS=~/.ssh/known_hosts
+    LOCAL_DEST=/path     # MODE=local only (tests, preview)
+    PUBLIC_NOINDEX=1     # optional, read by the cron wrapper for the build
+"""
+from __future__ import annotations
+
+import argparse
+import fcntl
+import json
+import logging
+import os
+import posixpath
+import re
+import shutil
+import stat as statmod
+import subprocess
+import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_CONFIG = Path.home() / ".config" / "catandary" / "webspace.env"
+DEFAULT_OUT = REPO_ROOT / "frontend" / ".export" / "out"
+DEFAULT_SUMMARY = REPO_ROOT / "data" / "publish_last.json"
+LOG_DIR = Path.home() / "logs"
+
+MANAGED_PREFIXES: tuple[str, ...] = ("trends", "_next")
+# Owner-managed webroot entries. Never a managed prefix, never written, never
+# deleted — the guard is structural (outside the managed subtrees) AND explicit.
+OWNER_PROTECTED = frozenset({"index.html", "robots.txt", "mark.svg", "favicon.ico", "newsletter"})
+REMOTE_MANIFEST = "trends/.publish-manifest.tsv"
+TMP_SUFFIX = ".publish-tmp"
+# Article pages: every public slug ends in -<numeric id> (same rule as the
+# 410 pattern in frontend/public-export/.htaccess). Covers <slug>.html,
+# <slug>.txt (RSC) and <slug>/__next.*.txt (segment prefetch).
+ARTICLE_RE = re.compile(r"^trends/[a-z0-9-]+-[0-9]+(?:\.html|\.txt|/.*)$")
+ARTICLE_PAGE_RE = re.compile(r"^trends/[a-z0-9-]+-[0-9]+(?:\.html|/index\.html)$")
+PHASES = ("assets", "articles", "listing")
+CHECKPOINT_EVERY = 2000
+
+EXIT_OK, EXIT_ERROR, EXIT_REFUSED = 0, 1, 2
+
+logger = logging.getLogger("publish_static_site")
+
+
+class Refused(Exception):
+    """A precondition failed — nothing was written. Exit 2."""
+
+
+class PathViolation(Refused):
+    """A path tried to leave the managed subtrees."""
+
+
+# --------------------------------------------------------------------------
+# configuration
+# --------------------------------------------------------------------------
+@dataclass
+class Config:
+    mode: str
+    host: str = ""
+    port: int = 22
+    user: str = ""
+    password: str = ""
+    key_file: str = ""
+    remote_root: str = ""
+    local_dest: str = ""
+    connections: int = 3
+    host_key_policy: str = "strict"
+    known_hosts: str = "~/.ssh/known_hosts"
+    raw: dict[str, str] = field(default_factory=dict)
+
+
+def parse_env_text(text: str) -> dict[str, str]:
+    """KEY=VALUE lines; '#' comments; optional 'export '; matching quotes stripped."""
+    out: dict[str, str] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
+            val = val[1:-1]
+        elif "#" in val and not val.startswith(("'", '"')):
+            # trailing comment: PORT=22  # default
+            head, _, _ = val.partition(" #")
+            val = head.strip()
+        out[key] = val
+    return out
+
+
+def load_config(path: Path, *, check_perms: bool = True) -> Config:
+    if not path.exists():
+        raise Refused(
+            f"webspace config missing: {path}\n"
+            "  Create it with the SFTP credentials from konsoleH (KEY=VALUE, see the\n"
+            "  docstring / docs/launch/HOSTING_HETZNER.md) and chmod 600 it.")
+    if check_perms:
+        mode = statmod.S_IMODE(path.stat().st_mode)
+        if mode & 0o077:
+            raise Refused(f"webspace config {path} has mode {mode:04o} — must be 0600 "
+                          "(it holds the webspace password): chmod 600 " + str(path))
+    kv = parse_env_text(path.read_text(encoding="utf-8"))
+    mode = kv.get("MODE", "").strip().lower()
+    if mode not in ("sftp", "rsync", "local"):
+        raise Refused(f"MODE must be sftp|rsync|local (got {mode!r}) in {path}")
+    cfg = Config(mode=mode, raw=kv)
+    cfg.host = kv.get("HOST", "").strip()
+    cfg.user = kv.get("USER", "").strip()
+    cfg.password = kv.get("PASSWORD", "")
+    cfg.key_file = os.path.expanduser(kv.get("KEY_FILE", "").strip())
+    cfg.remote_root = kv.get("REMOTE_ROOT", "").strip()
+    cfg.local_dest = os.path.expanduser(kv.get("LOCAL_DEST", "").strip())
+    cfg.host_key_policy = kv.get("HOST_KEY_POLICY", "strict").strip().lower() or "strict"
+    cfg.known_hosts = kv.get("KNOWN_HOSTS", "~/.ssh/known_hosts").strip() or "~/.ssh/known_hosts"
+    try:
+        cfg.port = int(kv.get("PORT", "22") or 22)
+    except ValueError:
+        raise Refused(f"PORT is not a number in {path}") from None
+    try:
+        cfg.connections = int(kv.get("CONNECTIONS", "3") or 3)
+    except ValueError:
+        raise Refused(f"CONNECTIONS is not a number in {path}") from None
+
+    if mode == "local":
+        if not cfg.local_dest:
+            raise Refused("MODE=local needs LOCAL_DEST")
+        cfg.remote_root = cfg.local_dest
+    else:
+        if not cfg.remote_root:
+            raise Refused(f"MODE={mode} needs REMOTE_ROOT (e.g. /public_html)")
+        if mode == "sftp":
+            if not cfg.host or not cfg.user:
+                raise Refused("MODE=sftp needs HOST and USER")
+            if not cfg.password and not cfg.key_file:
+                raise Refused("MODE=sftp needs PASSWORD or KEY_FILE")
+            if cfg.host_key_policy not in ("strict", "accept-new"):
+                raise Refused("HOST_KEY_POLICY must be strict or accept-new")
+        elif mode == "rsync" and cfg.host and not cfg.user:
+            raise Refused("MODE=rsync with HOST needs USER")
+    if cfg.mode == "sftp":
+        cfg.connections = max(1, min(4, cfg.connections))
+    else:
+        cfg.connections = max(1, min(8, cfg.connections))
+    return cfg
+
+
+# --------------------------------------------------------------------------
+# paths + manifests
+# --------------------------------------------------------------------------
+def normalize_rel(path: str) -> str:
+    """Normalise a manifest path to a clean relative POSIX path.
+
+    Raises PathViolation for anything that could escape a directory: absolute
+    paths, '..' segments, backslashes, control characters, empty result."""
+    if not path or "\x00" in path or "\n" in path or "\r" in path or "\\" in path:
+        raise PathViolation(f"malformed path {path!r}")
+    if path.startswith("/") or path.startswith("~"):
+        raise PathViolation(f"absolute path not allowed: {path!r}")
+    if any(seg == ".." for seg in path.split("/")):
+        raise PathViolation(f"'..' not allowed: {path!r}")
+    norm = posixpath.normpath(path)
+    if norm in ("", ".") or norm.startswith("../") or norm == ".." or norm.startswith("/"):
+        raise PathViolation(f"path escapes the tree: {path!r}")
+    return norm
+
+
+def is_managed(rel: str, managed: tuple[str, ...] = MANAGED_PREFIXES) -> bool:
+    return any(rel == p or rel.startswith(p + "/") for p in managed)
+
+
+def validate_managed(managed: tuple[str, ...]) -> None:
+    for p in managed:
+        n = normalize_rel(p)
+        if n != p or "/" in p or p in OWNER_PROTECTED or p.startswith("."):
+            raise Refused(f"illegal managed prefix {p!r}")
+
+
+def guard_remote(root: str, rel: str, managed: tuple[str, ...] = MANAGED_PREFIXES) -> str:
+    """Absolute remote path for a managed relative path — or PathViolation.
+
+    Accepts the managed prefix directories themselves (for mkdir/rmdir) and
+    anything below them; nothing else, whatever the input looks like."""
+    rel = normalize_rel(rel)
+    if not is_managed(rel, managed):
+        raise PathViolation(f"{rel!r} is outside the managed subtrees {managed}")
+    if rel.split("/", 1)[0] in OWNER_PROTECTED:
+        raise PathViolation(f"{rel!r} is owner-protected")
+    root_n = posixpath.normpath(root) if root else "."
+    full = posixpath.normpath(posixpath.join(root_n, rel))
+    ok = any(full == posixpath.join(root_n, p) or full.startswith(posixpath.join(root_n, p) + "/")
+             for p in managed)
+    if not ok:
+        raise PathViolation(f"resolved path {full!r} left {root_n}/{{{','.join(managed)}}}")
+    return full
+
+
+def parse_manifest(text: str) -> dict[str, tuple[str | None, int]]:
+    """'sha256\\tsize\\tpath' per line → {path: (sha or None, size)}. Paths are
+    kept verbatim; normalisation happens where they are used. A sha of '-'
+    means unknown (written by a --full run for size-matched files)."""
+    entries: dict[str, tuple[str | None, int]] = {}
+    for raw in text.splitlines():
+        if not raw.strip() or raw.startswith("#"):
+            continue
+        parts = raw.rstrip("\n").split("\t")
+        if len(parts) != 3:
+            raise Refused(f"manifest line has {len(parts)} columns, expected 3: {raw!r}")
+        sha, size, path = parts
+        try:
+            n = int(size)
+        except ValueError:
+            raise Refused(f"manifest size not numeric: {raw!r}") from None
+        entries[path] = (None if sha in ("", "-") else sha, n)
+    return entries
+
+
+def format_manifest(entries: dict[str, tuple[str | None, int]]) -> str:
+    lines = [f"{sha or '-'}\t{size}\t{path}" for path, (sha, size) in sorted(entries.items())]
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def phase_of(rel: str) -> str:
+    if posixpath.basename(rel) == ".htaccess":
+        return "listing"
+    if rel.startswith("_next/"):
+        return "assets"
+    if ARTICLE_RE.match(rel):
+        return "articles"
+    return "listing"
+
+
+def _listing_rank(rel: str) -> int:
+    base = posixpath.basename(rel)
+    if base == ".htaccess":
+        return 3
+    if base in ("sitemap.xml", "index.json") or base.startswith("sitemap"):
+        return 2
+    return 0
+
+
+def order_key(rel: str) -> tuple:
+    ph = PHASES.index(phase_of(rel))
+    return (ph, _listing_rank(rel) if ph == 2 else 0, rel)
+
+
+@dataclass
+class Item:
+    path: str
+    sha: str
+    size: int
+    phase: str
+    reason: str  # new | changed
+
+
+@dataclass
+class Plan:
+    uploads: list[Item] = field(default_factory=list)
+    deletes: list[str] = field(default_factory=list)
+    unchanged: int = 0
+    assumed_unchanged: int = 0
+    outside_scope: int = 0
+    remote_total: int = 0
+    local_managed: dict[str, tuple[str, int]] = field(default_factory=dict)
+
+    def by_phase(self, phase: str) -> list[Item]:
+        return [i for i in self.uploads if i.phase == phase]
+
+    def counts(self) -> dict:
+        out: dict = {"phases": {}}
+        for ph in PHASES:
+            items = self.by_phase(ph)
+            out["phases"][ph] = {
+                "new": sum(1 for i in items if i.reason == "new"),
+                "changed": sum(1 for i in items if i.reason == "changed"),
+                "bytes": sum(i.size for i in items),
+            }
+        out["upload_files"] = len(self.uploads)
+        out["upload_bytes"] = sum(i.size for i in self.uploads)
+        out["delete_files"] = len(self.deletes)
+        out["unchanged"] = self.unchanged
+        out["assumed_unchanged"] = self.assumed_unchanged
+        out["outside_scope"] = self.outside_scope
+        out["remote_total"] = self.remote_total
+        out["local_managed"] = len(self.local_managed)
+        return out
+
+
+def managed_subset(manifest: dict[str, tuple[str | None, int]],
+                   managed: tuple[str, ...] = MANAGED_PREFIXES,
+                   *, strict: bool = True) -> tuple[dict[str, tuple[str | None, int]], int]:
+    """Normalise + filter a manifest to the managed subtrees.
+    Returns (subset, number_of_entries_outside_scope). strict=True raises on
+    traversal attempts (local manifest); strict=False drops them (remote data)."""
+    subset: dict[str, tuple[str | None, int]] = {}
+    outside = 0
+    for path, (sha, size) in manifest.items():
+        try:
+            rel = normalize_rel(path)
+        except PathViolation:
+            if strict:
+                raise
+            outside += 1
+            continue
+        if rel in (REMOTE_MANIFEST, REMOTE_MANIFEST + TMP_SUFFIX):
+            continue
+        if not is_managed(rel, managed) or rel.split("/", 1)[0] in OWNER_PROTECTED:
+            outside += 1
+            continue
+        subset[rel] = (sha, size)
+    return subset, outside
+
+
+def build_plan(local: dict[str, tuple[str | None, int]],
+               remote: dict[str, tuple[str | None, int]],
+               managed: tuple[str, ...] = MANAGED_PREFIXES) -> Plan:
+    plan = Plan()
+    local_m, plan.outside_scope = managed_subset(local, managed, strict=True)
+    remote_m, _ = managed_subset(remote, managed, strict=False)
+    plan.remote_total = len(remote_m)
+    for rel, (sha, size) in local_m.items():
+        if sha is None:
+            raise Refused(f"local manifest has no hash for {rel}")
+        plan.local_managed[rel] = (sha, size)
+        if rel not in remote_m:
+            plan.uploads.append(Item(rel, sha, size, phase_of(rel), "new"))
+            continue
+        rsha, rsize = remote_m[rel]
+        if rsha is not None:
+            if rsha != sha:
+                plan.uploads.append(Item(rel, sha, size, phase_of(rel), "changed"))
+            else:
+                plan.unchanged += 1
+        elif rsize != size:
+            plan.uploads.append(Item(rel, sha, size, phase_of(rel), "changed"))
+        else:
+            plan.unchanged += 1
+            plan.assumed_unchanged += 1
+    plan.deletes = sorted(rel for rel in remote_m if rel not in local_m)
+    plan.uploads.sort(key=lambda i: order_key(i.path))
+    return plan
+
+
+# --------------------------------------------------------------------------
+# build gates
+# --------------------------------------------------------------------------
+def read_build_info(out_dir: Path) -> dict:
+    p = out_dir.parent / (out_dir.name + ".build_info.json")
+    if not p.exists():
+        raise Refused(f"build info missing: {p} — run scripts/build_public_static.sh first")
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def check_build(info: dict, manifest_article_pages: int, *, min_articles: int,
+                max_age_hours: float, now: datetime | None = None) -> None:
+    now = now or datetime.now(timezone.utc)
+    built = info.get("built_at")
+    if not built:
+        raise Refused("build info has no built_at")
+    try:
+        built_dt = datetime.fromisoformat(built)
+    except ValueError:
+        raise Refused(f"build info built_at unparsable: {built!r}") from None
+    if built_dt.tzinfo is None:
+        built_dt = built_dt.replace(tzinfo=timezone.utc)
+    age_h = (now - built_dt).total_seconds() / 3600
+    if age_h > max_age_hours:
+        raise Refused(f"export is stale: built {built} ({age_h:.1f} h ago, limit "
+                      f"{max_age_hours} h) — rebuild before publishing")
+    articles = int(info.get("articles", 0) or 0)
+    if articles < min_articles:
+        raise Refused(f"export has only {articles} articles (min {min_articles}) — "
+                      "refusing: this looks like an empty export after a DB failure")
+    if manifest_article_pages < min_articles:
+        raise Refused(f"manifest lists only {manifest_article_pages} article pages under "
+                      f"trends/ (build info says {articles}, min {min_articles}) — "
+                      "export layout changed? refusing")
+
+
+# --------------------------------------------------------------------------
+# backends
+# --------------------------------------------------------------------------
+class Backend:
+    """One connection. Paths are RELATIVE managed paths; every method resolves
+    them through guard_remote, so nothing outside the subtrees is reachable."""
+
+    def __init__(self, cfg: Config, managed: tuple[str, ...]):
+        self.cfg = cfg
+        self.managed = managed
+        self.root = cfg.remote_root
+        self._dirs: set[str] = set()
+
+    def connect(self) -> None: ...
+    def close(self) -> None: ...
+
+    def _abs(self, rel: str) -> str:
+        return guard_remote(self.root, rel, self.managed)
+
+    # primitives every backend implements on ABSOLUTE remote paths
+    def _exists_dir(self, absdir: str) -> bool: raise NotImplementedError
+    def _mkdir(self, absdir: str) -> None: raise NotImplementedError
+    def _rmdir(self, absdir: str) -> None: raise NotImplementedError
+    def _put(self, local: Path, absdst: str) -> None: raise NotImplementedError
+    def _put_bytes(self, data: bytes, absdst: str) -> None: raise NotImplementedError
+    def _rename(self, src: str, dst: str) -> None: raise NotImplementedError
+    def _remove(self, abspath: str) -> None: raise NotImplementedError
+    def _read(self, abspath: str) -> bytes | None: raise NotImplementedError
+    def _listdir(self, absdir: str) -> list[tuple[str, bool, int]]:
+        """[(name, is_dir, size)]"""
+        raise NotImplementedError
+
+    # managed-path API
+    def ensure_dir(self, rel_dir: str) -> None:
+        rel_dir = normalize_rel(rel_dir)
+        if rel_dir in self._dirs:
+            return
+        absdir = self._abs(rel_dir)
+        if self._exists_dir(absdir):
+            self._dirs.add(rel_dir)
+            return
+        parent = posixpath.dirname(rel_dir)
+        if parent and parent != rel_dir:
+            self.ensure_dir(parent)
+        try:
+            self._mkdir(absdir)
+        except OSError:
+            if not self._exists_dir(absdir):  # a sibling worker may have won the race
+                raise
+        self._dirs.add(rel_dir)
+
+    def put_file(self, local: Path, rel: str) -> None:
+        rel = normalize_rel(rel)
+        self.ensure_dir(posixpath.dirname(rel))
+        dst = self._abs(rel)
+        tmp = self._abs(rel + TMP_SUFFIX)
+        self._put(local, tmp)
+        self._rename(tmp, dst)
+
+    def put_text(self, text: str, rel: str) -> None:
+        rel = normalize_rel(rel)
+        self.ensure_dir(posixpath.dirname(rel))
+        dst = self._abs(rel)
+        tmp = self._abs(rel + TMP_SUFFIX)
+        self._put_bytes(text.encode("utf-8"), tmp)
+        self._rename(tmp, dst)
+
+    def read_text(self, rel: str) -> str | None:
+        data = self._read(self._abs(rel))
+        return None if data is None else data.decode("utf-8", "replace")
+
+    def remove(self, rel: str) -> None:
+        self._remove(self._abs(rel))
+
+    def rmdir_if_empty(self, rel_dir: str) -> bool:
+        rel_dir = normalize_rel(rel_dir)
+        if rel_dir in self.managed:
+            return False
+        try:
+            self._rmdir(self._abs(rel_dir))
+        except OSError:
+            return False
+        self._dirs.discard(rel_dir)
+        return True
+
+    def walk(self, rel_dir: str) -> dict[str, int]:
+        """{relative file path: size} below a managed dir (empty if absent)."""
+        rel_dir = normalize_rel(rel_dir)
+        out: dict[str, int] = {}
+        absroot = self._abs(rel_dir)
+        if not self._exists_dir(absroot):
+            return out
+        stack = [rel_dir]
+        while stack:
+            d = stack.pop()
+            for name, is_dir, size in self._listdir(self._abs(d)):
+                if name in (".", ".."):
+                    continue
+                child = posixpath.join(d, name)
+                if is_dir:
+                    stack.append(child)
+                else:
+                    out[child] = size
+        return out
+
+
+class LocalBackend(Backend):
+    """MODE=local: a directory on this machine (tests, preview)."""
+
+    def connect(self) -> None:
+        Path(self.root).mkdir(parents=True, exist_ok=True)
+
+    def _exists_dir(self, absdir: str) -> bool:
+        return os.path.isdir(absdir)
+
+    def _mkdir(self, absdir: str) -> None:
+        os.mkdir(absdir)
+
+    def _rmdir(self, absdir: str) -> None:
+        os.rmdir(absdir)
+
+    def _put(self, local: Path, absdst: str) -> None:
+        shutil.copyfile(local, absdst)
+
+    def _put_bytes(self, data: bytes, absdst: str) -> None:
+        with open(absdst, "wb") as f:
+            f.write(data)
+
+    def _rename(self, src: str, dst: str) -> None:
+        os.replace(src, dst)
+
+    def _remove(self, abspath: str) -> None:
+        try:
+            os.remove(abspath)
+        except FileNotFoundError:
+            pass
+
+    def _read(self, abspath: str) -> bytes | None:
+        try:
+            with open(abspath, "rb") as f:
+                return f.read()
+        except FileNotFoundError:
+            return None
+
+    def _listdir(self, absdir: str) -> list[tuple[str, bool, int]]:
+        out = []
+        with os.scandir(absdir) as it:
+            for e in it:
+                if e.is_dir(follow_symlinks=False):
+                    out.append((e.name, True, 0))
+                elif e.is_file(follow_symlinks=False):
+                    out.append((e.name, False, e.stat().st_size))
+        return out
+
+
+class SftpBackend(Backend):
+    """MODE=sftp via paramiko. One SSH session per backend instance; the worker
+    pool creates one per thread (2–4 — shared hosting does not take 16)."""
+
+    def __init__(self, cfg: Config, managed: tuple[str, ...]):
+        super().__init__(cfg, managed)
+        self.client = None
+        self.sftp = None
+
+    def connect(self) -> None:
+        import paramiko  # local import: only MODE=sftp needs it
+        client = paramiko.SSHClient()
+        kh = Path(os.path.expanduser(self.cfg.known_hosts))
+        kh.parent.mkdir(parents=True, exist_ok=True)
+        kh.touch(exist_ok=True)
+        client.load_host_keys(str(kh))
+        if self.cfg.host_key_policy == "accept-new":
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        else:
+            client.set_missing_host_key_policy(paramiko.RejectPolicy())
+        client.connect(
+            self.cfg.host, port=self.cfg.port, username=self.cfg.user,
+            password=self.cfg.password or None,
+            key_filename=self.cfg.key_file or None,
+            look_for_keys=False, allow_agent=False,
+            timeout=30, banner_timeout=30, auth_timeout=30,
+        )
+        client.get_transport().set_keepalive(30)
+        self.client = client
+        self.sftp = client.open_sftp()
+
+    def close(self) -> None:
+        for obj in (self.sftp, self.client):
+            try:
+                if obj is not None:
+                    obj.close()
+            except Exception:  # noqa: BLE001
+                pass
+        self.sftp = self.client = None
+
+    def _exists_dir(self, absdir: str) -> bool:
+        try:
+            st = self.sftp.stat(absdir)
+        except IOError:
+            return False
+        return statmod.S_ISDIR(st.st_mode)
+
+    def _mkdir(self, absdir: str) -> None:
+        self.sftp.mkdir(absdir)
+
+    def _rmdir(self, absdir: str) -> None:
+        self.sftp.rmdir(absdir)
+
+    def _put(self, local: Path, absdst: str) -> None:
+        self.sftp.put(str(local), absdst, confirm=True)
+
+    def _put_bytes(self, data: bytes, absdst: str) -> None:
+        with self.sftp.open(absdst, "wb") as f:
+            f.write(data)
+
+    def _rename(self, src: str, dst: str) -> None:
+        try:
+            self.sftp.posix_rename(src, dst)  # overwrites (OpenSSH extension)
+        except IOError:
+            try:
+                self.sftp.remove(dst)
+            except IOError:
+                pass
+            self.sftp.rename(src, dst)
+
+    def _remove(self, abspath: str) -> None:
+        try:
+            self.sftp.remove(abspath)
+        except FileNotFoundError:
+            pass
+        except IOError as e:
+            if getattr(e, "errno", None) == 2:
+                return
+            raise
+
+    def _read(self, abspath: str) -> bytes | None:
+        try:
+            with self.sftp.open(abspath, "rb") as f:
+                return f.read()
+        except IOError:
+            return None
+
+    def _listdir(self, absdir: str) -> list[tuple[str, bool, int]]:
+        out = []
+        for a in self.sftp.listdir_attr(absdir):
+            if statmod.S_ISDIR(a.st_mode):
+                out.append((a.filename, True, 0))
+            elif statmod.S_ISREG(a.st_mode):
+                out.append((a.filename, False, a.st_size or 0))
+        return out
+
+
+def make_backend(cfg: Config, managed: tuple[str, ...]) -> Backend:
+    if cfg.mode == "local":
+        return LocalBackend(cfg, managed)
+    if cfg.mode == "sftp":
+        return SftpBackend(cfg, managed)
+    raise Refused(f"no connection backend for MODE={cfg.mode}")
+
+
+# --------------------------------------------------------------------------
+# the run
+# --------------------------------------------------------------------------
+class Publisher:
+    def __init__(self, cfg: Config, out_dir: Path, plan: Plan, managed: tuple[str, ...],
+                 *, connections: int, max_errors: int,
+                 checkpoint_every: int = CHECKPOINT_EVERY):
+        self.cfg = cfg
+        self.out_dir = out_dir
+        self.plan = plan
+        self.managed = managed
+        self.connections = max(1, connections)
+        self.max_errors = max_errors
+        self.checkpoint_every = max(1, checkpoint_every)
+        self.state: dict[str, tuple[str | None, int]] = {}
+        self.lock = threading.Lock()
+        self.stop = threading.Event()
+        self.errors: list[str] = []
+        self.uploaded = 0
+        self.uploaded_bytes = 0
+        self.deleted = 0
+        self.dirs_removed = 0
+        self._tls = threading.local()
+        self._pool_backends: list[Backend] = []
+        self.main: Backend | None = None
+        self.phase_done: dict[str, int] = {}
+
+    # -- connections -------------------------------------------------------
+    def _thread_backend(self) -> Backend:
+        b = getattr(self._tls, "backend", None)
+        if b is None:
+            b = make_backend(self.cfg, self.managed)
+            b.connect()
+            self._tls.backend = b
+            with self.lock:
+                self._pool_backends.append(b)
+        return b
+
+    def _reset_thread_backend(self) -> None:
+        b = getattr(self._tls, "backend", None)
+        if b is not None:
+            try:
+                b.close()
+            except Exception:  # noqa: BLE001
+                pass
+            self._tls.backend = None
+
+    def _with_retry(self, fn, what: str) -> None:
+        try:
+            fn(self._thread_backend())
+        except PathViolation:
+            raise
+        except Exception as e:  # noqa: BLE001 — reconnect once, then give up on this item
+            logger.warning("%s: %r — reconnecting and retrying once", what, e)
+            self._reset_thread_backend()
+            time.sleep(1.0)
+            fn(self._thread_backend())
+
+    def _record_error(self, what: str, e: BaseException) -> None:
+        with self.lock:
+            self.errors.append(f"{what}: {e!r}")
+            if len(self.errors) >= self.max_errors:
+                self.stop.set()
+        logger.error("%s failed: %r", what, e)
+
+    # -- jobs --------------------------------------------------------------
+    def _upload_one(self, item: Item) -> None:
+        if self.stop.is_set():
+            return
+        src = self.out_dir / item.path
+        what = f"upload {item.path}"
+        try:
+            self._with_retry(lambda b: b.put_file(src, item.path), what)
+        except Exception as e:  # noqa: BLE001
+            self._record_error(what, e)
+            return
+        with self.lock:
+            self.state[item.path] = (item.sha, item.size)
+            self.uploaded += 1
+            self.uploaded_bytes += item.size
+
+    def _delete_one(self, rel: str) -> None:
+        if self.stop.is_set():
+            return
+        what = f"delete {rel}"
+        try:
+            self._with_retry(lambda b: b.remove(rel), what)
+        except Exception as e:  # noqa: BLE001
+            self._record_error(what, e)
+            return
+        with self.lock:
+            self.state.pop(rel, None)
+            self.deleted += 1
+
+    def _run_chunks(self, jobs: list, fn, label: str) -> None:
+        total = len(jobs)
+        done = 0
+        t0 = time.monotonic()
+        with ThreadPoolExecutor(max_workers=self.connections) as pool:
+            for start in range(0, total, self.checkpoint_every):
+                chunk = jobs[start:start + self.checkpoint_every]
+                list(pool.map(fn, chunk))
+                done += len(chunk)
+                self.checkpoint()
+                rate = done / max(1e-6, time.monotonic() - t0)
+                logger.info("%s: %d/%d (%.0f/s, errors %d)", label, done, total, rate,
+                            len(self.errors))
+                if self.errors:
+                    break
+
+    def checkpoint(self) -> None:
+        """Write what we believe the remote now holds — the resume point."""
+        with self.lock:
+            text = format_manifest(dict(self.state))
+        self.main.put_text(text, REMOTE_MANIFEST)
+
+    # -- orchestration -----------------------------------------------------
+    def run(self, remote_state: dict[str, tuple[str | None, int]]) -> None:
+        self.state = dict(remote_state)
+        self.main = make_backend(self.cfg, self.managed)
+        self.main.connect()
+        try:
+            for prefix in self.managed:
+                self.main.ensure_dir(prefix)
+            for ph in PHASES:
+                items = self.plan.by_phase(ph)
+                if not items:
+                    self.phase_done[ph] = 0
+                    continue
+                if self.errors:
+                    logger.warning("phase %s skipped — earlier errors", ph)
+                    break
+                logger.info("phase %s: %d files, %.1f MB", ph, len(items),
+                            sum(i.size for i in items) / 1e6)
+                before = self.uploaded
+                self._run_chunks(items, self._upload_one, f"phase {ph}")
+                self.phase_done[ph] = self.uploaded - before
+            if self.plan.deletes and not self.errors:
+                logger.info("phase delete: %d files", len(self.plan.deletes))
+                self._run_chunks(list(self.plan.deletes), self._delete_one, "phase delete")
+                if not self.errors:
+                    self._remove_empty_dirs()
+            if not self.errors:
+                # a clean run means the remote now mirrors the local managed set
+                self.state = {k: v for k, v in self.plan.local_managed.items()}
+                self.checkpoint()
+        finally:
+            for b in self._pool_backends:
+                try:
+                    b.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            try:
+                self.main.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    def _remove_empty_dirs(self) -> None:
+        cands: set[str] = set()
+        for rel in self.plan.deletes:
+            d = posixpath.dirname(rel)
+            while d and d not in self.managed:
+                cands.add(d)
+                d = posixpath.dirname(d)
+        for d in sorted(cands, key=lambda s: (-s.count("/"), s)):
+            try:
+                if self.main.rmdir_if_empty(d):
+                    self.dirs_removed += 1
+            except Exception as e:  # noqa: BLE001
+                logger.debug("rmdir %s: %r", d, e)
+
+
+# --------------------------------------------------------------------------
+# rsync mode
+# --------------------------------------------------------------------------
+RSYNC_BASE = ["rsync", "-rlt", "--delete", "--delay-updates",
+              "--exclude", posixpath.basename(REMOTE_MANIFEST),
+              "--exclude", "*" + TMP_SUFFIX,
+              "-i", "--out-format=%i %l %n"]
+
+
+def rsync_target(cfg: Config, rel_dir: str) -> str:
+    absdir = guard_remote(cfg.remote_root, rel_dir)
+    if cfg.host:
+        return f"{cfg.user}@{cfg.host}:{absdir}/"
+    return absdir + "/"
+
+
+def rsync_ssh_arg(cfg: Config) -> list[str]:
+    if not cfg.host:
+        return []
+    parts = ["ssh", "-p", str(cfg.port), "-o", "BatchMode=yes"]
+    if cfg.key_file:
+        parts += ["-i", cfg.key_file]
+    return ["-e", " ".join(parts)]
+
+
+def build_rsync_cmd(cfg: Config, out_dir: Path, rel_dir: str, *, dry_run: bool) -> list[str]:
+    cmd = list(RSYNC_BASE) + rsync_ssh_arg(cfg)
+    if dry_run:
+        cmd.append("-n")
+    cmd += [str(out_dir / rel_dir) + "/", rsync_target(cfg, rel_dir)]
+    return cmd
+
+
+def parse_rsync_itemize(output: str) -> dict:
+    new = changed = deleted = 0
+    nbytes = 0
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        code, _, rest = line.partition(" ")
+        if code.startswith("*deleting"):
+            if not rest.rstrip().endswith("/"):  # directories are not files
+                deleted += 1
+            continue
+        if len(code) < 2 or code[1] != "f" or code[0] not in "<>":
+            continue  # directories, symlinks, attr-only updates, messages
+        size_s, _, _ = rest.partition(" ")
+        try:
+            nbytes += int(size_s)
+        except ValueError:
+            pass
+        if code[2:].startswith("+"):
+            new += 1
+        else:
+            changed += 1
+    return {"new": new, "changed": changed, "deleted": deleted, "bytes": nbytes}
+
+
+def run_rsync_mode(cfg: Config, out_dir: Path, local_managed: dict, managed: tuple[str, ...],
+                   *, apply: bool, force: bool, max_delete_pct: float) -> dict:
+    result: dict = {"per_prefix": {}, "uploaded": 0, "deleted": 0, "uploaded_bytes": 0, "errors": 0}
+    if cfg.mode == "rsync" and not cfg.host:
+        Path(cfg.remote_root).mkdir(parents=True, exist_ok=True)
+    # 1. dry pass for the numbers (also the basis of the deletion gate)
+    totals = {"new": 0, "changed": 0, "deleted": 0, "bytes": 0}
+    for prefix in managed:
+        if not (out_dir / prefix).is_dir():
+            logger.warning("rsync: local %s/ missing — prefix skipped", prefix)
+            continue
+        cmd = build_rsync_cmd(cfg, out_dir, prefix, dry_run=True)
+        logger.info("rsync dry: %s", " ".join(cmd))
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise RuntimeError(f"rsync -n failed ({proc.returncode}): {proc.stderr.strip()}")
+        c = parse_rsync_itemize(proc.stdout)
+        result["per_prefix"][prefix] = c
+        for k in totals:
+            totals[k] += c[k]
+    local_total = len(local_managed)
+    remote_total = local_total - totals["new"] + totals["deleted"]
+    result["plan"] = {**totals, "remote_total": remote_total, "local_managed": local_total}
+    if remote_total > 0 and totals["deleted"] * 100.0 / remote_total > max_delete_pct and not force:
+        raise Refused(f"rsync would delete {totals['deleted']} of ~{remote_total} remote files "
+                      f"({totals['deleted'] * 100.0 / remote_total:.0f} % > {max_delete_pct} %) — "
+                      "use --force if that is intended")
+    if not apply:
+        return result
+    # 2. real pass, assets first
+    for prefix in managed:
+        if not (out_dir / prefix).is_dir():
+            continue
+        cmd = build_rsync_cmd(cfg, out_dir, prefix, dry_run=False)
+        logger.info("rsync: %s", " ".join(cmd))
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            result["errors"] += 1
+            logger.error("rsync %s failed (%d): %s", prefix, proc.returncode, proc.stderr.strip())
+            break
+        c = parse_rsync_itemize(proc.stdout)
+        result["uploaded"] += c["new"] + c["changed"]
+        result["deleted"] += c["deleted"]
+        result["uploaded_bytes"] += c["bytes"]
+    if result["errors"] == 0:
+        # 3. manifest — the sftp path can pick up from here on a later run
+        tmp = out_dir.parent / (".publish-manifest.tsv" + TMP_SUFFIX)
+        tmp.write_text(format_manifest(local_managed), encoding="utf-8")
+        try:
+            dest = rsync_target(cfg, posixpath.dirname(REMOTE_MANIFEST)) + posixpath.basename(REMOTE_MANIFEST)
+            cmd = ["rsync", "-t"] + rsync_ssh_arg(cfg) + [str(tmp), dest]
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            if proc.returncode != 0:
+                result["errors"] += 1
+                logger.error("manifest upload failed: %s", proc.stderr.strip())
+        finally:
+            tmp.unlink(missing_ok=True)
+    return result
+
+
+# --------------------------------------------------------------------------
+# summary / logging / main
+# --------------------------------------------------------------------------
+def setup_logging(log_file: str | None, verbose: bool) -> Path | None:
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG if verbose else logging.INFO)
+    fmt = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
+    for h in list(root.handlers):
+        root.removeHandler(h)
+    sh = logging.StreamHandler(sys.stderr)
+    sh.setFormatter(fmt)
+    root.addHandler(sh)
+    if log_file == "-":
+        return None
+    path = Path(log_file) if log_file else LOG_DIR / f"catandary-publish-{datetime.now():%Y%m%d}.log"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fh = logging.FileHandler(path, encoding="utf-8")
+    fh.setFormatter(fmt)
+    root.addHandler(fh)
+    return path
+
+
+def git_commit() -> str:
+    try:
+        return subprocess.run(["git", "-C", str(REPO_ROOT), "rev-parse", "--short", "HEAD"],
+                              capture_output=True, text=True, timeout=10).stdout.strip() or "unknown"
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def write_summary(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def print_plan(plan: Plan, *, full: bool, first_run: bool) -> None:
+    c = plan.counts()
+    print("publish plan" + (" (--full: remote listing is the truth)" if full else "")
+          + (" — no remote manifest: first run, everything is new" if first_run else ""))
+    for ph in PHASES:
+        p = c["phases"][ph]
+        print(f"  {ph:<9} new {p['new']:>7}  changed {p['changed']:>6}  {p['bytes'] / 1e6:>9.1f} MB")
+    print(f"  {'delete':<9} {c['delete_files']:>11}")
+    print(f"  upload total: {c['upload_files']} files, {c['upload_bytes'] / 1e6:.1f} MB; "
+          f"unchanged {c['unchanged']}"
+          + (f" (of which {c['assumed_unchanged']} assumed by size)" if c["assumed_unchanged"] else "")
+          + f"; remote had {c['remote_total']}; local managed {c['local_managed']}; "
+          f"outside scope (not managed, skipped) {c['outside_scope']}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Incremental publish of the static export")
+    ap.add_argument("--config", default=os.environ.get("PUBLISH_CONFIG", str(DEFAULT_CONFIG)))
+    ap.add_argument("--out", default=str(DEFAULT_OUT), help="export directory (default frontend/.export/out)")
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument("--dry-run", action="store_true", help="plan only (default)")
+    g.add_argument("--apply", action="store_true", help="really upload/delete")
+    ap.add_argument("--full", action="store_true", help="repair: compare against a remote LISTING, not the manifest")
+    ap.add_argument("--force", action="store_true", help="override the deletion threshold")
+    ap.add_argument("--connections", type=int, default=None, help="parallel sessions (sftp: 1..4)")
+    ap.add_argument("--min-articles", type=int, default=1000)
+    ap.add_argument("--max-build-age-hours", type=float, default=12.0)
+    ap.add_argument("--max-delete-pct", type=float, default=60.0)
+    ap.add_argument("--max-errors", type=int, default=25, help="stop after this many failed operations")
+    ap.add_argument("--managed", default=",".join(MANAGED_PREFIXES), help=argparse.SUPPRESS)
+    ap.add_argument("--log-file", default=None, help="path, or '-' for stderr only")
+    ap.add_argument("--summary", default=str(DEFAULT_SUMMARY), help=argparse.SUPPRESS)
+    ap.add_argument("--no-lock", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--checkpoint-every", type=int, default=CHECKPOINT_EVERY, help=argparse.SUPPRESS)
+    ap.add_argument("--verbose", "-v", action="store_true")
+    args = ap.parse_args(argv)
+
+    apply = bool(args.apply)
+    log_path = setup_logging(args.log_file, args.verbose)
+    t0 = time.monotonic()
+    started = datetime.now().astimezone()
+    out_dir = Path(args.out).expanduser().resolve()
+    managed = tuple(p.strip() for p in args.managed.split(",") if p.strip())
+    summary: dict = {
+        "started_at": started.isoformat(timespec="seconds"),
+        "git_commit": git_commit(),
+        "dry_run": not apply,
+        "full": bool(args.full),
+        "out_dir": str(out_dir),
+        "status": "running",
+        "uploaded": 0, "uploaded_bytes": 0, "deleted": 0, "unchanged": 0,
+        "skipped_outside_scope": 0, "errors": 0, "error_samples": [],
+    }
+
+    def finish(status: str, code: int, extra: dict | None = None) -> int:
+        summary.update(extra or {})
+        summary["status"] = status
+        summary["finished_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+        summary["duration_seconds"] = round(time.monotonic() - t0, 1)
+        summary["exit_code"] = code
+        if log_path:
+            summary["log"] = str(log_path)
+        if apply:  # a dry-run must not look like a publish to the watchdog
+            write_summary(Path(args.summary), summary)
+        logger.info("done: status=%s uploaded=%s deleted=%s errors=%s in %.0fs (exit %d)",
+                    status, summary["uploaded"], summary["deleted"], summary["errors"],
+                    summary["duration_seconds"], code)
+        return code
+
+    lock_fh = None
+    try:
+        validate_managed(managed)
+        cfg = load_config(Path(args.config).expanduser())
+        summary["mode"] = cfg.mode
+        summary["remote_root"] = cfg.remote_root
+        connections = args.connections if args.connections else cfg.connections
+        if cfg.mode == "sftp":
+            connections = max(1, min(4, connections))
+
+        info = read_build_info(out_dir)
+        manifest_path = out_dir.parent / (out_dir.name + ".manifest.tsv")
+        if not manifest_path.exists():
+            raise Refused(f"manifest missing: {manifest_path}")
+        local = parse_manifest(manifest_path.read_text(encoding="utf-8"))
+        local_m, outside = managed_subset(local, managed, strict=True)
+        if not local_m:
+            raise Refused(f"manifest {manifest_path} lists no file under {managed} — export layout changed?")
+        article_pages = sum(1 for p in local_m if ARTICLE_PAGE_RE.match(p))
+        check_build(info, article_pages, min_articles=args.min_articles,
+                    max_age_hours=args.max_build_age_hours)
+        summary["build"] = {k: info.get(k) for k in ("built_at", "git_commit", "articles", "files", "bytes", "window_days", "noindex")}
+        summary["skipped_outside_scope"] = outside
+        logger.info("mode=%s root=%s out=%s built=%s articles=%s managed files=%d (outside scope %d) %s",
+                    cfg.mode, cfg.remote_root, out_dir, info.get("built_at"), info.get("articles"),
+                    len(local_m), outside, "APPLY" if apply else "DRY-RUN")
+
+        if apply and not args.no_lock:
+            # same lock file as build_public_static.sh (frontend/.export/.lock):
+            # a rebuild while we read out/ would ship a mixed tree
+            lock_path = out_dir.parent / ".lock"
+            lock_fh = open(lock_path, "w")
+            try:
+                fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                raise Refused(f"another export/publish holds {lock_path}") from None
+
+        # ---------------- rsync ----------------
+        if cfg.mode == "rsync":
+            res = run_rsync_mode(cfg, out_dir, local_m, managed, apply=apply, force=args.force,
+                                 max_delete_pct=args.max_delete_pct)
+            plan = res["plan"]
+            print(f"rsync plan: new {plan['new']}, changed {plan['changed']}, deleted {plan['deleted']}, "
+                  f"{plan['bytes'] / 1e6:.1f} MB; remote ~{plan['remote_total']}; local managed {plan['local_managed']}")
+            extra = {"plan": plan, "uploaded": res["uploaded"], "deleted": res["deleted"],
+                     "uploaded_bytes": res["uploaded_bytes"], "errors": res["errors"],
+                     "unchanged": plan["local_managed"] - plan["new"] - plan["changed"]}
+            return finish("ok" if res["errors"] == 0 else "error",
+                          EXIT_OK if res["errors"] == 0 else EXIT_ERROR, extra)
+
+        # ---------------- sftp / local ----------------
+        probe = make_backend(cfg, managed)
+        probe.connect()
+        try:
+            text = probe.read_text(REMOTE_MANIFEST)
+            manifest_remote = parse_manifest(text) if text is not None else {}
+            first_run = text is None
+            if args.full:
+                listing: dict[str, tuple[str | None, int]] = {}
+                for prefix in managed:
+                    for rel, size in probe.walk(prefix).items():
+                        if rel in (REMOTE_MANIFEST, REMOTE_MANIFEST + TMP_SUFFIX):
+                            continue
+                        m = manifest_remote.get(rel)
+                        sha = m[0] if m and m[1] == size else None
+                        listing[rel] = (sha, size)
+                remote_state = listing
+                logger.info("--full: remote listing has %d files (manifest knew %d)",
+                            len(listing), len(manifest_remote))
+            else:
+                remote_state, _ = managed_subset(manifest_remote, managed, strict=False)
+                if first_run:
+                    logger.info("no remote manifest at %s — first run (or --full needed if the "
+                                "webspace already holds files)", REMOTE_MANIFEST)
+        finally:
+            probe.close()
+
+        plan = build_plan(local, remote_state, managed)
+        print_plan(plan, full=args.full, first_run=first_run)
+        summary["plan"] = plan.counts()
+        summary["unchanged"] = plan.unchanged
+        if plan.remote_total > 0:
+            pct = len(plan.deletes) * 100.0 / plan.remote_total
+            if pct > args.max_delete_pct and not args.force:
+                raise Refused(f"plan deletes {len(plan.deletes)} of {plan.remote_total} remote files "
+                              f"({pct:.0f} % > {args.max_delete_pct} %) — refusing without --force")
+        if not apply:
+            return finish("dry-run", EXIT_OK)
+
+        pub = Publisher(cfg, out_dir, plan, managed, connections=connections,
+                        max_errors=args.max_errors, checkpoint_every=args.checkpoint_every)
+        pub.run(remote_state)
+        extra = {"uploaded": pub.uploaded, "uploaded_bytes": pub.uploaded_bytes,
+                 "deleted": pub.deleted, "dirs_removed": pub.dirs_removed,
+                 "errors": len(pub.errors), "error_samples": pub.errors[:10],
+                 "phases_done": pub.phase_done, "resumed": not first_run and not args.full}
+        if pub.errors:
+            return finish("error", EXIT_ERROR, extra)
+        return finish("ok", EXIT_OK, extra)
+
+    except Refused as e:
+        logger.error("REFUSED: %s", e)
+        print(f"REFUSED: {e}", file=sys.stderr)
+        return finish("refused", EXIT_REFUSED, {"errors": 1, "error_samples": [str(e)]})
+    except KeyboardInterrupt:
+        return finish("interrupted", EXIT_ERROR, {"errors": 1, "error_samples": ["interrupted"]})
+    except Exception as e:  # noqa: BLE001
+        logger.exception("publish failed")
+        return finish("error", EXIT_ERROR, {"errors": 1, "error_samples": [repr(e)]})
+    finally:
+        if lock_fh is not None:
+            try:
+                fcntl.flock(lock_fh, fcntl.LOCK_UN)
+                lock_fh.close()
+            except OSError:
+                pass
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

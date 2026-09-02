@@ -29,3 +29,6 @@ scikit-learn>=1.4
 pyarrow>=14
 trafilatura>=2.1  # full-text article extraction (#11)
 pytrends>=4.9
+
+# Static-site publish to the Hetzner webspace over SFTP (scripts/publish_static_site.py)
+paramiko>=3.4

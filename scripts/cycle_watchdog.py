@@ -16,6 +16,12 @@ by artifact, not by log: backup_db.py logged "backup OK" for 42 nights
 (2026-07-13 .. 2026-08-23) while pg_dump died on its timeout every time, so
 the only evidence that counts is the dump directory itself.
 
+Since 2026-09-02 it also checks the daily 06:30 static-site publish
+(scripts/publish_static_site.sh → data/publish_last.json): the summary must be
+from today with errors == 0. This check is dormant until the webspace config
+~/.config/catandary/webspace.env exists — before that there is nothing to
+publish to, and the watchdog says nothing about it.
+
 Silence means healthy — a mail only ever arrives when something is wrong, which
 is what makes it worth reading.
 
@@ -28,7 +34,9 @@ from __future__ import annotations
 
 import argparse
 import html
+import json
 import logging
+import os
 import re
 import sys
 from datetime import date, datetime
@@ -59,10 +67,20 @@ BACKUP_LOG = LOG_DIR / "catandary-backup.log"
 # A full dump is ~113 GB (2026-08-23); anything under this is a truncated run.
 BACKUP_MIN_BYTES = 1_000_000_000
 
+# Static-site publish (06:30 daily, scripts/publish_static_site.sh). The check
+# is armed only once the webspace credentials exist — until then the site is
+# not published anywhere and a daily "missing" mail would be noise.
+PUBLISH_CONFIG = Path(os.environ.get("PUBLISH_CONFIG", "")).expanduser() \
+    if os.environ.get("PUBLISH_CONFIG") else Path.home() / ".config" / "catandary" / "webspace.env"
+PUBLISH_LAST = Path(__file__).resolve().parent.parent / "data" / "publish_last.json"
+PUBLISH_LOG_GLOB = "catandary-publish-{stamp}.log"
+PUBLISH_RUNNING_HINTS = ("publish_static_site",)
 
-def cycle_is_running() -> bool:
-    """True if a cycle process is alive. Reads /proc directly so the check has
-    no dependency on pgrep being installed in a cron environment."""
+
+def process_alive(hints: tuple[str, ...]) -> bool:
+    """True if a process whose command line contains one of the hints is
+    alive. Reads /proc directly so the check has no dependency on pgrep being
+    installed in a cron environment."""
     for proc in Path("/proc").iterdir():
         if not proc.name.isdigit():
             continue
@@ -71,9 +89,17 @@ def cycle_is_running() -> bool:
                 "utf-8", "replace")
         except (OSError, PermissionError):
             continue
-        if any(h in cmdline for h in RUNNING_HINTS):
+        if any(h in cmdline for h in hints):
             return True
     return False
+
+
+def cycle_is_running() -> bool:
+    return process_alive(RUNNING_HINTS)
+
+
+def publish_is_running() -> bool:
+    return process_alive(PUBLISH_RUNNING_HINTS)
 
 
 def db_snapshot() -> list[str]:
@@ -203,6 +229,88 @@ def inspect_backup(stamp: str) -> dict:
             "tail": tail}
 
 
+def inspect_publish(stamp: str) -> dict:
+    """Judge the daily static-site publish for the given YYYYMMDD stamp.
+
+    Evidence is data/publish_last.json, written by publish_static_site.py at
+    the end of every --apply run (also when it refused or died mid-way — the
+    file then carries status/errors). Dormant while the webspace config does
+    not exist: nothing is supposed to be published yet.
+    """
+    if not PUBLISH_CONFIG.exists():
+        return {"ok": True, "kind": "publish-unconfigured", "log": None,
+                "headline": "publish not configured (no webspace.env) — check dormant",
+                "detail": "", "tail": []}
+
+    date_tag = datetime.strptime(stamp, "%Y%m%d").strftime("%Y-%m-%d")
+    logs = sorted(LOG_DIR.glob(PUBLISH_LOG_GLOB.format(stamp=stamp)))
+    log_path = logs[-1] if logs else None
+    tail: list[str] = []
+    if log_path:
+        tail = [ln for ln in log_path.read_text(errors="replace").splitlines()
+                if ln.strip()][-12:]
+    remedy = ("Run by hand from the repo: scripts/publish_static_site.sh, or "
+              ".venv/bin/python scripts/publish_static_site.py --apply after "
+              "scripts/build_public_static.sh; --dry-run shows the plan first.")
+
+    if not PUBLISH_LAST.exists():
+        if publish_is_running():
+            return {"ok": False, "kind": "publish-running", "log": log_path,
+                    "headline": "The static-site publish is still running",
+                    "detail": "No summary yet and a publish_static_site process is "
+                              "alive. A first full upload of ~100k files over SFTP can "
+                              "take hours; a daily delta takes minutes.",
+                    "tail": tail}
+        return {"ok": False, "kind": "publish-missing", "log": log_path,
+                "headline": "The static site has never been published",
+                "detail": f"{PUBLISH_CONFIG} exists but {PUBLISH_LAST} does not — the "
+                          "06:30 publish never completed a run. " + remedy,
+                "tail": tail}
+
+    try:
+        last = json.loads(PUBLISH_LAST.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        return {"ok": False, "kind": "publish-failed", "log": log_path,
+                "headline": "The static-site publish summary is unreadable",
+                "detail": f"{PUBLISH_LAST}: {e!r}. " + remedy, "tail": tail}
+
+    finished = str(last.get("finished_at") or "")
+    status = str(last.get("status") or "?")
+    errors = int(last.get("errors") or 0)
+    numbers = (f"uploaded {last.get('uploaded', '?')}, deleted {last.get('deleted', '?')}, "
+               f"errors {errors}, status {status}")
+
+    if not finished.startswith(date_tag):
+        if publish_is_running():
+            return {"ok": False, "kind": "publish-running", "log": log_path,
+                    "headline": "The static-site publish is still running",
+                    "detail": f"Last completed run: {finished or 'never'} ({numbers}). A "
+                              "publish_static_site process is alive now — a large delta "
+                              "or a slow webspace. Nothing is lost; check again later.",
+                    "tail": tail}
+        return {"ok": False, "kind": "publish-stale", "log": log_path,
+                "headline": "The static site was not published today",
+                "detail": f"Last run finished {finished or 'never'} ({numbers}); nothing "
+                          f"for {date_tag}. The public 30-day window did not roll, "
+                          "expired articles are still online and new ones are missing. "
+                          + remedy,
+                "tail": tail}
+
+    if status != "ok" or errors > 0:
+        samples = last.get("error_samples") or []
+        return {"ok": False, "kind": "publish-failed", "log": log_path,
+                "headline": f"The static-site publish failed ({status})",
+                "detail": f"Today's run: {numbers}. "
+                          + (("First errors: " + "; ".join(str(x) for x in samples[:3]) + ". ")
+                             if samples else "")
+                          + "The remote manifest is checkpointed, so re-running resumes "
+                            "where it stopped. " + remedy,
+                "tail": tail}
+
+    return {"ok": True, "kind": "publish", "log": log_path,
+            "headline": f"publish ok ({numbers})", "detail": "", "tail": tail}
+
+
 def build_mail(v: dict, stamp: str) -> tuple[str, str, str]:
     nice = datetime.strptime(stamp, "%Y%m%d").strftime("%d.%m.%Y")
     subject = f"Catandary: {v['headline'].lower()} ({nice})"
@@ -252,10 +360,12 @@ def main() -> int:
     stamp = args.date or date.today().strftime("%Y%m%d")
     cycle_v = inspect(stamp)
     backup_v = inspect_backup(stamp)
+    publish_v = inspect_publish(stamp)
     logger.info("%s: cycle: %s (%s)", stamp, cycle_v["headline"], cycle_v["kind"])
     logger.info("%s: backup: %s", stamp, backup_v["headline"])
+    logger.info("%s: publish: %s", stamp, publish_v["headline"])
 
-    problems = [v for v in (cycle_v, backup_v) if not v["ok"]]
+    problems = [v for v in (cycle_v, backup_v, publish_v) if not v["ok"]]
     if not problems:
         if not args.force:
             return 0  # silence means healthy
