@@ -39,6 +39,14 @@ $INVALID = '<p>This unsubscribe link is invalid.</p>'
          . '<p>To unsubscribe, use the link at the end of any Catandary Trends email '
          . 'or write to contact@catandary.de.</p>';
 
+/* Ziel nach erfolgreicher Abmeldung im Browser (Form-POST): die statische
+   Bestätigungsseite des Website-Exports (frontend/src/app/trends/newsletter/
+   unsubscribed, noindex) — im Site-Design statt der PHP-Notseite. Der Export
+   muss publiziert sein, bevor diese Datei hochgeladen wird; die Abmeldung
+   selbst ist unabhängig davon längst geschrieben. One-Click (RFC 8058)
+   antwortet weiterhin mit Klartext, nie mit einem Redirect. */
+$UNSUBSCRIBED_URL = '/trends/newsletter/unsubscribed';
+
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method === 'HEAD') {
     $method = 'GET';                                   // Prefetch/Scanner: wie GET, kein Write
@@ -133,11 +141,11 @@ try {
     if ($oneClick) {
         nl_oneclick_reply(200, 'Unsubscribed');
     }
-    nl_page('Unsubscribed', 'You are unsubscribed.',
-        '<p>We will not send any further newsletter emails to <strong>'
-      . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '</strong>.</p>'
-      . '<p style="color:#8a8d82;font-size:.8rem;margin-top:1.4rem">'
-      . 'Changed your mind later? You can sign up again on the start page at any time.</p>');
+    /* 303 See Other: der Browser holt die Bestätigungsseite per GET — ein
+       Reload dort wiederholt den POST nicht. Kein Token in der Ziel-URL. */
+    header('Cache-Control: no-store');
+    header('Location: ' . $UNSUBSCRIBED_URL, true, 303);
+    exit;
 
 } catch (Throwable $e) {
     error_log('unsubscribe.php: ' . $e->getMessage());   // Details nie an den Client

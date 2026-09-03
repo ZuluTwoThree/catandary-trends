@@ -101,10 +101,10 @@ Artikel-, Mega- und Listing-Seite der Workstation-Instanz** (Fund 03.09. beim Ow
 `opengraph-image.tsx`) sind jetzt `force-static` (Export-Pflicht) — die Workstation-Sitemap
 wird dadurch beim Build gerendert, nicht mehr pro Request. Der Export-Modus unterdrückt
 `/api/track` (Artikel) und die `/api/newsletter`-Fetches (Signup postet stattdessen
-form-encoded an `/newsletter/subscribe.php` mit Consent-Checkbox; Editions-Archiv folgt in
-Schritt 6). Das Listing ist seit 03.09. statisch (URL-Schema unten), Suche/Filter laufen
-clientseitig über `trends/index.json` (Abschnitt „Suche im Export"); das Newsletter-Archiv (E)
-steht noch aus.
+form-encoded an `/newsletter/subscribe.php` mit Consent-Checkbox). Das Listing ist seit 03.09.
+statisch (URL-Schema unten), Suche/Filter laufen clientseitig über `trends/index.json`
+(Abschnitt „Suche im Export"), das Newsletter-Archiv ist seit 03.09. gebaut (Abschnitt
+„Newsletter im Export").
 
 ### URL-Schema des Exports (Stand 2026-09-03; `trailingSlash: false`, Apache mappt die Endung)
 
@@ -117,7 +117,10 @@ steht noch aus.
 | `/trends/<slug>-<id>` | `trends/<slug>-<id>.html` + `.txt` | Artikel + RSC-Payload; ohne Datei → 410 |
 | `/trends/mega`, `/trends/mega/<key>` | `trends/mega.html`, `trends/mega/<key>.html` | 28 Themes |
 | `/trends/imprint`, `/trends/privacy`, `/trends/enquiry` | `trends/{imprint,privacy,enquiry}.html` | Export-Adressen der Root-Seiten (`lib/sitePaths.ts`: alle Links gehen darüber; lokal bleiben `/imprint`, `/privacy`, `/enquiry`, die `/trends/…`-Kopien sind dort 404) |
-| `/trends/methodology`, `/trends/newsletter`, `/trends/expired`, `/trends/sitemap.xml` | `trends/<name>.html`, `trends/sitemap.xml` | |
+| `/trends/newsletter` | `trends/newsletter.html` | Signup + neueste Edition + Archivliste (s. „Newsletter im Export") |
+| `/trends/newsletter/<jahr>-w<kw>` | `trends/newsletter/<jahr>-w<kw>.html` | eine Edition, z. B. `2026-w35` (KW zweistellig); letzte 12; ältere/unbekannte → 404 |
+| `/trends/newsletter/unsubscribed` | `trends/newsletter/unsubscribed.html` | statische Abmelde-Bestätigung (303-Ziel von `unsubscribe.php`), noindex |
+| `/trends/methodology`, `/trends/expired`, `/trends/sitemap.xml` | `trends/<name>.html`, `trends/sitemap.xml` | |
 | `/trends/index.json` | `trends/index.json` | Suchindex des Fensters (ein Artikel je Zeile; `app/trends/index.json/route.ts`), lädt die Client-Suche lazy — s. „Suche im Export" |
 
 Listing-Routen: `app/trends/(feed)/page.tsx` (Seite 1), `app/trends/page/[n]`,
@@ -237,6 +240,66 @@ nicht — der Handler liefert dort `[]`, die Feed-Suche bleibt `?q=`.
 (`scripts/htaccess_test_server.sh`): Laden beim Fokus, AND-Suche, Chips, Hash-Deep-Link auf
 `/trends/v/tech`, Reset, Escape, Klick auf einen Treffer (Soft-Navigation über das
 `.txt`-Payload) — 03.09. ohne Konsolenfehler oder fehlgeschlagene Requests.
+
+### Newsletter im Export (Schritt E, Stand 2026-09-03)
+
+Die Website-Edition des Briefings (Mo 09:00 `scripts/weekly_newsletter_publish.sh` →
+`newsletter_editions`) ist im Export ein **statisches Archiv**; lokal bleibt
+`/trends/newsletter` die Client-Seite mit `/api/newsletter` und `?year=&week=`
+(`components/newsletter/NewsletterClient.tsx`, unverändert). Beide rendern denselben
+`components/newsletter/EditionBody.tsx`; der Export-Zweig ist `StaticBriefing.tsx`,
+Daten aus `lib/newsletterExport.ts`, Regeln (rein, Vitest) in `lib/newsletterEditions.ts`.
+
+**Seiten:** `/trends/newsletter` = Signup (oben und unten) + neueste Edition + Archivliste;
+`/trends/newsletter/<jahr>-w<kw>` (`2026-w35`, KW zweistellig — genau eine Schreibweise, `2026-w5`
+ist 404) = eine Edition mit `rel=prev/next`-Leiste, Canonical und OG-Description aus dem
+ersten Editorial-Absatz (`editionExcerpt`, ≤ 160 Zeichen); `/trends/newsletter/unsubscribed` =
+statische Bestätigung nach der Abmeldung, `noindex, nofollow`. `generateStaticParams` nur im
+Export (`exportStaticParams`), auf der Workstation sind die Editions-URLs 404 (dort gilt die
+Client-Seite). Die Sitemap listet die Editionen (`lastmod` = `created_at`).
+
+**Archivumfang:** die letzten `PUBLIC_NEWSLETTER_EDITIONS` Editionen (Default **12**,
+`lib/archiveWindow.ts` neben dem Artikelfenster; `ORDER BY year DESC, week DESC`, kein
+`created_at`-Bezug — die Editionen KW22–29 wurden am 19.07. nachgeneriert und sortieren trotzdem
+nach Kalenderwoche). Der Montags-Cron schreibt die neue Edition, der 06:30-Export vom Dienstag
+nimmt sie mit; die älteste fällt heraus und antwortet 404 (kein 410 — das Slug-Muster
+`^[a-z0-9-]+-[0-9]+$` greift nur auf Artikel ohne Verzeichnis). Datumsangaben in der
+Archivliste sind die ISO-Woche (`24–30 Aug 2026`, reine UTC-Arithmetik aus Jahr/KW — kein
+`new Date()`, kein Zeitzonenrisiko).
+
+**Link-Regel** (beim Build entschieden, deterministisch über die Tagesgrenze des Fensters):
+Editionstexte tragen Markdown-Links `[Titel](/trends/<slug>)` (Editorial + Vertical-Summaries)
+und `trend_refs` (3 je Vertikale). Ein Artikel-Link (Slug endet auf `-<id>`) bleibt **intern**,
+wenn der Artikel im Fenster liegt — Prädikat identisch mit `getPublicWindowSlugs`
+(`status='published' AND sort_date >= Fensterstart`, `getTrendLinkTargets`), also nie ein Link
+auf ein 410. Sonst wird er auf die **Primärquelle** umgebogen (`trend_refs[].source_url` der
+Edition, vorhanden seit KW32; davor `trends.source_url`) und als externer Link mit
+`rel="noopener noreferrer"` und „· Quelle ↗" gerendert; ohne brauchbare Quelle (`safeHref`)
+steht der Titel als **Text ohne Link**. `/trends/mega` und absolute URLs bleiben unverändert.
+Stand 03.09. (Fenster ab 04.08.): KW24–31 alle 24 Referenzen je Edition extern, KW32 18 intern /
+6 extern, KW33–35 24 intern; 0 Text-only.
+
+**Signup:** `components/newsletter/SignupForm.tsx` postet im Export form-encoded an
+`/newsletter/subscribe.php` (Owner-Webroot, `docs/launch/newsletter-doi-php/`): Felder `email`,
+`consent` (spiegelt die Checkbox; das Backend verlangt `1`), Honeypot `website` leer; kein
+`/api/*`-Aufruf. Erfolg → „—— Subscribed" + Backend-Meldung, Fehler → `role="alert"` mit der
+Backend-Meldung, Netz-/JSON-Fehler → „Connection error." (so antwortet auch der Apache-Testcontainer,
+der kein PHP hat). Der Origin-Check des PHP akzeptiert nur `catandary.de`.
+
+**Redirect-Ziel:** `unsubscribe.php` antwortet nach dem bestätigten Form-POST mit **303** auf
+`$UNSUBSCRIBED_URL = '/trends/newsletter/unsubscribed'` (eine Stelle im PHP; One-Click bleibt
+Klartext 200). Reihenfolge beim Ausrollen: erst der Export publiziert, dann das PHP hochladen —
+sonst landet die (trotzdem vollzogene) Abmeldung auf einem 404.
+
+**Build-Checks** (`build_public_static.sh`): `trends/newsletter.html`,
+`trends/newsletter/unsubscribed.html`, ≥ 1 Editions-Seite, `newsletter_editions` in
+`build_info.json`. Grenze: eine **leere** `newsletter_editions`-Tabelle bricht den Build (Next
+verweigert eine leere `generateStaticParams`-Liste, wie bei `/analysis/[slug]`) — es gibt keinen
+automatischen Fallback; Tabelle prüfen, notfalls `weekly_newsletter_publish.sh` von Hand.
+
+**Test 03.09.** (`:8098`, Container neu gestartet): `/trends/newsletter` 200, `/trends/newsletter/`
+301, `/trends/newsletter/2026-w35` und `2026-w24` 200, `2026-w23` und `2026-w5` 404,
+`/trends/newsletter/unsubscribed` 200 (+ `/` → 301). Zwei Builds `diff -rq`-leer.
 
 ## Statischer Export — Publish (Schritt 8, Stand 2026-09-02)
 
