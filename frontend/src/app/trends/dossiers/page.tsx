@@ -53,8 +53,13 @@ const NOTICE: Record<string, { text: string; warn: boolean }> = {
   noseries: { text: "No such series to recompute.", warn: true },
 };
 
+/** Lock timestamps are UTC ISO strings — show them in the workstation's
+ *  local time (the log file names stay UTC). */
 function fmt(ts: string | null): string {
-  return ts ? ts.slice(0, 16).replace("T", " ") : "";
+  if (!ts) return "";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return ts.slice(0, 16).replace("T", " ");
+  return d.toLocaleString("en-GB", { hour12: false, dateStyle: "short", timeStyle: "short" });
 }
 
 function CheckSummary({ order }: { order: DossierOrder }) {
