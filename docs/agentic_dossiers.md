@@ -151,6 +151,7 @@ Desk), Themen-Modus, Quant-Vorstufe an, Web-Sweep mit Brave-Key.
 | Dauer | 10–15 min | Recherche 476,6 s; Wandzeit inkl. beider Handover 568 s (20:07:08 → 20:16:36) |
 | Belegmix | — | 58 Quellen: 7 Artikel / 11 Signale / 12 Paper / 9 Patente / 18 Web; Messblock: 8 CPC-Klassen, „Improving fast (median ~13 %/yr)", Lead-Times nicht messbar |
 | Handover | Ruhezustand | Emb-8B → 27B (Pre-Flight, VRAM 172 MiB) → Symlink zurück auf `start-qwen3-8b-208k.sh`; llama-server danach manuell neu gestartet (Restore seit `22e9c83` im Worker) |
+| v2 per Desk-Knopf (Recompute) | E2E | Server Action → Worker detached: 562 s, 58 Quellen (6A/8S/12P/12N/20W), 13 zitiert, 4 gestrichen, `review`, im Desk als v2; Ruhezustand danach automatisch wiederhergestellt (llama-server aktiv, 8B-208k) |
 
 Befund: Belegtreue und URL-Echtheit des **fertigen** Dossiers erfüllen die
 Ziele; die Schwäche liegt vor der Kanonisierung — das Modell zitiert
