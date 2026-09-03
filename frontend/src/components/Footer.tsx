@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { linkPrefetch } from "@/lib/renderMode";
 import { isPublicMode } from "@/lib/publicMode";
+import { sitePath } from "@/lib/sitePaths";
 
 const LINK = "hover:text-paper transition-colors";
 
@@ -31,10 +32,10 @@ export default function Footer() {
           <Link prefetch={linkPrefetch()} href="/trends/newsletter" className={LINK}>
             Newsletter
           </Link>
-          <Link prefetch={linkPrefetch()} href="/imprint" className={LINK}>
+          <Link prefetch={linkPrefetch()} href={sitePath("/imprint")} className={LINK}>
             Imprint
           </Link>
-          <Link prefetch={linkPrefetch()} href="/privacy" className={LINK}>
+          <Link prefetch={linkPrefetch()} href={sitePath("/privacy")} className={LINK}>
             Privacy
           </Link>
         </span>

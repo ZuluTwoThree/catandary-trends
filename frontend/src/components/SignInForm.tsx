@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { sitePath } from "@/lib/sitePaths";
 
 /**
  * Email-gate sign-in: request a magic link. One field, plain language, no
@@ -142,7 +143,7 @@ export default function SignInForm({
       </form>
       <p className="mt-4 text-[11px] leading-[1.5] text-muted">
         We use your email only for sign-in{newsletter ? " and the briefing you opted into" : ""}.{" "}
-        <a href="/privacy" className="underline hover:text-paper">
+        <a href={sitePath("/privacy")} className="underline hover:text-paper">
           Privacy
         </a>
       </p>

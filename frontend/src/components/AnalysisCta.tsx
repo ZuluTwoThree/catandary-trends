@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { sitePath } from "@/lib/sitePaths";
 
 /**
  * The mandatory end-of-analysis CTA (#93: "CTA am Ende jeder Analyse — 'So
@@ -11,7 +12,8 @@ import Link from "next/link";
  * Styling mirrors `ForesightCta`'s `compact` variant (same accent-bordered
  * card, same button treatment) so this reads as part of the same design
  * system rather than a bolted-on box — but it always renders (no
- * `isPublicMode()` gate): `/enquiry` is a public route in both modes.
+ * `isPublicMode()` gate): `/enquiry` is a public route in both modes (the
+ * export addresses it as /trends/enquiry — lib/sitePaths.ts).
  */
 export default function AnalysisCta() {
   return (
@@ -24,7 +26,7 @@ export default function AnalysisCta() {
         own?
       </p>
       <Link
-        href="/enquiry"
+        href={sitePath("/enquiry")}
         className="inline-flex items-center gap-2 bg-accent text-ink px-5 py-3 font-mono text-[10px] uppercase tracking-[0.18em] hover:bg-accent-deep transition-colors"
       >
         Request an analysis →

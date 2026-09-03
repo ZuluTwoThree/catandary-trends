@@ -6,6 +6,7 @@ import { isStaticExport } from "@/lib/renderMode";
 import { PUBLIC_ARCHIVE_DAYS } from "@/lib/entitlement";
 import { megaTrendSlug, VERTICALS } from "@/lib/types";
 import { listingPath } from "@/lib/staticListing";
+import { sitePath } from "@/lib/sitePaths";
 
 /**
  * Route handlers need a literal `force-static` for `output: "export"`
@@ -129,12 +130,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...verticalUrls,
     hub("/trends/mega", "weekly", 0.9),
     hub("/analysis", "weekly", 0.8),
-    hub("/enquiry", "monthly", 0.6),
+    hub(sitePath("/enquiry"), "monthly", 0.6),
     ...foresightUrls,
     hub("/trends/methodology", "monthly", 0.6),
     hub("/trends/newsletter", "monthly", 0.5),
-    hub("/imprint", "yearly", 0.2),
-    hub("/privacy", "yearly", 0.2),
+    hub(sitePath("/imprint"), "yearly", 0.2),
+    hub(sitePath("/privacy"), "yearly", 0.2),
     ...megaUrls,
     ...analysisUrls,
     ...trendUrls,

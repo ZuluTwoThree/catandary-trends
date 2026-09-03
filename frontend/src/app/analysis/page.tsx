@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { linkPrefetch } from "@/lib/renderMode";
 import { getAllAnalyses, formatAnalysisDate } from "@/lib/analyses";
+import { sitePath } from "@/lib/sitePaths";
 
 export const metadata = {
   title: "Analyses — Catandary Trends",
@@ -42,7 +43,7 @@ export default function AnalysisIndexPage() {
             Each analysis is hand-built from the corpus, reviewed by a human,
             and dated with the exact data it was drawn from. Want one on a
             specific question?{" "}
-            <Link prefetch={linkPrefetch()} href="/enquiry" className="text-accent hover:underline">
+            <Link prefetch={linkPrefetch()} href={sitePath("/enquiry")} className="text-accent hover:underline">
               Ask us
             </Link>
             .

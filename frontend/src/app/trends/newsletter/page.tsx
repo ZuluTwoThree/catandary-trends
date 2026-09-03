@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getVerticalInfo, type Vertical } from "@/lib/types";
 import { safeHref } from "@/lib/safeHref";
 import { isStaticExport } from "@/lib/renderMode";
+import { sitePath } from "@/lib/sitePaths";
 
 /**
  * Static hosting (design 4.2): the signup posts form-encoded to the PHP
@@ -223,7 +224,7 @@ function SignupForm() {
       <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted mt-3">
         One email a week. Unsubscribe anytime.{" "}
         <Link
-          href="/privacy"
+          href={sitePath("/privacy")}
           className="underline hover:text-accent transition-colors"
         >
           Privacy

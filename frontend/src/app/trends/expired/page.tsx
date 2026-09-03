@@ -2,6 +2,7 @@ import Link from "next/link";
 import { linkPrefetch } from "@/lib/renderMode";
 import type { Metadata } from "next";
 import { PUBLIC_ARCHIVE_DAYS } from "@/lib/entitlement";
+import { sitePath } from "@/lib/sitePaths";
 
 export const metadata: Metadata = {
   title: "Signal expired — Catandary Trends",
@@ -33,7 +34,7 @@ export default function ExpiredPage() {
       <div className="flex flex-wrap justify-center gap-3">
         <Link
           prefetch={linkPrefetch()}
-          href="/enquiry"
+          href={sitePath("/enquiry")}
           className="font-mono text-[11px] uppercase tracking-[0.18em] bg-accent text-ink px-5 py-3 hover:bg-accent-deep transition-colors"
         >
           Ask about archive access →

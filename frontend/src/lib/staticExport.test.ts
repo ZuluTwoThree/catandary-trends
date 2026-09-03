@@ -104,6 +104,9 @@ describe("the surviving app tree is exportable", () => {
       "src/app/trends/methodology/page.tsx",
       "src/app/trends/newsletter/page.tsx",
       "src/app/trends/expired/page.tsx",
+      "src/app/trends/imprint/page.tsx",
+      "src/app/trends/privacy/page.tsx",
+      "src/app/trends/enquiry/page.tsx",
       "src/app/analysis/page.tsx",
       "src/app/analysis/[slug]/page.tsx",
       "src/app/trends/sitemap.ts",
@@ -121,6 +124,18 @@ describe("the surviving app tree is exportable", () => {
       const src = fs.readFileSync(path.join(FRONTEND, f), "utf-8");
       expect(src, `${f} lacks generateStaticParams`).toMatch(/export\s+(async\s+)?function\s+generateStaticParams/);
     }
+  });
+
+  it("links the relocated root pages only via sitePath (they are 404s on the webspace)", () => {
+    // lib/sitePaths.ts: /imprint, /privacy, /enquiry live under /trends in the export.
+    const tree = [...surviving, ...walk(path.join(FRONTEND, "src", "components")).map((f) =>
+      path.relative(FRONTEND, f).split(path.sep).join("/"))];
+    const offenders = tree.filter((f) => {
+      if (!/\.tsx?$/.test(f) || /\.test\.tsx?$/.test(f)) return false;
+      const src = fs.readFileSync(path.join(FRONTEND, f), "utf-8");
+      return /href=["'`]\/(imprint|privacy|enquiry)["'`]/.test(src);
+    });
+    expect(offenders).toEqual([]);
   });
 
   it("has no route handlers left (API routes cannot be exported)", () => {
