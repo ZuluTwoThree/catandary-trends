@@ -48,6 +48,6 @@ docker run -d --name "$NAME" -p "127.0.0.1:${PORT}:80" \
   httpd:2.4 >/dev/null
 sleep 1
 echo "Apache on http://127.0.0.1:${PORT}/  (htdocs = $OUT)"
-for u in /trends /trends/ /trends/page/2 /trends/v/tech /trends/v/TECH /trends/imprint /trends/does-not-exist-123 /trends/does-not-exist; do
+for u in /trends /trends/ /trends/page/2 /trends/v/tech /trends/v/TECH /trends/imprint /trends/index.json /trends/does-not-exist-123 /trends/does-not-exist; do
   printf '  %-28s %s\n' "$u" "$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' "http://127.0.0.1:${PORT}${u}")"
 done
