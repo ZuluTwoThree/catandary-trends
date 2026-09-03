@@ -110,6 +110,7 @@ describe("the surviving app tree is exportable", () => {
       "src/app/analysis/page.tsx",
       "src/app/analysis/[slug]/page.tsx",
       "src/app/trends/sitemap.ts",
+      "src/app/trends/index.json/route.ts",
       "src/app/robots.ts",
       "src/app/not-found.tsx",
     ]) {
@@ -138,9 +139,19 @@ describe("the surviving app tree is exportable", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("has no route handlers left (API routes cannot be exported)", () => {
+  it("keeps only force-static GET route handlers (API routes cannot be exported)", () => {
+    // The search index is the one handler the export builds — a static
+    // file like the sitemap. Anything request-time (POST, dynamic) must
+    // stay under src/app/api/ and out of the export.
     const handlers = surviving.filter((f) => /\/route\.tsx?$/.test(f));
-    expect(handlers).toEqual([]);
+    expect(handlers).toEqual(["src/app/trends/index.json/route.ts"]);
+    for (const f of handlers) {
+      const src = fs.readFileSync(path.join(FRONTEND, f), "utf-8");
+      expect(src, `${f} lacks force-static`).toMatch(/export\s+const\s+dynamic\s*=\s*["']force-static["']/);
+      expect(src, `${f} exports a non-GET method`).not.toMatch(
+        /export\s+(async\s+)?function\s+(POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/
+      );
+    }
   });
 
   it("has no literal force-dynamic left (use `await dynamicUnlessStatic()` instead)", () => {

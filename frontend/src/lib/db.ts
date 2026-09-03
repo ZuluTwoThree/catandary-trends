@@ -259,24 +259,28 @@ export interface PublicIndexRow {
   trend_score: number | null;
   source_name: string | null;
   trend_signal_type: string | null;
+  source_type: string | null;
 }
 
 /**
  * Rows of the client-side search index of the static site (design Schritt
- * 5 / follow-up D — the /trends/index.json route that consumes this is not
- * built yet): every published article in the window,
- * narrow projection, summary pre-cut in SQL (the route trims it to 160
- * characters at a word boundary). Same window bound and the same
- * `sort_date DESC, id DESC` order as the page list, so the index never
- * names a slug the export did not write.
+ * 5 / follow-up D — consumed by app/trends/index.json/route.ts, shaped by
+ * lib/staticSearch.ts): every published article in the window, narrow
+ * projection, summary pre-cut in SQL (the index trims it to 160 characters
+ * at a word boundary). Same window bound and the same `sort_date DESC,
+ * id DESC` order as the page list, so the index never names a slug the
+ * export did not write. `source_type` comes via the same joins as
+ * TREND_SELECT — it is the card's "Trade / Press / Brand" label.
  */
 export async function getPublicIndexRows(windowDays: number): Promise<PublicIndexRow[]> {
   return q<PublicIndexRow>(
     `SELECT t.slug, t.title_en, left(t.summary_en, 240) as summary_en,
             t.primary_vertical, t.verticals, t.pestel, t.mega_trend,
             t.sort_date::text as sort_date, t.trend_score, t.source_name,
-            t.trend_signal_type
+            t.trend_signal_type, s.source_type as source_type
        FROM trends t
+       LEFT JOIN raw_entries re ON t.raw_entry_id = re.id
+       LEFT JOIN sources s ON re.source_id = s.id
       WHERE t.status = 'published' AND t.sort_date >= $1::timestamptz
       ORDER BY t.sort_date DESC, t.id DESC`,
     [windowStartIso(windowDays)]

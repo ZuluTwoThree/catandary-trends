@@ -15,6 +15,10 @@
 #                              the basis of the incremental upload, Schritt 8)
 #   <OUT_DIR>.build_info.json  when / which commit / how many articles ...
 #
+# The export also carries trends/index.json — the client-side search index
+# (Schritt 5 / D, lib/staticSearch.ts); it is verified below and its size
+# lands in build_info.json.
+#
 # Env (all optional):
 #   PUBLIC_WINDOW_DAYS  article window in days (default 30; lib/archiveWindow.ts)
 #   PUBLIC_NOINDEX      1 = robots.txt disallow-all + <meta robots noindex>
@@ -185,6 +189,30 @@ MEGA=$(find "$RAW/trends/mega" -maxdepth 1 -type f -name '*.html' 2>/dev/null | 
 [ "$ARTICLES" -gt 0 ] || die "no article pages in the export (DB unreachable?)"
 log "articles: $ARTICLES  mega pages: $MEGA"
 
+# Search index (Schritt 5 / D): trends/index.json — app/trends/index.json/
+# route.ts, one JSON object per line (lib/staticSearch.ts serializeIndex),
+# fetched by the client-side search. Must be valid JSON with as many lines
+# as entries; the entry count should equal the article pages (both come
+# from the same window predicate — they only drift when something publishes
+# DURING the build, i.e. the 04:00 cycle; that is a warning, not a failure).
+INDEX_FILE="$RAW/trends/index.json"
+[ -f "$INDEX_FILE" ] || die "trends/index.json (search index) missing"
+INDEX_STATS=$(python3 - "$INDEX_FILE" <<'PY'
+import gzip, json, sys
+raw = open(sys.argv[1], "rb").read()
+data = json.loads(raw)
+if not isinstance(data, list):
+    raise SystemExit("index.json is not a JSON array")
+print(len(data), raw.count(b"\n"), len(raw), len(gzip.compress(raw, 6)))
+PY
+) || die "trends/index.json is not valid JSON"
+read -r INDEX_ENTRIES INDEX_LINES INDEX_BYTES INDEX_GZ <<< "$INDEX_STATS"
+[ "$INDEX_LINES" = "$INDEX_ENTRIES" ] || die "index.json: $INDEX_LINES lines for $INDEX_ENTRIES entries (one entry per line expected)"
+if [ "$INDEX_ENTRIES" != "$ARTICLES" ]; then
+  log "WARN: search index has $INDEX_ENTRIES entries but the export has $ARTICLES article pages (a publish during the build?)"
+fi
+log "search index: $INDEX_ENTRIES entries, $((INDEX_BYTES / 1024)) KB raw, $((INDEX_GZ / 1024)) KB gzip"
+
 # Hard gate: nothing unpublished may leak into the payloads.
 # (grep exits 1 on "no match" — under pipefail that must not abort the run)
 DRAFTS=$( (grep -rl --include='*.html' --include='*.txt' -F '"status":"draft"' "$RAW" || true) | wc -l)
@@ -248,6 +276,9 @@ cat > "$BUILD_INFO" <<JSON
   "mega_pages": $MEGA,
   "published_analyses": $PUBLISHED_ANALYSES,
   "segment_payloads_removed": $SEG_BEFORE,
+  "index_entries": $INDEX_ENTRIES,
+  "index_bytes": $INDEX_BYTES,
+  "index_gzip_bytes": $INDEX_GZ,
   "files": $FILES,
   "bytes": $BYTES,
   "build_seconds": $((T2 - T1)),
