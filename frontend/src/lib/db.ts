@@ -5,6 +5,12 @@ import { q, q1 } from "./pg";
 import { windowStartIso } from "./archiveWindow";
 import { classifyMomentum, type MegaMomentum } from "./momentum";
 import type {
+  EditionSummary,
+  NewsletterEdition,
+  MegaTrendRadarEntry,
+  TrendRef,
+} from "./newsletterEditions";
+import type {
   Trend,
   Vertical,
   PestelDimension,
@@ -1830,4 +1836,82 @@ export async function isSourceLinkDead(sourceUrl: string): Promise<boolean> {
     console.error("dead_links lookup failed:", e);
     return false;
   }
+}
+
+/* ---------- Newsletter editions (static export, Schritt E) ---------- */
+
+/**
+ * Newest-first index of the weekly briefings for the public archive
+ * (/trends/newsletter, generateStaticParams of /trends/newsletter/[edition],
+ * sitemap). `limit` = PUBLIC_NEWSLETTER_EDITIONS (lib/archiveWindow.ts).
+ * A missing table (fresh DB) yields [] instead of a failed build.
+ */
+export async function getNewsletterEditionIndex(limit: number): Promise<EditionSummary[]> {
+  const exists = await q1<{ ok: string | null }>(
+    "SELECT to_regclass('newsletter_editions')::text AS ok"
+  );
+  if (!exists?.ok) return [];
+  return q<EditionSummary>(
+    `SELECT id, year, week, total_signals, created_at::text AS created_at
+       FROM newsletter_editions
+      ORDER BY year DESC, week DESC
+      LIMIT $1`,
+    [limit]
+  );
+}
+
+/** One edition with its TEXT JSON columns parsed; null when absent. */
+export async function getNewsletterEdition(year: number, week: number): Promise<NewsletterEdition | null> {
+  const row = await q1<Record<string, unknown>>(
+    `SELECT id, year, week, editorial, vertical_summaries, mega_trend_radar, trend_refs,
+            total_signals, created_at::text AS created_at
+       FROM newsletter_editions
+      WHERE year = $1 AND week = $2
+      LIMIT 1`,
+    [year, week]
+  );
+  if (!row) return null;
+  const parse = <T,>(v: unknown, fallback: T): T => {
+    if (typeof v !== "string") return (v as T) ?? fallback;
+    try {
+      return JSON.parse(v) as T;
+    } catch {
+      return fallback;
+    }
+  };
+  return {
+    id: Number(row.id),
+    year: Number(row.year),
+    week: Number(row.week),
+    editorial: typeof row.editorial === "string" ? row.editorial : "",
+    vertical_summaries: parse<Record<string, string>>(row.vertical_summaries, {}),
+    mega_trend_radar: parse<MegaTrendRadarEntry[]>(row.mega_trend_radar, []),
+    trend_refs: parse<Record<string, TrendRef[]>>(row.trend_refs, {}),
+    total_signals: Number(row.total_signals ?? 0),
+    created_at: String(row.created_at ?? ""),
+  };
+}
+
+export interface TrendLinkTarget {
+  slug: string;
+  source_url: string | null;
+  /** Same predicate as getPublicWindowSlugs: published AND inside the window. */
+  in_window: boolean;
+}
+
+/**
+ * Window membership + primary source for the article slugs an edition
+ * links (lib/newsletterEditions.ts collectEditionSlugs). One round trip per
+ * edition; slugs unknown to the table are simply absent (→ plain text).
+ */
+export async function getTrendLinkTargets(slugs: string[], windowDays: number): Promise<TrendLinkTarget[]> {
+  if (slugs.length === 0) return [];
+  return q<TrendLinkTarget>(
+    `SELECT t.slug, t.source_url,
+            (t.status = 'published' AND t.sort_date >= $2::timestamptz) AS in_window
+       FROM trends t
+      WHERE t.slug = ANY($1::text[])
+      ORDER BY t.slug`,
+    [slugs, windowStartIso(windowDays)]
+  );
 }

@@ -56,3 +56,27 @@ export function parsePublicWindowDays(raw: string | undefined): number {
 export function publicWindowDays(): number {
   return parsePublicWindowDays(process.env.PUBLIC_WINDOW_DAYS);
 }
+
+/* ---------- Newsletter archive (static export, Schritt E) ---------- */
+
+/**
+ * `PUBLIC_NEWSLETTER_EDITIONS` (default 12): how many past weekly briefings
+ * the public site carries under /trends/newsletter/<year>-w<week>. The
+ * briefing archive is the second public window next to the article window
+ * above — counted in editions, not days, because an edition is a weekly
+ * document whose value does not expire with its articles (the article links
+ * inside it are re-checked against the article window at build time,
+ * lib/newsletterEditions.ts). Same parsing contract as PUBLIC_WINDOW_DAYS.
+ */
+export const DEFAULT_PUBLIC_NEWSLETTER_EDITIONS = 12;
+
+export function parsePublicNewsletterEditions(raw: string | undefined): number {
+  if (raw === undefined || raw === "") return DEFAULT_PUBLIC_NEWSLETTER_EDITIONS;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > 520) return DEFAULT_PUBLIC_NEWSLETTER_EDITIONS;
+  return n;
+}
+
+export function publicNewsletterEditions(): number {
+  return parsePublicNewsletterEditions(process.env.PUBLIC_NEWSLETTER_EDITIONS);
+}

@@ -10,6 +10,9 @@ import {
   parsePublicWindowDays,
   publicWindowDays,
   DEFAULT_PUBLIC_WINDOW_DAYS,
+  DEFAULT_PUBLIC_NEWSLETTER_EDITIONS,
+  parsePublicNewsletterEditions,
+  publicNewsletterEditions,
 } from "@/lib/archiveWindow";
 
 const NOW = new Date("2026-09-02T18:45:12Z");
@@ -70,5 +73,28 @@ describe("PUBLIC_WINDOW_DAYS", () => {
     for (const v of ["0", "-5", "1.5", "abc", "99999"]) {
       expect(parsePublicWindowDays(v)).toBe(30);
     }
+  });
+});
+
+describe("newsletter archive size (PUBLIC_NEWSLETTER_EDITIONS)", () => {
+  afterEach(() => {
+    delete process.env.PUBLIC_NEWSLETTER_EDITIONS;
+  });
+
+  it("defaults to 12 editions", () => {
+    expect(DEFAULT_PUBLIC_NEWSLETTER_EDITIONS).toBe(12);
+    expect(parsePublicNewsletterEditions(undefined)).toBe(12);
+    expect(parsePublicNewsletterEditions("")).toBe(12);
+    expect(publicNewsletterEditions()).toBe(12);
+  });
+
+  it("accepts positive integers and falls back on anything else", () => {
+    expect(parsePublicNewsletterEditions("4")).toBe(4);
+    expect(parsePublicNewsletterEditions("520")).toBe(520);
+    for (const bad of ["0", "-1", "1.5", "abc", "521"]) {
+      expect(parsePublicNewsletterEditions(bad)).toBe(12);
+    }
+    process.env.PUBLIC_NEWSLETTER_EDITIONS = "6";
+    expect(publicNewsletterEditions()).toBe(6);
   });
 });

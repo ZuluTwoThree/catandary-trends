@@ -189,6 +189,19 @@ MEGA=$(find "$RAW/trends/mega" -maxdepth 1 -type f -name '*.html' 2>/dev/null | 
 [ "$ARTICLES" -gt 0 ] || die "no article pages in the export (DB unreachable?)"
 log "articles: $ARTICLES  mega pages: $MEGA"
 
+# Briefing archive (Schritt E): /trends/newsletter (signup + latest + archive
+# list), one page per archived edition (trends/newsletter/<year>-w<week>.html,
+# PUBLIC_NEWSLETTER_EDITIONS of them — lib/archiveWindow.ts) and the static
+# unsubscribe confirmation that unsubscribe.php redirects to. NB: an EMPTY
+# newsletter_editions table would abort the build (Next refuses an empty
+# generateStaticParams list, like /analysis/[slug] above) — the Monday cron
+# keeps the table filled; there is no automatic fallback.
+[ -f "$RAW/trends/newsletter.html" ] || die "trends/newsletter.html missing"
+[ -f "$RAW/trends/newsletter/unsubscribed.html" ] || die "trends/newsletter/unsubscribed.html missing"
+EDITIONS=$(find "$RAW/trends/newsletter" -maxdepth 1 -type f -name '[0-9][0-9][0-9][0-9]-w[0-9][0-9].html' | wc -l)
+[ "$EDITIONS" -gt 0 ] || die "no briefing edition pages in the export (newsletter_editions empty?)"
+log "briefing editions: $EDITIONS"
+
 # Search index (Schritt 5 / D): trends/index.json — app/trends/index.json/
 # route.ts, one JSON object per line (lib/staticSearch.ts serializeIndex),
 # fetched by the client-side search. Must be valid JSON with as many lines
@@ -274,6 +287,7 @@ cat > "$BUILD_INFO" <<JSON
   "site_url": "$SITE_URL",
   "articles": $ARTICLES,
   "mega_pages": $MEGA,
+  "newsletter_editions": $EDITIONS,
   "published_analyses": $PUBLISHED_ANALYSES,
   "segment_payloads_removed": $SEG_BEFORE,
   "index_entries": $INDEX_ENTRIES,

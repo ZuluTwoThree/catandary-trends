@@ -103,6 +103,8 @@ describe("the surviving app tree is exportable", () => {
       "src/app/trends/mega/[megatrend]/page.tsx",
       "src/app/trends/methodology/page.tsx",
       "src/app/trends/newsletter/page.tsx",
+      "src/app/trends/newsletter/[edition]/page.tsx",
+      "src/app/trends/newsletter/unsubscribed/page.tsx",
       "src/app/trends/expired/page.tsx",
       "src/app/trends/imprint/page.tsx",
       "src/app/trends/privacy/page.tsx",
@@ -139,6 +141,7 @@ describe("the surviving app tree is exportable", () => {
       "src/app/trends/page/[n]/page.tsx",
       "src/app/trends/v/[vertical]/page.tsx",
       "src/app/trends/v/[vertical]/page/[n]/page.tsx",
+      "src/app/trends/newsletter/[edition]/page.tsx",
     ]) {
       const src = fs.readFileSync(path.join(FRONTEND, f), "utf-8");
       expect(src, `${f} must use exportStaticParams`).toMatch(

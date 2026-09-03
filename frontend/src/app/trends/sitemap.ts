@@ -7,6 +7,8 @@ import { PUBLIC_ARCHIVE_DAYS } from "@/lib/entitlement";
 import { megaTrendSlug, VERTICALS } from "@/lib/types";
 import { listingPath } from "@/lib/staticListing";
 import { sitePath } from "@/lib/sitePaths";
+import { publicEditionIndex } from "@/lib/newsletterExport";
+import { editionPath } from "@/lib/newsletterEditions";
 
 /**
  * Route handlers need a literal `force-static` for `output: "export"`
@@ -31,6 +33,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   let trendUrls: MetadataRoute.Sitemap = [];
   let megaTrends: Awaited<ReturnType<typeof getMegaTrends>> = [];
+  // Briefing archive (Schritt E): only the public deployments have the
+  // /trends/newsletter/<year>-w<week> pages; the workstation reads editions
+  // through the client page.
+  let editionUrls: MetadataRoute.Sitemap = [];
   let newest: Date | null = null;
   // DB timestamps arrive as Postgres text ("2026-09-02 09:15:06.3195");
   // as a Date, Next serializes them W3C-style (the sitemap spec's format).
@@ -69,6 +75,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     }
     megaTrends = await getMegaTrends();
+    if (publicOnly) {
+      editionUrls = (await publicEditionIndex()).map((e) => ({
+        url: `${SITE_URL}${editionPath(e.year, e.week)}`,
+        lastModified: asDate(e.created_at),
+        changeFrequency: "monthly" as const,
+        priority: 0.5,
+      }));
+    }
   } catch (err) {
     // No database at build time (CI builds the frontend without Postgres):
     // the static URL set below still ships. The export build never takes
@@ -133,7 +147,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     hub(sitePath("/enquiry"), "monthly", 0.6),
     ...foresightUrls,
     hub("/trends/methodology", "monthly", 0.6),
-    hub("/trends/newsletter", "monthly", 0.5),
+    hub("/trends/newsletter", "weekly", 0.5),
+    ...editionUrls,
     hub(sitePath("/imprint"), "yearly", 0.2),
     hub(sitePath("/privacy"), "yearly", 0.2),
     ...megaUrls,
