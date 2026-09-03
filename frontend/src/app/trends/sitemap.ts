@@ -4,7 +4,8 @@ import { getAllAnalyses } from "@/lib/analyses";
 import { isPublicMode } from "@/lib/publicMode";
 import { isStaticExport } from "@/lib/renderMode";
 import { PUBLIC_ARCHIVE_DAYS } from "@/lib/entitlement";
-import { megaTrendSlug } from "@/lib/types";
+import { megaTrendSlug, VERTICALS } from "@/lib/types";
+import { listingPath } from "@/lib/staticListing";
 
 /**
  * Route handlers need a literal `force-static` for `output: "export"`
@@ -106,6 +107,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority,
   });
 
+  // Page 1 of each vertical (static listing routes, lib/staticListing.ts);
+  // deeper pages are reachable via rel=next and stay out of the sitemap.
+  const verticalUrls: MetadataRoute.Sitemap = publicOnly
+    ? VERTICALS.map((v) => hub(listingPath(v.id, 1), "daily", 0.8))
+    : [];
+
   const foresightUrls: MetadataRoute.Sitemap = publicOnly
     ? []
     : [
@@ -119,6 +126,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     hub("/", "weekly", 1),
     hub("/trends", "daily", 1),
+    ...verticalUrls,
     hub("/trends/mega", "weekly", 0.9),
     hub("/analysis", "weekly", 0.8),
     hub("/enquiry", "monthly", 0.6),

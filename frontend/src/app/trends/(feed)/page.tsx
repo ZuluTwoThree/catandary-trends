@@ -22,19 +22,30 @@ import FilterBar from "@/components/filters/FilterBar";
 import ActiveChips from "@/components/filters/ActiveChips";
 import { TrendsListJsonLd } from "@/components/JsonLd";
 import { dynamicUnlessStatic, isStaticExport } from "@/lib/renderMode";
+import StaticFeed, { staticListingMetadata } from "@/components/StaticFeed";
+import type { Metadata } from "next";
+
+/**
+ * Static export: /trends is page 1 of the static listing
+ * (components/StaticFeed.tsx — /trends/page/[n], /trends/v/[vertical] are
+ * its siblings). The search-param feed below cannot be exported (reading
+ * `searchParams` makes a page dynamic) and stays the workstation's feed.
+ * Outside the export the metadata falls back to the layout's.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  if (!isStaticExport()) return {};
+  return staticListingMetadata(null, 1);
+}
 
 export default async function TrendsPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  if (isStaticExport()) return <StaticFeed vertical={null} page={1} />;
+
   await dynamicUnlessStatic();
-  // Static export (Schritt 3 interim, until the static listing routes of
-  // Schritt 4/5 land): the feed prerenders as its default view — page 1,
-  // no filters. Reading `searchParams` would make the page dynamic, which
-  // the export cannot build; the filter/pagination controls are client-side
-  // bailouts and stay usable, they just cannot re-query without a server.
-  const raw = isStaticExport() ? {} : await searchParams;
+  const raw = await searchParams;
   const filters = parseFilterParams(raw);
 
   // Free archive window (issue #70): server-side cap on how far back the feed
@@ -67,7 +78,7 @@ export default async function TrendsPage({
   // real page instead of rendering a misleading "no trends match" state.
   const perPage = filters.limit ?? 12;
   const lastPage = Math.max(1, Math.ceil(total / perPage));
-  if (!isStaticExport() && filters.page > lastPage) {
+  if (filters.page > lastPage) {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(raw)) {
       if (typeof v === "string" && k !== "page") params.set(k, v);
@@ -96,7 +107,6 @@ export default async function TrendsPage({
         totalSignals={totalPublished}
         analyzedTotal={analyzedTotal}
         verticalCounts={globalVerticalCounts}
-        asOf={isStaticExport() ? (trends[0]?.sort_date ?? null) : undefined}
       />
 
       {/* Value-first: what's moving right now (rising clusters) above the feed */}

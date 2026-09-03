@@ -2,6 +2,7 @@ import Link from "next/link";
 import { linkPrefetch } from "@/lib/renderMode";
 import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
 import type { Vertical } from "@/lib/types";
+import { verticalFeedHref } from "@/lib/staticListing";
 import { isPublicMode } from "@/lib/publicMode";
 
 export default function MegaTrendHeader({
@@ -65,7 +66,7 @@ export default function MegaTrendHeader({
               <Link
                 prefetch={linkPrefetch()}
                 key={v}
-                href={`/trends?vertical=${v}`}
+                href={verticalFeedHref(v as Vertical)}
                 className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em] border px-2.5 py-1 transition-colors hover:opacity-80"
                 style={{
                   color: vInfo.color,

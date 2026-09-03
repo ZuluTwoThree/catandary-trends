@@ -96,6 +96,9 @@ describe("the surviving app tree is exportable", () => {
       "src/app/page.tsx",
       "src/app/trends/(feed)/page.tsx",
       "src/app/trends/[slug]/page.tsx",
+      "src/app/trends/page/[n]/page.tsx",
+      "src/app/trends/v/[vertical]/page.tsx",
+      "src/app/trends/v/[vertical]/page/[n]/page.tsx",
       "src/app/trends/mega/page.tsx",
       "src/app/trends/mega/[megatrend]/page.tsx",
       "src/app/trends/methodology/page.tsx",
@@ -108,6 +111,15 @@ describe("the surviving app tree is exportable", () => {
       "src/app/not-found.tsx",
     ]) {
       expect(surviving).toContain(must);
+    }
+  });
+
+  it("every surviving dynamic segment exports generateStaticParams (the export needs the list)", () => {
+    const dynamicPages = surviving.filter((f) => /\[[^\]]+\]\/page\.tsx$/.test(f));
+    expect(dynamicPages.length).toBeGreaterThanOrEqual(5);
+    for (const f of dynamicPages) {
+      const src = fs.readFileSync(path.join(FRONTEND, f), "utf-8");
+      expect(src, `${f} lacks generateStaticParams`).toMatch(/export\s+(async\s+)?function\s+generateStaticParams/);
     }
   });
 

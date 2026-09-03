@@ -199,6 +199,90 @@ export async function getRelatedPredecessors(
   return (await q(query, params)).map(parseTrendRow);
 }
 
+/**
+ * Published count per vertical inside the public window (null = whole
+ * archive) — the tabs of the static listing (components/StaticFeed.tsx).
+ * One value per window, so it is cached like the other aggregates; every
+ * listing page of an export reads the same promise.
+ */
+export async function getVerticalCountsWindowed(
+  windowDays: number | null
+): Promise<Record<string, number>> {
+  return cached(`vertical-counts-window:${windowDays ?? "all"}`, 600_000, async () => {
+    const params: unknown[] = [];
+    let where = "t.status = 'published'";
+    if (windowDays != null) {
+      params.push(windowStartIso(windowDays));
+      where += ` AND t.sort_date >= $${params.length}::timestamptz`;
+    }
+    const rows = await q<{ primary_vertical: string; cnt: number }>(
+      `SELECT t.primary_vertical, COUNT(*)::int as cnt FROM trends t
+        WHERE ${where} GROUP BY t.primary_vertical ORDER BY cnt DESC`,
+      params
+    );
+    const result: Record<string, number> = {};
+    for (const row of rows) if (row.primary_vertical) result[row.primary_vertical] = row.cnt;
+    return result;
+  });
+}
+
+/**
+ * Newest `sort_date` among the published rows of the window — the
+ * data-derived "as of" stamp of every static listing page (TrendsHero).
+ * The same value on all pages of a build, and no page reads the clock.
+ */
+export async function getPublicWindowNewest(windowDays: number | null): Promise<string | null> {
+  return cached(`window-newest:${windowDays ?? "all"}`, 600_000, async () => {
+    const params: unknown[] = [];
+    let where = "t.status = 'published'";
+    if (windowDays != null) {
+      params.push(windowStartIso(windowDays));
+      where += ` AND t.sort_date >= $${params.length}::timestamptz`;
+    }
+    const row = await q1<{ d: string | null }>(
+      `SELECT MAX(t.sort_date)::text as d FROM trends t WHERE ${where}`,
+      params
+    );
+    return row?.d ?? null;
+  });
+}
+
+export interface PublicIndexRow {
+  slug: string;
+  title_en: string;
+  summary_en: string | null;
+  primary_vertical: string;
+  verticals: unknown;
+  pestel: unknown;
+  mega_trend: string | null;
+  sort_date: string | null;
+  trend_score: number | null;
+  source_name: string | null;
+  trend_signal_type: string | null;
+}
+
+/**
+ * Rows of the client-side search index of the static site (design Schritt
+ * 5 / follow-up D — the /trends/index.json route that consumes this is not
+ * built yet): every published article in the window,
+ * narrow projection, summary pre-cut in SQL (the route trims it to 160
+ * characters at a word boundary). Same window bound and the same
+ * `sort_date DESC, id DESC` order as the page list, so the index never
+ * names a slug the export did not write.
+ */
+export async function getPublicIndexRows(windowDays: number): Promise<PublicIndexRow[]> {
+  return q<PublicIndexRow>(
+    `SELECT t.slug, t.title_en, left(t.summary_en, 240) as summary_en,
+            t.primary_vertical, t.verticals, t.pestel, t.mega_trend,
+            t.sort_date::text as sort_date, t.trend_score, t.source_name,
+            t.trend_signal_type
+       FROM trends t
+      WHERE t.status = 'published' AND t.sort_date >= $1::timestamptz
+      ORDER BY t.sort_date DESC, t.id DESC`,
+    [windowStartIso(windowDays)]
+  );
+}
+
 export async function getTrendsCount(options: {
   status?: string;
   vertical?: Vertical;

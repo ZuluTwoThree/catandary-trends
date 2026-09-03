@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { linkPrefetch } from "@/lib/renderMode";
-import type { Trend } from "@/lib/types";
+import type { Trend, Vertical } from "@/lib/types";
+import { verticalFeedHref } from "@/lib/staticListing";
 import type { TrendTechMatch } from "@/lib/technology";
 import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
 import { archiveUrl, DEAD_SOURCE_NOTICE } from "@/lib/deadLinks";
@@ -86,7 +87,7 @@ export default function TrendArticle({
         <span className="text-border">/</span>
         <Link
           prefetch={linkPrefetch()}
-          href={`/trends?vertical=${trend.primary_vertical}`}
+          href={verticalFeedHref(trend.primary_vertical as Vertical)}
           className="inline-flex items-center gap-2 transition-colors hover:opacity-80"
           style={{ color: vertical.color }}
         >
