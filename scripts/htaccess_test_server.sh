@@ -17,6 +17,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NAME="${HTACCESS_TEST_CONTAINER:-ct-htaccess}"
 PORT="${HTACCESS_TEST_PORT:-8098}"
+BIND="${HTACCESS_TEST_BIND:-127.0.0.1}"   # e.g. the Tailscale IP for a preview from another machine
 CONF_DIR="$REPO/frontend/.export/apache"
 
 if [ "${1:-}" = "--stop" ]; then
@@ -42,7 +43,7 @@ docker run --rm httpd:2.4 cat /usr/local/apache2/conf/httpd.conf \
 grep -q '^LoadModule headers_module' "$CONF_DIR/httpd.conf" || { echo "headers_module not enabled in the stock conf?" >&2; exit 1; }
 
 docker rm -f "$NAME" >/dev/null 2>&1 || true
-docker run -d --name "$NAME" -p "127.0.0.1:${PORT}:80" \
+docker run -d --name "$NAME" -p "${BIND}:${PORT}:80" \
   -v "$CONF_DIR/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro" \
   -v "$OUT:/usr/local/apache2/htdocs:ro" \
   httpd:2.4 >/dev/null
