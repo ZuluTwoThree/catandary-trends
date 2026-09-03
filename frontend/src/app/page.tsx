@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getMethodologyStats } from "@/lib/db";
-import { PAYWALL_ENABLED } from "@/lib/entitlement";
 import HeroInstrument from "@/components/landing/HeroInstrument";
 import LaunchCountdown from "@/components/landing/LaunchCountdown";
 import TechReader from "@/components/landing/TechReader";
@@ -9,6 +8,7 @@ import MomentumBoard from "@/components/landing/MomentumBoard";
 import ProofCounter from "@/components/landing/ProofCounter";
 import Reveal from "@/components/landing/Reveal";
 import { dynamicUnlessStatic } from "@/lib/renderMode";
+import { sitePath } from "@/lib/sitePaths";
 
 export const metadata: Metadata = {
   title: "Catandary — See it in the research before you see it in the market",
@@ -27,10 +27,6 @@ const FALLBACK = { analyzed: 1059838, published: 60482, sources: 243 };
 
 export default async function LandingPage() {
   await dynamicUnlessStatic();
-  // One monetisation story across landing, pricing and product (ONB-06):
-  // while checkout is live the CTAs say so; before that, early access.
-  const stripeReady = PAYWALL_ENABLED && Boolean(process.env.STRIPE_SECRET_KEY);
-  const paidCta = stripeReady ? "Choose plan" : "Request early access";
 
   let stats = FALLBACK;
   try {
@@ -383,118 +379,71 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* ===== PRICING ===== */}
-      <section className="lp-section" id="pricing" aria-labelledby="lp-price-h">
+      {/* ===== ACCESS (sales-led — no tiers, no checkout since #93) ===== */}
+      <section className="lp-section" id="access" aria-labelledby="lp-access-h">
         <div className="lp-wrap">
           <span className="lp-eyebrow lp-kicker">Access</span>
-          <h2 className="lp-section-h" id="lp-price-h">
-            Start free. Grow into the engine.
+          <h2 className="lp-section-h" id="lp-access-h">
+            The feed is free. The engine is a conversation.
           </h2>
           <p className="lp-lede">
-            The free layer is the real product — 60,000+ curated articles and a weekly briefing.
-            The paid tiers open the foresight engine.
+            No tiers, no checkout, no self-service. The public feed and the weekly briefing are
+            open to everyone; everything deeper is scoped and quoted per engagement.
           </p>
           <Reveal>
-            <div className="lp-prices">
+            <div className="lp-prices lp-prices-3">
               <div className="lp-price">
-                <span className="lp-pname">Free</span>
-                <div className="lp-amt">€0</div>
+                <span className="lp-pname">Free · for everyone</span>
+                <div className="lp-amt lp-amt-text">The public feed</div>
                 <p className="lp-blurb">
-                  Curated trend articles from the last 28 days, browsing, search and the weekly
-                  newsletter.
+                  The last 30 days of trend articles, browsing, search and the weekly briefing.
                 </p>
                 <ul>
-                  <li>Trend articles from the last 28 days</li>
-                  <li>Vertical &amp; PESTEL browsing</li>
-                  <li>Search</li>
-                  <li>Weekly newsletter</li>
-                  <li>Corpus counter &amp; signal-theme teasers</li>
+                  <li>Trend articles from the last 30 days — each with its primary source</li>
+                  <li>Vertical &amp; PESTEL browsing, full-text search</li>
+                  <li>28 Mega Signal Themes</li>
+                  <li>Weekly newsletter with archive</li>
                 </ul>
                 <Link className="lp-btn lp-btn-primary" href="/trends/newsletter">
-                  Start free
-                </Link>
-              </div>
-              <div className="lp-price">
-                <span className="lp-pname">Starter</span>
-                <div className="lp-amt">
-                  €99<small>/mo</small>
-                </div>
-                <p className="lp-blurb">
-                  Watch what&apos;s moving: the cluster explorer with momentum and evidence.
-                </p>
-                <ul>
-                  <li>Everything in Free</li>
-                  <li>Full trend-article archive</li>
-                  <li>Cluster explorer</li>
-                  <li>Saved searches &amp; alerts</li>
-                </ul>
-                <Link className="lp-btn" href="/trends/pricing">
-                  {paidCta}
+                  Get the weekly briefing
                 </Link>
               </div>
               <div className="lp-price feat">
-                <span className="lp-pname">
-                  Pro <span style={{ color: "var(--color-muted)" }}>· coming soon</span>
-                </span>
-                <div className="lp-amt">
-                  €499<small>/mo</small>
-                </div>
+                <span className="lp-pname">Super Pro+ · ongoing</span>
+                <div className="lp-amt lp-amt-text">Supervised access to the engine</div>
                 <p className="lp-blurb">
-                  The foresight edge: lead-time, technology trajectories and export.
+                  Standing access to the full corpus and the tools behind it, as a supported
+                  service.
                 </p>
                 <ul>
-                  <li>Everything in Starter</li>
-                  <li>Technology explorer &amp; lead-time analysis</li>
-                  <li>Tech improvement metrics</li>
-                  <li>Trend evolution &amp; lineage</li>
-                  <li>CSV / dossier export</li>
+                  <li>Recurring analyses on your watch list</li>
+                  <li>Clusters, technology trajectories, research &amp; patent explorers</li>
+                  <li>Direct line to the person who built them</li>
+                  <li>Scoped and quoted per engagement</li>
                 </ul>
-                <Link className="lp-btn lp-btn-primary" href="/trends/pricing">
-                  {paidCta}
+                <Link className="lp-btn lp-btn-primary" href={sitePath("/enquiry")}>
+                  Talk to us
                 </Link>
               </div>
               <div className="lp-price">
-                <span className="lp-pname">
-                  Super Pro+ <span style={{ color: "var(--color-muted)" }}>· coming soon</span>
-                </span>
-                <div className="lp-amt">
-                  €799<small>/mo</small>
-                </div>
+                <span className="lp-pname">Individual analysis · one question</span>
+                <div className="lp-amt lp-amt-text">A dated, sourced write-up</div>
                 <p className="lp-blurb">
-                  Ask the engine your own questions: on-demand analysis and API.
+                  Technology dossier, company dossier or trend assessment — built by hand from
+                  the whole corpus.
                 </p>
                 <ul>
-                  <li>Everything in Pro</li>
-                  <li>On-demand analysis of your scopes</li>
-                  <li>
-                    API access <em>— coming soon</em>
-                  </li>
-                  <li>Raw evidence graph</li>
-                  <li>Custom reports</li>
+                  <li>One clearly scoped question</li>
+                  <li>Fixed turnaround, agreed up front</li>
+                  <li>Every claim with its primary source — including what the evidence does not show</li>
+                  <li>Hands-on analyst days on request (Hypercare, billed by the day)</li>
                 </ul>
-                <Link className="lp-btn" href="/trends/pricing">
-                  {paidCta}
+                <Link className="lp-btn" href={sitePath("/enquiry")}>
+                  Request an analysis
                 </Link>
               </div>
             </div>
           </Reveal>
-          <div className="lp-hypercare">
-            <div>
-              <div className="lp-amt">
-                Individual Analysis · €1,499
-                <small style={{ fontFamily: "var(--font-mono)", fontSize: ".7rem", color: "var(--color-muted)" }}>
-                  /day
-                </small>
-              </div>
-              <p style={{ fontSize: ".85rem", color: "var(--color-muted)", marginTop: ".4rem", maxWidth: "40em" }}>
-                Dedicated, hands-on analyst support tailored to your questions — a bespoke
-                engagement and scope, not a subscription. €999/day from the second engagement.
-              </p>
-            </div>
-            <a className="lp-btn" href="mailto:trends@catandary.de?subject=Catandary%20Individual%20Analysis">
-              Talk to us
-            </a>
-          </div>
         </div>
       </section>
 
@@ -537,9 +486,9 @@ export default async function LandingPage() {
               <summary>Is my data private?</summary>
               <p>
                 The trend-analysis pipeline runs entirely on local infrastructure — the source
-                corpus never touches a cloud API. If you create an account, the data needed to
-                run it (your email for login and the newsletter and payment status for billing)
-                is processed by EU-based providers. We use no third-party analytics.
+                corpus never touches a cloud API. There are no accounts: the only personal data
+                we process is the email address you give us for the weekly briefing, delivered
+                by an EU-based provider. We use no third-party analytics.
               </p>
             </details>
             <details>
@@ -554,13 +503,10 @@ export default async function LandingPage() {
             <details>
               <summary>What does it cost?</summary>
               <p>
-                The last 28 days of trend articles and the weekly briefing are free. The full
-                archive and the foresight engine are €99 (Starter), €499 (Pro) or €799 (Super
-                Pro+) per month, with a sales-led individual day-rate for bespoke analytics
-                work.{" "}
-                {stripeReady
-                  ? "Paid plans are live — monthly billing, cancel anytime."
-                  : "The paid tiers are opening in early access."}
+                The last 30 days of trend articles and the weekly briefing are free. Everything
+                deeper — Super Pro+ access and individual analyses — is scoped and quoted per
+                engagement; hands-on analyst days are billed by the day. No tiers, no
+                subscription: write to us with the question you need answered.
               </p>
             </details>
           </div>

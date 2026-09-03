@@ -1,19 +1,20 @@
 import { q, q1 } from "./pg";
-import { getSession } from "./auth";
-import { canAccess, PAYWALL_ENABLED } from "./entitlement";
 
 /**
  * OpenAlex-Live-Layer (#83): serverseitige On-Demand-Frische auf dem
- * Snapshot-Korpus. Owner-Regeln (2026-08-16):
- *  - Live-API-Features sind Super-Pro-gegated,
- *  - maximal 25 Live-Abfragen pro Nutzer und Tag,
- *  - Dev-Instanz (Paywall aus) und Admins (ADMIN_EMAILS) sind unbegrenzt.
+ * Snapshot-Korpus.
+ *
+ * Seit #93 (kein SaaS, keine Accounts — 2026-09-03) gibt es nur noch die
+ * Owner-Instanz, und die ist unbegrenzt: das frühere Super-Pro-Gate und der
+ * 25/Tag-Zähler je Account (`research_live_usage`) sind entfernt; die
+ * Tabelle bleibt ungenutzt stehen. `LiveAccess`/`consumeLive` bleiben als
+ * Vertrag der Aufrufer (Research Explorer, Paper-Seite) erhalten, damit ein
+ * Budget — etwa gegen den OpenAlex-Tageskontingent — jederzeit wieder
+ * eingehängt werden kann, ohne die Seiten anzufassen.
  *
  * Budget-Ökonomie (Header-Messung 2026-08-16, Key = 10.000 Credits/Tag):
  * Singleton- und Autocomplete-Calls kosten 0 Credits, Listen-Filter 1,
- * title_and_abstract.search ~10. Eine „Live-Abfrage" im Sinne des
- * Nutzer-Limits ist eine Feature-Invokation (Paper-Live-Block, Spotlight,
- * Latest-Block), nicht ein HTTP-Call. Cache-Treffer kosten kein Budget.
+ * title_and_abstract.search ~10. Cache-Treffer kosten kein Budget.
  * Der API-Key bleibt serverseitig (env), erreicht nie den Client.
  */
 
@@ -23,47 +24,19 @@ export const LIVE_DAILY_LIMIT = 25;
 /* ---------- Zugriff & Tagesbudget ---------- */
 
 export interface LiveAccess {
-  /** Tier erlaubt Live-Features (Super Pro+, oder Gates aus). */
-  allowed: boolean;
-  /** Kein Tageslimit (Dev-Instanz/Paywall aus oder Admin). */
+  /** Kein Tageslimit — auf der Owner-Instanz immer true. */
   unlimited: boolean;
   used: number;
   remaining: number;
-  /** app_users.id für die Zählung; null wenn unlimitiert/anonym. */
-  userId: number | null;
-}
-
-function isAdmin(email: string | undefined): boolean {
-  const admins = (process.env.ADMIN_EMAILS ?? "")
-    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  return !!email && admins.includes(email.toLowerCase());
 }
 
 export async function liveAccess(): Promise<LiveAccess> {
-  const session = await getSession();
-  if (!PAYWALL_ENABLED || isAdmin(session?.email)) {
-    return { allowed: true, unlimited: true, used: 0,
-             remaining: LIVE_DAILY_LIMIT, userId: null };
-  }
-  if (!session || !(await canAccess("superpro"))) {
-    return { allowed: false, unlimited: false, used: 0,
-             remaining: 0, userId: null };
-  }
-  const row = await q1<{ used: number }>(
-    "SELECT used FROM research_live_usage WHERE user_id = $1 AND day = CURRENT_DATE",
-    [session.id]);
-  const used = row?.used ?? 0;
-  return { allowed: true, unlimited: false, used,
-           remaining: Math.max(0, LIVE_DAILY_LIMIT - used), userId: session.id };
+  return { unlimited: true, used: 0, remaining: LIVE_DAILY_LIMIT };
 }
 
-/** Eine Live-Abfrage verbrauchen (no-op wenn unlimitiert). */
+/** Eine Live-Abfrage verbrauchen — no-op, solange der Zugriff unbegrenzt ist. */
 export async function consumeLive(access: LiveAccess): Promise<void> {
-  if (access.unlimited || access.userId === null) return;
-  await q(
-    `INSERT INTO research_live_usage (user_id, day, used) VALUES ($1, CURRENT_DATE, 1)
-     ON CONFLICT (user_id, day) DO UPDATE SET used = research_live_usage.used + 1`,
-    [access.userId]);
+  if (access.unlimited) return;
 }
 
 /* ---------- Cache + HTTP ---------- */

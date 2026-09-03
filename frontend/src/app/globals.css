@@ -356,20 +356,19 @@ body::before {
 .lp-col.mid li::before { content: "→"; color: var(--color-accent); }
 
 @media (min-width: 640px){ .lp-prices { grid-template-columns: 1fr 1fr; } }
-@media (min-width: 1040px){ .lp-prices { grid-template-columns: repeat(4,1fr); } }
+@media (min-width: 1040px){ .lp-prices { grid-template-columns: repeat(4,1fr); } .lp-prices.lp-prices-3 { grid-template-columns: repeat(3,1fr); } }
 .lp-price { background: var(--color-card); padding: 1.5rem 1.3rem 1.6rem; display: flex; flex-direction: column; }
 .lp-price.feat { background: var(--color-card-hover); box-shadow: inset 0 2px 0 var(--color-accent); }
 .lp-price .lp-pname { font-family: var(--font-mono); font-size: .6rem; letter-spacing: .16em; text-transform: uppercase; color: var(--color-accent); }
 .lp-price .lp-amt { font-family: var(--font-display); font-size: 2rem; color: var(--color-paper); margin: .6rem 0 .1rem; }
 .lp-price .lp-amt small { font-family: var(--font-mono); font-size: .7rem; color: var(--color-muted); letter-spacing: .04em; }
+.lp-price .lp-amt.lp-amt-text { font-size: 1.35rem; line-height: 1.2; }
 .lp-price .lp-blurb { font-size: .82rem; color: var(--color-muted); min-height: 3.2em; }
 .lp-price ul { list-style: none; margin: 1rem 0 1.3rem; padding: 0; display: grid; gap: .5rem; flex: 1; }
 .lp-price li { font-size: .8rem; color: var(--color-foreground); padding-left: 1.1rem; position: relative; }
 .lp-price li::before { content: "+"; position: absolute; left: 0; color: var(--color-accent-deep); }
 .lp-price li em { color: var(--color-muted); font-style: italic; }
 .lp-price .lp-btn { justify-content: center; width: 100%; }
-.lp-hypercare { margin-top: 1px; background: var(--color-card); border: 1px solid var(--color-border); border-top: none; padding: 1.4rem 1.5rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
-.lp-hypercare .lp-amt { font-family: var(--font-display); font-size: 1.4rem; color: var(--color-paper); }
 
 .lp-faq { margin-top: 2.2rem; border-top: 1px solid var(--color-border); }
 .lp-faq details { border-bottom: 1px solid var(--color-border); }

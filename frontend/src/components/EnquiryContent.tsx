@@ -32,8 +32,8 @@ const OFFERS = [
 ] as const;
 
 /**
- * `/enquiry` — the offer + enquiry path (#93 Etappe 2), replacing the old
- * `/trends/pricing` tier ladder for the public site. No tier comparison, no
+ * `/enquiry` — the offer + enquiry path (#93 Etappe 2), replacing the former
+ * tier ladder (pricing page, removed 2026-09-03). No tier comparison, no
  * checkout, no prices (owner instruction: sales-led, quoted per engagement).
  *
  * v1 contact mechanism is a `mailto:` link (no form backend yet). Deliberately

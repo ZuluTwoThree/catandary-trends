@@ -1,5 +1,5 @@
 import { getPublicIndexRows } from "@/lib/db";
-import { PUBLIC_ARCHIVE_DAYS } from "@/lib/entitlement";
+import { PUBLIC_ARCHIVE_DAYS } from "@/lib/archiveWindow";
 import { isPublicMode } from "@/lib/publicMode";
 import { isStaticExport } from "@/lib/renderMode";
 import { buildIndexEntries, serializeIndex } from "@/lib/staticSearch";

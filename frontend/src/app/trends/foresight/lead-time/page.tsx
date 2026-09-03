@@ -6,8 +6,6 @@ import {
   cpcDisplayName,
 } from "@/lib/foresight";
 import TierCurveChart from "@/components/foresight/TierCurveChart";
-import TierGate from "@/components/TierGate";
-import { canAccess } from "@/lib/entitlement";
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +30,7 @@ export default async function LeadTimePage({
   if (techs.length === 0) notFound();
 
   const { cpc } = await searchParams;
-  // Free viewers get the showcase technology only — otherwise the ?cpc= deep
-  // link would route around the Pro gate on the picker below.
-  const isPro = await canAccess("pro");
-  const active = isPro
-    ? techs.find((t) => t.cpc === cpc?.toUpperCase()) ?? techs[0]
-    : techs[0];
+  const active = techs.find((t) => t.cpc === cpc?.toUpperCase()) ?? techs[0];
   const { tiers, lead } = await getTierCurves(active.cpc);
   const name = cpcDisplayName(active.title, active.curated_name);
   const leadYears = active.lead_science_vs_market;
@@ -94,20 +87,13 @@ export default async function LeadTimePage({
       <p className="font-sans text-xs text-muted mb-10 max-w-2xl">
         Each line is scaled to its own peak, so the chart compares <span className="text-text">timing,
         not volume</span>: when the research curve rises years before the market curve, that gap is
-        the lead time — the window the paid Foresight layer turns into a forecast.
+        the lead time — the window the Foresight layer turns into a forecast.
       </p>
 
-      {/* Pick another technology (single visible control — low-threshold).
-          The first technology above stays free as the hook; the full picker
-          is Pro (ONB-03/KEY-01: pricing sells lead-time as a Pro feature). */}
+      {/* Pick another technology (single visible control — low-threshold). */}
       <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-3">
         —— Technologies where research measurably led the market
       </div>
-      <TierGate
-        need="pro"
-        feature="The full lead-time library"
-        benefit={`Pro opens all ${techs.length} technologies with proven research-to-market lead times — pick any of them and read its four-tier curves.`}
-      >
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {techs.map((t) => {
             const tn = cpcDisplayName(t.title, t.curated_name);
@@ -140,7 +126,6 @@ export default async function LeadTimePage({
             );
           })}
         </div>
-      </TierGate>
 
       <div className="mt-10 border border-border bg-card/40 px-5 py-4">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">

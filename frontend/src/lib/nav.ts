@@ -27,8 +27,6 @@ export const FORESIGHT_NAV: NavItem[] = [
   { href: "/trends/foresight/dossier", label: "Dossier" },
 ];
 
-export const PLANS_NAV: NavItem = { href: "/trends/pricing", label: "Plans" };
-
 export function isForesightPath(pathname: string): boolean {
   return pathname.startsWith("/trends/foresight");
 }

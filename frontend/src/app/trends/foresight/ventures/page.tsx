@@ -1,8 +1,6 @@
 import Link from "next/link";
-import TierGate from "@/components/TierGate";
 import VentureAttribution from "@/components/VentureAttribution";
 import WipBadge from "@/components/WipBadge";
-import { canAccess } from "@/lib/entitlement";
 import {
   getVentureStats, searchVentures, VENTURE_EVENT_TYPES, type VentureRow,
 } from "@/lib/ventures";
@@ -74,15 +72,12 @@ export default async function VenturesPage({
   const etype = VENTURE_EVENT_TYPES.some(([k]) => k === sp.e) ? sp.e : undefined;
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
-  const allowed = await canAccess("starter");
   const [stats, { rows, total }] = await Promise.all([
     getVentureStats(),
-    allowed
-      ? searchVentures({
-          q: qText || undefined, vertical, country, etype,
-          limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
-        })
-      : searchVentures({ limit: 3, offset: 0 }),
+    searchVentures({
+      q: qText || undefined, vertical, country, etype,
+      limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
+    }),
   ]);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -117,21 +112,6 @@ export default async function VenturesPage({
         </p>
       </div>
 
-      <TierGate
-        need="starter"
-        feature="The searchable venture corpus"
-        benefit={`Starter opens search across all ${fmtInt(stats.companies)} companies — with funding timelines, sector and country facets, and the patent & research bridges.`}
-        teaser={
-          <div>
-            <div className="flex flex-col divide-y divide-border border-t border-b border-border">
-              {rows.map((r) => <CompanyRow key={r.id} r={r} />)}
-            </div>
-            <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-              Free preview — 3 of {fmtInt(stats.companies)} companies
-            </p>
-          </div>
-        }
-      >
         <form action="/trends/foresight/ventures" method="get" className="mb-6">
           <div className="flex gap-2 flex-wrap">
             <input
@@ -186,7 +166,6 @@ export default async function VenturesPage({
             {page < pages && <Link className="text-accent hover:underline" href={qs(page + 1)}>Next →</Link>}
           </div>
         )}
-      </TierGate>
 
       <VentureAttribution />
     </div>

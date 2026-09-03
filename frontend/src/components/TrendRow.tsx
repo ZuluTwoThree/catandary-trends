@@ -42,7 +42,7 @@ export default function TrendRow({ trend }: { trend: Trend }) {
       className="group block border-b border-border last:border-b-0 hover:bg-accent/[0.02] transition-colors"
     >
       <article className="relative grid grid-cols-12 gap-4 items-center py-3 pl-5 pr-4">
-        {/* 3px vertical-color stripe */}
+        {/* 3px vertical-color bar */}
         <span
           className="absolute left-0 top-0 bottom-0 w-[3px]"
           style={{ backgroundColor: vertical.color }}

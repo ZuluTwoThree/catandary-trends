@@ -8,7 +8,6 @@ import {
 import { VERTICALS } from "@/lib/types";
 import ThreadSparkline from "@/components/foresight/ThreadSparkline";
 import ForesightCta from "@/components/ForesightCta";
-import TierGate from "@/components/TierGate";
 
 export const dynamic = "force-dynamic";
 
@@ -180,13 +179,6 @@ export default async function EvolutionPage({
               </div>
             </section>
           )}
-          {/* Emerging is the free hook; the full established/fading picture is
-              the Pro drill-down (gate transparent while the paywall is off). */}
-          <TierGate
-            need="pro"
-            feature="The full trend evolution"
-            benefit="See how today's clusters emerged — the lineage of every trend, back through the corpus."
-          >
             {ongoing.length > 0 && (
               <section>
                 <h2 className="mb-3 text-lg font-semibold">Established & moving</h2>
@@ -207,7 +199,6 @@ export default async function EvolutionPage({
                 </div>
               </section>
             )}
-          </TierGate>
         </div>
       )}
 

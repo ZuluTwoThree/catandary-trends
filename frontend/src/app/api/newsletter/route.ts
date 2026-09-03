@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 
 // Signup abuse limits (security review 2026-09-02, E-5): the route used to
 // accept any syntactically valid address from anywhere, unbounded — a list-
-// pollution lever. Per-IP and per-address windows, same shape as
-// api/auth/request. The sender only mails confirmed = TRUE rows, so this is
-// about keeping the table clean, not about outbound spam.
+// pollution lever. Per-IP and per-address windows. The sender only mails
+// confirmed = TRUE rows, so this is about keeping the table clean, not about
+// outbound spam.
 const SIGNUP_IP_LIMIT = 5; // sign-ups per IP …
 const SIGNUP_IP_WINDOW_MS = 10 * 60_000; // … per 10 minutes
 const SIGNUP_EMAIL_LIMIT = 3; // attempts per address …

@@ -2,16 +2,17 @@ import Link from "next/link";
 import { isPublicMode } from "@/lib/publicMode";
 
 /**
- * The recurring in-product upsell. Links stay inside the product (ARCH-13 —
- * it used to route to the external company site, dropping the visitor out of
- * the funnel) and promise what the paid tiers actually show (COPY-19).
+ * The recurring in-product pointer from the feed into the Foresight tools.
+ * Links stay inside the product (ARCH-13 — it used to route to the external
+ * company site, dropping the visitor out of the funnel).
  *
- * PUBLIC_MODE=1 (#93 Etappe 1): both targets it links to (/trends/foresight,
- * /trends/pricing) 404 under that flag (proxy.ts), and this component
- * is rendered on public, non-blocked pages (/trends, /trends/mega,
- * /trends/methodology, article pages via TrendArticle) — so it renders
- * nothing rather than a dead-end CTA. Its lead-gen replacement copy is a
- * later step (#93 Etappe 2+), out of scope here. Unset/0 changes nothing.
+ * PUBLIC_MODE=1 (#93): the target (/trends/foresight) 404s under that flag
+ * (proxy.ts) and this component is rendered on public, non-blocked pages
+ * (/trends, /trends/mega, /trends/methodology, article pages via
+ * TrendArticle) — so it renders nothing rather than a dead-end CTA. The
+ * public lead-gen replacement is AnalysisCta / the enquiry page. On the
+ * owner instance it is a plain link into the tools (no plans, no upsell —
+ * no SaaS since #93).
  */
 export default function ForesightCta({ compact }: { compact?: boolean }) {
   if (isPublicMode()) return null;
@@ -27,10 +28,10 @@ export default function ForesightCta({ compact }: { compact?: boolean }) {
           mega-shifts down to the clusters rising this quarter.
         </p>
         <Link
-          href="/trends/pricing"
+          href="/trends/foresight"
           className="inline-flex items-center gap-2 bg-accent text-ink px-4 py-2 font-mono text-[10px] uppercase tracking-[0.18em] hover:bg-accent-deep transition-colors"
         >
-          See plans →
+          Open Foresight →
         </Link>
       </div>
     );
@@ -55,12 +56,6 @@ export default function ForesightCta({ compact }: { compact?: boolean }) {
           className="inline-flex items-center gap-2 bg-accent text-ink px-5 py-3 font-mono text-[10px] uppercase tracking-[0.18em] hover:bg-accent-deep transition-colors"
         >
           Open Foresight →
-        </Link>
-        <Link
-          href="/trends/pricing"
-          className="inline-flex items-center gap-2 border border-border-strong text-paper px-5 py-3 font-mono text-[10px] uppercase tracking-[0.18em] hover:border-accent transition-colors"
-        >
-          See plans
         </Link>
       </div>
     </div>

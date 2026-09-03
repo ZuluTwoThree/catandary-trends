@@ -9,9 +9,7 @@ import { MEGA_TRENDS } from "@/lib/mega-trends.generated";
 import { parseResearchQuery } from "@/lib/research-search";
 import { safeHref } from "@/lib/safeHref";
 import AuthorLine from "@/components/AuthorLine";
-import TierGate from "@/components/TierGate";
 import ResearchTypeahead from "@/components/ResearchTypeahead";
-import { canAccess } from "@/lib/entitlement";
 import {
   liveAccess, consumeLive, liveLatest, liveSpotlight,
   LIVE_DAILY_LIMIT, type LiveHit, type Spotlight,
@@ -92,20 +90,14 @@ export default async function ResearchExplorerPage({
     || parsed.funder || parsed.country || flag
     || parsed.yearFrom !== undefined);
 
-  // Owner-Entscheid (#72): Starter-gegated — ohne Tier wird keine Suche
-  // ausgeführt, der Teaser lädt nur die drei neuesten Signale.
-  const allowed = await canAccess("starter");
   const [stats, corpusStats, topics] = await Promise.all([
-    getResearchStats(), getResearchCorpusStats(),
-    allowed ? getResearchTopics() : Promise.resolve([]),
+    getResearchStats(), getResearchCorpusStats(), getResearchTopics(),
   ]);
 
   let corpus: Awaited<ReturnType<typeof getResearchCorpus>> = { rows: [], total: 0, clamped: false };
   let signals: Awaited<ReturnType<typeof getResearchSignals>> = { rows: [], total: 0 };
   let agg: ResearchAggregates | null = null;
-  if (!allowed) {
-    signals = await getResearchSignals({ limit: 3, offset: 0 });
-  } else if (corpusMode) {
+  if (corpusMode) {
     const filter = {
       q: parsed.text || undefined,
       topic: topic || undefined,
@@ -137,22 +129,20 @@ export default async function ResearchExplorerPage({
       mega: theme || undefined, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
     });
   }
-  // ---- Live-API-Features (#83, Owner-Regel 2026-08-16): Super Pro,
-  // max. 25 Live-Abfragen/Tag, Dev/Admins unbegrenzt. Explizit per
-  // ?live=1 ausgelöst (nie automatisch beim Blättern), Cache-Treffer
-  // sind budgetfrei. Spotlight bei author:/institution:-Suchen,
-  // sonst „Latest (live)" bei Topic-/Text-Suchen.
+  // ---- Live-API-Features (#83; seit #93 ohne Account-Gate, Owner-Instanz
+  // unbegrenzt). Explizit per ?live=1 ausgelöst (nie automatisch beim
+  // Blättern), Cache-Treffer sind budgetfrei. Spotlight bei
+  // author:/institution:-Suchen, sonst „Latest (live)" bei Topic-/Text-Suchen.
   const liveRequested = sp.live === "1";
   const spotlightTarget: ["author" | "institution", string] | null =
     parsed.author ? ["author", parsed.author]
     : parsed.institution ? ["institution", parsed.institution] : null;
   const latestPossible = !spotlightTarget && !!(topic || parsed.text);
   const liveEligible = corpusMode && (spotlightTarget !== null || latestPossible);
-  const superpro = allowed && (await canAccess("superpro"));
   let spotlight: Spotlight | null = null;
   let latest: LiveHit[] | null = null;
   let liveInfo: { used: number; unlimited: boolean; exhausted: boolean } | null = null;
-  if (liveRequested && liveEligible && superpro) {
+  if (liveRequested && liveEligible) {
     const access = await liveAccess();
     if (access.unlimited || access.remaining > 0) {
       if (spotlightTarget) {
@@ -180,7 +170,7 @@ export default async function ResearchExplorerPage({
     ? TOPIC_CPC.find(([sub]) => topic.toLowerCase().includes(sub.toLowerCase()))?.[1]
     : undefined;
   const bridgeLag = bridgeCpc ? await getNplLagYears(bridgeCpc) : null;
-  const emerging = allowed && !corpusMode && !theme ? await getEmergingTopics() : [];
+  const emerging = !corpusMode && !theme ? await getEmergingTopics() : [];
 
   const total = corpusMode ? corpus.total : signals.total;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -226,32 +216,6 @@ export default async function ResearchExplorerPage({
         </p>
       </div>
 
-      <TierGate
-        need="starter"
-        feature="The searchable research corpus"
-        benefit={`Starter opens full-text search across ${fmtInt(corpusStats.total)} papers from all disciplines — with topic facets, citation counts, field-normalized impact and retraction flags.`}
-        teaser={
-          <div>
-            <div className="flex flex-col divide-y divide-border border-t border-b border-border">
-              {signals.rows.map((r) => (
-                <article key={r.trend_id} className="py-5">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted mb-1.5">
-                    <span className="text-paper">{fmtDate(r.published)}</span>
-                    {r.concept && <span> · {r.concept}</span>}
-                  </div>
-                  <h2 className="font-display text-[19px] leading-snug text-paper mb-1.5">{r.title}</h2>
-                  {r.abstract && (
-                    <p className="font-sans text-sm text-text leading-relaxed line-clamp-2 max-w-3xl">{r.abstract}</p>
-                  )}
-                </article>
-              ))}
-            </div>
-            <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-              Free preview — the 3 newest of {fmtInt(stats.total)} curated research signals
-            </p>
-          </div>
-        }
-      >
       <form
         method="GET"
         action="/trends/foresight/research"
@@ -263,7 +227,7 @@ export default async function ResearchExplorerPage({
           placeholder="Topic, DOI or arXiv ID — e.g. processed cheese 2020-2024"
           className="bg-card border border-border-strong px-4 py-2.5 font-sans text-sm text-paper placeholder:text-muted focus:outline-none focus:border-accent"
           ariaLabel="Search research papers"
-          authorEnabled={superpro}
+          authorEnabled
         />
         <input
           type="text"
@@ -660,7 +624,7 @@ export default async function ResearchExplorerPage({
             </a>
           </>
         )}
-        {liveEligible && superpro && !liveRequested && (
+        {liveEligible && !liveRequested && (
           <>
             {" · "}
             <Link href={(() => { const b = qs(page); return b.includes("?") ? `${b}&live=1` : `${b}?live=1`; })()}
@@ -945,7 +909,6 @@ export default async function ResearchExplorerPage({
         </nav>
       )}
 
-      </TierGate>
 
       <p className="mt-10 font-sans text-[13px] text-muted max-w-3xl border-t border-dashed border-border pt-4">
         Corpus: OpenAlex snapshot — English research articles, preprints and

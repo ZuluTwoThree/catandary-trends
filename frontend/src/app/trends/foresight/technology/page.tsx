@@ -1,12 +1,7 @@
-import Link from "next/link";
 import { q1 } from "@/lib/pg";
 import { getTechnologies } from "@/lib/technology";
 import TechnologyCard from "@/components/foresight/TechnologyCard";
 import TechnologyTool from "@/components/foresight/TechnologyTool";
-import TierGate from "@/components/TierGate";
-
-/** Curated cards shown free before the Pro gate (value teaser, ONB-03/KEY-01). */
-const FREE_PREVIEW = 3;
 
 export const dynamic = "force-dynamic";
 
@@ -84,16 +79,9 @@ export default async function TechnologyExplorerPage() {
       </div>
 
       {/* Merged on-demand tool (#28/#36/#42/#43): one input → user-selectable CPC
-          domain → one canonical TIR trajectory + cross-tier lead time.
-          Super Pro+ per the tier matrix ("analyze any topic you bring"). */}
+          domain → one canonical TIR trajectory + cross-tier lead time. */}
       <div className="mb-10">
-        <TierGate
-          need="superpro"
-          feature="On-demand analysis"
-          benefit="Bring your own technology or topic and the engine reads it live — improvement rate, lead time and the evidence behind both. The curated technologies below show the format."
-        >
           <TechnologyTool />
-        </TierGate>
       </div>
 
       <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-4">
@@ -108,30 +96,11 @@ export default async function TechnologyExplorerPage() {
           </p>
         </div>
       ) : (
-        <TierGate
-          need="pro"
-          feature="The full technology library"
-          benefit={`Pro opens all ${technologies.length} curated technologies — lead times, improvement rates, key patents and convergence, each backed by clickable evidence.`}
-          teaser={
-            <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                {technologies.slice(0, FREE_PREVIEW).map((t) => (
-                  <TechnologyCard key={t.symbol} tech={t} />
-                ))}
-              </div>
-              <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                Free preview — showing {Math.min(FREE_PREVIEW, technologies.length)} of{" "}
-                {technologies.length} technologies
-              </p>
-            </div>
-          }
-        >
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {technologies.map((t) => (
               <TechnologyCard key={t.symbol} tech={t} />
             ))}
           </div>
-        </TierGate>
       )}
 
       {/* Methodology / trust — the USP: improvement rates on the actual MIT method */}
@@ -162,15 +131,6 @@ export default async function TechnologyExplorerPage() {
           the rate and its evidence — the interpretation is yours.
         </p>
       </div>
-
-      {/* One consistent monetisation message across the product (ONB-06):
-          plans are live — link to them instead of a stale "launching soon". */}
-      <p className="mt-12 font-sans text-sm text-muted">
-        This page is part of the Pro plan.{" "}
-        <Link href="/trends/pricing" className="text-accent hover:underline">
-          See plans →
-        </Link>
-      </p>
     </div>
   );
 }

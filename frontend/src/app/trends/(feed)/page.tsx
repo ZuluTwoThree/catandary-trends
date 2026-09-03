@@ -10,7 +10,7 @@ import {
   getTopSourcesByCount,
 } from "@/lib/db";
 import { parseFilterParams } from "@/lib/filter-params";
-import { archiveWindowDays } from "@/lib/entitlement";
+import { archiveWindowDays } from "@/lib/archiveWindow";
 import TrendCard from "@/components/TrendCard";
 import TrendRow from "@/components/TrendRow";
 import Pagination from "@/components/Pagination";
@@ -48,9 +48,9 @@ export default async function TrendsPage({
   const raw = await searchParams;
   const filters = parseFilterParams(raw);
 
-  // Free archive window (issue #70): server-side cap on how far back the feed
-  // reaches for free viewers. null (paywall off / Starter+) leaves it open.
-  filters.max_age_days = await archiveWindowDays();
+  // Public window (#93): PUBLIC_MODE caps how far back the feed reaches
+  // (lib/archiveWindow.ts); null on the owner instance leaves it open.
+  filters.max_age_days = archiveWindowDays();
 
   // One parallel round-trip instead of seven sequential ones (ARCH-11); the
   // aggregate queries are additionally TTL-cached in lib/db.

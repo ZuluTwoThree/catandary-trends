@@ -12,10 +12,10 @@ export const PRIVACY_METADATA = {
 
 /**
  * Privacy policy (GDPR Art. 13). Facts mirror the actual implementation:
- * session cookie for sign-in, email for magic links and the newsletter,
- * Stripe for billing, Resend for transactional email, Hetzner for hosting,
- * no third-party analytics and no tracking cookies. The controller block is
- * an owner gate before public launch (see imprint).
+ * no accounts (no SaaS since #93 — sign-in and billing were removed
+ * 2026-09-03), email only for the newsletter, Resend for its delivery,
+ * Hetzner for hosting, no third-party analytics and no tracking cookies.
+ * The controller block is an owner gate before public launch (see imprint).
  */
 const SECTIONS: { title: string; body: React.ReactNode }[] = [
   {
@@ -47,35 +47,14 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
     ),
   },
   {
-    title: "Account & sign-in",
-    body: (
-      <>
-        If you create an account, we store your email address and a session
-        cookie so the sign-in works (legal basis: contract performance, Art.
-        6(1)(b) GDPR). Sign-in links are sent via Resend (EU processing).
-        Sessions expire automatically; you can sign out at any time.
-      </>
-    ),
-  },
-  {
     title: "Newsletter",
     body: (
       <>
-        The weekly briefing is sent only after you actively subscribe. Every
-        email contains an unsubscribe link; unsubscribing stops all further
-        sends (legal basis: consent, Art. 6(1)(a) GDPR — revocable at any
-        time).
-      </>
-    ),
-  },
-  {
-    title: "Payments",
-    body: (
-      <>
-        Paid plans are billed via Stripe. Stripe processes the payment data;
-        we store only your subscription status and a Stripe customer
-        reference, never card numbers (legal basis: contract performance,
-        Art. 6(1)(b) GDPR).
+        The weekly briefing is sent only after you actively subscribe. Your
+        address is stored for that purpose alone; delivery runs via Resend (EU
+        processing). Every email contains an unsubscribe link;
+        unsubscribing stops all further sends (legal basis: consent, Art.
+        6(1)(a) GDPR — revocable at any time).
       </>
     ),
   },

@@ -3,7 +3,7 @@ import { getTrends, getMegaTrends, getPublicWindowSlugs } from "@/lib/db";
 import { getAllAnalyses } from "@/lib/analyses";
 import { isPublicMode } from "@/lib/publicMode";
 import { isStaticExport } from "@/lib/renderMode";
-import { PUBLIC_ARCHIVE_DAYS } from "@/lib/entitlement";
+import { PUBLIC_ARCHIVE_DAYS } from "@/lib/archiveWindow";
 import { megaTrendSlug, VERTICALS } from "@/lib/types";
 import { listingPath } from "@/lib/staticListing";
 import { sitePath } from "@/lib/sitePaths";
@@ -135,7 +135,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         ...["clusters", "technology", "lead-time", "evolution", "dossier"].map((page) =>
           hub(`/trends/foresight/${page}`, "weekly", 0.8)
         ),
-        hub("/trends/pricing", "monthly", 0.6),
       ];
 
   return [

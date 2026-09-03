@@ -1,69 +1,41 @@
 /**
- * Access guard for the review queue (issue #71).
+ * Access guard for the review queue (issue #71, simplified by #93).
  *
- * Publishing/rejecting are writes to live content. The guard must default to
- * CLOSED: a deployment that knows nothing about REVIEW_ENABLED has to 404,
- * never expose the queue.
+ * Publishing/rejecting are writes to live content. The guard must be CLOSED
+ * on anything public (PUBLIC_MODE preview, static export) and open on the
+ * owner instance — there are no accounts any more, so no third state.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
+import { canReview } from "@/lib/review-access";
 
-const holder: { session: unknown } = { session: null };
-
-vi.mock("@/lib/auth", async () => {
-  return {
-    get AUTH_ENABLED() {
-      return process.env.AUTH_ENABLED === "1";
-    },
-    getSession: vi.fn(async () => holder.session),
-  };
-});
-
-async function load(review?: string, auth?: string) {
-  vi.resetModules();
-  if (review === undefined) delete process.env.REVIEW_ENABLED;
-  else process.env.REVIEW_ENABLED = review;
-  if (auth === undefined) delete process.env.AUTH_ENABLED;
-  else process.env.AUTH_ENABLED = auth;
-  return await import("@/lib/review-access");
-}
-
-beforeEach(() => {
-  holder.session = null;
-});
 afterEach(() => {
-  delete process.env.REVIEW_ENABLED;
-  delete process.env.AUTH_ENABLED;
-  vi.resetModules();
+  delete process.env.PUBLIC_MODE;
+  delete process.env.STATIC_EXPORT;
+  delete process.env.NEXT_PUBLIC_STATIC_EXPORT;
 });
 
 describe("canReview", () => {
-  it("is closed when REVIEW_ENABLED is unset — the safe default", async () => {
-    const m = await load(undefined, "0");
-    expect(await m.canReview()).toBe(false);
+  it("is open on the owner instance (no PUBLIC_MODE, no export)", () => {
+    expect(canReview()).toBe(true);
   });
 
-  it("is closed for any value other than '1'", async () => {
+  it("is closed under PUBLIC_MODE=1", () => {
+    process.env.PUBLIC_MODE = "1";
+    expect(canReview()).toBe(false);
+  });
+
+  it("is closed in the static export build (both env spellings)", () => {
+    process.env.STATIC_EXPORT = "1";
+    expect(canReview()).toBe(false);
+    delete process.env.STATIC_EXPORT;
+    process.env.NEXT_PUBLIC_STATIC_EXPORT = "1";
+    expect(canReview()).toBe(false);
+  });
+
+  it("treats any PUBLIC_MODE value other than '1' as the owner instance", () => {
     for (const v of ["0", "true", "yes", ""]) {
-      const m = await load(v, "0");
-      expect(await m.canReview()).toBe(false);
+      process.env.PUBLIC_MODE = v;
+      expect(canReview()).toBe(true);
     }
-  });
-
-  it("opens with the flag while auth is off (localhost operation today)", async () => {
-    const m = await load("1", "0");
-    expect(await m.canReview()).toBe(true);
-  });
-
-  it("additionally demands a session once auth is on", async () => {
-    const m = await load("1", "1");
-    expect(await m.canReview()).toBe(false); // anonymous
-    holder.session = { email: "owner@example.com", tier: "free" };
-    expect(await m.canReview()).toBe(true);
-  });
-
-  it("the flag alone never overrides a missing session when auth is on", async () => {
-    holder.session = null;
-    const m = await load("1", "1");
-    expect(await m.canReview()).toBe(false);
   });
 });

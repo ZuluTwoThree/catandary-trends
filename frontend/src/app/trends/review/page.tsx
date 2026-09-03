@@ -135,7 +135,7 @@ export default async function ReviewPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   // 404 rather than 403: an unauthorised visitor learns nothing about the route.
-  if (!(await canReview())) notFound();
+  if (!canReview()) notFound();
 
   const sp = await searchParams;
   const scope = sp.scope === "all" ? "all" : "today";

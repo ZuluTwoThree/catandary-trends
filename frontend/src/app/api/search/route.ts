@@ -14,7 +14,7 @@
 import { NextResponse } from "next/server";
 import { getPool, q, q1 } from "@/lib/pg";
 import { rateLimitInfo, clientIp } from "@/lib/rateLimit";
-import { archiveWindowDays } from "@/lib/entitlement";
+import { archiveWindowDays } from "@/lib/archiveWindow";
 
 // Every search embeds the query (local GPU) + runs several DB aggregates, so an
 // unguarded public GET is a resource-exhaustion vector (#5-hardening). Per-IP
@@ -383,9 +383,9 @@ export async function GET(request: Request) {
 
   const t0 = Date.now();
 
-  // Free archive window (issue #70): the public search API must not leak
-  // archive articles to free viewers — enforced in all three query paths.
-  const windowDays = await archiveWindowDays();
+  // Public window (#93): in PUBLIC_MODE the search API must not leak
+  // archive articles past the window — enforced in all three query paths.
+  const windowDays = archiveWindowDays();
 
   // 1. Embed query + lexical search (parallel)
   const [qVec, ftsResults] = await Promise.all([

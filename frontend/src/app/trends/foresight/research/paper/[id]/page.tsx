@@ -7,15 +7,13 @@ import {
   liveAccess, consumeLive, liveWorkContext, peekLiveWork,
   LIVE_DAILY_LIMIT, type LiveWork, type LiveHit,
 } from "@/lib/openalex-live";
-import TierGate from "@/components/TierGate";
 import AuthorLine from "@/components/AuthorLine";
-import { canAccess } from "@/lib/entitlement";
 
 export const dynamic = "force-dynamic";
 
-/** Paper-Detailseite (#83): lokaler Korpus-Stand plus Super-Pro-Live-Block
+/** Paper-Detailseite (#83): lokaler Korpus-Stand plus Live-Block
  *  (aktuelle Zitationen, Jahres-Sparkline, wer zitiert, worauf es baut,
- *  ähnliche Arbeiten). Live-Abfragen zählen gegen das 25/Tag-Budget;
+ *  ähnliche Arbeiten). Auf der Owner-Instanz unbegrenzt (#93);
  *  Cache-Treffer (24 h) sind budgetfrei. */
 
 const fmtInt = (n: number) => n.toLocaleString("en-US");
@@ -83,26 +81,22 @@ export default async function PaperDetailPage({
   const searchHref = (extra: string) =>
     `/trends/foresight/research?${extra}`;
 
-  // ---- Live-Block (Super Pro, 25/Tag) ----
-  const superpro = await canAccess("superpro");
+  // ---- Live-Block (#83; seit #93 ohne Account-Gate — Owner-Instanz) ----
+  const access = await liveAccess();
+  const liveUnlimited = access.unlimited;
   let live: LiveWork | null = null;
-  let liveState: "ok" | "budget" | "unavailable" | "gated" = "gated";
+  let liveState: "ok" | "budget" | "unavailable";
   let liveUsed = 0;
-  let liveUnlimited = true;
-  if (superpro) {
-    const access = await liveAccess();
-    liveUnlimited = access.unlimited;
-    if (access.unlimited || access.remaining > 0) {
-      const r = await liveWorkContext(id);
-      live = r.data;
-      if (r.fresh) await consumeLive(access);
-      liveUsed = access.used + (r.fresh && !access.unlimited ? 1 : 0);
-      liveState = live ? "ok" : "unavailable";
-    } else {
-      live = await peekLiveWork(id); // alter Cache ist besser als nichts
-      liveUsed = access.used;
-      liveState = live ? "ok" : "budget";
-    }
+  if (access.unlimited || access.remaining > 0) {
+    const r = await liveWorkContext(id);
+    live = r.data;
+    if (r.fresh) await consumeLive(access);
+    liveUsed = access.used + (r.fresh && !access.unlimited ? 1 : 0);
+    liveState = live ? "ok" : "unavailable";
+  } else {
+    live = await peekLiveWork(id); // alter Cache ist besser als nichts
+    liveUsed = access.used;
+    liveState = live ? "ok" : "budget";
   }
 
   const [citingCorpus, refs, related] = live
@@ -178,18 +172,6 @@ export default async function PaperDetailPage({
       </div>
 
       {/* ---------- Live signal ---------- */}
-      <TierGate
-        need="superpro"
-        feature="Live citation intelligence"
-        benefit="Super Pro checks this paper live against OpenAlex: current citation count, the citation curve, who builds on it right now, and its roots in the corpus — 25 live lookups per day."
-        teaser={
-          <div className="border border-border bg-card p-5">
-            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
-              Live citation intelligence — Super Pro
-            </div>
-          </div>
-        }
-      >
         <section className="border border-border-strong bg-card p-5 md:p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2 mb-5">
             <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
@@ -278,7 +260,6 @@ export default async function PaperDetailPage({
             </>
           )}
         </section>
-      </TierGate>
 
       <div className="mt-8 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
         Source:{" "}

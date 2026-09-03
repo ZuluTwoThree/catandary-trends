@@ -1,7 +1,7 @@
 /**
  * Public-mode gate (issue #93, Etappe 1). PUBLIC_MODE=1 hides the Foresight
- * tool suite, accounts and the two internal review pages on the public
- * deployment; unset/0 must change nothing on the workstation instance.
+ * tool suite and the two internal review pages on the public deployment;
+ * unset/0 must change nothing on the workstation instance.
  */
 import { describe, it, expect, afterEach } from "vitest";
 import { isPublicMode, isBlockedInPublicMode } from "@/lib/publicMode";
@@ -31,8 +31,6 @@ describe("isPublicMode", () => {
 
 describe("isBlockedInPublicMode", () => {
   const blocked = [
-    "/account",
-    "/account/signin",
     "/trends/foresight",
     "/trends/foresight/clusters",
     "/trends/foresight/technology",
@@ -48,12 +46,6 @@ describe("isBlockedInPublicMode", () => {
     "/trends/foresight/ventures/company/5",
     "/trends/review",
     "/trends/quality-preview",
-    "/trends/pricing",
-    "/api/auth/callback",
-    "/api/auth/logout",
-    "/api/auth/request",
-    "/api/stripe/checkout",
-    "/api/stripe/webhook",
     "/api/foresight/analyze",
     "/api/foresight/clusters",
     "/api/foresight/export",
@@ -85,6 +77,11 @@ describe("isBlockedInPublicMode", () => {
     "/analysis",
     "/analysis/some-analysis-slug",
     "/enquiry",
+    // gone for good since 2026-09-03 (#93 physical removal) — not blocked,
+    // simply nonexistent; Next's own 404 answers them.
+    "/account",
+    "/trends/pricing",
+    "/api/auth/request",
   ];
 
   it.each(allowed)("does not block %s", (path) => {
@@ -93,9 +90,9 @@ describe("isBlockedInPublicMode", () => {
 
   it("does not block a sibling path that merely starts with a blocked prefix", () => {
     // Guards against a naive startsWith() on the raw prefix string.
-    expect(isBlockedInPublicMode("/trends/pricingx")).toBe(false);
-    expect(isBlockedInPublicMode("/accounting")).toBe(false);
-    expect(isBlockedInPublicMode("/api/authors")).toBe(false);
-    expect(isBlockedInPublicMode("/api/stripey")).toBe(false);
+    expect(isBlockedInPublicMode("/trends/foresights")).toBe(false);
+    expect(isBlockedInPublicMode("/trends/reviewer")).toBe(false);
+    expect(isBlockedInPublicMode("/trends/quality-previews")).toBe(false);
+    expect(isBlockedInPublicMode("/api/foresighter")).toBe(false);
   });
 });

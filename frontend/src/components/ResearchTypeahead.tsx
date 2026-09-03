@@ -6,7 +6,7 @@ import { typeaheadContext, applyTypeahead, type TypeaheadContext } from "@/lib/r
 /** Suchfeld mit Operator-Typeahead (#83): tippt der Nutzer author:/
  *  institution:/journal:/funder:, erscheinen Vorschläge — journal/funder/
  *  institution aus lokalen Distinct-Aggregaten, author via OpenAlex-
- *  Autocomplete (Super Pro; `authorEnabled` kommt vom Server). Auswahl
+ *  Autocomplete (`authorEnabled` kommt vom Server). Auswahl
  *  ersetzt den Operator-Wert gequotet, der übrige Text bleibt stehen. */
 export default function ResearchTypeahead({
   name, defaultValue, placeholder, className, ariaLabel, authorEnabled,

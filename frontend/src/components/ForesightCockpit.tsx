@@ -76,8 +76,6 @@ interface SearchResponse {
 
 interface SearchError {
   message: string;
-  /** 402: link the message to the pricing page. */
-  pricingLink?: boolean;
 }
 
 /** Map an HTTP error status to user-facing copy — never expose raw status codes. */
@@ -89,12 +87,6 @@ function errorForStatus(status: number, retryAfter: string | null): SearchError 
         Number.isFinite(secs) && secs > 0
           ? `Too many searches — available again in about ${secs} second${secs === 1 ? "" : "s"}.`
           : "Too many searches — available again in a moment.",
-    };
-  }
-  if (status === 402) {
-    return {
-      message: "This search depth is part of a paid plan.",
-      pricingLink: true,
     };
   }
   return { message: "Search is briefly unavailable — please try again." };
@@ -269,17 +261,6 @@ export default function ForesightCockpit({
           className="border border-warn/40 bg-warn/10 px-4 py-3 text-warn font-sans text-sm"
         >
           {error.message}
-          {error.pricingLink && (
-            <>
-              {" "}
-              <Link
-                href="/trends/pricing"
-                className="underline underline-offset-2 hover:text-paper transition-colors"
-              >
-                See plans →
-              </Link>
-            </>
-          )}
         </div>
       )}
 

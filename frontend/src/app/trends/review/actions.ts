@@ -15,7 +15,7 @@ import {
  */
 
 export async function publishAction(formData: FormData): Promise<void> {
-  if (!(await canReview())) throw new Error("not permitted");
+  if (!canReview()) throw new Error("not permitted");
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) throw new Error("bad id");
   await publishReviewed(id);
@@ -23,7 +23,7 @@ export async function publishAction(formData: FormData): Promise<void> {
 }
 
 export async function rejectAction(formData: FormData): Promise<void> {
-  if (!(await canReview())) throw new Error("not permitted");
+  if (!canReview()) throw new Error("not permitted");
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) throw new Error("bad id");
   await rejectReviewed(id);
@@ -37,7 +37,7 @@ export async function rejectAction(formData: FormData): Promise<void> {
  * Server Action error would just show them a generic failure page.
  */
 export async function requeueAction(formData: FormData): Promise<void> {
-  if (!(await canReview())) throw new Error("not permitted");
+  if (!canReview()) throw new Error("not permitted");
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) throw new Error("bad id");
   const result = await requeueForRegeneration(id);

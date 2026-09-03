@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getLatestClusterRun } from "@/lib/foresight";
-import { canAccess } from "@/lib/entitlement";
 
 export const dynamic = "force-dynamic";
 
@@ -8,9 +7,8 @@ export const dynamic = "force-dynamic";
  * GET /api/foresight/export?scope=global|vertical:FOOD&format=csv
  *
  * Exports the latest cluster snapshot for a scope as CSV — the working artefact
- * the agency/consultant segment wants. Pro-gated (transparent while the paywall
- * is off). One row per cluster: label, size, momentum, sources, top tags,
- * dominant mega-trend.
+ * the agency/consultant segment wants. One row per cluster: label, size,
+ * momentum, sources, top tags, dominant mega-trend.
  */
 function csvCell(v: unknown): string {
   const s = String(v ?? "");
@@ -18,9 +16,6 @@ function csvCell(v: unknown): string {
 }
 
 export async function GET(request: Request) {
-  if (!(await canAccess("pro"))) {
-    return NextResponse.json({ error: "Pro plan required" }, { status: 402 });
-  }
   const url = new URL(request.url);
   const vertical = url.searchParams.get("vertical");
   const scope =

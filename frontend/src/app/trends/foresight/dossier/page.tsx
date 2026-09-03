@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { getLatestClusterRun } from "@/lib/foresight";
 import { VERTICALS } from "@/lib/types";
-import TierGate from "@/components/TierGate";
 import ExportButton from "@/components/foresight/ExportButton";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +19,7 @@ function momentumWord(m: string, pp: number): string {
 
 /**
  * Printable foresight dossier (Epic W3.7) — the artefact an analyst hands on.
- * Clean, dense, print-CSS optimised (no chrome when printed). Pro-gated. Single
+ * Clean, dense, print-CSS optimised (no chrome when printed). Single
  * vertical selector. Reads the persisted snapshot.
  */
 export default async function DossierPage({
@@ -79,11 +78,6 @@ export default async function DossierPage({
         </div>
       </div>
 
-      <TierGate
-        need="pro"
-        feature="The exportable dossier"
-        benefit="Hand your team a cited one-pager: what's rising, holding and cooling in a scope — as CSV or print-ready PDF, every line backed by sources."
-      >
         <div className="mb-5 flex justify-end print:hidden">
           <ExportButton scope={scope} />
         </div>
@@ -140,7 +134,6 @@ export default async function DossierPage({
             sources · catandary.de
           </footer>
         </article>
-      </TierGate>
 
       <style>{`
         @media print {

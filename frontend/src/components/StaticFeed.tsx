@@ -7,7 +7,7 @@ import {
   getVerticalCountsWindowed,
   getPublicWindowNewest,
 } from "@/lib/db";
-import { archiveWindowDays } from "@/lib/entitlement";
+import { archiveWindowDays } from "@/lib/archiveWindow";
 import { getVerticalInfo, type Vertical } from "@/lib/types";
 import { STATIC_PAGE_SIZE, listingPath, pageCount } from "@/lib/staticListing";
 import {
@@ -49,7 +49,7 @@ import { TrendsListJsonLd } from "./JsonLd";
 async function listingTotal(
   vertical: Vertical | null
 ): Promise<{ total: number; totalPages: number }> {
-  const windowDays = await archiveWindowDays();
+  const windowDays = archiveWindowDays();
   const total = await getTrendsCount({
     status: "published",
     vertical: vertical ?? undefined,
@@ -100,7 +100,7 @@ export default async function StaticFeed({
   page: number;
 }) {
   await dynamicUnlessStatic();
-  const windowDays = await archiveWindowDays();
+  const windowDays = archiveWindowDays();
   const { total, totalPages } = await listingTotal(vertical);
   // Beyond the last page there is nothing — and in the export no such file.
   if (page > totalPages) notFound();

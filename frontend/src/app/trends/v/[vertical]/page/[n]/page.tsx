@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTrendsCount } from "@/lib/db";
-import { PUBLIC_ARCHIVE_DAYS } from "@/lib/entitlement";
+import { PUBLIC_ARCHIVE_DAYS } from "@/lib/archiveWindow";
 import { VERTICALS } from "@/lib/types";
 import { exportStaticParams } from "@/lib/renderMode";
 import {

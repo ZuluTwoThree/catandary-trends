@@ -8,8 +8,7 @@
  */
 import { cache } from "react";
 import { getNewsletterEditionIndex, getNewsletterEdition, getTrendLinkTargets } from "./db";
-import { PUBLIC_ARCHIVE_DAYS } from "./entitlement";
-import { publicNewsletterEditions } from "./archiveWindow";
+import { PUBLIC_ARCHIVE_DAYS, publicNewsletterEditions } from "./archiveWindow";
 import {
   collectEditionSlugs,
   editionSources,

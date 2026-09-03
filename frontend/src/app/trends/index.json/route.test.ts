@@ -8,7 +8,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const getPublicIndexRows = vi.fn();
 vi.mock("@/lib/db", () => ({ getPublicIndexRows: (...a: unknown[]) => getPublicIndexRows(...a) }));
-vi.mock("@/lib/entitlement", () => ({ PUBLIC_ARCHIVE_DAYS: 30 }));
 
 import { GET, dynamic } from "./route";
 

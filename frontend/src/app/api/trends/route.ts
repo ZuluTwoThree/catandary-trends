@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTrends, getTrendsCount, getVerticalCounts } from "@/lib/db";
-import { archiveWindowDays } from "@/lib/entitlement";
+import { archiveWindowDays } from "@/lib/archiveWindow";
 import { VERTICALS } from "@/lib/types";
 import type { Trend, Vertical } from "@/lib/types";
 
@@ -58,9 +58,9 @@ export async function GET(request: NextRequest) {
   // Public API serves published content only — no status pass-through.
   const status = "published";
 
-  // Free archive window (issue #70) — enforced here too, so the public API
+  // Public window (#93) — enforced here too, so in PUBLIC_MODE the API
   // can't be used to bypass the feed's window.
-  const windowDays = await archiveWindowDays();
+  const windowDays = archiveWindowDays();
 
   try {
     const [trends, total, verticalCounts] = await Promise.all([

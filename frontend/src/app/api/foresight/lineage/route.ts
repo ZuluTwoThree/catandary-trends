@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { canAccess } from "@/lib/entitlement";
 import { getLatestLineage, getLineageScopes } from "@/lib/foresight";
 
 export const dynamic = "force-dynamic";
@@ -11,14 +10,6 @@ export const dynamic = "force-dynamic";
  * Serves the latest lineage per scope; no clustering in the request path.
  */
 export async function GET(request: Request) {
-  // Entitlement guard (CONF-02): Pro data must not be free over the raw
-  // API while the paywall is on. No-op while PAYWALL_ENABLED=0.
-  if (!(await canAccess("pro"))) {
-    return NextResponse.json(
-      { error: "This data is part of the Pro plan", upgrade: "/trends/pricing" },
-      { status: 402 }
-    );
-  }
   const url = new URL(request.url);
   const vertical = url.searchParams.get("vertical");
   const scope =

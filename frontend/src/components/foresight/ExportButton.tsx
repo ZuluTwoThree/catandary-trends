@@ -4,8 +4,8 @@ import { useState } from "react";
 
 /**
  * CSV/print export control for a foresight scope (Epic W3.7). Downloads via
- * fetch so a 402 (not entitled) or error becomes a readable message instead
- * of navigating the browser onto raw JSON (KEY-08 / ARCH-15).
+ * fetch so an error becomes a readable message instead of navigating the
+ * browser onto raw JSON (KEY-08 / ARCH-15).
  */
 export default function ExportButton({ scope }: { scope: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -20,10 +20,6 @@ export default function ExportButton({ scope }: { scope: string }) {
     setError(null);
     try {
       const res = await fetch(`/api/foresight/export?${params}&format=csv`);
-      if (res.status === 402) {
-        setError("CSV export is part of Pro — see plans below.");
-        return;
-      }
       if (!res.ok) {
         setError("Export failed — please try again in a moment.");
         return;

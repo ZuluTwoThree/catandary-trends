@@ -10,12 +10,10 @@
 # Plus build artefacts that must never be copied.
 
 # --- 1. BLOCKED_PREFIXES (publicMode.ts) ---
-src/app/account/
 src/app/trends/foresight/
 src/app/trends/review/
 src/app/trends/quality-preview/
-src/app/trends/pricing/
-# /api/auth, /api/stripe, /api/foresight fall under the whole api tree below
+# /api/foresight falls under the whole api tree below
 
 # --- 2. Not exportable ---
 src/proxy.ts

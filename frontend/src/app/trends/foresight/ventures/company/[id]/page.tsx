@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import TierGate from "@/components/TierGate";
 import VentureAttribution from "@/components/VentureAttribution";
 import WipBadge from "@/components/WipBadge";
 import { getVenture, VENTURE_EVENT_TYPES, type VentureEvent } from "@/lib/ventures";
@@ -125,18 +124,6 @@ export default async function VentureCompanyPage({
         ))}
       </p>
 
-      <TierGate
-        need="pro"
-        feature="The full evidence timeline"
-        benefit="Pro opens the dated event history — every filing, grant, round, launch and clearance with its primary source — plus the patent and research bridges."
-        teaser={
-          <p className="font-sans text-sm text-muted border-t border-b border-border py-6">
-            {c.event_count} events from {fmtDate(c.first_event_at)} to{" "}
-            {fmtDate(c.last_event_at)} — timeline, sources, investors and
-            technology bridges are part of the Pro tier.
-          </p>
-        }
-      >
         <section className="mb-8">
           <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent mb-2">
             Evidence timeline
@@ -194,7 +181,6 @@ export default async function VentureCompanyPage({
             </p>
           </section>
         )}
-      </TierGate>
 
       <VentureAttribution />
     </div>

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { archiveWindowDays } from "@/lib/entitlement";
+import { archiveWindowDays } from "@/lib/archiveWindow";
 import { getMegaTrends, getTrendsByMegaTrend } from "@/lib/db";
 import { getMegaTrendInfo, megaTrendSlug } from "@/lib/types";
 import TrendCard from "@/components/TrendCard";
@@ -75,7 +75,7 @@ export default async function MegaTrendPage({
   const match = findMegaTrend(megatrend, allMega);
   if (!match) notFound();
 
-  const windowDays = await archiveWindowDays(); // issue #70
+  const windowDays = archiveWindowDays(); // public window (#93)
   let trends = await getTrendsByMegaTrend(match.mega_trend, {
     status: "published",
     max_age_days: windowDays,

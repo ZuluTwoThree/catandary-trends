@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getResearchCorpus } from "@/lib/db";
 import { parseResearchQuery } from "@/lib/research-search";
-import { canAccess } from "@/lib/entitlement";
 
 export const dynamic = "force-dynamic";
 
-/** CSV-Export der Research-Treffer (#83) — Pro-Feature, max 1.000 Zeilen.
+/** CSV-Export der Research-Treffer (#83) — max 1.000 Zeilen.
  *  OpenAlex-Daten sind CC0, der Export ist lizenzrechtlich sauber. */
 
 function csvField(v: unknown): string {
@@ -14,11 +13,6 @@ function csvField(v: unknown): string {
 }
 
 export async function GET(req: NextRequest) {
-  if (!(await canAccess("pro"))) {
-    return NextResponse.json(
-      { error: "CSV export is part of the Pro plan." },
-      { status: 402 });
-  }
   const sp = req.nextUrl.searchParams;
   const parsed = parseResearchQuery((sp.get("q") ?? "").trim());
   const topic = (sp.get("topic") ?? "").trim();

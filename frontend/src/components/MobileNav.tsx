@@ -4,28 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { linkPrefetch } from "@/lib/renderMode";
 import { usePathname } from "next/navigation";
-import { PRIMARY_NAV, FORESIGHT_NAV, PLANS_NAV } from "@/lib/nav";
+import { PRIMARY_NAV, FORESIGHT_NAV } from "@/lib/nav";
 
 /**
  * Mobile navigation (< lg): hamburger + full-screen drawer with the grouped
- * nav (Explore / Foresight / Account). Dialog semantics with a focus trap:
- * focus moves into the drawer on open and returns to the hamburger on close
- * (A11Y-04).
+ * nav (Explore / Foresight). Dialog semantics with a focus trap: focus moves
+ * into the drawer on open and returns to the hamburger on close (A11Y-04).
  *
- * `publicMode` (#93 Etappe 1) drops the Foresight group and "Plans" — those
- * routes 404 under PUBLIC_MODE=1 (proxy.ts). `authEnabled` is already
- * computed by the caller as `AUTH_ENABLED && !publicMode`, so the Account
- * link needs no separate check here.
+ * `publicMode` (#93) drops the Foresight group — those routes 404 under
+ * PUBLIC_MODE=1 (proxy.ts).
  */
-export default function MobileNav({
-  authEnabled,
-  signedIn,
-  publicMode,
-}: {
-  authEnabled: boolean;
-  signedIn: boolean;
-  publicMode: boolean;
-}) {
+export default function MobileNav({ publicMode }: { publicMode: boolean }) {
   // Drawer is "open" only for the pathname it was opened on — navigating
   // away closes it by derivation, no state-sync effect needed.
   const [openedOn, setOpenedOn] = useState<string | null>(null);
@@ -157,24 +146,6 @@ export default function MobileNav({
                     {item.label}
                   </Link>
                 ))}
-              </>
-            )}
-
-            {!publicMode && (
-              <>
-                <div className={groupLabel}>Account</div>
-                <Link prefetch={linkPrefetch()} href={PLANS_NAV.href} className={itemClass(PLANS_NAV.href)}>
-                  {PLANS_NAV.label}
-                </Link>
-                {authEnabled && (
-                  <Link
-                    prefetch={linkPrefetch()}
-                    href={signedIn ? "/account" : "/account/signin"}
-                    className={itemClass(signedIn ? "/account" : "/account/signin")}
-                  >
-                    {signedIn ? "Account" : "Sign in"}
-                  </Link>
-                )}
               </>
             )}
 

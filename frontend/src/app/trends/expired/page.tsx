@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { linkPrefetch } from "@/lib/renderMode";
 import type { Metadata } from "next";
-import { PUBLIC_ARCHIVE_DAYS } from "@/lib/entitlement";
+import { PUBLIC_ARCHIVE_DAYS } from "@/lib/archiveWindow";
 import { sitePath } from "@/lib/sitePaths";
 
 export const metadata: Metadata = {

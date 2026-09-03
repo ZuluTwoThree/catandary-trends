@@ -1,8 +1,15 @@
+import { isPublicMode } from "./publicMode";
+
 /**
- * Archive-window arithmetic shared by the entitlement layer (#70/#93), the
+ * Archive-window arithmetic shared by the public-mode preview (#93), the
  * windowed feed queries in lib/db.ts and the static export
  * (generateStaticParams, sitemap). One rule for every caller, so a slug the
  * export lists can never fall outside the window the page render applies.
+ *
+ * History: until 2026-09-03 this sat behind a tier/paywall layer
+ * (lib/entitlement.ts, FREE_ARCHIVE_DAYS = 28 for free accounts, #70). With
+ * the SaaS model gone (#93) the only window left is the public one below;
+ * the owner instance always sees the whole archive.
  *
  * The lower bound is a DAY boundary, not "now minus N days": the start of the
  * current UTC day minus N days. Two builds minutes apart therefore see the
@@ -39,7 +46,7 @@ export function withinWindow(
 
 /**
  * `PUBLIC_WINDOW_DAYS` (default 30): how far back the public showcase reaches.
- * Read by the entitlement layer (PUBLIC_MODE preview) and by the static
+ * Read by the PUBLIC_MODE preview (archiveWindowDays below) and by the static
  * export (slug list, sitemap) — the same env var on both, so a preview on
  * :3999 shows exactly what an export with the same setting would publish.
  * Anything that is not a positive integer falls back to the default.
@@ -55,6 +62,26 @@ export function parsePublicWindowDays(raw: string | undefined): number {
 
 export function publicWindowDays(): number {
   return parsePublicWindowDays(process.env.PUBLIC_WINDOW_DAYS);
+}
+
+/**
+ * The public lead-gen deployment (#93) ships only the last N days of the
+ * feed — "30 Tage Trends" is the whole public data promise (~83 MB). On the
+ * real deployment the export itself is windowed; this constant makes the
+ * workstation preview (PUBLIC_MODE=1) match it and is the safety net if a
+ * fuller dataset ever reaches a public instance. Module-level on purpose:
+ * one value per process, read once.
+ */
+export const PUBLIC_ARCHIVE_DAYS = publicWindowDays();
+
+/**
+ * The archive window for the current render, in days — or null for the
+ * whole archive. PUBLIC_MODE (the :3999 preview and the export build) gets
+ * the public window; the owner instance is unlimited. Callers thread the
+ * value into query options (`max_age_days`) or `withinWindow`.
+ */
+export function archiveWindowDays(): number | null {
+  return isPublicMode() ? PUBLIC_ARCHIVE_DAYS : null;
 }
 
 /* ---------- Newsletter archive (static export, Schritt E) ---------- */

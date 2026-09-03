@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { linkPrefetch } from "@/lib/renderMode";
-import { AUTH_ENABLED, getSession } from "@/lib/auth";
 import { isPublicMode } from "@/lib/publicMode";
-import { PRIMARY_NAV, PLANS_NAV } from "@/lib/nav";
+import { PRIMARY_NAV } from "@/lib/nav";
 import NavLink from "./NavLink";
 import ForesightMenu from "./ForesightMenu";
 import MobileNav from "./MobileNav";
@@ -11,18 +10,15 @@ const LINK_CLASS =
   "font-mono text-[11px] uppercase tracking-[0.14em] px-3 py-1.5 transition-colors";
 
 /**
- * Global header. Session-aware: with auth enabled it always offers a way in
- * (Sign in / Account) — previously the entire monetisation funnel was
- * unreachable from the navigation (ONB-02 / ARCH-05 / COPY-12).
+ * Global header. Content nav + the Foresight menu + the newsletter CTA.
  *
- * PUBLIC_MODE=1 (#93 Etappe 1) drops the Foresight menu, "Plans" and the
- * account links — those routes 404 (proxy.ts), so leaving the links up
- * would just be dead links. Unset/0 changes nothing.
+ * PUBLIC_MODE=1 (#93) drops the Foresight menu — those routes 404 there
+ * (proxy.ts), so leaving the links up would just be dead links. Unset/0 is
+ * the owner instance and shows everything. Account/plan links are gone for
+ * good (no SaaS since #93, 2026-09-03).
  */
-export default async function Header() {
+export default function Header() {
   const publicMode = isPublicMode();
-  const showAccount = AUTH_ENABLED && !publicMode;
-  const session = showAccount ? await getSession() : null;
 
   return (
     <header className="border-b border-border">
@@ -41,24 +37,9 @@ export default async function Header() {
             </NavLink>
           ))}
           {!publicMode && <ForesightMenu />}
-          {!publicMode && (
-            <NavLink href={PLANS_NAV.href} className={LINK_CLASS}>
-              {PLANS_NAV.label}
-            </NavLink>
-          )}
         </nav>
 
         <div className="hidden lg:flex items-center gap-2 shrink-0">
-          {showAccount &&
-            (session ? (
-              <NavLink href="/account" className={LINK_CLASS}>
-                Account
-              </NavLink>
-            ) : (
-              <NavLink href="/account/signin" className={LINK_CLASS}>
-                Sign in
-              </NavLink>
-            ))}
           <Link
             prefetch={linkPrefetch()}
             href="/trends/newsletter"
@@ -69,11 +50,7 @@ export default async function Header() {
         </div>
 
         {/* Mobile nav (hamburger + drawer), < lg */}
-        <MobileNav
-          authEnabled={showAccount}
-          signedIn={Boolean(session)}
-          publicMode={publicMode}
-        />
+        <MobileNav publicMode={publicMode} />
       </div>
     </header>
   );

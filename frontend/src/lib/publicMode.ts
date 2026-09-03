@@ -2,15 +2,14 @@
  * Public-mode gate (issue #93, Etappe 1).
  *
  * Business model change (owner 2026-08-26): the public site becomes a free
- * lead-gen showcase for Catandary Foresight. The Foresight tool suite,
- * accounts and Stripe checkout stay in daily use on the workstation instance
- * but must not ship on the public deployment.
+ * lead-gen showcase for Catandary Foresight. The Foresight tool suite stays
+ * in daily use on the workstation instance but must not ship on the public
+ * deployment. (Accounts and Stripe checkout used to be on this list; they
+ * were removed from the code base altogether on 2026-09-03.)
  *
- * Same shape as AUTH_ENABLED/PAYWALL_ENABLED/REVIEW_ENABLED (see lib/auth.ts,
- * lib/entitlement.ts, lib/review-access.ts): a single env flag, off by
- * default. PUBLIC_MODE=1 blocks the routes below (404); unset/0 changes
- * nothing — today's workstation instance on :3001 runs unset and stays as-is
- * until a deployment deliberately sets it.
+ * A single env flag, off by default. PUBLIC_MODE=1 blocks the routes below
+ * (404); unset/0 changes nothing — the workstation instance on :3001 runs
+ * unset and stays as-is until a deployment deliberately sets it.
  */
 export function isPublicMode(): boolean {
   return process.env.PUBLIC_MODE === "1";
@@ -19,27 +18,24 @@ export function isPublicMode(): boolean {
 /**
  * Path prefixes hidden entirely when PUBLIC_MODE=1 — the "Fällt weg" list
  * from issue #93: the Foresight tool suite (all nine /trends/foresight/*
- * routes and their /api/foresight/* backends), accounts (magic-link auth +
- * Stripe checkout), and the two internal review pages.
+ * routes and their /api/foresight/* backends) and the two internal review
+ * pages.
  *
  * Keep in sync with the route tree under frontend/src/app — this list is a
- * manual mirror, not derived from the filesystem.
+ * manual mirror, not derived from the filesystem (src/lib/staticExport.test.ts
+ * checks it against frontend/static-export.exclude and the tree on disk).
  */
 export const BLOCKED_PREFIXES = [
-  "/account",
   "/trends/foresight",
   "/trends/review",
   "/trends/quality-preview",
-  "/trends/pricing",
-  "/api/auth",
-  "/api/stripe",
   "/api/foresight",
 ] as const;
 
 /**
  * Whether `pathname` falls under a blocked prefix. Matches the exact prefix
  * or the prefix followed by a `/` — a plain `startsWith` would also block an
- * unrelated sibling like `/trends/pricingx` or `/accounting`.
+ * unrelated sibling like `/trends/foresights` or `/trends/reviewer`.
  */
 export function isBlockedInPublicMode(pathname: string): boolean {
   return BLOCKED_PREFIXES.some(

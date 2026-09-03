@@ -6,8 +6,6 @@ import {
   nplShare, ceasedWithin, topCountries, countryShare,
   oppositionRate, emergingGroups,
 } from "@/lib/patent-intel";
-import TierGate from "@/components/TierGate";
-import { canAccess } from "@/lib/entitlement";
 
 const pct = (v: number | null, digits = 0) =>
   v === null ? "—" : `${(v * 100).toFixed(digits)}%`;
@@ -91,28 +89,23 @@ export default async function PatentExplorerPage({
   const country = COUNTRIES.some(([c]) => c === countryRaw) ? countryRaw : "";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
 
-  // Starter-gegated wie der Research Explorer (#73/#74): ohne Tier läuft die
-  // Suche serverseitig nicht — der Teaser zeigt nur die 3 neuesten Patente.
-  const allowed = await canAccess("starter");
   const [stats, { rows, total, clamped }, intel, companyHint] = await Promise.all([
     getPatentStats(),
-    allowed
-      ? getPatentSignals({
-          q: searchText || undefined,
-          cpc: cpc || undefined,
-          country: country || undefined,
-          pubExact: parsed.pubExact,
-          pubPrefix: parsed.pubPrefix,
-          company: parsed.company,
-          yearFrom: parsed.yearFrom,
-          yearTo: parsed.yearTo,
-          limit: PAGE_SIZE,
-          offset: (page - 1) * PAGE_SIZE,
-        })
-      : getPatentSignals({ limit: 3, offset: 0 }),
-    allowed && cpc ? getPatentTechIntel(cpc) : Promise.resolve(null),
+    getPatentSignals({
+      q: searchText || undefined,
+      cpc: cpc || undefined,
+      country: country || undefined,
+      pubExact: parsed.pubExact,
+      pubPrefix: parsed.pubPrefix,
+      company: parsed.company,
+      yearFrom: parsed.yearFrom,
+      yearTo: parsed.yearTo,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    }),
+    cpc ? getPatentTechIntel(cpc) : Promise.resolve(null),
     // Vorschlag nur, wenn nicht ohnehin schon nach einer Firma gefiltert wird
-    allowed && !parsed.company && searchText
+    !parsed.company && searchText
       ? suggestCompany(searchText)
       : Promise.resolve(null),
   ]);
@@ -174,32 +167,6 @@ export default async function PatentExplorerPage({
         </p>
       </div>
 
-      <TierGate
-        need="starter"
-        feature="The searchable patent corpus"
-        benefit={`Starter opens full-text search across all ${stats.total.toLocaleString("en-US")} patents — with technology facets, assignees, family sizes and Espacenet links.`}
-        teaser={
-          <div>
-            <div className="flex flex-col divide-y divide-border border-t border-b border-border">
-              {rows.map((r) => (
-                <article key={r.pub_number} className="py-5">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted mb-1.5">
-                    <span className="text-paper">{fmtDate(r.published)}</span>
-                    <span> · {r.pub_number}</span>
-                  </div>
-                  <h2 className="font-display text-[19px] leading-snug text-paper mb-1.5">{r.title}</h2>
-                  {r.abstract && (
-                    <p className="font-sans text-sm text-text leading-relaxed line-clamp-2 max-w-3xl">{r.abstract}</p>
-                  )}
-                </article>
-              ))}
-            </div>
-            <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-              Free preview — the 3 newest of {stats.total.toLocaleString("en-US")} patents
-            </p>
-          </div>
-        }
-      >
       <form
         method="GET"
         action="/trends/foresight/patents"
@@ -654,7 +621,6 @@ export default async function PatentExplorerPage({
           )}
         </nav>
       )}
-      </TierGate>
 
       <p className="mt-10 font-sans text-[13px] text-muted max-w-3xl border-t border-dashed border-border pt-4">
         Corpus: EPO DOCDB bulk data (weekly Cr-Del + Amend deliveries — new

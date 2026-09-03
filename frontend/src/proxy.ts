@@ -7,11 +7,11 @@ import { isPublicMode, isBlockedInPublicMode } from "@/lib/publicMode";
  * Enforced centrally in Proxy (Next 16's rename of `middleware.ts` — same
  * NextRequest/NextResponse API and matcher config, function renamed from
  * `middleware` to `proxy`) rather than per-page: the blocked surface spans
- * ~25 page and route files (the whole /trends/foresight tree, accounts,
- * Stripe, the two review pages) and a single matcher here avoids touching
- * every one of them individually — cheaper to keep in sync with the "Fällt
- * weg" list in lib/publicMode.ts, and it can't be bypassed by adding a new
- * page under an already-blocked prefix without updating anything here.
+ * ~20 page and route files (the whole /trends/foresight tree and the two
+ * review pages) and a single matcher here avoids touching every one of them
+ * individually — cheaper to keep in sync with the "Fällt weg" list in
+ * lib/publicMode.ts, and it can't be bypassed by adding a new page under an
+ * already-blocked prefix without updating anything here.
  *
  * PUBLIC_MODE unset/0 (today's workstation instance on :3001): this function
  * returns immediately and behaves exactly as if the file didn't exist.
@@ -61,13 +61,9 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/account/:path*",
     "/trends/foresight/:path*",
     "/trends/review/:path*",
     "/trends/quality-preview/:path*",
-    "/trends/pricing",
-    "/api/auth/:path*",
-    "/api/stripe/:path*",
     "/api/foresight/:path*",
     "/trends/newsletter/unsubscribe",
   ],
