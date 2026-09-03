@@ -641,7 +641,10 @@ CREATE EXTENSION vector;
 /                                → Landing („The Instrument", Wertversprechen + Pricing-Teaser)
 /trends                          → Hauptfeed (Card-Grid, Filter-Bar inkl. Suche ?q= — es gibt KEINE separate /trends/search-Route)
 /trends/[slug]                   → Einzelner Trend-Artikel
-/trends/vertical/[v]             → Redirect auf /trends?v=<VERTICAL>
+/trends/vertical/[v]             → Redirect auf /trends?v=<VERTICAL> (im statischen Export nicht gebaut; Apache-301 auf /trends/v/<v>)
+/trends/page/[n], /trends/v/[vertical], /trends/v/[vertical]/page/[n]
+                                 → statische Listing-Routen des Exports (24/Seite, lib/staticListing.ts); lokal per Request rendernd, nichts verlinkt sie dort
+/trends/imprint|privacy|enquiry  → nur im statischen Export (Export-Adressen der Root-Seiten, lib/sitePaths.ts); lokal 404
 /trends/mega, /trends/mega/[m]   → „Mega Signal Themes"-Übersicht (28 kuratierte Themes; „Megatrend" ist verdientes, gemessenes Badge — 12 Keys, Regel in scripts/measure_mega_axes.py) + Detail
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
   /radar /clusters /technology /lead-time /evolution /dossier
@@ -655,7 +658,7 @@ CREATE EXTENSION vector;
 /trends/pricing                  → Pläne (Stripe-Checkout wenn konfiguriert)
 /trends/newsletter (+/unsubscribe) → Newsletter-Signup/-Abmeldung
 /account, /account/signin        → Konto + Magic-Link-Login (nur bei AUTH_ENABLED=1)
-/imprint, /privacy               → Rechtstexte (Impressum-Adressblock = Owner-Gate vor Public-Launch)
+/imprint, /privacy, /enquiry     → Rechtstexte + Anfrage (mailto); im Export unter /trends/… (s. o.), da der Publisher den Webroot nie schreibt
 ```
 
 Hinweis: Ein DE/EN-Switcher existiert nicht mehr — die Produktsprache ist durchgehend Englisch (DE-Content-Spalten bleiben NULL, s.o.).

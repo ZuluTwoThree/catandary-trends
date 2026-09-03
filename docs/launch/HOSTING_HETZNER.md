@@ -51,7 +51,7 @@ landing (design: `docs/audits/2026-09-02_static_export_design.md`, plan:
 `docs/launch/09_launch_plan_2026-09-02.md`). Until the export ships, this static file stays
 the whole public site; once it ships, `/` may be replaced by the exported landing route.
 
-## Statischer Export — Build (Schritte 1–3 + 7 des Designs, Stand 2026-09-02)
+## Statischer Export — Build (Schritte 1–4 + 7 des Designs, Stand 2026-09-03)
 
 Der öffentliche Auftritt wird aus **demselben Quellbaum** wie die Workstation-Instanz
 gebaut, nur in einem zweiten Modus. Ohne Flag ist `npm run build` / `next start` unverändert.
@@ -96,47 +96,90 @@ Export ist es ein No-op). Die vier Metadata-Routen (`sitemap.ts`, `robots.ts`, `
 wird dadurch beim Build gerendert, nicht mehr pro Request. Der Export-Modus unterdrückt
 `/api/track` (Artikel) und die `/api/newsletter`-Fetches (Signup postet stattdessen
 form-encoded an `/newsletter/subscribe.php` mit Consent-Checkbox; Editions-Archiv folgt in
-Schritt 6). `/trends` rendert im Export vorerst nur die Default-Ansicht (Seite 1, keine
-Filter) — statische Listing-Routen sind Schritt 4/5.
+Schritt 6). Das Listing ist seit 03.09. statisch (URL-Schema unten); Suche/Filter über den
+JSON-Index (Schritt 5 / Folge-Agent D) und das Newsletter-Archiv (E) stehen noch aus.
 
-**Ausgabe-Layout** (`trailingSlash: false`): `/trends/<slug>.html` + `<slug>.txt` (RSC) +
-`<slug>/__next.*.txt` (Segment-Prefetch, 7 Dateien, kein Schalter in Next 16.2) — daher die
-`.htaccess`-Regeln unten.
+### URL-Schema des Exports (Stand 2026-09-03; `trailingSlash: false`, Apache mappt die Endung)
 
-**Messwerte (voller 30-Tage-Export, 2026-09-02 22:45, 16 Kerne, Postgres über Socket):**
-15.229 Artikel + 28 Mega-Seiten + 10 statische Seiten → **137.512 Dateien, 1.545 MB**
-(`du`: 1,9 GB); `next build` **35 s** (Prerender 6 Worker), Skript gesamt **41 s** inkl.
-Verifikation, Manifest und Kopie; RSS-Spitze 1,46 GB. Die Spike-Hochrechnung „~10 min" galt
-für die damalige Related-Implementierung (drei sequentielle Slug-Nachladungen pro Seite) — mit
-`getRelatedPredecessors` (eine Query) rendert der Export ~440 Seiten/s. Zwei direkt
-aufeinanderfolgende Läufe: `diff -rq` leer. Sitemap 15.266 URLs (< 50k-Limit). Bekannte
-Restfunde im HTML: `/trends/foresight` und `/trends/pricing` nur in der Landing (`index.html`,
-Copy #93 Etappe 4); `/api/` nur als Teil externer Quell-URLs (z. B.
-`developers.openai.com/api/docs/pricing`); in den JS-Chunks stehen `/api/track` und
-`/api/newsletter` als tote Nicht-Export-Zweige, die zur Laufzeit nicht aufgerufen werden.
+| URL | Datei im Export | Bemerkung |
+|---|---|---|
+| `/trends` | `trends/index.html` (Build-Kopie von `trends.html`) + Root `trends.html`, `trends.txt` | Seite 1, neueste 24 (`sort_date DESC, id DESC`); `/trends/` → 301 `/trends` |
+| `/trends/page/<n>` | `trends/page/<n>.html` | n ≥ 2; `/trends/page/1` = 404 (eine URL je Seite) |
+| `/trends/v/<vertical>` | `trends/v/<vertical>.html` | Kleinbuchstaben (`tech`); `/trends/v/TECH`, `/trends/vertical/tech` → 301 |
+| `/trends/v/<vertical>/page/<n>` | `trends/v/<vertical>/page/<n>.html` | n ≥ 2, je Vertikale |
+| `/trends/<slug>-<id>` | `trends/<slug>-<id>.html` + `.txt` | Artikel + RSC-Payload; ohne Datei → 410 |
+| `/trends/mega`, `/trends/mega/<key>` | `trends/mega.html`, `trends/mega/<key>.html` | 28 Themes |
+| `/trends/imprint`, `/trends/privacy`, `/trends/enquiry` | `trends/{imprint,privacy,enquiry}.html` | Export-Adressen der Root-Seiten (`lib/sitePaths.ts`: alle Links gehen darüber; lokal bleiben `/imprint`, `/privacy`, `/enquiry`, die `/trends/…`-Kopien sind dort 404) |
+| `/trends/methodology`, `/trends/newsletter`, `/trends/expired`, `/trends/sitemap.xml` | `trends/<name>.html`, `trends/sitemap.xml` | |
+
+Listing-Routen: `app/trends/(feed)/page.tsx` (Seite 1), `app/trends/page/[n]`,
+`app/trends/v/[vertical]`, `app/trends/v/[vertical]/page/[n]` → alle rendern
+`components/StaticFeed.tsx` (Vertikale + Seite, kein searchParam), `generateStaticParams`
+aus den gefensterten Counts (`lib/staticListing.ts`: `STATIC_PAGE_SIZE = 24`,
+`listingPath`, `parsePageParam`). Die Filter-Bar des Exports besteht nur aus den
+Vertical-Links (`StaticFilterBar`); Suche/PESTEL/Sortierung kommen mit dem JSON-Index
+(D). Vertical-Badges auf Artikel-/Mega-Seiten verlinken im Export `/trends/v/<v>`
+(`verticalFeedHref`), lokal `/trends?v=<V>`. Jede Listing-Seite trägt Canonical +
+`rel=prev/next`; die Sitemap listet die acht Vertical-Startseiten.
+
+**Root-Dateien:** Next schreibt `/trends` als `trends.html` + `trends.txt` in die Wurzel
+des Exports. Der Build kopiert `trends.html` nach `trends/index.html` (das bedient Apache
+für `/trends`, mit den `trends/`-Headern), und der Publisher verwaltet zusätzlich genau
+diese zwei Root-Dateien (`ROOT_ALLOWLIST`, s. Publish) — `/trends.txt` holt der Router bei
+einer Client-Navigation nach `/trends`. Alle anderen Root-Dateien des Exports
+(`404.html`, `imprint.html`, `privacy.html`, `enquiry.html`, `analysis.html`, `analysis.txt`,
+`_landing_preview.html`, `robots.txt`, `icon`, `opengraph-image`) bleiben „outside scope" und
+werden nicht hochgeladen. **Offen:** `/analysis` (Footer-Link „Analyses") ist damit auf der
+Live-Site ein 404, solange keine Analyse veröffentlicht ist und der Owner die Root-Seite
+nicht von Hand mit der Landing hochlädt — Entscheidung Owner (Verschieben nach
+`/trends/analysis` wäre dieselbe Mechanik wie bei den Rechtstexten).
+
+**Messwerte (voller 30-Tage-Export, 2026-09-03 05:15, während des laufenden Full Cycle):**
+14.846 Artikel + 28 Mega-Seiten + 618 Feed-Seiten + 8 Vertikale mit 613 Unterseiten +
+10 statische Seiten → **32.335 Dateien, 1.200 MiB** (Manifest 1.258.388.304 Bytes);
+`next build` **56 s** (Prerender 6 Worker), Skript gesamt **61 s**. Sitemap 14.891 URLs.
+Publish-Dry-Run (MODE=local, leeres Ziel): 32.320 verwaltete Dateien / 1.258 MB — Assets 74
+(1,4 MB), Artikel 29.692 (930 MB), Listing 2.554 (327 MB, davon die 1.231 Feed-/Vertical-
+Seiten je ~130 KB, die sich täglich alle ändern), 15 Root-Dateien außerhalb des Scopes.
+Bekannte Restfunde im HTML: `/api/` nur in der externen Quell-URL
+`developers.openai.com/api/docs/pricing`; `/trends/foresight` nur in `_landing_preview.html`
+(nicht hochgeladen); in den JS-Chunks stehen `/api/track` und `/api/newsletter` als tote
+Nicht-Export-Zweige, die zur Laufzeit nicht aufgerufen werden.
+
+**Determinismus-Gate:** zwei direkt aufeinanderfolgende Läufe müssen byte-identisch sein
+(`diff -rq` leer). Läuft der 04:00-Cycle parallel (er publiziert bis ~06:00), unterscheiden sich
+zwei Läufe nur durch die inzwischen publizierten Artikel — am 03.09. 05:07/05:08: 640 neue
+Dateien, 48 geänderte Artikelseiten (Reclassify/Related), sonst nichts; kein Hinweis auf
+Nichtdeterminismus. Ein Nebenfund: unter DB-Last (laufender Cycle) lief `getMethodologyStats`
+einmal in das 20-s-`statement_timeout` von `lib/pg.ts` und brach den Export ab — der
+06:30-Cron liegt nach dem Cycle, ein manueller Build währenddessen kann scheitern.
 
 Aufräumen zwischen den Läufen ist nicht nötig (das Skript baut die Staging-Kopie mit
-`rsync --delete` neu und löscht `.next`/`out` darin vor jedem Build); ein Ausgabeverzeichnis
-mit 137k Dateien lässt sich mit `rm -rf` in ~10 s entfernen.
+`rsync --delete` neu und löscht `.next`/`out` darin vor jedem Build).
 
-### `.htaccess` (frontend/public-export/.htaccess)
+### `.htaccess` (frontend/public-export/trends/.htaccess + _next/.htaccess)
 
-Wird ins Export-Root kopiert. Enthält: `Options -Indexes`, `DirectorySlash Off` (sonst
-301 auf `/trends/<slug>/`, weil das Segment-Verzeichnis gleichen Namens existiert), Rewrite
-`/pfad` → `/pfad.html` wenn die Datei existiert, `/pfad/` → 301 `/pfad`, musterbasiertes
-**410** für `^/trends/[a-z0-9-]+-[0-9]+$` ohne Datei (abgelaufene Artikel; alle 15.266
-Slugs im Fenster tragen die numerische Id — geprüft 02.09.) mit
-`ErrorDocument 410 /trends/expired.html`, `ErrorDocument 404 /404.html`, 301 für
-`/trends/vertical/<v>` → `/trends`, `ForceType image/png` für `opengraph-image`/`icon`,
-Security-Header (Spiegel von `next.config.ts`), Cache-Control (`_next/static` immutable 1 Jahr,
-HTML/TXT/XML `no-cache`), mod_deflate. `.txt`-RSC-Payloads bleiben `text/plain` — Nexts
-Router akzeptiert das im Export-Modus.
+Verzeichnisweise — **nie im Webroot** (der bleibt Owner-Sache; der Kommentarblock „ROOT
+SNIPPET" am Ende von `trends/.htaccess` listet die wenigen Zeilen, die die Owner-Datei
+braucht: Rewrite für Root-Seiten, `ErrorDocument 404`, `ForceType image/png` für
+`icon`/`opengraph-image`, Security-Header, `Sitemap:`-Zeile in `robots.txt`).
+`trends/.htaccess`: `Options -Indexes`, `DirectorySlash Off` + `RewriteOptions AllowNoSlash`
+(Seiten haben gleichnamige Verzeichnisse neben sich), `/trends` → `trends/index.html`,
+`/trends/` → 301 `/trends`, `/pfad` → `/pfad.html`, `/pfad/` → 301 `/pfad`, Any-Case- und
+Legacy-Vertical-301s (8 Zeilen), 204 für nicht mehr gelieferte Segment-Payloads,
+musterbasiertes **410** für `^[a-z0-9-]+-[0-9]+$` ohne Datei
+(`ErrorDocument 410 /trends/expired.html`), `ErrorDocument 404 /404.html`, Security-Header
+(Spiegel von `next.config.ts`), `Cache-Control: no-cache` für html/txt/xml/json, mod_deflate.
+`_next/.htaccess`: immutable 1 Jahr, die drei Manifeste `no-cache`. `.txt`-RSC-Payloads bleiben
+`text/plain` — Nexts Router akzeptiert das im Export-Modus.
 
-**Lokal gibt es keinen Apache** — der Testplan steht als Kommentarblock am Ende der
-`.htaccess` (curl-Checks für 200/301/410/404/Content-Type/Cache-Header + ein Browser-Test der
-Client-Navigation). Beim ersten Upload abarbeiten; schlägt eine Regel mit 500 fehl, ist
-`AllowOverride` auf dem Webspace zu eng (`Options -Indexes` zuerst entfernen, dann
-`DirectorySlash`).
+**Lokaler Apache-Test:** `scripts/htaccess_test_server.sh` startet `httpd:2.4` im Docker
+(Stock-Config + rewrite/headers/deflate/expires, `AllowOverride All`, `frontend/.export/out`
+read-only als htdocs, Port 8098) und curlt die Kernfälle; nach jedem Build neu starten (der
+Build ersetzt das `out/`-Verzeichnis, der Bind-Mount würde stale). Der vollständige Testplan
+steht als Kommentarblock am Ende von `trends/.htaccess` — Stand 03.09. alle grün. Schlägt eine
+Regel auf dem Webspace mit 500 fehl, ist `AllowOverride` dort zu eng (`Options -Indexes` zuerst
+entfernen, dann `DirectorySlash`/`RewriteOptions`).
 
 ## Statischer Export — Publish (Schritt 8, Stand 2026-09-02)
 
@@ -146,17 +189,22 @@ Remote-Manifest `trends/.publish-manifest.tsv`, das nach jedem erfolgreichen Lau
 wird. Ein normaler Tag sind ~500 neue Artikelseiten, die Listing-/Sitemap-Dateien und ~500
 Löschungen — kein Hashing auf dem Webspace, kein Listing. Bis der Webspace-Zugang vorliegt,
 ist alles gegen `MODE=local` (Ordner) und einen privaten `sshd` auf 127.0.0.1 getestet
-(`tests/test_publish_static_site.py`, 65 Tests inkl. SFTP-E2E).
+(`tests/test_publish_static_site.py`, 75 Tests inkl. SFTP-E2E).
 
-**Was verwaltet wird — und was nie:** nur `REMOTE_ROOT/trends/**` und `REMOTE_ROOT/_next/**`
+**Was verwaltet wird — und was nie:** `REMOTE_ROOT/trends/**` und `REMOTE_ROOT/_next/**`
 (plus `trends/.htaccess`, `_next/.htaccess`, `trends/sitemap.xml`, `trends/index.json`, sofern
-der Build sie dort ablegt). Der Webroot ist Owner-verwaltet — `index.html` (Landing),
-`robots.txt`, `mark.svg`, `favicon.ico`, `newsletter/**` (PHP-DOI mit DB-Zugang) werden weder
-geschrieben noch gelöscht; jeder Pfad wird normalisiert und gegen die Teilbäume geprüft
-(`..`, absolute Pfade, Backslashes → Abbruch, Exit 2). Root-Dateien des Exports
-(`404.html`, `trends.html`, `sitemap.xml`, `imprint.html` …) werden als „outside scope"
-gezählt und **nicht** hochgeladen — sie müssen entweder vom Build unter `trends/` landen
-(`/trends` → `trends/index.html`) oder einmalig von Hand mit den Landing-Dateien mitgehen.
+der Build sie dort ablegt) **und genau zwei Root-Dateien**, `trends.html` + `trends.txt`
+(`ROOT_ALLOWLIST` — Nexts Name für Feed-Seite 1; `/trends.txt` ist der RSC-Payload einer
+Client-Navigation nach `/trends`). Sie werden hochgeladen, im Manifest geführt und nur gelöscht,
+wenn der Build sie nicht mehr erzeugt; der Webroot wird dafür nie gelistet (`--full` stat()et
+die beiden einzeln, rsync überträgt sie als Einzeldatei ohne `--delete`). Der Webroot ist
+Owner-verwaltet — `index.html` (Landing), `robots.txt`, `mark.svg`, `favicon.ico`,
+`newsletter/**` (PHP-DOI mit DB-Zugang) werden weder geschrieben noch gelöscht; jeder Pfad wird
+normalisiert und gegen Teilbäume + Allowlist geprüft (`..`, absolute Pfade, Backslashes →
+Abbruch, Exit 2). Alle anderen Root-Dateien des Exports (`404.html`, `imprint.html`,
+`analysis.html` …) werden als „outside scope" gezählt und **nicht** hochgeladen — was davon
+öffentlich sein muss, hat seine Export-Adresse unter `/trends/…` (Rechtstexte, Anfrage) oder
+geht einmalig von Hand mit den Landing-Dateien mit.
 
 **Reihenfolge (kein atomarer Swap auf Shared Hosting, also Reihenfolge = Konsistenz):**
 (a) neue/geänderte `_next/**`-Assets → (b) Artikelseiten + RSC-Payloads (`trends/<slug>-<id>.*`)
@@ -211,8 +259,8 @@ scripts/build_public_static.sh                                 # frischer Export
 .venv/bin/python scripts/publish_static_site.py --apply --full # nur falls trends/ oder _next/ dort schon Dateien hatten
 ```
 
-Danach die `.htaccess`-Checks aus `frontend/public-export/.htaccess` (Kommentarblock am Ende)
-abarbeiten. `--full` ist der Reparaturmodus: Remote-**Listing** (Pfad + Größe) statt Manifest
+Danach die `.htaccess`-Checks aus `frontend/public-export/trends/.htaccess` (Kommentarblock am
+Ende) abarbeiten. `--full` ist der Reparaturmodus: Remote-**Listing** (Pfad + Größe) statt Manifest
 ist die Wahrheit — Fremddateien in den Teilbäumen werden entfernt, größengleiche Dateien ohne
 bekannten Hash gelten als unverändert.
 
@@ -234,9 +282,10 @@ ist der Wochenendfall, wenn kein Artikel das Fenster verlässt.
 **Dry-Run gegen den realen Export (02.09. 23:12, Build 23:08 nach Wegfall der
 Segment-Payloads, MODE=local, leeres Ziel):** 30.595 verwaltete Dateien / 964 MB — Assets 73
 (1,4 MB), Artikel 30.458 (954 MB), Listing 64 (8,8 MB), 0 Löschungen, 20 Root-Dateien
-außerhalb des Scopes (`index.html`, `404.html`, `trends.html`, `sitemap.xml`, `robots.txt`,
-`imprint`/`privacy`/`enquiry`/`analysis` … — s. o.); Planung < 1 s. (Vor dem Build-Schritt 2b
-waren es 137.457 Dateien / 1.616 MB.)
+außerhalb des Scopes; Planung < 1 s. (Vor dem Build-Schritt 2b waren es 137.457 Dateien /
+1.616 MB.) **Mit statischem Listing + Root-Allowlist (03.09. 05:15):** 32.320 verwaltete
+Dateien / 1.258 MB — Listing jetzt 2.554 Dateien / 327 MB (die 1.231 Feed-/Vertical-Seiten
+wandern täglich komplett mit), 15 Root-Dateien außerhalb des Scopes.
 
 ## Notes
 - **Countdown:** targets `2026-10-01T09:00:00+02:00` (09:00 CEST), computed against the
