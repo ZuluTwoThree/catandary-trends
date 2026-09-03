@@ -18,8 +18,9 @@ export function isPublicMode(): boolean {
 /**
  * Path prefixes hidden entirely when PUBLIC_MODE=1 — the "Fällt weg" list
  * from issue #93: the Foresight tool suite (all nine /trends/foresight/*
- * routes and their /api/foresight/* backends) and the two internal review
- * pages.
+ * routes and their /api/foresight/* backends), the two internal review
+ * pages, and the owner dossier desk (/trends/dossiers — proprietary
+ * documents, see lib/dossier-access.ts).
  *
  * Keep in sync with the route tree under frontend/src/app — this list is a
  * manual mirror, not derived from the filesystem (src/lib/staticExport.test.ts
@@ -29,6 +30,7 @@ export const BLOCKED_PREFIXES = [
   "/trends/foresight",
   "/trends/review",
   "/trends/quality-preview",
+  "/trends/dossiers",
   "/api/foresight",
 ] as const;
 

@@ -57,6 +57,13 @@ MODEL_START_SCRIPTS: dict[str, Path] = {
     # Content-gen candidate under evaluation (#11): Gemma 4 26B-A4B MoE (QAT).
     # Registered so the handover can swap it in for A/B runs against the 30B.
     "gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf": LLAMA_CPP_ROOT / "start-gemma4-26b.sh",
+    # Draft-judge / dossier-researcher model. Key = the SERVED model id (what
+    # /v1/models reports and pipeline.draft_judge.JUDGE_MODEL expects), not a
+    # GGUF filename — swap_active_symlink keys on Path(...).name either way,
+    # and the pre-flight checks that the start script's text references
+    # "Qwen3.8-27B" (the GGUF filename carries it). If the script ever stops
+    # matching, the handover refuses to start — the safe direction.
+    "Qwen3.8-27B": LLAMA_CPP_ROOT / "start-qwen3.8-27b.sh",
 }
 
 # The 208K classifier is the only valid *resting* state for start-active.sh:
@@ -392,6 +399,63 @@ def eight_b_on_llamacpp(expected_model: str):
             logger.error("llama-server stop failed: %s", e)
         # Restore symlink to its pre-context state so the next handover finds
         # start-active.sh as it expects.
+        if saved_target and _current_symlink_target() != saved_target:
+            try:
+                logger.info("Restoring start-active.sh → %s", saved_target)
+                if START_ACTIVE.is_symlink() or START_ACTIVE.exists():
+                    START_ACTIVE.unlink()
+                START_ACTIVE.symlink_to(saved_target)
+            except Exception as e:
+                logger.error("symlink restore failed: %s", e)
+
+
+@contextmanager
+def model_on_llamacpp(expected_model: str,
+                      vram_free_below_mib: int | None = None):
+    """Generic handover: serve `expected_model` (must be registered in
+    MODEL_START_SCRIPTS) for the duration of the context; stop the server and
+    restore start-active.sh afterwards. Same shape as eight_b_on_llamacpp.
+
+    `vram_free_below_mib` adds the strict pre-start guard from
+    scheduled_cycle.sh stage 10 for models that fill the card almost
+    completely: the 27B leaves ~1.1 GB headroom, so a foreign process holding
+    VRAM must SKIP with a clear diagnosis instead of a 240s OOM timeout
+    cascade (2026-08-26 incident). Checked after stopping the unit and
+    unloading Ollama; raises RuntimeError when residual VRAM stays at or
+    above the bound — and, unlike the lenient _wait_vram_below default, also
+    when nvidia-smi cannot be read at all (starting a card-filling model
+    blind is exactly the cascade the guard exists to prevent).
+    """
+    if _model_ready(expected_model):
+        logger.info("handover: llama-server already serving %s — nothing to do",
+                    expected_model)
+        try:
+            yield
+        finally:
+            pass
+        return
+
+    saved_target = _safe_saved_target()
+    if vram_free_below_mib is not None:
+        logger.info("Strict VRAM pre-check (< %d MiB) before starting %s",
+                    vram_free_below_mib, expected_model)
+        _run(["systemctl", "--user", "stop", LLAMA_UNIT], timeout=60)
+        ollama_unload()
+        _wait_vram_below(vram_free_below_mib, timeout=60)
+        used = _vram_used_mib()
+        if used is None or used >= vram_free_below_mib:
+            raise RuntimeError(
+                f"VRAM pre-check failed: {used if used is not None else '?'} MiB "
+                f"resident (need < {vram_free_below_mib}) — a foreign process "
+                f"holds the GPU; refusing to start {expected_model}")
+    llama_server_start(expected_model, swap_symlink=True)
+    try:
+        yield
+    finally:
+        try:
+            llama_server_stop()
+        except Exception as e:
+            logger.error("llama-server stop failed: %s", e)
         if saved_target and _current_symlink_target() != saved_target:
             try:
                 logger.info("Restoring start-active.sh → %s", saved_target)

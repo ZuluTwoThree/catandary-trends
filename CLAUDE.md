@@ -688,6 +688,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
 /trends/newsletter (+/unsubscribe) → Newsletter-Signup/-Abmeldung (lokal Client-Seite mit ?year=&week=)
 /trends/newsletter/<jahr>-w<kw>, /trends/newsletter/unsubscribed
                                  → nur im statischen Export: Editions-Archiv (letzte 12) + Abmelde-Bestätigung (lib/newsletterEditions.ts); lokal 404 bzw. unverlinkt
+/trends/dossiers, /trends/dossiers/[slug] → Owner-Dossier-Desk (#95; lokal standardmäßig AN, `DOSSIERS_ENABLED=0` = Not-Aus; unter PUBLIC_MODE geblockt und aus dem statischen Export ausgeschlossen): Scouting-Dossier-Aufträge erteilen, „Neu rechnen" startet den Worker on-demand, Bericht mit Herkunftskopf/Coverage-Anhang + Agenten-Endkontrolle lesen, Sign-off — siehe `docs/agentic_dossiers.md`
 /imprint, /privacy, /enquiry     → Rechtstexte + Anfrage (mailto); im Export unter /trends/… (s. o.), da der Publisher den Webroot nie schreibt
 ```
 
@@ -958,6 +959,23 @@ Auf der 24-GB-Karte kann Stage 6 (Content-Generierung) auf ein deutlich größer
 - **Content-Guard:** Wortzahl-Validator retryt bis zu 3× bei vorzeitig terminierten Body-Strings (Grammar-Artefakt bei temp 0.7). In den ersten vier Nachtläufen war die "alle 3 Versuche failed"-Rate <0,25 %.
 - **Rückbau:** `STAGE5_BACKEND=ollama` (Env-Override) erzwingt den Ollama-14B-Pfad. Alternativ das Content-Gen-Start-Skript entfernen/umbenennen → `scheduled_cycle.sh` fällt automatisch auf Ollama zurück. **Zurück auf 30B/35B:** in `scheduled_cycle.sh` `STAGE5_MODEL`/`STAGE5_START` auf `start-qwen3-30b.sh` bzw. `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` + `start-qwen3.6-35b.sh` zeigen lassen. (Das bloße Umhängen von `start-active.sh` deaktiviert den Pfad **nicht** — der Handover hängt selbst um.)
 - **Zugehörige Goals:** offene Erweiterung der Quellen-Architektur, siehe `goals/` und `pipeline_expansion_prompt.md`.
+
+## Agentic Scouting-Dossiers (Owner-only; Branch `Agentic-Dossiers`)
+
+Der agentische Rechercheur (`scripts/corpus_research.py`) als Owner-Werkzeug —
+Details in `docs/agentic_dossiers.md`. Kern-Kontrakt (Owner 2026-09-01):
+Aufträge erteilt nur der Owner (`/trends/dossiers` oder
+`scripts/dossier_worker.py --order-new`), abgearbeitet wird **nur bei manuellem
+Worker-Start** (bewusst kein Cron), alles läuft **streng lokal** auf dem 27B
+(kein Cloud-Hop — proprietäre Dokumente), und jeder Lauf endet in `review`:
+erst die deterministische Agenten-Endkontrolle (`pipeline/dossier_check.py`,
+Zahlen-Grounding + Zitat-Bilanz), dann die finale Owner-Durchsicht mit
+Sign-off. Vor der Recherche injiziert die Quant-Vorstufe
+(`pipeline/dossier_quant.py`) die gemessene Innovationskette (tech_analyze:
+CPC → TIR → Lead-Time → Leitpatente) als zitierbare Evidenz. Tabellen
+`dossier_orders`/`dossiers` via `scripts/migrate_dossier_orders.py`
+(additiv, einmal manuell). GPU: `model_on_llamacpp` mit Stage-10-Guards
+(VRAM <1100 MiB Fremdbelegung, Identitäts-Check `/v1/models`).
 
 ## Technische Hinweise
 
