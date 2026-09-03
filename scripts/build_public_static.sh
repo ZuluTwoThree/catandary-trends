@@ -174,6 +174,21 @@ rm -f "$RAW/index.txt"
 [ -f "$RAW/trends.html" ] || die "trends.html missing"
 cp "$RAW/trends.html" "$RAW/trends/index.html"
 
+# Machine-readable TDM reservation for the whole site (TDMRep, W3C CG;
+# §44b Abs. 3 UrhG) — owner decision 2026-09-03. Served from the webroot via
+# ROOT_ALLOWLIST in publish_static_site.py; the matching header + meta tags
+# come from trends/.htaccess, _next/.htaccess and layout.tsx.
+mkdir -p "$RAW/.well-known"
+cat > "$RAW/.well-known/tdmrep.json" <<'JSON'
+[
+  {
+    "location": "/*",
+    "tdm-reservation": 1,
+    "tdm-policy": "https://catandary.de/trends/tdm-policy"
+  }
+]
+JSON
+
 # --- 3. verify -------------------------------------------------------------
 [ -f "$RAW/404.html" ] || die "404.html missing"
 [ -f "$RAW/trends.txt" ] || die "trends.txt (RSC payload of /trends) missing"

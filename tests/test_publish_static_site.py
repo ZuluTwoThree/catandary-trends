@@ -54,19 +54,19 @@ ASSET_FILES = {
 }
 ROOT_FILES = {  # produced by the build but NOT managed by the publisher
     "index.html": "<html>export landing</html>",
-    "robots.txt": "User-agent: *",
     "404.html": "<html>404</html>",
     "sitemap.xml": "<urlset/>",
     ".htaccess": "root htaccess",
 }
-ROOT_MANAGED_FILES = {  # feed page 1 as Next names it — the ROOT_ALLOWLIST
-    "trends.html": "<html>feed page 1</html>",
-    "trends.txt": "rsc feed page 1",
+ROOT_MANAGED_FILES = {  # the ROOT_ALLOWLIST: feed page 1 as Next names it,
+    "trends.html": "<html>feed page 1</html>",   # plus the generated robots.txt
+    "trends.txt": "rsc feed page 1",             # and the TDM reservation file
+    "robots.txt": "User-agent: GPTBot\nDisallow: /\n",
+    ".well-known/tdmrep.json": '[{"location": "/*", "tdm-reservation": 1}]',
 }
 ALL_FILES = {**ARTICLE_FILES, **LISTING_FILES, **ASSET_FILES, **ROOT_FILES, **ROOT_MANAGED_FILES}
 OWNER_FILES = {
     "index.html": "<html>OWNER landing</html>",
-    "robots.txt": "owner robots",
     "mark.svg": "<svg/>",
     "favicon.ico": "ico",
     "newsletter/subscribe.php": "<?php // db password inside",
@@ -202,7 +202,7 @@ class TestPaths:
         assert ps.normalize_rel("./trends//a-1.html") == "trends/a-1.html"
         assert ps.normalize_rel("_next/static/x.js") == "_next/static/x.js"
 
-    @pytest.mark.parametrize("rel", ["index.html", "robots.txt", "mark.svg", "favicon.ico",
+    @pytest.mark.parametrize("rel", ["index.html", "mark.svg", "favicon.ico",
                                      "newsletter/subscribe.php", "sitemap.xml", "imprint.html",
                                      "trendsx/a.html", "404.html", ".htaccess", "trends.htm",
                                      "Trends.html", "trendsx.html", "x/trends.html",
@@ -215,7 +215,7 @@ class TestPaths:
     def test_root_allowlist_is_exactly_feed_page_one(self):
         """trends.html + trends.txt are the only webroot files the publisher
         owns (Next writes /trends there; /trends.txt is the router's payload)."""
-        assert ps.ROOT_ALLOWLIST == {"trends.html", "trends.txt"}
+        assert ps.ROOT_ALLOWLIST == {"trends.html", "trends.txt", "robots.txt", ".well-known/tdmrep.json"}
         assert not (ps.ROOT_ALLOWLIST & ps.OWNER_PROTECTED)
         for rel in sorted(ps.ROOT_ALLOWLIST):
             assert ps.is_managed(rel)
@@ -284,7 +284,8 @@ class TestManifestDiff:
         remote = {"index.html": ("x", 1), "newsletter/subscribe.php": ("y", 2),
                   "robots.txt": ("z", 3), "trends/a-1.html": ("a", 4)}
         plan = ps.build_plan({}, remote)
-        assert plan.deletes == ["trends/a-1.html"]
+        # robots.txt is export-managed since 2026-09-03: gone when the build stops producing it
+        assert plan.deletes == ["robots.txt", "trends/a-1.html"]
 
     def test_traversal_in_local_manifest_aborts(self):
         with pytest.raises(ps.PathViolation):

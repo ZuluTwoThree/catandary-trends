@@ -1,0 +1,18 @@
+# catandary.de — Ergänzung für die owner-verwaltete .htaccess im WEBROOT
+# (Stand 2026-09-03). Der Export bringt dieselben Regeln nur unter /trends/ und
+# /_next/ mit; Landing (/), /newsletter/ und die Root-Dateien brauchen sie hier.
+# Einfügen am Anfang der bestehenden Root-.htaccess (oder als neue Datei, wenn
+# keine existiert). Prüfen: curl -sI https://catandary.de/ | grep -i tdm
+#                          curl -sI -A GPTBot https://catandary.de/  → 403
+
+<IfModule mod_headers.c>
+  # Maschinenlesbarer TDM-Vorbehalt (TDMRep, §44b Abs. 3 UrhG)
+  Header always set TDM-Reservation "1"
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # KI-/TDM-Crawler aussperren (Liste = frontend/src/lib/aiCrawlers.ts)
+  RewriteCond %{HTTP_USER_AGENT} (GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-Web|Claude-User|Claude-SearchBot|anthropic-ai|Google-Extended|Applebot-Extended|CCBot|AI2Bot|Ai2Bot-Dolma|Webzio-Extended|omgili|omgilibot|Timpibot|ImagesiftBot|img2dataset|Diffbot|ICC-Crawler|Bytespider|Meta-ExternalAgent|Meta-ExternalFetcher|FacebookBot|Amazonbot|PerplexityBot|Perplexity-User|cohere-ai|cohere-training-data-crawler|MistralAI-User|YouBot|PetalBot|DuckAssistBot|Kangaroo\ Bot|iaskspider) [NC]
+  RewriteRule .* - [F,L]
+</IfModule>

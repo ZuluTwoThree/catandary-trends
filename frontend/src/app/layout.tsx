@@ -39,6 +39,15 @@ const NOINDEX = process.env.PUBLIC_NOINDEX === "1";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  // Machine-readable text-and-data-mining reservation for every page (TDMRep,
+  // W3C CG; §44b Abs. 3 UrhG) — owner decision 2026-09-03. Paired with the
+  // TDM-Reservation header (.htaccess) and /.well-known/tdmrep.json (build).
+  // "noai, noimageai" is the publisher convention our own fetcher honours too.
+  other: {
+    "tdm-reservation": "1",
+    "tdm-policy": `${SITE_URL}/trends/tdm-policy`,
+    robots: "noai, noimageai",
+  },
   ...(NOINDEX ? { robots: { index: false, follow: false } } : {}),
   title: "Catandary Trends — Cross-Industry Trend Intelligence",
   description:

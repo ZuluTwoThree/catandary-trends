@@ -8,7 +8,18 @@
 # them, they must not be cached.
 Options -Indexes
 
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # --- AI / TDM crawler lock-out (owner decision 2026-09-03) -----------------
+  # Same list as src/lib/aiCrawlers.ts (robots.txt) — a Vitest keeps both in
+  # sync. Everything else (search engines, link previews) passes.
+  RewriteCond %{HTTP_USER_AGENT} (GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-Web|Claude-User|Claude-SearchBot|anthropic-ai|Google-Extended|Applebot-Extended|CCBot|AI2Bot|Ai2Bot-Dolma|Webzio-Extended|omgili|omgilibot|Timpibot|ImagesiftBot|img2dataset|Diffbot|ICC-Crawler|Bytespider|Meta-ExternalAgent|Meta-ExternalFetcher|FacebookBot|Amazonbot|PerplexityBot|Perplexity-User|cohere-ai|cohere-training-data-crawler|MistralAI-User|YouBot|PetalBot|DuckAssistBot|Kangaroo\ Bot|iaskspider) [NC]
+  RewriteRule .* - [F,L]
+
+</IfModule>
+
 <IfModule mod_headers.c>
+  Header always set TDM-Reservation "1"
   Header set Cache-Control "public, max-age=31536000, immutable"
   <FilesMatch "^_(build|ssg|clientMiddleware)Manifest\.js$">
     Header set Cache-Control "no-cache"

@@ -419,3 +419,37 @@ wandern täglich komplett mit), 15 Root-Dateien außerhalb des Scopes.
   platform" rewrite is the owner's voice and not done yet.
 - **Before the real public launch:** remove the `noindex` meta and upload the static export
   next to it (no DNS change — same webspace; `HOSTING_PUBLIC_VPS.md` is archived).
+
+
+## TDM-Vorbehalt + KI-Crawler-Sperre (Owner-Entscheid 2026-09-03)
+
+catandary.de erklärt einen **maschinenlesbaren Nutzungsvorbehalt für Text-und-Data-Mining**
+(§44b Abs. 3 UrhG / Art. 4 Abs. 3 DSM-RL) und sperrt bekannte KI-Crawler. Suchmaschinen und
+Link-Vorschauen bleiben erlaubt — die Seite ist ein Lead-Gen-Schaufenster.
+
+| Signal | Wo | Quelle |
+|---|---|---|
+| `TDM-Reservation: 1` (HTTP-Header) | `/trends/**`, `/_next/**` | `frontend/public-export/{trends,_next}/.htaccess` |
+| `<meta name="tdm-reservation" content="1">`, `tdm-policy`, `robots: noai, noimageai` | jede exportierte Seite | `frontend/src/app/layout.tsx` (`metadata.other`) |
+| `/.well-known/tdmrep.json` (TDMRep) | Webroot | `scripts/build_public_static.sh`, hochgeladen über `ROOT_ALLOWLIST` |
+| Klartext-Policy | `/trends/tdm-policy` | `frontend/src/app/trends/tdm-policy/page.tsx` |
+| `robots.txt`: KI-Crawler `Disallow: /` | Webroot (**ersetzt die handgeschriebene Datei**) | `frontend/src/app/robots.ts` ← `frontend/src/lib/aiCrawlers.ts` |
+| 403 per User-Agent | `/trends/**`, `/_next/**` | `.htaccess`-RewriteCond, Liste = `aiCrawlers.ts` (Vitest hält beides synchron) |
+
+**Owner-Aktion (einmalig):** Die Root-`.htaccess` des Webspace ist owner-verwaltet. Damit Landing,
+`/newsletter/` und die Root-Dateien dieselben Regeln tragen, den Inhalt von
+`docs/launch/root-htaccess.snippet` dort einfügen. Prüfen nach dem Upload:
+
+```bash
+curl -sI https://catandary.de/trends/ | grep -i tdm-reservation      # → 1
+curl -s  https://catandary.de/.well-known/tdmrep.json               # → JSON
+curl -sI -A "GPTBot/1.0" https://catandary.de/trends/               # → 403
+curl -sI -A "Googlebot/2.1" https://catandary.de/trends/            # → 200
+curl -s  https://catandary.de/robots.txt | head -20                  # → User-agent: GPTBot … Disallow: /
+```
+
+`MODE=rsync` braucht auf dem Webspace rsync ≥ 3.2.3 (`--mkpath` für `.well-known/`); SFTP/local legen das Verzeichnis selbst an.
+
+Liste pflegen: nur in `frontend/src/lib/aiCrawlers.ts` ergänzen, dann die Regex in beiden
+`.htaccess`-Dateien und in `root-htaccess.snippet` nachziehen (`npx vitest run aiCrawlers` schlägt
+sonst fehl). `robots.txt` und `tdmrep.json` entstehen beim Build.
