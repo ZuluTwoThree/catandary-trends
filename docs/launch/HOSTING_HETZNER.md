@@ -91,7 +91,13 @@ Feed-Seite 1, Sitemap, Mega-Seiten und die Artikel am unteren Fensterrand (ihre 
 **Rendering-Modi im Code:** `lib/renderMode.ts` — `isStaticExport()` und
 `await dynamicUnlessStatic()` (ersetzt das frühere `export const dynamic = "force-dynamic"`
 in den öffentlichen Seiten; `connection()` hält die Workstation-Instanz request-frisch, im
-Export ist es ein No-op). Die vier Metadata-Routen (`sitemap.ts`, `robots.ts`, `icon.tsx`,
+Export ist es ein No-op). Die DB-gestützten dynamischen Segmente (`[slug]`, `mega/[megatrend]`,
+`page/[n]`, `v/[vertical]`, `v/[vertical]/page/[n]`) exportieren `generateStaticParams` **nur im
+Export** (`exportStaticParams(...)`, außerhalb `undefined`): die frühere leere Liste machte die
+Routen für Next zu SSG, unbekannte Params wurden unter `next start` on-demand *statisch*
+gerendert, und das `connection()` darin war ein `DYNAMIC_SERVER_USAGE`-**500 auf jeder
+Artikel-, Mega- und Listing-Seite der Workstation-Instanz** (Fund 03.09. beim Owner-Modus-Build;
+`next dev` hatte es verdeckt — Prod-Verhalten immer mit `next start` prüfen). Die vier Metadata-Routen (`sitemap.ts`, `robots.ts`, `icon.tsx`,
 `opengraph-image.tsx`) sind jetzt `force-static` (Export-Pflicht) — die Workstation-Sitemap
 wird dadurch beim Build gerendert, nicht mehr pro Request. Der Export-Modus unterdrückt
 `/api/track` (Artikel) und die `/api/newsletter`-Fetches (Signup postet stattdessen

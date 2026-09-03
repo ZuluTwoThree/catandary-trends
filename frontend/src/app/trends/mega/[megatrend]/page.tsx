@@ -6,8 +6,8 @@ import TrendCard from "@/components/TrendCard";
 import ForesightCta from "@/components/ForesightCta";
 import MegaTrendHeader from "@/components/MegaTrendHeader";
 import {
+  exportStaticParams,
   dynamicUnlessStatic,
-  isStaticExport,
   metadataSettled,
   afterMetadata,
 } from "@/lib/renderMode";
@@ -16,14 +16,14 @@ import type { Metadata } from "next";
 
 /**
  * Static export: one page per mega-trend key (28). On the workstation the
- * list is empty and the page renders per request (dynamicUnlessStatic);
- * `dynamicParams` stays default — see trends/[slug]/page.tsx.
+ * export is absent (exportStaticParams) and the page renders per request
+ * (dynamicUnlessStatic); `dynamicParams` stays default — see
+ * trends/[slug]/page.tsx.
  */
-export async function generateStaticParams() {
-  if (!isStaticExport()) return [];
+export const generateStaticParams = exportStaticParams(async () => {
   const all = await getMegaTrends();
   return all.map((m) => ({ megatrend: megaTrendSlug(m.mega_trend) }));
-}
+});
 
 function findMegaTrend(slug: string, allMega: { mega_trend: string; count: number; verticals: string[] }[]) {
   const decoded = decodeURIComponent(slug);

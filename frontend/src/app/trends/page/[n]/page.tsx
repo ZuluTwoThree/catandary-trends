@@ -2,18 +2,17 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTrendsCount } from "@/lib/db";
 import { PUBLIC_ARCHIVE_DAYS } from "@/lib/entitlement";
-import { isStaticExport } from "@/lib/renderMode";
+import { exportStaticParams } from "@/lib/renderMode";
 import { pageCount, parsePageParam } from "@/lib/staticListing";
 import StaticFeed, { staticListingMetadata } from "@/components/StaticFeed";
 
 /**
  * /trends/page/[n] — page n (>= 2) of the static listing (lib/staticListing.ts).
- * Export: one file per page of the public window. Workstation: empty
- * param list, rendered per request (see trends/[slug]/page.tsx on why
- * `dynamicParams` stays default).
+ * Export: one file per page of the public window. Workstation: no
+ * generateStaticParams at all (exportStaticParams), rendered per request
+ * (see trends/[slug]/page.tsx on why `dynamicParams` stays default).
  */
-export async function generateStaticParams() {
-  if (!isStaticExport()) return [];
+export const generateStaticParams = exportStaticParams(async () => {
   const total = await getTrendsCount({
     status: "published",
     max_age_days: PUBLIC_ARCHIVE_DAYS,
@@ -23,7 +22,7 @@ export async function generateStaticParams() {
   return Array.from({ length: pageCount(total) - 1 }, (_, i) => ({
     n: String(i + 2),
   }));
-}
+});
 
 export async function generateMetadata({
   params,

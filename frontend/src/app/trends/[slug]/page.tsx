@@ -15,6 +15,7 @@ import {
 } from "@/lib/entitlement";
 import { isPublicMode } from "@/lib/publicMode";
 import {
+  exportStaticParams,
   dynamicUnlessStatic,
   isStaticExport,
   metadataSettled,
@@ -29,18 +30,20 @@ import type { Metadata } from "next";
  * Static export (design Schritt 3): the page list is every published slug in
  * the public window (PUBLIC_WINDOW_DAYS, default 30 — lib/archiveWindow.ts);
  * anything else does not exist as a file and is Apache's 410/404. On the
- * workstation the list is empty and the page renders per request as before
+ * workstation there is NO generateStaticParams (exportStaticParams returns
+ * undefined) — the route is plain dynamic and renders per request as before
  * (dynamicUnlessStatic below), so a slug published after the last build is
- * never a 404 there. `dynamicParams` stays at its default: Next only accepts
- * a static boolean there, and `false` would 404 every slug on the
- * workstation — in the export it is moot, there is no server to serve an
- * unlisted param anyway.
+ * never a 404 there. An empty list would not do: Next then treats the route
+ * as SSG and renders unknown slugs on demand as static pages, where the
+ * `connection()` call is a DYNAMIC_SERVER_USAGE 500 (2026-09-03).
+ * `dynamicParams` stays at its default: Next only accepts a static boolean
+ * there, and `false` would 404 every slug on the workstation — in the
+ * export it is moot, there is no server to serve an unlisted param anyway.
  */
-export async function generateStaticParams() {
-  if (!isStaticExport()) return [];
+export const generateStaticParams = exportStaticParams(async () => {
   const rows = await getPublicWindowSlugs(PUBLIC_ARCHIVE_DAYS);
   return rows.map((r) => ({ slug: r.slug }));
-}
+});
 
 /**
  * One lookup per request, shared by generateMetadata and the page body

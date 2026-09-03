@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { VERTICALS } from "@/lib/types";
-import { isStaticExport } from "@/lib/renderMode";
+import { exportStaticParams } from "@/lib/renderMode";
 import { verticalFromSlug, verticalSlug } from "@/lib/staticListing";
 import StaticFeed, { staticListingMetadata } from "@/components/StaticFeed";
 
@@ -11,10 +11,9 @@ import StaticFeed, { staticListingMetadata } from "@/components/StaticFeed";
  * route on the static site (Apache 301s the legacy and any-case forms,
  * public-export/trends/.htaccess).
  */
-export async function generateStaticParams() {
-  if (!isStaticExport()) return [];
+export const generateStaticParams = exportStaticParams(async () => {
   return VERTICALS.map((v) => ({ vertical: verticalSlug(v.id) }));
-}
+});
 
 export async function generateMetadata({
   params,

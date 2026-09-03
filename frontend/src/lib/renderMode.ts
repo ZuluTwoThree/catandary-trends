@@ -60,6 +60,27 @@ export function linkPrefetch(): false | undefined {
   return isStaticExport() ? false : undefined;
 }
 
+/**
+ * `generateStaticParams` for the export ONLY.
+ *
+ * A route that exports `generateStaticParams` is SSG for Next even when the
+ * list is empty: on the workstation an unlisted param is then rendered on
+ * demand as a *static* page (prerender-manifest `fallback: null`), and the
+ * `connection()` behind `dynamicUnlessStatic()` inside that render is a
+ * DYNAMIC_SERVER_USAGE error — under `next start` every article, mega and
+ * listing page answered 500 (found 2026-09-03; `next dev` had hidden it).
+ * Next treats the export as present only when it is a function
+ * (build/segment-config/app/app-segments.js), so outside the export the
+ * value is `undefined`, the route stays plain dynamic and renders per
+ * request exactly as before the export work. In the export the list is
+ * what gets prerendered.
+ */
+export function exportStaticParams<P>(
+  list: () => Promise<P[]>
+): (() => Promise<P[]>) | undefined {
+  return isStaticExport() ? list : undefined;
+}
+
 /* ---------- Metadata gate (static export only) ---------- */
 
 interface Deferred {

@@ -123,7 +123,28 @@ describe("the surviving app tree is exportable", () => {
     expect(dynamicPages.length).toBeGreaterThanOrEqual(5);
     for (const f of dynamicPages) {
       const src = fs.readFileSync(path.join(FRONTEND, f), "utf-8");
-      expect(src, `${f} lacks generateStaticParams`).toMatch(/export\s+(async\s+)?function\s+generateStaticParams/);
+      // Either a plain function (list valid everywhere, e.g. the analyses)
+      // or the export-only form `exportStaticParams(...)` (lib/renderMode.ts),
+      // which keeps the route dynamic on the workstation.
+      expect(src, `${f} lacks generateStaticParams`).toMatch(
+        /export\s+((async\s+)?function\s+generateStaticParams|const\s+generateStaticParams\s*=\s*exportStaticParams\()/
+      );
+    }
+  });
+
+  it("DB-backed dynamic segments use the export-only form (an empty list makes the route SSG and 500s under next start)", () => {
+    for (const f of [
+      "src/app/trends/[slug]/page.tsx",
+      "src/app/trends/mega/[megatrend]/page.tsx",
+      "src/app/trends/page/[n]/page.tsx",
+      "src/app/trends/v/[vertical]/page.tsx",
+      "src/app/trends/v/[vertical]/page/[n]/page.tsx",
+    ]) {
+      const src = fs.readFileSync(path.join(FRONTEND, f), "utf-8");
+      expect(src, `${f} must use exportStaticParams`).toMatch(
+        /export\s+const\s+generateStaticParams\s*=\s*exportStaticParams\(/
+      );
+      expect(src, `${f} still has the empty-list form`).not.toMatch(/if \(!isStaticExport\(\)\) return \[\];/);
     }
   });
 

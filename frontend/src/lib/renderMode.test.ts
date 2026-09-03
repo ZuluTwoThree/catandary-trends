@@ -9,7 +9,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 const connection = vi.fn(async () => undefined);
 vi.mock("next/server", () => ({ connection }));
 
-import { isStaticExport, dynamicUnlessStatic, linkPrefetch } from "@/lib/renderMode";
+import { isStaticExport, dynamicUnlessStatic, linkPrefetch, exportStaticParams } from "@/lib/renderMode";
 
 afterEach(() => {
   delete process.env.STATIC_EXPORT;
@@ -62,5 +62,20 @@ describe("linkPrefetch", () => {
   it("disables link prefetching in the static export (no segment payloads exist there)", () => {
     process.env.NEXT_PUBLIC_STATIC_EXPORT = "1";
     expect(linkPrefetch()).toBe(false);
+  });
+});
+
+describe("exportStaticParams", () => {
+  const list = async () => [{ slug: "a-1" }];
+
+  it("is undefined on the workstation — no generateStaticParams, the route stays dynamic", () => {
+    expect(exportStaticParams(list)).toBeUndefined();
+  });
+
+  it("is the list function in the export", async () => {
+    process.env.STATIC_EXPORT = "1";
+    const fn = exportStaticParams(list);
+    expect(fn).toBe(list);
+    expect(await fn!()).toEqual([{ slug: "a-1" }]);
   });
 });

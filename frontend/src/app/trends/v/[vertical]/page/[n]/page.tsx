@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { getTrendsCount } from "@/lib/db";
 import { PUBLIC_ARCHIVE_DAYS } from "@/lib/entitlement";
 import { VERTICALS } from "@/lib/types";
-import { isStaticExport } from "@/lib/renderMode";
+import { exportStaticParams } from "@/lib/renderMode";
 import {
   pageCount,
   parsePageParam,
@@ -13,8 +13,7 @@ import {
 import StaticFeed, { staticListingMetadata } from "@/components/StaticFeed";
 
 /** /trends/v/[vertical]/page/[n] — page n (>= 2) of one vertical. */
-export async function generateStaticParams() {
-  if (!isStaticExport()) return [];
+export const generateStaticParams = exportStaticParams(async () => {
   const params: { vertical: string; n: string }[] = [];
   for (const v of VERTICALS) {
     const total = await getTrendsCount({
@@ -27,7 +26,7 @@ export async function generateStaticParams() {
     }
   }
   return params;
-}
+});
 
 export async function generateMetadata({
   params,
