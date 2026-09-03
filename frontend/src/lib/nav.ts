@@ -17,7 +17,10 @@ export const PRIMARY_NAV: NavItem[] = [
   { href: "/analysis", label: "Analyses" },
 ];
 
-/** The Foresight tool suite — grouped under one "Foresight" entry. */
+/** The Foresight tool suite — grouped under one "Foresight" entry. The
+ *  scouting desk (/trends/dossiers, #95) is an owner tool of the same suite;
+ *  Header/MobileNav hide the whole group under PUBLIC_MODE, and the route is
+ *  blocked there anyway (lib/publicMode.ts). */
 export const FORESIGHT_NAV: NavItem[] = [
   { href: "/trends/foresight", label: "Cockpit" },
   { href: "/trends/foresight/clusters", label: "Clusters" },
@@ -25,8 +28,9 @@ export const FORESIGHT_NAV: NavItem[] = [
   { href: "/trends/foresight/lead-time", label: "Lead Time" },
   { href: "/trends/foresight/evolution", label: "Evolution" },
   { href: "/trends/foresight/dossier", label: "Dossier" },
+  { href: "/trends/dossiers", label: "Scouting Desk" },
 ];
 
 export function isForesightPath(pathname: string): boolean {
-  return pathname.startsWith("/trends/foresight");
+  return pathname.startsWith("/trends/foresight") || pathname.startsWith("/trends/dossiers");
 }

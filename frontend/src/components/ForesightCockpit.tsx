@@ -400,6 +400,17 @@ export default function ForesightCockpit({
                 Who commercializes it — companies with dated funding, grant and regulatory evidence
               </div>
             </Link>
+            <Link
+              href="/trends/dossiers"
+              className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                Scouting Desk <span className="text-muted">· owner</span> →
+              </div>
+              <div className="font-sans text-sm text-text mt-1">
+                Order a cited scouting dossier on a field — the local researcher runs on your click, you sign it off
+              </div>
+            </Link>
           </div>
 
           {topClusters.length > 0 && (
