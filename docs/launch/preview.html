@@ -31,7 +31,7 @@
     --accent:     #d4ff3a;   /* chartreuse - the single hero accent */
     --accent-deep:#a8cc28;
     --warn:       #ff6b3a;
-    /* lead-time tier palette (also the data-viz palette) */
+    /* signal-tier palette (also the data-viz palette) */
     --t-science:  #a78bfa;
     --t-patent:   #60a5fa;
     --t-funding:  #34d399;
@@ -189,79 +189,24 @@
   .pillar.span2 { grid-column: 1 / -1; }
   @media (min-width: 1000px){ .pillar.wide { grid-column: span 2; } }
 
-  /* interactive demo */
-  .demo { border: 1px solid var(--edge); background: var(--surface); margin-top: 2.5rem; }
-  .demo-head { display: flex; flex-wrap: wrap; gap: .5rem; padding: 1rem 1.2rem; border-bottom: 1px solid var(--edge); align-items: center; }
-  .chip {
-    font-family: var(--mono); font-size: .66rem; letter-spacing: .05em; text-transform: uppercase;
-    padding: .45rem .8rem; border: 1px solid var(--edge); background: transparent; color: var(--muted); cursor: pointer; transition: all .18s;
-  }
-  .chip:hover { color: var(--paper); border-color: var(--rule); }
-  .chip[aria-pressed="true"] { color: #0a0c0a; background: var(--accent); border-color: var(--accent); }
-  .demo-body { display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--edge); }
-  @media (min-width: 820px){ .demo-body { grid-template-columns: 1.15fr .85fr; } }
-  .demo-pane { background: var(--surface); padding: 1.4rem 1.4rem 1.7rem; }
-  .demo-pane .pane-label { font-family: var(--mono); font-size: .58rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-bottom: 1rem; }
-  .chartbox { position: relative; width: 100%; aspect-ratio: 16/9; min-height: 200px; }
-  .chartbox canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .verdict { display: flex; align-items: baseline; gap: .8rem; margin-top: 1rem; flex-wrap: wrap; }
-  .verdict .v-rate { font-family: var(--serif); font-size: 1.8rem; color: var(--paper); }
-  .v-badge { font-family: var(--mono); font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; padding: .3rem .6rem; border: 1px solid currentColor; }
-  .demo-note { font-size: .8rem; color: var(--muted); margin-top: 1.1rem; border-top: 1px dashed var(--edge); padding-top: .9rem; }
+  /* offers (client services) */
+  .offers { display: grid; gap: 1px; grid-template-columns: 1fr; background: var(--edge); border: 1px solid var(--edge); margin-top: 2.5rem; }
+  @media (min-width: 820px){ .offers { grid-template-columns: repeat(3,1fr); } }
+  .offer { background: var(--surface); padding: 1.7rem 1.5rem; }
+  .offer h3 { font-size: 1.15rem; margin-bottom: .3rem; }
+  .offer .who { font-family: var(--mono); font-size: .56rem; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: 1.1rem; display: block; }
+  .offer p { font-size: .88rem; color: var(--text); }
+  .offer .ev { margin-top: .9rem; font-family: var(--mono); font-size: .58rem; letter-spacing: .06em; color: var(--muted); border-top: 1px dashed var(--edge); padding-top: .7rem; }
 
-  /* lead-time lanes (svg-ish) */
-  .lanes { display: grid; gap: .55rem; }
-  .lane { display: grid; grid-template-columns: 84px 1fr; align-items: center; gap: .7rem; }
-  .lane .lname { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); text-align: right; }
-  .lane .track { position: relative; height: 12px; background: rgba(255,255,255,.03); border: 1px solid var(--edge); }
-  .lane .fill { position: absolute; top: -1px; bottom: -1px; opacity: .9; }
-  .lane .dot { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 6px currentColor; }
-  .axis { display: grid; grid-template-columns: 84px 1fr; gap: .7rem; margin-top: .4rem; }
-  .axis .ticks { display: flex; justify-content: space-between; font-family: var(--mono); font-size: .52rem; color: var(--muted); letter-spacing: .06em; }
-
-  /* momentum board */
-  .board { display: grid; gap: 1px; grid-template-columns: 1fr; background: var(--edge); border: 1px solid var(--edge); margin-top: 2.5rem; }
-  @media (min-width: 620px){ .board { grid-template-columns: 1fr 1fr; } }
-  @media (min-width: 940px){ .board { grid-template-columns: repeat(3,1fr); } }
-  .mcard { background: var(--surface); padding: 1.3rem 1.3rem 1.4rem; border-left: 3px solid var(--vc, var(--edge)); position: relative; }
-  .mcard .vv { font-family: var(--mono); font-size: .55rem; letter-spacing: .14em; text-transform: uppercase; color: var(--vc, var(--muted)); }
-  .mcard h3 { font-size: 1.12rem; margin: .55rem 0 .8rem; line-height: 1.15; }
-  .mcard .mrow { display: flex; align-items: center; justify-content: space-between; gap: .8rem; margin-top: .7rem; }
-  .mom { font-family: var(--mono); font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; display: inline-flex; align-items: center; gap: .4rem; }
-  .mom.up { color: var(--rising); }
-  .mom.down { color: var(--declining); }
-  .mspark { width: 96px; height: 26px; }
-
-  /* comparison */
-  .compare { display: grid; gap: 1px; grid-template-columns: 1fr; background: var(--edge); border: 1px solid var(--edge); margin-top: 2.5rem; }
-  @media (min-width: 820px){ .compare { grid-template-columns: repeat(3,1fr); } }
-  .col { background: var(--surface); padding: 1.7rem 1.5rem; }
-  .col.mid { background: var(--surface-2); position: relative; }
-  .col.mid::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--accent); }
-  .col h3 { font-size: 1.15rem; margin-bottom: .3rem; }
-  .col .who { font-family: var(--mono); font-size: .56rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 1.1rem; display: block; }
-  .col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .7rem; }
-  .col li { font-size: .88rem; color: var(--text); padding-left: 1.3rem; position: relative; }
-  .col li::before { content: "-"; position: absolute; left: 0; color: var(--muted); }
-  .col.mid li::before { content: "→"; color: var(--accent); }
-
-  /* pricing */
-  .prices { display: grid; gap: 1px; grid-template-columns: 1fr; background: var(--edge); border: 1px solid var(--edge); margin-top: 2.5rem; }
-  @media (min-width: 640px){ .prices { grid-template-columns: 1fr 1fr; } }
-  @media (min-width: 1040px){ .prices { grid-template-columns: repeat(4,1fr); } }
-  .price { background: var(--surface); padding: 1.5rem 1.3rem 1.6rem; display: flex; flex-direction: column; }
-  .price.feat { background: var(--surface-2); box-shadow: inset 0 2px 0 var(--accent); }
-  .price .pname { font-family: var(--mono); font-size: .6rem; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
-  .price .amt { font-family: var(--serif); font-size: 2rem; color: var(--paper); margin: .6rem 0 .1rem; }
-  .price .amt small { font-family: var(--mono); font-size: .7rem; color: var(--muted); letter-spacing: .04em; }
-  .price .blurb { font-size: .82rem; color: var(--muted); min-height: 3.2em; }
-  .price ul { list-style: none; margin: 1rem 0 1.3rem; padding: 0; display: grid; gap: .5rem; flex: 1; }
-  .price li { font-size: .8rem; color: var(--text); padding-left: 1.1rem; position: relative; }
-  .price li::before { content: "+"; position: absolute; left: 0; color: var(--accent-deep); }
-  .price .btn { justify-content: center; width: 100%; }
-  .hypercare { margin-top: 1px; background: var(--surface); border: 1px solid var(--edge); border-top: none; padding: 1.4rem 1.5rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; }
-  .hypercare .hc-l { max-width: 40em; }
-  .hypercare .amt { font-family: var(--serif); font-size: 1.4rem; color: var(--paper); }
+  /* service band (Super Pro+) */
+  .svc-band { margin-top: 1px; background: var(--surface-2); border: 1px solid var(--edge); border-top: none; box-shadow: inset 0 2px 0 var(--accent); padding: 1.6rem 1.5rem; display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: center; justify-content: space-between; }
+  .svc-band .hc-l { max-width: 46em; }
+  .svc-band .pname { font-family: var(--mono); font-size: .6rem; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+  .svc-band .amt { font-family: var(--serif); font-size: 1.5rem; color: var(--paper); margin: .5rem 0 .4rem; }
+  .svc-band p { font-size: .88rem; color: var(--text); }
+  .note { font-size: .8rem; color: var(--muted); margin-top: 1.1rem; border-top: 1px dashed var(--edge); padding-top: .9rem; max-width: 60em; }
+  .proof-note { font-family: var(--mono); font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 1rem; max-width: 34em; }
+  [hidden] { display: none !important; }
 
   /* faq */
   .faq { margin-top: 2.2rem; border-top: 1px solid var(--edge); }
@@ -360,9 +305,10 @@
     <span class="hide-sm">Trend &amp; Foresight Intelligence</span>
   </div>
   <nav class="rhs" aria-label="Primary">
-    <a class="navlink hide-sm" href="#mechanism">Method</a>
-    <a class="navlink hide-sm" href="#engine">Engine</a>
-    <a class="navlink hide-sm" href="#pricing">Pricing</a>
+    <a class="navlink hide-sm" href="#free">Free</a>
+    <a class="navlink hide-sm" href="#services">Analyses</a>
+    <a class="navlink hide-sm" href="#how">Method</a>
+    <a class="navlink hide-sm" href="/trends" data-live-href="/trends" hidden>Feed</a>
     <a class="navlink" href="#subscribe">Briefing&nbsp;→</a>
   </nav>
 </div>
@@ -387,300 +333,174 @@
 <main id="main">
 
 <!-- ============ HERO ============ -->
+<!-- Evidence: V3 chain · V4 local · V5 source link · CLAUDE.md corpus figures (Aug 2026) -->
 <header class="hero">
   <div class="wrap hero-grid">
     <div>
-      <span class="eyebrow">Evidence-based foresight</span>
-      <h1 class="hero-h">See it in the research <em>before</em> you see it in the market.</h1>
+      <span class="eyebrow">Read from primary sources · built on local models</span>
+      <h1 class="hero-h">Trend intelligence, <em>traced</em> to its sources.</h1>
       <p class="hero-sub">
-        Catandary reads the whole innovation chain - science, patents, funding, market -
-        and turns over a million signals into trend clusters, momentum and
-        technology-improvement rates. Every number traces back to the primary source you
-        can click.
+        Catandary reads science, patents, funding and market news on local models and
+        publishes a free trend feed of the last 30 days. For clients we build individual
+        analyses from the full corpus - by hand, dated, sourced and signed.
       </p>
       <div class="cta-row">
-        <a class="btn btn-primary" href="#subscribe">Get the weekly briefing</a>
-        <a class="btn" href="#engine">Explore the live engine <span class="arw">→</span></a>
+        <a class="btn btn-primary" href="#subscribe" data-live-href="/trends"><span data-live-label="Browse the trend feed">Feed opens at launch · get notified</span> <span class="arw">→</span></a>
+        <a class="btn" href="mailto:trends@catandary.de?subject=Catandary%20%E2%80%94%20analysis%20request">Request an analysis <span class="arw">→</span></a>
       </div>
       <div class="proof" aria-label="Corpus at a glance">
-        <div><div class="num tnum" data-count="1059838">0</div><div class="lbl">Signals analysed</div></div>
-        <div><div class="num tnum" data-count="60482">0</div><div class="lbl">Articles published</div></div>
-        <div><div class="num tnum" data-static="~250">~250</div><div class="lbl">Primary sources</div></div>
+        <div><div class="num tnum" data-count="21600000" data-fmt="m">0</div><div class="lbl">Signals collected</div></div>
+        <div><div class="num tnum" data-count="19600000" data-fmt="m">0</div><div class="lbl">Patents</div></div>
+        <div><div class="num tnum" data-count="45000000" data-fmt="m">0</div><div class="lbl">Scholarly works</div></div>
         <div><div class="num" data-static="100%">100%</div><div class="lbl">Local analysis</div></div>
       </div>
+      <p class="proof-note">Corpus on our own hardware, as of August 2026 · the public feed shows the last 30 days</p>
     </div>
 
     <div class="instrument" id="instrument">
       <span class="corner tl" aria-hidden="true"></span>
       <span class="corner br" aria-hidden="true"></span>
-      <div class="cap"><span>Lead-time reader</span><span>science → market</span></div>
-      <canvas id="flow" aria-label="Animated diagram: innovation signals flowing across four lead-time tiers - science, patents, funding, market - and converging into a rising trend cluster."></canvas>
+      <div class="cap"><span>Signal chain</span><span>science → patents → funding → market</span></div>
+      <canvas id="flow" aria-label="Animated diagram: signals from science, patents, funding and market sources converging into a trend cluster, with a momentum line beneath."></canvas>
     </div>
   </div>
 </header>
 
-<!-- ============ PROBLEM ============ -->
-<section class="section" aria-labelledby="problem-h">
+<!-- ============ WHAT YOU GET FOR FREE ============ -->
+<!-- Evidence: HOSTING_HETZNER.md export URL schema + measurements (14,846 articles, 28 themes, 8 verticals);
+     StaticSearch.tsx (browser-side search: text, vertical, PESTEL, theme); D6 weekly newsletter; DOI package -->
+<section class="section" id="free" aria-labelledby="free-h">
   <div class="wrap">
-    <span class="eyebrow kicker" id="problem-h">The gap</span>
-    <div class="problem-grid reveal">
-      <p class="problem-big">
-        By the time a trend is a headline, it is already late. The signal was in the
-        <b>research years earlier</b>, then in the patents, then in the funding - long
-        before it reached the market you read about.
-      </p>
-      <p>
-        Most trend tools only watch the market: press releases and news, the last stop on
-        the chain. So they tell you what already happened, hand you a number with no
-        source, and leave you unable to defend it to a stakeholder. Catandary was built to
-        read the earlier stages - and to show its working every step of the way.
-      </p>
-    </div>
-  </div>
-</section>
-
-<!-- ============ MECHANISM ============ -->
-<section class="section" id="mechanism" aria-labelledby="mech-h">
-  <div class="wrap">
-    <span class="eyebrow kicker">How it works</span>
-    <h2 class="section-h" id="mech-h">Four moves from raw signal to defensible insight.</h2>
+    <span class="eyebrow kicker">Free · from launch day</span>
+    <h2 class="section-h" id="free-h">The last 30 days of signals, open to everyone.</h2>
+    <p class="lede">No account, no paywall, no tracking. The feed is the public face of the corpus we work from.</p>
     <div class="steps reveal">
       <div class="step">
-        <span class="no">01 · Acquisition</span>
-        <h3>We read the chain</h3>
-        <p>Referencing primary sources from open datasets across science, patents, funding and market. No aggregator APIs, no scraping.</p>
-        <span class="tag">~250 sources</span>
+        <span class="no">01 · The feed</span>
+        <h3>Every article, 30 days</h3>
+        <p>Around 15,000 short trend articles, one per source signal, refreshed daily. Each links to the primary source it was written from and carries its vertical, PESTEL dimensions and theme.</p>
+        <span class="tag">8 verticals</span>
       </div>
       <div class="step">
-        <span class="no">02 · Classify</span>
-        <h3>All local infrastructure</h3>
-        <p>We tag each signal on 8 industry verticals, 6 PESTEL dimensions and a mega/macro/micro horizon. Nothing leaks into the cloud.</p>
-        <span class="tag">8 × 6 × 3 taxonomy</span>
+        <span class="no">02 · Search &amp; filters</span>
+        <h3>Find it fast</h3>
+        <p>Text search across the whole window, plus filters by vertical, PESTEL dimension and theme. It runs in your browser - what you type never leaves the page.</p>
+        <span class="tag">runs in the browser</span>
       </div>
       <div class="step">
-        <span class="no">03 · Cluster</span>
-        <h3>Reason what's moving</h3>
-        <p>We group signals by meaning into clusters and rank by momentum - measured as share of attention. Our growing corpus can't fake a growing trend.</p>
-        <span class="tag">221 live clusters</span>
+        <span class="no">03 · Themes</span>
+        <h3>28 Mega Signal Themes</h3>
+        <p>Signals grouped into 28 curated themes, from AI &amp; automation to the orbital economy. A theme earns its "megatrend" badge from measured breadth and persistence, not from opinion.</p>
+        <span class="tag">measured, not asserted</span>
       </div>
       <div class="step">
-        <span class="no">04 · Attribute</span>
-        <h3>We show the source</h3>
-        <p>Every signal links to the primary source it was built from. Any trend we publish is based on data available for review.</p>
-        <span class="tag">source enforced</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ PILLARS ============ -->
-<section class="section" aria-labelledby="pil-h">
-  <div class="wrap">
-    <span class="eyebrow kicker">Why it's different</span>
-    <h2 class="section-h" id="pil-h">Foresight you can actually cite.</h2>
-    <div class="pillars reveal">
-      <article class="pillar">
-        <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="2" y="30" width="6" height="8" fill="#a78bfa"/><rect x="12" y="24" width="6" height="14" fill="#60a5fa"/><rect x="22" y="18" width="6" height="20" fill="#34d399"/><rect x="32" y="10" width="6" height="28" fill="#d4ff3a"/></svg>
-        <h3>The whole chain, one corpus</h3>
-        <p>Science, patents, funding and market signals sit on a single lead-time axis, so you see how <em>early</em> a theme is - not just that it has arrived.</p>
-        <div class="ev">Evidence · 4 tiers, ~42.6M patents to 1990</div>
-      </article>
-      <article class="pillar">
-        <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="11" stroke="#d4ff3a" stroke-width="2"/><path d="M24 24l12 12" stroke="#d4ff3a" stroke-width="2"/></svg>
-        <h3>Evidence, not vibes</h3>
-        <p>Every trend, cluster and rate links to its primary source. A grounding gate holds back any generated figure that isn't in the source material.</p>
-        <div class="ev">Evidence · source_url NOT NULL + grounding gate</div>
-      </article>
-      <article class="pillar">
-        <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M3 30C10 30 12 8 20 8s10 22 17 22" stroke="#d4ff3a" stroke-width="2" fill="none"/><circle cx="37" cy="30" r="3" fill="#d4ff3a"/></svg>
-        <h3>Improvement rates that mean something</h3>
-        <p>Our Technology Improvement Estimate is built on peer-reviewed scientific models developed at MIT. We process about 150 million data points from the global patent body.</p>
-        <div class="ev">Method · peer-reviewed, not proprietary</div>
-      </article>
-      <article class="pillar">
-        <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 4l14 6v9c0 9-6 14-14 17-8-3-14-8-14-17V10z" stroke="#d4ff3a" stroke-width="2" fill="none"/><path d="M14 20l4 4 8-9" stroke="#d4ff3a" stroke-width="2" fill="none"/></svg>
-        <h3>Honest by construction</h3>
-        <p>Our algorithm withholds information it can't trust - too recent, too noisy or off the calibrated range - we publish only what the data proves. It says so when we don't know.</p>
-        <div class="ev">Validation · known trends recovered and momentum confirmed</div>
-      </article>
-      <article class="pillar">
-        <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="4" y="4" width="32" height="32" rx="2" stroke="#d4ff3a" stroke-width="2"/><rect x="11" y="11" width="18" height="18" fill="#d4ff3a" opacity=".25"/><circle cx="20" cy="20" r="3" fill="#d4ff3a"/></svg>
-        <h3>Local, open, affordable</h3>
-        <p>Runs on local infrastructure and open data - no cloud cost, no vendor lock-in - which is what puts board-grade foresight at a self-service price.</p>
-        <div class="ev">Cost · all local machines, no cloud in the loop</div>
-      </article>
-      <article class="pillar">
-        <svg class="ic" viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="16" stroke="#8a8d82" stroke-width="1.5"/><circle cx="20" cy="20" r="9" stroke="#8a8d82" stroke-width="1.5"/><circle cx="27" cy="13" r="3" fill="#d4ff3a"/><circle cx="14" cy="24" r="2.4" fill="#60a5fa"/></svg>
-        <h3>The deliverable teams already think in</h3>
-        <p>Cluster momentum with one-click evidence, and how early each technology still is - the format an innovation team hands to a board, without the enterprise procurement.</p>
-        <div class="ev">Product · clusters · technology · lead-time · export</div>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- ============ INTERACTIVE DEMO ============ -->
-<section class="section" id="engine" aria-labelledby="demo-h">
-  <div class="wrap">
-    <span class="eyebrow kicker">Read the instrument</span>
-    <h2 class="section-h" id="demo-h">Choose a technology. Type and watch it read.</h2>
-    <p class="lede">Two questions our engine answers for any technology: <span class="serif-accent">how early is it</span> across the innovation chain, and <span class="serif-accent">how fast is it actually improving</span>.</p>
-
-    <div class="demo reveal">
-      <div class="demo-head" role="group" aria-label="Choose a technology">
-        <button class="chip" data-tech="crispr" aria-pressed="true">CRISPR gene editing</button>
-        <button class="chip" data-tech="solar" aria-pressed="false">Solar PV</button>
-        <button class="chip" data-tech="ml" aria-pressed="false">Machine learning</button>
-      </div>
-      <div class="demo-body">
-        <div class="demo-pane">
-          <div class="pane-label">Improvement-rate trajectory</div>
-          <div class="chartbox"><canvas id="tir" aria-label="Line chart of a technology's improvement-rate trajectory over time, with an uncertainty band and a greyed recent-years zone the engine treats as not yet reliable."></canvas></div>
-          <div class="verdict">
-            <span class="v-rate" id="tir-rate">-</span>
-            <span class="v-badge" id="tir-badge" style="color:var(--rising)">-</span>
-          </div>
-          <p class="demo-note" id="tir-note">CRISPR: a steep science-led take-off - the engine reads the acceleration in the citation graph. Illustrative shape - the live engine returns the figures.</p>
-        </div>
-        <div class="demo-pane">
-          <div class="pane-label">Where it is on the chain · lead-time tiers</div>
-          <div class="lanes" id="lanes">
-            <div class="lane"><span class="lname" style="color:var(--t-science)">Science</span><div class="track"><span class="fill" style="background:var(--t-science)"></span><span class="dot" style="color:var(--t-science);background:var(--t-science)"></span></div></div>
-            <div class="lane"><span class="lname" style="color:var(--t-patent)">Patents</span><div class="track"><span class="fill" style="background:var(--t-patent)"></span><span class="dot" style="color:var(--t-patent);background:var(--t-patent)"></span></div></div>
-            <div class="lane"><span class="lname" style="color:var(--t-funding)">Funding</span><div class="track"><span class="fill" style="background:var(--t-funding)"></span><span class="dot" style="color:var(--t-funding);background:var(--t-funding)"></span></div></div>
-            <div class="lane"><span class="lname" style="color:var(--t-market)">Market</span><div class="track"><span class="fill" style="background:var(--t-market)"></span><span class="dot" style="color:var(--t-market);background:var(--t-market)"></span></div></div>
-          </div>
-          <div class="axis"><span></span><div class="ticks"><span>1995</span><span>2005</span><span>2015</span><span>2026</span></div></div>
-          <p class="demo-note" id="lead-note">Research led the market here by an estimated several years - the offset Catandary measures per technology, and only headlines where the corpus can prove it.</p>
-        </div>
+        <span class="no">04 · Briefing</span>
+        <h3>One email a week</h3>
+        <p>What moved across the eight verticals and which themes gained share, with an archive of past editions on the site. Double opt-in, no open or click tracking.</p>
+        <span class="tag">archive included</span>
       </div>
     </div>
     <div class="cta-row">
-      <a class="btn" href="#subscribe">Get this in your inbox weekly <span class="arw">→</span></a>
+      <a class="btn" href="#subscribe" data-live-href="/trends"><span data-live-label="Open the feed">Get the launch notice</span> <span class="arw">→</span></a>
+      <a class="btn" href="/trends/mega" data-live-href="/trends/mega" hidden>Mega Signal Themes <span class="arw">→</span></a>
+      <a class="btn" href="/trends/newsletter" data-live-href="/trends/newsletter" hidden>Newsletter archive <span class="arw">→</span></a>
     </div>
   </div>
 </section>
 
-<!-- ============ MOMENTUM BOARD ============ -->
-<section class="section" aria-labelledby="mov-h">
+<!-- ============ WHAT WE DO FOR CLIENTS ============ -->
+<!-- Evidence: #93 (sales-led Super Pro+ + individual analyses); scripts/corpus_research.py (--foresight / --company / --focus,
+     report language de|en); V9/V10 momentum as share of attention; V11-V13 improvement rate + honesty gates;
+     V19 Hypercare = day-rate, sales-led (amount deliberately not shown) -->
+<section class="section" id="services" aria-labelledby="svc-h">
   <div class="wrap">
-    <span class="eyebrow kicker">Live intelligence</span>
-    <h2 class="section-h" id="mov-h">What's moving now.</h2>
-    <p class="lede">Clusters the engine surfaced bottom-up, ranked by share-of-voice momentum. These six were hand-checked against public reality - and all six matched.</p>
-    <div class="board reveal" id="board"></div>
-    <div class="cta-row"><a class="btn" href="#engine">See the full cluster board <span class="arw">→</span></a></div>
+    <span class="eyebrow kicker">For clients · sales-led</span>
+    <h2 class="section-h" id="svc-h">Individual analyses, built from the full corpus.</h2>
+    <p class="lede">The feed shows 30 days. Behind it sits the whole corpus on our own hardware, and the tools to read it. Bring one question - we scope it, build the analysis by hand and sign it.</p>
+    <div class="offers reveal">
+      <article class="offer">
+        <span class="who">Dossier · technology</span>
+        <h3>Technology dossier</h3>
+        <p>Where a technology stands across research, patents, funding and market signals, with an improvement-rate reading where the patent record supports one. Delivered as a dated, sourced write-up you can put in front of a board.</p>
+        <div class="ev">Scope · one technology · fixed turnaround</div>
+      </article>
+      <article class="offer">
+        <span class="who">Dossier · company</span>
+        <h3>Company dossier</h3>
+        <p>An established company or start-up read against the field it operates in: its own publications and filings, the technologies it depends on, and the signals moving around them. Built for SMEs facing a strategy, partner or investment decision - in German or English.</p>
+        <div class="ev">Scope · one company · German or English</div>
+      </article>
+      <article class="offer">
+        <span class="who">Assessment · trend</span>
+        <h3>Trend assessment</h3>
+        <p>One trend, placed: mega, macro or micro level, its momentum in the corpus measured as share of attention, and the primary sources behind it. Including what the evidence does not show.</p>
+        <div class="ev">Scope · one trend · evidence and limits</div>
+      </article>
+    </div>
+    <div class="svc-band reveal">
+      <div class="hc-l">
+        <span class="pname">Super Pro+ · ongoing</span>
+        <div class="amt">Supervised access to the engine</div>
+        <p>Standing access to the full corpus and the tools behind it - clusters, technology trajectories, research and patent explorers - as a supported service: recurring analyses on your watch list and a direct line to the person who built them. Scoped and quoted per engagement. For hands-on analyst days in your team, ask about Hypercare, billed by the day.</p>
+      </div>
+      <a class="btn btn-primary" href="mailto:trends@catandary.de?subject=Catandary%20%E2%80%94%20analysis%20request">Request an analysis</a>
+    </div>
+    <p class="note">No tiers, no checkout, no self-service. Every engagement is scoped and quoted individually - write to <a href="mailto:trends@catandary.de" style="color:var(--accent)">trends@catandary.de</a> with the question you need answered.</p>
   </div>
 </section>
 
-<!-- ============ TRUST / TECHNOLOGY ============ -->
-<section class="section" aria-labelledby="trust-h">
+<!-- ============ HOW IT WORKS ============ -->
+<!-- Evidence: CLAUDE.md 323 active sources (DB 2026-09-02) · V2 curated primary sources · V4 local models on one GPU ·
+     V7 taxonomy · V6 grounding gate · V5 source enforced · #48 monthly link check (dead_links) -->
+<section class="section" id="how" aria-labelledby="how-h">
   <div class="wrap">
-    <span class="eyebrow kicker">Technology &amp; trust</span>
-    <h2 class="section-h" id="trust-h">Built to be checked.</h2>
+    <span class="eyebrow kicker">How it works</span>
+    <h2 class="section-h" id="how-h">Four steps from a source to a sourced article.</h2>
+    <div class="steps reveal">
+      <div class="step">
+        <span class="no">01 · Collect</span>
+        <h3>Primary sources only</h3>
+        <p>RSS feeds of trade media, newsrooms and press wires, plus open datasets for research, patents and public funding. Curated by hand; no aggregator scraping.</p>
+        <span class="tag">323 sources</span>
+      </div>
+      <div class="step">
+        <span class="no">02 · Classify</span>
+        <h3>On local models</h3>
+        <p>Models on our own hardware tag each signal with 8 industry verticals, 6 PESTEL dimensions and a mega/macro/micro horizon. No cloud API in the content pipeline.</p>
+        <span class="tag">8 × 6 × 3 taxonomy</span>
+      </div>
+      <div class="step">
+        <span class="no">03 · Write &amp; check</span>
+        <h3>Short, and gated</h3>
+        <p>A short article per signal, generated locally. A grounding gate holds back any piece that introduces a figure or date not present in its source; held pieces are reviewed, not published.</p>
+        <span class="tag">grounding gate</span>
+      </div>
+      <div class="step">
+        <span class="no">04 · Attribute</span>
+        <h3>The source, always</h3>
+        <p>Every article links to the primary source it was built from - a trend without a source cannot exist in our database. Links are re-checked monthly and marked when they die.</p>
+        <span class="tag">source enforced</span>
+      </div>
+    </div>
+
+    <!-- Evidence: V4 local-first (scope: content pipeline) · privacy policy §7 Resend · V11 SPNP peer-reviewed (H3) ·
+         V13 rates reliable to ~2019 (H6) · H1/H4/H7 no certifications, customers, forecasts · ~100-word articles (owner 2026-08-19) -->
     <div class="pillars reveal" style="margin-top:2.2rem">
       <article class="pillar">
-        <h3>Local-first analysis</h3>
-        <p>Filtering, classification, and our algorithms all run on our own local infrastructure. Cloud is not the operating mode.</p>
-        <div class="ev">Scope · applies to the content pipeline. Account &amp; email data use only reputable processors.</div>
+        <h3>What runs where</h3>
+        <p>Filtering, classification, embeddings and article generation run on local models on our own hardware. Outside processors touch only what the site itself needs: the host that serves these pages and the email service that delivers the newsletter.</p>
+        <div class="ev">Scope · content pipeline local · hosting and newsletter delivery via named processors</div>
       </article>
       <article class="pillar">
-        <h3>Attribution enforced at the data layer</h3>
-        <p>In our database a trend without a source can't physically exist. And a grounding check holds any article that introduces an unsourced figure.</p>
-        <div class="ev">Honesty · no fabricated info reaches publish</div>
+        <h3>What we don't claim</h3>
+        <p>The improvement-rate method we use is published research (SPNP; Singh, Triulzi &amp; Magee, 2021) and others use it too. Absolute rates are reliable only to about 2019, and we say so. No forecasts, no customer logos, no certifications.</p>
+        <div class="ev">Method · peer-reviewed, shared, with stated limits</div>
       </article>
       <article class="pillar">
-        <h3>Tested, backed up, recoverable</h3>
-        <p>Continuous integration runs the suite against a real database on every change; nightly backups have verified restores of 20-million-plus records. Ops maturity, not aspiration.</p>
-        <div class="ev">Reliability · CI &amp; verified restore runbook</div>
+        <h3>Where the limits are</h3>
+        <p>Feed articles are model-written, about a hundred words, from one source each - gated by rules and a second model, not by an editor. The feed is a 30-day window. Analyses are the human part: built, checked and signed by a person.</p>
+        <div class="ev">Feed · automated and gated · Analyses · hand-built</div>
       </article>
-    </div>
-  </div>
-</section>
-
-<!-- ============ DIFFERENTIATION ============ -->
-<section class="section" aria-labelledby="cmp-h">
-  <div class="wrap">
-    <span class="eyebrow kicker">Where it sits</span>
-    <h2 class="section-h" id="cmp-h">Between the black box and the enterprise contract.</h2>
-    <div class="compare reveal">
-      <div class="col">
-        <h3>Keyword trend tools</h3>
-        <span class="who">≈ €0–100 / mo</span>
-        <ul>
-          <li>Watch the market only - the last stop</li>
-          <li>A score with no source behind it</li>
-          <li>Opaque scoring you can't defend</li>
-          <li>No patent or science signal</li>
-        </ul>
-      </div>
-      <div class="col mid">
-        <h3>Catandary</h3>
-        <span class="who">€0 free · €99–799 / mo</span>
-        <ul>
-          <li>The whole chain: science → patents → funding → market</li>
-          <li>Every number one click from its primary source</li>
-          <li>Peer-reviewed scientific method, shown openly</li>
-          <li>Honest gates: withholds what it can't prove</li>
-          <li>Local mode → self-service price</li>
-        </ul>
-      </div>
-      <div class="col">
-        <h3>Enterprise foresight suites</h3>
-        <span class="who">€50k+ / year</span>
-        <ul>
-          <li>Powerful, broad coverage</li>
-          <li>Closed methodology, long procurement</li>
-          <li>Priced for large organisations</li>
-          <li>Rarely traceable to the raw source</li>
-        </ul>
-      </div>
-    </div>
-    <p class="demo-note" style="max-width:60em">Positioning, not a benchmark: the €50k+ and keyword-tool boundaries are our read of the market, offered to show where Catandary aims - not a head-to-head test.</p>
-  </div>
-</section>
-
-<!-- ============ PRICING ============ -->
-<section class="section" id="pricing" aria-labelledby="price-h">
-  <div class="wrap">
-    <span class="eyebrow kicker">Access</span>
-    <h2 class="section-h" id="price-h">Start free. Grow into the engine.</h2>
-    <p class="lede">The free layer is the real product - 60,000+ curated articles and a weekly briefing. The paid tiers open the foresight engine.</p>
-    <div class="prices reveal">
-      <div class="price">
-        <span class="pname">Free</span>
-        <div class="amt">€0</div>
-        <p class="blurb">Curated trend articles from the last 28 days, browsing, search and the weekly newsletter.</p>
-        <ul><li>Trend articles from the last 28 days</li><li>Vertical &amp; PESTEL browsing</li><li>Search</li><li>Weekly newsletter</li><li>Corpus counter &amp; mega-trend teasers</li></ul>
-        <a class="btn btn-primary" href="#subscribe">Start free</a>
-      </div>
-      <div class="price">
-        <span class="pname">Starter</span>
-        <div class="amt">€99<small>/mo</small></div>
-        <p class="blurb">Watch what's moving: the cluster explorer with momentum and evidence.</p>
-        <ul><li>Everything in Free</li><li>Full trend-article archive</li><li>Cluster explorer</li><li>Saved searches &amp; alerts</li></ul>
-        <a class="btn" href="#subscribe">Request early access</a>
-      </div>
-      <div class="price feat">
-        <span class="pname">Pro <span style="color:var(--muted)">· coming soon</span></span>
-        <div class="amt">€499<small>/mo</small></div>
-        <p class="blurb">The foresight edge: lead-time, technology trajectories and export.</p>
-        <ul><li>Everything in Starter</li><li>Technology explorer &amp; lead-time analysis</li><li>Tech improvement metrics</li><li>Trend evolution &amp; lineage</li><li>CSV / dossier export</li></ul>
-        <a class="btn btn-primary" href="#subscribe">Request early access</a>
-      </div>
-      <div class="price">
-        <span class="pname">Super Pro+ <span style="color:var(--muted)">· coming soon</span></span>
-        <div class="amt">€799<small>/mo</small></div>
-        <p class="blurb">Ask the engine your own questions: on-demand analysis and API.</p>
-        <ul><li>Everything in Pro</li><li>On-demand analysis of your scopes</li><li>API access <em>- coming soon</em></li><li>Raw evidence graph</li><li>Custom reports</li></ul>
-        <a class="btn" href="#subscribe">Request early access</a>
-      </div>
-    </div>
-    <div class="hypercare">
-      <div class="hc-l">
-        <div class="amt">Individual Analysis · €1,499<small style="font-family:var(--mono);font-size:.7rem;color:var(--muted)">/day</small></div>
-        <p style="font-size:.85rem;color:var(--muted);margin-top:.4rem">Dedicated, hands-on analyst support tailored to your questions - a bespoke engagement and scope, not a subscription. €999/day from the second engagement.</p>
-      </div>
-      <a class="btn" href="mailto:trends@catandary.de?subject=Catandary%20Individual%20Analysis">Talk to us</a>
     </div>
   </div>
 </section>
@@ -691,12 +511,13 @@
     <span class="eyebrow kicker">Questions</span>
     <h2 class="section-h" id="faq-h">The honest answers.</h2>
     <div class="faq reveal">
-      <details open><summary>Where does the data come from?</summary><p>~250 primary sources - official APIs and open datasets across science, patents, public funding, and market news. No aggregator scraping; every source is curated by hand. Each published trend keeps a working link to the original.</p></details>
-      <details><summary>Is the foresight method proprietary?</summary><p>No - and we'd rather be clear about that. Our Technology Improvement Estimate comes from peer-reviewed research at MIT. Others use it too. Our edge is the data corpus, the calibration, the evidence transparency and the price - not a secret formula.</p></details>
-      <details><summary>How accurate is it - really?</summary><p>On our own corpus the engine recovered known trends bottom-up and matched hand-checked momentum-direction calls against public reality. It withholds absolute improvement rates it can't yet trust and only headlines a number where the data proves it. Direction and shape are the most reliable output; we say so.</p></details>
-      <details><summary>Is my data private?</summary><p>The trend-analysis pipeline runs entirely on local infrastructure - the source corpus never touches a cloud API. If you create an account, the data needed to run it (your email for login and the newsletter and payment status for billing) is processed by EU-based providers. We use no third-party analytics.</p></details>
-      <details><summary>Who is it for?</summary><p>Corporate innovation and foresight teams who need technology data they can defend; investors, agencies and consultants who need cited trend dossiers per client industry; and independent analysts who want data-driven "what's rising" without an enterprise contract.</p></details>
-      <details><summary>What does it cost?</summary><p>The last 28 days of trend articles and the weekly briefing are free. The full archive and the foresight engine are €99 (Starter), €499 (Pro) or €799 (Super Pro+) per month, with a sales-led individual day-rate for bespoke analytics work. The paid tiers are opening in early access.</p></details>
+      <details open><summary>Where does the data come from?</summary><p>323 primary sources: RSS feeds of trade media, newsrooms and press wires, and open datasets for research, patents and public funding. No aggregator scraping; every source is curated by hand, and every published article keeps the link to its original.</p></details>
+      <details><summary>Do you predict trends?</summary><p>No. We read what the sources show: direction, breadth, momentum measured as share of attention, and - for technologies with a deep patent record - an improvement-rate reading up to the year the data can support. What that means for your decision is the analysis; what happens next is not something we forecast.</p></details>
+      <details><summary>Is the method proprietary?</summary><p>No, and we would rather be clear about it. The improvement-rate method is peer-reviewed research from MIT that others use too. What we bring is the corpus, the calibration, the transparency of the evidence, and a person who reads it with you.</p></details>
+      <details><summary>How are the feed articles written?</summary><p>By local language models, about a hundred words each, from a single source signal. A grounding gate holds back any article that introduces a figure or date the source does not contain, and a second model reviews the borderline cases. They are gated, not edited - read them as pointers to the source, and follow the link.</p></details>
+      <details><summary>What does an analysis cost?</summary><p>Every engagement is scoped and quoted individually - there are no tiers and no subscription. Individual analyses have a fixed scope and turnaround agreed up front; Super Pro+ is an ongoing, supported engagement; hands-on analyst days are billed by the day. Write to trends@catandary.de with your question and we will scope it together.</p></details>
+      <details><summary>Is my data private?</summary><p>There is no account to create. The feed and its search run in your browser; we use no analytics and no tracking cookies. If you subscribe to the briefing, your email address is handled by our delivery processor under the terms in the privacy policy - no open or click tracking.</p></details>
+      <details><summary>Who is it for?</summary><p>Innovation, strategy and R&amp;D teams in SMEs and corporates; consultants who need a sourced dossier for a client industry; investors checking a technology or a company. Anyone who has to defend a technology call with sources rather than opinion.</p></details>
     </div>
   </div>
 </section>
@@ -704,9 +525,9 @@
 <!-- ============ FINAL CTA ============ -->
 <section class="section final" id="subscribe" aria-labelledby="final-h">
   <div class="wrap">
-    <span class="eyebrow plain kicker" style="justify-content:center">Foresight you can cite</span>
-    <h2 id="final-h">See it early.<br>Then prove it.</h2>
-    <p class="lede">One email a week: the trends that are rising across science, patents and funding - before they reach the market - each linked to its source.</p>
+    <span class="eyebrow plain kicker" style="justify-content:center">Weekly briefing</span>
+    <h2 id="final-h">One email a week.<br>Every item, sourced.</h2>
+    <p class="lede">What moved across the eight verticals, which themes gained share, and a note when a new analysis is out - each item linked to its source. Weekly from launch; until then, the launch notice.</p>
     <form class="nlform" id="nlform" method="post" novalidate>
       <label for="nl-email" style="position:absolute;left:-999px">Email address</label>
       <input id="nl-email" type="email" name="email" placeholder="you@company.com" autocomplete="email" required>
@@ -745,17 +566,21 @@
   <div class="wrap foot-grid">
     <div class="foot-brand">
       <div class="mark">Catandary <span class="crosshair" aria-hidden="true"></span></div>
-      <p>Evidence-based, local-first trend &amp; foresight intelligence. Reads the whole innovation chain - science to market - and cites its sources.</p>
+      <p>Trend intelligence read from primary sources on local models. A free 30-day feed, and individual analyses built from the full corpus.</p>
     </div>
     <div class="foot-col">
       <h4>Product</h4>
-      <a href="#engine">The engine</a>
-      <a href="#mechanism">How we measure</a>
-      <a href="#pricing">Pricing</a>
+      <a href="/trends" data-live-href="/trends" hidden>Trend feed</a>
+      <a href="/trends/mega" data-live-href="/trends/mega" hidden>Mega Signal Themes</a>
+      <a href="/trends/newsletter" data-live-href="/trends/newsletter" hidden>Newsletter archive</a>
+      <a href="/trends/methodology" data-live-href="/trends/methodology" hidden>Methodology</a>
+      <a href="#free">What's free</a>
+      <a href="#how">How it works</a>
       <a href="#subscribe">Weekly briefing</a>
     </div>
     <div class="foot-col">
       <h4>Company</h4>
+      <a href="mailto:trends@catandary.de?subject=Catandary%20%E2%80%94%20analysis%20request">Request an analysis</a>
       <a href="mailto:trends@catandary.de">Contact</a>
       <a href="#" data-legal="impressum">Impressum</a>
       <a href="#" data-legal="datenschutz">Datenschutz</a>
@@ -763,7 +588,7 @@
   </div>
   <div class="wrap foot-legal">
     <span>© 2026 Catandary · catandary.de</span>
-    <span>Built locally in Germany · runs on our local infrastructure · cites its sources</span>
+    <span>Built in Germany · runs on our own hardware · cites its sources</span>
   </div>
 </footer>
 
@@ -819,16 +644,17 @@
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   /* ---------- count-up ---------- */
-  function fmt(n){ return n.toLocaleString("en-US"); }
+  function fmt(n, m){ return m ? (n/1e6).toFixed(1)+"M" : n.toLocaleString("en-US"); }
   function countUp(el){
     var target = parseInt(el.getAttribute("data-count"),10);
-    if(reduce){ el.textContent = fmt(target); return; }
+    var m = el.getAttribute("data-fmt") === "m";
+    if(reduce){ el.textContent = fmt(target, m); return; }
     var start = null, dur = 1600;
     function tick(ts){
       if(!start) start = ts;
       var p = Math.min((ts-start)/dur, 1);
       var eased = 1 - Math.pow(1-p, 3);
-      el.textContent = fmt(Math.round(target*eased));
+      el.textContent = fmt(Math.round(target*eased), m);
       if(p<1) requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
@@ -864,7 +690,7 @@
     return {ctx:ctx, w:r.width, h:r.height};
   }
 
-  /* ================= HERO: lead-time flow ================= */
+  /* ================= HERO: signal flow ================= */
   (function(){
     var canvas = document.getElementById("flow");
     if(!canvas) return;
@@ -1011,112 +837,6 @@
     var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt=setTimeout(function(){ setup(); if(reduce) draw(0); }, 150); });
   })();
 
-  /* ================= TIR trajectory chart ================= */
-  (function(){
-    var canvas = document.getElementById("tir");
-    if(!canvas) return;
-    // Illustrative curves (0..1 relative rate) - direction/shape drawn from the
-    // validation set; not live figures. lead = [science,patent,funding,market] positions 0..1 on the axis.
-    var DATA = {
-      crispr:  { pts:[.20,.24,.32,.46,.62,.78,.88,.93,.96,.97], rate:"accelerating", verdict:"Accelerating", icon:"↗", color:"#22c55e",
-                 lead:[.22,.40,.60,.72], note:"CRISPR: a steep science-led take-off - the engine reads the acceleration in the citation graph." },
-      solar:   { pts:[.35,.48,.60,.70,.78,.83,.86,.88,.89,.90], rate:"maturing", verdict:"Maturing", icon:"→", color:"#60a5fa",
-                 lead:[.20,.34,.52,.62], note:"Solar PV: a maturing S-curve - fast improvement earlier, flattening as it industrialises." },
-      ml:      { pts:[.22,.26,.30,.38,.50,.66,.82,.92,.97,.99], rate:"accelerating", verdict:"Accelerating", icon:"↗", color:"#d4ff3a",
-                 lead:[.30,.46,.66,.80], note:"Machine learning: a rising cluster and a steep recent trajectory - the engine flags the surge." }
-    };
-    var cur = "crispr";
-    function draw(){
-      var f = fit(canvas), ctx=f.ctx, W=f.w, H=f.h;
-      var d = DATA[cur];
-      ctx.clearRect(0,0,W,H);
-      var padL=8, padR=8, padT=12, padB=16;
-      var pw = W-padL-padR, ph = H-padT-padB;
-      // grid
-      ctx.strokeStyle="rgba(58,61,53,0.4)"; ctx.lineWidth=1;
-      for(var g=0; g<=3; g++){ var y=padT+ph*(g/3); ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+pw,y); ctx.stroke(); }
-      // greyed "unreliable recent years" zone (last ~20%)
-      var cut = 0.80;
-      ctx.fillStyle="rgba(255,255,255,0.035)";
-      ctx.fillRect(padL+pw*cut, padT, pw*(1-cut), ph);
-      ctx.strokeStyle="rgba(138,141,130,0.35)"; ctx.setLineDash([3,3]);
-      ctx.beginPath(); ctx.moveTo(padL+pw*cut,padT); ctx.lineTo(padL+pw*cut,padT+ph); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle="rgba(138,141,130,0.7)"; ctx.font="8px ui-monospace, monospace"; ctx.textBaseline="top";
-      ctx.fillText("not yet reliable", padL+pw*cut+4, padT+2);
-
-      var pts = d.pts, n=pts.length;
-      function X(i){ return padL + pw*(i/(n-1)); }
-      function Y(v){ return padT + ph*(1-v); }
-      // CI band
-      ctx.beginPath();
-      pts.forEach(function(v,i){ var x=X(i), y=Y(Math.min(1,v+0.07)); if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y); });
-      for(var i=n-1;i>=0;i--){ ctx.lineTo(X(i), Y(Math.max(0,pts[i]-0.07))); }
-      ctx.closePath(); ctx.fillStyle = hexA(d.color,0.12); ctx.fill();
-      // line
-      ctx.beginPath();
-      pts.forEach(function(v,i){ var x=X(i), y=Y(v); if(i===0)ctx.moveTo(x,y); else ctx.lineTo(x,y); });
-      ctx.strokeStyle=d.color; ctx.lineWidth=2; ctx.stroke();
-      // end dot
-      ctx.fillStyle=d.color; ctx.beginPath(); ctx.arc(X(n-1), Y(pts[n-1]), 3, 0, 7); ctx.fill();
-
-      // update verdict + lanes + notes
-      var rateEl=document.getElementById("tir-rate"), badge=document.getElementById("tir-badge");
-      rateEl.textContent = d.rate;
-      badge.textContent = d.icon + " " + d.verdict; badge.style.color = d.color;
-      document.getElementById("tir-note").textContent = d.note +
-        " Illustrative shape - the live engine returns the figures.";
-      // lanes
-      var lanes = document.querySelectorAll("#lanes .lane");
-      d.lead.forEach(function(pos, i){
-        var track = lanes[i]; if(!track) return;
-        var fill = track.querySelector(".fill"), dot = track.querySelector(".dot");
-        fill.style.left="0"; fill.style.width=(pos*100)+"%"; fill.style.opacity=".28";
-        dot.style.left=(pos*100)+"%";
-      });
-    }
-    function hexA(hex,a){ var r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return "rgba("+r+","+g+","+b+","+a+")"; }
-    var chips = document.querySelectorAll(".chip[data-tech]");
-    chips.forEach(function(c){
-      c.addEventListener("click", function(){
-        chips.forEach(function(x){ x.setAttribute("aria-pressed","false"); });
-        c.setAttribute("aria-pressed","true");
-        cur = c.getAttribute("data-tech"); draw();
-      });
-    });
-    draw();
-    var rt2; window.addEventListener("resize", function(){ clearTimeout(rt2); rt2=setTimeout(draw,150); });
-  })();
-
-  /* ================= momentum board ================= */
-  (function(){
-    var board = document.getElementById("board");
-    if(!board) return;
-    var CARDS = [
-      {v:"TECH", vc:"#a78bfa", name:"Machine Learning · Deep Learning", dir:"up", pp:"+6.3 pp", spark:[3,3,4,4,5,6,7,9,10,12]},
-      {v:"FOOD", vc:"#f97316", name:"Functional Beverages · Health", dir:"up", pp:"+4.9 pp", spark:[4,4,5,5,6,7,7,8,9,10]},
-      {v:"TECH", vc:"#a78bfa", name:"Chip Design · Semiconductor", dir:"up", pp:"+2.4 pp", spark:[6,6,6,7,7,7,8,8,9,9]},
-      {v:"HEALTH", vc:"#34d399", name:"Gut Microbiome · Nutrition", dir:"up", pp:"+1.5 pp", spark:[5,5,6,6,6,7,7,7,8,8]},
-      {v:"ECO", vc:"#22d3ee", name:"Carbon Capture · Climate Policy", dir:"up", pp:"+1.0 pp", spark:[4,5,5,5,6,6,6,7,7,7]},
-      {v:"TECH", vc:"#a78bfa", name:"Electric Vehicles · Automotive", dir:"down", pp:"−2.5 pp", spark:[9,9,8,8,8,7,7,6,6,6]}
-    ];
-    function spark(vals, color){
-      var w=96,h=26,max=Math.max.apply(null,vals),min=Math.min.apply(null,vals),rng=(max-min)||1;
-      var pts = vals.map(function(v,i){ var x=i/(vals.length-1)*(w-4)+2; var y=h-2-((v-min)/rng)*(h-6); return x.toFixed(1)+","+y.toFixed(1); }).join(" ");
-      var last = pts.split(" ").pop().split(",");
-      return '<svg class="mspark" viewBox="0 0 '+w+' '+h+'" fill="none" aria-hidden="true"><polyline points="'+pts+'" stroke="'+color+'" stroke-width="1.6"/><circle cx="'+last[0]+'" cy="'+last[1]+'" r="2" fill="'+color+'"/></svg>';
-    }
-    board.innerHTML = CARDS.map(function(c){
-      var up = c.dir==="up";
-      var col = up? "#22c55e":"#ef4444";
-      var glyph = up? "↗":"↘";
-      return '<article class="mcard" style="--vc:'+c.vc+'">'
-        + '<span class="vv">'+c.v+'</span>'
-        + '<h3>'+c.name+'</h3>'
-        + '<div class="mrow"><span class="mom '+(up?"up":"down")+'">'+glyph+' '+(up?"Rising":"Declining")+' · '+c.pp+'</span>'
-        + spark(c.spark, col) + '</div></article>';
-    }).join("");
-  })();
-
   /* ================= newsletter signup (double opt-in) =================
      NL_ENDPOINT = null  → the backend is not live yet. The form then says so
      honestly and offers email instead. It NEVER claims a signup that did not
@@ -1192,7 +912,21 @@
     });
   })();
 
-  /* ================= launch countdown ================= */
+  /* ================= launch countdown + feed links =================
+     Links into the exported app (/trends, /trends/mega, ...) are 404 until
+     the static export is uploaded. They therefore go live at the same instant
+     as the countdown's "We are live" state: pre-launch, [data-live-href]
+     elements are either hidden or point at #subscribe (launch notice); at
+     launch goLive() sets their real href, swaps the label and unhides them.
+     To open the feed earlier, move the target date below - one place. */
+  function goLive(){
+    document.querySelectorAll("[data-live-href]").forEach(function(a){
+      a.setAttribute("href", a.getAttribute("data-live-href"));
+      a.hidden = false;
+      var lbl = a.querySelector("[data-live-label]");
+      if(lbl) lbl.textContent = lbl.getAttribute("data-live-label");
+    });
+  }
   (function(){
     var target = new Date("2026-10-01T09:00:00+02:00").getTime(); /* 01 Oct 2026, 09:00 CEST */
     var box = document.getElementById("countdown");
@@ -1204,6 +938,7 @@
       var diff = target - Date.now();
       if(diff <= 0){
         box.innerHTML = '<span class="cd-live"><span class="live-dot" aria-hidden="true"></span>We are live</span>';
+        goLive();
         return;
       }
       var sec = Math.floor(diff/1000);
