@@ -27,6 +27,18 @@
 >   (3 katalogfremde, nicht existierende URLs im Roh-Bericht) bleibt der offene Prüfpunkt.
 >   Dauer 477 s Recherche / 568 s Wandzeit. **Weiterhin offen:** §1 weitere Domänen, `lang=de`-Streichungen.
 
+> **Nachtrag 04.09.2026 — #67 Query-Quality-Gate der Technologie-Suche** (`docs/tech_query_gate_2026-09-04.md`):
+> - Gemessen statt geraten: 26 Technologien / 25 Unsinns-/Alltagsanfragen / 8 graue Phrasen mit Live-Vektoren
+>   (Fixture `tests/fixtures/tech_query_gate.json`). Nächst-Distanz, Margin und Sektions-Streuung trennen
+>   NICHT; der **20. Nachbar (d20)** trennt mit Lücke (tech ≤ 0,343, Unsinn ≥ 0,381) → `D20_MAX = 0,36`;
+>   zweites Signal Titel-Index (`patent_search`, GIN), drittes der Wort-Feld-Abgleich (→ `ambiguous`).
+> - `pipeline/query_gate.py` + `scripts/tech_analyze.py` (Gate vor jeder Zahl, `--query --codes` = Feld-Pick,
+>   Vektor-Cache), `analyze`-Route (`?q=&codes=`), `TechnologyTool` (Rückfrage mit Vorschlägen / Feldwahl).
+> - Akzeptanz: 0 falsche Freigaben (25/25 Unsinn → Rückfrage), 25/26 Technologien `ok`, der 26. ist der
+>   Issue-Fall „quantum error correction" → Feldwahl G06N vs. H03M; Beispiel-Chips unverändert; Gate-Overhead
+>   0,03–0,33 s. 18 pytest + 8 Vitest. **Offen:** breite Ein-Wort-Begriffe („blockchain", d20 0,396) fallen
+>   auf die Unsinns-Seite der Lücke; Embedding-Modellwechsel = Fixture neu messen (`scripts/measure_query_gate.py`).
+
 Vollständiges Audit aller offenen Issues in der Nacht 2026-08-28 (Referenz `main` = `a6455bf`).
 Jede Aussage gegen Code, DB, crontab und die laufende Instanz (:3001) geprüft.
 **Ergebnis: 14 geschlossen, 1 neu (#94) → Backlog 36 → 23 offen.**

@@ -679,6 +679,11 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
 /trends/mega, /trends/mega/[m]   → „Mega Signal Themes"-Übersicht (28 kuratierte Themes; „Megatrend" ist verdientes, gemessenes Badge — 12 Keys, Regel in scripts/measure_mega_axes.py) + Detail
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
   /radar /clusters /technology /lead-time /evolution /dossier
+    (Technologie-Suche: Query-Quality-Gate #67 seit 2026-09-04, `pipeline/query_gate.py` — eine Anfrage
+     bekommt nur dann eine Zahl, wenn ihre 20 nächsten CPC-Klassen alle unter d20 ≤ 0,36 liegen UND
+     mindestens ein Patenttitel alle Terme enthält; weicht das Wort-Feld der Titeltreffer (≥ 40 %) vom
+     Embedding-Feld ab → Feldwahl statt stiller Zuordnung, sonst → „keine Technologie-Signatur" mit
+     2–3 nächsten echten Feldern. Herleitung + Messtabelle: `docs/tech_query_gate_2026-09-04.md`)
   /research /patents               (Research-/Patent-Explorer)
   /ventures, /ventures/company/[id] → Startup Explorer (#87, seit 2026-08-23):
                                      Firmen-Korpus mit Evidenz-Timeline + Brücken
