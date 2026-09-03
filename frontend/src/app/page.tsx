@@ -351,13 +351,13 @@ export default async function LandingPage() {
               </div>
               <div className="lp-col mid">
                 <h3>Catandary</h3>
-                <span className="lp-who">€0 free · €99–799 / mo</span>
+                <span className="lp-who">free feed · analyses quoted per engagement</span>
                 <ul>
                   <li>The whole chain: science → patents → funding → market</li>
                   <li>Every number one click from its primary source</li>
                   <li>Peer-reviewed scientific method, shown openly</li>
                   <li>Honest gates: withholds what it can&apos;t prove</li>
-                  <li>Local mode → self-service price</li>
+                  <li>Runs on our own hardware — no cloud, no platform fee</li>
                 </ul>
               </div>
               <div className="lp-col">
