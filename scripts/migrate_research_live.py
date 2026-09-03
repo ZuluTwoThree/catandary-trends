@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Migration für die Live-API-Features des Research Explorers (#83).
 
-Additiv + idempotent (Muster: migrate_accounts.py — NICHT in init_db,
+Additiv + idempotent (Muster: migrate_dead_links.py — NICHT in init_db,
 auf Prod-DBs manuell nachziehen, siehe docs/issue_status.md Migrationslücke).
 
 - research_live_cache: Server-Cache für OpenAlex-Live-Antworten (Singleton,
   cites:-Listen, Spotlights, Latest-Listen). Cache-Hits kosten kein
   Tages-Budget des Nutzers.
 - research_live_usage: 25-Live-Abfragen/Tag-Zähler je Account (Owner-Regel
-  2026-08-16: Live-API = Super-Pro-Feature; Dev/Admins unbegrenzt).
+  2026-08-16). Seit #93 (keine Accounts, 2026-09-03) vom Frontend nicht mehr
+  referenziert — Tabelle bleibt stehen, wird nicht gedroppt.
 - research_funders / research_institutions: kleine Distinct-Aggregate für
   das lokale Typeahead (aus den Topic-Aggregaten, keine API nötig).
 

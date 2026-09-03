@@ -2,8 +2,8 @@
 """dead_links schema for source-link-rot monitoring (#48).
 
 Self-contained additive migration — NOT wired into db.init_db (same pattern as
-scripts/migrate_accounts.py). A single small table instead of an ALTER on the
-45 GB trends table:
+scripts/migrate_research_live.py). A single small table instead of an ALTER on
+the 45 GB trends table:
 
   dead_links   — one row per source_url currently flagged dead by
                  scripts/check_source_links.py --mark. check_count only
@@ -14,8 +14,9 @@ scripts/migrate_accounts.py). A single small table instead of an ALTER on the
 ⚠️  WICHTIG — bekannte Falle in diesem Repo: additive Migrationsskripte wie
 dieses laufen NIE automatisch auf der Live-DB (sie sind bewusst nicht in
 db.init_db() verdrahtet, damit ein Merge die laufende Pipeline nicht anfasst).
-migrate_accounts.py ist dieselbe Falle real getreten: sub_event_at fehlte auf
-der Live-DB und crashte den Stripe-Webhook, bis es von Hand nachgezogen wurde.
+Die frühere Accounts-Migration (2026-07-19, Auth/Stripe seit #93 entfernt) ist
+in dieselbe Falle real getreten: eine Spalte fehlte auf der Live-DB und crashte
+den Webhook, bis sie von Hand nachgezogen wurde.
 
 Nach diesem Merge muss jemand dieses Skript EINMAL MANUELL gegen die
 Produktions-DB ausführen, z.B. auf dem Host, auf dem DATABASE_URL bereits in

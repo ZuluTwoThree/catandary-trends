@@ -246,9 +246,10 @@ log "search index: $INDEX_ENTRIES entries, $((INDEX_BYTES / 1024)) KB raw, $((IN
 DRAFTS=$( (grep -rl --include='*.html' --include='*.txt' -F '"status":"draft"' "$RAW" || true) | wc -l)
 [ "$DRAFTS" = "0" ] || die "$DRAFTS files carry a draft status in their payload"
 
-# Informational: known leftovers are the landing copy's Foresight/pricing
-# links (#93 Etappe 4 — owner copy; _landing_preview.html is not uploaded).
-for needle in 'localhost' '/api/' '/trends/foresight' '/trends/pricing'; do
+# Informational: the known leftover is the landing copy's Foresight links
+# (owner-instance copy; the export's root index.html is not uploaded).
+# /trends/pricing and /account no longer exist in the tree (#93, 2026-09-03).
+for needle in 'localhost' '/api/' '/trends/foresight'; do
   n=$( (grep -rl --include='*.html' -F -- "$needle" "$RAW" || true) | wc -l)
   log "html files containing '$needle': $n"
 done
