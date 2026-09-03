@@ -69,6 +69,17 @@ Jede Aussage gegen Code, DB, crontab und die laufende Instanz (:3001) geprüft.
   versteckt die zugehörigen Links/Teaser; ungesetzt ändert sich nichts. Live gegen die echte DB
   verifiziert (25/25 → 404, Bleibt-öffentlich → 200). Offen: Landing-Copy, physischer
   Auth/Stripe-Rückbau, Etappe 2 (`/analysis`, `/enquiry`).
+- **#93 physischer Rückbau (03.09.):** Auth (Magic-Link, Session-Cookie, `/account*`, `/api/auth/*`),
+  Stripe (`/api/stripe/*`, `lib/stripe.ts` — war dependency-frei, kein npm-Paket), Tiers/Entitlements
+  (`lib/tiers.ts`, `lib/entitlement.ts`, `TierGate`, `/trends/pricing`) und das 28-Tage-Paywall-Fenster
+  (#70) sind aus dem Code; ebenso `scripts/migrate_accounts.py` + `set_user_tier.py`. Foresight-Seiten
+  und `/api/foresight/*` sind ungegated (Owner sieht alles), `review-access.ts` = „lokal ja,
+  PUBLIC_MODE/Export nie" (`REVIEW_ENABLED` entfällt), `openalex-live.ts` ohne Account-Budget.
+  Blockliste `publicMode.ts`/`proxy.ts`/`static-export.exclude` nur noch Foresight + Review +
+  `/api/foresight`. Landing (`page.tsx`): Preistabelle → sales-led „Access"-Sektion (→ `/enquiry`),
+  Privacy ohne Account-/Payments-Abschnitte. `AUTH_SECRET` bleibt (Newsletter-Abmelde-HMAC).
+  DB-Tabellen `app_users`/`magic_tokens`/`research_live_usage` bleiben ungenutzt stehen (kein DROP).
+  tsc 0 Fehler (die 5 `stripe.test.ts`-Fehler sind mit der Datei weg), vitest/eslint/pytest grün.
 
 *(Details und Testergebnisse: Commits auf `issue-audit` + Status-Kommentare in den Issues.)*
 

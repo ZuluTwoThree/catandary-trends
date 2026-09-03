@@ -613,7 +613,7 @@ cross_industry:
 - **Framework:** Next.js 16 (App Router, Turbopack-Dev) + TypeScript + React 19
 - **Styling:** Tailwind CSS v4 (`@theme`-Tokens in `frontend/src/app/globals.css` — Designsystem „Editorial Intelligence": IBM Plex Serif/Mono/Sans, Ink `#0a0c0a`, Akzent Chartreuse `#d4ff3a`, scharfe Kanten)
 - **DB-Anbindung:** eigener `pg`-Layer (`frontend/src/lib/pg.ts` + `db.ts`) auf PostgreSQL/pgvector, Socket-Default (kein Drizzle); teure Aggregat-Queries laufen über einen In-Process-TTL-Cache in `db.ts`
-- **Auth/Paywall:** Magic-Link-Auth (`lib/auth.ts`) + Tier-Entitlements (`lib/entitlement.ts`, `lib/tiers.ts`, `TierGate`), Stripe-Checkout/Webhook; alles hinter `AUTH_ENABLED`/`PAYWALL_ENABLED` (Gates aus = alles offen). **Per #93 (kein SaaS, Owner 26.08.) zum Rückbau bestimmt** (Welle 3 in `docs/launch/09_launch_plan_2026-09-02.md`); bis dahin blendet `PUBLIC_MODE=1` (`frontend/src/proxy.ts`, Blockliste `lib/publicMode.ts`) `/account*`, `/trends/foresight*`, `/trends/review*`, `/trends/quality-preview*`, `/trends/pricing`, `/api/auth*`, `/api/stripe*`, `/api/foresight*` als 404 aus
+- **Auth/Paywall:** **entfernt 2026-09-03 (#93, kein SaaS — Owner 26.08.)**. Magic-Link-Auth, Tier-Entitlements, `TierGate`, Stripe-Checkout/Webhook, `/account*`, `/trends/pricing`, `/api/auth*`, `/api/stripe*` sowie `scripts/migrate_accounts.py`/`set_user_tier.py` sind physisch aus dem Code; die DB-Tabellen `app_users`/`magic_tokens`/`research_live_usage` bleiben ungenutzt stehen (kein DROP). Es gibt keine Accounts: die Owner-Instanz sieht alles, der Review-Guard (`lib/review-access.ts`) ist nur noch „lokal ja, `PUBLIC_MODE`/Export nie" (`REVIEW_ENABLED` entfällt). `AUTH_SECRET` bleibt — er signiert die Newsletter-Abmelde-HMAC (`lib/unsubscribe.ts`). `PUBLIC_MODE=1` (`frontend/src/proxy.ts`, Blockliste `lib/publicMode.ts`) blendet nur noch `/trends/foresight*`, `/trends/review*`, `/trends/quality-preview*`, `/api/foresight*` als 404 aus und fenstert den Feed auf `PUBLIC_WINDOW_DAYS` (`lib/archiveWindow.ts`, `archiveWindowDays()`); das frühere 28-Tage-Paywall-Fenster (#70) ist weg
 - **Hosting (Ist 2026-09-02):** **Es gibt keinen VPS.** `catandary.de` = statische Landing (`docs/launch/preview.html`) auf dem bestehenden Hetzner-**Webhosting** (Shared Webspace, kein Node); die Next-App läuft nur lokal auf der Workstation, Port 3001 via systemd user unit `catandary-frontend` — `/trends` & Co. sind öffentlich 404. **Owner-Entscheid 02.09.: öffentliche Website = statischer Export (`next build` mit `output: 'export'`) aufs Webhosting** — Design `docs/audits/2026-09-02_static_export_design.md`, Plan `docs/launch/09_launch_plan_2026-09-02.md` (#82-Neuschnitt, Welle 2). Der VPS-Pfad (`docs/launch/HOSTING_PUBLIC_VPS.md`) ist damit verworfen.
 - **Reverse Proxy:** keiner im Einsatz — `deploy/Caddyfile` ist ein Relikt der verworfenen VPS-Planung (s. „Deployment" unten)
 - **Laufende Instanzen (Workstation, 02.09.):** `:3001` = `next start` aus `~/projects/catandary-trends` (main, systemd, ohne `PUBLIC_MODE`); `:3004` = `next dev` aus `~/projects/ct-dev` (dev, **ohne** `PUBLIC_MODE`); `:3999` = `next dev` aus `ct-dev` mit `PUBLIC_MODE=1 NEXT_DIST_DIR=.next-public` = **die PUBLIC_MODE-Vorschau** (nicht :3004). Start (in tmux, keine systemd-Unit dafür): `cd ~/projects/ct-dev/frontend && PUBLIC_MODE=1 NEXT_DIST_DIR=.next-public npx next dev --turbopack -p 3999` — `NEXT_DIST_DIR` ist seit `21b3059` nötig, weil Next 16 `.next/dev` pro Verzeichnis lockt (zweiter Dev-Server aus demselben Worktree)
@@ -669,7 +669,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
 ### Routing (Ist-Stand 2026-07-23)
 
 ```
-/                                → Landing („The Instrument", Wertversprechen + Pricing-Teaser)
+/                                → Landing („The Instrument", Wertversprechen + sales-led „Access"-Sektion → /enquiry; keine Preise)
 /trends                          → Hauptfeed (Card-Grid, Filter-Bar inkl. Suche ?q= — es gibt KEINE separate /trends/search-Route)
 /trends/[slug]                   → Einzelner Trend-Artikel
 /trends/vertical/[v]             → Redirect auf /trends?v=<VERTICAL> (im statischen Export nicht gebaut; Apache-301 auf /trends/v/<v>)
@@ -682,15 +682,12 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
   /research /patents               (Research-/Patent-Explorer)
   /ventures, /ventures/company/[id] → Startup Explorer (#87, seit 2026-08-23):
                                      Firmen-Korpus mit Evidenz-Timeline + Brücken
-                                   (Tier-gegated: radar+clusters=Starter, technology+lead-time+
-                                    evolution+dossier=Pro, On-Demand-Analyzer=Super Pro+;
-                                    Free-Teaser bleibt sichtbar — „gate at the value drill-down")
+                                   (ungegated — Owner-Werkzeug; im PUBLIC_MODE/Export 404.
+                                    Tier-Gates + Free-Teaser entfernt 2026-09-03, #93)
 /trends/methodology              → Methodik-/Trust-Seite
-/trends/pricing                  → Pläne (Stripe-Checkout wenn konfiguriert)
 /trends/newsletter (+/unsubscribe) → Newsletter-Signup/-Abmeldung (lokal Client-Seite mit ?year=&week=)
 /trends/newsletter/<jahr>-w<kw>, /trends/newsletter/unsubscribed
                                  → nur im statischen Export: Editions-Archiv (letzte 12) + Abmelde-Bestätigung (lib/newsletterEditions.ts); lokal 404 bzw. unverlinkt
-/account, /account/signin        → Konto + Magic-Link-Login (nur bei AUTH_ENABLED=1)
 /imprint, /privacy, /enquiry     → Rechtstexte + Anfrage (mailto); im Export unter /trends/… (s. o.), da der Publisher den Webroot nie schreibt
 ```
 
