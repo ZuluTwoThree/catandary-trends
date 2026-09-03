@@ -51,14 +51,47 @@ export interface DossierSeries {
   latestAt: string | null;
 }
 
+/** Evidence mix of one run, as scripts/corpus_research.py counts it. */
+export type EvidenceKind = "article" | "signal" | "paper" | "patent" | "web";
+
+/** Provenance header of a run — what the report is a snapshot OF. */
+export interface DossierProvenance {
+  finishedAt: string | null;
+  kinds: Record<EvidenceKind, number>;
+  sources: number;
+  cited: number;
+  stripped: number;
+  retrieval: string | null;
+  scope: string | null;
+  seconds: number | null;
+  lang: string | null;
+  /** pipeline/dossier_quant.py summary (null: run without measurement). */
+  quant: Record<string, unknown> | null;
+}
+
+/** One audited gap and where the run looked for it (coverage ledger). */
+export interface DossierLedgerRow {
+  gap: string;
+  papers: number;
+  patents: number;
+  webQueries: string[];
+  webSources: number;
+  webFetched: number;
+}
+
 export interface DossierDoc {
   slug: string;
   version: number;
   topic: string | null;
   question: string;
+  /** The report's own `# Title` line, if it has one. */
+  reportTitle: string | null;
+  /** Report Markdown without that title line (the page renders the h1). */
   reportMd: string;
   createdAt: string | null;
   model: string | null;
+  provenance: DossierProvenance;
+  ledger: DossierLedgerRow[];
 }
 
 export async function dossierTablesReady(): Promise<boolean> {
@@ -188,6 +221,88 @@ export async function listVersions(
   }
 }
 
+const KINDS: EvidenceKind[] = ["article", "signal", "paper", "patent", "web"];
+
+function num(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseKinds(raw: unknown): Record<EvidenceKind, number> {
+  const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return Object.fromEntries(KINDS.map((k) => [k, num(o[k]) ?? 0])) as Record<
+    EvidenceKind,
+    number
+  >;
+}
+
+function parseLedger(raw: unknown): DossierLedgerRow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((row) => {
+    const o = row && typeof row === "object" ? (row as Record<string, unknown>) : {};
+    return {
+      gap: String(o.gap ?? ""),
+      papers: num(o.papers) ?? 0,
+      patents: num(o.patents) ?? 0,
+      webQueries: Array.isArray(o.web_queries) ? o.web_queries.map(String) : [],
+      webSources: num(o.web_sources) ?? 0,
+      webFetched: num(o.web_fetched) ?? 0,
+    };
+  });
+}
+
+/** Split a leading `# Title` off the report so the page owns the h1. */
+export function splitReportTitle(md: string): { title: string | null; body: string } {
+  const m = /^\s*#\s+(.+?)\s*#*\s*(?:\r?\n|$)/.exec(md);
+  if (!m) return { title: null, body: md };
+  return { title: m[1].trim(), body: md.slice(m[0].length).replace(/^\s*\n/, "") };
+}
+
+// The result JSON also carries the full evidence notes, the trace and the
+// raw report — several hundred KB per run. Only the provenance paths are
+// read here; the report body is the one big column the page needs.
+const DOC_SELECT = `SELECT slug, version, topic, question, report_md, model,
+         created_at::text AS created_at,
+         result->'kinds'                                     AS kinds,
+         jsonb_array_length(coalesce(result->'sources', '[]')) AS n_sources,
+         jsonb_array_length(coalesce(result->'cited',   '[]')) AS n_cited,
+         result->>'stripped_citations'                       AS stripped,
+         result->>'retrieval' AS retrieval, result->>'scope' AS scope,
+         result->>'seconds'   AS seconds,   result->>'finished_at' AS finished_at,
+         result->>'lang'      AS lang,      result->'quant' AS quant,
+         result->'ledger'     AS ledger
+    FROM dossiers`;
+
+function toDoc(r: Record<string, unknown>): DossierDoc {
+  const { title, body } = splitReportTitle(String(r.report_md ?? ""));
+  const quant =
+    r.quant && typeof r.quant === "object" ? (r.quant as Record<string, unknown>) : null;
+  return {
+    slug: String(r.slug),
+    version: Number(r.version),
+    topic: r.topic ? String(r.topic) : null,
+    question: String(r.question ?? ""),
+    reportTitle: title,
+    reportMd: body,
+    createdAt: r.created_at ? String(r.created_at) : null,
+    model: r.model ? String(r.model) : null,
+    provenance: {
+      finishedAt: r.finished_at ? String(r.finished_at) : null,
+      kinds: parseKinds(r.kinds),
+      sources: num(r.n_sources) ?? 0,
+      cited: num(r.n_cited) ?? 0,
+      stripped: num(r.stripped) ?? 0,
+      retrieval: r.retrieval ? String(r.retrieval) : null,
+      scope: r.scope ? String(r.scope) : null,
+      seconds: num(r.seconds),
+      lang: r.lang ? String(r.lang) : null,
+      quant,
+    },
+    ledger: parseLedger(r.ledger),
+  };
+}
+
 export async function getDossier(
   slug: string,
   version?: number
@@ -195,28 +310,14 @@ export async function getDossier(
   try {
     const r = version
       ? await q1<Record<string, unknown>>(
-          `SELECT slug, version, topic, question, report_md, model,
-                  created_at::text AS created_at
-             FROM dossiers WHERE slug = $1 AND version = $2`,
+          `${DOC_SELECT} WHERE slug = $1 AND version = $2`,
           [slug, version]
         )
       : await q1<Record<string, unknown>>(
-          `SELECT slug, version, topic, question, report_md, model,
-                  created_at::text AS created_at
-             FROM dossiers WHERE slug = $1
-            ORDER BY version DESC LIMIT 1`,
+          `${DOC_SELECT} WHERE slug = $1 ORDER BY version DESC LIMIT 1`,
           [slug]
         );
-    if (!r) return null;
-    return {
-      slug: String(r.slug),
-      version: Number(r.version),
-      topic: r.topic ? String(r.topic) : null,
-      question: String(r.question ?? ""),
-      reportMd: String(r.report_md ?? ""),
-      createdAt: r.created_at ? String(r.created_at) : null,
-      model: r.model ? String(r.model) : null,
-    };
+    return r ? toDoc(r) : null;
   } catch {
     return null;
   }
@@ -227,7 +328,6 @@ export function slugifyTopic(text: string): string {
   const ascii = text
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
-    // eslint-disable-next-line no-control-regex
     .replace(/[^\x00-\x7F]/g, "");
   const slug = ascii
     .toLowerCase()
@@ -250,6 +350,44 @@ export async function createDossierOrder(input: {
   const slug = slugifyTopic(input.slug?.trim() || topic);
   const question = input.question?.trim() || null;
   const params = JSON.stringify(input.quant ? {} : { quant: false });
+  const row = await q1<{ id: number }>(
+    `INSERT INTO dossier_orders (slug, topic, question, params_json)
+     VALUES ($1, $2, $3, $4) RETURNING id`,
+    [slug, topic, question, params]
+  );
+  return row?.id ?? null;
+}
+
+/**
+ * "Neu rechnen": a fresh order slip for an existing series — same slug, same
+ * topic/question/params as its latest order, so the run lands as the next
+ * version. Series that only ever ran from the CLI (no order slip) are
+ * re-ordered from the stored dossier's topic and question; a company-mode
+ * run (--company) is then re-run as a topic dossier on that question.
+ */
+export async function createRerunOrder(slug: string): Promise<number | null> {
+  if (!/^[a-z0-9-]{1,80}$/.test(slug)) return null;
+  const last = await q1<{ topic: string; question: string | null; params_json: string }>(
+    `SELECT topic, question, params_json FROM dossier_orders
+      WHERE slug = $1 ORDER BY id DESC LIMIT 1`,
+    [slug]
+  );
+  let topic: string;
+  let question: string | null;
+  let params = "{}";
+  if (last) {
+    ({ topic, question } = last);
+    params = last.params_json || "{}";
+  } else {
+    const d = await q1<{ topic: string | null; question: string }>(
+      `SELECT topic, question FROM dossiers WHERE slug = $1
+        ORDER BY version DESC LIMIT 1`,
+      [slug]
+    );
+    if (!d) return null;
+    topic = d.topic?.trim() || slug;
+    question = d.question?.trim() || null;
+  }
   const row = await q1<{ id: number }>(
     `INSERT INTO dossier_orders (slug, topic, question, params_json)
      VALUES ($1, $2, $3, $4) RETURNING id`,

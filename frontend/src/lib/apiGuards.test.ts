@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { isSameOrigin, allowedHosts, readJsonBody } from "./apiGuards";
+import { isSameOrigin, isSameOriginHeaders, allowedHosts, readJsonBody } from "./apiGuards";
 
 function req(headers: Record<string, string>, init: RequestInit = {}): Request {
   return new Request("http://app.local/api/x", { method: "POST", headers, ...init });
@@ -81,5 +81,17 @@ describe("readJsonBody", () => {
 
   it("treats an empty body as bad request", async () => {
     expect(await readJsonBody(req({}), 1024)).toMatchObject({ ok: false, status: 400 });
+  });
+});
+
+describe("isSameOriginHeaders (Server Actions)", () => {
+  it("behaves like isSameOrigin on a bare Headers object", () => {
+    expect(
+      isSameOriginHeaders(new Headers({ host: "localhost:3004", origin: "http://localhost:3004" }))
+    ).toBe(true);
+    expect(
+      isSameOriginHeaders(new Headers({ host: "localhost:3004", origin: "https://evil.example" }))
+    ).toBe(false);
+    expect(isSameOriginHeaders(new Headers({ host: "localhost:3004" }))).toBe(false);
   });
 });

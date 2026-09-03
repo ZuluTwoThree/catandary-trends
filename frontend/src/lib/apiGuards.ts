@@ -14,6 +14,15 @@
 
 /** Hosts a browser request to this app may legitimately originate from. */
 export function allowedHosts(request: Request): Set<string> {
+  return allowedHostsFromHeaders(request.headers);
+}
+
+/**
+ * Same, from a bare Headers object — what a Server Action gets from
+ * `headers()` (next/headers); it has no Request to hand over. The dossier
+ * desk's actions (#95) start GPU work, so they run this check too.
+ */
+export function allowedHostsFromHeaders(headers: Headers): Set<string> {
   const hosts = new Set<string>();
   const base = process.env.PUBLIC_BASE_URL;
   if (base) {
@@ -24,7 +33,7 @@ export function allowedHosts(request: Request): Set<string> {
     }
   }
   for (const name of ["x-forwarded-host", "host"]) {
-    const v = request.headers.get(name);
+    const v = headers.get(name);
     if (v) hosts.add(v.split(",")[0].trim().toLowerCase());
   }
   return hosts;
@@ -46,9 +55,14 @@ function hostOf(url: string | null): string | null {
  * this only ever rejects non-browser callers that did not bother to set it.
  */
 export function isSameOrigin(request: Request): boolean {
-  const allowed = allowedHosts(request);
+  return isSameOriginHeaders(request.headers);
+}
+
+/** `isSameOrigin` for a bare Headers object (Server Actions). */
+export function isSameOriginHeaders(headers: Headers): boolean {
+  const allowed = allowedHostsFromHeaders(headers);
   if (allowed.size === 0) return false;
-  const origin = request.headers.get("origin");
+  const origin = headers.get("origin");
   if (origin !== null) {
     // "null" is what browsers send for opaque origins (sandboxed frames,
     // file://, redirects across origins) — never one of ours.
@@ -56,7 +70,7 @@ export function isSameOrigin(request: Request): boolean {
     const h = hostOf(origin);
     return h !== null && allowed.has(h);
   }
-  const ref = hostOf(request.headers.get("referer"));
+  const ref = hostOf(headers.get("referer"));
   return ref !== null && allowed.has(ref);
 }
 

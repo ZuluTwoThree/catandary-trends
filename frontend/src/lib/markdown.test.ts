@@ -109,3 +109,40 @@ describe("parseInline — bold and links", () => {
     expect(parseInline("")).toEqual([]);
   });
 });
+
+describe("parseMarkdown — pipe tables (#95 dossier reports)", () => {
+  it("parses a header, a separator and body rows into a table block", () => {
+    const src = [
+      "| Actor | Claim | Status |",
+      "| :--- | :--- | :--- |",
+      "| **Perfect Day** | whey | shipping [x](https://a.example/) |",
+      "| New Culture | casein | not shipping |",
+    ].join("\n");
+    expect(parseMarkdown(src)).toEqual([
+      {
+        type: "table",
+        header: ["Actor", "Claim", "Status"],
+        rows: [
+          ["**Perfect Day**", "whey", "shipping [x](https://a.example/)"],
+          ["New Culture", "casein", "not shipping"],
+        ],
+      },
+    ]);
+  });
+
+  it("pads and truncates ragged rows to the header width", () => {
+    const src = "| a | b |\n|---|---|\n| 1 |\n| 2 | 3 | 4 |";
+    expect(parseMarkdown(src)).toEqual([
+      { type: "table", header: ["a", "b"], rows: [["1", ""], ["2", "3"]] },
+    ]);
+  });
+
+  it("ends the table at the first non-row line and keeps a pipe line without separator as text", () => {
+    const src = "| a | b |\n|---|---|\n| 1 | 2 |\nAfter.\n\n| lone | row |";
+    expect(parseMarkdown(src)).toEqual([
+      { type: "table", header: ["a", "b"], rows: [["1", "2"]] },
+      { type: "paragraph", text: "After." },
+      { type: "paragraph", text: "| lone | row |" },
+    ]);
+  });
+});

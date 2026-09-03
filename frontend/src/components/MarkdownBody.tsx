@@ -111,6 +111,41 @@ export default function MarkdownBody({ source }: { source: string }) {
           );
         }
 
+        if (block.type === "table") {
+          // Wide tables scroll inside their own box — the page body must
+          // never scroll horizontally.
+          return (
+            <div key={i} className="mb-6 overflow-x-auto border border-border">
+              <table className="w-full border-collapse text-left text-[13px] leading-[1.55] font-sans">
+                <thead>
+                  <tr className="border-b border-border bg-card">
+                    {block.header.map((h, j) => (
+                      <th
+                        key={j}
+                        scope="col"
+                        className="px-3 py-2 align-top font-mono text-[10px] uppercase tracking-[0.14em] text-muted"
+                      >
+                        <Inline nodes={parseInline(h)} />
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {block.rows.map((row, r) => (
+                    <tr key={r} className="border-b border-border last:border-b-0 align-top">
+                      {row.map((cell, c) => (
+                        <td key={c} className="px-3 py-2 text-text">
+                          <Inline nodes={parseInline(cell)} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
         return (
           <p key={i} className={`${TEXT_CLASS} mb-5`}>
             <Inline nodes={parseInline(block.text)} />
