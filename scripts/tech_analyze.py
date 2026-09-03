@@ -11,34 +11,50 @@ then run against exactly that selection:
   • the cross-tier LEAD-TIME (research→patent→funding→market timing), a phrase-level
     semantic lens (no TIR of its own — that was the old divergence).
 
-Two modes so a checkbox toggle is cheap:
-  --query "processed cheese"      → embed once: candidates + default selection +
-                                    trajectory(default) + lead-time
+Three modes so a checkbox toggle is cheap:
+  --query "processed cheese"      → embed once, run the query-quality gate (#67,
+                                    pipeline/query_gate.py): ok → candidates +
+                                    default selection + trajectory(default) +
+                                    lead-time; ambiguous → candidates + field
+                                    choice, NO number; off_topic → honest answer
+                                    with 2–3 nearest real fields as suggestions
+  --query "…" --codes G06N10/70   → the user's explicit pick for this phrase
+                                    (ambiguous flow): gate skipped, full analysis
+                                    on exactly those classes (vector from the
+                                    on-disk cache, so no second GPU handover)
   --codes A23C19/08 A23C19/00     → re-run ONLY the trajectory for the explicit
                                     selection (pure SQL, no GPU)
 
     python scripts/tech_analyze.py --query "processed cheese" --json
+    python scripts/tech_analyze.py --query "quantum error correction" --codes G06N10/70 --json
     python scripts/tech_analyze.py --codes A23C19/08 A23C19/00 --json
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from pipeline import query_gate
+from pipeline.config import EMBED_MODEL
 from pipeline.db import get_connection
 from scripts.cpc_leadtime import median_year
 from scripts.tech_query import (
     embed_query, embedded_tier_totals, ramp_takeoff, share_series, tier_years_for_vec,
 )
-from scripts.tech_trajectory import DIST_GATE, resolve_domain
+from scripts.tech_trajectory import CODE_MIN_PATENTS, DIST_GATE, resolve_domain
 from scripts.tir_trajectory import trajectory
 
-OFF_TOPIC_DIST = 0.55       # nearest candidate beyond this → not a technology
+# The former OFF_TOPIC_DIST = 0.55 nearest-distance gate is gone: nearest distance
+# does not separate technologies from nonsense (pipeline/query_gate.py docstring,
+# docs/tech_query_gate_2026-09-04.md). The verdict comes from query_gate.gate().
+VEC_CACHE = Path(__file__).parent.parent / "data" / "tech_query_vec_cache.json"
+VEC_CACHE_MAX = 500         # normalized phrase → 1024-dim vector, keyed by model
 DENSITY_TARGET = 8000       # default selection grows in distance order until the
                             # cumulative count clears this — a rich domain (battery)
                             # stops at its main class, a thin one (cheese) keeps all
@@ -168,18 +184,102 @@ def leadtime(vec: list[float], sel_codes: list[str], threshold: float = 0.55) ->
             "market_floored": bool(mkt and mkt < 2003)}
 
 
-def analyze_query(query: str) -> dict:
-    vec = embed_query(query)
+def _norm_query(query: str) -> str:
+    return " ".join(query.lower().split())
+
+
+def cached_embed(query: str) -> list[float]:
+    """Query vector with a small on-disk cache (data/, gitignored). The ambiguous
+    flow re-runs the same phrase with the user's field pick seconds later — the
+    cache turns that second call into pure SQL instead of another GPU handover.
+    Keyed by embedding model so a model swap invalidates every entry."""
+    key = _norm_query(query)
+    store: dict = {}
+    try:
+        if VEC_CACHE.exists():
+            store = json.loads(VEC_CACHE.read_text())
+    except Exception:
+        store = {}
+    if store.get("model") != EMBED_MODEL or not isinstance(store.get("vecs"), dict):
+        store = {"model": EMBED_MODEL, "vecs": {}}
+    vec = store["vecs"].get(key)
+    if isinstance(vec, list) and len(vec) == 1024:
+        return vec
+    vec = [round(float(x), 6) for x in embed_query(query)]
+    vecs = store["vecs"]
+    vecs.pop(key, None)
+    vecs[key] = vec
+    while len(vecs) > VEC_CACHE_MAX:              # FIFO: dicts keep insertion order
+        vecs.pop(next(iter(vecs)))
+    try:
+        VEC_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = VEC_CACHE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(store, separators=(",", ":")))
+        os.replace(tmp, VEC_CACHE)
+    except Exception:
+        pass                                      # cache is best-effort
+    return vec
+
+
+def _candidates_for_pick(vec: list[float], codes: list[str]) -> list[dict]:
+    """Candidate list for an explicit pick: the embedding's candidates (default =
+    picked) plus any picked class the embedding did not offer (e.g. G06N10/70
+    from the lexical field of an ambiguous phrase), with real counts."""
     cands = resolve_candidates(vec)
-    nearest = cands[0]["dist"] if cands else 1.0
-    if not cands or nearest > OFF_TOPIC_DIST:
-        return {"query": query, "off_topic": True,
-                "nearest_dist": round(nearest, 3), "candidates": [],
-                "selection": [], "trajectory": None, "leadtime": None}
+    picked = set(codes)
+    for c in cands:
+        c["default"] = c["symbol"] in picked
+    missing = [s for s in codes if s not in {c["symbol"] for c in cands}]
+    if missing:
+        counts = _counts(missing)
+        titles: dict[str, str] = {}
+        with get_connection() as c:
+            for r in c.execute("SELECT symbol, title FROM cpc_fine WHERE symbol = ANY(?)",
+                               (missing,)).fetchall():
+                d = dict(r)
+                titles[d["symbol"]] = (d.get("title") or "").strip()
+        for s in missing:
+            cands.append({"symbol": s, "title": titles.get(s, s), "dist": None,
+                          "n": counts.get(s, 0), "default": True})
+    return cands
+
+
+def _gate_payload(g: dict) -> dict:
+    return {k: g[k] for k in ("verdict", "reason", "suggestions", "clusters", "features")}
+
+
+def analyze_query(query: str, codes: list[str] | None = None) -> dict:
+    vec = cached_embed(query)
+    if codes:
+        # explicit pick (ambiguous flow): the user has already answered the gate
+        cands = _candidates_for_pick(vec, codes)
+        sel = list(codes)
+        traj = trajectory([s + "%" for s in sel])
+        lead = leadtime(vec, sel)
+        return {"query": query, "off_topic": False,
+                "gate": {"verdict": "ok", "reason": "explicit selection",
+                         "suggestions": [], "clusters": [], "features": {}},
+                "candidates": cands, "selection": sel, "trajectory": traj,
+                "leadtime": lead, "top_patents": top_patents(sel),
+                "verdict": _verdict(traj, lead)}
+    g = query_gate.gate(vec, query, min_patents=CODE_MIN_PATENTS)
+    gate = _gate_payload(g)
+    d1 = float(g["features"].get("d1", 1.0))
+    if g["verdict"] == "off_topic":
+        return {"query": query, "off_topic": True, "nearest_dist": round(d1, 3),
+                "gate": gate, "candidates": [], "selection": [],
+                "trajectory": None, "leadtime": None}
+    cands = resolve_candidates(vec)
     sel = [c["symbol"] for c in cands if c["default"]]
+    if g["verdict"] == "ambiguous" or not cands:
+        # candidates + field choice, deliberately NO trajectory/lead-time: no
+        # number before the user has said which field they mean
+        return {"query": query, "off_topic": False, "nearest_dist": round(d1, 3),
+                "gate": gate, "candidates": cands, "selection": sel,
+                "trajectory": None, "leadtime": None}
     traj = trajectory([s + "%" for s in sel])
     lead = leadtime(vec, sel)
-    return {"query": query, "off_topic": False, "candidates": cands,
+    return {"query": query, "off_topic": False, "gate": gate, "candidates": cands,
             "selection": sel, "trajectory": traj, "leadtime": lead,
             "top_patents": top_patents(sel), "verdict": _verdict(traj, lead)}
 
@@ -226,12 +326,18 @@ def analyze_codes(codes: list[str]) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Unified technology analysis (merged tool)")
-    g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--query", help="free-text technology phrase")
-    g.add_argument("--codes", nargs="+", help="explicit CPC codes (re-analyze trajectory)")
+    ap.add_argument("--query", help="free-text technology phrase")
+    ap.add_argument("--codes", nargs="+",
+                    help="explicit CPC codes: alone → re-analyze the trajectory; "
+                         "with --query → the user's field pick for that phrase")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
-    res = analyze_codes(args.codes) if args.codes else analyze_query(args.query)
+    if not args.query and not args.codes:
+        ap.error("one of --query / --codes is required")
+    if args.query:
+        res = analyze_query(args.query, codes=args.codes)
+    else:
+        res = analyze_codes(args.codes)
     # compact single line: the API route (and CLI) take the last stdout line as JSON,
     # so GPU-handover logs printed earlier never collide with the payload.
     print(json.dumps(res))
