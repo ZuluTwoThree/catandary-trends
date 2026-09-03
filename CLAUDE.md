@@ -478,6 +478,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # zeigt sie sofort. KEIN Versand (der wartet auf #16/Launch).
 0 9 * * 1    scripts/weekly_newsletter_publish.sh
 
+# Statischer Export → Webspace (täglich 06:30, seit Welle 2 / 2026-09-03 VORBEREITET,
+# noch NICHT installiert — wartet auf ~/.config/catandary/webspace.env vom Owner):
+# build_public_static.sh + publish_static_site.py --apply, Log ~/logs/catandary-publish-*.log
+30 6 * * *   scripts/publish_static_site.sh
+
 # Source-Discovery-Loop (Sonntag 06:00)
 0 6 * * 0    .venv/bin/python scripts/discovery_loop.py
 
@@ -634,6 +639,18 @@ sudo apt install postgresql postgresql-contrib
 # pgvector Extension installieren
 CREATE EXTENSION vector;
 ```
+
+### Statischer Export (Betrieb, Stand 2026-09-03 — Welle 2)
+
+Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Export** der Next-App, gebaut auf der Workstation und per SFTP/rsync aufs Hetzner-Webhosting gelegt. Vollständige Betriebsdoku: `docs/launch/HOSTING_HETZNER.md` (Abschnitte „Statischer Export — Build / Publish / Suche im Export").
+
+- **Build:** `scripts/build_public_static.sh [OUT_DIR]` → Staging-Baum `frontend/.export/site` (Exclusion-Liste `frontend/static-export.exclude` = alles, was `BLOCKED_PREFIXES` in `src/proxy.ts` sperrt, plus Proxy/API/Unsubscribe; Vitest-Drift-Wächter), `STATIC_EXPORT=1 PUBLIC_MODE=1 next build` mit `output: 'export'`, Ergebnis `frontend/.export/out` + `out.manifest.tsv` (sha256/size/path) + `out.build_info.json`. ~15k Artikel (Fenster `PUBLIC_WINDOW_DAYS`, Default 30, Tagesgrenze via `lib/archiveWindow.ts`), ~30k Dateien / ~1 GB, ~60 s. Segment-Prefetch-Dateien werden entfernt, Link-Prefetch ist im Export aus.
+- **Determinismus ist Pflicht:** zwei aufeinanderfolgende Builds müssen `diff -rq`-leer sein (konstante Build-ID, keine `new Date()` im Render, `sort_date DESC, id DESC`-Tiebreaker, Related = 3 Vorgänger derselben Vertikale, `source_date = LEAST(published, created_at)`). Während des 04:00-Cycles ist das nicht gegeben (DB ändert sich) — Publish läuft deshalb 06:30.
+- **Render-Weichen:** `lib/renderMode.ts` (`isStaticExport()`) und `lib/publicMode.ts`; `generateStaticParams` nur im Export (Workstation-Build lieferte sonst 500 auf Artikel-/Mega-/Listing-Seiten, Fix `dd4490b`). Lokale Owner-Instanz (`npm run build` ohne Flags) verhält sich unverändert.
+- **URL-Schema Export:** `/trends` (= `trends/index.html`), `/trends/page/<n>`, `/trends/v/<vertical>[/page/<n>]`, `/trends/<slug>` (Apache-Rewrite auf `.html`, abgelaufene Slugs → **410** via Muster in `trends/.htaccess`), `/trends/mega[/<m>]`, `/trends/methodology`, `/trends/newsletter`, `/trends/imprint|privacy|enquiry`, `/trends/index.json` (Suchindex, ~2 MB gz, clientseitige Suche/Filter `components/StaticSearch.tsx`), `/trends/sitemap.xml`. `.htaccess` liegen verzeichnisweise in `trends/` und `_next/` — der **Webroot bleibt owner-verwaltet** (`index.html` = Landing `docs/launch/preview.html`, `robots.txt`, `newsletter/**` PHP-DOI); das Export-Root-`index.html` wird nicht hochgeladen.
+- **Publish:** `scripts/publish_static_site.py` (Default `--dry-run`, `--apply` schreibt) — Manifest-Delta gegen `trends/.publish-manifest.tsv` auf dem Webspace, verwaltet NUR `trends/**`, `_next/**` und die Root-Allowlist `trends.html`/`trends.txt`; Reihenfolge Assets → Artikel → Listing → Löschen; Gates: Build ≤ 12 h alt, ≥ 1000 Artikel, ≤ 60 % Löschungen. Backends `MODE=sftp|rsync|local` aus `~/.config/catandary/webspace.env` (0600; **fehlt noch — Owner-Aktion**). Summary `data/publish_last.json`, Wächter-Check in `cycle_watchdog.py` (nur aktiv, wenn die Config existiert).
+- **Cron (vorbereitet in `deploy/crontab.txt`, noch NICHT installiert):** `30 6 * * *  scripts/publish_static_site.sh` (Lock, Cycle-Kollisionswächter, Build → Publish). `PUBLIC_NOINDEX=1` hält den Export bis zum Launch 01.10. auf `noindex`.
+- **Lokaler Apache-Test:** `scripts/htaccess_test_server.sh` (Docker `httpd:2.4`, Port 8098, Bind per `HTACCESS_TEST_BIND`) prüft die `.htaccess`-Regeln; die Playwright-Suche-Prüfung ist in der Hosting-Doku beschrieben.
 
 ### Routing (Ist-Stand 2026-07-23)
 
