@@ -7,7 +7,7 @@ Catandary Trends ist eine branchenübergreifende Trend-Intelligence-Plattform, d
 **Kernprinzipien:**
 - Branchenübergreifend mit eigenständiger Catandary-Taxonomie (Vertikale + PESTEL + Mega/Macro/Micro)
 - Nur legale Primärquellen (RSS-Feeds von Fachmedien, Presseverteilern, Marken-Newsrooms)
-- Keine Aggregator-Seiten scrapen (Trendhunter etc.)
+- Keine Aggregator-Seiten scrapen (Trendhunter etc.) — Aggregatoren dürfen aber als **Entdeckungs-Index** dienen, um die dort verlinkten Primärquellen zu finden und einzeln zu prüfen (Owner 2026-09-03, #97)
 - Alle LLM-Verarbeitung lokal auf der **RTX 3090 (24 GB)** (produktive Linux-Workstation; VRAM per `nvidia-smi` verifizieren). Stage 6 (Content-Gen) auf llama.cpp **Gemma-4-26B-A4B** (aktuell seit #11 / 2026-07-14; revertierbar nur noch aufs 35B — das 30B-GGUF+Startskript fielen dem llama.cpp-Umbau 2026-08-29 zum Opfer).
 - Cloud-APIs nur als Fallback für komplexe Synthese-Aufgaben
 - Modularer Aufbau: Neue Vertikale können ohne Architekturänderung hinzugefügt werden
@@ -154,7 +154,7 @@ Quellen werden pro Vertikale organisiert. Neue Vertikale starten mit 3-5 Kernque
 
 ### Quellenwachstum
 
-Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein automatisches Scraping oder Aggregator-Quellen. Trendhunter und Brave Search Radar wurden entfernt (2026-04-12) — **323 aktive Quellen** (DB-Ist 2026-09-02, `SELECT count(*) FROM sources WHERE active`; RSS-Primärquellen + OpenAlex/Patente/Funding-Pseudoquellen) decken alle 8 Vertikale ab. 2026-08-07 kamen 15 verifizierte Feeds für die Taxonomie-Erweiterung dazu (Quantum/Semis/Space/Digital Health/Future of Work/Education — u. a. The Quantum Insider, NVIDIA/Intel/IBM Newsroom, SpaceNews, NASA/ESA, Rock Health, HR Dive, EdSurge). Ausbau auf nicht-RSS-Quellentypen siehe `pipeline_expansion_prompt.md` und Goal Contract unter `goals/`.
+Neue Quellen werden manuell kuratiert und in `sources.yaml` eingetragen. Kein automatisches Scraping oder Aggregator-Quellen. **Seit 2026-09-03 (#97):** neue Quellen nur mit maschinell geprüftem Status (`tdm_status: ok` — robots, Bot-UA 200, kein TDM-Vorbehalt; Volltext nur bei offener Lizenz); Aggregatoren dienen als Entdeckungs-Index für die dort verlinkten Primärquellen. Trendhunter und Brave Search Radar wurden entfernt (2026-04-12) — **323 aktive Quellen** (DB-Ist 2026-09-02, `SELECT count(*) FROM sources WHERE active`; RSS-Primärquellen + OpenAlex/Patente/Funding-Pseudoquellen) decken alle 8 Vertikale ab. 2026-08-07 kamen 15 verifizierte Feeds für die Taxonomie-Erweiterung dazu (Quantum/Semis/Space/Digital Health/Future of Work/Education — u. a. The Quantum Insider, NVIDIA/Intel/IBM Newsroom, SpaceNews, NASA/ESA, Rock Health, HR Dive, EdSurge). Ausbau auf nicht-RSS-Quellentypen siehe `pipeline_expansion_prompt.md` und Goal Contract unter `goals/`.
 *(Quellenzahl 2026-09-02: `scripts/apply_source_hygiene.py --apply` ist ausgeführt — die 6 in #81 (28.08.) als tot befundenen Feeds (Euractiv, Rock Health Blog, WorkLife, Shopify News, Förderinfo Bund – Mobilität, Environmental Leader) und die 3 schon vorher nur in `sources.yaml` deaktivierten (MobiHealthNews, Healthcare IT News, BMJ) stehen jetzt auch in der DB auf `active=false` (per SELECT verifiziert). DB-Ist 02.09.: **323 aktiv / 16 inaktiv / 339 gesamt**; die Differenz zur alten Rechnung 328−9=319 sind die vier am 29.08. angelegten OpenAlex-Fresh-Pseudoquellen (ids 347–350). Strukturbefund bleibt gültig: `sources.yaml` `active: false` synct nie automatisch in die DB (`upsert_source` überschreibt `active` auf einer bestehenden Zeile nie, und der Poller überspringt inaktive Quellen VOR dem Upsert-Call) — Deaktivierungen daher immer mit `apply_source_hygiene.py --apply` nachziehen.)*
 
 ---
@@ -746,7 +746,7 @@ Hinweis: Ein DE/EN-Switcher existiert nicht mehr — die Produktsprache ist durc
 
 - **Domain:** catandary.de – alle URLs müssen dazu passen (catandary.de/trends/...)
 - **Hosting:** Hetzner-Webhosting (statisch) — öffentlich nur der statische Export; die volle App bleibt lokal auf der Workstation (Owner-Entscheid 02.09.2026; kein VPS, kein Caddy)
-- **Kein Scraping von Aggregator-Seiten** – nur Primärquellen über RSS/API
+- **Kein Scraping von Aggregator-Seiten** – nur Primärquellen über RSS/API; Aggregatoren nur als Entdeckungs-Index für neue Primärquellen (#97), jede neue Quelle muss die TDM-/Bot-/Lizenz-Kriterien selbst erfüllen
 - **Quellennennung ist Pflicht** – jeder Artikel verlinkt zur Originalquelle
 - **Content muss eigenständig sein** – LLM-Texte substanziell anders als Original
 - **API-Kosten minimieren** – lokale Modelle (Ollama) für alles außer komplexe Synthese
