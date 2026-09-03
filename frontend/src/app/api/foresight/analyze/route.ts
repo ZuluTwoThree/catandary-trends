@@ -33,11 +33,19 @@ function repoRoot(): string {
 /**
  * GET /api/foresight/analyze  — the merged Technology tool (#28/#36/#42/#43).
  *
- * Two modes, both shelling to scripts/tech_analyze.py --json (execFile, no shell):
- *   ?q=<phrase>              → embed once: user-selectable CPC candidates (with real
- *                             full-archive counts) + smart default selection +
- *                             K(t) trajectory(default) + cross-tier lead-time.
+ * Three modes, all shelling to scripts/tech_analyze.py --json (execFile, no shell):
+ *   ?q=<phrase>              → embed once, run the query-quality gate (#67): the
+ *                             payload carries `gate.verdict` ok | ambiguous |
+ *                             off_topic. ok → user-selectable CPC candidates (with
+ *                             real full-archive counts) + smart default selection +
+ *                             K(t) trajectory(default) + cross-tier lead-time;
+ *                             ambiguous → candidates + `gate.clusters` to pick from,
+ *                             no number; off_topic → `gate.suggestions` (2–3 nearest
+ *                             real fields), no number.
  *                             Latency ~10-40s (embedding GPU handover).
+ *   ?q=<phrase>&codes=…      → the user's field pick for that phrase (ambiguous
+ *                             flow): full analysis on exactly those classes; the
+ *                             vector comes from the script's on-disk cache.
  *   ?codes=A23C19/08,A23C19  → re-run ONLY the trajectory for the explicit user
  *                             selection (pure SQL, fast, no GPU).
  * ONE resolution, ONE TIR — the two views can never diverge again.
@@ -47,27 +55,32 @@ export async function GET(request: Request) {
   const q = (sp.get("q") || "").trim();
   const codesRaw = (sp.get("codes") || "").trim();
 
+  // sanitize: CPC symbols are [A-Z0-9/], comma-separated
+  const codes = codesRaw
+    ? codesRaw
+        .split(",")
+        .map((c) => c.trim())
+        .filter((c) => /^[A-Z0-9/]{2,20}$/.test(c))
+        .slice(0, 20)
+    : [];
+  if (codesRaw && codes.length === 0) {
+    return NextResponse.json({ error: "No valid patent classes selected." }, { status: 400 });
+  }
   let args: string[];
-  if (codesRaw) {
-    // sanitize: CPC symbols are [A-Z0-9/], comma-separated
-    const codes = codesRaw
-      .split(",")
-      .map((c) => c.trim())
-      .filter((c) => /^[A-Z0-9/]{2,20}$/.test(c))
-      .slice(0, 20);
-    if (codes.length === 0) {
-      return NextResponse.json({ error: "No valid patent classes selected." }, { status: 400 });
-    }
-    args = ["--codes", ...codes, "--json"];
-  } else {
+  if (q) {
     if (q.length < 4 || q.length > 200) {
       return NextResponse.json({ error: "Enter between 4 and 200 characters." }, { status: 400 });
     }
-    args = ["--query", q, "--json"];
+    args = ["--query", q, ...(codes.length ? ["--codes", ...codes] : []), "--json"];
+  } else if (codes.length) {
+    args = ["--codes", ...codes, "--json"];
+  } else {
+    return NextResponse.json({ error: "Enter between 4 and 200 characters." }, { status: 400 });
   }
 
-  // Cache (nur Freitext — codes-Auswahlen sind zu individuell für sinnvolle Hits).
-  const cacheKey = codesRaw ? null : q.toLowerCase().replace(/\s+/g, " ");
+  // Cache (nur Freitext, inkl. Freitext+Pick — reine codes-Re-Runs sind zu
+  // individuell für sinnvolle Hits).
+  const cacheKey = q ? `${q.toLowerCase().replace(/\s+/g, " ")}|${codes.join(",")}` : null;
   if (cacheKey) {
     const hit = cache.get(cacheKey);
     if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
@@ -76,8 +89,8 @@ export async function GET(request: Request) {
   }
 
   // Per-IP-Rate-Limit (Freitext strenger als Checkbox-Re-Runs).
-  const rlKey = codesRaw ? `analyze-codes:${clientIp(request)}` : `analyze-q:${clientIp(request)}`;
-  if (!rateLimit(rlKey, codesRaw ? RL_CODES_LIMIT : RL_Q_LIMIT, RL_WINDOW_MS)) {
+  const rlKey = q ? `analyze-q:${clientIp(request)}` : `analyze-codes:${clientIp(request)}`;
+  if (!rateLimit(rlKey, q ? RL_Q_LIMIT : RL_CODES_LIMIT, RL_WINDOW_MS)) {
     return NextResponse.json(
       { error: "rate limit exceeded — please wait a moment" },
       { status: 429, headers: { "retry-after": "30" } }

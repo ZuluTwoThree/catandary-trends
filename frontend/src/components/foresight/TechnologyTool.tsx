@@ -1,12 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import {
+  clusterChoices, clusterHeadline, clusterHint, gateVerdict, offTopicHeadline,
+  suggestionQueries, type Gate,
+} from "@/lib/techGate";
 
 /**
  * Merged Technology tool (#28/#36/#42/#43). ONE input → ONE resolved domain (the
  * user picks the CPC classes) → ONE canonical TIR. Two complementary views over the
  * same selection: the K(t) improvement-rate trajectory, and the cross-tier lead
  * time (research→patent→funding→market). Replaces the two divergent tools.
+ *
+ * Query-quality gate (#67, pipeline/query_gate.py): the API's `gate.verdict` decides
+ * what is shown BEFORE any number — off_topic → honest question with 2–3 nearest
+ * real fields (clickable → new query); ambiguous → the field choice (clickable →
+ * analysis on exactly that field); ok → the unchanged fast path.
  */
 
 interface Point { year: number; K: number; K_lo?: number; K_hi?: number; n: number; complete: boolean; early_sparse?: boolean }
@@ -20,7 +29,7 @@ interface Traj {
   calibrated?: boolean | null; n_total?: number;
   earliest_year?: number | null; earliest_dense_year?: number | null;
 }
-interface Candidate { symbol: string; title: string; dist: number; n: number; default: boolean }
+interface Candidate { symbol: string; title: string; dist: number | null; n: number; default: boolean }
 interface Tier { n: number; first: number | null; takeoff: number | null; median: number | null; series: Record<string, number>; is_share: boolean }
 interface Lead {
   tiers: Record<string, Tier>;
@@ -32,6 +41,7 @@ interface Lead {
 interface HubPatent { pub: string; cites: number; title: string; year: string | null; url: string }
 interface Analysis {
   query?: string; off_topic?: boolean; nearest_dist?: number;
+  gate?: Gate | null;
   candidates?: Candidate[]; selection?: string[];
   trajectory?: Traj | null; leadtime?: Lead | null; verdict?: string | null;
   top_patents?: HubPatent[]; error?: string;
@@ -189,7 +199,9 @@ export default function TechnologyTool() {
   const [mode, setMode] = useState<"rate" | "cumulative">("rate");
   const [elapsed, setElapsed] = useState(0);       // Sekunden seit Analyse-Start
 
-  async function run(phrase: string) {
+  // `codes` = the user's field pick after an ambiguous verdict: same phrase,
+  // analysis on exactly those classes (the gate is skipped server-side).
+  async function run(phrase: string, codes?: string[]) {
     const query = phrase.trim();
     if (query.length < 4 || loading) return;
     setLoading(true); setErr(null); setRes(null); setSel(new Set());
@@ -198,7 +210,8 @@ export default function TechnologyTool() {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 115_000);
     try {
-      const r = await fetch(`/api/foresight/analyze?q=${encodeURIComponent(query)}`, { signal: ctrl.signal });
+      const pick = codes?.length ? `&codes=${encodeURIComponent(codes.join(","))}` : "";
+      const r = await fetch(`/api/foresight/analyze?q=${encodeURIComponent(query)}${pick}`, { signal: ctrl.signal });
       const data = (await r.json()) as Analysis;
       if (!r.ok || data.error) setErr(data.error || "Analysis failed — please try again.");
       else { setRes(data); setSel(new Set(data.selection || [])); }
@@ -227,6 +240,9 @@ export default function TechnologyTool() {
   const traj = res?.trajectory;
   const lead = res?.leadtime;
   const selN = res?.candidates?.filter((c) => sel.has(c.symbol)).reduce((s, c) => s + c.n, 0) ?? 0;
+  const verdict = res ? gateVerdict(res) : null;
+  const suggestions = suggestionQueries(res?.gate);
+  const choices = clusterChoices(res?.gate);
 
   return (
     <section className="border border-accent/40 bg-accent/5 p-4 sm:p-6 overflow-x-clip">
@@ -287,14 +303,61 @@ export default function TechnologyTool() {
       )}
       {err && <p role="alert" className="mt-5 font-mono text-xs text-red-400">⚠ {err}</p>}
 
-      {res && !loading && res.off_topic && (
-        <div className="mt-6 border border-border bg-card/40 p-5">
-          <p className="font-sans text-base text-paper">That doesn&rsquo;t look like a technology.</p>
-          <p className="font-sans text-sm text-text mt-2">Describe a process, a material, or a method (nearest patent class is {res.nearest_dist} away — too far off).</p>
+      {res && !loading && verdict === "off_topic" && (
+        <div className="mt-6 border border-border bg-card/40 p-5" data-testid="gate-off-topic">
+          <p className="font-sans text-base text-paper">{offTopicHeadline(res.query)}</p>
+          <p className="font-sans text-sm text-text mt-2">
+            {res.gate?.reason
+              ? <>{res.gate.reason[0].toUpperCase() + res.gate.reason.slice(1)}. </>
+              : null}
+            Describe a concrete technology, material or process — no number is better than a
+            number about the wrong field.
+          </p>
+          {suggestions.length > 0 && (
+            <div className="mt-3">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-1.5">
+                Did you mean one of the nearest real fields?
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {suggestions.map((s) => (
+                  <button key={s} onClick={() => { setQ(s); run(s); }} disabled={loading}
+                    className="font-mono text-[11px] text-accent border border-accent/40 px-2 py-1 hover:bg-accent hover:text-card disabled:opacity-40 text-left">
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {res && !loading && !res.off_topic && (
+      {res && !loading && verdict === "ambiguous" && (
+        <div className="mt-6 border border-accent/40 bg-card/40 p-5" data-testid="gate-ambiguous">
+          <p className="font-sans text-base text-paper">
+            Your phrase points to more than one patent field — which one do you mean?
+          </p>
+          {res.gate?.reason && (
+            <p className="font-sans text-sm text-text mt-2">
+              {res.gate.reason[0].toUpperCase() + res.gate.reason.slice(1)}. We don&rsquo;t guess:
+              pick the field and we analyze exactly that.
+            </p>
+          )}
+          <ul className="mt-3 space-y-1.5">
+            {choices.map((c) => (
+              <li key={c.subclass}>
+                <button onClick={() => run(res.query || q, c.symbols)} disabled={loading}
+                  className="w-full text-left border border-border px-3 py-2 hover:border-accent/60 hover:bg-accent/5 disabled:opacity-40">
+                  <span className="block font-sans text-[13px] text-paper">{clusterHeadline(c)}</span>
+                  {c.detail && <span className="block font-sans text-[11px] text-text mt-0.5">{cpcLabel(c.detail)}</span>}
+                  <span className="block font-mono text-[10px] text-muted mt-0.5">{clusterHint(c)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {res && !loading && verdict === "ok" && (
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,260px)_1fr]">
           {/* left: user-selectable CPC classes */}
           <div className="min-w-0">
