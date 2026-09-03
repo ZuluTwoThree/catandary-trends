@@ -96,8 +96,9 @@ Export ist es ein No-op). Die vier Metadata-Routen (`sitemap.ts`, `robots.ts`, `
 wird dadurch beim Build gerendert, nicht mehr pro Request. Der Export-Modus unterdrückt
 `/api/track` (Artikel) und die `/api/newsletter`-Fetches (Signup postet stattdessen
 form-encoded an `/newsletter/subscribe.php` mit Consent-Checkbox; Editions-Archiv folgt in
-Schritt 6). Das Listing ist seit 03.09. statisch (URL-Schema unten); Suche/Filter über den
-JSON-Index (Schritt 5 / Folge-Agent D) und das Newsletter-Archiv (E) stehen noch aus.
+Schritt 6). Das Listing ist seit 03.09. statisch (URL-Schema unten), Suche/Filter laufen
+clientseitig über `trends/index.json` (Abschnitt „Suche im Export"); das Newsletter-Archiv (E)
+steht noch aus.
 
 ### URL-Schema des Exports (Stand 2026-09-03; `trailingSlash: false`, Apache mappt die Endung)
 
@@ -111,14 +112,15 @@ JSON-Index (Schritt 5 / Folge-Agent D) und das Newsletter-Archiv (E) stehen noch
 | `/trends/mega`, `/trends/mega/<key>` | `trends/mega.html`, `trends/mega/<key>.html` | 28 Themes |
 | `/trends/imprint`, `/trends/privacy`, `/trends/enquiry` | `trends/{imprint,privacy,enquiry}.html` | Export-Adressen der Root-Seiten (`lib/sitePaths.ts`: alle Links gehen darüber; lokal bleiben `/imprint`, `/privacy`, `/enquiry`, die `/trends/…`-Kopien sind dort 404) |
 | `/trends/methodology`, `/trends/newsletter`, `/trends/expired`, `/trends/sitemap.xml` | `trends/<name>.html`, `trends/sitemap.xml` | |
+| `/trends/index.json` | `trends/index.json` | Suchindex des Fensters (ein Artikel je Zeile; `app/trends/index.json/route.ts`), lädt die Client-Suche lazy — s. „Suche im Export" |
 
 Listing-Routen: `app/trends/(feed)/page.tsx` (Seite 1), `app/trends/page/[n]`,
 `app/trends/v/[vertical]`, `app/trends/v/[vertical]/page/[n]` → alle rendern
 `components/StaticFeed.tsx` (Vertikale + Seite, kein searchParam), `generateStaticParams`
 aus den gefensterten Counts (`lib/staticListing.ts`: `STATIC_PAGE_SIZE = 24`,
-`listingPath`, `parsePageParam`). Die Filter-Bar des Exports besteht nur aus den
-Vertical-Links (`StaticFilterBar`); Suche/PESTEL/Sortierung kommen mit dem JSON-Index
-(D). Vertical-Badges auf Artikel-/Mega-Seiten verlinken im Export `/trends/v/<v>`
+`listingPath`, `parsePageParam`). Die Filter-Bar des Exports (`StaticFilterBar`) trägt die
+Vertical-Links (Seiten, ohne JS nutzbar) und darüber die Client-Suche (`StaticSearch`, nur im
+Export gerendert — Abschnitt „Suche im Export"). Vertical-Badges auf Artikel-/Mega-Seiten verlinken im Export `/trends/v/<v>`
 (`verticalFeedHref`), lokal `/trends?v=<V>`. Jede Listing-Seite trägt Canonical +
 `rel=prev/next`; die Sitemap listet die acht Vertical-Startseiten.
 
@@ -180,6 +182,55 @@ Build ersetzt das `out/`-Verzeichnis, der Bind-Mount würde stale). Der vollstä
 steht als Kommentarblock am Ende von `trends/.htaccess` — Stand 03.09. alle grün. Schlägt eine
 Regel auf dem Webspace mit 500 fehl, ist `AllowOverride` dort zu eng (`Options -Indexes` zuerst
 entfernen, dann `DirectorySlash`/`RewriteOptions`).
+
+### Suche im Export (Schritt 5 / D, Stand 2026-09-03)
+
+Der Webspace hat keinen Server, also keine `?q=`-Suche (Postgres-FTS der Workstation). Der
+Export trägt stattdessen **einen JSON-Index des Fensters**, `trends/index.json`
+(`app/trends/index.json/route.ts`, `force-static` wie die Sitemap — der einzige Route-Handler,
+den der Drift-Test `staticExport.test.ts` im Export-Baum duldet), und der Browser filtert ihn
+(`components/StaticSearch.tsx`; reine Logik mit Vitest-Abdeckung in `lib/staticSearch.ts`).
+
+**Index:** ein JSON-Array, ein Artikel je Zeile (`wc -l` = Artikelzahl, Build-Check), Reihenfolge
+`sort_date DESC, id DESC` wie das Listing, keine Zeitstempel (byte-stabil). Felder je Artikel:
+`slug`, `title`, `summary` (≤ 160 Zeichen, an der Wortgrenze gekürzt, „…"), `verticals`
+(primäre Vertikale zuerst), `pestel`, `mega_trend`, `sort_date` (ISO-Tag), `trend_score`,
+`source_name`, `source_type` (`research` fasst den Research-Signaltyp zusammen — das
+Karten-Label „Research/Press/Brand"). Maß 03.09. (14.846 Artikel): **7.840.260 B roh,
+2.099.331 B gzip** (Apache liefert per mod_deflate 2.097.082 B) — ~5 % über dem 2-MB-Ziel;
+Stellschrauben, falls das drücken soll: Summary auf 120 Zeichen (−8 %) oder ein positionales
+Zeilenformat statt Objekten (−6 %). Das Build-Skript prüft valides JSON und Zeilen = Einträge
+(fatal) sowie Einträge = Artikelseiten (nur Warnung: beide Abfragen laufen zu verschiedenen
+Zeitpunkten des Builds; publiziert der 04:00-Cycle dazwischen, weichen sie ab) und schreibt
+`index_entries`, `index_bytes`, `index_gzip_bytes` nach `build_info.json`. Im Webspace gilt
+`Cache-Control: no-cache` (trends/.htaccess, `.json`) — nach dem Tagesexport kommt der neue
+Index, sonst ein 304. Der Publisher nimmt die Datei als Teil von `trends/**` automatisch mit.
+
+**Ladeverhalten:** Suchbox und Vertical-/PESTEL-Chips stehen im HTML; der Index wird erst beim
+ersten Fokus/Klick geholt (ein `fetch`, Ladezustand in der Statuszeile, Fehler mit „Retry"),
+dann im Speicher gehalten (Kleinschreibung einmal vorberechnet) und über Client-Navigationen
+zwischen Listing-Seiten hinweg behalten. Theme-Chips entstehen aus dem Index (Top 28 nach
+Häufigkeit, eingeklappt 8; im 30-Tage-Fenster am 03.09. sind es 26). Suche = Substring über
+Titel + Summary, mehrere Terme = AND, Chips = AND zwischen den Dimensionen, OR innerhalb; die
+Vertical-Chips matchen die primäre Vertikale (wie `/trends/v/<v>` — dort ist sie der
+Default-Chip). Ranking: Titel-Treffer vor Summary-Treffer, dann Indexreihenfolge (Datum).
+Max. 50 Karten (`TrendCard`, Link auf `/trends/<slug>`), der Zähler zeigt alle Treffer. Zustand
+im URL-Hash (`#q=…&v=TECH,ECO&pestel=T&mega=<key>`, `replaceState`, teilbar, kein
+History-Eintrag); ein Deep-Link lädt den Index sofort. Sobald etwas gesetzt ist, ersetzt das
+Treffer-Grid den Listing-Body; „Reset filters" / „Back to the feed" stellt ihn wieder her.
+Tastatur: Chips sind Buttons mit `aria-pressed`, Escape leert das Feld, Statuszeile `aria-live`.
+
+**Grenzen:** kein Stemming, keine Phrasen (reine Substrings — nicht die
+`websearch_to_tsquery`-Semantik der Workstation), nur Titel + gekürzte Summary (keine Bodies,
+Tags, Firmen), nur das Fenster, Treffer nicht crawlbar (Client-only; die statischen
+Listing-Seiten bleiben der SEO-Pfad), erster Aufruf lädt ~2 MB. Ohne JavaScript bleibt das
+Listing samt Vertical-Links voll nutzbar. Lokal (ohne Export-Flag) erscheint die Komponente
+nicht — der Handler liefert dort `[]`, die Feed-Suche bleibt `?q=`.
+
+**Test:** Playwright aus dem Python-`.venv` (Chromium) gegen den Apache-Container
+(`scripts/htaccess_test_server.sh`): Laden beim Fokus, AND-Suche, Chips, Hash-Deep-Link auf
+`/trends/v/tech`, Reset, Escape, Klick auf einen Treffer (Soft-Navigation über das
+`.txt`-Payload) — 03.09. ohne Konsolenfehler oder fehlgeschlagene Requests.
 
 ## Statischer Export — Publish (Schritt 8, Stand 2026-09-02)
 
