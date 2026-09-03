@@ -58,7 +58,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Lebensmittelzeitung
-      fulltext: true
+      fulltext: false   # TDM-Vorbehalt (meta tdm-reservation=1) — Sondierung 2026-09-03, §44b Abs. 3 UrhG
       feed_url: https://www.lebensmittelzeitung.net/feed/
       type: trade_media
       lead_time_tier: market
@@ -246,7 +246,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Norwegian SciTech News
-      fulltext: true
+      fulltext: false   # HTTP 403 für den Bot-UA — Sondierung 2026-09-03, kein Volltext-Abruf gegen Sperren
       feed_url: https://norwegianscitechnews.com/feed
       type: trade_media
       lead_time_tier: future
@@ -501,7 +501,7 @@ verticals:
   ECO:
     sources:
     - name: CleanTechnica
-      fulltext: true
+      fulltext: false   # HTTP 403 für den Bot-UA — Sondierung 2026-09-03, kein Volltext-Abruf gegen Sperren
       feed_url: https://cleantechnica.com/feed/
       type: trade_media
       lead_time_tier: market
@@ -536,7 +536,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: ESG Today
-      fulltext: true
+      fulltext: false   # HTTP 403 für den Bot-UA — Sondierung 2026-09-03, kein Volltext-Abruf gegen Sperren
       feed_url: https://www.esgtoday.com/feed
       type: trade_media
       lead_time_tier: market
@@ -578,7 +578,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: pv magazine Deutschland
-      fulltext: true
+      fulltext: false   # HTTP 403 für den Bot-UA — Sondierung 2026-09-03, kein Volltext-Abruf gegen Sperren
       feed_url: https://www.pv-magazine.de/feed/
       type: trade_media
       lead_time_tier: market
@@ -596,7 +596,7 @@ verticals:
     # --- 2026-08 Taxonomie-Ausbau: E-Mobilität (aktivierter Key electric_and_autonomous_mobility;
     #     Electrek existiert bereits als aktive DB-Quelle) ---
     - name: InsideEVs
-      fulltext: true
+      fulltext: false   # HTTP 403 für den Bot-UA — Sondierung 2026-09-03, kein Volltext-Abruf gegen Sperren
       feed_url: https://insideevs.com/rss/articles/all/
       type: trade_media
       lead_time_tier: market
@@ -688,7 +688,7 @@ verticals:
       feed_url: https://www.businessoffashion.com/feed/
       type: trade_media
       lead_time_tier: market
-      fulltext: true
+      fulltext: false   # HTTP 403 für den Bot-UA — Sondierung 2026-09-03, kein Volltext-Abruf gegen Sperren
     - name: Glossy
       relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: true
@@ -778,7 +778,7 @@ verticals:
       type: trade_media
       lead_time_tier: future
     - name: Horizont
-      fulltext: true
+      fulltext: false   # TDM-Vorbehalt (meta tdm-reservation=1) — Sondierung 2026-09-03, §44b Abs. 3 UrhG
       feed_url: https://www.horizont.net/news/feed/
       type: trade_media
       lead_time_tier: market
@@ -866,7 +866,7 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Sifted
-      fulltext: true
+      fulltext: false   # HTTP 403 für den Bot-UA — Sondierung 2026-09-03, kein Volltext-Abruf gegen Sperren
       feed_url: https://sifted.eu/feed
       type: trade_media
       lead_time_tier: market
@@ -962,20 +962,20 @@ verticals:
       type: trade_media
       lead_time_tier: market
     - name: Nonprofit Quarterly
-      fulltext: true
+      fulltext: false   # HTTP 403 für den Bot-UA — Sondierung 2026-09-03, kein Volltext-Abruf gegen Sperren
       feed_url: https://nonprofitquarterly.org/feed/
       type: trade_media
       lead_time_tier: market
     - name: Robb Report
       relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
-      fulltext: true
+      fulltext: false   # TDM-Vorbehalt (meta robots noai,noimageai) — Sondierung 2026-09-03
       feed_url: https://robbreport.com/feed/
       type: trade_media
       ingest_cap: 50   # luxury listings-heavy — cap backfill
       lead_time_tier: now
     - name: Luxury Daily
       relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
-      fulltext: true
+      fulltext: false   # HTTP 403 für den Bot-UA — Sondierung 2026-09-03, kein Volltext-Abruf gegen Sperren
       feed_url: https://www.luxurydaily.com/feed/
       type: trade_media
       lead_time_tier: now
@@ -1060,7 +1060,7 @@ verticals:
       type: brand
       lead_time_tier: market
     - name: Class Central Report
-      fulltext: true
+      fulltext: false   # HTTP 403 für den Bot-UA — Sondierung 2026-09-03, kein Volltext-Abruf gegen Sperren
       feed_url: https://www.classcentral.com/report/feed/
       type: trade_media
       lead_time_tier: market

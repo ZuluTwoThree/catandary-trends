@@ -13,7 +13,7 @@ for a short, bounded window:
   - corpus_research / dossiers: read raw_content of published trends as
     evidence when present, fall back to the feed excerpt otherwise
 
-After the judge window nothing re-reads the text, so 90 days is a generous
+After the judge window nothing re-reads the text; 14 days cover judge + grounding + regen and keep §44b Abs. 2 S. 2 UrhG (delete once no longer needed) honest —
 ceiling. Everything else stays: title, feed excerpt (≤ 2,000 chars, what the
 publisher put into the feed), extraction_json, embeddings, the generated trend.
 
@@ -30,12 +30,12 @@ holds ~25M rows / 41 GB, a single UPDATE would hold a lock for an hour and
 bloat WAL. Dry run is the default and touches nothing.
 
     python scripts/purge_raw_content.py                          # dry run: count + bytes
-    python scripts/purge_raw_content.py --days 90 --by-source    # + top sources
-    python scripts/purge_raw_content.py --days 90 --apply        # write
+    python scripts/purge_raw_content.py --days 14 --by-source    # + top sources
+    python scripts/purge_raw_content.py --days 14 --apply        # write
     python scripts/purge_raw_content.py --apply --max-rows 200000   # cautious first run
 
 Cron suggestion (deploy/crontab.txt, commented out until the owner enables it):
-    30 3 * * 0  purge_raw_content.py --days 90 --apply
+    30 3 * * *  purge_raw_content.py --days 14 --apply   (installed 2026-09-03)
 """
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
                     stream=sys.stderr)
 logger = logging.getLogger("purge_raw_content")
 
-DEFAULT_DAYS = 90
+DEFAULT_DAYS = 14
 DEFAULT_BATCH_IDS = 50_000
 
 # On Postgres long texts live TOASTed (compressed, out of line); pg_column_size
@@ -82,9 +82,28 @@ def fulltext_source_ids(conn) -> list[int]:
     return sorted(r["id"] if isinstance(r, dict) else r[0] for r in rows)
 
 
-def _where(cutoff: str, source_ids: list[int] | None) -> tuple[str, list]:
-    sql = "processed = TRUE AND raw_content IS NOT NULL AND fetched_at < ?"
-    params: list = [cutoff]
+def source_ids_by_name(conn, names: list[str]) -> list[int]:
+    """DB ids for explicitly named sources (--source); unknown names raise."""
+    ph = ",".join("?" * len(names))
+    rows = conn.execute(f"SELECT id, name FROM sources WHERE name IN ({ph})", names).fetchall()
+    found = {(r["name"] if isinstance(r, dict) else r[1]): (r["id"] if isinstance(r, dict) else r[0]) for r in rows}
+    missing = [n for n in names if n not in found]
+    if missing:
+        raise SystemExit(f"unknown source name(s): {', '.join(missing)}")
+    return sorted(found.values())
+
+
+def _where(cutoff: str, source_ids: list[int] | None,
+           ignore_state: bool = False) -> tuple[str, list]:
+    """ignore_state=True drops the processed/age conditions: used for sources
+    whose rights holder reserved text-and-data mining (§44b Abs. 3 UrhG) — their
+    stored full text goes regardless of pipeline state."""
+    if ignore_state:
+        sql = "raw_content IS NOT NULL"
+        params: list = []
+    else:
+        sql = "processed = TRUE AND raw_content IS NOT NULL AND fetched_at < ?"
+        params = [cutoff]
     if source_ids is not None:
         if not source_ids:
             return "1 = 0", []
@@ -93,8 +112,9 @@ def _where(cutoff: str, source_ids: list[int] | None) -> tuple[str, list]:
     return sql, params
 
 
-def count_candidates(conn, cutoff: str, source_ids: list[int] | None) -> dict:
-    where, params = _where(cutoff, source_ids)
+def count_candidates(conn, cutoff: str, source_ids: list[int] | None,
+                     ignore_state: bool = False) -> dict:
+    where, params = _where(cutoff, source_ids, ignore_state)
     row = conn.execute(
         f"SELECT COUNT(*) AS n, COALESCE(SUM({_BYTES_EXPR}), 0) AS bytes, "
         f"MIN(id) AS min_id, MAX(id) AS max_id, "
@@ -108,8 +128,9 @@ def count_candidates(conn, cutoff: str, source_ids: list[int] | None) -> dict:
     return r
 
 
-def by_source(conn, cutoff: str, source_ids: list[int] | None, top: int = 15) -> list[dict]:
-    where, params = _where(cutoff, source_ids)
+def by_source(conn, cutoff: str, source_ids: list[int] | None, top: int = 15,
+              ignore_state: bool = False) -> list[dict]:
+    where, params = _where(cutoff, source_ids, ignore_state)
     rows = conn.execute(
         f"SELECT s.name AS name, COUNT(*) AS n, COALESCE(SUM({_BYTES_EXPR}), 0) AS bytes "
         f"FROM raw_entries re JOIN sources s ON s.id = re.source_id "
@@ -120,9 +141,13 @@ def by_source(conn, cutoff: str, source_ids: list[int] | None, top: int = 15) ->
 
 
 def purge(cutoff: str, source_ids: list[int] | None, min_id: int, max_id: int,
-          batch_ids: int = DEFAULT_BATCH_IDS, max_rows: int | None = None) -> int:
-    """NULL raw_content in id-range batches; returns rows updated."""
-    where, params = _where(cutoff, source_ids)
+          batch_ids: int = DEFAULT_BATCH_IDS, max_rows: int | None = None,
+          ignore_state: bool = False, also_extraction: bool = False) -> int:
+    """NULL raw_content (and, with also_extraction, the mined extraction_json —
+    claims/quotes are reproductions too) in id-range batches; returns rows updated."""
+    set_sql = ("raw_content = NULL, extraction_json = NULL" if also_extraction
+               else "raw_content = NULL")
+    where, params = _where(cutoff, source_ids, ignore_state)
     total = 0
     t0 = time.time()
     batches = 0
@@ -130,7 +155,7 @@ def purge(cutoff: str, source_ids: list[int] | None, min_id: int, max_id: int,
         hi = lo + batch_ids
         with get_connection() as conn:
             cur = conn.execute(
-                f"UPDATE raw_entries SET raw_content = NULL "
+                f"UPDATE raw_entries SET {set_sql} "
                 f"WHERE id >= ? AND id < ? AND {where}", [lo, hi, *params])
             n = cur.rowcount if cur.rowcount is not None and cur.rowcount >= 0 else 0
         total += n
@@ -158,6 +183,12 @@ def main(argv: list[str] | None = None) -> int:
                     help=f"retention window in days after fetch (default {DEFAULT_DAYS})")
     ap.add_argument("--fulltext-sources-only", action="store_true",
                     help="only entries of sources flagged fulltext:true in sources.yaml")
+    ap.add_argument("--source", action="append", default=[], metavar="NAME",
+                    help="only this source (repeatable; exact sources.name)")
+    ap.add_argument("--ignore-state", action="store_true",
+                    help="purge regardless of processed/age (TDM-reserved sources)")
+    ap.add_argument("--also-extraction", action="store_true",
+                    help="also NULL extraction_json (mined claims/quotes) — reserved sources")
     ap.add_argument("--by-source", action="store_true",
                     help="dry run: also list the top sources by stored bytes (second pass)")
     ap.add_argument("--batch", type=int, default=DEFAULT_BATCH_IDS,
@@ -173,12 +204,20 @@ def main(argv: list[str] | None = None) -> int:
     cutoff = cutoff_iso(args.days)
     backend = "postgres" if USE_POSTGRES else "sqlite"
     with get_connection() as conn:
-        source_ids = fulltext_source_ids(conn) if args.fulltext_sources_only else None
-        stats = count_candidates(conn, cutoff, source_ids)
-        top = by_source(conn, cutoff, source_ids) if args.by_source else []
+        if args.source:
+            source_ids = source_ids_by_name(conn, args.source)
+        else:
+            source_ids = fulltext_source_ids(conn) if args.fulltext_sources_only else None
+        if args.ignore_state and not args.source:
+            raise SystemExit("--ignore-state requires --source (never purge everything blindly)")
+        stats = count_candidates(conn, cutoff, source_ids, args.ignore_state)
+        top = by_source(conn, cutoff, source_ids, ignore_state=args.ignore_state) if args.by_source else []
 
-    scope = (f"{len(source_ids)} fulltext:true sources" if source_ids is not None
+    scope = (f"sources {', '.join(args.source)}" if args.source
+             else f"{len(source_ids)} fulltext:true sources" if source_ids is not None
              else "all sources")
+    if args.ignore_state:
+        scope += " (ignore-state: any processed/age)"
     print(f"backend={backend} cutoff=fetched_at<{cutoff} ({args.days} days) scope={scope}")
     print(f"candidates: {stats['n']:,} rows, {fmt_bytes(stats['bytes'])} stored "
           f"({'on-disk, compressed' if USE_POSTGRES else 'characters'})")
@@ -195,7 +234,8 @@ def main(argv: list[str] | None = None) -> int:
         print("nothing to purge")
         return 0
     nulled = purge(cutoff, source_ids, int(stats["min_id"]), int(stats["max_id"]),
-                   batch_ids=args.batch, max_rows=args.max_rows)
+                   batch_ids=args.batch, max_rows=args.max_rows,
+                   ignore_state=args.ignore_state, also_extraction=args.also_extraction)
     print(f"purged raw_content on {nulled:,} rows")
     return 0
 

@@ -93,4 +93,6 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 #30 8 * * * cd /home/dirk/projects/catandary-trends && .venv/bin/python -m scripts.sync_subscribers >> /home/dirk/logs/catandary-newsletter-sync.log 2>&1
 
 # Retention Volltexte (§44b Abs. 2 S. 2 UrhG, Compliance-Review 2026-09-02): raw_entries.raw_content nach 90 Tagen NULL (verarbeitete Einträge; id-Range-Batches, Dry-Run-Sichtung liegt vor). NOCH NICHT AKTIV — erst nach Owner-Freigabe einkommentieren (Sonntag 03:30 kollidiert mit nichts: Backup 02:45 ist nach ~18 min durch, Discovery 06:00).
-#30 3 * * 0 cd /home/dirk/projects/catandary-trends && .venv/bin/python scripts/purge_raw_content.py --days 90 --apply >> /home/dirk/logs/catandary-purge-raw.log 2>&1
+# Volltext-Retention (taeglich 03:30, seit 2026-09-03 installiert, Owner-Auftrag '100 % konform'):
+# raw_content verarbeiteter Eintraege aelter als 14 Tage auf NULL (§44b Abs. 2 S. 2 UrhG).
+30 3 * * * cd /home/dirk/projects/catandary-trends && .venv/bin/python scripts/purge_raw_content.py --days 14 --apply >> /home/dirk/logs/catandary-purge-raw.log 2>&1

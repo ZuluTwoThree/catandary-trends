@@ -202,6 +202,14 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     Template: {brand_name, product_name, source_type, key_claims,
                key_figures, dates, quotes, geography}  (Listen gedeckelt)
     → Rein extraktiv, nur Text der im Original steht; Temperatur: 0
+    → Volltext-Grundlage (seit 2026-09-03, Compliance-Welle): der Fetcher
+      (pipeline/article_fetcher.py) meldet sich als CatandaryTrendsBot/1.0
+      mit Kontakt, respektiert robots.txt UND maschinenlesbare TDM-Vorbehalte
+      (TDM-Reservation-Header, meta tdm-reservation, robots noai, tdmrep.json;
+      TDM_RESPECT=1) — bei Vorbehalt nur Titel/Teaser. 147 Quellen sind
+      fulltext:true (3 Vorbehalts-Quellen + 10 Bot-Sperren am 03.09. auf
+      false gesetzt, docs/compliance/tdm_probe_2026-09-03.md). raw_content
+      wird 14 Tage nach Abruf genullt (Cron 03:30, §44b Abs. 2 S. 2 UrhG).
     → EXTRACTION_STRICT=1 (Default seit 2026-08-21): alle Felder Pflicht,
       quotes/geography werden auf Wörtlichkeit gefiltert (~5,3 s/Artikel)
     → key_figures kommen NICHT vom Modell: deterministisch per Regex aus der
@@ -482,6 +490,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # noch NICHT installiert — wartet auf ~/.config/catandary/webspace.env vom Owner):
 # build_public_static.sh + publish_static_site.py --apply, Log ~/logs/catandary-publish-*.log
 30 6 * * *   scripts/publish_static_site.sh
+
+# Volltext-Retention (täglich 03:30, INSTALLIERT 2026-09-03, Owner-Auftrag „100 % konform"):
+# raw_content verarbeiteter raw_entries älter als 14 Tage → NULL (§44b Abs. 2 S. 2 UrhG).
+# Vorbehalts-Quellen: purge_raw_content.py --source … --ignore-state --also-extraction
+30 3 * * *   .venv/bin/python scripts/purge_raw_content.py --days 14 --apply
 
 # Source-Discovery-Loop (Sonntag 06:00)
 0 6 * * 0    .venv/bin/python scripts/discovery_loop.py

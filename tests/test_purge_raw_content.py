@@ -107,3 +107,45 @@ class TestWrite:
         assert prc.main(["--days", "90", "--apply", "--fulltext-sources-only"]) == 0
         assert _raw(1)["raw_content"] is None
         assert _raw(5)["raw_content"] is not None
+
+
+class TestReservedSources:
+    """--source / --ignore-state / --also-extraction: the path used for rights
+    holders that reserved text-and-data mining (§44b Abs. 3 UrhG)."""
+
+    def test_source_ids_by_name_resolves_and_rejects_unknown(self, seeded):
+        with get_connection() as c:
+            assert prc.source_ids_by_name(c, ["Fulltext Pub"]) == [1]
+            assert prc.source_ids_by_name(c, ["Teaser Pub", "Fulltext Pub"]) == [1, 2]
+            with pytest.raises(SystemExit):
+                prc.source_ids_by_name(c, ["Nope Pub"])
+
+    def test_ignore_state_counts_every_row_with_text_of_that_source(self, seeded):
+        with get_connection() as c:
+            st = prc.count_candidates(c, CUTOFF, [1], ignore_state=True)
+        assert st["n"] == 3          # ids 1 (old), 2 (unprocessed), 3 (fresh); 4 has no text
+        with get_connection() as c:
+            st = prc.count_candidates(c, CUTOFF, [1])
+        assert st["n"] == 1          # without ignore_state only the old processed one
+
+    def test_ignore_state_purge_also_nulls_extraction_for_named_source_only(self, seeded):
+        with get_connection() as c:
+            c.execute("UPDATE raw_entries SET extraction_json = '{\"quotes\": [\"x\"]}' WHERE id IN (2, 3, 5)")
+        n = prc.purge(CUTOFF, [1], 1, 5, batch_ids=2, ignore_state=True, also_extraction=True)
+        assert n == 3
+        with get_connection() as c:
+            rows = {r["id"]: (r["raw_content"], r["extraction_json"]) for r in
+                    c.execute("SELECT id, raw_content, extraction_json FROM raw_entries").fetchall()}
+        assert rows[1] == (None, None) and rows[2] == (None, None) and rows[3] == (None, None)
+        assert rows[5][0] is not None and rows[5][1] is not None   # other source untouched
+        assert _raw(2)["excerpt"] == "teaser 2"                       # feed text stays
+
+    def test_cli_ignore_state_requires_source(self, seeded, capsys):
+        with pytest.raises(SystemExit):
+            prc.main(["--ignore-state", "--dry-run"])
+
+    def test_cli_source_dry_run_reports_scope(self, seeded, capsys):
+        assert prc.main(["--source", "Fulltext Pub", "--ignore-state"]) == 0
+        out = capsys.readouterr().out
+        assert "sources Fulltext Pub" in out and "ignore-state" in out and "3 rows" in out
+        assert _raw(2)["raw_content"] is not None                     # dry run wrote nothing
