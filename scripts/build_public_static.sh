@@ -158,9 +158,22 @@ RAW="$SITE/out"
 mv "$RAW/index.html" "$RAW/_landing_preview.html"
 rm -f "$RAW/index.txt"
 
+# --- 2d. feed page 1 also lives under trends/ -------------------------------
+# Next writes /trends as the ROOT files trends.html + trends.txt (the trends/
+# tree is their sibling). The publisher manages trends/** and _next/** plus
+# exactly these two root files (ROOT_ALLOWLIST in publish_static_site.py).
+# trends/index.html is the copy Apache serves for /trends (rule 1 in
+# public-export/trends/.htaccess) — page 1 then works from inside the managed
+# tree, with the trends/ headers, independent of the root upload. trends.txt
+# stays at the root: the router fetches /trends.txt on a client navigation
+# to /trends.
+[ -f "$RAW/trends.html" ] || die "trends.html missing"
+cp "$RAW/trends.html" "$RAW/trends/index.html"
+
 # --- 3. verify -------------------------------------------------------------
 [ -f "$RAW/404.html" ] || die "404.html missing"
-[ -f "$RAW/trends.html" ] || die "trends.html missing"
+[ -f "$RAW/trends.txt" ] || die "trends.txt (RSC payload of /trends) missing"
+[ -f "$RAW/trends/index.html" ] || die "trends/index.html missing"
 [ -f "$RAW/trends/expired.html" ] || die "trends/expired.html missing"
 [ -f "$RAW/trends/sitemap.xml" ] || die "trends/sitemap.xml missing"
 [ -f "$RAW/robots.txt" ] || die "robots.txt missing"

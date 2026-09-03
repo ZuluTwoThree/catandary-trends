@@ -12,9 +12,11 @@ What it manages — and what it never touches
 The webroot of catandary.de is OWNER-managed: index.html (landing), robots.txt,
 mark.svg, favicon.ico and newsletter/** (PHP double-opt-in with database
 credentials). This script writes and deletes ONLY inside the managed subtrees
-REMOTE_ROOT/trends/** and REMOTE_ROOT/_next/**. Every remote path is
-normalised and checked against that rule before any operation; a manifest
-line with ".." aborts the run.
+REMOTE_ROOT/trends/** and REMOTE_ROOT/_next/** — plus exactly two root files,
+trends.html and trends.txt (ROOT_ALLOWLIST: Next writes feed page 1 there;
+/trends.txt is what the router fetches on a client navigation to /trends).
+Every remote path is normalised and checked against that rule before any
+operation; a manifest line with ".." aborts the run.
 
 How the delta is found
 ----------------------
@@ -92,6 +94,12 @@ MANAGED_PREFIXES: tuple[str, ...] = ("trends", "_next")
 # Owner-managed webroot entries. Never a managed prefix, never written, never
 # deleted — the guard is structural (outside the managed subtrees) AND explicit.
 OWNER_PROTECTED = frozenset({"index.html", "robots.txt", "mark.svg", "favicon.ico", "newsletter"})
+# The only webroot FILES the publisher manages (upload, manifest, delete when
+# the build stops producing them): feed page 1 as Next names it. Exact names,
+# no directory, never enumerated — --full stats them one by one instead of
+# listing the webroot. Everything else at the root stays "outside scope".
+ROOT_ALLOWLIST = frozenset({"trends.html", "trends.txt"})
+assert not (ROOT_ALLOWLIST & OWNER_PROTECTED)
 REMOTE_MANIFEST = "trends/.publish-manifest.tsv"
 TMP_SUFFIX = ".publish-tmp"
 # Article pages: every public slug ends in -<numeric id> (same rule as the
@@ -233,7 +241,15 @@ def normalize_rel(path: str) -> str:
 
 
 def is_managed(rel: str, managed: tuple[str, ...] = MANAGED_PREFIXES) -> bool:
+    """A managed subtree entry — or one of the allowlisted root files."""
+    if rel in ROOT_ALLOWLIST:
+        return True
     return any(rel == p or rel.startswith(p + "/") for p in managed)
+
+
+def _is_root_tmp(rel: str) -> bool:
+    """The .publish-tmp twin of an allowlisted root file (atomic put+rename)."""
+    return rel.endswith(TMP_SUFFIX) and rel[:-len(TMP_SUFFIX)] in ROOT_ALLOWLIST
 
 
 def validate_managed(managed: tuple[str, ...]) -> None:
@@ -249,14 +265,17 @@ def guard_remote(root: str, rel: str, managed: tuple[str, ...] = MANAGED_PREFIXE
     Accepts the managed prefix directories themselves (for mkdir/rmdir) and
     anything below them; nothing else, whatever the input looks like."""
     rel = normalize_rel(rel)
-    if not is_managed(rel, managed):
-        raise PathViolation(f"{rel!r} is outside the managed subtrees {managed}")
+    if not (is_managed(rel, managed) or _is_root_tmp(rel)):
+        raise PathViolation(f"{rel!r} is outside the managed subtrees {managed} "
+                            f"and not an allowlisted root file {sorted(ROOT_ALLOWLIST)}")
     if rel.split("/", 1)[0] in OWNER_PROTECTED:
         raise PathViolation(f"{rel!r} is owner-protected")
     root_n = posixpath.normpath(root) if root else "."
     full = posixpath.normpath(posixpath.join(root_n, rel))
     ok = any(full == posixpath.join(root_n, p) or full.startswith(posixpath.join(root_n, p) + "/")
              for p in managed)
+    ok = ok or any(full == posixpath.join(root_n, f) or full == posixpath.join(root_n, f + TMP_SUFFIX)
+                   for f in ROOT_ALLOWLIST)
     if not ok:
         raise PathViolation(f"resolved path {full!r} left {root_n}/{{{','.join(managed)}}}")
     return full
@@ -472,12 +491,17 @@ class Backend:
     def _rename(self, src: str, dst: str) -> None: raise NotImplementedError
     def _remove(self, abspath: str) -> None: raise NotImplementedError
     def _read(self, abspath: str) -> bytes | None: raise NotImplementedError
+    def _stat_size(self, abspath: str) -> int | None:
+        """Size of a regular file, None if absent / not a file."""
+        raise NotImplementedError
     def _listdir(self, absdir: str) -> list[tuple[str, bool, int]]:
         """[(name, is_dir, size)]"""
         raise NotImplementedError
 
     # managed-path API
     def ensure_dir(self, rel_dir: str) -> None:
+        if rel_dir in ("", "."):
+            return  # the webroot itself (allowlisted root files) — never created here
         rel_dir = normalize_rel(rel_dir)
         if rel_dir in self._dirs:
             return
@@ -517,6 +541,11 @@ class Backend:
 
     def remove(self, rel: str) -> None:
         self._remove(self._abs(rel))
+
+    def stat_file(self, rel: str) -> int | None:
+        """Size of one managed file (None if absent) — how --full sees the
+        allowlisted root files without ever listing the webroot."""
+        return self._stat_size(self._abs(rel))
 
     def rmdir_if_empty(self, rel_dir: str) -> bool:
         rel_dir = normalize_rel(rel_dir)
@@ -587,6 +616,13 @@ class LocalBackend(Backend):
                 return f.read()
         except FileNotFoundError:
             return None
+
+    def _stat_size(self, abspath: str) -> int | None:
+        try:
+            st = os.stat(abspath)
+        except FileNotFoundError:
+            return None
+        return st.st_size if statmod.S_ISREG(st.st_mode) else None
 
     def _listdir(self, absdir: str) -> list[tuple[str, bool, int]]:
         out = []
@@ -685,6 +721,13 @@ class SftpBackend(Backend):
                 return f.read()
         except IOError:
             return None
+
+    def _stat_size(self, abspath: str) -> int | None:
+        try:
+            st = self.sftp.stat(abspath)
+        except IOError:
+            return None
+        return (st.st_size or 0) if statmod.S_ISREG(st.st_mode) else None
 
     def _listdir(self, absdir: str) -> list[tuple[str, bool, int]]:
         out = []
@@ -909,6 +952,20 @@ def build_rsync_cmd(cfg: Config, out_dir: Path, rel_dir: str, *, dry_run: bool) 
     return cmd
 
 
+def build_rsync_root_file_cmd(cfg: Config, out_dir: Path, name: str, *, dry_run: bool) -> list[str]:
+    """One allowlisted root file, by name — never a directory sync of the
+    webroot, so nothing else there can be touched or deleted."""
+    if name not in ROOT_ALLOWLIST:
+        raise PathViolation(f"{name!r} is not an allowlisted root file")
+    absdst = guard_remote(cfg.remote_root, name)
+    target = f"{cfg.user}@{cfg.host}:{absdst}" if cfg.host else absdst
+    cmd = ["rsync", "-t", "-i", "--out-format=%i %l %n"] + rsync_ssh_arg(cfg)
+    if dry_run:
+        cmd.append("-n")
+    cmd += [str(out_dir / name), target]
+    return cmd
+
+
 def parse_rsync_itemize(output: str) -> dict:
     new = changed = deleted = 0
     nbytes = 0
@@ -954,6 +1011,16 @@ def run_rsync_mode(cfg: Config, out_dir: Path, local_managed: dict, managed: tup
         result["per_prefix"][prefix] = c
         for k in totals:
             totals[k] += c[k]
+    root_files = [n for n in sorted(ROOT_ALLOWLIST) if (out_dir / n).is_file()]
+    for name in root_files:
+        cmd = build_rsync_root_file_cmd(cfg, out_dir, name, dry_run=True)
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise RuntimeError(f"rsync -n {name} failed ({proc.returncode}): {proc.stderr.strip()}")
+        c = parse_rsync_itemize(proc.stdout)
+        result["per_prefix"][name] = c
+        for k in totals:
+            totals[k] += c[k]
     local_total = len(local_managed)
     remote_total = local_total - totals["new"] + totals["deleted"]
     result["plan"] = {**totals, "remote_total": remote_total, "local_managed": local_total}
@@ -977,6 +1044,17 @@ def run_rsync_mode(cfg: Config, out_dir: Path, local_managed: dict, managed: tup
         c = parse_rsync_itemize(proc.stdout)
         result["uploaded"] += c["new"] + c["changed"]
         result["deleted"] += c["deleted"]
+        result["uploaded_bytes"] += c["bytes"]
+    for name in (root_files if result["errors"] == 0 else []):
+        cmd = build_rsync_root_file_cmd(cfg, out_dir, name, dry_run=False)
+        logger.info("rsync: %s", " ".join(cmd))
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            result["errors"] += 1
+            logger.error("rsync %s failed (%d): %s", name, proc.returncode, proc.stderr.strip())
+            break
+        c = parse_rsync_itemize(proc.stdout)
+        result["uploaded"] += c["new"] + c["changed"]
         result["uploaded_bytes"] += c["bytes"]
     if result["errors"] == 0:
         # 3. manifest — the sftp path can pick up from here on a later run
@@ -1166,6 +1244,12 @@ def main(argv: list[str] | None = None) -> int:
                         m = manifest_remote.get(rel)
                         sha = m[0] if m and m[1] == size else None
                         listing[rel] = (sha, size)
+                for rel in sorted(ROOT_ALLOWLIST):
+                    size = probe.stat_file(rel)
+                    if size is None:
+                        continue
+                    m = manifest_remote.get(rel)
+                    listing[rel] = (m[0] if m and m[1] == size else None, size)
                 remote_state = listing
                 logger.info("--full: remote listing has %d files (manifest knew %d)",
                             len(listing), len(manifest_remote))

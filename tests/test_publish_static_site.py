@@ -59,7 +59,11 @@ ROOT_FILES = {  # produced by the build but NOT managed by the publisher
     "sitemap.xml": "<urlset/>",
     ".htaccess": "root htaccess",
 }
-ALL_FILES = {**ARTICLE_FILES, **LISTING_FILES, **ASSET_FILES, **ROOT_FILES}
+ROOT_MANAGED_FILES = {  # feed page 1 as Next names it — the ROOT_ALLOWLIST
+    "trends.html": "<html>feed page 1</html>",
+    "trends.txt": "rsc feed page 1",
+}
+ALL_FILES = {**ARTICLE_FILES, **LISTING_FILES, **ASSET_FILES, **ROOT_FILES, **ROOT_MANAGED_FILES}
 OWNER_FILES = {
     "index.html": "<html>OWNER landing</html>",
     "robots.txt": "owner robots",
@@ -126,6 +130,7 @@ def site(tmp_path):
         "trends/old-signal-9.txt": "rsc old",
         "trends/old-signal-9/__next._full.txt": "seg old",
         "trends/index.html": "<html>OLD feed</html>",
+        "trends.html": "<html>OLD feed page 1</html>",
         "trends/.htaccess": "RewriteEngine On",
         "_next/static/chunks/main-old.js": "old js",
         "_next/static/css/app-def456.css": "body{}",
@@ -198,12 +203,28 @@ class TestPaths:
         assert ps.normalize_rel("_next/static/x.js") == "_next/static/x.js"
 
     @pytest.mark.parametrize("rel", ["index.html", "robots.txt", "mark.svg", "favicon.ico",
-                                     "newsletter/subscribe.php", "trends.html", "sitemap.xml",
-                                     "trendsx/a.html", "404.html", ".htaccess"])
+                                     "newsletter/subscribe.php", "sitemap.xml", "imprint.html",
+                                     "trendsx/a.html", "404.html", ".htaccess", "trends.htm",
+                                     "Trends.html", "trendsx.html", "x/trends.html",
+                                     "trends.html/x", "trends.json", ".publish-manifest.tsv"])
     def test_owner_and_root_files_are_never_managed(self, rel):
         assert not ps.is_managed(rel)
         with pytest.raises(ps.PathViolation):
             ps.guard_remote("/public_html", rel)
+
+    def test_root_allowlist_is_exactly_feed_page_one(self):
+        """trends.html + trends.txt are the only webroot files the publisher
+        owns (Next writes /trends there; /trends.txt is the router's payload)."""
+        assert ps.ROOT_ALLOWLIST == {"trends.html", "trends.txt"}
+        assert not (ps.ROOT_ALLOWLIST & ps.OWNER_PROTECTED)
+        for rel in sorted(ps.ROOT_ALLOWLIST):
+            assert ps.is_managed(rel)
+            assert ps.guard_remote("/public_html", rel) == f"/public_html/{rel}"
+            # the atomic put+rename twin is reachable, nothing else at the root is
+            assert ps.guard_remote("/public_html", rel + ps.TMP_SUFFIX) == f"/public_html/{rel}{ps.TMP_SUFFIX}"
+            assert ps.phase_of(rel) == "listing"
+        with pytest.raises(ps.PathViolation):
+            ps.guard_remote("/public_html", "index.html" + ps.TMP_SUFFIX)
 
     def test_guard_resolves_inside_the_subtrees_only(self):
         assert ps.guard_remote("/public_html", "trends/a-1.html") == "/public_html/trends/a-1.html"
@@ -244,6 +265,20 @@ class TestManifestDiff:
         assert plan.unchanged == 1
         assert plan.outside_scope == 1, "root index.html from the build is skipped, not uploaded"
         assert plan.remote_total == 3, "the owner's index.html in a stray remote manifest is not counted"
+
+    def test_root_allowlist_travels_and_is_deleted_only_by_name(self):
+        local = {"trends.html": ("h1", 10), "trends.txt": ("t1", 4), "trends/a-1.html": ("a", 1),
+                 "index.html": ("root", 1), "404.html": ("nf", 1)}
+        remote = {"trends.html": ("h0", 9), "index.html": ("OWNER", 99), "imprint.html": ("x", 1),
+                  "trends.txt": ("t1", 4)}
+        plan = ps.build_plan(local, remote)
+        assert {i.path: i.reason for i in plan.uploads} == {"trends.html": "changed",
+                                                            "trends/a-1.html": "new"}
+        assert plan.unchanged == 1 and plan.outside_scope == 2
+        assert plan.deletes == []
+        # a root file the build no longer produces goes — but only an allowlisted one
+        plan = ps.build_plan({"trends/a-1.html": ("a", 1)}, remote)
+        assert plan.deletes == ["trends.html", "trends.txt"]
 
     def test_remote_only_owner_entries_are_never_deleted(self):
         remote = {"index.html": ("x", 1), "newsletter/subscribe.php": ("y", 2),
@@ -291,7 +326,8 @@ class TestOrder:
         for rel in ARTICLE_FILES:
             assert ps.phase_of(rel) == "articles", rel
         for rel in ("trends/mega/quantum-information-science.html", "trends/expired.html",
-                    "trends/index.json", "trends/page/2.html", "trends/v/tech.html"):
+                    "trends/index.json", "trends/page/2.html", "trends/v/tech.html",
+                    "trends/index.html", "trends.html", "trends.txt"):
             assert ps.phase_of(rel) == "listing", rel
         assert ps.phase_of("_next/static/chunks/x.js") == "assets"
 
@@ -373,6 +409,9 @@ class TestLocalEndToEnd:
         for rel, content in OWNER_FILES.items():
             assert got[rel] == content, rel
         assert "404.html" not in got and ".htaccess" not in got and "sitemap.xml" not in got
+        # the two allowlisted root files did travel (stale trends.html replaced)
+        for rel, content in ROOT_MANAGED_FILES.items():
+            assert got[rel] == content, rel
         # managed content = the export's managed files, stale ones gone
         managed_local = {r: c for r, c in ALL_FILES.items() if ps.is_managed(r)}
         managed_remote = {r: c for r, c in got.items() if ps.is_managed(r) and r != ps.REMOTE_MANIFEST}
@@ -393,6 +432,25 @@ class TestLocalEndToEnd:
         assert s["skipped_outside_scope"] == len(ROOT_FILES)
         assert s["finished_at"].startswith(datetime.now().strftime("%Y-%m-%d"))
         assert site["log"].exists() and "done: status=ok" in site["log"].read_text()
+
+    def test_full_mode_stats_root_files_and_never_lists_the_webroot(self, site):
+        assert run_main(site, "--apply") == ps.EXIT_OK
+        (site["dest"] / ps.REMOTE_MANIFEST).unlink()          # lost manifest → --full
+        (site["dest"] / "trends" / "stray-777.html").write_text("stray")
+        (site["dest"] / "foreign.html").write_text("someone else's root file")
+        assert run_main(site, "--apply", "--full") == ps.EXIT_OK
+        got = tree(site["dest"])
+        assert "trends/stray-777.html" not in got
+        assert got["foreign.html"] == "someone else's root file"
+        for rel, content in OWNER_FILES.items():
+            assert got[rel] == content, rel
+        for rel, content in ROOT_MANAGED_FILES.items():
+            assert got[rel] == content, rel
+        s = json.loads(site["summary"].read_text())
+        assert s["status"] == "ok" and s["uploaded"] == 0 and s["deleted"] == 1
+        # the rebuilt manifest knows the root files again (size-matched → hash unknown → '-')
+        remote_manifest = ps.parse_manifest(got[ps.REMOTE_MANIFEST])
+        assert set(ROOT_MANAGED_FILES) <= set(remote_manifest)
 
     def test_second_run_is_a_no_op(self, site):
         assert run_main(site, "--apply") == ps.EXIT_OK
