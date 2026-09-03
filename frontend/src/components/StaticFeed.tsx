@@ -12,12 +12,14 @@ import { getVerticalInfo, type Vertical } from "@/lib/types";
 import { STATIC_PAGE_SIZE, listingPath, pageCount } from "@/lib/staticListing";
 import {
   dynamicUnlessStatic,
+  isStaticExport,
   metadataSettled,
   afterMetadata,
 } from "@/lib/renderMode";
 import TrendCard from "./TrendCard";
 import TrendsHero from "./TrendsHero";
 import StaticFilterBar from "./StaticFilterBar";
+import StaticSearch, { StaticSearchProvider, StaticSearchScope } from "./StaticSearch";
 import PaginationNav from "./PaginationNav";
 import ForesightCta from "./ForesightCta";
 import { TrendsListJsonLd } from "./JsonLd";
@@ -36,6 +38,12 @@ import { TrendsListJsonLd } from "./JsonLd";
  * Determinism (byte-equal builds): every number on the page derives from the
  * data (counts, the newest sort_date as the hero stamp); the metadata gate
  * (lib/renderMode.ts) keeps the RSC row order stable.
+ *
+ * Search/filter (Schritt 5 / D): in the export the client-side search over
+ * /trends/index.json (components/StaticSearch.tsx) sits in the filter bar
+ * and swaps the listing body for its hits while active. It is mounted ONLY
+ * in the export — the workstation preview of these routes stays exactly the
+ * server-rendered listing.
  */
 
 async function listingTotal(
@@ -118,21 +126,10 @@ export default async function StaticFeed({
 
   const totalPublished = Object.values(globalCounts).reduce((a, b) => a + b, 0);
   const info = vertical ? getVerticalInfo(vertical) : null;
+  const withSearch = isStaticExport();
 
-  return (
-    <div className="mx-auto max-w-7xl px-6 md:px-10 py-10">
-      {!vertical && page === 1 && <TrendsListJsonLd />}
-      <TrendsHero
-        totalSignals={totalPublished}
-        analyzedTotal={analyzedTotal}
-        verticalCounts={globalCounts}
-        asOf={newest}
-      />
-
-      <div className="mb-6">
-        <StaticFilterBar active={vertical} counts={tabCounts} />
-      </div>
-
+  const listing = (
+    <>
       <div className="mb-6 flex items-baseline justify-between">
         <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
           <span className="text-accent tabular-nums">
@@ -174,6 +171,36 @@ export default async function StaticFeed({
         totalPages={totalPages}
         hrefFor={(p) => listingPath(vertical, p)}
       />
+    </>
+  );
+
+  return (
+    <div className="mx-auto max-w-7xl px-6 md:px-10 py-10">
+      {!vertical && page === 1 && <TrendsListJsonLd />}
+      <TrendsHero
+        totalSignals={totalPublished}
+        analyzedTotal={analyzedTotal}
+        verticalCounts={globalCounts}
+        asOf={newest}
+      />
+
+      {withSearch ? (
+        <StaticSearchProvider vertical={vertical}>
+          <div className="mb-6">
+            <StaticFilterBar active={vertical} counts={tabCounts}>
+              <StaticSearch />
+            </StaticFilterBar>
+          </div>
+          <StaticSearchScope>{listing}</StaticSearchScope>
+        </StaticSearchProvider>
+      ) : (
+        <>
+          <div className="mb-6">
+            <StaticFilterBar active={vertical} counts={tabCounts} />
+          </div>
+          {listing}
+        </>
+      )}
 
       <ForesightCta />
     </div>
