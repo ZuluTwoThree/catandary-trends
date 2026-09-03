@@ -13,6 +13,20 @@
 >   Branch `issue-audit`" (gemergt 01.09., Branch gelöscht), die „manuell ausführen"-Hinweise unten.
 > - Weiterhin reklamierbar: `*_old`-Tabellen (~36 GB: `patent_cpc_full_old`, `patent_spnp_full_old`, `patent_spnp_full_z3_old`).
 
+> **Nachtrag 03.09.2026 — #95 Korpus-Rechercheur im Frontend** (`docs/agentic_dossiers.md`):
+> - Branch `Agentic-Dossiers` nach `dev` gemergt (`a73d4a9`; Konflikte in `corpus_research.py`
+>   [`--company`/`--focus` + `quant`], `publicMode.ts`, `dossier-access.ts` [Auth weg → lokal offen,
+>   PUBLIC_MODE/Export zu], CLAUDE.md/.env.example). Desk `/trends/dossiers` standardmäßig AN
+>   (`DOSSIERS_ENABLED=0` = Not-Aus), im Export ausgeschlossen (Drift-Wächter grün).
+> - `migrate_dossier_orders.py` auf der Live-DB ausgeführt (idempotent, `dossier_orders` neu).
+> - Frontend: „Run now"/„Run N queued"/„Recompute · v(n+1)" starten den Worker on-demand
+>   (Radar-Regel), Herkunftskopf + Coverage-Anhang, Markdown-Tabellen, Same-Origin-Check in den
+>   Server Actions, Scouting Desk im Foresight-Menü/Cockpit.
+> - Abnahmelauf §1 (perovskite tandem photovoltaics): fertiges Dossier 8/8 Zitate belegt, 0 tote
+>   URLs, 0 unbelegte Zahlen, Ledger 6/6 befüllt; Streichungsquote 46,7 % der Zitat-Instanzen
+>   (3 katalogfremde, nicht existierende URLs im Roh-Bericht) bleibt der offene Prüfpunkt.
+>   Dauer 477 s Recherche / 568 s Wandzeit. **Weiterhin offen:** §1 weitere Domänen, `lang=de`-Streichungen.
+
 Vollständiges Audit aller offenen Issues in der Nacht 2026-08-28 (Referenz `main` = `a6455bf`).
 Jede Aussage gegen Code, DB, crontab und die laufende Instanz (:3001) geprüft.
 **Ergebnis: 14 geschlossen, 1 neu (#94) → Backlog 36 → 23 offen.**

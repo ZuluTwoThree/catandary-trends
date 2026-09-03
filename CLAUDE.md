@@ -960,22 +960,38 @@ Auf der 24-GB-Karte kann Stage 6 (Content-Generierung) auf ein deutlich größer
 - **Rückbau:** `STAGE5_BACKEND=ollama` (Env-Override) erzwingt den Ollama-14B-Pfad. Alternativ das Content-Gen-Start-Skript entfernen/umbenennen → `scheduled_cycle.sh` fällt automatisch auf Ollama zurück. **Zurück auf 30B/35B:** in `scheduled_cycle.sh` `STAGE5_MODEL`/`STAGE5_START` auf `start-qwen3-30b.sh` bzw. `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` + `start-qwen3.6-35b.sh` zeigen lassen. (Das bloße Umhängen von `start-active.sh` deaktiviert den Pfad **nicht** — der Handover hängt selbst um.)
 - **Zugehörige Goals:** offene Erweiterung der Quellen-Architektur, siehe `goals/` und `pipeline_expansion_prompt.md`.
 
-## Agentic Scouting-Dossiers (Owner-only; Branch `Agentic-Dossiers`)
+## Agentic Scouting-Dossiers — Owner-Desk `/trends/dossiers` (#95, seit 2026-09-03 auf `dev`)
 
-Der agentische Rechercheur (`scripts/corpus_research.py`) als Owner-Werkzeug —
-Details in `docs/agentic_dossiers.md`. Kern-Kontrakt (Owner 2026-09-01):
-Aufträge erteilt nur der Owner (`/trends/dossiers` oder
-`scripts/dossier_worker.py --order-new`), abgearbeitet wird **nur bei manuellem
-Worker-Start** (bewusst kein Cron), alles läuft **streng lokal** auf dem 27B
-(kein Cloud-Hop — proprietäre Dokumente), und jeder Lauf endet in `review`:
-erst die deterministische Agenten-Endkontrolle (`pipeline/dossier_check.py`,
-Zahlen-Grounding + Zitat-Bilanz), dann die finale Owner-Durchsicht mit
-Sign-off. Vor der Recherche injiziert die Quant-Vorstufe
-(`pipeline/dossier_quant.py`) die gemessene Innovationskette (tech_analyze:
-CPC → TIR → Lead-Time → Leitpatente) als zitierbare Evidenz. Tabellen
-`dossier_orders`/`dossiers` via `scripts/migrate_dossier_orders.py`
-(additiv, einmal manuell). GPU: `model_on_llamacpp` mit Stage-10-Guards
-(VRAM <1100 MiB Fremdbelegung, Identitäts-Check `/v1/models`).
+Der agentische Rechercheur (`scripts/corpus_research.py`) als Owner-Werkzeug
+mit Frontend — Details, Runbook und Abnahmelauf in `docs/agentic_dossiers.md`.
+Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
+
+- **Aufträge erteilt nur der Owner** — im Desk `/trends/dossiers` (Auftragszettel)
+  oder per `scripts/dossier_worker.py --order-new`. Kein Kundenpfad.
+- **Radar-Regel: nur auf Knopfdruck, kein Cron.** Der Desk startet den Worker
+  („Run now" / „Run N queued" / „Recompute · v(n+1)" je Serie) über
+  `frontend/src/lib/dossierWorker.ts`: `.venv/bin/python -m scripts.dossier_worker
+  [--order N]` detached, Log `data/dossier_worker/<stamp>.log`, Lock
+  `data/dossier_worker.lock` (ein Worker zugleich). Nicht parallel zum
+  04:00-Full-Cycle starten.
+- **Streng lokal:** Quant-Vorstufe (`pipeline/dossier_quant.py`, Embedding-Handover)
+  → Recherche auf Qwen3.8-27B (`model_on_llamacpp` mit den Stage-10-Guards:
+  VRAM < 1100 MiB Fremdbelegung, Identitäts-Check `/v1/models`) → deterministische
+  Endkontrolle (`pipeline/dossier_check.py`: Zahlen-Grounding, Zitat-Bilanz,
+  beide Sprachfassungen des Coverage-Anhangs abgetrennt). Der Worker stellt
+  danach den **Ruhezustand** wieder her (Symlink `start-active.sh` → 8B-208k,
+  llama-server läuft wieder, falls er vorher lief).
+- **Jeder Lauf endet in `review`;** `done` nur per Owner-Sign-off im Desk.
+- **Zugriff:** lokal standardmäßig AN (`DOSSIERS_ENABLED=0` = Not-Aus);
+  `PUBLIC_MODE=1` blockt die Route (`BLOCKED_PREFIXES` + `proxy.ts`), der
+  statische Export baut sie nie (`frontend/static-export.exclude`, Drift-Wächter
+  `staticExport.test.ts`). Server Actions prüfen zusätzlich Same-Origin
+  (`isSameOriginHeaders`, `lib/apiGuards.ts`).
+- **Tabellen** `dossier_orders` + `dossiers` (versioniert: slug+version) via
+  `scripts/migrate_dossier_orders.py` — additiv, idempotent, **auf der Live-DB
+  am 2026-09-03 ausgeführt**. Leseansicht: Herkunftskopf (Frage, Belegmix,
+  zitiert/gestrichen, Messblock, Modell/Dauer) + Bericht (Markdown inkl.
+  Tabellen) + Coverage-Anhang + Versionswechsler.
 
 ## Technische Hinweise
 
