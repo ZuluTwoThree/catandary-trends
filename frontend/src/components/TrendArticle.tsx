@@ -9,6 +9,7 @@ import type { TrendTechMatch } from "@/lib/technology";
 import { getVerticalInfo, getMegaTrendInfo } from "@/lib/types";
 import { archiveUrl, DEAD_SOURCE_NOTICE } from "@/lib/deadLinks";
 import { safeHref } from "@/lib/safeHref";
+import { sourceLicenseNotice } from "@/lib/sourceLicense";
 import { isStaticExport } from "@/lib/renderMode";
 import PestelBadge from "./PestelBadge";
 import VerticalBadge from "./VerticalBadge";
@@ -44,6 +45,7 @@ export default function TrendArticle({
   // Feed-sourced URL: only http(s) becomes a link (F-3); anything else is
   // shown as text so the attribution stays visible but inert.
   const sourceHref = safeHref(trend.source_url);
+  const licenseNotice = sourceLicenseNotice(trend.source_name);
 
   useEffect(() => {
     // No API on the static hosting (design 4.3): the page-view ping would
@@ -248,6 +250,19 @@ export default function TrendArticle({
               <span className="font-sans text-sm break-all">
                 {trend.source_name || trend.source_url}
               </span>
+            )}
+            {licenseNotice && (
+              <p className="mt-3 text-xs text-muted leading-relaxed" data-testid="source-license">
+                {licenseNotice.text}{" "}
+                <a
+                  href={licenseNotice.licenseUrl}
+                  target="_blank"
+                  rel="noopener noreferrer license"
+                  className="text-accent hover:underline"
+                >
+                  {licenseNotice.licenseName}
+                </a>
+              </p>
             )}
             {sourceDead && sourceHref && (
               <p className="mt-3 text-xs text-muted leading-relaxed">
