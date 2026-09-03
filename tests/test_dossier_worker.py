@@ -4,7 +4,7 @@ Geprüft wird der Kontrakt, nicht die Recherche: Aufträge enden in 'review'
 mit gespeicherter Dossier-Version und Endkontrolle; Fehler enden in 'failed';
 der Identitäts-Guard bei --assume-model-up verweigert das falsche Modell.
 """
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 
 import pytest
 
@@ -35,6 +35,8 @@ def fresh(monkeypatch):
     monkeypatch.setattr(w.gpu_handover, "model_on_llamacpp",
                         lambda *a, **k: nullcontext())
     monkeypatch.setattr(w, "build_quant_evidence", lambda t: dict(QUANT_FAIL))
+    # Tests fassen systemd nie an: Ausgangszustand "nicht aktiv" → kein Neustart.
+    monkeypatch.setattr(w, "_llama_unit_active", lambda: False)
     yield
 
 
@@ -111,6 +113,39 @@ class TestRunWorker:
         oid = m.create_order("t")
         assert w.run_worker(assume_model_up=True) == 1
         assert m.get_order(oid)["status"] == "queued"   # unangetastet
+
+    def test_resting_server_restored_when_it_was_active(self, monkeypatch):
+        # Lief llama-server vorher, muss er nach dem Lauf wieder laufen —
+        # auch wenn der GPU-Guard den Lauf verweigert hat (die Handover
+        # stoppen die Unit VOR dem VRAM-Check).
+        calls: list[list[str]] = []
+        class _R:
+            stdout = "active\n"
+        def fake_run(cmd, timeout=60):
+            calls.append(list(cmd))
+            return _R()
+        monkeypatch.setattr(w.gpu_handover, "_run", fake_run)
+        monkeypatch.setattr(w, "_llama_unit_active", lambda: True)
+        @contextmanager
+        def refuse(*a, **k):
+            # wie der echte Handover: die Ablehnung passiert beim Betreten
+            raise RuntimeError("VRAM pre-check failed")
+            yield                                   # pragma: no cover
+        monkeypatch.setattr(w.gpu_handover, "model_on_llamacpp", refuse)
+        oid = m.create_order("t")
+        assert w.run_worker() == 1
+        assert m.get_order(oid)["status"] == "queued"
+        assert ["systemctl", "--user", "start", w.gpu_handover.LLAMA_UNIT] in calls
+
+    def test_resting_server_left_alone_when_it_was_down(self, monkeypatch):
+        calls: list[list[str]] = []
+        monkeypatch.setattr(w.gpu_handover, "_run",
+                            lambda cmd, timeout=60: calls.append(list(cmd)))
+        monkeypatch.setattr(w.corpus_research, "run",
+                            lambda *a, **k: dict(RESULT))
+        m.create_order("t")
+        assert w.run_worker() == 0
+        assert not any("start" in c for c in calls)
 
     def test_only_order_requeues_failed(self, monkeypatch):
         monkeypatch.setattr(w.corpus_research, "run",

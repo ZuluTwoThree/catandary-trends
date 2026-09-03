@@ -29,9 +29,14 @@ import re
 
 from pipeline.grounding import ungrounded_specifics
 
-# Muss textgleich zum code-generierten Anhang in scripts/corpus_research.py
-# bleiben (dort erzeugt, hier abgetrennt).
-COVERAGE_HEADING = "## Research coverage (auto-generated)"
+# Müssen textgleich zu den code-generierten Anhängen in
+# scripts/corpus_research.py bleiben (dort erzeugt, hier abgetrennt) — eine
+# Fassung je Berichtssprache (lang=en / lang=de, Firmen-Dossiers sind deutsch).
+COVERAGE_HEADINGS = (
+    "## Research coverage (auto-generated)",
+    "## Recherche-Abdeckung (automatisch erzeugt)",
+)
+COVERAGE_HEADING = COVERAGE_HEADINGS[0]
 
 # Ab so vielen ungebundenen Tokens ist der Bericht mit hoher Wahrscheinlichkeit
 # strukturell losgelöst vom Material (nicht nur eine Umformulierungs-Grauzone).
@@ -40,8 +45,8 @@ SEVERE_UNGROUNDED = 8
 
 def _report_body(report_md: str) -> str:
     """Der modellgeschriebene Teil des Berichts — ohne Coverage-Anhang."""
-    idx = report_md.find(COVERAGE_HEADING)
-    return report_md[:idx] if idx >= 0 else report_md
+    hits = [i for i in (report_md.find(h) for h in COVERAGE_HEADINGS) if i >= 0]
+    return report_md[:min(hits)] if hits else report_md
 
 
 def _evidence_text(result: dict) -> str:

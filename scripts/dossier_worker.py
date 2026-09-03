@@ -102,6 +102,31 @@ def process_order(order: dict, quant: dict | None) -> bool:
         return False
 
 
+def _llama_unit_active() -> bool:
+    try:
+        r = gpu_handover._run(["systemctl", "--user", "is-active",
+                               gpu_handover.LLAMA_UNIT], timeout=15)
+        return r.stdout.strip() == "active"
+    except Exception:                                               # noqa: BLE001
+        return False
+
+
+def _restore_resting_server(was_active: bool) -> None:
+    """Ruhezustand wiederherstellen. Die Handover stoppen llama-server am Ende
+    und hängen start-active.sh auf das Ruhemodell (208K-8B) zurück — lief der
+    Server vor dem Worker, wird er hier wieder gestartet, damit die Karte
+    nachher so dasteht wie vorher (Nachtlauf/Morgenroutinen erwarten das)."""
+    if not was_active:
+        return
+    logger.info("Ruhezustand: llama-server wieder starten (start-active.sh → %s)",
+                gpu_handover._current_symlink_target())
+    try:
+        gpu_handover._run(["systemctl", "--user", "start",
+                           gpu_handover.LLAMA_UNIT], timeout=60)
+    except Exception as exc:                                        # noqa: BLE001
+        logger.error("llama-server konnte nicht neu gestartet werden: %s", exc)
+
+
 def run_worker(only_order: int | None = None, assume_model_up: bool = False,
                skip_quant: bool = False) -> int:
     orders_mod.ensure_schema()
@@ -124,7 +149,16 @@ def run_worker(only_order: int | None = None, assume_model_up: bool = False,
         return 0
     logger.info("%d Auftrag/Aufträge: %s", len(todo),
                 ", ".join(f"#{o['id']} {o['topic']!r}" for o in todo))
+    # Nur wenn wir selbst umhängen: den Ausgangszustand merken, um ihn am
+    # Ende wiederherzustellen (bei --assume-model-up bleibt alles wie es ist).
+    was_active = False if assume_model_up else _llama_unit_active()
+    try:
+        return _run_phases(todo, assume_model_up, skip_quant)
+    finally:
+        _restore_resting_server(was_active)
 
+
+def _run_phases(todo: list[dict], assume_model_up: bool, skip_quant: bool) -> int:
     # --- Phase 1: Quant-Vorstufe (Embedding-Modell) -----------------------
     quants: dict[int, dict | None] = {}
     wants_quant = [o for o in todo

@@ -24,6 +24,18 @@ def _result(report: str, evidence=None, sources=None, cited=None,
 
 
 class TestGrounding:
+    def test_german_coverage_appendix_is_stripped_too(self):
+        # lang=de-Berichte (Firmen-Dossiers) tragen die deutsche Überschrift;
+        # ihre Zählwerte dürfen genauso wenig als Erfindung zählen.
+        r = _result("Alles belegt.\n\n---\n\n"
+                    "## Recherche-Abdeckung (automatisch erzeugt)\n\n"
+                    "- Lücke: 14 Paper, 7 Patente, 23 Web-Treffer 2031",
+                    evidence=["Alles belegt."])
+        c = check_result(r)
+        assert c["ungrounded"] == []
+        assert c["ok"] is True
+        assert c["open_questions"] == 0
+
     def test_grounded_report_is_ok(self):
         r = _result("Capacity retention was 84% after 350 cycles in 2026.",
                     evidence=["Full text: retention of 84% after 350 cycles, "
