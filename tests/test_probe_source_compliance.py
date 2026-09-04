@@ -586,3 +586,15 @@ def test_feed_level_block_does_not_switch_fulltext_off(tmp_path):
     assert s["fulltext_off"] == []
     text = p.read_text(encoding="utf-8")
     assert "fulltext: true" in text and "tdm_status: blocked   # feed HTTP 403" in text
+
+
+def test_feed_links_from_html_picks_footer_rss_links_only():
+    """WP2 (2026-09-04): many German institutions/trade media link their feed
+    only as a footer <a href>, not as <link rel="alternate">."""
+    html = ('<a href="/feedback">fb</a><a href="https://www.example.de/presse/rss.xml">RSS</a>'
+            '<a href="/aktuelles/feed/">Feed</a><a href="/logo.png?feed=1">img</a>'
+            '<a href="mailto:rss@example.de">m</a><a href="/rss">rss</a><a href="/rss">dup</a>'
+            '<a href="https://feedly.com/i/subscription/feed/x">feedly</a>')
+    assert psc.feed_links_from_html(html, "https://example.de/") == [
+        "https://www.example.de/presse/rss.xml", "https://example.de/aktuelles/feed/", "https://example.de/rss"]
+    assert psc.feed_links_from_html("<a href='/rss'>" * 20, "https://x.de/", limit=1) == ["https://x.de/rss"]

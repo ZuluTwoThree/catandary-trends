@@ -105,7 +105,17 @@ AGGREGATOR_DOMAINS = frozenset({
     "archive.org", "web.archive.org", "github.com", "amazon.com",
 })
 
-FEED_FALLBACK_PATHS = ("/feed", "/rss", "/feed.xml", "/rss.xml", "/atom.xml")
+FEED_FALLBACK_PATHS = ("/feed", "/rss", "/feed.xml", "/rss.xml", "/atom.xml",
+                       # WP2 (2026-09-04): paths German institutions/trade media use
+                       "/feed/", "/rss/", "/feeds", "/news/rss", "/news/feed", "/news.rss",
+                       "/rss.php", "/index.rss", "/?feed=rss2", "/de/rss", "/de/feed",
+                       "/presse/rss", "/aktuelles/rss", "/newsroom/rss", "/blog/feed")
+# <a href> links that look like a feed (many sites only link RSS in the footer,
+# without <link rel="alternate">) — WP2 2026-09-04
+_A_HREF_RE = re.compile(r"""<a\b[^>]*?href\s*=\s*["']([^"'#]+)["']""", re.I)
+_FEED_HREF_RE = re.compile(r"(?:/rss|rss\.|\.rss|/feed(?:s|/|\.|$)|feed\.xml|atom\.xml|format=rss|[?&]feed=|/atom(?:/|\.|$))", re.I)
+_FEED_HREF_EXCLUDE_RE = re.compile(r"feedback|feedly|feedspot|feedburner\.google|facebook|\.(?:png|jpe?g|gif|svg|css|js)(?:\?|$)", re.I)
+MAX_HREF_FEED_CANDIDATES = 6
 FEED_MIME_RE = re.compile(r"application/(?:rss|atom)\+xml", re.I)
 _LINK_TAG_RE = re.compile(r"<link\b[^>]*>", re.I)
 _A_HREF_RE = re.compile(r"""<a\b[^>]*href\s*=\s*["']([^"']+)["']""", re.I)
@@ -339,6 +349,27 @@ def _short_from_text(s: str) -> str | None:
 
 # ----------------------------------------------------------- feed discovery
 
+def feed_links_from_html(page: str, base_url: str, limit: int = MAX_HREF_FEED_CANDIDATES) -> list[str]:
+    """Feed-looking <a href> targets of a page (footer "RSS" links), absolute,
+    de-duplicated, at most `limit` — complements <link rel="alternate">."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for m in _A_HREF_RE.finditer(page):
+        href = m.group(1).strip()
+        if not _FEED_HREF_RE.search(href) or _FEED_HREF_EXCLUDE_RE.search(href):
+            continue
+        if href.startswith(("mailto:", "javascript:", "tel:")):
+            continue
+        url = urljoin(base_url, href)
+        if not url.startswith(("http://", "https://")) or url in seen:
+            continue
+        seen.add(url)
+        out.append(url)
+        if len(out) >= limit:
+            break
+    return out
+
+
 def discover_feed(domain_or_url: str, client: httpx.Client, throttle: HostThrottle,
                   robots: RobotsCache | None = None) -> tuple[str | None, httpx.Response | None, list[str]]:
     """Feed URL for a domain: <link rel="alternate" type="application/rss+xml|atom+xml">
@@ -356,7 +387,8 @@ def discover_feed(domain_or_url: str, client: httpx.Client, throttle: HostThrott
             tried.append(base)
             r = client.get(base)
             if r.status_code == 200 and "html" in (r.headers.get("content-type") or ""):
-                for m in _LINK_TAG_RE.finditer(r.text[:MAX_PAGE_CHARS]):
+                page = r.text[:MAX_PAGE_CHARS]
+                for m in _LINK_TAG_RE.finditer(page):
                     tag = m.group(0)
                     if not re.search(r"""rel\s*=\s*["']?alternate["']?""", tag, re.I):
                         continue
@@ -365,6 +397,7 @@ def discover_feed(domain_or_url: str, client: httpx.Client, throttle: HostThrott
                     href = re.search(r"""href\s*=\s*["']([^"']+)["']""", tag, re.I)
                     if href:
                         candidates.append(urljoin(str(r.url), href.group(1)))
+                candidates += feed_links_from_html(page, str(r.url))
     except Exception:  # noqa: BLE001
         pass
     candidates += [urljoin(base, p) for p in FEED_FALLBACK_PATHS]
