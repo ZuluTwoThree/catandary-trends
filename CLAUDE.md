@@ -537,7 +537,9 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # HN-Launches (30-Tage-Fenster), ClinicalTrials-Sweep, FDA-510(k)-Bulk.
 # Seit 2026-08-28 (Owner) außerdem in den Signalraum: OpenAlex-Fresh-Sweep
 # (zitationsfrei, 14-Tage-Fenster, Cap 1500/Konzept — läuft über den
-# research-Distill-Schritt mit) + Patent-Signale (--patents-only: nur mit
+# research-Distill-Schritt mit; seit 2026-09-05 (#73) mit Werk-Typ-Gate: nur
+# article/preprint/review/book-chapter, Repository-Hosts Zenodo/figshare/
+# GitHub … gesperrt, Typ → openalex_meta → research_signals.kind) + Patent-Signale (--patents-only: nur mit
 # Abstract, rollendes 60-Tage-Publikationsfenster, Limit 60k/Lauf; der
 # 19,6M-BDDS-Backlog bleibt bewusst außen vor).
 0 6 * * 6    scripts/weekly_ingesters.sh
@@ -712,7 +714,8 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      mindestens ein Patenttitel alle Terme enthält; weicht das Wort-Feld der Titeltreffer (≥ 40 %) vom
      Embedding-Feld ab → Feldwahl statt stiller Zuordnung, sonst → „keine Technologie-Signatur" mit
      2–3 nächsten echten Feldern; breite echte Begriffe wie „blockchain" mit vielen Titeltreffern werden nicht gesperrt, sondern zur Feldwahl zurückgefragt. Herleitung + Messtabelle: `docs/tech_query_gate_2026-09-04.md`)
-  /research /patents               (Research-/Patent-Explorer; Explorer-Facetten ?src/?range/?sort/?concept/?layer=signals seit #73)
+  /research /patents               (Research-/Patent-Explorer; Explorer-Facetten ?src/?range/?sort/?concept/?layer=signals seit #73;
+                                    ?artifacts=1 blendet Repository-Einträge/Nicht-Paper ein — Default aus, seit 2026-09-05)
   /research/pulse, /research/pulse/[theme] → Research Pulse (#73, seit 2026-09-04): Wochen-Synthese je Theme,
                                    Tabelle research_pulse, „Recompute"-Knopf (Owner-App); Cron nur als Vorschlag
   /ventures, /ventures/company/[id] → Startup Explorer (#87, seit 2026-08-23):
@@ -1038,9 +1041,19 @@ embedded). Je Theme und ISO-Woche: Volumen vs. Median der vier Vorwochen, KMeans
 100–150-Wörter-Absatz auf Gemma-4-26B (T=0.2, Seed 73, nur Zahlen aus dem Messblock, keine
 Prognosen). Versioniert in `research_pulse` (additive Migration `scripts/migrate_research_pulse.py`).
 
+- **Paper-Basis (seit 2026-09-05, #73):** `research_signals.kind` (`article|preprint|review|
+  chapter|artifact|unknown`, Regelquelle `pipeline/research_kinds.py`, Migration + Backfill
+  `scripts/migrate_research_signals_kind.py`, Rebuild klassifiziert mit). Pulse und Explorer
+  zählen `kind <> 'artifact'` — OpenAlex indexiert Zenodo-/figshare-/GitHub-Deposits als Works,
+  im Fresh-Sweep waren das 20,6 % der letzten 14 Tage (AI-Theme W35: 1.083 von 4.919). Der
+  Ingest (`ingest_openalex.py`, Concept-Sweeps) nimmt seit 05.09. nur noch article/preprint/
+  review/book-chapter und sperrt Repository-Hosts. Deep-Dive-Themenwahl zählt published
+  Artikel (nicht research_signals) — Artefakte sind dort strukturell nicht drin.
+
 - **Rechnen:** `.venv/bin/python scripts/research_pulse.py [--week 2026-W35] [--themes a,b]
   [--no-llm] [--limit N]` — ein GPU-Handover für alle Texte, Ruhezustand wird wiederhergestellt.
-  Referenz 2026-09-04: 28 Themes ohne LLM 14 s; 5 Themes mit Gemma 28 s.
+  Referenz 2026-09-04: 28 Themes ohne LLM 14 s; 5 Themes mit Gemma 28 s; 2026-09-05: 28 Themes
+  ohne LLM 15 s, 1 Theme mit Gemma 19 s.
 - **Frontend:** `/trends/foresight/research/pulse` (Übersicht + Wochen-Wechsler),
   `/pulse/[theme]` (Herkunftskopf, Messblock, Text, Cluster, „Recompute"-Knopf = Server Action mit
   Owner-Modus + Origin-Check, spawnt das Skript wie der Dossier-Worker). Einstiege: Research

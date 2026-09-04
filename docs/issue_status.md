@@ -161,8 +161,14 @@ das ist genau das Werkzeug, das die Analysen für Etappe 2 produziert. Review + 
 - **#7**-Reste: Legal-Events-Cap aufheben, Familien-Dedup im Analyse-Layer
 - **#73** Research Pulse / Explorer-Refinement — **Teil 1 + billige Refinements auf dev (2026-09-04):**
   `research_pulse` (Tabelle + Skript + Seiten + Recompute-Knopf), Explorer-Facetten (Quelle/Zeitraum/Sortierung/
-  Konzept), Deep-Links aus den Theme-Seiten, Cron-Vorschlag (nicht installiert). **Offen:** Owner-Entscheid
-  Cron vs. Knopf, Autoren-Enrichment + Sprach-Kennzeichnung (separat), Index-Duplikate in build_research_index.py.
+  Konzept), Deep-Links aus den Theme-Seiten, Cron-Vorschlag (nicht installiert). **Werk-Typ-Filter auf dev
+  (2026-09-05, Owner-Befund Zenodo-Artefakt in den Top-Papers):** Ingest-Gate (nur article/preprint/review/
+  book-chapter + Repository-Blockliste), `research_signals.kind` (Migration + Backfill 19.652 artifact von 545.399),
+  Pulse/Explorer filtern `kind <> artifact` (Facette `?artifacts=1`), W35 neu gerechnet (AI 5.084 → 3.836 Papers),
+  Index-Duplikate im Rebuild behoben — `docs/research_pulse.md` §1a. **Offen:** Owner-Entscheid Cron vs. Knopf,
+  Autoren-Enrichment + Sprach-Kennzeichnung (separat), dev→main-Merge vor dem nächsten Samstagslauf (der Cron
+  läuft aus main und würde `kind` beim Rebuild auf NULL setzen), 4 W35-Texte (Quantum/Food/Energy/Education) neu
+  generieren, ResearchGate-DOIs (`10.13140`) als Owner-Frage.
 - **#94** Startup-Explorer-Reste
 
 ## ⚪ Welle 3 — Forschung / bewusst ruhend
