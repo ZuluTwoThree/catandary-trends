@@ -112,10 +112,13 @@ FEED_FALLBACK_PATHS = ("/feed", "/rss", "/feed.xml", "/rss.xml", "/atom.xml",
                        "/presse/rss", "/aktuelles/rss", "/newsroom/rss", "/blog/feed")
 # <a href> links that look like a feed (many sites only link RSS in the footer,
 # without <link rel="alternate">) — WP2 2026-09-04
-_A_HREF_RE = re.compile(r"""<a\b[^>]*?href\s*=\s*["']([^"'#]+)["']""", re.I)
+_FEED_A_HREF_RE = re.compile(r"""<a\b[^>]*?href\s*=\s*(?:["']([^"'#]+)["']|([^\s"'>]+))""", re.I)
+MAX_HREF_SCAN_CHARS = 3_000_000   # footer RSS links sit at the very end of 1-MB+ ministry pages
 _FEED_HREF_RE = re.compile(r"(?:/rss|rss\.|\.rss|/feed(?:s|/|\.|$)|feed\.xml|atom\.xml|format=rss|[?&]feed=|/atom(?:/|\.|$))", re.I)
 _FEED_HREF_EXCLUDE_RE = re.compile(r"feedback|feedly|feedspot|feedburner\.google|facebook|\.(?:png|jpe?g|gif|svg|css|js)(?:\?|$)", re.I)
 MAX_HREF_FEED_CANDIDATES = 6
+MAX_FEED_PAGE_EXPANSIONS = 2     # HTML "RSS overview" pages followed one level deep
+MAX_DISCOVERY_REQUESTS = 40      # hard cap per domain (fallback paths + href links + expansions)
 FEED_MIME_RE = re.compile(r"application/(?:rss|atom)\+xml", re.I)
 _LINK_TAG_RE = re.compile(r"<link\b[^>]*>", re.I)
 _A_HREF_RE = re.compile(r"""<a\b[^>]*href\s*=\s*["']([^"']+)["']""", re.I)
@@ -354,8 +357,11 @@ def feed_links_from_html(page: str, base_url: str, limit: int = MAX_HREF_FEED_CA
     de-duplicated, at most `limit` — complements <link rel="alternate">."""
     out: list[str] = []
     seen: set[str] = set()
-    for m in _A_HREF_RE.finditer(page):
-        href = m.group(1).strip()
+    base = re.search(r"""<base\b[^>]*?href\s*=\s*(?:["']([^"']+)["']|([^\s"'>]+))""", page[:MAX_PAGE_CHARS], re.I)
+    if base:
+        base_url = urljoin(base_url, (base.group(1) or base.group(2) or "").strip())
+    for m in _FEED_A_HREF_RE.finditer(page[:MAX_HREF_SCAN_CHARS]):
+        href = (m.group(1) or m.group(2) or "").strip()
         if not _FEED_HREF_RE.search(href) or _FEED_HREF_EXCLUDE_RE.search(href):
             continue
         if href.startswith(("mailto:", "javascript:", "tel:")):
@@ -394,15 +400,19 @@ def discover_feed(domain_or_url: str, client: httpx.Client, throttle: HostThrott
                         continue
                     if not FEED_MIME_RE.search(tag):
                         continue
-                    href = re.search(r"""href\s*=\s*["']([^"']+)["']""", tag, re.I)
+                    href = re.search(r"""href\s*=\s*(?:["']([^"']+)["']|([^\s"'>]+))""", tag, re.I)
                     if href:
-                        candidates.append(urljoin(str(r.url), href.group(1)))
-                candidates += feed_links_from_html(page, str(r.url))
+                        candidates.append(urljoin(str(r.url), href.group(1) or href.group(2)))
+                candidates += feed_links_from_html(r.text, str(r.url))
     except Exception:  # noqa: BLE001
         pass
     candidates += [urljoin(base, p) for p in FEED_FALLBACK_PATHS]
     seen: set[str] = set()
-    for url in candidates:
+    expanded = 0
+    i = 0
+    while i < len(candidates) and len(tried) < MAX_DISCOVERY_REQUESTS:
+        url = candidates[i]
+        i += 1
         if url in seen:
             continue
         seen.add(url)
@@ -414,6 +424,20 @@ def discover_feed(domain_or_url: str, client: httpx.Client, throttle: HostThrott
             continue
         if r.status_code == 200 and feedparser.parse(r.content).entries:
             return str(url), r, tried
+        # an HTML "RSS feeds" overview page (bund.de, admin.ch, associations):
+        # take its feed links too, one level deep — WP2 2026-09-04
+        if (r.status_code == 200 and "html" in (r.headers.get("content-type") or "")
+                and expanded < MAX_FEED_PAGE_EXPANSIONS and _FEED_HREF_RE.search(url)):
+            expanded += 1
+            page = r.text[:MAX_PAGE_CHARS]
+            extra = feed_links_from_html(r.text, str(r.url), limit=MAX_HREF_FEED_CANDIDATES * 2)
+            for m in _LINK_TAG_RE.finditer(page):
+                tag = m.group(0)
+                if FEED_MIME_RE.search(tag):
+                    href = re.search(r"""href\s*=\s*["']([^"']+)["']""", tag, re.I)
+                    if href:
+                        extra.insert(0, urljoin(str(r.url), href.group(1)))
+            candidates[i:i] = [u for u in extra if u not in seen]
     return None, None, tried
 
 
