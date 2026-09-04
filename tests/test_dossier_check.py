@@ -88,3 +88,23 @@ class TestCitationLedger:
     def test_empty_report_is_never_ok(self):
         c = check_result(_result("   "))
         assert c["ok"] is False
+
+
+class TestCitationUrlsAreNotFigures:
+    def test_slug_ids_and_patent_numbers_in_link_urls_never_count(self):
+        # Regression 2026-09-04 (Newsletter-Deep-Dive): alle drei "unbelegten
+        # Zahlen" waren die -<id>-Endungen der Artikel-Slugs in den Zitat-URLs.
+        report = ("Meta settled [Meta's settlement]"
+                  "(https://catandary.de/trends/meta-s-settlement-24632113) and a "
+                  "[zero-trust method](https://patents.google.com/patent/CN117688608A) exists.")
+        res = {"report": report, "evidence": ["Meta settled; a zero-trust method exists"],
+               "sources": [], "cited": ["T1"], "stripped_citations": 0, "ledger": []}
+        c = check_result(res)
+        assert c["ungrounded"] == []
+        assert c["ok"] is True
+
+    def test_figure_in_the_label_still_counts(self):
+        report = "[Retention of 84% after 350 cycles](https://catandary.de/trends/x-1)."
+        res = {"report": report, "evidence": ["nothing about that"], "sources": [],
+               "cited": ["T1"], "stripped_citations": 0, "ledger": []}
+        assert set(check_result(res)["ungrounded"]) == {"84%", "350"}

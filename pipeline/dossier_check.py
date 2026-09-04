@@ -43,10 +43,23 @@ COVERAGE_HEADING = COVERAGE_HEADINGS[0]
 SEVERE_UNGROUNDED = 8
 
 
+_MD_LINK = re.compile(r"\[([^\]\n]+)\]\((https?://[^)\s]+)\)")
+
+
 def _report_body(report_md: str) -> str:
     """Der modellgeschriebene Teil des Berichts — ohne Coverage-Anhang."""
     hits = [i for i in (report_md.find(h) for h in COVERAGE_HEADINGS) if i >= 0]
     return report_md[:min(hits)] if hits else report_md
+
+
+def _claims_text(body: str) -> str:
+    """Der Text, dessen Zahlen belegt sein müssen: Zitat-Links auf ihr Label
+    reduziert. Eine URL ist keine Behauptung — die Artikel-Slugs des Korpus
+    enden auf `-<id>` (…-24632113), DOIs und Patentnummern tragen Ziffern,
+    und keine davon steht im Belegtext. Vor dieser Reduktion meldete die
+    Endkontrolle sie als „Zahlen ohne Beleg" (Newsletter-Deep-Dive 2026-09-04:
+    3 von 3 Befunden waren Slug-IDs)."""
+    return _MD_LINK.sub(r"\1", body)
 
 
 def _evidence_text(result: dict) -> str:
@@ -70,7 +83,7 @@ def check_result(result: dict) -> dict:
     body = _report_body(report)
     evidence = _evidence_text(result)
 
-    ungrounded = ungrounded_specifics(body, evidence)
+    ungrounded = ungrounded_specifics(_claims_text(body), evidence)
     stripped = int(result.get("stripped_citations") or 0)
     cited = len(result.get("cited") or [])
     n_sources = len(result.get("sources") or [])
