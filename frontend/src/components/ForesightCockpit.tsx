@@ -379,6 +379,17 @@ export default function ForesightCockpit({
               </div>
             </Link>
             <Link
+              href="/trends/foresight/research/pulse"
+              className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                Research Pulse →
+              </div>
+              <div className="font-sans text-sm text-text mt-1">
+                What moved this week — per theme: fresh-paper volume vs. the prior month, embedding clusters, top papers
+              </div>
+            </Link>
+            <Link
               href="/trends/foresight/patents"
               className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
             >

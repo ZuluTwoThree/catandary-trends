@@ -55,6 +55,8 @@ PRIOR_WEEKS = 4
 WORDS_MIN, WORDS_MAX = 80, 190
 
 PREPRINT_SOURCES = ("arXiv Preprints", "biorxiv Preprints", "medrxiv Preprints")
+SOURCE_LABELS = {"preprints": "preprint servers", "openalex": "OpenAlex journal works",
+                 "journals": "journal and press feeds"}
 
 
 # ---------------------------------------------------------------------------
@@ -363,9 +365,10 @@ def build_prompt(theme: dict, stats: dict, clusters: list[dict]) -> str:
         f"Week: {w['start']} to {w['end']}",
         f"Papers this week: {stats['week_n']}",
         f"Prior four weeks: {', '.join(str(p['n']) for p in stats['prior_weeks'])} "
-        f"(median {stats['prior_median']})",
+        f"(median {round(stats['prior_median']) if stats['prior_median'] is not None else 'n/a'})",
         f"Volume: {ratio_phrase(stats['ratio'])}",
-        "Source mix: " + ", ".join(f"{k} {v}" for k, v in stats["sources"].items()),
+        "Source mix: " + ", ".join(f"{SOURCE_LABELS.get(k, k)} {v}"
+                                   for k, v in stats["sources"].items()),
         "",
         "Clusters (embedding clusters of this week's papers; growth = this week's "
         "count divided by the mean weekly count of the prior four weeks assigned to "

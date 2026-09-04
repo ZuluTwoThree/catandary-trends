@@ -121,7 +121,8 @@ def run(year: int, week: int, themes: list[dict], use_llm: bool,
             was_active = _llama_unit_active()
             try:
                 with gpu_handover.content_gen_on_llamacpp(rp.PULSE_MODEL):
-                    model_id = gpu_handover._served_model() or rp.PULSE_MODEL
+                    # /v1/models meldet den Pfad (./models/…gguf) — Basename speichern
+                    model_id = Path(gpu_handover._served_model() or rp.PULSE_MODEL).name
                     summary["model"] = model_id
                     for r in todo:
                         t0 = time.time()

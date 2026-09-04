@@ -7,6 +7,10 @@ import {
 } from "@/lib/db";
 import { MEGA_TRENDS } from "@/lib/mega-trends.generated";
 import { parseResearchQuery } from "@/lib/research-search";
+import {
+  parseResearchFacets, rangeDays, toggleSource, activeFacetCount,
+  RESEARCH_SOURCES, RESEARCH_RANGES,
+} from "@/lib/researchFacets";
 import { safeHref } from "@/lib/safeHref";
 import AuthorLine from "@/components/AuthorLine";
 import ResearchTypeahead from "@/components/ResearchTypeahead";
@@ -68,11 +72,20 @@ function countryName(code: string): string | null {
 export default async function ResearchExplorerPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; theme?: string; topic?: string; flag?: string; nr?: string; page?: string; live?: string }>;
+  searchParams: Promise<{
+    q?: string; theme?: string; topic?: string; flag?: string; nr?: string; page?: string; live?: string;
+    src?: string; range?: string; sort?: string; concept?: string; layer?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const qText = (sp.q ?? "").trim();
   const theme = (sp.theme ?? "").trim();
+  // Signal-layer facets (#73): source group, period, sort, concept — parsed
+  // and whitelisted in lib/researchFacets.ts. `layer=signals` or a concept
+  // keeps a text query on the curated layer instead of routing it to the
+  // 45M corpus (the concept facet exists only there).
+  const facets = parseResearchFacets(sp, qText.length > 0);
+  const signalLayer = facets.signalLayer || !!facets.concept;
   const topic = (sp.topic ?? "").trim();
   const flagRaw = (sp.flag ?? "").trim();
   const flag = flagRaw === "landmark" || flagRaw === "review" || flagRaw === "rising"
@@ -85,10 +98,11 @@ export default async function ResearchExplorerPage({
   // Zwei Schichten: Suche/Topic → 45,9M-Korpus (research_corpus, alle
   // Disziplinen); Theme bzw. keine Eingabe → kuratierte Signal-Schicht wie
   // bisher. Nur die Signal-Schicht speist Foresight.
-  const corpusMode = !!(parsed.text || parsed.doi || parsed.arxiv || topic
+  const corpusMode = !signalLayer && !!(parsed.text || parsed.doi || parsed.arxiv || topic
     || parsed.author || parsed.institution || parsed.journal
     || parsed.funder || parsed.country || flag
     || parsed.yearFrom !== undefined);
+  const facetsActive = activeFacetCount(facets) + (signalLayer && qText ? 1 : 0);
 
   const [stats, corpusStats, topics] = await Promise.all([
     getResearchStats(), getResearchCorpusStats(), getResearchTopics(),
@@ -126,7 +140,13 @@ export default async function ResearchExplorerPage({
     ]);
   } else {
     signals = await getResearchSignals({
-      mega: theme || undefined, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
+      mega: theme || undefined,
+      q: signalLayer && qText ? qText : undefined,
+      concept: facets.concept,
+      sources: facets.sources,
+      sinceDays: rangeDays(facets.range),
+      sort: facets.sort,
+      limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
     });
   }
   // ---- Live-API-Features (#83; seit #93 ohne Account-Gate, Owner-Instanz
@@ -170,11 +190,18 @@ export default async function ResearchExplorerPage({
     ? TOPIC_CPC.find(([sub]) => topic.toLowerCase().includes(sub.toLowerCase()))?.[1]
     : undefined;
   const bridgeLag = bridgeCpc ? await getNplLagYears(bridgeCpc) : null;
-  const emerging = !corpusMode && !theme ? await getEmergingTopics() : [];
+  const emerging = !corpusMode && !theme && facetsActive === 0 ? await getEmergingTopics() : [];
 
   const total = corpusMode ? corpus.total : signals.total;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const totalLabel = `${fmtInt(total)}${corpusMode && corpus.clamped ? "+" : ""}`;
+  const facetParams = (u: URLSearchParams) => {
+    if (facets.sources.length) u.set("src", facets.sources.join(","));
+    if (facets.range !== "all") u.set("range", facets.range);
+    if (qText && facets.sort === "date") u.set("sort", "date");
+    if (facets.concept) u.set("concept", facets.concept);
+    if (facets.signalLayer) u.set("layer", "signals");
+  };
   const qs = (p: number) => {
     const u = new URLSearchParams();
     if (qText) u.set("q", qText);
@@ -182,10 +209,21 @@ export default async function ResearchExplorerPage({
     if (topic) u.set("topic", topic);
     if (flag) u.set("flag", flag);
     if (noRetracted) u.set("nr", "1");
+    facetParams(u);
     if (p > 1) u.set("page", String(p));
     const s = u.toString();
     return `/trends/foresight/research${s ? `?${s}` : ""}`;
   };
+  /** Signal-layer facet link: current state with one param changed (page reset). */
+  const withFacet = (mut: Record<string, string | null>) => {
+    const u = new URLSearchParams(qs(1).split("?")[1] ?? "");
+    for (const [k, v] of Object.entries(mut)) {
+      if (v === null || v === "") u.delete(k); else u.set(k, v);
+    }
+    const str = u.toString();
+    return `/trends/foresight/research${str ? `?${str}` : ""}`;
+  };
+  const conceptHref = (concept: string) => withFacet({ concept, layer: null });
 
   const withFlag = (f: "landmark" | "review" | "rising" | null) => {
     const u = new URLSearchParams();
@@ -213,6 +251,13 @@ export default async function ResearchExplorerPage({
           ({fmtInt(stats.total)} classified research signals,{" "}
           {fmtInt(stats.last30d)} added in 30 days) that feeds the foresight
           engine.
+        </p>
+        <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.14em]">
+          <Link href={theme ? `/trends/foresight/research/pulse/${encodeURIComponent(theme)}` : "/trends/foresight/research/pulse"}
+                className="text-accent hover:underline"
+                title="Weekly synthesis per theme: fresh-paper volume vs. the prior month, embedding clusters, top papers">
+            Research Pulse{theme ? " for this theme" : ""} — what moved this week →
+          </Link>
         </p>
       </div>
 
@@ -257,6 +302,15 @@ export default async function ResearchExplorerPage({
                  className="accent-[#d4ff3a]" />
           exclude retracted
         </label>
+        <label className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.1em] text-muted cursor-pointer select-none"
+               title="Run the text search on the curated signal layer (FTS, relevance-ranked) instead of the full corpus">
+          <input type="checkbox" name="layer" value="signals" defaultChecked={facets.signalLayer}
+                 className="accent-[#d4ff3a]" />
+          signal layer
+        </label>
+        {facets.sources.length > 0 && <input type="hidden" name="src" value={facets.sources.join(",")} />}
+        {facets.range !== "all" && <input type="hidden" name="range" value={facets.range} />}
+        {facets.concept && <input type="hidden" name="concept" value={facets.concept} />}
         <button
           type="submit"
           className="bg-accent text-ink font-mono text-[11px] uppercase tracking-[0.14em] px-6 py-2.5 font-bold hover:bg-accent-deep transition-colors"
@@ -590,9 +644,64 @@ export default async function ResearchExplorerPage({
         </p>
       )}
 
+      {!corpusMode && (
+        <div className="mb-5 border border-border px-4 py-3 flex flex-col gap-2 font-mono text-[10px] uppercase tracking-[0.12em]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-muted w-14">Source</span>
+            {RESEARCH_SOURCES.map((sv) => {
+              const on = facets.sources.includes(sv.key);
+              return (
+                <Link key={sv.key} title={sv.title}
+                      href={withFacet({ src: toggleSource(facets.sources, sv.key).join(",") })}
+                      className={`border px-2 py-0.5 ${on ? "border-accent text-accent bg-accent/10" : "border-border text-muted hover:text-paper hover:border-paper"}`}>
+                  {sv.label}
+                </Link>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-muted w-14">Period</span>
+            {RESEARCH_RANGES.map((rg) => {
+              const on = facets.range === rg.key;
+              return (
+                <Link key={rg.key} href={withFacet({ range: rg.key === "all" ? null : rg.key })}
+                      className={`border px-2 py-0.5 ${on ? "border-accent text-accent bg-accent/10" : "border-border text-muted hover:text-paper hover:border-paper"}`}>
+                  {rg.label}
+                </Link>
+              );
+            })}
+            {qText && signalLayer && (
+              <>
+                <span className="text-muted ml-3">Sort</span>
+                {(["relevance", "date"] as const).map((sk) => (
+                  <Link key={sk} href={withFacet({ sort: sk === "relevance" ? null : sk })}
+                        className={`border px-2 py-0.5 ${facets.sort === sk ? "border-accent text-accent bg-accent/10" : "border-border text-muted hover:text-paper hover:border-paper"}`}>
+                    {sk}
+                  </Link>
+                ))}
+              </>
+            )}
+            {facets.concept && (
+              <Link href={withFacet({ concept: null })}
+                    className="ml-3 bg-accent/15 border border-accent/50 text-accent px-2 py-0.5 hover:bg-accent/25"
+                    title="Remove the concept filter">
+                Concept {facets.concept} ×
+              </Link>
+            )}
+            {facetsActive > 0 && (
+              <Link href={theme ? `/trends/foresight/research?theme=${encodeURIComponent(theme)}` : "/trends/foresight/research"}
+                    className="ml-auto text-muted hover:text-paper">
+                clear ×
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mb-5">
         {totalLabel} {corpusMode ? "papers" : "signals"}
-        {parsed.text && <> for <span className="text-paper">&ldquo;{parsed.text}&rdquo;</span></>}
+        {corpusMode && parsed.text && <> for <span className="text-paper">&ldquo;{parsed.text}&rdquo;</span></>}
+        {!corpusMode && qText && signalLayer && <> for <span className="text-paper">&ldquo;{qText}&rdquo;</span> · {facets.sort === "relevance" ? "by relevance" : "newest first"}</>}
         {topic && <> in <span className="text-paper">{topic}</span></>}
         {flag && <> · <span className="text-accent">{flag === "landmark" ? "landmark works only"
           : flag === "rising" ? "rising papers, most recent citations first" : "review articles only"}</span></>}
@@ -841,7 +950,10 @@ export default async function ResearchExplorerPage({
               <article key={r.trend_id} className="py-5">
                 <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted mb-1.5">
                   <span className="text-paper">{fmtDate(r.published)}</span>
-                  {r.concept && <span> · {r.concept}</span>}
+                  {r.concept && (
+                    <> · <Link href={conceptHref(r.concept)} className="hover:text-accent"
+                              title="Filter the signal layer by this concept">{r.concept}</Link></>
+                  )}
                 </div>
                 <h2 className="font-display text-[19px] leading-snug text-paper mb-1.5">
                   <a href={r.url} target="_blank" rel="noopener noreferrer" className="hover:text-accent transition-colors">{r.title}</a>
@@ -855,7 +967,7 @@ export default async function ResearchExplorerPage({
         </>
       ) : signals.rows.length === 0 ? (
         <p className="font-sans text-sm text-muted border border-dashed border-border p-6">
-          No signals in this theme yet.
+          {facetsActive > 0 ? "No signals match these facets — widen the period or clear a filter." : "No signals in this theme yet."}
         </p>
       ) : (
         <div className="flex flex-col divide-y divide-border border-t border-b border-border">
@@ -863,7 +975,14 @@ export default async function ResearchExplorerPage({
             <article key={r.trend_id} className="py-5">
               <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="text-paper">{fmtDate(r.published)}</span>
-                {r.concept && <span>{r.concept}</span>}
+                {r.concept && (
+                  <Link href={conceptHref(r.concept)}
+                        className={facets.concept === r.concept ? "text-accent" : "hover:text-accent"}
+                        title="Filter the signal layer by this concept">
+                    {r.concept}
+                  </Link>
+                )}
+                {r.source && <span className="text-muted/70">{r.source}</span>}
                 {r.mega_trend && (
                   <Link href={`/trends/mega/${r.mega_trend.replace(/_/g, "-")}`}
                         className="text-accent/80 hover:text-accent">

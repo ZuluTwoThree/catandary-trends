@@ -4,6 +4,8 @@ import yaml from "js-yaml";
 import { q, q1 } from "./pg";
 import { windowStartIso } from "./archiveWindow";
 import { classifyMomentum, type MegaMomentum } from "./momentum";
+import { sourceSql, type ResearchSourceKey, type ResearchSortKey } from "./researchFacets";
+import type { PulseRow, PulseWeekRef } from "./researchPulse";
 import type {
   EditionSummary,
   NewsletterEdition,
@@ -481,36 +483,53 @@ export interface ResearchSignal {
 }
 
 /** Research Explorer (#72): FTS over the materialized research_signals table
- *  (built by scripts/build_research_index.py — 434k abstracts, GIN-indexed).
- *  Returns one page of results + the total match count. */
+ *  (built by scripts/build_research_index.py — 545k abstracts, GIN-indexed).
+ *  Returns one page of results + the total match count. Facets (#73):
+ *  source groups, period, concept, sort — parsed in lib/researchFacets.ts. */
 export async function getResearchSignals(options: {
   q?: string;
   mega?: string;
+  concept?: string;
+  sources?: ResearchSourceKey[];
+  sinceDays?: number | null;
+  sort?: ResearchSortKey;
   limit?: number;
   offset?: number;
 } = {}): Promise<{ rows: ResearchSignal[]; total: number }> {
   const params: unknown[] = [];
   const where: string[] = [];
+  let qIdx = 0;
   if (options.q) {
     params.push(options.q);
-    where.push(`tsv @@ websearch_to_tsquery('english', $${params.length})`);
+    qIdx = params.length;
+    where.push(`tsv @@ websearch_to_tsquery('english', $${qIdx})`);
   }
   if (options.mega) {
     params.push(options.mega);
     where.push(`mega_trend = $${params.length}`);
   }
+  if (options.concept) {
+    params.push(options.concept);
+    where.push(`concept = $${params.length}`);
+  }
+  const src = sourceSql(options.sources ?? []);
+  if (src) where.push(src);
+  if (options.sinceDays) {
+    params.push(options.sinceDays);
+    where.push(`published >= CURRENT_DATE - ($${params.length}::int)`);
+  }
   const w = where.length ? ` WHERE ${where.join(" AND ")}` : "";
   const totalRow = await q1<{ cnt: number }>(
     `SELECT COUNT(*)::int as cnt FROM research_signals${w}`, params);
-  const rank = options.q
-    ? `ts_rank(tsv, websearch_to_tsquery('english', $1)) DESC, `
+  const rank = options.q && options.sort !== "date"
+    ? `ts_rank(tsv, websearch_to_tsquery('english', $${qIdx})) DESC, `
     : "";
   params.push(options.limit ?? 25, options.offset ?? 0);
   const rows = await q<ResearchSignal>(
     `SELECT trend_id, title, abstract, url, source, concept, published::text as published,
             mega_trend, vertical
      FROM research_signals${w}
-     ORDER BY ${rank}published DESC NULLS LAST
+     ORDER BY ${rank}published DESC NULLS LAST, trend_id DESC
      LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
   return { rows, total: totalRow?.cnt ?? 0 };
 }
@@ -523,6 +542,62 @@ export async function getResearchStats(): Promise<{ total: number; last30d: numb
        FROM research_signals`);
     return { total: row?.total ?? 0, last30d: row?.last30d ?? 0 };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Research Pulse (#73 Teil 1): weekly per-theme synthesis in `research_pulse`
+// (scripts/research_pulse.py; additive migration scripts/migrate_research_pulse.py).
+// Versioned: one row per computation, the pages read the newest per
+// (theme, year, week). Guarded with to_regclass so a DB without the table
+// renders the empty state instead of a 500.
+// ---------------------------------------------------------------------------
+
+const PULSE_COLS = `id, theme, year, week, week_start::text AS week_start,
+  to_char(computed_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS computed_at,
+  stats, clusters, text, model, seconds, note`;
+
+export async function pulseTableReady(): Promise<boolean> {
+  try {
+    const row = await q1<{ t: string | null }>(
+      `SELECT to_regclass('public.research_pulse')::text AS t`);
+    return Boolean(row?.t);
+  } catch {
+    return false;
+  }
+}
+
+/** Weeks with at least one pulse row, newest first (overview switcher). */
+export async function getPulseWeeks(): Promise<(PulseWeekRef & { themes: number; computed_at: string })[]> {
+  if (!(await pulseTableReady())) return [];
+  return q<PulseWeekRef & { themes: number; computed_at: string }>(
+    `SELECT year, week, COUNT(DISTINCT theme)::int AS themes,
+            to_char(MAX(computed_at), 'YYYY-MM-DD"T"HH24:MI:SS') AS computed_at
+     FROM research_pulse GROUP BY year, week ORDER BY year DESC, week DESC LIMIT 26`);
+}
+
+/** Newest pulse per theme for one week. */
+export async function getPulseOverview(year: number, week: number): Promise<PulseRow[]> {
+  if (!(await pulseTableReady())) return [];
+  return q<PulseRow>(
+    `SELECT DISTINCT ON (theme) ${PULSE_COLS}
+     FROM research_pulse WHERE year = $1 AND week = $2
+     ORDER BY theme, computed_at DESC`, [year, week]);
+}
+
+export async function getPulseTheme(theme: string, year: number, week: number): Promise<PulseRow | null> {
+  if (!(await pulseTableReady())) return null;
+  return q1<PulseRow>(
+    `SELECT ${PULSE_COLS} FROM research_pulse
+     WHERE theme = $1 AND year = $2 AND week = $3
+     ORDER BY computed_at DESC LIMIT 1`, [theme, year, week]);
+}
+
+/** Weeks this theme has been computed for (detail switcher) + run count. */
+export async function getPulseThemeWeeks(theme: string): Promise<(PulseWeekRef & { runs: number })[]> {
+  if (!(await pulseTableReady())) return [];
+  return q<PulseWeekRef & { runs: number }>(
+    `SELECT year, week, COUNT(*)::int AS runs FROM research_pulse
+     WHERE theme = $1 GROUP BY year, week ORDER BY year DESC, week DESC LIMIT 26`, [theme]);
 }
 
 // ---------------------------------------------------------------------------

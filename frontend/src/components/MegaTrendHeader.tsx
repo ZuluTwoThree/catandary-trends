@@ -102,6 +102,25 @@ export default function MegaTrendHeader({
                 Open Catandary Foresight →
               </Link>
             </p>
+            {/* Deep links into the research layer (#73): the theme's signals
+                in the Explorer and its weekly pulse. Foresight routes are not
+                in the static export, hence inside the same PUBLIC_MODE gate. */}
+            <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1 font-mono text-[10px] uppercase tracking-[0.14em]">
+              <Link
+                prefetch={linkPrefetch()}
+                href={`/trends/foresight/research?theme=${encodeURIComponent(megaTrend)}`}
+                className="text-accent/80 hover:text-accent hover:underline"
+              >
+                research signals in this theme →
+              </Link>
+              <Link
+                prefetch={linkPrefetch()}
+                href={`/trends/foresight/research/pulse/${encodeURIComponent(megaTrend)}`}
+                className="text-accent/80 hover:text-accent hover:underline"
+              >
+                weekly research pulse →
+              </Link>
+            </p>
           </div>
         )}
       </div>

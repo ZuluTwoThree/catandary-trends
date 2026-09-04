@@ -59,6 +59,15 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # evtl. noch laufenden Full Cycle; idempotent (existierende Edition = no-op).
 0 9 * * 1 /home/dirk/projects/catandary-trends/scripts/weekly_newsletter_publish.sh
 
+# Research Pulse wöchentlich (#73 Teil 1) — VORSCHLAG, NICHT INSTALLIERT (Owner entscheidet
+# Cron vs. „Recompute"-Knopf auf /trends/foresight/research/pulse/<theme>). Samstag 12:00 =
+# nach weekly_ingesters.sh (06:00, Ende zuletzt 08:13; Kollisionswächter wartet max 90 min).
+# Rechnet die Vorwoche (%G/%V von vor 7 Tagen) für alle 28 Themes: Stats + KMeans-Cluster
+# (~15 s CPU) + je Theme mit ≥5 Papers ein Gemma-Absatz (ein GPU-Handover, ~2 s/Text).
+# Idempotent (Woche mit ≥20 Texten = no-op); Wächter-Datei data/research_pulse_last.json.
+# Existenz-Guard: Skript liegt bis zum nächsten dev→main-Merge nur auf dev.
+#0 12 * * 6 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_research_pulse.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_research_pulse.sh || echo "$(date -Iseconds) skip weekly_research_pulse (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-research-pulse-skip.log
+
 # Statischer Export → Webspace (Schritt 8, seit 2026-09-02; NOCH NICHT in der echten crontab —
 # Webspace-Zugang fehlt): täglich 06:30. Mo–Fr nach dem Full Cycle (Ende 05:55–06:12,
 # Kollisionswächter wartet max 90 min), Sa/So ohne Cycle — das 30-Tage-Fenster rollt
