@@ -60,3 +60,9 @@ Conditional GET (Lauf 2): 90 Feeds ETag+Last-Modified, 59 nur Last-Modified, 30 
 ## Weiterer Betrieb
 
 Monatsprüfung: `scripts/monthly_source_check.py` Abschnitt 8 (Cron 1. des Monats 08:00) prüft alle aktiven Quellen erneut, schreibt die Protokollfelder zurück, meldet Wechsel nach/aus `reserved|blocked` und schaltet `fulltext` bei Artikel-Vorbehalt/-Sperre ab (nie automatisch wieder ein). Kandidatenrecherche (WP2): `scripts/discover_from_aggregators.py --probe --yaml` (HN-API, Wikipedia-Listen → Wikidata P856, idw-Institutionen, Reddit nur mit registrierter App).
+
+## Durchgeführt 04.09. abends (Owner-Entscheid „Ich folge deiner Empfehlung")
+- **33 Vorbehalts-Quellen deaktiviert** (`active: false` mit Kommentar in `sources.yaml`, DB-Flag per `apply_source_hygiene.py --apply` synchronisiert). Wissenschaft läuft weiter über OpenAlex (Fresh-Sweep), arXiv/bioRxiv/medRxiv und die neuen Institutionsquellen.
+- **Gespeicherte Abstracts/Teaser dieser Quellen gelöscht:** `purge_raw_content.py --source … --ignore-state --also-extraction --also-excerpt --apply` → 115.679 `raw_entries` (excerpt, raw_content, extraction_json = NULL). Signale/Artikel bleiben (Titel, Labels, Embeddings, eigene Texte).
+- **Ersatz mit offener Lizenz:** Frontiers in Nutrition (FOOD), Frontiers in Energy Research (ECO), Frontiers in Materials (TECH), Frontiers in Bioengineering and Biotechnology (HEALTH) — Probe ok, CC BY 4.0, `fulltext: true`. MDPI (Foods, Materials) liefert dem Bot-UA 403 → WP4-Kontaktliste.
+- **17 Feed-robots-Quellen:** weiterpollen (RSS = Abo-Angebot); Bestätigung bei Förderinfo Bund und idw über sources@ (Owner). HN bleibt; die 5 nicht reproduzierten 403 werden nach zwei Wochen per Monatsprüfung neu bewertet.

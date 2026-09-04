@@ -32,6 +32,15 @@
 verticals:
   FOOD:
     sources:
+    - name: Frontiers in Nutrition
+      feed_url: https://www.frontiersin.org/journals/nutrition/rss
+      type: trade_media
+      lead_time_tier: future
+      fulltext: true   # Open Access, alle Artikel CC BY 4.0 (Frontiers-Lizenzpolitik; Probe 2026-09-04: robots allow, Bot 200, kein TDM-Signal)
+      license: CC BY 4.0
+      tdm_checked: 2026-09-04
+      tdm_status: ok
+      discovered_via: own   # Ersatz fuer die deaktivierten Vorbehalts-Journale (Owner-Entscheid 04.09.)
     - name: FoodNavigator
       fulltext: true
       feed_url: https://www.foodnavigator.com/arc/outboundfeeds/rss/
@@ -111,6 +120,7 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: Lebensmittelzeitung
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       fulltext: false   # TDM-Vorbehalt (meta tdm-reservation=1) — Sondierung 2026-09-03, §44b Abs. 3 UrhG
       feed_url: https://www.lebensmittelzeitung.net/feed/
       type: trade_media
@@ -343,12 +353,14 @@ verticals:
       discovered_via: feedspot
     science:
     - name: Nature Food
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/natfood.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Trends in Food Science & Technology
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://rss.sciencedirect.com/publication/science/09242244
       type: research
       lead_time_tier: future
@@ -376,30 +388,35 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: EFSA Journal
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://efsa.onlinelibrary.wiley.com/feed/18314732/most-recent
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Comprehensive Reviews in Food Science
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://ift.onlinelibrary.wiley.com/feed/15414337/most-recent
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Food Policy
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://rss.sciencedirect.com/publication/science/03069192
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # feed header tdm-reservation: 1
     - name: Nature Biotechnology
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/nbt/rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: EFSA News
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.efsa.europa.eu/en/all/rss
       type: research
       lead_time_tier: future
@@ -472,6 +489,15 @@ verticals:
       tdm_status: ok
   TECH:
     sources:
+    - name: Frontiers in Materials
+      feed_url: https://www.frontiersin.org/journals/materials/rss
+      type: trade_media
+      lead_time_tier: future
+      fulltext: true   # Open Access, alle Artikel CC BY 4.0 (Frontiers-Lizenzpolitik; Probe 2026-09-04: robots allow, Bot 200, kein TDM-Signal)
+      license: CC BY 4.0
+      tdm_checked: 2026-09-04
+      tdm_status: ok
+      discovered_via: own   # Ersatz fuer die deaktivierten Vorbehalts-Journale (Owner-Entscheid 04.09.)
     - name: TechCrunch
       fulltext: true
       feed_url: https://techcrunch.com/feed/
@@ -803,12 +829,14 @@ verticals:
       discovered_via: hn
     science:
     - name: Nature Machine Intelligence
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/natmachintell.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Nature Electronics
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/natelectron.rss
       type: research
       lead_time_tier: future
@@ -843,6 +871,7 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: Science Robotics
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=scirobotics
       type: research
       lead_time_tier: future
@@ -988,6 +1017,15 @@ verticals:
       license: Public Domain (US federal)
   HEALTH:
     sources:
+    - name: Frontiers in Bioengineering and Biotechnology
+      feed_url: https://www.frontiersin.org/journals/bioengineering-and-biotechnology/rss
+      type: trade_media
+      lead_time_tier: future
+      fulltext: true   # Open Access, alle Artikel CC BY 4.0 (Frontiers-Lizenzpolitik; Probe 2026-09-04: robots allow, Bot 200, kein TDM-Signal)
+      license: CC BY 4.0
+      tdm_checked: 2026-09-04
+      tdm_status: ok
+      discovered_via: own   # Ersatz fuer die deaktivierten Vorbehalts-Journale (Owner-Entscheid 04.09.)
     - name: STAT News
       fulltext: true
       feed_url: https://www.statnews.com/feed/
@@ -1191,18 +1229,21 @@ verticals:
       discovered_via: wikipedia
     science:
     - name: Nature Medicine
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/nm.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: The Lancet
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.thelancet.com/rssfeed/lancet_current.xml
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # feed header tdm-reservation: 1
     - name: Lancet Digital Health
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.thelancet.com/rssfeed/landig_current.xml
       type: research
       lead_time_tier: future
@@ -1216,12 +1257,14 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: Nature Neuroscience
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/neuro.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Nature Aging
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/nataging.rss
       type: research
       lead_time_tier: future
@@ -1316,6 +1359,15 @@ verticals:
       license: CC BY 4.0
   ECO:
     sources:
+    - name: Frontiers in Energy Research
+      feed_url: https://www.frontiersin.org/journals/energy-research/rss
+      type: trade_media
+      lead_time_tier: future
+      fulltext: true   # Open Access, alle Artikel CC BY 4.0 (Frontiers-Lizenzpolitik; Probe 2026-09-04: robots allow, Bot 200, kein TDM-Signal)
+      license: CC BY 4.0
+      tdm_checked: 2026-09-04
+      tdm_status: ok
+      discovered_via: own   # Ersatz fuer die deaktivierten Vorbehalts-Journale (Owner-Entscheid 04.09.)
     - name: CleanTechnica
       fulltext: false   # HTTP 403 für den Bot-UA — Sondierung 2026-09-03, kein Volltext-Abruf gegen Sperren
       feed_url: https://cleantechnica.com/feed/
@@ -1585,30 +1637,35 @@ verticals:
       discovered_via: wikipedia
     science:
     - name: Nature Sustainability
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/natsustain.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Nature Climate Change
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/nclimate.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Nature Energy
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/nenergy.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: One Earth
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.cell.com/one-earth/current.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # feed header tdm-reservation: 1
     - name: Lancet Planetary Health
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.thelancet.com/rssfeed/lanplh_current.xml
       type: research
       lead_time_tier: future
@@ -1919,18 +1976,21 @@ verticals:
       discovered_via: feedspot
     science:
     - name: Nature Reviews Materials
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/natrevmats.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Nature Materials
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/nmat.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Matter (Cell Press)
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.cell.com/matter/current.rss
       type: research
       openalex_id: S4210178557   # generic "Matter" search hits physics journals
@@ -2092,18 +2152,21 @@ verticals:
       discovered_via: feedspot
     science:
     - name: Trends in Biotechnology
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://rss.sciencedirect.com/publication/science/01677799
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # feed header tdm-reservation: 1
     - name: Textile Research Journal
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://journals.sagepub.com/action/showFeed?ui=0&mi=ehikzz&ai=2b4&jc=trj&type=etoc&feed=rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Intl Journal of Fashion Design
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.tandfonline.com/feed/rss/tfdt20
       type: research
       lead_time_tier: future
@@ -2173,6 +2236,7 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: feed_error   # article unreachable (ReadTimeout)
     - name: Horizont
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       fulltext: false   # TDM-Vorbehalt (meta tdm-reservation=1) — Sondierung 2026-09-03, §44b Abs. 3 UrhG
       feed_url: https://www.horizont.net/news/feed/
       type: trade_media
@@ -2596,6 +2660,7 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: Robb Report
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: false   # TDM-Vorbehalt (meta robots noai,noimageai) — Sondierung 2026-09-03
       feed_url: https://robbreport.com/feed/
@@ -2908,12 +2973,14 @@ verticals:
       tdm_status: ok
     science:
     - name: Nature Human Behaviour
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://www.nature.com/nathumbehav.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Psychological Science
+      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
       feed_url: https://journals.sagepub.com/action/showFeed?ui=0&mi=ehikzz&ai=2b4&jc=pssa&type=etoc&feed=rss
       type: research
       lead_time_tier: future
@@ -3121,12 +3188,14 @@ cross_industry:
     tdm_status: blocked   # robots.txt disallows the feed URL
   science:
   - name: Nature (main)
+    active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
     feed_url: https://www.nature.com/nature.rss
     type: research
     lead_time_tier: future
     tdm_checked: "2026-09-04"
     tdm_status: reserved   # tdmrep.json location='/'
   - name: Science Magazine News
+    active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
     feed_url: https://www.science.org/rss/news_current.xml
     type: research
     openalex_id: S3880285   # name doesn't match OpenAlex journal "Science" (2k works/yr)

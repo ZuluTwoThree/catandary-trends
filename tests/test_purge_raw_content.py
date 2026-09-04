@@ -149,3 +149,21 @@ class TestReservedSources:
         out = capsys.readouterr().out
         assert "sources Fulltext Pub" in out and "ignore-state" in out and "3 rows" in out
         assert _raw(2)["raw_content"] is not None                     # dry run wrote nothing
+
+
+class TestExcerptPurge:
+    """--also-excerpt: the feed teaser/abstract of a TDM-reserved source goes too."""
+
+    def test_also_excerpt_nulls_teaser_only_for_named_source(self, seeded):
+        n = prc.purge(CUTOFF, [1], 1, 5, batch_ids=5, ignore_state=True,
+                      also_extraction=True, also_excerpt=True)
+        assert n == 4                                   # ids 1-4: text OR excerpt present
+        with get_connection() as c:
+            rows = {r["id"]: (r["raw_content"], r["excerpt"]) for r in
+                    c.execute("SELECT id, raw_content, excerpt FROM raw_entries").fetchall()}
+        assert all(rows[i] == (None, None) for i in (1, 2, 3, 4))
+        assert rows[5] == ("old processed, teaser source " * 50, "teaser 5")   # other source untouched
+
+    def test_cli_also_excerpt_requires_ignore_state(self, seeded):
+        with pytest.raises(SystemExit):
+            prc.main(["--source", "Fulltext Pub", "--also-excerpt", "--dry-run"])

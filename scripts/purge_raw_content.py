@@ -94,12 +94,13 @@ def source_ids_by_name(conn, names: list[str]) -> list[int]:
 
 
 def _where(cutoff: str, source_ids: list[int] | None,
-           ignore_state: bool = False) -> tuple[str, list]:
+           ignore_state: bool = False, also_excerpt: bool = False) -> tuple[str, list]:
     """ignore_state=True drops the processed/age conditions: used for sources
     whose rights holder reserved text-and-data mining (§44b Abs. 3 UrhG) — their
     stored full text goes regardless of pipeline state."""
     if ignore_state:
-        sql = "raw_content IS NOT NULL"
+        sql = ("(raw_content IS NOT NULL OR extraction_json IS NOT NULL OR excerpt IS NOT NULL)"
+               if also_excerpt else "raw_content IS NOT NULL")
         params: list = []
     else:
         sql = "processed = TRUE AND raw_content IS NOT NULL AND fetched_at < ?"
@@ -113,8 +114,8 @@ def _where(cutoff: str, source_ids: list[int] | None,
 
 
 def count_candidates(conn, cutoff: str, source_ids: list[int] | None,
-                     ignore_state: bool = False) -> dict:
-    where, params = _where(cutoff, source_ids, ignore_state)
+                     ignore_state: bool = False, also_excerpt: bool = False) -> dict:
+    where, params = _where(cutoff, source_ids, ignore_state, also_excerpt)
     row = conn.execute(
         f"SELECT COUNT(*) AS n, COALESCE(SUM({_BYTES_EXPR}), 0) AS bytes, "
         f"MIN(id) AS min_id, MAX(id) AS max_id, "
@@ -142,12 +143,19 @@ def by_source(conn, cutoff: str, source_ids: list[int] | None, top: int = 15,
 
 def purge(cutoff: str, source_ids: list[int] | None, min_id: int, max_id: int,
           batch_ids: int = DEFAULT_BATCH_IDS, max_rows: int | None = None,
-          ignore_state: bool = False, also_extraction: bool = False) -> int:
+          ignore_state: bool = False, also_extraction: bool = False,
+          also_excerpt: bool = False) -> int:
     """NULL raw_content (and, with also_extraction, the mined extraction_json —
-    claims/quotes are reproductions too) in id-range batches; returns rows updated."""
-    set_sql = ("raw_content = NULL, extraction_json = NULL" if also_extraction
-               else "raw_content = NULL")
-    where, params = _where(cutoff, source_ids, ignore_state)
+    claims/quotes are reproductions too; with also_excerpt the feed teaser /
+    abstract, for sources whose rights holder reserved TDM) in id-range
+    batches; returns rows updated."""
+    cols = ["raw_content = NULL"]
+    if also_extraction:
+        cols.append("extraction_json = NULL")
+    if also_excerpt:
+        cols.append("excerpt = NULL")
+    set_sql = ", ".join(cols)
+    where, params = _where(cutoff, source_ids, ignore_state, also_excerpt)
     total = 0
     t0 = time.time()
     batches = 0
@@ -189,6 +197,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="purge regardless of processed/age (TDM-reserved sources)")
     ap.add_argument("--also-extraction", action="store_true",
                     help="also NULL extraction_json (mined claims/quotes) — reserved sources")
+    ap.add_argument("--also-excerpt", action="store_true",
+                    help="also NULL excerpt (feed teaser/abstract) — TDM-reserved sources only; requires --ignore-state")
     ap.add_argument("--by-source", action="store_true",
                     help="dry run: also list the top sources by stored bytes (second pass)")
     ap.add_argument("--batch", type=int, default=DEFAULT_BATCH_IDS,
@@ -210,7 +220,9 @@ def main(argv: list[str] | None = None) -> int:
             source_ids = fulltext_source_ids(conn) if args.fulltext_sources_only else None
         if args.ignore_state and not args.source:
             raise SystemExit("--ignore-state requires --source (never purge everything blindly)")
-        stats = count_candidates(conn, cutoff, source_ids, args.ignore_state)
+        if args.also_excerpt and not args.ignore_state:
+            raise SystemExit("--also-excerpt requires --ignore-state (reserved sources only)")
+        stats = count_candidates(conn, cutoff, source_ids, args.ignore_state, args.also_excerpt)
         top = by_source(conn, cutoff, source_ids, ignore_state=args.ignore_state) if args.by_source else []
 
     scope = (f"sources {', '.join(args.source)}" if args.source
@@ -235,7 +247,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     nulled = purge(cutoff, source_ids, int(stats["min_id"]), int(stats["max_id"]),
                    batch_ids=args.batch, max_rows=args.max_rows,
-                   ignore_state=args.ignore_state, also_extraction=args.also_extraction)
+                   ignore_state=args.ignore_state, also_extraction=args.also_extraction,
+                   also_excerpt=args.also_excerpt)
     print(f"purged raw_content on {nulled:,} rows")
     return 0
 
