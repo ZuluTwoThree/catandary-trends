@@ -433,3 +433,120 @@ class TestMorningMailLine:
         (tmp_path / "data" / "newsletter_deep_dive_last.json").write_text(
             json.dumps({"date": datetime.now(timezone.utc).isoformat(), "status": "ok"}))
         assert rn.deep_dive_stats()["status"] == "ok"
+
+
+# ---- Register: keine Beleglage-Meta-Rede (Owner 2026-09-04) -----------------
+
+class TestMetaTalk:
+    SRC = TestCondensateCheck.SRC
+    MATERIAL = TestCondensateCheck.MATERIAL
+    LINKS = [f"[Src {i}](https://s.example/{i})" for i in range(1, 5)]
+
+    @pytest.mark.parametrize("sentence", [
+        "Several signals regarding cybersecurity remain unverified.",
+        "These claims lack validation from internal research or patent corpora.",
+        "The corpus cannot provide details on algorithmic transparency audits.",
+        "The timeline remains unknown.",
+        "Attacks on solar parks are not covered by the evidence.",
+        "There is no data in the corpus on this.",
+        "The corpus does not resolve the discrepancy.",
+        "Three open questions remain after the audit.",
+        "Reports are single-source claims from external media with no corroborating evidence.",
+    ])
+    def test_meta_talk_is_rejected(self, sentence):
+        text = _prose(320, self.LINKS) + " " + sentence
+        v = dd.verify_condensate(text, self.SRC, self.MATERIAL)
+        assert v["checks"]["no_meta_talk"] is False and v["ok"] is False
+        assert v["meta_talk"] and any("meta-talk" in r for r in v["reasons"])
+
+    def test_plain_reporting_passes(self):
+        text = _prose(320, self.LINKS) + (
+            " One report puts the settlement at 84% while another cites 350 cycles;"
+            " both figures come from the sources cited.")
+        v = dd.verify_condensate(text, self.SRC, self.MATERIAL)
+        assert v["checks"]["no_meta_talk"] is True and v["ok"] is True
+
+    def test_condense_retries_on_meta_talk_then_fails_gate(self):
+        bad = _prose(320, self.LINKS) + " The corpus cannot confirm the attacks."
+        outputs = iter([bad, bad, bad])
+        calls = []
+
+        def fake_chat(model, prompt, system=None, temperature=0.0, seed=None, max_tokens=None):
+            calls.append(seed)
+            return next(outputs)
+        res = {"report": self.MATERIAL, "sources": self.SRC, "cited": [s["id"] for s in self.SRC],
+               "audit": {"supported": [{"claim": "Retention was 84%.", "source_ids": ["T1"]}],
+                         "contradictions": ["X vs Y"], "missing": ["gap one"]}}
+        theme = {"key": "t", "name_en": "T", "description": "", "week_n": 20}
+        c = dd.condense(theme, YEAR, WEEK, [], res, chat=fake_chat, model="m")
+        assert len(calls) == dd.CONDENSE_ATTEMPTS == 3       # 1 Versuch + 2 Retries
+        assert c["ok"] is False and c["checks"]["no_meta_talk"] is False
+
+
+class TestPromptContext:
+    def test_prompt_holds_supported_claims_and_catalog_only(self):
+        src = TestCondensateCheck.SRC
+        res = {"sources": src, "cited": [s["id"] for s in src],
+               "report": "## Open questions\n\nThe corpus cannot answer the timeline.",
+               "audit": {"supported": [{"claim": "Meta agreed to a $17 billion settlement.",
+                                        "source_ids": ["T1", "T9"]}],
+                         "contradictions": ["T1 says $17bn while T2 says $18bn — CONTRA-MARK"],
+                         "missing": ["Historical timeline — MISSING-MARK"]}}
+        theme = {"key": "t", "name_en": "Theme", "description": "d", "week_n": 20}
+        claims = dd.supported_claims(res)
+        assert [s["id"] for s in claims[0]["sources"]] == ["T1"]   # unbekannte IDs fallen weg
+        prompt = dd.build_condense_prompt(theme, YEAR, WEEK, [], claims, dd.cited_sources(res))
+        assert "Meta agreed to a $17 billion settlement." in prompt
+        assert "[article] [Src 1](https://s.example/1)" in prompt
+        assert "CONTRA-MARK" not in prompt and "MISSING-MARK" not in prompt
+        assert "Open questions" not in prompt and "cannot answer" not in prompt
+        assert "never pad" in prompt
+        assert "unverified" in dd.CONDENSE_SYSTEM and "silence, not commentary" in dd.CONDENSE_SYSTEM
+
+
+class TestFromDossier:
+    def test_parse_ref(self):
+        assert dd.parse_dossier_ref("newsletter-deepdive-2026-w35@3") == ("newsletter-deepdive-2026-w35", 3)
+        with pytest.raises(SystemExit):
+            dd.parse_dossier_ref("nope")
+
+    def test_regenerates_without_research(self, monkeypatch):
+        _seed_week_b()
+        res = _result()
+        from scripts.corpus_research import save_dossier
+        oid = orders_mod.create_order("Theme B", slug="newsletter-deepdive-2026-w35")
+        orders_mod.mark_running(oid)
+        v = save_dossier("newsletter-deepdive-2026-w35", "Theme B", "q", res["report"], res)
+        orders_mod.mark_review(oid, v, {"ok": False, "ungrounded": ["24531336"]})  # veraltete Endkontrolle
+        dd.ensure_deep_dive_column()
+        dd.save_deep_dive(YEAR, WEEK, {"theme": "b", "theme_name": "B", "dry_run": True,
+                                       "body_md": "OLD TEXT", "web_steps": 0,
+                                       "research_seconds": 200.0, "order_id": oid})
+        links = [f"[Src {i}](https://catandary.de/trends/src-{i})" for i in (1, 2, 1, 2)]
+
+        def fake_condense(theme, year, week, signals, result, chat=None, model=None, attempts=3):
+            return dd.verify_condensate(_prose(320, links), dd.cited_sources(result),
+                                        dd.grounding_material(result, signals)) | {"attempts": []}
+        monkeypatch.setattr(dd.gpu_handover, "_served_model", lambda: "./models/gemma.gguf")
+        research_called = []
+        monkeypatch.setattr(dd, "run_research", lambda *a, **k: research_called.append(1))
+        p = dd.run_from_dossier(YEAR, WEEK, "newsletter-deepdive-2026-w35", v,
+                                condense_fn=fake_condense)
+        assert research_called == []
+        assert p["regenerated_from"] == f"newsletter-deepdive-2026-w35@{v}"
+        assert p["order_id"] == oid and p["research_seconds"] == 200.0
+        assert p["theme"] == "b" and p["dossier_version"] == v
+        # Endkontrolle neu gerechnet: die veraltete Slug-ID-Meldung ist weg
+        assert p["audit"]["dossier_ungrounded"] == 0 and p["gates"]["dossier_grounded"] is True
+        with get_connection() as conn:
+            row = dict(conn.execute("SELECT deep_dive FROM newsletter_editions WHERE week = ?",
+                                    (WEEK,)).fetchone())
+        stored = json.loads(row["deep_dive"])
+        assert "OLD TEXT" not in stored["body_md"] and stored["dry_run"] is True
+        assert stored["regenerated_from"].endswith(f"@{v}")
+        assert dd.LAST_PATH.exists()
+
+    def test_missing_dossier_is_a_clear_error(self):
+        _add_edition(YEAR, WEEK)
+        with pytest.raises(SystemExit, match="does not exist"):
+            dd.run_from_dossier(YEAR, WEEK, "newsletter-deepdive-2026-w35", 9)
