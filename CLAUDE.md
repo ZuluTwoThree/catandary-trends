@@ -486,6 +486,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Newsletter-Website-Edition (Mo 09:00, seit 2026-08-29): generiert die
 # Vorwoche (deterministisch) nach newsletter_editions — /trends/newsletter
 # zeigt sie sofort. KEIN Versand (der wartet auf #16/Launch).
+# Optional (#96 Phase 1, seit 2026-09-04, NICHT gesetzt): NEWSLETTER_DEEP_DIVE=dry-run
+# hängt nach der Edition den „Deep Dive of the Week"-Dry-Run an (27B-Rechercheur
+# über den Dossier-Auftragspfad → Gemma-Kondensat → Ruhezustand; ~5 min; schreibt
+# newsletter_editions.deep_dive mit dry_run=true, öffentlich nie gerendert).
+# Default off = der Montagslauf ist unverändert. docs/newsletter_deep_dive.md.
 0 9 * * 1    scripts/weekly_newsletter_publish.sh
 
 # Research Pulse (#73, VORSCHLAG — auskommentiert in deploy/crontab.txt, NICHT installiert):
@@ -575,7 +580,22 @@ Standalone-Lauf nur als Fallback: `python pipeline/auto_publisher.py`
 Edition** läuft seit 2026-08-29 per Cron (Mo 09:00, `weekly_newsletter_publish.sh`
 — generiert die Vorwoche nach `newsletter_editions`, mit Full-Cycle-Kollisions-
 wächter und Gemma-Swap); der E-Mail-**Versand** bleibt manuell/gegated bis zur
-Launch-Kette (#16, `NEWSLETTER_GOLIVE.md`).
+Launch-Kette (#16, `NEWSLETTER_GOLIVE.md`). **Deep Dive of the Week (#96, Phase 1
+seit 2026-09-04, Dry-Run, nicht scharf):** `scripts/newsletter_deep_dive.py` wählt
+das stärkste Mega-Theme der Woche (Anteils-Delta gegen 4 Vorwochen, Varianz-Regel
+über die letzten 4 Editionen), lässt den Korpus-Rechercheur über den Dossier-
+Auftragspfad laufen (Serie `newsletter-deepdive-<J>-w<KW>`, Desk-sichtbar,
+Zeitbudget 20 min), prüft Ehrlichkeits-Gates (Audit ≥ 8 belegte Aussagen, < 3
+Widersprüche, Zitate 100 % kanonisch, 0 unbelegte Zahlen) und lässt Gemma ein
+300–500-Wörter-Kondensat NUR formulieren (jede Zahl/URL wird gegen das Dossier
+nachgeprüft). Speichert `newsletter_editions.deep_dive` (JSONB, additive Migration
+`scripts/migrate_newsletter_deep_dive.py`, Live-DB 2026-09-04) und einen Draft nach
+`frontend/content/analyses/` (`draft: true`). Öffentlich gerendert nur bei
+`gate_passed && !dry_run` (Phase 2); im Dry-Run zeigt die Owner-Instanz einen
+Hinweisblock mit Desk-Link, Export/PUBLIC_MODE filtern. Im Wrapper nur mit
+`NEWSLETTER_DEEP_DIVE=dry-run` aktiv (Default off). Erster Dry-Run 2026-09-04
+(W35, `digital_trust_and_data_sovereignty`): 260 s, Gate verfehlt am Audit
+(6 < 8 belegte Aussagen), Kondensat 362 Wörter sauber — `docs/newsletter_deep_dive.md`.
 
 ### Feed-Poller Architektur
 
@@ -1028,6 +1048,30 @@ Prognosen). Versioniert in `research_pulse` (additive Migration `scripts/migrate
 - **Betrieb:** Cron nur als auskommentierter Vorschlag (`deploy/crontab.txt`, Wrapper
   `scripts/weekly_research_pulse.sh`, Sa 12:00); Owner-Entscheidung Cron vs. Knopf offen.
 - Methode/Datenlage: `docs/research_pulse.md`.
+
+## Newsletter Deep Dive (#96 Phase 1, seit 2026-09-04 — Dry-Run, nicht scharf)
+
+Rechercheur-gestützte Sektion „Deep Dive of the Week" für die Website-Edition;
+vollständige Kette gebaut, standardmäßig aus. Details, Gates, Kalibrier-Protokoll
+und Phase-2-Schalter: `docs/newsletter_deep_dive.md`.
+
+- **Kette:** `scripts/newsletter_deep_dive.py --year J --week KW [--dry-run]` — Themenwahl
+  (SQL, deterministisch, Ranking gespeichert) → Dossier-Auftrag → `scripts/dossier_worker.py`
+  (27B-Handover mit Stage-10-Guards, Endkontrolle, Status `review`, im Desk als Serie
+  `newsletter-deepdive-<J>-w<KW>`) → Gate → Gemma-Kondensat (`content_gen_on_llamacpp`)
+  mit deterministischer Nachprüfung → `newsletter_editions.deep_dive` + `/analysis`-Draft
+  + `data/newsletter_deep_dive_last.json` (Morgen-Mail-Zeile). Ruhezustand danach
+  (llama-server aktiv auf 8B-208k) — E2E verifiziert 2026-09-04.
+- **Nie ein Blocker:** kein Thema / Handover verweigert / Zeitbudget (20 min, SIGALRM)
+  / Gate verfehlt → Edition unverändert, `deep_dive.status` protokolliert den Grund.
+- **Öffentlich nur `gate_passed && !dry_run`** (`lib/newsletterEditions.ts isPublicDeepDive`,
+  durchgesetzt in API-Route unter PUBLIC_MODE, `rewriteEditionForExport`, `EditionBody`);
+  Owner-Instanz zeigt Dry-Runs als Hinweisblock mit Desk-Link und Belegart-Badges.
+- **Scharfschaltung** (`--apply`, Web-Stufe, Cron-Env) erst nach Owner-Blick auf 2–3 Wochen
+  Dry-Run — die Dry-Runs sind zugleich die #95-Testläufe.
+- Nebenfund/Fix 2026-09-04: `pipeline/dossier_check.py` zählte Slug-IDs/Patentnummern in
+  Zitat-URLs als „unbelegte Zahlen" — Links werden jetzt vor dem Zahlen-Check auf ihr
+  Label reduziert (betrifft alle Desk-Dossiers).
 
 ## Technische Hinweise
 

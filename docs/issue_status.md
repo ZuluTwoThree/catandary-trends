@@ -27,6 +27,23 @@
 >   (3 katalogfremde, nicht existierende URLs im Roh-Bericht) bleibt der offene Prüfpunkt.
 >   Dauer 477 s Recherche / 568 s Wandzeit. **Weiterhin offen:** §1 weitere Domänen, `lang=de`-Streichungen.
 
+> **Nachtrag 04.09.2026 — #96 Newsletter-Deep-Dive, Phase 1 (Dry-Run-Kette, NICHT scharf)** (`docs/newsletter_deep_dive.md`):
+> - Komplette Kette auf `dev`: `newsletter_editions.deep_dive` (JSONB, Migration auf der Live-DB ausgeführt),
+>   `scripts/newsletter_deep_dive.py` (Themenwahl per Anteils-Delta + Varianz-Regel, Rechercheur über den
+>   Dossier-Auftragspfad mit 20-min-Budget, Ehrlichkeits-Gates, Gemma-Kondensat mit deterministischer
+>   Nachprüfung, `/analysis`-Draft `draft: true`, Wächter-JSON + Morgen-Mail-Zeile), Wrapper-Schritt
+>   `NEWSLETTER_DEEP_DIVE=dry-run|off` (Default off — Montagslauf unverändert), Frontend-Render nur bei
+>   `gate_passed && !dry_run`, Dry-Run als Owner-Hinweisblock mit Desk-Link; Export/PUBLIC_MODE filtern.
+> - E2E-Dry-Runs W35 (Thema `digital_trust_and_data_sovereignty`, +31,5 % Wochenanteil): 260/268 s Wandzeit,
+>   Ruhezustand danach verifiziert (llama-server aktiv, 8B-208k). Gate verfehlt am Audit (6 bzw. 7 < 8
+>   belegte Aussagen — ohne Web-Stufe trägt der Korpus zu einem News-Thema ~6–7); Kondensat 362/345 Wörter,
+>   Nachprüfung 5/5 im ersten Versuch, alle Zahlen/Links aus dem Dossier.
+> - Nebenfund, behoben: `pipeline/dossier_check.py` zählte Slug-IDs/Patentnummern in Zitat-URLs und die
+>   Ordinalzahlen der code-generierten Quellenliste als „unbelegte Zahlen" (alle Desk-Dossiers betroffen).
+> - **Offen (Owner):** 2–3 Wochen Dry-Run beobachten, dann Schwellen kalibrieren; Phase 2 = Web-Stufe +
+>   `--apply` + E-Mail-Template (#16); Owner-Fragen aus dem Issue (ein Deep-Dive/Woche, Override-Datei,
+>   Startzeitpunkt). Nicht nach `main` gemergt.
+
 > **Nachtrag 04.09.2026 — #67 Query-Quality-Gate der Technologie-Suche** (`docs/tech_query_gate_2026-09-04.md`):
 > - Gemessen statt geraten: 26 Technologien / 25 Unsinns-/Alltagsanfragen / 8 graue Phrasen mit Live-Vektoren
 >   (Fixture `tests/fixtures/tech_query_gate.json`). Nächst-Distanz, Margin und Sektions-Streuung trennen
