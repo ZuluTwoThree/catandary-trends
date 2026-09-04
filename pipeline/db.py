@@ -1038,33 +1038,43 @@ def upsert_source(name: str, feed_url: str, source_type: str, vertical: str,
 
 def insert_raw_entry(source_id: int, url: str, title: str, excerpt: str,
                      published_date: str | None = None, pub_number: str | None = None,
-                     kind_code: str | None = None) -> int | None:
+                     kind_code: str | None = None, openalex_id: str | None = None) -> int | None:
     """Insert a raw entry. Returns id or None if duplicate URL.
 
     `pub_number` (patent publication number) is the node key for the citation/
     family graph; `kind_code` (A1/B2/…) flags application vs grant. Both NULL for
-    non-patent entries."""
+    non-patent entries. `openalex_id` (W…) is the science-graph node key — the
+    join to `openalex_meta` (work type, #73); on a duplicate URL it is backfilled
+    onto the existing row (COALESCE, never overwritten) so an earlier text-layer
+    ingest of the same work still gets its type."""
+    cols = "source_id, url, title, excerpt, published_date, pub_number, kind_code"
+    vals: tuple = (source_id, url, title, excerpt, published_date, pub_number, kind_code)
+    if openalex_id:
+        cols += ", openalex_id"
+        vals += (openalex_id,)
+    marks = ", ".join(["%s" if USE_POSTGRES else "?"] * len(vals))
     with get_connection() as conn:
         try:
             if USE_POSTGRES:
                 cursor = conn.execute(
-                    "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date, pub_number, kind_code) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (url) DO NOTHING RETURNING id",
-                    (source_id, url, title, excerpt, published_date, pub_number, kind_code),
-                )
+                    f"INSERT INTO raw_entries ({cols}) VALUES ({marks}) "
+                    "ON CONFLICT (url) DO NOTHING RETURNING id", vals)
                 result = cursor.fetchone()
-                return result["id"] if result else None
+                if result:
+                    return result["id"]
             else:
-                cursor = conn.execute(
-                    "INSERT INTO raw_entries (source_id, url, title, excerpt, published_date, pub_number, kind_code) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (source_id, url, title, excerpt, published_date, pub_number, kind_code),
-                )
+                cursor = conn.execute(f"INSERT INTO raw_entries ({cols}) VALUES ({marks})", vals)
                 return cursor.lastrowid
         except (sqlite3.IntegrityError, Exception) as e:
-            if "IntegrityError" in type(e).__name__ or "unique" in str(e).lower() or "duplicate" in str(e).lower():
-                return None
-            raise
+            if not ("IntegrityError" in type(e).__name__ or "unique" in str(e).lower()
+                    or "duplicate" in str(e).lower()):
+                raise
+    # duplicate URL: backfill the node key onto the existing row
+    if openalex_id:
+        with get_connection() as conn:
+            conn.execute("UPDATE raw_entries SET openalex_id = COALESCE(openalex_id, ?) WHERE url = ?",
+                         (openalex_id, url))
+    return None
 
 
 def insert_raw_entries_batch(rows: list[tuple]) -> int:

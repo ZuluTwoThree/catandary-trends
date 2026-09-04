@@ -10,9 +10,15 @@ Usage:
     python scripts/ingest_openalex.py --source-name "Food Policy" \
         --after 2015-01-01 --before 2023-01-01 --dry-run
     python scripts/ingest_openalex.py --source-name "Nature Food" --after 2021-01-01
+
+Work-type gate (#73, 2026-09-05): the concept sweeps (--concept/--vertical,
+incl. --fresh) admit only OpenAlex types article/preprint/review/book-chapter
+and skip repository deposits (Zenodo, figshare, GitHub …) — see `admit_work`
+and pipeline/research_kinds.py. The admitted type lands in openalex_meta.
 """
 from __future__ import annotations
 import argparse
+import json
 import logging
 import os
 import re
@@ -24,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import httpx
 from pipeline import db
 from pipeline.config import load_sources
+from pipeline.research_kinds import RESEARCH_WORK_TYPES, is_repository_url
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -277,7 +284,7 @@ def iter_works_by_concept(client: httpx.Client, cid: str, after: str, before: st
             "filter": filt, "per_page": 100, "cursor": cursor,
             "sort": "cited_by_count:desc",
             "select": "id,title,publication_date,abstract_inverted_index,doi,"
-                      "primary_location,cited_by_count",
+                      "primary_location,cited_by_count,type,is_retracted,counts_by_year",
         })
         if data is None:
             return
@@ -315,7 +322,7 @@ def iter_works_fresh(client: httpx.Client, cid: str, after: str, before: str):
             "filter": filt, "per_page": 100, "cursor": cursor,
             "sort": "publication_date:desc",
             "select": "id,title,publication_date,abstract_inverted_index,doi,"
-                      "primary_location,cited_by_count",
+                      "primary_location,cited_by_count,type,is_retracted,counts_by_year",
         })
         if data is None:
             return
@@ -323,6 +330,23 @@ def iter_works_fresh(client: httpx.Client, cid: str, after: str, before: str):
             yield w
         cursor = data.get("meta", {}).get("next_cursor")
         time.sleep(0.2)
+
+
+def admit_work(w: dict) -> tuple[bool, str]:
+    """Work-type gate for the concept sweeps (#73, 2026-09-05). Returns
+    (admit, reason): reason is the OpenAlex `type` when admitted, `type:<t>`
+    when the type is outside RESEARCH_WORK_TYPES (dataset, software, other,
+    paratext, peer-review, erratum, editorial, letter, …; missing type counts as
+    `type:none`), or `repository` when the landing URL / DOI points at a data or
+    software repository (Zenodo, figshare, Dryad, OSF, GitHub/GitLab, Software
+    Heritage, Dataverse) — the second net, because Zenodo deposits are often
+    typed `article`. Rationale + numbers: pipeline/research_kinds.py."""
+    wtype = (w.get("type") or "").strip().lower()
+    if wtype not in RESEARCH_WORK_TYPES:
+        return False, f"type:{wtype or 'none'}"
+    if is_repository_url(landing_url(w), w.get("doi")):
+        return False, "repository"
+    return True, wtype
 
 
 def measure_fresh_corpus(after: str, before: str, vertical_filter: str) -> dict:
@@ -495,8 +519,22 @@ def ingest_concept(concept: str, vertical: str, after: str, before: str,
 
     fresh=True (#51): citation-free, freshest-first — the lead-signal sweep. Uses
     a distinct source (`OpenAlex fresh: …`) so it never mixes with the cited pull
-    or the #9 citation graph."""
-    stats = {"works": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
+    or the #9 citation graph.
+
+    Work-type gate (#73): only papers pass `admit_work` — repository deposits
+    (Zenodo/figshare/GitHub …) and non-paper types are skipped and counted in
+    `skipped_type` (per type) / `skipped_repo`. The admitted type is stored in
+    `openalex_meta.work_type` (node key `raw_entries.openalex_id`), which
+    build_research_index.py turns into `research_signals.kind`."""
+    stats: dict = {"works": 0, "inserted": 0, "duplicates": 0, "skipped": 0,
+                   "skipped_repo": 0, "skipped_type": {}}
+    meta_buf: list[tuple] = []
+
+    def _flush_meta() -> None:
+        if meta_buf and not dry_run:
+            db.insert_openalex_meta(meta_buf)
+        meta_buf.clear()
+
     with httpx.Client(headers=HEADERS) as client:
         resolved = resolve_concept_id(client, concept)
         if not resolved:
@@ -521,19 +559,41 @@ def ingest_concept(concept: str, vertical: str, after: str, before: str,
             if not url or not title:
                 stats["skipped"] += 1
                 continue
+            admitted, reason = admit_work(w)
+            if not admitted:
+                if reason == "repository":
+                    stats["skipped_repo"] += 1
+                else:
+                    t = reason.split(":", 1)[1]
+                    stats["skipped_type"][t] = stats["skipped_type"].get(t, 0) + 1
+                logger.debug("skip %s (%s): %s", _short(w.get("id")), reason, title[:80])
+                continue
             excerpt = f"[Science · {disp}] " + reconstruct_abstract(
                 w.get("abstract_inverted_index"))
             pub = w.get("publication_date")
+            wid = _short(w.get("id")) or None
             if dry_run:
                 stats["inserted"] += 1
             else:
-                eid = db.insert_raw_entry(source_id, url, title, excerpt[:2000], pub)
+                eid = db.insert_raw_entry(source_id, url, title, excerpt[:2000], pub,
+                                          openalex_id=wid)
                 stats["duplicates" if eid is None else "inserted"] += 1
+            if wid:
+                meta_buf.append((wid, w.get("cited_by_count"),
+                                 json.dumps(w.get("counts_by_year") or []),
+                                 reason, 1 if w.get("is_retracted") else 0))
+                if len(meta_buf) >= 500:
+                    _flush_meta()
             if stats["inserted"] >= cap:
                 break
+    _flush_meta()
     tag = "[dry] würde einfügen" if dry_run else "eingefügt"
+    typed = ", ".join(f"{t} {n}" for t, n in sorted(stats["skipped_type"].items(),
+                                                    key=lambda kv: -kv[1]))
     print(f"{concept:32s}: {stats['works']:5d} works | {tag} {stats['inserted']:5d} | "
-          f"{stats['duplicates']} dup | {stats['skipped']} skip")
+          f"{stats['duplicates']} dup | {stats['skipped']} skip | "
+          f"{sum(stats['skipped_type'].values())} non-paper type"
+          f"{f' ({typed})' if typed else ''} | {stats['skipped_repo']} repository")
     return stats
 
 
@@ -662,16 +722,22 @@ def main() -> int:
         if not jobs:
             ap.error(f"no curated concepts for vertical {v}; pass --concept explicitly")
 
-    grand = {"works": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
+    grand: dict = {"works": 0, "inserted": 0, "duplicates": 0, "skipped": 0, "skipped_repo": 0}
+    grand_types: dict[str, int] = {}
     for concept, vert in jobs:
         s = ingest_concept(concept, vert, args.after, args.before,
                            args.min_citations, args.cap, args.dry_run,
                            fresh=args.fresh)
         for k in grand:
             grand[k] += s.get(k, 0)
+        for t, n in s.get("skipped_type", {}).items():
+            grand_types[t] = grand_types.get(t, 0) + n
     tag = "[dry] würde einfügen" if args.dry_run else "eingefügt"
+    typed = ", ".join(f"{t} {n}" for t, n in sorted(grand_types.items(), key=lambda kv: -kv[1]))
     print(f"{'TOTAL':32s}: {grand['works']:5d} works | {tag} {grand['inserted']:5d} | "
-          f"{grand['duplicates']} dup | {grand['skipped']} skip")
+          f"{grand['duplicates']} dup | {grand['skipped']} skip | "
+          f"{sum(grand_types.values())} non-paper type{f' ({typed})' if typed else ''} | "
+          f"{grand['skipped_repo']} repository")
     return 0
 
 
