@@ -459,3 +459,48 @@ def test_feed_403_retries_with_short_ua_token_like_the_poller():
     r = psc.probe_sources([{"input": FEED, "name": "Pub"}], client=client, workers=1, delay=0.0)[0]
     assert seen == [psc.UA, psc.FEED_FALLBACK_UA]
     assert r["tdm_status"] == "ok" and r["feed_ua_fallback"] is True
+
+
+class TestRobotsRfc9309:
+    """urllib.robotparser reads `*` literally; the probe evaluates the parsed
+    rules itself: wildcards, `$` anchors, longest match, UA-specific groups."""
+
+    @staticmethod
+    def _rp(text: str):
+        import urllib.robotparser
+        rp = urllib.robotparser.RobotFileParser()
+        rp.parse(text.splitlines())
+        return rp
+
+    def test_wildcard_disallow_is_honoured(self):
+        rp = self._rp("User-agent: *\nDisallow: /*pressreleasesrss\n")
+        assert not psc.robots_allows(rp, psc.UA, "https://idw-online.de/pages/de/pressreleasesrss")
+        assert psc.robots_allows(rp, psc.UA, "https://idw-online.de/de/news1")
+        assert rp.can_fetch(psc.UA, "https://idw-online.de/pages/de/pressreleasesrss")  # urllib's blind spot
+
+    def test_dollar_anchor(self):
+        rp = self._rp("User-agent: *\nDisallow: /*.pdf$\n")
+        assert not psc.robots_allows(rp, psc.UA, "https://x.example/a/b.pdf")
+        assert psc.robots_allows(rp, psc.UA, "https://x.example/a/b.pdf?x=1")
+        assert psc.robots_allows(rp, psc.UA, "https://x.example/a/b.pdfx")
+
+    def test_longest_match_wins_and_tie_allows(self):
+        rp = self._rp("User-agent: *\nDisallow: /news/\nAllow: /news/public/\n")
+        assert not psc.robots_allows(rp, psc.UA, "https://x.example/news/secret")
+        assert psc.robots_allows(rp, psc.UA, "https://x.example/news/public/1")
+        rp = self._rp("User-agent: *\nDisallow: /p\nAllow: /p\n")
+        assert psc.robots_allows(rp, psc.UA, "https://x.example/page")
+
+    def test_specific_group_beats_star(self):
+        rp = self._rp("User-agent: *\nDisallow: /\n\nUser-agent: CatandaryTrendsBot\nAllow: /\n")
+        assert psc.robots_allows(rp, psc.UA, "https://x.example/anything")
+        rp = self._rp("User-agent: *\nDisallow:\n\nUser-agent: catandarytrendsbot\nDisallow: /news/\n")
+        assert not psc.robots_allows(rp, psc.UA, "https://x.example/news/1")
+        assert psc.robots_allows(rp, "OtherBot/1.0", "https://x.example/news/1")
+
+    def test_empty_robots_allows_everything(self):
+        assert psc.robots_allows(self._rp(""), psc.UA, "https://x.example/x")
+
+    def test_percent_encoding_is_normalised(self):
+        rp = self._rp("User-agent: *\nDisallow: /caf%C3%A9/\n")
+        assert not psc.robots_allows(rp, psc.UA, "https://x.example/café/menu")

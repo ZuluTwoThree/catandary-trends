@@ -1,0 +1,5 @@
+{"data": {"children": [
+  {"data": {"domain": "self.technology", "url": "https://www.reddit.com/r/technology/x", "title": "self post"}},
+  {"data": {"domain": "example-tech.com", "url": "https://example-tech.com/post/9", "title": "linked"}},
+  {"data": {"domain": "youtu.be", "url": "https://youtu.be/abc", "title": "video"}}
+]}}

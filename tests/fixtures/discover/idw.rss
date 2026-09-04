@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>idw</title>
+<item><title>Release one</title><link>http://idw-online.de/de/news1</link><pubDate>Tue, 01 Sep 2026 10:00:00 GMT</pubDate></item>
+<item><title>Release two</title><link>http://idw-online.de/de/news2</link><pubDate>Mon, 31 Aug 2026 10:00:00 GMT</pubDate></item>
+<item><title>Release three (pdf)</title><link>http://idw-online.de/de/pdfnews3</link><pubDate>Sun, 30 Aug 2026 10:00:00 GMT</pubDate></item>
+</channel></rss>

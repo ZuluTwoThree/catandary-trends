@@ -1,0 +1,5 @@
+{"entities": {
+  "Q1": {"claims": {"P856": [{"mainsnak": {"datavalue": {"value": "https://www.alpha-magazine.example/", "type": "string"}}}]}},
+  "Q2": {"claims": {}},
+  "Q4": {"claims": {"P856": [{"mainsnak": {"snaktype": "novalue"}}, {"mainsnak": {"datavalue": {"value": "http://zeta.example/home", "type": "string"}}}]}}
+}}

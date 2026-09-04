@@ -65,7 +65,7 @@ import urllib.robotparser
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import quote, unquote, urljoin, urlsplit
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -138,9 +138,45 @@ class HostThrottle:
             time.sleep(slot - now)
 
 
+def _rule_regex(pattern: str) -> re.Pattern:
+    """robots.txt path pattern → regex: `*` = any run, trailing `$` = end anchor,
+    otherwise prefix match (RFC 9309 §2.2.3)."""
+    pattern = unquote(pattern or "")
+    anchored = pattern.endswith("$")
+    if anchored:
+        pattern = pattern[:-1]
+    parts = [re.escape(quote(p, safe="/:@!$&'()*+,;=~")) for p in pattern.split("*")]
+    return re.compile("^" + ".*".join(parts) + ("$" if anchored else ""))
+
+
+def robots_allows(rp: urllib.robotparser.RobotFileParser, ua: str, url: str) -> bool:
+    """RFC 9309 verdict on a parsed robots.txt: the group for our product token
+    (else `*`), wildcard-aware rules, the longest matching rule wins, a tie goes
+    to Allow. urllib's own can_fetch() reads `*` literally — a wildcard rule
+    like `Disallow: /*pressreleasesrss` would silently pass."""
+    entry = next((e for e in rp.entries if e.applies_to(ua)), None) or rp.default_entry
+    if entry is None:
+        return True
+    parts = urlsplit(url)
+    path = quote(unquote(parts.path or "/"), safe="/:@!$&'()*+,;=~")
+    if parts.query:
+        path += "?" + parts.query
+    best_len, best_allow = -1, True
+    for rule in entry.rulelines:
+        raw = unquote(rule.path)
+        if not raw:                              # `Disallow:` (empty) = allow everything
+            continue
+        if _rule_regex(raw).match(path):
+            n = len(raw)
+            if n > best_len or (n == best_len and rule.allowance):
+                best_len, best_allow = n, bool(rule.allowance)
+    return best_allow
+
+
 class RobotsCache:
-    """robots.txt once per host per run; verdicts for our UA (or `*`).
-    unreadable (network error) → 'unreadable' and allowed, like the fetcher."""
+    """robots.txt once per host per run; verdicts for our UA (or `*`) via
+    robots_allows(). unreadable (network error) → 'unreadable' and allowed,
+    like the fetcher."""
 
     def __init__(self, client: httpx.Client, throttle: HostThrottle):
         self.client, self.throttle = client, throttle
@@ -179,7 +215,7 @@ class RobotsCache:
         if rp is None:
             return "unreadable"
         try:
-            return "allow" if rp.can_fetch(UA, url) else "disallow"
+            return "allow" if robots_allows(rp, UA, url) else "disallow"
         except Exception:  # noqa: BLE001
             return "unreadable"
 
@@ -785,6 +821,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--all-active", action="store_true", help="every active source in sources.yaml")
     ap.add_argument("--yaml", action="store_true", help="print YAML snippet with protocol fields")
     ap.add_argument("--json", help="write full results as JSON to this path")
+    ap.add_argument("--from-json", help="skip the network: take results from a JSON written by --json")
     ap.add_argument("--write", action="store_true",
                     help="patch tdm_checked/tdm_status/license into sources.yaml (config sources only)")
     ap.add_argument("--discovered-via", help="value for discovered_via in the YAML snippet")
@@ -803,7 +840,7 @@ def main(argv: list[str] | None = None) -> int:
     for e in entries:
         if args.discovered_via and not e.get("discovered_via"):
             e["discovered_via"] = args.discovered_via
-    if not entries:
+    if not entries and not args.from_json:
         ap.error("nothing to probe: give URLs/domains, --file or --all-active")
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -814,8 +851,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[{done}/{total}] {r.get('tdm_status'):<10} {r.get('name') or r.get('input')}",
                   file=sys.stderr, flush=True)
 
-    results = probe_sources(entries, client=make_client(args.timeout), workers=args.workers,
-                            delay=args.delay, progress=progress)
+    if args.from_json:
+        results = json.loads(Path(args.from_json).read_text(encoding="utf-8"))
+    else:
+        results = probe_sources(entries, client=make_client(args.timeout), workers=args.workers,
+                                delay=args.delay, progress=progress)
     print(format_table(results))
     counts = summarize(results)
     print(f"\n{len(results)} sources, {sum(r['requests'] for r in results)} requests, "
