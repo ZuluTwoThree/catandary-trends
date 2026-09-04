@@ -62,8 +62,8 @@ import httpx
 import yaml
 
 from pipeline.db import get_connection
-from probe_source_compliance import (SOURCES_YAML, iter_active_sources, probe_sources, summarize,
-                                     write_protocol_fields)
+from probe_source_compliance import (SOURCES_YAML, fulltext_reason, iter_active_sources, probe_sources,
+                                     summarize, write_protocol_fields)
 from source_signal_yield import collect as collect_yield
 from source_quality_report import iter_configured_feeds, measure_feed
 
@@ -360,7 +360,7 @@ TDM_ALERT_STATUSES = ("reserved", "blocked")
 
 def _fulltext_must_go(r: dict) -> bool:
     """Same predicate as probe_source_compliance.write_protocol_fields."""
-    return bool(r.get("fulltext")) and r.get("tdm_status") in TDM_ALERT_STATUSES and not r.get("fulltext_ok")
+    return bool(r.get("fulltext")) and r.get("tdm_status") in TDM_ALERT_STATUSES and r.get("fulltext_ok") is False
 
 
 def _evaluate_tdm_changes(results: list[dict]) -> tuple[list[str], list[str]]:
@@ -379,7 +379,7 @@ def _evaluate_tdm_changes(results: list[dict]) -> tuple[list[str], list[str]]:
         elif prev in TDM_ALERT_STATUSES and cur == "ok":
             alerts.append(f"tdm: {name} back to ok (was {prev}) — fulltext may be re-enabled by hand")
         if _fulltext_must_go(r):
-            alerts.append(f"tdm: {name} fulltext switched off ({reason})")
+            alerts.append(f"tdm: {name} fulltext switched off ({fulltext_reason(r)})")
         if cur != "ok":
             lines.append(f"  {cur:<10} {name}: {reason}")
     return lines, alerts

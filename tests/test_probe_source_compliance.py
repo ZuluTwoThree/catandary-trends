@@ -122,6 +122,7 @@ class TestStatus:
     def test_blocked_feed_403(self):
         r = _probe(_routes(feed=(403, {}, "denied")))
         assert r["tdm_status"] == "blocked" and "feed HTTP 403" in r["reason"]
+        assert r["fulltext_ok"] is None          # article unverified: no auto-off (Variety 2026-09-04)
 
     def test_robots_disallows_feed_only(self):
         """A feed-level robots rule is a polling question (idw case): status
@@ -151,7 +152,7 @@ class TestStatus:
         r = _probe(_routes(article=httpx.ReadTimeout("slow")))
         assert r["tdm_status"] == "feed_error"
         assert "unreachable" in r["reason"] and "ReadTimeout" in r["reason"]
-        assert r["fulltext_ok"] is False
+        assert r["fulltext_ok"] is None          # unverified — never switches fulltext off
 
     def test_feed_error_article_5xx(self):
         r = _probe(_routes(article=(503, {}, "down")))
@@ -566,3 +567,22 @@ def test_production_fetcher_uses_the_rfc_matcher(monkeypatch):
     assert af._robots_ok("https://www.wired.com/feed/rss")
     assert not af._robots_ok("https://www.wired.com/story/some-article/")
     assert rp.can_fetch(af.UA, "https://www.wired.com/story/some-article/")   # the old blind spot
+
+
+def test_feed_level_block_does_not_switch_fulltext_off(tmp_path):
+    import textwrap
+    p = tmp_path / "s.yaml"
+    p.write_text(textwrap.dedent("""\
+        verticals:
+          TECH:
+            sources:
+            - name: Variety
+              fulltext: true
+              feed_url: https://pub.example/feed.xml
+              type: trade_media
+        """), encoding="utf-8")
+    r = _probe(_routes(feed=(403, {}, "denied")), entry={"input": FEED, "feed_url": FEED, "name": "Variety", "from_config": True})
+    s = psc.write_protocol_fields(p, [r], "2026-09-04")
+    assert s["fulltext_off"] == []
+    text = p.read_text(encoding="utf-8")
+    assert "fulltext: true" in text and "tdm_status: blocked   # feed HTTP 403" in text

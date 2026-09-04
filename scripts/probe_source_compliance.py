@@ -415,10 +415,35 @@ def classify(r: dict) -> tuple[str, str]:
     return "ok", "feed valid, robots allow, article 200, no TDM signal"
 
 
-def fulltext_ok(r: dict) -> bool:
-    """Article-level verdict: may full text of this source be stored?"""
-    return (r.get("article_http") == 200 and r.get("robots_article") != "disallow"
-            and not r.get("tdm_signal") and not r.get("feed_tdm"))
+def fulltext_ok(r: dict) -> bool | None:
+    """Article-level verdict: may full text of this source be stored?
+    False only on positive evidence (TDM reservation, robots disallow on the
+    article, article 401/403/429), True when the article verified clean, None
+    when unverified (feed failed, article timeout/5xx, aggregating feed) —
+    only False switches `fulltext: true` off."""
+    if r.get("tdm_signal") or r.get("feed_tdm"):
+        return False
+    if r.get("robots_article") == "disallow":
+        return False
+    code = r.get("article_http")
+    if code in BLOCK_CODES:
+        return False
+    if code == 200:
+        return True
+    return None
+
+
+def fulltext_reason(r: dict) -> str:
+    """Article-level evidence behind fulltext_ok() is False (for comments/alerts)."""
+    if r.get("tdm_signal"):
+        return r["tdm_signal"]
+    if r.get("feed_tdm"):
+        return f"feed {r['feed_tdm']}"
+    if r.get("robots_article") == "disallow":
+        return "robots.txt disallows the article URL"
+    if r.get("article_http") in BLOCK_CODES:
+        return f"article HTTP {r['article_http']} for the bot UA"
+    return r.get("reason") or ""
 
 
 def probe_one(entry: dict, client: httpx.Client, throttle: HostThrottle,
@@ -451,7 +476,7 @@ def probe_one(entry: dict, client: httpx.Client, throttle: HostThrottle,
             if not feed_url:
                 r["feed_error"] = f"no feed found ({len(tried)} URLs tried)"
                 r["tdm_status"], r["reason"] = classify(r)
-                r["fulltext_ok"] = False
+                r["fulltext_ok"] = fulltext_ok(r)
                 return r
             r["feed_url"] = feed_url
         else:
@@ -482,7 +507,7 @@ def probe_one(entry: dict, client: httpx.Client, throttle: HostThrottle,
         r["robots_feed"] = robots.verdict(r["feed_url"])
         if not r["feed_ok"] or not r["article_url"]:
             r["tdm_status"], r["reason"] = classify(r)
-            r["fulltext_ok"] = False
+            r["fulltext_ok"] = fulltext_ok(r)
             return r
         if entry.get("type") == "api":
             # Aggregating feed (Hacker News via hnrss): every entry links to a
@@ -697,10 +722,10 @@ def write_protocol_fields(yaml_path: Path | str, results: list[dict], today: str
                 inserts.append(line)
         if inserts:
             lines[it["last"] + 1:it["last"] + 1] = inserts
-        if ("fulltext" in f and status in ("reserved", "blocked") and not r.get("fulltext_ok")
+        if ("fulltext" in f and status in ("reserved", "blocked") and r.get("fulltext_ok") is False
                 and _field_value(lines[f["fulltext"]]).lower() == "true"):
             lines[f["fulltext"]] = _fmt_field(fi, "fulltext", "false",
-                                              f"{r.get('reason')} — Prüfung {today}, Volltext automatisch aus (#97)")
+                                              f"{fulltext_reason(r)} — Prüfung {today}, Volltext automatisch aus (#97)")
             summary["fulltext_off"].append(r.get("name") or r["feed_url"])
         summary["updated"] += 1
     new_text = "\n".join(lines)
@@ -838,6 +863,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.from_json:
         results = json.loads(Path(args.from_json).read_text(encoding="utf-8"))
+        for r in results:                        # re-derive the verdicts from the recorded facts
+            r["tdm_status"], r["reason"] = classify(r)
+            r["fulltext_ok"] = fulltext_ok(r)
     else:
         results = probe_sources(entries, client=make_client(args.timeout), workers=args.workers,
                                 delay=args.delay, progress=progress)
