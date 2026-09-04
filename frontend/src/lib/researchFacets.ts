@@ -9,6 +9,10 @@
  *   ?concept=Microbiome   exact concept (the badge text)
  *   ?layer=signals        keep a text query on the signal layer instead of
  *                         routing it to the 45M corpus
+ *   ?artifacts=1          include repository deposits / non-paper works
+ *                         (research_signals.kind = 'artifact'); hidden by
+ *                         default (#73 — Zenodo/figshare/GitHub entries that
+ *                         OpenAlex indexes as Works are not papers)
  *
  * Pure: parsing and the SQL fragments are unit-tested; db.ts only assembles.
  */
@@ -42,6 +46,8 @@ export interface ResearchFacets {
   concept: string | undefined;
   /** Text query stays on the signal layer (`?layer=signals`). */
   signalLayer: boolean;
+  /** Show artifacts/datasets too (`?artifacts=1`); default hidden. */
+  artifacts: boolean;
 }
 
 const SOURCE_KEYS = new Set<string>(RESEARCH_SOURCES.map((s) => s.key));
@@ -71,7 +77,7 @@ export function parseSortParam(raw: string | undefined | null, hasQuery: boolean
 }
 
 export function parseResearchFacets(sp: {
-  src?: string; range?: string; sort?: string; concept?: string; layer?: string;
+  src?: string; range?: string; sort?: string; concept?: string; layer?: string; artifacts?: string;
 }, hasQuery: boolean): ResearchFacets {
   const concept = (sp.concept ?? "").trim().slice(0, 120);
   return {
@@ -80,6 +86,7 @@ export function parseResearchFacets(sp: {
     sort: parseSortParam(sp.sort, hasQuery),
     concept: concept || undefined,
     signalLayer: sp.layer === "signals",
+    artifacts: sp.artifacts === "1",
   };
 }
 
@@ -109,7 +116,19 @@ export function toggleSource(current: ResearchSourceKey[], key: ResearchSourceKe
   return current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
 }
 
-/** Count of facets that narrow the signal layer (for the "clear" affordance). */
+/** Count of facets that change the default signal-layer view (for the "clear" affordance). */
 export function activeFacetCount(f: ResearchFacets): number {
-  return (f.sources.length > 0 ? 1 : 0) + (f.range !== "all" ? 1 : 0) + (f.concept ? 1 : 0);
+  return (f.sources.length > 0 ? 1 : 0) + (f.range !== "all" ? 1 : 0) + (f.concept ? 1 : 0)
+    + (f.artifacts ? 1 : 0);
+}
+
+/** Default paper filter over research_signals.kind (#73). NULL-safe so a
+ *  not-yet-migrated row still counts as a paper. Mirrors
+ *  pipeline/research_kinds.paper_filter(). */
+export const PAPER_FILTER_SQL = "coalesce(kind, 'unknown') <> 'artifact'";
+
+/** SQL predicate for the artifacts facet: null when artifacts are shown
+ *  (no restriction), the paper filter otherwise. Constant string, no params. */
+export function kindSql(includeArtifacts: boolean): string | null {
+  return includeArtifacts ? null : PAPER_FILTER_SQL;
 }

@@ -74,7 +74,7 @@ export default async function ResearchExplorerPage({
 }: {
   searchParams: Promise<{
     q?: string; theme?: string; topic?: string; flag?: string; nr?: string; page?: string; live?: string;
-    src?: string; range?: string; sort?: string; concept?: string; layer?: string;
+    src?: string; range?: string; sort?: string; concept?: string; layer?: string; artifacts?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -146,6 +146,7 @@ export default async function ResearchExplorerPage({
       sources: facets.sources,
       sinceDays: rangeDays(facets.range),
       sort: facets.sort,
+      includeArtifacts: facets.artifacts,
       limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE,
     });
   }
@@ -201,6 +202,7 @@ export default async function ResearchExplorerPage({
     if (qText && facets.sort === "date") u.set("sort", "date");
     if (facets.concept) u.set("concept", facets.concept);
     if (facets.signalLayer) u.set("layer", "signals");
+    if (facets.artifacts) u.set("artifacts", "1");
   };
   const qs = (p: number) => {
     const u = new URLSearchParams();
@@ -311,6 +313,7 @@ export default async function ResearchExplorerPage({
         {facets.sources.length > 0 && <input type="hidden" name="src" value={facets.sources.join(",")} />}
         {facets.range !== "all" && <input type="hidden" name="range" value={facets.range} />}
         {facets.concept && <input type="hidden" name="concept" value={facets.concept} />}
+        {facets.artifacts && <input type="hidden" name="artifacts" value="1" />}
         <button
           type="submit"
           className="bg-accent text-ink font-mono text-[11px] uppercase tracking-[0.14em] px-6 py-2.5 font-bold hover:bg-accent-deep transition-colors"
@@ -688,6 +691,12 @@ export default async function ResearchExplorerPage({
                 Concept {facets.concept} ×
               </Link>
             )}
+            <span className="text-muted ml-3">Artifacts</span>
+            <Link href={withFacet({ artifacts: facets.artifacts ? null : "1" })}
+                  className={`border px-2 py-0.5 ${facets.artifacts ? "border-accent text-accent bg-accent/10" : "border-border text-muted hover:text-paper hover:border-paper"}`}
+                  title="Repository deposits (Zenodo, figshare, GitHub, OSF …) and non-paper works that OpenAlex indexes as Works. Hidden by default — the Pulse counts papers only.">
+              {facets.artifacts ? "shown ×" : "show datasets & software"}
+            </Link>
             {facetsActive > 0 && (
               <Link href={theme ? `/trends/foresight/research?theme=${encodeURIComponent(theme)}` : "/trends/foresight/research"}
                     className="ml-auto text-muted hover:text-paper">
@@ -983,6 +992,12 @@ export default async function ResearchExplorerPage({
                   </Link>
                 )}
                 {r.source && <span className="text-muted/70">{r.source}</span>}
+                {r.kind === "artifact" && (
+                  <span className="border border-warn/50 text-warn px-1.5 py-0.5"
+                        title="Repository deposit or non-paper work (dataset, software, editorial …) — not counted as a paper">
+                    artifact
+                  </span>
+                )}
                 {r.mega_trend && (
                   <Link href={`/trends/mega/${r.mega_trend.replace(/_/g, "-")}`}
                         className="text-accent/80 hover:text-accent">

@@ -4,7 +4,7 @@ import yaml from "js-yaml";
 import { q, q1 } from "./pg";
 import { windowStartIso } from "./archiveWindow";
 import { classifyMomentum, type MegaMomentum } from "./momentum";
-import { sourceSql, type ResearchSourceKey, type ResearchSortKey } from "./researchFacets";
+import { sourceSql, kindSql, PAPER_FILTER_SQL, type ResearchSourceKey, type ResearchSortKey } from "./researchFacets";
 import type { PulseRow, PulseWeekRef } from "./researchPulse";
 import type {
   EditionSummary,
@@ -481,12 +481,16 @@ export interface ResearchSignal {
   published: string | null;
   mega_trend: string | null;
   vertical: string | null;
+  /** article | preprint | review | chapter | artifact | unknown (#73, build_research_index.py). */
+  kind: string | null;
 }
 
 /** Research Explorer (#72): FTS over the materialized research_signals table
  *  (built by scripts/build_research_index.py — 545k abstracts, GIN-indexed).
  *  Returns one page of results + the total match count. Facets (#73):
- *  source groups, period, concept, sort — parsed in lib/researchFacets.ts. */
+ *  source groups, period, concept, sort — parsed in lib/researchFacets.ts.
+ *  Artifacts (repository deposits / non-paper works, kind = 'artifact') are
+ *  hidden unless `includeArtifacts` — same paper basis as the Research Pulse. */
 export async function getResearchSignals(options: {
   q?: string;
   mega?: string;
@@ -494,11 +498,14 @@ export async function getResearchSignals(options: {
   sources?: ResearchSourceKey[];
   sinceDays?: number | null;
   sort?: ResearchSortKey;
+  includeArtifacts?: boolean;
   limit?: number;
   offset?: number;
 } = {}): Promise<{ rows: ResearchSignal[]; total: number }> {
   const params: unknown[] = [];
   const where: string[] = [];
+  const kindFilter = kindSql(options.includeArtifacts ?? false);
+  if (kindFilter) where.push(kindFilter);
   let qIdx = 0;
   if (options.q) {
     params.push(options.q);
@@ -528,19 +535,20 @@ export async function getResearchSignals(options: {
   params.push(options.limit ?? 25, options.offset ?? 0);
   const rows = await q<ResearchSignal>(
     `SELECT trend_id, title, abstract, url, source, concept, published::text as published,
-            mega_trend, vertical
+            mega_trend, vertical, kind
      FROM research_signals${w}
      ORDER BY ${rank}published DESC NULLS LAST, trend_id DESC
      LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
   return { rows, total: totalRow?.cnt ?? 0 };
 }
 
+/** Headline counts of the signal layer — papers only (kind <> artifact, #73). */
 export async function getResearchStats(): Promise<{ total: number; last30d: number }> {
   return cached("research-stats", 600_000, async () => {
     const row = await q1<{ total: number; last30d: number }>(
       `SELECT COUNT(*)::int as total,
               SUM(CASE WHEN published >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END)::int as last30d
-       FROM research_signals`);
+       FROM research_signals WHERE ${PAPER_FILTER_SQL}`);
     return { total: row?.total ?? 0, last30d: row?.last30d ?? 0 };
   });
 }

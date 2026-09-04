@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseSourceParam, parseRangeParam, parseSortParam, parseResearchFacets,
-  rangeDays, sourceSql, toggleSource, activeFacetCount,
+  rangeDays, sourceSql, toggleSource, activeFacetCount, kindSql, PAPER_FILTER_SQL,
 } from "@/lib/researchFacets";
 
 describe("research facets (URL params)", () => {
@@ -30,11 +30,23 @@ describe("research facets (URL params)", () => {
   it("parses the whole facet set and trims the concept", () => {
     const f = parseResearchFacets(
       { src: "medrxiv", range: "7d", sort: "date", concept: "  Microbiome ", layer: "signals" }, true);
-    expect(f).toEqual({ sources: ["medrxiv"], range: "7d", sort: "date", concept: "Microbiome", signalLayer: true });
+    expect(f).toEqual({ sources: ["medrxiv"], range: "7d", sort: "date", concept: "Microbiome", signalLayer: true, artifacts: false });
     expect(parseResearchFacets({}, false).signalLayer).toBe(false);
     expect(parseResearchFacets({ concept: "" }, false).concept).toBeUndefined();
     expect(activeFacetCount(f)).toBe(3);
     expect(activeFacetCount(parseResearchFacets({}, false))).toBe(0);
+  });
+
+  it("hides artifacts by default and counts the toggle as an active facet (#73)", () => {
+    expect(parseResearchFacets({}, false).artifacts).toBe(false);
+    expect(parseResearchFacets({ artifacts: "1" }, false).artifacts).toBe(true);
+    expect(parseResearchFacets({ artifacts: "true" }, false).artifacts).toBe(false);
+    expect(activeFacetCount(parseResearchFacets({ artifacts: "1" }, false))).toBe(1);
+    // default view filters kind, NULL-safe; the toggle lifts the restriction
+    expect(kindSql(false)).toBe(PAPER_FILTER_SQL);
+    expect(PAPER_FILTER_SQL).toBe("coalesce(kind, 'unknown') <> 'artifact'");
+    expect(kindSql(true)).toBeNull();
+    expect(PAPER_FILTER_SQL).not.toMatch(/\$\d/);
   });
 
   it("builds a constant-only source predicate", () => {

@@ -207,3 +207,18 @@ def test_schema_and_save_roundtrip(tmp_path, monkeypatch):
             {"theme": "x", "year": 2026, "week": 35, "text": "text", "model": "gemma", "note": None},
             {"theme": "x", "year": 2026, "week": 35, "text": None, "model": None, "note": "no-llm run"},
         ]
+
+
+# ---- Papier-Basis (#73: Artefakte raus) ------------------------------------
+
+def test_week_stats_carries_artifact_count():
+    st = rp.week_stats([], 0, [], (date(2026, 8, 24), date(2026, 8, 30)), 0)
+    assert st["artifact_n"] == 0                       # Default: rückwärtskompatibel
+    st = rp.week_stats([], 7, [], (date(2026, 8, 24), date(2026, 8, 30)), 7, artifact_n=3)
+    assert st["artifact_n"] == 3 and st["week_n"] == 7  # week_n zählt nur Papers
+
+
+def test_paper_filter_is_null_safe_and_on_the_rs_alias():
+    # Alle Pulse-Zählungen laufen über research_signals rs — NULL-sicher, damit
+    # ein noch nicht migrierter Bestand als Paper zählt statt zu verschwinden.
+    assert rp.PAPER_FILTER == "coalesce(rs.kind, 'unknown') <> 'artifact'"

@@ -22,6 +22,12 @@ Alles unterhalb von `compute_theme` ist deterministisch: gleiche Daten →
 gleiche Cluster, gleiche Labels, gleiche Top-Papers. Der LLM-Text ist per
 Seed reproduzierbar, soweit llama.cpp das hergibt (Batch-Komposition).
 
+Papier-Basis (#73, 2026-09-05): alle Zählungen (Wochenzahl, Vorwochen-Median,
+Cluster, Vorwochen-Zuordnung) laufen über `research_signals.kind <> 'artifact'`
+— Repository-Einträge (Zenodo/figshare/GitHub …) und Nicht-Paper-Typen, die
+OpenAlex als Works indexiert, zählen nicht als Papers (pipeline/research_kinds.py).
+Die ausgeschlossene Wochenmenge steht als `artifact_n` im Messblock.
+
 Reine Helfer (Wochenlogik, Verhältnis, k-Regel, Labels, Prompt, Wortwächter)
 haben keine DB-Abhängigkeit — tests/test_research_pulse.py.
 """
@@ -35,7 +41,12 @@ import statistics
 from collections import Counter
 from datetime import date, timedelta
 
+from pipeline.research_kinds import paper_filter
+
 logger = logging.getLogger(__name__)
+
+# Papier-Basis aller Pulse-Zählungen (NULL-sicher, Alias `rs`).
+PAPER_FILTER = paper_filter("rs.")
 
 # Content-Engine wie Newsletter/Stage 6 (CLAUDE.md). Bewusst NICHT
 # config.STAGE5_MODEL: dessen Default ist noch das 35B; Gemma wird im Cycle
@@ -311,8 +322,11 @@ def apply_prior_counts(clusters: list[dict], prior_counts: dict[int, int],
 
 
 def week_stats(rows: list[dict], week_n: int, prior: list[dict],
-               window: tuple[date, date], embedded_n: int) -> dict:
-    """Der Messblock, der in die Tabelle (stats JSON) und in den Prompt geht."""
+               window: tuple[date, date], embedded_n: int,
+               artifact_n: int = 0) -> dict:
+    """Der Messblock, der in die Tabelle (stats JSON) und in den Prompt geht.
+    `artifact_n` = Wochenzeilen des Themes, die als Artefakt (kind) NICHT in
+    week_n/Cluster eingehen — Transparenz für die Seite, nicht für den Prompt."""
     sources = Counter(source_group(r["source"]) for r in rows)
     top_sources = Counter((r["source"] or "") for r in rows).most_common(5)
     concepts = Counter((r["concept"] or "").strip() for r in rows
@@ -330,6 +344,7 @@ def week_stats(rows: list[dict], week_n: int, prior: list[dict],
         "top_concepts": [[c, int(n)] for c, n in concepts],
         "oa_n": sum(1 for r in rows if is_open_access(r["source"])),
         "k": choose_k(len(rows)) if rows else 0,
+        "artifact_n": int(artifact_n),
     }
 
 
@@ -479,14 +494,15 @@ def ensure_schema(conn) -> None:
 
 
 def weekly_counts(conn, theme: str, year: int, week: int) -> tuple[int, list[dict]]:
-    """Wochenzahl + die vier Vorwochen (älteste zuerst) aus research_signals."""
+    """Wochenzahl + die vier Vorwochen (älteste zuerst) aus research_signals
+    (nur Papers, kind <> artifact)."""
     weeks = prior_weeks(year, week) + [(year, week)]
     start = iso_week_bounds(*weeks[0])[0]
     end = iso_week_bounds(year, week)[1]
     rows = conn.execute(
-        "SELECT published AS d, count(*) AS n FROM research_signals "
-        "WHERE mega_trend = ? AND published >= ? AND published <= ? "
-        "GROUP BY published", (theme, start, end)).fetchall()
+        "SELECT rs.published AS d, count(*) AS n FROM research_signals rs "
+        "WHERE rs.mega_trend = ? AND rs.published >= ? AND rs.published <= ? "
+        f"AND {PAPER_FILTER} GROUP BY rs.published", (theme, start, end)).fetchall()
     by_week: Counter = Counter()
     for r in rows:
         d = r["d"] if not isinstance(r["d"], str) else date.fromisoformat(r["d"])
@@ -503,7 +519,7 @@ def load_week_rows(conn, theme: str, year: int, week: int) -> list[dict]:
         "rs.published::text AS published, t.embedding_1024::text AS vec "
         "FROM research_signals rs JOIN trends t ON t.id = rs.trend_id "
         "WHERE rs.mega_trend = ? AND rs.published >= ? AND rs.published <= ? "
-        "AND t.embedding_1024 IS NOT NULL ORDER BY rs.trend_id",
+        f"AND {PAPER_FILTER} AND t.embedding_1024 IS NOT NULL ORDER BY rs.trend_id",
         (theme, start, end)).fetchall()
     out = []
     for r in rows:
@@ -511,6 +527,16 @@ def load_week_rows(conn, theme: str, year: int, week: int) -> list[dict]:
         d["vec"] = parse_vector(d.pop("vec"))
         out.append(d)
     return out
+
+
+def artifact_count(conn, theme: str, year: int, week: int) -> int:
+    """Wochenzeilen des Themes, die als Artefakt ausgeschlossen sind (Messblock)."""
+    start, end = iso_week_bounds(year, week)
+    row = conn.execute(
+        "SELECT count(*) AS n FROM research_signals rs "
+        "WHERE rs.mega_trend = ? AND rs.published >= ? AND rs.published <= ? "
+        "AND rs.kind = 'artifact'", (theme, start, end)).fetchone()
+    return int(row["n"]) if row else 0
 
 
 def prior_cluster_counts(conn, theme: str, year: int, week: int,
@@ -530,7 +556,7 @@ def prior_cluster_counts(conn, theme: str, year: int, week: int,
            "JOIN trends t ON t.id = rs.trend_id "
            "CROSS JOIN LATERAL (SELECT c.idx FROM c ORDER BY t.embedding_1024 <=> c.vec LIMIT 1) n "
            "WHERE rs.mega_trend = %s AND rs.published >= %s AND rs.published <= %s "
-           "AND t.embedding_1024 IS NOT NULL GROUP BY n.idx")
+           f"AND {PAPER_FILTER} AND t.embedding_1024 IS NOT NULL GROUP BY n.idx")
     rows = conn.execute(sql, params).fetchall()
     return {int(r["idx"]): int(r["n"]) for r in rows}
 
@@ -544,7 +570,8 @@ def compute_theme(conn, theme: dict, year: int, week: int) -> dict:
     if clusters:
         counts = prior_cluster_counts(conn, key, year, week, centroids)
         apply_prior_counts(clusters, counts)
-    stats = week_stats(rows, week_n, prior, iso_week_bounds(year, week), len(rows))
+    stats = week_stats(rows, week_n, prior, iso_week_bounds(year, week), len(rows),
+                       artifact_n=artifact_count(conn, key, year, week))
     return {"theme": key, "year": year, "week": week,
             "week_start": iso_week_bounds(year, week)[0],
             "stats": stats, "clusters": clusters}

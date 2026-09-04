@@ -29,6 +29,8 @@ export interface PulseStats {
   top_concepts: [string, number][];
   oa_n: number;
   k: number;
+  /** Week rows excluded as artifacts (kind, #73) — absent on pre-2026-09-05 runs. */
+  artifact_n?: number;
 }
 
 export interface PulsePaper {

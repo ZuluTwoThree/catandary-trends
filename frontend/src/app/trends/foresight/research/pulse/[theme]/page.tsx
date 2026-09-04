@@ -214,6 +214,11 @@ export default async function ResearchPulseThemePage({
             <span>model <span className="text-paper">{row.model ? row.model.split("/").pop() : "— (no paragraph)"}</span></span>
             {row.seconds !== null && <span>{Number(row.seconds).toFixed(1)} s</span>}
             <span>k = {row.stats.k} · {fmtInt(row.stats.embedded_n)} embedded</span>
+            {row.stats.artifact_n !== undefined && (
+              <span title="Repository deposits / non-paper works in this theme's week (research_signals.kind = artifact) — not counted as papers">
+                {fmtInt(row.stats.artifact_n)} artifacts excluded
+              </span>
+            )}
             {row.note && <span className="text-warn normal-case tracking-normal">{row.note}</span>}
           </div>
 
