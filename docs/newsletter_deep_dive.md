@@ -104,9 +104,13 @@ Kanonisierung strich), `open_questions`, `inferences`, `missing`, Belegmix.
   zugeordnet), Herkunftsfußzeile (Korpus-Stand, Belegmix, Modelle, Dossier-Serie).
 - Abschnittsnummern der Edition werden jetzt dynamisch vergeben (01 Overview,
   [02 Deep Dive], Vertical Signals, Radar); das Archiv trägt keine Nummer mehr.
-- Export-Nachweis 2026-09-04: `scripts/build_public_static.sh` → kein „Dry-Run",
-  kein `data-owner-note`, kein Kondensat-Text im `out/`-Baum (grep), Draft-Markdown
-  nie gerendert (`lib/analyses.ts` filtert `draft: true` in Liste und Slug-Lookup).
+- Export-Nachweis 2026-09-04 (`scripts/build_public_static.sh`, rc 0, 33.089 Dateien):
+  in **keiner HTML-Datei** „Deep-Dive Dry-Run" / `data-owner-note` / „Condensate
+  preview" / „Deep Dive of the Week"; `newsletter-deepdive` kommt im gesamten
+  `out/`-Baum nicht vor (kein Draft, kein Dossier-Slug); die Strings existieren nur
+  als Komponenten-Code in einem `_next/static/chunks/*.js` (die Render-Regel liegt
+  in den Daten, nicht im Bundle). Draft-Markdown nie gerendert (`lib/analyses.ts`
+  filtert `draft: true` in Liste und Slug-Lookup).
 
 ## /analysis-Draft
 
