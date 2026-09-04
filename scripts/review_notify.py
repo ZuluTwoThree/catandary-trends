@@ -88,8 +88,47 @@ def judge_stats() -> dict | None:
         return None
 
 
+def deep_dive_stats() -> dict | None:
+    """The last newsletter deep-dive run (#96, scripts/newsletter_deep_dive.py),
+    if fresh. Runs Monday after the edition; the Tuesday mail carries it. A
+    dry run IS reported — that is the whole point of the dry-run phase."""
+    import datetime
+    p = Path("data/newsletter_deep_dive_last.json")
+    if not p.exists():
+        return None
+    try:
+        d = json.loads(p.read_text())
+        ts = datetime.datetime.fromisoformat(d["date"])
+        age = datetime.datetime.now(datetime.timezone.utc) - ts
+        if age.total_seconds() > 36 * 3600:
+            return None
+        return d
+    except (json.JSONDecodeError, KeyError, ValueError):
+        return None
+
+
+def _deep_dive_line(dd: dict) -> str:
+    audit = dd.get("audit") or {}
+    gates = dd.get("gates") or {}
+    failed = [k for k, v in gates.items() if not v]
+    tag = "dry-run" if dd.get("dry_run", True) else "LIVE"
+    head = (f"Newsletter deep dive ({tag}) W{dd.get('week')}/{dd.get('year')}: "
+            f"{dd.get('status')} — theme {dd.get('theme_name') or dd.get('theme') or '—'}")
+    if dd.get("theme"):
+        head += (f"; audit {audit.get('supported', '?')} supported / "
+                 f"{audit.get('contradictions', '?')} contradictions / "
+                 f"{audit.get('dossier_ungrounded', '?')} ungrounded; "
+                 f"{dd.get('words') or 0} words; gate "
+                 f"{'passed' if dd.get('gate_passed') else 'failed: ' + (', '.join(failed) or 'n/a')}; "
+                 f"dossier {dd.get('dossier_slug')} v{dd.get('dossier_version') or '?'}")
+    if dd.get("error"):
+        head += f"; error: {dd['error']}"
+    return head
+
+
 def build_mail(today: int, total: int, oldest: str | None,
-               items: list[dict], judge: dict | None = None) -> tuple[str, str, str]:
+               items: list[dict], judge: dict | None = None,
+               deep_dive: dict | None = None) -> tuple[str, str, str]:
     subject = (f"Review: {today} article{'s' if today != 1 else ''} held overnight"
                if today else f"Review queue: {total} waiting")
 
@@ -117,6 +156,9 @@ def build_mail(today: int, total: int, oldest: str | None,
         if cats:
             lines.append(f"  Categories: {cats}")
         lines.append("")
+    if deep_dive:
+        lines.append(_deep_dive_line(deep_dive))
+        lines.append("")
     lines.append(f"Review: {REVIEW_URL}")
     text = "\n".join(lines)
 
@@ -140,6 +182,8 @@ def build_mail(today: int, total: int, oldest: str | None,
         f'<ul style="font-size:14px;padding-left:18px">{rows_html}</ul>'
         + (f'<p style="color:#666;font-size:13px">… and {today - len(items)} more</p>'
            if today > len(items) else "")
+        + (f'<p style="color:#666;font-size:13px">{html.escape(_deep_dive_line(deep_dive))}</p>'
+           if deep_dive else "")
         + f'<p><a href="{html.escape(REVIEW_URL)}">Open the review queue</a></p></div>'
     )
     return subject, body_html, text
@@ -173,18 +217,20 @@ def main() -> int:
 
     today, total, oldest, items = fetch_queue()
     judge = judge_stats()
-    logger.info("queue: %d held today, %d total, oldest %s | judge: %s",
+    deep_dive = deep_dive_stats()
+    logger.info("queue: %d held today, %d total, oldest %s | judge: %s | deep dive: %s",
                 today, total, oldest,
-                f"{judge['released']} released / {judge['held']} held" if judge else "no fresh run")
+                f"{judge['released']} released / {judge['held']} held" if judge else "no fresh run",
+                deep_dive.get("status") if deep_dive else "no fresh run")
 
     # Quiet only when there is truly nothing to report: no held articles AND no
-    # judge run. A night where the judge released 200 articles deserves a mail
-    # even if the >=0.85 gate held nothing.
-    if today == 0 and judge is None and not args.force:
-        logger.info("nothing held today, no judge run — no mail sent")
+    # judge run AND no deep-dive run. A night where the judge released 200
+    # articles deserves a mail even if the >=0.85 gate held nothing.
+    if today == 0 and judge is None and deep_dive is None and not args.force:
+        logger.info("nothing held today, no judge run, no deep dive — no mail sent")
         return 0
 
-    subject, body_html, text = build_mail(today, total, oldest, items, judge)
+    subject, body_html, text = build_mail(today, total, oldest, items, judge, deep_dive)
     if args.dry_run:
         print(f"--- Subject: {subject}\n\n{text}")
         return 0

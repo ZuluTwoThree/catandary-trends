@@ -403,3 +403,33 @@ class TestRun:
                    condense_fn=lambda *a, **k: pytest.fail("condensate must be skipped"))
         assert p["status"] == "gate_failed" and p["dry_run"] is False
         assert p["body_md"] is None and p["gates"]["condensate"] is False
+
+
+# ---- Morgen-Mail-Zeile (scripts/review_notify.py) ---------------------------
+
+class TestMorningMailLine:
+    def test_line_carries_gate_and_audit(self):
+        from scripts import review_notify as rn
+        d = {"year": 2026, "week": 35, "status": "gate_failed", "dry_run": True,
+             "theme": "b", "theme_name": "Theme B", "words": 410,
+             "audit": {"supported": 6, "contradictions": 1, "dossier_ungrounded": 0},
+             "gates": {"supported_claims": False, "condensate": True},
+             "gate_passed": False, "dossier_slug": "newsletter-deepdive-2026-w35",
+             "dossier_version": 1}
+        line = rn._deep_dive_line(d)
+        assert line.startswith("Newsletter deep dive (dry-run) W35/2026: gate_failed — theme Theme B")
+        assert "6 supported / 1 contradictions / 0 ungrounded" in line
+        assert "gate failed: supported_claims" in line and "v1" in line
+
+    def test_stats_reads_fresh_file_only(self, monkeypatch, tmp_path):
+        from scripts import review_notify as rn
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data").mkdir()
+        assert rn.deep_dive_stats() is None
+        (tmp_path / "data" / "newsletter_deep_dive_last.json").write_text(
+            json.dumps({"date": "2020-01-01T00:00:00+00:00", "status": "ok"}))
+        assert rn.deep_dive_stats() is None          # zu alt
+        from datetime import datetime, timezone
+        (tmp_path / "data" / "newsletter_deep_dive_last.json").write_text(
+            json.dumps({"date": datetime.now(timezone.utc).isoformat(), "status": "ok"}))
+        assert rn.deep_dive_stats()["status"] == "ok"
