@@ -1,409 +1,373 @@
 # Catandary Trends
 
-Cross-industry **trend & foresight intelligence platform**, running end-to-end
-on local LLMs. It acquires innovation signals across the entire maturity chain
-— **science → patents → funding → market** — classifies them with a local
-multi-stage pipeline (plus a distilled, embedding-based fast path for mass
-ingest), and derives foresight artifacts on top: data-driven trend clusters,
-technology improvement rates from the patent citation graph, and cross-tier
-lead-time analysis on a common CPC technology axis. Curated trend articles are
-published through a Next.js frontend at `catandary.de/trends`.
-
-See [`CLAUDE.md`](CLAUDE.md) for the architecture & taxonomy contract. The
-living backlog is in the
-[GitHub issues](https://github.com/ZuluTwoThree/catandary-trends/issues);
-`BACKLOG.md` is only the issue overview + milestone history.
+**English summary.** Catandary Trends is an owner-operated trend-scouting and
+foresight application that runs entirely on local models (llama.cpp on one
+RTX 3090). It polls curated primary sources (RSS, preprints, patents, funding,
+company registers), classifies the signals, writes short English trend articles,
+and offers a set of analyst tools on top of the corpus: technology trajectories
+from the patent citation graph, cross-tier lead time, cluster momentum, a
+research explorer with weekly "pulse" syntheses, and agentic scouting dossiers.
+The public website (`catandary.de/trends`) is a **static export** of a 30-day
+article window uploaded to shared web hosting; there is no SaaS, no login, no
+payment — the business is sales-led (individual analyses, "Super Pro+"). This
+README is the owner's manual; it is written in German.
 
 ---
 
-## Contents
+## Was das ist
 
-- [Architecture](#architecture)
-- [Requirements & setup](#requirements--setup)
-- [Configuration](#configuration)
-- [Daily pipeline](#daily-pipeline)
-- [Distilled fast path (mass ingest)](#distilled-fast-path-mass-ingest)
-- [Acquisition layer](#acquisition-layer)
-- [Foresight engine](#foresight-engine)
-- [Frontend](#frontend)
-- [Operations](#operations)
-- [Testing](#testing)
-- [Project structure](#project-structure)
-- [Engineering conventions](#engineering-conventions)
-- [Status](#status)
+Catandary Trends ist die **Owner-App** eines Einzelunternehmers: ein lokal
+laufendes Trend-Scouting- und Foresight-Werkzeug, das jede Nacht Fachquellen
+liest, Signale klassifiziert, kurze englische Trend-Artikel schreibt und darauf
+Analysewerkzeuge anbietet. Alles — Klassifikation, Texte, Recherche-Dossiers —
+läuft auf lokalen Modellen (llama.cpp, Port 8090, eine RTX 3090 mit 24 GB).
+Cloud-APIs sind Opt-in-Fallbacks.
 
----
+Nach außen gibt es genau zwei Dinge:
 
-## Architecture
+- **Das Schaufenster:** `catandary.de` = statische Landing (owner-verwaltet) +
+  `catandary.de/trends` = **statischer Export** der letzten 30 Tage Artikel,
+  Mega-Themen, Methodik und Newsletter-Archiv, per SFTP auf das bestehende
+  Hetzner-Webhosting gelegt. Kein Server, keine Suche auf dem Server, keine
+  Foresight-Werkzeuge. Countdown auf der Landing: **01.10.2026**.
+- **Das Geschäft:** sales-led. Verkauft werden Individualanalysen und
+  „Super Pro+"-Zugang; die Anfrage läuft über eine `mailto:`-Seite
+  (`/enquiry`). Es gibt keine Tarife, keine Accounts, keine Zahlungsstrecke
+  (Rückbau 03.09.2026, Issue #93).
 
-```
-        ACQUISITION (lead-time tiers)                PROCESSING                     PRODUCT
-┌──────────────────────────────────────────┐  ┌────────────────────────┐  ┌───────────────────────┐
-│ science   OpenAlex graph sweep, preprints│  │ Stage pipeline         │  │ Next.js frontend      │
-│ patent    EPO BDDS back-file + OPS       │─▶│  relevance → extract → │─▶│  /trends (published)  │
-│ funding   NSF/NIH/OpenAIRE/UKRI +        │  │  classify → dedup →    │  │  FTS + pgvector ANN   │
-│           SEC Form D (startup rounds)    │  │  content → publish     │  │                       │
-│ market    RSS poller + WordPress         │  │ backends: llama.cpp /  │  │ Foresight engine      │
-│           archives, press wires          │  │  Ollama / distill /    │  │  clusters, TIR,       │
-└──────────────────────────────────────────┘  │  Anthropic (fallback)  │  │  lead-time, CPC axes  │
-                                              └────────────────────────┘  └───────────────────────┘
-              all state in PostgreSQL + pgvector · SQLite = frozen fallback & test backend
-```
+Alles andere — Review-Queue, Foresight-Cockpit, Dossier-Desk, Research Pulse —
+ist **nur auf der Workstation** erreichbar (`:3001` main, `:3004` dev) und im
+Export gar nicht enthalten.
 
-**Taxonomy.** Eight verticals (`FOOD TECH HEALTH ECO DESIGN FASHION BIZ
-LIFESTYLE`), cross-cutting PESTEL dimensions (P/E/S/T/En/L), and
-Mega/Macro/Micro trend levels. Every signal additionally carries a
-**lead-time tier** — the maturity stage it was observed at. Research precedes
-patents, patents precede funding, funding precedes market coverage; measuring
-that offset per technology is the core foresight capability, and every tier
-has historical depth (to 1990 for science and patents) so the offsets are
-real, not acquisition artifacts.
+Ehrlichkeitsregeln, die für jeden Text im Repo und auf der Website gelten: kein
+Methoden-USP (die TIR-Methode ist publizierte MIT-Forschung, andere nutzen sie
+auch), keine Kunden- oder Zertifikatsbehauptungen, keine „erkennt Trends
+früh"-Versprechen — die Werkzeuge messen relative Entwicklung, und wo der Korpus
+nichts belegen kann, sagen sie das.
 
-**Principles.** Legal primary sources only (no aggregator scraping), source
-attribution is mandatory, generated content must differ substantially from the
-original, all LLM inference is local (cloud APIs are opt-in fallbacks), and
-new sources are added via `sources.yaml` — no code changes.
+Architektur- und Taxonomie-Vertrag: [`CLAUDE.md`](CLAUDE.md). Backlog: die
+[GitHub-Issues](https://github.com/ZuluTwoThree/catandary-trends/issues);
+Stand je Issue in [`docs/issue_status.md`](docs/issue_status.md).
 
 ---
 
-## Requirements & setup
+## Inhalt
 
-| Component | Notes |
-|---|---|
-| Python 3.12+ | virtualenv at `.venv/` |
-| PostgreSQL 16+ with `pgvector` | production database `catandary`, peer auth via local socket |
-| Node.js 20+ | frontend only |
-| NVIDIA GPU, 24 GB VRAM | verified on RTX 3090; models run **sequentially**, never in parallel |
-| [llama.cpp](https://github.com/ggerganov/llama.cpp) `llama-server` | port `8090`, systemd user unit `llama-server.service` — production backend for **all** LLM stages |
-| [Ollama](https://ollama.com/) on `127.0.0.1:11434` | default/fallback backend |
-| Anthropic API key *(optional)* | off-GPU classification fallback and one-off repair jobs |
+1. [Instanzen und Einstieg](#1-instanzen-und-einstieg)
+2. [Bedienungsanleitung Owner-Funktionen](#2-bedienungsanleitung-owner-funktionen)
+   - [2.1 Morgenroutine](#21-morgenroutine--was-nachts-passiert-und-was-morgens-zu-tun-ist)
+   - [2.2 Trend-Feed, Artikel, Suche](#22-trend-feed-artikelseite-suche-und-filter)
+   - [2.3 Review-Seite](#23-review-seite-trendsreview)
+   - [2.4 Mega Signal Themes und Methodik](#24-mega-signal-themes-und-methodik-seite)
+   - [2.5 Foresight-Cockpit](#25-foresight-cockpit-trendsforesight)
+   - [2.6 Dossier-Desk](#26-dossier-desk-trendsdossiers)
+   - [2.7 Newsletter](#27-newsletter)
+   - [2.8 Analysen](#28-analysen-analysis)
+   - [2.9 Statischer Export](#29-statischer-export-die-öffentliche-website)
+   - [2.10 Quellen verwalten](#210-quellen-verwalten)
+   - [2.11 Betrieb](#211-betrieb-cron-wächter-backup-gpu-logs)
+   - [2.12 Sicherheit und Recht](#212-sicherheit-und-recht-kurz)
+3. [Setup](#3-setup)
+4. [Architektur in einer Seite](#4-architektur-in-einer-seite)
+5. [Tests und Konventionen](#5-tests-und-konventionen)
+6. [Launch-Checkliste Owner](#6-launch-checkliste-owner)
 
-```bash
-# Ollama models (fallback path)
-ollama pull qwen3:8b          # relevance / extraction / classification
-ollama pull qwen3:14b         # content generation (EN)
-ollama pull qwen3-embedding   # embeddings (4096-dim, multilingual)
+---
 
-# Python + frontend
-pip install -r requirements.txt
-(cd frontend && npm install)
+## 1. Instanzen und Einstieg
 
-# Database — creates/migrates all tables incl. the graph & foresight layers
-python scripts/setup_db.py
-```
+| Wo | Was | Start |
+|---|---|---|
+| `http://localhost:3001` | **Produktive Owner-Instanz** aus dem `main`-Worktree `~/projects/catandary-trends` (`next start`, systemd user unit `catandary-frontend`) | läuft dauerhaft; nach einem `main`-Update: `cd frontend && npm run build && systemctl --user restart catandary-frontend` |
+| `http://localhost:3004` | Dev-Server aus dem `dev`-Worktree `~/projects/ct-dev` | `cd ~/projects/ct-dev/frontend && npx next dev --turbopack -p 3004` (in tmux, Session `ct`) |
+| `http://localhost:3999` | **PUBLIC_MODE-Vorschau** = so sieht die öffentliche Seite aus (Foresight/Review/Dossiers → 404, Feed auf 30 Tage gefenstert) | `cd ~/projects/ct-dev/frontend && PUBLIC_MODE=1 NEXT_DIST_DIR=.next-public npx next dev --turbopack -p 3999` |
+| `http://localhost:8098` | Lokaler Apache (Docker) mit dem **fertigen statischen Export** und den echten `.htaccess`-Regeln | `scripts/htaccess_test_server.sh` (Abschnitt 2.9) |
+| `:8090` | `llama-server` (systemd user unit `llama-server.service`), Ruhezustand = Qwen3-8B | läuft dauerhaft; Abschnitt 2.11 |
 
-For the low-resource laptop path (8 GB, no GPU) see
+`npm run dev` ohne Argument nimmt Port **3001** — im Dev-Worktree immer `-p 3004`
+mitgeben. Alle drei Next-Instanzen und der llama-server lauschen derzeit auf
+**allen Interfaces** (LAN/Tailnet erreichbar, ohne Login) — siehe 2.12.
+
+Die Owner-Navigation (Header): *Trends · Mega Trends · Analyses* und der
+Foresight-Block *Cockpit · Clusters · Technology · Lead Time · Evolution ·
+Dossier · Scouting Desk*. Die Review-Queue (`/trends/review`) ist bewusst nicht
+verlinkt.
+
+---
+
+## 2. Bedienungsanleitung Owner-Funktionen
+
+*(Wird in der nächsten Etappe ausgefüllt — Abschnitte 2.1 bis 2.12.)*
+
+---
+
+## 3. Setup
+
+Geprüft auf der Linux-Workstation (Ubuntu 24.04, Python 3.12.3, Node 24.15,
+PostgreSQL 16.15). Ein Laptop-Pfad ohne GPU steht in
 [`MACBOOK_SETUP.md`](MACBOOK_SETUP.md).
 
-## Configuration
+### 3.1 Voraussetzungen
 
-Copy `.env.example` → `.env`. The switches that matter:
-
-| Variable | Purpose |
+| Komponente | Anmerkung |
 |---|---|
-| `DATABASE_URL` | `postgresql:///catandary` for the pipeline. **Leave unset for the frontend in production** — it connects through the local socket (`lib/pg.ts`); a TCP URL breaks peer auth. |
-| `DATABASE_PATH` | SQLite path — only used by the frozen fallback and the test suite |
-| `STAGE_8B_BACKEND` | relevance/extract/classify/reclassify: `ollama` \| `llamacpp` |
-| `EMBED_BACKEND` | embeddings: `ollama` \| `llamacpp` |
-| `STAGE5_BACKEND` | content generation: `ollama` (qwen3:14b) \| `llamacpp` (**Gemma-4-26B-A4B** — current since #11/2026-07-14; Qwen3-30B-A3B and 35B remain installed and revertible via `STAGE5_MODEL`/`STAGE5_START`) |
-| `CLASSIFY_BACKEND` | `ollama` \| `llamacpp` \| `anthropic` (moves stages 2/3/4/8 off-GPU, API cost) |
-| `OPENALEX_API_KEY`, `EPO_OPS_*`, `EPO_LOGIN`/`EPO_PASSWORD` | acquisition APIs (science / patents) |
+| Python 3.12 | virtualenv `.venv/` im Repo; **alle** Python-Aufrufe in dieser README meinen `.venv/bin/python` |
+| PostgreSQL 16 + `pgvector` | Datenbank `catandary`, Peer-Auth über den lokalen Socket. Die Extension muss ein Superuser anlegen |
+| Node 24 | nur Frontend |
+| NVIDIA-GPU, 24 GB | RTX 3090; Modelle laufen **nacheinander**, nie parallel |
+| [llama.cpp](https://github.com/ggerganov/llama.cpp) | Checkout + Build unter `~/llama.cpp` (`build/bin/llama-server`), Start-Skripte `~/llama.cpp/start-*.sh`, Modelle in `~/llama.cpp/models/` |
+| Docker | nur für den lokalen Apache-Test des Exports (`httpd:2.4`) |
+| Ollama | installiert, **nicht** aktiv — Fallback, wenn ein Stage auf `STAGE*_BACKEND=ollama` steht |
 
-`scripts/scheduled_cycle.sh` sets the `llamacpp` backends automatically when
-the matching start scripts are present — in production the **entire** cycle
-runs on `llama-server` (:8090) and Ollama is not required at runtime.
-
-**GPU coexistence** is managed by `pipeline/gpu_handover.py`: it stops/starts
-`llama-server`, swaps the `start-active.sh` symlink to the model a stage
-needs, verifies VRAM headroom, and restores the previous state afterwards.
-The resting llama-server holds ~22 GB — **check `nvidia-smi` before any manual
-model load**.
-
----
-
-## Daily pipeline
-
-```
-RSS feeds ──► feed_poller ──► raw_entries
-                                  │
-                                  ▼
-                       llm_processor (run_pipeline_batch)
-                        1. title dedup          (no LLM, rapidfuzz)
-                        2. relevance filter     ┐
-                        3. structured extract   │ 8B  (llama.cpp / Ollama /
-                        4. NER + classify       ┘      Anthropic)
-                        5. dedup via embedding  (qwen3-embedding, cosine > 0.92)
-                        6. content EN           (llama.cpp Gemma-26B / Ollama 14B)
-                        7. insert trends        (draft | signal)
-                        8. reclassify verticals (8B)
-                        9. auto-publish         (confidence ≥ 0.85)
-                                  │
-                                  ▼
-                          trends (published) ──► Next.js frontend
-```
+### 3.2 Repo, Python, Datenbank
 
 ```bash
-scripts/scheduled_cycle.sh 600                 # reference off-hours run: poll + stages,
-                                               # watermark-scoped, GPU/service wrapper
-python -m pipeline.feed_poller                 # RSS poll only (all verticals)
-python -m pipeline.feed_poller FOOD TECH       # subset
-python -m pipeline.run_full_cycle --batch 600  # poll + stages, no service wrapper
-python -m pipeline.run_full_cycle --skip-poll --batch 600   # drain existing backlog
-python -m pipeline.llm_processor 200           # stages only, batch of 200
-python -m pipeline.llm_processor 200 --signal-mode  # classify+embed only → status='signal'
+git clone git@github.com:ZuluTwoThree/catandary-trends.git
+cd catandary-trends
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp .env.example .env                      # Werte eintragen, s. 3.5
+
+createdb catandary
+sudo -u postgres psql -d catandary -c 'CREATE EXTENSION vector'
+.venv/bin/python scripts/setup_db.py      # Kern-Schema (init_db, idempotent)
 ```
 
-Notes:
-
-- **Articles are EN-only** — DE generation is suspended; `*_de` columns stay
-  `NULL` (schema kept for a possible reactivation). Non-English sources are
-  translated, never echoed.
-- **`--signal-mode`** skips content generation and inserts content-less
-  `status='signal'` rows (classification + embedding only) for fast foresight
-  density. Articles can be generated later, decoupled:
+**Additive Migrationen laufen nicht automatisch** (bekannte Repo-Falle). Auf
+einer frischen DB einmalig von Hand, jede idempotent:
 
 ```bash
-python scripts/generate_content.py --vertical FOOD --limit 200
-python scripts/generate_content.py --all --chunk 200
-python -m pipeline.auto_publisher              # standalone publish fallback (≥ 0.85)
-python -m pipeline.mega_trend_reviewer         # assign/refresh mega-trends (batched)
+.venv/bin/python scripts/migrate_dead_links.py           # dead_links (Link-Check --mark)
+.venv/bin/python scripts/migrate_dossier_orders.py       # dossier_orders + dossiers
+.venv/bin/python scripts/migrate_research_pulse.py       # research_pulse
+.venv/bin/python scripts/migrate_newsletter_deep_dive.py # newsletter_editions.deep_dive
+# weitere migrate_*.py in scripts/ (reviewed_at, status_signal, mega_trends,
+# startup_explorer, research_live, press_investor_enrichment) je nach Bedarf
 ```
 
-### Review CLI
+Auf der Live-DB sind alle genannten ausgeführt (Stand 04.09.2026).
+
+### 3.3 Modelle und Start-Skripte (llama.cpp)
+
+| Rolle | GGUF in `~/llama.cpp/models/` | Start-Skript | Kontext |
+|---|---|---|---|
+| Ruhezustand, Relevanz/Extraktion/Klassifikation/Reclassify | `Qwen3-8B-UD-Q4_K_XL.gguf` | `start-qwen3-8b-208k.sh` | 212 992 |
+| Embeddings | `Qwen3-Embedding-8B-Q4_K_M.gguf` | `start-qwen3-emb.sh` | 8 192 |
+| Content-Generierung, Newsletter, Research-Pulse-Texte | `gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf` (+ mmproj, mtp) | `start-gemma4-26b.sh` | 262 144 |
+| Draft-Richter, Dossier-Rechercheur | `Qwen3.8-27B-UD-Q4_K_XL.gguf` | `start-qwen3.8-27b.sh` | bis 262 144 |
+| Revert-Option Content-Gen | `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` | `start-qwen3.6-35b.sh` | 131 072 |
+
+Die systemd-Unit `~/.config/systemd/user/llama-server.service` startet
+`~/llama.cpp/start-active.sh` — einen **Symlink**, den die GPU-Handover
+(`pipeline/gpu_handover.py`) für die Dauer eines Stages auf das passende
+Start-Skript umhängen und danach auf `start-qwen3-8b-208k.sh` zurückstellen.
+Log: `/tmp/llama-server.log` (unrotiert). Kein `--alias` in den Start-Skripten:
+der Handover prüft die Modell-Identität über `/v1/models` gegen den
+GGUF-Dateinamen.
 
 ```bash
-python scripts/review_cli.py list draft
-python scripts/review_cli.py show <id>
-python scripts/review_cli.py publish <id>
-python scripts/review_cli.py review            # interactive
-python scripts/review_cli.py stats
-python scripts/verify_feeds.py                 # validate feed URLs in sources.yaml
+systemctl --user enable --now llama-server     # Autostart via Linger
+loginctl enable-linger dirk                    # einmalig, damit cron systemctl --user erreicht
 ```
 
-## Distilled fast path (mass ingest)
-
-Linear heads on the 4096-dim embeddings replace the three 8B calls
-(relevance, classification, mega-trend) for classification-only workloads —
-roughly an order of magnitude faster; the batched embedding pass is the only
-GPU work. This is what makes broad acquisition affordable
-(*acquire broad, classify cheap*).
+### 3.4 Frontend
 
 ```bash
-# classify a backfill scope into status='signal' rows (embed → heads →
-# relevance gate 0.5 → dedup → insert); the wrapper handles the GPU handover
-python scripts/run_distill_batch.py --source-type research --limit 0
-
-# dry-run / cost projection and backend selection live in signal_batch itself
-python scripts/signal_batch.py --limit 5000                    # dry-run
-python scripts/signal_batch.py --backend distill --execute ...
-
-# retrain the heads (vertical 85% · mega 78%/96% top-1/top-3 ·
-# PESTEL 84% F1 · relevance P85/R88)
-python scripts/train_distill_heads.py
+cd frontend && npm install
+npx next dev --turbopack -p 3004               # Dev (ct-dev)
+npm run build && npm run start                 # Prod-Build, next start -p 3001
+systemctl --user enable --now catandary-frontend   # Unit: deploy/systemd/catandary-frontend.service
 ```
 
-`scripts/discovery_loop.py` (cron, Sun 06:00) re-discovers clusters, curates
-the mega-trend taxonomy, and **auto-retrains the heads** when
-`mega_trends.yaml` changes.
+Die Unit setzt **kein** `DATABASE_URL` — das Frontend verbindet über den
+Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
+`frontend/.env.local` wird beim Start in den Prozess geladen (nicht in
+`/proc/*/environ` sichtbar).
+
+### 3.5 Umgebungsvariablen
+
+`.env` (Repo-Root, Pipeline) — die Schalter, die im Betrieb zählen:
+
+| Variable | Bedeutung |
+|---|---|
+| `DATABASE_URL=postgresql:///catandary` | Postgres für die Pipeline. Leer = SQLite-Fallback (nur Tests) |
+| `STAGE_8B_BACKEND`, `EMBED_BACKEND`, `STAGE5_BACKEND` | `ollama` \| `llamacpp` je Stage-Gruppe; `scripts/scheduled_cycle.sh` setzt alle drei auf `llamacpp`, sobald die Start-Skripte existieren |
+| `CLASSIFY_BACKEND` | `ollama` \| `llamacpp` \| `anthropic` (Stages 2/3/4/8 off-GPU, kostet API) |
+| `RSS_CLASSIFY_MODE=hybrid` | Distill-Heads entscheiden Relevanz/Vertikale/Mega/PESTEL, nur das unsichere Band geht ans 8B; `llm` = alter Vollpfad |
+| `CYCLE_MAX_PER_SOURCE=200` | Mengenbremse je Quelle und Lauf |
+| `EXTRACTION_STRICT=1` | Extraktion mit Wörtlichkeitsfilter |
+| `AUTO_PUBLISH_GROUNDING_GATE=1` | Grounding-Gate vor Auto-Publish (Abschnitt 2.3) |
+| `DRAFT_JUDGE=1` | Stage 10 Draft-Richter (0 = aus; nur in `scheduled_cycle.sh` gelesen) |
+| `TDM_RESPECT=1` | Fetcher beachtet maschinenlesbare TDM-Vorbehalte |
+| `NEWSLETTER_DEEP_DIVE` | `dry-run` aktiviert den Deep-Dive-Schritt im Montagslauf (nur in der Crontab setzen, s. 2.7) |
+| `RESEND_API_KEY`, `NEWSLETTER_FROM`, `NEWSLETTER_UNSUB_SECRET`, `NEWSLETTER_PUBLIC_BASE`, `NL_EXPORT_URL`, `NL_EXPORT_TOKEN` | Newsletter-Versandkette (#16) |
+| `REVIEW_NOTIFY_TO`, `REVIEW_URL` | Empfänger und Link der Morgen-Mail |
+| `BRAVE_SEARCH_API_KEY`, `FIRECRAWL_API_KEY` | Web-Stufe des Rechercheurs bzw. Backfill |
+| `OPENALEX_API_KEY`, `EPO_OPS_*`, `EPO_LOGIN`/`EPO_PASSWORD` | Akquise-APIs |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL_CLASSIFY` | nur für `CLASSIFY_BACKEND=anthropic` |
+| `PUBLISH_CONFIG` | Pfad der Webspace-Config (Default `~/.config/catandary/webspace.env`) |
+
+`frontend/.env.local` (Frontend):
+
+| Variable | Bedeutung |
+|---|---|
+| `PUBLIC_MODE=1` | Instanz verhält sich wie die öffentliche Seite (Blockliste `lib/publicMode.ts`, Fenster `PUBLIC_WINDOW_DAYS`) — nur für die :3999-Vorschau |
+| `DOSSIERS_ENABLED=0` | Not-Aus für den Dossier-Desk (Default an) |
+| `AUTH_SECRET` | signiert die Newsletter-Abmelde-Tokens (≥ 16 Zeichen) |
+| `PUBLIC_BASE_URL` | App-Origin für den Same-Origin-Check der POST-Routen |
+| `CONTACT_EMAIL` | Adresse hinter `/enquiry` (Default `trends@catandary.de`) |
+| `OPENALEX_API_KEY` | Live-Suche im Research Explorer (25 Live-Treffer/Tag, serverseitig) |
+| `TRUST_PROXY` | nur hinter einem eigenen Proxy auf 1 — hier 0 |
+
+Build-Variablen des Exports (`STATIC_EXPORT`, `PUBLIC_NOINDEX`,
+`PUBLIC_WINDOW_DAYS`, `PUBLIC_SITE_URL`, `PUBLIC_NEWSLETTER_EDITIONS`) setzt
+`scripts/build_public_static.sh` bzw. die Webspace-Config — Abschnitt 2.9.
 
 ---
 
-## Acquisition layer
+## 4. Architektur in einer Seite
 
-RSS carries only the newest ~10–50 items per feed. The ingesters below give
-every lead-time tier **historical depth** — all GPU-free, batched inserts,
-idempotent on URL:
+```
+   AKQUISE (Lead-Time-Tiers)              VERARBEITUNG                          PRODUKT
+┌────────────────────────────────┐  ┌──────────────────────────────┐  ┌──────────────────────────────┐
+│ science  OpenAlex (45M Werke,  │  │ Full Cycle Mo–Fr 04:00       │  │ Owner-App :3001 (Next.js 16) │
+│          Fresh-Sweep), arXiv/  │  │  Poll → Titel-Dedup →        │  │  Feed · Review · Mega ·      │
+│          bioRxiv/medRxiv       │  │  Relevanz/Extraktion/        │  │  Foresight-Cockpit ·         │
+│ patent   EPO DOCDB Back-File   │─▶│  Klassifikation (Distill +   │─▶│  Dossier-Desk · Newsletter   │
+│          (18,7M, 112M Zitate)  │  │  8B) → Embedding-Dedup →     │  │                              │
+│ funding  NSF/NIH/OpenAIRE/UKRI │  │  Content EN (Gemma-26B) →    │  │ Statischer Export → Hetzner  │
+│          SEC Form D, SBIR,     │  │  Reclassify → Auto-Publish   │  │  Webspace: /trends (30 Tage) │
+│          CORDIS                │  │  (≥ 0,85 + Grounding-Gate) → │  │  + Mega + Newsletter-Archiv  │
+│ market   ~470 RSS-Quellen,     │  │  Draft-Richter (27B)         │  └──────────────────────────────┘
+│          Presseverteiler,      │  │ Wochen-Ingester Sa 06:00     │
+│          Newsrooms             │  │  (Distill-Pfad, GPU-frei)    │
+└────────────────────────────────┘  └──────────────────────────────┘
+        alles in PostgreSQL 16 + pgvector · alle Modelle lokal auf llama-server :8090
+```
 
-| Tier | Script | Source & depth |
-|---|---|---|
-| science | `scripts/ingest_openalex.py` | OpenAlex works. `--graph <topic\|subfield\|search>` pulls the graph layer (citations, topics, native forward velocity); `--science-sweep ALL --after 1990-01-01` sweeps all 82 vertical-relevant subfields, citation-gated |
-| science | `scripts/ingest_preprints.py` | arXiv / bioRxiv / medRxiv |
-| patent | `scripts/ingest_patents.py` | EPO **BDDS DOCDB back-file** (`--source epo-bdds`): 162 files ≈ 205 GB, archived on HDD for re-parses → 18.7M in-scope patents, 112M citation edges, 131M CPC rows, back to 1990. `--source epo-ops` for targeted OPS pulls |
-| funding | `scripts/ingest_funding.py` | NSF (to 1959) / NIH RePORTER / OpenAIRE / UKRI — `--since 2005` |
-| funding | `scripts/ingest_secform_d.py` | **SEC Form D** structured quarterly data sets (2008+): startup private offerings (Reg D), operating companies only — pooled funds/real estate dropped |
-| market | `scripts/ingest_wordpress.py` | Full WordPress archives of our trade sources: `--probe` lists the ~41 WP-capable sources with archive sizes, `--all` deep-sweeps them (respects per-source `wp_categories` scoping; skips `ingest_cap`'d low-yield giants). Single-source mode for scoped pulls |
-| market | `pipeline/feed_poller.py` | RSS/Atom, configured in `sources.yaml` |
-| any | `scripts/ingest_backfill.py` | router: probes each source (`probe_source_apis.py`) and dispatches to WP / OpenAlex / sitemap |
+**Taxonomie.** Acht Vertikale (`FOOD TECH HEALTH ECO DESIGN FASHION BIZ
+LIFESTYLE`), PESTEL-Dimensionen quer dazu, 28 kuratierte Mega-Signal-Themes
+(`mega_trends.yaml`), und je Signal ein **Lead-Time-Tier** (science → patent →
+funding → market). Die CPC-Patentklassifikation ist die gemeinsame
+Technologie-Achse: jedes Signal jeder Ebene wird per Embedding auf CPC
+projiziert, dadurch sind Forschung, Patente, Funding und Markt für eine
+Technologie übereinanderlegbar.
 
-Backfilled entries are then classified via the distilled fast path (above) or,
-off-GPU, with `CLASSIFY_BACKEND=anthropic python -m pipeline.llm_processor
---signal-mode`.
+**Pipeline-Stufen** (`pipeline/llm_processor.py`, Orchestrator
+`pipeline/run_full_cycle.py`, Cron-Wrapper `scripts/full_cycle_cron.sh` →
+`scripts/scheduled_cycle.sh`): 1 Titel-Dedup (rapidfuzz) · 2 Relevanz-Gate
+(Distill-Head, Band 0,3–0,7 ans 8B) · 3 strukturierte Extraktion (8B,
+Zahlen deterministisch per Regex aus der Quelle) · 4 Klassifikation
+(Distill-Heads) · 5 Embedding + Dedup (Cosine > 0,92) · 6 Artikel EN
+(Gemma-4-26B, ~100 Wörter, immer Englisch) · 7 Insert `draft` · 8 Reclassify
+(8B) · 9 Auto-Publish (Confidence ≥ 0,85, **Grounding-Gate**: erfundene Zahlen
+oder Jahre → Hold) · 10 Draft-Richter (Qwen3.8-27B beurteilt die Drafts unter
+der Schwelle, gibt frei oder hält, verwirft nie). Zwischen den Stufen wechselt
+`pipeline/gpu_handover.py` das Modell auf `:8090` (Symlink + VRAM-Check +
+Identitäts-Check).
+
+**Distill-Pfad** (`pipeline/distill.py`, `scripts/signal_batch*.py`): lineare
+Heads auf den 4096-dim-Embeddings ersetzen die LLM-Klassifikation für den
+Massen-Ingest; Ergebnis sind `status='signal'`-Zeilen ohne Artikel — der
+Rohstoff der Foresight-Werkzeuge. Retrain: `scripts/train_distill_heads.py`
+(auch automatisch im Sonntag-Discovery-Loop, wenn `mega_trends.yaml` geändert
+wurde).
+
+**Datenmodell-Kern** (`pipeline/db.py`): `sources` (Registry, gespiegelt aus
+`sources.yaml`), `raw_entries` (21,6 Mio.; `raw_content` nach 14 Tagen
+geleert), `trends` (Artikel und Signale; `status` draft/published/rejected/
+signal, `embedding` 4096 + `embedding_1024` HNSW, `auto_published`,
+`reviewed_at`, `judged_at`), `newsletter_editions` (+ `deep_dive` JSONB),
+`dossier_orders` + `dossiers` (slug + version), `research_pulse`,
+`research_signals`/`research_corpus`, Patent-Graph (`patent_links`,
+`patent_cpc_full`, `patent_search`), `foresight_runs`/`foresight_clusters`,
+`cpc_tier_series`, `dead_links`, `startup_companies`.
+
+**Backends.** Produktiv läuft der gesamte Cycle auf llama.cpp (`:8090`); Ollama
+(`:11434`) ist Default in `config.py`, aber nicht gestartet. `CLASSIFY_BACKEND=
+anthropic` kann Stages 2/3/4/8 off-GPU schicken (historischer Backfill).
+Details, Referenzwerte und Entscheidungshistorie: `CLAUDE.md`.
 
 ---
 
-## Foresight engine
-
-The product core: reasoning **in the data**, not in generated text.
-
-| Capability | Entry point | Method |
-|---|---|---|
-| Trend discovery (two layers) | `scripts/discover_trends.py` → `pipeline/discovery.py` | PCA 4096→50, then **scope layer** (KMeans partition per vertical / cross-vertical pair — customer-facing sub-themes) and **mega layer** (HDBSCAN density, characterized on reach-entropy × maturity × durability) |
-| Cluster snapshots & momentum | `pipeline/foresight_snapshot.py` | SoV time series per cluster, persisted to `foresight_runs`/`foresight_clusters` for the frontend. `--dim1024` clusters the **full ~1.1M-signal space** (Matryoshka 1024-d column); `--all-verticals` after large ingests. Validated: `scripts/foresight_validation.py` → 23/24 known-trend recovery, 6/6 momentum plausibility |
-| Cross-tier fusion (lead time) | `scripts/build_cpc_tier_series.py` | materializes all four tiers on the shared CPC axis — `cpc_tier_series` (per cpc/tier/year), `cpc_tier_totals` (SoV denominators), `cpc_leadtime_summary`. Lead-time uses SoV S-curve takeoff over each pair's **common support window** + emergence/signal gates, so only technologies the corpus can prove get a `reliable` lead (no fabricated long leads); reads from the #28 `signal_cpc` projection |
-| Field-normalized science velocity | `scripts/openalex_velocity.py` | `velocity_3y` (native `counts_by_year`) + subfield percentile (`velocity_pctl`); retracted works excluded as a negative signal |
-| Technology Improvement Rate | `scripts/tir_metrics.py --cpc A23C` | patent-cluster metrics from the citation graph: **Cycle Time** (median backward-citation age), **Immediate Importance** (fwd cites ≤ 3 y, r≈0.76), hub patents. Citation queries are **scoped in SQL** — the 112M-edge graph must never be loaded into RAM |
-| Science-front metrics | `scripts/science_metrics.py` | citation velocity, field-normalized impact percentiles, front hubs, retraction rate — per OpenAlex topic |
-| **CPC technology backbone** | `scripts/parse_cpc.py` → `scripts/embed_cpc.py` | all 653 CPC subclass definitions parsed and embedded (multilingual) + HNSW index → any signal from any tier projects onto CPC via ANN |
-| **Fine CPC index** (#42) | `scripts/parse_cpc_scheme.py` → `scripts/embed_cpc_fine.py` | the full CPC scheme (261k fine codes with title + hierarchy path) in `cpc_fine`; the ~102k with ≥50 patents embedded + HNSW → free text resolves to the specific fine codes that describe a technology (A23C20/025 = plant-based cheese), not a coarse subclass |
-| **TIR trajectory** K(t) (#36) | `scripts/tir_trajectory.py --like "H01M10/052%"` | year-by-year improvement rate for a technology = a UNION of fine CPC codes; direction (accelerating/steady/maturing/decelerating) from the recent complete window. Honest gates: per-window MIN_N, ~7y citation-maturity truncation (greyed), absolute K withheld outside the calibrated range. Validated 6/6 (`scripts/tir_trajectory_validate.py`) |
-| **On-demand technology** (#42+#36) | `scripts/tech_trajectory.py "protein recovery by electrodialysis"` | free text → nearest fine CPC domain → K(t) trajectory + S-curve direction, end-to-end. Powers `/api/foresight/trajectory` + the Technology Explorer input |
-| Cross-tier lead time | `scripts/cpc_leadtime.py --cpc H02S` | patents via native CPC (full corpus), science/funding/market via embedding projection → per-tier takeoff years and lead-time estimates on one axis |
-| Empirical technology axes | `scripts/build_cpc_cooccurrence.py --top H01M` | CPC pair co-occurrence per year over the back-file (44M pairs): combinations sharpen coarse classes (H01M+B60L = EV batteries, +B09B/Y02W = battery recycling) and rising pairs flag cross-domain convergence |
-| Mega-trend proposer | `scripts/propose_mega_trends.py` | data-driven candidate mega-trends vs. the canonical `mega_trends.yaml` |
-| **Agentic scouting dossiers** (owner-only) | `scripts/dossier_worker.py` → `scripts/corpus_research.py` | order-slip queue (`dossier_orders`) → deterministic quant preamble (`pipeline/dossier_quant.py`: CPC → TIR trajectory → lead-time → hub patents as citable evidence) → agentic research loop on the local 27B → deterministic end-control (`pipeline/dossier_check.py`: figure grounding + citation ledger) → versioned report in `dossiers`, always parked in `review` for the owner's sign-off at `/trends/dossiers`. Strictly local, strictly on-demand (no cron) — see `docs/agentic_dossiers.md` |
-
----
-
-## Frontend
-
-Next.js 14 (App Router) + Tailwind + `pg` (Postgres Pool via local socket).
-Dark-mode card grid, PESTEL badges, vertical tabs, hybrid search (Postgres FTS
-+ pgvector HNSW ANN on the 1024-dim Matryoshka prefix, RRF fusion).
+## 5. Tests und Konventionen
 
 ```bash
-cd frontend
-npm run dev                  # http://localhost:3001 (3000 is taken by Open WebUI)
-npm run build && systemctl --user restart catandary-frontend
-                             # production (port 3001) runs as a systemd user unit
-                             # (deploy/systemd/catandary-frontend.service). No reverse proxy is in
-                             # use — deploy/Caddyfile is a relic of the dropped VPS plan; the public
-                             # site will be a static export to the Hetzner webspace (owner, 2026-09-02)
+.venv/bin/python -m pytest tests/           # 742 Tests (05.09.2026); conftest erzwingt SQLite — kein Postgres nötig
+.venv/bin/python -m pyflakes pipeline/ scripts/
+cd frontend && npx vitest run               # 386 Tests in 37 Dateien
+cd frontend && npx tsc --noEmit             # 0 Fehler
+cd frontend && npm run lint
 ```
 
-Routes:
+Vitest-Wächter, die man kennen sollte: `staticExport.test.ts` (Blockliste
+`publicMode.ts` ↔ `static-export.exclude`), `aiCrawlers.test.ts` (Crawler-Liste
+↔ `.htaccess`-Regex), `dossier-access.test.ts`, `newsletterEditions.test.ts`
+(Render-Regel Deep Dive). Python: `tests/test_query_gate.py` (Fixture mit
+Live-Vektoren; nach einem Embedding-Modellwechsel neu messen mit
+`scripts/measure_query_gate.py`), `tests/test_publish_static_site.py`
+(75 Tests inkl. SFTP-E2E gegen einen lokalen sshd).
 
-- `/trends` — main grid with vertical filter
-- `/trends/[slug]` — single trend article
-- `/trends/vertical/[v]`, `/trends/pestel/[dimension]`, `/trends/mega`
-- `/trends/foresight` — Foresight Cockpit (hybrid search + analytics), with a
-  lead-time proof strip above the fold
-- `/trends/foresight/technology` — Technology Explorer, with an **on-demand TIR
-  trajectory** input (#36/#42): describe a technology in words → its year-by-year
-  improvement rate K(t) on a time axis + S-curve direction, honest gates built in
-- `/trends/foresight/lead-time` — **Lead-time view**: the four innovation tiers
-  (research → patents → funding → market) as per-peak-indexed SoV curves over
-  time; the research↔market gap is the lead, shown as a headline number only
-  where the corpus can prove it (`reliable`)
-- `/trends/foresight/clusters` — Cluster Explorer over the full signal space
-  (momentum, source corroboration, evidence links; reads persisted snapshots)
-- `/api/search?q=...&vertical=FOOD&limit=20` — hybrid search API (RRF)
-- `/api/foresight/clusters?scope=global` (or `?vertical=FOOD`)
+**Branches.** `main` = die deployte :3001-Instanz („save"), `dev` =
+Integrationsbranch (Worktree `~/projects/ct-dev`). Auf `dev` committen und
+pushen; `main` nur bewusst per Merge aktualisieren und danach :3001 neu bauen.
+Vor Commits im jeweiligen Worktree `git branch --show-current` prüfen — ein
+Build im falschen Worktree ist grün, wirkt aber nicht. Radar-Arbeit liegt
+geparkt auf `feature/radar-rebase`.
 
-Production runs **without** `DATABASE_URL` — the pool connects through the
-local socket with peer auth. `next.config.ts` sets `output: "standalone"`.
+**Commits.** `feat: / fix: / refactor: / test: / docs: / chore:`, Scope in
+Klammern (`feat(frontend): …`). Nie `git add -A` — im Repo liegen bewusst
+untracked Arbeitsstände (z. B. Deep-Dive-Drafts unter
+`frontend/content/analyses/`).
+
+**Doku-Regel (konstitutionell).** `CLAUDE.md`, diese README und `docs/`
+spiegeln die **tatsächlichen** Bedingungen. Wer Modelle, Defaults, Cron,
+Schema oder Pipeline-Verhalten ändert, zieht die Doku im selben Commit mit —
+und verifiziert gegen Code/Cron/Instanz statt alte Doku fortzuschreiben.
+
+**Engineering-Regeln.** Batch-Inserts für alles im Backfill-Maßstab; den
+112M-Kanten-Zitationsgraph nie in den RAM laden (SQL-scoped); PG-Wrapper-Zeilen
+sind Dicts (`r["col"]`); literales `%` in parametrisiertem SQL als `%%`; NUL
+aus Fremdtext strippen; Pydantic + 3 Retries um jeden LLM-Call; Qwen3 mit
+`enable_thinking=false`.
 
 ---
 
-## Operations
+## 6. Launch-Checkliste Owner
 
-| Job | Schedule | Command |
-|---|---|---|
-| DB backup | daily 02:45 (cron) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 7` |
-| Discovery loop | Sun 06:00 (cron) | `scripts/discovery_loop.py` — re-cluster, curate, retrain distill heads |
-| Pipeline cycle | manual / off-hours | `scripts/scheduled_cycle.sh` |
+Aus `docs/launch/09_launch_plan_2026-09-02.md`; Reihenfolge = Abhängigkeit.
 
-**Backups** are compressed `pg_dump -Fc` snapshots with 7-day retention (a
-dump is ~25–60 GB at current corpus size). The pre-migration SQLite state is
-kept **once**, permanently, under `backups/catandary/frozen/` — it is no
-longer re-dumped daily. `.env` is copied alongside each snapshot.
-
-```bash
-# Restore (custom format)
-pg_restore -d catandary /mnt/data-hdd/backups/catandary/catandary-pg-YYYY-MM-DD.dump
-cp /mnt/data-hdd/backups/catandary/env-YYYY-MM-DD .env
-```
-
-**Disk layout:** Postgres lives on the NVMe (`/`), bulk artifacts on the HDD
-(`/mnt/data-hdd`): BDDS zip archive (205 GB, kept for re-parses), backups.
-Embeddings are **lazy** — only the subsets a concrete foresight question needs
-are embedded; embedding all ~19M patents (~280 GB of vectors) is deliberately
-avoided.
-
----
-
-## Testing
-
-```bash
-python -m pytest tests/        # 67 tests; conftest.py forces SQLite — no Postgres needed
-python -m pyflakes pipeline/ scripts/
-```
-
-Covers feed parsing, dedup, schema validation, the DB layer, discovery
-metrics, foresight snapshots, and the auto-publish gate.
-
----
-
-## Project structure
-
-```
-catandary-trends/
-├── CLAUDE.md                  # architecture & taxonomy contract
-├── sources.yaml               # curated source registry (per vertical)
-├── mega_trends.yaml           # canonical mega-trend taxonomy
-├── pipeline/                  # long-running components
-│   ├── feed_poller.py         #   RSS acquisition
-│   ├── llm_processor.py       #   stage pipeline 1–9 (+ --signal-mode)
-│   ├── run_full_cycle.py      #   orchestrator (poll + stages + publish)
-│   ├── db.py                  #   Postgres/SQLite layer, migrations, batch inserts
-│   ├── discovery.py           #   two-layer trend discovery core
-│   ├── foresight.py           #   cluster kernel (scope load, KMeans, SoV)
-│   ├── foresight_snapshot.py  #   persisted cluster snapshots for the frontend
-│   ├── distill.py             #   embedding-head classifier (GPU-free)
-│   ├── gpu_handover.py        #   llama-server ⇄ Ollama VRAM/symlink orchestration
-│   ├── llamacpp_client.py / ollama_client.py / anthropic_client.py
-│   ├── auto_publisher.py / reclassify.py / mega_trend_reviewer.py / crs.py
-│   └── models.py              #   Pydantic schemas for all LLM outputs
-├── scripts/                   # operational tools
-│   ├── scheduled_cycle.sh     #   reference off-hours runner
-│   ├── setup_db.py            #   DB init/migrations
-│   ├── ingest_*.py            #   acquisition layer (see table above)
-│   ├── signal_batch.py        #   mass classification (anthropic|local|distill)
-│   ├── run_distill_batch.py   #   distill ingest incl. GPU handover
-│   ├── train_distill_heads.py #   head training
-│   ├── discover_trends.py / discovery_loop.py
-│   ├── tir_metrics.py / science_metrics.py / cpc_leadtime.py
-│   ├── parse_cpc.py / embed_cpc.py / build_cpc_cooccurrence.py
-│   ├── backup_db.py / review_cli.py / verify_feeds.py
-│   └── generate_content.py    #   decoupled article generation
-├── frontend/                  # Next.js app (catandary.de/trends)
-├── deploy/                    # systemd units, crontab template, deploy script (Caddyfile = historical)
-├── tests/                     # pytest suite (SQLite-backed via conftest)
-└── data/                      # logs, frozen SQLite fallback
-```
-
----
-
-## Engineering conventions
-
-- **Batch inserts for anything at backfill scale** — per-row inserts cap at
-  ~100/s; use the `db.insert_raw_entries_batch*` helpers (`execute_values`,
-  `ON CONFLICT DO NOTHING`).
-- **Never load the full citation graph into RAM** — scope graph queries in SQL
-  (`= ANY(...)` against the indexed link columns).
-- **PG wrapper rows are dicts** — tuple-unpacking a row silently binds the
-  column *names*; always access `r["col"]`.
-- **Literal `%` in SQL must be `%%`** when parameters are bound (psycopg2).
-- **Strip NUL (`0x00`)** from external text before insert — Postgres rejects it.
-- Pydantic validation + retry (3 attempts, exponential backoff) around every
-  LLM call; structured outputs only; `temperature=0` for extraction/classify.
-- Qwen3 needs `think=False` (Ollama) / `enable_thinking=false` (llama.cpp) to
-  avoid chain-of-thought bloat.
-- Commits follow `feat:/fix:/refactor:/test:/docs:/chore:`; work lands on
-  `main` or short-lived feature branches.
-
----
-
-## Status
-
-*(2026-07-05)* All six build sprints are complete; the platform runs on
-PostgreSQL + pgvector. **243 active sources**, **50k published trend
-articles**, **>510k classified signals** with embeddings, and a **~20M-entry
-raw corpus** across all four lead-time tiers: 18.7M patents (112M citation
-edges, 131M CPC rows, to 1990), 334k science works (11.6M OpenAlex citation
-edges, to 1990), 293k funding records (incl. 117k SEC Form D startup rounds),
-~700k market posts (WordPress archive depth to 2010). The CPC backbone (653
-embedded subclass definitions + 44M co-occurrence pairs) puts all tiers on a
-common technology axis. Active focus: cross-tier lead-time productization,
-embedding-based pipeline stages, static export of the public pages to the
-Hetzner webspace (owner decision 2026-09-02, `docs/launch/09_launch_plan_2026-09-02.md`) — see the
-[issues](https://github.com/ZuluTwoThree/catandary-trends/issues).
+1. **Webspace-Zugang anlegen:** `~/.config/catandary/webspace.env` (chmod 600;
+   Vorlage in 2.9) mit SFTP-Host/User/Passwort aus konsoleH. Klären: hat das
+   Paket SSH/rsync? Speicher-/Inode-Quota (Export ≈ 33 000 Dateien, 1,3 GB)?
+2. **Erstupload:** `scripts/build_public_static.sh` → `publish_static_site.py`
+   (Dry-Run) → `--apply` (Stunden über SFTP). Danach die `.htaccess`-Checks aus
+   `frontend/public-export/trends/.htaccess` (Kommentarblock am Ende) und die
+   TDM-Checks aus 2.12 gegen `https://catandary.de/trends/` abarbeiten.
+3. **Root-`.htaccess` ergänzen:** Inhalt von `docs/launch/root-htaccess.snippet`
+   in die owner-verwaltete Root-Datei (TDM-Header + Bot-Sperre für Landing und
+   `/newsletter/`).
+4. **Cron installieren:** Zeile `30 6 * * *  scripts/publish_static_site.sh`
+   aus `deploy/crontab.txt` in `crontab -e` übernehmen. Der Wächter (07:45)
+   prüft ab dann `data/publish_last.json`.
+5. **Newsletter-PHP nachziehen:** `_lib.php`, `unsubscribe.php`, `nl_config.php`
+   (Block 5 `unsub_secret` = `NEWSLETTER_UNSUB_SECRET` in `.env`), `export.php`
+   — Reihenfolge und Prüfungen in
+   `docs/launch/newsletter-doi-php/NEWSLETTER_GOLIVE.md`. Erst Export
+   publizieren, dann das PHP hochladen (Redirect-Ziel
+   `/trends/newsletter/unsubscribed`).
+6. **Landing:** `docs/launch/preview.html` als `index.html` hochladen; die
+   SaaS-Preistabelle und der „Explore the live engine"-CTA darin sind noch
+   nicht auf „Analysen statt Plattform" umgeschrieben (#93, Owner-Stimme).
+   Countdown-Datum steht an **zwei** Stellen in der Datei.
+7. **Indexierung zum 01.10.:** `PUBLIC_NOINDEX=0` in `webspace.env`, nächster
+   06:30-Export liefert `robots.txt` ohne Disallow-all und Seiten ohne
+   `noindex`; `noindex`-Meta aus der Landing entfernen.
+8. **Owner-Entscheide, die noch offen sind:** Owner-Instanz auf Loopback binden
+   (2.12); Firecrawl-Key rotieren (stand in der Git-Historie); 30 vs. 60/90 Tage
+   Fenster; Tracking (Empfehlung: keins); Verbleib der ~4,4 Mio. F-Term-Altzeilen
+   (#79); `/analysis` auf der Live-Site (Root-Datei wird nicht hochgeladen —
+   entweder von Hand mit der Landing oder Route nach `/trends/analysis`
+   verschieben).
+9. **Rechtstexte:** `/imprint`, `/privacy` (Export: `/trends/imprint`,
+   `/trends/privacy`) sind Entwürfe ohne anwaltliche Prüfung
+   (`docs/legal/README.md`); Impressums-Adressblock ist Owner-Gate.
