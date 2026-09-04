@@ -58,9 +58,14 @@ NONSENSE = [
 ]
 # Grey: abstract trends / names — informative, not part of the acceptance count.
 GREY = [
-    "future of work", "artificial intelligence", "blockchain", "sustainable fashion",
+    "future of work", "artificial intelligence", "sustainable fashion",
     "Tesla", "climate change", "digital transformation", "nanotechnology",
 ]
+# Broad but real one-word technologies — must NOT end as off_topic (2nd round, #67):
+# they get the "too broad — which field?" choice, never a silent number.
+BROAD_TECH = ["blockchain", "graphene", "photonics", "biometrics", "robotics"]
+# Broad one-word non-technologies — must never get a number.
+BROAD_NONSENSE = ["happiness", "tuesday", "pizza", "unicorn", "weather"]
 
 
 def embed(text: str) -> list[float]:
@@ -81,7 +86,8 @@ def main() -> int:
         cached = {it["query"]: it["vec"] for it in json.loads(FIXTURE.read_text())["items"]}
     items = []
     t_all = time.time()
-    for group, phrases in (("tech", TECH), ("nonsense", NONSENSE), ("grey", GREY)):
+    for group, phrases in (("tech", TECH), ("nonsense", NONSENSE), ("grey", GREY),
+                           ("broad_tech", BROAD_TECH), ("broad_nonsense", BROAD_NONSENSE)):
         for q in phrases:
             t0 = time.time()
             vec = cached.get(q) or embed(q)

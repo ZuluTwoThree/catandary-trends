@@ -40,6 +40,12 @@ tests/test_query_gate.py runs without GPU or DB):
                             photovoltaics", 2nd 12). Kept as a hedge against
                             embedding-level drift (a model swap shifts all
                             distances; tech_query.py:218).
+    broad band              a real one-word technology ("blockchain") has a close
+                            class but spreads past D20_MAX; with ≥ 20 title hits
+                            and lexical/embedding field agreement it gets the
+                            "too broad — which field?" choice instead of a reject
+                            (2nd round; graphene/photonics/biometrics/robotics are
+                            in the ok band anyway, d20 0.284–0.337).
     lexical field mismatch  the subclass distribution of the title hits vs. the
                             embedding's top-12 subclasses. "quantum error
                             correction" embeds into H03M13 (classical channel
@@ -74,6 +80,20 @@ FT_SAMPLE = 300     # filings sampled for the lexical field estimate
 # doc table. 0.40 leaves room on both sides.
 FT_FIELD_MIN_HITS = 20
 FT_FIELD_MIN_SHARE = 0.40
+# "Too broad" band (2nd round): a real one-word technology like "blockchain" has a
+# CLOSE class (H04L9/50 at 0.258) but its 20 neighbours spread past D20_MAX
+# (0.396) because the term spans several fields. It is offered a field choice —
+# never a number, never a reject — when d1 ≤ D1_BROAD_MAX, ≥ FT_BROAD_MIN_HITS
+# title hits exist and the words' fields overlap the embedding's (any of the top-3
+# lexical subclasses among the embedding's top-12). Measured: broad tech d1 max
+# 0.258 (blockchain — graphene/photonics/biometrics/robotics are in the ok band
+# anyway); the nearest non-technology with ≥ 20 hits beyond D20_MAX is
+# "sustainable fashion" at 0.334 (grey) / "what time is it" 0.354 (nonsense).
+# "pizza" (A21D13/41 at 0.192, 1905 hits, words agree) lands here by design — a
+# choice between real fields, no number; "weather" (G01W at 0.203) does not: its
+# title hits are G06Q/G06F/G06N business-method uses that disagree with the map.
+D1_BROAD_MAX = 0.30
+FT_BROAD_MIN_HITS = 20
 
 TOP_K = 20          # neighbours fetched (d20)
 COHERENCE_K = 12    # the toggleable candidates the tool shows (MAX_CANDIDATES)
@@ -215,6 +235,7 @@ def derive(signals: dict) -> dict:
         "emb_subclasses": [s for s, _ in sub.most_common()],
         "and_hits": int(ft.get("and_hits", 0)),
         "ft_top_subclass": ft_top, "ft_top_share": round(ft_share, 3),
+        "ft_agree": any(f["subclass"] in sub for f in fields[:3]),
         "ft_mismatch": bool(ft_top and ft_top not in sub
                             and int(ft.get("and_hits", 0)) >= FT_FIELD_MIN_HITS
                             and ft_share >= FT_FIELD_MIN_SHARE),
@@ -307,32 +328,45 @@ def clusters(signals: dict, k: int = COHERENCE_K) -> list[dict]:
 
 
 def verdict(signals: dict) -> dict:
-    """Combined rule → {"verdict", "reason", "features", "suggestions", "clusters"}.
+    """Combined rule → {"verdict", "reason", "features", "suggestions", "clusters",
+    "broad"}.
 
-        off_topic  if d20 > D20_MAX (no technology neighbourhood)
+        off_topic  if d1 > D1_HARD_CAP (sanity bound)
                    or and_hits == 0 (no patent title carries these terms)
-                   or d1 > D1_HARD_CAP (sanity bound)
+                   or d20 > D20_MAX (no technology neighbourhood) — UNLESS the
+                      phrase is a broad real technology: d1 ≤ D1_BROAD_MAX and
+                      and_hits ≥ FT_BROAD_MIN_HITS and the words' fields overlap
+                      the embedding's → ambiguous (broad=True, field choice)
         ambiguous  if the title hits' dominant subclass (≥ FT_FIELD_MIN_SHARE of
                    ≥ FT_FIELD_MIN_HITS filings, Y excluded) is absent from the
-                   embedding's top-12 subclasses
+                   embedding's top-12 subclasses (words vs map disagree)
         ok         otherwise
     """
     f = derive(signals)
     sugg = suggestions(signals)
-    if f["d1"] > D1_HARD_CAP or f["d20"] > D20_MAX:
-        return {"verdict": "off_topic", "features": f, "suggestions": sugg, "clusters": [],
+    base = {"features": f, "suggestions": sugg, "clusters": [], "broad": False}
+    if f["d1"] > D1_HARD_CAP:
+        return {**base, "verdict": "off_topic",
+                "reason": f"nearest patent class is {f['d1']:.2f} away (cap {D1_HARD_CAP})"}
+    if f["and_hits"] == 0:
+        return {**base, "verdict": "off_topic",
+                "reason": "no patent title contains these terms together"}
+    if f["d20"] > D20_MAX:
+        if (f["d1"] <= D1_BROAD_MAX and f["and_hits"] >= FT_BROAD_MIN_HITS and f["ft_agree"]):
+            return {**base, "verdict": "ambiguous", "broad": True,
+                    "clusters": clusters(signals),
+                    "reason": (f"too broad for one patent field — the closest class is "
+                               f"{f['d1']:.2f} away but the field spreads to {f['d20']:.2f} "
+                               f"across {f['subclasses12']} subclasses")}
+        return {**base, "verdict": "off_topic",
                 "reason": (f"no technology neighbourhood — the 20 nearest patent classes "
                            f"reach {f['d20']:.2f} (technologies stay under {D20_MAX})")}
-    if f["and_hits"] == 0:
-        return {"verdict": "off_topic", "features": f, "suggestions": sugg, "clusters": [],
-                "reason": "no patent title contains these terms together"}
     if f["ft_mismatch"]:
-        return {"verdict": "ambiguous", "features": f, "suggestions": sugg,
-                "clusters": clusters(signals),
+        return {**base, "verdict": "ambiguous", "clusters": clusters(signals),
                 "reason": (f"the words point to {f['ft_top_subclass']} "
                            f"({f['ft_top_share']:.0%} of matching patent titles) but the "
                            f"closest classes are in {', '.join(f['emb_subclasses'][:3])}")}
-    return {"verdict": "ok", "features": f, "suggestions": [], "clusters": [],
+    return {**base, "verdict": "ok", "suggestions": [],
             "reason": "technology neighbourhood with patent-title evidence"}
 
 
