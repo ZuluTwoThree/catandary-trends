@@ -561,6 +561,19 @@ def probe_one(entry: dict, client: httpx.Client, throttle: HostThrottle,
                 resp = None
         if resp is not None:
             r.update(parse_feed_response(resp))
+        if (resp is not None and not r["feed_ok"] and not r["from_config"]
+                and resp.status_code == 200 and "html" in (resp.headers.get("content-type") or "")):
+            # a URL that is an HTML page (an "RSS feeds" overview, a newsroom):
+            # scan it for feed links like a domain — WP2 2026-09-04
+            feed_url, resp2, tried = discover_feed(r["feed_url"], client, throttle, robots)
+            r["tried"] = tried
+            r["requests"] += len(tried)
+            if feed_url:
+                r["feed_url"] = feed_url
+                r["feed_error"] = None
+                r.update(parse_feed_response(resp2))
+            else:
+                r["feed_error"] = f"HTML page, no feed found ({len(tried)} URLs tried)"
         r["robots_feed"] = robots.verdict(r["feed_url"])
         if not r["feed_ok"] or not r["article_url"]:
             r["tdm_status"], r["reason"] = classify(r)
