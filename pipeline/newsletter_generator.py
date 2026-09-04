@@ -712,6 +712,7 @@ CREATE TABLE IF NOT EXISTS newsletter_editions (
     trend_refs TEXT,
     total_signals INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
+    deep_dive TEXT,
     UNIQUE(year, week)
 );
 """
@@ -727,6 +728,7 @@ CREATE TABLE IF NOT EXISTS newsletter_editions (
     trend_refs TEXT,
     total_signals INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deep_dive JSONB,
     UNIQUE(year, week)
 );
 """
@@ -737,6 +739,35 @@ def init_newsletter_table():
     with get_connection() as conn:
         conn.execute(NEWSLETTER_EDITIONS_SCHEMA_PG if db_mod.USE_POSTGRES
                      else NEWSLETTER_EDITIONS_SCHEMA_SQLITE)
+
+
+def ensure_deep_dive_column() -> bool:
+    """Additive #96 column `deep_dive` (JSONB / TEXT) on an EXISTING table.
+
+    The CREATE statements above carry the column for fresh databases; a table
+    created before #96 lacks it. Same repo rule as every additive migration:
+    scripts/migrate_newsletter_deep_dive.py runs this once, by hand, against
+    the live DB — the deep-dive script calls it too (idempotent) so a test
+    database or a fresh checkout never trips over the missing column.
+    Returns True when the column was added by this call."""
+    init_newsletter_table()
+    with get_connection() as conn:
+        if db_mod.USE_POSTGRES:
+            row = conn.execute(
+                "SELECT 1 AS ok FROM information_schema.columns "
+                "WHERE table_name = 'newsletter_editions' AND column_name = 'deep_dive'"
+            ).fetchone()
+            if row:
+                return False
+            conn.execute("ALTER TABLE newsletter_editions "
+                         "ADD COLUMN IF NOT EXISTS deep_dive JSONB")
+            return True
+        cols = [r[1] for r in conn.execute(
+            "PRAGMA table_info(newsletter_editions)").fetchall()]
+        if "deep_dive" in cols:
+            return False
+        conn.execute("ALTER TABLE newsletter_editions ADD COLUMN deep_dive TEXT")
+        return True
 
 
 def save_newsletter_edition(edition: dict):
@@ -754,10 +785,19 @@ def save_newsletter_edition(edition: dict):
         "trend_refs = EXCLUDED.trend_refs, "
         "total_signals = EXCLUDED.total_signals"
     ) if db_mod.USE_POSTGRES else (
-        "INSERT OR REPLACE INTO newsletter_editions "
+        # ON CONFLICT DO UPDATE (not INSERT OR REPLACE): a replace would drop
+        # the #96 deep_dive column of an existing row — the deep dive is
+        # written by a separate step and must survive a re-generation.
+        "INSERT INTO newsletter_editions "
         "(year, week, editorial, vertical_summaries, "
         "mega_trend_radar, trend_refs, total_signals) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)"
+        "VALUES (?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT (year, week) DO UPDATE SET "
+        "editorial = excluded.editorial, "
+        "vertical_summaries = excluded.vertical_summaries, "
+        "mega_trend_radar = excluded.mega_trend_radar, "
+        "trend_refs = excluded.trend_refs, "
+        "total_signals = excluded.total_signals"
     )
     with get_connection() as conn:
         conn.execute(
@@ -786,7 +826,9 @@ def decode_edition_row(row) -> dict:
     --latest (2026-08-12).
     """
     d = dict(row) if hasattr(row, "keys") else {}
-    for field in ("vertical_summaries", "mega_trend_radar", "trend_refs"):
+    # deep_dive (#96) is JSONB on Postgres (psycopg2 hands back a dict) and
+    # TEXT on SQLite — decode the string form, leave a dict alone.
+    for field in ("vertical_summaries", "mega_trend_radar", "trend_refs", "deep_dive"):
         if field in d and isinstance(d[field], str):
             try:
                 d[field] = json.loads(d[field])
