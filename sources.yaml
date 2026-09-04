@@ -219,6 +219,128 @@ verticals:
       lead_time_tier: market
       tdm_checked: "2026-09-04"
       tdm_status: ok
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: Lebensmittel Praxis
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://lebensmittelpraxis.de/?format=feed&type=rss
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Rundschau für den Lebensmittelhandel
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://rundschau.de/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: agrarheute
+      feed_url: https://agrarheute.com/rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: top agrar
+      feed_url: https://www.topagrar.com/feed/news.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: about-drinks
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.about-drinks.com/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: sweets processing
+      feed_url: https://sweets-processing.com/news/rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: FoodBev Media
+      feed_url: https://www.foodbev.com/blog-feed.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Food Processing
+      feed_url: https://www.foodprocessing.com/__rss/website-scheduled-content.xml?input=%7B%22sectionAlias%22%3A%22home%22%7D
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Food Engineering
+      feed_url: https://www.foodengineeringmag.com/rss/16
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Prepared Foods
+      feed_url: https://www.preparedfoods.com/rss/17
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Bakery and Snacks
+      feed_url: https://www.bakeryandsnacks.com/arc/outboundfeeds/rss/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Confectionery News
+      feed_url: https://www.confectionerynews.com/arc/outboundfeeds/rss/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: The Grocer
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.thegrocer.co.uk/34272.rss
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Just Drinks
+      feed_url: https://www.just-drinks.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Beverage Industry
+      feed_url: https://www.bevindustry.com/rss/16
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Future Farming
+      feed_url: https://futurefarming.com/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Innovations in Food Technology
+      feed_url: https://innovationsfood.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
+    - name: Food Safety Tech
+      feed_url: https://www.foodsafetytech.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
+    - name: Food Engineering & Ingredients
+      feed_url: https://fei-online.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
     science:
     - name: Nature Food
       feed_url: https://www.nature.com/natfood.rss
@@ -283,6 +405,71 @@ verticals:
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: DIL Deutsches Institut für Lebensmitteltechnik
+      feed_url: https://dil-ev.de/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: BLE Bundesanstalt für Landwirtschaft und Ernährung
+      feed_url: https://www.ble.de/SiteGlobals/Functions/RSS/DE/MarktbeobachtungEier.xml?nn=633724
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: CC BY-NC-ND 4.0   # kein fulltext: NC/ND
+    - name: BVE Ernährungsindustrie
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.ernaehrungsindustrie.de/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Ernährungs Umschau
+      feed_url: https://ernaehrungs-umschau.de/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Swiss Food & Nutrition Valley
+      feed_url: https://swissfoodnutritionvalley.com/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Milchindustrie-Verband
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://milchindustrie.de/feed
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Deutscher Brauer-Bund
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://brauer-bund.de/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: ProVeg
+      feed_url: https://proveg.org/feed
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Food Tank
+      feed_url: https://foodtank.com/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: CGIAR
+      feed_url: https://cgiar.org/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
   TECH:
     sources:
     - name: TechCrunch
@@ -495,6 +682,125 @@ verticals:
       lead_time_tier: market
       tdm_checked: "2026-09-04"
       tdm_status: ok
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: Elektronik Praxis
+      feed_url: https://www.elektronikpraxis.de/rss/news.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: elektroniknet
+      feed_url: https://elektroniknet.de/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: futurezone
+      feed_url: https://futurezone.at/xml/rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: inside-it
+      feed_url: https://inside-it.ch/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Netzwoche
+      feed_url: https://netzwoche.ch/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Swiss IT Magazine
+      feed_url: https://www.itmagazine.ch/rss/news.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: ZVEI
+      feed_url: https://www.zvei.org/themen/rss-themen-industrie
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: DIN
+      feed_url: https://www.din.de/service/rss/din-de/64514/feed.rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: TUM
+      feed_url: https://tum.de/news.rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Quantum Computing Report
+      feed_url: https://quantumcomputingreport.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: EE Journal
+      feed_url: https://www.eejournal.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Electronics Weekly
+      feed_url: https://www.electronicsweekly.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: GitHub Blog
+      feed_url: https://github.blog/feed/
+      type: brand
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: AI News
+      feed_url: https://www.artificialintelligence-news.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Light Reading
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://lightreading.com/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Semiconductor Digest
+      feed_url: https://www.semiconductor-digest.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: European Spaceflight
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://europeanspaceflight.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Laboratory News
+      feed_url: https://labnews.co.uk/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: wikipedia
+    - name: Google DeepMind
+      feed_url: https://deepmind.google/blog/feed
+      type: brand
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: hn
     science:
     - name: Nature Machine Intelligence
       feed_url: https://www.nature.com/natmachintell.rss
@@ -550,6 +856,136 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       license: CC BY-NC-ND 3.0
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: Max-Planck-Gesellschaft
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.mpg.de/en/research.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Leibniz-Gemeinschaft
+      feed_url: https://leibniz-gemeinschaft.de/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Bitkom
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://bitkom.org/feed
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: EPO European Patent Office
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://epo.org/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: DPMA
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.dpma.de/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: ETH Zürich
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.ethz.ch/en/news-und-veranstaltungen/eth-news/news/_jcr_content.feed.html
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Fraunhofer IAO
+      feed_url: https://www.iao.fraunhofer.de/de/presseservice/rss-feed/iao-news.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Fraunhofer IPA
+      feed_url: https://www.ipa.fraunhofer.de/de/presse/rss-feeds.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Fraunhofer IIS
+      feed_url: https://www.iis.fraunhofer.de/de/rss/presse.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: CERN
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://home.cern/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Physics World
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://physicsworld.com/feed
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: wikipedia
+    - name: Physics Today
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://physicstoday.aip.org/index.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: wikipedia
+    - name: Scientific American
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.scientificamerican.com/platform/syndication/rss/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: wikipedia
+    - name: ISTA Austria
+      feed_url: https://ista.ac.at/?feed=rss2
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: idw
+    - name: NIST News
+      fulltext: true          # offene Lizenz Public Domain (US federal) — nist.gov/oism/copyrights (#97 WP3)
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.nist.gov/news-events/news/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: Public Domain (US federal)
+    - name: The PLOS Blog
+      feed_url: https://theplosblog.plos.org/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: SciDev.Net
+      fulltext: true          # offene Lizenz CC BY 4.0 — probe: a href https://creativecommons.org/licenses/by/4.0/deed.en (#97 WP3)
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.scidev.net/global/global_rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: CC BY 4.0
+    - name: DARPA
+      fulltext: true          # offene Lizenz Public Domain (US federal) — 17 U.S.C. §105 (US-Bundeswerk) (#97 WP3)
+      feed_url: https://www.darpa.mil/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: Public Domain (US federal)
   HEALTH:
     sources:
     - name: STAT News
@@ -661,6 +1097,98 @@ verticals:
       feed_url: https://rockhealth.com/feed/
       type: brand
       lead_time_tier: market
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: apotheke adhoc
+      feed_url: https://apotheke-adhoc.de/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: E-Health-Com
+      feed_url: https://e-health-com.de/rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: kma Online
+      feed_url: https://www.kma-online.de/dienste/feeds/aktuelles.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Devicemed
+      feed_url: https://www.devicemed.de/rss/news.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: European Biotechnology
+      feed_url: https://european-biotechnology.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: pharmaphorum
+      feed_url: https://pharmaphorum.com/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: PharmaTimes
+      feed_url: https://pharmatimes.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: BioPharma Dive
+      feed_url: https://www.biopharmadive.com/feeds/news/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: BioSpace
+      feed_url: https://www.biospace.com/index.rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: HIT Consultant
+      feed_url: https://hitconsultant.net/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Longevity.Technology
+      feed_url: https://longevity.technology/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Vitafoods Insights
+      feed_url: https://vitafoodsinsights.com/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Natural Products Insider
+      feed_url: https://naturalproductsinsider.com/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Medical Design & Outsourcing
+      feed_url: https://www.medicaldesignandoutsourcing.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Imaging Technology News
+      feed_url: https://itnonline.com/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: wikipedia
     science:
     - name: Nature Medicine
       feed_url: https://www.nature.com/nm.rss
@@ -724,6 +1252,68 @@ verticals:
       lead_time_tier: market
       tdm_checked: "2026-09-04"
       tdm_status: ok
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: Helmholtz Munich
+      feed_url: https://www.helmholtz-munich.de/feed.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: DZNE
+      feed_url: https://www.dzne.de/index.php?id=1026&type=100
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: ECDC
+      fulltext: true          # offene Lizenz CC BY 4.0 — ecdc.europa.eu/en/ecdc-intellectual-property-notices (#97 WP3)
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.ecdc.europa.eu/en/taxonomy/term/323//feed
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: CC BY 4.0
+    - name: CDC
+      fulltext: true          # offene Lizenz Public Domain (US federal) — cdc.gov/other/agencymaterials.html (#97 WP3)
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://tools.cdc.gov/api/v2/resources/media/132608.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: Public Domain (US federal)
+    - name: FDA
+      fulltext: true          # offene Lizenz Public Domain (US federal) — fda.gov website policies: contents not copyrighted (#97 WP3)
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: Public Domain (US federal)
+    - name: Lifespan.io
+      feed_url: https://lifespan.io/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: DDZ Diabetes-Zentrum
+      feed_url: https://ddz.de/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: idw
+    - name: eLife
+      fulltext: true          # offene Lizenz CC BY 4.0 — elifesciences.org/terms (#97 WP3)
+      relevance_min: 0.7   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://elifesciences.org/rss/recent.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: CC BY 4.0
   ECO:
     sources:
     - name: CleanTechnica
@@ -873,6 +1463,126 @@ verticals:
       lead_time_tier: market
       tdm_checked: "2026-09-04"
       tdm_status: ok
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: Clean Energy Wire
+      fulltext: true          # offene Lizenz CC BY 4.0 — probe: link rel=license (#97 WP3)
+      feed_url: https://cleanenergywire.org/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: CC BY 4.0
+    - name: Energy Transition
+      feed_url: https://energytransition.org/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: klimareporter
+      feed_url: https://klimareporter.de/?format=feed&type=rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: klimafakten
+      feed_url: https://www.klimafakten.de/news/feed/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: RecyclingPortal
+      feed_url: https://recyclingportal.eu/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Sustainable Brands
+      feed_url: https://sustainablebrands.com/rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: TriplePundit
+      feed_url: https://triplepundit.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Mongabay
+      feed_url: https://news.mongabay.com/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Yale Environment 360
+      feed_url: https://e360.yale.edu/feed.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Energy-Storage.news
+      feed_url: https://www.energy-storage.news/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: PV Tech
+      feed_url: https://www.pv-tech.org/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: pv magazine International
+      feed_url: https://www.pv-magazine.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Solarserver
+      feed_url: https://www.solarserver.de/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Packaging Europe
+      feed_url: https://packagingeurope.com/2713.rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: biooekonomie.de
+      feed_url: https://biooekonomie.de/rssnewsfeed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Energiezukunft
+      feed_url: https://energiezukunft.eu/rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Anthropocene Magazine
+      feed_url: https://www.anthropocenemagazine.org/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
+    - name: The Ecologist
+      feed_url: https://theecologist.org/rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: wikipedia
+    - name: Sustain Europe
+      feed_url: https://www.sustaineurope.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: wikipedia
     science:
     - name: Nature Sustainability
       feed_url: https://www.nature.com/natsustain.rss
@@ -904,6 +1614,99 @@ verticals:
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # feed header tdm-reservation: 1
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: BMUV
+      feed_url: https://www.bundesumweltministerium.de/umwelt.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Fraunhofer ISE
+      feed_url: https://www.ise.fraunhofer.de/de/rss/presseinformationen.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: PIK Potsdam
+      feed_url: https://pik-potsdam.de/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Wuppertal Institut
+      feed_url: http://wupperinst.org/rss_news_en.php
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Helmholtz-Gemeinschaft
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.helmholtz.de/ueber-uns/wer-wir-sind/presse-medien/mediathek/rss-feeds/presseinformationen/feed.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: PSI Paul Scherrer Institut
+      feed_url: https://psi.ch/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: AIT Austrian Institute of Technology
+      feed_url: https://ait.ac.at/rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: NABU
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.nabu.de/rssfeed.php
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: BSW-Solar
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://solarwirtschaft.de/feed
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Bundesnetzagentur
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://bundesnetzagentur.de/rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Corporate Knights
+      feed_url: https://corporateknights.com/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: wikipedia
+    - name: IDOS
+      feed_url: https://blogs.idos-research.de/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
+    - name: Germanwatch
+      feed_url: https://germanwatch.org/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
+    - name: HZDR
+      feed_url: https://www.hzdr.de/rss_presse.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: idw
   DESIGN:
     sources:
     - name: Dezeen
@@ -959,6 +1762,161 @@ verticals:
       lead_time_tier: now
       tdm_checked: "2026-09-04"
       tdm_status: ok
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: BauNetz
+      feed_url: https://www.baunetz.de/meldungen/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Bauwelt
+      feed_url: https://www.bauwelt.de/das-heft/rss-feed/rssfeed_ausgaben_2073556.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: db deutsche bauzeitung
+      feed_url: https://www.db-bauzeitung.de/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: DBZ Deutsche BauZeitschrift
+      feed_url: https://www.dbz.de/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Stylepark
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.stylepark.com/en/rss
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: PAGE online
+      feed_url: https://page-online.de/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Designtagebuch
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.designtagebuch.de/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Smashing Magazine
+      feed_url: https://smashingmagazine.com/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Dwell
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.dwell.com/@dwell/rss
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: It's Nice That
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: http://feeds2.feedburner.com/itsnicethat/SlXC
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Creative Review
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.creativereview.co.uk/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Core77
+      feed_url: https://core77.com/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Architizer
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://architizer.com/blog/feed
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Divisare
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://divisare.com/publications/11/feed
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Azure Magazine
+      feed_url: https://azuremagazine.com/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Design Indaba
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://designindaba.com/rss.xml
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: A List Apart
+      feed_url: https://alistapart.com/main/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Neue Landschaft
+      feed_url: https://neuelandschaft.de/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: wikipedia
+    - name: DEVELOP3D
+      feed_url: https://develop3d.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
+    - name: Auto&Design
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://autodesignmagazine.com/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
+    - name: DesignWanted
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://designwanted.com/feed
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
+    - name: UX Magazine
+      feed_url: https://uxmag.com/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
+    - name: Machine Design
+      feed_url: https://www.machinedesign.com/__rss/website-scheduled-content.xml?input=%7B%22sectionAlias%22%3A%22home%22%7D
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
     science:
     - name: Nature Reviews Materials
       feed_url: https://www.nature.com/natrevmats.rss
@@ -979,6 +1937,14 @@ verticals:
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # feed header tdm-reservation: 1
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: Bundesarchitektenkammer
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://bak.de/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
   FASHION:
     sources:
     - name: Business of Fashion
@@ -1053,6 +2019,77 @@ verticals:
       lead_time_tier: market
       tdm_checked: "2026-09-04"
       tdm_status: ok
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: Cosmetics Business
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://cosmeticsbusiness.com/rss
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Premium Beauty News
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.premiumbeautynews.com/spip.php?page=backend
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Beauty Independent
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.beautyindependent.com/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Innovation in Textiles
+      feed_url: https://innovationintextiles.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Just Style
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.just-style.com/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Apparel Resources
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://apparelresources.com/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Drapers
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.drapersonline.com/feed
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: GZ Goldschmiede Zeitung
+      feed_url: https://www.gz-online.de/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: TheIndustry.fashion
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://theindustry.fashion/feed
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
+    - name: Textile World
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.textileworld.com/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: feedspot
     science:
     - name: Trends in Biotechnology
       feed_url: https://rss.sciencedirect.com/publication/science/01677799
@@ -1072,6 +2109,33 @@ verticals:
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: Textination
+      feed_url: https://textination.de/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: GermanFashion Modeverband
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://germanfashion.net/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Textile Exchange
+      feed_url: https://textileexchange.org/feed
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: EURATEX
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://euratex.eu/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
   BIZ:
     sources:
     - name: Retail Dive
@@ -1284,6 +2348,95 @@ verticals:
       feed_url: https://www.shopify.com/news/feed
       type: brand
       lead_time_tier: market
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: manager magazin
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.manager-magazin.de/news/index.rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Trending Topics
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://trendingtopics.eu/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: deutsche-startups.de
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://deutsche-startups.de/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Startbase
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.startbase.de/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: etailment
+      feed_url: https://etailment.de/feed.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Payment and Banking
+      feed_url: https://paymentandbanking.com/payment/rss/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: IT Finanzmagazin
+      feed_url: https://www.it-finanzmagazin.de/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Tech.eu
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://tech.eu/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Crunchbase News
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://news.crunchbase.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Retail Gazette
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.retailgazette.co.uk/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Modern Retail
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://modernretail.co/feed
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Digiday
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://digiday.com/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: wikipedia
+    - name: Digital Commerce 360
+      feed_url: https://digitalcommerce360.com/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
     science:
     - name: Harvard Business Review
       feed_url: http://feeds.harvardbusiness.org/harvardbusiness
@@ -1297,6 +2450,89 @@ verticals:
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: ok
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: EHI Retail Institute
+      feed_url: https://www.ehi.org/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: HDE Handelsverband
+      feed_url: https://einzelhandel.de/?format=feed&type=rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: IFH Köln
+      feed_url: https://ifhkoeln.de/feed
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Deutsche Bundesbank
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.bundesbank.de/service/rss/en/633292/feed.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Destatis
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.destatis.de/SiteGlobals/Functions/RSSFeed/DE/RSSNewsfeed/Aktuell.xml?nn=241288
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: E+Z Entwicklung und Zusammenarbeit
+      feed_url: https://dandc.eu/feed
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: wikipedia
+    - name: WZB
+      feed_url: https://wzb.eu/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: idw
+    - name: FTC Press Releases
+      fulltext: true          # offene Lizenz Public Domain (US federal) — 17 U.S.C. §105 (US-Bundeswerk) (#97 WP3)
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.ftc.gov/feeds/press-release.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: Public Domain (US federal)
+    - name: SEC Press Releases
+      fulltext: true          # offene Lizenz Public Domain (US federal) — 17 U.S.C. §105 (US-Bundeswerk) (#97 WP3)
+      relevance_min: 0.7   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.sec.gov/news/pressreleases.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: Public Domain (US federal)
+    - name: Federal Reserve Press Releases
+      fulltext: true          # offene Lizenz Public Domain (US federal) — 17 U.S.C. §105 (US-Bundeswerk) (#97 WP3)
+      relevance_min: 0.7   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.federalreserve.gov/feeds/press_all.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: Public Domain (US federal)
+    - name: BLS Latest
+      fulltext: true          # offene Lizenz Public Domain (US federal) — 17 U.S.C. §105 (US-Bundeswerk) (#97 WP3)
+      relevance_min: 0.7   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.bls.gov/feed/bls_latest.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: Public Domain (US federal)
   LIFESTYLE:
     sources:
     - name: Nieman Lab
@@ -1498,6 +2734,178 @@ verticals:
       lead_time_tier: market
       tdm_checked: "2026-09-04"
       tdm_status: blocked   # robots.txt disallows the feed URL
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: GamesWirtschaft
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.gameswirtschaft.de/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: GamesMarkt
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.gamesmarket.global/rss/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: DWDL
+      feed_url: https://www.dwdl.de/rss/allethemen.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: turi2
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.turi2.de/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Musikwoche
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://musikwoche.de/feed
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: touristik aktuell
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.touristik-aktuell.de/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Börsenblatt
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://boersenblatt.net/feed
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Monopol
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.monopol-magazin.de/rss.xml
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: bildungsklick
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://bildungsklick.de/feed.rss
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: News4teachers
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.news4teachers.de/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: DFG
+      feed_url: https://www.dfg.de/service/rss/de/323556/feed.rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: HRK
+      feed_url: https://www.hrk.de/rss-feed/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Personalwirtschaft
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.personalwirtschaft.de/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Human Resources Manager
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://humanresourcesmanager.de/rss.xml
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Game Developer
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://gamedeveloper.com/rss.xml
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: 80.lv
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://80.lv/feed
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Digital Music News
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.digitalmusicnews.com/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Social Media Today
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.socialmediatoday.com/feeds/news/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Sportico
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.sportico.com/feed/rss/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: The Art Newspaper
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.theartnewspaper.com/rss.xml
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Hyperallergic
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://hyperallergic.com/rss/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: ARTnews
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://artnews.com/feed
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Music Ally
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://musically.com/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: TTG Media
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://ttgmedia.com/feed.xml
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: DOSB
+      feed_url: https://www.dosb.de/aktuelles/rss/feed.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
     science:
     - name: Nature Human Behaviour
       feed_url: https://www.nature.com/nathumbehav.rss
@@ -1518,6 +2926,52 @@ verticals:
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: ok
+    # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+    - name: game Verband
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.game.de/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Deutscher Kulturrat
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.kulturrat.de/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Hochschulforum Digitalisierung
+      fulltext: true          # offene Lizenz CC BY-SA 4.0 — probe: a href https://creativecommons.org/licenses/by-sa/4.0/deed.de (#97 WP3)
+      feed_url: https://hochschulforumdigitalisierung.de/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: CC BY-SA 4.0
+    - name: IAB
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://iab.de/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Inside Higher Ed
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://www.insidehighered.com/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+    - name: Global Voices
+      fulltext: true          # offene Lizenz CC BY 3.0 — globalvoices.org attribution policy (#97 WP3)
+      relevance_min: 0.7   # breiter Feed / now-tier (#97 WP3)
+      feed_url: https://globalvoices.org/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      license: CC BY 3.0
 cross_industry:
   press_wires:
   - name: PR Newswire
@@ -1534,6 +2988,25 @@ cross_industry:
     lead_time_tier: market
     tdm_checked: "2026-09-04"
     tdm_status: ok
+  # --- 2026-09-04 #97 WP2/WP3 Quellenausbau (probe_source_compliance ok; docs/compliance/source_candidates_2026-09-04.md) ---
+  - name: EU Commission Press Corner
+    fulltext: true          # offene Lizenz CC BY 4.0 — commission.europa.eu/legal-notice_en: EU-owned content CC BY 4.0 (#97 WP3)
+    relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
+    feed_url: https://ec.europa.eu/commission/presscorner/api/rss?language=en
+    type: press_wire
+    lead_time_tier: market
+    tdm_checked: "2026-09-04"
+    tdm_status: ok
+    license: CC BY 4.0
+  - name: GOV.UK News and communications
+    fulltext: true          # offene Lizenz OGL v3.0 — gov.uk/help/terms-conditions (#97 WP3)
+    relevance_min: 0.7   # breiter Feed / now-tier (#97 WP3)
+    feed_url: https://www.gov.uk/search/news-and-communications.atom
+    type: press_wire
+    lead_time_tier: market
+    tdm_checked: "2026-09-04"
+    tdm_status: ok
+    license: OGL v3.0
   funding_announcements:
   # Funding-program announcements (Bund + Länder + EU) — announcement level, NOT
   # project detail. The Förderdatenbank RSS catalog page is a JS-SPA behind bot

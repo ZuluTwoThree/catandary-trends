@@ -5,7 +5,7 @@ Stand: 2026-09-04. Alle Kandidaten wurden mit `scripts/probe_source_compliance.p
 ## Zahlen
 
 - Kandidaten gesamt: **708** — Status: ok 352, feed_error 294, blocked 50, reserved 12. DE/AT/CH-Kandidaten: 338.
-- Aufgenommen in `sources.yaml`: **219** (davon DE/AT/CH 110, mit offener Lizenz und `fulltext: true` **16**).
+- Aufgenommen in `sources.yaml`: **217** (davon DE/AT/CH 108, mit offener Lizenz und `fulltext: true` **16**). Zwei weitere ok-Kandidaten fielen im Nachlauf mit `verify_feeds.verify_feed` durch und wurden wieder entfernt (FFG: Redirect-Schleife der Feed-URL; absatzwirtschaft: `/feed/` leitet auf marken-award.de um).
 - Je Vertikale (Kandidaten gesamt / ok / aufgenommen / davon fulltext / davon DE-AT-CH):
   - FOOD: 80 / 42 / 30 / 0 / 14
   - DESIGN: 63 / 27 / 24 / 0 / 10
@@ -13,10 +13,10 @@ Stand: 2026-09-04. Alle Kandidaten wurden mit `scripts/probe_source_compliance.p
   - ECO: 97 / 41 / 32 / 1 / 22
   - TECH: 127 / 74 / 37 / 3 / 18
   - HEALTH: 72 / 30 / 23 / 4 / 8
-  - BIZ: 104 / 41 / 28 / 6 / 16
+  - BIZ: 104 / 41 / 26 / 6 / 14
   - LIFESTYLE: 86 / 53 / 31 / 2 / 19
 - Ziele: ≥ 80 Kandidaten und ≥ 12 je Schwerpunkt-Vertikale — erreicht. ≥ 40 neue ok-Quellen — erreicht. ≥ 15 offene Lizenzen mit fulltext — 16, erreicht, aber nur über US-Bundesbehörden (Public Domain), EU-/UK-Institutionen und Open-Access-Medien; **keine deutschsprachige Quelle außer dem Hochschulforum Digitalisierung (CC BY-SA 4.0) trägt eine strukturiert erkennbare offene Lizenz**. FOOD/DESIGN/FASHION je ≥ 5 — erreicht.
-- Herkunft der aufgenommenen Quellen: eigenes Wissen 190, Wikipedia-Liste 11, Feedspot-Liste (manuell) 13, idw-RSS 4, Hacker-News-API 1.
+- Herkunft der aufgenommenen Quellen: eigenes Wissen 188, Wikipedia-Liste 11, Feedspot-Liste (manuell) 13, idw-RSS 4, Hacker-News-API 1.
 
 ## Warum so viele Kandidaten scheitern
 
@@ -622,11 +622,10 @@ Status = `tdm_status` des letzten Probe-Laufs; „Feed“ = gefundene Feed-URL (
 | Well+Good | wellandgood.com | https://www.theskimm.com/rss/feed.xml | HEALTH | own | US | ok |  | nicht aufgenommen: Consumer-Wellness |
 | Ärzte Zeitung | aerztezeitung.de | https://aerztezeitung.de/news.rss | HEALTH | own | DE | reserved |  | nicht aufgenommen: reserved (tdmrep.json location='/') |
 
-### BIZ (104 Kandidaten, 28 aufgenommen)
+### BIZ (104 Kandidaten, 26 aufgenommen)
 
 | Name | Domain | Feed | Vertikale | Herkunft | Land | Status | Lizenz | Entscheidung |
 |---|---|---|---|---|---|---|---|---|
-| absatzwirtschaft | absatzwirtschaft.de | https://www.absatzwirtschaft.de/feed/ | BIZ | own | DE | ok |  | aufgenommen |
 | BLS Latest | bls.gov | https://www.bls.gov/feed/bls_latest.rss | BIZ | own | US | ok | Public Domain (US federal) | aufgenommen (fulltext, Public Domain (US federal)) |
 | Crunchbase News | news.crunchbase.com | https://news.crunchbase.com/feed/ | BIZ | own | US | ok |  | aufgenommen |
 | Destatis | destatis.de | https://www.destatis.de/SiteGlobals/Functions/RSSFeed/DE/RSSNewsfeed/Aktuell.xml?nn=241288 | BIZ | own | DE | ok |  | aufgenommen |
@@ -639,7 +638,6 @@ Status = `tdm_status` des letzten Probe-Laufs; „Feed“ = gefundene Feed-URL (
 | etailment | etailment.de | https://etailment.de/feed.xml | BIZ | own | DE | ok |  | aufgenommen |
 | EU Commission Press Corner | ec.europa.eu | https://ec.europa.eu/commission/presscorner/api/rss?language=en | BIZ | own | EU | ok | CC BY 4.0 | aufgenommen (fulltext, CC BY 4.0) |
 | Federal Reserve Press Releases | federalreserve.gov | https://www.federalreserve.gov/feeds/press_all.xml | BIZ | own | US | ok | Public Domain (US federal) | aufgenommen (fulltext, Public Domain (US federal)) |
-| FFG | ffg.at | https://ffg.at/rss.xml | BIZ | own | AT | ok |  | aufgenommen |
 | FTC Press Releases | ftc.gov | https://www.ftc.gov/feeds/press-release.xml | BIZ | own | US | ok | Public Domain (US federal) | aufgenommen (fulltext, Public Domain (US federal)) |
 | GOV.UK News and communications | gov.uk | https://www.gov.uk/search/news-and-communications.atom | BIZ | own | UK | ok | OGL v3.0 | aufgenommen (fulltext, OGL v3.0) |
 | HDE Handelsverband | einzelhandel.de | https://einzelhandel.de/?format=feed&amp;type=rss | BIZ | own | DE | ok |  | aufgenommen |
@@ -654,6 +652,7 @@ Status = `tdm_status` des letzten Probe-Laufs; „Feed“ = gefundene Feed-URL (
 | Tech.eu | tech.eu | https://tech.eu/feed | BIZ | own | EU | ok |  | aufgenommen |
 | Trending Topics | trendingtopics.eu | https://trendingtopics.eu/feed | BIZ | own | AT | ok |  | aufgenommen |
 | WZB | wzb.eu | https://wzb.eu/rss.xml | BIZ | idw | DE | ok |  | aufgenommen |
+| absatzwirtschaft | absatzwirtschaft.de | https://www.absatzwirtschaft.de/feed/ | BIZ | own | DE | ok |  | nicht aufgenommen: verify_feeds fehlgeschlagen (/feed/ leitet auf marken-award.de um) |
 | AlphaGalileo | alphagalileo.org |  | BIZ | own | UK | feed_error |  | nicht aufgenommen: feed_error (no feed found (23 URLs tried)) |
 | APA-OTS | ots.at |  | BIZ | own | AT | feed_error |  | nicht aufgenommen: feed_error (no feed found (21 URLs tried)) |
 | aws Austria Wirtschaftsservice | aws.at |  | BIZ | own | AT | feed_error |  | nicht aufgenommen: feed_error (no feed found (21 URLs tried)) |
@@ -681,6 +680,7 @@ Status = `tdm_status` des letzten Probe-Laufs; „Feed“ = gefundene Feed-URL (
 | Eurostat | ec.europa.eu | https://ec.europa.eu/eurostat | BIZ | own | EU | feed_error |  | nicht aufgenommen: feed_error (no entries (SAXParseException)) |
 | EZB | ecb.europa.eu |  | BIZ | own | EU | feed_error |  | nicht aufgenommen: feed_error (no feed found (34 URLs tried)) |
 | FAZ | faz.net | https://www.faz.net/rss/aktuell/ | BIZ | own | DE | reserved |  | nicht aufgenommen: reserved (meta tdm-reservation: 1) |
+| FFG | ffg.at | https://ffg.at/rss.xml | BIZ | own | AT | ok |  | nicht aufgenommen: verify_feeds fehlgeschlagen (Redirect-Schleife der Feed-URL) |
 | Finance Forward | financefwd.com | https://financefwd.com/feed | BIZ | own | DE | blocked |  | nicht aufgenommen: blocked (robots.txt disallows the feed URL) |
 | FinTech Futures | fintechfutures.com |  | BIZ | own | UK | feed_error |  | nicht aufgenommen: feed_error (no feed found (21 URLs tried)) |
 | Format trend | format.at |  | BIZ | wikipedia | AT | feed_error |  | nicht aufgenommen: feed_error (no feed found (21 URLs tried)) |
