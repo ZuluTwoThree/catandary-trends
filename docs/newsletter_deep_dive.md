@@ -72,13 +72,46 @@ beitragen / was der Korpus nicht beantworten kann" (`build_question()`).
 | `dossier_grounded` | 0 unbelegte Zahlen im Dossier | Endkontrolle (`pipeline/dossier_check.py`) | Kondensat darf nur Zahlen tragen, die im Dossier belegt sind — also muss das Dossier selbst sauber sein |
 | `condensate` | Nachprüfung des Kondensats (s. u.) | `verify_condensate()` | Gemma formuliert nur |
 
-Kondensat-Nachprüfung (deterministisch, alle fünf müssen halten): Wortzahl 300–500 ·
+### Register des Kondensats (Owner 2026-09-04: „belegen statt urteilen, Schweigen bei dünner Lage")
+
+Der Dry-Run v3 lieferte einen Absatz „Several signals … remain unverified … lack
+validation from internal research or patent corpora … The corpus cannot provide
+details …" — Ledger-Prosa, die laut Issue nie gerendert wird: Nachrichten-
+Ereignisse (Angriffe, Regulierung, Fristen) sind keine Behauptungen, die Paper-/
+Patentkorpora validieren könnten. Seither gilt:
+
+- **Prompt-Kontext = nur belegte Kernaussagen + Zitatkatalog.** Gemma sieht die
+  `audit.supported`-Aussagen mit ihren Katalogquellen (Titel/Outlet/Datum/Snippet)
+  und den Zitatkatalog — nicht den Berichtstext, nicht `contradictions`/`missing`,
+  nicht den Coverage-Ledger (`supported_claims()`, `build_condense_prompt()`;
+  Test `TestPromptContext`).
+- **Umfang strikt „Was ist neu" + „Einordnung" mit Belegen.** Keine Aussagen
+  darüber, was die Korpora nicht abdecken oder nicht verifizieren können; dünne
+  Lage = weglassen, nicht kommentieren; bei abweichenden Zahlen beide nennen und
+  aufhören. Wenn die Aussagen weniger Wörter tragen als gefragt: kürzer schreiben,
+  nie auffüllen (`CONDENSE_SYSTEM`).
+- **Deterministischer Meta-Rede-Check** (`meta_talk()`, `META_TALK_PATTERNS`):
+  „remain(s) unverified/unknown/open", „lack(s) validation/corroboration",
+  „cannot provide/confirm/verify/resolve", „not covered by", „no data/evidence in
+  the corpus", „the corpus cannot/does not/contains no", Ledger-Kategorien
+  („research corpus", „patent corpus", „internal corpora", „coverage ledger",
+  „open question(s)", „single-source", „evidence base", „further research is
+  needed") → Kondensat verworfen, Retry (max. 2), danach Gate `condensate`
+  verfehlt (`TestMetaTalk`).
+
+Kondensat-Nachprüfung (deterministisch, alle sechs müssen halten): Wortzahl 300–500 ·
 alle Links im Zitat-Katalog des Dossiers (Origin-URLs werden auf die kanonische
 URL umgeschrieben, katalogfremde gestrichen → Verstoß) · alle Zahlen im
 Dossier-Material (`pipeline.grounding.ungrounded_specifics` gegen Bericht +
-Katalog-Titel/-Snippets + Wochensignal-Titel; **nicht** gegen die rohen
-Evidenznotizen — eine Zahl, die nur dort steht, hat der Owner im Dossier nie
-gesehen) · ≥ 4 distinkte Belege · reine Prosa (keine Headings/Listen).
+belegte Aussagen + Katalog-Titel/-Snippets + Wochensignal-Titel; **nicht** gegen
+die rohen Evidenznotizen — eine Zahl, die nur dort steht, hat der Owner im Dossier
+nie gesehen) · ≥ 4 distinkte Belege · reine Prosa (keine Headings/Listen) ·
+keine Meta-Rede über die Beleglage.
+
+**Regeneration ohne 27B-Lauf:** `--from-dossier <slug>@<version>` führt nur Gate +
+Gemma-Kondensat + Nachprüfung auf einem bestehenden Dossier aus (Endkontrolle
+wird deterministisch neu gerechnet), überschreibt `deep_dive` der Edition
+(`regenerated_from`, `dry_run` wie gewählt) und schreibt Draft + Wächter-JSON neu.
 
 `gate_passed = alle Dossier-Gates ∧ condensate`. Im **Dry-Run** wird das Kondensat
 auch bei verfehltem Dossier-Gate erzeugt (Kalibrier-Material für den Owner); mit
@@ -146,6 +179,8 @@ EPA-Datacenter-Emissionen, Cyberangriffe auf polnische Solarparks / UK-Kleinkraf
 | v1 (Auftrag #3) | 226 s, 5 Agenten-Schritte, Korpus-Sweep +12 Paper +8 Patente | 6 / 1 / 8 | 3/3/12/8/0 | 4 von 26 / 0 | **3 „unbelegte Zahlen" = Slug-IDs in Zitat-URLs** (False-Positive → Fix in `dossier_check.py`) | verfehlt (`supported_claims` 6 < 8, `dossier_grounded`) | 362 Wörter, 4 Belege (3 article, 1 patent), Nachprüfung 5/5 ok im 1. Versuch (7,6 s) |
 | v2 (Auftrag #4, nach Fix 1) | 231 s, Korpus-Sweep +12 Paper +8 Patente | 7 / 2 / 5 | 6/6/12/8/0 | 14 von 32 / 1 | **2 „unbelegte Zahlen" = Ordinalzahlen der code-generierten Quellenliste** (zweiter False-Positive → Fix 2) | verfehlt (`supported_claims` 7 < 8, `dossier_grounded`) | 345 Wörter, 5 Belege, 5/5 ok im 1. Versuch |
 | v3 (Auftrag #5, nach Fix 2) | 270 s, Korpus-Sweep +12 Paper +8 Patente | 6 / 2 / 5 | 6/6/12/8/0 | 14 von 32 / 0 | **0 unbelegte Zahlen**, ok=True (1 Befund: 8 offene Fragen) | verfehlt **nur** an `supported_claims` (6 < 8) | 324 Wörter, 6 Belege, 5/5 ok im 1. Versuch |
+
+| v3 regeneriert (`--from-dossier …@3`, neues Register) | — (kein 27B-Lauf) | 6 / 2 / 5 | 6/6/12/8/0 | 14 von 32 / 0 | 0 unbelegt, ok (neu gerechnet) | verfehlt nur an `supported_claims` | **381 Wörter, 9 Belege (6 article, 3 signal), 6/6 ok im 1. Versuch, 0 Meta-Rede-Treffer, 23 s** — kein Lücken-Absatz mehr |
 
 Gesamtlaufzeiten: v1 **260 s**, v2 **268 s**, v3 **300 s** (Themenwahl < 1 s, 27B-Handover
 + Recherche 230–270 s, Gemma-Handover + Kondensat ~20 s). Ruhezustand nach jedem
