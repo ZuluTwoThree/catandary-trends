@@ -34,19 +34,28 @@ TRUNCATION_MAX_TOKENS = int(os.getenv("LLAMACPP_TRUNCATION_MAX_TOKENS", "8192"))
 
 
 def chat(model: str, prompt: str, system: str | None = None,
-         temperature: float = 0.0) -> str:
-    """Send a chat request to llama-server and return the response text."""
+         temperature: float = 0.0, seed: int | None = None,
+         max_tokens: int | None = None) -> str:
+    """Send a chat request to llama-server and return the response text.
+
+    `seed` / `max_tokens` are optional and only sent when given (Research
+    Pulse, #73: fixed seed for reproducible weekly paragraphs); the
+    newsletter's calls are byte-identical to before."""
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
-    payload = {
+    payload: dict = {
         "model": model,
         "messages": messages,
         "temperature": temperature,
         "stream": False,
     }
+    if seed is not None:
+        payload["seed"] = seed
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
 
     url = f"{LLAMACPP_HOST}/v1/chat/completions"
     logger.debug("llama.cpp chat → %s (model=%s, T=%.2f)", url, model, temperature)
