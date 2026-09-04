@@ -24,6 +24,14 @@ One run, four checks, one Markdown report:
   7. BRAND-PR BALANCE  — share of raw_entries (last 30d) coming from
      source_type='brand' (company newsrooms); alert if company PR dominates
      the feed (issue #81).
+  8. TDM/ROBOTS COMPLIANCE — re-probes every active source with
+     scripts/probe_source_compliance.py (feed, robots.txt for our UA, bot
+     status, TDM reservation, licence hints; 1 req/s/host, ~5-10 min) and
+     writes the protocol fields tdm_checked/tdm_status/license back into
+     sources.yaml (line-based, order + comments preserved). Alerts on every
+     transition into/out of reserved|blocked; `fulltext: true` is switched
+     off automatically when the article-level verdict is reserved/blocked
+     (issue #97). --no-tdm skips it.
 
 Report: data/source_check_<YYYY-MM>.md. Alerts additionally appended to
 data/ALERTS.md and (with --post-issue) posted as a comment on issue #13 so the
@@ -32,6 +40,7 @@ issue becomes the living quality log.
     python scripts/monthly_source_check.py                # report only
     python scripts/monthly_source_check.py --post-issue   # + comment on #13
     python scripts/monthly_source_check.py --skip-network # sections 1+2 only
+    python scripts/monthly_source_check.py --no-tdm       # without the ~10-min TDM re-probe
 """
 from __future__ import annotations
 
@@ -50,7 +59,11 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 import httpx
 
+import yaml
+
 from pipeline.db import get_connection
+from probe_source_compliance import (SOURCES_YAML, iter_active_sources, probe_sources, summarize,
+                                     write_protocol_fields)
 from source_signal_yield import collect as collect_yield
 from source_quality_report import iter_configured_feeds, measure_feed
 
@@ -340,6 +353,56 @@ def check_brand_balance(since: str) -> tuple[list[str], list[str]]:
     return _evaluate_brand_balance(brand_n, total_n)
 
 
+# ----------------------------------------------------- 8. TDM/robots (#97)
+
+TDM_ALERT_STATUSES = ("reserved", "blocked")
+
+
+def _fulltext_must_go(r: dict) -> bool:
+    """Same predicate as probe_source_compliance.write_protocol_fields."""
+    return bool(r.get("fulltext")) and r.get("tdm_status") in TDM_ALERT_STATUSES and not r.get("fulltext_ok")
+
+
+def _evaluate_tdm_changes(results: list[dict]) -> tuple[list[str], list[str]]:
+    """Pure: report lines + alerts from probe results that carry prev_status
+    (the tdm_status stored in sources.yaml before this run)."""
+    counts = summarize(results)
+    lines = [f"{len(results)} active sources probed — "
+             + ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))]
+    alerts: list[str] = []
+    for r in results:
+        prev, cur, name = r.get("prev_status"), r.get("tdm_status"), r.get("name") or r.get("feed_url")
+        reason = r.get("reason") or ""
+        if cur in TDM_ALERT_STATUSES and prev != cur:
+            was = f"was {prev}" if prev else "first check"
+            alerts.append(f"tdm: {name} now {cur} ({reason}; {was})")
+        elif prev in TDM_ALERT_STATUSES and cur == "ok":
+            alerts.append(f"tdm: {name} back to ok (was {prev}) — fulltext may be re-enabled by hand")
+        if _fulltext_must_go(r):
+            alerts.append(f"tdm: {name} fulltext switched off ({reason})")
+        if cur != "ok":
+            lines.append(f"  {cur:<10} {name}: {reason}")
+    return lines, alerts
+
+
+def check_tdm_status(today: str | None = None, yaml_path: Path | str = SOURCES_YAML,
+                     write: bool = True, probe=None) -> tuple[list[str], list[str]]:
+    """Section 8: re-probe every active source, stamp the protocol fields into
+    sources.yaml, alert on reserved/blocked transitions. `probe` is injectable
+    for tests (default: the real network probe, 1 req/s/host)."""
+    today = today or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    cfg = yaml.safe_load(Path(yaml_path).read_text(encoding="utf-8"))
+    entries = iter_active_sources(cfg)
+    results = (probe or probe_sources)(entries)
+    lines, alerts = _evaluate_tdm_changes(results)
+    if write:
+        s = write_protocol_fields(yaml_path, results, today)
+        lines.append(f"sources.yaml: {s['updated']} entries stamped tdm_checked={today}"
+                     + (f", fulltext off: {', '.join(s['fulltext_off'])}" if s["fulltext_off"] else "")
+                     + (f", not found: {len(s['missing'])}" if s["missing"] else ""))
+    return lines, alerts
+
+
 # ------------------------------------------------------------------ report
 
 def main() -> int:
@@ -349,6 +412,8 @@ def main() -> int:
                     help="only DB-based checks (1, 2, 5, 6, 7), skip feed/WP probes")
     ap.add_argument("--post-issue", action="store_true",
                     help="post the report as a comment on issue #13 via gh")
+    ap.add_argument("--no-tdm", action="store_true",
+                    help="skip section 8 (TDM/robots re-probe of all active sources, ~10 min)")
     args = ap.parse_args()
 
     now = datetime.now(timezone.utc)
@@ -370,6 +435,9 @@ def main() -> int:
                       ("7. Brand-PR balance (30d)", lambda: check_brand_balance(since))]:
         lines, alerts = fn()
         sections.append((title, lines, alerts))
+    if not args.skip_network and not args.no_tdm:
+        lines, alerts = check_tdm_status(now.strftime("%Y-%m-%d"))
+        sections.append(("8. TDM/robots compliance (all active sources, #97)", lines, alerts))
 
     all_alerts = [a for _, _, alerts in sections for a in alerts]
     stamp = now.strftime("%Y-%m")

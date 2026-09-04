@@ -184,3 +184,115 @@ def test_check_brand_balance_matches_manual_count(seeded_db):
     lines, alerts = m.check_brand_balance(since)
     assert "3/20" in lines[0]
     assert alerts == []  # 15% exactly is not > 15%
+
+
+# ------------------------------------------------ 8. TDM/robots (#97 WP1)
+
+TDM_YAML = """\
+verticals:
+  FOOD:
+    sources:
+    - name: Clean
+      fulltext: true
+      feed_url: https://clean.example/rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-08-04"
+      tdm_status: ok
+    - name: Newly Reserved
+      fulltext: true   # keep me?
+      feed_url: https://reserved.example/rss
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-08-04"
+      tdm_status: ok
+    - name: Recovered
+      fulltext: false   # HTTP 403 — Sondierung
+      feed_url: https://recovered.example/rss
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-08-04"
+      tdm_status: blocked   # article HTTP 403
+    - name: Never Checked
+      feed_url: https://new.example/rss
+      type: trade_media
+      lead_time_tier: now
+    - name: Inactive
+      active: false
+      feed_url: https://dead.example/rss
+      type: trade_media
+cross_industry:
+  press_wires:
+  - name: Feed Robots
+    fulltext: true
+    feed_url: https://wire.example/rss
+    type: press_wire
+    lead_time_tier: market
+"""
+
+
+def _fake_probe(entries):
+    plan = {
+        "https://clean.example/rss": ("ok", "fine", True),
+        "https://reserved.example/rss": ("reserved", "meta tdm-reservation: 1", False),
+        "https://recovered.example/rss": ("ok", "fine", True),
+        "https://new.example/rss": ("blocked", "article HTTP 429 for the bot UA", False),
+        "https://wire.example/rss": ("blocked", "robots.txt disallows the feed URL", True),
+    }
+    out = []
+    for e in entries:
+        status, reason, ft_ok = plan[e["feed_url"]]
+        out.append({**e, "tdm_status": status, "reason": reason, "fulltext_ok": ft_ok, "license": None})
+    return out
+
+
+def test_evaluate_tdm_changes_pure():
+    results = [
+        {"name": "A", "prev_status": "ok", "tdm_status": "reserved", "reason": "meta", "fulltext": True, "fulltext_ok": False},
+        {"name": "B", "prev_status": "blocked", "tdm_status": "ok", "reason": "fine", "fulltext": False, "fulltext_ok": True},
+        {"name": "C", "prev_status": "ok", "tdm_status": "feed_error", "reason": "feed HTTP 500", "fulltext": True, "fulltext_ok": False},
+        {"name": "D", "prev_status": "blocked", "tdm_status": "blocked", "reason": "403", "fulltext": False, "fulltext_ok": False},
+        {"name": "E", "prev_status": "reserved", "tdm_status": "blocked", "reason": "403", "fulltext": False, "fulltext_ok": False},
+    ]
+    lines, alerts = m._evaluate_tdm_changes(results)
+    assert lines[0] == "5 active sources probed — blocked=2, feed_error=1, ok=1, reserved=1"
+    assert alerts == ["tdm: A now reserved (meta; was ok)",
+                      "tdm: A fulltext switched off (meta)",
+                      "tdm: B back to ok (was blocked) — fulltext may be re-enabled by hand",
+                      "tdm: E now blocked (403; was reserved)"]
+    assert any(l.startswith("  feed_error C") for l in lines)      # transient: listed, not alerted
+    assert not any("D" in a for a in alerts)                        # unchanged blocked: silent
+
+
+def test_check_tdm_status_alerts_and_writes_back(tmp_path):
+    p = tmp_path / "sources.yaml"
+    p.write_text(TDM_YAML, encoding="utf-8")
+    lines, alerts = m.check_tdm_status(today="2026-09-04", yaml_path=p, probe=_fake_probe)
+    assert alerts == [
+        "tdm: Newly Reserved now reserved (meta tdm-reservation: 1; was ok)",
+        "tdm: Newly Reserved fulltext switched off (meta tdm-reservation: 1)",
+        "tdm: Recovered back to ok (was blocked) — fulltext may be re-enabled by hand",
+        "tdm: Never Checked now blocked (article HTTP 429 for the bot UA; first check)",
+        "tdm: Feed Robots now blocked (robots.txt disallows the feed URL; first check)",
+    ]
+    assert lines[0] == "5 active sources probed — blocked=2, ok=2, reserved=1"
+    assert lines[-1].startswith("sources.yaml: 5 entries stamped tdm_checked=2026-09-04, fulltext off: Newly Reserved")
+    text = p.read_text(encoding="utf-8")
+    import yaml as _yaml
+    cfg = _yaml.safe_load(text)
+    food = {s["name"]: s for s in cfg["verticals"]["FOOD"]["sources"]}
+    assert food["Newly Reserved"]["fulltext"] is False and food["Newly Reserved"]["tdm_status"] == "reserved"
+    assert food["Recovered"]["tdm_status"] == "ok" and food["Recovered"]["fulltext"] is False   # never auto-on
+    assert food["Never Checked"]["tdm_checked"] == "2026-09-04" and food["Never Checked"]["tdm_status"] == "blocked"
+    assert "tdm_status" not in food["Inactive"]
+    wire = cfg["cross_industry"]["press_wires"][0]
+    assert wire["fulltext"] is True and wire["tdm_status"] == "blocked"   # feed-level robots: owner decides
+    assert "fulltext: false   # HTTP 403 — Sondierung" in text            # existing comments preserved
+    assert "fulltext: false   # meta tdm-reservation: 1 — Prüfung 2026-09-04" in text
+
+
+def test_check_tdm_status_write_false_leaves_file(tmp_path):
+    p = tmp_path / "sources.yaml"
+    p.write_text(TDM_YAML, encoding="utf-8")
+    m.check_tdm_status(today="2026-09-04", yaml_path=p, probe=_fake_probe, write=False)
+    assert p.read_text(encoding="utf-8") == TDM_YAML
