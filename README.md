@@ -55,18 +55,11 @@ Stand je Issue in [`docs/issue_status.md`](docs/issue_status.md).
 
 1. [Instanzen und Einstieg](#1-instanzen-und-einstieg)
 2. [Bedienungsanleitung Owner-Funktionen](#2-bedienungsanleitung-owner-funktionen)
-   - [2.1 Morgenroutine](#21-morgenroutine--was-nachts-passiert-und-was-morgens-zu-tun-ist)
-   - [2.2 Trend-Feed, Artikel, Suche](#22-trend-feed-artikelseite-suche-und-filter)
-   - [2.3 Review-Seite](#23-review-seite-trendsreview)
-   - [2.4 Mega Signal Themes und Methodik](#24-mega-signal-themes-und-methodik-seite)
-   - [2.5 Foresight-Cockpit](#25-foresight-cockpit-trendsforesight)
-   - [2.6 Dossier-Desk](#26-dossier-desk-trendsdossiers)
-   - [2.7 Newsletter](#27-newsletter)
-   - [2.8 Analysen](#28-analysen-analysis)
-   - [2.9 Statischer Export](#29-statischer-export-die-öffentliche-website)
-   - [2.10 Quellen verwalten](#210-quellen-verwalten)
-   - [2.11 Betrieb](#211-betrieb-cron-wächter-backup-gpu-logs)
-   - [2.12 Sicherheit und Recht](#212-sicherheit-und-recht-kurz)
+   - [2.1 Karte der Owner-Funktionen](#21-karte-der-owner-funktionen)
+   - [2.2 Routine: Morgen nach dem Nachtlauf](#22-routine-morgen-nach-dem-nachtlauf)
+   - [2.3 Routine: Öffentliche Website aktualisieren](#23-routine-öffentliche-website-aktualisieren-bis-der-cron-läuft)
+   - [2.4 Routine: Scouting-Dossier bestellen](#24-routine-scouting-dossier-bestellen)
+   - ausführlich je Funktion: [`docs/owner_manual.md`](docs/owner_manual.md)
 3. [Setup](#3-setup)
 4. [Architektur in einer Seite](#4-architektur-in-einer-seite)
 5. [Tests und Konventionen](#5-tests-und-konventionen)
@@ -81,12 +74,12 @@ Stand je Issue in [`docs/issue_status.md`](docs/issue_status.md).
 | `http://localhost:3001` | **Produktive Owner-Instanz** aus dem `main`-Worktree `~/projects/catandary-trends` (`next start`, systemd user unit `catandary-frontend`) | läuft dauerhaft; nach einem `main`-Update: `cd frontend && npm run build && systemctl --user restart catandary-frontend` |
 | `http://localhost:3004` | Dev-Server aus dem `dev`-Worktree `~/projects/ct-dev` | `cd ~/projects/ct-dev/frontend && npx next dev --turbopack -p 3004` (in tmux, Session `ct`) |
 | `http://localhost:3999` | **PUBLIC_MODE-Vorschau** = so sieht die öffentliche Seite aus (Foresight/Review/Dossiers → 404, Feed auf 30 Tage gefenstert) | `cd ~/projects/ct-dev/frontend && PUBLIC_MODE=1 NEXT_DIST_DIR=.next-public npx next dev --turbopack -p 3999` |
-| `http://localhost:8098` | Lokaler Apache (Docker) mit dem **fertigen statischen Export** und den echten `.htaccess`-Regeln | `scripts/htaccess_test_server.sh` (Abschnitt 2.9) |
-| `:8090` | `llama-server` (systemd user unit `llama-server.service`), Ruhezustand = Qwen3-8B | läuft dauerhaft; Abschnitt 2.11 |
+| `http://localhost:8098` | Lokaler Apache (Docker) mit dem **fertigen statischen Export** und den echten `.htaccess`-Regeln | `scripts/htaccess_test_server.sh` (Handbuch §9) |
+| `:8090` | `llama-server` (systemd user unit `llama-server.service`), Ruhezustand = Qwen3-8B | läuft dauerhaft; Handbuch §11 |
 
 `npm run dev` ohne Argument nimmt Port **3001** — im Dev-Worktree immer `-p 3004`
 mitgeben. Alle drei Next-Instanzen und der llama-server lauschen derzeit auf
-**allen Interfaces** (LAN/Tailnet erreichbar, ohne Login) — siehe 2.12.
+**allen Interfaces** (LAN/Tailnet erreichbar, ohne Login) — siehe Handbuch §12.
 
 Die Owner-Navigation (Header): *Trends · Mega Trends · Analyses* und der
 Foresight-Block *Cockpit · Clusters · Technology · Lead Time · Evolution ·
@@ -97,7 +90,66 @@ verlinkt.
 
 ## 2. Bedienungsanleitung Owner-Funktionen
 
-*(Wird in der nächsten Etappe ausgefüllt — Abschnitte 2.1 bis 2.12.)*
+Die ausführliche Anleitung — je Funktion *Wozu · Wo · Schritt für Schritt · Was
+das Ergebnis bedeutet · Grenzen* — steht im
+**[Owner-Handbuch `docs/owner_manual.md`](docs/owner_manual.md)**. Hier die
+Karte und die drei Routinen, die man auswendig kennen sollte.
+
+### 2.1 Karte der Owner-Funktionen
+
+| Funktion | Wo | Kernaktion | Handbuch |
+|---|---|---|---|
+| Trend-Feed, Artikel, Suche/Filter | `/trends`, `/trends/<slug>`, `?q=` `?v=` | lesen, filtern; Hybrid-Suche auch als `/api/search` | [§2](docs/owner_manual.md#2-trend-feed-artikelseite-suche-und-filter) |
+| **Review-Queue** (Grounding-/Truncation-Holds) | `/trends/review` (unverlinkt) | *Publish · Reject · Write again*; CLI `scripts/review_cli.py` | [§3](docs/owner_manual.md#3-review-seite-trendsreview) |
+| Mega Signal Themes, Methodik | `/trends/mega`, `/trends/methodology` | Badges lesen (Megatrend/Domain/Faded Hype/Momentum); Messung `scripts/measure_mega_axes.py --write-yaml` | [§4](docs/owner_manual.md#4-mega-signal-themes-und-methodik-seite) |
+| Technologie-Suche (Quality-Gate ok/ambiguous/off_topic) | `/trends/foresight/technology` | Phrase → Feldwahl oder Rückfrage → K(t), Lead-Time, Leitpatente; CLI `scripts/tech_analyze.py --query` | [§5.1](docs/owner_manual.md#51-technologie-suche-trendsforesighttechnology) |
+| Lead Time, Cluster, Evolution, Druck-Dossier | `/trends/foresight/lead-time` `/clusters` `/evolution` `/dossier` | lesen; Snapshots neu rechnen `python -m pipeline.foresight_snapshot --all-verticals [--lineage]` | [§5.2–5.5](docs/owner_manual.md#52-lead-time-trendsforesightlead-timecpcsubklasse) |
+| Research Explorer | `/trends/foresight/research` | `?q= ?layer=signals ?src= ?range= ?sort= ?concept= ?theme=` | [§5.6](docs/owner_manual.md#56-research-explorer-trendsforesightresearch) |
+| **Research Pulse** | `/trends/foresight/research/pulse[/<theme>]` | *Recompute*-Knopf oder `scripts/research_pulse.py`; Cron nur Vorschlag | [§5.7](docs/owner_manual.md#57-research-pulse-trendsforesightresearchpulse-pulsetheme) |
+| Patent Explorer | `/trends/foresight/patents` | Nummer/CPC/Jahr automatisch, `company:"…"`, `"phrase"` `OR` `-x` | [§5.8](docs/owner_manual.md#58-patent-explorer-trendsforesightpatents) |
+| Startup Explorer | `/trends/foresight/ventures` | Firmen mit Evidenz-Timeline | [§5.9](docs/owner_manual.md#59-startup-explorer-trendsforesightventures-companyid) |
+| **Dossier-Desk** | `/trends/dossiers` | Auftrag → *Run now* → `review` → *Sign off*; *Recompute · v(n+1)*; Firma/Fokus/Sprache nur CLI `scripts/corpus_research.py` | [§6](docs/owner_manual.md#6-dossier-desk-trendsdossiers) |
+| Newsletter (Edition, Archiv, Deep-Dive Dry-Run, Versand, Abmeldung) | `/trends/newsletter` | Edition Mo 09:00 automatisch; `NEWSLETTER_DEEP_DIVE=dry-run` in der Crontab; Versand gegated (#16) | [§7](docs/owner_manual.md#7-newsletter) |
+| Analysen | `/analysis` | Markdown in `frontend/content/analyses/`, `draft: false` = live | [§8](docs/owner_manual.md#8-analysen-analysis) |
+| **Statischer Export** | `scripts/build_public_static.sh` → `htaccess_test_server.sh` → `publish_static_site.py --apply` | täglich 06:30 (Cron vorbereitet); `PUBLIC_NOINDEX=0` zum Launch | [§9](docs/owner_manual.md#9-statischer-export--die-öffentliche-website) |
+| Quellen | `sources.yaml` | `probe_source_compliance.py --yaml` → eintragen → `verify_feeds.py`; `apply_source_hygiene.py --apply` beim Deaktivieren; `takedown.py`, `purge_raw_content.py` | [§10](docs/owner_manual.md#10-quellen-verwalten) |
+| Betrieb | `crontab -l`, `~/logs/`, `data/*_last.json` | Wächter-Mails, Backup/Restore, GPU-Ruhezustand, llama-server-Reparatur | [§11](docs/owner_manual.md#11-betrieb-cron-wächter-backup-gpu-logs) |
+| Sicherheit & Recht | — | Binding aller Interfaces (Entscheid offen), TDM-Regime, Takedown | [§12](docs/owner_manual.md#12-sicherheit-und-recht-kurz) |
+
+### 2.2 Routine: Morgen nach dem Nachtlauf
+
+1. Postfach: **Wächter-Mail** nur bei Befund (fehlende Cycle-end-Zeile,
+   fehlendes Backup-Artefakt, künftig fehlgeschlagener Publish) — Schweigen ist
+   gesund. **Review-Mail** nur, wenn die Nacht Artikel zurückgehalten hat (mit
+   Draft-Richter-Zahlen und ggf. Deep-Dive-Zeile).
+2. `http://localhost:3001/trends/review` → jede Karte: *Publish* / *Reject* /
+   bei abgeschnittenem Text *Write again*. Backlog-Tab nicht wachsen lassen.
+3. `/trends` sichten; bei Verdacht `~/logs/catandary-full-cycle-<Datum>.log`
+   (letzte Zeile `… end … rc=0`).
+
+### 2.3 Routine: Öffentliche Website aktualisieren (bis der Cron läuft)
+
+```bash
+cd ~/projects/catandary-trends            # main-Worktree — nicht während des 04:00-Cycles
+scripts/build_public_static.sh            # ~60 s → frontend/.export/out (+ Manifest, build_info.json)
+scripts/htaccess_test_server.sh           # optional: Apache-Test auf :8098, nach jedem Build neu starten
+.venv/bin/python scripts/publish_static_site.py          # Dry-Run: Plan je Phase
+.venv/bin/python scripts/publish_static_site.py --apply  # Upload (Manifest-Delta, nur trends/** + _next/** + 4 Root-Dateien)
+```
+
+Voraussetzung: `~/.config/catandary/webspace.env` (chmod 600) — existiert noch
+nicht (Owner-Aktion, Abschnitt 6). Build ≤ 12 h alt, ≥ 1000 Artikel, ≤ 60 %
+Löschungen, sonst Exit 2.
+
+### 2.4 Routine: Scouting-Dossier bestellen
+
+`http://localhost:3001/trends/dossiers` → *New order slip*: Technology field,
+optional Series slug und eigene Frage, Häkchen „measure the innovation chain
+first" und „start the worker right away" → *Place order*. Worker läuft 10–20 min
+(GPU exklusiv, nicht parallel zum Cycle), Ergebnis steht in `review`; in der
+Leseansicht Herkunftskopf, Endkontrolle, Bericht, Coverage-Anhang lesen → *Sign
+off*. Gleicher Slug später erneut = nächste Version (*Recompute · v(n+1)*).
+Terminal: `.venv/bin/python -m scripts.dossier_worker --order-new "solid-state batteries" --run`.
 
 ---
 
@@ -195,10 +247,10 @@ Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
 | `RSS_CLASSIFY_MODE=hybrid` | Distill-Heads entscheiden Relevanz/Vertikale/Mega/PESTEL, nur das unsichere Band geht ans 8B; `llm` = alter Vollpfad |
 | `CYCLE_MAX_PER_SOURCE=200` | Mengenbremse je Quelle und Lauf |
 | `EXTRACTION_STRICT=1` | Extraktion mit Wörtlichkeitsfilter |
-| `AUTO_PUBLISH_GROUNDING_GATE=1` | Grounding-Gate vor Auto-Publish (Abschnitt 2.3) |
+| `AUTO_PUBLISH_GROUNDING_GATE=1` | Grounding-Gate vor Auto-Publish (Handbuch §3) |
 | `DRAFT_JUDGE=1` | Stage 10 Draft-Richter (0 = aus; nur in `scheduled_cycle.sh` gelesen) |
 | `TDM_RESPECT=1` | Fetcher beachtet maschinenlesbare TDM-Vorbehalte |
-| `NEWSLETTER_DEEP_DIVE` | `dry-run` aktiviert den Deep-Dive-Schritt im Montagslauf (nur in der Crontab setzen, s. 2.7) |
+| `NEWSLETTER_DEEP_DIVE` | `dry-run` aktiviert den Deep-Dive-Schritt im Montagslauf (nur in der Crontab setzen, s. Handbuch §7.3) |
 | `RESEND_API_KEY`, `NEWSLETTER_FROM`, `NEWSLETTER_UNSUB_SECRET`, `NEWSLETTER_PUBLIC_BASE`, `NL_EXPORT_URL`, `NL_EXPORT_TOKEN` | Newsletter-Versandkette (#16) |
 | `REVIEW_NOTIFY_TO`, `REVIEW_URL` | Empfänger und Link der Morgen-Mail |
 | `BRAVE_SEARCH_API_KEY`, `FIRECRAWL_API_KEY` | Web-Stufe des Rechercheurs bzw. Backfill |
@@ -220,7 +272,7 @@ Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
 
 Build-Variablen des Exports (`STATIC_EXPORT`, `PUBLIC_NOINDEX`,
 `PUBLIC_WINDOW_DAYS`, `PUBLIC_SITE_URL`, `PUBLIC_NEWSLETTER_EDITIONS`) setzt
-`scripts/build_public_static.sh` bzw. die Webspace-Config — Abschnitt 2.9.
+`scripts/build_public_static.sh` bzw. die Webspace-Config — Handbuch §9.
 
 ---
 
@@ -342,7 +394,7 @@ Aus `docs/launch/09_launch_plan_2026-09-02.md`; Reihenfolge = Abhängigkeit.
 2. **Erstupload:** `scripts/build_public_static.sh` → `publish_static_site.py`
    (Dry-Run) → `--apply` (Stunden über SFTP). Danach die `.htaccess`-Checks aus
    `frontend/public-export/trends/.htaccess` (Kommentarblock am Ende) und die
-   TDM-Checks aus 2.12 gegen `https://catandary.de/trends/` abarbeiten.
+   TDM-Checks aus Handbuch §12 gegen `https://catandary.de/trends/` abarbeiten.
 3. **Root-`.htaccess` ergänzen:** Inhalt von `docs/launch/root-htaccess.snippet`
    in die owner-verwaltete Root-Datei (TDM-Header + Bot-Sperre für Landing und
    `/newsletter/`).
@@ -363,7 +415,7 @@ Aus `docs/launch/09_launch_plan_2026-09-02.md`; Reihenfolge = Abhängigkeit.
    06:30-Export liefert `robots.txt` ohne Disallow-all und Seiten ohne
    `noindex`; `noindex`-Meta aus der Landing entfernen.
 8. **Owner-Entscheide, die noch offen sind:** Owner-Instanz auf Loopback binden
-   (2.12); Firecrawl-Key rotieren (stand in der Git-Historie); 30 vs. 60/90 Tage
+   (Handbuch §12); Firecrawl-Key rotieren (stand in der Git-Historie); 30 vs. 60/90 Tage
    Fenster; Tracking (Empfehlung: keins); Verbleib der ~4,4 Mio. F-Term-Altzeilen
    (#79); `/analysis` auf der Live-Site (Root-Datei wird nicht hochgeladen —
    entweder von Hand mit der Landing oder Route nach `/trends/analysis`
