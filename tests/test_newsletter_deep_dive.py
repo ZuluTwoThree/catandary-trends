@@ -497,7 +497,9 @@ class TestPromptContext:
         assert [s["id"] for s in claims[0]["sources"]] == ["T1"]   # unbekannte IDs fallen weg
         prompt = dd.build_condense_prompt(theme, YEAR, WEEK, [], claims, dd.cited_sources(res))
         assert "Meta agreed to a $17 billion settlement." in prompt
-        assert "[article] [Src 1](https://s.example/1)" in prompt
+        assert "source: [Src 1](https://s.example/1) · kind: article" in prompt
+        assert "- [Src 2](https://s.example/2) · kind: signal · O" in prompt
+        assert "NOTHING appended after the link" in prompt
         assert "CONTRA-MARK" not in prompt and "MISSING-MARK" not in prompt
         assert "Open questions" not in prompt and "cannot answer" not in prompt
         assert "never pad" in prompt
@@ -550,3 +552,23 @@ class TestFromDossier:
         _add_edition(YEAR, WEEK)
         with pytest.raises(SystemExit, match="does not exist"):
             dd.run_from_dossier(YEAR, WEEK, "newsletter-deepdive-2026-w35", 9)
+
+
+class TestCleanCondensate:
+    SRC = [{"id": "T1", "kind": "article", "title": "Meta settles", "url": "https://c.de/t/meta-1",
+            "outlet": "TechCrunch", "date": "2026-08-28", "snippet": ""},
+           {"id": "N1", "kind": "patent", "title": "Trust method", "url": "https://p.example/CN1",
+            "outlet": "", "date": "2024-12-27", "snippet": ""}]
+
+    def test_strips_copied_kind_tags_and_catalog_trailers(self):
+        raw = ("Meta settled [article] [Meta settles](https://c.de/t/meta-1) — TechCrunch, 2026-08-28). "
+               "A filing exists [patent] [Trust method](https://p.example/CN1) — patent filing, 2024-12-27). "
+               "Another mention [Meta settles](https://c.de/t/meta-1) — TechCrunch. Done.")
+        out = dd.clean_condensate(raw, self.SRC)
+        assert out == ("Meta settled [Meta settles](https://c.de/t/meta-1). "
+                       "A filing exists [Trust method](https://p.example/CN1). "
+                       "Another mention [Meta settles](https://c.de/t/meta-1). Done.")
+
+    def test_leaves_prose_after_links_alone(self):
+        raw = "Meta settled [Meta settles](https://c.de/t/meta-1) — and TechCrunch noted more (see above)."
+        assert dd.clean_condensate(raw, self.SRC) == raw
