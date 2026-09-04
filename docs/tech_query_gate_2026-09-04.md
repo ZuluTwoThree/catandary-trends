@@ -151,3 +151,20 @@ Titeltreffer (ohne Y) mit Anteil an der 300er-Stichprobe.
 | grey | climate change | 0.366 | 0.428 | 0.062 | 3 | 5 | Y02A | 2445 | G06Q (0.21) | **off_topic** |
 | grey | digital transformation | 0.353 | 0.392 | 0.040 | 1 | 2 | G06Q | 5001 | G06T (0.18) | **off_topic** |
 | grey | nanotechnology | 0.245 | 0.322 | 0.078 | 3 | 6 | B82Y | 2025 | A61K (0.33) | **ok** |
+
+## Nachtrag 04.09. (09:00): breite Ein-Wort-Begriffe
+
+Owner-Vorgabe: breite, aber echte Technologiebegriffe dürfen nicht als `off_topic` enden. Regel ergänzt
+(`pipeline/query_gate.py`, Commit `8fa24bb`): bei d20 > `D20_MAX` mit ≥ `FT_BROAD_MIN_HITS` Titeltreffern
+**und** Feldüberlappung der Wort-Treffer mit den Embedding-Nachbarn → `ambiguous` mit `broad=True`
+(Feldwahl „zu breit — meintest du …?") statt Sperre. Fixture auf 68 Einträge erweitert (Live-Vektoren
+04.09. vor dem Cycle, CPU-only-Embedding-Server).
+
+| Set | Query | Verdict |
+|---|---|---|
+| breit/Technologie | blockchain | **ambiguous** (broad) |
+| breit/Technologie | graphene, photonics, biometrics, robotics | ok |
+| breit/Unsinn | happiness, tuesday, unicorn, weather | off_topic |
+| breit/Unsinn | pizza | **ambiguous** (broad) — echtes Patentfeld A21D13/41 (Pizza-Herstellung), bewusst: Feldwahl statt Sperre |
+
+Akzeptanz unverändert: 0 falsche Freigaben im Unsinns-Set, keine Sperre einer echten Technologie; 39 Gate-Tests.

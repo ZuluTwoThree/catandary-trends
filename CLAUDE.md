@@ -683,7 +683,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      bekommt nur dann eine Zahl, wenn ihre 20 nächsten CPC-Klassen alle unter d20 ≤ 0,36 liegen UND
      mindestens ein Patenttitel alle Terme enthält; weicht das Wort-Feld der Titeltreffer (≥ 40 %) vom
      Embedding-Feld ab → Feldwahl statt stiller Zuordnung, sonst → „keine Technologie-Signatur" mit
-     2–3 nächsten echten Feldern. Herleitung + Messtabelle: `docs/tech_query_gate_2026-09-04.md`)
+     2–3 nächsten echten Feldern; breite echte Begriffe wie „blockchain" mit vielen Titeltreffern werden nicht gesperrt, sondern zur Feldwahl zurückgefragt. Herleitung + Messtabelle: `docs/tech_query_gate_2026-09-04.md`)
   /research /patents               (Research-/Patent-Explorer)
   /ventures, /ventures/company/[id] → Startup Explorer (#87, seit 2026-08-23):
                                      Firmen-Korpus mit Evidenz-Timeline + Brücken
