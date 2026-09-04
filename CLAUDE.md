@@ -488,6 +488,12 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # zeigt sie sofort. KEIN Versand (der wartet auf #16/Launch).
 0 9 * * 1    scripts/weekly_newsletter_publish.sh
 
+# Research Pulse (#73, VORSCHLAG — auskommentiert in deploy/crontab.txt, NICHT installiert):
+# Samstag 12:00 nach weekly_ingesters.sh; rechnet die Vorwoche für alle 28 Themes
+# (Stats + KMeans ~15 s, Gemma-Absätze via GPU-Handover ~2 s/Text). Owner entscheidet
+# Cron vs. „Recompute"-Knopf. Wächter-Datei: data/research_pulse_last.json.
+#0 12 * * 6   scripts/weekly_research_pulse.sh
+
 # Statischer Export → Webspace (täglich 06:30, seit Welle 2 / 2026-09-03 VORBEREITET,
 # noch NICHT installiert — wartet auf ~/.config/catandary/webspace.env vom Owner):
 # build_public_static.sh + publish_static_site.py --apply, Log ~/logs/catandary-publish-*.log
@@ -686,7 +692,9 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      mindestens ein Patenttitel alle Terme enthält; weicht das Wort-Feld der Titeltreffer (≥ 40 %) vom
      Embedding-Feld ab → Feldwahl statt stiller Zuordnung, sonst → „keine Technologie-Signatur" mit
      2–3 nächsten echten Feldern; breite echte Begriffe wie „blockchain" mit vielen Titeltreffern werden nicht gesperrt, sondern zur Feldwahl zurückgefragt. Herleitung + Messtabelle: `docs/tech_query_gate_2026-09-04.md`)
-  /research /patents               (Research-/Patent-Explorer)
+  /research /patents               (Research-/Patent-Explorer; Explorer-Facetten ?src/?range/?sort/?concept/?layer=signals seit #73)
+  /research/pulse, /research/pulse/[theme] → Research Pulse (#73, seit 2026-09-04): Wochen-Synthese je Theme,
+                                   Tabelle research_pulse, „Recompute"-Knopf (Owner-App); Cron nur als Vorschlag
   /ventures, /ventures/company/[id] → Startup Explorer (#87, seit 2026-08-23):
                                      Firmen-Korpus mit Evidenz-Timeline + Brücken
                                    (ungegated — Owner-Werkzeug; im PUBLIC_MODE/Export 404.
@@ -999,6 +1007,27 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   am 2026-09-03 ausgeführt**. Leseansicht: Herkunftskopf (Frage, Belegmix,
   zitiert/gestrichen, Messblock, Modell/Dauer) + Bericht (Markdown inkl.
   Tabellen) + Coverage-Anhang + Versionswechsler.
+
+## Research Pulse (#73 Teil 1, seit 2026-09-04)
+
+Wöchentliche Synthese je Mega-Signal-Theme aus dem frischen Forschungskorpus
+(`research_signals`, Embeddings `trends.embedding_1024` — der Fresh-Korpus ist vollständig
+embedded). Je Theme und ISO-Woche: Volumen vs. Median der vier Vorwochen, KMeans-Cluster
+(k ≤ 5, fester Seed) mit c-TF-IDF-Labels, Vorwochen-Zuordnung per pgvector-Nächster-Zentroid
+(→ Wachstum/„emerging"), 4 zentroid-nächste Papers je Cluster (OA-Badge nur für Preprint-Server),
+100–150-Wörter-Absatz auf Gemma-4-26B (T=0.2, Seed 73, nur Zahlen aus dem Messblock, keine
+Prognosen). Versioniert in `research_pulse` (additive Migration `scripts/migrate_research_pulse.py`).
+
+- **Rechnen:** `.venv/bin/python scripts/research_pulse.py [--week 2026-W35] [--themes a,b]
+  [--no-llm] [--limit N]` — ein GPU-Handover für alle Texte, Ruhezustand wird wiederhergestellt.
+  Referenz 2026-09-04: 28 Themes ohne LLM 14 s; 5 Themes mit Gemma 28 s.
+- **Frontend:** `/trends/foresight/research/pulse` (Übersicht + Wochen-Wechsler),
+  `/pulse/[theme]` (Herkunftskopf, Messblock, Text, Cluster, „Recompute"-Knopf = Server Action mit
+  Owner-Modus + Origin-Check, spawnt das Skript wie der Dossier-Worker). Einstiege: Research
+  Explorer, Foresight-Cockpit, `/trends/mega/[m]` (nur Owner-Modus — Foresight ist nicht im Export).
+- **Betrieb:** Cron nur als auskommentierter Vorschlag (`deploy/crontab.txt`, Wrapper
+  `scripts/weekly_research_pulse.sh`, Sa 12:00); Owner-Entscheidung Cron vs. Knopf offen.
+- Methode/Datenlage: `docs/research_pulse.md`.
 
 ## Technische Hinweise
 

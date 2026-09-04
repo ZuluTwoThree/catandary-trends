@@ -142,7 +142,10 @@ das ist genau das Werkzeug, das die Analysen für Etappe 2 produziert. Review + 
   Evidenz — genau das lieferte **#5** (EDGAR 8-K Material Events, Phase 1 isoliert machbar).
 - **#67** Query-Quality-Gate (Analysten-Werkzeugqualität; Heuristik + LLM-Graubereich)
 - **#7**-Reste: Legal-Events-Cap aufheben, Familien-Dedup im Analyse-Layer
-- **#73** Research Pulse / Explorer-Refinement — nach realem Analystenbedarf priorisieren
+- **#73** Research Pulse / Explorer-Refinement — **Teil 1 + billige Refinements auf dev (2026-09-04):**
+  `research_pulse` (Tabelle + Skript + Seiten + Recompute-Knopf), Explorer-Facetten (Quelle/Zeitraum/Sortierung/
+  Konzept), Deep-Links aus den Theme-Seiten, Cron-Vorschlag (nicht installiert). **Offen:** Owner-Entscheid
+  Cron vs. Knopf, Autoren-Enrichment + Sprach-Kennzeichnung (separat), Index-Duplikate in build_research_index.py.
 - **#94** Startup-Explorer-Reste
 
 ## ⚪ Welle 3 — Forschung / bewusst ruhend
