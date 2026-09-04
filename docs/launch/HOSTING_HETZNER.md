@@ -313,7 +313,7 @@ ist alles gegen `MODE=local` (Ordner) und einen privaten `sshd` auf 127.0.0.1 ge
 
 **Was verwaltet wird — und was nie:** `REMOTE_ROOT/trends/**` und `REMOTE_ROOT/_next/**`
 (plus `trends/.htaccess`, `_next/.htaccess`, `trends/sitemap.xml`, `trends/index.json`, sofern
-der Build sie dort ablegt) **und genau zwei Root-Dateien**, `trends.html` + `trends.txt`
+der Build sie dort ablegt) **und genau vier Root-Dateien (`trends.html`, `trends.txt`, `robots.txt`, `.well-known/tdmrep.json` — `ROOT_ALLOWLIST`)**, `trends.html` + `trends.txt`
 (`ROOT_ALLOWLIST` — Nexts Name für Feed-Seite 1; `/trends.txt` ist der RSC-Payload einer
 Client-Navigation nach `/trends`). Sie werden hochgeladen, im Manifest geführt und nur gelöscht,
 wenn der Build sie nicht mehr erzeugt; der Webroot wird dafür nie gelistet (`--full` stat()et

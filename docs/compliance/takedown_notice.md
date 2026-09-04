@@ -23,7 +23,7 @@ excerpt or translation of the source article.
 - **Full text, for analysis only.** For a subset of sources we fetch the article
   page to ground our text in what the source actually says (figures, dates,
   quotes). That copy is used for text and data mining only (§44b UrhG), is never
-  shown to readers, and is deleted after the processing window (90 days).
+  shown to readers, and is deleted after the processing window (14 days).
 - **Quotations** are limited to short, verbatim snippets (at most three per
   article, at most ~200 characters each) and are used only where they serve the
   analysis.

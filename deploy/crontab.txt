@@ -76,7 +76,8 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # im Webroot bleiben unberührt). Ohne ~/.config/catandary/webspace.env: stiller Skip.
 # Der Wächter (07:45) prüft data/publish_last.json, sobald die Config existiert.
 # Existenz-Guard: Skript liegt bis zum nächsten dev→main-Merge nur auf dev.
-30 6 * * * [ -x /home/dirk/projects/catandary-trends/scripts/publish_static_site.sh ] && /home/dirk/projects/catandary-trends/scripts/publish_static_site.sh || echo "$(date -Iseconds) skip publish_static_site (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-publish-skip.log
+# VORBEREITET, NICHT INSTALLIERT (wartet auf ~/.config/catandary/webspace.env):
+#30 6 * * * [ -x /home/dirk/projects/catandary-trends/scripts/publish_static_site.sh ] && /home/dirk/projects/catandary-trends/scripts/publish_static_site.sh || echo "$(date -Iseconds) skip publish_static_site (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-publish-skip.log
 
 # Newsletter-Versandkette (#16) — NOCH NICHT AKTIV (auch nicht in der echten crontab), siehe
 # docs/launch/newsletter-doi-php/NEWSLETTER_GOLIVE.md für die Restliste.
