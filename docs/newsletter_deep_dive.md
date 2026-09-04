@@ -108,6 +108,13 @@ die rohen Evidenznotizen — eine Zahl, die nur dort steht, hat der Owner im Dos
 nie gesehen) · ≥ 4 distinkte Belege · reine Prosa (keine Headings/Listen) ·
 keine Meta-Rede über die Beleglage.
 
+- **Formatrauschen deterministisch entfernt** (`clean_condensate()`): die erste
+  Regeneration kopierte Katalogzeilen samt „[article] … — TechCrunch, 2026-08-28)"
+  in die Prosa. Seither steht der kopierbare Link im Prompt isoliert (Belegart/
+  Outlet/Datum als Metadaten dahinter), und mitkopierte Belegart-Tags vor Links
+  sowie Outlet/Datum-Anhänge hinter Links werden entfernt — nur wenn sie exakt
+  den Katalog-Metadaten dieser Quelle entsprechen, nie Inhalt (`TestCleanCondensate`).
+
 **Regeneration ohne 27B-Lauf:** `--from-dossier <slug>@<version>` führt nur Gate +
 Gemma-Kondensat + Nachprüfung auf einem bestehenden Dossier aus (Endkontrolle
 wird deterministisch neu gerechnet), überschreibt `deep_dive` der Edition
@@ -180,7 +187,7 @@ EPA-Datacenter-Emissionen, Cyberangriffe auf polnische Solarparks / UK-Kleinkraf
 | v2 (Auftrag #4, nach Fix 1) | 231 s, Korpus-Sweep +12 Paper +8 Patente | 7 / 2 / 5 | 6/6/12/8/0 | 14 von 32 / 1 | **2 „unbelegte Zahlen" = Ordinalzahlen der code-generierten Quellenliste** (zweiter False-Positive → Fix 2) | verfehlt (`supported_claims` 7 < 8, `dossier_grounded`) | 345 Wörter, 5 Belege, 5/5 ok im 1. Versuch |
 | v3 (Auftrag #5, nach Fix 2) | 270 s, Korpus-Sweep +12 Paper +8 Patente | 6 / 2 / 5 | 6/6/12/8/0 | 14 von 32 / 0 | **0 unbelegte Zahlen**, ok=True (1 Befund: 8 offene Fragen) | verfehlt **nur** an `supported_claims` (6 < 8) | 324 Wörter, 6 Belege, 5/5 ok im 1. Versuch |
 
-| v3 regeneriert (`--from-dossier …@3`, neues Register) | — (kein 27B-Lauf) | 6 / 2 / 5 | 6/6/12/8/0 | 14 von 32 / 0 | 0 unbelegt, ok (neu gerechnet) | verfehlt nur an `supported_claims` | **381 Wörter, 9 Belege (6 article, 3 signal), 6/6 ok im 1. Versuch, 0 Meta-Rede-Treffer, 23 s** — kein Lücken-Absatz mehr |
+| v3 regeneriert (`--from-dossier …@3`, neues Register) | — (kein 27B-Lauf) | 6 / 2 / 5 | 6/6/12/8/0 | 14 von 32 / 0 | 0 unbelegt, ok (neu gerechnet) | verfehlt nur an `supported_claims` | **345 Wörter, 9 Belege (5 article, 1 signal, 2 patent, 1 paper), 6/6 ok im 1. Versuch, 0 Meta-Rede-Treffer, 16 s** — kein Lücken-Absatz mehr; Absätze: Meta-Settlement (beide Zahlen mit Beleg), EPA-Regulierung, Patente/Paper zum Feld |
 
 Gesamtlaufzeiten: v1 **260 s**, v2 **268 s**, v3 **300 s** (Themenwahl < 1 s, 27B-Handover
 + Recherche 230–270 s, Gemma-Handover + Kondensat ~20 s). Ruhezustand nach jedem
