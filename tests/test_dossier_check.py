@@ -108,3 +108,16 @@ class TestCitationUrlsAreNotFigures:
         res = {"report": report, "evidence": ["nothing about that"], "sources": [],
                "cited": ["T1"], "stripped_citations": 0, "ledger": []}
         assert set(check_result(res)["ungrounded"]) == {"84%", "350"}
+
+    def test_generated_sources_list_is_cut_before_grounding(self):
+        # Regression 2026-09-04 (zweiter #96-Dry-Run): die Ordinalzahlen "12."/"14."
+        # der code-generierten Quellenliste zählten als unbelegte Zahlen.
+        report = ("Meta settled [Meta's settlement](https://catandary.de/trends/x-1).\n\n"
+                  "---\n\n## Sources\n\n"
+                  + "\n".join(f"{i}. [Source {i}](https://s.example/{i}) — outlet — 2024-06-04 *(patent filing)*"
+                               for i in range(1, 15)))
+        res = {"report": report, "evidence": ["Meta settled"], "sources": [],
+               "cited": ["T1"], "stripped_citations": 0, "ledger": []}
+        c = check_result(res)
+        assert c["ungrounded"] == []
+        assert c["words"] == 2          # nur der modellgeschriebene Satz zählt

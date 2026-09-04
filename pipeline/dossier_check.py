@@ -38,6 +38,11 @@ COVERAGE_HEADINGS = (
 )
 COVERAGE_HEADING = COVERAGE_HEADINGS[0]
 
+# Ebenfalls code-generiert (canonicalize_citations hängt die Quellenliste an):
+# Ordinalzahlen und Datumsangaben dieser Liste entstehen im Code, nicht im
+# Modell — "12." / "14." standen im zweiten #96-Dry-Run als "unbelegte Zahlen".
+SOURCES_HEADINGS = ("\n## Sources\n", "\n## Quellen\n")
+
 # Ab so vielen ungebundenen Tokens ist der Bericht mit hoher Wahrscheinlichkeit
 # strukturell losgelöst vom Material (nicht nur eine Umformulierungs-Grauzone).
 SEVERE_UNGROUNDED = 8
@@ -47,8 +52,10 @@ _MD_LINK = re.compile(r"\[([^\]\n]+)\]\((https?://[^)\s]+)\)")
 
 
 def _report_body(report_md: str) -> str:
-    """Der modellgeschriebene Teil des Berichts — ohne Coverage-Anhang."""
-    hits = [i for i in (report_md.find(h) for h in COVERAGE_HEADINGS) if i >= 0]
+    """Der modellgeschriebene Teil des Berichts — ohne Coverage-Anhang und
+    ohne die code-generierte Quellenliste."""
+    hits = [i for i in (report_md.find(h) for h in COVERAGE_HEADINGS + SOURCES_HEADINGS)
+            if i >= 0]
     return report_md[:min(hits)] if hits else report_md
 
 
