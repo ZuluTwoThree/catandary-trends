@@ -11,6 +11,7 @@ import type {
   NewsletterEdition,
   MegaTrendRadarEntry,
   TrendRef,
+  NewsletterDeepDive,
 } from "./newsletterEditions";
 import type {
   Trend,
@@ -1939,7 +1940,7 @@ export async function getNewsletterEditionIndex(limit: number): Promise<EditionS
 export async function getNewsletterEdition(year: number, week: number): Promise<NewsletterEdition | null> {
   const row = await q1<Record<string, unknown>>(
     `SELECT id, year, week, editorial, vertical_summaries, mega_trend_radar, trend_refs,
-            total_signals, created_at::text AS created_at
+            total_signals, created_at::text AS created_at, deep_dive
        FROM newsletter_editions
       WHERE year = $1 AND week = $2
       LIMIT 1`,
@@ -1964,6 +1965,8 @@ export async function getNewsletterEdition(year: number, week: number): Promise<
     trend_refs: parse<Record<string, TrendRef[]>>(row.trend_refs, {}),
     total_signals: Number(row.total_signals ?? 0),
     created_at: String(row.created_at ?? ""),
+    // JSONB arrives parsed from pg; a SQLite-style TEXT value is parsed here.
+    deep_dive: parse<NewsletterDeepDive | null>(row.deep_dive, null),
   };
 }
 

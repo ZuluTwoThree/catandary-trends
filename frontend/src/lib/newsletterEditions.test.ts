@@ -14,6 +14,10 @@ import {
   rewriteEditionForExport,
   editionNeighbours,
   editionExcerpt,
+  isPublicDeepDive,
+  publicDeepDive,
+  deepDiveDeskPath,
+  type NewsletterDeepDive,
   type NewsletterEdition,
 } from "@/lib/newsletterEditions";
 
@@ -158,5 +162,57 @@ describe("edition excerpt", () => {
     expect(out.length).toBeLessThanOrEqual(160);
     expect(out.endsWith("…")).toBe(true);
     expect(editionExcerpt(null)).toBe("");
+  });
+});
+
+describe("deep dive of the week (#96)", () => {
+  const live: NewsletterDeepDive = {
+    theme: "digital_trust_and_data_sovereignty",
+    theme_name: "Digital Trust & Data Sovereignty",
+    body_md: "Meta settled [Meta agrees](https://www.theguardian.com/x).",
+    citations: [{ url: "https://www.theguardian.com/x", title: "Meta agrees", kind: "article" }],
+    dossier_slug: "newsletter-deepdive-2026-w35",
+    dossier_version: 2,
+    gate_passed: true,
+    dry_run: false,
+  };
+  const base: NewsletterEdition = {
+    id: 1,
+    year: 2026,
+    week: 35,
+    editorial: "Text.",
+    vertical_summaries: {},
+    mega_trend_radar: [],
+    trend_refs: {},
+    total_signals: 10,
+    created_at: "2026-08-31",
+  };
+  const ctx = { inWindow: new Set<string>(), sourceBySlug: new Map<string, string>() };
+
+  it("is public only for a gate-passed live run with text", () => {
+    expect(isPublicDeepDive(live)).toBe(true);
+    expect(isPublicDeepDive({ ...live, dry_run: true })).toBe(false);
+    expect(isPublicDeepDive({ ...live, gate_passed: false })).toBe(false);
+    expect(isPublicDeepDive({ ...live, body_md: "  " })).toBe(false);
+    expect(isPublicDeepDive({ ...live, dry_run: undefined })).toBe(true);
+    expect(isPublicDeepDive(null)).toBe(false);
+    expect(publicDeepDive({ ...live, dry_run: true })).toBeNull();
+    expect(publicDeepDive(live)).toBe(live);
+  });
+
+  it("the export drops a dry run and keeps a public one", () => {
+    const dry = rewriteEditionForExport({ ...base, deep_dive: { ...live, dry_run: true } }, ctx);
+    expect(dry.deep_dive).toBeNull();
+    const failed = rewriteEditionForExport({ ...base, deep_dive: { ...live, gate_passed: false } }, ctx);
+    expect(failed.deep_dive).toBeNull();
+    const pub = rewriteEditionForExport({ ...base, deep_dive: live }, ctx);
+    expect(pub.deep_dive?.theme).toBe("digital_trust_and_data_sovereignty");
+    expect(rewriteEditionForExport(base, ctx).deep_dive).toBeNull();
+  });
+
+  it("links the owner desk at the dossier version", () => {
+    expect(deepDiveDeskPath(live)).toBe("/trends/dossiers/newsletter-deepdive-2026-w35?v=2");
+    expect(deepDiveDeskPath({ ...live, dossier_version: null })).toBe("/trends/dossiers/newsletter-deepdive-2026-w35");
+    expect(deepDiveDeskPath({ ...live, dossier_slug: null })).toBeNull();
   });
 });

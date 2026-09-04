@@ -44,6 +44,49 @@ export interface TrendRef {
   href?: string | null;
 }
 
+/* ---------- Deep Dive of the Week (#96) ---------- */
+
+export type DeepDiveKind = "article" | "signal" | "paper" | "patent" | "web";
+
+export interface DeepDiveCitation {
+  url: string;
+  title: string;
+  kind: DeepDiveKind;
+  outlet?: string | null;
+  date?: string | null;
+}
+
+/**
+ * `newsletter_editions.deep_dive` as scripts/newsletter_deep_dive.py writes
+ * it. Everything the owner needs to audit the run travels with the record;
+ * the public render uses only body_md, citations and the provenance fields.
+ */
+export interface NewsletterDeepDive {
+  theme?: string | null;
+  theme_name?: string | null;
+  body_md?: string | null;
+  citations?: DeepDiveCitation[];
+  dossier_slug?: string | null;
+  dossier_version?: number | null;
+  corpus_asof?: string | null;
+  audit?: Record<string, unknown> | null;
+  gates?: Record<string, boolean> | null;
+  gate_reasons?: string[];
+  gate_passed?: boolean;
+  dry_run?: boolean;
+  generated_at?: string | null;
+  models?: { research?: string | null; condense?: string | null } | null;
+  words?: number;
+  seconds?: number;
+  status?: string | null;
+  error?: string | null;
+  condensate_check?: {
+    checks?: Record<string, boolean>;
+    reasons?: string[];
+    attempts?: { attempt: number; words: number; ok: boolean; reasons: string[] }[];
+  } | null;
+}
+
 export interface NewsletterEdition {
   id: number;
   year: number;
@@ -54,6 +97,31 @@ export interface NewsletterEdition {
   trend_refs: Record<string, TrendRef[]>;
   total_signals: number;
   created_at: string;
+  /** #96 — null/absent for editions without a deep-dive run. */
+  deep_dive?: NewsletterDeepDive | null;
+}
+
+/**
+ * The single public-render rule for a deep dive (#96): only a record whose
+ * honesty gate passed AND that was written by a live (--apply) run is ever
+ * shown to readers. A dry-run record — the Phase-1 default — exists for the
+ * owner alone. Applied by the API route under PUBLIC_MODE and by
+ * rewriteEditionForExport for the static export, so neither surface can
+ * leak a dry run even if a component forgot to check.
+ */
+export function isPublicDeepDive(dd: NewsletterDeepDive | null | undefined): dd is NewsletterDeepDive {
+  return !!dd && dd.gate_passed === true && dd.dry_run !== true && typeof dd.body_md === "string" && dd.body_md.trim() !== "";
+}
+
+export function publicDeepDive(dd: NewsletterDeepDive | null | undefined): NewsletterDeepDive | null {
+  return isPublicDeepDive(dd) ? dd : null;
+}
+
+/** Owner desk link of the dossier behind a deep dive (workstation only). */
+export function deepDiveDeskPath(dd: NewsletterDeepDive): string | null {
+  if (!dd.dossier_slug) return null;
+  const v = dd.dossier_version;
+  return `/trends/dossiers/${dd.dossier_slug}${v ? `?v=${v}` : ""}`;
 }
 
 export interface EditionSummary {
@@ -210,6 +278,8 @@ export function rewriteEditionForExport(edition: NewsletterEdition, ctx: LinkCon
     editorial: rewriteMarkdownLinks(edition.editorial ?? "", ctx),
     vertical_summaries,
     trend_refs,
+    // #96: the export never carries a dry-run or gate-failed deep dive.
+    deep_dive: publicDeepDive(edition.deep_dive),
   };
 }
 

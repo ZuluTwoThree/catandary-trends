@@ -178,7 +178,7 @@ export default function NewsletterClient() {
           {archive.length > 1 && (
             <section className="mb-12">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">
-                04 — Archive
+                —— Archive
               </div>
               <div className="border border-border bg-card/40">
                 {archive.map((a, i) => {

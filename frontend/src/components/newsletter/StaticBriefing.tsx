@@ -137,7 +137,7 @@ export default function StaticBriefing({
       {editions.length > 0 && (
         <section className="mb-12">
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">
-            04 — Archive · last {editions.length} briefings
+            —— Archive · last {editions.length} briefings
           </div>
           <EditionArchiveList
             editions={editions}

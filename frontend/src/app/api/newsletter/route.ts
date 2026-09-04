@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { q, q1 } from "@/lib/pg";
 import { rateLimitInfo, clientIp } from "@/lib/rateLimit";
 import { isSameOrigin, readJsonBody } from "@/lib/apiGuards";
+import { isPublicMode } from "@/lib/publicMode";
+import { publicDeepDive, type NewsletterDeepDive } from "@/lib/newsletterEditions";
 
 export const dynamic = "force-dynamic";
 
@@ -65,9 +67,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ edition: null });
     }
 
-    // Parse JSON fields (stored as TEXT)
+    // Parse JSON fields (stored as TEXT; deep_dive is JSONB and arrives parsed)
     const edition = row as Record<string, unknown>;
-    for (const field of ["vertical_summaries", "mega_trend_radar", "trend_refs"]) {
+    for (const field of ["vertical_summaries", "mega_trend_radar", "trend_refs", "deep_dive"]) {
       if (edition[field] && typeof edition[field] === "string") {
         try {
           edition[field] = JSON.parse(edition[field] as string);
@@ -75,6 +77,12 @@ export async function GET(request: NextRequest) {
           // keep as string
         }
       }
+    }
+    // #96: the owner instance sees every deep-dive record (dry runs included —
+    // the newsletter page renders them as an owner note); the PUBLIC_MODE
+    // preview gets only what the public render rule allows.
+    if (isPublicMode()) {
+      edition.deep_dive = publicDeepDive(edition.deep_dive as NewsletterDeepDive | null);
     }
 
     return NextResponse.json({ edition });

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { getVerticalInfo, type Vertical } from "@/lib/types";
 import { safeHref } from "@/lib/safeHref";
-import { linkPrefetch } from "@/lib/renderMode";
-import type { NewsletterEdition, TrendRef } from "@/lib/newsletterEditions";
+import { isStaticExport, linkPrefetch } from "@/lib/renderMode";
+import { isPublicDeepDive, type NewsletterEdition, type TrendRef } from "@/lib/newsletterEditions";
+import { DeepDiveOwnerNote, DeepDiveSection } from "./DeepDive";
 
 /**
  * The body of one weekly briefing — editorial, vertical signals, signal-theme
@@ -98,12 +99,23 @@ function TrendRefLine({ item }: { item: TrendRef }) {
 }
 
 export default function EditionBody({ edition }: { edition: NewsletterEdition }) {
+  // #96 Deep Dive of the Week sits between the overview and the verticals.
+  // Public render only for a gate-passed live run; on the owner instance a
+  // dry run / failed gate shows as an owner note instead. The static export
+  // never renders the note (the export data is already filtered by
+  // rewriteEditionForExport — this is the second lock).
+  const dd = edition.deep_dive ?? null;
+  const showPublicDeepDive = isPublicDeepDive(dd);
+  const showOwnerNote = !!dd && !showPublicDeepDive && !isStaticExport();
+  let n = 0;
+  const idx = () => String(++n).padStart(2, "0");
+
   return (
     <>
       {/* Editorial */}
       <section className="mb-12">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">
-          01 — Weekly Overview
+          {idx()} — Weekly Overview
         </div>
         <div className="border-l-[3px] border-accent pl-6 py-1">
           {edition.editorial?.split("\n\n").map((para, i) => (
@@ -114,10 +126,14 @@ export default function EditionBody({ edition }: { edition: NewsletterEdition })
         </div>
       </section>
 
+      {/* Deep Dive of the Week (#96) */}
+      {showPublicDeepDive && dd ? <DeepDiveSection dd={dd} index={idx()} /> : null}
+      {showOwnerNote && dd ? <DeepDiveOwnerNote dd={dd} index={idx()} /> : null}
+
       {/* Vertical summaries */}
       <section className="mb-12 space-y-3">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">
-          02 — Vertical Signals
+          {idx()} — Vertical Signals
         </div>
         {VERTICAL_ORDER.map((v) => {
           const summary = edition.vertical_summaries?.[v];
@@ -175,7 +191,7 @@ export default function EditionBody({ edition }: { edition: NewsletterEdition })
       {edition.mega_trend_radar && edition.mega_trend_radar.length > 0 && (
         <section className="mb-12">
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-4">
-            03 — Signal Themes Radar
+            {idx()} — Signal Themes Radar
           </div>
           <div className="border border-border bg-card/40 p-5">
             <div className="space-y-3">

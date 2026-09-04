@@ -75,6 +75,36 @@ describe("POST /api/newsletter", () => {
 });
 
 describe("GET /api/newsletter", () => {
+  const DRY = { theme: "x", body_md: "text", gate_passed: true, dry_run: true };
+
+  it("hands the owner instance the deep-dive record, dry run included (#96)", async () => {
+    delete process.env.PUBLIC_MODE;
+    q1.mockResolvedValueOnce({ ok: "newsletter_editions" }).mockResolvedValueOnce({
+      id: 1, year: 2026, week: 35, editorial: "e", deep_dive: JSON.stringify(DRY),
+    });
+    const res = await GET(new NextRequest(`http://${HOST}/api/newsletter?year=2026&week=35`));
+    const body = await res.json();
+    expect(body.edition.deep_dive).toEqual(DRY);
+  });
+
+  it("strips a dry-run deep dive under PUBLIC_MODE", async () => {
+    process.env.PUBLIC_MODE = "1";
+    try {
+      q1.mockResolvedValueOnce({ ok: "newsletter_editions" }).mockResolvedValueOnce({
+        id: 1, year: 2026, week: 35, editorial: "e", deep_dive: DRY,
+      });
+      const res = await GET(new NextRequest(`http://${HOST}/api/newsletter`));
+      expect((await res.json()).edition.deep_dive).toBeNull();
+      q1.mockResolvedValueOnce({ ok: "newsletter_editions" }).mockResolvedValueOnce({
+        id: 1, year: 2026, week: 35, editorial: "e", deep_dive: { ...DRY, dry_run: false },
+      });
+      const live = await GET(new NextRequest(`http://${HOST}/api/newsletter`));
+      expect((await live.json()).edition.deep_dive.theme).toBe("x");
+    } finally {
+      delete process.env.PUBLIC_MODE;
+    }
+  });
+
   it("ignores non-integer year/week instead of sending NaN to pg", async () => {
     q1.mockResolvedValueOnce({ ok: "newsletter_editions" }).mockResolvedValueOnce(null);
     const res = await GET(new NextRequest(`http://${HOST}/api/newsletter?year=abc&week=1`));
