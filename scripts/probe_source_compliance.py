@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import html
 import json
 import logging
 import re
@@ -361,7 +362,7 @@ def feed_links_from_html(page: str, base_url: str, limit: int = MAX_HREF_FEED_CA
     if base:
         base_url = urljoin(base_url, (base.group(1) or base.group(2) or "").strip())
     for m in _FEED_A_HREF_RE.finditer(page[:MAX_HREF_SCAN_CHARS]):
-        href = (m.group(1) or m.group(2) or "").strip()
+        href = html.unescape((m.group(1) or m.group(2) or "").strip())   # &amp; in hrefs
         if not _FEED_HREF_RE.search(href) or _FEED_HREF_EXCLUDE_RE.search(href):
             continue
         if href.startswith(("mailto:", "javascript:", "tel:")):
