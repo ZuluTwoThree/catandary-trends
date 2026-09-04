@@ -351,6 +351,21 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: feedspot
+    - name: The Morning Advertiser
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
+      feed_url: https://www.morningadvertiser.co.uk/arc/outboundfeeds/rss/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # William-Reed-Arc-Feedpfad; Gastronomie UK, now-tier
+    - name: BigHospitality
+      feed_url: https://www.bighospitality.co.uk/arc/outboundfeeds/rss/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # William-Reed-Arc-Feedpfad
     science:
     - name: Nature Food
       active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
@@ -487,6 +502,13 @@ verticals:
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: ok
+    - name: Fraunhofer IVV
+      feed_url: https://www.ivv.fraunhofer.de/de/rss/news.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Feed an nicht-standardisiertem Pfad (/de/rss/news.rss)
   TECH:
     sources:
     - name: Frontiers in Materials
@@ -827,6 +849,172 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: hn
+    - name: Google Research Blog
+      feed_url: https://research.google/blog/rss/
+      type: brand
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Feed an nicht-standardisiertem Pfad (/blog/rss/)
+    - name: Microsoft Research
+      feed_url: https://www.microsoft.com/en-us/research/feed/
+      type: brand
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage
+    - name: Hugging Face Blog
+      feed_url: https://huggingface.co/blog/feed.xml
+      type: brand
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage
+    - name: The Robot Report
+      feed_url: https://www.therobotreport.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage
+    - name: HPCwire
+      feed_url: https://www.hpcwire.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage
+    - name: Microsoft Source
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
+      feed_url: https://news.microsoft.com/source/feed/
+      type: brand
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # news.microsoft.com/feed/ ist verwaist (letzter Eintrag 05/2025), /source/feed/ aktuell
+    - name: TechNode
+      feed_url: https://technode.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # China-Tech
+    - name: DigiTimes
+      feed_url: https://www.digitimes.com/rss/daily.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Halbleiter/Supply-Chain Taiwan; offener Tages-Feed
+    - name: Silicon Republic
+      feed_url: https://www.siliconrepublic.com/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own
+    - name: Silicon Canals
+      feed_url: https://siliconcanals.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own
+    - name: Le Monde Informatique
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
+      feed_url: https://www.lemondeinformatique.fr/rss/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Enterprise-IT FR (franzoesisch)
+    - name: The Next Web
+      feed_url: https://thenextweb.com/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own
+    - name: UKTN
+      feed_url: https://www.uktech.news/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # UK Tech News
+    - name: ArcticStartup
+      feed_url: https://arcticstartup.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Nordics
+    - name: Siemens Press
+      feed_url: https://press.siemens.com/global/en/rss.xml
+      type: brand
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own
+    - name: Arm Newsroom
+      feed_url: https://newsroom.arm.com/rss
+      type: brand
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own
+    - name: AMD News
+      feed_url: https://ir.amd.com/rss/news-releases.xml
+      type: brand
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # IR-Feed (Pressemitteilungen)
+    - name: Meta Newsroom
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
+      feed_url: https://about.fb.com/news/feed/
+      type: brand
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own
+    - name: Amazon Science
+      feed_url: https://www.amazon.science/index.rss
+      type: brand
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own
+    - name: Mistral AI
+      feed_url: https://mistral.ai/rss.xml
+      type: brand
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own
+    - name: New Atlas
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
+      feed_url: https://newatlas.com/index.rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # breiter Tech-Feed
+    - name: Singularity Hub
+      feed_url: https://singularityhub.com/feed/
+      type: trade_media
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # CC-Hinweis nur bei uebernommenen The-Conversation-Artikeln, keine Site-Lizenz
+    - name: Interesting Engineering
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
+      feed_url: https://interestingengineering.com/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # breiter Tech-Feed
     science:
     - name: Nature Machine Intelligence
       active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
@@ -1015,6 +1203,89 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       license: Public Domain (US federal)
+    - name: KIT Karlsruher Institut für Technologie
+      feed_url: https://kit.edu/pi.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Feed an nicht-standardisiertem Pfad (kit.edu/pi.rss). Probe 04.09.: juengster Eintrag 404 (verwaister Link), 2. Eintrag manuell geprueft: robots allow, 200, kein TDM-Signal
+    - name: USPTO News
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
+      fulltext: true   # offene Lizenz, Probe 2026-09-04: robots allow, Bot 200, kein TDM-Signal
+      feed_url: https://www.uspto.gov/rss.xml
+      type: research
+      lead_time_tier: market
+      license: Public Domain (US federal)
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # US-Bundeswerk, 17 U.S.C. §105; breiter Behoerden-Feed
+    - name: EPFL News
+      feed_url: https://actu.epfl.ch/feeds/rss/mediacom/en/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Feed auf Subdomain actu.epfl.ch; CC-Hinweis nur als Bildnachweis, keine Site-Lizenz
+    - name: Chemistry World News
+      feed_url: https://www.chemistryworld.com/409.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # RSC; Feed-Uebersicht /rss, News = 409.rss
+    - name: ITU News
+      fulltext: true   # offene Lizenz, Probe 2026-09-04: robots allow, Bot 200, kein TDM-Signal
+      feed_url: https://www.itu.int/hub/feed/
+      type: research
+      lead_time_tier: future
+      license: CC BY-SA 3.0 IGO
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Probe: strukturierter Link creativecommons.org/licenses/by-sa/3.0/igo/ auf der Artikelseite
+    - name: W3C News
+      feed_url: https://www.w3.org/news/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Normung Web
+    - name: IETF Blog
+      feed_url: https://www.ietf.org/blog/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Normung Internet
+    - name: ETSI Newsroom
+      feed_url: https://www.etsi.org/rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Normung Telekommunikation
+    - name: OECD.AI
+      feed_url: https://wp.oecd.ai/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Feed auf Backend-Host wp.oecd.ai
+    - name: Nautilus
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
+      feed_url: https://nautil.us/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Wissenschaftsmagazin
+    - name: IEEE Spectrum Semiconductors
+      feed_url: https://spectrum.ieee.org/feeds/topic/semiconductors.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Topic-Feed
   HEALTH:
     sources:
     - name: Frontiers in Bioengineering and Biotechnology
@@ -1357,6 +1628,20 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       license: CC BY 4.0
+    - name: BioTechniques
+      feed_url: https://www.biotechniques.com/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Domain biotechniques.com statt future-science.com (Kandidatenliste)
+    - name: EMA News
+      feed_url: https://www.ema.europa.eu/en/news.xml
+      type: research
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Feed an nicht-standardisiertem Pfad (/en/news.xml); Site rate-limitet (429) - Poller einmal taeglich reicht
   ECO:
     sources:
     - name: Frontiers in Energy Research
@@ -1635,6 +1920,21 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: wikipedia
+    - name: edie
+      feed_url: https://www.edie.net/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Homepage antwortete dem Bot am 04.09. zunaechst 403, Feed + Artikel 200 (Monatspruefung beobachten)
+    - name: Deutsche Umwelthilfe
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
+      feed_url: https://www.duh.de/presse/pressemitteilungen/?type=9818
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # NGO-Pressemitteilungen; TYPO3-Feed (?type=9818)
     science:
     - name: Nature Sustainability
       active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
@@ -1764,6 +2064,43 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: idw
+    - name: Umweltbundesamt
+      feed_url: https://www.umweltbundesamt.de/rss/presse
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Feed an nicht-standardisiertem Pfad (/rss/presse); keine benannte offene Lizenz
+    - name: Forschungszentrum Jülich
+      feed_url: https://www.fz-juelich.de/++api++/@@rss?portal_type=Meldung&path=/Plone/de/aktuelles&Subject=Pressemitteilungen
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Plone-API-Feed (Pressemitteilungen), verlinkt auf go.fzj.de/rss-feed
+    - name: JRC Joint Research Centre
+      fulltext: true   # offene Lizenz, Probe 2026-09-04: robots allow, Bot 200, kein TDM-Signal
+      feed_url: https://joint-research-centre.ec.europa.eu/node/2/rss_en
+      type: research
+      lead_time_tier: future
+      license: CC BY 4.0
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # EU-Kommissions-Site (Footer -> commission.europa.eu/legal-notice_en: CC BY 4.0); Feed an nicht-standardisiertem Pfad (node/2/rss_en)
+    - name: World Resources Institute
+      feed_url: https://www.wri.org/insights/rss.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Feed an nicht-standardisiertem Pfad (/insights/rss.xml); kein strukturierter Lizenzhinweis auf der Artikelseite
+    - name: IEEE Spectrum Energy
+      feed_url: https://spectrum.ieee.org/feeds/topic/energy.rss
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Topic-Feed
   DESIGN:
     sources:
     - name: Dezeen
@@ -1974,6 +2311,13 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: feedspot
+    - name: Design World
+      feed_url: https://www.designworldonline.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage
     science:
     - name: Nature Reviews Materials
       active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
@@ -2005,6 +2349,13 @@ verticals:
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: ok
+    - name: Nielsen Norman Group
+      feed_url: https://www.nngroup.com/feed/rss/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # UX-Forschung; Feed an nicht-standardisiertem Pfad (/feed/rss/)
   FASHION:
     sources:
     - name: Business of Fashion
@@ -2501,6 +2852,35 @@ verticals:
       lead_time_tier: market
       tdm_checked: "2026-09-04"
       tdm_status: ok
+    - name: Forrester Blogs
+      feed_url: https://www.forrester.com/blogs/feed/
+      type: trade_media
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Analystenhaus
+    - name: startupticker
+      feed_url: https://www.startupticker.ch/en/rss/news
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Feed an nicht-standardisiertem Pfad (/en/rss/news)
+    - name: Maddyness
+      feed_url: https://www.maddyness.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Startup-Medium FR (franzoesisch)
+    - name: Tech Funding News
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
+      feed_url: https://techfundingnews.com/feed/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: own   # Funding-Meldungen EU
     science:
     - name: Harvard Business Review
       feed_url: http://feeds.harvardbusiness.org/harvardbusiness
@@ -2597,6 +2977,31 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       license: Public Domain (US federal)
+    - name: EZB Pressemitteilungen
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
+      feed_url: https://www.ecb.europa.eu/rss/press.html
+      type: research
+      lead_time_tier: market
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Feed an nicht-standardisiertem Pfad (/rss/press.html); ECB-Copyright (Wiedergabe mit Quellenangabe, keine CC-Lizenz)
+    - name: Census Bureau Economic Indicators
+      relevance_min: 0.7   # breiter Feed / now-tier (#97 WP2b)
+      fulltext: true   # offene Lizenz, Probe 2026-09-04: robots allow, Bot 200, kein TDM-Signal
+      feed_url: https://www.census.gov/economic-indicators/indicator.xml
+      type: research
+      lead_time_tier: now
+      license: Public Domain (US federal)
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # US-Bundeswerk, 17 U.S.C. §105; Indikator-Feed, breit
+    - name: DIW Berlin
+      feed_url: https://www.diw.de/de/rss_press.xml
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-04"
+      tdm_status: ok
+      discovered_via: triage   # Feed an nicht-standardisiertem Pfad (/de/rss_press.xml, Links relativ)
   LIFESTYLE:
     sources:
     - name: Nieman Lab
@@ -3074,6 +3479,14 @@ cross_industry:
     tdm_checked: "2026-09-04"
     tdm_status: ok
     license: OGL v3.0
+  - name: APA-OTS Wirtschaft
+    relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
+    feed_url: https://www.ots.at/rss/wirtschaft
+    type: press_wire
+    lead_time_tier: market
+    tdm_checked: "2026-09-04"
+    tdm_status: ok
+    discovered_via: triage   # Presseverteiler AT (Rubrik Wirtschaft); fulltext analog PR Newswire = Owner-Entscheid
   funding_announcements:
   # Funding-program announcements (Bund + Länder + EU) — announcement level, NOT
   # project detail. The Förderdatenbank RSS catalog page is a JS-SPA behind bot
