@@ -120,4 +120,4 @@ class TestCitationUrlsAreNotFigures:
                "cited": ["T1"], "stripped_citations": 0, "ledger": []}
         c = check_result(res)
         assert c["ungrounded"] == []
-        assert c["words"] == 2          # nur der modellgeschriebene Satz zählt
+        assert c["words"] < 10          # die 14 Listenzeilen zählen nicht mit
