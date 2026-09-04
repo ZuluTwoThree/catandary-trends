@@ -13,7 +13,8 @@ machine-readable reservation exists and the copy is deleted once no longer neede
     fetched. Default off. 160 of 238 RSS sources are opted in (commit eb0931c,
     owner-approved after a robots + extractability probe; HBR, MIT Technology
     Review, Project Syndicate, Nature and paywalled/blocked feeds stay out).
-  - robots.txt is honoured (per-host cache).
+  - robots.txt is honoured (per-host cache; RFC 9309 matching — wildcards,
+    `$`, longest rule wins, exact product token — since 2026-09-04, #97).
   - TDM reservation is honoured (TDM_RESPECT=1, default on): a rights holder's
     machine-readable opt-out (TDMRep header/meta, /.well-known/tdmrep.json,
     `noai`/`noimageai` robots directives) means the full text is NOT stored —
@@ -42,7 +43,7 @@ import time
 import urllib.robotparser
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlparse, urlsplit
 
 import httpx
 import trafilatura
@@ -101,6 +102,45 @@ def fulltext_source_names() -> set[str]:
     return names
 
 
+def _rule_regex(pattern: str) -> re.Pattern:
+    """robots.txt path pattern → regex: `*` = any run, trailing `$` = end anchor,
+    otherwise prefix match (RFC 9309 §2.2.3)."""
+    pattern = unquote(pattern or "")
+    anchored = pattern.endswith("$")
+    if anchored:
+        pattern = pattern[:-1]
+    parts = [re.escape(quote(p, safe="/:@!$&'()*+,;=~")) for p in pattern.split("*")]
+    return re.compile("^" + ".*".join(parts) + ("$" if anchored else ""))
+
+
+def robots_allows(rp: urllib.robotparser.RobotFileParser, ua: str, url: str) -> bool:
+    """RFC 9309 verdict on a parsed robots.txt: the group whose user-agent line
+    equals our product token (else `*`), wildcard-aware rules, the longest
+    matching rule wins, a tie goes to Allow. urllib's own can_fetch() reads
+    `*` literally (Condé Nast's `Disallow: /*` or idw's `Disallow:
+    /*pressreleasesrss` would silently pass) and picks groups by substring
+    (`User-agent: bot` would apply to us). Found by the #97 probe 2026-09-04."""
+    token = ua.split("/")[0].strip().lower()
+    entry = next((e for e in rp.entries
+                  if any(a.strip().lower() == token for a in e.useragents)), None) or rp.default_entry
+    if entry is None:
+        return True
+    parts = urlsplit(url)
+    path = quote(unquote(parts.path or "/"), safe="/:@!$&'()*+,;=~")
+    if parts.query:
+        path += "?" + parts.query
+    best_len, best_allow = -1, True
+    for rule in entry.rulelines:
+        raw = unquote(rule.path)
+        if not raw:                              # `Disallow:` (empty) = allow everything
+            continue
+        if _rule_regex(raw).match(path):
+            n = len(raw)
+            if n > best_len or (n == best_len and rule.allowance):
+                best_len, best_allow = n, bool(rule.allowance)
+    return best_allow
+
+
 def _robots_ok(url: str) -> bool:
     host = urlparse(url).netloc
     if host not in _robots:
@@ -118,7 +158,7 @@ def _robots_ok(url: str) -> bool:
     if rp is None:
         return True
     try:
-        return rp.can_fetch(UA, url)
+        return robots_allows(rp, UA, url)
     except Exception:
         return True
 

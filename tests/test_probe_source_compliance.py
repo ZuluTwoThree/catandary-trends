@@ -504,3 +504,65 @@ class TestRobotsRfc9309:
     def test_percent_encoding_is_normalised(self):
         rp = self._rp("User-agent: *\nDisallow: /caf%C3%A9/\n")
         assert not psc.robots_allows(rp, psc.UA, "https://x.example/café/menu")
+
+
+def test_robots_group_needs_exact_product_token():
+    """RFC 9309: `User-agent: bot` must NOT apply to CatandaryTrendsBot (urllib's
+    substring rule would); `User-Agent: catandarytrendsbot` (any case) does."""
+    import urllib.robotparser
+    rp = urllib.robotparser.RobotFileParser()
+    rp.parse("User-agent: bot\nDisallow: /\n\nUser-agent: *\nAllow: /\n".splitlines())
+    assert psc.robots_allows(rp, psc.UA, "https://x.example/a")
+    assert not rp.can_fetch(psc.UA, "https://x.example/a")      # urllib's substring blind spot
+    rp = urllib.robotparser.RobotFileParser()
+    rp.parse("User-Agent: CATANDARYTRENDSBOT\nDisallow: /\n\nUser-agent: *\nAllow: /\n".splitlines())
+    assert not psc.robots_allows(rp, psc.UA, "https://x.example/a")
+
+
+def test_relative_article_link_is_resolved_against_the_site():
+    rss = RSS.replace(ARTICLE, "/news/1").replace("<title>Pub</title>", "<title>Pub</title><link>https://pub.example/</link>")
+    r = _probe(_routes(feed=(200, FEED_HEADERS, rss)))
+    assert r["article_url"] == ARTICLE and r["tdm_status"] == "ok"
+
+
+def test_aggregating_feed_type_api_skips_the_article_verdict():
+    calls: list[str] = []
+    r = _probe(_routes(article=(403, HTML_HEADERS, "denied")),
+               entry={"input": FEED, "feed_url": FEED, "name": "HN", "from_config": True, "type": "api"},
+               calls=calls)
+    assert r["tdm_status"] == "ok" and "aggregating feed" in r["reason"]
+    assert r["fulltext_ok"] is None and ARTICLE not in calls
+    # the patcher must not touch fulltext for such a source
+    import textwrap
+    y = textwrap.dedent("""\
+        verticals:
+          TECH:
+            sources:
+            - name: HN
+              fulltext: true
+              feed_url: https://pub.example/feed.xml
+              type: api
+        """)
+    import tempfile, pathlib
+    p = pathlib.Path(tempfile.mkdtemp()) / "s.yaml"
+    p.write_text(y, encoding="utf-8")
+    s = psc.write_protocol_fields(p, [{**r, "from_config": True}], "2026-09-04")
+    assert s["fulltext_off"] == [] and "fulltext: true" in p.read_text(encoding="utf-8")
+
+
+def test_unknown_rel_license_link_is_a_hint_only():
+    page = '<html><head><link rel="license" href="https://www.bund.de/DE/Services/Impressum/impressum.html"></head></html>'
+    r = _probe(_routes(article=(200, HTML_HEADERS, page)))
+    assert r["license"] is None and r["license_hint"].startswith("link rel=license https://www.bund.de")
+
+
+def test_production_fetcher_uses_the_rfc_matcher(monkeypatch):
+    """pipeline.article_fetcher._robots_ok must refuse a `Disallow: /*` page
+    (Condé Nast pattern) — urllib's can_fetch would have let it through."""
+    import urllib.robotparser
+    rp = urllib.robotparser.RobotFileParser()
+    rp.parse("User-agent: *\nDisallow: /*\nAllow: /*rss\n".splitlines())
+    monkeypatch.setattr(af, "_robots", {"www.wired.com": rp})
+    assert af._robots_ok("https://www.wired.com/feed/rss")
+    assert not af._robots_ok("https://www.wired.com/story/some-article/")
+    assert rp.can_fetch(af.UA, "https://www.wired.com/story/some-article/")   # the old blind spot

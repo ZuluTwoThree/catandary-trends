@@ -7,7 +7,9 @@ usage conditions the owner set on 2026-09-03 for every source we poll:
   1. FEED       valid RSS/Atom (feedparser; entry count, newest entry date),
                 conditional-GET capability (ETag / Last-Modified on the feed).
   2. ROBOTS     robots.txt verdict for our honest crawler UA (CatandaryTrendsBot,
-                fallback `*`) — separately for the feed URL and one article.
+                fallback `*`) — separately for the feed URL and one article;
+                RFC 9309 matching (wildcards, `$`, longest rule) shared with
+                pipeline.article_fetcher.robots_allows.
   3. BOT STATUS GET of the newest article with the production UA:
                 401/403/429 = `blocked` (no browser spoof, by policy).
   4. TDM        §44b Abs. 3 UrhG reservation signals via the production
@@ -65,7 +67,7 @@ import urllib.robotparser
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote, unquote, urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -138,39 +140,7 @@ class HostThrottle:
             time.sleep(slot - now)
 
 
-def _rule_regex(pattern: str) -> re.Pattern:
-    """robots.txt path pattern → regex: `*` = any run, trailing `$` = end anchor,
-    otherwise prefix match (RFC 9309 §2.2.3)."""
-    pattern = unquote(pattern or "")
-    anchored = pattern.endswith("$")
-    if anchored:
-        pattern = pattern[:-1]
-    parts = [re.escape(quote(p, safe="/:@!$&'()*+,;=~")) for p in pattern.split("*")]
-    return re.compile("^" + ".*".join(parts) + ("$" if anchored else ""))
-
-
-def robots_allows(rp: urllib.robotparser.RobotFileParser, ua: str, url: str) -> bool:
-    """RFC 9309 verdict on a parsed robots.txt: the group for our product token
-    (else `*`), wildcard-aware rules, the longest matching rule wins, a tie goes
-    to Allow. urllib's own can_fetch() reads `*` literally — a wildcard rule
-    like `Disallow: /*pressreleasesrss` would silently pass."""
-    entry = next((e for e in rp.entries if e.applies_to(ua)), None) or rp.default_entry
-    if entry is None:
-        return True
-    parts = urlsplit(url)
-    path = quote(unquote(parts.path or "/"), safe="/:@!$&'()*+,;=~")
-    if parts.query:
-        path += "?" + parts.query
-    best_len, best_allow = -1, True
-    for rule in entry.rulelines:
-        raw = unquote(rule.path)
-        if not raw:                              # `Disallow:` (empty) = allow everything
-            continue
-        if _rule_regex(raw).match(path):
-            n = len(raw)
-            if n > best_len or (n == best_len and rule.allowance):
-                best_len, best_allow = n, bool(rule.allowance)
-    return best_allow
+robots_allows = af.robots_allows          # RFC 9309 matcher lives in the fetcher (shared)
 
 
 class RobotsCache:
@@ -310,7 +280,10 @@ def parse_feed_response(resp: httpx.Response) -> dict:
     out["feed_entries"] = len(parsed.entries)
     newest, date = _newest_entry(parsed.entries)
     out["feed_newest"] = date
-    out["article_url"] = _entry_link(newest) if newest else None
+    link = _entry_link(newest) if newest else None
+    if link and "://" not in link:              # relative link (HBR): resolve against the site, then the feed
+        link = urljoin(parsed.feed.get("link") or str(resp.url), link)
+    out["article_url"] = link
     lic = parsed.feed.get("license") or (newest.get("license") if newest else None)
     if lic:
         out["feed_license"] = str(lic)
@@ -330,7 +303,9 @@ def license_from_html(page: str) -> tuple[str | None, str | None]:
             href = re.search(r"""href\s*=\s*["']([^"']+)["']""", tag, re.I)
             if href:
                 url = href.group(1)
-                return _cc_short(url) or _short_from_text(url) or "license-link", f"link rel=license {url}"
+                # a rel=license link that is not a known licence (an imprint page,
+                # a proprietary license.xml) is a hint only — never a `license:` value
+                return _cc_short(url) or _short_from_text(url), f"link rel=license {url}"
     for m in _A_HREF_RE.finditer(head):
         short = _cc_short(m.group(1))
         if short:
@@ -425,6 +400,8 @@ def classify(r: dict) -> tuple[str, str]:
         return "reserved", r["tdm_signal"]
     if r.get("robots_feed") == "disallow":
         return "blocked", "robots.txt disallows the feed URL"
+    if r.get("article_skipped"):
+        return "ok", f"feed valid, robots allow; {r['article_skipped']}"
     if r.get("robots_article") == "disallow":
         return "blocked", "robots.txt disallows the article URL"
     code = r.get("article_http")
@@ -458,7 +435,7 @@ def probe_one(entry: dict, client: httpx.Client, throttle: HostThrottle,
          "article_url": None, "article_final_url": None, "article_http": None,
          "article_error": None, "robots_article": "n/a", "tdm_signal": None,
          "license": None, "license_hint": None, "feed_ua_fallback": False,
-         "requests": 0, "tried": []}
+         "article_skipped": None, "requests": 0, "tried": []}
     target = r["input"] or ""
     if not r["from_config"]:
         r["rejected"] = is_aggregator(target)
@@ -507,6 +484,14 @@ def probe_one(entry: dict, client: httpx.Client, throttle: HostThrottle,
             r["tdm_status"], r["reason"] = classify(r)
             r["fulltext_ok"] = False
             return r
+        if entry.get("type") == "api":
+            # Aggregating feed (Hacker News via hnrss): every entry links to a
+            # different third-party host — one article says nothing about the
+            # source. The fetcher checks robots + TDM per article at fetch time.
+            r["article_skipped"] = "aggregating feed (type api): article hosts vary, checked per article by the fetcher"
+            r["tdm_status"], r["reason"] = classify(r)
+            r["fulltext_ok"] = None
+            return r
         # 2.+4. article: robots, tdmrep.json, GET, headers, meta, license
         url = r["article_url"]
         r["robots_article"] = robots.verdict(url)
@@ -529,7 +514,7 @@ def probe_one(entry: dict, client: httpx.Client, throttle: HostThrottle,
             except Exception as e:  # noqa: BLE001
                 r["article_error"] = type(e).__name__
         if r["feed_license"] and not r["license"]:
-            r["license"] = _cc_short(r["feed_license"]) or _short_from_text(r["feed_license"]) or "feed-license"
+            r["license"] = _cc_short(r["feed_license"]) or _short_from_text(r["feed_license"])
             r["license_hint"] = r["license_hint"] or f"feed license: {r['feed_license']}"
     except Exception as e:  # noqa: BLE001 — never lose a row to one bad host
         r["feed_error"] = r["feed_error"] or f"probe error ({type(e).__name__})"
@@ -597,7 +582,7 @@ def iter_active_sources(cfg: dict | None = None) -> list[dict]:
         if s.get("active") is False or not s.get("feed_url"):
             return
         out.append({"name": s["name"], "feed_url": s["feed_url"], "input": s["feed_url"],
-                    "vertical": vertical, "from_config": True,
+                    "vertical": vertical, "from_config": True, "type": s.get("type"),
                     "fulltext": bool(s.get("fulltext")),
                     "prev_status": s.get("tdm_status"),
                     "prev_checked": str(s.get("tdm_checked") or "") or None,
