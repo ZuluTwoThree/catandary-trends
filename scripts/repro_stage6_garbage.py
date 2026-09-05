@@ -33,6 +33,12 @@ table on stdout.
     python scripts/repro_stage6_garbage.py --ids 1718638,1718639  # trend ids, or --raw-ids
     python scripts/repro_stage6_garbage.py --dry-run             # prompts + sizes only, no GPU
 
+ENVIRONMENT: run with the cycle's Stage-6 settings, otherwise the model identity
+check (#98) aborts against the resting 8B ("expected Qwen3.6-35B", the config
+default) — e.g.
+    STAGE5_BACKEND=llamacpp STAGE5_MODEL=gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf \
+        python scripts/repro_stage6_garbage.py --repeats 3
+(first run 2026-09-05 16:14 failed exactly so; second run with the env worked).
 PRECONDITIONS: the GPU must be free (no cycle, no judge, no ingester on :8090 —
 check `systemctl --user status llama-server` and `nvidia-smi`); run it from
 the repo root with the venv. Expect ~2 s per generation (≈ 7 min for the
