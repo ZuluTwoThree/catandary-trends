@@ -2,7 +2,7 @@
 declare(strict_types=1);
 /* DER EINE Cronjob (Webhosting S erlaubt genau 1).
    konsoleH -> Cronjob-Manager: Interpreter PHP 8.x,
-   Pfad /usr/www/users/<ftp-login>/newsletter/cron.php
+   Pfad /usr/www/users/<ftp-login>/public_html/newsletter/cron.php
    Intervall alle 15 Minuten.
    Erledigt alle Hintergrundaufgaben sequenziell. */
 

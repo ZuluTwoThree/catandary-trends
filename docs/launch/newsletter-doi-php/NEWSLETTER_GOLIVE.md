@@ -99,7 +99,7 @@ im Repo-Root liegt. Es spiegelt bestätigte **und abgemeldete** Zeilen
 
 **Webspace (konsoleH, Owner-Gate):** `cron.php` als Cronjob eintragen —
 Cronjob-Manager, Interpreter PHP 8.x, Pfad
-`/usr/www/users/<ftp-login>/newsletter/cron.php`, alle 15 Minuten. Löscht
+`/usr/www/users/<ftp-login>/public_html/newsletter/cron.php`, alle 15 Minuten. Löscht
 unbestätigte Anmeldungen nach Ablauf (die Bestätigungsmail verspricht das —
 Art. 5 Abs. 1 lit. e DSGVO), wiederholt fehlgeschlagene Bestätigungsmails,
 räumt Throttle/Log/Abgemeldete nach Frist auf. Bisher inaktiv (Compliance-

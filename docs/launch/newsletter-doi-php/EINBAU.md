@@ -186,7 +186,7 @@ Reihenfolge für dieses Upload-Paket:
    Zusätzlich: `https://catandary.de/newsletter/unsubscribe.php` ohne `?t=`
    muss HTTP 400 mit „Link invalid" zeigen (kein Stacktrace, keine Interna).
 6. **`cron.php` in konsoleH aktivieren** (Cronjob-Manager, Interpreter PHP 8.x,
-   Pfad `/usr/www/users/<ftp-login>/newsletter/cron.php`, alle 15 Minuten).
+   Pfad `/usr/www/users/<ftp-login>/public_html/newsletter/cron.php`, alle 15 Minuten).
    Ohne ihn werden unbestätigte Anmeldungen nie gelöscht (Art. 5 Abs. 1 lit. e
    DSGVO — die Bestätigungsmail verspricht die Löschung nach 30 Tagen) und
    Abgemeldete nie nach der Aufbewahrungsfrist entfernt. Bisher „später, nicht
