@@ -113,7 +113,7 @@ Karte und die drei Routinen, die man auswendig kennen sollte.
 | Analysen | `/analysis` | Markdown in `frontend/content/analyses/`, `draft: false` = live | [§8](docs/owner_manual.md#8-analysen-analysis) |
 | **Statischer Export** | `scripts/build_public_static.sh` → `htaccess_test_server.sh` → `publish_static_site.py --apply` | täglich 06:30 (Cron vorbereitet); `PUBLIC_NOINDEX=0` zum Launch | [§9](docs/owner_manual.md#9-statischer-export--die-öffentliche-website) |
 | Quellen | `sources.yaml` | `probe_source_compliance.py --yaml` → eintragen → `verify_feeds.py`; `apply_source_hygiene.py --apply` beim Deaktivieren; `takedown.py`, `purge_raw_content.py` | [§10](docs/owner_manual.md#10-quellen-verwalten) |
-| Betrieb | `crontab -l`, `~/logs/`, `data/*_last.json` | Wächter-Mails, Backup/Restore, GPU-Ruhezustand, llama-server-Reparatur; Kollisionswächter der GPU-Crons (`scripts/lib/gpu_guard.sh`, wartet 90 min, dann Skip + Pending-Datei) | [§11](docs/owner_manual.md#11-betrieb-cron-wächter-backup-gpu-logs), [§11.8](docs/owner_manual.md#118-kollisionswächter-und-besitz-des-llama-servers-98) |
+| Betrieb | `crontab -l`, `~/logs/`, `data/*_last.json` | Wächter-Mails, Backup/Restore, GPU-Ruhezustand, llama-server-Reparatur; Kollisionswächter der GPU-Crons (`scripts/lib/gpu_guard.sh`, wartet 90 min, dann Skip + Pending-Datei); `scripts/reset_embedding_errors.py --apply` holt als `embedding_error` aussortierte Einträge zurück | [§11](docs/owner_manual.md#11-betrieb-cron-wächter-backup-gpu-logs), [§11.8](docs/owner_manual.md#118-kollisionswächter-und-besitz-des-llama-servers-98) |
 | Sicherheit & Recht | — | Binding aller Interfaces (Entscheid offen), TDM-Regime, Takedown | [§12](docs/owner_manual.md#12-sicherheit-und-recht-kurz) |
 
 ### 2.2 Routine: Morgen nach dem Nachtlauf
@@ -327,7 +327,9 @@ Einträge zu verlieren (#98, Handbuch §11.5 Punkt 7).
 **Distill-Pfad** (`pipeline/distill.py`, `scripts/signal_batch*.py`): lineare
 Heads auf den 4096-dim-Embeddings ersetzen die LLM-Klassifikation für den
 Massen-Ingest; Ergebnis sind `status='signal'`-Zeilen ohne Artikel — der
-Rohstoff der Foresight-Werkzeuge. Retrain: `scripts/train_distill_heads.py`
+Rohstoff der Foresight-Werkzeuge. Fällt der Embedding-Server aus, bleibt der
+Rest des Laufs unverarbeitet (Retry desselben Chunks, nach 20 Fehlern in Folge
+Exit 3) statt als `embedding_error` aussortiert zu werden (#98). Retrain: `scripts/train_distill_heads.py`
 (auch automatisch im Sonntag-Discovery-Loop, wenn `mega_trends.yaml` geändert
 wurde).
 

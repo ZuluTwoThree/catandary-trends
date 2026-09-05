@@ -280,13 +280,36 @@ def chat_structured(model: str, prompt: str, schema: type[T],
             return None
 
 
-def generate_embedding(text: str, model: str | None = None) -> list[float] | None:
+class EmbeddingBackendError(RuntimeError):
+    """The embedding SERVER failed (connection refused, timeout, 5xx/429) —
+    not the text. Callers must not mark the entry as filtered; it stays
+    unprocessed for a retry (#98 d: 2,416 entries were written off as
+    'embedding_error' on 2026-09-05 while the server was simply down)."""
+
+
+def is_backend_failure(exc: BaseException) -> bool:
+    """Transport-level or server-side failure, as opposed to a content problem
+    (4xx for an over-long/empty input, malformed JSON) that a retry will not fix."""
+    if isinstance(exc, (httpx.TransportError, ConnectionError)):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code
+        return code >= 500 or code == 429
+    return False
+
+
+def generate_embedding(text: str, model: str | None = None,
+                       strict: bool = False) -> list[float] | None:
     """Generate an embedding vector via llama-server's OpenAI-compatible endpoint.
 
     Drop-in replacement for `pipeline.ollama_client.generate_embedding`. Hits
     POST {LLAMACPP_HOST}/v1/embeddings. `model` is included in the payload but
     llama-server ignores it (the loaded model is whatever start-active.sh
     brought up); callers can pass it for logging clarity.
+
+    `strict=True` (signal_batch): a backend failure raises EmbeddingBackendError
+    instead of returning None, so the caller can tell "server down" from "this
+    text cannot be embedded" — only the latter is a verdict on the entry.
     """
     payload: dict = {"input": text}
     if model is not None:
@@ -299,5 +322,7 @@ def generate_embedding(text: str, model: str | None = None) -> list[float] | Non
             data = r.json()
         return data["data"][0]["embedding"]
     except Exception as e:
+        if strict and is_backend_failure(e):
+            raise EmbeddingBackendError(f"embedding backend failure: {e!r}") from e
         logger.error("llama.cpp embedding failed: %s", e)
         return None

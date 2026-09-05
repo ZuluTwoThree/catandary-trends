@@ -801,6 +801,18 @@ nvidia-smi --query-gpu=memory.used,memory.total --format=csv
    gefiltert und laufen beim nächsten Cycle erneut (Stage-Zwischenergebnisse sind
    gecacht). Prüfen, welcher Job es war (`~/logs/catandary-ingesters-*.log`,
    `data/dossier_worker/`), dann §11.8 — der Wächter sollte das verhindert haben.
+8. Endet ein `signal_batch`-/Ingester-Lauf mit `ABORT distill: 20 embedding
+   backend failures in a row … Exit 3` (Wrapper-rc 3), war der Embedding-Server
+   weg. Nichts markiert: Server prüfen (Punkte 1–4), dann den Schritt wiederholen
+   — `python scripts/signal_batch_embedded.py --source-type research --min-id <N>`
+   (N aus dem Log, „min_id (Wasserstand vor Ingest)"). Stehen aus älteren
+   Läufen Einträge mit `filter_reason='embedding_error'` in der DB, obwohl nur
+   der Server ausgefallen war (bis 05.09. das Verhalten):
+   `python scripts/reset_embedding_errors.py` zeigt die Zahl je Quelle (Dry-Run),
+   `--apply` setzt sie zurück (`--since 2026-09-01`, `--min-id N`, `--source-type
+   research` grenzen ein); der nächste Lauf embeddet sie neu. Echte inhaltliche
+   Fehler (ein Text, den der Server ablehnt) tragen weiterhin `embedding_error`
+   und sollen so bleiben.
 
 ### 11.6 Logs und Statusdateien
 
@@ -830,6 +842,7 @@ python -m pipeline.run_full_cycle --skip-poll --batch 600 [--min-id N]
 python -m pipeline.llm_processor 200                  # Stages auf 200 Einträge (Output in Datei umleiten, nicht pipen)
 python scripts/generate_content.py --vertical FOOD --limit 200   # Artikel für Signale nachziehen
 python -m pipeline.auto_publisher                     # Stage 9 standalone
+python scripts/reset_embedding_errors.py [--apply]     # als embedding_error aussortierte Einträge zurückholen (§11.5 Punkt 8)
 ```
 Vorher `nvidia-smi` prüfen; die Skripte übernehmen `:8090` selbst.
 

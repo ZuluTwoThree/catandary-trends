@@ -24,6 +24,7 @@ Usage:
 from __future__ import annotations
 import argparse
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -37,6 +38,7 @@ import numpy as np
 from slugify import slugify
 
 from pipeline import anthropic_client, ollama_client, llamacpp_client
+from pipeline.llamacpp_client import EmbeddingBackendError, is_backend_failure
 from pipeline.config import (
     ANTHROPIC_MODEL_CLASSIFY, RELEVANCE_THRESHOLD, DUPLICATE_SIMILARITY_THRESHOLD,
     EMBED_BACKEND, EMBED_MODEL, MODEL_EMBEDDING, STAGE_8B_MODEL,
@@ -99,9 +101,31 @@ def _filtered_embedding(e: dict, vec) -> bytes | None:
 
 # --- batched embeddings ------------------------------------------------------
 
+# Backend-failure budget (#98 d). A server/transport failure (connection
+# refused, timeout, 5xx) is NOT a verdict on the entries: the chunk is retried
+# after EMBED_ERROR_SLEEP seconds, up to EMBED_MAX_CONSECUTIVE_ERRORS times in
+# a row, then the run aborts with exit 3 and everything not yet embedded stays
+# unprocessed. 2026-09-05: the cycle's cleanup killed the ingesters' embedding
+# server and 2,416 entries were marked filtered_out='embedding_error' — written
+# off forever until reset by hand (scripts/reset_embedding_errors.py).
+EMBED_MAX_CONSECUTIVE_ERRORS = int(os.getenv("EMBED_MAX_CONSECUTIVE_ERRORS", "20"))
+EMBED_ERROR_SLEEP = float(os.getenv("EMBED_ERROR_SLEEP", "5"))
+EXIT_EMBED_BACKEND = 3
+
+
+class EmbeddingAbort(RuntimeError):
+    """EMBED_MAX_CONSECUTIVE_ERRORS backend failures in a row — give up."""
+
+
 def embed_batch(texts: list[str]) -> list[list[float] | None]:
     """Embed a list of texts in one call. llama-server and Ollama both accept a
-    list `input` and return embeddings in order."""
+    list `input` and return embeddings in order.
+
+    Raises EmbeddingBackendError when the SERVER is the problem (transport
+    error, 5xx/429): falling back per item would only produce N more failures
+    and — worse — N `None`s that the caller used to record as embedding_error.
+    Content-level failures still fall back per item, where a text the server
+    rejects comes back as None (→ embedding_error, the only case it means)."""
     if EMBED_BACKEND == "llamacpp":
         try:
             with httpx.Client(timeout=300) as c:
@@ -110,12 +134,16 @@ def embed_batch(texts: list[str]) -> list[list[float] | None]:
                 data = sorted(r.json()["data"], key=lambda d: d.get("index", 0))
             return [d["embedding"] for d in data]
         except Exception as e:  # noqa: BLE001
+            if is_backend_failure(e):
+                raise EmbeddingBackendError(f"llamacpp /v1/embeddings: {e!r}") from e
             logger.warning("batched llamacpp embed failed (%s) — falling back per-item", e)
             return [_embed_one(t) for t in texts]
     try:
         resp = ollama_client.client.embed(model=MODEL_EMBEDDING, input=texts)
         return list(resp.embeddings)
     except Exception as e:  # noqa: BLE001
+        if is_backend_failure(e):
+            raise EmbeddingBackendError(f"ollama embed: {e!r}") from e
         logger.warning("batched ollama embed failed (%s) — per-item", e)
         return [_embed_one(t) for t in texts]
 
@@ -123,8 +151,33 @@ def embed_batch(texts: list[str]) -> list[list[float] | None]:
 def _embed_one(text: str) -> list[float] | None:
     if EMBED_BACKEND == "llamacpp":
         from pipeline import llamacpp_client
-        return llamacpp_client.generate_embedding(text, model=EMBED_MODEL)
+        return llamacpp_client.generate_embedding(text, model=EMBED_MODEL, strict=True)
     return ollama_client.generate_embedding(MODEL_EMBEDDING, text)
+
+
+def embed_chunk_resilient(texts: list[str], state: dict) -> list[list[float] | None]:
+    """embed_batch with the backend-failure budget: retry the SAME chunk after
+    a server failure (nothing is marked, nothing is skipped), abort with
+    EmbeddingAbort once EMBED_MAX_CONSECUTIVE_ERRORS failures came in a row.
+    `state` carries the consecutive/total counters across chunks; a success
+    resets the consecutive count."""
+    while True:
+        try:
+            vecs = embed_batch(texts)
+            state["consecutive"] = 0
+            return vecs
+        except EmbeddingBackendError as e:
+            state["consecutive"] = state.get("consecutive", 0) + 1
+            state["total"] = state.get("total", 0) + 1
+            logger.warning("embedding backend failure %d/%d in a row (%s) — chunk of %d "
+                           "stays unprocessed, retrying in %.0fs",
+                           state["consecutive"], EMBED_MAX_CONSECUTIVE_ERRORS, e,
+                           len(texts), EMBED_ERROR_SLEEP)
+            if state["consecutive"] >= EMBED_MAX_CONSECUTIVE_ERRORS:
+                raise EmbeddingAbort(
+                    f"{state['consecutive']} embedding backend failures in a row "
+                    f"(last: {e}) — is the embedding server on {LLAMACPP_HOST} up?") from e
+            time.sleep(EMBED_ERROR_SLEEP)
 
 
 # --- batch classify over chunks ----------------------------------------------
@@ -403,10 +456,18 @@ def run(limit: int, execute: bool, embed_chunk: int,
     kept_buf: np.ndarray | None = None  # preallocated (len(survivors) x dim), filled in place
     kept_count = 0
     keep = []
+    embed_state: dict = {}
+    aborted: EmbeddingAbort | None = None
     for i in range(0, len(survivors), embed_chunk):
         chunk = survivors[i:i + embed_chunk]
         texts = [f"{e['title']}\n{(e['excerpt'] or '')[:500]}" for e in chunk]
-        vecs = embed_batch(texts)
+        try:
+            vecs = embed_chunk_resilient(texts, embed_state)
+        except EmbeddingAbort as exc:
+            aborted = exc
+            logger.error("ABORT Stage 5: %s — %d entries stay unprocessed (nothing marked)",
+                         exc, len(survivors) - i)
+            break
         valid = []
         for e, v in zip(chunk, vecs):
             if v is None:
@@ -440,6 +501,10 @@ def run(limit: int, execute: bool, embed_chunk: int,
     logger.info("Stage 5 done: %d non-duplicate signals", len(survivors))
     if _llama_stopped:
         restart_llama()
+    if aborted is not None:
+        print(f"\nABORTED after {time.time()-t0:.0f}s: {aborted}. Embedded survivors are "
+              f"NOT inserted (re-run picks everything up again); exit {EXIT_EMBED_BACKEND}.")
+        return EXIT_EMBED_BACKEND
 
     # ---- Stage 7: insert signals ----
     created = 0
@@ -543,10 +608,18 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
     _llama_stopped = free_vram_for_embeddings()
     kept_buf: np.ndarray | None = None
     kept_count = filtered = created = not_relevant = 0
+    embed_state: dict = {}
+    aborted: EmbeddingAbort | None = None
     for i in range(0, len(survivors), embed_chunk):
         chunk = survivors[i:i + embed_chunk]
         texts = [f"{e['title']}\n{(e['excerpt'] or '')[:500]}" for e in chunk]
-        vecs = embed_batch(texts)
+        try:
+            vecs = embed_chunk_resilient(texts, embed_state)
+        except EmbeddingAbort as exc:
+            aborted = exc
+            logger.error("ABORT distill: %s — %d entries stay unprocessed (nothing marked)",
+                         exc, len(survivors) - i)
+            break
         valid = [(e, v) for e, v in zip(chunk, vecs) if v is not None]
         for e, v in zip(chunk, vecs):
             if v is None:
@@ -611,6 +684,11 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
                         min(i + embed_chunk, len(survivors)), len(survivors), created, not_relevant)
     if _llama_stopped:
         restart_llama()
+    if aborted is not None:
+        print(f"\nABORTED after {time.time()-t0:.0f}s: {aborted}. So far: {created} signals "
+              f"inserted, {not_relevant} not-relevant, {filtered} filtered; the rest of the "
+              f"scope is untouched (re-run). Exit {EXIT_EMBED_BACKEND}.")
+        return EXIT_EMBED_BACKEND
     print(f"\nDone in {time.time()-t0:.0f}s: {created} signals inserted, "
           f"{not_relevant} not-relevant, {filtered} filtered (from {len(entries)}).")
     return 0

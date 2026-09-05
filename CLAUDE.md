@@ -557,6 +557,14 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # min_id-Fenster wird in data/weekly_ingesters_pending_min_id gemerkt und beim
 # nächsten Lauf nachgeholt; Status → data/weekly_ingesters_last.json →
 # Montags-Morgen-Mail (review_notify.py, 60 h Frische). rc=75 bei Skip.
+# Embedding-Fehlerpfad (#98 d): Server-/Verbindungsfehler (Connection refused,
+# 5xx/429, Timeout) markieren in signal_batch NICHTS mehr — derselbe Chunk
+# wird nach EMBED_ERROR_SLEEP=5 s erneut versucht, nach
+# EMBED_MAX_CONSECUTIVE_ERRORS=20 Fehlern in Folge bricht der Lauf mit Exit 3
+# ab (Wrapper-rc), alles Unverarbeitete bleibt unprocessed.
+# filter_reason='embedding_error' nur noch für inhaltliche Fehler (der Server
+# lehnt genau diesen Text ab). Reparatur älterer Läufe:
+# scripts/reset_embedding_errors.py [--since D|--min-id N|--source-type T] --apply
 0 6 * * 6    scripts/weekly_ingesters.sh
 
 # Startup-Explorer-Quellen monatlich (6. 12:00, seit 2026-08-23, #87): CORDIS +
