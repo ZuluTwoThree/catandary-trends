@@ -868,14 +868,22 @@ python scripts/signal_batch_embedded.py --source-type api --no-patents --min-id 
 rm data/weekly_ingesters_pending_min_id                        # oder den Samstag abwarten
 ```
 
-**Besitz der Unit (Richter-Block).** Der Stage-10-Block in `scheduled_cycle.sh`
-vermerkt nach dem Start `MAINPID OWNERPID` in `data/llama-server.scheduled_cycle-judge.pid`
-(`llama_unit_record_owner`) und stoppt danach nur noch einen Server mit
-**dieser** MainPID (`llama_unit_stop_owned`). Hat inzwischen ein anderer Job
-die Unit neu gestartet, bleibt sie stehen — Logzeile `[gpu_guard/…] WARN:
-llama-server PID … gehört nicht diesem Job (unsere war …) — bleibt stehen`.
-`rm data/llama-server.*.pid` ist jederzeit ungefährlich (nächster Start
-vermerkt neu).
+**Besitz der Unit.** Wer `llama-server.service` startet, vermerkt `MAINPID OWNERPID`
+in `data/llama-server.<job>.pid` und stoppt beim Aufräumen nur noch einen Server
+mit **dieser** MainPID — die Python-Handover in `pipeline/gpu_handover.py`
+(`<job>` = Einstiegsskript: `run_full_cycle`, `signal_batch_embedded`,
+`dossier_worker`, `research_pulse`, `newsletter_deep_dive` …) ebenso wie der
+Richter-Block in `scheduled_cycle.sh` (`scheduled_cycle-judge`,
+`llama_unit_record_owner` / `llama_unit_stop_owned`). Hat inzwischen ein anderer
+Job die Unit neu gestartet, bleibt sie stehen und auch der Symlink wird nicht
+angefasst — Logzeilen `… is not the one this job started (PID …) — leaving it
+running` bzw. `[gpu_guard/…] WARN: llama-server PID … gehört nicht diesem Job
+(unsere war …) — bleibt stehen`. Umgekehrt weigert sich ein Handover, einen
+Server zu übernehmen, den ein noch lebender anderer Job vermerkt hat
+(`RuntimeError: … belongs to running job <job> (pid N) — refusing to take over`);
+der abgewiesene Lauf lässt seine Einträge unberührt. Vermerke toter Jobs
+räumt der nächste Start weg; `rm data/llama-server.*.pid` ist jederzeit
+ungefährlich.
 
 ---
 

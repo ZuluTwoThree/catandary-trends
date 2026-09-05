@@ -22,12 +22,21 @@ Common pattern for each:
 
 A pre-flight check refuses to start if `start-active.sh` does not resolve to a
 script that loads the expected model — defense in depth against OOM.
+
+Ownership (#98, 2026-09-05): the unit belongs to the job that started it.
+`llama_server_start` records "MAINPID OWNERPID" in data/llama-server.<job>.pid
+and refuses to take over a server another *alive* job has recorded;
+`llama_server_stop` stops the unit only while its MainPID is still the
+recorded one — a server some other job restarted underneath us is left
+running (warning) and the symlink is not touched either, because that job
+restores it on its own exit. Same file format as scripts/lib/gpu_guard.sh.
 """
 
 import logging
 import os
 import shutil
 import subprocess
+import sys
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -41,6 +50,11 @@ LLAMACPP_HEALTH = os.getenv("LLAMACPP_HOST", "http://127.0.0.1:8090") + "/v1/mod
 START_ACTIVE = Path(os.getenv("LLAMA_START_ACTIVE",
                               "/home/dirk/llama.cpp/start-active.sh"))
 VRAM_FREE_THRESHOLD_MIB = int(os.getenv("VRAM_FREE_THRESHOLD_MIB", "3000"))
+# Ownership records of the unit (#98): data/llama-server.<job>.pid, one line
+# "MAINPID OWNERPID". <job> = GPU_JOB_NAME or the entry script's stem
+# (run_full_cycle, signal_batch_embedded, dossier_worker, …).
+PID_DIR = Path(os.getenv("LLAMA_PID_DIR",
+                         str(Path(__file__).resolve().parent.parent / "data")))
 
 # Mapping from GGUF basename to the start script that loads it. Used to swap
 # the start-active.sh symlink before bringing the server up. Add new entries
@@ -162,6 +176,85 @@ def ollama_unload() -> None:
         _run([ob, "stop", m], timeout=30)
 
 
+# ---- unit ownership (#98) ---------------------------------------------------
+
+def _job_name() -> str:
+    raw = os.getenv("GPU_JOB_NAME") or Path(sys.argv[0] or "").stem
+    name = "".join(ch for ch in raw if ch.isalnum() or ch in "_.-").strip("-.")
+    return name or "python"
+
+
+def _pid_file(job: str | None = None) -> Path:
+    return PID_DIR / f"llama-server.{job or _job_name()}.pid"
+
+
+def _unit_main_pid() -> int | None:
+    """MainPID of the unit, or None when it is not running / unreadable."""
+    try:
+        r = _run(["systemctl", "--user", "show", "-p", "MainPID", "--value",
+                  LLAMA_UNIT], timeout=15)
+        pid = int((r.stdout or "").strip() or 0)
+        return pid or None
+    except Exception as e:  # noqa: BLE001
+        logger.warning("MainPID of %s unreadable: %s", LLAMA_UNIT, e)
+        return None
+
+
+def _pid_alive(pid: int) -> bool:
+    return Path(f"/proc/{pid}").exists()
+
+
+def _read_owner_record(path: Path) -> tuple[int, int | None] | None:
+    """(main_pid, owner_pid) from a record file, or None if unreadable."""
+    try:
+        parts = path.read_text(encoding="utf-8").split()
+        main_pid = int(parts[0])
+        owner = int(parts[1]) if len(parts) > 1 else None
+        return main_pid, owner
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _record_ownership() -> int | None:
+    """Remember that THIS process started the server now running in the unit."""
+    pid = _unit_main_pid()
+    if pid is None:
+        logger.warning("llama-server ownership not recorded — MainPID unknown")
+        return None
+    try:
+        PID_DIR.mkdir(parents=True, exist_ok=True)
+        _pid_file().write_text(f"{pid} {os.getpid()}\n", encoding="utf-8")
+        logger.info("llama-server PID %d now owned by %s (pid %d) → %s",
+                    pid, _job_name(), os.getpid(), _pid_file().name)
+    except OSError as e:
+        logger.warning("could not write %s: %s", _pid_file(), e)
+    return pid
+
+
+def _foreign_owner(main_pid: int) -> str | None:
+    """'job (pid N)' when another ALIVE process recorded main_pid as the server
+    it started; stale records of dead jobs are removed on the way."""
+    for f in sorted(PID_DIR.glob("llama-server.*.pid")):
+        rec = _read_owner_record(f)
+        if rec is None:
+            continue
+        rec_main, owner = rec
+        if owner is None or owner == os.getpid():
+            continue
+        if not _pid_alive(owner):
+            try:
+                f.unlink()
+                logger.info("removed stale ownership record %s (owner pid %d gone)",
+                            f.name, owner)
+            except OSError:
+                pass
+            continue
+        if rec_main == main_pid:
+            job = f.name[len("llama-server."):-len(".pid")]
+            return f"{job} (pid {owner})"
+    return None
+
+
 def _served_model() -> str | None:
     """Return the model name llama-server currently serves, or None if down."""
     try:
@@ -256,6 +349,20 @@ def llama_server_start(expected_model: str, timeout: int = 240,
         raise RuntimeError(
             f"start-active.sh does not load {expected_model}; aborting handover")
 
+    # Ownership guard (#98): a server another ALIVE job recorded as its own is
+    # never taken over — that is exactly how the Saturday ingesters pulled the
+    # Gemma server from under the running cycle. Refuse with a clear message;
+    # the caller's entries stay untouched.
+    current = _unit_main_pid()
+    if current is not None:
+        owner = _foreign_owner(current)
+        if owner:
+            raise RuntimeError(
+                f"llama-server (PID {current}, serving {_served_model()!r}) belongs to "
+                f"running job {owner} — refusing to take over the GPU for "
+                f"{Path(expected_model).name} (#98). Wait for that job or stop it "
+                f"explicitly.")
+
     # Stop any llama-server already on the GPU FIRST. Without this, a pre-existing
     # server (e.g. an idle gpt-oss/8B from another context) keeps holding VRAM —
     # the VRAM-wait stalls and `systemctl start` on an already-active unit is a
@@ -273,17 +380,67 @@ def llama_server_start(expected_model: str, timeout: int = 240,
     while time.time() < deadline:
         if _model_ready(expected_model):
             logger.info("llama-server ready: %s", expected_model)
+            _record_ownership()
             return
         time.sleep(4)
     raise RuntimeError(
         f"llama-server did not serve {expected_model} within {timeout}s")
 
 
-def llama_server_stop(timeout: int = 60) -> None:
-    """Stop llama-server and wait for the GPU to release its VRAM."""
+def llama_server_stop(timeout: int = 60) -> bool:
+    """Stop llama-server and wait for the GPU to release its VRAM — but only
+    if the unit still runs the server THIS job started (#98). Returns True if
+    the unit was stopped, False if it was left running because another job
+    restarted it underneath us (that job owns the teardown now). Without an
+    ownership record (start never recorded a MainPID) the legacy stop applies."""
+    current = _unit_main_pid()
+    rec = _read_owner_record(_pid_file())
+    if current is not None and rec is not None and rec[0] != current:
+        logger.warning(
+            "llama-server on :8090 (PID %d, serving %r) is not the one this job started "
+            "(PID %d) — leaving it running, another job owns it now (#98)",
+            current, _served_model(), rec[0])
+        try:
+            _pid_file().unlink()
+        except OSError:
+            pass
+        return False
+    if rec is None:
+        logger.info("no ownership record for %s — stopping %s (legacy path)",
+                    _job_name(), LLAMA_UNIT)
     logger.info("Stopping %s", LLAMA_UNIT)
     _run(["systemctl", "--user", "stop", LLAMA_UNIT], timeout=60)
+    try:
+        _pid_file().unlink()
+    except OSError:
+        pass
     _wait_vram_below(VRAM_FREE_THRESHOLD_MIB, timeout=timeout)
+    return True
+
+
+def _restore_symlink(saved_target: str | None) -> None:
+    """Point start-active.sh back at the pre-handover target (no-op if equal)."""
+    if saved_target and _current_symlink_target() != saved_target:
+        try:
+            logger.info("Restoring start-active.sh → %s", saved_target)
+            if START_ACTIVE.is_symlink() or START_ACTIVE.exists():
+                START_ACTIVE.unlink()
+            START_ACTIVE.symlink_to(saved_target)
+        except Exception as e:
+            logger.error("symlink restore failed: %s", e)
+
+
+def _teardown(saved_target: str | None) -> None:
+    """Shared exit path of the handover context managers: stop our server,
+    restore the symlink. If the server turned out to be someone else's, leave
+    BOTH alone — the owning job restores the resting state on its own exit."""
+    try:
+        stopped = llama_server_stop()
+    except Exception as e:
+        logger.error("llama-server stop failed: %s", e)
+        stopped = True
+    if stopped:
+        _restore_symlink(saved_target)
 
 
 @contextmanager
@@ -316,20 +473,9 @@ def content_gen_on_llamacpp(expected_model: str):
     try:
         yield
     finally:
-        try:
-            llama_server_stop()
-        except Exception as e:
-            logger.error("llama-server stop failed: %s", e)
         # Restore start-active.sh to its pre-context target so the next handover
         # and scheduled_cycle's final `systemctl start` find it as expected.
-        if saved_target and _current_symlink_target() != saved_target:
-            try:
-                logger.info("Restoring start-active.sh → %s", saved_target)
-                if START_ACTIVE.is_symlink() or START_ACTIVE.exists():
-                    START_ACTIVE.unlink()
-                START_ACTIVE.symlink_to(saved_target)
-            except Exception as e:
-                logger.error("symlink restore failed: %s", e)
+        _teardown(saved_target)
 
 
 @contextmanager
@@ -356,18 +502,7 @@ def embed_on_llamacpp(expected_model: str):
     try:
         yield
     finally:
-        try:
-            llama_server_stop()
-        except Exception as e:
-            logger.error("llama-server stop failed: %s", e)
-        if saved_target and _current_symlink_target() != saved_target:
-            try:
-                logger.info("Restoring start-active.sh → %s", saved_target)
-                if START_ACTIVE.is_symlink() or START_ACTIVE.exists():
-                    START_ACTIVE.unlink()
-                START_ACTIVE.symlink_to(saved_target)
-            except Exception as e:
-                logger.error("symlink restore failed: %s", e)
+        _teardown(saved_target)
 
 
 @contextmanager
@@ -393,20 +528,9 @@ def eight_b_on_llamacpp(expected_model: str):
     try:
         yield
     finally:
-        try:
-            llama_server_stop()
-        except Exception as e:
-            logger.error("llama-server stop failed: %s", e)
         # Restore symlink to its pre-context state so the next handover finds
         # start-active.sh as it expects.
-        if saved_target and _current_symlink_target() != saved_target:
-            try:
-                logger.info("Restoring start-active.sh → %s", saved_target)
-                if START_ACTIVE.is_symlink() or START_ACTIVE.exists():
-                    START_ACTIVE.unlink()
-                START_ACTIVE.symlink_to(saved_target)
-            except Exception as e:
-                logger.error("symlink restore failed: %s", e)
+        _teardown(saved_target)
 
 
 @contextmanager
@@ -452,15 +576,4 @@ def model_on_llamacpp(expected_model: str,
     try:
         yield
     finally:
-        try:
-            llama_server_stop()
-        except Exception as e:
-            logger.error("llama-server stop failed: %s", e)
-        if saved_target and _current_symlink_target() != saved_target:
-            try:
-                logger.info("Restoring start-active.sh → %s", saved_target)
-                if START_ACTIVE.is_symlink() or START_ACTIVE.exists():
-                    START_ACTIVE.unlink()
-                START_ACTIVE.symlink_to(saved_target)
-            except Exception as e:
-                logger.error("symlink restore failed: %s", e)
+        _teardown(saved_target)

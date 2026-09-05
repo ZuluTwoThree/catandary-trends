@@ -216,7 +216,10 @@ Die systemd-Unit `~/.config/systemd/user/llama-server.service` startet
 Start-Skript umhängen und danach auf `start-qwen3-8b-208k.sh` zurückstellen.
 Log: `/tmp/llama-server.log` (unrotiert). Kein `--alias` in den Start-Skripten:
 der Handover prüft die Modell-Identität über `/v1/models` gegen den
-GGUF-Dateinamen.
+GGUF-Dateinamen. Wer die Unit startet, vermerkt ihre MainPID in
+`data/llama-server.<job>.pid` und stoppt beim Aufräumen nur noch diesen Server;
+einen Server, den ein anderer laufender Job vermerkt hat, übernimmt kein
+Handover (#98, Handbuch §11.8).
 
 ```bash
 systemctl --user enable --now llama-server     # Autostart via Linger
