@@ -217,3 +217,23 @@ class TestMorningMailNote:
         assert rn.main() == 0
         out = capsys.readouterr().out
         assert "Subject:" in out and "GPU cron weekly_ingesters: blocked" in out
+
+
+class TestFalsePositives:
+    """Prozesse, die einen Job-Namen nur ZITIEREN (Claude-Code-Tool-Shells, grep,
+    pgrep, Editoren), duerfen den Waechter nicht aufhalten — 2026-09-05 hielt ein
+    Wecker mit 'full_cycle_cron.sh' in der Kommandozeile den Publish 90 min auf."""
+
+    def test_quoting_tool_shell_is_not_a_job(self, env, tmp_path):
+        p = subprocess.Popen(["bash", "-c", "sleep 60 # source /x/.claude/shell-snapshots/snap.sh full_cycle_cron.sh end"])
+        try:
+            (tmp_path / "pids").write_text(f"{p.pid}\n")
+            r = run("gpu_guard_busy; echo rc=$?", env)
+            assert "rc=1" in r.stdout, r.stdout + r.stderr          # frei
+        finally:
+            p.kill(); p.wait()
+
+    def test_real_job_still_blocks(self, env, tmp_path, foreign):
+        (tmp_path / "pids").write_text(f"{foreign}\n")
+        r = run("gpu_guard_busy; echo rc=$?", env)
+        assert "rc=0" in r.stdout, r.stdout + r.stderr              # belegt

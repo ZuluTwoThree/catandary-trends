@@ -71,14 +71,21 @@ _gpu_guard_descends_from() {
 }
 
 gpu_guard_busy() {
-  local pids own_chain c found=1
+  local pids own_chain c args found=1
   pids=$(pgrep -f "$GPU_GUARD_PATTERNS" 2>/dev/null) || return 1
   own_chain=" $(_gpu_guard_chain "$$" | tr '\n' ' ') "
   for c in $pids; do
     [ -d "/proc/$c" ] || continue                            # schon beendet (z. B. die $(pgrep)-Subshell)
     case "$own_chain" in *" $c "*) continue ;; esac        # selbst / Vorfahre
     _gpu_guard_descends_from "$c" "$$" && continue           # eigener Kindprozess
-    echo "$c $(ps -o args= -p "$c" 2>/dev/null | cut -c1-140)"
+    args=$(ps -o args= -p "$c" 2>/dev/null)
+    # Fehltreffer ausschliessen (2026-09-05: ein Claude-Code-Wecker mit dem Text
+    # "full_cycle_cron.sh" in seiner Kommandozeile hielt den Publish 90 min auf):
+    # Tool-Shells, Editoren, grep/pgrep/tail selbst — alles, was den Namen nur zitiert.
+    case "$args" in
+      *shell-snapshots*|*"pgrep "*|*"grep "*|*"tail "*|*" vi "*|*" vim "*|*" nano "*|*" less "*) continue ;;
+    esac
+    echo "$c $(printf '%s' "$args" | cut -c1-140)"
     found=0
   done
   return "$found"
