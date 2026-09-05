@@ -184,7 +184,8 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                     require_all_fields: bool = False,
                     max_tokens: int | None = None,
                     verify_model: bool = False,
-                    hard_validate: Callable[[T], list[str]] | None = None) -> T | None:
+                    hard_validate: Callable[[T], list[str]] | None = None,
+                    cache_prompt: bool | None = None) -> T | None:
     """Structured output against llama-server (OpenAI json_schema response_format).
 
     Mirrors pipeline.ollama_client.chat_structured: retry loop, markdown fence
@@ -215,7 +216,10 @@ def chat_structured(model: str, prompt: str, schema: type[T],
     slot in a row while the same prompts had been fine before and were fine
     again afterwards, so a corrupted reused prefix is the leading suspect), and
     when the budget is spent GarbledOutputError propagates instead of a body
-    that would otherwise be stored as a draft with confidence 0.93."""
+    that would otherwise be stored as a draft with confidence 0.93.
+    `cache_prompt`: None = llama-server default (prefix reuse on); False sends
+    `cache_prompt: false` from the FIRST request — the A/B arm of
+    scripts/repro_stage6_garbage.py."""
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -237,6 +241,8 @@ def chat_structured(model: str, prompt: str, schema: type[T],
         },
         "chat_template_kwargs": {"enable_thinking": False},
     }
+    if cache_prompt is not None:
+        payload["cache_prompt"] = cache_prompt
 
     url = f"{LLAMACPP_HOST}/v1/chat/completions"
     vcap = max_validate_retries if max_validate_retries is not None else MAX_RETRIES - 1

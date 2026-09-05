@@ -574,10 +574,15 @@ def step_dedup_check(title: str, excerpt: str) -> tuple[bool, float, list[float]
     return False, max_sim, embedding
 
 
-def step_generate_content_en(title: str, excerpt: str, extraction: ExtractionResult,
-                              classification: ClassificationResult,
-                              source_url: str, source_name: str) -> GeneratedContent | None:
-    """Step 5: Generate English trend article."""
+def build_content_prompt(title: str, excerpt: str, extraction: ExtractionResult,
+                         classification: ClassificationResult,
+                         source_url: str, source_name: str) -> tuple[str, str]:
+    """The production Stage-6 user prompt and the grounding source for one row.
+
+    Split out of step_generate_content_en (2026-09-05) so
+    scripts/repro_stage6_garbage.py can replay EXACTLY what production sends —
+    the same slice of the excerpt, the same extraction blocks, the same framing.
+    Returns (prompt_en, source_text)."""
     # Everything the extraction found goes in. Until 2026-08-21 the prompt used
     # three of eight fields and dropped key_figures, dates, quotes and geography
     # — precisely the four the grounding gate then judged the finished body
@@ -621,6 +626,15 @@ The source below may be in German or another language — translate it and write
     source_text = source_from_parts(title, excerpt, extraction.key_claims,
                                     extraction.key_figures, extraction.dates,
                                     extraction.quotes, extraction.geography)
+    return prompt_en, source_text
+
+
+def step_generate_content_en(title: str, excerpt: str, extraction: ExtractionResult,
+                              classification: ClassificationResult,
+                              source_url: str, source_name: str) -> GeneratedContent | None:
+    """Step 5: Generate English trend article."""
+    prompt_en, source_text = build_content_prompt(title, excerpt, extraction, classification,
+                                                  source_url, source_name)
     guard = make_content_guard(source_text)
     # HARD guard (#11, 2026-09-05): token soup is never accepted, not even after
     # the soft budget — the soft guard's "accept the last result" is exactly how
