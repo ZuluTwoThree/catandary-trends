@@ -317,7 +317,9 @@ Zahlen deterministisch per Regex aus der Quelle) · 4 Klassifikation
 oder Jahre → Hold) · 10 Draft-Richter (Qwen3.8-27B beurteilt die Drafts unter
 der Schwelle, gibt frei oder hält, verwirft nie). Zwischen den Stufen wechselt
 `pipeline/gpu_handover.py` das Modell auf `:8090` (Symlink + VRAM-Check +
-Identitäts-Check).
+Identitäts-Check); die Stages 2/3/4/6/8 prüfen zusätzlich vor jedem Request
+und Retry, dass `:8090` noch ihr Modell serviert, und brechen sonst ab, ohne
+Einträge zu verlieren (#98, Handbuch §11.5 Punkt 7).
 
 **Distill-Pfad** (`pipeline/distill.py`, `scripts/signal_batch*.py`): lineare
 Heads auf den 4096-dim-Embeddings ersetzen die LLM-Klassifikation für den

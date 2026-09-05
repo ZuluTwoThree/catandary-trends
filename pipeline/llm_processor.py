@@ -439,6 +439,7 @@ Excerpt: {excerpt[:RELEVANCE_CHARS]}"""
             schema=RelevanceResult,
             system=RELEVANCE_SYSTEM,
             temperature=0.0,
+            verify_model=True,  # #98: abort if :8090 no longer serves the 8B
         )
 
     return chat_structured(
@@ -482,6 +483,7 @@ Text: {excerpt[:EXTRACT_CHARS]}"""
             # none as required and the grammar let the model omit them — it did,
             # for brand_name, key_claims and quotes on all 14 test articles.
             require_all_fields=EXTRACTION_STRICT,
+            verify_model=True,
         )
 
     return chat_structured(
@@ -520,6 +522,7 @@ Key Claims: {', '.join(extraction.key_claims[:5]) if extraction.key_claims else 
             schema=ClassificationResult,
             system=CLASSIFICATION_SYSTEM,
             temperature=0.0,
+            verify_model=True,
         )
 
     return chat_structured(
@@ -617,6 +620,11 @@ The source below may be in German or another language — translate it and write
             temperature=0.7,
             validate=guard,
             max_validate_retries=3,  # Option B: allow re-rolls toward target length, then accept
+            # #98: identity gate before the first request and every re-roll.
+            # 2026-09-05 the embedding server answered these requests with
+            # 200 OK; the cliché guard rejected each body and the stage
+            # re-rolled for hours. A mismatch now raises ModelMismatchError.
+            verify_model=True,
         )
 
     return chat_structured(
@@ -1021,6 +1029,8 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
             used_hybrid = True
             logger.info("Stages 2-4 (hybrid distill) done in %.1fs: %d survivors",
                         time.time() - t_stage, len(survivors))
+        except llamacpp_client.ModelMismatchError:
+            raise  # #98: the 8B band hit a swapped server — the LLM path would too
         except Exception as e:  # noqa: BLE001 — never break the cycle on distill issues
             logger.warning("Hybrid classify unavailable (%s) — falling back to 8B LLM path", e)
 
@@ -1248,6 +1258,17 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
                     next_survivors.append(entry)
                     if i % 10 == 0 or i == total_stage6:
                         logger.info("Stage 6 progress: %d/%d (%.0f%%)", i, total_stage6, i / total_stage6 * 100)
+                except llamacpp_client.ModelMismatchError as e:
+                    # #98: another job swapped :8090 under us. Stop generating —
+                    # this entry and every remaining one stay UNPROCESSED (not
+                    # marked, not filtered) for the next run; the entries already
+                    # generated continue into Stage 7. Counted as errors so
+                    # run_full_cycle exits non-zero.
+                    remaining = total_stage6 - i + 1
+                    logger.error("Stage 6 ABORTED at %d/%d: %s — %d entries left unprocessed",
+                                 i, total_stage6, e, remaining)
+                    errors += remaining
+                    break
                 except Exception as e:
                     logger.error("[%d] content EN error: %s", entry["id"], e)
                     mark_processed(entry["id"])

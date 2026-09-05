@@ -105,6 +105,7 @@ def _classify_one(title: str, summary: str) -> dict | None:
             schema=ReclassifyResult,
             system=CLASSIFY_SYSTEM,
             temperature=0.0,
+            verify_model=True,  # #98
         )
     else:
         result = chat_structured(

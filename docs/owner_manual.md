@@ -794,6 +794,13 @@ nvidia-smi --query-gpu=memory.used,memory.total --format=csv
    fährt nur Stage 8/9 + Morgen-Mail nach, ohne neu zu generieren.
 6. `cron` braucht `XDG_RUNTIME_DIR` — fehlt die Zeile, scheitern alle Handover
    mit „Failed to connect to bus" und der Lauf macht 0 LLM-Calls.
+7. Steht im Cycle-Log `Stage 6 ABORTED at n/m: GeneratedContent: llama-server at
+   … serves '…', expected '…'` (oder ein `ModelMismatchError`-Traceback aus den
+   8B-Stages), hat ein anderer Job den Server unter der Stage getauscht (#98).
+   Nichts ist verloren: die betroffenen Einträge sind weder verarbeitet noch
+   gefiltert und laufen beim nächsten Cycle erneut (Stage-Zwischenergebnisse sind
+   gecacht). Prüfen, welcher Job es war (`~/logs/catandary-ingesters-*.log`,
+   `data/dossier_worker/`), dann §11.8 — der Wächter sollte das verhindert haben.
 
 ### 11.6 Logs und Statusdateien
 
