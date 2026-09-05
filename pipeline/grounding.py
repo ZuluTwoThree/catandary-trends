@@ -357,7 +357,42 @@ games cup league series show tour brand model pro max plus mini air ultra one
 two monday tuesday wednesday thursday friday saturday sunday january february
 march april may june july august september october november december syndrome
 disease disorder effect theorem method process protocol scale test virus kong
+space telescope observatory
 """.split())
+
+# A person's name used as the name of an institution, instrument or brand is
+# not a claim about a person: "Justus Liebig University", "James Webb Space
+# Telescope", "Max Planck Institute". Owner 2026-09-05: institutions and
+# places are a warning at most, never a hold.
+_ORG_SUFFIX = frozenset("""
+institute institut institutes university universität universitaet college
+school foundation stiftung hospital klinik clinic center centre zentrum space
+telescope observatory prize preis award medal lecture street straße strasse
+platz airport stadium arena museum library bibliothek laboratory lab labs
+company co inc ltd gmbh ag group holding bank capital partners brothers sons
+son gesellschaft
+""".split())
+
+# Person-shaped names that are brands or institutions in this corpus (the
+# 2026-09-05 sweep: "Eli Lilly" 35×, "James Webb" 11×, "Levi Strauss" 4×).
+_NOT_PERSONS = frozenset("""
+eli lilly|james webb|levi strauss|justus liebig|ludwig maximilian|max planck|
+robert bosch|robert koch|johns hopkins|wells fargo|goldman sachs|heinrich heine|
+albert einstein|carl zeiss|friedrich schiller|johann wolfgang|ernst abbe|
+fritz haber|wilhelm röntgen|wilhelm roentgen|ludwig boltzmann|erwin schrödinger|
+gottfried wilhelm|marie curie|ralph lauren|calvin klein|tommy hilfiger|hugo boss|
+louis vuitton|christian dior|marc jacobs|michael kors|tom ford|jimmy choo|
+kate spade|tory burch|paul smith|estee lauder|estée lauder|giorgio armani|
+walt disney|warner bros|philip morris|john deere|harley davidson|charles schwab|
+franklin templeton|jack daniel|jim beam|johnnie walker|sara lee|betty crocker|
+roman space|vera rubin|nancy grace|abu dhabi|hong kong|ben jerry|dolce gabbana|
+yves saint|saint laurent|ermenegildo zegna|salvatore ferragamo|stella mccartney|
+alexander mcqueen|vivienne westwood|victoria beckham|carolina herrera|
+oscar de la renta|jean paul gaultier|thomas cook|marks spencer|procter gamble|
+johnson johnson|ernst young|arthur andersen|rolls royce|aston martin|
+david lloyd|william hill|harvey nichols|fortnum mason|dean deluca|pret manger|
+alfred nobel|leonardo da vinci|george washington|abraham lincoln|thomas jefferson
+""".replace("\n", "").split("|"))
 
 
 _ABBREV_TITLES = frozenset({"dr", "prof", "mr", "mrs", "ms"})
@@ -487,6 +522,15 @@ def ungrounded_names(body: str, source: str) -> list[str]:
             continue
         words = [p for p in parts if p.lower() not in _PARTICLES]
         name = _POSSESSIVE_RE.sub("", " ".join(parts))
+        key = " ".join(_POSSESSIVE_RE.sub("", w).lower() for w in words)
+        # institution / brand / instrument named after a person → not a person
+        nxt = toks[i_next] if i_next < len(toks) else ""
+        gap = body[matches[i_next - 1].end():matches[i_next].start()].strip() if nxt else ""
+        org = (nxt and gap in ("", "&", "-", "–", "und", "and")
+               and _POSSESSIVE_RE.sub("", nxt).lower() in _ORG_SUFFIX)
+        if org or key in _NOT_PERSONS:
+            i = i_next
+            continue
         if any(not _in_source(w, src) for w in words) and name not in seen:
             bad.append(name)
             seen.add(name)

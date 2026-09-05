@@ -264,7 +264,42 @@ games cup league series show tour brand model pro max plus mini air ultra one
 two monday tuesday wednesday thursday friday saturday sunday january february
 march april may june july august september october november december syndrome
 disease disorder effect theorem method process protocol scale test virus kong
+space telescope observatory
 `.split(/\s+/).filter(Boolean));
+
+// A person's name used as the name of an institution, instrument or brand is
+// not a claim about a person ("Justus Liebig University", "James Webb Space
+// Telescope"). Owner 2026-09-05: institutions and places are a warning at most.
+const ORG_SUFFIX = new Set(`
+institute institut institutes university universität universitaet college
+school foundation stiftung hospital klinik clinic center centre zentrum space
+telescope observatory prize preis award medal lecture street straße strasse
+platz airport stadium arena museum library bibliothek laboratory lab labs
+company co inc ltd gmbh ag group holding bank capital partners brothers sons
+son gesellschaft
+`.split(/\s+/).filter(Boolean));
+
+// Person-shaped names that are brands or institutions in this corpus.
+const NOT_PERSONS = new Set(
+  `eli lilly|james webb|levi strauss|justus liebig|ludwig maximilian|max planck|
+robert bosch|robert koch|johns hopkins|wells fargo|goldman sachs|heinrich heine|
+albert einstein|carl zeiss|friedrich schiller|johann wolfgang|ernst abbe|
+fritz haber|wilhelm röntgen|wilhelm roentgen|ludwig boltzmann|erwin schrödinger|
+gottfried wilhelm|marie curie|ralph lauren|calvin klein|tommy hilfiger|hugo boss|
+louis vuitton|christian dior|marc jacobs|michael kors|tom ford|jimmy choo|
+kate spade|tory burch|paul smith|estee lauder|estée lauder|giorgio armani|
+walt disney|warner bros|philip morris|john deere|harley davidson|charles schwab|
+franklin templeton|jack daniel|jim beam|johnnie walker|sara lee|betty crocker|
+roman space|vera rubin|nancy grace|abu dhabi|hong kong|ben jerry|dolce gabbana|
+yves saint|saint laurent|ermenegildo zegna|salvatore ferragamo|stella mccartney|
+alexander mcqueen|vivienne westwood|victoria beckham|carolina herrera|
+oscar de la renta|jean paul gaultier|thomas cook|marks spencer|procter gamble|
+johnson johnson|ernst young|arthur andersen|rolls royce|aston martin|
+david lloyd|william hill|harvey nichols|fortnum mason|dean deluca|pret manger|
+alfred nobel|leonardo da vinci|george washington|abraham lincoln|thomas jefferson`
+    .replace(/\n/g, "")
+    .split("|")
+);
 
 const isUpper = (ch: string) => ch !== ch.toLowerCase() && ch === ch.toUpperCase();
 const isLower = (ch: string) => ch !== ch.toUpperCase() && ch === ch.toLowerCase();
@@ -373,6 +408,18 @@ export function ungroundedNames(body: string, source: string): string[] {
     }
     const words = parts.filter((p) => !PARTICLES.has(p.toLowerCase()));
     const name = parts.join(" ").replace(POSSESSIVE_RE, "");
+    const key = words.map((w) => w.replace(POSSESSIVE_RE, "").toLowerCase()).join(" ");
+    // institution / brand / instrument named after a person → not a person
+    const nxt = next < toks.length ? toks[next] : "";
+    const gap = nxt ? gapBetween(next - 1, next).trim() : "";
+    const org =
+      !!nxt &&
+      ["", "&", "-", "–", "und", "and"].includes(gap) &&
+      ORG_SUFFIX.has(nxt.replace(POSSESSIVE_RE, "").toLowerCase());
+    if (org || NOT_PERSONS.has(key)) {
+      i = next;
+      continue;
+    }
     if (words.some((w) => !inSource(w, src)) && !seen.has(name)) {
       bad.push(name);
       seen.add(name);

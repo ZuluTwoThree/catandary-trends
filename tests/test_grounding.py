@@ -289,6 +289,16 @@ def test_organisations_with_person_names_are_not_people():
     assert ungrounded_names(body, src) == []
 
 
+def test_institutions_brands_and_instruments_named_after_people():
+    src = "The university and the telescope reported results; the drugmaker grew."
+    body = ("Justus Liebig University Giessen and the James Webb Space Telescope reported "
+            "results, while Eli Lilly grew; Levi Strauss & Co. and the Max Planck "
+            "Institute for Chemistry followed, as did Abu Dhabi.")
+    assert ungrounded_names(body, src) == []
+    # the same given name IS a person when nothing institutional follows
+    assert ungrounded_names("Karin Voordeckers said so.", src) == ["Karin Voordeckers"]
+
+
 def test_lone_given_name_is_not_a_claim():
     assert ungrounded_names("Alexa and Emma are popular assistants.", "Assistants are popular.") == []
 

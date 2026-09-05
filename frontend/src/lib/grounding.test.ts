@@ -216,6 +216,16 @@ describe("ungroundedNames — parity with pipeline/grounding.py (#11, 2026-09-05
     expect(ungroundedNames(body, src)).toEqual([]);
   });
 
+  it("skips institutions, brands and instruments named after people", () => {
+    const src = "The university and the telescope reported results; the drugmaker grew.";
+    const body =
+      "Justus Liebig University Giessen and the James Webb Space Telescope reported " +
+      "results, while Eli Lilly grew; Levi Strauss & Co. and the Max Planck " +
+      "Institute for Chemistry followed, as did Abu Dhabi.";
+    expect(ungroundedNames(body, src)).toEqual([]);
+    expect(ungroundedNames("Karin Voordeckers said so.", src)).toEqual(["Karin Voordeckers"]);
+  });
+
   it("ignores lone given names and empty input", () => {
     expect(ungroundedNames("Alexa and Emma are popular assistants.", "Assistants are popular.")).toEqual([]);
     expect(ungroundedNames("", "x")).toEqual([]);

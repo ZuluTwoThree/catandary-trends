@@ -21,6 +21,7 @@ reed ray lance frank grant miles pat ruby van wade rob jack don earl gene guy
 jay lee rich rod warren chip buck cliff clay dale glen heath holly ivy laurel
 olive pearl robin sage sierra violet georgia virginia carolina paris florence
 chelsea brooklyn austin jordan israel india kenya asia china morgan stanley
+eli (Eli Lilly) abu (Abu Dhabi) hong (Hong Kong)
 madison lincoln kennedy hudson jackson franklin hamilton marshall wilson
 nelson carter parker cooper mason logan taylor tyler bailey harrison dean
 sterling gordon baker mercedes tesla ernst christian german reagan angel
@@ -33,7 +34,7 @@ writes them after a title ("CEO Will Smith").
 from __future__ import annotations
 
 _RAW = """
-aaron abbas abby abdel abdul abdullah abel abigail abraham abu achim ada adam
+aaron abbas abby abdel abdul abdullah abel abigail abraham abu_ achim ada adam
 adan addison adel adele adeline adelheid adnan adolf adrian adriana adrienne
 agatha agnes agnieszka agustin ahmad ahmed aidan aiko aileen aimee aisha akira
 alain alan alba albert alberto albrecht aldo alec alejandra alejandro aleksander
@@ -71,7 +72,7 @@ diego dieter dietmar dietrich dilara dima dimitri dimitrios dina dirk dmitry
 dolores domenico dominic dominik dominika dominique donald donna dora doreen
 doris dorothea dorothy doug dustin dwight dylan eberhard ebru ed eddie edgar
 edith edmund edouard eduard eduardo edward edwin efe egon eileen ekaterina
-elaine eleanor elena eleni eleonora eli elias elif elijah elin elina elisa
+elaine eleanor elena eleni eleonora eli_ elias elif elijah elin elina elisa
 elisabeth elise eliza elizabeth elke ella ellen ellie elliot elliott elmar
 eloise elsa else elton elvira emanuel emanuele emil emilia emiliano emilie
 emilio emily emma emmanuel emmanuelle emre enrico enrique enzo eric erica erich
