@@ -106,26 +106,51 @@ den Foresight-Werkzeugen.
 ## 3. Review-Seite (`/trends/review`)
 
 **Wozu.** Das nächtliche Auto-Publish veröffentlicht Drafts mit Confidence
-≥ 0,85 — **außer** das Grounding-Gate findet im Body eine Zahl, ein Jahr, einen
-Prozent- oder Geldbetrag, der in der Quelle nicht vorkommt (Modell hat etwas
-erfunden), oder der Text bricht mitten im Satz ab. Solche Artikel bleiben
-`draft` und landen hier. Ohne Entscheidung bleiben sie liegen.
+≥ 0,85 — **außer** ein Gate schlägt an: (1) das Grounding-Gate findet im Body
+eine Zahl, ein Jahr, einen Prozent- oder Geldbetrag, der in der Quelle nicht
+vorkommt (Modell hat etwas erfunden); (2) seit 05.09.2026 (#11) auch einen
+**Personennamen**, den die Quelle nicht wörtlich nennt („Henkel-Chef Knobel"
+→ „Henkel CEO **Markus** Knobel", real Carsten — Vorname/Titel dazuerfunden);
+(3) der Body ist **garbled** (Token-Suppe wie „M M M M M 仪器(", eingestreute
+CJK-Zeichen, Wortwiederholungen, < 60 Wörter — `pipeline/content_guard.py`);
+(4) der Text bricht mitten im Satz ab. Solche Artikel bleiben `draft` und
+landen hier. Ohne Entscheidung bleiben sie liegen.
 
 **Wo.** `http://localhost:3001/trends/review` — nicht im Menü verlinkt,
 `PUBLIC_MODE`/Export: 404. Kein Login (Owner-Instanz).
 
 **Bedienung.**
-- Zwei Ansichten: **Today** (Drafts der letzten 30 h) und **Backlog** (alle,
-  max. 100). Kopfzeile: Anzahl heute, gesamt, ältestes Datum.
+- Drei Ansichten: **Today** (Drafts der letzten 30 h), **Backlog** (alle,
+  max. 100) und **Re-check (n)** — die Warteschlange der **Bestandsprüfung
+  05.09.2026**: Artikel mit `status='review'`, die
+  `scripts/recheck_published_grounding.py` (oder der Draft-Richter) aus
+  `published`/`draft` herausgenommen hat; jede Karte nennt in der Zeile
+  `reason:` den Grund (`recheck_2026-09-05:name:Markus Knobel`,
+  `…:garbled:script_leak:续约`). Nichts in `review` ist öffentlich. Kopfzeile:
+  Anzahl heute, gesamt, ältestes Datum, Anzahl im Re-check.
 - Jede Karte zeigt links den generierten Artikel, rechts „What the source
-  actually said" (Feed-Teaser bzw. Volltext). Beanstandete Token sind im Body
-  markiert und in der Warnzeile aufgeführt („Not supported by the source: …");
-  abgeschnittene Bodies tragen „cut off mid-sentence".
+  actually said" (Feed-Teaser bzw. Volltext). Beanstandete Token — Zahlen
+  **und Personennamen** — sind im Body markiert und in Warnzeilen aufgeführt
+  („Not supported by the source: …", „Person named differently than in the
+  source: …", „Garbled text: …"); Kopfzeilen-Flags: `cut off mid-sentence`,
+  `garbled`, `ungrounded name`, `in review`.
 - **Publish** — Artikel geht live; `auto_published=false`, `reviewed_at` gesetzt
-  („human-reviewed"). **Reject** — Status `rejected`, `reviewed_at` gesetzt.
-  **Write again** — nur bei abgeschnittenem Text: der Rohdaten-Eintrag wird für
-  den nächsten Cycle neu eingereiht, der aktuelle Draft wird verworfen (die
-  Quelle geht nicht verloren).
+  („human-reviewed"), `review_reason` gelöscht. **Reject** — Status `rejected`,
+  `reviewed_at` gesetzt. **Write again** — bei abgeschnittenem oder garbled
+  Text: der Rohdaten-Eintrag wird für den nächsten Cycle neu eingereiht, der
+  aktuelle Draft wird verworfen (die Quelle geht nicht verloren). Alle drei
+  Aktionen gelten für beide Warteschlangen (`draft` und `review`).
+- Ein Namens-Treffer ist ein **Hold, kein Urteil**: „Donald Trump" bei Quelle
+  „Trump" ist korrekt ergänzt, „Simona Reiche" bei Quelle „Reiche" erfunden
+  (real Katherina) — das entscheidet der Mensch. Geprüft wird gegen das, was
+  die DB **heute** hält; nach `purge_raw_content.py` gelöschte Volltexte
+  können Namen „ungrounded" erscheinen lassen, die das Modell damals gelesen hat.
+- Bestandsprüfung wiederholen (CPU, ~2 min für 89k):
+  `python scripts/recheck_published_grounding.py --names --garbage --dry-run`
+  (Zahlen + Report nach `docs/compliance/grounding_recheck_<Datum>.md`), dann
+  `--apply` (Treffer → `status='review'`, `review_reason` gestempelt;
+  `reviewed_at` bleibt leer). `--status draft --garbage` fängt Suppe unter
+  den Drafts, `--status review` stempelt Gründe auf von Hand verschobene Zeilen.
 - Terminal-Alternative: `python scripts/review_cli.py list | show <id> | publish <id> |
   reject <id> | review | stats`.
 
@@ -140,10 +165,20 @@ Published) oder **hält** — er verwirft nie. Jeder beurteilte Draft bekommt
 Cron-Umgebung. Der Richter braucht die GPU exklusiv (27B lässt ~1,1 GB Reserve);
 Fremdbelegung → SKIP mit Diagnose statt Timeout.
 
-**Grenzen.** Die Review-Seite zeigt nur Grounding-/Truncation-Holds
-(Confidence ≥ 0,85). Vom Richter *gehaltene* Sub-Schwellen-Drafts erscheinen
-hier nicht; sie bleiben `draft` und sind über die CLI (`list draft`) erreichbar.
-Das Gate arbeitet fail-open: ohne gespeicherten Quelltext wird nicht geprüft.
+**Grenzen.** Today/Backlog zeigen nur Gate-Holds (Confidence ≥ 0,85). Vom
+Richter *gehaltene* Sub-Schwellen-Drafts erscheinen hier nicht; sie bleiben
+`draft` und sind über die CLI (`list draft`) erreichbar — außer der Richter
+hat sie als garbled nach `review` umgeleitet, dann stehen sie im Re-check-Tab.
+Die Grounding-Gates arbeiten fail-open: ohne gespeicherten Quelltext wird
+nicht geprüft; der Garbage-Guard prüft den Body auch ohne Quelle.
+
+**Stage-6-Schutz (seit 05.09.2026).** Token-Suppe wird gar nicht erst
+gespeichert: der harte Guard würfelt mit frischem Request ohne Prompt-Cache
+neu und lässt den Eintrag nach drei Fehlversuchen unverarbeitet
+(`GarbledOutputError`, Zähler „garbled → left unprocessed" in der
+Stage-6-Zeile des Cycle-Logs). Der Vorfall vom 05.09. (22 Suppen in Folge,
+alle Volltext-Prompts an der 4000-Zeichen-Kappe) ist mit
+`scripts/repro_stage6_garbage.py` nachspielbar — GPU frei halten, Kopf lesen.
 
 ---
 

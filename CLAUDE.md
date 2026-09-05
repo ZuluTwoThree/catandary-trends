@@ -253,6 +253,26 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     → Temperatur: 0.6-0.8
     → Identitäts-Check (#98): vor jedem Request/Retry muss /v1/models das
       erwartete GGUF nennen, sonst Stage-Abbruch (Einträge bleiben unprocessed)
+    → Quelltext im Prompt: nur der ANFANG, STAGE6_SOURCE_MAX_CHARS (Env,
+      Default 4000 = die bisherige Kappe; die Extraktion liest 12.000 und
+      liefert Zahlen/Daten/Zitate der hinteren Hälfte). Bewusst nicht
+      angehoben: die 22 Garbage-Bodies vom 05.09. entstanden ausschließlich
+      bei Prompts an dieser Kappe (User-Prompt ≈ 5k Zeichen ≈ 2k Tokens =
+      -ub-Grenze des Gemma-Starts). Repro: scripts/repro_stage6_garbage.py
+      (GPU, on demand, drei Arme: Produktion / cache_prompt=false / 2000 Zeichen).
+    → Prompt-Regel (seit 2026-09-05): "Never add first names, titles,
+      affiliations, dates or figures that are not in the source; refer to
+      people exactly as the source does."
+    → HARTER Garbage-Guard (#11, 2026-09-05; pipeline/content_guard.py):
+      Nicht-Latein-Anteil > 0,5 %, Wort ≥ 4× in Folge / "URLURLURL",
+      Unikat-Anteil < 35 %, < 60 Wörter, Nicht-Wort-Zeichen > 25 %,
+      Leerraum-Runs, Script-Leak gegen die Quelle → frischer Request OHNE
+      Prompt-Cache (cache_prompt=false); nach 3 Versuchen GarbledOutputError:
+      NICHTS wird gespeichert, der Eintrag bleibt unprocessed (kein
+      mark_filtered). Vorher gab chat_structured nach dem Soft-Guard-Budget
+      das letzte Ergebnis trotzdem zurück — so wurden am 05.09. 22 Token-
+      Suppen mit Confidence bis 0,93 zu Drafts. Der Soft-Guard (Cliché,
+      Länge, Grounding) behält seine "nach Budget akzeptieren"-Semantik.
     │
     ▼
 [Schritt 6] ÜBERSETZUNG DE — ENTFÄLLT (seit ~2026-06)
@@ -273,6 +293,14 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
 [Schritt 9] AUTO-PUBLISH
     → Status: "draft" → "published" wenn confidence >= 0.85
     → Niedrigere Confidence bleibt als Draft für manuelles Review
+    → Gates (Reihenfolge, jedes hält den Draft für /trends/review):
+      garbled (content_guard, Body gegen Quelle) → truncated (#18) →
+      ungrounded specifics (Zahl/Jahr/Prozent/Geld nicht in der Quelle, #11)
+      → ungrounded person names (grounding.ungrounded_names, #11 seit
+      2026-09-05: "Henkel-Chef Knobel" darf nicht als "Henkel CEO Markus
+      Knobel" live gehen — Vorname aus pipeline/first_names.py oder Titel
+      davor, jedes Wort muss in Titel+Teaser+Volltext+Extraktion stehen).
+      Zähler: held_garbled / held_truncated / held_fabricated / held_names.
     │
     ▼
 [Schritt 10] DRAFT-RICHTER (Qwen3.8-27B lokal; seit 2026-08-22, DRAFT_JUDGE=0 schaltet ab)
@@ -280,8 +308,11 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       (Kriterien der Haiku-Volldurchsicht: 71,6 % davon sind publizierbar,
       Confidence trennt kaum — docs/confidence_threshold_entscheidung_2026-08-21.md)
     → publish nur bei signal=true UND Kategorie ok; sonst ZURÜCKHALTEN, nie verwerfen
-    → Jede Freigabe durch dieselben Gates wie Auto-Publish: Grounding,
-      Truncation, pgvector-Dedup gegen Published (pipeline/draft_judge.py)
+    → Jede Freigabe durch dieselben Gates wie Auto-Publish: Garbage,
+      Truncation, Grounding (Zahlen + Personennamen), pgvector-Dedup gegen
+      Published (pipeline/draft_judge.py). Garbage-Kandidaten gehen VOR dem
+      Richter nach status='review' + review_reason='garbled:…' (divert_garbled,
+      judged_at gestempelt) — Token-Suppe ist keine Ermessensfrage.
     → Jeder beurteilte Draft wird judged_at-gestempelt und nie erneut
       beurteilt (seit 2026-08-25 — vorher richtete der Judge dieselbe
       gehaltene Kohorte jede Nacht neu und die frischen Drafts verhungerten

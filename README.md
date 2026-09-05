@@ -100,7 +100,7 @@ Karte und die drei Routinen, die man auswendig kennen sollte.
 | Funktion | Wo | Kernaktion | Handbuch |
 |---|---|---|---|
 | Trend-Feed, Artikel, Suche/Filter | `/trends`, `/trends/<slug>`, `?q=` `?v=` | lesen, filtern; Hybrid-Suche auch als `/api/search` | [§2](docs/owner_manual.md#2-trend-feed-artikelseite-suche-und-filter) |
-| **Review-Queue** (Grounding-/Truncation-Holds) | `/trends/review` (unverlinkt) | *Publish · Reject · Write again*; CLI `scripts/review_cli.py` | [§3](docs/owner_manual.md#3-review-seite-trendsreview) |
+| **Review-Queue** (Holds: Zahlen/Jahre, **Personennamen**, **garbled**, abgeschnitten; Tab *Re-check* = Bestandsprüfung 05.09.) | `/trends/review` (unverlinkt) | *Publish · Reject · Write again*; CLI `scripts/review_cli.py`; Bestandsprüfung `scripts/recheck_published_grounding.py --names --garbage --dry-run/--apply` | [§3](docs/owner_manual.md#3-review-seite-trendsreview) |
 | Mega Signal Themes, Methodik | `/trends/mega`, `/trends/methodology` | Badges lesen (Megatrend/Domain/Faded Hype/Momentum); Messung `scripts/measure_mega_axes.py --write-yaml` | [§4](docs/owner_manual.md#4-mega-signal-themes-und-methodik-seite) |
 | Technologie-Suche (Quality-Gate ok/ambiguous/off_topic) | `/trends/foresight/technology` | Phrase → Feldwahl oder Rückfrage → K(t), Lead-Time, Leitpatente; CLI `scripts/tech_analyze.py --query` | [§5.1](docs/owner_manual.md#51-technologie-suche-trendsforesighttechnology) |
 | Lead Time, Cluster, Evolution, Druck-Dossier | `/trends/foresight/lead-time` `/clusters` `/evolution` `/dossier` | lesen; Snapshots neu rechnen `python -m pipeline.foresight_snapshot --all-verticals [--lineage]` | [§5.2–5.5](docs/owner_manual.md#52-lead-time-trendsforesightlead-timecpcsubklasse) |
