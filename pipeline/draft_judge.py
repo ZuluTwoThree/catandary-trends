@@ -35,7 +35,7 @@ from pydantic import BaseModel, Field
 from pipeline import db as db_mod
 from pipeline.content_guard import garbage_reasons
 from pipeline.db import get_connection
-from pipeline.grounding import source_from_parts, ungrounded_specifics
+from pipeline.grounding import source_from_parts, ungrounded_names, ungrounded_specifics
 from pipeline.config import DUPLICATE_SIMILARITY_THRESHOLD
 
 logger = logging.getLogger("draft_judge")
@@ -110,6 +110,9 @@ def release_gates(title: str | None, body: str | None, re_title: str | None,
     flags = ungrounded_specifics(body, src)
     if flags:
         return False, f"ungrounded:{','.join(flags[:4])}"
+    names = ungrounded_names(body, src)
+    if names:
+        return False, f"ungrounded_name:{','.join(names[:3])}"
     return True, "ok"
 
 

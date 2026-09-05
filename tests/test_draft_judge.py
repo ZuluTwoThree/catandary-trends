@@ -57,6 +57,12 @@ class TestReleaseGates:
             "The market grew strongly last year.", None, None)
         assert not ok and reason.startswith("ungrounded")
 
+    def test_invented_first_name_is_blocked(self):
+        ok, reason = release_gates(
+            "T", "Henkel CEO Markus Knobel said margins improved." + PAD, "Henkel",
+            "Henkel-Chef Knobel: Margen verbessert.", None, None)
+        assert not ok and reason == "ungrounded_name:Markus Knobel"
+
     def test_extraction_evidence_grounds_the_body(self):
         """Figures the extraction captured count as source material — same
         assembly as the auto-publish gate (source_from_parts)."""

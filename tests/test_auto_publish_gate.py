@@ -54,6 +54,10 @@ def seeded_db():
         c.execute("INSERT INTO raw_entries (id, source_id, url, title, excerpt) "
                   "VALUES (4, 1, 'http://x/4', 'Jobs report', "
                   "'The programme created 7,980 jobs across 36 firms in 2024.')")
+        # entry 6: source names the CEO by surname only
+        c.execute("INSERT INTO raw_entries (id, source_id, url, title, excerpt) "
+                  "VALUES (6, 1, 'http://x/6', 'Henkel', "
+                  "'Henkel-Chef Knobel: Margen verbessert, Ausblick bestätigt.')")
         # entry 5: the 2026-09-05 incident — token soup with confidence 0.95
         c.execute("INSERT INTO raw_entries (id, source_id, url, title, excerpt) "
                   "VALUES (5, 1, 'http://x/5', 'Breathing study', "
@@ -78,6 +82,9 @@ def seeded_db():
     insert_trend(4, {**base, "title_en": "Grounded", "slug": "grounded-4",
                      "body_en": "The programme created 7,980 jobs across 36 firms "
                                 "in its 2024 review, a concrete social outcome." + PAD})
+    # invented first name (real: Carsten), high confidence -> HELD (names gate)
+    insert_trend(6, {**base, "title_en": "Knobel", "slug": "knobel-6",
+                     "body_en": "Henkel CEO Markus Knobel said margins improved." + PAD})
     # garbage body (real incident text), high confidence -> HELD (garbled gate)
     insert_trend(5, {**base, "title_en": "Soup", "slug": "soup-5",
                      "body_en": ": writing writing市/address : writing M M M M M       仪器("})
@@ -93,6 +100,7 @@ def test_truncated_body_is_held_not_published(seeded_db):
     assert stats["held_truncated"] == 1
     assert stats["held_fabricated"] == 1
     assert stats["held_garbled"] == 1
+    assert stats["held_names"] == 1
     with get_connection() as c:
         rows = {r["slug"]: r["status"] for r in
                 c.execute("SELECT slug, status FROM trends").fetchall()}
@@ -101,3 +109,4 @@ def test_truncated_body_is_held_not_published(seeded_db):
     assert rows["fabricated-3"] == "draft"    # #11 grounding gate holds it
     assert rows["grounded-4"] == "published"  # every specific is in the source
     assert rows["soup-5"] == "draft"          # #11 garbage gate: never live
+    assert rows["knobel-6"] == "draft"        # #11 names gate: "Markus" is not in the source

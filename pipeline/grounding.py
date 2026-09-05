@@ -297,3 +297,198 @@ def verbatim_only(items: list[str], source: str) -> list[str]:
     return [it for it in items
             if it and len(it.strip()) > 1 and _norm_for_match(it) in src]
 
+
+
+# --- Person-name grounding (#11, 2026-09-05) --------------------------------
+# Owner review 05.09.: the content model turns "Henkel-Chef Knobel" into
+# "Henkel CEO Markus Knobel" (real: Carsten). Numbers were policed, names were
+# not — a proxy count found foreign proper names in 7–18 % of published bodies.
+# Rule: a capitalised bigram "Given Surname" whose first token is a known given
+# name (pipeline.first_names) or follows a title/role (CEO, Minister, Dr.) is a
+# PERSON, and every word of it must stand in the source. Generic capitalised
+# bigrams ("Storage System", "Middle Eastern") never trigger because "Storage"
+# is not a given name and nothing titles it.
+import unicodedata
+
+from pipeline.first_names import FIRST_NAMES
+
+_NAME_TOKEN_RE = re.compile(r"[^\W\d_]+(?:[-'’][^\W\d_]+)*")
+_POSSESSIVE_RE = re.compile(r"['’]s$")
+
+# A role word right before a capitalised word makes that word a person even
+# when the given name is unknown or absent ("CEO Knobel", "Minister Xu").
+_TITLES = frozenset("""
+ceo cfo coo cto cio cmo cso president vice chancellor minister ministerin
+secretary senator governor mayor commissioner ambassador professor prof dr
+doctor mr mrs ms herr frau sir dame lord lady founder co-founder cofounder
+chairman chairwoman chairperson chair director analyst economist researcher
+spokesperson spokesman spokeswoman author chef kanzler kanzlerin präsident
+präsidentin direktor direktorin gründer gründerin sprecher sprecherin
+vorstandschef vorstandschefin geschäftsführer geschäftsführerin ministre
+président directeur fondateur
+""".split())
+
+# Name particles that may sit between given name and surname.
+_PARTICLES = frozenset("""
+von van de der den del della di da do dos du la le bin ibn al el y of zu zur
+ter te af auf und
+""".split())
+
+# Capitalised words that are never the surname (or given name) of a person in
+# this check — role words, organisations, places, dates, demonyms. They stop a
+# title from capturing "Chief Executive Officer" and a given name from capturing
+# "Emma Foundation".
+_NON_NAME_CAPS = frozenset("""
+executive officer operating financial technology technical marketing
+information security scientific medical digital data product strategy
+sustainability innovation investment research development emeritus assistant
+associate deputy senior junior general managing director manager minister
+president secretary justice court department office ministry council board
+committee commission elect institute institutes university college school
+hospital bank group inc ltd gmbh ag se plc corp corporation company co motors
+systems technologies energy health media capital partners ventures labs
+foundation center centre street avenue road square park island islands bay
+river lake mountain valley city state county north south east west new united
+national international global european american african asian british german
+french chinese japanese indian russian spanish italian eastern western northern
+southern central federal royal holy saint st mount week day month year report
+index prize award act agreement bill law plan summit conference forum festival
+games cup league series show tour brand model pro max plus mini air ultra one
+two monday tuesday wednesday thursday friday saturday sunday january february
+march april may june july august september october november december syndrome
+disease disorder effect theorem method process protocol scale test virus kong
+""".split())
+
+
+_ABBREV_TITLES = frozenset({"dr", "prof", "mr", "mrs", "ms"})
+
+
+def _title_before(prev: str, gap: str) -> bool:
+    """`prev` is used as a TITLE for the word that follows: capitalised role
+    word ("CEO", "Minister", "Chef", "Dr.") with only whitespace in between —
+    or a period, but only for abbreviations ("Dr. Oetker"). A lowercase
+    "doctor." ending the previous sentence titles nothing, and an all-caps
+    "DR Congo" / "MS Office" is not "Dr"/"Ms"."""
+    low = prev.lower().rstrip(".")
+    if low not in _TITLES or not prev[0].isupper():
+        return False
+    if low in _ABBREV_TITLES and prev.isupper() and len(prev) > 1:
+        return False
+    gap = gap.strip()
+    return gap == "" or (gap == "." and low in _ABBREV_TITLES)
+
+
+def _namelike(tok: str) -> bool:
+    """Capitalised word with lowercase continuation: 'Knobel', 'McDonald',
+    'O’Brien', 'Jean-Claude' — but not 'AI', 'NASA', 'POSTECH’s' or 'iPhone',
+    and not a hyphenated compound with an organisation word in it
+    ('Heinrich-Heine-University')."""
+    tok = _POSSESSIVE_RE.sub("", tok)
+    if len(tok) < 2 or not tok[0].isupper():
+        return False
+    rest = tok[1:]
+    if not any(ch.islower() for ch in rest):
+        return False
+    # at most one further capital: McDonald, DeSantis, O’Brien, Jean-Claude
+    if sum(1 for ch in rest if ch.isupper()) > 2:
+        return False
+    return not any(p.lower() in _NON_NAME_CAPS for p in re.split(r"[-'’]", tok))
+
+
+def _name_forms(word: str) -> set[str]:
+    """Comparable spellings: lowercase, diacritics stripped, and the German
+    transliteration (Müller → mueller), so 'Mueller' and 'Muller' both match."""
+    low = word.lower().replace("ß", "ss")
+    stripped = "".join(ch for ch in unicodedata.normalize("NFKD", low)
+                       if not unicodedata.combining(ch))
+    translit = (low.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue"))
+    translit = "".join(ch for ch in unicodedata.normalize("NFKD", translit)
+                       if not unicodedata.combining(ch))
+    return {low, stripped, translit}
+
+
+def _source_words(source: str) -> set[str]:
+    out: set[str] = set()
+    for tok in _NAME_TOKEN_RE.findall(source or ""):
+        for part in re.split(r"[-'’]", tok):
+            if part:
+                out |= _name_forms(part)
+    return out
+
+
+def _in_source(word: str, src: set[str]) -> bool:
+    word = _POSSESSIVE_RE.sub("", word)
+    for part in re.split(r"[-'’]", word):
+        if not part:
+            continue
+        forms = _name_forms(part)
+        # plain, possessive ("Knobels Strategie" / "Knobel's") either way
+        if not (forms & src or {f + "s" for f in forms} & src
+                or {f[:-1] for f in forms if f.endswith("s")} & src):
+            return False
+    return True
+
+
+def _is_given_name(tok: str) -> bool:
+    low = tok.lower()
+    return low in FIRST_NAMES or low.split("-")[0] in FIRST_NAMES
+
+
+def ungrounded_names(body: str, source: str) -> list[str]:
+    """Person names in `body` that the source does not contain word for word.
+
+    Returns each offending name once ("Markus Knobel"), in body order. Empty
+    list = every person is referred to as the source refers to them. Only
+    checks what the rule can see: given name + surname bigrams (with
+    particles: "Ursula von der Leyen") and title-introduced names ("CEO
+    Knobel"). Institutions and places are out of scope (owner: warning only).
+    """
+    if not body:
+        return []
+    src = _source_words(source or "")
+    matches = list(_NAME_TOKEN_RE.finditer(body))
+    toks = [m.group(0) for m in matches]
+
+    def adjacent(a: int, b: int) -> bool:
+        """Only whitespace between token a and token b — a sentence boundary
+        ("… said Mirko. This …") must never glue two words into a name."""
+        return body[matches[a].end():matches[b].start()].strip() == ""
+
+    bad: list[str] = []
+    seen: set[str] = set()
+    i = 0
+    while i < len(toks):
+        tok = toks[i]
+        low = _POSSESSIVE_RE.sub("", tok).lower()
+        if not _namelike(tok) or low in _NON_NAME_CAPS or low in _TITLES or low in _PARTICLES:
+            i += 1
+            continue
+        titled = i > 0 and _title_before(toks[i - 1],
+                                         body[matches[i - 1].end():matches[i].start()])
+        given = _is_given_name(tok)
+        if not (titled or given):
+            i += 1
+            continue
+        # collect: [particles] Surname — all adjacent, no punctuation between
+        j = i + 1
+        while j < len(toks) and toks[j].lower() in _PARTICLES and adjacent(j - 1, j):
+            j += 1
+        has_surname = (j < len(toks) and adjacent(j - 1, j) and _namelike(toks[j])
+                       and toks[j].lower() not in _NON_NAME_CAPS
+                       and toks[j].lower() not in _TITLES)
+        if has_surname:
+            parts = toks[i:j + 1]
+            i_next = j + 1
+        elif titled:
+            parts = [tok]                       # "CEO Knobel"
+            i_next = i + 1
+        else:
+            i += 1                              # lone given name: not a person claim
+            continue
+        words = [p for p in parts if p.lower() not in _PARTICLES]
+        name = _POSSESSIVE_RE.sub("", " ".join(parts))
+        if any(not _in_source(w, src) for w in words) and name not in seen:
+            bad.append(name)
+            seen.add(name)
+        i = i_next
+    return bad

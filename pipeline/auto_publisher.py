@@ -13,7 +13,7 @@ from pipeline.config import (AUTO_PUBLISH_CONFIDENCE, AUTO_PUBLISH_GROUNDING_GAT
                              AUTO_PUBLISH_LIMIT, LOG_LEVEL)
 from pipeline.content_guard import garbage_reasons
 from pipeline.db import get_connection, get_trends, init_db, update_trend_status
-from pipeline.grounding import ungrounded_specifics, source_from_parts
+from pipeline.grounding import ungrounded_names, ungrounded_specifics, source_from_parts
 
 logging.basicConfig(
     level=LOG_LEVEL,
@@ -93,6 +93,7 @@ def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
     held_truncated = 0
     held_fabricated = 0
     held_garbled = 0
+    held_names = 0
 
     for trend in drafts:
         confidence = trend.get("confidence", 0.0) or 0.0
@@ -137,6 +138,15 @@ def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
                                trend_id, fabricated[:5], title[:60])
                 held_fabricated += 1
                 continue
+            # Person names (#11, 2026-09-05): "Henkel-Chef Knobel" must not go
+            # live as "Henkel CEO Markus Knobel" — a name the source does not
+            # give word for word is held like an invented figure.
+            names = ungrounded_names(trend.get("body_en") or "", source)
+            if names:
+                logger.warning("Held #%d (ungrounded person names %s, not auto-published): '%s'",
+                               trend_id, names[:4], title[:60])
+                held_names += 1
+                continue
 
         if dry_run:
             logger.info("[DRY RUN] Would publish #%d: '%s' (conf=%.2f)",
@@ -148,13 +158,14 @@ def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
         published += 1
 
     logger.info("Auto-publish complete: %d published, %d skipped, %d held (truncated), "
-                "%d held (fabricated specifics), %d held (garbled) (threshold=%.2f%s)",
-                published, skipped, held_truncated, held_fabricated, held_garbled,
+                "%d held (fabricated specifics), %d held (ungrounded names), %d held (garbled) "
+                "(threshold=%.2f%s)",
+                published, skipped, held_truncated, held_fabricated, held_names, held_garbled,
                 min_confidence, ", DRY RUN" if dry_run else "")
 
     return {"published": published, "skipped": skipped,
             "held_truncated": held_truncated, "held_fabricated": held_fabricated,
-            "held_garbled": held_garbled}
+            "held_names": held_names, "held_garbled": held_garbled}
 
 
 if __name__ == "__main__":

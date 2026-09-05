@@ -220,3 +220,79 @@ def test_designator_list_does_not_excuse_measurements():
     # 'Level' is a designator, but a bare figure elsewhere still counts
     assert ungrounded_specifics("Level 3 autonomy cut costs by 42%",
                                 "carmakers discuss autonomous driving") == ["42%"]
+
+
+# --- ungrounded_names (#11, owner review 2026-09-05) -------------------------
+# "Henkel-Chef Knobel" became "Henkel CEO Markus Knobel" (real: Carsten). A
+# person = given name (pipeline.first_names) or title + capitalised word; every
+# word of the name must stand in the source.
+from pipeline.grounding import ungrounded_names
+
+
+def test_added_first_name_is_flagged():
+    src = "Henkel-Chef Knobel: Margen verbessert, Ausblick bestätigt."
+    body = "Henkel CEO Markus Knobel said margins improved."
+    assert ungrounded_names(body, src) == ["Markus Knobel"]
+
+
+def test_name_as_in_source_passes():
+    src = "Henkel-Chef Carsten Knobel: Margen verbessert."
+    assert ungrounded_names("Henkel CEO Carsten Knobel said margins improved.", src) == []
+    assert ungrounded_names("Henkel CEO Knobel said margins improved.", src) == []
+
+
+def test_generic_capitalised_bigrams_never_trigger():
+    """The proxy's false alarms from the issue: 'Storage System', 'Middle
+    Eastern' are not people."""
+    body = ("The Storage System uses Middle Eastern suppliers; Global Voices and "
+            "the Digital Markets Act shape the New Energy Outlook.")
+    assert ungrounded_names(body, "unrelated source") == []
+
+
+def test_title_introduces_a_person_without_known_given_name():
+    src = "The company reported growth."
+    assert ungrounded_names("CEO Xiaoming Wang announced the plan.", src) == ["Xiaoming Wang"]
+    assert ungrounded_names("Minister Habeck welcomed it.", src) == ["Habeck"]
+    assert ungrounded_names("Minister Habeck welcomed it.", "Habeck begrüßt den Plan.") == []
+
+
+def test_title_does_not_capture_role_words_or_sentence_starts():
+    src = "The chief executive resigned; a doctor was consulted."
+    assert ungrounded_names("The Chief Executive Officer resigned.", src) == []
+    assert ungrounded_names("They consulted a doctor. The clinic reopened.", src) == []
+    assert ungrounded_names("Aid reached the DR Congo region.", src) == []      # 'DR' ≠ 'Dr'
+    assert ungrounded_names("Dr. Oetker expanded.", "Dr. Oetker baut aus.") == []
+    assert ungrounded_names("Dr. Oetker expanded.", "Ein Hersteller baut aus.") == ["Oetker"]
+
+
+def test_particles_and_possessives():
+    body = "Commission President Ursula von der Leyen’s plan and Donald Trump’s tariffs."
+    assert ungrounded_names(body, "Ursula von der Leyen legt Plan vor; Trumps Zölle") == ["Donald Trump"]
+    assert ungrounded_names(body, "von der Leyen; Donald Trump") == ["Ursula von der Leyen"]
+
+
+def test_sentence_boundary_never_glues_two_words():
+    src = "Mirko leitet das Projekt."
+    assert ungrounded_names("The project is led by Mirko. This matters.", src) == []
+
+
+def test_diacritics_and_german_transliteration_match():
+    assert ungrounded_names("Analyst Thomas Mueller expects growth.", "Thomas Müller erwartet Wachstum.") == []
+    assert ungrounded_names("Analyst Thomas Muller expects growth.", "Thomas Müller erwartet Wachstum.") == []
+    assert ungrounded_names("Sebastian Krüger spoke.", "Sebastian Krueger sprach.") == []
+
+
+def test_organisations_with_person_names_are_not_people():
+    src = "HHU Düsseldorf, the foundation and Kim (POSTECH) published a study."
+    body = ("Researchers at Heinrich-Heine-University Düsseldorf and the Hans-Böckler "
+            "Foundation's team, with Professor Kim of POSTECH’s lab, published it.")
+    assert ungrounded_names(body, src) == []
+
+
+def test_lone_given_name_is_not_a_claim():
+    assert ungrounded_names("Alexa and Emma are popular assistants.", "Assistants are popular.") == []
+
+
+def test_empty():
+    assert ungrounded_names("", "x") == []
+    assert ungrounded_names("Markus Knobel", "") == ["Markus Knobel"]
