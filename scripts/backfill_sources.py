@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Historical signal backfill for Catandary Trends.
+"""
+LEGACY (2026-09-06): braucht FIRECRAWL_API_KEY — der Schluessel ist widerrufen,
+der Pfad seit 2026-06 durch WP-API/OpenAlex abgeloest. Wer ihn reaktiviert, legt
+bei Firecrawl einen neuen Schluessel an und traegt ihn in .env ein.
+
+Historical signal backfill for Catandary Trends.
 
 Discovers historical article URLs from the publishers we already follow and
 inserts them into raw_entries (processed=0). The existing LLM pipeline picks

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Measure the uncapped deep-crawl potential per FOOD source (no writes/scrapes).
+"""
+LEGACY (2026-09-06): braucht FIRECRAWL_API_KEY — der Schluessel ist widerrufen,
+der Pfad seit 2026-06 durch WP-API/OpenAlex abgeloest. Wer ihn reaktiviert, legt
+bei Firecrawl einen neuen Schluessel an und traegt ihn in .env ein.
+
+Measure the uncapped deep-crawl potential per FOOD source (no writes/scrapes).
 
 For each source: one Firecrawl /map call (uncapped), then break the article
 URLs down into:

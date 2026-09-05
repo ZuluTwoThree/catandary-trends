@@ -970,7 +970,4 @@ ungefährlich.
   die Footer-Zeile im Frontend ist noch offen.
 - **Rechtstexte** sind Entwürfe ohne anwaltliche Prüfung (`docs/legal/README.md`).
 - **Secrets.** `.env`, `frontend/.env.local`, `~/.config/catandary/webspace.env`
-  (0600) — nie committen. Der Firecrawl-Key aus der Git-Historie (`4c0b116`)
-  ist zu rotieren (Repo privat, Risiko gering).
-- **Persönliche Daten** gehen nie ungefragt an Dritte (Registrierungen, Header,
-  Signups immer vorher ankündigen).
+  (0600) — nie committen. Der Firecrawl-Key aus der Git-Historie (`4c0b116`) ist am **2026-09-06 widerrufen** — nicht rotiert: der Firecrawl-Backfill ist seit 2026-06 durch WP-API/OpenAlex abgelöst, es gibt keinen Cron und keinen Aufrufer im Betrieb. `FIRECRAWL_API_KEY` ist aus `.env` entfernt; `scripts/backfill_sources.py --mode deep` und `scripts/deep_uncapped_measure.py` tragen den Hinweis im Kopf und brechen mit klarer Meldung ab. Der Brave-Key bleibt: ihn braucht der Korpus-Rechercheur (`scripts/corpus_research.py`).
