@@ -9,7 +9,7 @@ WorkingDirectory=/home/dirk/projects/catandary-trends/frontend
 # Deliberately NO DATABASE_URL: the frontend uses the Postgres socket default.
 Environment=PATH=/home/dirk/.nvm/versions/node/v24.15.0/bin:/usr/local/bin:/usr/bin:/bin
 Environment=NODE_ENV=production
-ExecStart=/home/dirk/projects/catandary-trends/frontend/node_modules/.bin/next start -p 3001
+ExecStart=/home/dirk/projects/catandary-trends/frontend/node_modules/.bin/next start -p 3001 -H 127.0.0.1
 Restart=on-failure
 RestartSec=5
 
