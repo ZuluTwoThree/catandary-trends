@@ -84,7 +84,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # im Webroot bleiben unberührt). Ohne ~/.config/catandary/webspace.env: stiller Skip.
 # Der Wächter (07:45) prüft data/publish_last.json, sobald die Config existiert.
 # Existenz-Guard: Skript liegt bis zum nächsten dev→main-Merge nur auf dev.
-# VORBEREITET, NICHT INSTALLIERT (wartet auf ~/.config/catandary/webspace.env):
+# INSTALLIERT 2026-09-05 (webspace.env liegt vor, Erst-Upload erfolgt):
 15 3 * * * [ -x /home/dirk/projects/catandary-trends/scripts/publish_static_site.sh ] && /home/dirk/projects/catandary-trends/scripts/publish_static_site.sh
 
 # Newsletter-Versandkette (#16) — NOCH NICHT AKTIV (auch nicht in der echten crontab), siehe
