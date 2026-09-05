@@ -225,7 +225,9 @@ class TestFalsePositives:
     Wecker mit 'full_cycle_cron.sh' in der Kommandozeile den Publish 90 min auf."""
 
     def test_quoting_tool_shell_is_not_a_job(self, env, tmp_path):
-        p = subprocess.Popen(["bash", "-c", "sleep 60 # source /x/.claude/shell-snapshots/snap.sh full_cycle_cron.sh end"])
+        # Schleife statt Einzelkommando: bash -c "sleep" wuerde sleep direkt exec-en und
+        # die zitierende Kommandozeile verschwinden lassen — der echte Wecker war eine Schleife.
+        p = subprocess.Popen(["bash", "-c", "while :; do sleep 60; done # source /x/.claude/shell-snapshots/snap.sh full_cycle_cron.sh end"])
         try:
             (tmp_path / "pids").write_text(f"{p.pid}\n")
             r = run("gpu_guard_busy; echo rc=$?", env)
