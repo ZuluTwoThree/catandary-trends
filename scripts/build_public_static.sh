@@ -108,6 +108,13 @@ fi
 # the staging copy (no clash with the source tree's .next of the dev server).
 rm -rf "$SITE/out" "$SITE/.next"
 
+# --- 1b. methodology stats snapshot -----------------------------------------
+# One pass without statement_timeout instead of live aggregates inside six build
+# workers (the first production export died on /trends/methodology, 2026-09-05).
+STATS_FILE="$EXPORT_DIR/methodology_stats.json"
+log "methodology stats snapshot ..."
+"$REPO/.venv/bin/python" "$REPO/scripts/methodology_stats.py" "$STATS_FILE" | sed 's/^/  /'
+
 # --- 2. build --------------------------------------------------------------
 log "next build (output: export) ..."
 T1=$(date +%s)
@@ -119,6 +126,7 @@ T1=$(date +%s)
   PUBLIC_WINDOW_DAYS="$WINDOW" \
   PUBLIC_NOINDEX="$NOINDEX" \
   PUBLIC_SITE_URL="$SITE_URL" \
+  METHODOLOGY_STATS_FILE="$STATS_FILE" \
   NEXT_DIST_DIR= \
   NEXT_TELEMETRY_DISABLED=1 \
   npm run build --silent

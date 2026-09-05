@@ -578,6 +578,7 @@ werden **nur** `trends/**`, `_next/**` und vier Root-Dateien
 
 ```bash
 scripts/build_public_static.sh                      # → frontend/.export/out (+ out.manifest.tsv, out.build_info.json)
+   Vorab rechnet `scripts/methodology_stats.py` die Korpuszahlen der Methodik-Seite in `frontend/.export/methodology_stats.json` (ca. 1–2 min); ohne diese Datei würde die Seite im Export in den DB-Timeout laufen.
 PUBLIC_WINDOW_DAYS=3 scripts/build_public_static.sh /pfad/zum/out    # Schnelltest
 ```
 

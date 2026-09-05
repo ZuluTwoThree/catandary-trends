@@ -421,6 +421,16 @@ wandern täglich komplett mit), 15 Root-Dateien außerhalb des Scopes.
   next to it (no DNS change — same webspace; `HOSTING_PUBLIC_VPS.md` is archived).
 
 
+### Methodik-Statistik als Snapshot (seit 2026-09-05)
+
+Der erste Produktions-Export starb auf `/trends/methodology`: die Live-Aggregate der Seite
+(COUNT über `trends`, Join `trends×raw_entries×sources`, MIN/MAX über 21 M `raw_entries`) liefen
+unter sechs Build-Workern in den 20-s-`statement_timeout`. Der Build rechnet die Zahlen jetzt
+einmal vorab (`scripts/methodology_stats.py` → `frontend/.export/methodology_stats.json`, ~1–2 min,
+ohne Timeout) und reicht die Datei per `METHODOLOGY_STATS_FILE` an `next build`;
+`getMethodologyStats()` liest sie, wenn die Variable gesetzt ist. Die lokale Owner-Instanz nutzt
+weiter die Live-Abfragen mit 1-h-Cache. Nebeneffekt: der Export ist auch hier deterministisch.
+
 ## TDM-Vorbehalt + KI-Crawler-Sperre (Owner-Entscheid 2026-09-03)
 
 catandary.de erklärt einen **maschinenlesbaren Nutzungsvorbehalt für Text-und-Data-Mining**

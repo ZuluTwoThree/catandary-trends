@@ -1754,7 +1754,33 @@ export interface MethodologyStats {
  * made both pages take 7-9s (ONB-01/ARCH-02).
  */
 export async function getMethodologyStats(): Promise<MethodologyStats> {
+  // Static export: the build computes the numbers once (scripts/methodology_stats.py)
+  // and points METHODOLOGY_STATS_FILE at the JSON — the live aggregates below ran
+  // into the 20 s statement_timeout under six export workers (2026-09-05) and
+  // would make the export non-deterministic anyway.
+  const snapshot = readMethodologyStatsSnapshot();
+  if (snapshot) return snapshot;
   return cached("methodology-stats", 3_600_000, fetchMethodologyStats);
+}
+
+export function readMethodologyStatsSnapshot(
+  file: string | undefined = process.env.METHODOLOGY_STATS_FILE
+): MethodologyStats | null {
+  if (!file) return null;
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, "utf-8")) as Partial<MethodologyStats>;
+    if (typeof raw.analyzed !== "number" || typeof raw.published !== "number") return null;
+    return {
+      analyzed: raw.analyzed,
+      published: raw.published,
+      sources: raw.sources ?? 0,
+      megaTrends: raw.megaTrends ?? 0,
+      tierCounts: raw.tierCounts ?? {},
+      dateSpan: raw.dateSpan ?? { first: null, last: null },
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function fetchMethodologyStats(): Promise<MethodologyStats> {
