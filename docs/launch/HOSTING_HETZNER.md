@@ -163,7 +163,7 @@ zwei Läufe nur durch die inzwischen publizierten Artikel — am 03.09. 05:07/05
 Dateien, 48 geänderte Artikelseiten (Reclassify/Related), sonst nichts; kein Hinweis auf
 Nichtdeterminismus. Ein Nebenfund: unter DB-Last (laufender Cycle) lief `getMethodologyStats`
 einmal in das 20-s-`statement_timeout` von `lib/pg.ts` und brach den Export ab — der
-06:30-Cron liegt nach dem Cycle, ein manueller Build währenddessen kann scheitern.
+03:15-Cron liegt vor dem Cycle (Owner 05.09.: veröffentlicht wird der tagsüber freigegebene Stand); ein manueller Build während des Cycles kann scheitern.
 
 Aufräumen zwischen den Läufen ist nicht nötig (das Skript baut die Staging-Kopie mit
 `rsync --delete` neu und löscht `.next`/`out` darin vor jedem Build).
@@ -389,7 +389,7 @@ bekannten Hash gelten als unverändert.
 | Was | Wo |
 |---|---|
 | Cron-Wrapper | `scripts/publish_static_site.sh`: Lock, Kollisionswächter (wartet bis 90 min auf einen laufenden Full Cycle), `build_public_static.sh`, dann `--apply`. Ohne `webspace.env`: stiller Skip (Exit 0). Reicht `PUBLIC_NOINDEX`/`PUBLIC_WINDOW_DAYS`/`PUBLIC_SITE_URL` aus der Config an den Build durch |
-| Cron-Zeile | `30 6 * * *` in `deploy/crontab.txt` — täglich, auch Sa/So (das 30-Tage-Fenster rollt ohne Cycle weiter). **Noch nicht in der echten crontab** (Zugang fehlt) |
+| Cron-Zeile | `15 3 * * *` in `deploy/crontab.txt` — täglich, auch Sa/So (das 30-Tage-Fenster rollt ohne Cycle weiter). **Noch nicht in der echten crontab** (Zugang fehlt) |
 | Log | `~/logs/catandary-publish-<YYYYMMDD>.log` (Wrapper + Python im selben File) |
 | Summary | `data/publish_last.json` (Zeit, Commit, Modus, hoch/gelöscht/unverändert/übersprungen, Dauer, Fehler + Beispiele) — nur bei `--apply` geschrieben |
 | Wächter | `scripts/cycle_watchdog.py` (07:45): Summary muss vom Tag sein und `errors == 0`, sonst Mail (fehlt / veraltet / fehlgeschlagen / läuft noch). Schläft, solange `webspace.env` nicht existiert |

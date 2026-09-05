@@ -647,7 +647,7 @@ Teilbäume. Exit 1 = Übertragungsfehler (erneut starten). Summary
 `data/publish_last.json` (nur bei `--apply`). `MODE=local` + `LOCAL_DEST=`
 = Vorschau in einen Ordner.
 
-**Cron (vorbereitet, nicht installiert):** `30 6 * * *  scripts/publish_static_site.sh`
+**Cron (installiert 05.09.2026):** `15 3 * * *  scripts/publish_static_site.sh` — täglich nach dem Review-Tag, rund 45 min vor dem 04:00-Cycle
 — Lock, Kollisionswächter (wartet bis 90 min auf den Cycle), Build, `--apply`;
 ohne `webspace.env` stiller Skip; Log `~/logs/catandary-publish-<Datum>.log`.
 Wächter 07:45 prüft die Summary, sobald die Config existiert.
@@ -768,7 +768,7 @@ im Handover still).
 | 2. 07:00 | Backlink-Check → `dead_links` | `scripts/check_source_links.py --per-source 12 --mark` | installiert |
 | 5. 02:00 | OpenAlex-Monats-Sync (45M-Korpus) | `scripts/sync_openalex_monthly.sh` | installiert |
 | 6. 12:00 | Startup-Register (CORDIS/SBIR/GLEIF/CH) | `scripts/monthly_startup_sources.sh` | installiert |
-| 06:30 täglich | **Statischer Export → Webspace** | `scripts/publish_static_site.sh` | **vorbereitet in `deploy/crontab.txt`, nicht installiert** (kein `webspace.env`) |
+| 03:15 täglich | **Statischer Export → Webspace** | `scripts/publish_static_site.sh` | **installiert in `deploy/crontab.txt`, nicht installiert** (kein `webspace.env`) |
 | 12:00 Sa | Research Pulse | `scripts/weekly_research_pulse.sh` | **Vorschlag, auskommentiert** |
 | 09:00 Mo | Newsletter-Versand | `scripts/newsletter_tonight.sh` | **gegated, auskommentiert** (#16) |
 | 08:30 täglich | Subscriber-Sync MySQL → Postgres | `python -m scripts.sync_subscribers` (Datei liegt noch unter `docs/launch/newsletter-doi-php/`) | **auskommentiert** (#16) |

@@ -407,7 +407,7 @@ Aus `docs/launch/09_launch_plan_2026-09-02.md`; Reihenfolge = Abhängigkeit.
 3. **Root-`.htaccess` ergänzen:** Inhalt von `docs/launch/root-htaccess.snippet`
    in die owner-verwaltete Root-Datei (TDM-Header + Bot-Sperre für Landing und
    `/newsletter/`).
-4. **Cron installieren:** Zeile `30 6 * * *  scripts/publish_static_site.sh`
+4. **Cron installiert (05.09.2026):** `15 3 * * *  scripts/publish_static_site.sh` — täglich nach dem Review-Tag, rund 45 min vor dem 04:00-Cycle
    aus `deploy/crontab.txt` in `crontab -e` übernehmen. Der Wächter (07:45)
    prüft ab dann `data/publish_last.json`.
 5. **Newsletter-PHP nachziehen:** `_lib.php`, `unsubscribe.php`, `nl_config.php`

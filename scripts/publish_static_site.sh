@@ -2,9 +2,10 @@
 # Täglicher Publish des statischen Exports auf den Webspace (Schritt 8 des
 # Designs docs/audits/2026-09-02_static_export_design.md; Betrieb in
 # docs/launch/HOSTING_HETZNER.md, „Statischer Export — Publish").
-# Cron: 30 6 * * *  — Mo–Fr nach dem Full Cycle (endet 05:55–06:12), am
-# Wochenende ohne Cycle: das 30-Tage-Fenster rollt trotzdem, abgelaufene
-# Artikel müssen raus.
+# Cron: 15 3 * * *  — täglich, rund 45 min VOR dem 04:00-Cycle (Owner 05.09.):
+# veröffentlicht wird der Stand nach einem vollen Review-Tag, nie frische
+# unbeurteilte Artikel. Am Wochenende läuft kein Cycle, das 30-Tage-Fenster
+# rollt aber weiter — abgelaufene Artikel müssen trotzdem raus.
 #
 # Ablauf: Kollisionswächter (Full Cycle) → build_public_static.sh →
 # publish_static_site.py --apply. Bewusst NICHT in full_cycle_cron.sh

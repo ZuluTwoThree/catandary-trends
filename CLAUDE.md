@@ -539,10 +539,10 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Cron vs. „Recompute"-Knopf. Wächter-Datei: data/research_pulse_last.json.
 #0 12 * * 6   scripts/weekly_research_pulse.sh
 
-# Statischer Export → Webspace (täglich 06:30, seit Welle 2 / 2026-09-03 VORBEREITET,
-# noch NICHT installiert — wartet auf ~/.config/catandary/webspace.env vom Owner):
+# Statischer Export → Webspace (täglich 03:15, INSTALLIERT 2026-09-05): nach dem
+# Review-Tag und ~45 min vor dem 04:00-Cycle — veröffentlicht wird der freigegebene Stand.
 # build_public_static.sh + publish_static_site.py --apply, Log ~/logs/catandary-publish-*.log
-30 6 * * *   scripts/publish_static_site.sh
+15 3 * * *   scripts/publish_static_site.sh
 
 # Volltext-Retention (täglich 03:30, INSTALLIERT 2026-09-03, Owner-Auftrag „100 % konform"):
 # raw_content verarbeiteter raw_entries älter als 14 Tage → NULL (§44b Abs. 2 S. 2 UrhG).
@@ -749,7 +749,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
 - **Render-Weichen:** `lib/renderMode.ts` (`isStaticExport()`) und `lib/publicMode.ts`; `generateStaticParams` nur im Export (Workstation-Build lieferte sonst 500 auf Artikel-/Mega-/Listing-Seiten, Fix `dd4490b`). Lokale Owner-Instanz (`npm run build` ohne Flags) verhält sich unverändert.
 - **URL-Schema Export:** `/trends` (= `trends/index.html`), `/trends/page/<n>`, `/trends/v/<vertical>[/page/<n>]`, `/trends/<slug>` (Apache-Rewrite auf `.html`, abgelaufene Slugs → **410** via Muster in `trends/.htaccess`), `/trends/mega[/<m>]`, `/trends/methodology`, `/trends/newsletter` (Signup + neueste Edition + Archivliste), `/trends/newsletter/<jahr>-w<kw>` (letzte 12 Editionen, `PUBLIC_NEWSLETTER_EDITIONS`; Artikel-Links außerhalb des Fensters → `source_url`), `/trends/newsletter/unsubscribed` (303-Ziel von `unsubscribe.php`, noindex), `/trends/imprint|privacy|enquiry`, `/trends/index.json` (Suchindex, ~2 MB gz, clientseitige Suche/Filter `components/StaticSearch.tsx`), `/trends/sitemap.xml`. `.htaccess` liegen verzeichnisweise in `trends/` und `_next/` — der **Webroot bleibt owner-verwaltet** (`index.html` = Landing `docs/launch/preview.html`, `robots.txt`, `newsletter/**` PHP-DOI); das Export-Root-`index.html` wird nicht hochgeladen.
 - **Publish:** `scripts/publish_static_site.py` (Default `--dry-run`, `--apply` schreibt) — Manifest-Delta gegen `trends/.publish-manifest.tsv` auf dem Webspace, verwaltet NUR `trends/**`, `_next/**` und die Root-Allowlist `trends.html`/`trends.txt`; Reihenfolge Assets → Artikel → Listing → Löschen; Gates: Build ≤ 12 h alt, ≥ 1000 Artikel, ≤ 60 % Löschungen. Backends `MODE=sftp|rsync|local` aus `~/.config/catandary/webspace.env` (0600; **fehlt noch — Owner-Aktion**). Summary `data/publish_last.json`, Wächter-Check in `cycle_watchdog.py` (nur aktiv, wenn die Config existiert).
-- **Cron (vorbereitet in `deploy/crontab.txt`, noch NICHT installiert):** `30 6 * * *  scripts/publish_static_site.sh` (Lock, Cycle-Kollisionswächter, Build → Publish). `PUBLIC_NOINDEX=1` hält den Export bis zum Launch 01.10. auf `noindex`.
+- **Cron (installiert 2026-09-05):** `15 3 * * *  scripts/publish_static_site.sh` (Lock, Cycle-Kollisionswächter, Build → Publish). `PUBLIC_NOINDEX=1` hält den Export bis zum Launch 01.10. auf `noindex`.
 - **TDM-Vorbehalt + KI-Crawler-Sperre (Owner 2026-09-03):** jede exportierte Seite trägt `<meta name="tdm-reservation" content="1">` + `tdm-policy` + `robots: noai, noimageai` (`layout.tsx`), `trends/.htaccess` und `_next/.htaccess` setzen `TDM-Reservation: 1` und liefern den KI-Crawlern aus `frontend/src/lib/aiCrawlers.ts` (36 UAs: GPTBot, ClaudeBot, CCBot, Bytespider, …) ein **403**; `robots.ts` sperrt dieselbe Liste per `Disallow: /`; der Build schreibt `/.well-known/tdmrep.json`; Klartext unter `/trends/tdm-policy`. `robots.txt` und `tdmrep.json` sind seit 03.09. **export-verwaltet** (`ROOT_ALLOWLIST`), Suchmaschinen bleiben erlaubt. Root-`.htaccess` des Webroots: Owner fügt `docs/launch/root-htaccess.snippet` ein. Details `docs/launch/HOSTING_HETZNER.md`.
 - **Lokaler Apache-Test:** `scripts/htaccess_test_server.sh` (Docker `httpd:2.4`, Port 8098, Bind per `HTACCESS_TEST_BIND`) prüft die `.htaccess`-Regeln; die Playwright-Suche-Prüfung ist in der Hosting-Doku beschrieben.
 
