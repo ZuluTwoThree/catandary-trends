@@ -133,3 +133,13 @@ def garbage_reasons(body: str | None, source: str | None = None) -> list[str]:
 
 def is_garbled(body: str | None, source: str | None = None) -> bool:
     return bool(garbage_reasons(body, source))
+
+
+class GarbledOutputError(RuntimeError):
+    """Every content-generation attempt for one entry produced garbage.
+
+    Raised by the Stage-6 hard guard after the retry budget is spent. The
+    caller must NOT store anything and must NOT mark the entry processed or
+    filtered — it stays in the queue for the next run (the 2026-09-05 episode
+    was a transient server state: 22 consecutive entries failed, the 23rd was
+    fine again), and a good article can still come out of it."""

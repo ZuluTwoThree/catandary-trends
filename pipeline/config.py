@@ -75,6 +75,19 @@ STAGE5_TARGET_BODY_WORDS = int(os.getenv("STAGE5_TARGET_BODY_WORDS", "100"))
 # only catches genuine overruns, and it is bounded by max_validate_retries (a
 # still-too-long body is accepted after the budget, never looped). 0 disables it.
 STAGE5_MAX_BODY_WORDS = int(os.getenv("STAGE5_MAX_BODY_WORDS", "320"))
+# Wie viel Quelltext (raw_content bzw. Teaser) der Content-Prompt sieht — nur
+# der ANFANG. Bis 2026-09-05 die Konstante CONTENT_CHARS=4000 in llm_processor;
+# jetzt per Env steuerbar, Default unverändert 4000. Bewusst NICHT angehoben:
+# die 22 Garbage-Bodies vom 05.09. entstanden ausschließlich bei Prompts, die
+# genau an dieser 4000er-Kappe lagen (114 andere lange Prompts desselben Laufs
+# waren in Ordnung; alle Teaser-Prompts auch). Mehr Quelltext ist die falsche
+# Richtung, bis scripts/repro_stage6_garbage.py die Ursache eingegrenzt hat.
+# Nur Anfang statt Anfang+Schluss: unsere Volltext-Quellen enden mit
+# Boilerplate (idw: Pressekontakt mit Namen/Telefon, ScienceDaily: "Story
+# Source"/Journal Reference, The Conversation: Disclosure) — der Schluss
+# liefert keinen Artikelinhalt, aber Fremdnamen; die Zahlen/Daten/Zitate der
+# hinteren Hälfte kommen ohnehin über die Extraktion (liest 12.000 Zeichen).
+STAGE6_SOURCE_MAX_CHARS = int(os.getenv("STAGE6_SOURCE_MAX_CHARS", "4000"))
 
 # qwen3:8b stages backend (pipeline Stages 2 Relevance, 3 Extraction,
 # 4 Classification, 8 Reclassify).

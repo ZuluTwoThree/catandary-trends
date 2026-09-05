@@ -50,6 +50,7 @@ from pipeline.config import (
     STAGE5_TARGET_BODY_WORDS,
     STAGE5_MAX_BODY_WORDS,
     STAGE5_MODEL,
+    STAGE6_SOURCE_MAX_CHARS,
     STAGE_8B_BACKEND,
     STAGE_8B_MODEL,
     get_mega_trend_prompt_block,
@@ -72,6 +73,7 @@ from pipeline.models import (
     RelevanceResult,
 )
 from pipeline.auto_publisher import auto_publish
+from pipeline.content_guard import GarbledOutputError, garbage_reasons
 from pipeline.crs import compute_crs
 from pipeline.grounding import (figures_with_context, source_from_parts,
                                 ungrounded_specifics, verbatim_only)
@@ -109,7 +111,9 @@ logger = logging.getLogger(__name__)
 # means more extractable items, which is precisely what used to overrun
 # max_tokens. The caps bound the OUTPUT, this bounds the INPUT.
 EXTRACT_CHARS = 12_000
-CONTENT_CHARS = 4000
+# Content-gen reads only the OPENING of the source (head, no tail) — see the
+# STAGE6_SOURCE_MAX_CHARS rationale in config.py (default 4000, env-tunable).
+CONTENT_CHARS = STAGE6_SOURCE_MAX_CHARS
 RELEVANCE_CHARS = 1500
 
 # --- Prompts ---
@@ -289,6 +293,7 @@ CONTENT_EN_SYSTEM_V2 = CONTENT_EN_SYSTEM + """
 GROUNDING — every specific must come from the source:
 - Preserve the exact specifics the source gives — figures, proper names, dates. Don't blur "7,980 jobs" into "thousands" or drop the company name.
 - NEVER introduce a number, date, statistic, or named entity that is not present in the source text. Do not estimate, extrapolate, or invent a timeline (e.g. do not write "rolled out in May" unless the source says so). If the source is thin, write a shorter, more general article — an invented specific is a factual error, not a stylistic choice.
+- Never add first names, titles, affiliations, dates or figures that are not in the source; refer to people exactly as the source does (if the source says "Henkel-Chef Knobel", write "Henkel CEO Knobel" — do not supply a first name).
 - Prefer the mechanism over the claim: state what concretely changes and how, not that something is "significant" or "growing"."""
 
 
@@ -343,6 +348,15 @@ def make_content_guard(source: str):
     re-rolled within the existing retry budget."""
     def guard(c: "GeneratedContent") -> bool:
         return content_is_clean(c) and not ungrounded_specifics(c.body, source)
+    return guard
+
+
+def make_garbage_guard(source: str):
+    """The HARD guard for llamacpp_client.chat_structured(hard_validate=...):
+    returns the garbage reasons for a generated body (empty = usable), judged
+    against this row's source so a leaked foreign-script token counts."""
+    def guard(c: "GeneratedContent") -> list[str]:
+        return garbage_reasons(c.body, source)
     return guard
 
 
@@ -608,6 +622,11 @@ The source below may be in German or another language — translate it and write
                                     extraction.key_figures, extraction.dates,
                                     extraction.quotes, extraction.geography)
     guard = make_content_guard(source_text)
+    # HARD guard (#11, 2026-09-05): token soup is never accepted, not even after
+    # the soft budget — the soft guard's "accept the last result" is exactly how
+    # 22 garbage bodies became drafts. Checked against the source so a leaked
+    # CJK token in an otherwise fluent body counts too.
+    hard_guard = make_garbage_guard(source_text)
 
     if STAGE5_BACKEND == "llamacpp":
         # Route content gen to llama-server (GPU handover managed by the caller).
@@ -625,15 +644,25 @@ The source below may be in German or another language — translate it and write
             # 200 OK; the cliché guard rejected each body and the stage
             # re-rolled for hours. A mismatch now raises ModelMismatchError.
             verify_model=True,
+            hard_validate=hard_guard,  # raises GarbledOutputError, never returns soup
         )
 
-    return chat_structured(
+    result = chat_structured(
         model=MODEL_GENERATE,
         prompt=prompt_en,
         schema=GeneratedContent,
         system=CONTENT_EN_SYSTEM_V2,
         temperature=0.7,
     )
+    # The Ollama client has no validate hook; apply the hard guard after the fact
+    # so the fallback path can't store garbage either.
+    if result is not None:
+        garbage = hard_guard(result)
+        if garbage:
+            raise GarbledOutputError(
+                f"GeneratedContent: Ollama {MODEL_GENERATE} produced garbage "
+                f"({', '.join(garbage[:4])}) — nothing stored")
+    return result
 
 
 
@@ -759,9 +788,15 @@ def process_entry(entry: dict) -> dict | None:
     logger.info("[%d] Not duplicate (max_sim=%.3f)", entry_id, max_sim)
 
     # Step 5: Content Generation EN
-    content_en = step_generate_content_en(
-        title, excerpt, extraction, classification, source_url, source_name
-    )
+    try:
+        content_en = step_generate_content_en(
+            title, excerpt, extraction, classification, source_url, source_name
+        )
+    except GarbledOutputError as e:
+        # Every attempt was token soup. Store nothing, mark nothing — the entry
+        # stays unprocessed and gets a fresh chance next run (#11, 2026-09-05).
+        logger.error("[%d] content generation GARBLED, entry left unprocessed: %s", entry_id, e)
+        return None
 
     if content_en is None:
         logger.warning("[%d] EN content generation failed", entry_id)
@@ -1231,6 +1266,7 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
         next_survivors = []
         total_stage6 = len(survivors)
         cache_hits_stage6 = 0
+        garbled_stage6 = 0
         needs_gen = any(not e.get("content_en_json") for e in survivors)
         gpu_ctx = (gpu_handover.content_gen_on_llamacpp(STAGE5_MODEL)
                    if STAGE5_BACKEND == "llamacpp" and needs_gen
@@ -1258,6 +1294,14 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
                     next_survivors.append(entry)
                     if i % 10 == 0 or i == total_stage6:
                         logger.info("Stage 6 progress: %d/%d (%.0f%%)", i, total_stage6, i / total_stage6 * 100)
+                except GarbledOutputError as e:
+                    # #11 (2026-09-05): all attempts were token soup. Nothing is
+                    # stored and the entry is neither marked processed nor
+                    # filtered — it stays in the queue for the next run. Counted
+                    # separately so the summary line shows the episode.
+                    logger.error("[%d] content generation GARBLED, entry left unprocessed: %s",
+                                 entry["id"], e)
+                    garbled_stage6 += 1
                 except llamacpp_client.ModelMismatchError as e:
                     # #98: another job swapped :8090 under us. Stop generating —
                     # this entry and every remaining one stay UNPROCESSED (not
@@ -1274,8 +1318,8 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
                     mark_processed(entry["id"])
                     errors += 1
         survivors = next_survivors
-        logger.info("Stage 6 done in %.1fs: %d survivors (%d cache hits)",
-                    time.time() - t_stage, len(survivors), cache_hits_stage6)
+        logger.info("Stage 6 done in %.1fs: %d survivors (%d cache hits, %d garbled → left unprocessed)",
+                    time.time() - t_stage, len(survivors), cache_hits_stage6, garbled_stage6)
 
     # ---- Stage 7: Insert trends ----
     t_stage = time.time()

@@ -11,6 +11,7 @@ import sys
 
 from pipeline.config import (AUTO_PUBLISH_CONFIDENCE, AUTO_PUBLISH_GROUNDING_GATE,
                              AUTO_PUBLISH_LIMIT, LOG_LEVEL)
+from pipeline.content_guard import garbage_reasons
 from pipeline.db import get_connection, get_trends, init_db, update_trend_status
 from pipeline.grounding import ungrounded_specifics, source_from_parts
 
@@ -91,6 +92,7 @@ def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
     skipped = 0
     held_truncated = 0
     held_fabricated = 0
+    held_garbled = 0
 
     for trend in drafts:
         confidence = trend.get("confidence", 0.0) or 0.0
@@ -101,6 +103,19 @@ def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
             logger.debug("Skipped #%d: '%s' (conf=%.2f < %.2f)",
                          trend_id, title[:60], confidence, min_confidence)
             skipped += 1
+            continue
+
+        source = _source_text(trend.get("raw_entry_id")) if AUTO_PUBLISH_GROUNDING_GATE else None
+
+        # Garbage gate (#11, 2026-09-05): token soup with confidence 0.93 must
+        # never go live. Body-intrinsic rules always run; the script-leak rule
+        # needs the source and is skipped when it is unavailable. Checked before
+        # truncation so the hold reason names the real defect.
+        garbage = garbage_reasons(trend.get("body_en"), source)
+        if garbage:
+            logger.warning("Held #%d (garbled body %s, not auto-published): '%s'",
+                           trend_id, garbage[:3], title[:60])
+            held_garbled += 1
             continue
 
         # Publish gate: never auto-publish a mid-sentence/truncated body (#18) —
@@ -115,7 +130,6 @@ def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
         # (a number/date/percentage absent from the source) — content re-rolls
         # cut but don't eliminate it. Hold for review. Fail-open if the source
         # can't be loaded (source is None → skip the check, don't block publish).
-        source = _source_text(trend.get("raw_entry_id")) if AUTO_PUBLISH_GROUNDING_GATE else None
         if source is not None:
             fabricated = ungrounded_specifics(trend.get("body_en") or "", source)
             if fabricated:
@@ -134,12 +148,13 @@ def auto_publish(min_confidence: float = AUTO_PUBLISH_CONFIDENCE,
         published += 1
 
     logger.info("Auto-publish complete: %d published, %d skipped, %d held (truncated), "
-                "%d held (fabricated specifics) (threshold=%.2f%s)",
-                published, skipped, held_truncated, held_fabricated, min_confidence,
-                ", DRY RUN" if dry_run else "")
+                "%d held (fabricated specifics), %d held (garbled) (threshold=%.2f%s)",
+                published, skipped, held_truncated, held_fabricated, held_garbled,
+                min_confidence, ", DRY RUN" if dry_run else "")
 
     return {"published": published, "skipped": skipped,
-            "held_truncated": held_truncated, "held_fabricated": held_fabricated}
+            "held_truncated": held_truncated, "held_fabricated": held_fabricated,
+            "held_garbled": held_garbled}
 
 
 if __name__ == "__main__":

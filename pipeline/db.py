@@ -116,6 +116,12 @@ CREATE TABLE IF NOT EXISTS trends (
     -- held cohort is judged ONCE, not re-judged every night while it blocks
     -- fresh drafts from the 600-slot window (2026-08-25 finding).
     judged_at TEXT,
+    -- Why a row sits in status 'review' (#11, 2026-09-05): set by the corpus
+    -- re-check (scripts/recheck_published_grounding.py, e.g.
+    -- 'recheck_2026-09-05:garbled:script_leak:续约') and by the draft judge when
+    -- it diverts a garbage candidate. NULL for owner-set reviews. Deliberately
+    -- NOT reviewed_at — that stamp means "a human decided" (review UI, #71).
+    review_reason TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     sort_date TEXT
 );
@@ -255,6 +261,7 @@ CREATE TABLE IF NOT EXISTS trends (
     -- See the SQLite schema above: written by both review decisions (#71).
     reviewed_at TIMESTAMP,
     judged_at TIMESTAMP,           -- stage-10 draft judge verdict stamp (see SQLite schema)
+    review_reason TEXT,            -- why status='review' (see SQLite schema; #11 re-check)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     sort_date TIMESTAMP            -- parity with SQLite _migrate_trends_sort_date
 );
@@ -544,6 +551,23 @@ def _migrate_judged_at():
         names = [(r[1] if not hasattr(r, "keys") else r["name"]) for r in rows]
         if "judged_at" not in names:
             conn.execute("ALTER TABLE trends ADD COLUMN judged_at TEXT")
+
+
+def _migrate_review_reason():
+    """Add trends.review_reason to pre-existing databases. Idempotent (#11).
+
+    Marker for rows the corpus re-check or the draft judge moved to status
+    'review' (garbled body, ungrounded person name). The review UI filters on
+    it ("Bestandsprüfung 05.09."), so a database without the column would break
+    that queue — wired into init_db from day one, like judged_at."""
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            conn.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS review_reason TEXT")
+            return
+        rows = conn.execute("PRAGMA table_info(trends)").fetchall()
+        names = [(r[1] if not hasattr(r, "keys") else r["name"]) for r in rows]
+        if "review_reason" not in names:
+            conn.execute("ALTER TABLE trends ADD COLUMN review_reason TEXT")
 
 
 def _migrate_trends_sort_date():
@@ -993,6 +1017,7 @@ def init_db():
     _migrate_trends_sort_date()
     _migrate_reviewed_at()
     _migrate_judged_at()
+    _migrate_review_reason()
     _migrate_sources_llm_pipeline()
     _migrate_patent_graph()
     _migrate_patent_cpc()

@@ -18,6 +18,7 @@ import httpx
 from pydantic import BaseModel
 
 from pipeline.config import MAX_RETRIES
+from pipeline.content_guard import GarbledOutputError
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +183,8 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                     max_validate_retries: int | None = None,
                     require_all_fields: bool = False,
                     max_tokens: int | None = None,
-                    verify_model: bool = False) -> T | None:
+                    verify_model: bool = False,
+                    hard_validate: Callable[[T], list[str]] | None = None) -> T | None:
     """Structured output against llama-server (OpenAI json_schema response_format).
 
     Mirrors pipeline.ollama_client.chat_structured: retry loop, markdown fence
@@ -204,7 +206,16 @@ def chat_structured(model: str, prompt: str, schema: type[T],
     `verify_model`: identity gate (#98) — before the first attempt (TTL-cached)
     and before EVERY retry, GET /v1/models must name `model`; otherwise
     ModelMismatchError propagates (never retried, never swallowed into None) so
-    the calling stage aborts and its entries stay unprocessed."""
+    the calling stage aborts and its entries stay unprocessed.
+    `hard_validate`: HARD content guard (#11, 2026-09-05) — returns the reasons
+    a parsed result is unusable garbage (pipeline.content_guard.garbage_reasons).
+    Unlike `validate`, a rejected result is NEVER returned: the call is retried
+    with a fresh request that disables llama-server's prompt-cache reuse
+    (`cache_prompt: false` — the 22 garbage bodies of 2026-09-05 came out of one
+    slot in a row while the same prompts had been fine before and were fine
+    again afterwards, so a corrupted reused prefix is the leading suspect), and
+    when the budget is spent GarbledOutputError propagates instead of a body
+    that would otherwise be stored as a draft with confidence 0.93."""
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -262,6 +273,18 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                                    "the prompt or schema is the problem, not the limit",
                                    payload["max_tokens"])
             result = schema.model_validate_json(_strip_fences(raw))
+            if hard_validate is not None:
+                garbage = hard_validate(result)
+                if garbage:
+                    if attempt < MAX_RETRIES - 1:
+                        logger.warning("HARD guard rejected output for %s (%s) — fresh "
+                                       "request without prompt cache (attempt %d/%d)",
+                                       model, ", ".join(garbage[:4]), attempt + 1, MAX_RETRIES)
+                        payload["cache_prompt"] = False
+                        continue
+                    raise GarbledOutputError(
+                        f"{schema.__name__}: all {MAX_RETRIES} attempts on {model} produced "
+                        f"garbage ({', '.join(garbage[:4])}) — nothing stored")
             if validate is not None and not validate(result):
                 vfails += 1
                 if vfails <= vcap and attempt < MAX_RETRIES - 1:
@@ -270,6 +293,8 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                     continue  # no backoff: server is healthy, just re-roll
                 return result  # validate budget spent → accept the last result
             return result
+        except GarbledOutputError:
+            raise
         except Exception as e:
             logger.warning("Attempt %d/%d failed for %s: %s",
                            attempt + 1, MAX_RETRIES, model, e)

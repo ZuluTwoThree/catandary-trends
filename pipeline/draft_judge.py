@@ -33,6 +33,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from pipeline import db as db_mod
+from pipeline.content_guard import garbage_reasons
 from pipeline.db import get_connection
 from pipeline.grounding import source_from_parts, ungrounded_specifics
 from pipeline.config import DUPLICATE_SIMILARITY_THRESHOLD
@@ -89,6 +90,11 @@ def release_gates(title: str | None, body: str | None, re_title: str | None,
     body = (body or "").strip()
     if not body:
         return False, "empty_body"
+    # Garbage before truncation: soup usually ends mid-token too, and "garbled"
+    # is the verdict the reviewer needs to see (#11, 2026-09-05).
+    garbage = garbage_reasons(body, _judge_source(re_title, raw_content, excerpt))
+    if garbage:
+        return False, "garbled:" + ",".join(garbage[:3])
     if body[-1] not in '.!?"”':
         return False, "truncated"
     ext = {}
@@ -105,6 +111,23 @@ def release_gates(title: str | None, body: str | None, re_title: str | None,
     if flags:
         return False, f"ungrounded:{','.join(flags[:4])}"
     return True, "ok"
+
+
+def _judge_source(re_title, raw_content, excerpt) -> str:
+    return f"{re_title or ''} {raw_content or excerpt or ''}"
+
+
+def divert_garbled(conn, trend_id: int, reasons: list[str], dry_run: bool = False) -> None:
+    """A garbage candidate is not a judgment call — it goes to status 'review'
+    with its reasons, never to the LLM judge and never live (#11, 2026-09-05).
+    The judged_at stamp keeps it out of tomorrow's candidate list."""
+    if dry_run:
+        return
+    conn.execute(
+        "UPDATE trends SET status = 'review', judged_at = CURRENT_TIMESTAMP, "
+        "       review_reason = ? WHERE id = ? AND status = 'draft'",
+        ("garbled:" + ",".join(reasons[:3]), trend_id),
+    )
 
 
 def duplicate_of_published(conn, trend_id: int) -> int | None:
@@ -223,13 +246,24 @@ def judge_recent_drafts(since_hours: int = 30, limit: int = 600,
     cands = _fetch_candidates(since_hours, limit)
     stats = {"date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
              "judged": 0, "released": 0, "held": 0, "gate_blocked": 0,
-             "dup_blocked": 0, "errors": 0, "categories": {}, "dry_run": dry_run}
+             "dup_blocked": 0, "garbled": 0, "errors": 0, "categories": {},
+             "dry_run": dry_run}
     logger.info("draft judge: %d candidates (last %dh)", len(cands), since_hours)
     enriched = _enrich_candidates(cands)
     stats["fulltext_filled"] = enriched
     if enriched:
         logger.info("draft judge: backfilled full text for %d candidates", enriched)
     for d in cands:
+        # Garbage never reaches the judge (#11, 2026-09-05): token soup is
+        # diverted to status 'review' with its reasons and stamped judged.
+        garbage = garbage_reasons(d["body_en"], _judge_source(d["re_title"], d["raw_content"],
+                                                              d["excerpt"]))
+        if garbage:
+            stats["garbled"] += 1
+            logger.info("  #%s garbled → review: %s", d["id"], garbage[:3])
+            with get_connection() as conn:
+                divert_garbled(conn, d["id"], garbage, dry_run)
+            continue
         v = judge_one(d)
         if v is None:
             stats["errors"] += 1
@@ -267,9 +301,9 @@ def judge_recent_drafts(since_hours: int = 30, limit: int = 600,
     STATS_PATH.parent.mkdir(exist_ok=True)
     STATS_PATH.write_text(json.dumps(stats, indent=2))
     logger.info("draft judge done in %.0fs: %d judged, %d released, %d held, "
-                "%d gate-blocked, %d dup-blocked, %d errors",
+                "%d gate-blocked, %d dup-blocked, %d garbled → review, %d errors",
                 stats["seconds"], stats["judged"], stats["released"], stats["held"],
-                stats["gate_blocked"], stats["dup_blocked"], stats["errors"])
+                stats["gate_blocked"], stats["dup_blocked"], stats["garbled"], stats["errors"])
     return stats
 
 
