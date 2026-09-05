@@ -69,7 +69,7 @@ Stand je Issue in [`docs/issue_status.md`](docs/issue_status.md).
 
 ## 1. Instanzen und Einstieg
 
-> **Zugriff seit 05.09.2026:** Alle Instanzen und der llama-server hören nur auf `127.0.0.1`. Vom MacBook: `https://kiworkstation.tail678c6e.ts.net` (Owner-App :3001), `https://kiworkstation.tail678c6e.ts.net:3004` (dev), `…:3999` (PUBLIC_MODE-Vorschau) — Tailscale Serve, nur im Tailnet, HTTPS. Auf der Workstation selbst weiterhin `http://127.0.0.1:3001`. Die alten Adressen `100.115.179.37:3001` funktionieren absichtlich nicht mehr. Serve-Konfiguration: `tailscale serve status`; ändern: `tailscale serve --bg --https=443 http://127.0.0.1:3001`.
+> **Zugriff seit 05.09.2026:** Alle Instanzen und der llama-server hören nur auf `127.0.0.1`. Vom MacBook: `https://kiworkstation.tail678c6e.ts.net` (Owner-App :3001; `/` leitet auf `/trends`, es gibt keine App-Landing mehr), `https://kiworkstation.tail678c6e.ts.net:3004` (dev), `…:3999` (PUBLIC_MODE-Vorschau) — Tailscale Serve, nur im Tailnet, HTTPS. Auf der Workstation selbst weiterhin `http://127.0.0.1:3001`. Die alten Adressen `100.115.179.37:3001` funktionieren absichtlich nicht mehr. Serve-Konfiguration: `tailscale serve status`; ändern: `tailscale serve --bg --https=443 http://127.0.0.1:3001`.
 
 | Wo | Was | Start |
 |---|---|---|

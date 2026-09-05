@@ -69,6 +69,11 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: [
     "100.115.179.37",
     "*.ts.net", // Tailscale MagicDNS names, if reached by hostname
+    // Der Platzhalter oben deckt NUR eine Ebene ab — der MagicDNS-Name hat zwei
+    // (kiworkstation.<tailnet>.ts.net). Ohne diese Zeilen laedt ueber Tailscale
+    // Serve kein Client-JS: schwarze Flaechen, tote Controls (2026-09-05).
+    "*.tail678c6e.ts.net",
+    "kiworkstation.tail678c6e.ts.net",
     // LAN access to the dev instance on :3004 — without this Next 16 blocks the
     // client JS for non-localhost origins and NOTHING hydrates: the page renders
     // but every "use client" control is dead (radar cells unclickable, 2026-07-30).

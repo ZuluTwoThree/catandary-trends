@@ -757,7 +757,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
 ### Routing (Ist-Stand 2026-07-23)
 
 ```
-/                                → Landing („The Instrument", Wertversprechen + sales-led „Access"-Sektion → /enquiry; keine Preise)
+/                                → Weiterleitung auf /trends (seit 2026-09-05; die frühere App-Landing war eine zweite, driftende Kopie — Countdown 01.09. statt 01.10., tote Links. Gepflegt ist nur `docs/launch/preview.html` auf catandary.de; der Export lädt `/` nicht hoch)
 /trends                          → Hauptfeed (Card-Grid, Filter-Bar inkl. Suche ?q= — es gibt KEINE separate /trends/search-Route)
 /trends/[slug]                   → Einzelner Trend-Artikel
 /trends/vertical/[v]             → Redirect auf /trends?v=<VERTICAL> (im statischen Export nicht gebaut; Apache-301 auf /trends/v/<v>)
