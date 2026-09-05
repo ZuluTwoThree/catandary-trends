@@ -421,6 +421,15 @@ wandern täglich komplett mit), 15 Root-Dateien außerhalb des Scopes.
   next to it (no DNS change — same webspace; `HOSTING_PUBLIC_VPS.md` is archived).
 
 
+### Landing lokal ansehen, bevor sie hochgeht
+
+`scripts/landing_preview.sh` serviert `docs/launch/` auf `127.0.0.1:3997`; im Tailnet
+`https://kiworkstation.tail678c6e.ts.net:3997/preview.html`. Damit lassen sich Countdown,
+Animationen und Formular pruefen, bevor die Datei als `index.html` hochgeladen wird — die
+App hat seit 2026-09-05 keine eigene Landing mehr (`/` leitet auf `/trends`). Achtung: das
+Formular postet an den echten `subscribe.php`, also nur mit einer Wegwerf-Adresse absenden.
+`scripts/landing_preview.sh --stop` beendet den Server.
+
 ### Methodik-Statistik als Snapshot (seit 2026-09-05)
 
 Der erste Produktions-Export starb auf `/trends/methodology`: die Live-Aggregate der Seite
