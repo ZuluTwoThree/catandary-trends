@@ -10,6 +10,8 @@
  * ones that break first if the two drift apart.
  */
 
+import { FIRST_NAMES } from "./first-names";
+
 const YEAR_RE = /(?<!\d)(?:19|20)\d{2}(?!\d)/g;
 // Digit runs bounded by "no adjacent digit/separator" rather than \b.
 //
@@ -211,4 +213,171 @@ export function sourceFromParts(
     if (list && list.length) parts.push(list.map(String).join(" "));
   }
   return parts.filter((p) => p).join(" ");
+}
+
+// ---------------------------------------------------------------------------
+// Person-name grounding — port of ungrounded_names() in pipeline/grounding.py
+// (#11, owner review 2026-09-05). "Henkel-Chef Knobel" must not become
+// "Henkel CEO Markus Knobel": a capitalised bigram whose first token is a known
+// given name (first-names.ts, generated from pipeline/first_names.py) or
+// follows a title/role is a PERSON, and every word of it must stand in the
+// source. ⚠️ Keep the rules, lists and edge cases identical to the Python.
+// ---------------------------------------------------------------------------
+
+const NAME_TOKEN_RE = /\p{L}+(?:[-'’]\p{L}+)*/gu;
+const POSSESSIVE_RE = /['’]s$/;
+
+const TITLES = new Set(`
+ceo cfo coo cto cio cmo cso president vice chancellor minister ministerin
+secretary senator governor mayor commissioner ambassador professor prof dr
+doctor mr mrs ms herr frau sir dame lord lady founder co-founder cofounder
+chairman chairwoman chairperson chair director analyst economist researcher
+spokesperson spokesman spokeswoman author chef kanzler kanzlerin präsident
+präsidentin direktor direktorin gründer gründerin sprecher sprecherin
+vorstandschef vorstandschefin geschäftsführer geschäftsführerin ministre
+président directeur fondateur
+`.split(/\s+/).filter(Boolean));
+
+const ABBREV_TITLES = new Set(["dr", "prof", "mr", "mrs", "ms"]);
+
+const PARTICLES = new Set(`
+von van de der den del della di da do dos du la le bin ibn al el y of zu zur
+ter te af auf und
+`.split(/\s+/).filter(Boolean));
+
+const NON_NAME_CAPS = new Set(`
+executive officer operating financial technology technical marketing
+information security scientific medical digital data product strategy
+sustainability innovation investment research development emeritus assistant
+associate deputy senior junior general managing director manager minister
+president secretary justice court department office ministry council board
+committee commission elect institute institutes university college school
+hospital bank group inc ltd gmbh ag se plc corp corporation company co motors
+systems technologies energy health media capital partners ventures labs
+foundation center centre street avenue road square park island islands bay
+river lake mountain valley city state county north south east west new united
+national international global european american african asian british german
+french chinese japanese indian russian spanish italian eastern western northern
+southern central federal royal holy saint st mount week day month year report
+index prize award act agreement bill law plan summit conference forum festival
+games cup league series show tour brand model pro max plus mini air ultra one
+two monday tuesday wednesday thursday friday saturday sunday january february
+march april may june july august september october november december syndrome
+disease disorder effect theorem method process protocol scale test virus kong
+`.split(/\s+/).filter(Boolean));
+
+const isUpper = (ch: string) => ch !== ch.toLowerCase() && ch === ch.toUpperCase();
+const isLower = (ch: string) => ch !== ch.toUpperCase() && ch === ch.toLowerCase();
+
+function titleBefore(prev: string, gap: string): boolean {
+  const low = prev.toLowerCase().replace(/\.+$/, "");
+  if (!TITLES.has(low) || !isUpper(prev[0])) return false;
+  if (ABBREV_TITLES.has(low) && prev === prev.toUpperCase() && prev.length > 1) return false;
+  const g = gap.trim();
+  return g === "" || (g === "." && ABBREV_TITLES.has(low));
+}
+
+function namelike(tok: string): boolean {
+  tok = tok.replace(POSSESSIVE_RE, "");
+  if (tok.length < 2 || !isUpper(tok[0])) return false;
+  const rest = Array.from(tok.slice(1));
+  if (!rest.some(isLower)) return false;
+  if (rest.filter(isUpper).length > 2) return false;
+  return !tok.split(/[-'’]/).some((p) => NON_NAME_CAPS.has(p.toLowerCase()));
+}
+
+function nameForms(word: string): Set<string> {
+  const low = word.toLowerCase().replace(/ß/g, "ss");
+  const strip = (s: string) => s.normalize("NFKD").replace(/\p{M}/gu, "");
+  const translit = low.replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue");
+  return new Set([low, strip(low), strip(translit)]);
+}
+
+function sourceWords(source: string): Set<string> {
+  const out = new Set<string>();
+  for (const m of (source || "").matchAll(NAME_TOKEN_RE)) {
+    for (const part of m[0].split(/[-'’]/)) {
+      if (part) for (const f of nameForms(part)) out.add(f);
+    }
+  }
+  return out;
+}
+
+function inSource(word: string, src: Set<string>): boolean {
+  word = word.replace(POSSESSIVE_RE, "");
+  for (const part of word.split(/[-'’]/)) {
+    if (!part) continue;
+    const forms = [...nameForms(part)];
+    const ok =
+      forms.some((f) => src.has(f)) ||
+      forms.some((f) => src.has(f + "s")) ||
+      forms.some((f) => f.endsWith("s") && src.has(f.slice(0, -1)));
+    if (!ok) return false;
+  }
+  return true;
+}
+
+function isGivenName(tok: string): boolean {
+  const low = tok.toLowerCase();
+  return FIRST_NAMES.has(low) || FIRST_NAMES.has(low.split("-")[0]);
+}
+
+/**
+ * Person names in `body` that the source does not contain word for word, each
+ * once, in body order. Empty = every person is referred to as the source does.
+ */
+export function ungroundedNames(body: string, source: string): string[] {
+  if (!body) return [];
+  const src = sourceWords(source || "");
+  const matches = [...body.matchAll(NAME_TOKEN_RE)];
+  const toks = matches.map((m) => m[0]);
+  const gapBetween = (a: number, b: number) =>
+    body.slice(matches[a].index! + toks[a].length, matches[b].index!);
+  const adjacent = (a: number, b: number) => gapBetween(a, b).trim() === "";
+
+  const bad: string[] = [];
+  const seen = new Set<string>();
+  let i = 0;
+  while (i < toks.length) {
+    const tok = toks[i];
+    const low = tok.replace(POSSESSIVE_RE, "").toLowerCase();
+    if (!namelike(tok) || NON_NAME_CAPS.has(low) || TITLES.has(low) || PARTICLES.has(low)) {
+      i++;
+      continue;
+    }
+    const titled = i > 0 && titleBefore(toks[i - 1], gapBetween(i - 1, i));
+    const given = isGivenName(tok);
+    if (!(titled || given)) {
+      i++;
+      continue;
+    }
+    let j = i + 1;
+    while (j < toks.length && PARTICLES.has(toks[j].toLowerCase()) && adjacent(j - 1, j)) j++;
+    const hasSurname =
+      j < toks.length &&
+      adjacent(j - 1, j) &&
+      namelike(toks[j]) &&
+      !NON_NAME_CAPS.has(toks[j].toLowerCase()) &&
+      !TITLES.has(toks[j].toLowerCase());
+    let parts: string[];
+    let next: number;
+    if (hasSurname) {
+      parts = toks.slice(i, j + 1);
+      next = j + 1;
+    } else if (titled) {
+      parts = [tok];
+      next = i + 1;
+    } else {
+      i++;
+      continue;
+    }
+    const words = parts.filter((p) => !PARTICLES.has(p.toLowerCase()));
+    const name = parts.join(" ").replace(POSSESSIVE_RE, "");
+    if (words.some((w) => !inSource(w, src)) && !seen.has(name)) {
+      bad.push(name);
+      seen.add(name);
+    }
+    i = next;
+  }
+  return bad;
 }

@@ -77,3 +77,70 @@ describe("requeueForRegeneration", () => {
     expect(statements()).toHaveLength(1); // source entry untouched
   });
 });
+
+// --- #11 (2026-09-05): person names, garbled bodies, the re-check queue ------
+import { toItem, hasObjection, publishReviewed, rejectReviewed, getRecheckQueue } from "./review";
+
+const PAD =
+  " Analysts describe the change as gradual rather than abrupt, noting that " +
+  "procurement teams, lenders and regulators are each adjusting their own " +
+  "expectations at a different pace, so the overall picture remains mixed " +
+  "and any conclusion about the wider market should be read with care, " +
+  "since the underlying evidence is still being assembled and reviewed, " +
+  "and several of the firms involved have declined to comment so far.";
+
+const baseRow = {
+  id: 1, slug: "s", title_en: "T", summary_en: null, primary_vertical: "BIZ",
+  source_name: "Handelsblatt", source_url: "https://x", confidence: 0.9,
+  created_at: "2026-09-05 12:00:00", status: "draft", review_reason: null,
+  re_title: "Henkel-Chef Knobel: Margen verbessert", raw_content: null,
+  excerpt: "Henkel-Chef Knobel sieht bessere Margen.", extraction_json: null,
+};
+
+describe("toItem — the two new objections (#11)", () => {
+  it("flags an invented first name and highlights it", () => {
+    const item = toItem({ ...baseRow, body_en: "Henkel CEO Markus Knobel said margins improved." + PAD });
+    expect(item.names).toEqual(["Markus Knobel"]);
+    expect(item.garbled).toEqual([]);
+    expect(item.flagged).toEqual([]);
+    expect(hasObjection(item)).toBe(true);
+  });
+
+  it("flags the 2026-09-05 token soup as garbled", () => {
+    const item = toItem({ ...baseRow, body_en: ": writing writing市/address : writing M M M M M       仪器(" });
+    expect(item.garbled.length).toBeGreaterThan(0);
+    expect(hasObjection(item)).toBe(true);
+  });
+
+  it("raises no objection to a body that follows the source", () => {
+    const item = toItem({ ...baseRow, body_en: "Henkel CEO Knobel sees better margins ahead." + PAD });
+    expect(hasObjection(item)).toBe(false);
+  });
+
+  it("carries status and review_reason through", () => {
+    const item = toItem({ ...baseRow, status: "review",
+      review_reason: "recheck_2026-09-05:name:Markus Knobel", body_en: "x." + PAD });
+    expect(item.status).toBe("review");
+    expect(item.reviewReason).toBe("recheck_2026-09-05:name:Markus Knobel");
+  });
+});
+
+describe("re-check queue actions accept status 'review'", () => {
+  it("publish and reject are guarded on draft OR review", async () => {
+    q.mockResolvedValue([{ id: 7 }]);
+    await publishReviewed(7);
+    await rejectReviewed(7);
+    for (const sql of statements()) expect(sql).toMatch(/status IN \('draft', 'review'\)/);
+    // publishing clears the parking reason — it is no longer in review
+    expect(statements()[0]).toMatch(/review_reason = NULL/);
+  });
+
+  it("getRecheckQueue selects status 'review' and narrows on the reason prefix", async () => {
+    q.mockResolvedValue([]);
+    await getRecheckQueue({ reasonPrefix: "recheck_2026-09-05", limit: 50 });
+    const sql = statements()[0];
+    expect(sql).toMatch(/WHERE t.status = 'review'/);
+    expect(sql).toMatch(/review_reason LIKE \$1/);
+    expect(q.mock.calls[0][1]).toEqual(["recheck_2026-09-05%", 50]);
+  });
+});

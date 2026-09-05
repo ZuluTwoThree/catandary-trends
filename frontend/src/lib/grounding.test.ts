@@ -5,7 +5,7 @@
  * implementations ever drift, one of these fails.
  */
 import { describe, it, expect } from "vitest";
-import { ungroundedSpecifics, sourceFromParts } from "@/lib/grounding";
+import { ungroundedSpecifics, sourceFromParts, ungroundedNames } from "@/lib/grounding";
 
 describe("ungroundedSpecifics — parity with pipeline/grounding.py", () => {
   it("flags an invented year and number", () => {
@@ -152,5 +152,73 @@ describe("designators, decades, scaled words (2026-08-06)", () => {
   it("still checks plain quantities", () => {
     expect(ungroundedSpecifics("Under 25 year olds stay home", "young adults living with parents")).toEqual(["25"]);
     expect(ungroundedSpecifics("Level 3 autonomy cut costs by 42%", "carmakers discuss autonomous driving")).toEqual(["42%"]);
+  });
+});
+
+describe("ungroundedNames — parity with pipeline/grounding.py (#11, 2026-09-05)", () => {
+  it("flags an added first name", () => {
+    expect(
+      ungroundedNames("Henkel CEO Markus Knobel said margins improved.",
+                      "Henkel-Chef Knobel: Margen verbessert, Ausblick bestätigt.")
+    ).toEqual(["Markus Knobel"]);
+  });
+
+  it("passes names as the source gives them", () => {
+    const src = "Henkel-Chef Carsten Knobel: Margen verbessert.";
+    expect(ungroundedNames("Henkel CEO Carsten Knobel said margins improved.", src)).toEqual([]);
+    expect(ungroundedNames("Henkel CEO Knobel said margins improved.", src)).toEqual([]);
+  });
+
+  it("never triggers on generic capitalised bigrams", () => {
+    const body =
+      "The Storage System uses Middle Eastern suppliers; Global Voices and " +
+      "the Digital Markets Act shape the New Energy Outlook.";
+    expect(ungroundedNames(body, "unrelated source")).toEqual([]);
+  });
+
+  it("lets a title introduce a person with an unknown given name", () => {
+    const src = "The company reported growth.";
+    expect(ungroundedNames("CEO Xiaoming Wang announced the plan.", src)).toEqual(["Xiaoming Wang"]);
+    expect(ungroundedNames("Minister Habeck welcomed it.", src)).toEqual(["Habeck"]);
+    expect(ungroundedNames("Minister Habeck welcomed it.", "Habeck begrüßt den Plan.")).toEqual([]);
+  });
+
+  it("does not let titles capture role words, sentence starts or 'DR Congo'", () => {
+    const src = "The chief executive resigned; a doctor was consulted.";
+    expect(ungroundedNames("The Chief Executive Officer resigned.", src)).toEqual([]);
+    expect(ungroundedNames("They consulted a doctor. The clinic reopened.", src)).toEqual([]);
+    expect(ungroundedNames("Aid reached the DR Congo region.", src)).toEqual([]);
+    expect(ungroundedNames("Dr. Oetker expanded.", "Dr. Oetker baut aus.")).toEqual([]);
+    expect(ungroundedNames("Dr. Oetker expanded.", "Ein Hersteller baut aus.")).toEqual(["Oetker"]);
+  });
+
+  it("handles particles and possessives", () => {
+    const body = "Commission President Ursula von der Leyen’s plan and Donald Trump’s tariffs.";
+    expect(ungroundedNames(body, "Ursula von der Leyen legt Plan vor; Trumps Zölle")).toEqual(["Donald Trump"]);
+    expect(ungroundedNames(body, "von der Leyen; Donald Trump")).toEqual(["Ursula von der Leyen"]);
+  });
+
+  it("never glues two words across a sentence boundary", () => {
+    expect(ungroundedNames("The project is led by Mirko. This matters.", "Mirko leitet das Projekt.")).toEqual([]);
+  });
+
+  it("matches diacritics and German transliteration", () => {
+    expect(ungroundedNames("Analyst Thomas Mueller expects growth.", "Thomas Müller erwartet Wachstum.")).toEqual([]);
+    expect(ungroundedNames("Analyst Thomas Muller expects growth.", "Thomas Müller erwartet Wachstum.")).toEqual([]);
+    expect(ungroundedNames("Sebastian Krüger spoke.", "Sebastian Krueger sprach.")).toEqual([]);
+  });
+
+  it("does not treat organisations carrying person names as people", () => {
+    const src = "HHU Düsseldorf, the foundation and Kim (POSTECH) published a study.";
+    const body =
+      "Researchers at Heinrich-Heine-University Düsseldorf and the Hans-Böckler " +
+      "Foundation's team, with Professor Kim of POSTECH’s lab, published it.";
+    expect(ungroundedNames(body, src)).toEqual([]);
+  });
+
+  it("ignores lone given names and empty input", () => {
+    expect(ungroundedNames("Alexa and Emma are popular assistants.", "Assistants are popular.")).toEqual([]);
+    expect(ungroundedNames("", "x")).toEqual([]);
+    expect(ungroundedNames("Markus Knobel", "")).toEqual(["Markus Knobel"]);
   });
 });

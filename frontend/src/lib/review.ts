@@ -1,17 +1,27 @@
 import { q, q1 } from "./pg";
-import { ungroundedSpecifics, sourceFromParts } from "./grounding";
+import { ungroundedSpecifics, ungroundedNames, sourceFromParts } from "./grounding";
+import { garbageReasons } from "./content-guard";
 
 /**
- * Review queue for articles the grounding gate held back (issue #71).
+ * Review queue for articles the publish gates held back (issue #71, #11).
  *
  * The nightly auto-publisher refuses to publish a high-confidence draft whose
  * body states a figure or date absent from its source (pipeline/auto_publisher
  * .py). Those drafts used to just accumulate — nobody was told, and there was
- * no way to judge them. This module backs the review UI and its two actions.
+ * no way to judge them. This module backs the review UI and its actions.
  *
- * Scope: ONLY grounding holds, i.e. drafts at or above the auto-publish
- * confidence threshold. Low-confidence drafts (the ~6k "skipped") are a
- * classification matter and deliberately out of scope.
+ * Since 2026-09-05 (#11) the gates also hold a body that names a PERSON the
+ * source does not name word for word ("Henkel CEO Markus Knobel" for
+ * "Henkel-Chef Knobel") and a body the garbage detector rejects (token soup,
+ * leaked foreign-script characters). Both are shown here with their reasons.
+ *
+ * Two queues:
+ *  - held drafts: status 'draft' at or above the auto-publish confidence
+ *    threshold that a gate objects to (the classic morning queue);
+ *  - the re-check queue: status 'review' — rows the corpus re-check
+ *    (scripts/recheck_published_grounding.py) or the draft judge moved out of
+ *    'published'/'draft', each with a `review_reason` such as
+ *    "recheck_2026-09-05:name:Markus Knobel". Nothing in 'review' is public.
  */
 
 /** Mirrors AUTO_PUBLISH_CONFIDENCE in pipeline/config.py. */
@@ -28,10 +38,18 @@ export interface ReviewItem {
   sourceUrl: string | null;
   confidence: number | null;
   createdAt: string;
+  /** 'draft' (held by a gate) or 'review' (moved there by the re-check / judge). */
+  status: string;
+  /** Why the re-check or judge parked it — NULL for gate holds and owner-set rows. */
+  reviewReason: string | null;
   /** The material the content model saw — what the body is judged against. */
   sourceText: string;
   /** Tokens in the body that the source does not support. */
   flagged: string[];
+  /** Person names the source does not give word for word (#11). */
+  names: string[];
+  /** Garbage-detector reasons (#11, 2026-09-05): token soup, script leak … */
+  garbled: string[];
   /** True when the body is cut off mid-sentence (the other publish gate). */
   truncated: boolean;
 }
@@ -49,13 +67,15 @@ interface Row {
   source_url: string | null;
   confidence: number | null;
   created_at: string;
+  status: string;
+  review_reason: string | null;
   re_title: string | null;
   raw_content: string | null;
   excerpt: string | null;
   extraction_json: string | null;
 }
 
-function toItem(r: Row): ReviewItem {
+export function toItem(r: Row): ReviewItem {
   let ext: Record<string, unknown> = {};
   if (r.extraction_json) {
     try {
@@ -89,19 +109,33 @@ function toItem(r: Row): ReviewItem {
     sourceUrl: r.source_url,
     confidence: r.confidence,
     createdAt: r.created_at,
+    status: r.status,
+    reviewReason: r.review_reason,
     sourceText,
     flagged: ungroundedSpecifics(body, sourceText),
+    names: ungroundedNames(body, sourceText),
+    garbled: garbageReasons(body, sourceText),
     truncated: body.trim().length > 0 && !TERMINAL.test(body.trim()),
   };
 }
 
-const SELECT = `
+/** A gate objects to this row — the only rows worth a reviewer's morning. */
+export const hasObjection = (i: ReviewItem): boolean =>
+  i.flagged.length > 0 || i.names.length > 0 || i.garbled.length > 0 || i.truncated;
+
+const SELECT_BASE = `
   SELECT t.id, t.slug, t.title_en, t.body_en, t.summary_en, t.primary_vertical,
          t.source_name, t.source_url, t.confidence, t.created_at::text AS created_at,
+         t.status, t.review_reason,
          re.title AS re_title, re.raw_content, re.excerpt, re.extraction_json
     FROM trends t
-    LEFT JOIN raw_entries re ON re.id = t.raw_entry_id
+    LEFT JOIN raw_entries re ON re.id = t.raw_entry_id`;
+
+const SELECT_HELD = `${SELECT_BASE}
    WHERE t.status = 'draft' AND t.confidence >= $1`;
+
+const SELECT_RECHECK = `${SELECT_BASE}
+   WHERE t.status = 'review'`;
 
 /**
  * Held drafts, newest first. `sinceHours` narrows to the current morning's
@@ -111,7 +145,7 @@ export async function getHeldDrafts(
   opts: { sinceHours?: number; limit?: number } = {}
 ): Promise<ReviewItem[]> {
   const params: unknown[] = [REVIEW_CONFIDENCE_MIN];
-  let sql = SELECT;
+  let sql = SELECT_HELD;
   if (opts.sinceHours) {
     params.push(`${opts.sinceHours} hours`);
     sql += ` AND t.created_at >= NOW() - $${params.length}::interval`;
@@ -122,13 +156,36 @@ export async function getHeldDrafts(
   const rows = await q<Row>(sql, params);
   // Only rows a gate actually objects to — a draft can sit here for unrelated
   // reasons, and showing those would waste the reviewer's morning.
-  return rows.map(toItem).filter((i) => i.flagged.length > 0 || i.truncated);
+  return rows.map(toItem).filter(hasObjection);
+}
+
+/**
+ * The re-check queue: everything in status 'review', newest first. Rows carry
+ * their `review_reason` (e.g. "recheck_2026-09-05:name:Markus Knobel"); the
+ * live flags are recomputed so the reviewer sees the current verdict too.
+ * `reasonPrefix` narrows to one sweep ("recheck_2026-09-05").
+ */
+export async function getRecheckQueue(
+  opts: { reasonPrefix?: string; limit?: number } = {}
+): Promise<ReviewItem[]> {
+  const params: unknown[] = [];
+  let sql = SELECT_RECHECK;
+  if (opts.reasonPrefix) {
+    params.push(`${opts.reasonPrefix}%`);
+    sql += ` AND t.review_reason LIKE $${params.length}`;
+  }
+  params.push(opts.limit ?? 100);
+  sql += ` ORDER BY t.created_at DESC LIMIT $${params.length}`;
+  const rows = await q<Row>(sql, params);
+  return rows.map(toItem);
 }
 
 export interface ReviewCounts {
   total: number;
   today: number;
   oldest: string | null;
+  /** Rows in status 'review' (re-check / judge diversions). Exact SQL count. */
+  recheck: number;
 }
 
 /**
@@ -139,13 +196,15 @@ export interface ReviewCounts {
  * with no objection at all (it simply hasn't reached the nightly auto-publisher
  * yet). On 2026-08-04 that made the header claim 101 items against 29 the page
  * could show — a number the reviewer would have to distrust every morning.
- * Grounding runs in JS, so there is no SQL predicate for it.
+ * Grounding runs in JS, so there is no SQL predicate for it. The re-check
+ * queue IS a status, so its count is a plain SQL count.
  */
 export async function getReviewCounts(): Promise<ReviewCounts> {
-  const rows = await q<Row>(`${SELECT} ORDER BY t.created_at DESC LIMIT 500`, [
-    REVIEW_CONFIDENCE_MIN,
+  const [rows, rc] = await Promise.all([
+    q<Row>(`${SELECT_HELD} ORDER BY t.created_at DESC LIMIT 500`, [REVIEW_CONFIDENCE_MIN]),
+    q1<{ n: number }>(`SELECT COUNT(*)::int AS n FROM trends WHERE status = 'review'`, []),
   ]);
-  const held = rows.map(toItem).filter((i) => i.flagged.length > 0 || i.truncated);
+  const held = rows.map(toItem).filter(hasObjection);
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
   const dates = held.map((i) => i.createdAt).sort();
@@ -153,22 +212,23 @@ export async function getReviewCounts(): Promise<ReviewCounts> {
     total: held.length,
     today: held.filter((i) => new Date(i.createdAt) >= startOfDay).length,
     oldest: dates.length ? dates[0].slice(0, 10) : null,
+    recheck: rc?.n ?? 0,
   };
 }
 
 /**
- * Publish a reviewed draft. `auto_published` stays false — a human decided,
+ * Publish a reviewed row. `auto_published` stays false — a human decided,
  * and the distinction matters when auditing how content reached the site.
  * Guarded on status so a double click can't republish something already
- * rejected.
+ * rejected. Accepts both queues: a held draft and a re-check row.
  */
 export async function publishReviewed(id: number): Promise<boolean> {
   const rows = await q<{ id: number }>(
     `UPDATE trends
         SET status = 'published', auto_published = false,
             published_at = COALESCE(published_at, NOW()),
-            reviewed_at = NOW()
-      WHERE id = $1 AND status = 'draft'
+            reviewed_at = NOW(), review_reason = NULL
+      WHERE id = $1 AND status IN ('draft', 'review')
       RETURNING id`,
     [id]
   );
@@ -176,14 +236,15 @@ export async function publishReviewed(id: number): Promise<boolean> {
 }
 
 /**
- * Reject a draft: it leaves the pool, so the nightly gate stops re-checking it.
+ * Reject a row: it leaves the pool, so the nightly gate stops re-checking it.
  * reviewed_at records WHEN — without it a rejection left no trace at all and
- * review progress was unmeasurable (#71).
+ * review progress was unmeasurable (#71). review_reason is kept as the audit
+ * trail of why it came here.
  */
 export async function rejectReviewed(id: number): Promise<boolean> {
   const rows = await q<{ id: number }>(
     `UPDATE trends SET status = 'rejected', reviewed_at = NOW()
-      WHERE id = $1 AND status = 'draft'
+      WHERE id = $1 AND status IN ('draft', 'review')
       RETURNING id`,
     [id]
   );
@@ -198,12 +259,13 @@ export type RequeueResult =
   | { ok: false; reason: "not_draft" | "no_source" | "attempts_exhausted" };
 
 /**
- * Send a defective draft back to be written again (issue #71).
+ * Send a defective article back to be written again (issue #71).
  *
- * A body that breaks off mid-sentence is a failed generation, not a bad story —
- * rejecting it threw the signal away for good. This resets the underlying
- * raw_entry so the next nightly cycle runs it through the whole pipeline again
- * and the current Stage-6 model writes a fresh article.
+ * A body that breaks off mid-sentence — or is token soup (#11) — is a failed
+ * generation, not a bad story; rejecting it threw the signal away for good.
+ * This resets the underlying raw_entry so the next nightly cycle runs it
+ * through the whole pipeline again and the current Stage-6 model writes a
+ * fresh article.
  *
  * The old row is marked rejected rather than left as a draft, for two reasons:
  * it keeps an audit trail of the failed attempt, and — decisively — its
@@ -222,7 +284,7 @@ export async function requeueForRegeneration(id: number): Promise<RequeueResult>
               WHERE p.raw_entry_id = t.raw_entry_id
                 AND p.status = 'rejected' AND p.reviewed_at IS NOT NULL) AS attempts
        FROM trends t
-      WHERE t.id = $1 AND t.status = 'draft'`,
+      WHERE t.id = $1 AND t.status IN ('draft', 'review')`,
     [id]
   );
   if (!row) return { ok: false, reason: "not_draft" };
@@ -234,7 +296,7 @@ export async function requeueForRegeneration(id: number): Promise<RequeueResult>
 
   const retired = await q<{ id: number }>(
     `UPDATE trends SET status = 'rejected', reviewed_at = NOW()
-      WHERE id = $1 AND status = 'draft'
+      WHERE id = $1 AND status IN ('draft', 'review')
       RETURNING id`,
     [id]
   );

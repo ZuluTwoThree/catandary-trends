@@ -1,7 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { canReview } from "@/lib/review-access";
-import { getHeldDrafts, getReviewCounts, type ReviewItem } from "@/lib/review";
+import {
+  getHeldDrafts,
+  getRecheckQueue,
+  getReviewCounts,
+  type ReviewItem,
+} from "@/lib/review";
 import { publishAction, rejectAction, requeueAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +16,10 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-/** Highlight the objected-to tokens inside the generated body. */
+/** The corpus re-check of 2026-09-05 (#11) tags its rows with this prefix. */
+const RECHECK_PREFIX = "recheck_2026-09-05";
+
+/** Highlight the objected-to tokens (figures AND person names) inside the body. */
 function markFlagged(body: string, flagged: string[]) {
   if (!flagged.length) return body;
   const esc = flagged.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -34,6 +42,10 @@ function Card({ item }: { item: ReviewItem }) {
     month: "short",
     year: "numeric",
   });
+  const highlights = [...item.flagged, ...item.names];
+  // A failed generation (cut off or garbled) can be written again; a story
+  // problem cannot.
+  const failedGeneration = item.truncated || item.garbled.length > 0;
   return (
     <article className="border border-border">
       <header className="border-b border-border px-5 py-4">
@@ -42,7 +54,10 @@ function Card({ item }: { item: ReviewItem }) {
           {item.vertical && <span className="text-accent">{item.vertical}</span>}
           <span>{date}</span>
           {item.confidence != null && <span>conf {item.confidence.toFixed(2)}</span>}
+          {item.status === "review" && <span className="text-paper">in review</span>}
           {item.truncated && <span className="text-warn">cut off mid-sentence</span>}
+          {item.garbled.length > 0 && <span className="text-warn">garbled</span>}
+          {item.names.length > 0 && <span className="text-warn">ungrounded name</span>}
         </div>
         <h2 className="mt-2 font-display text-[21px] leading-[1.2] text-paper">
           {item.title}
@@ -59,11 +74,26 @@ function Card({ item }: { item: ReviewItem }) {
             )}
           </p>
         )}
+        {item.reviewReason && (
+          <p className="mt-2 font-mono text-[10px] tracking-[0.06em] text-muted">
+            reason: {item.reviewReason}
+          </p>
+        )}
       </header>
 
+      {item.garbled.length > 0 && (
+        <p className="border-b border-border bg-warn/5 px-5 py-2 font-mono text-[11px] text-warn">
+          Garbled text: {item.garbled.join(", ")}
+        </p>
+      )}
       {item.flagged.length > 0 && (
         <p className="border-b border-border bg-warn/5 px-5 py-2 font-mono text-[11px] text-warn">
           Not supported by the source: {item.flagged.map((f) => `"${f}"`).join(", ")}
+        </p>
+      )}
+      {item.names.length > 0 && (
+        <p className="border-b border-border bg-warn/5 px-5 py-2 font-mono text-[11px] text-warn">
+          Person named differently than in the source: {item.names.map((n) => `"${n}"`).join(", ")}
         </p>
       )}
 
@@ -73,7 +103,7 @@ function Card({ item }: { item: ReviewItem }) {
             Generated article
           </h3>
           <p className="mt-3 whitespace-pre-wrap text-[14px] leading-[1.7] text-text">
-            {markFlagged(item.body, item.flagged)}
+            {markFlagged(item.body, highlights)}
           </p>
         </div>
         <div className="bg-ink px-5 py-4">
@@ -96,11 +126,11 @@ function Card({ item }: { item: ReviewItem }) {
             Publish
           </button>
         </form>
-        {/* A body that breaks off mid-sentence is a failed generation, not a
-            bad story — offer to have it written again instead of losing the
-            signal. Only shown where it applies, so the default two-choice
-            decision stays two choices. */}
-        {item.truncated && (
+        {/* A body that breaks off mid-sentence or is token soup is a failed
+            generation, not a bad story — offer to have it written again
+            instead of losing the signal. Only shown where it applies, so the
+            default two-choice decision stays two choices. */}
+        {failedGeneration && (
           <form action={requeueAction}>
             <input type="hidden" name="id" value={item.id} />
             <button
@@ -129,6 +159,8 @@ function Card({ item }: { item: ReviewItem }) {
   );
 }
 
+type Scope = "today" | "all" | "recheck";
+
 export default async function ReviewPage({
   searchParams,
 }: {
@@ -138,12 +170,24 @@ export default async function ReviewPage({
   if (!canReview()) notFound();
 
   const sp = await searchParams;
-  const scope = sp.scope === "all" ? "all" : "today";
+  const scope: Scope =
+    sp.scope === "all" ? "all" : sp.scope === "recheck" ? "recheck" : "today";
 
   const [items, counts] = await Promise.all([
-    getHeldDrafts(scope === "today" ? { sinceHours: 30 } : { limit: 100 }),
+    scope === "recheck"
+      ? getRecheckQueue({ limit: 100 })
+      : getHeldDrafts(scope === "today" ? { sinceHours: 30 } : { limit: 100 }),
     getReviewCounts(),
   ]);
+
+  const tab = (s: Scope, label: string) => (
+    <Link
+      href={s === "today" ? "/trends/review" : `/trends/review?scope=${s}`}
+      className={scope === s ? "text-accent" : "text-muted hover:text-paper"}
+    >
+      {label}
+    </Link>
+  );
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -156,26 +200,26 @@ export default async function ReviewPage({
         </h1>
         <p className="mt-3 max-w-2xl text-[14px] leading-[1.65] text-muted">
           These articles were kept out of publication because the body states a
-          figure or date the source does not support — or because it breaks off
-          mid-sentence. Compare both columns and decide; either way the article
-          leaves the queue and the nightly gate stops re-checking it. Where the
-          text simply broke off, <span className="text-accent">Write again</span>{" "}
-          sends the source back through tonight&rsquo;s pipeline instead, so the
-          signal is not lost to a failed generation.
+          figure, date or <em>person name</em> the source does not support, is
+          garbled text, or breaks off mid-sentence. Compare both columns and
+          decide; either way the article leaves the queue and the nightly gate
+          stops re-checking it. Where the text simply broke off or came out
+          garbled, <span className="text-accent">Write again</span> sends the
+          source back through tonight&rsquo;s pipeline instead, so the signal
+          is not lost to a failed generation. The{" "}
+          <span className="text-paper">Re-check</span> tab lists articles the
+          corpus sweep of 5 Sep 2026 took off the site (status{" "}
+          <code>review</code>) — each card names its reason.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em]">
           <span className="text-paper">{counts.today} today</span>
           <span className="text-muted">{counts.total} in total</span>
           {counts.oldest && <span className="text-muted">oldest {counts.oldest}</span>}
+          <span className="text-muted">{counts.recheck} in re-check</span>
           <span className="ml-auto flex gap-3">
-            <Link href="/trends/review"
-              className={scope === "today" ? "text-accent" : "text-muted hover:text-paper"}>
-              Today
-            </Link>
-            <Link href="/trends/review?scope=all"
-              className={scope === "all" ? "text-accent" : "text-muted hover:text-paper"}>
-              Backlog
-            </Link>
+            {tab("today", "Today")}
+            {tab("all", "Backlog")}
+            {tab("recheck", `Re-check (${counts.recheck})`)}
           </span>
         </div>
       </header>
@@ -191,9 +235,22 @@ export default async function ReviewPage({
               </Link>
             </>
           )}
+          {scope !== "recheck" && counts.recheck > 0 && (
+            <>
+              {" "}
+              <Link href="/trends/review?scope=recheck" className="text-accent hover:underline">
+                {counts.recheck} item(s) in the re-check queue.
+              </Link>
+            </>
+          )}
         </p>
       ) : (
         <div className="mt-8 space-y-8">
+          {scope === "recheck" && (
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              Showing the newest 100 of {counts.recheck}; prefix {RECHECK_PREFIX} = corpus sweep
+            </p>
+          )}
           {items.map((i) => (
             <Card key={i.id} item={i} />
           ))}
