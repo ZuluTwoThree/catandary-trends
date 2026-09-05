@@ -113,7 +113,7 @@ Karte und die drei Routinen, die man auswendig kennen sollte.
 | Analysen | `/analysis` | Markdown in `frontend/content/analyses/`, `draft: false` = live | [§8](docs/owner_manual.md#8-analysen-analysis) |
 | **Statischer Export** | `scripts/build_public_static.sh` → `htaccess_test_server.sh` → `publish_static_site.py --apply` | täglich 06:30 (Cron vorbereitet); `PUBLIC_NOINDEX=0` zum Launch | [§9](docs/owner_manual.md#9-statischer-export--die-öffentliche-website) |
 | Quellen | `sources.yaml` | `probe_source_compliance.py --yaml` → eintragen → `verify_feeds.py`; `apply_source_hygiene.py --apply` beim Deaktivieren; `takedown.py`, `purge_raw_content.py` | [§10](docs/owner_manual.md#10-quellen-verwalten) |
-| Betrieb | `crontab -l`, `~/logs/`, `data/*_last.json` | Wächter-Mails, Backup/Restore, GPU-Ruhezustand, llama-server-Reparatur | [§11](docs/owner_manual.md#11-betrieb-cron-wächter-backup-gpu-logs) |
+| Betrieb | `crontab -l`, `~/logs/`, `data/*_last.json` | Wächter-Mails, Backup/Restore, GPU-Ruhezustand, llama-server-Reparatur; Kollisionswächter der GPU-Crons (`scripts/lib/gpu_guard.sh`, wartet 90 min, dann Skip + Pending-Datei) | [§11](docs/owner_manual.md#11-betrieb-cron-wächter-backup-gpu-logs), [§11.8](docs/owner_manual.md#118-kollisionswächter-und-besitz-des-llama-servers-98) |
 | Sicherheit & Recht | — | Binding aller Interfaces (Entscheid offen), TDM-Regime, Takedown | [§12](docs/owner_manual.md#12-sicherheit-und-recht-kurz) |
 
 ### 2.2 Routine: Morgen nach dem Nachtlauf
@@ -121,7 +121,9 @@ Karte und die drei Routinen, die man auswendig kennen sollte.
 1. Postfach: **Wächter-Mail** nur bei Befund (fehlende Cycle-end-Zeile,
    fehlendes Backup-Artefakt, künftig fehlgeschlagener Publish) — Schweigen ist
    gesund. **Review-Mail** nur, wenn die Nacht Artikel zurückgehalten hat (mit
-   Draft-Richter-Zahlen und ggf. Deep-Dive-Zeile).
+   Draft-Richter-Zahlen, ggf. Deep-Dive-Zeile und — montags — der Zeile zum
+   Samstags-Ingester: `ok`/`blocked`/`failed`; `blocked` heißt, ein anderer
+   GPU-Job hielt `:8090`, der nächste Lauf holt die Signale nach).
 2. `http://localhost:3001/trends/review` → jede Karte: *Publish* / *Reject* /
    bei abgeschnittenem Text *Write again*. Backlog-Tab nicht wachsen lassen.
 3. `/trends` sichten; bei Verdacht `~/logs/catandary-full-cycle-<Datum>.log`

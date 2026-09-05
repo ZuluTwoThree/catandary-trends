@@ -17,6 +17,18 @@
 # Ebenfalls seit 2026-08-28: wöchentlicher OpenAlex-Fresh-Sweep (zitationsfrei,
 # #51/#81 §6) — seine Neuzugänge sind source_type='research' und laufen über
 # den bestehenden research-Verarbeitungsschritt mit.
+#
+# Kollisionswächter (#98, seit 2026-09-05): jeder GPU-Schritt (die drei
+# signal_batch_embedded-Läufe) wartet vorher per scripts/lib/gpu_guard.sh, bis
+# kein fremder GPU-Job mehr läuft (Full Cycle, Dossier-Worker, Pulse, Deep
+# Dive …; max GPU_GUARD_MAX_MIN=90 min). Danach wird der GPU-Schritt
+# ÜBERSPRUNGEN — die Ingests und alle CPU-/Netz-Schritte laufen trotzdem. Das
+# min_id-Fenster eines übersprungenen Laufs wird in
+# data/weekly_ingesters_pending_min_id gemerkt und beim nächsten Lauf
+# nachgeholt (sonst blieben die Neuzugänge dieser Woche für immer unprocessed).
+# Ergebnis → data/weekly_ingesters_last.json → Morgen-Mail (review_notify.py).
+# Vorfall: 05.09. ersetzte dieser Lauf den Gemma-Server eines noch laufenden
+# Cycles durch den Embedding-Server.
 
 set -u
 
@@ -45,6 +57,41 @@ SINCE_PATENTS=$(date -d '60 days ago' +%F)
 with get_connection() as c:
     print(c.execute('SELECT coalesce(max(id),0) AS m FROM raw_entries').fetchone()['m'])")
   echo "min_id (Wasserstand vor Ingest): $MIN_ID"
+  # Nachholfenster: hat ein Vorlauf seine GPU-Schritte übersprungen, liegt sein
+  # (kleinerer) Wasserstand hier — die damaligen Neuzugänge sind noch unprocessed.
+  PENDING_MIN_ID_FILE="data/weekly_ingesters_pending_min_id"
+  if [ -s "$PENDING_MIN_ID_FILE" ]; then
+    PENDING=$(tr -dc '0-9' < "$PENDING_MIN_ID_FILE")
+    if [ -n "$PENDING" ] && [ "$PENDING" -lt "$MIN_ID" ]; then
+      echo "Nachholfenster aus übersprungenem Vorlauf: min_id $MIN_ID → $PENDING"
+      MIN_ID=$PENDING
+    fi
+  fi
+
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/gpu_guard.sh"
+  GPU_DONE=0; GPU_SKIPPED=0; GPU_BLOCKED_BY=""
+  # run_gpu_step <Label> <Kommando…>: wartet auf freie GPU, sonst Skip.
+  # Nach dem ersten Skip warten die weiteren Schritte nicht noch einmal 90 min,
+  # sondern prüfen nur (ohne Warten), ob die GPU inzwischen frei ist.
+  run_gpu_step() {
+    local label="$1"; shift
+    echo; echo "----- $label -----"
+    local ok=0
+    if [ "$GPU_SKIPPED" -gt 0 ]; then
+      gpu_guard_busy >/dev/null || ok=1
+    elif gpu_guard_wait weekly_ingesters; then
+      ok=1
+    fi
+    if [ "$ok" = "1" ]; then
+      "$@" || RC=$?
+      GPU_DONE=$((GPU_DONE + 1))
+    else
+      GPU_SKIPPED=$((GPU_SKIPPED + 1))
+      [ -z "$GPU_BLOCKED_BY" ] && GPU_BLOCKED_BY="$(gpu_guard_busy | head -3 | tr '\n' ';')"
+      echo "SKIP (GPU belegt): $label — Neuzugänge bleiben unprocessed, nächster Lauf holt sie nach"
+    fi
+  }
 
   RC=0
   echo; echo "----- Preprints (arXiv/bioRxiv/medRxiv) seit $SINCE_PREPRINTS -----"
@@ -81,18 +128,29 @@ with get_connection() as c:
 
   # Neuzugänge verarbeiten: research (Preprints) + api ohne Patente (Funding/Form D).
   # Läuft auch bei Teil-Fehlern oben (was ingestiert wurde, soll ins Signal-Netz).
-  echo; echo "----- Verarbeitung der Neuzugänge (distill, min_id=$MIN_ID) -----"
-  python -u scripts/signal_batch_embedded.py --source-type research --min-id "$MIN_ID" || RC=$?
-  python -u scripts/signal_batch_embedded.py --source-type api --no-patents --min-id "$MIN_ID" || RC=$?
+  # GPU-Schritte — jeder hinter dem Kollisionswächter (s. Kopf).
+  run_gpu_step "Verarbeitung der Neuzugänge research (distill, min_id=$MIN_ID)" \
+    python -u scripts/signal_batch_embedded.py --source-type research --min-id "$MIN_ID"
+  run_gpu_step "Verarbeitung der Neuzugänge api/no-patents (distill, min_id=$MIN_ID)" \
+    python -u scripts/signal_batch_embedded.py --source-type api --no-patents --min-id "$MIN_ID"
 
   # Patent-Signale (Owner 2026-08-28): die dienstags ingestierten Patente in
   # den embeddeten Signalraum. Bewusst OHNE --min-id (sie liegen unter dem
   # Samstags-Wasserstand); Scope = Abstract vorhanden + rollendes 60-Tage-
   # Publikationsfenster; --limit als Mengenbremse gegen Catch-up-Wochen
   # (Rest bleibt unprocessed und heilt in der Folgewoche).
-  echo; echo "----- Patent-Signale (distill, published >= $SINCE_PATENTS) -----"
-  python -u scripts/signal_batch_embedded.py --source-type api --patents-only \
-    --published-after "$SINCE_PATENTS" --limit 60000 || RC=$?
+  run_gpu_step "Patent-Signale (distill, published >= $SINCE_PATENTS)" \
+    python -u scripts/signal_batch_embedded.py --source-type api --patents-only \
+      --published-after "$SINCE_PATENTS" --limit 60000
+
+  # Nachholfenster pflegen: übersprungen → Wasserstand merken; alles gelaufen → löschen.
+  if [ "$GPU_SKIPPED" -gt 0 ]; then
+    echo "$MIN_ID" > "$PENDING_MIN_ID_FILE"
+    echo "GPU-Schritte übersprungen: $GPU_SKIPPED (blockiert durch: ${GPU_BLOCKED_BY:-?}) — min_id $MIN_ID gemerkt in $PENDING_MIN_ID_FILE"
+    [ "$RC" -eq 0 ] && RC=75
+  else
+    rm -f "$PENDING_MIN_ID_FILE"
+  fi
 
   # Research-Explorer-Index (#72) nach der Verarbeitung neu materialisieren
   echo; echo "----- Research-Index-Rebuild -----"
@@ -123,6 +181,14 @@ with get_connection() as c:
   # echo; echo "----- Investoren-Nachveredelung (#94 Teil 2) -----"
   # python -u scripts/extract_press_rounds.py --mode investors --apply --limit 2000 || RC=$?
 
-  echo; echo "weekly_ingesters.sh end $(date -Iseconds) (rc=$RC)"
+  # Statusnotiz für die Morgen-Mail (review_notify.py liest sie, solange sie
+  # < 60 h alt ist — der Samstagslauf erscheint damit in der Montags-Mail).
+  if [ "$GPU_SKIPPED" -gt 0 ]; then NOTE_STATUS=blocked
+  elif [ "$RC" -ne 0 ]; then NOTE_STATUS=failed
+  else NOTE_STATUS=ok; fi
+  gpu_guard_note weekly_ingesters "$NOTE_STATUS" gpu_steps_done="$GPU_DONE" \
+    gpu_steps_skipped="$GPU_SKIPPED" "blocked_by=$GPU_BLOCKED_BY" min_id="$MIN_ID" rc="$RC"
+
+  echo; echo "weekly_ingesters.sh end $(date -Iseconds) (rc=$RC gpu_done=$GPU_DONE gpu_skipped=$GPU_SKIPPED)"
   exit "$RC"
 } >> "$LOG" 2>&1

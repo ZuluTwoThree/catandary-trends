@@ -464,6 +464,13 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Full Cycle Mo–Fr 04:00 (Feed-Polling + LLM-Pipeline + Auto-Publish in einem
 # Lauf via scheduled_cycle.sh; Wrapper räumt vorher ALLES VRAM frei, auch
 # manuell gestartete llama-server). Log: ~/logs/catandary-full-cycle-*.log
+# Kollisionswächter (#98, seit 2026-09-05, scripts/lib/gpu_guard.sh): Wrapper
+# UND scheduled_cycle.sh warten vor dem VRAM-Freiräumen, bis kein fremder
+# GPU-Job läuft (Ingester, Dossier-Worker, Pulse, Deep Dive, zweiter Cycle;
+# max GPU_GUARD_MAX_MIN=90 min), sonst Abbruch mit rc=75 ohne etwas anzufassen
+# (end-Zeile → Wächter-Mail). Vor Stage 10 dasselbe (30 min → Richter-Skip);
+# der Ruhezustand wird am Ende nicht hergestellt, wenn inzwischen ein fremder
+# Job die Unit hält (er stellt ihn selbst her).
 0 4 * * 1-5  scripts/full_cycle_cron.sh
 
 # Waechter (seit 2026-08-17): meldet per Mail, wenn der Nachtlauf keine
@@ -542,12 +549,20 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # GitHub … gesperrt, Typ → openalex_meta → research_signals.kind) + Patent-Signale (--patents-only: nur mit
 # Abstract, rollendes 60-Tage-Publikationsfenster, Limit 60k/Lauf; der
 # 19,6M-BDDS-Backlog bleibt bewusst außen vor).
+# Kollisionswächter (#98, seit 2026-09-05): jeder der drei GPU-Schritte
+# (signal_batch_embedded) wartet per scripts/lib/gpu_guard.sh auf eine freie
+# GPU (max 90 min), sonst SKIP — Ingests und CPU-Schritte laufen trotzdem; das
+# min_id-Fenster wird in data/weekly_ingesters_pending_min_id gemerkt und beim
+# nächsten Lauf nachgeholt; Status → data/weekly_ingesters_last.json →
+# Montags-Morgen-Mail (review_notify.py, 60 h Frische). rc=75 bei Skip.
 0 6 * * 6    scripts/weekly_ingesters.sh
 
 # Startup-Explorer-Quellen monatlich (6. 12:00, seit 2026-08-23, #87): CORDIS +
 # SBIR (--refresh) + GLEIF + Companies House + GLEIF/CH-Enrichment + Distill
 # der Neuzugänge + HDD-Download-Cleanup. Firmenstamm-Rebuild, Wikidata und
 # Brücken bewusst NICHT im Cron (Rebuild würde Enrichment verwerfen) — on-demand.
+# Distill-Schritt hinter dem Kollisionswächter (#98) wie weekly_ingesters
+# (Pending-Datei data/monthly_startup_sources_pending_min_id, Note-JSON).
 0 12 6 * *   scripts/monthly_startup_sources.sh
 
 # Source-Link-Integrität monatlich (2. des Monats 07:00, Issue #48 — in der echten

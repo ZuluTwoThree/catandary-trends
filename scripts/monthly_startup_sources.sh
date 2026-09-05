@@ -22,6 +22,13 @@
 # additiver Ersatz fuer den Rebuild-Schritt (matcht neue Form-D-/SBIR-/
 # CORDIS-/Presse-Kandidaten gegen den Bestand statt ihn zu ersetzen, siehe
 # den auskommentierten Schritt unten "nach verifiziertem Erstlauf aktivieren").
+#
+# Kollisionswächter (#98, seit 2026-09-05): der eine GPU-Schritt (Distill der
+# Neuzugaenge via signal_batch_embedded) wartet per scripts/lib/gpu_guard.sh
+# auf eine freie GPU (max GPU_GUARD_MAX_MIN=90 min), sonst Skip; das
+# min_id-Fenster wird dann in data/monthly_startup_sources_pending_min_id
+# gemerkt und beim naechsten Lauf nachgeholt. Ergebnis →
+# data/monthly_startup_sources_last.json → Morgen-Mail.
 
 set -u
 
@@ -42,6 +49,16 @@ mkdir -p "$(dirname "$LOG")"
 with get_connection() as c:
     print(c.execute('SELECT coalesce(max(id),0) AS m FROM raw_entries').fetchone()['m'])")
   echo "min_id (Wasserstand vor Ingest): $MIN_ID"
+  PENDING_MIN_ID_FILE="data/monthly_startup_sources_pending_min_id"
+  if [ -s "$PENDING_MIN_ID_FILE" ]; then
+    PENDING=$(tr -dc '0-9' < "$PENDING_MIN_ID_FILE")
+    if [ -n "$PENDING" ] && [ "$PENDING" -lt "$MIN_ID" ]; then
+      echo "Nachholfenster aus übersprungenem Vorlauf: min_id $MIN_ID → $PENDING"
+      MIN_ID=$PENDING
+    fi
+  fi
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/gpu_guard.sh"
 
   RC=0
   echo; echo "----- CORDIS (HE + H2020, --refresh) -----"
@@ -75,13 +92,30 @@ with get_connection() as c:
   # Neuzugaenge ins Signal-Netz (Funding-Quellen laufen unter source_type=api;
   # --no-patents wie im Weekly — Patente teilen sich den source_type).
   echo; echo "----- Verarbeitung der Neuzugaenge (distill, min_id=$MIN_ID) -----"
-  python -u scripts/signal_batch_embedded.py --source-type api --no-patents --min-id "$MIN_ID" || RC=$?
+  GPU_DONE=0; GPU_SKIPPED=0; GPU_BLOCKED_BY=""
+  if gpu_guard_wait monthly_startup_sources; then
+    python -u scripts/signal_batch_embedded.py --source-type api --no-patents --min-id "$MIN_ID" || RC=$?
+    GPU_DONE=1
+    rm -f "$PENDING_MIN_ID_FILE"
+  else
+    GPU_SKIPPED=1
+    GPU_BLOCKED_BY="$(gpu_guard_busy | head -3 | tr '\n' ';')"
+    echo "$MIN_ID" > "$PENDING_MIN_ID_FILE"
+    echo "SKIP (GPU belegt durch: ${GPU_BLOCKED_BY:-?}) — Neuzugaenge bleiben unprocessed, min_id $MIN_ID gemerkt in $PENDING_MIN_ID_FILE"
+    [ "$RC" -eq 0 ] && RC=75
+  fi
 
   # Alte Bulk-Downloads auf der HDD aufraeumen (GLEIF ~480 MB + CH ~490 MB
   # pro Monat — nur den juengsten Stand behalten).
   echo; echo "----- Download-Cleanup (>45 Tage) -----"
   find "$DL_DIR" -maxdepth 1 -name '*.zip' -mtime +45 -print -delete 2>/dev/null || true
 
-  echo; echo "monthly_startup_sources.sh end $(date -Iseconds) (rc=$RC)"
+  if [ "$GPU_SKIPPED" -gt 0 ]; then NOTE_STATUS=blocked
+  elif [ "$RC" -ne 0 ]; then NOTE_STATUS=failed
+  else NOTE_STATUS=ok; fi
+  gpu_guard_note monthly_startup_sources "$NOTE_STATUS" gpu_steps_done="$GPU_DONE" \
+    gpu_steps_skipped="$GPU_SKIPPED" "blocked_by=$GPU_BLOCKED_BY" min_id="$MIN_ID" rc="$RC"
+
+  echo; echo "monthly_startup_sources.sh end $(date -Iseconds) (rc=$RC gpu_done=$GPU_DONE gpu_skipped=$GPU_SKIPPED)"
   exit "$RC"
 } >> "$LOG" 2>&1

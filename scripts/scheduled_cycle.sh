@@ -113,6 +113,18 @@ mkdir -p "$(dirname "$LOG")"
   fi
   # <<< Stage 5 Embed activation <<<
 
+  # Kollisionswächter (#98, seit 2026-09-05): läuft ein fremder GPU-Job
+  # (Samstags-Ingester, Dossier-Worker, Pulse, Deep Dive, zweiter Cycle …),
+  # würde das Stoppen der Unit hier seinen Server unter ihm wegziehen. Warten
+  # (max GPU_GUARD_MAX_MIN=90 min), sonst Abbruch OHNE etwas anzufassen.
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/gpu_guard.sh"
+  if ! gpu_guard_wait scheduled_cycle; then
+    echo "ABORT: fremder GPU-Job nach ${GPU_GUARD_MAX_MIN} min immer noch aktiv — Cycle nicht gestartet, nichts angefasst"
+    echo "scheduled_cycle.sh end  $(date -Iseconds)  (rc1=75 rc2=0 rc3=0 blocked)"
+    exit 75
+  fi
+
   echo
   echo "----- stopping llama-server.service to free GPU -----"
   systemctl --user stop llama-server.service
@@ -205,7 +217,12 @@ PY
   # Truncation, Dedup gegen Published). Zahlen landen in
   # data/draft_judge_last.json und damit in der Morgen-Mail.
   # Abschalten: DRAFT_JUDGE=0. Dauer: ~340 Artikel x ~2-3 s auf --parallel 1.
-  if [ "${DRAFT_JUDGE:-1}" = "1" ]; then
+  if [ "${DRAFT_JUDGE:-1}" = "1" ] && ! gpu_guard_wait scheduled_cycle-judge 30; then
+    # Ein fremder GPU-Job (z. B. ein vom Owner gestarteter Dossier-Worker) hat
+    # sich während der Stages eingeklinkt — sein Server bleibt stehen (#98).
+    echo
+    echo "----- draft judge SKIPPED: fremder GPU-Job aktiv (Stage-10-Stop würde ihn treffen) -----"
+  elif [ "${DRAFT_JUDGE:-1}" = "1" ]; then
     echo
     echo "----- stage 10: draft judge on Qwen3.8-27B -----"
     systemctl --user stop llama-server.service 2>/dev/null
@@ -225,6 +242,9 @@ PY
     else
       ln -sf start-qwen3.8-27b.sh /home/dirk/llama.cpp/start-active.sh
       systemctl --user start llama-server.service
+      # Besitzvermerk (#98 c): data/llama-server.scheduled_cycle-judge.pid —
+      # der Stop nach dem Richter trifft nur noch DIESEN Server (MainPID-Abgleich).
+      llama_unit_record_owner scheduled_cycle-judge
       JUDGE_UP=0
       for i in $(seq 1 40); do
         sleep 3
@@ -245,7 +265,7 @@ PY
       else
         echo "----- draft judge SKIPPED: 27B server came not up -----"
       fi
-      systemctl --user stop llama-server.service 2>/dev/null
+      llama_unit_stop_owned scheduled_cycle-judge 2>/dev/null
       sleep 3
     fi
   fi
@@ -257,12 +277,20 @@ PY
   # transient script (emb/30B/35B); without this reset the final `systemctl start`
   # would bring up the wrong model and the next consumer (signal_batch/cycle) would
   # run against it. See pipeline.gpu_handover CANONICAL_RESTING_SCRIPT.
-  echo "----- resetting start-active.sh → start-qwen3-8b-208k.sh -----"
-  ln -sf start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
-  echo "----- restarting llama-server.service -----"
-  systemctl --user start llama-server.service
-  RC3=$?
-  echo "----- llama-server start exit code: $RC3 -----"
+  # Ausnahme (#98): hält inzwischen ein fremder GPU-Job die Unit, gehört ihm
+  # der Ruhezustand — er stellt ihn beim eigenen Exit selbst her. Nicht anfassen.
+  if BUSY=$(gpu_guard_busy); then
+    echo "----- resting state NOT restored: fremder GPU-Job aktiv (stellt ihn selbst her) -----"
+    echo "$BUSY" | sed 's/^/    /'
+    RC3=0
+  else
+    echo "----- resetting start-active.sh → start-qwen3-8b-208k.sh -----"
+    ln -sf start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
+    echo "----- restarting llama-server.service -----"
+    systemctl --user start llama-server.service
+    RC3=$?
+    echo "----- llama-server start exit code: $RC3 -----"
+  fi
 
   echo
   echo "scheduled_cycle.sh end  $(date -Iseconds)  (rc1=$RC1 rc2=$RC2 rc3=$RC3)"

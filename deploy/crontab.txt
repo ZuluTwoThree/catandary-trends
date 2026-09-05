@@ -12,12 +12,16 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Wöchentlicher BDDS-Patent-Ingest (#50) — --kind both: Amend trägt die Zitationen
 0 5 * * 2    /home/dirk/projects/catandary-trends/scripts/weekly_patents.sh
 # Full Cycle Mo–Fr 04:00 (Wrapper räumt erst ALLES VRAM frei, Log: ~/logs/catandary-full-cycle-*.log)
+# Kollisionswächter (#98): wartet max 90 min auf fremde GPU-Jobs (Ingester/Worker/Pulse/zweiter
+# Cycle), sonst rc=75 ohne VRAM-Räumung (end-Zeile → Wächter-Mail). scripts/lib/gpu_guard.sh.
 0 4 * * 1-5 /home/dirk/projects/catandary-trends/scripts/full_cycle_cron.sh
 
 # Nicht-RSS-Ingester wöchentlich (#4): Preprints + Funding (+ Form D im Quartalsmonat)
 # inkl. Distill-Verarbeitung der Neuzugänge (GPU-Handover; Samstag = GPU frei).
 # Seit #87 auch die Startup-Explorer-Signale (HN/CT.gov/FDA/Presse-Regex), seit 28.08.
 # OpenAlex-Fresh + Patent-Signale. Existenz-Guard: Skript liegt bis zum nächsten dev→main-Merge nur auf dev.
+# Kollisionswächter (#98): GPU-Schritte warten max 90 min auf einen laufenden Cycle/Worker, sonst Skip
+# (min_id in data/weekly_ingesters_pending_min_id gemerkt → nächster Lauf holt nach; Note-JSON → Mo-Mail).
 0 6 * * 6 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_ingesters.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_ingesters.sh || echo "$(date -Iseconds) skip weekly_ingesters (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-ingesters-skip.log
 # Patentbasierte Rechnungen wöchentlich nach dem BDDS-Ingest (Di 05:00 → Refresh 08:00):
 # cpc_tier_series + cpc_insights + signal→CPC. Radare + TIR-Forschung bewusst NICHT im Cron.
@@ -41,7 +45,8 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # GLEIF + Companies House (--refresh/Neuzugaenge) + Enrichment + Distill der
 # Neuzugaenge. 6. 12:00 = nach OpenAlex-Sync (5.) und ausserhalb der GPU-Fenster.
 # Die woechentlichen Signal-Ingester (HN/CT.gov/FDA/Presse-Regex) laufen im
-# bestehenden weekly_ingesters.sh (Samstag 06:00) mit.
+# bestehenden weekly_ingesters.sh (Samstag 06:00) mit. Distill-Schritt hinter dem
+# Kollisionswächter (#98, Pending-Datei data/monthly_startup_sources_pending_min_id).
 0 12 6 * * /home/dirk/projects/catandary-trends/scripts/monthly_startup_sources.sh
 
 # Monatlicher Source-Link-Check (#48, in der echten crontab installiert; Lauf 02.09. 07:03): Stichprobe

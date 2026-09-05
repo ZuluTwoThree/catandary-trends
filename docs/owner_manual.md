@@ -49,8 +49,12 @@ typischerweise 05:55–06:12.
    - *Review-Mail* („grounding-hold review queue") — kommt nur, wenn die Nacht
      Artikel zurückgehalten hat; enthält Anzahl heute/gesamt, ältestes Datum,
      Beispieltitel, eine Zeile mit den Draft-Richter-Zahlen
-     (`data/draft_judge_last.json`) und — solange die Datei < 36 h alt ist — eine
-     Zeile zum Newsletter-Deep-Dive (`data/newsletter_deep_dive_last.json`).
+     (`data/draft_judge_last.json`), — solange die Datei < 36 h alt ist — eine
+     Zeile zum Newsletter-Deep-Dive (`data/newsletter_deep_dive_last.json`) und
+     — < 60 h alt — je eine Zeile zu den GPU-Crons (`data/weekly_ingesters_last.json`,
+     `data/monthly_startup_sources_last.json`: `ok` / `blocked` / `failed`, Zahl der
+     gelaufenen und übersprungenen GPU-Schritte, Blockierer; §11.8). Ein
+     `blocked`/`failed` erzwingt die Mail auch bei leerer Queue.
      Link: `REVIEW_URL` (Default `http://localhost:3001/trends/review`).
 2. **Review-Queue abarbeiten** (Abschnitt 3) — jeder gehaltene Artikel braucht
    eine Entscheidung, sonst wächst der Backlog.
@@ -735,7 +739,10 @@ im Handover still).
 
 `deploy/crontab.txt` ist das Template; die drei Wochen-/Monats-Wrapper tragen
 einen Existenz-Guard (`[ -x … ] && … || echo skip`), weil sie nach einem
-`dev`-Feature erst mit dem Merge auf `main` erscheinen.
+`dev`-Feature erst mit dem Merge auf `main` erscheinen. Alle GPU-Wrapper
+(Cycle, Ingester, Startup-Register, Newsletter-Edition, Pulse) teilen sich
+seit 05.09. den Kollisionswächter aus §11.8 — zwei GPU-Jobs laufen nie mehr
+gleichzeitig gegen `:8090`.
 
 ### 11.2 Wächter-Mails
 
@@ -800,8 +807,12 @@ nvidia-smi --query-gpu=memory.used,memory.total --format=csv
 am 05.09.; war schon 6,9 GB — gelegentlich leeren).
 Statusdateien im main-Worktree `data/`: `draft_judge_last.json`,
 `research_pulse_last.json`, `newsletter_deep_dive_last.json`,
-`publish_last.json` (ab erstem `--apply`); Worker-Logs `data/dossier_worker/`,
-`data/research_pulse/`.
+`publish_last.json` (ab erstem `--apply`), `weekly_ingesters_last.json` und
+`monthly_startup_sources_last.json` (Kollisionswächter, §11.8),
+`weekly_ingesters_pending_min_id` / `monthly_startup_sources_pending_min_id`
+(nur vorhanden, solange ein übersprungener GPU-Schritt nachzuholen ist),
+`llama-server.<job>.pid` (Besitzvermerk der Unit, §11.8); Worker-Logs
+`data/dossier_worker/`, `data/research_pulse/`.
 
 ### 11.7 Pipeline von Hand
 
@@ -814,6 +825,50 @@ python scripts/generate_content.py --vertical FOOD --limit 200   # Artikel für 
 python -m pipeline.auto_publisher                     # Stage 9 standalone
 ```
 Vorher `nvidia-smi` prüfen; die Skripte übernehmen `:8090` selbst.
+
+### 11.8 Kollisionswächter und Besitz des llama-servers (#98)
+
+**Warum.** `:8090` gehört immer genau einem Job. Am 05.09. lief ein von Hand
+gestarteter Full Cycle bis in den Samstags-Ingester: dessen Handover ersetzte
+den Gemma-Server des Cycles durch den Embedding-Server, Stage 6 generierte
+gegen das Embedding-Modell, und beim Abbruch stoppte der Cycle den
+Embedding-Server der Ingester (2.275 Distill-Aufrufe „Connection refused").
+
+**Wächter (`scripts/lib/gpu_guard.sh`).** Jeder GPU-Wrapper (`full_cycle_cron.sh`,
+`scheduled_cycle.sh`, `weekly_ingesters.sh`, `monthly_startup_sources.sh`,
+`weekly_newsletter_publish.sh`, `weekly_research_pulse.sh`) ruft vor seinem
+GPU-Schritt `gpu_guard_wait <job>` auf: läuft ein anderer bekannter GPU-Job
+(`scheduled_cycle.sh`, `run_full_cycle`, `signal_batch*`, `dossier_worker`,
+`corpus_research`, `research_pulse`, `newsletter_deep_dive`, `newsletter_generator`,
+die Wrapper selbst), wartet er — Default 90 min (`GPU_GUARD_MAX_MIN`), Poll 60 s
+— und gibt danach auf. Logzeilen: `[gpu_guard/<job>] fremder GPU-Job aktiv —
+warte (max 90 min):` mit PID + Kommandozeile, `… frei nach ~N min — weiter`
+oder `… SKIP: nach 90 min immer noch belegt durch:`. Was dann passiert:
+
+| Wrapper | bei Skip |
+|---|---|
+| `full_cycle_cron.sh` / `scheduled_cycle.sh` | Abbruch **vor** dem VRAM-Räumen, `rc=75` in der end-Zeile → Wächter-Mail; nichts angefasst |
+| `weekly_ingesters.sh` / `monthly_startup_sources.sh` | Ingests und CPU-Schritte laufen, nur die `signal_batch_embedded`-Schritte werden übersprungen; `min_id` landet in `data/<job>_pending_min_id` und der nächste Lauf holt das Fenster nach; `rc=75`; Notiz `data/<job>_last.json` (`status: blocked`) → Montags-Mail |
+| `weekly_newsletter_publish.sh` / `weekly_research_pulse.sh` | `gen=blocked`, beim nächsten Lauf nachholen |
+| Stage 10 im Cycle | wartet 30 min, dann „draft judge SKIPPED: fremder GPU-Job aktiv" |
+
+Von Hand nachholen, wenn ein Ingester-Lauf übersprungen wurde (GPU muss frei sein):
+
+```bash
+cat data/weekly_ingesters_pending_min_id                       # gemerkter Wasserstand
+python scripts/signal_batch_embedded.py --source-type research --min-id <N>
+python scripts/signal_batch_embedded.py --source-type api --no-patents --min-id <N>
+rm data/weekly_ingesters_pending_min_id                        # oder den Samstag abwarten
+```
+
+**Besitz der Unit (Richter-Block).** Der Stage-10-Block in `scheduled_cycle.sh`
+vermerkt nach dem Start `MAINPID OWNERPID` in `data/llama-server.scheduled_cycle-judge.pid`
+(`llama_unit_record_owner`) und stoppt danach nur noch einen Server mit
+**dieser** MainPID (`llama_unit_stop_owned`). Hat inzwischen ein anderer Job
+die Unit neu gestartet, bleibt sie stehen — Logzeile `[gpu_guard/…] WARN:
+llama-server PID … gehört nicht diesem Job (unsere war …) — bleibt stehen`.
+`rm data/llama-server.*.pid` ist jederzeit ungefährlich (nächster Start
+vermerkt neu).
 
 ---
 

@@ -47,13 +47,11 @@ WEEK_ARG=$(printf '%d-W%02d' "$YEAR" "$WEEK")
   # Kollisionswächter: der Samstags-Ingester (06:00) hält die GPU mit dem
   # Embedding-Server; läuft er um 12:00 noch (Catch-up-Wochen), warten statt
   # den Modell-Swap unter ihm wegziehen (max 90 min). Dossier-Worker ebenso.
-  for i in $(seq 1 90); do
-    pgrep -f "weekly_ingesters.sh|signal_batch_embedded|dossier_worker|scheduled_cycle.sh" >/dev/null || break
-    [ "$i" -eq 1 ] && echo "GPU-Lauf aktiv (Ingester/Dossier/Cycle) — warte (max 90 min) ..."
-    sleep 60
-  done
-  if pgrep -f "weekly_ingesters.sh|signal_batch_embedded|dossier_worker|scheduled_cycle.sh" >/dev/null; then
-    echo "ABORT: GPU-Lauf nach 90 min immer noch aktiv — Pulse ${WEEK_ARG} von Hand nachholen"
+  # Seit #98 der gemeinsame Helfer scripts/lib/gpu_guard.sh.
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/gpu_guard.sh"
+  if ! gpu_guard_wait weekly_research_pulse; then
+    echo "ABORT: GPU-Lauf nach ${GPU_GUARD_MAX_MIN} min immer noch aktiv — Pulse ${WEEK_ARG} von Hand nachholen"
     echo "weekly_research_pulse.sh end $(date -Iseconds) (gen=blocked)"
     exit 1
   fi

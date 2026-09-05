@@ -47,13 +47,11 @@ WEEK=$(date -d '7 days ago' +%-V)
   # Kollisionswächter: Montag 04:00 startet der Full Cycle — läuft er um 09:00
   # noch (lange Nächte kommen vor), würde der Modell-Swap unten seinen
   # llama-server unter ihm wegziehen. Warten statt kaputt machen (max 90 min).
-  for i in $(seq 1 90); do
-    pgrep -f "scheduled_cycle.sh|full_cycle_cron.sh" >/dev/null || break
-    [ "$i" -eq 1 ] && echo "Full Cycle läuft noch — warte (max 90 min) ..."
-    sleep 60
-  done
-  if pgrep -f "scheduled_cycle.sh|full_cycle_cron.sh" >/dev/null; then
-    echo "ABORT: Full Cycle nach 90 min immer noch aktiv — Edition ${YEAR}-W${WEEK} beim nächsten Lauf nachholen"
+  # Seit #98 der gemeinsame Helfer (wartet auch auf Ingester/Worker/Pulse).
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/gpu_guard.sh"
+  if ! gpu_guard_wait weekly_newsletter_publish; then
+    echo "ABORT: fremder GPU-Job nach ${GPU_GUARD_MAX_MIN} min immer noch aktiv — Edition ${YEAR}-W${WEEK} beim nächsten Lauf nachholen"
     echo "weekly_newsletter_publish.sh end $(date -Iseconds) (gen=blocked)"
     exit 1
   fi

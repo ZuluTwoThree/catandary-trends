@@ -107,6 +107,49 @@ def deep_dive_stats() -> dict | None:
         return None
 
 
+# GPU cron wrappers that leave a status note via scripts/lib/gpu_guard.sh
+# (gpu_guard_note): data/<job>_last.json. The Saturday ingesters run 06:00, the
+# next review mail goes out Monday ~06:00 — 60 h freshness carries it exactly
+# into that one mail and not into Tuesday's.
+GPU_JOB_NOTES = ("weekly_ingesters", "monthly_startup_sources")
+GPU_JOB_NOTE_MAX_AGE_H = 60
+
+
+def gpu_job_notes() -> list[dict]:
+    """Fresh status notes of the GPU cron wrappers (#98): whether their GPU
+    steps ran, were skipped because another GPU job held :8090 (status
+    'blocked'), or failed. A blocked/failed note forces a mail even when the
+    review queue is empty — the skipped signals stay unprocessed until the
+    next run, and that is worth one line in the morning."""
+    import datetime
+    notes = []
+    for job in GPU_JOB_NOTES:
+        p = Path(f"data/{job}_last.json")
+        if not p.exists():
+            continue
+        try:
+            d = json.loads(p.read_text())
+            ts = datetime.datetime.fromisoformat(d["date"])
+            age = datetime.datetime.now(datetime.timezone.utc) - ts
+            if age.total_seconds() <= GPU_JOB_NOTE_MAX_AGE_H * 3600:
+                notes.append(d)
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+            continue
+    return notes
+
+
+def _gpu_job_line(n: dict) -> str:
+    line = (f"GPU cron {n.get('job')}: {n.get('status')} — "
+            f"{n.get('gpu_steps_done', 0)} GPU step(s) done, "
+            f"{n.get('gpu_steps_skipped', 0)} skipped")
+    if n.get("blocked_by"):
+        line += f" (blocked by: {n['blocked_by']})"
+    if n.get("status") == "blocked":
+        line += "; skipped signals stay unprocessed and are caught up by the next run"
+    line += f"; rc={n.get('rc')}"
+    return line
+
+
 def _deep_dive_line(dd: dict) -> str:
     audit = dd.get("audit") or {}
     gates = dd.get("gates") or {}
@@ -128,7 +171,8 @@ def _deep_dive_line(dd: dict) -> str:
 
 def build_mail(today: int, total: int, oldest: str | None,
                items: list[dict], judge: dict | None = None,
-               deep_dive: dict | None = None) -> tuple[str, str, str]:
+               deep_dive: dict | None = None,
+               gpu_jobs: list[dict] | None = None) -> tuple[str, str, str]:
     subject = (f"Review: {today} article{'s' if today != 1 else ''} held overnight"
                if today else f"Review queue: {total} waiting")
 
@@ -159,6 +203,10 @@ def build_mail(today: int, total: int, oldest: str | None,
     if deep_dive:
         lines.append(_deep_dive_line(deep_dive))
         lines.append("")
+    for n in gpu_jobs or []:
+        lines.append(_gpu_job_line(n))
+    if gpu_jobs:
+        lines.append("")
     lines.append(f"Review: {REVIEW_URL}")
     text = "\n".join(lines)
 
@@ -184,6 +232,8 @@ def build_mail(today: int, total: int, oldest: str | None,
            if today > len(items) else "")
         + (f'<p style="color:#666;font-size:13px">{html.escape(_deep_dive_line(deep_dive))}</p>'
            if deep_dive else "")
+        + "".join(f'<p style="color:#666;font-size:13px">{html.escape(_gpu_job_line(n))}</p>'
+                  for n in gpu_jobs or [])
         + f'<p><a href="{html.escape(REVIEW_URL)}">Open the review queue</a></p></div>'
     )
     return subject, body_html, text
@@ -218,19 +268,23 @@ def main() -> int:
     today, total, oldest, items = fetch_queue()
     judge = judge_stats()
     deep_dive = deep_dive_stats()
-    logger.info("queue: %d held today, %d total, oldest %s | judge: %s | deep dive: %s",
+    gpu_jobs = gpu_job_notes()
+    gpu_trouble = [n for n in gpu_jobs if n.get("status") != "ok"]
+    logger.info("queue: %d held today, %d total, oldest %s | judge: %s | deep dive: %s | gpu crons: %s",
                 today, total, oldest,
                 f"{judge['released']} released / {judge['held']} held" if judge else "no fresh run",
-                deep_dive.get("status") if deep_dive else "no fresh run")
+                deep_dive.get("status") if deep_dive else "no fresh run",
+                ", ".join(f"{n.get('job')}={n.get('status')}" for n in gpu_jobs) or "no fresh note")
 
     # Quiet only when there is truly nothing to report: no held articles AND no
-    # judge run AND no deep-dive run. A night where the judge released 200
-    # articles deserves a mail even if the >=0.85 gate held nothing.
-    if today == 0 and judge is None and deep_dive is None and not args.force:
-        logger.info("nothing held today, no judge run, no deep dive — no mail sent")
+    # judge run AND no deep-dive run AND no blocked/failed GPU cron. A night
+    # where the judge released 200 articles deserves a mail even if the >=0.85
+    # gate held nothing.
+    if today == 0 and judge is None and deep_dive is None and not gpu_trouble and not args.force:
+        logger.info("nothing held today, no judge run, no deep dive, GPU crons fine — no mail sent")
         return 0
 
-    subject, body_html, text = build_mail(today, total, oldest, items, judge, deep_dive)
+    subject, body_html, text = build_mail(today, total, oldest, items, judge, deep_dive, gpu_jobs)
     if args.dry_run:
         print(f"--- Subject: {subject}\n\n{text}")
         return 0

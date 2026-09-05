@@ -10,6 +10,15 @@
 # This wrapper frees ALL VRAM first (systemd unit + any manual
 # `build/bin/llama-server`), waits for the card to clear, then runs the production
 # scheduled_cycle. The cycle restores the systemd 8B server on :8090 at the end.
+#
+# Kollisionswächter (#98, seit 2026-09-05): das VRAM-Freiräumen killt JEDEN
+# manuellen llama-server — auch den eines laufenden Ingester-/Dossier-/Pulse-
+# Jobs. Deshalb wartet der Wrapper vorher per scripts/lib/gpu_guard.sh, bis
+# kein bekannter GPU-Job mehr läuft (max GPU_GUARD_MAX_MIN=90 min); ist die GPU
+# dann immer noch belegt, bricht er mit rc=75 ab, OHNE etwas anzufassen (die
+# end-Zeile trägt den rc → der Wächter meldet es). Ein zweiter, von Hand
+# gestarteter Cycle fällt unter dieselbe Regel (Vorfall 05.09.: manueller
+# Nachtlauf lief in den Samstags-Ingester).
 set -u
 
 # cron has no systemd user session — `systemctl --user` fails with
@@ -27,6 +36,14 @@ mkdir -p "$(dirname "$LOG")"
   echo "================================================================"
   echo "full_cycle_cron.sh start  $(date -Iseconds)"
   echo "================================================================"
+
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/gpu_guard.sh"
+  if ! gpu_guard_wait full_cycle_cron; then
+    echo "ABORT: fremder GPU-Job nach ${GPU_GUARD_MAX_MIN} min immer noch aktiv — VRAM NICHT freigeräumt, Cycle nicht gestartet"
+    echo "full_cycle_cron.sh end  $(date -Iseconds)  (rc=75)"
+    exit 75
+  fi
 
   echo "----- freeing GPU: stop systemd unit + any manual llama-server -----"
   systemctl --user stop llama-server.service 2>/dev/null
