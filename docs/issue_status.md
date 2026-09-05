@@ -176,6 +176,17 @@ das ist genau das Werkzeug, das die Analysen für Etappe 2 produziert. Review + 
 - **#71** Grounding-Holds: die Halde abarbeiten (Morgenroutine, Mail läuft); der Zugriffsschutz-Punkt
   erledigt sich durch PUBLIC_MODE (Review-UI bleibt Workstation-only)
 - **#11** Neumessung der 71,6-%-Benchmark nach ein paar Volltext-Nächten; danach Prompt-Eval-Harness
+  **Stand 2026-09-05 (Owner-Review, Garbage + Namen):** Ursache der 22 Token-Suppen belegt
+  (`chat_structured` gab nach dem Soft-Guard-Budget das letzte Ergebnis zurück) und behoben —
+  harter Garbage-Guard (`pipeline/content_guard.py`) in Stage 6 (frischer Request ohne Prompt-Cache,
+  nach 3 Versuchen `GarbledOutputError`, Eintrag bleibt unprocessed), Auto-Publish, Draft-Richter
+  (`divert_garbled` → `review`) und Review-UI; Namens-Grounding `ungrounded_names` (2.367 Vornamen,
+  Titel-Regel) in Gate/Richter/UI + Prompt-Zeile; `STAGE6_SOURCE_MAX_CHARS` (Default 4000 = alte Kappe).
+  Bestandsprüfung `scripts/recheck_published_grounding.py` angewendet: 742 published → `review`
+  (46 garbled, 696 Namen), 29 Drafts (Suppe), `review_reason` als Marker, Tab *Re-check* auf
+  `/trends/review`; Report `docs/compliance/grounding_recheck_2026-09-05.md`. **Offen:** GPU-Repro
+  `scripts/repro_stage6_garbage.py` (3 Arme) → entscheidet über `cache_prompt=false` als Stage-6-Default;
+  Owner arbeitet die 831 Re-check-Zeilen ab („Donald Trump" 67× = sichere Publishes).
 - **#81**-Rest: stille Quellen klären (40 Stück), ChemRxiv-Backend, The-Conversation-Backfill
 
 ## 🔵 Welle 2 — das verkaufte Produkt (nach dem Launch)
