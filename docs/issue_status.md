@@ -56,6 +56,32 @@
 >   0,03–0,33 s. 18 pytest + 8 Vitest. **Offen:** breite Ein-Wort-Begriffe („blockchain", d20 0,396) fallen
 >   auf die Unsinns-Seite der Lücke; Embedding-Modellwechsel = Fixture neu messen (`scripts/measure_query_gate.py`).
 
+> **Nachtrag 05.09.2026 — #98 Ops: Kollisionswächter, Modell-Identitäts-Check, Cleanup nur eigene Server, Embedding-Fehlerpfad** (geschlossen, 4 Commits auf `dev`, nicht gemergt):
+> - **(a) Kollisionswächter** `scripts/lib/gpu_guard.sh` (`gpu_guard_wait <job> [max_min]`, Default 90 min, Poll 60 s; eigene
+>   Prozesskette/tote PIDs zählen nicht) in `weekly_ingesters.sh`, `monthly_startup_sources.sh`, `full_cycle_cron.sh`,
+>   `scheduled_cycle.sh` (Kopf + vor Stage 10 + Ruhezustand), `weekly_newsletter_publish.sh`, `weekly_research_pulse.sh`.
+>   Skip-Verhalten: Cycle bricht mit rc=75 ab ohne VRAM-Räumung; Ingester überspringen nur die GPU-Schritte, merken das
+>   `min_id`-Fenster in `data/<job>_pending_min_id` (Nachholen im Folgelauf) und schreiben `data/<job>_last.json` → Zeile
+>   in der Montags-Morgen-Mail (`review_notify.py`, `blocked`/`failed` erzwingt die Mail). `weekly_patents.sh`,
+>   `weekly_patent_analytics.sh`, `sync_openalex_monthly.sh` sind GPU-frei → unverändert.
+> - **(b) Modell-Identitäts-Check** `llamacpp_client.chat_structured(verify_model=True)` in allen llama.cpp-Pfaden der Stages
+>   2/3/4/6/8: `GET /v1/models` vor dem ersten Request (TTL 30 s) und vor jedem Retry; Mismatch → `ModelMismatchError`
+>   (nie retryt, nie `None`). Stage 6 bricht ab, getroffene + folgende Einträge bleiben unprocessed, `run_full_cycle` Exit 2.
+> - **(c) Cleanup nur eigene Server:** `gpu_handover.llama_server_start` vermerkt `MAINPID OWNERPID` in
+>   `data/llama-server.<job>.pid` und verweigert die Übernahme eines Servers, den ein lebender anderer Job vermerkt hat;
+>   `llama_server_stop` stoppt nur die vermerkte MainPID (sonst Warnung, Symlink unangetastet). Richter-Block in
+>   `scheduled_cycle.sh` gleich (`llama_unit_record_owner`/`_stop_owned`). Das Head-`pkill` aller manuellen Server in
+>   `full_cycle_cron.sh` bleibt, läuft aber nur bei freiem Wächter.
+> - **(d) Embedding-Fehlerpfad:** `signal_batch` markiert bei Server-/Transportfehlern (Connection refused, 5xx/429,
+>   Timeout) nichts mehr — gleicher Chunk erneut, nach 20 Fehlern in Folge Exit 3; `embedding_error` nur noch für
+>   inhaltliche Fehler. Reparatur: `scripts/reset_embedding_errors.py [--since|--min-id|--source-type] --apply`.
+> - Tests: +49 (`test_gpu_guard` 15 mit Fake-pgrep/-systemctl, `test_model_identity` 13, `test_gpu_handover_ownership` 9,
+>   `test_signal_batch_embed_errors` 12); Suite 824 passed / 20 skipped. Doku: CLAUDE.md, README, owner_manual §1/§11,
+>   deploy/crontab.txt. Nicht angefasst: `publish_static_site.sh` (wartet nur auf den Cycle, kein GPU-Schritt),
+>   `signal_batch.free_vram_for_embeddings` (Ollama-Pfad, in keinem Cron), `draft_judge.py` (hat seinen Shell-Check).
+> - Bekannte Grenze: `pgrep -f` matcht auch einen Editor/Pager mit dem Skriptnamen in der Kommandozeile (z. B. `vim
+>   scripts/scheduled_cycle.sh`) — der Wächter wartet dann bis zu 90 min; Besitzvermerke gelten je Worktree (`data/`).
+
 Vollständiges Audit aller offenen Issues in der Nacht 2026-08-28 (Referenz `main` = `a6455bf`).
 Jede Aussage gegen Code, DB, crontab und die laufende Instanz (:3001) geprüft.
 **Ergebnis: 14 geschlossen, 1 neu (#94) → Backlog 36 → 23 offen.**
