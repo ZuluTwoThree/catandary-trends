@@ -135,7 +135,7 @@ def check_result(result: dict) -> dict:
     # Nur echte Audit-Luecken sind "offene Fragen"; die Plan-Schritte, die der
     # Sweep seit 2026-09-06 audit-unabhaengig mitnimmt, sind keine.
     open_questions = sum(1 for e in (result.get("ledger") or [])
-                         if (e.get("kind") or "gap") not in ("plan", "legal"))
+                         if (e.get("kind") or "gap") not in ("plan", "legal", "market"))
     words = len(re.findall(r"\S+", body))
 
     findings: list[str] = []

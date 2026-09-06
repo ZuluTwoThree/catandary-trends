@@ -24,6 +24,7 @@ Alles hier laeuft ohne DB, ohne Netz und ohne GPU.
 """
 import pytest
 
+from pipeline import dossier_quant as dq
 from pipeline import dossier_structure as ds
 from pipeline.dossier_check import check_result
 from scripts import corpus_research as cr
@@ -496,3 +497,193 @@ class TestPostRunFixes:
         for s in out["sources"]:
             if s["kind"] in ("web", "legal") and not s.get("fetched"):
                 assert s["id"] in seen[0]
+
+
+# ===========================================================================
+# R3 — die drei Befunde der Blindgutachten jury_3.md / jury_4.md (2026-09-07):
+#      33/70 bzw. 40/70 gegen 57/70 bzw. 61/70 fuer eine reine Web-Recherche.
+# ===========================================================================
+
+class TestTopicalMeasurementBase:
+    """R3-1: die Eigenmessung lag auf `A61P3/10` (alle Antidiabetika, 70.991
+    Patente). Beide Jurys nannten sie deshalb Zahlenschmuck — bis hin zur
+    eigenen Top-Liste ("Humanized immunoglobulins")."""
+
+    def _rows(self):
+        return {"C12N2501/335": {"total": 249, "hits": 25, "precision": 0.100},
+                "A61P5/48": {"total": 2439, "hits": 141, "precision": 0.058},
+                "A61P3/10": {"total": 70991, "hits": 1581, "precision": 0.022}}
+
+    def test_broad_catch_all_class_is_dropped(self, monkeypatch):
+        monkeypatch.setattr(dq, "topical_precision", lambda c, t: self._rows())
+        out = dq.sharpen_selection(["A61P5/48", "C12N2501/335", "A61P3/10"],
+                                   "GLP-1 and incretin technology")
+        assert out["kept"] == ["A61P5/48", "C12N2501/335"]
+        assert [d["symbol"] for d in out["dropped"]] == ["A61P3/10"]
+        assert out["reason"] is None
+
+    def test_no_density_measurement_changes_nothing(self, monkeypatch):
+        """Faellt die Dichte-Query aus, wird NICHT geraten."""
+        monkeypatch.setattr(dq, "topical_precision", lambda c, t: {})
+        out = dq.sharpen_selection(["A61P3/10"], "topic")
+        assert out["kept"] == ["A61P3/10"] and out["rows"] == {}
+
+    def test_base_without_topical_mass_is_reported_not_measured(self, monkeypatch):
+        monkeypatch.setattr(dq, "topical_precision", lambda c, t: {
+            "A61P3/10": {"total": 70991, "hits": 3, "precision": 0.00004}})
+        out = dq.sharpen_selection(["A61P3/10"], "topic")
+        assert out["kept"] == [] or out["reason"]
+        assert out["reason"]
+
+    def test_measure_topic_drops_the_measurement_instead_of_faking_it(
+            self, monkeypatch):
+        """Ein fehlender Messblock kostet weniger als ein irrefuehrender."""
+        monkeypatch.setattr(dq, "_measure_topic_raw", lambda t: {
+            "analysis": {"selection": ["A61P3/10"], "trajectory": {"n_total": 5},
+                         "top_patents": []},
+            "phrase": "x", "resolved_via": "y", "attempts": []})
+        monkeypatch.setattr(dq, "sharpen_selection", lambda c, t: {
+            "kept": [], "dropped": [{"symbol": "A61P3/10", "total": 70991,
+                                     "hits": 3, "precision": 0.0}],
+            "rows": {"A61P3/10": {}}, "hits": 3, "floor": 0.02,
+            "reason": "base too broad"})
+        out = dq.measure_topic("topic")
+        assert out["analysis"] is None
+        assert any(a["verdict"] == "base_too_broad" for a in out["attempts"])
+        # ... und der Anhang sagt es dem Leser.
+        app = dq.measurement_appendix(None, "topic", out)
+        assert "base too broad" in app and "failed" in app
+
+    def test_off_topic_hub_patents_are_not_printed(self):
+        hubs = [{"pub": "US-5585089-A", "title": "Humanized immunoglobulins"},
+                {"pub": "US-1", "title": "GLP-1 receptor agonist formulation"}]
+        keep = dq.topical_hubs(hubs, "GLP-1 and incretin technology")
+        assert [h["pub"] for h in keep] == ["US-1"]
+
+
+class TestCitationSubjectCheck:
+    """R3-2: ein CNBC-Artikel ueber Novos Wegovy-Pille wurde zweimal als Beleg
+    fuer Lillys Orforglipron-Zulassung gefuehrt. Die Zahl stimmte ungefaehr —
+    geprueft wurde nie der GEGENSTAND."""
+
+    NOVO = ("Novo Nordisk wins FDA approval for the Wegovy pill, the first "
+            "oral GLP-1 for obesity, at 25 mg once daily.")
+
+    def test_the_juror_finding_is_caught(self):
+        bad = ds.unverified_subjects(
+            "Eli Lilly's orforglipron achieved FDA approval for chronic weight "
+            "management.", self.NOVO)
+        assert any("Lilly" in b for b in bad)
+        assert "orforglipron" in bad
+
+    def test_a_matching_page_passes(self):
+        assert ds.unverified_subjects(
+            "Novo Nordisk won approval for the Wegovy pill.", self.NOVO) == []
+
+    def test_places_behind_an_article_are_not_subjects(self):
+        """Die Falsch-Ablehnung darf nicht teurer sein als der Fund."""
+        assert ds.subject_names("The court in The Hague ruled today.") == []
+
+    def test_substance_names_are_recognised(self):
+        names = ds.subject_names(
+            "Trials of semaglutide, tirzepatide and retatrutide continue.")
+        assert {"semaglutide", "tirzepatide", "retatrutide"} <= set(names)
+
+    def test_verify_reports_subject_mismatch_separately(self):
+        src = [{"id": "L1", "kind": "legal", "url": "https://cnbc.example/a",
+                "title": "FDA approves Novo pill", "text": self.NOVO,
+                "snippet": "", "date": "2025-12-22"}]
+        out = ds.verify_cited_figures(
+            "# D\n\n## Decision summary\n\nEli Lilly's orforglipron was "
+            "approved [[L1]].\n", src)
+        assert out["off_topic"] and out["off_topic"][0]["kind"] == "subject"
+        assert out["subjects"] >= 2
+
+
+class TestSourcelessFigures:
+    """R3-3: "North America held 77.72% ... CAGR of 14.6% through 2035 ." —
+    der Satz endet auf einen freistehenden Punkt, wo das Zitat stehen sollte."""
+
+    REPORT = ("# D\n\n## Decision summary\n\nNorth America held 77.72% of "
+              "worldwide sales in 2024, while Asia-Pacific is projected to "
+              "grow at a CAGR of 14.6% through 2035 .\n")
+
+    def test_precision_figures_without_a_citation_are_found(self):
+        out = ds.sourceless_figures(self.REPORT, [])
+        assert out and set(out[0]["tokens"]) == {"77.72%", "14.6%"}
+
+    def test_a_figure_from_our_own_measurement_appendix_is_kept(self):
+        measured = "median improvement rate 3.1%/yr, cycle time 11.0 years"
+        rep = "# D\n\n## Decision summary\n\nThe field improves at 3.1% a year.\n"
+        assert ds.sourceless_figures(rep, [], measured) == []
+        assert ds.sourceless_figures(rep, [], "") != []
+
+    def test_a_cited_sentence_is_left_to_the_figure_check(self):
+        src = [{"id": "L1", "kind": "legal", "url": "https://a.example/",
+                "title": "t", "text": "77.72%", "snippet": "", "date": ""}]
+        rep = ("# D\n\n## Decision summary\n\nNorth America held 77.72% of "
+               "sales [[L1]].\n")
+        assert ds.sourceless_figures(rep, src) == []
+
+    def test_years_and_small_integers_are_not_precision_figures(self):
+        rep = ("# D\n\n## Decision summary\n\nBetween 1990 and 2026 the field "
+               "produced 3 waves of products.\n")
+        assert ds.sourceless_figures(rep, []) == []
+
+    def test_revision_prompt_names_the_three_kinds_apart(self):
+        p = ds.revision_prompt([], [
+            {"sentence": "a", "tokens": ["1.2"], "url": "u", "kind": "figure"},
+            {"sentence": "b", "tokens": ["Lilly"], "url": "u", "kind": "subject"},
+            {"sentence": "c", "tokens": ["77.72%"], "url": "", "kind": "sourceless"}])
+        assert "stehen NICHT in der zitierten Seite" in p
+        assert "handelt NICHT von" in p
+        assert "ohne jeden Beleg" in p
+
+
+class TestMarketSweep:
+    """R3-4 (jury_4.md): dem Verlierer fehlten Metsera-Bietergefecht,
+    Frankreichs Erstattungspremiere, NHS-Rollout und die Wirkstoff-Pipeline —
+    ein Abdeckungsproblem des Sweeps, nicht des Schreibers."""
+
+    def _gen(self, n: int = 3):
+        return lambda q, count=6: [
+            {"id": f"W{i}", "trend_id": None, "kind": "web",
+             "title": f"Hit {i}", "url": f"https://m{abs(hash(q)) % 9973}.example/{i}",
+             "origin": "", "outlet": "o", "vertical": "", "date": "2026-01-01",
+             "snippet": "s", "fetched": False} for i in range(n)]
+
+    def test_every_market_pattern_runs_with_its_own_budget(self, monkeypatch):
+        seen = []
+        gen = self._gen()
+        monkeypatch.setattr(cr, "brave_search",
+                            lambda q, n=6: (seen.append(q), gen(q))[1])
+        monkeypatch.setattr(cr, "fetch_web_page", lambda u: "page text")
+        sources, notes, ledger = [], [], []
+        added, record = cr.sweep_market("GLP-1 and incretin technology",
+                                        sources, set(), notes, ledger)
+        assert len(seen) == len(cr.MARKET_PATTERNS)
+        assert any("reimbursement decision" in q for q in seen)
+        assert any("bidding" in q for q in seen)
+        assert any("rollout" in q for q in seen)
+        assert any("phase 3" in q for q in seen)
+        assert added == len(cr.MARKET_PATTERNS) * cr.MKT_PER_PATTERN
+        assert all(s["kind"] == "market" for s in sources)
+        assert all(s["id"].startswith("M") for s in sources)
+        assert all(e["kind"] == "market" for e in ledger)
+
+    def test_a_snippet_never_carries_a_market_citation(self, monkeypatch):
+        monkeypatch.setattr(cr, "brave_search", self._gen(1))
+        monkeypatch.setattr(cr, "fetch_web_page", lambda u: "")
+        sources = []
+        cr.sweep_market("topic", sources, set(), [], [])
+        assert sources and not any(s.get("fetched") for s in sources)
+
+    def test_market_rows_are_not_open_questions(self):
+        res = {"report": "x", "sources": [], "evidence": [], "cited": [],
+               "ledger": [{"kind": "market", "gap": "q"},
+                          {"kind": "gap", "gap": "g"}]}
+        assert check_result(res)["open_questions"] == 1
+
+    def test_the_two_fixed_directions_do_not_share_a_budget(self):
+        assert cr.MKT_MAX_SOURCES and cr.REG_MAX_SOURCES
+        assert cr.sweep_market is not cr.sweep_regulatory

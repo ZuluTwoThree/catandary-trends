@@ -982,10 +982,16 @@ REG_MAX_FETCH = 8         # Volltexte — nur diese sind zitierbar
 REG_PER_PATTERN = 2       # Treffer je Muster in den Katalog
 
 
-def sweep_regulatory(topic: str, sources: list[dict], seen_ids: set[str],
-                     notes: list[str], ledger: list[dict],
-                     per_query: int = 6) -> tuple[int, str]:
-    """Feste Rechts-/Zulassungsfragen ueber die Websuche, Volltext gefetcht.
+def sweep_fixed(topic: str, sources: list[dict], seen_ids: set[str],
+                notes: list[str], ledger: list[dict], per_query: int = 6,
+                *, patterns: tuple[str, ...] = REGULATORY_PATTERNS,
+                kind: str = "legal", id_prefix: str = "L",
+                max_sources: int = REG_MAX_SOURCES,
+                max_fetch: int = REG_MAX_FETCH,
+                per_pattern: int = REG_PER_PATTERN,
+                label: str = "regulatory/IP",
+                record_head: str = "") -> tuple[int, str]:
+    """Eine feste Suchrichtung ueber die Websuche, Volltext gefetcht.
 
     Gibt (Anzahl neuer Katalogquellen, Suchprotokoll fuer den Report-Prompt)
     zurueck. Das Protokoll nennt JEDES Muster — auch die ohne Treffer, damit
@@ -997,41 +1003,41 @@ def sweep_regulatory(topic: str, sources: list[dict], seen_ids: set[str],
     added, fetched_total = 0, 0
     seen_urls = {x["url"] for x in sources}
     lines: list[str] = []
-    for pattern in REGULATORY_PATTERNS:
+    for pattern in patterns:
         q = pattern.format(t=phrase)
-        entry = {"gap": q, "kind": "legal", "papers": 0, "patents": 0,
+        entry = {"gap": q, "kind": kind, "papers": 0, "patents": 0,
                  "web_queries": [q], "web_sources": 0, "web_fetched": 0,
                  "off_topic_dropped": 0}
         try:
             hits = brave_search(q, per_query)
         except Exception as exc:                                    # noqa: BLE001
-            logger.warning("  regulatory sweep failed for %r: %r", q, exc)
+            logger.warning("  %s sweep failed for %r: %r", label, q, exc)
             lines.append(f'- "{q}" — search failed ({type(exc).__name__})')
-            notes.append(f"Regulatory/IP web query {q!r} failed: {exc}")
+            notes.append(f"{label} web query {q!r} failed: {exc}")
             ledger.append(entry)
             continue
         fresh: list[dict] = []
         for h in hits:
-            if h["url"] in seen_urls or len(fresh) >= REG_PER_PATTERN:
+            if h["url"] in seen_urls or len(fresh) >= per_pattern:
                 continue
-            if added + len(fresh) >= REG_MAX_SOURCES:
+            if added + len(fresh) >= max_sources:
                 break
-            h["id"] = f"L{added + len(fresh)}"
-            h["kind"] = "legal"
+            h["id"] = f"{id_prefix}{added + len(fresh)}"
+            h["kind"] = kind
             h["gap"] = None
             fresh.append(h)
         for h in fresh:
             seen_urls.add(h["url"])
             seen_ids.add(h["id"])
             sources.append(h)
-            if fetched_total < REG_MAX_FETCH:
+            if fetched_total < max_fetch:
                 text = fetch_web_page(h["url"])
                 if text:
                     h["fetched"] = True
                     h["text"] = text
                     fetched_total += 1
                     entry["web_fetched"] += 1
-                    notes.append(f"Full text of {h['url']} (regulatory/IP):\n{text}")
+                    notes.append(f"Full text of {h['url']} ({label}):\n{text}")
                 else:
                     notes.append(f"Fetch of {h['url']} failed (robots.txt or "
                                  f"extraction) — page stays uncitable.")
@@ -1046,13 +1052,62 @@ def sweep_regulatory(topic: str, sources: list[dict], seen_ids: set[str],
         else:
             lines.append(f'- "{q}" — nothing usable')
         ledger.append(entry)
-        logger.info("  regulatory %r: %d hit(s), %d admitted, %d read",
+        logger.info("  %s %r: %d hit(s), %d admitted, %d read", label,
                     q[:60], len(hits), len(fresh), entry["web_fetched"])
-    record = ("REGULATORY/IP SWEEP RECORD — six fixed query patterns, run "
-              "deterministically for the 'Regulatory and IP status' section. "
-              "Only pages read in full are citable:\n" + "\n".join(lines))
+    record = ((record_head or
+               "REGULATORY/IP SWEEP RECORD — fixed query patterns, run "
+               "deterministically for the 'Regulatory and IP status' section. "
+               "Only pages read in full are citable:")
+              + "\n" + "\n".join(lines))
     notes.append(record)
     return added, record
+
+
+def sweep_regulatory(topic: str, sources: list[dict], seen_ids: set[str],
+                     notes: list[str], ledger: list[dict],
+                     per_query: int = 6) -> tuple[int, str]:
+    """Recht/Zulassung — die erste feste Suchrichtung (2026-09-06)."""
+    return sweep_fixed(topic, sources, seen_ids, notes, ledger, per_query)
+
+
+# --------------------------------------------------------------------------
+# Zweite feste Suchrichtung: Markt- und Erstattungsereignisse (jury_4.md,
+# 2026-09-07). Der Siegertext deckte Ereignisse ab, die uns komplett fehlten —
+# das Bietergefecht um Metsera, Frankreichs Erstattungspremiere, den
+# NHS-Rollout, die Wirkstoff-Pipeline. Das ist ein ABDECKUNGSPROBLEM des
+# Sweeps, nicht des Schreibers: die allgemeine Web-Stufe folgt den Luecken, die
+# das Audit benennt, und ein Audit ueber einem technologielastigen Korpus
+# benennt keine Erstattungsentscheidung. Also dieselbe Bauweise wie beim
+# Rechts-Sweep: feste Muster, eigenes Budget, Volltextpflicht.
+# --------------------------------------------------------------------------
+
+MARKET_PATTERNS = (
+    "{t} reimbursement decision France Germany",
+    "{t} national health service rollout coverage",
+    "{t} acquisition bidding war billion",
+    "{t} pipeline phase 3 results",
+    "{t} quarterly revenue results",
+    "{t} market entry launch price",
+)
+MKT_MAX_SOURCES = 12
+MKT_MAX_FETCH = 8
+MKT_PER_PATTERN = 2
+
+
+def sweep_market(topic: str, sources: list[dict], seen_ids: set[str],
+                 notes: list[str], ledger: list[dict],
+                 per_query: int = 6) -> tuple[int, str]:
+    """Markt- und Erstattungsereignisse, Volltext gefetcht, eigenes Budget."""
+    return sweep_fixed(
+        topic, sources, seen_ids, notes, ledger, per_query,
+        patterns=MARKET_PATTERNS, kind="market", id_prefix="M",
+        max_sources=MKT_MAX_SOURCES, max_fetch=MKT_MAX_FETCH,
+        per_pattern=MKT_PER_PATTERN, label="market/reimbursement",
+        record_head=("MARKET/REIMBURSEMENT SWEEP RECORD — fixed query patterns, "
+                     "run deterministically so that reimbursement decisions, "
+                     "national rollouts, M&A contests, pipeline readouts and "
+                     "reported revenue cannot be crowded out by the general web "
+                     "stage. Only pages read in full are citable:"))
 
 
 # --------------------------------------------------------------------------
@@ -1639,12 +1694,18 @@ def run(question: str, max_steps: int, max_sources: int,
     # Rechtsstatus war der entscheidungsrelevanteste Befund des Gutachtens und
     # darf nicht gegen allgemeine Treffer um dieselbe Kappe konkurrieren.
     reg_added, reg_record = 0, ""
+    mkt_added, mkt_record = 0, ""
     if measure and web_steps > 0:
         logger.info("regulatory/IP sweep: %d fixed query pattern(s)",
                     len(REGULATORY_PATTERNS))
         reg_added, reg_record = sweep_regulatory(
             topic or question, sources, seen_ids, notes, ledger, per_query)
         logger.info("regulatory/IP sweep: +%d source(s)", reg_added)
+        logger.info("market/reimbursement sweep: %d fixed query pattern(s)",
+                    len(MARKET_PATTERNS))
+        mkt_added, mkt_record = sweep_market(
+            topic or question, sources, seen_ids, notes, ledger, per_query)
+        logger.info("market/reimbursement sweep: +%d source(s)", mkt_added)
 
     # --- web stage: close the audited gaps on the open web ------------------
     web_trace: list[dict] = []
@@ -1849,7 +1910,7 @@ def run(question: str, max_steps: int, max_sources: int,
 
     # Re-audit over the combined catalog: the report must know which gaps
     # actually closed and which merely produced more unvetted material.
-    if web_trace or local_added or reg_added:
+    if web_trace or local_added or reg_added or mkt_added:
         audit2 = llamacpp_client.chat_structured(
             model=MODEL, schema=Audit, system=AUDIT_SYSTEM, temperature=0.2,
             max_tokens=4096,
@@ -1888,7 +1949,8 @@ def run(question: str, max_steps: int, max_sources: int,
     # Only fetched web pages are citable; corpus entries always are. An
     # unfetched web source stays in the run record but cannot carry a citation.
     citable_sources = [s for s in sources
-                       if s["kind"] not in ("web", "legal") or s.get("fetched")]
+                       if s["kind"] not in ("web", "legal", "market")
+                       or s.get("fetched")]
     if measure:
         # Kein URL-Freitext mehr im Prompt: was das Modell nicht sieht, kann es
         # nicht halbrichtig abtippen. Es zitiert die ID, der Code rendert daraus
@@ -1905,7 +1967,8 @@ def run(question: str, max_steps: int, max_sources: int,
     # Modell sie als Zitat. Im B2-Lauf waren alle 10 gestrichenen Marker von
     # dieser Art. Sie werden deshalb ausdruecklich benannt.
     uncitable_ids = [s["id"] for s in sources
-                     if s["kind"] in ("web", "legal") and not s.get("fetched")]
+                     if s["kind"] in ("web", "legal", "market")
+                     and not s.get("fetched")]
     ledger_json = json.dumps(ledger, ensure_ascii=False)
     sys_prompt = report_system(measure, lang)
     if lang == "de":
@@ -1930,6 +1993,8 @@ def run(question: str, max_steps: int, max_sources: int,
         f"was researched when the ledger shows it was not.\n\n"
         + (f"<untrusted_regulatory_record>\n{shield(reg_record)}\n"
            f"</untrusted_regulatory_record>\n\n" if reg_record else "")
+        + (f"<untrusted_market_record>\n{shield(mkt_record)}\n"
+           f"</untrusted_market_record>\n\n" if mkt_record else "")
         + (f"These ids appear in the evidence but were NEVER READ IN FULL, so "
            f"they cannot carry a citation — using one deletes it and leaves the "
            f"claim unsupported: {', '.join(uncitable_ids)}\n\n"
@@ -2069,10 +2134,12 @@ def run(question: str, max_steps: int, max_sources: int,
         _KIND_LABEL = {
             "de": {"gap": "Audit-Lücke", "plan": "Plan-Schritt (unabhängig vom Audit)",
                    "followup": "Lücke aus dem Re-Audit",
-                   "legal": "Recht/Zulassung (festes Suchmuster)"},
+                   "legal": "Recht/Zulassung (festes Suchmuster)",
+                   "market": "Markt/Erstattung (festes Suchmuster)"},
             "en": {"gap": "audit gap", "plan": "plan step (audit-independent)",
                    "followup": "gap named by the re-audit",
-                   "legal": "regulatory/IP (fixed query pattern)"},
+                   "legal": "regulatory/IP (fixed query pattern)",
+                   "market": "market/reimbursement (fixed query pattern)"},
         }[lang if lang in ("de", "en") else "en"]
         for gi, e in enumerate(ledger):
             nq = len(e["web_queries"])
@@ -2158,7 +2225,7 @@ def run(question: str, max_steps: int, max_sources: int,
                 "fetched": sorted(fetched_web)},
         "kinds": {k: sum(1 for s in sources if s["kind"] == k)
                   for k in ("article", "signal", "paper", "patent", "web",
-                            "legal")},
+                            "legal", "market")},
         "ledger": ledger,
         "report_raw": report_raw,
         # Full evidence notes: the agent end-control (pipeline/dossier_check.py)
