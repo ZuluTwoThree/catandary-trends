@@ -156,6 +156,13 @@ Leseansicht Herkunftskopf, Endkontrolle, Bericht, Coverage-Anhang lesen → *Sig
 off*. Gleicher Slug später erneut = nächste Version (*Recompute · v(n+1)*).
 Terminal: `.venv/bin/python -m scripts.dossier_worker --order-new "solid-state batteries" --run`.
 
+Seit 2026-09-07 trägt jedes Dossier zwei codegenerierte Mess-Anhänge
+(„Measured development" = Zeitreihe je Reifegrad, Take-offs, Vorlaufzeit,
+K(t), Zykluszeit, Zentralitäts-Peak; „What the corpus counts" = Korpus-Zählung
+je Jahr/Vertikale/Quelle) — und meldet es sichtbar, wenn die Messung ausfällt.
+Alter Pfad: `DOSSIER_MEASURE=0` bzw. `--no-measure`
+([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-messkette-2026-09-07)).
+
 ---
 
 ## 3. Setup

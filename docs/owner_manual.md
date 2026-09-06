@@ -371,10 +371,11 @@ on-demand (Rebuild würde Enrichment verwerfen).
 
 **Wozu.** Scouting-Dossiers zu Technologiefeldern bestellen: der agentische
 Rechercheur (`scripts/corpus_research.py`) durchsucht die eigenen Korpora
-(Artikel, Signale, Paper, Patente), optional das Web, misst vorher die
-Innovationskette (TIR-Trajektorie, Lead-Time, Leitpatente) und liefert einen
-zitierten Bericht mit maschineller Endkontrolle. Proprietäre Owner-Dokumente:
-streng lokal (Qwen3.8-27B), kein Kundenpfad, kein Cron.
+(Artikel, Signale, Paper, Patente), optional das Web, **misst und zählt** vorher
+die Innovationskette (CPC → TIR-Trajektorie, Lead-Time, Zykluszeit,
+Zentralitäts-Peak, Leitpatente; dazu die Korpus-Zählung je Jahr) und liefert
+einen zitierten Bericht mit maschineller Endkontrolle. Proprietäre
+Owner-Dokumente: streng lokal (Qwen3.8-27B), kein Kundenpfad, kein Cron.
 
 **Wo.** `/trends/dossiers` (Desk), `/trends/dossiers/<slug>?v=<n>` (Leseansicht).
 Lokal standardmäßig an; `DOSSIERS_ENABLED=0` = Not-Aus; im Export nie gebaut.
@@ -388,6 +389,27 @@ Lokal standardmäßig an; `DOSSIERS_ENABLED=0` = Not-Aus; im Export nie gebaut.
   Lead-Time → Hub-Patente als zitierbare Quelle „Q1");
 - Checkbox *start the worker right away*.
 „Place order" legt den Auftragszettel (`dossier_orders`, Status `queued`) an.
+
+**Die Messkette (seit 2026-09-07, Default AN).** Ein Dossier trägt jetzt zwei
+codegenerierte Anhänge, die nicht das Modell schreibt, sondern der Code:
+
+- **„Measured development"** — Jahres-Zeitreihe je Reifegrad
+  (Forschung/Patente/Förderung/Markt), Take-off-Jahre, Patent→Markt-Vorlauf,
+  Verbesserungsrate K(t) mit n je Fenster, Zykluszeit und Zentralitäts-Peak.
+- **„What the corpus counts"** — wie viele Treffer der eigene Korpus zum Thema
+  überhaupt hat, je Jahr, Vertikale, Signaltyp, Quelle, plus Top-Geldgeber der
+  Forschung.
+
+Findet die Messung das Feld nicht, **steht der Fehlschlag mit jedem Versuch im
+Dossier** (vorher verschwand er stumm). Die Endkontrolle meldet zusätzlich
+„Messung ausgefallen" bzw. „gemessen, aber im Text nicht verwendet".
+Zitiert wird über Katalog-IDs statt URL-Freitext, der Paper-/Patent-Sweep läuft
+auch ohne Audit-Befund (Kappen 24 Paper / 16 Patente) und bekommt nach dem
+Re-Audit genau eine Nachrunde.
+
+Abschalten (alter Pfad, reproduzierbar): `DOSSIER_MEASURE=0` in der Umgebung
+des Workers, `--no-measure` bei `scripts/corpus_research.py`, oder
+`params = {"measure": false}` am Auftragszettel.
 
 **Firmen-Dossier, Fokus, Sprache — nur per CLI.** Der Desk kennt nur den
 Themen-Modus. Für ein Firmen-Dossier (web-first die eigene Website der Firma,
@@ -420,12 +442,14 @@ python -m scripts.dossier_worker --assume-model-up   # :8090 serviert schon das 
 python -m scripts.dossier_worker --skip-quant
 ```
 
-Ablauf je Lauf: Phase 1 Embedding-Handover + Quant-Messblock → Phase 2
-27B-Handover (VRAM-Vorab-Check < 1,1 GB Fremdbelegung, Identitäts-Check
-`/v1/models`) → Plan → Korpus-Suche → Audit → Paper-/Patent-Sweep → Web →
-Bericht → **Zitat-Kanonisierung** (jede URL muss im gesammelten Katalog
-stehen, sonst gestrichen) → Endkontrolle → Status **`review`**. Danach
-Ruhezustand (Symlink 8B-208k, llama-server wieder aktiv, falls er lief).
+Ablauf je Lauf: Phase 1 Embedding-Handover + Quant-Messblock → Phase 1b
+Korpus-Zählung (CPU/SQL, kein Modell) → Phase 2 27B-Handover (VRAM-Vorab-Check
+< 1,1 GB Fremdbelegung, Identitäts-Check `/v1/models`) → Plan → Korpus-Suche →
+Audit → Paper-/Patent-Sweep (auch ohne Audit-Befund) → Web → Re-Audit → eine
+Sweep-Nachrunde → Bericht → **Zitat-Kanonisierung** (Katalog-IDs; jede URL muss
+im gesammelten Katalog stehen, sonst gestrichen) → Mess- und Korpus-Anhang →
+Endkontrolle → Status **`review`**. Danach Ruhezustand (Symlink 8B-208k,
+llama-server wieder aktiv, falls er lief).
 
 **Leseansicht.** *Herkunftskopf* (Frage, Belegmix Artikel/Signale/Paper/
 Patente/Web, zitiert/gestrichen, Messblock-Kurzfassung, Modell, Retrieval,
