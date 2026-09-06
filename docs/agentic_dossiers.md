@@ -1,8 +1,9 @@
 # Agentic Scouting-Dossiers (Owner-only) — `/trends/dossiers`
 
-Stand 2026-09-07 (Messkette M1/M2/M3/M4/M6 — s. „Die Messkette" weiter unten;
-davor 2026-09-03 Frontend-Integration #95, Branch `Agentic-Dossiers` am
-2026-09-03 nach `dev` gemergt). Baut den agentischen Rechercheur (`scripts/corpus_research.py`,
+Stand 2026-09-07 (Entscheidungsebene S1-S4 — s. „Die Entscheidungsebene"
+weiter unten; davor am selben Tag Messkette M1/M2/M3/M4/M6, davor 2026-09-03
+Frontend-Integration #95, Branch `Agentic-Dossiers` am 2026-09-03 nach `dev`
+gemergt). Baut den agentischen Rechercheur (`scripts/corpus_research.py`,
 Skizze in `docs/corpus_research_sketch.md`) zum Owner-Werkzeug aus: Der Owner
 bestellt Scouting-Dossiers zu Technologiefeldern, der Agent analysiert die
 gesamte Innovationskette (Text **und** Messung) und liefert einen zitierten
@@ -47,8 +48,12 @@ Owner: Auftragszettel                    Owner: Worker-Start (Knopf oder Termina
                                     scripts/corpus_research.py run()
                                     Plan → Korpus (Artikel+Signale) → Audit →
                                     Paper/Patent-Sweep (audit-unabhaengig) →
-                                    Web → Re-Audit → EINE Sweep-Nachrunde →
-                                    Bericht → Zitat-Kanonisierung (Katalog-IDs)
+                                    Rechts-/Zulassungs-Sweep (feste Muster,
+                                    Volltext, eigenes Budget) → Web →
+                                    Re-Audit → EINE Sweep-Nachrunde →
+                                    Bericht (verbindliche Gliederung) →
+                                    Struktur- + Beleg-Pruefung → EIN Neuwurf →
+                                    Zitat-Kanonisierung (Katalog-IDs)
                                     → dossiers(slug, v+1)
                                               │
                                               ▼
@@ -69,6 +74,7 @@ Bericht + Endkontrolle + Versionshistorie · „Sign off" → 'done'
 | Quant-Vorstufe | `pipeline/dossier_quant.py` | Messkaskade (`measure_topic`) auf `scripts/tech_analyze` (deterministisch, vor dem ersten Modell-Hop), formatiert Messblock + Katalogquellen + **codegenerierten Messanhang**; jede Zahl trägt ihre Ehrlichkeitsgrenze (TIR kalibriert bis ~2019, Patent ≠ Produkt, Datenfenster ab 1990). Degradiert ohne GPU/Postgres zum protokollierten Fehlgrund — und der Fehlgrund steht sichtbar im Dossier |
 | Korpus-Zählung | `pipeline/dossier_corpus_stats.py` | zweite deterministische Vorstufe (CPU/SQL): zählt Markt-/Signalschicht (`trends`) und Forschungsschicht (`research_corpus` + Förderer) je Jahr/Vertikale/Signaltyp/Quelle ➜ Katalogquelle `Q0` + Anhang „Was der Korpus zählt". Jeder Block eigenes `statement_timeout`, degradiert einzeln |
 | Rechercheur | `scripts/corpus_research.py` | `run(..., quant=..., corpus_stats=..., measure=True)` injiziert Messquellen+Notizen (gepinnt), sweept audit-unabhängig, zitiert per Katalog-ID und hängt die codegenerierten Anhänge an; Result enthält `evidence`, `quant`, `corpus_stats`, `measure`; CLI `--quant`, `--measure`/`--no-measure` |
+| Entscheidungsebene | `pipeline/dossier_structure.py` | deterministisch, kein Modell: verbindliche Gliederung (6 Pflichtabschnitte), 200-Woerter-Kappe der Kurzfassung, harte Obergrenze 2.800 Woerter Fliesstext, Pflichtfelder je Option (Auslöser/Zeithorizont/Aufwand/Risiko/Dagegen spricht) und die Beleg-Verifikation `verify_cited_figures` (Zahlen eines Satzes gegen den Volltext genau der zitierten Web-Seite). `revision_prompt` = der EINE Neuwurf, `drop_unverified` = die Streichung danach |
 | Endkontrolle | `pipeline/dossier_check.py` | deterministisch: `ungrounded_specifics` (pipeline/grounding.py) über den modellgeschriebenen Berichtsteil (Coverage-, Mess- und Korpus-Anhang abgetrennt) gegen das gesamte gesammelte Material; plus gestrichene Zitate, Zitatquote, offene Fragen (Plan-Schritte zählen nicht mit) und **Messbefund** (ausgefallen / gemessen aber ungenutzt) |
 | Worker | `scripts/dossier_worker.py` | Owner-getriggert, zweiphasig (ein Embedding- + ein 27B-Handover für alle Aufträge); `--list`, `--order N`, `--order-new "topic" [--run]`, `--assume-model-up`, `--skip-quant` |
 | GPU-Guards | `pipeline/gpu_handover.py` `model_on_llamacpp` | generischer Handover mit striktem VRAM-Vorab-Check (27B braucht <1100 MiB Fremdbelegung — 2026-08-26-Vorfall) + Identitäts-Check via `/v1/models`; 27B-Startskript in `MODEL_START_SCRIPTS` registriert |
@@ -213,6 +219,74 @@ statt Alter — nur das Pinning ist da, `MAX_EVIDENCE_CHARS` bleibt 30.000) und
 M8 (URL-Liveness, `ungrounded_names`, Sprachprüfung, `lang` in
 `ALLOWED_PARAMS`, Stale-Reset hängender Aufträge).
 
+## Die Entscheidungsebene (2026-09-07)
+
+Zwei Blindgutachten über dieselben drei GLP-1-Dossiers (Gutachter in der Rolle
+„Strategieverantwortung eines europäischen Lebensmittelmittelständlers") haben
+unser Dossier mit **51/70** bzw. **54/70** hinter eine reine Sonnet-Web-Recherche
+(**59/70** bzw. **62/70**) gesetzt. Verloren wurde nicht an der Recherche,
+sondern an drei Dingen — jedes davon ist jetzt Mechanik, nicht Prompt-Hoffnung:
+
+**S1 — Entscheidungsebene.** „Mit 5.906 Wörtern zu lang und nicht auf eine
+Entscheidung zugeschnitten"; der Gutachter gab den Text „ans Entwicklungs- und
+Regulatory-Team, nicht ins Gremium". Der Sieger brauchte 2.833 Wörter. Der
+Report-Prompt (`corpus_research.report_system`) schreibt jetzt sechs
+Pflichtabschnitte vor — *Decision summary* (max. 200 Wörter, drei belegte
+Aussagen), *What is moving*, *Regulatory and IP status*, *What the evidence does
+not support*, *Options for a mid-sized European company*, *Open questions and
+limits* — und eine Obergrenze von **2.800 Wörtern Fließtext** (Anhänge zählen
+nie mit; gezählt wird ohne Zitatapparat, damit dieselbe Zahl vor und nach der
+Kanonisierung gilt). Deutsche Fassung gleichwertig.
+
+**S2 — Rechts- und Zulassungsstatus.** Der entscheidungstragende Befund des
+Siegertexts war ein Rechtsstatus: EU-Grundpatent Semaglutid ausgelaufen, aber
+**SPC-Schutz bis März 2031**, gerichtlich durchgesetzt, während Generika in
+Indien/Brasilien/China starten. Unser Korpus *zählt* Patente, führt aber keinen
+Rechtsstatus, und die allgemeine Web-Stufe verwarf solche Treffer still gegen
+die gemeinsame Kappe (der Askea-Fall). `sweep_regulatory()` ist deshalb eine
+eigene Suchrichtung: sechs feste Muster (SPC/Patentablauf Europa · EMA · FDA ·
+Gerichtsentscheidung/Verfügung · EFSA-Health-Claim · EU-Regulierung) auf die
+messnormalisierte Themenphrase, Treffer **verpflichtend im Volltext gefetcht**
+(ein Snippet trägt hier kein Zitat), eigener Katalogbereich `[legal]` mit
+reserviertem Budget (`REG_MAX_SOURCES` 12 / `REG_MAX_FETCH` 8), das die
+allgemeine Web-Kappe nicht berührt. Jedes Muster steht im Suchprotokoll, auch
+das ohne Treffer — „dazu nichts gefunden" muss im Abschnitt stehen können.
+Die Ledger-Zeilen tragen `kind: "legal"` und zählen nicht als offene Frage.
+
+**S3 — Entscheidungsgerüst.** Allen drei Texten fehlte ein Go/No-Go. Jede
+Option trägt jetzt verpflichtend *Trigger · Time horizon · Effort · Risk ·
+Against it*, dazu einen Absatz zur Kannibalisierung des Bestandsgeschäfts; die
+kaufmännischen Fragen (Investitionshöhe, Amortisation, gefährdetes Volumen)
+werden im Schlussabschnitt als offen benannt statt geschätzt. Fehlt ein Feld,
+ist das ein mechanischer Befund.
+
+**S4 — Beleg-Verifikation (Beleg-Stichprobe, `jury_2.md`).** Unser Dossier
+behauptete „GKV +1,2 Mio. Patienten/Jahr" mit Link auf einen ING-Artikel, der
+diese Zahl nachweislich nicht enthält. Die Kanonisierung belegt nur, dass die
+URL im Katalog liegt. `verify_cited_figures()` prüft deshalb jeden Satz, der
+**ausschließlich** gefetchte Web-/Rechtsquellen zitiert, gegen den Volltext
+genau dieser Seite — mit `ungrounded_specifics` aus `pipeline/grounding.py`,
+verschärft um eine Dezimalprüfung: dessen Normalisierung entfernt Punkt *und*
+Komma (deutsch/englisch tauschen die Trennzeichen), macht also aus „1.2" ein
+„12" — und „12" stand auf der Seite. Sätze mit Korpuszitat bleiben beim
+bestehenden Pfad (ihr Beleg ist der Evidenzblock, keine Seite).
+
+**Genau ein Neuwurf, dann Mechanik.** Struktur- und Belegbefunde gehen als *ein*
+Revisionsauftrag zurück ans Modell (`revision_prompt`, ohne Evidenzblock — es
+soll nichts Neues holen). Danach werden verbliebene, nicht gedeckte Sätze
+`drop_unverified()`-mechanisch gestrichen. **Keine Schleife, kein
+Kritiker-Modell** (Owner 2026-09-06,
+`docs/newsletter_agentic_prototype_2026-09-06.md`).
+
+**Zitat-URL-Hygiene.** `valid_url`/`citable_url`: eine URL mit Leerzeichen im
+Host (Artefakt der Anonymisierung, aber real im Bericht) fällt aufs Original
+zurück; ist auch das kein URI, trägt die Quelle kein Zitat. Das
+Quellenverzeichnis dedupliziert (die Stichprobe fand zwei Doppeleinträge).
+
+**Schalter.** Alles hängt am bestehenden `measure` (`DOSSIER_MEASURE=0` oder
+Auftrags-`params {"measure": false}`) — `report_system(False, …)` ist wörtlich
+der alte `REPORT_SYSTEM`, der alte Pfad bleibt reproduzierbar.
+
 ## Tests
 
 - `tests/test_dossier_orders.py` — Statusfluss-Invarianten (nie automatisch
@@ -230,6 +304,14 @@ M8 (URL-Liveness, `ungrounded_names`, Sprachprüfung, `lang` in
   Reproduzierbarkeit des alten Pfads.
 - `tests/test_dossier_corpus_stats.py` — Korpus-Zählung: Q0, Jahresreihen im
   Anhang, benannte Grenzen, Teil- und Totalausfall.
+- `tests/test_dossier_decision.py` — die Entscheidungsebene: Pflichtabschnitte,
+  Längenobergrenze, 200-Wörter-Kappe, Pflichtfelder je Option, Stabilität der
+  Wortzahl über die Kanonisierung; Rechts-Sweep (jedes Muster gesucht und
+  protokolliert, „nichts gefunden" steht drin, ungelesene Seite ist nicht
+  zitierbar, Fetch-Budget, Suchausfall killt den Lauf nicht, `[legal]` ist
+  keine offene Frage); Beleg-Verifikation an genau dem durchgerutschten Fall
+  („1,2 Mio." gegen die ING-Seite) inkl. Streichung; URL-Hygiene und
+  Doppeleinträge.
 - Frontend: `dossier-access.test.ts` (Guard: Default an, Not-Aus, PUBLIC_MODE/
   Export zu; Slug-Parität zu Python), `publicMode.test.ts` + `staticExport.test.ts`
   (Blockliste ↔ Export-Ausschluss), `markdown.test.ts` (Pipe-Tabellen),
@@ -325,6 +407,15 @@ im Klartext, das Ranking selbst bleibt unverändert.
   (Kaskade); dass eine eigene `question` die Recherche ändert, nicht die
   Messung, gilt weiter.
 
+- ~~Kein Rechts-/Zulassungsstatus im Dossier~~ → **umgesetzt 2026-09-07**
+  (`sweep_regulatory`, Abschnitt „Regulatory and IP status").
+- ~~Eine zitierte Zahl kann in der zitierten Seite fehlen~~ → **umgesetzt
+  2026-09-07** (`verify_cited_figures` + `drop_unverified`); für
+  Korpus-Quellen gilt weiterhin nur der Evidenzblock-Pfad.
+- Die Beleg-Verifikation greift nur bei Sätzen, die **ausschließlich**
+  gefetchte Web-/Rechtsquellen zitieren. Mischt ein Satz Korpus- und
+  Web-Beleg, bleibt er ungeprüft — bewusst, sonst würde jede Zahl aus einem
+  geöffneten Artikel-Volltext falsch angeschlagen.
 - Kein Versions-**Diff** in der Ansicht (nur Versionswechsler) — Kandidat für
   den nächsten Schritt, die Versionierung existiert genau dafür.
 - `--retrieval vector` bleibt wie in der Skizze ungetestet; Worker-Default
