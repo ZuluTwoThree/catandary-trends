@@ -260,6 +260,58 @@ Ziele; die Schwäche liegt vor der Kanonisierung — das Modell zitiert
 plausible, aber nicht existierende Pfade bekannter Domains (zwei 404 auf
 qcells/pv-magazine). Die Streichung fängt das ab, kostet aber Belege im Text.
 
+## Messlauf 2026-09-07 — „GLP-1 and incretin technology" (A/B)
+
+Derselbe Auftrag, dieselbe Frage, einmal ohne (`glp1-baseline` v1, 2026-09-06)
+und einmal mit Messkette (`glp1-measured` v1). Alle Zahlen aus
+`dossiers.result`.
+
+| | A (ohne) | B (mit Messkette) |
+|---|---|---|
+| Messung gelaufen | **nein** — `quant = {"off_topic": true, "nearest_dist": 0.266}` | **ja**, 2. Kaskadenstufe (`GLP-1 incretin`) |
+| Messanhang / Korpus-Anhang im Dossier | nein / nein | **ja / ja** |
+| Katalog | 57 Quellen | **96** (8 Artikel / 12 Signale / 32 Paper / 22 Patente / 20 Web / 2 Messung) |
+| Zitiert | 14 | **21**, darunter erstmals die Messquelle (0 in 13 Läufen davor) |
+| Zitat-Instanzen im Roh-Bericht | 20 URL-Freitexte | **73 Katalog-IDs** |
+| Streichungsquote (Instanzen) | 5/20 = **25,0 %** | 7/73 = **9,6 %** |
+| **erfundene Zitatziele** | **2** (`fdaapprovaltimeline.com/orforglipron`, ein `fool.com`-Pfad) | **0** — jeder Marker ist eine echte Katalog-ID; die 7 Streichungen sind ungefetchte Web-Treffer, die per Konstruktion nicht zitierbar sind |
+| Sweep-Ausbeute | 12 Paper / 7 Patente | **32 Paper / 22 Patente**, 2 Treffer als themenfremd verworfen |
+| Ledger | 6 Zeilen (nur Audit-Lücken) | 19 = 7 Audit-Lücken + 6 Plan-Schritte + **6 Re-Audit-Lücken** (Nachrunde) |
+| Audit | 5 supported | **14 supported** |
+| Bericht | 2.078 Wörter | **3.323 Wörter** |
+| Dauer | 464 s Recherche | 693 s Recherche, 815 s Wandzeit inkl. Messung + Zählung |
+
+Gemessen wurden u. a.: CPC-Auswahl `A61P5/48` / `C12N2501/335` / `A61P3/10`
+(49.913 Patente im Zitationsgraphen, 1984–2026), K(t)-Median 3,1 %/yr,
+**Zykluszeit 11,0 Jahre über 157.545 datierte Zitationskanten** (deckt sich mit
+der unabhängigen Handmessung), Take-offs Forschung 1990 / Patente 2004 /
+Förderung 2005 / Markt 1990. Eine Patent→Markt-Vorlaufzeit wurde **nicht**
+berichtet, weil der Markt-Take-off auf dem Rand des Datenfensters liegt — der
+Anhang schreibt das hin. Korpus-Zählung: 1.366 Markt-/Signaltreffer (495
+Artikel), 21.590 Arbeiten / 542.118 Zitationen, Top-Geldgeber NIH 937 ·
+NIDDK 900 · Novo Nordisk 841.
+
+Endkontrolle: `ok=false`, 3 Befunde (3 „Zahlen ohne Beleg" = Abschnitts-
+nummern des Modells, 7 Streichungen, 13 offene Fragen), **`measurement_used =
+true`** — die Messung steht im Text, nicht nur im Anhang.
+
+Zwei Funde aus dem Lauf, beide behoben:
+
+* `b3d51dc` — der erste Anlauf brach nach 10 min mit `KeyError('measurement')`
+  ab: die codegenerierte Quellenliste hatte kein Label für die Quellenart
+  „measurement". 13 Läufe lang unentdeckt, **weil die Messquelle nie zitiert
+  wurde**; mit ID-Zitaten zitierte das Modell sie sofort.
+* `cd80a8e` — der Zentralitäts-Peak fiel auf 2026, also auf das letzte, noch
+  unvollständige Jahr, mit dem sinnlosen Zusatz „seither rückläufig". Der Peak
+  kommt jetzt nur noch aus gesetzten Jahrgängen (TRUNC_YEARS).
+  *(Der abgelegte Berichtstext ist der Stand vor diesem Fix — es wurde bewusst
+  nur ein Lauf gerechnet.)*
+
+Offen geblieben (nicht Teil von M1–M6): die CPC-Auflösung nimmt mit `A61P3/10`
+(70.991 Patente) eine breite Klasse mit, weshalb die Leitpatente „Humanized
+immunoglobulins" heißen statt GLP-1-Analoga. Der Anhang trägt die Einschränkung
+im Klartext, das Ranking selbst bleibt unverändert.
+
 ## Bewusste Grenzen / offene Punkte
 
 - ~~Streichungsquote (46,7 % der Zitat-Instanzen im Abnahmelauf)~~ → **M4
