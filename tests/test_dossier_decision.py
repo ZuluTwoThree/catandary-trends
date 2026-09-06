@@ -314,3 +314,110 @@ class TestUrlHygiene:
             "Claim [[T1]] and [[T2]].", src, "en", markers=True)
         assert len(cited) == 1
         assert body.count("catandary.de/trends/a-1") == 3   # 2x inline, 1x Liste
+
+
+# ===========================================================================
+# Ende-zu-Ende ueber run() — mit Stubs, ohne DB/Netz/GPU
+# ===========================================================================
+
+class _Chat:
+    """Ein Modell-Stub, der beim ERSTEN Bericht bewusst gegen die Gliederung
+    verstoesst und beim Neuwurf liefert — so laeuft der Korrekturpfad wirklich
+    durch, statt nur seine Bausteine einzeln zu testen."""
+
+    def __init__(self):
+        self.calls: list[str] = []
+
+    def __call__(self, model, prompt, system=None, temperature=0.0, **kw):
+        self.calls.append(prompt)
+        if "REVISION" in prompt:
+            # lang genug, damit der Kurz-Guard (>= 300 Woerter) den Neuwurf
+            # nicht als Abbruch verwirft
+            return _report(filler=400)
+        # Erster Wurf: Pflichtabschnitt fehlt UND eine Zahl, die die zitierte
+        # Seite nicht hergibt.
+        return (_report().replace("## Regulatory and IP status", "## Background")
+                + "\n\nInsurers added 1.2 million patients [[L0]].\n")
+
+
+def _structured(monkeypatch, plan_steps=1):
+    from pipeline import llamacpp_client
+
+    def chat_structured(model, schema, prompt, system=None, **kw):
+        name = schema.__name__
+        if name == "Plan":
+            return schema(title="P", steps=[{"title": "S", "query": "q"}])
+        if name == "AgentAction":
+            return schema(action="finish", title="done", argument="",
+                          state={"summary": "s", "gaps": [], "unsupported": []})
+        if name == "WebAction":
+            return schema(action="finish", title="done", argument="",
+                          target_gap=-1,
+                          state={"summary": "s", "gaps": [], "unsupported": []})
+        if name == "Audit":
+            return schema(thesis="t", supported=[], inferences=[],
+                          contradictions=[],
+                          missing=["what is the legal status"], outline=["o"])
+        raise AssertionError(name)
+
+    monkeypatch.setattr(llamacpp_client, "chat_structured", chat_structured)
+
+
+LEGAL_PAGE = "The SPC runs to March 2031 in the Netherlands."
+SEED = dict(ARTICLE, vertical="HEALTH", snippet="corpus snippet", fetched=False)
+
+
+def test_measure_path_end_to_end(monkeypatch):
+    from pipeline import llamacpp_client
+    chat = _Chat()
+    _structured(monkeypatch)
+    monkeypatch.setattr(llamacpp_client, "chat", chat)
+    monkeypatch.setattr(cr, "search_corpus", lambda q, n, scope="both": [dict(ARTICLE)])
+    monkeypatch.setattr(cr, "search_research", lambda *a, **k: [])
+    monkeypatch.setattr(cr, "search_patents", lambda *a, **k: [])
+    monkeypatch.setattr(cr, "brave_search", lambda q, n=6: [
+        {"id": "W0", "trend_id": None, "kind": "web", "title": "Ruling",
+         "url": f"https://law.example/{abs(hash(q)) % 997}", "origin": "",
+         "outlet": "Law", "vertical": "", "date": "2026-08-05",
+         "snippet": "SPC", "fetched": False}])
+    monkeypatch.setattr(cr, "fetch_web_page", lambda url: LEGAL_PAGE)
+
+    out = cr.run("What should we do?", max_steps=1, max_sources=8,
+                 retrieval="fts", per_query=2, web_steps=1, max_web_sources=2,
+                 topic="GLP-1 and incretin technology", measure=True,
+                 seed_sources=[dict(SEED)], seed_notes=["seed"])
+
+    # 1. Rechts-Sweep hat einen eigenen Katalogbereich gefuellt
+    assert out["kinds"]["legal"] == len(cr.REGULATORY_PATTERNS)
+    assert any(e["kind"] == "legal" for e in out["ledger"])
+    # 2. genau EIN Neuwurf, mit Revisionsauftrag
+    st = out["structure"]
+    assert st["rewritten"] is True
+    assert sum("REVISION" in c for c in chat.calls) == 1
+    assert len(chat.calls) == 2
+    # 3. der erste Wurf war strukturell und beleghaft auffaellig, der zweite ist sauber
+    assert st["findings"] and st["cite_findings"]
+    assert st["findings_after"] == [] and st["cite_findings_after"] == []
+    assert st["dropped_sentences"] == 0
+    # 4. der Coverage-Anhang weist die Beleg-Verifikation aus
+    assert "Verification of web citations" in out["report"]
+
+
+def test_measure_false_writes_once_and_skips_the_sweep(monkeypatch):
+    from pipeline import llamacpp_client
+    chat = _Chat()
+    _structured(monkeypatch)
+    monkeypatch.setattr(llamacpp_client, "chat", chat)
+    monkeypatch.setattr(cr, "search_corpus", lambda q, n, scope="both": [dict(ARTICLE)])
+    monkeypatch.setattr(cr, "search_research", lambda *a, **k: [])
+    monkeypatch.setattr(cr, "search_patents", lambda *a, **k: [])
+    monkeypatch.setattr(cr, "brave_search",
+                        lambda q, n=6: pytest.fail("kein Web im alten Pfad"))
+    out = cr.run("What should we do?", max_steps=1, max_sources=8,
+                 retrieval="fts", per_query=2, web_steps=0, max_web_sources=2,
+                 topic="GLP-1 and incretin technology", measure=False,
+                 seed_sources=[dict(SEED)], seed_notes=["seed"])
+    assert len(chat.calls) == 1
+    assert out["kinds"]["legal"] == 0
+    assert out["structure"]["rewritten"] is False
+    assert out["structure"]["findings"] == []
