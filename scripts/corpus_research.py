@@ -725,10 +725,15 @@ SWEEP_PAPERS_FOLLOWUP, SWEEP_PATENTS_FOLLOWUP = 8, 6
 
 def anchor_terms(topic: str, cap: int = 4) -> list[str]:
     """The topic's own content words, for the relevance filter below. Hyphenated
-    terms also yield their squashed form so "GLP-1" matches "GLP1"."""
+    terms also yield their squashed form so "GLP-1" matches "GLP1".
+
+    Filler words are excluded (same set the measurement uses): "technology" in
+    "GLP-1 and incretin technology" would otherwise anchor on every filing that
+    happens to say "technology" — i.e. no filter at all."""
+    from pipeline.dossier_quant import _FILLER
     out: list[str] = []
     for w in _WORD.findall((topic or "").lower()):
-        if w in _STOPWORDS or w in _GAP_NOISE:
+        if w in _STOPWORDS or w in _GAP_NOISE or w.strip(".-/") in _FILLER:
             continue
         w = w.strip(".-#+")
         if len(w) < 3 or w in out:

@@ -353,6 +353,8 @@ class TestM6Sweep:
     def test_anchor_terms_cover_the_hyphen_form(self):
         t = cr.anchor_terms("GLP-1 and incretin technology")
         assert "glp-1" in t and "glp1" in t and "incretin" in t
+        # "technology" waere kein Anker, sondern ein Freifahrtschein
+        assert "technology" not in t
 
     def test_off_topic_hit_is_dropped(self):
         terms = cr.anchor_terms("GLP-1 and incretin technology")
