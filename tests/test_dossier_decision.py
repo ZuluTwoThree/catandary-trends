@@ -421,3 +421,78 @@ def test_measure_false_writes_once_and_skips_the_sweep(monkeypatch):
     assert out["kinds"]["legal"] == 0
     assert out["structure"]["rewritten"] is False
     assert out["structure"]["findings"] == []
+
+
+# ===========================================================================
+# Nachbesserungen aus dem B2-Lauf (2026-09-07)
+# ===========================================================================
+
+class TestPostRunFixes:
+    def test_stripped_marker_leaves_no_hanging_punctuation(self):
+        """Der Gutachter nannte genau das: „Satz endet auf ein Leerzeichen und
+        einen Punkt, es folgt kein Beleg."""
+        src = [{"id": "T1", "kind": "article", "title": "A", "outlet": "", "date": "",
+                "url": "https://catandary.de/trends/a-1", "origin": ""}]
+        body, _cited, stripped = cr.canonicalize_citations(
+            "New filings preserve lean mass [[T900000013]].\n"
+            "Zealand and Septerna raised money [[T900000004]], [[T900000009]].\n",
+            src, "en", markers=True)
+        assert stripped == 3
+        assert " ." not in body and " ," not in body
+        assert "lean mass." in body and "raised money." in body
+
+    def test_clean_report_is_left_alone(self):
+        src = [{"id": "T1", "kind": "article", "title": "A", "outlet": "", "date": "",
+                "url": "https://catandary.de/trends/a-1", "origin": ""}]
+        text = "Claim [[T1]].\nA line break here  \nand more."
+        body, _c, stripped = cr.canonicalize_citations(text, src, "en", markers=True)
+        assert stripped == 0
+        assert "  \n" in body          # Markdown-Zeilenumbruch bleibt
+
+    def test_short_report_is_advisory_not_a_rewrite(self):
+        short = _report()
+        assert ds.structure_findings(short) == []      # kein Neuwurf-Grund
+        adv = ds.length_advisory(short)
+        assert adv and str(ds.BODY_WORDS_MIN) in adv[0]
+        long_enough = _report(filler=ds.BODY_WORDS_MIN)
+        assert ds.length_advisory(long_enough) == []
+
+    def test_advisory_reaches_the_check_without_failing_it(self):
+        res = {"report": "x [a](https://a.de/b)", "sources": [ARTICLE],
+               "evidence": [], "cited": ["T1"], "ledger": [],
+               "structure": {"advisory": ["Fliesstext 1907 Woerter"],
+                             "findings_after": [], "cite_findings": [],
+                             "cite_findings_after": []}}
+        out = check_result(res)
+        assert out["ok"] is True
+        assert any("1907" in f for f in out["findings"])
+
+    def test_uncitable_ids_are_named_in_the_report_prompt(self, monkeypatch):
+        """Alle 10 gestrichenen Marker des B2-Laufs waren ungefetchte
+        Web-Treffer, deren IDs nur in den Evidenznotizen standen."""
+        from pipeline import llamacpp_client
+        seen: list[str] = []
+
+        def chat(model, prompt, system=None, temperature=0.0, **kw):
+            seen.append(prompt)
+            return _report(filler=400)
+
+        _structured(monkeypatch)
+        monkeypatch.setattr(llamacpp_client, "chat", chat)
+        monkeypatch.setattr(cr, "search_corpus", lambda q, n, scope="both": [])
+        monkeypatch.setattr(cr, "search_research", lambda *a, **k: [])
+        monkeypatch.setattr(cr, "search_patents", lambda *a, **k: [])
+        monkeypatch.setattr(cr, "brave_search", lambda q, n=6: [
+            {"id": "W0", "trend_id": None, "kind": "web", "title": "T",
+             "url": f"https://x.example/{abs(hash(q)) % 997}", "origin": "",
+             "outlet": "", "vertical": "", "date": "", "snippet": "s",
+             "fetched": False}])
+        monkeypatch.setattr(cr, "fetch_web_page", lambda url: "")   # nie lesbar
+        out = cr.run("Q", max_steps=1, max_sources=8, retrieval="fts",
+                     per_query=2, web_steps=1, max_web_sources=2, topic="GLP-1",
+                     measure=True, seed_sources=[dict(SEED)], seed_notes=["seed"])
+        assert out["kinds"]["legal"] == len(cr.REGULATORY_PATTERNS)
+        assert "NEVER READ IN FULL" in seen[0]
+        for s in out["sources"]:
+            if s["kind"] in ("web", "legal") and not s.get("fetched"):
+                assert s["id"] in seen[0]

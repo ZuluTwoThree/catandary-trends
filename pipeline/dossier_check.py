@@ -186,6 +186,8 @@ def check_result(result: dict) -> dict:
         findings.append("Gliederung/Umfang nach dem Neuwurf noch offen: "
                         + " | ".join(left[:4])
                         + (f" (+{len(left) - 4} weitere)" if len(left) > 4 else ""))
+    for a in (st.get("advisory") or []):
+        findings.append(a)
     if st.get("dropped_sentences"):
         findings.append(
             f"{st['dropped_sentences']} Satz/Saetze gestrichen: die zitierte "

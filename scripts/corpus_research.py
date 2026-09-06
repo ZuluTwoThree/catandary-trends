@@ -1242,6 +1242,23 @@ _L10N = {
 
 _MARKER = re.compile(r"\[\[\s*([A-Za-z][A-Za-z0-9_.-]{0,31})\s*\]\]")
 
+
+def _tidy_after_strip(text: str) -> str:
+    """Loecher schliessen, die ein entfernter Zitat-Marker hinterlaesst.
+
+    Der Gutachter nannte genau das als Mangel: „Satz endet auf ein Leerzeichen
+    und einen Punkt, es folgt kein Beleg ... dieselben haengenden Kommata/
+    Leerbelege stehen an mindestens vier weiteren Stellen." Rein kosmetisch und
+    rein mechanisch — der Satz selbst bleibt unangetastet, nur die Luecke geht
+    weg. Zeilenenden bleiben unberuehrt (Markdown-Zeilenumbruch = zwei
+    Leerzeichen vor \n)."""
+    text = re.sub(r"[ \t]+([.,;:!?])", r"\1", text)
+    text = re.sub(r"([(\[])[ \t]+", r"\1", text)
+    text = re.sub(r",(\s*,)+", ",", text)
+    text = re.sub(r",(\s*)([.;:!?])", r"\2", text)
+    text = re.sub(r"(?<=\S)[ \t]{2,}(?=\S)", " ", text)
+    return text
+
 # Eine Zitat-URL muss ein gueltiger URI sein. Im Blindgutachten (jury_2.md)
 # standen Fliesstext-Links mit einem LEERZEICHEN im Host — als String kein
 # URI (RFC 3986), nicht klickbar, "die primaere Zitations-URL im Fliesstext
@@ -1303,7 +1320,10 @@ def canonicalize_citations(report: str, sources: list[dict],
             cited[src["url"]] = src
             return f"[{src['title']}]({href})"
 
+        before = stripped
         report = _MARKER.sub(_marker, report)
+        if stripped > before:
+            report = _tidy_after_strip(report)
 
     def _replace(m: re.Match) -> str:
         nonlocal stripped
@@ -1880,6 +1900,12 @@ def run(question: str, max_steps: int, max_sources: int,
     else:
         citable = "\n".join(f"{s['id']} [{s['kind']}] [{s['title']}]({s['url']})"
                             for s in citable_sources)
+    # Die ungefetchten Web-Treffer stehen mit ihrer ID in den Evidenznotizen
+    # (der Web-Agent braucht sie zum Anfordern) — und genau von dort holt das
+    # Modell sie als Zitat. Im B2-Lauf waren alle 10 gestrichenen Marker von
+    # dieser Art. Sie werden deshalb ausdruecklich benannt.
+    uncitable_ids = [s["id"] for s in sources
+                     if s["kind"] in ("web", "legal") and not s.get("fetched")]
     ledger_json = json.dumps(ledger, ensure_ascii=False)
     sys_prompt = report_system(measure, lang)
     if lang == "de":
@@ -1904,6 +1930,10 @@ def run(question: str, max_steps: int, max_sources: int,
         f"was researched when the ledger shows it was not.\n\n"
         + (f"<untrusted_regulatory_record>\n{shield(reg_record)}\n"
            f"</untrusted_regulatory_record>\n\n" if reg_record else "")
+        + (f"These ids appear in the evidence but were NEVER READ IN FULL, so "
+           f"they cannot carry a citation — using one deletes it and leaves the "
+           f"claim unsupported: {', '.join(uncitable_ids)}\n\n"
+           if measure and uncitable_ids else "")
         + (f"Citation catalog — cite by the id in double brackets, "
            f"exactly as written here:\n{citable}\n\n" if measure else
            f"Citation catalog — copy these link forms verbatim:\n{citable}\n\n")
@@ -1920,7 +1950,8 @@ def run(question: str, max_steps: int, max_sources: int,
     # Laengenobergrenze) und ob die Zahlen eines Satzes in GENAU der Web-Seite
     # stehen, die er zitiert. Keine Schleife, kein Kritiker-Modell — der
     # Revisionstext entsteht vollstaendig aus mechanischen Befunden.
-    structure = {"findings": [], "cite_findings": [], "rewritten": False,
+    structure = {"findings": [], "advisory": [], "cite_findings": [],
+                 "rewritten": False,
                  "dropped_sentences": 0, "words_before": None,
                  "words_after": None, "findings_after": [],
                  "cite_findings_after": [], "cites_checked": 0,
@@ -1981,6 +2012,9 @@ def run(question: str, max_steps: int, max_sources: int,
                            "the page they cite", dropped)
         structure["words_after"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
+        structure["advisory"] = dossier_structure.length_advisory(report, lang)
+        for a in structure["advisory"]:
+            logger.info("structure (advisory): %s", a)
         report_raw = report
 
     report, cited, stripped = canonicalize_citations(

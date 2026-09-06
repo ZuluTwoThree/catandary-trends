@@ -196,6 +196,20 @@ def _missing_fields(block: str, lang: str) -> list[str]:
     return missing
 
 
+def length_advisory(report_md: str, lang: str = "en") -> list[str]:
+    """Untergrenze — HINWEIS, kein Neuwurf-Grund.
+
+    Ein zu langer Bericht ist ein Formfehler, den ein zweiter Wurf behebt; ein
+    zu kurzer ist meist duennes Material, und ein Neuwurf wuerde das Modell nur
+    zum Auffuellen einladen. Der Owner sieht die Zahl im Pruefbefund."""
+    words = count_words(body_text(report_md))
+    if words and words < BODY_WORDS_MIN:
+        return [f"Fliesstext {words} Woerter — unter dem Zielband "
+                f"{BODY_WORDS_MIN}-{BODY_WORDS_MAX} (kein Neuwurf: zu kurz "
+                f"heisst in der Regel duennes Material, nicht schlechte Form)."]
+    return []
+
+
 def structure_findings(report_md: str, lang: str = "en") -> list[str]:
     """Was am fertigen Bericht mechanisch nicht stimmt. Leere Liste = sauber."""
     L = _lang(lang)
