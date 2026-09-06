@@ -1,5 +1,13 @@
 # Agentischer Newsletter-Entwurf — Prototyp am Beispiel 2026-W35
 
+> **Owner-Entscheid 06.09.2026: Es bleibt beim heutigen Einmalwurf — nichts wird geaendert.**
+> Der agentische Loop wird NICHT integriert (Befund: Zahlen verschwinden, keine Konvergenz,
+> einziger Gewinn 0 Floskeln). Auch die vorgeschlagene schlanke Variante (deterministische
+> Nachpruefungen + ein gezielter Neuwurf) wird bewusst nicht gebaut. Das Skript
+> `scripts/newsletter_agentic_draft.py` bleibt als dokumentierter Versuch liegen und wird
+> von nichts aufgerufen.
+
+
 Erzeugt: 2026-09-06T12:42:44+00:00 — `scripts/newsletter_agentic_draft.py` (Prototyp, NICHT integriert).
 
 ## Aufbau

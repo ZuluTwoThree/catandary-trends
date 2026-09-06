@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Agentischer Newsletter-Entwurf (PROTOTYP, Owner-Auftrag 2026-09-06).
+"""
+STATUS: abgelehnt (Owner-Entscheid 06.09.2026) — dieses Skript wird von nichts
+aufgerufen und bleibt nur als dokumentierter Versuch liegen. Der Newsletter
+entsteht weiter im Einmalwurf (pipeline/newsletter_generator.py). Befund und
+Vorher-Nachher: docs/newsletter_agentic_prototype_2026-09-06.md
+Agentischer Newsletter-Entwurf (PROTOTYP, Owner-Auftrag 2026-09-06).
 
 Schreiber -> Kritiker -> Ueberarbeiter, alle drei auf DEMSELBEN lokalen Modell
 (Gemma-4-26B), maximal MAX_ROUNDS Runden. Zweck dieses Skripts ist AUSSCHLIESS-
