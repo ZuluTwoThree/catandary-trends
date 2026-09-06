@@ -52,14 +52,16 @@ export interface DossierSeries {
 }
 
 /** Evidence mix of one run, as scripts/corpus_research.py counts it. */
-/** "legal" = regulatory/IP sweep (fixed query patterns, fetched in full). */
+/** "legal" = regulatory/IP sweep, "market" = market/reimbursement sweep
+ * (both fixed query patterns, fetched in full). */
 export type EvidenceKind =
   | "article"
   | "signal"
   | "paper"
   | "patent"
   | "web"
-  | "legal";
+  | "legal"
+  | "market";
 
 /** Provenance header of a run — what the report is a snapshot OF. */
 export interface DossierProvenance {
@@ -81,9 +83,10 @@ export interface DossierProvenance {
  * `kind` since 2026-09-07: the sweep no longer runs only on audit gaps —
  * "plan" rows are plan steps the run swept regardless of the audit, "followup"
  * rows are gaps only the re-audit could name, "legal" rows are the fixed
- * regulatory/IP query patterns. Older rows carry no kind and default to "gap".
- * Only "gap"/"followup" rows are open questions. */
-export type DossierLedgerKind = "gap" | "plan" | "followup" | "legal";
+ * regulatory/IP query patterns and "market" rows the fixed market/reimbursement
+ * patterns (2026-09-07, jury_4.md). Older rows carry no kind and default to
+ * "gap". Only "gap"/"followup" rows are open questions. */
+export type DossierLedgerKind = "gap" | "plan" | "followup" | "legal" | "market";
 
 export interface DossierLedgerRow {
   gap: string;
@@ -245,6 +248,7 @@ const KINDS: EvidenceKind[] = [
   "patent",
   "web",
   "legal",
+  "market",
 ];
 
 function num(v: unknown): number | null {
@@ -269,6 +273,7 @@ function parseLedger(raw: unknown): DossierLedgerRow[] {
     return {
       gap: String(o.gap ?? ""),
       kind: (kind === "plan" || kind === "followup" || kind === "legal"
+        || kind === "market"
         ? kind
         : "gap") as DossierLedgerKind,
       papers: num(o.papers) ?? 0,
