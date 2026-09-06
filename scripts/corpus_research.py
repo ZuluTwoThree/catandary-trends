@@ -1955,25 +1955,49 @@ def run(question: str, max_steps: int, max_sources: int,
                  "dropped_sentences": 0, "words_before": None,
                  "words_after": None, "findings_after": [],
                  "cite_findings_after": [], "cites_checked": 0,
-                 "cites_figures": 0}
+                 "cites_figures": 0, "cites_subjects": 0,
+                 "off_topic_before": 0, "off_topic_after": 0,
+                 "sourceless_before": 0, "sourceless_after": 0}
+    # Der eigene Messanhang ist der EINZIGE Beleg, den eine Zahl ohne Zitat im
+    # Satz haben darf: er steht codegeneriert im selben Dokument.
+    measured_text = "\n".join(
+        x for x in ((quant or {}).get("appendix") or "",
+                    (corpus_stats or {}).get("appendix") or "") if x)
     if measure:
         structure["words_before"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
         findings = dossier_structure.structure_findings(report, lang)
         cites = dossier_structure.verify_cited_figures(report, citable_sources)
+        # Befund 2 (falsche Seite) und Befund 3 (Zahl ohne Beleg) der Jurys vom
+        # 2026-09-07 laufen durch denselben Kanal wie die Zahlenpruefung:
+        # ein Neuwurf, danach mechanische Streichung.
+        sourceless = dossier_structure.sourceless_figures(
+            report, citable_sources, measured_text)
+        cite_all = list(cites["unverified"]) + list(cites.get("off_topic") or [])
+        for e in sourceless:
+            cite_all.append({**e, "kind": "sourceless"})
         structure["findings"] = findings
-        structure["cite_findings"] = cites["unverified"]
+        structure["cite_findings"] = cite_all
         structure["cites_checked"] = cites["checked"]
         structure["cites_figures"] = cites["figures"]
+        structure["cites_subjects"] = cites.get("subjects", 0)
+        structure["off_topic_before"] = len(cites.get("off_topic") or [])
+        structure["sourceless_before"] = len(sourceless)
         for f in findings:
             logger.warning("structure: %s", f)
         for e in cites["unverified"]:
             logger.warning("citation: %s not in %s", e["tokens"], e["url"][:60])
-        if findings or cites["unverified"]:
+        for e in cites.get("off_topic") or []:
+            logger.warning("citation subject mismatch: %s absent from %s",
+                           e["tokens"], e["url"][:60])
+        for e in sourceless:
+            logger.warning("sourceless figure(s) %s in: %s",
+                           e["tokens"], e["sentence"][:80])
+        if findings or cite_all:
             logger.info("one targeted rewrite (%d structural + %d citation "
-                        "finding(s))", len(findings), len(cites["unverified"]))
+                        "finding(s))", len(findings), len(cite_all))
             revision = dossier_structure.revision_prompt(
-                findings, cites["unverified"], lang)
+                findings, cite_all, lang)
             second = llamacpp_client.chat(
                 model=MODEL, system=sys_prompt, temperature=0.3,
                 prompt=(revision + "\n\n"
@@ -1999,17 +2023,28 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["findings_after"] = dossier_structure.structure_findings(
             report, lang)
         cites2 = dossier_structure.verify_cited_figures(report, citable_sources)
-        structure["cite_findings_after"] = cites2["unverified"]
+        sourceless2 = dossier_structure.sourceless_figures(
+            report, citable_sources, measured_text)
+        cite_all2 = list(cites2["unverified"]) + list(cites2.get("off_topic") or [])
+        for e in sourceless2:
+            cite_all2.append({**e, "kind": "sourceless"})
+        structure["cite_findings_after"] = cite_all2
         structure["cites_checked"] = cites2["checked"]
         structure["cites_figures"] = cites2["figures"]
-        if cites2["unverified"]:
+        structure["cites_subjects"] = cites2.get("subjects", 0)
+        structure["off_topic_after"] = len(cites2.get("off_topic") or [])
+        structure["sourceless_after"] = len(sourceless2)
+        if cite_all2:
             # Letzte Instanz: eine Zahl, die die zitierte Seite nicht hergibt,
-            # bleibt nicht im Dokument stehen.
+            # ein Beleg, der von etwas anderem handelt, und eine Zahl ganz ohne
+            # Beleg bleiben nicht im Dokument stehen.
             report, dropped = dossier_structure.drop_unverified(
-                report, cites2["unverified"])
+                report, cite_all2)
             structure["dropped_sentences"] = dropped
-            logger.warning("dropped %d sentence(s) whose figures are not in "
-                           "the page they cite", dropped)
+            logger.warning("dropped %d sentence(s): %d unsupported figure(s), "
+                           "%d off-topic citation(s), %d sourceless figure(s)",
+                           dropped, len(cites2["unverified"]),
+                           len(cites2.get("off_topic") or []), len(sourceless2))
         structure["words_after"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
         structure["advisory"] = dossier_structure.length_advisory(report, lang)
@@ -2069,19 +2104,32 @@ def run(question: str, max_steps: int, max_sources: int,
                 lines += ["",
                           f"**Beleg-Verifikation der Web-Zitate:** "
                           f"{st['cites_checked']} Satz/Sätze mit "
-                          f"{st['cites_figures']} konkreten Angaben gegen den "
+                          f"{st['cites_figures']} konkreten Angaben und "
+                          f"{st.get('cites_subjects', 0)} benannten Gegenständen "
+                          f"(Firmen, Wirkstoffe) gegen den "
                           f"Volltext genau der zitierten Seite geprüft · "
                           f"{len(st['cite_findings'])} vor dem Neuwurf nicht "
-                          f"belegt · {st['dropped_sentences']} Satz/Sätze "
+                          f"belegt, davon {st.get('off_topic_before', 0)} mit "
+                          f"einer Quelle, die nicht vom Gegenstand des Satzes "
+                          f"handelt, und {st.get('sourceless_before', 0)} mit "
+                          f"einer Präzisionszahl ohne Zitat im Satz · "
+                          f"{st['dropped_sentences']} Satz/Sätze "
                           f"danach gestrichen."]
             else:
                 lines += ["",
                           f"**Verification of web citations:** "
                           f"{st['cites_checked']} sentence(s) carrying "
-                          f"{st['cites_figures']} concrete figures checked "
+                          f"{st['cites_figures']} concrete figures and "
+                          f"{st.get('cites_subjects', 0)} named subjects "
+                          f"(companies, substances) checked "
                           f"against the full text of the very page they cite · "
                           f"{len(st['cite_findings'])} not supported before the "
-                          f"rewrite · {st['dropped_sentences']} sentence(s) "
+                          f"rewrite, of which "
+                          f"{st.get('off_topic_before', 0)} cited a page that "
+                          f"is not about the subject of the sentence and "
+                          f"{st.get('sourceless_before', 0)} carried a precision "
+                          f"figure with no citation in the sentence · "
+                          f"{st['dropped_sentences']} sentence(s) "
                           f"dropped afterwards."]
         report = report.rstrip() + "\n" + "\n".join(lines) + "\n"
 

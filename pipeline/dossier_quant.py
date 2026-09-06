@@ -74,7 +74,12 @@ _CAVEATS = (
     "calibrated only to ~2019 — read later years as direction, not magnitude. "
     "A patent documents a claimed invention, never a working product. All "
     "counts are Catandary corpus measurements (data window from 1990), not "
-    "market statistics."
+    "market statistics. This appendix is itself the evidence for every "
+    "internal figure in this dossier: query path, class selection, n and "
+    "period are stated here, so a reader can judge them without following a "
+    "link — the measurement tool behind the link is not publicly fetchable "
+    "(the site refuses automated agents), and no external page carries these "
+    "numbers."
 )
 
 # Füllwörter, die eine Auftragsphrase unmessbar machen: sie stehen in keinem
@@ -178,6 +183,124 @@ def fine_codes_in(phrase: str, subclasses: list[str], limit: int = 6) -> list[st
             if c["symbol"][:4] in heads and c.get("n")][:limit]
 
 
+# ---------------------------------------------------------------------------
+# Themenschaerfe der Messbasis (Befund 1, jury_3.md/jury_4.md 2026-09-07)
+# ---------------------------------------------------------------------------
+# Beide Jurys erklaerten unsere Eigenmessung fuer "Zahlenschmuck", und ihr
+# Hauptbeleg war die Messbasis: `A61P3/10` ("for hyperglycaemia, e.g.
+# antidiabetics", 70.991 Patente) ist das GESAMTE Antidiabetika-Feld, nicht
+# Inkretine. Die Folge stand im eigenen Anhang: die meistzitierten Patente
+# hiessen "Humanized immunoglobulins", und der Bericht musste seine eigene
+# Top-Liste als "kein Themenranking" ausweisen.
+#
+# Ursache im Code: `resolve_candidates` waehlt in Distanzreihenfolge vor, bis
+# DENSITY_TARGET (8.000 Patente) erreicht ist — eine einzige breite Klasse
+# reisst dieses Budget in einem Schritt um das 25-fache. Der Filter hier misst
+# deshalb je Klasse die TREFFERDICHTE: welcher Anteil ihrer Patente nennt das
+# Thema ueberhaupt im Titel/Abstract (patent_search-Volltext)? Klassen unter der
+# Schwelle fliegen raus. Bleibt danach keine tragfaehige Basis, entfaellt der
+# Messblock — mit Begruendung im Anhang. Ein fehlender Block kostet weniger als
+# ein irrefuehrender.
+
+TOPIC_MIN_PRECISION = 0.02      # 2 % der Klasse muessen das Thema nennen
+TOPIC_PRECISION_RATIO = 0.33    # ... und mindestens ein Drittel der besten Klasse
+TOPIC_MIN_HITS = 25             # thematische Treffer in der verbleibenden Basis
+TOPIC_HIT_CAP = 40_000          # Deckel der FTS-Trefferliste (Laufzeit ~3 s)
+
+
+def topical_precision(codes: list[str], topic: str) -> dict[str, dict]:
+    """Je CPC-Klasse: Gesamtzahl, thematische Treffer, Trefferdichte.
+
+    Thematisch = das Patent steht in `patent_search` unter der ODER-Verknuepfung
+    der Themenbegriffe (Titel/Abstract-Volltext). Rein lesend, mit Timeout;
+    faellt die Query aus, gibt es kein Urteil (leeres Dict) und die Auswahl
+    bleibt wie sie war."""
+    if not codes:
+        return {}
+    terms = [w.lower() for w in _WORD_RE.findall(normalize_topic(topic))
+             if len(w.strip(".-/")) >= 3][:8]
+    if not terms:
+        return {}
+    tsq = " | ".join(terms)
+    like = " OR ".join("pc.cpc LIKE %s" % "?" for _ in codes)
+    sql = ("WITH hit AS (SELECT pub_number FROM patent_search "
+           "             WHERE tsv @@ to_tsquery('english', ?) LIMIT ?) "
+           "SELECT pc.cpc AS cpc, count(DISTINCT pc.pub_number) AS n "
+           "  FROM hit JOIN patent_cpc_full pc ON pc.pub_number = hit.pub_number "
+           " WHERE (" + like + ") GROUP BY pc.cpc")
+    from pipeline.db import get_connection
+    try:
+        from scripts.tech_analyze import _counts
+        totals = _counts(list(codes))
+        with get_connection() as conn:
+            conn.execute("SET statement_timeout = '90s'")
+            rows = conn.execute(sql, (tsq, TOPIC_HIT_CAP,
+                                      *[c + "%" for c in codes])).fetchall()
+    except Exception as exc:                                        # noqa: BLE001
+        logger.warning("topical precision failed for %r: %r", topic, exc)
+        return {}
+    # Prefix-LIKE: ein Treffer kann auf mehrere gewaehlte Klassen fallen.
+    hits: dict[str, int] = {c: 0 for c in codes}
+    for r in rows:
+        d = dict(r)
+        for c in codes:
+            if str(d["cpc"]).startswith(c):
+                hits[c] += int(d["n"])
+    out: dict[str, dict] = {}
+    for c in codes:
+        total = int(totals.get(c, 0) or 0)
+        h = hits.get(c, 0)
+        out[c] = {"total": total, "hits": h,
+                  "precision": (h / total) if total else 0.0}
+    return out
+
+
+def sharpen_selection(codes: list[str], topic: str) -> dict:
+    """Die themenscharfe Teilmenge der gewaehlten CPC-Klassen.
+
+    {"kept": [...], "dropped": [{symbol, total, hits, precision}...],
+     "rows": {symbol: {...}}, "hits": int, "reason": str|None}
+    `kept == codes` und `rows == {}` heisst: keine Messung der Dichte moeglich
+    (Query-Ausfall) — dann wird nichts gefiltert und nichts behauptet."""
+    rows = topical_precision(codes, topic)
+    if not rows:
+        return {"kept": list(codes), "dropped": [], "rows": {}, "hits": 0,
+                "reason": None}
+    best = max((v["precision"] for v in rows.values()), default=0.0)
+    floor = max(TOPIC_MIN_PRECISION, best * TOPIC_PRECISION_RATIO)
+    kept = [c for c in codes if rows[c]["precision"] >= floor]
+    dropped = [{"symbol": c, **rows[c]} for c in codes if c not in kept]
+    hits = sum(rows[c]["hits"] for c in kept)
+    reason = None
+    if not kept:
+        reason = (f"no CPC class of the selection reaches the topical hit "
+                  f"density floor of {floor:.1%}")
+    elif hits < TOPIC_MIN_HITS:
+        reason = (f"the topically sharp classes ({', '.join(kept)}) carry only "
+                  f"{hits} filings that name the topic — below the floor of "
+                  f"{TOPIC_MIN_HITS}")
+    return {"kept": kept, "dropped": dropped, "rows": rows, "hits": hits,
+            "floor": floor, "reason": reason}
+
+
+def topical_hubs(hubs: list[dict], topic: str) -> list[dict]:
+    """Leitpatente, deren Titel wenigstens einen Themenbegriff traegt.
+
+    Die alte Liste wurde im eigenen Anhang als "kein Themenranking" ausgewiesen
+    und dann trotzdem gedruckt (die Jurys zaehlten das als Zahlenschmuck).
+    Bleibt nichts uebrig, entfaellt der Block."""
+    terms = [w.lower().strip(".-/") for w in _WORD_RE.findall(normalize_topic(topic))
+             if len(w.strip(".-/")) >= 3]
+    forms = set(terms) | {t.replace("-", "") for t in terms}
+    out = []
+    for h in hubs or []:
+        title = (h.get("title") or "").lower()
+        squashed = title.replace("-", "")
+        if any(f and (f in title or f in squashed) for f in forms):
+            out.append(h)
+    return out
+
+
 def _measurable(analysis: dict | None) -> bool:
     """Eine Messung liegt vor, wenn eine Trajektorie gerechnet wurde. Ein
     `ambiguous`-Gate liefert nur Kandidaten — das ist KEINE Messung (der alte
@@ -185,7 +308,7 @@ def _measurable(analysis: dict | None) -> bool:
     return bool(analysis and analysis.get("trajectory"))
 
 
-def measure_topic(topic: str) -> dict:
+def _measure_topic_raw(topic: str) -> dict:
     """Messung mit Rückfallkaskade. Gibt IMMER ein Dict zurück:
     {"analysis": dict|None, "phrase": str|None, "resolved_via": str|None,
      "attempts": [{"phrase", "verdict", "reason"}...]}
@@ -276,6 +399,68 @@ def measure_topic(topic: str) -> dict:
 
     return {"analysis": None, "phrase": None, "resolved_via": None,
             "attempts": attempts}
+
+
+def measure_topic(topic: str) -> dict:
+    """Die Messung, danach der Themenschaerfe-Filter (Befund 1 der Jurys).
+
+    Die Kaskade darf eine breite Auffangklasse waehlen — hier wird sie wieder
+    entfernt. Traegt die verbleibende Basis das Thema nicht, gibt es keine
+    Messung: `analysis` wird None, und der Anhang schreibt den Grund hin."""
+    out = _measure_topic_raw(topic)
+    analysis = out.get("analysis")
+    sel = list((analysis or {}).get("selection") or [])
+    if not (_measurable(analysis) and sel):
+        return out
+    sharp = sharpen_selection(sel, topic)
+    out["sharpening"] = sharp
+    if sharp.get("reason"):
+        out.setdefault("attempts", []).append({
+            "phrase": ", ".join(sel), "verdict": "base_too_broad",
+            "reason": sharp["reason"]})
+        logger.warning("quant: measurement dropped — %s", sharp["reason"])
+        return {**out, "analysis": None, "phrase": None, "resolved_via": None}
+    kept = sharp["kept"]
+    if kept != sel:
+        phrase = out.get("phrase") or normalize_topic(topic) or topic
+        dropped = ", ".join(d["symbol"] for d in sharp["dropped"])
+        try:
+            from scripts.tech_analyze import analyze_query
+            res = analyze_query(phrase, codes=kept)
+        except Exception as exc:                                    # noqa: BLE001
+            logger.warning("re-analysis on sharpened codes failed: %r", exc)
+            res = None
+        if not _measurable(res):
+            try:
+                from scripts.tech_analyze import analyze_codes
+                res = analyze_codes(kept)
+                if _measurable(res):
+                    res = {**res, "off_topic": False, "candidates":
+                           (analysis.get("candidates") or []),
+                           "leadtime": None, "query": topic}
+            except Exception as exc:                                # noqa: BLE001
+                logger.warning("SQL-only re-analysis failed: %r", exc)
+                res = None
+        if not _measurable(res):
+            reason = (f"the topically sharp classes ({', '.join(kept)}) yield no "
+                      f"trajectory; the measurable base was carried by the broad "
+                      f"class(es) {dropped}")
+            out.setdefault("attempts", []).append({
+                "phrase": ", ".join(kept), "verdict": "base_too_broad",
+                "reason": reason})
+            logger.warning("quant: measurement dropped — %s", reason)
+            return {**out, "analysis": None, "phrase": None, "resolved_via": None}
+        analysis = res
+        out["resolved_via"] = ((out.get("resolved_via") or "topic phrase")
+                               + f", sharpened to {', '.join(kept)} "
+                                 f"(dropped {dropped} — below topical hit density)")
+    # Leitpatente: nur was den Titel nach dem Thema traegt.
+    hubs = analysis.get("top_patents") or []
+    on_topic = topical_hubs(hubs, topic)
+    out["hubs_dropped"] = len(hubs) - len(on_topic)
+    analysis = {**analysis, "top_patents": on_topic}
+    out["analysis"] = analysis
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -484,6 +669,28 @@ def measurement_appendix(analysis: dict | None, topic: str, meta: dict | None = 
                   else "**Patent technology classes measured (CPC):** ")
                  + "; ".join(parts))
         L.append("")
+        # Themenschaerfe der Basis (Befund 1): welche Klasse wie dicht am Thema
+        # liegt und welche deshalb NICHT gemessen wurde. Ohne diese Zeilen war
+        # nicht erkennbar, dass eine 71.000er-Auffangklasse die Basis stellte.
+        sharp = (meta or {}).get("sharpening") or {}
+        if sharp.get("rows"):
+            def _row(code: str) -> str:
+                r = sharp["rows"].get(code) or {}
+                return (f"`{code}` {r.get('hits', 0):,}/{r.get('total', 0):,} "
+                        f"= {r.get('precision', 0.0):.1%}")
+            L.append(
+                ("**Themenschärfe der Messbasis** (Anteil der Patente einer "
+                 "Klasse, die das Thema im Titel/Abstract nennen; Schwelle "
+                 f"{sharp.get('floor', 0.0):.1%}): gemessen "
+                 if de else
+                 "**Topical sharpness of the measurement base** (share of a "
+                 "class's patents that name the topic in title/abstract; "
+                 f"threshold {sharp.get('floor', 0.0):.1%}): measured ")
+                + "; ".join(_row(c) for c in sharp.get("kept") or [])
+                + ((" — " + ("nicht gemessen" if de else "not measured") + ": "
+                    + "; ".join(_row(d["symbol"]) for d in sharp["dropped"]))
+                   if sharp.get("dropped") else ""))
+            L.append("")
     if traj.get("n_total"):
         L.append((f"**Messbasis:** {traj['n_total']:,} Patente im "
                   f"Zitationsgraphen der gewählten Klassen"
@@ -642,11 +849,13 @@ def measurement_appendix(analysis: dict | None, topic: str, meta: dict | None = 
                      f"{h.get('cites'):,} " + ("Zitationen" if de else "citations")
                      + f") — {h.get('title')}")
         L.append("")
-        L.append("Sortiert nach Vorwärtszitationen in der CPC-Domäne; das bevorzugt "
-                 "alte, breite Anmeldungen und ist kein Themenranking."
+        L.append("Sortiert nach Vorwärtszitationen in der CPC-Domäne, danach auf "
+                 "Anmeldungen gefiltert, die das Thema im Titel führen; "
+                 "Vorwärtszitationen bevorzugen ältere Anmeldungen."
                  if de else
-                 "Ranked by forward citations inside the CPC domain; this favours old, "
-                 "broad filings and is not a topical ranking.")
+                 "Ranked by forward citations inside the CPC domain, then filtered "
+                 "to filings that carry the topic in their title; forward citations "
+                 "favour older filings.")
         L.append("")
 
     L.append("*" + _CAVEATS + "*")

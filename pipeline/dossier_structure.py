@@ -31,7 +31,8 @@ from __future__ import annotations
 
 import re
 
-from pipeline.grounding import _concrete_tokens, ungrounded_specifics
+from pipeline.grounding import (_concrete_tokens, _in_source, _source_words,
+                                ungrounded_specifics)
 
 # --- Laengenbudget --------------------------------------------------------
 # 2.200-2.800 ist das Fenster des Siegertexts (2.833) plus unsere zwei
@@ -325,8 +326,9 @@ def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
     for s in sources:
         by_url[s.get("url")] = s
     body = body_text(report_md)
-    checked = figures = 0
+    checked = figures = subjects = 0
     bad: list[dict] = []
+    off_topic: list[dict] = []
     for raw in _SENT_SPLIT.split(body):
         sentence = raw.strip()
         if not sentence or sentence.startswith("#"):
@@ -345,9 +347,17 @@ def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
         checked += 1
         figures += len(_concrete_tokens(claim))
         if tokens:
-            bad.append({"sentence": sentence, "tokens": tokens,
+            bad.append({"sentence": sentence, "tokens": tokens, "kind": "figure",
                         "url": cited[0].get("url", "")})
-    return {"checked": checked, "figures": figures, "unverified": bad}
+        # Themenpruefung: handelt die zitierte Seite ueberhaupt von dem, was der
+        # Satz behauptet? (Befund 2 der Jurys — richtige Zahl, falsche Seite.)
+        names = unverified_subjects(claim, haystack)
+        subjects += len(subject_names(claim))
+        if names:
+            off_topic.append({"sentence": sentence, "tokens": names,
+                              "kind": "subject", "url": cited[0].get("url", "")})
+    return {"checked": checked, "figures": figures, "unverified": bad,
+            "subjects": subjects, "off_topic": off_topic}
 
 
 def drop_unverified(report_md: str, unverified: list[dict]) -> tuple[str, int]:
@@ -373,12 +383,25 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
     vollstaendig aus deterministischen Befunden erzeugt."""
     L = _lang(lang)
     lines = list(findings)
-    for e in cite_findings[:8]:
+    for e in cite_findings[:10]:
         toks = ", ".join(repr(t) for t in e["tokens"][:4])
-        lines.append(
-            f"Die Zahl(en) {toks} stehen NICHT in der zitierten Seite "
-            f"({e['url'][:80]}). Satz ohne diese Zahl neu schreiben oder "
-            f"streichen: \"{e['sentence'][:180]}\"")
+        kind = e.get("kind", "figure")
+        if kind == "subject":
+            lines.append(
+                f"Die zitierte Seite ({e['url'][:80]}) handelt NICHT von "
+                f"{toks} — der Beleg traegt diese Aussage nicht. Satz mit einem "
+                f"passenden Beleg neu schreiben oder streichen: "
+                f"\"{e['sentence'][:180]}\"")
+        elif kind == "sourceless":
+            lines.append(
+                f"Die Zahl(en) {toks} stehen ohne jeden Beleg im Fliesstext. "
+                f"Entweder ein Zitat aus dem Katalog IN DENSELBEN Satz setzen "
+                f"oder die Zahl streichen: \"{e['sentence'][:180]}\"")
+        else:
+            lines.append(
+                f"Die Zahl(en) {toks} stehen NICHT in der zitierten Seite "
+                f"({e['url'][:80]}). Satz ohne diese Zahl neu schreiben oder "
+                f"streichen: \"{e['sentence'][:180]}\"")
     numbered = "\n".join(f"{i}. {x}" for i, x in enumerate(lines, 1))
     if L == "de":
         return (
@@ -397,3 +420,212 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
         "else stays as it is in substance: no new facts, no new figures, no new "
         "citations — only catalog ids that already appear. Keep the mandated "
         "outline and the citation form unchanged.")
+
+
+# --------------------------------------------------------------------------
+# Themenpruefung der Zitate (Befund 2, jury_3.md/jury_4.md 2026-09-07)
+# --------------------------------------------------------------------------
+# Der schwerwiegendste Einzelfund beider Jurys: ein CNBC-Artikel ueber die
+# Wegovy-Pille von NOVO NORDISK wurde zweimal als Beleg fuer die Zulassung von
+# LILLYS Orforglipron gefuehrt. `verify_cited_figures` prueft Zahlen — und die
+# Zahl stimmte sogar ungefaehr. Was niemand prueft, ist der GEGENSTAND: worueber
+# die Seite ueberhaupt handelt. Also dieselbe Mechanik wie `ungrounded_names`
+# (Namensliste aus dem Satz, Wort-fuer-Wort-Abgleich gegen die Quelle), nur auf
+# die Namen zugeschnitten, um die es in einem Technologie-Dossier geht:
+# Wirkstoffe (INN-Endungen) und Firmen/Produkte (Eigennamen).
+#
+# Bewusst NICHT geprueft werden reine Abkuerzungen (FDA, EMA, NHS) und einzelne
+# Grossbuchstaben-Woerter aus der Stoppliste: dort waere die Falsch-Ablehnung
+# wahrscheinlicher als der Fund, weil Seiten dieselbe Sache anders abkuerzen.
+
+# INN-Stammendungen (WHO-Nomenklatur) — reicht fuer Wirkstoffnamen im Satz:
+# semaglutide, tirzepatide, orforglipron, retatrutide, bimagrumab, dapagliflozin.
+_INN_SUFFIX = ("tide", "glipron", "glutide", "trutide", "mab", "nib", "cept",
+               "gliflozin", "sartan", "prazole", "statin", "parin", "vastatin",
+               "kinra", "lukast", "afil", "setron", "tinib", "ciclib")
+
+# Grossgeschriebene Woerter, die keinen Gegenstand benennen: Satzanfaenge,
+# Zeitangaben, Geografie/Politik-Sammelbegriffe, Rollenwoerter.
+_SUBJECT_STOP = frozenset("""
+the this that these those there their they them then than when where which
+while with without within after before during since until under over about
+across against among between into onto upon from for and but not now new
+however therefore because although though despite both each every some many
+most more less least first second third fourth fifth next last only also
+january february march april may june july august september october november
+december monday tuesday wednesday thursday friday saturday sunday
+europe european eu union america american americas asia asian africa african
+germany german france french italy italian spain spanish netherlands dutch
+britain british england english uk usa us china chinese japan japanese india
+indian brazil global international national federal state states government
+company companies market markets industry sector technology technologies
+research development regulation regulatory approval approvals patent patents
+science scientific clinical trial trials study studies data evidence report
+reports analysis source sources phase price prices supply demand growth
+option options risk risks trigger effort horizon summary decision decisions
+what who which where how why our their its it is are was were has have had
+key core main major minor overall further given based note noted see
+""".split())
+
+_CAP_TOKEN = re.compile(r"[A-Z][A-Za-z0-9&./'’-]*")
+_LOWER_TOKEN = re.compile(r"\b[a-z][a-z-]{6,}\b")
+# Verbindungswoerter INNERHALB eines Eigennamens ("Bank of England",
+# "Novo Nordisk A/S") — nur wenn links UND rechts ein Grossbuchstabenwort steht.
+_NAME_GLUE = frozenset("of and & de la van der von den du el al".split())
+MAX_SUBJECTS = 8
+
+
+def _inn_like(word: str) -> bool:
+    return len(word) >= 8 and word.endswith(_INN_SUFFIX)
+
+
+def subject_names(sentence: str) -> list[str]:
+    """Die Gegenstaende, die ein Satz behauptet: Firmen-/Produkt-Eigennamen und
+    Wirkstoffnamen. Reihenfolge = Satzreihenfolge, jeder Name einmal."""
+    text = prose(sentence or "")
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def add(name: str) -> None:
+        key = name.lower()
+        if key not in seen and len(out) < MAX_SUBJECTS:
+            seen.add(key)
+            out.append(name)
+
+    toks = list(_CAP_TOKEN.finditer(text))
+    i = 0
+    while i < len(toks):
+        parts = [toks[i].group(0)]
+        j = i + 1
+        while j < len(toks):
+            gap = text[toks[j - 1].end():toks[j].start()]
+            glue = gap.strip().lower()
+            if gap.strip() == "":
+                parts.append(toks[j].group(0))
+            elif (glue in _NAME_GLUE and j + 1 < len(toks)
+                  and text[toks[j].end():toks[j + 1].start()].strip() == ""):
+                parts.append(gap.strip())
+                parts.append(toks[j].group(0))
+            elif glue == "":
+                parts.append(toks[j].group(0))
+            else:
+                break
+            j += 1
+        words = [p for p in parts if p[:1].isupper()]
+        clean = [w.rstrip(".,;:").strip("'’") for w in words]
+        clean = [w for w in clean if w and w.lower() not in _SUBJECT_STOP]
+        if len(clean) >= 2:
+            add(" ".join(clean))
+        elif len(clean) == 1:
+            w = clean[0]
+            # Ein Artikel davor macht aus dem Wort meist einen Ort oder eine
+            # Institution ("the Hague", "the Netherlands", "the Commission") —
+            # dort ist die Falsch-Ablehnung wahrscheinlicher als der Fund.
+            prev = text[:toks[i].start()].rstrip().split(" ")[-1].lower()
+            lead = parts[0].rstrip(".,;:").lower() if parts else ""
+            if prev in ("the", "a", "an", "der", "die", "das") \
+                    or lead in ("the", "a", "an"):
+                i = max(j, i + 1)
+                continue
+            # Ein einzelnes Wort nur, wenn es wie ein Eigenname aussieht
+            # (Grossbuchstabe + Kleinbuchstaben, >=4 Zeichen): "Wegovy",
+            # "Mounjaro", "Metsera" — nicht "FDA", nicht "The".
+            if len(w) >= 4 and w[0].isupper() and any(c.islower() for c in w[1:]) \
+                    and not w.isupper():
+                add(w)
+        i = max(j, i + 1)
+    for m in _LOWER_TOKEN.finditer(text):
+        if _inn_like(m.group(0)):
+            add(m.group(0))
+    return out
+
+
+def unverified_subjects(sentence: str, page: str) -> list[str]:
+    """Gegenstaende des Satzes, die im Volltext der zitierten Seite fehlen.
+
+    Nicht leer = die Seite handelt nachweislich von etwas anderem; das Zitat
+    wird abgelehnt. Abgleich wortweise ueber `grounding._in_source`, also
+    diakritika- und possessiv-tolerant ("Lilly's" trifft "Lilly")."""
+    src = _source_words(page or "")
+    if not src:
+        return []
+    bad: list[str] = []
+    for name in subject_names(sentence):
+        if not _in_source_phrase(name, src):
+            bad.append(name)
+    return bad
+
+
+def _in_source_phrase(name: str, src: set[str]) -> bool:
+    """Ein mehrteiliger Name gilt als belegt, wenn ALLE seine Namensteile in der
+    Seite stehen (Verbindungswoerter zaehlen nicht mit). "Eli Lilly" verlangt
+    "Eli" UND "Lilly"; ein Artikel ueber Novo Nordisk hat beides nicht."""
+    words = [w for w in re.split(r"\s+", name)
+             if w and w.lower() not in _NAME_GLUE]
+    return all(_in_source(w, src) for w in words) if words else True
+
+
+# --------------------------------------------------------------------------
+# Quellenlose Praezisionszahlen (Befund 3, jury_3.md/jury_4.md)
+# --------------------------------------------------------------------------
+# „North America held 77.72% of worldwide sales in 2024, while Asia-Pacific is
+# projected to grow at a CAGR of 14.6% through 2035 ." — der Satz endet auf
+# einen freistehenden Punkt, wo das Zitat stehen sollte. Beide Jurys werteten
+# das als inakzeptabel fuer ein bezahltes Gutachten. Regel ohne Modellurteil:
+# eine Praezisionszahl im Fliesstext braucht ein Zitat IM SELBEN SATZ — oder sie
+# muss aus dem eigenen Messanhang stammen (der steht codegeneriert im Dokument).
+# Jahreszahlen und kleine ganze Zahlen sind keine Praezisionszahlen: sie zu
+# streichen wuerde jeden zweiten Satz kosten, ohne einen Beleg zu erzwingen.
+
+_PRECISION_RE = re.compile(
+    r"(?<![\w.,])(?:"
+    r"[$€£]\s?\d[\d.,·]*\s?(?:bn|billion|m|million|k|trillion)?"   # Betraege
+    r"|\d[\d.,·]*\s?%"                                            # Prozent
+    r"|\d{1,3}[.,·]\d{1,2}(?![\d.,])"                             # Dezimal
+    r"|\d[\d.,·]*\s?(?:billion|million|trillion|bn|Mrd\.?|Mio\.?)"  # Groessen
+    r")", re.IGNORECASE)
+
+
+def precision_figures(sentence: str) -> list[str]:
+    """Zahlen, die ohne Beleg nicht im Fliesstext stehen duerfen."""
+    out, seen = [], set()
+    for m in _PRECISION_RE.finditer(prose(sentence or "")):
+        t = m.group(0).strip()
+        if t and t.lower() not in seen:
+            seen.add(t.lower())
+            out.append(t)
+    return out
+
+
+def _figure_in_measured(token: str, measured: str) -> bool:
+    if not measured:
+        return False
+    return not ungrounded_specifics(token, measured) and _decimal_on_page(token, measured)
+
+
+def sourceless_figures(report_md: str, sources: list[dict],
+                       measured: str = "") -> list[dict]:
+    """Saetze des Fliesstexts, die eine Praezisionszahl OHNE Zitat tragen und
+    deren Zahl auch nicht aus dem eigenen Messanhang stammt.
+
+    Rueckgabe wie `verify_cited_figures`: [{"sentence", "tokens", "url"}] —
+    dieselbe Weiterverarbeitung (ein Neuwurf, danach mechanische Streichung)."""
+    by_id, by_url = {}, {}
+    for s in sources:
+        by_id[s.get("id")] = s
+        if s.get("origin"):
+            by_url.setdefault(s["origin"], s)
+    for s in sources:
+        by_url[s.get("url")] = s
+    out: list[dict] = []
+    for raw in _SENT_SPLIT.split(body_text(report_md)):
+        sentence = raw.strip()
+        if not sentence or sentence.startswith("#") or sentence.startswith("|"):
+            continue
+        if _cited_in(sentence, by_id, by_url):
+            continue                     # belegt — der Zahlen-Check greift dort
+        figs = [f for f in precision_figures(sentence)
+                if not _figure_in_measured(f, measured)]
+        if figs:
+            out.append({"sentence": sentence, "tokens": figs, "url": ""})
+    return out
