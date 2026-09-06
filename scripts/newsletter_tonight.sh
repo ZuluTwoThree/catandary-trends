@@ -14,6 +14,14 @@
 #   3. Confirmed subscribers live in MySQL on Hetzner; this sender reads local
 #      Postgres. The export bridge (export.php + sync_subscribers.py) has to run
 #      first, or real signups are never mailed.
+#
+# RELEASE GATE (owner mandate 2026-09-06): the send step below exits 2 and mails
+# nothing unless the edition has been released by a person at
+# /trends/newsletter/review (newsletter_editions.approved_at). This wrapper
+# generates a FRESH edition, which is by definition not released yet — so a run
+# of this script ends at `send=2` until the owner has read and released it. That
+# is the intended order (generate → read → release → send), not a failure; see
+# docs/owner_manual.md § 7.5.
 set -u
 
 # cron has no systemd user session — set XDG_RUNTIME_DIR so `systemctl --user`
@@ -85,6 +93,11 @@ export NEWSLETTER_LLM_BACKEND=llamacpp
     "$PY" -m pipeline.newsletter_sender --latest
     RC_SEND=$?
     echo "----- sender exit code: $RC_SEND -----"
+    if [ "$RC_SEND" -eq 2 ]; then
+      echo "      (edition not released — read it at /trends/newsletter/review"
+      echo "       and press 'Release for sending', then run the sender again:"
+      echo "       .venv/bin/python -m pipeline.newsletter_sender --latest)"
+    fi
   else
     echo "----- generation FAILED (rc=$RC_GEN) — skipping send (no stale edition) -----"
   fi

@@ -534,7 +534,10 @@ Cron 08:30 vorbereitet) die bestätigten Adressen aus dem Hetzner-MySQL in
 `newsletter_subscribers` zieht, (3) die Links in den Mails auf `catandary.de` zeigen. Restliste:
 `docs/launch/newsletter-doi-php/NEWSLETTER_GOLIVE.md`. Sender testen:
 `python -m pipeline.newsletter_sender --latest --dry-run` (rendert, zählt
-Empfänger, sendet nicht).
+Empfänger, sendet nicht). Der Wrapper erzeugt eine **frische** Edition — die ist
+naturgemäß noch nicht freigegeben, sein Versandschritt endet also mit `send=2`
+und einem Hinweis im Log. Das ist die vorgesehene Reihenfolge (erzeugen → lesen
+→ freigeben → senden), kein Fehler.
 
 ### 7.5 Ausgabe freigeben (`/trends/newsletter/review`)
 
