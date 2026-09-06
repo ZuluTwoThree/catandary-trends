@@ -1,7 +1,8 @@
 # Agentic Scouting-Dossiers (Owner-only) — `/trends/dossiers`
 
-Stand 2026-09-07 (Entscheidungsebene S1-S4 — s. „Die Entscheidungsebene"
-weiter unten; davor am selben Tag Messkette M1/M2/M3/M4/M6, davor 2026-09-03
+Stand 2026-09-07 (Runde 3: Themenschärfe R3-1 bis R3-4 — s. „Die dritte
+Runde" weiter unten; davor am selben Tag Entscheidungsebene S1-S4 und
+Messkette M1/M2/M3/M4/M6, davor 2026-09-03
 Frontend-Integration #95, Branch `Agentic-Dossiers` am 2026-09-03 nach `dev`
 gemergt). Baut den agentischen Rechercheur (`scripts/corpus_research.py`,
 Skizze in `docs/corpus_research_sketch.md`) zum Owner-Werkzeug aus: Der Owner
@@ -287,6 +288,86 @@ Quellenverzeichnis dedupliziert (die Stichprobe fand zwei Doppeleinträge).
 Auftrags-`params {"measure": false}`) — `report_system(False, …)` ist wörtlich
 der alte `REPORT_SYSTEM`, der alte Pfad bleibt reproduzierbar.
 
+## Die dritte Runde (2026-09-07) — Themenschärfe und Belegdisziplin
+
+Nach der Entscheidungsebene lief dasselbe Blindverfahren erneut: zwei Jurys
+(`scratchpad/glp1/jury_3.md`, `jury_4.md`) verglichen unser Dossier
+`glp1-decision` mit einer reinen Web-Recherche. Ergebnis **33/70 gegen 57/70**
+bzw. **40/70 gegen 61/70** — deutlicher als in Runde 1/2. Vier Befunde gaben
+den Ausschlag; alle vier sind jetzt Mechanik.
+
+**R3-1 — die Eigenmessung war zu grob und galt beiden Jurys als „Zahlenschmuck".**
+Die CPC-Auswahl landete auf `A61P3/10` („for hyperglycaemia, e.g.
+antidiabetics", **70.991 Patente**) — dem ganzen Antidiabetika-Feld, nicht
+Inkretinen. Folgen im eigenen Anhang: die Verbesserungsrate schwankte über 42
+Jahre nur zwischen 2,9 und 4,4 %, die Leitpatente hießen „Humanized
+immunoglobulins", und der Bericht musste seine eigene Top-Liste als „kein
+Themenranking" ausweisen. Ursache im Code: `resolve_candidates()` wählt in
+Distanzreihenfolge vor, bis `DENSITY_TARGET` (8.000 Patente) erreicht ist — eine
+einzige breite Auffangklasse reißt dieses Budget in einem Schritt um das
+25-fache. `pipeline/dossier_quant.topical_precision()` misst deshalb je Klasse
+die **Trefferdichte**: welcher Anteil ihrer Patente nennt das Thema überhaupt im
+Titel/Abstract (`patent_search`-Volltext, ~3 s)? `sharpen_selection()` behält
+nur Klassen ab `max(2 %, ⅓ der besten Klasse)`. Auf GLP-1 gemessen:
+`C12N2501/335` 10,0 % · `A61P5/48` 5,8 % · `A61P3/10` **2,2 % → raus**;
+Messbasis 49.913 → **2.688 Patente**. Trägt die scharfe Basis keine Trajektorie
+mehr oder bleibt keine Klasse übrig, **entfällt der Messblock** und der Anhang
+schreibt hin, warum (`verdict: base_too_broad`) — ein fehlender Block kostet
+weniger als ein irreführender. Die Leitpatente führt `topical_hubs()` nur noch,
+wenn der Titel einen Themenbegriff trägt; sonst entfällt der Block ganz.
+Behalten wurde die Kennzahl, die trug: „kein Technologie-Cliff trotz
+Marktdynamik" (Zykluszeit 11,0 Jahre).
+
+**R3-2 — Fehlzuordnung einer Quelle.** Ein CNBC-Artikel über Novos
+Wegovy-Pille wurde zweimal als Beleg für Lillys Orforglipron-Zulassung geführt.
+`verify_cited_figures()` prüfte Zahlen — und die Zahl stimmte ungefähr;
+geprüft wurde nie der **Gegenstand**. `dossier_structure.subject_names()`
+zieht die Firmen-, Produkt- und Wirkstoffnamen aus dem Satz (Eigennamen-Phrasen
+plus INN-Endungen: -tide, -glipron, -mab …), `unverified_subjects()` verlangt
+jeden davon wortweise im Volltext der zitierten Seite (`grounding._in_source`,
+diakritika- und possessivtolerant). Fehlt einer, wird das **Zitat abgelehnt**.
+Bewusst nicht geprüft werden reine Abkürzungen (FDA, EMA) und Einzelwörter
+hinter einem Artikel („the Hague") — dort wäre die Falsch-Ablehnung
+wahrscheinlicher als der Fund.
+
+**R3-3 — quellenlose Präzisionszahlen.** „North America held 77.72% … CAGR of
+14.6% through 2035 ." — der Satz endet auf einen freistehenden Punkt, wo das
+Zitat stehen sollte. `sourceless_figures()` verlangt für jede Präzisionszahl
+(Dezimalwert, Prozent, Betrag, Größenordnung) im Fließtext **ein Zitat im
+selben Satz** — oder die Zahl muss aus dem eigenen Messanhang stammen, der
+codegeneriert im selben Dokument steht. Jahreszahlen und kleine ganze Zahlen
+sind keine Präzisionszahlen (sie zu streichen würde jeden zweiten Satz kosten,
+ohne einen Beleg zu erzwingen). Befund geht denselben Weg wie eine widerlegte
+Zahl: **ein** Neuwurf, danach `drop_unverified()`.
+
+**R3-4 — interne Belege sind für Dritte unprüfbar.** Die Messquellen zeigen auf
+`catandary.de`, das Bot-UAs mit 403 abweist (unsere eigene KI-Crawler-Sperre,
+`frontend/src/lib/aiCrawlers.ts`) — beide Jurys konnten die zentralste Quelle
+des Berichts nicht abrufen. Die Sperre bleibt. Stattdessen weist sich der
+Messanhang selbst als der Beleg aus: Rechenweg, Klassenauswahl mit
+Trefferdichte, n und Zeitraum stehen im Dokument, plus der Satz, dass hinter dem
+Link kein öffentlich abrufbares Dokument liegt und keine Fremdquelle diese
+Zahlen trägt.
+
+**R3-5 (aus `jury_4.md`) — Abdeckungslücke des Sweeps.** Dem Siegertext lagen
+Ereignisse vor, die uns komplett fehlten: das Bietergefecht um Metsera,
+Frankreichs Erstattungspremiere, der NHS-Rollout, die Wirkstoff-Pipeline. Das
+ist kein Schreib-, sondern ein Sweep-Problem: die allgemeine Web-Stufe folgt den
+Lücken, die das Audit benennt, und ein Audit über einem technologielastigen
+Korpus benennt keine Erstattungsentscheidung. `sweep_regulatory()` ist deshalb
+zu `sweep_fixed()` verallgemeinert (feste Muster, eigenes Katalogbudget,
+Volltextpflicht, Protokoll auch über die Muster ohne Treffer), und
+`sweep_market()` ist die **zweite feste Richtung**: Erstattungsentscheidung
+(FR/DE) · nationaler Rollout · Übernahme/Bietergefecht · Phase-3-Ergebnisse ·
+Quartalszahlen · Markteintritt und Preis. Eigener Katalogbereich `[market]`
+(`MKT_MAX_SOURCES` 12 / `MKT_MAX_FETCH` 8) — Recht und Markt konkurrieren nicht
+um dieselbe Kappe. Ledger-Zeilen `kind: "market"` zählen wie die
+Rechts-Zeilen **nicht** als offene Frage (Python wie Frontend).
+
+**Schalter unverändert:** alles hängt am bestehenden `measure`
+(`DOSSIER_MEASURE=0` / Auftrags-`params {"measure": false}`); der alte Pfad
+bleibt reproduzierbar. Kein Kritiker-Modell, keine Schreib-Kritik-Schleife.
+
 ## Tests
 
 - `tests/test_dossier_orders.py` — Statusfluss-Invarianten (nie automatisch
@@ -311,7 +392,11 @@ der alte `REPORT_SYSTEM`, der alte Pfad bleibt reproduzierbar.
   zitierbar, Fetch-Budget, Suchausfall killt den Lauf nicht, `[legal]` ist
   keine offene Frage); Beleg-Verifikation an genau dem durchgerutschten Fall
   („1,2 Mio." gegen die ING-Seite) inkl. Streichung; URL-Hygiene und
-  Doppeleinträge.
+  Doppeleinträge. Dazu Runde 3: Themenschärfe der Messbasis (breite
+  Auffangklasse fliegt raus, Dichte-Query-Ausfall ändert nichts, Messung
+  entfällt statt zu täuschen, themenfremde Leitpatente), Themenprüfung der
+  Zitate (genau der CNBC/Lilly-Fall), quellenlose Präzisionszahlen (inkl. der
+  Ausnahme „steht im eigenen Messanhang") und der Markt-/Erstattungs-Sweep.
 - Frontend: `dossier-access.test.ts` (Guard: Default an, Not-Aus, PUBLIC_MODE/
   Export zu; Slug-Parität zu Python), `publicMode.test.ts` + `staticExport.test.ts`
   (Blockliste ↔ Export-Ausschluss), `markdown.test.ts` (Pipe-Tabellen),
