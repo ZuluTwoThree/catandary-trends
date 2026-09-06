@@ -22,6 +22,13 @@ Owner gates: RESEND_API_KEY (present) + a Resend-verified sending domain (SPF/
 DKIM) for real delivery. Until then use --dry-run (renders + counts, no send)
 or EMAIL_TRANSPORT=console-equivalent via --dry-run.
 
+Release gate (owner mandate 2026-09-06): an edition is only sent once a person
+has read it and released it — `newsletter_editions.approved_at`, set by the
+release view /trends/newsletter/review. Without it a send attempt exits 2 and
+mails nothing; --dry-run stays allowed and says that the release is missing.
+There is no flag to switch the gate off, by design. --force only overrides the
+already-sent check, never the release.
+
     python -m pipeline.newsletter_sender --dry-run          # latest edition
     python -m pipeline.newsletter_sender --latest           # send latest
     python -m pipeline.newsletter_sender --year 2026 --week 29
@@ -42,6 +49,7 @@ from pipeline import db as db_mod
 from pipeline.db import get_connection
 from pipeline.newsletter_generator import (
     decode_edition_row,
+    ensure_approval_columns,
     get_latest_newsletter,
     generate_html,
 )
@@ -63,13 +71,19 @@ BATCH = 100
 
 
 def migrate() -> None:
-    """Additive: mark editions as sent (idempotency)."""
+    """Additive: mark editions as sent (idempotency) + carry the approval columns.
+
+    The approval columns are what the release gate below reads, so they are
+    ensured here as well: a missing column must never let the gate fail open
+    (scripts/migrate_newsletter_approval.py is the visible, by-hand run).
+    """
     with get_connection() as conn:
         for col, typ in [("sent_at", "TIMESTAMP"), ("recipients_count", "INTEGER")]:
             try:
                 conn.execute(f"ALTER TABLE newsletter_editions ADD COLUMN {col} {typ}")
             except Exception:
                 pass  # already exists
+    ensure_approval_columns()
 
 
 def _b64url(raw: bytes) -> str:
@@ -131,9 +145,12 @@ def confirmed_subscribers() -> list[str]:
 
 
 UNSUB_TOKEN = "{{UNSUBSCRIBE_URL}}"
+# Stand-in for the per-recipient link in a preview render (no address, no
+# secret needed). Everything else in the preview is byte-identical to the mail.
+PREVIEW_UNSUB_URL = "https://catandary.de/newsletter/unsubscribe.php?t=PREVIEW"
 
 
-def _wrap_html(body_html: str, email: str) -> str:
+def _substitute_unsub(body_html: str, unsub: str) -> str:
     """Put the recipient's unsubscribe link into the template's own footer.
 
     The template carries a {{UNSUBSCRIBE_URL}} placeholder so the link sits
@@ -145,7 +162,6 @@ def _wrap_html(body_html: str, email: str) -> str:
     unsubscribe link. Dropping it silently would be a legal problem, not a
     cosmetic one (§ 7 UWG, Art. 21 DSGVO).
     """
-    unsub = unsubscribe_url(email)
     if UNSUB_TOKEN in body_html:
         return body_html.replace(UNSUB_TOKEN, unsub)
     logger.warning("template has no %s placeholder — appending plain footer",
@@ -159,6 +175,27 @@ def _wrap_html(body_html: str, email: str) -> str:
     return body_html + footer
 
 
+def _wrap_html(body_html: str, email: str) -> str:
+    """The recipient's copy: their signed unsubscribe link in the footer."""
+    return _substitute_unsub(body_html, unsubscribe_url(email))
+
+
+def render_email_html(edition: dict, recipient: str | None = None) -> str:
+    """THE mail HTML of one edition — the single source for send AND preview.
+
+    `recipient=None` renders the preview: identical bytes except the
+    per-recipient unsubscribe link, which becomes PREVIEW_UNSUB_URL (so a
+    preview needs neither an address nor NEWSLETTER_UNSUB_SECRET). The release
+    view at /trends/newsletter/review shows exactly this, via the read-only
+    CLI in pipeline/newsletter_preview.py — the owner reads what the recipient
+    will read, not a second implementation of it.
+    """
+    base_html = generate_html(edition)
+    return _substitute_unsub(
+        base_html,
+        unsubscribe_url(recipient) if recipient else PREVIEW_UNSUB_URL)
+
+
 def build_message(email: str, subject: str, base_html: str) -> dict:
     """One Resend /emails(/batch) item; `headers` is Resend's custom-header field."""
     return {
@@ -170,12 +207,42 @@ def build_message(email: str, subject: str, base_html: str) -> dict:
     }
 
 
+def approval_of(edition: dict) -> tuple[bool, str]:
+    """(released?, one-line state) — the human-in-the-loop fact of an edition.
+
+    Owner mandate 2026-09-06: the owner reads every issue and releases it
+    before it goes out. `approved_at` is that release; there is deliberately
+    NO flag to switch this off (no --require-approval=0): a switch would be
+    used, and the point of the gate is that it cannot be.
+    """
+    at = edition.get("approved_at")
+    if not at:
+        return False, "NOT RELEASED (no approved_at) — release it at /trends/newsletter/review"
+    who = edition.get("approved_by") or "unknown"
+    note = edition.get("approval_note")
+    return True, f"released {at} by {who}" + (f" — note: {note}" if note else "")
+
+
+class NotReleased(RuntimeError):
+    """Raised instead of sending an edition no person has released."""
+
+
 def send_edition(edition: dict, dry_run: bool, force: bool) -> int:
     if not unsubscribe_configured():
         # Refuse even the dry run: its whole point is "would this send work?"
         raise RuntimeError(
             "NEWSLETTER_UNSUB_SECRET not set — refusing to render/send: every mail "
             "needs a signed unsubscribe link (set it to the unsub_secret from nl_config.php)")
+    released, state = approval_of(edition)
+    logger.info("edition %s-W%s approval: %s",
+                edition.get("year"), edition.get("week"), state)
+    if not released and not dry_run:
+        # Second lock (main() checks first): send_edition is importable, so the
+        # gate lives where the sending happens, not only in the CLI. --force
+        # does NOT open it — it only overrides the already-sent check.
+        raise NotReleased(
+            f"edition {edition.get('year')}-W{edition.get('week')} has no approved_at — "
+            "refusing to send. Read and release it at /trends/newsletter/review.")
     if edition.get("sent_at") and not force:
         logger.info("edition %s-W%s already sent at %s — skipping (use --force)",
                     edition.get("year"), edition.get("week"), edition["sent_at"])
@@ -193,6 +260,9 @@ def send_edition(edition: dict, dry_run: bool, force: bool) -> int:
     base_html = generate_html(edition)
     if dry_run:
         logger.info("rendered %d chars of HTML", len(base_html))
+        if not released:
+            logger.warning("DRY RUN ONLY — a real send of this edition is refused "
+                           "until it is released at /trends/newsletter/review")
         if recipients:
             logger.info("sample unsubscribe link: %s", unsubscribe_url(recipients[0]))
         return len(recipients)
@@ -260,6 +330,12 @@ def main() -> int:
     if not edition:
         logger.error("no matching edition found")
         return 1
+    released, state = approval_of(edition)
+    if not released and not args.dry_run:
+        logger.error("edition %s-W%s: %s", edition.get("year"), edition.get("week"), state)
+        logger.error("nothing sent. Open /trends/newsletter/review, read the "
+                     "edition and press Release; --dry-run works meanwhile.")
+        return 2
     send_edition(edition, dry_run=args.dry_run, force=args.force)
     return 0
 

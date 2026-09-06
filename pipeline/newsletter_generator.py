@@ -42,6 +42,21 @@ PUBLIC_SITE_LIVE = _os.getenv("PUBLIC_SITE_LIVE", "0") == "1"
 
 BASE_URL = "https://catandary.de"
 
+# --- AI disclosure (owner mandate 2026-09-06, issue #99) --------------------
+# One sentence, stated plainly, in every channel that carries an edition: the
+# mail footer (below), the website edition (frontend EditionBody.tsx) and the
+# release view (/trends/newsletter/review). Written so it still holds if the
+# legal review of #99 (EU AI Act Art. 50) asks for an explicit label — it names
+# what is machine-made, that the check is automatic, and that a person released
+# it. No marketing, no method claim.
+# Mirror: frontend/src/lib/aiDisclosure.ts (drift guard in
+# tests/test_newsletter_ai_disclosure.py).
+AI_DISCLOSURE_EN = (
+    "Sections of this briefing are generated from our corpus by a local "
+    "language model and checked automatically; the selection and this edition "
+    "were reviewed and released by a person."
+)
+
 # --- Site design tokens (frontend/src/app/globals.css) ----------------------
 # The email must read as the same product as the website, so the palette is
 # copied from the @theme block rather than re-invented. Keep in sync.
@@ -1133,6 +1148,7 @@ def generate_html(edition: dict) -> str:
 
         <!-- Footer -->
         <tr><td style="padding: 18px 24px 22px; border-top: 1px solid {EDGE};">
+          <p style="font-family: {sans}; font-size: 11px; line-height: 1.6; color: {MUTED}; margin: 0 0 14px;">{AI_DISCLOSURE_EN}</p>
           <div style="font-family: {mono}; font-size: 10px; line-height: 1.8; letter-spacing: 0.1em; text-transform: uppercase; color: {MUTED};">
             &copy; {datetime.now().year} Catandary &nbsp;&middot;&nbsp; Built locally in Germany<br>
             You receive this because you subscribed to Catandary Trends.<br>

@@ -166,3 +166,100 @@ class TestSyncCarriesUnsubscribeStatus:
         assert "ON CONFLICT (email) DO UPDATE" in sql
         assert "newsletter_subscribers.unsubscribed_at > EXCLUDED.subscribed_at" in sql
         assert "ELSE EXCLUDED.unsubscribed_at" in sql
+
+
+# --- release gate: no edition goes out unread (owner mandate 2026-09-06) --------
+
+class TestReleaseGate:
+    """`approved_at` is the human-in-the-loop lock in front of every send.
+
+    The owner reads each issue in /trends/newsletter/review and releases it;
+    until then the sender mails nothing. There is deliberately no flag to
+    switch this off, so the tests also pin that --force does not open it.
+    """
+
+    UNRELEASED = {"id": 9, "year": 2026, "week": 36}
+    RELEASED = {"id": 9, "year": 2026, "week": 36,
+                "approved_at": "2026-09-06 08:00:00", "approved_by": "owner",
+                "approval_note": "read it"}
+
+    def test_approval_of_reports_state(self, monkeypatch):
+        m = _mod(monkeypatch)
+        ok, state = m.approval_of(self.UNRELEASED)
+        assert ok is False
+        assert "NOT RELEASED" in state and "/trends/newsletter/review" in state
+        ok, state = m.approval_of(self.RELEASED)
+        assert ok is True
+        assert "owner" in state and "read it" in state
+
+    def test_send_edition_refuses_without_approval(self, monkeypatch):
+        m = _mod(monkeypatch)
+        with pytest.raises(m.NotReleased, match="approved_at"):
+            m.send_edition(dict(self.UNRELEASED), dry_run=False, force=False)
+
+    def test_force_does_not_open_the_gate(self, monkeypatch):
+        """--force overrides the already-sent check, never the release."""
+        m = _mod(monkeypatch)
+        with pytest.raises(m.NotReleased):
+            m.send_edition(dict(self.UNRELEASED, sent_at=None), dry_run=False, force=True)
+
+    def test_no_cli_flag_switches_the_gate_off(self, monkeypatch):
+        """No opt-out option may exist — a switch would get used."""
+        m = _mod(monkeypatch)
+        flags = re.findall(r'add_argument\(\s*"(--[a-z-]+)"', Path(m.__file__).read_text())
+        assert flags == ["--latest", "--year", "--week", "--dry-run", "--force"]
+
+    def _run_main(self, monkeypatch, edition, argv):
+        m = _mod(monkeypatch)
+        sent: list = []
+        monkeypatch.setattr(m, "migrate", lambda: None)
+        monkeypatch.setattr(m, "get_edition", lambda y, w: edition)
+        monkeypatch.setattr(m, "send_edition", lambda *a, **k: sent.append(k) or 0)
+        monkeypatch.setattr("sys.argv", ["newsletter_sender", *argv])
+        return m.main(), sent
+
+    def test_main_exits_nonzero_and_sends_nothing(self, monkeypatch):
+        rc, sent = self._run_main(monkeypatch, dict(self.UNRELEASED), ["--latest"])
+        assert rc == 2
+        assert sent == []
+
+    def test_main_gate_also_applies_to_year_week(self, monkeypatch):
+        rc, sent = self._run_main(
+            monkeypatch, dict(self.UNRELEASED), ["--year", "2026", "--week", "36"])
+        assert rc == 2 and sent == []
+
+    def test_dry_run_stays_allowed_without_release(self, monkeypatch):
+        rc, sent = self._run_main(monkeypatch, dict(self.UNRELEASED), ["--dry-run"])
+        assert rc == 0
+        assert sent and sent[0]["dry_run"] is True
+
+    def test_released_edition_passes(self, monkeypatch):
+        rc, sent = self._run_main(monkeypatch, dict(self.RELEASED), ["--latest"])
+        assert rc == 0
+        assert sent and sent[0]["dry_run"] is False
+
+
+class TestPreviewRenderer:
+    """The release view must show the recipient's mail, not a second render."""
+
+    EDITION = {"id": 1, "year": 2026, "week": 36, "editorial": "A line.",
+               "vertical_summaries": {"TECH": "Tech moved."},
+               "mega_trend_radar": [], "trend_refs": {}, "total_signals": 7}
+
+    def test_preview_needs_no_secret_and_no_address(self, monkeypatch):
+        m = _mod(monkeypatch, secret="")  # unsubscribe not configured at all
+        html = m.render_email_html(self.EDITION)
+        assert m.PREVIEW_UNSUB_URL in html
+        assert "{{UNSUBSCRIBE_URL}}" not in html
+
+    def test_preview_and_recipient_copy_differ_only_in_the_unsub_link(self, monkeypatch):
+        m = _mod(monkeypatch)
+        preview = m.render_email_html(self.EDITION)
+        recipient = m.render_email_html(self.EDITION, EMAIL)
+        assert preview.replace(m.PREVIEW_UNSUB_URL, "") == recipient.replace(
+            m.unsubscribe_url(EMAIL), "")
+
+    def test_mail_carries_the_ai_disclosure(self, monkeypatch):
+        m = _mod(monkeypatch)
+        from pipeline.newsletter_generator import AI_DISCLOSURE_EN
+        assert AI_DISCLOSURE_EN in m.render_email_html(self.EDITION)
