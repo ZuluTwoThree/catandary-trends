@@ -49,6 +49,7 @@ from pipeline import dossier_orders as orders_mod
 from pipeline import gpu_handover
 from pipeline.config import EMBED_MODEL
 from pipeline.dossier_check import check_result
+from pipeline.dossier_corpus_stats import build_corpus_evidence
 from pipeline.dossier_quant import build_quant_evidence
 from scripts import corpus_research
 
@@ -74,7 +75,8 @@ def _params(order: dict) -> dict:
     return p
 
 
-def process_order(order: dict, quant: dict | None) -> bool:
+def process_order(order: dict, quant: dict | None,
+                  corpus_stats: dict | None = None) -> bool:
     """Einen als 'running' markierten Auftrag zu Ende führen → 'review'.
     True = Dossier gespeichert; False = fehlgeschlagen (Status 'failed')."""
     oid, topic = order["id"], order["topic"]
@@ -90,7 +92,7 @@ def process_order(order: dict, quant: dict | None) -> bool:
             # macht den Ausfall im Dossier sichtbar (vorher verschwand er).
             quant=quant if (quant and (quant.get("ok") or p["measure"]))
                   else None,
-            measure=p["measure"])
+            measure=p["measure"], corpus_stats=corpus_stats)
         version = corpus_research.save_dossier(
             order["slug"], topic, question, result["report"], result)
         check = check_result(result)
@@ -190,6 +192,17 @@ def _run_phases(todo: list[dict], assume_model_up: bool, skip_quant: bool) -> in
                     "ok": False, "reason": f"embedding backend unavailable: {exc}",
                     "sources": [], "note": None, "summary": None})
 
+    # --- Phase 1b: Korpus-Zaehlung (CPU/SQL, kein Modell) ------------------
+    tallies: dict[int, dict | None] = {}
+    for o in todo:
+        if not _params(o)["measure"]:
+            continue
+        try:
+            tallies[o["id"]] = build_corpus_evidence(o["topic"])
+        except Exception as exc:                                    # noqa: BLE001
+            logger.warning("Korpus-Zaehlung fuer #%d nicht moeglich: %s",
+                           o["id"], exc)
+
     # --- Phase 2: Recherche (27B) ----------------------------------------
     if assume_model_up:
         served = gpu_handover._served_model()
@@ -211,7 +224,8 @@ def _run_phases(todo: list[dict], assume_model_up: bool, skip_quant: bool) -> in
                                    o["id"])
                     skipped += 1
                     continue
-                if process_order(o, quants.get(o["id"])):
+                if process_order(o, quants.get(o["id"]),
+                                 tallies.get(o["id"])):
                     done += 1
                 else:
                     failed += 1

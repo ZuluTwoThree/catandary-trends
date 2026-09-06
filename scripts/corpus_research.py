@@ -1141,7 +1141,8 @@ def run(question: str, max_steps: int, max_sources: int,
         topic: str = "", lang: str = "en",
         seed_sources: list[dict] | None = None,
         seed_notes: list[str] | None = None,
-        quant: dict | None = None, measure: bool | None = None) -> dict:
+        quant: dict | None = None, measure: bool | None = None,
+        corpus_stats: dict | None = None) -> dict:
     """`measure` (Default an, DOSSIER_MEASURE=0 schaltet ab) bündelt die
     Messkette von 2026-09-06: gepinnte Messnotiz + codegenerierter Messanhang
     (M2), Zitate über Katalog-IDs statt Freitext-URLs (M4), audit-unabhängiger
@@ -1168,6 +1169,21 @@ def run(question: str, max_steps: int, max_sources: int,
     # the paper/patent gap sweep below runs deterministically. The note's own
     # figures are thereby grounded material for the report and its check.
     pinned_notes = 0
+    # --- corpus tally (M3) ------------------------------------------------
+    # Zweite deterministische Vorstufe: was der Korpus ZAEHLT. Der Agent kann
+    # den Korpus nur durchsuchen; ohne diese Zahlen sagt ein Dossier ueber
+    # 99,9 % der Treffer nichts, weil sie nie gezaehlt wurden.
+    if corpus_stats and corpus_stats.get("ok"):
+        for s in corpus_stats.get("sources") or []:
+            if s["id"] not in seen_ids:
+                seen_ids.add(s["id"])
+                sources.append(s)
+        if corpus_stats.get("note"):
+            notes.insert(0, "Deterministic corpus tally (cite it via the "
+                            "corpus-count source in the catalog):\n"
+                            + corpus_stats["note"])
+            pinned_notes += 1
+            logger.info("corpus tally injected as a citable source")
     if quant:
         for s in quant.get("sources") or []:
             if s["id"] not in seen_ids:
@@ -1658,6 +1674,8 @@ def run(question: str, max_steps: int, max_sources: int,
     # Dokument, unabhaengig davon, ob das Modell sie aufgreift — genau der
     # Grund, warum die Messung in 13 von 13 Laeufen nie im Bericht stand.
     # Faellt die Messung aus, steht AUCH DAS hier, statt spurlos zu fehlen.
+    if measure and (corpus_stats or {}).get("appendix"):
+        report = report.rstrip() + "\n" + corpus_stats["appendix"]
     if measure and (quant or {}).get("appendix"):
         report = report.rstrip() + "\n" + quant["appendix"]
 
@@ -1687,6 +1705,7 @@ def run(question: str, max_steps: int, max_sources: int,
                          and (quant or {}).get("summary")
                          and not (quant or {}).get("summary", {}).get("off_topic")),
         "measure": bool(measure),
+        "corpus_stats": (corpus_stats or {}).get("summary"),
         "model": MODEL,
         "seconds": round(time.time() - t0, 1),
         "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -1771,12 +1790,20 @@ def main() -> int:
                            "reported in the dossier", quant["reason"])
             if not measure:
                 quant = None      # alter Pfad: Ausfall bleibt unsichtbar
+    corpus_stats = None
+    if measure:
+        from pipeline.dossier_corpus_stats import build_corpus_evidence
+        corpus_stats = build_corpus_evidence(topic or args.question or "",
+                                             lang=lang)
+        if not corpus_stats["ok"]:
+            logger.warning("corpus tally unavailable (%s)",
+                           corpus_stats["reason"])
     try:
         result = run(question, args.steps, args.sources, args.retrieval,
                      args.per_query, args.scope, args.web_steps, args.web_sources,
                      topic=topic, lang=lang,
                      seed_sources=seed_sources, seed_notes=seed_notes,
-                     quant=quant, measure=measure)
+                     quant=quant, measure=measure, corpus_stats=corpus_stats)
     except Exception as exc:                                        # noqa: BLE001
         logger.error("%s", exc)
         return 1

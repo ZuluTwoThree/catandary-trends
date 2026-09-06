@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import re
 
+from pipeline.dossier_corpus_stats import CORPUS_HEADINGS
 from pipeline.dossier_quant import MEASURE_HEADINGS
 from pipeline.grounding import ungrounded_specifics
 
@@ -48,7 +49,7 @@ COVERAGE_HEADING = COVERAGE_HEADINGS[0]
 # measurement_appendix). Seine Jahresreihen sind Query-Ergebnisse, keine
 # Modell-Prosa — ohne diese Schnittmarke zaehlte die Endkontrolle jede
 # gemessene Zahl als "Erfindung" (derselbe Fall wie dc36438/ea0c069).
-MEASUREMENT_HEADINGS = MEASURE_HEADINGS
+MEASUREMENT_HEADINGS = MEASURE_HEADINGS + CORPUS_HEADINGS
 
 # Ebenfalls code-generiert (canonicalize_citations hängt die Quellenliste an):
 # Ordinalzahlen und Datumsangaben dieser Liste entstehen im Code, nicht im
