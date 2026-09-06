@@ -11,6 +11,7 @@ import { archiveUrl, DEAD_SOURCE_NOTICE } from "@/lib/deadLinks";
 import { safeHref } from "@/lib/safeHref";
 import { sourceLicenseNotice } from "@/lib/sourceLicense";
 import { isStaticExport } from "@/lib/renderMode";
+import AiArticleDisclosure from "./AiArticleDisclosure";
 import PestelBadge from "./PestelBadge";
 import VerticalBadge from "./VerticalBadge";
 import TrendScore from "./TrendScore";
@@ -138,6 +139,12 @@ export default function TrendArticle({
             </span>
           </div>
         </header>
+
+        {/* AI label (#99, EU AI Act Art. 50 (4)) — directly under the title
+            block, because these articles reach the reader through automatic
+            gates only. Not in the footer: the label has to be there at first
+            sight. Wording + reasoning in lib/aiDisclosure.ts. */}
+        <AiArticleDisclosure />
 
         {/* PESTEL */}
         {trend.pestel.length > 0 && (

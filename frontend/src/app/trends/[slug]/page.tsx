@@ -16,6 +16,7 @@ import {
   metadataSettled,
   afterMetadata,
 } from "@/lib/renderMode";
+import { ARTICLE_GENERATOR_META } from "@/lib/aiDisclosure";
 import { TrendArticleJsonLd } from "@/components/JsonLd";
 import TrendArticle from "@/components/TrendArticle";
 import type { Metadata } from "next";
@@ -65,6 +66,13 @@ export async function generateMetadata({
       title: `${trend.title_en} — Catandary Trends`,
       description: trend.summary_en || undefined,
       alternates: { canonical },
+      // #99: names the pipeline that wrote this page. `other` is MERGED into
+      // the layout's (Object.assign in Next's resolve-metadata), so the site's
+      // tdm-reservation/tdm-policy/robots tags survive this addition — and the
+      // generator tag stays on article pages only, which are the only pages a
+      // machine writes. It is a convention, not a standard; the disclosure
+      // that counts is the visible one (components/AiArticleDisclosure.tsx).
+      other: { generator: ARTICLE_GENERATOR_META },
       openGraph: {
         title: trend.title_en,
         description: trend.summary_en || undefined,
