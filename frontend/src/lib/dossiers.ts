@@ -52,7 +52,14 @@ export interface DossierSeries {
 }
 
 /** Evidence mix of one run, as scripts/corpus_research.py counts it. */
-export type EvidenceKind = "article" | "signal" | "paper" | "patent" | "web";
+/** "legal" = regulatory/IP sweep (fixed query patterns, fetched in full). */
+export type EvidenceKind =
+  | "article"
+  | "signal"
+  | "paper"
+  | "patent"
+  | "web"
+  | "legal";
 
 /** Provenance header of a run — what the report is a snapshot OF. */
 export interface DossierProvenance {
@@ -230,7 +237,14 @@ export async function listVersions(
   }
 }
 
-const KINDS: EvidenceKind[] = ["article", "signal", "paper", "patent", "web"];
+const KINDS: EvidenceKind[] = [
+  "article",
+  "signal",
+  "paper",
+  "patent",
+  "web",
+  "legal",
+];
 
 function num(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;

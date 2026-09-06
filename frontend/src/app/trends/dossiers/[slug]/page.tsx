@@ -34,6 +34,7 @@ const KIND_LABEL: Record<keyof DossierProvenance["kinds"], string> = {
   paper: "papers",
   patent: "patents",
   web: "web",
+  legal: "regulatory/IP",
 };
 
 function fmtDate(ts: string | null): string {
