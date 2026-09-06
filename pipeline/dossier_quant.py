@@ -329,20 +329,32 @@ def cycle_time(codes: list[str], since: str = "2015-01-01",
             "since": since[:4]}
 
 
-def centrality_peak(traj: dict | None) -> dict | None:
+def centrality_peak(traj: dict | None, min_n: int = 100) -> dict | None:
     """Jahr der höchsten mittleren SPNP-Zentralität der Domänen-Patente —
     „wann wurden die Anmeldungen geschrieben, auf die sich das Feld beruft".
     Kommt aus der Trajektorie selbst (scripts/tir_trajectory.trajectory()
-    liefert x_by_year), kostet also keine zweite Query."""
+    liefert x_by_year), kostet also keine zweite Query.
+
+    Die jüngsten Jahrgänge sind AUSGESCHLOSSEN (dieselbe TRUNC_YEARS-Grenze,
+    mit der die Trajektorie ihre Fenster als unvollständig markiert): eine
+    Kohorte, deren Zitationen noch einlaufen, kann als „Peak" gewinnen, und
+    der Satz „seither rückläufig" wäre dann sinnlos — genau das passierte im
+    GLP-1-Lauf vom 2026-09-07 (Peak angeblich 2026, das letzte Jahr).
+    `falling` sagt, ob nach dem Peak tatsächlich niedrigere Jahre folgen."""
+    from scripts.tir_trajectory import TRUNC_YEARS, YEAR_HI
     xs = (traj or {}).get("x_by_year") or {}
     pts = [(int(y), float(v[0]), int(v[1])) for y, v in xs.items()
-           if isinstance(v, (list, tuple)) and len(v) == 2 and int(v[1]) >= 100]
+           if isinstance(v, (list, tuple)) and len(v) == 2 and int(v[1]) >= min_n]
     if not pts:
         return None
-    y, x, n = max(pts, key=lambda p: p[1])
-    span = (min(p[0] for p in pts), max(p[0] for p in pts))
+    settled = [p for p in pts if p[0] <= YEAR_HI - TRUNC_YEARS]
+    if not settled:
+        return None
+    y, x, n = max(settled, key=lambda p: p[1])
+    later = [p[1] for p in settled if p[0] > y]
     return {"year": y, "percentile": round(x, 3), "n": n,
-            "from": span[0], "to": span[1]}
+            "from": min(p[0] for p in settled), "to": max(p[0] for p in settled),
+            "falling": bool(later and max(later) < x)}
 
 
 # ---------------------------------------------------------------------------
@@ -594,23 +606,30 @@ def measurement_appendix(analysis: dict | None, topic: str, meta: dict | None = 
                       if de else
                       f"**Cycle time: {cyc['years']} years** (median age of the "
                       f"patents cited backwards, {cyc['edges']:,} dated citation "
-                      f"edges, filings from {cyc.get('since')}). A short cycle time "
-                      f"implies a higher expected improvement rate."))
+                      f"edges, filings from {cyc.get('since')}). The shorter the "
+                      f"cycle time, the higher the expected improvement rate."))
         elif cyc.get("reason"):
             L.append(("Zykluszeit: " if de else "Cycle time: ") + str(cyc["reason"]) + ".")
         if peak:
             L.append("")
             L.append((f"**Zentralitäts-Peak: {peak['year']}** (mittleres "
                       f"SPNP-Perzentil {peak['percentile']}, n={peak['n']:,} Patente "
-                      f"dieses Jahrgangs; gemessen über {peak['from']}–{peak['to']}). "
-                      f"Danach fallende Zentralität heißt: die Anmeldungen, auf die "
-                      f"sich das Feld beruft, sind älter als die aktuelle Welle."
+                      f"dieses Jahrgangs; gemessen über {peak['from']}–{peak['to']}, "
+                      f"die letzten Jahrgänge sind wegen des Zitations-Nachlaufs "
+                      f"ausgeschlossen)."
                       if de else
                       f"**Centrality peak: {peak['year']}** (mean SPNP percentile "
                       f"{peak['percentile']}, n={peak['n']:,} filings of that cohort; "
-                      f"measured across {peak['from']}–{peak['to']}). Falling centrality "
-                      f"afterwards means the filings the field builds on are older "
-                      f"than the current wave."))
+                      f"measured across {peak['from']}–{peak['to']}, the most recent "
+                      f"cohorts are excluded because their citations are still "
+                      f"arriving)."))
+            if peak.get("falling"):
+                L.append("")
+                L.append("Seither fällt die Zentralität: die Anmeldungen, auf die "
+                         "sich das Feld beruft, sind älter als die aktuelle Welle."
+                         if de else
+                         "Centrality has fallen since: the filings the field builds "
+                         "on are older than the current wave.")
         L.append("")
 
     hubs = (analysis.get("top_patents") or [])[:MAX_HUB_PATENTS]
@@ -731,7 +750,7 @@ def format_quant_evidence(analysis: dict, topic: str, meta: dict | None = None,
     if cyc.get("years"):
         lines.append(f"* Cycle time (median age of the patents cited backwards): "
                      f"{cyc['years']} years over {cyc['edges']:,} dated citation "
-                     f"edges — a short cycle time implies a higher expected "
+                     f"edges — the shorter the cycle time, the higher the expected "
                      f"improvement rate.")
     if lead.get("established"):
         lines.append(

@@ -43,7 +43,9 @@ ANALYSIS = {
         "points": [{"year": y, "K": 8.0 + (y - 2000) * 0.1, "n": 400 + y,
                     "complete": y <= 2019, "early_sparse": False}
                    for y in range(2000, 2024)],
-        "x_by_year": {str(y): [0.30 + (0.30 if y == 2019 else 0.0), 250]
+        # Peak 2016; 2017-2019 sind ebenfalls "gesetzte" Jahrgaenge (2026-7),
+        # 2020+ liegen im Zitations-Nachlauf und zaehlen nicht mit.
+        "x_by_year": {str(y): [0.30 + (0.30 if y == 2016 else 0.0), 250]
                       for y in range(2010, 2027)},
     },
     "leadtime": {
@@ -241,7 +243,9 @@ class TestM2Series:
         assert "Lead time patents → market: ~7 years" in app
         assert "patent take-off 2016" in app and "market take-off 2023" in app
         assert "Cycle time: 11.0 years" in app
-        assert "Centrality peak: 2019" in app
+        assert "Centrality peak: 2016" in app
+        assert "most recent cohorts are excluded" in app
+        assert "Centrality has fallen since" in app
         assert "13,714 patents" in app
         assert "calibrated only to ~2019" in app
 
@@ -249,12 +253,26 @@ class TestM2Series:
         app = dq.measurement_appendix(ANALYSIS, "GLP-1", {}, "de", DYNAMICS)
         assert dq.MEASURE_HEADINGS[1] in app
         assert "Zykluszeit: 11.0 Jahre" in app
-        assert "Zentralitäts-Peak: 2019" in app
+        assert "Zentralitäts-Peak: 2016" in app
 
     def test_centrality_peak_needs_density(self):
         assert dq.centrality_peak({"x_by_year": {"2019": [0.6, 10]}}) is None
         peak = dq.centrality_peak(ANALYSIS["trajectory"])
-        assert peak["year"] == 2019 and peak["n"] == 250
+        assert peak["year"] == 2016 and peak["n"] == 250
+        assert peak["falling"] is True
+
+    def test_centrality_peak_ignores_unsettled_cohorts(self):
+        """Der GLP-1-Lauf vom 2026-09-07 meldete 2026 als Peak — das letzte
+        Jahr, dessen Zitationen noch einlaufen — und behauptete dazu
+        „seither rückläufig". Jahrgänge innerhalb von TRUNC_YEARS zählen
+        nicht mehr mit."""
+        traj = {"x_by_year": {"2015": [0.30, 500], "2026": [0.99, 500]}}
+        peak = dq.centrality_peak(traj)
+        assert peak["year"] == 2015
+        assert peak["falling"] is False        # kein spaeteres gesetztes Jahr
+
+    def test_centrality_peak_none_when_everything_is_unsettled(self):
+        assert dq.centrality_peak({"x_by_year": {"2025": [0.9, 900]}}) is None
 
     def test_summary_carries_the_new_scalars(self):
         out = dq.format_quant_evidence(ANALYSIS, "GLP-1", {"resolved_via": "x",
@@ -262,7 +280,7 @@ class TestM2Series:
                                        "en", DYNAMICS)
         s = out["summary"]
         assert s["cycle_time_years"] == 11.0
-        assert s["centrality_peak_year"] == 2019
+        assert s["centrality_peak_year"] == 2016
         assert s["n_patents"] == 13714
         assert s["takeoffs"]["patent"] == 2016 and s["takeoffs"]["market"] == 2023
 
