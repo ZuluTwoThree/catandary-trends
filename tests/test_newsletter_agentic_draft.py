@@ -336,3 +336,23 @@ def test_open_evidence_defect_forces_another_round():
 def test_protocol_is_json_serialisable():
     res = _run(FakeModel([4.8]))
     json.loads(json.dumps(res, default=str))
+
+
+# ---------------------------------------------------------------------------
+# 6. Kritiker und Ueberarbeiter sehen dieselben Daten
+# ---------------------------------------------------------------------------
+
+def test_critic_sees_the_per_vertical_signals_too():
+    """Erster Lauf 2026-09-06: der Kritiker bekam nur den Editorial-Block und
+    erklaerte echte Vertikal-Signale fuer erfunden. Kritiker, Ueberarbeiter
+    und maschinelle Pruefung muessen dasselbe Material sehen."""
+    data = _data()
+    check = ag.machine_check(_draft(), ag.grounding_source(data))
+    critic = ag.build_critic_prompt(_draft(), data, check)
+    reviser = ag.build_reviser_prompt(_draft(), data, _critique(3.0, [_defect()]), check)
+    block = ag.full_data_block(data)
+    assert block in critic
+    assert block in reviser
+    assert ag.grounding_source(data) == block
+    # ECO taucht nur im Vertikal-Block auf
+    assert "ECO — Sustainability" in critic

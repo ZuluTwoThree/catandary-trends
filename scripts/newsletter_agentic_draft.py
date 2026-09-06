@@ -125,9 +125,10 @@ CRITERIA: dict[str, str] = {
     ),
     "density": (
         "Verdichtung. Kein Fuellwort, keine leere Einleitungsfloskel, keine "
-        "Wiederholung zwischen Editorial und Vertikalen und keine Wiederholung "
-        "zwischen zwei Vertikalen. Wird ein Signal im Editorial genannt, darf "
-        "die Vertikale es nicht mit denselben Worten wiederholen."
+        "Doppelung. Ein Signal DARF im Editorial und in seiner Vertikale "
+        "vorkommen — das Editorial waehlt aus, die Vertikale ordnet ein. Ein "
+        "Mangel ist es erst, wenn die Vertikale dieselbe Aussage in nahezu "
+        "denselben Worten wiederholt, ohne etwas hinzuzufuegen."
     ),
     "tone": (
         "Ton. Analystenregister: behauptend, knapp, ohne Assistenzsprache "
@@ -166,14 +167,22 @@ class Critique(BaseModel):
     defects: list[Defect] = Field(default_factory=list)
 
 
+# Kalibrierung des Kritikers, korrigiert nach dem zweiten Lauf 2026-09-06: die
+# erste Fassung sagte "You do not praise" und verlangte "at most 8 defects".
+# Bei Temperatur 0 ergab das eine Konstante — der Kritiker lieferte in jeder
+# Runde acht Maengel und Noten zwischen 2,2 und 2,5, egal wie der Entwurf
+# aussah. Eine Note, die sich nie bewegt, kann keine Abbruchbedingung sein.
+# Jetzt: Notenanker statt Haltungsanweisung, und eine leere Mangelliste ist
+# eine zulaessige Antwort.
 CRITIC_SYSTEM_PROMPT = (
     "You are the copy chief of Catandary Trends. You review a draft newsletter "
-    "against a fixed catalogue of criteria and you are hard to please. You "
-    "never rewrite the text — you only judge it and name defects, each with "
-    "the exact wording you object to, copied verbatim from the draft. You do "
-    "not praise. A score of 5 means a professional analyst would publish the "
-    "passage unchanged; 3 means it is usable but generic; 1 means it is wrong "
-    "or invented."
+    "against a fixed catalogue of criteria. You never rewrite the text — you "
+    "only judge it and name defects, each with the exact wording you object "
+    "to, copied verbatim from the draft. Score honestly against these anchors: "
+    "5 = a professional analyst would publish the passage unchanged; 4 = "
+    "publishable after a small edit; 3 = usable but generic; 2 = weak, needs "
+    "a rewrite; 1 = wrong, invented, or unusable. Do not deduct for a defect "
+    "you cannot quote."
 )
 
 REVISER_SYSTEM_PROMPT = (
@@ -225,12 +234,27 @@ def data_block(prompt: str) -> str:
     return (m.group(1) if m else prompt).strip()
 
 
+def full_data_block(data: dict) -> str:
+    """Die <data>-Bloecke BEIDER Produktions-Prompts, ohne die Anweisungen.
+
+    Kritiker, Ueberarbeiter und die maschinelle Pruefung muessen exakt
+    dasselbe Material sehen. Im ersten Lauf am 2026-09-06 bekam der Kritiker
+    nur den Editorial-Block und erklaerte daraufhin echte Vertikal-Signale
+    (Maash, ProFound Therapeutics, Politecnico di Milano) fuer erfunden — die
+    maschinelle Pruefung, die immer beide Bloecke sah, widersprach ihm mit 0
+    unbelegten Zahlen. Ein Kritiker, der weniger sieht als der Schreiber,
+    produziert Belegtreue-Maengel, die keine sind.
+
+    Ohne die Anweisungen, weil die Zahlen enthalten ('150-200 Woerter',
+    '2-3 Saetze') — sonst waere eine erfundene 200 im Text plotzlich belegt.
+    """
+    return data_block(build_editorial_prompt(data)) + "\n\n" + data_block(build_vertical_prompt(data))
+
+
 def grounding_source(data: dict) -> str:
-    """Faktenbasis fuer die maschinelle Pruefung: die <data>-Bloecke beider
-    Produktions-Prompts, ohne die Anweisungen. Die Anweisungen enthalten
-    Zahlen ('150-200 Woerter', '2-3 Saetze'), die sonst eine erfundene 200 im
-    Text als belegt durchgehen liessen."""
-    return data_block(build_editorial_prompt(data)) + "\n" + data_block(build_vertical_prompt(data))
+    """Faktenbasis der maschinellen Pruefung — identisch mit dem, was die
+    Modellrollen sehen."""
+    return full_data_block(data)
 
 
 def banned_phrase_list() -> list[str]:
@@ -341,7 +365,7 @@ criterion 1-5, give an overall score 1.0-5.0, and list every defect you can
 quote. Do NOT rewrite anything.
 
 <data>
-{data_block(build_editorial_prompt(data))}
+{full_data_block(data)}
 </data>
 
 <draft>
@@ -365,9 +389,19 @@ Rules for your answer:
   for a fact the data does not contain.
 - Every finding listed in <automatic_check> MUST appear as a defect with
   criterion "evidence" or "tone" — it is a measured fact, not an opinion.
+- Before calling anything invented, search the WHOLE <data> block, including the
+  per-vertical sections below the overall one. A company or figure that appears
+  anywhere in <data> is evidence, not a fabrication. The summaries in <data> are
+  cut off mid-sentence by design; a truncated source line is not a defect of the
+  draft.
+- List only defects you can actually quote, most serious first, at most 8. An
+  empty list is a valid answer: if a criterion is met, do not manufacture a
+  complaint for it. An invented defect costs another round for nothing.
+- A vertical summary MAY cover a signal the editorial also names — that is the
+  design, not a defect. Flag it only if the vertical says it in near-identical
+  words and adds nothing the editorial did not already say.
 - `overall` is your judgement of the draft as a whole, not the mean of the five
-  scores. 4.5 or higher means: an analyst would send this out as it stands.
-- At most 8 defects, most serious first."""
+  scores. 4.5 or higher means: an analyst would send this out as it stands."""
 
 
 def build_reviser_prompt(draft: Draft, data: dict, critique: Critique, check: dict) -> str:
@@ -379,9 +413,7 @@ def build_reviser_prompt(draft: Draft, data: dict, critique: Critique, check: di
 fixed. Keep what already works.
 
 <data>
-{data_block(build_editorial_prompt(data))}
-
-{data_block(build_vertical_prompt(data))}
+{full_data_block(data)}
 </data>
 
 <draft>
@@ -406,6 +438,9 @@ Rules:
 - One paragraph of 2-3 sentences per vertical, for exactly these verticals in
   this order: {", ".join(verticals)}.
 - Banned phrases: {BANNED_PHRASES}
+- The signal summaries in <data> are cut off mid-sentence by design. Never copy
+  one verbatim and never end a sentence mid-word — write your own sentence from
+  what the fragment does say.
 - Do not use bracketed IDs. Do not add introductions, transitions or comments.
 
 Answer in exactly this format and nothing else:
