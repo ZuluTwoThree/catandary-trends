@@ -38,7 +38,7 @@ VALID_STATUS = ("queued", "running", "review", "done", "failed", "cancelled")
 # params_json wird ignoriert, damit ein Tippfehler nicht still versandet).
 ALLOWED_PARAMS = frozenset(
     ("steps", "sources", "per_query", "scope", "web_steps", "web_sources",
-     "retrieval", "quant"))
+     "retrieval", "quant", "measure"))
 
 
 def _ddl() -> str:

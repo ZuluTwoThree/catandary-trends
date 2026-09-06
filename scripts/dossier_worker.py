@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -58,7 +59,12 @@ RESEARCH_MODEL = corpus_research.MODEL          # Qwen3.8-27B
 JUDGE_VRAM_FREE_MIB = 1100
 
 RUN_DEFAULTS = {"steps": 6, "sources": 24, "per_query": 6, "scope": "both",
-                "web_steps": 8, "web_sources": 12, "retrieval": "fts"}
+                "web_steps": 8, "web_sources": 12, "retrieval": "fts",
+                # Messkette (M1/M2/M4/M6, 2026-09-06). Default an; ein
+                # Auftrag mit params {"measure": false} oder DOSSIER_MEASURE=0
+                # reproduziert den Pfad davor.
+                "measure": os.getenv("DOSSIER_MEASURE", "1")
+                          not in ("0", "false", "no")}
 
 
 def _params(order: dict) -> dict:
@@ -80,7 +86,11 @@ def process_order(order: dict, quant: dict | None) -> bool:
         result = corpus_research.run(
             question, p["steps"], p["sources"], p["retrieval"], p["per_query"],
             p["scope"], p["web_steps"], p["web_sources"], topic=topic,
-            quant=quant if quant and quant.get("ok") else None)
+            # Auch eine GESCHEITERTE Messung wird durchgereicht: ihr Anhang
+            # macht den Ausfall im Dossier sichtbar (vorher verschwand er).
+            quant=quant if (quant and (quant.get("ok") or p["measure"]))
+                  else None,
+            measure=p["measure"])
         version = corpus_research.save_dossier(
             order["slug"], topic, question, result["report"], result)
         check = check_result(result)
@@ -170,7 +180,8 @@ def _run_phases(todo: list[dict], assume_model_up: bool, skip_quant: bool) -> in
             with gpu_handover.embed_on_llamacpp(EMBED_MODEL):
                 for o in wants_quant:
                     logger.info("Quant-Messung für #%d %r", o["id"], o["topic"])
-                    quants[o["id"]] = build_quant_evidence(o["topic"])
+                    quants[o["id"]] = build_quant_evidence(
+                        o["topic"], measure=_params(o)["measure"])
         except Exception as exc:                                    # noqa: BLE001
             logger.warning("Quant-Phase nicht möglich (%s) — Dossiers laufen "
                            "ohne Messblock", exc)

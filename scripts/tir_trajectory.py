@@ -373,7 +373,13 @@ def trajectory(patterns: list[str], now_year: int = YEAR_HI) -> dict:
     dated = [y for y, (x, n) in by_year.items() if x is not None]
     res.update({"patterns": patterns, "n_total": total, "points": points,
                 "earliest_year": min(dated) if dated else None,
-                "earliest_dense_year": points[0]["year"] if points else None})
+                "earliest_dense_year": points[0]["year"] if points else None,
+                # Rohe Zentralitaetsreihe (Jahr -> [mittleres SPNP-Perzentil, n]).
+                # Additiv seit 2026-09-06: der Dossier-Messanhang liest daraus den
+                # Zentralitaets-Peak, ohne eine zweite Query ueber 42 Mio Zeilen.
+                "x_by_year": {str(y): [round(float(x), 4), int(n)]
+                              for y, (x, n) in sorted(by_year.items())
+                              if x is not None}})
     return res
 
 

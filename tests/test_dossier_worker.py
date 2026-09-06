@@ -91,7 +91,7 @@ class TestRunWorker:
         monkeypatch.setattr(w.corpus_research, "run", fake_run)
         good = {"ok": True, "reason": None, "sources": [{"id": "Q1"}],
                 "note": "measured", "summary": {"off_topic": False}}
-        monkeypatch.setattr(w, "build_quant_evidence", lambda t: good)
+        monkeypatch.setattr(w, "build_quant_evidence", lambda t, **k: good)
         m.create_order("t")
         assert w.run_worker() == 0
         assert seen["quant"] is good
@@ -99,7 +99,7 @@ class TestRunWorker:
     def test_skip_quant_param_per_order(self, monkeypatch):
         called = []
         monkeypatch.setattr(w, "build_quant_evidence",
-                            lambda t: called.append(t) or dict(QUANT_FAIL))
+                            lambda t, **k: called.append(t) or dict(QUANT_FAIL))
         monkeypatch.setattr(w.corpus_research, "run",
                             lambda *a, **k: dict(RESULT))
         m.create_order("with quant")
