@@ -124,7 +124,7 @@ def topic_cascade(topic: str) -> list[str]:
 
 
 def corpus_cpc_codes(topic: str, limit: int = 6, min_hits: int = 5) -> list[str]:
-    """Letzte Rückfallebene: die CPC-Klassen, die der EIGENE Korpus dem Thema
+    """Letzte Rückfallebene: die CPC-SUBKLASSEN, die der EIGENE Korpus dem Thema
     zuordnet. Die Distill-Tabelle `signal_cpc` (trend_id → cpc, dist) trägt die
     Zuordnung für Millionen Signale; sie kennt kein Patent-Titelgate und trifft
     deshalb auch Themen, an denen `query_gate` scheitert.
@@ -152,6 +152,30 @@ def corpus_cpc_codes(topic: str, limit: int = 6, min_hits: int = 5) -> list[str]
         return []
     codes = [(dict(r)["cpc"], int(dict(r)["n"])) for r in rows]
     return [c for c, n in codes if n >= min_hits][:limit]
+
+
+def fine_codes_in(phrase: str, subclasses: list[str], limit: int = 6) -> list[str]:
+    """Die feinen CPC-Klassen der Phrase, eingeschränkt auf die Subklassen, die
+    der eigene Korpus dem Thema zuordnet.
+
+    Warum nicht direkt die Subklassen messen: `signal_cpc` speichert nur die
+    4-stellige Ebene (A61P, C07K …). Eine Trajektorie über `A61P%` misst
+    „Pharma insgesamt", nicht das Thema — genau der Grund, aus dem die
+    vorberechnete Lead-Time-Tabelle für GLP-1 unbrauchbar ist. Der Schnitt aus
+    Embedding-Nachbarschaft (fein) und Korpuszuordnung (grob) ist beides:
+    themenscharf und korpusgestützt. Der Vektor kommt aus dem Cache — die
+    Phrase wurde in Stufe 1 der Kaskade bereits eingebettet."""
+    if not subclasses:
+        return []
+    from scripts.tech_analyze import cached_embed, resolve_candidates
+    heads = {c[:4] for c in subclasses}
+    try:
+        cands = resolve_candidates(cached_embed(phrase))
+    except Exception as exc:                                        # noqa: BLE001
+        logger.warning("fine CPC intersection failed for %r: %r", phrase, exc)
+        return []
+    return [c["symbol"] for c in cands
+            if c["symbol"][:4] in heads and c.get("n")][:limit]
 
 
 def _measurable(analysis: dict | None) -> bool:
@@ -218,21 +242,25 @@ def measure_topic(topic: str) -> dict:
             _record(f"{phrase} [gate candidates]", None,
                     f"{type(exc).__name__}: {exc}")
 
-    # Stufe 3: die CPC-Klassen aus den eigenen Korpustreffern.
-    codes = corpus_cpc_codes(topic)
-    if codes:
-        phrase = normalize_topic(topic) or topic
+    # Stufe 3: die CPC-Klassen aus den eigenen Korpustreffern — fein geschnitten
+    # (Embedding-Nachbarschaft ∩ Korpus-Subklassen), grob nur als allerletztes.
+    subclasses = corpus_cpc_codes(topic)
+    phrase = normalize_topic(topic) or topic
+    for codes, how in ((fine_codes_in(phrase, subclasses),
+                        "corpus-anchored CPC classes"),
+                       (subclasses, "corpus CPC subclasses (broad)")):
+        if not codes:
+            continue
+        label = ", ".join(codes[:4])
         try:
             res = analyze_query(phrase, codes=codes)
             if _measurable(res):
                 return {"analysis": res, "phrase": phrase,
-                        "resolved_via": f"corpus CPC classes "
-                                        f"({', '.join(codes[:4])})",
+                        "resolved_via": f"{how} ({label})",
                         "attempts": attempts}
-            _record(f"corpus CPC {', '.join(codes[:4])}", res)
+            _record(f"{how} {label}", res)
         except Exception as exc:                                    # noqa: BLE001
-            _record(f"corpus CPC {', '.join(codes[:4])}", None,
-                    f"{type(exc).__name__}: {exc}")
+            _record(f"{how} {label}", None, f"{type(exc).__name__}: {exc}")
         try:                                     # ohne Embedding, reines SQL
             from scripts.tech_analyze import analyze_codes
             res = analyze_codes(codes)
@@ -240,13 +268,11 @@ def measure_topic(topic: str) -> dict:
                 res = {**res, "off_topic": False, "candidates": [],
                        "leadtime": None, "query": topic}
                 return {"analysis": res, "phrase": topic,
-                        "resolved_via": f"corpus CPC classes, trajectory only "
-                                        f"({', '.join(codes[:4])})",
+                        "resolved_via": f"{how}, trajectory only ({label})",
                         "attempts": attempts}
-            _record(f"corpus CPC {', '.join(codes[:4])} [SQL only]", res)
+            _record(f"{how} {label} [SQL only]", res)
         except Exception as exc:                                    # noqa: BLE001
-            _record("corpus CPC [SQL only]", None,
-                    f"{type(exc).__name__}: {exc}")
+            _record(f"{how} [SQL only]", None, f"{type(exc).__name__}: {exc}")
 
     return {"analysis": None, "phrase": None, "resolved_via": None,
             "attempts": attempts}

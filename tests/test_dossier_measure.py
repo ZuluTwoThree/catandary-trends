@@ -150,10 +150,33 @@ class TestM1Normalization:
                     "trajectory": None, "leadtime": None, "selection": []}
 
         self._stub(monkeypatch, analyze)
-        monkeypatch.setattr(dq, "corpus_cpc_codes", lambda t, **k: ["A61K38/26"])
+        # signal_cpc kennt nur die 4-stellige Ebene; die feine Auswahl entsteht
+        # als Schnitt mit der Embedding-Nachbarschaft.
+        monkeypatch.setattr(dq, "corpus_cpc_codes", lambda t, **k: ["A61K", "A61P"])
+        monkeypatch.setattr(dq, "fine_codes_in",
+                            lambda p, subs, **k: ["A61K38/26"] if subs else [])
         found = dq.measure_topic("GLP-1 and incretin technology")
         assert found["analysis"] is not None
-        assert "corpus CPC" in found["resolved_via"]
+        assert "corpus-anchored CPC" in found["resolved_via"]
+        assert "A61K38/26" in found["resolved_via"]
+
+    def test_broad_subclasses_are_only_the_last_resort(self, monkeypatch):
+        def analyze(q, codes=None):
+            if codes == ["A61K"]:
+                return {**ANALYSIS, "selection": list(codes)}
+            if codes:
+                return {"off_topic": False, "trajectory": None, "leadtime": None,
+                        "gate": {"verdict": "ok"}, "selection": list(codes)}
+            return {"off_topic": True, "nearest_dist": 0.9,
+                    "gate": {"verdict": "off_topic", "reason": "nothing"},
+                    "trajectory": None, "leadtime": None, "selection": []}
+
+        self._stub(monkeypatch, analyze)
+        monkeypatch.setattr(dq, "corpus_cpc_codes", lambda t, **k: ["A61K"])
+        monkeypatch.setattr(dq, "fine_codes_in", lambda p, subs, **k: ["A61K38/99"])
+        found = dq.measure_topic("GLP-1 and incretin technology")
+        assert found["analysis"] is not None
+        assert "broad" in found["resolved_via"]
 
     def test_total_failure_keeps_every_attempt(self, monkeypatch):
         def analyze(q, codes=None):
@@ -163,6 +186,7 @@ class TestM1Normalization:
 
         self._stub(monkeypatch, analyze)
         monkeypatch.setattr(dq, "corpus_cpc_codes", lambda t, **k: [])
+        monkeypatch.setattr(dq, "fine_codes_in", lambda p, subs, **k: [])
         found = dq.measure_topic("purple unicorn vibes")
         assert found["analysis"] is None
         assert len(found["attempts"]) >= 2
@@ -177,6 +201,7 @@ class TestM1Normalization:
 
         self._stub(monkeypatch, analyze)
         monkeypatch.setattr(dq, "corpus_cpc_codes", lambda t, **k: [])
+        monkeypatch.setattr(dq, "fine_codes_in", lambda p, subs, **k: [])
         out = dq.build_quant_evidence("purple unicorn vibes")
         assert out["ok"] is False
         assert out["appendix"] and dq.MEASURE_HEADINGS[0] in out["appendix"]
