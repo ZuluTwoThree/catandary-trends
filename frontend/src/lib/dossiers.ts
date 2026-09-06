@@ -69,14 +69,23 @@ export interface DossierProvenance {
   quant: Record<string, unknown> | null;
 }
 
-/** One audited gap and where the run looked for it (coverage ledger). */
+/** One swept item and where the run looked for it (coverage ledger).
+ *
+ * `kind` since 2026-09-07: the sweep no longer runs only on audit gaps —
+ * "plan" rows are plan steps the run swept regardless of the audit, "followup"
+ * rows are gaps only the re-audit could name. Older rows carry no kind and
+ * default to "gap". Only "gap"/"followup" rows are open questions. */
+export type DossierLedgerKind = "gap" | "plan" | "followup";
+
 export interface DossierLedgerRow {
   gap: string;
+  kind: DossierLedgerKind;
   papers: number;
   patents: number;
   webQueries: string[];
   webSources: number;
   webFetched: number;
+  offTopicDropped: number;
 }
 
 export interface DossierDoc {
@@ -241,13 +250,18 @@ function parseLedger(raw: unknown): DossierLedgerRow[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((row) => {
     const o = row && typeof row === "object" ? (row as Record<string, unknown>) : {};
+    const kind = String(o.kind ?? "gap");
     return {
       gap: String(o.gap ?? ""),
+      kind: (kind === "plan" || kind === "followup"
+        ? kind
+        : "gap") as DossierLedgerKind,
       papers: num(o.papers) ?? 0,
       patents: num(o.patents) ?? 0,
       webQueries: Array.isArray(o.web_queries) ? o.web_queries.map(String) : [],
       webSources: num(o.web_sources) ?? 0,
       webFetched: num(o.web_fetched) ?? 0,
+      offTopicDropped: num(o.off_topic_dropped) ?? 0,
     };
   });
 }

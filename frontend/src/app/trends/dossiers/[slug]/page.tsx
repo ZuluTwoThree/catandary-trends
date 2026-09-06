@@ -96,12 +96,23 @@ function Provenance({ p, question, model }: { p: DossierProvenance; question: st
   );
 }
 
+const LEDGER_KIND_LABEL: Record<string, string> = {
+  gap: "audit gap",
+  plan: "plan step",
+  followup: "re-audit gap",
+};
+
 function Ledger({ rows }: { rows: DossierLedgerRow[] }) {
   if (rows.length === 0) return null;
+  // Plan steps are swept regardless of the audit (2026-09-07) — counting them
+  // as "audited gaps" would overstate what the run left open.
+  const gaps = rows.filter((r) => r.kind !== "plan").length;
+  const plans = rows.length - gaps;
   return (
     <details className="mt-10 border border-border">
       <summary className="cursor-pointer px-5 py-3 font-mono text-[11px] uppercase tracking-[0.16em] text-muted hover:text-paper">
-        Coverage ledger · {rows.length} audited gap(s) — where the run looked
+        Coverage ledger · {gaps} audited gap(s)
+        {plans > 0 ? ` + ${plans} plan step(s)` : ""} — where the run looked
       </summary>
       <div className="overflow-x-auto border-t border-border">
         <table className="w-full border-collapse text-left text-[13px] leading-[1.55]">
@@ -118,7 +129,15 @@ function Ledger({ rows }: { rows: DossierLedgerRow[] }) {
             {rows.map((r, i) => (
               <tr key={i} className="border-b border-border align-top last:border-b-0">
                 <td className="px-4 py-3 text-text">
+                  <span className="mr-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                    [{LEDGER_KIND_LABEL[r.kind] ?? r.kind}]
+                  </span>
                   {r.gap}
+                  {r.offTopicDropped > 0 && (
+                    <span className="ml-2 font-mono text-[11px] text-muted">
+                      · {r.offTopicDropped} off-topic hit(s) dropped
+                    </span>
+                  )}
                   {r.webQueries.length > 0 && (
                     <ul className="mt-2 space-y-0.5 font-mono text-[11px] text-muted">
                       {r.webQueries.map((q, j) => (
