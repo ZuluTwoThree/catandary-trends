@@ -80,9 +80,10 @@ export interface DossierProvenance {
  *
  * `kind` since 2026-09-07: the sweep no longer runs only on audit gaps —
  * "plan" rows are plan steps the run swept regardless of the audit, "followup"
- * rows are gaps only the re-audit could name. Older rows carry no kind and
- * default to "gap". Only "gap"/"followup" rows are open questions. */
-export type DossierLedgerKind = "gap" | "plan" | "followup";
+ * rows are gaps only the re-audit could name, "legal" rows are the fixed
+ * regulatory/IP query patterns. Older rows carry no kind and default to "gap".
+ * Only "gap"/"followup" rows are open questions. */
+export type DossierLedgerKind = "gap" | "plan" | "followup" | "legal";
 
 export interface DossierLedgerRow {
   gap: string;
@@ -267,7 +268,7 @@ function parseLedger(raw: unknown): DossierLedgerRow[] {
     const kind = String(o.kind ?? "gap");
     return {
       gap: String(o.gap ?? ""),
-      kind: (kind === "plan" || kind === "followup"
+      kind: (kind === "plan" || kind === "followup" || kind === "legal"
         ? kind
         : "gap") as DossierLedgerKind,
       papers: num(o.papers) ?? 0,

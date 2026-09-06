@@ -101,19 +101,24 @@ const LEDGER_KIND_LABEL: Record<string, string> = {
   gap: "audit gap",
   plan: "plan step",
   followup: "re-audit gap",
+  legal: "regulatory/IP",
 };
 
 function Ledger({ rows }: { rows: DossierLedgerRow[] }) {
   if (rows.length === 0) return null;
-  // Plan steps are swept regardless of the audit (2026-09-07) — counting them
-  // as "audited gaps" would overstate what the run left open.
-  const gaps = rows.filter((r) => r.kind !== "plan").length;
-  const plans = rows.length - gaps;
+  // Plan steps and the fixed regulatory/IP patterns are swept regardless of
+  // the audit (2026-09-07) — counting them as "audited gaps" would overstate
+  // what the run left open. Same rule as pipeline/dossier_check.py.
+  const gaps = rows.filter((r) => r.kind !== "plan" && r.kind !== "legal").length;
+  const plans = rows.filter((r) => r.kind === "plan").length;
+  const legal = rows.filter((r) => r.kind === "legal").length;
   return (
     <details className="mt-10 border border-border">
       <summary className="cursor-pointer px-5 py-3 font-mono text-[11px] uppercase tracking-[0.16em] text-muted hover:text-paper">
         Coverage ledger · {gaps} audited gap(s)
-        {plans > 0 ? ` + ${plans} plan step(s)` : ""} — where the run looked
+        {plans > 0 ? ` + ${plans} plan step(s)` : ""}
+        {legal > 0 ? ` + ${legal} regulatory/IP pattern(s)` : ""} — where the
+        run looked
       </summary>
       <div className="overflow-x-auto border-t border-border">
         <table className="w-full border-collapse text-left text-[13px] leading-[1.55]">
