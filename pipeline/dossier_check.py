@@ -135,7 +135,7 @@ def check_result(result: dict) -> dict:
     # Nur echte Audit-Luecken sind "offene Fragen"; die Plan-Schritte, die der
     # Sweep seit 2026-09-06 audit-unabhaengig mitnimmt, sind keine.
     open_questions = sum(1 for e in (result.get("ledger") or [])
-                         if (e.get("kind") or "gap") != "plan")
+                         if (e.get("kind") or "gap") not in ("plan", "legal"))
     words = len(re.findall(r"\S+", body))
 
     findings: list[str] = []
@@ -177,9 +177,28 @@ def check_result(result: dict) -> dict:
                 "Gemessen, aber im Berichtstext nicht verwendet: keine der "
                 "gemessenen Groessen taucht ausserhalb des Messanhangs auf.")
 
+    # Gliederung, Laengenbremse und Beleg-Verifikation (2026-09-07). Der
+    # Rechercheur hat sie bereits geprueft und EINEN Neuwurf verbraucht; was
+    # danach noch offen ist, gehoert in den Befund, den der Owner sieht.
+    st = result.get("structure") or {}
+    left = list(st.get("findings_after") or [])
+    if left:
+        findings.append("Gliederung/Umfang nach dem Neuwurf noch offen: "
+                        + " | ".join(left[:4])
+                        + (f" (+{len(left) - 4} weitere)" if len(left) > 4 else ""))
+    if st.get("dropped_sentences"):
+        findings.append(
+            f"{st['dropped_sentences']} Satz/Saetze gestrichen: die zitierte "
+            f"Web-Seite enthielt die behauptete Zahl nicht.")
+    if st.get("cite_findings") and not st.get("dropped_sentences"):
+        findings.append(
+            f"{len(st['cite_findings'])} Zitat-Zahl(en) waren im ersten Entwurf "
+            f"nicht durch die zitierte Seite gedeckt (im Neuwurf behoben).")
+
     return {
         "ok": not ungrounded and not stripped and bool(body.strip())
-              and (cited > 0 or n_sources == 0),
+              and (cited > 0 or n_sources == 0) and not left
+              and not (st.get("cite_findings_after") or []),
         "ungrounded": ungrounded,
         "stripped_citations": stripped,
         "cited": cited,
@@ -188,5 +207,10 @@ def check_result(result: dict) -> dict:
         "measured": measured,
         "measurement_used": measurement_used,
         "words": words,
+        "body_words": st.get("words_after"),
+        "rewritten": bool(st.get("rewritten")),
+        "structure_findings": left,
+        "dropped_sentences": int(st.get("dropped_sentences") or 0),
+        "cites_checked": int(st.get("cites_checked") or 0),
         "findings": findings,
     }
