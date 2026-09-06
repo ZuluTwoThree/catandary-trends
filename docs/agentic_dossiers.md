@@ -394,6 +394,35 @@ Offen geblieben (nicht Teil von M1–M6): die CPC-Auflösung nimmt mit `A61P3/10
 immunoglobulins" heißen statt GLP-1-Analoga. Der Anhang trägt die Einschränkung
 im Klartext, das Ranking selbst bleibt unverändert.
 
+## Entscheidungslauf 2026-09-07 (B2) — „GLP-1 and incretin technology"
+
+Erster Lauf über die Entscheidungsebene (`dossiers glp1-decision` v1, Auftrag
+#9, 724 s gegen 815 s des Messlaufs am selben Thema).
+
+- **Gliederung im ersten Wurf bestanden** — alle sechs Pflichtabschnitte da,
+  Kurzfassung 195 von 200 Wörtern, drei Optionen mit vollständigem Gerüst;
+  `rewritten=false`, der eine erlaubte Neuwurf wurde nicht gebraucht.
+- **Rechts-Sweep:** 6 Muster → 35 Treffer → 12 aufgenommen → **8 im Volltext
+  gelesen, alle 8 zitiert** (EMA, FDA/CNBC, National Law Review, Maucher
+  Jenkins, EFSA Art. 13, EU-Register Health Claims, EU-Kommission, DDReg).
+  Der Abschnitt schreibt selbst hin, was er nicht fand (SPC-Daten, europäische
+  Verfügung). Erstmals beantwortet das Dossier die **positive** Claim-Frage:
+  kein GLP-1-Claim im EU-Register, gangbar wäre ein substanziierter
+  Muskelerhalt-Claim.
+- **Beleg-Verifikation:** 21 Sätze mit 26 konkreten Angaben gegen den Volltext
+  genau der zitierten Seite — **0 nicht gedeckt**, 0 Streichungen. Die
+  Endkontrolle meldete **0 Zahlen ohne Beleg** (Messlauf: 3).
+- **Fließtext 1.907 Wörter** (Messlauf 2.554, Sonnet-Vergleichstext 1.968) —
+  unter dem Zielband 2.200–2.800. Kein Neuwurf-Grund, seither `length_advisory`
+  im Prüfbefund.
+- **Ein Rückschritt:** 10 von 51 Zitat-Markern gestrichen (19,6 %; Messlauf
+  9,6 %) — ausnahmslos ungefetchte Web-Treffer, deren IDs nur in den
+  Evidenznotizen stehen; **keine Erfindung**. Behoben nach dem Lauf (`30acacd`:
+  Prompt benennt die nicht zitierbaren IDs, `_tidy_after_strip` schließt die
+  hängenden Satzenden) und daher noch ungemessen.
+
+Protokoll und Bericht liegen im Scratchpad (`B2_run.md`, `B2_decision.md`).
+
 ## Bewusste Grenzen / offene Punkte
 
 - ~~Streichungsquote (46,7 % der Zitat-Instanzen im Abnahmelauf)~~ → **M4
