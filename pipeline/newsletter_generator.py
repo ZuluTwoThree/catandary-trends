@@ -713,6 +713,9 @@ CREATE TABLE IF NOT EXISTS newsletter_editions (
     total_signals INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     deep_dive TEXT,
+    approved_at TEXT,
+    approved_by TEXT,
+    approval_note TEXT,
     UNIQUE(year, week)
 );
 """
@@ -729,6 +732,9 @@ CREATE TABLE IF NOT EXISTS newsletter_editions (
     total_signals INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deep_dive JSONB,
+    approved_at TIMESTAMP,
+    approved_by TEXT,
+    approval_note TEXT,
     UNIQUE(year, week)
 );
 """
@@ -741,6 +747,42 @@ def init_newsletter_table():
                      else NEWSLETTER_EDITIONS_SCHEMA_SQLITE)
 
 
+def _existing_columns() -> set[str]:
+    """Column names of newsletter_editions (both backends)."""
+    with get_connection() as conn:
+        if db_mod.USE_POSTGRES:
+            rows = conn.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'newsletter_editions'").fetchall()
+            return {(r["column_name"] if hasattr(r, "keys") else r[0]) for r in rows}
+        rows = conn.execute("PRAGMA table_info(newsletter_editions)").fetchall()
+        return {r[1] for r in rows}
+
+
+def _add_columns(specs: list[tuple[str, str, str]]) -> list[str]:
+    """Add every missing column; returns the ones this call created.
+
+    `specs` = (name, postgres type, sqlite type). Additive and idempotent —
+    the repo rule for schema work outside init_db (scripts/migrate_*.py runs
+    it once by hand against the live DB, the callers run it too so a fresh
+    checkout or a test database never trips over a missing column).
+    """
+    init_newsletter_table()
+    have = _existing_columns()
+    added: list[str] = []
+    with get_connection() as conn:
+        for name, pg_type, sqlite_type in specs:
+            if name in have:
+                continue
+            if db_mod.USE_POSTGRES:
+                conn.execute("ALTER TABLE newsletter_editions "
+                             f"ADD COLUMN IF NOT EXISTS {name} {pg_type}")
+            else:
+                conn.execute(f"ALTER TABLE newsletter_editions ADD COLUMN {name} {sqlite_type}")
+            added.append(name)
+    return added
+
+
 def ensure_deep_dive_column() -> bool:
     """Additive #96 column `deep_dive` (JSONB / TEXT) on an EXISTING table.
 
@@ -750,24 +792,30 @@ def ensure_deep_dive_column() -> bool:
     the live DB — the deep-dive script calls it too (idempotent) so a test
     database or a fresh checkout never trips over the missing column.
     Returns True when the column was added by this call."""
-    init_newsletter_table()
-    with get_connection() as conn:
-        if db_mod.USE_POSTGRES:
-            row = conn.execute(
-                "SELECT 1 AS ok FROM information_schema.columns "
-                "WHERE table_name = 'newsletter_editions' AND column_name = 'deep_dive'"
-            ).fetchone()
-            if row:
-                return False
-            conn.execute("ALTER TABLE newsletter_editions "
-                         "ADD COLUMN IF NOT EXISTS deep_dive JSONB")
-            return True
-        cols = [r[1] for r in conn.execute(
-            "PRAGMA table_info(newsletter_editions)").fetchall()]
-        if "deep_dive" in cols:
-            return False
-        conn.execute("ALTER TABLE newsletter_editions ADD COLUMN deep_dive TEXT")
-        return True
+    return bool(_add_columns([("deep_dive", "JSONB", "TEXT")]))
+
+
+# The human-in-the-loop columns (owner mandate 2026-09-06): no edition is
+# mailed before a person has read it and released it. `approved_at` is the
+# gate the sender checks (pipeline/newsletter_sender.py), `approved_by` and
+# `approval_note` are the audit trail the release view writes
+# (/trends/newsletter/review). `sent_at` stays untouched — release and
+# delivery are two separate facts.
+APPROVAL_COLUMNS = [
+    ("approved_at", "TIMESTAMP", "TEXT"),
+    ("approved_by", "TEXT", "TEXT"),
+    ("approval_note", "TEXT", "TEXT"),
+]
+
+
+def ensure_approval_columns() -> list[str]:
+    """Additive approval columns on an EXISTING table; returns what was added.
+
+    Run once by hand via scripts/migrate_newsletter_approval.py; the sender
+    calls it as well (idempotent) so the gate can never fail open because a
+    column is missing.
+    """
+    return _add_columns(APPROVAL_COLUMNS)
 
 
 def save_newsletter_edition(edition: dict):
