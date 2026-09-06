@@ -329,6 +329,20 @@ Identitäts-Check); die Stages 2/3/4/6/8 prüfen zusätzlich vor jedem Request
 und Retry, dass `:8090` noch ihr Modell serviert, und brechen sonst ab, ohne
 Einträge zu verlieren (#98, Handbuch §11.5 Punkt 7).
 
+**KI-Kennzeichnung (#99, EU AI Act Art. 50 Abs. 4).** Die Stufen 9/10 sind
+reine Maschinen-Gates — auch der Draft-Richter ist ein Modell —, ein Feed-Artikel
+wird also von keinem Menschen gelesen, bevor er erscheint. Jede Seite
+`/trends/<slug>` trägt deshalb direkt unter dem Titel ein aufklappbares
+Kennzeichen (`frontend/src/components/AiArticleDisclosure.tsx`, natives
+`<details>`, funktioniert ohne JS): sichtbar „AI-generated / not reviewed by a
+person", darin der volle Satz `ARTICLE_DISCLOSURE_EN`
+(`frontend/src/lib/aiDisclosure.ts`). Maschinenlesbar dazu — mangels Standard
+pragmatisch gewählt — `<meta name="generator">` und im Article-JSON-LD
+`creator` = `SoftwareApplication` neben `author` = Organization plus `isBasedOn`
+= Quell-URL. **Nicht** betroffen: der Newsletter (dort greift die Freigabe durch
+einen Menschen, `AI_DISCLOSURE_EN`) und `/analysis` (schreibt der Owner selbst).
+Handbuch: [§12, KI-Kennzeichnung](docs/owner_manual.md#ki-kennzeichnung-der-artikel-99).
+
 **Distill-Pfad** (`pipeline/distill.py`, `scripts/signal_batch*.py`): lineare
 Heads auf den 4096-dim-Embeddings ersetzen die LLM-Klassifikation für den
 Massen-Ingest; Ergebnis sind `status='signal'`-Zeilen ohne Artikel — der
