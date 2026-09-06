@@ -326,6 +326,29 @@ class TestM4Markers:
         assert stripped == 1
         assert len(cited) == 1
 
+    def test_measurement_source_can_be_cited(self):
+        """Bis 2026-09-07 riss ein zitierter Messblock den Lauf ab
+        (KeyError('measurement') in der Quellenliste) — er wurde in 13 Laeufen
+        nie zitiert, also fiel es nie auf."""
+        srcs = SOURCES + [{"id": "Q1", "kind": "measurement",
+                           "title": "Measured innovation-chain profile",
+                           "url": "https://catandary.de/x", "origin": "",
+                           "outlet": "Catandary Foresight engine",
+                           "date": "2026-09-07", "fetched": True}]
+        for lang in ("en", "de"):
+            body, cited, stripped = cr.canonicalize_citations(
+                "Patents took off in 2016 [[Q1]].", srcs, lang, markers=True)
+            assert stripped == 0 and [c["id"] for c in cited] == ["Q1"]
+            assert ("our own measurement" if lang == "en"
+                    else "eigene Messung") in body
+
+    def test_unknown_kind_does_not_kill_the_report(self):
+        srcs = [{"id": "X1", "kind": "brand-new-kind", "title": "T",
+                 "url": "https://x/1", "origin": "", "outlet": "", "date": ""}]
+        body, cited, stripped = cr.canonicalize_citations(
+            "Claim [[X1]].", srcs, "en", markers=True)
+        assert stripped == 0 and len(cited) == 1
+
     def test_old_path_untouched(self):
         body, cited, stripped = cr.canonicalize_citations(
             "See [Semaglutide trial](https://catandary.de/trends/semaglutide-1).",

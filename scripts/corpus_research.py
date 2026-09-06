@@ -999,13 +999,21 @@ _SOURCES_HEADING = re.compile(
     re.IGNORECASE | re.MULTILINE)
 
 
+# Ein Label je Quellenart in der codegenerierten Quellenliste. "measurement"
+# fehlte bis 2026-09-07: die Messquellen Q0/Q1 wurden in 13 Laeufen nie zitiert,
+# also schlug der KeyError nie zu — mit den Katalog-ID-Zitaten (M4) zitierte das
+# Modell die Messung sofort und riss den Lauf mit KeyError('measurement') ab.
+# Der Zugriff unten ist zusaetzlich defensiv, damit eine kuenftige neue Art den
+# fertigen Bericht nicht mehr kostet.
 _L10N = {
     "en": {"sources": "Sources", "signal": "signal — not written up",
            "web": "web — read in full", "paper": "research corpus",
-           "patent": "patent filing", "original": "original"},
+           "patent": "patent filing", "original": "original",
+           "measurement": "our own measurement"},
     "de": {"sources": "Quellen", "signal": "Signal — nicht ausgearbeitet",
            "web": "Web — im Volltext gelesen", "paper": "Forschungskorpus",
-           "patent": "Patentanmeldung", "original": "Original"},
+           "patent": "Patentanmeldung", "original": "Original",
+           "measurement": "eigene Messung"},
 }
 
 
@@ -1081,7 +1089,8 @@ def canonicalize_citations(report: str, sources: list[dict],
             origin = (f" · [{_L10N.get(lang, _L10N['en'])['original']}]({s['origin']})"
                       if s["origin"] and s["origin"] != s["url"] else "")
             L = _L10N.get(lang, _L10N["en"])
-            mark = "" if s["kind"] == "article" else f" *({L[s['kind']]})*"
+            mark = ("" if s["kind"] == "article"
+                    else f" *({L.get(s['kind'], s['kind'])})*")
             lines.append(f"{i}. [{s['title']}]({s['url']})"
                          f"{' — ' + meta if meta else ''}{origin}{mark}")
         body = body.rstrip() + "\n" + "\n".join(lines) + "\n"
