@@ -512,7 +512,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # niemand merkt es. Schweigen = alles in Ordnung. Wochenenden sind ausgenommen.
 # Seit 2026-08-24 prüft er zusätzlich das heutige Backup-ARTEFAKT (existiert
 # catandary-pg-<Datum>.dumpdir, toc.dat da, ≥1 GB?) — Log-Zeilen zählen nicht.
-45 7 * * 1-5 cd <repo> && .venv/bin/python -m scripts.cycle_watchdog
+45 7 * * *   cd <repo> && .venv/bin/python -m scripts.cycle_watchdog
 
 # DB-Backup (täglich 02:45). Seit 2026-08-24: pg_dump -Fd -j4 + zstd:3 →
 # catandary-pg-<Datum>.dumpdir (~113 GB, ~18 min), verifiziert per

@@ -20,6 +20,17 @@ set -u
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
 
+# node/npm liegen unter nvm und stehen in cron NICHT im PATH — der erste
+# Cron-Lauf (2026-09-06 03:15) brach nach 0 s mit "node: Befehl nicht gefunden"
+# ab (rc=127). nvm laedt eine Login-Shell, cron nicht: deshalb den aktiven
+# nvm-Pfad direkt aufnehmen (Version aus ~/.nvm/alias/default, sonst die
+# hoechste installierte).
+if ! command -v node >/dev/null 2>&1; then
+  for d in "$HOME/.nvm/versions/node"/*/bin; do [ -x "$d/node" ] && NODE_BIN="$d"; done
+  [ -n "${NODE_BIN:-}" ] && export PATH="$NODE_BIN:$PATH"
+fi
+command -v node >/dev/null 2>&1 || { echo "ABBRUCH: node nicht gefunden (PATH=$PATH)"; exit 2; }
+
 REPO="${PUBLISH_REPO:-/home/dirk/projects/catandary-trends}"
 PY="$REPO/.venv/bin/python"
 CONFIG="${PUBLISH_CONFIG:-$HOME/.config/catandary/webspace.env}"
@@ -76,6 +87,11 @@ mkdir -p "$(dirname "$LOG")"
   RC=$?
   if [ "$RC" -ne 0 ]; then
     echo "ABORT: build failed (rc=$RC) — nothing uploaded, yesterday's site stays online"
+    # Fehlschlag ins Summary schreiben, sonst steht dort der ERFOLG von gestern
+    # und der Waechter meldet nichts (2026-09-06: Build brach an fehlendem node
+    # ab, publish_last.json blieb auf "ok", niemand erfuhr davon).
+    printf '{"status":"build-failed","uploaded":0,"deleted":0,"unchanged":0,"errors":1,"rc":%s,"finished_at":"%s","note":"build_public_static.sh failed — see the log"}\n' \
+      "$RC" "$(date -Iseconds)" > "$REPO/data/publish_last.json"
     echo "publish_static_site.sh end $(date -Iseconds) (rc=$RC build)"
     exit "$RC"
   fi
