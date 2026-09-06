@@ -522,6 +522,9 @@ zu einem News-Thema ~6 belegte Aussagen; Kondensat jeweils sauber. Phase 2
 
 ### 7.4 Versand-Kette (#16, gegated — läuft nicht)
 
+**Erster Schritt jedes Versands ist die Freigabe (§ 7.5).** Ohne sie bricht der
+Sender ab — auch der Wrapper unten.
+
 `scripts/newsletter_tonight.sh` (Generierung + Versand via Resend) ist **kein
 Cron** und darf es erst werden, wenn: (1) das PHP-Abmeldepaket auf dem Webspace
 liegt (`unsubscribe.php`, `_lib.php`, `nl_config.php` Block 5 = `NEWSLETTER_UNSUB_SECRET`),
@@ -533,7 +536,61 @@ Cron 08:30 vorbereitet) die bestätigten Adressen aus dem Hetzner-MySQL in
 `python -m pipeline.newsletter_sender --latest --dry-run` (rendert, zählt
 Empfänger, sendet nicht).
 
-### 7.5 Anmeldung und Abmeldung (PHP auf dem Webspace)
+### 7.5 Ausgabe freigeben (`/trends/newsletter/review`)
+
+**Wozu.** Human-in-the-loop (Owner-Entscheidung 2026-09-06): jede Ausgabe wird
+gelesen und freigegeben, bevor sie an die Liste geht. Ohne Freigabe verschickt
+der Sender nichts — er bricht mit einer Meldung und **Exit 2** ab. Einen Schalter
+zum Abstellen gibt es bewusst nicht.
+
+**Wo.** `http://localhost:3001/trends/newsletter/review` (Owner-Instanz). Die
+Seite ist im PUBLIC_MODE 404 und im statischen Export gar nicht enthalten.
+
+**Schritte.**
+1. Links die Edition wählen (neueste zuerst; Status **draft / released / sent**).
+2. Rechts die **Vorschau** lesen — das ist die Mail selbst, gerendert vom Template
+   des Senders (`pipeline/newsletter_preview.py`), nicht eine nachgebaute Ansicht.
+   Nur der persönliche Abmelde-Link ist ein Platzhalter, und die Links im
+   Vorschau-Rahmen sind bewusst tot (Sandbox).
+3. Stimmt sie: optional eine Notiz eintippen (was geprüft/geändert wurde) und
+   **Release for sending** drücken. Das setzt `approved_at`, `approved_by`
+   (`NEWSLETTER_APPROVER`, Default `owner`) und `approval_note`.
+4. Erst danach senden:
+   `python -m pipeline.newsletter_sender --year <J> --week <KW>`
+   (Probe ohne Versand: `--dry-run`; sie funktioniert auch ohne Freigabe und
+   sagt an, dass die Freigabe fehlt).
+5. **Withdraw release** nimmt die Freigabe zurück — solange die Ausgabe noch
+   nicht versendet ist. Nach dem Versand ist sie unveränderlich (`sent_at`).
+
+**Was die Badges bedeuten** (KI-Kennzeichnung, #99):
+
+| Badge | Bedeutung | Betrifft |
+|---|---|---|
+| `AI-generated` | Text, den das lokale Sprachmodell geschrieben hat | Weekly Overview (Editorial), Vertical Signals, Deep Dive |
+| `Computed` | reine Rechnung über den Korpus, **kein** Sprachmodell | Signal Themes Radar (Signalzahlen je Thema, SQL) |
+| `Curated` | Auswahl bestehender Artikel — die verlinkten Artikel sind ihrerseits modellgeschrieben und verlinken ihre Quelle | Cited signals (Trend-Links) |
+
+Unter den Badges steht der Satz, den **jede** Ausgabe trägt — im Mail-Fuß und in
+der Website-Edition:
+
+> Sections of this briefing are generated from our corpus by a local language
+> model and checked automatically; the selection and this edition were reviewed
+> and released by a person.
+
+Er ist die öffentliche Form genau dieses Gates: solange die Freigabe Pflicht ist,
+stimmt der Satz. (Anwaltsprüfung zur ausdrücklichen Kennzeichnung nach EU AI Act
+Art. 50 läuft — Issue #99; die interne Umsetzung steht bereits.)
+
+**Wenn die Vorschau nicht erscheint.** Der Kasten zeigt die Fehlermeldung des
+Renderers. Häufigste Ursache: `.venv` fehlt oder die DB ist nicht erreichbar —
+`python -m pipeline.newsletter_preview --year <J> --week <KW> | head` im Terminal
+zeigt dasselbe.
+
+**Spalten.** `newsletter_editions.approved_at / approved_by / approval_note`
+(additive Migration `scripts/migrate_newsletter_approval.py`, auf der Live-DB am
+2026-09-06 ausgeführt). `sent_at`/`recipients_count` bleiben, was sie waren.
+
+### 7.6 Anmeldung und Abmeldung (PHP auf dem Webspace)
 
 Anmeldung = Double-Opt-in über `/newsletter/subscribe.php` (+ `confirm.php`,
 `cron.php`; Paket `docs/launch/newsletter-doi-php/`, Einbau `EINBAU.md`;

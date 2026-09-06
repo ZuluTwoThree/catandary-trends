@@ -638,7 +638,24 @@ Standalone-Lauf nur als Fallback: `python pipeline/auto_publisher.py`
 Edition** läuft seit 2026-08-29 per Cron (Mo 09:00, `weekly_newsletter_publish.sh`
 — generiert die Vorwoche nach `newsletter_editions`, mit Full-Cycle-Kollisions-
 wächter und Gemma-Swap); der E-Mail-**Versand** bleibt manuell/gegated bis zur
-Launch-Kette (#16, `NEWSLETTER_GOLIVE.md`). **Deep Dive of the Week (#96, Phase 1
+Launch-Kette (#16, `NEWSLETTER_GOLIVE.md`). **Human-in-the-loop vor jedem Versand
+(Owner 2026-09-06):** keine Ausgabe geht raus, die nicht ein Mensch gelesen und
+freigegeben hat. `newsletter_editions` trägt dafür `approved_at`/`approved_by`/
+`approval_note` (additive Migration `scripts/migrate_newsletter_approval.py`,
+Live-DB 2026-09-06); `pipeline/newsletter_sender.py` bricht ohne `approved_at`
+mit **Exit 2** ab (auch bei `--latest`; `--force` öffnet das Gate nicht, einen
+Abschalter gibt es bewusst nicht), `--dry-run` bleibt erlaubt und warnt, dass die
+Freigabe fehlt. Freigegeben wird auf **`/trends/newsletter/review`**: Editionsliste
+mit Status (Entwurf/freigegeben/versendet), Vorschau **der echten Mail** (die Seite
+ruft `python -m pipeline.newsletter_preview` und zeigt das gelieferte HTML — ein
+Renderer für Mail und Vorschau, `render_email_html()`), Freigabe mit optionaler
+Notiz, Zurückziehen solange `sent_at` leer ist. **KI-Kennzeichnung** (#99, EU AI
+Act Art. 50 — Anwaltstext offen, intern ab jetzt gesetzt): je Block ein Badge
+(Editorial/Vertical-Summaries/Deep-Dive = *AI-generated*, Signal-Themes-Radar =
+*Computed* (SQL, kein Modell), Trend-Links = *Curated*, verlinkte Artikel selbst
+modellgeschrieben); ein Hinweissatz (`AI_DISCLOSURE_EN`, Python + TS-Mirror in
+`frontend/src/lib/aiDisclosure.ts`, per pytest gegen Drift gepinnt) steht im
+Mail-Fuß **und** in der Website-Edition. **Deep Dive of the Week (#96, Phase 1
 seit 2026-09-04, Dry-Run, nicht scharf):** `scripts/newsletter_deep_dive.py` wählt
 das stärkste Mega-Theme der Woche (Anteils-Delta gegen 4 Vorwochen, Varianz-Regel
 über die letzten 4 Editionen), lässt den Korpus-Rechercheur über den Dossier-
@@ -784,6 +801,9 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
 /trends/newsletter (+/unsubscribe) → Newsletter-Signup/-Abmeldung (lokal Client-Seite mit ?year=&week=)
 /trends/newsletter/<jahr>-w<kw>, /trends/newsletter/unsubscribed
                                  → nur im statischen Export: Editions-Archiv (letzte 12) + Abmelde-Bestätigung (lib/newsletterEditions.ts); lokal 404 bzw. unverlinkt
+/trends/newsletter/review        → Freigabe-Desk (Owner, seit 2026-09-06): Editionsliste + Vorschau der echten Mail
+                                   + Freigabe/Zurückziehen + KI-Kennzeichnung je Block; im PUBLIC_MODE 404 und aus dem
+                                   statischen Export ausgeschlossen (BLOCKED_PREFIXES + static-export.exclude + canReview())
 /trends/dossiers, /trends/dossiers/[slug] → Owner-Dossier-Desk (#95; lokal standardmäßig AN, `DOSSIERS_ENABLED=0` = Not-Aus; unter PUBLIC_MODE geblockt und aus dem statischen Export ausgeschlossen): Scouting-Dossier-Aufträge erteilen, „Neu rechnen" startet den Worker on-demand, Bericht mit Herkunftskopf/Coverage-Anhang + Agenten-Endkontrolle lesen, Sign-off — siehe `docs/agentic_dossiers.md`
 /imprint, /privacy, /enquiry     → Rechtstexte + Anfrage (mailto); im Export unter /trends/… (s. o.), da der Publisher den Webroot nie schreibt
 ```

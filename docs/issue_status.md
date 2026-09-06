@@ -82,6 +82,25 @@
 > - Bekannte Grenze: `pgrep -f` matcht auch einen Editor/Pager mit dem Skriptnamen in der Kommandozeile (z. B. `vim
 >   scripts/scheduled_cycle.sh`) — der Wächter wartet dann bis zu 90 min; Besitzvermerke gelten je Worktree (`data/`).
 
+> **Nachtrag 06.09.2026 — Newsletter-Freigabe (Human-in-the-loop) + KI-Kennzeichnung (#16, #99)**
+> (Owner-Auftrag 06.09.; Handbuch § 7.5, `NEWSLETTER_GOLIVE.md` Testschritt 7):
+> - **Gate:** `newsletter_editions.approved_at/approved_by/approval_note` (additive Migration
+>   `scripts/migrate_newsletter_approval.py`, auf der Live-DB gelaufen — 3 Spalten). `newsletter_sender.py`
+>   bricht ohne `approved_at` mit **Exit 2** ab (auch `--latest`), `send_edition` wirft zusätzlich
+>   `NotReleased`; `--force` öffnet nichts, ein Abschalter existiert bewusst nicht (Test pinnt die Flag-Liste).
+>   `--dry-run` bleibt erlaubt und warnt bei fehlender Freigabe.
+> - **Ansicht:** `/trends/newsletter/review` (Owner-App) — Editionsliste mit Status, Vorschau **der echten
+>   Mail** (Server Action ruft `python -m pipeline.newsletter_preview`; ein Renderer `render_email_html()`
+>   für Mail und Vorschau), Freigabe mit Notiz, Zurückziehen solange `sent_at` leer. Drei Sperren wie beim
+>   Dossier-Desk: `BLOCKED_PREFIXES` + Proxy-Matcher, `static-export.exclude`, `canReview()` + Origin-Check.
+> - **Kennzeichnung (#99):** Badges je Block (Editorial/Verticals/Deep-Dive = *AI-generated*, Radar =
+>   *Computed* (SQL), Trend-Links = *Curated*, verlinkte Artikel selbst modellgeschrieben) und ein
+>   Hinweissatz `AI_DISCLOSURE_EN` im Mail-Fuß **und** in der Website-Edition (Python + TS-Mirror, Drift per
+>   pytest gepinnt). Anwaltstext zu Art. 50 EU AI Act bleibt offen — die interne Umsetzung steht.
+> - Akzeptanz: 927 pytest / 424 vitest / tsc 0 / eslint 0 Fehler / `NEXT_DIST_DIR=.next-check` Build grün;
+>   statischer Export ohne eine einzige `newsletter/review`-Datei; Smoke am echten W35: Freigabe gesetzt,
+>   Sender meldet „released", Freigabe wieder zurückgezogen (DB sauber).
+
 Vollständiges Audit aller offenen Issues in der Nacht 2026-08-28 (Referenz `main` = `a6455bf`).
 Jede Aussage gegen Code, DB, crontab und die laufende Instanz (:3001) geprüft.
 **Ergebnis: 14 geschlossen, 1 neu (#94) → Backlog 36 → 23 offen.**

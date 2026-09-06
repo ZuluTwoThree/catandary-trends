@@ -112,6 +112,7 @@ Karte und die drei Routinen, die man auswendig kennen sollte.
 | Startup Explorer | `/trends/foresight/ventures` | Firmen mit Evidenz-Timeline | [§5.9](docs/owner_manual.md#59-startup-explorer-trendsforesightventures-companyid) |
 | **Dossier-Desk** | `/trends/dossiers` | Auftrag → *Run now* → `review` → *Sign off*; *Recompute · v(n+1)*; Firma/Fokus/Sprache nur CLI `scripts/corpus_research.py` | [§6](docs/owner_manual.md#6-dossier-desk-trendsdossiers) |
 | Newsletter (Edition, Archiv, Deep-Dive Dry-Run, Versand, Abmeldung) | `/trends/newsletter` | Edition Mo 09:00 automatisch; `NEWSLETTER_DEEP_DIVE=dry-run` in der Crontab; Versand gegated (#16) | [§7](docs/owner_manual.md#7-newsletter) |
+| **Newsletter freigeben** (Pflicht vor jedem Versand) | `/trends/newsletter/review` | Ausgabe als Mail lesen → *Release for sending*; ohne Freigabe bricht der Sender mit Exit 2 ab | [§7.5](docs/owner_manual.md#75-ausgabe-freigeben-trendsnewsletterreview) |
 | Analysen | `/analysis` | Markdown in `frontend/content/analyses/`, `draft: false` = live | [§8](docs/owner_manual.md#8-analysen-analysis) |
 | **Statischer Export** | `scripts/build_public_static.sh` → `htaccess_test_server.sh` → `publish_static_site.py --apply` | täglich 06:30 (Cron vorbereitet); `PUBLIC_NOINDEX=0` zum Launch | [§9](docs/owner_manual.md#9-statischer-export--die-öffentliche-website) |
 | Quellen | `sources.yaml` | `probe_source_compliance.py --yaml` → eintragen → `verify_feeds.py`; `apply_source_hygiene.py --apply` beim Deaktivieren; `takedown.py`, `purge_raw_content.py` | [§10](docs/owner_manual.md#10-quellen-verwalten) |
@@ -196,6 +197,7 @@ einer frischen DB einmalig von Hand, jede idempotent:
 .venv/bin/python scripts/migrate_dossier_orders.py       # dossier_orders + dossiers
 .venv/bin/python scripts/migrate_research_pulse.py       # research_pulse
 .venv/bin/python scripts/migrate_newsletter_deep_dive.py # newsletter_editions.deep_dive
+.venv/bin/python scripts/migrate_newsletter_approval.py  # newsletter_editions.approved_at/_by/_note
 # weitere migrate_*.py in scripts/ (reviewed_at, status_signal, mega_trends,
 # startup_explorer, research_live, press_investor_enrichment) je nach Bedarf
 ```
@@ -259,6 +261,7 @@ Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
 | `TDM_RESPECT=1` | Fetcher beachtet maschinenlesbare TDM-Vorbehalte |
 | `NEWSLETTER_DEEP_DIVE` | `dry-run` aktiviert den Deep-Dive-Schritt im Montagslauf (nur in der Crontab setzen, s. Handbuch §7.3) |
 | `RESEND_API_KEY`, `NEWSLETTER_FROM`, `NEWSLETTER_UNSUB_SECRET`, `NEWSLETTER_PUBLIC_BASE`, `NL_EXPORT_URL`, `NL_EXPORT_TOKEN` | Newsletter-Versandkette (#16) |
+| `NEWSLETTER_APPROVER` | Name, der als Freigebender in `approved_by` landet (Default `owner`); Frontend-Env |
 | `REVIEW_NOTIFY_TO`, `REVIEW_URL` | Empfänger und Link der Morgen-Mail |
 | `BRAVE_SEARCH_API_KEY`, `FIRECRAWL_API_KEY` | Web-Stufe des Rechercheurs bzw. Backfill |
 | `OPENALEX_API_KEY`, `EPO_OPS_*`, `EPO_LOGIN`/`EPO_PASSWORD` | Akquise-APIs |
@@ -339,7 +342,8 @@ wurde).
 `sources.yaml`), `raw_entries` (21,6 Mio.; `raw_content` nach 14 Tagen
 geleert), `trends` (Artikel und Signale; `status` draft/published/rejected/
 signal, `embedding` 4096 + `embedding_1024` HNSW, `auto_published`,
-`reviewed_at`, `judged_at`), `newsletter_editions` (+ `deep_dive` JSONB),
+`reviewed_at`, `judged_at`), `newsletter_editions` (+ `deep_dive` JSONB,
++ `approved_at`/`approved_by`/`approval_note` = Freigabe-Gate des Versands),
 `dossier_orders` + `dossiers` (slug + version), `research_pulse`,
 `research_signals`/`research_corpus`, Patent-Graph (`patent_links`,
 `patent_cpc_full`, `patent_search`), `foresight_runs`/`foresight_clusters`,
