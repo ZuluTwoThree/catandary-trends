@@ -3,6 +3,7 @@ import { getVerticalInfo, type Vertical } from "@/lib/types";
 import { safeHref } from "@/lib/safeHref";
 import { isStaticExport, linkPrefetch } from "@/lib/renderMode";
 import { isPublicDeepDive, type NewsletterEdition, type TrendRef } from "@/lib/newsletterEditions";
+import { AI_DISCLOSURE_EN } from "@/lib/aiDisclosure";
 import { DeepDiveOwnerNote, DeepDiveSection } from "./DeepDive";
 
 /**
@@ -215,6 +216,15 @@ export default function EditionBody({ edition }: { edition: NewsletterEdition })
           </div>
         </section>
       )}
+
+      {/*
+        AI disclosure (owner mandate 2026-09-06, issue #99). The same sentence
+        the mail footer carries (mirror in pipeline/newsletter_generator.py),
+        so the website edition and the delivered issue say the same thing.
+      */}
+      <p className="border-t border-border pt-4 font-sans text-[12px] leading-[1.6] text-muted">
+        {AI_DISCLOSURE_EN}
+      </p>
     </>
   );
 }

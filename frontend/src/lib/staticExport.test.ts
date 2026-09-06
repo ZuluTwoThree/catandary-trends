@@ -15,7 +15,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { BLOCKED_PREFIXES } from "@/lib/publicMode";
+import { BLOCKED_PREFIXES, isBlockedInPublicMode } from "@/lib/publicMode";
 
 const FRONTEND = path.resolve(__dirname, "..", "..");
 const APP = path.join(FRONTEND, "src", "app");
@@ -77,6 +77,26 @@ describe("static-export.exclude mirrors BLOCKED_PREFIXES", () => {
     for (const e of srcExcludes) {
       expect(fs.existsSync(path.join(FRONTEND, e)), `${e} does not exist`).toBe(true);
     }
+  });
+
+  it("Proxy's matcher covers every blocked prefix (the PUBLIC_MODE 404 lives there)", () => {
+    // A prefix in the list but not in the matcher is blocked nowhere: Proxy
+    // only runs on matched paths. `/x/:path*` matches `/x` itself too.
+    const proxy = fs.readFileSync(path.join(FRONTEND, "src", "proxy.ts"), "utf-8");
+    const matcher = proxy.slice(proxy.indexOf("matcher: ["));
+    for (const prefix of BLOCKED_PREFIXES) {
+      expect(matcher, `${prefix} is not in the Proxy matcher`).toMatch(
+        new RegExp(`["']${prefix}(/:path\\*)?["']`)
+      );
+    }
+  });
+
+  it("blocking a nested prefix leaves its public parent alone", () => {
+    // /trends/newsletter/review is owner-only; /trends/newsletter is the
+    // public briefing page and must stay reachable.
+    expect(isBlockedInPublicMode("/trends/newsletter/review")).toBe(true);
+    expect(isBlockedInPublicMode("/trends/newsletter")).toBe(false);
+    expect(isBlockedInPublicMode("/trends/newsletter/2026-w35")).toBe(false);
   });
 
   it("the build artefact exclusions are present", () => {

@@ -65,6 +65,7 @@ export const config = {
     "/trends/review/:path*",
     "/trends/quality-preview/:path*",
     "/trends/dossiers/:path*",
+    "/trends/newsletter/review/:path*",
     "/api/foresight/:path*",
     "/trends/newsletter/unsubscribe",
   ],
