@@ -200,3 +200,62 @@ Beide Jurys führen uns außerdem bei „Ehrlichkeit über Grenzen".
 die richtige Richtung (+115 Wörter statt −176 im verworfenen Lauf v1), holt die
 Vorgabe aber nicht ein. Ausgeliefertes Dokument: `arm_B8_delivered.md`,
 Protokoll `scratchpad/glp1/B8_run.md`.
+
+
+---
+
+## Endstand 2026-09-07: acht Runden, vierzehn blinde Bewertungen
+
+| Runde | was sie änderte | Jurys | Web-Recherche | Dossier | Abstand |
+|---|---|---|---|---|---|
+| A | Ausgangsstand | 1 · 2 | 59 · 62 | 32 · 41 | −27 · −21 |
+| B | Messung, Zeitreihen, ID-Zitate | 1 · 2 | 59 · 62 | 51 · 54 | −8 · −8 |
+| B2 | Entscheidungsgliederung, Rechts-Sweep | 3 · 4 | 57 · 61 | 33 · 40 | −24 · −21 |
+| B4 | Messschärfung (49.913 → 1.878 Patente) | 5 · 6 | 55 · 8,6 | 33 · 6,3 | −22 · −2,3 |
+| B5 | Web-Schicht 6–16 → 40–60 Seiten, Entitäten-Welle | 7 · 8 | 56 · 59 | 36 · 45 | −20 · −14 |
+| B6 | Prüfanhang getrennt, Messbezug erzwungen | 9 · 10 | 58 · 8,6 | 40 · 7,6 | −18 · **−1,0** |
+| B7 | Verwendbarkeitsregel statt Nennungszwang | 11 · 12 | 57 · 57 | 45 · **51** | −12 · **−6** |
+| B8 | Terminkalender, Primärquellenzwang, Reichweite | 13 · 14 | 56 · 8,9 | 39 · 7,3 | −17 · −1,6 |
+
+**Ziel nicht erreicht.** Vierzehn Bewertungen, vierzehn Siege der Web-Recherche. Bester Stand:
+B7 mit 51:57 (Jury 12) bzw. 7,6:8,6 (Jury 10).
+
+### Was erreicht wurde
+
+- **Alleinstellung anerkannt.** Ab Jury 6 benennen die Gutachter durchgehend, dass **nur** unser
+  Dossier Aussagen enthält, die eine Web-Recherche nicht beschaffen kann (Zykluszeit aus dem
+  Zitationsgraphen, Zentralitätsverlauf, Patentbasis). Jury 12: „tragend, nicht Dekoration".
+- **Entscheidungstauglichkeit** ist unser Vorsprung: 4/4 vollständige Optionen gegen 0/7.
+- **Ehrlichkeit über Grenzen**: durchgehend gleichauf oder besser.
+- **Fehlerklassen abgestellt**: erfundene Zitatziele 2 → 0, quellenlose Zahlen 3 → 0,
+  Streichungsquote 25 % → ~0, Selbstwidersprüche 0, Suchprotokoll aus dem Dokument 2.557 → 0 Wörter.
+
+### Warum es nicht reicht — der Kern
+
+Jede Runde behob die benannten Mängel und deckte dabei **neue** auf, weil die Prüfungen selbst
+mitwuchsen. Das ist gesund, aber es zeigt das eigentliche Muster: **Wir gewinnen Struktur und
+verlieren Substanz.** Die drei Kriterien, in denen der Abstand nie kleiner wurde, sind Spezifität,
+Abdeckung und zeitliche Einordnung — genau die, die aus **Faktendichte** entstehen, nicht aus
+Regeln. Und die letzten zwei Runden zeigen die Grenze der Regel-Methode:
+
+- B8 erfüllt das Fünf-Felder-Schema formal bei 4/4 Optionen, aber „Aufwand" steht überall auf
+  „keine Zahl verfügbar" (Jury 14). Struktur erfüllt, Inhalt fehlt.
+- Der erzwungene Terminkalender liefert 6 Termine, von denen 4 aus **derselben Sekundärquelle**
+  stammen (Jury 14).
+- Der Patentkalender inklusive der SPC-Kernaussage hängt an `formblends.com`, einem
+  Compounding-Vermarkter (Jury 13) — trotz Primärquellenzwang, weil die Regel Kernzahlen prüft,
+  nicht Kernaussagen.
+- 26 % der Belege sind Selbstzitate auf die eigene Domain (Jury 13), die für Käufer 403 liefert.
+
+### Empfehlung
+
+1. **Positionierung statt Wettlauf.** Das Dossier gewinnt dort, wo es strukturell stark ist
+   (Entscheidungsgerüst, Ehrlichkeit, eigene Messung) und verliert dort, wo Faktendichte zählt.
+   Die ehrliche Rolle ist **Ergänzung**: eigene Messung plus Entscheidungsgerüst **auf** einer
+   Web-Recherche, nicht statt ihr.
+2. **Gegenprobe auf einem Technologiethema** (Feststoffbatterien, Perowskit-Tandem), wo CPC scharf
+   klassifiziert und die Messung mehr als einen Halbsatz trägt. Erst das beantwortet, ob GLP-1 der
+   falsche Prüfstein war.
+3. **Wenn weiter am Wettlauf gearbeitet wird**, dann an Substanz, nicht an Regeln: Primärquellen
+   für **Aussagen** (nicht nur Zahlen), Selbstzitate raus, und eine Faktenquote je Abschnitt
+   (datierte, primärbelegte Aussagen pro 100 Wörter) als Zielgröße.
