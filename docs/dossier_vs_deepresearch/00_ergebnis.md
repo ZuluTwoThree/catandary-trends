@@ -74,3 +74,47 @@ verbleibenden Gründe sind strukturell, nicht handwerklich. Drei Wege, in dieser
 Bis dahin ist die ehrliche Positionierung: Das Dossier ist **kein Ersatz** für eine Web-Recherche,
 sondern liefert, was diese nicht kann — gemessene Entwicklung aus dem eigenen Bestand, offengelegte
 Grenzen und ein Entscheidungsgerüst. Beides zusammen wäre das Produkt.
+
+
+---
+
+## Nachtrag 2026-09-07: Runden 5 und 6, zehn Bewertungen
+
+Nach dem ersten Fazit wurden zwei weitere Runden gefahren: **R5** (Web-Schicht auf Augenhöhe:
+Lesetiefe 6–16 → 40–60 Seiten, Entitäten-Suchwelle, Register-Muster) und **R6** (Auslieferform
+getrennt, Messbezug je Option erzwungen, Qualifizierer-/Kategorie-Prüfung).
+
+| Runde | Jury | Web-Recherche | unser Dossier | Abstand |
+|---|---|---|---|---|
+| B4 | 5 · 6 | 55 · 8,6/10 | 33 · 6,3/10 | −22 · −2,3 |
+| B5 | 7 · 8 | 56 · 59 | 36 · 45 | −20 · −14 |
+| **B6** | **9 · 10** | **58 · 8,6/10** | **40 · 7,6/10** | **−18 · −1,0** |
+
+**Was die zwei Runden gebracht haben, belegt:**
+- Der entscheidende Rechtsbefund (SPC bis 2031, EP 1 863 839, Urteil Den Haag) steht seit R5 im
+  Dossier. Der Hebel war **nicht** mehr Suchmenge, sondern der **Wirkstoffname**: die
+  themenbasierten Suchen fanden ihn nie, `semaglutide patent expiry Europe` sofort.
+- Suchprotokoll aus dem Dokument: 2.557 → 0 Wörter (Prüfanhang bleibt im Desk).
+- Optionen mit eigener Messzahl: 0/4 → 4/4. Vollständig strukturierte Optionen: 3/4 gegen **0/7**
+  beim Gegner (Jury 10).
+- Wir führen inzwischen bei **Handlungsrelevanz** und **Ehrlichkeit über Grenzen**.
+
+**Warum es weiter verliert — jetzt andere Gründe als am Anfang:**
+1. **Die Messzahlen tragen nicht, sie schmücken.** Jury 9 wörtlich: Cycle Time stützt zwei
+   unvereinbare Schlüsse, das Take-off-Jahr ist im eigenen Anhang „not reportable", die Zahl der
+   Kurzfassung sperrt der eigene Kalibrierungsvorbehalt. Ein Selbstwiderspruch (3,3 vs. 6,1 %/yr)
+   blieb stehen.
+2. **Quellenqualität.** Die erweiterte Web-Schicht sammelt ohne Rangfilter: zwei von fünf
+   geprüften Quellen waren Fan-Wikis (`retatrutide.med`, `glp3.wiki`) statt Primärquellen.
+3. **Ein Falschbeleg blieb**: Studienwerte aus TRIUMPH-4 wurden TRANSCEND-T2D-2 zugeschrieben —
+   dieselbe Seite, andere Studie. Unsere Prüfung testet Zahl, Gegenstand und Qualifizierer, aber
+   nicht die **Zuordnung innerhalb einer Quelle**.
+4. **Unsere eigene Kennzahl ist für Käufer nicht nachprüfbar** (403 durch die eigene Bot-Sperre).
+
+**Empfehlung unverändert, jetzt schärfer begründet:** Der Abstand ist von 27 auf 1 Punkt (10er-Skala)
+bzw. 18 Punkte (70er-Skala) gefallen, aber die verbleibende Lücke ist keine Fleißaufgabe mehr. Vor
+einer weiteren Runde am selben Thema sollten drei Dinge geklärt sein: (a) Rangfilter für Quellen,
+(b) Messzahlen nur noch verwenden, wenn sie eine Aussage **tragen** (sonst weglassen — die eigene
+Kalibrierungsgrenze ist ein Ausschlusskriterium, kein Fußnotenthema), (c) ein Weg, die eigene
+Messung für den Käufer nachvollziehbar zu machen. Erst danach lohnt die Gegenprobe auf einem
+Technologiethema, wo die Messung strukturell schärfer ist.
