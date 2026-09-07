@@ -1548,8 +1548,13 @@ def sweep_entity_market(topic: str, entities: list[str],
                         sources: list[dict], seen_ids: set[str],
                         notes: list[str], ledger: list[dict],
                         per_query: int, terms: list[str]) -> tuple[int, str]:
-    """<Entitaet> <Ereignistyp> — die zweite Welle des Markt-Sweeps."""
-    picks = entities[:ENT_MAX_ENTITIES]
+    """<Entitaet> <Ereignistyp> — die zweite Welle des Markt-Sweeps.
+
+    Organisationen zuerst: Bietergefechte, Erstattungsentscheidungen und
+    Quartalszahlen haengen an Firmen und Behoerden. Wirkstoffe fuellen nur auf
+    — ihre eigene Suchrichtung ist der Rechts-Sweep."""
+    picks = ([e for e in entities if not _is_substance(e)]
+             + [e for e in entities if _is_substance(e)])[:ENT_MAX_ENTITIES]
     if not picks:
         return 0, ""
     qs = [p.format(e=e) for e in picks for p in ENTITY_MARKET_PATTERNS]

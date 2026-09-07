@@ -988,6 +988,18 @@ class TestSecondWave:
         assert "Metsera reimbursement pricing decision" in seen
         assert len(seen) == len(cr.ENTITY_MARKET_PATTERNS)
 
+    def test_actors_go_before_substances_in_the_event_wave(self, monkeypatch):
+        """Bietergefecht, Erstattung und Quartalszahlen haengen an Firmen —
+        der Wirkstoff hat mit dem Rechts-Sweep eine eigene Richtung."""
+        seen: list[str] = []
+        monkeypatch.setattr(cr, "brave_search",
+                            lambda q, n=6: (seen.append(q), [])[1])
+        ents = ["semaglutide", "tirzepatide", "liraglutide", "dulaglutide",
+                "Metsera", "Novo Nordisk"]
+        cr.sweep_entity_market("GLP-1", ents, [], set(), [], [], 6, ["glp-1"])
+        assert any("Metsera" in q for q in seen)
+        assert any("Novo Nordisk" in q for q in seen)
+
     def test_the_second_wave_has_its_own_ledger_kind(self, monkeypatch):
         monkeypatch.setattr(cr, "brave_search", lambda q, n=6: [])
         ledger: list[dict] = []
