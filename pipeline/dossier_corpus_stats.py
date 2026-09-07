@@ -332,6 +332,15 @@ def format_corpus_stats(stats: dict, topic: str, lang: str = "en") -> dict:
                         "science_n": s.get("n"),
                         "science_citations": s.get("citations"),
                         "top_funder": (s.get("funders") or [(None, None)])[0][0],
+                        # Zeitfenster je Zaehlung — die Verwendbarkeitsregel
+                        # (pipeline/dossier_structure.py) laesst eine Zahl nur
+                        # in den Fliesstext, wenn n UND Zeitraum bekannt sind.
+                        "market_window": ([m["first"], m["last"]]
+                                          if m.get("first") and m.get("last") else None),
+                        "science_window": (
+                            [min(s["years"]), max(s["years"])]
+                            if s.get("years") else None),
+                        "measured_on": stats.get("measured_on"),
                         "tsquery": tsq}}
 
 

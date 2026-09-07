@@ -54,6 +54,12 @@ logger = logging.getLogger("dossier_quant")
 TECH_TOOL_BASE = "https://catandary.de/trends/foresight/technology"
 MAX_HUB_PATENTS = 5
 
+# Linker Rand des eigenen Datenfensters. Ein Take-off-Jahr auf diesem Rand ist
+# ein Artefakt der Sammlung, keine Beobachtung — jury_9.md 2026-09-07: „market
+# take-off 1990" stand als Handlungsgrund in einer Option, obwohl der eigene
+# Anhang die daraus gebildete Vorlaufzeit als „not reportable" fuehrt.
+DATA_WINDOW_START = 1990
+
 # Überschriften des codegenerierten Messanhangs. MÜSSEN textgleich zu den
 # Schnittmarken in pipeline/dossier_check.py bleiben (dort abgetrennt, damit
 # die Endkontrolle die Mess-Tabellen nicht als Modell-Prosa zählt).
@@ -602,6 +608,142 @@ def _num(v) -> str:
     return f"{v:,}"
 
 
+# ---------------------------------------------------------------------------
+# Rechenweg (R7-4, jury_9.md/jury_10.md 2026-09-07)
+# ---------------------------------------------------------------------------
+# Beide Gutachten werteten unsere eigene Kennzahl ab, weil die Trägerseite für
+# Bots gesperrt ist (403) — "extern nicht nachprüfbar". Die Sperre bleibt; was
+# fehlte, war der Rechenweg IM Dokument. Ein Fachkundiger muss die
+# Größenordnung ohne Zugriff auf das Werkzeug beurteilen können, also steht je
+# Kennzahl: Datenquelle, Auswahlregel (CPC-Codes samt Trefferdichte), n,
+# Zeitfenster, Verfahren, Datenstand. Dieselben Felder entscheiden in
+# pipeline/dossier_structure.py darüber, ob eine Zahl im Fließtext stehen darf
+# (Verwendbarkeitsregel (b)): ohne n und Zeitfenster keine Verwendung.
+
+def _selection_rule(analysis: dict | None, meta: dict | None, de: bool) -> str:
+    """Die Auswahlregel als ein Satz: welche CPC-Klassen, wie dicht am Thema."""
+    sel = list((analysis or {}).get("selection") or [])
+    sharp = ((meta or {}).get("sharpening") or {}).get("rows") or {}
+    parts = []
+    for code in sel:
+        r = sharp.get(code) or {}
+        if r.get("total"):
+            parts.append(f"`{code}` ({r.get('hits', 0):,}/{r.get('total', 0):,} "
+                         f"= {r.get('precision', 0.0):.1%})")
+        else:
+            parts.append(f"`{code}`")
+    if not parts:
+        return "—"
+    head = ("CPC-Klassen (Anteil der Klasse, der das Thema in Titel/Abstract nennt): "
+            if de else
+            "CPC classes (share of the class naming the topic in title/abstract): ")
+    return head + ", ".join(parts)
+
+
+def measurement_recipe(analysis: dict | None, topic: str, meta: dict | None = None,
+                       lang: str = "en", dynamics: dict | None = None) -> list[str]:
+    """Je gemessener Größe eine Zeile, die sie nachrechenbar macht.
+
+    Rein aus denselben Skalaren gebaut, die auch der Anhang zeigt — kein
+    zweiter Rechenweg, nur seine Offenlegung."""
+    de = lang == "de"
+    if not _measurable(analysis):
+        return []
+    traj = (analysis or {}).get("trajectory") or {}
+    lead = (analysis or {}).get("leadtime") or {}
+    tiers = lead.get("tiers") or {}
+    cyc = (dynamics or {}).get("cycle_time") or {}
+    peak = centrality_peak(traj)
+    pts = traj.get("points") or []
+    today = date.today().isoformat()
+    rule = _selection_rule(analysis, meta, de)
+    src_pat = ("Catandary-Patentarchiv (`patent_cpc` × `patent_links` × "
+               "`raw_entries`, BDDS-Vollbestand)" if de else
+               "Catandary patent archive (`patent_cpc` × `patent_links` × "
+               "`raw_entries`, full BDDS holdings)")
+    rows: list[str] = []
+
+    def row(label: str, value: str, source: str, n: str, window: str,
+            method: str) -> None:
+        rows.append(
+            (f"* **{label}: {value}** — {'Datenquelle' if de else 'Data source'}: "
+             f"{source}. n = {n}. {'Zeitfenster' if de else 'Window'}: {window}. "
+             f"{'Verfahren' if de else 'Method'}: {method}."))
+
+    if traj.get("K_median") is not None and traj.get("calibrated") and pts:
+        row(("Verbesserungsrate, Median" if de else "Improvement rate, median"),
+            f"{traj['K_median']} %/yr", src_pat,
+            f"{traj.get('n_total', 0):,} " + ("Patente im Zitationsgraphen"
+                                              if de else "patents in the citation graph"),
+            f"{pts[0]['year']}–{pts[-1]['year']}",
+            ("SPNP-Zentralität je Anmeldung, 5-Jahres-Fenster, K aus der "
+             "Steigung der Fensterreihe; Median über alle vollständigen Fenster. "
+             "Absolutwerte sind nur bis ~2019 kalibriert — spätere Fenster "
+             "tragen die Richtung, nicht den Betrag" if de else
+             "SPNP centrality per filing, 5-year windows, K from the slope of "
+             "the window series; median over all complete windows. Absolute "
+             "values are calibrated only to ~2019 — later windows carry the "
+             "direction, not the magnitude"))
+    if cyc.get("years"):
+        row(("Zykluszeit" if de else "Cycle time"), f"{cyc['years']} " +
+            ("Jahre" if de else "years"), src_pat,
+            f"{cyc.get('edges', 0):,} " + ("datierte Zitationskanten" if de
+                                           else "dated citation edges"),
+            (f"Anmeldungen ab {cyc.get('since')}" if de
+             else f"filings from {cyc.get('since')}"),
+            ("Median aus (Anmeldejahr − Anmeldejahr des rückwärts zitierten "
+             "Patents), Kanten mit Alter 0–60 Jahre. Es ist ein Zitationsalter — "
+             "keine Entwicklungsdauer und kein Generika-Kalender" if de else
+             "median of (filing year − filing year of the backwards-cited "
+             "patent), edges aged 0–60 years. It is a citation age — not a "
+             "build time and not a generics calendar"))
+    if peak:
+        row(("Zentralitäts-Peak" if de else "Centrality peak"), str(peak["year"]),
+            src_pat, f"{peak['n']:,} " + ("Anmeldungen des Spitzenjahrgangs"
+                                          if de else "filings of the peak cohort"),
+            f"{peak['from']}–{peak['to']}",
+            ("mittleres SPNP-Perzentil je Anmeldejahrgang (min. 100 "
+             "Anmeldungen); die jüngsten Jahrgänge sind ausgeschlossen, weil "
+             "ihre Zitationen noch einlaufen" if de else
+             "mean SPNP percentile per filing cohort (min. 100 filings); the "
+             "most recent cohorts are excluded because their citations are "
+             "still arriving"))
+    if lead.get("lead_patent_market"):
+        pat_n = (tiers.get("patent") or {}).get("n") or 0
+        mkt_n = (tiers.get("market") or {}).get("n") or 0
+        row(("Vorlauf Patente → Markt" if de else "Lead time patents → market"),
+            f"~{lead['lead_patent_market']} " + ("Jahre" if de else "years"),
+            ("Patentarchiv und Signalkorpus" if de
+             else "patent archive and signal corpus"),
+            f"{pat_n:,} " + ("Patent- und" if de else "patent and") +
+            f" {mkt_n:,} " + ("Marktsignale" if de else "market signals"),
+            f"{DATA_WINDOW_START}–{date.today().year}",
+            ("Abstand der beiden Take-off-Jahre (erstes Jahr, in dem die "
+             "Jahresreihe dauerhaft über 10 % ihres Maximums bleibt)" if de else
+             "distance between the two take-off years (first year in which the "
+             "annual series stays above 10 % of its maximum)"))
+    if not rows:
+        return []
+    head = ["### " + ("Rechenweg — so lässt sich jede Zahl oben nachvollziehen"
+                      if de else "How to check the figures above"), "",
+            (f"Gemeinsame Auswahlregel aller Patentzahlen: {rule}. "
+             f"Datenstand {today}." if de else
+             f"Selection rule shared by every patent figure: {rule}. "
+             f"Measured {today}."), ""]
+    tail = ["",
+            ("Das Werkzeug hinter dem Link ist für automatische Abrufe gesperrt; "
+             "die Angaben oben sind deshalb der Nachweis: mit Datenquelle, "
+             "Auswahlregel, n und Verfahren lässt sich jede Größenordnung "
+             "unabhängig prüfen. Eine Zahl ohne n und Zeitfenster erscheint "
+             "nicht im Fließtext dieses Dossiers." if de else
+             "The tool behind the link refuses automated agents; these lines are "
+             "the evidence instead: with data source, selection rule, n and "
+             "method, the order of magnitude can be judged independently. A "
+             "figure without n and window does not appear in this dossier's "
+             "prose.")]
+    return head + rows + tail
+
+
 def measurement_appendix(analysis: dict | None, topic: str, meta: dict | None = None,
                          lang: str = "en", dynamics: dict | None = None) -> str:
     """Der codegenerierte Messanhang. Nicht vom Modell geschrieben — deshalb
@@ -858,6 +1000,8 @@ def measurement_appendix(analysis: dict | None, topic: str, meta: dict | None = 
                  "favour older filings.")
         L.append("")
 
+    L += measurement_recipe(analysis, topic, meta, lang, dynamics)
+    L.append("")
     L.append("*" + _CAVEATS + "*")
     return "\n".join(L) + "\n"
 
@@ -1048,6 +1192,27 @@ def format_quant_evidence(analysis: dict, topic: str, meta: dict | None = None,
         "centrality_peak_year": (peak or {}).get("year"),
         "takeoffs": {k: (tiers.get(k) or {}).get("takeoff")
                      for k in ("science", "patent", "funding", "market")},
+        # --- Verwendbarkeit (R7-1): n, Zeitfenster und Sperrgruende -------
+        # Die Verwendbarkeitsregel in pipeline/dossier_structure.py entscheidet
+        # aus DIESEN Feldern, ob eine Zahl im Fliesstext stehen darf. Sie
+        # stehen hier, damit die Regel nicht den Anhangstext parsen muss.
+        "measured_on": today,
+        "data_window_start": DATA_WINDOW_START,
+        "K_calibrated": bool(traj.get("calibrated")),
+        "K_window": ([pts[0]["year"], pts[-1]["year"]] if pts else None),
+        "K_by_year": [{"year": p["year"], "K": p["K"], "n": p["n"],
+                       "complete": bool(p.get("complete"))} for p in pts],
+        "cycle_time_edges": cyc.get("edges"),
+        "cycle_time_since": cyc.get("since"),
+        "centrality_peak_n": (peak or {}).get("n"),
+        "centrality_window": ([peak["from"], peak["to"]] if peak else None),
+        # Take-off-Jahre sind nur dann eine berichtsfaehige Groesse, wenn der
+        # Anhang aus ihnen eine Vorlaufzeit bildet. Bildet er keine, schreibt
+        # er "not reportable as a lead time" — und dann darf auch das einzelne
+        # Jahr keine Handlung begruenden (jury_9.md).
+        "takeoff_reportable": bool(lead.get("lead_patent_market")),
+        "tier_n": {k: (tiers.get(k) or {}).get("n")
+                   for k in ("science", "patent", "funding", "market")},
     }
     return {"sources": sources, "note": note, "summary": summary,
             "appendix": measurement_appendix(analysis, topic, meta, lang, dynamics)}
