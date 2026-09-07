@@ -1354,6 +1354,30 @@ class TestAttributionInsideOneSource:
         out = ds.verify_cited_figures(doc, src)
         assert [e["tokens"][0] for e in out["misattributed"]] == ["28.7%"]
 
+    def test_two_cited_pages_are_judged_together(self):
+        """Der Jury-Satz zitierte ZWEI Seiten. Erst wenn keine von ihnen die
+        Zahl im Umfeld der genannten Studie fuehrt, ist er falsch zugeordnet."""
+        other = ("TRIUMPH-1 read out in May 2026. " + "Filler. " * 40 +
+                 "TRANSCEND-T2D-2 has no efficacy data yet.")
+        sent = "TRANSCEND-T2D-2 delivered 74.3% pain reduction."
+        assert ds.context_conflicts_multi(sent, [self.PAGE, other])
+        near = "TRANSCEND-T2D-2 delivered 74.3% pain reduction in the trial."
+        assert ds.context_conflicts_multi(near, [other]) == []
+
+    def test_second_wave_sources_are_verified_at_all(self):
+        """Die Quellen der zweiten Welle (kind 'entity') fehlten in
+        _VERIFIABLE_KINDS — der Satz mit der Verwechslung wurde deshalb
+        vollstaendig uebergangen."""
+        assert "entity" in ds._VERIFIABLE_KINDS
+        src = [{"id": "E1", "kind": "entity", "url": "https://x.example/a",
+                "title": "Retatrutide trials", "text": self.PAGE,
+                "fetched": True}]
+        doc = ("# D\n\n## What is moving\n\nRetatrutide delivered 28.7% "
+               "weight loss in the TRANSCEND-T2D-2 trial [[E1]].\n")
+        out = ds.verify_cited_figures(doc, src)
+        assert out["checked"] == 1
+        assert [e["tokens"][0] for e in out["misattributed"]] == ["28.7%"]
+
     def test_the_option_field_keeps_its_label_when_a_figure_is_cut(self):
         """Die mechanische Streichung nahm im B6-Lauf einer Option ihr
         Pflichtfeld. Bei einer gesperrten Messgroesse faellt jetzt nur die

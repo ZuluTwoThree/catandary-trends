@@ -834,7 +834,13 @@ def structure_findings(report_md: str, lang: str = "en",
 # Beleg-Verifikation: steht die zitierte Zahl auch in der zitierten Seite?
 # --------------------------------------------------------------------------
 
-_VERIFIABLE_KINDS = ("web", "legal", "market")
+# Alle vier gefetchten Web-Arten. "entity" fehlte hier bis R7 — und genau
+# darueber lief der letzte Falschbeleg der Jury: der Satz mit der TRIUMPH-4/
+# TRANSCEND-Verwechslung zitierte zwei Quellen der zweiten Welle (kind
+# "entity"), und die Beleg-Verifikation ueberging ihn deshalb VOLLSTAENDIG.
+# Die zweite Welle liefert dieselben gefetchten Seiten wie der Web-Sweep; es
+# gibt keinen Grund, sie ungeprueft zu lassen.
+_VERIFIABLE_KINDS = ("web", "legal", "market", "entity")
 
 # Ein Dezimalwert mit 1-2 Nachkommastellen. `pipeline.grounding._norm_token`
 # entfernt Punkt UND Komma (deutsch/englisch tauschen die Trennzeichen), also
@@ -944,12 +950,13 @@ def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
             distorted.append({**e, "sentence": sentence,
                               "url": cited[0].get("url", "")})
         # Zuordnungspruefung (R7-3): richtige Seite, richtige Zahl, falsche
-        # Studie. Nur gegen EINE zitierte Seite sinnvoll — bei mehreren
-        # Quellen im Satz ist das Kontextfenster nicht definiert.
-        if len(cited) == 1:
-            for e in context_conflicts(claim, str(cited[0].get("text") or "")):
-                misattributed.append({**e, "sentence": sentence,
-                                      "url": cited[0].get("url", "")})
+        # Studie. Ueber alle zitierten Seiten — erst wenn keine von ihnen die
+        # Zahl im Umfeld der genannten Studie fuehrt, ist der Satz falsch
+        # zugeordnet.
+        for e in context_conflicts_multi(
+                claim, [str(c.get("text") or "") for c in cited]):
+            misattributed.append({**e, "sentence": sentence,
+                                  "url": cited[0].get("url", "")})
     return {"checked": checked, "figures": figures, "unverified": bad,
             "subjects": subjects, "off_topic": off_topic,
             "distorted": distorted, "misattributed": misattributed}
@@ -1570,6 +1577,33 @@ def _windows(page: str, names: list[str], width: int) -> list[tuple[int, int]]:
     return spans
 
 
+def _judge_context(sentence: str, page: str, width: int) -> tuple[set, set, list]:
+    """(Zahlen, die diese Seite beurteilen kann; davon die falsch zugeordneten;
+    die im Satz genannten Studien, die die Seite kennt).
+
+    Beurteilen kann eine Seite eine Zahl nur, wenn sie eine der im Satz
+    genannten Studien fuehrt, mehrere Studien kennt (sonst kein
+    Verwechslungsrisiko) und die Zahl ueberhaupt traegt."""
+    page = page or ""
+    claim = prose(sentence or "")
+    named = [n for n in scope_names(claim)
+             if re.search(re.escape(n), page, re.IGNORECASE)]
+    if not named:
+        return set(), set(), []
+    if len({n.split("-")[0].upper() for n in scope_names(page)}) < MIN_SCOPES_ON_PAGE:
+        return set(), set(), []      # Seite handelt von genau einem Gegenstand
+    spans = _windows(page, named, width)
+    judged, bad = set(), set()
+    for fig in precision_figures(claim):
+        hits = list(re.finditer(re.escape(fig), page, re.IGNORECASE))
+        if not hits:
+            continue                 # gar nicht auf der Seite -> Zahlenpruefung
+        judged.add(fig)
+        if not any(a <= h.start() <= b for h in hits for a, b in spans):
+            bad.add(fig)
+    return judged, bad, named
+
+
 def context_conflicts(sentence: str, page: str,
                       width: int = NAME_CONTEXT_CHARS) -> list[dict]:
     """Zahlen, die auf der Seite stehen — aber nicht bei der Studie, die der
@@ -1577,26 +1611,36 @@ def context_conflicts(sentence: str, page: str,
 
     Leere Liste heisst: keine benannte Studie im Satz, nur eine auf der Seite,
     oder jede Zahl steht im Umfeld ihrer Nennung."""
-    page = page or ""
-    claim = prose(sentence or "")
-    named = [n for n in scope_names(claim)
-             if re.search(re.escape(n), page, re.IGNORECASE)]
-    if not named:
-        return []
-    if len({n.split("-")[0].upper() for n in scope_names(page)}) < MIN_SCOPES_ON_PAGE:
-        return []                    # Seite handelt von genau einem Gegenstand
-    spans = _windows(page, named, width)
-    if not spans:
-        return []
-    out: list[dict] = []
-    for fig in precision_figures(claim):
-        hits = list(re.finditer(re.escape(fig), page, re.IGNORECASE))
-        if not hits:
-            continue                 # gar nicht auf der Seite -> Zahlenpruefung
-        if any(a <= h.start() <= b for h in hits for a, b in spans):
-            continue
-        out.append({"tokens": [fig], "kind": "context",
-                    "detail": ", ".join(named[:3])})
+    _judged, bad, named = _judge_context(sentence, page, width)
+    return [{"tokens": [fig], "kind": "context", "detail": ", ".join(named[:3])}
+            for fig in precision_figures(prose(sentence or "")) if fig in bad]
+
+
+def context_conflicts_multi(sentence: str, pages: list[str],
+                            width: int = NAME_CONTEXT_CHARS) -> list[dict]:
+    """Dasselbe ueber mehrere zitierte Seiten.
+
+    Ein Satz mit zwei Belegen ist erst dann falsch zugeordnet, wenn JEDE Seite,
+    die die Zahl beurteilen kann, sie ausserhalb des Studien-Kontexts fuehrt —
+    sonst traegt der andere Beleg den Satz. Genau so stand der Jury-Fall im
+    Dossier: zwei Wiki-Seiten, dieselbe falsche Studie."""
+    judged_any: dict[str, int] = {}
+    bad_all: dict[str, int] = {}
+    names: list[str] = []
+    for page in pages or []:
+        judged, bad, named = _judge_context(sentence, page, width)
+        for fig in judged:
+            judged_any[fig] = judged_any.get(fig, 0) + 1
+        for fig in bad:
+            bad_all[fig] = bad_all.get(fig, 0) + 1
+        for n in named:
+            if n not in names:
+                names.append(n)
+    out = []
+    for fig in precision_figures(prose(sentence or "")):
+        if judged_any.get(fig) and bad_all.get(fig) == judged_any[fig]:
+            out.append({"tokens": [fig], "kind": "context",
+                        "detail": ", ".join(names[:3])})
     return out
 
 
