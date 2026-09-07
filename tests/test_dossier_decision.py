@@ -812,7 +812,12 @@ class TestMarketSweep:
 class TestRound5Budget:
     def test_caps_were_raised_to_the_reading_target(self):
         """40-60 gelesene Seiten je Lauf statt 6-16."""
-        assert cr.REG_MAX_FETCH == 12 and cr.MKT_MAX_FETCH == 12
+        # 12 -> 14 mit R8-1: die beiden Sweeps bekamen je ein bzw. zwei
+        # vorwaertsgerichtete Muster ("upcoming ... expected date") fuer den
+        # Katalysator-Kalender, und die Volltext-Budgets werden der Reihe nach
+        # vergeben — ohne mehr Budget haetten die neuen Muster nur unlesbare
+        # Katalogzeilen erzeugt.
+        assert cr.REG_MAX_FETCH == 14 and cr.MKT_MAX_FETCH == 14
         assert cr.SUB_MAX_FETCH == 8 and cr.ENT_MAX_FETCH == 8
         assert cr.BACKSTOP_FETCH_BUDGET == 12
         fixed = (cr.REG_MAX_FETCH + cr.MKT_MAX_FETCH

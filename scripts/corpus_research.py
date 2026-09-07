@@ -1439,6 +1439,13 @@ REGULATORY_PATTERNS = (
     "{t} patent expiry Europe generic entry",
     "{t} EMA marketing authorisation decision",
     "{t} FDA approval decision",
+    # R8-1: der Kalender braucht TERMINE, nicht nur Zustaende. Der Siegertext
+    # in jury_11/12 punktete mit "CagriSema's US obesity decision (Q4 2026);
+    # Lilly's retatrutide BLA (Q1 2027)". Solche Saetze stehen auf Seiten, die
+    # nach dem naechsten Entscheidungsdatum gefragt werden, nicht nach dem
+    # geltenden Recht — und das Muster steht bewusst VORNE, weil die
+    # Volltext-Budgets der Reihe nach vergeben werden.
+    "{t} upcoming regulatory decision expected date 2026 2027",
     "{t} patent litigation court ruling injunction generic",
     "{t} EFSA authorised health claim wording",
     "{t} EU regulation compliance requirements",
@@ -1455,10 +1462,10 @@ SUBSTANCE_LEGAL_PATTERNS = (
     "{e} patent expiry Europe",
     "{e} court ruling generic",
 )
-REG_MAX_SOURCES = 24      # eigener Katalogbereich, unabhaengig von max_web_sources
+REG_MAX_SOURCES = 27      # eigener Katalogbereich, unabhaengig von max_web_sources
                           # (= Muster x REG_PER_PATTERN: die spaeten Muster
                           #  duerfen nicht von den fruehen ausgehungert werden)
-REG_MAX_FETCH = 12        # Volltexte — nur diese sind zitierbar
+REG_MAX_FETCH = 14        # Volltexte — nur diese sind zitierbar
 REG_PER_PATTERN = 3       # Treffer je Muster in den Katalog
 SUB_MAX_SOURCES = 24      # zweite Welle: Wirkstoff-/Entitaets-Rechtsabfragen
 SUB_MAX_FETCH = 8
@@ -1631,6 +1638,10 @@ def sweep_regulatory(topic: str, sources: list[dict], seen_ids: set[str],
 MARKET_PATTERNS = (
     "{t} reimbursement decision France Germany",
     "{t} national health service rollout coverage",
+    # R8-1: dieselbe Vorwaertsrichtung fuer Markt und Erstattung, ebenfalls
+    # weit vorne wegen der Volltext-Reihenfolge.
+    "{t} upcoming catalysts next 12 months expected timeline",
+    "{t} trial readout expected date 2027",
     "{t} acquisition bidding war billion",
     "{t} pipeline phase 3 results",
     "{t} quarterly revenue results",
@@ -1649,8 +1660,8 @@ ENTITY_MARKET_PATTERNS = (
     "{e} phase 3 trial results readout",
     "{e} revenue guidance quarterly results",
 )
-MKT_MAX_SOURCES = 24
-MKT_MAX_FETCH = 12
+MKT_MAX_SOURCES = 30
+MKT_MAX_FETCH = 14
 MKT_PER_PATTERN = 3
 ENT_MAX_SOURCES = 32      # zweite Welle: <Entitaet> <Ereignistyp>
 ENT_MAX_FETCH = 8
