@@ -306,6 +306,24 @@ _PLACEHOLDER_RE = re.compile(
     r"|k\.?\s?a\.?"
     r")\W*$", re.IGNORECASE)
 
+# R13-4 (jury_17 2026-09-07): der Platzhalter kam als ganzer SATZ zurueck —
+# „The effort cannot be sized from this evidence.", „no primary source sizes
+# this." Formal war das Feld gefuellt, fuer eine Geschaeftsfuehrung, die
+# budgetieren muss, war es leer: dreimal von drei Optionen keine einzige
+# Groessenordnung. Ein Feldwert, der nur sagt, dass er nicht beziffert werden
+# kann, ist ein Platzhalter, egal wie ausformuliert.
+_UNSIZED_RE = re.compile(
+    r"^\W*(?:the\s+\w+\s+)?(?:"
+    r"(?:can(?:not|'t)|could\s+not|couldn'?t)\s+be\s+"
+    r"(?:sized|quantified|estimated|determined|assessed|established)"
+    r"|no\s+(?:primary\s+)?(?:source|evidence|figure|document)\w*\s+"
+    r"(?:in\s+\w+\s+)?(?:sizes?|quantifies|gives|states|provides|carries)"
+    r"|(?:the\s+)?evidence\s+(?:does\s+not|doesn'?t)\s+"
+    r"(?:size|quantify|state|give|carry|support)"
+    r"|(?:l(?:ä|ae)sst\s+sich\s+nicht|nicht)\s+bezifferbar"
+    r"|l(?:ä|ae)sst\s+sich\s+aus\s+den\s+belegen\s+nicht\s+beziffern"
+    r")\b[^.]*\.?\W*$", re.IGNORECASE)
+
 # Wieviele Woerter ein Feldwert mindestens haben muss, damit er ueberhaupt als
 # Inhalt zaehlt. "value", "—", "TBD" sind kein Aufwand.
 MIN_FIELD_WORDS = 1
@@ -348,6 +366,8 @@ def is_placeholder(value: str) -> bool:
     if len(text.split()) < MIN_FIELD_WORDS:
         return True
     if _PLACEHOLDER_RE.match(text):
+        return True
+    if _UNSIZED_RE.match(text) and not _MAGNITUDE_RE.search(text):
         return True
     head = _VALUE_CLAUSE.split(text, 1)[0].strip()
     if head and _PLACEHOLDER_RE.match(head):
@@ -1965,7 +1985,7 @@ def drop_unverified(report_md: str, unverified: list[dict],
     out = re.sub(r"^[ \t]*(?:\d{1,2}[.)]|[-*+])[ \t]*$\n?", "", out,
                  flags=re.MULTILINE)
     out = _renumber_lists(out)
-    out = _mend_tables(out)
+    out = _mend_inline(_mend_tables(out))
     out = re.sub(r"\n{3,}", "\n\n", out)
     return out, dropped
 
@@ -1977,6 +1997,48 @@ def drop_unverified(report_md: str, unverified: list[dict],
 # der Abschnitt, den ein Entscheider zuerst liest.
 _TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
 _TABLE_DELIM = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
+
+
+def _mend_inline(text: str) -> str:
+    """Reste geloeschter Zitate wegraeumen (R13-6, jury_17 2026-09-07).
+
+    Der Gutachter zog Struktur-Punkte fuer „**Trigger: ** Regulation, EC)
+    1924/2006, first opinions June 2012)" ab. Entstanden ist das beim Streichen
+    eines Markdown-Links: die oeffnende Klammer verschwand, die schliessende
+    blieb stehen. Repariert wird nur, was mechanisch eindeutig ist —
+    verwaiste Klammern, leere Klammerpaare, ein Leerzeichen vor dem
+    Fettdruck-Ende. Ein verstuemmelter Satz bleibt verstuemmelt; ihn zu raten
+    waere schlimmer."""
+    lines = []
+    for line in (text or "").split("\n"):
+        line = re.sub(r"\*\*(\s*[^*\n]*?)\s*\*\*", r"**\1**", line)
+        line = re.sub(r"\(\s*\)|\[\s*\]|\[\[\s*\]\]", "", line)
+        # verwaiste Klammern: von links nach rechts bilanzieren
+        depth, drop = 0, []
+        for i, ch in enumerate(line):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                if depth:
+                    depth -= 1
+                else:
+                    drop.append(i)
+        if depth:                       # nicht geschlossene oeffnende Klammern
+            open_pos = []
+            d = 0
+            for i, ch in enumerate(line):
+                if ch == "(":
+                    open_pos.append(i)
+                elif ch == ")" and open_pos:
+                    open_pos.pop()
+            drop.extend(open_pos)
+        if drop:
+            keep = set(drop)
+            line = "".join(c for i, c in enumerate(line) if i not in keep)
+        line = re.sub(r"\s+([,.;:])", r"\1", line)
+        line = re.sub(r"[ \t]{2,}", " ", line)
+        lines.append(line.rstrip())
+    return "\n".join(lines)
 
 
 def _mend_tables(text: str) -> str:

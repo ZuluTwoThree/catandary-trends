@@ -188,7 +188,11 @@ Arbeitsweise eines Deep-Research-Agenten — Primärquellen werden vor dem
 Schreiben **nach Rang** gelesen, daraus entsteht ein **Faktenbuch** aus
 datierten Einzelaussagen (jede maschinell gegen ihren Quelltext geprüft), und
 der Bericht wird aus diesem Faktenbuch geschrieben; gesampelt wird nach
-Modellkarte statt nur über die Temperatur. Kostet Laufzeit, hebt die
+Modellkarte statt nur über die Temperatur. Seit Runde 13 bekommt der Bericht
+zusätzlich **Kalender-Kandidaten** (datierte Zukunftstermine aus den gelesenen
+Seiten) und **Aufwands-Anker** (Förderbeträge, Programmbudgets,
+Verfahrensdauern) als fertige Listen vorgelegt, und eine dritte Sweep-Welle
+fragt je Akteur nur nach Terminen. Kostet Laufzeit, hebt die
 Faktenquote (erster Lauf: 0,94 gegen 0,25 der Runde davor)
 ([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-dr-runde-2026-09-07--arbeitsweise-statt-regelwerk)).
 

@@ -907,3 +907,78 @@ Fehlalarme an den bisher besten Kalendern.
 eine Studienpublikation als Zulassung. Ein semantischer Fehlgriff, den kein
 Zahlen- oder Ranggate fängt.
 
+
+### Runde 13 (2026-09-07) — die drei Kriterien, die den Abstand tragen
+
+`jury_17` verlor 5,7 zu 6,9, und der Abstand steckt fast vollständig in drei
+Kriterien: **Zeitliche Einordnung 3:7, Spezifität 5:8, Abdeckung 5:8**
+(Ehrlichkeit 8:6 und Struktur 7:6 gingen an uns). Der Lauf sagt, warum — nicht
+der Schreiber hat versagt, sondern die Beschaffung:
+
+| Befund im Lauf `glp1-dr2` | Folge im Gutachten |
+|---|---|
+| Entitäten aus dem Korpuskatalog: `polypeptide, orforglipron, nonpeptide, Eli Lilly, Lilly, METHODS, Obesity, Novo` | 16 von 61 Websuchen an Scheinentitäten (`Phase phase 3 trial results`, `polypeptide court ruling generic`); `polypeptide` nahm `tirzepatide` den Platz in der zweiten Welle |
+| Kein Sweep fragt nach **Terminen**, nur nach Zuständen und Vergangenem | Kalender: 3 Zeilen, alle Horizon Europe, alle aus einer Quelle, keine mit Themenbezug |
+| Kein Wirkstoff der laufenden Generation im Text | „Kein einziger Wirkstoff außer orforglipron/Semaglutid, keine Studienzahl, kein Deal-Betrag" |
+| Aufwand dreimal als ganzer Satz verweigert („cannot be sized from this evidence") | „Eine Geschäftsführung, die budgetieren muss, bekommt keine einzige Größenordnung" |
+
+Sechs Regeln, alle deterministisch, alle mit Test:
+
+- **R13-1 Entitäten-Hygiene** (`_is_substance`, `_ENTITY_STOP_SOLO`,
+  `_prefer_longest`, `ENTITY_TEXT_CHARS`). Stoffklassen sind keine Wirkstoffe
+  (`-peptide`, `-nucleotide`, `-saccharide` und eine benannte Liste fliegen
+  raus); Abschnittsmarken aus Abstracts (`METHODS`, `RESULTS`) und generische
+  Einzelwörter (`Obesity`, `Phase`, `European`) zählen nicht als Akteur, als
+  Teil eines Mehrworts aber schon (`European Commission` bleibt); der volle
+  Name schlägt die Kurzform, wenn er in mindestens der Hälfte derselben
+  Dokumente steht (`Novo Nordisk` statt `Novo`). Und geerntet wird jetzt auch
+  aus dem **Volltext** der gelesenen Seiten — die laufende Wirkstoffgeneration
+  (CagriSema, retatrutide, survodutide) steht nicht in unseren Korpustiteln.
+- **R13-2 Katalysator-Sweep** (`sweep_catalysts`, dritte Welle nach der
+  Entitäten-Ernte). Drei Themenmuster plus vier je Akteur, die *nur* nach
+  Terminen fragen (`topline results expected date`, `FDA decision PDUFA date`,
+  `EMA CHMP opinion expected`). Eigenes Budget (26 Quellen / 12 Volltexte),
+  eigenes Suchprotokoll im Report-Prompt.
+- **R13-3 Kalender-Kandidaten** (`calendar_candidates`,
+  `calendar_candidate_block`). Die Zeilen werden dem Bericht **vorgelegt**
+  statt von ihm erinnert — dieselbe Bauweise, die den Rechtsabschnitt
+  gerettet hat. Ein Satz kommt mit, wenn er ein Datum in der Zukunft trägt
+  (`Q4 2026`, `2026 H2`, `19 March 2031`, `H2 2027`), ein Vorwärtswort und
+  einen Themenbezug; URLs werden vorher entfernt (eine Jahreszahl in
+  `…/glp1-regulation-2026` ist kein Termin), und je Quelle zählen höchstens
+  vier Zeilen — ein Kalender aus einer Seite ist diese Seite.
+- **R13-4 Aufwands-Anker** (`effort_anchors`, `_UNSIZED_RE`, zwei neue
+  Förder- und ein Verfahrensmuster). Übertragbar ist, was ein Mittelständler
+  selbst beantragen oder durchlaufen kann: Förderbetrag, Programmbudget,
+  Verfahrensdauer — gezogen aus Förder-, Rechts- und Katalysatorseiten, nicht
+  aus Pharma-Deals. Und ein ganzer Satz, der sagt, der Aufwand lasse sich
+  nicht beziffern, gilt jetzt als Platzhalter; der Ausweg steht nur noch
+  offen, wenn die Ankerliste leer ist.
+- **R13-6 Zitatreste heilen** (`_mend_inline`). `**Trigger: ** Regulation,
+  EC) 1924/2006 …` entsteht beim Streichen eines Markdown-Links. Repariert
+  wird nur das mechanisch Eindeutige: verwaiste Klammern, leere Klammerpaare,
+  Leerzeichen vor dem Fettdruck-Ende. Ein verstümmelter Satz bleibt
+  verstümmelt — ihn zu raten wäre schlimmer.
+- **R13-8 Modellparameter.** `presence_penalty` 1.5 → **0.5**: die 1.5 der
+  Modellkarte sind für Chat gedacht und besteuern jedes schon verwendete
+  Token — in einem Entscheidungspapier also den Wirkstoff in Kalender *und*
+  Option, die Katalog-Id hinter drei Sätzen, das Jahr in fünf Kalenderzeilen.
+  Und der Berichts- wie der Revisionsaufruf setzen `enable_thinking: false`
+  je Anfrage: der Denk-Versuch aus Runde 11 hat das Denken ausschließlich in
+  den *Schreibschritt* gelegt — die einzige Stelle, für die die Modellkarte
+  den nicht-denkenden Satz vorschreibt —, und dort eine abgeschnittene
+  Denkspur in den Berichtstext gespült.
+
+Dazu drei Prompt-Schärfungen in beiden Gliederungen: „Was sich bewegt" verlangt
+**mindestens fünf benannte Akteure** mit je einer Zahl oder einem Datum;
+„Was die Belege nicht hergeben" verlangt einen Blick in die Suchprotokolle,
+bevor eine Behauptung dort landet (jury_17: „Ein Entscheidungspapier, dessen
+Regelwerk eine wahre und tragende Tatsache aus dem Text drängt, hat den
+Regelapparat über den Zweck gestellt"); und die Faktenquote steht ausdrücklich
+als **Untergrenze, nicht als Ziel** — „a review was published in 2024 [[id]]"
+zählt für die Quote und sonst für nichts.
+
+Belegt: `tests/test_dossier_dr_mode.py` (Klassen `TestR13*`), 1.388 pytest grün.
+Live-Stichprobe der Kandidatenernte am 2026-09-07 über zwei echte
+Katalysator-Anfragen: `H2 2026 · CagriSema FDA decision`, `2026 · Metsera
+Phase-3-Programm, zehn Studien` — genau die Zeilen, die dem Kalender fehlten.

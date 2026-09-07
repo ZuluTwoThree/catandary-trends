@@ -355,7 +355,11 @@ order, with exactly these top-level headings and no others:
   with its citation. Nothing else: no background, no method, no preamble.
 
 ## What is moving
-  What verifiably changed, with dates, named actors and figures. The measured
+  What verifiably changed, with dates, named actors and figures. Name at
+  least FIVE distinct actors the evidence names — companies, products,
+  agencies, substances — and give each one a figure or a date from the
+  evidence. "Several companies", "a number of studies", "the sector" where
+  the evidence names them is a sentence that throws its own evidence away. The measured
   time series are appended to this document for you — quote a measured figure
   here only where a statement depends on it, and never repeat the appendix.
   Use each measured quantity for exactly one claim, with exactly one value:
@@ -383,6 +387,9 @@ order, with exactly these top-level headings and no others:
 
   At least five rows, resting on at least THREE different sources — a calendar
   whose rows all come from one page is that page, not a calendar. Every row
+  must be about the SUBJECT OF THE QUESTION: a dated event from another field
+  is deleted mechanically, and a calendar of three such rows is worth less
+  than a calendar of two real ones. Every row
   needs a date the evidence actually states — a day, a month, a quarter or a
   half-year, always with its year — and its citation in the Source column.
   Never estimate a date and never carry an event whose timing the evidence
@@ -391,6 +398,11 @@ order, with exactly these top-level headings and no others:
 
 ## What the evidence does not support
   Named claims in circulation that this evidence refutes or fails to support.
+  Before a claim goes here, look for it in the sweep records above: a claim
+  that a page in the catalog actually states is not unsupported — it belongs
+  in the body with that citation. This section is for claims the evidence
+  CONTRADICTS and for claims nothing in the catalog carries. Declaring a true
+  and load-bearing fact unsupported costs the reader more than any omission.
   Where two sources contradict each other on a checkable fact, say so and name
   both readings rather than silently choosing one.
 
@@ -406,11 +418,14 @@ order, with exactly these top-level headings and no others:
   - Time horizon: by when it would have to happen
   - Effort: a rough order of magnitude — money, time or capability, with a
     citation. A range or a comparable case from the evidence is enough
-    ("a launch of this kind cost X in 2026 [[id]]"). "No figure in the
-    evidence", "unknown", "n/a" and any other placeholder count as an
-    UNFILLED field, not as an honest one. If the evidence truly carries
-    nothing, drop the line entirely and say in the option's running text,
-    with a citation, why the effort cannot be sized.
+    ("a launch of this kind cost X in 2026 [[id]]"). Take it from the
+    EFFORT ANCHORS list below wherever one fits, and say what it anchors.
+    "No figure in the evidence", "unknown", "n/a" and any other placeholder
+    count as an UNFILLED field, not as an honest one — and so does a whole
+    sentence saying the effort cannot be sized from this evidence, which is
+    the same placeholder in longer form. Only when the EFFORT ANCHORS list is
+    empty may you drop the line entirely and say in the option's running
+    text, with a citation, why the effort cannot be sized.
   - Risk: what it exposes, including the existing business
   - Against it: the strongest argument against this option
   Taken together, the options must cover EVERY field the question names — if
@@ -446,7 +461,11 @@ never simply left out.
 
 FACT DENSITY is the measure, not length. What is counted mechanically:
 DATED, PRIMARY-SOURCED statements per 100 words of running text — a sentence
-that carries a date AND a citation marked (primary) in the same sentence. The
+that carries a date AND a citation marked (primary) in the same sentence. It
+is a floor, not a goal: a dated sentence that names nobody counts for the
+ratio and for nothing else, because "a review was published in 2024 [[id]]"
+tells the reader nothing. Every dated statement should also name who or what
+it is about, and give its figure where the evidence has one. The
 floor is 2.0 per 100 words. Reaching it by writing more prose is impossible:
 prose adds words and no facts, so it lowers the ratio. Replace every sentence
 that carries no date, no named actor and no figure with one that does.
@@ -463,6 +482,10 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
 
 ## Was sich bewegt
   Was sich nachweislich geändert hat — mit Datum, benannten Akteuren, Zahlen.
+  Nenne mindestens FÜNF verschiedene Akteure, die die Belege benennen —
+  Firmen, Produkte, Behörden, Wirkstoffe — und zu jedem eine Zahl oder ein
+  Datum aus den Belegen. "Mehrere Unternehmen", "einige Studien", "die
+  Branche" verschenkt die eigenen Belege.
   Die gemessenen Zeitreihen hängen als Anhang an diesem Dokument; nenne eine
   Messzahl hier nur, wenn eine Aussage auf ihr steht, und wiederhole nie den
   Anhang. Jede gemessene Größe trägt genau eine Aussage und hat genau einen
@@ -491,14 +514,20 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
 
   Mindestens fünf Zeilen, gestützt auf mindestens DREI verschiedene Quellen —
   ein Kalender, dessen Zeilen alle von einer Seite stammen, ist diese Seite und
-  kein Kalender. Jede Zeile braucht ein Datum, das die Belege tatsächlich
+  kein Kalender. Jede Zeile muss den GEGENSTAND DER FRAGE betreffen: ein
+  datiertes Ereignis aus einem anderen Feld wird mechanisch gestrichen, und
+  drei solche Zeilen sind weniger wert als zwei echte. Jede Zeile braucht ein Datum, das die Belege tatsächlich
   nennen — Tag, Monat, Quartal oder Halbjahr, immer mit Jahr — und das Zitat in
   der Spalte Quelle. Nie ein Datum schätzen; ein Ereignis ohne belegten Termin
   gehört unter "Offene Fragen und Grenzen". Früheste Zeile zuerst.
 
 ## Was die Belege nicht hergeben
   Benannte kursierende Behauptungen, die diese Belege widerlegen oder nicht
-  stützen. Widersprechen sich zwei Quellen in einer prüfbaren Tatsache, steht
+  stützen. Sieh vorher in den Suchprotokollen nach: was eine Seite im Katalog
+  tatsächlich sagt, ist nicht ungestützt — das gehört mit Beleg in den Text.
+  Hierher gehört, was die Belege WIDERLEGEN, und was keine Katalogseite
+  trägt. Eine wahre, tragende Tatsache hier für ungestützt zu erklären,
+  kostet den Leser mehr als jede Auslassung. Widersprechen sich zwei Quellen in einer prüfbaren Tatsache, steht
   das hier mit beiden Lesarten.
 
 ## Optionen für ein mittelständisches europäisches Unternehmen
@@ -507,9 +536,12 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
   - Auslöser: Bedingung oder Ereignis, das sie startet
   - Zeithorizont: bis wann sie stattfinden müsste
   - Aufwand: grobe Größenordnung — Geld, Zeit oder Fähigkeiten, mit Beleg.
-    Eine Spanne oder ein vergleichbarer Fall aus dem Material genügt. "Keine
-    Zahl im Material", "unbekannt", "n/a" und jeder andere Platzhalter gelten
-    als NICHT erfülltes Feld. Gibt das Material wirklich nichts her, entfällt
+    Eine Spanne oder ein vergleichbarer Fall aus dem Material genügt; nimm
+    sie aus der Liste AUFWANDS-ANKER weiter unten, wo eine passt, und sage,
+    wofür sie der Anker ist. "Keine Zahl im Material", "unbekannt", "n/a" und
+    jeder andere Platzhalter gelten als NICHT erfülltes Feld — ebenso ein
+    ganzer Satz, der sagt, der Aufwand lasse sich nicht beziffern; das ist
+    derselbe Platzhalter in lang. Nur wenn die Ankerliste leer ist, entfällt
     die Zeile ganz und der Optionstext sagt belegt, warum sich der Aufwand
     nicht beziffern lässt.
   - Risiko: was sie aussetzt, einschließlich des Bestandsgeschäfts
@@ -1492,6 +1524,7 @@ REGULATORY_PATTERNS = (
     "{t} upcoming regulatory decision expected date 2026 2027",
     "{t} patent litigation court ruling injunction generic",
     "{t} EFSA authorised health claim wording",
+    "{t} EFSA health claim application procedure timeline duration",
     "{t} EU regulation compliance requirements",
 )
 
@@ -1506,10 +1539,10 @@ SUBSTANCE_LEGAL_PATTERNS = (
     "{e} patent expiry Europe",
     "{e} court ruling generic",
 )
-REG_MAX_SOURCES = 27      # eigener Katalogbereich, unabhaengig von max_web_sources
+REG_MAX_SOURCES = 30      # eigener Katalogbereich, unabhaengig von max_web_sources
                           # (= Muster x REG_PER_PATTERN: die spaeten Muster
                           #  duerfen nicht von den fruehen ausgehungert werden)
-REG_MAX_FETCH = 14        # Volltexte — nur diese sind zitierbar
+REG_MAX_FETCH = 15        # Volltexte — nur diese sind zitierbar
 REG_PER_PATTERN = 3       # Treffer je Muster in den Katalog
 SUB_MAX_SOURCES = 24      # zweite Welle: Wirkstoff-/Entitaets-Rechtsabfragen
 SUB_MAX_FETCH = 8
@@ -1731,6 +1764,11 @@ FUNDING_PATTERNS = (
     "{t} grant awarded project consortium",
     "{t} seed series A funding round raised",
     "{t} venture investment startup raised million",
+    # R13-4: ein Mittelstaendler kann keine fremde Series B beantragen, aber
+    # ein EIC-Instrument hat einen Betrag und eine Frist — das ist die
+    # uebertragbare Groessenordnung, die dem Aufwandsfeld dreimal fehlte.
+    "{t} EIC Accelerator grant amount equity SME eligibility",
+    "{t} Horizon Europe call budget per project EUR deadline",
 )
 FUND_MAX_SOURCES = 20
 FUND_MAX_FETCH = 8
@@ -1800,8 +1838,15 @@ DR_HARVEST_CHARS = 6_000  # Quelltext je Notiz-Extraktion
 # `--reasoning on` laeuft — dann gilt fuer die Prosa der denkende Satz. Die
 # schema-gebundenen Aufrufe bleiben in JEDEM Fall nicht-denkend
 # (`enable_thinking: False` im Client), also auch ihr Sampling.
+# presence_penalty bewusst 0.5 statt der 1.5 der Modellkarte (R13-8,
+# 2026-09-07): die 1.5 sind fuer Chat gedacht und bestrafen jedes Token, das
+# schon einmal vorkam. Ein Entscheidungspapier lebt aber von Wiederholung —
+# derselbe Wirkstoff in Kalender, Optionen und Zusammenfassung, dieselbe
+# Katalog-Id hinter drei Saetzen, dasselbe Jahr in fuenf Kalenderzeilen. Genau
+# die Wiederholung, die eine Faktentabelle braucht, wird mit 1.5 besteuert;
+# jury_17 nannte den Fliesstext "generisch" bei gleichzeitig hoher Faktenquote.
 DR_SAMPLING_WRITE = {"temperature": 0.7, "top_p": 0.80, "top_k": 20,
-                     "presence_penalty": 1.5}
+                     "presence_penalty": 0.5}
 DR_SAMPLING_WRITE_THINK = {"temperature": 1.0, "top_p": 0.95, "top_k": 20,
                            "presence_penalty": 0.0}
 DR_SAMPLING_WORK = {"temperature": 0.2, "top_p": 0.80, "top_k": 20}
@@ -1979,6 +2024,246 @@ def fact_ledger_block(facts: list[dict], limit: int = 120) -> str:
     return "\n".join(lines)
 
 
+# --------------------------------------------------------------------------
+# Kalender-Kandidaten (R13-3, jury_17 2026-09-07)
+# --------------------------------------------------------------------------
+# Der groesste Einzelabstand des Gutachtens: "Zeitliche Einordnung" 3 gegen 7.
+# Der Kalender des Dossiers trug drei Zeilen — 2027/2028/2034, alle Horizon
+# Europe, alle aus EINER Quelle, keine davon mit Themenbezug. Der Sieger hatte
+# sieben bis acht einschlaegige Zukunftstermine auf sechs Quellen.
+#
+# Die Gliederung verlangt seit Runde 8 fuenf Zeilen aus drei Quellen; das
+# Modell hat sie nicht geschrieben, weil es sie nicht hatte. Also dieselbe
+# Bauweise wie beim Rechts-Sweep: die Zeilen werden dem Bericht deterministisch
+# VORGELEGT, statt von ihm erinnert zu werden. Gesammelt wird aus den Seiten,
+# die ohnehin in voller Laenge gelesen wurden — ein Satz kommt nur mit, wenn er
+# ein Datum in der Zukunft, ein vorwaertsgerichtetes Signalwort und einen Bezug
+# zur Frage traegt.
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july",
+           "august", "september", "october", "november", "december")
+_MONTH_RE = "|".join(m[:3] for m in _MONTHS)
+_YEAR_RE = r"20[2-5]\d"
+_WHEN_RE = re.compile(
+    r"\b(?:"
+    r"(?P<q>[Qq][1-4])[\s/-]*(?:of\s+)?(?P<qy>" + _YEAR_RE + r")"
+    r"|(?P<h>[Hh][12])[\s/-]*(?P<hy>" + _YEAR_RE + r")"
+    # "2026 H2" schreiben Kalenderseiten genauso oft wie "H2 2026"
+    r"|(?P<ry>" + _YEAR_RE + r")\s*(?P<r>[HQ][1-4])(?![a-z0-9])"
+    r"|(?:first|second|third|fourth)\s+(?:quarter|half)\s+(?:of\s+)?"
+    r"(?P<wy>" + _YEAR_RE + r")"
+    r"|(?:\d{1,2}\s+)?(?P<mon>" + _MONTH_RE + r")[a-z]*\.?\s+"
+    r"(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?(?P<my>" + _YEAR_RE + r")"
+    r"|(?P<iso>" + _YEAR_RE + r"-\d{2}-\d{2})"
+    r"|(?P<yy>" + _YEAR_RE + r")"
+    r")\b", re.IGNORECASE)
+
+# Ohne eines dieser Woerter ist ein Datum eine Jahreszahl im Fliesstext, kein
+# Termin. "expires"/"expiry" stehen hier, weil ein SPC-Ablauf der wichtigste
+# Kalendereintrag eines Patentthemas ist.
+_FORWARD_MARKERS = (
+    "expected", "expects", "due", "scheduled", "planned", "plans",
+    "anticipated", "upcoming", "will ", "targets", "targeting", "deadline",
+    "readout", "read out", "decision", "decide", "ruling", "expires",
+    "expiry", "expiration", "launch", "filing", "submission", "submit",
+    "on track", "forecast", "projected", "to begin", "to start",
+    "starts", "begins", "opens", "closes", "closing", "by the end of",
+    "no earlier than", "not before", "opinion", "vote", "hearing",
+    "trial completion", "primary completion", "milestone", "phase 3",
+)
+
+CAL_MAX_CANDIDATES = 28
+CAL_MAX_PER_SOURCE = 4
+CAL_SENTENCE_WORDS = 45
+
+
+_URL_IN_TEXT = re.compile(r"\b(?:https?://|www\.)\S+|\b\S+\.(?:com|org|net|eu|de|gov|io)/\S*")
+_LIST_MARK = re.compile(r"^[\s\-–—*•·>|]+")
+
+
+def _clean_sentence(sent: str) -> str:
+    """Listenmarken weg, URLs weg — eine Jahreszahl in einer Adresse ist
+    kein Termin (Fund vom 2026-09-07: eine Seite hiess
+    '…/state-of-peptides-and-glp1-regulation-2026')."""
+    return " ".join(_LIST_MARK.sub("", _URL_IN_TEXT.sub(" ", sent)).split())
+
+
+def _when_label(sentence: str, this_year: int) -> str | None:
+    """Normalisiertes Zukunftsdatum eines Satzes, oder None.
+
+    Genommen wird das FRUEHESTE Datum, das nicht in der Vergangenheit liegt —
+    ein Satz ueber einen Ablauf 2031, der 2019 als Anmeldejahr nennt, gehoert
+    mit 2031 in den Kalender, nicht mit 2019."""
+    best: tuple[int, int, str] | None = None
+    for m in _WHEN_RE.finditer(sentence):
+        gd = m.groupdict()
+        if gd.get("ry"):
+            year = int(gd["ry"])
+            label = f"{gd['r'].upper()} {gd['ry']}"
+        elif gd.get("qy"):
+            year, label = int(gd["qy"]), f"{gd['q'].upper()} {gd['qy']}"
+        elif gd.get("hy"):
+            year, label = int(gd["hy"]), f"{gd['h'].upper()} {gd['hy']}"
+        elif gd.get("wy"):
+            year, label = int(gd["wy"]), m.group(0)
+        elif gd.get("my"):
+            year, label = int(gd["my"]), m.group(0)
+        elif gd.get("iso"):
+            year, label = int(gd["iso"][:4]), gd["iso"]
+        else:
+            year, label = int(gd["yy"]), gd["yy"]
+        if year < this_year:
+            continue
+        rank = (year, m.start())
+        if best is None or rank < best[:2]:
+            best = (year, m.start(), " ".join(label.split()))
+    return best[2] if best else None
+
+
+def calendar_candidates(fact_ledger: list[dict], sources: list[dict],
+                        terms: list[str], entities: list[str],
+                        this_year: int,
+                        limit: int = CAL_MAX_CANDIDATES) -> list[dict]:
+    """Datierte Zukunftsereignisse aus Faktenzettel und gelesenen Seiten."""
+    want = {t.lower() for t in list(terms or []) + list(entities or []) if t}
+    out: list[dict] = []
+    seen: set[str] = set()
+
+    def _relevant(text: str) -> bool:
+        low = text.lower()
+        return (not want) or any(w in low for w in want)
+
+    for f in fact_ledger or []:
+        stmt = str(f.get("statement") or "").strip()
+        date = str(f.get("date") or "").strip()
+        when = _when_label(f"{date} {stmt}", this_year)
+        if not when or not stmt or not _relevant(f"{date} {stmt}"):
+            continue
+        key = stmt.lower()[:80]
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"when": when, "statement": stmt, "id": f.get("id") or "",
+                    "origin": "ledger"})
+
+    for src in sources or []:
+        if not src.get("fetched") or not src.get("id"):
+            continue
+        text = str(src.get("text") or "")
+        if not text:
+            continue
+        taken = 0
+        for sent in dossier_structure._SENT_SPLIT.split(text):
+            sent = _clean_sentence(sent)
+            if not (20 <= len(sent) <= CAL_SENTENCE_WORDS * 9):
+                continue
+            if len(sent.split()) > CAL_SENTENCE_WORDS:
+                continue
+            low = sent.lower()
+            if not any(mk in low for mk in _FORWARD_MARKERS):
+                continue
+            when = _when_label(sent, this_year)
+            if not when or not _relevant(sent):
+                continue
+            key = low[:80]
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"when": when, "statement": sent, "id": src["id"],
+                        "origin": "page"})
+            taken += 1
+            if taken >= CAL_MAX_PER_SOURCE:
+                break
+
+    def _year(c: dict) -> int:
+        m = re.search(_YEAR_RE, c["when"])
+        return int(m.group(0)) if m else 9999
+
+    # Nach Jahr sortiert, aber je Quelle gedeckelt: ein Kalender, dessen Zeilen
+    # alle von einer Seite kommen, ist diese Seite (jury_17).
+    out.sort(key=lambda c: (_year(c), c["id"]))
+    per: dict[str, int] = {}
+    keep: list[dict] = []
+    for c in out:
+        n = per.get(c["id"], 0)
+        if n >= CAL_MAX_PER_SOURCE:
+            continue
+        per[c["id"]] = n + 1
+        keep.append(c)
+        if len(keep) >= limit:
+            break
+    return keep
+
+
+# --------------------------------------------------------------------------
+# Aufwands-Anker (R13-4, jury_17 2026-09-07)
+# --------------------------------------------------------------------------
+# „Aufwand — dreimal Platzhalter … Eine Geschaeftsfuehrung, die budgetieren
+# muss, bekommt aus H keine einzige Groessenordnung." Der einzige genannte
+# Betrag war eine Pharma-Series-A, die das Dossier im selben Satz selbst
+# verwarf — zu Recht: fuer einen Lebensmittelhersteller ist sie kein Anker.
+# Uebertragbar sind Foerderbetraege, Programmbudgets und VERFAHRENSDAUERN.
+# Genau die werden hier aus den gelesenen Foerder- und Rechtsseiten gezogen.
+_MONEY_RE = re.compile(
+    r"(?:[€$£]\s?\d[\d.,]*\s?(?:m|bn|k|million|billion|thousand)?"
+    r"|\b(?:EUR|USD|GBP)\s?\d[\d.,]*\s?(?:m|bn|million|billion)?"
+    r"|\b\d[\d.,]*\s?(?:million|billion)\s?(?:euro|dollar|pound)s?)",
+    re.IGNORECASE)
+_DURATION_RE = re.compile(
+    r"\b\d{1,3}(?:\s?[-–—]\s?\d{1,3})?\s*(?:months?|weeks?|years?|days?)\b",
+    re.IGNORECASE)
+_EFFORT_MARKERS = (
+    "grant", "budget", "funding", "co-fund", "cofund", "award", "call",
+    "eligib", "application", "procedure", "authorisation", "authorization",
+    "dossier", "fee", "cost", "takes", "typically", "duration", "deadline",
+    "assessment", "opinion", "submission", "per project", "lump sum",
+)
+EFFORT_ANCHOR_LIMIT = 14
+EFFORT_ANCHOR_KINDS = ("F", "L", "C")   # Foerderung, Recht, Katalysatoren
+
+
+def effort_anchors(sources: list[dict], terms: list[str],
+                   limit: int = EFFORT_ANCHOR_LIMIT) -> list[dict]:
+    """Betraege und Verfahrensdauern, die eine Option beziffern koennen."""
+    want = {t.lower() for t in list(terms or []) if t}
+    out: list[dict] = []
+    seen: set[str] = set()
+    for src in sources or []:
+        sid = str(src.get("id") or "")
+        if not src.get("fetched") or not sid.startswith(EFFORT_ANCHOR_KINDS):
+            continue
+        for sent in dossier_structure._SENT_SPLIT.split(str(src.get("text") or "")):
+            sent = " ".join(sent.split())
+            if not (20 <= len(sent) <= 320):
+                continue
+            low = sent.lower()
+            if not any(mk in low for mk in _EFFORT_MARKERS):
+                continue
+            if not (_MONEY_RE.search(sent) or _DURATION_RE.search(sent)):
+                continue
+            if want and not any(w in low for w in want) and \
+                    not any(mk in low for mk in ("grant", "call", "procedure",
+                                                 "application", "dossier")):
+                continue
+            key = low[:70]
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"statement": sent, "id": sid})
+            if len(out) >= limit:
+                return out
+    return out
+
+
+def effort_anchor_block(anchors: list[dict]) -> str:
+    return "\n".join(f"- {a['statement']} [[{a['id']}]]" for a in anchors)
+
+
+def calendar_candidate_block(cands: list[dict]) -> str:
+    return "\n".join(
+        f"- {c['when']} | {c['statement']}"
+        + (f" [[{c['id']}]]" if c["id"] else "") for c in cands)
+
+
 def sweep_market(topic: str, sources: list[dict], seen_ids: set[str],
                  notes: list[str], ledger: list[dict],
                  per_query: int = 6, terms: list[str] | None = None,
@@ -1995,6 +2280,53 @@ def sweep_market(topic: str, sources: list[dict], seen_ids: set[str],
                      "national rollouts, M&A contests, pipeline readouts and "
                      "reported revenue cannot be crowded out by the general web "
                      "stage. Only pages read in full are citable:"))
+
+
+# --------------------------------------------------------------------------
+# Katalysator-Sweep (R13-2, jury_17 2026-09-07)
+# --------------------------------------------------------------------------
+# Recht, Markt und Foerderung fragen nach ZUSTAENDEN und nach dem, was schon
+# passiert ist ("phase 3 results", "quarterly revenue"). Der Kalender braucht
+# das Gegenteil: Seiten, die sagen, wann das NAECHSTE Ereignis faellt. Diese
+# Muster fragen nur danach — themenweit und je Akteur.
+CATALYST_PATTERNS = (
+    "{t} catalysts calendar next 12 months what to watch",
+    "{t} regulatory decisions expected 2027",
+    "{t} clinical trial readouts expected 2027 timeline",
+)
+ENTITY_CATALYST_PATTERNS = (
+    "{e} topline results expected date",
+    "{e} FDA decision PDUFA date",
+    "{e} EMA CHMP opinion expected",
+    "{e} phase 3 completion expected 2027",
+)
+CAT_MAX_SOURCES = 26
+CAT_MAX_FETCH = 12
+CAT_PER_PATTERN = 3
+CAT_MAX_ENTITIES = 5      # Anfragen = CAT_MAX_ENTITIES * 4 + 3
+
+
+def sweep_catalysts(topic: str, entities: list[str], sources: list[dict],
+                    seen_ids: set[str], notes: list[str], ledger: list[dict],
+                    per_query: int, terms: list[str] | None = None
+                    ) -> tuple[int, str]:
+    """Termine statt Zustaende — die Rohmasse fuer 'What happens next'."""
+    from pipeline.dossier_quant import normalize_topic
+    phrase = (normalize_topic(topic) or topic or "").strip()
+    queries = [p.format(t=phrase) for p in CATALYST_PATTERNS if phrase]
+    for e in list(entities or [])[:CAT_MAX_ENTITIES]:
+        queries += [p.format(e=e) for p in ENTITY_CATALYST_PATTERNS]
+    if not queries:
+        return 0, ""
+    return sweep_fixed(
+        topic, sources, seen_ids, notes, ledger, per_query,
+        queries=queries, kind="catalyst", id_prefix="C",
+        max_sources=CAT_MAX_SOURCES, max_fetch=CAT_MAX_FETCH,
+        per_pattern=CAT_PER_PATTERN, label="catalyst",
+        record_head=("CATALYST SWEEP RECORD — asked only for DATES that are "
+                     "still ahead, per topic and per actor. Only pages read "
+                     "in full are citable:"),
+        terms=terms, entities=entities)
 
 
 def sweep_funding(topic: str, sources: list[dict], seen_ids: set[str],
@@ -2043,6 +2375,9 @@ million percent growth industry sector future outlook review preview special
 january february march april may june july august september october november
 december monday tuesday wednesday thursday friday saturday sunday
 inc ltd llc plc gmbh ag sa nv corp co
+methods results conclusions conclusion background introduction discussion
+abstract objective objectives purpose table figure supplementary randomized
+randomised placebo systematic meta significantly compared versus
 """.split())
 
 # INN-Endungen: Wirkstoffnamen sind die Schluessel zu Rechtsabfragen (SPC,
@@ -2054,13 +2389,42 @@ _INN_SUFFIXES = ("glutide", "trutide", "patide", "glipron", "gliptin",
                  "ciclib", "afil", "setron", "vir", "cept")
 _INN_MIN_LEN = 9
 
-_CAP_TOKEN = re.compile(r"^[A-Z][A-Za-z0-9&.'\-]*$")
+# R13-1 (jury_17, 2026-09-07): Stoffklassen sind keine Wirkstoffe. "polypeptide"
+# endet auf "tide" wie "semaglutide" und steht in fast jedem Patentabstract des
+# Korpus — im GLP-1-Lauf gewann es damit die Dokumentfrequenz, nahm
+# "tirzepatide" den Platz in der zweiten Welle weg und verbrannte vier
+# Rechtsanfragen an "polypeptide court ruling generic". Ein INN endet nie auf
+# -peptide, -nucleotide oder -saccharide; und die verbleibenden Klassenwoerter
+# stehen namentlich hier.
+_CLASS_STEMS = ("peptide", "nucleotide", "saccharide", "glucoside", "steroid")
+_CLASS_WORDS = frozenset("""
+nonpeptide antipeptide prodrug analogue analog agonist antagonist receptor
+substrate metabolite excipient conjugate derivative precursor inhibitor
+""".split())
 
 
 def _is_substance(word: str) -> bool:
     w = word.lower().strip(".,;:!?()[]\"'")
-    return (len(w) >= _INN_MIN_LEN and w.isalpha()
-            and w.endswith(_INN_SUFFIXES))
+    if not (len(w) >= _INN_MIN_LEN and w.isalpha()):
+        return False
+    if w in _CLASS_WORDS or w.endswith(_CLASS_STEMS):
+        return False
+    return w.endswith(_INN_SUFFIXES)
+
+
+_CAP_TOKEN = re.compile(r"^[A-Z][A-Za-z0-9&.'\-]*$")
+
+# Nur als EINZELWORT verworfen: "European" allein ist keine Entitaet,
+# "European Commission" schon. Die Liste darf deshalb nicht in _ENTITY_STOP
+# stehen, das jedes N-Gramm mit einem solchen Token verwirft.
+_ENTITY_STOP_SOLO = frozenset("""
+obesity diabetes phase trial trials weight patients adults treatment therapy
+therapies efficacy safety evidence clinical dose doses outcome outcomes
+participants design setting aim aims european national international
+university hospital institute agency ministry commission association society
+journal article guidelines guideline authority council committee department
+center centre laboratory foundation programme program project consortium
+""".split())
 
 
 def harvest_entities(sources: list[dict], topic: str,
@@ -2082,7 +2446,12 @@ def harvest_entities(sources: list[dict], topic: str,
     subs: dict[str, set[int]] = {}
     display: dict[str, str] = {}
     for i, s in enumerate(sources):
-        text = f"{s.get('title') or ''} {s.get('snippet') or ''}"
+        # R13-1: auch der VOLLTEXT gelesener Seiten. Die Wirkstoffe der
+        # laufenden Generation (CagriSema, retatrutide, survodutide) stehen
+        # nicht in unseren Korpustiteln, sondern in den Seiten, die die
+        # Sweeps gerade gelesen haben.
+        text = (f"{s.get('title') or ''} {s.get('snippet') or ''} "
+                f"{(s.get('text') or '')[:ENTITY_TEXT_CHARS]}")
         for raw in text.split():
             if _is_substance(raw):
                 w = raw.lower().strip(".,;:!?()[]\"'")
@@ -2098,6 +2467,7 @@ def harvest_entities(sources: list[dict], topic: str,
         _collect_ngrams(run, i, df, display, topic_words, outlets)
     substances = sorted(subs, key=lambda w: (-len(subs[w]), w))
     substances = [w for w in substances if len(subs[w]) >= 2] or substances[:2]
+    _prefer_longest(df)
     orgs = [display[k] for k in sorted(df, key=lambda k: (-len(df[k]), -len(k), k))
             if len(df[k]) >= 2]
     out: list[str] = []
@@ -2107,6 +2477,31 @@ def harvest_entities(sources: list[dict], topic: str,
         if len(out) >= limit:
             break
     return out, substances[:limit]
+
+
+ENTITY_TEXT_CHARS = 6_000   # je gelesener Seite in die Entitaetenernte
+
+
+def _prefer_longest(df: dict[str, set[int]]) -> None:
+    """Kurzform streichen, wo der volle Name fast genauso oft vorkommt.
+
+    "Novo" und "Novo Nordisk" sind dieselbe Firma; die Kurzform gewinnt die
+    Dokumentfrequenz und macht daraus die Anfrage "Novo acquisition deal
+    announcement" (jury_17-Lauf, 2026-09-07). Enthaelt ein laengerer Schluessel
+    den kuerzeren als zusammenhaengende Wortfolge und steht er in mindestens
+    der Haelfte derselben Dokumente, fliegt die Kurzform raus."""
+    keys = sorted(df, key=lambda k: -len(k.split()))
+    for long in keys:
+        lt = long.split()
+        if len(lt) < 2:
+            continue
+        for n in range(1, len(lt)):
+            for j in range(len(lt) - n + 1):
+                short = " ".join(lt[j:j + n])
+                if short == long or short not in df:
+                    continue
+                if len(df[long]) * 2 >= len(df[short]):
+                    df.pop(short, None)
 
 
 def _collect_ngrams(run: list[str], doc: int, df: dict[str, set[int]],
@@ -2120,7 +2515,8 @@ def _collect_ngrams(run: list[str], doc: int, df: dict[str, set[int]],
             if any(t in _ENTITY_STOP or t in _STOPWORDS or t in outlets
                    or t in topic_words for t in low):
                 continue
-            if n == 1 and (len(gram[0]) < 3 or gram[0].islower()):
+            if n == 1 and (len(gram[0]) < 3 or gram[0].islower()
+                           or low[0] in _ENTITY_STOP_SOLO):
                 continue
             key = " ".join(low)
             if len(key) < 4:
@@ -2938,6 +3334,7 @@ def run(question: str, max_steps: int, max_sources: int,
     reg_added, reg_record = 0, ""
     mkt_added, mkt_record = 0, ""
     fund_added, fund_record = 0, ""
+    cat_added, cat_record = 0, ""
     entities: list[str] = []
     if measure and web_steps > 0:
         # Entitaeten VOR der ersten Welle: Firmen, Wirkstoffe und Behoerden
@@ -2992,6 +3389,14 @@ def run(question: str, max_steps: int, max_sources: int,
                 reg_record = (reg_record + "\n\n" + sub_record).strip()
             if ent_record:
                 mkt_record = (mkt_record + "\n\n" + ent_record).strip()
+
+        # --- dritte Welle: Termine (R13-2) -------------------------------
+        # Bewusst NACH der zweiten Welle: sie fragt je Akteur, und die Akteure
+        # stehen erst jetzt fest.
+        cat_added, cat_record = sweep_catalysts(
+            topic or question, entities, sources, seen_ids, notes, ledger,
+            per_query, terms=web_filter)
+        logger.info("catalyst sweep: +%d source(s)", cat_added)
 
     # --- web stage: close the audited gaps on the open web ------------------
     web_trace: list[dict] = []
@@ -3376,6 +3781,21 @@ def run(question: str, max_steps: int, max_sources: int,
         fact_ledger = harvest_facts(citable_sources, question, dr=dr)
         logger.info("fact ledger: %d verified dated fact(s) from %d source(s)",
                     len(fact_ledger), len({f["id"] for f in fact_ledger}))
+    # R13-3: die Kalenderzeilen werden dem Bericht VORGELEGT, nicht von ihm
+    # erinnert. Gesammelt aus dem Faktenzettel und aus jeder in voller Laenge
+    # gelesenen Seite: Datum in der Zukunft + Vorwaertswort + Themenbezug.
+    cal_cands: list[dict] = []
+    eff_anchors: list[dict] = []
+    if dr:
+        cal_cands = calendar_candidates(
+            fact_ledger, citable_sources, terms, entities,
+            datetime.now(timezone.utc).year)
+        logger.info("calendar candidates: %d dated future event(s) from "
+                    "%d source(s)", len(cal_cands),
+                    len({c["id"] for c in cal_cands if c["id"]}))
+        eff_anchors = effort_anchors(citable_sources, terms)
+        logger.info("effort anchors: %d transferable figure(s)",
+                    len(eff_anchors))
     ledger_json = json.dumps(ledger, ensure_ascii=False)
     # R6-2/R6-3 (jury_7.md/jury_8.md): die Optionen muessen an die Messung
     # gebunden und ueber alle in der Frage genannten Felder verteilt sein.
@@ -3450,6 +3870,8 @@ def run(question: str, max_steps: int, max_sources: int,
            f"</untrusted_market_record>\n\n" if mkt_record else "")
         + (f"<untrusted_funding_record>\n{shield(fund_record)}\n"
            f"</untrusted_funding_record>\n\n" if fund_record else "")
+        + (f"<untrusted_catalyst_record>\n{shield(cat_record)}\n"
+           f"</untrusted_catalyst_record>\n\n" if cat_record else "")
         + (f"These ids appear in the evidence but were NEVER READ IN FULL, so "
            f"they cannot carry a citation — using one deletes it and leaves the "
            f"claim unsupported: {', '.join(uncitable_ids)}\n\n"
@@ -3488,6 +3910,29 @@ def run(question: str, max_steps: int, max_sources: int,
            f"calendar — take every one of them that bears on the question.\n"
            f"{fact_ledger_block(fact_ledger)}\n\n"
            if dr and fact_ledger else "")
+        + (f"CALENDAR CANDIDATES — {len(cal_cands)} dated events that are "
+           f"still ahead. Each line was taken verbatim from ONE source that "
+           f"was read in full, and the date was mechanically checked to stand "
+           f"in that source. Build 'What happens next' from THESE lines: keep "
+           f"the ones that bear on the question, write the 'Why it matters' "
+           f"column yourself, and put the id in the Source column. Do not add "
+           f"a row that is not here, and do not carry a row whose subject has "
+           f"nothing to do with the question — a calendar of events from "
+           f"another field is worse than a short one. If fewer than five of "
+           f"these bear on the question, take the ones that do and say in one "
+           f"sentence under the table what was not found.\n"
+           f"{calendar_candidate_block(cal_cands)}\n\n"
+           if dr and cal_cands else "")
+        + (f"EFFORT ANCHORS — figures from the funding, legal and catalyst "
+           f"pages that a mid-sized company can actually transfer to its own "
+           f"plan: grant sizes it could apply for, programme budgets, "
+           f"procedure durations and fees. Size the Effort line of an option "
+           f"from these where one fits, and say what it is an anchor FOR "
+           f"(\"an EIC grant of this size\", \"a procedure of this length\"). "
+           f"A pharma deal value is not an anchor for a food company's "
+           f"budget — do not use one as if it were.\n"
+           f"{effort_anchor_block(eff_anchors)}\n\n"
+           if dr and eff_anchors else "")
         + (f"Citation catalog — cite by the id in double brackets, "
            f"exactly as written here:\n{citable}\n\n" if measure else
            f"Citation catalog — copy these link forms verbatim:\n{citable}\n\n")
@@ -3499,6 +3944,7 @@ def run(question: str, max_steps: int, max_sources: int,
     write_sampling = dr_sampling("write", dr)
     report = llamacpp_client.chat(
         model=MODEL, system=sys_prompt, prompt=report_prompt,
+        enable_thinking=False,
         **(write_sampling or {"temperature": 0.4}))
     report = re.sub(r"<think>.*?</think>", "", report, flags=re.DOTALL).strip()
     # R11-1: laeuft der Server mit Denken UND Denk-Budget, schliesst llama.cpp
@@ -3630,7 +4076,7 @@ def run(question: str, max_steps: int, max_sources: int,
             # (B8-Lauf v1: 1.511 -> 1.335 Woerter).
             expand = dossier_structure.needs_expansion(findings)
             second = llamacpp_client.chat(
-                model=MODEL, system=sys_prompt,
+                model=MODEL, system=sys_prompt, enable_thinking=False,
                 **(write_sampling or {"temperature": 0.3}),
                 prompt=(revision + "\n\n"
                         + (f"FACT LEDGER (unchanged) — dated, source-checked "

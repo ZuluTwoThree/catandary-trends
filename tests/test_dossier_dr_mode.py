@@ -33,9 +33,15 @@ def test_sampling_is_off_in_the_old_path():
 
 
 def test_write_sampling_follows_the_model_card():
+    """Modellkarte, mit EINER begruendeten Abweichung.
+
+    presence_penalty 0.5 statt 1.5: die 1.5 der Karte bestrafen jedes schon
+    verwendete Token — in einem Entscheidungspapier sind das der Wirkstoff in
+    Kalender und Option, die Katalog-Id hinter drei Saetzen, das Jahr in fuenf
+    Kalenderzeilen (R13-8, 2026-09-07)."""
     s = cr.dr_sampling("write", True)
     assert s["temperature"] == 0.7 and s["top_p"] == 0.80
-    assert s["top_k"] == 20 and s["presence_penalty"] == 1.5
+    assert s["top_k"] == 20 and s["presence_penalty"] == 0.5
 
 
 def test_structured_calls_carry_no_presence_penalty():
@@ -304,7 +310,7 @@ def test_the_dr_path_writes_from_its_notes_with_card_sampling(monkeypatch):
     assert "March 2031" in first["prompt"]
     assert "HOW YOU WORK" in first["system"]
     assert first["temperature"] == 0.7 and first["top_p"] == 0.80
-    assert first["top_k"] == 20 and first["presence_penalty"] == 1.5
+    assert first["top_k"] == 20 and first["presence_penalty"] == 0.5
 
 
 # --------------------------------------------------------------------------
@@ -706,3 +712,217 @@ def test_a_topic_row_counts():
 def test_without_topic_terms_the_rule_is_off():
     rows = ["| 2030 | Anything at all | [[A1]] | matters |"]
     assert ds.calendar_rows(_cal(rows), "en", 2026)["ok"] == 1
+
+
+# --------------------------------------------------------------------------
+# Runde 13 (jury_17, 2026-09-07): die vier Befunde, die Regeln sind
+# --------------------------------------------------------------------------
+# jury_17 gab dem Dossier 5,7 gegen 6,9 und verteilte den Abstand auf drei
+# Kriterien: Zeitliche Einordnung 3:7, Spezifitaet 5:8, Abdeckung 5:8. Der
+# Lauf zeigt, warum: 16 von 61 Websuchen gingen an Scheinentitaeten
+# ("Phase phase 3 trial results", "polypeptide court ruling generic"), und
+# "polypeptide" nahm "tirzepatide" den Platz in der zweiten Welle.
+
+
+class TestR13EntityHygiene:
+    def test_class_words_are_not_substances(self):
+        for w in ("polypeptide", "nonpeptide", "oligonucleotide", "agonist"):
+            assert not cr._is_substance(w), w
+
+    def test_real_inns_survive(self):
+        for w in ("semaglutide", "tirzepatide", "retatrutide", "survodutide",
+                  "petrelintide", "orforglipron"):
+            assert cr._is_substance(w), w
+
+    def test_the_full_company_name_wins_over_its_short_form(self):
+        srcs = [{"title": "Novo Nordisk raises guidance", "snippet": "Novo Nordisk said"},
+                {"title": "Novo Nordisk in court", "snippet": "Novo Nordisk lost"},
+                {"title": "A ruling for Novo Nordisk", "snippet": "Novo Nordisk again"}]
+        ents, _ = cr.harvest_entities(srcs, "obesity drugs")
+        assert any(e.lower() == "novo nordisk" for e in ents)
+        assert not any(e.lower() == "novo" for e in ents)
+
+    def test_abstract_section_words_are_no_actors(self):
+        srcs = [{"title": "METHODS Obesity trial", "snippet": "RESULTS Obesity Phase"},
+                {"title": "METHODS Obesity study", "snippet": "RESULTS Obesity Phase"}]
+        ents, _ = cr.harvest_entities(srcs, "obesity")
+        low = {e.lower() for e in ents}
+        assert not (low & {"methods", "results", "obesity", "phase"})
+
+    def test_substances_are_harvested_from_the_read_page_text(self):
+        """Die laufende Wirkstoffgeneration steht nicht in unseren Titeln."""
+        page = ("Trial results for CagriSema and retatrutide were reported; "
+                "survodutide followed. ") * 2
+        srcs = [{"title": "Pipeline update", "snippet": "", "text": page},
+                {"title": "Second page", "snippet": "", "text": page}]
+        _, subs = cr.harvest_entities(srcs, "obesity drugs")
+        assert "retatrutide" in subs and "survodutide" in subs
+
+
+class TestR13CatalystSweep:
+    def test_it_asks_per_topic_and_per_actor(self, monkeypatch):
+        seen = []
+        monkeypatch.setattr(cr, "brave_search",
+                            lambda q, count=6: seen.append(q) or [])
+        added, record = cr.sweep_catalysts(
+            "GLP-1 and incretin technology",
+            ["semaglutide", "tirzepatide", "Novo Nordisk"],
+            [], set(), [], [], 6)
+        assert len(seen) == len(cr.CATALYST_PATTERNS) + 3 * len(
+            cr.ENTITY_CATALYST_PATTERNS)
+        assert any("catalysts calendar" in q for q in seen)
+        assert any(q.startswith("tirzepatide") for q in seen)
+        assert "CATALYST SWEEP RECORD" in record
+
+    def test_the_actor_list_is_capped(self, monkeypatch):
+        seen = []
+        monkeypatch.setattr(cr, "brave_search",
+                            lambda q, count=6: seen.append(q) or [])
+        cr.sweep_catalysts("topic", [f"e{i}" for i in range(20)],
+                           [], set(), [], [], 6)
+        assert len(seen) == len(cr.CATALYST_PATTERNS) + \
+            cr.CAT_MAX_ENTITIES * len(cr.ENTITY_CATALYST_PATTERNS)
+
+
+class TestR13CalendarCandidates:
+    def test_a_future_date_is_normalised(self):
+        assert cr._when_label("A decision is expected in Q4 2026.", 2026) == "Q4 2026"
+        assert cr._when_label("The SPC expires on 19 March 2031.", 2026) == "19 March 2031"
+        assert cr._when_label("Filing planned for H2 2027.", 2026) == "H2 2027"
+
+    def test_a_past_date_is_not_a_calendar_entry(self):
+        assert cr._when_label("The study ran from 2019 to 2021.", 2026) is None
+
+    def test_the_earliest_future_date_wins(self):
+        s = "Filed in 2019, the SPC expires in 2031 after review in 2027."
+        assert cr._when_label(s, 2026) == "2027"
+
+    def test_a_sentence_without_a_forward_marker_is_no_event(self):
+        srcs = [{"id": "L1", "fetched": True,
+                 "text": "GLP-1 sales reached a record in 2027 terms."}]
+        assert cr.calendar_candidates([], srcs, ["glp-1"], [], 2026) == []
+
+    def test_ledger_and_pages_both_feed_the_calendar(self):
+        led = [{"date": "2026-12-01", "id": "M2",
+                "statement": "FDA decision on CagriSema due December 2026"}]
+        srcs = [{"id": "L4", "fetched": True,
+                 "text": "A CHMP opinion on CagriSema is expected in Q1 2027."}]
+        c = cr.calendar_candidates(led, srcs, ["glp-1"], ["cagrisema"], 2026)
+        assert [x["id"] for x in c] == ["M2", "L4"]
+        assert "[[M2]]" in cr.calendar_candidate_block(c)
+
+    def test_off_topic_events_never_become_candidates(self):
+        srcs = [{"id": "L9", "fetched": True,
+                 "text": "The steel tariff review is expected in Q2 2027."}]
+        assert cr.calendar_candidates([], srcs, ["glp-1"], ["semaglutide"],
+                                      2026) == []
+
+    def test_one_page_cannot_fill_the_whole_calendar(self):
+        text = " ".join(f"A GLP-1 decision {i} is expected in Q1 202{i}."
+                        for i in range(7, 10))
+        text += " ".join(f"A GLP-1 readout {i} is expected in 203{i}."
+                         for i in range(5))
+        srcs = [{"id": "L1", "fetched": True, "text": text}]
+        c = cr.calendar_candidates([], srcs, ["glp-1"], [], 2026)
+        assert len(c) <= cr.CAL_MAX_PER_SOURCE
+
+    def test_unread_pages_carry_nothing(self):
+        srcs = [{"id": "L1", "fetched": False,
+                 "text": "A GLP-1 decision is expected in Q1 2028."}]
+        assert cr.calendar_candidates([], srcs, ["glp-1"], [], 2026) == []
+
+
+class TestR13EffortAnchors:
+    def test_a_grant_size_is_an_anchor(self):
+        srcs = [{"id": "F3", "fetched": True,
+                 "text": "The EIC Accelerator grant component is up to "
+                         "EUR 2.5 million per company."}]
+        a = cr.effort_anchors(srcs, ["glp-1"])
+        assert a and a[0]["id"] == "F3"
+        assert "[[F3]]" in cr.effort_anchor_block(a)
+
+    def test_a_procedure_duration_is_an_anchor(self):
+        srcs = [{"id": "L2", "fetched": True,
+                 "text": "The EFSA health claim application procedure "
+                         "typically takes 18 months from submission."}]
+        assert cr.effort_anchors(srcs, ["glp-1"])
+
+    def test_a_market_page_is_not_an_anchor(self):
+        srcs = [{"id": "M7", "fetched": True,
+                 "text": "The acquisition cost USD 10.2 billion in 2026."}]
+        assert cr.effort_anchors(srcs, ["glp-1"]) == []
+
+
+class TestR13ThinkingSwitch:
+    def test_the_report_call_disables_thinking(self, monkeypatch):
+        sent = {}
+
+        class _R:
+            @staticmethod
+            def raise_for_status():
+                return None
+
+            @staticmethod
+            def json():
+                return {"choices": [{"message": {"content": "x"}}]}
+
+        class _C:
+            def __init__(self, *a, **k):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def post(self, url, json):
+                sent.update(json)
+                return _R()
+
+        from pipeline import llamacpp_client as lc
+        monkeypatch.setattr(lc.httpx, "Client", _C)
+        lc.chat(model="m", prompt="p", enable_thinking=False)
+        assert sent["chat_template_kwargs"] == {"enable_thinking": False}
+        sent.clear()
+        lc.chat(model="m", prompt="p")
+        assert "chat_template_kwargs" not in sent
+
+
+class TestR13Mending:
+    def test_a_deleted_link_leaves_no_orphan_bracket(self):
+        line = "**Trigger: ** Regulation, EC) 1924/2006, first opinions June 2012)"
+        assert ds._mend_inline(line) == (
+            "**Trigger:** Regulation, EC 1924/2006, first opinions June 2012")
+
+    def test_a_correct_parenthesis_is_left_alone(self):
+        line = "The claim (see the register) still stands."
+        assert ds._mend_inline(line) == line
+
+    def test_an_unsized_sentence_is_a_placeholder(self):
+        for v in ("The effort cannot be sized from this evidence.",
+                  "no primary source sizes this.",
+                  "The evidence does not size it."):
+            assert ds.is_placeholder(v), v
+
+    def test_a_sized_effort_survives(self):
+        assert not ds.is_placeholder("EUR 1-3m over 18 months [[F2]]")
+        assert not ds.is_placeholder(
+            "cannot be sized directly; a comparable EIC grant is EUR 2.5m [[F3]]")
+
+
+class TestR13CalendarNoise:
+    def test_a_year_inside_a_url_is_not_a_date(self):
+        srcs = [{"id": "C1", "fetched": True,
+                 "text": "The GLP-1 report is available at "
+                         "example.com/state-of-glp1-regulation-2027 and is "
+                         "planned to anchor the hub."}]
+        assert cr.calendar_candidates([], srcs, ["glp-1"], [], 2026) == []
+
+    def test_the_year_may_stand_before_the_half(self):
+        srcs = [{"id": "C2", "fetched": True,
+                 "text": "2026 H2 - Novo Nordisk CagriSema FDA decision is "
+                         "expected for weight management."}]
+        c = cr.calendar_candidates([], srcs, ["glp-1", "cagrisema"], [], 2026)
+        assert c and c[0]["when"] == "H2 2026"
+        assert not c[0]["statement"].startswith("-")

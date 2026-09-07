@@ -417,7 +417,12 @@ Treffer **nach Rang** (Behörde/Register/Journal zuerst, Presse gar nicht),
 zieht daraus **Notizen** — datierte Einzelaussagen, jede maschinell gegen ihren
 Quelltext geprüft — und schreibt den Bericht aus diesem Faktenbuch statt aus
 dem Rohmaterial; gesampelt wird nach Modellkarte (temp 0.7, top_p 0.80,
-top_k 20, presence_penalty 1.5) statt nur über die Temperatur. Einschalten:
+top_k 20, presence_penalty 0.5 — die 1.5 der Karte bestrafen genau die
+Wiederholung, von der eine Faktentabelle lebt) statt nur über die Temperatur.
+Seit Runde 13 legt der Lauf dem Bericht außerdem zwei fertige Listen vor:
+**Kalender-Kandidaten** (datierte Zukunftstermine, aus jeder gelesenen Seite
+maschinell gezogen und gegen sie geprüft) und **Aufwands-Anker** (Förderbeträge,
+Programmbudgets, Verfahrensdauern aus Förder-/Rechtsseiten). Einschalten:
 
 ```bash
 DOSSIER_DR=1 .venv/bin/python -m scripts.dossier_worker --order N
@@ -436,13 +441,18 @@ die Unit `llama-server.service` liest sie, wenn sie existiert:
 ```
 LLAMA_REASONING=on
 LLAMA_REASONING_EFFORT=medium     # low | medium | high | xhigh
-LLAMA_ARG_THINK_BUDGET=3000       # optional, begrenzt die Denkspur
 ```
 
 Dazu den Lauf mit `DOSSIER_DR_THINK=1` starten (dann gilt der denkende
 Sampling-Satz der Modellkarte und ein Client-Zeitlimit von 2.400 s statt 600).
-**Datei nach dem Lauf wieder löschen** — sonst denkt auch der nächtliche
-Draft-Richter, und der Cycle wird deutlich langsamer. Ein Vergleichslauf gegen die Runden davor steht in
+**Kein `LLAMA_ARG_THINK_BUDGET` setzen:** läuft die Denkspur ins Budget,
+schließt llama.cpp die Denkmarke selbst und das Modell überlegt im Antwortfeld
+weiter — am 2026-09-07 standen so 51 Zeilen Überlegung vor der ersten
+Überschrift. **Datei nach dem Lauf wieder löschen** — sonst denkt auch der
+nächtliche Draft-Richter, und der Cycle wird deutlich langsamer. Der
+Berichts- und der Revisionsaufruf des Dossiers denken seit Runde 13 in keinem
+Fall (`enable_thinking: false` je Anfrage) — geschrieben wird nach dem
+nicht-denkenden Satz der Modellkarte, egal wie der Server gestartet wurde. Ein Vergleichslauf gegen die Runden davor steht in
 `docs/agentic_dossiers.md` (Abschnitt „Die DR-Runde").
 
 **Firmen-Dossier, Fokus, Sprache — nur per CLI.** Der Desk kennt nur den

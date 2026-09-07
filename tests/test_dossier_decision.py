@@ -882,7 +882,7 @@ class TestRound5Budget:
         # Katalysator-Kalender, und die Volltext-Budgets werden der Reihe nach
         # vergeben — ohne mehr Budget haetten die neuen Muster nur unlesbare
         # Katalogzeilen erzeugt.
-        assert cr.REG_MAX_FETCH == 14 and cr.MKT_MAX_FETCH == 14
+        assert cr.REG_MAX_FETCH == 15 and cr.MKT_MAX_FETCH == 14
         assert cr.SUB_MAX_FETCH == 8 and cr.ENT_MAX_FETCH == 8
         assert cr.BACKSTOP_FETCH_BUDGET == 12
         fixed = (cr.REG_MAX_FETCH + cr.MKT_MAX_FETCH
@@ -2606,7 +2606,7 @@ class TestR9NoEmptyMandatoryFields:
             sysprompt = cr.report_system(True, lang)
             assert ("THREE different sources" in sysprompt
                     or "DREI verschiedene Quellen" in sysprompt)
-            assert ("count as an\n    UNFILLED field" in sysprompt
+            assert ("count as an UNFILLED field" in sysprompt
                     or "NICHT erfülltes Feld" in sysprompt)
 
 

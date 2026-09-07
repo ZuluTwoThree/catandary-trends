@@ -124,7 +124,8 @@ def chat(model: str, prompt: str, system: str | None = None,
          temperature: float = 0.0, seed: int | None = None,
          max_tokens: int | None = None, top_p: float | None = None,
          top_k: int | None = None, min_p: float | None = None,
-         presence_penalty: float | None = None) -> str:
+         presence_penalty: float | None = None,
+         enable_thinking: bool | None = None) -> str:
     """Send a chat request to llama-server and return the response text.
 
     `seed` / `max_tokens` are optional and only sent when given (Research
@@ -154,6 +155,14 @@ def chat(model: str, prompt: str, system: str | None = None,
         payload["max_tokens"] = max_tokens
     _add_sampling(payload, top_p=top_p, top_k=top_k, min_p=min_p,
                   presence_penalty=presence_penalty)
+    # Denken pro Anfrage, unabhaengig davon, wie der Server gestartet wurde.
+    # Der Dossier-Bericht setzt das ausdruecklich auf False: laeuft der Server
+    # mit `--reasoning on` und einem Denk-Budget, schliesst llama.cpp die
+    # Denkmarke bei Budgetende selbst und das Modell ueberlegt im Antwortfeld
+    # weiter — im Lauf vom 2026-09-07 standen 51 Zeilen Ueberlegung vor der
+    # ersten Ueberschrift (R11-1).
+    if enable_thinking is not None:
+        payload["chat_template_kwargs"] = {"enable_thinking": enable_thinking}
 
     url = f"{LLAMACPP_HOST}/v1/chat/completions"
     logger.debug("llama.cpp chat → %s (model=%s, T=%.2f)", url, model, temperature)
