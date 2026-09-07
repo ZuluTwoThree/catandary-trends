@@ -3399,6 +3399,13 @@ def run(question: str, max_steps: int, max_sources: int,
     # Untergrenze ist das Jahr des Laufs, nicht das Datum — ein Quartal des
     # laufenden Jahres bleibt eine gueltige Zeile.
     year_floor = datetime.now(timezone.utc).year
+    # R12-2: der Kalender muss vom Thema handeln. Woerter sind die Themenanker
+    # PLUS die Akteure und Wirkstoffe, die der Lauf selbst gefunden hat — sonst
+    # faellt "Semaglutide compound patent expires" durch, weil das Thema
+    # "GLP-1 / incretin" heisst.
+    calendar_terms = list(dict.fromkeys(
+        [t for t in anchor_terms(topic or question, cap=6) if t]
+        + [str(e).lower() for e in entities][:12]))
     sys_prompt = report_system(measure, lang)
     if dr:
         # Arbeitsanweisung statt Regelwerk: die Notizen sind gemacht, jetzt
@@ -3541,7 +3548,8 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["density_before"] = density
         findings = dossier_structure.structure_findings(
             report, lang, measured=measured_keys, sectors=sector_fields,
-            year_floor=year_floor, density=density)
+            year_floor=year_floor, density=density,
+            topic_terms=calendar_terms)
         cites = dossier_structure.verify_cited_figures(report, citable_sources)
         # Befund 2 (falsche Seite) und Befund 3 (Zahl ohne Beleg) der Jurys vom
         # 2026-09-07 laufen durch denselben Kanal wie die Zahlenpruefung:
@@ -3711,7 +3719,8 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["density_after"] = density_after
         structure["findings_after"] = dossier_structure.structure_findings(
             report, lang, measured=measured_keys, sectors=sector_fields,
-            year_floor=year_floor, density=density_after)
+            year_floor=year_floor, density=density_after,
+            topic_terms=calendar_terms)
         structure["words_after"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
         structure.update(dossier_structure.option_measure_stats(

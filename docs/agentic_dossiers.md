@@ -877,3 +877,33 @@ Jury Spezifität senkte. Der Zähler misst *datierte, primärbelegte Angaben je
 erreicht ihn und verfehlt die Frage. Gute Wächterin gegen Prosa, schlechter
 Kompass für Relevanz. Protokoll: `scratchpad/glp1/DR2_run.md`.
 
+### Runde 12 (2026-09-07) — die zwei Befunde aus jury_17, die Regeln sind
+
+Ohne neuen Lauf, beide an den gespeicherten Dokumenten gegengeprüft:
+
+- **R12-1 — zwei unabhängige Sekundärquellen tragen eine Kernaussage.**
+  jury_17 wörtlich: „Ein Entscheidungspapier, dessen Regelwerk eine wahre und
+  tragende Tatsache aus dem Text drängt, hat den Regelapparat über den Zweck
+  gestellt." Genau das tat R9-1 mit der Europa-These (EU-Generika nicht vor
+  2031): nur sekundär belegt, also in der Kurzfassung gestrichen — obwohl wahr
+  und tragend. Jetzt trägt eine Aussage, die auf **zwei verschiedenen Hosts**
+  ruht, auch die Kurzfassung — mit „(secondary source only)". Eine einzelne
+  schwache Quelle tut es weiterhin nicht; das war der Befund aus jury_13, und
+  er bleibt gültig.
+- **R12-2 — eine Kalenderzeile muss vom Thema handeln.** jury_17: „drei
+  themenfremde Horizon-Europe-Jahreszahlen", „der Kalender enthält keinen
+  einzigen GLP-1-Termin". Datum und Beleg hatten diese Zeilen; sie handelten
+  von der Laufzeit eines Förderprogramms. Eine Zeile zählt jetzt nur zu den
+  fünf, wenn sie ein Themenwort trägt (Themenanker plus die Akteure und
+  Wirkstoffe, die der Lauf selbst gefunden hat); sonst steht sie als
+  „datiert und belegt, aber nicht zum Thema" im Befund. Ohne Themenwörter ist
+  die Regel aus (Firmen-Dossiers).
+
+Gegenprobe: DR 2 → 0 gültige, **3 themenfremde** Zeilen (genau die gerügten);
+DR 1 → 3 gültige, 0 themenfremde; B8 v2 → 6 gültige, 0 themenfremde. Keine
+Fehlalarme an den bisher besten Kalendern.
+
+**Nicht behoben** (Modell, nicht Regel): der erste Satz des DR-2-Dokuments las
+eine Studienpublikation als Zulassung. Ein semantischer Fehlgriff, den kein
+Zahlen- oder Ranggate fängt.
+

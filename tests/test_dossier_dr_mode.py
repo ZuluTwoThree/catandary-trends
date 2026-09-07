@@ -637,3 +637,72 @@ def test_a_clean_report_is_untouched():
 def test_a_report_without_any_mandatory_heading_is_left_alone():
     doc = "Some text without headings.\n"
     assert ds.strip_preamble(doc) == (doc, 0)
+
+
+# --------------------------------------------------------------------------
+# 10. R12 — die zwei Befunde aus jury_17, die Regeln sind
+# --------------------------------------------------------------------------
+
+_TWO = [{"id": "A1", "kind": "web", "rank": 2, "title": "Outlet A",
+         "url": "https://a.example/1", "origin": "https://a.example/1",
+         "outlet": "A", "date": "2026-08-05", "fetched": True},
+        {"id": "B1", "kind": "web", "rank": 2, "title": "Outlet B",
+         "url": "https://b.example/1", "origin": "https://b.example/1",
+         "outlet": "B", "date": "2026-08-06", "fetched": True}]
+
+
+def test_two_independent_secondary_sources_carry_a_summary_claim():
+    """jury_17: die Regel drueckte die wahre, tragende Europa-These aus dem
+    Text. Zwei unabhaengige Sekundaerquellen tragen sie jetzt — mit Marke."""
+    doc = _doc("All fine [[A1]] on 12 May 2026.",
+               decision="EU generics cannot enter before March 2031 "
+                        "[[A1]], [[B1]].\n\nSecond claim [[A1]] 12 May 2026.")
+    found = [e for e in ds.weak_source_claims(doc, _TWO, "en", "")
+             if e["kind"] == "weakclaim" and e["section"] == "decision"]
+    assert found and found[0]["corroborated"] is True
+    out, n = ds.drop_unverified(doc, found)
+    assert "March 2031" in out, "die Aussage darf nicht verschwinden"
+    assert "(secondary source only)" in out
+
+
+def test_one_weak_source_still_does_not_carry_the_summary():
+    doc = _doc("All fine [[A1]] on 12 May 2026.",
+               decision="EU generics cannot enter before March 2031 [[A1]].\n\n"
+                        "Second claim [[A1]] 12 May 2026.")
+    found = [e for e in ds.weak_source_claims(doc, _TWO, "en", "")
+             if e["section"] == "decision"]
+    assert found and found[0]["corroborated"] is False
+    out, _n = ds.drop_unverified(doc, found)
+    assert "March 2031" not in out
+
+
+def _cal(rows: list[str]) -> str:
+    head = ["| Date | Event | Source | Why it matters |", "|---|---|---|---|"]
+    return _doc("x", options="") .replace(
+        "## What happens next\n\n| Date | Event | Source | Why it matters |\n"
+        "|---|---|---|---|\n",
+        "## What happens next\n\n" + "\n".join(head + rows) + "\n")
+
+
+def test_a_funding_programme_year_is_not_a_technology_date():
+    """jury_17: 'drei themenfremde Horizon-Europe-Jahreszahlen', 'der Kalender
+    enthaelt keinen einzigen GLP-1-Termin'."""
+    rows = [f"| 203{i} | Horizon Europe programme phase {i} | [[A1]] | funding |"
+            for i in range(5)]
+    c = ds.calendar_rows(_cal(rows), "en", 2026, ("glp-1", "incretin"))
+    assert c["ok"] == 0 and c["off_topic"] == 5
+    txt = " ".join(ds.calendar_findings(_cal(rows), "en", 2026,
+                                        ("glp-1", "incretin")))
+    assert "nicht zum Thema" in txt
+
+
+def test_a_topic_row_counts():
+    rows = [f"| 203{i} | GLP-1 readout {i} | [[A1]] | matters |"
+            for i in range(5)]
+    c = ds.calendar_rows(_cal(rows), "en", 2026, ("glp-1", "incretin"))
+    assert c["ok"] == 5 and c["off_topic"] == 0
+
+
+def test_without_topic_terms_the_rule_is_off():
+    rows = ["| 2030 | Anything at all | [[A1]] | matters |"]
+    assert ds.calendar_rows(_cal(rows), "en", 2026)["ok"] == 1

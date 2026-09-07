@@ -1075,20 +1075,38 @@ def table_rows(section_text: str) -> list[list[str]]:
     return rows
 
 
+def _row_on_topic(line: str, topic_terms) -> bool:
+    """Traegt die Zeile ueberhaupt ein Wort des Themas?
+
+    R12-2 (jury_17, 2026-09-07): der Kalender des Denk-Laufs bestand aus
+    Horizon-Europe-Programmjahren — „drei themenfremde Horizon-Europe-
+    Jahreszahlen", „der Kalender enthaelt keinen einzigen GLP-1-Termin".
+    Datum und Beleg hatten diese Zeilen; sie handelten nur von etwas anderem.
+    Ohne Themenwoerter ist die Regel aus (alter Pfad, Firmen-Dossiers)."""
+    if not topic_terms:
+        return True
+    low = prose(line).lower()
+    return any(t and str(t).lower() in low for t in topic_terms)
+
+
 def calendar_rows(report_md: str, lang: str = "en",
-                  year_floor: int | None = None) -> dict:
+                  year_floor: int | None = None,
+                  topic_terms=()) -> dict:
     """Bilanz des Katalysator-Kalenders: wie viele Zeilen Datum UND Beleg
     tragen, und woran die uebrigen scheitern."""
     sections = split_sections(body_text(report_md), _lang(lang))
     rows = table_rows(sections.get("next", ""))
-    ok = no_date = no_cite = 0
+    ok = no_date = no_cite = off_topic = 0
     for cells in rows:
         line = " ".join(cells)
         # Der Kopf ("Date | Event | Source | ...") traegt weder Datum noch Beleg
         # und wird nicht als Mangel gezaehlt.
         dated, cited = has_date(line, year_floor), _has_citation(line)
         if dated and cited:
-            ok += 1
+            if _row_on_topic(line, topic_terms):
+                ok += 1
+            else:
+                off_topic += 1
         elif not dated and not cited:
             continue
         elif not dated:
@@ -1096,6 +1114,7 @@ def calendar_rows(report_md: str, lang: str = "en",
         else:
             no_cite += 1
     return {"rows": len(rows), "ok": ok, "no_date": no_date, "no_cite": no_cite,
+            "off_topic": off_topic,
             "sources": len(calendar_sources(report_md, lang, year_floor))}
 
 
@@ -1148,12 +1167,13 @@ def calendar_source_counts(report_md: str, lang: str = "en",
 
 
 def calendar_findings(report_md: str, lang: str = "en",
-                      year_floor: int | None = None) -> list[str]:
+                      year_floor: int | None = None,
+                      topic_terms=()) -> list[str]:
     """Zu wenige datierte, belegte Zeilen im Katalysator-Kalender = Neuwurf."""
     sections = split_sections(body_text(report_md), _lang(lang))
     if "next" not in sections:
         return []                       # fehlender Abschnitt: eigener Befund
-    c = calendar_rows(report_md, lang, year_floor)
+    c = calendar_rows(report_md, lang, year_floor, topic_terms)
     if c["ok"] >= MIN_CALENDAR_ROWS:
         counts = calendar_source_counts(report_md, lang, year_floor)
         top = max(counts.values(), default=0)
@@ -1178,6 +1198,9 @@ def calendar_findings(report_md: str, lang: str = "en",
         detail.append(f"{c['no_date']} Zeile(n) ohne Datum")
     if c["no_cite"]:
         detail.append(f"{c['no_cite']} Zeile(n) ohne Beleg")
+    if c.get("off_topic"):
+        detail.append(f"{c['off_topic']} Zeile(n) datiert und belegt, aber "
+                      f"nicht zum Thema")
     heading = dict((k, h) for k, h, _p in SECTIONS[_lang(lang)])["next"]
     return [f"'{heading}': nur {c['ok']} von mindestens {MIN_CALENDAR_ROWS} "
             f"Tabellenzeilen tragen Datum UND Beleg"
@@ -1185,7 +1208,10 @@ def calendar_findings(report_md: str, lang: str = "en",
             + f". Jede Zeile braucht ein Datum (Tag, Monat, Quartal oder "
               f"Halbjahr mit Jahr) und ein Zitat in der Spalte 'Source'. "
               f"Nur Ereignisse aufnehmen, deren Termin in den Belegen steht — "
-              f"nichts schaetzen."]
+              f"nichts schaetzen."
+            + (" Und der Termin muss vom THEMA handeln: die Laufzeit eines "
+               "Foerderprogramms ist kein Ereignis der Technologie, nach der "
+               "gefragt ist." if c.get("off_topic") else "")]
 
 
 # --------------------------------------------------------------------------
@@ -1410,7 +1436,8 @@ def structure_findings(report_md: str, lang: str = "en",
                        measured: list[str] | None = None,
                        sectors: list[str] | None = None,
                        year_floor: int | None = None,
-                       density: dict | None = None) -> list[str]:
+                       density: dict | None = None,
+                       topic_terms=()) -> list[str]:
     """Was am fertigen Bericht mechanisch nicht stimmt. Leere Liste = sauber.
 
     `measured` = die gemessenen Groessen (measured_needles): jede Option muss
@@ -1486,7 +1513,7 @@ def structure_findings(report_md: str, lang: str = "en",
                 f"Optionsabschnitt deckt '{name}' nicht ab — die Frage nennt "
                 f"dieses Feld ausdruecklich; mindestens eine Option muss es "
                 f"adressieren.")
-    findings += calendar_findings(report_md, L, year_floor)
+    findings += calendar_findings(report_md, L, year_floor, topic_terms)
     findings += chain_findings(report_md, L)
     return findings
 
@@ -1847,10 +1874,19 @@ def weak_source_claims(report_md: str, sources: list[dict], lang: str = "en",
                          or (str(c.get("url") or "").split("/")[2]
                              if str(c.get("url") or "").count("/") > 2 else ""))
                         for c in cited} - {""})
+        # R12-1 (jury_17, 2026-09-07): „Ein Entscheidungspapier, dessen
+        # Regelwerk eine wahre und tragende Tatsache aus dem Text draengt, hat
+        # den Regelapparat ueber den Zweck gestellt." Genau das passierte mit
+        # der Europa-These (EU-Generika nicht vor 2031): nur sekundaer belegt,
+        # also in der Kurzfassung geloescht — obwohl wahr und tragend.
+        # Zwei UNABHAENGIGE Sekundaerquellen (verschiedene Hosts) tragen eine
+        # Aussage deshalb mit Kennzeichnung, auch in der Kurzfassung. Eine
+        # einzelne schwache Quelle tut es weiterhin nicht (das war jury_13).
         out.append({"sentence": sentence,
                     "tokens": figs or [prose(sentence).strip()[:60]],
                     "kind": "weaksource" if figs else "weakclaim",
                     "detail": ", ".join(hosts[:3]),
+                    "corroborated": len(hosts) >= 2,
                     "url": cited[0].get("url", ""),
                     "section": key})
     return out
@@ -1897,7 +1933,9 @@ def drop_unverified(report_md: str, unverified: list[dict],
         if not s or s not in out:
             continue
         if e.get("kind") in ("weaksource", "weakclaim"):
-            if e.get("section") != "decision":
+            # R12-1: zwei unabhaengige Sekundaerquellen tragen die Aussage —
+            # dann wird auch in der Kurzfassung gekennzeichnet statt geloescht.
+            if e.get("section") != "decision" or e.get("corroborated"):
                 marked = mark_secondary(s, lang)
                 if marked != s:
                     out = out.replace(s, marked, 1)

@@ -51,9 +51,13 @@ _CHAIN_SENTENCES = (
 
 # Seit R9-4 braucht der Kalender mindestens drei VERSCHIEDENE Quellen — vier
 # Zeilen aus derselben Sekundaerquelle waren der Befund der vierzehnten Jury.
+# R12-2: eine Kalenderzeile muss vom Thema handeln — die Vorlage nennt es
+# deshalb ausdruecklich (die Laufzeit eines Foerderprogramms zaehlt seit
+# jury_17 nicht mehr als Termin der Technologie).
 _CALENDAR = ["| Date | Event | Source | Why it matters |",
              "|---|---|---|---|"] + [
-    f"| Q{i} 2099 | Decision {i} | [[T{(i - 1) % 3 + 1}]] | It moves the market. |"
+    f"| Q{i} 2099 | GLP-1 decision {i} | [[T{(i - 1) % 3 + 1}]] | "
+    f"It moves the market. |"
     for i in range(1, 6)]
 
 
@@ -1768,7 +1772,7 @@ class TestCatalystCalendar:
 
     def test_four_rows_are_not_enough(self):
         doc = _report().replace(
-            "| Q5 2099 | Decision 5 | [[T2]] | It moves the market. |\n", "")
+            "| Q5 2099 | GLP-1 decision 5 | [[T2]] | It moves the market. |\n", "")
         found = ds.calendar_findings(doc)
         assert found and "nur 4 von mindestens 5" in found[0]
 
@@ -1780,8 +1784,8 @@ class TestCatalystCalendar:
 
     def test_a_row_without_a_citation_does_not_count(self):
         doc = _report().replace(
-            "| Q2 2099 | Decision 2 | [[T2]] |",
-            "| Q2 2099 | Decision 2 | company statement |")
+            "| Q2 2099 | GLP-1 decision 2 | [[T2]] |",
+            "| Q2 2099 | GLP-1 decision 2 | company statement |")
         c = ds.calendar_rows(doc)
         assert c["ok"] == 4 and c["no_cite"] == 1
         assert any("ohne Beleg" in f for f in ds.calendar_findings(doc))
@@ -1893,8 +1897,8 @@ class TestCoreFiguresNeedAPrimarySource:
 
     def test_the_calendar_is_a_core_section(self):
         doc = _report().replace(
-            "| Q1 2099 | Decision 1 | [[T1]] | It moves the market. |",
-            "| Q1 2099 | Decision 1 | [[W2]] | Worth $4.1 billion. |")
+            "| Q1 2099 | GLP-1 decision 1 | [[T1]] | It moves the market. |",
+            "| Q1 2099 | GLP-1 decision 1 | [[W2]] | Worth $4.1 billion. |")
         found = ds.weak_source_figures(doc, [_SEC, _BLOG])
         assert len(found) == 1 and "$4.1 billion" in found[0]["tokens"]
 
@@ -2576,7 +2580,7 @@ class TestR9NoEmptyMandatoryFields:
     def test_no_source_may_carry_the_majority_of_the_rows(self):
         """Drei Quellen reichen nicht, wenn eine davon die Mehrheit traegt —
         genau die Form, die jury_14 beanstandete."""
-        last = "| Q5 2099 | Decision 5 | [[T2]] | It moves the market. |"
+        last = "| Q5 2099 | GLP-1 decision 5 | [[T2]] | It moves the market. |"
         doc = _report().replace(
             last, last
             + "\n| Q6 2099 | Decision 6 | [[T1]] | It moves the market. |"
