@@ -1316,6 +1316,55 @@ def length_advisory(report_md: str, lang: str = "en") -> list[str]:
     return []
 
 
+# --------------------------------------------------------------------------
+# Die Kurzfassung darf kein Stumpf sein (R10-2, jury_16 2026-09-07)
+# --------------------------------------------------------------------------
+# Woertlich: „eine ,Decision summary\", die aus einem einzigen Satz ueber
+# GB-Praevalenz besteht und nichts zusammenfasst, dieser Satz wortgleich zehn
+# Zeilen spaeter wiederholt". Beides ist mechanisch pruefbar, und beides ist
+# im DR-Lauf ERST durch die Rangregel entstanden: sie streicht in der
+# Kurzfassung, und was uebrig blieb, war ein Satz, der auch im Fliesstext
+# steht. Der Befund kann das nicht heilen — aber er macht es sichtbar, statt
+# es auszuliefern.
+
+SUMMARY_MIN_CLAIMS = 2
+
+
+def summary_claims(summary: str) -> list[str]:
+    """Die eigenstaendigen Aussagen der Kurzfassung."""
+    return [c.strip() for c in split_claims(summary or "")
+            if not c.strip().startswith("#")
+            and not _EMPTY_CLAIM.match(c.strip())
+            and len(_WORDISH.findall(prose(c))) >= MIN_CLAIM_WORDS]
+
+
+def summary_findings(summary: str, body: str, lang: str = "en") -> list[str]:
+    """Stumpf-Kurzfassung und woertliche Wiederholung im Fliesstext.
+
+    Der Aufrufer ruft NUR, wenn der Abschnitt ueberhaupt da ist — eine leere
+    Kurzfassung unter vorhandener Ueberschrift ist der schaerfste Fall (im
+    B9-Lauf v2 war sie das, jury_15: „vollstaendig leer") und darf nicht
+    stillschweigend durchgehen."""
+    out: list[str] = []
+    claims = summary_claims(summary)
+    if len(claims) < SUMMARY_MIN_CLAIMS:
+        out.append(
+            f"Kurzfassung traegt nur {len(claims)} Aussage(n) — sie braucht "
+            f"drei, die eine Entscheidung tragen, jede mit einem Beleg vom "
+            f"Rang 0/1 im selben Satz. Eine Kurzfassung, die nichts "
+            f"zusammenfasst, ist schlimmer als keine: lieber eine belegte "
+            f"Aussage weniger im Fliesstext und dafuer drei hier.")
+    rest = body.replace(summary, "", 1) if summary in body else body
+    for claim in claims:
+        core = prose(claim).strip()
+        if len(core) >= 60 and core in prose(rest):
+            out.append(
+                f"Kurzfassung wiederholt sich wortgleich im Fliesstext: "
+                f"\"{core[:110]}\". Die Kurzfassung fasst zusammen, sie "
+                f"dupliziert nicht — entweder dort oder hier, nicht beides.")
+    return out
+
+
 def structure_findings(report_md: str, lang: str = "en",
                        measured: list[str] | None = None,
                        sectors: list[str] | None = None,
@@ -1356,6 +1405,8 @@ def structure_findings(report_md: str, lang: str = "en",
         findings.append(
             f"'{SECTIONS[L][0][1]}' hat {count_words(summary)} Woerter — "
             f"hoechstens {SUMMARY_WORDS_MAX}.")
+    if "decision" in sections:
+        findings += summary_findings(summary, body, L)
     if "options" in sections:
         blocks = option_blocks(sections["options"])
         if len(blocks) < MIN_OPTIONS:
@@ -1531,6 +1582,18 @@ def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
             "distorted": distorted, "misattributed": misattributed}
 
 
+# R10-1: „Time horizon" und „Effort" einer Option sind PLANFELDER — sie sagen,
+# was das Unternehmen tun soll und was es kosten duerfte, nicht was in der Welt
+# passiert ist. Ein Beleg ist dort nicht verlangt (die Aufwandsspanne ist nach
+# R7-1 ausdruecklich als Inferenz zulaessig), also greift die Beleg-Pflicht fuer
+# datierte Aussagen dort nicht. „Trigger", „Risk" und „Against it" behaupten
+# sehr wohl etwas Ueberpruefbares und bleiben in der Regel.
+_PLAN_FIELD_LINE = re.compile(
+    r"^\s{0,3}(?:[-*]\s*)?(?:\*\*)?\s*(?:" + "|".join(
+        p for L in OPTION_FIELDS.values() for k, p in L
+        if k in ("horizon", "effort")) + r")\s*(?:\*\*)?\s*[:：]",
+    re.IGNORECASE)
+
 _FIELD_LINE = re.compile(
     r"^\s{0,3}(?:[-*]\s*)?(?:\*\*)?\s*(?:" + "|".join(
         p for L in OPTION_FIELDS.values() for _k, p in L) + r")\s*(?:\*\*)?\s*[:：]",
@@ -1604,6 +1667,10 @@ CORE_SECTIONS = ("decision", "options", "next")
 # gilt die Regel fuer jede AUSSAGE in der Kurzfassung, unter „Recht und
 # Schutzrechte", im Terminkalender und in den Optionen.
 CLAIM_SECTIONS = ("decision", "regip", "next", "options")
+# R10-1: Abschnitte, in denen ein datierter Satz OHNE Beleg ein Befund ist —
+# die drei, die ueber die Welt berichten. Der Optionsabschnitt fehlt bewusst
+# (s. Begruendung in `weak_source_claims`).
+UNCITED_SECTIONS = ("decision", "regip", "next")
 SECONDARY_MARK = {"en": "secondary source only",
                   "de": "nur sekundär belegt"}
 _SECONDARY_RE = re.compile(
@@ -1690,7 +1757,42 @@ def weak_source_claims(report_md: str, sources: list[dict], lang: str = "en",
             continue
         cited = _cited_in(sentence, by_id, by_url)
         if not cited:
-            continue                # ohne Beleg: das ist `sourceless_figures`
+            # R10-1 (jury_16, 2026-09-07): ein DATIERTER Satz in einem
+            # Kernabschnitt OHNE jeden Beleg lief bisher durch alles hindurch —
+            # `sourceless_figures` greift nur an Praezisionszahlen, und
+            # „FDA approved oral semaglutide in February 2026" enthaelt keine.
+            # Genau so kamen im DR-Lauf drei falsche Zulassungsdaten ganz ohne
+            # Quelle ins Dokument („drei davon ganz ohne Quelle", jury_16 §6).
+            # Ein Datum ist eine ueberpruefbare Tatsachenbehauptung; ohne Beleg
+            # gehoert sie nicht in Kurzfassung, Recht/IP, Kalender oder
+            # Optionen.
+            if key not in UNCITED_SECTIONS:
+                # Der Optionsabschnitt ist unsere ARGUMENTATION ("das Risiko
+                # liegt vier Jahre vor uns"), nicht ein Bericht ueber die Welt.
+                # Dort einen Beleg je Datum zu verlangen, streicht Begruendungen
+                # statt Fehler — und die Kurzfassung hat schon einmal genau
+                # daran gelitten. Die belegten Aussagen der Optionen prueft die
+                # Rangregel unten weiter.
+                continue
+            if not _DATE_RE.search(prose(sentence)):
+                continue
+            if _PLAN_FIELD_LINE.match(sentence):
+                continue
+            if _EMPTY_CLAIM.match(sentence) or sentence in seen:
+                continue
+            if len(_WORDISH.findall(prose(sentence))) < MIN_CLAIM_WORDS:
+                continue
+            figs = precision_figures(sentence)
+            # Die eigene Messung traegt bewusst kein Zitat (R9-2): ein Satz,
+            # dessen Zahlen alle aus dem Messanhang stammen, ist belegt.
+            if figs and all(_figure_in_measured(f, measured) for f in figs):
+                continue
+            seen.add(sentence)
+            out.append({"sentence": sentence,
+                        "tokens": [prose(sentence).strip()[:60]],
+                        "kind": "uncited", "detail": "",
+                        "url": "", "section": key})
+            continue
         if _is_primary(cited):
             continue
         if len(_WORDISH.findall(prose(sentence))) < MIN_CLAIM_WORDS:
@@ -1924,6 +2026,14 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
                 f"Fachpublikation einer Patentkanzlei, im Katalog mit "
                 f"(primary) markiert. {way_out} "
                 f"Betroffen: \"{e['sentence'][:180]}\"")
+        elif kind == "uncited":
+            lines.append(
+                f"Datierte Aussage OHNE jeden Beleg in einem Kernabschnitt: "
+                f"\"{e['sentence'][:180]}\". Ein Datum ist eine "
+                f"ueberpruefbare Tatsachenbehauptung — entweder ein Zitat aus "
+                f"dem Katalog IN DENSELBEN Satz, oder die Aussage streichen. "
+                f"Aus dem Gedaechtnis ergaenzte Termine sind der teuerste "
+                f"Fehler des Berichts.")
         elif kind == "sourceless":
             lines.append(
                 f"Die Zahl(en) {toks} stehen ohne jeden Beleg im Fliesstext. "

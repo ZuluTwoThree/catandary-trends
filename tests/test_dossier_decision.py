@@ -60,13 +60,22 @@ _CALENDAR = ["| Date | Event | Source | Why it matters |",
 def _report(summary_words: int = 40, options: int = 2,
             drop_field: str | None = None, filler: int = 2200,
             cite: bool = True, calendar: bool = True,
-            chain: bool = True, dense: bool = False) -> str:
+            chain: bool = True, dense: bool = False,
+            summary_extra: str = "") -> str:
     """`cite=False` baut Optionen ohne Beleg — seit R7-1 ein Befund: eine
     Option darf ohne Messgroesse auskommen, aber nicht ohne beides.
     `calendar=False` / `chain=False` erzeugen die R8-1-Maengel."""
-    body = ["# Dossier", "", "## Decision summary", "",
-            " ".join(["word"] * summary_words) + " [[T1]].", "",
-            "## What is moving", ""]
+    # R10-2: die Kurzfassung traegt DREI Aussagen. Bis dahin baute die Vorlage
+    # genau eine — und genau das ist seit jury_16 ein Befund („eine Decision
+    # summary, die nichts zusammenfasst"). Die Gesamtwortzahl bleibt
+    # `summary_words`, damit die 200-Woerter-Obergrenze weiter geprueft wird.
+    _per = max(4, summary_words // 3)
+    body = ["# Dossier", "", "## Decision summary", ""]
+    body += [f"{i}. " + " ".join([f"claim{i}"] * _per) + " [[T1]]."
+             for i in (1, 2, 3)]
+    if summary_extra:
+        body.append("4. " + summary_extra)
+    body += ["", "## What is moving", ""]
     if chain:
         body += [" ".join(_CHAIN_SENTENCES), ""]
     if dense:
@@ -423,6 +432,17 @@ def _structured(monkeypatch, plan_steps=1):
 
 LEGAL_PAGE = "The SPC runs to March 2031 in the Netherlands."
 SEED = dict(ARTICLE, vertical="HEALTH", snippet="corpus snippet", fetched=False)
+# Der Kalender der Vorlage zitiert T1-T3 aus drei verschiedenen Quellen (R9-4).
+# Seit R10-1 ist eine Marke ohne Katalogeintrag dasselbe wie kein Beleg — also
+# muessen alle drei wirklich im Katalog des Laufs liegen, sonst prueft der
+# Ende-zu-Ende-Test einen Kalender, den es so nie gibt.
+SEEDS = [SEED,
+         dict(ARTICLE, id="T2", url="https://catandary.de/trends/a-2",
+              origin="https://www.fda.gov/news/y", vertical="HEALTH",
+              snippet="corpus piece two", fetched=False),
+         dict(ARTICLE, id="T3", url="https://catandary.de/trends/a-3",
+              origin="https://clinicaltrials.gov/study/z", vertical="HEALTH",
+              snippet="corpus piece three", fetched=False)]
 
 
 def test_measure_path_end_to_end(monkeypatch):
@@ -453,7 +473,7 @@ def test_measure_path_end_to_end(monkeypatch):
     out = cr.run("What should we do?", max_steps=1, max_sources=8,
                  retrieval="fts", per_query=2, web_steps=1, max_web_sources=2,
                  topic="GLP-1 and incretin technology", measure=True,
-                 seed_sources=[dict(SEED)], seed_notes=["seed"])
+                 seed_sources=[dict(x) for x in SEEDS], seed_notes=["seed"])
 
     # 1. Rechts-Sweep hat einen eigenen Katalogbereich gefuellt — und seit
     #    Runde 5 laeuft danach die zweite Welle je Entitaet, also MEHR als die
@@ -1823,6 +1843,14 @@ class TestChainCoverage:
 # "not been able to verify ... from a primary register" — und trug bei uns
 # trotzdem die 2031-Aussage.
 
+# Die Vorlage zitiert T1-T3 (Kurzfassung und Kalender). Seit R10-1 ist eine
+# Marke, die auf keinen Katalogeintrag zeigt, dasselbe wie kein Beleg — also
+# muessen die drei in der Quellenliste stehen, sonst prueft der Test etwas
+# anderes, als er zu pruefen meint.
+_CAT = [{"id": f"T{i}", "kind": "web", "title": f"Doc {i}", "rank": 0,
+         "text": "x", "url": f"https://www.fda.gov/doc-{i}", "origin": "",
+         "outlet": "FDA", "date": "2026-01-01"} for i in (1, 2, 3)]
+
 _SEC = {"id": "W1", "kind": "web", "title": "10-Q", "rank": 0, "text": "x",
         "url": "https://www.sec.gov/edgar/1", "origin": "", "outlet": "SEC",
         "date": "2026-08-01"}
@@ -1832,7 +1860,7 @@ _BLOG = {"id": "W2", "kind": "web", "title": "Blog", "rank": 2, "text": "x",
 
 
 def _core(sentence: str) -> str:
-    return _report().replace("word [[T1]].", "word. " + sentence)
+    return _report(summary_extra=sentence)
 
 
 class TestCoreFiguresNeedAPrimarySource:
@@ -2282,7 +2310,7 @@ class TestR9ClaimsNeedAPrimarySource:
 
     def test_the_jury_case_is_caught_now(self):
         doc = _report().replace("Nothing found.", _SPC)
-        found = ds.weak_source_claims(doc, [_SEC, _BLOG])
+        found = ds.weak_source_claims(doc, [_SEC, _BLOG, *_CAT])
         assert len(found) == 1
         assert found[0]["kind"] == "weakclaim"
         assert found[0]["section"] == "regip"
@@ -2296,27 +2324,39 @@ class TestR9ClaimsNeedAPrimarySource:
 
     def test_a_primary_source_carries_the_statement(self):
         doc = _report().replace("Nothing found.", _SPC.replace("W2", "W1"))
-        assert ds.weak_source_claims(doc, [_SEC, _BLOG]) == []
+        assert ds.weak_source_claims(doc, [_SEC, _BLOG, *_CAT]) == []
 
     def test_the_honest_label_is_accepted_outside_the_summary(self):
         doc = _report().replace(
             "Nothing found.", _SPC[:-1] + " (secondary source only).")
-        assert ds.weak_source_claims(doc, [_SEC, _BLOG]) == []
+        assert ds.weak_source_claims(doc, [_SEC, _BLOG, *_CAT]) == []
 
     def test_the_running_text_is_still_not_governed(self):
         """Nur Kurzfassung, Recht/IP, Kalender und Optionen — „Was sich
         bewegt" darf weiter auf Rang-2-Presse ruhen."""
         doc = _report().replace("Movement.", _SPC)
-        assert ds.weak_source_claims(doc, [_SEC, _BLOG]) == []
+        assert ds.weak_source_claims(doc, [_SEC, _BLOG, *_CAT]) == []
 
-    def test_a_statement_without_any_citation_is_left_to_the_other_rules(self):
+    def test_an_undated_statement_without_a_citation_stays_untouched(self):
+        """Frueher hiess dieser Test „bleibt den anderen Regeln ueberlassen" —
+        das war bis R10-1 die Wahrheit UND die Luecke: die anderen Regeln
+        greifen nur an Praezisionszahlen. Ohne Datum bleibt es dabei."""
+        doc = _report().replace("Nothing found.",
+                                "SPCs extend exclusivity considerably.")
+        assert ds.weak_source_claims(doc, [_SEC, _BLOG, *_CAT]) == []
+
+    def test_a_dated_statement_without_a_citation_is_caught_since_r10(self):
+        """jury_16: drei falsche Zulassungsdaten standen ganz ohne Quelle im
+        Rechtsabschnitt — ein Datum ist eine ueberpruefbare Behauptung."""
         doc = _report().replace("Nothing found.",
                                 "SPCs extend exclusivity to 2031.")
-        assert ds.weak_source_claims(doc, [_SEC, _BLOG]) == []
+        found = ds.weak_source_claims(doc, [_SEC, _BLOG, *_CAT])
+        assert [e["kind"] for e in found] == ["uncited"]
+        assert found[0]["section"] == "regip"
 
     def test_the_summary_deletes_and_the_option_marks(self):
-        doc = _report().replace("word [[T1]].", "word. " + _SPC)
-        found = ds.weak_source_claims(doc, [_SEC, _BLOG])
+        doc = _report(summary_extra=_SPC)
+        found = ds.weak_source_claims(doc, [_SEC, _BLOG, *_CAT])
         out, n = ds.drop_unverified(doc, found)
         assert n == 1 and "2031 and 2032" not in out
         assert "(secondary source only)" not in out
@@ -2653,8 +2693,8 @@ class TestADeletedClaimMustNotLeaveANakedNumber:
     def test_a_claim_of_only_punctuation_is_not_a_claim(self):
         """Der B9-v1-Befund mit dem Text ', , , ,' — nach dem Entfernen der
         Zitat-Marker blieb nichts als Kommata uebrig."""
-        doc = _report().replace("word [[T1]].", "word. 2. [[W2]], [[W2]].")
-        assert ds.weak_source_claims(doc, [_SEC, _BLOG]) == []
+        doc = _report(summary_extra="[[W2]], [[W2]].")
+        assert ds.weak_source_claims(doc, [_SEC, _BLOG, *_CAT]) == []
 
 
 class TestTheDropReasonsMustAddUp:

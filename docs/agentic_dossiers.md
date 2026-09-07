@@ -772,6 +772,39 @@ Gates, weil die Grounding-Prüfung an Zahlen greift, nicht an Behauptungen;
 eigene Korpustabelle 96 Förder-Signale zählt; (d) die Kurzfassung ist ein
 einziger Satz, der zehn Zeilen später wortgleich wiederholt wird.
 
+### Runde 10 (2026-09-07) — die zwei Codefehler aus jury_16
+
+Zwei der vier Vorwürfe waren keine Modellschwäche, sondern Lücken im eigenen
+Prüfwerk. Beide sind geschlossen und **an den fünf gespeicherten Dokumenten
+gegengeprüft** (kein neuer Lauf — der Owner hat genau einen freigegeben):
+
+- **R10-1 — datierte Aussage ohne jeden Beleg** (`weak_source_claims`, Art
+  `uncited`). „In the US, FDA approved oral semaglutide in February 2026"
+  enthält keine Präzisionszahl, also griff `sourceless_figures` nicht, und ohne
+  Zitat lief auch die Rangregel ins Leere: der Satz stand ungeprüft im
+  Dokument. Jetzt ist ein Datum in Kurzfassung, Recht/IP oder Kalender ohne
+  Beleg ein Befund — ein Neuwurf-Auftrag, danach Streichung. **Nicht** im
+  Optionsabschnitt: der ist unsere Argumentation, keine Weltbeschreibung; und
+  nicht auf den Planfeldern „Time horizon"/„Effort", die sagen, was *wir*
+  vorschlagen. Gegenprobe: DR-Dokument 3 Treffer (darunter genau der von
+  jury_16 gerügte Satz), B9 v2 / B8 v2 / B7 v2 je 0.
+- **R10-2 — die Kurzfassung darf kein Stumpf sein** (`summary_findings`).
+  Geprüft wurde bisher nur nach oben (200 Wörter). Jetzt sind eine Kurzfassung
+  mit weniger als zwei Aussagen und eine wortgleiche Wiederholung im
+  Fließtext Befunde. Gegenprobe: DR-Dokument 2 (ein Satz, der zehn Zeilen
+  später erneut steht), B9 v2 1 (leere Kurzfassung — jury_15: „vollständig
+  leer"), B8/B7 0.
+
+Dazu die Ehrlichkeit im Prüfnachweis: eine gestrichene unbelegte Aussage wird
+eigens ausgewiesen und nicht mehr unter „die zitierte Seite enthielt die Zahl
+nicht" verbucht (`uncited_before`/`uncited_after`).
+
+**Nicht angefasst, weil ohne Lauf nicht prüfbar:** die beiden anderen
+jury_16-Vorwürfe — der Kalender (3 statt 8 Termine) und die fehlende
+Förderebene, obwohl die eigene Korpustabelle 96 Förder-Signale zählt. Beides
+sind Beschaffungsfragen (Sweep), keine Prüfregeln; sie gehören in den nächsten
+freigegebenen Lauf.
+
 **Offen aus dem Lauf selbst:** der Rang-0-Vorlauf des Faktenbuchs besteht
 überwiegend aus **Patenten ohne Abstract** (ihr Snippet ist ein Ein-Zeiler);
 sie verbrauchen die Kappe von 30 Quellen, bevor die Paper mit echtem Abstract

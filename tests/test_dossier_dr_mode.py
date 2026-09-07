@@ -305,3 +305,133 @@ def test_the_dr_path_writes_from_its_notes_with_card_sampling(monkeypatch):
     assert "HOW YOU WORK" in first["system"]
     assert first["temperature"] == 0.7 and first["top_p"] == 0.80
     assert first["top_k"] == 20 and first["presence_penalty"] == 1.5
+
+
+# --------------------------------------------------------------------------
+# 5. R10 — die beiden Codefehler, die jury_16 am DR-Dokument gefunden hat
+# --------------------------------------------------------------------------
+# „Vier Sachfehler, drei davon ganz ohne Quelle" und „eine Decision summary,
+# die aus einem einzigen Satz besteht und nichts zusammenfasst, dieser Satz
+# wortgleich zehn Zeilen spaeter wiederholt". Beides lief bis dahin durch jedes
+# Gate: `sourceless_figures` greift nur an Praezisionszahlen, und die Laenge
+# der Kurzfassung wurde nur nach OBEN geprueft.
+
+from pipeline import dossier_structure as ds   # noqa: E402
+
+_SRC = [{"id": "T1", "kind": "web", "rank": 0, "title": "EMA",
+         "url": "https://www.ema.europa.eu/en/x",
+         "origin": "https://www.ema.europa.eu/en/x", "outlet": "EMA",
+         "date": "2026-05-12", "fetched": True}]
+
+
+def _doc(regip: str, decision: str = "", options: str = "") -> str:
+    return (f"## Decision summary\n\n{decision or 'A dated, primary claim from 12 May 2026 [[T1]].'}\n\n"
+            "## What is moving\n\nSomething moved.\n\n"
+            f"## Regulatory and IP status\n\n{regip}\n\n"
+            "## What happens next\n\n| Date | Event | Source | Why it matters |\n"
+            "|---|---|---|---|\n\n"
+            "## What the evidence does not support\n\nNothing.\n\n"
+            f"## Options for a mid-sized European company\n\n{options}\n\n"
+            "## Open questions and limits\n\nOpen.\n")
+
+
+def test_a_dated_claim_without_any_source_is_a_finding():
+    md = _doc("In the US, FDA approved oral semaglutide in February 2026.")
+    kinds = [e["kind"] for e in ds.weak_source_claims(md, _SRC, "en", "")]
+    assert kinds.count("uncited") == 1
+
+
+def test_the_same_claim_with_a_citation_is_fine():
+    md = _doc("In the US, FDA approved oral semaglutide in February 2026 [[T1]].")
+    assert [e for e in ds.weak_source_claims(md, _SRC, "en", "")
+            if e["kind"] == "uncited"] == []
+
+
+def test_an_undated_sentence_is_not_touched():
+    md = _doc("The compounding rules remain contested.")
+    assert [e for e in ds.weak_source_claims(md, _SRC, "en", "")
+            if e["kind"] == "uncited"] == []
+
+
+def test_our_own_measured_figures_need_no_citation():
+    """R9-2: die eigene Messung ist ueber den Messanhang belegt."""
+    md = _doc("The measured improvement rate is 3.3%/yr over 2005-2026.")
+    measured = "median improvement rate 3.3%/yr (2005-2026, n=1,878)"
+    assert [e for e in ds.weak_source_claims(md, _SRC, "en", measured)
+            if e["kind"] == "uncited"] == []
+
+
+def test_an_option_argument_may_reason_about_a_year_without_a_citation():
+    """Der Optionsabschnitt ist Argumentation, kein Bericht ueber die Welt."""
+    md = _doc("Everything is cited [[T1]] as of 12 May 2026.",
+              options="### Option 1 — Wait\n\n"
+                      "- **Risk:** The 2031 cliff is four years away.\n")
+    assert [e for e in ds.weak_source_claims(md, _SRC, "en", "")
+            if e["kind"] == "uncited"] == []
+
+
+def test_a_plan_field_is_not_a_factual_claim():
+    md = _doc("Everything is cited [[T1]] as of 12 May 2026.",
+              options="### Option 1 — Launch\n\n"
+                      "- **Time horizon:** Product development by Q4 2026.\n"
+                      "- **Effort:** EUR 2-5 million through 2027.\n")
+    assert [e for e in ds.weak_source_claims(md, _SRC, "en", "")
+            if e["kind"] == "uncited"] == []
+
+
+def test_the_revision_order_names_the_uncited_claim():
+    order = ds.revision_prompt([], [{"sentence": "FDA approved it in February 2026.",
+                                     "tokens": ["FDA approved it"],
+                                     "kind": "uncited", "detail": "",
+                                     "url": "", "section": "regip"}], "en")
+    assert "OHNE jeden Beleg" in order and "February 2026" in order
+
+
+def test_a_summary_of_one_sentence_is_a_finding():
+    md = _doc("All good [[T1]] on 12 May 2026.",
+              decision="Only one statement stands here [[T1]], 12 May 2026.")
+    assert any(f.startswith("Kurzfassung traegt nur 1")
+               for f in ds.structure_findings(md, "en"))
+
+
+def test_an_empty_summary_is_the_sharpest_case():
+    md = _doc("All good [[T1]] on 12 May 2026.", decision=" ")
+    assert any(f.startswith("Kurzfassung traegt nur 0")
+               for f in ds.structure_findings(md, "en"))
+
+
+def test_a_summary_repeated_verbatim_in_the_body_is_a_finding():
+    line = ("In Great Britain, a nationally representative survey conducted "
+            "January to March 2025 found that 2.9% of adults had used a GLP-1 "
+            "medication [[T1]].")
+    md = _doc(line + " It also says more.", decision=line + "\n\nSecond claim [[T1]] from 12 May 2026.")
+    assert any(f.startswith("Kurzfassung wiederholt sich")
+               for f in ds.structure_findings(md, "en"))
+
+
+def test_a_three_statement_summary_stays_clean():
+    md = _doc("All good [[T1]] on 12 May 2026.",
+              decision="1. First finding [[T1]], 12 May 2026.\n"
+                       "2. Second finding [[T1]], 13 May 2026.\n"
+                       "3. Third finding [[T1]], 14 May 2026.\n")
+    assert [f for f in ds.structure_findings(md, "en")
+            if f.startswith("Kurzfassung")] == []
+
+
+def test_the_check_names_the_uncited_deletion_separately():
+    """Der Pruefnachweis darf eine gestrichene unbelegte Aussage nicht als
+    'die Seite enthielt die Zahl nicht' ausgeben — das war der B9-v1-Fehler
+    in neuer Gestalt."""
+    from pipeline import dossier_check
+    res = {"report": "## Decision summary\n\nA [[T1]].\n",
+           "sources": [], "cited": [], "evidence": [], "ledger": [],
+           "audit": {"missing": []}, "stripped_citations": 0,
+           "structure": {"dropped_sentences": 2, "uncited_after": 2,
+                         "weaksource_after": 0, "weakclaim_after": 0,
+                         "off_topic_after": 0, "sourceless_after": 0,
+                         "distorted_after": 0, "misattributed_after": 0,
+                         "measure_after": 0}}
+    text = " ".join(dossier_check.check_result(res)["findings"])
+    assert "2× stand eine datierte Aussage ohne jeden Beleg" in text
+    # und eben NICHT die alte Sammelbegruendung
+    assert "enthielt die zitierte Web-Seite" not in text

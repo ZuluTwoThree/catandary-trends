@@ -223,12 +223,19 @@ def check_result(result: dict) -> dict:
                        f"Rang-2-Material und wurde als \"secondary source "
                        f"only\" gekennzeichnet (in der Kurzfassung "
                        f"gestrichen)")
+        # R10-1: eine datierte Aussage ganz ohne Beleg wird GESTRICHEN, nicht
+        # gekennzeichnet — sie gehoert weder in den Rangtopf noch in den Rest,
+        # sonst steht im Pruefnachweis wieder die falsche Begruendung.
+        uncited = int(st.get("uncited_after") or 0)
+        if uncited:
+            why.append(f"{uncited}× stand eine datierte Aussage ohne jeden "
+                       f"Beleg in einem Kernabschnitt und wurde gestrichen")
         rest = (int(st["dropped_sentences"]) - int(st.get("off_topic_after") or 0)
                 - int(st.get("sourceless_after") or 0)
                 - int(st.get("distorted_after") or 0)
                 - int(st.get("misattributed_after") or 0)
                 - int(st.get("measure_after") or 0)
-                - rank_marked)
+                - rank_marked - uncited)
         if rest > 0 or not why:
             why.insert(0, f"{max(rest, 0)}× enthielt die zitierte Web-Seite "
                           f"die behauptete Zahl nicht")

@@ -3402,6 +3402,7 @@ def run(question: str, max_steps: int, max_sources: int,
                  "measure_before": 0, "measure_after": 0,
                  "weaksource_before": 0, "weaksource_after": 0,
                  "weakclaim_before": 0, "weakclaim_after": 0,
+                 "uncited_before": 0, "uncited_after": 0,
                  "density_before": {}, "density_after": {},
                  "calendar": {"rows": 0, "ok": 0, "no_date": 0, "no_cite": 0,
                               "sources": 0},
@@ -3457,6 +3458,8 @@ def run(question: str, max_steps: int, max_sources: int,
             1 for e in weak if e["kind"] == "weaksource")
         structure["weakclaim_before"] = sum(
             1 for e in weak if e["kind"] == "weakclaim")
+        structure["uncited_before"] = sum(
+            1 for e in weak if e["kind"] == "uncited")
         for f in findings:
             logger.warning("structure: %s", f)
         for e in cites["unverified"]:
@@ -3477,6 +3480,13 @@ def run(question: str, max_steps: int, max_sources: int,
             logger.warning("measure not usable: %s — %s", e["tokens"],
                            e.get("detail", ""))
         for e in weak:
+            if e["kind"] == "uncited":
+                # R10-1: das ist KEIN Rangbefund — die Aussage hat gar keinen
+                # Beleg. Eigene Zeile, sonst liest das Protokoll sie als
+                # "nur sekundaer belegt" (und genau so verschwand sie bisher).
+                logger.warning("dated claim without any source [%s]: %s",
+                               e.get("section", "?"), e["tokens"])
+                continue
             logger.warning("core %s on rank-2 material only [%s]: %s (%s)",
                            "figure" if e["kind"] == "weaksource" else "claim",
                            e.get("section", "?"), e["tokens"],
@@ -3550,6 +3560,8 @@ def run(question: str, max_steps: int, max_sources: int,
             1 for e in weak2 if e["kind"] == "weaksource")
         structure["weakclaim_after"] = sum(
             1 for e in weak2 if e["kind"] == "weakclaim")
+        structure["uncited_after"] = sum(
+            1 for e in weak2 if e["kind"] == "uncited")
         if cite_all2:
             # Letzte Instanz: eine Zahl, die die zitierte Seite nicht hergibt,
             # ein Beleg, der von etwas anderem handelt, und eine Zahl ganz ohne
