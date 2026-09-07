@@ -120,10 +120,14 @@ class TestOutline:
 
 class TestRegulatorySweep:
     def _hits(self, url: str, n: int = 3) -> list[dict]:
+        # Die Treffer tragen den Gegenstand — seit Runde 5 filtert der Sweep
+        # VOR dem Abruf gegen Themen-/Entitaetsbegriffe (Rauschbremse).
         return [{"id": f"W{i}", "trend_id": None, "kind": "web",
-                 "title": f"Hit {i}", "url": f"{url}{i}", "origin": f"{url}{i}",
-                 "outlet": "outlet", "vertical": "", "date": "2026-01-01",
-                 "snippet": "snippet", "fetched": False} for i in range(n)]
+                 "title": f"Topic hit {i}", "url": f"{url}{i}",
+                 "origin": f"{url}{i}", "outlet": "outlet", "vertical": "",
+                 "date": "2026-01-01",
+                 "snippet": "incretin GLP-1 semaglutide snippet",
+                 "fetched": False} for i in range(n)]
 
     def _per_query(self, n: int = 3):
         """Jede Suche liefert EIGENE URLs — sonst frisst die URL-Dedup die
@@ -136,7 +140,8 @@ class TestRegulatorySweep:
         gen = self._per_query()
         monkeypatch.setattr(cr, "brave_search",
                             lambda q, n=6: (seen.append(q), gen(q))[1])
-        monkeypatch.setattr(cr, "fetch_web_page", lambda u: "page text 2031")
+        monkeypatch.setattr(cr, "fetch_web_page_status",
+                            lambda u: ("page text 2031", "fetched"))
         sources, notes, ledger, ids = [], [], [], set()
         added, record = cr.sweep_regulatory("GLP-1 and incretin technology",
                                             sources, ids, notes, ledger)
@@ -152,7 +157,8 @@ class TestRegulatorySweep:
 
     def test_nothing_found_is_stated_not_silently_dropped(self, monkeypatch):
         monkeypatch.setattr(cr, "brave_search", lambda q, n=6: [])
-        monkeypatch.setattr(cr, "fetch_web_page", lambda u: "")
+        monkeypatch.setattr(cr, "fetch_web_page_status",
+                            lambda u: ("", "blocked"))
         sources, notes, ledger = [], [], []
         added, record = cr.sweep_regulatory("topic", sources, set(), notes, ledger)
         assert added == 0
@@ -163,7 +169,8 @@ class TestRegulatorySweep:
         """Verpflichtend gefetcht: was nicht gelesen wurde, ist nicht zitierbar."""
         monkeypatch.setattr(cr, "brave_search",
                             lambda q, n=6: self._hits("https://law.example/", 1))
-        monkeypatch.setattr(cr, "fetch_web_page", lambda u: "")
+        monkeypatch.setattr(cr, "fetch_web_page_status",
+                            lambda u: ("", "blocked"))
         sources = []
         cr.sweep_regulatory("topic", sources, set(), [], [])
         assert sources and not any(s.get("fetched") for s in sources)
@@ -173,7 +180,8 @@ class TestRegulatorySweep:
 
     def test_fetch_budget_is_bounded(self, monkeypatch):
         monkeypatch.setattr(cr, "brave_search", self._per_query())
-        monkeypatch.setattr(cr, "fetch_web_page", lambda u: "text")
+        monkeypatch.setattr(cr, "fetch_web_page_status",
+                            lambda u: ("text", "fetched"))
         sources = []
         cr.sweep_regulatory("topic", sources, set(), [], [])
         assert sum(1 for s in sources if s.get("fetched")) == cr.REG_MAX_FETCH
@@ -381,15 +389,18 @@ def test_measure_path_end_to_end(monkeypatch):
          "url": f"https://law.example/{abs(hash(q)) % 997}", "origin": "",
          "outlet": "Law", "vertical": "", "date": "2026-08-05",
          "snippet": "SPC", "fetched": False}])
-    monkeypatch.setattr(cr, "fetch_web_page", lambda url: LEGAL_PAGE)
+    monkeypatch.setattr(cr, "fetch_web_page_status",
+                        lambda url: (LEGAL_PAGE, "fetched"))
 
     out = cr.run("What should we do?", max_steps=1, max_sources=8,
                  retrieval="fts", per_query=2, web_steps=1, max_web_sources=2,
                  topic="GLP-1 and incretin technology", measure=True,
                  seed_sources=[dict(SEED)], seed_notes=["seed"])
 
-    # 1. Rechts-Sweep hat einen eigenen Katalogbereich gefuellt
-    assert out["kinds"]["legal"] == len(cr.REGULATORY_PATTERNS)
+    # 1. Rechts-Sweep hat einen eigenen Katalogbereich gefuellt — und seit
+    #    Runde 5 laeuft danach die zweite Welle je Entitaet, also MEHR als die
+    #    festen Themenmuster.
+    assert out["kinds"]["legal"] >= len(cr.REGULATORY_PATTERNS)
     assert any(e["kind"] == "legal" for e in out["ledger"])
     # 2. genau EIN Neuwurf, mit Revisionsauftrag
     st = out["structure"]
@@ -488,7 +499,8 @@ class TestPostRunFixes:
              "url": f"https://x.example/{abs(hash(q)) % 997}", "origin": "",
              "outlet": "", "vertical": "", "date": "", "snippet": "s",
              "fetched": False}])
-        monkeypatch.setattr(cr, "fetch_web_page", lambda url: "")   # nie lesbar
+        monkeypatch.setattr(cr, "fetch_web_page_status",
+                            lambda url: ("", "blocked"))   # nie lesbar
         out = cr.run("Q", max_steps=1, max_sources=8, retrieval="fts",
                      per_query=2, web_steps=1, max_web_sources=2, topic="GLP-1",
                      measure=True, seed_sources=[dict(SEED)], seed_notes=["seed"])
@@ -695,16 +707,19 @@ class TestMarketSweep:
     def _gen(self, n: int = 3):
         return lambda q, count=6: [
             {"id": f"W{i}", "trend_id": None, "kind": "web",
-             "title": f"Hit {i}", "url": f"https://m{abs(hash(q)) % 9973}.example/{i}",
+             "title": f"Topic hit {i}",
+             "url": f"https://m{abs(hash(q)) % 9973}.example/{i}",
              "origin": "", "outlet": "o", "vertical": "", "date": "2026-01-01",
-             "snippet": "s", "fetched": False} for i in range(n)]
+             "snippet": "incretin GLP-1 semaglutide", "fetched": False}
+            for i in range(n)]
 
     def test_every_market_pattern_runs_with_its_own_budget(self, monkeypatch):
         seen = []
         gen = self._gen()
         monkeypatch.setattr(cr, "brave_search",
                             lambda q, n=6: (seen.append(q), gen(q))[1])
-        monkeypatch.setattr(cr, "fetch_web_page", lambda u: "page text")
+        monkeypatch.setattr(cr, "fetch_web_page_status",
+                            lambda u: ("page text", "fetched"))
         sources, notes, ledger = [], [], []
         added, record = cr.sweep_market("GLP-1 and incretin technology",
                                         sources, set(), notes, ledger)
@@ -720,7 +735,8 @@ class TestMarketSweep:
 
     def test_a_snippet_never_carries_a_market_citation(self, monkeypatch):
         monkeypatch.setattr(cr, "brave_search", self._gen(1))
-        monkeypatch.setattr(cr, "fetch_web_page", lambda u: "")
+        monkeypatch.setattr(cr, "fetch_web_page_status",
+                            lambda u: ("", "blocked"))
         sources = []
         cr.sweep_market("topic", sources, set(), [], [])
         assert sources and not any(s.get("fetched") for s in sources)

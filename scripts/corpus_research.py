@@ -58,7 +58,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from pipeline import dossier_structure, llamacpp_client
-from pipeline.article_fetcher import fetch_fulltext
+from pipeline.article_fetcher import fetch_fulltext, fetch_fulltext_result
 from pipeline.db import get_connection
 
 logger = logging.getLogger("corpus_research")
@@ -73,7 +73,19 @@ FTS_VECTOR = ("to_tsvector('english', coalesce(title_en,'') || ' ' || "
 
 MAX_SNIPPET_CHARS = 420      # per catalog entry in a prompt
 MAX_BODY_CHARS = 2_400       # a single opened article
-MAX_EVIDENCE_CHARS = 30_000  # all evidence in one prompt
+MAX_EVIDENCE_CHARS = 30_000  # all evidence in ONE AGENT-LOOP prompt
+# Runde 5 (2026-09-07): der Lauf liest jetzt 40-60 statt 6-16 Seiten. Bei
+# 2.400 Zeichen je Seite waeren das 120k Zeichen Evidenz gegen eine 30k-Kappe,
+# und `evidence_block` wirft FIFO die AELTESTEN weg — also ausgerechnet die
+# Recht-/Markt-Volltexte, die vor der Web-Stufe laufen. Zwei Gegenmittel:
+#   * jede gefetchte Seite geht als SCHLUESSELPASSAGEN in die Notiz (der
+#     Volltext bleibt an der Quelle haengen, wo die Beleg-Verifikation ihn
+#     braucht) — mehr Fakten je Zeichen statt mehr Zeichen;
+#   * Audit und Bericht bekommen ein eigenes, groesseres Evidenzbudget. Die
+#     Agenten-Hops brauchen die Volltexte nicht, um die naechste Suche zu
+#     waehlen; der Bericht braucht sie. Kontext ist da (-c 262144).
+MAX_PASSAGE_CHARS = 1_200    # condensed web page in an evidence note
+MAX_REPORT_EVIDENCE_CHARS = 78_000  # audit + report prompt
 
 BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search"
 _BRAVE_MIN_INTERVAL = 1.1    # stay on the free tier's 1 req/s side regardless of plan
@@ -698,15 +710,175 @@ def brave_search(query: str, count: int = 6) -> list[dict]:
     return out
 
 
-def fetch_web_page(url: str) -> str:
-    """Full text of one web result via the pipeline's robots-honouring fetcher.
+def _fetch_status(reason: str | None) -> str:
+    """FetchResult.reason -> one of a small, reportable set.
 
-    Empty string on refusal (robots.txt, blocked, extraction failed) — the
-    caller notes the failure and, crucially, does NOT mark the source fetched:
-    a page nobody could read must not become citable.
+    Jury-Befund (Runde 5): "konnte nicht gelesen werden" war im Ledger EIN
+    Zustand — robots.txt-Verbot, 403-Botsperre und Zeitueberschreitung sahen
+    identisch aus. Sie sind aber verschieden zu bewerten: robots/TDM ist unsere
+    eigene Regel, 403 ist die Gegenseite, timeout ist Pech.
     """
-    text = fetch_fulltext(url)
-    return text[:MAX_BODY_CHARS] if text else ""
+    r = (reason or "error").strip()
+    if r == "robots":
+        return "robots"
+    if r.startswith("tdm:"):
+        return "tdm"
+    if r.startswith("http "):
+        code = r.split(" ", 1)[1].strip()
+        return "blocked" if code in ("401", "403", "429", "451") else f"http {code}"
+    if r.startswith("error"):
+        return "timeout" if "timeout" in r.lower() else "error"
+    return r          # too_short
+
+
+def fetch_web_page_status(url: str) -> tuple[str, str]:
+    """(full text, status) of one web result via the robots-honouring fetcher.
+
+    Empty text on refusal — the caller notes the failure WITH ITS REASON and,
+    crucially, does NOT mark the source fetched: a page nobody could read must
+    not become citable. Der Produktions-UA bleibt (CRAWLER_USER_AGENT); eine
+    Botsperre wird ausgewiesen, nicht umgangen.
+    """
+    res = fetch_fulltext_result(url)
+    if res.text:
+        return res.text[:MAX_BODY_CHARS], "fetched"
+    return "", _fetch_status(res.reason)
+
+
+def fetch_web_page(url: str) -> str:
+    """Full text of one web result, or "" — status-free wrapper."""
+    return fetch_web_page_status(url)[0]
+
+
+# Ein Satz zaehlt als faktendicht, wenn er eine Jahreszahl, einen Betrag, eine
+# Prozentangabe oder eine sonstige Zahl traegt. Genau daran haengt die
+# Spezifitaet, die der Siegertext hatte und wir nicht.
+_FACT_RE = re.compile(r"(?:\b(?:19|20)\d{2}\b|[€$£]\s?\d|\d+(?:[.,]\d+)?\s?%"
+                      r"|\b\d[\d.,]*\s?(?:bn|billion|million|mio|mrd|m\b|k\b))",
+                      re.IGNORECASE)
+
+
+def key_passages(text: str, terms: list[str],
+                 limit: int = MAX_PASSAGE_CHARS) -> str:
+    """Die belegtragenden Absaetze einer Seite, in Originalreihenfolge.
+
+    Ein Bericht wird nicht dadurch besser, dass 2.400 Zeichen Navigations- und
+    Einleitungsprosa im Prompt stehen. Bewertet wird je Absatz: wie viele
+    Themen-/Entitaetsbegriffe er traegt und ob eine Zahl darin steht. Der erste
+    Absatz bleibt immer (die Nachricht steht im Lead). Faellt nichts durchs
+    Raster, wird schlicht vorn abgeschnitten wie bisher.
+    """
+    if not text:
+        return ""
+    if len(text) <= limit:
+        return text
+    paras = [p.strip() for p in re.split(r"\n{1,}", text) if p.strip()]
+    if not paras:
+        return text[:limit]
+    low = [p.lower() for p in paras]
+    scored: list[tuple[int, int]] = []
+    for i, p in enumerate(paras):
+        hits = sum(1 for t in terms if t and t in low[i])
+        score = hits * 2 + (2 if _FACT_RE.search(p) else 0)
+        if i == 0:
+            score += 100            # lead paragraph is never dropped
+        scored.append((score, i))
+    keep: set[int] = set()
+    used = 0
+    for score, i in sorted(scored, key=lambda s: (-s[0], s[1])):
+        if score <= 0:
+            break
+        if used + len(paras[i]) + 2 > limit:
+            continue
+        keep.add(i)
+        used += len(paras[i]) + 2
+    if not keep:
+        return text[:limit]
+    return "\n\n".join(paras[i] for i in sorted(keep))
+
+
+# --------------------------------------------------------------------------
+# Quellenrang und Relevanzfilter VOR dem Abruf (Runde 5, 2026-09-07).
+#
+# Zwei Befunde aus dem Vergleich gegen die Web-Recherche: (1) der Sieger las
+# viel mehr Primaerseiten — Register, Behoerden, Gerichte, Firmen-Newsrooms —
+# statt Sekundaerpresse ueber dieselben Ereignisse; (2) unsere Kappen warfen
+# Treffer STILL weg. Also: Treffer erst nach Quellenrang ordnen, dann gegen
+# Thema und Entitaeten filtern, und jeden Verwurf zaehlen.
+# --------------------------------------------------------------------------
+
+# Register, Behoerden, Gerichte, Gesetzgeber. Kein Anspruch auf Vollstaendigkeit:
+# die Endungen unten fangen den grossen Rest (jede .gov-/.europa.eu-Domain).
+_PRIMARY_HOSTS = frozenset("""
+epo.org register.epo.org espacenet.com worldwide.espacenet.com
+patents.google.com uspto.gov wipo.int dpma.de unified-patent-court.org
+curia.europa.eu eur-lex.europa.eu rechtspraak.nl courtlistener.com
+ema.europa.eu fda.gov efsa.europa.eu echa.europa.eu clinicaltrials.gov
+who.int nice.org.uk nhs.uk england.nhs.uk mhra.gov.uk bfarm.de g-ba.de
+has-sante.fr ansm.sante.fr legifrance.gouv.fr gesetze-im-internet.de
+sec.gov federalregister.gov cms.gov nih.gov nsf.gov iea.org irena.org
+oecd.org bundesanzeiger.de gov.uk pmda.go.jp nmpa.gov.cn tga.gov.au
+""".split())
+
+_PRIMARY_SUFFIXES = (".gov", ".gov.uk", ".gouv.fr", ".europa.eu", ".go.jp",
+                     ".gc.ca", ".gov.au", ".govt.nz", ".gov.in", ".gov.br",
+                     ".bund.de", ".admin.ch", ".gv.at", ".int")
+
+_NONWORD = re.compile(r"[^a-z0-9]+")
+
+
+def _host_of(url: str) -> str:
+    from urllib.parse import urlparse
+    return urlparse(url).netloc.lower().removeprefix("www.")
+
+
+def source_rank(url: str, entities: tuple[str, ...] | list[str] = ()) -> int:
+    """0 = Register/Behoerde/Gericht, 1 = eigene Seite einer Entitaet, 2 = Rest.
+
+    Rang 1 erkennt Firmen-Newsrooms ohne Firmenliste: die Domain traegt den
+    Namen der Entitaet, die wir ohnehin schon aus dem Katalog kennen
+    ("Novo Nordisk" -> novonordisk.com).
+    """
+    host = _host_of(url)
+    if not host:
+        return 2
+    if host in _PRIMARY_HOSTS or any(host.endswith("." + h) for h in _PRIMARY_HOSTS):
+        return 0
+    if host.endswith(_PRIMARY_SUFFIXES):
+        return 0
+    squashed = _NONWORD.sub("", host)
+    for e in entities:
+        key = _NONWORD.sub("", str(e).lower())
+        if len(key) >= 5 and key in squashed:
+            return 1
+    return 2
+
+
+def rank_hits(hits: list[dict], entities: tuple[str, ...] | list[str] = ()) -> list[dict]:
+    """Primaerquellen zuerst, sonst Reihenfolge der Suchmaschine (stabil)."""
+    order = sorted((source_rank(h.get("url") or "", entities), i)
+                   for i, h in enumerate(hits))
+    return [hits[i] for _, i in order]
+
+
+def web_relevant(hit: dict, terms: list[str]) -> bool:
+    """Relevanzschranke VOR dem Abruf: Titel, Snippet oder URL muss einen
+    Themen- oder Entitaetsbegriff tragen.
+
+    Ohne sie wuerde die angehobene Kappe vor allem Rauschen einsammeln — mehr
+    gelesene Seiten sind nur dann ein Gewinn, wenn sie vom Gegenstand handeln.
+    Ausnahme: eine Registerseite (Rang 0) wird nie wegen des Filters verworfen;
+    Gerichts- und Behoerdenseiten nennen den Gegenstand oft erst im Volltext,
+    und genau diese Treffer haben uns gefehlt.
+    """
+    if not terms:
+        return True
+    url = str(hit.get("url") or "")
+    if source_rank(url) == 0:
+        return True
+    hay = (str(hit.get("title") or "") + " " + str(hit.get("snippet") or "")
+           + " " + url).lower()
+    return any(t and t in hay for t in terms)
 
 
 # --------------------------------------------------------------------------
@@ -971,43 +1143,80 @@ def sweep_internal(items: list[str], topic: str, sources: list[dict],
 
 REGULATORY_PATTERNS = (
     "{t} patent expiry supplementary protection certificate Europe",
+    '"{t}" SPC supplementary protection certificate',
+    "{t} patent expiry Europe generic entry",
     "{t} EMA marketing authorisation decision",
     "{t} FDA approval decision",
-    "{t} patent litigation court ruling injunction",
+    "{t} patent litigation court ruling injunction generic",
     "{t} EFSA authorised health claim wording",
     "{t} EU regulation compliance requirements",
 )
-REG_MAX_SOURCES = 12      # eigener Katalogbereich, unabhaengig von max_web_sources
-REG_MAX_FETCH = 8         # Volltexte — nur diese sind zitierbar
-REG_PER_PATTERN = 2       # Treffer je Muster in den Katalog
+
+# Zweite Welle, je erkannter Entitaet (Wirkstoff/Firma) aus dem bisherigen
+# Katalog. Der entscheidende Befund des Siegertexts — SPC bis 2031 auf
+# EP 1 863 839, durchgesetzt in Den Haag — haengt am WIRKSTOFFNAMEN, nicht an
+# der Themenphrase: "GLP-1 receptor agonist SPC" findet ihn nicht,
+# "semaglutide SPC" ist die Anfrage, die ihn finden kann.
+SUBSTANCE_LEGAL_PATTERNS = (
+    '"{e}" SPC supplementary protection certificate',
+    "supplementary protection certificate {e} expiry",
+    "{e} patent expiry Europe",
+    "{e} court ruling generic",
+)
+REG_MAX_SOURCES = 24      # eigener Katalogbereich, unabhaengig von max_web_sources
+                          # (= Muster x REG_PER_PATTERN: die spaeten Muster
+                          #  duerfen nicht von den fruehen ausgehungert werden)
+REG_MAX_FETCH = 12        # Volltexte — nur diese sind zitierbar
+REG_PER_PATTERN = 3       # Treffer je Muster in den Katalog
+SUB_MAX_SOURCES = 24      # zweite Welle: Wirkstoff-/Entitaets-Rechtsabfragen
+SUB_MAX_FETCH = 8
+SUB_PER_PATTERN = 2
+SUB_MAX_ENTITIES = 3      # Anfragen = SUB_MAX_ENTITIES * 4 Muster
 
 
 def sweep_fixed(topic: str, sources: list[dict], seen_ids: set[str],
                 notes: list[str], ledger: list[dict], per_query: int = 6,
                 *, patterns: tuple[str, ...] = REGULATORY_PATTERNS,
+                queries: list[str] | None = None,
                 kind: str = "legal", id_prefix: str = "L",
                 max_sources: int = REG_MAX_SOURCES,
                 max_fetch: int = REG_MAX_FETCH,
                 per_pattern: int = REG_PER_PATTERN,
                 label: str = "regulatory/IP",
-                record_head: str = "") -> tuple[int, str]:
+                record_head: str = "",
+                terms: list[str] | None = None,
+                entities: list[str] | None = None) -> tuple[int, str]:
     """Eine feste Suchrichtung ueber die Websuche, Volltext gefetcht.
 
     Gibt (Anzahl neuer Katalogquellen, Suchprotokoll fuer den Report-Prompt)
     zurueck. Das Protokoll nennt JEDES Muster — auch die ohne Treffer, damit
-    der Bericht "dazu nichts gefunden" schreiben kann statt zu schweigen."""
+    der Bericht "dazu nichts gefunden" schreiben kann statt zu schweigen.
+
+    `queries` uebersteuert `patterns` (die zweite Welle baut ihre Anfragen aus
+    Entitaeten selbst). `terms`/`entities` steuern Relevanzfilter und
+    Quellenrang. Seit Runde 5 (2026-09-07) wird JEDER Verwurf gezaehlt und im
+    Protokoll benannt: der Askea-Fall ("8 hits, 0 new", Katalog voll) darf sich
+    nicht wiederholen."""
     from pipeline.dossier_quant import normalize_topic
-    phrase = (normalize_topic(topic) or topic or "").strip()
-    if not phrase:
+    ents = list(entities or [])
+    terms = list(terms if terms is not None else anchor_terms(topic))
+    if queries is None:
+        phrase = (normalize_topic(topic) or topic or "").strip()
+        if not phrase:
+            return 0, ""
+        qs = [p.format(t=phrase) for p in patterns]
+    else:
+        qs = [q for q in queries if q]
+    if not qs:
         return 0, ""
     added, fetched_total = 0, 0
     seen_urls = {x["url"] for x in sources}
     lines: list[str] = []
-    for pattern in patterns:
-        q = pattern.format(t=phrase)
+    for q in qs:
         entry = {"gap": q, "kind": kind, "papers": 0, "patents": 0,
                  "web_queries": [q], "web_sources": 0, "web_fetched": 0,
-                 "off_topic_dropped": 0}
+                 "off_topic_dropped": 0, "budget_dropped": 0,
+                 "fetch_log": []}
         try:
             hits = brave_search(q, per_query)
         except Exception as exc:                                    # noqa: BLE001
@@ -1017,43 +1226,81 @@ def sweep_fixed(topic: str, sources: list[dict], seen_ids: set[str],
             ledger.append(entry)
             continue
         fresh: list[dict] = []
-        for h in hits:
-            if h["url"] in seen_urls or len(fresh) >= per_pattern:
+        for h in rank_hits(hits, ents):
+            if h["url"] in seen_urls:
                 continue
-            if added + len(fresh) >= max_sources:
-                break
+            if not web_relevant(h, terms):
+                entry["off_topic_dropped"] += 1
+                continue
+            if len(fresh) >= per_pattern or added + len(fresh) >= max_sources:
+                # Kein stilles Verwerfen mehr: der Treffer war brauchbar und
+                # fiel NUR am Budget — das gehoert ins Protokoll.
+                entry["budget_dropped"] += 1
+                continue
             h["id"] = f"{id_prefix}{added + len(fresh)}"
             h["kind"] = kind
             h["gap"] = None
             fresh.append(h)
+        if not fresh and entry["off_topic_dropped"] and added < max_sources:
+            # Rueckfallschwelle: der Relevanzfilter darf eine Anfrage nicht in
+            # Schweigen verwandeln. Traegt kein Treffer einen Themen- oder
+            # Entitaetsbegriff, kommt der bestplatzierte trotzdem herein — und
+            # das Protokoll sagt, dass er nur deshalb drin ist.
+            for h in rank_hits(hits, ents):
+                if h["url"] in seen_urls:
+                    continue
+                h["id"] = f"{id_prefix}{added}"
+                h["kind"] = kind
+                h["gap"] = None
+                fresh.append(h)
+                entry["off_topic_dropped"] -= 1
+                entry["floor_admitted"] = 1
+                break
         for h in fresh:
             seen_urls.add(h["url"])
             seen_ids.add(h["id"])
             sources.append(h)
-            if fetched_total < max_fetch:
-                text = fetch_web_page(h["url"])
-                if text:
-                    h["fetched"] = True
-                    h["text"] = text
-                    fetched_total += 1
-                    entry["web_fetched"] += 1
-                    notes.append(f"Full text of {h['url']} ({label}):\n{text}")
-                else:
-                    notes.append(f"Fetch of {h['url']} failed (robots.txt or "
-                                 f"extraction) — page stays uncitable.")
+            if fetched_total >= max_fetch:
+                entry["fetch_log"].append({"url": h["url"], "status": "budget"})
+                continue
+            text, status = fetch_web_page_status(h["url"])
+            entry["fetch_log"].append({"url": h["url"], "status": status})
+            if text:
+                h["fetched"] = True
+                h["text"] = text
+                fetched_total += 1
+                entry["web_fetched"] += 1
+                notes.append(f"Key passages of {h['url']} ({label}):\n"
+                             + key_passages(text, terms + [t.lower() for t in ents]))
+            else:
+                notes.append(f"Fetch of {h['url']} failed ({status}) — page "
+                             f"stays uncitable.")
         added += len(fresh)
         entry["web_sources"] = len(fresh)
         cited_ids = ", ".join(h["id"] for h in fresh if h.get("fetched"))
+        blocked = [e["status"] for e in entry["fetch_log"]
+                   if e["status"] != "fetched"]
+        tail = ""
+        if entry["budget_dropped"]:
+            tail += (f"; {entry['budget_dropped']} further usable hit(s) NOT "
+                     f"admitted (budget)")
+        if entry["off_topic_dropped"]:
+            tail += f"; {entry['off_topic_dropped']} dropped as off-topic"
+        if blocked:
+            tail += f"; unreadable: {', '.join(sorted(set(blocked)))}"
         if cited_ids:
-            lines.append(f'- "{q}" — {len(hits)} hit(s), read in full: {cited_ids}')
+            lines.append(f'- "{q}" — {len(hits)} hit(s), read in full: '
+                         f"{cited_ids}{tail}")
         elif fresh:
             lines.append(f'- "{q}" — {len(hits)} hit(s), none could be read in '
-                         f"full (robots/extraction) — not citable")
+                         f"full (robots/block/extraction) — not citable{tail}")
         else:
-            lines.append(f'- "{q}" — nothing usable')
+            lines.append(f'- "{q}" — nothing usable{tail}')
         ledger.append(entry)
-        logger.info("  %s %r: %d hit(s), %d admitted, %d read", label,
-                    q[:60], len(hits), len(fresh), entry["web_fetched"])
+        logger.info("  %s %r: %d hit(s), %d admitted, %d read, %d dropped "
+                    "(budget %d)", label, q[:60], len(hits), len(fresh),
+                    entry["web_fetched"], entry["off_topic_dropped"],
+                    entry["budget_dropped"])
     record = ((record_head or
                "REGULATORY/IP SWEEP RECORD — fixed query patterns, run "
                "deterministically for the 'Regulatory and IP status' section. "
@@ -1065,9 +1312,11 @@ def sweep_fixed(topic: str, sources: list[dict], seen_ids: set[str],
 
 def sweep_regulatory(topic: str, sources: list[dict], seen_ids: set[str],
                      notes: list[str], ledger: list[dict],
-                     per_query: int = 6) -> tuple[int, str]:
+                     per_query: int = 6, terms: list[str] | None = None,
+                     entities: list[str] | None = None) -> tuple[int, str]:
     """Recht/Zulassung — die erste feste Suchrichtung (2026-09-06)."""
-    return sweep_fixed(topic, sources, seen_ids, notes, ledger, per_query)
+    return sweep_fixed(topic, sources, seen_ids, notes, ledger, per_query,
+                       terms=terms, entities=entities)
 
 
 # --------------------------------------------------------------------------
@@ -1088,26 +1337,210 @@ MARKET_PATTERNS = (
     "{t} pipeline phase 3 results",
     "{t} quarterly revenue results",
     "{t} market entry launch price",
+    "{t} supply shortage manufacturing capacity investment",
+    "{t} competitor entry generic biosimilar launch",
 )
-MKT_MAX_SOURCES = 12
-MKT_MAX_FETCH = 8
-MKT_PER_PATTERN = 2
+
+# Zweite Welle, je erkannter Entitaet: <Entitaet> <Ereignistyp>. Genau der
+# Mechanismus, ueber den die siegreiche Web-Recherche auf Metsera, Frankreichs
+# Erstattungsentscheidung und den NHS-Rollout kam — sie suchte nicht weiter
+# nach dem Thema, sondern nach den AKTEUREN, die das Thema hervorgebracht hat.
+ENTITY_MARKET_PATTERNS = (
+    "{e} acquisition deal agreement announcement",
+    "{e} reimbursement pricing decision",
+    "{e} phase 3 trial results readout",
+    "{e} revenue guidance quarterly results",
+)
+MKT_MAX_SOURCES = 24
+MKT_MAX_FETCH = 12
+MKT_PER_PATTERN = 3
+ENT_MAX_SOURCES = 32      # zweite Welle: <Entitaet> <Ereignistyp>
+ENT_MAX_FETCH = 8
+ENT_PER_PATTERN = 2
+ENT_MAX_ENTITIES = 4      # Anfragen = ENT_MAX_ENTITIES * 4 Muster
+
+# Abdeckungs-Sweep und Lese-Auffangnetz der allgemeinen Web-Stufe.
+# Runde 5: 2 -> 4 Treffer je offener Frage, und das Auffangnetz liest bis zu
+# zwei Seiten je Frage statt genau einer. Zusammen mit den festen Richtungen
+# landet ein Lauf damit bei ~40-60 gelesenen Seiten statt 6-16.
+COVERAGE_PER_GAP = 4
+BACKSTOP_FETCH_BUDGET = 12
+BACKSTOP_PER_GAP = 2
 
 
 def sweep_market(topic: str, sources: list[dict], seen_ids: set[str],
                  notes: list[str], ledger: list[dict],
-                 per_query: int = 6) -> tuple[int, str]:
+                 per_query: int = 6, terms: list[str] | None = None,
+                 entities: list[str] | None = None) -> tuple[int, str]:
     """Markt- und Erstattungsereignisse, Volltext gefetcht, eigenes Budget."""
     return sweep_fixed(
         topic, sources, seen_ids, notes, ledger, per_query,
         patterns=MARKET_PATTERNS, kind="market", id_prefix="M",
         max_sources=MKT_MAX_SOURCES, max_fetch=MKT_MAX_FETCH,
         per_pattern=MKT_PER_PATTERN, label="market/reimbursement",
+        terms=terms, entities=entities,
         record_head=("MARKET/REIMBURSEMENT SWEEP RECORD — fixed query patterns, "
                      "run deterministically so that reimbursement decisions, "
                      "national rollouts, M&A contests, pipeline readouts and "
                      "reported revenue cannot be crowded out by the general web "
                      "stage. Only pages read in full are citable:"))
+
+
+# --------------------------------------------------------------------------
+# Entitaeten aus dem bisherigen Katalog (Runde 5, 2026-09-07).
+#
+# Mehr Anfragen desselben Zuschnitts bringen mehr vom Gleichen. Was den
+# Unterschied macht, ist die ZWEITE WELLE: die Akteure, die die erste Welle
+# zutage gefoerdert hat, noch einmal gezielt gegen Ereignistypen suchen. Die
+# Extraktion ist bewusst deterministisch (kein Modell-Hop): sie ist damit
+# reproduzierbar, GPU-frei testbar, und das Ledger kann exakt ausweisen, welche
+# Entitaet welche Anfrage ausgeloest hat.
+# --------------------------------------------------------------------------
+
+# Grossgeschriebene Fuellwoerter. Fachpresse-Titel stehen oft in Title Case —
+# ohne diese Liste waere "Novo Nordisk Wins" ein Entitaetskandidat. Regel: ein
+# Kandidat faellt, sobald IRGENDEIN Token darin steht.
+_ENTITY_STOP = frozenset("""
+the a an and or but of in on at to by as is are was were be been has have had
+not no new first more most how why what when where which who whose this that
+these those with from for its their our your his her it he she they we you
+says said wins won loses lost report reports study studies market markets
+global data health drug drugs company companies group news update updates
+analysis research trends weekly monthly daily top best big next amid after
+before could will can may might should would about into over under between
+across against launch launches launched approval approved deal deals billion
+million percent growth industry sector future outlook review preview special
+january february march april may june july august september october november
+december monday tuesday wednesday thursday friday saturday sunday
+inc ltd llc plc gmbh ag sa nv corp co
+""".split())
+
+# INN-Endungen: Wirkstoffnamen sind die Schluessel zu Rechtsabfragen (SPC,
+# Patentablauf, Generika-Urteil). Mindestlaenge 9, damit gewoehnliche Woerter
+# nicht mitgehen.
+_INN_SUFFIXES = ("glutide", "trutide", "patide", "glipron", "gliptin",
+                 "gliflozin", "tide", "zumab", "ximab", "umab", "mab",
+                 "tinib", "nib", "sartan", "prazole", "cycline", "parib",
+                 "ciclib", "afil", "setron", "vir", "cept")
+_INN_MIN_LEN = 9
+
+_CAP_TOKEN = re.compile(r"^[A-Z][A-Za-z0-9&.'\-]*$")
+
+
+def _is_substance(word: str) -> bool:
+    w = word.lower().strip(".,;:!?()[]\"'")
+    return (len(w) >= _INN_MIN_LEN and w.isalpha()
+            and w.endswith(_INN_SUFFIXES))
+
+
+def harvest_entities(sources: list[dict], topic: str,
+                     limit: int = 10) -> tuple[list[str], list[str]]:
+    """(Entitaeten, davon Wirkstoffe) aus Titeln und Snippets des Katalogs.
+
+    Kandidaten sind (a) Laeufe grossgeschriebener Token, aufgeloest in alle
+    1- bis 3-Gramme, und (b) Wirkstoffnamen an ihrer INN-Endung. Gezaehlt wird
+    die Dokumentfrequenz: was nur in einem Treffer steht, ist meist ein
+    Titelartefakt, was in mehreren steht, ist ein Akteur. Outlet-Namen fliegen
+    raus — sonst waere "Reuters" die haeufigste Entitaet des Laufs.
+    """
+    topic_words = {w for w in _WORD.findall((topic or "").lower())}
+    outlets = set()
+    for s in sources:
+        for w in _WORD.findall(str(s.get("outlet") or "").lower()):
+            outlets.add(w)
+    df: dict[str, set[int]] = {}
+    subs: dict[str, set[int]] = {}
+    display: dict[str, str] = {}
+    for i, s in enumerate(sources):
+        text = f"{s.get('title') or ''} {s.get('snippet') or ''}"
+        for raw in text.split():
+            if _is_substance(raw):
+                w = raw.lower().strip(".,;:!?()[]\"'")
+                subs.setdefault(w, set()).add(i)
+        run: list[str] = []
+        for raw in text.split():
+            tok = raw.strip(".,;:!?()[]\"'“”‘’")
+            if _CAP_TOKEN.match(tok) and len(tok) >= 2:
+                run.append(tok)
+                continue
+            _collect_ngrams(run, i, df, display, topic_words, outlets)
+            run = []
+        _collect_ngrams(run, i, df, display, topic_words, outlets)
+    substances = sorted(subs, key=lambda w: (-len(subs[w]), w))
+    substances = [w for w in substances if len(subs[w]) >= 2] or substances[:2]
+    orgs = [display[k] for k in sorted(df, key=lambda k: (-len(df[k]), -len(k), k))
+            if len(df[k]) >= 2]
+    out: list[str] = []
+    for e in substances + orgs:
+        if e.lower() not in {x.lower() for x in out}:
+            out.append(e)
+        if len(out) >= limit:
+            break
+    return out, substances[:limit]
+
+
+def _collect_ngrams(run: list[str], doc: int, df: dict[str, set[int]],
+                    display: dict[str, str], topic_words: set[str],
+                    outlets: set[str]) -> None:
+    """Alle 1- bis 3-Gramme eines Grossschreibungslaufs als Kandidaten."""
+    for n in (1, 2, 3):
+        for j in range(len(run) - n + 1):
+            gram = run[j:j + n]
+            low = [t.lower() for t in gram]
+            if any(t in _ENTITY_STOP or t in _STOPWORDS or t in outlets
+                   or t in topic_words for t in low):
+                continue
+            if n == 1 and (len(gram[0]) < 3 or gram[0].islower()):
+                continue
+            key = " ".join(low)
+            if len(key) < 4:
+                continue
+            df.setdefault(key, set()).add(doc)
+            display.setdefault(key, " ".join(gram))
+
+
+def sweep_substance_legal(topic: str, substances: list[str],
+                          sources: list[dict], seen_ids: set[str],
+                          notes: list[str], ledger: list[dict],
+                          per_query: int, terms: list[str],
+                          entities: list[str]) -> tuple[int, str]:
+    """Rechtsabfragen je Wirkstoff/Entitaet — Patentablauf, SPC, Urteile."""
+    picks = (substances or entities)[:SUB_MAX_ENTITIES]
+    if not picks:
+        return 0, ""
+    qs = [p.format(e=e) for e in picks for p in SUBSTANCE_LEGAL_PATTERNS]
+    return sweep_fixed(
+        topic, sources, seen_ids, notes, ledger, per_query,
+        queries=qs, kind="legal", id_prefix="S",
+        max_sources=SUB_MAX_SOURCES, max_fetch=SUB_MAX_FETCH,
+        per_pattern=SUB_PER_PATTERN, label="substance/IP",
+        terms=terms, entities=entities,
+        record_head=("SUBSTANCE/IP SWEEP RECORD — the same legal questions, "
+                     "asked per named substance or actor instead of per topic "
+                     "phrase (patent expiry, supplementary protection "
+                     "certificate, generic litigation). Only pages read in "
+                     "full are citable:"))
+
+
+def sweep_entity_market(topic: str, entities: list[str],
+                        sources: list[dict], seen_ids: set[str],
+                        notes: list[str], ledger: list[dict],
+                        per_query: int, terms: list[str]) -> tuple[int, str]:
+    """<Entitaet> <Ereignistyp> — die zweite Welle des Markt-Sweeps."""
+    picks = entities[:ENT_MAX_ENTITIES]
+    if not picks:
+        return 0, ""
+    qs = [p.format(e=e) for e in picks for p in ENTITY_MARKET_PATTERNS]
+    return sweep_fixed(
+        topic, sources, seen_ids, notes, ledger, per_query,
+        queries=qs, kind="entity", id_prefix="E",
+        max_sources=ENT_MAX_SOURCES, max_fetch=ENT_MAX_FETCH,
+        per_pattern=ENT_PER_PATTERN, label="entity/event",
+        terms=terms, entities=entities,
+        record_head=("ENTITY/EVENT SWEEP RECORD — second wave: every actor the "
+                     "first wave surfaced, searched again against event types "
+                     "(deals, reimbursement, trial readouts, reported revenue). "
+                     "Only pages read in full are citable:"))
 
 
 # --------------------------------------------------------------------------
@@ -1239,8 +1672,10 @@ def catalog_block(sources: list[dict]) -> str:
         for s in sources)
 
 
-def evidence_block(notes: list[str], pinned: int = 0) -> str:
-    """Alle Evidenznotizen in einen Prompt, gedeckelt auf MAX_EVIDENCE_CHARS.
+def evidence_block(notes: list[str], pinned: int = 0,
+                   limit: int | None = None) -> str:
+    """Alle Evidenznotizen in einen Prompt, gedeckelt auf `limit`
+    (Default: MAX_EVIDENCE_CHARS, zur Laufzeit gelesen).
 
     `pinned` = wie viele Notizen am ANFANG der Liste unantastbar sind. Der
     FIFO-Verwurf behält sonst die jüngsten Notizen und wirft die ältesten ganz
@@ -1248,15 +1683,17 @@ def evidence_block(notes: list[str], pinned: int = 0) -> str:
     beiden Perowskit-Läufen (42,8k / 48,3k Zeichen Evidenz) flog genau sie als
     Erstes heraus; gemessen wurde, im Bericht stand es nie.
     """
+    if limit is None:
+        limit = MAX_EVIDENCE_CHARS
     joined = "\n\n---\n\n".join(notes)
-    if len(joined) <= MAX_EVIDENCE_CHARS:
+    if len(joined) <= limit:
         return joined
     head = notes[:pinned]
     rest = notes[pinned:]
     used = sum(len(n) for n in head)
     kept = []
     for note in reversed(rest):
-        if used + len(note) > MAX_EVIDENCE_CHARS:
+        if used + len(note) > limit:
             break
         kept.append(note)
         used += len(note)
@@ -1478,7 +1915,7 @@ def save_dossier(slug: str, topic: str, question: str, report_md: str,
 
 def run(question: str, max_steps: int, max_sources: int,
         retrieval: str, per_query: int, scope: str = "both",
-        web_steps: int = 8, max_web_sources: int = 12,
+        web_steps: int = 14, max_web_sources: int = 32,
         topic: str = "", lang: str = "en",
         seed_sources: list[dict] | None = None,
         seed_notes: list[str] | None = None,
@@ -1491,6 +1928,9 @@ def run(question: str, max_steps: int, max_sources: int,
     reproduziert den Pfad davor exakt."""
     if measure is None:
         measure = os.getenv("DOSSIER_MEASURE", "1") not in ("0", "false", "no")
+    # Audit und Bericht sehen die Volltexte, die Agenten-Hops nicht (s.
+    # MAX_REPORT_EVIDENCE_CHARS). Im alten Pfad bleibt alles bei 30k.
+    report_evidence = MAX_REPORT_EVIDENCE_CHARS if measure else None
     t0 = time.time()
     _backend = search_vector if retrieval == "vector" else search_corpus
 
@@ -1642,7 +2082,9 @@ def run(question: str, max_steps: int, max_sources: int,
         max_tokens=4096,
         prompt=(f"Question:\n{shield(question)}\n\n"
                 f"Source catalog:\n{catalog_block(sources)}\n\n"
-                f"<untrusted_evidence>\n{shield(evidence_block(notes, pinned_notes))}\n</untrusted_evidence>\n\n"
+                f"<untrusted_evidence>\n"
+                f"{shield(evidence_block(notes, pinned_notes, report_evidence))}\n"
+                f"</untrusted_evidence>\n\n"
                 f"Return the audit as JSON."),
         require_all_fields=True)
     if audit is None:
@@ -1695,23 +2137,64 @@ def run(question: str, max_steps: int, max_sources: int,
     # darf nicht gegen allgemeine Treffer um dieselbe Kappe konkurrieren.
     reg_added, reg_record = 0, ""
     mkt_added, mkt_record = 0, ""
+    entities: list[str] = []
     if measure and web_steps > 0:
+        # Entitaeten VOR der ersten Welle: Firmen, Wirkstoffe und Behoerden
+        # stehen laengst in den Korpus-Titeln, und der Relevanzfilter der
+        # Web-Stufe braucht sie — ein Treffer "Novo wins court battle over
+        # Wegovy patent" traegt kein einziges Wort der Themenphrase.
+        entities, substances = harvest_entities(sources, topic or question)
+        web_filter = list(terms) + [e.lower() for e in entities]
+        logger.info("entities from the corpus catalog: %s | substances: %s",
+                    ", ".join(entities[:8]) or "(none)",
+                    ", ".join(substances[:4]) or "(none)")
         logger.info("regulatory/IP sweep: %d fixed query pattern(s)",
                     len(REGULATORY_PATTERNS))
         reg_added, reg_record = sweep_regulatory(
-            topic or question, sources, seen_ids, notes, ledger, per_query)
+            topic or question, sources, seen_ids, notes, ledger, per_query,
+            terms=web_filter, entities=entities)
         logger.info("regulatory/IP sweep: +%d source(s)", reg_added)
         logger.info("market/reimbursement sweep: %d fixed query pattern(s)",
                     len(MARKET_PATTERNS))
         mkt_added, mkt_record = sweep_market(
-            topic or question, sources, seen_ids, notes, ledger, per_query)
+            topic or question, sources, seen_ids, notes, ledger, per_query,
+            terms=web_filter, entities=entities)
         logger.info("market/reimbursement sweep: +%d source(s)", mkt_added)
+
+        # --- zweite Welle: <Entitaet> <Ereignistyp> ----------------------
+        # Zweite Ernte, jetzt ueber dem Material der ersten Welle (Korpus +
+        # Recht + Markt). Der Sieger im Gutachten arbeitete genau so: erst das
+        # Thema, dann die Akteure, die es hervorgebracht hat.
+        entities, substances = harvest_entities(sources, topic or question)
+        web_filter = list(terms) + [e.lower() for e in entities]
+        logger.info("entities after the first wave: %s | substances: %s",
+                    ", ".join(entities[:8]) or "(none)",
+                    ", ".join(substances[:4]) or "(none)")
+        if entities or substances:
+            sub_added, sub_record = sweep_substance_legal(
+                topic or question, substances, sources, seen_ids, notes,
+                ledger, per_query, web_filter, entities)
+            ent_added, ent_record = sweep_entity_market(
+                topic or question, entities, sources, seen_ids, notes,
+                ledger, per_query, web_filter)
+            logger.info("second wave: +%d substance/IP, +%d entity/event "
+                        "source(s)", sub_added, ent_added)
+            reg_added += sub_added
+            mkt_added += ent_added
+            if sub_record:
+                reg_record = (reg_record + "\n\n" + sub_record).strip()
+            if ent_record:
+                mkt_record = (mkt_record + "\n\n" + ent_record).strip()
 
     # --- web stage: close the audited gaps on the open web ------------------
     web_trace: list[dict] = []
     web_queries: set[str] = set()
     fetched_web: set[str] = set()
     attempted: set[int] = set()
+    # Relevanzschranke der Web-Stufe: Themenbegriffe PLUS die Entitaeten, die
+    # die zweite Welle zutage gefoerdert hat. Ohne die Entitaeten wuerde ein
+    # Treffer ueber "Metsera" am reinen Themenfilter scheitern.
+    web_terms = list(terms) + [e.lower() for e in entities]
     if web_steps > 0 and gaps:
         logger.info("web stage: %d gap(s) to cover, %d action(s) allowed",
                     len(gaps), web_steps)
@@ -1787,20 +2270,24 @@ def run(question: str, max_steps: int, max_sources: int,
                                       "argument": warg, "result": "rejected"})
                     continue
                 fetched_web.add(target["url"])
-                text = fetch_web_page(target["url"])
+                text, fstatus = fetch_web_page_status(target["url"])
+                g = target.get("gap")
+                if isinstance(g, int) and 0 <= g < len(ledger):
+                    ledger[g].setdefault("fetch_log", []).append(
+                        {"url": target["url"], "status": fstatus})
                 if text:
                     target["fetched"] = True
                     # Der Seitentext bleibt an der Quelle haengen: die
                     # Beleg-Verifikation prueft die Zahlen eines Satzes gegen
                     # GENAU die Seite, die der Satz zitiert (jury_2.md).
                     target["text"] = text
-                    notes.append(f"Full text of {target['url']} (web):\n{text}")
-                    g = target.get("gap")
+                    notes.append(f"Key passages of {target['url']} (web):\n"
+                                 + key_passages(text, web_terms))
                     if isinstance(g, int) and 0 <= g < len(ledger):
                         ledger[g]["web_fetched"] += 1
                 else:
-                    notes.append(f"Fetch of {target['url']} failed "
-                                 f"(robots.txt or extraction) — page stays uncitable.")
+                    notes.append(f"Fetch of {target['url']} failed ({fstatus}) "
+                                 f"— page stays uncitable.")
                 web_trace.append({"step": wstep, "action": "fetch",
                                   "argument": target["url"], "chars": len(text),
                                   "ok": bool(text)})
@@ -1821,20 +2308,52 @@ def run(question: str, max_steps: int, max_sources: int,
                 continue
             n_web = sum(1 for x in sources if x["kind"] == "web")
             fresh = []
+            dropped_budget, dropped_topic = 0, 0
             seen_urls = {x["url"] for x in sources}
-            for h in hits:
-                if h["url"] in seen_urls or n_web + len(fresh) >= max_web_sources:
+            for h in rank_hits(hits, entities):
+                if h["url"] in seen_urls:
+                    continue
+                if not web_relevant(h, web_terms):
+                    dropped_topic += 1
+                    continue
+                if n_web + len(fresh) >= max_web_sources:
+                    # Der Askea-Fehler: hier stand frueher ein stilles
+                    # `continue`, und der Lauf meldete "8 hits, 0 new".
+                    dropped_budget += 1
                     continue
                 h["id"] = f"T{900000000 + n_web + len(fresh)}"
                 h["gap"] = tg if 0 <= tg < len(gaps) else None
                 fresh.append(h)
+            if not fresh and dropped_topic and n_web < max_web_sources:
+                # Rueckfallschwelle wie im festen Sweep: kein Filter darf eine
+                # Anfrage in Schweigen verwandeln.
+                for h in rank_hits(hits, entities):
+                    if h["url"] in seen_urls:
+                        continue
+                    h["id"] = f"T{900000000 + n_web}"
+                    h["gap"] = tg if 0 <= tg < len(gaps) else None
+                    fresh.append(h)
+                    dropped_topic -= 1
+                    break
             for h in fresh:
                 seen_ids.add(h["id"])
                 sources.append(h)
             if 0 <= tg < len(gaps):
-                ledger[tg]["web_sources"] += len(fresh)
-            logger.info("  %d hits, %d new web source(s) (web total: %d)",
-                        len(hits), len(fresh), n_web + len(fresh))
+                e = ledger[tg]
+                e["web_sources"] += len(fresh)
+                e["budget_dropped"] = e.get("budget_dropped", 0) + dropped_budget
+                e["off_topic_dropped"] = (e.get("off_topic_dropped", 0)
+                                          + dropped_topic)
+            if dropped_budget:
+                notes.append(
+                    f"Web query {warg!r}: {dropped_budget} usable result(s) "
+                    f"were NOT admitted — the web source budget "
+                    f"({max_web_sources}) was full. They are neither read nor "
+                    f"citable, and the run does not know what is in them.")
+            logger.info("  %d hits, %d new web source(s) (web total: %d, "
+                        "%d off-topic, %d over budget)",
+                        len(hits), len(fresh), n_web + len(fresh),
+                        dropped_topic, dropped_budget)
             notes.append(
                 f"Web query {warg!r} returned:\n" +
                 ("\n".join(f"{h['id']} {h['title']} — {h['snippet']}" for h in fresh)
@@ -1861,17 +2380,37 @@ def run(question: str, max_steps: int, max_sources: int,
                 continue
             n_web = sum(1 for x in sources if x["kind"] == "web")
             fresh = []
+            dropped_budget, dropped_topic = 0, 0
             seen_urls = {x["url"] for x in sources}
-            for h in hits:
-                if h["url"] in seen_urls or len(fresh) >= 2:
+            for h in rank_hits(hits, entities):
+                if h["url"] in seen_urls:
+                    continue
+                if not web_relevant(h, web_terms):
+                    dropped_topic += 1
+                    continue
+                if len(fresh) >= COVERAGE_PER_GAP:
+                    dropped_budget += 1
                     continue
                 h["id"] = f"T{900000000 + n_web + len(fresh)}"
                 h["gap"] = gi
                 fresh.append(h)
+            if not fresh and dropped_topic:
+                for h in rank_hits(hits, entities):
+                    if h["url"] in seen_urls:
+                        continue
+                    h["id"] = f"T{900000000 + n_web}"
+                    h["gap"] = gi
+                    fresh.append(h)
+                    dropped_topic -= 1
+                    break
             for h in fresh:
                 seen_ids.add(h["id"])
                 sources.append(h)
             ledger[gi]["web_sources"] += len(fresh)
+            ledger[gi]["budget_dropped"] = (ledger[gi].get("budget_dropped", 0)
+                                            + dropped_budget)
+            ledger[gi]["off_topic_dropped"] = (
+                ledger[gi].get("off_topic_dropped", 0) + dropped_topic)
             notes.append(
                 f"Coverage web search for open question {gi} ({q!r}) returned:\n" +
                 ("\n".join(f"{h['id']} {h['title']} — {h['snippet']}" for h in fresh)
@@ -1884,29 +2423,34 @@ def run(question: str, max_steps: int, max_sources: int,
         # Fetch-before-cite backstop, per question: a question whose web evidence
         # is all snippets would lose every citation, so read one page per
         # question (robots permitting), capped globally.
-        fetch_budget = 6
+        fetch_budget = BACKSTOP_FETCH_BUDGET
         for gi in range(len(gaps)):
             if fetch_budget <= 0:
                 break
             gap_srcs = [x for x in sources
                         if x["kind"] == "web" and x.get("gap") == gi]
-            if not gap_srcs or any(x["fetched"] for x in gap_srcs):
-                continue
-            for x in gap_srcs:
-                text = fetch_web_page(x["url"])
+            read = sum(1 for x in gap_srcs if x["fetched"])
+            for x in rank_hits([x for x in gap_srcs if not x["fetched"]],
+                               entities):
+                if read >= BACKSTOP_PER_GAP or fetch_budget <= 0:
+                    break
+                text, fstatus = fetch_web_page_status(x["url"])
+                ledger[gi].setdefault("fetch_log", []).append(
+                    {"url": x["url"], "status": fstatus})
                 if not text:
-                    logger.info("  auto-fetch refused/empty: %s", x["url"][:70])
+                    logger.info("  auto-fetch %s: %s", fstatus, x["url"][:70])
                     continue
                 x["fetched"] = True
                 x["text"] = text
                 fetched_web.add(x["url"])
-                notes.append(f"Full text of {x['url']} (web):\n{text}")
+                notes.append(f"Key passages of {x['url']} (web):\n"
+                             + key_passages(text, web_terms))
                 web_trace.append({"step": "auto", "action": "fetch", "gap": gi,
                                   "argument": x["url"], "chars": len(text),
                                   "ok": True})
                 ledger[gi]["web_fetched"] += 1
                 fetch_budget -= 1
-                break
+                read += 1
 
     # Re-audit over the combined catalog: the report must know which gaps
     # actually closed and which merely produced more unvetted material.
@@ -1916,7 +2460,8 @@ def run(question: str, max_steps: int, max_sources: int,
             max_tokens=4096,
             prompt=(f"Question:\n{shield(question)}\n\n"
                     f"Source catalog:\n{catalog_block(sources)}\n\n"
-                    f"<untrusted_evidence>\n{shield(evidence_block(notes, pinned_notes))}\n"
+                    f"<untrusted_evidence>\n"
+                    f"{shield(evidence_block(notes, pinned_notes, report_evidence))}\n"
                     f"</untrusted_evidence>\n\nReturn the audit as JSON."),
             require_all_fields=True)
         if audit2 is not None:
@@ -1949,7 +2494,7 @@ def run(question: str, max_steps: int, max_sources: int,
     # Only fetched web pages are citable; corpus entries always are. An
     # unfetched web source stays in the run record but cannot carry a citation.
     citable_sources = [s for s in sources
-                       if s["kind"] not in ("web", "legal", "market")
+                       if s["kind"] not in ("web", "legal", "market", "entity")
                        or s.get("fetched")]
     if measure:
         # Kein URL-Freitext mehr im Prompt: was das Modell nicht sieht, kann es
@@ -1967,7 +2512,7 @@ def run(question: str, max_steps: int, max_sources: int,
     # Modell sie als Zitat. Im B2-Lauf waren alle 10 gestrichenen Marker von
     # dieser Art. Sie werden deshalb ausdruecklich benannt.
     uncitable_ids = [s["id"] for s in sources
-                     if s["kind"] in ("web", "legal", "market")
+                     if s["kind"] in ("web", "legal", "market", "entity")
                      and not s.get("fetched")]
     ledger_json = json.dumps(ledger, ensure_ascii=False)
     sys_prompt = report_system(measure, lang)
@@ -2002,7 +2547,9 @@ def run(question: str, max_steps: int, max_sources: int,
         + (f"Citation catalog — cite by the id in double brackets, "
            f"exactly as written here:\n{citable}\n\n" if measure else
            f"Citation catalog — copy these link forms verbatim:\n{citable}\n\n")
-        + f"<untrusted_evidence>\n{shield(evidence_block(notes, pinned_notes))}\n</untrusted_evidence>\n\n"
+        + f"<untrusted_evidence>\n"
+          f"{shield(evidence_block(notes, pinned_notes, report_evidence))}\n"
+          f"</untrusted_evidence>\n\n"
         + ("Schreibe das Dossier jetzt — auf DEUTSCH."
            if lang == "de" else "Write the dossier now."))
     report = llamacpp_client.chat(model=MODEL, system=sys_prompt,
@@ -2135,16 +2682,26 @@ def run(question: str, max_steps: int, max_sources: int,
             "de": {"gap": "Audit-Lücke", "plan": "Plan-Schritt (unabhängig vom Audit)",
                    "followup": "Lücke aus dem Re-Audit",
                    "legal": "Recht/Zulassung (festes Suchmuster)",
-                   "market": "Markt/Erstattung (festes Suchmuster)"},
+                   "market": "Markt/Erstattung (festes Suchmuster)",
+                   "entity": "Akteur/Ereignis (zweite Welle)"},
             "en": {"gap": "audit gap", "plan": "plan step (audit-independent)",
                    "followup": "gap named by the re-audit",
                    "legal": "regulatory/IP (fixed query pattern)",
-                   "market": "market/reimbursement (fixed query pattern)"},
+                   "market": "market/reimbursement (fixed query pattern)",
+                   "entity": "actor/event (second wave)"},
         }[lang if lang in ("de", "en") else "en"]
         for gi, e in enumerate(ledger):
             nq = len(e["web_queries"])
             tag = _KIND_LABEL.get(e.get("kind", "gap"), "")
             drop = e.get("off_topic_dropped") or 0
+            # Runde 5: Verwuerfe und Lesehindernisse stehen im Protokoll. Ein
+            # Treffer, der nur am Budget scheiterte, und eine Seite, die eine
+            # Botsperre zurueckwies, sind verschiedene Befunde — und beide
+            # gehoeren ausgewiesen statt verschwiegen (der Askea-Fehler).
+            bd = e.get("budget_dropped") or 0
+            unread = sorted({x.get("status", "?")
+                             for x in (e.get("fetch_log") or [])
+                             if x.get("status") != "fetched"})
             if lang == "de":
                 lines.append(
                     f"{gi + 1}. [{tag}] {e['gap'][:220]}  \n"
@@ -2152,7 +2709,10 @@ def run(question: str, max_steps: int, max_sources: int,
                     f"Patente: {e['patents']} Anmeldung(en) · "
                     f"Web: {nq} Suchanfrage(n), "
                     f"{e['web_sources']} Quelle(n), {e['web_fetched']} gelesen"
-                    + (f" · {drop} Treffer als themenfremd verworfen" if drop else ""))
+                    + (f" · {drop} Treffer als themenfremd verworfen" if drop else "")
+                    + (f" · {bd} brauchbare(r) Treffer am Budget nicht "
+                       f"aufgenommen" if bd else "")
+                    + (f" · nicht lesbar: {', '.join(unread)}" if unread else ""))
             else:
                 lines.append(
                     f"{gi + 1}. [{tag}] {e['gap'][:220]}  \n"
@@ -2160,7 +2720,9 @@ def run(question: str, max_steps: int, max_sources: int,
                     f"patents: {e['patents']} filing(s) · "
                     f"web: {nq} quer{'y' if nq == 1 else 'ies'}, "
                     f"{e['web_sources']} source(s), {e['web_fetched']} fetched"
-                    + (f" · {drop} hit(s) dropped as off-topic" if drop else ""))
+                    + (f" · {drop} hit(s) dropped as off-topic" if drop else "")
+                    + (f" · {bd} usable hit(s) not admitted (budget)" if bd else "")
+                    + (f" · unreadable: {', '.join(unread)}" if unread else ""))
         if measure:
             # Beleg-Verifikation der Web-Zitate (jury_2.md): eine im Fliesstext
             # als Tatsache behauptete Zahl, die die zitierte Seite nicht
@@ -2225,7 +2787,7 @@ def run(question: str, max_steps: int, max_sources: int,
                 "fetched": sorted(fetched_web)},
         "kinds": {k: sum(1 for s in sources if s["kind"] == k)
                   for k in ("article", "signal", "paper", "patent", "web",
-                            "legal", "market")},
+                            "legal", "market", "entity")},
         "ledger": ledger,
         "report_raw": report_raw,
         # Full evidence notes: the agent end-control (pipeline/dossier_check.py)
@@ -2268,11 +2830,11 @@ def main() -> int:
     ap.add_argument("--retrieval", choices=("fts", "vector"), default="fts")
     ap.add_argument("--scope", choices=("both", "articles", "signals"), default="both",
                     help="both: written articles AND captured signals (default)")
-    ap.add_argument("--web-steps", type=int, default=8,
+    ap.add_argument("--web-steps", type=int, default=14,
                     help="max agent web actions for the audited gaps "
                          "(coverage sweep runs regardless; 0 disables the web "
                          "stage entirely, e.g. offline)")
-    ap.add_argument("--web-sources", type=int, default=12,
+    ap.add_argument("--web-sources", type=int, default=32,
                     help="max web results the agent phase admits to the catalog")
     ap.add_argument("--out", type=Path, help="write the dossier here (.md; .json alongside)")
     ap.add_argument("--measure", dest="measure", action="store_true",

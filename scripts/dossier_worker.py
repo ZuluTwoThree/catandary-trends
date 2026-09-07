@@ -60,7 +60,7 @@ RESEARCH_MODEL = corpus_research.MODEL          # Qwen3.8-27B
 JUDGE_VRAM_FREE_MIB = 1100
 
 RUN_DEFAULTS = {"steps": 6, "sources": 24, "per_query": 6, "scope": "both",
-                "web_steps": 8, "web_sources": 12, "retrieval": "fts",
+                "web_steps": 14, "web_sources": 32, "retrieval": "fts",
                 # Messkette (M1/M2/M4/M6, 2026-09-06). Default an; ein
                 # Auftrag mit params {"measure": false} oder DOSSIER_MEASURE=0
                 # reproduziert den Pfad davor.
