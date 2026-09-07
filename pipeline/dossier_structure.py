@@ -414,6 +414,21 @@ MEASURE_VALUE_RE: dict[str, re.Pattern] = {
 
 _TAKEOFF_TIERS = ("science", "patent", "funding", "market")
 
+# Wie weit eine Zahl vom Stichwort ihrer Kennzahl entfernt stehen darf, um noch
+# als diese Kennzahl zu gelten. Ohne diesen Abstand wuerde in einem Satz mit
+# „centrality" jede Jahreszahl als rivalisierender Wert gelten — auch eine, die
+# von etwas ganz anderem handelt.
+CUE_PROXIMITY_CHARS = 90
+
+
+def _near_cue(text: str, cue: str, start: int, end: int,
+              window: int = CUE_PROXIMITY_CHARS) -> bool:
+    """Steht ein Vorkommen des Stichworts nah genug an der Fundstelle?"""
+    for m in re.finditer(cue, text, re.IGNORECASE):
+        if m.start() - window <= end and start <= m.end() + window:
+            return True
+    return False
+
 
 def _entry(key, label, value, *, cue=None, unit=None, n=None, window=None,
            year=False, reason=None) -> dict:
@@ -605,10 +620,14 @@ def measure_use_findings(report_md: str, quant_summary: dict | None,
             cue = MEASURE_CUES.get(e["cue"] or "", "")
             if cue and not re.search(cue, low, re.IGNORECASE):
                 continue
-            hit = next((n for n in e["needles"] if _needle_hit(claim, n)), None)
-            if hit:
-                add(sentence, hit,
-                    f"{e['label']} ({e['value']}) is not usable: {e['reason']}")
+            for n in e["needles"]:
+                m = re.search(r"(?<![\w.,])" + re.escape(n) + r"(?![\d])",
+                              claim, re.IGNORECASE)
+                if m and (not cue or _near_cue(claim, cue, m.start(), m.end())):
+                    add(sentence, n,
+                        f"{e['label']} ({e['value']}) is not usable: "
+                        f"{e['reason']}")
+                    break
         # (c) rivalisierender Wert derselben Kennzahl ohne Gegenueberstellung
         for e in inv["usable"]:
             cue = MEASURE_CUES.get(e["cue"] or "", "")
@@ -623,6 +642,8 @@ def measure_use_findings(report_md: str, quant_summary: dict | None,
             for m in pat.finditer(claim):
                 v = _num(m.group(1))
                 if v is None or v == canon:
+                    continue
+                if not _near_cue(claim, cue, m.start(), m.end()):
                     continue
                 add(sentence, m.group(0).strip(),
                     f"{e['label']}: the document's canonical value is "
@@ -1034,13 +1055,31 @@ def drop_unverified(report_md: str, unverified: list[dict]) -> tuple[str, int]:
     return out, dropped
 
 
+# So viele Einzelbefunde nimmt der eine Neuwurf mit. Reihum ueber die
+# Befundarten, nicht der Reihe nach: eine Liste, die mit zehn Zahlenbefunden
+# beginnt, haette die Messgroessen-Befunde sonst nie erreicht.
+MAX_REVISION_ITEMS = 14
+
+
+def _spread_by_kind(entries: list[dict], cap: int) -> list[dict]:
+    buckets: dict[str, list[dict]] = {}
+    for e in entries or []:
+        buckets.setdefault(e.get("kind", "figure"), []).append(e)
+    out: list[dict] = []
+    while len(out) < cap and any(buckets.values()):
+        for kind in list(buckets):
+            if buckets[kind] and len(out) < cap:
+                out.append(buckets[kind].pop(0))
+    return out
+
+
 def revision_prompt(findings: list[str], cite_findings: list[dict],
                     lang: str = "en") -> str:
     """Der EINE gezielte Neuwurf. Kein Kritiker-Modell: der Text hier ist
     vollstaendig aus deterministischen Befunden erzeugt."""
     L = _lang(lang)
     lines = list(findings)
-    for e in cite_findings[:10]:
+    for e in _spread_by_kind(cite_findings, MAX_REVISION_ITEMS):
         toks = ", ".join(repr(t) for t in e["tokens"][:4])
         kind = e.get("kind", "figure")
         if kind == "subject":
