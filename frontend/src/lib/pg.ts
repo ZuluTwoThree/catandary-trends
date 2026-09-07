@@ -1,4 +1,5 @@
 import { Pool, PoolClient } from "pg";
+import os from "node:os";
 
 /**
  * PostgreSQL connection pool (singleton per server process).
@@ -24,7 +25,17 @@ function makePool(): Pool {
   const common = { max: 10, statement_timeout: 20_000 };
   const pool = url
     ? new Pool({ connectionString: url, ...common })
-    : new Pool({ host: "/var/run/postgresql", database: "catandary", ...common });
+    : new Pool({
+        host: "/var/run/postgresql",
+        database: "catandary",
+        // user MUSS explizit sein: node-pg leitet ihn sonst aus process.env.USER
+        // ab, und cron setzt die Variable nicht — der erste Cron-Publish brach
+        // am 2026-09-07 03:15 mit "no PostgreSQL user name specified in startup
+        // packet" ab (Build-Abbruch, nichts hochgeladen). os.userInfo() liest
+        // den Namen aus der passwd-Datenbank und funktioniert ohne Umgebung.
+        user: process.env.PGUSER || os.userInfo().username,
+        ...common,
+      });
   pool.on("error", (err) => console.error("pg pool error:", err.message));
   return pool;
 }
