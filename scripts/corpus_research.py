@@ -344,6 +344,9 @@ order, with exactly these top-level headings and no others:
   What verifiably changed, with dates, named actors and figures. The measured
   time series are appended to this document for you — quote a measured figure
   here only where a statement depends on it, and never repeat the appendix.
+  Use each measured quantity for exactly one claim, with exactly one value:
+  if you name both a median and a later reading of the same quantity, both
+  must stand in ONE sentence, contrasted.
 
 ## Regulatory and IP status
   Write this from the REGULATORY/IP SWEEP RECORD supplied below, which was
@@ -365,12 +368,12 @@ order, with exactly these top-level headings and no others:
 ## Options for a mid-sized European company
   Two to four options. Each one starts with its own heading "### Option N —
   <short name>" and then carries exactly these five labelled lines:
-  - Trigger: the condition or event that would start it. EVERY option must
-    name at least one MEASURED quantity from the measurement appendix — cycle
-    time, take-off year, improvement rate K(t), centrality peak, patent count,
-    corpus counts — either here as the trigger or in Effort/Risk as the
-    reason. The measured figures are listed for you below; use them verbatim.
-    An option that names none of them is incomplete.
+  - Trigger: the condition or event that would start it, with its citation.
+    Where a MEASURED quantity from the list below genuinely carries the
+    argument, name it verbatim — with the meaning the appendix gives it, and
+    for no other claim. Where none does, argue from cited evidence instead:
+    better no figure at all than one that does not carry the point. An option
+    with neither a usable measured figure nor a citation is incomplete.
   - Time horizon: by when it would have to happen
   - Effort: rough order of magnitude — money, time, capability. If the
     evidence carries no figure, write "no figure in the evidence"; never
@@ -405,7 +408,9 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
   Was sich nachweislich geändert hat — mit Datum, benannten Akteuren, Zahlen.
   Die gemessenen Zeitreihen hängen als Anhang an diesem Dokument; nenne eine
   Messzahl hier nur, wenn eine Aussage auf ihr steht, und wiederhole nie den
-  Anhang.
+  Anhang. Jede gemessene Größe trägt genau eine Aussage und hat genau einen
+  Wert: wer Median und späteren Stand derselben Größe nennt, muss beide in
+  EINEM Satz gegenüberstellen.
 
 ## Recht und Schutzrechte
   Aus dem unten mitgelieferten RECHTS-/IP-SUCHPROTOKOLL zu schreiben, das
@@ -434,11 +439,12 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
     keine Zahl her, schreibe "keine Zahl im Material"; nie eine erfinden.
   - Risiko: was sie aussetzt, einschließlich des Bestandsgeschäfts
   - Dagegen spricht: das stärkste Gegenargument
-  Jede Option muss mindestens eine GEMESSENE Größe aus dem Messanhang nennen
-  (Zykluszeit, Take-off-Jahr, Verbesserungsrate K(t), Zentralitätsgipfel,
-  Patentzahl, Korpuszählung) — als Auslöser oder als Begründung in
-  Aufwand/Risiko. Die gemessenen Werte stehen unten; nimm sie wörtlich. Und
-  zusammen müssen die Optionen JEDES Feld abdecken, das die Frage nennt.
+  Trägt eine GEMESSENE Größe aus der Liste unten die Begründung wirklich, nenne
+  sie wörtlich — in der Bedeutung, die der Messanhang ihr gibt, und für keine
+  andere Aussage. Trägt keine, begründe aus Belegen: besser keine Zahl als
+  eine, die nicht trägt. Eine Option ohne verwendbare Messgröße UND ohne
+  Beleg ist unvollständig. Zusammen müssen die Optionen JEDES Feld abdecken,
+  das die Frage nennt.
   Zum Schluss ein kurzer Absatz dazu, was diese Bewegung das BESTANDSGESCHÄFT
   kostet (gefährdetes Volumen, Kannibalisierung), soweit die Belege dazu
   überhaupt etwas hergeben.
@@ -2633,6 +2639,11 @@ def run(question: str, max_steps: int, max_sources: int,
         (quant or {}).get("summary"), (corpus_stats or {}).get("summary"))
     measured_brief = dossier_structure.measured_brief(
         (quant or {}).get("summary"), (corpus_stats or {}).get("summary"))
+    # R7-1: was das Modell NICHT verwenden darf, muss es benannt bekommen —
+    # sonst holt es sich die Zahl aus dem Messanhang, der im selben Dokument
+    # steht (genau so kam „K(t) 6,1 %/yr in 2026" in die Kurzfassung).
+    blocked_brief = dossier_structure.blocked_brief(
+        (quant or {}).get("summary"), (corpus_stats or {}).get("summary"))
     sector_fields = dossier_structure.sectors_from_question(question)
     sys_prompt = report_system(measure, lang)
     if lang == "de":
@@ -2664,8 +2675,15 @@ def run(question: str, max_steps: int, max_sources: int,
            f"claim unsupported: {', '.join(uncitable_ids)}\n\n"
            if measure and uncitable_ids else "")
         + (f"MEASURED QUANTITIES — computed for this dossier, not found on the "
-           f"web. Every option must name at least one of them:\n{measured_brief}"
-           f"\n\n" if measure and measured_brief else "")
+           f"web. Each is listed with the n and the period the appendix states "
+           f"for it. Use one only where it genuinely carries a statement, in "
+           f"the meaning given here, and with this exact value:\n"
+           f"{measured_brief}\n\n" if measure and measured_brief else "")
+        + (f"MEASURED QUANTITIES YOU MUST NOT USE — they are in the appendix, "
+           f"but our own honesty limits bar them from the report. Naming one "
+           f"anywhere in the text is an error, and a sentence that does so is "
+           f"deleted:\n{blocked_brief}\n\n"
+           if measure and blocked_brief else "")
         + (f"The question names these fields: {', '.join(sector_fields)}. The "
            f"option set must address all of them.\n\n"
            if measure and sector_fields else "")
@@ -2695,7 +2713,9 @@ def run(question: str, max_steps: int, max_sources: int,
                  "cites_figures": 0, "cites_subjects": 0,
                  "off_topic_before": 0, "off_topic_after": 0,
                  "sourceless_before": 0, "sourceless_after": 0,
-                 "distorted_before": 0, "distorted_after": 0}
+                 "distorted_before": 0, "distorted_after": 0,
+                 "misattributed_before": 0, "misattributed_after": 0,
+                 "measure_before": 0, "measure_after": 0}
     # Der eigene Messanhang ist der EINZIGE Beleg, den eine Zahl ohne Zitat im
     # Satz haben darf: er steht codegeneriert im selben Dokument.
     measured_text = "\n".join(
@@ -2712,8 +2732,14 @@ def run(question: str, max_steps: int, max_sources: int,
         # ein Neuwurf, danach mechanische Streichung.
         sourceless = dossier_structure.sourceless_figures(
             report, citable_sources, measured_text)
+        # R7-1/R7-3: gesperrte oder mehrdeutige Messgroessen und Zahlen, die auf
+        # der zitierten Seite bei einer ANDEREN Studie stehen.
+        measure_bad = dossier_structure.measure_use_findings(
+            report, (quant or {}).get("summary"),
+            (corpus_stats or {}).get("summary"))
         cite_all = (list(cites["unverified"]) + list(cites.get("off_topic") or [])
-                    + list(cites.get("distorted") or []))
+                    + list(cites.get("distorted") or [])
+                    + list(cites.get("misattributed") or []) + list(measure_bad))
         for e in sourceless:
             cite_all.append({**e, "kind": "sourceless"})
         structure["findings"] = findings
@@ -2724,6 +2750,8 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["off_topic_before"] = len(cites.get("off_topic") or [])
         structure["sourceless_before"] = len(sourceless)
         structure["distorted_before"] = len(cites.get("distorted") or [])
+        structure["misattributed_before"] = len(cites.get("misattributed") or [])
+        structure["measure_before"] = len(measure_bad)
         for f in findings:
             logger.warning("structure: %s", f)
         for e in cites["unverified"]:
@@ -2736,6 +2764,12 @@ def run(question: str, max_steps: int, max_sources: int,
                            e["tokens"], e["sentence"][:80])
         for e in cites.get("distorted") or []:
             logger.warning("distorted (%s) %s — %s", e["kind"], e["tokens"],
+                           e.get("detail", ""))
+        for e in cites.get("misattributed") or []:
+            logger.warning("misattributed %s — not in the context of %s on %s",
+                           e["tokens"], e.get("detail", ""), e["url"][:60])
+        for e in measure_bad:
+            logger.warning("measure not usable: %s — %s", e["tokens"],
                            e.get("detail", ""))
         if findings or cite_all:
             logger.info("one targeted rewrite (%d structural + %d citation "
@@ -2767,9 +2801,14 @@ def run(question: str, max_steps: int, max_sources: int,
         cites2 = dossier_structure.verify_cited_figures(report, citable_sources)
         sourceless2 = dossier_structure.sourceless_figures(
             report, citable_sources, measured_text)
+        measure_bad2 = dossier_structure.measure_use_findings(
+            report, (quant or {}).get("summary"),
+            (corpus_stats or {}).get("summary"))
         cite_all2 = (list(cites2["unverified"])
                      + list(cites2.get("off_topic") or [])
-                     + list(cites2.get("distorted") or []))
+                     + list(cites2.get("distorted") or [])
+                     + list(cites2.get("misattributed") or [])
+                     + list(measure_bad2))
         for e in sourceless2:
             cite_all2.append({**e, "kind": "sourceless"})
         structure["cite_findings_after"] = cite_all2
@@ -2779,6 +2818,8 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["off_topic_after"] = len(cites2.get("off_topic") or [])
         structure["sourceless_after"] = len(sourceless2)
         structure["distorted_after"] = len(cites2.get("distorted") or [])
+        structure["misattributed_after"] = len(cites2.get("misattributed") or [])
+        structure["measure_after"] = len(measure_bad2)
         if cite_all2:
             # Letzte Instanz: eine Zahl, die die zitierte Seite nicht hergibt,
             # ein Beleg, der von etwas anderem handelt, und eine Zahl ganz ohne
@@ -2786,12 +2827,15 @@ def run(question: str, max_steps: int, max_sources: int,
             report, dropped = dossier_structure.drop_unverified(
                 report, cite_all2)
             structure["dropped_sentences"] = dropped
-            logger.warning("dropped %d sentence(s): %d unsupported figure(s), "
-                           "%d off-topic citation(s), %d sourceless figure(s), "
-                           "%d distorted claim(s)",
+            logger.warning("dropped/trimmed %d sentence(s): %d unsupported "
+                           "figure(s), %d off-topic citation(s), %d sourceless "
+                           "figure(s), %d distorted claim(s), %d misattributed "
+                           "figure(s), %d unusable measurement(s)",
                            dropped, len(cites2["unverified"]),
                            len(cites2.get("off_topic") or []), len(sourceless2),
-                           len(cites2.get("distorted") or []))
+                           len(cites2.get("distorted") or []),
+                           len(cites2.get("misattributed") or []),
+                           len(measure_bad2))
         # Die Gliederungspruefung laeuft NACH der Streichung: sie beschreibt das
         # Dokument, das ausgeliefert wird. Im B6-Lauf nahm die Streichung einer
         # themenfremd belegten Zeile der Option 2 ihren Zeithorizont — und das
@@ -2892,9 +2936,15 @@ def run(question: str, max_steps: int, max_sources: int,
                           f"einer Präzisionszahl ohne Zitat im Satz und "
                           f"{st.get('distorted_before', 0)} mit einer "
                           f"verdrehten Wiedergabe (umgedrehter Qualifizierer, "
-                          f"falsche Größenordnung, falsches Kategoriewort) · "
+                          f"falsche Größenordnung, falsches Kategoriewort) und "
+                          f"{st.get('misattributed_before', 0)} mit einer Zahl, "
+                          f"die auf der Seite bei einer anderen Studie steht, "
+                          f"und {st.get('measure_before', 0)} mit einer eigenen "
+                          f"Messgröße, die die Verwendbarkeitsregel sperrt "
+                          f"(kein n/Zeitraum, Kalibrierungsvorbehalt oder "
+                          f"zweiter Wert derselben Kennzahl) · "
                           f"{st['dropped_sentences']} Satz/Sätze "
-                          f"danach gestrichen."]
+                          f"danach gestrichen oder gekürzt."]
             else:
                 lines += ["",
                           f"**Verification of web citations:** "
@@ -2911,9 +2961,15 @@ def run(question: str, max_steps: int, max_sources: int,
                           f"figure with no citation in the sentence and "
                           f"{st.get('distorted_before', 0)} distorted what the "
                           f"page says (reversed qualifier, wrong order of "
-                          f"magnitude, wrong category word) · "
+                          f"magnitude, wrong category word) and "
+                          f"{st.get('misattributed_before', 0)} carried a figure "
+                          f"the page states for a different study and "
+                          f"{st.get('measure_before', 0)} used one of our own "
+                          f"measured quantities that the usability rule bars "
+                          f"(no n/period, calibration caveat, or a second value "
+                          f"for the same quantity) · "
                           f"{st['dropped_sentences']} sentence(s) "
-                          f"dropped afterwards."]
+                          f"dropped or trimmed afterwards."]
         audit_annex = "\n".join(lines).strip() + "\n"
 
     # --- Kurzer Pruefnachweis IM Dossier ----------------------------------

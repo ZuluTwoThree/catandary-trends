@@ -259,8 +259,11 @@ def _missing_fields(block: str, lang: str) -> list[str]:
 # Woertlich: „P verknuepft keine einzige seiner vier Handlungsoptionen damit."
 # Der Messanhang ist unser einziger Alleinstellungsinhalt — beide Jurys sagen
 # das ausdruecklich —, und er lag als unverbundener Datenblock hinter dem
-# Bericht. Also: jede Option muss mindestens eine GEMESSENE Groesse als
-# Ausloeser oder Begruendung tragen, und das wird hier gezaehlt, nicht erhofft.
+# Bericht. Runde 6 erzwang deshalb: jede Option muss eine gemessene Groesse
+# nennen. Runde 7 nimmt diesen Zwang WIEDER ZURUECK (jury_9.md 2026-09-07,
+# woertlich: die Messwerte stehen „dekorativ" in den Optionen). An seine
+# Stelle tritt die VERWENDBARKEITSREGEL — siehe `measure_inventory` weiter
+# unten. Besser keine Zahl als eine, die nicht traegt.
 #
 # Geprueft werden nur Zahlen, die im Messanhang stehen — nicht das Wort
 # „gemessen". Zu kurze Zahlen fliegen raus: eine Zykluszeit von 12 Jahren waere
@@ -302,33 +305,16 @@ def _needle_forms(value, year: bool = False) -> list[str]:
 
 def measured_needles(quant_summary: dict | None,
                      corpus_summary: dict | None = None) -> list[str]:
-    """Die Zahlen (und CPC-Codes), die als „gemessen" gelten.
+    """Die Zahlen (und CPC-Codes), die als „gemessen" gelten UND verwendet
+    werden duerfen.
 
     Quelle sind die Skalare der beiden Vorstufen, nicht der Anhangstext: was
-    hier steht, ist per Konstruktion ein Query-Ergebnis."""
-    q = quant_summary or {}
-    out: list[str] = []
-    seen: set[str] = set()
-
-    def add(x: str) -> None:
-        x = str(x).strip()
-        if len(x) >= MIN_NEEDLE_CHARS and x.lower() not in seen:
-            seen.add(x.lower())
-            out.append(x)
-
-    if not q.get("off_topic"):
-        for code in (q.get("selection") or [])[:6]:
-            add(code)
-        for key in MEASURED_KEYS:
-            for form in _needle_forms(q.get(key), year=key.endswith("_year")):
-                add(form)
-        for v in (q.get("takeoffs") or {}).values():
-            for form in _needle_forms(v, year=True):
-                add(form)
-    for key in CORPUS_KEYS:
-        for form in _needle_forms((corpus_summary or {}).get(key)):
-            add(form)
-    return out
+    hier steht, ist per Konstruktion ein Query-Ergebnis. Seit R7 laeuft die
+    Liste durch die Verwendbarkeitsregel (`measure_inventory`) — eine Groesse
+    ohne n/Zeitraum oder unter Kalibrierungsvorbehalt steht nicht mehr darin
+    und gilt im Bericht nicht als Beleg."""
+    return _flatten_needles(
+        measure_inventory(quant_summary, corpus_summary)["usable"])
 
 
 def _needle_hit(text: str, needle: str) -> bool:
@@ -341,29 +327,312 @@ def uses_measurement(text: str, needles: list[str]) -> bool:
     return any(_needle_hit(text, n) for n in needles or ())
 
 
+def _brief_value(e: dict) -> str:
+    v = e["value"]
+    shown = f"{v:,}" if isinstance(v, int) and not str(e["key"]).startswith(
+        ("takeoff", "centrality")) else str(v)
+    if e["key"] == "selection":
+        return f"measured patent class {shown}"
+    tail = []
+    if e.get("n") and e["n"] != v:      # bei einer Zaehlung IST der Wert das n
+        tail.append(f"n={e['n']:,}" if isinstance(e["n"], int) else f"n={e['n']}")
+    if e.get("window"):
+        w = e["window"]
+        tail.append("–".join(str(x) for x in w) if isinstance(w, (list, tuple))
+                    else str(w))
+    return f"{e['label']} {shown}" + (f" ({', '.join(tail)})" if tail else "")
+
+
 def measured_brief(quant_summary: dict | None,
                    corpus_summary: dict | None = None) -> str:
-    """Die gemessenen Groessen als eine Zeile fuer den Berichtsprompt — was
-    geprueft wird, muss das Modell auch benannt bekommen."""
+    """Die VERWENDBAREN gemessenen Groessen als eine Zeile fuer den
+    Berichtsprompt — was geprueft wird, muss das Modell auch benannt bekommen,
+    und zwar mit n und Zeitraum, damit es sie belastbar einsetzen kann."""
+    inv = measure_inventory(quant_summary, corpus_summary)
+    return " · ".join(_brief_value(e) for e in inv["usable"])
+
+
+def blocked_brief(quant_summary: dict | None,
+                  corpus_summary: dict | None = None) -> str:
+    """Die gesperrten Groessen samt Grund — das Modell muss wissen, welche
+    Zahlen es NICHT verwenden darf, sonst holt es sie aus dem Anhang."""
+    inv = measure_inventory(quant_summary, corpus_summary)
+    return "\n".join(f"- {e['label']}: {e['value']} — do not use: {e['reason']}"
+                      for e in inv["blocked"])
+
+
+# --------------------------------------------------------------------------
+# Verwendbarkeitsregel fuer gemessene Groessen (R7-1, jury_9.md 2026-09-07)
+# --------------------------------------------------------------------------
+# Der schwerste Vorwurf der neunten Jury lautet woertlich: die Messwerte stehen
+# „dekorativ" im Text — sie erzeugen Belegoptik, ohne dass eine Option ohne sie
+# anders lauten wuerde. Drei Belege dafuer, alle mechanisch pruefbar:
+#
+#   * Dieselbe Zykluszeit (12,0 Jahre) stuetzte zwei unvereinbare Schluesse
+#     (Bauzeit einer Plattform UND Zeitpunkt der Generikawelle).
+#   * Das Take-off-Jahr 1990 begruendete eine Option, obwohl der eigene Anhang
+#     daneben „not reportable as a lead time" schreibt.
+#   * Die Zahl der Kurzfassung (6,1 %/yr in 2026) sperrt der eigene
+#     Kalibrierungsvorbehalt („calibrated only to ~2019"), und sie widersprach
+#     unaufgeloest dem Median (3,3 %/yr) aus demselben Absatz.
+#
+# Die Regel, die den Nennungszwang aus Runde 6 ersetzt: eine gemessene Groesse
+# darf im Fliesstext oder in einer Option nur erscheinen, wenn sie
+#
+#   (a) nicht als „not reportable" oder unter Kalibrierungsvorbehalt gefuehrt
+#       wird,
+#   (b) im Messanhang mit n, Zeitraum und Rechenweg steht (dieselben Felder,
+#       die pipeline/dossier_quant.measurement_recipe ausgibt), und
+#   (c) eindeutig ist: je Kennzahl genau ein kanonischer Wert im Dokument. Wer
+#       Median und aktuellen Wert nennt, muss beide in EINEM Satz
+#       gegenueberstellen — sonst Ablehnung.
+#
+# (a) schlaegt (c): ein gesperrter Wert wird auch durch eine Gegenueberstellung
+# nicht verwendbar. Und eine Option ohne verwendbare Messgroesse ist zulaessig —
+# sie muss ihre Begruendung dann aus Belegen ziehen (Zitat im Optionsblock).
+
+# Die Stichworte, an denen eine Kennzahl im Satz erkennbar ist. Ein gesperrter
+# Wert loest nur zusammen mit seinem Stichwort aus: „1990" allein kann das
+# Datenfenster meinen, „market take-off ... 1990" meint die gesperrte Groesse.
+MEASURE_CUES: dict[str, str] = {
+    "rate": r"improvement rate|improvement-rate|k\s*\(\s*t\s*\)"
+            r"|verbesserungsrate|%\s*/\s*(?:yr|year|jahr)|% per year",
+    "cycle": r"cycle[- ]time|zykluszeit",
+    "centrality": r"centrality|zentralit",
+    "lead": r"lead[- ]time|lead of|vorlauf",
+    "takeoff": r"take[- ]?off",
+}
+
+# Wie ein rivalisierender Wert derselben Kennzahl im Satz aussieht (Regel (c)).
+MEASURE_VALUE_RE: dict[str, re.Pattern] = {
+    "rate": re.compile(r"(?<![\w.,])(\d{1,3}(?:[.,]\d{1,2})?)\s*%\s*"
+                       r"(?:/|per\s+|pro\s+)\s*(?:yr|year|jahr|a)\b", re.IGNORECASE),
+    "years": re.compile(r"(?<![\w.,])(\d{1,3}(?:[.,]\d{1,2})?)\s*"
+                        r"(?:years|year|yrs|yr|jahre|jahren)\b", re.IGNORECASE),
+    "year": re.compile(r"(?<![\w.,])((?:19|20)\d{2})(?![\d])"),
+}
+
+_TAKEOFF_TIERS = ("science", "patent", "funding", "market")
+
+
+def _entry(key, label, value, *, cue=None, unit=None, n=None, window=None,
+           year=False, reason=None) -> dict:
+    return {"key": key, "label": label, "value": value,
+            "needles": _needle_forms(value, year=year),
+            "cue": cue, "unit": unit, "n": n, "window": window,
+            "reason": reason}
+
+
+def measure_inventory(quant_summary: dict | None,
+                      corpus_summary: dict | None = None) -> dict:
+    """Welche gemessene Groesse verwendbar ist und welche gesperrt — und warum.
+
+    Rueckgabe {"usable": [...], "blocked": [...]}. Beide Listen enthalten
+    Eintraege mit `needles` (Schreibweisen der Zahl im Text), `cue`
+    (Stichwort der Kennzahl) und bei gesperrten Groessen `reason` im Klartext.
+    Quelle ist ausschliesslich der Skalar-Teil der Messung — kein Parsen des
+    Anhangtexts."""
     q, c = quant_summary or {}, corpus_summary or {}
-    bits: list[str] = []
+    usable: list[dict] = []
+    blocked: list[dict] = []
     if not q.get("off_topic"):
-        sel = [str(x) for x in (q.get("selection") or [])[:4]]
-        if sel:
-            bits.append("measured patent classes " + ", ".join(sel))
-        for key in MEASURED_KEYS:
+        for code in (q.get("selection") or [])[:6]:
+            usable.append(_entry("selection", "measured patent class", code))
+
+        k, win, n_pat = q.get("K_median"), q.get("K_window"), q.get("n_patents")
+        if k is not None:
+            if q.get("K_calibrated", True) and win and n_pat:
+                usable.append(_entry(
+                    "K_median", MEASURED_LABELS["K_median"], k, cue="rate",
+                    unit="rate", n=n_pat, window=win))
+            else:
+                blocked.append(_entry(
+                    "K_median", MEASURED_LABELS["K_median"], k, cue="rate",
+                    unit="rate", reason="the appendix reports no n and period "
+                                        "for it, or its absolute value is "
+                                        "outside the calibrated range"))
+        # Jahreswerte der K(t)-Kurve: NIE verwendbar. Der eigene
+        # Ehrlichkeitsvermerk kalibriert Absolutwerte nur bis ~2019, und die
+        # juengsten Fenster sind ausdruecklich unvollstaendig. Genau diese Zahl
+        # (6,1 %/yr in 2026) stand in der Entscheidungs-Kurzfassung.
+        for p in (q.get("K_by_year") or []):
+            v = p.get("K")
+            if v is None or (k is not None and float(v) == float(k)):
+                continue
+            blocked.append(_entry(
+                "K_year", f"improvement rate of the {p.get('year')} window", v,
+                cue="rate", unit="rate",
+                reason=(f"a single {p.get('year')} window of the K(t) curve — "
+                        f"absolute rates are calibrated only to ~2019"
+                        + ("; this window is still incomplete (citation lag)"
+                           if not p.get("complete") else "")
+                        + f". The canonical figure is the median "
+                          f"{k if k is not None else 'n/a'} %/yr")))
+
+        cyc, edges = q.get("cycle_time_years"), q.get("cycle_time_edges")
+        if cyc is not None:
+            if edges and q.get("cycle_time_since"):
+                usable.append(_entry(
+                    "cycle_time_years", MEASURED_LABELS["cycle_time_years"], cyc,
+                    cue="cycle", unit="years", n=edges,
+                    window=f"filings from {q.get('cycle_time_since')}"))
+            else:
+                blocked.append(_entry(
+                    "cycle_time_years", MEASURED_LABELS["cycle_time_years"], cyc,
+                    cue="cycle", unit="years",
+                    reason="the appendix states no edge count and no period "
+                           "for it"))
+
+        peak, peak_n = q.get("centrality_peak_year"), q.get("centrality_peak_n")
+        if peak is not None:
+            if peak_n and q.get("centrality_window"):
+                usable.append(_entry(
+                    "centrality_peak_year",
+                    MEASURED_LABELS["centrality_peak_year"], peak,
+                    cue="centrality", unit="year", n=peak_n, year=True,
+                    window=q.get("centrality_window")))
+            else:
+                blocked.append(_entry(
+                    "centrality_peak_year",
+                    MEASURED_LABELS["centrality_peak_year"], peak, year=True,
+                    cue="centrality", unit="year",
+                    reason="the appendix states no cohort size and no period "
+                           "for it"))
+
+        for key in ("lead_patent_market", "lead_science_market"):
             v = q.get(key)
-            if v is not None:
-                bits.append(f"{MEASURED_LABELS[key]} {v}")
-        for tier, v in (q.get("takeoffs") or {}).items():
-            if v:
-                bits.append(f"{tier} take-off {v}")
+            if v is None:
+                continue
+            usable.append(_entry(key, MEASURED_LABELS[key], v, cue="lead",
+                                 unit="years",
+                                 n=(q.get("tier_n") or {}).get("market"),
+                                 window=q.get("K_window")))
+
+        # Take-off-Jahre: nur verwendbar, wenn der Anhang aus ihnen eine
+        # Vorlaufzeit bildet. Bildet er keine, schreibt er daneben „not
+        # reportable as a lead time" — dann darf das Jahr auch keine Handlung
+        # begruenden. Ein Take-off auf dem linken Rand des Datenfensters ist
+        # ausserdem immer ein Artefakt der eigenen Sammlung.
+        window_start = int(q.get("data_window_start") or 0)
+        reportable = bool(q.get("takeoff_reportable"))
+        for tier in _TAKEOFF_TIERS:
+            y = (q.get("takeoffs") or {}).get(tier)
+            if not y:
+                continue
+            label = f"{tier} take-off year"
+            if reportable and int(y) > window_start:
+                usable.append(_entry(f"takeoff_{tier}", label, y, cue="takeoff",
+                                     unit="year", year=True,
+                                     n=(q.get("tier_n") or {}).get(tier),
+                                     window=q.get("K_window")))
+            else:
+                blocked.append(_entry(
+                    f"takeoff_{tier}", label, y, cue="takeoff", unit="year",
+                    year=True,
+                    reason=("it sits on the left edge of the data window "
+                            f"({window_start}) and measures our own collection"
+                            if int(y) <= window_start else
+                            "the appendix reports these take-offs as 'not "
+                            "reportable as a lead time'")))
+
+        if q.get("n_patents"):
+            usable.append(_entry("n_patents", MEASURED_LABELS["n_patents"],
+                                 q["n_patents"], n=q["n_patents"],
+                                 window=q.get("K_window")))
+
     for key in CORPUS_KEYS:
         v = c.get(key)
-        if v is not None:
-            bits.append(f"{MEASURED_LABELS[key]} {v:,}"
-                        if isinstance(v, int) else f"{MEASURED_LABELS[key]} {v}")
-    return " · ".join(bits)
+        if v is None:
+            continue
+        win = c.get("market_window" if key.startswith("market")
+                    else "science_window")
+        usable.append(_entry(key, MEASURED_LABELS[key], v, n=v, window=win))
+    return {"usable": usable, "blocked": blocked}
+
+
+def _flatten_needles(entries: list[dict]) -> list[str]:
+    out, seen = [], set()
+    for e in entries:
+        for n in e["needles"]:
+            n = str(n).strip()
+            if len(n) >= MIN_NEEDLE_CHARS and n.lower() not in seen:
+                seen.add(n.lower())
+                out.append(n)
+    return out
+
+
+def blocked_needles(quant_summary: dict | None,
+                    corpus_summary: dict | None = None) -> list[str]:
+    """Die Zahlen, die im Fliesstext NICHT stehen duerfen."""
+    return _flatten_needles(
+        measure_inventory(quant_summary, corpus_summary)["blocked"])
+
+
+def _num(v) -> float | None:
+    try:
+        return float(str(v).replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+
+
+def measure_use_findings(report_md: str, quant_summary: dict | None,
+                         corpus_summary: dict | None = None) -> list[dict]:
+    """Saetze, die gegen die Verwendbarkeitsregel verstossen.
+
+    Rueckgabe wie `verify_cited_figures`: [{"sentence", "tokens", "kind",
+    "detail", "url"}] — dieselbe Weiterverarbeitung (ein Neuwurf, danach
+    mechanische Streichung)."""
+    inv = measure_inventory(quant_summary, corpus_summary)
+    out: list[dict] = []
+    seen: set[tuple] = set()
+
+    def add(sentence: str, token: str, detail: str) -> None:
+        key = (sentence, token)
+        if key not in seen:
+            seen.add(key)
+            out.append({"sentence": sentence, "tokens": [token],
+                        "kind": "measure", "detail": detail, "url": ""})
+
+    for raw in split_claims(body_text(report_md)):
+        sentence = raw.strip()
+        if not sentence or sentence.startswith("#"):
+            continue
+        claim = prose(sentence)
+        low = claim.lower()
+        # (a) gesperrte Groesse — nur zusammen mit ihrem Stichwort, sonst
+        # traefe "1990" jede Erwaehnung des Datenfensters.
+        for e in inv["blocked"]:
+            cue = MEASURE_CUES.get(e["cue"] or "", "")
+            if cue and not re.search(cue, low, re.IGNORECASE):
+                continue
+            hit = next((n for n in e["needles"] if _needle_hit(claim, n)), None)
+            if hit:
+                add(sentence, hit,
+                    f"{e['label']} ({e['value']}) is not usable: {e['reason']}")
+        # (c) rivalisierender Wert derselben Kennzahl ohne Gegenueberstellung
+        for e in inv["usable"]:
+            cue = MEASURE_CUES.get(e["cue"] or "", "")
+            if not cue or not e.get("unit") or not re.search(cue, low, re.IGNORECASE):
+                continue
+            canon = _num(e["value"])
+            pat = MEASURE_VALUE_RE.get(e["unit"])
+            if canon is None or pat is None:
+                continue
+            if any(_needle_hit(claim, n) for n in e["needles"]):
+                continue          # der kanonische Wert steht im selben Satz
+            for m in pat.finditer(claim):
+                v = _num(m.group(1))
+                if v is None or v == canon:
+                    continue
+                add(sentence, m.group(0).strip(),
+                    f"{e['label']}: the document's canonical value is "
+                    f"{e['value']}. A second value for the same quantity is "
+                    f"only allowed if both stand in ONE sentence, contrasted")
+    return out
+
+
+def _has_citation(text: str) -> bool:
+    return bool(_MARKER.search(text or "") or _LINK.search(text or ""))
 
 
 # --------------------------------------------------------------------------
@@ -443,6 +712,11 @@ def option_measure_stats(report_md: str, lang: str, measured: list[str] | None,
         "options": len(blocks),
         "options_measured": sum(1 for b in blocks
                                 if uses_measurement(b, measured or [])),
+        # R7-1: eine Option ohne Messgroesse ist kein Mangel mehr — eine ohne
+        # Messgroesse UND ohne Beleg schon.
+        "options_unsupported": sum(
+            1 for b in blocks if not uses_measurement(b, measured or [])
+            and not _has_citation(b)),
         "sectors": list(sectors or []),
         "sectors_missing": uncovered_sectors(sections.get("options", ""),
                                              sectors or []),
@@ -504,10 +778,14 @@ def structure_findings(report_md: str, lang: str = "en",
     findings: list[str] = []
     words = count_words(body)
     if words > BODY_WORDS_MAX:
+        # Die Zahl, die zu streichen ist, gehoert in den Befund: der B6-Neuwurf
+        # kuerzte von 3.091 auf 2.901 und blieb damit 101 Woerter darueber —
+        # „kuerzen" ohne Betrag ist keine Vorgabe.
         findings.append(
-            f"Fliesstext {words} Woerter — Obergrenze {BODY_WORDS_MAX}. "
-            f"Auf {BODY_WORDS_MIN}-{BODY_WORDS_MAX} kuerzen, ohne einen "
-            f"Pflichtabschnitt oder einen Beleg zu streichen.")
+            f"Fliesstext {words} Woerter — Obergrenze {BODY_WORDS_MAX}: "
+            f"mindestens {words - BODY_WORDS_MAX} Woerter streichen "
+            f"(Zielband {BODY_WORDS_MIN}-{BODY_WORDS_MAX}), ohne einen "
+            f"Pflichtabschnitt oder einen Beleg zu verlieren.")
     sections = split_sections(body, L)
     for key, heading, _pat in SECTIONS[L]:
         if key not in sections:
@@ -531,11 +809,18 @@ def structure_findings(report_md: str, lang: str = "en",
                 findings.append(
                     f"Option {i}: Pflichtfeld(er) fehlen — "
                     + ", ".join(f"'{m}:'" for m in miss))
-            if measured and not uses_measurement(block, measured):
+            # R7-1: KEIN Nennungszwang mehr. Eine Option ohne verwendbare
+            # Messgroesse ist zulaessig — aber dann muss ein Beleg im Block
+            # stehen, sonst haengt die Empfehlung an gar nichts.
+            if not uses_measurement(block, measured or []) \
+                    and not _has_citation(block):
                 findings.append(
-                    f"Option {i}: keine gemessene Groesse genannt. Ausloeser "
-                    f"oder Begruendung muss eine Zahl aus dem Messanhang "
-                    f"tragen (z. B. {', '.join(measured[:4])}).")
+                    f"Option {i}: weder eine verwendbare gemessene Groesse noch "
+                    f"ein Beleg. Entweder eine Zahl aus dem Messanhang, die "
+                    f"die Option wirklich traegt"
+                    + (f" (verwendbar: {', '.join(measured[:4])})" if measured
+                       else "")
+                    + ", oder ein Zitat im Optionsblock.")
         missing_sectors = uncovered_sectors(sections["options"], sectors or [])
         for name in missing_sectors:
             findings.append(
@@ -625,6 +910,7 @@ def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
     bad: list[dict] = []
     off_topic: list[dict] = []
     distorted: list[dict] = []
+    misattributed: list[dict] = []
     for raw in split_claims(body):
         sentence = raw.strip()
         if not sentence or sentence.startswith("#"):
@@ -657,19 +943,81 @@ def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
         for e in distortion_conflicts(claim, haystack):
             distorted.append({**e, "sentence": sentence,
                               "url": cited[0].get("url", "")})
+        # Zuordnungspruefung (R7-3): richtige Seite, richtige Zahl, falsche
+        # Studie. Nur gegen EINE zitierte Seite sinnvoll — bei mehreren
+        # Quellen im Satz ist das Kontextfenster nicht definiert.
+        if len(cited) == 1:
+            for e in context_conflicts(claim, str(cited[0].get("text") or "")):
+                misattributed.append({**e, "sentence": sentence,
+                                      "url": cited[0].get("url", "")})
     return {"checked": checked, "figures": figures, "unverified": bad,
             "subjects": subjects, "off_topic": off_topic,
-            "distorted": distorted}
+            "distorted": distorted, "misattributed": misattributed}
+
+
+_FIELD_LINE = re.compile(
+    r"^\s{0,3}(?:[-*]\s*)?(?:\*\*)?\s*(?:" + "|".join(
+        p for L in OPTION_FIELDS.values() for _k, p in L) + r")\s*(?:\*\*)?\s*[:：]",
+    re.IGNORECASE)
+# Trennzeichen, an denen ein Nebensatz endet — die Klausel-Streichung schneidet
+# zwischen ihnen, nicht mitten im Satz.
+_CLAUSE_SPLIT = re.compile(r"\s*(?:[;,]|—|–| - |\() ?")
+
+
+def _strip_clause(sentence: str, token: str) -> str | None:
+    """Nur die Teilaussage mit `token` aus einer Optionszeile schneiden.
+
+    Warum nicht die ganze Zeile: eine Zeile „- Trigger: ..." IST ein
+    Pflichtfeld. Im B6-Lauf nahm die mechanische Streichung der Option 2 ihren
+    Zeithorizont, und der Befund stand hinterher im Gutachten. Bleibt nach dem
+    Schnitt zu wenig stehen, gibt es None zurueck — dann faellt die Zeile doch."""
+    if not _FIELD_LINE.match(sentence or ""):
+        return None
+    label_end = sentence.index(":") + 1
+    head, rest = sentence[:label_end], sentence[label_end:]
+    parts, marks = [], []
+    last = 0
+    for m in _CLAUSE_SPLIT.finditer(rest):
+        parts.append(rest[last:m.start()])
+        marks.append(m.group(0))
+        last = m.end()
+    parts.append(rest[last:])
+    keep = [p for p in parts if token.lower() not in p.lower()]
+    if len(keep) == len(parts) or not keep:
+        return None
+    out = head + (marks[0] if marks and not parts[0] else " ") + ", ".join(
+        p.strip() for p in keep if p.strip())
+    out = re.sub(r"\s{2,}", " ", out).rstrip(" ,;-").rstrip()
+    # Bindewort, das jetzt am Anfang haengt ("Trigger: and France ...").
+    out = re.sub(r"(:\s*)(?:and|but|und|aber|sowie|oder|or|which|die|das)\b\s*",
+                 r"\1", out, count=1, flags=re.IGNORECASE)
+    out = re.sub(r"(:\s*)([a-z])", lambda m: m.group(1) + m.group(2).upper(),
+                 out, count=1)
+    if len(re.findall(r"\S+", out[label_end:])) < 4:
+        return None
+    return out if out.endswith((".", "!", "?")) else out + "."
 
 
 def drop_unverified(report_md: str, unverified: list[dict]) -> tuple[str, int]:
     """Saetze, deren Zahl in der zitierten Seite nicht steht, aus dem Bericht
     entfernen. Letzte Instanz nach dem einen Neuwurf — eine Zahl, die die
-    zitierte Quelle nicht hergibt, darf nicht im Dokument stehen bleiben."""
+    zitierte Quelle nicht hergibt, darf nicht im Dokument stehen bleiben.
+
+    Ausnahme: eine gesperrte MESSGROESSE in einer Optionszeile kostet nicht die
+    ganze Zeile (das waere ein fehlendes Pflichtfeld), sondern nur ihre
+    Teilaussage."""
     out, dropped = report_md, 0
     for e in unverified:
         s = e["sentence"]
-        if s and s in out:
+        if not s or s not in out:
+            continue
+        if e.get("kind") == "measure":
+            trimmed = _strip_clause(s, (e.get("tokens") or [""])[0])
+            if trimmed:
+                out = out.replace(s, trimmed, 1)
+                dropped += 1
+                continue
+        if s in out:
             out = out.replace(s + " ", "", 1) if (s + " ") in out \
                 else out.replace(s, "", 1)
             dropped += 1
@@ -702,6 +1050,19 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
                 f"{what}: {toks} — {e.get('detail', '')} "
                 f"({e['url'][:80]}). Satz woertlich nach der Quelle neu "
                 f"schreiben oder streichen: \"{e['sentence'][:180]}\"")
+        elif kind == "measure":
+            lines.append(
+                f"Gemessene Groesse nicht verwendbar: {toks} — "
+                f"{e.get('detail', '')}. Diese Zahl darf im Bericht NICHT "
+                f"stehen (besser keine Zahl als eine, die nicht traegt). Satz "
+                f"ohne sie neu schreiben — die Begruendung dann aus einem "
+                f"Beleg ziehen: \"{e['sentence'][:180]}\"")
+        elif kind == "context":
+            lines.append(
+                f"Falsche Zuordnung innerhalb der Quelle: {toks} steht auf "
+                f"{e['url'][:80]} NICHT im Umfeld von "
+                f"{e.get('detail', '')}. Satz der Quelle entsprechend neu "
+                f"zuordnen oder streichen: \"{e['sentence'][:180]}\"")
         elif kind == "sourceless":
             lines.append(
                 f"Die Zahl(en) {toks} stehen ohne jeden Beleg im Fliesstext. "
@@ -1140,6 +1501,102 @@ def category_conflicts(sentence: str, page: str) -> list[dict]:
                 out.append({"tokens": [w], "kind": "category",
                             "detail": f"die Seite spricht von "
                                       f"{', '.join(others)}, nicht von {w!r}"})
+    return out
+
+
+# --------------------------------------------------------------------------
+# Zuordnung INNERHALB einer Quelle (R7-3, jury_9.md 2026-09-07)
+# --------------------------------------------------------------------------
+# Der letzte verbliebene Falschbeleg der neunten Jury: „28.7% weight loss plus
+# 75% pain reduction at 12 mg/68 weeks in the TRANSCEND-T2D-2 trial" — die
+# zitierte Seite fuehrt diese Werte unter TRIUMPH-4 (Kniearthrose), waehrend
+# TRANSCEND-T2D-2 dort ohne Wirksamkeitsdaten steht. Richtige Seite, richtige
+# Zahl, falsche Studie.
+#
+# Alle bisherigen Pruefungen mussten das durchlassen: `unverified_tokens` fragt
+# nur, OB die Zahl auf der Seite steht, `unverified_subjects` nur, OB der Name
+# auf der Seite steht. Beides war der Fall. Was fehlte, ist die Naehe:
+#
+#   Nennt ein Satz den Eigennamen einer Studie/eines Programms/einer Zulassung,
+#   muessen die Zahlen des Satzes im Umfeld dieser Nennung stehen
+#   (+/- NAME_CONTEXT_CHARS Zeichen), nicht irgendwo auf der Seite.
+#
+# Ausgeloest wird nur auf Seiten, die MEHRERE solche Namen fuehren — auf einer
+# Seite ueber genau eine Studie waere ein entfernter Tabellenwert kein Fund,
+# sondern ein Fehlalarm. Erkannt werden Namen in der ueblichen Versalform mit
+# optionalem Ziffernsuffix: TRIUMPH-4, TRANSCEND-T2D-2, SURMOUNT-1, ATTAIN.
+
+NAME_CONTEXT_CHARS = 400
+MIN_SCOPES_ON_PAGE = 2
+
+_SCOPE_NAME = re.compile(r"\b[A-Z][A-Z0-9]{3,}(?:-[A-Za-z0-9]{1,6}){0,3}\b")
+
+# Versalwoerter, die keine Studie/kein Programm benennen: Behoerden, Register,
+# Kennzahlen, Rechtsbegriffe. Ohne sie waere "NICE recommends 12%" ein Fund.
+SCOPE_STOP = frozenset("""
+NICE NHS MHRA EMA FDA WHO EFSA ECHA EPO USPTO WIPO DPMA CNIPA PMDA NMPA TGA
+OECD IQVIA SEC CMS NIH NSF CDC HTA GBA IGES AIFA HAS ANSM BFARM
+CAGR EBIT EBITDA GAAP IFRS ROI CAPEX OPEX YOY QOQ USD EUR GBP CHF JPY CNY
+SPC EPO2000 IPRP CIPO PCT TRIPS GDPR FTO NDA BLA IND ANDA MAA CHMP PRAC
+DTC B2B B2C SKU CPG FMCG SME KPI HTML JSON PDF API CEO CFO COO CTO
+GLP1 GLP2 GIP DPP4 SGLT2 BMI HDL LDL RCT ITT
+MONDAY TUESDAY WEDNESDAY THURSDAY FRIDAY SATURDAY SUNDAY
+JANUARY FEBRUARY MARCH APRIL JUNE JULY AUGUST SEPTEMBER OCTOBER NOVEMBER
+DECEMBER
+""".split())
+
+
+def scope_names(text: str) -> list[str]:
+    """Eigennamen von Studien/Programmen/Zulassungen in der Versalform."""
+    out, seen = [], set()
+    for m in _SCOPE_NAME.finditer(text or ""):
+        name = m.group(0)
+        if name.upper().replace("-", "") in SCOPE_STOP or name.upper() in SCOPE_STOP:
+            continue
+        head = name.split("-")[0].upper()
+        if head in SCOPE_STOP:
+            continue
+        if name.lower() not in seen:
+            seen.add(name.lower())
+            out.append(name)
+    return out
+
+
+def _windows(page: str, names: list[str], width: int) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    for n in names:
+        for m in re.finditer(re.escape(n), page or "", re.IGNORECASE):
+            spans.append((max(0, m.start() - width), m.end() + width))
+    return spans
+
+
+def context_conflicts(sentence: str, page: str,
+                      width: int = NAME_CONTEXT_CHARS) -> list[dict]:
+    """Zahlen, die auf der Seite stehen — aber nicht bei der Studie, die der
+    Satz nennt.
+
+    Leere Liste heisst: keine benannte Studie im Satz, nur eine auf der Seite,
+    oder jede Zahl steht im Umfeld ihrer Nennung."""
+    page = page or ""
+    claim = prose(sentence or "")
+    named = [n for n in scope_names(claim)
+             if re.search(re.escape(n), page, re.IGNORECASE)]
+    if not named:
+        return []
+    if len({n.split("-")[0].upper() for n in scope_names(page)}) < MIN_SCOPES_ON_PAGE:
+        return []                    # Seite handelt von genau einem Gegenstand
+    spans = _windows(page, named, width)
+    if not spans:
+        return []
+    out: list[dict] = []
+    for fig in precision_figures(claim):
+        hits = list(re.finditer(re.escape(fig), page, re.IGNORECASE))
+        if not hits:
+            continue                 # gar nicht auf der Seite -> Zahlenpruefung
+        if any(a <= h.start() <= b for h in hits for a, b in spans):
+            continue
+        out.append({"tokens": [fig], "kind": "context",
+                    "detail": ", ".join(named[:3])})
     return out
 
 

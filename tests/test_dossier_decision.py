@@ -31,7 +31,10 @@ from scripts import corpus_research as cr
 
 
 def _report(summary_words: int = 40, options: int = 2,
-            drop_field: str | None = None, filler: int = 0) -> str:
+            drop_field: str | None = None, filler: int = 0,
+            cite: bool = True) -> str:
+    """`cite=False` baut Optionen ohne Beleg — seit R7-1 ein Befund: eine
+    Option darf ohne Messgroesse auskommen, aber nicht ohne beides."""
     body = ["# Dossier", "", "## Decision summary", "",
             " ".join(["word"] * summary_words) + " [[T1]].", "",
             "## What is moving", "", "Movement." + " filler" * filler, "",
@@ -43,7 +46,8 @@ def _report(summary_words: int = 40, options: int = 2,
         for label in ds.OPTION_LABELS["en"]:
             if label == drop_field and i == 1:
                 continue
-            body.append(f"- {label}: value")
+            body.append(f"- {label}: value" +
+                        (" [[T1]]" if cite and label == "Trigger" else ""))
         body.append("")
     body += ["## Open questions and limits", "", "Open."]
     return "\n".join(body)
@@ -1110,22 +1114,84 @@ class TestDeliveredDocument:
         assert check_result(res)["ungrounded"] == []
 
 
-class TestOptionsCarryTheMeasurement:
-    """R6-2, jury_7.md woertlich: „P verknuepft keine einzige seiner vier
-    Handlungsoptionen damit." Der Messanhang ist unser einziger Alleinstellungs-
-    inhalt und lag unverbunden hinter dem Bericht."""
+class TestMeasuredFiguresMustCarry:
+    """R7-1, jury_9.md woertlich: die Messwerte stehen „dekorativ" in den
+    Optionen. Der Nennungszwang aus Runde 6 ist damit ersetzt durch die
+    Verwendbarkeitsregel: besser keine Zahl als eine, die nicht traegt."""
 
+    # Die Form, die pipeline/dossier_quant.format_quant_evidence heute liefert.
     QUANT = {"selection": ["A61P5/48", "C12N2501/335"], "K_median": 3.3,
-             "cycle_time_years": 12.0, "centrality_peak_year": 2017,
-             "n_patents": 1878, "takeoffs": {"patent": 2002, "market": 1990}}
-    CORPUS = {"market_n": 31458, "science_n": 105335}
+             "K_calibrated": True, "K_window": [2004, 2026],
+             "K_by_year": [{"year": 2019, "K": 3.3, "n": 900, "complete": True},
+                           {"year": 2026, "K": 6.1, "n": 210, "complete": False}],
+             "cycle_time_years": 12.0, "cycle_time_edges": 7667,
+             "cycle_time_since": "2015",
+             "centrality_peak_year": 2017, "centrality_peak_n": 115,
+             "centrality_window": [2004, 2021],
+             "n_patents": 1878, "data_window_start": 1990,
+             "takeoff_reportable": False,
+             "takeoffs": {"patent": 2002, "market": 1990}}
+    CORPUS = {"market_n": 31458, "science_n": 105335,
+              "market_window": [2019, 2026], "science_window": [1990, 2026]}
 
-    def test_needles_are_the_measured_scalars(self):
+    def test_needles_are_the_usable_measured_scalars(self):
         n = ds.measured_needles(self.QUANT, self.CORPUS)
         assert "12.0" in n and "3.3" in n and "2017" in n and "A61P5/48" in n
         assert "1,878" in n and "31,458" in n
         # Jahre nie mit Tausenderpunkt, und zu kurze Zahlen gar nicht.
         assert "2,017" not in n and "12" not in n
+
+    def test_a_takeoff_without_a_reportable_lead_time_is_blocked(self):
+        """jury_9.md: „because the measured market take-off ... was 1990",
+        waehrend der eigene Anhang „not reportable as a lead time" schreibt."""
+        blocked = ds.blocked_needles(self.QUANT, self.CORPUS)
+        assert "1990" in blocked and "2002" in blocked
+        assert "1990" not in ds.measured_needles(self.QUANT, self.CORPUS)
+
+    def test_the_calibration_caveat_blocks_the_year_value(self):
+        """Die Zahl der Kurzfassung (6,1 %/yr in 2026) sperrt der eigene
+        Ehrlichkeitsvermerk — kanonisch ist der Median."""
+        assert "6.1" in ds.blocked_needles(self.QUANT)
+        assert "6.1" not in ds.measured_needles(self.QUANT)
+        # der Median selbst bleibt verwendbar
+        assert "3.3" in ds.measured_needles(self.QUANT)
+
+    def test_a_measure_without_n_or_period_is_not_usable(self):
+        """Regel (b): was im Anhang ohne n und Zeitraum steht, traegt nichts."""
+        thin = {"cycle_time_years": 12.0}          # keine Kanten, kein Zeitraum
+        assert "12.0" not in ds.measured_needles(thin)
+        assert "12.0" in ds.blocked_needles(thin)
+
+    def test_a_blocked_value_in_the_text_is_a_finding(self):
+        doc = _report().replace(
+            "- Trigger: value [[T1]]",
+            "- Trigger: the measured market take-off was 1990 [[T1]]")
+        f = ds.measure_use_findings(doc, self.QUANT, self.CORPUS)
+        assert len(f) == 1 and f[0]["tokens"] == ["1990"]
+        assert f[0]["kind"] == "measure"
+        assert "left edge of the data window" in f[0]["detail"]
+
+    def test_a_year_without_its_cue_is_left_alone(self):
+        """„1990" allein kann das Datenfenster meinen — erst mit dem Stichwort
+        der Kennzahl ist es die gesperrte Groesse."""
+        doc = _report().replace("Movement.",
+                                "Our data window opens in 1990.")
+        assert ds.measure_use_findings(doc, self.QUANT, self.CORPUS) == []
+
+    def test_two_values_of_one_metric_need_one_sentence(self):
+        """Regel (c): Median und zweiter Wert nur in EINEM Satz gegenueber-
+        gestellt. Der B6-Selbstwiderspruch stand in zwei Saetzen."""
+        split = _report().replace(
+            "Movement.",
+            "The core chemistry is mature (measured improvement rate 3.3 %/yr). "
+            "The improvement rate has risen to 5.0 %/yr since.")
+        f = ds.measure_use_findings(split, self.QUANT, self.CORPUS)
+        assert [e["tokens"][0] for e in f] == ["5.0 %/yr"]
+        joined = _report().replace(
+            "Movement.",
+            "The measured improvement rate is 3.3 %/yr as a median and "
+            "5.0 %/yr in the latest window.")
+        assert ds.measure_use_findings(joined, self.QUANT, self.CORPUS) == []
 
     def test_twelve_months_is_not_a_cycle_time(self):
         """Genau der Grund fuer die Mindestlaenge: sonst wuerde jedes
@@ -1133,37 +1199,116 @@ class TestOptionsCarryTheMeasurement:
         assert ds.uses_measurement("Time horizon: within 12 months", ["12.0"]) is False
         assert ds.uses_measurement("cycle time of 12.0 years", ["12.0"]) is True
 
-    def test_an_option_without_a_measured_figure_is_a_finding(self):
-        f = ds.structure_findings(_report(), measured=["12.0", "3.3"])
-        assert len(f) == 2 and all("gemessene Groesse" in x for x in f)
+    def test_an_option_may_stand_without_a_measured_figure(self):
+        """Der Nennungszwang ist weg — der Beleg ersetzt die Zahl."""
+        assert ds.structure_findings(_report(), measured=["12.0", "3.3"]) == []
+
+    def test_but_not_without_measure_and_without_evidence(self):
+        f = ds.structure_findings(_report(cite=False), measured=["12.0"])
+        assert len(f) == 2 and all("noch ein Beleg" in x for x in f)
 
     def test_a_measured_option_passes(self):
-        doc = _report().replace("- Trigger: value",
-                                "- Trigger: cycle time 12.0 years")
-        assert ds.structure_findings(doc, measured=["12.0"]) == []
+        doc = _report(cite=False).replace("- Trigger: value",
+                                          "- Trigger: cycle time 12.0 years")
+        assert [x for x in ds.structure_findings(doc, measured=["12.0"])
+                if "Option 1" in x] == []
 
-    def test_without_a_measurement_the_check_is_off(self):
-        assert ds.structure_findings(_report(), measured=[]) == []
-
-    def test_the_prompt_names_the_measured_values(self):
+    def test_the_prompt_names_the_usable_values_with_n_and_period(self):
         brief = ds.measured_brief(self.QUANT, self.CORPUS)
         assert "12.0" in brief and "3.3" in brief and "A61P5/48" in brief
-        assert "31,458" in brief
+        assert "31,458" in brief and "n=7,667" in brief
+        # gesperrte Groessen stehen nicht drin (Take-off-Jahr, K(t)-Jahreswert)
+        assert "take-off" not in brief and "6.1" not in brief
 
-    def test_the_outline_demands_it(self):
+    def test_the_prompt_names_the_blocked_values_with_their_reason(self):
+        blocked = ds.blocked_brief(self.QUANT, self.CORPUS)
+        assert "1990" in blocked and "6.1" in blocked
+        assert "not reportable" in blocked and "calibrated only to ~2019" in blocked
+
+    def test_the_outline_states_the_rule_instead_of_the_mandate(self):
         for lang in ("en", "de"):
             sysprompt = cr.report_system(True, lang)
-            assert ("MEASURED quantity" in sysprompt
-                    or "GEMESSENE Größe" in sysprompt)
+            assert ("EVERY option must" not in sysprompt
+                    and "Jede Option muss mindestens eine GEMESSENE" not in sysprompt)
+            assert ("no figure at all than one that does not carry" in sysprompt
+                    or "besser keine Zahl als" in sysprompt)
 
-    def test_the_check_counts_unmeasured_options(self):
+    def test_the_check_reports_options_without_measure_but_not_as_a_defect(self):
         res = {"report": "x", "sources": [], "evidence": [], "cited": [],
                "ledger": [], "structure": {"findings_after": [],
                                            "cite_findings_after": [],
-                                           "options": 4, "options_measured": 1}}
+                                           "options": 4, "options_measured": 1,
+                                           "options_unsupported": 0}}
         out = check_result(res)
         assert out["options_measured"] == 1
-        assert any("3 von 4" in f for f in out["findings"])
+        assert not any("ohne gemessene" in f for f in out["findings"])
+
+    def test_an_option_on_nothing_is_still_a_defect(self):
+        res = {"report": "x", "sources": [], "evidence": [], "cited": [],
+               "ledger": [], "structure": {"findings_after": [],
+                                           "cite_findings_after": [],
+                                           "options": 4, "options_measured": 1,
+                                           "options_unsupported": 2}}
+        assert any("2 von 4" in f for f in check_result(res)["findings"])
+
+
+class TestAttributionInsideOneSource:
+    """R7-3, jury_9.md: „28.7% weight loss ... in the TRANSCEND-T2D-2 trial" —
+    dieselbe Seite, andere Studie (die Werte gehoeren zu TRIUMPH-4)."""
+
+    PAGE = ("TRIUMPH-4 evaluated retatrutide in knee osteoarthritis. "
+            "Participants lost 28.7% of body weight at 12 mg over 68 weeks, "
+            "and WOMAC pain fell by 74.3%. " + "Unrelated filler. " * 60 +
+            "TRANSCEND-T2D-2 compares retatrutide with semaglutide in type 2 "
+            "diabetes; results are expected in 2027.")
+
+    def test_the_jury_case_is_caught(self):
+        sent = ("Retatrutide delivered 28.7% weight loss at 12 mg over 68 "
+                "weeks in the TRANSCEND-T2D-2 trial.")
+        out = ds.context_conflicts(sent, self.PAGE)
+        assert [e["tokens"][0] for e in out] == ["28.7%"]
+        assert out[0]["detail"] == "TRANSCEND-T2D-2"
+
+    def test_the_correct_attribution_passes(self):
+        sent = ("Retatrutide delivered 28.7% weight loss at 12 mg over 68 "
+                "weeks in TRIUMPH-4.")
+        assert ds.context_conflicts(sent, self.PAGE) == []
+
+    def test_a_single_subject_page_never_triggers(self):
+        page = ("TRIUMPH-4 evaluated retatrutide. " + "Filler. " * 80 +
+                "Weight loss reached 28.7%.")
+        sent = "TRIUMPH-4 reported 28.7% weight loss."
+        assert ds.context_conflicts(sent, page) == []
+
+    def test_agencies_and_ratios_are_not_study_names(self):
+        assert "NICE" not in ds.scope_names("NICE recommends the drug")
+        assert "CAGR" not in ds.scope_names("a CAGR of 17.4%")
+        assert "TRIUMPH-4" in ds.scope_names("TRIUMPH-4 read out")
+
+    def test_a_figure_absent_from_the_page_stays_with_the_figure_check(self):
+        sent = "TRANSCEND-T2D-2 showed 99.9% pain reduction."
+        assert ds.context_conflicts(sent, self.PAGE) == []
+
+    def test_the_verifier_reports_it(self):
+        src = [{"id": "N1", "kind": "web", "url": "https://x.example/a",
+                "title": "Retatrutide trials", "text": self.PAGE,
+                "fetched": True}]
+        doc = ("# D\n\n## What is moving\n\nRetatrutide delivered 28.7% "
+               "weight loss at 12 mg over 68 weeks in the TRANSCEND-T2D-2 "
+               "trial [[N1]].\n")
+        out = ds.verify_cited_figures(doc, src)
+        assert [e["tokens"][0] for e in out["misattributed"]] == ["28.7%"]
+
+    def test_the_option_field_keeps_its_label_when_a_figure_is_cut(self):
+        """Die mechanische Streichung nahm im B6-Lauf einer Option ihr
+        Pflichtfeld. Bei einer gesperrten Messgroesse faellt jetzt nur die
+        Teilaussage."""
+        doc = ("- Trigger: the measured market take-off was 1990, and France "
+               "reimburses from June 2026")
+        out, n = ds.drop_unverified(doc, [{"sentence": doc, "tokens": ["1990"],
+                                           "kind": "measure"}])
+        assert n == 1 and out.startswith("- Trigger:")
+        assert "1990" not in out and "France" in out
 
 
 class TestOptionsCoverEveryNamedField:

@@ -179,12 +179,14 @@ def check_result(result: dict) -> dict:
                         + (f" (+{len(left) - 4} weitere)" if len(left) > 4 else ""))
     # R6-2/R6-3: Messbezug der Optionen und Branchenabdeckung stehen als
     # Kennzahl im Befund, auch wenn der Neuwurf sie behoben hat.
-    if st.get("options"):
-        n_opt, n_meas = int(st["options"]), int(st.get("options_measured") or 0)
-        if n_meas < n_opt:
-            findings.append(
-                f"{n_opt - n_meas} von {n_opt} Option(en) ohne gemessene "
-                f"Groesse — die Messung traegt dort keine Entscheidung.")
+    # R7-1: eine Option ohne Messgroesse ist KEIN Mangel mehr (die
+    # Verwendbarkeitsregel zieht eine Zahl, die nicht traegt, aus dem Text) —
+    # eine Option ohne Messgroesse UND ohne Beleg schon.
+    if st.get("options") and st.get("options_unsupported"):
+        findings.append(
+            f"{int(st['options_unsupported'])} von {int(st['options'])} "
+            f"Option(en) ohne verwendbare gemessene Groesse UND ohne Beleg — "
+            f"die Empfehlung haengt dort an nichts.")
     if st.get("sectors_missing"):
         findings.append(
             "Optionen decken nicht alle in der Frage genannten Felder ab: "
@@ -205,9 +207,17 @@ def check_result(result: dict) -> dict:
             why.append(f"{st['distorted_after']}× gab der Satz die Seite "
                        f"verdreht wieder (Qualifizierer/Groessenordnung/"
                        f"Kategoriewort)")
+        if st.get("misattributed_after"):
+            why.append(f"{st['misattributed_after']}× stand die Zahl auf der "
+                       f"Seite bei einer anderen Studie")
+        if st.get("measure_after"):
+            why.append(f"{st['measure_after']}× nannte der Satz eine eigene "
+                       f"Messgroesse, die die Verwendbarkeitsregel sperrt")
         rest = (int(st["dropped_sentences"]) - int(st.get("off_topic_after") or 0)
                 - int(st.get("sourceless_after") or 0)
-                - int(st.get("distorted_after") or 0))
+                - int(st.get("distorted_after") or 0)
+                - int(st.get("misattributed_after") or 0)
+                - int(st.get("measure_after") or 0))
         if rest > 0 or not why:
             why.insert(0, f"{max(rest, 0)}× enthielt die zitierte Web-Seite "
                           f"die behauptete Zahl nicht")
@@ -238,6 +248,7 @@ def check_result(result: dict) -> dict:
         "cites_checked": int(st.get("cites_checked") or 0),
         "options": int(st.get("options") or 0),
         "options_measured": int(st.get("options_measured") or 0),
+        "options_unsupported": int(st.get("options_unsupported") or 0),
         "sectors_missing": list(st.get("sectors_missing") or []),
         "findings": findings,
     }
