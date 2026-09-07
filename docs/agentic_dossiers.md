@@ -76,7 +76,7 @@ Bericht + Endkontrolle + Versionshistorie · „Sign off" → 'done'
 | Quant-Vorstufe | `pipeline/dossier_quant.py` | Messkaskade (`measure_topic`) auf `scripts/tech_analyze` (deterministisch, vor dem ersten Modell-Hop), formatiert Messblock + Katalogquellen + **codegenerierten Messanhang**; jede Zahl trägt ihre Ehrlichkeitsgrenze (TIR kalibriert bis ~2019, Patent ≠ Produkt, Datenfenster ab 1990). Degradiert ohne GPU/Postgres zum protokollierten Fehlgrund — und der Fehlgrund steht sichtbar im Dossier |
 | Korpus-Zählung | `pipeline/dossier_corpus_stats.py` | zweite deterministische Vorstufe (CPU/SQL): zählt Markt-/Signalschicht (`trends`) und Forschungsschicht (`research_corpus` + Förderer) je Jahr/Vertikale/Signaltyp/Quelle ➜ Katalogquelle `Q0` + Anhang „Was der Korpus zählt". Jeder Block eigenes `statement_timeout`, degradiert einzeln |
 | Rechercheur | `scripts/corpus_research.py` | `run(..., quant=..., corpus_stats=..., measure=True)` injiziert Messquellen+Notizen (gepinnt), sweept audit-unabhängig, zitiert per Katalog-ID und hängt die codegenerierten Anhänge an; Result enthält `evidence`, `quant`, `corpus_stats`, `measure`, **`audit_annex`** (Suchprotokoll, getrennt vom Bericht); CLI `--quant`, `--measure`/`--no-measure` |
-| Entscheidungsebene | `pipeline/dossier_structure.py` | deterministisch, kein Modell: verbindliche Gliederung (6 Pflichtabschnitte), 200-Woerter-Kappe der Kurzfassung, harte Obergrenze 2.800 Woerter Fliesstext, Pflichtfelder je Option (Auslöser/Zeithorizont/Aufwand/Risiko/Dagegen spricht), **Messbezug je Option** (`measured_needles` — jede Option muss eine gerechnete Zahl tragen), **Branchenabdeckung** (`sectors_from_question` — die Optionen müssen jedes in der Frage genannte Feld bedienen) und die Beleg-Verifikation `verify_cited_figures`: Zahlen eines Satzes gegen den Volltext genau der zitierten Web-Seite, Gegenstand des Satzes (`unverified_subjects`), Präzisionszahlen ohne Beleg (`sourceless_figures`) und **verdrehte Wiedergabe** (`qualifier_conflicts` / `magnitude_conflicts` / `category_conflicts`). `split_claims` trennt Sätze nie innerhalb eines Zitat-Links. `revision_prompt` = der EINE Neuwurf, `drop_unverified` = die Streichung danach. `AUDIT_ANNEX_MARK`/`delivered`/`join_document` trennen ausgeliefertes Dokument und Prüfanhang |
+| Entscheidungsebene | `pipeline/dossier_structure.py` | deterministisch, kein Modell: verbindliche Gliederung (6 Pflichtabschnitte), 200-Woerter-Kappe der Kurzfassung, harte Obergrenze 2.800 Woerter Fliesstext, Pflichtfelder je Option (Auslöser/Zeithorizont/Aufwand/Risiko/Dagegen spricht), **Verwendbarkeitsregel gemessener Größen** (`measure_inventory`/`measure_use_findings` — eine gerechnete Zahl darf nur in den Text, wenn sie nicht unter Kalibrierungsvorbehalt steht, im Anhang mit n/Zeitraum/Rechenweg belegt ist und im Dokument genau einen kanonischen Wert hat; eine Option ohne verwendbare Zahl ist zulässig, ohne Zahl UND ohne Beleg nicht), **Branchenabdeckung** (`sectors_from_question` — die Optionen müssen jedes in der Frage genannte Feld bedienen) und die Beleg-Verifikation `verify_cited_figures`: Zahlen eines Satzes gegen den Volltext genau der zitierten Web-Seite, Gegenstand des Satzes (`unverified_subjects`), Präzisionszahlen ohne Beleg (`sourceless_figures`) und **verdrehte Wiedergabe** (`qualifier_conflicts` / `magnitude_conflicts` / `category_conflicts`) und **Zuordnung innerhalb der Quelle** (`context_conflicts` — nennt ein Satz einen Studiennamen, müssen seine Zahlen im Kontextfenster dieser Nennung stehen). `split_claims` trennt Sätze nie innerhalb eines Zitat-Links. `revision_prompt` = der EINE Neuwurf, `drop_unverified` = die Streichung danach. `AUDIT_ANNEX_MARK`/`delivered`/`join_document` trennen ausgeliefertes Dokument und Prüfanhang |
 | Endkontrolle | `pipeline/dossier_check.py` | deterministisch: `ungrounded_specifics` (pipeline/grounding.py) über den modellgeschriebenen Berichtsteil (Coverage-, Mess- und Korpus-Anhang abgetrennt) gegen das gesamte gesammelte Material; plus gestrichene Zitate, Zitatquote, offene Fragen (Plan-Schritte zählen nicht mit) und **Messbefund** (ausgefallen / gemessen aber ungenutzt) |
 | Worker | `scripts/dossier_worker.py` | Owner-getriggert, zweiphasig (ein Embedding- + ein 27B-Handover für alle Aufträge); `--list`, `--order N`, `--order-new "topic" [--run]`, `--assume-model-up`, `--skip-quant` |
 | GPU-Guards | `pipeline/gpu_handover.py` `model_on_llamacpp` | generischer Handover mit striktem VRAM-Vorab-Check (27B braucht <1100 MiB Fremdbelegung — 2026-08-26-Vorfall) + Identitäts-Check via `/v1/models`; 27B-Startskript in `MODEL_START_SCRIPTS` registriert |
@@ -571,3 +571,44 @@ Protokoll und Bericht liegen im Scratchpad (`B2_run.md`, `B2_decision.md`).
   ist FTS.
 - Die offenen Kanten der Skizze gelten weiter (Web-Treffer ungeranked,
   Patent-Sweep titelbasiert).
+
+### Runde 7 (2026-09-07) — die vier Befunde der Jurys 9 und 10
+
+Die neunte und zehnte Bewertung schlossen den Abstand auf 1,0 Punkt (7,6 gegen
+8,6). Vier Mängel blieben, alle vier sind hier geschlossen:
+
+- ~~Die Messzahlen tragen nicht, sie schmücken~~ → **R7-1**: Der Nennungszwang
+  aus Runde 6 ist ersetzt durch die **Verwendbarkeitsregel**
+  (`pipeline/dossier_structure.measure_inventory`). Gesperrt ist, was der
+  Anhang als „not reportable" führt (Take-off ohne berichtsfähige Vorlaufzeit
+  oder am Rand des Datenfensters), was unter dem Kalibrierungsvorbehalt steht
+  (jeder Jahreswert der K(t)-Kurve — genau die 6,1 %/yr der B6-Kurzfassung)
+  und was im Anhang ohne n und Zeitraum steht. Je Kennzahl genau ein
+  kanonischer Wert; ein zweiter nur in EINEM Satz gegenübergestellt. Verstöße
+  laufen durch den bestehenden Kanal (ein Neuwurf, dann Streichung) — in einer
+  Optionszeile fällt nur die Teilaussage, damit kein Pflichtfeld verlorengeht.
+  Gegenprobe am gespeicherten B6-Dossier: 9 Verstöße, darunter alle vom
+  Gutachten benannten.
+- ~~Zwei von fünf geprüften Quellen waren Fan-Wikis~~ → **R7-2**: `LOW_TRUST_SOURCES`
+  in `scripts/corpus_research.py` — benannte Konstante, jede Zeile mit
+  Kategorie und Begründung (Wiki ohne Redaktion, Content-Farm,
+  Selbstpublikation, Presse-Wiederveröffentlicher, Forum), dazu zwei Regeln
+  statt Namenslisten (Forum-Subdomains, Ein-Wirkstoff-Domains wie
+  `retatrutide.med`). Rang 3 kommt an keiner Aufnahmestelle in den Katalog,
+  auch nicht über die Rückfallschwelle. Fachjournale steigen auf Rang 1.
+  Abgewiesene erscheinen mit Host und Kategorie im Prüfanhang und als Zahl im
+  ausgelieferten Prüfnachweis. Bewusst nicht abgewiesen: Wikipedia und
+  kommerzielle Marktforschung.
+- ~~Falschzuordnung innerhalb einer Quelle (TRIUMPH-4 → TRANSCEND-T2D-2)~~ →
+  **R7-3**: `context_conflicts` prüft die Nähe — nennt ein Satz einen
+  Studiennamen, müssen seine Zahlen im Umfeld dieser Nennung stehen (±400
+  Zeichen), und das über alle zitierten Seiten hinweg. Beim Nachstellen kam der
+  eigentliche Grund heraus: der Satz zitierte zwei Quellen der zweiten Welle
+  (kind `entity`), und `entity` fehlte in `_VERIFIABLE_KINDS` — die gesamte
+  Beleg-Verifikation hat ihn nie gesehen. Jetzt deckt sie am B6-Dokument 36
+  statt 33 Sätze ab und meldet den Fund.
+- ~~Die eigene Kennzahl ist für Käufer nicht nachprüfbar (403)~~ → **R7-4**:
+  Die Crawler-Sperre bleibt; der Messanhang trägt jetzt den **Rechenweg**
+  (`measurement_recipe`): je Größe Datenquelle, Auswahlregel samt CPC-Codes und
+  Trefferdichte, n, Zeitfenster, Verfahren, Datenstand. Dieselben Felder
+  entscheiden über die Verwendbarkeit — ohne n und Zeitraum keine Verwendung.
