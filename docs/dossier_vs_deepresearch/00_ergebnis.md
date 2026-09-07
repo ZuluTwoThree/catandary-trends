@@ -146,3 +146,57 @@ die Bremse hält nach oben, der Lauf ist unter das Ziel gerutscht und deckt
 weniger Akteure ab als der Gegner. Die zwei Streichungen sind erneut Fehlalarme
 der Gegenstandsprüfung („Regarding", „Other" am Satzanfang) — dieselbe Regel
 aus Runde 3, weiterhin der nächste Kandidat.
+
+
+---
+
+## Nachtrag 2026-09-07: Jurys 11 und 12, Runde 8
+
+Zwei weitere Blindgutachten über B7 gegen denselben Sonnet-Text
+(`jury_11.md`, `jury_12.md` in diesem Ordner):
+
+| Runde | Jury | Web-Recherche | unser Dossier | Abstand |
+|---|---|---|---|---|
+| B6 | 9 · 10 | 58 · 8,6/10 | 40 · 7,6/10 | −18 · −1,0 |
+| **B7** | **11 · 12** | **57 · 57** | **45 · 51** | **−12 · −6** |
+
+**Zwei Erfolge sind bestätigt und dürfen nicht verlorengehen.** Jury 12 nennt
+unsere Messkennzahlen ausdrücklich „**tragend, nicht Dekoration** — sie fließen
+direkt in Schlussfolgerung 1 und in das Gegenargument von Option 4 ein"; und
+bei der Entscheidungstauglichkeit stehen **4/4 vollständige Optionen** (Trigger
+· Zeithorizont · Aufwand · Risiko · Gegenargument) gegen **0/7** des Gegners.
+Beide Jurys führen uns außerdem bei „Ehrlichkeit über Grenzen".
+
+**Die drei verbleibenden Lücken — und was Runde 8 daraus gemacht hat:**
+
+1. **Abdeckung 6:9 und zeitliche Einordnung 6:9 — zusammen genau der
+   Rückstand.** Der Gegner punktete mit einem datierten Katalysator-Kalender
+   („CagriSema's US obesity decision (Q4 2026); Lilly's retatrutide BLA
+   (Q1 2027)"), unser Fließtext war auf 1.623 Wörter geschrumpft und wertete
+   die Förderebene nur in der Anhangstabelle aus. → Siebter Pflichtabschnitt
+   „What happens next" (Tabelle, mindestens 5 datierte und belegte Zeilen),
+   Abdeckungsprüfung je Kette-Ebene im Fließtext, Untergrenze 2.200 Wörter
+   wieder als Neuwurf-Grund, vorwärtsgerichtete Suchmuster in Rechts- und
+   Marktsweep. **B8 liefert 6 datierte, belegte Termine** (B7: keine),
+   inklusive Novo Nordisks Capital Markets Day am 21.09.2026.
+2. **Quellenqualität bei Kernzahlen.** TIKR statt SEC, Lola Health statt
+   Lilly/AJMC, PeptideJournal für die Marktgröße — und `formblends.com`, ein
+   Compounding-Anbieter, der die 2031-Aussage trug und auf derselben Seite
+   schrieb, er habe die SPC-Daten „not been able to verify … from a primary
+   register". → Rangregel: jede Zahl in Kurzfassung, Optionen und Kalender
+   braucht Rang 0/1, sonst Kennzeichnung „(secondary source only)" oder
+   Streichung; eine Quelle, die ihre eigene Nicht-Verifikation einräumt, kommt
+   nicht in den Katalog. **B8: 0 Kernzahlen ohne Primärbeleg** — dieselbe Regel
+   meldet am B7-Dokument 3.
+3. **Zwei Einzelfehler = ein Prinzip: Reichweite.** Die EFSA-Registeraussage
+   stand auf einer Seite ohne Register; Option 4 schloss aus 3,3 %/Jahr auf
+   natürliche Modulatoren, obwohl `A61P5/48` und `C12N2501/335` gemessen
+   wurden. → Belegseite und Messung dürfen nicht weiter reichen als ihr
+   Gegenstand. **B8: 0 Verstöße** — am B7-Dokument meldet die Regel genau den
+   von der Jury zitierten Satz.
+
+**Offen für die dreizehnte Bewertung:** der Fließtext bleibt mit 1.705 Wörtern
+495 unter dem Zielband (B7: 1.623). Der eine erlaubte Neuwurf arbeitet jetzt in
+die richtige Richtung (+115 Wörter statt −176 im verworfenen Lauf v1), holt die
+Vorgabe aber nicht ein. Ausgeliefertes Dokument: `arm_B8_delivered.md`,
+Protokoll `scratchpad/glp1/B8_run.md`.

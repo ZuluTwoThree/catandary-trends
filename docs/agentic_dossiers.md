@@ -76,7 +76,7 @@ Bericht + Endkontrolle + Versionshistorie · „Sign off" → 'done'
 | Quant-Vorstufe | `pipeline/dossier_quant.py` | Messkaskade (`measure_topic`) auf `scripts/tech_analyze` (deterministisch, vor dem ersten Modell-Hop), formatiert Messblock + Katalogquellen + **codegenerierten Messanhang**; jede Zahl trägt ihre Ehrlichkeitsgrenze (TIR kalibriert bis ~2019, Patent ≠ Produkt, Datenfenster ab 1990). Degradiert ohne GPU/Postgres zum protokollierten Fehlgrund — und der Fehlgrund steht sichtbar im Dossier |
 | Korpus-Zählung | `pipeline/dossier_corpus_stats.py` | zweite deterministische Vorstufe (CPU/SQL): zählt Markt-/Signalschicht (`trends`) und Forschungsschicht (`research_corpus` + Förderer) je Jahr/Vertikale/Signaltyp/Quelle ➜ Katalogquelle `Q0` + Anhang „Was der Korpus zählt". Jeder Block eigenes `statement_timeout`, degradiert einzeln |
 | Rechercheur | `scripts/corpus_research.py` | `run(..., quant=..., corpus_stats=..., measure=True)` injiziert Messquellen+Notizen (gepinnt), sweept audit-unabhängig, zitiert per Katalog-ID und hängt die codegenerierten Anhänge an; Result enthält `evidence`, `quant`, `corpus_stats`, `measure`, **`audit_annex`** (Suchprotokoll, getrennt vom Bericht); CLI `--quant`, `--measure`/`--no-measure` |
-| Entscheidungsebene | `pipeline/dossier_structure.py` | deterministisch, kein Modell: verbindliche Gliederung (6 Pflichtabschnitte), 200-Woerter-Kappe der Kurzfassung, harte Obergrenze 2.800 Woerter Fliesstext, Pflichtfelder je Option (Auslöser/Zeithorizont/Aufwand/Risiko/Dagegen spricht), **Verwendbarkeitsregel gemessener Größen** (`measure_inventory`/`measure_use_findings` — eine gerechnete Zahl darf nur in den Text, wenn sie nicht unter Kalibrierungsvorbehalt steht, im Anhang mit n/Zeitraum/Rechenweg belegt ist und im Dokument genau einen kanonischen Wert hat; eine Option ohne verwendbare Zahl ist zulässig, ohne Zahl UND ohne Beleg nicht), **Branchenabdeckung** (`sectors_from_question` — die Optionen müssen jedes in der Frage genannte Feld bedienen) und die Beleg-Verifikation `verify_cited_figures`: Zahlen eines Satzes gegen den Volltext genau der zitierten Web-Seite, Gegenstand des Satzes (`unverified_subjects`), Präzisionszahlen ohne Beleg (`sourceless_figures`) und **verdrehte Wiedergabe** (`qualifier_conflicts` / `magnitude_conflicts` / `category_conflicts`) und **Zuordnung innerhalb der Quelle** (`context_conflicts` — nennt ein Satz einen Studiennamen, müssen seine Zahlen im Kontextfenster dieser Nennung stehen). `split_claims` trennt Sätze nie innerhalb eines Zitat-Links. `revision_prompt` = der EINE Neuwurf, `drop_unverified` = die Streichung danach. `AUDIT_ANNEX_MARK`/`delivered`/`join_document` trennen ausgeliefertes Dokument und Prüfanhang |
+| Entscheidungsebene | `pipeline/dossier_structure.py` | deterministisch, kein Modell: verbindliche Gliederung (**7 Pflichtabschnitte**, seit R8-1 mit dem Katalysator-Kalender „What happens next"), 200-Woerter-Kappe der Kurzfassung, Laengenband **2.200–2.800 Woerter Fliesstext** (beide Grenzen sind Neuwurf-Gruende), **Katalysator-Kalender** (`calendar_rows`/`calendar_findings` — mindestens 5 Tabellenzeilen mit Datum im Laufjahr oder spaeter UND Beleg), **Abdeckung der Innovationskette** (`chain_coverage` — je Ebene Wissenschaft/Patente/Foerderung/Markt eine datierte und belegte Aussage im Fliesstext, Anhaenge zaehlen nicht), **Rangregel fuer Kernzahlen** (`weak_source_figures` — jede Praezisionszahl in Kurzfassung, Optionen und Kalender braucht eine Quelle vom Rang 0/1; sonst Kennzeichnung „(secondary source only)" oder Streichung), Pflichtfelder je Option (Auslöser/Zeithorizont/Aufwand/Risiko/Dagegen spricht), **Verwendbarkeitsregel gemessener Größen** (`measure_inventory`/`measure_use_findings` — eine gerechnete Zahl darf nur in den Text, wenn sie nicht unter Kalibrierungsvorbehalt steht, im Anhang mit n/Zeitraum/Rechenweg belegt ist und im Dokument genau einen kanonischen Wert hat; eine Option ohne verwendbare Zahl ist zulässig, ohne Zahl UND ohne Beleg nicht), **Branchenabdeckung** (`sectors_from_question` — die Optionen müssen jedes in der Frage genannte Feld bedienen) und die Beleg-Verifikation `verify_cited_figures`: Zahlen eines Satzes gegen den Volltext genau der zitierten Web-Seite, Gegenstand des Satzes (`unverified_subjects`), Präzisionszahlen ohne Beleg (`sourceless_figures`) und **verdrehte Wiedergabe** (`qualifier_conflicts` / `magnitude_conflicts` / `category_conflicts`) und **Zuordnung innerhalb der Quelle** (`context_conflicts` — nennt ein Satz einen Studiennamen, müssen seine Zahlen im Kontextfenster dieser Nennung stehen) und **Reichweite** (R8-3: `artefact_conflicts` — beruft sich ein Satz auf ein Register/eine Datenbank/ein Amtsblatt, muss die zitierte Seite das auch führen; und in `measure_use_findings` die vierte Bedingung: zieht ein Satz einen Schluss aus einer gemessenen Größe, muss er den gemessenen Gegenstand benennen). `split_claims` trennt Sätze nie innerhalb eines Zitat-Links. `revision_prompt` = der EINE Neuwurf, `drop_unverified` = die Streichung danach. `AUDIT_ANNEX_MARK`/`delivered`/`join_document` trennen ausgeliefertes Dokument und Prüfanhang |
 | Endkontrolle | `pipeline/dossier_check.py` | deterministisch: `ungrounded_specifics` (pipeline/grounding.py) über den modellgeschriebenen Berichtsteil (Coverage-, Mess- und Korpus-Anhang abgetrennt) gegen das gesamte gesammelte Material; plus gestrichene Zitate, Zitatquote, offene Fragen (Plan-Schritte zählen nicht mit) und **Messbefund** (ausgefallen / gemessen aber ungenutzt) |
 | Worker | `scripts/dossier_worker.py` | Owner-getriggert, zweiphasig (ein Embedding- + ein 27B-Handover für alle Aufträge); `--list`, `--order N`, `--order-new "topic" [--run]`, `--assume-model-up`, `--skip-quant` |
 | GPU-Guards | `pipeline/gpu_handover.py` `model_on_llamacpp` | generischer Handover mit striktem VRAM-Vorab-Check (27B braucht <1100 MiB Fremdbelegung — 2026-08-26-Vorfall) + Identitäts-Check via `/v1/models`; 27B-Startskript in `MODEL_START_SCRIPTS` registriert |
@@ -232,13 +232,14 @@ sondern an drei Dingen — jedes davon ist jetzt Mechanik, nicht Prompt-Hoffnung
 **S1 — Entscheidungsebene.** „Mit 5.906 Wörtern zu lang und nicht auf eine
 Entscheidung zugeschnitten"; der Gutachter gab den Text „ans Entwicklungs- und
 Regulatory-Team, nicht ins Gremium". Der Sieger brauchte 2.833 Wörter. Der
-Report-Prompt (`corpus_research.report_system`) schreibt jetzt sechs
-Pflichtabschnitte vor — *Decision summary* (max. 200 Wörter, drei belegte
-Aussagen), *What is moving*, *Regulatory and IP status*, *What the evidence does
-not support*, *Options for a mid-sized European company*, *Open questions and
-limits* — und eine Obergrenze von **2.800 Wörtern Fließtext** (Anhänge zählen
-nie mit; gezählt wird ohne Zitatapparat, damit dieselbe Zahl vor und nach der
-Kanonisierung gilt). Deutsche Fassung gleichwertig.
+Report-Prompt (`corpus_research.report_system`) schreibt Pflichtabschnitte
+vor — *Decision summary* (max. 200 Wörter, drei belegte Aussagen), *What is
+moving*, *Regulatory and IP status*, seit R8-1 *What happens next*, *What the
+evidence does not support*, *Options for a mid-sized European company*, *Open
+questions and limits* — und ein Längenband von **2.200–2.800 Wörtern
+Fließtext** (Anhänge zählen nie mit; gezählt wird ohne Zitatapparat, damit
+dieselbe Zahl vor und nach der Kanonisierung gilt). Deutsche Fassung
+gleichwertig.
 
 **S2 — Rechts- und Zulassungsstatus.** Der entscheidungstragende Befund des
 Siegertexts war ein Rechtsstatus: EU-Grundpatent Semaglutid ausgelaufen, aber
@@ -246,11 +247,12 @@ Siegertexts war ein Rechtsstatus: EU-Grundpatent Semaglutid ausgelaufen, aber
 Indien/Brasilien/China starten. Unser Korpus *zählt* Patente, führt aber keinen
 Rechtsstatus, und die allgemeine Web-Stufe verwarf solche Treffer still gegen
 die gemeinsame Kappe (der Askea-Fall). `sweep_regulatory()` ist deshalb eine
-eigene Suchrichtung: sechs feste Muster (SPC/Patentablauf Europa · EMA · FDA ·
-Gerichtsentscheidung/Verfügung · EFSA-Health-Claim · EU-Regulierung) auf die
+eigene Suchrichtung: feste Muster (SPC/Patentablauf Europa · EMA · FDA ·
+anstehende Entscheidungstermine · Gerichtsentscheidung/Verfügung ·
+EFSA-Health-Claim · EU-Regulierung) auf die
 messnormalisierte Themenphrase, Treffer **verpflichtend im Volltext gefetcht**
 (ein Snippet trägt hier kein Zitat), eigener Katalogbereich `[legal]` mit
-reserviertem Budget (`REG_MAX_SOURCES` 12 / `REG_MAX_FETCH` 8), das die
+reserviertem Budget (`REG_MAX_SOURCES` 27 / `REG_MAX_FETCH` 14, Stand R8-1), das die
 allgemeine Web-Kappe nicht berührt. Jedes Muster steht im Suchprotokoll, auch
 das ohne Treffer — „dazu nichts gefunden" muss im Abschnitt stehen können.
 Die Ledger-Zeilen tragen `kind: "legal"` und zählen nicht als offene Frage.
@@ -612,3 +614,74 @@ Die neunte und zehnte Bewertung schlossen den Abstand auf 1,0 Punkt (7,6 gegen
   (`measurement_recipe`): je Größe Datenquelle, Auswahlregel samt CPC-Codes und
   Trefferdichte, n, Zeitfenster, Verfahren, Datenstand. Dieselben Felder
   entscheiden über die Verwendbarkeit — ohne n und Zeitraum keine Verwendung.
+
+### Runde 8 (2026-09-07) — die drei Lücken der Jurys 11 und 12
+
+Die elfte und zwölfte Bewertung schlossen den Abstand auf **6 Punkte**
+(Jury 12: 51:57, Jury 11: 45:57) und hielten zwei Erfolge ausdrücklich fest:
+unsere Messkennzahlen sind „tragend, nicht Dekoration", und die
+Entscheidungsoptionen sind mit 4/4 vollständig gegen 0/7 überlegen. Drei
+Lücken blieben — die ersten beiden Punktdifferenzen (Abdeckung 6:9, zeitliche
+Einordnung 6:9) ergeben zusammen genau den Rückstand:
+
+- ~~Keine zeitliche Einordnung, zu wenig Breite~~ → **R8-1**: siebter
+  Pflichtabschnitt **„What happens next"** — eine Tabelle *Datum · Ereignis ·
+  Quelle · Bedeutung*, geprüft auf mindestens fünf Zeilen mit Datum (im Jahr
+  des Laufs oder später) **und** Beleg (`calendar_rows`/`calendar_findings`).
+  Dazu die **Abdeckung je Kette-Ebene**: Wissenschaft, Patente, Förderung und
+  Markt brauchen je eine Aussage mit Datum und Zitat *im Fließtext* — der
+  codegenerierte Anhang zählt nicht (`chain_coverage`). Und die **Untergrenze
+  2.200 Wörter** ist wieder ein Neuwurf-Grund; der Befund nennt den Betrag und
+  das erlaubte Füllmaterial („belegte Fakten, keine Prosa"). Damit der Sweep
+  überhaupt Termine liefert, fragen Rechts- und Marktsweep seit R8-1 auch
+  vorwärts („upcoming regulatory decision expected date", „trial readout
+  expected date") — weit vorne in der Musterliste, weil die Volltext-Budgets
+  der Reihe nach vergeben werden.
+- ~~Kernzahlen hängen an dünnen Quellen~~ → **R8-2**: jede Präzisionszahl in
+  Kurzfassung, Optionen und Kalender braucht eine zitierte Quelle vom **Rang
+  0/1** (Behörde, Register, Gericht, Firmen-IR/SEC, Fachjournal). Sonst wird
+  der Satz mechanisch als „(secondary source only)" gekennzeichnet oder
+  gestrichen (`weak_source_figures`, `mark_secondary`). `catalog_rank` gibt
+  jedem Katalogeintrag seinen Rang, der Berichtsprompt weist ihn als
+  `(primary)` aus. Zusätzlich: eine Seite, die **selbst einräumt**, etwas nicht
+  verifiziert zu haben („not been able to verify", „remains unconfirmed"),
+  kommt gar nicht erst in den Katalog (`self_unverified`, Fetch-Status
+  `self-unverified`, im Prüfnachweis getrennt von Botsperren ausgewiesen).
+- ~~Zwei Einzelfehler: Registeraussage ohne Register, Schluss über natürliche
+  Modulatoren aus Wirkstoffklassen~~ → **R8-3**: beides ist **Reichweite**.
+  `artefact_conflicts` prüft, ob ein formales Nachweisstück (Register,
+  Datenbank, Amtsblatt, Docket, Rechtsprechung), auf das sich ein Satz beruft,
+  in der zitierten Seite überhaupt vorkommt — Satzseite streng, Seitenseite
+  großzügig. Und die Verwendbarkeitsregel hat eine vierte Bedingung: zieht ein
+  Satz einen **Schluss** aus einer gemessenen Größe, muss er den gemessenen
+  Gegenstand benennen (die aufgelöste Phrase oder eine ihrer CPC-Klassen).
+  Gegenprobe am gespeicherten B7-Dokument: genau ein Treffer, und zwar der von
+  jury_11 §4.5 wörtlich zitierte Satz.
+
+**Kennzahlen B8 gegen B7** (Lauf `glp1-r8` v2, `dossiers.id=23`, 1.077 s):
+Fließtext 1.705 statt 1.621, ausgeliefert 4.609 statt 4.195 Wörter,
+Katalysator-Kalender mit 6 datierten und belegten Zeilen statt keinem,
+Kettenabdeckung 4/4 mechanisch geprüft, Beleg-Verifikation 26 Sätze / 76
+Angaben statt 18 / 52, Befunde nach dem Neuwurf 0 statt 2, mechanisch
+gestrichene Sätze 0 statt 2, Kernzahlen ohne Primärbeleg 0 (am B7-Dokument
+meldet dieselbe Regel 3), Verstöße gegen die Verwendbarkeits- und
+Reichweitenregel 0 (am B7-Dokument 1).
+
+**Der erste R8-Lauf (v1) hat drei Fehler des eigenen Codes aufgedeckt** und ist
+an ihnen gescheitert; behoben in `b1edd2d`, jeder mit Test: (a) der
+Revisionsauftrag verlangte gleichzeitig „ergänzen" und „keine neuen Fakten" und
+führte den Evidenzblock nicht mit — das Modell kürzte folgerichtig (1.511 →
+1.335); (b) die Gegenstandsprüfung las „Confirms", „Adds", „Expands Mounjaro's"
+am Anfang einer Tabellenzelle als Eigennamen und kostete damit zwei
+Pflichtfelder und zwei Kalenderzeilen (die Regel aus Runde 3, seit B6 als
+nächster Kandidat notiert — jetzt geschlossen); (c) ein „|" im Quellentitel
+zerlegte die Kalenderzeile, in der es stand.
+
+**Offen:** Der Fließtext bleibt mit 1.705 Wörtern 495 unter dem Zielband. Der
+eine erlaubte Neuwurf wächst jetzt in die richtige Richtung (+115 statt −176),
+holt die Vorgabe aber nicht ein; ein zweiter Durchgang ist bewusst
+ausgeschlossen. Zweitens tragen in B8 4 von 4 Optionen **keine** Messgröße
+(B7: 2 von 4) — seit R7-1 zulässig, weil alle belegt sind, und die Messung
+trägt den ersten Satz der Kurzfassung; jury_12 hat den Messbezug aber
+ausdrücklich gelobt, also gehört das beobachtet. Protokoll:
+`scratchpad/glp1/B8_run.md`.

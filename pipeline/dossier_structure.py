@@ -888,7 +888,10 @@ _DATE_RE = re.compile(
     rf"|\d{{1,2}}\.?\s+(?:{_MONTHS})\.?,?\s+((?:19|20)\d{{2}})"
     rf"|(?:{_MONTHS})\.?\s+\d{{1,2}},?\s+((?:19|20)\d{{2}})"
     rf"|(?:{_MONTHS})\.?\s+((?:19|20)\d{{2}})"
-    r"|(?:early|mid|late|first half|second half|anfang|mitte|ende)\s+"
+    # "Mid-2026" mit Bindestrich zaehlt auch: der B8-Lauf schrieb genau das,
+    # und die nackte Jahresform verwirft ein "-" davor (sonst traefe sie
+    # jede URL mit einer Jahreszahl im Pfad).
+    r"|(?:early|mid|late|first half|second half|anfang|mitte|ende)[\s-]+"
     r"((?:19|20)\d{2})"
     r"|((?:19|20)\d{2})"
     r")", re.IGNORECASE)

@@ -163,15 +163,23 @@ je Jahr/Vertikale/Quelle) — und meldet es sichtbar, wenn die Messung ausfällt
 Alter Pfad: `DOSSIER_MEASURE=0` bzw. `--no-measure`
 ([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-messkette-2026-09-07)).
 
-Ebenfalls seit 2026-09-07 ist der Bericht **entscheidungsorientiert**: sechs
+Ebenfalls seit 2026-09-07 ist der Bericht **entscheidungsorientiert**: sieben
 Pflichtabschnitte (Decision summary ≤ 200 Wörter · What is moving · Regulatory
-and IP status · What the evidence does not support · Options · Open questions),
-harte Obergrenze 2.800 Wörter Fließtext, je Option ein Go/No-Go-Gerüst
-(Trigger/Time horizon/Effort/Risk/Against it). Der Rechts- und Zulassungsstatus
-kommt aus einem eigenen Sweep mit festen Suchmustern (SPC/Patentablauf Europa,
-EMA, FDA, Gerichtsentscheidungen, EFSA-Health-Claims) und eigenem Budget, und
-jede im Fließtext zitierte Web-Zahl wird gegen den Volltext genau der zitierten
-Seite geprüft — was dort nicht steht, fliegt raus. Genau ein gezielter Neuwurf,
+and IP status · What happens next · What the evidence does not support ·
+Options · Open questions), Längenband 2.200–2.800 Wörter Fließtext (beide
+Grenzen lösen den Neuwurf aus), je Option ein Go/No-Go-Gerüst
+(Trigger/Time horizon/Effort/Risk/Against it). „What happens next" ist ein
+Kalender datierter, belegter Termine (mindestens fünf Zeilen), und jede der
+vier Ebenen der Innovationskette — Wissenschaft, Patente, Förderung, Markt —
+braucht im Fließtext eine datierte und belegte Aussage. Der Rechts- und
+Zulassungsstatus kommt aus einem eigenen Sweep mit festen Suchmustern
+(SPC/Patentablauf Europa, EMA, FDA, anstehende Entscheidungstermine,
+Gerichtsentscheidungen, EFSA-Health-Claims) und eigenem Budget; jede im
+Fließtext zitierte Web-Zahl wird gegen den Volltext genau der zitierten Seite
+geprüft — was dort nicht steht, fliegt raus. Kernzahlen in Kurzfassung,
+Optionen und Kalender brauchen zusätzlich eine Quelle vom Rang 0/1 (Behörde,
+Register, Gericht, Firmen-IR/SEC, Fachjournal), sonst werden sie als „nur
+sekundär belegt" gekennzeichnet oder gestrichen. Genau ein gezielter Neuwurf,
 keine Schleife
 ([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-entscheidungsebene-2026-09-07)).
 

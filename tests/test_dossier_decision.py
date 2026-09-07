@@ -2179,3 +2179,18 @@ class TestAPipeInASourceTitleMustNotBreakTheCalendarTable:
         body, _cited, _stripped = cr.canonicalize_citations(
             "## What happens next\n\n" + row + "\n", src, "en", markers=True)
         assert len(ds.table_rows(body)[0]) == 4
+
+
+class TestCalendarDateForms:
+    """Aus dem B8-Lauf: das Modell schreibt „Mid-2026" mit Bindestrich. Die
+    nackte Jahresform darf ein „-" davor nicht akzeptieren (sonst zaehlte
+    jede URL mit Jahreszahl im Pfad), die Halbjahresform muss es."""
+
+    @pytest.mark.parametrize("text,ok", [
+        ("Mid-2026", True), ("mid 2026", True), ("Late-2026", True),
+        ("Q4 2026", True), ("21 September 2026", True), ("2031", True),
+        ("glp-1-pipeline-update-may-2026", False),
+        ("next quarter", False), ("12 months", False),
+    ])
+    def test_forms(self, text, ok):
+        assert ds.has_date(text) is ok
