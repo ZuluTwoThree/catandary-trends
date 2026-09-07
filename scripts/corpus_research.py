@@ -2424,6 +2424,8 @@ participants design setting aim aims european national international
 university hospital institute agency ministry commission association society
 journal article guidelines guideline authority council committee department
 center centre laboratory foundation programme program project consortium
+europe america asia africa food foods nutrition technology science medicine
+pharma biotech nutrition ingredient ingredients product products
 """.split())
 
 
@@ -2492,6 +2494,8 @@ def _prefer_longest(df: dict[str, set[int]]) -> None:
     der Haelfte derselben Dokumente, fliegt die Kurzform raus."""
     keys = sorted(df, key=lambda k: -len(k.split()))
     for long in keys:
+        if long not in df:      # in einer frueheren Runde selbst gestrichen
+            continue
         lt = long.split()
         if len(lt) < 2:
             continue

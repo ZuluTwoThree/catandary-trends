@@ -939,3 +939,12 @@ class TestR13DisavowedFigure:
         v = ("a pharma round is not transferable; a comparable EIC grant is "
              "EUR 2.5m [[F3]]")
         assert not ds.is_placeholder(v)
+
+
+def test_prefer_longest_survives_a_chain_of_names():
+    """Regression: der Sammler strich einen Schluessel und griff ihn danach
+    noch einmal ab (Lauf glp1-dr3, 2026-09-07: KeyError 't2dm applicant')."""
+    df = {"a": {1, 2}, "a b": {1, 2}, "a b c": {1, 2}, "b c": {1, 2},
+          "x y": {3}, "x": {3}}
+    cr._prefer_longest(df)          # darf nicht werfen
+    assert "a b c" in df and "a" not in df
