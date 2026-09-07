@@ -2,8 +2,8 @@
 
 Stand 2026-09-07 · Branch `dev` · kein Dossier-Lauf gestartet, keine GPU berührt.
 Commits: `4fea4ca` (Kern), `f222403` (Tests + Dossier-Ansicht), `ea7d16c` (Filter-Fix
-aus der Probe) und der Doku-Commit mit dieser Datei plus
-`docs/corpus_research_sketch.md`.
+aus der Probe), `373d5a8` (Akteure vor Wirkstoffen in der Markt-Welle) und der
+Doku-Commit mit dieser Datei plus `docs/corpus_research_sketch.md`.
 
 Alles betrifft `scripts/corpus_research.py`; die Defaults ziehen
 `scripts/dossier_worker.py` und die Dossier-Ansicht im Frontend mit.
