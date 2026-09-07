@@ -712,13 +712,22 @@ class TestMarketSweep:
     ein Abdeckungsproblem des Sweeps, nicht des Schreibers."""
 
     def _gen(self, n: int = 3):
-        return lambda q, count=6: [
-            {"id": f"W{i}", "trend_id": None, "kind": "web",
-             "title": f"Topic hit {i}",
-             "url": f"https://m{abs(hash(q)) % 9973}.example/{i}",
-             "origin": "", "outlet": "o", "vertical": "", "date": "2026-01-01",
-             "snippet": "incretin GLP-1 semaglutide", "fetched": False}
-            for i in range(n)]
+        # Der Host haengt an der Reihenfolge der Anfrage, NICHT an hash(q):
+        # der Hash ist je Prozess anders, und zwei Muster mit demselben Rest
+        # haetten dieselbe URL — ein Lauf, der gelegentlich fehlschlaegt.
+        seen: dict[str, int] = {}
+
+        def gen(q, count=6):
+            k = seen.setdefault(q, len(seen))
+            return [
+                {"id": f"W{i}", "trend_id": None, "kind": "web",
+                 "title": f"Topic hit {i}",
+                 "url": f"https://m{k}.example/{i}",
+                 "origin": "", "outlet": "o", "vertical": "",
+                 "date": "2026-01-01",
+                 "snippet": "incretin GLP-1 semaglutide", "fetched": False}
+                for i in range(n)]
+        return gen
 
     def test_every_market_pattern_runs_with_its_own_budget(self, monkeypatch):
         seen = []
