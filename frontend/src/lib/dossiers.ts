@@ -52,8 +52,9 @@ export interface DossierSeries {
 }
 
 /** Evidence mix of one run, as scripts/corpus_research.py counts it. */
-/** "legal" = regulatory/IP sweep, "market" = market/reimbursement sweep
- * (both fixed query patterns, fetched in full). */
+/** "legal" = regulatory/IP sweep, "market" = market/reimbursement sweep,
+ * "entity" = second wave (<actor> <event type>, 2026-09-07). All three are
+ * fixed query patterns, fetched in full. */
 export type EvidenceKind =
   | "article"
   | "signal"
@@ -61,7 +62,8 @@ export type EvidenceKind =
   | "patent"
   | "web"
   | "legal"
-  | "market";
+  | "market"
+  | "entity";
 
 /** Provenance header of a run — what the report is a snapshot OF. */
 export interface DossierProvenance {
@@ -86,7 +88,13 @@ export interface DossierProvenance {
  * regulatory/IP query patterns and "market" rows the fixed market/reimbursement
  * patterns (2026-09-07, jury_4.md). Older rows carry no kind and default to
  * "gap". Only "gap"/"followup" rows are open questions. */
-export type DossierLedgerKind = "gap" | "plan" | "followup" | "legal" | "market";
+export type DossierLedgerKind =
+  | "gap"
+  | "plan"
+  | "followup"
+  | "legal"
+  | "market"
+  | "entity";
 
 export interface DossierLedgerRow {
   gap: string;
@@ -97,6 +105,12 @@ export interface DossierLedgerRow {
   webSources: number;
   webFetched: number;
   offTopicDropped: number;
+  /** Usable hits the run did NOT admit because a budget was full — the
+   * Askea failure ("8 hits, 0 new") made visible (2026-09-07). */
+  budgetDropped: number;
+  /** Why each page could not be read: robots | blocked | timeout | too_short
+   * | tdm | budget. Only non-"fetched" statuses are kept. */
+  unreadable: string[];
 }
 
 export interface DossierDoc {
@@ -273,7 +287,7 @@ function parseLedger(raw: unknown): DossierLedgerRow[] {
     return {
       gap: String(o.gap ?? ""),
       kind: (kind === "plan" || kind === "followup" || kind === "legal"
-        || kind === "market"
+        || kind === "market" || kind === "entity"
         ? kind
         : "gap") as DossierLedgerKind,
       papers: num(o.papers) ?? 0,
@@ -282,6 +296,20 @@ function parseLedger(raw: unknown): DossierLedgerRow[] {
       webSources: num(o.web_sources) ?? 0,
       webFetched: num(o.web_fetched) ?? 0,
       offTopicDropped: num(o.off_topic_dropped) ?? 0,
+      budgetDropped: num(o.budget_dropped) ?? 0,
+      unreadable: Array.isArray(o.fetch_log)
+        ? [
+            ...new Set(
+              o.fetch_log
+                .map((e) =>
+                  e && typeof e === "object"
+                    ? String((e as Record<string, unknown>).status ?? "")
+                    : "",
+                )
+                .filter((st) => st && st !== "fetched"),
+            ),
+          ].sort()
+        : [],
     };
   });
 }

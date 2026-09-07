@@ -750,3 +750,256 @@ class TestMarketSweep:
     def test_the_two_fixed_directions_do_not_share_a_budget(self):
         assert cr.MKT_MAX_SOURCES and cr.REG_MAX_SOURCES
         assert cr.sweep_market is not cr.sweep_regulatory
+
+
+# ===========================================================================
+# Runde 5 (2026-09-07): die Web-Schicht auf Augenhoehe.
+#
+# Belegte Ausgangslage (docs/dossier_vs_deepresearch/00_ergebnis.md, §3):
+# der Sieger las ~45 Primaerseiten, unser Sweep 6-16 und verwarf im
+# Askea-Lauf belegbar echte Treffer STILL ("8 hits, 0 new", Katalog voll).
+# ===========================================================================
+
+class TestRound5Budget:
+    def test_caps_were_raised_to_the_reading_target(self):
+        """40-60 gelesene Seiten je Lauf statt 6-16."""
+        assert cr.REG_MAX_FETCH == 12 and cr.MKT_MAX_FETCH == 12
+        assert cr.SUB_MAX_FETCH == 8 and cr.ENT_MAX_FETCH == 8
+        assert cr.BACKSTOP_FETCH_BUDGET == 12
+        fixed = (cr.REG_MAX_FETCH + cr.MKT_MAX_FETCH
+                 + cr.SUB_MAX_FETCH + cr.ENT_MAX_FETCH)
+        assert 40 <= fixed + cr.BACKSTOP_FETCH_BUDGET <= 60
+
+    def test_no_pattern_is_starved_by_an_earlier_one(self):
+        """Die globale Kappe darf nicht VOR der Muster-Kappe binden — sonst
+        bekommen die spaeten Muster (EFSA, EU-Recht) nie ein Budget."""
+        assert cr.REG_MAX_SOURCES >= len(cr.REGULATORY_PATTERNS) * cr.REG_PER_PATTERN
+        assert cr.MKT_MAX_SOURCES >= len(cr.MARKET_PATTERNS) * cr.MKT_PER_PATTERN
+        assert cr.SUB_MAX_SOURCES >= (cr.SUB_MAX_ENTITIES
+                                      * len(cr.SUBSTANCE_LEGAL_PATTERNS)
+                                      * cr.SUB_PER_PATTERN)
+        assert cr.ENT_MAX_SOURCES >= (cr.ENT_MAX_ENTITIES
+                                      * len(cr.ENTITY_MARKET_PATTERNS)
+                                      * cr.ENT_PER_PATTERN)
+
+    def test_agent_web_defaults_were_raised(self):
+        import inspect
+        sig = inspect.signature(cr.run)
+        assert sig.parameters["web_steps"].default == 14
+        assert sig.parameters["max_web_sources"].default == 32
+
+    def test_report_gets_a_bigger_evidence_budget_than_the_loop(self):
+        assert cr.MAX_REPORT_EVIDENCE_CHARS > cr.MAX_EVIDENCE_CHARS
+
+
+class TestNoSilentDrop:
+    """Der Askea-Fehler: ein brauchbarer Treffer faellt am Budget und niemand
+    erfaehrt davon."""
+
+    def _hits(self, n):
+        return [{"id": f"W{i}", "trend_id": None, "kind": "web",
+                 "title": f"Semaglutide ruling {i}",
+                 "url": f"https://law.example/{i}", "origin": "",
+                 "outlet": "o", "vertical": "", "date": "2026-01-01",
+                 "snippet": "semaglutide SPC", "fetched": False}
+                for i in range(n)]
+
+    def test_budget_drop_is_counted_and_named(self, monkeypatch):
+        monkeypatch.setattr(cr, "brave_search", lambda q, n=6: self._hits(6))
+        monkeypatch.setattr(cr, "fetch_web_page_status",
+                            lambda u: ("text", "fetched"))
+        ledger: list[dict] = []
+        added, record = cr.sweep_fixed(
+            "semaglutide", [], set(), [], ledger, patterns=("{t} SPC",),
+            per_pattern=2, max_sources=2, max_fetch=2)
+        assert added == 2
+        assert ledger[0]["budget_dropped"] == 4
+        assert "NOT admitted (budget)" in record
+
+    def test_fetch_reason_is_recorded_per_hit(self, monkeypatch):
+        monkeypatch.setattr(cr, "brave_search", lambda q, n=6: self._hits(2))
+        monkeypatch.setattr(cr, "fetch_web_page_status",
+                            lambda u: ("", "blocked"))
+        ledger: list[dict] = []
+        _, record = cr.sweep_fixed("semaglutide", [], set(), [], ledger,
+                                   patterns=("{t} SPC",), per_pattern=2)
+        assert [x["status"] for x in ledger[0]["fetch_log"]] == ["blocked",
+                                                                 "blocked"]
+        assert "unreadable: blocked" in record
+
+    def test_status_names_the_real_obstacle(self):
+        assert cr._fetch_status("robots") == "robots"
+        assert cr._fetch_status("http 403") == "blocked"
+        assert cr._fetch_status("http 429") == "blocked"
+        assert cr._fetch_status("http 500") == "http 500"
+        assert cr._fetch_status("error ReadTimeout") == "timeout"
+        assert cr._fetch_status("error SSLError") == "error"
+        assert cr._fetch_status("tdm:meta robots: noai") == "tdm"
+        assert cr._fetch_status("too_short") == "too_short"
+
+
+class TestRelevanceBeforeFetch:
+    def _mixed(self):
+        return [
+            {"id": "W0", "trend_id": None, "kind": "web", "title": "Cat videos",
+             "url": "https://noise.example/1", "origin": "", "outlet": "o",
+             "vertical": "", "date": "", "snippet": "unrelated", "fetched": False},
+            {"id": "W1", "trend_id": None, "kind": "web",
+             "title": "Semaglutide SPC upheld", "url": "https://law.example/2",
+             "origin": "", "outlet": "o", "vertical": "", "date": "",
+             "snippet": "court", "fetched": False},
+        ]
+
+    def test_off_topic_hit_is_dropped_before_it_is_read(self, monkeypatch):
+        fetched: list[str] = []
+        monkeypatch.setattr(cr, "brave_search", lambda q, n=6: self._mixed())
+        monkeypatch.setattr(cr, "fetch_web_page_status",
+                            lambda u: (fetched.append(u), ("t", "fetched"))[1])
+        ledger: list[dict] = []
+        cr.sweep_fixed("semaglutide", [], set(), [], ledger,
+                       patterns=("{t} SPC",), per_pattern=3,
+                       terms=["semaglutide"])
+        assert fetched == ["https://law.example/2"]
+        assert ledger[0]["off_topic_dropped"] == 1
+
+    def test_a_filter_must_not_turn_a_query_into_silence(self, monkeypatch):
+        """Rueckfallschwelle: traegt KEIN Treffer einen Themenbegriff, kommt
+        der bestplatzierte trotzdem herein — sonst verliert der Filter genau
+        die Fundstellen, deretwegen Runde 5 gebaut wurde."""
+        monkeypatch.setattr(cr, "brave_search",
+                            lambda q, n=6: self._mixed()[:1])
+        monkeypatch.setattr(cr, "fetch_web_page_status",
+                            lambda u: ("t", "fetched"))
+        sources: list[dict] = []
+        ledger: list[dict] = []
+        cr.sweep_fixed("semaglutide", sources, set(), [], ledger,
+                       patterns=("{t} SPC",), terms=["semaglutide"])
+        assert len(sources) == 1
+        assert ledger[0].get("floor_admitted") == 1
+
+    def test_a_register_page_is_never_filtered_out(self):
+        reg = {"title": "Decision", "snippet": "n/a",
+               "url": "https://register.epo.org/application?number=EP123"}
+        assert cr.web_relevant(reg, ["semaglutide"]) is True
+        assert cr.web_relevant({"title": "x", "snippet": "y",
+                                "url": "https://blog.example/x"},
+                               ["semaglutide"]) is False
+
+
+class TestSourceRank:
+    def test_registers_and_authorities_come_first(self):
+        assert cr.source_rank("https://www.ema.europa.eu/en/x") == 0
+        assert cr.source_rank("https://www.fda.gov/news/x") == 0
+        assert cr.source_rank("https://uitspraken.rechtspraak.nl/x") == 0
+        assert cr.source_rank("https://www.legifrance.gouv.fr/x") == 0
+        assert cr.source_rank("https://www.gov.uk/x") == 0
+
+    def test_a_company_newsroom_beats_secondary_press(self):
+        assert cr.source_rank("https://www.novonordisk.com/news/x",
+                              ["Novo Nordisk"]) == 1
+        assert cr.source_rank("https://www.reuters.com/x", ["Novo Nordisk"]) == 2
+
+    def test_ranking_is_stable_within_a_tier(self):
+        hits = [{"url": "https://a.example/1"}, {"url": "https://fda.gov/2"},
+                {"url": "https://b.example/3"}]
+        assert [h["url"] for h in cr.rank_hits(hits)] == [
+            "https://fda.gov/2", "https://a.example/1", "https://b.example/3"]
+
+
+class TestEntityHarvest:
+    def _src(self, title, snippet="", outlet="Reuters"):
+        return {"id": "T1", "kind": "article", "title": title,
+                "snippet": snippet, "outlet": outlet, "url": "https://x/"}
+
+    def test_actor_and_substance_are_found(self):
+        srcs = [
+            self._src("Novo Nordisk lifts semaglutide output",
+                      "Reuters reports on semaglutide supply"),
+            self._src("Novo Nordisk and Eli Lilly race on tirzepatide",
+                      "semaglutide rivalry"),
+            self._src("Eli Lilly wins tirzepatide label", "tirzepatide data"),
+        ]
+        ents, subs = cr.harvest_entities(srcs, "GLP-1 receptor agonist")
+        low = [e.lower() for e in ents]
+        assert "semaglutide" in low and "tirzepatide" in low
+        assert "novo nordisk" in low and "eli lilly" in low
+        assert subs[:2] == ["semaglutide", "tirzepatide"] or set(subs) >= {
+            "semaglutide", "tirzepatide"}
+
+    def test_title_case_filler_is_not_an_entity(self):
+        srcs = [self._src("Novo Nordisk Wins Court Battle Over Semaglutide"),
+                self._src("Novo Nordisk Wins Again In Court")]
+        ents, _ = cr.harvest_entities(srcs, "GLP-1")
+        low = [e.lower() for e in ents]
+        assert "novo nordisk" in low
+        assert not any("wins" in e for e in low)
+        assert not any("court battle" in e for e in low)
+
+    def test_the_outlet_is_never_the_entity(self):
+        srcs = [self._src("Something happened", outlet="Reuters"),
+                self._src("Something else happened", outlet="Reuters")]
+        ents, _ = cr.harvest_entities(srcs, "GLP-1")
+        assert not any("reuters" in e.lower() for e in ents)
+
+    def test_a_single_mention_is_not_yet_an_actor(self):
+        srcs = [self._src("Acme Holdings buys a plant")]
+        ents, _ = cr.harvest_entities(srcs, "GLP-1")
+        assert not any("acme" in e.lower() for e in ents)
+
+
+class TestSecondWave:
+    """Der Mechanismus, mit dem der Siegertext auf Metsera, Frankreich und den
+    NHS kam: nicht mehr vom Thema, sondern <Entitaet> <Ereignistyp>."""
+
+    def test_substance_wave_asks_the_spc_question_by_name(self, monkeypatch):
+        seen: list[str] = []
+        monkeypatch.setattr(cr, "brave_search",
+                            lambda q, n=6: (seen.append(q), [])[1])
+        cr.sweep_substance_legal("GLP-1 receptor agonist", ["semaglutide"],
+                                 [], set(), [], [], 6, ["glp-1"], [])
+        assert '"semaglutide" SPC supplementary protection certificate' in seen
+        assert "supplementary protection certificate semaglutide expiry" in seen
+        assert "semaglutide patent expiry Europe" in seen
+        assert "semaglutide court ruling generic" in seen
+
+    def test_entity_wave_pairs_the_actor_with_an_event_type(self, monkeypatch):
+        seen: list[str] = []
+        monkeypatch.setattr(cr, "brave_search",
+                            lambda q, n=6: (seen.append(q), [])[1])
+        cr.sweep_entity_market("GLP-1", ["Metsera"], [], set(), [], [], 6,
+                               ["glp-1"])
+        assert "Metsera acquisition deal agreement announcement" in seen
+        assert "Metsera reimbursement pricing decision" in seen
+        assert len(seen) == len(cr.ENTITY_MARKET_PATTERNS)
+
+    def test_the_second_wave_has_its_own_ledger_kind(self, monkeypatch):
+        monkeypatch.setattr(cr, "brave_search", lambda q, n=6: [])
+        ledger: list[dict] = []
+        cr.sweep_entity_market("GLP-1", ["Metsera"], [], set(), [], ledger, 6,
+                               ["glp-1"])
+        assert {e["kind"] for e in ledger} == {"entity"}
+
+    def test_without_entities_nothing_is_searched(self, monkeypatch):
+        monkeypatch.setattr(cr, "brave_search",
+                            lambda q, n=6: pytest.fail("keine Entitaet"))
+        assert cr.sweep_entity_market("t", [], [], set(), [], [], 6, []) == (0, "")
+        assert cr.sweep_substance_legal("t", [], [], set(), [], [], 6, [], []) == (0, "")
+
+
+class TestKeyPassages:
+    def test_the_paragraph_with_the_figure_survives_the_cut(self):
+        text = ("Lead paragraph about the case.\n\n"
+                + "Navigation boilerplate. " * 40 + "\n\n"
+                + "The SPC for semaglutide runs to March 2031.\n\n"
+                + "More boilerplate. " * 40)
+        out = cr.key_passages(text, ["semaglutide"], limit=300)
+        assert "March 2031" in out
+        assert "Lead paragraph" in out
+        assert len(out) <= 300
+
+    def test_short_pages_are_passed_through_unchanged(self):
+        assert cr.key_passages("short", ["x"], limit=100) == "short"
+
+    def test_nothing_matching_still_returns_text(self):
+        text = "a" * 500
+        assert cr.key_passages(text, ["zzz"], limit=100) == "a" * 100

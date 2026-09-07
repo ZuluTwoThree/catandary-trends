@@ -36,6 +36,7 @@ const KIND_LABEL: Record<keyof DossierProvenance["kinds"], string> = {
   web: "web",
   legal: "regulatory/IP",
   market: "market/reimbursement",
+  entity: "actor/event",
 };
 
 function fmtDate(ts: string | null): string {
@@ -103,6 +104,8 @@ const LEDGER_KIND_LABEL: Record<string, string> = {
   plan: "plan step",
   followup: "re-audit gap",
   legal: "regulatory/IP",
+  market: "market/reimbursement",
+  entity: "actor/event (2nd wave)",
 };
 
 function Ledger({ rows }: { rows: DossierLedgerRow[] }) {
@@ -111,18 +114,24 @@ function Ledger({ rows }: { rows: DossierLedgerRow[] }) {
   // the audit (2026-09-07) — counting them as "audited gaps" would overstate
   // what the run left open. Same rule as pipeline/dossier_check.py.
   const gaps = rows.filter(
-    (r) => r.kind !== "plan" && r.kind !== "legal" && r.kind !== "market",
+    (r) =>
+      r.kind !== "plan" &&
+      r.kind !== "legal" &&
+      r.kind !== "market" &&
+      r.kind !== "entity",
   ).length;
   const plans = rows.filter((r) => r.kind === "plan").length;
   const legal = rows.filter((r) => r.kind === "legal").length;
   const market = rows.filter((r) => r.kind === "market").length;
+  const entity = rows.filter((r) => r.kind === "entity").length;
   return (
     <details className="mt-10 border border-border">
       <summary className="cursor-pointer px-5 py-3 font-mono text-[11px] uppercase tracking-[0.16em] text-muted hover:text-paper">
         Coverage ledger · {gaps} audited gap(s)
         {plans > 0 ? ` + ${plans} plan step(s)` : ""}
         {legal > 0 ? ` + ${legal} regulatory/IP pattern(s)` : ""}
-        {market > 0 ? ` + ${market} market/reimbursement pattern(s)` : ""} —
+        {market > 0 ? ` + ${market} market/reimbursement pattern(s)` : ""}
+        {entity > 0 ? ` + ${entity} actor/event query(s)` : ""} —
         where the run looked
       </summary>
       <div className="overflow-x-auto border-t border-border">
@@ -147,6 +156,16 @@ function Ledger({ rows }: { rows: DossierLedgerRow[] }) {
                   {r.offTopicDropped > 0 && (
                     <span className="ml-2 font-mono text-[11px] text-muted">
                       · {r.offTopicDropped} off-topic hit(s) dropped
+                    </span>
+                  )}
+                  {r.budgetDropped > 0 && (
+                    <span className="ml-2 font-mono text-[11px] text-muted">
+                      · {r.budgetDropped} usable hit(s) not admitted (budget)
+                    </span>
+                  )}
+                  {r.unreadable.length > 0 && (
+                    <span className="ml-2 font-mono text-[11px] text-muted">
+                      · unreadable: {r.unreadable.join(", ")}
                     </span>
                   )}
                   {r.webQueries.length > 0 && (
