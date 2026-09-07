@@ -30,17 +30,41 @@ from pipeline.dossier_check import check_result
 from scripts import corpus_research as cr
 
 
+# Ein Musterbericht, der ALLE mechanischen Pflichten erfuellt. Seit R8-1
+# gehoeren dazu der Katalysator-Kalender (>=5 datierte, belegte Zeilen), eine
+# datierte und belegte Aussage je Kette-Ebene und die Untergrenze des
+# Laengenbands — `filler` steht deshalb per Default auf BODY_WORDS_MIN.
+_CHAIN_SENTENCES = (
+    "A phase 3 trial read out in March 2026 [[T1]].",
+    "The patent family expires in 2031, and the SPC with it [[T1]].",
+    "Series B funding of one investor closed in June 2026 [[T1]].",
+    "Revenue from the launch grew through Q1 2026 [[T1]].",
+)
+
+_CALENDAR = ["| Date | Event | Source | Why it matters |",
+             "|---|---|---|---|"] + [
+    f"| Q{i} 2099 | Decision {i} | [[T1]] | It moves the market. |"
+    for i in range(1, 6)]
+
+
 def _report(summary_words: int = 40, options: int = 2,
-            drop_field: str | None = None, filler: int = 0,
-            cite: bool = True) -> str:
+            drop_field: str | None = None, filler: int = 2200,
+            cite: bool = True, calendar: bool = True,
+            chain: bool = True) -> str:
     """`cite=False` baut Optionen ohne Beleg — seit R7-1 ein Befund: eine
-    Option darf ohne Messgroesse auskommen, aber nicht ohne beides."""
+    Option darf ohne Messgroesse auskommen, aber nicht ohne beides.
+    `calendar=False` / `chain=False` erzeugen die R8-1-Maengel."""
     body = ["# Dossier", "", "## Decision summary", "",
             " ".join(["word"] * summary_words) + " [[T1]].", "",
-            "## What is moving", "", "Movement." + " filler" * filler, "",
-            "## Regulatory and IP status", "", "Nothing found.", "",
-            "## What the evidence does not support", "", "Nothing.", "",
-            "## Options for a mid-sized European company", ""]
+            "## What is moving", ""]
+    if chain:
+        body += [" ".join(_CHAIN_SENTENCES), ""]
+    body += ["Movement." + " filler" * filler, "",
+             "## Regulatory and IP status", "", "Nothing found.", "",
+             "## What happens next", ""]
+    body += (_CALENDAR if calendar else ["Nothing dated."]) + [""]
+    body += ["## What the evidence does not support", "", "Nothing.", "",
+             "## Options for a mid-sized European company", ""]
     for i in range(1, options + 1):
         body += [f"### Option {i} — Something", ""]
         for label in ds.OPTION_LABELS["en"]:
@@ -344,9 +368,10 @@ class _Chat:
     def __call__(self, model, prompt, system=None, temperature=0.0, **kw):
         self.calls.append(prompt)
         if "REVISION" in prompt:
-            # lang genug, damit der Kurz-Guard (>= 300 Woerter) den Neuwurf
-            # nicht als Abbruch verwirft
-            return _report(filler=400)
+            # lang genug fuer den Kurz-Guard (>= 300 Woerter) UND fuer die
+            # Untergrenze des Laengenbands (R8-1) — der Default von _report
+            # liefert beides.
+            return _report()
         # Erster Wurf: Pflichtabschnitt fehlt UND eine Zahl, die die zitierte
         # Seite nicht hergibt.
         return (_report().replace("## Regulatory and IP status", "## Background")
@@ -468,13 +493,21 @@ class TestPostRunFixes:
         assert stripped == 0
         assert "  \n" in body          # Markdown-Zeilenumbruch bleibt
 
-    def test_short_report_is_advisory_not_a_rewrite(self):
-        short = _report()
-        assert ds.structure_findings(short) == []      # kein Neuwurf-Grund
+    def test_short_report_is_a_rewrite_reason_again(self):
+        """R8-1 dreht die Runde-7-Regel um. Begruendung im Lauf B7: der
+        Fliesstext kam auf 1.623 Woerter (577 unter dem Band), und beide Jurys
+        vom 2026-09-07 zogen genau dafuer Punkte ab (Abdeckung 6:9). Der
+        Befund muss den Betrag UND das erlaubte Fuellmaterial nennen."""
+        short = _report(filler=0)
+        found = ds.structure_findings(short)
+        assert any("Untergrenze" in f and "belegten Fakten" in f
+                   for f in found)
+        assert any(str(ds.BODY_WORDS_MIN) in f for f in found)
         adv = ds.length_advisory(short)
         assert adv and str(ds.BODY_WORDS_MIN) in adv[0]
-        long_enough = _report(filler=ds.BODY_WORDS_MIN)
+        long_enough = _report()
         assert ds.length_advisory(long_enough) == []
+        assert ds.structure_findings(long_enough) == []
 
     def test_advisory_reaches_the_check_without_failing_it(self):
         res = {"report": "x [a](https://a.de/b)", "sources": [ARTICLE],
@@ -1600,8 +1633,11 @@ class TestCheckSummaryStaysInTheDossier:
         assert "audit annex" in out
 
     def test_it_is_short_enough_to_replace_a_protocol(self):
+        # 145 statt 130 seit R8-1: der Nachweis fuehrt jetzt auch die
+        # Abdeckung (Kettenebenen, datierte Termine) — eine Zeile, die genau
+        # die zwei Kriterien belegt, an denen wir bei beiden Jurys verloren.
         out = cr.check_summary(self.LEDGER, self.SOURCES, ["T1"], self.ST, "en")
-        assert len(out.split()) < 130
+        assert len(out.split()) < 145
 
     def test_it_never_counts_as_body(self):
         doc = "## Decision summary\n\nWord.\n" + cr.check_summary(
@@ -1641,3 +1677,91 @@ class TestB6Followups:
         broken, dropped = ds.drop_unverified(doc, [{"sentence": line}])
         assert dropped == 1
         assert any("Time horizon" in f for f in ds.structure_findings(broken))
+
+
+# ===========================================================================
+# R8-1 — Abdeckung und zeitliche Einordnung (jury_11.md/jury_12.md 2026-09-07)
+# ===========================================================================
+# Beide Gutachten zogen uns an genau zwei Kriterien Punkte ab, und ihre Summe
+# ist der ganze Rueckstand: "Abdeckung Wissenschaft/Patente/Foerderung/Markt
+# 6:9" und "Zeitliche Einordnung 6:9". Der Gegner gewann sie mit einem
+# datierten Katalysator-Kalender ("CagriSema's US obesity decision (Q4 2026);
+# Lilly's retatrutide BLA (Q1 2027)"); unser Text war auf 1.623 Woerter
+# geschrumpft und wertete die Foerderebene nur in der Anhangstabelle aus.
+
+class TestCatalystCalendar:
+
+    def test_the_section_is_mandatory(self):
+        doc = _report().replace("## What happens next", "## Timing")
+        assert any("What happens next" in f
+                   for f in ds.structure_findings(doc))
+
+    def test_five_dated_and_cited_rows_pass(self):
+        assert ds.calendar_findings(_report()) == []
+        assert ds.calendar_rows(_report())["ok"] == ds.MIN_CALENDAR_ROWS
+
+    def test_four_rows_are_not_enough(self):
+        doc = _report().replace(
+            "| Q5 2099 | Decision 5 | [[T1]] | It moves the market. |\n", "")
+        found = ds.calendar_findings(doc)
+        assert found and "nur 4 von mindestens 5" in found[0]
+
+    def test_a_row_without_a_date_does_not_count(self):
+        doc = _report().replace("| Q1 2099 |", "| soon |")
+        c = ds.calendar_rows(doc)
+        assert c["ok"] == 4 and c["no_date"] == 1
+        assert any("ohne Datum" in f for f in ds.calendar_findings(doc))
+
+    def test_a_row_without_a_citation_does_not_count(self):
+        doc = _report().replace(
+            "| Q2 2099 | Decision 2 | [[T1]] |",
+            "| Q2 2099 | Decision 2 | company statement |")
+        c = ds.calendar_rows(doc)
+        assert c["ok"] == 4 and c["no_cite"] == 1
+        assert any("ohne Beleg" in f for f in ds.calendar_findings(doc))
+
+    def test_past_events_do_not_fill_a_forward_calendar(self):
+        """Ein Kalender kommender Ereignisse: was schon war, zaehlt nicht."""
+        doc = _report().replace("2099", "2019")
+        assert ds.calendar_rows(doc, "en", year_floor=2026)["ok"] == 0
+        assert ds.calendar_rows(doc, "en")["ok"] == ds.MIN_CALENDAR_ROWS
+
+    def test_the_prompt_and_the_check_name_the_same_section(self):
+        """Eine Pflicht, die nur die Pruefung kennt, erzeugt nur Neuwuerfe."""
+        assert "## What happens next" in cr._OUTLINE_EN
+        assert "| Date | Event | Source | Why it matters |" in cr._OUTLINE_EN
+        assert "## Was als Nächstes ansteht" in cr._OUTLINE_DE
+        assert "sieben" in cr._OUTLINE_DE and "seven" in cr._OUTLINE_EN
+
+
+class TestChainCoverage:
+
+    def test_all_four_levels_covered(self):
+        assert ds.chain_findings(_report()) == []
+        assert all(ds.chain_coverage(_report()).values())
+
+    def test_a_missing_level_is_named(self):
+        doc = _report(chain=False)
+        found = ds.chain_findings(doc)
+        assert found
+        for name in ("Wissenschaft", "Patente", "Foerderung", "Markt"):
+            assert name in found[0]
+
+    def test_the_level_needs_a_date_and_a_citation(self):
+        """jury_11: 'Foerderung nur ueber die eigene Tabelle — im Fliesstext
+        nicht ausgewertet.' Ein Wort allein ist keine Abdeckung."""
+        doc = _report(chain=False).replace(
+            "Movement.", "Funding happened. ")
+        assert ds.chain_coverage(doc)["funding"] is False
+        doc2 = _report(chain=False).replace(
+            "Movement.", "Series B funding closed in June 2026 [[T1]]. ")
+        assert ds.chain_coverage(doc2)["funding"] is True
+
+    def test_the_appendix_does_not_count_as_coverage(self):
+        """body_text schneidet die codegenerierten Anhaenge ab — genau der
+        Fall, den jury_11 monierte."""
+        doc = _report(chain=False) + (
+            "\n## Sources\n\n1. [A](https://a.de/b)\n"
+            "\n## Measured development (auto-generated)\n\n"
+            "Funding in 2026 rose [[T1]].\n")
+        assert ds.chain_coverage(doc)["funding"] is False

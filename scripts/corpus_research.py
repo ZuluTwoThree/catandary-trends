@@ -333,7 +333,7 @@ REPORT_SYSTEM_IDS = _REPORT_SYSTEM_TMPL.format(cite_rule=_CITE_RULE_ID)
 # deterministisch (pipeline/dossier_structure.py), nicht erhofft.
 # --------------------------------------------------------------------------
 
-_OUTLINE_EN = """MANDATORY OUTLINE. Write exactly these six sections, in this
+_OUTLINE_EN = """MANDATORY OUTLINE. Write exactly these seven sections, in this
 order, with exactly these top-level headings and no others:
 
 ## Decision summary
@@ -359,6 +359,19 @@ order, with exactly these top-level headings and no others:
   differs from the rest of the world. Where the sweep found nothing usable on
   one of these points, say so in one sentence instead of leaving it out.
   Never infer a legal status that the evidence does not state.
+
+## What happens next
+  A table of DATED, CITED events that are still ahead: regulatory decisions,
+  read-outs of running trials, patent and SPC expiries, reimbursement
+  decisions, quarterly results. Exactly these four columns, in this order:
+
+  | Date | Event | Source | Why it matters |
+
+  At least five rows. Every row needs a date the evidence actually states — a
+  day, a month, a quarter or a half-year, always with its year — and its
+  citation in the Source column. Never estimate a date and never carry an
+  event whose timing the evidence does not give: that one belongs in "Open
+  questions and limits" instead. Sort earliest first.
 
 ## What the evidence does not support
   Named claims in circulation that this evidence refutes or fails to support.
@@ -393,11 +406,19 @@ order, with exactly these top-level headings and no others:
   commercial questions this dossier cannot answer (investment size, payback
   period, volume at risk). Name them as open; do not estimate them.
 
-LENGTH: sections 1-6 together must run between 2200 and 2800 words. The
-appendices generated for you do not count. This is a decision paper for a
-board, not a briefing for a technical team — cut background before evidence."""
+COVERAGE: the innovation chain has four levels — science, patents, funding,
+market. Each level needs at least one statement in the running text that
+carries BOTH a date and a citation in the same sentence. A level for which the
+evidence holds nothing is named as a gap in "Open questions and limits"; it is
+never simply left out.
 
-_OUTLINE_DE = """VERBINDLICHE GLIEDERUNG. Schreibe genau diese sechs
+LENGTH: sections 1-7 together must run between 2200 and 2800 words. The
+appendices generated for you do not count. Too short is a defect, not a
+virtue — but fill only with cited facts (dates, named actors, figures), never
+with prose, restatement or summary. This is a decision paper for a board, not
+a briefing for a technical team — cut background before evidence."""
+
+_OUTLINE_DE = """VERBINDLICHE GLIEDERUNG. Schreibe genau diese sieben
 Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
 
 ## Entscheidungs-Kurzfassung
@@ -424,6 +445,19 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
   abweicht. Wo das Suchprotokoll zu einem Punkt nichts Verwertbares ergab,
   steht das als ein Satz hier — nicht weglassen. Nie einen Rechtsstatus
   erschließen, den die Belege nicht aussprechen.
+
+## Was als Nächstes ansteht
+  Eine Tabelle DATIERTER, BELEGTER Ereignisse, die noch bevorstehen:
+  Zulassungsentscheidungen, Ergebnisse laufender Studien, Patent-/SPC-Fristen,
+  Erstattungsentscheidungen, Quartalszahlen. Genau diese vier Spalten:
+
+  | Datum | Ereignis | Quelle | Bedeutung |
+
+  Mindestens fünf Zeilen. Jede Zeile braucht ein Datum, das die Belege
+  tatsächlich nennen — Tag, Monat, Quartal oder Halbjahr, immer mit Jahr — und
+  das Zitat in der Spalte Quelle. Nie ein Datum schätzen; ein Ereignis ohne
+  belegten Termin gehört unter "Offene Fragen und Grenzen". Früheste Zeile
+  zuerst.
 
 ## Was die Belege nicht hergeben
   Benannte kursierende Behauptungen, die diese Belege widerlegen oder nicht
@@ -453,7 +487,18 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
   Was offen blieb, charakterisiert aus dem Coverage-Ledger, plus die
   kaufmännischen Fragen, die dieses Dossier nicht beantworten kann
   (Investitionshöhe, Amortisation, gefährdetes Volumen). Als offen benennen,
-  nicht schätzen."""
+  nicht schätzen.
+
+ABDECKUNG: Die Innovationskette hat vier Ebenen — Wissenschaft, Patente,
+Förderung, Markt. Zu jeder Ebene steht im Fließtext mindestens eine Aussage,
+die Datum UND Zitat im selben Satz trägt. Eine Ebene, zu der die Belege nichts
+hergeben, wird unter "Offene Fragen und Grenzen" als Lücke benannt — nie
+einfach weggelassen.
+
+LÄNGE: Die Abschnitte 1-7 zusammen liegen zwischen 2200 und 2800 Wörtern. Die
+für dich erzeugten Anhänge zählen nicht mit. Zu kurz ist ein Mangel — aber
+gefüllt wird ausschließlich mit belegten Fakten (Datum, benannter Akteur,
+Zahl), nie mit Prosa, Wiederholung oder Zusammenfassung."""
 
 
 def report_system(measure: bool, lang: str = "en") -> str:
@@ -2120,6 +2165,11 @@ def check_summary(ledger: list[dict], sources: list[dict], cited: list[dict],
              f"{len(st.get('cite_findings') or [])} vor dem Neuwurf nicht "
              f"belegt, {st.get('dropped_sentences', 0)} Satz/Sätze danach "
              f"gestrichen.",
+             f"- **Abdeckung:** "
+             f"{sum(1 for v in (st.get('chain') or {}).values() if v)}/4 "
+             f"Kettenebenen (Wissenschaft, Patente, Förderung, Markt) datiert "
+             f"und belegt; "
+             f"{(st.get('calendar') or {}).get('ok', 0)} datierte Termine.",
              "- Das vollständige Suchprotokoll (jede Anfrage, jeder Abruf, "
              "jeder Budget-Abbruch) liegt im Prüfanhang dieses Laufs.", ""]
     else:
@@ -2140,6 +2190,11 @@ def check_summary(ledger: list[dict], sources: list[dict], cited: list[dict],
              f"{len(st.get('cite_findings') or [])} unsupported before the "
              f"rewrite, {st.get('dropped_sentences', 0)} sentence(s) dropped "
              f"afterwards.",
+             f"- **Coverage:** "
+             f"{sum(1 for v in (st.get('chain') or {}).values() if v)}/4 "
+             f"chain levels (science, patents, funding, market) dated and "
+             f"cited in the text; "
+             f"{(st.get('calendar') or {}).get('ok', 0)} dated catalysts.",
              "- The full search protocol (every query, every fetch, every "
              "budget stop) is in this run's audit annex.", ""]
     return "\n".join(L)
@@ -2803,6 +2858,10 @@ def run(question: str, max_steps: int, max_sources: int,
     blocked_brief = dossier_structure.blocked_brief(
         (quant or {}).get("summary"), (corpus_stats or {}).get("summary"))
     sector_fields = dossier_structure.sectors_from_question(question)
+    # R8-1: der Katalysator-Kalender zaehlt nur Termine, die noch bevorstehen.
+    # Untergrenze ist das Jahr des Laufs, nicht das Datum — ein Quartal des
+    # laufenden Jahres bleibt eine gueltige Zeile.
+    year_floor = datetime.now(timezone.utc).year
     sys_prompt = report_system(measure, lang)
     if lang == "de":
         # An den ANFANG des System-Prompts: ans Ende gehängt wurde die Anweisung
@@ -2873,7 +2932,9 @@ def run(question: str, max_steps: int, max_sources: int,
                  "sourceless_before": 0, "sourceless_after": 0,
                  "distorted_before": 0, "distorted_after": 0,
                  "misattributed_before": 0, "misattributed_after": 0,
-                 "measure_before": 0, "measure_after": 0}
+                 "measure_before": 0, "measure_after": 0,
+                 "calendar": {"rows": 0, "ok": 0, "no_date": 0, "no_cite": 0},
+                 "chain": {}}
     # Der eigene Messanhang ist der EINZIGE Beleg, den eine Zahl ohne Zitat im
     # Satz haben darf: er steht codegeneriert im selben Dokument.
     measured_text = "\n".join(
@@ -2883,7 +2944,8 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["words_before"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
         findings = dossier_structure.structure_findings(
-            report, lang, measured=measured_keys, sectors=sector_fields)
+            report, lang, measured=measured_keys, sectors=sector_fields,
+            year_floor=year_floor)
         cites = dossier_structure.verify_cited_figures(report, citable_sources)
         # Befund 2 (falsche Seite) und Befund 3 (Zahl ohne Beleg) der Jurys vom
         # 2026-09-07 laufen durch denselben Kanal wie die Zahlenpruefung:
@@ -2999,12 +3061,16 @@ def run(question: str, max_steps: int, max_sources: int,
         # themenfremd belegten Zeile der Option 2 ihren Zeithorizont — und das
         # stand in keinem Befund, weil vorher geprueft wurde.
         structure["findings_after"] = dossier_structure.structure_findings(
-            report, lang, measured=measured_keys, sectors=sector_fields)
+            report, lang, measured=measured_keys, sectors=sector_fields,
+            year_floor=year_floor)
         structure["words_after"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
         structure.update(dossier_structure.option_measure_stats(
             report, lang, measured_keys, sector_fields))
         structure["advisory"] = dossier_structure.length_advisory(report, lang)
+        structure["calendar"] = dossier_structure.calendar_rows(
+            report, lang, year_floor)
+        structure["chain"] = dossier_structure.chain_coverage(report, lang)
         for a in structure["advisory"]:
             logger.info("structure (advisory): %s", a)
         report_raw = report

@@ -113,6 +113,8 @@ SECTIONS: dict[str, list[tuple[str, str, str]]] = {
         ("moving", "What is moving", r"what is moving|what is actually moving"),
         ("regip", "Regulatory and IP status",
          r"(regulator\w*|legal)[^\n]{0,20}(and|/|&)[^\n]{0,20}ip|ip[^\n]{0,20}(and|/|&)[^\n]{0,20}regulator"),
+        ("next", "What happens next",
+         r"what happens next|what comes next|catalyst calendar|dated catalysts"),
         ("unsupported", "What the evidence does not support",
          r"evidence does not support|does not support"),
         ("options", "Options for a mid-sized European company",
@@ -123,6 +125,8 @@ SECTIONS: dict[str, list[tuple[str, str, str]]] = {
         ("decision", "Entscheidungs-Kurzfassung", r"entscheidungs"),
         ("moving", "Was sich bewegt", r"was sich bewegt"),
         ("regip", "Recht und Schutzrechte", r"recht und schutzrechte|rechts?[- ]"),
+        ("next", "Was als Nächstes ansteht",
+         r"was als n(ä|ae)chstes|terminkalender|anstehende termine"),
         ("unsupported", "Was die Belege nicht hergeben",
          r"nicht hergeben|nicht belegt|nicht tragen"),
         ("options", "Optionen für ein mittelständisches europäisches Unternehmen",
@@ -777,23 +781,221 @@ def uncovered_sectors(text: str, sectors: list[str]) -> list[str]:
                        for kw in SECTOR_LEXICON.get(s, ()))]
 
 
-def length_advisory(report_md: str, lang: str = "en") -> list[str]:
-    """Untergrenze — HINWEIS, kein Neuwurf-Grund.
+# --------------------------------------------------------------------------
+# Katalysator-Kalender und Abdeckung der Innovationskette (R8-1, jury_11/12)
+# --------------------------------------------------------------------------
+# Beide Jurys vom 2026-09-07 verloren wir an derselben Stelle: „Abdeckung 6:9"
+# und „zeitliche Einordnung 6:9" — zusammen genau der Rueckstand. Der Gegner
+# hatte einen datierten Katalysator-Kalender („CagriSema's US obesity decision
+# (Q4 2026); Lilly's retatrutide BLA (Q1 2027)"), wir nur Zeithorizonte je
+# Option. Und jury_11 zaehlte nach: unsere eigenen Messwerte „tauchen im
+# Fliesstext kein einziges Mal auf", die Foerderebene stand nur in der Tabelle.
+#
+# Also drei mechanische Pflichten, alle im Neuwurf-Kanal:
+#   (a) ein Pflichtabschnitt mit >= MIN_CALENDAR_ROWS datierten UND belegten
+#       Zeilen,
+#   (b) je Kette-Ebene (Wissenschaft/Patente/Foerderung/Markt) mindestens eine
+#       datierte, belegte Aussage IM FLIESSTEXT,
+#   (c) die Untergrenze des Laengenbands ist wieder ein Befund, kein Hinweis.
 
-    Ein zu langer Bericht ist ein Formfehler, den ein zweiter Wurf behebt; ein
-    zu kurzer ist meist duennes Material, und ein Neuwurf wuerde das Modell nur
-    zum Auffuellen einladen. Der Owner sieht die Zahl im Pruefbefund."""
+MIN_CALENDAR_ROWS = 5
+
+_MONTHS = (r"jan(?:uary|uar)?|feb(?:ruary|ruar)?|mar(?:ch)?|m(?:ä|ae)rz|apr(?:il)?"
+           r"|may|mai|jun[ei]?|jul[yi]?|aug(?:ust)?|sep(?:t(?:ember)?)?"
+           r"|o[ck]t(?:ober)?|nov(?:ember)?|de[czk](?:ember)?")
+
+# Ein Datum ist alles, woraus ein Leser einen Termin ablesen kann: Tag, Monat,
+# Quartal, Halbjahr — immer MIT Jahr. Ein nacktes Jahr zaehlt auch: „SPC laeuft
+# 2031 ab" ist eine terminierte Aussage.
+_DATE_RE = re.compile(
+    r"(?<![\w-])(?:"
+    r"\d{4}-\d{2}-\d{2}"
+    r"|\d{1,2}[./]\d{1,2}[./]((?:19|20)\d{2})"
+    r"|[QH][1-4]\s*[-/ ]?\s*((?:19|20)\d{2})"
+    r"|((?:19|20)\d{2})\s*[-/ ]?\s*[QH][1-4]"
+    rf"|\d{{1,2}}\.?\s+(?:{_MONTHS})\.?,?\s+((?:19|20)\d{{2}})"
+    rf"|(?:{_MONTHS})\.?\s+\d{{1,2}},?\s+((?:19|20)\d{{2}})"
+    rf"|(?:{_MONTHS})\.?\s+((?:19|20)\d{{2}})"
+    r"|(?:early|mid|late|first half|second half|anfang|mitte|ende)\s+"
+    r"((?:19|20)\d{2})"
+    r"|((?:19|20)\d{2})"
+    r")", re.IGNORECASE)
+
+
+def _date_years(text: str) -> list[int]:
+    """Die Jahre aller Datumsangaben eines Textstuecks."""
+    out = []
+    for m in _DATE_RE.finditer(text or ""):
+        hit = m.group(0)
+        year = next((g for g in m.groups() if g), None)
+        if year is None:
+            y = re.search(r"(?:19|20)\d{2}", hit)
+            year = y.group(0) if y else None
+        if year:
+            out.append(int(year))
+    return out
+
+
+def has_date(text: str, year_floor: int | None = None) -> bool:
+    years = _date_years(text)
+    if year_floor is None:
+        return bool(years)
+    return any(y >= year_floor for y in years)
+
+
+def table_rows(section_text: str) -> list[list[str]]:
+    """Die Datenzeilen einer Markdown-Tabelle — ohne Kopf und Trennzeile."""
+    rows: list[list[str]] = []
+    for line in (section_text or "").splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 3:
+            continue
+        joined = " ".join(cells)
+        if re.fullmatch(r"[\s|:_-]*", joined):        # Trennzeile
+            continue
+        rows.append(cells)
+    return rows
+
+
+def calendar_rows(report_md: str, lang: str = "en",
+                  year_floor: int | None = None) -> dict:
+    """Bilanz des Katalysator-Kalenders: wie viele Zeilen Datum UND Beleg
+    tragen, und woran die uebrigen scheitern."""
+    sections = split_sections(body_text(report_md), _lang(lang))
+    rows = table_rows(sections.get("next", ""))
+    ok = no_date = no_cite = 0
+    for cells in rows:
+        line = " ".join(cells)
+        # Der Kopf ("Date | Event | Source | ...") traegt weder Datum noch Beleg
+        # und wird nicht als Mangel gezaehlt.
+        dated, cited = has_date(line, year_floor), _has_citation(line)
+        if dated and cited:
+            ok += 1
+        elif not dated and not cited:
+            continue
+        elif not dated:
+            no_date += 1
+        else:
+            no_cite += 1
+    return {"rows": len(rows), "ok": ok, "no_date": no_date, "no_cite": no_cite}
+
+
+def calendar_findings(report_md: str, lang: str = "en",
+                      year_floor: int | None = None) -> list[str]:
+    """Zu wenige datierte, belegte Zeilen im Katalysator-Kalender = Neuwurf."""
+    sections = split_sections(body_text(report_md), _lang(lang))
+    if "next" not in sections:
+        return []                       # fehlender Abschnitt: eigener Befund
+    c = calendar_rows(report_md, lang, year_floor)
+    if c["ok"] >= MIN_CALENDAR_ROWS:
+        return []
+    detail = []
+    if c["no_date"]:
+        detail.append(f"{c['no_date']} Zeile(n) ohne Datum")
+    if c["no_cite"]:
+        detail.append(f"{c['no_cite']} Zeile(n) ohne Beleg")
+    heading = dict((k, h) for k, h, _p in SECTIONS[_lang(lang)])["next"]
+    return [f"'{heading}': nur {c['ok']} von mindestens {MIN_CALENDAR_ROWS} "
+            f"Tabellenzeilen tragen Datum UND Beleg"
+            + (f" ({', '.join(detail)})" if detail else "")
+            + f". Jede Zeile braucht ein Datum (Tag, Monat, Quartal oder "
+              f"Halbjahr mit Jahr) und ein Zitat in der Spalte 'Source'. "
+              f"Nur Ereignisse aufnehmen, deren Termin in den Belegen steht — "
+              f"nichts schaetzen."]
+
+
+# --------------------------------------------------------------------------
+# Abdeckung je Ebene der Innovationskette
+# --------------------------------------------------------------------------
+# Die Kette ist Wissenschaft -> Patente -> Foerderung -> Markt. jury_11:
+# „Foerderung nur ueber die eigene Tabelle — im Fliesstext nicht ausgewertet",
+# „Wissenschaft am duennsten". Jede Ebene braucht mindestens einen Satz, der
+# datiert UND belegt ist; sonst benennt der Neuwurf die fehlende Ebene.
+
+CHAIN_LEVELS: dict[str, tuple[str, ...]] = {
+    "science": ("study", "studies", "trial", "trials", "phase 1", "phase 2",
+                "phase 3", "phase i", "phase ii", "phase iii", "read-out",
+                "readout", "peer-review*", "journal", "preprint", "clinical",
+                "endpoint", "cohort", "publication", "published in",
+                "studie*", "klinisch*", "fachzeitschrift"),
+    "patents": ("patent", "patents", "spc", "supplementary protection",
+                "filing", "filings", "intellectual property", "citation graph",
+                "cpc", "patentfamilie*", "schutzzertifikat", "schutzrecht*"),
+    "funding": ("funding", "funded", "raised", "financing", "venture",
+                "investor", "investors", "grant", "grants", "acquisition",
+                "acquired", "acquire", "merger", "licensing", "licence deal",
+                "license deal", "milestone payment", "ipo", "series a",
+                "series b", "series c", "finanzierung*", "uebernahme*",
+                "übernahme*", "foerder*", "förder*"),
+    "market": ("revenue", "revenues", "sales", "market", "markets", "pricing",
+               "price", "market share", "launch", "launched", "prescriptions",
+               "reimbursement", "demand", "umsatz*", "markt*", "erstattung*"),
+}
+
+CHAIN_LABELS = {
+    "en": {"science": "science", "patents": "patents", "funding": "funding",
+           "market": "market"},
+    "de": {"science": "Wissenschaft", "patents": "Patente",
+           "funding": "Förderung", "market": "Markt"},
+}
+
+
+def chain_coverage(report_md: str, lang: str = "en") -> dict:
+    """Je Kette-Ebene: gibt es im Fliesstext einen datierten, belegten Satz?"""
+    out = {k: False for k in CHAIN_LEVELS}
+    for raw in split_claims(body_text(report_md)):
+        sentence = raw.strip()
+        if not sentence or sentence.startswith("#"):
+            continue
+        if not _has_citation(sentence) or not has_date(prose(sentence)):
+            continue
+        claim = prose(sentence)
+        for level, terms in CHAIN_LEVELS.items():
+            if out[level]:
+                continue
+            if any(_term_re(t).search(claim) for t in terms):
+                out[level] = True
+    return out
+
+
+def chain_findings(report_md: str, lang: str = "en") -> list[str]:
+    L = _lang(lang)
+    cov = chain_coverage(report_md, lang)
+    missing = [k for k, v in cov.items() if not v]
+    if not missing:
+        return []
+    names = ", ".join(CHAIN_LABELS[L].get(k, k) for k in missing)
+    return [f"Innovationskette nicht abgedeckt — keine datierte UND belegte "
+            f"Aussage im Fliesstext zu: {names}. Jede der vier Ebenen "
+            f"(Wissenschaft, Patente, Foerderung, Markt) braucht mindestens "
+            f"einen Satz mit Datum und Zitat im selben Satz; fehlt das "
+            f"Material, gehoert die Luecke ausdruecklich in 'Open questions "
+            f"and limits'."]
+
+
+def length_advisory(report_md: str, lang: str = "en") -> list[str]:
+    """Die Laengenzahl fuer das Protokoll — der Befund selbst steht seit R8-1
+    in `structure_findings`.
+
+    Runde 7 behandelte „zu kurz" als blossen Hinweis, weil ein Neuwurf zum
+    Auffuellen einlaedt. Der B7-Lauf kam damit auf 1.623 Woerter — 577 unter
+    dem Band — und verlor bei beiden Jurys genau dort (Abdeckung 6:9). Die
+    Untergrenze ist deshalb wieder ein Neuwurf-Grund; der Auftrag dazu lautet
+    ausdruecklich „mit belegten Fakten fuellen, nicht mit Prosa"."""
     words = count_words(body_text(report_md))
     if words and words < BODY_WORDS_MIN:
         return [f"Fliesstext {words} Woerter — unter dem Zielband "
-                f"{BODY_WORDS_MIN}-{BODY_WORDS_MAX} (kein Neuwurf: zu kurz "
-                f"heisst in der Regel duennes Material, nicht schlechte Form)."]
+                f"{BODY_WORDS_MIN}-{BODY_WORDS_MAX}."]
     return []
 
 
 def structure_findings(report_md: str, lang: str = "en",
                        measured: list[str] | None = None,
-                       sectors: list[str] | None = None) -> list[str]:
+                       sectors: list[str] | None = None,
+                       year_floor: int | None = None) -> list[str]:
     """Was am fertigen Bericht mechanisch nicht stimmt. Leere Liste = sauber.
 
     `measured` = die gemessenen Groessen (measured_needles): jede Option muss
@@ -806,6 +1008,17 @@ def structure_findings(report_md: str, lang: str = "en",
         return ["Bericht ist leer."]
     findings: list[str] = []
     words = count_words(body)
+    if 0 < words < BODY_WORDS_MIN:
+        # R8-1: wieder ein Neuwurf-Grund. Der Befund sagt den Betrag UND das
+        # Material — sonst fuellt das Modell mit Prosa auf, und genau die
+        # kostete uns in jury_11 die Spezifitaet.
+        findings.append(
+            f"Fliesstext {words} Woerter — Untergrenze {BODY_WORDS_MIN}: "
+            f"mindestens {BODY_WORDS_MIN - words} Woerter ERGAENZEN, und zwar "
+            f"ausschliesslich mit belegten Fakten aus dem Katalog (Datum, "
+            f"benannter Akteur, Zahl — jeweils mit Zitat im selben Satz). "
+            f"Keine Prosa, keine Wiederholung, keine Zusammenfassung des "
+            f"bereits Gesagten, keine Zahl ohne Beleg.")
     if words > BODY_WORDS_MAX:
         # Die Zahl, die zu streichen ist, gehoert in den Befund: der B6-Neuwurf
         # kuerzte von 3.091 auf 2.901 und blieb damit 101 Woerter darueber —
@@ -856,6 +1069,8 @@ def structure_findings(report_md: str, lang: str = "en",
                 f"Optionsabschnitt deckt '{name}' nicht ab — die Frage nennt "
                 f"dieses Feld ausdruecklich; mindestens eine Option muss es "
                 f"adressieren.")
+    findings += calendar_findings(report_md, L, year_floor)
+    findings += chain_findings(report_md, L)
     return findings
 
 
