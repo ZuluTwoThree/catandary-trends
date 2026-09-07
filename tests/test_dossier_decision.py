@@ -2655,3 +2655,31 @@ class TestADeletedClaimMustNotLeaveANakedNumber:
         Zitat-Marker blieb nichts als Kommata uebrig."""
         doc = _report().replace("word [[T1]].", "word. 2. [[W2]], [[W2]].")
         assert ds.weak_source_claims(doc, [_SEC, _BLOG]) == []
+
+
+class TestTheDropReasonsMustAddUp:
+    """B9-Lauf v1 meldete "24x enthielt die zitierte Web-Seite die behauptete
+    Zahl nicht" — tatsaechlich waren 19 davon Rangkennzeichnungen. Eine
+    Falschaussage im eigenen Pruefnachweis ist der teuerste Fehler, den dieses
+    Werkzeug machen kann."""
+
+    def _res(self, st):
+        base = {"findings_after": [], "cite_findings_after": []}
+        base.update(st)
+        return {"report": "x", "sources": [], "evidence": [], "cited": [],
+                "ledger": [], "structure": base}
+
+    def test_rank_markings_are_named_as_such(self):
+        out = check_result(self._res(
+            {"dropped_sentences": 27, "off_topic_after": 2,
+             "distorted_after": 1, "weaksource_after": 5,
+             "weakclaim_after": 14}))
+        line = next(f for f in out["findings"] if "gestrichen:" in f)
+        assert "19× ruhte eine Kernaussage nur auf Rang-2-Material" in line
+        assert "5× enthielt die zitierte Web-Seite" in line
+
+    def test_without_rank_findings_the_wording_is_unchanged(self):
+        out = check_result(self._res(
+            {"dropped_sentences": 2, "off_topic_after": 1}))
+        line = next(f for f in out["findings"] if "gestrichen:" in f)
+        assert "Rang-2-Material" not in line

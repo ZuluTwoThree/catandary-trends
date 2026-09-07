@@ -213,11 +213,22 @@ def check_result(result: dict) -> dict:
         if st.get("measure_after"):
             why.append(f"{st['measure_after']}× nannte der Satz eine eigene "
                        f"Messgroesse, die die Verwendbarkeitsregel sperrt")
+        # R9-1/R8-2: Rangbefunde werden gekennzeichnet, nicht wegen einer
+        # falschen Zahl gestrichen. Sie in denselben Topf zu werfen war eine
+        # Falschaussage im eigenen Pruefnachweis (B9-Lauf v1: 19 von 27).
+        rank_marked = (int(st.get("weaksource_after") or 0)
+                       + int(st.get("weakclaim_after") or 0))
+        if rank_marked:
+            why.append(f"{rank_marked}× ruhte eine Kernaussage nur auf "
+                       f"Rang-2-Material und wurde als \"secondary source "
+                       f"only\" gekennzeichnet (in der Kurzfassung "
+                       f"gestrichen)")
         rest = (int(st["dropped_sentences"]) - int(st.get("off_topic_after") or 0)
                 - int(st.get("sourceless_after") or 0)
                 - int(st.get("distorted_after") or 0)
                 - int(st.get("misattributed_after") or 0)
-                - int(st.get("measure_after") or 0))
+                - int(st.get("measure_after") or 0)
+                - rank_marked)
         if rest > 0 or not why:
             why.insert(0, f"{max(rest, 0)}× enthielt die zitierte Web-Seite "
                           f"die behauptete Zahl nicht")
