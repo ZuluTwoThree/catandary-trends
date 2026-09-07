@@ -1113,3 +1113,42 @@ Workflows sichten (`scratchpad/glp1/harness_survey.md`).
   wiederkommen, `DROP` überlässt ihn der mechanischen Streichung.
 
 Belegt: `tests/test_dossier_dr_mode.py` (`TestR14*`), 1.445 pytest grün.
+
+#### Ergebnis Runde 14 — Lauf `glp1-dr4` (#29), Blindgutachten jury_19
+
+**Deep Research 6,9 · DR4 5,7 · Sieger Deep Research** — schlechter als DR3
+(5,9 : 6,3). Laufzeit 28 min, 12 statt 36 gestrichene Sätze, 2 reparierte,
+Struktur 6 (zwei Tabellen, Felder), Ehrlichkeit 8, Primäranteil 50 % vs.
+30 %; aber Spezifität 5 : 9, Abdeckung 5 : 9, Zeit 4 : 7. Der Bericht war mit
+1.911 Wörtern Fließtext und 15 Zahlensätzen (DR3: 28) der kürzeste und
+zahlenärmste der Reihe.
+
+Was der Gutachter fand, und was es im Code bedeutet:
+
+| Befund jury_19 | Ursache | Stand |
+|---|---|---|
+| Erster Entscheidungssatz: 21 Monate alte FDA-Generika-Zulassung als „today" | `harvest_facts` nahm das relative Datum der Pressemitteilung; die Landkarte („jüngste Aussage je Akteur") zog Pressemeldungs-Trivia vor Studienzahlen | relative Daten verworfen (`d90f5a7`); Substanzfilter für die Landkarte offen |
+| Kalender: Indien/China-Ablauf (März 2026) als „2026", Jardiance (SGLT2), Retatrutid doppelt | nackte Jahreszahl des laufenden Jahres gilt als offen; Themenbezug stand in der Begründungsspalte; keine Dublettenprüfung über Zeilen | Themenbezug im Ereignis (`69b0927`); Jahr-ohne-Monat im laufenden Jahr und Dubletten offen |
+| Aufwand 0/4: Lactalis-Kaufpreis, eMed-Runde, „a fraction of that" | die Anker liefern Förderobergrenzen und Deals — es gibt keine Suchrichtung nach **Kosten** (Rezeptur, EFSA-Dossier, Linie) | offen: Kosten-Sweep |
+| Option 3 EIC für > 250 MA nicht antragsfähig; Option 4 Rx-Werbeverbot | kein Rechtswissen im Optionsschritt; das Rückgrat kennt Instrumente, nicht deren Anwendungsbereich | offen |
+| Wissenschaft ohne Wirkstoffzahlen trotz acht Wirkstoffen in der zweiten Welle | der Schreibaufruf bekam mehr Banken und weniger Rohtext (M4-light, 40k statt 78k) und wurde **kürzer und zahlenärmer**, nicht dichter | M4 in der Ein-Aufruf-Form hat sich nicht bewährt |
+
+**Resümee nach vier DR-Läufen** (5,4 · 5,57 · 5,7 · 5,9 · 5,7 gegen 4,9 ·
+7,43 · 6,9 · 6,3 · 6,9 — Gutachterstreuung beim Sonnet-Text ±0,6): Die
+Runden haben Belegbarkeit, Ehrlichkeit, Struktur und Handlungsrelevanz
+verlässlich auf oder über das Niveau des Deep-Research-Texts gebracht; die
+drei Kriterien, die den Abstand tragen — Spezifität, Abdeckung, Zeit — sind
+in vier Läufen nicht über 5/5/5 hinausgekommen, obwohl die Beschaffung seit
+DR3 liefert (49 geprüfte Fakten, 28 Kalender-Kandidaten, acht Wirkstoffe).
+Der Engpass ist damit der **Schreibschritt**: ein einzelner Aufruf des
+4-Bit-27B macht aus fünfzig vorgelegten Fakten keinen dichten, zahlenreichen
+Text — je mehr vorgelegt wird, desto knapper wird er. Die Harness-Sichtung
+nennt den Ausweg (WebWeaver M4, Co-STORM): **kapitelweises Schreiben** mit je
+eigener Evidenzbank und Wortbudget statt eines Aufrufs über alles. Das ist
+ein Umbau des Schreibers, kein weiteres Regelwerk — und nicht Teil dieser
+Freigabe. **Pausiert; kein weiterer Lauf ohne Owner-Wort.**
+
+Themenneutralität (Bedingung 2): Mechanik gebaut und auf drei Themen geprobt
+(Kern + Rückgrat je Vertikale + Modellprofil; Probe-Skript); „ähnlich gute
+Dossiers über alle Themen" ist damit **nicht belegt** — dafür fehlt ein voller
+Lauf zu einem Nicht-Pharma-Thema.

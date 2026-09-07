@@ -36,3 +36,25 @@ topic profile: field='GLP-1 and incretin technology' regulators=['U.S. Food and 
 - Der Bericht ist deutlich kürzer und zahlenärmer als DR3; die Streichung
   hat viel weniger zerstört (12 statt 36 Sätze), aber der Schreibaufruf hat
   auch weniger Substanz geliefert (15 Zahlensätze statt 28).
+
+## Ergebnis: jury_19 — Deep Research 6,9 · DR4 5,7 · Sieger Deep Research
+
+| Kriterium | DR3 : Sonnet (jury_18) | **DR4** : Sonnet (jury_19) |
+|---|---|---|
+| Spezifität | 5 : 8 | 5 : 9 |
+| Handlungsrelevanz | 6 : 5 | 6 : 5 |
+| Abdeckung | 5 : 8 | 5 : 9 |
+| Zeitliche Einordnung | 5 : 6 | 4 : 7 |
+| Ehrlichkeit | 8 : 5 | 8 : 6 |
+| Struktur | 5 : 7 | 6 : 7 |
+| Durchschnitt | 5,9 : 6,3 | **5,7 : 6,9** |
+
+Befunde des Gutachters zu DR4: erster Entscheidungssatz ein 21 Monate altes
+FDA-Ereignis als „today"; Kalender 3 von 6 Zeilen vergangen/fachfremd/doppelt
+(Indien/China-Ablauf schon März 2026, Jardiance kein Inkretin, Retatrutid
+doppelt); alle vier Aufwandsfelder leer (Lactalis-Kaufpreis nicht genannt,
+eMed-Runde nicht übertragbar, „a fraction of that"); Option 3 (EIC) für
+> 250 Mitarbeiter nicht antragsfähig; Option 4 verstößt gegen das Rx-Werbe-
+verbot; Wissenschaft ohne Wirkstoffzahlen. Gelobt: Claim-Schranke im Zentrum,
+Primäranteil 50 % vs. 30 %, Kennzeichnung, Feldstruktur, EU-Förderpfad,
+eigene Messung.
