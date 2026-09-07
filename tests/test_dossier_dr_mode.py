@@ -1121,7 +1121,8 @@ def _profile():
         field="solid-state batteries",
         actor_types=["cell maker", "automaker"],
         regulators=["EU Battery Regulation", "UN 38.3 transport test"],
-        event_types=["gigafactory commissioning", "pilot line start"],
+        event_types=["gigafactory commissioning", "pilot line start",
+                     "A-sample delivery"],
         legal_questions=["battery passport requirements 2027"],
         market_questions=["automaker supply agreements volume"],
         perspectives=[cr.Perspective(role="automaker buyer",
@@ -1234,3 +1235,29 @@ def test_an_echo_of_the_board_question_is_no_search_direction():
     prof.market_questions = [q]
     pq = cr.profile_queries(prof, "solid-state batteries", [], question)
     assert not any("stand today" in x for x in pq["market"])
+
+
+class TestR14ProfileHygiene:
+    def test_generic_event_labels_are_dropped(self):
+        prof = _profile()
+        prof.event_types = ["investment", "research_publication", "gigafactory commissioning"]
+        pq = cr.profile_queries(prof, "t", [])
+        cat = " | ".join(pq["catalyst"])
+        assert "gigafactory commissioning" in cat
+        assert "investment expected" not in cat and "research publication" not in cat
+
+    def test_underscores_become_words_and_dangling_words_fall(self):
+        assert cr._short("research_publication of the") == "research publication"
+        assert cr._short("How do shifts by entities like Plenty and") == \
+            "How do shifts by entities like Plenty"
+
+    def test_stem_based_topic_match(self):
+        assert cr.mentions("a solid state battery pilot line", ["solid-state batteries"])
+        assert cr.mentions("GLP-1 users", ["GLP-1"])
+        assert not cr.mentions("steel tariffs", ["solid-state batteries"])
+
+    def test_calendar_relevance_is_stem_based(self):
+        srcs = [{"id": "C1", "fetched": True,
+                 "text": "The solid state battery pilot line is expected to start in Q2 2027."}]
+        c = cr.calendar_candidates([], srcs, ["solid-state batteries"], [], 2026)
+        assert c and c[0]["when"] == "Q2 2027"
