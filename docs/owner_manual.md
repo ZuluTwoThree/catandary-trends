@@ -422,7 +422,21 @@ Wiederholung, von der eine Faktentabelle lebt) statt nur über die Temperatur.
 Seit Runde 13 legt der Lauf dem Bericht außerdem zwei fertige Listen vor:
 **Kalender-Kandidaten** (datierte Zukunftstermine, aus jeder gelesenen Seite
 maschinell gezogen und gegen sie geprüft) und **Aufwands-Anker** (Förderbeträge,
-Programmbudgets, Verfahrensdauern aus Förder-/Rechtsseiten). Einschalten:
+Programmbudgets, Verfahrensdauern aus Förder-/Rechtsseiten). Seit Runde 14
+kommt eine **Akteur-Landkarte** dazu (je Akteur die jüngste belegte Aussage
+mit Zahl oder Datum; „Was sich bewegt" beginnt mit einer Pflichttabelle), die
+Streichung arbeitet auf Absatzebene und repariert Sätze mit ungestützter Zahl
+erst per Modell, und die Suchrichtungen sind **themenneutral**: Kern +
+kuratiertes Rückgrat je Vertikale + Modellprofil. Welche Anfragen ein Thema
+auslöst, zeigt ohne Lauf:
+
+```bash
+.venv/bin/python scripts/dossier_topic_probe.py "solid-state batteries"
+.venv/bin/python scripts/dossier_topic_probe.py "vertical farming" --brave --read 5
+```
+
+(rechnet das Profil gegen den gerade laufenden llama-server — im Ruhezustand
+das 8B, aussagekräftig erst mit dem 27B). Einschalten:
 
 ```bash
 DOSSIER_DR=1 .venv/bin/python -m scripts.dossier_worker --order N

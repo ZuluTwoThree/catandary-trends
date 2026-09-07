@@ -1073,6 +1073,43 @@ Workflows sichten (`scratchpad/glp1/harness_survey.md`).
   hängender Doppelpunkt, Absatz mit Anschlusswort ohne Bezug, Absatz mit
   kleiner Präposition am Anfang. Bewusst **kein** allgemeiner
   Kleinbuchstaben-Test — „eMed", „mRNA", „iPhone" beginnen Sätze legitim.
-- R14-3 (Themenneutralität) folgt nach der Harness-Sichtung.
+- **Harness-Sichtung** (Bedingung 3, `scratchpad/glp1/harness_survey.md`, 8 Repos
+  im Detail: STORM/Co-STORM, PaperQA2, open_deep_research, GPT-Researcher,
+  DeerFlow, Tongyi DeepResearch/WebWeaver, AI-Scientist, dzhng). Übernommen:
+  **M1/M3/M8** Suchrichtungen je Gliederungsabschnitt mit Stoppregeln →
+  Themenprofil; **M5** Fundzeilen mit Akteur/Zahl/Datum sofort geprüft →
+  `LedgerFact.actor`; **M4** Evidenzbank statt Rohdump (WebWeaver) →
+  `DR_REPORT_EVIDENCE_CHARS` 40k hinter Faktenzettel, Landkarte, Kalender,
+  Ankern; **M7** Kritik→Revision statt Streichung (STORM PolishPage) →
+  `repair_sentences`. **Nicht übernommen:** Tool-Calling-Graphen,
+  RL-trainierte Modelle, Vektorstore-Pflicht, Cloud-Bindungen, STORMs
+  generierte Outline (unsere Gliederung ist fix).
+- **R14-3 Themenneutralität** (`TopicProfile`, `topic_profile`,
+  `profile_queries`, `VERTICAL_SETS`, `verticals_of_topic`). Die festen
+  Pharma-Muster bleiben als Fallback; im Normalfall setzt sich jede
+  Suchrichtung aus drei Schichten zusammen: ein **themenunabhängiger Kern**
+  (Patentablauf, Gericht, Quartalszahlen, Übernahme, Förderung), ein
+  **kuratiertes Rückgrat je Vertikale** (Regulatoren/Instrumente und
+  Ereignistypen für alle acht Catandary-Vertikalen; die Vertikale kommt
+  deterministisch aus der Mehrheit der `vertical`-Felder der nächsten
+  Korpus-Treffer plus Stichwort-Votum — bei Abweichung beide Rückgrate) und
+  ein **Modellprofil** (ein schema-gebundener Aufruf: Regulatoren,
+  Ereignistypen, Rechts-/Marktfragen, Perspektiven, Akteur-Saatgut; alles
+  gefiltert — Verweigerungen, Kategorielabels, Echo der Leitfrage; ein
+  Ereignis muss ein Ereignis-Wort tragen). Saatgut und Perspektivfragen sind
+  Suchbegriffe, nie Fakten. **Befund der 27B-Proben** (drei Themen, vier
+  Durchläufe): mit Korpus-Schlagzeilen im Prompt übernahm das Modell deren
+  Signal-Sprache als Feldstruktur („CES" als Regulator, „capital_injection"
+  als Ereignis) und riet die Vertikale falsch (GLP-1 → BIZ) — STORMs
+  Nachbar-Muster überträgt sich mit Schlagzeilen nicht; deshalb Nachbarn nur
+  für die Vertikale, Feldwissen aus dem Modell, Rückgrat aus der Kuration.
+  Probe `scripts/dossier_topic_probe.py`. Ein voller Lauf zu einem
+  Nicht-Pharma-Thema steht noch aus (Owner-Freigabe für genau einen Lauf,
+  Testthema GLP-1).
+- **R14-4 Reparatur vor Streichung** (`repair_sentences`, `DR_REPAIR_MAX` 20).
+  Jeder Satz mit ungestützter Zahl wird dem Modell mit der Liste der
+  Angaben und dem Auszug der zitierten Seite vorgelegt und ohne sie neu
+  geschrieben; die Zitatmarker müssen bleiben, die Angabe darf nicht
+  wiederkommen, `DROP` überlässt ihn der mechanischen Streichung.
 
-Belegt: `tests/test_dossier_dr_mode.py` (`TestR14*`), 1.416 pytest grün.
+Belegt: `tests/test_dossier_dr_mode.py` (`TestR14*`), 1.445 pytest grün.

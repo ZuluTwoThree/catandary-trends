@@ -192,7 +192,13 @@ Modellkarte statt nur über die Temperatur. Seit Runde 13 bekommt der Bericht
 zusätzlich **Kalender-Kandidaten** (datierte Zukunftstermine aus den gelesenen
 Seiten) und **Aufwands-Anker** (Förderbeträge, Programmbudgets,
 Verfahrensdauern) als fertige Listen vorgelegt, und eine dritte Sweep-Welle
-fragt je Akteur nur nach Terminen. Kostet Laufzeit, hebt die
+fragt je Akteur nur nach Terminen. Seit Runde 14 außerdem eine
+**Akteur-Landkarte** (Pflichttabelle in „Was sich bewegt"), Streichung auf
+Absatzebene mit Reparatur je Satz, und **themenneutrale Suchrichtungen**:
+themenunabhängiger Kern + kuratiertes Rückgrat je Vertikale (Vertikale aus den
+Korpus-Nachbarn) + Modellprofil (Regulatoren, Ereignistypen, Akteur-Saatgut,
+Perspektiven). Probe ohne Lauf: `scripts/dossier_topic_probe.py "<Thema>"`.
+Kostet Laufzeit, hebt die
 Faktenquote (erster Lauf: 0,94 gegen 0,25 der Runde davor)
 ([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-dr-runde-2026-09-07--arbeitsweise-statt-regelwerk)).
 
