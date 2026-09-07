@@ -373,26 +373,36 @@ def measured_brief(quant_summary: dict | None,
 # gelesen (kein GLP-1-Sonderfall): steht ein Feld in der Frage, muss der
 # Optionsabschnitt es adressieren.
 
+# Ein Stichwort mit "*" ist ein Wortanfang ("reformul*" trifft
+# "reformulate"/"reformulation"); alles andere ist ein ganzes Wort mit
+# einfacher Pluraltoleranz. Substring-Matching waere hier fatal: "app" steckt
+# in "approval", "monitoring" in "regulatory monitoring" — der R5-Nachtest
+# meldete damit alle drei Felder als abgedeckt, obwohl jury_8.md das Gegenteil
+# feststellte ("HealthTech kommt nicht vor").
 SECTOR_LEXICON: dict[str, tuple[str, ...]] = {
     "food": ("food", "beverage", "drink", "ingredient", "recipe", "snack",
              "grocery", "meal", "menu", "dairy", "bakery", "confectionery",
-             "portion", "reformulat", "formulation", "packaging", "retail",
-             "lebensmittel", "getränk", "rezeptur"),
-    "nutrition": ("nutrition", "nutrient", "nutritional", "diet", "dietary",
+             "portion", "reformul*", "formulation", "shelf life", "retail",
+             "lebensmittel*", "getränk*", "rezeptur*"),
+    "nutrition": ("nutrition", "nutritional", "nutrient", "diet", "dietary",
                   "protein", "fibre", "fiber", "supplement", "satiety",
                   "calorie", "caloric", "vitamin", "micronutrient",
-                  "ernährung", "nährstoff", "nahrungsergänzung"),
-    "health technology": ("health technology", "healthtech", "digital health",
-                          "device", "app", "wearable", "diagnostic", "sensor",
-                          "telehealth", "telemedicine", "software", "platform",
-                          "monitoring", "medtech", "companion", "algorithm",
-                          "gesundheitstechnologie", "medizintechnik"),
-    "packaging": ("packaging", "pack ", "label", "verpackung"),
-    "logistics": ("logistic", "supply chain", "distribution", "warehouse",
-                  "cold chain", "logistik", "lieferkette"),
-    "energy": ("energy", "power", "grid", "electricity", "energie", "strom"),
-    "mobility": ("mobility", "vehicle", "automotive", "transport", "fleet",
-                 "mobilität", "fahrzeug"),
+                  "ernährung*", "nährstoff*", "nahrungsergänzung*"),
+    "health technology": ("health technology", "health tech", "healthtech",
+                          "digital health", "medtech", "medical device",
+                          "device", "wearable", "diagnostic", "sensor",
+                          "telehealth", "telemedicine", "app", "mobile app",
+                          "digital therapeutic", "remote monitoring",
+                          "patient monitoring", "companion diagnostic",
+                          "gesundheitstechnologie*", "medizintechnik*"),
+    "packaging": ("packaging", "package", "label", "labelling", "labeling",
+                  "verpackung*"),
+    "logistics": ("logistics", "supply chain", "distribution", "warehouse",
+                  "cold chain", "logistik*", "lieferkette*"),
+    "energy": ("energy", "power grid", "electricity", "renewable",
+               "energie*", "strom*"),
+    "mobility": ("mobility", "vehicle", "automotive", "fleet",
+                 "mobilität*", "fahrzeug*"),
 }
 
 # Wie das Feld in einer Frage heissen kann (Erkennung, nicht Abdeckung).
@@ -402,13 +412,20 @@ _SECTOR_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 
+def _term_re(term: str) -> re.Pattern:
+    if term.endswith("*"):
+        return re.compile(r"\b" + re.escape(term[:-1]), re.IGNORECASE)
+    return re.compile(r"\b" + re.escape(term) + r"(?:e|en|es|s)?\b",
+                      re.IGNORECASE)
+
+
 def sectors_from_question(question: str) -> list[str]:
     """Die Felder, die die Frage ausdruecklich nennt — nur die werden geprueft."""
     low = (question or "").lower()
     out = []
     for name in SECTOR_LEXICON:
         for alias in _SECTOR_ALIASES.get(name, (name,)):
-            if alias in low:
+            if _term_re(alias).search(low):
                 out.append(name)
                 break
     return out
@@ -431,9 +448,9 @@ def option_measure_stats(report_md: str, lang: str, measured: list[str] | None,
 
 
 def uncovered_sectors(text: str, sectors: list[str]) -> list[str]:
-    low = (text or "").lower()
     return [s for s in sectors or ()
-            if not any(kw in low for kw in SECTOR_LEXICON.get(s, ()))]
+            if not any(_term_re(kw).search(text or "")
+                       for kw in SECTOR_LEXICON.get(s, ()))]
 
 
 def length_advisory(report_md: str, lang: str = "en") -> list[str]:

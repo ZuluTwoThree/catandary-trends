@@ -1197,6 +1197,16 @@ class TestOptionsCoverEveryNamedField:
         assert ds.structure_findings(
             doc, sectors=ds.sectors_from_question(self.Q)) == []
 
+    def test_matching_is_word_wise_not_substring(self):
+        """Der R5-Nachtest meldete zunaechst alle drei Felder als abgedeckt:
+        'app' steckt in 'approval', 'monitoring' in 'regulatory monitoring'."""
+        assert ds.uncovered_sectors("regulatory approval and monitoring",
+                                    ["health technology"]) == ["health technology"]
+        assert ds.uncovered_sectors("a companion app for patients",
+                                    ["health technology"]) == []
+        assert ds.uncovered_sectors("reformulated meals and snacks",
+                                    ["food"]) == []
+
     def test_the_check_names_the_missing_field(self):
         res = {"report": "x", "sources": [], "evidence": [], "cited": [],
                "ledger": [],
