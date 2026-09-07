@@ -1664,8 +1664,8 @@ class TopicProfile(BaseModel):
 
 
 PROFILE_SYSTEM = """You prepare the search directions for a research dossier.
-Given a topic, the question a board asks about it, and titles of the nearest
-documents in a research corpus, describe the FIELD so that a search engine can
+Given a topic and the question a board asks about it, describe the FIELD from
+your own knowledge of it so that a search engine can
 be asked the right things: who decides (regulators, registers, instruments —
 Europe first), what kinds of dated events happen, what a board would ask about
 law/IP and about the market, and which viewpoints would each search for
@@ -1738,6 +1738,7 @@ opinion launch commissioning delivery award auction tender ratification
 certification listing opening start expiry expiration deadline vote ruling
 filing submission release adoption entry force hearing review sample trial
 round season completion cutover rollout go-live grant clearance verdict
+launches entries expirations presentations
 """.split())
 
 
@@ -1745,11 +1746,16 @@ def _clean_label(x: str) -> str:
     return " ".join(str(x or "").replace("_", " ").replace("?", "").split())
 
 
+_REFUSAL_MARKS = ("provided", "not available", "no data", "unknown", "none",
+                  "not applicable", "n/a", "unspecified", "no information")
+
+
 def _generic_label(x: str) -> bool:
-    """none/n/a/unknown und reine Kategorieworte — fuer Regulatoren."""
+    """none/n/a/unknown, Verweigerungen und reine Kategorieworte."""
     w = _clean_label(x).lower()
-    return (not w) or w in _GENERIC_EVENTS or all(t in _GENERIC_EVENTS
-                                                  for t in w.split())
+    if (not w) or any(m in w for m in _REFUSAL_MARKS):
+        return True
+    return w in _GENERIC_EVENTS or all(t in _GENERIC_EVENTS for t in w.split())
 
 
 def _generic_event(ev: str) -> bool:
@@ -1757,7 +1763,9 @@ def _generic_event(ev: str) -> bool:
     if _generic_label(ev):
         return True
     w = _clean_label(ev).lower()
-    return not any(t.strip("-") in _EVENT_NOUNS for t in w.split())
+    toks = [t.strip("-,;:()") for t in w.split()]
+    return not any(t in _EVENT_NOUNS or t.rstrip("s") in _EVENT_NOUNS
+                   or t[:-2] in _EVENT_NOUNS for t in toks)   # -es
 
 
 def _short(q: str, cap: int = 16) -> str:
@@ -1775,7 +1783,10 @@ def topic_profile(topic: str, question: str,
     # Parameter bleibt, falls einmal echte Inhaltsverzeichnisse vorliegen.
     del neighbours
     prompt = (f"Topic: {shield(topic)}\n\nBoard question:\n{shield(question)}\n\n"
-              f"Return the profile as JSON.")
+              f"Describe the FIELD of this topic from your own knowledge of it, "
+              f"for search purposes: fill every list with concrete, "
+              f"field-specific entries. There is no other input — nothing is "
+              f"'not provided'. Return the description as JSON.")
     try:
         return llamacpp_client.chat_structured(
             model=MODEL, schema=TopicProfile, system=PROFILE_SYSTEM,
@@ -1825,19 +1836,25 @@ def _with_topic(q: str, phrase: str, terms: list[str]) -> str:
 
 def profile_queries(profile: TopicProfile | None, phrase: str,
                     terms: list[str], question: str = "",
-                    vertical: str = "") -> dict[str, tuple[str, ...]]:
+                    vertical: str | list[str] = "") -> dict[str, tuple[str, ...]]:
     """Schablonen je Suchrichtung: Kern + Profil. Ohne Profil: die festen
     Muster (der bisherige Pfad)."""
-    if profile is None and not vertical:
+    verts = [v for v in ([vertical] if isinstance(vertical, str)
+                         else list(vertical or [])) if v]
+    if profile is None and not verts:
         return {"regulatory": REGULATORY_PATTERNS, "market": MARKET_PATTERNS,
                 "catalyst": CATALYST_PATTERNS, "funding": FUNDING_PATTERNS,
                 "entity_legal": SUBSTANCE_LEGAL_PATTERNS,
                 "entity_market": ENTITY_MARKET_PATTERNS,
                 "entity_catalyst": ENTITY_CATALYST_PATTERNS,
                 "perspective": ()}
-    vset = VERTICAL_SETS.get((vertical or "").upper(), {})
+    vset: dict[str, tuple[str, ...]] = {"regulators": (), "events": ()}
+    for v in verts:
+        d = VERTICAL_SETS.get((v or "").upper(), {})
+        vset["regulators"] += tuple(d.get("regulators", ()))
+        vset["events"] += tuple(d.get("events", ()))
     reg: list[str] = list(REG_CORE)
-    for r in vset.get("regulators", ())[:5]:
+    for r in vset.get("regulators", ())[:8]:
         reg += [f"{{t}} {r} decision", f"{{t}} {r} requirements"]
     if profile is None:
         profile = TopicProfile(field=phrase, actor_types=[], regulators=["-", "-"],
@@ -1866,10 +1883,10 @@ def profile_queries(profile: TopicProfile | None, phrase: str,
         ev = _short(ev, 5).lower()
         if ev and not _generic_event(ev):
             cat.append(f"{{t}} {ev} expected 2027")
-            ent_cat.append(f"{{e}} {ev} date")
-    for ev in vset.get("events", ())[:4]:
+            ent_cat.append(f"{{e}} {ev}" + ("" if ev.endswith("date") else " date"))
+    for ev in vset.get("events", ())[:6]:
         cat.append(f"{{t}} {ev} expected 2027")
-        ent_cat.append(f"{{e}} {ev} date")
+        ent_cat.append(f"{{e}} {ev}" + ("" if ev.endswith("date") else " date"))
     ent_legal: list[str] = list(ENT_LEGAL_CORE)
     for r in vset.get("regulators", ())[:2]:
         ent_legal.append(f"{{e}} {r}")
@@ -1885,7 +1902,10 @@ def profile_queries(profile: TopicProfile | None, phrase: str,
             break
     persp = [_with_topic(_short(q), phrase, terms)
              for pv in profile.perspectives[:4] for q in pv.questions[:2]
-             if _short(q) and not _echoes_question(_short(q), question)]
+             if _short(q) and not _echoes_question(_short(q), question)
+             and not _generic_label(_short(q))]
+    seeds_ok = [x for x in profile.actor_seeds if not _generic_label(x)]
+    profile.actor_seeds = seeds_ok
 
     def _dedup(xs: list[str], cap: int) -> tuple[str, ...]:
         out: list[str] = []
@@ -1924,6 +1944,23 @@ _VERTICAL_HINTS: dict[str, tuple[str, ...]] = {
     "LIFESTYLE": ("gaming", "media", "entertainment", "sport", "travel",
                   "culture", "creator", "education", "luxury"),
 }
+
+
+def verticals_of_topic(topic: str, neighbours: list[dict] | None = None
+                       ) -> list[str]:
+    """Bis zu zwei Vertikalen: die der Korpus-Nachbarn und, falls davon
+    verschieden und deutlich, die der Stichwoerter. Der Korpus stuft
+    Festkoerperbatterien als TECH ein (Hardware) — das Recht dazu steht
+    aber im ECO-Rueckgrat (EU-Batterieverordnung). Beide Rueckgrate zusammen
+    sind besser als eines, das nicht passt."""
+    primary = vertical_of_topic(topic, neighbours)
+    low = " " + (topic or "").lower() + " "
+    scored = {v: sum(1 for k in ks if k in low) for v, ks in _VERTICAL_HINTS.items()}
+    kw = max(sorted(scored), key=lambda k: scored[k])
+    out = [primary]
+    if kw != primary and scored[kw] >= 1 and scored[kw] > scored.get(primary, 0):
+        out.append(kw)
+    return out
 
 
 def vertical_of_topic(topic: str, neighbours: list[dict] | None = None) -> str:
@@ -3994,11 +4031,11 @@ def run(question: str, max_steps: int, max_sources: int,
         from pipeline.dossier_quant import normalize_topic
         phrase = (normalize_topic(topic or question) or topic or question).strip()
         nb_hits = corpus_neighbour_hits(topic or question)
-        vertical = vertical_of_topic(topic or question, nb_hits)
+        vertical = verticals_of_topic(topic or question, nb_hits)
         profile = topic_profile(topic or question, question, [])
         pq = profile_queries(profile, phrase, terms, question, vertical)
-        logger.info("topic vertical: %s (from %d corpus neighbour(s))",
-                    vertical, len(nb_hits))
+        logger.info("topic vertical(s): %s (from %d corpus neighbour(s))",
+                    "+".join(vertical), len(nb_hits))
         if profile is not None:
             logger.info("topic profile: field=%r regulators=%s events=%s seeds=%s",
                         profile.field, profile.regulators[:5],

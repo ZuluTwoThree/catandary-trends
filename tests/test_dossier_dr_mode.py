@@ -1318,3 +1318,36 @@ class TestR14VerticalOfTopic:
     def test_a_known_vertical_brings_the_backbone_even_without_a_profile(self):
         pq = cr.profile_queries(None, "solid-state batteries", [], vertical="ECO")
         assert any("EU Battery Regulation" in q for q in pq["regulatory"])
+
+
+
+class TestR14TwoVerticals:
+    def test_keyword_vertical_joins_a_differing_corpus_vertical(self):
+        nb = [{"vertical": "TECH"}] * 11 + [{"vertical": "ECO"}]
+        assert cr.verticals_of_topic("solid-state batteries", nb) == ["TECH", "ECO"]
+        assert cr.verticals_of_topic("GLP-1 and incretin technology",
+                                     [{"vertical": "HEALTH"}] * 5) == ["HEALTH"]
+
+    def test_both_backbones_are_merged(self):
+        pq = cr.profile_queries(None, "solid-state batteries", [], vertical=["TECH", "ECO"])
+        reg = " | ".join(pq["regulatory"])
+        assert "CE marking" in reg and "EU Battery Regulation" in reg
+
+    def test_refusals_are_filtered_everywhere(self):
+        prof = _profile()
+        prof.regulators = ["No company profile data provided", "EMA"]
+        prof.actor_seeds = ["No company profile data provided", "Novo Nordisk"]
+        prof.perspectives = [cr.Perspective(role="x", questions=["No company profile data provided"])]
+        pq = cr.profile_queries(prof, "GLP-1", [], vertical="HEALTH")
+        assert not any("provided" in q for q in pq["regulatory"] + pq["perspective"])
+        assert prof.actor_seeds == ["Novo Nordisk"]
+
+    def test_no_double_date(self):
+        pq = cr.profile_queries(None, "t", [], vertical="HEALTH")
+        assert not any(q.endswith("date date") for q in pq["entity_catalyst"])
+
+
+def test_plural_event_nouns_count():
+    for ev in ("Clinical trial phase completions", "Regulatory approvals and rejections",
+               "Product launches and market entries", "Patent expirations and generic entry"):
+        assert not cr._generic_event(ev), ev
