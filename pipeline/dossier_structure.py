@@ -65,6 +65,8 @@ AUDIT_ANNEX_MARK = "<!-- catandary:audit-annex -->"
 # pipeline/dossier_check.py zu halten (dort dieselbe Aufgabe nach dem Lauf).
 _APPENDIX_HEADINGS = (
     AUDIT_ANNEX_MARK,
+    "## How this dossier was checked (auto-generated)",
+    "## Wie dieses Dossier geprüft wurde (automatisch erzeugt)",
     "## Research coverage (auto-generated)",
     "## Recherche-Abdeckung (automatisch erzeugt)",
     "\n## Sources\n", "\n## Quellen\n",

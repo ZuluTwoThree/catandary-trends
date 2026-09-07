@@ -42,10 +42,12 @@ from pipeline.grounding import ungrounded_specifics
 # Fassung je Berichtssprache (lang=en / lang=de, Firmen-Dossiers sind deutsch).
 COVERAGE_HEADINGS = (
     AUDIT_ANNEX_MARK,
+    "## How this dossier was checked (auto-generated)",
+    "## Wie dieses Dossier geprüft wurde (automatisch erzeugt)",
     "## Research coverage (auto-generated)",
     "## Recherche-Abdeckung (automatisch erzeugt)",
 )
-COVERAGE_HEADING = COVERAGE_HEADINGS[1]
+COVERAGE_HEADING = COVERAGE_HEADINGS[3]
 
 # Ebenfalls code-generiert: der Messanhang (pipeline/dossier_quant.py,
 # measurement_appendix). Seine Jahresreihen sind Query-Ergebnisse, keine

@@ -1324,3 +1324,44 @@ class TestDistortedRestatement:
         claims = ds.split_claims(text)
         assert len(claims) == 2
         assert "2%" in claims[0] and "think.ing.example" in claims[0]
+
+
+class TestCheckSummaryStaysInTheDossier:
+    """jury_7.md empfiehlt woertlich, das Protokoll durch „drei Zeilen
+    Methodik plus eine ehrliche Klartextzeile" zu ersetzen — die Ehrlichkeit
+    ueber Grenzen ist die Wertung, in der wir fuehren (8:7 bzw. 10:7)."""
+
+    LEDGER = [{"kind": "gap", "gap": "g", "papers": 0, "patents": 0,
+               "web_queries": ["a", "b"], "web_sources": 4, "web_fetched": 2,
+               "budget_dropped": 3,
+               "fetch_log": [{"status": "robots"}, {"status": "fetched"}]},
+              {"kind": "legal", "gap": "l", "papers": 0, "patents": 0,
+               "web_queries": ["c"], "web_sources": 1, "web_fetched": 1}]
+    SOURCES = [{"url": "https://a.example/x", "fetched": True},
+               {"url": "https://b.example/y", "fetched": True},
+               {"url": "https://c.example/z", "fetched": False}]
+    ST = {"cites_checked": 52, "cites_figures": 61, "cites_subjects": 40,
+          "cite_findings": [{}, {}], "dropped_sentences": 1}
+
+    def test_it_names_budget_stops_and_unreadable_pages_in_plain_text(self):
+        out = cr.check_summary(self.LEDGER, self.SOURCES, ["T1"], self.ST, "en")
+        assert "3 usable hits were not evaluated for budget reasons" in out
+        assert "1 page(s) could not be read" in out
+        assert "1 question(s) after the audit" in out     # legal zaehlt nicht
+        assert "2 pages from 2 domains" in out
+        assert "52 sentence(s) checked" in out
+        assert "audit annex" in out
+
+    def test_it_is_short_enough_to_replace_a_protocol(self):
+        out = cr.check_summary(self.LEDGER, self.SOURCES, ["T1"], self.ST, "en")
+        assert len(out.split()) < 130
+
+    def test_it_never_counts_as_body(self):
+        doc = "## Decision summary\n\nWord.\n" + cr.check_summary(
+            self.LEDGER, self.SOURCES, ["T1"], self.ST, "en")
+        # nur Ueberschrift, Wort und der Trennstrich davor
+        assert ds.count_words(ds.body_text(doc)) <= 6
+
+    def test_german_runs_carry_the_german_block(self):
+        out = cr.check_summary(self.LEDGER, self.SOURCES, ["T1"], self.ST, "de")
+        assert "Budgetgründen" in out and "Prüfanhang" in out
