@@ -1118,7 +1118,7 @@ def test_us_abbreviation_does_not_split():
 
 def _profile():
     return cr.TopicProfile(
-        field="solid-state batteries",
+        field="solid-state batteries", vertical="ECO",
         actor_types=["cell maker", "automaker"],
         regulators=["EU Battery Regulation", "UN 38.3 transport test"],
         event_types=["gigafactory commissioning", "pilot line start",
@@ -1270,3 +1270,29 @@ def test_none_regulators_never_become_queries():
     reg = " | ".join(pq["regulatory"])
     assert "none decision" not in reg and "n/a" not in reg
     assert "EU Battery Regulation decision" in reg
+
+
+
+class TestR14VerticalBackbone:
+    def test_every_vertical_has_regulators_and_events(self):
+        assert set(cr.VERTICALS) == {"HEALTH", "FOOD", "TECH", "ECO", "DESIGN",
+                                     "FASHION", "BIZ", "LIFESTYLE"}
+        for v, d in cr.VERTICAL_SETS.items():
+            assert len(d["regulators"]) >= 4 and len(d["events"]) >= 4, v
+
+    def test_the_backbone_shapes_the_queries_even_if_the_model_is_vague(self):
+        prof = _profile()
+        prof.regulators = ["none", "CES"]
+        prof.event_types = ["investment", "ipo", "milestone"]
+        pq = cr.profile_queries(prof, "solid-state batteries", [])
+        reg = " | ".join(pq["regulatory"])
+        assert "EU Battery Regulation 2023/1542 decision" in reg
+        cat = " | ".join(pq["catalyst"])
+        assert "gigafactory commissioning expected 2027" in cat
+        assert "CES decision" in reg          # Profil ergaenzt, ersetzt nicht
+
+    def test_a_health_topic_gets_the_pharma_backbone(self):
+        prof = _profile(); prof.vertical = "HEALTH"
+        pq = cr.profile_queries(prof, "GLP-1 incretin", [])
+        assert any("EMA CHMP opinion" in q for q in pq["regulatory"])
+        assert any("phase 3 readout" in q for q in pq["catalyst"])

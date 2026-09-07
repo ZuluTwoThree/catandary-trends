@@ -1544,6 +1544,78 @@ def sweep_internal(items: list[str], topic: str, sources: list[dict],
 # generische Schablonen eingesetzt. Ein themenunabhaengiger Kern bleibt immer
 # dabei (Patentablauf, Gericht, Quartalszahlen, Uebernahme, Foerderung).
 # Faellt der Profil-Aufruf aus, laufen die festen Muster wie bisher.
+# Kuratiertes Rueckgrat je Vertikale (2026-09-07). Die 27B-Probe ueber drei
+# Themen zeigte: aus Thema + Korpus-Schlagzeilen leitet das Modell KEINE
+# brauchbaren Regulatoren ab ("CES", "IPO regulators", "Japan", "none") und
+# kopiert Signal-Kategorien als Ereignistypen ("capital_injection"). Was ein
+# Vorstand in jedem Feld braucht — wer entscheidet, welche Termine zaehlen —
+# steht deshalb hier fest, je Catandary-Vertikale; das Modellprofil ergaenzt
+# nur noch Saatgut, Perspektiven und feldspezifische Ereignisse, die den
+# Filter ueberleben. Themenagnostisch heisst: jedes Thema faellt in eine
+# Vertikale, und jede Vertikale hat ein Rueckgrat.
+VERTICAL_SETS: dict[str, dict[str, tuple[str, ...]]] = {
+    "HEALTH": {
+        "regulators": ("EMA CHMP opinion", "FDA approval decision",
+                       "EFSA health claim", "EU MDR notified body",
+                       "reimbursement decision G-BA NICE HAS"),
+        "events": ("phase 3 readout", "CHMP opinion", "FDA decision date",
+                   "reimbursement decision", "SPC expiry"),
+    },
+    "FOOD": {
+        "regulators": ("EFSA novel food opinion",
+                       "EU health claims Regulation 1924/2006",
+                       "FDA GRAS notice", "EU labelling Regulation 1169/2011",
+                       "EU organic regulation"),
+        "events": ("EFSA opinion adoption", "Commission authorisation vote",
+                   "retailer listing launch", "factory commissioning",
+                   "harvest season"),
+    },
+    "TECH": {
+        "regulators": ("EU AI Act", "EU Data Act GDPR", "CE marking",
+                       "FCC certification", "ISO IEC 3GPP standard",
+                       "export control"),
+        "events": ("standard ratification", "product launch date",
+                   "regulation application date", "spectrum auction",
+                   "chip tape-out volume production"),
+    },
+    "ECO": {
+        "regulators": ("EU Battery Regulation 2023/1542",
+                       "Renewable Energy Directive RED III", "EU ETS CBAM",
+                       "EU taxonomy", "IRA tax credit guidance",
+                       "BNetzA tender"),
+        "events": ("tender award", "final investment decision",
+                   "first power commissioning", "gigafactory commissioning",
+                   "certification"),
+    },
+    "DESIGN": {
+        "regulators": ("EU Ecodesign Regulation ESPR", "EPBD building directive",
+                       "Construction Products Regulation CPR",
+                       "digital product passport"),
+        "events": ("regulation application date", "building code adoption",
+                   "product certification", "trade fair launch"),
+    },
+    "FASHION": {
+        "regulators": ("ESPR textiles", "EPR scheme textiles", "REACH PFAS restriction",
+                       "EU Deforestation Regulation", "digital product passport"),
+        "events": ("EPR scheme start", "restriction entry into force",
+                   "collection launch", "factory audit"),
+    },
+    "BIZ": {
+        "regulators": ("EU DMA DSA", "PSD3 payment services", "MiCA",
+                       "merger control clearance", "SEC filing"),
+        "events": ("merger clearance decision", "quarterly results",
+                   "regulation application date", "licence grant"),
+    },
+    "LIFESTYLE": {
+        "regulators": ("EU DSA", "age verification rules", "gambling loot box rules",
+                       "broadcasting licence"),
+        "events": ("platform policy change date", "season start",
+                   "release date", "regulation application date"),
+    },
+}
+VERTICALS = tuple(VERTICAL_SETS)
+
+
 class Perspective(BaseModel):
     role: str = Field(description="a stakeholder or analytical viewpoint on "
                                   "the topic, e.g. 'supply-chain buyer', "
@@ -1555,6 +1627,9 @@ class Perspective(BaseModel):
 
 class TopicProfile(BaseModel):
     field: str = Field(description="the industry field in 2-6 words")
+    vertical: Literal["HEALTH", "FOOD", "TECH", "ECO", "DESIGN", "FASHION",
+                      "BIZ", "LIFESTYLE"] = Field(
+        description="the one industry vertical the topic belongs to")
     actor_types: list[str] = Field(description="kinds of actors that move "
                                                "this field (e.g. 'drug "
                                                "developer', 'cell maker', "
@@ -1638,10 +1713,10 @@ ENT_LEGAL_CORE = ('"{e}" patent expiry', "{e} court ruling")
 ENT_MKT_CORE = ("{e} acquisition deal agreement announcement",
                 "{e} quarterly results guidance", "{e} launch date price")
 ENT_CAT_CORE = ("{e} expected date decision 2027", "{e} next milestone timeline")
-PROFILE_MAX_REG = 12
+PROFILE_MAX_REG = 22
 PROFILE_MAX_MKT = 12
-PROFILE_MAX_CAT = 6
-PROFILE_MAX_ENT = 4
+PROFILE_MAX_CAT = 9
+PROFILE_MAX_ENT = 5
 PROFILE_MAX_PERSPECTIVE_GAPS = 4
 PROFILE_NEIGHBOURS = 12
 
@@ -1678,10 +1753,12 @@ def _short(q: str, cap: int = 16) -> str:
 def topic_profile(topic: str, question: str,
                   neighbours: list[str]) -> TopicProfile | None:
     """Ein Aufruf, schema-gebunden, nicht-denkend. None bei Ausfall."""
+    # Nachbartitel bewusst NICHT im Prompt: unsere Nachbarn sind Schlagzeilen,
+    # und das Modell uebernahm ihre Signal-Sprache als Feldstruktur. Der
+    # Parameter bleibt, falls einmal echte Inhaltsverzeichnisse vorliegen.
+    del neighbours
     prompt = (f"Topic: {shield(topic)}\n\nBoard question:\n{shield(question)}\n\n"
-              f"<untrusted_corpus_titles>\n"
-              + shield("\n".join(f"- {t}" for t in neighbours[:PROFILE_NEIGHBOURS]))
-              + "\n</untrusted_corpus_titles>\n\nReturn the profile as JSON.")
+              f"Return the profile as JSON.")
     try:
         return llamacpp_client.chat_structured(
             model=MODEL, schema=TopicProfile, system=PROFILE_SYSTEM,
@@ -1740,7 +1817,10 @@ def profile_queries(profile: TopicProfile | None, phrase: str,
                 "entity_market": ENTITY_MARKET_PATTERNS,
                 "entity_catalyst": ENTITY_CATALYST_PATTERNS,
                 "perspective": ()}
+    vset = VERTICAL_SETS.get(getattr(profile, "vertical", "") or "", {})
     reg: list[str] = list(REG_CORE)
+    for r in vset.get("regulators", ())[:5]:
+        reg += [f"{{t}} {r} decision", f"{{t}} {r} requirements"]
     for r in profile.regulators[:5]:
         r = _short(r, 6)
         if r and not _generic_event(r):
@@ -1756,12 +1836,20 @@ def profile_queries(profile: TopicProfile | None, phrase: str,
             mkt.append(_with_topic(q, "{t}", []))
     cat: list[str] = list(CATALYST_PATTERNS)
     ent_cat: list[str] = list(ENT_CAT_CORE)
+    # Feldspezifische Ereignisse des Profils VOR dem Rueckgrat: wenn das
+    # Modell etwas Konkretes weiss ("A-sample delivery"), ist das die
+    # treffendere Anfrage; das Rueckgrat fuellt auf.
     for ev in profile.event_types[:6]:
         ev = _short(ev, 5)
         if ev and not _generic_event(ev):
             cat.append(f"{{t}} {ev} expected 2027")
             ent_cat.append(f"{{e}} {ev} date")
+    for ev in vset.get("events", ())[:4]:
+        cat.append(f"{{t}} {ev} expected 2027")
+        ent_cat.append(f"{{e}} {ev} date")
     ent_legal: list[str] = list(ENT_LEGAL_CORE)
+    for r in vset.get("regulators", ())[:2]:
+        ent_legal.append(f"{{e}} {r}")
     for r in profile.regulators[:2]:
         r = _short(r, 5)
         if r:
@@ -1833,10 +1921,10 @@ SUBSTANCE_LEGAL_PATTERNS = (
     "{e} patent expiry Europe",
     "{e} court ruling generic",
 )
-REG_MAX_SOURCES = 36      # eigener Katalogbereich, unabhaengig von max_web_sources
+REG_MAX_SOURCES = 66      # eigener Katalogbereich, unabhaengig von max_web_sources
                           # (= Muster x REG_PER_PATTERN: die spaeten Muster
                           #  duerfen nicht von den fruehen ausgehungert werden)
-REG_MAX_FETCH = 15        # Volltexte — nur diese sind zitierbar
+REG_MAX_FETCH = 18        # Volltexte — nur diese sind zitierbar
 REG_PER_PATTERN = 3       # Treffer je Muster in den Katalog
 SUB_MAX_SOURCES = 24      # zweite Welle: Wirkstoff-/Entitaets-Rechtsabfragen
 SUB_MAX_FETCH = 8
@@ -2769,8 +2857,8 @@ ENTITY_CATALYST_PATTERNS = (
     "{e} EMA CHMP opinion expected",
     "{e} phase 3 completion expected 2027",
 )
-CAT_MAX_SOURCES = 26
-CAT_MAX_FETCH = 12
+CAT_MAX_SOURCES = 30
+CAT_MAX_FETCH = 14
 CAT_PER_PATTERN = 3
 CAT_MAX_ENTITIES = 5      # Anfragen = CAT_MAX_ENTITIES * 4 + 3
 
@@ -3836,8 +3924,8 @@ def run(question: str, max_steps: int, max_sources: int,
                                 corpus_neighbours(topic or question))
         pq = profile_queries(profile, phrase, terms, question)
         if profile is not None:
-            logger.info("topic profile: field=%r regulators=%s events=%s seeds=%s",
-                        profile.field, profile.regulators[:5],
+            logger.info("topic profile: vertical=%s field=%r regulators=%s events=%s seeds=%s",
+                        profile.vertical, profile.field, profile.regulators[:5],
                         profile.event_types[:4], profile.actor_seeds[:6])
             # Akteur-Saatgut: nur als Suchbegriffe, nie als Fakten.
             for seed in profile.actor_seeds[:6]:
