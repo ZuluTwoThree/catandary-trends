@@ -973,3 +973,128 @@ class TestR13PastDatesInTheCurrentYear:
 
     def test_one_source_carries_at_most_two_rows(self):
         assert cr.CAL_MAX_PER_SOURCE == 2
+
+
+# --------------------------------------------------------------------------
+# Runde 14 (jury_18, 2026-09-07): Streichung auf Absatzebene
+# --------------------------------------------------------------------------
+
+
+class TestR14SentenceSplit:
+    def test_vs_is_not_a_sentence_end(self):
+        t = "Fiber intake is 14.5 g/day vs. DRI 25-38 g/day. Calcium is low."
+        assert ds.split_sentences(t) == [
+            "Fiber intake is 14.5 g/day vs. DRI 25-38 g/day.", "Calcium is low."]
+
+    def test_common_abbreviations_survive(self):
+        t = "See Fig. 3 and Dr. Smith et al. for approx. 12 cases. Next one."
+        assert len(ds.split_sentences(t)) == 2
+
+    def test_split_claims_honours_the_same_rule(self):
+        t = "A is 3 vs. B is 4. C follows."
+        assert ds.split_claims(t) == ["A is 3 vs. B is 4.", "C follows."]
+
+    def test_a_real_sentence_end_still_splits(self):
+        assert len(ds.split_sentences("One ends here. Two ends here.")) == 2
+
+
+class TestR14ParagraphMending:
+    def test_an_orphaned_back_reference_falls_with_its_antecedent(self):
+        orig = ("Sales rose 40% in 2025 [[M1]]. The two readings coexist. "
+                "A closing sentence with enough words to stand on its own.")
+        after = ("The two readings coexist. A closing sentence with enough "
+                 "words to stand on its own.")
+        out, n = ds._mend_paragraphs(after, orig)
+        assert "two readings" not in out and "closing sentence" in out and n == 1
+
+    def test_a_back_reference_that_opened_its_paragraph_stays(self):
+        orig = "These are the facts. More follows here in detail."
+        out, n = ds._mend_paragraphs(orig, orig)
+        assert out == orig and n == 0
+
+    def test_a_bare_label_is_removed(self):
+        out, n = ds._mend_paragraphs("**Named actors and figures:**\n\nText stays here.",
+                                     "**Named actors and figures:** x.\n\nText stays here.")
+        assert out == "Text stays here." and n == 1
+
+    def test_a_paragraph_reduced_to_a_stub_falls(self):
+        orig = "First fact 1. Second fact 2. Third fact 3. Short tail."
+        out, n = ds._mend_paragraphs("Short tail.", orig)
+        assert out == "" and n == 1
+
+    def test_drop_unverified_uses_it(self):
+        doc = ("Sales rose 40% in 2025 [[M1]]. These are not directly "
+               "comparable. A closing sentence with enough words to stand.")
+        out, n = ds.drop_unverified(doc, [{"sentence": "Sales rose 40% in 2025 [[M1]].",
+                                           "tokens": ["40%"]}])
+        assert "not directly comparable" not in out and "closing sentence" in out
+
+
+class TestR14FieldLineWithoutItsHead:
+    def test_a_participle_tail_is_no_field(self):
+        line = ("- Risk: positioning claims cost 2 million [[X]], spanning "
+                "muscle preservation and gut health")
+        assert ds._strip_clause(line, "2 million") is None
+
+    def test_a_repairable_conjunction_tail_is_kept(self):
+        line = "- Trigger: the take-off was 1990, and France reimburses from June 2026"
+        out = ds._strip_clause(line, "1990")
+        assert out and out.startswith("- Trigger: France")
+
+
+class TestR14FragmentFindings:
+    def test_bare_label_and_dangling_colon_are_findings(self):
+        body = "**Named actors and figures:**\n\nKey figures:\n\n## H\n\nThese are orphans."
+        f = ds.fragment_findings(body)
+        assert any("label without content" in x for x in f)
+        assert any("colon" in x for x in f)
+        assert any("back-reference" in x for x in f)
+
+    def test_clean_text_has_no_findings(self):
+        body = "## Heading\n\nA proper sentence. Another proper one.\n\n- **Trigger:** x"
+        assert ds.fragment_findings(body) == []
+
+
+class TestR14ActorMap:
+    def test_rows_come_from_the_ledger_first(self):
+        led = [{"date": "2026-06-01", "statement": "Retatrutide cut weight 28.3% in TRIUMPH-1", "id": "M3"},
+               {"date": "2025-01-01", "statement": "Retatrutide entered phase 3", "id": "M4"}]
+        rows = cr.actor_map(led, [], ["retatrutide", "Novo Nordisk"], ["glp-1"])
+        assert rows[0]["actor"] == "retatrutide" and rows[0]["id"] == "M3"
+        assert len([r for r in rows if r["actor"] == "retatrutide"]) == 2
+
+    def test_a_page_sentence_fills_in_when_the_ledger_is_silent(self):
+        srcs = [{"id": "L7", "fetched": True,
+                 "text": "Novo Nordisk booked GLP-1 sales of DKK 120 billion in 2025. Filler."}]
+        rows = cr.actor_map([], srcs, ["Novo Nordisk"], ["glp-1"])
+        assert rows and rows[0]["id"] == "L7" and "120 billion" in rows[0]["statement"]
+        assert "[[L7]]" in cr.actor_map_block(rows)
+
+    def test_an_actor_without_a_figure_gets_no_row(self):
+        srcs = [{"id": "L8", "fetched": True,
+                 "text": "Novo Nordisk is a company from Denmark active in GLP-1."}]
+        assert cr.actor_map([], srcs, ["Novo Nordisk"], ["glp-1"]) == []
+
+
+def _moving(rows):
+    head = ["| Actor | What happened | Date | Source |", "|---|---|---|---|"]
+    return ("## Decision summary\n\nx\n\n## What is moving\n\n"
+            + "\n".join(head + rows) + "\n\n## Regulatory and IP status\n\ny\n")
+
+
+class TestR14ActorRows:
+    def test_complete_rows_are_counted_with_their_sources(self):
+        rows = [f"| Actor {i} | GLP-1 result {i} 12% | 2026 | [[A{i}]] |" for i in range(5)]
+        a = ds.actor_rows(_moving(rows), "en", ("glp-1",))
+        assert a["ok"] == 5 and a["sources"] == 5
+        assert ds.actor_findings(_moving(rows), "en", ("glp-1",)) == []
+
+    def test_a_missing_table_is_a_finding(self):
+        f = ds.actor_findings("## What is moving\n\nProse only.\n", "en")
+        assert f and "no actor table" in f[0]
+
+    def test_off_topic_and_figureless_rows_do_not_count(self):
+        rows = ["| Steel Co | tariff 12% | 2026 | [[A1]] |",
+                "| Novo | GLP-1 launch | — | [[A2]] |"]
+        a = ds.actor_rows(_moving(rows), "en", ("glp-1",))
+        assert a["ok"] == 0 and a["off_topic"] == 1 and a["no_figure"] == 1

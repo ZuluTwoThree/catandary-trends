@@ -80,6 +80,13 @@ def _report(summary_words: int = 40, options: int = 2,
     if summary_extra:
         body.append("4. " + summary_extra)
     body += ["", "## What is moving", ""]
+    # R14-1: die Akteur-Tabelle ist Pflicht — fuenf Zeilen, drei Quellen,
+    # jede mit Zahl und Beleg und Themenbezug.
+    body += ["| Actor | What happened | Date | Source |",
+             "|---|---|---|---|"]
+    body += [f"| Actor {i} | GLP-1 result {i} at 12% | 2026 | [[A{i % 3}]] |"
+             for i in range(5)]
+    body += [""]
     if chain:
         body += [" ".join(_CHAIN_SENTENCES), ""]
     if dense:

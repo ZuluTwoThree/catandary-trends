@@ -355,10 +355,16 @@ order, with exactly these top-level headings and no others:
   with its citation. Nothing else: no background, no method, no preamble.
 
 ## What is moving
-  What verifiably changed, with dates, named actors and figures. Name at
-  least FIVE distinct actors the evidence names — companies, products,
-  agencies, substances — and give each one a figure or a date from the
-  evidence. "Several companies", "a number of studies", "the sector" where
+  Open with a table of the movers — exactly these four columns:
+
+  | Actor | What happened | Date | Source |
+
+  At least five rows from at least three different sources, each row one
+  actor the evidence names (company, product, agency, substance) with the
+  figure or date the evidence gives and its citation; rows about another
+  field are deleted. Then the prose: what verifiably changed, with dates,
+  named actors and figures — name at least FIVE distinct actors and give
+  each one a figure or a date from the evidence. "Several companies", "a number of studies", "the sector" where
   the evidence names them is a sentence that throws its own evidence away. The measured
   time series are appended to this document for you — quote a measured figure
   here only where a statement depends on it, and never repeat the appendix.
@@ -481,7 +487,15 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
   mit Beleg. Sonst nichts: kein Hintergrund, keine Methode, kein Vorlauf.
 
 ## Was sich bewegt
-  Was sich nachweislich geändert hat — mit Datum, benannten Akteuren, Zahlen.
+  Beginne mit einer Tabelle der Akteure — genau diese vier Spalten:
+
+  | Akteur | Was geschah | Datum | Quelle |
+
+  Mindestens fünf Zeilen aus mindestens drei Quellen, je Zeile ein Akteur,
+  den die Belege benennen (Firma, Produkt, Behörde, Wirkstoff), mit der Zahl
+  oder dem Datum aus den Belegen und dem Beleg; Zeilen aus einem anderen Feld
+  werden gestrichen. Danach der Fließtext: was sich nachweislich geändert
+  hat — mit Datum, benannten Akteuren, Zahlen.
   Nenne mindestens FÜNF verschiedene Akteure, die die Belege benennen —
   Firmen, Produkte, Behörden, Wirkstoffe — und zu jedem eine Zahl oder ein
   Datum aus den Belegen. "Mehrere Unternehmen", "einige Studien", "die
@@ -2184,7 +2198,7 @@ def calendar_candidates(fact_ledger: list[dict], sources: list[dict],
         if not text:
             continue
         taken = 0
-        for sent in dossier_structure._SENT_SPLIT.split(text):
+        for sent in dossier_structure.split_sentences(text):
             sent = _clean_sentence(sent)
             if not (20 <= len(sent) <= CAL_SENTENCE_WORDS * 9):
                 continue
@@ -2263,7 +2277,7 @@ def effort_anchors(sources: list[dict], terms: list[str],
         sid = str(src.get("id") or "")
         if not src.get("fetched") or not sid.startswith(EFFORT_ANCHOR_KINDS):
             continue
-        for sent in dossier_structure._SENT_SPLIT.split(str(src.get("text") or "")):
+        for sent in dossier_structure.split_sentences(str(src.get("text") or "")):
             sent = " ".join(sent.split())
             if not (20 <= len(sent) <= 320):
                 continue
@@ -2288,6 +2302,77 @@ def effort_anchors(sources: list[dict], terms: list[str],
 
 def effort_anchor_block(anchors: list[dict]) -> str:
     return "\n".join(f"- {a['statement']} [[{a['id']}]]" for a in anchors)
+
+
+# --------------------------------------------------------------------------
+# Akteur-Landkarte (R14-1, jury_18 2026-09-07)
+# --------------------------------------------------------------------------
+# "Die Landkarte ist schmal (keine Mover ausser Lilly/Novo/Catalent, Pipeline
+# fehlt)" — obwohl der Lauf 23 Akteure geerntet und nach Retatrutid,
+# Orforglipron, Tirzepatid gesucht hatte. Was dem Schreibaufruf nicht als
+# fertige Zeile vorliegt, geht in 80k Token Belegen unter. Also: je Akteur die
+# juengste belegte Aussage mit Zahl oder Datum, aus Faktenzettel und gelesenen
+# Seiten, als Tabelle vorgelegt.
+ACTOR_MAP_MAX_ACTORS = 14
+ACTOR_MAP_PER_ACTOR = 2
+
+
+def actor_map(fact_ledger: list[dict], sources: list[dict],
+              entities: list[str], terms: list[str]) -> list[dict]:
+    want = {t.lower() for t in list(terms or []) if t}
+    rows: list[dict] = []
+    seen: set[str] = set()
+    by_id = {str(x.get("id")): x for x in sources or [] if x.get("id")}
+
+    def _push(actor: str, stmt: str, date: str, sid: str) -> None:
+        key = stmt.lower()[:80]
+        if key in seen or not stmt or not sid:
+            return
+        seen.add(key)
+        rows.append({"actor": actor, "statement": stmt, "date": date, "id": sid})
+
+    for ent in list(entities or [])[:ACTOR_MAP_MAX_ACTORS]:
+        low = ent.lower()
+        taken = 0
+        # 1) Faktenzettel: geprueft, datiert, mit Zahl bevorzugt
+        facts = [f for f in fact_ledger or []
+                 if low in str(f.get("statement") or "").lower()]
+        facts.sort(key=lambda f: (not dossier_structure._FIGURE_OR_DATE.search(
+            str(f.get("statement") or "")), str(f.get("date") or "")), reverse=False)
+        facts.sort(key=lambda f: str(f.get("date") or ""), reverse=True)
+        for f in facts:
+            _push(ent, str(f["statement"]).strip(), str(f.get("date") or ""),
+                  str(f.get("id") or ""))
+            taken += 1
+            if taken >= ACTOR_MAP_PER_ACTOR:
+                break
+        if taken:
+            continue
+        # 2) gelesene Seiten: ein Satz mit Akteur UND Zahl/Datum
+        for src in sources or []:
+            if not src.get("fetched") or not src.get("id"):
+                continue
+            for sent in dossier_structure.split_sentences(str(src.get("text") or "")):
+                sent = _clean_sentence(sent)
+                if not (25 <= len(sent) <= 320) or low not in sent.lower():
+                    continue
+                if not dossier_structure._FIGURE_OR_DATE.search(sent):
+                    continue
+                if want and not any(w in sent.lower() for w in want) and low not in want:
+                    continue
+                _push(ent, sent, "", src["id"])
+                taken += 1
+                break
+            if taken >= 1:
+                break
+    return rows
+
+
+def actor_map_block(rows: list[dict]) -> str:
+    return "\n".join(
+        f"- {r['actor']} | {r['statement']}"
+        + (f" | {r['date']}" if r.get("date") else "")
+        + f" [[{r['id']}]]" for r in rows)
 
 
 def calendar_candidate_block(cands: list[dict]) -> str:
@@ -3822,6 +3907,7 @@ def run(question: str, max_steps: int, max_sources: int,
     # gelesenen Seite: Datum in der Zukunft + Vorwaertswort + Themenbezug.
     cal_cands: list[dict] = []
     eff_anchors: list[dict] = []
+    actor_rows: list[dict] = []
     if dr:
         cal_cands = calendar_candidates(
             fact_ledger, citable_sources, terms, entities,
@@ -3833,6 +3919,9 @@ def run(question: str, max_steps: int, max_sources: int,
         eff_anchors = effort_anchors(citable_sources, terms)
         logger.info("effort anchors: %d transferable figure(s)",
                     len(eff_anchors))
+        actor_rows = actor_map(fact_ledger, citable_sources, entities, terms)
+        logger.info("actor map: %d row(s) over %d actor(s)", len(actor_rows),
+                    len({r["actor"] for r in actor_rows}))
     ledger_json = json.dumps(ledger, ensure_ascii=False)
     # R6-2/R6-3 (jury_7.md/jury_8.md): die Optionen muessen an die Messung
     # gebunden und ueber alle in der Frage genannten Felder verteilt sein.
@@ -3960,6 +4049,16 @@ def run(question: str, max_steps: int, max_sources: int,
            f"sentence under the table what was not found.\n"
            f"{calendar_candidate_block(cal_cands)}\n\n"
            if dr and cal_cands else "")
+        + (f"ACTOR MAP — {len(actor_rows)} lines, one or two per actor the "
+           f"evidence names: the latest statement about that actor that "
+           f"carries a figure or a date, each taken from ONE source read in "
+           f"full. Open 'What is moving' with a table | Actor | What happened "
+           f"| Date | Source | built from THESE lines — at least five rows "
+           f"from at least three sources, every row on the subject of the "
+           f"question, the id in the Source column. Then write the prose of "
+           f"the section around the table; do not repeat the rows as "
+           f"sentences.\n{actor_map_block(actor_rows)}\n\n"
+           if dr and actor_rows else "")
         + (f"EFFORT ANCHORS — figures from the funding, legal and catalyst "
            f"pages that a mid-sized company can actually transfer to its own "
            f"plan: grant sizes it could apply for, programme budgets, "

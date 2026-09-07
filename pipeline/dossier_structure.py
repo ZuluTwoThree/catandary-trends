@@ -53,6 +53,37 @@ _HEAD_ENUM = re.compile(r"^[\s\d.)(]*(?:[a-z][.)]\s+)?")
 # punkte und Tabellenzeilen sind eigene Behauptungen, keine Absaetze.
 _SENT_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 
+# R14-2a (jury_18, 2026-09-07): "vs." ist kein Satzende. Der Bericht trug
+# "fiber intake is 14.5 g/day vs. DRI 25-38 g/day; calcium 863 mg vs. DRI
+# 1,000-1,200 mg" — der Splitter trennte hinter "vs.", die vordere Haelfte fiel
+# der Zahlenpruefung zum Opfer, und uebrig blieb das Bruchstueck "DRI 25-38
+# g/day; calcium (863 mg vs. …)", das der Gutachter als beschaedigte Stelle
+# zaehlte. Vor einem Punkt, der eine Abkuerzung schliesst, wird nicht geteilt.
+_ABBREV_END = re.compile(
+    r"(?:\b(?:vs|e\.g|i\.e|et al|approx|ca|cf|No|Nos|Fig|Figs|Dr|Prof|Inc|Ltd"
+    r"|Co|Corp|Mr|Mrs|Ms|St|Jr|Sr|Art|Abs|Nr|bzw|ggf|usw|etc|resp|vgl|Tab"
+    r"|Vol|pp|p|ed|eds|rev|max|min|approx|U\.S|E\.U|U\.K|z\. ?B|d\. ?h|u\. ?a"
+    r"|o\. ?ä|s\. ?o|s\. ?u|Mio|Mrd|Tsd|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept"
+    r"|Oct|Okt|Nov|Dec|Dez))\.$")
+
+
+def _abbrev_break(text: str, pos: int) -> bool:
+    """Endet der Text vor `pos` auf eine Abkuerzung (kein Satzende)?"""
+    head = text[max(0, pos - 12):pos].rstrip()
+    return bool(_ABBREV_END.search(head))
+
+
+def split_sentences(text: str) -> list[str]:
+    """Saetze eines Textes, abkuerzungsfest (fuer Seitentexte und Berichte)."""
+    out, start = [], 0
+    for m in _SENT_SPLIT.finditer(text or ""):
+        if not m.group(0).startswith("\n") and _abbrev_break(text, m.start()):
+            continue
+        out.append(text[start:m.start()])
+        start = m.end()
+    out.append((text or "")[start:])
+    return [x for x in out if x.strip()]
+
 # Trennmarke zwischen dem AUSGELIEFERTEN Dokument und dem Pruefanhang
 # (2026-09-07, jury_7.md/jury_8.md). Beide Gutachten rechneten dasselbe vor:
 # 2.563 der 6.775 Woerter unseres Dossiers waren Suchprotokoll — "der Kaeufer
@@ -236,6 +267,8 @@ def split_claims(text: str) -> list[str]:
     out, start = [], 0
     for m in _SENT_SPLIT.finditer(text or ""):
         if any(a < m.start() < b for a, b in spans):
+            continue
+        if not m.group(0).startswith("\n") and _abbrev_break(text, m.start()):
             continue
         out.append(text[start:m.start()])
         start = m.end()
@@ -1157,6 +1190,80 @@ def calendar_rows(report_md: str, lang: str = "en",
             "sources": len(calendar_sources(report_md, lang, year_floor))}
 
 
+# --------------------------------------------------------------------------
+# Akteur-Tabelle in "Was sich bewegt" (R14-1, jury_18 2026-09-07)
+# --------------------------------------------------------------------------
+# Spezifitaet und Abdeckung blieben zweimal 5:8 — "die Landkarte ist schmal
+# (keine Mover ausser Lilly/Novo/Catalent, Pipeline fehlt)". Der Lauf hatte
+# 23 Akteure geerntet; der Bericht nannte sie kaum. Dieselbe Bauweise wie beim
+# Kalender: die Zeilen werden vorgelegt (corpus_research.actor_map) und hier
+# gezaehlt — eine Zeile zaehlt, wenn sie einen Akteur, eine Zahl oder ein
+# Datum, einen Beleg und einen Themenbezug traegt.
+_FIGURE_OR_DATE = re.compile(
+    r"\b(?:19|20)\d{2}\b|\d+(?:[.,]\d+)?\s?%|[€$£]\s?\d|\b\d[\d.,]*\s?"
+    r"(?:m|bn|k|million|billion|Mio|Mrd)\b|\bn\s?=\s?\d|\b\d+(?:[.,]\d+)?\s?"
+    r"(?:mg|g|kg|t|GW|MW|kWh|MWh|patients|participants|weeks|months|years)\b",
+    re.IGNORECASE)
+ACTOR_ROWS_MIN = 5
+ACTOR_SOURCES_MIN = 3
+
+
+def actor_rows(report_md: str, lang: str = "en", topic_terms=()) -> dict:
+    """Bilanz der Akteur-Tabelle im Abschnitt 'Was sich bewegt'."""
+    sections = split_sections(body_text(report_md), _lang(lang))
+    rows = table_rows(sections.get("moving", ""))
+    ok = no_figure = no_cite = off_topic = 0
+    sources: set[str] = set()
+    for cells in rows:
+        line = " ".join(cells)
+        figured, cited = bool(_FIGURE_OR_DATE.search(line)), _has_citation(line)
+        if not figured and not cited:
+            continue                       # Kopfzeile
+        if figured and cited:
+            if _row_on_topic(line, topic_terms):
+                ok += 1
+                sources |= _citation_keys(line)
+            else:
+                off_topic += 1
+        elif not figured:
+            no_figure += 1
+        else:
+            no_cite += 1
+    return {"rows": len(rows), "ok": ok, "no_figure": no_figure,
+            "no_cite": no_cite, "off_topic": off_topic, "sources": len(sources)}
+
+
+def actor_findings(report_md: str, lang: str = "en", topic_terms=()) -> list[str]:
+    a = actor_rows(report_md, lang, topic_terms)
+    L = _lang(lang)
+    out: list[str] = []
+    if a["rows"] == 0:
+        out.append("„Was sich bewegt“ trägt keine Akteur-Tabelle (| Actor | "
+                   "What happened | Date | Source |) — sie ist Pflicht."
+                   if L == "de" else
+                   "'What is moving' carries no actor table (| Actor | What "
+                   "happened | Date | Source |) — it is mandatory.")
+        return out
+    if a["ok"] < ACTOR_ROWS_MIN:
+        out.append(f"Akteur-Tabelle: nur {a['ok']} vollständige Zeile(n) "
+                   f"(Akteur + Zahl/Datum + Beleg + Themenbezug), mindestens "
+                   f"{ACTOR_ROWS_MIN} nötig — {a['no_figure']} ohne Zahl/Datum, "
+                   f"{a['no_cite']} ohne Beleg, {a['off_topic']} nicht zum Thema."
+                   if L == "de" else
+                   f"actor table: only {a['ok']} complete row(s) (actor + "
+                   f"figure/date + citation + on topic), at least "
+                   f"{ACTOR_ROWS_MIN} needed — {a['no_figure']} without a "
+                   f"figure or date, {a['no_cite']} without a citation, "
+                   f"{a['off_topic']} off topic.")
+    if a["ok"] and a["sources"] < ACTOR_SOURCES_MIN:
+        out.append(f"Akteur-Tabelle stützt sich auf {a['sources']} Quelle(n); "
+                   f"mindestens {ACTOR_SOURCES_MIN} verschiedene nötig."
+                   if L == "de" else
+                   f"actor table rests on {a['sources']} source(s); at least "
+                   f"{ACTOR_SOURCES_MIN} different ones are needed.")
+    return out
+
+
 def _citation_keys(text: str, by_id: dict | None = None) -> set[str]:
     """Womit ein Satz belegt ist — Katalog-ID oder Host des Links.
 
@@ -1553,6 +1660,10 @@ def structure_findings(report_md: str, lang: str = "en",
                 f"dieses Feld ausdruecklich; mindestens eine Option muss es "
                 f"adressieren.")
     findings += calendar_findings(report_md, L, year_floor, topic_terms)
+    findings += actor_findings(report_md, L, topic_terms)
+    # R14-2d: Bruchstuecke gehen in den Neuwurf, bevor die Streichung neue
+    # erzeugt — nackte Etiketten, haengende Doppelpunkte, kleine Satzanfaenge.
+    findings += fragment_findings(body, L)
     findings += chain_findings(report_md, L)
     return findings
 
@@ -1708,6 +1819,14 @@ _FIELD_LINE = re.compile(
 # Trennzeichen, an denen ein Nebensatz endet — die Klausel-Streichung schneidet
 # zwischen ihnen, nicht mitten im Satz.
 _CLAUSE_SPLIT = re.compile(r"\s*(?:[;,]|—|–| - |\() ?")
+# Nur Anschluesse, die der Bindewort-Reparatur unten NICHT zugaenglich sind
+# (and/but/or/which … werden dort abgeschnitten und gross geschrieben).
+_CONTINUATION_LEADS = frozenset("""
+with without across including such via from through under over between
+among plus minus versus vs nor yet so because while whereas although
+though as than mit ohne samt nebst durch waehrend während obwohl weil
+""".split())
+_REPAIRABLE_LEADS = frozenset("and but und aber sowie oder or which die das".split())
 
 
 def _strip_clause(sentence: str, token: str) -> str | None:
@@ -1731,6 +1850,18 @@ def _strip_clause(sentence: str, token: str) -> str | None:
     keep = [p for p in parts if token.lower() not in p.lower()]
     if len(keep) == len(parts) or not keep:
         return None
+    # R14-2c (jury_18): "**Risk: Spanning muscle preservation, gut health …"
+    # — der Kopfsatz der Zeile fiel, uebrig blieb ein Partizip-Anschluss.
+    # Beginnt der Rest nicht mit dem urspruenglichen Kopf und liest er sich
+    # als Fortsetzung, faellt die Zeile ganz (der Befund "fehlendes Feld" ist
+    # ehrlicher als ein Bruchstueck im Pflichtfeld).
+    first_kept = next((p for p in keep if p.strip()), "")
+    if parts and parts[0].strip() and first_kept is not parts[0]:
+        lead = first_kept.strip().split(" ", 1)[0].strip("*").lower()
+        if lead not in _REPAIRABLE_LEADS and (
+                lead.endswith("ing") or lead in _CONTINUATION_LEADS
+                or first_kept.strip()[:1].islower()):
+            return None
     out = head + (marks[0] if marks and not parts[0] else " ") + ", ".join(
         p.strip() for p in keep if p.strip())
     out = re.sub(r"\s{2,}", " ", out).rstrip(" ,;-").rstrip()
@@ -2004,6 +2135,8 @@ def drop_unverified(report_md: str, unverified: list[dict],
     out = re.sub(r"^[ \t]*(?:\d{1,2}[.)]|[-*+])[ \t]*$\n?", "", out,
                  flags=re.MULTILINE)
     out = _renumber_lists(out)
+    out, orphans = _mend_paragraphs(out, report_md)
+    dropped += orphans
     out = _mend_inline(_mend_tables(out))
     out = re.sub(r"\n{3,}", "\n\n", out)
     return out, dropped
@@ -2016,6 +2149,107 @@ def drop_unverified(report_md: str, unverified: list[dict],
 # der Abschnitt, den ein Entscheider zuerst liest.
 _TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
 _TABLE_DELIM = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
+
+
+# R14-2b (jury_18, 2026-09-07): Streichung auf Absatzebene. Der Gutachter zog
+# Struktur-Punkte fuer verwaiste Absaetze ("The two readings coexist …",
+# "These are not directly comparable …") und fuer nackte Etiketten
+# ("**Named actors and figures:**" ohne Inhalt): der Satz davor war
+# gestrichen, der Rest verweist ins Leere. Was hier faellt, ist mechanisch
+# eindeutig — ein Anschluss ohne Bezug, ein Etikett ohne Inhalt, ein Absatz,
+# von dem fast nichts uebrig ist.
+_ANAPHORA = re.compile(
+    r"^\W*(?:these|those|this|that|such|both|the two|the (?:former|latter)|"
+    r"they|it|he|she|which|either|neither|diese|dieser|dieses|beide|"
+    r"jene|das|sie|er|es|letztere|erstere)\b", re.IGNORECASE)
+_BARE_LABEL = re.compile(r"^\s*(?:[-*]\s*)?\*\*[^*\n]{2,60}:\*\*\s*$")
+_PARA_BREAK = re.compile(r"\n\s*\n")
+MIN_PARAGRAPH_WORDS = 8
+
+
+def fragment_findings(body: str, lang: str = "en") -> list[str]:
+    """Bruchstuecke, die ein Leser als Schaden liest (R14-2d, jury_18).
+
+    Nur mechanisch Eindeutiges: ein Etikett ohne Inhalt, eine Zeile, die auf
+    einen Doppelpunkt endet und von einer Leerzeile gefolgt wird, ein Satz,
+    der klein beginnt, und ein Absatz, der mit einem Anschlusswort beginnt
+    und keinen Vorgaenger hat. Geht als Befund in den einen Neuwurf."""
+    out: list[str] = []
+    paras = _PARA_BREAK.split(body or "")
+    for i, para in enumerate(paras):
+        stripped = para.strip()
+        if not stripped:
+            continue
+        if _BARE_LABEL.match(stripped):
+            out.append(("Etikett ohne Inhalt: " if lang == "de" else
+                        "label without content: ") + stripped[:60])
+            continue
+        head = stripped.lstrip("-*> ").strip()
+        if head.startswith(("#", "|")) or _FIELD_LINE.match(head):
+            continue
+        if stripped.endswith(":") and len(stripped.split()) <= 12:
+            out.append(("Zeile endet auf Doppelpunkt ohne Fortsetzung: "
+                        if lang == "de" else
+                        "line ends in a colon with nothing after it: ")
+                       + stripped[:60])
+        # Kein Kleinbuchstaben-Test: "eMed", "mRNA", "iPhone" beginnen
+        # Saetze legitim klein — die Regel war Rauschen.
+        first = split_claims(stripped)[0] if split_claims(stripped) else ""
+        prev = paras[i - 1].strip() if i else ""
+        if (_ANAPHORA.match(first) and (not prev or prev.startswith("#"))):
+            out.append(("Absatz beginnt mit Anschlusswort ohne Bezug: "
+                        if lang == "de" else
+                        "paragraph opens with a back-reference and nothing "
+                        "before it: ") + first[:60])
+    return out
+
+
+def _mend_paragraphs(text: str, original: str) -> tuple[str, int]:
+    """Verwaiste Anschluesse, nackte Etiketten und Restabsaetze streichen."""
+    removed = 0
+    orig = original or ""
+    paras = _PARA_BREAK.split(text or "")
+    kept: list[str] = []
+    for para in paras:
+        stripped = para.strip()
+        if not stripped:
+            continue
+        if _BARE_LABEL.match(stripped):
+            removed += 1
+            continue
+        head = stripped.lstrip("-*> ").strip()
+        is_prose = not (head.startswith(("#", "|", "- ", "* ", "1.", "2.", "3."))
+                        or _FIELD_LINE.match(head))
+        if is_prose:
+            sents = split_claims(stripped)
+            # Anaphorischer Anschluss, dessen Vorgaenger im Original im
+            # selben Absatz stand und jetzt fehlt: stand der Satz im Original
+            # nicht am Absatzanfang, ist sein Bezug gestrichen worden.
+            while sents and _ANAPHORA.match(sents[0]):
+                first = sents[0].strip()
+                at = orig.find(first)
+                if at < 0:
+                    break
+                pre = orig[:at]
+                same_para = pre[pre.rfind("\n") + 1:]
+                if not same_para.strip():
+                    break                      # war schon Absatzanfang
+                sents = sents[1:]
+                removed += 1
+            if not sents:
+                continue
+            joined = " ".join(x.strip() for x in sents)
+            orig_para = next((op for op in _PARA_BREAK.split(orig)
+                              if sents[0].strip() in op), "")
+            if (orig_para and len(split_claims(orig_para)) >= 3
+                    and count_words(joined) < MIN_PARAGRAPH_WORDS):
+                removed += 1
+                continue
+            kept.append(joined if len(sents) != len(split_claims(stripped))
+                        else stripped)
+        else:
+            kept.append(stripped)
+    return "\n\n".join(kept), removed
 
 
 def _mend_inline(text: str) -> str:
