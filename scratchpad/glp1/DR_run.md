@@ -68,4 +68,45 @@ die Untergrenze 2,0 im Code ist an der laxen Messung geeicht.
 
 ## 5. Bewertung
 
-Blindgutachten: siehe Abschnitt unten (wird nach dem Gutachten ergaenzt).
+Blindgutachten `jury_15.md` — DR-Dokument gegen B9 v2, anonymisiert (M/N),
+Zuordnung erst nach dem Urteil aufgelöst (`M = B9 v2`, `N = DR`). Gutachter
+prüfte je Dokument fünf Zitate per WebFetch.
+
+| Kriterium | B9 v2 | **DR** |
+|---|---|---|
+| Belegbarkeit | 4 | **6** |
+| Spezifität | 6 | **7** |
+| Handlungsrelevanz (EU-Mittelstand) | 4 | **6** |
+| Abdeckung Wissenschaft/Patente/Förderung/Markt | 5 | 5 |
+| Zeitliche Einordnung | **6** | 4 |
+| Ehrlichkeit über Grenzen | 6 | 6 |
+| Struktur | 3 | **4** |
+| **Durchschnitt** | 4,9 | **5,4** |
+
+**Sieger: das DR-Dokument.** Begründung des Gutachters, verkürzt: 4 von 5
+geprüften Belegen halten stand (B9: 2 von 5); das Belegrückgrat besteht aus
+PNAS, BMC Medicine, Nutrients, auflösbaren Patentnummern und Firmen-IR statt
+aus SEO-Blogs (FormBlends, GreyB, Tech Times) und einem Coaching-Blog; zwei
+von vier Optionen tragen alle fünf Felder intakt und mit bezifferter
+Aufwandsspanne — bei B9 ist kein einziges Aufwandsfeld intakt.
+
+**Wo B9 besser ist** (und das ist die Rechnung des DR-Modus): die Zeitachse.
+Fünf datierte Termine auf fünf Quellen gegen drei auf zwei Quellen. Dazu
+verwendet B9 die eigene Messung im Argument, während sie im DR-Dokument
+ungenutzt im Anhang liegt.
+
+**Fehler, die der Gutachter im DR-Dokument gefunden hat** — sie gehören in die
+nächste Runde: ein *Appetite*-Papier von 2014 als „peer-reviewed evidence
+(PMC, 2026)" ausgegeben, Nutrients unter falschem Journalnamen zitiert, die
+28,7 %-TRIUMPH-Daten auf Juni 2026 statt Dezember 2025 datiert, zwei unbelegte
+FDA-Zulassungsdaten.
+
+**Was beide nicht können:** keine Empfehlung, keine Priorisierung, und kein
+einziges europäisches Förderinstrument, obwohl „Förderung" im Auftrag steht.
+
+## 6. Einordnung
+
+Der Vergleich ist DR gegen die eigene Vorrunde, **nicht** gegen die
+Deep-Research-Vergleichsanalyse. Die vierzehn Bewertungen davor liefen gegen
+`C_sonnet.md`; ob der DR-Modus auch dort gewinnt, ist nicht getestet — es war
+ein Lauf, wie beauftragt.
