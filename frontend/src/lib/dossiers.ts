@@ -53,8 +53,10 @@ export interface DossierSeries {
 
 /** Evidence mix of one run, as scripts/corpus_research.py counts it. */
 /** "legal" = regulatory/IP sweep, "market" = market/reimbursement sweep,
- * "entity" = second wave (<actor> <event type>, 2026-09-07). All three are
- * fixed query patterns, fetched in full. */
+ * "entity" = second wave (<actor> <event type>, 2026-09-07), "funding" = the
+ * funding sweep (R10-4, 2026-09-07: jury_16 scored coverage 5:9 because the
+ * funding level of the innovation chain had no query direction of its own).
+ * All four are fixed query patterns, fetched in full. */
 export type EvidenceKind =
   | "article"
   | "signal"
@@ -63,7 +65,8 @@ export type EvidenceKind =
   | "web"
   | "legal"
   | "market"
-  | "entity";
+  | "entity"
+  | "funding";
 
 /** Provenance header of a run — what the report is a snapshot OF. */
 export interface DossierProvenance {
@@ -94,7 +97,8 @@ export type DossierLedgerKind =
   | "followup"
   | "legal"
   | "market"
-  | "entity";
+  | "entity"
+  | "funding";
 
 export interface DossierLedgerRow {
   gap: string;
@@ -257,6 +261,9 @@ export async function listVersions(
   }
 }
 
+// Vollstaendig, in der Reihenfolge der Herkunftszeile. "entity" fehlte hier
+// seit der zweiten Welle — die Zaehlung kam aus Python, wurde aber nie
+// angezeigt; "funding" kam mit R10-4 dazu.
 const KINDS: EvidenceKind[] = [
   "article",
   "signal",
@@ -265,6 +272,8 @@ const KINDS: EvidenceKind[] = [
   "web",
   "legal",
   "market",
+  "entity",
+  "funding",
 ];
 
 function num(v: unknown): number | null {

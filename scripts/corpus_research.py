@@ -1707,6 +1707,34 @@ ENTITY_MARKET_PATTERNS = (
 MKT_MAX_SOURCES = 30
 MKT_MAX_FETCH = 14
 MKT_PER_PATTERN = 3
+
+# --------------------------------------------------------------------------
+# Foerder-Sweep (R10-4, jury_16 2026-09-07)
+# --------------------------------------------------------------------------
+# Der Gutachter gab dem Dossier bei der Abdeckung 5 gegen 9 und begruendete es
+# mit einer Ebene: „Foerderung praktisch abwesend — R raeumt selbst ein:
+# ,3/4 chain levels'; die eigene Korpustabelle weist 96 Funding-Signale aus,
+# die nicht verwendet werden". Der Grund ist Bauart, nicht Zufall: es gab
+# Suchrichtungen fuer Recht und fuer Markt, aber keine fuer Foerderung — und
+# ein Audit ueber einem technologielastigen Korpus benennt keine
+# Foerderausschreibung als Luecke. Also dieselbe Bauweise wie dort: feste
+# Muster, eigenes Budget, Volltextpflicht.
+#
+# Bewusst OEFFENTLICHE Foerderung zuerst (Horizon Europe, EIC, BMBF, national)
+# und erst danach private Runden: fuer einen Mittelstaendler ist ein
+# Foerderinstrument etwas, das er beantragen kann — eine fremde Series B nicht.
+FUNDING_PATTERNS = (
+    "{t} Horizon Europe call funding programme",
+    "{t} EIC Accelerator grant award",
+    "{t} national research funding programme grant SME",
+    "{t} public funding call deadline application",
+    "{t} grant awarded project consortium",
+    "{t} seed series A funding round raised",
+    "{t} venture investment startup raised million",
+)
+FUND_MAX_SOURCES = 20
+FUND_MAX_FETCH = 8
+FUND_PER_PATTERN = 2
 ENT_MAX_SOURCES = 32      # zweite Welle: <Entitaet> <Ereignistyp>
 ENT_MAX_FETCH = 8
 ENT_PER_PATTERN = 2
@@ -1798,7 +1826,8 @@ def read_primary_first(sources: list[dict], notes: list[str],
     ents = tuple(entities or ())
     pending = []
     for src in sources:
-        if src["kind"] not in ("web", "legal", "market", "entity"):
+        if src["kind"] not in ("web", "legal", "market", "entity",
+                               "funding"):
             continue
         if src.get("fetched"):
             continue
@@ -1932,6 +1961,25 @@ def sweep_market(topic: str, sources: list[dict], seen_ids: set[str],
                      "national rollouts, M&A contests, pipeline readouts and "
                      "reported revenue cannot be crowded out by the general web "
                      "stage. Only pages read in full are citable:"))
+
+
+def sweep_funding(topic: str, sources: list[dict], seen_ids: set[str],
+                  notes: list[str], ledger: list[dict],
+                  per_query: int = 6, terms: list[str] | None = None,
+                  entities: list[str] | None = None) -> tuple[int, str]:
+    """Foerderung als eigene Suchrichtung — oeffentliche Programme zuerst."""
+    return sweep_fixed(
+        topic, sources, seen_ids, notes, ledger, per_query,
+        patterns=FUNDING_PATTERNS, kind="funding", id_prefix="F",
+        max_sources=FUND_MAX_SOURCES, max_fetch=FUND_MAX_FETCH,
+        per_pattern=FUND_PER_PATTERN, label="funding",
+        terms=terms, entities=entities,
+        record_head=("FUNDING SWEEP RECORD — fixed query patterns, run "
+                     "deterministically so that the funding level of the "
+                     "innovation chain cannot be crowded out by the general "
+                     "web stage. Public programmes a mid-sized company can "
+                     "apply for come first, private rounds after. Only pages "
+                     "read in full are citable:"))
 
 
 # --------------------------------------------------------------------------
@@ -2276,12 +2324,14 @@ _L10N = {
            "web": "web — read in full", "paper": "research corpus",
            "patent": "patent filing", "original": "original",
            "measurement": "our own measurement",
-           "legal": "regulatory/IP — read in full"},
+           "legal": "regulatory/IP — read in full",
+           "funding": "funding — read in full"},
     "de": {"sources": "Quellen", "signal": "Signal — nicht ausgearbeitet",
            "web": "Web — im Volltext gelesen", "paper": "Forschungskorpus",
            "patent": "Patentanmeldung", "original": "Original",
            "measurement": "eigene Messung",
-           "legal": "Recht/Zulassung — im Volltext gelesen"},
+           "legal": "Recht/Zulassung — im Volltext gelesen",
+           "funding": "Foerderung — im Volltext gelesen"},
 }
 
 
@@ -2841,6 +2891,7 @@ def run(question: str, max_steps: int, max_sources: int,
     # darf nicht gegen allgemeine Treffer um dieselbe Kappe konkurrieren.
     reg_added, reg_record = 0, ""
     mkt_added, mkt_record = 0, ""
+    fund_added, fund_record = 0, ""
     entities: list[str] = []
     if measure and web_steps > 0:
         # Entitaeten VOR der ersten Welle: Firmen, Wirkstoffe und Behoerden
@@ -2864,6 +2915,12 @@ def run(question: str, max_steps: int, max_sources: int,
             topic or question, sources, seen_ids, notes, ledger, per_query,
             terms=web_filter, entities=entities)
         logger.info("market/reimbursement sweep: +%d source(s)", mkt_added)
+        logger.info("funding sweep: %d fixed query pattern(s)",
+                    len(FUNDING_PATTERNS))
+        fund_added, fund_record = sweep_funding(
+            topic or question, sources, seen_ids, notes, ledger, per_query,
+            terms=web_filter, entities=entities)
+        logger.info("funding sweep: +%d source(s)", fund_added)
 
         # --- zweite Welle: <Entitaet> <Ereignistyp> ----------------------
         # Zweite Ernte, jetzt ueber dem Material der ersten Welle (Korpus +
@@ -3176,7 +3233,7 @@ def run(question: str, max_steps: int, max_sources: int,
 
     # Re-audit over the combined catalog: the report must know which gaps
     # actually closed and which merely produced more unvetted material.
-    if web_trace or local_added or reg_added or mkt_added:
+    if web_trace or local_added or reg_added or mkt_added or fund_added:
         audit2 = llamacpp_client.chat_structured(
             model=MODEL, schema=Audit, system=AUDIT_SYSTEM, temperature=0.2,
             max_tokens=4096,
@@ -3216,7 +3273,8 @@ def run(question: str, max_steps: int, max_sources: int,
     # Only fetched web pages are citable; corpus entries always are. An
     # unfetched web source stays in the run record but cannot carry a citation.
     citable_sources = [s for s in sources
-                       if s["kind"] not in ("web", "legal", "market", "entity")
+                       if s["kind"] not in ("web", "legal", "market",
+                                           "entity", "funding")
                        or s.get("fetched")]
     # R9-2: was nur auf die eigene Domain zeigt, ist kein Beleg und kommt
     # nicht in den Katalog — die eigene Messung (Q0/Q1) ist ueber den
@@ -3259,7 +3317,8 @@ def run(question: str, max_steps: int, max_sources: int,
     # dieser Art. Sie werden deshalb ausdruecklich benannt.
     _citable_ids = {s["id"] for s in citable_sources}
     uncitable_ids = [s["id"] for s in sources
-                     if (s["kind"] in ("web", "legal", "market", "entity")
+                     if (s["kind"] in ("web", "legal", "market", "entity",
+                                      "funding")
                          and not s.get("fetched"))
                      or s["id"] not in _citable_ids]
     # DR-Modus: Notizen VOR dem Schreiben. Das Modell soll nicht im
@@ -3336,6 +3395,8 @@ def run(question: str, max_steps: int, max_sources: int,
            f"</untrusted_regulatory_record>\n\n" if reg_record else "")
         + (f"<untrusted_market_record>\n{shield(mkt_record)}\n"
            f"</untrusted_market_record>\n\n" if mkt_record else "")
+        + (f"<untrusted_funding_record>\n{shield(fund_record)}\n"
+           f"</untrusted_funding_record>\n\n" if fund_record else "")
         + (f"These ids appear in the evidence but were NEVER READ IN FULL, so "
            f"they cannot carry a citation — using one deletes it and leaves the "
            f"claim unsupported: {', '.join(uncitable_ids)}\n\n"
@@ -3789,7 +3850,7 @@ def run(question: str, max_steps: int, max_sources: int,
                 "fetched": sorted(fetched_web)},
         "kinds": {k: sum(1 for s in sources if s["kind"] == k)
                   for k in ("article", "signal", "paper", "patent", "web",
-                            "legal", "market", "entity")},
+                            "legal", "market", "entity", "funding")},
         "ledger": ledger,
         "rejected_sources": [r for e in ledger for r in (e.get("rejected") or [])],
         "report_raw": report_raw,

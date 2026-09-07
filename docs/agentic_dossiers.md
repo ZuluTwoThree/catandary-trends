@@ -806,11 +806,27 @@ Dazu die Ehrlichkeit im Prüfnachweis: eine gestrichene unbelegte Aussage wird
 eigens ausgewiesen und nicht mehr unter „die zitierte Seite enthielt die Zahl
 nicht" verbucht (`uncited_before`/`uncited_after`).
 
-**Nicht angefasst, weil ohne Lauf nicht prüfbar:** die beiden anderen
-jury_16-Vorwürfe — der Kalender (3 statt 8 Termine) und die fehlende
-Förderebene, obwohl die eigene Korpustabelle 96 Förder-Signale zählt. Beides
-sind Beschaffungsfragen (Sweep), keine Prüfregeln; sie gehören in den nächsten
-freigegebenen Lauf.
+- **R10-4 — die Förderebene bekommt eine eigene Suchrichtung**
+  (`sweep_funding`, Art `funding`, Präfix `F`). jury_16 zur Abdeckung (5:9):
+  „Förderung praktisch abwesend … die eigene Korpustabelle weist 96
+  Funding-Signale aus, die nicht verwendet werden." Der Grund war Bauart: es
+  gab feste Muster für Recht und für Markt, aber keine für Förderung, und ein
+  Audit über einem technologielastigen Korpus benennt keine Ausschreibung als
+  Lücke. Sieben Muster, eigenes Budget (20 Quellen / 8 Volltexte), **öffentliche
+  Programme zuerst** (Horizon Europe, EIC, nationale Programme — was ein
+  Mittelständler beantragen kann), private Runden danach; Protokoll geht als
+  `<untrusted_funding_record>` in den Berichts-Prompt. Ungelesene Treffer sind
+  wie bei Recht und Markt nicht zitierfähig. Desk und `lib/dossiers.ts` kennen
+  die Art (dabei fiel auf: `entity` wurde seit der zweiten Welle gezählt, aber
+  nie angezeigt — mitgefixt).
+
+**Was der Kalender braucht, ist damit NICHT erledigt:** die drei Termine gegen
+acht sind eine Frage der Terminausbeute, nicht der Prüfregeln. Ob R10-4 und die
+Vorwärtsmuster genügen, zeigt erst der nächste Lauf.
+
+**Wichtig zur Geltung:** R10-1 bis R10-3 sind an den gespeicherten Dokumenten
+gegengeprüft, R10-4 nur in Tests — seine Wirkung auf ein echtes Dossier ist
+ungemessen, weil der Owner genau einen Lauf freigegeben hat.
 
 **Offen aus dem Lauf selbst:** der Rang-0-Vorlauf des Faktenbuchs besteht
 überwiegend aus **Patenten ohne Abstract** (ihr Snippet ist ein Ein-Zeiler);

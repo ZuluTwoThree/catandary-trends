@@ -475,3 +475,69 @@ def test_the_stored_dr_document_is_repaired():
     seg = ds._mend_tables(src.read_text()).split("## What happens next")[1]
     seg = seg.split("## What the evidence")[0].strip()
     assert not any(not l.strip() for l in seg.splitlines())
+
+
+# --------------------------------------------------------------------------
+# 7. R10-4 — die Foerderebene bekommt eine eigene Suchrichtung
+# --------------------------------------------------------------------------
+# jury_16 zur Abdeckung (5 gegen 9): „Foerderung praktisch abwesend — R raeumt
+# selbst ein: ,3/4 chain levels'; die eigene Korpustabelle weist 96
+# Funding-Signale aus, die nicht verwendet werden." Es gab Suchrichtungen fuer
+# Recht und Markt, aber keine fuer Foerderung.
+
+def _hits(n=3):
+    seen: dict[str, int] = {}
+
+    def gen(q, count=6):
+        k = seen.setdefault(q, len(seen))
+        return [{"id": f"W{i}", "trend_id": None, "kind": "web",
+                 "title": f"Grant hit {i}", "url": f"https://f{k}.example/{i}",
+                 "origin": "", "outlet": "o", "vertical": "",
+                 "date": "2026-01-01",
+                 "snippet": "incretin GLP-1 funding grant", "fetched": False}
+                for i in range(n)]
+    return gen
+
+
+def test_every_funding_pattern_runs_with_its_own_budget(monkeypatch):
+    asked: list[str] = []
+    gen = _hits()
+    monkeypatch.setattr(cr, "brave_search",
+                        lambda q, n=6: (asked.append(q), gen(q))[1])
+    monkeypatch.setattr(cr, "fetch_web_page_status",
+                        lambda u: ("page text", "fetched"))
+    sources, notes, ledger = [], [], []
+    added, record = cr.sweep_funding("GLP-1 and incretin technology",
+                                     sources, set(), notes, ledger)
+    assert len(asked) == len(cr.FUNDING_PATTERNS)
+    assert added == len(cr.FUNDING_PATTERNS) * cr.FUND_PER_PATTERN
+    assert all(s["kind"] == "funding" for s in sources)
+    assert all(s["id"].startswith("F") for s in sources)
+    assert all(e["kind"] == "funding" for e in ledger)
+    assert "FUNDING SWEEP RECORD" in record
+
+
+def test_public_programmes_are_asked_before_private_rounds():
+    """Ein Mittelstaendler kann ein Foerderprogramm beantragen, eine fremde
+    Series B nicht — also stehen die oeffentlichen Muster vorn (die
+    Volltext-Budgets werden der Reihe nach vergeben)."""
+    pats = list(cr.FUNDING_PATTERNS)
+    first_private = next(i for i, p in enumerate(pats)
+                         if "series" in p or "venture" in p)
+    assert any("Horizon Europe" in p for p in pats[:first_private])
+    assert any("EIC" in p for p in pats[:first_private])
+    assert any("national research funding" in p for p in pats[:first_private])
+
+
+def test_an_unread_funding_hit_cannot_carry_a_citation(monkeypatch):
+    """Wie bei Recht und Markt: nur im Volltext gelesene Seiten sind zitierbar."""
+    monkeypatch.setattr(cr, "brave_search", _hits(1))
+    monkeypatch.setattr(cr, "fetch_web_page_status", lambda u: ("", "robots"))
+    sources, notes, ledger = [], [], []
+    cr.sweep_funding("GLP-1", sources, set(), notes, ledger)
+    assert sources and not any(s.get("fetched") for s in sources)
+    # dieselbe Regel wie in run(): ungelesene Web-Arten sind nicht zitierfaehig
+    citable = [s for s in sources
+               if s["kind"] not in ("web", "legal", "market", "entity",
+                                    "funding") or s.get("fetched")]
+    assert citable == []
