@@ -541,6 +541,21 @@ Protokoll und Bericht liegen im Scratchpad (`B2_run.md`, `B2_decision.md`).
   **umgesetzt 2026-09-07** (R6-4): Qualifizierer („at least" → „only"),
   Größenordnung (>25 % vom Quellwert derselben Sache) und Kategoriewort
   (generic/hybrid/biosimilar/originator).
+- **Lauf B6 (2026-09-07, `glp1-r6`, dossiers.id=19, 1.272 s).** Ausgeliefert
+  5.477 Wörter (R5: 6.773), davon 0 Suchprotokoll (R5: 2.557; jetzt 2.551
+  Wörter Prüfanhang). 4 von 4 Optionen tragen eine gemessene Größe (R5: 0 von
+  4), die Kurzfassung führt in Satz 1 die gemessene Verbesserungsrate.
+  Beleg-Verifikation: 37 Sätze, 10 Befunde vor dem Neuwurf (3 Zahl nicht auf
+  der Seite, 5 Gegenstand, 1 quellenlos, **1 verdrehte Größenordnung**), 4
+  Sätze danach gestrichen. Offen geblieben: Fließtext 2.901 Wörter (Kappe
+  2.800, ein Neuwurf ohne Loop); „health technology" nur nachgesprochen statt
+  bedient; die Streichung nahm Option 2 ihren Zeithorizont — beide Löcher sind
+  seit `251985b` sichtbar (Prüfung nach der Streichung, Aufzählung zählt nicht
+  als Abdeckung). Protokoll: `scratchpad/glp1/B6_run.md`.
+- Drei der vier Streichungen in B6 gingen auf **Fehlalarme der
+  Gegenstandsprüfung** zurück („Time", „Permitted", „A FoodNavigator" am
+  Anfang eines Listenpunkts). Die Regel stammt aus Runde 3; sie kostet hier ein
+  Pflichtfeld und ist der nächste Kandidat.
 - Die Verdrehungsprüfung braucht **gelesenen** Seitentext. Der zweite
   Faktenfehler des R5-Dossiers („5 Mio. Wegovy-Rezepte") zitierte eine Seite,
   die mit HTTP 403 nie gelesen wurde — mechanisch nicht zu fangen; die Regel
