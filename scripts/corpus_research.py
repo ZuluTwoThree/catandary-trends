@@ -861,6 +861,28 @@ def rank_hits(hits: list[dict], entities: tuple[str, ...] | list[str] = ()) -> l
     return [hits[i] for _, i in order]
 
 
+def entity_terms(terms: list[str], entities: list[str]) -> list[str]:
+    """Filterbegriffe = Themenanker + Entitaeten + deren Einzeltoken.
+
+    Die Einzeltoken sind nicht kosmetisch: die Probe vom 2026-09-07 verwarf die
+    Seite mit dem entscheidenden Befund ("SPC ... until 2031"), weil dort nur
+    "Novo" stand und im Filter "novo nordisk". Ein Filter, der DIE Fundstelle
+    verwirft, deretwegen er gebaut wurde, ist falsch gebaut.
+    """
+    out = list(terms)
+    seen = set(out)
+    for e in entities:
+        low = str(e).lower().strip()
+        if low and low not in seen:
+            out.append(low)
+            seen.add(low)
+        for tok in re.findall(r"[a-z0-9][a-z0-9\-]{3,}", low):
+            if tok not in seen and tok not in _ENTITY_STOP:
+                out.append(tok)
+                seen.add(tok)
+    return out
+
+
 def web_relevant(hit: dict, terms: list[str]) -> bool:
     """Relevanzschranke VOR dem Abruf: Titel, Snippet oder URL muss einen
     Themen- oder Entitaetsbegriff tragen.
@@ -2144,7 +2166,7 @@ def run(question: str, max_steps: int, max_sources: int,
         # Web-Stufe braucht sie — ein Treffer "Novo wins court battle over
         # Wegovy patent" traegt kein einziges Wort der Themenphrase.
         entities, substances = harvest_entities(sources, topic or question)
-        web_filter = list(terms) + [e.lower() for e in entities]
+        web_filter = entity_terms(terms, entities)
         logger.info("entities from the corpus catalog: %s | substances: %s",
                     ", ".join(entities[:8]) or "(none)",
                     ", ".join(substances[:4]) or "(none)")
@@ -2166,7 +2188,7 @@ def run(question: str, max_steps: int, max_sources: int,
         # Recht + Markt). Der Sieger im Gutachten arbeitete genau so: erst das
         # Thema, dann die Akteure, die es hervorgebracht hat.
         entities, substances = harvest_entities(sources, topic or question)
-        web_filter = list(terms) + [e.lower() for e in entities]
+        web_filter = entity_terms(terms, entities)
         logger.info("entities after the first wave: %s | substances: %s",
                     ", ".join(entities[:8]) or "(none)",
                     ", ".join(substances[:4]) or "(none)")
@@ -2194,7 +2216,7 @@ def run(question: str, max_steps: int, max_sources: int,
     # Relevanzschranke der Web-Stufe: Themenbegriffe PLUS die Entitaeten, die
     # die zweite Welle zutage gefoerdert hat. Ohne die Entitaeten wuerde ein
     # Treffer ueber "Metsera" am reinen Themenfilter scheitern.
-    web_terms = list(terms) + [e.lower() for e in entities]
+    web_terms = entity_terms(terms, entities)
     if web_steps > 0 and gaps:
         logger.info("web stage: %d gap(s) to cover, %d action(s) allowed",
                     len(gaps), web_steps)

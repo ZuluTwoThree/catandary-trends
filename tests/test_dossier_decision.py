@@ -877,6 +877,22 @@ class TestRelevanceBeforeFetch:
         assert len(sources) == 1
         assert ledger[0].get("floor_admitted") == 1
 
+    def test_a_single_entity_token_is_enough(self):
+        """Probe vom 2026-09-07: die Seite mit dem entscheidenden Befund
+        ("SPC ... until 2031") sagte nur "Novo", der Filter kannte
+        "novo nordisk" — und verwarf genau die Fundstelle, deretwegen Runde 5
+        gebaut wurde."""
+        terms = cr.entity_terms(["glp-1"], ["Novo Nordisk", "Ozempic"])
+        assert "novo" in terms and "nordisk" in terms and "ozempic" in terms
+        hit = {"title": "Ozempic's impending patent expiry",
+               "snippet": "However, Novo received a patent ... SPC until 2031",
+               "url": "https://patentlawyermagazine.com/x"}
+        assert cr.web_relevant(hit, terms) is True
+
+    def test_entity_tokens_do_not_smuggle_in_filler(self):
+        terms = cr.entity_terms([], ["The Company Group"])
+        assert "company" not in terms and "group" not in terms
+
     def test_a_register_page_is_never_filtered_out(self):
         reg = {"title": "Decision", "snippet": "n/a",
                "url": "https://register.epo.org/application?number=EP123"}
