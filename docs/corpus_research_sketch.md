@@ -248,7 +248,7 @@ Lücken wurden nie im Web angefasst. Drei Umbauten stellen das ab:
 
 Dazu: `chat_structured` hat jetzt einen `max_tokens`-Parameter (Audit-Hops
 starten bei 4096 statt 1024 — vorher zwei Trunkierungs-Retries pro Audit),
-und `--web-steps` Default ist 8 (Web-Stufe an; 0 = offline).
+und `--web-steps` Default ist 14 (Web-Stufe an; 0 = offline; war 8 bis Runde 5, s. u.).
 
 **v3-Lauf (dossiers v3, 752 s):** 18/65 zitiert über alle fünf Belegarten
 (5 Artikel / 6 Signale / 2 Paper / 5 Web), **1** gestrichenes Zitat statt 11 in
@@ -320,3 +320,97 @@ nachträglich kanonisieren) ist Unsloth Studios Web-Deep-Research abgeschaut.
 **Kein Code und kein Prompt daraus übernommen** — jener Code ist AGPL-3.0-only
 und würde diese Lizenz auf das Produkt ziehen. Prompts und Implementierung hier
 sind eigenständig.
+
+---
+
+## Runde 5 (2026-09-07) — die Web-Schicht auf Augenhöhe
+
+**Anlass:** `docs/dossier_vs_deepresearch/00_ergebnis.md`. Sechs blinde Jurys, sechs
+Niederlagen gegen eine Web-Recherche. Zwei der drei belegten Verlustgründe sind
+strukturell (kein Rechtsstatus im Korpus, CPC ist für Wirkstoffe unscharf), der dritte
+ist handwerklich: der Sieger las ~45 Primärseiten, unser Sweep 6–16 — und verwarf im
+Askea-Lauf belegbar echte Treffer still („8 hits, 0 new", Katalog voll).
+
+### 1. Budget und Tiefe — Ziel 40–60 gelesene Seiten je Lauf
+
+| Stelle | vorher | jetzt |
+|---|---|---|
+| `--web-steps` / `--web-sources` | 8 / 12 | **14 / 32** |
+| Recht/IP-Sweep | 6 Muster × 2 Treffer, 8 Volltexte | **8 Muster × 3, 12 Volltexte** |
+| Markt/Erstattung | 6 × 2, 8 Volltexte | **8 × 3, 12 Volltexte** |
+| Wirkstoff-/IP-Welle (neu) | — | **3 Entitäten × 4 Muster × 2, 8 Volltexte** |
+| Akteur/Ereignis-Welle (neu) | — | **4 Entitäten × 4 Muster × 2, 8 Volltexte** |
+| Abdeckungs-Sweep | 2 Treffer je offener Frage | **4** |
+| Lese-Auffangnetz | 6 Seiten, 1 je Frage | **12 Seiten, 2 je Frage** |
+
+Obergrenze: 44 feste Suchanfragen + Agentenstufe, 40 Volltexte aus den festen
+Richtungen plus bis zu 12 aus dem Auffangnetz und ~8 aus der Agentenstufe. Real landet
+das nach robots/403 im Zielband. Die globalen Kappen (`*_MAX_SOURCES`) liegen bewusst
+auf `Muster × per_pattern`, damit die späten Muster nicht von den frühen ausgehungert
+werden.
+
+### 2. Query-Vielfalt statt mehr vom Gleichen — die zweite Welle
+
+`harvest_entities()` zieht **deterministisch** (kein Modell-Hop, damit reproduzierbar
+und GPU-frei testbar) Akteure aus Titeln und Snippets des bisherigen Katalogs: 1- bis
+3-Gramme aus Großschreibungsläufen mit Dokumentfrequenz ≥ 2 (Title-Case-Füllwörter und
+Outlet-Namen fallen raus), dazu Wirkstoffnamen an ihren INN-Endungen. Danach laufen
+
+* `sweep_substance_legal` — `"<Wirkstoff>" SPC …`, `supplementary protection
+  certificate <Wirkstoff> expiry`, `<Wirkstoff> patent expiry Europe`,
+  `<Wirkstoff> court ruling generic`
+* `sweep_entity_market` — `<Entität> acquisition deal …`, `… reimbursement pricing
+  decision`, `… phase 3 trial results readout`, `… revenue guidance quarterly results`
+
+Das ist der Mechanismus, über den der Siegertext auf Metsera, Frankreichs
+Erstattungsentscheidung und den NHS-Rollout kam: nicht mehr Suche nach dem *Thema*,
+sondern nach den *Akteuren*, die das Thema hervorgebracht hat.
+
+### 3. Quellenrang und Relevanzfilter vor dem Abruf
+
+`source_rank()`: Rang 0 = Register/Behörde/Gericht/Gesetzgeber (Hostliste +
+`.gov`/`.europa.eu`/`.gouv.fr`/… -Endungen), Rang 1 = eigene Seite einer bekannten
+Entität (Domain trägt den Namen — Firmen-Newsrooms ohne Firmenliste), Rang 2 = Rest.
+`rank_hits()` liest Primärquellen zuerst.
+
+`web_relevant()` filtert **vor** dem Abruf gegen Themen- und Entitätsbegriffe
+(`entity_terms()` = Themenanker + Entitäten + deren Einzeltoken). Zwei Sicherungen:
+Rang-0-Seiten sind vom Filter ausgenommen (Gerichte nennen den Gegenstand oft erst im
+Volltext), und eine **Rückfallschwelle** lässt den bestplatzierten Treffer herein, wenn
+eine Anfrage sonst komplett verstummen würde.
+
+### 4. Kein stilles Verwerfen mehr
+
+Jeder Verwurf am Budget wird gezählt (`budget_dropped`), in den Evidenznotizen benannt
+(„… usable result(s) were NOT admitted — the web source budget was full") und im
+Coverage-Anhang wie in der Dossier-Ansicht ausgewiesen. Jeder Abruf trägt seinen Grund
+(`fetch_log`: `fetched` / `robots` / `blocked` (401/403/429/451) / `timeout` /
+`too_short` / `tdm` / `budget`) statt eines pauschalen „nicht lesbar". Der
+Produktions-UA bleibt — eine Botsperre wird **ausgewiesen, nicht umgangen**.
+
+### 5. Kein Aufblähen des Berichts
+
+Gefetchte Seiten gehen als **Schlüsselpassagen** (`key_passages()`: Absätze mit
+Themenbegriffen und Zahlen, Lead immer dabei, ~1.200 Zeichen) in die Evidenznotizen;
+der Volltext bleibt an der Quelle, wo die Beleg-Verifikation ihn braucht. Audit und
+Bericht bekommen ein eigenes Evidenzbudget (78k statt 30k Zeichen), die Agenten-Hops
+nicht. Die Längenbremse des Berichts (2.200–2.800 Wörter) ist unverändert.
+
+### Probe zur SPC-Frage (6 echte Suchanfragen, 2026-09-07)
+
+Die vier Wirkstoff-Rechtsmuster gegen „semaglutide" erreichen **alle drei** Belege, an
+denen jede Jury das Dossier scheitern ließ:
+
+* `semaglutide patent expiry Europe` → „The compound patent … EP 1 863 839 — expired in
+  March 2026" (techtimes.com)
+* `"semaglutide" SPC supplementary protection certificate` → „SPC extending the patent
+  term by five years until 2031" (patentlawyermagazine.com) und die
+  Novo-Nordisk-Mitteilung zum Urteil (globenewswire.com)
+* `semaglutide court ruling generic` → „District Court of The Hague … preliminary
+  injunction on August 5"
+
+Die beiden themenbasierten Gegenproben (`"GLP-1 receptor agonist" SPC …`,
+`GLP-1 receptor agonist patent expiry Europe generic entry`) erreichten **keinen** davon
+— sie lieferten Übersichtsartikel und Fachliteratur. Der fehlende Hebel war also der
+**Wirkstoffname**, nicht die Suchmenge. Alle drei Seiten sind mit dem Produktions-UA
+abrufbar (`fetched`, je 2.400 Zeichen).
