@@ -1920,8 +1920,16 @@ def save_dossier(slug: str, topic: str, question: str, report_md: str,
     Files cannot carry that; versions in the database can. Refresh stays
     on-demand (re-run the CLI with the same slug), per the owner's radar rule:
     a dossier is a dated document, never a cron job.
+
+    Gespeichert wird das GANZE Dokument: ausgeliefertes Dossier, dann die
+    Trennmarke `dossier_structure.AUDIT_ANNEX_MARK`, dann der Pruefanhang
+    (Suchprotokoll, Fetch-Log, Budget-Meldungen, Beleg-Verifikation). Der Desk
+    zeigt beides getrennt; ausgeliefert wird nur der Teil oberhalb der Marke
+    (`dossier_structure.delivered`).
     """
     from pipeline.dossier_orders import _dossiers_ddl
+    report_md = dossier_structure.join_document(
+        report_md, str(result.get("audit_annex") or ""))
     with get_connection() as conn:
         conn.execute(_dossiers_ddl())
         row = conn.execute(
@@ -2695,6 +2703,11 @@ def run(question: str, max_steps: int, max_sources: int,
         report, citable_sources, lang, markers=measure)
     if stripped:
         logger.warning("stripped %d citation(s) that resolve to nothing gathered", stripped)
+    # --- Pruefanhang statt Bericht (jury_7.md/jury_8.md, 2026-09-07) -------
+    # Das Suchprotokoll wandert UNTER die Trennmarke: ausgeliefert wird der
+    # Bericht plus Messanhang, das Betriebsprotokoll bleibt im Desk sichtbar
+    # und gespeichert, ist aber nicht mehr Teil des Dossiers.
+    audit_annex = ""
     if ledger:
         # Code-generated, not model prose: the coverage record must be exact.
         if lang == "de":
@@ -2787,7 +2800,7 @@ def run(question: str, max_steps: int, max_sources: int,
                           f"figure with no citation in the sentence · "
                           f"{st['dropped_sentences']} sentence(s) "
                           f"dropped afterwards."]
-        report = report.rstrip() + "\n" + "\n".join(lines) + "\n"
+        audit_annex = "\n".join(lines).strip() + "\n"
 
     # Codegenerierter Messanhang (M2): die gerechneten Zeitreihen erscheinen im
     # Dokument, unabhaengig davon, ob das Modell sie aufgreift — genau der
@@ -2807,6 +2820,7 @@ def run(question: str, max_steps: int, max_sources: int,
         "stripped_citations": stripped,
         "audit": json.loads(audit_json),
         "report": report,
+        "audit_annex": audit_annex,
         "retrieval": retrieval,
         "lang": lang,
         "scope": scope,

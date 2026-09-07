@@ -34,16 +34,18 @@ import re
 
 from pipeline.dossier_corpus_stats import CORPUS_HEADINGS
 from pipeline.dossier_quant import MEASURE_HEADINGS
+from pipeline.dossier_structure import AUDIT_ANNEX_MARK
 from pipeline.grounding import ungrounded_specifics
 
 # Müssen textgleich zu den code-generierten Anhängen in
 # scripts/corpus_research.py bleiben (dort erzeugt, hier abgetrennt) — eine
 # Fassung je Berichtssprache (lang=en / lang=de, Firmen-Dossiers sind deutsch).
 COVERAGE_HEADINGS = (
+    AUDIT_ANNEX_MARK,
     "## Research coverage (auto-generated)",
     "## Recherche-Abdeckung (automatisch erzeugt)",
 )
-COVERAGE_HEADING = COVERAGE_HEADINGS[0]
+COVERAGE_HEADING = COVERAGE_HEADINGS[1]
 
 # Ebenfalls code-generiert: der Messanhang (pipeline/dossier_quant.py,
 # measurement_appendix). Seine Jahresreihen sind Query-Ergebnisse, keine

@@ -53,13 +53,48 @@ _HEAD_ENUM = re.compile(r"^[\s\d.)(]*(?:[a-z][.)]\s+)?")
 # punkte und Tabellenzeilen sind eigene Behauptungen, keine Absaetze.
 _SENT_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 
+# Trennmarke zwischen dem AUSGELIEFERTEN Dokument und dem Pruefanhang
+# (2026-09-07, jury_7.md/jury_8.md). Beide Gutachten rechneten dasselbe vor:
+# 2.563 der 6.775 Woerter unseres Dossiers waren Suchprotokoll — "der Kaeufer
+# liest die Werkstatt statt des Produkts". Das Protokoll verschwindet nicht
+# (es ist der Ehrlichkeitsbeleg und steht im Desk), aber es steht ab hier
+# UNTERHALB der Marke: alles davor ist das Dossier, alles danach Betriebsdaten.
+AUDIT_ANNEX_MARK = "<!-- catandary:audit-annex -->"
+
 # Schnittmarken der code-generierten Anhaenge. Textgleich zu
 # pipeline/dossier_check.py zu halten (dort dieselbe Aufgabe nach dem Lauf).
 _APPENDIX_HEADINGS = (
+    AUDIT_ANNEX_MARK,
     "## Research coverage (auto-generated)",
     "## Recherche-Abdeckung (automatisch erzeugt)",
     "\n## Sources\n", "\n## Quellen\n",
 )
+
+
+def delivered(report_md: str) -> str:
+    """Das ausgelieferte Dokument: Bericht + Quellen + Messanhang, ohne den
+    Pruefanhang. Genau das, was der Kunde bekommt."""
+    text = report_md or ""
+    i = text.find(AUDIT_ANNEX_MARK)
+    return (text[:i] if i >= 0 else text).rstrip()
+
+
+def audit_annex(report_md: str) -> str:
+    """Der Pruefanhang eines gespeicherten Dokuments (leer, wenn keiner da)."""
+    text = report_md or ""
+    i = text.find(AUDIT_ANNEX_MARK)
+    return text[i + len(AUDIT_ANNEX_MARK):].strip() if i >= 0 else ""
+
+
+def join_document(report_md: str, annex: str) -> str:
+    """Ausgeliefertes Dokument + Pruefanhang zu einem speicherbaren Ganzen."""
+    if not annex:
+        return report_md
+    if AUDIT_ANNEX_MARK in (report_md or ""):
+        return report_md
+    return f"{(report_md or '').rstrip()}\n\n{AUDIT_ANNEX_MARK}\n{annex.strip()}\n"
+
+
 _SOURCES_HEADING = re.compile(
     r"^(?:#{1,6}\s*)?(?:\*\*)?(?:sources?|references?|bibliography|works\s+cited"
     r"|quellen(?:verzeichnis)?|literatur(?:verzeichnis)?)(?:\*\*)?:?\s*$",

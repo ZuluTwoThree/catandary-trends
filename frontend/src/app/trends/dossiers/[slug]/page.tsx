@@ -316,6 +316,17 @@ export default async function DossierPage({
 
       <Ledger rows={doc.ledger} />
 
+      {doc.auditAnnex && (
+        <details className="mt-10 border-t border-border pt-4">
+          <summary className="cursor-pointer font-mono text-[11px] uppercase tracking-[0.14em] text-muted hover:text-paper">
+            Audit annex — run record, not part of the dossier
+          </summary>
+          <div className="mt-4 opacity-80">
+            <MarkdownBody source={doc.auditAnnex} />
+          </div>
+        </details>
+      )}
+
       <footer className="mt-10 flex flex-wrap items-center gap-4 border-t border-border pt-4">
         <Link
           href="/trends/dossiers"

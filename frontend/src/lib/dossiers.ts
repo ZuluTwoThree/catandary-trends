@@ -122,6 +122,8 @@ export interface DossierDoc {
   reportTitle: string | null;
   /** Report Markdown without that title line (the page renders the h1). */
   reportMd: string;
+  /** Run record below the separator — shown in the desk, never delivered. */
+  auditAnnex: string;
   createdAt: string | null;
   model: string | null;
   provenance: DossierProvenance;
@@ -314,6 +316,27 @@ function parseLedger(raw: unknown): DossierLedgerRow[] {
   });
 }
 
+/**
+ * Separator between the DELIVERED dossier and the audit annex — textually
+ * identical to `pipeline.dossier_structure.AUDIT_ANNEX_MARK`. Everything above
+ * it is the document the customer gets (report + sources + measurement
+ * appendix); everything below is the run record (search protocol, fetch log,
+ * budget notes). Two blind reviews on 2026-09-07 measured 2,563 of 6,775 words
+ * as pure protocol and called it dilution — so the desk shows it separately
+ * instead of inside the report.
+ */
+export const AUDIT_ANNEX_MARK = "<!-- catandary:audit-annex -->";
+
+/** Cut a stored document into the delivered part and the audit annex. */
+export function splitAuditAnnex(md: string): { delivered: string; annex: string } {
+  const i = md.indexOf(AUDIT_ANNEX_MARK);
+  if (i < 0) return { delivered: md, annex: "" };
+  return {
+    delivered: md.slice(0, i).trimEnd(),
+    annex: md.slice(i + AUDIT_ANNEX_MARK.length).trim(),
+  };
+}
+
 /** Split a leading `# Title` off the report so the page owns the h1. */
 export function splitReportTitle(md: string): { title: string | null; body: string } {
   const m = /^\s*#\s+(.+?)\s*#*\s*(?:\r?\n|$)/.exec(md);
@@ -337,7 +360,8 @@ const DOC_SELECT = `SELECT slug, version, topic, question, report_md, model,
     FROM dossiers`;
 
 function toDoc(r: Record<string, unknown>): DossierDoc {
-  const { title, body } = splitReportTitle(String(r.report_md ?? ""));
+  const { delivered, annex } = splitAuditAnnex(String(r.report_md ?? ""));
+  const { title, body } = splitReportTitle(delivered);
   const quant =
     r.quant && typeof r.quant === "object" ? (r.quant as Record<string, unknown>) : null;
   return {
@@ -347,6 +371,7 @@ function toDoc(r: Record<string, unknown>): DossierDoc {
     question: String(r.question ?? ""),
     reportTitle: title,
     reportMd: body,
+    auditAnnex: annex,
     createdAt: r.created_at ? String(r.created_at) : null,
     model: r.model ? String(r.model) : null,
     provenance: {

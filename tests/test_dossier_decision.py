@@ -411,8 +411,11 @@ def test_measure_path_end_to_end(monkeypatch):
     assert st["findings"] and st["cite_findings"]
     assert st["findings_after"] == [] and st["cite_findings_after"] == []
     assert st["dropped_sentences"] == 0
-    # 4. der Coverage-Anhang weist die Beleg-Verifikation aus
-    assert "Verification of web citations" in out["report"]
+    # 4. das AUSGELIEFERTE Dokument traegt kein Suchprotokoll mehr; die
+    #    Beleg-Verifikation steht im Pruefanhang (R6, jury_7/jury_8)
+    assert "Verification of web citations" in out["audit_annex"]
+    assert "Research coverage" not in out["report"]
+    assert ds.AUDIT_ANNEX_MARK not in out["report"]
 
 
 def test_measure_false_writes_once_and_skips_the_sweep(monkeypatch):
@@ -1031,3 +1034,77 @@ class TestKeyPassages:
     def test_nothing_matching_still_returns_text(self):
         text = "a" * 500
         assert cr.key_passages(text, ["zzz"], limit=100) == "a" * 100
+
+
+# ===========================================================================
+# R6 — die Befunde der Blindgutachten jury_7.md / jury_8.md (2026-09-07):
+#      36/70 bzw. 45/70 gegen 56/70 bzw. 59/70 fuer eine reine Web-Recherche.
+# ===========================================================================
+
+class TestDeliveredDocument:
+    """R6-1: 2.563 der 6.775 Woerter waren Suchprotokoll — beide Jurys nannten
+    das Verduennung ("der Kaeufer liest die Werkstatt statt des Produkts").
+    Ausgeliefert wird ab jetzt Bericht + Messanhang; Protokoll, Fetch-Log und
+    Budget-Meldungen stehen unterhalb der Trennmarke."""
+
+    DOC = "# T\n\nBody.\n\n## Sources\n\n1. [A](https://a.de/b)\n"
+    ANNEX = "## Research coverage (auto-generated)\n\n1. [gap] x → 0 fetched\n"
+
+    def test_join_and_split_are_inverse(self):
+        full = ds.join_document(self.DOC, self.ANNEX)
+        assert ds.AUDIT_ANNEX_MARK in full
+        assert ds.delivered(full) == self.DOC.rstrip()
+        assert ds.audit_annex(full) == self.ANNEX.strip()
+
+    def test_joining_twice_does_not_duplicate_the_annex(self):
+        full = ds.join_document(self.DOC, self.ANNEX)
+        assert ds.join_document(full, self.ANNEX) == full
+
+    def test_a_document_without_annex_is_returned_whole(self):
+        assert ds.delivered(self.DOC) == self.DOC.rstrip()
+        assert ds.audit_annex(self.DOC) == ""
+        assert ds.join_document(self.DOC, "") == self.DOC
+
+    def test_the_annex_never_counts_as_body(self):
+        full = ds.join_document(self.DOC, "protocol " * 5000)
+        assert ds.count_words(ds.body_text(full)) < 20
+
+    def test_save_dossier_stores_both_parts(self, monkeypatch):
+        stored: dict = {}
+
+        class _Conn:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def execute(self, sql, args=()):
+                if sql.strip().upper().startswith("INSERT"):
+                    stored["report_md"] = args[4]
+                    return None
+                if "max(version)" in sql:
+                    return _Row()
+                return None
+
+        class _Row:
+            def keys(self):
+                return ["v"]
+
+            def __getitem__(self, k):
+                return 1
+
+            def fetchone(self):
+                return self
+
+        monkeypatch.setattr(cr, "get_connection", lambda: _Conn())
+        cr.save_dossier("s", "t", "q", self.DOC,
+                        {"audit_annex": self.ANNEX, "model": "M"})
+        assert ds.AUDIT_ANNEX_MARK in stored["report_md"]
+        assert ds.delivered(stored["report_md"]) == self.DOC.rstrip()
+        assert "Research coverage" in ds.audit_annex(stored["report_md"])
+
+    def test_the_check_reads_only_the_delivered_body(self):
+        res = {"report": ds.join_document(self.DOC, "1990 1991 1992 " * 20),
+               "sources": [], "evidence": [], "cited": [], "ledger": []}
+        assert check_result(res)["ungrounded"] == []
