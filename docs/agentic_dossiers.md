@@ -982,3 +982,63 @@ Belegt: `tests/test_dossier_dr_mode.py` (Klassen `TestR13*`), 1.388 pytest grün
 Live-Stichprobe der Kandidatenernte am 2026-09-07 über zwei echte
 Katalysator-Anfragen: `H2 2026 · CagriSema FDA decision`, `2026 · Metsera
 Phase-3-Programm, zehn Studien` — genau die Zeilen, die dem Kalender fehlten.
+
+#### Ergebnis Runde 13 — Lauf `glp1-dr3` (#28), Blindgutachten jury_18
+
+**Deep Research 6,3 · DR3 5,9 · Sieger Deep Research.** Abstand 1,2 → 0,4
+(anderer Gutachter als jury_17; der Sonnet-Text fiel dort von 6,9 auf 6,3 —
+Gutachterstreuung ist Teil des Abstands). Laufzeit 27 min, 87 Websuchen, **0**
+davon an Scheinentitäten (DR2: 16 von 61), Faktenzettel 48 Fakten aus 18
+Quellen (DR2: 29/12), 28 Kalender-Kandidaten aus 21 Quellen vorgelegt.
+
+| Kriterium | DR2 : Sonnet (jury_17) | **DR3** : Sonnet (jury_18) |
+|---|---|---|
+| Belegbarkeit | 6 : 6 | **7** : 5 |
+| Spezifität | 5 : 8 | 5 : 8 |
+| Handlungsrelevanz | 6 : 7 | **6** : 5 |
+| Abdeckung | 5 : 8 | 5 : 8 |
+| Zeitliche Einordnung | 3 : 7 | **5** : 6 |
+| Ehrlichkeit | 8 : 6 | **8** : 5 |
+| Struktur | 7 : 6 | 5 : 7 |
+
+Was gewirkt hat: der Kalender trägt sechs GLP-1-Termine auf vier Quellen
+(CagriSema-FDA H2 2026, Retatrutid-BLA Q1 2027, Wegovy-Pille ex-US …) statt
+drei Horizon-Jahreszahlen — Zeit 3 → 5; Belegbarkeit 6 → 7 („3 bestätigt,
+davon EMA-Primärdokument wörtlich"); Handlungsrelevanz jetzt vor dem
+Deep-Research-Text (5 Felder, Claims-Regime, EIC-Förderung).
+
+Was nicht gewirkt hat, und warum — das Resümee nach drei DR-Läufen:
+
+1. **Spezifität und Abdeckung bleiben 5 : 8.** Der Gutachter: „die Landkarte
+   ist schmal (keine Mover außer Lilly/Novo/Catalent, Pipeline fehlt)". Der
+   Lauf hatte 23 Akteure geerntet und nach Retatrutid, Orforglipron,
+   Tirzepatid gesucht — der *Bericht* nennt sie kaum. Das ist derselbe
+   Mechanismus wie beim Kalender vor R13-3: was dem Schreibaufruf nicht als
+   fertige Zeile vorliegt, verschwindet in 80k Token Belegen. Der
+   Deep-Research-Text gewinnt genau dort mit zwölf Wirkstoffen samt Phase,
+   Endpunkt und Zahl.
+2. **Die mechanische Streichung kostet Struktur** (7 → 5). 36 gestrichene
+   Sätze hinterließen „fünf beschädigte Stellen" — Satzbruchstücke wie
+   „calcium (863 mg vs. 8–18 mg)", „Named actors and figures: in H2 2026",
+   verwaiste Absätze. Der Gutachter: „so nicht vorlegbar". Die
+   Streichung arbeitet auf Satzmitte und kennt keinen Absatzzusammenhang.
+3. **Aufwand: Förderobergrenze ist kein Kostenmaßstab.** Der Gutachter zählt
+   1/3 statt 3/3 — „€1–3 million … anchored to the EIC grant ceiling" ist
+   hergeleitet, nicht belegt. Die Aufwands-Anker liefern, was Förderseiten
+   hergeben; Kostenvergleiche (Projektbudgets geförderter Konsortien,
+   Dossierkosten) müssten eigens gesucht werden.
+4. **Zwei Kalenderzeilen waren am Prüfdatum vergangen** (31.08.2026,
+   Q3 2026): `_when_label` verglich nur das Jahr. Behoben
+   (`_label_passed` rechnet Tag/Monat/Quartal/Halbjahr gegen den Stichtag;
+   `CAL_MAX_PER_SOURCE` 4 → 2, weil drei Zeilen aus einem Aggregator kamen).
+   Nicht erneut gelaufen.
+
+Der Trend über die DR-Läufe: 5,57 → 5,7 → 5,9 gegen 7,43 → 6,9 → 6,3. Jede
+Runde hat die benannten Kriterien gedreht und die nächsten freigelegt. Der
+Rest des Abstands ist kein Regelproblem mehr, sondern zwei Bauartfragen —
+die Landkarte des Feldes muss dem Schreibaufruf so vorgelegt werden wie der
+Kalender (Akteur × jüngstes Ergebnis × Datum × Quelle, deterministisch), und
+die Streichung muss auf Absatzebene arbeiten statt Sätze zu zerschneiden.
+**Pausiert nach Owner-Vorgabe; kein weiterer Lauf ohne Freigabe.** Protokoll
+`scratchpad/glp1/DR3_run.md`, Gutachten `scratchpad/glp1/jury_18.md`,
+jury-nahe Messung `scratchpad/glp1/jury_metrics.py`.

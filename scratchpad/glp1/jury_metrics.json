@@ -1,5 +1,48 @@
 [
   {
+    "file": "DR3_final.md",
+    "words": 4327,
+    "future_events": 22,
+    "future_sources": 16,
+    "actors": 23,
+    "actors_with_figure": 8,
+    "figure_sentences": 28,
+    "options": 3,
+    "effort_sized": 3,
+    "coverage": {
+      "science": 9,
+      "patents": 9,
+      "funding": 10,
+      "market": 25
+    },
+    "examples": [
+      [
+        "15 June 2026",
+        "The 12-month window is now open in Europe: France became the first EU country to reimburse"
+      ],
+      [
+        "2026",
+        "Patents.** Novo Nordisk’s semaglutide compound patent expires in several countries includi"
+      ],
+      [
+        "2036",
+        "Eli Lilly’s tirzepatide patents expire no earlier than 2036 [Mounjaro patent expiration: D"
+      ],
+      [
+        "Q1 2026",
+        "Novo Nordisk’s oral Wegovy pill generated 2.26 billion kroner in Q1 2026, well above analy"
+      ],
+      [
+        "2026",
+        "The global GLP-1 market is projected to reach $87–101 billion in 2026, up from roughly $70"
+      ],
+      [
+        "H2 2026",
+        "in H2 2026 [Wegovy pill sales smash forecasts, sending Novo Nordisk stock"
+      ]
+    ]
+  },
+  {
     "file": "C_sonnet.md",
     "words": 1997,
     "future_events": 9,
@@ -51,7 +94,7 @@
     "actors_with_figure": 5,
     "figure_sentences": 11,
     "options": 3,
-    "effort_sized": 3,
+    "effort_sized": 0,
     "coverage": {
       "science": 10,
       "patents": 14,
@@ -82,49 +125,6 @@
       [
         "2026",
         "Patent expiry and SPC in Europe.** Semaglutide's compound patent expires in 2026 in severa"
-      ]
-    ]
-  },
-  {
-    "file": "DR_final.md",
-    "words": 4077,
-    "future_events": 19,
-    "future_sources": 11,
-    "actors": 22,
-    "actors_with_figure": 5,
-    "figure_sentences": 13,
-    "options": 4,
-    "effort_sized": 4,
-    "coverage": {
-      "science": 5,
-      "patents": 15,
-      "funding": 1,
-      "market": 8
-    },
-    "examples": [
-      [
-        "June 2026",
-        "Lilly's retatrutide, a triple GIP/GLP-1/glucagon receptor agonist, reported Phase 3 TRIUMP"
-      ],
-      [
-        "January 2026",
-        "A January 2026 filing covers incretin analogs as GLP-1, GIP, and glucagon receptor triple "
-      ],
-      [
-        "March 2026",
-        "Patent expiry and SPC in Europe.** The semaglutide compound patent at the European Patent "
-      ],
-      [
-        "December 5, 2031",
-        "In the United States, no generic of any semaglutide product can launch before December 5, "
-      ],
-      [
-        "May 2026",
-        "Marketing authorisations.** The EMA granted a positive CHMP opinion for Liraglutide Stada "
-      ],
-      [
-        "August 5, 2026",
-        "Court decisions and injunctions.** On August 5, 2026, the District Court of The Hague gran"
       ]
     ]
   }

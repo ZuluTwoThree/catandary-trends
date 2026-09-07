@@ -948,3 +948,28 @@ def test_prefer_longest_survives_a_chain_of_names():
           "x y": {3}, "x": {3}}
     cr._prefer_longest(df)          # darf nicht werfen
     assert "a b c" in df and "a" not in df
+
+
+class TestR13PastDatesInTheCurrentYear:
+    """jury_18 (2026-09-07): „31.08.2026 — am Pruefdatum bereits vergangen,
+    steht dennoch unter ,What happens next'"."""
+
+    def test_a_passed_day_of_this_year_is_no_future(self):
+        import datetime
+        t = datetime.date(2026, 9, 7)
+        assert cr._when_label("price rises on August 31, 2026", 2026, t) is None
+        assert cr._when_label("filing 2026-09-01 planned", 2026, t) is None
+        assert cr._when_label("readout 12 September 2026", 2026, t) == "12 September 2026"
+
+    def test_a_finished_quarter_or_half_is_no_future(self):
+        import datetime
+        t = datetime.date(2026, 10, 2)
+        assert cr._when_label("decision Q3 2026", 2026, t) is None
+        assert cr._when_label("decision H1 2026", 2026, t) is None
+        assert cr._when_label("decision Q4 2026", 2026, t) == "Q4 2026"
+
+    def test_without_today_only_the_year_counts(self):
+        assert cr._when_label("price rises on August 31, 2026", 2026) == "August 31, 2026"
+
+    def test_one_source_carries_at_most_two_rows(self):
+        assert cr.CAL_MAX_PER_SOURCE == 2

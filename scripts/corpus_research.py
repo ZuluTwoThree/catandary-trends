@@ -2072,7 +2072,7 @@ _FORWARD_MARKERS = (
 )
 
 CAL_MAX_CANDIDATES = 28
-CAL_MAX_PER_SOURCE = 4
+CAL_MAX_PER_SOURCE = 2      # jury_18: drei Zeilen aus einem Aggregator
 CAL_SENTENCE_WORDS = 45
 
 
@@ -2087,12 +2087,41 @@ def _clean_sentence(sent: str) -> str:
     return " ".join(_LIST_MARK.sub("", _URL_IN_TEXT.sub(" ", sent)).split())
 
 
-def _when_label(sentence: str, this_year: int) -> str | None:
+def _label_passed(label: str, gd: dict, year: int, today) -> bool:
+    """Liegt ein Datum des laufenden Jahres schon hinter dem Stichtag?
+
+    jury_18 (2026-09-07): „31.08.2026 — am Pruefdatum bereits vergangen, steht
+    dennoch unter ,What happens next'"; „Q3 2026 — endet 30.09., weitgehend
+    vergangen". Ein Jahresvergleich reicht nicht: Quartal, Halbjahr, Monat und
+    Tag werden gegen den Stichtag gerechnet, eine nackte Jahreszahl des
+    laufenden Jahres gilt als noch offen."""
+    if today is None or year != today.year:
+        return False
+    q = (gd.get("q") or gd.get("h") or gd.get("r") or "").upper()
+    if q.startswith("Q"):
+        return int(q[1]) * 3 < today.month           # Quartal komplett vorbei
+    if q.startswith("H"):
+        return int(q[1]) * 6 < today.month
+    if gd.get("iso"):
+        return gd["iso"] < today.strftime("%Y-%m-%d")
+    mon = (gd.get("mon") or "").lower()[:3]
+    if mon:
+        mi = [x[:3] for x in _MONTHS].index(mon) + 1
+        day = re.search(r"\b(\d{1,2})\b", label.replace(str(year), ""))
+        if day:
+            return (mi, int(day.group(1))) < (today.month, today.day)
+        return mi < today.month
+    return False
+
+
+def _when_label(sentence: str, this_year: int, today=None) -> str | None:
     """Normalisiertes Zukunftsdatum eines Satzes, oder None.
 
     Genommen wird das FRUEHESTE Datum, das nicht in der Vergangenheit liegt —
     ein Satz ueber einen Ablauf 2031, der 2019 als Anmeldejahr nennt, gehoert
-    mit 2031 in den Kalender, nicht mit 2019."""
+    mit 2031 in den Kalender, nicht mit 2019. Mit `today` werden auch Tage,
+    Monate, Quartale und Halbjahre des laufenden Jahres gegen den Stichtag
+    geprueft."""
     best: tuple[int, int, str] | None = None
     for m in _WHEN_RE.finditer(sentence):
         gd = m.groupdict()
@@ -2113,6 +2142,8 @@ def _when_label(sentence: str, this_year: int) -> str | None:
             year, label = int(gd["yy"]), gd["yy"]
         if year < this_year:
             continue
+        if _label_passed(" ".join(label.split()), gd, year, today):
+            continue
         rank = (year, m.start())
         if best is None or rank < best[:2]:
             best = (year, m.start(), " ".join(label.split()))
@@ -2122,7 +2153,8 @@ def _when_label(sentence: str, this_year: int) -> str | None:
 def calendar_candidates(fact_ledger: list[dict], sources: list[dict],
                         terms: list[str], entities: list[str],
                         this_year: int,
-                        limit: int = CAL_MAX_CANDIDATES) -> list[dict]:
+                        limit: int = CAL_MAX_CANDIDATES,
+                        today=None) -> list[dict]:
     """Datierte Zukunftsereignisse aus Faktenzettel und gelesenen Seiten."""
     want = {t.lower() for t in list(terms or []) + list(entities or []) if t}
     out: list[dict] = []
@@ -2135,7 +2167,7 @@ def calendar_candidates(fact_ledger: list[dict], sources: list[dict],
     for f in fact_ledger or []:
         stmt = str(f.get("statement") or "").strip()
         date = str(f.get("date") or "").strip()
-        when = _when_label(f"{date} {stmt}", this_year)
+        when = _when_label(f"{date} {stmt}", this_year, today)
         if not when or not stmt or not _relevant(f"{date} {stmt}"):
             continue
         key = stmt.lower()[:80]
@@ -2161,7 +2193,7 @@ def calendar_candidates(fact_ledger: list[dict], sources: list[dict],
             low = sent.lower()
             if not any(mk in low for mk in _FORWARD_MARKERS):
                 continue
-            when = _when_label(sent, this_year)
+            when = _when_label(sent, this_year, today)
             if not when or not _relevant(sent):
                 continue
             key = low[:80]
@@ -3793,7 +3825,8 @@ def run(question: str, max_steps: int, max_sources: int,
     if dr:
         cal_cands = calendar_candidates(
             fact_ledger, citable_sources, terms, entities,
-            datetime.now(timezone.utc).year)
+            datetime.now(timezone.utc).year,
+            today=datetime.now(timezone.utc).date())
         logger.info("calendar candidates: %d dated future event(s) from "
                     "%d source(s)", len(cal_cands),
                     len({c["id"] for c in cal_cands if c["id"]}))
