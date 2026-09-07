@@ -1627,9 +1627,6 @@ class Perspective(BaseModel):
 
 class TopicProfile(BaseModel):
     field: str = Field(description="the industry field in 2-6 words")
-    vertical: Literal["HEALTH", "FOOD", "TECH", "ECO", "DESIGN", "FASHION",
-                      "BIZ", "LIFESTYLE"] = Field(
-        description="the one industry vertical the topic belongs to")
     actor_types: list[str] = Field(description="kinds of actors that move "
                                                "this field (e.g. 'drug "
                                                "developer', 'cell maker', "
@@ -1733,14 +1730,34 @@ into over under about between
 """.split())
 
 
+# Ein Ereignistyp muss ein Ereignis benennen — sonst ist er eine Kategorie
+# ("Technology Development", "trade show", "Strategic Planning" kamen vom 27B).
+_EVENT_NOUNS = frozenset("""
+readout read-out results result decision approval authorisation authorization
+opinion launch commissioning delivery award auction tender ratification
+certification listing opening start expiry expiration deadline vote ruling
+filing submission release adoption entry force hearing review sample trial
+round season completion cutover rollout go-live grant clearance verdict
+""".split())
+
+
 def _clean_label(x: str) -> str:
     return " ".join(str(x or "").replace("_", " ").replace("?", "").split())
 
 
-def _generic_event(ev: str) -> bool:
-    w = _clean_label(ev).lower()
+def _generic_label(x: str) -> bool:
+    """none/n/a/unknown und reine Kategorieworte — fuer Regulatoren."""
+    w = _clean_label(x).lower()
     return (not w) or w in _GENERIC_EVENTS or all(t in _GENERIC_EVENTS
                                                   for t in w.split())
+
+
+def _generic_event(ev: str) -> bool:
+    """Wie _generic_label, plus: ein Ereignis muss ein Ereignis-Wort tragen."""
+    if _generic_label(ev):
+        return True
+    w = _clean_label(ev).lower()
+    return not any(t.strip("-") in _EVENT_NOUNS for t in w.split())
 
 
 def _short(q: str, cap: int = 16) -> str:
@@ -1807,23 +1824,29 @@ def _with_topic(q: str, phrase: str, terms: list[str]) -> str:
 
 
 def profile_queries(profile: TopicProfile | None, phrase: str,
-                    terms: list[str], question: str = "") -> dict[str, tuple[str, ...]]:
+                    terms: list[str], question: str = "",
+                    vertical: str = "") -> dict[str, tuple[str, ...]]:
     """Schablonen je Suchrichtung: Kern + Profil. Ohne Profil: die festen
     Muster (der bisherige Pfad)."""
-    if profile is None:
+    if profile is None and not vertical:
         return {"regulatory": REGULATORY_PATTERNS, "market": MARKET_PATTERNS,
                 "catalyst": CATALYST_PATTERNS, "funding": FUNDING_PATTERNS,
                 "entity_legal": SUBSTANCE_LEGAL_PATTERNS,
                 "entity_market": ENTITY_MARKET_PATTERNS,
                 "entity_catalyst": ENTITY_CATALYST_PATTERNS,
                 "perspective": ()}
-    vset = VERTICAL_SETS.get(getattr(profile, "vertical", "") or "", {})
+    vset = VERTICAL_SETS.get((vertical or "").upper(), {})
     reg: list[str] = list(REG_CORE)
     for r in vset.get("regulators", ())[:5]:
         reg += [f"{{t}} {r} decision", f"{{t}} {r} requirements"]
+    if profile is None:
+        profile = TopicProfile(field=phrase, actor_types=[], regulators=["-", "-"],
+                               event_types=["-", "-", "-"], legal_questions=[],
+                               market_questions=[], perspectives=[],
+                               actor_seeds=[])
     for r in profile.regulators[:5]:
         r = _short(r, 6)
-        if r and not _generic_event(r):
+        if r and r != "-" and not _generic_label(r):
             reg += [f"{{t}} {r} decision", f"{{t}} {r} requirements"]
     for q in profile.legal_questions[:4]:
         q = _short(q)
@@ -1840,7 +1863,7 @@ def profile_queries(profile: TopicProfile | None, phrase: str,
     # Modell etwas Konkretes weiss ("A-sample delivery"), ist das die
     # treffendere Anfrage; das Rueckgrat fuellt auf.
     for ev in profile.event_types[:6]:
-        ev = _short(ev, 5)
+        ev = _short(ev, 5).lower()
         if ev and not _generic_event(ev):
             cat.append(f"{{t}} {ev} expected 2027")
             ent_cat.append(f"{{e}} {ev} date")
@@ -1879,6 +1902,56 @@ def profile_queries(profile: TopicProfile | None, phrase: str,
             "entity_market": _dedup(ent_mkt, PROFILE_MAX_ENT),
             "entity_catalyst": _dedup(ent_cat, PROFILE_MAX_ENT),
             "perspective": _dedup([q for q in persp if q], 8)}
+
+
+# Stichwoerter je Vertikale fuer den Fall, dass der Korpus keine Nachbarn
+# hat (neues Feld). Bewusst kurz — die Nachbarn entscheiden im Normalfall.
+_VERTICAL_HINTS: dict[str, tuple[str, ...]] = {
+    "HEALTH": ("drug", "pharma", "clinical", "therap", "patient", "medical",
+               "diagnos", "vaccine", "incretin", "glp-1", "obesity"),
+    "FOOD": ("food", "nutrition", "beverage", "farm", "agri", "crop", "protein",
+             "dairy", "meat", "ingredient", "harvest"),
+    "TECH": ("software", "ai ", "artificial intelligence", "chip", "semicond",
+             "robot", "quantum", "cloud", "data", "network", "computing"),
+    "ECO": ("battery", "batteries", "solar", "wind", "energy", "grid", "carbon",
+            "hydrogen", "recycl", "climate", "electric vehicle", "storage"),
+    "DESIGN": ("architect", "building", "interior", "furniture", "product design",
+               "urban", "construction"),
+    "FASHION": ("fashion", "apparel", "textile", "cosmetic", "beauty", "garment",
+                "jewel", "footwear"),
+    "BIZ": ("retail", "fintech", "payment", "e-commerce", "bank", "insurance",
+            "startup", "logistics", "commerce"),
+    "LIFESTYLE": ("gaming", "media", "entertainment", "sport", "travel",
+                  "culture", "creator", "education", "luxury"),
+}
+
+
+def vertical_of_topic(topic: str, neighbours: list[dict] | None = None) -> str:
+    """Vertikale eines Themas — deterministisch.
+
+    Erst die Mehrheit der `vertical`-Felder der naechsten Korpus-Treffer
+    (unser eigener Klassifikator hat sie vergeben), sonst Stichwortvotum. Das
+    27B riet in der Probe vom 2026-09-07 GLP-1 → BIZ, Festkoerperbatterien →
+    BIZ, Vertical Farming → FASHION — Raten ist keine Zuordnung."""
+    votes: dict[str, int] = {}
+    for h in neighbours or []:
+        v = str(h.get("vertical") or "").upper()
+        if v in VERTICAL_SETS:
+            votes[v] = votes.get(v, 0) + 1
+    if votes:
+        return max(sorted(votes), key=lambda k: votes[k])
+    low = " " + (topic or "").lower() + " "
+    scored = {v: sum(1 for k in ks if k in low) for v, ks in _VERTICAL_HINTS.items()}
+    best = max(sorted(scored), key=lambda k: scored[k])
+    return best if scored[best] else "TECH"
+
+
+def corpus_neighbour_hits(topic: str, limit: int = PROFILE_NEIGHBOURS) -> list[dict]:
+    try:
+        return search_corpus(topic, limit)
+    except Exception as exc:                      # noqa: BLE001
+        logger.warning("neighbour lookup failed: %r", exc)
+        return []
 
 
 def corpus_neighbours(topic: str, limit: int = PROFILE_NEIGHBOURS) -> list[str]:
@@ -3920,12 +3993,15 @@ def run(question: str, max_steps: int, max_sources: int,
         # festen Muster.
         from pipeline.dossier_quant import normalize_topic
         phrase = (normalize_topic(topic or question) or topic or question).strip()
-        profile = topic_profile(topic or question, question,
-                                corpus_neighbours(topic or question))
-        pq = profile_queries(profile, phrase, terms, question)
+        nb_hits = corpus_neighbour_hits(topic or question)
+        vertical = vertical_of_topic(topic or question, nb_hits)
+        profile = topic_profile(topic or question, question, [])
+        pq = profile_queries(profile, phrase, terms, question, vertical)
+        logger.info("topic vertical: %s (from %d corpus neighbour(s))",
+                    vertical, len(nb_hits))
         if profile is not None:
-            logger.info("topic profile: vertical=%s field=%r regulators=%s events=%s seeds=%s",
-                        profile.vertical, profile.field, profile.regulators[:5],
+            logger.info("topic profile: field=%r regulators=%s events=%s seeds=%s",
+                        profile.field, profile.regulators[:5],
                         profile.event_types[:4], profile.actor_seeds[:6])
             # Akteur-Saatgut: nur als Suchbegriffe, nie als Fakten.
             for seed in profile.actor_seeds[:6]:

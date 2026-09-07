@@ -616,7 +616,7 @@ class TestPostRunFixes:
         out = cr.run("Q", max_steps=1, max_sources=8, retrieval="fts",
                      per_query=2, web_steps=1, max_web_sources=2, topic="GLP-1",
                      measure=True, seed_sources=[dict(SEED)], seed_notes=["seed"])
-        assert out["kinds"]["legal"] == len(cr.REGULATORY_PATTERNS)
+        assert out["kinds"]["legal"] == len(cr.profile_queries(None, 'GLP-1 incretin', [], '', cr.vertical_of_topic('GLP-1 incretin', []))['regulatory'])
         assert "NEVER READ IN FULL" in seen[0]
         for s in out["sources"]:
             if s["kind"] in ("web", "legal") and not s.get("fetched"):

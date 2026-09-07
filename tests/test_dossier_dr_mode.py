@@ -1118,7 +1118,7 @@ def test_us_abbreviation_does_not_split():
 
 def _profile():
     return cr.TopicProfile(
-        field="solid-state batteries", vertical="ECO",
+        field="solid-state batteries",
         actor_types=["cell maker", "automaker"],
         regulators=["EU Battery Regulation", "UN 38.3 transport test"],
         event_types=["gigafactory commissioning", "pilot line start",
@@ -1284,7 +1284,7 @@ class TestR14VerticalBackbone:
         prof = _profile()
         prof.regulators = ["none", "CES"]
         prof.event_types = ["investment", "ipo", "milestone"]
-        pq = cr.profile_queries(prof, "solid-state batteries", [])
+        pq = cr.profile_queries(prof, "solid-state batteries", [], vertical="ECO")
         reg = " | ".join(pq["regulatory"])
         assert "EU Battery Regulation 2023/1542 decision" in reg
         cat = " | ".join(pq["catalyst"])
@@ -1292,7 +1292,29 @@ class TestR14VerticalBackbone:
         assert "CES decision" in reg          # Profil ergaenzt, ersetzt nicht
 
     def test_a_health_topic_gets_the_pharma_backbone(self):
-        prof = _profile(); prof.vertical = "HEALTH"
-        pq = cr.profile_queries(prof, "GLP-1 incretin", [])
+        pq = cr.profile_queries(_profile(), "GLP-1 incretin", [], vertical="HEALTH")
         assert any("EMA CHMP opinion" in q for q in pq["regulatory"])
         assert any("phase 3 readout" in q for q in pq["catalyst"])
+
+
+def test_an_event_type_must_name_an_event():
+    assert cr._generic_event("Technology Development")
+    assert cr._generic_event("trade show")
+    assert not cr._generic_event("Clinical Trial Results")
+    assert not cr._generic_event("gigafactory commissioning")
+    assert not cr._generic_event("EFSA opinion adoption")
+
+
+
+class TestR14VerticalOfTopic:
+    def test_the_neighbours_decide(self):
+        nb = [{"vertical": "HEALTH"}] * 7 + [{"vertical": "BIZ"}] * 5
+        assert cr.vertical_of_topic("GLP-1", nb) == "HEALTH"
+
+    def test_keywords_decide_without_neighbours(self):
+        assert cr.vertical_of_topic("solid-state batteries", []) == "ECO"
+        assert cr.vertical_of_topic("vertical farming", []) == "FOOD"
+
+    def test_a_known_vertical_brings_the_backbone_even_without_a_profile(self):
+        pq = cr.profile_queries(None, "solid-state batteries", [], vertical="ECO")
+        assert any("EU Battery Regulation" in q for q in pq["regulatory"])
