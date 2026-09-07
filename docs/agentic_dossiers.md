@@ -752,6 +752,16 @@ ergibt mit `fact_density(..., rank_of=source_rank)` heute **0,81**. Die 1,83
 entstehen nur, wenn jedes Zitat als primär gilt. Die Untergrenze 2,0 ist an
 dieser laxeren Messung geeicht — ob sie bleibt, ist eine Owner-Entscheidung.
 
+**Bewertung (jury_15, blind, Zuordnung erst nach dem Urteil aufgelöst).** Das
+DR-Dokument gewinnt gegen B9 v2 mit **5,4 zu 4,9**: Belegbarkeit 6:4,
+Spezifität 7:6, Handlungsrelevanz 6:4, Struktur 4:3 — verloren geht die
+**zeitliche Einordnung 4:6**, genau der gemessene Preis des Kalenders. Der
+Gutachter fand im DR-Dokument vier inhaltliche Fehler (ein 2014er Papier als
+„(PMC, 2026)", falscher Journalname, TRIUMPH-Daten auf Juni 2026 statt
+Dezember 2025 datiert, zwei unbelegte FDA-Daten). **Der Vergleich lief gegen
+die eigene Vorrunde, nicht gegen die Deep-Research-Analyse** — ob der DR-Modus
+auch dort gewinnt, ist ungetestet.
+
 **Offen aus dem Lauf selbst:** der Rang-0-Vorlauf des Faktenbuchs besteht
 überwiegend aus **Patenten ohne Abstract** (ihr Snippet ist ein Ein-Zeiler);
 sie verbrauchen die Kappe von 30 Quellen, bevor die Paper mit echtem Abstract
