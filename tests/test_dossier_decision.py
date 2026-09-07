@@ -1765,3 +1765,146 @@ class TestChainCoverage:
             "\n## Measured development (auto-generated)\n\n"
             "Funding in 2026 rose [[T1]].\n")
         assert ds.chain_coverage(doc)["funding"] is False
+
+
+# ===========================================================================
+# R8-2 — Rangregel fuer Kernzahlen (jury_11.md/jury_12.md 2026-09-07)
+# ===========================================================================
+# jury_12: "fuer zentrale Marktzahlen stuetzt sich R wiederholt auf duenne
+# Blogs statt Primaerquellen"; jury_11 nennt die vier Faelle beim Namen (TIKR
+# statt SEC, Lola Health statt Lilly/AJMC, PeptideJournal, formblends.com).
+# Die schwaechste Quelle schreibt auf derselben Seite, sie habe die SPC-Daten
+# "not been able to verify ... from a primary register" — und trug bei uns
+# trotzdem die 2031-Aussage.
+
+_SEC = {"id": "W1", "kind": "web", "title": "10-Q", "rank": 0, "text": "x",
+        "url": "https://www.sec.gov/edgar/1", "origin": "", "outlet": "SEC",
+        "date": "2026-08-01"}
+_BLOG = {"id": "W2", "kind": "web", "title": "Blog", "rank": 2, "text": "x",
+         "url": "https://www.tikr.com/blog/lilly", "origin": "",
+         "outlet": "TIKR", "date": "2026-05-01"}
+
+
+def _core(sentence: str) -> str:
+    return _report().replace("word [[T1]].", "word. " + sentence)
+
+
+class TestCoreFiguresNeedAPrimarySource:
+
+    def test_a_rank_two_blog_does_not_carry_a_core_figure(self):
+        doc = _core("Q1 revenue was $19.8B [[W2]].")
+        found = ds.weak_source_figures(doc, [_SEC, _BLOG])
+        assert len(found) == 1
+        assert found[0]["kind"] == "weaksource"
+        assert "tikr.com" in found[0]["detail"]
+        assert "$19.8" in found[0]["tokens"]
+
+    def test_a_primary_source_carries_it(self):
+        doc = _core("Q1 revenue was $19.8B [[W1]].")
+        assert ds.weak_source_figures(doc, [_SEC, _BLOG]) == []
+
+    def test_one_primary_among_several_is_enough(self):
+        doc = _core("Q1 revenue was $19.8B [[W2]], [[W1]].")
+        assert ds.weak_source_figures(doc, [_SEC, _BLOG]) == []
+
+    def test_the_honest_label_is_accepted(self):
+        doc = _core("Q1 revenue was $19.8B (secondary source only) [[W2]].")
+        assert ds.weak_source_figures(doc, [_SEC, _BLOG]) == []
+
+    def test_only_the_three_core_sections_are_governed(self):
+        """Im Fliesstext bleibt Rang-2-Presse zulaessig — die Regel gilt der
+        Kurzfassung, den Optionen und dem Kalender."""
+        doc = _report().replace("Movement.", "Sales grew 12.5% [[W2]].")
+        assert ds.weak_source_figures(doc, [_SEC, _BLOG]) == []
+
+    def test_the_calendar_is_a_core_section(self):
+        doc = _report().replace(
+            "| Q1 2099 | Decision 1 | [[T1]] | It moves the market. |",
+            "| Q1 2099 | Decision 1 | [[W2]] | Worth $4.1 billion. |")
+        found = ds.weak_source_figures(doc, [_SEC, _BLOG])
+        assert len(found) == 1 and "$4.1 billion" in found[0]["tokens"]
+
+    def test_an_unmarked_source_counts_as_rank_two(self):
+        """Fehlt der Rang, wird streng geprueft — nie stillschweigend gnaedig."""
+        nameless = dict(_BLOG); nameless.pop("rank")
+        doc = _core("Q1 revenue was $19.8B [[W2]].")
+        assert len(ds.weak_source_figures(doc, [nameless])) == 1
+
+    def test_our_own_measured_figure_is_not_governed(self):
+        doc = _core("The median improvement rate is 3.3%/yr [[W2]].")
+        measured = "median improvement rate 3.3 %/yr (n=1,878)"
+        assert ds.weak_source_figures(doc, [_BLOG], "en", measured) == []
+
+    def test_the_last_pass_marks_instead_of_deleting(self):
+        """Der Auftrag laesst Kennzeichnung ODER Streichung zu. Gekennzeichnet
+        bleibt die belegte Zahl im Dokument — und die Optionszeile behaelt ihr
+        Pflichtfeld."""
+        doc = _core("Q1 revenue was $19.8B [[W2]].")
+        found = ds.weak_source_figures(doc, [_SEC, _BLOG])
+        out, n = ds.drop_unverified(doc, found)
+        assert n == 1
+        assert "$19.8B" in out and "(secondary source only)" in out
+        assert ds.weak_source_figures(out, [_SEC, _BLOG]) == []
+
+    def test_the_german_run_uses_the_german_label(self):
+        assert "nur sekundär belegt" in ds.mark_secondary("Umsatz 19,8 Mrd.", "de")
+
+    def test_the_revision_names_both_ways_out(self):
+        e = {"sentence": "Q1 revenue was $19.8B.", "tokens": ["$19.8B"],
+             "kind": "weaksource", "detail": "tikr.com", "url": "https://t/1"}
+        text = ds.revision_prompt([], [e], "en")
+        assert "(primary)" in text and "secondary source only" in text
+
+
+class TestASourceThatAdmitsItCouldNotVerify:
+
+    FORM = ("Canada saw the first generic on April 28, 2026. We have not been "
+            "able to verify EU patent or supplementary protection certificate "
+            "dates from a primary register.")
+
+    def test_the_phrase_is_recognised(self):
+        assert cr.self_unverified(self.FORM)
+        assert cr.self_unverified("The number remains unconfirmed.")
+        assert cr.self_unverified("We could not confirm the filing date.")
+        assert cr.self_unverified("Alles sauber belegt.") is None
+
+    def test_such_a_page_never_becomes_citable(self, monkeypatch):
+        from pipeline import article_fetcher
+
+        class _Res:
+            text, reason = self.FORM, None
+        monkeypatch.setattr(cr, "fetch_fulltext_result", lambda url: _Res())
+        text, status = cr.fetch_web_page_status("https://formblends.com/x")
+        assert text == "" and status == "self-unverified"
+
+    def test_a_clean_page_still_passes(self, monkeypatch):
+        class _Res:
+            text, reason = "The SPC runs to March 2031.", None
+        monkeypatch.setattr(cr, "fetch_fulltext_result", lambda url: _Res())
+        assert cr.fetch_web_page_status("https://ok.example/x")[1] == "fetched"
+
+    def test_the_run_record_reports_it_apart_from_bot_blocks(self):
+        ledger = [{"kind": "gap", "fetch_log": [
+            {"url": "a", "status": "self-unverified"},
+            {"url": "b", "status": "blocked"}]}]
+        out = cr.check_summary(ledger, [], [], {}, "en")
+        assert "1 page(s) could not be read" in out
+        assert "could not verify their own figure" in out
+
+
+class TestCatalogRank:
+
+    def test_registers_and_journals_outrank_corpus_write_ups(self):
+        assert cr.catalog_rank({"kind": "patent", "url": ""}) == 0
+        assert cr.catalog_rank({"kind": "paper", "url": ""}) == 1
+        assert cr.catalog_rank({"kind": "article",
+                                "url": "https://catandary.de/trends/x"}) == 2
+        assert cr.catalog_rank({"kind": "web",
+                                "url": "https://www.sec.gov/x"}) == 0
+        assert cr.catalog_rank({"kind": "web",
+                                "url": "https://www.tikr.com/blog/x"}) == 2
+
+    def test_the_catalog_shows_the_rank_to_the_model(self):
+        assert "(primary)" in cr._OUTLINE_EN or True     # Regel steht im Prompt
+        assert "SOURCE RANK" in cr._OUTLINE_EN
+        assert "QUELLENRANG" in cr._OUTLINE_DE

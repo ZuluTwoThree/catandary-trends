@@ -406,6 +406,14 @@ order, with exactly these top-level headings and no others:
   commercial questions this dossier cannot answer (investment size, payback
   period, volume at risk). Name them as open; do not estimate them.
 
+SOURCE RANK: every figure in the Decision summary, in the Options and in
+"What happens next" must rest on a catalog entry marked (primary) — an
+authority, a register, a court, a company's own IR/SEC filing or a peer-
+reviewed journal. If the only evidence for a figure is weaker than that,
+either leave the figure out or append "(secondary source only)" to that
+sentence. A source that itself says it could not verify something is not in
+the catalog at all.
+
 COVERAGE: the innovation chain has four levels — science, patents, funding,
 market. Each level needs at least one statement in the running text that
 carries BOTH a date and a citation in the same sentence. A level for which the
@@ -488,6 +496,12 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
   kaufmännischen Fragen, die dieses Dossier nicht beantworten kann
   (Investitionshöhe, Amortisation, gefährdetes Volumen). Als offen benennen,
   nicht schätzen.
+
+QUELLENRANG: Jede Zahl in der Kurzfassung, in den Optionen und unter "Was als
+Nächstes ansteht" ruht auf einem Katalogeintrag, der mit (primary) markiert ist
+— Behörde, Register, Gericht, Firmen-IR/SEC oder Fachjournal. Gibt das Material
+für eine Zahl nur Schwächeres her, entfällt die Zahl oder der Satz trägt den
+Zusatz "(nur sekundär belegt)".
 
 ABDECKUNG: Die Innovationskette hat vier Ebenen — Wissenschaft, Patente,
 Förderung, Markt. Zu jeder Ebene steht im Fließtext mindestens eine Aussage,
@@ -796,6 +810,30 @@ def _fetch_status(reason: str | None) -> str:
     return r          # too_short
 
 
+# Formulierungen, mit denen eine Seite selbst sagt, dass sie einen Punkt nicht
+# belegen konnte. Wer das schreibt, ist eine ehrliche Quelle — aber keine, die
+# die betreffende Aussage tragen kann (Rang 3, kommt nicht in den Katalog).
+_SELF_UNVERIFIED = (
+    r"(?:have|has|had|were|was|are|is|could|can)?\s*not\s+(?:been\s+)?able\s+to\s+verify",
+    r"(?:we|i)\s+(?:could|can|were|are)\s*n(?:o|')t\s+(?:independently\s+)?"
+    r"(?:verify|confirm|corroborate)",
+    r"(?:could|can)not\s+(?:be\s+)?(?:independently\s+)?(?:verified|confirmed|corroborated)",
+    r"remains?\s+unconfirmed",
+    r"unverified\s+(?:by\s+us|at\s+(?:the\s+)?time\s+of\s+(?:writing|publication))",
+    r"nicht\s+(?:unabh(?:ä|ae)ngig\s+)?(?:verifizieren|best(?:ä|ae)tigen)\s+konnten",
+)
+_SELF_UNVERIFIED_RE = tuple(re.compile(x, re.IGNORECASE) for x in _SELF_UNVERIFIED)
+
+
+def self_unverified(text: str) -> str | None:
+    """Die Stelle, an der eine Seite ihre eigene Nicht-Verifikation einraeumt."""
+    for pat in _SELF_UNVERIFIED_RE:
+        m = pat.search(text or "")
+        if m:
+            return m.group(0).strip()[:80]
+    return None
+
+
 def fetch_web_page_status(url: str) -> tuple[str, str]:
     """(full text, status) of one web result via the robots-honouring fetcher.
 
@@ -806,6 +844,17 @@ def fetch_web_page_status(url: str) -> tuple[str, str]:
     """
     res = fetch_fulltext_result(url)
     if res.text:
+        admits = self_unverified(res.text)
+        if admits:
+            # R8-2: eine Seite, die selbst einraeumt, etwas nicht verifiziert
+            # zu haben, darf es auch bei uns nicht tragen. jury_11 fand den
+            # Fall woertlich: formblends.com stuetzte unsere EU-SPC-2031-
+            # Aussage und schreibt auf derselben Seite "We have not been able
+            # to verify EU patent or supplementary protection certificate
+            # dates from a primary register."
+            logger.info("  page rejected (self-admitted non-verification: "
+                        "%r): %s", admits, url[:70])
+            return "", "self-unverified"
         return res.text[:MAX_BODY_CHARS], "fetched"
     return "", _fetch_status(res.reason)
 
@@ -1045,6 +1094,22 @@ def source_rank(url: str, entities: tuple[str, ...] | list[str] = ()) -> int:
             if len(key) >= 5 and key in squashed:
                 return 1
     return 2
+
+
+# Rang eines KATALOGEINTRAGS, nicht nur einer URL: Korpusarten haben keinen
+# aussagekraeftigen Host. Ein Patent ist ein Registereintrag (0), ein Paper ein
+# Fachjournal (1), unsere eigene Messung eine Primaerrechnung (1) — ein
+# Korpus-Artikel oder ein eingefangenes Signal ist unsere Aufbereitung von
+# Presse und damit Rang 2.
+_KIND_RANK = {"patent": 0, "paper": 1, "measurement": 1,
+              "article": 2, "signal": 2}
+
+
+def catalog_rank(src: dict, entities: tuple[str, ...] | list[str] = ()) -> int:
+    kind = str(src.get("kind") or "")
+    if kind in _KIND_RANK:
+        return _KIND_RANK[kind]
+    return source_rank(str(src.get("url") or ""), entities)
 
 
 def reject_low_trust(hit: dict, entry: dict) -> bool:
@@ -2144,7 +2209,12 @@ def check_summary(ledger: list[dict], sources: list[dict], cited: list[dict],
     budget = sum(int(e.get("budget_dropped") or 0) for e in ledger)
     rejected = sum(len(e.get("rejected") or []) for e in ledger)
     unread = sum(1 for e in ledger for x in (e.get("fetch_log") or [])
-                 if x.get("status") != "fetched")
+                 if x.get("status") not in ("fetched", "self-unverified"))
+    # R8-2: eigener Posten. "Nicht lesbar" waere falsch — die Seite war lesbar,
+    # sie hat nur selbst eingeraeumt, ihre eigene Angabe nicht belegen zu
+    # koennen, und traegt deshalb nichts.
+    selfunver = sum(1 for e in ledger for x in (e.get("fetch_log") or [])
+                    if x.get("status") == "self-unverified")
     queries = sum(len(e.get("web_queries") or []) for e in ledger)
     st = structure or {}
     if lang == "de":
@@ -2157,7 +2227,10 @@ def check_summary(ledger: list[dict], sources: list[dict], cited: list[dict],
              f"ausgewertet; {rejected} Treffer wies der Rangfilter ab (Wikis "
              f"ohne Redaktion, Content-Farmen, Presse-Wiederveröffentlicher, "
              f"Foren); {unread} Seite(n) waren nicht lesbar "
-             f"(Botsperre/Zeitüberschreitung).",
+             f"(Botsperre/Zeitüberschreitung)"
+             + (f"; {selfunver} Seite(n) räumten selbst ein, ihre Angabe nicht "
+                f"belegen zu können, und blieben draußen" if selfunver else "")
+             + ".",
              f"- **Beleg-Verifikation:** {st.get('cites_checked', 0)} Satz/Sätze "
              f"gegen den Volltext genau der zitierten Seite geprüft "
              f"({st.get('cites_figures', 0)} Angaben, "
@@ -2182,7 +2255,11 @@ def check_summary(ledger: list[dict], sources: list[dict], cited: list[dict],
              f"{rejected} hit(s) were rejected by the source-rank filter (wikis "
              f"without an editorial process, content farms, press-release "
              f"republishers, forums); "
-             f"{unread} page(s) could not be read (bot block / timeout).",
+             f"{unread} page(s) could not be read (bot block / timeout)"
+             + (f"; {selfunver} page(s) stated themselves that they could not "
+                f"verify their own figure and were kept out" if selfunver
+                else "")
+             + ".",
              f"- **Citation verification:** {st.get('cites_checked', 0)} "
              f"sentence(s) checked against the full text of the very page they "
              f"cite ({st.get('cites_figures', 0)} figures, "
@@ -2826,14 +2903,23 @@ def run(question: str, max_steps: int, max_sources: int,
     citable_sources = [s for s in sources
                        if s["kind"] not in ("web", "legal", "market", "entity")
                        or s.get("fetched")]
+    # R8-2: der Rang haengt ab jetzt AN der Quelle — die Rangregel fuer
+    # Kernzahlen (dossier_structure.weak_source_figures) liest ihn dort, und
+    # das Modell sieht ihn im Katalog als "(primary)".
+    for src in citable_sources:
+        src["rank"] = catalog_rank(src, entities)
     if measure:
         # Kein URL-Freitext mehr im Prompt: was das Modell nicht sieht, kann es
         # nicht halbrichtig abtippen. Es zitiert die ID, der Code rendert daraus
         # den Link (canonicalize_citations(..., markers=True)).
-        citable = "\n".join(f"[[{s['id']}]] [{s['kind']}] {s['title']}"
-                            + (f" — {s['outlet']}" if s.get("outlet") else "")
-                            + (f", {s['date']}" if s.get("date") else "")
-                            for s in citable_sources)
+        citable = "\n".join(
+            f"[[{s['id']}]] [{s['kind']}]"
+            + (" (primary)" if int(s.get("rank", 2)) <= dossier_structure.PRIMARY_RANK
+               else "")
+            + f" {s['title']}"
+            + (f" — {s['outlet']}" if s.get("outlet") else "")
+            + (f", {s['date']}" if s.get("date") else "")
+            for s in citable_sources)
     else:
         citable = "\n".join(f"{s['id']} [{s['kind']}] [{s['title']}]({s['url']})"
                             for s in citable_sources)
@@ -2933,6 +3019,7 @@ def run(question: str, max_steps: int, max_sources: int,
                  "distorted_before": 0, "distorted_after": 0,
                  "misattributed_before": 0, "misattributed_after": 0,
                  "measure_before": 0, "measure_after": 0,
+                 "weaksource_before": 0, "weaksource_after": 0,
                  "calendar": {"rows": 0, "ok": 0, "no_date": 0, "no_cite": 0},
                  "chain": {}}
     # Der eigene Messanhang ist der EINZIGE Beleg, den eine Zahl ohne Zitat im
@@ -2957,9 +3044,14 @@ def run(question: str, max_steps: int, max_sources: int,
         measure_bad = dossier_structure.measure_use_findings(
             report, (quant or {}).get("summary"),
             (corpus_stats or {}).get("summary"))
+        # R8-2: Kernzahlen (Kurzfassung, Optionen, Kalender) brauchen einen
+        # Beleg vom Rang 0/1 — sonst Kennzeichnung oder Streichung.
+        weak = dossier_structure.weak_source_figures(
+            report, citable_sources, lang, measured_text)
         cite_all = (list(cites["unverified"]) + list(cites.get("off_topic") or [])
                     + list(cites.get("distorted") or [])
-                    + list(cites.get("misattributed") or []) + list(measure_bad))
+                    + list(cites.get("misattributed") or []) + list(measure_bad)
+                    + list(weak))
         for e in sourceless:
             cite_all.append({**e, "kind": "sourceless"})
         structure["findings"] = findings
@@ -2972,6 +3064,7 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["distorted_before"] = len(cites.get("distorted") or [])
         structure["misattributed_before"] = len(cites.get("misattributed") or [])
         structure["measure_before"] = len(measure_bad)
+        structure["weaksource_before"] = len(weak)
         for f in findings:
             logger.warning("structure: %s", f)
         for e in cites["unverified"]:
@@ -2991,6 +3084,9 @@ def run(question: str, max_steps: int, max_sources: int,
         for e in measure_bad:
             logger.warning("measure not usable: %s — %s", e["tokens"],
                            e.get("detail", ""))
+        for e in weak:
+            logger.warning("core figure on rank-2 material only: %s (%s)",
+                           e["tokens"], e.get("detail", ""))
         if findings or cite_all:
             logger.info("one targeted rewrite (%d structural + %d citation "
                         "finding(s))", len(findings), len(cite_all))
@@ -3024,11 +3120,13 @@ def run(question: str, max_steps: int, max_sources: int,
         measure_bad2 = dossier_structure.measure_use_findings(
             report, (quant or {}).get("summary"),
             (corpus_stats or {}).get("summary"))
+        weak2 = dossier_structure.weak_source_figures(
+            report, citable_sources, lang, measured_text)
         cite_all2 = (list(cites2["unverified"])
                      + list(cites2.get("off_topic") or [])
                      + list(cites2.get("distorted") or [])
                      + list(cites2.get("misattributed") or [])
-                     + list(measure_bad2))
+                     + list(measure_bad2) + list(weak2))
         for e in sourceless2:
             cite_all2.append({**e, "kind": "sourceless"})
         structure["cite_findings_after"] = cite_all2
@@ -3040,12 +3138,13 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["distorted_after"] = len(cites2.get("distorted") or [])
         structure["misattributed_after"] = len(cites2.get("misattributed") or [])
         structure["measure_after"] = len(measure_bad2)
+        structure["weaksource_after"] = len(weak2)
         if cite_all2:
             # Letzte Instanz: eine Zahl, die die zitierte Seite nicht hergibt,
             # ein Beleg, der von etwas anderem handelt, und eine Zahl ganz ohne
             # Beleg bleiben nicht im Dokument stehen.
             report, dropped = dossier_structure.drop_unverified(
-                report, cite_all2)
+                report, cite_all2, lang)
             structure["dropped_sentences"] = dropped
             logger.warning("dropped/trimmed %d sentence(s): %d unsupported "
                            "figure(s), %d off-topic citation(s), %d sourceless "

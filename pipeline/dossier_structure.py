@@ -1249,18 +1249,134 @@ def _strip_clause(sentence: str, token: str) -> str | None:
     return out if out.endswith((".", "!", "?")) else out + "."
 
 
-def drop_unverified(report_md: str, unverified: list[dict]) -> tuple[str, int]:
+# --------------------------------------------------------------------------
+# Rangregel fuer Kernzahlen (R8-2, jury_11.md/jury_12.md 2026-09-07)
+# --------------------------------------------------------------------------
+# Beide Gutachten schlagen an derselben Stelle zu: "fuer zentrale Marktzahlen
+# stuetzt sich R wiederholt auf duenne Blogs statt Primaerquellen" — der
+# Lilly-Quartalsumsatz ueber einen Broker-Blog (TIKR) statt SEC/IR, die
+# Retatrutid-Werte ueber einen Bluttest-Anbieter (Lola Health) statt Lilly/AJMC,
+# die Marktgroesse ueber ein Content-Portal (PeptideJournal), die EU-SPC-Frist
+# ausgerechnet ueber einen Compounding-Anbieter (formblends.com).
+#
+# Die Regel: JEDE Praezisionszahl in den drei Kernabschnitten (Kurzfassung,
+# Optionen, Katalysator-Kalender) braucht mindestens eine zitierte Quelle vom
+# Rang 0 oder 1 — Behoerde, Register, Gericht, Firmen-IR/SEC, Fachjournal. Ist
+# nur schwaecheres Material da, muss die Aussage als "secondary source only"
+# gekennzeichnet werden oder verschwinden. Gekennzeichnet wird mechanisch:
+# eine belegte Zahl mit ehrlichem Rangvermerk ist mehr wert als eine geloeschte.
+#
+# Der Rang steht als `rank` an der Quelle (scripts/corpus_research.catalog_rank);
+# fehlt er, gilt 2 (etablierte Presse und Rest) — die Pruefung ist dann streng,
+# nie stillschweigend nachsichtig.
+
+PRIMARY_RANK = 1
+CORE_SECTIONS = ("decision", "options", "next")
+SECONDARY_MARK = {"en": "secondary source only",
+                  "de": "nur sekundär belegt"}
+_SECONDARY_RE = re.compile(
+    r"secondary source only|only a secondary source|secondary sourcing only"
+    r"|nur sekund(?:ä|ae)r belegt|nur eine sekund(?:ä|ae)re quelle",
+    re.IGNORECASE)
+
+
+def is_marked_secondary(text: str) -> bool:
+    return bool(_SECONDARY_RE.search(text or ""))
+
+
+def _core_sentences(report_md: str, lang: str) -> list[str]:
+    sections = split_sections(body_text(report_md), _lang(lang))
+    out: list[str] = []
+    for key in CORE_SECTIONS:
+        text = sections.get(key, "")
+        if not text:
+            continue
+        for line in text.splitlines():
+            # Tabellenzeilen des Kalenders sind je Zeile eine Aussage — der
+            # Satz-Splitter zerlegt sie sonst an den Pipe-Zeichen vorbei.
+            if line.strip().startswith("|"):
+                out.append(line.strip())
+            else:
+                out += [c.strip() for c in split_claims(line) if c.strip()]
+    return out
+
+
+def weak_source_figures(report_md: str, sources: list[dict], lang: str = "en",
+                        measured: str = "") -> list[dict]:
+    """Kernzahlen, die nur an einer Quelle vom Rang 2 haengen.
+
+    Rueckgabe wie `verify_cited_figures`: [{"sentence", "tokens", "kind",
+    "detail", "url"}] — derselbe Kanal (ein Neuwurf, danach mechanische
+    Kennzeichnung)."""
+    by_id, by_url = {}, {}
+    for s in sources:
+        by_id[s.get("id")] = s
+        if s.get("origin"):
+            by_url.setdefault(s["origin"], s)
+    for s in sources:
+        by_url[s.get("url")] = s
+    out: list[dict] = []
+    seen: set[str] = set()
+    for sentence in _core_sentences(report_md, lang):
+        if sentence.startswith("#") or is_marked_secondary(sentence):
+            continue
+        figs = [f for f in precision_figures(sentence)
+                if not _figure_in_measured(f, measured)]
+        if not figs:
+            continue
+        cited = _cited_in(sentence, by_id, by_url)
+        if not cited:
+            continue                # ohne Beleg: das ist `sourceless_figures`
+        # Rang 0 ist falsy — `or 2` waere hier ein Fehler, der ausgerechnet
+        # Behoerden und Register (Rang 0) als schwach gewertet haette.
+        if any(int(2 if c.get("rank") is None else c["rank"]) <= PRIMARY_RANK
+               for c in cited):
+            continue
+        if sentence in seen:
+            continue
+        seen.add(sentence)
+        hosts = sorted({str(c.get("url") or "").split("/")[2]
+                        for c in cited if str(c.get("url") or "").count("/") > 2})
+        out.append({"sentence": sentence, "tokens": figs, "kind": "weaksource",
+                    "detail": ", ".join(hosts[:3]),
+                    "url": cited[0].get("url", "")})
+    return out
+
+
+def mark_secondary(sentence: str, lang: str = "en") -> str:
+    """Den Rangvermerk in den Satz setzen — vor dem Schlusszeichen."""
+    mark = f" ({SECONDARY_MARK[_lang(lang)]})"
+    if is_marked_secondary(sentence):
+        return sentence
+    body = sentence.rstrip()
+    tail = sentence[len(body):]
+    if body.endswith((".", "!", "?", "|")):
+        return body[:-1].rstrip() + mark + body[-1] + tail
+    return body + mark + tail
+
+
+def drop_unverified(report_md: str, unverified: list[dict],
+                    lang: str = "en") -> tuple[str, int]:
     """Saetze, deren Zahl in der zitierten Seite nicht steht, aus dem Bericht
     entfernen. Letzte Instanz nach dem einen Neuwurf — eine Zahl, die die
     zitierte Quelle nicht hergibt, darf nicht im Dokument stehen bleiben.
 
-    Ausnahme: eine gesperrte MESSGROESSE in einer Optionszeile kostet nicht die
-    ganze Zeile (das waere ein fehlendes Pflichtfeld), sondern nur ihre
-    Teilaussage."""
+    Zwei Ausnahmen: eine gesperrte MESSGROESSE in einer Optionszeile kostet
+    nicht die ganze Zeile (das waere ein fehlendes Pflichtfeld), sondern nur
+    ihre Teilaussage. Und eine Kernzahl, die nur an einer Quelle vom Rang 2
+    haengt (R8-2), wird GEKENNZEICHNET statt geloescht: der Auftrag laesst
+    beides zu, und eine belegte Zahl mit ehrlichem Rangvermerk ist fuer den
+    Leser mehr wert als eine Luecke."""
     out, dropped = report_md, 0
     for e in unverified:
         s = e["sentence"]
         if not s or s not in out:
+            continue
+        if e.get("kind") == "weaksource":
+            marked = mark_secondary(s, lang)
+            if marked != s:
+                out = out.replace(s, marked, 1)
+                dropped += 1
             continue
         if e.get("kind") == "measure":
             trimmed = _strip_clause(s, (e.get("tokens") or [""])[0])
@@ -1332,6 +1448,17 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
                 f"{e['url'][:80]} NICHT im Umfeld von "
                 f"{e.get('detail', '')}. Satz der Quelle entsprechend neu "
                 f"zuordnen oder streichen: \"{e['sentence'][:180]}\"")
+        elif kind == "weaksource":
+            lines.append(
+                f"Kernzahl nur schwach belegt: {toks} steht in der "
+                f"Kurzfassung, einer Option oder im Kalender, haengt aber nur "
+                f"an Rang-2-Material ({e.get('detail', '')}). Eine Zahl an "
+                f"dieser Stelle braucht eine Quelle vom Rang 0/1 — Behoerde, "
+                f"Register, Gericht, Firmen-IR/SEC oder Fachjournal, im "
+                f"Katalog mit (primary) markiert. Entweder eine solche Quelle "
+                f"aus dem Katalog zitieren, oder den Satz mit dem Zusatz "
+                f"\"{SECONDARY_MARK[L]}\" kennzeichnen, oder die Zahl "
+                f"streichen: \"{e['sentence'][:180]}\"")
         elif kind == "sourceless":
             lines.append(
                 f"Die Zahl(en) {toks} stehen ohne jeden Beleg im Fliesstext. "
