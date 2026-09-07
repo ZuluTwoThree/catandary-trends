@@ -2501,6 +2501,39 @@ class TestR9NoEmptyMandatoryFields:
         assert any("Effort" in x for x in ds.structure_findings(doc)
                    if "Pflichtfeld" in x)
 
+    # Die vier Zeilen, die jury_13 woertlich als leeres Feld zaehlte
+    # ("viermal wortgleich") — der Platzhalter steht VORN und wird von einer
+    # Aufgabenbeschreibung fortgesetzt, die nichts beziffert.
+    B8_EFFORT = (
+        "No figure in the evidence; requires R&D for high-protein, "
+        "low-volume, high-nutrient-density formulations and regulatory "
+        "compliance for health claims.")
+
+    def test_the_b8_effort_line_is_an_unfilled_field(self):
+        assert ds.is_placeholder(self.B8_EFFORT) is True
+        doc = _report().replace("- Effort: value", "- Effort: " + self.B8_EFFORT)
+        f = [x for x in ds.structure_findings(doc) if "Pflichtfeld" in x]
+        assert len(f) == 2 and "Effort (Platzhalter)" in f[0]
+
+    def test_a_placeholder_plus_a_real_magnitude_still_counts(self):
+        """Ehrlich UND beziffert bleibt erlaubt."""
+        assert ds.is_placeholder(
+            "No public figure; a comparable 2026 launch ran EUR 1-3m "
+            "over 18 months [[T1]]") is False
+
+    def test_no_source_may_carry_the_majority_of_the_rows(self):
+        """Drei Quellen reichen nicht, wenn eine davon die Mehrheit traegt —
+        genau die Form, die jury_14 beanstandete."""
+        last = "| Q5 2099 | Decision 5 | [[T2]] | It moves the market. |"
+        doc = _report().replace(
+            last, last
+            + "\n| Q6 2099 | Decision 6 | [[T1]] | It moves the market. |"
+            + "\n| Q7 2099 | Decision 7 | [[T1]] | It moves the market. |")
+        c = ds.calendar_rows(doc)
+        assert c["ok"] == 7 and c["sources"] == 3
+        f = ds.calendar_findings(doc)
+        assert f and "EINER Quelle" in f[0]
+
     def test_a_calendar_on_one_source_is_not_a_calendar(self):
         doc = _report().replace("[[T2]]", "[[T1]]").replace("[[T3]]", "[[T1]]")
         c = ds.calendar_rows(doc)

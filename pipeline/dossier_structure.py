@@ -279,6 +279,26 @@ def _field_value(block: str, pat: str) -> str | None:
     return m.group("val").strip()
 
 
+# Eine Groessenordnung: Geld, Zeit, Menge. Ohne eine davon ist ein
+# Aufwandsfeld eine Aufgabenbeschreibung, keine Bezifferung.
+_MAGNITUDE_RE = re.compile(
+    r"(?:[$€£]\s?\d|\d[\d.,\u00b7]*\s?(?:%|k|m|bn|mio|mrd|million|billion"
+    r"|thousand|fte|eur|usd|gbp|euro|dollar|pound|month|months|monate|jahr"
+    r"|jahre|year|years|week|weeks|wochen|day|days|tage|quarter|quartal"
+    r"|person|people|mitarbeiter|staff|line|lines|sku|skus)"
+    r"|\b(?:one|two|three|four|five|six|nine|twelve|ein|eine|zwei|drei|vier"
+    r"|fuenf|f(?:ü|ue)nf|sechs|zw(?:ö|oe)lf)\s+"
+    r"(?:fte|month|months|monate|year|years|jahre|quarter|quartale|week|weeks"
+    r"|wochen|person|people|mitarbeiter|lines?|linien)\b"
+    r"|\b\d{1,4}\s?[-–]\s?\d{1,4}\b)", re.IGNORECASE)
+
+# Woran ein Feldwert in Teilaussagen zerfaellt. Der B8-Befund lautete
+# "No figure in the evidence; requires R&D for ..." — der Platzhalter stand
+# VORNE und wurde von einer Aufgabenbeschreibung fortgesetzt, die nichts
+# beziffert. Genau das hat jury_14 als leeres Feld gezaehlt.
+_VALUE_CLAUSE = re.compile(r"\s*(?:;|—|–|\.\s|:)\s*")
+
+
 def is_placeholder(value: str) -> bool:
     """Traegt der Feldwert keinen Inhalt (Platzhalter, Leerformel, leer)?"""
     text = prose(value or "").strip(" \t*_-–—·:")
@@ -286,7 +306,15 @@ def is_placeholder(value: str) -> bool:
         return True
     if len(text.split()) < MIN_FIELD_WORDS:
         return True
-    return bool(_PLACEHOLDER_RE.match(text))
+    if _PLACEHOLDER_RE.match(text):
+        return True
+    head = _VALUE_CLAUSE.split(text, 1)[0].strip()
+    if head and _PLACEHOLDER_RE.match(head):
+        # Ein Platzhalter vorn zaehlt nur dann nicht, wenn irgendwo im Feld
+        # doch eine Groessenordnung steht ("keine oeffentliche Zahl; ein
+        # vergleichbarer Launch kostete 1-3 Mio.").
+        return not _MAGNITUDE_RE.search(text)
+    return False
 
 
 def _explained_omission(block: str, pat: str) -> bool:
@@ -1062,6 +1090,22 @@ def calendar_sources(report_md: str, lang: str = "en",
     return out
 
 
+def calendar_source_counts(report_md: str, lang: str = "en",
+                           year_floor: int | None = None,
+                           sources: list[dict] | None = None) -> dict:
+    """Wie viele gueltige Kalenderzeilen je Quelle."""
+    by_id = {s.get("id"): s for s in (sources or [])}
+    sections = split_sections(body_text(report_md), _lang(lang))
+    counts: dict[str, int] = {}
+    for cells in table_rows(sections.get("next", "")):
+        line = " ".join(cells)
+        if not (has_date(line, year_floor) and _has_citation(line)):
+            continue
+        for key in _citation_keys(line, by_id):
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
 def calendar_findings(report_md: str, lang: str = "en",
                       year_floor: int | None = None) -> list[str]:
     """Zu wenige datierte, belegte Zeilen im Katalysator-Kalender = Neuwurf."""
@@ -1070,18 +1114,24 @@ def calendar_findings(report_md: str, lang: str = "en",
         return []                       # fehlender Abschnitt: eigener Befund
     c = calendar_rows(report_md, lang, year_floor)
     if c["ok"] >= MIN_CALENDAR_ROWS:
-        if c["sources"] >= MIN_CALENDAR_SOURCES:
-            return []
+        counts = calendar_source_counts(report_md, lang, year_floor)
+        top = max(counts.values(), default=0)
         heading = dict((k, h) for k, h, _p in SECTIONS[_lang(lang)])["next"]
-        return [f"'{heading}': {c['ok']} Zeilen, aber nur {c['sources']} "
-                f"verschiedene Quelle(n) — mindestens "
-                f"{MIN_CALENDAR_SOURCES}. Ein Kalender, dessen Zeilen "
-                f"mehrheitlich aus einer Quelle stammen, belegt einen "
-                f"Zeitplan nicht. Termine aus anderen Katalogeintraegen "
-                f"aufnehmen (Behoerdenkalender, Firmen-IR, Gericht, "
-                f"Studienregister) oder Zeilen streichen, die keine eigene "
-                f"Quelle haben."]
-        return []
+        why = ""
+        if c["sources"] < MIN_CALENDAR_SOURCES:
+            why = (f"nur {c['sources']} verschiedene Quelle(n) — mindestens "
+                   f"{MIN_CALENDAR_SOURCES}")
+        elif top * 2 > c["ok"]:
+            why = (f"{top} der {c['ok']} Zeilen stammen aus EINER Quelle — "
+                   f"hoechstens die Haelfte darf das")
+        if not why:
+            return []
+        return [f"'{heading}': {c['ok']} datierte, belegte Zeilen, aber "
+                f"{why}. Ein Kalender, dessen Zeilen mehrheitlich aus einer "
+                f"Quelle stammen, belegt keinen Zeitplan — er gibt eine Seite "
+                f"wieder. Termine aus anderen Katalogeintraegen aufnehmen "
+                f"(Behoerdenkalender, Firmen-IR, Gericht, Studienregister) "
+                f"oder Zeilen streichen, die keine eigene Quelle haben."]
     detail = []
     if c["no_date"]:
         detail.append(f"{c['no_date']} Zeile(n) ohne Datum")
