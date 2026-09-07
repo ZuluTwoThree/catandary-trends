@@ -189,9 +189,23 @@ def check_result(result: dict) -> dict:
     for a in (st.get("advisory") or []):
         findings.append(a)
     if st.get("dropped_sentences"):
+        # Drei Streichgruende, drei Formulierungen — "die Zahl stand nicht auf
+        # der Seite" war nach Runde 3 nicht mehr die ganze Wahrheit.
+        why = []
+        if st.get("off_topic_after"):
+            why.append(f"{st['off_topic_after']}× zitierte die Seite ein anderes "
+                       f"Thema als der Satz")
+        if st.get("sourceless_after"):
+            why.append(f"{st['sourceless_after']}× stand eine Praezisionszahl "
+                       f"ohne Beleg im Satz")
+        rest = (int(st["dropped_sentences"]) - int(st.get("off_topic_after") or 0)
+                - int(st.get("sourceless_after") or 0))
+        if rest > 0 or not why:
+            why.insert(0, f"{max(rest, 0)}× enthielt die zitierte Web-Seite "
+                          f"die behauptete Zahl nicht")
         findings.append(
-            f"{st['dropped_sentences']} Satz/Saetze gestrichen: die zitierte "
-            f"Web-Seite enthielt die behauptete Zahl nicht.")
+            f"{st['dropped_sentences']} Satz/Saetze gestrichen: "
+            + ", ".join(why) + ".")
     if st.get("cite_findings") and not st.get("dropped_sentences"):
         findings.append(
             f"{len(st['cite_findings'])} Zitat-Zahl(en) waren im ersten Entwurf "

@@ -657,6 +657,36 @@ class TestSourcelessFigures:
         assert "ohne jeden Beleg" in p
 
 
+class TestDropReasonIsNamed:
+    """Nach Runde 3 gibt es drei Streichgruende — "die Zahl stand nicht auf der
+    Seite" ist nicht mehr die ganze Wahrheit."""
+
+    def _res(self, st: dict) -> dict:
+        return {"report": "x", "sources": [], "evidence": [], "cited": [],
+                "ledger": [], "structure": {"findings_after": [],
+                                            "cite_findings": [],
+                                            "cite_findings_after": [], **st}}
+
+    def test_subject_mismatch_is_named_as_such(self):
+        out = check_result(self._res({"dropped_sentences": 2,
+                                      "off_topic_after": 2}))
+        assert any("anderes Thema" in f for f in out["findings"])
+        assert not any("behauptete Zahl nicht" in f for f in out["findings"])
+
+    def test_sourceless_figure_is_named_as_such(self):
+        out = check_result(self._res({"dropped_sentences": 1,
+                                      "sourceless_after": 1}))
+        assert any("ohne Beleg im Satz" in f for f in out["findings"])
+
+    def test_mixed_reasons_are_all_named(self):
+        out = check_result(self._res({"dropped_sentences": 3,
+                                      "off_topic_after": 1,
+                                      "sourceless_after": 1}))
+        f = " ".join(out["findings"])
+        assert "anderes Thema" in f and "ohne Beleg im Satz" in f
+        assert "zitierte Web-Seite" in f
+
+
 class TestMarketSweep:
     """R3-4 (jury_4.md): dem Verlierer fehlten Metsera-Bietergefecht,
     Frankreichs Erstattungspremiere, NHS-Rollout und die Wirkstoff-Pipeline —
