@@ -541,3 +541,52 @@ def test_an_unread_funding_hit_cannot_carry_a_citation(monkeypatch):
                if s["kind"] not in ("web", "legal", "market", "entity",
                                     "funding") or s.get("fetched")]
     assert citable == []
+
+
+# --------------------------------------------------------------------------
+# 8. R11 — Denken nach Modellkarte, Ertrag statt Rang bei den Notizen
+# --------------------------------------------------------------------------
+
+def test_the_thinking_preset_follows_the_model_card(monkeypatch):
+    monkeypatch.setenv("DOSSIER_DR_THINK", "1")
+    s = cr.dr_sampling("write", True)
+    assert s == {"temperature": 1.0, "top_p": 0.95, "top_k": 20,
+                 "presence_penalty": 0.0}
+
+
+def test_without_the_switch_the_non_thinking_preset_stands(monkeypatch):
+    monkeypatch.delenv("DOSSIER_DR_THINK", raising=False)
+    assert cr.dr_sampling("write", True)["temperature"] == 0.7
+
+
+def test_schema_calls_never_switch_to_the_thinking_preset(monkeypatch):
+    """Der Client setzt enable_thinking=False — dann gilt auch der
+    nicht-denkende Sampling-Satz."""
+    monkeypatch.setenv("DOSSIER_DR_THINK", "1")
+    assert cr.dr_sampling("work", True) == {"temperature": 0.2,
+                                            "top_p": 0.80, "top_k": 20}
+
+
+def test_read_pages_are_harvested_before_patents(monkeypatch):
+    asked: list[str] = []
+
+    def fake(**kw):
+        asked.append(kw["prompt"])
+        return cr.LedgerFacts(facts=[])
+
+    monkeypatch.setattr(cr.llamacpp_client, "chat_structured",
+                        lambda **kw: fake(**kw))
+    long = "x " * 400
+    sources = [{"id": "N1", "kind": "patent", "rank": 0, "snippet": long,
+                "title": "patent"},
+               {"id": "P1", "kind": "paper", "rank": 1, "snippet": long,
+                "title": "paper"},
+               {"id": "L1", "kind": "legal", "rank": 0, "text": long,
+                "title": "authority"}]
+    cr.harvest_facts(sources, "q", max_sources=3)
+    order = [p.split("Source: ")[1].split(" (")[0] for p in asked]
+    assert order == ["authority", "paper", "patent"]
+
+
+def test_the_note_prompt_asks_for_the_dated_future_first():
+    assert "TAKE THE DATED FUTURE FIRST" in cr.HARVEST_SYSTEM
