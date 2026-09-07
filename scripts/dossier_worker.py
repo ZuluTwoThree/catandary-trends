@@ -65,7 +65,12 @@ RUN_DEFAULTS = {"steps": 6, "sources": 24, "per_query": 6, "scope": "both",
                 # Auftrag mit params {"measure": false} oder DOSSIER_MEASURE=0
                 # reproduziert den Pfad davor.
                 "measure": os.getenv("DOSSIER_MEASURE", "1")
-                          not in ("0", "false", "no")}
+                          not in ("0", "false", "no"),
+                # DR-Modus (2026-09-07): Arbeitsweise eines Deep-Research-
+                # Agenten — Primaerquellen zuerst lesen, Notizen vor dem
+                # Schreiben, Sampling nach Modellkarte. Default aus.
+                "dr": os.getenv("DOSSIER_DR", "0")
+                      not in ("0", "false", "no", "")}
 
 
 def _params(order: dict) -> dict:
@@ -92,7 +97,7 @@ def process_order(order: dict, quant: dict | None,
             # macht den Ausfall im Dossier sichtbar (vorher verschwand er).
             quant=quant if (quant and (quant.get("ok") or p["measure"]))
                   else None,
-            measure=p["measure"], corpus_stats=corpus_stats)
+            measure=p["measure"], corpus_stats=corpus_stats, dr=p["dr"])
         version = corpus_research.save_dossier(
             order["slug"], topic, question, result["report"], result)
         check = check_result(result)

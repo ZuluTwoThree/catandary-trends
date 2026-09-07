@@ -109,14 +109,34 @@ def assert_served_model(expected: str, stage: str = "", force: bool = False) -> 
         _model_check_last[expected] = now
 
 
+def _add_sampling(payload: dict, top_p: float | None = None,
+                  top_k: int | None = None, min_p: float | None = None,
+                  presence_penalty: float | None = None) -> dict:
+    """Nur gesetzte Sampling-Felder in die Payload — nie einen Default."""
+    for key, val in (("top_p", top_p), ("top_k", top_k), ("min_p", min_p),
+                     ("presence_penalty", presence_penalty)):
+        if val is not None:
+            payload[key] = val
+    return payload
+
+
 def chat(model: str, prompt: str, system: str | None = None,
          temperature: float = 0.0, seed: int | None = None,
-         max_tokens: int | None = None) -> str:
+         max_tokens: int | None = None, top_p: float | None = None,
+         top_k: int | None = None, min_p: float | None = None,
+         presence_penalty: float | None = None) -> str:
     """Send a chat request to llama-server and return the response text.
 
     `seed` / `max_tokens` are optional and only sent when given (Research
     Pulse, #73: fixed seed for reproducible weekly paragraphs); the
-    newsletter's calls are byte-identical to before."""
+    newsletter's calls are byte-identical to before.
+
+    `top_p` / `top_k` / `min_p` / `presence_penalty` likewise: sie existieren,
+    damit ein Aufrufer so sampeln kann, wie es die Modellkarte vorschreibt,
+    statt nur ueber die Temperatur (Dossier-DR-Modus 2026-09-07 — Qwen3.8
+    nicht-denkend ist mit temp 0.7, top_p 0.80, top_k 20, presence_penalty 1.5
+    spezifiziert). Nicht gesetzt heisst: das Feld geht gar nicht mit, also
+    bleibt jeder bestehende Aufruf byte-identisch."""
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -132,6 +152,8 @@ def chat(model: str, prompt: str, system: str | None = None,
         payload["seed"] = seed
     if max_tokens is not None:
         payload["max_tokens"] = max_tokens
+    _add_sampling(payload, top_p=top_p, top_k=top_k, min_p=min_p,
+                  presence_penalty=presence_penalty)
 
     url = f"{LLAMACPP_HOST}/v1/chat/completions"
     logger.debug("llama.cpp chat → %s (model=%s, T=%.2f)", url, model, temperature)
@@ -185,7 +207,10 @@ def chat_structured(model: str, prompt: str, schema: type[T],
                     max_tokens: int | None = None,
                     verify_model: bool = False,
                     hard_validate: Callable[[T], list[str]] | None = None,
-                    cache_prompt: bool | None = None) -> T | None:
+                    cache_prompt: bool | None = None,
+                    top_p: float | None = None,
+                    top_k: int | None = None,
+                    min_p: float | None = None) -> T | None:
     """Structured output against llama-server (OpenAI json_schema response_format).
 
     Mirrors pipeline.ollama_client.chat_structured: retry loop, markdown fence
@@ -243,6 +268,9 @@ def chat_structured(model: str, prompt: str, schema: type[T],
     }
     if cache_prompt is not None:
         payload["cache_prompt"] = cache_prompt
+    # Kein presence_penalty auf grammatik-gebundener Ausgabe: die Strafe traefe
+    # die Schluesselnamen des Schemas, die sich wiederholen MUESSEN.
+    _add_sampling(payload, top_p=top_p, top_k=top_k, min_p=min_p)
 
     url = f"{LLAMACPP_HOST}/v1/chat/completions"
     vcap = max_validate_retries if max_validate_retries is not None else MAX_RETRIES - 1
