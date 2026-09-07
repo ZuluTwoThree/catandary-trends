@@ -928,6 +928,61 @@ class TestSourceRank:
         assert [h["url"] for h in cr.rank_hits(hits)] == [
             "https://fda.gov/2", "https://a.example/1", "https://b.example/3"]
 
+class TestSourceRankFilter:
+    """R7-2, jury_10.md: „2 von 5 Stichprobenquellen sind Sekundaer-/Fan-Wikis
+    statt Primaerquellen" — retatrutide.med und glp3.wiki trugen zentrale
+    Phase-3-Daten, obwohl die IR-Seite des Herstellers verfuegbar war."""
+
+    def test_the_two_jury_sources_are_rejected(self):
+        for url in ("https://glp3.wiki/retatrutide",
+                    "https://retatrutide.med/trials"):
+            assert cr.low_trust(url) is not None
+            assert cr.source_rank(url) == cr.RANK_REJECT
+
+    def test_every_entry_carries_a_category_and_a_reason(self):
+        for pattern, category, reason in cr.LOW_TRUST_SOURCES:
+            assert pattern and category and len(reason) > 10
+
+    def test_the_categories_are_the_four_named_ones(self):
+        cats = {c for _p, c, _r in cr.LOW_TRUST_SOURCES}
+        assert {"wiki without an editorial process", "content farm",
+                "press-release republisher", "forum"} <= cats
+
+    def test_journals_and_ir_pages_rank_as_primary(self):
+        assert cr.source_rank("https://www.nature.com/articles/x") == 1
+        assert cr.source_rank("https://investor.lilly.com/news",
+                              ["Eli Lilly"]) == 1
+        assert cr.source_rank("https://www.ema.europa.eu/en/x") == 0
+
+    def test_wikipedia_and_market_research_are_not_rejected(self):
+        """Bewusste Grenze: redaktioneller Prozess bzw. benannter Herausgeber —
+        der Filter soll nicht mehr wegwerfen, als er soll."""
+        assert cr.low_trust("https://en.wikipedia.org/wiki/GLP-1") is None
+        assert cr.low_trust("https://www.futuremarketinsights.com/x") is None
+
+    def test_a_rejected_hit_is_recorded_not_silently_dropped(self):
+        entry: dict = {}
+        assert cr.reject_low_trust({"url": "https://glp3.wiki/a"}, entry) is True
+        assert cr.reject_low_trust({"url": "https://www.reuters.com/a"},
+                                   entry) is False
+        assert entry["rejected"][0]["category"].startswith("wiki")
+
+    def test_the_sweep_never_admits_one_even_as_the_floor(self, monkeypatch):
+        """Die Rueckfallschwelle darf den Filter nicht aushebeln — sie war der
+        Weg, auf dem die Fan-Wikis in den Katalog kamen."""
+        hits = [{"url": "https://glp3.wiki/a", "title": "Retatrutide trials",
+                 "snippet": "phase 3", "id": "", "kind": "", "fetched": False},
+                {"url": "https://retatrutide.med/b", "title": "Doses",
+                 "snippet": "12 mg", "id": "", "kind": "", "fetched": False}]
+        monkeypatch.setattr(cr, "brave_search", lambda q, n: list(hits))
+        monkeypatch.setattr(cr, "fetch_web_page_status",
+                            lambda u: ("text", "fetched"))
+        sources, ledger, notes = [], [], []
+        added, record = cr.sweep_fixed("glp-1", sources, set(), notes, ledger,
+                                       patterns=("{t} patent",), terms=["glp-1"])
+        assert added == 0 and sources == []
+        assert len(ledger[0]["rejected"]) == 2
+        assert "rejected by the source-rank filter" in record
 
 class TestEntityHarvest:
     def _src(self, title, snippet="", outlet="Reuters"):

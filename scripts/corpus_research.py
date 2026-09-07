@@ -846,6 +846,124 @@ _PRIMARY_SUFFIXES = (".gov", ".gov.uk", ".gouv.fr", ".europa.eu", ".go.jp",
 
 _NONWORD = re.compile(r"[^a-z0-9]+")
 
+# Fachjournale und Preprint-Server: Primaerliteratur, nicht Presse ueber sie.
+# Gleichrangig mit dem eigenen Newsroom einer Firma (Rang 1) — beide sind die
+# Stelle, an der die Aussage zuerst steht.
+_JOURNAL_HOSTS = frozenset("""
+nature.com science.org sciencemag.org nejm.org thelancet.com jamanetwork.com
+bmj.com cell.com sciencedirect.com springer.com link.springer.com wiley.com
+onlinelibrary.wiley.com tandfonline.com sagepub.com academic.oup.com
+pubmed.ncbi.nlm.nih.gov pmc.ncbi.nlm.nih.gov ncbi.nlm.nih.gov doi.org
+arxiv.org biorxiv.org medrxiv.org ssrn.com papers.ssrn.com plos.org
+frontiersin.org mdpi.com diabetesjournals.org ahajournals.org acs.org
+pnas.org bmj.com jci.org embopress.org
+""".split())
+
+# --------------------------------------------------------------------------
+# Rangfilter (R7-2, jury_10.md 2026-09-07)
+# --------------------------------------------------------------------------
+# Woertlich: „2 von 5 Stichprobenquellen sind Sekundaer-/Fan-Wikis statt
+# Primaerquellen" — `retatrutide.med` und `glp3.wiki` trugen zentrale
+# Phase-3-Daten, obwohl die IR-Seite des Herstellers (die der Gegner nutzte)
+# verfuegbar war. Die erweiterte Web-Schicht aus Runde 5 sammelt breiter, aber
+# ohne Rang: der erste plausible Treffer kam in den Katalog.
+#
+# Die Liste ist ausdruecklich BENANNT und nicht als stille Heuristik verteilt.
+# Jede Zeile traegt ihren Grund. Ein Treffer dieser Liste wird nicht
+# abgewertet, sondern gar nicht erst aufgenommen (auch nicht ueber die
+# Rueckfallschwelle) — und erscheint mit Grund im Pruefanhang.
+#
+# BEWUSST NICHT hier: Wikipedia (redaktioneller Prozess, Versionsgeschichte,
+# Quellenpflicht — als Orientierung zulaessig, aber nie Primaerbeleg) und
+# kommerzielle Marktforschung (FMI, InsightAce): ein bezahlter Report ist eine
+# benannte, verantwortliche Quelle, auch wenn er nicht unabhaengig geprueft
+# ist. Beide bleiben Rang 2, damit der Filter nicht mehr wegwirft, als er soll.
+
+# (Muster, Kategorie, Begruendung). Ein Muster mit fuehrendem Punkt ist eine
+# Endung (TLD oder Domainendung), alles andere ein Host oder eine Domain.
+LOW_TRUST_SOURCES: tuple[tuple[str, str, str], ...] = (
+    (".wiki", "wiki without an editorial process",
+     "open wiki TLD — no named editor, no correction record"),
+    ("fandom.com", "wiki without an editorial process",
+     "fan wiki platform, anonymous contributors"),
+    ("wikia.com", "wiki without an editorial process", "fan wiki platform"),
+    ("wikia.org", "wiki without an editorial process", "fan wiki platform"),
+    ("everipedia.org", "wiki without an editorial process",
+     "unmoderated encyclopedia"),
+    ("fextralife.com", "wiki without an editorial process", "fan wiki platform"),
+    ("ezinearticles.com", "content farm",
+     "article mill, no subject-matter review"),
+    ("hubpages.com", "content farm", "user-written article mill"),
+    ("articlesbase.com", "content farm", "article mill"),
+    ("medium.com", "self-publishing platform",
+     "anyone can publish; the platform vouches for nothing"),
+    ("substack.com", "self-publishing platform",
+     "newsletter platform, no editorial layer of its own"),
+    ("openpr.com", "press-release republisher",
+     "reprints submitted releases unedited for SEO reach"),
+    ("prlog.org", "press-release republisher", "self-service release wire"),
+    ("einnews.com", "press-release republisher",
+     "aggregates and reprints releases"),
+    ("abnewswire.com", "press-release republisher", "self-service release wire"),
+    ("issuewire.com", "press-release republisher", "self-service release wire"),
+    ("24-7pressrelease.com", "press-release republisher",
+     "self-service release wire"),
+    ("pressreleasepoint.com", "press-release republisher",
+     "self-service release wire"),
+    ("healthunlocked.com", "forum", "patient forum, personal accounts"),
+    ("medhelp.org", "forum", "patient forum, personal accounts"),
+    ("patientslikeme.com", "forum", "patient forum, personal accounts"),
+    ("stackexchange.com", "forum", "Q&A forum, answers by anyone"),
+    ("stackoverflow.com", "forum", "Q&A forum, answers by anyone"),
+    ("answers.com", "forum", "Q&A site without attribution"),
+)
+
+# Ein-Wirkstoff-Domains: die Domain traegt nur den Freinamen des Wirkstoffs
+# (`retatrutide.med`, `semaglutide.org`). Solche Seiten haben keinen
+# Herausgeber und sind fast immer Affiliate- oder Fanseiten — deshalb eine
+# Regel und keine Namensliste, sie entstehen laufend neu.
+_INN_DOMAIN_SUFFIX = ("tide", "glutide", "trutide", "glipron", "gliptin",
+                      "gliflozin", "mab", "nib", "sartan", "statin", "prazole")
+_INN_DOMAIN_MIN = 9
+
+# Hostpraefixe, die eine Community-Ecke einer sonst brauchbaren Seite
+# markieren ("forum.example.com").
+_FORUM_LABELS = ("forum", "forums", "community", "boards")
+
+RANK_REJECT = 3          # abgewiesen: kommt nicht in den Katalog
+
+
+def _inn_domain(host: str) -> bool:
+    parts = host.split(".")
+    if len(parts) < 2:
+        return False
+    label = parts[-2] if len(parts) >= 2 else parts[0]
+    return (len(label) >= _INN_DOMAIN_MIN
+            and label.isalpha() and label.endswith(_INN_DOMAIN_SUFFIX))
+
+
+def low_trust(url: str) -> dict | None:
+    """Kategorie und Begruendung, wenn die Quelle abgewiesen wird — sonst None."""
+    host = _host_of(url)
+    if not host:
+        return None
+    for pattern, category, reason in LOW_TRUST_SOURCES:
+        if pattern.startswith("."):
+            if host.endswith(pattern):
+                return {"host": host, "category": category, "reason": reason}
+        elif host == pattern or host.endswith("." + pattern):
+            return {"host": host, "category": category, "reason": reason}
+    if host.split(".")[0] in _FORUM_LABELS:
+        return {"host": host, "category": "forum",
+                "reason": "forum subdomain — user posts, not an editor"}
+    if _inn_domain(host):
+        return {"host": host, "category": "single-substance domain",
+                "reason": "the domain is just the substance name — no named "
+                          "publisher, typically an affiliate or fan page"}
+    return None
+
+
+
 
 def _host_of(url: str) -> str:
     from urllib.parse import urlparse
@@ -853,7 +971,8 @@ def _host_of(url: str) -> str:
 
 
 def source_rank(url: str, entities: tuple[str, ...] | list[str] = ()) -> int:
-    """0 = Register/Behoerde/Gericht, 1 = eigene Seite einer Entitaet, 2 = Rest.
+    """0 = Register/Behoerde/Gericht, 1 = eigene Seite einer Entitaet oder
+    Fachjournal, 2 = etablierte Presse und Rest, 3 = abgewiesen (Rangfilter).
 
     Rang 1 erkennt Firmen-Newsrooms ohne Firmenliste: die Domain traegt den
     Namen der Entitaet, die wir ohnehin schon aus dem Katalog kennen
@@ -866,12 +985,33 @@ def source_rank(url: str, entities: tuple[str, ...] | list[str] = ()) -> int:
         return 0
     if host.endswith(_PRIMARY_SUFFIXES):
         return 0
+    if low_trust(url):
+        return RANK_REJECT
+    if host in _JOURNAL_HOSTS or any(host.endswith("." + h)
+                                     for h in _JOURNAL_HOSTS):
+        return 1
     squashed = _NONWORD.sub("", host)
     for e in entities:
-        key = _NONWORD.sub("", str(e).lower())
-        if len(key) >= 5 and key in squashed:
-            return 1
+        low = str(e).lower()
+        # Ganzer Name UND seine Einzelteile: "Eli Lilly" wohnt auf
+        # investor.lilly.com, nicht auf elililly.com.
+        for key in [_NONWORD.sub("", low)] + [w for w in re.findall(
+                r"[a-z0-9]{5,}", low) if w not in _ENTITY_STOP]:
+            if len(key) >= 5 and key in squashed:
+                return 1
     return 2
+
+
+def reject_low_trust(hit: dict, entry: dict) -> bool:
+    """Rangfilter an der Aufnahmestelle: abgewiesene Quelle protokollieren.
+
+    Der Eintrag landet im Ledger und damit im Pruefanhang — abgewiesen wird
+    nur, was benannt ist, und was abgewiesen wurde, steht nachher da."""
+    lt = low_trust(str(hit.get("url") or ""))
+    if not lt:
+        return False
+    entry.setdefault("rejected", []).append({"url": hit.get("url"), **lt})
+    return True
 
 
 def rank_hits(hits: list[dict], entities: tuple[str, ...] | list[str] = ()) -> list[dict]:
@@ -1258,7 +1398,7 @@ def sweep_fixed(topic: str, sources: list[dict], seen_ids: set[str],
         entry = {"gap": q, "kind": kind, "papers": 0, "patents": 0,
                  "web_queries": [q], "web_sources": 0, "web_fetched": 0,
                  "off_topic_dropped": 0, "budget_dropped": 0,
-                 "fetch_log": []}
+                 "rejected": [], "fetch_log": []}
         try:
             hits = brave_search(q, per_query)
         except Exception as exc:                                    # noqa: BLE001
@@ -1270,6 +1410,8 @@ def sweep_fixed(topic: str, sources: list[dict], seen_ids: set[str],
         fresh: list[dict] = []
         for h in rank_hits(hits, ents):
             if h["url"] in seen_urls:
+                continue
+            if reject_low_trust(h, entry):
                 continue
             if not web_relevant(h, terms):
                 entry["off_topic_dropped"] += 1
@@ -1289,7 +1431,7 @@ def sweep_fixed(topic: str, sources: list[dict], seen_ids: set[str],
             # Entitaetsbegriff, kommt der bestplatzierte trotzdem herein — und
             # das Protokoll sagt, dass er nur deshalb drin ist.
             for h in rank_hits(hits, ents):
-                if h["url"] in seen_urls:
+                if h["url"] in seen_urls or reject_low_trust(h, entry):
                     continue
                 h["id"] = f"{id_prefix}{added}"
                 h["kind"] = kind
@@ -1328,6 +1470,10 @@ def sweep_fixed(topic: str, sources: list[dict], seen_ids: set[str],
                      f"admitted (budget)")
         if entry["off_topic_dropped"]:
             tail += f"; {entry['off_topic_dropped']} dropped as off-topic"
+        if entry["rejected"]:
+            tail += (f"; {len(entry['rejected'])} rejected by the source-rank "
+                     f"filter (" + ", ".join(sorted(
+                         {r["category"] for r in entry["rejected"]})) + ")")
         if blocked:
             tail += f"; unreadable: {', '.join(sorted(set(blocked)))}"
         if cited_ids:
@@ -1951,6 +2097,7 @@ def check_summary(ledger: list[dict], sources: list[dict], cited: list[dict],
     open_q = sum(1 for e in ledger
                  if (e.get("kind") or "gap") in ("gap", "followup"))
     budget = sum(int(e.get("budget_dropped") or 0) for e in ledger)
+    rejected = sum(len(e.get("rejected") or []) for e in ledger)
     unread = sum(1 for e in ledger for x in (e.get("fetch_log") or [])
                  if x.get("status") != "fetched")
     queries = sum(len(e.get("web_queries") or []) for e in ledger)
@@ -1962,7 +2109,9 @@ def check_summary(ledger: list[dict], sources: list[dict], cited: list[dict],
              f"davon zitiert. {queries} Suchanfragen.",
              f"- **Was offen blieb:** {open_q} Frage(n) nach dem Audit; "
              f"{budget} brauchbare Treffer wurden aus Budgetgründen nicht "
-             f"ausgewertet; {unread} Seite(n) waren nicht lesbar "
+             f"ausgewertet; {rejected} Treffer wies der Rangfilter ab (Wikis "
+             f"ohne Redaktion, Content-Farmen, Presse-Wiederveröffentlicher, "
+             f"Foren); {unread} Seite(n) waren nicht lesbar "
              f"(Botsperre/Zeitüberschreitung).",
              f"- **Beleg-Verifikation:** {st.get('cites_checked', 0)} Satz/Sätze "
              f"gegen den Volltext genau der zitierten Seite geprüft "
@@ -1980,6 +2129,9 @@ def check_summary(ledger: list[dict], sources: list[dict], cited: list[dict],
              f"{queries} search queries.",
              f"- **What stayed open:** {open_q} question(s) after the audit; "
              f"{budget} usable hits were not evaluated for budget reasons; "
+             f"{rejected} hit(s) were rejected by the source-rank filter (wikis "
+             f"without an editorial process, content farms, press-release "
+             f"republishers, forums); "
              f"{unread} page(s) could not be read (bot block / timeout).",
              f"- **Citation verification:** {st.get('cites_checked', 0)} "
              f"sentence(s) checked against the full text of the very page they "
@@ -2426,9 +2578,13 @@ def run(question: str, max_steps: int, max_sources: int,
             n_web = sum(1 for x in sources if x["kind"] == "web")
             fresh = []
             dropped_budget, dropped_topic = 0, 0
+            scratch: dict = {}
+            entry = ledger[tg] if 0 <= tg < len(gaps) else scratch
             seen_urls = {x["url"] for x in sources}
             for h in rank_hits(hits, entities):
                 if h["url"] in seen_urls:
+                    continue
+                if reject_low_trust(h, entry):
                     continue
                 if not web_relevant(h, web_terms):
                     dropped_topic += 1
@@ -2445,7 +2601,7 @@ def run(question: str, max_steps: int, max_sources: int,
                 # Rueckfallschwelle wie im festen Sweep: kein Filter darf eine
                 # Anfrage in Schweigen verwandeln.
                 for h in rank_hits(hits, entities):
-                    if h["url"] in seen_urls:
+                    if h["url"] in seen_urls or reject_low_trust(h, entry):
                         continue
                     h["id"] = f"T{900000000 + n_web}"
                     h["gap"] = tg if 0 <= tg < len(gaps) else None
@@ -2502,6 +2658,8 @@ def run(question: str, max_steps: int, max_sources: int,
             for h in rank_hits(hits, entities):
                 if h["url"] in seen_urls:
                     continue
+                if reject_low_trust(h, ledger[gi]):
+                    continue
                 if not web_relevant(h, web_terms):
                     dropped_topic += 1
                     continue
@@ -2513,7 +2671,7 @@ def run(question: str, max_steps: int, max_sources: int,
                 fresh.append(h)
             if not fresh and dropped_topic:
                 for h in rank_hits(hits, entities):
-                    if h["url"] in seen_urls:
+                    if h["url"] in seen_urls or reject_low_trust(h, ledger[gi]):
                         continue
                     h["id"] = f"T{900000000 + n_web}"
                     h["gap"] = gi
@@ -2915,6 +3073,34 @@ def run(question: str, max_steps: int, max_sources: int,
                     + (f" · {drop} hit(s) dropped as off-topic" if drop else "")
                     + (f" · {bd} usable hit(s) not admitted (budget)" if bd else "")
                     + (f" · unreadable: {', '.join(unread)}" if unread else ""))
+        # Rangfilter (R7-2): was gar nicht erst in den Katalog kam und warum.
+        # Ein Filter, der still arbeitet, ist derselbe Fehler wie eine still
+        # verworfene Quelle — beides steht hier.
+        rejected = [r for e in ledger for r in (e.get("rejected") or [])]
+        if rejected:
+            by_cat: dict[str, list[str]] = {}
+            for r in rejected:
+                by_cat.setdefault(r["category"], []).append(r["host"])
+            lines += ["",
+                      ("**Vom Rangfilter abgewiesene Quellen:** "
+                       f"{len(rejected)} Treffer aus {len(set(r['host'] for r in rejected))} "
+                       "Domains kamen nicht in den Katalog. Primärquellen zuerst "
+                       "(Behörden/Register/Gerichte, Firmen-Newsrooms und IR, "
+                       "Fachjournale, etablierte Fachpresse); abgewiesen wird, "
+                       "was keinen benannten Herausgeber hat."
+                       if lang == "de" else
+                       "**Sources rejected by the rank filter:** "
+                       f"{len(rejected)} hit(s) from "
+                       f"{len(set(r['host'] for r in rejected))} domain(s) never "
+                       "entered the catalog. Primary sources first (authorities, "
+                       "registers, courts, company newsrooms and IR, peer-reviewed "
+                       "journals, established trade press); rejected is what "
+                       "carries no named publisher.")]
+            for cat in sorted(by_cat):
+                hosts = sorted(set(by_cat[cat]))
+                lines.append(f"* {cat} — {len(by_cat[cat])}: "
+                             + ", ".join(hosts[:8])
+                             + (f" (+{len(hosts) - 8})" if len(hosts) > 8 else ""))
         if measure:
             # Beleg-Verifikation der Web-Zitate (jury_2.md): eine im Fliesstext
             # als Tatsache behauptete Zahl, die die zitierte Seite nicht
@@ -3009,6 +3195,7 @@ def run(question: str, max_steps: int, max_sources: int,
                   for k in ("article", "signal", "paper", "patent", "web",
                             "legal", "market", "entity")},
         "ledger": ledger,
+        "rejected_sources": [r for e in ledger for r in (e.get("rejected") or [])],
         "report_raw": report_raw,
         # Full evidence notes: the agent end-control (pipeline/dossier_check.py)
         # grounds every figure of the report against exactly this material.
