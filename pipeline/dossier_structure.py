@@ -2162,6 +2162,11 @@ _ANAPHORA = re.compile(
     r"^\W*(?:these|those|this|that|such|both|the two|the (?:former|latter)|"
     r"they|it|he|she|which|either|neither|diese|dieser|dieses|beide|"
     r"jene|das|sie|er|es|letztere|erstere)\b", re.IGNORECASE)
+_TAIL_LEADS = frozenset("""
+in on at with and but which of for from to by as or nor into onto over under
+per via than while whereas whose whom im am an auf mit und aber sowie von
+für zu bei nach vor über unter durch als oder deren dessen
+""".split())
 _BARE_LABEL = re.compile(r"^\s*(?:[-*]\s*)?\*\*[^*\n]{2,60}:\*\*\s*$")
 _PARA_BREAK = re.compile(r"\n\s*\n")
 MIN_PARAGRAPH_WORDS = 8
@@ -2192,8 +2197,17 @@ def fragment_findings(body: str, lang: str = "en") -> list[str]:
                         if lang == "de" else
                         "line ends in a colon with nothing after it: ")
                        + stripped[:60])
-        # Kein Kleinbuchstaben-Test: "eMed", "mRNA", "iPhone" beginnen
-        # Saetze legitim klein — die Regel war Rauschen.
+        # Kein allgemeiner Kleinbuchstaben-Test: "eMed", "mRNA", "iPhone"
+        # beginnen Saetze legitim klein. Aber ein Absatz, der mit einer
+        # kleinen Praeposition oder einem Bindewort anfaengt ("in H2 2026
+        # [link]." — DR3, Rest eines an "U.S." zerteilten Satzes), ist ein
+        # Schwanz ohne Kopf.
+        lead = stripped.split(" ", 1)[0].lower()
+        if lead in _TAIL_LEADS:
+            out.append(("Absatz beginnt mit Praeposition/Bindewort (Schwanz "
+                        "ohne Kopf): " if lang == "de" else
+                        "paragraph opens with a preposition/conjunction "
+                        "(tail without its head): ") + stripped[:60])
         first = split_claims(stripped)[0] if split_claims(stripped) else ""
         prev = paras[i - 1].strip() if i else ""
         if (_ANAPHORA.match(first) and (not prev or prev.startswith("#"))):

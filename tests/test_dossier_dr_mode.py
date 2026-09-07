@@ -1098,3 +1098,14 @@ class TestR14ActorRows:
                 "| Novo | GLP-1 launch | — | [[A2]] |"]
         a = ds.actor_rows(_moving(rows), "en", ("glp-1",))
         assert a["ok"] == 0 and a["off_topic"] == 1 and a["no_figure"] == 1
+
+
+def test_a_tail_without_its_head_is_a_finding():
+    body = "**Named actors and figures:**\n\nin H2 2026 [[M4]].\n- **Lilly**: $16B."
+    f = ds.fragment_findings(body)
+    assert any("tail without its head" in x for x in f)
+
+
+def test_us_abbreviation_does_not_split():
+    t = "The pill launches outside the U.S. in H2 2026 [[M4]]. Next sentence."
+    assert ds.split_sentences(t)[0].endswith("[[M4]].")
