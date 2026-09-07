@@ -2085,6 +2085,16 @@ def citable_url(src: dict) -> str:
     return ""
 
 
+def _link_title(src: dict) -> str:
+    """Der Titel, wie er im Fliesstext erscheint.
+
+    Ein "|" im Quellentitel ("… 2025-2026 | Telehealth Ally") zerlegt die
+    Zeile, in der er steht, als Markdown-Tabellenzelle — im B8-Lauf v1 zerfiel
+    genau so eine Zeile des Katalysator-Kalenders. Der Titel wird deshalb an
+    dieser Stelle entschaerft (der Quellenliste unten schadet das nicht)."""
+    return str(src.get("title") or "").replace("|", "—").strip()
+
+
 def canonicalize_citations(report: str, sources: list[dict],
                            lang: str = "en",
                            markers: bool = False) -> tuple[str, list[dict], int]:
@@ -2124,7 +2134,7 @@ def canonicalize_citations(report: str, sources: list[dict],
                 stripped += 1
                 return ""            # kein Beleg — Satz bleibt, Marker weg
             cited[src["url"]] = src
-            return f"[{src['title']}]({href})"
+            return f"[{_link_title(src)}]({href})"
 
         before = stripped
         report = _MARKER.sub(_marker, report)
@@ -2140,7 +2150,7 @@ def canonicalize_citations(report: str, sources: list[dict],
             stripped += 1
             return label          # keep the sentence, lose the false citation
         cited[src["url"]] = src
-        return f"[{src['title']}]({href})"
+        return f"[{_link_title(src)}]({href})"
 
     body = _LINK.sub(_replace, report)
 
@@ -3113,12 +3123,20 @@ def run(question: str, max_steps: int, max_sources: int,
                         "finding(s))", len(findings), len(cite_all))
             revision = dossier_structure.revision_prompt(
                 findings, cite_all, lang)
+            # R8: verlangt ein Befund, den Bericht zu VERLAENGERN, muss das
+            # Material mit in den Neuwurf — ohne Evidenzblock kann das Modell
+            # keine weiteren belegten Fakten aufnehmen und kuerzt stattdessen
+            # (B8-Lauf v1: 1.511 -> 1.335 Woerter).
+            expand = dossier_structure.needs_expansion(findings)
             second = llamacpp_client.chat(
                 model=MODEL, system=sys_prompt, temperature=0.3,
                 prompt=(revision + "\n\n"
                         + f"Citation catalog (unchanged — use only these ids):\n"
                           f"{citable}\n\n"
                         + f"Coverage ledger:\n{shield(ledger_json)}\n\n"
+                        + (f"<untrusted_evidence>\n"
+                           f"{shield(evidence_block(notes, pinned_notes, report_evidence))}\n"
+                           f"</untrusted_evidence>\n\n" if expand else "")
                         + f"<untrusted_previous_version>\n{shield(report)}\n"
                           f"</untrusted_previous_version>\n\n"
                         + ("Schreibe den vollständigen, korrigierten Bericht "

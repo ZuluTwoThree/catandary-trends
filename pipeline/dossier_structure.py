@@ -1450,7 +1450,12 @@ def drop_unverified(report_md: str, unverified: list[dict],
                 out = out.replace(s, marked, 1)
                 dropped += 1
             continue
-        if e.get("kind") == "measure":
+        # Eine Optionszeile traegt ein Pflichtfeld: sie zu loeschen erzeugt
+        # den naechsten Befund. Erst die Teilaussage kuerzen, nur wenn das
+        # nicht geht, die Zeile ganz nehmen. Bis R8 galt das nur fuer
+        # gesperrte Messgroessen — im B8-Lauf v1 kostete eine themenfremd
+        # belegte Zeile Option 1 ihr "Against it" und Option 4 ihr "Risk".
+        if e.get("kind") == "measure" or _FIELD_LINE.match(s):
             trimmed = _strip_clause(s, (e.get("tokens") or [""])[0])
             if trimmed:
                 out = out.replace(s, trimmed, 1)
@@ -1484,11 +1489,23 @@ def _spread_by_kind(entries: list[dict], cap: int) -> list[dict]:
     return out
 
 
+def needs_expansion(findings: list[str]) -> bool:
+    """Verlangt einer der Befunde, den Text zu VERLAENGERN?
+
+    Der Neuwurf sagte bis R8 pauschal „keine neuen Fakten, keine neuen Zahlen,
+    keine neuen Zitate" — und bekam gleichzeitig den Auftrag, 689 Woerter
+    belegte Fakten zu ergaenzen. Im B8-Lauf v1 hat das Modell daraufhin
+    gekuerzt statt ergaenzt (1.511 -> 1.335). Ein Widerspruch im Auftrag ist
+    kein Modellfehler."""
+    return any("ERGAENZEN" in f for f in findings or ())
+
+
 def revision_prompt(findings: list[str], cite_findings: list[dict],
                     lang: str = "en") -> str:
     """Der EINE gezielte Neuwurf. Kein Kritiker-Modell: der Text hier ist
     vollstaendig aus deterministischen Befunden erzeugt."""
     L = _lang(lang)
+    expand = needs_expansion(findings)
     lines = list(findings)
     for e in _spread_by_kind(cite_findings, MAX_REVISION_ITEMS):
         toks = ", ".join(repr(t) for t in e["tokens"][:4])
@@ -1550,22 +1567,41 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
                 f"streichen: \"{e['sentence'][:180]}\"")
     numbered = "\n".join(f"{i}. {x}" for i, x in enumerate(lines, 1))
     if L == "de":
+        rule = ("Alles andere bleibt inhaltlich, wie es ist: keine neuen "
+                "Fakten, keine neuen Zahlen, keine neuen Zitate — nur die "
+                "vorhandenen Katalog-IDs.")
+        if expand:
+            rule = ("Ein Befund verlangt ausdrücklich, den Bericht zu "
+                    "VERLÄNGERN. Dafür — und nur dafür — darfst du weitere "
+                    "belegte Fakten aus dem unten mitgelieferten Material "
+                    "aufnehmen: jede Ergänzung mit Datum, benanntem Akteur "
+                    "oder Zahl UND Katalog-Zitat im selben Satz. Der neue "
+                    "Bericht muss LÄNGER sein als der vorige; kürze nichts, "
+                    "was bereits belegt dasteht. Sonst gilt: keine neuen "
+                    "Zahlen ohne Beleg, nur vorhandene Katalog-IDs.")
         return (
             "ÜBERARBEITUNG — das ist der einzige Korrekturdurchgang.\n\n"
             "Eine mechanische Prüfung des eben geschriebenen Berichts hat "
             "folgende Punkte gefunden:\n\n" + numbered + "\n\n"
             "Schreibe den VOLLSTÄNDIGEN Bericht neu und behebe genau diese "
-            "Punkte. Alles andere bleibt inhaltlich, wie es ist: keine neuen "
-            "Fakten, keine neuen Zahlen, keine neuen Zitate — nur die "
-            "vorhandenen Katalog-IDs. Gliederung und Zitierweise unverändert.")
+            "Punkte. " + rule + " Gliederung und Zitierweise unverändert.")
+    rule = ("Everything else stays as it is in substance: no new facts, no new "
+            "figures, no new citations — only catalog ids that already appear.")
+    if expand:
+        rule = ("One finding explicitly asks you to LENGTHEN the report. For "
+                "that purpose — and only that — you may take further "
+                "evidenced facts from the material supplied below: every "
+                "addition carries a date, a named actor or a figure AND a "
+                "catalog citation in the same sentence. The new report must be "
+                "LONGER than the previous one; do not cut anything that "
+                "already stands supported. Otherwise: no figure without a "
+                "citation, and only catalog ids.")
     return (
         "REVISION — this is the only correction pass.\n\n"
         "A mechanical check of the report you just wrote found the following:\n\n"
         + numbered + "\n\n"
-        "Rewrite the COMPLETE report and fix exactly these points. Everything "
-        "else stays as it is in substance: no new facts, no new figures, no new "
-        "citations — only catalog ids that already appear. Keep the mandated "
-        "outline and the citation form unchanged.")
+        "Rewrite the COMPLETE report and fix exactly these points. " + rule
+        + " Keep the mandated outline and the citation form unchanged.")
 
 
 # --------------------------------------------------------------------------
@@ -1609,12 +1645,22 @@ research development regulation regulatory approval approvals patent patents
 science scientific clinical trial trials study studies data evidence report
 reports analysis source sources phase price prices supply demand growth
 option options risk risks trigger effort horizon summary decision decisions
+time other permitted against regarding
 what who which where how why our their its it is are was were has have had
 key core main major minor overall further given based note noted see
 marketing authorisation authorization revenue revenues quarterly pipeline
 rollout reimbursement coverage sales launch launches funding investment
 consumer consumers patient patients product products treatment therapy
 """.split())
+
+# Verbformen, die am Satz- oder Zellenanfang wie ein Eigenname aussehen:
+# "Confirms", "Expands Mounjaro's label", "Adds ...", "Regarding", "Permitted",
+# "Missing". Neun solcher Fehlalarme in drei Laeufen (B6: 3 Streichungen,
+# B7: 2, B8-v1: 3) — sie kosteten zuletzt zwei Pflichtfelder einer Option und
+# zwei Zeilen des Katalysator-Kalenders. Geprueft wird NUR das erste Wort einer
+# Fundstelle, die am Anfang eines Satzes oder einer Tabellenzelle steht: dort
+# ist die Grossschreibung erzwungen und traegt keine Information.
+_VERBISH = re.compile(r"^[A-Z][a-z]{2,}(?:s|es|ed|ing)$")
 
 _CAP_TOKEN = re.compile(r"[A-Z][A-Za-z0-9&./'’-]*")
 _LOWER_TOKEN = re.compile(r"\b[a-z][a-z-]{6,}\b")
@@ -1626,6 +1672,14 @@ MAX_SUBJECTS = 8
 
 def _inn_like(word: str) -> bool:
     return len(word) >= 8 and word.endswith(_INN_SUFFIX)
+
+
+def _at_start(text: str, pos: int) -> bool:
+    """Steht die Fundstelle am Anfang eines Satzes, einer Zeile, eines
+    Listenpunkts oder einer Tabellenzelle?"""
+    left = (text or "")[:pos]
+    return not left.strip("| \t-*•") or bool(
+        re.search(r"(?:^|[.!?:;|\n])\s*[-*•]?\s*(?:\*\*)?\s*$", left))
 
 
 def subject_names(sentence: str) -> list[str]:
@@ -1668,6 +1722,11 @@ def subject_names(sentence: str) -> list[str]:
         # Die Zahl selbst deckt ohnehin die Zahlenpruefung ab.
         clean = [w for w in clean if not any(c.isdigit() for c in w)]
         clean = [w for w in clean if w and w.lower() not in _SUBJECT_STOP]
+        # Am Anfang eines Satzes oder einer Tabellenzelle ist die
+        # Grossschreibung erzwungen — ein fuehrendes Verb faellt weg, der Rest
+        # der Fundstelle bleibt ("Expands Mounjaro's" -> "Mounjaro's").
+        if clean and _VERBISH.match(clean[0]) and _at_start(text, toks[i].start()):
+            clean = clean[1:]
         if len(clean) >= 2:
             add(" ".join(clean))
         elif len(clean) == 1:

@@ -2080,3 +2080,102 @@ class TestRoundSevenGainsStay:
                                             "cite_findings": [1, 2],
                                             "dropped_sentences": 2}, "en")
         assert "18 sentence(s) checked" in out and "2 sentence(s) dropped" in out
+
+
+# ===========================================================================
+# Befunde aus dem B8-Lauf v1 selbst (2026-09-07)
+# ===========================================================================
+# Der erste R8-Lauf hat drei eigene Fehler aufgedeckt. Alle drei kosteten
+# Substanz: der Fliesstext schrumpfte auf 1.335 Woerter statt auf 2.200 zu
+# wachsen, zwei Optionen verloren ein Pflichtfeld, und von fuenf
+# Kalenderzeilen blieben zwei uebrig.
+
+class TestSubjectCheckFalseAlarms:
+    """Neun Fehlalarme in drei Laeufen — alle am Satz- oder Zellenanfang, wo
+    die Grossschreibung erzwungen ist und nichts bedeutet."""
+
+    @pytest.mark.parametrize("sentence", [
+        "Confirms superior weight loss.",
+        "| Q4 2026 | Adds a second indication | [[T1]] | matters |",
+        "Regarding the EU market, the picture is different.",
+        "- Time horizon: 12 months.",
+        "- Permitted claims are narrow.",
+        "Other suppliers followed.",
+    ])
+    def test_a_leading_verb_is_not_a_subject(self, sentence):
+        assert ds.subject_names(sentence) == []
+
+    def test_the_real_name_behind_the_verb_survives(self):
+        row = "| Q4 2026 | Expands Mounjaro's label | [[T1]] | matters |"
+        assert ds.subject_names(row) == ["Mounjaro's"]
+        assert ds.subject_names("Missing from the article are Huel bars.") \
+            == ["Huel"]
+
+    @pytest.mark.parametrize("sentence,expected", [
+        ("Novo Nordisk announced a launch.", ["Novo Nordisk"]),
+        ("Eli Lilly reported revenue.", ["Eli Lilly"]),
+        ("Wegovy reached the market.", ["Wegovy"]),
+    ])
+    def test_a_real_name_at_the_start_still_counts(self, sentence, expected):
+        assert ds.subject_names(sentence) == expected
+
+
+class TestADroppedSentenceMustNotCostAMandatoryField:
+
+    def test_an_option_line_is_trimmed_not_deleted(self):
+        """B8 v1: eine themenfremd belegte Zeile kostete Option 1 ihr
+        'Against it' und Option 4 ihr 'Risk' — und erzeugte damit den
+        naechsten Befund."""
+        line = ("- Against it: The market is crowded, and Acme Corp already "
+                "leads it [[T1]].")
+        doc = f"## Options for a mid-sized European company\n\n{line}\n"
+        out, n = ds.drop_unverified(doc, [{"sentence": line, "kind": "subject",
+                                           "tokens": ["Acme Corp"],
+                                           "url": "https://x/y"}])
+        assert n == 1
+        assert "Against it:" in out and "Acme Corp" not in out
+
+    def test_a_plain_sentence_is_still_deleted(self):
+        sent = "Acme Corp leads the market [[T1]]."
+        doc = f"## What is moving\n\n{sent}\n"
+        out, n = ds.drop_unverified(doc, [{"sentence": sent, "kind": "subject",
+                                           "tokens": ["Acme Corp"],
+                                           "url": "https://x/y"}])
+        assert n == 1 and "Acme Corp" not in out
+
+
+class TestTheRewriteMayNotBeAskedToShortenAndLengthenAtOnce:
+
+    SHORT = ("Fliesstext 1511 Woerter — Untergrenze 2200: mindestens 689 "
+             "Woerter ERGAENZEN, und zwar ausschliesslich mit belegten Fakten")
+
+    def test_the_expansion_case_is_recognised(self):
+        assert ds.needs_expansion([self.SHORT]) is True
+        assert ds.needs_expansion(["Pflichtabschnitt fehlt: '## X'."]) is False
+
+    def test_the_contradictory_sentence_is_gone_when_expanding(self):
+        text = ds.revision_prompt([self.SHORT], [], "en")
+        assert "no new facts" not in text
+        assert "LONGER than the previous one" in text
+        de = ds.revision_prompt([self.SHORT], [], "de")
+        assert "keine neuen \nFakten" not in de and "LÄNGER" in de
+
+    def test_it_stays_strict_when_nothing_has_to_grow(self):
+        text = ds.revision_prompt(["Pflichtabschnitt fehlt: '## X'."], [], "en")
+        assert "no new facts" in text
+
+
+class TestAPipeInASourceTitleMustNotBreakTheCalendarTable:
+
+    def test_the_title_is_defused(self):
+        src = {"title": "New GLP-1 Drugs FDA Pipeline 2025-2026 | Telehealth Ally"}
+        assert "|" not in cr._link_title(src)
+
+    def test_a_calendar_row_survives_canonicalisation(self):
+        src = [{"id": "T1", "kind": "article", "title": "A | B",
+                "url": "https://catandary.de/trends/a-1", "origin": "",
+                "outlet": "", "date": ""}]
+        row = "| Q1 2099 | Decision | [[T1]] | matters |"
+        body, _cited, _stripped = cr.canonicalize_citations(
+            "## What happens next\n\n" + row + "\n", src, "en", markers=True)
+        assert len(ds.table_rows(body)[0]) == 4
