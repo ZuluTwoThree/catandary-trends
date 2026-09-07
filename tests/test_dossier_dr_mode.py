@@ -1109,3 +1109,128 @@ def test_a_tail_without_its_head_is_a_finding():
 def test_us_abbreviation_does_not_split():
     t = "The pill launches outside the U.S. in H2 2026 [[M4]]. Next sentence."
     assert ds.split_sentences(t)[0].endswith("[[M4]].")
+
+
+# --------------------------------------------------------------------------
+# R14-3 Themenprofil / R14-4 Reparatur je Satz (Harness-Sichtung 2026-09-07)
+# --------------------------------------------------------------------------
+
+
+def _profile():
+    return cr.TopicProfile(
+        field="solid-state batteries",
+        actor_types=["cell maker", "automaker"],
+        regulators=["EU Battery Regulation", "UN 38.3 transport test"],
+        event_types=["gigafactory commissioning", "pilot line start"],
+        legal_questions=["battery passport requirements 2027"],
+        market_questions=["automaker supply agreements volume"],
+        perspectives=[cr.Perspective(role="automaker buyer",
+                                     questions=["which cell makers ship A-samples",
+                                                "cost per kWh target"])],
+        actor_seeds=["QuantumScape", "Toyota"])
+
+
+class TestR14TopicProfile:
+    def test_without_a_profile_the_fixed_patterns_stay(self):
+        pq = cr.profile_queries(None, "GLP-1 incretin", ["glp-1"])
+        assert pq["regulatory"] == cr.REGULATORY_PATTERNS
+        assert pq["catalyst"] == cr.CATALYST_PATTERNS and pq["perspective"] == ()
+
+    def test_the_profile_shapes_every_direction(self):
+        pq = cr.profile_queries(_profile(), "solid-state batteries", ["battery"])
+        reg = [q.format(t="solid-state batteries") for q in pq["regulatory"]]
+        assert any("EU Battery Regulation decision" in q for q in reg)
+        assert any("patent expiry" in q for q in reg)          # Kern bleibt
+        assert not any("EMA" in q or "EFSA" in q for q in reg)  # kein Pharma
+        cat = [q.format(t="x") for q in pq["catalyst"]]
+        assert any("gigafactory commissioning expected 2027" in q for q in cat)
+        ent = [q.format(e="QuantumScape") for q in pq["entity_catalyst"]]
+        assert any("QuantumScape gigafactory commissioning date" in q for q in ent)
+        assert pq["perspective"][0].startswith("solid-state batteries which cell")
+
+    def test_caps_hold(self):
+        pq = cr.profile_queries(_profile(), "t", [])
+        assert len(pq["regulatory"]) <= cr.PROFILE_MAX_REG
+        assert len(pq["entity_legal"]) <= cr.PROFILE_MAX_ENT
+
+    def test_a_question_that_already_names_the_topic_is_not_prefixed(self):
+        assert cr._with_topic("battery passport rules", "battery", []) == "battery passport rules"
+        assert cr._with_topic("passport rules", "battery", []) == "battery passport rules"
+
+    def test_sweeps_accept_pattern_overrides(self, monkeypatch):
+        seen = []
+        monkeypatch.setattr(cr, "brave_search", lambda q, count=6: seen.append(q) or [])
+        cr.sweep_regulatory("solid-state batteries", [], set(), [], [],
+                            patterns=("{t} EU Battery Regulation decision",))
+        cr.sweep_catalysts("solid-state batteries", ["QuantumScape"], [], set(), [], [], 6,
+                           patterns=("{t} pilot line start expected 2027",),
+                           entity_patterns=("{e} A-sample delivery date",))
+        assert any("EU Battery Regulation" in q for q in seen)
+        assert any(q == "QuantumScape A-sample delivery date" for q in seen)
+        assert not any("PDUFA" in q or "CHMP" in q for q in seen)
+
+
+class TestR14Repair:
+    def _client(self, monkeypatch, answer):
+        calls = []
+        def fake_chat(model, prompt, system=None, **kw):
+            calls.append(prompt)
+            return answer
+        monkeypatch.setattr(cr.llamacpp_client, "chat", fake_chat)
+        return calls
+
+    def test_a_repairable_sentence_is_rewritten_without_the_figure(self, monkeypatch):
+        self._client(monkeypatch, "Sales rose sharply in 2025 [[M1]].")
+        rep = "Intro. Sales rose 40% in 2025 [[M1]]. End."
+        out, n = cr.repair_sentences(
+            rep, [{"sentence": "Sales rose 40% in 2025 [[M1]].", "tokens": ["40%"],
+                   "kind": "figure", "url": "https://x/1"}],
+            [{"url": "https://x/1", "text": "Sales rose sharply in 2025."}])
+        assert n == 1 and "40%" not in out and "[[M1]]" in out
+
+    def test_drop_leaves_the_sentence_to_mechanical_deletion(self, monkeypatch):
+        self._client(monkeypatch, "DROP")
+        rep = "Sales rose 40% in 2025 [[M1]]."
+        out, n = cr.repair_sentences(rep, [{"sentence": rep, "tokens": ["40%"],
+                                            "kind": "figure", "url": ""}], [])
+        assert n == 0 and out == rep
+
+    def test_a_rewrite_that_keeps_the_figure_or_loses_the_marker_is_refused(self, monkeypatch):
+        rep = "Sales rose 40% in 2025 [[M1]]."
+        self._client(monkeypatch, "Sales rose 40% in 2025 [[M1]].")
+        assert cr.repair_sentences(rep, [{"sentence": rep, "tokens": ["40%"],
+                                          "kind": "figure", "url": ""}], [])[1] == 0
+        self._client(monkeypatch, "Sales rose in 2025.")
+        assert cr.repair_sentences(rep, [{"sentence": rep, "tokens": ["40%"],
+                                          "kind": "figure", "url": ""}], [])[1] == 0
+
+    def test_only_repairable_kinds_are_touched(self, monkeypatch):
+        calls = self._client(monkeypatch, "x")
+        rep = "A weak claim [[M1]]."
+        cr.repair_sentences(rep, [{"sentence": rep, "tokens": ["A weak"],
+                                   "kind": "weakclaim", "url": ""}], [])
+        assert calls == []
+
+
+def test_ledger_facts_carry_their_actor():
+    f = cr.LedgerFact(date="2026", statement="Lilly booked $19.8B", actor="Eli Lilly")
+    assert f.actor == "Eli Lilly"
+    assert cr.LedgerFact(date="2026", statement="x").actor == ""
+
+
+def test_actor_map_prefers_the_actor_field():
+    led = [{"date": "2026-05-01", "statement": "Revenue $19.8B in Q1", "actor": "Eli Lilly", "id": "M1"}]
+    rows = cr.actor_map(led, [], ["Eli Lilly"], ["glp-1"])
+    assert rows and rows[0]["id"] == "M1"
+
+
+def test_an_echo_of_the_board_question_is_no_search_direction():
+    q = "Where does solid-state batteries stand today"
+    question = ("Where does solid-state batteries stand today, and what should "
+                "a mid-sized European company do about it?")
+    assert cr._echoes_question(q, question)
+    assert not cr._echoes_question("automaker supply agreements volume", question)
+    prof = _profile()
+    prof.market_questions = [q]
+    pq = cr.profile_queries(prof, "solid-state batteries", [], question)
+    assert not any("stand today" in x for x in pq["market"])
