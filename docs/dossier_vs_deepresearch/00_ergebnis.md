@@ -118,3 +118,31 @@ einer weiteren Runde am selben Thema sollten drei Dinge geklärt sein: (a) Rangf
 Kalibrierungsgrenze ist ein Ausschlusskriterium, kein Fußnotenthema), (c) ein Weg, die eigene
 Messung für den Käufer nachvollziehbar zu machen. Erst danach lohnt die Gegenprobe auf einem
 Technologiethema, wo die Messung strukturell schärfer ist.
+
+
+---
+
+## Nachtrag 2026-09-07: Runde 7 — die vier Mängel der Jurys 9 und 10
+
+Kein neues Gutachten; dies ist der Umsetzungsstand vor der elften Bewertung.
+Ausgeliefert: `scratchpad/glp1/B7_final.md` (Prüfanhang `B7_annex.md`,
+Protokoll `B7_run.md`, Dossier `glp1-r7` v2, `dossiers.id=21`).
+
+| Mangel (Jury 9/10) | geschlossen durch | Beleg im B7-Lauf |
+|---|---|---|
+| Messzahlen schmücken, statt zu tragen | Verwendbarkeitsregel `measure_inventory` — gesperrt ist, was „not reportable" ist, unter dem Kalibrierungsvorbehalt steht oder im Anhang ohne n/Zeitraum; je Kennzahl ein kanonischer Wert; Nennungszwang aus R6 entfällt | 0 Verstöße im ausgelieferten Text; alle 21 K(t)-Jahreswerte (inkl. der 6,1 %/yr aus der B6-Kurzfassung) und alle 4 Take-off-Jahre nirgends verwendet; 2 von 4 Optionen tragen bewusst keine Zahl und begründen sich aus Belegen |
+| Quellenqualität (Fan-Wikis) | Rangfilter `LOW_TRUST_SOURCES` + Ein-Wirkstoff-/Forum-Regel; Rang 3 kommt nie in den Katalog | 9 Verwürfe aus 4 Domains — **beide** von jury_10 beanstandeten Quellen (`glp3.wiki`, `retatrutide.med`) wurden erneut angeboten und abgewiesen |
+| Falschzuordnung innerhalb einer Quelle | `context_conflicts` (Kontextfenster ±400 Zeichen um den Studiennamen, über alle zitierten Seiten) | am gespeicherten B6-Dossier meldet die Regel genau den Jury-Fund; Nebenbefund: `entity`-Quellen fehlten in `_VERIFIABLE_KINDS`, die Prüfbreite steigt dort von 33 auf 36 Sätze |
+| Eigene Kennzahl nicht nachprüfbar (403) | Rechenweg im Messanhang (`measurement_recipe`): Datenquelle, Auswahlregel mit CPC-Codes und Trefferdichte, n, Zeitfenster, Verfahren, Datenstand | Abschnitt „How to check the figures above" im ausgelieferten Dokument; Crawler-Sperre unangetastet |
+
+**Kennzahlen B7 gegen B6:** Fließtext 1.623 statt 2.901 (Obergrenze 2.800 hält
+zum ersten Mal), ausgeliefert 4.195 statt 5.477 Wörter, gelesene Domains 46
+statt 43, Pflichtfelder 4/4 statt 3/4 Optionen, alle drei in der Frage
+genannten Felder bedient (B6: „health technology" fehlte), 2 statt 4 Sätze
+mechanisch gestrichen.
+
+**Offen:** Der Fließtext ist mit 1.623 Wörtern jetzt 577 unter dem Zielband —
+die Bremse hält nach oben, der Lauf ist unter das Ziel gerutscht und deckt
+weniger Akteure ab als der Gegner. Die zwei Streichungen sind erneut Fehlalarme
+der Gegenstandsprüfung („Regarding", „Other" am Satzanfang) — dieselbe Regel
+aus Runde 3, weiterhin der nächste Kandidat.
