@@ -1261,3 +1261,12 @@ class TestR14ProfileHygiene:
                  "text": "The solid state battery pilot line is expected to start in Q2 2027."}]
         c = cr.calendar_candidates([], srcs, ["solid-state batteries"], [], 2026)
         assert c and c[0]["when"] == "Q2 2027"
+
+
+def test_none_regulators_never_become_queries():
+    prof = _profile()
+    prof.regulators = ["none", "n/a", "EU Battery Regulation"]
+    pq = cr.profile_queries(prof, "t", [])
+    reg = " | ".join(pq["regulatory"])
+    assert "none decision" not in reg and "n/a" not in reg
+    assert "EU Battery Regulation decision" in reg
