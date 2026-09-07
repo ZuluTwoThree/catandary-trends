@@ -2713,6 +2713,18 @@ def run(question: str, max_steps: int, max_sources: int,
     if dr:
         logger.info("DR mode: primary-first reading, fact ledger, "
                     "model-card sampling")
+    if dr and dr_thinking():
+        # Der erste Denk-Lauf (2026-09-07) starb an genau dieser Stelle: der
+        # Berichts-Aufruf traegt ~100k Token Prompt, dazu die Denkspur — nach
+        # 600 s (LLAMACPP_TIMEOUT) brach httpx die Leitung ab, und der ganze
+        # Lauf war weg. Ein denkendes Modell auf diesem Prompt braucht
+        # schlicht laenger; die Grenze wird deshalb fuer den Lauf angehoben,
+        # nicht global (der Cycle soll weiter schnell scheitern).
+        want = float(os.getenv("DOSSIER_DR_TIMEOUT", "2400"))
+        if llamacpp_client.TIMEOUT < want:
+            logger.info("thinking mode: raising the client timeout %.0fs → %.0fs",
+                        llamacpp_client.TIMEOUT, want)
+            llamacpp_client.TIMEOUT = want
     # Audit und Bericht sehen die Volltexte, die Agenten-Hops nicht (s.
     # MAX_REPORT_EVIDENCE_CHARS). Im alten Pfad bleibt alles bei 30k.
     report_evidence = MAX_REPORT_EVIDENCE_CHARS if measure else None

@@ -590,3 +590,22 @@ def test_read_pages_are_harvested_before_patents(monkeypatch):
 
 def test_the_note_prompt_asks_for_the_dated_future_first():
     assert "TAKE THE DATED FUTURE FIRST" in cr.HARVEST_SYSTEM
+
+
+def test_a_thinking_run_raises_the_client_timeout(monkeypatch):
+    """Der erste Denk-Lauf starb nach 600 s mitten im Bericht — httpx brach
+    die Leitung ab, und der ganze Lauf war verloren."""
+    from pipeline import llamacpp_client
+    monkeypatch.setenv("DOSSIER_DR_THINK", "1")
+    monkeypatch.setattr(llamacpp_client, "TIMEOUT", 600.0)
+    out, _chat = _dr_run(monkeypatch, dr=True)
+    assert llamacpp_client.TIMEOUT >= 2400
+    assert out["dr"] is True
+
+
+def test_the_old_path_leaves_the_timeout_alone(monkeypatch):
+    from pipeline import llamacpp_client
+    monkeypatch.delenv("DOSSIER_DR_THINK", raising=False)
+    monkeypatch.setattr(llamacpp_client, "TIMEOUT", 600.0)
+    _dr_run(monkeypatch, dr=False)
+    assert llamacpp_client.TIMEOUT == 600.0
