@@ -278,5 +278,25 @@
     "ledger": 21,
     "rewritten": true,
     "calendar_rows": 5
+  },
+  {
+    "id": 27,
+    "slug": "glp1-dr2",
+    "v": 1,
+    "dr": true,
+    "sec": 2638,
+    "words": 2683,
+    "dated": 49,
+    "primary": 45,
+    "per100": 3.47,
+    "cited": 30,
+    "cited_primary": 25,
+    "primary_hosts": 11,
+    "sources": 209,
+    "catalog_primary": 82,
+    "read": 75,
+    "ledger": 29,
+    "rewritten": true,
+    "calendar_rows": 5
   }
 ]

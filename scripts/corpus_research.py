@@ -3494,6 +3494,14 @@ def run(question: str, max_steps: int, max_sources: int,
         model=MODEL, system=sys_prompt, prompt=report_prompt,
         **(write_sampling or {"temperature": 0.4}))
     report = re.sub(r"<think>.*?</think>", "", report, flags=re.DOTALL).strip()
+    # R11-1: laeuft der Server mit Denken UND Denk-Budget, schliesst llama.cpp
+    # die Denkmarke bei Budgetende selbst — und das Modell ueberlegt im
+    # Antwortfeld weiter. Was vor der ersten Pflichtueberschrift steht, ist nie
+    # Bericht.
+    report, _pre = dossier_structure.strip_preamble(report, lang)
+    if _pre:
+        logger.warning("stripped %d line(s) of deliberation before the first "
+                       "mandatory heading", _pre)
     report_raw = report
 
     # --- EIN gezielter Neuwurf, rein deterministisch ausgeloest -----------
@@ -3635,6 +3643,10 @@ def run(question: str, max_steps: int, max_sources: int,
                            "Write the complete corrected report now.")))
             second = re.sub(r"<think>.*?</think>", "", second,
                             flags=re.DOTALL).strip()
+            second, _pre2 = dossier_structure.strip_preamble(second, lang)
+            if _pre2:
+                logger.warning("rewrite: stripped %d line(s) of deliberation",
+                               _pre2)
             # Ein leerer oder erkennbar abgebrochener Neuwurf darf den guten
             # ersten Bericht nicht ersetzen.
             if len(dossier_structure.body_text(second).split()) >= 300:

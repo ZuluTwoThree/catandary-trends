@@ -183,6 +183,47 @@ def body_text(report_md: str) -> str:
     return text.rstrip()
 
 
+# --------------------------------------------------------------------------
+# Vorgeplaudertes abschneiden (R11-1, Denk-Lauf 2026-09-07)
+# --------------------------------------------------------------------------
+# Mit `--reasoning on` UND einem Denk-Budget passiert Folgendes: ist das Budget
+# aufgebraucht, schliesst llama.cpp die Denkmarke selbst — und das Modell
+# ueberlegt im ANTWORTFELD weiter. Der zweite DR-Lauf lieferte deshalb 87
+# Zeilen Selbstgespraech ("I genuinely cannot find a 5th. I'll go with 4 and
+# note it.") VOR der Kurzfassung. Was vor der ersten Pflichtueberschrift steht,
+# ist nie Bericht: eine Kurzfassung beginnt mit ihrer Ueberschrift.
+#
+# Bewusst konservativ: geschnitten wird nur, wenn eine Pflichtueberschrift
+# ueberhaupt gefunden wird, und ein reiner Titel ("# Dossier ...") direkt davor
+# bleibt stehen.
+
+def strip_preamble(report_md: str, lang: str = "en") -> tuple[str, int]:
+    """Alles vor der ersten Pflichtueberschrift entfernen.
+
+    Rueckgabe (Text, entfernte Zeilen) — 0 heisst: nichts angefasst."""
+    text = report_md or ""
+    L = _lang(lang)
+    first = None
+    for _key, _heading, pat in SECTIONS[L]:
+        m = re.search(rf"^#{{1,6}}\s*(?:\d+[.)]\s*)?(?:{pat})", text,
+                      re.IGNORECASE | re.MULTILINE)
+        if m and (first is None or m.start() < first):
+            first = m.start()
+    if not first:
+        return text, 0
+    head = text[:first]
+    if not head.strip():
+        return text, 0
+    # Ein vorangestellter Titel gehoert zum Bericht, das Selbstgespraech nicht.
+    keep = ""
+    for line in head.splitlines():
+        if re.match(r"^#\s+\S", line):
+            keep = line.rstrip() + "\n\n"
+    # Gezaehlt wird, was WEG ist — der behaltene Titel gehoert nicht dazu.
+    removed = len([l for l in head.splitlines() if l.strip()]) - bool(keep)
+    return keep + text[first:], max(removed, 0)
+
+
 def split_claims(text: str) -> list[str]:
     """Saetze eines Berichtstexts — aber NIE innerhalb eines Zitat-Links.
 

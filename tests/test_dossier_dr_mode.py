@@ -609,3 +609,31 @@ def test_the_old_path_leaves_the_timeout_alone(monkeypatch):
     monkeypatch.setattr(llamacpp_client, "TIMEOUT", 600.0)
     _dr_run(monkeypatch, dr=False)
     assert llamacpp_client.TIMEOUT == 600.0
+
+
+# --------------------------------------------------------------------------
+# 9. R11-1 — abgeschnittene Denkspur ist kein Berichtstext
+# --------------------------------------------------------------------------
+
+def test_deliberation_before_the_first_heading_is_cut():
+    doc = ("I genuinely cannot find a 5th. I'll go with 4 and note it.\n\n"
+           "Let me plan the word count.\n\n"
+           "## Decision summary\n\nA [[T1]] on 12 May 2026.\n")
+    out, n = ds.strip_preamble(doc)
+    assert n == 2 and out.startswith("## Decision summary")
+
+
+def test_a_title_line_survives():
+    doc = "# GLP-1 dossier\n\nrambling\n\n## Decision summary\n\nA.\n"
+    out, n = ds.strip_preamble(doc)
+    assert out.startswith("# GLP-1 dossier") and "rambling" not in out and n == 1
+
+
+def test_a_clean_report_is_untouched():
+    doc = "## Decision summary\n\nA.\n\n## What is moving\n\nB.\n"
+    assert ds.strip_preamble(doc) == (doc, 0)
+
+
+def test_a_report_without_any_mandatory_heading_is_left_alone():
+    doc = "Some text without headings.\n"
+    assert ds.strip_preamble(doc) == (doc, 0)
