@@ -1359,3 +1359,13 @@ def test_relative_dates_are_no_dates():
     led = [{"date": "Today", "statement": "FDA approved a generic", "actor": "FDA", "id": "L1"}]
     rows = cr.actor_map(led, [], ["FDA"], ["glp-1"])
     assert rows and rows[0]["date"] == ""
+
+
+def test_the_calendar_topic_check_reads_the_event_not_the_justification():
+    row = ("| 2026 | EIC Accelerator Open programme (€414M) | [[F1]] | "
+           "funds GLP-1 companion R&D |")
+    c = ds.calendar_rows(_cal([row]), "en", 2026, ("glp-1", "incretin"))
+    assert c["ok"] == 0 and c["off_topic"] == 1
+    row2 = "| H2 2026 | CagriSema FDA decision | [[C1]] | matters |"
+    c2 = ds.calendar_rows(_cal([row2]), "en", 2026, ("glp-1", "cagrisema"))
+    assert c2["ok"] == 1

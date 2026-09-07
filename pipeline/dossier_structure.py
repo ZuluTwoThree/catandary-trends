@@ -1175,7 +1175,10 @@ def calendar_rows(report_md: str, lang: str = "en",
         # und wird nicht als Mangel gezaehlt.
         dated, cited = has_date(line, year_floor), _has_citation(line)
         if dated and cited:
-            if _row_on_topic(line, topic_terms):
+            # R14 (DR4): der Themenbezug muss im EREIGNIS stehen, nicht in der
+            # frei geschriebenen Spalte "Why it matters" — dort stand "funds
+            # GLP-1 companion R&D" unter einer Foerderzeile ohne GLP-1-Bezug.
+            if _row_on_topic(" ".join(cells[:2]), topic_terms):
                 ok += 1
             else:
                 off_topic += 1
