@@ -104,9 +104,46 @@ FDA-Zulassungsdaten.
 **Was beide nicht können:** keine Empfehlung, keine Priorisierung, und kein
 einziges europäisches Förderinstrument, obwohl „Förderung" im Auftrag steht.
 
-## 6. Einordnung
+## 6. Gegen die Deep-Research-Analyse (jury_16)
 
-Der Vergleich ist DR gegen die eigene Vorrunde, **nicht** gegen die
-Deep-Research-Vergleichsanalyse. Die vierzehn Bewertungen davor liefen gegen
-`C_sonnet.md`; ob der DR-Modus auch dort gewinnt, ist nicht getestet — es war
-ein Lauf, wie beauftragt.
+Zweites Blindgutachten am selben Dokument, ohne zweiten Lauf: DR gegen
+`C_sonnet.md`, anonymisiert (`P = C_sonnet`, `R = DR`), Zuordnung erst nach dem
+Urteil aufgelöst.
+
+| Kriterium | C_sonnet | DR |
+|---|---|---|
+| Belegbarkeit | **7** | 4 |
+| Spezifität | **9** | 6 |
+| Handlungsrelevanz (EU-Mittelstand) | 6 | **8** |
+| Abdeckung Wissenschaft/Patente/Förderung/Markt | **9** | 5 |
+| Zeitliche Einordnung | **8** | 3 |
+| Ehrlichkeit über Grenzen | 6 | **8** |
+| Struktur | **7** | 5 |
+| **Durchschnitt** | **7,43** | 5,57 |
+
+**Sieger: die Deep-Research-Analyse.** Das Ziel ist damit nicht erreicht — es
+ist die fünfzehnte Bewertung mit diesem Ergebnis. Neu ist, wo der Rückstand
+jetzt liegt, denn er hat sich verschoben:
+
+- **Gewonnen** hat das Dossier zum ersten Mal die Handlungsrelevanz (8:6) und
+  die Ehrlichkeit (8:6). Der Gutachter wörtlich: „R ist das weitaus bessere
+  Entscheidungsdokument … während P im gesamten Dokument keine einzige
+  Aufwandszahl enthält." Und: die eigene Messung ist „Material, das aus
+  Web-Recherche nicht zu beschaffen ist".
+- **Verloren** an vier Stellen, alle benennbar:
+  1. **Vier Sachfehler**, drei davon ganz ohne Quelle (FDA-Datum orale Wegovy,
+     FDA-Datum orforglipron, „Coca-Cola's Healthy Choice" statt Conagra,
+     Journalname). Ein unbelegter Satz ohne Präzisionszahl läuft durch alle
+     Gates — die Grounding-Prüfung greift an Zahlen, nicht an Behauptungen.
+  2. **Zeitachse 3:8** — drei Termine auf zwei Quellen, der einzige harte liegt
+     2031, also außerhalb der Frage nach zwölf Monaten.
+  3. **Förderung fehlt** („3/4 chain levels" sagt der eigene Prüfanhang),
+     obwohl die eigene Korpustabelle **96 Förder-Signale** ausweist. Der Sweep
+     holt sie nicht ins Dokument. Auch der Pharma-Markt (Umsätze, Anteile,
+     Guidance) fehlt ganz.
+  4. **Kurzfassung zerstört** — ein Satz, der nichts zusammenfasst, und er
+     steht zehn Zeilen später wortgleich noch einmal; dazu die durch eine
+     Leerzeile zerbrochene Termintabelle und ein abgeschnittenes Aufwandsfeld.
+
+Die Empfehlung des Gutachters ist die genaueste Zusammenfassung des Stands:
+„P als Lage- und Terminteil, R's Optionsraster als Beschlussvorlage."

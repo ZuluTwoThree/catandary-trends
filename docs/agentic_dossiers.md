@@ -758,9 +758,19 @@ Spezifität 7:6, Handlungsrelevanz 6:4, Struktur 4:3 — verloren geht die
 **zeitliche Einordnung 4:6**, genau der gemessene Preis des Kalenders. Der
 Gutachter fand im DR-Dokument vier inhaltliche Fehler (ein 2014er Papier als
 „(PMC, 2026)", falscher Journalname, TRIUMPH-Daten auf Juni 2026 statt
-Dezember 2025 datiert, zwei unbelegte FDA-Daten). **Der Vergleich lief gegen
-die eigene Vorrunde, nicht gegen die Deep-Research-Analyse** — ob der DR-Modus
-auch dort gewinnt, ist ungetestet.
+Dezember 2025 datiert, zwei unbelegte FDA-Daten). **Gegen die Deep-Research-Analyse** (jury_16, dasselbe Dokument, kein zweiter
+Lauf) verliert das Dossier weiterhin: **5,57 zu 7,43**. Neu ist die Verteilung
+— erstmals gewinnt das Dossier **Handlungsrelevanz 8:6** und **Ehrlichkeit
+8:6** („R ist das weitaus bessere Entscheidungsdokument … P enthält im
+gesamten Dokument keine einzige Aufwandszahl"), verliert aber
+Belegbarkeit 4:7, Zeitachse 3:8, Abdeckung 5:9 und Struktur 5:7. Die vier
+Gründe sind benannt und adressierbar: (a) vier Sachfehler, drei davon ohne
+jede Quelle — ein unbelegter Satz **ohne** Präzisionszahl läuft durch alle
+Gates, weil die Grounding-Prüfung an Zahlen greift, nicht an Behauptungen;
+(b) nur drei Termine auf zwei Quellen, der einzige harte liegt 2031;
+(c) Förderung fehlt („3/4 chain levels" im eigenen Prüfanhang), obwohl die
+eigene Korpustabelle 96 Förder-Signale zählt; (d) die Kurzfassung ist ein
+einziger Satz, der zehn Zeilen später wortgleich wiederholt wird.
 
 **Offen aus dem Lauf selbst:** der Rang-0-Vorlauf des Faktenbuchs besteht
 überwiegend aus **Patenten ohne Abstract** (ihr Snippet ist ein Ein-Zeiler);
