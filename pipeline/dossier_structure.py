@@ -177,6 +177,25 @@ def body_text(report_md: str) -> str:
     return text.rstrip()
 
 
+def split_claims(text: str) -> list[str]:
+    """Saetze eines Berichtstexts — aber NIE innerhalb eines Zitat-Links.
+
+    Ein kanonisierter Link traegt den Quellentitel im Klartext, und Titel
+    enthalten Satzzeichen ("Transformative or overhyped? The impact of …").
+    Ein naiver Split zerlegt genau dort und trennt die Behauptung von ihrem
+    Beleg — im R5-Dossier fiel deshalb der teuerste Satz des Berichts aus der
+    Beleg-Verifikation heraus (er stand danach zitatlos da)."""
+    spans = [(m.start(), m.end()) for m in _LINK.finditer(text or "")]
+    out, start = [], 0
+    for m in _SENT_SPLIT.finditer(text or ""):
+        if any(a < m.start() < b for a, b in spans):
+            continue
+        out.append(text[start:m.start()])
+        start = m.end()
+    out.append(text[start:])
+    return [x for x in out if x.strip()]
+
+
 def prose(text: str) -> str:
     """Fliesstext ohne Zitatapparat — dieselbe Zahl vor und nach der
     Kanonisierung. Marker verschwinden ganz, kanonisierte Links samt Titel."""
@@ -567,7 +586,8 @@ def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
     checked = figures = subjects = 0
     bad: list[dict] = []
     off_topic: list[dict] = []
-    for raw in _SENT_SPLIT.split(body):
+    distorted: list[dict] = []
+    for raw in split_claims(body):
         sentence = raw.strip()
         if not sentence or sentence.startswith("#"):
             continue
@@ -594,8 +614,14 @@ def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
         if names:
             off_topic.append({"sentence": sentence, "tokens": names,
                               "kind": "subject", "url": cited[0].get("url", "")})
+        # Verdrehungspruefung (R6-4): richtige Zahl, umgedrehter Qualifizierer;
+        # gleiche Sache, andere Groessenordnung; falsches Kategoriewort.
+        for e in distortion_conflicts(claim, haystack):
+            distorted.append({**e, "sentence": sentence,
+                              "url": cited[0].get("url", "")})
     return {"checked": checked, "figures": figures, "unverified": bad,
-            "subjects": subjects, "off_topic": off_topic}
+            "subjects": subjects, "off_topic": off_topic,
+            "distorted": distorted}
 
 
 def drop_unverified(report_md: str, unverified: list[dict]) -> tuple[str, int]:
@@ -630,6 +656,14 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
                 f"{toks} — der Beleg traegt diese Aussage nicht. Satz mit einem "
                 f"passenden Beleg neu schreiben oder streichen: "
                 f"\"{e['sentence'][:180]}\"")
+        elif kind in ("qualifier", "magnitude", "category"):
+            what = {"qualifier": "Der Qualifizierer ist umgedreht",
+                    "magnitude": "Die Groessenordnung stimmt nicht",
+                    "category": "Das Kategoriewort ist falsch"}[kind]
+            lines.append(
+                f"{what}: {toks} — {e.get('detail', '')} "
+                f"({e['url'][:80]}). Satz woertlich nach der Quelle neu "
+                f"schreiben oder streichen: \"{e['sentence'][:180]}\"")
         elif kind == "sourceless":
             lines.append(
                 f"Die Zahl(en) {toks} stehen ohne jeden Beleg im Fliesstext. "
@@ -849,6 +883,235 @@ def _figure_in_measured(token: str, measured: str) -> bool:
     return not ungrounded_specifics(token, measured) and _decimal_on_page(token, measured)
 
 
+# --------------------------------------------------------------------------
+# Verdrehte Wiedergabe (R6-4, jury_7.md/jury_8.md 2026-09-07)
+# --------------------------------------------------------------------------
+# Drei Faktenfehler fanden die Stichproben, und KEINEN davon konnte die
+# bestehende Beleg-Verifikation sehen, weil alle drei Zahlen bzw. Woerter
+# benutzen, die auf der zitierten Seite vorkommen:
+#
+#   Q  Quelle: "we estimate that AT LEAST 2% of adults are currently using
+#      them"  ->  Bericht: "ONLY APPROXIMATELY 2% of European and UK adults".
+#      Aus einer Untergrenze wird eine beruhigende Obergrenze; die Zahl selbst
+#      stimmt, also schwieg die Zahlenpruefung.
+#   M  Quelle: "More than 2 million prescriptions"  ->  Bericht: "over 5
+#      million cumulative US prescriptions". Die "5" steht irgendwo auf jeder
+#      langen Seite, also galt sie als belegt.
+#   K  EMA: Liraglutide STADA ist ein HYBRIDARZNEIMITTEL ("in Victoza the
+#      active substance is made using living cells, whereas in Liraglutide
+#      STADA it is made using chemical processes")  ->  Bericht: "a GENERIC
+#      version of liraglutide". Ein Kategoriewort, keine Zahl.
+#
+# Alle drei laufen durch denselben Kanal wie die Zahlenpruefung: ein Neuwurf,
+# danach mechanische Streichung.
+
+# Zahl MIT Groessenangabe — Jahreszahlen und blanke Stueckzahlen bleiben
+# aussen vor, dort waere die Falsch-Ablehnung wahrscheinlicher als der Fund.
+_QTY_RE = re.compile(
+    r"(?<![\w.,])(?P<sym>[$€£]\s?)?(?P<num>\d[\d.,\u00b7]*)\s*"
+    r"(?P<scale>%|percent|bn|billion|million|trillion|thousand|k|Mrd\.?|Mio\.?)"
+    r"(?![a-z])", re.IGNORECASE)
+
+_SCALE_FACTORS = {"bn": 1e9, "billion": 1e9, "mrd": 1e9, "mrd.": 1e9,
+                  "million": 1e6, "mio": 1e6, "mio.": 1e6,
+                  "trillion": 1e12, "thousand": 1e3, "k": 1e3}
+
+# Der Blick vor die Zahl: so weit reicht die Qualifizierer-Suche.
+QUALIFIER_WINDOW = 45
+
+# Drei Klassen, nicht zwei: "around 2%" ist eine Naeherung, "only 2%" eine
+# Verkleinerung. Die ING-Seite traegt BEIDES ("Around 2% of European adults"
+# und "we estimate that at least 2%") — nur die Verkleinerung im Bericht ist
+# die Verdrehung, die jury_7.md gefunden hat.
+_QUALIFIER_MIN = ("at least", "no less than", "no fewer than", "more than",
+                  "in excess of", "upwards of", "over", "above",
+                  "mindestens", "mehr als", "ueber", "über")
+_QUALIFIER_CAP = ("only", "just", "merely", "no more than", "fewer than",
+                  "less than", "up to", "at most", "nur", "lediglich",
+                  "höchstens", "weniger als", "bis zu")
+_QUALIFIER_APPROX = ("approximately", "about", "roughly", "around", "nearly",
+                     "almost", "some", "etwa", "rund", "knapp", "ungefähr",
+                     "circa", "ca.")
+
+# Sich gegenseitig ausschliessende Kategoriewoerter. Eine Seite, die ein
+# ANDERES Wort derselben Menge benutzt und das des Satzes NICHT kennt,
+# widerspricht dem Satz. Bewusst klein gehalten und erweiterbar.
+CATEGORY_SETS: tuple[tuple[str, ...], ...] = (
+    ("generic", "hybrid", "biosimilar", "originator"),
+)
+
+_QTY_STOP = frozenset("""
+of in on at to by for from with and or the a an that this these those is are
+was were has have had been being will would could should may might do does
+did its their his her our your it he she they we you i as than then so such
+""".split())
+
+
+def _qty_value(m: re.Match) -> float | None:
+    raw = (m.group("num") or "").replace(",", "").replace("\u00b7", ".")
+    # "1.234" (deutsche Tausender) vs "1.2" (Dezimal): drei Nachkommastellen
+    # sind ein Tausenderpunkt, alles andere ein Dezimaltrenner.
+    if raw.count(".") == 1 and len(raw.split(".")[1]) == 3:
+        raw = raw.replace(".", "")
+    try:
+        v = float(raw)
+    except ValueError:
+        return None
+    scale = (m.group("scale") or "").lower().rstrip(".")
+    if scale in ("%", "percent"):
+        return v
+    return v * _SCALE_FACTORS.get(scale, _SCALE_FACTORS.get(scale + ".", 1.0))
+
+
+def _qty_unit(m: re.Match) -> str:
+    return "%" if (m.group("scale") or "").lower() in ("%", "percent") else "n"
+
+
+def _qty_nouns(text: str, end: int, cap: int = 4) -> set[str]:
+    """Die Inhaltswoerter direkt hinter der Zahl — WORUEBER sie etwas sagt."""
+    out: set[str] = set()
+    for w in re.findall(r"[A-Za-z][A-Za-z-]{2,}", text[end:end + 90]):
+        low = w.lower()
+        if low in _QTY_STOP or low in _SUBJECT_STOP:
+            continue
+        out.add(low)
+        if len(out) >= cap:
+            break
+    return out
+
+
+def _qualifier_class(prefix: str) -> str | None:
+    """'min' = Untergrenze, 'cap' = Verkleinerung/Obergrenze, 'approx' =
+    Naeherung. Die Verkleinerung schlaegt die Naeherung ("only approximately"
+    ist eine Verkleinerung), die Naeherung schlaegt nichts."""
+    low = prefix.lower()[-QUALIFIER_WINDOW:]
+
+    def ends_with(words) -> re.Match | None:
+        for p in words:
+            m = re.search(rf"(?:^|\W)({re.escape(p)})\W*$", low)
+            if m:
+                return m
+        return None
+
+    # Naeherungswoerter direkt vor der Zahl abschaelen: "only approximately 2%"
+    # ist eine Verkleinerung, keine Naeherung — das Wort davor entscheidet.
+    approx = False
+    while (m := ends_with(_QUALIFIER_APPROX)) is not None:
+        approx = True
+        low = low[:m.start(1)]
+    if ends_with(_QUALIFIER_CAP):
+        return "cap"
+    if ends_with(_QUALIFIER_MIN):
+        return "min"
+    return "approx" if approx else None
+
+
+# Was der Bericht sagen darf, wenn die Seite eine bestimmte Klasse fuehrt:
+# {Klasse im Bericht: Klassen auf der Seite, die den Satz widerlegen}
+_QUALIFIER_CONFLICT = {"cap": {"min"}, "min": {"cap", "approx"},
+                       "approx": {"min"}}
+
+
+def qualifier_conflicts(sentence: str, page: str) -> list[dict]:
+    """Dieselbe Zahl, umgedrehter Qualifizierer.
+
+    Steht sie auf der Seite als Untergrenze ("at least 2%") und im Satz als
+    Ober-/Naeherungsgrenze ("only approximately 2%") — oder umgekehrt —, gibt
+    die Seite den Satz nicht her, obwohl die Zahl stimmt."""
+    claim = prose(sentence or "")
+    out: list[dict] = []
+    page_q = list(_QTY_RE.finditer(page or ""))
+    for m in _QTY_RE.finditer(claim):
+        cls = _qualifier_class(claim[:m.start()])
+        if cls is None:
+            continue
+        val, unit = _qty_value(m), _qty_unit(m)
+        if val is None:
+            continue
+        classes = set()
+        for pm in page_q:
+            if _qty_unit(pm) != unit or _qty_value(pm) != val:
+                continue
+            pc = _qualifier_class(page[:pm.start()])
+            if pc:
+                classes.add(pc)
+        # Widerlegt ist der Satz nur, wenn die Seite die GEGENKLASSE fuehrt
+        # und seine eigene Klasse nirgends. Eine Seite, die beides schreibt,
+        # traegt beides.
+        bad = _QUALIFIER_CONFLICT[cls] & classes
+        if bad and cls not in classes:
+            names = {"min": "eine Untergrenze", "cap": "eine Verkleinerung",
+                     "approx": "eine Näherung"}
+            out.append({"tokens": [m.group(0).strip()], "kind": "qualifier",
+                        "detail": f"die Seite schreibt "
+                                  f"{names[sorted(bad)[0]]}, der Satz "
+                                  f"{names[cls]}"})
+    return out
+
+
+def magnitude_conflicts(sentence: str, page: str,
+                        tolerance: float = 0.25) -> list[dict]:
+    """Dieselbe Groesse, andere Groessenordnung.
+
+    Verglichen wird nur, wenn die Seite dieselbe Sache beziffert (gemeinsames
+    Inhaltswort hinter der Zahl). Weicht der Satz von JEDEM solchen Quellwert
+    um mehr als `tolerance` ab, traegt die Seite ihn nicht."""
+    claim = prose(sentence or "")
+    page_q = [(pm, _qty_value(pm), _qty_unit(pm), _qty_nouns(page, pm.end()))
+              for pm in _QTY_RE.finditer(page or "")]
+    out: list[dict] = []
+    for m in _QTY_RE.finditer(claim):
+        val, unit = _qty_value(m), _qty_unit(m)
+        nouns = _qty_nouns(claim, m.end())
+        if val is None or not nouns:
+            continue
+        # Steht GENAU dieser Wert mit derselben Einheit irgendwo auf der Seite,
+        # ist die Groessenordnung nicht das Problem — dann greift, wenn
+        # ueberhaupt, die Qualifizierer-Pruefung. Ohne diese Bremse meldete die
+        # Regel im R5-Nachtest "12 % Adoption in den USA" als falsch, weil auf
+        # derselben Seite auch "weniger als 1 % global" steht.
+        if any(pv == val and pu == unit for _pm, pv, pu, _pn in page_q):
+            continue
+        cands = [(pv, pn) for _pm, pv, pu, pn in page_q
+                 if pv is not None and pu == unit and (pn & nouns)]
+        if not cands:
+            continue
+        if any(abs(val - pv) <= tolerance * max(abs(pv), 1e-9)
+               for pv, _pn in cands):
+            continue
+        near = min(cands, key=lambda c: abs(val - c[0]))[0]
+        out.append({"tokens": [m.group(0).strip()], "kind": "magnitude",
+                    "detail": f"die Seite beziffert dieselbe Sache mit "
+                              f"{near:g}, der Satz mit {val:g}"})
+    return out
+
+
+def category_conflicts(sentence: str, page: str) -> list[dict]:
+    """Falsches Kategoriewort: der Satz nennt eine Kategorie, die Seite eine
+    andere derselben Menge — und die des Satzes gar nicht."""
+    claim = prose(sentence or "").lower()
+    low = (page or "").lower()
+    out: list[dict] = []
+    for group in CATEGORY_SETS:
+        in_claim = [w for w in group
+                    if re.search(rf"\b{re.escape(w)}s?\b", claim)]
+        in_page = [w for w in group if re.search(rf"\b{re.escape(w)}s?\b", low)]
+        for w in in_claim:
+            others = [x for x in in_page if x != w]
+            if others and w not in in_page:
+                out.append({"tokens": [w], "kind": "category",
+                            "detail": f"die Seite spricht von "
+                                      f"{', '.join(others)}, nicht von {w!r}"})
+    return out
+
+
+def distortion_conflicts(sentence: str, page: str) -> list[dict]:
+    """Alle drei Verdrehungspruefungen ueber einen Satz."""
+    return (qualifier_conflicts(sentence, page)
+            + magnitude_conflicts(sentence, page)
+            + category_conflicts(sentence, page))
+
+
 def sourceless_figures(report_md: str, sources: list[dict],
                        measured: str = "") -> list[dict]:
     """Saetze des Fliesstexts, die eine Praezisionszahl OHNE Zitat tragen und
@@ -864,7 +1127,7 @@ def sourceless_figures(report_md: str, sources: list[dict],
     for s in sources:
         by_url[s.get("url")] = s
     out: list[dict] = []
-    for raw in _SENT_SPLIT.split(body_text(report_md)):
+    for raw in split_claims(body_text(report_md)):
         sentence = raw.strip()
         if not sentence or sentence.startswith("#") or sentence.startswith("|"):
             continue

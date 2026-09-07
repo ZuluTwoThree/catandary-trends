@@ -199,8 +199,13 @@ def check_result(result: dict) -> dict:
         if st.get("sourceless_after"):
             why.append(f"{st['sourceless_after']}× stand eine Praezisionszahl "
                        f"ohne Beleg im Satz")
+        if st.get("distorted_after"):
+            why.append(f"{st['distorted_after']}× gab der Satz die Seite "
+                       f"verdreht wieder (Qualifizierer/Groessenordnung/"
+                       f"Kategoriewort)")
         rest = (int(st["dropped_sentences"]) - int(st.get("off_topic_after") or 0)
-                - int(st.get("sourceless_after") or 0))
+                - int(st.get("sourceless_after") or 0)
+                - int(st.get("distorted_after") or 0))
         if rest > 0 or not why:
             why.insert(0, f"{max(rest, 0)}× enthielt die zitierte Web-Seite "
                           f"die behauptete Zahl nicht")

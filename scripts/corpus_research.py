@@ -2632,7 +2632,8 @@ def run(question: str, max_steps: int, max_sources: int,
                  "cite_findings_after": [], "cites_checked": 0,
                  "cites_figures": 0, "cites_subjects": 0,
                  "off_topic_before": 0, "off_topic_after": 0,
-                 "sourceless_before": 0, "sourceless_after": 0}
+                 "sourceless_before": 0, "sourceless_after": 0,
+                 "distorted_before": 0, "distorted_after": 0}
     # Der eigene Messanhang ist der EINZIGE Beleg, den eine Zahl ohne Zitat im
     # Satz haben darf: er steht codegeneriert im selben Dokument.
     measured_text = "\n".join(
@@ -2649,7 +2650,8 @@ def run(question: str, max_steps: int, max_sources: int,
         # ein Neuwurf, danach mechanische Streichung.
         sourceless = dossier_structure.sourceless_figures(
             report, citable_sources, measured_text)
-        cite_all = list(cites["unverified"]) + list(cites.get("off_topic") or [])
+        cite_all = (list(cites["unverified"]) + list(cites.get("off_topic") or [])
+                    + list(cites.get("distorted") or []))
         for e in sourceless:
             cite_all.append({**e, "kind": "sourceless"})
         structure["findings"] = findings
@@ -2659,6 +2661,7 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["cites_subjects"] = cites.get("subjects", 0)
         structure["off_topic_before"] = len(cites.get("off_topic") or [])
         structure["sourceless_before"] = len(sourceless)
+        structure["distorted_before"] = len(cites.get("distorted") or [])
         for f in findings:
             logger.warning("structure: %s", f)
         for e in cites["unverified"]:
@@ -2669,6 +2672,9 @@ def run(question: str, max_steps: int, max_sources: int,
         for e in sourceless:
             logger.warning("sourceless figure(s) %s in: %s",
                            e["tokens"], e["sentence"][:80])
+        for e in cites.get("distorted") or []:
+            logger.warning("distorted (%s) %s — %s", e["kind"], e["tokens"],
+                           e.get("detail", ""))
         if findings or cite_all:
             logger.info("one targeted rewrite (%d structural + %d citation "
                         "finding(s))", len(findings), len(cite_all))
@@ -2701,7 +2707,9 @@ def run(question: str, max_steps: int, max_sources: int,
         cites2 = dossier_structure.verify_cited_figures(report, citable_sources)
         sourceless2 = dossier_structure.sourceless_figures(
             report, citable_sources, measured_text)
-        cite_all2 = list(cites2["unverified"]) + list(cites2.get("off_topic") or [])
+        cite_all2 = (list(cites2["unverified"])
+                     + list(cites2.get("off_topic") or [])
+                     + list(cites2.get("distorted") or []))
         for e in sourceless2:
             cite_all2.append({**e, "kind": "sourceless"})
         structure["cite_findings_after"] = cite_all2
@@ -2710,6 +2718,7 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["cites_subjects"] = cites2.get("subjects", 0)
         structure["off_topic_after"] = len(cites2.get("off_topic") or [])
         structure["sourceless_after"] = len(sourceless2)
+        structure["distorted_after"] = len(cites2.get("distorted") or [])
         if cite_all2:
             # Letzte Instanz: eine Zahl, die die zitierte Seite nicht hergibt,
             # ein Beleg, der von etwas anderem handelt, und eine Zahl ganz ohne
@@ -2718,9 +2727,11 @@ def run(question: str, max_steps: int, max_sources: int,
                 report, cite_all2)
             structure["dropped_sentences"] = dropped
             logger.warning("dropped %d sentence(s): %d unsupported figure(s), "
-                           "%d off-topic citation(s), %d sourceless figure(s)",
+                           "%d off-topic citation(s), %d sourceless figure(s), "
+                           "%d distorted claim(s)",
                            dropped, len(cites2["unverified"]),
-                           len(cites2.get("off_topic") or []), len(sourceless2))
+                           len(cites2.get("off_topic") or []), len(sourceless2),
+                           len(cites2.get("distorted") or []))
         structure["words_after"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
         structure.update(dossier_structure.option_measure_stats(
@@ -2812,7 +2823,10 @@ def run(question: str, max_steps: int, max_sources: int,
                           f"belegt, davon {st.get('off_topic_before', 0)} mit "
                           f"einer Quelle, die nicht vom Gegenstand des Satzes "
                           f"handelt, und {st.get('sourceless_before', 0)} mit "
-                          f"einer Präzisionszahl ohne Zitat im Satz · "
+                          f"einer Präzisionszahl ohne Zitat im Satz und "
+                          f"{st.get('distorted_before', 0)} mit einer "
+                          f"verdrehten Wiedergabe (umgedrehter Qualifizierer, "
+                          f"falsche Größenordnung, falsches Kategoriewort) · "
                           f"{st['dropped_sentences']} Satz/Sätze "
                           f"danach gestrichen."]
             else:
@@ -2828,7 +2842,10 @@ def run(question: str, max_steps: int, max_sources: int,
                           f"{st.get('off_topic_before', 0)} cited a page that "
                           f"is not about the subject of the sentence and "
                           f"{st.get('sourceless_before', 0)} carried a precision "
-                          f"figure with no citation in the sentence · "
+                          f"figure with no citation in the sentence and "
+                          f"{st.get('distorted_before', 0)} distorted what the "
+                          f"page says (reversed qualifier, wrong order of "
+                          f"magnitude, wrong category word) · "
                           f"{st['dropped_sentences']} sentence(s) "
                           f"dropped afterwards."]
         audit_annex = "\n".join(lines).strip() + "\n"

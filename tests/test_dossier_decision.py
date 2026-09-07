@@ -1205,3 +1205,112 @@ class TestOptionsCoverEveryNamedField:
         out = check_result(res)
         assert out["sectors_missing"] == ["health technology"]
         assert any("health technology" in f for f in out["findings"])
+
+
+class TestDistortedRestatement:
+    """R6-4: drei Faktenfehler, die die Stichproben der Jurys fanden — und die
+    KEINE bestehende Pruefung sehen konnte, weil alle drei Woerter oder Zahlen
+    benutzen, die auf der zitierten Seite vorkommen."""
+
+    ING_PAGE = ("In Europe and the UK, we estimate that at least 2% of adults "
+                "are currently using them. Around 2% of European adults are "
+                "using these drugs, and the current impact on total calorie "
+                "demand is about 0.25%.")
+    PILL_PAGE = ("More than 2 million prescriptions have now been written for "
+                 "the Wegovy pill, which launched on Jan. 5, Novo said.")
+    EMA_PAGE = ("Liraglutide STADA is a hybrid medicine. In Victoza, the "
+                "active substance is made using living cells, whereas in "
+                "Liraglutide STADA it is made using chemical processes.")
+
+    def test_at_least_must_not_become_only(self):
+        """jury_7.md: „Aus einer Untergrenze wird eine beruhigende Obergrenze —
+        und darauf stuetzt P vier der sieben Beruhigungsaussagen."""
+        out = ds.qualifier_conflicts(
+            "However, only approximately 2% of European and UK adults are "
+            "currently using these drugs.", self.ING_PAGE)
+        assert len(out) == 1 and out[0]["kind"] == "qualifier"
+        assert "2%" in out[0]["tokens"]
+
+    def test_the_same_wording_as_the_page_passes(self):
+        for claim in ("Around 2% of adults use them.",
+                      "At least 2% of adults use them.",
+                      "Approximately 2% of adults use them.",
+                      "2% of adults use them."):
+            assert ds.qualifier_conflicts(claim, self.ING_PAGE) == []
+
+    def test_only_must_not_become_at_least_either(self):
+        page = "Only 2% of adults are currently using them."
+        assert ds.qualifier_conflicts("At least 2% of adults use them.", page)
+
+    def test_two_million_must_not_become_five(self):
+        """jury_7.md: „Die Zahl ist um den Faktor ~2,5 zu hoch." Die '5' steht
+        auf jeder langen Seite — deshalb schwieg die Zahlenpruefung."""
+        out = ds.magnitude_conflicts(
+            "The Wegovy pill reached over 5 million cumulative US "
+            "prescriptions within 30 weeks of launch.", self.PILL_PAGE)
+        assert len(out) == 1 and out[0]["kind"] == "magnitude"
+        assert "5 million" in out[0]["tokens"][0]
+
+    def test_the_page_figure_itself_passes(self):
+        assert ds.magnitude_conflicts(
+            "More than 2 million prescriptions were written.",
+            self.PILL_PAGE) == []
+
+    def test_a_figure_that_stands_on_the_page_is_never_a_magnitude_finding(self):
+        """Steht der Wert selbst auf der Seite, ist die Groessenordnung nicht
+        das Problem — sonst meldete die Regel '12% in den USA' als falsch,
+        nur weil dieselbe Seite auch 'unter 1% global' nennt."""
+        page = "US use is around 12%. Globally the figure is less than 1%."
+        assert ds.magnitude_conflicts(
+            "US adoption stands at 12% of adults.", page) == []
+
+    def test_a_deviation_inside_the_tolerance_passes(self):
+        page = "The trial showed 28.3% weight loss over 80 weeks."
+        assert ds.magnitude_conflicts(
+            "The trial showed 30.3% weight loss over 104 weeks.", page) == []
+
+    def test_hybrid_must_not_become_generic(self):
+        """jury_7.md: „Die EMA stuft Liraglutide STADA ausdruecklich als
+        Hybridarzneimittel ein." Ein Kategoriewort, keine Zahl."""
+        out = ds.category_conflicts(
+            "In 2026, the EMA granted marketing authorisation for Liraglutide "
+            "STADA, a generic version of liraglutide.", self.EMA_PAGE)
+        assert len(out) == 1 and out[0]["kind"] == "category"
+        assert out[0]["tokens"] == ["generic"]
+
+    def test_the_page_word_passes(self):
+        assert ds.category_conflicts(
+            "Liraglutide STADA is a hybrid medicine.", self.EMA_PAGE) == []
+
+    def test_a_page_naming_both_categories_passes(self):
+        page = "Generic and hybrid applications follow different routes."
+        assert ds.category_conflicts("A generic version was authorised.",
+                                     page) == []
+
+    def test_all_three_reach_the_verification_channel(self):
+        src = dict(ING, text=self.ING_PAGE + " " + self.PILL_PAGE + " "
+                   + self.EMA_PAGE)
+        rep = ("## Decision summary\nOnly approximately 2% of adults use them "
+               "[[T900000000]].\n")
+        out = ds.verify_cited_figures(rep, [src])
+        assert [e["kind"] for e in out["distorted"]] == ["qualifier"]
+        text = ds.revision_prompt([], out["distorted"], "en")
+        assert "Qualifizierer" in text and "2%" in text
+
+    def test_a_distorted_sentence_is_dropped_like_any_other(self):
+        rep = "Only approximately 2% of adults use them [[T900000000]].\n"
+        src = dict(ING, text=self.ING_PAGE)
+        out = ds.verify_cited_figures(rep, [src])
+        cleaned, dropped = ds.drop_unverified(rep, out["distorted"])
+        assert dropped == 1 and "2%" not in cleaned
+
+    def test_a_citation_title_never_splits_a_claim(self):
+        """Der Grund, warum der ING-Satz im R5-Dossier ungeprueft blieb: der
+        Quellentitel „Transformative or overhyped? …" zerlegte den Satz, und
+        die Behauptung stand danach ohne Beleg da."""
+        text = ("Only approximately 2% of adults use them "
+                "[Transformative or overhyped? The impact of weight-loss "
+                "drugs](https://think.ing.example/a). Next sentence.")
+        claims = ds.split_claims(text)
+        assert len(claims) == 2
+        assert "2%" in claims[0] and "think.ing.example" in claims[0]
