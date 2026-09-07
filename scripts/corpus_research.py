@@ -3029,9 +3029,11 @@ def run(question: str, max_steps: int, max_sources: int,
     # (der Web-Agent braucht sie zum Anfordern) — und genau von dort holt das
     # Modell sie als Zitat. Im B2-Lauf waren alle 10 gestrichenen Marker von
     # dieser Art. Sie werden deshalb ausdruecklich benannt.
+    _citable_ids = {s["id"] for s in citable_sources}
     uncitable_ids = [s["id"] for s in sources
-                     if s["kind"] in ("web", "legal", "market", "entity")
-                     and not s.get("fetched")]
+                     if (s["kind"] in ("web", "legal", "market", "entity")
+                         and not s.get("fetched"))
+                     or s["id"] not in _citable_ids]
     ledger_json = json.dumps(ledger, ensure_ascii=False)
     # R6-2/R6-3 (jury_7.md/jury_8.md): die Optionen muessen an die Messung
     # gebunden und ueber alle in der Frage genannten Felder verteilt sein.

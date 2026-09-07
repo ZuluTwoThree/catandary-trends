@@ -1781,7 +1781,10 @@ def drop_unverified(report_md: str, unverified: list[dict],
 # So viele Einzelbefunde nimmt der eine Neuwurf mit. Reihum ueber die
 # Befundarten, nicht der Reihe nach: eine Liste, die mit zehn Zahlenbefunden
 # beginnt, haette die Messgroessen-Befunde sonst nie erreicht.
-MAX_REVISION_ITEMS = 14
+# R9-1 hebt die Zahl von 14 auf 18: die Rangregel gilt jetzt fuer AUSSAGEN,
+# nicht nur fuer Zahlen, und bringt damit eine weitere Befundart in den
+# Reihum-Verteiler. Bei 14 waere sie regelmaessig ausgehungert worden.
+MAX_REVISION_ITEMS = 18
 
 
 def _spread_by_kind(entries: list[dict], cap: int) -> list[dict]:
