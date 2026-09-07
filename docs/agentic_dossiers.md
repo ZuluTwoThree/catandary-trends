@@ -1042,3 +1042,37 @@ die Streichung muss auf Absatzebene arbeiten statt Sätze zu zerschneiden.
 **Pausiert nach Owner-Vorgabe; kein weiterer Lauf ohne Freigabe.** Protokoll
 `scratchpad/glp1/DR3_run.md`, Gutachten `scratchpad/glp1/jury_18.md`,
 jury-nahe Messung `scratchpad/glp1/jury_metrics.py`.
+
+### Runde 14 (2026-09-07) — Landkarte, Absatz-Streichung, Themenneutralität
+
+Owner-Freigabe nach jury_18 mit drei Bedingungen: (1) Feldlandkarte und
+Streichung auf Absatzebene, (2) Dossiers themenagnostisch mit ähnlicher
+Qualität über alle Themen, (3) vorher auf GitHub veröffentlichte
+Deep-Research-Harnesses (wissenschaftlich/technologisch) auf passende
+Workflows sichten (`scratchpad/glp1/harness_survey.md`).
+
+- **R14-1 Akteur-Landkarte** (`actor_map`, `actor_map_block`;
+  `dossier_structure.actor_rows`/`actor_findings`). Je geerntetem Akteur die
+  jüngste belegte Aussage mit Zahl oder Datum — Faktenzettel zuerst, sonst ein
+  Satz aus einer gelesenen Seite — als Liste vorgelegt. „Was sich bewegt"
+  beginnt jetzt mit der Tabelle `| Actor | What happened | Date | Source |`
+  (≥ 5 Zeilen, ≥ 3 Quellen, Themenbezug), mechanisch gezählt wie der
+  Kalender. Dieselbe Bauweise, die die Zeitliche Einordnung von 3 auf 5 hob:
+  was dem Schreibaufruf nicht als fertige Zeile vorliegt, geht in 80k Token
+  Belegen unter.
+- **R14-2 Streichung auf Absatzebene.** (a) Abkürzungsfester Satzsplit
+  (`split_sentences`, `_ABBREV_END`: vs., e.g., Fig., Dr., U.S. …) — das
+  Bruchstück „DRI 25–38 g/day; calcium (863 mg vs. …)" entstand am Split hinter
+  „vs.", „in H2 2026 [link]." am Split hinter „U.S.". (b) `_mend_paragraphs`
+  nach der Streichung: verwaiste Anschlüsse („These are not directly
+  comparable"), nackte Etiketten („**Named actors and figures:**") und
+  Restabsätze unter acht Wörtern fallen mit. (c) Ein Pflichtfeld ohne Kopfsatz
+  („**Risk: Spanning …") fällt ganz statt als Torso; reparierbare Bindewörter
+  (and/but/which) bleiben der bestehenden Reparatur überlassen. (d)
+  `fragment_findings` als Strukturbefund vor dem Neuwurf: Etikett ohne Inhalt,
+  hängender Doppelpunkt, Absatz mit Anschlusswort ohne Bezug, Absatz mit
+  kleiner Präposition am Anfang. Bewusst **kein** allgemeiner
+  Kleinbuchstaben-Test — „eMed", „mRNA", „iPhone" beginnen Sätze legitim.
+- R14-3 (Themenneutralität) folgt nach der Harness-Sichtung.
+
+Belegt: `tests/test_dossier_dr_mode.py` (`TestR14*`), 1.416 pytest grün.
