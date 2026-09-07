@@ -435,3 +435,43 @@ def test_the_check_names_the_uncited_deletion_separately():
     assert "2× stand eine datierte Aussage ohne jeden Beleg" in text
     # und eben NICHT die alte Sammelbegruendung
     assert "enthielt die zitierte Web-Seite" not in text
+
+
+# --------------------------------------------------------------------------
+# 6. R10-3 — die Streichung darf die Tabelle nicht zerreissen
+# --------------------------------------------------------------------------
+
+_TBL = ("## What happens next\n\n"
+        "| Date | Event | Source | Why it matters |\n"
+        "|---|---|---|---|\n"
+        "| Q1 2027 | A | [[T1]] | x |\n"
+        "| Q2 2027 | B | [[T1]] | y |\n"
+        "| Q3 2027 | C | [[T1]] | z |\n")
+
+
+def test_a_deleted_row_does_not_split_the_table():
+    doc, n = ds.drop_unverified(
+        _TBL, [{"sentence": "| Q2 2027 | B | [[T1]] | y |",
+                "tokens": ["B"], "kind": "figure", "url": "", "section": "next"}])
+    assert n == 1
+    rows = [l for l in doc.splitlines() if l.startswith("|")]
+    body = doc.split("|---|---|---|---|\n", 1)[1]
+    assert "\n\n" not in body.strip(), "Leerzeile mitten in der Tabelle"
+    assert len(rows) == 4          # Kopf, Trenner, zwei Datenzeilen
+
+
+def test_two_real_tables_stay_two_tables():
+    doc = (_TBL + "\n"
+           "| Year | Note |\n|---|---|\n| 2027 | second table |\n")
+    assert ds._mend_tables(doc) == doc
+
+
+def test_the_stored_dr_document_is_repaired():
+    """Gegenprobe am echten Dokument: jury_16 sah dort genau diesen Bruch."""
+    from pathlib import Path as _P
+    src = _P("scratchpad/glp1/DR_final.md")
+    if not src.exists():                     # Scratchpad optional
+        pytest.skip("DR-Dokument nicht im Baum")
+    seg = ds._mend_tables(src.read_text()).split("## What happens next")[1]
+    seg = seg.split("## What the evidence")[0].strip()
+    assert not any(not l.strip() for l in seg.splitlines())

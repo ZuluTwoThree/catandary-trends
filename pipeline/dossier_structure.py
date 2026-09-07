@@ -1886,8 +1886,41 @@ def drop_unverified(report_md: str, unverified: list[dict],
     out = re.sub(r"^[ \t]*(?:\d{1,2}[.)]|[-*+])[ \t]*$\n?", "", out,
                  flags=re.MULTILINE)
     out = _renumber_lists(out)
+    out = _mend_tables(out)
     out = re.sub(r"\n{3,}", "\n\n", out)
     return out, dropped
+
+
+# R10-3 (jury_16, 2026-09-07): „die Tabelle ist durch eine Leerzeile in zwei
+# Fragmente zerfallen, das zweite ohne Kopfzeile". Ursache ist die Streichung
+# selbst — sie nimmt den Zeileninhalt und laesst die Leerzeile stehen, und
+# Markdown macht daraus zwei Tabellen. Rein kosmetisch, aber der Kalender ist
+# der Abschnitt, den ein Entscheider zuerst liest.
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+_TABLE_DELIM = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
+
+
+def _mend_tables(text: str) -> str:
+    """Leerzeilen INNERHALB einer Tabelle schliessen — nie zwei Tabellen."""
+    lines = (text or "").split("\n")
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if (not line.strip() and out and _TABLE_ROW.match(out[-1])):
+            j = i
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            nxt = lines[j] if j < len(lines) else ""
+            after = lines[j + 1] if j + 1 < len(lines) else ""
+            # Weiter geht es mit einer Datenzeile, und es beginnt KEINE neue
+            # Tabelle (Kopfzeile + Trennzeile) — also gehoert sie nach oben.
+            if _TABLE_ROW.match(nxt) and not _TABLE_DELIM.match(after):
+                i = j
+                continue
+        out.append(line)
+        i += 1
+    return "\n".join(out)
 
 
 _ORDERED_ITEM = re.compile(r"^(?P<lead>[ \t]*)(?P<num>\d{1,2})(?P<dot>[.)])"

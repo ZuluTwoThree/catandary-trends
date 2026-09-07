@@ -795,6 +795,13 @@ gegengeprüft** (kein neuer Lauf — der Owner hat genau einen freigegeben):
   später erneut steht), B9 v2 1 (leere Kurzfassung — jury_15: „vollständig
   leer"), B8/B7 0.
 
+- **R10-3 — die Streichung zerreißt die Tabelle nicht mehr** (`_mend_tables`).
+  Eine gelöschte Kalenderzeile ließ ihre Leerzeile stehen, und Markdown machte
+  daraus zwei Tabellen — die zweite ohne Kopfzeile (jury_16 wörtlich). Die
+  Leerzeile wird jetzt geschlossen, wenn danach eine Datenzeile folgt und keine
+  neue Tabelle beginnt (Kopf- plus Trennzeile). Gegenprobe am gespeicherten
+  DR-Dokument: der Bruch ist weg, zwei echte Tabellen bleiben zwei.
+
 Dazu die Ehrlichkeit im Prüfnachweis: eine gestrichene unbelegte Aussage wird
 eigens ausgewiesen und nicht mehr unter „die zitierte Seite enthielt die Zahl
 nicht" verbucht (`uncited_before`/`uncited_after`).
