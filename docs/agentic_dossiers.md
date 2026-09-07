@@ -54,7 +54,8 @@ Owner: Auftragszettel                    Owner: Worker-Start (Knopf oder Termina
                                     Re-Audit → EINE Sweep-Nachrunde →
                                     Bericht (verbindliche Gliederung) →
                                     Struktur- + Beleg-Pruefung → EIN Neuwurf →
-                                    Zitat-Kanonisierung (Katalog-IDs)
+                                    Zitat-Kanonisierung (Katalog-IDs) →
+                                    Ausgeliefertes Dokument | Pruefanhang
                                     → dossiers(slug, v+1)
                                               │
                                               ▼
@@ -74,8 +75,8 @@ Bericht + Endkontrolle + Versionshistorie · „Sign off" → 'done'
 | Auftragszettel | `pipeline/dossier_orders.py` | Tabelle `dossier_orders`, Statusfluss `queued→running→review→done` (nie automatisch über `review` hinaus), `cancelled`/`failed`/requeue |
 | Quant-Vorstufe | `pipeline/dossier_quant.py` | Messkaskade (`measure_topic`) auf `scripts/tech_analyze` (deterministisch, vor dem ersten Modell-Hop), formatiert Messblock + Katalogquellen + **codegenerierten Messanhang**; jede Zahl trägt ihre Ehrlichkeitsgrenze (TIR kalibriert bis ~2019, Patent ≠ Produkt, Datenfenster ab 1990). Degradiert ohne GPU/Postgres zum protokollierten Fehlgrund — und der Fehlgrund steht sichtbar im Dossier |
 | Korpus-Zählung | `pipeline/dossier_corpus_stats.py` | zweite deterministische Vorstufe (CPU/SQL): zählt Markt-/Signalschicht (`trends`) und Forschungsschicht (`research_corpus` + Förderer) je Jahr/Vertikale/Signaltyp/Quelle ➜ Katalogquelle `Q0` + Anhang „Was der Korpus zählt". Jeder Block eigenes `statement_timeout`, degradiert einzeln |
-| Rechercheur | `scripts/corpus_research.py` | `run(..., quant=..., corpus_stats=..., measure=True)` injiziert Messquellen+Notizen (gepinnt), sweept audit-unabhängig, zitiert per Katalog-ID und hängt die codegenerierten Anhänge an; Result enthält `evidence`, `quant`, `corpus_stats`, `measure`; CLI `--quant`, `--measure`/`--no-measure` |
-| Entscheidungsebene | `pipeline/dossier_structure.py` | deterministisch, kein Modell: verbindliche Gliederung (6 Pflichtabschnitte), 200-Woerter-Kappe der Kurzfassung, harte Obergrenze 2.800 Woerter Fliesstext, Pflichtfelder je Option (Auslöser/Zeithorizont/Aufwand/Risiko/Dagegen spricht) und die Beleg-Verifikation `verify_cited_figures` (Zahlen eines Satzes gegen den Volltext genau der zitierten Web-Seite). `revision_prompt` = der EINE Neuwurf, `drop_unverified` = die Streichung danach |
+| Rechercheur | `scripts/corpus_research.py` | `run(..., quant=..., corpus_stats=..., measure=True)` injiziert Messquellen+Notizen (gepinnt), sweept audit-unabhängig, zitiert per Katalog-ID und hängt die codegenerierten Anhänge an; Result enthält `evidence`, `quant`, `corpus_stats`, `measure`, **`audit_annex`** (Suchprotokoll, getrennt vom Bericht); CLI `--quant`, `--measure`/`--no-measure` |
+| Entscheidungsebene | `pipeline/dossier_structure.py` | deterministisch, kein Modell: verbindliche Gliederung (6 Pflichtabschnitte), 200-Woerter-Kappe der Kurzfassung, harte Obergrenze 2.800 Woerter Fliesstext, Pflichtfelder je Option (Auslöser/Zeithorizont/Aufwand/Risiko/Dagegen spricht), **Messbezug je Option** (`measured_needles` — jede Option muss eine gerechnete Zahl tragen), **Branchenabdeckung** (`sectors_from_question` — die Optionen müssen jedes in der Frage genannte Feld bedienen) und die Beleg-Verifikation `verify_cited_figures`: Zahlen eines Satzes gegen den Volltext genau der zitierten Web-Seite, Gegenstand des Satzes (`unverified_subjects`), Präzisionszahlen ohne Beleg (`sourceless_figures`) und **verdrehte Wiedergabe** (`qualifier_conflicts` / `magnitude_conflicts` / `category_conflicts`). `split_claims` trennt Sätze nie innerhalb eines Zitat-Links. `revision_prompt` = der EINE Neuwurf, `drop_unverified` = die Streichung danach. `AUDIT_ANNEX_MARK`/`delivered`/`join_document` trennen ausgeliefertes Dokument und Prüfanhang |
 | Endkontrolle | `pipeline/dossier_check.py` | deterministisch: `ungrounded_specifics` (pipeline/grounding.py) über den modellgeschriebenen Berichtsteil (Coverage-, Mess- und Korpus-Anhang abgetrennt) gegen das gesamte gesammelte Material; plus gestrichene Zitate, Zitatquote, offene Fragen (Plan-Schritte zählen nicht mit) und **Messbefund** (ausgefallen / gemessen aber ungenutzt) |
 | Worker | `scripts/dossier_worker.py` | Owner-getriggert, zweiphasig (ein Embedding- + ein 27B-Handover für alle Aufträge); `--list`, `--order N`, `--order-new "topic" [--run]`, `--assume-model-up`, `--skip-quant` |
 | GPU-Guards | `pipeline/gpu_handover.py` `model_on_llamacpp` | generischer Handover mit striktem VRAM-Vorab-Check (27B braucht <1100 MiB Fremdbelegung — 2026-08-26-Vorfall) + Identitäts-Check via `/v1/models`; 27B-Startskript in `MODEL_START_SCRIPTS` registriert |
@@ -526,6 +527,25 @@ Protokoll und Bericht liegen im Scratchpad (`B2_run.md`, `B2_decision.md`).
 - ~~Eine zitierte Zahl kann in der zitierten Seite fehlen~~ → **umgesetzt
   2026-09-07** (`verify_cited_figures` + `drop_unverified`); für
   Korpus-Quellen gilt weiterhin nur der Evidenzblock-Pfad.
+- ~~2.563 der 6.775 Wörter waren Suchprotokoll~~ → **umgesetzt 2026-09-07**
+  (R6-1): das ausgelieferte Dokument endet an `AUDIT_ANNEX_MARK`; Coverage-
+  Ledger, Fetch-Log, Budget-Meldungen und Beleg-Verifikation stehen darunter,
+  werden mitgespeichert und im Desk aufklappbar gezeigt.
+- ~~Die Messung stand unverbunden neben den Optionen~~ → **umgesetzt
+  2026-09-07** (R6-2): jede Option ohne gemessene Zahl ist ein Strukturbefund;
+  der Prompt listet die gemessenen Werte wörtlich.
+- ~~Die Optionen bedienten nur eines der drei in der Frage genannten Felder~~ →
+  **umgesetzt 2026-09-07** (R6-3): `sectors_from_question` liest die Felder aus
+  der Frage, `uncovered_sectors` prüft den Optionsabschnitt.
+- ~~Eine richtige Zahl in verdrehter Wiedergabe blieb unentdeckt~~ →
+  **umgesetzt 2026-09-07** (R6-4): Qualifizierer („at least" → „only"),
+  Größenordnung (>25 % vom Quellwert derselben Sache) und Kategoriewort
+  (generic/hybrid/biosimilar/originator).
+- Die Verdrehungsprüfung braucht **gelesenen** Seitentext. Der zweite
+  Faktenfehler des R5-Dossiers („5 Mio. Wegovy-Rezepte") zitierte eine Seite,
+  die mit HTTP 403 nie gelesen wurde — mechanisch nicht zu fangen; die Regel
+  greift erst, wenn die Seite im Katalog steht. Für den Fall bleibt es beim
+  bestehenden Grundsatz: was nicht gelesen wurde, kann kein Zitat tragen.
 - Die Beleg-Verifikation greift nur bei Sätzen, die **ausschließlich**
   gefetchte Web-/Rechtsquellen zitieren. Mischt ein Satz Korpus- und
   Web-Beleg, bleibt er ungeprüft — bewusst, sonst würde jede Zahl aus einem
