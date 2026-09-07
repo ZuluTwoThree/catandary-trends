@@ -2943,6 +2943,11 @@ def run(question: str, max_steps: int, max_sources: int,
     # steht (genau so kam „K(t) 6,1 %/yr in 2026" in die Kurzfassung).
     blocked_brief = dossier_structure.blocked_brief(
         (quant or {}).get("summary"), (corpus_stats or {}).get("summary"))
+    # R8-3: die Reichweite der Messung gehoert in den Prompt, nicht erst in den
+    # Neuwurf — jury_11 fand einen Schluss ueber „natuerliche Modulatoren" aus
+    # Zahlen, die ueber Wirkstoffklassen gerechnet wurden.
+    measure_scope = dossier_structure.measurement_scope_terms(
+        (quant or {}).get("summary"), topic or question)
     sector_fields = dossier_structure.sectors_from_question(question)
     # R8-1: der Katalysator-Kalender zaehlt nur Termine, die noch bevorstehen.
     # Untergrenze ist das Jahr des Laufs, nicht das Datum — ein Quartal des
@@ -2981,7 +2986,12 @@ def run(question: str, max_steps: int, max_sources: int,
            f"web. Each is listed with the n and the period the appendix states "
            f"for it. Use one only where it genuinely carries a statement, in "
            f"the meaning given here, and with this exact value:\n"
-           f"{measured_brief}\n\n" if measure and measured_brief else "")
+           f"{measured_brief}\n"
+           f"They were all computed over one subject only: "
+           f"{', '.join(measure_scope)}. A sentence that draws a conclusion "
+           f"from one of them must name that subject — about anything else "
+           f"these figures say nothing, however plausible the inference "
+           f"sounds.\n\n" if measure and measured_brief else "")
         + (f"MEASURED QUANTITIES YOU MUST NOT USE — they are in the appendix, "
            f"but our own honesty limits bar them from the report. Naming one "
            f"anywhere in the text is an error, and a sentence that does so is "
@@ -3043,7 +3053,7 @@ def run(question: str, max_steps: int, max_sources: int,
         # der zitierten Seite bei einer ANDEREN Studie stehen.
         measure_bad = dossier_structure.measure_use_findings(
             report, (quant or {}).get("summary"),
-            (corpus_stats or {}).get("summary"))
+            (corpus_stats or {}).get("summary"), topic or question)
         # R8-2: Kernzahlen (Kurzfassung, Optionen, Kalender) brauchen einen
         # Beleg vom Rang 0/1 — sonst Kennzeichnung oder Streichung.
         weak = dossier_structure.weak_source_figures(
@@ -3119,7 +3129,7 @@ def run(question: str, max_steps: int, max_sources: int,
             report, citable_sources, measured_text)
         measure_bad2 = dossier_structure.measure_use_findings(
             report, (quant or {}).get("summary"),
-            (corpus_stats or {}).get("summary"))
+            (corpus_stats or {}).get("summary"), topic or question)
         weak2 = dossier_structure.weak_source_figures(
             report, citable_sources, lang, measured_text)
         cite_all2 = (list(cites2["unverified"])

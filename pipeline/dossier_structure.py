@@ -602,14 +602,67 @@ def _num(v) -> float | None:
         return None
 
 
+# --------------------------------------------------------------------------
+# Reichweite der Messung (R8-3, jury_11.md §4.5, 2026-09-07)
+# --------------------------------------------------------------------------
+# Woertlich: „Nicht-Sequitur aus der eigenen Messung: 'The measured median
+# improvement rate of 3.3%/yr suggests that natural modulators may not offer a
+# significant advantage over synthetic drugs'. Gemessen wurden A61P5/48 und
+# C12N2501/335, also die Peptid-/Wirkstoffklassen — daraus folgt nichts ueber
+# natuerliche Modulatoren."
+#
+# Die Regel ist damit nicht mehr nur „darf diese Zahl im Text stehen", sondern
+# „reicht sie bis zu dem Gegenstand, ueber den der Satz etwas behauptet".
+# Mechanisch: zieht ein Satz aus einer gemessenen Groesse einen Schluss, muss er
+# den GEMESSENEN Gegenstand benennen — die Phrase, auf der die CPC-Aufloesung
+# lief, oder eine ihrer Klassen. Tut er das nicht, ist die Reichweite unbelegt.
+
+_SCOPE_STOP = frozenset("""
+and or the of for in on with a an new next technology technologies industry
+industries sector sectors market markets system systems field fields und oder
+der die das fuer mit technologie technologien markt branche
+""".split())
+
+_INFERENCE_RE = re.compile(
+    r"\b(?:suggest(?:s|ing|ed)?|impl(?:y|ies|ying|ied)|indicat(?:e|es|ing|ed)"
+    r"|therefore|thus|hence|points?\s+to|shows?\s+that|demonstrat\w+\s+that"
+    r"|means?\s+that|implication\s+is"
+    r"|legt\s+nahe|deutet\s+darauf|folglich|zeigt,?\s+dass"
+    r"|bedeutet,?\s+dass)\b", re.IGNORECASE)
+
+
+def measurement_scope_terms(quant_summary: dict | None,
+                            topic: str = "") -> list[str]:
+    """Woran die Messung haengt: die aufgeloeste Phrase und ihre CPC-Klassen."""
+    q = quant_summary or {}
+    out: set[str] = set()
+    for code in (q.get("selection") or []):
+        code = str(code).strip().lower()
+        if code:
+            out.add(code)
+            out.add(re.split(r"[/\s]", code)[0])
+    phrase = f"{q.get('measured_phrase') or ''} {topic or ''}".lower()
+    for w in re.findall(r"[a-z][a-z0-9-]{2,}", phrase):
+        if w not in _SCOPE_STOP:
+            out.add(w)
+    return sorted(out)
+
+
+def _names_scope(claim: str, scope_terms: list[str]) -> bool:
+    return any(re.search(r"(?<![\w-])" + re.escape(t), claim, re.IGNORECASE)
+               for t in scope_terms or ())
+
+
 def measure_use_findings(report_md: str, quant_summary: dict | None,
-                         corpus_summary: dict | None = None) -> list[dict]:
+                         corpus_summary: dict | None = None,
+                         topic: str = "") -> list[dict]:
     """Saetze, die gegen die Verwendbarkeitsregel verstossen.
 
     Rueckgabe wie `verify_cited_figures`: [{"sentence", "tokens", "kind",
     "detail", "url"}] — dieselbe Weiterverarbeitung (ein Neuwurf, danach
     mechanische Streichung)."""
     inv = measure_inventory(quant_summary, corpus_summary)
+    scope_terms = measurement_scope_terms(quant_summary, topic)
     out: list[dict] = []
     seen: set[tuple] = set()
 
@@ -661,6 +714,25 @@ def measure_use_findings(report_md: str, quant_summary: dict | None,
                     f"{e['label']}: the document's canonical value is "
                     f"{e['value']}. A second value for the same quantity is "
                     f"only allowed if both stand in ONE sentence, contrasted")
+        # (d) R8-3: Reichweite. Ein Schluss AUS der Messung muss den
+        # gemessenen Gegenstand benennen — sonst behauptet er etwas ueber
+        # etwas, das gar nicht gemessen wurde.
+        if scope_terms and _INFERENCE_RE.search(claim) \
+                and not _names_scope(claim, scope_terms):
+            for e in inv["usable"]:
+                cue = MEASURE_CUES.get(e["cue"] or "", "")
+                if not cue or not re.search(cue, low, re.IGNORECASE):
+                    continue
+                hit = next((n for n in e["needles"] if _needle_hit(claim, n)),
+                           None)
+                if not hit:
+                    continue
+                add(sentence, hit,
+                    f"the measurement's reach: {e['label']} was computed over "
+                    f"{', '.join(scope_terms[:4])} — this sentence draws a "
+                    f"conclusion without naming the measured subject, so the "
+                    f"figure does not carry it")
+                break
     return out
 
 
@@ -1427,6 +1499,13 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
                 f"{toks} — der Beleg traegt diese Aussage nicht. Satz mit einem "
                 f"passenden Beleg neu schreiben oder streichen: "
                 f"\"{e['sentence'][:180]}\"")
+        elif kind == "reach":
+            lines.append(
+                f"Der Satz beruft sich auf ein {toks}, das die zitierte Seite "
+                f"({e['url'][:80]}) nicht fuehrt — {e.get('detail', '')}. "
+                f"Entweder eine Quelle zitieren, die dieses Verzeichnis "
+                f"wirklich enthaelt, oder die Aussage auf das zuruecknehmen, "
+                f"was die Seite sagt: \"{e['sentence'][:180]}\"")
         elif kind in ("qualifier", "magnitude", "category"):
             what = {"qualifier": "Der Qualifizierer ist umgedreht",
                     "magnitude": "Die Groessenordnung stimmt nicht",
@@ -2033,11 +2112,50 @@ def context_conflicts_multi(sentence: str, pages: list[str],
     return out
 
 
+# --------------------------------------------------------------------------
+# Reichweite der Quelle (R8-3, jury_11.md §4.3, 2026-09-07)
+# --------------------------------------------------------------------------
+# „Nicht getragene Registeraussage: 'The EFSA register of authorized health
+# claims does not include any claims specifically referencing GLP-1 use' — die
+# verlinkte Seite enthaelt kein Register." Derselbe Fehler wie bei der Messung,
+# nur auf der Belegseite: der Satz beruft sich auf ein formales Nachweisstueck,
+# das die zitierte Seite gar nicht fuehrt.
+#
+# Geprueft wird eng: nur Woerter, die ausdruecklich ein amtliches Verzeichnis
+# oder eine Entscheidungssammlung benennen. Die Seitenseite ist bewusst
+# grosszuegiger als die Satzseite (Wortstamm statt Vollform) — wir wollen den
+# Fehlalarm vermeiden, nicht den Fund erzwingen.
+EVIDENCE_ARTEFACTS: dict[str, tuple[str, str]] = {
+    # Name: (Muster im SATZ, Muster auf der SEITE)
+    "register": (r"\bregist(?:er|ers|ry|ries)\b", r"regist"),
+    "database": (r"\b(?:database|datenbank)\b", r"database|datenbank"),
+    "docket": (r"\bdocket\b", r"docket"),
+    "gazette": (r"\b(?:gazette|amtsblatt)\b", r"gazette|amtsblatt"),
+    "official journal": (r"\bofficial journal\b", r"official journal"),
+    "case law": (r"\b(?:case law|rechtsprechung)\b", r"case law|rechtsprechung"),
+}
+
+
+def artefact_conflicts(sentence: str, page: str) -> list[dict]:
+    """Formale Nachweisstuecke, auf die sich der Satz beruft, die die zitierte
+    Seite aber nicht fuehrt."""
+    out = []
+    for name, (claim_pat, page_pat) in EVIDENCE_ARTEFACTS.items():
+        if not re.search(claim_pat, sentence or "", re.IGNORECASE):
+            continue
+        if re.search(page_pat, page or "", re.IGNORECASE):
+            continue
+        out.append({"tokens": [name], "kind": "reach",
+                    "detail": f"the cited page carries no {name}"})
+    return out
+
+
 def distortion_conflicts(sentence: str, page: str) -> list[dict]:
-    """Alle drei Verdrehungspruefungen ueber einen Satz."""
+    """Alle Verdrehungs- und Reichweitenpruefungen ueber einen Satz."""
     return (qualifier_conflicts(sentence, page)
             + magnitude_conflicts(sentence, page)
-            + category_conflicts(sentence, page))
+            + category_conflicts(sentence, page)
+            + artefact_conflicts(sentence, page))
 
 
 def sourceless_figures(report_md: str, sources: list[dict],

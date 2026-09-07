@@ -1908,3 +1908,170 @@ class TestCatalogRank:
         assert "(primary)" in cr._OUTLINE_EN or True     # Regel steht im Prompt
         assert "SOURCE RANK" in cr._OUTLINE_EN
         assert "QUELLENRANG" in cr._OUTLINE_DE
+
+
+# ===========================================================================
+# R8-3 — Reichweite (jury_11.md §4.3 und §4.5, 2026-09-07)
+# ===========================================================================
+# Zwei Einzelfehler, ein Prinzip: eine Aussage darf nicht weiter reichen als
+# das, worauf sie sich beruft — weder als die gemessenen Klassen noch als die
+# zitierte Seite.
+
+_QUANT = {"selection": ["A61P5/48", "C12N2501/335"],
+          "measured_phrase": "GLP-1 and incretin technology",
+          "K_median": 3.3, "K_calibrated": True, "K_window": [2005, 2026],
+          "n_patents": 1878, "cycle_time_years": 12.0,
+          "cycle_time_edges": 7667, "cycle_time_since": 2015}
+_TOPIC = "GLP-1 and incretin technology"
+
+
+def _with(sentence: str) -> str:
+    return _report().replace("Movement.", sentence)
+
+
+class TestTheMeasurementReachesOnlyWhatItMeasured:
+
+    NON_SEQUITUR = ("The measured median improvement rate of 3.3%/yr suggests "
+                    "that natural modulators may not offer a significant "
+                    "advantage over synthetic drugs in the near term.")
+
+    def test_the_scope_is_the_resolved_phrase_and_its_classes(self):
+        terms = ds.measurement_scope_terms(_QUANT, _TOPIC)
+        assert "glp-1" in terms and "incretin" in terms
+        assert "a61p5/48" in terms
+        assert "technology" not in terms       # Fuellwort, kein Gegenstand
+
+    def test_the_juries_non_sequitur_is_caught(self):
+        found = ds.measure_use_findings(_with(self.NON_SEQUITUR), _QUANT,
+                                        None, _TOPIC)
+        assert len(found) == 1
+        assert found[0]["tokens"] == ["3.3"]
+        assert "reach" in found[0]["detail"]
+
+    def test_naming_the_measured_subject_makes_it_pass(self):
+        ok = ("The measured median improvement rate of 3.3%/yr suggests that "
+              "GLP-1 peptide chemistry itself is not where the movement is.")
+        assert ds.measure_use_findings(_with(ok), _QUANT, None, _TOPIC) == []
+
+    def test_a_plain_restatement_is_not_an_inference(self):
+        """Ohne Schlussfolgerung keine Reichweitenfrage — die Zahl steht dann
+        einfach mit n und Zeitraum da."""
+        plain = ("The median improvement rate is 3.3%/yr over 2005-2026 "
+                 "across 1,878 patents.")
+        assert ds.measure_use_findings(_with(plain), _QUANT, None, _TOPIC) == []
+
+    def test_without_a_measurement_the_rule_is_off(self):
+        assert ds.measure_use_findings(_with(self.NON_SEQUITUR), None, None,
+                                       _TOPIC) == []
+
+    def test_the_b7_document_would_have_been_caught(self):
+        """Gegenprobe am ausgelieferten B7-Dokument: genau ein Treffer, und
+        zwar der Satz, den jury_11 wortwoertlich zitiert."""
+        doc = ("## Decision summary\n\nA [[T1]].\n\n"
+               "## Options for a mid-sized European company\n\n"
+               "### Option 4 — Natural modulators\n"
+               f"- Against it: {self.NON_SEQUITUR}\n")
+        found = ds.measure_use_findings(doc, _QUANT, None, _TOPIC)
+        assert len(found) == 1
+
+
+class TestTheSourceMustCarryTheRecordItIsQuotedFor:
+
+    SENT = ("The EFSA register of authorized health claims does not include "
+            "any claims specifically referencing GLP-1 use.")
+    TOPIC_PAGE = ("Health claims (art. 13) - EFSA. EFSA evaluates health "
+                  "claims submitted by member states.")
+
+    def test_a_page_without_the_register_does_not_carry_it(self):
+        out = ds.artefact_conflicts(self.SENT, self.TOPIC_PAGE)
+        assert out and out[0]["kind"] == "reach"
+        assert out[0]["tokens"] == ["register"]
+
+    def test_a_page_that_has_it_does(self):
+        page = "The EU Register of nutrition and health claims lists entries."
+        assert ds.artefact_conflicts(self.SENT, page) == []
+
+    def test_the_page_side_is_lenient_by_design(self):
+        """Wortstamm auf der Seite genuegt — der Fehlalarm ist teurer als der
+        entgangene Fund."""
+        assert ds.artefact_conflicts(self.SENT, "claims are registered here") == []
+
+    def test_a_verb_is_not_a_record(self):
+        assert ds.artefact_conflicts("Sales registered a rise.",
+                                     self.TOPIC_PAGE) == []
+
+    def test_it_runs_inside_the_citation_check(self):
+        src = [{"id": "W1", "kind": "web", "url": "https://efsa.europa.eu/x",
+                "origin": "", "title": "Health claims (art. 13)",
+                "snippet": "", "date": "", "text": self.TOPIC_PAGE, "rank": 0}]
+        doc = f"## Decision summary\n\n{self.SENT[:-1]} [[W1]].\n"
+        out = ds.verify_cited_figures(doc, src)
+        assert any(e["kind"] == "reach" for e in out["distorted"])
+
+    def test_the_revision_offers_the_two_honest_ways_out(self):
+        e = {"sentence": self.SENT, "tokens": ["register"], "kind": "reach",
+             "detail": "the cited page carries no register",
+             "url": "https://efsa.europa.eu/x"}
+        text = ds.revision_prompt([], [e], "en")
+        assert "Verzeichnis" in text and "zuruecknehmen" in text
+
+
+# ===========================================================================
+# Nichtregression: was Runde 7 gewonnen hat, bleibt (Auftrag R8)
+# ===========================================================================
+# jury_12 haelt zwei Erfolge ausdruecklich fest: unsere Messkennzahlen sind
+# "tragend, nicht Dekoration", und die Entscheidungsoptionen sind mit 4/4
+# vollstaendig gegen 0/7 des Gegners ueberlegen. Dazu kommen die
+# Verwendbarkeitsregel (kein gesperrter Wert im Text, kein unaufgeloester
+# Selbstwiderspruch) und der getrennte Pruefanhang. Die R8-Erweiterungen
+# duerfen keine davon aushebeln — deshalb dieser Block.
+
+class TestRoundSevenGainsStay:
+
+    QUANT = TestMeasuredFiguresMustCarry.QUANT
+    CORPUS = TestMeasuredFiguresMustCarry.CORPUS
+    TOPIC = "GLP-1 and incretin technology"
+
+    def test_a_blocked_value_is_still_refused_with_the_scope_rule_active(self):
+        doc = _with("The 2026 improvement rate of 6.1%/yr shows GLP-1 is fast.")
+        found = ds.measure_use_findings(doc, self.QUANT, self.CORPUS, self.TOPIC)
+        assert any("6.1" in f["tokens"] for f in found)
+
+    def test_a_rival_value_still_needs_the_contrast_in_one_sentence(self):
+        split = _with("The improvement rate median is 3.3%/yr for GLP-1. "
+                      "A later GLP-1 window of the improvement rate reached "
+                      "9.9%/yr.")
+        assert ds.measure_use_findings(split, self.QUANT, self.CORPUS,
+                                       self.TOPIC)
+        one = _with("The GLP-1 improvement rate runs at a median of 3.3%/yr "
+                    "against 9.9%/yr in the newest window.")
+        assert [f for f in ds.measure_use_findings(one, self.QUANT,
+                                                   self.CORPUS, self.TOPIC)
+                if f["tokens"] != ["9.9%/yr"]] == []
+
+    def test_four_complete_options_stay_clean(self):
+        doc = _report(options=4)
+        found = ds.structure_findings(
+            doc, "en", measured=ds.measured_needles(self.QUANT, self.CORPUS),
+            sectors=[])
+        assert found == []
+        st = ds.option_measure_stats(doc, "en", [], [])
+        assert st["options"] == 4 and st["options_unsupported"] == 0
+
+    def test_an_option_without_a_measured_figure_but_with_evidence_is_fine(self):
+        """R7-1 nahm den Nennungszwang zurueck — das bleibt so."""
+        doc = _report(options=2)
+        assert ds.structure_findings(
+            doc, "en", measured=["3.3", "12.0"], sectors=[]) == []
+
+    def test_the_audit_annex_stays_out_of_the_delivered_document(self):
+        doc = ds.join_document("## Decision summary\n\nA.\n", "protocol here")
+        assert "protocol here" not in ds.delivered(doc)
+        assert "protocol here" in ds.audit_annex(doc)
+
+    def test_the_delivered_proof_still_names_the_verification(self):
+        out = cr.check_summary([], [], [], {"cites_checked": 18,
+                                            "cites_figures": 52,
+                                            "cite_findings": [1, 2],
+                                            "dropped_sentences": 2}, "en")
+        assert "18 sentence(s) checked" in out and "2 sentence(s) dropped" in out
