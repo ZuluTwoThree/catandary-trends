@@ -926,3 +926,16 @@ class TestR13CalendarNoise:
         c = cr.calendar_candidates([], srcs, ["glp-1", "cagrisema"], [], 2026)
         assert c and c[0]["when"] == "H2 2026"
         assert not c[0]["statement"].startswith("-")
+
+
+class TestR13DisavowedFigure:
+    def test_a_figure_the_field_itself_rejects_is_no_figure(self):
+        v = ("a GLP-1 pharma start-up raised $400 million in 2024, which is "
+             "not transferable to a food-company P&L. The effort cannot be "
+             "sized from this evidence.")
+        assert ds.is_placeholder(v)
+
+    def test_a_magnitude_after_the_disavowal_counts(self):
+        v = ("a pharma round is not transferable; a comparable EIC grant is "
+             "EUR 2.5m [[F3]]")
+        assert not ds.is_placeholder(v)

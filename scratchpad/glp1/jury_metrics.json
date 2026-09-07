@@ -1,0 +1,131 @@
+[
+  {
+    "file": "C_sonnet.md",
+    "words": 1997,
+    "future_events": 9,
+    "future_sources": 15,
+    "actors": 23,
+    "actors_with_figure": 14,
+    "figure_sentences": 25,
+    "options": 0,
+    "effort_sized": 0,
+    "coverage": {
+      "science": 18,
+      "patents": 12,
+      "funding": 5,
+      "market": 15
+    },
+    "examples": [
+      [
+        "July 2026",
+        "Eli Lilly's triple agonist **retatrutide** (GLP-1/GIP/glucagon) hit up to 28.3% mean weigh"
+      ],
+      [
+        "July 2026",
+        "Novo Nordisk's oral **Wegovy pill** (25 mg semaglutide) got EU marketing authorisation in "
+      ],
+      [
+        "Q4 2026",
+        "25.5% weight loss at 84 weeks) but hit 22.7% at 68 weeks and beat semaglutide on HbA1c/wei"
+      ],
+      [
+        "2026",
+        "Novo's amylin/GLP-1 co-agonist **amycretin** showed up to 14.5% (subcutaneous) and 10.1% ("
+      ],
+      [
+        "H2 2026",
+        "Zealand/Roche's amylin analog **petrelintide** hit 10.7% weight loss with \"placebo-like to"
+      ],
+      [
+        "March 2026",
+        "Structure Therapeutics' oral **aleniglipron** (GSBR-1290) reported 16.3% placebo-adjusted "
+      ]
+    ]
+  },
+  {
+    "file": "DR2_final.md",
+    "words": 2888,
+    "future_events": 9,
+    "future_sources": 11,
+    "actors": 17,
+    "actors_with_figure": 5,
+    "figure_sentences": 11,
+    "options": 3,
+    "effort_sized": 3,
+    "coverage": {
+      "science": 10,
+      "patents": 14,
+      "funding": 10,
+      "market": 12
+    },
+    "examples": [
+      [
+        "2026",
+        "Oral GLP-1 receptor agonists are now on market: orforglipron was published as approved for"
+      ],
+      [
+        "2026",
+        "Protection Certificates - GOV.UK]( while the non-EU markets identified above lose semaglut"
+      ],
+      [
+        "2026",
+        "Patents.** Novo Nordisk's semaglutide compound patent expires in 2026 in several countries"
+      ],
+      [
+        "16 January 2026",
+        "New filings continue: a GLP-1/GIP/glucagon triple-agonist composition patent was filed 16 "
+      ],
+      [
+        "1 April 2026",
+        "In the US, the FDA clarified compounding policies on 1 April 2026 as the national GLP-1 sh"
+      ],
+      [
+        "2026",
+        "Patent expiry and SPC in Europe.** Semaglutide's compound patent expires in 2026 in severa"
+      ]
+    ]
+  },
+  {
+    "file": "DR_final.md",
+    "words": 4077,
+    "future_events": 19,
+    "future_sources": 11,
+    "actors": 22,
+    "actors_with_figure": 5,
+    "figure_sentences": 13,
+    "options": 4,
+    "effort_sized": 4,
+    "coverage": {
+      "science": 5,
+      "patents": 15,
+      "funding": 1,
+      "market": 8
+    },
+    "examples": [
+      [
+        "June 2026",
+        "Lilly's retatrutide, a triple GIP/GLP-1/glucagon receptor agonist, reported Phase 3 TRIUMP"
+      ],
+      [
+        "January 2026",
+        "A January 2026 filing covers incretin analogs as GLP-1, GIP, and glucagon receptor triple "
+      ],
+      [
+        "March 2026",
+        "Patent expiry and SPC in Europe.** The semaglutide compound patent at the European Patent "
+      ],
+      [
+        "December 5, 2031",
+        "In the United States, no generic of any semaglutide product can launch before December 5, "
+      ],
+      [
+        "May 2026",
+        "Marketing authorisations.** The EMA granted a positive CHMP opinion for Liraglutide Stada "
+      ],
+      [
+        "August 5, 2026",
+        "Court decisions and injunctions.** On August 5, 2026, the District Court of The Hague gran"
+      ]
+    ]
+  }
+]

@@ -324,6 +324,20 @@ _UNSIZED_RE = re.compile(
     r"|l(?:ä|ae)sst\s+sich\s+aus\s+den\s+belegen\s+nicht\s+beziffern"
     r")\b[^.]*\.?\W*$", re.IGNORECASE)
 
+# R13-4b: eine Zahl, die derselbe Satz selbst verwirft, ist keine Zahl.
+# DR2-Lauf, Option 1: „a GLP-1 pharma start-up raised $400 million in 2024,
+# which is not transferable to a food-company P&L. The effort cannot be sized
+# from this evidence." Formal beziffert, fuer den Leser leer — jury_17 zaehlte
+# alle drei Aufwandsfelder als Platzhalter. Regel: steht hinter dem Widerruf
+# keine Groessenordnung mehr, ist das Feld leer.
+_DISAVOW_RE = re.compile(
+    r"(?:not\s+transferable|cannot\s+be\s+sized|can(?:not|'t)\s+be\s+"
+    r"(?:quantified|estimated|determined)|no\s+(?:primary\s+)?(?:source|"
+    r"evidence)\w*\s+(?:sizes?|quantifies|gives|states)|does\s+not\s+"
+    r"(?:size|quantify|apply)|nicht\s+(?:uebertragbar|übertragbar|"
+    r"bezifferbar)|l(?:ä|ae)sst\s+sich\s+(?:daraus\s+)?nicht\s+beziffern)",
+    re.IGNORECASE)
+
 # Wieviele Woerter ein Feldwert mindestens haben muss, damit er ueberhaupt als
 # Inhalt zaehlt. "value", "—", "TBD" sind kein Aufwand.
 MIN_FIELD_WORDS = 1
@@ -368,6 +382,11 @@ def is_placeholder(value: str) -> bool:
     if _PLACEHOLDER_RE.match(text):
         return True
     if _UNSIZED_RE.match(text) and not _MAGNITUDE_RE.search(text):
+        return True
+    dis = None
+    for m in _DISAVOW_RE.finditer(text):
+        dis = m
+    if dis is not None and not _MAGNITUDE_RE.search(text[dis.end():]):
         return True
     head = _VALUE_CLAUSE.split(text, 1)[0].strip()
     if head and _PLACEHOLDER_RE.match(head):
