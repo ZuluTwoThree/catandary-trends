@@ -251,6 +251,14 @@ das ist genau das Werkzeug, das die Analysen für Etappe 2 produziert. Review + 
   generieren, ResearchGate-DOIs (`10.13140`) als Owner-Frage.
 - **#94** Startup-Explorer-Reste
 
+## 🆕 #100 — Dossier-Tool vs. Deep Research (Sonnet 5): Ziel offen, DR-Modus Feature in Development (2026-09-07)
+
+Vier DR-Läufe im Blindgutachten verloren (5,57 : 7,43 · 5,7 : 6,9 · 5,9 : 6,3 ·
+5,7 : 6,9). Owner hat den Stand abgenommen, Ziel nicht mehr aktuell; DR-Modus
+(Default aus) nach `main` gemergt. Diagnose: Beschaffung liefert, der
+Ein-Aufruf-Schreibschritt ist der Engpass. Wiederaufnahme (kapitelweises
+Schreiben zuerst) und alle Kommandos: `docs/dossier_vs_deep_research_2026-09-07.md`.
+
 ## ⚪ Welle 3 — Forschung / bewusst ruhend
 
 #9 Research Fronts (Substrat-Vorbehalt: Snapshot hat kein `referenced_works`) · #84 Science-Zitationsgraph

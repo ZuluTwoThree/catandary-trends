@@ -1134,6 +1134,15 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   danach den **Ruhezustand** wieder her (Symlink `start-active.sh` → 8B-208k,
   llama-server läuft wieder, falls er vorher lief).
 - **Jeder Lauf endet in `review`;** `done` nur per Owner-Sign-off im Desk.
+- **DR-Modus = Feature in Development (seit 2026-09-07, `params = {"dr": true}`
+  / `DOSSIER_DR=1`, Default aus):** Deep-Research-Arbeitsweise (Primärquellen
+  zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
+  themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,
+  Reparatur je Satz vor der Streichung). Ziel „besser als Sonnet Deep Research"
+  nach vier Blindgutachten (5,57–5,9 gegen 6,3–7,43) **nicht erreicht**, vom
+  Owner abgenommen; Engpass ist der Ein-Aufruf-Schreibschritt. Stand,
+  Diagnose, Wiederaufnahme: `docs/dossier_vs_deep_research_2026-09-07.md`,
+  Issue #100.
 - **Zugriff:** lokal standardmäßig AN (`DOSSIERS_ENABLED=0` = Not-Aus);
   `PUBLIC_MODE=1` blockt die Route (`BLOCKED_PREFIXES` + `proxy.ts`), der
   statische Export baut sie nie (`frontend/static-export.exclude`, Drift-Wächter

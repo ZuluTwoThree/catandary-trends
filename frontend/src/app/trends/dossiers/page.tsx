@@ -171,7 +171,9 @@ export default async function DossierDeskPage({
           audits its own report and parks the result here as <em>review</em>{" "}
           until you sign it off. Nothing runs on a schedule — a dossier is a
           dated document, recomputed only on your click — and nothing leaves
-          the machine.
+          the machine. The Deep-Research working style (DR mode: primary
+          sources first, fact ledger, actor map, calendar candidates) is a
+          feature in development — CLI / order params only, see issue #100.
         </p>
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em]">
           <span className="text-paper">{queued} queued</span>

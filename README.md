@@ -183,7 +183,11 @@ sekundär belegt" gekennzeichnet oder gestrichen. Genau ein gezielter Neuwurf,
 keine Schleife
 ([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-entscheidungsebene-2026-09-07)).
 
-**DR-Modus** (`DOSSIER_DR=1`, `--dr`, `params = {"dr": true}`; Default aus):
+**DR-Modus — Feature in Development** (`DOSSIER_DR=1`, `--dr`,
+`params = {"dr": true}`; Default aus; Ziel „besser als Sonnet Deep Research"
+offen, Stand und Wiederaufnahme in
+[`docs/dossier_vs_deep_research_2026-09-07.md`](docs/dossier_vs_deep_research_2026-09-07.md),
+Issue #100):
 Arbeitsweise eines Deep-Research-Agenten — Primärquellen werden vor dem
 Schreiben **nach Rang** gelesen, daraus entsteht ein **Faktenbuch** aus
 datierten Einzelaussagen (jede maschinell gegen ihren Quelltext geprüft), und

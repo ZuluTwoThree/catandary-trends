@@ -411,7 +411,9 @@ Abschalten (alter Pfad, reproduzierbar): `DOSSIER_MEASURE=0` in der Umgebung
 des Workers, `--no-measure` bei `scripts/corpus_research.py`, oder
 `params = {"measure": false}` am Auftragszettel.
 
-**DR-Modus (seit 2026-09-07, Default AUS).** Die Arbeitsweise eines
+**DR-Modus (seit 2026-09-07, Default AUS — Feature in Development; das
+Ziel „besser als Sonnet Deep Research" ist offen, Stand in
+`docs/dossier_vs_deep_research_2026-09-07.md`, Issue #100).** Die Arbeitsweise eines
 Deep-Research-Agenten: der Lauf liest vor dem Schreiben bis zu 28 ungelesene
 Treffer **nach Rang** (Behörde/Register/Journal zuerst, Presse gar nicht),
 zieht daraus **Notizen** — datierte Einzelaussagen, jede maschinell gegen ihren

@@ -1043,6 +1043,11 @@ die Streichung muss auf Absatzebene arbeiten statt Sätze zu zerschneiden.
 `scratchpad/glp1/DR3_run.md`, Gutachten `scratchpad/glp1/jury_18.md`,
 jury-nahe Messung `scratchpad/glp1/jury_metrics.py`.
 
+> **Status 2026-09-07:** Der DR-Modus ist als **Feature in Development** nach
+> `main` gemergt. Das Ziel „besser als Sonnet Deep Research" ist nicht erreicht
+> und vom Owner so abgenommen; Standsdoku und Wiederaufnahme in
+> `docs/dossier_vs_deep_research_2026-09-07.md`, Issue #100.
+
 ### Runde 14 (2026-09-07) — Landkarte, Absatz-Streichung, Themenneutralität
 
 Owner-Freigabe nach jury_18 mit drei Bedingungen: (1) Feldlandkarte und
