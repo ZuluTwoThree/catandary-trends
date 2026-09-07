@@ -365,13 +365,22 @@ order, with exactly these top-level headings and no others:
 ## Options for a mid-sized European company
   Two to four options. Each one starts with its own heading "### Option N —
   <short name>" and then carries exactly these five labelled lines:
-  - Trigger: the condition or event that would start it
+  - Trigger: the condition or event that would start it. EVERY option must
+    name at least one MEASURED quantity from the measurement appendix — cycle
+    time, take-off year, improvement rate K(t), centrality peak, patent count,
+    corpus counts — either here as the trigger or in Effort/Risk as the
+    reason. The measured figures are listed for you below; use them verbatim.
+    An option that names none of them is incomplete.
   - Time horizon: by when it would have to happen
   - Effort: rough order of magnitude — money, time, capability. If the
     evidence carries no figure, write "no figure in the evidence"; never
     invent one.
   - Risk: what it exposes, including the existing business
   - Against it: the strongest argument against this option
+  Taken together, the options must cover EVERY field the question names — if
+  it asks about food, nutrition and health technology, an option set that only
+  addresses food labelling answers a third of the question. One option may
+  cover more than one field, but no named field may go unaddressed.
   Close the section with one short paragraph on what this movement costs the
   EXISTING business (volume at risk, cannibalisation), if the evidence says
   anything about it at all.
@@ -425,6 +434,11 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
     keine Zahl her, schreibe "keine Zahl im Material"; nie eine erfinden.
   - Risiko: was sie aussetzt, einschließlich des Bestandsgeschäfts
   - Dagegen spricht: das stärkste Gegenargument
+  Jede Option muss mindestens eine GEMESSENE Größe aus dem Messanhang nennen
+  (Zykluszeit, Take-off-Jahr, Verbesserungsrate K(t), Zentralitätsgipfel,
+  Patentzahl, Korpuszählung) — als Auslöser oder als Begründung in
+  Aufwand/Risiko. Die gemessenen Werte stehen unten; nimm sie wörtlich. Und
+  zusammen müssen die Optionen JEDES Feld abdecken, das die Frage nennt.
   Zum Schluss ein kurzer Absatz dazu, was diese Bewegung das BESTANDSGESCHÄFT
   kostet (gefährdetes Volumen, Kannibalisierung), soweit die Belege dazu
   überhaupt etwas hergeben.
@@ -2550,6 +2564,14 @@ def run(question: str, max_steps: int, max_sources: int,
                      if s["kind"] in ("web", "legal", "market", "entity")
                      and not s.get("fetched")]
     ledger_json = json.dumps(ledger, ensure_ascii=False)
+    # R6-2/R6-3 (jury_7.md/jury_8.md): die Optionen muessen an die Messung
+    # gebunden und ueber alle in der Frage genannten Felder verteilt sein.
+    # Beides wird geprueft — also bekommt das Modell beides ausdruecklich.
+    measured_keys = dossier_structure.measured_needles(
+        (quant or {}).get("summary"), (corpus_stats or {}).get("summary"))
+    measured_brief = dossier_structure.measured_brief(
+        (quant or {}).get("summary"), (corpus_stats or {}).get("summary"))
+    sector_fields = dossier_structure.sectors_from_question(question)
     sys_prompt = report_system(measure, lang)
     if lang == "de":
         # An den ANFANG des System-Prompts: ans Ende gehängt wurde die Anweisung
@@ -2579,6 +2601,12 @@ def run(question: str, max_steps: int, max_sources: int,
            f"they cannot carry a citation — using one deletes it and leaves the "
            f"claim unsupported: {', '.join(uncitable_ids)}\n\n"
            if measure and uncitable_ids else "")
+        + (f"MEASURED QUANTITIES — computed for this dossier, not found on the "
+           f"web. Every option must name at least one of them:\n{measured_brief}"
+           f"\n\n" if measure and measured_brief else "")
+        + (f"The question names these fields: {', '.join(sector_fields)}. The "
+           f"option set must address all of them.\n\n"
+           if measure and sector_fields else "")
         + (f"Citation catalog — cite by the id in double brackets, "
            f"exactly as written here:\n{citable}\n\n" if measure else
            f"Citation catalog — copy these link forms verbatim:\n{citable}\n\n")
@@ -2613,7 +2641,8 @@ def run(question: str, max_steps: int, max_sources: int,
     if measure:
         structure["words_before"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
-        findings = dossier_structure.structure_findings(report, lang)
+        findings = dossier_structure.structure_findings(
+            report, lang, measured=measured_keys, sectors=sector_fields)
         cites = dossier_structure.verify_cited_figures(report, citable_sources)
         # Befund 2 (falsche Seite) und Befund 3 (Zahl ohne Beleg) der Jurys vom
         # 2026-09-07 laufen durch denselben Kanal wie die Zahlenpruefung:
@@ -2668,7 +2697,7 @@ def run(question: str, max_steps: int, max_sources: int,
                                "keeping the first version",
                                len(second.split()))
         structure["findings_after"] = dossier_structure.structure_findings(
-            report, lang)
+            report, lang, measured=measured_keys, sectors=sector_fields)
         cites2 = dossier_structure.verify_cited_figures(report, citable_sources)
         sourceless2 = dossier_structure.sourceless_figures(
             report, citable_sources, measured_text)
@@ -2694,6 +2723,8 @@ def run(question: str, max_steps: int, max_sources: int,
                            len(cites2.get("off_topic") or []), len(sourceless2))
         structure["words_after"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
+        structure.update(dossier_structure.option_measure_stats(
+            report, lang, measured_keys, sector_fields))
         structure["advisory"] = dossier_structure.length_advisory(report, lang)
         for a in structure["advisory"]:
             logger.info("structure (advisory): %s", a)

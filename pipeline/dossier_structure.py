@@ -232,6 +232,191 @@ def _missing_fields(block: str, lang: str) -> list[str]:
     return missing
 
 
+# --------------------------------------------------------------------------
+# Messbezug der Optionen (R6-2, jury_7.md 2026-09-07)
+# --------------------------------------------------------------------------
+# Woertlich: „P verknuepft keine einzige seiner vier Handlungsoptionen damit."
+# Der Messanhang ist unser einziger Alleinstellungsinhalt — beide Jurys sagen
+# das ausdruecklich —, und er lag als unverbundener Datenblock hinter dem
+# Bericht. Also: jede Option muss mindestens eine GEMESSENE Groesse als
+# Ausloeser oder Begruendung tragen, und das wird hier gezaehlt, nicht erhofft.
+#
+# Geprueft werden nur Zahlen, die im Messanhang stehen — nicht das Wort
+# „gemessen". Zu kurze Zahlen fliegen raus: eine Zykluszeit von 12 Jahren waere
+# sonst durch jedes „within 12 months" scheinbar erfuellt.
+
+MEASURED_KEYS = ("K_median", "lead_patent_market", "lead_science_market",
+                 "cycle_time_years", "centrality_peak_year", "n_patents")
+CORPUS_KEYS = ("market_n", "market_published", "science_n", "science_citations")
+MEASURED_LABELS = {
+    "K_median": "improvement rate median (%/yr)",
+    "lead_patent_market": "patent→market lead time (years)",
+    "lead_science_market": "science→market lead time (years)",
+    "cycle_time_years": "cycle time (years)",
+    "centrality_peak_year": "centrality peak (year)",
+    "n_patents": "patents in the measured citation graph",
+    "market_n": "market signals in the corpus",
+    "market_published": "written-up articles in the corpus",
+    "science_n": "works in the research corpus",
+    "science_citations": "citations between them",
+}
+MIN_NEEDLE_CHARS = 3
+
+
+def _needle_forms(value, year: bool = False) -> list[str]:
+    """Alle Schreibweisen, in denen eine gemessene Groesse im Anhang steht.
+    Jahreszahlen bekommen KEINE Tausenderform ("2,017" schreibt niemand)."""
+    if value is None or isinstance(value, bool):
+        return []
+    if isinstance(value, int):
+        return [str(value)] if year else [f"{value:,}", str(value)]
+    if isinstance(value, float):
+        out = [f"{value:,}" if value != int(value) else str(value)]
+        out.append(str(value))
+        if value == int(value):
+            out.append(f"{int(value):,}")
+        return out
+    return [str(value)]
+
+
+def measured_needles(quant_summary: dict | None,
+                     corpus_summary: dict | None = None) -> list[str]:
+    """Die Zahlen (und CPC-Codes), die als „gemessen" gelten.
+
+    Quelle sind die Skalare der beiden Vorstufen, nicht der Anhangstext: was
+    hier steht, ist per Konstruktion ein Query-Ergebnis."""
+    q = quant_summary or {}
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def add(x: str) -> None:
+        x = str(x).strip()
+        if len(x) >= MIN_NEEDLE_CHARS and x.lower() not in seen:
+            seen.add(x.lower())
+            out.append(x)
+
+    if not q.get("off_topic"):
+        for code in (q.get("selection") or [])[:6]:
+            add(code)
+        for key in MEASURED_KEYS:
+            for form in _needle_forms(q.get(key), year=key.endswith("_year")):
+                add(form)
+        for v in (q.get("takeoffs") or {}).values():
+            for form in _needle_forms(v, year=True):
+                add(form)
+    for key in CORPUS_KEYS:
+        for form in _needle_forms((corpus_summary or {}).get(key)):
+            add(form)
+    return out
+
+
+def _needle_hit(text: str, needle: str) -> bool:
+    pat = re.compile(r"(?<![\w.,])" + re.escape(needle) + r"(?![\d])",
+                     re.IGNORECASE)
+    return bool(pat.search(text or ""))
+
+
+def uses_measurement(text: str, needles: list[str]) -> bool:
+    return any(_needle_hit(text, n) for n in needles or ())
+
+
+def measured_brief(quant_summary: dict | None,
+                   corpus_summary: dict | None = None) -> str:
+    """Die gemessenen Groessen als eine Zeile fuer den Berichtsprompt — was
+    geprueft wird, muss das Modell auch benannt bekommen."""
+    q, c = quant_summary or {}, corpus_summary or {}
+    bits: list[str] = []
+    if not q.get("off_topic"):
+        sel = [str(x) for x in (q.get("selection") or [])[:4]]
+        if sel:
+            bits.append("measured patent classes " + ", ".join(sel))
+        for key in MEASURED_KEYS:
+            v = q.get(key)
+            if v is not None:
+                bits.append(f"{MEASURED_LABELS[key]} {v}")
+        for tier, v in (q.get("takeoffs") or {}).items():
+            if v:
+                bits.append(f"{tier} take-off {v}")
+    for key in CORPUS_KEYS:
+        v = c.get(key)
+        if v is not None:
+            bits.append(f"{MEASURED_LABELS[key]} {v:,}"
+                        if isinstance(v, int) else f"{MEASURED_LABELS[key]} {v}")
+    return " · ".join(bits)
+
+
+# --------------------------------------------------------------------------
+# Branchenabdeckung der Optionen (R6-3, jury_8.md 2026-09-07)
+# --------------------------------------------------------------------------
+# „4 Optionen sind sauber strukturiert, aber fast ausschliesslich
+# Food/Labeling-fokussiert; HealthTech kommt nicht vor." Die Frage nennt drei
+# Felder, der Optionsteil bediente eines. Die Felder werden AUS DER FRAGE
+# gelesen (kein GLP-1-Sonderfall): steht ein Feld in der Frage, muss der
+# Optionsabschnitt es adressieren.
+
+SECTOR_LEXICON: dict[str, tuple[str, ...]] = {
+    "food": ("food", "beverage", "drink", "ingredient", "recipe", "snack",
+             "grocery", "meal", "menu", "dairy", "bakery", "confectionery",
+             "portion", "reformulat", "formulation", "packaging", "retail",
+             "lebensmittel", "getränk", "rezeptur"),
+    "nutrition": ("nutrition", "nutrient", "nutritional", "diet", "dietary",
+                  "protein", "fibre", "fiber", "supplement", "satiety",
+                  "calorie", "caloric", "vitamin", "micronutrient",
+                  "ernährung", "nährstoff", "nahrungsergänzung"),
+    "health technology": ("health technology", "healthtech", "digital health",
+                          "device", "app", "wearable", "diagnostic", "sensor",
+                          "telehealth", "telemedicine", "software", "platform",
+                          "monitoring", "medtech", "companion", "algorithm",
+                          "gesundheitstechnologie", "medizintechnik"),
+    "packaging": ("packaging", "pack ", "label", "verpackung"),
+    "logistics": ("logistic", "supply chain", "distribution", "warehouse",
+                  "cold chain", "logistik", "lieferkette"),
+    "energy": ("energy", "power", "grid", "electricity", "energie", "strom"),
+    "mobility": ("mobility", "vehicle", "automotive", "transport", "fleet",
+                 "mobilität", "fahrzeug"),
+}
+
+# Wie das Feld in einer Frage heissen kann (Erkennung, nicht Abdeckung).
+_SECTOR_ALIASES: dict[str, tuple[str, ...]] = {
+    "health technology": ("health technology", "health tech", "healthtech",
+                          "digital health", "medtech", "medical technology"),
+}
+
+
+def sectors_from_question(question: str) -> list[str]:
+    """Die Felder, die die Frage ausdruecklich nennt — nur die werden geprueft."""
+    low = (question or "").lower()
+    out = []
+    for name in SECTOR_LEXICON:
+        for alias in _SECTOR_ALIASES.get(name, (name,)):
+            if alias in low:
+                out.append(name)
+                break
+    return out
+
+
+def option_measure_stats(report_md: str, lang: str, measured: list[str] | None,
+                         sectors: list[str] | None = None) -> dict:
+    """Kennzahlen fuer den Pruefbefund: wie viele Optionen eine gemessene
+    Groesse tragen und welche Felder der Optionsabschnitt nicht bedient."""
+    sections = split_sections(body_text(report_md), _lang(lang))
+    blocks = option_blocks(sections.get("options", ""))
+    return {
+        "options": len(blocks),
+        "options_measured": sum(1 for b in blocks
+                                if uses_measurement(b, measured or [])),
+        "sectors": list(sectors or []),
+        "sectors_missing": uncovered_sectors(sections.get("options", ""),
+                                             sectors or []),
+    }
+
+
+def uncovered_sectors(text: str, sectors: list[str]) -> list[str]:
+    low = (text or "").lower()
+    return [s for s in sectors or ()
+            if not any(kw in low for kw in SECTOR_LEXICON.get(s, ()))]
+
+
 def length_advisory(report_md: str, lang: str = "en") -> list[str]:
     """Untergrenze — HINWEIS, kein Neuwurf-Grund.
 
@@ -246,8 +431,15 @@ def length_advisory(report_md: str, lang: str = "en") -> list[str]:
     return []
 
 
-def structure_findings(report_md: str, lang: str = "en") -> list[str]:
-    """Was am fertigen Bericht mechanisch nicht stimmt. Leere Liste = sauber."""
+def structure_findings(report_md: str, lang: str = "en",
+                       measured: list[str] | None = None,
+                       sectors: list[str] | None = None) -> list[str]:
+    """Was am fertigen Bericht mechanisch nicht stimmt. Leere Liste = sauber.
+
+    `measured` = die gemessenen Groessen (measured_needles): jede Option muss
+    mindestens eine davon nennen. `sectors` = die Felder, die die Frage nennt
+    (sectors_from_question): der Optionsabschnitt muss alle bedienen. Beide
+    Listen leer = beide Pruefungen aus (alter Pfad, Firmen-Dossiers)."""
     L = _lang(lang)
     body = body_text(report_md)
     if not body.strip():
@@ -282,6 +474,17 @@ def structure_findings(report_md: str, lang: str = "en") -> list[str]:
                 findings.append(
                     f"Option {i}: Pflichtfeld(er) fehlen — "
                     + ", ".join(f"'{m}:'" for m in miss))
+            if measured and not uses_measurement(block, measured):
+                findings.append(
+                    f"Option {i}: keine gemessene Groesse genannt. Ausloeser "
+                    f"oder Begruendung muss eine Zahl aus dem Messanhang "
+                    f"tragen (z. B. {', '.join(measured[:4])}).")
+        missing_sectors = uncovered_sectors(sections["options"], sectors or [])
+        for name in missing_sectors:
+            findings.append(
+                f"Optionsabschnitt deckt '{name}' nicht ab — die Frage nennt "
+                f"dieses Feld ausdruecklich; mindestens eine Option muss es "
+                f"adressieren.")
     return findings
 
 

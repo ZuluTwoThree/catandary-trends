@@ -1108,3 +1108,100 @@ class TestDeliveredDocument:
         res = {"report": ds.join_document(self.DOC, "1990 1991 1992 " * 20),
                "sources": [], "evidence": [], "cited": [], "ledger": []}
         assert check_result(res)["ungrounded"] == []
+
+
+class TestOptionsCarryTheMeasurement:
+    """R6-2, jury_7.md woertlich: „P verknuepft keine einzige seiner vier
+    Handlungsoptionen damit." Der Messanhang ist unser einziger Alleinstellungs-
+    inhalt und lag unverbunden hinter dem Bericht."""
+
+    QUANT = {"selection": ["A61P5/48", "C12N2501/335"], "K_median": 3.3,
+             "cycle_time_years": 12.0, "centrality_peak_year": 2017,
+             "n_patents": 1878, "takeoffs": {"patent": 2002, "market": 1990}}
+    CORPUS = {"market_n": 31458, "science_n": 105335}
+
+    def test_needles_are_the_measured_scalars(self):
+        n = ds.measured_needles(self.QUANT, self.CORPUS)
+        assert "12.0" in n and "3.3" in n and "2017" in n and "A61P5/48" in n
+        assert "1,878" in n and "31,458" in n
+        # Jahre nie mit Tausenderpunkt, und zu kurze Zahlen gar nicht.
+        assert "2,017" not in n and "12" not in n
+
+    def test_twelve_months_is_not_a_cycle_time(self):
+        """Genau der Grund fuer die Mindestlaenge: sonst wuerde jedes
+        'within 12 months' die Zykluszeit von 12 Jahren vortaeuschen."""
+        assert ds.uses_measurement("Time horizon: within 12 months", ["12.0"]) is False
+        assert ds.uses_measurement("cycle time of 12.0 years", ["12.0"]) is True
+
+    def test_an_option_without_a_measured_figure_is_a_finding(self):
+        f = ds.structure_findings(_report(), measured=["12.0", "3.3"])
+        assert len(f) == 2 and all("gemessene Groesse" in x for x in f)
+
+    def test_a_measured_option_passes(self):
+        doc = _report().replace("- Trigger: value",
+                                "- Trigger: cycle time 12.0 years")
+        assert ds.structure_findings(doc, measured=["12.0"]) == []
+
+    def test_without_a_measurement_the_check_is_off(self):
+        assert ds.structure_findings(_report(), measured=[]) == []
+
+    def test_the_prompt_names_the_measured_values(self):
+        brief = ds.measured_brief(self.QUANT, self.CORPUS)
+        assert "12.0" in brief and "3.3" in brief and "A61P5/48" in brief
+        assert "31,458" in brief
+
+    def test_the_outline_demands_it(self):
+        for lang in ("en", "de"):
+            sysprompt = cr.report_system(True, lang)
+            assert ("MEASURED quantity" in sysprompt
+                    or "GEMESSENE Größe" in sysprompt)
+
+    def test_the_check_counts_unmeasured_options(self):
+        res = {"report": "x", "sources": [], "evidence": [], "cited": [],
+               "ledger": [], "structure": {"findings_after": [],
+                                           "cite_findings_after": [],
+                                           "options": 4, "options_measured": 1}}
+        out = check_result(res)
+        assert out["options_measured"] == 1
+        assert any("3 von 4" in f for f in out["findings"])
+
+
+class TestOptionsCoverEveryNamedField:
+    """R6-3, jury_8.md: „4 Optionen … fast ausschliesslich Food/Labeling-
+    fokussiert; HealthTech kommt nicht vor." Die Frage nennt drei Felder."""
+
+    Q = ("Where does GLP-1 technology stand, and what should a mid-sized "
+         "European company in food, nutrition or health technology do?")
+
+    def test_fields_are_read_from_the_question(self):
+        assert ds.sectors_from_question(self.Q) == ["food", "nutrition",
+                                                    "health technology"]
+
+    def test_a_question_without_fields_switches_the_check_off(self):
+        assert ds.sectors_from_question("What is moving in solid-state "
+                                        "batteries?") == []
+
+    def test_the_r5_option_set_would_have_failed(self):
+        """Nachgestellt: Reformulierung (food+nutrition), Claim-Monitoring,
+        Kategorie-Fokus — kein einziger HealthTech-Satz."""
+        doc = _report().replace(
+            "- Trigger: value",
+            "- Trigger: reformulate snack recipes for protein and fibre")
+        f = ds.structure_findings(doc, sectors=ds.sectors_from_question(self.Q))
+        assert len(f) == 1 and "health technology" in f[0]
+
+    def test_covering_all_three_passes(self):
+        doc = _report().replace(
+            "- Trigger: value",
+            "- Trigger: food reformulation with fibre plus a companion app")
+        assert ds.structure_findings(
+            doc, sectors=ds.sectors_from_question(self.Q)) == []
+
+    def test_the_check_names_the_missing_field(self):
+        res = {"report": "x", "sources": [], "evidence": [], "cited": [],
+               "ledger": [],
+               "structure": {"findings_after": [], "cite_findings_after": [],
+                             "sectors_missing": ["health technology"]}}
+        out = check_result(res)
+        assert out["sectors_missing"] == ["health technology"]
+        assert any("health technology" in f for f in out["findings"])

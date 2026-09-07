@@ -34,7 +34,7 @@ import re
 
 from pipeline.dossier_corpus_stats import CORPUS_HEADINGS
 from pipeline.dossier_quant import MEASURE_HEADINGS
-from pipeline.dossier_structure import AUDIT_ANNEX_MARK
+from pipeline.dossier_structure import AUDIT_ANNEX_MARK, measured_needles
 from pipeline.grounding import ungrounded_specifics
 
 # Müssen textgleich zu den code-generierten Anhängen in
@@ -104,20 +104,7 @@ def _measurement_used(body: str, quant: dict) -> bool:
     plus das Wort "measured"/"gemessen". Ein Dossier ohne eine einzige eigene
     Zahl soll das in seinem Pruefbefund stehen haben."""
     hay = body.lower()
-    needles: list[str] = []
-    for code in (quant.get("selection") or [])[:4]:
-        needles.append(str(code).lower())
-    for key in ("K_median", "lead_patent_market", "lead_science_market",
-                "cycle_time_years", "centrality_peak_year", "n_patents"):
-        v = quant.get(key)
-        if v is None:
-            continue
-        needles.append(f"{v:,}".lower() if isinstance(v, int) else str(v).lower())
-        needles.append(str(v).lower())
-    for v in (quant.get("takeoffs") or {}).values():
-        if v:
-            needles.append(str(v))
-    return any(n and n in hay for n in needles)
+    return any(n.lower() in hay for n in measured_needles(quant))
 
 
 def check_result(result: dict) -> dict:
@@ -188,6 +175,18 @@ def check_result(result: dict) -> dict:
         findings.append("Gliederung/Umfang nach dem Neuwurf noch offen: "
                         + " | ".join(left[:4])
                         + (f" (+{len(left) - 4} weitere)" if len(left) > 4 else ""))
+    # R6-2/R6-3: Messbezug der Optionen und Branchenabdeckung stehen als
+    # Kennzahl im Befund, auch wenn der Neuwurf sie behoben hat.
+    if st.get("options"):
+        n_opt, n_meas = int(st["options"]), int(st.get("options_measured") or 0)
+        if n_meas < n_opt:
+            findings.append(
+                f"{n_opt - n_meas} von {n_opt} Option(en) ohne gemessene "
+                f"Groesse — die Messung traegt dort keine Entscheidung.")
+    if st.get("sectors_missing"):
+        findings.append(
+            "Optionen decken nicht alle in der Frage genannten Felder ab: "
+            + ", ".join(st["sectors_missing"]) + ".")
     for a in (st.get("advisory") or []):
         findings.append(a)
     if st.get("dropped_sentences"):
@@ -230,5 +229,8 @@ def check_result(result: dict) -> dict:
         "structure_findings": left,
         "dropped_sentences": int(st.get("dropped_sentences") or 0),
         "cites_checked": int(st.get("cites_checked") or 0),
+        "options": int(st.get("options") or 0),
+        "options_measured": int(st.get("options_measured") or 0),
+        "sectors_missing": list(st.get("sectors_missing") or []),
         "findings": findings,
     }
