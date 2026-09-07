@@ -318,7 +318,11 @@ def measured_needles(quant_summary: dict | None,
 
 
 def _needle_hit(text: str, needle: str) -> bool:
-    pat = re.compile(r"(?<![\w.,])" + re.escape(needle) + r"(?![\d])",
+    # `(?![.,]\d)` ist nicht kosmetisch: ohne diesen Blick nach rechts traf die
+    # Nadel „3" mitten in „3.3 % per year". Im B7-Lauf hat genau das fuenf
+    # korrekte Saetze mit dem kanonischen Median geloescht — die Nadel kam von
+    # einem GESPERRTEN Jahreswert 3.0, dessen Ganzzahlform „3" lautet.
+    pat = re.compile(r"(?<![\w.,])" + re.escape(needle) + r"(?![\d]|[.,]\d)",
                      re.IGNORECASE)
     return bool(pat.search(text or ""))
 
@@ -432,8 +436,12 @@ def _near_cue(text: str, cue: str, start: int, end: int,
 
 def _entry(key, label, value, *, cue=None, unit=None, n=None, window=None,
            year=False, reason=None) -> dict:
+    # Nadeln unter MIN_NEEDLE_CHARS fliegen HIER raus, nicht erst beim
+    # Einsammeln: `measure_use_findings` liest die Nadeln eines Eintrags
+    # direkt, und eine einstellige Nadel trifft in jedem Text irgendetwas.
     return {"key": key, "label": label, "value": value,
-            "needles": _needle_forms(value, year=year),
+            "needles": [n_ for n_ in _needle_forms(value, year=year)
+                        if len(str(n_)) >= MIN_NEEDLE_CHARS],
             "cue": cue, "unit": unit, "n": n, "window": window,
             "reason": reason}
 

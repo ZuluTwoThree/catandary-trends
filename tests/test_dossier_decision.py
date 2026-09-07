@@ -1220,6 +1220,20 @@ class TestMeasuredFiguresMustCarry:
         # der Median selbst bleibt verwendbar
         assert "3.3" in ds.measured_needles(self.QUANT)
 
+    def test_a_short_needle_never_matches_inside_a_longer_figure(self):
+        """Der teuerste Fehlalarm des B7-Laufs: der gesperrte Jahreswert 3.0
+        hat die Ganzzahlform „3", und die traf mitten in „3.3 % per year" —
+        fuenf korrekte Saetze mit dem kanonischen Median wurden geloescht."""
+        q = dict(self.QUANT)
+        q["K_by_year"] = [{"year": 2005, "K": 3.0, "n": 150, "complete": True}]
+        assert all(len(n) >= ds.MIN_NEEDLE_CHARS
+                   for e in ds.measure_inventory(q)["blocked"]
+                   for n in e["needles"])
+        good = ("## What is moving\n\nThe measured improvement rate is "
+                "3.3% per year (median, n=1,878).")
+        assert ds.measure_use_findings(good, q) == []
+        assert ds.uses_measurement("a 3.3% rate", ["3"]) is False
+
     def test_a_measure_without_n_or_period_is_not_usable(self):
         """Regel (b): was im Anhang ohne n und Zeitraum steht, traegt nichts."""
         thin = {"cycle_time_years": 12.0}          # keine Kanten, kein Zeitraum
