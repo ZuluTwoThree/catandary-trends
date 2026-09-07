@@ -584,6 +584,23 @@ class TestCitationSubjectCheck:
         """Die Falsch-Ablehnung darf nicht teurer sein als der Fund."""
         assert ds.subject_names("The court in The Hague ruled today.") == []
 
+    def test_parts_with_digits_never_trigger_a_rejection(self):
+        """Realer Fehlalarm des B3-Laufs: "Eli Lilly's Q1" gegen eine Seite mit
+        dem Titel "Eli Lilly Reports 19.8B Q1 Revenue". `grounding` tokenisiert
+        die Seite nur ueber Buchstaben — "Q1" ist dort nie zu finden."""
+        assert ds.subject_names("Eli Lilly's Q1 revenue hit $19.8B.") \
+            == ["Eli Lilly's"]
+        assert ds.unverified_subjects(
+            "Eli Lilly's Q1 revenue hit $19.8B.",
+            "Eli Lilly reports 19.8B Q1 revenue") == []
+
+    def test_generic_capitalised_openers_are_not_subjects(self):
+        """Zweiter Fehlalarm des B3-Laufs: "**Marketing** authorisations and
+        pending decisions:" als Satzanfang."""
+        assert ds.subject_names(
+            "Marketing authorisations and pending decisions: the agency "
+            "approved the pill.") == []
+
     def test_substance_names_are_recognised(self):
         names = ds.subject_names(
             "Trials of semaglutide, tirzepatide and retatrutide continue.")

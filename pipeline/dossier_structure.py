@@ -254,7 +254,7 @@ def structure_findings(report_md: str, lang: str = "en") -> list[str]:
 # Beleg-Verifikation: steht die zitierte Zahl auch in der zitierten Seite?
 # --------------------------------------------------------------------------
 
-_VERIFIABLE_KINDS = ("web", "legal")
+_VERIFIABLE_KINDS = ("web", "legal", "market")
 
 # Ein Dezimalwert mit 1-2 Nachkommastellen. `pipeline.grounding._norm_token`
 # entfernt Punkt UND Komma (deutsch/englisch tauschen die Trennzeichen), also
@@ -465,6 +465,9 @@ reports analysis source sources phase price prices supply demand growth
 option options risk risks trigger effort horizon summary decision decisions
 what who which where how why our their its it is are was were has have had
 key core main major minor overall further given based note noted see
+marketing authorisation authorization revenue revenues quarterly pipeline
+rollout reimbursement coverage sales launch launches funding investment
+consumer consumers patient patients product products treatment therapy
 """.split())
 
 _CAP_TOKEN = re.compile(r"[A-Z][A-Za-z0-9&./'’-]*")
@@ -513,6 +516,11 @@ def subject_names(sentence: str) -> list[str]:
             j += 1
         words = [p for p in parts if p[:1].isupper()]
         clean = [w.rstrip(".,;:").strip("'’") for w in words]
+        # Zahlenhaltige Bestandteile fliegen raus ("Eli Lilly's Q1", "Wegovy 2.4
+        # mg"): `grounding._source_words` tokenisiert die Seite nur ueber
+        # Buchstaben, "Q1" waere dort NIE zu finden — ein sicherer Fehlalarm.
+        # Die Zahl selbst deckt ohnehin die Zahlenpruefung ab.
+        clean = [w for w in clean if not any(c.isdigit() for c in w)]
         clean = [w for w in clean if w and w.lower() not in _SUBJECT_STOP]
         if len(clean) >= 2:
             add(" ".join(clean))
