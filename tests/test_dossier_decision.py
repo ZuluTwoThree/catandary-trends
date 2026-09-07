@@ -22,7 +22,15 @@ Belegte Ausgangslage — zwei Blindgutachten ueber dieselben drei GLP-1-Dossiers
 
 Alles hier laeuft ohne DB, ohne Netz und ohne GPU.
 """
+import hashlib
 import pytest
+
+
+def _slug(query: str) -> str:
+    """Stabiler Stub-Schluessel je Query. `hash()` ist pro Prozess zufaellig —
+    zwei Suchmuster kollidierten damit gelegentlich auf derselben URL, und der
+    Rechts-Sweep zaehlte dann eine Quelle zu wenig."""
+    return hashlib.sha1(query.encode()).hexdigest()[:8]
 
 from pipeline import dossier_quant as dq
 from pipeline import dossier_structure as ds
@@ -41,16 +49,18 @@ _CHAIN_SENTENCES = (
     "Revenue from the launch grew through Q1 2026 [[T1]].",
 )
 
+# Seit R9-4 braucht der Kalender mindestens drei VERSCHIEDENE Quellen — vier
+# Zeilen aus derselben Sekundaerquelle waren der Befund der vierzehnten Jury.
 _CALENDAR = ["| Date | Event | Source | Why it matters |",
              "|---|---|---|---|"] + [
-    f"| Q{i} 2099 | Decision {i} | [[T1]] | It moves the market. |"
+    f"| Q{i} 2099 | Decision {i} | [[T{(i - 1) % 3 + 1}]] | It moves the market. |"
     for i in range(1, 6)]
 
 
 def _report(summary_words: int = 40, options: int = 2,
             drop_field: str | None = None, filler: int = 2200,
             cite: bool = True, calendar: bool = True,
-            chain: bool = True) -> str:
+            chain: bool = True, dense: bool = False) -> str:
     """`cite=False` baut Optionen ohne Beleg — seit R7-1 ein Befund: eine
     Option darf ohne Messgroesse auskommen, aber nicht ohne beides.
     `calendar=False` / `chain=False` erzeugen die R8-1-Maengel."""
@@ -59,6 +69,10 @@ def _report(summary_words: int = 40, options: int = 2,
             "## What is moving", ""]
     if chain:
         body += [" ".join(_CHAIN_SENTENCES), ""]
+    if dense:
+        # R9-3: genug datierte, primaerbelegte Angaben, um die Faktenquote zu
+        # erfuellen — der Fliesstext-Fuellstoff allein senkt sie.
+        body += [" ".join(_CHAIN_SENTENCES * 20), ""]
     body += ["Movement." + " filler" * filler, "",
              "## Regulatory and IP status", "", "Nothing found.", "",
              "## What happens next", ""]
@@ -161,7 +175,7 @@ class TestRegulatorySweep:
         """Jede Suche liefert EIGENE URLs — sonst frisst die URL-Dedup die
         spaeteren Muster auf und der Test misst den Stub, nicht die Kappe."""
         return lambda q, count=6: self._hits(
-            f"https://law{abs(hash(q)) % 9973}.example/", n)
+            f"https://law-{_slug(q)}.example/", n)
 
     def test_every_pattern_is_searched_and_recorded(self, monkeypatch):
         seen = []
@@ -240,8 +254,10 @@ ING = {"id": "T900000000", "kind": "web", "url": "https://think.ing.example/a",
        "fetched": True,
        "text": ("Adoption in the EU and UK is around 2%, versus roughly 12% "
                 "in the US. Oral formulations dominate from 2027.")}
+# R9-2: ein Korpus-Artikel wird an seinem ORIGINAL zitiert, nie an unserer
+# eigenen Seite — und traegt deshalb den Rang des Originals (hier: Behoerde).
 ARTICLE = {"id": "T1", "kind": "article", "url": "https://catandary.de/trends/a-1",
-           "origin": "https://outlet.example/a", "title": "Corpus piece",
+           "origin": "https://www.ema.europa.eu/en/a", "title": "Corpus piece",
            "outlet": "Outlet", "date": "2026-02-02", "snippet": "..."}
 
 
@@ -341,16 +357,19 @@ class TestUrlHygiene:
         assert stripped == 1 and cited == []
 
     def test_source_list_has_no_duplicates(self):
+        """Seit R9-2 zeigt auch der Korpus-Artikel auf sein ORIGINAL — zwei
+        Katalogzeilen mit demselben Original sind ein Beleg, nicht zwei."""
         src = [{"id": "T1", "kind": "article", "title": "A",
-                "url": "https://catandary.de/trends/a-1", "origin": "", "outlet": "",
-                "date": ""},
+                "url": "https://catandary.de/trends/a-1",
+                "origin": "https://outlet.example/a", "outlet": "", "date": ""},
                {"id": "T2", "kind": "signal", "title": "A again",
-                "url": "https://catandary.de/trends/a-1", "origin": "", "outlet": "",
+                "url": "https://outlet.example/a", "origin": "", "outlet": "",
                 "date": ""}]
         body, cited, stripped = cr.canonicalize_citations(
             "Claim [[T1]] and [[T2]].", src, "en", markers=True)
         assert len(cited) == 1
-        assert body.count("catandary.de/trends/a-1") == 3   # 2x inline, 1x Liste
+        assert body.count("outlet.example/a") == 3          # 2x inline, 1x Liste
+        assert "catandary.de" not in body
 
 
 # ===========================================================================
@@ -368,13 +387,14 @@ class _Chat:
     def __call__(self, model, prompt, system=None, temperature=0.0, **kw):
         self.calls.append(prompt)
         if "REVISION" in prompt:
-            # lang genug fuer den Kurz-Guard (>= 300 Woerter) UND fuer die
-            # Untergrenze des Laengenbands (R8-1) — der Default von _report
-            # liefert beides.
-            return _report()
+            # lang genug fuer den Kurz-Guard (>= 300 Woerter) UND dicht genug
+            # fuer die Faktenquote (R9-3) — Fuellstoff senkt sie, datierte
+            # primaerbelegte Saetze heben sie.
+            return _report(filler=300, dense=True)
         # Erster Wurf: Pflichtabschnitt fehlt UND eine Zahl, die die zitierte
         # Seite nicht hergibt.
-        return (_report().replace("## Regulatory and IP status", "## Background")
+        return (_report(filler=300, dense=True)
+                .replace("## Regulatory and IP status", "## Background")
                 + "\n\nInsurers added 1.2 million patients [[L0]].\n")
 
 
@@ -410,12 +430,21 @@ def test_measure_path_end_to_end(monkeypatch):
     chat = _Chat()
     _structured(monkeypatch)
     monkeypatch.setattr(llamacpp_client, "chat", chat)
-    monkeypatch.setattr(cr, "search_corpus", lambda q, n, scope="both": [dict(ARTICLE)])
+    # R9-1/R9-2: drei Katalogeintraege mit FREMDEM, primaerem Original — der
+    # Kalender braucht drei verschiedene Quellen, und die Rangregel gilt jetzt
+    # fuer jede Aussage der Kernabschnitte.
+    monkeypatch.setattr(cr, "search_corpus", lambda q, n, scope="both": [
+        dict(ARTICLE, id=f"T{i}", url=f"https://catandary.de/trends/a-{i}",
+             origin=o)
+        for i, o in enumerate(
+            ("https://www.ema.europa.eu/en/x",
+             "https://www.fda.gov/news/y",
+             "https://clinicaltrials.gov/study/z"), start=1)])
     monkeypatch.setattr(cr, "search_research", lambda *a, **k: [])
     monkeypatch.setattr(cr, "search_patents", lambda *a, **k: [])
     monkeypatch.setattr(cr, "brave_search", lambda q, n=6: [
         {"id": "W0", "trend_id": None, "kind": "web", "title": "Ruling",
-         "url": f"https://law.example/{abs(hash(q)) % 997}", "origin": "",
+         "url": f"https://law.example/{_slug(q)}", "origin": "",
          "outlet": "Law", "vertical": "", "date": "2026-08-05",
          "snippet": "SPC", "fetched": False}])
     monkeypatch.setattr(cr, "fetch_web_page_status",
@@ -452,7 +481,16 @@ def test_measure_false_writes_once_and_skips_the_sweep(monkeypatch):
     chat = _Chat()
     _structured(monkeypatch)
     monkeypatch.setattr(llamacpp_client, "chat", chat)
-    monkeypatch.setattr(cr, "search_corpus", lambda q, n, scope="both": [dict(ARTICLE)])
+    # R9-1/R9-2: drei Katalogeintraege mit FREMDEM, primaerem Original — der
+    # Kalender braucht drei verschiedene Quellen, und die Rangregel gilt jetzt
+    # fuer jede Aussage der Kernabschnitte.
+    monkeypatch.setattr(cr, "search_corpus", lambda q, n, scope="both": [
+        dict(ARTICLE, id=f"T{i}", url=f"https://catandary.de/trends/a-{i}",
+             origin=o)
+        for i, o in enumerate(
+            ("https://www.ema.europa.eu/en/x",
+             "https://www.fda.gov/news/y",
+             "https://clinicaltrials.gov/study/z"), start=1)])
     monkeypatch.setattr(cr, "search_research", lambda *a, **k: [])
     monkeypatch.setattr(cr, "search_patents", lambda *a, **k: [])
     monkeypatch.setattr(cr, "brave_search",
@@ -476,7 +514,8 @@ class TestPostRunFixes:
         """Der Gutachter nannte genau das: „Satz endet auf ein Leerzeichen und
         einen Punkt, es folgt kein Beleg."""
         src = [{"id": "T1", "kind": "article", "title": "A", "outlet": "", "date": "",
-                "url": "https://catandary.de/trends/a-1", "origin": ""}]
+                "url": "https://catandary.de/trends/a-1",
+                "origin": "https://outlet.example/a"}]
         body, _cited, stripped = cr.canonicalize_citations(
             "New filings preserve lean mass [[T900000013]].\n"
             "Zealand and Septerna raised money [[T900000004]], [[T900000009]].\n",
@@ -487,27 +526,29 @@ class TestPostRunFixes:
 
     def test_clean_report_is_left_alone(self):
         src = [{"id": "T1", "kind": "article", "title": "A", "outlet": "", "date": "",
-                "url": "https://catandary.de/trends/a-1", "origin": ""}]
+                "url": "https://catandary.de/trends/a-1",
+                "origin": "https://outlet.example/a"}]
         text = "Claim [[T1]].\nA line break here  \nand more."
         body, _c, stripped = cr.canonicalize_citations(text, src, "en", markers=True)
         assert stripped == 0
         assert "  \n" in body          # Markdown-Zeilenumbruch bleibt
 
-    def test_short_report_is_a_rewrite_reason_again(self):
-        """R8-1 dreht die Runde-7-Regel um. Begruendung im Lauf B7: der
-        Fliesstext kam auf 1.623 Woerter (577 unter dem Band), und beide Jurys
-        vom 2026-09-07 zogen genau dafuer Punkte ab (Abdeckung 6:9). Der
-        Befund muss den Betrag UND das erlaubte Fuellmaterial nennen."""
+    def test_the_word_floor_is_no_longer_a_rewrite_reason(self):
+        """R9-3 nimmt zurueck, was R8-1 eingefuehrt hatte. Der B8-Lauf erfuellte
+        das Schema formal und blieb inhaltlich duenn ("Aufwand: keine Zahl",
+        4 von 6 Kalenderzeilen aus einer Quelle) — die Wortzahl misst das
+        Falsche. Sie bleibt Protokollzahl (advisory) und Obergrenze; der
+        Neuwurf-Grund ist ab jetzt die Faktenquote."""
         short = _report(filler=0)
-        found = ds.structure_findings(short)
-        assert any("Untergrenze" in f and "belegten Fakten" in f
-                   for f in found)
-        assert any(str(ds.BODY_WORDS_MIN) in f for f in found)
+        assert ds.structure_findings(short) == []
         adv = ds.length_advisory(short)
         assert adv and str(ds.BODY_WORDS_MIN) in adv[0]
         long_enough = _report()
         assert ds.length_advisory(long_enough) == []
         assert ds.structure_findings(long_enough) == []
+        # Die Obergrenze bleibt ein Befund.
+        assert any("Obergrenze" in f for f in
+                   ds.structure_findings(_report(filler=3000)))
 
     def test_advisory_reaches_the_check_without_failing_it(self):
         res = {"report": "x [a](https://a.de/b)", "sources": [ARTICLE],
@@ -536,7 +577,7 @@ class TestPostRunFixes:
         monkeypatch.setattr(cr, "search_patents", lambda *a, **k: [])
         monkeypatch.setattr(cr, "brave_search", lambda q, n=6: [
             {"id": "W0", "trend_id": None, "kind": "web", "title": "T",
-             "url": f"https://x.example/{abs(hash(q)) % 997}", "origin": "",
+             "url": f"https://x.example/{_slug(q)}", "origin": "",
              "outlet": "", "vertical": "", "date": "", "snippet": "s",
              "fetched": False}])
         monkeypatch.setattr(cr, "fetch_web_page_status",
@@ -1707,7 +1748,7 @@ class TestCatalystCalendar:
 
     def test_four_rows_are_not_enough(self):
         doc = _report().replace(
-            "| Q5 2099 | Decision 5 | [[T1]] | It moves the market. |\n", "")
+            "| Q5 2099 | Decision 5 | [[T2]] | It moves the market. |\n", "")
         found = ds.calendar_findings(doc)
         assert found and "nur 4 von mindestens 5" in found[0]
 
@@ -1719,7 +1760,7 @@ class TestCatalystCalendar:
 
     def test_a_row_without_a_citation_does_not_count(self):
         doc = _report().replace(
-            "| Q2 2099 | Decision 2 | [[T1]] |",
+            "| Q2 2099 | Decision 2 | [[T2]] |",
             "| Q2 2099 | Decision 2 | company statement |")
         c = ds.calendar_rows(doc)
         assert c["ok"] == 4 and c["no_cite"] == 1
@@ -1843,13 +1884,25 @@ class TestCoreFiguresNeedAPrimarySource:
     def test_the_last_pass_marks_instead_of_deleting(self):
         """Der Auftrag laesst Kennzeichnung ODER Streichung zu. Gekennzeichnet
         bleibt die belegte Zahl im Dokument — und die Optionszeile behaelt ihr
-        Pflichtfeld."""
-        doc = _core("Q1 revenue was $19.8B [[W2]].")
+        Pflichtfeld. Ausserhalb der Kurzfassung."""
+        doc = _report().replace("- Risk: value",
+                                "- Risk: Q1 revenue was $19.8B [[W2]]", 1)
         found = ds.weak_source_figures(doc, [_SEC, _BLOG])
+        assert len(found) == 1 and found[0]["section"] == "options"
         out, n = ds.drop_unverified(doc, found)
         assert n == 1
         assert "$19.8B" in out and "(secondary source only)" in out
         assert ds.weak_source_figures(out, [_SEC, _BLOG]) == []
+
+    def test_in_the_decision_summary_it_is_deleted_instead(self):
+        """R9-1: eine nur sekundaer belegte Aussage darf in der Kurzfassung
+        auch mit Rangvermerk nicht stehenbleiben."""
+        doc = _core("Q1 revenue was $19.8B [[W2]].")
+        found = ds.weak_source_figures(doc, [_SEC, _BLOG])
+        assert len(found) == 1 and found[0]["section"] == "decision"
+        out, n = ds.drop_unverified(doc, found)
+        assert n == 1
+        assert "$19.8B" not in out and "(secondary source only)" not in out
 
     def test_the_german_run_uses_the_german_label(self):
         assert "nur sekundär belegt" in ds.mark_secondary("Umsatz 19,8 Mrd.", "de")
@@ -2173,7 +2226,8 @@ class TestAPipeInASourceTitleMustNotBreakTheCalendarTable:
 
     def test_a_calendar_row_survives_canonicalisation(self):
         src = [{"id": "T1", "kind": "article", "title": "A | B",
-                "url": "https://catandary.de/trends/a-1", "origin": "",
+                "url": "https://catandary.de/trends/a-1",
+                "origin": "https://outlet.example/a",
                 "outlet": "", "date": ""}]
         row = "| Q1 2099 | Decision | [[T1]] | matters |"
         body, _cited, _stripped = cr.canonicalize_citations(
@@ -2194,3 +2248,318 @@ class TestCalendarDateForms:
     ])
     def test_forms(self, text, ok):
         assert ds.has_date(text) is ok
+
+
+# ===========================================================================
+# R9 — die vier Eingriffe nach den Jurys 13 und 14 (2026-09-07)
+# ===========================================================================
+# Die Bilanz (docs/dossier_vs_deepresearch/00_ergebnis.md): „Wir gewinnen
+# Struktur und verlieren Substanz." Vierzehn Bewertungen, vierzehn Siege der
+# Web-Recherche; der Rueckstand liegt konstant in Spezifitaet, Abdeckung und
+# zeitlicher Einordnung — den drei Kriterien, die aus Faktendichte entstehen.
+# Vier Eingriffe, alle auf Substanz, keiner auf Form.
+
+_SPC = ("Supplementary protection certificates extend exclusivity in the EU "
+        "to 2031 and 2032 [[W2]].")
+
+
+class TestR9ClaimsNeedAPrimarySource:
+    """R9-1, jury_13: der komplette Patentkalender inklusive der Kernaussage
+    „SPCs ... 2031-2032" hing an `formblends.com`, einem Compounding-
+    Vermarkter — die R8-Regel prueft KERNZAHLEN, und „2031" ist keine."""
+
+    def test_the_jury_case_is_caught_now(self):
+        doc = _report().replace("Nothing found.", _SPC)
+        found = ds.weak_source_claims(doc, [_SEC, _BLOG])
+        assert len(found) == 1
+        assert found[0]["kind"] == "weakclaim"
+        assert found[0]["section"] == "regip"
+        assert "tikr.com" in found[0]["detail"]
+
+    def test_the_r8_rule_alone_would_still_miss_it(self):
+        """Der Beleg, dass die Erweiterung noetig war: kein Praezisionswert."""
+        doc = _report().replace("Nothing found.", _SPC)
+        assert ds.weak_source_figures(doc, [_SEC, _BLOG]) == []
+        assert ds.precision_figures(_SPC) == []
+
+    def test_a_primary_source_carries_the_statement(self):
+        doc = _report().replace("Nothing found.", _SPC.replace("W2", "W1"))
+        assert ds.weak_source_claims(doc, [_SEC, _BLOG]) == []
+
+    def test_the_honest_label_is_accepted_outside_the_summary(self):
+        doc = _report().replace(
+            "Nothing found.", _SPC[:-1] + " (secondary source only).")
+        assert ds.weak_source_claims(doc, [_SEC, _BLOG]) == []
+
+    def test_the_running_text_is_still_not_governed(self):
+        """Nur Kurzfassung, Recht/IP, Kalender und Optionen — „Was sich
+        bewegt" darf weiter auf Rang-2-Presse ruhen."""
+        doc = _report().replace("Movement.", _SPC)
+        assert ds.weak_source_claims(doc, [_SEC, _BLOG]) == []
+
+    def test_a_statement_without_any_citation_is_left_to_the_other_rules(self):
+        doc = _report().replace("Nothing found.",
+                                "SPCs extend exclusivity to 2031.")
+        assert ds.weak_source_claims(doc, [_SEC, _BLOG]) == []
+
+    def test_the_summary_deletes_and_the_option_marks(self):
+        doc = _report().replace("word [[T1]].", "word. " + _SPC)
+        found = ds.weak_source_claims(doc, [_SEC, _BLOG])
+        out, n = ds.drop_unverified(doc, found)
+        assert n == 1 and "2031 and 2032" not in out
+        assert "(secondary source only)" not in out
+
+    def test_the_revision_names_the_rank_and_both_ways_out(self):
+        e = {"sentence": _SPC, "tokens": ["SPCs extend"], "kind": "weakclaim",
+             "detail": "formblends.com", "url": "https://f/1",
+             "section": "regip"}
+        text = ds.revision_prompt([], [e], "en")
+        assert "(primary)" in text and "secondary source only" in text
+        assert "Patentkanzlei" in text
+
+    def test_the_summary_variant_forbids_the_label(self):
+        e = {"sentence": _SPC, "tokens": ["SPCs"], "kind": "weakclaim",
+             "detail": "formblends.com", "url": "https://f/1",
+             "section": "decision"}
+        text = ds.revision_prompt([], [e], "en")
+        assert "Kurzfassung traegt NUR primaer belegte Aussagen" in text
+
+    def test_the_outline_demands_it_of_statements_not_only_figures(self):
+        for lang in ("en", "de"):
+            sysprompt = cr.report_system(True, lang)
+            assert ("every STATEMENT" in sysprompt
+                    or "Jede AUSSAGE" in sysprompt)
+
+
+class TestR9SelfCitationsAreNoEvidence:
+    """R9-2, jury_13: „9 von 34 ≈ 26 % Selbstzitate auf die eigene Domain",
+    die dem Pruefer 403 liefert und ohnehin Umschriften fremder Fachpresse
+    sind."""
+
+    def test_our_own_hosts_are_known(self):
+        assert cr.own_host("https://catandary.de/trends/x")
+        assert cr.own_host("https://www.catandary.de/trends/x")
+        assert not cr.own_host("https://www.ema.europa.eu/x")
+
+    def test_an_article_is_cited_at_its_original(self):
+        src = {"kind": "article", "url": "https://catandary.de/trends/a-1",
+               "origin": "https://www.statnews.com/a"}
+        assert cr.citable_url(src) == "https://www.statnews.com/a"
+
+    def test_an_article_without_an_original_carries_no_citation(self):
+        src = {"kind": "article", "url": "https://catandary.de/trends/a-1",
+               "origin": ""}
+        assert cr.citable_url(src) == ""
+
+    def test_the_measurement_is_evidenced_by_the_appendix_only(self):
+        src = {"kind": "measurement", "url": "https://catandary.de/trends",
+               "origin": "https://catandary.de/trends"}
+        assert cr.citable_url(src) == ""
+
+    def test_the_rank_follows_the_original_not_the_kind(self):
+        ema = {"kind": "article", "url": "https://catandary.de/trends/a-1",
+               "origin": "https://www.ema.europa.eu/en/a"}
+        blog = {"kind": "article", "url": "https://catandary.de/trends/a-2",
+                "origin": "https://www.tikr.com/blog/x"}
+        assert cr.catalog_rank(ema) == 0
+        assert cr.catalog_rank(blog) == 2
+
+    def test_no_own_link_survives_canonicalisation(self):
+        src = [{"id": "T1", "kind": "article", "title": "A", "outlet": "",
+                "date": "", "url": "https://catandary.de/trends/a-1",
+                "origin": "https://www.statnews.com/a"}]
+        body, cited, stripped = cr.canonicalize_citations(
+            "Claim [[T1]].", src, "en", markers=True)
+        assert stripped == 0 and len(cited) == 1
+        assert "catandary.de" not in body
+
+    def test_the_prompt_says_the_measurement_carries_no_citation(self):
+        for lang in ("en", "de"):
+            sysprompt = cr.report_system(True, lang)
+            assert ("carry no citation" in sysprompt
+                    or "kein Zitat" in sysprompt)
+
+
+class TestR9FactQuota:
+    """R9-3: die Wortzahl war das primaere Mass und misst das Falsche — B8
+    erfuellte das Schema formal und blieb duenn. Gezaehlt wird ab jetzt, was
+    die Jurys bewerten: datierte, primaerbelegte Angaben je 100 Woerter."""
+
+    def test_it_counts_dated_primary_specifics(self):
+        doc = ("# D\n\n## Decision summary\n\n"
+               "Novo won the injunction on 5 August 2026 and the SPC runs to "
+               "2031 [[W1]].\n")
+        d = ds.fact_density(doc, [_SEC, _BLOG])
+        assert d["dated_claims"] == 1 and d["primary_claims"] == 1
+        assert d["specifics"] == 2
+
+    def test_a_rank_two_source_does_not_count(self):
+        doc = ("# D\n\n## Decision summary\n\n"
+               "Novo won the injunction on 5 August 2026 [[W2]].\n")
+        assert ds.fact_density(doc, [_SEC, _BLOG])["specifics"] == 0
+
+    def test_an_undated_sentence_does_not_count(self):
+        doc = "# D\n\n## Decision summary\n\nRevenue was $19.8B [[W1]].\n"
+        assert ds.fact_density(doc, [_SEC, _BLOG])["specifics"] == 0
+
+    def test_free_links_are_ranked_through_the_callback(self):
+        doc = ("# D\n\n## Decision summary\n\nThe EMA decided in July 2026 "
+               "[here](https://www.ema.europa.eu/en/x).\n")
+        assert ds.fact_density(doc, [], "en")["specifics"] == 0
+        assert ds.fact_density(doc, [], "en",
+                               rank_of=cr.source_rank)["specifics"] == 1
+
+    def test_the_appendix_never_counts(self):
+        doc = ("# D\n\n## Decision summary\n\nNothing.\n"
+               "\n## How this dossier was checked (auto-generated)\n\n"
+               "Cycle time 12.0 years in 2026 [[W1]].\n")
+        assert ds.fact_density(doc, [_SEC])["specifics"] == 0
+
+    def test_the_floor_beats_the_measured_opponent(self):
+        """Die Messlatte ist der Siegertext selbst — die Untergrenze liegt
+        darueber, sonst waere sie kein Ziel."""
+        assert ds.OPPONENT_FACT_DENSITY == 1.83
+        assert ds.FACT_DENSITY_MIN > ds.OPPONENT_FACT_DENSITY
+
+    def test_falling_short_is_a_rewrite_reason_that_asks_for_facts(self):
+        low = {"words": 2000, "dated_claims": 4, "primary_claims": 2,
+               "specifics": 4, "per100": 0.2}
+        f = ds.fact_density_finding(low)
+        assert f and "Faktenquote" in f[0] and "ERGAENZEN" in f[0]
+        assert "ERSETZEN" in f[0]
+        assert ds.needs_expansion(f) is True
+
+    def test_meeting_it_is_silent(self):
+        ok = {"words": 1000, "dated_claims": 20, "primary_claims": 20,
+              "specifics": 40, "per100": 4.0}
+        assert ds.fact_density_finding(ok) == []
+
+    def test_without_a_measurement_the_rule_is_off(self):
+        assert ds.fact_density_finding(None) == []
+        assert ds.structure_findings(_report()) == []
+
+    def test_the_outline_states_the_quota_and_keeps_the_upper_bound(self):
+        for lang in ("en", "de"):
+            sysprompt = cr.report_system(True, lang)
+            assert ("FACT DENSITY" in sysprompt or "FAKTENQUOTE" in sysprompt)
+            assert str(ds.BODY_WORDS_MAX) in sysprompt
+            assert f"{ds.BODY_WORDS_MIN} and" not in sysprompt
+
+
+class TestR9NoEmptyMandatoryFields:
+    """R9-4, jury_13/14: „Effort: No figure in the evidence" — viermal
+    wortgleich; und ein Terminkalender mit 6 Zeilen, von denen 4 aus derselben
+    Sekundaerquelle stammen."""
+
+    @pytest.mark.parametrize("value", [
+        "No figure in the evidence", "no figure in the evidence",
+        "none", "unknown", "n/a", "N/A", "TBD", "not available",
+        "not quantified", "keine Zahl im Material", "unbekannt",
+        "nicht bezifferbar", "—", "-", "",
+    ])
+    def test_a_placeholder_is_not_a_filled_field(self, value):
+        assert ds.is_placeholder(value) is True
+
+    @pytest.mark.parametrize("value", [
+        "EUR 0.5-2m over 12 months [[T1]]",
+        "two FTE and a pilot line, comparable to the 2026 launch [[T1]]",
+        "roughly one year of R&D",
+    ])
+    def test_a_real_order_of_magnitude_passes(self, value):
+        assert ds.is_placeholder(value) is False
+
+    def test_the_jury_case_is_a_finding(self):
+        doc = _report().replace("- Effort: value",
+                                "- Effort: No figure in the evidence")
+        f = [x for x in ds.structure_findings(doc) if "Pflichtfeld" in x]
+        assert len(f) == 2                     # beide Optionen
+        assert "Effort (Platzhalter)" in f[0] and "Platzhalter" in f[0]
+
+    def test_a_sourced_range_clears_it(self):
+        doc = _report().replace("- Effort: value",
+                                "- Effort: EUR 1-3m over 18 months [[T1]]")
+        assert [x for x in ds.structure_findings(doc)
+                if "Pflichtfeld" in x] == []
+
+    def test_the_field_may_go_if_the_text_says_why_with_a_citation(self):
+        doc = _report().replace(
+            "- Effort: value",
+            "The evidence gives no investment figure for this move; the "
+            "only comparable disclosure is a 2026 launch budget [[T1]].")
+        assert [x for x in ds.structure_findings(doc)
+                if "Pflichtfeld" in x] == []
+
+    def test_dropping_it_without_a_reason_is_still_missing(self):
+        doc = _report(drop_field="Effort")
+        assert any("Effort" in x for x in ds.structure_findings(doc)
+                   if "Pflichtfeld" in x)
+
+    def test_a_mention_inside_another_field_line_is_no_justification(self):
+        doc = _report().replace(
+            "- Effort: value",
+            "- Trigger: the effort is unclear [[T1]]")
+        assert any("Effort" in x for x in ds.structure_findings(doc)
+                   if "Pflichtfeld" in x)
+
+    def test_a_calendar_on_one_source_is_not_a_calendar(self):
+        doc = _report().replace("[[T2]]", "[[T1]]").replace("[[T3]]", "[[T1]]")
+        c = ds.calendar_rows(doc)
+        assert c["ok"] == 5 and c["sources"] == 1
+        f = ds.calendar_findings(doc)
+        assert f and "nur 1 verschiedene Quelle" in f[0]
+
+    def test_three_sources_across_the_rows_pass(self):
+        assert ds.calendar_rows(_report())["sources"] == 3
+        assert ds.calendar_findings(_report()) == []
+
+    def test_the_outline_states_the_two_rules(self):
+        for lang in ("en", "de"):
+            sysprompt = cr.report_system(True, lang)
+            assert ("THREE different sources" in sysprompt
+                    or "DREI verschiedene Quellen" in sysprompt)
+            assert ("count as an\n    UNFILLED field" in sysprompt
+                    or "NICHT erfülltes Feld" in sysprompt)
+
+
+class TestRoundSevenAndEightGainsSurviveRoundNine:
+    """Auftrag R9: „Die Erfolge aus R7/R8 muessen erhalten bleiben — sichere
+    sie mit Tests gegen Rueckfall." Ein Test je Erfolg, an einer Stelle."""
+
+    QUANT = TestMeasuredFiguresMustCarry.QUANT
+
+    def test_r7_the_usability_rule_still_blocks_what_does_not_carry(self):
+        """Der gesperrte Jahreswert 6,1 %/yr — der eigene Kalibriervorbehalt
+        haelt ihn aus dem Bericht heraus (jury_9)."""
+        doc = _report().replace(
+            "Movement.", "The rate reached 6.1% per year in 2026 [[T1]].")
+        found = ds.measure_use_findings(doc, self.QUANT, None, "GLP-1")
+        assert any(e["kind"] == "measure" for e in found)
+
+    def test_r8_the_reach_rule_still_fires(self):
+        doc = _report().replace(
+            "Movement.",
+            "The measured median improvement rate of 3.3%/yr suggests natural "
+            "modulators offer no advantage.")
+        found = ds.measure_use_findings(doc, self.QUANT, None, "GLP-1")
+        assert any("3.3" in " ".join(e["tokens"]) for e in found)
+
+    def test_r8_the_calendar_still_needs_five_dated_and_cited_rows(self):
+        doc = _report(calendar=False)
+        assert ds.calendar_findings(doc) or "What happens next" in \
+            " ".join(ds.structure_findings(doc))
+
+    def test_r8_core_figures_still_need_a_primary_source(self):
+        doc = _report().replace("- Risk: value",
+                                "- Risk: worth $4.1 billion [[W2]]", 1)
+        assert len(ds.weak_source_figures(doc, [_SEC, _BLOG])) == 1
+
+    def test_r6_the_audit_annex_stays_out_of_the_delivered_document(self):
+        doc = ds.join_document("Body.", "## Research coverage (auto-generated)")
+        assert "Research coverage" not in ds.delivered(doc)
+        assert "Research coverage" in ds.audit_annex(doc)
+
+    def test_r8_the_chain_coverage_check_is_still_on(self):
+        assert ds.chain_findings(_report(chain=False))
+
+    def test_r7_the_measurement_recipe_is_still_produced(self):
+        assert hasattr(dq, "measurement_recipe")

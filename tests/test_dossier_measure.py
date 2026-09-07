@@ -310,9 +310,12 @@ class TestM2Series:
 # M4 — Zitate per Katalog-ID
 # ===========================================================================
 
+# R9-2: der Korpus-Artikel wird an seinem ORIGINAL zitiert — die eigene
+# Domain ist kein Beleg (jury_13: 26 % Selbstzitate, fuer Pruefer 403).
 SOURCES = [
     {"id": "T1", "kind": "article", "title": "Semaglutide trial",
-     "url": "https://catandary.de/trends/semaglutide-1", "origin": "",
+     "url": "https://catandary.de/trends/semaglutide-1",
+     "origin": "https://www.statnews.com/2026/01/01/semaglutide",
      "outlet": "STAT", "date": "2026-01-01"},
     {"id": "P2", "kind": "paper", "title": "Incretin review",
      "url": "https://doi.org/10.1/x", "origin": "https://doi.org/10.1/x",
@@ -325,7 +328,9 @@ class TestM4Markers:
         body, cited, stripped = cr.canonicalize_citations(
             "Trials read out in 2026 [[T1]] and the review agrees [[P2]].",
             SOURCES, "en", markers=True)
-        assert "[Semaglutide trial](https://catandary.de/trends/semaglutide-1)" in body
+        assert ("[Semaglutide trial](https://www.statnews.com/2026/01/01/"
+                "semaglutide)") in body
+        assert "catandary.de" not in body
         assert "[Incretin review](https://doi.org/10.1/x)" in body
         assert stripped == 0
         assert {s["id"] for s in cited} == {"T1", "P2"}
@@ -344,10 +349,12 @@ class TestM4Markers:
         assert stripped == 1
         assert len(cited) == 1
 
-    def test_measurement_source_can_be_cited(self):
-        """Bis 2026-09-07 riss ein zitierter Messblock den Lauf ab
-        (KeyError('measurement') in der Quellenliste) — er wurde in 13 Laeufen
-        nie zitiert, also fiel es nie auf."""
+    def test_the_measurement_never_carries_a_citation_anymore(self):
+        """R9-2: die eigene Messung ist ueber den Rechenweg im Messanhang
+        belegt, nicht ueber einen Link auf uns selbst. Ein Marker auf sie
+        wird geloescht — der Satz bleibt, die Zahl steht im Anhang.
+        (Bis 2026-09-07 riss ein zitierter Messblock den Lauf sogar ab:
+        KeyError('measurement') in der Quellenliste.)"""
         srcs = SOURCES + [{"id": "Q1", "kind": "measurement",
                            "title": "Measured innovation-chain profile",
                            "url": "https://catandary.de/x", "origin": "",
@@ -356,9 +363,9 @@ class TestM4Markers:
         for lang in ("en", "de"):
             body, cited, stripped = cr.canonicalize_citations(
                 "Patents took off in 2016 [[Q1]].", srcs, lang, markers=True)
-            assert stripped == 0 and [c["id"] for c in cited] == ["Q1"]
-            assert ("our own measurement" if lang == "en"
-                    else "eigene Messung") in body
+            assert stripped == 1 and cited == []
+            assert "Patents took off in 2016." in body
+            assert "catandary.de" not in body
 
     def test_unknown_kind_does_not_kill_the_report(self):
         srcs = [{"id": "X1", "kind": "brand-new-kind", "title": "T",
@@ -373,6 +380,8 @@ class TestM4Markers:
             SOURCES, "en")
         assert stripped == 0 and len(cited) == 1
         assert "[[" not in body
+        # Der Link im Text wird auf das Original umgeschrieben (R9-2).
+        assert "statnews.com" in body and "catandary.de" not in body
 
     def test_the_two_report_prompts_differ_only_in_the_citation_rule(self):
         assert "double square brackets" in cr.REPORT_SYSTEM_IDS

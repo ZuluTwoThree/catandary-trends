@@ -247,13 +247,80 @@ def option_blocks(section_text: str) -> list[str]:
             for i in range(len(starts))]
 
 
+# R9-4 (jury_13/jury_14 2026-09-07): „Effort: No figure in the evidence" —
+# viermal wortgleich. Das Fuenf-Felder-Schema war formal 4/4 erfuellt und
+# inhaltlich leer. Ein Pflichtfeld, das nur einen Platzhalter traegt, gilt ab
+# jetzt als NICHT erfuellt.
+_PLACEHOLDER_RE = re.compile(
+    r"^(?:\W*)(?:"
+    r"no(?:ne)?(?:\s+\w+){0,3}?\s*(?:figure|number|estimate|data|value)?"
+    r"(?:\s+(?:in|from|available|given|provided|stated|disclosed))?"
+    r"(?:\s+the)?(?:\s+(?:evidence|material|sources?|corpus|catalog))?"
+    r"|not\s+(?:available|applicable|quantified|specified|stated|given|known)"
+    r"|unknown|unclear|unspecified|undetermined|tbd|t\.b\.d\.?|n/?a"
+    r"|keine?\s+(?:zahl|angabe|zahlen|daten|schaetzung|sch(?:ä|ae)tzung)"
+    r"(?:\s+\w+){0,3}"
+    r"|unbekannt|nicht\s+(?:bekannt|bezifferbar|quantifizierbar|angegeben"
+    r"|verf(?:ü|ue)gbar|ermittelbar)"
+    r"|k\.?\s?a\.?"
+    r")\W*$", re.IGNORECASE)
+
+# Wieviele Woerter ein Feldwert mindestens haben muss, damit er ueberhaupt als
+# Inhalt zaehlt. "value", "—", "TBD" sind kein Aufwand.
+MIN_FIELD_WORDS = 1
+
+
+def _field_value(block: str, pat: str) -> str | None:
+    """Der Text hinter dem Feldlabel bis zum Zeilenende — oder None."""
+    m = re.search(rf"(?:^|\n|\*\*|[-*]\s*)\s*(?:\*\*)?\s*(?:{pat})\s*"
+                  rf"(?:\*\*)?\s*[:：](?P<val>[^\n]*)", block, re.IGNORECASE)
+    if m is None:
+        return None
+    return m.group("val").strip()
+
+
+def is_placeholder(value: str) -> bool:
+    """Traegt der Feldwert keinen Inhalt (Platzhalter, Leerformel, leer)?"""
+    text = prose(value or "").strip(" \t*_-–—·:")
+    if not text:
+        return True
+    if len(text.split()) < MIN_FIELD_WORDS:
+        return True
+    return bool(_PLACEHOLDER_RE.match(text))
+
+
+def _explained_omission(block: str, pat: str) -> bool:
+    """Das Feld fehlt, aber der Optionstext BEGRUENDET das belegt.
+
+    Der Auftrag laesst genau zwei Wege: eine belegte Groessenordnung — oder
+    das Feld entfaellt samt Begruendung im Text. Als Begruendung zaehlt nur
+    ein belegter Satz ausserhalb der Feldzeilen, der das Feld beim Namen
+    nennt; ein Nebensatz in der Trigger-Zeile reicht nicht."""
+    field_pats = "|".join(p for _k, p in OPTION_FIELDS["en"]) + "|" + \
+        "|".join(p for _k, p in OPTION_FIELDS["de"])
+    label_re = re.compile(rf"^\W*(?:\*\*)?\s*(?:{field_pats})\s*(?:\*\*)?\s*[:：]",
+                          re.IGNORECASE)
+    for raw in split_claims(block):
+        line = raw.strip()
+        if not line or line.startswith("#") or label_re.match(line):
+            continue
+        if not _has_citation(line):
+            continue
+        if re.search(rf"\b(?:{pat})\b", prose(line), re.IGNORECASE):
+            return True
+    return False
+
+
 def _missing_fields(block: str, lang: str) -> list[str]:
     L = _lang(lang)
     missing = []
     for (key, pat), label in zip(OPTION_FIELDS[L], OPTION_LABELS[L]):
-        if not re.search(rf"(?:^|\n|\*\*|[-*]\s*)\s*(?:\*\*)?\s*(?:{pat})\s*"
-                         rf"(?:\*\*)?\s*[:：]", block, re.IGNORECASE):
-            missing.append(label)
+        value = _field_value(block, pat)
+        if value is None:
+            if not _explained_omission(block, pat):
+                missing.append(label)
+        elif is_placeholder(value):
+            missing.append(f"{label} (Platzhalter)")
     return missing
 
 
@@ -871,6 +938,10 @@ def uncovered_sectors(text: str, sectors: list[str]) -> list[str]:
 #   (c) die Untergrenze des Laengenbands ist wieder ein Befund, kein Hinweis.
 
 MIN_CALENDAR_ROWS = 5
+# R9-4 (jury_14 2026-09-07): „6 Zeilen, 4 davon aus derselben Sekundaerquelle".
+# Ein Terminkalender, der an einer Quelle haengt, ist eine Quelle mit Zeilen,
+# kein Kalender.
+MIN_CALENDAR_SOURCES = 3
 
 _MONTHS = (r"jan(?:uary|uar)?|feb(?:ruary|ruar)?|mar(?:ch)?|m(?:ä|ae)rz|apr(?:il)?"
            r"|may|mai|jun[ei]?|jul[yi]?|aug(?:ust)?|sep(?:t(?:ember)?)?"
@@ -955,7 +1026,40 @@ def calendar_rows(report_md: str, lang: str = "en",
             no_date += 1
         else:
             no_cite += 1
-    return {"rows": len(rows), "ok": ok, "no_date": no_date, "no_cite": no_cite}
+    return {"rows": len(rows), "ok": ok, "no_date": no_date, "no_cite": no_cite,
+            "sources": len(calendar_sources(report_md, lang, year_floor))}
+
+
+def _citation_keys(text: str, by_id: dict | None = None) -> set[str]:
+    """Womit ein Satz belegt ist — Katalog-ID oder Host des Links.
+
+    Beide Formen, weil die Pruefung im Lauf VOR der Kanonisierung laeuft
+    (Marker) und das ausgelieferte Dokument danach gelesen wird (Links)."""
+    out: set[str] = set()
+    for m in _MARKER.finditer(text or ""):
+        key = m.group(0)[2:-2].strip()
+        src = (by_id or {}).get(key) or (by_id or {}).get(key.upper())
+        url = str((src or {}).get("url") or "")
+        out.add(url.split("/")[2] if url.count("/") > 2 else key)
+    for m in _LINK.finditer(text or ""):
+        url = m.group(2)
+        if url.count("/") > 2:
+            out.add(url.split("/")[2])
+    return out
+
+
+def calendar_sources(report_md: str, lang: str = "en",
+                     year_floor: int | None = None,
+                     sources: list[dict] | None = None) -> set[str]:
+    """Die VERSCHIEDENEN Quellen, auf denen die gueltigen Kalenderzeilen ruhen."""
+    by_id = {s.get("id"): s for s in (sources or [])}
+    sections = split_sections(body_text(report_md), _lang(lang))
+    out: set[str] = set()
+    for cells in table_rows(sections.get("next", "")):
+        line = " ".join(cells)
+        if has_date(line, year_floor) and _has_citation(line):
+            out |= _citation_keys(line, by_id)
+    return out
 
 
 def calendar_findings(report_md: str, lang: str = "en",
@@ -966,6 +1070,17 @@ def calendar_findings(report_md: str, lang: str = "en",
         return []                       # fehlender Abschnitt: eigener Befund
     c = calendar_rows(report_md, lang, year_floor)
     if c["ok"] >= MIN_CALENDAR_ROWS:
+        if c["sources"] >= MIN_CALENDAR_SOURCES:
+            return []
+        heading = dict((k, h) for k, h, _p in SECTIONS[_lang(lang)])["next"]
+        return [f"'{heading}': {c['ok']} Zeilen, aber nur {c['sources']} "
+                f"verschiedene Quelle(n) — mindestens "
+                f"{MIN_CALENDAR_SOURCES}. Ein Kalender, dessen Zeilen "
+                f"mehrheitlich aus einer Quelle stammen, belegt einen "
+                f"Zeitplan nicht. Termine aus anderen Katalogeintraegen "
+                f"aufnehmen (Behoerdenkalender, Firmen-IR, Gericht, "
+                f"Studienregister) oder Zeilen streichen, die keine eigene "
+                f"Quelle haben."]
         return []
     detail = []
     if c["no_date"]:
@@ -1051,6 +1166,90 @@ def chain_findings(report_md: str, lang: str = "en") -> list[str]:
             f"and limits'."]
 
 
+# --------------------------------------------------------------------------
+# Faktenquote (R9-3, Endstand-Diagnose 2026-09-07)
+# --------------------------------------------------------------------------
+# „Wir gewinnen Struktur und verlieren Substanz." Die Wortzahl war bis R8 das
+# primaere Mass — und sie misst genau das Falsche: ein Text kann die
+# Untergrenze mit Prosa erreichen und dabei faktenaermer sein als vorher.
+# Gezaehlt wird ab jetzt deterministisch, was die Jurys unter Spezifitaet,
+# Abdeckung und zeitlicher Einordnung bewerten: DATIERTE, PRIMAERBELEGTE
+# Angaben je 100 Woerter Fliesstext.
+#
+# Zaehlweise: ein Satz zaehlt, wenn er ein Datum traegt UND mindestens ein
+# Zitat vom Rang 0/1. Gezaehlt werden dann seine Einzelangaben — jede
+# eigenstaendige Datumsangabe plus jede Praezisionszahl. Die Wortzahl bleibt
+# als OBERGRENZE bestehen; die Untergrenze ist kein Neuwurf-Grund mehr.
+#
+# Messlatte: derselbe Zaehler am Siegertext der vierzehnten Bewertung
+# (scratchpad/glp1/C_sonnet.md) ergibt 1,83 je 100 Woerter (36 Angaben in
+# 1.968 Woertern). B8 kam auf 1,00, B7 auf 0,06. Die Untergrenze steht knapp
+# darueber: wer den Gegner schlagen will, muss dichter sein als er.
+
+FACT_DENSITY_MIN = 2.0
+OPPONENT_FACT_DENSITY = 1.83     # gemessen am 2026-09-07, C_sonnet.md
+
+
+def _link_urls(text: str) -> list[str]:
+    return [m.group(2) for m in _LINK.finditer(text or "")]
+
+
+def fact_density(report_md: str, sources: list[dict] | None = None,
+                 lang: str = "en", rank_of=None) -> dict:
+    """Datierte, primaerbelegte Angaben je 100 Woerter Fliesstext.
+
+    Funktioniert vor UND nach der Kanonisierung: Katalog-Marker werden ueber
+    `sources` aufgeloest, freie Markdown-Links ueber `rank_of(url) -> int`
+    (fehlt der Rueckruf, gilt ein Link ohne Katalogeintrag als Rang 2)."""
+    by_id, by_url = _source_index(sources or [])
+    body = body_text(report_md)
+    words = count_words(body)
+    dated = primary = specifics = 0
+    for raw in split_claims(body):
+        sentence = raw.strip()
+        if not sentence or sentence.startswith("#"):
+            continue
+        text = prose(sentence)
+        dates = {m.group(0).strip().lower() for m in _DATE_RE.finditer(text)}
+        if not dates:
+            continue
+        cited = _cited_in(sentence, by_id, by_url)
+        urls = _link_urls(sentence)
+        if not cited and not urls:
+            continue
+        dated += 1
+        ranks = [int(2 if c.get("rank") is None else c["rank"]) for c in cited]
+        if rank_of is not None:
+            known = {c.get("url") for c in cited} | {c.get("origin") for c in cited}
+            ranks += [int(rank_of(u)) for u in urls if u not in known]
+        if not ranks or min(ranks) > PRIMARY_RANK:
+            continue
+        primary += 1
+        specifics += len(dates) + len(precision_figures(sentence))
+    return {"words": words, "dated_claims": dated, "primary_claims": primary,
+            "specifics": specifics,
+            "per100": round(specifics * 100 / words, 2) if words else 0.0}
+
+
+def fact_density_finding(density: dict | None, lang: str = "en") -> list[str]:
+    """Unterschreitung der Faktenquote = Neuwurf-Grund (mit ERGAENZEN-Auftrag)."""
+    if not density or not density.get("words"):
+        return []
+    if density["per100"] >= FACT_DENSITY_MIN:
+        return []
+    need = max(1, int(round(
+        (FACT_DENSITY_MIN * density["words"] / 100) - density["specifics"])))
+    return [f"Faktenquote {density['per100']} datierte, primaerbelegte Angaben "
+            f"je 100 Woerter — Untergrenze {FACT_DENSITY_MIN} (Vergleichstext: "
+            f"{OPPONENT_FACT_DENSITY}). Mindestens {need} weitere solche "
+            f"Angaben ERGAENZEN: jede mit einem Datum (Tag, Monat, Quartal "
+            f"oder Jahr) UND einem Katalog-Zitat vom Rang 0/1 (im Katalog mit "
+            f"(primary) markiert) IM SELBEN Satz. Nicht verlaengern, sondern "
+            f"unbelegte Prosa durch belegte Fakten ERSETZEN — Wiederholung, "
+            f"Zusammenfassung und Allgemeinplaetze streichen, damit der Text "
+            f"nicht ueber die Obergrenze waechst."]
+
+
 def length_advisory(report_md: str, lang: str = "en") -> list[str]:
     """Die Laengenzahl fuer das Protokoll — der Befund selbst steht seit R8-1
     in `structure_findings`.
@@ -1070,7 +1269,8 @@ def length_advisory(report_md: str, lang: str = "en") -> list[str]:
 def structure_findings(report_md: str, lang: str = "en",
                        measured: list[str] | None = None,
                        sectors: list[str] | None = None,
-                       year_floor: int | None = None) -> list[str]:
+                       year_floor: int | None = None,
+                       density: dict | None = None) -> list[str]:
     """Was am fertigen Bericht mechanisch nicht stimmt. Leere Liste = sauber.
 
     `measured` = die gemessenen Groessen (measured_needles): jede Option muss
@@ -1083,17 +1283,11 @@ def structure_findings(report_md: str, lang: str = "en",
         return ["Bericht ist leer."]
     findings: list[str] = []
     words = count_words(body)
-    if 0 < words < BODY_WORDS_MIN:
-        # R8-1: wieder ein Neuwurf-Grund. Der Befund sagt den Betrag UND das
-        # Material — sonst fuellt das Modell mit Prosa auf, und genau die
-        # kostete uns in jury_11 die Spezifitaet.
-        findings.append(
-            f"Fliesstext {words} Woerter — Untergrenze {BODY_WORDS_MIN}: "
-            f"mindestens {BODY_WORDS_MIN - words} Woerter ERGAENZEN, und zwar "
-            f"ausschliesslich mit belegten Fakten aus dem Katalog (Datum, "
-            f"benannter Akteur, Zahl — jeweils mit Zitat im selben Satz). "
-            f"Keine Prosa, keine Wiederholung, keine Zusammenfassung des "
-            f"bereits Gesagten, keine Zahl ohne Beleg.")
+    # R9-3: die Wortzahl-UNTERGRENZE ist kein Neuwurf-Grund mehr. Sie hat in
+    # R8 genau das erzeugt, was die vierzehnte Jury dann ruegte — Struktur
+    # erfuellt, Substanz duenn. An ihre Stelle tritt die Faktenquote
+    # (`fact_density_finding`); die Wortzahl bleibt als Obergrenze.
+    findings += fact_density_finding(density, L)
     if words > BODY_WORDS_MAX:
         # Die Zahl, die zu streichen ist, gehoert in den Befund: der B6-Neuwurf
         # kuerzte von 3.091 auf 2.901 und blieb damit 101 Woerter darueber —
@@ -1124,8 +1318,14 @@ def structure_findings(report_md: str, lang: str = "en",
             miss = _missing_fields(block, L)
             if miss:
                 findings.append(
-                    f"Option {i}: Pflichtfeld(er) fehlen — "
-                    + ", ".join(f"'{m}:'" for m in miss))
+                    f"Option {i}: Pflichtfeld(er) fehlen oder tragen nur einen "
+                    f"Platzhalter — " + ", ".join(f"'{m}'" for m in miss)
+                    + ". Ein Feld mit \"keine Zahl\", \"unbekannt\", "
+                      f"\"n/a\" oder aehnlichem gilt als NICHT erfuellt. "
+                      f"Entweder eine belegte Groessenordnung (eine Spanne "
+                      f"genuegt, auch eine grobe — mit Zitat im selben Satz), "
+                      f"oder das Feld faellt ganz weg und der Optionstext sagt "
+                      f"belegt, warum es sich nicht beziffern laesst.")
             # R7-1: KEIN Nennungszwang mehr. Eine Option ohne verwendbare
             # Messgroesse ist zulaessig — aber dann muss ein Beleg im Block
             # stehen, sonst haengt die Empfehlung an gar nichts.
@@ -1347,6 +1547,13 @@ def _strip_clause(sentence: str, token: str) -> str | None:
 
 PRIMARY_RANK = 1
 CORE_SECTIONS = ("decision", "options", "next")
+# R9-1 (jury_13.md 2026-09-07): die Rangregel galt bis R8 nur fuer ZAHLEN.
+# Der komplette Patentkalender inklusive der Kernaussage „SPCs ... 2031-2032"
+# hing damit an `formblends.com`, einem Compounding-Vermarkter — „2031" ist
+# keine Praezisionszahl, also sah `weak_source_figures` den Satz nie. Ab jetzt
+# gilt die Regel fuer jede AUSSAGE in der Kurzfassung, unter „Recht und
+# Schutzrechte", im Terminkalender und in den Optionen.
+CLAIM_SECTIONS = ("decision", "regip", "next", "options")
 SECONDARY_MARK = {"en": "secondary source only",
                   "de": "nur sekundär belegt"}
 _SECONDARY_RE = re.compile(
@@ -1359,10 +1566,12 @@ def is_marked_secondary(text: str) -> bool:
     return bool(_SECONDARY_RE.search(text or ""))
 
 
-def _core_sentences(report_md: str, lang: str) -> list[str]:
+def _section_sentences(report_md: str, lang: str,
+                       keys: tuple[str, ...]) -> list[tuple[str, str]]:
+    """(Abschnitts-Schluessel, Satz) fuer die genannten Abschnitte."""
     sections = split_sections(body_text(report_md), _lang(lang))
-    out: list[str] = []
-    for key in CORE_SECTIONS:
+    out: list[tuple[str, str]] = []
+    for key in keys:
         text = sections.get(key, "")
         if not text:
             continue
@@ -1370,52 +1579,91 @@ def _core_sentences(report_md: str, lang: str) -> list[str]:
             # Tabellenzeilen des Kalenders sind je Zeile eine Aussage — der
             # Satz-Splitter zerlegt sie sonst an den Pipe-Zeichen vorbei.
             if line.strip().startswith("|"):
-                out.append(line.strip())
+                out.append((key, line.strip()))
             else:
-                out += [c.strip() for c in split_claims(line) if c.strip()]
+                out += [(key, c.strip()) for c in split_claims(line) if c.strip()]
+    return out
+
+
+def _core_sentences(report_md: str, lang: str) -> list[str]:
+    return [s for _k, s in _section_sentences(report_md, lang, CORE_SECTIONS)]
+
+
+# Ein Satz, der keine eigene Aussage traegt: Tabellen-Trennzeile, reine
+# Aufzaehlungsmarke, Ueberschrift. Die Rangregel darf daran nicht haengen.
+_EMPTY_CLAIM = re.compile(r"^[\s|:*#_-]*$")
+MIN_CLAIM_WORDS = 4
+
+
+def _source_index(sources: list[dict]) -> tuple[dict, dict]:
+    by_id, by_url = {}, {}
+    for s in sources or ():
+        by_id[s.get("id")] = s
+        if s.get("origin"):
+            by_url.setdefault(s["origin"], s)
+    for s in sources or ():
+        by_url[s.get("url")] = s
+    return by_id, by_url
+
+
+def _is_primary(cited: list[dict]) -> bool:
+    # Rang 0 ist falsy — `or 2` waere hier ein Fehler, der ausgerechnet
+    # Behoerden und Register (Rang 0) als schwach gewertet haette.
+    return any(int(2 if c.get("rank") is None else c["rank"]) <= PRIMARY_RANK
+               for c in cited)
+
+
+def weak_source_claims(report_md: str, sources: list[dict], lang: str = "en",
+                       measured: str = "") -> list[dict]:
+    """AUSSAGEN in den Kernabschnitten, die nur an Rang-2-Material haengen.
+
+    R9-1: bis R8 pruefte die Regel nur Kernzahlen (`weak_source_figures`),
+    und genau daran ging der Patentkalender der dreizehnten Jury durch — die
+    SPC-Aussage „2031-2032" enthaelt keine Praezisionszahl. Geprueft wird jetzt
+    jeder belegte Satz der Kurzfassung, des Rechtsabschnitts, des Kalenders und
+    der Optionen.
+
+    Rueckgabe wie `verify_cited_figures`: [{"sentence", "tokens", "kind",
+    "detail", "url", "section"}] — derselbe Kanal (ein Neuwurf, danach
+    mechanische Kennzeichnung bzw. Streichung in der Kurzfassung)."""
+    by_id, by_url = _source_index(sources)
+    out: list[dict] = []
+    seen: set[str] = set()
+    for key, sentence in _section_sentences(report_md, lang, CLAIM_SECTIONS):
+        if sentence.startswith("#") or is_marked_secondary(sentence):
+            continue
+        if _EMPTY_CLAIM.match(sentence):
+            continue
+        cited = _cited_in(sentence, by_id, by_url)
+        if not cited:
+            continue                # ohne Beleg: das ist `sourceless_figures`
+        if _is_primary(cited):
+            continue
+        if len(prose(sentence).split()) < MIN_CLAIM_WORDS:
+            continue
+        if sentence in seen:
+            continue
+        seen.add(sentence)
+        figs = [f for f in precision_figures(sentence)
+                if not _figure_in_measured(f, measured)]
+        hosts = sorted({(c.get("host")
+                         or (str(c.get("url") or "").split("/")[2]
+                             if str(c.get("url") or "").count("/") > 2 else ""))
+                        for c in cited} - {""})
+        out.append({"sentence": sentence,
+                    "tokens": figs or [prose(sentence).strip()[:60]],
+                    "kind": "weaksource" if figs else "weakclaim",
+                    "detail": ", ".join(hosts[:3]),
+                    "url": cited[0].get("url", ""),
+                    "section": key})
     return out
 
 
 def weak_source_figures(report_md: str, sources: list[dict], lang: str = "en",
                         measured: str = "") -> list[dict]:
-    """Kernzahlen, die nur an einer Quelle vom Rang 2 haengen.
-
-    Rueckgabe wie `verify_cited_figures`: [{"sentence", "tokens", "kind",
-    "detail", "url"}] — derselbe Kanal (ein Neuwurf, danach mechanische
-    Kennzeichnung)."""
-    by_id, by_url = {}, {}
-    for s in sources:
-        by_id[s.get("id")] = s
-        if s.get("origin"):
-            by_url.setdefault(s["origin"], s)
-    for s in sources:
-        by_url[s.get("url")] = s
-    out: list[dict] = []
-    seen: set[str] = set()
-    for sentence in _core_sentences(report_md, lang):
-        if sentence.startswith("#") or is_marked_secondary(sentence):
-            continue
-        figs = [f for f in precision_figures(sentence)
-                if not _figure_in_measured(f, measured)]
-        if not figs:
-            continue
-        cited = _cited_in(sentence, by_id, by_url)
-        if not cited:
-            continue                # ohne Beleg: das ist `sourceless_figures`
-        # Rang 0 ist falsy — `or 2` waere hier ein Fehler, der ausgerechnet
-        # Behoerden und Register (Rang 0) als schwach gewertet haette.
-        if any(int(2 if c.get("rank") is None else c["rank"]) <= PRIMARY_RANK
-               for c in cited):
-            continue
-        if sentence in seen:
-            continue
-        seen.add(sentence)
-        hosts = sorted({str(c.get("url") or "").split("/")[2]
-                        for c in cited if str(c.get("url") or "").count("/") > 2})
-        out.append({"sentence": sentence, "tokens": figs, "kind": "weaksource",
-                    "detail": ", ".join(hosts[:3]),
-                    "url": cited[0].get("url", "")})
-    return out
+    """Nur der Zahlen-Teil von `weak_source_claims` (R8-2, unveraendert)."""
+    return [e for e in weak_source_claims(report_md, sources, lang, measured)
+            if e["kind"] == "weaksource"]
 
 
 def mark_secondary(sentence: str, lang: str = "en") -> str:
@@ -1438,21 +1686,27 @@ def drop_unverified(report_md: str, unverified: list[dict],
 
     Zwei Ausnahmen: eine gesperrte MESSGROESSE in einer Optionszeile kostet
     nicht die ganze Zeile (das waere ein fehlendes Pflichtfeld), sondern nur
-    ihre Teilaussage. Und eine Kernzahl, die nur an einer Quelle vom Rang 2
-    haengt (R8-2), wird GEKENNZEICHNET statt geloescht: der Auftrag laesst
-    beides zu, und eine belegte Zahl mit ehrlichem Rangvermerk ist fuer den
-    Leser mehr wert als eine Luecke."""
+    ihre Teilaussage. Und eine Kernaussage, die nur an einer Quelle vom Rang 2
+    haengt (R8-2/R9-1), wird GEKENNZEICHNET statt geloescht: der Auftrag laesst
+    beides zu, und eine belegte Aussage mit ehrlichem Rangvermerk ist fuer den
+    Leser mehr wert als eine Luecke.
+
+    AUSSER in der Kurzfassung: dort darf eine nur sekundaer belegte Aussage
+    laut Auftrag (R9-1) nicht stehenbleiben — die drei Saetze, die eine
+    Entscheidung tragen, sind entweder primaer belegt oder nicht da."""
     out, dropped = report_md, 0
     for e in unverified:
         s = e["sentence"]
         if not s or s not in out:
             continue
-        if e.get("kind") == "weaksource":
-            marked = mark_secondary(s, lang)
-            if marked != s:
-                out = out.replace(s, marked, 1)
-                dropped += 1
-            continue
+        if e.get("kind") in ("weaksource", "weakclaim"):
+            if e.get("section") != "decision":
+                marked = mark_secondary(s, lang)
+                if marked != s:
+                    out = out.replace(s, marked, 1)
+                    dropped += 1
+                continue
+            # Kurzfassung: streichen (faellt in den allgemeinen Pfad unten).
         # Eine Optionszeile traegt ein Pflichtfeld: sie zu loeschen erzeugt
         # den naechsten Befund. Erst die Teilaussage kuerzen, nur wenn das
         # nicht geht, die Zeile ganz nehmen. Bis R8 galt das nur fuer
@@ -1558,6 +1812,24 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
                 f"aus dem Katalog zitieren, oder den Satz mit dem Zusatz "
                 f"\"{SECONDARY_MARK[L]}\" kennzeichnen, oder die Zahl "
                 f"streichen: \"{e['sentence'][:180]}\"")
+        elif kind == "weakclaim":
+            where = ("in der Kurzfassung" if e.get("section") == "decision"
+                     else "in einem Kernabschnitt")
+            way_out = ("Die Kurzfassung traegt NUR primaer belegte Aussagen — "
+                       "eine Kennzeichnung reicht dort nicht, der Satz muss "
+                       "primaer belegt oder weg sein."
+                       if e.get("section") == "decision" else
+                       f"Entweder eine solche Quelle aus dem Katalog zitieren, "
+                       f"oder den Satz mit dem Zusatz \"{SECONDARY_MARK[L]}\" "
+                       f"kennzeichnen, oder die Aussage streichen.")
+            lines.append(
+                f"Aussage {where} nur schwach belegt: sie haengt allein an "
+                f"Rang-2-Material ({e.get('detail', '')}). Eine Aussage an "
+                f"dieser Stelle braucht eine Quelle vom Rang 0/1 — Behoerde, "
+                f"Register, Gericht, Firmen-IR/SEC, Fachjournal oder eine "
+                f"Fachpublikation einer Patentkanzlei, im Katalog mit "
+                f"(primary) markiert. {way_out} "
+                f"Betroffen: \"{e['sentence'][:180]}\"")
         elif kind == "sourceless":
             lines.append(
                 f"Die Zahl(en) {toks} stehen ohne jeden Beleg im Fliesstext. "

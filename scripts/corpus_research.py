@@ -367,11 +367,13 @@ order, with exactly these top-level headings and no others:
 
   | Date | Event | Source | Why it matters |
 
-  At least five rows. Every row needs a date the evidence actually states — a
-  day, a month, a quarter or a half-year, always with its year — and its
-  citation in the Source column. Never estimate a date and never carry an
-  event whose timing the evidence does not give: that one belongs in "Open
-  questions and limits" instead. Sort earliest first.
+  At least five rows, resting on at least THREE different sources — a calendar
+  whose rows all come from one page is that page, not a calendar. Every row
+  needs a date the evidence actually states — a day, a month, a quarter or a
+  half-year, always with its year — and its citation in the Source column.
+  Never estimate a date and never carry an event whose timing the evidence
+  does not give: that one belongs in "Open questions and limits" instead.
+  Sort earliest first.
 
 ## What the evidence does not support
   Named claims in circulation that this evidence refutes or fails to support.
@@ -388,9 +390,13 @@ order, with exactly these top-level headings and no others:
     better no figure at all than one that does not carry the point. An option
     with neither a usable measured figure nor a citation is incomplete.
   - Time horizon: by when it would have to happen
-  - Effort: rough order of magnitude — money, time, capability. If the
-    evidence carries no figure, write "no figure in the evidence"; never
-    invent one.
+  - Effort: a rough order of magnitude — money, time or capability, with a
+    citation. A range or a comparable case from the evidence is enough
+    ("a launch of this kind cost X in 2026 [[id]]"). "No figure in the
+    evidence", "unknown", "n/a" and any other placeholder count as an
+    UNFILLED field, not as an honest one. If the evidence truly carries
+    nothing, drop the line entirely and say in the option's running text,
+    with a citation, why the effort cannot be sized.
   - Risk: what it exposes, including the existing business
   - Against it: the strongest argument against this option
   Taken together, the options must cover EVERY field the question names — if
@@ -406,13 +412,17 @@ order, with exactly these top-level headings and no others:
   commercial questions this dossier cannot answer (investment size, payback
   period, volume at risk). Name them as open; do not estimate them.
 
-SOURCE RANK: every figure in the Decision summary, in the Options and in
-"What happens next" must rest on a catalog entry marked (primary) — an
-authority, a register, a court, a company's own IR/SEC filing or a peer-
-reviewed journal. If the only evidence for a figure is weaker than that,
-either leave the figure out or append "(secondary source only)" to that
-sentence. A source that itself says it could not verify something is not in
-the catalog at all.
+SOURCE RANK: every STATEMENT — not just every figure — in the Decision
+summary, in "Regulatory and IP status", in "What happens next" and in the
+Options must rest on a catalog entry marked (primary): an authority, a
+register, a court, a company's own IR/SEC filing, a peer-reviewed journal or
+a law firm's professional publication. If the only evidence for a statement is
+weaker than that, either drop the statement or append "(secondary source only)"
+to that sentence — and a sentence carrying that mark may NOT stand in the
+Decision summary, whose three statements are primary-sourced or absent. A
+source that itself says it could not verify something is not in the catalog at
+all. Our own measured quantities carry no citation: the appendix in this
+document is their evidence, and no catalog id points at us.
 
 COVERAGE: the innovation chain has four levels — science, patents, funding,
 market. Each level needs at least one statement in the running text that
@@ -420,11 +430,15 @@ carries BOTH a date and a citation in the same sentence. A level for which the
 evidence holds nothing is named as a gap in "Open questions and limits"; it is
 never simply left out.
 
-LENGTH: sections 1-7 together must run between 2200 and 2800 words. The
-appendices generated for you do not count. Too short is a defect, not a
-virtue — but fill only with cited facts (dates, named actors, figures), never
-with prose, restatement or summary. This is a decision paper for a board, not
-a briefing for a technical team — cut background before evidence."""
+FACT DENSITY is the measure, not length. What is counted mechanically:
+DATED, PRIMARY-SOURCED statements per 100 words of running text — a sentence
+that carries a date AND a citation marked (primary) in the same sentence. The
+floor is 2.0 per 100 words. Reaching it by writing more prose is impossible:
+prose adds words and no facts, so it lowers the ratio. Replace every sentence
+that carries no date, no named actor and no figure with one that does.
+Sections 1-7 together must stay UNDER 2800 words; the appendices generated for
+you do not count. This is a decision paper for a board, not a briefing for a
+technical team — cut background before evidence."""
 
 _OUTLINE_DE = """VERBINDLICHE GLIEDERUNG. Schreibe genau diese sieben
 Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
@@ -461,11 +475,12 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
 
   | Datum | Ereignis | Quelle | Bedeutung |
 
-  Mindestens fünf Zeilen. Jede Zeile braucht ein Datum, das die Belege
-  tatsächlich nennen — Tag, Monat, Quartal oder Halbjahr, immer mit Jahr — und
-  das Zitat in der Spalte Quelle. Nie ein Datum schätzen; ein Ereignis ohne
-  belegten Termin gehört unter "Offene Fragen und Grenzen". Früheste Zeile
-  zuerst.
+  Mindestens fünf Zeilen, gestützt auf mindestens DREI verschiedene Quellen —
+  ein Kalender, dessen Zeilen alle von einer Seite stammen, ist diese Seite und
+  kein Kalender. Jede Zeile braucht ein Datum, das die Belege tatsächlich
+  nennen — Tag, Monat, Quartal oder Halbjahr, immer mit Jahr — und das Zitat in
+  der Spalte Quelle. Nie ein Datum schätzen; ein Ereignis ohne belegten Termin
+  gehört unter "Offene Fragen und Grenzen". Früheste Zeile zuerst.
 
 ## Was die Belege nicht hergeben
   Benannte kursierende Behauptungen, die diese Belege widerlegen oder nicht
@@ -477,8 +492,12 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
   "### Option N — <Kurzname>" und trägt dann genau diese fünf Zeilen:
   - Auslöser: Bedingung oder Ereignis, das sie startet
   - Zeithorizont: bis wann sie stattfinden müsste
-  - Aufwand: grobe Größenordnung — Geld, Zeit, Fähigkeiten. Gibt das Material
-    keine Zahl her, schreibe "keine Zahl im Material"; nie eine erfinden.
+  - Aufwand: grobe Größenordnung — Geld, Zeit oder Fähigkeiten, mit Beleg.
+    Eine Spanne oder ein vergleichbarer Fall aus dem Material genügt. "Keine
+    Zahl im Material", "unbekannt", "n/a" und jeder andere Platzhalter gelten
+    als NICHT erfülltes Feld. Gibt das Material wirklich nichts her, entfällt
+    die Zeile ganz und der Optionstext sagt belegt, warum sich der Aufwand
+    nicht beziffern lässt.
   - Risiko: was sie aussetzt, einschließlich des Bestandsgeschäfts
   - Dagegen spricht: das stärkste Gegenargument
   Trägt eine GEMESSENE Größe aus der Liste unten die Begründung wirklich, nenne
@@ -497,11 +516,14 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
   (Investitionshöhe, Amortisation, gefährdetes Volumen). Als offen benennen,
   nicht schätzen.
 
-QUELLENRANG: Jede Zahl in der Kurzfassung, in den Optionen und unter "Was als
-Nächstes ansteht" ruht auf einem Katalogeintrag, der mit (primary) markiert ist
-— Behörde, Register, Gericht, Firmen-IR/SEC oder Fachjournal. Gibt das Material
-für eine Zahl nur Schwächeres her, entfällt die Zahl oder der Satz trägt den
-Zusatz "(nur sekundär belegt)".
+QUELLENRANG: Jede AUSSAGE — nicht nur jede Zahl — in der Kurzfassung, unter
+"Recht und Schutzrechte", unter "Was als Nächstes ansteht" und in den Optionen
+ruht auf einem Katalogeintrag, der mit (primary) markiert ist — Behörde,
+Register, Gericht, Firmen-IR/SEC, Fachjournal oder Fachpublikation einer
+Patentkanzlei. Gibt das Material nur Schwächeres her, entfällt die Aussage oder
+der Satz trägt den Zusatz "(nur sekundär belegt)" — und ein so gekennzeichneter
+Satz darf NICHT in der Kurzfassung stehen. Unsere eigenen Messgrößen tragen
+kein Zitat: ihr Beleg ist der Rechenweg im Messanhang dieses Dokuments.
 
 ABDECKUNG: Die Innovationskette hat vier Ebenen — Wissenschaft, Patente,
 Förderung, Markt. Zu jeder Ebene steht im Fließtext mindestens eine Aussage,
@@ -509,10 +531,14 @@ die Datum UND Zitat im selben Satz trägt. Eine Ebene, zu der die Belege nichts
 hergeben, wird unter "Offene Fragen und Grenzen" als Lücke benannt — nie
 einfach weggelassen.
 
-LÄNGE: Die Abschnitte 1-7 zusammen liegen zwischen 2200 und 2800 Wörtern. Die
-für dich erzeugten Anhänge zählen nicht mit. Zu kurz ist ein Mangel — aber
-gefüllt wird ausschließlich mit belegten Fakten (Datum, benannter Akteur,
-Zahl), nie mit Prosa, Wiederholung oder Zusammenfassung."""
+FAKTENQUOTE statt Länge: Gezählt wird mechanisch, wie viele DATIERTE,
+PRIMÄRBELEGTE Angaben je 100 Wörter Fließtext im Text stehen — ein Satz, der
+Datum UND ein mit (primary) markiertes Zitat im selben Satz trägt. Die
+Untergrenze ist 2,0 je 100 Wörter. Sie lässt sich nicht durch mehr Prosa
+erreichen: Prosa bringt Wörter und keine Fakten und senkt die Quote. Ersetze
+jeden Satz ohne Datum, ohne benannten Akteur und ohne Zahl durch einen, der
+beides trägt. Die Abschnitte 1-7 bleiben zusammen UNTER 2800 Wörtern; die für
+dich erzeugten Anhänge zählen nicht mit."""
 
 
 def report_system(measure: bool, lang: str = "en") -> str:
@@ -1101,15 +1127,19 @@ def source_rank(url: str, entities: tuple[str, ...] | list[str] = ()) -> int:
 # Fachjournal (1), unsere eigene Messung eine Primaerrechnung (1) — ein
 # Korpus-Artikel oder ein eingefangenes Signal ist unsere Aufbereitung von
 # Presse und damit Rang 2.
-_KIND_RANK = {"patent": 0, "paper": 1, "measurement": 1,
-              "article": 2, "signal": 2}
+_KIND_RANK = {"patent": 0, "paper": 1, "measurement": 1}
 
 
 def catalog_rank(src: dict, entities: tuple[str, ...] | list[str] = ()) -> int:
+    """R9-2: ein Korpus-Artikel/Signal wird an seinem ORIGINAL zitiert, also
+    zaehlt der Rang des Originals — eine Umschrift einer EMA-Mitteilung ist
+    nicht schwaecher als die Mitteilung, und eine Umschrift eines Blogs nicht
+    staerker. Vorher galten beide pauschal als Rang 2."""
     kind = str(src.get("kind") or "")
     if kind in _KIND_RANK:
         return _KIND_RANK[kind]
-    return source_rank(str(src.get("url") or ""), entities)
+    url = str(src.get("origin") or "") if kind in ("article", "signal") else ""
+    return source_rank(url or str(src.get("url") or ""), entities)
 
 
 def reject_low_trust(hit: dict, entry: dict) -> bool:
@@ -2077,10 +2107,39 @@ def valid_url(url: str) -> bool:
     return bool(_VALID_URL.match((url or "").strip()))
 
 
+# --------------------------------------------------------------------------
+# Selbstzitate zaehlen nicht als Beleg (R9-2, jury_13.md 2026-09-07)
+# --------------------------------------------------------------------------
+# Woertlich: „9 von 34 ≈ 26 % Selbstzitate auf die eigene Domain
+# (catandary.de/trends/...), die durchweg Umschriften fremder Fachpresse sind
+# — fuer den Kaeufer ein zusaetzlicher Zwischenschritt, kein Beleg." Dazu
+# liefert die eigene Seite Pruefern 403. Ein Korpus-Artikel wird deshalb an
+# seinem ORIGINAL zitiert, und die eigene Messung traegt ueberhaupt kein
+# Zitat mehr: sie ist ueber den Rechenweg im Messanhang belegt (seit R7).
+OWN_HOSTS = frozenset(
+    h for h in {
+        _h.lower().removeprefix("www.")
+        for _h in (
+            (TREND_BASE.split("/")[2] if TREND_BASE.count("/") > 2 else ""),
+            "catandary.de",
+        ) if _h
+    } if h)
+
+
+def own_host(url: str) -> bool:
+    host = _host_of(url or "")
+    return bool(host) and (host in OWN_HOSTS
+                           or any(host.endswith("." + h) for h in OWN_HOSTS))
+
+
 def citable_url(src: dict) -> str:
-    """Die URL, unter der eine Quelle zitiert werden darf — oder ""."""
+    """Die URL, unter der eine Quelle zitiert werden darf — oder "".
+
+    Die eigene Domain kommt hier nie heraus: ein Beleg, der auf uns selbst
+    zeigt, ist kein Beleg. Hat der Eintrag kein fremdes Original, ist er
+    nicht zitierbar."""
     for candidate in (src.get("url"), src.get("origin")):
-        if valid_url(candidate or ""):
+        if valid_url(candidate or "") and not own_host(candidate):
             return candidate.strip()
     return ""
 
@@ -2133,7 +2192,7 @@ def canonicalize_citations(report: str, sources: list[dict],
             if src is None or not href:
                 stripped += 1
                 return ""            # kein Beleg — Satz bleibt, Marker weg
-            cited[src["url"]] = src
+            cited[href] = src
             return f"[{_link_title(src)}]({href})"
 
         before = stripped
@@ -2149,7 +2208,7 @@ def canonicalize_citations(report: str, sources: list[dict],
         if src is None or not href:
             stripped += 1
             return label          # keep the sentence, lose the false citation
-        cited[src["url"]] = src
+        cited[href] = src
         return f"[{_link_title(src)}]({href})"
 
     body = _LINK.sub(_replace, report)
@@ -2164,8 +2223,9 @@ def canonicalize_citations(report: str, sources: list[dict],
     _seen_url: set[str] = set()
     ordered = []
     for s in sources:
-        if s["url"] in cited and s["url"] not in _seen_url:
-            _seen_url.add(s["url"])
+        href = citable_url(s)
+        if href in cited and href not in _seen_url:
+            _seen_url.add(href)
             ordered.append(s)
     if ordered:
         lines = ["", "---", "", f"## {_L10N.get(lang, _L10N['en'])['sources']}", ""]
@@ -2173,13 +2233,16 @@ def canonicalize_citations(report: str, sources: list[dict],
             meta = " — ".join(x for x in (s["outlet"], s["date"]) if x)
             # A signal is already cited at its origin, so a second identical link
             # would just be noise; an article gets one so the source stays visible.
+            # R9-2: ein Artikel wird jetzt SELBST an seinem Original zitiert
+            # — dann waere der Zusatzlink derselbe Link zweimal.
             origin = (f" · [{_L10N.get(lang, _L10N['en'])['original']}]({s['origin']})"
-                      if s["origin"] and s["origin"] != s["url"]
-                      and valid_url(s["origin"]) else "")
+                      if s["origin"] and s["origin"] != citable_url(s)
+                      and valid_url(s["origin"]) and not own_host(s["origin"])
+                      else "")
             L = _L10N.get(lang, _L10N["en"])
             mark = ("" if s["kind"] == "article"
                     else f" *({L.get(s['kind'], s['kind'])})*")
-            lines.append(f"{i}. [{s['title']}]({citable_url(s) or s['url']})"
+            lines.append(f"{i}. [{s['title']}]({citable_url(s)})"
                          f"{' — ' + meta if meta else ''}{origin}{mark}")
         body = body.rstrip() + "\n" + "\n".join(lines) + "\n"
     return body, ordered, stripped
@@ -2382,8 +2445,9 @@ def run(question: str, max_steps: int, max_sources: int,
                 seen_ids.add(s["id"])
                 sources.append(s)
         if corpus_stats.get("note"):
-            notes.insert(0, "Deterministic corpus tally (cite it via the "
-                            "corpus-count source in the catalog):\n"
+            notes.insert(0, "Deterministic corpus tally — our own count. It "
+                            "carries NO citation: the appendix printed in this "
+                            "document is its evidence (R9-2):\n"
                             + corpus_stats["note"])
             pinned_notes += 1
             logger.info("corpus tally injected as a citable source")
@@ -2395,8 +2459,10 @@ def run(question: str, max_steps: int, max_sources: int,
         if quant.get("note"):
             # An den ANFANG und gepinnt: evidence_block warf bisher die
             # ältesten Notizen zuerst weg, und das war stets diese hier.
-            notes.insert(0, "Deterministic measurement (cite it via the "
-                            "measurement source in the catalog):\n"
+            notes.insert(0, "Deterministic measurement — our own computation. "
+                            "It carries NO citation: the appendix printed in "
+                            "this document, including its recipe, is its "
+                            "evidence (R9-2):\n"
                             + quant["note"])
             pinned_notes = 1
             logger.info("quant preamble: %d measured source(s) injected",
@@ -2924,11 +2990,26 @@ def run(question: str, max_steps: int, max_sources: int,
     citable_sources = [s for s in sources
                        if s["kind"] not in ("web", "legal", "market", "entity")
                        or s.get("fetched")]
+    # R9-2: was nur auf die eigene Domain zeigt, ist kein Beleg und kommt
+    # nicht in den Katalog — die eigene Messung (Q0/Q1) ist ueber den
+    # Rechenweg im Messanhang belegt, ein Korpus-Artikel ueber sein Original.
+    self_only = [s for s in citable_sources if not citable_url(s)]
+    citable_sources = [s for s in citable_sources if citable_url(s)]
     # R8-2: der Rang haengt ab jetzt AN der Quelle — die Rangregel fuer
-    # Kernzahlen (dossier_structure.weak_source_figures) liest ihn dort, und
+    # Kernaussagen (dossier_structure.weak_source_claims) liest ihn dort, und
     # das Modell sieht ihn im Katalog als "(primary)".
     for src in citable_sources:
         src["rank"] = catalog_rank(src, entities)
+        src["host"] = _host_of(citable_url(src))
+    # Ein Rang-3-Eintrag (Rangfilter) darf kein Zitat tragen. Der Filter greift
+    # an der Aufnahmestelle nur fuer Web-Treffer; ueber das ORIGINAL eines
+    # Korpus-Artikels kann er hier trotzdem noch auftauchen.
+    rejected_rank = [s for s in citable_sources if s["rank"] >= RANK_REJECT]
+    citable_sources = [s for s in citable_sources if s["rank"] < RANK_REJECT]
+    if self_only or rejected_rank:
+        logger.info("catalog: %d self-only source(s) and %d rank-3 source(s) "
+                    "dropped — a citation must point at someone else",
+                    len(self_only), len(rejected_rank))
     if measure:
         # Kein URL-Freitext mehr im Prompt: was das Modell nicht sieht, kann es
         # nicht halbrichtig abtippen. Es zitiert die ID, der Code rendert daraus
@@ -3008,6 +3089,8 @@ def run(question: str, max_steps: int, max_sources: int,
            f"for it. Use one only where it genuinely carries a statement, in "
            f"the meaning given here, and with this exact value:\n"
            f"{measured_brief}\n"
+           f"They carry NO catalog citation — the appendix printed in this "
+           f"document is their evidence, and no catalog id points at us. "
            f"They were all computed over one subject only: "
            f"{', '.join(measure_scope)}. A sentence that draws a conclusion "
            f"from one of them must name that subject — about anything else "
@@ -3051,7 +3134,11 @@ def run(question: str, max_steps: int, max_sources: int,
                  "misattributed_before": 0, "misattributed_after": 0,
                  "measure_before": 0, "measure_after": 0,
                  "weaksource_before": 0, "weaksource_after": 0,
-                 "calendar": {"rows": 0, "ok": 0, "no_date": 0, "no_cite": 0},
+                 "weakclaim_before": 0, "weakclaim_after": 0,
+                 "density_before": {}, "density_after": {},
+                 "calendar": {"rows": 0, "ok": 0, "no_date": 0, "no_cite": 0,
+                              "sources": 0},
+                 "catalog_ranks": {}, "self_only_dropped": 0,
                  "chain": {}}
     # Der eigene Messanhang ist der EINZIGE Beleg, den eine Zahl ohne Zitat im
     # Satz haben darf: er steht codegeneriert im selben Dokument.
@@ -3061,9 +3148,12 @@ def run(question: str, max_steps: int, max_sources: int,
     if measure:
         structure["words_before"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
+        density = dossier_structure.fact_density(
+            report, citable_sources, lang, rank_of=source_rank)
+        structure["density_before"] = density
         findings = dossier_structure.structure_findings(
             report, lang, measured=measured_keys, sectors=sector_fields,
-            year_floor=year_floor)
+            year_floor=year_floor, density=density)
         cites = dossier_structure.verify_cited_figures(report, citable_sources)
         # Befund 2 (falsche Seite) und Befund 3 (Zahl ohne Beleg) der Jurys vom
         # 2026-09-07 laufen durch denselben Kanal wie die Zahlenpruefung:
@@ -3075,9 +3165,10 @@ def run(question: str, max_steps: int, max_sources: int,
         measure_bad = dossier_structure.measure_use_findings(
             report, (quant or {}).get("summary"),
             (corpus_stats or {}).get("summary"), topic or question)
-        # R8-2: Kernzahlen (Kurzfassung, Optionen, Kalender) brauchen einen
-        # Beleg vom Rang 0/1 — sonst Kennzeichnung oder Streichung.
-        weak = dossier_structure.weak_source_figures(
+        # R8-2/R9-1: Kernaussagen (Kurzfassung, Recht/IP, Kalender, Optionen)
+        # brauchen einen Beleg vom Rang 0/1 — sonst Kennzeichnung, in der
+        # Kurzfassung Streichung.
+        weak = dossier_structure.weak_source_claims(
             report, citable_sources, lang, measured_text)
         cite_all = (list(cites["unverified"]) + list(cites.get("off_topic") or [])
                     + list(cites.get("distorted") or [])
@@ -3095,7 +3186,10 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["distorted_before"] = len(cites.get("distorted") or [])
         structure["misattributed_before"] = len(cites.get("misattributed") or [])
         structure["measure_before"] = len(measure_bad)
-        structure["weaksource_before"] = len(weak)
+        structure["weaksource_before"] = sum(
+            1 for e in weak if e["kind"] == "weaksource")
+        structure["weakclaim_before"] = sum(
+            1 for e in weak if e["kind"] == "weakclaim")
         for f in findings:
             logger.warning("structure: %s", f)
         for e in cites["unverified"]:
@@ -3116,8 +3210,10 @@ def run(question: str, max_steps: int, max_sources: int,
             logger.warning("measure not usable: %s — %s", e["tokens"],
                            e.get("detail", ""))
         for e in weak:
-            logger.warning("core figure on rank-2 material only: %s (%s)",
-                           e["tokens"], e.get("detail", ""))
+            logger.warning("core %s on rank-2 material only [%s]: %s (%s)",
+                           "figure" if e["kind"] == "weaksource" else "claim",
+                           e.get("section", "?"), e["tokens"],
+                           e.get("detail", ""))
         if findings or cite_all:
             logger.info("one targeted rewrite (%d structural + %d citation "
                         "finding(s))", len(findings), len(cite_all))
@@ -3159,7 +3255,7 @@ def run(question: str, max_steps: int, max_sources: int,
         measure_bad2 = dossier_structure.measure_use_findings(
             report, (quant or {}).get("summary"),
             (corpus_stats or {}).get("summary"), topic or question)
-        weak2 = dossier_structure.weak_source_figures(
+        weak2 = dossier_structure.weak_source_claims(
             report, citable_sources, lang, measured_text)
         cite_all2 = (list(cites2["unverified"])
                      + list(cites2.get("off_topic") or [])
@@ -3177,7 +3273,10 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["distorted_after"] = len(cites2.get("distorted") or [])
         structure["misattributed_after"] = len(cites2.get("misattributed") or [])
         structure["measure_after"] = len(measure_bad2)
-        structure["weaksource_after"] = len(weak2)
+        structure["weaksource_after"] = sum(
+            1 for e in weak2 if e["kind"] == "weaksource")
+        structure["weakclaim_after"] = sum(
+            1 for e in weak2 if e["kind"] == "weakclaim")
         if cite_all2:
             # Letzte Instanz: eine Zahl, die die zitierte Seite nicht hergibt,
             # ein Beleg, der von etwas anderem handelt, und eine Zahl ganz ohne
@@ -3198,9 +3297,12 @@ def run(question: str, max_steps: int, max_sources: int,
         # Dokument, das ausgeliefert wird. Im B6-Lauf nahm die Streichung einer
         # themenfremd belegten Zeile der Option 2 ihren Zeithorizont — und das
         # stand in keinem Befund, weil vorher geprueft wurde.
+        density_after = dossier_structure.fact_density(
+            report, citable_sources, lang, rank_of=source_rank)
+        structure["density_after"] = density_after
         structure["findings_after"] = dossier_structure.structure_findings(
             report, lang, measured=measured_keys, sectors=sector_fields,
-            year_floor=year_floor)
+            year_floor=year_floor, density=density_after)
         structure["words_after"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
         structure.update(dossier_structure.option_measure_stats(
@@ -3209,6 +3311,11 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["calendar"] = dossier_structure.calendar_rows(
             report, lang, year_floor)
         structure["chain"] = dossier_structure.chain_coverage(report, lang)
+        ranks = {}
+        for src in citable_sources:
+            ranks[str(src.get("rank", 2))] = ranks.get(str(src.get("rank", 2)), 0) + 1
+        structure["catalog_ranks"] = ranks
+        structure["self_only_dropped"] = len(self_only)
         for a in structure["advisory"]:
             logger.info("structure (advisory): %s", a)
         report_raw = report
