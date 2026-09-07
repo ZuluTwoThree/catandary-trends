@@ -423,10 +423,16 @@ async function fetchMegaTrends(status?: string): Promise<MegaTrendInfo[]> {
   let query = `SELECT t.mega_trend, COUNT(*)::int as cnt,
      STRING_AGG(DISTINCT t.primary_vertical, ',') as verts,
      MIN(t.sort_date)::text as first_seen,
-     SUM(CASE WHEN t.sort_date >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END)::int as signals_30d,
-     SUM(CASE WHEN t.sort_date >= NOW() - INTERVAL '90 days' THEN 1 ELSE 0 END)::int as recent90,
-     SUM(CASE WHEN t.sort_date >= NOW() - INTERVAL '180 days'
-              AND t.sort_date <  NOW() - INTERVAL '90 days' THEN 1 ELSE 0 END)::int as prior90
+     -- Tageskante, nicht "jetzt minus N Tage": zwei Builds Minuten auseinander
+     -- muessen dieselbe Seite erzeugen (Determinismus-Gate des statischen
+     -- Exports). Mit NOW() fielen zwischen zwei Laeufen einzelne Signale aus
+     -- dem Fenster — gemessen 2026-09-07: /trends/mega war die einzige Seite,
+     -- die sich zwischen zwei identischen Builds unterschied (signals_30d
+     -- 2043 vs 2042). Dieselbe Regel wie lib/archiveWindow.ts windowStart().
+     SUM(CASE WHEN t.sort_date >= date_trunc('day', NOW()) - INTERVAL '30 days' THEN 1 ELSE 0 END)::int as signals_30d,
+     SUM(CASE WHEN t.sort_date >= date_trunc('day', NOW()) - INTERVAL '90 days' THEN 1 ELSE 0 END)::int as recent90,
+     SUM(CASE WHEN t.sort_date >= date_trunc('day', NOW()) - INTERVAL '180 days'
+              AND t.sort_date <  date_trunc('day', NOW()) - INTERVAL '90 days' THEN 1 ELSE 0 END)::int as prior90
      FROM trends t
      WHERE t.mega_trend IS NOT NULL AND t.mega_trend != ''`;
   if (status) {
