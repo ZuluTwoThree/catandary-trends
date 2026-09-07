@@ -1899,14 +1899,17 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
                 "Fakten, keine neuen Zahlen, keine neuen Zitate — nur die "
                 "vorhandenen Katalog-IDs.")
         if expand:
-            rule = ("Ein Befund verlangt ausdrücklich, den Bericht zu "
-                    "VERLÄNGERN. Dafür — und nur dafür — darfst du weitere "
-                    "belegte Fakten aus dem unten mitgelieferten Material "
-                    "aufnehmen: jede Ergänzung mit Datum, benanntem Akteur "
-                    "oder Zahl UND Katalog-Zitat im selben Satz. Der neue "
-                    "Bericht muss LÄNGER sein als der vorige; kürze nichts, "
-                    "was bereits belegt dasteht. Sonst gilt: keine neuen "
-                    "Zahlen ohne Beleg, nur vorhandene Katalog-IDs.")
+            rule = ("Ein Befund verlangt ausdrücklich, den Bericht mit "
+                    "belegten Fakten zu ERGÄNZEN. Dafür — und nur dafür — "
+                    "darfst du weitere belegte Fakten aus dem unten "
+                    "mitgelieferten Material aufnehmen: jede Ergänzung mit "
+                    "Datum, benanntem Akteur oder Zahl UND Katalog-Zitat im "
+                    "selben Satz. Nimm sie auf, indem du Sätze ERSETZT, die "
+                    "nichts davon tragen — Wiederholung, Zusammenfassung, "
+                    "Allgemeinplätze. Kürze nichts, was bereits mit Zitat "
+                    "dasteht, und überschreite die Wort-Obergrenze nicht. "
+                    "Sonst gilt: keine neuen Zahlen ohne Beleg, nur "
+                    "vorhandene Katalog-IDs.")
         return (
             "ÜBERARBEITUNG — das ist der einzige Korrekturdurchgang.\n\n"
             "Eine mechanische Prüfung des eben geschriebenen Berichts hat "
@@ -1916,14 +1919,16 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
     rule = ("Everything else stays as it is in substance: no new facts, no new "
             "figures, no new citations — only catalog ids that already appear.")
     if expand:
-        rule = ("One finding explicitly asks you to LENGTHEN the report. For "
+        rule = ("One finding explicitly asks you to ADD evidenced facts. For "
                 "that purpose — and only that — you may take further "
                 "evidenced facts from the material supplied below: every "
                 "addition carries a date, a named actor or a figure AND a "
-                "catalog citation in the same sentence. The new report must be "
-                "LONGER than the previous one; do not cut anything that "
-                "already stands supported. Otherwise: no figure without a "
-                "citation, and only catalog ids.")
+                "catalog citation in the same sentence. Take them in by "
+                "REPLACING sentences that carry none of that — repetition, "
+                "restatement, generalities. Do not cut anything that already "
+                "stands with a citation, and do not exceed the word ceiling. "
+                "Otherwise: no figure without a citation, and only catalog "
+                "ids.")
     return (
         "REVISION — this is the only correction pass.\n\n"
         "A mechanical check of the report you just wrote found the following:\n\n"

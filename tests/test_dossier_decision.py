@@ -2199,8 +2199,11 @@ class TestADroppedSentenceMustNotCostAMandatoryField:
 
 class TestTheRewriteMayNotBeAskedToShortenAndLengthenAtOnce:
 
-    SHORT = ("Fliesstext 1511 Woerter — Untergrenze 2200: mindestens 689 "
-             "Woerter ERGAENZEN, und zwar ausschliesslich mit belegten Fakten")
+    # Seit R9-3 ist die Faktenquote der einzige Befund, der ERGAENZEN
+    # verlangt — die Wortzahl-Untergrenze ist keiner mehr.
+    SHORT = ds.fact_density_finding(
+        {"words": 2000, "dated_claims": 4, "primary_claims": 2,
+         "specifics": 4, "per100": 0.2})[0]
 
     def test_the_expansion_case_is_recognised(self):
         assert ds.needs_expansion([self.SHORT]) is True
@@ -2209,9 +2212,18 @@ class TestTheRewriteMayNotBeAskedToShortenAndLengthenAtOnce:
     def test_the_contradictory_sentence_is_gone_when_expanding(self):
         text = ds.revision_prompt([self.SHORT], [], "en")
         assert "no new facts" not in text
-        assert "LONGER than the previous one" in text
         de = ds.revision_prompt([self.SHORT], [], "de")
-        assert "keine neuen \nFakten" not in de and "LÄNGER" in de
+        assert "keine neuen \nFakten" not in de
+
+    def test_the_rewrite_is_never_told_to_lengthen_and_replace_at_once(self):
+        """R9-3: der Befund sagt „nicht verlaengern, sondern ersetzen" — die
+        Auftragsregel darf daneben nicht „muss LAENGER sein" sagen. Genau
+        dieser Widerspruch liess den B8-Lauf v1 kuerzen statt ergaenzen."""
+        for lang, forbidden in (("en", "LONGER than the previous one"),
+                                ("de", "LÄNGER sein als der vorige")):
+            text = ds.revision_prompt([self.SHORT], [], lang)
+            assert forbidden not in text
+            assert ("REPLACING sentences" in text or "ERSETZT" in text)
 
     def test_it_stays_strict_when_nothing_has_to_grow(self):
         text = ds.revision_prompt(["Pflichtabschnitt fehlt: '## X'."], [], "en")
