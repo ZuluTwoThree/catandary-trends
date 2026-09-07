@@ -449,9 +449,28 @@ def option_measure_stats(report_md: str, lang: str, measured: list[str] | None,
     }
 
 
+# Aufzaehlung der geprueften Felder ("food, nutrition and health technology")
+# — das ist die Anweisung, nachgesprochen, kein Inhalt. Der B6-Lauf bestand die
+# Abdeckungspruefung genau so: "health technology" kam im Optionsteil nur in
+# dem Satz vor, der die drei Felder aufzaehlt.
+def _echo_spans(text: str, sectors: list[str]) -> str:
+    if len(sectors or []) < 2:
+        return text
+    names = []
+    for s in sectors:
+        names += list(_SECTOR_ALIASES.get(s, (s,)))
+    alt = "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
+    enum = re.compile(rf"(?:{alt})(?:\s*(?:,|/|\band\b|\bor\b|\bund\b|\boder\b)\s*"
+                      rf"(?:{alt})){{1,4}}", re.IGNORECASE)
+    return enum.sub(" ", text or "")
+
+
 def uncovered_sectors(text: str, sectors: list[str]) -> list[str]:
+    """Felder, die der Text nicht bedient. Eine blosse Aufzaehlung der Felder
+    zaehlt nicht als Abdeckung — sie ist die nachgesprochene Anweisung."""
+    body = _echo_spans(text or "", list(sectors or []))
     return [s for s in sectors or ()
-            if not any(_term_re(kw).search(text or "")
+            if not any(_term_re(kw).search(body)
                        for kw in SECTOR_LEXICON.get(s, ()))]
 
 

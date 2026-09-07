@@ -2764,8 +2764,6 @@ def run(question: str, max_steps: int, max_sources: int,
                 logger.warning("rewrite discarded — too short (%d words), "
                                "keeping the first version",
                                len(second.split()))
-        structure["findings_after"] = dossier_structure.structure_findings(
-            report, lang, measured=measured_keys, sectors=sector_fields)
         cites2 = dossier_structure.verify_cited_figures(report, citable_sources)
         sourceless2 = dossier_structure.sourceless_figures(
             report, citable_sources, measured_text)
@@ -2794,6 +2792,12 @@ def run(question: str, max_steps: int, max_sources: int,
                            dropped, len(cites2["unverified"]),
                            len(cites2.get("off_topic") or []), len(sourceless2),
                            len(cites2.get("distorted") or []))
+        # Die Gliederungspruefung laeuft NACH der Streichung: sie beschreibt das
+        # Dokument, das ausgeliefert wird. Im B6-Lauf nahm die Streichung einer
+        # themenfremd belegten Zeile der Option 2 ihren Zeithorizont — und das
+        # stand in keinem Befund, weil vorher geprueft wurde.
+        structure["findings_after"] = dossier_structure.structure_findings(
+            report, lang, measured=measured_keys, sectors=sector_fields)
         structure["words_after"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
         structure.update(dossier_structure.option_measure_stats(

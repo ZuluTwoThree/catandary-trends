@@ -1365,3 +1365,32 @@ class TestCheckSummaryStaysInTheDossier:
     def test_german_runs_carry_the_german_block(self):
         out = cr.check_summary(self.LEDGER, self.SOURCES, ["T1"], self.ST, "de")
         assert "Budgetgründen" in out and "Prüfanhang" in out
+
+
+class TestB6Followups:
+    """Zwei Befunde aus dem B6-Lauf (2026-09-07) selbst."""
+
+    Q = ("what should a mid-sized European company in food, nutrition or "
+         "health technology do?")
+
+    def test_naming_the_three_fields_is_not_coverage(self):
+        """B6 bestand die Abdeckungspruefung mit dem Satz „too narrow to
+        address all three named fields (food, nutrition, health technology)" —
+        die nachgesprochene Anweisung, kein Inhalt."""
+        sectors = ds.sectors_from_question(self.Q)
+        echo = ("Strategic risk if the portfolio is too narrow to address all "
+                "three named fields (food, nutrition, health technology).")
+        assert ds.uncovered_sectors(echo, sectors) == sectors
+        real = echo + " A companion app ships with the reformulated meals."
+        assert ds.uncovered_sectors(real, sectors) == ["nutrition"]
+
+    def test_a_dropped_sentence_can_break_an_option_and_must_be_seen(self):
+        """Die Streichung nahm Option 2 ihren Zeithorizont; geprueft wurde
+        aber der Stand DAVOR, also stand es in keinem Befund."""
+        doc = _report()
+        line = "- Time horizon: value"
+        assert line in doc
+        assert ds.structure_findings(doc) == []
+        broken, dropped = ds.drop_unverified(doc, [{"sentence": line}])
+        assert dropped == 1
+        assert any("Time horizon" in f for f in ds.structure_findings(broken))
