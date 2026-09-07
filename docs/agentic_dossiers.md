@@ -832,3 +832,48 @@ ungemessen, weil der Owner genau einen Lauf freigegeben hat.
 überwiegend aus **Patenten ohne Abstract** (ihr Snippet ist ein Ein-Zeiler);
 sie verbrauchen die Kappe von 30 Quellen, bevor die Paper mit echtem Abstract
 an die Reihe kommen. Wer die Runde fortsetzt, sortiert dort zuerst.
+
+### Runde 11 (2026-09-07) — Denken nach Modellkarte, zweiter DR-Lauf
+
+Owner-Freigabe für einen weiteren Lauf, ausdrücklich auch mit variiertem
+Reasoning. Modellkarte (huggingface.co/Qwen/Qwen3.8-27B): Denken ist der
+Default, `reasoning_effort` low/medium/xhigh, und je Modus ein eigener
+Sampling-Satz (denkend temp 1.0 / top_p 0.95 / top_k 20 / presence 0).
+
+- **Serverschalter ohne Verhaltensänderung.** `start-qwen3.8-27b.sh` liest
+  `LLAMA_REASONING` (Default `off`) und `LLAMA_REASONING_EFFORT`; die Unit
+  `llama-server.service` hat eine **optionale** `EnvironmentFile`
+  (`~/.config/catandary/llama-server.env`). Ohne die Datei läuft alles wie
+  bisher — Draft-Richter und Dossier-Worker bleiben unberührt. `DOSSIER_DR_THINK=1`
+  sagt dem Lauf, dass der Server denkt; dann gilt für die Prosa der denkende
+  Sampling-Satz. Schema-gebundene Aufrufe bleiben immer undenkend
+  (`enable_thinking=false`) — am Server verifiziert.
+- **Zwei Fehler, die erst der Denk-Lauf zeigte.** (a) Der Berichtsaufruf
+  überschritt mit Denkspur die 600 s aus `LLAMACPP_TIMEOUT`; der ganze Lauf war
+  verloren. Im Denkmodus hebt der Lauf die Grenze jetzt selbst auf 2.400 s
+  (`DOSSIER_DR_TIMEOUT`). (b) Ist das Denk-Budget aufgebraucht, schließt
+  llama.cpp die Denkmarke und das Modell **überlegt im Antwortfeld weiter** —
+  51 Zeilen Selbstgespräch standen vor der Kurzfassung. `strip_preamble()`
+  schneidet alles vor der ersten Pflichtüberschrift weg (R11-1).
+
+**Ergebnis** (`glp1-dr2`, `dossiers.id=27`, 2.638 s): Faktenquote **4,15** je
+100 Wörter (DR 1: 0,94, R9 v2: 0,25; Vergleichstext 0,81), primärbelegte
+datierte Aussagen 34 statt 14, zitierte Rang-0/1-Quellen 28 statt 12, 14
+Förderquellen im Katalog. **jury_17 (blind): Deep Research 6,9 gegen 5,7** —
+Abstand von 1,86 auf 1,2 gesunken; Ehrlichkeit (8:6) und Struktur (7:6)
+erstmals bei uns, verloren an Zeitachse (3:7), Spezifität (5:8) und
+Abdeckung (5:8).
+
+**Der teuerste Befund richtet sich gegen das eigene Regelwerk:** die Rangregel
+drängte die tragende Europa-These (EU-Generika nicht vor 2031) als
+„unsupported by primary evidence" aus dem Text — obwohl sie über die
+niederländische SPC und das Haager Urteil primär belegbar gewesen wäre. Dazu:
+der Kalender bestand aus Horizon-Europe-Programmjahren statt GLP-1-Terminen,
+und der erste Satz las eine Studienpublikation als Zulassung.
+
+**Was das über die Faktenquote sagt.** Sie stieg um das Vierfache, während die
+Jury Spezifität senkte. Der Zähler misst *datierte, primärbelegte Angaben je
+100 Wörter* — nicht, **worüber** sie gehen. Ein Text voller Verfahrensdaten
+erreicht ihn und verfehlt die Frage. Gute Wächterin gegen Prosa, schlechter
+Kompass für Relevanz. Protokoll: `scratchpad/glp1/DR2_run.md`.
+

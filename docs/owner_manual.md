@@ -427,7 +427,22 @@ python scripts/corpus_research.py --foresight "solid-state batteries" --dr --qua
 
 Der Modus kostet Laufzeit (ein Modellaufruf je Primärquelle) und macht den
 Bericht faktendichter, aber strenger: Aussagen ohne Primärquelle werden in der
-Kurzfassung gestrichen. Ein Vergleichslauf gegen die Runden davor steht in
+Kurzfassung gestrichen.
+
+**Denken einschalten (optional, seit 2026-09-07).** Der 27B kann mit Reasoning
+laufen. Dafür eine Datei `~/.config/catandary/llama-server.env` anlegen —
+die Unit `llama-server.service` liest sie, wenn sie existiert:
+
+```
+LLAMA_REASONING=on
+LLAMA_REASONING_EFFORT=medium     # low | medium | high | xhigh
+LLAMA_ARG_THINK_BUDGET=3000       # optional, begrenzt die Denkspur
+```
+
+Dazu den Lauf mit `DOSSIER_DR_THINK=1` starten (dann gilt der denkende
+Sampling-Satz der Modellkarte und ein Client-Zeitlimit von 2.400 s statt 600).
+**Datei nach dem Lauf wieder löschen** — sonst denkt auch der nächtliche
+Draft-Richter, und der Cycle wird deutlich langsamer. Ein Vergleichslauf gegen die Runden davor steht in
 `docs/agentic_dossiers.md` (Abschnitt „Die DR-Runde").
 
 **Firmen-Dossier, Fokus, Sprache — nur per CLI.** Der Desk kennt nur den
