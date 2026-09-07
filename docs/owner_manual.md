@@ -411,6 +411,25 @@ Abschalten (alter Pfad, reproduzierbar): `DOSSIER_MEASURE=0` in der Umgebung
 des Workers, `--no-measure` bei `scripts/corpus_research.py`, oder
 `params = {"measure": false}` am Auftragszettel.
 
+**DR-Modus (seit 2026-09-07, Default AUS).** Die Arbeitsweise eines
+Deep-Research-Agenten: der Lauf liest vor dem Schreiben bis zu 28 ungelesene
+Treffer **nach Rang** (Behörde/Register/Journal zuerst, Presse gar nicht),
+zieht daraus **Notizen** — datierte Einzelaussagen, jede maschinell gegen ihren
+Quelltext geprüft — und schreibt den Bericht aus diesem Faktenbuch statt aus
+dem Rohmaterial; gesampelt wird nach Modellkarte (temp 0.7, top_p 0.80,
+top_k 20, presence_penalty 1.5) statt nur über die Temperatur. Einschalten:
+
+```bash
+DOSSIER_DR=1 .venv/bin/python -m scripts.dossier_worker --order N
+python scripts/corpus_research.py --foresight "solid-state batteries" --dr --quant
+# oder am Auftragszettel: params = {"dr": true}
+```
+
+Der Modus kostet Laufzeit (ein Modellaufruf je Primärquelle) und macht den
+Bericht faktendichter, aber strenger: Aussagen ohne Primärquelle werden in der
+Kurzfassung gestrichen. Ein Vergleichslauf gegen die Runden davor steht in
+`docs/agentic_dossiers.md` (Abschnitt „Die DR-Runde").
+
 **Firmen-Dossier, Fokus, Sprache — nur per CLI.** Der Desk kennt nur den
 Themen-Modus. Für ein Firmen-Dossier (web-first die eigene Website der Firma,
 dann das Trendumfeld aus den Korpora), einen Zusatzschwerpunkt oder deutschen

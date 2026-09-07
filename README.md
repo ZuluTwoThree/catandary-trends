@@ -183,6 +183,15 @@ sekundär belegt" gekennzeichnet oder gestrichen. Genau ein gezielter Neuwurf,
 keine Schleife
 ([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-entscheidungsebene-2026-09-07)).
 
+**DR-Modus** (`DOSSIER_DR=1`, `--dr`, `params = {"dr": true}`; Default aus):
+Arbeitsweise eines Deep-Research-Agenten — Primärquellen werden vor dem
+Schreiben **nach Rang** gelesen, daraus entsteht ein **Faktenbuch** aus
+datierten Einzelaussagen (jede maschinell gegen ihren Quelltext geprüft), und
+der Bericht wird aus diesem Faktenbuch geschrieben; gesampelt wird nach
+Modellkarte statt nur über die Temperatur. Kostet Laufzeit, hebt die
+Faktenquote (erster Lauf: 0,94 gegen 0,25 der Runde davor)
+([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-dr-runde-2026-09-07--arbeitsweise-statt-regelwerk)).
+
 ---
 
 ## 3. Setup
@@ -286,6 +295,8 @@ Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
 | `AUTO_PUBLISH_GROUNDING_GATE=1` | Grounding-Gate vor Auto-Publish (Handbuch §3) |
 | `DRAFT_JUDGE=1` | Stage 10 Draft-Richter (0 = aus; nur in `scheduled_cycle.sh` gelesen) |
 | `TDM_RESPECT=1` | Fetcher beachtet maschinenlesbare TDM-Vorbehalte |
+| `DOSSIER_MEASURE=0` | Dossier ohne Messkette (alter Pfad, reproduzierbar) |
+| `DOSSIER_DR=1` | Dossier im DR-Modus: Primärquellen zuerst lesen, Faktenbuch vor dem Schreiben, Sampling nach Modellkarte (Default aus) |
 | `NEWSLETTER_DEEP_DIVE` | `dry-run` aktiviert den Deep-Dive-Schritt im Montagslauf (nur in der Crontab setzen, s. Handbuch §7.3) |
 | `RESEND_API_KEY`, `NEWSLETTER_FROM`, `NEWSLETTER_UNSUB_SECRET`, `NEWSLETTER_PUBLIC_BASE`, `NL_EXPORT_URL`, `NL_EXPORT_TOKEN` | Newsletter-Versandkette (#16) |
 | `NEWSLETTER_APPROVER` | Name, der als Freigebender in `approved_by` landet (Default `owner`); Frontend-Env |

@@ -685,3 +685,74 @@ ausgeschlossen. Zweitens tragen in B8 4 von 4 Optionen **keine** Messgröße
 trägt den ersten Satz der Kurzfassung; jury_12 hat den Messbezug aber
 ausdrücklich gelobt, also gehört das beobachtet. Protokoll:
 `scratchpad/glp1/B8_run.md`.
+
+### Runde 9 (2026-09-07) — Substanz statt Form (Jurys 13 und 14)
+
+Die dreizehnte und vierzehnte Bewertung gingen wieder an die Web-Recherche
+(7,3 zu 8,9 bei jury_14). Der Vorwurf war nicht mehr die Form, sondern der
+Inhalt: „Wir gewinnen Struktur und verlieren Substanz." Daraus wurden vier
+Maßnahmen (`d2e3a1c`, `0b54bda`, `426a3b2`, `3013b0a`, `41172c7`, `c04db54`):
+
+- **R9-1 Rangregel für jede Aussage**, nicht nur für jede Zahl
+  (`weak_source_claims`): Kurzfassung, Recht/IP, Kalender und Optionen
+  brauchen eine Quelle vom Rang 0/1, sonst Kennzeichnung „(secondary source
+  only)" — in der Kurzfassung Streichung.
+- **R9-2 Selbstzitate zählen nicht** (`citable_url`, `catalog_rank`): ein
+  Korpus-Artikel wird an seinem **Original** zitiert, die eigene Messung trägt
+  gar kein Zitat mehr (Beleg ist ihr Rechenweg im Anhang).
+- **R9-3 Faktenquote als primäres Maß** (`fact_density`): datierte,
+  primärbelegte Angaben je 100 Wörter Fließtext. Die Wortzahl-Untergrenze ist
+  kein Neuwurf-Grund mehr, die Obergrenze bleibt.
+- **R9-4** Kalender aus mindestens drei verschiedenen Quellen,
+  Platzhalter in Optionsfeldern zählen als unerfüllt.
+
+Ergebnis der beiden R9-Läufe: Faktenquote 0,35 (v1) und 0,25 (v2) — die
+Maßnahmen haben die Schwäche **gemessen**, aber nicht behoben.
+
+### Die DR-Runde (2026-09-07) — Arbeitsweise statt Regelwerk
+
+Owner-Auftrag: „Variiere die Modellparameter und den Prompt so, dass qwen eher
+arbeitet wie ein Sonnet-Deep-Research-Agent." Ausgangsbefund am Lauf
+`dossiers.id=25`: der Katalog trug 17 Patente (Rang 0), 28 Paper (Rang 1) und
+11 Behördenseiten (Rang 0) — zitiert wurden davon 6, kein einziges Paper; und
+**84 Sweep-Treffer blieben ungelesen** und damit nicht zitierfähig, darunter
+pubmed (6×), sec.gov, investor.lilly.com, ema.europa.eu, cms.gov. Es fehlten
+nicht die Fakten, es fehlte die Primärquelle unter ihnen.
+
+Drei Änderungen, alle hinter `dr` (Default **aus**; `DOSSIER_DR=1`, `--dr`,
+oder `params = {"dr": true}` am Auftragszettel):
+
+1. **`read_primary_first`** — vor dem Schreiben werden bis zu 28 ungelesene
+   Treffer **nach Rang** gelesen (0 vor 1, Rang 2 gar nicht). Das Auffangnetz
+   je offener Frage steigt von 12/2 auf 20/3.
+2. **`harvest_facts`** — eine Extraktion je Primärquelle (Volltext, sonst
+   Abstract) liefert datierte Einzelaussagen mit Katalog-ID. Jede Notiz wird
+   **deterministisch gegen ihren Quelltext geprüft**: Datum und jede
+   Präzisionszahl müssen dort stehen, sonst fällt sie weg
+   (`_fact_grounded`). Ergebnis ist das **Faktenbuch**.
+3. **Schreiben aus dem Faktenbuch** — es steht im Berichts- *und* im
+   Neuwurf-Prompt, dazu eine Arbeitsanweisung („HOW YOU WORK") statt weiterer
+   Regeln. Sampling nach Modellkarte (nicht-denkend: temp 0.7, top_p 0.80,
+   top_k 20, presence_penalty 1.5) statt reiner Temperatursteuerung;
+   `llamacpp_client` reicht die Felder nur durch, wenn sie gesetzt sind.
+
+**Der eine Lauf** (`glp1-dr` v1, `dossiers.id=26`, 1.638 s): 8 von 25
+Primärkandidaten gelesen (17 Botsperren), Faktenbuch 21 geprüfte Aussagen aus
+6 Quellen, 72 gelesene Seiten. **Faktenquote 0,94 gegen 0,25 (R9 v2)** — der
+beste Wert aller vierzehn Läufe; primärbelegte datierte Aussagen 3 → 14,
+zitierte Rang-0/1-Quellen 6 → 12. Preis: die Kurzfassung schrumpfte auf **eine**
+Aussage (24 Kernaussagen ruhten nur auf Rang-2-Material und wurden nach R9-1
+gekennzeichnet bzw. gestrichen), der Kalender trägt nur 3 statt 6 belegte
+Zeilen, und der Fließtext liegt mit 2.981 Wörtern 181 über der Obergrenze.
+Protokoll und Vergleichstabelle: `scratchpad/glp1/DR_run.md`.
+
+**Nebenbefund zur Messlatte.** `OPPONENT_FACT_DENSITY = 1.83` ist mit dem
+ausgelieferten Zähler nicht reproduzierbar: dieselbe Datei (`C_sonnet.md`)
+ergibt mit `fact_density(..., rank_of=source_rank)` heute **0,81**. Die 1,83
+entstehen nur, wenn jedes Zitat als primär gilt. Die Untergrenze 2,0 ist an
+dieser laxeren Messung geeicht — ob sie bleibt, ist eine Owner-Entscheidung.
+
+**Offen aus dem Lauf selbst:** der Rang-0-Vorlauf des Faktenbuchs besteht
+überwiegend aus **Patenten ohne Abstract** (ihr Snippet ist ein Ein-Zeiler);
+sie verbrauchen die Kappe von 30 Quellen, bevor die Paper mit echtem Abstract
+an die Reihe kommen. Wer die Runde fortsetzt, sortiert dort zuerst.
