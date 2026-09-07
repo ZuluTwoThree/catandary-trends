@@ -1351,3 +1351,11 @@ def test_plural_event_nouns_count():
     for ev in ("Clinical trial phase completions", "Regulatory approvals and rejections",
                "Product launches and market entries", "Patent expirations and generic entry"):
         assert not cr._generic_event(ev), ev
+
+
+def test_relative_dates_are_no_dates():
+    assert cr._relative_date("Today") and cr._relative_date("Last month")
+    assert not cr._relative_date("12 March 2026") and not cr._relative_date("Q1 2027")
+    led = [{"date": "Today", "statement": "FDA approved a generic", "actor": "FDA", "id": "L1"}]
+    rows = cr.actor_map(led, [], ["FDA"], ["glp-1"])
+    assert rows and rows[0]["date"] == ""

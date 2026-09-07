@@ -2427,6 +2427,20 @@ def read_primary_first(sources: list[dict], notes: list[str],
     return read
 
 
+# Relative Zeitangaben sind keine Daten (DR4, 2026-09-07): die Akteur-Tabelle
+# trug "Today" und "Last month" aus einer FDA-Pressemitteilung — auf der Seite
+# korrekt, im Dossier ohne Bezugspunkt sinnlos.
+_RELATIVE_DATE = re.compile(
+    r"^\W*(?:today|yesterday|tomorrow|now|currently|recently|last\s+(?:week|month|"
+    r"year|quarter)|this\s+(?:week|month|year|quarter)|next\s+(?:week|month|year|"
+    r"quarter)|earlier\s+this\s+\w+|later\s+this\s+\w+|heute|gestern|morgen|"
+    r"k(?:ü|ue)rzlich|letzte[nrs]?\s+\w+|diese[nrs]?\s+\w+)\W*$", re.IGNORECASE)
+
+
+def _relative_date(date: str) -> bool:
+    return bool(_RELATIVE_DATE.match(str(date or "")))
+
+
 def _fact_grounded(fact: LedgerFact, text: str) -> bool:
     """Datum und jede Praezisionszahl der Notiz muessen im Quelltext stehen."""
     low = re.sub(r"\s+", " ", (text or "").lower())
@@ -2499,6 +2513,8 @@ def harvest_facts(sources: list[dict], question: str,
             continue
         kept = 0
         for fact in res.facts[:DR_FACTS_PER_SOURCE]:
+            if _relative_date(fact.date):
+                continue
             if not _fact_grounded(fact, text):
                 continue
             out.append({"id": src["id"], "rank": rank, "date": fact.date.strip(),
@@ -2823,8 +2839,9 @@ def actor_map(fact_ledger: list[dict], sources: list[dict],
             str(f.get("statement") or "")), str(f.get("date") or "")), reverse=False)
         facts.sort(key=lambda f: str(f.get("date") or ""), reverse=True)
         for f in facts:
-            _push(ent, str(f["statement"]).strip(), str(f.get("date") or ""),
-                  str(f.get("id") or ""))
+            date = str(f.get("date") or "")
+            _push(ent, str(f["statement"]).strip(),
+                  "" if _relative_date(date) else date, str(f.get("id") or ""))
             taken += 1
             if taken >= ACTOR_MAP_PER_ACTOR:
                 break

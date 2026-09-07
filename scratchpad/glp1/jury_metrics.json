@@ -1,44 +1,44 @@
 [
   {
-    "file": "DR3_final.md",
-    "words": 4327,
-    "future_events": 22,
-    "future_sources": 16,
-    "actors": 23,
-    "actors_with_figure": 8,
-    "figure_sentences": 28,
-    "options": 3,
-    "effort_sized": 3,
+    "file": "DR4_final.md",
+    "words": 3181,
+    "future_events": 17,
+    "future_sources": 10,
+    "actors": 17,
+    "actors_with_figure": 6,
+    "figure_sentences": 15,
+    "options": 4,
+    "effort_sized": 4,
     "coverage": {
-      "science": 9,
-      "patents": 9,
-      "funding": 10,
-      "market": 25
+      "science": 5,
+      "patents": 11,
+      "funding": 8,
+      "market": 13
     },
     "examples": [
       [
-        "15 June 2026",
-        "The 12-month window is now open in Europe: France became the first EU country to reimburse"
+        "May 2026",
+        "The EMA issued a positive opinion on the first oral GLP-1 treatment for weight management "
+      ],
+      [
+        "January 20, 2027",
+        "The FDA approved Foundayo (orforglipron), the first oral GLP-1 for weight loss in the US, "
+      ],
+      [
+        "May 2026",
+        "The EMA issued a positive opinion on the first oral GLP-1 treatment for weight management "
       ],
       [
         "2026",
-        "Patents.** Novo Nordisk’s semaglutide compound patent expires in several countries includi"
-      ],
-      [
-        "2036",
-        "Eli Lilly’s tirzepatide patents expire no earlier than 2036 [Mounjaro patent expiration: D"
-      ],
-      [
-        "Q1 2026",
-        "Novo Nordisk’s oral Wegovy pill generated 2.26 billion kroner in Q1 2026, well above analy"
+        "Hims & Hers launched GLP-1-specific bars and shakes in November 2024 [Hims & Hers Add Bars"
       ],
       [
         "2026",
-        "The global GLP-1 market is projected to reach $87–101 billion in 2026, up from roughly $70"
+        "Patent expiry and SPC (Europe).** Novo Nordisk's semaglutide patent expires in several cou"
       ],
       [
-        "H2 2026",
-        "in H2 2026 [Wegovy pill sales smash forecasts, sending Novo Nordisk stock"
+        "May 2026",
+        "Marketing authorisations.** The EMA issued a positive opinion on the first oral GLP-1 trea"
       ]
     ]
   },
@@ -86,45 +86,45 @@
     ]
   },
   {
-    "file": "DR2_final.md",
-    "words": 2888,
-    "future_events": 9,
-    "future_sources": 11,
-    "actors": 17,
-    "actors_with_figure": 5,
-    "figure_sentences": 11,
+    "file": "DR3_final.md",
+    "words": 4327,
+    "future_events": 22,
+    "future_sources": 16,
+    "actors": 23,
+    "actors_with_figure": 8,
+    "figure_sentences": 28,
     "options": 3,
-    "effort_sized": 0,
+    "effort_sized": 3,
     "coverage": {
-      "science": 10,
-      "patents": 14,
+      "science": 9,
+      "patents": 9,
       "funding": 10,
-      "market": 12
+      "market": 25
     },
     "examples": [
       [
-        "2026",
-        "Oral GLP-1 receptor agonists are now on market: orforglipron was published as approved for"
+        "15 June 2026",
+        "The 12-month window is now open in Europe: France became the first EU country to reimburse"
       ],
       [
         "2026",
-        "Protection Certificates - GOV.UK]( while the non-EU markets identified above lose semaglut"
+        "Patents.** Novo Nordisk’s semaglutide compound patent expires in several countries includi"
+      ],
+      [
+        "2036",
+        "Eli Lilly’s tirzepatide patents expire no earlier than 2036 [Mounjaro patent expiration: D"
+      ],
+      [
+        "Q1 2026",
+        "Novo Nordisk’s oral Wegovy pill generated 2.26 billion kroner in Q1 2026, well above analy"
       ],
       [
         "2026",
-        "Patents.** Novo Nordisk's semaglutide compound patent expires in 2026 in several countries"
+        "The global GLP-1 market is projected to reach $87–101 billion in 2026, up from roughly $70"
       ],
       [
-        "16 January 2026",
-        "New filings continue: a GLP-1/GIP/glucagon triple-agonist composition patent was filed 16 "
-      ],
-      [
-        "1 April 2026",
-        "In the US, the FDA clarified compounding policies on 1 April 2026 as the national GLP-1 sh"
-      ],
-      [
-        "2026",
-        "Patent expiry and SPC in Europe.** Semaglutide's compound patent expires in 2026 in severa"
+        "H2 2026",
+        "in H2 2026 [Wegovy pill sales smash forecasts, sending Novo Nordisk stock"
       ]
     ]
   }
