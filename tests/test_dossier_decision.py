@@ -2608,3 +2608,50 @@ class TestRoundSevenAndEightGainsSurviveRoundNine:
 
     def test_r7_the_measurement_recipe_is_still_produced(self):
         assert hasattr(dq, "measurement_recipe")
+
+
+class TestADeletedClaimMustNotLeaveANakedNumber:
+    """B9-Lauf v1: die Streichung zweier nur sekundaer belegter Saetze aus der
+    Kurzfassung hinterliess dort "2." und "3." als leere Aufzaehlungszeilen —
+    sichtbar schlimmer als die Luecke, die sie schliessen sollte."""
+
+    def test_the_stub_line_goes_with_the_sentence(self):
+        doc = ("## Decision summary\n\n"
+               "1. First claim [[W1]].\n2. Second claim [[W2]].\n"
+               "3. Third claim [[W1]].\n")
+        out, n = ds.drop_unverified(
+            doc, [{"sentence": "Second claim [[W2]].", "tokens": ["x"],
+                   "kind": "weakclaim", "section": "decision",
+                   "detail": "tikr.com", "url": "https://t/1"}])
+        assert n == 1
+        assert "2." not in out.replace("2. Third", "")
+        assert "Second claim" not in out
+
+    def test_the_remaining_items_are_renumbered(self):
+        doc = ("## Decision summary\n\n"
+               "1. First claim [[W1]].\n2. Second claim [[W2]].\n"
+               "3. Third claim [[W1]].\n")
+        out, _n = ds.drop_unverified(
+            doc, [{"sentence": "Second claim [[W2]].", "tokens": ["x"],
+                   "kind": "weakclaim", "section": "decision",
+                   "detail": "t", "url": "https://t/1"}])
+        assert "1. First claim" in out and "2. Third claim" in out
+
+    def test_a_bullet_marker_goes_too(self):
+        doc = "## Options\n\n- Risk: bad thing [[W2]].\n- Effort: EUR 1m.\n"
+        out, _n = ds.drop_unverified(
+            doc, [{"sentence": "bad thing [[W2]].", "tokens": ["x"],
+                   "kind": "figure", "detail": "t", "url": "https://t/1"}])
+        assert "- Risk:" not in out or "bad thing" not in out
+
+    def test_years_and_table_rows_are_never_renumbered(self):
+        text = ("| 2026 Q3 | Event | [[W1]] | why |\n"
+                "| 2027 Q2 | Event | [[W2]] | why |\n"
+                "2031. is not a list item\n")
+        assert ds._renumber_lists(text) == text
+
+    def test_a_claim_of_only_punctuation_is_not_a_claim(self):
+        """Der B9-v1-Befund mit dem Text ', , , ,' — nach dem Entfernen der
+        Zitat-Marker blieb nichts als Kommata uebrig."""
+        doc = _report().replace("word [[T1]].", "word. 2. [[W2]], [[W2]].")
+        assert ds.weak_source_claims(doc, [_SEC, _BLOG]) == []

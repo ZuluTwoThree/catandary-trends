@@ -1643,6 +1643,10 @@ def _core_sentences(report_md: str, lang: str) -> list[str]:
 # Aufzaehlungsmarke, Ueberschrift. Die Rangregel darf daran nicht haengen.
 _EMPTY_CLAIM = re.compile(r"^[\s|:*#_-]*$")
 MIN_CLAIM_WORDS = 4
+# Wortartige Token — Satzzeichen zaehlen nicht. Der B9-Lauf v1 meldete eine
+# "Aussage" mit dem Text ", , , ," (eine Zeile, die nach dem Entfernen der
+# Zitat-Marker nur noch Kommata enthielt) und loeschte sie aus der Kurzfassung.
+_WORDISH = re.compile(r"[A-Za-z\u00c0-\u024f0-9]+")
 
 
 def _source_index(sources: list[dict]) -> tuple[dict, dict]:
@@ -1689,7 +1693,7 @@ def weak_source_claims(report_md: str, sources: list[dict], lang: str = "en",
             continue                # ohne Beleg: das ist `sourceless_figures`
         if _is_primary(cited):
             continue
-        if len(prose(sentence).split()) < MIN_CLAIM_WORDS:
+        if len(_WORDISH.findall(prose(sentence))) < MIN_CLAIM_WORDS:
             continue
         if sentence in seen:
             continue
@@ -1774,8 +1778,45 @@ def drop_unverified(report_md: str, unverified: list[dict],
             dropped += 1
     # Doppelte Leerzeichen/Leerzeilen, die durch die Streichung entstehen.
     out = re.sub(r"[ \t]{2,}", " ", out)
+    # Eine Aufzaehlungszeile, deren Inhalt gestrichen wurde, darf nicht als
+    # nackte Nummer stehenbleiben. Der B9-Lauf v1 lieferte eine Kurzfassung
+    # aus "1. <Satz>", "2." und "3." — schlimmer als die Luecke selbst.
+    out = re.sub(r"^[ \t]*(?:\d{1,2}[.)]|[-*+])[ \t]*$\n?", "", out,
+                 flags=re.MULTILINE)
+    out = _renumber_lists(out)
     out = re.sub(r"\n{3,}", "\n\n", out)
     return out, dropped
+
+
+_ORDERED_ITEM = re.compile(r"^(?P<lead>[ \t]*)(?P<num>\d{1,2})(?P<dot>[.)])"
+                           r"(?P<gap>[ \t]+)(?P<rest>\S.*)$")
+
+
+def _renumber_lists(text: str) -> str:
+    """Nummerierte Listen nach einer Streichung wieder luecklos zaehlen.
+
+    Nur zusammenhaengende Bloecke gleicher Einrueckung; alles andere bleibt
+    unberuehrt (Tabellenzeilen beginnen mit '|', Jahreszahlen haben vier
+    Stellen und werden vom Muster nicht getroffen)."""
+    lines = text.splitlines(keepends=True)
+    out: list[str] = []
+    counter = 0
+    lead = None
+    for line in lines:
+        m = _ORDERED_ITEM.match(line.rstrip("\n"))
+        if m and (lead is None or m.group("lead") == lead):
+            lead = m.group("lead")
+            counter += 1
+            tail = "\n" if line.endswith("\n") else ""
+            out.append(f"{m.group('lead')}{counter}{m.group('dot')}"
+                       f"{m.group('gap')}{m.group('rest')}{tail}")
+            continue
+        if not line.strip():
+            out.append(line)
+            continue                      # Leerzeile bricht den Block nicht
+        counter, lead = 0, None
+        out.append(line)
+    return "".join(out)
 
 
 # So viele Einzelbefunde nimmt der eine Neuwurf mit. Reihum ueber die
