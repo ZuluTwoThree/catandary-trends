@@ -481,3 +481,21 @@ Extraktionsfehler). Korrektur 19:14: Cache für alle 813 gelöscht, 548
 verlorene Einträge wieder geöffnet (553 offen), der laufende Cycle nimmt sie
 in Phase 3 mit. Fixes: `requeueForRegeneration` löscht den Cache mit,
 `llm_processor.unique_slug` hängt bei Kollision `-r2` an.
+
+**Ergebnis (Lauf beendet 23:41, rc1=2 wegen der 21 Insert-Fehler, rc2=0,
+Richter 600 beurteilt / 190 freigegeben / 392 gehalten, Ruhezustand hergestellt).**
+Von den 813 Zeilen:
+
+| | Zeilen |
+|---|---|
+| neu geschrieben | 557 |
+| davon veröffentlicht (Auto-Publish + 70 vom Richter) | 309 (38 im 30-Tage-Fenster, Rest nur Korpus) |
+| davon Draft, vom Richter gehalten | 212 |
+| davon Draft, von einem Gate gehalten (Name/Zahl nicht in der Quelle) | 30 |
+| davon Draft, noch nicht beurteilt (600er-Limit) | 6 |
+| vom Relevanz-Gate verworfen | 249 |
+| offen geblieben (Garbage-Abbrüche / außerhalb des Cycle-Scopes) | 6 |
+| Slug-Kollisionen im 2. Durchgang mit `-r2` eingefügt | 20 |
+
+Review-Queue danach: 0. Die Neufassungen tragen keinen `review_reason`; die
+alten Zeilen bleiben als `rejected` + `reviewed_at 2026-09-08` erhalten.
