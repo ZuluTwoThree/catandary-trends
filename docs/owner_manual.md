@@ -146,8 +146,9 @@ landen hier. Ohne Entscheidung bleiben sie liegen.
 - **Viele Karten auf einmal** (z. B. die ganze Re-check-Queue): dieselben zwei
   SQL-Schritte wie *Write again* in einer Transaktion — alte Zeilen
   `status='rejected', reviewed_at=NOW()` (Grund bleibt als Audit-Spur), dann
-  `raw_entries SET processed=FALSE, filtered_out=FALSE, filter_reason=NULL`
-  für ihre `raw_entry_id`s — und danach den Cycle von Hand starten:
+  `raw_entries SET processed=FALSE, filtered_out=FALSE, filter_reason=NULL,
+  content_en_json=NULL` (der Stage-6-Cache muss weg, sonst kommt der alte Text
+  wortgleich zurück) für ihre `raw_entry_id`s — und danach den Cycle von Hand starten:
   `tmux new -s rewrite` → `cd ~/projects/catandary-trends && bash
   scripts/scheduled_cycle.sh 1500` (nur mit ≥ 6 h Luft zum 04:00-Lauf,
   Kollisionswächter greift). Vorlage: 08.09.2026, 813 Zeilen,

@@ -64,7 +64,7 @@ from pipeline.db import (
     insert_trend,
     mark_filtered,
     mark_processed,
-    save_stage_result,
+    save_stage_result, slug_exists,
 )
 from pipeline.models import (
     ClassificationResult,
@@ -692,6 +692,20 @@ def normalize_title(title: str) -> str:
     return " ".join(t.split())
 
 
+def unique_slug(title: str, entry_id: int) -> str:
+    """Slug = slugified title + raw-entry id — unique per entry, until the same
+    entry is written AGAIN ("Write again", 2026-09-08 mass rewrite): its retired
+    predecessor still holds the slug (UNIQUE), and a colliding insert used to be
+    logged as an error and the entry marked processed — the story silently lost
+    (548 of 813 that evening). A collision now gets a -r2/-r3 suffix instead."""
+    base = f"{slugify(title, max_length=70)}-{entry_id}"
+    slug, n = base, 1
+    while slug_exists(slug):
+        n += 1
+        slug = f"{base}-r{n}"
+    return slug
+
+
 def is_title_duplicate(title: str, existing_norm: list[str], threshold: float = 0.90) -> tuple[bool, float]:
     """Return (is_dup, best_similarity) via length-prefiltered rapidfuzz ratio.
 
@@ -817,9 +831,9 @@ def process_entry(entry: dict) -> dict | None:
         mark_filtered(entry_id, "content_generation_error")
         return None
 
-    # Build trend data — append entry_id to slug for uniqueness
-    base_slug = slugify(content_en.title, max_length=70)
-    slug = f"{base_slug}-{entry_id}"
+    # Build trend data — slug = title + entry_id, suffixed if a retired
+    # predecessor of this very entry still holds it
+    slug = unique_slug(content_en.title, entry_id)
     trend_data = {
         "title_en": content_en.title,
         "title_de": None,
@@ -1372,7 +1386,7 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
                 trend_data = {
                     **common,
                     "title_en": title,
-                    "slug": f"{slugify(title, max_length=70)}-{entry['id']}",
+                    "slug": unique_slug(title, entry["id"]),
                     "summary_en": None,
                     "body_en": None,
                     "status": "signal",
@@ -1382,7 +1396,7 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
                 trend_data = {
                     **common,
                     "title_en": en.title,
-                    "slug": f"{slugify(en.title, max_length=70)}-{entry['id']}",
+                    "slug": unique_slug(en.title, entry["id"]),
                     "summary_en": en.summary,
                     "body_en": en.body,
                 }

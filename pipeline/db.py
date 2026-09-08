@@ -1356,6 +1356,12 @@ def get_trends(status: str | None = None, vertical: str | None = None,
         return results
 
 
+def slug_exists(slug: str) -> bool:
+    """True if a trend row already carries this slug (UNIQUE column)."""
+    with get_connection() as conn:
+        return conn.execute("SELECT 1 FROM trends WHERE slug = ? LIMIT 1", (slug,)).fetchone() is not None
+
+
 def get_trend_by_slug(slug: str) -> dict | None:
     """Get a single trend by slug."""
     with get_connection() as conn:

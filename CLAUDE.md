@@ -219,7 +219,13 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       (Teaser statt Artikel) in die Content-Generierung. Stage 1 (Titel-
       Dedup, get_recent_titles) ignoriert seither wie der Embedding-Dedup
       per Hand verworfene Zeilen (rejected + reviewed_at), sonst würde der
-      zurückgezogene Vorgänger die Neufassung als Duplikat töten.
+      zurückgezogene Vorgänger die Neufassung als Duplikat töten. „Write
+      again" löscht außerdem den Stage-6-Content-Cache
+      (raw_entries.content_en_json) — ohne das fügte der Cycle den
+      verworfenen Text wortgleich wieder ein (564 von 813 am 08.09.) und
+      scheiterte am eigenen Slug; eine Slug-Kollision bekommt seither ein
+      -r2/-r3-Suffix (llm_processor.unique_slug) statt den Eintrag als
+      „processed" zu verlieren.
     → EXTRACTION_STRICT=1 (Default seit 2026-08-21): alle Felder Pflicht,
       quotes/geography werden auf Wörtlichkeit gefiltert (~5,3 s/Artikel)
     → key_figures kommen NICHT vom Modell: deterministisch per Regex aus der

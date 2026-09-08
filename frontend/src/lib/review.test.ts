@@ -34,6 +34,9 @@ describe("requeueForRegeneration", () => {
     // merely rejected. The reverse would leave an open entry beside a live
     // draft and produce two articles for one signal.
     expect(sql[1]).toMatch(/UPDATE raw_entries SET processed = FALSE/);
+    // Stage 6 would otherwise reuse the cached (rejected) text and Stage 7 die
+    // on the predecessor's slug — the rewrite must start from the source.
+    expect(sql[1]).toMatch(/content_en_json = NULL/);
     expect(q.mock.calls[1][1]).toEqual([55]);
   });
 

@@ -469,3 +469,15 @@ main-Worktree, Log `~/logs/catandary-scheduled-20260908-19*.log`
 (created/filtered/held) steht in der Morgen-Mail vom 09.09. bzw. im Log.
 Die 813 alten Zeilen sind per `status='rejected' AND reviewed_at::date =
 '2026-09-08' AND review_reason LIKE 'recheck_%'` auffindbar.
+
+**Lauf 19:11 — dritter Fehler.** Stage 6 meldete „564 cache hits": der
+Crash-Resume-Cache `raw_entries.content_en_json` hielt noch den verworfenen
+Text, der Cycle fügte ihn wortgleich wieder ein und Stage 7 scheiterte 564-mal
+an `trends_slug_key` (Slug = Titel + Roheintrag-ID = der Slug des
+zurückgezogenen Vorgängers); die Einträge wurden trotzdem als `processed`
+markiert. 16 Einträge ohne Cache wurden echt neu geschrieben, 244 vom
+Relevanz-Gate verworfen (208 Distill, 32 8B-Band, 3 Titel-Dubletten, 1
+Extraktionsfehler). Korrektur 19:14: Cache für alle 813 gelöscht, 548
+verlorene Einträge wieder geöffnet (553 offen), der laufende Cycle nimmt sie
+in Phase 3 mit. Fixes: `requeueForRegeneration` löscht den Cache mit,
+`llm_processor.unique_slug` hängt bei Kollision `-r2` an.

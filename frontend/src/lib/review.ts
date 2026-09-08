@@ -302,9 +302,14 @@ export async function requeueForRegeneration(id: number): Promise<RequeueResult>
   );
   if (!retired.length) return { ok: false, reason: "not_draft" };
 
+  // content_en_json is Stage 6's crash-resume cache of the generated text.
+  // Left in place, the next cycle re-inserts the rejected article word for
+  // word and then dies on its own slug (564 of 813 on 2026-09-08) — a rewrite
+  // must start from the source, so the cache goes with the draft.
   await q(
     `UPDATE raw_entries
-        SET processed = FALSE, filtered_out = FALSE, filter_reason = NULL
+        SET processed = FALSE, filtered_out = FALSE, filter_reason = NULL,
+            content_en_json = NULL
       WHERE id = $1`,
     [row.raw_entry_id]
   );
