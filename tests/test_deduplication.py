@@ -79,6 +79,7 @@ class TestDedupExcludesHandRejected:
     """
 
     def _insert(self, conn, tid, status, reviewed):
+        conn.execute("DELETE FROM trends WHERE id = ?", (tid,))  # test DB file persists across runs
         conn.execute(
             "INSERT INTO trends (id, title_en, slug, source_url, status, "
             " reviewed_at, embedding, created_at) "
@@ -100,3 +101,18 @@ class TestDedupExcludesHandRejected:
         assert 900002 not in ids, "hand-rejected must not block a re-cover"
         assert 900003 in ids, "sweep rejection must keep suppressing follow-ups"
         assert 900001 in ids and 900004 in ids, "normal rows must still dedup"
+
+    def test_title_dedup_skips_hand_rejected_too(self):
+        # "Write again" retires the old article and re-queues its raw entry; the
+        # retired title must not filter the rewrite as a duplicate of itself.
+        from pipeline.db import get_connection, get_recent_titles, init_db
+        init_db()
+        with get_connection() as conn:
+            self._insert(conn, 900011, "published", None)
+            self._insert(conn, 900012, "rejected", "2026-09-08 19:00:00")  # by hand
+            self._insert(conn, 900013, "rejected", None)                   # sweep
+
+        titles = set(get_recent_titles(days=30))
+        assert "T900012" not in titles, "hand-rejected title must not block the rewrite"
+        assert "T900013" in titles, "sweep rejection must keep suppressing"
+        assert "T900011" in titles

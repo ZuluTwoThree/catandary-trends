@@ -1437,18 +1437,27 @@ def get_recent_titles(days: int = 30) -> list[str]:
 
     Used by the batch LLM processor to filter out raw entries whose title
     closely matches an existing trend before any LLM call is spent on them.
+
+    Hand-rejected rows are excluded, for the same reason as in
+    get_recent_embeddings: "Write again" on the review desk retires the old
+    article (rejected + reviewed_at) and re-queues its raw entry — the retired
+    title must not kill the rewrite as a duplicate of itself. Sweep rejections
+    (reviewed_at IS NULL) keep blocking.
     """
+    reviewed_clause = "AND NOT (status = 'rejected' AND reviewed_at IS NOT NULL) "
     with get_connection() as conn:
         if USE_POSTGRES:
             rows = conn.execute(
                 "SELECT title_en FROM trends "
-                "WHERE title_en IS NOT NULL AND created_at > NOW() - make_interval(days => %s)",
+                "WHERE title_en IS NOT NULL AND created_at > NOW() - make_interval(days => %s) "
+                + reviewed_clause,
                 (days,),
             ).fetchall()
         else:
             rows = conn.execute(
                 "SELECT title_en FROM trends "
-                "WHERE title_en IS NOT NULL AND created_at > datetime('now', ?)",
+                "WHERE title_en IS NOT NULL AND created_at > datetime('now', ?) "
+                + reviewed_clause,
                 (f"-{days} days",),
             ).fetchall()
         return [row["title_en"] if isinstance(row, dict) else row[0] for row in rows]

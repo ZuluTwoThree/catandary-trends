@@ -8,6 +8,12 @@ Runs the complete automated pipeline:
   4. LLM processing batch (newly polled entries)
   5. Summary report
 
+Full-text enrichment (#11, opt-in sources only) runs immediately before EACH
+LLM run — the backlog in step 2 and the fresh entries in step 4. Until
+2026-09-08 it sat between steps 3 and 4 only, so every backlog entry (including
+the ones the review desk sends back with "Write again") reached content
+generation with the RSS teaser instead of the article.
+
 Usage:
     python -m pipeline.run_full_cycle              # Full cycle, batch 400
     python -m pipeline.run_full_cycle --batch 500  # Larger batch
@@ -178,6 +184,24 @@ def get_unprocessed_count(min_id: int = 0) -> int:
     return len(entries)
 
 
+def enrich_fulltext(limit: int) -> int:
+    """Fill raw_content for unprocessed opt-in-source entries before an LLM run (#11).
+
+    Opt-in sources only (sources.yaml fulltext:true), robots/TDM-respecting,
+    no-op when nothing is pending, never fatal — a fetch problem must not stop
+    the cycle. Returns the number of entries enriched.
+    """
+    try:
+        from pipeline.article_fetcher import fetch_batch
+        filled = fetch_batch(limit=limit)
+        if filled:
+            logger.info("Full-text: enriched %d entries before LLM", filled)
+        return filled
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Full-text enrichment skipped (non-fatal): %r", e)
+        return 0
+
+
 def write_cycle_log(result: dict):
     """Append cycle result to data/cycle_log.jsonl for monitoring."""
     log_path = DATA_DIR / "cycle_log.jsonl"
@@ -251,6 +275,7 @@ def main():
                         backlog_count, args.min_id)
             logger.info("-" * 40)
             t0 = time.time()
+            enrich_fulltext(min(args.batch, backlog_count))
             backlog_stats = run_llm(min(args.batch, backlog_count), min_id=args.min_id)
             backlog_duration = time.time() - t0
             logger.info(
@@ -280,22 +305,6 @@ def main():
     else:
         logger.info("SKIP: Feed polling (--skip-poll)")
 
-    # Step 3b: Full-text enrichment (#11) — fill raw_content for opt-in sources
-    # before the LLM stages, so classification + content-gen work from the real
-    # article, not the RSS teaser. Only opt-in sources (sources.yaml fulltext:true),
-    # robots-respecting; no-op if none pending. Non-fatal on error.
-    # Runs in --skip-poll drain runs too (2026-08-25): the backlog drains were
-    # exactly the runs whose entries reached content-gen text-less — 84% of the
-    # first judge night's candidates had an empty raw_content because of this.
-    if not args.skip_llm:
-        try:
-            from pipeline.article_fetcher import fetch_batch
-            filled = fetch_batch(limit=args.batch)
-            if filled:
-                logger.info("Full-text: enriched %d entries before LLM", filled)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Full-text enrichment skipped (non-fatal): %r", e)
-
     # Step 4: LLM processing (newly polled entries)
     llm_stats = None
     if not args.skip_llm:
@@ -306,6 +315,7 @@ def main():
                         new_count, args.batch, args.min_id)
             logger.info("-" * 40)
             t0 = time.time()
+            enrich_fulltext(min(args.batch, new_count))
             llm_stats = run_llm(min(args.batch, new_count), min_id=args.min_id)
             llm_duration = time.time() - t0
             logger.info(

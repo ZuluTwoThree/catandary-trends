@@ -432,3 +432,40 @@ Zeilen des Owners von Juli). `reviewed_at` wurde **nicht** gesetzt — in
 damals im Artikel las (Autorenlisten in „Trends in Biotechnology", „Food
 Policy"), erscheint heute „ungrounded". Deshalb Hold, kein Urteil; Publish
 aus der Queue ist die richtige Antwort auf solche Fälle.
+
+## Nachtrag 2026-09-08 — Re-check-Queue komplett neu geschrieben
+
+Owner-Entscheid: die 813 Zeilen in `review` (807 mit `recheck_2026-09-05`-
+Grund, 6 ohne) nicht einzeln durchsehen, sondern alle neu schreiben lassen.
+Ausgeführt 18:47 Uhr mit genau der Semantik des *Write again*-Knopfs
+(`requeueForRegeneration`): alte Zeilen → `rejected` + `reviewed_at`
+(`review_reason` bleibt als Audit-Spur), 813 `raw_entries` → unverarbeitet.
+Vorher: 0 mit früherem Neuschreib-Versuch, 0 mit veröffentlichtem Geschwister-
+Artikel, 787 waren einmal published.
+
+Befund vorab, der die Erwartung dämpft:
+
+| | Zeilen |
+|---|---|
+| `raw_content` bereits genullt (14-Tage-Purge) | 803 |
+| davon Opt-in-Quelle → Volltext wird vor dem Lauf neu geholt | 340 (77 Quellen: Handelsblatt, Politico Europe, Tagesschau, WiWo, heise, Ars Technica, TechCrunch …) |
+| davon Vorbehalts-/Sperr-Quelle → nur Titel + Teaser (Median 120 Zeichen) + gecachte Extraktion (463 Zeilen haben eine) | 463 (54 Quellen: Lebensmittelzeitung 95, Horizont 77, Trends in Food Science 45, Trends in Biotechnology 35, Project Syndicate 24, The Lancet 17 …) |
+| Quelldatum älter als 30 Tage → Neufassung liegt außerhalb des öffentlichen Fensters, nur Korpus | 617 |
+
+Zwei Pipeline-Fehler dabei gefunden und im selben Zug behoben (Tests
+`tests/test_run_full_cycle_order.py`, `tests/test_deduplication.py`):
+
+1. `run_full_cycle` holte den Volltext erst **nach** Phase 1 (Backlog) —
+   jeder *Write again*-Eintrag lief textlos in die Content-Generierung.
+   Jetzt läuft `fetch_batch` unmittelbar vor jedem LLM-Lauf.
+2. `get_recent_titles` (Stage-1-Titel-Dedup) enthielt die per Hand
+   verworfenen Vorgänger; 142 der 813 lagen im 30-Tage-Fenster und hätten
+   ihre eigene Neufassung als `title_duplicate` töten können. Jetzt gleiche
+   Ausnahme wie in `get_recent_embeddings`.
+
+Lauf: `scripts/scheduled_cycle.sh 1500` in tmux-Session `rewrite` aus dem
+main-Worktree, Log `~/logs/catandary-scheduled-20260908-19*.log`
+(erster Start 18:50 vor dem Fix abgebrochen, nichts verändert). Ergebnis
+(created/filtered/held) steht in der Morgen-Mail vom 09.09. bzw. im Log.
+Die 813 alten Zeilen sind per `status='rejected' AND reviewed_at::date =
+'2026-09-08' AND review_reason LIKE 'recheck_%'` auffindbar.

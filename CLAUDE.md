@@ -212,6 +212,14 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       fulltext:true (3 Vorbehalts-Quellen + 10 Bot-Sperren am 03.09. auf
       false gesetzt, docs/compliance/tdm_probe_2026-09-03.md). raw_content
       wird 14 Tage nach Abruf genullt (Cron 03:30, §44b Abs. 2 S. 2 UrhG).
+      Die Anreicherung (article_fetcher.fetch_batch) läuft seit 2026-09-08
+      unmittelbar vor JEDEM LLM-Lauf des Cycles, also auch vor Phase 1
+      (Backlog). Vorher stand sie nur zwischen Poll und Phase 3 — jeder
+      Backlog-Eintrag, auch „Write again" aus dem Review-Desk, lief textlos
+      (Teaser statt Artikel) in die Content-Generierung. Stage 1 (Titel-
+      Dedup, get_recent_titles) ignoriert seither wie der Embedding-Dedup
+      per Hand verworfene Zeilen (rejected + reviewed_at), sonst würde der
+      zurückgezogene Vorgänger die Neufassung als Duplikat töten.
     → EXTRACTION_STRICT=1 (Default seit 2026-08-21): alle Felder Pflicht,
       quotes/geography werden auf Wörtlichkeit gefiltert (~5,3 s/Artikel)
     → key_figures kommen NICHT vom Modell: deterministisch per Regex aus der

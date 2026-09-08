@@ -138,8 +138,20 @@ landen hier. Ohne Entscheidung bleiben sie liegen.
   („human-reviewed"), `review_reason` gelöscht. **Reject** — Status `rejected`,
   `reviewed_at` gesetzt. **Write again** — bei abgeschnittenem oder garbled
   Text: der Rohdaten-Eintrag wird für den nächsten Cycle neu eingereiht, der
-  aktuelle Draft wird verworfen (die Quelle geht nicht verloren). Alle drei
+  aktuelle Draft wird verworfen (die Quelle geht nicht verloren). Der Cycle
+  holt für Opt-in-Quellen (`fulltext: true`) den Volltext vorher neu (seit
+  08.09.2026 auch für Backlog-Einträge); bei Vorbehalts-Quellen schreibt das
+  Modell aus Titel + Teaser + gecachter Extraktion. Alle drei
   Aktionen gelten für beide Warteschlangen (`draft` und `review`).
+- **Viele Karten auf einmal** (z. B. die ganze Re-check-Queue): dieselben zwei
+  SQL-Schritte wie *Write again* in einer Transaktion — alte Zeilen
+  `status='rejected', reviewed_at=NOW()` (Grund bleibt als Audit-Spur), dann
+  `raw_entries SET processed=FALSE, filtered_out=FALSE, filter_reason=NULL`
+  für ihre `raw_entry_id`s — und danach den Cycle von Hand starten:
+  `tmux new -s rewrite` → `cd ~/projects/catandary-trends && bash
+  scripts/scheduled_cycle.sh 1500` (nur mit ≥ 6 h Luft zum 04:00-Lauf,
+  Kollisionswächter greift). Vorlage: 08.09.2026, 813 Zeilen,
+  `docs/compliance/grounding_recheck_2026-09-05.md` (Nachtrag).
 - Ein Namens-Treffer ist ein **Hold, kein Urteil**: „Donald Trump" bei Quelle
   „Trump" ist korrekt ergänzt, „Simona Reiche" bei Quelle „Reiche" erfunden
   (real Katherina) — das entscheidet der Mensch. Geprüft wird gegen das, was
