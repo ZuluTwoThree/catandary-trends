@@ -898,6 +898,18 @@ selben Zug** (`processed`, `filtered_out`, `filter_reason='source_text_purged'`,
 seit 09.09.2026) — ohne das blieben sie im unverarbeiteten Pool und der Cycle
 schrieb später Artikel aus dem nackten Titel.
 
+**Signalbetrieb statt Abschalten (seit 09.09.2026).** Eine Quelle mit
+maschinenlesbarem TDM-Vorbehalt muss nicht ganz weg: `llm_pipeline: false`
+(nie Artikelmaterial) + `store_excerpt: false` (der Poller speichert nur Titel,
+URL und Datum, kein Abstract) lassen sie weiterlaufen und in Embeddings,
+Mega-Themes und Research Pulse einfließen. So laufen die 33 Vorbehalts-Quellen
+seit dem 09.09. Wichtig: `upsert_source` schreibt Flags nie auf eine bestehende
+Zeile — nach jeder Flag-Änderung in `sources.yaml`
+`python scripts/apply_source_hygiene.py --apply` laufen lassen (synct `active`
+in beide Richtungen und `llm_pipeline`; ohne `--apply` Dry-Run mit Plan).
+Der Samstagslauf verarbeitet sie über
+`scripts/signal_batch_embedded.py --signal-only`.
+
 **Quelle deaktivieren stoppt seit 09.09.2026 auch den Backlog.** `active: false`
 in `sources.yaml` + `apply_source_hygiene.py --apply` hielt vorher nur den
 Poller an; die bereits geholten Einträge liefen weiter in die

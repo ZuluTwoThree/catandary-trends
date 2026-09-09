@@ -289,7 +289,8 @@ def _norm_rows(M: np.ndarray) -> np.ndarray:
 
 def pull_unprocessed(limit: int, include: list[str], exclude: list[str],
                      min_id: int = 0, source_type: str = "", no_patents: bool = False,
-                     patents_only: bool = False, published_after: str = "") -> list[dict]:
+                     patents_only: bool = False, published_after: str = "",
+                     signal_only: bool = False) -> list[dict]:
     """Unprocessed entries, optionally scoped by source vertical (include/exclude),
     by source_type (e.g. 'api' = the funding ingests only), and to id > min_id
     (to classify only a fresh ingest, not older backlog). no_patents excludes
@@ -298,7 +299,12 @@ def pull_unprocessed(limit: int, include: list[str], exclude: list[str],
     patents DO feed the embedded signal space): only patent rows that carry an
     abstract — title-only rows stay unprocessed and simply out of scope, never
     lost. published_after bounds the scope by publication date (rolling window
-    in the Saturday run, explicit floor for gap-closing backfills)."""
+    in the Saturday run, explicit floor for gap-closing backfills).
+
+    signal_only scopes to sources flagged `llm_pipeline = FALSE` — the ones the
+    content cycle never writes articles from (#97, 2026-09-09: the 33 sources
+    with a TDM reservation run in signal mode). Three of them are trade_media
+    and would be caught by no other scheduled sweep."""
     where = ["re.processed = FALSE", "re.filtered_out = FALSE"]
     params: list = []
     if source_type:
@@ -309,6 +315,8 @@ def pull_unprocessed(limit: int, include: list[str], exclude: list[str],
     if patents_only:
         where.append("re.pub_number IS NOT NULL")
         where.append("length(coalesce(re.excerpt, '')) > 120")
+    if signal_only:
+        where.append("COALESCE(s.llm_pipeline, TRUE) = FALSE")
     if published_after:
         where.append("re.published_date >= ?")
         params.append(published_after)
@@ -563,7 +571,8 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
                 include: list[str], exclude: list[str], workers: int = 24,
                 min_id: int = 0, source_type: str = "",
                 relevance_threshold: float = 0.5, no_patents: bool = False,
-                patents_only: bool = False, published_after: str = "") -> int:
+                patents_only: bool = False, published_after: str = "",
+                signal_only: bool = False) -> int:
     """Mass-ingest classification WITHOUT the LLM: embed each survivor, then run
     the distilled heads (pipeline/distill) for relevance/vertical/mega/PESTEL.
     ~0 marginal cost per item; the only GPU step is the shared embedding pass.
@@ -581,7 +590,7 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
               "kept as a signal (train it via embed_filtered.py + train_distill_heads.py).")
 
     entries = pull_unprocessed(limit, include, exclude, min_id, source_type, no_patents,
-                               patents_only, published_after)
+                               patents_only, published_after, signal_only)
     print(f"Unprocessed in scope: {len(entries)}")
     if not entries:
         return 0
@@ -719,6 +728,10 @@ def main() -> int:
                     help="ONLY patent rows with an abstract (excerpt > 120 chars) — the "
                          "weekly patent-signal pass into the embedded signal space "
                          "(Owner 2026-08-28); combine with --published-after")
+    ap.add_argument("--signal-only", action="store_true",
+                    help="only sources flagged llm_pipeline=false (signal mode, #97) — "
+                         "the content cycle never writes articles from them, so no other "
+                         "sweep covers the trade_media ones")
     ap.add_argument("--published-after", default="",
                     help="only entries with published_date >= YYYY-MM-DD (rolling window "
                          "for the weekly patent pass; explicit floor for backfills)")
@@ -733,7 +746,7 @@ def main() -> int:
         return run_distill(args.limit, args.execute, args.embed_chunk, inc, exc,
                            args.workers, args.min_id, args.source_type,
                            args.relevance_threshold, args.no_patents,
-                           args.patents_only, args.published_after)
+                           args.patents_only, args.published_after, args.signal_only)
     return run(args.limit, args.execute, args.embed_chunk, inc, exc,
                args.backend, args.workers, args.min_id, args.source_type)
 

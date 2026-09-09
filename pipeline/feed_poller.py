@@ -78,6 +78,14 @@ def get_entry_excerpt(entry: dict) -> str:
     return ""
 
 
+# Zwei Quellenfelder aus sources.yaml wirken hier (beide seit 2026-09-09, #97):
+#   llm_pipeline: false   Signalbetrieb — die Quelle liefert Material fuer
+#                         Embeddings/Foresight, aber der Content-Cycle schreibt
+#                         nie einen Artikel daraus (Spalte sources.llm_pipeline).
+#   store_excerpt: false  der Feed-Teaser wird gar nicht erst gespeichert; nur
+#                         Titel, URL und Datum. Fuer Quellen mit maschinen-
+#                         lesbarem TDM-Vorbehalt: bibliografische Metadaten sind
+#                         nicht geschuetzt, das Abstract im Teaser sehr wohl.
 def fetch_feed(source_name: str, feed_url: str) -> list[dict]:
     """Fetch and parse a single RSS/Atom feed."""
     try:
@@ -288,17 +296,19 @@ def poll_vertical_sources(vertical: str, config: dict) -> dict:
         source_type = source_cfg.get("type", "trade_media")
         warn_if_missing_tier(source_cfg)
 
-        source_id = upsert_source(source_name, feed_url, source_type, vertical)
+        source_id = upsert_source(source_name, feed_url, source_type, vertical,
+                                  llm_pipeline=source_cfg.get("llm_pipeline", True))
 
         entries = fetch_source(source_cfg, source_name, feed_url)
         stats["fetched"] += len(entries)
+        keep_excerpt = source_cfg.get("store_excerpt", True)
 
         for entry in entries:
             entry_id = insert_raw_entry(
                 source_id=source_id,
                 url=entry["url"],
                 title=entry["title"],
-                excerpt=entry["excerpt"],
+                excerpt=entry["excerpt"] if keep_excerpt else None,
                 published_date=entry["published_date"],
             )
             if entry_id:
@@ -327,17 +337,19 @@ def poll_cross_industry(config: dict) -> dict:
             source_type = source_cfg.get("type", "press_wire")
             warn_if_missing_tier(source_cfg)
 
-            source_id = upsert_source(source_name, feed_url, source_type, "CROSS")
+            source_id = upsert_source(source_name, feed_url, source_type, "CROSS",
+                                      llm_pipeline=source_cfg.get("llm_pipeline", True))
 
             entries = fetch_source(source_cfg, source_name, feed_url)
             stats["fetched"] += len(entries)
+            keep_excerpt = source_cfg.get("store_excerpt", True)
 
             for entry in entries:
                 entry_id = insert_raw_entry(
                     source_id=source_id,
                     url=entry["url"],
                     title=entry["title"],
-                    excerpt=entry["excerpt"],
+                    excerpt=entry["excerpt"] if keep_excerpt else None,
                     published_date=entry["published_date"],
                 )
                 if entry_id:

@@ -84,6 +84,55 @@ def yaml_inactive_feed_urls(cfg: dict | None = None) -> list[tuple[str, str]]:
     return out
 
 
+def yaml_flag_targets(cfg: dict | None = None) -> list[tuple[str, str, bool]]:
+    """[(feed_url, name, want_llm_pipeline), ...] for every sources.yaml entry
+    that is NOT `active: false` — i.e. every source the poller polls.
+
+    Added 2026-09-09 (#97). `upsert_source` only ever INSERTs, so a source that
+    already has a DB row never picks up a later `llm_pipeline: false` from the
+    YAML, and a source reactivated in the YAML keeps `active=false` in the DB
+    forever. Both flags therefore need an explicit sync, exactly like the
+    deactivation pass above.
+    """
+    cfg = load_sources() if cfg is None else cfg
+    out: list[tuple[str, str, bool]] = []
+
+    def scan(entries):
+        for s in entries or []:
+            if s.get("active") is False or not s.get("feed_url"):
+                continue
+            out.append((s["feed_url"], s["name"], bool(s.get("llm_pipeline", True))))
+
+    for _vertical, group in (cfg.get("verticals") or {}).items():
+        scan(group.get("sources"))
+        scan(group.get("science"))
+    for _group_name, entries in (cfg.get("cross_industry") or {}).items():
+        scan(entries)
+    return out
+
+
+def plan_flag_syncs(targets: list[tuple[str, str, bool]],
+                    db_rows: dict[str, dict]) -> list[dict]:
+    """Pure planning step for the flag sync; returns one dict per row that
+    differs from the YAML: {"feed_url", "name", "id", "reactivate", "llm"}.
+
+    `llm` is None when `llm_pipeline` already matches (NULL in the DB counts as
+    True, the same COALESCE the pipeline queries use).
+    """
+    out: list[dict] = []
+    for feed_url, name, want_llm in targets:
+        row = db_rows.get(feed_url)
+        if row is None:
+            continue                                   # not polled yet — INSERT will carry the flags
+        has_llm = True if row.get("llm_pipeline") is None else bool(row["llm_pipeline"])
+        reactivate = not row["active"]
+        llm = want_llm if has_llm != want_llm else None
+        if reactivate or llm is not None:
+            out.append({"feed_url": feed_url, "name": name, "id": row["id"],
+                        "reactivate": reactivate, "llm": llm})
+    return out
+
+
 def plan_deactivations(targets: list[tuple[str, str]],
                         db_rows: dict[str, dict]) -> dict[str, list]:
     """Pure planning step, testable without a DB connection.
@@ -110,7 +159,7 @@ def plan_deactivations(targets: list[tuple[str, str]],
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Sync sources.yaml active:false + known DB-only orphans into sources.active (#81)")
+        description="Sync sources.yaml flags (active, llm_pipeline) + known DB-only orphans into the sources table (#81, #97)")
     ap.add_argument("--apply", action="store_true",
                     help="actually run the UPDATEs (default: dry-run, prints the plan only)")
     args = ap.parse_args()
@@ -150,10 +199,40 @@ def main() -> int:
         for feed_url, reason, _ in plan["missing"]:
             print(f"SKIP (no DB row for this feed_url): {reason}\n  {feed_url}")
 
+        # --- second pass: flags of the sources that stay active (#97) ---
+        flag_targets = yaml_flag_targets()
+        flag_rows = {}
+        for feed_url, _name, _want in flag_targets:
+            row = conn.execute(
+                "SELECT id, name, active, llm_pipeline FROM sources WHERE feed_url = ?",
+                (feed_url,)).fetchone()
+            if row is not None:
+                flag_rows[feed_url] = {"id": row["id"], "name": row["name"],
+                                       "active": bool(row["active"]),
+                                       "llm_pipeline": row["llm_pipeline"]}
+        flag_plan = plan_flag_syncs(flag_targets, flag_rows)
+        for f in flag_plan:
+            what = []
+            if f["reactivate"]:
+                what.append("active=true")
+            if f["llm"] is not None:
+                what.append(f"llm_pipeline={str(f['llm']).lower()}")
+            verb = "SYNCED" if args.apply else "WOULD SYNC"
+            print(f"{verb}: id={f['id']} name={f['name']!r} -> {', '.join(what)}\n  {f['feed_url']}")
+            if args.apply:
+                if f["reactivate"]:
+                    conn.execute("UPDATE sources SET active = ? WHERE id = ?",
+                                 (True if USE_POSTGRES else 1, f["id"]))
+                if f["llm"] is not None:
+                    val = f["llm"] if USE_POSTGRES else int(f["llm"])
+                    conn.execute("UPDATE sources SET llm_pipeline = ? WHERE id = ?", (val, f["id"]))
+
     n_deact, n_already, n_missing = len(plan["deactivate"]), len(plan["already_inactive"]), len(plan["missing"])
     print(f"\n{n_deact} {'deactivated' if args.apply else 'would be deactivated'}, "
           f"{n_already} already inactive, {n_missing} not found in DB")
-    if not args.apply and n_deact:
+    print(f"{len(flag_plan)} flag {'syncs applied' if args.apply else 'syncs pending'} "
+          f"(active / llm_pipeline of sources that stay active)")
+    if not args.apply and (n_deact or flag_plan):
         print("Dry run only — re-run with --apply to write these changes.")
     return 0
 

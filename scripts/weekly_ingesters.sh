@@ -134,6 +134,14 @@ with get_connection() as c:
   run_gpu_step "Verarbeitung der Neuzugänge api/no-patents (distill, min_id=$MIN_ID)" \
     python -u scripts/signal_batch_embedded.py --source-type api --no-patents --min-id "$MIN_ID"
 
+  # Signalbetriebs-Quellen (#97, 2026-09-09): die 33 Quellen mit TDM-Vorbehalt
+  # laufen mit llm_pipeline=false — der Content-Cycle sieht sie nie. 30 davon
+  # sind source_type=research und liefen oben schon mit; die drei trade_media
+  # (Lebensmittelzeitung, Horizont, Robb Report) faenden sonst keinen Lauf.
+  # Ihre Eintraege tragen nur Titel/URL/Datum (store_excerpt: false).
+  run_gpu_step "Verarbeitung der Signalbetriebs-Quellen (distill, min_id=$MIN_ID)" \
+    python -u scripts/signal_batch_embedded.py --signal-only --min-id "$MIN_ID"
+
   # Patent-Signale (Owner 2026-08-28): die dienstags ingestierten Patente in
   # den embeddeten Signalraum. Bewusst OHNE --min-id (sie liegen unter dem
   # Samstags-Wasserstand); Scope = Abstract vorhanden + rollendes 60-Tage-

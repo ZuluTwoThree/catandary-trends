@@ -120,7 +120,8 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: Lebensmittelzeitung
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       fulltext: false   # TDM-Vorbehalt (meta tdm-reservation=1) — Sondierung 2026-09-03, §44b Abs. 3 UrhG
       feed_url: https://www.lebensmittelzeitung.net/feed/
       type: trade_media
@@ -531,14 +532,16 @@ verticals:
       discovered_via: owner-domainliste-2026-09-09   # UA-Handel; Feed ohne Datumsangaben
     science:
     - name: Nature Food
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/natfood.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Trends in Food Science & Technology
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://rss.sciencedirect.com/publication/science/09242244
       type: research
       lead_time_tier: future
@@ -566,35 +569,40 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: EFSA Journal
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://efsa.onlinelibrary.wiley.com/feed/18314732/most-recent
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Comprehensive Reviews in Food Science
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://ift.onlinelibrary.wiley.com/feed/15414337/most-recent
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Food Policy
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://rss.sciencedirect.com/publication/science/03069192
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # feed header tdm-reservation: 1
     - name: Nature Biotechnology
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/nbt/rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: EFSA News
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.efsa.europa.eu/en/all/rss
       type: research
       lead_time_tier: future
@@ -1211,14 +1219,16 @@ verticals:
       discovered_via: owner-domainliste-2026-09-09   # Forschung/Innovation quer
     science:
     - name: Nature Machine Intelligence
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/natmachintell.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Nature Electronics
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/natelectron.rss
       type: research
       lead_time_tier: future
@@ -1253,7 +1263,8 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: Science Robotics
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=scirobotics
       type: research
       lead_time_tier: future
@@ -1719,21 +1730,24 @@ verticals:
       discovered_via: wikipedia
     science:
     - name: Nature Medicine
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/nm.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: The Lancet
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.thelancet.com/rssfeed/lancet_current.xml
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # feed header tdm-reservation: 1
     - name: Lancet Digital Health
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.thelancet.com/rssfeed/landig_current.xml
       type: research
       lead_time_tier: future
@@ -1747,14 +1761,16 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: Nature Neuroscience
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/neuro.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Nature Aging
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/nataging.rss
       type: research
       lead_time_tier: future
@@ -2227,35 +2243,40 @@ verticals:
       discovered_via: owner-domainliste-2026-09-09   # SE-nachhaltiges Bauen
     science:
     - name: Nature Sustainability
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/natsustain.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Nature Climate Change
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/nclimate.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Nature Energy
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/nenergy.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: One Earth
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.cell.com/one-earth/current.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # feed header tdm-reservation: 1
     - name: Lancet Planetary Health
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.thelancet.com/rssfeed/lanplh_current.xml
       type: research
       lead_time_tier: future
@@ -2638,21 +2659,24 @@ verticals:
       discovered_via: triage
     science:
     - name: Nature Reviews Materials
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/natrevmats.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Nature Materials
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/nmat.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Matter (Cell Press)
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.cell.com/matter/current.rss
       type: research
       openalex_id: S4210178557   # generic "Matter" search hits physics journals
@@ -2821,21 +2845,24 @@ verticals:
       discovered_via: feedspot
     science:
     - name: Trends in Biotechnology
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://rss.sciencedirect.com/publication/science/01677799
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # feed header tdm-reservation: 1
     - name: Textile Research Journal
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://journals.sagepub.com/action/showFeed?ui=0&mi=ehikzz&ai=2b4&jc=trj&type=etoc&feed=rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Intl Journal of Fashion Design
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.tandfonline.com/feed/rss/tfdt20
       type: research
       lead_time_tier: future
@@ -2905,7 +2932,8 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: feed_error   # article unreachable (ReadTimeout)
     - name: Horizont
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       fulltext: false   # TDM-Vorbehalt (meta tdm-reservation=1) — Sondierung 2026-09-03, §44b Abs. 3 UrhG
       feed_url: https://www.horizont.net/news/feed/
       type: trade_media
@@ -3442,7 +3470,8 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: Robb Report
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       relevance_min: 0.6   # capped: now-tier, low foresight value (source_value_report)
       fulltext: false   # TDM-Vorbehalt (meta robots noai,noimageai) — Sondierung 2026-09-03
       feed_url: https://robbreport.com/feed/
@@ -3755,14 +3784,16 @@ verticals:
       tdm_status: ok
     science:
     - name: Nature Human Behaviour
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://www.nature.com/nathumbehav.rss
       type: research
       lead_time_tier: future
       tdm_checked: "2026-09-04"
       tdm_status: reserved   # tdmrep.json location='/'
     - name: Psychological Science
-      active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+      llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+      store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
       feed_url: https://journals.sagepub.com/action/showFeed?ui=0&mi=ehikzz&ai=2b4&jc=pssa&type=etoc&feed=rss
       type: research
       lead_time_tier: future
@@ -3988,14 +4019,16 @@ cross_industry:
     tdm_status: blocked   # robots.txt disallows the feed URL
   science:
   - name: Nature (main)
-    active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+    llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+    store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
     feed_url: https://www.nature.com/nature.rss
     type: research
     lead_time_tier: future
     tdm_checked: "2026-09-04"
     tdm_status: reserved   # tdmrep.json location='/'
   - name: Science Magazine News
-    active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
+    llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial
+    store_excerpt: false  # kein Abstract speichern; Titel/URL/Datum sind bibliografische Metadaten
     feed_url: https://www.science.org/rss/news_current.xml
     type: research
     openalex_id: S3880285   # name doesn't match OpenAlex journal "Science" (2k works/yr)
