@@ -49,10 +49,16 @@ Conditional GET (Lauf 2): 90 Feeds ETag+Last-Modified, 59 nur Last-Modified, 30 
 2. Aggregierende Feeds (`type: api`, Hacker News Best via hnrss.org): ein Artikel-Urteil sagt nichts über die Quelle — das Werkzeug prüft dort nur den Feed; robots/TDM prüft der Fetcher je Artikel. HN steht auf der Aggregator-Blockliste für Kandidaten, bleibt aber als vom Owner kuratierte Quelle bestehen — Owner-Frage, ob das zur „nur Primärquellen"-Linie passt.
 3. Ein Feed-403 oder Timeout schaltet `fulltext` nicht ab (Artikel ungeprüft); nur Artikel-Evidenz (Vorbehalt, robots-Verbot auf der Artikelseite, 401/403/429 dort) tut das. Variety hätte sonst durch das Ratenlimit des dritten Laufs seinen Volltext verloren.
 
-## Owner-Entscheidungen (offen)
+## Owner-Entscheidungen
 
-- Feed-URL-robots-Regeln (17 Quellen, darunter 10 Förderinfo Bund + idw): weiterpollen (RSS als Abo-Angebot) oder deaktivieren? Bis zur Entscheidung meldet die Monatsprüfung sie nicht erneut (Status ist protokolliert), Polling läuft unverändert.
-- Elsevier-Feeds mit `TDM-Reservation`-Header (8): Teaser-Betrieb fortführen oder deaktivieren?
+> **Erledigt am 2026-09-09.** Die Vorbehalts-Frage ist entschieden — die 33 Quellen (inkl. der 8 Elsevier-Feeds)
+> laufen im **Signalbetrieb**: gepollt, aber `llm_pipeline: false` und `store_excerpt: false`, also nie
+> Artikelmaterial und kein gespeichertes Abstract. Ihre Fachabdeckung ist über 14 Open-Access-Journale ersetzt
+> (`oa_replacement_2026-09-09.md`), und offen lizenzierte Einzelartikel werden täglich freigeschaltet
+> (`resolve_open_licence.py`, Cron 03:45). Herleitung und Zahlen: CLAUDE.md, Abschnitt „Quellenwachstum".
+
+- Feed-URL-robots-Regeln (17 Quellen, darunter 10 Förderinfo Bund + idw): weiterpollen (RSS als Abo-Angebot) oder deaktivieren? **Weiterhin offen.** Bis zur Entscheidung meldet die Monatsprüfung sie nicht erneut (Status ist protokolliert), Polling läuft unverändert.
+- ~~Elsevier-Feeds mit `TDM-Reservation`-Header (8): Teaser-Betrieb fortführen oder deaktivieren?~~ **Entschieden 09.09.: Signalbetrieb** — weder Teaser noch Abschaltung, sondern Titel/URL/Datum ohne Abstract.
 - Wired/Vogue UK: gespeicherten Volltext löschen (wie am 03.09.)?
 - Hacker News Best als Quelle behalten?
 - Fünf nicht reproduzierte 403-Quellen: `fulltext` nach zwei Wochen Beobachtung wieder einschalten?

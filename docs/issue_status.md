@@ -1,4 +1,4 @@
-# Issue-Status (Stand 2026-08-28 — Audit nach dem Geschäftsmodell-Wechsel)
+# Issue-Status (Stand 2026-08-28 — Audit nach dem Geschäftsmodell-Wechsel; Nachträge bis 2026-09-09)
 
 > **Nachtrag 02.09.2026** (vollständig: `docs/audits/2026-09-02_issue_audit.md`, `_compliance_review.md`,
 > `_security_review.md`, `_static_export_design.md`; Plan: `docs/launch/09_launch_plan_2026-09-02.md`):
@@ -258,6 +258,37 @@ Vier DR-Läufe im Blindgutachten verloren (5,57 : 7,43 · 5,7 : 6,9 · 5,9 : 6,3
 (Default aus) nach `main` gemergt. Diagnose: Beschaffung liefert, der
 Ein-Aufruf-Schreibschritt ist der Engpass. Wiederaufnahme (kapitelweises
 Schreiben zuerst) und alle Kommandos: `docs/dossier_vs_deep_research_2026-09-07.md`.
+
+## ✅ Geschlossen 2026-09-09 — #97 Quellen-Compliance, Vorbehalts-Frage entschieden
+
+**#101** (Vorbehalts-Journale aus OpenAlex-Abstracts neu schreiben) angelegt **und noch am selben Tag
+geschlossen**: der Weg wurde durch etwas Besseres ersetzt (Volltext von der offenen Fundstelle statt
+Abstract) und die zurückgezogene Kohorte ist damit trotzdem nicht zu retten — 0 von 35 verwertbar.
+
+Vier Arbeitsstränge an einem Tag, alle auf `dev`:
+
+- **Owner-Domainliste** (`951ccae`, `cb21193`): 181 Domains abgeglichen, die 111 möglichen geprobt
+  (ok 57, feed_error 47, blocked 7, reserved 0), **39 aufgenommen**. Berichte
+  `docs/compliance/source_domain_check_2026-09-09.md` + `source_probe_2026-09-09.md`.
+- **Titel-Artikel-Panne** (`8aeadef`): der Purge vom 04.09. leerte die Teaser der 33 Vorbehalts-Quellen,
+  ließ die Zeilen aber im Pool — am 08.09. entstanden daraus **187 published Artikel aus dem nackten
+  Titel**, mit 0 Grounding-Flags, weil das Gate gegen eine leere Quelle nichts prüfen kann. Alle 278
+  zurückgezogen. Drei strukturelle Guards: `MIN_SOURCE_TEXT_CHARS` (80), Backlog respektiert `active`,
+  `purge --also-excerpt` stillt die Zeilen. **Nebenbefund:** `run_pipeline_batch` las nie
+  `raw_content` — der ganze #11-Volltext-Apparat lief im Produktionspfad ins Leere.
+- **Vorbehalts-Frage entschieden** (`1b53fc0`, `2cede8f`): Ersatz statt Rückkehr (14 OA-Journale, 13 mit
+  Volltext) **plus** Signalbetrieb der 33 (`llm_pipeline: false` + neues `store_excerpt: false`).
+  `apply_source_hygiene.py` synct jetzt beide Flags in beide Richtungen. **Nebenbefund:** „The Spoon"
+  war YAML-aktiv und DB-inaktiv — mit dem neuen Backlog-Filter wären seine Einträge stillgelegt worden.
+- **Lizenz sticht Vorbehalt** (`656537b`): `pipeline/open_license.py` + `scripts/resolve_open_licence.py`,
+  Cron 03:45 installiert. Ausbeute 12 % der Einträge ≈ 58 Artikel/Woche. **Compliance-Fix im selben Zug:**
+  `fetch_fulltext_result` prüfte robots/TDM nur gegen die angefragte URL — ein DOI-Link umging so die
+  site-weite `tdmrep.json` von nature.com.
+
+**Offen geblieben:** die 17 Quellen mit robots-Regel nur auf der Feed-URL (Owner-Entscheid seit 04.09.);
+DESIGN (Materialforschung) und FASHION (Textilforschung) ohne OA-Ersatz, weil MDPI, Royal Society Open
+Science und PeerJ den Bot-UA mit 403 sperren; die juristische Bestätigung von „Lizenz sticht Vorbehalt"
+beim ohnehin befassten Anwalt.
 
 ## ⚪ Welle 3 — Forschung / bewusst ruhend
 
