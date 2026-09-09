@@ -551,6 +551,15 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # (end-Zeile → Wächter-Mail). Vor Stage 10 dasselbe (30 min → Richter-Skip);
 # der Ruhezustand wird am Ende nicht hergestellt, wenn inzwischen ein fremder
 # Job die Unit hält (er stellt ihn selbst her).
+# Leerlauf-Schutz (seit 2026-09-09): Stage 8 (Reclassify über ALLE Drafts,
+# ~20 min je Pass) + Stage 9 laufen nur, wenn die Phase Trends angelegt hat;
+# Phase 3 und run 2 entfallen, wenn im Backlog nur Einträge stehen, die
+# Stage 6 im selben Lauf garbled liegen ließ (`garbled_ids` in
+# data/cycle_log.jsonl, `run_full_cycle.remaining_backlog`). Anlass 09.09.:
+# ein einziger Garbage-Eintrag (ArchDaily 827670, danach per mark_filtered
+# stillgelegt) kostete vier Reclassify-Pässe = 1,5 h. Solche Dauer-Garbled
+# bleiben absichtlich unprocessed und kommen im NÄCHSTEN Cycle noch einmal
+# dran — wiederholt sich das über mehrere Nächte, per Hand filtern.
 0 4 * * 1-5  scripts/full_cycle_cron.sh
 
 # Waechter (seit 2026-08-17): meldet per Mail, wenn der Nachtlauf keine

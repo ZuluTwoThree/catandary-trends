@@ -988,7 +988,16 @@ nvidia-smi --query-gpu=memory.used,memory.total --format=csv
    (Exit 137).
 4. `systemctl --user restart llama-server`, dann `curl -s localhost:8090/v1/models`.
 5. Ist ein Cycle mittendrin gestorben (z. B. Stromausfall): `scripts/resume_cycle.sh`
-   fährt nur Stage 8/9 + Morgen-Mail nach, ohne neu zu generieren.
+   fährt nur Stage 8/9 + Morgen-Mail nach, ohne neu zu generieren. (Seit
+   09.09.2026 überspringt der Cycle Stage 8/9 selbst, wenn eine Phase keinen
+   Trend angelegt hat — Drafts eines abgebrochenen Laufs holt der nächste
+   Lauf mit Neuzugängen oder eben `resume_cycle.sh` nach.)
+5b. Steht im Cycle-Log mehrere Nächte hintereinander derselbe Eintrag mit
+   `content generation GARBLED, entry left unprocessed`: der Eintrag bleibt
+   bewusst offen und wird jede Nacht erneut versucht (im selben Lauf seit
+   09.09. nur einmal, nicht mehr in Phase 3/run 2). Dauerfälle per Hand
+   stilllegen: `mark_filtered(<raw_entry_id>, "content_generation_error: …")`
+   aus `pipeline.db` (Vorlage 09.09.2026, ArchDaily 827670).
 6. `cron` braucht `XDG_RUNTIME_DIR` — fehlt die Zeile, scheitern alle Handover
    mit „Failed to connect to bus" und der Lauf macht 0 LLM-Calls.
 7. Steht im Cycle-Log `Stage 6 ABORTED at n/m: GeneratedContent: llama-server at
