@@ -53,9 +53,25 @@ from pipeline.db import get_connection
 
 
 # ----------------------------------------------------------------- data loading
-def load_signals(status: str, limit: int, vertical: str | None = None) -> list[dict]:
+#: Quellentypen, die den Vorschlagsraum verfaelschen (#97, 2026-09-09).
+#: Funding-Meldungen und Patente sind formelhaft ("X wins $600k SBIR Phase II
+#: award", "HOLONIX SRL secures EUR 620k Horizon 2020 grant"). Eingebettet wird
+#: title + excerpt[:500] — bei solchen Saetzen dominiert die SATZFORM das Thema,
+#: und der Clusterer findet Vorlagen statt Trends. Messung am 09.09.: 35.748 von
+#: 60.000 gezogenen Signalen waren source_type='api'; beide "NEW"-Vorschlaege des
+#: Laufs waren reine Foerderbescheid-Cluster.
+DEFAULT_EXCLUDE_SOURCE_TYPES = ("api",)
+
+
+def load_signals(status: str, limit: int, vertical: str | None = None,
+                 exclude_source_types: tuple[str, ...] = DEFAULT_EXCLUDE_SOURCE_TYPES) -> list[dict]:
     where = ["t.embedding IS NOT NULL"]
     params: list = []
+    if exclude_source_types:
+        where.append(
+            "re.source_id NOT IN (SELECT id FROM sources WHERE source_type IN "
+            f"({','.join('?' * len(exclude_source_types))}))")
+        params += list(exclude_source_types)
     if status and status.lower() != "all":
         sts = [s.strip() for s in status.split(",")]
         where.append(f"t.status IN ({','.join('?' * len(sts))})")
@@ -69,6 +85,7 @@ def load_signals(status: str, limit: int, vertical: str | None = None) -> list[d
     sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.primary_vertical, "
            f"       r.published_date, {emb_col} AS embedding "
            "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id "
+           "JOIN raw_entries re ON re.id = t.raw_entry_id "
            f"WHERE {' AND '.join(where)}")
     if limit:
         sql += " LIMIT ?"
@@ -219,13 +236,19 @@ def main() -> int:
                     help="NEW-candidate naming: anthropic (better) | local llama-server 8B")
     ap.add_argument("--label-model", default="claude-sonnet-5",
                     help="model for NEW-candidate naming (anthropic backend)")
+    ap.add_argument("--exclude-source-types", default=",".join(DEFAULT_EXCLUDE_SOURCE_TYPES),
+                    help="Quellentypen ausschliessen (Default: api = Funding/Patente — "
+                         "formelhafte Saetze clustern nach Satzform, nicht nach Thema); "
+                         "leer = nichts ausschliessen")
     ap.add_argument("--vertical", default=None,
                     help="scope to one primary_vertical (e.g. LIFESTYLE) for macro/micro "
                          "discovery in that vertical; default = all verticals (mega altitude)")
     ap.add_argument("--out", default=str(PROJECT_ROOT / "mega_trends.candidate.yaml"))
     args = ap.parse_args()
 
-    rows = load_signals(args.status, args.limit, vertical=args.vertical)
+    excl = tuple(x.strip() for x in (args.exclude_source_types or "").split(",") if x.strip())
+    rows = load_signals(args.status, args.limit, vertical=args.vertical,
+                        exclude_source_types=excl)
     print(f"signals (status={args.status}"
           f"{', vertical=' + args.vertical if args.vertical else ''}) "
           f"with embedding: {len(rows)}")

@@ -235,7 +235,11 @@ python scripts/propose_mega_trends.py --limit 60000 --label-backend local
 ```
 
 `--status` (Default `signal,published`), `--k-range` (Default `16,30`,
-Silhouette-Suche) und `--vertical` schneiden den Raum zu. Der Vorschlag wird von
+Silhouette-Suche), `--vertical` und `--exclude-source-types` (Default `api`)
+schneiden den Raum zu. Der Ausschluss ist wichtig: Förderbescheide und Patente
+sind formelhaft, und da nur `title + excerpt[:500]` eingebettet wird, clustert
+das Verfahren dann die Satzform statt des Themas (Beleg:
+`docs/mega_discovery_2026-09-09.md`). Der Vorschlag wird von
 Hand in `mega_trends.yaml` kuratiert — bewusst, denn die Taxonomie ist eine
 redaktionelle Entscheidung. *(Der alte SQLite-Prototyp `discover_mega_trends.py`
 ist am 09.09.2026 entfernt worden: er zeigte auf die vor-Postgres-Datei
