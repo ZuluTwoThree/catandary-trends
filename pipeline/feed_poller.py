@@ -19,7 +19,8 @@ import httpx
 
 from pipeline.config import load_sources, LOG_LEVEL
 from pipeline.db import (
-    init_db, insert_raw_entry, update_source_last_fetched, upsert_source,
+    init_db, insert_raw_entry, known_entry_urls, update_source_last_fetched,
+    upsert_source,
 )
 
 logging.basicConfig(
@@ -282,9 +283,31 @@ def warn_if_missing_tier(source_cfg: dict) -> None:
         )
 
 
-def poll_vertical_sources(vertical: str, config: dict) -> dict:
+def _count_dry(entries: list[dict], stats: dict, source_name: str, signal_only: bool) -> None:
+    """Dry-Run-Zählung: wie viele dieser Einträge wären neu? Nichts wird geschrieben —
+    kein `upsert_source`, keine Zeile, kein `last_fetched`. Feed-Duplikate innerhalb
+    eines Laufs zählen wie in der echten Einfügung nur einmal (UNIQUE auf url)."""
+    stats["fetched"] += len(entries)
+    urls = [e["url"] for e in entries]
+    known = known_entry_urls(urls)
+    seen: set[str] = set()
+    new = 0
+    for u in urls:
+        if u in known or u in seen:
+            stats["duplicate"] += 1
+        else:
+            seen.add(u)
+            new += 1
+    stats["new"] += new
+    if signal_only:
+        stats["new_signal_only"] += new
+    if new:
+        stats.setdefault("_per_source", {})[source_name] = new
+
+
+def poll_vertical_sources(vertical: str, config: dict, dry_run: bool = False) -> dict:
     """Poll all sources for a single vertical. Returns stats."""
-    stats = {"fetched": 0, "new": 0, "duplicate": 0, "errors": 0}
+    stats = {"fetched": 0, "new": 0, "duplicate": 0, "errors": 0, "new_signal_only": 0}
 
     all_sources = config.get("sources", []) + config.get("science", []) + config.get("radar", [])
 
@@ -295,6 +318,12 @@ def poll_vertical_sources(vertical: str, config: dict) -> dict:
         feed_url = source_cfg["feed_url"]
         source_type = source_cfg.get("type", "trade_media")
         warn_if_missing_tier(source_cfg)
+
+        signal_only = source_cfg.get("llm_pipeline", True) is False
+        if dry_run:
+            entries = fetch_source(source_cfg, source_name, feed_url)
+            _count_dry(entries, stats, source_name, signal_only)
+            continue
 
         source_id = upsert_source(source_name, feed_url, source_type, vertical,
                                   llm_pipeline=source_cfg.get("llm_pipeline", True))
@@ -313,6 +342,8 @@ def poll_vertical_sources(vertical: str, config: dict) -> dict:
             )
             if entry_id:
                 stats["new"] += 1
+                if signal_only:
+                    stats["new_signal_only"] += 1
             else:
                 stats["duplicate"] += 1
 
@@ -321,9 +352,9 @@ def poll_vertical_sources(vertical: str, config: dict) -> dict:
     return stats
 
 
-def poll_cross_industry(config: dict) -> dict:
+def poll_cross_industry(config: dict, dry_run: bool = False) -> dict:
     """Poll cross-industry sources (press wires, APIs)."""
-    stats = {"fetched": 0, "new": 0, "duplicate": 0, "errors": 0}
+    stats = {"fetched": 0, "new": 0, "duplicate": 0, "errors": 0, "new_signal_only": 0}
 
     for category_sources in config.values():
         for source_cfg in category_sources:
@@ -336,6 +367,12 @@ def poll_cross_industry(config: dict) -> dict:
             feed_url = source_cfg["feed_url"]
             source_type = source_cfg.get("type", "press_wire")
             warn_if_missing_tier(source_cfg)
+
+            signal_only = source_cfg.get("llm_pipeline", True) is False
+            if dry_run:
+                entries = fetch_source(source_cfg, source_name, feed_url)
+                _count_dry(entries, stats, source_name, signal_only)
+                continue
 
             source_id = upsert_source(source_name, feed_url, source_type, "CROSS",
                                       llm_pipeline=source_cfg.get("llm_pipeline", True))
@@ -354,6 +391,8 @@ def poll_cross_industry(config: dict) -> dict:
                 )
                 if entry_id:
                     stats["new"] += 1
+                    if signal_only:
+                        stats["new_signal_only"] += 1
                 else:
                     stats["duplicate"] += 1
 
@@ -362,45 +401,79 @@ def poll_cross_industry(config: dict) -> dict:
     return stats
 
 
-def run_poll(verticals: list[str] | None = None):
+def run_poll(verticals: list[str] | None = None, dry_run: bool = False):
     """Run a full poll cycle.
 
     Args:
         verticals: Optional list of vertical codes to poll. If None, polls all.
+        dry_run: fetch the feeds and report how many entries WOULD be new,
+            without writing anything — no source rows, no entries, no
+            `last_fetched`. Useful before a night in which many new sources
+            pull for the first time (#97, 2026-09-09).
     """
     start = time.time()
-    init_db()
+    if not dry_run:
+        init_db()
 
     sources_config = load_sources()
-    total_stats = {"fetched": 0, "new": 0, "duplicate": 0, "errors": 0}
+    total_stats = {"fetched": 0, "new": 0, "duplicate": 0, "errors": 0, "new_signal_only": 0}
+    per_source: dict[str, int] = {}
 
     # Poll vertical sources
     for vertical, config in sources_config.get("verticals", {}).items():
         if verticals and vertical not in verticals:
             continue
         logger.info("Polling vertical: %s", vertical)
-        stats = poll_vertical_sources(vertical, config)
+        stats = poll_vertical_sources(vertical, config, dry_run=dry_run)
+        per_source.update(stats.pop("_per_source", {}))
         for k in total_stats:
             total_stats[k] += stats[k]
+        if dry_run:
+            logger.info("  %s: %d neu von %d", vertical, stats["new"], stats["fetched"])
 
     # Poll cross-industry sources
     if not verticals or "CROSS" in verticals:
         logger.info("Polling cross-industry sources")
         cross_config = sources_config.get("cross_industry", {})
         if cross_config:
-            stats = poll_cross_industry(cross_config)
+            stats = poll_cross_industry(cross_config, dry_run=dry_run)
+            per_source.update(stats.pop("_per_source", {}))
             for k in total_stats:
                 total_stats[k] += stats[k]
 
     elapsed = time.time() - start
     logger.info(
-        "Poll complete in %.1fs: %d fetched, %d new, %d duplicates",
+        "%s in %.1fs: %d fetched, %d new, %d duplicates",
+        "DRY RUN complete" if dry_run else "Poll complete",
         elapsed, total_stats["fetched"], total_stats["new"], total_stats["duplicate"],
     )
+    if dry_run:
+        art = total_stats["new"] - total_stats["new_signal_only"]
+        print(f"\nDRY RUN — nichts geschrieben.")
+        print(f"  Einträge in den Feeds:        {total_stats['fetched']}")
+        print(f"  davon neu:                    {total_stats['new']}")
+        print(f"    -> Artikelmaterial:         {art}")
+        print(f"    -> nur Signal (Vorbehalt):  {total_stats['new_signal_only']}")
+        print(f"  bereits bekannt:              {total_stats['duplicate']}")
+        if per_source:
+            print("\n  Top-Quellen (neu):")
+            for name, n in sorted(per_source.items(), key=lambda x: -x[1])[:15]:
+                print(f"    {name[:44]:46} {n}")
     return total_stats
 
 
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    ap = argparse.ArgumentParser(description="RSS-Poller (#97: --dry-run zählt, ohne zu schreiben)")
+    ap.add_argument("verticals", nargs="*",
+                    help="Vertical-Codes (FOOD TECH …); leer = alle inkl. CROSS")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="Feeds holen und zählen, wie viele Einträge neu wären — "
+                         "schreibt nichts (keine Quellen-Zeilen, keine Einträge, kein last_fetched)")
+    args = ap.parse_args(argv)
+    run_poll(args.verticals or None, dry_run=args.dry_run)
+    return 0
+
+
 if __name__ == "__main__":
-    # Optional: pass vertical codes as arguments
-    target_verticals = sys.argv[1:] if len(sys.argv) > 1 else None
-    run_poll(target_verticals)
+    raise SystemExit(main())

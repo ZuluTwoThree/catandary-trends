@@ -1085,6 +1085,24 @@ def upsert_source(name: str, feed_url: str, source_type: str, vertical: str,
 
 # --- Raw Entry Operations ---
 
+def known_entry_urls(urls: list[str]) -> set[str]:
+    """Which of these URLs already sit in raw_entries. Read-only.
+
+    For the poller's dry run (#97, 2026-09-09): count what a real poll WOULD
+    insert without writing a row or touching sources.last_fetched."""
+    if not urls:
+        return set()
+    out: set[str] = set()
+    with get_connection() as conn:
+        for i in range(0, len(urls), 500):
+            chunk = urls[i:i + 500]
+            marks = ", ".join(["?"] * len(chunk))
+            rows = conn.execute(
+                f"SELECT url FROM raw_entries WHERE url IN ({marks})", chunk).fetchall()
+            out.update(r["url"] if hasattr(r, "keys") else r[0] for r in rows)
+    return out
+
+
 def insert_raw_entry(source_id: int, url: str, title: str, excerpt: str,
                      published_date: str | None = None, pub_number: str | None = None,
                      kind_code: str | None = None, openalex_id: str | None = None) -> int | None:

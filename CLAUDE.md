@@ -1301,6 +1301,11 @@ und Phase-2-Schalter: `docs/newsletter_deep_dive.md`.
 
 - **Aktuell (Linux-Workstation, Stand 2026-09-02):** Python = `.venv/bin/python` im Repo. Ollama ist installiert (`~/.local/bin/ollama`), aber **kein systemd-Dienst und produktiv nicht aktiv** (Port 11434 am 02.09. leer) — der ganze Cycle läuft über den llama-server auf :8090 (s. „Backend-Realität" oben). Ollama nur manuell starten, wenn ein Stage auf `STAGE*_BACKEND=ollama` steht; Client-Adresse dann `OLLAMA_CLIENT_HOST` (Default `http://127.0.0.1:11434`, `pipeline/config.py`; `.env.example` setzt `OLLAMA_HOST` für den Server-Bind).
 - *(Historisch, Windows-Ära bis ~06/2026: Ollama als Windows-Exe, Python unter `C:\Users\Dirk\...\Python313`. Nicht mehr gültig.)*
+- **Poller-Dry-Run** (seit 2026-09-09): `python -m pipeline.feed_poller [VERTICAL …] --dry-run` holt die
+  Feeds und zählt, wie viele Einträge neu wären — aufgeteilt in Artikelmaterial und „nur Signal" (die 33
+  Vorbehalts-Quellen), plus die ergiebigsten Quellen. Schreibt nichts: keine Quellen-Zeile, keinen Eintrag,
+  kein `last_fetched` (`db.known_entry_urls` schaut nur nach). Vor Nächten gedacht, in denen viele neue
+  Quellen zum ersten Mal ziehen.
 - LLM-Processor Default-Batch ist 10, für große Batches: `python -m pipeline.llm_processor 200`
 - Pipeline-Output in Datei umleiten (nicht pipen!): `python -m pipeline.llm_processor 200 > data/llm_processor.log 2>&1`
 - Frontend-Ports: `:3001` = Prod-Instanz (systemd, main-Worktree), `:3004` = Dev-Server aus `ct-dev`, `:3999` = PUBLIC_MODE-Vorschau aus `ct-dev` (Details im Frontend-Abschnitt). `npm run dev` ohne Argument nimmt 3001 — im Dev-Worktree immer `-p 3004` mitgeben. Port 3000 war für Open WebUI reserviert (am 02.09. lauscht dort nichts).

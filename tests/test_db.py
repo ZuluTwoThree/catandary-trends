@@ -387,3 +387,33 @@ class TestOpenLicenceAdmission:
         from pipeline.db import _migrate_open_licence
         _migrate_open_licence()
         _migrate_open_licence()
+
+
+class TestKnownEntryUrls:
+    """Read-only lookup behind the poller's dry run (#97, 2026-09-09)."""
+
+    def test_reports_only_the_urls_that_exist(self):
+        from pipeline.db import get_connection, init_db, known_entry_urls, upsert_source
+        init_db()
+        sid = upsert_source("known-url-test", "https://k.example/rss", "trade_media", "TECH")
+        with get_connection() as conn:
+            conn.execute("INSERT INTO raw_entries (source_id, url, title) VALUES (?, ?, ?)",
+                         (sid, "https://k.example/a", "T"))
+        got = known_entry_urls(["https://k.example/a", "https://k.example/missing"])
+        assert got == {"https://k.example/a"}
+
+    def test_empty_input_makes_no_query(self):
+        from pipeline.db import known_entry_urls
+        assert known_entry_urls([]) == set()
+
+    def test_chunks_beyond_the_batch_size(self):
+        """500 is the chunk width — a longer list must still resolve fully."""
+        from pipeline.db import get_connection, init_db, known_entry_urls, upsert_source
+        init_db()
+        sid = upsert_source("chunk-url-test", "https://c.example/rss", "trade_media", "TECH")
+        urls = [f"https://c.example/{i}" for i in range(1200)]
+        with get_connection() as conn:
+            for u in urls[::3]:
+                conn.execute("INSERT INTO raw_entries (source_id, url, title) VALUES (?, ?, ?)",
+                             (sid, u, "T"))
+        assert known_entry_urls(urls) == set(urls[::3])

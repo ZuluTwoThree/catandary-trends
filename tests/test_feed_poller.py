@@ -86,3 +86,72 @@ class TestSourceFlagsFromYaml:
     def test_llm_pipeline_defaults_to_true(self, monkeypatch):
         seen = self._drive(monkeypatch, {})
         assert seen["upsert"][0][1]["llm_pipeline"] is True
+
+
+class TestDryRun:
+    """`--dry-run` zählt, ohne zu schreiben (#97, 2026-09-09).
+
+    Vor einer Nacht, in der viele neue Quellen zum ersten Mal ziehen, will man
+    die Menge kennen — ohne Quellen-Zeilen anzulegen, Einträge einzufügen oder
+    `last_fetched` zu setzen.
+    """
+
+    def _cfg(self, **extra):
+        return {"sources": [{"name": "Dry Source", "feed_url": "https://d.example/rss",
+                             "type": "trade_media", **extra}]}
+
+    def _entries(self, urls):
+        return [{"url": u, "title": "T", "excerpt": "E",
+                 "published_date": "2026-09-09T00:00:00"} for u in urls]
+
+    def _patch(self, monkeypatch, known=(), urls=()):
+        from pipeline import feed_poller as fp
+        wrote = []
+        monkeypatch.setattr(fp, "upsert_source", lambda *a, **k: wrote.append("upsert") or 1)
+        monkeypatch.setattr(fp, "insert_raw_entry", lambda **k: wrote.append("insert") or 1)
+        monkeypatch.setattr(fp, "update_source_last_fetched", lambda sid: wrote.append("touch"))
+        monkeypatch.setattr(fp, "known_entry_urls", lambda u: set(known))
+        monkeypatch.setattr(fp, "fetch_source", lambda *a, **k: self._entries(urls))
+        return fp, wrote
+
+    def test_counts_new_and_writes_nothing(self, monkeypatch):
+        fp, wrote = self._patch(monkeypatch, known={"https://d.example/a"},
+                                urls=["https://d.example/a", "https://d.example/b"])
+        stats = fp.poll_vertical_sources("FOOD", self._cfg(), dry_run=True)
+        assert stats["fetched"] == 2 and stats["new"] == 1 and stats["duplicate"] == 1
+        assert wrote == [], "a dry run must not touch the database"
+
+    def test_intra_feed_duplicates_count_once(self, monkeypatch):
+        """UNIQUE(url) lets a repeated link through only once in a real poll."""
+        fp, _ = self._patch(monkeypatch, urls=["https://d.example/x", "https://d.example/x"])
+        stats = fp.poll_vertical_sources("FOOD", self._cfg(), dry_run=True)
+        assert stats["new"] == 1 and stats["duplicate"] == 1
+
+    def test_signal_only_sources_are_reported_apart(self, monkeypatch):
+        fp, _ = self._patch(monkeypatch, urls=["https://d.example/s"])
+        stats = fp.poll_vertical_sources("FOOD", self._cfg(llm_pipeline=False), dry_run=True)
+        assert stats["new"] == 1 and stats["new_signal_only"] == 1
+
+    def test_article_sources_do_not_count_as_signal(self, monkeypatch):
+        fp, _ = self._patch(monkeypatch, urls=["https://d.example/s"])
+        stats = fp.poll_vertical_sources("FOOD", self._cfg(), dry_run=True)
+        assert stats["new"] == 1 and stats["new_signal_only"] == 0
+
+    def test_real_poll_still_writes(self, monkeypatch):
+        fp, wrote = self._patch(monkeypatch, urls=["https://d.example/a"])
+        fp.poll_vertical_sources("FOOD", self._cfg(), dry_run=False)
+        assert wrote == ["upsert", "insert", "touch"]
+
+    def test_cli_flag_is_passed_through(self, monkeypatch):
+        from pipeline import feed_poller as fp
+        seen = {}
+        monkeypatch.setattr(fp, "run_poll", lambda v, dry_run=False: seen.update(v=v, dry=dry_run))
+        fp.main(["--dry-run", "FOOD"])
+        assert seen == {"v": ["FOOD"], "dry": True}
+
+    def test_cli_without_verticals_polls_everything(self, monkeypatch):
+        from pipeline import feed_poller as fp
+        seen = {}
+        monkeypatch.setattr(fp, "run_poll", lambda v, dry_run=False: seen.update(v=v, dry=dry_run))
+        fp.main([])
+        assert seen == {"v": None, "dry": False}

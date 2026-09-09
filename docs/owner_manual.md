@@ -913,6 +913,21 @@ in beide Richtungen und `llm_pipeline`; ohne `--apply` Dry-Run mit Plan).
 Der Samstagslauf verarbeitet sie über
 `scripts/signal_batch_embedded.py --signal-only`.
 
+**Vorher sehen, was kommt (Dry-Run, seit 09.09.2026).** Der Poller zählt auf
+Wunsch nur, statt zu schreiben — nützlich vor einer Nacht, in der viele neue
+Quellen zum ersten Mal ziehen:
+
+```bash
+python -m pipeline.feed_poller --dry-run          # alle Quellen
+python -m pipeline.feed_poller FOOD TECH --dry-run
+```
+
+Ausgegeben werden Einträge in den Feeds, davon neu, aufgeteilt in
+**Artikelmaterial** und **nur Signal** (die Vorbehalts-Quellen), sowie die 15
+ergiebigsten Quellen. Es wird nichts geschrieben: keine Quellen-Zeile
+(`upsert_source`), kein Eintrag, kein `last_fetched`. Die Feeds werden dabei
+wirklich abgerufen — ein Request je Quelle, wie bei einem echten Poll.
+
 **Offen lizenzierte Artikel aus Vorbehalts-Quellen freischalten (seit
 09.09.2026).** Ein Verlag kann site-weit TDM vorbehalten und denselben Artikel
 unter CC BY veröffentlichen. Die Lizenz ist eine Erlaubnis, der Vorbehalt sperrt
