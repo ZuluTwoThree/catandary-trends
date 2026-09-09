@@ -167,3 +167,42 @@ class TestExcerptPurge:
     def test_cli_also_excerpt_requires_ignore_state(self, seeded):
         with pytest.raises(SystemExit):
             prc.main(["--source", "Fulltext Pub", "--also-excerpt", "--dry-run"])
+
+
+class TestPurgeRetiresEmptiedEntries:
+    """--also-excerpt must retire the rows it empties (#97, 2026-09-09).
+
+    The 2026-09-04 purge nulled excerpt/raw_content/extraction_json for the 33
+    TDM-reserved sources but left the unprocessed rows in the pool. Four days
+    later the cycle wrote 187 published articles from their bare titles.
+    """
+
+    def test_also_excerpt_marks_rows_filtered(self, seeded):
+        n = prc.purge(CUTOFF, [1], 1, 5, batch_ids=2, ignore_state=True, also_excerpt=True)
+        assert n == 4                                   # ids 1-4: raw_content OR excerpt
+        with get_connection() as c:
+            rows = {r["id"]: dict(r) for r in c.execute(
+                "SELECT id, excerpt, raw_content, processed, filtered_out, filter_reason "
+                "FROM raw_entries").fetchall()}
+        for rid in (1, 2, 3, 4):
+            assert rows[rid]["excerpt"] is None
+            assert rows[rid]["raw_content"] is None
+            assert rows[rid]["processed"]
+            assert rows[rid]["filtered_out"]
+            assert rows[rid]["filter_reason"] == "source_text_purged"
+
+    def test_other_source_untouched(self, seeded):
+        prc.purge(CUTOFF, [1], 1, 5, batch_ids=2, ignore_state=True, also_excerpt=True)
+        with get_connection() as c:
+            other = dict(c.execute(
+                "SELECT raw_content, filtered_out FROM raw_entries WHERE id = 5").fetchone())
+        assert other["raw_content"] is not None
+        assert not other["filtered_out"]
+
+    def test_without_also_excerpt_rows_stay_in_the_pool(self, seeded):
+        prc.purge(CUTOFF, [1], 1, 5, batch_ids=2, ignore_state=True)
+        with get_connection() as c:
+            row = dict(c.execute(
+                "SELECT excerpt, filtered_out FROM raw_entries WHERE id = 2").fetchone())
+        assert row["excerpt"] == "teaser 2"
+        assert not row["filtered_out"]

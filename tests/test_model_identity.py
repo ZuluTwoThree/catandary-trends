@@ -204,8 +204,12 @@ class TestStage6Abort:
             for i, t in enumerate(("Quantum error correction milestone",
                                    "Plant-based cheese scales in Europe",
                                    "Modular housing factory opens"), start=1):
+                # >= MIN_SOURCE_TEXT_CHARS (80) — a bare title is filtered
+                # before any LLM stage since 2026-09-09
                 c.execute("INSERT INTO raw_entries (id, source_id, url, title, excerpt) "
-                          f"VALUES ({i}, 1, 'http://s/{i}', '{t}', 'Excerpt {i} text.')")
+                          f"VALUES ({i}, 1, 'http://s/{i}', '{t}', "
+                          f"'Excerpt {i}: researchers describe the result in detail and "
+                          f"give the figures behind it in the full report.')")
             c.commit()
 
         monkeypatch.setattr(lm, "step_relevance_filter", lambda *a, **k: RelevanceResult(

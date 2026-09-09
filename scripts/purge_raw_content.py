@@ -148,12 +148,23 @@ def purge(cutoff: str, source_ids: list[int] | None, min_id: int, max_id: int,
     """NULL raw_content (and, with also_extraction, the mined extraction_json —
     claims/quotes are reproductions too; with also_excerpt the feed teaser /
     abstract, for sources whose rights holder reserved TDM) in id-range
-    batches; returns rows updated."""
+    batches; returns rows updated.
+
+    `also_excerpt` additionally retires the rows (processed + filtered_out +
+    filter_reason='source_text_purged') — see the comment below."""
     cols = ["raw_content = NULL"]
     if also_extraction:
         cols.append("extraction_json = NULL")
     if also_excerpt:
         cols.append("excerpt = NULL")
+        # An entry whose teaser is gone has nothing left but its title, and a
+        # title is never a valid article basis (#97, 2026-09-09): the grounding
+        # gate can only check specifics AGAINST the source, so with an empty
+        # source everything the model invents passes. Retire such entries in the
+        # same pass instead of leaving them in the unprocessed pool.
+        cols.append("processed = TRUE")
+        cols.append("filtered_out = TRUE")
+        cols.append("filter_reason = 'source_text_purged'")
     set_sql = ", ".join(cols)
     where, params = _where(cutoff, source_ids, ignore_state, also_excerpt)
     total = 0

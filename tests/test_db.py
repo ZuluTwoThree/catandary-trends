@@ -302,3 +302,41 @@ class TestPerSourceCap:
         got = get_unprocessed_entries(limit=100000)
         assert len(got) == CYCLE_MAX_PER_SOURCE
 
+
+
+class TestInactiveSourceBacklog:
+    """Deactivating a source must stop its backlog too (#97, 2026-09-09).
+
+    Until 2026-09-09 `active = FALSE` only stopped the poller. The 33 TDM-reserved
+    journals switched off on 2026-09-04 kept feeding their already-fetched backlog
+    into content generation and produced 187 published articles on 2026-09-08.
+    """
+
+    def _mk(self, name, active):
+        from pipeline.db import get_connection, upsert_source
+        sid = upsert_source(name, f"https://example.com/{name}", "trade_media", "FOOD")
+        with get_connection() as conn:
+            conn.execute("UPDATE sources SET active = ? WHERE id = ?", (active, sid))
+            conn.execute(
+                "INSERT INTO raw_entries (source_id, url, title, excerpt) VALUES (?, ?, ?, ?)",
+                (sid, f"https://example.com/{name}/1", "T", "E"))
+        return sid
+
+    def test_inactive_source_entries_never_reach_the_cycle(self):
+        from pipeline.db import get_unprocessed_entries, init_db
+        init_db()
+        self._mk("reserved-journal-test", False)
+        self._mk("live-trade-test", True)
+        got = {e["source_name"] for e in get_unprocessed_entries(limit=100)}
+        assert "live-trade-test" in got
+        assert "reserved-journal-test" not in got
+
+    def test_null_active_counts_as_true(self):
+        """Pre-migration rows carry NULL — they must keep flowing."""
+        from pipeline.db import get_connection, get_unprocessed_entries, init_db
+        init_db()
+        sid = self._mk("legacy-active-test", True)
+        with get_connection() as conn:
+            conn.execute("UPDATE sources SET active = NULL WHERE id = ?", (sid,))
+        got = {e["source_name"] for e in get_unprocessed_entries(limit=100)}
+        assert "legacy-active-test" in got

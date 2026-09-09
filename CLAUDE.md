@@ -226,6 +226,34 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       scheiterte am eigenen Slug; eine Slug-Kollision bekommt seither ein
       -r2/-r3-Suffix (llm_processor.unique_slug) statt den Eintrag als
       „processed" zu verlieren.
+      **Der geholte Volltext erreichte den Produktionspfad bis 2026-09-09
+      gar nicht:** `run_pipeline_batch` (der Pfad, den der Cycle nutzt) las
+      ausschließlich `entry["excerpt"]`, während `fetch_batch` in
+      `raw_content` schreibt — nur der Einzel-Pfad `process_entry` griff
+      seit #11 auf `raw_content` zu. Gemessener Unterschied bei Opt-in-
+      Quellen: excerpt 124–456 Zeichen gegen raw_content 2.442–6.331
+      (The Conversation 124 : 6.025). Der Batch-Pfad normalisiert jetzt
+      einmalig nach dem Laden (`raw_content`, wenn länger als der Teaser).
+    → **Mindest-Textbasis (Stage 0b, seit 2026-09-09, #97):** ein Eintrag
+      mit weniger als `MIN_SOURCE_TEXT_CHARS` (Env, Default 80) Zeichen
+      Quelltext wird VOR jedem LLM-Aufruf verworfen
+      (`mark_filtered(… "insufficient_source_text")`, in beiden Pfaden).
+      Grund: das Grounding-Gate prüft Zahlen/Namen GEGEN die Quelle — steht
+      dort nichts, gibt es nichts zu prüfen und jede Modell-Erfindung
+      rutscht mit 0 Flags durch. Genau so entstanden am 08.09. 187
+      published Artikel aus den am 04.09. deaktivierten Vorbehalts-Quellen,
+      deren excerpt der Purge geleert hatte (flüssig formulierte, frei
+      erfundene Studieninhalte; alle 278 am 09.09. auf `rejected` +
+      `review_reason='titleonly:tdm-reserved-source'` zurückgezogen).
+      Schwellen-Herleitung an der Kohorte vom 08.09. (2.714 Trends):
+      0 Zeichen 216, <80 247 (9,1 %), <200 770 (28 %) — 80 trifft das Loch,
+      nicht den Normalbetrieb (Median 508 Zeichen).
+    → **Deaktivierte Quellen liefern seit 2026-09-09 auch keinen Backlog
+      mehr:** `get_unprocessed_entries` filtert zusätzlich auf
+      `COALESCE(s.active, TRUE) = TRUE`. Vorher stoppte `active: false` nur
+      das Polling — die schon geholten Einträge liefen weiter in die
+      Content-Generierung, weshalb die am 04.09. abgeschalteten 33 Journale
+      am 08.09. noch einmal 187 Artikel erzeugten.
     → EXTRACTION_STRICT=1 (Default seit 2026-08-21): alle Felder Pflicht,
       quotes/geography werden auf Wörtlichkeit gefiltert (~5,3 s/Artikel)
     → key_figures kommen NICHT vom Modell: deterministisch per Regex aus der
@@ -604,6 +632,10 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # raw_content verarbeiteter raw_entries älter als 14 Tage → NULL (§44b Abs. 2 S. 2 UrhG).
 # Vorbehalts-Quellen: purge_raw_content.py --source … --ignore-state --also-extraction
 30 3 * * *   .venv/bin/python scripts/purge_raw_content.py --days 14 --apply
+# --also-excerpt (nur mit --ignore-state) setzt die geleerten Zeilen seit
+# 2026-09-09 im selben Zug auf processed + filtered_out +
+# filter_reason='source_text_purged' — ein Eintrag ohne Quelltext ist nie
+# wieder Artikelmaterial (Anlass: die 04.09.-Leerung liess die Zeilen im Pool).
 
 # Source-Discovery-Loop (Sonntag 06:00)
 0 6 * * 0    .venv/bin/python scripts/discovery_loop.py

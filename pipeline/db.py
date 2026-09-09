@@ -1150,7 +1150,13 @@ def get_unprocessed_entries(limit: int = 50, min_id: int = 0,
     at p95 ≈ 70 entries/day, so the default 200 never touches regular operation;
     a dump contributes its oldest `cap` entries per run and the rest waits for
     signal_batch. Sources flagged llm_pipeline=FALSE stay excluded entirely
-    (manual kill switch; COALESCE keeps NULL from pre-migration DBs flowing)."""
+    (manual kill switch; COALESCE keeps NULL from pre-migration DBs flowing).
+
+    Inactive sources (`active = FALSE`) are excluded too (#97, 2026-09-09).
+    Deactivating a source used to stop only the polling — its already-fetched
+    backlog kept flowing into content generation. That is how the 33 TDM-reserved
+    journals, switched off on 2026-09-04, still produced 187 published articles
+    on 2026-09-08."""
     if per_source_cap is None:
         from pipeline.config import CYCLE_MAX_PER_SOURCE
         per_source_cap = CYCLE_MAX_PER_SOURCE
@@ -1167,6 +1173,7 @@ def get_unprocessed_entries(limit: int = 50, min_id: int = 0,
             "    FROM raw_entries re JOIN sources s ON re.source_id = s.id "
             "   WHERE re.processed = FALSE AND re.filtered_out = FALSE AND re.id > ? "
             "     AND COALESCE(s.llm_pipeline, TRUE) = TRUE "
+            "     AND COALESCE(s.active, TRUE) = TRUE "
             + patent_clause +
             ") "
             "SELECT re.*, s.name as source_name, s.vertical as source_vertical, "

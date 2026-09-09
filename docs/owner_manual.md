@@ -893,6 +893,19 @@ mit Vorbehalts-Header, Hacker News als Quelle): `docs/compliance/source_probe_20
 (verarbeitete Einträge, 14 Tage nach Abruf). Für Vorbehalts-Quellen gezielt:
 `python scripts/purge_raw_content.py --source "Horizont" --ignore-state --also-extraction --apply`
 (ohne `--apply` = Dry-Run mit Zeilen/Bytes; `--by-source` listet die größten).
+`--also-excerpt` löscht zusätzlich den Feed-Teaser und **stillt die Zeilen im
+selben Zug** (`processed`, `filtered_out`, `filter_reason='source_text_purged'`,
+seit 09.09.2026) — ohne das blieben sie im unverarbeiteten Pool und der Cycle
+schrieb später Artikel aus dem nackten Titel.
+
+**Quelle deaktivieren stoppt seit 09.09.2026 auch den Backlog.** `active: false`
+in `sources.yaml` + `apply_source_hygiene.py --apply` hielt vorher nur den
+Poller an; die bereits geholten Einträge liefen weiter in die
+Content-Generierung. `get_unprocessed_entries` filtert jetzt zusätzlich auf
+`active`. Zusätzlicher Schutz: Einträge mit weniger als
+`MIN_SOURCE_TEXT_CHARS` (Default 80) Zeichen Quelltext werden vor jedem
+LLM-Aufruf als `insufficient_source_text` verworfen — aus einem bloßen Titel
+entsteht nie ein Artikel.
 
 **Takedown.** `python scripts/takedown.py --url <Artikel-oder-Quell-URL> | --trend-id N | --source "<Name>" [--keep-raw] [--purge-raw] [--deactivate] [--reject-all] [--note "Ticket"] --apply`
 — Default Dry-Run. Artikel-Modus: Trend auf `rejected`, gespeicherten Volltext

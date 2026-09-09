@@ -89,6 +89,18 @@ STAGE5_MAX_BODY_WORDS = int(os.getenv("STAGE5_MAX_BODY_WORDS", "320"))
 # hinteren Hälfte kommen ohnehin über die Extraktion (liest 12.000 Zeichen).
 STAGE6_SOURCE_MAX_CHARS = int(os.getenv("STAGE6_SOURCE_MAX_CHARS", "4000"))
 
+# Mindest-Textbasis fuer die Content-Generierung (#97, 2026-09-09). Ein Eintrag,
+# von dem nur der Titel uebrig ist, darf nie zu einem Artikel werden: das
+# Grounding-Gate prueft Zahlen/Namen GEGEN die Quelle — steht dort nichts, gibt
+# es nichts zu pruefen und jede Erfindung des Modells rutscht durch. Genau so
+# entstanden am 08.09. 187 published Artikel aus den am 04.09. deaktivierten
+# TDM-Vorbehalts-Quellen, deren excerpt der Purge geleert hatte: fluessige,
+# frei erfundene Studieninhalte mit 0 Grounding-Flags.
+# Gemessen an der Kohorte vom 08.09. (2.714 Trends): 0 Zeichen 216, <60 229,
+# <80 247 (9,1 %), <100 296, <200 770 (28 %). 80 trifft das Loch (kein Text /
+# Bruchstueck), laesst normale RSS-Teaser (Median 508 Zeichen) unberuehrt.
+MIN_SOURCE_TEXT_CHARS = int(os.getenv("MIN_SOURCE_TEXT_CHARS", "80"))
+
 # qwen3:8b stages backend (pipeline Stages 2 Relevance, 3 Extraction,
 # 4 Classification, 8 Reclassify).
 # "ollama" (default) uses MODEL_FILTER/MODEL_CLASSIFY on Ollama. "llamacpp" routes

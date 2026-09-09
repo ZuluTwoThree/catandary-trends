@@ -38,6 +38,7 @@ from pipeline.config import (
     MODEL_EXTRACT,
     MODEL_FILTER,
     MODEL_GENERATE,
+    MIN_SOURCE_TEXT_CHARS,
     EMBED_BACKEND,
     EMBED_MODEL,
     RELEVANCE_THRESHOLD,
@@ -768,6 +769,14 @@ def process_entry(entry: dict) -> dict | None:
         mark_filtered(entry_id, "sponsored/advertorial")
         return None
 
+    # Step 0b: minimum source text (#97, 2026-09-09) — same guard as the batch
+    # path. A bare title gives the grounding gate nothing to check against.
+    if len(excerpt.strip()) < MIN_SOURCE_TEXT_CHARS:
+        logger.info("[%d] Filtered out: insufficient source text (%d chars)",
+                    entry_id, len(excerpt.strip()))
+        mark_filtered(entry_id, "insufficient_source_text")
+        return None
+
     # Step 1: Relevance Filter
     relevance = step_relevance_filter(title, excerpt, source_vertical)
     if relevance is None:
@@ -1054,6 +1063,17 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
     if not entries:
         return {"processed": 0, "created": 0, "filtered": 0, "errors": 0}
 
+    # Prefer the fetched full article text over the short RSS teaser — the same
+    # rule process_entry has followed since #11. This path did NOT: every stage
+    # below reads entry["excerpt"], so article_fetcher.fetch_batch wrote
+    # raw_content that the production cycle never looked at (found 2026-09-09;
+    # measured gap for opt-in sources: excerpt 124-456 chars vs raw_content
+    # 2.4k-6.3k). Normalising once here keeps both paths identical.
+    for entry in entries:
+        full = entry.get("raw_content")
+        if full and len(full) > len(entry.get("excerpt") or ""):
+            entry["excerpt"] = full
+
     created = 0
     filtered = 0
     errors = 0
@@ -1070,6 +1090,13 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
         # Stage 0: advertorial guard (deterministic, pre-LLM)
         if is_advertorial(title, entry.get("excerpt") or ""):
             mark_filtered(entry["id"], "sponsored/advertorial")
+            filtered += 1
+            continue
+        # Stage 0b: minimum source text (#97, 2026-09-09). Without a body there
+        # is nothing for the grounding gate to check, so anything the model
+        # invents passes silently — never generate from a bare title.
+        if len((entry.get("excerpt") or "").strip()) < MIN_SOURCE_TEXT_CHARS:
+            mark_filtered(entry["id"], "insufficient_source_text")
             filtered += 1
             continue
         is_dup, sim = is_title_duplicate(title, existing_titles_norm)
