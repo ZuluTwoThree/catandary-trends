@@ -114,3 +114,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Volltext-Retention (taeglich 03:30, seit 2026-09-03 installiert, Owner-Auftrag '100 % konform'):
 # raw_content verarbeiteter Eintraege aelter als 14 Tage auf NULL (§44b Abs. 2 S. 2 UrhG).
 30 3 * * * cd /home/dirk/projects/catandary-trends && .venv/bin/python scripts/purge_raw_content.py --days 14 --apply >> /home/dirk/logs/catandary-purge-raw.log 2>&1
+
+# Offen lizenzierte Artikel aus den Vorbehalts-Quellen freischalten (#97 Wege B+C,
+# installiert 2026-09-09). Laeuft nach der Volltext-Retention (03:30) und vor dem
+# 04:00-Cycle: eine CC-BY-Lizenz sticht den TDM-Vorbehalt des Hosts, der Volltext
+# kommt von der offenen Fundstelle. Gemessene Ausbeute 09.09.: 10 von 60 Eintraegen
+# offen lizenziert, 7 davon mit Volltext (12 %) — bei ~500 Eintraegen/Woche also
+# rund 58 Artikel/Woche. Existenz-Guard: Skript liegt bis zum dev->main-Merge nur auf dev.
+45 3 * * * [ -f /home/dirk/projects/catandary-trends/scripts/resolve_open_licence.py ] && cd /home/dirk/projects/catandary-trends && .venv/bin/python scripts/resolve_open_licence.py --limit 300 --apply >> /home/dirk/logs/catandary-open-licence.log 2>&1

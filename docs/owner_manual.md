@@ -910,6 +910,26 @@ in beide Richtungen und `llm_pipeline`; ohne `--apply` Dry-Run mit Plan).
 Der Samstagslauf verarbeitet sie über
 `scripts/signal_batch_embedded.py --signal-only`.
 
+**Offen lizenzierte Artikel aus Vorbehalts-Quellen freischalten (seit
+09.09.2026).** Ein Verlag kann site-weit TDM vorbehalten und denselben Artikel
+unter CC BY veröffentlichen. Die Lizenz ist eine Erlaubnis, der Vorbehalt sperrt
+nur die Schranke — für diesen Artikel geht er also ins Leere. Der Cron
+`45 3 * * *` erledigt das täglich; von Hand:
+
+```bash
+python scripts/resolve_open_licence.py --limit 50                 # Dry-Run mit Statistik
+python scripts/resolve_open_licence.py --limit 50 --apply         # wirklich freischalten
+python scripts/resolve_open_licence.py --source "Nature (main)" --apply
+```
+
+Je Eintrag: OpenAlex-Auflösung (DOI aus der URL, sonst Titelsuche),
+Lizenzprüfung (`cc-by`, `cc-by-sa`, `cc0`, Public Domain — nie `-nc`, nie
+`-nd`), Volltext von der **offenen Fundstelle**; vom Vorbehalts-Host wird nichts
+geholt. Erfolgreiche Einträge bekommen `raw_content`, `open_licence` und
+`oa_url` und dürfen damit in den Content-Cycle, obwohl ihre Quelle im
+Signalbetrieb läuft. Gemessene Ausbeute (09.09., 60 Einträge): 10 offen
+lizenziert, 7 davon mit Volltext. Log: `~/logs/catandary-open-licence.log`.
+
 **Quelle deaktivieren stoppt seit 09.09.2026 auch den Backlog.** `active: false`
 in `sources.yaml` + `apply_source_hygiene.py --apply` hielt vorher nur den
 Poller an; die bereits geholten Einträge liefen weiter in die
@@ -944,6 +964,7 @@ im Handover still).
 |---|---|---|---|
 | 02:45 täglich | Postgres-Backup (dumpdir, zstd, keep 4 Tage) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4` | installiert |
 | 03:30 täglich | Volltext-Retention 14 Tage | `scripts/purge_raw_content.py --days 14 --apply` | installiert (03.09.) |
+| 03:45 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
 | 04:00 Mo–Fr | Full Cycle + Draft-Richter + Morgen-Mail | `scripts/full_cycle_cron.sh` | installiert |
 | 07:45 Mo–Fr | Wächter | `python -m scripts.cycle_watchdog` | installiert |
 | 09:00 Mo | Newsletter-Website-Edition | `scripts/weekly_newsletter_publish.sh` | installiert (ohne `NEWSLETTER_DEEP_DIVE`) |

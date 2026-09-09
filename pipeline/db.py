@@ -516,6 +516,29 @@ def _migrate_sources_llm_pipeline():
             conn.execute("ALTER TABLE sources ADD COLUMN llm_pipeline INTEGER DEFAULT 1")
 
 
+def _migrate_open_licence():
+    """Add raw_entries.open_licence / oa_url. Idempotent, wired into init_db.
+
+    Weg B+C (#97, 2026-09-09): a source can carry a machine-readable TDM
+    reservation while individual articles are licensed CC BY. `open_licence`
+    records the licence found for THIS entry, `oa_url` the open location the
+    text came from — the reserved host itself is never fetched. Entries with
+    an `open_licence` are admitted to the content cycle even though their
+    source runs signal-only (see get_unprocessed_entries).
+    """
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            conn.execute("ALTER TABLE raw_entries ADD COLUMN IF NOT EXISTS open_licence TEXT")
+            conn.execute("ALTER TABLE raw_entries ADD COLUMN IF NOT EXISTS oa_url TEXT")
+            return
+        rows = conn.execute("PRAGMA table_info(raw_entries)").fetchall()
+        names = [(r[1] if not hasattr(r, "keys") else r["name"]) for r in rows]
+        if "open_licence" not in names:
+            conn.execute("ALTER TABLE raw_entries ADD COLUMN open_licence TEXT")
+        if "oa_url" not in names:
+            conn.execute("ALTER TABLE raw_entries ADD COLUMN oa_url TEXT")
+
+
 def _migrate_reviewed_at():
     """Add trends.reviewed_at to pre-existing databases. Idempotent.
 
@@ -1016,6 +1039,7 @@ def init_db():
     _migrate_stage_cache_columns()
     _migrate_trends_sort_date()
     _migrate_reviewed_at()
+    _migrate_open_licence()
     _migrate_judged_at()
     _migrate_review_reason()
     _migrate_sources_llm_pipeline()
@@ -1152,6 +1176,11 @@ def get_unprocessed_entries(limit: int = 50, min_id: int = 0,
     signal_batch. Sources flagged llm_pipeline=FALSE stay excluded entirely
     (manual kill switch; COALESCE keeps NULL from pre-migration DBs flowing).
 
+    An entry with `open_licence` set is admitted even from a signal-only source
+    (#97 Weg B, 2026-09-09): the article itself is licensed CC BY/CC0, so the
+    host's TDM reservation does not reach it. Only scripts/resolve_open_licence.py
+    ever sets that column, and only after verifying the licence against OpenAlex.
+
     Inactive sources (`active = FALSE`) are excluded too (#97, 2026-09-09).
     Deactivating a source used to stop only the polling — its already-fetched
     backlog kept flowing into content generation. That is how the 33 TDM-reserved
@@ -1172,7 +1201,7 @@ def get_unprocessed_entries(limit: int = 50, min_id: int = 0,
             "         ) AS rn "
             "    FROM raw_entries re JOIN sources s ON re.source_id = s.id "
             "   WHERE re.processed = FALSE AND re.filtered_out = FALSE AND re.id > ? "
-            "     AND COALESCE(s.llm_pipeline, TRUE) = TRUE "
+            "     AND (COALESCE(s.llm_pipeline, TRUE) = TRUE OR re.open_licence IS NOT NULL) "
             "     AND COALESCE(s.active, TRUE) = TRUE "
             + patent_clause +
             ") "

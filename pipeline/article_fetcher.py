@@ -316,17 +316,32 @@ class FetchResult:
         return bool(self.reason and self.reason.startswith("tdm:"))
 
 
-def fetch_fulltext_result(url: str, client: httpx.Client | None = None) -> FetchResult:
-    """Fetch + extract clean article text, with the reason when nothing is kept."""
+def fetch_fulltext_result(url: str, client: httpx.Client | None = None,
+                          open_licence: str | None = None) -> FetchResult:
+    """Fetch + extract clean article text, with the reason when nothing is kept.
+
+    `open_licence`: the caller has verified that THIS article carries an open
+    licence (CC BY / CC0 / public domain — see pipeline/open_license.py). A
+    licence is a permission; the TDM reservation from §44b Abs. 3 only bars the
+    statutory exception, which a licensed use does not need. The host-level
+    reservation is therefore not applied — robots.txt still is, because that is
+    the site's access policy, not a copyright reservation (#97, 2026-09-09).
+
+    Redirects are re-checked (fixed 2026-09-09): robots and the TDM signals were
+    evaluated only against the REQUESTED url. A DOI link
+    (`doi.org/10.1038/…` -> `nature.com/articles/…`) therefore slipped past
+    nature.com's site-wide `tdmrep.json` and 12.000 characters were stored.
+    """
     if not _robots_ok(url):
         logger.info("robots.txt disallows %s", url)
         return FetchResult(None, "robots")
     host = urlparse(url).netloc
+    respect_tdm = TDM_RESPECT and not open_licence
     own = client is None
     client = client or httpx.Client(timeout=20, follow_redirects=True,
                                     headers={"User-Agent": UA})
     try:
-        if TDM_RESPECT:
+        if respect_tdm:
             why = tdm_reservation_in_tdmrep(url, tdmrep_rules(host, client))
             if why:
                 logger.info("TDM reservation (%s) — full text not stored, feed teaser only: %s", why, url)
@@ -335,11 +350,23 @@ def fetch_fulltext_result(url: str, client: httpx.Client | None = None) -> Fetch
         r = client.get(url)
         if r.status_code != 200 or not r.text:
             return FetchResult(None, f"http {r.status_code}")
-        if TDM_RESPECT:
+        final = str(r.url)
+        if final != url:
+            if not _robots_ok(final):
+                logger.info("robots.txt disallows the redirect target %s (from %s)", final, url)
+                return FetchResult(None, "robots")
+            if respect_tdm:
+                why = tdm_reservation_in_tdmrep(final, tdmrep_rules(urlparse(final).netloc, client))
+                if why:
+                    logger.info("TDM reservation (%s) on the redirect target %s (from %s)", why, final, url)
+                    return FetchResult(None, f"tdm:{why}")
+        if respect_tdm:
             why = tdm_reservation_in_headers(r.headers) or tdm_reservation_in_html(r.text)
             if why:
                 logger.info("TDM reservation (%s) — full text not stored, feed teaser only: %s", why, url)
                 return FetchResult(None, f"tdm:{why}")
+        if open_licence:
+            logger.info("open licence %s — host TDM reservation not applied: %s", open_licence, url)
         text = trafilatura.extract(
             r.text, include_comments=False, include_tables=False,
             no_fallback=False, favor_precision=True)

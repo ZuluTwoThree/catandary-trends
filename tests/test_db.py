@@ -340,3 +340,50 @@ class TestInactiveSourceBacklog:
             conn.execute("UPDATE sources SET active = NULL WHERE id = ?", (sid,))
         got = {e["source_name"] for e in get_unprocessed_entries(limit=100)}
         assert "legacy-active-test" in got
+
+
+class TestOpenLicenceAdmission:
+    """An openly licensed entry enters the cycle even from a signal-only source
+    (#97 Weg B, 2026-09-09) — the article's licence beats the host reservation.
+    """
+
+    def _src(self, name, llm):
+        from pipeline.db import get_connection, upsert_source
+        sid = upsert_source(name, f"https://example.com/{name}", "research", "HEALTH",
+                            llm_pipeline=llm)
+        with get_connection() as conn:
+            conn.execute("UPDATE sources SET llm_pipeline = ? WHERE id = ?", (llm, sid))
+        return sid
+
+    def _entry(self, sid, url, licence=None):
+        from pipeline.db import get_connection
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT INTO raw_entries (source_id, url, title, excerpt, open_licence) "
+                "VALUES (?, ?, ?, ?, ?)", (sid, url, "T", "E", licence))
+
+    def test_licensed_entry_from_a_signal_only_source_is_admitted(self):
+        from pipeline.db import get_unprocessed_entries, init_db
+        init_db()
+        sid = self._src("reserved-journal-oa", False)
+        self._entry(sid, "https://example.com/oa/1", "cc-by")
+        self._entry(sid, "https://example.com/plain/1", None)
+        got = {e["url"] for e in get_unprocessed_entries(limit=100)}
+        assert "https://example.com/oa/1" in got
+        assert "https://example.com/plain/1" not in got
+
+    def test_inactive_source_stays_out_even_with_a_licence(self):
+        """active is the harder gate — a switched-off source stays off."""
+        from pipeline.db import get_connection, get_unprocessed_entries, init_db
+        init_db()
+        sid = self._src("switched-off-oa", False)
+        with get_connection() as conn:
+            conn.execute("UPDATE sources SET active = ? WHERE id = ?", (False, sid))
+        self._entry(sid, "https://example.com/off/1", "cc-by")
+        got = {e["url"] for e in get_unprocessed_entries(limit=100)}
+        assert "https://example.com/off/1" not in got
+
+    def test_migration_is_idempotent(self):
+        from pipeline.db import _migrate_open_licence
+        _migrate_open_licence()
+        _migrate_open_licence()
