@@ -21,8 +21,10 @@ Von den 147 nie geprüften Domains sind nach Typ (Zuordnung nach Augenschein, ni
 - Wissenschaftsverlage / Repositorien: 9
 - Aggregator (Blockliste): 1
 
-Nächster Schritt (nicht ausgeführt): die Fachmedien-Kandidaten durch `scripts/probe_source_compliance.py` laufen lassen
-(robots, Bot-UA, TDM-Vorbehalt, Lizenz), Presseverteiler/Report-Shops/Aggregatoren bleiben per Regel draußen.
+**Ausgeführt am 2026-09-09:** die 111 inhaltlich in Frage kommenden Kandidaten (102 Fachmedien + 9 Wissenschaftsverlage)
+sind durch `scripts/probe_source_compliance.py` gelaufen — 57 `ok`, 47 `feed_error`, 7 `blocked`, 0 `reserved`;
+Empfehlung 40 aufnehmen. Ergebnis je Domain: `docs/compliance/source_probe_2026-09-09.md`.
+Presseverteiler/Report-Shops/Aggregatoren bleiben per Regel draußen und wurden nicht geprobt.
 
 ## Vollständige Tabelle
 
