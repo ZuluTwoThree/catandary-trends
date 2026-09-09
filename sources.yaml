@@ -366,6 +366,169 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: triage   # William-Reed-Arc-Feedpfad
+    - name: Agro Media
+      feed_url: https://www.agro-media.fr/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # FR-Lebensmittelindustrie
+    - name: AgronFood Processing
+      feed_url: https://agronfoodprocessing.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # IN-Lebensmittelverarbeitung
+    - name: Alimarket Alimentacion
+      feed_url: https://www.alimarket.es/media/rss/alimentacion.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # ES-Lebensmittelmarkt; Feed liefert nur den juengsten Eintrag
+    - name: Aquaculture Magazine
+      feed_url: https://aquaculturemag.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09
+    - name: Dairy Business MEA
+      feed_url: https://dairybusinessmea.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # Molkerei Naher Osten/Afrika
+    - name: eDairy News
+      feed_url: https://en.edairynews.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09
+    - name: Fish Focus
+      feed_url: https://fishfocus.co.uk/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # UK-Fischwirtschaft
+    - name: FnB News
+      feed_url: https://fnbnews.com/xml/Top-NewsRSS.XML
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # IN; Feed ohne Datumsangaben
+    - name: Food Affairs
+      feed_url: https://www.foodaffairs.it/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # IT-Lebensmittelbranche
+    - name: Food Business MEA
+      feed_url: https://www.foodbusinessmea.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09
+    - name: FoodInfoTech
+      feed_url: https://www.foodinfotech.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # IN-Food-Processing-Technik
+    - name: FreshFruitPortal
+      feed_url: https://www.freshfruitportal.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09
+    - name: FreshPlaza
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 Owner-Liste 09.09.)
+      feed_url: https://www.freshplaza.com/europe/rss.xml/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # hohe Frequenz (48/Feed), Frischwaren-Handel
+    - name: Genetic Literacy Project
+      feed_url: https://geneticliteracyproject.org/feed/
+      type: trade_media
+      lead_time_tier: future
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # Agrar-Biotech/Gentechnik-Wissenschaftskommunikation
+    - name: HortiDaily
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 Owner-Liste 09.09.)
+      feed_url: https://www.hortidaily.com/rss.xml/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # hohe Frequenz, Gartenbau
+    - name: iGrow News
+      feed_url: https://igrownews.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # Vertical Farming/CEA
+    - name: Lantbruksnytt
+      feed_url: https://lantbruksnytt.se/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # SE-Landwirtschaft
+    - name: Mundo Agropecuario
+      feed_url: https://mundoagropecuario.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # ES/LatAm-Agrar
+    - name: New Hope Network
+      feed_url: https://newhope.com/rss.xml
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # Natural Products/Supplements
+    - name: Perishable News
+      feed_url: https://perishablenews.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09
+    - name: Public Sector Catering
+      feed_url: https://www.publicsectorcatering.co.uk/rss/costsectorcatering/rss.xml
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # UK-Gemeinschaftsverpflegung
+    - name: Trade Magazin
+      feed_url: https://trademagazin.hu/hu/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # HU-FMCG/Handel
+    - name: TradeMaster
+      feed_url: https://trademaster.ua/rss.php?id=1
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # UA-Handel; Feed ohne Datumsangaben
     science:
     - name: Nature Food
       active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
@@ -509,6 +672,13 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: triage   # Feed an nicht-standardisiertem Pfad (/de/rss/news.rss)
+    - name: IFDC
+      feed_url: https://ifdc.org/feed/
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # Duengemittel-/Bodenfruchtbarkeitsforschung
   TECH:
     sources:
     - name: Frontiers in Materials
@@ -1015,6 +1185,21 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: own   # breiter Tech-Feed
+    - name: ITWeb
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 Owner-Liste 09.09.)
+      feed_url: https://www.itweb.co.za/rss
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # ZA-IT-Fachmedium, breiter Feed
+    - name: Innovation News Network
+      feed_url: https://www.innovationnewsnetwork.com/feed/
+      type: trade_media
+      lead_time_tier: future
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # Forschung/Innovation quer
     science:
     - name: Nature Machine Intelligence
       active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
@@ -1935,6 +2120,41 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: triage   # NGO-Pressemitteilungen; TYPO3-Feed (?type=9818)
+    - name: Chemical Processing
+      feed_url: https://www.chemicalprocessing.com/__rss/website-scheduled-content.xml?input=%7B%22sectionAlias%22%3A%22home%22%7D
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # Prozessindustrie
+    - name: Processing Magazine
+      feed_url: https://www.processingmagazine.com/__rss/website-scheduled-content.xml?input=%7B%22sectionAlias%22%3A%22home%22%7D
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # Prozessindustrie
+    - name: Paper Industry World
+      feed_url: https://www.paperindustryworld.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # Papier/Verpackung
+    - name: Greentech Lead
+      feed_url: https://greentechlead.com/feed
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # Erneuerbare/Clean Tech
+    - name: Groent Samhaellsbyggande
+      feed_url: https://www.grontsamhallsbyggande.se/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # SE-nachhaltiges Bauen
     science:
     - name: Nature Sustainability
       active: false   # TDM-Vorbehalt (tdm_status: reserved) — deaktiviert 2026-09-04, Owner-Entscheid; Wissenschaft via OpenAlex/arXiv
@@ -2881,6 +3101,65 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: own   # Funding-Meldungen EU
+    - name: Chain Drug Review
+      feed_url: https://chaindrugreview.com/latest/rss/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # US-Drugstore-Handel
+    - name: FMI Food Industry Association
+      feed_url: http://feeds.feedburner.com/FMI-News
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # US-Lebensmittelhandelsverband
+    - name: ReposiTrak
+      feed_url: https://repositrak.com/feed/
+      type: brand
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # Supply-Chain-Compliance-Anbieter, Newsroom
+    - name: Retail Customer Experience
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 Owner-Liste 09.09.)
+      feed_url: https://www.retailcustomerexperience.com/rss/
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # hohe Frequenz (85/Feed)
+    - name: Retail Technology Innovation Hub
+      feed_url: https://retailtechinnovationhub.com/home?format=rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09
+    - name: Supermarket Perimeter
+      feed_url: https://spnews.com/api/rss/content.rss
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # Frischebereich LEH
+    - name: ET Retail
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 Owner-Liste 09.09.)
+      feed_url: https://retail.economictimes.indiatimes.com/rss/topstories
+      type: trade_media
+      lead_time_tier: now
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # IN-Handel; Sektionsfeed der Economic Times (Gesamtfeed bewusst nicht, Regel 6)
+    - name: EUobserver
+      relevance_min: 0.6   # breiter Feed / now-tier (#97 Owner-Liste 09.09.)
+      feed_url: https://euobserver.com/feed/
+      type: trade_media
+      lead_time_tier: market
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: owner-domainliste-2026-09-09   # EU-Politik/Regulierung, breiter Feed
     science:
     - name: Harvard Business Review
       feed_url: http://feeds.harvardbusiness.org/harvardbusiness

@@ -351,7 +351,7 @@ Build-Variablen des Exports (`STATIC_EXPORT`, `PUBLIC_NOINDEX`,
 │ funding  NSF/NIH/OpenAIRE/UKRI │  │  Content EN (Gemma-26B) →    │  │ Statischer Export → Hetzner  │
 │          SEC Form D, SBIR,     │  │  Reclassify → Auto-Publish   │  │  Webspace: /trends (30 Tage) │
 │          CORDIS                │  │  (≥ 0,85 + Grounding-Gate) → │  │  + Mega + Newsletter-Archiv  │
-│ market   ~470 RSS-Quellen,     │  │  Draft-Richter (27B)         │  └──────────────────────────────┘
+│ market   ~513 RSS-Quellen,     │  │  Draft-Richter (27B)         │  └──────────────────────────────┘
 │          Presseverteiler,      │  │ Wochen-Ingester Sa 06:00     │
 │          Newsrooms             │  │  (Distill-Pfad, GPU-frei)    │
 └────────────────────────────────┘  └──────────────────────────────┘

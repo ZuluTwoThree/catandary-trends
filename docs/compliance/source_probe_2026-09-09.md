@@ -34,7 +34,7 @@ Gesamtfeed), 4× Regel 4 (Autodiscovery-Fehltreffer), 2× Regel 3 (verwaist), 1�
 Der Schwerpunkt der Owner-Liste ist eindeutig Food/Agrar/Dairy/Packaging — das trifft genau die Vertikale,
 deren Anteil laut CLAUDE.md-Balance-Prinzip beobachtet wird (FOOD auf 6 % gefallen).
 
-Eingetragen ist noch nichts — `sources.yaml` ist unverändert.
+**Eingetragen am 2026-09-09: 39 der 40.** Farmers Review Africa fiel im Nachlauf mit `scripts.verify_feeds.verify_feed` durch — der Feed antwortete rund 25 Minuten nach der Probe mit **403**, und zwar sowohl dem Produktions-UA `CatandaryTrendsBot/1.0` als auch dem Reader-UA von `verify_feeds`; gleiche Behandlung wie FFG und absatzwirtschaft am 04.09. (ok geprobt, im Nachlauf entfernt). Die übrigen 39 sind mit `tdm_checked: "2026-09-09"`, `tdm_status: ok` und `discovered_via: owner-domainliste-2026-09-09` in `sources.yaml`; IFDC steht als Forschungseinrichtung in der `science`-Liste von FOOD, die anderen 38 in den `sources`-Listen. Aktive RSS-Quellen 474 → **513**. 39/39 `verify_feed` grün, 1.459 pytest grün.
 
 ## ok (57) — mit Empfehlung
 
@@ -49,7 +49,7 @@ Eingetragen ist noch nichts — `sources.yaml` ist unverändert.
 | dairybusinessmea.com | `https://dairybusinessmea.com/feed/` | 10 | 2026-09-09 | **aufnehmen** als „Dairy Business MEA“ (FOOD) |
 | en.edairynews.com | `https://en.edairynews.com/feed/` | 10 | 2026-09-09 | **aufnehmen** als „eDairy News“ (FOOD) |
 | euobserver.com | `https://euobserver.com/feed/` | 20 | 2026-09-09 | **aufnehmen** als „EUobserver“ (BIZ) |
-| farmersreviewafrica.com | `https://farmersreviewafrica.com/feed/` | 10 | 2026-09-09 | **aufnehmen** als „Farmers Review Africa“ (FOOD) |
+| farmersreviewafrica.com | `https://farmersreviewafrica.com/feed/` | 10 | 2026-09-09 | ~~aufnehmen~~ — **im Nachlauf verworfen**: `verify_feed` bekam 403 (beide UAs), ~25 min nach der Probe |
 | fishfocus.co.uk | `https://fishfocus.co.uk/feed/` | 17 | 2026-09-09 | **aufnehmen** als „Fish Focus“ (FOOD) |
 | fmi.org | `http://feeds.feedburner.com/FMI-News` | 25 | 2026-09-09 | **aufnehmen** als „FMI – The Food Industry Association“ (BIZ) |
 | fnbnews.com | `https://fnbnews.com/xml/Top-NewsRSS.XML` | 6 | — | **aufnehmen** als „FnB News“ (FOOD) |
