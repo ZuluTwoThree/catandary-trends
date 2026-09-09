@@ -983,7 +983,7 @@ im Handover still).
 | 02:45 täglich | Postgres-Backup (dumpdir, zstd, keep 4 Tage) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4` | installiert |
 | 03:30 täglich | Volltext-Retention 14 Tage | `scripts/purge_raw_content.py --days 14 --apply` | installiert (03.09.) |
 | 03:45 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
-| 04:00 Mo–Fr | Full Cycle + Draft-Richter + Morgen-Mail | `scripts/full_cycle_cron.sh` | installiert |
+| 04:00 Mo–Fr | Full Cycle + Draft-Richter + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch 600; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |
 | 07:45 Mo–Fr | Wächter | `python -m scripts.cycle_watchdog` | installiert |
 | 09:00 Mo | Newsletter-Website-Edition | `scripts/weekly_newsletter_publish.sh` | installiert (ohne `NEWSLETTER_DEEP_DIVE`) |
 | 05:00 Di | Patent-Ingest BDDS (Cr-Del + Amend) | `scripts/weekly_patents.sh` | installiert |

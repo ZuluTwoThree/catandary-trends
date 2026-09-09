@@ -61,8 +61,14 @@ mkdir -p "$(dirname "$LOG")"
     [ "${USED:-9999}" -lt 1500 ] && break
   done
 
-  echo "----- launching production scheduled_cycle.sh 600 -----"
-  bash "$REPO/scripts/scheduled_cycle.sh" 600
+  # Batchgroesse: 600 ist der Normalbetrieb (Tagesanfall ~530 Eintraege). Per
+  # CYCLE_BATCH in der Crontab-Zeile fuer EINE Nacht anhebbar — sinnvoll, wenn
+  # viele neue Quellen zum ersten Mal ziehen: run 1 nimmt dann alles und run 2
+  # entfaellt, was einen kompletten Stage-8-Pass (Reclassify ueber ALLE Drafts,
+  # ~25 min) spart. Ohne Override aendert sich nichts.
+  CYCLE_BATCH="${CYCLE_BATCH:-600}"
+  echo "----- launching production scheduled_cycle.sh $CYCLE_BATCH -----"
+  bash "$REPO/scripts/scheduled_cycle.sh" "$CYCLE_BATCH"
   RC=$?
   echo "----- scheduled_cycle.sh exit code: $RC -----"
 
