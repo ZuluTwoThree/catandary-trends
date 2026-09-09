@@ -188,23 +188,30 @@ PY
 
   # Remaining backlog = freshly-polled entries (id > WATERMARK) not yet done in
   # run 1 — NOT the backfill. Drained by run 2, still scoped to the watermark.
-  UNPROCESSED=$(WATERMARK="$WATERMARK" python - <<'PY'
+  # Entries run 1 left garbled (Stage 6, cycle_log.jsonl garbled_ids) do not
+  # count: retrying them costs the same failed generations plus two ~20-min
+  # reclassify passes (2026-09-09: one entry, four passes, 1.5 h). The batch
+  # is still sized to the whole pool so they cannot crowd out real entries.
+  read -r UNPROCESSED UNPROCESSED_TOTAL <<<"$(WATERMARK="$WATERMARK" python - <<'PY'
 import os
-from pipeline.db import get_unprocessed_entries, init_db
-init_db()
-print(len(get_unprocessed_entries(limit=999999, min_id=int(os.environ["WATERMARK"]))))
+from pipeline.run_full_cycle import remaining_backlog
+retryable, total = remaining_backlog(int(os.environ["WATERMARK"]))
+print(retryable, total)
 PY
-)
+)"
+  UNPROCESSED="${UNPROCESSED:-0}"; UNPROCESSED_TOTAL="${UNPROCESSED_TOTAL:-0}"
   echo
-  echo "----- backlog after run 1 (id > $WATERMARK): $UNPROCESSED unprocessed entries -----"
+  echo "----- backlog after run 1 (id > $WATERMARK): $UNPROCESSED_TOTAL unprocessed, $UNPROCESSED retryable -----"
 
   RC2=0
-  if [ "${UNPROCESSED:-0}" -gt 0 ]; then
+  if [ "$UNPROCESSED" -gt 0 ]; then
     echo
-    echo "----- run 2: drain fresh backlog (--skip-poll), batch $UNPROCESSED, min_id $WATERMARK -----"
-    python -m pipeline.run_full_cycle --skip-poll --batch "$UNPROCESSED" --min-id "$WATERMARK"
+    echo "----- run 2: drain fresh backlog (--skip-poll), batch $UNPROCESSED_TOTAL, min_id $WATERMARK -----"
+    python -m pipeline.run_full_cycle --skip-poll --batch "$UNPROCESSED_TOTAL" --min-id "$WATERMARK"
     RC2=$?
     echo "----- run 2 exit code: $RC2 -----"
+  elif [ "$UNPROCESSED_TOTAL" -gt 0 ]; then
+    echo "backlog consists only of entries Stage 6 left garbled in run 1 → skipping run 2"
   else
     echo "no fresh backlog → skipping run 2"
   fi

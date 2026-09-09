@@ -184,6 +184,37 @@ def get_unprocessed_count(min_id: int = 0) -> int:
     return len(entries)
 
 
+def get_unprocessed_ids(min_id: int = 0) -> list[int]:
+    """Ids of the entries waiting for LLM processing (id > min_id)."""
+    from pipeline.db import get_unprocessed_entries, init_db
+    init_db()
+    return [e["id"] for e in get_unprocessed_entries(limit=99999, min_id=min_id)]
+
+
+def last_cycle_garbled_ids() -> set[int]:
+    """Entries the most recent cycle left unprocessed because Stage 6 produced
+    garbage on every attempt (`garbled_ids` in data/cycle_log.jsonl)."""
+    log_path = DATA_DIR / "cycle_log.jsonl"
+    try:
+        lines = [ln for ln in log_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        if not lines:
+            return set()
+        return {int(i) for i in json.loads(lines[-1]).get("garbled_ids", [])}
+    except (OSError, ValueError, AttributeError, TypeError):
+        return set()
+
+
+def remaining_backlog(min_id: int = 0) -> tuple[int, int]:
+    """→ (retryable, total) unprocessed entries after the last cycle.
+
+    `total` is what a drain run must size its batch to; `retryable` leaves out
+    the entries the last cycle already left garbled — a drain run whose whole
+    backlog is such entries would only repeat the same failed generations and
+    two more ~20-min reclassify passes (2026-09-09: 1 entry, 4 passes, 1.5 h)."""
+    ids = set(get_unprocessed_ids(min_id=min_id))
+    return len(ids - last_cycle_garbled_ids()), len(ids)
+
+
 def enrich_fulltext(limit: int) -> int:
     """Fill raw_content for unprocessed opt-in-source entries before an LLM run (#11).
 
@@ -267,6 +298,7 @@ def main():
 
     # Step 2: Process backlog (unprocessed entries from previous cycles)
     backlog_stats = None
+    garbled: set[int] = set()   # left unprocessed by Stage 6 in THIS cycle — never retried here
     if not args.skip_llm:
         backlog_count = get_unprocessed_count(min_id=args.min_id)
         if backlog_count > 0:
@@ -277,6 +309,7 @@ def main():
             t0 = time.time()
             enrich_fulltext(min(args.batch, backlog_count))
             backlog_stats = run_llm(min(args.batch, backlog_count), min_id=args.min_id)
+            garbled |= set(backlog_stats.get("garbled_ids", []))
             backlog_duration = time.time() - t0
             logger.info(
                 "Backlog done in %.1fs — %d processed, %d trends created, %d filtered, %d errors",
@@ -308,15 +341,19 @@ def main():
     # Step 4: LLM processing (newly polled entries)
     llm_stats = None
     if not args.skip_llm:
-        new_count = get_unprocessed_count(min_id=args.min_id)
+        new_ids = set(get_unprocessed_ids(min_id=args.min_id))
+        new_count = len(new_ids - garbled)
         if new_count > 0:
             logger.info("-" * 40)
             logger.info("PHASE 3: LLM Pipeline (%d new entries, batch=%d, min_id=%d)",
                         new_count, args.batch, args.min_id)
             logger.info("-" * 40)
             t0 = time.time()
-            enrich_fulltext(min(args.batch, new_count))
-            llm_stats = run_llm(min(args.batch, new_count), min_id=args.min_id)
+            # batch sized to the whole pool: the garbled entries are still in
+            # the queue and would otherwise crowd out real ones at the LIMIT
+            enrich_fulltext(min(args.batch, len(new_ids)))
+            llm_stats = run_llm(min(args.batch, len(new_ids)), min_id=args.min_id)
+            garbled |= set(llm_stats.get("garbled_ids", []))
             llm_duration = time.time() - t0
             logger.info(
                 "LLM done in %.1fs — %d processed, %d trends created, %d filtered, %d errors",
@@ -326,6 +363,9 @@ def main():
                 llm_stats.get("filtered", 0),
                 llm_stats.get("errors", 0),
             )
+        elif new_ids:
+            logger.info("No new entries — %d left unprocessed by Stage 6 (garbled) in this "
+                        "run, not retried", len(new_ids & garbled))
         else:
             logger.info("No new entries to process after polling")
     else:
@@ -353,6 +393,7 @@ def main():
         "backlog": backlog_stats,
         "poll": poll_stats,
         "llm": llm_stats,
+        "garbled_ids": sorted(garbled),
     }
     write_cycle_log(result)
 

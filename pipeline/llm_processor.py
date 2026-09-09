@@ -706,6 +706,16 @@ def unique_slug(title: str, entry_id: int) -> str:
     return slug
 
 
+def publish_stages_needed(created: int) -> bool:
+    """Stages 8 (reclassify over ALL drafts, ~20 min per pass) and 9 (auto-publish)
+    only change anything when this batch inserted at least one draft. A batch
+    that created nothing — e.g. a single entry that Stage 6 leaves garbled every
+    run — used to trigger both anyway: 2026-09-09 spent 4 × 22 min on one such
+    entry. Drafts a crashed run left unpublished are picked up by the next batch
+    that creates something, or by scripts/resume_cycle.sh."""
+    return created > 0
+
+
 def is_title_duplicate(title: str, existing_norm: list[str], threshold: float = 0.90) -> tuple[bool, float]:
     """Return (is_dup, best_similarity) via length-prefiltered rapidfuzz ratio.
 
@@ -1279,6 +1289,7 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
     logger.info("Stage 5 done in %.1fs: %d survivors (%d cache hits)",
                 time.time() - t_stage, len(survivors), cache_hits_stage5)
 
+    garbled_ids: list[int] = []   # left unprocessed by Stage 6 — reported to the caller
     # ---- Stage 6: Content generation EN (Qwen3 14B, or llama.cpp 35B) ----
     # Skipped in signal-mode: signals carry no public article. Content is
     # generated later (decoupled, local) by scripts/generate_content.py.
@@ -1330,6 +1341,7 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
                     logger.error("[%d] content generation GARBLED, entry left unprocessed: %s",
                                  entry["id"], e)
                     garbled_stage6 += 1
+                    garbled_ids.append(entry["id"])
                 except llamacpp_client.ModelMismatchError as e:
                     # #98: another job swapped :8090 under us. Stop generating —
                     # this entry and every remaining one stay UNPROCESSED (not
@@ -1416,6 +1428,9 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
     published = 0
     if signal_mode:
         logger.info("Stages 8+9 skipped (signal-mode): signals stay status='signal'")
+    elif not publish_stages_needed(created):
+        logger.info("Stages 8+9 skipped: no new trends in this batch (reclassify over all "
+                    "drafts costs ~20 min per pass; scripts/resume_cycle.sh runs them on demand)")
     else:
         # Same GPU-handover pattern as Stages 2-4 when STAGE_8B_BACKEND=llamacpp.
         # The Stage-6 35B handover above has already exited and stopped llama-server;
@@ -1447,7 +1462,7 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
         elapsed, len(entries), created, filtered, errors, published,
     )
     return {"processed": len(entries), "created": created, "filtered": filtered,
-            "errors": errors, "published": published}
+            "errors": errors, "published": published, "garbled_ids": garbled_ids}
 
 
 def run_pipeline(limit: int = 50):
