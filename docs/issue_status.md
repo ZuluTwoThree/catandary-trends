@@ -290,6 +290,23 @@ DESIGN (Materialforschung) und FASHION (Textilforschung) ohne OA-Ersatz, weil MD
 Science und PeerJ den Bot-UA mit 403 sperren; die juristische Bestätigung von „Lizenz sticht Vorbehalt"
 beim ohnehin befassten Anwalt.
 
+## 🆕 #102 / #103 — Embeddings und Mega-Taxonomie (2026-09-09)
+
+Aus der Owner-Frage „Sind die Embeddings für eine Trendanalyse ausreichend?". Zwei sofort machbare
+Punkte sind erledigt: die **Dossier-Vektorsuche** läuft jetzt über einen eigenen CPU-Embedder auf
+`:8091` (`7112795` — auf `:8090` hätte während des Laufs das 27B-*Chatmodell* geantwortet), und der
+tote SQLite-Prototyp `discover_mega_trends.py` ist raus, der lebende Vorschlagsweg
+(`propose_mega_trends.py`) dokumentiert (`ee43059`, `84734f7`).
+
+- **#102** getrennte Volltext-Embeddings. Der einzige Vektor je Trend kommt aus
+  `title + excerpt[:500]` (Median 588 Zeichen) und trägt Dedup, Distill-Heads, Pulse-Cluster und
+  seit dem 09.09. die Dossier-Suche. **Dringlich**, weil `raw_content` nach 14 Tagen genullt wird —
+  ein Volltext-Vektor lässt sich nicht rückwirkend rechnen.
+- **#103** Mega-Taxonomie: 4 zu breite Keys (SPLIT), 17 ohne messbaren Fußabdruck. Nicht vor #102
+  abschließend entscheiden (Silhouette ~0,02), die SPLIT-Kandidaten sind aber schon heute prüfbar.
+
+Beleg für beide: `docs/mega_discovery_2026-09-09.md`.
+
 ## ⚪ Welle 3 — Forschung / bewusst ruhend
 
 #9 Research Fronts (Substrat-Vorbehalt: Snapshot hat kein `referenced_works`) · #84 Science-Zitationsgraph

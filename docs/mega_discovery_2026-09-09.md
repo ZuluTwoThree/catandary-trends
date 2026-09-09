@@ -84,6 +84,12 @@ gewünscht statt gemessen. Das ist eine redaktionelle Frage, keine technische.
    sauber schneiden könnte. Das ist der eigentliche Befund — und das Argument für Issue #102
    (getrennte Volltext-Embeddings).
 
+## Wo das weiterverfolgt wird
+
+- **#102** — getrennte Volltext-Embeddings (die technische Hälfte: Silhouette ~0,02, Satzform-Cluster,
+  fehlende Tags auf Signalen).
+- **#103** — Taxonomie (die redaktionelle Hälfte: 4 SPLIT-Kandidaten, 17 Keys ohne Fußabdruck).
+
 ## Reproduktion
 
 ```bash
