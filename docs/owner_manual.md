@@ -857,8 +857,8 @@ Vorbehalt/Sperre, bevorzugt bei offener Lizenz.
 (breite Feeds), `wp_categories`/`ingest_cap` (WordPress-Backfill), und die
 **Protokollfelder** `tdm_checked: "YYYY-MM-DD"`, `tdm_status: ok|reserved|blocked|feed_error`,
 `license` (nur strukturiert erkannt), `discovered_via` (own/hn/wikipedia/idw/
-feedspot/triage/owner-domainliste-<Datum>). Stand 09.09.: 554 Feed-Einträge,
-41 inaktiv, 168 mit Volltext (= 513 aktive); DB `sources`: 290 aktiv / 339
+feedspot/triage/owner-domainliste-<Datum>/oa-ersatz-<Datum>). Stand 09.09.:
+568 Feed-Einträge, 41 inaktiv, 181 mit Volltext (= 527 aktive); DB `sources`: 290 aktiv / 339
 gesamt — neue YAML-Quellen legt der Poller beim nächsten 04:00-Lauf an
 (`upsert_source`).
 

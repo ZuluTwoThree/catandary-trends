@@ -679,6 +679,15 @@ verticals:
       tdm_checked: "2026-09-09"
       tdm_status: ok
       discovered_via: owner-domainliste-2026-09-09   # Duengemittel-/Bodenfruchtbarkeitsforschung
+    - name: Frontiers in Food Science and Technology
+      fulltext: true
+      feed_url: https://www.frontiersin.org/journals/food-science-and-technology/rss
+      type: research
+      lead_time_tier: future
+      license: CC BY 4.0
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Trends in Food Science & Technology / Comprehensive Reviews (Frontiers-Lizenzpolitik: alle Artikel CC BY 4.0)
   TECH:
     sources:
     - name: Frontiers in Materials
@@ -1471,6 +1480,31 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: own   # Topic-Feed
+    - name: Frontiers in Robotics and AI
+      fulltext: true
+      feed_url: https://www.frontiersin.org/journals/robotics-and-ai/rss
+      type: research
+      lead_time_tier: future
+      license: CC BY 4.0
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Science Robotics (Frontiers-Lizenzpolitik)
+    - name: Frontiers in Artificial Intelligence
+      fulltext: true
+      feed_url: https://www.frontiersin.org/journals/artificial-intelligence/rss
+      type: research
+      lead_time_tier: future
+      license: CC BY 4.0
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Nature Machine Intelligence (Frontiers-Lizenzpolitik)
+    - name: Journal of Artificial Intelligence Research
+      feed_url: https://jair.org/index.php/jair/gateway/plugin/WebFeedGatewayPlugin/rss2
+      type: research
+      lead_time_tier: future
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Nature Machine Intelligence; keine Lizenz strukturell erkannt -> kein Volltext
   HEALTH:
     sources:
     - name: Frontiers in Bioengineering and Biotechnology
@@ -1827,6 +1861,42 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: triage   # Feed an nicht-standardisiertem Pfad (/en/news.xml); Site rate-limitet (429) - Poller einmal taeglich reicht
+    - name: PLOS Medicine
+      fulltext: true
+      feed_url: https://journals.plos.org/plosmedicine/feed/atom
+      type: research
+      lead_time_tier: future
+      license: CC BY 4.0
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer The Lancet
+    - name: PLOS Global Public Health
+      fulltext: true
+      feed_url: https://journals.plos.org/globalpublichealth/feed/atom
+      type: research
+      lead_time_tier: future
+      license: CC BY 4.0
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer The Lancet / Lancet Planetary Health
+    - name: PLOS Digital Health
+      fulltext: true
+      feed_url: https://journals.plos.org/digitalhealth/feed/atom
+      type: research
+      lead_time_tier: future
+      license: CC BY 4.0
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Lancet Digital Health
+    - name: Frontiers in Aging
+      fulltext: true
+      feed_url: https://www.frontiersin.org/journals/aging/rss
+      type: research
+      lead_time_tier: future
+      license: CC BY 4.0
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Nature Aging (Frontiers-Lizenzpolitik)
   ECO:
     sources:
     - name: Frontiers in Energy Research
@@ -2321,6 +2391,34 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       discovered_via: own   # Topic-Feed
+    - name: PLOS Climate
+      fulltext: true
+      feed_url: https://journals.plos.org/climate/feed/atom
+      type: research
+      lead_time_tier: future
+      license: CC BY 4.0
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Nature Climate Change / Lancet Planetary Health
+    - name: PLOS Sustainability and Transformation
+      fulltext: true
+      feed_url: https://journals.plos.org/sustainabilitytransformation/feed/atom
+      type: research
+      lead_time_tier: future
+      license: CC BY 4.0
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Nature Sustainability / One Earth
+    - name: Atmospheric Chemistry and Physics
+      fulltext: true
+      relevance_min: 0.6
+      feed_url: https://acp.copernicus.org/xml/rss2_0.xml
+      type: research
+      lead_time_tier: future
+      license: CC BY 4.0
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Nature Climate Change (Klimaforschung; enger Fachfeed)
   DESIGN:
     sources:
     - name: Dezeen
@@ -3723,6 +3821,16 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
       license: CC BY 3.0
+    - name: Frontiers in Psychology
+      fulltext: true
+      relevance_min: 0.7
+      feed_url: https://www.frontiersin.org/journals/psychology/rss
+      type: research
+      lead_time_tier: future
+      license: CC BY 4.0
+      tdm_checked: "2026-09-09"
+      tdm_status: ok
+      discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Psychological Science / Nature Human Behaviour; sehr hohes Volumen
 cross_industry:
   press_wires:
   - name: PR Newswire
@@ -3976,6 +4084,26 @@ cross_industry:
     lead_time_tier: future
     tdm_checked: "2026-09-04"
     tdm_status: ok
+  - name: F1000Research
+    fulltext: true
+    relevance_min: 0.6
+    feed_url: https://f1000research.com/rss/articles
+    type: research
+    lead_time_tier: future
+    license: CC BY 4.0
+    tdm_checked: "2026-09-09"
+    tdm_status: ok
+    discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Nature (main) / Science Magazine News (multidisziplinaer)
+  - name: Open Research Europe
+    fulltext: true
+    relevance_min: 0.6
+    feed_url: https://open-research-europe.ec.europa.eu/rss/articles
+    type: research
+    lead_time_tier: future
+    license: CC BY 2.5
+    tdm_checked: "2026-09-09"
+    tdm_status: ok
+    discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Nature (main); EU-gefoerderte Forschung. Probe erkannte CC BY 2.5 (Plattformangabe) — jede CC-BY-Version erlaubt die Volltextnutzung mit Namensnennung
 radar:
   FOOD:
   - food industry innovation announcement
