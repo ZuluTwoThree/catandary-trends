@@ -139,8 +139,14 @@ with get_connection() as c:
   # sind source_type=research und liefen oben schon mit; die drei trade_media
   # (Lebensmittelzeitung, Horizont, Robb Report) faenden sonst keinen Lauf.
   # Ihre Eintraege tragen nur Titel/URL/Datum (store_excerpt: false).
-  run_gpu_step "Verarbeitung der Signalbetriebs-Quellen (distill, min_id=$MIN_ID)" \
-    python -u scripts/signal_batch_embedded.py --signal-only --min-id "$MIN_ID"
+  # BEWUSST OHNE --min-id: der Wasserstand oben wird SAMSTAG frueh genommen, die
+  # Eintraege dieser Quellen entstehen aber beim Poll von Montag bis Freitag und
+  # liegen damit darunter — mit --min-id faende der Schritt konsequent 0 Zeilen
+  # (Befund 2026-09-09, vor dem ersten Lauf). Der Scope ist von sich aus eng
+  # (nur llm_pipeline=false, ~1.300 Zeilen/Woche + der stehende Form-D-Rest);
+  # --limit ist nur die Mengenbremse gegen einen pathologischen Fall.
+  run_gpu_step "Verarbeitung der Signalbetriebs-Quellen (distill, ohne min_id)" \
+    python -u scripts/signal_batch_embedded.py --signal-only --limit 20000
 
   # Patent-Signale (Owner 2026-08-28): die dienstags ingestierten Patente in
   # den embeddeten Signalraum. Bewusst OHNE --min-id (sie liegen unter dem

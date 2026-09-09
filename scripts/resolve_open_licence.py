@@ -22,6 +22,11 @@ Ablauf je unverarbeitetem Eintrag einer Quelle im Signalbetrieb
   4. SCHREIBEN  raw_content + open_licence + oa_url. `open_licence` ist zugleich
                 die Eintrittskarte in den Content-Cycle (get_unprocessed_entries).
 
+Jeder Eintrag wird mit `--apply` genau EINMAL geprueft: `licence_checked_at`
+wird bei jedem Ausgang gestempelt (auch bei "nicht offen"). Sonst fragte der
+naechtliche Lauf dieselben ~85 % Nicht-Offenen jede Nacht neu ab — die Zeilen
+bleiben unverarbeitet, bis der Samstagslauf sie einzieht.
+
 Default ist Dry-Run.
 
     python scripts/resolve_open_licence.py --limit 50                 # Dry-Run
@@ -34,6 +39,7 @@ import argparse
 import logging
 import sys
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -55,6 +61,7 @@ def candidates(limit: int, source: str = "", min_id: int = 0) -> list[dict]:
     """Unverarbeitete Einträge von Signalbetriebs-Quellen, noch nicht aufgelöst."""
     where = ["re.processed = FALSE", "re.filtered_out = FALSE",
              "COALESCE(s.llm_pipeline, TRUE) = FALSE", "re.open_licence IS NULL",
+             "re.licence_checked_at IS NULL",     # jeder Eintrag wird genau einmal geprueft
              "s.source_type <> 'api'"]
     params: list = []
     if source:
@@ -73,6 +80,15 @@ def candidates(limit: int, source: str = "", min_id: int = 0) -> list[dict]:
         return [dict(r) for r in conn.execute(sql, params).fetchall()]
 
 
+def _stamp(entry_id: int) -> None:
+    """Geprueft — egal mit welchem Ergebnis. Ohne diese Marke fragt der naechtliche
+    Lauf dieselben ~85 % Nicht-Offenen jede Nacht erneut ab (kostenpflichtige API),
+    und bei einem Limit kaeme der aeltere Teil des Pools nie an die Reihe."""
+    with get_connection() as conn:
+        conn.execute("UPDATE raw_entries SET licence_checked_at = ? WHERE id = ?",
+                     (datetime.now(timezone.utc).isoformat(), entry_id))
+
+
 def process(rows: list[dict], apply: bool) -> Counter:
     stat = Counter()
     with httpx.Client(headers={"User-Agent": UA}, follow_redirects=True) as oa_client, \
@@ -81,6 +97,8 @@ def process(rows: list[dict], apply: bool) -> Counter:
         for r in rows:
             stat["seen"] += 1
             work = resolve(r["url"], r["title"] or "", client=oa_client)
+            if apply:
+                _stamp(r["id"])
             if work.reason:
                 stat[f"unresolved:{work.reason.split()[0]}"] += 1
                 continue

@@ -946,7 +946,11 @@ Lizenzprüfung (`cc-by`, `cc-by-sa`, `cc0`, Public Domain — nie `-nc`, nie
 geholt. Erfolgreiche Einträge bekommen `raw_content`, `open_licence` und
 `oa_url` und dürfen damit in den Content-Cycle, obwohl ihre Quelle im
 Signalbetrieb läuft. Gemessene Ausbeute (09.09., 60 Einträge): 10 offen
-lizenziert, 7 davon mit Volltext. Log: `~/logs/catandary-open-licence.log`.
+lizenziert, 7 davon mit Volltext. Jeder Eintrag wird genau einmal geprüft
+(`licence_checked_at`), auch wenn er nicht offen ist — sonst liefe jede Nacht
+dieselbe Abfrage gegen eine kostenpflichtige API. Log:
+`~/logs/catandary-open-licence.log`. Verarbeitet werden die Zeilen der
+Vorbehalts-Quellen samstags über `signal_batch_embedded.py --signal-only`.
 
 **Quelle deaktivieren stoppt seit 09.09.2026 auch den Backlog.** `active: false`
 in `sources.yaml` + `apply_source_hygiene.py --apply` hielt vorher nur den

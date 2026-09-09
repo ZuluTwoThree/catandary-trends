@@ -539,6 +539,27 @@ def _migrate_open_licence():
             conn.execute("ALTER TABLE raw_entries ADD COLUMN oa_url TEXT")
 
 
+def _migrate_licence_checked():
+    """Add raw_entries.licence_checked_at. Idempotent, wired into init_db.
+
+    Stamped by scripts/resolve_open_licence.py on EVERY attempt, positive or
+    negative (#97, 2026-09-09). Without it the nightly run re-resolves the same
+    ~85 % non-open entries for as long as they sit unprocessed — the reserved
+    sources run signal-only, so their rows stay in the pool until the Saturday
+    sweep retires them. At ~254 entries/day that is up to six repeat lookups per
+    entry against a paid API, and with a 300-row limit the older ones would never
+    get their turn at all.
+    """
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            conn.execute("ALTER TABLE raw_entries ADD COLUMN IF NOT EXISTS licence_checked_at TIMESTAMP")
+            return
+        rows = conn.execute("PRAGMA table_info(raw_entries)").fetchall()
+        names = [(r[1] if not hasattr(r, "keys") else r["name"]) for r in rows]
+        if "licence_checked_at" not in names:
+            conn.execute("ALTER TABLE raw_entries ADD COLUMN licence_checked_at TEXT")
+
+
 def _migrate_reviewed_at():
     """Add trends.reviewed_at to pre-existing databases. Idempotent.
 
@@ -1040,6 +1061,7 @@ def init_db():
     _migrate_trends_sort_date()
     _migrate_reviewed_at()
     _migrate_open_licence()
+    _migrate_licence_checked()
     _migrate_judged_at()
     _migrate_review_reason()
     _migrate_sources_llm_pipeline()
