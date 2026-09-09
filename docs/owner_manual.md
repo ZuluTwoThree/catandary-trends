@@ -393,6 +393,23 @@ Owner-Dokumente: streng lokal (Qwen3.8-27B), kein Kundenpfad, kein Cron.
 **Wo.** `/trends/dossiers` (Desk), `/trends/dossiers/<slug>?v=<n>` (Leseansicht).
 Lokal standardmäßig an; `DOSSIERS_ENABLED=0` = Not-Aus; im Export nie gebaut.
 
+**Wie der Rechercheur sucht (seit 09.09.2026).** Standard ist jetzt die
+**Vektorsuche** über `trends.embedding_1024`, sobald `RESEARCH_EMBED_HOST`
+gesetzt ist (`.env`: `http://127.0.0.1:8091`) und der CPU-Embedder läuft:
+
+```bash
+systemctl --user status catandary-embed-cpu       # muss active sein
+curl -s http://127.0.0.1:8091/v1/models | head -c 80
+```
+
+Der eigene Server ist nötig, weil `:8090` während des Laufs den 27B hält — ein
+Embedding-Request dorthin käme vom Chatmodell. Er läuft auf der CPU
+(~5 GB RAM, **kein VRAM**), eine Anfrage dauert ~0,3 s. Ist er aus, sucht der
+Rechercheur per Volltext wie vorher; fällt er mitten im Lauf aus, schaltet er
+selbst zurück und schreibt den Grund in die Notizen (sichtbar im
+Herkunftskopf). Erzwingen lässt sich beides je Auftrag über
+`params = {"retrieval": "fts"}` bzw. `"vector"`.
+
 **Auftrag anlegen (Desk).** Formular „New order slip":
 - **Technology field** (Pflicht, ≤ 500 Zeichen) — die Phrase, die auch gemessen wird;
 - **Series slug** (optional) — gleicher Slug = nächste Version derselben Serie;

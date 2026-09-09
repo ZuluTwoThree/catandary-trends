@@ -845,6 +845,15 @@ cross_industry:
 - **Styling:** Tailwind CSS v4 (`@theme`-Tokens in `frontend/src/app/globals.css` — Designsystem „Editorial Intelligence": IBM Plex Serif/Mono/Sans, Ink `#0a0c0a`, Akzent Chartreuse `#d4ff3a`, scharfe Kanten)
 - **DB-Anbindung:** eigener `pg`-Layer (`frontend/src/lib/pg.ts` + `db.ts`) auf PostgreSQL/pgvector, Socket-Default (kein Drizzle); teure Aggregat-Queries laufen über einen In-Process-TTL-Cache in `db.ts`
 - **Auth/Paywall:** **entfernt 2026-09-03 (#93, kein SaaS — Owner 26.08.)**. Magic-Link-Auth, Tier-Entitlements, `TierGate`, Stripe-Checkout/Webhook, `/account*`, `/trends/pricing`, `/api/auth*`, `/api/stripe*` sowie `scripts/migrate_accounts.py`/`set_user_tier.py` sind physisch aus dem Code; die DB-Tabellen `app_users`/`magic_tokens`/`research_live_usage` bleiben ungenutzt stehen (kein DROP). Es gibt keine Accounts: die Owner-Instanz sieht alles, der Review-Guard (`lib/review-access.ts`) ist nur noch „lokal ja, `PUBLIC_MODE`/Export nie" (`REVIEW_ENABLED` entfällt). `AUTH_SECRET` bleibt — er signiert die Newsletter-Abmelde-HMAC (`lib/unsubscribe.ts`). `PUBLIC_MODE=1` (`frontend/src/proxy.ts`, Blockliste `lib/publicMode.ts`) blendet nur noch `/trends/foresight*`, `/trends/review*`, `/trends/quality-preview*`, `/api/foresight*` als 404 aus und fenstert den Feed auf `PUBLIC_WINDOW_DAYS` (`lib/archiveWindow.ts`, `archiveWindowDays()`); das frühere 28-Tage-Paywall-Fenster (#70) ist weg
+- **Embedding-Server auf der CPU (`:8091`, seit 2026-09-09, #97):** systemd user unit
+  `catandary-embed-cpu.service` (`~/llama.cpp/start-qwen3-emb-cpu.sh`, dasselbe
+  Qwen3-Embedding-8B wie Stage 5, aber `CUDA_VISIBLE_DEVICES=""` und `-ngl 0`). Er existiert für
+  die **Vektorsuche des Korpus-Rechercheurs**: während ein Dossier läuft, hält `:8090` den
+  27B — ein Embedding-Request dorthin würde vom Chatmodell beantwortet, und die ANN-Suche liefe
+  gegen einen Vektor aus einem anderen Raum. Kostet ~5 GB RAM, **0 MiB VRAM**, ~0,3 s je Anfrage.
+  `-ngl 0` allein genügt nicht: llama.cpp legt den Compute-Buffer trotzdem auf CUDA0 (bei
+  `-ub 8192` sind das 5,4 GB) und stirbt neben dem GPU-Server an OOM — daher der harte
+  Device-Ausschluss und der kleine Batch.
 - **Zugriff auf die Owner-Instanzen (seit 2026-09-05, Security E-1/E-2/E-4 behoben):** `:3001` (main, systemd), `:3004` (dev), `:3999` (dev, PUBLIC_MODE) und der llama-server `:8090` binden nur noch auf **127.0.0.1** (`-H 127.0.0.1` in `deploy/systemd/catandary-frontend.service`, `--host 127.0.0.1` in allen `~/llama.cpp/start-*.sh`). Vom MacBook geht es über **Tailscale Serve** (tailnet-only, HTTPS, Serve + HTTPS-Zertifikate im Tailnet aktiviert, Funnel bewusst aus): `https://kiworkstation.tail678c6e.ts.net` → :3001, `…:3004` → :3004, `…:3999` → :3999 (`tailscale serve status`). Direkt über die Tailnet-IP sind die Ports zu.
 - **Hosting (Ist 2026-09-02):** **Es gibt keinen VPS.** `catandary.de` = statische Landing (`docs/launch/preview.html`) auf dem bestehenden Hetzner-**Webhosting** (Shared Webspace, kein Node); die Next-App läuft nur lokal auf der Workstation, Port 3001 via systemd user unit `catandary-frontend` — `/trends` & Co. sind öffentlich 404. **Owner-Entscheid 02.09.: öffentliche Website = statischer Export (`next build` mit `output: 'export'`) aufs Webhosting** — Design `docs/audits/2026-09-02_static_export_design.md`, Plan `docs/launch/09_launch_plan_2026-09-02.md` (#82-Neuschnitt, Welle 2). Der VPS-Pfad (`docs/launch/HOSTING_PUBLIC_VPS.md`) ist damit verworfen.
 - **Reverse Proxy:** keiner im Einsatz — `deploy/Caddyfile` ist ein Relikt der verworfenen VPS-Planung (s. „Deployment" unten)
@@ -1221,6 +1230,14 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   [--order N]` detached, Log `data/dossier_worker/<stamp>.log`, Lock
   `data/dossier_worker.lock` (ein Worker zugleich). Nicht parallel zum
   04:00-Full-Cycle starten.
+- **Vektorsuche statt Volltext (seit 2026-09-09, #97):** die Korpusauswahl lief bis dahin über
+  Postgres-FTS (`--retrieval fts`), weil der 27B und ein GPU-Embedder nicht beide auf die Karte
+  passen. Mit dem CPU-Embedder auf `:8091` (`RESEARCH_EMBED_HOST`) schaltet `dossier_worker`
+  von selbst auf `vector` um; `corpus_research.embed_query` prüft die Vektorbreite (< 1024 Dim =
+  ein Chatmodell hat geantwortet → harter Abbruch statt stiller Unsinn). Fällt der Endpunkt im
+  Lauf aus, sucht der Rest per Volltext weiter und der Grund steht in den Notizen — ein Dossier
+  stirbt daran nie. Vergleich an einer realen Anfrage: Vektorsuche 0,3 s, Volltextsuche 4,9 s,
+  **Überlappung 1 von 6 Treffern** — die beiden Verfahren finden Unterschiedliches.
 - **Streng lokal:** Quant-Vorstufe (`pipeline/dossier_quant.py`, Embedding-Handover)
   → Recherche auf Qwen3.8-27B (`model_on_llamacpp` mit den Stage-10-Guards:
   VRAM < 1100 MiB Fremdbelegung, Identitäts-Check `/v1/models`) → deterministische

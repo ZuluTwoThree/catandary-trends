@@ -367,7 +367,7 @@ def is_backend_failure(exc: BaseException) -> bool:
 
 
 def generate_embedding(text: str, model: str | None = None,
-                       strict: bool = False) -> list[float] | None:
+                       strict: bool = False, host: str | None = None) -> list[float] | None:
     """Generate an embedding vector via llama-server's OpenAI-compatible endpoint.
 
     Drop-in replacement for `pipeline.ollama_client.generate_embedding`. Hits
@@ -378,11 +378,17 @@ def generate_embedding(text: str, model: str | None = None,
     `strict=True` (signal_batch): a backend failure raises EmbeddingBackendError
     instead of returning None, so the caller can tell "server down" from "this
     text cannot be embedded" — only the latter is a verdict on the entry.
+
+    `host` overrides LLAMACPP_HOST for this call (#97, 2026-09-09). The corpus
+    researcher needs it: :8090 carries the 27B researcher while it runs, so its
+    vector search has to reach a SEPARATE embedding server (CPU, :8091 — see
+    ~/llama.cpp/start-qwen3-emb-cpu.sh). Without the override the query would be
+    embedded by whatever chat model happens to be loaded.
     """
     payload: dict = {"input": text}
     if model is not None:
         payload["model"] = model
-    url = f"{LLAMACPP_HOST}/v1/embeddings"
+    url = f"{host or LLAMACPP_HOST}/v1/embeddings"
     try:
         with httpx.Client(timeout=TIMEOUT) as client:
             r = client.post(url, json=payload)

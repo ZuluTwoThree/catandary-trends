@@ -101,6 +101,14 @@ STAGE6_SOURCE_MAX_CHARS = int(os.getenv("STAGE6_SOURCE_MAX_CHARS", "4000"))
 # Bruchstueck), laesst normale RSS-Teaser (Median 508 Zeichen) unberuehrt.
 MIN_SOURCE_TEXT_CHARS = int(os.getenv("MIN_SOURCE_TEXT_CHARS", "80"))
 
+# Eigener Embedding-Endpunkt fuer die Vektorsuche des Korpus-Rechercheurs
+# (#97, 2026-09-09). Waehrend ein Dossier laeuft, haelt :8090 den 27B — ein
+# Embedding-Request dorthin wuerde vom Chatmodell beantwortet. Ist die Variable
+# gesetzt, benutzt scripts/corpus_research.py --retrieval vector diesen Host
+# (CPU-Server, ~/llama.cpp/start-qwen3-emb-cpu.sh auf :8091) und der
+# Dossier-Worker schaltet von sich aus auf Vektorsuche um. Leer = FTS wie bisher.
+RESEARCH_EMBED_HOST = os.getenv("RESEARCH_EMBED_HOST", "")
+
 # qwen3:8b stages backend (pipeline Stages 2 Relevance, 3 Extraction,
 # 4 Classification, 8 Reclassify).
 # "ollama" (default) uses MODEL_FILTER/MODEL_CLASSIFY on Ollama. "llamacpp" routes

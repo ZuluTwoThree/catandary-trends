@@ -1,0 +1,24 @@
+[Unit]
+# Eigener Embedding-Server auf der CPU, Port 8091 (#97, 2026-09-09).
+#
+# Warum getrennt: waehrend ein Dossier laeuft, haelt :8090 den 27B-Rechercheur.
+# Ein Embedding-Request dorthin wuerde vom Chatmodell beantwortet — die
+# Vektorsuche liefe gegen einen Vektor aus einem anderen Raum. Auf der 24-GB-
+# Karte koennen beide nicht resident sein, deshalb CPU (CUDA_VISIBLE_DEVICES=""
+# im Startskript). Kostet ~5 GB RAM, 0 MiB VRAM; eine Anfrage ~0,3 s.
+Description=Catandary embedding server (CPU, port 8091) for corpus-research vector retrieval
+After=network.target
+
+[Service]
+Type=exec
+WorkingDirectory=/home/dirk/llama.cpp
+ExecStart=/home/dirk/llama.cpp/start-qwen3-emb-cpu.sh
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=20
+KillMode=mixed
+StandardOutput=append:/tmp/llama-embed-cpu.log
+StandardError=append:/tmp/llama-embed-cpu.log
+
+[Install]
+WantedBy=default.target

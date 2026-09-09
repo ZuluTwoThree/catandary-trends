@@ -736,20 +736,50 @@ def search_corpus(query: str, limit: int, scope: str = "both") -> list[dict]:
     return merged[:limit]
 
 
+#: Dimension der gespeicherten Vektoren. Ein Chatmodell auf /v1/embeddings
+#: liefert einen Hidden-State ganz anderer Breite — dann ist die ANN-Suche
+#: nicht etwa ungenau, sondern Unsinn. Deshalb hart geprueft.
+MIN_EMBED_DIM = 1024
+
+
+def embed_query(query: str) -> list[float]:
+    """Query-Vektor fuer die ANN-Suche — vom RICHTIGEN Modell (#97, 2026-09-09).
+
+    Waehrend ein Dossier laeuft, haelt :8090 den 27B-Rechercheur. Ein
+    Embedding-Request dorthin wuerde vom Chatmodell beantwortet, und die
+    Vektorsuche liefe gegen einen Vektor aus einem anderen Raum. `RESEARCH_EMBED_HOST`
+    zeigt deshalb auf einen eigenen Server (CPU, :8091). Ohne die Variable bleibt
+    es beim bisherigen Verhalten (Ollama bzw. :8090) — dann ist Vektorsuche nur
+    sinnvoll, wenn dort wirklich das Embedding-Modell liegt.
+    """
+    from pipeline.config import EMBED_BACKEND, MODEL_EMBEDDING, RESEARCH_EMBED_HOST
+    if RESEARCH_EMBED_HOST:
+        vec = llamacpp_client.generate_embedding(query, host=RESEARCH_EMBED_HOST)
+    elif EMBED_BACKEND == "llamacpp":
+        vec = llamacpp_client.generate_embedding(query)
+    else:
+        from pipeline.ollama_client import generate_embedding
+        vec = generate_embedding(MODEL_EMBEDDING, query)
+    if not vec:
+        raise RuntimeError(
+            "no embedding returned — is the embedding backend up? "
+            "(RESEARCH_EMBED_HOST=%r)" % (RESEARCH_EMBED_HOST or "unset"))
+    if len(vec) < MIN_EMBED_DIM:
+        raise RuntimeError(
+            f"embedding endpoint returned {len(vec)} dimensions, expected at least "
+            f"{MIN_EMBED_DIM} — that is a chat model answering /v1/embeddings, not "
+            f"qwen3-embedding. Point RESEARCH_EMBED_HOST at the embedding server "
+            f"(~/llama.cpp/start-qwen3-emb-cpu.sh on :8091).")
+    return vec
+
+
 def search_vector(query: str, limit: int, scope: str = "both") -> list[dict]:
     """ANN over the Matryoshka-1024 prefix. Needs an embedding endpoint.
 
     idx_trends_embedding_1024_hnsw is unpartitioned, so signals are indexed too;
     the published-only partial index just serves the article branch faster.
     """
-    from pipeline.config import EMBED_BACKEND, MODEL_EMBEDDING
-    if EMBED_BACKEND == "llamacpp":
-        vec = llamacpp_client.generate_embedding(query)
-    else:
-        from pipeline.ollama_client import generate_embedding
-        vec = generate_embedding(MODEL_EMBEDDING, query)
-    if not vec:
-        raise RuntimeError("no embedding returned — is the embedding backend up?")
+    vec = embed_query(query)
     literal = "[" + ",".join(f"{v:.6f}" for v in vec[:1024]) + "]"
     sql = """
     WITH hit AS (
@@ -3821,10 +3851,26 @@ def run(question: str, max_steps: int, max_sources: int,
     report_evidence = ((DR_REPORT_EVIDENCE_CHARS if dr else MAX_REPORT_EVIDENCE_CHARS)
                        if measure else None)
     t0 = time.time()
-    _backend = search_vector if retrieval == "vector" else search_corpus
+    # Vektorsuche darf ein Dossier nie toeten: faellt der Embedding-Endpunkt aus
+    # oder antwortet das falsche Modell, wird EINMAL gewarnt und der Rest des
+    # Laufs sucht per Volltext weiter (#97, 2026-09-09). Der Grund landet in den
+    # Notizen und damit im Herkunftskopf — stiller Rueckfall waere schlimmer als
+    # gar keine Vektorsuche.
+    _mode = {"backend": search_vector if retrieval == "vector" else search_corpus,
+             "fell_back": None}
 
     def search(q: str, n: int) -> list[dict]:
-        return _backend(q, n, scope)
+        try:
+            return _mode["backend"](q, n, scope)
+        except RuntimeError as exc:
+            if _mode["backend"] is not search_vector:
+                raise
+            logger.warning("vector retrieval unavailable (%s) — falling back to full text", exc)
+            _mode["backend"] = search_corpus
+            _mode["fell_back"] = str(exc)
+            notes.append("Retrieval: Vektorsuche war angefordert, ist aber ausgefallen "
+                         f"({exc}) — ab hier Volltextsuche.")
+            return search_corpus(q, n, scope)
     sources: list[dict] = list(seed_sources or [])
     seen_ids: set[str] = {x["id"] for x in sources}
     notes: list[str] = list(seed_notes or [])
