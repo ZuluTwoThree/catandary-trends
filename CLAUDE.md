@@ -919,6 +919,9 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                  → statische Listing-Routen des Exports (24/Seite, lib/staticListing.ts); lokal per Request rendernd, nichts verlinkt sie dort
 /trends/imprint|privacy|enquiry  → nur im statischen Export (Export-Adressen der Root-Seiten, lib/sitePaths.ts); lokal 404
 /trends/mega, /trends/mega/[m]   → „Mega Signal Themes"-Übersicht (28 kuratierte Themes; „Megatrend" ist verdientes, gemessenes Badge — 12 Keys, Regel in scripts/measure_mega_axes.py) + Detail
+                                   Bottom-up-Entdeckung neuer Themen: scripts/propose_mega_trends.py (Cluster im Signalraum → NEW/SPLIT/MERGE, read-only,
+                                   schreibt nur eine Kandidatendatei; measure_mega_axes --write-yaml bleibt die einzige Schreibquelle der Badge-Felder).
+                                   Der SQLite-Prototyp discover_mega_trends.py wurde 2026-09-09 entfernt (zeigte auf die vor-Postgres-DB, abgelöst).
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
   /clusters /technology /lead-time /evolution /dossier
     (Technologie-Suche: Query-Quality-Gate #67 seit 2026-09-04, `pipeline/query_gate.py` — eine Anfrage

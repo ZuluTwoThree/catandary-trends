@@ -223,6 +223,24 @@ für die Badge-Felder in `mega_trends.yaml`. Vetos stehen in der YAML. Nach
 Änderungen an `mega_trends.yaml`: `npm run gen:mega-trends` läuft automatisch
 vor `dev`/`build`.
 
+**Neue Themen finden (Bottom-up).** `scripts/propose_mega_trends.py` clustert den
+Signalraum auf Mega-Trend-Höhe und schlägt gegen die kanonische Taxonomie
+**NEW / SPLIT / MERGE / COVERED** vor — read-only, es fasst `mega_trends.yaml`
+nie an, sondern schreibt eine Kandidatendatei:
+
+```bash
+python scripts/propose_mega_trends.py --limit 60000 --no-label \
+    --out mega_trends.candidate.yaml          # ohne LLM-Benennung, rein lokal
+python scripts/propose_mega_trends.py --limit 60000 --label-backend local
+```
+
+`--status` (Default `signal,published`), `--k-range` (Default `16,30`,
+Silhouette-Suche) und `--vertical` schneiden den Raum zu. Der Vorschlag wird von
+Hand in `mega_trends.yaml` kuratiert — bewusst, denn die Taxonomie ist eine
+redaktionelle Entscheidung. *(Der alte SQLite-Prototyp `discover_mega_trends.py`
+ist am 09.09.2026 entfernt worden: er zeigte auf die vor-Postgres-Datei
+`data/catandary.db` und war durch dieses Werkzeug abgelöst.)*
+
 **Methodik-Seite** `/trends/methodology` („Method & Trust"): Quellenstrategie,
 Pipeline, Grenzen, Live-Korpuszahlen (`getMethodologyStats`, 1 h gecacht). Sie
 ist Teil des Exports und die Adresse, die der Crawler-UA nennt. Der geplante
