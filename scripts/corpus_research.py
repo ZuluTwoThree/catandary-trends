@@ -46,6 +46,7 @@ import argparse
 import json
 import logging
 import os
+import html
 import re
 import sys
 import time
@@ -72,7 +73,12 @@ FTS_VECTOR = ("to_tsvector('english', coalesce(title_en,'') || ' ' || "
               "coalesce(summary_en,'') || ' ' || coalesce(tags::text,''))")
 
 MAX_SNIPPET_CHARS = 420      # per catalog entry in a prompt
-MAX_BODY_CHARS = 2_400       # a single opened article
+MAX_BODY_CHARS = 3_600       # a single opened entry (article + source excerpt)
+# Aufteilung innerhalb von MAX_BODY_CHARS bei einem published Trend. Der
+# Quellenauszug bekommt mehr, weil er der zitierfaehige Beleg ist; unser
+# Artikel ist Einordnung und mit ~100-160 Woertern ohnehin kurz.
+MAX_ARTICLE_CHARS = 1_400
+MAX_SOURCE_CHARS = 2_000
 MAX_EVIDENCE_CHARS = 30_000  # all evidence in ONE AGENT-LOOP prompt
 # Runde 5 (2026-09-07): der Lauf liest jetzt 40-60 statt 6-16 Seiten. Bei
 # 2.400 Zeichen je Seite waeren das 120k Zeichen Evidenz gegen eine 30k-Kappe,
@@ -813,13 +819,37 @@ def search_vector(query: str, limit: int, scope: str = "both") -> list[dict]:
     return merged[:limit]
 
 
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def clean_source_text(text: str) -> str:
+    """Auszug entschlacken, bevor er ins Prompt geht (2026-09-10).
+
+    Manche Feeds legen HTML im Anriss ab (`<p class="wp-block-paragraph">`,
+    `&#8217;`, ganze Anker-Tags). Das frisst Zeichenbudget und Modell-
+    aufmerksamkeit, ohne einen Beleg zu tragen. Tags raus, Entities aufloesen,
+    Leerraum normalisieren — der Wortlaut selbst bleibt unangetastet, sonst
+    waere er als Zitat nicht mehr brauchbar."""
+    if not text:
+        return ""
+    return re.sub(r"[ \t]*\n\s*\n\s*", "\n\n",
+                  html.unescape(_TAG_RE.sub("", text))).strip()
+
+
 def open_item(trend_id: int) -> str:
     """Full text of one catalog entry.
 
-    An article has a generated body. A signal never got one — the best available
-    text is the raw entry's excerpt, which exists for roughly 60 % of them. Say
-    which of the two the model is reading, so it does not treat a two-line teaser
-    as if it were a written-up analysis.
+    Zwei Textsorten, sauber getrennt beschriftet, damit das Modell einen
+    Zweizeiler nicht fuer eine Analyse haelt:
+
+      * unser geschriebener Artikel (nur bei `published`) — Einordnung,
+      * der Quellenauszug (Anriss bzw. gespeicherter Volltext) — Beleg.
+
+    Seit 2026-09-10 bekommt das Modell bei einem published Trend BEIDES. Vorher
+    schlossen sie sich aus: es sah nur die Modellprosa und nie den Originalwort-
+    laut, obwohl der bei 92 % der veroeffentlichten Eintraege in der DB liegt
+    (gemessen 10.09.: 85.924 von 93.790). Fuer Signale ist der Auszug ohnehin
+    das Einzige, was es gibt — 96 % von ihnen haben einen, Median 775 Zeichen.
     """
     with get_connection() as conn:
         row = conn.execute(
@@ -830,17 +860,24 @@ def open_item(trend_id: int) -> str:
     if not row:
         return ""
     r = dict(row)
-    if r.get("status") == "published":
-        body = (r.get("body_en") or r.get("summary_en") or "").strip()
-        label = "Catandary article"
-    else:
-        body = (r.get("raw_content") or r.get("excerpt") or "").strip()
-        label = "Raw signal — source excerpt, no article was written"
-        if not body:
-            body = "(no excerpt stored for this signal; only its title is known)"
-    return (f"{r.get('title_en') or ''}\n"
-            f"[{label}] source: {r.get('source_name') or 'unknown'} — "
-            f"{r.get('source_url') or ''}\n\n{body}")[:MAX_BODY_CHARS]
+    source_text = clean_source_text(r.get("raw_content") or r.get("excerpt") or "")
+    head = (f"{r.get('title_en') or ''}\n"
+            f"source: {r.get('source_name') or 'unknown'} — "
+            f"{r.get('source_url') or ''}\n")
+
+    if r.get("status") != "published":
+        body = source_text or "(no excerpt stored for this signal; only its title is known)"
+        return f"{head}\n[Raw signal — source excerpt, no article was written]\n\n{body}"[:MAX_BODY_CHARS]
+
+    article = (r.get("body_en") or r.get("summary_en") or "").strip()
+    parts = [head]
+    if article:
+        parts.append(f"\n[Catandary article — our own write-up]\n\n"
+                     f"{article[:MAX_ARTICLE_CHARS]}")
+    if source_text:
+        parts.append(f"\n\n[Source excerpt — the original wording, quote from HERE]\n\n"
+                     f"{source_text[:MAX_SOURCE_CHARS]}")
+    return "".join(parts)[:MAX_BODY_CHARS]
 
 
 

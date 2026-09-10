@@ -1238,6 +1238,14 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   [--order N]` detached, Log `data/dossier_worker/<stamp>.log`, Lock
   `data/dossier_worker.lock` (ein Worker zugleich). Nicht parallel zum
   04:00-Full-Cycle starten.
+- **Ein geöffneter Eintrag zeigt Beleg UND Einordnung (seit 2026-09-10):** bei einem `published`
+  Trend bekommt das Modell den **Quellenauszug** (Originalwortlaut, „quote from HERE") *und*
+  unseren geschriebenen Artikel, getrennt beschriftet. Vorher schlossen sie sich aus — es sah nur
+  die Modellprosa und nie das Original, obwohl der Auszug bei 92 % der veröffentlichten Einträge
+  in der DB liegt (85.924 von 93.790, gemessen 10.09.). Bei Signalen war der Auszug ohnehin das
+  Einzige (96 % haben einen, Median 775 Zeichen) — 94 % des Korpus gingen also schon immer als
+  Quelltext ins Dossier. HTML im Auszug wird vorher entfernt (`clean_source_text`), der Wortlaut
+  bleibt unangetastet, sonst wäre er nicht zitierfähig.
 - **Vektorsuche statt Volltext (seit 2026-09-09, #97):** die Korpusauswahl lief bis dahin über
   Postgres-FTS (`--retrieval fts`), weil der 27B und ein GPU-Embedder nicht beide auf die Karte
   passen. Mit dem CPU-Embedder auf `:8091` (`RESEARCH_EMBED_HOST`) schaltet `dossier_worker`
