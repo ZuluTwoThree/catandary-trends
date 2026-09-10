@@ -112,8 +112,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 
 # Retention Volltexte (§44b Abs. 2 S. 2 UrhG, Compliance-Review 2026-09-02): raw_entries.raw_content nach 90 Tagen NULL (verarbeitete Einträge; id-Range-Batches, Dry-Run-Sichtung liegt vor). NOCH NICHT AKTIV — erst nach Owner-Freigabe einkommentieren (Sonntag 03:30 kollidiert mit nichts: Backup 02:45 ist nach ~18 min durch, Discovery 06:00).
 # Volltext-Retention (taeglich 03:30, seit 2026-09-03 installiert, Owner-Auftrag '100 % konform'):
-# raw_content verarbeiteter Eintraege aelter als 14 Tage auf NULL (§44b Abs. 2 S. 2 UrhG).
-30 3 * * * cd /home/dirk/projects/catandary-trends && .venv/bin/python scripts/purge_raw_content.py --days 14 --apply >> /home/dirk/logs/catandary-purge-raw.log 2>&1
+# raw_content verarbeiteter Eintraege aelter als 60 MONATE auf NULL (§44b Abs. 2 S. 2 UrhG).
+# Frist am 2026-09-10 von 14 Tagen auf 1825 Tage erweitert (Owner). Die Norm nennt keine
+# Frist, sie bindet sie an den Zweck; dokumentierter Zweck ist die laengsschnittliche
+# Trendanalyse (Lead-Time ueber Jahre). Endlich und begruendet bleibt sie.
+30 3 * * * cd /home/dirk/projects/catandary-trends && .venv/bin/python scripts/purge_raw_content.py --days 1825 --apply >> /home/dirk/logs/catandary-purge-raw.log 2>&1
 
 # Offen lizenzierte Artikel aus den Vorbehalts-Quellen freischalten (#97 Wege B+C,
 # installiert 2026-09-09). Laeuft nach der Volltext-Retention (03:30) und vor dem

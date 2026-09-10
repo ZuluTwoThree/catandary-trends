@@ -13,8 +13,23 @@ for a short, bounded window:
   - corpus_research / dossiers: read raw_content of published trends as
     evidence when present, fall back to the feed excerpt otherwise
 
-After the judge window nothing re-reads the text; 14 days cover judge + grounding + regen and keep §44b Abs. 2 S. 2 UrhG (delete once no longer needed) honest —
-ceiling. Everything else stays: title, feed excerpt (≤ 2,000 chars, what the
+**Aufbewahrungsfrist 60 Monate (Owner-Entscheidung 2026-09-10, vorher 14 Tage.)**
+§44b Abs. 2 S. 2 UrhG verlangt die Loeschung, "sobald sie fuer das Text und Data
+Mining nicht mehr erforderlich sind" — die Norm nennt keine Frist, sondern
+bindet sie an den Zweck. Der dokumentierte Zweck ist ab jetzt die
+**laengsschnittliche Trendanalyse**: Lead-Time-Messung (Forschung -> Patent ->
+Funding -> Markt) und Trajektorien laufen ueber Jahre, nicht ueber Tage, und ein
+Korpus, dessen Volltexte nach zwei Wochen verschwinden, kann eine Entwicklung
+ueber fuenf Jahre nicht rechnen. 60 Monate sind die Obergrenze dieses Zwecks,
+keine Aufhebung der Loeschpflicht — die Frist bleibt endlich und begruendet.
+
+Unveraendert davon: Quellen mit maschinenlesbarem TDM-Vorbehalt. Fuer sie gilt
+die Schranke gar nicht, ihr Volltext wird nicht gespeichert (`fulltext: false`),
+und die 33 abgeschalteten Journale laufen im Signalbetrieb ohne gespeicherten
+Teaser. Die laengere Frist erweitert also NICHT den Kreis der Quellen, nur die
+Dauer bei denen, die ohnehin erlaubt sind.
+
+Alles andere bleibt wie bisher: title, feed excerpt (≤ 2,000 chars, what the
 publisher put into the feed), extraction_json, embeddings, the generated trend.
 
 Selection (both flags must hold):
@@ -30,12 +45,12 @@ holds ~25M rows / 41 GB, a single UPDATE would hold a lock for an hour and
 bloat WAL. Dry run is the default and touches nothing.
 
     python scripts/purge_raw_content.py                          # dry run: count + bytes
-    python scripts/purge_raw_content.py --days 14 --by-source    # + top sources
-    python scripts/purge_raw_content.py --days 14 --apply        # write
+    python scripts/purge_raw_content.py --days 1825 --by-source  # + top sources
+    python scripts/purge_raw_content.py --days 1825 --apply      # write
     python scripts/purge_raw_content.py --apply --max-rows 200000   # cautious first run
 
 Cron suggestion (deploy/crontab.txt, commented out until the owner enables it):
-    30 3 * * *  purge_raw_content.py --days 14 --apply   (installed 2026-09-03)
+    30 3 * * *  purge_raw_content.py --days 1825 --apply  (14 Tage 2026-09-03, 60 Monate ab 2026-09-10)
 """
 from __future__ import annotations
 
@@ -54,7 +69,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
                     stream=sys.stderr)
 logger = logging.getLogger("purge_raw_content")
 
-DEFAULT_DAYS = 14
+DEFAULT_DAYS = 1825          # 60 Monate (Owner 2026-09-10); Begruendung im Modulkopf
 DEFAULT_BATCH_IDS = 50_000
 
 # On Postgres long texts live TOASTed (compressed, out of line); pg_column_size

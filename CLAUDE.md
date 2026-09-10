@@ -661,9 +661,13 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 15 3 * * *   scripts/publish_static_site.sh
 
 # Volltext-Retention (täglich 03:30, INSTALLIERT 2026-09-03, Owner-Auftrag „100 % konform"):
-# raw_content verarbeiteter raw_entries älter als 14 Tage → NULL (§44b Abs. 2 S. 2 UrhG).
+# raw_content verarbeiteter raw_entries älter als 60 MONATE → NULL (§44b Abs. 2 S. 2 UrhG).
+# Frist am 2026-09-10 von 14 Tagen auf 1825 Tage erweitert (Owner). Die Norm nennt keine
+# Frist, sie bindet sie an den Zweck — dokumentierter Zweck ist die längsschnittliche
+# Trendanalyse (Lead-Time Forschung→Patent→Funding→Markt läuft über Jahre). Der Kreis der
+# Quellen wird NICHT erweitert: Vorbehalts-Quellen speichern weiterhin gar keinen Volltext.
 # Vorbehalts-Quellen: purge_raw_content.py --source … --ignore-state --also-extraction
-30 3 * * *   .venv/bin/python scripts/purge_raw_content.py --days 14 --apply
+30 3 * * *   .venv/bin/python scripts/purge_raw_content.py --days 1825 --apply
 
 # Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten (03:45,
 # INSTALLIERT 2026-09-09, #97 Wege B+C): OpenAlex-Auflösung → Lizenzprüfung →

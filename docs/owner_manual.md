@@ -931,8 +931,10 @@ Absender **sources@catandary.de**; Versand ist Owner-Sache, nichts wurde
 versendet. Offene Owner-Entscheide (17 Feed-robots-Quellen, 8 Elsevier-Feeds
 mit Vorbehalts-Header, Hacker News als Quelle): `docs/compliance/source_probe_2026-09-04.md`.
 
-**Volltext-Retention.** Cron `30 3 * * *`: `purge_raw_content.py --days 14 --apply`
-(verarbeitete Einträge, 14 Tage nach Abruf). Für Vorbehalts-Quellen gezielt:
+**Volltext-Retention.** Cron `30 3 * * *`: `purge_raw_content.py --days 1825 --apply`
+(verarbeitete Einträge, **60 Monate** nach Abruf — Frist am 10.09.2026 von 14 Tagen
+erweitert; §44b Abs. 2 S. 2 UrhG nennt keine Frist, sondern bindet sie an den Zweck,
+und der dokumentierte Zweck ist die längsschnittliche Trendanalyse). Für Vorbehalts-Quellen gezielt:
 `python scripts/purge_raw_content.py --source "Horizont" --ignore-state --also-extraction --apply`
 (ohne `--apply` = Dry-Run mit Zeilen/Bytes; `--by-source` listet die größten).
 `--also-excerpt` löscht zusätzlich den Feed-Teaser und **stillt die Zeilen im
@@ -1024,7 +1026,7 @@ im Handover still).
 | Zeit | Job | Skript | Status |
 |---|---|---|---|
 | 02:45 täglich | Postgres-Backup (dumpdir, zstd, keep 4 Tage) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4` | installiert |
-| 03:30 täglich | Volltext-Retention 14 Tage | `scripts/purge_raw_content.py --days 14 --apply` | installiert (03.09.) |
+| 03:30 täglich | Volltext-Retention 60 Monate | `scripts/purge_raw_content.py --days 1825 --apply` | installiert (03.09., Frist 10.09. erweitert) |
 | 03:45 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
 | 04:00 Mo–Fr | Full Cycle + Draft-Richter + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch 600; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |
 | 07:45 Mo–Fr | Wächter | `python -m scripts.cycle_watchdog` | installiert |
