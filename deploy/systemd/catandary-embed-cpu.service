@@ -13,7 +13,12 @@ After=network.target
 Type=exec
 WorkingDirectory=/home/dirk/llama.cpp
 ExecStart=/home/dirk/llama.cpp/start-qwen3-emb-cpu.sh
-Restart=on-failure
+# Restart=always statt on-failure: der Dienst soll immer stehen. Am 10.09. hat
+# ihn der VRAM-Cleanup des Nachtlaufs per SIGTERM erwischt (pkill -f
+# build/bin/llama-server) und systemd wertete das nicht als Fehler — er lag
+# danach still da. Der Cleanup verschont ihn seitdem, aber ein Dienst ohne
+# eigenen Zustand darf auch grundlos neu starten.
+Restart=always
 RestartSec=10
 TimeoutStopSec=20
 KillMode=mixed

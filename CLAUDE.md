@@ -599,6 +599,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Full Cycle Mo–Fr 04:00 (Feed-Polling + LLM-Pipeline + Auto-Publish in einem
 # Lauf via scheduled_cycle.sh; Wrapper räumt vorher ALLES VRAM frei, auch
 # manuell gestartete llama-server). Log: ~/logs/catandary-full-cycle-*.log
+# VRAM-Freiräumen tötet seit 2026-09-10 nur noch Prozesse, die laut nvidia-smi
+# wirklich VRAM halten (--query-compute-apps). Das frühere pauschale
+# `pkill -f build/bin/llama-server` erwischte auch den CPU-Embedder auf :8091
+# (0 MiB VRAM), der die Vektorsuche des Rechercheurs bedient — er lag nach dem
+# ersten Nachtlauf tot da. Die Unit hat jetzt zusätzlich Restart=always.
 # Kollisionswächter (#98, seit 2026-09-05, scripts/lib/gpu_guard.sh): Wrapper
 # UND scheduled_cycle.sh warten vor dem VRAM-Freiräumen, bis kein fremder
 # GPU-Job läuft (Ingester, Dossier-Worker, Pulse, Deep Dive, zweiter Cycle;

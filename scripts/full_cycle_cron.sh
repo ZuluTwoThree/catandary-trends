@@ -45,12 +45,26 @@ mkdir -p "$(dirname "$LOG")"
     exit 75
   fi
 
-  echo "----- freeing GPU: stop systemd unit + any manual llama-server -----"
+  echo "----- freeing GPU: stop systemd unit + any llama-server HOLDING VRAM -----"
   systemctl --user stop llama-server.service 2>/dev/null
-  if pkill -f 'build/bin/llama-server' 2>/dev/null; then
-    echo "  killed manual/leftover llama-server process(es)"
+  # Nur toeten, was wirklich VRAM haelt. `pkill -f build/bin/llama-server` traf
+  # auch den CPU-Embedder auf :8091 (CUDA_VISIBLE_DEVICES="", 0 MiB VRAM), der
+  # die Vektorsuche des Rechercheurs bedient — er lag am 10.09. nach dem ersten
+  # Nachtlauf tot da. Der Zweck dieses Blocks ist die Karte, nicht der Name des
+  # Prozesses: die PID-Liste kommt deshalb aus nvidia-smi.
+  GPU_PIDS=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits 2>/dev/null | tr -d ' ')
+  KILLED=0
+  for pid in $(pgrep -f 'build/bin/llama-server' 2>/dev/null); do
+    if printf '%s\n' "$GPU_PIDS" | grep -qx "$pid"; then
+      kill "$pid" 2>/dev/null && KILLED=$((KILLED + 1))
+    else
+      echo "  leaving PID $pid alone — holds no VRAM (CPU server, e.g. the :8091 embedder)"
+    fi
+  done
+  if [ "$KILLED" -gt 0 ]; then
+    echo "  killed $KILLED llama-server process(es) that held VRAM"
   else
-    echo "  no manual llama-server process found"
+    echo "  no VRAM-holding llama-server process found"
   fi
 
   echo "----- waiting for VRAM to clear (<1500 MiB) -----"
