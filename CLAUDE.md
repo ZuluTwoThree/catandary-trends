@@ -694,7 +694,10 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Volltext-Vektoren (taeglich 09:00, INSTALLIERT 2026-09-10, #102): zweiter
 # Vektorraum ueber den QUELLTEXT (raw_content, sonst excerpt — HTML entfernt,
 # ohne die 500er-Kappe des Dedup-Vektors). Laeuft NACH dem Cycle mit
-# GPU-Handover und stellt den Ruhezustand selbst wieder her.
+# GPU-Handover und stellt den Ruhezustand selbst wieder her. Steht die fremde
+# GPU im Fenster bereit (bequiet, 01:00-17:00), entfaellt der lokale Handover
+# ganz — er wuerde sonst das 8B verdraengen, das Embedding-Modell laden, es
+# nicht benutzen und alles zurueckstellen.
 0 9 * * *    .venv/bin/python scripts/embed_full_text_gpu.py --limit 5000 --apply
 
 # Volltext-Nachhollauf (#102, on demand — KEIN Cron): die 14-Tage-Regel hat bis

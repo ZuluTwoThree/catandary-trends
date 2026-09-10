@@ -103,3 +103,72 @@ class TestRunStopsAtWindowClose:
         import embed_full_text as eft
         src = inspect.getsource(eft.run)
         assert "ab hier lokal" in src
+
+
+class TestWrapperSkipsLocalHandover:
+    """Steht die fremde GPU bereit, ist der lokale Handover Verschwendung
+    (2026-09-11).
+
+    Er würde das 8B von der Karte verdrängen, das Embedding-Modell laden, es
+    NICHT benutzen — `embed_full_text` greift dann nach bequiet — und alles
+    zurückstellen. Rund eine Minute GPU-Unruhe für nichts, jede Nacht um 09:00.
+    """
+
+    def _wrapper(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+        import embed_full_text_gpu as w
+        return w
+
+    def test_remote_available_means_no_handover(self, monkeypatch):
+        w = self._wrapper()
+        called = {"handover": False, "run": False}
+        monkeypatch.setattr(w.remote_gpu, "available", lambda: "http://h:11434")
+        monkeypatch.setattr(w, "embed_on_llamacpp",
+                            lambda m: called.__setitem__("handover", True))
+        monkeypatch.setattr(w.subprocess, "call",
+                            lambda *a, **k: called.__setitem__("run", True) or 0)
+        monkeypatch.setattr(w.sys, "argv", ["x"])
+        assert w.main() == 0
+        assert called["run"] is True
+        assert called["handover"] is False, "lokaler Handover trotz freier Fremd-GPU"
+
+    def test_no_remote_means_handover(self, monkeypatch):
+        w = self._wrapper()
+        from contextlib import contextmanager
+        called = {"handover": False}
+
+        @contextmanager
+        def _fake(model):
+            called["handover"] = True
+            yield
+
+        monkeypatch.setattr(w.remote_gpu, "available", lambda: None)
+        monkeypatch.setattr(w, "embed_on_llamacpp", _fake)
+        monkeypatch.setattr(w, "_server_active", lambda: False)
+        monkeypatch.setattr(w, "_restore_resting_server", lambda a: None)
+        monkeypatch.setattr(w.subprocess, "call", lambda *a, **k: 0)
+        monkeypatch.setattr(w.sys, "argv", ["x"])
+        assert w.main() == 0
+        assert called["handover"] is True, "ohne Fremd-GPU muss lokal uebernommen werden"
+
+    def test_the_resting_server_is_restored_on_the_local_path(self, monkeypatch):
+        """Der Handover startet den ruhenden Server nicht neu — das muss der
+        eigene Einstiegspunkt tun."""
+        w = self._wrapper()
+        from contextlib import contextmanager
+        restored = []
+
+        @contextmanager
+        def _fake(model):
+            yield
+
+        monkeypatch.setattr(w.remote_gpu, "available", lambda: None)
+        monkeypatch.setattr(w, "embed_on_llamacpp", _fake)
+        monkeypatch.setattr(w, "_server_active", lambda: True)
+        monkeypatch.setattr(w, "_restore_resting_server", lambda a: restored.append(a))
+        monkeypatch.setattr(w.subprocess, "call", lambda *a, **k: 0)
+        monkeypatch.setattr(w.sys, "argv", ["x"])
+        w.main()
+        assert restored == [True]
