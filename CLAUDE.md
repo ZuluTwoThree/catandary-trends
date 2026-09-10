@@ -635,6 +635,13 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # stillgelegt) kostete vier Reclassify-Pässe = 1,5 h. Solche Dauer-Garbled
 # bleiben absichtlich unprocessed und kommen im NÄCHSTEN Cycle noch einmal
 # dran — wiederholt sich das über mehrere Nächte, per Hand filtern.
+# Batch 3000 (seit 2026-09-10; vorher 600). So bemessen, dass ein normaler Tag in
+# EINEM Lauf durchgeht: mit 600 sprang run 2 an jedem Tag an und kostete jedes Mal
+# einen zweiten kompletten Stage-8-Pass (Reclassify über ALLE Drafts, ~28 min).
+# Gemessener Anfall: 1.509–1.619/Tag mit 474 Quellen, stationär ~2.460 mit 560.
+# Zu hoch kostet nichts — min(batch, vorhandene); gegen Massen-Ingest schützen
+# CYCLE_MAX_PER_SOURCE und die 50k-Sanity-Zählung. CYCLE_BATCH=N hebt ihn für
+# eine einzelne Nacht weiter an.
 0 4 * * 1-5  scripts/full_cycle_cron.sh
 
 # Waechter (seit 2026-08-17): meldet per Mail, wenn der Nachtlauf keine

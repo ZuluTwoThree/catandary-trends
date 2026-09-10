@@ -75,12 +75,24 @@ mkdir -p "$(dirname "$LOG")"
     [ "${USED:-9999}" -lt 1500 ] && break
   done
 
-  # Batchgroesse: 600 ist der Normalbetrieb (Tagesanfall ~530 Eintraege). Per
-  # CYCLE_BATCH in der Crontab-Zeile fuer EINE Nacht anhebbar — sinnvoll, wenn
-  # viele neue Quellen zum ersten Mal ziehen: run 1 nimmt dann alles und run 2
-  # entfaellt, was einen kompletten Stage-8-Pass (Reclassify ueber ALLE Drafts,
-  # ~25 min) spart. Ohne Override aendert sich nichts.
-  CYCLE_BATCH="${CYCLE_BATCH:-600}"
+  # Batchgroesse: so bemessen, dass ein normaler Tag in EINEM Lauf durchgeht.
+  #
+  # Mit 600 sprang run 2 an JEDEM Tag an (Cycle-Logs 02.-09.09.) und kostete
+  # jedes Mal einen kompletten zweiten Stage-8-Pass — Reclassify laeuft ueber
+  # ALLE Drafts, ~28 min, fuer dasselbe Ergebnis.
+  #
+  # Gemessener Anfall in die Pipeline: 1.509-1.619/Tag mit 474 Quellen,
+  # 3.565 am 10.09. mit 560 Quellen — davon rund 1.107 der Einmaleffekt der
+  # 53 erstmals ziehenden Quellen. Stationaer also ~2.460. 3000 deckt das mit
+  # gut 20 % Luft.
+  #
+  # Zu hoch kostet nichts: run_full_cycle nimmt min(batch, vorhandene), ein
+  # groesserer Wert verarbeitet also nie mehr als da ist. Gegen einen
+  # Massen-Ingest schuetzen ohnehin CYCLE_MAX_PER_SOURCE (200/Quelle/Lauf) und
+  # die 50k-Sanity-Zaehlung in scheduled_cycle.sh, nicht diese Zahl.
+  #
+  # CYCLE_BATCH in der Crontab-Zeile hebt ihn fuer EINE Nacht weiter an.
+  CYCLE_BATCH="${CYCLE_BATCH:-3000}"
   echo "----- launching production scheduled_cycle.sh $CYCLE_BATCH -----"
   bash "$REPO/scripts/scheduled_cycle.sh" "$CYCLE_BATCH"
   RC=$?
