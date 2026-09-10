@@ -39,6 +39,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from pipeline import remote_gpu
 from pipeline.config import EMBED_BACKEND, EMBED_MODEL
 from pipeline.db import get_connection
 from pipeline.llamacpp_client import served_model_id
@@ -123,7 +124,18 @@ def _stamp(conn, trend_id: int, vec: list[float] | None) -> None:
 
 
 def run(rows: list[dict], apply: bool, chunk_size: int = 16) -> Counter:
-    """Zu duenne Zeilen werden nur gestempelt, der Rest chunkweise eingebettet."""
+    """Zu duenne Zeilen werden nur gestempelt, der Rest chunkweise eingebettet.
+
+    Fremde GPU, wenn das Fenster offen ist (pipeline/remote_gpu.py): auf
+    `bequiet` laeuft eine RTX 5080, die zwischen 01:00 und 17:00 frei nutzbar
+    ist und mit 12,4 Texten/s knapp doppelt so schnell rechnet wie die lokale
+    3090 (6,6/s). Die Vektoren sind austauschbar (cos 0,9995 fuer denselben
+    Text, gemessen 10.09.).
+
+    Das Fenster wird VOR JEDEM Chunk neu geprueft, nicht nur am Anfang: ein Lauf,
+    der um 16:50 startet, hoert um 17:00 auf, statt in die Zeit des Owners
+    hineinzulaufen. Was bis dahin gestempelt ist, bleibt gestempelt — der
+    naechste Lauf setzt fort."""
     stat = Counter()
     todo: list[dict] = []
     for r in rows:
@@ -138,11 +150,28 @@ def run(rows: list[dict], apply: bool, chunk_size: int = 16) -> Counter:
         todo.append(r)
 
     state: dict = {}
+    remote = remote_gpu.available()
+    if remote:
+        logger.info("fremde GPU im Fenster: %s (%s)", remote, remote_gpu.REMOTE_GPU_WINDOW)
     for i in range(0, len(todo), chunk_size):
         chunk = todo[i:i + chunk_size]
         texts = [text_for(r) for r in chunk]
+        if remote and not remote_gpu.window_open():
+            logger.info("Nutzungsfenster der fremden GPU ist zu — Lauf endet hier "
+                        "(%d Zeilen bleiben fuer den naechsten Lauf)", len(todo) - i)
+            stat["window_closed"] = 1
+            break
         try:
-            vecs = embed_chunk_resilient(texts, state)
+            if remote:
+                try:
+                    vecs = remote_gpu.embed_batch_remote(texts, host=remote)
+                    stat["remote_chunks"] += 1
+                except Exception as exc:                            # noqa: BLE001
+                    logger.warning("fremde GPU ausgefallen (%s) — ab hier lokal", exc)
+                    remote = None
+                    vecs = embed_chunk_resilient(texts, state)
+            else:
+                vecs = embed_chunk_resilient(texts, state)
         except EmbeddingAbort as exc:
             logger.error("ABORT: %s — %d Zeilen bleiben ungestempelt", exc, len(todo) - i)
             stat["aborted"] = 1
@@ -174,7 +203,8 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("%d Kandidaten ohne Volltext-Vektor", len(rows))
     if not rows:
         return 0
-    assert_embedding_model()
+    if not remote_gpu.available():
+        assert_embedding_model()     # lokaler Pfad: laeuft wirklich das Embedding-Modell?
     stat = run(rows, args.apply, args.chunk)
     print()
     for k, v in sorted(stat.items()):

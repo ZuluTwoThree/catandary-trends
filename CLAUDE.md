@@ -892,6 +892,18 @@ cross_industry:
 - **Styling:** Tailwind CSS v4 (`@theme`-Tokens in `frontend/src/app/globals.css` — Designsystem „Editorial Intelligence": IBM Plex Serif/Mono/Sans, Ink `#0a0c0a`, Akzent Chartreuse `#d4ff3a`, scharfe Kanten)
 - **DB-Anbindung:** eigener `pg`-Layer (`frontend/src/lib/pg.ts` + `db.ts`) auf PostgreSQL/pgvector, Socket-Default (kein Drizzle); teure Aggregat-Queries laufen über einen In-Process-TTL-Cache in `db.ts`
 - **Auth/Paywall:** **entfernt 2026-09-03 (#93, kein SaaS — Owner 26.08.)**. Magic-Link-Auth, Tier-Entitlements, `TierGate`, Stripe-Checkout/Webhook, `/account*`, `/trends/pricing`, `/api/auth*`, `/api/stripe*` sowie `scripts/migrate_accounts.py`/`set_user_tier.py` sind physisch aus dem Code; die DB-Tabellen `app_users`/`magic_tokens`/`research_live_usage` bleiben ungenutzt stehen (kein DROP). Es gibt keine Accounts: die Owner-Instanz sieht alles, der Review-Guard (`lib/review-access.ts`) ist nur noch „lokal ja, `PUBLIC_MODE`/Export nie" (`REVIEW_ENABLED` entfällt). `AUTH_SECRET` bleibt — er signiert die Newsletter-Abmelde-HMAC (`lib/unsubscribe.ts`). `PUBLIC_MODE=1` (`frontend/src/proxy.ts`, Blockliste `lib/publicMode.ts`) blendet nur noch `/trends/foresight*`, `/trends/review*`, `/trends/quality-preview*`, `/api/foresight*` als 404 aus und fenstert den Feed auf `PUBLIC_WINDOW_DAYS` (`lib/archiveWindow.ts`, `archiveWindowDays()`); das frühere 28-Tage-Paywall-Fenster (#70) ist weg
+- **Zweite GPU im Tailnet — RTX 5080 auf `bequiet` (seit 2026-09-10):** Windows-Arbeitsplatz,
+  Tailnet `100.119.239.40`, 1 ms über LAN (kein Relay). Ollama 0.33.3 auf `:11434` ohne
+  Authentifizierung, elf Modelle vorhanden (u. a. `qwen3:8b`, `qwen3:14b`, `qwen3-embedding`,
+  `nuextract`), SSH mit Schlüssel. 16 GB VRAM, davon am Sperrbildschirm **13,9 GB frei** —
+  bei angemeldetem Benutzer deutlich weniger, also für verlässlichen Betrieb mit ~10–11 GB
+  rechnen. Reicht für 8B/14B und den Embedder, **nicht** für Gemma-4-26B oder den 27B.
+  **Owner-Regel: 01:00–17:00 frei nutzbar, 17:00–01:00 gehört die Karte dem Owner**
+  (`pipeline/remote_gpu.py`, `REMOTE_GPU_WINDOW`). Gemessen 10.09., warm, Ø 2.013 Zeichen:
+  **12,4 Texte/s gegen 6,6/s auf der lokalen 3090** — und derselbe Text ergibt hier wie dort
+  **cos 0,9995**, die Vektorräume sind also austauschbar. Kaltstart ~35 s (Modellladen).
+  Der Rechner ist ein Arbeitsplatz, kein Server (Laufzeit beim ersten Blick 2 h): jeder
+  Aufrufer prüft Fenster **und** Erreichbarkeit und fällt sonst auf die lokale Karte zurück.
 - **Embedding-Server auf der CPU (`:8091`, seit 2026-09-09, #97):** systemd user unit
   `catandary-embed-cpu.service` (`~/llama.cpp/start-qwen3-emb-cpu.sh`, dasselbe
   Qwen3-Embedding-8B wie Stage 5, aber `CUDA_VISIBLE_DEVICES=""` und `-ngl 0`). Er existiert für

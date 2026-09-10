@@ -974,6 +974,27 @@ zieht der Lauf also gezielt die Fehlschläge — gemessen 5 % Quote statt 90 %.
 **Reihenfolge:** erst nachholen, dann einbetten. Sonst entstehen Vektoren auf
 775-Zeichen-Anrissen, die man danach noch einmal rechnen müsste.
 
+**Die zweite GPU im Tailnet (seit 10.09.2026).** Auf `bequiet` steckt eine
+RTX 5080. Vereinbart ist: **01:00–17:00 nutzen wir sie, 17:00–01:00 gehört sie
+Ihnen.** Der Volltext-Embedder greift von selbst danach — er prüft vor jedem
+Block Fenster *und* Erreichbarkeit und rechnet sonst auf der lokalen 3090
+weiter. Läuft das Fenster mitten im Lauf ab, hört er auf; der nächste Lauf setzt
+fort.
+
+```bash
+tailscale ping bequiet                                   # erreichbar?
+curl -s http://100.119.239.40:11434/api/version          # Ollama wach?
+```
+
+Sie ist rund doppelt so schnell wie die lokale Karte (12,4 gegen 6,6 Texte/s),
+und die Vektoren sind austauschbar (cos 0,9995 für denselben Text). Eingestellt
+wird das in `.env`: `REMOTE_EMBED_HOST`, `REMOTE_GPU_WINDOW`,
+`REMOTE_EMBED_MODEL`. Leerer Host = nur die lokale Karte.
+
+Grenze: 16 GB, davon am Sperrbildschirm 13,9 GB frei — bei angemeldetem
+Benutzer weniger. Das reicht für 8B, 14B und den Embedder, nicht für das
+Gemma-4-26B der Artikelerzeugung oder den 27B-Rechercheur.
+
 **Zweiter Vektorraum über den Quelltext (seit 10.09.2026, #102).** Der
 bestehende Vektor jedes Trends kommt aus Überschrift plus 500 Zeichen Anriss —
 das ist für die Dublettenprüfung richtig gewählt, für Analyse und Suche aber zu
