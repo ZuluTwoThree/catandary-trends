@@ -305,6 +305,21 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     │
     ▼
 [Schritt 4] DUPLIKAT-CHECK (Qwen3-Embedding)
+    → ZWEI Vektorräume (seit 2026-09-10, #102), bewusst getrennt:
+      `embedding`/`embedding_1024` = title + excerpt[:500] (Median 588 Zeichen).
+        Für den Dedup richtig gewählt; NICHT verbreitern (1,7 Mio. Zeilen,
+        geänderte Semantik — die Warnung in Schritt 4 gilt weiter).
+      `embedding_full_1024` = Titel + voller Quelltext (raw_content, sonst
+        excerpt), HTML entfernt, ohne 500er-Kappe. Gerechnet von
+        scripts/embed_full_text_gpu.py (Cron 09:00, GPU-Handover, Modell-
+        Identitätsprüfung); `full_embedded_at` stempelt jeden Ausgang, auch
+        „zu dünn", damit nichts ewig wiederkehrt. Gemessen 10.09.: Ø 5.700–6.400
+        Zeichen je Text, also elfmal der Dedup-Ausschnitt; Kontrollmessung
+        cos(Dedup, Volltext) = 0,903 beim selben Eintrag gegen 0,201 bei fremden
+        Paaren — derselbe Raum, mehr Text.
+      Anlass: der Dedup-Raum clusterte formelhafte Meldungen nach ihrer SATZFORM
+      und hatte auf Mega-Trend-Höhe eine Silhouette von ~0,02
+      (docs/mega_discovery_2026-09-09.md).
     → Embedding generieren
     → Cosine-Similarity gegen letzte 30 Tage prüfen
     → Wenn >0.92 Similarity: als Duplikat markieren, Ende
@@ -668,6 +683,12 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Quellen wird NICHT erweitert: Vorbehalts-Quellen speichern weiterhin gar keinen Volltext.
 # Vorbehalts-Quellen: purge_raw_content.py --source … --ignore-state --also-extraction
 30 3 * * *   .venv/bin/python scripts/purge_raw_content.py --days 1825 --apply
+
+# Volltext-Vektoren (taeglich 09:00, INSTALLIERT 2026-09-10, #102): zweiter
+# Vektorraum ueber den QUELLTEXT (raw_content, sonst excerpt — HTML entfernt,
+# ohne die 500er-Kappe des Dedup-Vektors). Laeuft NACH dem Cycle mit
+# GPU-Handover und stellt den Ruhezustand selbst wieder her.
+0 9 * * *    .venv/bin/python scripts/embed_full_text_gpu.py --limit 5000 --apply
 
 # Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten (03:45,
 # INSTALLIERT 2026-09-09, #97 Wege B+C): OpenAlex-Auflösung → Lizenzprüfung →

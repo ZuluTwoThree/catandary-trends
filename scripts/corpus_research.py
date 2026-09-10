@@ -819,21 +819,7 @@ def search_vector(query: str, limit: int, scope: str = "both") -> list[dict]:
     return merged[:limit]
 
 
-_TAG_RE = re.compile(r"<[^>]+>")
-
-
-def clean_source_text(text: str) -> str:
-    """Auszug entschlacken, bevor er ins Prompt geht (2026-09-10).
-
-    Manche Feeds legen HTML im Anriss ab (`<p class="wp-block-paragraph">`,
-    `&#8217;`, ganze Anker-Tags). Das frisst Zeichenbudget und Modell-
-    aufmerksamkeit, ohne einen Beleg zu tragen. Tags raus, Entities aufloesen,
-    Leerraum normalisieren — der Wortlaut selbst bleibt unangetastet, sonst
-    waere er als Zitat nicht mehr brauchbar."""
-    if not text:
-        return ""
-    return re.sub(r"[ \t]*\n\s*\n\s*", "\n\n",
-                  html.unescape(_TAG_RE.sub("", text))).strip()
+from pipeline.text_clean import clean_source_text   # noqa: E402  (Auszug entschlacken)
 
 
 def open_item(trend_id: int) -> str:

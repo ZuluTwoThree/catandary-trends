@@ -954,6 +954,27 @@ in beide Richtungen und `llm_pipeline`; ohne `--apply` Dry-Run mit Plan).
 Der Samstagslauf verarbeitet sie über
 `scripts/signal_batch_embedded.py --signal-only`.
 
+**Zweiter Vektorraum über den Quelltext (seit 10.09.2026, #102).** Der
+bestehende Vektor jedes Trends kommt aus Überschrift plus 500 Zeichen Anriss —
+das ist für die Dublettenprüfung richtig gewählt, für Analyse und Suche aber zu
+dünn. Ein zweiter Vektor über den vollen Quelltext läuft täglich um 09:00, nach
+dem Nachtlauf:
+
+```bash
+python scripts/embed_full_text_gpu.py --limit 500            # Dry-Run
+python scripts/embed_full_text_gpu.py --limit 5000 --apply   # wie der Cron
+```
+
+Immer über `..._gpu.py` starten — der holt das Embedding-Modell auf die Karte
+und stellt danach den Ruhezustand wieder her. Direkt gestartet bricht das
+Skript ab, wenn auf `:8090` ein Chatmodell liegt (es würde sonst Vektoren aus
+dem falschen Raum schreiben). Auf der CPU dauert ein Text ~20 s statt
+Millisekunden — für eine Nacht Material wären das 13 Stunden.
+
+Was er nicht anfasst: den Dedup-Vektor. Einträge mit zu dünnem Quelltext werden
+vermerkt, aber nicht eingebettet, damit sie nicht jede Nacht wiederkehren.
+Log: `~/logs/catandary-embed-full.log`.
+
 **Vorher sehen, was kommt (Dry-Run, seit 09.09.2026).** Der Poller zählt auf
 Wunsch nur, statt zu schreiben — nützlich vor einer Nacht, in der viele neue
 Quellen zum ersten Mal ziehen:
@@ -1026,6 +1047,7 @@ im Handover still).
 | Zeit | Job | Skript | Status |
 |---|---|---|---|
 | 02:45 täglich | Postgres-Backup (dumpdir, zstd, keep 4 Tage) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4` | installiert |
+| 09:00 täglich | **Volltext-Vektoren** (zweiter Vektorraum, #102) | `scripts/embed_full_text_gpu.py --limit 5000 --apply` | installiert (10.09.) |
 | 03:30 täglich | Volltext-Retention 60 Monate | `scripts/purge_raw_content.py --days 1825 --apply` | installiert (03.09., Frist 10.09. erweitert) |
 | 03:45 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
 | 04:00 Mo–Fr | Full Cycle + Draft-Richter + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch 600; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |

@@ -1007,6 +1007,40 @@ def _migrate_embedding_1024():
         conn._conn.commit()
 
 
+def _migrate_embedding_full():
+    """Zweiter Vektorraum: der QUELLTEXT statt Titel + 500 Zeichen Anriss (#102).
+
+    Der bisherige `embedding`/`embedding_1024` wird aus `title + excerpt[:500]`
+    gerechnet — Median 588 Zeichen. Dieser Ausschnitt ist fuer den DEDUP richtig
+    gewaehlt und darf nicht veraendert werden (1,7 Mio. Zeilen, geaenderte
+    Semantik). Fuer Analyse und Retrieval ist er zu duenn: gemessen am 09.09.
+    clusterte der Raum formelhafte Meldungen nach ihrer Satzform, und die
+    Silhouette lag auf Mega-Trend-Hoehe bei ~0,02.
+
+    Deshalb ein ZWEITER, unabhaengiger Vektor ueber den vollen verfuegbaren
+    Quelltext (raw_content, sonst excerpt — HTML entfernt, ohne 500er-Kappe).
+    Der Dedup-Vektor bleibt unangetastet.
+
+    `embedding_full_1024` traegt den Matryoshka-Praefix (HNSW indiziert bis 2000
+    Dimensionen), `full_embedded_at` merkt den Lauf — auch bei Eintraegen, deren
+    Quelltext zu duenn ist, damit sie nicht jede Nacht erneut geprueft werden.
+    """
+    if not USE_POSTGRES:
+        with get_connection() as conn:
+            rows = conn.execute("PRAGMA table_info(trends)").fetchall()
+            names = [(r[1] if not hasattr(r, "keys") else r["name"]) for r in rows]
+            if "embedding_full_1024" not in names:
+                conn.execute("ALTER TABLE trends ADD COLUMN embedding_full_1024 BLOB")
+            if "full_embedded_at" not in names:
+                conn.execute("ALTER TABLE trends ADD COLUMN full_embedded_at TEXT")
+        return
+    with get_connection() as conn:
+        cur = conn._conn.cursor()
+        cur.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS embedding_full_1024 VECTOR(1024)")
+        cur.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS full_embedded_at TIMESTAMP")
+        conn._conn.commit()
+
+
 def _migrate_source_lead_time_tier():
     """Create + populate the source_name→lead_time_tier lookup the search API LEFT
     JOINs (#53). Without it a fresh/rebuilt Postgres 500s on /api/search. Idempotent:
@@ -1069,6 +1103,7 @@ def init_db():
     _migrate_patent_cpc()
     _migrate_openalex_graph()
     _migrate_embedding_1024()
+    _migrate_embedding_full()
     _migrate_source_lead_time_tier()
 
 
