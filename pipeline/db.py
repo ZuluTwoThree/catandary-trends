@@ -539,6 +539,25 @@ def _migrate_open_licence():
             conn.execute("ALTER TABLE raw_entries ADD COLUMN oa_url TEXT")
 
 
+def _migrate_fulltext_refetch():
+    """Marker fuer den Volltext-Nachhollauf (#102, 2026-09-10).
+
+    Die 14-Tage-Regel hat bis zum 10.09. 17.665 Volltexte geloescht (Purge-Log).
+    Die Quell-URL steht noch in jeder Zeile, ein erneuter Abruf ist also moeglich
+    und nach §44b zulaessig — Stichprobe 24 von 30 wieder abrufbar. Damit ein
+    Lauf nicht dieselben Fehlschlaege ewig wiederholt, wird JEDER Versuch
+    gestempelt, auch der gescheiterte."""
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            conn.execute("ALTER TABLE raw_entries ADD COLUMN IF NOT EXISTS "
+                         "fulltext_refetched_at TIMESTAMP")
+            return
+        rows = conn.execute("PRAGMA table_info(raw_entries)").fetchall()
+        names = [(r[1] if not hasattr(r, "keys") else r["name"]) for r in rows]
+        if "fulltext_refetched_at" not in names:
+            conn.execute("ALTER TABLE raw_entries ADD COLUMN fulltext_refetched_at TEXT")
+
+
 def _migrate_licence_checked():
     """Add raw_entries.licence_checked_at. Idempotent, wired into init_db.
 
@@ -1096,6 +1115,7 @@ def init_db():
     _migrate_reviewed_at()
     _migrate_open_licence()
     _migrate_licence_checked()
+    _migrate_fulltext_refetch()
     _migrate_judged_at()
     _migrate_review_reason()
     _migrate_sources_llm_pipeline()

@@ -39,6 +39,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 import urllib.robotparser
 from dataclasses import dataclass
@@ -163,12 +164,25 @@ def _robots_ok(url: str) -> bool:
         return True
 
 
+# Ein Schloss je Host: die Bremse muss auch dann halten, wenn mehrere Threads
+# fetchen (scripts/refetch_fulltext.py, 2026-09-10). Vorher war das ein
+# ungeschuetztes read-modify-write — zwei Threads lasen denselben Zeitstempel und
+# schlugen gleichzeitig auf demselben Server auf. Die Sperre serialisiert je
+# Host (also weiterhin hoechstens 1 Anfrage/s/Host) und laesst verschiedene
+# Hosts parallel laufen.
+_throttle_registry_lock = threading.Lock()
+_host_locks: dict[str, threading.Lock] = {}
+
+
 def _throttle(host: str) -> None:
-    last = _last_hit.get(host, 0.0)
-    wait = PER_HOST_DELAY - (time.time() - last)
-    if wait > 0:
-        time.sleep(wait)
-    _last_hit[host] = time.time()
+    with _throttle_registry_lock:
+        lock = _host_locks.setdefault(host, threading.Lock())
+    with lock:
+        last = _last_hit.get(host, 0.0)
+        wait = PER_HOST_DELAY - (time.time() - last)
+        if wait > 0:
+            time.sleep(wait)
+        _last_hit[host] = time.time()
 
 
 # --- TDM reservation: header + meta ------------------------------------------

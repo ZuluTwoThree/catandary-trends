@@ -690,6 +690,16 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # GPU-Handover und stellt den Ruhezustand selbst wieder her.
 0 9 * * *    .venv/bin/python scripts/embed_full_text_gpu.py --limit 5000 --apply
 
+# Volltext-Nachhollauf (#102, on demand — KEIN Cron): die 14-Tage-Regel hat bis
+# zum 10.09. 17.665 Volltexte geloescht (Purge-Log). Die Quell-URL steht noch in
+# jeder Zeile, der erneute Abruf ist nach §44b zulaessig und seit der 60-Monats-
+# Frist auch haltbar. Wiederbeschaffungsquote gemessen: 90 % (54 von 60).
+#   scripts/refetch_fulltext.py --since 2026-07-12 --limit 0 --apply
+# Der Altersfilter (--min-age-days, Default 15) ist der Kern: im 0-14-Tage-Band
+# haben 70 % ihren Text noch, und die uebrigen 30 % sind die, bei denen der Abruf
+# schon damals scheiterte — ein Lauf ohne Filter zieht gezielt die Fehlschlaege
+# (gemessen 3 von 60 = 5 % gegen 54 von 60 = 90 %).
+
 # Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten (03:45,
 # INSTALLIERT 2026-09-09, #97 Wege B+C): OpenAlex-Auflösung → Lizenzprüfung →
 # Volltext von der OFFENEN Fundstelle (nie vom Vorbehalts-Host) → raw_content +

@@ -954,6 +954,26 @@ in beide Richtungen und `llm_pipeline`; ohne `--apply` Dry-Run mit Plan).
 Der Samstagslauf verarbeitet sie über
 `scripts/signal_batch_embedded.py --signal-only`.
 
+**Gelöschte Volltexte zurückholen (#102, seit 10.09.2026).** Die alte
+14-Tage-Regel hat 17.665 Artikeltexte gelöscht. Verloren ist davon nichts
+Grundsätzliches — gelöscht wurde die Kopie, nicht die Quell-URL:
+
+```bash
+python scripts/refetch_fulltext.py --limit 200                      # Dry-Run
+python scripts/refetch_fulltext.py --since 2026-07-12 --limit 0 --apply
+```
+
+Gemessene Quote: **90 %** (54 von 60), Ø 5.564 Zeichen, rund ein Eintrag pro
+Sekunde bei 8 Threads. Kein Cron — das ist ein Aufräumlauf, kein Dauerbetrieb.
+
+`--min-age-days` (Default 15) ist dabei nicht Kosmetik: jüngere Einträge hat der
+Purge nie angefasst, 70 % von ihnen haben ihren Text noch, und die übrigen 30 %
+sind genau die, bei denen der Abruf schon damals scheiterte. Ohne den Filter
+zieht der Lauf also gezielt die Fehlschläge — gemessen 5 % Quote statt 90 %.
+
+**Reihenfolge:** erst nachholen, dann einbetten. Sonst entstehen Vektoren auf
+775-Zeichen-Anrissen, die man danach noch einmal rechnen müsste.
+
 **Zweiter Vektorraum über den Quelltext (seit 10.09.2026, #102).** Der
 bestehende Vektor jedes Trends kommt aus Überschrift plus 500 Zeichen Anriss —
 das ist für die Dublettenprüfung richtig gewählt, für Analyse und Suche aber zu
