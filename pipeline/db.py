@@ -1043,6 +1043,13 @@ def _migrate_embedding_full():
     `embedding_full_1024` traegt den Matryoshka-Praefix (HNSW indiziert bis 2000
     Dimensionen), `full_embedded_at` merkt den Lauf — auch bei Eintraegen, deren
     Quelltext zu duenn ist, damit sie nicht jede Nacht erneut geprueft werden.
+
+    `full_embedded_chars` haelt fest, WIE VIEL Text in den Vektor eingegangen
+    ist. Ohne diese Zahl waere die Stempelung eine Einbahnstrasse: waechst der
+    Quelltext spaeter (ein Nachhollauf holt den Volltext zu einer Zeile, die nur
+    ein Abstract hatte), bliebe der duenne Vektor auf ewig stehen und niemand
+    koennte es feststellen. Mit ihr laesst sich gezielt nachembedden
+    (scripts/embed_full_text.py --regrown).
     """
     if not USE_POSTGRES:
         with get_connection() as conn:
@@ -1052,11 +1059,14 @@ def _migrate_embedding_full():
                 conn.execute("ALTER TABLE trends ADD COLUMN embedding_full_1024 BLOB")
             if "full_embedded_at" not in names:
                 conn.execute("ALTER TABLE trends ADD COLUMN full_embedded_at TEXT")
+            if "full_embedded_chars" not in names:
+                conn.execute("ALTER TABLE trends ADD COLUMN full_embedded_chars INTEGER")
         return
     with get_connection() as conn:
         cur = conn._conn.cursor()
         cur.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS embedding_full_1024 VECTOR(1024)")
         cur.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS full_embedded_at TIMESTAMP")
+        cur.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS full_embedded_chars INTEGER")
         conn._conn.commit()
 
 

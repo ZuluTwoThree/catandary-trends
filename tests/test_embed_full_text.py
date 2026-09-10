@@ -104,3 +104,83 @@ class TestModelGuard:
 class TestCleaner:
     def test_wording_survives(self):
         assert clean_source_text("Exactly 2,000 flights.") == "Exactly 2,000 flights."
+
+
+class TestRegrownReEmbedding:
+    """Ein gestempelter Eintrag darf nicht auf ewig seinen dünnen Vektor behalten
+    (Owner-Hinweis 2026-09-11).
+
+    Findet ein späterer Nachhollauf mehr Text zu einer Zeile, die nur ein
+    Abstract hatte, muss sie neu eingebettet werden können. Ohne
+    `full_embedded_chars` wäre die Stempelung eine Einbahnstraße — niemand
+    könnte feststellen, dass der Vektor veraltet ist.
+    """
+
+    def _sql(self, monkeypatch, **kw):
+        seen = {}
+
+        class _C:
+            def execute(self, sql, params=None):
+                seen["sql"], seen["params"] = sql, list(params or [])
+                return self
+            def fetchall(self):
+                return []
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        monkeypatch.setattr(eft, "get_connection", lambda: _C())
+        eft.candidates(10, **kw)
+        return seen["sql"]
+
+    def test_normal_run_takes_unstamped_rows(self, monkeypatch):
+        assert "full_embedded_at IS NULL" in self._sql(monkeypatch)
+
+    def test_regrown_run_takes_stamped_rows_whose_text_grew(self, monkeypatch):
+        sql = self._sql(monkeypatch, regrown=True)
+        assert "full_embedded_at IS NULL" not in sql
+        assert "full_embedded_chars" in sql and str(eft.REGROWN_FACTOR) in sql
+
+    def test_thin_rows_without_a_vector_are_included(self, monkeypatch):
+        """Der wichtigste Fall: eine Zeile war zu dünn, bekam nur einen Stempel
+        und keinen Vektor — und hat jetzt Volltext. Eine Bedingung auf einen
+        vorhandenen Vektor hätte genau die ausgeschlossen (Fehler im ersten
+        Entwurf)."""
+        sql = self._sql(monkeypatch, regrown=True)
+        assert "embedding_full_1024 IS NOT NULL" not in sql
+
+    def test_the_factor_demands_real_growth(self):
+        """Ein paar Zeichen mehr rechtfertigen keinen neuen Vektor."""
+        assert eft.REGROWN_FACTOR >= 1.5
+
+    def test_the_embedded_length_is_recorded(self, monkeypatch):
+        written = []
+
+        class _C:
+            def execute(self, sql, params=None):
+                written.append((sql, list(params or [])))
+                return self
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        eft._stamp(_C(), 7, [0.1] * 1024, 4321)
+        assert "full_embedded_chars" in written[0][0]
+        assert 4321 in written[0][1]
+
+    def test_thin_rows_record_their_length_too(self, monkeypatch):
+        written = []
+
+        class _C:
+            def execute(self, sql, params=None):
+                written.append(list(params or []))
+                return self
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        eft._stamp(_C(), 7, None, 120)
+        assert 120 in written[0]

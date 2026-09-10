@@ -1016,6 +1016,30 @@ Was er nicht anfasst: den Dedup-Vektor. Einträge mit zu dünnem Quelltext werde
 vermerkt, aber nicht eingebettet, damit sie nicht jede Nacht wiederkehren.
 Log: `~/logs/catandary-embed-full.log`.
 
+**Wenn später mehr Text auftaucht.** Jede Zeile merkt sich, wie viel Text in
+ihren Vektor eingegangen ist. Holt ein Nachhollauf später den Volltext zu einer
+Zeile, die nur ein Abstract hatte, lässt sie sich gezielt nachembedden:
+
+```bash
+python scripts/embed_full_text.py --regrown --limit 5000 --apply
+```
+
+Genommen wird, wessen Quelltext seit dem Einbetten um mehr als das
+Anderthalbfache gewachsen ist — auch Zeilen, die beim ersten Mal *zu dünn* waren
+und gar keinen Vektor bekamen. Gerade die sind der wichtigste Fall.
+
+**Ob der zweite Raum wirklich besser ist, wird gemessen, nicht behauptet:**
+
+```bash
+python scripts/compare_vector_spaces.py --kind patent -n 3
+```
+
+Der Test legt die nächsten Nachbarn aus beiden Räumen nebeneinander und zeigt
+die Überlappung. Patente sind der harte Fall: ihre Abstracts beginnen fast alle
+mit derselben Formel, und der alte Vektor sieht davon nur die ersten
+500 Zeichen — bei einem 1.603-Zeichen-Abstract also 31 %, abgeschnitten mitten
+in der Eröffnungsformel.
+
 **Vorher sehen, was kommt (Dry-Run, seit 09.09.2026).** Der Poller zählt auf
 Wunsch nur, statt zu schreiben — nützlich vor einer Nacht, in der viele neue
 Quellen zum ersten Mal ziehen:

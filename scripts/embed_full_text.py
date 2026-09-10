@@ -85,9 +85,31 @@ def assert_embedding_model() -> None:
     logger.info("Embedding-Modell bestaetigt: %s", served)
 
 
-def candidates(limit: int, status: str = "", min_id: int = 0) -> list[dict]:
-    where = ["t.full_embedded_at IS NULL"]
-    params: list = []
+#: Nachembedden erst, wenn der Quelltext sichtbar gewachsen ist. Ein paar Zeichen
+#: mehr (korrigierter Tippfehler, anderes Leerzeichen) rechtfertigen keinen
+#: neuen Vektor; das Anderthalbfache schon.
+REGROWN_FACTOR = 1.5
+
+
+def candidates(limit: int, status: str = "", min_id: int = 0,
+               regrown: bool = False) -> list[dict]:
+    """`regrown=True` nimmt statt der ungeprueften Zeilen jene, deren Quelltext
+    seit dem Einbetten deutlich gewachsen ist — etwa weil ein Nachhollauf den
+    Volltext zu einer Zeile geholt hat, die vorher nur ein Abstract hatte."""
+    if regrown:
+        # BEWUSST ohne "embedding_full_1024 IS NOT NULL": die wichtigsten
+        # Kandidaten sind gerade die, die BEIM ERSTEN MAL zu duenn waren und
+        # deshalb nur gestempelt wurden (rund 836.000). Holt ein spaeterer
+        # Nachhollauf den Volltext zu so einer Zeile, muss sie hier auftauchen —
+        # eine Bedingung auf einen vorhandenen Vektor haette genau sie
+        # ausgeschlossen (Fehler beim ersten Entwurf, 2026-09-11).
+        where = ["t.full_embedded_chars IS NOT NULL",
+                 "length(coalesce(re.raw_content, re.excerpt, '')) > "
+                 f"t.full_embedded_chars * {REGROWN_FACTOR}"]
+        params: list = []
+    else:
+        where = ["t.full_embedded_at IS NULL"]
+        params = []
     if status:
         sts = [s.strip() for s in status.split(",") if s.strip()]
         where.append(f"t.status IN ({','.join('?' * len(sts))})")
@@ -112,15 +134,19 @@ def text_for(row: dict) -> str:
     return f"{title}\n{body}"[:MAX_EMBED_CHARS]
 
 
-def _stamp(conn, trend_id: int, vec: list[float] | None) -> None:
+def _stamp(conn, trend_id: int, vec: list[float] | None, chars: int = 0) -> None:
+    """`chars` = wie viel Text in den Vektor einging. Ohne diese Zahl waere die
+    Stempelung eine Einbahnstrasse: waechst der Quelltext spaeter, bliebe der
+    duenne Vektor stehen und niemand koennte es feststellen (--regrown)."""
     now = datetime.now(timezone.utc).isoformat()
     if vec is None:
-        conn.execute("UPDATE trends SET full_embedded_at = ? WHERE id = ?", (now, trend_id))
+        conn.execute("UPDATE trends SET full_embedded_at = ?, full_embedded_chars = ? "
+                     "WHERE id = ?", (now, chars, trend_id))
         return
     lit = "[" + ",".join(f"{v:.6f}" for v in vec[:DIM]) + "]"
     conn.execute(
-        "UPDATE trends SET embedding_full_1024 = ?::vector, full_embedded_at = ? WHERE id = ?",
-        (lit, now, trend_id))
+        "UPDATE trends SET embedding_full_1024 = ?::vector, full_embedded_at = ?, "
+        "full_embedded_chars = ? WHERE id = ?", (lit, now, chars, trend_id))
 
 
 def run(rows: list[dict], apply: bool, chunk_size: int = 16) -> Counter:
@@ -145,7 +171,7 @@ def run(rows: list[dict], apply: bool, chunk_size: int = 16) -> Counter:
             stat["too_thin"] += 1
             if apply:
                 with get_connection() as conn:
-                    _stamp(conn, r["id"], None)
+                    _stamp(conn, r["id"], None, len(raw))
             continue
         todo.append(r)
 
@@ -184,7 +210,7 @@ def run(rows: list[dict], apply: bool, chunk_size: int = 16) -> Counter:
             stat["chars"] += len(text)
             if apply:
                 with get_connection() as conn:
-                    _stamp(conn, r["id"], vec)
+                    _stamp(conn, r["id"], vec, len(text))
                 stat["written"] += 1
         logger.info("%d/%d eingebettet", min(i + chunk_size, len(todo)), len(todo))
     return stat
@@ -196,10 +222,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--status", default="", help="nur diese Status (Komma-Liste)")
     ap.add_argument("--min-id", type=int, default=0)
     ap.add_argument("--chunk", type=int, default=16, help="Texte je Embedding-Request")
+    ap.add_argument("--regrown", action="store_true",
+                    help=f"statt neuer Zeilen jene nachembedden, deren Quelltext seit dem "
+                         f"Einbetten um mehr als das {REGROWN_FACTOR}-fache gewachsen ist")
     ap.add_argument("--apply", action="store_true", help="wirklich schreiben (Default: Dry-Run)")
     args = ap.parse_args(argv)
 
-    rows = candidates(args.limit, args.status, args.min_id)
+    rows = candidates(args.limit, args.status, args.min_id, args.regrown)
     logger.info("%d Kandidaten ohne Volltext-Vektor", len(rows))
     if not rows:
         return 0
