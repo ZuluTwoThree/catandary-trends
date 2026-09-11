@@ -1101,6 +1101,17 @@ Antwortfrist (72 h, Entwurf): `docs/compliance/takedown_notice.md`.
 
 ## 11. Betrieb (Cron, Wächter, Backup, GPU, Logs)
 
+> **Was nachts läuft, läuft aus `main`.** Alle Crons starten aus
+> `~/projects/catandary-trends`; entwickelt wird in `~/projects/ct-dev`. Eine
+> Änderung an einem Cron-Skript, einem Default darin oder an
+> `deploy/crontab.txt` ist **erst nach dem Merge nach `main` in Betrieb** — auf
+> `dev` committet heißt: noch nicht scharf. Der Merge wird Ihnen vorher
+> vorgelegt, mit einer Zeile je Punkt in der Sprache der Wirkung, damit Sie
+> wissen, was ab der nächsten Nacht anders ist (Owner-Regel 11.09.2026).
+> Ausnahme ohne Merge: Parameter, die in der Crontab-Zeile selbst stehen
+> (z. B. `--days 1825`) — die wirken sofort.
+
+
 > **Zugriff seit 05.09.2026:** Alle Instanzen und der llama-server hören nur auf `127.0.0.1`. Vom MacBook: `https://kiworkstation.tail678c6e.ts.net` (Owner-App :3001; `/` leitet auf `/trends`, es gibt keine App-Landing mehr). **Launch-Tag (01.10.):** `scripts/go_live.sh --dry-run`, dann `--apply` — setzt `PUBLIC_NOINDEX=0`, baut und lädt den Export, entfernt das `noindex` der Landing, lädt sie hoch und prüft alles nach. **Landing-Vorschau vor dem Upload:** `scripts/landing_preview.sh` → `https://kiworkstation.tail678c6e.ts.net:3997/preview.html` (Countdown, Animationen, Formular; das Formular postet an den ECHTEN DOI-Endpunkt), `https://kiworkstation.tail678c6e.ts.net:3004` (dev), `…:3999` (PUBLIC_MODE-Vorschau) — Tailscale Serve, nur im Tailnet, HTTPS. Auf der Workstation selbst weiterhin `http://127.0.0.1:3001`. Die alten Adressen `100.115.179.37:3001` funktionieren absichtlich nicht mehr. Serve-Konfiguration: `tailscale serve status`; ändern: `tailscale serve --bg --https=443 http://127.0.0.1:3001`.
 
 ### 11.1 Cron — realer Stand `crontab -l` (05.09.2026)

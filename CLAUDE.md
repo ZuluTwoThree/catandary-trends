@@ -1084,6 +1084,39 @@ Hinweis: Ein DE/EN-Switcher existiert nicht mehr — die Produktsprache ist durc
 - **Ändert eine Arbeit reale Bedingungen** (Modelle, Backends, Defaults, Konfiguration, DB-Schema, Branch-Zustand, Pipeline-Verhalten, Cron/Deploy), wird die betroffene Doku **im selben Zug** mitgezogen — niemals stale Doku hinterlassen.
 - **Gegen die Realität verifizieren, nicht die alte Doku fortschreiben:** aktive Start-Skripte/GGUFs/Env in `scheduled_cycle.sh`, `config.py`-Defaults, Schema in `pipeline/db.py` etc. tatsächlich prüfen statt annehmen.
 - **README und Bedienungsanleitung gehören dazu (Owner-Vorgabe 2026-09-05):** `README.md` (Karte der Owner-Funktionen, Setup, Betrieb, Launch-Checkliste) und `docs/owner_manual.md` (Schritt-für-Schritt-Anleitung je Funktion) sind Teil der Doku-Pflicht. Wer eine Owner-Funktion, Route, ein Skript, Flag, einen Cron oder ein Ergebnisformat ändert, zieht **im selben Commit** den betreffenden Abschnitt in README und Handbuch nach (neue Funktion → neues Kapitel; entfernte Funktion → Kapitel raus, nicht „veraltet" stehen lassen). Vor dem Commit gegen die laufende Instanz prüfen (URL, Kommando, Flag), nicht aus dem Kopf schreiben.
+### ⚖️ Konstitutionelle Bedingung: was nachts läuft, läuft aus `main`
+
+**Verbindlich seit 2026-09-11 (Owner).** Alle Cron-Jobs starten aus dem Worktree
+`~/projects/catandary-trends` = **`main`**. Entwickelt und getestet wird in
+`~/projects/ct-dev` = **`dev`**. Zwischen „bei mir grün" und „läuft nachts"
+liegt daher ein Merge — und der ist keine Formalie, sondern Teil der Arbeit.
+
+- **Ändert eine Arbeit etwas, das ein Cron ausführt** (Skript unter `scripts/`,
+  ein Default darin, `pipeline/`-Code auf dem Cron-Pfad, `deploy/crontab.txt`),
+  dann ist die Änderung **erst mit dem Merge nach `main` in Betrieb**. „Auf
+  `dev` committet" heißt bei diesen Dateien: *noch nicht scharf.*
+- **Der Merge wird dem Owner vorgelegt, nicht stillschweigend gemacht.**
+  Vor dem Merge: kurz auflisten, **was dadurch scharf geht** — je Punkt eine
+  Zeile, in der Sprache der Wirkung („der Nachtlauf nimmt ab jetzt 3000 statt
+  600 Einträge"), nicht in Commit-Titeln. Erst nach der Zustimmung mergen.
+  Grund (Owner 2026-09-11): der Owner will jede Änderung, die in den
+  Produktivbetrieb geht, **einzeln im Gedächtnis haben** — nicht als Sammelposten.
+  Das präzisiert die Freigabe vom 2026-09-02 („dev→main-Merge freigegeben"):
+  sie gilt weiter für den Merge als *Vorgang*, aber der Zeitpunkt und der Umfang
+  werden vorher benannt.
+- **Nicht mergen, während ein Cron läuft**, wenn der Merge ein gerade
+  ausgeführtes **Shell-Skript** anfasst: Bash liest Skripte während der
+  Ausführung nach, ein Überschreiben mitten im Lauf kann den Prozess zerreißen.
+  Auf das Ende warten (`pgrep -f "scheduled_cycle.sh|full_cycle_cron.sh"`).
+- **Datenbank-Migrationen** sind davon unberührt: beide Worktrees teilen dieselbe
+  Live-DB. Wird eine additive Migration beim Bauen auf `dev` ausgeführt, ist die
+  Spalte für `main` schon da — der Merge bringt nur den Code, der sie kennt.
+
+Anlass: zweimal derselbe Fehler (2026-09-10 und 2026-09-11). Am 11.09. lief der
+Nachtlauf mit Batch 600 statt 3000 und der 09:00-Lauf fiel ganz aus, weil beides
+nur auf `dev` stand — während Retention und Lizenz-Auflösung funktionierten,
+weil deren Parameter in der Crontab-Zeile selbst stehen und nicht im Skript.
+
 - **Doku-Stand auf `dev` und `main` konsistent halten** (`dev` sofort mitziehen; `main` erhält den Stand beim bewussten Release-Merge). *(Der frühere Parallel-Zweig `epic/alpha` wurde am 2026-07-19 gelöscht — es gibt keinen zweiten Doku-Branch mehr zu pflegen.)*
 - Ursprung dieser Regel (2026-07-18): Content-Gen lief real längst auf Gemma-4-26B, während CLAUDE.md/README noch 30B/35B nannten — solche Drift ist ab jetzt konstitutionell auszuschließen.
 
