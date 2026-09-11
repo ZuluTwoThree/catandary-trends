@@ -57,21 +57,23 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # läuft --mark ins Leere (siehe Skript-Docstring).
 0 7 2 * * /home/dirk/projects/catandary-trends/.venv/bin/python /home/dirk/projects/catandary-trends/scripts/check_source_links.py --per-source 12 --mark >> /home/dirk/logs/catandary-source-links.log 2>&1
 
-# Woechentliche Newsletter-EDITION fuer die Website (Owner 2026-08-29): Montag
-# 09:00 generiert die Vorwoche (deterministisch via %G/%V von vor 7 Tagen) und
-# speichert sie in newsletter_editions — /trends/newsletter zeigt sie sofort.
-# KEIN Versand (der bleibt unten gegated). Kollisionswaechter wartet auf einen
-# evtl. noch laufenden Full Cycle; idempotent (existierende Edition = no-op).
 # Volltext-Vektoren (#102, taeglich 09:00, INSTALLIERT 2026-09-10): zweiter
 # Vektorraum ueber den QUELLTEXT statt Titel + 500 Zeichen Anriss. Laeuft NACH
 # dem Cycle (der endet ~08:40); der Dedup-Vektor bleibt unangetastet.
 # --limit 30000 deckt auch den Samstag ab (Wochen-Ingester bringen dort rund
 # 30.000 Kandidaten): ~40 min auf bequiet, ~76 min lokal. Der Wrapper haengt
-# den Kollisionswaechter davor — montags startet um 09:00 auch der Newsletter,
-# und dieser Lauf ist der niederrangigste GPU-Job im Haus.
+# den Kollisionswaechter davor — dienstags startet um 09:00 auch der Newsletter,
+# und dieser Lauf ist der niederrangigste GPU-Job im Haus (er wartet, nicht umgekehrt).
 0 9 * * * [ -x /home/dirk/projects/catandary-trends/scripts/embed_full_text_cron.sh ] && /home/dirk/projects/catandary-trends/scripts/embed_full_text_cron.sh >> /home/dirk/logs/catandary-embed-full.log 2>&1
 
-0 9 * * 1 /home/dirk/projects/catandary-trends/scripts/weekly_newsletter_publish.sh
+# Woechentliche Newsletter-EDITION fuer die Website (Owner 2026-08-29): DIENSTAG
+# 09:00 (von Montag verlegt am 2026-09-11, Owner) generiert die Vorwoche
+# (deterministisch via %G/%V von vor 7 Tagen — das trifft an beiden Tagen
+# dieselbe abgeschlossene ISO-Woche, geprueft: Lauf 14.09. und 15.09. -> 2026-W37)
+# und speichert sie in newsletter_editions — /trends/newsletter zeigt sie sofort.
+# KEIN Versand (der bleibt unten gegated). Kollisionswaechter wartet auf einen
+# evtl. noch laufenden Full Cycle; idempotent (existierende Edition = no-op).
+0 9 * * 2 /home/dirk/projects/catandary-trends/scripts/weekly_newsletter_publish.sh
 
 # Research Pulse wöchentlich (#73 Teil 1) — VORSCHLAG, NICHT INSTALLIERT (Owner entscheidet
 # Cron vs. „Recompute"-Knopf auf /trends/foresight/research/pulse/<theme>). Samstag 12:00 =
@@ -108,7 +110,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # — Skript-Kopf dokumentiert die 3 offenen Blocker (PUBLIC_BASE_URL zeigt noch
 # auf localhost, Unsubscribe-Route existiert nicht auf dem Webspace, Sync-
 # Bridge unten noch nicht aktiv). Bisher nur manuell gefahren.
-#0 9 * * 1 /home/dirk/projects/catandary-trends/scripts/newsletter_tonight.sh
+#0 9 * * 2 /home/dirk/projects/catandary-trends/scripts/newsletter_tonight.sh   # Di, passend zur Edition (verlegt 2026-09-11)
 #
 # Subscriber-Sync täglich 08:30: zieht bestätigte/abgemeldete Adressen per
 # export.php vom Webspace (MySQL, System of Record der Einwilligung) in die

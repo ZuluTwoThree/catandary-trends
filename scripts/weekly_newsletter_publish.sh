@@ -12,7 +12,10 @@
 # Vorwoche deterministisch statt "aktuelle Woche beim Lauf": am Montag ist die
 # laufende ISO-Woche fast leer — %G/%V von vor 7 Tagen liefert immer die
 # abgeschlossene Woche (Historie: die KW32-Edition entstand am Mittwoch der
-# Folgewoche; dieser Cron macht daraus einen festen Montags-Rhythmus).
+# Folgewoche; dieser Cron macht daraus einen festen Rhythmus). Cron seit
+# 2026-09-11 DIENSTAG 09:00 (vorher Montag, Owner-Entscheid) — die Rechnung
+# aendert sich dadurch nicht, 'vor 7 Tagen' trifft an beiden Tagen dieselbe
+# abgeschlossene ISO-Woche.
 #
 # Optionaler Schritt „Deep Dive of the Week" (#96, Phase 1): NUR wenn
 # NEWSLETTER_DEEP_DIVE=dry-run gesetzt ist (Default off — der Montagslauf
@@ -44,7 +47,7 @@ WEEK=$(date -d '7 days ago' +%-V)
   echo "================================================================"
   cd "$REPO" || { echo "ABORT: cannot cd $REPO"; exit 1; }
 
-  # Kollisionswächter: Montag 04:00 startet der Full Cycle — läuft er um 09:00
+  # Kollisionswächter: 04:00 startet der Full Cycle — läuft er um 09:00
   # noch (lange Nächte kommen vor), würde der Modell-Swap unten seinen
   # llama-server unter ihm wegziehen. Warten statt kaputt machen (max 90 min).
   # Seit #98 der gemeinsame Helfer (wartet auch auf Ingester/Worker/Pulse).

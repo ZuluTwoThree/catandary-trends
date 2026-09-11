@@ -591,7 +591,7 @@ Doku: `docs/agentic_dossiers.md`, Skizze `docs/corpus_research_sketch.md`.
 
 ## 7. Newsletter
 
-### 7.1 Website-Edition (automatisch, Mo 09:00)
+### 7.1 Website-Edition (automatisch, Di 09:00)
 
 `scripts/weekly_newsletter_publish.sh` (Cron `0 9 * * 1`) generiert die
 **Vorwoche** (ISO-Woche von „heute − 7 Tage") nach `newsletter_editions`:
@@ -1128,7 +1128,7 @@ im Handover still).
 | 03:45 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
 | 04:00 Mo–Fr | Full Cycle + Draft-Richter + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch **3000** — so bemessen, dass ein normaler Tag in einem Lauf durchgeht; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |
 | 07:45 Mo–Fr | Wächter | `python -m scripts.cycle_watchdog` | installiert |
-| 09:00 Mo | Newsletter-Website-Edition | `scripts/weekly_newsletter_publish.sh` | installiert (ohne `NEWSLETTER_DEEP_DIVE`) |
+| 09:00 **Di** | Newsletter-Website-Edition (von Mo verlegt 11.09.) | `scripts/weekly_newsletter_publish.sh` | installiert (ohne `NEWSLETTER_DEEP_DIVE`) |
 | 05:00 Di | Patent-Ingest BDDS (Cr-Del + Amend) | `scripts/weekly_patents.sh` | installiert |
 | 08:00 Di | Patent-Rechnungen (assign_cpc, Tier-Serien, Insights) | `scripts/weekly_patent_analytics.sh` | installiert |
 | 06:00 Sa | Nicht-RSS-Ingester + Distill + Research-Index | `scripts/weekly_ingesters.sh` | installiert |
@@ -1139,7 +1139,7 @@ im Handover still).
 | 6. 12:00 | Startup-Register (CORDIS/SBIR/GLEIF/CH) | `scripts/monthly_startup_sources.sh` | installiert |
 | 03:15 täglich | **Statischer Export → Webspace** | `scripts/publish_static_site.sh` | **installiert in `deploy/crontab.txt`, nicht installiert** (kein `webspace.env`) |
 | 12:00 Sa | Research Pulse | `scripts/weekly_research_pulse.sh` | **Vorschlag, auskommentiert** |
-| 09:00 Mo | Newsletter-Versand | `scripts/newsletter_tonight.sh` | **gegated, auskommentiert** (#16) |
+| 09:00 **Di** | Newsletter-Versand | `scripts/newsletter_tonight.sh` | **gegated, auskommentiert** (#16) |
 | 08:30 täglich | Subscriber-Sync MySQL → Postgres | `python -m scripts.sync_subscribers` (Datei liegt noch unter `docs/launch/newsletter-doi-php/`) | **auskommentiert** (#16) |
 
 `deploy/crontab.txt` ist das Template; die drei Wochen-/Monats-Wrapper tragen
