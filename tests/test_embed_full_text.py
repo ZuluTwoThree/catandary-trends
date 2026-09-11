@@ -46,6 +46,17 @@ class TestTextSelection:
 
 
 class TestThinRowsAreStampedNotEmbedded:
+    """Die fremde GPU muss hier abgeschaltet sein.
+
+    `run()` greift seit dem 10.09. nach bequiet, wenn das Fenster offen und der
+    Rechner erreichbar ist — dann laeuft der gemockte `embed_chunk_resilient`
+    gar nicht und der Test haengt an Uhrzeit und Netz. Genau das ist am 11.09.
+    um 08:0x passiert (Fenster 01:00-17:00 offen)."""
+
+    @pytest.fixture(autouse=True)
+    def _no_remote(self, monkeypatch):
+        monkeypatch.setattr(eft.remote_gpu, "available", lambda *a, **k: None)
+
     def test_thin_rows_never_reach_the_embedder(self, monkeypatch):
         called = []
         monkeypatch.setattr(eft, "embed_chunk_resilient",

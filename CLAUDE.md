@@ -694,11 +694,15 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Volltext-Vektoren (taeglich 09:00, INSTALLIERT 2026-09-10, #102): zweiter
 # Vektorraum ueber den QUELLTEXT (raw_content, sonst excerpt — HTML entfernt,
 # ohne die 500er-Kappe des Dedup-Vektors). Laeuft NACH dem Cycle mit
+# --limit 30000 deckt auch den Samstag ab (Wochen-Ingester ~30.000 Kandidaten):
+# ~40 min auf bequiet, ~76 min lokal. Der Wrapper haengt den Kollisionswaechter
+# davor — montags startet um 09:00 auch der Newsletter, und dieser Lauf ist der
+# niederrangigste GPU-Job im Haus (er soll warten, nicht draengeln).
 # GPU-Handover und stellt den Ruhezustand selbst wieder her. Steht die fremde
 # GPU im Fenster bereit (bequiet, 01:00-17:00), entfaellt der lokale Handover
 # ganz — er wuerde sonst das 8B verdraengen, das Embedding-Modell laden, es
 # nicht benutzen und alles zurueckstellen.
-0 9 * * *    .venv/bin/python scripts/embed_full_text_gpu.py --limit 5000 --apply
+0 9 * * *    scripts/embed_full_text_cron.sh      # --limit 30000, mit Kollisionswaechter
 
 # Volltext-Nachhollauf (#102, on demand — KEIN Cron): die 14-Tage-Regel hat bis
 # zum 10.09. 17.665 Volltexte geloescht (Purge-Log). Die Quell-URL steht noch in

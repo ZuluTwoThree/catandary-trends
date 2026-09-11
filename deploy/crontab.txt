@@ -64,9 +64,12 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # evtl. noch laufenden Full Cycle; idempotent (existierende Edition = no-op).
 # Volltext-Vektoren (#102, taeglich 09:00, INSTALLIERT 2026-09-10): zweiter
 # Vektorraum ueber den QUELLTEXT statt Titel + 500 Zeichen Anriss. Laeuft NACH
-# dem Cycle (der endet ~08:40) mit GPU-Handover; der Dedup-Vektor bleibt
-# unangetastet. Auf der CPU waere es 13 h statt Minuten (gemessen 10.09.).
-0 9 * * * [ -f /home/dirk/projects/catandary-trends/scripts/embed_full_text_gpu.py ] && cd /home/dirk/projects/catandary-trends && .venv/bin/python scripts/embed_full_text_gpu.py --limit 5000 --apply >> /home/dirk/logs/catandary-embed-full.log 2>&1
+# dem Cycle (der endet ~08:40); der Dedup-Vektor bleibt unangetastet.
+# --limit 30000 deckt auch den Samstag ab (Wochen-Ingester bringen dort rund
+# 30.000 Kandidaten): ~40 min auf bequiet, ~76 min lokal. Der Wrapper haengt
+# den Kollisionswaechter davor — montags startet um 09:00 auch der Newsletter,
+# und dieser Lauf ist der niederrangigste GPU-Job im Haus.
+0 9 * * * [ -x /home/dirk/projects/catandary-trends/scripts/embed_full_text_cron.sh ] && /home/dirk/projects/catandary-trends/scripts/embed_full_text_cron.sh >> /home/dirk/logs/catandary-embed-full.log 2>&1
 
 0 9 * * 1 /home/dirk/projects/catandary-trends/scripts/weekly_newsletter_publish.sh
 

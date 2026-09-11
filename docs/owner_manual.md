@@ -1123,7 +1123,7 @@ im Handover still).
 | Zeit | Job | Skript | Status |
 |---|---|---|---|
 | 02:45 täglich | Postgres-Backup (dumpdir, zstd, keep 4 Tage) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4` | installiert |
-| 09:00 täglich | **Volltext-Vektoren** (zweiter Vektorraum, #102) | `scripts/embed_full_text_gpu.py --limit 5000 --apply` | installiert (10.09.) |
+| 09:00 täglich | **Volltext-Vektoren** (zweiter Vektorraum, #102) | `scripts/embed_full_text_cron.sh` (Limit 30.000, mit Kollisionswächter) | installiert (10.09.) |
 | 03:30 täglich | Volltext-Retention 60 Monate | `scripts/purge_raw_content.py --days 1825 --apply` | installiert (03.09., Frist 10.09. erweitert) |
 | 03:45 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
 | 04:00 Mo–Fr | Full Cycle + Draft-Richter + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch **3000** — so bemessen, dass ein normaler Tag in einem Lauf durchgeht; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |
