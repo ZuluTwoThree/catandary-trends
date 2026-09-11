@@ -2,12 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AutoRefresh from "@/components/ops/AutoRefresh";
 import Chart from "@/components/ops/Chart";
+import WeekPlan from "@/components/ops/WeekPlan";
+import MarkdownBody from "@/components/MarkdownBody";
 import {
   RANGES, carryForward, eventDurationMs, fillProjection, fillTone, fmtAgo, fmtBytes, fmtDuration,
   fmtMiB, fmtRate, fmtTime, jobColor, parseRange, pct, runOutcome, smartVerdict,
   type DiskInfo, type OpsEvent, type Sample, type Tone,
 } from "@/lib/ops";
 import { canOps } from "@/lib/ops-access";
+import { collisions, occurrences, parseCrontab, weekStart, type PlannedBlock } from "@/lib/opsCron";
+import { readCrontab, readLogbook } from "@/lib/opsFiles";
+import { parseDuration, parseLogbook, planStart, sortLogbook, type LogKind } from "@/lib/opsLogbook";
 import {
   diskBusyBuckets, diskFillHistory, eventBands, jobStats, latestFullSample, latestSample,
   openEvents, opsTablesReady, recentEvents, sampleBuckets, samplerHealth,
@@ -73,6 +78,10 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
 }
 
 const basename = (p: string | null) => (p ? p.split("/").pop() ?? p : "—");
+
+const KIND_CLASS: Record<LogKind, string> = {
+  change: "text-rising", plan: "text-accent", decision: "text-paper", idea: "text-muted",
+};
 
 /* ---------- sections ---------- */
 
@@ -244,6 +253,29 @@ export default async function OpsPage({ searchParams }: { searchParams: Promise<
   ]);
 
   const series = (pick: (b: (typeof buckets)[number]) => number | null) => buckets.map((b) => ({ t: b.t, v: pick(b) }));
+
+  // Week plan: the installed crontab, expanded into this week, each run sized
+  // by the job's measured median (10 min until we have one); logbook plans
+  // with a day join the grid.
+  const wk0 = weekStart(now);
+  const wk1 = new Date(wk0);
+  wk1.setDate(wk1.getDate() + 7);
+  const cron = readCrontab();
+  const medianMs = new Map(stats.map((j) => [j.job, (j.median_s ?? 600) * 1000]));
+  const cronBlocks: PlannedBlock[] = parseCrontab(cron.text).flatMap((e) =>
+    occurrences(e, wk0, wk1).map((o) => ({
+      job: o.job, start: o.start, end: new Date(o.start.getTime() + (medianMs.get(o.job) ?? 600_000)), source: "cron" as const,
+    }))
+  );
+  const logbookRaw = readLogbook();
+  const logbook = logbookRaw ? sortLogbook(parseLogbook(logbookRaw)) : [];
+  const planBlocks: PlannedBlock[] = logbook.flatMap((e) => {
+    const st = planStart(e);
+    if (!st || st.getTime() < wk0.getTime() || st.getTime() >= wk1.getTime()) return [];
+    return [{ job: `plan:${e.title}`, label: e.title, start: st, end: new Date(st.getTime() + (parseDuration(e.meta.duration) ?? 3_600_000)), source: "plan" as const }];
+  });
+  const weekBlocks = [...cronBlocks, ...planBlocks];
+  const clashes = collisions(weekBlocks).filter(([a, b]) => a.source === "plan" || b.source === "plan" || medianMs.has(a.job) && medianMs.has(b.job));
   const jobsInWindow = [...new Set(bands.map((b) => b.job))];
   const sysDisk = s?.disks?.find((d) => d.mounts.some((m) => m.mount === "/"))?.dev ?? "nvme1n1";
   const hdd = s?.disks?.find((d) => d.rotational)?.dev;
@@ -340,6 +372,56 @@ export default async function OpsPage({ searchParams }: { searchParams: Promise<
       </section>
 
       <section className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <Label>Week plan · {fmtTime(wk0, true).slice(0, 6)} – {fmtTime(new Date(wk1.getTime() - 1), true).slice(0, 6)} · from {cron.source === "crontab" ? "the installed crontab" : cron.source === "template" ? "deploy/crontab.txt (crontab -l unavailable)" : "nothing — no crontab found"}</Label>
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">block width = median duration of the last 28 days (10 min until measured)</span>
+        </div>
+        <WeekPlan weekStart={wk0} blocks={weekBlocks} now={now} />
+        {clashes.length > 0 && (
+          <div className="border border-warn/60 bg-card p-3 text-sm">
+            <Label>Overlaps this week</Label>
+            <ul className="mt-2 space-y-1 font-mono text-[12px] text-text">
+              {clashes.slice(0, 12).map(([a, b], i) => (
+                <li key={i}>
+                  <span className="text-muted">{fmtTime(a.start, true)}</span> {a.label ?? a.job}
+                  <span className="text-muted"> overlaps </span>
+                  <span className="text-muted">{fmtTime(b.start, true)}</span> {b.label ?? b.job}
+                </li>
+              ))}
+              {clashes.length > 12 && <li className="text-muted">… {clashes.length - 12} more</li>}
+            </ul>
+            <p className="text-muted text-xs mt-2">Overlaps between measured cron jobs and planned runs. The GPU guard serialises GPU jobs anyway — an overlap means waiting, not breakage.</p>
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <Label>Logbook · docs/ops/logbook.md</Label>
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">edit in the repo, commit — the page reads the file</span>
+        </div>
+        {logbook.length === 0 ? (
+          <p className="text-muted text-sm">No logbook yet — create <code className="font-mono">docs/ops/logbook.md</code> with <code className="font-mono">## YYYY-MM-DD · change|plan|decision|idea · title</code> headings.</p>
+        ) : (
+          <ol className="space-y-3">
+            {logbook.map((e) => (
+              <li key={`${e.line}`} className={`border p-4 bg-card ${e.kind === "plan" ? "border-accent/60" : "border-border"}`}>
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="font-mono text-[11px] text-paper">{e.date}{e.time ? ` ${e.time}` : ""}</span>
+                  <span className={`font-mono text-[10px] uppercase tracking-[0.14em] ${KIND_CLASS[e.kind]}`}>{e.kind}</span>
+                  <span className="font-display text-[17px] text-paper">{e.title}</span>
+                  {Object.entries(e.meta).map(([k, v]) => (
+                    <span key={k} className="font-mono text-[10px] text-muted">{k}: {v}</span>
+                  ))}
+                </div>
+                {e.body && <div className="mt-2 [&_p]:text-[14px] [&_p]:leading-[1.6]"><MarkdownBody source={e.body} /></div>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      <section className="space-y-3">
         <Label>Jobs · last 28 days</Label>
         <div className="overflow-x-auto border border-border bg-card">
           <table className="w-full text-sm font-sans">
@@ -380,7 +462,7 @@ export default async function OpsPage({ searchParams }: { searchParams: Promise<
       </section>
 
       <footer className="text-muted text-xs">
-        Sampler: <code className="font-mono">scripts/ops_sampler.py</code> · events: <code className="font-mono">scripts/lib/ops_events.sh</code>, <code className="font-mono">pipeline/ops_events.py</code> · Issue #104. Logbook and alerts follow.
+        Sampler: <code className="font-mono">scripts/ops_sampler.py</code> · events: <code className="font-mono">scripts/lib/ops_events.sh</code>, <code className="font-mono">pipeline/ops_events.py</code> · Issue #104. Alerts follow (Stufe 5).
       </footer>
     </main>
   );

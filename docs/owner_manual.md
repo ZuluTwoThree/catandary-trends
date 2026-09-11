@@ -1334,7 +1334,24 @@ RAM, DB-Größe, Backlog/Review-Queue — die farbigen Bänder dahinter sind die
 Job-Läufe aus `ops_events`, Legende darüber. Zuletzt **Jobs** (28 Tage: Läufe,
 Median-Dauer, letzter Lauf, Ergebnis) und **Runs** (letzte 40: Start, Dauer,
 Ergebnis ok/blocked/rc N/running, Notiz). Die Seite lädt sich alle 60 s neu.
-Logbuch/Wochenplan (Stufe 4) und Alarme (Stufe 5) kommen noch.
+
+**Wochenplan:** die *installierte* Crontab (`crontab -l`; fällt auf
+`deploy/crontab.txt` zurück und sagt es dazu) als Raster Mo–So × 0–24 h. Jeder
+Block ist ein geplanter Start, seine Breite die gemessene Median-Dauer der
+letzten 28 Tage (10 min, solange nichts gemessen ist), Vergangenes blasser, die
+rote Linie ist jetzt. Darunter eine Liste der Überschneidungen dieser Woche —
+zwischen gemessenen Cron-Jobs und geplanten Läufen. Der GPU-Wächter serialisiert
+GPU-Jobs ohnehin: eine Überschneidung heißt Warten, nicht Bruch.
+
+**Logbuch (`docs/ops/logbook.md`):** Ihr Protokoll- und Planungsheft,
+versioniert im Repo, von der Seite gerendert. Ein Eintrag = eine Überschrift
+`## <Datum> · <Art> · <Titel>` — Datum `YYYY-MM-DD` (optional `HH:MM`), für
+Ideen ohne Termin `YYYY-MM`; Arten `change` (passiert), `plan` (mit Tag →
+erscheint als gestrichelter Block im Wochenplan), `decision`, `idea`. Direkt
+unter der Überschrift optional `duration: 3h` (`45m`, `2h30m`, `1d`) und
+`gpu: local|bequiet`, dann Markdown. Im Editor schreiben, committen — die Seite
+liest die Datei beim Aufruf; Reihenfolge sortiert sie selbst (neueste oben).
+Alarme (Stufe 5) kommen noch.
 
 **Darunter: Sampler und Laufprotokoll.**
 
