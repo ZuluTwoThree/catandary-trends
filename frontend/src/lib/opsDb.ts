@@ -216,6 +216,34 @@ export async function jobStats(days = 28): Promise<JobStat[]> {
   }));
 }
 
+export interface OpsAlert {
+  id: number;
+  kind: string;
+  key: string;
+  message: string;
+  raised_at: Date;
+  resolved_at: Date | null;
+}
+
+function toAlert(r: Record<string, unknown>): OpsAlert {
+  return {
+    id: Number(r.id), kind: String(r.kind), key: String(r.key), message: String(r.message),
+    raised_at: new Date(r.raised_at as string),
+    resolved_at: r.resolved_at ? new Date(r.resolved_at as string) : null,
+  };
+}
+
+/** Open alerts first (oldest open on top), then the last resolved ones. */
+export async function alerts(limitResolved = 15): Promise<{ open: OpsAlert[]; resolved: OpsAlert[] }> {
+  const ready = await q1<{ ok: boolean }>("SELECT to_regclass('public.ops_alerts') IS NOT NULL AS ok");
+  if (!ready?.ok) return { open: [], resolved: [] };
+  const [open, resolved] = await Promise.all([
+    q<Record<string, unknown>>("SELECT * FROM ops_alerts WHERE resolved_at IS NULL ORDER BY raised_at"),
+    q<Record<string, unknown>>("SELECT * FROM ops_alerts WHERE resolved_at IS NOT NULL ORDER BY resolved_at DESC LIMIT $1", [limitResolved]),
+  ]);
+  return { open: open.map(toAlert), resolved: resolved.map(toAlert) };
+}
+
 export async function samplerHealth(): Promise<{ last: Date | null; rowsToday: number }> {
   const r = await q1<{ last: string | null; n: string }>(
     "SELECT max(ts) AS last, count(*) FILTER (WHERE ts > now() - interval '24 hours') AS n FROM ops_samples"

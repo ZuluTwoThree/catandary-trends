@@ -829,7 +829,24 @@ ein Python-Skript unter einem Wrapper übernimmt dessen Zeile statt eine zweite
 anzulegen (embed_full_text notiert so `gpu=remote …`/`gpu=local`). Das Protokoll
 darf einen Lauf nie verhindern — DB weg → Warnung im Log, Job läuft weiter. Ein
 Lauf ohne `ended_at` ist die Information „abgebrochen, Ende unbekannt".
-Die Seite `/trends/ops`, Logbuch und Alarme folgen in den Stufen 3–6.
+
+**Alarme (#104 Stufe 5, seit 2026-09-11):** `pipeline/ops_alerts.py` läuft im
+Sampler nach jeder Messung; Schwellen in `ops_alerts.yaml` (Repo-Root, ohne Code
+änderbar). Regeln: Platte frei < 10 % (unter `/` = System + Postgres schon < 20 %),
+Platten-Temperatur (HDD > 50 °C, SSD > 65 °C), SMART FAILED / NVMe critical
+warning / Verschleiß ≥ 90 % / Reserve < 10 % / Sektor- und Medienfehler-Zähler
+**steigen** (gegen die vorige volle Messung, ein stabiler Wert ist kein Alarm),
+GPU > 88 °C, Fremdbelegung (> 1,5 GB VRAM, aber kein llama-server antwortet und
+kein Job hält die Karte — der Ruhezustand mit 8B ist keiner), DB-Verbindungen
+> 80 %, Job läuft > 2 × seinen Median (28 d, ≥ 3 Läufe), Job läuft > 6 h,
+Backlog-Tagesmaximum steigt 3 Tage in Folge. Zustand in `ops_alerts`: **eine
+Mail beim Auslösen, eine bei der Entwarnung** (Resend, derselbe Weg wie der
+Wächter); eine Regel, die in dieser Minute nichts prüfen konnte (SMART/Backlog
+nur alle 10 min), lässt ihre offenen Alarme stehen — sonst flatterte die
+Entwarnung im Minutentakt. Der Alarmpfad fängt alles, die Messung ist vorher
+geschrieben. **Sampler tot** meldet der Morgen-Wächter (`cycle_watchdog.py`
+`inspect_sampler`: letzte Messung > 5 min alt). Offene Alarme stehen als Banner
+oben auf `/trends/ops`.
 
 **Mengenbremse statt Quellen-Verbot (Owner-Präzisierung 2026-08-20):** Funding-News
 dürfen über den regulären Cycle zu Artikeln werden. Verhindert wird nur, dass ein
@@ -1042,7 +1059,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
 /trends/newsletter/review        → Freigabe-Desk (Owner, seit 2026-09-06): Editionsliste + Vorschau der echten Mail
                                    + Freigabe/Zurückziehen + KI-Kennzeichnung je Block; im PUBLIC_MODE 404 und aus dem
                                    statischen Export ausgeschlossen (BLOCKED_PREFIXES + static-export.exclude + canReview())
-/trends/ops                      → Ops-Dashboard (#104, seit 2026-09-11; Owner, im PUBLIC_MODE 404, nicht im Export): Jetzt-Kacheln (GPU lokal + bequiet, CPU/RAM, Postgres, Queues, Sampler), alle vier Platten (Füllstand, I/O, Temperatur, SMART-Ampel, „voll in N Tagen"), 24-h/7-d-Diagramme als server-gerendertes SVG mit Job-Bändern aus ops_events, Job-Statistik (28 Tage, Median-Dauer) und die letzten 40 Läufe; ?range=24h|7d, Auto-Refresh 60 s. **Wochenplan** (Stufe 4): die INSTALLIERTE Crontab (`crontab -l`, Fallback `deploy/crontab.txt`) als Wochenraster, Blockbreite = gemessene Median-Dauer, Überschneidungen aufgelistet; **Logbuch** `docs/ops/logbook.md` (versioniert, `## <Datum> · change|plan|decision|idea · <Titel>`, optional `duration:`/`gpu:`-Zeilen) gerendert, `plan`-Einträge mit Tag erscheinen im Wochenplan. Alarme (Stufe 5) folgen.
+/trends/ops                      → Ops-Dashboard (#104, seit 2026-09-11; Owner, im PUBLIC_MODE 404, nicht im Export): Jetzt-Kacheln (GPU lokal + bequiet, CPU/RAM, Postgres, Queues, Sampler), alle vier Platten (Füllstand, I/O, Temperatur, SMART-Ampel, „voll in N Tagen"), 24-h/7-d-Diagramme als server-gerendertes SVG mit Job-Bändern aus ops_events, Job-Statistik (28 Tage, Median-Dauer) und die letzten 40 Läufe; ?range=24h|7d, Auto-Refresh 60 s. **Wochenplan** (Stufe 4): die INSTALLIERTE Crontab (`crontab -l`, Fallback `deploy/crontab.txt`) als Wochenraster, Blockbreite = gemessene Median-Dauer, Überschneidungen aufgelistet; **Logbuch** `docs/ops/logbook.md` (versioniert, `## <Datum> · change|plan|decision|idea · <Titel>`, optional `duration:`/`gpu:`-Zeilen) gerendert, `plan`-Einträge mit Tag erscheinen im Wochenplan. **Alarme** (Stufe 5) als Banner oben (offen) + zuletzt entwarnt; Regeln/Schwellen s. Cron-Block.
 /trends/dossiers, /trends/dossiers/[slug] → Owner-Dossier-Desk (#95; lokal standardmäßig AN, `DOSSIERS_ENABLED=0` = Not-Aus; unter PUBLIC_MODE geblockt und aus dem statischen Export ausgeschlossen): Scouting-Dossier-Aufträge erteilen, „Neu rechnen" startet den Worker on-demand, Bericht mit Herkunftskopf/Coverage-Anhang + Agenten-Endkontrolle lesen, Sign-off — siehe `docs/agentic_dossiers.md`
 /imprint, /privacy, /enquiry     → Rechtstexte + Anfrage (mailto); im Export unter /trends/… (s. o.), da der Publisher den Webroot nie schreibt
 ```

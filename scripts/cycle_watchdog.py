@@ -311,6 +311,27 @@ def inspect_publish(stamp: str) -> dict:
             "headline": f"publish ok ({numbers})", "detail": "", "tail": tail}
 
 
+def inspect_sampler(stamp: str) -> dict:
+    """Is the ops sampler (#104) alive? It writes one row per minute and cannot
+    report its own death — the morning watchdog does. Dormant until the tables
+    exist (first init_db after the merge)."""
+    try:
+        from pipeline.ops_alerts import sampler_stale
+        stale, msg = sampler_stale()
+    except Exception as e:  # noqa: BLE001 — tables missing, DB down: say so, don't crash the watchdog
+        return {"ok": True, "kind": "sampler-unconfigured", "log": None,
+                "headline": f"ops sampler check dormant ({type(e).__name__})", "detail": "", "tail": []}
+    if stale:
+        return {"ok": False, "kind": "sampler-stale", "log": None,
+                "headline": "The ops sampler has stopped writing",
+                "detail": f"{msg}. /trends/ops is blind and the ops alerts are silent. Check "
+                          "`systemctl --user status catandary-ops-sampler.timer` and "
+                          "`journalctl --user -u catandary-ops-sampler -n 20`; "
+                          "`systemctl --user restart catandary-ops-sampler.timer` brings it back.",
+                "tail": []}
+    return {"ok": True, "kind": "sampler", "log": None, "headline": f"ops sampler ok ({msg})", "detail": "", "tail": []}
+
+
 def build_mail(v: dict, stamp: str) -> tuple[str, str, str]:
     nice = datetime.strptime(stamp, "%Y%m%d").strftime("%d.%m.%Y")
     subject = f"Catandary: {v['headline'].lower()} ({nice})"
@@ -361,11 +382,13 @@ def main() -> int:
     cycle_v = inspect(stamp)
     backup_v = inspect_backup(stamp)
     publish_v = inspect_publish(stamp)
+    sampler_v = inspect_sampler(stamp)
     logger.info("%s: cycle: %s (%s)", stamp, cycle_v["headline"], cycle_v["kind"])
     logger.info("%s: backup: %s", stamp, backup_v["headline"])
     logger.info("%s: publish: %s", stamp, publish_v["headline"])
+    logger.info("%s: sampler: %s", stamp, sampler_v["headline"])
 
-    problems = [v for v in (cycle_v, backup_v, publish_v) if not v["ok"]]
+    problems = [v for v in (cycle_v, backup_v, publish_v, sampler_v) if not v["ok"]]
     if not problems:
         if not args.force:
             return 0  # silence means healthy

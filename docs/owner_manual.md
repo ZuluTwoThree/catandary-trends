@@ -1151,6 +1151,8 @@ gleichzeitig gegen `:8090`.
 
 ### 11.2 Wächter-Mails
 
+*(Seit 11.09.2026 prüft der Wächter zusätzlich den Ops-Sampler — §11.9.)*
+
 `scripts/cycle_watchdog.py` (07:45 Mo–Fr): Cycle-`end`-Zeile mit rc, heutiges
 Backup-Artefakt, Publish-Summary (schlafend ohne `webspace.env`). Mail nur bei
 Befund. Manuell: `python -m scripts.cycle_watchdog --dry-run [--date 20260817]`.
@@ -1351,7 +1353,27 @@ erscheint als gestrichelter Block im Wochenplan), `decision`, `idea`. Direkt
 unter der Überschrift optional `duration: 3h` (`45m`, `2h30m`, `1d`) und
 `gpu: local|bequiet`, dann Markdown. Im Editor schreiben, committen — die Seite
 liest die Datei beim Aufruf; Reihenfolge sortiert sie selbst (neueste oben).
-Alarme (Stufe 5) kommen noch.
+
+**Alarme:** der Sampler prüft nach jeder Messung die Regeln aus
+`pipeline/ops_alerts.py`; die Schwellen stehen in **`ops_alerts.yaml`** im
+Repo-Root und wirken ohne Code beim nächsten Minutentakt. Was gemeldet wird:
+Platte unter 10 % frei (`/` mit Postgres schon unter 20 %), HDD über 50 °C /
+SSD über 65 °C, SMART FAILED, NVMe-Verschleiß ≥ 90 % oder Reserve < 10 %,
+Sektor-/Medienfehler-Zähler, die gegenüber der vorigen Messung **steigen**,
+GPU über 88 °C, Grafikspeicher belegt ohne antwortenden llama-server und ohne
+bekannten Job, mehr als 80 % der DB-Verbindungen, ein Job, der länger als das
+Doppelte seines Medians läuft, ein Job über 6 h, ein Backlog, dessen
+Tagesmaximum drei Tage in Folge steigt. **Eine Mail beim Auslösen, eine bei der
+Entwarnung** (gleiche Adresse wie der Wächter), dazwischen Ruhe; offene Alarme
+stehen als Banner oben auf `/trends/ops`, darunter aufklappbar die zuletzt
+entwarnten. Ist der Sampler selbst tot, meldet das der Morgen-Wächter um 07:45
+(„The ops sampler has stopped writing", mit den Kommandos zum Wiederbeleben).
+Regeln von Hand prüfen, ohne zu schreiben:
+
+```bash
+.venv/bin/python -c "from pipeline import ops_alerts as a, ops_probe as p; s=p.take_sample(full=True); print([(f.kind,f.message) for r in a.evaluate(s, a._db_context(), a.load_thresholds()) for f in r.findings] or 'keine Befunde')"
+psql catandary -c "select kind, key, message, raised_at, resolved_at from ops_alerts order by raised_at desc limit 20"
+```
 
 **Darunter: Sampler und Laufprotokoll.**
 

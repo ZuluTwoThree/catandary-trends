@@ -1,0 +1,33 @@
+# Schwellen der Ops-Alarme (#104, Stufe 5). Gelesen von pipeline/ops_alerts.py
+# nach jeder Messung des Samplers; Aenderungen hier wirken beim naechsten
+# Minutentakt, ohne Code. Fehlt ein Schluessel, gilt der Default im Modul.
+#
+# Jede Regel meldet EINMAL beim Ausloesen und EINMAL bei der Entwarnung
+# (Tabelle ops_alerts merkt sich den Zustand) — dazwischen ist Ruhe.
+
+# Platten
+disk_free_pct_min: 10          # jeder eingehaengte Datentraeger
+disk_free_pct_min_system: 20   # "/" (System + Postgres): schon bei 80 % voll warnen
+disk_temp_hdd_max_c: 50
+disk_temp_ssd_max_c: 65
+nvme_wear_pct_max: 90
+nvme_spare_pct_min: 10
+# HDD-Sektorzaehler und NVMe-Medienfehler: Alarm nur, wenn sie STEIGEN
+# (gegenueber der vorigen vollen Messung) — ein seit Jahren stabiler Wert ist keiner.
+
+# GPU lokal
+gpu_temp_max_c: 88
+gpu_foreign_vram_mib: 1500     # mehr belegt, aber kein llama-server antwortet und kein Job haelt die Karte (Ruhezustand mit 8B = kein Alarm)
+
+# Postgres
+db_connections_pct_max: 80
+
+# Laeufe (ops_events)
+job_slow_factor: 2.0           # laeuft noch und schon laenger als Faktor x Median (28 Tage, >= 3 Laeufe)
+job_hang_hours: 6              # laeuft noch, seit mehr als N Stunden
+
+# Rueckstand
+backlog_growth_days: 3         # Tagesmaximum des Backlogs steigt N Tage in Folge
+
+# Sampler selbst — prueft der Morgen-Waechter (scripts/cycle_watchdog.py), nicht der Sampler
+sampler_stale_min: 5

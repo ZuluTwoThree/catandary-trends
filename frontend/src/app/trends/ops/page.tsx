@@ -14,7 +14,7 @@ import { collisions, occurrences, parseCrontab, weekStart, type PlannedBlock } f
 import { readCrontab, readLogbook } from "@/lib/opsFiles";
 import { parseDuration, parseLogbook, planStart, sortLogbook, type LogKind } from "@/lib/opsLogbook";
 import {
-  diskBusyBuckets, diskFillHistory, eventBands, jobStats, latestFullSample, latestSample,
+  alerts, diskBusyBuckets, diskFillHistory, eventBands, jobStats, latestFullSample, latestSample,
   openEvents, opsTablesReady, recentEvents, sampleBuckets, samplerHealth,
 } from "@/lib/opsDb";
 
@@ -246,10 +246,10 @@ export default async function OpsPage({ searchParams }: { searchParams: Promise<
     );
   }
 
-  const [s, full, buckets, busy, fills, bands, open, events, stats, sampler] = await Promise.all([
+  const [s, full, buckets, busy, fills, bands, open, events, stats, sampler, al] = await Promise.all([
     latestSample(), latestFullSample(), sampleBuckets(range.hours, range.bucketSec),
     diskBusyBuckets(range.hours, range.bucketSec), diskFillHistory(7), eventBands(range.hours),
-    openEvents(), recentEvents(40), jobStats(28), samplerHealth(),
+    openEvents(), recentEvents(40), jobStats(28), samplerHealth(), alerts(15),
   ]);
 
   const series = (pick: (b: (typeof buckets)[number]) => number | null) => buckets.map((b) => ({ t: b.t, v: pick(b) }));
@@ -300,6 +300,31 @@ export default async function OpsPage({ searchParams }: { searchParams: Promise<
           <AutoRefresh seconds={60} />
         </div>
       </header>
+
+      <section className="space-y-2">
+        <Label>Alerts · {al.open.length === 0 ? "none open" : `${al.open.length} open`} · thresholds in ops_alerts.yaml · one mail on raise, one on resolve</Label>
+        {al.open.length > 0 && (
+          <ul className="border border-warn bg-warn/10 p-3 space-y-1">
+            {al.open.map((a) => (
+              <li key={a.id} className="flex flex-wrap gap-x-3 text-sm">
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-warn self-center">{a.kind}</span>
+                <span className="text-paper">{a.message}</span>
+                <span className="font-mono text-[11px] text-muted self-center">since {fmtTime(a.raised_at, true)} ({fmtAgo(a.raised_at, now)})</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {al.resolved.length > 0 && (
+          <details className="text-sm">
+            <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.12em] text-muted">last resolved ({al.resolved.length})</summary>
+            <ul className="mt-1 space-y-0.5 text-muted">
+              {al.resolved.map((a) => (
+                <li key={a.id}><span className="font-mono text-[11px]">{fmtTime(a.raised_at, true)} – {a.resolved_at ? fmtTime(a.resolved_at, true) : "?"}</span> · {a.kind} · {a.message}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </section>
 
       {!s ? (
         <p className="text-warn">No samples yet — is <code className="font-mono">catandary-ops-sampler.timer</code> running?</p>
@@ -462,7 +487,7 @@ export default async function OpsPage({ searchParams }: { searchParams: Promise<
       </section>
 
       <footer className="text-muted text-xs">
-        Sampler: <code className="font-mono">scripts/ops_sampler.py</code> · events: <code className="font-mono">scripts/lib/ops_events.sh</code>, <code className="font-mono">pipeline/ops_events.py</code> · Issue #104. Alerts follow (Stufe 5).
+        Sampler: <code className="font-mono">scripts/ops_sampler.py</code> · events: <code className="font-mono">scripts/lib/ops_events.sh</code>, <code className="font-mono">pipeline/ops_events.py</code> · Issue #104. Alerts: <code className="font-mono">pipeline/ops_alerts.py</code>, thresholds <code className="font-mono">ops_alerts.yaml</code>.
       </footer>
     </main>
   );
