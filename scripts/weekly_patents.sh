@@ -37,6 +37,9 @@ BEFORE=$(date -d '+1 year' +%F)
   echo "================================================================"
   cd "$REPO" || { echo "ABORT: cannot cd to $REPO"; exit 1; }
   # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/ops_events.sh"
+  ops_event_start weekly_patents "window=${AFTER}..${BEFORE}"
+  # shellcheck disable=SC1091
   source .venv/bin/activate
 
   python -u scripts/catchup_bdds.py --after "$AFTER" --before "$BEFORE" --kind both
@@ -91,6 +94,7 @@ PY
   elif [ "$DENSITY_RC" -ne 0 ]; then
     FINAL_RC="$DENSITY_RC"
   fi
+  ops_event_end "$FINAL_RC" "catchup_rc=$RC density_rc=$DENSITY_RC"
   echo "weekly_patents.sh end $(date -Iseconds) (catchup_rc=$RC density_rc=$DENSITY_RC final_rc=$FINAL_RC)"
 } >> "$LOG" 2>&1
 

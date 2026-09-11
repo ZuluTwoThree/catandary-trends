@@ -306,4 +306,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from pipeline.ops_events import record  # Laufprotokoll fuer /trends/ops (#104)
+    with record("dossier_worker"):
+        raise SystemExit(main())

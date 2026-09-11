@@ -46,6 +46,9 @@ WEEK=$(date -d '7 days ago' +%-V)
   echo "weekly_newsletter_publish.sh start $(date -Iseconds) — Edition ${YEAR}-W${WEEK}"
   echo "================================================================"
   cd "$REPO" || { echo "ABORT: cannot cd $REPO"; exit 1; }
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/ops_events.sh"
+  ops_event_start weekly_newsletter_publish "edition=${YEAR}-W${WEEK}"
 
   # Kollisionswächter: 04:00 startet der Full Cycle — läuft er um 09:00
   # noch (lange Nächte kommen vor), würde der Modell-Swap unten seinen
@@ -55,6 +58,7 @@ WEEK=$(date -d '7 days ago' +%-V)
   source "$REPO/scripts/lib/gpu_guard.sh"
   if ! gpu_guard_wait weekly_newsletter_publish; then
     echo "ABORT: fremder GPU-Job nach ${GPU_GUARD_MAX_MIN} min immer noch aktiv — Edition ${YEAR}-W${WEEK} beim nächsten Lauf nachholen"
+    ops_event_end 75 "blocked: fremder GPU-Job"
     echo "weekly_newsletter_publish.sh end $(date -Iseconds) (gen=blocked)"
     exit 1
   fi
@@ -70,6 +74,7 @@ PYEOF
 )
   if [ "${EXISTS:-0}" -gt 0 ]; then
     echo "Edition W${WEEK} existiert bereits — nichts zu tun."
+    ops_event_end 0 "exists"
     echo "weekly_newsletter_publish.sh end $(date -Iseconds) (gen=exists)"
     exit 0
   fi
@@ -98,6 +103,7 @@ PYEOF
   fi
   if [ -z "$CUR" ]; then
     echo "ABORT: no model serving on :8090 — refusing to generate"
+    ops_event_end 1 "skipped: kein Modell auf :8090"
     echo "weekly_newsletter_publish.sh end $(date -Iseconds) (gen=skipped)"
     exit 1
   fi
@@ -125,6 +131,7 @@ PYEOF
     *) echo "WARN: NEWSLETTER_DEEP_DIVE='${NEWSLETTER_DEEP_DIVE}' unknown (dry-run|off) — step skipped"; DD_RC="skipped" ;;
   esac
 
+  ops_event_end "$RC" "dd=$DD_RC"
   echo "weekly_newsletter_publish.sh end $(date -Iseconds) (gen=$RC dd=$DD_RC)"
   exit "$RC"
 } >> "$LOG" 2>&1

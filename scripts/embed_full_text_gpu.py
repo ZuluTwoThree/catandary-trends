@@ -18,7 +18,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from pipeline import gpu_handover, remote_gpu  # noqa: E402
+from pipeline import gpu_handover, ops_events, remote_gpu  # noqa: E402
 from pipeline.config import EMBED_MODEL  # noqa: E402
 from pipeline.gpu_handover import embed_on_llamacpp  # noqa: E402
 
@@ -67,7 +67,9 @@ def main() -> int:
     remote = remote_gpu.available()
     if remote:
         print(f"fremde GPU im Fenster ({remote}) — lokaler Handover entfaellt", flush=True)
+        ops_events.add_note(ops_events.current_event_id(), f"gpu=remote {remote}")
         return subprocess.call(cmd, env=env, cwd=str(REPO))
+    ops_events.add_note(ops_events.current_event_id(), "gpu=local")
 
     was_active = _server_active()
     try:
@@ -79,4 +81,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from pipeline.ops_events import record  # Laufprotokoll fuer /trends/ops (#104)
+    with record("embed_full_text"):
+        raise SystemExit(main())

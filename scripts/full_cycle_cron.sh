@@ -39,8 +39,12 @@ mkdir -p "$(dirname "$LOG")"
 
   # shellcheck disable=SC1091
   source "$REPO/scripts/lib/gpu_guard.sh"
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/ops_events.sh"
+  ops_event_start full_cycle_cron
   if ! gpu_guard_wait full_cycle_cron; then
     echo "ABORT: fremder GPU-Job nach ${GPU_GUARD_MAX_MIN} min immer noch aktiv — VRAM NICHT freigeräumt, Cycle nicht gestartet"
+    ops_event_end 75 "blocked: fremder GPU-Job"
     echo "full_cycle_cron.sh end  $(date -Iseconds)  (rc=75)"
     exit 75
   fi
@@ -109,5 +113,6 @@ mkdir -p "$(dirname "$LOG")"
   ( cd "$REPO" && "$REPO/.venv/bin/python" -m scripts.review_notify ) \
     || echo "  (notification failed — non-fatal)"
 
+  ops_event_end "$RC" "batch=${CYCLE_BATCH:-?}"
   echo "full_cycle_cron.sh end  $(date -Iseconds)  (rc=$RC)"
 } >> "$LOG" 2>&1

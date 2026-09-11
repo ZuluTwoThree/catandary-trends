@@ -219,4 +219,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from pipeline.ops_events import record  # Laufprotokoll fuer /trends/ops (#104)
+    with record("backup_db"):
+        sys.exit(main())

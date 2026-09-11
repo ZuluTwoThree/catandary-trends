@@ -33,6 +33,9 @@ mkdir -p "$(dirname "$LOG")"
   echo "================================================================"
   cd "$REPO" || { echo "ABORT: cannot cd to $REPO"; exit 1; }
   # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/ops_events.sh"
+  ops_event_start sync_openalex_monthly
+  # shellcheck disable=SC1091
   source .venv/bin/activate
 
   RC=0
@@ -92,6 +95,7 @@ cur.execute("""INSERT INTO research_corpus_meta (singleton, total) VALUES (TRUE,
 print(f"Statistik-Tabellen refresht: total={n:,}")
 PY
 
+  ops_event_end "$RC"
   echo; echo "sync_openalex_monthly.sh end $(date -Iseconds) (rc=$RC)"
   exit "$RC"
 } >> "$LOG" 2>&1

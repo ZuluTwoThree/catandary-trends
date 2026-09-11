@@ -21,8 +21,11 @@ set -u
 REPO="/home/dirk/projects/catandary-trends"
 PY="$REPO/.venv/bin/python"
 cd "$REPO" || exit 1
+# shellcheck disable=SC1091
+source "$REPO/scripts/lib/ops_events.sh"
 
 LIMIT="${EMBED_LIMIT:-30000}"
+ops_event_start embed_full_text "limit=$LIMIT"
 
 REMOTE_OK=$("$PY" -c "from pipeline import remote_gpu; print('1' if remote_gpu.available() else '0')" 2>/dev/null)
 
@@ -31,10 +34,14 @@ if [ "$REMOTE_OK" != "1" ]; then
   source "$REPO/scripts/lib/gpu_guard.sh"
   if ! gpu_guard_wait embed_full_text; then
     echo "$(date -Iseconds) SKIP: fremder GPU-Job nach ${GPU_GUARD_MAX_MIN} min noch aktiv — naechster Lauf holt nach"
+    ops_event_end 75 "blocked: fremder GPU-Job"
     exit 75
   fi
 else
   echo "$(date -Iseconds) fremde GPU im Fenster — lokale Karte bleibt unberuehrt, kein Warten noetig"
 fi
 
-exec "$PY" -u scripts/embed_full_text_gpu.py --limit "$LIMIT" --apply
+"$PY" -u scripts/embed_full_text_gpu.py --limit "$LIMIT" --apply
+RC=$?
+ops_event_end "$RC"
+exit "$RC"

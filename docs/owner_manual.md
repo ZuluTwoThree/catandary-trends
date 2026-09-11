@@ -1315,7 +1315,7 @@ ungefährlich.
 
 ---
 
-### 11.9 Ops-Sampler (#104, Stufe 1)
+### 11.9 Ops-Sampler und Laufprotokoll (#104, Stufen 1–2)
 
 Grundlage des kommenden Ops-Dashboards `/trends/ops`: ein systemd-User-Timer
 misst **jede Minute** und schreibt eine Zeile nach `ops_samples`. Läuft aus dem
@@ -1353,9 +1353,27 @@ Lesebefehl (`smartctl -j -n standby -A -H /dev/*`, weckt schlafende Platten
 nicht). Bis dahin bleibt `smart` in der Zeile leer, alles andere läuft.
 
 Kosten: ~2 s je Messung (davon 2 s Timeout, wenn bequiet aus ist), ~4 s bei
-einer vollen; Tabelle ~10.000 Zeilen Bestand. Die Seite, die Ereignisse der
-Wrapper (`ops_events`), das Logbuch `docs/ops/logbook.md` und die Alarme
-(`ops_alerts`) kommen in den Stufen 2–6 von #104.
+einer vollen; Tabelle ~10.000 Zeilen Bestand.
+
+**Laufprotokoll `ops_events` (Stufe 2):** jeder Lauf eines Cron-Wrappers oder
+Workers ist eine Zeile — Job, Start, Ende, Exit-Code, Notiz (z. B.
+`batch=3000`, `gpu_done=3 gpu_skipped=0`, `gpu=remote http://…`, `blocked:
+fremder GPU-Job`). Das ist das Langzeit-Gedächtnis für „wie lang dauert der
+Samstag wirklich" — es wird nicht gelöscht.
+
+```bash
+.venv/bin/python -m pipeline.ops_events open                 # was läuft gerade (Start ohne Ende)?
+psql catandary -c "select job, started_at, ended_at - started_at as dauer, rc, note from ops_events order by started_at desc limit 20"
+```
+
+Ein Lauf **ohne** `ended_at` und ohne laufenden Prozess ist abgebrochen (kill,
+Stromausfall) — genau diese Information soll stehen bleiben. Schreiber sind
+die zehn Shell-Wrapper (`scripts/lib/ops_events.sh`, zwei Zeilen je Wrapper)
+und die Python-Crons/Worker (`with record("<job>")` um `main()`); ein von Hand
+gestarteter Wrapper zählt genauso. Das Protokoll verhindert nie einen Lauf:
+ist die DB nicht erreichbar, steht `[ops_events] WARN` im Log und der Job
+läuft weiter. Die Seite `/trends/ops`, das Logbuch `docs/ops/logbook.md` und
+die Alarme (`ops_alerts`) kommen in den Stufen 3–6 von #104.
 
 ## 12. Sicherheit und Recht (kurz)
 

@@ -43,9 +43,13 @@ mkdir -p "$(dirname "$LOG")"
   echo "publish_static_site.sh start $(date -Iseconds)"
   echo "================================================================"
   cd "$REPO" || { echo "ABORT: cannot cd $REPO"; echo "publish_static_site.sh end $(date -Iseconds) (rc=1)"; exit 1; }
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/ops_events.sh"
+  ops_event_start publish_static_site
 
   if [ ! -f "$CONFIG" ]; then
     echo "skip: no webspace config at $CONFIG — nothing to publish to (create it: HOSTING_HETZNER.md)"
+    ops_event_end 0 "skipped: keine Webspace-Config"
     echo "publish_static_site.sh end $(date -Iseconds) (rc=0 skipped)"
     exit 0
   fi
@@ -54,6 +58,7 @@ mkdir -p "$(dirname "$LOG")"
   exec 9>"$LOCK"
   if ! flock -n 9; then
     echo "ABORT: another publish is running (lock $LOCK)"
+    ops_event_end 1 "locked: anderer Publish laeuft"
     echo "publish_static_site.sh end $(date -Iseconds) (rc=1)"
     exit 1
   fi
@@ -69,6 +74,7 @@ mkdir -p "$(dirname "$LOG")"
   done
   if pgrep -f "scheduled_cycle.sh|full_cycle_cron.sh" >/dev/null; then
     echo "ABORT: Full Cycle nach 90 min immer noch aktiv — Publish heute ausgelassen"
+    ops_event_end 1 "blocked: Full Cycle"
     echo "publish_static_site.sh end $(date -Iseconds) (rc=1 blocked)"
     exit 1
   fi
@@ -92,6 +98,7 @@ mkdir -p "$(dirname "$LOG")"
     # ab, publish_last.json blieb auf "ok", niemand erfuhr davon).
     printf '{"status":"build-failed","uploaded":0,"deleted":0,"unchanged":0,"errors":1,"rc":%s,"finished_at":"%s","note":"build_public_static.sh failed — see the log"}\n' \
       "$RC" "$(date -Iseconds)" > "$REPO/data/publish_last.json"
+    ops_event_end "$RC" "build failed"
     echo "publish_static_site.sh end $(date -Iseconds) (rc=$RC build)"
     exit "$RC"
   fi
@@ -100,6 +107,7 @@ mkdir -p "$(dirname "$LOG")"
   "$PY" "$REPO/scripts/publish_static_site.py" --apply --config "$CONFIG" \
     --out "$REPO/frontend/.export/out" --log-file -
   RC=$?
+  ops_event_end "$RC"
   echo "publish_static_site.sh end $(date -Iseconds) (rc=$RC)"
   exit "$RC"
 } >> "$LOG" 2>&1

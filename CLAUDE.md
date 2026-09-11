@@ -813,8 +813,20 @@ Verbindungen, lange Abfragen). Jede zehnte Minute ist eine volle Messung
 SMART) und löscht Zeilen älter als 7 Tage. Tabellen `ops_samples`/`ops_events`/
 `ops_alerts` (additive Migration `_migrate_ops`, in `init_db`, Live-DB 11.09.).
 Deltas über `data/ops_sampler_state.json`. Units: `deploy/systemd/catandary-ops-sampler.{service,timer}`.
-Die Seite `/trends/ops`, Ereignisse aus den Wrappern, Logbuch und Alarme folgen
-in den Stufen 2–6 (Issue #104).
+
+**Laufprotokoll `ops_events` (#104 Stufe 2, seit 2026-09-11):** jeder Job-Lauf
+ist eine Zeile (Job, Start, Ende, rc, Notiz). Schreiber: die zehn Shell-Wrapper
+über `scripts/lib/ops_events.sh` (`ops_event_start <job>` nach dem `cd`,
+`ops_event_end <rc> [Notiz]` vor jeder end-Zeile — auch auf den Abbruchpfaden
+blocked/exists/skipped/locked) und die neun Python-Crons/Worker über
+`pipeline.ops_events.record("<job>")` um `main()` (backup_db, purge_raw_content,
+resolve_open_licence, discovery_loop, monthly_source_check, check_source_links,
+dossier_worker, research_pulse, embed_full_text). `OPS_EVENT_ID` wird exportiert:
+ein Python-Skript unter einem Wrapper übernimmt dessen Zeile statt eine zweite
+anzulegen (embed_full_text notiert so `gpu=remote …`/`gpu=local`). Das Protokoll
+darf einen Lauf nie verhindern — DB weg → Warnung im Log, Job läuft weiter. Ein
+Lauf ohne `ended_at` ist die Information „abgebrochen, Ende unbekannt".
+Die Seite `/trends/ops`, Logbuch und Alarme folgen in den Stufen 3–6.
 
 **Mengenbremse statt Quellen-Verbot (Owner-Präzisierung 2026-08-20):** Funding-News
 dürfen über den regulären Cycle zu Artikeln werden. Verhindert wird nur, dass ein

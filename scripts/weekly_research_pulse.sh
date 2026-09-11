@@ -43,6 +43,9 @@ WEEK_ARG=$(printf '%d-W%02d' "$YEAR" "$WEEK")
   echo "weekly_research_pulse.sh start $(date -Iseconds) — week ${WEEK_ARG}"
   echo "================================================================"
   cd "$REPO" || { echo "ABORT: cannot cd $REPO"; exit 1; }
+  # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/ops_events.sh"
+  ops_event_start weekly_research_pulse "week=${WEEK_ARG}"
 
   # Kollisionswächter: der Samstags-Ingester (06:00) hält die GPU mit dem
   # Embedding-Server; läuft er um 12:00 noch (Catch-up-Wochen), warten statt
@@ -52,6 +55,7 @@ WEEK_ARG=$(printf '%d-W%02d' "$YEAR" "$WEEK")
   source "$REPO/scripts/lib/gpu_guard.sh"
   if ! gpu_guard_wait weekly_research_pulse; then
     echo "ABORT: GPU-Lauf nach ${GPU_GUARD_MAX_MIN} min immer noch aktiv — Pulse ${WEEK_ARG} von Hand nachholen"
+    ops_event_end 75 "blocked: fremder GPU-Job"
     echo "weekly_research_pulse.sh end $(date -Iseconds) (gen=blocked)"
     exit 1
   fi
@@ -69,6 +73,7 @@ PYEOF
 )
   if [ "${DONE:-0}" -ge 20 ]; then
     echo "Pulse ${WEEK_ARG} existiert bereits (${DONE} Themes mit Text) — nichts zu tun."
+    ops_event_end 0 "exists"
     echo "weekly_research_pulse.sh end $(date -Iseconds) (gen=exists)"
     exit 0
   fi
@@ -77,6 +82,7 @@ PYEOF
   "$PY" scripts/research_pulse.py --week "$WEEK_ARG"
   RC=$?
   echo "----- Ruhezustand: start-active.sh → $(readlink /home/dirk/llama.cpp/start-active.sh 2>/dev/null), llama-server $(systemctl --user is-active llama-server.service 2>/dev/null) -----"
+  ops_event_end "$RC"
   echo "weekly_research_pulse.sh end $(date -Iseconds) (gen=$RC)"
   exit "$RC"
 } >> "$LOG" 2>&1

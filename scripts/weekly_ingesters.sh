@@ -50,6 +50,9 @@ SINCE_PATENTS=$(date -d '60 days ago' +%F)
   echo "================================================================"
   cd "$REPO" || { echo "ABORT: cannot cd to $REPO"; exit 1; }
   # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/ops_events.sh"
+  ops_event_start weekly_ingesters
+  # shellcheck disable=SC1091
   source .venv/bin/activate
 
   # Wasserstand VOR den Ingests — begrenzt die Verarbeitung auf Neuzugänge
@@ -203,6 +206,7 @@ with get_connection() as c:
   gpu_guard_note weekly_ingesters "$NOTE_STATUS" gpu_steps_done="$GPU_DONE" \
     gpu_steps_skipped="$GPU_SKIPPED" "blocked_by=$GPU_BLOCKED_BY" min_id="$MIN_ID" rc="$RC"
 
+  ops_event_end "$RC" "gpu_done=$GPU_DONE gpu_skipped=$GPU_SKIPPED min_id=$MIN_ID"
   echo; echo "weekly_ingesters.sh end $(date -Iseconds) (rc=$RC gpu_done=$GPU_DONE gpu_skipped=$GPU_SKIPPED)"
   exit "$RC"
 } >> "$LOG" 2>&1

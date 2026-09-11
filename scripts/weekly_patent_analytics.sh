@@ -42,6 +42,9 @@ mkdir -p "$(dirname "$LOG")"
   echo "================================================================"
   cd "$REPO" || { echo "ABORT: cannot cd to $REPO"; exit 1; }
   # shellcheck disable=SC1091
+  source "$REPO/scripts/lib/ops_events.sh"
+  ops_event_start weekly_patent_analytics
+  # shellcheck disable=SC1091
   source .venv/bin/activate
 
   RC=0
@@ -53,6 +56,7 @@ mkdir -p "$(dirname "$LOG")"
     echo "----- $STEP fertig in $(( $(date +%s) - T0 ))s (rc-akkum=$RC) -----"
   done
 
+  ops_event_end "$RC"
   echo; echo "weekly_patent_analytics.sh end $(date -Iseconds) (rc=$RC)"
   exit "$RC"
 } >> "$LOG" 2>&1
