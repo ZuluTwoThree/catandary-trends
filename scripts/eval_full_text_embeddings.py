@@ -56,12 +56,15 @@ QUERIES = [
 ]
 
 
-def load(limit: int | None) -> dict:
+def load(limit: int | None, window: tuple[str, str] | None = None) -> dict:
     sql = ("SELECT t.id, t.status, t.primary_vertical, t.mega_trend, t.source_name, t.title_en, "
            "t.full_embedded_chars, length(coalesce(re.excerpt, '')) AS excerpt_len, "
            "t.embedding_1024::text AS a, t.embedding_full_1024::text AS b "
            "FROM trends t LEFT JOIN raw_entries re ON re.id = t.raw_entry_id "
            "WHERE t.embedding_1024 IS NOT NULL AND t.embedding_full_1024 IS NOT NULL")
+    if window:
+        lo, hi = window
+        sql += f" AND t.full_embedded_at BETWEEN '{lo}' AND '{hi}'"
     if limit:
         sql += f" ORDER BY t.id DESC LIMIT {int(limit)}"
     with get_connection() as conn:
@@ -166,10 +169,12 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="nur die N juengsten Zeilen laden (0 = alle mit beiden Vektoren)")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--out", default="")
+    ap.add_argument("--stamped", default="", help="nur Zeilen mit full_embedded_at in 'VON..BIS' (UTC, z. B. '2026-09-11 07:40..2026-09-11 08:15') — ein einzelner Lauf")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    data = load(args.limit or None)
+    window = tuple(args.stamped.split("..", 1)) if ".." in args.stamped else None
+    data = load(args.limit or None, window)
     A, B, meta = data["A"], data["B"], data["meta"]
     n = len(meta)
     logger.info("%d Zeilen mit beiden Vektoren", n)
@@ -184,7 +189,8 @@ def main() -> int:
     nnB, sB = topk(B, q_idx, K)
     lines: list[str] = []
     P = lines.append
-    P(f"# Volltext-Vektoren gegen Dedup-Vektoren — Messung {datetime.now():%Y-%m-%d %H:%M}")
+    P(f"# Volltext-Vektoren gegen Dedup-Vektoren — Messung {datetime.now():%Y-%m-%d %H:%M}"
+      + (f" — nur Lauf {args.stamped} (UTC)" if window else ""))
     P("")
     P(f"Grundgesamtheit: **{n:,}** Trends mit beiden Vektoren "
       f"({Counter(m['status'] for m in meta).most_common()}); "
