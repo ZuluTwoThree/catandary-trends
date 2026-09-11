@@ -40,9 +40,12 @@ aktivieren — sonst dasselbe Loch wie am 05.09.: ein Server, der auf alles mit
 ## 2026-09-11 · change · Ops-Dashboard: Sampler, Laufprotokoll, Seite
 Stufen 1–3 von #104. Timer misst minütlich (`ops_samples`), alle Wrapper und
 Python-Crons protokollieren ihre Läufe (`ops_events`), `/trends/ops` zeigt es.
-SMART freigeschaltet: alle vier Platten PASSED; die Lexar meldet nur 240
-Betriebsstunden gegen ~7.000 bei den anderen — entweder frisch eingebaut oder
-die Firmware zählt anders.
+SMART freigeschaltet: alle vier Platten PASSED. Die Lexar NM790 meldet „240
+Betriebsstunden" — das ist KEINE Stundenzahl: sie steckt seit der
+Ubuntu-Installation am 13.05.2026 im Rechner (120 Tage, Uptime allein > 600 h).
+Der Maxio-Controller zählt in einer anderen Einheit; für die Beurteilung dieser
+Platte gelten Verschleiß (1 %), Reserve (100 %) und Medienfehler (0), nicht die
+Betriebsstunden.
 
 ## 2026-09-11 · change · Cycle-Batch 600 → 3000, Embedding-Tageslimit 30.000
 Nachtlauf soll einen normalen Tag in EINEM Durchgang schaffen (vorher jede
