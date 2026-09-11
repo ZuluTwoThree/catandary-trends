@@ -37,6 +37,16 @@ aktivieren — sonst dasselbe Loch wie am 05.09.: ein Server, der auf alles mit
 200 OK antwortet. Der Ops-Sampler ist schon backend-neutral (`/health` oder
 `/api/ps`), an der Seite ändert sich nichts.
 
+## 2026-09-11 · decision · Volltext-Vektoren: Backfill nur noch bei echtem Textgewinn
+Zwei Handläufe auf bequiet (20:50–21:35, 21:39–22:21, Owner-Freigabe außerhalb
+des Fensters): 75.696 Vektoren, jetzt 95.023 mit beiden Räumen. Der erste Lauf
+brach an einem einzelnen 400 ab (Fix `2394bba`: 4xx ≠ Host weg). Messung
+`docs/embedding_eval_2026-09-11.md`: kein messbarer Vorteil auf Label-Ebene,
+weil 95 % der Zeilen gar keinen längeren Text haben (Median Textgewinn 1,1×).
+Von den 1,6 Mio offenen Zeilen tragen nur 17.877 einen Volltext ≥ 3× Anriss.
+Empfehlung: Backfill auf diese beschränken (25 min), gleiche Regel für den
+09:00-Cron, Verbraucher `COALESCE(full, dedup)`. Owner-Entscheid offen.
+
 ## 2026-09-11 · change · Ops-Dashboard: Sampler, Laufprotokoll, Seite
 Stufen 1–3 von #104. Timer misst minütlich (`ops_samples`), alle Wrapper und
 Python-Crons protokollieren ihre Läufe (`ops_events`), `/trends/ops` zeigt es.
