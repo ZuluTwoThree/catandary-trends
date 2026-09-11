@@ -9,6 +9,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import httpx
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -195,3 +196,70 @@ class TestRegrownReEmbedding:
 
         eft._stamp(_C(), 7, None, 120)
         assert 120 in written[0]
+
+
+class TestRemoteFallback:
+    """Vorfall 2026-09-11 21:33: ein einzelner 400 von bequiet galt als "GPU weg",
+    der Lauf ging lokal gegen das 8B-Chatmodell weiter (20 x 501, Abbruch mit
+    rc=0). Jetzt: 4xx = Block-Problem (Texte einzeln, Remote bleibt), Verbindung/
+    5xx = Host weg (lokal nur mit bestaetigtem Embedding-Modell, sonst Abbruch)."""
+
+    @staticmethod
+    def _status_error(code: int, text: str = "") -> httpx.HTTPStatusError:
+        req = httpx.Request("POST", "http://bq/api/embed")
+        resp = httpx.Response(code, request=req, text=text)
+        return httpx.HTTPStatusError("x", request=req, response=resp)
+
+    def test_client_error_isolates_the_bad_text_and_keeps_remote(self, monkeypatch):
+        from collections import Counter
+        calls: list[list[str]] = []
+
+        def fake_remote(texts, host=None, model=None):
+            calls.append(list(texts))
+            if len(texts) > 1:
+                raise self._status_error(400, "bad block")
+            if texts[0] == "BAD":
+                raise self._status_error(400, "input rejected")
+            return [[0.1] * eft.DIM]
+
+        monkeypatch.setattr(eft.remote_gpu, "embed_batch_remote", fake_remote)
+        stat = Counter()
+        vecs, remote = eft.embed_remote_or_fallback(["ok1", "BAD", "ok2"], "http://bq", {}, stat)
+        assert remote == "http://bq"
+        assert [v is None for v in vecs] == [False, True, False]
+        assert stat["embed_rejected"] == 1 and stat["remote_chunks"] == 1
+        assert len(calls) == 4                                   # 1 Block + 3 einzeln
+
+    def test_lost_host_without_local_model_aborts_cleanly(self, monkeypatch):
+        from collections import Counter
+        monkeypatch.setattr(eft.remote_gpu, "embed_batch_remote",
+                            lambda *a, **k: (_ for _ in ()).throw(httpx.ConnectError("down")))
+        monkeypatch.setattr(eft, "assert_embedding_model",
+                            lambda: (_ for _ in ()).throw(RuntimeError("8B chat model on :8090")))
+        called = []
+        monkeypatch.setattr(eft, "embed_chunk_resilient", lambda texts, state: called.append(1))
+        import time as _t
+        monkeypatch.setattr(_t, "sleep", lambda s: None)
+        with pytest.raises(eft.EmbeddingAbort, match="kein Embedding-Modell"):
+            eft.embed_remote_or_fallback(["a"], "http://bq", {}, Counter())
+        assert called == []                                      # nie gegen das Chatmodell
+
+    def test_lost_host_with_local_embedding_model_falls_back(self, monkeypatch):
+        from collections import Counter
+        monkeypatch.setattr(eft.remote_gpu, "embed_batch_remote",
+                            lambda *a, **k: (_ for _ in ()).throw(self._status_error(503)))
+        monkeypatch.setattr(eft, "assert_embedding_model", lambda: None)
+        monkeypatch.setattr(eft, "embed_chunk_resilient", lambda texts, state: [[0.2] * eft.DIM for _ in texts])
+        import time as _t
+        monkeypatch.setattr(_t, "sleep", lambda s: None)
+        stat = Counter()
+        vecs, remote = eft.embed_remote_or_fallback(["a", "b"], "http://bq", {}, stat)
+        assert remote is None and len(vecs) == 2 and stat["remote_lost"] == 1
+
+    def test_abort_yields_exit_code_3(self, monkeypatch):
+        monkeypatch.setattr(eft, "candidates", lambda *a, **k: [{"id": 1, "title_en": "t", "raw_content": "x" * 700, "excerpt": ""}])
+        monkeypatch.setattr(eft.remote_gpu, "available", lambda *a, **k: None)
+        monkeypatch.setattr(eft, "assert_embedding_model", lambda: None)
+        monkeypatch.setattr(eft, "embed_chunk_resilient",
+                            lambda texts, state: (_ for _ in ()).throw(eft.EmbeddingAbort("server down")))
+        assert eft.main(["--limit", "1"]) == 3

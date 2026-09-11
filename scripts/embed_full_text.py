@@ -39,6 +39,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import httpx
+
 from pipeline import remote_gpu
 from pipeline.config import EMBED_BACKEND, EMBED_MODEL
 from pipeline.db import get_connection
@@ -189,13 +191,7 @@ def run(rows: list[dict], apply: bool, chunk_size: int = 16) -> Counter:
             break
         try:
             if remote:
-                try:
-                    vecs = remote_gpu.embed_batch_remote(texts, host=remote)
-                    stat["remote_chunks"] += 1
-                except Exception as exc:                            # noqa: BLE001
-                    logger.warning("fremde GPU ausgefallen (%s) — ab hier lokal", exc)
-                    remote = None
-                    vecs = embed_chunk_resilient(texts, state)
+                vecs, remote = embed_remote_or_fallback(texts, remote, state, stat)
             else:
                 vecs = embed_chunk_resilient(texts, state)
         except EmbeddingAbort as exc:
@@ -214,6 +210,68 @@ def run(rows: list[dict], apply: bool, chunk_size: int = 16) -> Counter:
                 stat["written"] += 1
         logger.info("%d/%d eingebettet", min(i + chunk_size, len(todo)), len(todo))
     return stat
+
+
+REMOTE_RETRIES = 2
+
+
+def embed_remote_or_fallback(texts: list[str], remote: str, state: dict,
+                             stat: Counter) -> tuple[list[list[float] | None], str | None]:
+    """Einen Block auf der fremden GPU rechnen — und richtig unterscheiden,
+    WAS schiefging (Vorfall 2026-09-11, 21:33: ein einzelner 400 auf bequiet
+    galt als "GPU weg", der Lauf ging lokal weiter, wo :8090 das 8B-Chatmodell
+    hielt — 20 x 501, Abbruch, 37.023 Zeilen liegen geblieben).
+
+      4xx (Client-Fehler)  → der Block ist das Problem, nicht der Host: jeden
+                             Text einzeln schicken; was einzeln abgelehnt wird,
+                             bleibt ungestempelt (stat embed_rejected) und
+                             kommt beim naechsten Lauf wieder dran. Remote
+                             bleibt aktiv.
+      Verbindung/Timeout/5xx → zweimal mit Pause erneut; dann gilt der Host als
+                             weg. Lokal weiter NUR, wenn dort wirklich das
+                             Embedding-Modell laeuft (assert_embedding_model);
+                             sonst sauberer Abbruch — der Rest wartet auf den
+                             naechsten Lauf, statt gegen ein Chatmodell zu laufen.
+    Gibt (Vektoren, remote-oder-None) zurueck."""
+    import time as _time
+    for attempt in range(REMOTE_RETRIES + 1):
+        try:
+            vecs = remote_gpu.embed_batch_remote(texts, host=remote)
+            stat["remote_chunks"] += 1
+            return vecs, remote
+        except httpx.HTTPStatusError as exc:
+            if 400 <= exc.response.status_code < 500:
+                logger.warning("fremde GPU lehnt den Block ab (%s) — Texte einzeln",
+                               exc.response.status_code)
+                out: list[list[float] | None] = []
+                for t in texts:
+                    try:
+                        out.append(remote_gpu.embed_batch_remote([t], host=remote)[0])
+                    except httpx.HTTPStatusError as e1:
+                        if 400 <= e1.response.status_code < 500:
+                            stat["embed_rejected"] += 1
+                            logger.warning("Text abgelehnt (%s, %d Zeichen): %r",
+                                           e1.response.status_code, len(t), (e1.response.text or "")[:160])
+                            out.append(None)
+                        else:
+                            raise
+                stat["remote_chunks"] += 1
+                return out, remote
+            logger.warning("fremde GPU: %s (Versuch %d/%d)", exc.response.status_code, attempt + 1, REMOTE_RETRIES + 1)
+        except (httpx.TransportError, RuntimeError) as exc:
+            logger.warning("fremde GPU: %s (Versuch %d/%d)", exc, attempt + 1, REMOTE_RETRIES + 1)
+        if attempt < REMOTE_RETRIES:
+            _time.sleep(5)
+    # Host gilt als weg. Lokal nur mit geladenem Embedding-Modell.
+    try:
+        assert_embedding_model()
+    except Exception as exc:                                        # noqa: BLE001
+        raise EmbeddingAbort(f"fremde GPU {remote} nicht mehr erreichbar und lokal laeuft kein "
+                             f"Embedding-Modell ({exc}) — Lauf endet, der Rest wartet auf den "
+                             f"naechsten Lauf") from exc
+    logger.warning("fremde GPU %s weg — ab hier lokal (Embedding-Modell bestaetigt)", remote)
+    stat["remote_lost"] = 1
+    return embed_chunk_resilient(texts, state), None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -242,7 +300,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {'avg_chars':14} {stat['chars'] // stat['embedded']}")
     if not args.apply:
         print("\nDry-Run — nichts geschrieben. Mit --apply ausfuehren.")
-    return 0
+    # Abbruch = Exit 3, damit Wrapper und ops_events es sehen (der erste Vorfall stand mit rc=0 da).
+    return 3 if stat.get("aborted") else 0
 
 
 if __name__ == "__main__":
