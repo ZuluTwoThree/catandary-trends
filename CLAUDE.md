@@ -801,6 +801,21 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 0 7 2 * *    scripts/check_source_links.py --per-source 12 --mark
 ```
 
+**Ops-Sampler (systemd-Timer, kein Cron; #104 Stufe 1, seit 2026-09-11):**
+`catandary-ops-sampler.timer` ruft minütlich `scripts/ops_sampler.py` aus dem
+main-Worktree auf und schreibt eine Zeile nach `ops_samples` — GPU lokal
+(nvidia-smi, `/v1/models`, haltender Job aus den Besitzvermerken), bequiet
+(nur Modell-API, backend-neutral: llama.cpp `/health` oder Ollama `/api/ps`),
+CPU/RAM, **alle vier Platten** (Füllstand, I/O-Delta, hwmon-Temperatur, SMART
+sobald `deploy/sudoers/catandary-smart` eingespielt ist), Postgres (Größe,
+Verbindungen, lange Abfragen). Jede zehnte Minute ist eine volle Messung
+(`is_full`: Backlog, Review-Queue, fehlende Volltext-Vektoren, Tabellengrößen,
+SMART) und löscht Zeilen älter als 7 Tage. Tabellen `ops_samples`/`ops_events`/
+`ops_alerts` (additive Migration `_migrate_ops`, in `init_db`, Live-DB 11.09.).
+Deltas über `data/ops_sampler_state.json`. Units: `deploy/systemd/catandary-ops-sampler.{service,timer}`.
+Die Seite `/trends/ops`, Ereignisse aus den Wrappern, Logbuch und Alarme folgen
+in den Stufen 2–6 (Issue #104).
+
 **Mengenbremse statt Quellen-Verbot (Owner-Präzisierung 2026-08-20):** Funding-News
 dürfen über den regulären Cycle zu Artikeln werden. Verhindert wird nur, dass ein
 Massen-Ingest en masse in die Content-Generierung läuft (235k SBIR/CORDIS-Zeilen

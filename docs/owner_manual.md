@@ -1244,7 +1244,8 @@ Statusdateien im main-Worktree `data/`: `draft_judge_last.json`,
 `monthly_startup_sources_last.json` (Kollisionswächter, §11.8),
 `weekly_ingesters_pending_min_id` / `monthly_startup_sources_pending_min_id`
 (nur vorhanden, solange ein übersprungener GPU-Schritt nachzuholen ist),
-`llama-server.<job>.pid` (Besitzvermerk der Unit, §11.8); Worker-Logs
+`llama-server.<job>.pid` (Besitzvermerk der Unit, §11.8),
+`ops_sampler_state.json` (Zählerstände des Ops-Samplers für CPU-/I/O-Deltas, §11.9); Worker-Logs
 `data/dossier_worker/`, `data/research_pulse/`.
 
 ### 11.7 Pipeline von Hand
@@ -1313,6 +1314,48 @@ räumt der nächste Start weg; `rm data/llama-server.*.pid` ist jederzeit
 ungefährlich.
 
 ---
+
+### 11.9 Ops-Sampler (#104, Stufe 1)
+
+Grundlage des kommenden Ops-Dashboards `/trends/ops`: ein systemd-User-Timer
+misst **jede Minute** und schreibt eine Zeile nach `ops_samples`. Läuft aus dem
+main-Worktree wie alle Crons.
+
+| Was | Woher |
+|---|---|
+| GPU lokal: Speicher, Last, Temperatur, Watt, geladenes Modell, haltender Job | `nvidia-smi`, `GET :8090/v1/models`, `data/llama-server.<job>.pid`, sonst `pgrep` gegen die Muster des Kollisionswächters |
+| bequiet: erreichbar, im Fenster, Backend, geladenes Modell | nur die Modell-API (`REMOTE_EMBED_HOST`): llama.cpp `/health` + `/v1/models` **oder** Ollama `/api/ps` — der Wechsel auf llama.cpp ändert an der Messung nichts |
+| CPU %, load1, RAM | `/proc/stat` (Delta zur Vorminute), `/proc/meminfo` |
+| **alle Platten** (`nvme1n1` Lexar = System + Postgres, `sda` HDD = Backups, `sdb`, `nvme0n1` NTFS): Füllstand je Mount, Lese-/Schreib-Bytes/s, Beschäftigung %, Temperatur, SMART | `/sys/block`, `statvfs`, hwmon (NVMe ohne Root); SMART nur mit sudoers-Zeile (unten) |
+| Postgres: Größe, Verbindungen/`max_connections`, Abfragen > 60 s | Systemkatalog |
+| **nur alle 10 min** (`is_full = true`): Backlog, Review-Queue (Drafts ≥ 0,85), fehlende Volltext-Vektoren, 8 größte Tabellen, SMART | `get_unprocessed_entries` (~2 s) u. a.; dieselbe Messung löscht Zeilen älter als 7 Tage |
+
+```bash
+systemctl --user status catandary-ops-sampler.timer      # läuft er?
+journalctl --user -u catandary-ops-sampler -n 20          # letzte Läufe
+.venv/bin/python -m scripts.ops_sampler --print           # eine Messung ansehen (schreibt nichts)
+.venv/bin/python -m scripts.ops_sampler --print --full    # inkl. teurer Zählungen + SMART
+psql catandary -c "select ts, gpu_mem_used_mib, gpu_job, cpu_pct, db_size_bytes from ops_samples order by ts desc limit 5"
+```
+
+**Installieren / nach Änderung neu laden** (Units liegen in `deploy/systemd/`):
+
+```bash
+ln -sf ~/projects/catandary-trends/deploy/systemd/catandary-ops-sampler.service ~/.config/systemd/user/
+ln -sf ~/projects/catandary-trends/deploy/systemd/catandary-ops-sampler.timer   ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now catandary-ops-sampler.timer
+```
+
+**SMART freischalten (einzige Root-Aktion, optional):** `sudo apt install
+smartmontools`, dann `sudo install -m 0440 deploy/sudoers/catandary-smart
+/etc/sudoers.d/catandary-smart && sudo visudo -c`. Erlaubt genau einen
+Lesebefehl (`smartctl -j -n standby -A -H /dev/*`, weckt schlafende Platten
+nicht). Bis dahin bleibt `smart` in der Zeile leer, alles andere läuft.
+
+Kosten: ~2 s je Messung (davon 2 s Timeout, wenn bequiet aus ist), ~4 s bei
+einer vollen; Tabelle ~10.000 Zeilen Bestand. Die Seite, die Ereignisse der
+Wrapper (`ops_events`), das Logbuch `docs/ops/logbook.md` und die Alarme
+(`ops_alerts`) kommen in den Stufen 2–6 von #104.
 
 ## 12. Sicherheit und Recht (kurz)
 

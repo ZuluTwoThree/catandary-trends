@@ -1,0 +1,16 @@
+[Unit]
+# Ops-Dashboard-Messfuehler (#104, 2026-09-11): eine Zeile je Minute nach
+# ops_samples — GPU lokal + bequiet, CPU/RAM, alle Platten, Postgres.
+# Gestartet vom Timer catandary-ops-sampler.timer, nicht aus der Crontab: ein
+# minuetlicher Cron-Eintrag ist unuebersichtlich, und ein Timer zeigt im
+# `systemctl --user status` sofort, wenn er stirbt. Laeuft aus dem
+# main-Worktree wie alle Crons (Regel vom 2026-09-11).
+Description=Catandary ops sampler (one hardware/DB sample per minute)
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/dirk/projects/catandary-trends
+ExecStart=/home/dirk/projects/catandary-trends/.venv/bin/python -m scripts.ops_sampler
+TimeoutStartSec=50
+Nice=10

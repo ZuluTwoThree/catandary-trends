@@ -1105,6 +1105,142 @@ def _migrate_source_lead_time_tier():
         conn._conn.commit()
 
 
+# --- Ops-Dashboard (#104) --------------------------------------------------
+
+OPS_SCHEMA_PG = """
+CREATE TABLE IF NOT EXISTS ops_samples (
+    ts TIMESTAMPTZ PRIMARY KEY DEFAULT now(),
+    is_full BOOLEAN NOT NULL DEFAULT false,
+    gpu_mem_used_mib INTEGER,
+    gpu_mem_total_mib INTEGER,
+    gpu_util_pct INTEGER,
+    gpu_temp_c INTEGER,
+    gpu_power_w REAL,
+    gpu_model TEXT,
+    gpu_job TEXT,
+    remote_backend TEXT,
+    remote_in_window BOOLEAN,
+    remote_model TEXT,
+    cpu_pct REAL,
+    load1 REAL,
+    mem_used_mib INTEGER,
+    mem_total_mib INTEGER,
+    db_size_bytes BIGINT,
+    db_connections INTEGER,
+    db_max_connections INTEGER,
+    db_long_queries INTEGER,
+    disks JSONB,
+    tables JSONB,
+    backlog_unprocessed INTEGER,
+    review_queue INTEGER,
+    fulltext_vectors_missing INTEGER
+);
+CREATE TABLE IF NOT EXISTS ops_events (
+    id SERIAL PRIMARY KEY,
+    job TEXT NOT NULL,
+    host TEXT NOT NULL DEFAULT 'local',
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ended_at TIMESTAMPTZ,
+    rc INTEGER,
+    note TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ops_events_job_started ON ops_events (job, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ops_events_started ON ops_events (started_at DESC);
+CREATE TABLE IF NOT EXISTS ops_alerts (
+    id SERIAL PRIMARY KEY,
+    kind TEXT NOT NULL,
+    key TEXT NOT NULL,
+    message TEXT NOT NULL,
+    raised_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_at TIMESTAMPTZ,
+    mailed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_ops_alerts_open ON ops_alerts (kind, key) WHERE resolved_at IS NULL;
+"""
+
+OPS_SCHEMA_SQLITE = """
+CREATE TABLE IF NOT EXISTS ops_samples (
+    ts TEXT PRIMARY KEY,
+    is_full INTEGER NOT NULL DEFAULT 0,
+    gpu_mem_used_mib INTEGER,
+    gpu_mem_total_mib INTEGER,
+    gpu_util_pct INTEGER,
+    gpu_temp_c INTEGER,
+    gpu_power_w REAL,
+    gpu_model TEXT,
+    gpu_job TEXT,
+    remote_backend TEXT,
+    remote_in_window INTEGER,
+    remote_model TEXT,
+    cpu_pct REAL,
+    load1 REAL,
+    mem_used_mib INTEGER,
+    mem_total_mib INTEGER,
+    db_size_bytes INTEGER,
+    db_connections INTEGER,
+    db_max_connections INTEGER,
+    db_long_queries INTEGER,
+    disks TEXT,
+    tables TEXT,
+    backlog_unprocessed INTEGER,
+    review_queue INTEGER,
+    fulltext_vectors_missing INTEGER
+);
+CREATE TABLE IF NOT EXISTS ops_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job TEXT NOT NULL,
+    host TEXT NOT NULL DEFAULT 'local',
+    started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at TEXT,
+    rc INTEGER,
+    note TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ops_events_job_started ON ops_events (job, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ops_events_started ON ops_events (started_at DESC);
+CREATE TABLE IF NOT EXISTS ops_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    key TEXT NOT NULL,
+    message TEXT NOT NULL,
+    raised_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TEXT,
+    mailed_at TEXT
+);
+"""
+
+
+def _migrate_ops():
+    """Drei Tabellen fuer das Ops-Dashboard /trends/ops (#104, 2026-09-11).
+
+    Bis dahin gab es KEINE Zeitreihe der Hardware: nvidia-smi wird an neun
+    Stellen abgefragt, immer nur fuer eine Entscheidung im Moment, und die
+    DB-Groesse (450 GB) hatte keinen Verlauf. Fuer die Planung von Laeufen und
+    Hardware-Aenderungen braucht der Owner aber genau das.
+
+      ops_samples  eine Zeile je Minute (scripts/ops_sampler.py, systemd-Timer):
+                   GPU lokal + bequiet, CPU/RAM, Platten (JSON je Geraet),
+                   Postgres. Die teuren Zaehlungen (Backlog, Review-Queue,
+                   fehlende Volltext-Vektoren, Tabellengroessen) nur in jeder
+                   zehnten Zeile (`is_full = true`). Der Sampler loescht selbst,
+                   was aelter als 7 Tage ist (Owner: eine Woche reicht).
+      ops_events   eine Zeile je Job-Lauf (Job, Start, Ende, rc, Notiz, Host)
+                   — unbegrenzt, das ist das Langzeit-Gedaechtnis fuer
+                   "wie lang dauert der Samstag wirklich". Schreiber kommen
+                   in Stufe 2 (Wrapper via gpu_guard.sh, pipeline/ops_events.py).
+      ops_alerts   ausgeloeste/entwarnte Alarme, damit jede Regel genau einmal
+                   beim Ausloesen und einmal bei der Entwarnung mailt (Stufe 5).
+    Additiv, idempotent, in init_db verdrahtet.
+    """
+    if not USE_POSTGRES:
+        with get_connection() as conn:
+            conn.executescript(OPS_SCHEMA_SQLITE)
+        return
+    with get_connection() as conn:
+        cur = conn._conn.cursor()
+        cur.execute(OPS_SCHEMA_PG)
+        conn._conn.commit()
+
+
 def init_db():
     """Initialize database schema."""
     if USE_POSTGRES:
@@ -1135,6 +1271,7 @@ def init_db():
     _migrate_embedding_1024()
     _migrate_embedding_full()
     _migrate_source_lead_time_tier()
+    _migrate_ops()
 
 
 # --- Source Operations ---

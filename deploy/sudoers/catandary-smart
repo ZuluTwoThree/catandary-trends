@@ -1,0 +1,9 @@
+# SMART-Werte fuer das Ops-Dashboard (#104). Genau EIN Lesebefehl ohne Passwort:
+# Attribute (-A) und Gesamturteil (-H) als JSON (-j), schlafende Platten nicht
+# wecken (-n standby). Kein Selbsttest, kein Schreiben.
+#
+# Einspielen (Owner):
+#   sudo apt install smartmontools
+#   sudo install -m 0440 deploy/sudoers/catandary-smart /etc/sudoers.d/catandary-smart
+#   sudo visudo -c
+dirk ALL=(root) NOPASSWD: /usr/sbin/smartctl -j -n standby -A -H /dev/*

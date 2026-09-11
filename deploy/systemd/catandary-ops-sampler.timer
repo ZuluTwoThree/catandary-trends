@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Catandary ops sampler every minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=5s
+Persistent=false
+Unit=catandary-ops-sampler.service
+
+[Install]
+WantedBy=timers.target
