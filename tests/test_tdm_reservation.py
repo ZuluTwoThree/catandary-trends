@@ -211,7 +211,8 @@ class TestUserAgent:
         assert af.DEFAULT_USER_AGENT == feed_poller.DEFAULT_USER_AGENT
         ua = af.DEFAULT_USER_AGENT
         assert ua.startswith("CatandaryTrendsBot/")
-        assert "https://catandary.de/" in ua and "@catandary.de" in ua
+        assert "https://catandary.de/" in ua
+        assert "@" not in ua            # V2 (2026-09-11): Kontakt auf der Seite, nicht in jedem Log
         assert "Mozilla" not in ua and "Chrome" not in ua
         assert "Mozilla" not in feed_poller.FALLBACK_UA
 

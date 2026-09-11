@@ -887,7 +887,8 @@ URL-Hash) · `/trends/sitemap.xml`. Legacy `/trends/vertical/<v>` → 301.
 Aggregatoren nur als Entdeckungs-Index. Aufnahme nur bei `tdm_status: ok`:
 robots.txt erlaubt `CatandaryTrendsBot` Feed und Artikel, Artikelseite
 antwortet dem ehrlichen Bot-UA mit 200, kein maschinenlesbarer TDM-Vorbehalt
-(Header, Meta, `noai`, `tdmrep.json`). `fulltext: true` nur ohne
+(Header, Meta, `noai`, `tdmrep.json`). `fulltext: true` seit 11.09.2026 bei allen
+`tdm_status: ok`-Quellen (Option A, Owner; vorher nur bei offener Lizenz) — nur ohne
 Vorbehalt/Sperre, bevorzugt bei offener Lizenz.
 
 **Felder je Quelle in `sources.yaml`.** `name`, `feed_url`, `type`
@@ -1446,8 +1447,9 @@ die Alarme (`ops_alerts`) kommen in den Stufen 3–6 von #104.
   `TRUST_PROXY=1` (hier 0).
 - **Eigenes TDM-Regime (Owner 03.09.).** Wir beachten fremde Vorbehalte
   (`TDM_RESPECT=1`, robots.txt RFC 9309, ehrlicher UA
-  `CatandaryTrendsBot/1.0 (+https://catandary.de/trends/methodology; trends@catandary.de)`,
-  ≤ 1 Request/s/Host, Volltext nur bei `fulltext: true`, Löschung nach 14 Tagen)
+  `CatandaryTrendsBot/1.0 (+https://catandary.de/trends/methodology)` (V2 seit 11.09.: die Mailadresse
+  steht auf der Methodik-Seite unter „Our crawler", nicht mehr in jedem Log),
+  ≤ 1 Request/s/Host, Volltext nur bei `fulltext: true`, Aufbewahrung 60 Monate)
   — und erklären selbst einen: `TDM-Reservation: 1`-Header auf `/trends/**` und
   `/_next/**`, `tdm-reservation`/`tdm-policy`-Meta + `robots: noai, noimageai`
   auf jeder Exportseite, `/.well-known/tdmrep.json`, Klartext `/trends/tdm-policy`

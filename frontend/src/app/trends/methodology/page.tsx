@@ -186,6 +186,36 @@ export default async function MethodologyPage() {
         </div>
       </section>
 
+      {/* Our crawler — the page the User-Agent points at (V2, 2026-09-11):
+          the bot names itself and links here; the contact lives here, not in
+          every publisher's request log. */}
+      <section id="crawler" className="mb-16">
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-6">
+          04 — Our crawler
+        </div>
+        <div className="border border-border bg-card/40 p-5 space-y-3">
+          <p className="font-sans text-sm text-text leading-relaxed">
+            Catandary reads publicly available articles to detect trends across industries. The software
+            identifies itself as <code className="font-mono text-[12px] text-paper">CatandaryTrendsBot/1.0</code>,
+            fetches at most one page per second per site, and respects <code className="font-mono text-[12px]">robots.txt</code>{" "}
+            (address the token <code className="font-mono text-[12px]">CatandaryTrendsBot</code> to allow, limit or exclude it).
+          </p>
+          <p className="font-sans text-sm text-text leading-relaxed">
+            Machine-readable opt-outs from text and data mining are honoured on every page: the{" "}
+            <code className="font-mono text-[12px]">TDM-Reservation</code> header, the{" "}
+            <code className="font-mono text-[12px]">tdm-reservation</code> meta tag,{" "}
+            <code className="font-mono text-[12px]">noai</code> robots directives and{" "}
+            <code className="font-mono text-[12px]">/.well-known/tdmrep.json</code>. Where an opt-out is set, only the
+            headline and the feed teaser are kept. Every published trend links back to its source.
+          </p>
+          <p className="font-sans text-sm text-text leading-relaxed">
+            Questions, corrections or removal requests:{" "}
+            <a href="mailto:trends@catandary.de" className="text-accent underline underline-offset-4">trends@catandary.de</a>
+            {" "}— removal requests are acted on within 72 hours.
+          </p>
+        </div>
+      </section>
+
       <ForesightCta />
     </div>
   );

@@ -46,7 +46,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse, urlsplit
 
+from collections import Counter
+
 import httpx
+from concurrent.futures import ThreadPoolExecutor
 import trafilatura
 
 from pipeline.config import DATA_DIR, load_sources
@@ -55,15 +58,19 @@ from pipeline.db import get_connection
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger("article_fetcher")
 
-# Honest crawler identity (compliance review 2026-09-02): product token, a URL
-# that explains what the bot does, and a mailbox for complaints. The same value
-# is used by pipeline.feed_poller — keep the defaults identical (tested).
+# Honest crawler identity (compliance review 2026-09-02; V2 since 2026-09-11,
+# Owner): product token + a URL that explains what the bot does and how to
+# reach us. The mailbox moved OFF the UA line and onto that page — a publisher
+# can still steer the bot (robots.txt token) and still reach us, but the
+# address no longer travels in every request log. The same value is used by
+# pipeline.feed_poller — keep the defaults identical (tested).
 DEFAULT_USER_AGENT = ("CatandaryTrendsBot/1.0 "
-                      "(+https://catandary.de/trends/methodology; trends@catandary.de)")
+                      "(+https://catandary.de/trends/methodology)")
 UA = os.getenv("CRAWLER_USER_AGENT", DEFAULT_USER_AGENT)
 MIN_TEXT_CHARS = 400          # below this the extraction is not worth keeping
 MAX_TEXT_CHARS = 12_000       # cap what we store (stages slice the first ~1.5k anyway)
 PER_HOST_DELAY = 1.0          # seconds between requests to the same host
+FETCH_WORKERS = int(os.getenv("FETCH_WORKERS", "8"))   # fetch_batch threads (hosts in parallel, never a host)
 
 # --- TDM reservation (§44b Abs. 3 UrhG; TDMRep, W3C Community Group) ---------
 # A rights holder who reserves text and data mining in machine-readable form
@@ -415,22 +422,35 @@ def fetch_batch(limit: int = 100) -> int:
             "ORDER BY re.id DESC LIMIT ?", (*names, limit)).fetchall()
     logger.info("%d entries to enrich from %d opt-in sources", len(rows), len(names))
     filled = reserved = 0
+    reasons: Counter = Counter()
+    items = [(r["id"] if isinstance(r, dict) else r[0], r["url"] if isinstance(r, dict) else r[1])
+             for r in rows]
+    # Parallel wie scripts/refetch_fulltext.py (2026-09-11, Option A: 480 statt
+    # 165 Volltext-Quellen). Die Hoeflichkeit bleibt: fetch_fulltext_result
+    # drosselt JE HOST auf eine Anfrage pro Sekunde (per-host lock in _throttle);
+    # die Threads verteilen sich nur ueber verschiedene Hosts. Sequenziell
+    # haetten ~1.400 Abrufe je Nacht den Cycle um eine Dreiviertelstunde
+    # verlaengert.
     with httpx.Client(timeout=20, follow_redirects=True,
                       headers={"User-Agent": UA}) as client:
-        for r in rows:
-            rid = r["id"] if isinstance(r, dict) else r[0]
-            url = r["url"] if isinstance(r, dict) else r[1]
-            res = fetch_fulltext_result(url, client=client)
-            if res.tdm_reserved:
-                reserved += 1
-                continue
-            if res.text:
-                with get_connection() as conn:
-                    conn.execute("UPDATE raw_entries SET raw_content = ? WHERE id = ?",
-                                 (res.text, rid))
-                filled += 1
-    logger.info("enriched %d/%d entries with full text (%d TDM-reserved, kept teaser only)",
-                filled, len(rows), reserved)
+        def work(item):
+            rid, url = item
+            return rid, fetch_fulltext_result(url, client=client)
+        with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
+            for rid, res in pool.map(work, items):
+                if res.tdm_reserved:
+                    reserved += 1
+                    continue
+                if res.text:
+                    with get_connection() as conn:
+                        conn.execute("UPDATE raw_entries SET raw_content = ? WHERE id = ?",
+                                     (res.text, rid))
+                    filled += 1
+                elif res.reason:
+                    reasons[res.reason.split(" ")[0]] += 1
+    logger.info("enriched %d/%d entries with full text (%d TDM-reserved, kept teaser only; "
+                "misses: %s)", filled, len(rows), reserved,
+                ", ".join(f"{k} {v}" for k, v in reasons.most_common(6)) or "none")
     return filled
 
 

@@ -37,6 +37,14 @@ aktivieren — sonst dasselbe Loch wie am 05.09.: ein Server, der auf alles mit
 200 OK antwortet. Der Ops-Sampler ist schon backend-neutral (`/health` oder
 `/api/ps`), an der Seite ändert sich nichts.
 
+## 2026-09-11 · decision · Volltext für alle 480 tdm-ok-Quellen, User-Agent ohne Mailadresse
+Option A: 302 Quellen von `fulltext: false` auf `true` (Messung: 10.500 Einträge in
+14 Tagen, 19 mit Text). Erwartung ~+7.000 Volltexte je 14 Tage; `fetch_batch` jetzt
+mit 8 Threads (Host-Drossel bleibt). Option B: nach dem Fix vom 08.09. kommen
+73–100 % an, Rest sind heise+, gelöschte Seiten, bildlastige ArchDaily-Beiträge.
+User-Agent V2 `CatandaryTrendsBot/1.0 (+https://catandary.de/trends/methodology)`,
+Kontakt im neuen Abschnitt „Our crawler" der Methodik-Seite. Scharf mit Merge.
+
 ## 2026-09-11 · decision · Volltext-Vektoren: Backfill nur noch bei echtem Textgewinn
 Zwei Handläufe auf bequiet (20:50–21:35, 21:39–22:21, Owner-Freigabe außerhalb
 des Fensters): 75.696 Vektoren, jetzt 95.023 mit beiden Räumen. Der erste Lauf

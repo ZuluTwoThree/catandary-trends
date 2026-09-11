@@ -74,7 +74,7 @@ BALANCE_FACTOR = 3.0    # CLAUDE.md: >3x deviation from median share = alert
 WP_FACTOR = 3.0         # WP posts / our intake above this = silent feed defect
 WP_MIN_POSTS = 10       # ignore hosts that barely publish
 VERTICALS = ["FOOD", "TECH", "HEALTH", "ECO", "DESIGN", "FASHION", "BIZ", "LIFESTYLE"]
-UA = {"User-Agent": "CatandaryTrends source-check (trends@catandary.de)"}
+UA = {"User-Agent": "CatandaryTrendsBot/1.0 (+https://catandary.de/trends/methodology; source-check)"}
 
 OA_DROP_FACTOR = 0.5    # issue #81: last full month < 50% of prior month = alert
 OA_MIN_PRIOR = 50       # ignore tiny/early-history prior-month counts (noise floor)

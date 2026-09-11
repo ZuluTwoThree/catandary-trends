@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # There is no per-source `user_agent` field in sources.yaml; the value is global.
 # 30s timeout covers slow feeds (idw ~20s).
 DEFAULT_USER_AGENT = ("CatandaryTrendsBot/1.0 "
-                      "(+https://catandary.de/trends/methodology; trends@catandary.de)")
+                      "(+https://catandary.de/trends/methodology)")
 USER_AGENT = os.getenv("CRAWLER_USER_AGENT", DEFAULT_USER_AGENT)
 HTTP_CLIENT = httpx.Client(
     timeout=30,
