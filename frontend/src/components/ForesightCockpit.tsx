@@ -422,6 +422,17 @@ export default function ForesightCockpit({
                 Order a cited scouting dossier on a field — the local researcher runs on your click, you sign it off
               </div>
             </Link>
+            <Link
+              href="/trends/ops"
+              className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                Ops <span className="text-muted">· owner</span> →
+              </div>
+              <div className="font-sans text-sm text-text mt-1">
+                What the machine is doing — GPU, disks, database, and every job run, minute by minute
+              </div>
+            </Link>
           </div>
 
           {topClusters.length > 0 && (

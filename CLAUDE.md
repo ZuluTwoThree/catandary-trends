@@ -813,6 +813,9 @@ Verbindungen, lange Abfragen). Jede zehnte Minute ist eine volle Messung
 SMART) und löscht Zeilen älter als 7 Tage. Tabellen `ops_samples`/`ops_events`/
 `ops_alerts` (additive Migration `_migrate_ops`, in `init_db`, Live-DB 11.09.).
 Deltas über `data/ops_sampler_state.json`. Units: `deploy/systemd/catandary-ops-sampler.{service,timer}`.
+Anzeige: `/trends/ops` (Stufe 3, s. Routing; `frontend/src/lib/ops.ts` Helfer, `opsDb.ts` Queries,
+`components/ops/Chart.tsx` SVG ohne Chart-Bibliothek; Sperre wie `/trends/review`: `BLOCKED_PREFIXES`,
+Proxy-Matcher, `static-export.exclude`, `canOps()`).
 
 **Laufprotokoll `ops_events` (#104 Stufe 2, seit 2026-09-11):** jeder Job-Lauf
 ist eine Zeile (Job, Start, Ende, rc, Notiz). Schreiber: die zehn Shell-Wrapper
@@ -1039,6 +1042,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
 /trends/newsletter/review        → Freigabe-Desk (Owner, seit 2026-09-06): Editionsliste + Vorschau der echten Mail
                                    + Freigabe/Zurückziehen + KI-Kennzeichnung je Block; im PUBLIC_MODE 404 und aus dem
                                    statischen Export ausgeschlossen (BLOCKED_PREFIXES + static-export.exclude + canReview())
+/trends/ops                      → Ops-Dashboard (#104, seit 2026-09-11; Owner, im PUBLIC_MODE 404, nicht im Export): Jetzt-Kacheln (GPU lokal + bequiet, CPU/RAM, Postgres, Queues, Sampler), alle vier Platten (Füllstand, I/O, Temperatur, SMART-Ampel, „voll in N Tagen"), 24-h/7-d-Diagramme als server-gerendertes SVG mit Job-Bändern aus ops_events, Job-Statistik (28 Tage, Median-Dauer) und die letzten 40 Läufe; ?range=24h|7d, Auto-Refresh 60 s. Logbuch + Wochenplan (Stufe 4) und Alarme (Stufe 5) folgen.
 /trends/dossiers, /trends/dossiers/[slug] → Owner-Dossier-Desk (#95; lokal standardmäßig AN, `DOSSIERS_ENABLED=0` = Not-Aus; unter PUBLIC_MODE geblockt und aus dem statischen Export ausgeschlossen): Scouting-Dossier-Aufträge erteilen, „Neu rechnen" startet den Worker on-demand, Bericht mit Herkunftskopf/Coverage-Anhang + Agenten-Endkontrolle lesen, Sign-off — siehe `docs/agentic_dossiers.md`
 /imprint, /privacy, /enquiry     → Rechtstexte + Anfrage (mailto); im Export unter /trends/… (s. o.), da der Publisher den Webroot nie schreibt
 ```

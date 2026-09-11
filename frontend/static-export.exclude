@@ -15,6 +15,7 @@ src/app/trends/review/
 src/app/trends/quality-preview/
 src/app/trends/dossiers/
 src/app/trends/newsletter/review/
+src/app/trends/ops/
 # /api/foresight falls under the whole api tree below
 
 # --- 2. Not exportable ---

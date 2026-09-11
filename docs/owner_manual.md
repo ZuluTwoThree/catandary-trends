@@ -1315,7 +1315,28 @@ ungefährlich.
 
 ---
 
-### 11.9 Ops-Sampler und Laufprotokoll (#104, Stufen 1–2)
+### 11.9 Ops-Dashboard (`/trends/ops`, #104)
+
+**Die Seite** (Owner-Instanz, Link im Foresight-Cockpit unter „Ops"; im
+`PUBLIC_MODE` 404, im Export nie gebaut): oben **Jetzt** — sechs Kacheln
+(GPU 3090: Speicher, Last, Temperatur, Watt, geladenes Modell, haltender Job ·
+GPU 5080 auf bequiet: Backend llamacpp/ollama/down, Fenster, Modell · CPU/RAM ·
+Postgres: Größe, Verbindungen, lange Abfragen, die vier größten Tabellen ·
+Queues: Backlog, Review-Queue, fehlende Volltext-Vektoren · Sampler: Alter der
+letzten Messung, Zeilen/24 h, laufende Jobs). Dann **Platten** — je Gerät
+Füllstand je Mount (System-/DB-Platte warnt schon bei 80 %), Lese-/Schreibrate,
+Beschäftigung, Temperatur, SMART-Ampel mit Grund (PASSED / „3 reallocated" /
+„92 % worn" / FAILED), Betriebsstunden und „voll in ~N Tagen" (lineare
+Steigung der letzten 7 Tage; braucht ein paar Stunden Daten). Dann
+**Diagramme** über 24 h oder 7 d (`?range=7d`): GPU-Speicher, GPU-Last,
+GPU-Temperatur (Linie bei 88 °C), CPU, Platten-Beschäftigung (System + HDD),
+RAM, DB-Größe, Backlog/Review-Queue — die farbigen Bänder dahinter sind die
+Job-Läufe aus `ops_events`, Legende darüber. Zuletzt **Jobs** (28 Tage: Läufe,
+Median-Dauer, letzter Lauf, Ergebnis) und **Runs** (letzte 40: Start, Dauer,
+Ergebnis ok/blocked/rc N/running, Notiz). Die Seite lädt sich alle 60 s neu.
+Logbuch/Wochenplan (Stufe 4) und Alarme (Stufe 5) kommen noch.
+
+**Darunter: Sampler und Laufprotokoll.**
 
 Grundlage des kommenden Ops-Dashboards `/trends/ops`: ein systemd-User-Timer
 misst **jede Minute** und schreibt eine Zeile nach `ops_samples`. Läuft aus dem

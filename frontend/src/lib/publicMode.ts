@@ -36,6 +36,7 @@ export const BLOCKED_PREFIXES = [
   "/trends/quality-preview",
   "/trends/dossiers",
   "/trends/newsletter/review",
+  "/trends/ops",
   "/api/foresight",
 ] as const;
 
