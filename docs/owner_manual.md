@@ -996,38 +996,13 @@ Grenze: 16 GB, davon am Sperrbildschirm 13,9 GB frei — bei angemeldetem
 Benutzer weniger. Das reicht für 8B, 14B und den Embedder, nicht für das
 Gemma-4-26B der Artikelerzeugung oder den 27B-Rechercheur.
 
-**Zweiter Vektorraum über den Quelltext (seit 10.09.2026, #102).** Der
-bestehende Vektor jedes Trends kommt aus Überschrift plus 500 Zeichen Anriss —
-das ist für die Dublettenprüfung richtig gewählt, für Analyse und Suche aber zu
-dünn. Ein zweiter Vektor über den vollen Quelltext läuft täglich um 09:00, nach
-dem Nachtlauf:
-
-```bash
-python scripts/embed_full_text_gpu.py --limit 500            # Dry-Run
-python scripts/embed_full_text_gpu.py --limit 5000 --apply   # wie der Cron
-```
-
-Immer über `..._gpu.py` starten — der holt das Embedding-Modell auf die Karte
-und stellt danach den Ruhezustand wieder her. Direkt gestartet bricht das
-Skript ab, wenn auf `:8090` ein Chatmodell liegt (es würde sonst Vektoren aus
-dem falschen Raum schreiben). Auf der CPU dauert ein Text ~20 s statt
-Millisekunden — für eine Nacht Material wären das 13 Stunden.
-
-Was er nicht anfasst: den Dedup-Vektor. Einträge mit zu dünnem Quelltext werden
-vermerkt, aber nicht eingebettet, damit sie nicht jede Nacht wiederkehren.
-Log: `~/logs/catandary-embed-full.log`.
-
-**Wenn später mehr Text auftaucht.** Jede Zeile merkt sich, wie viel Text in
-ihren Vektor eingegangen ist. Holt ein Nachhollauf später den Volltext zu einer
-Zeile, die nur ein Abstract hatte, lässt sie sich gezielt nachembedden:
-
-```bash
-python scripts/embed_full_text.py --regrown --limit 5000 --apply
-```
-
-Genommen wird, wessen Quelltext seit dem Einbetten um mehr als das
-Anderthalbfache gewachsen ist — auch Zeilen, die beim ersten Mal *zu dünn* waren
-und gar keinen Vektor bekamen. Gerade die sind der wichtigste Fall.
+**Zweiter Vektorraum über den Quelltext (#102) — zurückgebaut am 11.09.2026.**
+Die Messung über 95.023 Zeilen (`docs/embedding_eval_2026-09-11.md`) zeigte
+keinen Gewinn gegenüber dem Dedup-Vektor: 95 % der Zeilen haben gar keinen
+längeren Text als den Anriss. Owner-Entscheid: kein Backfill, kein 09:00-Lauf,
+kein Betrieb auf bequiet. Die Spalten bleiben stehen (nichts liest sie), die
+Skripte sind entfernt. Der Hebel für Inhaltsanalyse ist Textabdeckung (§10,
+Option A: Volltext für alle 480 tdm-ok-Quellen).
 
 **Ob der zweite Raum wirklich besser ist, wird gemessen, nicht behauptet:**
 
@@ -1124,7 +1099,6 @@ im Handover still).
 | Zeit | Job | Skript | Status |
 |---|---|---|---|
 | 02:45 täglich | Postgres-Backup (dumpdir, zstd, keep 4 Tage) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4` | installiert |
-| 09:00 täglich | **Volltext-Vektoren** (zweiter Vektorraum, #102) | `scripts/embed_full_text_cron.sh` (Limit 30.000, mit Kollisionswächter) | installiert (10.09.) |
 | 03:30 täglich | Volltext-Retention 60 Monate | `scripts/purge_raw_content.py --days 1825 --apply` | installiert (03.09., Frist 10.09. erweitert) |
 | 03:45 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
 | 04:00 Mo–Fr | Full Cycle + Draft-Richter + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch **3000** — so bemessen, dass ein normaler Tag in einem Lauf durchgeht; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |
@@ -1325,7 +1299,7 @@ ungefährlich.
 (GPU 3090: Speicher, Last, Temperatur, Watt, geladenes Modell, haltender Job ·
 GPU 5080 auf bequiet: Backend llamacpp/ollama/down, Fenster, Modell · CPU/RAM ·
 Postgres: Größe, Verbindungen, lange Abfragen, die vier größten Tabellen ·
-Queues: Backlog, Review-Queue, fehlende Volltext-Vektoren · Sampler: Alter der
+Queues: Backlog, Review-Queue · Sampler: Alter der
 letzten Messung, Zeilen/24 h, laufende Jobs). Dann **Platten** — je Gerät
 Füllstand je Mount (System-/DB-Platte warnt schon bei 80 %), Lese-/Schreibrate,
 Beschäftigung, Temperatur, SMART-Ampel mit Grund (PASSED / „3 reallocated" /
@@ -1389,7 +1363,7 @@ main-Worktree wie alle Crons.
 | CPU %, load1, RAM | `/proc/stat` (Delta zur Vorminute), `/proc/meminfo` |
 | **alle Platten** (`nvme1n1` Lexar = System + Postgres, `sda` HDD = Backups, `sdb`, `nvme0n1` NTFS): Füllstand je Mount, Lese-/Schreib-Bytes/s, Beschäftigung %, Temperatur, SMART | `/sys/block`, `statvfs`, hwmon (NVMe ohne Root); SMART nur mit sudoers-Zeile (unten) |
 | Postgres: Größe, Verbindungen/`max_connections`, Abfragen > 60 s | Systemkatalog |
-| **nur alle 10 min** (`is_full = true`): Backlog, Review-Queue (Drafts ≥ 0,85), fehlende Volltext-Vektoren, 8 größte Tabellen, SMART | `get_unprocessed_entries` (~2 s) u. a.; dieselbe Messung löscht Zeilen älter als 7 Tage |
+| **nur alle 10 min** (`is_full = true`): Backlog, Review-Queue (Drafts ≥ 0,85), 8 größte Tabellen, SMART | `get_unprocessed_entries` (~2 s) u. a.; dieselbe Messung löscht Zeilen älter als 7 Tage |
 
 ```bash
 systemctl --user status catandary-ops-sampler.timer      # läuft er?

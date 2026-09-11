@@ -307,21 +307,14 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     │
     ▼
 [Schritt 4] DUPLIKAT-CHECK (Qwen3-Embedding)
-    → ZWEI Vektorräume (seit 2026-09-10, #102), bewusst getrennt:
-      `embedding`/`embedding_1024` = title + excerpt[:500] (Median 588 Zeichen).
-        Für den Dedup richtig gewählt; NICHT verbreitern (1,7 Mio. Zeilen,
-        geänderte Semantik — die Warnung in Schritt 4 gilt weiter).
-      `embedding_full_1024` = Titel + voller Quelltext (raw_content, sonst
-        excerpt), HTML entfernt, ohne 500er-Kappe. Gerechnet von
-        scripts/embed_full_text_gpu.py (Cron 09:00, GPU-Handover, Modell-
-        Identitätsprüfung); `full_embedded_at` stempelt jeden Ausgang, auch
-        „zu dünn", damit nichts ewig wiederkehrt. Gemessen 10.09.: Ø 5.700–6.400
-        Zeichen je Text, also elfmal der Dedup-Ausschnitt; Kontrollmessung
-        cos(Dedup, Volltext) = 0,903 beim selben Eintrag gegen 0,201 bei fremden
-        Paaren — derselbe Raum, mehr Text.
-      Anlass: der Dedup-Raum clusterte formelhafte Meldungen nach ihrer SATZFORM
-      und hatte auf Mega-Trend-Höhe eine Silhouette von ~0,02
-      (docs/mega_discovery_2026-09-09.md).
+    → EIN Vektorraum: `embedding`/`embedding_1024` = title + excerpt[:500]
+      (Median 588 Zeichen). Für den Dedup richtig gewählt; NICHT verbreitern
+      (1,7 Mio. Zeilen, geänderte Semantik).
+      *(Der zweite Raum `embedding_full_1024` über den vollen Quelltext, #102,
+      lief vom 10.–11.09.2026 und wurde vom Owner zurückgebaut: Messung über
+      95.023 Zeilen ohne Gewinn gegenüber dem Dedup-Vektor, weil 95 % der
+      Zeilen gar keinen längeren Text haben — docs/embedding_eval_2026-09-11.md.
+      Spalten bleiben additiv stehen, nichts liest sie; Cron/Skripte entfernt.)*
     → Embedding generieren
     → Cosine-Similarity gegen letzte 30 Tage prüfen
     → Wenn >0.92 Similarity: als Duplikat markieren, Ende
@@ -695,18 +688,9 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Vorbehalts-Quellen: purge_raw_content.py --source … --ignore-state --also-extraction
 30 3 * * *   .venv/bin/python scripts/purge_raw_content.py --days 1825 --apply
 
-# Volltext-Vektoren (taeglich 09:00, INSTALLIERT 2026-09-10, #102): zweiter
-# Vektorraum ueber den QUELLTEXT (raw_content, sonst excerpt — HTML entfernt,
-# ohne die 500er-Kappe des Dedup-Vektors). Laeuft NACH dem Cycle mit
-# --limit 30000 deckt auch den Samstag ab (Wochen-Ingester ~30.000 Kandidaten):
-# ~40 min auf bequiet, ~76 min lokal. Der Wrapper haengt den Kollisionswaechter
-# davor — montags startet um 09:00 auch der Newsletter, und dieser Lauf ist der
-# niederrangigste GPU-Job im Haus (er soll warten, nicht draengeln).
-# GPU-Handover und stellt den Ruhezustand selbst wieder her. Steht die fremde
-# GPU im Fenster bereit (bequiet, 01:00-17:00), entfaellt der lokale Handover
-# ganz — er wuerde sonst das 8B verdraengen, das Embedding-Modell laden, es
-# nicht benutzen und alles zurueckstellen.
-0 9 * * *    scripts/embed_full_text_cron.sh      # --limit 30000, mit Kollisionswaechter
+# Volltext-Vektoren (#102, 09:00): am 2026-09-11 vom Owner ZURUECKGEBAUT — der
+# zweite Vektorraum brachte keinen messbaren Gewinn (docs/embedding_eval_2026-09-11.md).
+# Cron-Zeile, Wrapper und Skripte entfernt; kein Backfill, kein Lauf auf bequiet.
 
 # Volltext-Nachhollauf (#102, on demand — KEIN Cron): die 14-Tage-Regel hat bis
 # zum 10.09. 17.665 Volltexte geloescht (Purge-Log). Die Quell-URL steht noch in
@@ -811,7 +795,7 @@ main-Worktree auf und schreibt eine Zeile nach `ops_samples` — GPU lokal
 CPU/RAM, **alle vier Platten** (Füllstand, I/O-Delta, hwmon-Temperatur, SMART
 sobald `deploy/sudoers/catandary-smart` eingespielt ist), Postgres (Größe,
 Verbindungen, lange Abfragen). Jede zehnte Minute ist eine volle Messung
-(`is_full`: Backlog, Review-Queue, fehlende Volltext-Vektoren, Tabellengrößen,
+(`is_full`: Backlog, Review-Queue, Tabellengrößen,
 SMART) und löscht Zeilen älter als 7 Tage. Tabellen `ops_samples`/`ops_events`/
 `ops_alerts` (additive Migration `_migrate_ops`, in `init_db`, Live-DB 11.09.).
 Deltas über `data/ops_sampler_state.json`. Units: `deploy/systemd/catandary-ops-sampler.{service,timer}`.
@@ -820,15 +804,15 @@ Anzeige: `/trends/ops` (Stufe 3, s. Routing; `frontend/src/lib/ops.ts` Helfer, `
 Proxy-Matcher, `static-export.exclude`, `canOps()`).
 
 **Laufprotokoll `ops_events` (#104 Stufe 2, seit 2026-09-11):** jeder Job-Lauf
-ist eine Zeile (Job, Start, Ende, rc, Notiz). Schreiber: die zehn Shell-Wrapper
+ist eine Zeile (Job, Start, Ende, rc, Notiz). Schreiber: die neun Shell-Wrapper
 über `scripts/lib/ops_events.sh` (`ops_event_start <job>` nach dem `cd`,
 `ops_event_end <rc> [Notiz]` vor jeder end-Zeile — auch auf den Abbruchpfaden
 blocked/exists/skipped/locked) und die neun Python-Crons/Worker über
 `pipeline.ops_events.record("<job>")` um `main()` (backup_db, purge_raw_content,
 resolve_open_licence, discovery_loop, monthly_source_check, check_source_links,
-dossier_worker, research_pulse, embed_full_text). `OPS_EVENT_ID` wird exportiert:
+dossier_worker, research_pulse). `OPS_EVENT_ID` wird exportiert:
 ein Python-Skript unter einem Wrapper übernimmt dessen Zeile statt eine zweite
-anzulegen (embed_full_text notiert so `gpu=remote …`/`gpu=local`). Das Protokoll
+anzulegen (Notizen wie `gpu=remote …` landen dann dort). Das Protokoll
 darf einen Lauf nie verhindern — DB weg → Warnung im Log, Job läuft weiter. Ein
 Lauf ohne `ended_at` ist die Information „abgebrochen, Ende unbekannt".
 

@@ -1029,6 +1029,12 @@ def _migrate_embedding_1024():
 def _migrate_embedding_full():
     """Zweiter Vektorraum: der QUELLTEXT statt Titel + 500 Zeichen Anriss (#102).
 
+    ZURUECKGEBAUT 2026-09-11 (Owner): die Messung ueber 95.023 Zeilen
+    (docs/embedding_eval_2026-09-11.md) zeigte keinen Gewinn gegenueber dem
+    Dedup-Vektor — 95 % der Zeilen haben gar keinen laengeren Text. Die Spalten
+    bleiben (additiv, 95.023 gefuellte Zeilen, kein DROP), der Cron und die
+    Skripte sind entfernt; nichts liest die Spalte mehr.
+
     Der bisherige `embedding`/`embedding_1024` wird aus `title + excerpt[:500]`
     gerechnet — Median 588 Zeichen. Dieser Ausschnitt ist fuer den DEDUP richtig
     gewaehlt und darf nicht veraendert werden (1,7 Mio. Zeilen, geaenderte

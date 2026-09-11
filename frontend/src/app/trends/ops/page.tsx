@@ -128,7 +128,6 @@ function NowGrid({ s, full, open, sampler, now }: {
       <Tile title={`Queues${full ? ` · ${fmtTime(full.ts)}` : ""}`}>
         <Row k="backlog (cycle-eligible)" v={full?.backlog_unprocessed?.toLocaleString("en-US") ?? "—"} />
         <Row k="review queue" v={full?.review_queue?.toLocaleString("en-US") ?? "—"} />
-        <Row k="full-text vectors missing" v={full?.fulltext_vectors_missing?.toLocaleString("en-US") ?? "—"} />
         <div className="text-muted text-xs pt-1">Counted every 10 minutes (the expensive ones).</div>
       </Tile>
       <Tile title="Sampler" tone={samplerTone}>

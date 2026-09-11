@@ -24,7 +24,7 @@ Was gemessen wird und woher es kommt:
   Postgres       Groesse, Verbindungen, max_connections, lange Abfragen.
 
 Teure Zaehlungen (Backlog ueber get_unprocessed_entries ~2 s, Review-Queue,
-fehlende Volltext-Vektoren, Tabellengroessen, SMART) laufen nur in einer
+Tabellengroessen, SMART) laufen nur in einer
 VOLLEN Messung — jede zehnte Minute, oder mit --full. Die Zeile traegt dann
 `is_full = true`; das Dashboard nimmt fuer diese Werte die letzte volle Zeile.
 
@@ -64,7 +64,7 @@ SMARTCTL = os.getenv("SMARTCTL", "/usr/sbin/smartctl")
 GPU_GUARD_SH = Path(__file__).resolve().parent.parent / "scripts" / "lib" / "gpu_guard.sh"
 _DEFAULT_PATTERNS = (r"scheduled_cycle\.sh|full_cycle_cron\.sh|run_full_cycle|signal_batch|"
                      r"weekly_ingesters\.sh|dossier_worker|corpus_research|research_pulse|"
-                     r"newsletter_deep_dive|embed_full_text")
+                     r"newsletter_deep_dive")
 SKIP_BLOCK = re.compile(r"^(loop|ram|zram|sr|fd|dm-|md)")
 
 MIB = 1024 * 1024
@@ -435,8 +435,8 @@ def probe_db(full: bool) -> dict:
                 out["tables"] = {r[0]: int(r[1]) for r in cur.fetchall()}
                 cur.execute("SELECT count(*) FROM trends WHERE status = 'draft' AND confidence >= 0.85")
                 out["review_queue"] = int(cur.fetchone()[0])
-                cur.execute("SELECT count(*) FROM trends WHERE full_embedded_at IS NULL")
-                out["fulltext_vectors_missing"] = int(cur.fetchone()[0])
+                # fulltext_vectors_missing bleibt NULL: der zweite Vektorraum (#102) ist
+                # seit 2026-09-11 zurueckgebaut (Owner) — kein 1,7-Mio-Scan fuer nichts.
     except Exception as e:                                          # noqa: BLE001
         logger.warning("db probe: %s", e)
     if full:

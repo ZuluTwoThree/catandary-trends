@@ -57,14 +57,8 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # läuft --mark ins Leere (siehe Skript-Docstring).
 0 7 2 * * /home/dirk/projects/catandary-trends/.venv/bin/python /home/dirk/projects/catandary-trends/scripts/check_source_links.py --per-source 12 --mark >> /home/dirk/logs/catandary-source-links.log 2>&1
 
-# Volltext-Vektoren (#102, taeglich 09:00, INSTALLIERT 2026-09-10): zweiter
-# Vektorraum ueber den QUELLTEXT statt Titel + 500 Zeichen Anriss. Laeuft NACH
-# dem Cycle (der endet ~08:40); der Dedup-Vektor bleibt unangetastet.
-# --limit 30000 deckt auch den Samstag ab (Wochen-Ingester bringen dort rund
-# 30.000 Kandidaten): ~40 min auf bequiet, ~76 min lokal. Der Wrapper haengt
-# den Kollisionswaechter davor — dienstags startet um 09:00 auch der Newsletter,
-# und dieser Lauf ist der niederrangigste GPU-Job im Haus (er wartet, nicht umgekehrt).
-0 9 * * * [ -x /home/dirk/projects/catandary-trends/scripts/embed_full_text_cron.sh ] && /home/dirk/projects/catandary-trends/scripts/embed_full_text_cron.sh >> /home/dirk/logs/catandary-embed-full.log 2>&1
+# Volltext-Vektoren (#102): 09:00-Lauf am 2026-09-11 vom Owner zurueckgebaut —
+# der zweite Vektorraum brachte keinen messbaren Gewinn (docs/embedding_eval_2026-09-11.md).
 
 # Woechentliche Newsletter-EDITION fuer die Website (Owner 2026-08-29): DIENSTAG
 # 09:00 (von Montag verlegt am 2026-09-11, Owner) generiert die Vorwoche

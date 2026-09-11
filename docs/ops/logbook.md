@@ -13,18 +13,6 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
-## 2026-09 · plan · Backfill Volltext-Vektoren, 1,7 Mio Einträge
-duration: 16h
-gpu: bequiet
-
-Termin offen (Owner: grünes Licht nach einer sauberen Nacht mit allen drei
-neuen Funktionen). Nur im bequiet-Fenster (01:00–17:00), geschätzt zwei bis drei
-Fenster — mit Tag und Uhrzeit im Kopf erscheint der Eintrag im Wochenplan. Vorher:
-eine saubere Nacht mit Batch 3000 und ein Blick auf die Ops-Seite, ob der
-09:00-Lauf remote lief. `scripts/embed_full_text_gpu.py --limit 0 --apply`
-(oder in Portionen mit `--limit 300000`). Danach `compare_vector_spaces.py
---kind patent` — der A/B-Test, den der Owner sich gemerkt haben will.
-
 ## 2026-09 · plan · bequiet von Ollama auf llama.cpp umstellen
 gpu: bequiet
 
@@ -45,15 +33,18 @@ mit 8 Threads (Host-Drossel bleibt). Option B: nach dem Fix vom 08.09. kommen
 User-Agent V2 `CatandaryTrendsBot/1.0 (+https://catandary.de/trends/methodology)`,
 Kontakt im neuen Abschnitt „Our crawler" der Methodik-Seite. Scharf mit Merge.
 
-## 2026-09-11 · decision · Volltext-Vektoren: Backfill nur noch bei echtem Textgewinn
+## 2026-09-11 · decision · Zweiter Vektorraum zurückgebaut — entbehrlich
 Zwei Handläufe auf bequiet (20:50–21:35, 21:39–22:21, Owner-Freigabe außerhalb
 des Fensters): 75.696 Vektoren, jetzt 95.023 mit beiden Räumen. Der erste Lauf
 brach an einem einzelnen 400 ab (Fix `2394bba`: 4xx ≠ Host weg). Messung
 `docs/embedding_eval_2026-09-11.md`: kein messbarer Vorteil auf Label-Ebene,
 weil 95 % der Zeilen gar keinen längeren Text haben (Median Textgewinn 1,1×).
 Von den 1,6 Mio offenen Zeilen tragen nur 17.877 einen Volltext ≥ 3× Anriss.
-Empfehlung: Backfill auf diese beschränken (25 min), gleiche Regel für den
-09:00-Cron, Verbraucher `COALESCE(full, dedup)`. Owner-Entscheid offen.
+Owner-Entscheid: kein Backfill, kein 09:00-Lauf, kein Betrieb auf bequiet — der
+zweite Vektor ist entbehrlich. Cron-Zeile, Wrapper, Skripte und Tests entfernt;
+die Spalten mit den 95.023 gerechneten Vektoren bleiben stehen (additiv, nichts
+liest sie). Kein Abstempeln der 1,6 Mio offenen Zeilen: das wäre ein Rewrite
+von ~30 GB Tabellenmasse für eine Markierung, die niemand mehr abfragt.
 
 ## 2026-09-11 · change · Ops-Dashboard: Sampler, Laufprotokoll, Seite
 Stufen 1–3 von #104. Timer misst minütlich (`ops_samples`), alle Wrapper und

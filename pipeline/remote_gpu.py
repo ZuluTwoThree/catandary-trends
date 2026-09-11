@@ -1,5 +1,10 @@
 """Fremde GPU im Tailnet nutzen — aber nur im vereinbarten Zeitfenster.
 
+Stand 2026-09-11: der einzige Nutzer war der Volltext-Embedding-Lauf (#102),
+den der Owner zurueckgebaut hat. `window_open()`/`REMOTE_EMBED_HOST` liest noch
+der Ops-Sampler (pipeline/ops_probe.probe_remote); `embed_batch_remote()`
+bleibt als Baustein fuer einen kuenftigen Nutzer stehen.
+
 Auf `bequiet` (Tailnet `100.119.239.40`, Windows) steckt eine RTX 5080 mit
 16 GB. Owner-Regel vom 2026-09-10: **zwischen 01:00 und 17:00 frei nutzbar,
 zwischen 17:00 und 01:00 gehoert sie dem Owner.** Dieses Modul haelt sich daran
