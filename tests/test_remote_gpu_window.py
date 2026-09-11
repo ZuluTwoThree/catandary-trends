@@ -96,13 +96,17 @@ class TestRunStopsAtWindowClose:
         assert "window_closed" in src
 
     def test_a_remote_failure_falls_back_locally(self):
+        """Seit 2394bba (2026-09-11) lebt der Fallback in embed_remote_or_fallback:
+        run() ruft ihn je Block, lokal geht es nur mit bestaetigtem Embedding-Modell
+        weiter (Details: tests/test_embed_full_text.py::TestRemoteFallback)."""
         import inspect
         import sys
         from pathlib import Path
         sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
         import embed_full_text as eft
-        src = inspect.getsource(eft.run)
-        assert "ab hier lokal" in src
+        assert "embed_remote_or_fallback" in inspect.getsource(eft.run)
+        src = inspect.getsource(eft.embed_remote_or_fallback)
+        assert "ab hier lokal" in src and "assert_embedding_model" in src
 
 
 class TestWrapperSkipsLocalHandover:
