@@ -280,6 +280,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    from pipeline.ops_events import record  # Laufprotokoll fuer /trends/ops (#104)
+    try:
+        from pipeline.ops_events import record  # Laufprotokoll fuer /trends/ops (#104)
+    except ImportError:  # Paket nicht im Pfad (Cron ohne cd, 12.09.: Backup fiel aus) — Protokoll ist optional, der Job nicht
+        from contextlib import nullcontext as record
     with record("purge_raw_content"):
         raise SystemExit(main())

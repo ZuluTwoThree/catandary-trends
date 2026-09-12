@@ -219,6 +219,12 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    from pipeline.ops_events import record  # Laufprotokoll fuer /trends/ops (#104)
+    # backup_db ist bewusst standalone (kein pipeline-Import), damit ein Backup auch
+    # bei kaputtem Paket laeuft; die Crontab startet es ohne cd — Repo-Root deshalb hier.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    try:
+        from pipeline.ops_events import record  # Laufprotokoll fuer /trends/ops (#104)
+    except ImportError:  # Paket nicht im Pfad (Cron ohne cd, 12.09.: Backup fiel aus) — Protokoll ist optional, der Job nicht
+        from contextlib import nullcontext as record
     with record("backup_db"):
         sys.exit(main())

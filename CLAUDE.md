@@ -813,7 +813,13 @@ resolve_open_licence, discovery_loop, monthly_source_check, check_source_links,
 dossier_worker, research_pulse). `OPS_EVENT_ID` wird exportiert:
 ein Python-Skript unter einem Wrapper übernimmt dessen Zeile statt eine zweite
 anzulegen (Notizen wie `gpu=remote …` landen dann dort). Das Protokoll
-darf einen Lauf nie verhindern — DB weg → Warnung im Log, Job läuft weiter. Ein
+darf einen Lauf nie verhindern — DB weg → Warnung im Log, Job läuft weiter. **Auch der Import ist optional** (seit 2026-09-12): die Crontab startet
+`backup_db.py` ohne `cd`, und ein harter `from pipeline.ops_events import record`
+warf dort einen ModuleNotFoundError — das Backup der Nacht auf den 12.09. fiel
+aus (Wächter meldete, von Hand nachgeholt). Jetzt: `ImportError → nullcontext`,
+`backup_db` setzt den Repo-Root selbst in den Pfad; Test
+`tests/test_cron_scripts_start_anywhere.py` startet jeden Python-Cron mit `--help`
+aus einem fremden Verzeichnis. Ein
 Lauf ohne `ended_at` ist die Information „abgebrochen, Ende unbekannt".
 
 **Alarme (#104 Stufe 5, seit 2026-09-11):** `pipeline/ops_alerts.py` läuft im

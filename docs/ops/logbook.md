@@ -25,6 +25,14 @@ aktivieren — sonst dasselbe Loch wie am 05.09.: ein Server, der auf alles mit
 200 OK antwortet. Der Ops-Sampler ist schon backend-neutral (`/health` oder
 `/api/ps`), an der Seite ändert sich nichts.
 
+## 2026-09-12 · change · Backup 02:45 ausgefallen — Laufprotokoll-Hook zerbrach den Standalone-Start
+Die Crontab startet `backup_db.py` ohne `cd`; der Hook `from pipeline.ops_events
+import record` (Stufe 2, 11.09.) fand das Paket nicht → ModuleNotFoundError, kein
+Backup. Wächter meldete um 07:45, Backup um 07:52 von Hand nachgeholt. Fix: Import
+optional (ImportError → nullcontext), Repo-Root im Pfad, Regressionstest aus fremdem
+Verzeichnis für alle acht Python-Crons. Lehre: ein Protokoll darf den Job nie
+verhindern — das galt für die DB, musste aber auch für den Import gelten.
+
 ## 2026-09-11 · decision · Volltext für alle 480 tdm-ok-Quellen, User-Agent ohne Mailadresse
 Option A: 302 Quellen von `fulltext: false` auf `true` (Messung: 10.500 Einträge in
 14 Tagen, 19 mit Text). Erwartung ~+7.000 Volltexte je 14 Tage; `fetch_batch` jetzt
