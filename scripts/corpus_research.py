@@ -60,6 +60,7 @@ from pydantic import BaseModel, Field
 
 from pipeline import dossier_structure, llamacpp_client
 from pipeline.article_fetcher import fetch_fulltext, fetch_fulltext_result
+from pipeline import web_cache
 from pipeline.db import get_connection
 
 logger = logging.getLogger("corpus_research")
@@ -888,6 +889,14 @@ def _blocked_host(url: str) -> bool:
     return any(host == b or host.endswith("." + b) for b in _WEB_BLOCKLIST)
 
 
+# Zaehler fuer das Laufprotokoll: wie viel der Cache dem Kontingent erspart hat.
+_web_stats = {"brave_api": 0, "brave_cached": 0, "page_fetch": 0, "page_cached": 0}
+
+
+def web_stats() -> dict:
+    return dict(_web_stats)
+
+
 def brave_search(query: str, count: int = 6) -> list[dict]:
     """Web search via the Brave Search API, shaped like a catalog entry.
 
@@ -900,18 +909,30 @@ def brave_search(query: str, count: int = 6) -> list[dict]:
     key = os.environ.get("BRAVE_SEARCH_API_KEY", "").strip()
     if not key:
         raise RuntimeError("BRAVE_SEARCH_API_KEY is not set (.env)")
-    import httpx
-    wait = _BRAVE_MIN_INTERVAL - (time.time() - _brave_last_call)
-    if wait > 0:
-        time.sleep(wait)
-    r = httpx.get(BRAVE_ENDPOINT,
-                  params={"q": query, "count": min(count, 20)},
-                  headers={"X-Subscription-Token": key, "Accept": "application/json"},
-                  timeout=20)
-    _brave_last_call = time.time()
-    r.raise_for_status()
+    # Cache zuerst (pipeline/web_cache.py, 2026-09-12): dieselbe Frage innerhalb
+    # der Haltefrist kostet kein Kontingent. Gespeichert wird die ROHE Trefferliste,
+    # damit Blockliste und Formung unten immer den aktuellen Regeln folgen.
+    ckey = web_cache.make_key("brave", query, min(count, 20))
+    raw_results = web_cache.cache_get("brave", ckey)
+    if raw_results is None:
+        import httpx
+        wait = _BRAVE_MIN_INTERVAL - (time.time() - _brave_last_call)
+        if wait > 0:
+            time.sleep(wait)
+        r = httpx.get(BRAVE_ENDPOINT,
+                      params={"q": query, "count": min(count, 20)},
+                      headers={"X-Subscription-Token": key, "Accept": "application/json"},
+                      timeout=20)
+        _brave_last_call = time.time()
+        r.raise_for_status()
+        raw_results = list((r.json().get("web") or {}).get("results", []))
+        web_cache.cache_put("brave", ckey, raw_results)
+        _web_stats["brave_api"] += 1
+    else:
+        _web_stats["brave_cached"] += 1
+        logger.info("  brave (cached): %s", query[:70])
     out = []
-    for w in (r.json().get("web") or {}).get("results", []):
+    for w in raw_results:
         url = (w.get("url") or "").strip()
         if not url or "catandary.de" in url or _blocked_host(url):
             continue
@@ -985,6 +1006,27 @@ def fetch_web_page_status(url: str) -> tuple[str, str]:
     not become citable. Der Produktions-UA bleibt (CRAWLER_USER_AGENT); eine
     Botsperre wird ausgewiesen, nicht umgangen.
     """
+    # Cache (pipeline/web_cache.py, 2026-09-12): eine Seite wird je Haltefrist
+    # einmal geholt — auch ueber Laeufe hinweg. Gespeichert werden nur STABILE
+    # Ausgaenge (Text, self-unverified, robots/TDM, Botsperre, 404/410, too_short);
+    # Timeouts, 5xx und 202-Warteseiten werden beim naechsten Mal neu versucht.
+    ckey = web_cache.make_key("page", url)
+    hit = web_cache.cache_get("page", ckey)
+    if isinstance(hit, dict) and "text" in hit and "status" in hit:
+        _web_stats["page_cached"] += 1
+        return str(hit["text"]), str(hit["status"])
+    text, status = _fetch_web_page_status_uncached(url)
+    _web_stats["page_fetch"] += 1
+    if status in _CACHEABLE_FETCH_STATUS or status in ("http 404", "http 410"):
+        web_cache.cache_put("page", ckey, {"text": text, "status": status})
+    return text, status
+
+
+_CACHEABLE_FETCH_STATUS = frozenset({"fetched", "self-unverified", "robots", "tdm",
+                                     "blocked", "too_short"})
+
+
+def _fetch_web_page_status_uncached(url: str) -> tuple[str, str]:
     res = fetch_fulltext_result(url)
     if res.text:
         admits = self_unverified(res.text)
@@ -5242,7 +5284,7 @@ def run(question: str, max_steps: int, max_sources: int,
         "retrieval": retrieval,
         "lang": lang,
         "scope": scope,
-        "web": {"steps": web_trace, "queries": sorted(web_queries),
+        "web": {"cache": web_stats(), "steps": web_trace, "queries": sorted(web_queries),
                 "fetched": sorted(fetched_web)},
         "kinds": {k: sum(1 for s in sources if s["kind"] == k)
                   for k in ("article", "signal", "paper", "patent", "web",

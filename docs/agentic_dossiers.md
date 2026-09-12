@@ -410,6 +410,16 @@ bleibt reproduzierbar. Kein Kritiker-Modell, keine Schreib-Kritik-Schleife.
 Erster Lauf über die integrierte Kette (Auftrag #1 → Worker → `dossiers` v1 →
 Desk), Themen-Modus, Quant-Vorstufe an, Web-Sweep mit Brave-Key.
 
+**Web-Cache (seit 2026-09-12, `pipeline/web_cache.py`):** Brave-Treffer (72 h)
+und Seitentexte (7 Tage) liegen in `data/web_cache.sqlite`; dieselbe Frage und
+dieselbe Seite kosten innerhalb der Frist weder Kontingent noch Abruf — auch
+über Läufe hinweg (drei LFP-Läufe am 12.09.: 340 Brave-Aufrufe, 156
+verschiedene; das Kontingent war nachmittags erschöpft, 402). Gespeichert
+werden nur stabile Ausgänge (Text, robots/TDM, Botsperre, 404/410, zu kurz);
+Timeouts, 5xx und 202-Warteseiten werden neu versucht. `result.web.cache`
+zählt je Lauf `brave_api`/`brave_cached`/`page_fetch`/`page_cached`.
+`WEB_CACHE=0` schaltet ab; `python -m pipeline.web_cache stats|purge|clear`.
+
 | Kriterium | Ziel | Gemessen |
 |---|---|---|
 | Zitate im **fertigen** Dossier belegt (jede zitierte URL im gesammelten Katalog) | ≥ 95 % | **8/8 = 100 %** (Kanonisierung erzwingt es; unabhängig nachgeprüft) |

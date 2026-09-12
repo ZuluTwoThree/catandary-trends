@@ -318,6 +318,7 @@ Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
 | `NEWSLETTER_APPROVER` | Name, der als Freigebender in `approved_by` landet (Default `owner`); Frontend-Env |
 | `REVIEW_NOTIFY_TO`, `REVIEW_URL` | Empfänger und Link der Morgen-Mail |
 | `BRAVE_SEARCH_API_KEY`, `FIRECRAWL_API_KEY` | Web-Stufe des Rechercheurs bzw. Backfill |
+| `WEB_CACHE`, `WEB_CACHE_SEARCH_TTL_HOURS`, `WEB_CACHE_PAGE_TTL_HOURS`, `WEB_CACHE_PATH` | Cache der Web-Stufe (seit 2026-09-12): Brave-Treffer 72 h, Seitentexte 7 Tage in `data/web_cache.sqlite`; `python -m pipeline.web_cache stats\|purge\|clear` |
 | `OPENALEX_API_KEY`, `EPO_OPS_*`, `EPO_LOGIN`/`EPO_PASSWORD` | Akquise-APIs |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL_CLASSIFY` | nur für `CLASSIFY_BACKEND=anthropic` |
 | `PUBLISH_CONFIG` | Pfad der Webspace-Config (Default `~/.config/catandary/webspace.env`) |

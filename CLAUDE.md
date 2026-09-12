@@ -1408,6 +1408,10 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   Lauf aus, sucht der Rest per Volltext weiter und der Grund steht in den Notizen — ein Dossier
   stirbt daran nie. Vergleich an einer realen Anfrage: Vektorsuche 0,3 s, Volltextsuche 4,9 s,
   **Überlappung 1 von 6 Treffern** — die beiden Verfahren finden Unterschiedliches.
+- **Web-Cache (seit 2026-09-12):** `pipeline/web_cache.py` hält Brave-Treffer 72 h und
+  Seitentexte 7 Tage in `data/web_cache.sqlite` — über Läufe hinweg (drei LFP-Läufe am
+  12.09.: 340 Brave-Aufrufe, 156 verschiedene; Kontingent nachmittags erschöpft). Nur
+  stabile Ausgänge werden gespeichert; `WEB_CACHE=0` schaltet ab.
 - **Streng lokal:** Quant-Vorstufe (`pipeline/dossier_quant.py`, Embedding-Handover)
   → Recherche auf Qwen3.8-27B (`model_on_llamacpp` mit den Stage-10-Guards:
   VRAM < 1100 MiB Fremdbelegung, Identitäts-Check `/v1/models`) → deterministische
