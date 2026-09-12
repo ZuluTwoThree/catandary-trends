@@ -90,8 +90,16 @@ export default function EnquiryContent() {
         </div>
         <p className="font-sans text-text text-base leading-relaxed mb-6 max-w-xl">
           Send us your question, or the kind of partnership you have in mind
-          — we&apos;ll reply and scope it from there. You can also find us on
-          LinkedIn.
+          — we&apos;ll reply and scope it from there. You can also find us on{" "}
+          <a
+            href="https://www.linkedin.com/company/catandary"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-accent/50 hover:decoration-accent"
+          >
+            LinkedIn
+          </a>
+          .
         </p>
         <a
           href={mailto}
