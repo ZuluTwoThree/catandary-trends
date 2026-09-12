@@ -275,12 +275,16 @@ Komma (deutsch/englisch tauschen die Trennzeichen), macht also aus „1.2" ein
 „12" — und „12" stand auf der Seite. Sätze mit Korpuszitat bleiben beim
 bestehenden Pfad (ihr Beleg ist der Evidenzblock, keine Seite).
 
-**Genau ein Neuwurf, dann Mechanik.** Struktur- und Belegbefunde gehen als *ein*
-Revisionsauftrag zurück ans Modell (`revision_prompt`, ohne Evidenzblock — es
-soll nichts Neues holen). Danach werden verbliebene, nicht gedeckte Sätze
-`drop_unverified()`-mechanisch gestrichen. **Keine Schleife, kein
-Kritiker-Modell** (Owner 2026-09-06,
-`docs/newsletter_agentic_prototype_2026-09-06.md`).
+**Ein gezielter Neuwurf, dann Mechanik — seit 2026-09-12 mit genau einem
+Nachzug.** Struktur- und Belegbefunde gehen als *ein* Revisionsauftrag zurück
+ans Modell (`revision_prompt`; Evidenzblock nur, wenn ein Befund verlangt zu
+ERGÄNZEN). Danach werden verbliebene, nicht gedeckte Sätze
+`drop_unverified()`-mechanisch gestrichen. Stehen danach noch
+**Strukturbefunde**, folgt ein zweiter Neuwurf nur für diese
+(`DOSSIER_REWRITES`, Default 2); senkt er die Zahl nicht, ist Schluss.
+**Kein Kritiker-Modell** (Owner 2026-09-06,
+`docs/newsletter_agentic_prototype_2026-09-06.md`) — beide Aufträge entstehen
+vollständig aus deterministischen Befunden. Siehe Runde 15.
 
 **Zitat-URL-Hygiene.** `valid_url`/`citable_url`: eine URL mit Leerzeichen im
 Host (Artefakt der Anonymisierung, aber real im Bericht) fällt aufs Original
@@ -341,7 +345,7 @@ selben Satz** — oder die Zahl muss aus dem eigenen Messanhang stammen, der
 codegeneriert im selben Dokument steht. Jahreszahlen und kleine ganze Zahlen
 sind keine Präzisionszahlen (sie zu streichen würde jeden zweiten Satz kosten,
 ohne einen Beleg zu erzwingen). Befund geht denselben Weg wie eine widerlegte
-Zahl: **ein** Neuwurf, danach `drop_unverified()`.
+Zahl: der Neuwurf, danach `drop_unverified()`.
 
 **R3-4 — interne Belege sind für Dritte unprüfbar.** Die Messquellen zeigen auf
 `catandary.de`, das Bot-UAs mit 403 abweist (unsere eigene KI-Crawler-Sperre,
@@ -1167,3 +1171,47 @@ Themenneutralität (Bedingung 2): Mechanik gebaut und auf drei Themen geprobt
 (Kern + Rückgrat je Vertikale + Modellprofil; Probe-Skript); „ähnlich gute
 Dossiers über alle Themen" ist damit **nicht belegt** — dafür fehlt ein voller
 Lauf zu einem Nicht-Pharma-Thema.
+
+### Runde 15 (2026-09-12) — LFP-Serie: der Harness gegen ein Nicht-Pharma-Thema
+
+Erster voller Lauf zu einem Nicht-Pharma-Thema (Serie `iron-phosphate-battery`,
+v1–v8 an einem Tag, Owner-Ziel: eine veröffentlichungsfähige Analyse für #93).
+Was sich dabei als Harness-Fehler zeigte und geändert wurde
+(`b0a394d`, `ac4cc77`, `c5c6d6a`, `63a92e9`, `17f176e`):
+
+| Befund | Lauf | Änderung |
+|---|---|---|
+| Streichung leerte die Kurzfassung (BNEF-Preise = Rang 2) | v3 | Datenhäuser mit eigener Erhebung (BNEF, Benchmark, WoodMac, Rystad, Ember) = **Rang 1**; die letzte Aussage der Kurzfassung wird **markiert statt gestrichen** |
+| „tail without its head" für „In Europe …", „On 30 July 2025 …" | v3 | nur Bindewörter sind immer ein Schwanz; Präposition nur bei kleinem Anfang |
+| `ok=False` an 7 ehrlich markierten Rang-2-Sätzen | v4 | **`ok` beschreibt das ausgelieferte Dokument** (unbelegt, gestrichen, Gliederung); die Nacharbeit steht als Befundzeile |
+| Effort-Platzhalter + 3/5-Kalender blieben nach dem einen Neuwurf | v4 | zweiter Neuwurf nur für Strukturbefunde (`DOSSIER_REWRITES=2`) |
+| Faktenquote im Erstentwurf 2,37 (v4) gegen 1,23 (v5) bei identischem Auftrag | v5 | **Best-of-2** (`DOSSIER_DRAFTS`), deterministisch bewertet (`draft_score`) |
+| 6–8 „gestrichene Zitate": ids ungelesener Treffer aus dem Evidenzblock | v5/v6 | Vermerk „NOT citable" in den Notizen; **zitatgetriebener Abruf** (`_adopt_cited_unfetched`): zitierte ungelesene Seite jetzt holen, sonst Marker VOR der Prüfung weg |
+| 340 Brave-Aufrufe für 156 Fragen über drei Läufe, Kontingent erschöpft | v2 | `pipeline/web_cache.py` (Brave 72 h, Seiten 7 d); v7: 92/116 Brave und 81/127 Seiten aus dem Cache |
+| „line ends in a colon" vor einer Liste | v5 | Einleitung vor Liste/Tabelle ist Markdown |
+
+Verlauf der Serie (Faktenquote nach dem Neuwurf / Strukturbefunde danach /
+gestrichene Zitate): v3 0,43 / 5 / 6 · v4 2,41 / 3 / 0 · v5 1,22 / 2 / 6 ·
+v6 2,01 / 1 / 8 · v7 1,27 / 2 / 0 · **v8 (DR-Modus) 2,90 / 1 / 2** — Kurzfassung
+drei Aussagen, Kalender sechs Zeilen aus fünf Quellen, 2.479 Wörter; einziger
+Strukturbefund: kein datierter, belegter Satz zur Wissenschaftsebene. Die drei
+„unbelegten" Zahlen von v8 standen auf der zitierten Seite (`_evidence_text`
+las den gelesenen Seitentext nicht mit — behoben, `dossier_check`). Damit ist
+der DR-Vorlauf (Faktenzettel + Kalender-Kandidaten) der Pfad, der die Dichte
+trägt; ohne ihn schwankt der Erstentwurf zwischen 1,0 und 2,4. Die Restbefunde, die
+`ok` blockieren, sind inhaltlich: Faktenquote unter 2,0 in schwachen
+Entwürfen, Kalender mit weniger als fünf datierten LFP-Ereignissen, in v7 die
+Innovationskette (Wissenschaft/Förderung ohne datierten Satz). Die
+Patentmessung fiel in allen Läufen aus (keine CPC-Klasse mit ≥ 2 %
+Trefferdichte für die Themenformulierung) — das ist ein Themenanker-Problem,
+kein Prompt-Problem.
+
+Vorbilder, gegen die der Harness gelesen wurde (Owner-Auftrag 12.09.):
+hermes-deep-research (Wellen: Breite → Verifikation/Quellen-Unabhängigkeit →
+Konflikte → Lücken; ≥ 20 % Budget fürs Schreiben), LangChain
+open_deep_research (abschnittsweises Schreiben mit Reflexion), GPT Researcher
+(Planner → parallele Executors → Publisher), arXiv 2604.03173 (3–13 %
+halluzinierte URLs bei DR-Agenten — unser geschlossener Katalog ist strenger),
+arXiv 2601.20843 (Kandidaten-Crossover → hier als Best-of-2). Noch nicht
+übernommen: Evidenzfamilien (Syndikat/PR/Firmenseite als *ein* Beleg) und
+abschnittsweises Schreiben (#100).

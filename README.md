@@ -181,8 +181,9 @@ Fließtext zitierte Web-Zahl wird gegen den Volltext genau der zitierten Seite
 geprüft — was dort nicht steht, fliegt raus. Kernzahlen in Kurzfassung,
 Optionen und Kalender brauchen zusätzlich eine Quelle vom Rang 0/1 (Behörde,
 Register, Gericht, Firmen-IR/SEC, Fachjournal), sonst werden sie als „nur
-sekundär belegt" gekennzeichnet oder gestrichen. Genau ein gezielter Neuwurf,
-keine Schleife
+sekundär belegt" gekennzeichnet oder gestrichen. Ein gezielter Neuwurf plus
+höchstens ein Nachzug für Strukturbefunde (`DOSSIER_REWRITES`), Best-of-2 im
+Erstentwurf (`DOSSIER_DRAFTS`), kein Kritiker-Modell
 ([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-entscheidungsebene-2026-09-07)).
 
 **DR-Modus — Feature in Development** (`DOSSIER_DR=1`, `--dr`,

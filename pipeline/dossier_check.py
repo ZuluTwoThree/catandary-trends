@@ -92,8 +92,12 @@ def _evidence_text(result: dict) -> str:
     Suchtreffer, Quant-Messblock) plus Katalog-Snippets/-Titel/-Daten."""
     parts: list[str] = list(result.get("evidence") or [])
     for s in result.get("sources") or []:
+        # `text` = der gelesene Seitentext (DR-Vorlauf, zitatgetriebener Abruf):
+        # er ist gesammeltes Material, auch wenn nur seine Schluesselpassagen in
+        # den Notizen stehen (LFP v8, 2026-09-12: '149.8', '37.4', '€56' standen
+        # auf der zitierten Seite, galten aber als "ohne Beleg").
         parts.append(" ".join(str(s.get(k) or "")
-                              for k in ("title", "snippet", "date", "outlet")))
+                              for k in ("title", "snippet", "date", "outlet", "text")))
     parts.append(str(result.get("question") or ""))
     return "\n".join(parts)
 

@@ -149,3 +149,12 @@ def test_cite_driven_fetch_is_reported_not_blocking():
     c = check_result(r)
     assert c["ok"] is True
     assert any("Zitatgetriebener Abruf: 2" in f for f in c["findings"])
+
+
+def test_fetched_page_text_grounds_a_figure_even_if_the_notes_only_hold_passages():
+    r = _result("Stationary storage packs averaged $56/kWh in 2025.",
+                evidence=["Key passages: prices fell again in 2025."],
+                sources=[{"title": "BNEF survey", "snippet": "", "date": "2025-12-09", "outlet": "BNEF",
+                          "text": "… stationary storage systems at $56/kWh …"}])
+    c = check_result(r)
+    assert c["ungrounded"] == [] and c["ok"] is True
