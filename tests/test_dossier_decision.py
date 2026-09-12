@@ -84,7 +84,9 @@ def _report(summary_words: int = 40, options: int = 2,
     # jede mit Zahl und Beleg und Themenbezug.
     body += ["| Actor | What happened | Date | Source |",
              "|---|---|---|---|"]
-    body += [f"| Actor {i} | GLP-1 result {i} at 12% | 2026 | [[A{i % 3}]] |"
+    # Katalog-ids (T1-T3 liegen in jedem Lauf im Katalog); Phantom-ids wie [[A0]]
+    # gelten seit dem zitatgetriebenen Abruf (2026-09-12) schon VOR der Pruefung als kein Beleg.
+    body += [f"| Actor {i} | GLP-1 result {i} at 12% | 2026 | [[T{i % 3 + 1}]] |"
              for i in range(5)]
     body += [""]
     if chain:
@@ -462,6 +464,7 @@ def test_measure_path_end_to_end(monkeypatch):
     _structured(monkeypatch)
     monkeypatch.setattr(llamacpp_client, "chat", chat)
     monkeypatch.setenv("DOSSIER_DRAFTS", "1")      # ein Entwurf: der Test zaehlt Aufrufe
+    monkeypatch.setenv("DOSSIER_REWRITES", "1")    # und genau EIN Neuwurf (der Test prueft dessen Pfad)
     # R9-1/R9-2: drei Katalogeintraege mit FREMDEM, primaerem Original — der
     # Kalender braucht drei verschiedene Quellen, und die Rangregel gilt jetzt
     # fuer jede Aussage der Kernabschnitte.

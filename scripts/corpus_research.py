@@ -4661,6 +4661,53 @@ def run(question: str, max_steps: int, max_sources: int,
     else:
         citable = "\n".join(f"{s['id']} [{s['kind']}] [{s['title']}]({s['url']})"
                             for s in citable_sources)
+    def _catalog_line(x: dict) -> str:
+        return (f"[[{x['id']}]] [{x['kind']}]"
+                + (" (primary)" if int(x.get("rank", 2)) <= dossier_structure.PRIMARY_RANK else "")
+                + f" {x['title']}" + (f" — {x['outlet']}" if x.get("outlet") else "")
+                + (f", {x['date']}" if x.get("date") else ""))
+
+    def _adopt_cited_unfetched(rep: str, budget: int = 8) -> tuple[str, int, int]:
+        """Zitatgetriebener Abruf (LFP v5/v6, 2026-09-12): das Modell zitiert
+        trotz Vermerk ids ungefetchter Treffer — weil deren Snippets die Zahl
+        tragen, die es braucht. Statt den Marker erst in der Kanonisierung zu
+        verlieren (der Satz stuende dann unbelegt im Dokument), wird die Seite
+        JETZT geholt (≤ budget): lesbar → zitierfaehig, mit Rang und Passagen
+        in den Notizen; nicht lesbar → Marker weg, die Zahl faellt als
+        "sourceless" in die normale Pruefung."""
+        nonlocal citable
+        have = {x["id"] for x in citable_sources}
+        by_id = {x["id"]: x for x in sources}
+        adopted = removed = 0
+        for i in sorted({m for m in _MARKER.findall(rep)} - have):
+            src = by_id.get(i)
+            ok = False
+            if (src and src["kind"] in ("web", "legal", "market", "entity", "funding")
+                    and not src.get("fetched") and adopted < budget):
+                text, status = fetch_web_page_status(src["url"])
+                if text:
+                    src["fetched"] = True
+                    src["text"] = text
+                    src["rank"] = catalog_rank(src, entities)
+                    src["host"] = _host_of(citable_url(src))
+                    if citable_url(src) and src["rank"] < RANK_REJECT:
+                        citable_sources.append(src)
+                        citable += "\n" + (_catalog_line(src) if measure else
+                                            f"{src['id']} [{src['kind']}] [{src['title']}]({src['url']})")
+                        notes.append(f"Key passages of {src['url']} (fetched because the draft cites it):\n"
+                                     + key_passages(text, list(calendar_terms)))
+                        adopted += 1
+                        ok = True
+                        logger.info("  adopted %s (%s) — cited by the draft, now fetched", i, status)
+                else:
+                    logger.info("  %s cited by the draft but unreadable (%s) — citation removed", i, status)
+            if not ok:
+                rep = re.sub(r"\[\[\s*" + re.escape(i) + r"\s*\]\]", "", rep)
+                removed += 1
+        if removed:
+            rep = _tidy_after_strip(rep)
+        return rep, adopted, removed
+
     # Die ungefetchten Web-Treffer stehen mit ihrer ID in den Evidenznotizen
     # (der Web-Agent braucht sie zum Anfordern) — und genau von dort holt das
     # Modell sie als Zitat. Im B2-Lauf waren alle 10 gestrichenen Marker von
@@ -4898,6 +4945,9 @@ def run(question: str, max_steps: int, max_sources: int,
             if sc["score"] > best["score"]:
                 report, best = alt, sc
                 logger.info("draft %d chosen", i)
+    report, _ad, _rm = _adopt_cited_unfetched(report)
+    if _ad or _rm:
+        logger.info("cite-driven fetch after the draft: %d adopted, %d citation(s) removed", _ad, _rm)
     report_raw = report
 
     # --- EIN gezielter Neuwurf, rein deterministisch ausgeloest -----------
@@ -4923,12 +4973,15 @@ def run(question: str, max_steps: int, max_sources: int,
                  "calendar": {"rows": 0, "ok": 0, "no_date": 0, "no_cite": 0,
                               "sources": 0},
                  "catalog_ranks": {}, "self_only_dropped": 0,
+                 "adopted_sources": 0, "precanon_stripped": 0,
                  "chain": {}}
     # Der eigene Messanhang ist der EINZIGE Beleg, den eine Zahl ohne Zitat im
     # Satz haben darf: er steht codegeneriert im selben Dokument.
     measured_text = "\n".join(
         x for x in ((quant or {}).get("appendix") or "",
                     (corpus_stats or {}).get("appendix") or "") if x)
+    structure["adopted_sources"] = _ad
+    structure["precanon_stripped"] = _rm
     if measure:
         structure["words_before"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
@@ -5081,6 +5134,9 @@ def run(question: str, max_steps: int, max_sources: int,
             """Nach einem Neuwurf: pruefen, (DR) reparieren, streichen, dann die
             Gliederung des Dokuments messen, das ausgeliefert wuerde."""
             nonlocal report
+            report, ad2, rm2 = _adopt_cited_unfetched(report)
+            structure["adopted_sources"] += ad2
+            structure["precanon_stripped"] += rm2
             cites2, sourceless2, measure_bad2, weak2, cite_all2 = _recheck(report)
             # R14-4: erst reparieren, dann pruefen, dann streichen.
             if dr and cite_all2:

@@ -242,6 +242,12 @@ def check_result(result: dict) -> dict:
         findings.append(
             f"{st['dropped_sentences']} Satz/Saetze gestrichen: "
             + ", ".join(why) + ".")
+    if st.get("adopted_sources") or st.get("precanon_stripped"):
+        findings.append(
+            f"Zitatgetriebener Abruf: {int(st.get('adopted_sources') or 0)} vom Entwurf "
+            f"zitierte, bis dahin ungelesene Seite(n) nachgeholt und zitierfaehig gemacht; "
+            f"{int(st.get('precanon_stripped') or 0)} Zitat(e) auf unlesbare Treffer vor der "
+            f"Pruefung entfernt (die Zahl lief dann als unbelegt durch die Streichung).")
     if st.get("cite_findings") and not st.get("dropped_sentences"):
         findings.append(
             f"{len(st['cite_findings'])} Zitat-Zahl(en) waren im ersten Entwurf "

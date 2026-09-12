@@ -141,3 +141,11 @@ class TestOkDescribesTheDeliveredDocument:
         r = _result("Fine.")
         r["structure"] = {"findings_after": ["Option 2: Pflichtfeld fehlt"]}
         assert check_result(r)["ok"] is False
+
+
+def test_cite_driven_fetch_is_reported_not_blocking():
+    r = _result("Fine.")
+    r["structure"] = {"adopted_sources": 2, "precanon_stripped": 1, "findings_after": []}
+    c = check_result(r)
+    assert c["ok"] is True
+    assert any("Zitatgetriebener Abruf: 2" in f for f in c["findings"])
