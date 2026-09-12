@@ -1383,3 +1383,32 @@ def test_a_conjunction_or_a_lowercase_preposition_still_is_a_tail():
     body = "and the rest followed in 2027 [[W1]].\n\nin H2 2026 [[M4]] the line opened."
     f = [x for x in ds.fragment_findings(body) if "tail without its head" in x]
     assert len(f) == 2
+
+
+# --------------------------------------------------------------------------
+# LFP v5 (2026-09-12): ungefetchte ids, Best-of-N-Bewertung, Einleitung vor Liste
+# --------------------------------------------------------------------------
+
+def test_uncitable_ids_are_marked_in_the_notes():
+    note = "T900000006 | IEA report on LFP | https://x\n   snippet\nT900000060 | other | https://y"
+    out = cr.mark_uncitable(note, {"T900000006"})
+    assert out.startswith("T900000006 " + cr.UNCITABLE_MARK)
+    assert "T900000060 " + cr.UNCITABLE_MARK not in out          # kein Praefix-Treffer
+    assert cr.mark_uncitable(note, set()) == note
+
+
+def test_draft_score_prefers_the_denser_cleaner_draft():
+    src = [{"id": "W1", "kind": "web", "title": "10-Q", "rank": 0, "text": "revenue $4.1B in 2026",
+            "url": "https://www.sec.gov/edgar/1", "origin": "", "outlet": "SEC", "date": "2026-08-01"}]
+    dense = "## Decision summary\n\nOn 1 August 2026 the 10-Q reported revenue of $4.1B [[W1]].\n"
+    thin = "## Decision summary\n\nRevenue grew strongly and the outlook is positive.\n"
+    a = cr.draft_score(dense, src, "en", [], [], 2026, [])
+    b = cr.draft_score(thin, src, "en", [], [], 2026, [])
+    assert a["density"] > b["density"] and a["score"] > b["score"]
+
+
+def test_an_intro_line_before_a_list_is_not_a_fragment():
+    body = ("The following questions remain open:\n\n- **Capacity.** Not found.\n- **Price.** Not found.")
+    assert not [x for x in ds.fragment_findings(body) if "colon" in x]
+    alone = "The following questions remain open:\n\nSome prose that is not a list."
+    assert [x for x in ds.fragment_findings(alone) if "colon" in x]

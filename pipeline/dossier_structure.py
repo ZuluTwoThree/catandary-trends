@@ -2222,7 +2222,12 @@ def fragment_findings(body: str, lang: str = "en") -> list[str]:
         head = stripped.lstrip("-*> ").strip()
         if head.startswith(("#", "|")) or _FIELD_LINE.match(head):
             continue
-        if stripped.endswith(":") and len(stripped.split()) <= 12:
+        nxt = next((x.strip() for x in paras[i + 1:] if x.strip()), "")
+        # Eine Einleitung vor einer Liste oder Tabelle ("The following questions
+        # remain open:" + Leerzeile + Aufzaehlung) ist Markdown, kein Bruchstueck
+        # (LFP v5, 2026-09-12).
+        leads_list = bool(re.match(r"^(?:[-*+]\s|\d{1,2}[.)]\s|\|)", nxt))
+        if stripped.endswith(":") and len(stripped.split()) <= 12 and not leads_list:
             out.append(("Zeile endet auf Doppelpunkt ohne Fortsetzung: "
                         if lang == "de" else
                         "line ends in a colon with nothing after it: ")

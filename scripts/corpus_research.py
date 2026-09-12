@@ -3519,6 +3519,19 @@ def catalog_block(sources: list[dict]) -> str:
         for s in sources)
 
 
+UNCITABLE_MARK = "(not fetched — NOT citable, do not reference)"
+
+
+def mark_uncitable(text: str, ids: set[str]) -> str:
+    """Jede Nennung einer nicht zitierfaehigen Katalog-id in einer Notiz mit dem
+    Vermerk versehen (nur ganze ids, keine Praefixe anderer ids)."""
+    if not ids or not text:
+        return text
+    pat = re.compile(r"(?<![A-Za-z0-9_])(" + "|".join(re.escape(i) for i in sorted(ids, key=len, reverse=True))
+                     + r")(?![A-Za-z0-9_])")
+    return pat.sub(lambda m: f"{m.group(1)} {UNCITABLE_MARK}", text)
+
+
 def evidence_block(notes: list[str], pinned: int = 0,
                    limit: int | None = None) -> str:
     """Alle Evidenznotizen in einen Prompt, gedeckelt auf `limit`
@@ -3756,6 +3769,24 @@ def canonicalize_citations(report: str, sources: list[dict],
 # --------------------------------------------------------------------------
 # Foresight template + dossier store
 # --------------------------------------------------------------------------
+
+def draft_score(report: str, citable_sources: list[dict], lang: str,
+                measured_keys, sector_fields, year_floor, calendar_terms) -> dict:
+    """Deterministische Guete eines Entwurfs fuer Best-of-N: Faktenquote je 100
+    Woerter (das Mass, an dem der Neuwurf gemessen wird) minus Struktur- und
+    Zitatbefunde. Keine Modellbewertung."""
+    density = dossier_structure.fact_density(report, citable_sources, lang,
+                                             rank_of=source_rank)
+    findings = dossier_structure.structure_findings(
+        report, lang, measured=measured_keys, sectors=sector_fields,
+        year_floor=year_floor, density=density, topic_terms=calendar_terms)
+    cites = dossier_structure.verify_cited_figures(report, citable_sources)
+    n_cite = (len(cites.get("unverified") or []) + len(cites.get("off_topic") or [])
+              + len(cites.get("distorted") or []) + len(cites.get("misattributed") or []))
+    per100 = float(density.get("per100") or 0.0)
+    return {"score": per100 * 100 - 25 * len(findings) - 3 * n_cite,
+            "density": per100, "structural": len(findings), "citation": n_cite}
+
 
 def foresight_question(topic: str) -> str:
     """The standard foresight framing for any technology.
@@ -4608,6 +4639,13 @@ def run(question: str, max_steps: int, max_sources: int,
         logger.info("catalog: %d self-only source(s) and %d rank-3 source(s) "
                     "dropped — a citation must point at someone else",
                     len(self_only), len(rejected_rank))
+    # Ungefetchte Web-Treffer stehen mit ihrer id in den Notizen (Trefferlisten
+    # der Suchschritte), sind aber nicht zitierfaehig — das Modell zitiert, was es
+    # sieht (LFP v5, 2026-09-12: 6 Zitate auf 4 solche ids, alle gestrichen, ok=False).
+    # Die Notizen tragen ab hier den Vermerk an jeder solchen id.
+    uncitable_ids = {x["id"] for x in sources} - {x["id"] for x in citable_sources}
+    if uncitable_ids:
+        notes[:] = [mark_uncitable(n, uncitable_ids) for n in notes]
     if measure:
         # Kein URL-Freitext mehr im Prompt: was das Modell nicht sieht, kann es
         # nicht halbrichtig abtippen. Es zitiert die ID, der Code rendert daraus
@@ -4818,19 +4856,48 @@ def run(question: str, max_steps: int, max_sources: int,
         + ("Schreibe das Dossier jetzt — auf DEUTSCH."
            if lang == "de" else "Write the dossier now."))
     write_sampling = dr_sampling("write", dr)
-    report = llamacpp_client.chat(
-        model=MODEL, system=sys_prompt, prompt=report_prompt,
-        enable_thinking=False,
-        **(write_sampling or {"temperature": 0.4}))
-    report = re.sub(r"<think>.*?</think>", "", report, flags=re.DOTALL).strip()
-    # R11-1: laeuft der Server mit Denken UND Denk-Budget, schliesst llama.cpp
-    # die Denkmarke bei Budgetende selbst — und das Modell ueberlegt im
-    # Antwortfeld weiter. Was vor der ersten Pflichtueberschrift steht, ist nie
-    # Bericht.
-    report, _pre = dossier_structure.strip_preamble(report, lang)
-    if _pre:
-        logger.warning("stripped %d line(s) of deliberation before the first "
-                       "mandatory heading", _pre)
+
+    def _draft(sampling: dict) -> str:
+        rep = llamacpp_client.chat(
+            model=MODEL, system=sys_prompt, prompt=report_prompt,
+            enable_thinking=False, **sampling)
+        rep = re.sub(r"<think>.*?</think>", "", rep, flags=re.DOTALL).strip()
+        # R11-1: laeuft der Server mit Denken UND Denk-Budget, schliesst llama.cpp
+        # die Denkmarke bei Budgetende selbst — und das Modell ueberlegt im
+        # Antwortfeld weiter. Was vor der ersten Pflichtueberschrift steht, ist nie
+        # Bericht.
+        rep, _pre = dossier_structure.strip_preamble(rep, lang)
+        if _pre:
+            logger.warning("stripped %d line(s) of deliberation before the first "
+                           "mandatory heading", _pre)
+        return rep
+
+    base_sampling = dict(write_sampling or {"temperature": 0.4})
+    report = _draft(base_sampling)
+    # Best-of-N (2026-09-12): derselbe Auftrag ergab an einem Tag Faktenquoten
+    # von 2,37 (v4) und 1,23 (v5) im Erstentwurf — die Varianz des einen
+    # Schreibaufrufs ist groesser als jeder Prompt-Effekt. Ein zweiter Entwurf
+    # mit waermerem Sampling, deterministisch bewertet (Faktenquote, Struktur-
+    # befunde, Zitatfehler), kostet ~3 min und nimmt den schlechten Wurf heraus.
+    n_drafts = max(1, int(os.getenv("DOSSIER_DRAFTS", "2") or 2)) if measure else 1
+    if n_drafts > 1:
+        best = draft_score(report, citable_sources, lang, measured_keys,
+                           sector_fields, year_floor, calendar_terms)
+        logger.info("draft 1: score %.1f (density %.2f, %d structural, %d citation)",
+                    best["score"], best["density"], best["structural"], best["citation"])
+        for i in range(2, n_drafts + 1):
+            alt_sampling = dict(base_sampling)
+            alt_sampling["temperature"] = round(float(alt_sampling.get("temperature", 0.4)) + 0.25, 2)
+            if "seed" in alt_sampling:
+                alt_sampling["seed"] = int(alt_sampling["seed"]) + i
+            alt = _draft(alt_sampling)
+            sc = draft_score(alt, citable_sources, lang, measured_keys,
+                             sector_fields, year_floor, calendar_terms)
+            logger.info("draft %d: score %.1f (density %.2f, %d structural, %d citation)",
+                        i, sc["score"], sc["density"], sc["structural"], sc["citation"])
+            if sc["score"] > best["score"]:
+                report, best = alt, sc
+                logger.info("draft %d chosen", i)
     report_raw = report
 
     # --- EIN gezielter Neuwurf, rein deterministisch ausgeloest -----------

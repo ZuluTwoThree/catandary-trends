@@ -461,6 +461,7 @@ def test_measure_path_end_to_end(monkeypatch):
     chat = _Chat()
     _structured(monkeypatch)
     monkeypatch.setattr(llamacpp_client, "chat", chat)
+    monkeypatch.setenv("DOSSIER_DRAFTS", "1")      # ein Entwurf: der Test zaehlt Aufrufe
     # R9-1/R9-2: drei Katalogeintraege mit FREMDEM, primaerem Original — der
     # Kalender braucht drei verschiedene Quellen, und die Rangregel gilt jetzt
     # fuer jede Aussage der Kernabschnitte.
