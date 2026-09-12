@@ -1408,7 +1408,7 @@ und die Python-Crons/Worker (`with record("<job>")` um `main()`); ein von Hand
 gestarteter Wrapper zählt genauso. Das Protokoll verhindert nie einen Lauf:
 ist die DB nicht erreichbar, steht `[ops_events] WARN` im Log und der Job
 läuft weiter. Die Seite `/trends/ops`, das Logbuch `docs/ops/logbook.md` und
-die Alarme (`ops_alerts`) kommen in den Stufen 3–6 von #104.
+die Alarme (`ops_alerts`) sind seit 2026-09-11 live — Details in §11.9.
 
 ## 12. Sicherheit und Recht (kurz)
 
