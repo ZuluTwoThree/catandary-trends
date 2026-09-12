@@ -1148,8 +1148,10 @@ CREATE TABLE IF NOT EXISTS ops_events (
     started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     ended_at TIMESTAMPTZ,
     rc INTEGER,
-    note TEXT
+    note TEXT,
+    pid INTEGER
 );
+ALTER TABLE ops_events ADD COLUMN IF NOT EXISTS pid INTEGER;
 CREATE INDEX IF NOT EXISTS idx_ops_events_job_started ON ops_events (job, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ops_events_started ON ops_events (started_at DESC);
 CREATE TABLE IF NOT EXISTS ops_alerts (
@@ -1199,7 +1201,8 @@ CREATE TABLE IF NOT EXISTS ops_events (
     started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ended_at TEXT,
     rc INTEGER,
-    note TEXT
+    note TEXT,
+    pid INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_ops_events_job_started ON ops_events (job, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ops_events_started ON ops_events (started_at DESC);
@@ -1240,10 +1243,14 @@ def _migrate_ops():
     if not USE_POSTGRES:
         with get_connection() as conn:
             conn.executescript(OPS_SCHEMA_SQLITE)
+            # pid (2026-09-12): Prozess des Laufs, damit der Sampler tote Laeufe schliesst
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(ops_events)").fetchall()}
+            if "pid" not in cols:
+                conn.execute("ALTER TABLE ops_events ADD COLUMN pid INTEGER")
         return
     with get_connection() as conn:
         cur = conn._conn.cursor()
-        cur.execute(OPS_SCHEMA_PG)
+        cur.execute(OPS_SCHEMA_PG)          # enthaelt das additive ADD COLUMN IF NOT EXISTS pid
         conn._conn.commit()
 
 

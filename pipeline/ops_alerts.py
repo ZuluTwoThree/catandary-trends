@@ -167,7 +167,8 @@ def rule_jobs(open_events: list[dict], medians: dict[str, float], t: dict, now: 
         hours = (now - started).total_seconds() / 3600
         job = ev["job"]
         if hours > t["job_hang_hours"]:
-            hang.append(Finding("job_hang", job, f"{job} running for {hours:.1f} h (started {started:%d.%m. %H:%M} UTC)"))
+            # lokale Uhrzeit mit Zonenkuerzel — die Mail vom 12.09. sagte "07:49 UTC" fuer 07:49 CEST
+            hang.append(Finding("job_hang", job, f"{job} running for {hours:.1f} h (started {started.astimezone():%d.%m. %H:%M %Z})"))
         med = medians.get(job)
         if med and hours * 3600 > t["job_slow_factor"] * med:
             slow.append(Finding("job_slow", job, f"{job} running {hours:.1f} h, median is {med / 3600:.1f} h"))

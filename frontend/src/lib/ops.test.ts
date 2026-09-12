@@ -102,5 +102,7 @@ describe("jobs", () => {
     expect(runOutcome(ev({ ended_at: now, rc: 0 }), now).tone).toBe("ok");
     expect(runOutcome(ev({ ended_at: now, rc: 75 }), now).label).toBe("blocked");
     expect(runOutcome(ev({ ended_at: now, rc: 2 }), now)).toEqual({ tone: "bad", label: "rc 2" });
+    // closed by the sampler's orphan sweep: ended, no rc
+    expect(runOutcome(ev({ ended_at: now, rc: null }), now)).toEqual({ tone: "bad", label: "aborted" });
   });
 });

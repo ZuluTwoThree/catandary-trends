@@ -8,7 +8,8 @@
 Der Timer: deploy/systemd/catandary-ops-sampler.{service,timer} (User-Unit,
 laeuft aus dem main-Worktree). Jede zehnte Minute ist eine VOLLE Messung
 (teure Zaehlungen, SMART, Tabellengroessen) und raeumt zugleich Zeilen aelter
-als OPS_RETENTION_DAYS (7) ab. Nach jeder Messung laufen die Alarmregeln
+als OPS_RETENTION_DAYS (7) ab. Vor den Alarmregeln schliesst der Sampler offene
+Laeufe toter Prozesse (pipeline.ops_events.close_orphans). Nach jeder Messung laufen die Alarmregeln
 (pipeline/ops_alerts.py, Schwellen in ops_alerts.yaml). Alles Weitere:
 pipeline/ops_probe.py.
 """
@@ -24,7 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pipeline import ops_alerts, ops_probe  # noqa: E402
+from pipeline import ops_alerts, ops_events, ops_probe  # noqa: E402
 
 
 def main() -> int:
@@ -43,6 +44,11 @@ def main() -> int:
         print(f"-- {time.time() - t0:.2f}s, full={sample['is_full']}", file=sys.stderr)
         return 0
     ops_probe.write_sample(sample)
+    # Verwaiste Laeufe (Prozess tot, kein end — Stromausfall, kill -9, Tool-Timeout)
+    # schliessen, BEVOR die Regeln "Job haengt" darauf schauen (12.09.: ein um 07:49
+    # gekillter Backup-Nachholer stand um 13:50 als "running for 6 h" in der Mail).
+    # Faengt intern alles.
+    ops_events.close_orphans()
     # Alarme (Stufe 5): Regeln gegen die frische Messung, Zustand in ops_alerts,
     # eine Mail je Aenderung. Faengt intern alles — die Messung ist schon geschrieben.
     verdict = ops_alerts.run(sample)

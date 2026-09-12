@@ -339,5 +339,8 @@ export function runOutcome(ev: OpsEvent, now: Date = new Date()): { tone: Tone; 
   }
   if (ev.rc === 0) return { tone: "ok", label: "ok" };
   if (ev.rc === 75) return { tone: "warn", label: "blocked" };
+  // ended_at set but no rc: the process died without an end entry and the
+  // sampler closed the row (pipeline.ops_events.close_orphans) — real end unknown.
+  if (ev.rc == null) return { tone: "bad", label: "aborted" };
   return { tone: "bad", label: `rc ${ev.rc}` };
 }

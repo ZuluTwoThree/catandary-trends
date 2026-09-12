@@ -150,3 +150,20 @@ def test_sampler_stale_for_the_watchdog(db):
     ops_probe.write_sample({"ts": now - timedelta(minutes=2), "is_full": False})
     assert oa.sampler_stale(now=now)[0] is False
     assert oa.sampler_stale(now=now + timedelta(minutes=10))[0] is True
+
+
+def test_job_hang_message_uses_local_time_with_zone(db, monkeypatch):
+    """12.09.: die Mail sagte 'started 07:49 UTC' — es war 07:49 CEST."""
+    import time
+    _, oa = db
+    monkeypatch.setenv("TZ", "Europe/Berlin")
+    time.tzset()
+    try:
+        now = datetime(2026, 9, 12, 11, 50, tzinfo=timezone.utc)
+        ev = [{"job": "backup_db", "started_at": datetime(2026, 9, 12, 5, 49, tzinfo=timezone.utc)}]
+        res = oa.rule_jobs(ev, {}, dict(oa.DEFAULTS), now)
+        msg = [f.message for r in res for f in r.findings if f.kind == "job_hang"][0]
+        assert "started 12.09. 07:49 CEST" in msg and "UTC" not in msg
+    finally:
+        monkeypatch.delenv("TZ", raising=False)
+        time.tzset()

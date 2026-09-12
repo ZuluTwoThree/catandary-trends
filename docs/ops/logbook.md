@@ -25,6 +25,19 @@ aktivieren — sonst dasselbe Loch wie am 05.09.: ein Server, der auf alles mit
 200 OK antwortet. Der Ops-Sampler ist schon backend-neutral (`/health` oder
 `/api/ps`), an der Seite ändert sich nichts.
 
+## 2026-09-12 14:55 · change · Fehlalarm „backup_db running for 6 h" — verwaiste Laufzeile, Sampler schließt tote Läufe jetzt selbst
+Der Nachhol-Lauf des Backups um 07:49 lief im Vordergrund eines Tool-Aufrufs und
+wurde nach dessen 2-min-Timeout hart gekillt — `ops_events` #9 blieb ohne Ende.
+Der zweite Start um 08:00 (detached) lief sauber durch (#14, rc 0, 126,5 GB,
+18,6 min). Um 13:50 meldete die Regel `job_hang` trotzdem „running for 6.0 h" —
+sie sah nur die offene Zeile, nicht den toten Prozess; und nannte 07:49 lokal
+fälschlich „UTC". Behoben: #9 von Hand geschlossen (Entwarnung 14:56); jede
+Zeile trägt jetzt die pid ihres Prozesses (Wrapper: `$$`), der Sampler schließt
+minütlich Zeilen toter oder wiederverwendeter pids (`close_orphans`), `record()`
+stempelt bei SIGTERM das Ende (rc 143), Uhrzeit in der Mail lokal mit Zone,
+Seite zeigt solche Läufe als „aborted". Scharf mit dem Merge nach main (Sampler +
+Wrapper laufen dort); Spalte `pid` liegt schon in der Live-DB.
+
 ## 2026-09-12 · change · Backup 02:45 ausgefallen — Laufprotokoll-Hook zerbrach den Standalone-Start
 Die Crontab startet `backup_db.py` ohne `cd`; der Hook `from pipeline.ops_events
 import record` (Stufe 2, 11.09.) fand das Paket nicht → ModuleNotFoundError, kein

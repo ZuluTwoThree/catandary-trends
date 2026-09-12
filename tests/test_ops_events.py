@@ -106,3 +106,89 @@ ops_event_end 2 "density_rc=2"
                         "    print(r['job'], r['rc'], r['note'], r['done'])"],
                        cwd=REPO, env=env, capture_output=True, text=True, check=True)
     assert q.stdout.strip() == "weekly_patents 2 window=2026-09-01..2026-09-08 | density_rc=2 1"
+
+
+# --- pid + Reaper (2026-09-12) -------------------------------------------------------------------
+
+def test_start_records_pid_and_reaper_leaves_a_living_run_alone(db):
+    dbm, oe = db
+    eid = oe.start("full_cycle_cron")
+    assert _rows(dbm)[0]["pid"] == os.getpid()
+    assert oe.close_orphans() == []
+    assert oe.open_events()[0]["id"] == eid
+
+
+def test_reaper_closes_a_run_whose_process_is_gone(db):
+    dbm, oe = db
+    dead = 2**31 - 2                                     # keine gueltige Linux-pid → ESRCH
+    eid = oe.start("backup_db", pid=dead)
+    other = oe.start("dossier_worker", pid=None)          # lebt (wir selbst)
+    legacy = oe.start("weekly_patents")
+    with dbm.get_connection() as conn:                    # Altbestand ohne pid: nie anfassen
+        conn.execute("UPDATE ops_events SET pid = NULL WHERE id = ?", (legacy,))
+    closed = oe.close_orphans()
+    assert [c["id"] for c in closed] == [eid]
+    rows = {r["id"]: r for r in _rows(dbm)}
+    assert rows[eid]["ended_at"] and rows[eid]["rc"] is None
+    assert "process %d gone" % dead in rows[eid]["note"]
+    assert rows[other]["ended_at"] is None and rows[legacy]["ended_at"] is None
+
+
+def test_reaper_treats_a_reused_pid_as_dead(db):
+    """Die Zeile ist einen Tag alt, der Prozess mit dieser pid (wir) ist juenger
+    → die pid wurde wiederverwendet, der urspruengliche Lauf ist tot."""
+    from datetime import datetime, timedelta, timezone
+    dbm, oe = db
+    old = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    with dbm.get_connection() as conn:
+        conn.execute("INSERT INTO ops_events (job, host, started_at, pid) VALUES (?, 'local', ?, ?)",
+                     ("purge_raw_content", old, os.getpid()))
+    assert oe.process_alive_since(os.getpid(), old) is False
+    assert [c["job"] for c in oe.close_orphans()] == ["purge_raw_content"]
+
+
+def test_reaper_only_touches_its_own_host(db):
+    dbm, oe = db
+    oe.start("embed_full_text", host="bequiet", pid=2**31 - 2)
+    assert oe.close_orphans() == []
+    assert oe.close_orphans(host="bequiet") != []
+
+
+def test_record_stamps_the_end_on_sigterm(tmp_path):
+    """Ein per SIGTERM beendeter Python-Cron (kill, systemctl stop, Timeout)
+    hinterlaesst keine offene Zeile: rc 143, ended_at gesetzt."""
+    import signal
+    import time
+    env = dict(os.environ, DATABASE_URL="", DATABASE_PATH=str(tmp_path / "s.db"))
+    env.pop("OPS_EVENT_ID", None)
+    code = ("from pipeline.db import init_db; init_db()\n"
+            "from pipeline.ops_events import record\n"
+            "import time, sys\n"
+            "with record('backup_db'):\n"
+            "    print('in', flush=True)\n"
+            "    time.sleep(30)\n")
+    p = subprocess.Popen([sys.executable, "-c", code], cwd=REPO, env=env,
+                         stdout=subprocess.PIPE, text=True)
+    assert p.stdout.readline().strip() == "in"
+    p.send_signal(signal.SIGTERM)
+    rc = p.wait(timeout=20)
+    assert rc == 143
+    q = subprocess.run([sys.executable, "-c",
+                        "from pipeline.db import get_connection\n"
+                        "with get_connection() as c:\n"
+                        "    r = c.execute('SELECT rc, ended_at IS NOT NULL AS done FROM ops_events').fetchone()\n"
+                        "    print(r['rc'], r['done'])"],
+                       cwd=REPO, env=env, capture_output=True, text=True, check=True)
+    assert q.stdout.strip() == "143 1"
+
+
+def test_record_respects_a_scripts_own_sigterm_handler(db):
+    import signal
+    _, oe = db
+    mine = lambda s, f: None                              # noqa: E731
+    prev = signal.signal(signal.SIGTERM, mine)
+    try:
+        with oe.record("research_pulse"):
+            assert signal.getsignal(signal.SIGTERM) is mine
+    finally:
+        signal.signal(signal.SIGTERM, prev)

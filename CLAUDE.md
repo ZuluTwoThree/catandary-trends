@@ -820,7 +820,22 @@ aus (Wächter meldete, von Hand nachgeholt). Jetzt: `ImportError → nullcontext
 `backup_db` setzt den Repo-Root selbst in den Pfad; Test
 `tests/test_cron_scripts_start_anywhere.py` startet jeden Python-Cron mit `--help`
 aus einem fremden Verzeichnis. Ein
-Lauf ohne `ended_at` ist die Information „abgebrochen, Ende unbekannt".
+Lauf ohne `ended_at` ist die Information „abgebrochen, Ende unbekannt" — **aber
+kein Dauerzustand mehr (seit 2026-09-12):** jede Zeile trägt die `pid` des
+Prozesses, dessen Leben den Lauf bedeutet (Python: der Interpreter; Wrapper:
+`$$` der Bash via `--pid`), und der Sampler ruft jede Minute vor den Alarmregeln
+`ops_events.close_orphans()` auf: offene Zeilen dieses Hosts, deren Prozess
+nicht mehr existiert oder deren pid inzwischen ein *jüngerer* Prozess trägt
+(Startzeit aus `/proc/<pid>/stat` gegen `started_at`), werden geschlossen —
+`ended_at` = jetzt, `rc` NULL, Notiz `process N gone — closed by ops_sampler`
+(Seite: „aborted"). Zeilen ohne pid (Altbestand) und fremde Hosts bleiben
+unangetastet. Zusätzlich fängt `record()` SIGTERM (nur wenn das Skript keinen
+eigenen Handler hat): `SystemExit(143)` → Ende gestempelt, `subprocess.run`-Kinder
+beendet. Anlass: der um 07:49 von Hand gestartete Backup-Nachholer wurde nach dem
+2-min-Tool-Timeout hart gekillt, die Zeile blieb offen, und um 13:50 kam die Mail
+„backup_db running for 6.0 h" — es lief längst nichts mehr (das Backup selbst war
+um 08:19 als zweiter Lauf sauber durch). Von Hand: `python -m pipeline.ops_events
+close-orphans`.
 
 **Alarme (#104 Stufe 5, seit 2026-09-11):** `pipeline/ops_alerts.py` läuft im
 Sampler nach jeder Messung; Schwellen in `ops_alerts.yaml` (Repo-Root, ohne Code
@@ -830,7 +845,10 @@ warning / Verschleiß ≥ 90 % / Reserve < 10 % / Sektor- und Medienfehler-Zähl
 **steigen** (gegen die vorige volle Messung, ein stabiler Wert ist kein Alarm),
 GPU > 88 °C, Fremdbelegung (> 1,5 GB VRAM, aber kein llama-server antwortet und
 kein Job hält die Karte — der Ruhezustand mit 8B ist keiner), DB-Verbindungen
-> 80 %, Job läuft > 2 × seinen Median (28 d, ≥ 3 Läufe), Job läuft > 6 h,
+> 80 %, Job läuft > 2 × seinen Median (28 d, ≥ 3 Läufe), Job läuft > 6 h
+(„läuft" = Zeile offen **und** Prozess lebt — tote Läufe schließt der Sampler
+vorher, s. Laufprotokoll; Startzeit in der Mail seit 12.09. lokal mit Zone, nicht
+mehr fälschlich „UTC"),
 Backlog-Tagesmaximum steigt 3 Tage in Folge. Zustand in `ops_alerts`: **eine
 Mail beim Auslösen, eine bei der Entwarnung** (Resend, derselbe Weg wie der
 Wächter); eine Regel, die in dieser Minute nichts prüfen konnte (SMART/Backlog

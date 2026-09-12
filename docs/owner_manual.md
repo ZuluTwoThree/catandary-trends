@@ -1310,7 +1310,8 @@ GPU-Temperatur (Linie bei 88 °C), CPU, Platten-Beschäftigung (System + HDD),
 RAM, DB-Größe, Backlog/Review-Queue — die farbigen Bänder dahinter sind die
 Job-Läufe aus `ops_events`, Legende darüber. Zuletzt **Jobs** (28 Tage: Läufe,
 Median-Dauer, letzter Lauf, Ergebnis) und **Runs** (letzte 40: Start, Dauer,
-Ergebnis ok/blocked/rc N/running, Notiz). Die Seite lädt sich alle 60 s neu.
+Ergebnis ok/blocked/rc N/running/aborted, Notiz — „aborted" = der Prozess
+starb ohne Ende-Eintrag, das wahre Ende ist unbekannt). Die Seite lädt sich alle 60 s neu.
 
 **Wochenplan:** die *installierte* Crontab (`crontab -l`; fällt auf
 `deploy/crontab.txt` zurück und sagt es dazu) als Raster Mo–So × 0–24 h. Jeder
@@ -1337,7 +1338,10 @@ SSD über 65 °C, SMART FAILED, NVMe-Verschleiß ≥ 90 % oder Reserve < 10 %,
 Sektor-/Medienfehler-Zähler, die gegenüber der vorigen Messung **steigen**,
 GPU über 88 °C, Grafikspeicher belegt ohne antwortenden llama-server und ohne
 bekannten Job, mehr als 80 % der DB-Verbindungen, ein Job, der länger als das
-Doppelte seines Medians läuft, ein Job über 6 h, ein Backlog, dessen
+Doppelte seines Medians läuft, ein Job über 6 h (gezählt wird nur ein Lauf,
+dessen Prozess noch lebt — eine Zeile, deren Prozess ohne Ende-Eintrag starb,
+schließt der Sampler binnen einer Minute selbst und die Seite zeigt sie als
+„aborted"), ein Backlog, dessen
 Tagesmaximum drei Tage in Folge steigt. **Eine Mail beim Auslösen, eine bei der
 Entwarnung** (gleiche Adresse wie der Wächter), dazwischen Ruhe; offene Alarme
 stehen als Banner oben auf `/trends/ops`, darunter aufklappbar die zuletzt

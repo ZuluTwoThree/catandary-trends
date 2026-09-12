@@ -15,6 +15,9 @@
 # Der Python-Interpreter: $OPS_EVENTS_PY, sonst .venv/bin/python neben dieser
 # Datei (Repo-Root/.venv), sonst python3.
 #
+# Die Zeile traegt die pid des Wrappers (`$$`); stirbt er ohne ops_event_end,
+# schliesst der Ops-Sampler die Zeile binnen einer Minute (pipeline/ops_events.py).
+#
 # OPS_EVENT_ID wird exportiert: ruft der Wrapper ein Python-Skript, das selbst
 # `pipeline.ops_events.record()` nutzt, uebernimmt es diese id statt eine zweite
 # Zeile anzulegen (Notizen landen dann hier, das Ende schreibt der Wrapper).
@@ -27,7 +30,10 @@ export OPS_EVENT_ID
 
 ops_event_start() {
   local job="$1" note="${2:-}"
-  OPS_EVENT_ID=$(cd "$_ops_events_repo" && "$OPS_EVENTS_PY" -m pipeline.ops_events start "$job" ${note:+--note "$note"} 2>/dev/null) || OPS_EVENT_ID=""
+  # --pid $$: die Bash des Wrappers ist der Prozess, dessen Leben den Lauf bedeutet
+  # (nicht der kurzlebige Python-Aufruf hier) — der Sampler schliesst die Zeile,
+  # wenn diese pid stirbt, ohne dass ops_event_end lief (Stromausfall, kill -9).
+  OPS_EVENT_ID=$(cd "$_ops_events_repo" && "$OPS_EVENTS_PY" -m pipeline.ops_events start "$job" --pid "$$" ${note:+--note "$note"} 2>/dev/null) || OPS_EVENT_ID=""
   if [ -n "$OPS_EVENT_ID" ]; then
     echo "[ops_events] $job → #$OPS_EVENT_ID"
   else
