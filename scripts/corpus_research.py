@@ -4899,16 +4899,18 @@ def run(question: str, max_steps: int, max_sources: int,
                            "figure" if e["kind"] == "weaksource" else "claim",
                            e.get("section", "?"), e["tokens"],
                            e.get("detail", ""))
-        if findings or cite_all:
-            logger.info("one targeted rewrite (%d structural + %d citation "
-                        "finding(s))", len(findings), len(cite_all))
-            revision = dossier_structure.revision_prompt(
-                findings, cite_all, lang)
+        def _rewrite(fs: list[str], cs: list[dict], label: str) -> bool:
+            """Ein gezielter Neuwurf aus deterministischen Befunden. True, wenn
+            der Bericht ersetzt wurde (ein zu kurzer Neuwurf ersetzt nichts)."""
+            nonlocal report
+            logger.info("%s (%d structural + %d citation finding(s))",
+                        label, len(fs), len(cs))
+            revision = dossier_structure.revision_prompt(fs, cs, lang)
             # R8: verlangt ein Befund, den Bericht zu VERLAENGERN, muss das
             # Material mit in den Neuwurf — ohne Evidenzblock kann das Modell
             # keine weiteren belegten Fakten aufnehmen und kuerzt stattdessen
             # (B8-Lauf v1: 1.511 -> 1.335 Woerter).
-            expand = dossier_structure.needs_expansion(findings)
+            expand = dossier_structure.needs_expansion(fs)
             second = llamacpp_client.chat(
                 model=MODEL, system=sys_prompt, enable_thinking=False,
                 **(write_sampling or {"temperature": 0.3}),
@@ -4940,10 +4942,14 @@ def run(question: str, max_steps: int, max_sources: int,
             if len(dossier_structure.body_text(second).split()) >= 300:
                 report = second
                 structure["rewritten"] = True
-            else:
-                logger.warning("rewrite discarded — too short (%d words), "
-                               "keeping the first version",
-                               len(second.split()))
+                structure["rewrites"] = int(structure.get("rewrites") or 0) + 1
+                return True
+            logger.warning("rewrite discarded — too short (%d words), "
+                           "keeping the previous version", len(second.split()))
+            return False
+
+        if findings or cite_all:
+            _rewrite(findings, cite_all, "one targeted rewrite")
         def _recheck(rep: str):
             c2 = dossier_structure.verify_cited_figures(rep, citable_sources)
             sl2 = dossier_structure.sourceless_figures(
@@ -4962,57 +4968,83 @@ def run(question: str, max_steps: int, max_sources: int,
                 all2.append({**e, "kind": "sourceless"})
             return c2, sl2, mb2, w2, all2
 
-        cites2, sourceless2, measure_bad2, weak2, cite_all2 = _recheck(report)
-        # R14-4: erst reparieren, dann pruefen, dann streichen.
-        if dr and cite_all2:
-            report, n_rep = repair_sentences(
-                report, cite_all2, citable_sources, dr_sampling("work", dr))
-            structure["repaired_sentences"] = n_rep
-            if n_rep:
-                logger.info("repaired %d sentence(s) before deletion", n_rep)
-                cites2, sourceless2, measure_bad2, weak2, cite_all2 = _recheck(report)
-        structure["cite_findings_after"] = cite_all2
-        structure["cites_checked"] = cites2["checked"]
-        structure["cites_figures"] = cites2["figures"]
-        structure["cites_subjects"] = cites2.get("subjects", 0)
-        structure["off_topic_after"] = len(cites2.get("off_topic") or [])
-        structure["sourceless_after"] = len(sourceless2)
-        structure["distorted_after"] = len(cites2.get("distorted") or [])
-        structure["misattributed_after"] = len(cites2.get("misattributed") or [])
-        structure["measure_after"] = len(measure_bad2)
-        structure["weaksource_after"] = sum(
-            1 for e in weak2 if e["kind"] == "weaksource")
-        structure["weakclaim_after"] = sum(
-            1 for e in weak2 if e["kind"] == "weakclaim")
-        structure["uncited_after"] = sum(
-            1 for e in weak2 if e["kind"] == "uncited")
-        if cite_all2:
-            # Letzte Instanz: eine Zahl, die die zitierte Seite nicht hergibt,
-            # ein Beleg, der von etwas anderem handelt, und eine Zahl ganz ohne
-            # Beleg bleiben nicht im Dokument stehen.
-            report, dropped = dossier_structure.drop_unverified(
-                report, cite_all2, lang)
-            structure["dropped_sentences"] = dropped
-            logger.warning("dropped/trimmed %d sentence(s): %d unsupported "
-                           "figure(s), %d off-topic citation(s), %d sourceless "
-                           "figure(s), %d distorted claim(s), %d misattributed "
-                           "figure(s), %d unusable measurement(s)",
-                           dropped, len(cites2["unverified"]),
-                           len(cites2.get("off_topic") or []), len(sourceless2),
-                           len(cites2.get("distorted") or []),
-                           len(cites2.get("misattributed") or []),
-                           len(measure_bad2))
-        # Die Gliederungspruefung laeuft NACH der Streichung: sie beschreibt das
-        # Dokument, das ausgeliefert wird. Im B6-Lauf nahm die Streichung einer
-        # themenfremd belegten Zeile der Option 2 ihren Zeithorizont — und das
-        # stand in keinem Befund, weil vorher geprueft wurde.
-        density_after = dossier_structure.fact_density(
-            report, citable_sources, lang, rank_of=source_rank)
-        structure["density_after"] = density_after
-        structure["findings_after"] = dossier_structure.structure_findings(
-            report, lang, measured=measured_keys, sectors=sector_fields,
-            year_floor=year_floor, density=density_after,
-            topic_terms=calendar_terms)
+        def _settle() -> None:
+            """Nach einem Neuwurf: pruefen, (DR) reparieren, streichen, dann die
+            Gliederung des Dokuments messen, das ausgeliefert wuerde."""
+            nonlocal report
+            cites2, sourceless2, measure_bad2, weak2, cite_all2 = _recheck(report)
+            # R14-4: erst reparieren, dann pruefen, dann streichen.
+            if dr and cite_all2:
+                report, n_rep = repair_sentences(
+                    report, cite_all2, citable_sources, dr_sampling("work", dr))
+                structure["repaired_sentences"] = (
+                    int(structure.get("repaired_sentences") or 0) + n_rep)
+                if n_rep:
+                    logger.info("repaired %d sentence(s) before deletion", n_rep)
+                    cites2, sourceless2, measure_bad2, weak2, cite_all2 = _recheck(report)
+            structure["cite_findings_after"] = cite_all2
+            structure["cites_checked"] = cites2["checked"]
+            structure["cites_figures"] = cites2["figures"]
+            structure["cites_subjects"] = cites2.get("subjects", 0)
+            structure["off_topic_after"] = len(cites2.get("off_topic") or [])
+            structure["sourceless_after"] = len(sourceless2)
+            structure["distorted_after"] = len(cites2.get("distorted") or [])
+            structure["misattributed_after"] = len(cites2.get("misattributed") or [])
+            structure["measure_after"] = len(measure_bad2)
+            structure["weaksource_after"] = sum(
+                1 for e in weak2 if e["kind"] == "weaksource")
+            structure["weakclaim_after"] = sum(
+                1 for e in weak2 if e["kind"] == "weakclaim")
+            structure["uncited_after"] = sum(
+                1 for e in weak2 if e["kind"] == "uncited")
+            if cite_all2:
+                # Letzte Instanz: eine Zahl, die die zitierte Seite nicht hergibt,
+                # ein Beleg, der von etwas anderem handelt, und eine Zahl ganz ohne
+                # Beleg bleiben nicht im Dokument stehen.
+                report, dropped = dossier_structure.drop_unverified(
+                    report, cite_all2, lang)
+                structure["dropped_sentences"] = (
+                    int(structure.get("dropped_sentences") or 0) + dropped)
+                logger.warning("dropped/trimmed %d sentence(s): %d unsupported "
+                               "figure(s), %d off-topic citation(s), %d sourceless "
+                               "figure(s), %d distorted claim(s), %d misattributed "
+                               "figure(s), %d unusable measurement(s)",
+                               dropped, len(cites2["unverified"]),
+                               len(cites2.get("off_topic") or []), len(sourceless2),
+                               len(cites2.get("distorted") or []),
+                               len(cites2.get("misattributed") or []),
+                               len(measure_bad2))
+            # Die Gliederungspruefung laeuft NACH der Streichung: sie beschreibt das
+            # Dokument, das ausgeliefert wird. Im B6-Lauf nahm die Streichung einer
+            # themenfremd belegten Zeile der Option 2 ihren Zeithorizont — und das
+            # stand in keinem Befund, weil vorher geprueft wurde.
+            density_after = dossier_structure.fact_density(
+                report, citable_sources, lang, rank_of=source_rank)
+            structure["density_after"] = density_after
+            structure["findings_after"] = dossier_structure.structure_findings(
+                report, lang, measured=measured_keys, sectors=sector_fields,
+                year_floor=year_floor, density=density_after,
+                topic_terms=calendar_terms)
+
+        _settle()
+        # Zweiter Neuwurf NUR fuer Strukturbefunde, die nach dem ersten noch stehen
+        # (LFP v4, 2026-09-12: Effort-Platzhalter in zwei Optionen, Kalender 3/5 —
+        # alles Dinge, die der erste Neuwurf ueber 33 Zitatbefunden liegen liess).
+        # Gedeckelt durch DOSSIER_REWRITES (Default 2 = ein Nachzug); ein Neuwurf,
+        # der die Befunde nicht senkt, beendet die Schleife.
+        max_rewrites = max(1, int(os.getenv("DOSSIER_REWRITES", "2") or 2))
+        while (structure["findings_after"]
+               and int(structure.get("rewrites") or 0) < max_rewrites):
+            before_n = len(structure["findings_after"])
+            if not _rewrite(list(structure["findings_after"]), [],
+                            "structural findings remain — one more targeted rewrite"):
+                break
+            _settle()
+            if len(structure["findings_after"]) >= before_n:
+                logger.info("second rewrite did not reduce the structural findings "
+                            "(%d → %d) — stopping", before_n,
+                            len(structure["findings_after"]))
+                break
         structure["words_after"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
         structure.update(dossier_structure.option_measure_stats(

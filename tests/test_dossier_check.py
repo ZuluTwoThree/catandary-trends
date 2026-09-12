@@ -121,3 +121,23 @@ class TestCitationUrlsAreNotFigures:
         c = check_result(res)
         assert c["ungrounded"] == []
         assert c["words"] < 10          # die 14 Listenzeilen zählen nicht mit
+
+
+class TestOkDescribesTheDeliveredDocument:
+    """2026-09-12 (LFP v4): 13 Saetze nach dem Neuwurf gestrichen/gekennzeichnet,
+    Dokument danach sauber — das ist ein Befund im Nachweis, keine Sperre."""
+
+    def test_post_rewrite_cleanup_is_reported_but_not_blocking(self):
+        r = _result("Fine.")
+        r["structure"] = {
+            "dropped_sentences": 3, "weakclaim_after": 2, "off_topic_after": 1,
+            "cite_findings_after": [{"kind": "weakclaim", "sentence": "x"}],
+            "findings_after": []}
+        c = check_result(r)
+        assert c["ok"] is True
+        assert any("gestrichen" in f for f in c["findings"])
+
+    def test_a_structural_finding_after_cleanup_still_blocks(self):
+        r = _result("Fine.")
+        r["structure"] = {"findings_after": ["Option 2: Pflichtfeld fehlt"]}
+        assert check_result(r)["ok"] is False

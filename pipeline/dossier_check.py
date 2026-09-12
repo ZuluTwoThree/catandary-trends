@@ -248,9 +248,14 @@ def check_result(result: dict) -> dict:
             f"nicht durch die zitierte Seite gedeckt (im Neuwurf behoben).")
 
     return {
+        # `ok` beschreibt das AUSGELIEFERTE Dokument: nichts Unbelegtes, nichts
+        # Gestrichenes, Gliederung vollstaendig. Was die Streichung nach dem
+        # Neuwurf noch entfernt oder als "secondary source only" gekennzeichnet
+        # hat, steht als eigene Befundzeile im Pruefnachweis, sperrt aber nicht
+        # mehr (bis 2026-09-12 tat es das: LFP v4 fiel an 7 ehrlich markierten
+        # Rang-2-Saetzen, obwohl kein Satz des Dokuments ungedeckt war).
         "ok": not ungrounded and not stripped and bool(body.strip())
-              and (cited > 0 or n_sources == 0) and not left
-              and not (st.get("cite_findings_after") or []),
+              and (cited > 0 or n_sources == 0) and not left,
         "ungrounded": ungrounded,
         "stripped_citations": stripped,
         "cited": cited,
