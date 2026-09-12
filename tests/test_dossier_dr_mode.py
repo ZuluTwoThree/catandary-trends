@@ -1369,3 +1369,17 @@ def test_the_calendar_topic_check_reads_the_event_not_the_justification():
     row2 = "| H2 2026 | CagriSema FDA decision | [[C1]] | matters |"
     c2 = ds.calendar_rows(_cal([row2]), "en", 2026, ("glp-1", "cagrisema"))
     assert c2["ok"] == 1
+
+
+def test_a_paragraph_opening_with_a_preposition_is_a_normal_sentence():
+    """LFP v3 (2026-09-12): 'In Europe and the United States, …' und 'On 30 July 2025,
+    the Commission …' wurden als 'Schwanz ohne Kopf' gemeldet — es sind Satzanfaenge."""
+    body = ("In Europe and the United States, LFP's share of EV sales remains below 10% [[W1]].\n\n"
+            "On 30 July 2025, the European Commission published Regulation (EU) 2025/1561 [[W2]].")
+    assert not [x for x in ds.fragment_findings(body) if "tail without its head" in x]
+
+
+def test_a_conjunction_or_a_lowercase_preposition_still_is_a_tail():
+    body = "and the rest followed in 2027 [[W1]].\n\nin H2 2026 [[M4]] the line opened."
+    f = [x for x in ds.fragment_findings(body) if "tail without its head" in x]
+    assert len(f) == 2

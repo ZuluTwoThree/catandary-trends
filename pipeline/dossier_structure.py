@@ -2084,6 +2084,14 @@ def mark_secondary(sentence: str, lang: str = "en") -> str:
     return body + mark + tail
 
 
+def _remaining_claims(section_text: str) -> list[str]:
+    """Saetze mit Inhalt (ohne Ueberschriften, Leer-Etiketten und nackte
+    Listennummern) — bewusst OHNE Mindestlaenge, anders als summary_claims."""
+    return [c.strip() for c in split_claims(section_text or "")
+            if c.strip() and not c.strip().startswith("#")
+            and not _EMPTY_CLAIM.match(c.strip()) and prose(c).strip()]
+
+
 def drop_unverified(report_md: str, unverified: list[dict],
                     lang: str = "en") -> tuple[str, int]:
     """Saetze, deren Zahl in der zitierten Seite nicht steht, aus dem Bericht
@@ -2101,6 +2109,12 @@ def drop_unverified(report_md: str, unverified: list[dict],
     laut Auftrag (R9-1) nicht stehenbleiben — die drei Saetze, die eine
     Entscheidung tragen, sind entweder primaer belegt oder nicht da."""
     out, dropped = report_md, 0
+    # Die Kurzfassung darf durch die Streichung nicht LEER werden (R10-2: "eine
+    # Kurzfassung, die nichts zusammenfasst, ist schlimmer als keine" — LFP v3,
+    # 2026-09-12: beide Saetze fielen, die Ueberschrift blieb allein). Traegt die
+    # letzte verbleibende Aussage nur einen Rang-2-Beleg, wird sie gekennzeichnet
+    # statt gestrichen; eine Aussage ganz ohne Beleg faellt weiterhin.
+    decision = split_sections(report_md, lang).get("decision") or ""
     for e in unverified:
         s = e["sentence"]
         if not s or s not in out:
@@ -2108,13 +2122,17 @@ def drop_unverified(report_md: str, unverified: list[dict],
         if e.get("kind") in ("weaksource", "weakclaim"):
             # R12-1: zwei unabhaengige Sekundaerquellen tragen die Aussage —
             # dann wird auch in der Kurzfassung gekennzeichnet statt geloescht.
-            if e.get("section") != "decision" or e.get("corroborated"):
+            last_in_summary = (e.get("section") == "decision" and s in decision
+                               and not _remaining_claims(decision.replace(s, "", 1)))
+            if e.get("section") != "decision" or e.get("corroborated") or last_in_summary:
                 marked = mark_secondary(s, lang)
                 if marked != s:
                     out = out.replace(s, marked, 1)
                     dropped += 1
                 continue
             # Kurzfassung: streichen (faellt in den allgemeinen Pfad unten).
+        if s in decision:
+            decision = decision.replace(s, "", 1)
         # Eine Optionszeile traegt ein Pflichtfeld: sie zu loeschen erzeugt
         # den naechsten Befund. Erst die Teilaussage kuerzen, nur wenn das
         # nicht geht, die Zeile ganz nehmen. Bis R8 galt das nur fuer
@@ -2170,6 +2188,15 @@ in on at with and but which of for from to by as or nor into onto over under
 per via than while whereas whose whom im am an auf mit und aber sowie von
 für zu bei nach vor über unter durch als oder deren dessen
 """.split())
+# Bindewoerter/Relativa: ein Absatz, der so beginnt, haengt IMMER an einem
+# gestrichenen Vorgaenger. Praepositionen dagegen eroeffnen normale Saetze
+# ("In Europe and the United States, LFP's share …", "On 30 July 2025, the
+# Commission published …" — LFP v3, 2026-09-12: zwei Fehlbefunde) und zaehlen
+# nur, wenn der Absatz KLEIN beginnt (der DR3-Rest "in H2 2026 [link].").
+_CONJ_LEADS = frozenset("""
+and but which or nor than while whereas whose whom und aber sowie oder als
+deren dessen
+""".split())
 _BARE_LABEL = re.compile(r"^\s*(?:[-*]\s*)?\*\*[^*\n]{2,60}:\*\*\s*$")
 _PARA_BREAK = re.compile(r"\n\s*\n")
 MIN_PARAGRAPH_WORDS = 8
@@ -2206,7 +2233,7 @@ def fragment_findings(body: str, lang: str = "en") -> list[str]:
         # [link]." — DR3, Rest eines an "U.S." zerteilten Satzes), ist ein
         # Schwanz ohne Kopf.
         lead = stripped.split(" ", 1)[0].lower()
-        if lead in _TAIL_LEADS:
+        if lead in _CONJ_LEADS or (lead in _TAIL_LEADS and stripped[:1].islower()):
             out.append(("Absatz beginnt mit Praeposition/Bindewort (Schwanz "
                         "ohne Kopf): " if lang == "de" else
                         "paragraph opens with a preposition/conjunction "

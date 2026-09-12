@@ -2734,3 +2734,53 @@ class TestTheDropReasonsMustAddUp:
             {"dropped_sentences": 2, "off_topic_after": 1}))
         line = next(f for f in out["findings"] if "gestrichen:" in f)
         assert "Rang-2-Material" not in line
+
+
+# --------------------------------------------------------------------------
+# LFP v3 (2026-09-12): Datenhaeuser als Urheber, Marktstudien-Spam, leere Kurzfassung
+# --------------------------------------------------------------------------
+
+class TestDataOriginatorsAndVendorSpam:
+
+    def test_a_price_survey_publisher_ranks_as_originator(self):
+        assert cr.source_rank("https://about.bnef.com/insights/clean-transport/x") == 1
+        assert cr.source_rank("https://source.benchmarkminerals.com/article/y") == 1
+        assert cr.source_rank("https://www.energy-storage.news/z") == 2      # Presse bleibt Rang 2
+
+    def test_listicles_and_vendor_blogs_are_rejected(self):
+        for u in ("https://top10grid.com/top-10-sodium-ion-battery-companies-2026",
+                  "https://www.top5batteries.net/x",
+                  "https://www.battery.mba/resources/lfp-vs-nmc",
+                  "https://www.bosaenergy.cn/will-the-cost-fall/"):
+            assert cr.low_trust(u), u
+            assert cr.source_rank(u) == cr.RANK_REJECT, u
+
+    def test_market_research_stays_citable_at_rank_two(self):
+        """Bewusste Grenze (s. TestSourceRankFilter): benannter Herausgeber → Rang 2."""
+        for u in ("https://www.congruencemarketinsights.com/report/lfp",
+                  "https://www.intelmarketresearch.com/lfp-2025-2032",
+                  "https://www.marketwatch.com/story/x", "https://top1000funds.com/y"):
+            assert cr.low_trust(u) is None, u
+            assert cr.source_rank(u) == 2, u
+
+
+class TestTheSummaryIsNeverEmptiedByTheRankRule:
+
+    DOC = ("## Decision summary\n\nQ1 revenue was $19.8B [[W2]].\n\n"
+           "## What is moving\n\nText [[W1]].\n")
+
+    def test_the_last_secondary_claim_is_marked_not_deleted(self):
+        found = ds.weak_source_figures(self.DOC, [_SEC, _BLOG])
+        assert len(found) == 1 and found[0]["section"] == "decision"
+        out, n = ds.drop_unverified(self.DOC, found)
+        assert n == 1
+        assert "$19.8B" in out and "(secondary source only)" in out
+        assert ds.summary_claims(ds.split_sections(out).get("decision") or "")
+
+    def test_with_a_primary_claim_left_the_secondary_one_still_goes(self):
+        doc = self.DOC.replace("Q1 revenue was $19.8B [[W2]].",
+                               "Q1 revenue was $19.8B [[W2]]. The 10-Q filed on 1 August 2026 "
+                               "reports operating cash flow of $4.1B [[W1]].")
+        found = ds.weak_source_figures(doc, [_SEC, _BLOG])
+        out, n = ds.drop_unverified(doc, found)
+        assert "$19.8B" not in out and "$4.1B" in out

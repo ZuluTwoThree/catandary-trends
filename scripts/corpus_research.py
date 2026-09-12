@@ -1169,6 +1169,29 @@ _FORUM_LABELS = ("forum", "forums", "community", "boards")
 
 RANK_REJECT = 3          # abgewiesen: kommt nicht in den Katalog
 
+# Datenhaeuser, die eine Zahl selbst ERHEBEN (Preis-Surveys, Kapazitaetszaehlungen):
+# fuer ihre eigene Zahl sind sie der Urheber, nicht „Presse" — Rang 1 wie eine
+# Firmen-IR-Seite. Anlass LFP v3 (2026-09-12): die BNEF-Packpreise ($81 vs. $128/kWh)
+# trugen die Kurzfassung, galten als Rang 2 und wurden gestrichen — die Kurzfassung
+# war danach leer. Bewusst kurz: nur Haeuser mit eigener, benannter Erhebung.
+_DATA_ORIGINATOR_HOSTS = frozenset("""
+bnef.com benchmarkminerals.com woodmac.com rystadenergy.com ember-energy.org
+""".split())
+
+# „Top-10"-Listen und Haendlerblogs sind keine Quelle, sondern Verkaufsflaeche.
+# Muster fuer die Listicles, weil sie laufend neu entstehen (LFP v3, 2026-09-12:
+# top10grid, battery.mba, bosaenergy.cn). Kommerzielle Marktforschung (FMI,
+# congruencemarketinsights …) bleibt BEWUSST zitierbar — benannter Herausgeber,
+# Rang 2: ihre Zahlen tragen den Sekundaer-Vermerk und tragen nie die Kurzfassung.
+_LOW_TRUST_HOST_PATTERNS: tuple[tuple[re.Pattern, str, str], ...] = (
+    (re.compile(r"(?:^|\.)top-?\d{1,2}(?![0-9])[a-z-]*\."), "listicle site",
+     "\"top N\" lists without named editors or sources"),
+)
+_LOW_TRUST_EXTRA_HOSTS: tuple[tuple[str, str, str], ...] = (
+    ("battery.mba", "vendor blog", "training/consulting site, comparison tables without sources"),
+    ("bosaenergy.cn", "vendor blog", "cell reseller blog, price claims without source"),
+)
+
 
 def _inn_domain(host: str) -> bool:
     parts = host.split(".")
@@ -1184,7 +1207,10 @@ def low_trust(url: str) -> dict | None:
     host = _host_of(url)
     if not host:
         return None
-    for pattern, category, reason in LOW_TRUST_SOURCES:
+    for rx, category, reason in _LOW_TRUST_HOST_PATTERNS:
+        if rx.search(host + "."):
+            return {"host": host, "category": category, "reason": reason}
+    for pattern, category, reason in LOW_TRUST_SOURCES + _LOW_TRUST_EXTRA_HOSTS:
         if pattern.startswith("."):
             if host.endswith(pattern):
                 return {"host": host, "category": category, "reason": reason}
@@ -1226,6 +1252,9 @@ def source_rank(url: str, entities: tuple[str, ...] | list[str] = ()) -> int:
         return RANK_REJECT
     if host in _JOURNAL_HOSTS or any(host.endswith("." + h)
                                      for h in _JOURNAL_HOSTS):
+        return 1
+    if host in _DATA_ORIGINATOR_HOSTS or any(host.endswith("." + h)
+                                             for h in _DATA_ORIGINATOR_HOSTS):
         return 1
     squashed = _NONWORD.sub("", host)
     for e in entities:
