@@ -1497,3 +1497,34 @@ def test_fill_calendar_adds_dated_cited_on_topic_candidates_until_the_minimum():
     assert ds.calendar_rows(out, "en", 2026, ["battery", "solid-state"])["ok"] == 4
     same, n0 = ds.fill_calendar(out, cands, "en", 2026, ["battery", "solid-state"], min_rows=5)
     assert n0 == 0 and same == out
+
+
+# --------------------------------------------------------------------------
+# Der Leser (2026-09-13)
+# --------------------------------------------------------------------------
+
+def test_reader_review_keeps_objections_but_drops_new_facts(monkeypatch):
+    review = cr.ReaderReview(answers_question=False, overall="Reads like a funding brief.", findings=[
+        cr.ReaderFinding(section="Decision summary", kind="summary", severity="major",
+                         passage="The CEC awarded three grants", issue="Summarises grants, not the topic.",
+                         suggestion="Lead with the topic's own dated milestones already in the body."),
+        cr.ReaderFinding(section="What is moving", kind="missing", severity="major", passage="",
+                         issue="No sub-field on zinc although the map lists it.",
+                         suggestion="Add a paragraph on zinc from the gathered material."),
+        cr.ReaderFinding(section="Options", kind="other", severity="minor", passage="x",
+                         issue="Effort is vague.", suggestion="State the effort as roughly $45 million.")])
+    monkeypatch.setattr(cr.llamacpp_client, "chat_structured", lambda **kw: review)
+    out = cr.reader_review("## Decision summary\n\nThe CEC awarded three grants in 2025.\n", "q", "iron-air", None)
+    assert out["answers_question"] is False
+    assert [f["kind"] for f in out["findings"]] == ["summary", "missing"]      # $45 million = neuer Fakt → weg
+    lines = cr.reader_lines(out)
+    assert lines[0].startswith("READER: the dossier does not answer")
+    assert any("ERGAENZEN" in l for l in lines) and any('passage: "The CEC awarded three grants"' in l for l in lines)
+    assert cr.reader_lines(None) == []
+
+
+def test_reader_can_be_switched_off(monkeypatch):
+    monkeypatch.setenv("DOSSIER_READER", "0")
+    assert cr.reader_enabled() is False
+    monkeypatch.delenv("DOSSIER_READER")
+    assert cr.reader_enabled() is True

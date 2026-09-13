@@ -158,3 +158,18 @@ def test_fetched_page_text_grounds_a_figure_even_if_the_notes_only_hold_passages
                           "text": "… stationary storage systems at $56/kWh …"}])
     c = check_result(r)
     assert c["ungrounded"] == [] and c["ok"] is True
+
+
+def test_reader_notes_are_reported_but_never_block():
+    r = _result("Fine.")
+    r["structure"] = {"findings_after": [], "reader_after": {
+        "answers_question": True, "overall": "Solid.",
+        "findings": [{"section": "Options", "severity": "major", "issue": "Option 2 has no trigger.",
+                      "suggestion": "Tie it to the 2027 pilot."},
+                     {"section": "Body", "severity": "minor", "issue": "padding", "suggestion": "cut"}]}}
+    c = check_result(r)
+    assert c["ok"] is True and c["reader_ok"] is False
+    assert any("Leser (nicht sperrend) [Options]" in f for f in c["findings"])
+    r["structure"]["reader_after"] = {"answers_question": True, "overall": "Good.", "findings": []}
+    c = check_result(r)
+    assert c["reader_ok"] is True and any("keine wesentlichen Einwaende" in f for f in c["findings"])

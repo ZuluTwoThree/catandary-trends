@@ -440,6 +440,8 @@ def _structured(monkeypatch, plan_steps=1):
             return schema(thesis="t", supported=[], inferences=[],
                           contradictions=[],
                           missing=["what is the legal status"], outline=["o"])
+        if name == "ReaderReview":
+            return schema(answers_question=True, overall="fine", findings=[])
         raise AssertionError(name)
 
     monkeypatch.setattr(llamacpp_client, "chat_structured", chat_structured)

@@ -1453,6 +1453,14 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   (Runde 16):** Neuwurf mit Themenbindung (Fremdfakten zählen nicht), Kurzfassung muss das Thema
   nennen, Kalender-Soll = max(3, min(5, belegte Kandidaten)), verschlechternder zweiter Neuwurf
   wird verworfen.
+- **Der Leser (Owner 2026-09-13 — präzisiert „kein Kritiker-Modell" vom 06.09.):** dasselbe 27B
+  mit eigener Systemanweisung (`READER_SYSTEM`: fordernder Vorstand, adversarial, darf keine
+  Fakten hinzufügen) liest den gewählten Erstentwurf und die Endfassung. Befunde des ersten
+  Lesens (max. 8, mit Zitatstelle und konkreter Änderung; Vorschläge mit neuen Zahlen werden
+  verworfen) gehen als zusätzliche Zeilen in denselben Neuwurf-Auftrag; die des zweiten stehen
+  als „Leser (nicht sperrend)" im Prüfnachweis (`reader_ok` im check_json). Er kann nichts
+  freigeben, sperren oder selbst umschreiben. `DOSSIER_READER=0` schaltet ab. Kalender: fehlende
+  Zeilen füllt `fill_calendar` aus den belegten Kandidaten (sichtbar markiert).
 - **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
   zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
   themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,

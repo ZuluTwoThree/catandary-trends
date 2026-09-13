@@ -512,6 +512,16 @@ das Thema und verbieten Fremdfakten; die Kurzfassung muss das Thema nennen; das
 Kalender-Soll folgt den belegten Kandidaten (mind. 3 statt starr 5); ein zweiter
 Neuwurf, der nichts bessert, wird verworfen. Details `docs/agentic_dossiers.md`.
 
+**Der Leser (seit 2026-09-13):** Vor dem Neuwurf liest dasselbe Modell den
+Entwurf noch einmal — als fordernder Vorstand, nicht als Autor: Beantwortet
+das Dossier die Frage? Ist jede Sektion beim Thema? Sind die Optionen
+entscheidungsfähig? Fehlt ein Teilfeld der Landkarte? Seine Einwände (höchstens
+acht, mit Zitatstelle und konkreter Änderung; er darf keine Zahlen oder Namen
+hinzufügen) gehen in denselben Neuwurf-Auftrag wie die Code-Befunde. Nach der
+Endfassung liest er ein zweites Mal; was dann bleibt, steht im Prüfnachweis als
+„Leser (nicht sperrend)" und in der Review-Ansicht — als Lesehilfe für deinen
+Sign-off, nie als Sperre. Ausschalten: `DOSSIER_READER=0`.
+
 **Die Messkette (seit 2026-09-07, Default AN).** Ein Dossier trägt jetzt zwei
 codegenerierte Anhänge, die nicht das Modell schreibt, sondern der Code:
 

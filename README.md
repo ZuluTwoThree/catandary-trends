@@ -316,6 +316,7 @@ Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
 | `TDM_RESPECT=1` | Fetcher beachtet maschinenlesbare TDM-Vorbehalte |
 | `DOSSIER_MEASURE=0` | Dossier ohne Messkette (alter Pfad, reproduzierbar) |
 | `DOSSIER_DR=0` | Dossier OHNE DR-Vorlauf (Primärquellen zuerst, Faktenzettel, Kalender-Kandidaten — Default AN seit 2026-09-13) |
+| `DOSSIER_READER=0` | Dossier ohne den Leser (zweiter Blick desselben Modells mit eigener Anweisung: Einwände in den Neuwurf, Resthinweise in den Prüfnachweis; Default an seit 2026-09-13) |
 | `DOSSIER_DRAFTS`, `DOSSIER_REWRITES` | Best-of-N im Erstentwurf (Default 2) und Zahl der gezielten Neuwürfe (Default 2 = ein Nachzug für Strukturbefunde) |
 | `NEWSLETTER_DEEP_DIVE` | `dry-run` aktiviert den Deep-Dive-Schritt im Montagslauf (nur in der Crontab setzen, s. Handbuch §7.3) |
 | `RESEND_API_KEY`, `NEWSLETTER_FROM`, `NEWSLETTER_UNSUB_SECRET`, `NEWSLETTER_PUBLIC_BASE`, `NL_EXPORT_URL`, `NL_EXPORT_TOKEN` | Newsletter-Versandkette (#16) |

@@ -246,6 +246,17 @@ def check_result(result: dict) -> dict:
         findings.append(
             f"{st['dropped_sentences']} Satz/Saetze gestrichen: "
             + ", ".join(why) + ".")
+    rd = st.get("reader_after") or {}
+    if rd:
+        majors = [f for f in (rd.get("findings") or []) if f.get("severity") == "major"]
+        if rd.get("answers_question") is False:
+            findings.append("Leser (nicht sperrend): das Dossier beantwortet die gestellte Frage "
+                            "nach Einschaetzung des Lesers NICHT — " + (rd.get("overall") or ""))
+        for f in majors[:4]:
+            findings.append(f"Leser (nicht sperrend) [{f.get('section', '?')}]: {f.get('issue', '')} "
+                            f"— Vorschlag: {f.get('suggestion', '')}")
+        if not majors and rd.get("answers_question") is not False:
+            findings.append("Leser: keine wesentlichen Einwaende — " + (rd.get("overall") or ""))
     if st.get("calendar_filled"):
         findings.append(
             f"Kalender: {int(st['calendar_filled'])} Zeile(n) aus dem Faktenzettel ergaenzt "
@@ -273,6 +284,8 @@ def check_result(result: dict) -> dict:
               and (cited > 0 or n_sources == 0) and not left,
         "ungrounded": ungrounded,
         "stripped_citations": stripped,
+        "reader_ok": (bool(rd.get("answers_question")) and not any(
+            f.get("severity") == "major" for f in (rd.get("findings") or []))) if rd else None,
         "cited": cited,
         "sources": n_sources,
         "open_questions": open_questions,

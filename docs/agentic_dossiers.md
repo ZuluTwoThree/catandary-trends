@@ -1321,3 +1321,31 @@ Konsequenz (R13-3 zu Ende gedacht): `fill_calendar` trägt fehlende Zeilen
 aus den Kandidaten selbst ein — datiert, mit Katalog-id, themenbezogen,
 sichtbar als „added from the dated-fact ledger (auto)", nur bis zum Soll und
 ohne Dubletten; der Prüfnachweis nennt die Zahl (`calendar_filled`).
+
+### Runde 17 (2026-09-13) — der Leser
+
+Owner-Entscheid, der die Festlegung vom 06.09. („kein Kritiker-Modell, keine
+Schleife") präzisiert: **ein Leser, kein Richter**, dasselbe Modell mit
+eigener Systemanweisung. Anlass: Iron-Air v1 — ein Dossier über
+Vanadium-Förderungen mit hoher Faktenquote; jeder Leser hätte es in zehn
+Sekunden gesehen, der Prüfer sah Zahlen mit Beleg. Der Code prüft Form und
+Belege, nicht Sinn.
+
+- `reader_review(report, question, topic, landscape)`: `READER_SYSTEM` (fordernder
+  Vorstand, adversarial, Rubrik: Frage beantwortet, Themenbezug je Sektion,
+  Kurzfassung fasst zusammen, Optionen handlungsfähig, Landkarte abgedeckt,
+  Kohärenz, Füllstoff); Ausgabe `ReaderReview` (answers_question, overall, ≤ 8
+  Befunde mit Sektion, Art, Schwere, Zitatstelle, Einwand, Änderung). **Kein
+  neues Faktenmaterial:** ein Vorschlag mit einer Zahl, die nicht im Entwurf
+  steht, wird verworfen.
+- Zwei Lesungen: (1) auf dem gewählten Erstentwurf → `reader_lines` gehen mit
+  den Code-Befunden in den EINEN Neuwurf-Auftrag (ein „missing"-Befund trägt
+  ERGAENZEN, damit der Evidenzblock mitkommt); (2) auf der Endfassung →
+  `structure.reader_after`, im Prüfnachweis als „Leser (nicht sperrend)",
+  `check.reader_ok`. Freigeben, sperren, umschreiben kann er nicht.
+- Kosten: zwei Aufrufe à ~1–2 min. `DOSSIER_READER=0` schaltet ab.
+
+**Abnahme (Blindläufe, ohne Nachjustieren):** ein Technologie-Lauf
+„precision fermentation for dairy proteins" (Standardfrage, kein Anker) und ein
+Landschafts-Lauf „quantum computing hardware" — Kriterium: `ok` UND der Owner
+würde das Dossier einem Kunden zeigen.
