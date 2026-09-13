@@ -86,7 +86,11 @@ RUN_DEFAULTS = {"steps": 6, "sources": 24, "per_query": 6, "scope": "both",
                 # findet fuer eine Themenformulierung wie "LFP cells for storage
                 # and EVs" keine Klasse mit Trefferdichte; der Owner kennt sie
                 # (H01M4/5825). None = raten wie bisher.
-                "cpc": None}
+                "cpc": None,
+                # Landschafts-Modus (2026-09-13): breites Feld → Teilfeld-Karte,
+                # ein Suchschritt je Teilfeld, Landkarten-Frage statt der
+                # Kommerzialisierungs-Frage EINER Technologie.
+                "mode": "technology"}
 
 
 def _params(order: dict) -> dict:
@@ -101,9 +105,10 @@ def process_order(order: dict, quant: dict | None,
     """Einen als 'running' markierten Auftrag zu Ende führen → 'review'.
     True = Dossier gespeichert; False = fehlgeschlagen (Status 'failed')."""
     oid, topic = order["id"], order["topic"]
-    question = (order.get("question") or "").strip() \
-        or corpus_research.foresight_question(topic)
     p = _params(order)
+    question = (order.get("question") or "").strip() \
+        or (corpus_research.landscape_question(topic) if p["mode"] == "landscape"
+            else corpus_research.foresight_question(topic))
     t0 = time.time()
     try:
         result = corpus_research.run(
@@ -113,7 +118,8 @@ def process_order(order: dict, quant: dict | None,
             # macht den Ausfall im Dossier sichtbar (vorher verschwand er).
             quant=quant if (quant and (quant.get("ok") or p["measure"]))
                   else None,
-            measure=p["measure"], corpus_stats=corpus_stats, dr=p["dr"])
+            measure=p["measure"], corpus_stats=corpus_stats, dr=p["dr"],
+            mode=p["mode"])
         version = corpus_research.save_dossier(
             order["slug"], topic, question, result["report"], result)
         check = check_result(result)
@@ -273,6 +279,9 @@ def main() -> int:
                                        "(Default: Foresight-Standardfrage)")
     ap.add_argument("--cpc", help="CPC-Anker für die Patentmessung bei --order-new "
                                   "(z. B. H01M4/5825); ohne: Kaskade rät")
+    ap.add_argument("--mode", choices=("technology", "landscape"), default=None,
+                    help="--order-new: 'landscape' = breites Feld in Teilfeldern (Karte + ein "
+                         "Suchschritt je Teilfeld); Default technology")
     ap.add_argument("--no-dr", action="store_true",
                     help="--order-new ohne DR-Vorlauf (Faktenzettel/Kalender-Kandidaten)")
     ap.add_argument("--run", action="store_true",
@@ -313,6 +322,8 @@ def main() -> int:
             params["cpc"] = args.cpc.replace(" ", "").upper()
         if args.no_dr:
             params["dr"] = False
+        if args.mode:
+            params["mode"] = args.mode
         new_id = orders_mod.create_order(args.order_new, slug=args.slug,
                                          question=args.question, params=params or None)
         print(f"Auftrag #{new_id} angelegt ({args.order_new!r})")

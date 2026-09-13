@@ -1317,13 +1317,20 @@ def calendar_source_counts(report_md: str, lang: str = "en",
 
 def calendar_findings(report_md: str, lang: str = "en",
                       year_floor: int | None = None,
-                      topic_terms=()) -> list[str]:
-    """Zu wenige datierte, belegte Zeilen im Katalysator-Kalender = Neuwurf."""
+                      topic_terms=(), min_rows: int | None = None) -> list[str]:
+    """Zu wenige datierte, belegte Zeilen im Katalysator-Kalender = Neuwurf.
+
+    `min_rows` (2026-09-13): das Soll haengt am belegten Material. Hat der
+    Vorlauf nur drei datierte Zukunftsereignisse zum Thema gefunden, sind fuenf
+    Zeilen nicht ehrlich zu haben — der Neuwurf fuellte sie mit Foerderfristen
+    und Nachbartechnologien (Iron-Air v1). Der Aufrufer setzt
+    max(3, min(MIN_CALENDAR_ROWS, Kandidaten)); ohne Angabe gilt das Maximum."""
+    need = int(min_rows) if min_rows else MIN_CALENDAR_ROWS
     sections = split_sections(body_text(report_md), _lang(lang))
     if "next" not in sections:
         return []                       # fehlender Abschnitt: eigener Befund
     c = calendar_rows(report_md, lang, year_floor, topic_terms)
-    if c["ok"] >= MIN_CALENDAR_ROWS:
+    if c["ok"] >= need:
         counts = calendar_source_counts(report_md, lang, year_floor)
         top = max(counts.values(), default=0)
         heading = dict((k, h) for k, h, _p in SECTIONS[_lang(lang)])["next"]
@@ -1351,7 +1358,7 @@ def calendar_findings(report_md: str, lang: str = "en",
         detail.append(f"{c['off_topic']} Zeile(n) datiert und belegt, aber "
                       f"nicht zum Thema")
     heading = dict((k, h) for k, h, _p in SECTIONS[_lang(lang)])["next"]
-    return [f"'{heading}': nur {c['ok']} von mindestens {MIN_CALENDAR_ROWS} "
+    return [f"'{heading}': nur {c['ok']} von mindestens {need} "
             f"Tabellenzeilen tragen Datum UND Beleg"
             + (f" ({', '.join(detail)})" if detail else "")
             + f". Jede Zeile braucht ein Datum (Tag, Monat, Quartal oder "
@@ -1586,7 +1593,7 @@ def structure_findings(report_md: str, lang: str = "en",
                        sectors: list[str] | None = None,
                        year_floor: int | None = None,
                        density: dict | None = None,
-                       topic_terms=()) -> list[str]:
+                       topic_terms=(), calendar_min: int | None = None) -> list[str]:
     """Was am fertigen Bericht mechanisch nicht stimmt. Leere Liste = sauber.
 
     `measured` = die gemessenen Groessen (measured_needles): jede Option muss
@@ -1624,6 +1631,22 @@ def structure_findings(report_md: str, lang: str = "en",
             f"hoechstens {SUMMARY_WORDS_MAX}.")
     if "decision" in sections:
         findings += summary_findings(summary, body, L)
+        # Themenbezug der Kurzfassung (Iron-Air v1, 2026-09-13): drei belegte
+        # Aussagen ueber Vanadium-Foerderungen sind keine Kurzfassung eines
+        # Eisen-Luft-Dossiers. Mindestens eine Aussage muss einen Themenbegriff
+        # nennen — gleiche Regel wie fuer Actor-Tabelle und Kalender.
+        claims = summary_claims(summary)
+        if topic_terms and claims and not any(_row_on_topic(c, topic_terms) for c in claims):
+            findings.append(
+                (f"Kurzfassung ohne Themenbezug: keine der {len(claims)} Aussagen nennt das "
+                 f"Thema ({', '.join(str(t) for t in list(topic_terms)[:4])}). Die Kurzfassung "
+                 f"traegt die Entscheidung ZUM THEMA — Aussagen zu Nachbartechnologien oder "
+                 f"Foerderprogrammen gehoeren in den Fliesstext oder fallen weg.")
+                if L == "de" else
+                (f"Kurzfassung ohne Themenbezug: keine der {len(claims)} Aussagen nennt das "
+                 f"Thema ({', '.join(str(t) for t in list(topic_terms)[:4])}). Die Kurzfassung "
+                 f"traegt die Entscheidung ZUM THEMA — Aussagen zu Nachbartechnologien oder "
+                 f"Foerderprogrammen gehoeren in den Fliesstext oder fallen weg."))
     if "options" in sections:
         blocks = option_blocks(sections["options"])
         if len(blocks) < MIN_OPTIONS:
@@ -1662,7 +1685,7 @@ def structure_findings(report_md: str, lang: str = "en",
                 f"Optionsabschnitt deckt '{name}' nicht ab — die Frage nennt "
                 f"dieses Feld ausdruecklich; mindestens eine Option muss es "
                 f"adressieren.")
-    findings += calendar_findings(report_md, L, year_floor, topic_terms)
+    findings += calendar_findings(report_md, L, year_floor, topic_terms, min_rows=calendar_min)
     findings += actor_findings(report_md, L, topic_terms)
     # R14-2d: Bruchstuecke gehen in den Neuwurf, bevor die Streichung neue
     # erzeugt — nackte Etiketten, haengende Doppelpunkte, kleine Satzanfaenge.
@@ -2430,12 +2453,26 @@ def needs_expansion(findings: list[str]) -> bool:
 
 
 def revision_prompt(findings: list[str], cite_findings: list[dict],
-                    lang: str = "en") -> str:
+                    lang: str = "en", topic: str | None = None) -> str:
     """Der EINE gezielte Neuwurf. Kein Kritiker-Modell: der Text hier ist
     vollstaendig aus deterministischen Befunden erzeugt."""
     L = _lang(lang)
     expand = needs_expansion(findings)
     lines = list(findings)
+    if topic:
+        # Themenbindung (Iron-Air v1, 2026-09-13): der Nachzug "ergaenze datierte,
+        # primaer belegte Angaben" wurde mit Foerder- und Vanadium-Fakten von
+        # Behoerdenseiten erfuellt — formal Rang 0, inhaltlich ein anderes Thema.
+        lines.insert(0, (
+            f"Thema dieses Dossiers: {topic}. Jede ergaenzte oder umgeschriebene "
+            f"Aussage muss von DIESEM Thema handeln. Ein datierter, primaer belegter "
+            f"Fakt zu einer anderen Technologie, einem Foerderprogramm oder einer "
+            f"Behoerde zaehlt NICHT als Ergaenzung und wird gestrichen; die zitierten "
+            f"Quellen des Themas bleiben erhalten." if L == "de" else
+            f"Topic of this dossier: {topic}. Every added or rewritten statement must "
+            f"be ABOUT this topic. A dated, primary-cited fact about another technology, "
+            f"a funding programme or an authority does NOT count as an addition and "
+            f"will be deleted; keep the topic's cited sources."))
     for e in _spread_by_kind(cite_findings, MAX_REVISION_ITEMS):
         toks = ", ".join(repr(t) for t in e["tokens"][:4])
         kind = e.get("kind", "figure")

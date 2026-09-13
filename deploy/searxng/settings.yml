@@ -1,0 +1,16 @@
+# SearXNG fuer den Rechercheur-Fallback (pipeline/web_search.py, 2026-09-13).
+# Nur 127.0.0.1:8888, JSON-Format an, Limiter aus (der Client ist kein Browser).
+use_default_settings: true
+general:
+  instance_name: "catandary-searxng"
+  debug: false
+server:
+  secret_key: "catandary-local-searxng-not-public"
+  limiter: false
+  public_instance: false
+  image_proxy: false
+search:
+  safe_search: 0
+  formats: [html, json]
+ui:
+  static_use_hash: true

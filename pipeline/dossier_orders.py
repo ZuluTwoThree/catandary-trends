@@ -42,7 +42,9 @@ ALLOWED_PARAMS = frozenset(
      # 2026-09-13: "dr" (Notizen vor dem Schreiben, Default an — false schaltet ab)
      # und "cpc" (Anker fuer die Patentmessung, z. B. H01M4/5825). Bis dahin
      # filterte diese Liste "dr" still heraus — params={"dr": true} kam nie an.
-     "dr", "cpc"))
+     "dr", "cpc",
+     # 2026-09-13: "mode" = technology | landscape (Teilfeld-Karte fuer breite Felder)
+     "mode"))
 
 
 def _ddl() -> str:

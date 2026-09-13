@@ -170,3 +170,14 @@ def test_dr_prepass_is_on_by_default_and_cpc_is_a_known_param(monkeypatch):
     assert w.RUN_DEFAULTS["dr"] is False
     monkeypatch.delenv("DOSSIER_DR", raising=False)
     importlib.reload(w)
+
+
+def test_landscape_mode_is_a_known_param_and_picks_the_landscape_question(monkeypatch):
+    import importlib
+    monkeypatch.delenv("DOSSIER_DR", raising=False)
+    import scripts.dossier_worker as w
+    importlib.reload(w)
+    assert w.RUN_DEFAULTS["mode"] == "technology"
+    assert w._params({"params": {"mode": "landscape"}})["mode"] == "landscape"
+    from pipeline import dossier_orders as o
+    assert o._clean_params({"mode": "landscape"}) == {"mode": "landscape"}

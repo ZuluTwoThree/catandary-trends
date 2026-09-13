@@ -75,8 +75,10 @@ def _report(summary_words: int = 40, options: int = 2,
     # `summary_words`, damit die 200-Woerter-Obergrenze weiter geprueft wird.
     _per = max(4, summary_words // 3)
     body = ["# Dossier", "", "## Decision summary", ""]
-    body += [f"{i}. " + " ".join([f"claim{i}"] * _per) + " [[T1]]."
-             for i in (1, 2, 3)]
+    # Seit 2026-09-13 muss mindestens eine Aussage das Thema nennen (die
+    # e2e-Laeufe fragen nach GLP-1) — die Wortzahl bleibt gleich.
+    body += [f"{i}. " + " ".join((["GLP-1"] if i == 1 else []) + [f"claim{i}"] * (_per - (1 if i == 1 else 0)))
+             + " [[T1]]." for i in (1, 2, 3)]
     if summary_extra:
         body.append("4. " + summary_extra)
     body += ["", "## What is moving", ""]
@@ -2829,3 +2831,33 @@ def test_a_second_rewrite_that_makes_things_worse_is_discarded(monkeypatch):
     # ausgeliefert wird die Fassung nach dem ERSTEN Neuwurf: zwei Optionen, Effort fehlt
     assert out["report"].count("### Option") == 2
     assert any("Effort" in f for f in st["findings_after"])
+
+
+# --------------------------------------------------------------------------
+# Iron-Air v1 (2026-09-13): Themenbindung und Kalender-Soll
+# --------------------------------------------------------------------------
+
+class TestTopicBinding:
+
+    def test_revision_prompt_names_the_topic_first(self):
+        text = ds.revision_prompt(["Kalender 3/5"], [], "en", topic="iron-air batteries")
+        assert text.index("Topic of this dossier: iron-air batteries") < text.index("Kalender 3/5")
+        assert "does NOT count" in text
+        assert "Topic of this dossier" not in ds.revision_prompt(["x"], [], "en")
+
+    def test_summary_without_the_topic_is_a_finding(self):
+        doc = ("## Decision summary\n\n1. The California Energy Commission awarded a $28 M grant in 2025 [[W1]].\n"
+               "2. The Batt4EU call closes on 31 March 2026 [[W1]].\n\n## What is moving\n\nText [[W1]].\n")
+        f = ds.structure_findings(doc, "en", topic_terms=["iron-air", "iron"])
+        assert any("Kurzfassung ohne Themenbezug" in x for x in f)
+        ok = doc.replace("a $28 M grant", "a $28 M grant for an iron-air pilot")
+        assert not any("Kurzfassung ohne Themenbezug" in x for x in ds.structure_findings(ok, "en", topic_terms=["iron-air"]))
+
+    def test_calendar_minimum_follows_the_material(self):
+        rows = "\n".join(f"| 202{7+i%2} | Form Energy iron-air plant milestone {i} | [[W{i}]] | matters |" for i in range(3))
+        doc = ("## Decision summary\n\nx.\n\n## What happens next\n\n| Date | Event | Source | Why it matters |\n"
+               "|---|---|---|---|\n" + rows + "\n\n## What the evidence does not support\n\n- y\n")
+        five = ds.calendar_findings(doc, "en", 2026, ["iron-air"])
+        three = ds.calendar_findings(doc, "en", 2026, ["iron-air"], min_rows=3)
+        assert five and "mindestens 5" in five[0]
+        assert three == [] or all("mindestens 3" not in x for x in three)

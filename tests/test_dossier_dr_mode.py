@@ -1434,3 +1434,29 @@ def test_harvest_reserves_seats_for_papers_and_funding(monkeypatch):
     titles = " ".join(asked)
     assert all(f"paper {i}" in titles for i in range(3)) and "grant" in titles
     assert len(asked) == 10
+
+
+# --------------------------------------------------------------------------
+# Landschafts-Modus (2026-09-13)
+# --------------------------------------------------------------------------
+
+def test_landscape_question_asks_for_the_field_not_one_technology():
+    q = cr.landscape_question("batteries")
+    assert "Map the field of batteries" in q and "at least eight" in q and "skepticism" in q
+
+
+def test_landscape_map_is_verified_and_thinned_by_corpus_counts(monkeypatch):
+    items = [cr.LandscapeItem(name="sodium-ion cells", query="sodium-ion battery cell", why="Na instead of Li"),
+             cr.LandscapeItem(name="unobtainium anodes", query="unobtainium", why="does not exist"),
+             cr.LandscapeItem(name="Sodium-ion cells", query="dup", why="dup"),
+             cr.LandscapeItem(name="solid-state electrolytes", query="solid-state electrolyte", why="no liquid")]
+    monkeypatch.setattr(cr.llamacpp_client, "chat_structured", lambda **kw: cr.LandscapeMap(items=items))
+    counts = {"sodium-ion cells": {"signals": 900, "patents": 40}, "unobtainium anodes": {"signals": 1, "patents": 0},
+              "solid-state electrolytes": {"signals": 2500, "patents": 300}}
+    monkeypatch.setattr(cr, "subfield_counts", lambda name: counts.get(name, {"signals": 0, "patents": 0}))
+    out = cr.build_landscape_map("batteries", ["Sodium-ion cells ship", "Solid-state pilot"])
+    assert [r["name"] for r in out] == ["solid-state electrolytes", "sodium-ion cells"]
+    note = cr.landscape_note(out, "batteries")
+    assert "2500 signals" in note and "unobtainium" not in note
+    app = cr.landscape_appendix(out, "batteries")
+    assert "## Landscape map (auto-generated)" in app and "| sodium-ion cells | 900 | 40 |" in app
