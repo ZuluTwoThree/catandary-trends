@@ -1349,3 +1349,23 @@ Belege, nicht Sinn.
 „precision fermentation for dairy proteins" (Standardfrage, kein Anker) und ein
 Landschafts-Lauf „quantum computing hardware" — Kriterium: `ok` UND der Owner
 würde das Dossier einem Kunden zeigen.
+
+**Ergebnis der Abnahme (14.09., 00:07 / 00:56):**
+
+| | Präzisionsfermentation (#36, v4, Technologie) | Quantum-Hardware (#37, v1, Landschaft) |
+|---|---|---|
+| Endkontrolle | ✗ (Faktenquote 0,5; 4 primäre Belege — Fachpresse trägt das Feld) | **✓** (Faktenquote 2,45, 33 Quellen, Kalender ok) |
+| Leser | ✗ „Momentaufnahme statt Trajektorie; Optionen nicht für Mittelstand; Kurzfassung wiederholt den Text“ | ✗ „nur 4 von 11 Teilfeldern der Karte; Kurzfassung vermengt Hardware mit PQC; Regulatorik-Boilerplate (SPC bei Hardware); Optionen nicht trennscharf“ |
+| Kriterium erfüllt | nein | nein |
+
+Lehren: (1) Der Code-Prüfer und der Leser messen Verschiedenes — #37 ist
+mechanisch sauber und beantwortet die Frage nicht. `ok` bleibt notwendig, ist
+aber nicht hinreichend; `reader_ok` steht daneben. (2) Im Landschafts-Modus
+nutzt der Schreiber die Karte nicht (4 von 11) — die Karte muss eine
+**Pflichtsektion mit Prüfregel** werden (je Teilfeld eine Zeile: Reife,
+datierter Fakt, Beleg), nicht nur eine gepinnte Notiz. (3) Die Faktenquote
+bestraft Felder, deren Primärquellen Behördenregister sind, die der Sweep
+nicht trifft (FDA-GRAS-Notices, EFSA-Register) — der Rechts-Sweep fragt
+pharma-geprägt (SPC, Patentablauf) und produziert dort Boilerplate. (4) Die
+Leser-Befunde des ersten Durchgangs überleben den Neuwurf teilweise; ein
+zweiter Neuwurf wird heute nur von Strukturbefunden ausgelöst.
