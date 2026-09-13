@@ -1198,7 +1198,18 @@ Strukturbefund: kein datierter, belegter Satz zur Wissenschaftsebene. Die drei
 „unbelegten" Zahlen von v8 standen auf der zitierten Seite (`_evidence_text`
 las den gelesenen Seitentext nicht mit — behoben, `dossier_check`). Damit ist
 der DR-Vorlauf (Faktenzettel + Kalender-Kandidaten) der Pfad, der die Dichte
-trägt; ohne ihn schwankt der Erstentwurf zwischen 1,0 und 2,4. Die Restbefunde, die
+trägt; ohne ihn schwankt der Erstentwurf zwischen 1,0 und 2,4.
+
+**v9 (2026-09-13, Order #32) — erstes `ok=True` der Serie.** DR-Vorlauf als
+Default, CPC-Anker `H01M4/5825` (16.047 Patente, Messbasis 12.145 im
+Zitationsgraph — nach acht Läufen ohne Messblock), Faktenzettel mit Plätzen für
+Paper/Förderung: Faktenquote **3,28**, 0 unbelegte Zahlen, 0 gestrichene
+Zitate, Kurzfassung drei Aussagen, alle Strukturbefunde nach EINEM Neuwurf
+geschlossen (der Wissenschafts-Satz kam im Neuwurf), 1.984 Wörter (knapp unter
+dem Band — Hinweis, kein Befund). Best-of-2 griff erneut (1,95 → 2,82), der
+Cache trug 97 von 115 Suchanfragen und 139 von 180 Seiten. Was bleibt, ist
+inhaltlich: 70 offene Fragen im Abdeckungsanhang und 17 Kernaussagen mit
+Sekundär-Vermerk (Fachpresse trägt den Kalender, nicht die Firmenseiten). Die Restbefunde, die
 `ok` blockieren, sind inhaltlich: Faktenquote unter 2,0 in schwachen
 Entwürfen, Kalender mit weniger als fünf datierten LFP-Ereignissen, in v7 die
 Innovationskette (Wissenschaft/Förderung ohne datierten Satz). Die
