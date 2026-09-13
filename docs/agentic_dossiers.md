@@ -1292,4 +1292,17 @@ allen Begriffen, gedeckelt 20.000; Patente mit Text), unter 5 Signalen fällt es
 der Plan besteht aus einem Suchschritt je Teilfeld (deterministisch, kein
 Planer-Aufruf), die Themenbegriffe umfassen alle Teilfelder, die Karte steht
 gepinnt in den Notizen und als Anhang „Landscape map“ im Dossier. Erster Lauf:
-`batteries-landscape` (Order #34).
+`batteries-landscape` (Order #34): `ok=False` an einem Befund (Kalender 3/5),
+Faktenquote 2,31, 38 Quellen, 2.644 Wörter, Messblock vorhanden — inhaltlich
+Festkörper (ProLogium, BYD, Samsung SDI), Natrium-Ionen (UNIGRID, CATL),
+Recycling, Batteriepass 2027, kritische Rohstoffe. Die Karte war aber dünn: 7
+Teilfelder mit 6–32 Signalen, darunter „AI-driven battery management" und
+„Lithium-ion degradation diagnostics" — schlagzeilengetrieben, und die
+Nachzählung lief mit UND über vier Wörter („Sodium-ion battery cells" → 18
+Signale, obwohl „sodium-ion" allein 54-mal in 500 Titeln steht). Nachgezogen:
+`subfield_terms` zählt nur die spezifischen Wörter (ohne Gattungs- und
+Feldwörter), `corpus_term_candidates` extrahiert die wiederkehrenden Komposita
+und Zwei-Wort-Begriffe aus 500 Schlagzeilen (solid-state 105, sodium-ion 54,
+lithium-ion 29, lithium metal 10, zinc 9, second-life 8, lfp 6, lithium-sulfur 6,
+iron-air 5, anode-free 5 …) und legt sie dem Modell mit Zählung vor; 10–14
+Items, Feldwort nicht wiederholen.

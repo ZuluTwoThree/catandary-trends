@@ -1453,10 +1453,26 @@ def test_landscape_map_is_verified_and_thinned_by_corpus_counts(monkeypatch):
     monkeypatch.setattr(cr.llamacpp_client, "chat_structured", lambda **kw: cr.LandscapeMap(items=items))
     counts = {"sodium-ion cells": {"signals": 900, "patents": 40}, "unobtainium anodes": {"signals": 1, "patents": 0},
               "solid-state electrolytes": {"signals": 2500, "patents": 300}}
-    monkeypatch.setattr(cr, "subfield_counts", lambda name: counts.get(name, {"signals": 0, "patents": 0}))
+    monkeypatch.setattr(cr, "subfield_counts", lambda name, field="": counts.get(name, {"signals": 0, "patents": 0}))
     out = cr.build_landscape_map("batteries", ["Sodium-ion cells ship", "Solid-state pilot"])
     assert [r["name"] for r in out] == ["solid-state electrolytes", "sodium-ion cells"]
     note = cr.landscape_note(out, "batteries")
     assert "2500 signals" in note and "unobtainium" not in note
     app = cr.landscape_appendix(out, "batteries")
     assert "## Landscape map (auto-generated)" in app and "| sodium-ion cells | 900 | 40 |" in app
+
+
+def test_subfield_terms_drop_field_and_generic_words():
+    assert cr.subfield_terms("Sodium-ion battery cells", "batteries") == ["sodium-ion"]
+    assert cr.subfield_terms("Second-life EV battery storage", "batteries") == ["second-life", "storage"]
+    assert cr.subfield_terms("batteries", "batteries")                    # nichts uebrig → alle Woerter
+
+
+def test_corpus_term_candidates_surface_recurring_compounds():
+    titles = ["Advancements in Sodium-Ion Battery Technology", "Sodium-ion cells ship to Europe",
+              "Solid-state battery negative electrode", "Solid-state batteries enter mass production",
+              "Lithium metal battery anode study", "Lithium metal battery pilot", "Zinc battery startup raises"]
+    c = dict(cr.corpus_term_candidates(titles, "batteries"))
+    assert c["sodium-ion"] == 2 and c["solid-state"] == 2
+    assert c["lithium metal"] == 2
+    assert "battery" not in c
