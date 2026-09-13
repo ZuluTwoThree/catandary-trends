@@ -3856,6 +3856,23 @@ def landscape_question(topic: str) -> str:
         f"validated facts throughout.")
 
 
+def _field_word_forms(field: str) -> set[str]:
+    """Die Woerter des Felds in Singular und Plural ("batteries" → battery,
+    batteries; "cells" → cell, cells)."""
+    from pipeline.dossier_quant import _WORD_RE
+    base = {w.lower().strip(".-/") for w in _WORD_RE.findall(field or "")}
+    out = set(base)
+    for w in base:
+        if w.endswith("ies"):
+            out.add(w[:-3] + "y")
+        elif w.endswith("s"):
+            out.add(w[:-1])
+        else:
+            out.add(w + "s")
+            out.add(w[:-1] + "ies" if w.endswith("y") else w + "es")
+    return out
+
+
 def subfield_terms(name: str, field: str = "") -> list[str]:
     """Die SPEZIFISCHEN Begriffe eines Teilfeld-Namens fuer die Nachzaehlung:
     ohne Fuellwoerter, ohne Gattungswoerter (battery, cells, systems …) und
@@ -3864,8 +3881,7 @@ def subfield_terms(name: str, field: str = "") -> list[str]:
     (v1 des Landschafts-Laufs zaehlte mit UND ueber vier Woerter — 18 Signale
     fuer Natrium-Ionen, obwohl "sodium-ion" allein 54-mal in 500 Titeln steht)."""
     from pipeline.dossier_quant import normalize_topic, _WORD_RE, _GENERIC_TERMS
-    field_words = {w.lower().strip(".-/") for w in _WORD_RE.findall(field or "")}
-    field_words |= {w[:-1] for w in field_words if w.endswith("s")} | {w + "s" for w in field_words}
+    field_words = _field_word_forms(field)
     words = [w.lower() for w in _WORD_RE.findall(normalize_topic(name)) if len(w.strip(".-/")) >= 3]
     specific = [w for w in words if w.strip(".-/") not in _GENERIC_TERMS
                 and w.strip(".-/") not in field_words]
@@ -3879,14 +3895,16 @@ def corpus_term_candidates(titles: list[str], field: str = "", limit: int = 24) 
     anode", "redox flow") — mit Haeufigkeit. Sie gehen als untrusted data in
     den Kartenprompt, damit die Karte deckt, was der Korpus wirklich haelt."""
     from pipeline.dossier_quant import _WORD_RE, _GENERIC_TERMS, _FILLER
-    field_words = {w.lower() for w in _WORD_RE.findall(field or "")}
-    field_words |= {w[:-1] for w in field_words if w.endswith("s")} | {w + "s" for w in field_words}
+    field_words = _field_word_forms(field)
     cnt: dict[str, int] = {}
     for t in titles or []:
         low = (t or "").lower()
         seen: set[str] = set()
         for m in re.findall(r"\b[a-z0-9]+(?:-[a-z0-9]+)+\b", low):
-            if m in field_words or any(part in _FILLER or part in _GENERIC_TERMS for part in m.split("-")):
+            # Komposita nur an Gattungswoertern scheitern lassen, nicht an der
+            # Fuellwortliste: "state" steht dort (state of the field), und damit
+            # fiel "solid-state" — der haeufigste Begriff des Batteriefelds.
+            if m in field_words or any(part in _GENERIC_TERMS for part in m.split("-")):
                 continue
             seen.add(m)
         for m in re.finditer(r"\b([a-z]{4,})\s+([a-z]{4,})\s+(?:" + "|".join(sorted(field_words) or ["battery"]) + r")\b", low):
