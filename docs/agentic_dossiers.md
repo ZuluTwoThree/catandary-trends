@@ -1267,3 +1267,29 @@ halluzinierte URLs bei DR-Agenten — unser geschlossener Katalog ist strenger),
 arXiv 2601.20843 (Kandidaten-Crossover → hier als Best-of-2). Noch nicht
 übernommen: Evidenzfamilien (Syndikat/PR/Firmenseite als *ein* Beleg) und
 abschnittsweises Schreiben (#100).
+
+### Runde 16 (2026-09-13) — warum v1 nicht trug, SearXNG, Landschafts-Modus
+
+**Ursachen, dass ein v1 bisher selten auf Anhieb brauchbar war** (aus neun
+LFP- und einem Iron-Air-Lauf), und was dagegen steht:
+
+| Ursache | Beleg | Gegenmaßnahme |
+|---|---|---|
+| Ein Schreibaufruf mit großer Varianz | Faktenquote 2,37 / 1,23 / 0,98 bei gleichem Auftrag | Best-of-2 (`DOSSIER_DRAFTS`) |
+| Schreiben und Fakten sammeln im selben Aufruf | ohne Vorlauf 1,0–2,4, mit Vorlauf 2,5–3,3 | DR-Vorlauf Default (Faktenzettel, Kalender-Kandidaten, Plätze für Paper/Förderung) |
+| Prüfer falsch kalibriert | BNEF = Rang 2, Präposition = Bruchstück, Klassengröße statt Text als Nenner | Rangliste, Fragment-Regel, Text-Nenner, Titelsuche |
+| Neuwurf optimiert die Metrik statt das Thema | Iron-Air v1: Vanadium-Förderungen als „primär belegte Fakten“ | Themenbindung im Neuwurf; Kurzfassung muss das Thema nennen; verschlechternder Nachzug wird verworfen |
+| Starres Kalender-Soll | 5 Zeilen bei 3 belegten Zukunftsereignissen → Fremdzeilen | Soll = max(3, min(5, Kandidaten)) |
+| Zitate auf ungelesene Treffer | 6–8 gestrichene Zitate je Lauf | zitatgetriebener Abruf, Marker vor der Prüfung weg |
+| Suchmaschine fällt aus | 402 am 12.09., 233 Fehlanfragen in einem Lauf | Web-Cache; **SearXNG-Fallback** (`pipeline/web_search.py`) |
+| Patentmessung findet die Klasse nicht | 9 Läufe ohne Messblock | Kernphrase, Text-Nenner, schärfer per Titel; Anker als Override |
+
+**Landschafts-Modus** (`--mode landscape`): für ein breites Feld ist die
+Kommerzialisierungsfrage einer Technologie das falsche Gerüst. Neuer Vorschritt
+`build_landscape_map`: das Modell schlägt 8–14 Teilfelder vor (aus Feld + 60
+Korpus-Schlagzeilen), `subfield_counts` zählt jedes im Korpus nach (Trends mit
+allen Begriffen, gedeckelt 20.000; Patente mit Text), unter 5 Signalen fällt es;
+der Plan besteht aus einem Suchschritt je Teilfeld (deterministisch, kein
+Planer-Aufruf), die Themenbegriffe umfassen alle Teilfelder, die Karte steht
+gepinnt in den Notizen und als Anhang „Landscape map“ im Dossier. Erster Lauf:
+`batteries-landscape` (Order #34).

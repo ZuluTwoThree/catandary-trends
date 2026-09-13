@@ -487,6 +487,31 @@ Kandidaten — dann erst schreiben; ~12 min mehr); abschalten nur per CLI
 und der faktendichtere genommen; danach ein Neuwurf plus höchstens ein Nachzug
 für Strukturbefunde. Hergang: `docs/agentic_dossiers.md`, Runde 15.
 
+**Breites Feld statt einer Technologie (Landschafts-Modus, seit 2026-09-13,
+nur CLI):** `python -m scripts.dossier_worker --order-new "batteries" --mode
+landscape --run`. Vor dem Plan schlägt das Modell 8–14 Teilfelder vor (aus
+Feld + 60 Korpus-Schlagzeilen), der Korpus zählt jedes nach (Trend-Signale und
+Patente mit Text, UND aller Begriffe); Teilfelder unter 5 Signalen fallen weg.
+Der Plan bekommt je Teilfeld einen Suchschritt, die Frage ist die
+Landkarten-Frage (was gibt es, was bewegt sich, was ist Hype, was beobachten),
+die Themenbegriffe für Actor-Tabelle/Kalender/Kurzfassung umfassen alle
+Teilfelder, und das Dossier trägt den Anhang „Landscape map“ mit den Zahlen.
+Die Struktur- und Belegregeln bleiben dieselben.
+
+**Web-Suche mit Fallback (seit 2026-09-13):** Brave zuerst; antwortet Brave mit
+402 (Kontingent), 429, 5xx oder gar nicht, übernimmt die lokale SearXNG-Instanz
+(Metasuche über Brave/Google u. a.). Container: `docker run -d --name searxng
+--restart unless-stopped -p 127.0.0.1:8888:8080 -v <repo>/data/searxng:/etc/searxng
+searxng/searxng:latest` mit `deploy/searxng/settings.yml` (JSON-Format an,
+Limiter aus). Prüfen: `curl 'http://127.0.0.1:8888/search?q=test&format=json'`;
+`docker restart searxng`, wenn er nicht antwortet. `WEB_SEARCH_BACKEND=searxng`
+erzwingt ihn, `result.web.cache.searxng_api` zählt je Lauf.
+
+**Warum ein v1 jetzt eher trägt (Runde 16, 13.09.):** Neuwurf-Aufträge nennen
+das Thema und verbieten Fremdfakten; die Kurzfassung muss das Thema nennen; das
+Kalender-Soll folgt den belegten Kandidaten (mind. 3 statt starr 5); ein zweiter
+Neuwurf, der nichts bessert, wird verworfen. Details `docs/agentic_dossiers.md`.
+
 **Die Messkette (seit 2026-09-07, Default AN).** Ein Dossier trägt jetzt zwei
 codegenerierte Anhänge, die nicht das Modell schreibt, sondern der Code:
 

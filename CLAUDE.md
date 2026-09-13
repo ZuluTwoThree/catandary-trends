@@ -1444,6 +1444,15 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   eine breite Klasse stehen, prüft „schärfer per Titel" (`title_candidates` + UND-Dichte), ob
   eine Titelklasse derselben Familie ≥ 1,5× dichter ist — für LFP H01M4/5825 (25,9 % gegen
   1,9 % für H01M10/052) ohne Anker. Der Anker bleibt als Override.
+- **Web-Suche mit Fallback + Landschafts-Modus (seit 2026-09-13):** `pipeline/web_search.py` —
+  Brave zuerst, bei 402/429/5xx/Netzfehler oder ohne Schlüssel die lokale **SearXNG**-Instanz
+  (Docker `searxng`, 127.0.0.1:8888, `deploy/searxng/settings.yml`; `WEB_SEARCH_BACKEND`,
+  `SEARXNG_URL`). `--mode landscape` / `params {"mode": "landscape"}`: Teilfeld-Karte
+  (Modell schlägt vor, Korpus zählt nach, < 5 Signale fällt), ein Suchschritt je Teilfeld,
+  `landscape_question`, Themenbegriffe aller Teilfelder, Anhang „Landscape map“. **v1-Härtung
+  (Runde 16):** Neuwurf mit Themenbindung (Fremdfakten zählen nicht), Kurzfassung muss das Thema
+  nennen, Kalender-Soll = max(3, min(5, belegte Kandidaten)), verschlechternder zweiter Neuwurf
+  wird verworfen.
 - **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
   zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
   themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,
