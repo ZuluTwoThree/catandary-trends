@@ -1528,3 +1528,9 @@ def test_reader_can_be_switched_off(monkeypatch):
     assert cr.reader_enabled() is False
     monkeypatch.delenv("DOSSIER_READER")
     assert cr.reader_enabled() is True
+
+
+def test_field_anchor_forms_keep_the_narrow_field_word():
+    assert cr.field_anchor_forms("quantum computing hardware") == ["quantum"]
+    assert cr.field_anchor_forms("batteries") == ["batteries"]      # Postgres stemmt selbst
+    assert cr.field_anchor_forms("energy storage")                      # nichts Enges → alle Formen

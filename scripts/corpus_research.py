@@ -4033,6 +4033,25 @@ def corpus_term_candidates(titles: list[str], field: str = "", limit: int = 24) 
     return ranked[:limit]
 
 
+_BROAD_FIELD_WORDS = frozenset("""
+computing hardware software energy storage materials systems devices digital data
+industrial technology technologies platform platforms infrastructure
+""".split())
+
+
+def field_anchor_forms(field: str) -> list[str]:
+    """Die Feldwoerter, mit denen ein Teilfeld gemeinsam vorkommen muss —
+    Singular/Plural, ohne Fuell-, Gattungs- und Breitwoerter: "quantum computing
+    hardware" → quantum; "batteries" → battery, batteries. "computing" und
+    "hardware" liessen "memory & computing" fast alles zaehlen (2.223 Signale)."""
+    from pipeline.dossier_quant import _FILLER, _GENERIC_TERMS, _WORD_RE
+    # Grundwoerter reichen: to_tsquery('english') stemmt battery/batteries selbst.
+    base = sorted({w.lower().strip(".-/") for w in _WORD_RE.findall(field or "") if len(w.strip(".-/")) >= 3})
+    narrow = [w for w in base if w not in _FILLER and w not in _GENERIC_TERMS
+              and w not in _BROAD_FIELD_WORDS and w.rstrip("s") not in _BROAD_FIELD_WORDS]
+    return narrow or base
+
+
 def subfield_counts(name: str, field: str = "") -> dict:
     """Deterministische Nachzaehlung eines vorgeschlagenen Teilfelds: Korpus-
     Signale (Trends, UND der spezifischen Begriffe, gedeckelt) und Patente mit Text."""
@@ -4040,7 +4059,12 @@ def subfield_counts(name: str, field: str = "") -> dict:
     terms = subfield_terms(name, field)
     if not terms:
         return {"signals": 0, "patents": 0}
-    tsq = " & ".join(terms)
+    # Ein Teilfeld muss MIT dem Feld vorkommen: "quantum memory" im Feld
+    # "quantum computing hardware" zaehlte sonst jedes "memory" (9.414 Signale,
+    # Quantum-Landschaft v1). Die Feldwoerter gehen als ODER-Gruppe dazu.
+    field_forms = field_anchor_forms(field)
+    field_clause = (" & (" + " | ".join(field_forms) + ")") if field_forms else ""
+    tsq = " & ".join(terms) + field_clause
     out = {"signals": 0, "patents": 0}
     try:
         with get_connection() as conn:
