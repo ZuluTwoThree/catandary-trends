@@ -470,11 +470,12 @@ Herkunftskopf). Erzwingen lässt sich beides je Auftrag über
 - **Custom question** (optional) — ersetzt die Foresight-Standardfrage; ändert
   die Recherche, nicht die Messung;
 - **CPC anchor** (optional, seit 2026-09-13, z. B. `H01M4/5825`) — die
-  Patentklasse, in der gemessen werden soll. Ohne Anker rät die Kaskade die
-  Klasse aus der Themenformulierung und scheitert bei zusammengesetzten Themen
-  („LFP cells for stationary storage and EVs": keine Klasse ≥ 2 % Dichte).
-  Codes ohne Leerzeichen; findet der Anker keine Trajektorie, läuft die Kaskade
-  wie bisher und der Messanhang nennt beides;
+  Patentklasse, in der gemessen werden soll. Normalerweise nicht nötig: die
+  Kaskade misst die Kernphrase ohne Anwendungs-Anhängsel und wählt bei einer
+  breiten Klasse die dichtere Titelklasse derselben Familie (für LFP findet sie
+  `H01M4/5825` selbst). Der Anker ist der Override, wenn du die Klasse besser
+  kennst als der Entdecker. Codes ohne Leerzeichen; findet der Anker keine
+  Trajektorie, läuft die Kaskade wie bisher und der Messanhang nennt beides;
 - Checkbox *measure the innovation chain first* (Quant-Vorstufe: CPC → TIR →
   Lead-Time → Hub-Patente als zitierbare Quelle „Q1");
 - Checkbox *start the worker right away*.

@@ -1436,6 +1436,14 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   (`DOSSIER_REWRITES`), zitatgetriebener Abruf ungelesener Treffer, Web-Cache und ein
   optionaler **CPC-Anker** für die Patentmessung (`params {"cpc": "H01M4/5825"}`, Desk-Feld
   „CPC anchor", CLI `--cpc`) — Chronik in `docs/agentic_dossiers.md`, Runde 15.
+  **CPC-Entdecker seit 2026-09-13 vom Auftragsthema entkoppelt:** die Kaskade misst zuerst
+  die Kernphrase ohne Anwendungs-Anhängsel (`head_phrase`: „… (LFP) cells for stationary
+  storage and EVs" → „lithium iron phosphate cells"), die Dichteregel rechnet gegen Patente
+  *mit Text* (BDDS ohne Abstract: H01M4/5825 hat 24.409 Patente, 212 mit Text — 2 % waren
+  unerreichbar) und zählt direkt je Klasse statt über die 40k-gedeckelte Trefferliste; bleibt
+  eine breite Klasse stehen, prüft „schärfer per Titel" (`title_candidates` + UND-Dichte), ob
+  eine Titelklasse derselben Familie ≥ 1,5× dichter ist — für LFP H01M4/5825 (25,9 % gegen
+  1,9 % für H01M10/052) ohne Anker. Der Anker bleibt als Override.
 - **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
   zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
   themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,

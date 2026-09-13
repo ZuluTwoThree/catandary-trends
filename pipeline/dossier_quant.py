@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import logging
 import re
+from pipeline.config import DATA_DIR
 from datetime import date
 from urllib.parse import quote
 
@@ -111,6 +112,27 @@ def normalize_topic(topic: str) -> str:
     return " ".join(words)
 
 
+# Anwendungs-Anhaengsel, die ein Auftragsthema tragen darf, die Patentmessung aber
+# nicht: "… for stationary storage and EVs", "… in food packaging", "… across
+# European utilities". Der CPC-Entdecker (analyze_query + query_gate) verlangt
+# einen Patenttitel mit ALLEN Begriffen — mit dem Anhaengsel findet er keinen.
+_APPLICATION_CUT = re.compile(
+    r"\s+(?:for|in|across|within|used in|applied to|aimed at|targeting|toward|towards|as)\s+.*$"
+    r"|\s*[—–:;].*$", re.IGNORECASE)
+_PARENTHETICAL = re.compile(r"\s*\([^)]*\)")
+
+
+def head_phrase(topic: str) -> str:
+    """Der technische Kern eines Auftragsthemas — die Phrase, die der
+    CPC-Entdecker messen kann (2026-09-13). Klammerzusaetze fallen weg
+    („(LFP)"), alles ab dem ersten Anwendungs-Bindewort auch:
+    „lithium iron phosphate (LFP) cells for stationary storage and EVs"
+    → „lithium iron phosphate cells". Leer, wenn nichts uebrig bleibt."""
+    t = _PARENTHETICAL.sub("", topic or "")
+    t = _APPLICATION_CUT.sub("", t)
+    return " ".join(t.split()).strip(" ,.")
+
+
 def topic_cascade(topic: str) -> list[str]:
     """Reihenfolge der Messversuche: volle Phrase → normalisiert → Kernbegriffe
     (die Inhaltswörter einzeln, längste zuerst — der spezifischste Begriff hat
@@ -126,6 +148,12 @@ def topic_cascade(topic: str) -> list[str]:
             out.append(p)
 
     add(topic)
+    # Messphrase vom Rechercheauftrag entkoppelt (2026-09-13): erst der
+    # technische Kern ohne Anwendungs-Anhaengsel, dann die Fuellwort-Normalform.
+    head = head_phrase(topic)
+    if head and head.lower() != (topic or "").strip().lower():
+        add(head)
+        add(normalize_topic(head))
     norm = normalize_topic(topic)
     add(norm)
     terms = [w for w in _WORD_RE.findall(norm) if len(w.strip(".-/")) >= 3]
@@ -211,24 +239,42 @@ def fine_codes_in(phrase: str, subclasses: list[str], limit: int = 6) -> list[st
 TOPIC_MIN_PRECISION = 0.02      # 2 % der Klasse muessen das Thema nennen
 TOPIC_PRECISION_RATIO = 0.33    # ... und mindestens ein Drittel der besten Klasse
 TOPIC_MIN_HITS = 25             # thematische Treffer in der verbleibenden Basis
-TOPIC_HIT_CAP = 40_000          # Deckel der FTS-Trefferliste (Laufzeit ~3 s)
+TOPIC_HIT_CAP = 500_000         # Deckel der FTS-Trefferliste (spezifische Begriffe bleiben weit darunter; 40k schnitt LFP ab)
 
 
-def topical_precision(codes: list[str], topic: str) -> dict[str, dict]:
-    """Je CPC-Klasse: Gesamtzahl, thematische Treffer, Trefferdichte.
+def topical_precision(codes: list[str], topic: str, strict: bool = False) -> dict[str, dict]:
+    """Je CPC-Klasse: Gesamtzahl, Patente mit Text, thematische Treffer, Dichte.
 
     Thematisch = das Patent steht in `patent_search` unter der ODER-Verknuepfung
-    der Themenbegriffe (Titel/Abstract-Volltext). Rein lesend, mit Timeout;
-    faellt die Query aus, gibt es kein Urteil (leeres Dict) und die Auswahl
-    bleibt wie sie war."""
+    der SPEZIFISCHEN Themenbegriffe (Kernphrase ohne Fuell- und Gattungswoerter:
+    "lithium iron phosphate", nicht "… cells for stationary storage and EVs").
+    Gezaehlt wird seit 2026-09-13 direkt je Klasse (Join, dann Filter) statt
+    ueber eine global gedeckelte Trefferliste: mit Gattungswoertern lief die
+    alte Liste in den 40k-Deckel und die Dichte haengt von der Formulierung ab
+    (H01M10/052: 1,6 % mit voller Phrase, 16,6 % mit dem Kern). Nenner sind die
+    Patente der Klasse MIT Text (BDDS ohne Abstract: H01M4/5825 hat 24.409
+    Patente, 212 mit Text). Rein lesend, mit Timeout; faellt die Query aus,
+    gibt es kein Urteil (leeres Dict) und die Auswahl bleibt wie sie war."""
     if not codes:
         return {}
-    terms = [w.lower() for w in _WORD_RE.findall(normalize_topic(topic))
-             if len(w.strip(".-/")) >= 3][:8]
+    core = head_phrase(topic) or topic
+    terms = [w.lower() for w in _WORD_RE.findall(normalize_topic(core))
+             if len(w.strip(".-/")) >= 3 and w.lower().strip(".-/") not in _GENERIC_TERMS][:8]
+    if not terms:
+        terms = [w.lower() for w in _WORD_RE.findall(normalize_topic(topic))
+                 if len(w.strip(".-/")) >= 3][:8]
     if not terms:
         return {}
-    tsq = " | ".join(terms)
+    # strict=True (2026-09-13): UND-Verknuepfung — fuer den Vergleich zweier
+    # Klassen derselben Familie. Mit ODER zaehlt in H01M jedes Patent, das
+    # "lithium" sagt (H01M10/052: 42 %, H01M4/5825: 59 %); mit UND trennt sich
+    # die Kathodenklasse von der Zellklasse (40 % gegen einstellig).
+    tsq = (" & " if strict and len(terms) > 1 else " | ").join(terms)
     like = " OR ".join("pc.cpc LIKE %s" % "?" for _ in codes)
+    # Treffer ueber den FTS-Index zuerst (0,3 s), dann der Join auf die Klassen —
+    # die Join-zuerst-Form brauchte 60 s je Aufruf. Der Deckel liegt hoch genug,
+    # dass spezifische Begriffe ihn nie erreichen ("lithium | iron | phosphate":
+    # 261k Treffer); die 40k von frueher schnitten genau dort ab.
     sql = ("WITH hit AS (SELECT pub_number FROM patent_search "
            "             WHERE tsv @@ to_tsquery('english', ?) LIMIT ?) "
            "SELECT pc.cpc AS cpc, count(DISTINCT pc.pub_number) AS n "
@@ -240,8 +286,7 @@ def topical_precision(codes: list[str], topic: str) -> dict[str, dict]:
         totals = _counts(list(codes))
         with get_connection() as conn:
             conn.execute("SET statement_timeout = '90s'")
-            rows = conn.execute(sql, (tsq, TOPIC_HIT_CAP,
-                                      *[c + "%" for c in codes])).fetchall()
+            rows = conn.execute(sql, (tsq, TOPIC_HIT_CAP, *[c + "%" for c in codes])).fetchall()
     except Exception as exc:                                        # noqa: BLE001
         logger.warning("topical precision failed for %r: %r", topic, exc)
         return {}
@@ -252,12 +297,77 @@ def topical_precision(codes: list[str], topic: str) -> dict[str, dict]:
         for c in codes:
             if str(d["cpc"]).startswith(c):
                 hits[c] += int(d["n"])
+    with_text = _text_totals(list(codes))
     out: dict[str, dict] = {}
     for c in codes:
         total = int(totals.get(c, 0) or 0)
+        base = int(with_text.get(c, 0) or 0) or total
         h = hits.get(c, 0)
-        out[c] = {"total": total, "hits": h,
-                  "precision": (h / total) if total else 0.0}
+        out[c] = {"total": total, "with_text": int(with_text.get(c, 0) or 0), "hits": h,
+                  "precision": (h / base) if base else 0.0}
+    return out
+
+
+TEXT_COVERAGE_CACHE = DATA_DIR / "cpc_text_coverage.json"
+TEXT_COVERAGE_TTL_DAYS = 30
+
+
+def _text_totals(codes: list[str]) -> dict[str, int]:
+    """Je Klasse (Prefix): Patente mit Zeile in patent_search.
+
+    Der Join kostet 40 s je grosser Klasse und aendert sich nur mit dem
+    monatlichen Patent-Sync — deshalb ein Dateicache (data/cpc_text_coverage.json,
+    30 Tage), gefuellt beim ersten Bedarf je Klasse."""
+    if not codes:
+        return {}
+    import json, time
+    cache: dict = {}
+    try:
+        cache = json.loads(TEXT_COVERAGE_CACHE.read_text(encoding="utf-8"))
+    except Exception:                                               # noqa: BLE001
+        cache = {}
+    now = time.time()
+    out: dict[str, int] = {}
+    missing = []
+    for c in codes:
+        e = cache.get(c)
+        if isinstance(e, dict) and now - float(e.get("t", 0)) < TEXT_COVERAGE_TTL_DAYS * 86400:
+            out[c] = int(e.get("n", 0))
+        else:
+            missing.append(c)
+    if missing:
+        fresh = _text_totals_query(missing)
+        if fresh:
+            out.update(fresh)
+            for c, n in fresh.items():
+                cache[c] = {"n": int(n), "t": now}
+            try:
+                TEXT_COVERAGE_CACHE.write_text(json.dumps(cache), encoding="utf-8")
+            except Exception as exc:                                # noqa: BLE001
+                logger.warning("text coverage cache not written: %r", exc)
+    return out
+
+
+def _text_totals_query(codes: list[str]) -> dict[str, int]:
+    if not codes:
+        return {}
+    like = " OR ".join("pc.cpc LIKE %s" % "?" for _ in codes)
+    sql = ("SELECT pc.cpc AS cpc, count(DISTINCT pc.pub_number) AS n "
+           "  FROM patent_cpc_full pc JOIN patent_search ps ON ps.pub_number = pc.pub_number "
+           " WHERE (" + like + ") GROUP BY pc.cpc")
+    from pipeline.db import get_connection
+    out: dict[str, int] = {c: 0 for c in codes}
+    try:
+        with get_connection() as conn:
+            conn.execute("SET statement_timeout = '90s'")
+            for r in conn.execute(sql, tuple(c + "%" for c in codes)).fetchall():
+                d = dict(r)
+                for c in codes:
+                    if str(d["cpc"]).startswith(c):
+                        out[c] += int(d["n"])
+    except Exception as exc:                                        # noqa: BLE001
+        logger.warning("text coverage per class failed: %r", exc)
+        return {}
     return out
 
 
@@ -287,6 +397,110 @@ def sharpen_selection(codes: list[str], topic: str) -> dict:
                   f"{TOPIC_MIN_HITS}")
     return {"kept": kept, "dropped": dropped, "rows": rows, "hits": hits,
             "floor": floor, "reason": reason}
+
+
+TITLE_STEM_MAX_SHARE = 0.05     # ein Stamm, der > 5 % der Familientitel trifft, ist kein Themenbegriff
+TITLE_SHARPER_RATIO = 1.5       # Titelklasse muss 1,5x dichter sein als die gewaehlte Basis
+_GENERIC_TERMS = frozenset("""
+cell cells battery batteries system systems device devices method methods material
+materials process processes composition compositions structure structures unit units
+module modules pack packs assembly assemblies apparatus electrode electrodes
+""".split())
+
+
+def title_candidates(topic: str, families: list[str], limit: int = 12) -> list[str]:
+    """Feine CPC-Klassen, deren TITEL einen seltenen Themenbegriff traegt,
+    innerhalb der Subklassen-Familien der Gate-Kandidaten (2026-09-13).
+
+    Der Embedding-Nachbar von "lithium iron phosphate cells" ist die Zell-Klasse
+    H01M10/052; die Kathodenklasse H01M4/5825 heisst "Oxygenated metallic salts
+    or polyanionic structures, e.g. … phosphates" und liegt im Vektorraum weit
+    weg — im Titel steht das Wort aber. Begriffe ab 5 Zeichen, auf den Stamm
+    gekuerzt (phosphate → phosph); ein Stamm, der mehr als 5 % der
+    Familientitel trifft ("lithi" in H01M), traegt kein Thema und faellt weg."""
+    fams = sorted({f[:4].upper() for f in families or [] if len(f) >= 4})
+    terms = [w.lower().strip(".-/") for w in _WORD_RE.findall(head_phrase(topic) or topic)
+             if len(w.strip(".-/")) >= 5 and w.lower() not in _FILLER
+             and w.lower() not in _GENERIC_TERMS]
+    stems = sorted({t[:max(5, len(t) - 3)] for t in terms})
+    if not fams or not stems:
+        return []
+    from pipeline.db import get_connection
+    fam_like = " OR ".join("symbol LIKE %s" % "?" for _ in fams)
+    out: list[str] = []
+    try:
+        with get_connection() as conn:
+            conn.execute("SET statement_timeout = '30s'")
+            fam_n = int(dict(conn.execute(
+                f"SELECT count(*) AS n FROM cpc_fine WHERE {fam_like}",
+                tuple(f + "%" for f in fams)).fetchone())["n"] or 0)
+            if not fam_n:
+                return []
+            rare: list[str] = []
+            for st in stems:
+                n = int(dict(conn.execute(
+                    f"SELECT count(*) AS n FROM cpc_fine WHERE ({fam_like}) AND title ILIKE ?",
+                    (*[f + "%" for f in fams], f"%{st}%")).fetchone())["n"] or 0)
+                if 0 < n <= max(3, fam_n * TITLE_STEM_MAX_SHARE):
+                    rare.append(st)
+            if not rare:
+                return []
+            title_like = " OR ".join("title ILIKE %s" % "?" for _ in rare)
+            rows = conn.execute(
+                f"SELECT symbol FROM cpc_fine WHERE ({fam_like}) AND ({title_like}) "
+                f"AND coalesce(n_patents, 0) >= 200 ORDER BY coalesce(n_patents, 0) DESC LIMIT ?",
+                (*[f + "%" for f in fams], *[f"%{st}%" for st in rare], limit)).fetchall()
+            out = [str(dict(r)["symbol"]) for r in rows]
+    except Exception as exc:                                        # noqa: BLE001
+        logger.warning("title candidates failed: %r", exc)
+        return []
+    return out
+
+
+def sharper_title_class(topic: str, kept: list[str], kept_rows: dict | None,
+                        families: list[str]) -> tuple[str, float, float] | None:
+    """Gibt (Klasse, ihre Dichte, Dichte der Basis) zurueck, wenn eine
+    Titelklasse derselben Familie TITLE_SHARPER_RATIO-mal dichter ist als die
+    beste gewaehlte Klasse — sonst None. Aendert nicht, OB gemessen wird,
+    sondern nur, WORAN: die breite Zellklasse besteht die Dichteregel ueber
+    das Wort "lithium", die Kathodenklasse ist trotzdem die richtige Basis."""
+    cands = [c for c in title_candidates(topic, families) if c not in set(kept)]
+    if not cands or not kept:
+        return None
+    # Vergleich mit UND-Dichte (strict): ODER laesst die Zellklasse ueber das
+    # Wort "lithium" fast so dicht aussehen wie die Kathodenklasse.
+    base_rows = topical_precision(list(kept), topic, strict=True)
+    if not base_rows:
+        return None
+    base = max((float(base_rows.get(c, {}).get("precision") or 0.0) for c in kept), default=0.0)
+    rows = topical_precision(cands, topic, strict=True)
+    best = None
+    for c, v in rows.items():
+        if v["hits"] >= TOPIC_MIN_HITS and v["precision"] >= max(TOPIC_MIN_PRECISION, base * TITLE_SHARPER_RATIO):
+            if best is None or v["precision"] > best[1]:
+                best = (c, float(v["precision"]), base)
+    return best
+
+
+def dense_candidates(analysis: dict | None, topic: str,
+                     exclude: list[str] | None = None, limit: int = 3) -> list[str]:
+    """Gate-Kandidaten (die 20 naechsten CPC-Klassen), die die Dichteregel
+    erfuellen — sortiert nach Trefferdichte, hoechstens `limit`. Leer, wenn
+    keiner den Boden erreicht oder die Dichte nicht messbar war."""
+    symbols = [str(c.get("symbol") or "") for c in ((analysis or {}).get("candidates") or [])]
+    symbols += title_candidates(topic, symbols)
+    symbols = [x for x in dict.fromkeys(symbols) if x and x not in set(exclude or [])]
+    if not symbols:
+        return []
+    rows = topical_precision(symbols, head_phrase(topic) or topic)
+    if not rows:
+        return []
+    best = max((v["precision"] for v in rows.values()), default=0.0)
+    floor = max(TOPIC_MIN_PRECISION, best * TOPIC_PRECISION_RATIO)
+    kept = sorted((c for c in symbols if c in rows and rows[c]["precision"] >= floor
+                   and rows[c]["hits"] >= TOPIC_MIN_HITS),
+                  key=lambda c: -rows[c]["precision"])
+    return kept[:limit]
 
 
 def topical_hubs(hubs: list[dict], topic: str) -> list[dict]:
@@ -425,8 +639,57 @@ def measure_topic(topic: str) -> dict:
             "phrase": ", ".join(sel), "verdict": "base_too_broad",
             "reason": sharp["reason"]})
         logger.warning("quant: measurement dropped — %s", sharp["reason"])
+        # Stufe 1b (2026-09-13): die GEWAEHLTE Klasse ist zu breit (H01M10/052 =
+        # alle Li-Ionen-Zellen fuer "lithium iron phosphate cells"), aber unter den
+        # 20 Gate-Kandidaten liegt oft die scharfe (H01M4/5825 = Phosphat-Kathoden).
+        # Die Kandidaten — plus die Klassen derselben Familie, deren TITEL einen
+        # Themenbegriff traegt (title_candidates) — werden mit derselben
+        # Dichteregel gesichtet; die dichten bilden die Basis. Ohne diese Stufe
+        # brauchte LFP einen Owner-Anker.
+        dense = dense_candidates(analysis, topic, exclude=sel)
+        if dense:
+            phrase = out.get("phrase") or head_phrase(topic) or topic
+            try:
+                from scripts.tech_analyze import analyze_query
+                res = analyze_query(phrase, codes=dense)
+            except Exception as exc:                                # noqa: BLE001
+                logger.warning("re-analysis on dense gate candidates failed: %r", exc)
+                res = None
+            if _measurable(res):
+                label = ", ".join(dense)
+                out["attempts"].append({"phrase": label, "verdict": "ok",
+                                        "reason": "gate candidates that reach the topical density floor"})
+                logger.info("quant: measured on dense gate candidates %s", label)
+                return {**out, "analysis": res, "phrase": phrase,
+                        "resolved_via": f"dense gate candidates ({label})"}
+            out["attempts"].append({"phrase": ", ".join(dense), "verdict": "no_trajectory",
+                                    "reason": "dense gate candidates yielded no trajectory"})
         return {**out, "analysis": None, "phrase": None, "resolved_via": None}
     kept = sharp["kept"]
+    # Stufe 1c (2026-09-13): schaerfer per Titel. Bleibt eine breite Klasse
+    # stehen (H01M10/052 fuer LFP: 16,6 % Dichte ueber das Wort "lithium"),
+    # aber eine Titelklasse derselben Familie ist deutlich dichter
+    # (H01M4/5825: 27,8 %), wird DORT gemessen.
+    fams = [str(c.get("symbol") or "") for c in (analysis.get("candidates") or [])] or list(kept)
+    sharper = sharper_title_class(topic, kept, sharp.get("rows") or {}, fams)
+    if sharper:
+        code, dens, base_dens = sharper
+        phrase = out.get("phrase") or head_phrase(topic) or topic
+        try:
+            from scripts.tech_analyze import analyze_query
+            res = analyze_query(phrase, codes=[code])
+        except Exception as exc:                                    # noqa: BLE001
+            logger.warning("re-analysis on title-sharpened class failed: %r", exc)
+            res = None
+        if _measurable(res):
+            out.setdefault("attempts", []).append({
+                "phrase": code, "verdict": "ok",
+                "reason": f"title-sharpened class: {dens:.1%} topical density vs {base_dens:.1%} "
+                          f"for {', '.join(kept)}"})
+            logger.info("quant: measured on title-sharpened class %s (%.1f%% vs %.1f%%)",
+                        code, dens * 100, base_dens * 100)
+            return {**out, "analysis": res, "phrase": phrase,
+                    "resolved_via": f"title-sharpened class {code}"}
     if kept != sel:
         phrase = out.get("phrase") or normalize_topic(topic) or topic
         dropped = ", ".join(d["symbol"] for d in sharp["dropped"])

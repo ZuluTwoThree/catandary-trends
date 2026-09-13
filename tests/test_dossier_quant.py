@@ -143,3 +143,45 @@ def test_measure_anchor_falls_back_when_the_code_has_no_trajectory(monkeypatch):
     found = dq.measure_anchor("x", "B60L58/10")
     assert found["analysis"] is None
     assert found["attempts"][-1]["verdict"] == "no_trajectory"
+
+
+def test_head_phrase_strips_application_tail_and_parentheticals():
+    from pipeline.dossier_quant import head_phrase, topic_cascade
+    assert head_phrase("lithium iron phosphate (LFP) cells for stationary storage and EVs") == "lithium iron phosphate cells"
+    assert head_phrase("perovskite tandem photovoltaics") == "perovskite tandem photovoltaics"
+    assert head_phrase("GLP-1 and incretin technology — obesity market") == "GLP-1 and incretin technology"
+    casc = topic_cascade("lithium iron phosphate (LFP) cells for stationary storage and EVs")
+    assert casc[1] == "lithium iron phosphate cells"          # gleich nach der vollen Phrase
+
+
+def test_dense_candidates_pick_the_sharp_class_out_of_the_gate_list(monkeypatch):
+    from pipeline import dossier_quant as dq
+    analysis = {"candidates": [{"symbol": "H01M10/052"}, {"symbol": "H01M4/5825"}, {"symbol": "H01M4/136"}]}
+    monkeypatch.setattr(dq, "topical_precision", lambda codes, topic: {
+        "H01M4/5825": {"total": 16000, "hits": 900, "precision": 0.056},
+        "H01M4/136": {"total": 3000, "hits": 10, "precision": 0.003},
+    })
+    assert dq.dense_candidates(analysis, "lithium iron phosphate (LFP) cells for storage",
+                               exclude=["H01M10/052"]) == ["H01M4/5825"]
+    monkeypatch.setattr(dq, "topical_precision", lambda codes, topic: {})
+    assert dq.dense_candidates(analysis, "x") == []
+
+
+def test_sharper_title_class_prefers_the_dense_cathode_class(monkeypatch):
+    from pipeline import dossier_quant as dq
+    monkeypatch.setattr(dq, "title_candidates", lambda topic, fams, limit=12: ["H01M10/0525", "H01M4/5825"])
+    def prec(codes, topic, strict=False):
+        assert strict is True
+        table = {"H01M10/052": 0.019, "H01M10/0525": 0.023, "H01M4/5825": 0.259}
+        return {c: {"total": 1, "with_text": 1, "hits": 60, "precision": table[c]} for c in codes}
+    monkeypatch.setattr(dq, "topical_precision", prec)
+    got = dq.sharper_title_class("lithium iron phosphate (LFP) cells for storage", ["H01M10/052"], None, ["H01M10/052"])
+    assert got and got[0] == "H01M4/5825" and got[1] > got[2] * dq.TITLE_SHARPER_RATIO
+
+
+def test_sharper_title_class_stays_quiet_when_nothing_is_denser(monkeypatch):
+    from pipeline import dossier_quant as dq
+    monkeypatch.setattr(dq, "title_candidates", lambda topic, fams, limit=12: ["H01M4/13"])
+    monkeypatch.setattr(dq, "topical_precision", lambda codes, topic, strict=False: {
+        c: {"total": 1, "with_text": 1, "hits": 60, "precision": 0.2} for c in codes})
+    assert dq.sharper_title_class("x y", ["H01M10/052"], None, ["H01M10/052"]) is None

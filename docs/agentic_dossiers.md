@@ -1209,7 +1209,30 @@ geschlossen (der Wissenschafts-Satz kam im Neuwurf), 1.984 Wörter (knapp unter
 dem Band — Hinweis, kein Befund). Best-of-2 griff erneut (1,95 → 2,82), der
 Cache trug 97 von 115 Suchanfragen und 139 von 180 Seiten. Was bleibt, ist
 inhaltlich: 70 offene Fragen im Abdeckungsanhang und 17 Kernaussagen mit
-Sekundär-Vermerk (Fachpresse trägt den Kalender, nicht die Firmenseiten). Die Restbefunde, die
+Sekundär-Vermerk (Fachpresse trägt den Kalender, nicht die Firmenseiten).
+
+**Nachtrag 13.09. — CPC-Entdecker entkoppelt (Owner: „ok für den CPC
+Entdecker").** Warum die Kaskade LFP nie fand, in drei Schichten: (1) die
+Themenformulierung trug Anwendungsfelder, die kein Patenttitel zusammen nennt
+→ `head_phrase` misst den technischen Kern zuerst; (2) die Dichteregel teilte
+durch die Klassengröße, aber im BDDS-Back-File haben nur 1–2 % der
+Batteriepatente Text (H01M4/5825: 212 von 24.409) → Nenner = Patente mit
+Text, Zählung direkt je Klasse statt über die 40k-gedeckelte Trefferliste
+(mit Gattungswörtern hing die Dichte an der Formulierung: 1,6 % gegen 16,6 %
+für dieselbe Klasse); (3) der Embedding-Nachbar von „lithium iron phosphate
+cells" ist die Zellklasse H01M10/052, die Kathodenklasse heißt „Oxygenated
+metallic salts or polyanionic structures, e.g. … phosphates" und liegt im
+Vektorraum weit weg — im Titel steht das Wort aber → `title_candidates`
+(seltene Titelstämme derselben Familie) + `sharper_title_class` (UND-Dichte,
+≥ 1,5× dichter als die Basis). Ergebnis ohne Anker: „title-sharpened class
+H01M4/5825: 25,9 % gegen 1,9 %". GLP-1, Perowskit und Festkörperbatterie als
+Regressionsprobe (13.09., kalter Abdeckungs-Cache): LFP → `title-sharpened class
+H01M4/5825` (235 s); GLP-1 → normalisierte Phrase, geschärft auf A61P5/48 +
+C12N2501/335 (322 s); Perowskit-Tandem → Themenphrase, 8 Klassen H10F/H10K
+(177 s); Festkörperbatterie → `dense gate candidates (H01M10/056, H01M10/058)`
+(337 s) — alle vier messbar, keine Regression. Die Textabdeckung je Klasse
+liegt danach in `data/cpc_text_coverage.json` (30 Tage), die Dichtemessung
+kostet warm < 1 s. Die Restbefunde, die
 `ok` blockieren, sind inhaltlich: Faktenquote unter 2,0 in schwachen
 Entwürfen, Kalender mit weniger als fünf datierten LFP-Ereignissen, in v7 die
 Innovationskette (Wissenschaft/Förderung ohne datierten Satz). Die
