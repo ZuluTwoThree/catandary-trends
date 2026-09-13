@@ -1232,7 +1232,25 @@ C12N2501/335 (322 s); Perowskit-Tandem → Themenphrase, 8 Klassen H10F/H10K
 (177 s); Festkörperbatterie → `dense gate candidates (H01M10/056, H01M10/058)`
 (337 s) — alle vier messbar, keine Regression. Die Textabdeckung je Klasse
 liegt danach in `data/cpc_text_coverage.json` (30 Tage), die Dichtemessung
-kostet warm < 1 s. Die Restbefunde, die
+kostet warm < 1 s.
+
+**Iron-Air v1 (13.09., Order #33, ohne Anker) — Vergleich mit LFP v9 und der
+zweite Harness-Fehler des Tages.** Erstentwurf-Paar 1,89/1,97 (Best-of-2 →
+1,97), nach dem ersten Neuwurf noch **ein** Strukturbefund (Kalender 3/5).
+Der zweite Neuwurf sollte den Kalender füllen — und jagte stattdessen der
+Faktenquote nach: er zog datierte Rang-0-Fakten von Behördenseiten heran
+(CEC-Förderungen für Vanadium-Flow-Speicher, Batt4EU-Fristen, EIC-Budget), die
+mit Eisen-Luft nichts zu tun haben, ließ von 23 zitierten Quellen **4** übrig
+und ging von 1 auf **4** Strukturbefunde — und der Harness lieferte diese
+Fassung aus (Faktenquote 3,74 bei 1.793 Wörtern; Goodhart in Reinform). Fix:
+ein Nachzug, der die Strukturbefunde nicht senkt, wird **verworfen**, die
+Fassung davor bleibt (`second_rewrite_discarded`, E2E-Test). Patentmessung:
+Gate ok, aber H01M10/36 + H01M10/05 zu breit; die Metall-Luft-Klasse
+H01M12/06 heißt „with one metallic and one gaseous electrode" — kein
+Themenwort im Titel, der Entdecker kann sie nicht finden → Anker-Fall
+(Titelsuche jetzt mit Wortanfang statt Teilstring, sonst traf „air"
+„rocking-chair"). Cache erstmals kalt für ein neues Thema: 114 Brave-Aufrufe,
+5 aus dem Speicher. Die Restbefunde, die
 `ok` blockieren, sind inhaltlich: Faktenquote unter 2,0 in schwachen
 Entwürfen, Kalender mit weniger als fünf datierten LFP-Ereignissen, in v7 die
 Innovationskette (Wissenschaft/Förderung ohne datierten Satz). Die

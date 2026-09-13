@@ -2788,3 +2788,44 @@ class TestTheSummaryIsNeverEmptiedByTheRankRule:
         found = ds.weak_source_figures(doc, [_SEC, _BLOG])
         out, n = ds.drop_unverified(doc, found)
         assert "$19.8B" not in out and "$4.1B" in out
+
+
+class _ChatSecondRewriteWorse(_Chat):
+    """Erster Neuwurf laesst einen Strukturbefund stehen (Effort fehlt), der
+    zweite macht es schlimmer (nur eine Option) — Iron-Air v1, 13.09.2026."""
+
+    def __call__(self, model, prompt, system=None, temperature=0.0, **kw):
+        if "REVISION" in prompt:
+            self.calls.append(prompt)
+            n = sum("REVISION" in c for c in self.calls)
+            if n == 1:
+                return _report(filler=300, dense=True, drop_field="Effort")
+            return _report(filler=300, dense=True, options=1)
+        return super().__call__(model, prompt, system=system, temperature=temperature, **kw)
+
+
+def test_a_second_rewrite_that_makes_things_worse_is_discarded(monkeypatch):
+    from pipeline import llamacpp_client
+    chat = _ChatSecondRewriteWorse()
+    _structured(monkeypatch)
+    monkeypatch.setattr(llamacpp_client, "chat", chat)
+    monkeypatch.setenv("DOSSIER_DRAFTS", "1")
+    monkeypatch.setenv("DOSSIER_REWRITES", "2")
+    monkeypatch.setattr(cr, "search_research", lambda *a, **k: [])
+    monkeypatch.setattr(cr, "search_patents", lambda *a, **k: [])
+    monkeypatch.setattr(cr, "brave_search", lambda q, n=6: [
+        {"id": "W0", "trend_id": None, "kind": "web", "title": "Ruling",
+         "url": f"https://law.example/{_slug(q)}", "origin": "",
+         "outlet": "Law", "vertical": "", "date": "2026-08-05",
+         "snippet": "SPC", "fetched": False}])
+    monkeypatch.setattr(cr, "fetch_web_page_status", lambda url: (LEGAL_PAGE, "fetched"))
+    out = cr.run("What should we do?", max_steps=1, max_sources=8, retrieval="fts",
+                 per_query=2, web_steps=1, max_web_sources=2,
+                 topic="GLP-1 and incretin technology", measure=True,
+                 seed_sources=[dict(x) for x in SEEDS], seed_notes=["seed"])
+    st = out["structure"]
+    assert sum("REVISION" in c for c in chat.calls) == 2
+    assert st["rewrites"] == 2 and st.get("second_rewrite_discarded") is True
+    # ausgeliefert wird die Fassung nach dem ERSTEN Neuwurf: zwei Optionen, Effort fehlt
+    assert out["report"].count("### Option") == 2
+    assert any("Effort" in f for f in st["findings_after"])

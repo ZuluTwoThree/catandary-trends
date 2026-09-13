@@ -419,10 +419,14 @@ def title_candidates(topic: str, families: list[str], limit: int = 12) -> list[s
     gekuerzt (phosphate → phosph); ein Stamm, der mehr als 5 % der
     Familientitel trifft ("lithi" in H01M), traegt kein Thema und faellt weg."""
     fams = sorted({f[:4].upper() for f in families or [] if len(f) >= 4})
-    terms = [w.lower().strip(".-/") for w in _WORD_RE.findall(head_phrase(topic) or topic)
-             if len(w.strip(".-/")) >= 5 and w.lower() not in _FILLER
-             and w.lower() not in _GENERIC_TERMS]
-    stems = sorted({t[:max(5, len(t) - 3)] for t in terms})
+    words = [w.lower().strip(".-/") for w in _WORD_RE.findall(head_phrase(topic) or topic)]
+    # Bindestrich-Komposita ("iron-air", "solid-state") liefern auch ihre Teile —
+    # kurz, aber der Seltenheitsfilter unten entscheidet ("air": 3 von 1.095
+    # H01M-Titeln).
+    parts = [x for w in words if "-" in w for x in w.split("-") if len(x) >= 3]
+    terms = [w for w in words + parts
+             if (len(w) >= 5 or w in parts) and w not in _FILLER and w not in _GENERIC_TERMS]
+    stems = sorted({(t[:max(5, len(t) - 3)] if len(t) >= 5 else t) for t in terms})
     if not fams or not stems:
         return []
     from pipeline.db import get_connection
@@ -438,18 +442,20 @@ def title_candidates(topic: str, families: list[str], limit: int = 12) -> list[s
                 return []
             rare: list[str] = []
             for st in stems:
+                # Wortanfang, nicht Teilstring: "air" darf "air electrode" treffen,
+                # nicht "rocking-chair" (Iron-Air-Probe 13.09.).
                 n = int(dict(conn.execute(
-                    f"SELECT count(*) AS n FROM cpc_fine WHERE ({fam_like}) AND title ILIKE ?",
-                    (*[f + "%" for f in fams], f"%{st}%")).fetchone())["n"] or 0)
+                    f"SELECT count(*) AS n FROM cpc_fine WHERE ({fam_like}) AND title ~* ?",
+                    (*[f + "%" for f in fams], r"\m" + st)).fetchone())["n"] or 0)
                 if 0 < n <= max(3, fam_n * TITLE_STEM_MAX_SHARE):
                     rare.append(st)
             if not rare:
                 return []
-            title_like = " OR ".join("title ILIKE %s" % "?" for _ in rare)
+            title_like = " OR ".join("title ~* %s" % "?" for _ in rare)
             rows = conn.execute(
                 f"SELECT symbol FROM cpc_fine WHERE ({fam_like}) AND ({title_like}) "
                 f"AND coalesce(n_patents, 0) >= 200 ORDER BY coalesce(n_patents, 0) DESC LIMIT ?",
-                (*[f + "%" for f in fams], *[f"%{st}%" for st in rare], limit)).fetchall()
+                (*[f + "%" for f in fams], *[r"\m" + st for st in rare], limit)).fetchall()
             out = [str(dict(r)["symbol"]) for r in rows]
     except Exception as exc:                                        # noqa: BLE001
         logger.warning("title candidates failed: %r", exc)

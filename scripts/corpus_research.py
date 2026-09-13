@@ -43,6 +43,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import logging
 import os
@@ -5226,14 +5227,27 @@ def run(question: str, max_steps: int, max_sources: int,
         while (structure["findings_after"]
                and int(structure.get("rewrites") or 0) < max_rewrites):
             before_n = len(structure["findings_after"])
+            # Sicherung: ein Nachzug, der die Lage nicht verbessert, wird
+            # VERWORFEN, nicht ausgeliefert. Iron-Air v1 (13.09.): der zweite
+            # Neuwurf jagte der Faktenquote hinterher, zog Foerder- und
+            # Vanadium-Fakten aus Behoerdenseiten heran (Rang 0, datiert — aber
+            # themenfremd), liess von 23 zitierten Quellen 4 uebrig und ging von
+            # 1 auf 4 Strukturbefunde; ausgeliefert wurde trotzdem diese Fassung.
+            prev_report, prev_structure = report, copy.deepcopy(structure)
             if not _rewrite(list(structure["findings_after"]), [],
                             "structural findings remain — one more targeted rewrite"):
                 break
             _settle()
             if len(structure["findings_after"]) >= before_n:
-                logger.info("second rewrite did not reduce the structural findings "
-                            "(%d → %d) — stopping", before_n,
-                            len(structure["findings_after"]))
+                logger.warning("second rewrite did not reduce the structural findings "
+                               "(%d → %d) — discarding it, keeping the previous version",
+                               before_n, len(structure["findings_after"]))
+                n_rw = int(structure.get("rewrites") or 0)
+                report = prev_report
+                structure.clear()
+                structure.update(prev_structure)
+                structure["rewrites"] = n_rw
+                structure["second_rewrite_discarded"] = True
                 break
         structure["words_after"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
