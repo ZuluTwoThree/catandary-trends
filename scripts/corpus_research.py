@@ -2443,6 +2443,8 @@ DR_READ_BUDGET = 28       # zusaetzlich gelesene Seiten, Rang 0 vor Rang 1
 DR_FETCH_BUDGET = 20      # Auffangnetz je offener Frage (statt 12)
 DR_PER_GAP = 3            # Seiten je offener Frage im Auffangnetz (statt 2)
 DR_HARVEST_SOURCES = 40   # Quellen, aus denen Notizen gezogen werden
+DR_HARVEST_PAPERS = 6     # davon reserviert fuer Paper/Signale (Wissenschaftsebene)
+DR_HARVEST_FUNDING = 3    # und fuer Foerderzeilen (Foerderebene)
 DR_FACTS_PER_SOURCE = 6
 DR_HARVEST_CHARS = 6_000  # Quelltext je Notiz-Extraktion
 
@@ -2614,8 +2616,26 @@ def harvest_facts(sources: list[dict], question: str,
         pool.append((kind_order.get(str(src.get("kind") or ""), 1),
                      int(src.get("rank", 2)), src, text))
     pool.sort(key=lambda t: (t[0], t[1], -len(t[3])))
+    # Feste Plaetze fuer Forschung und Foerderung (2026-09-13): mit "gelesene
+    # Seiten zuerst" kamen Paper und Foerderzeilen unter 40 Quellen praktisch
+    # nie dran — und die Innovationskette verlangt je Ebene einen datierten,
+    # belegten Satz (LFP v7/v8: "science" bzw. "science, funding" fehlten).
+    quota = {"paper": DR_HARVEST_PAPERS, "signal": DR_HARVEST_PAPERS,
+             "funding": DR_HARVEST_FUNDING}
+    reserved, rest = [], []
+    for item in pool:
+        kind = str(item[2].get("kind") or "")
+        if quota.get(kind, 0) > 0:
+            quota[kind] -= 1
+            reserved.append(item)
+        else:
+            rest.append(item)
+    # Reservierung sichert den PLATZ unter den ersten max_sources, nicht die
+    # Reihenfolge: gelesen wird weiterhin nach Ertrag (Seiten, Abstracts, Patente).
+    chosen = (reserved + rest)[:max_sources]
+    chosen.sort(key=lambda t: (t[0], t[1], -len(t[3])))
     out: list[dict] = []
-    for _order, rank, src, text in pool[:max_sources]:
+    for _order, rank, src, text in chosen:
         excerpt = text[:DR_HARVEST_CHARS]
         try:
             res = llamacpp_client.chat_structured(
@@ -3709,6 +3729,9 @@ def canonicalize_citations(report: str, sources: list[dict],
             href = citable_url(src) if src else ""
             if src is None or not href:
                 stripped += 1
+                # Welcher Marker fiel, stand bis 2026-09-13 nirgends — nur die Zahl.
+                logger.warning("  citation stripped: [[%s]] — %s", m.group(1),
+                               "no such catalog id" if src is None else f"no citable url ({src.get('url', '')[:60]})")
                 return ""            # kein Beleg — Satz bleibt, Marker weg
             cited[href] = src
             return f"[{_link_title(src)}]({href})"
@@ -3725,6 +3748,8 @@ def canonicalize_citations(report: str, sources: list[dict],
         href = citable_url(src) if src else ""
         if src is None or not href:
             stripped += 1
+            logger.warning("  citation stripped: [%s](%s) — %s", label[:50], url[:70],
+                           "url not in catalog" if src is None else "no citable url")
             return label          # keep the sentence, lose the false citation
         cited[href] = src
         return f"[{_link_title(src)}]({href})"

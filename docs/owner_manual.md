@@ -437,10 +437,22 @@ Herkunftskopf). Erzwingen lässt sich beides je Auftrag über
 - **Series slug** (optional) — gleicher Slug = nächste Version derselben Serie;
 - **Custom question** (optional) — ersetzt die Foresight-Standardfrage; ändert
   die Recherche, nicht die Messung;
+- **CPC anchor** (optional, seit 2026-09-13, z. B. `H01M4/5825`) — die
+  Patentklasse, in der gemessen werden soll. Ohne Anker rät die Kaskade die
+  Klasse aus der Themenformulierung und scheitert bei zusammengesetzten Themen
+  („LFP cells for stationary storage and EVs": keine Klasse ≥ 2 % Dichte).
+  Codes ohne Leerzeichen; findet der Anker keine Trajektorie, läuft die Kaskade
+  wie bisher und der Messanhang nennt beides;
 - Checkbox *measure the innovation chain first* (Quant-Vorstufe: CPC → TIR →
   Lead-Time → Hub-Patente als zitierbare Quelle „Q1");
 - Checkbox *start the worker right away*.
 „Place order" legt den Auftragszettel (`dossier_orders`, Status `queued`) an.
+Jeder Auftrag läuft seit 2026-09-13 mit **DR-Vorlauf** (Primärquellen zuerst
+lesen, Faktenzettel mit festen Plätzen für Paper und Förderung, Kalender-
+Kandidaten — dann erst schreiben; ~12 min mehr); abschalten nur per CLI
+`--no-dr` bzw. `params {"dr": false}`. Der Erstentwurf wird zweimal geschrieben
+und der faktendichtere genommen; danach ein Neuwurf plus höchstens ein Nachzug
+für Strukturbefunde. Hergang: `docs/agentic_dossiers.md`, Runde 15.
 
 **Die Messkette (seit 2026-09-07, Default AN).** Ein Dossier trägt jetzt zwei
 codegenerierte Anhänge, die nicht das Modell schreibt, sondern der Code:

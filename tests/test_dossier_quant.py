@@ -114,3 +114,32 @@ class TestBuildDegradation:
         assert out["ok"] is True
         assert out["sources"][0]["id"] == "Q1"
         assert out["summary"]["K_median"] == 14.2
+
+
+# --- CPC-Anker (2026-09-13) --------------------------------------------------------
+
+def test_measure_anchor_uses_the_owner_code_before_the_cascade(monkeypatch):
+    import types, sys
+    from pipeline import dossier_quant as dq
+    good = {"selection": ["H01M4/5825"], "trajectory": [{"year": 2020, "k": 0.1}] * 3,
+            "gate": {"verdict": "ok"}, "off_topic": False}
+    monkeypatch.setattr(dq, "_measurable", lambda a: bool(a and a.get("trajectory")))
+    fake = types.SimpleNamespace(analyze_query=lambda q, codes=None: (_ for _ in ()).throw(RuntimeError("no embed")),
+                                 analyze_codes=lambda codes: dict(good, codes=codes))
+    monkeypatch.setitem(sys.modules, "scripts.tech_analyze", fake)
+    found = dq.measure_anchor("LFP cells", "h01m 4/5825")
+    assert found["resolved_via"] == "anchor H01M4/5825"
+    assert found["analysis"]["codes"] == ["H01M4/5825"]
+    assert [a["verdict"] for a in found["attempts"]] == ["error", "ok"]
+
+
+def test_measure_anchor_falls_back_when_the_code_has_no_trajectory(monkeypatch):
+    import types, sys
+    from pipeline import dossier_quant as dq
+    monkeypatch.setattr(dq, "_measurable", lambda a: bool(a and a.get("trajectory")))
+    fake = types.SimpleNamespace(analyze_query=lambda q, codes=None: {"trajectory": []},
+                                 analyze_codes=lambda codes: {"trajectory": []})
+    monkeypatch.setitem(sys.modules, "scripts.tech_analyze", fake)
+    found = dq.measure_anchor("x", "B60L58/10")
+    assert found["analysis"] is None
+    assert found["attempts"][-1]["verdict"] == "no_trajectory"

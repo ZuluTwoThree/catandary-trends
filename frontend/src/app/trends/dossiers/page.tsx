@@ -171,9 +171,10 @@ export default async function DossierDeskPage({
           audits its own report and parks the result here as <em>review</em>{" "}
           until you sign it off. Nothing runs on a schedule — a dossier is a
           dated document, recomputed only on your click — and nothing leaves
-          the machine. The Deep-Research working style (DR mode: primary
-          sources first, fact ledger, actor map, calendar candidates) is a
-          feature in development — CLI / order params only, see issue #100.
+          the machine. Every order first reads primary sources and builds a
+          fact ledger and calendar candidates before writing (the DR
+          pre-pass, default since 2026-09-13; order param dr:false or
+          DOSSIER_DR=0 turns it off) — see issue #100 for what is still open.
         </p>
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em]">
           <span className="text-paper">{queued} queued</span>
@@ -270,6 +271,17 @@ export default async function DossierDeskPage({
               rows={2}
               maxLength={2000}
               className="mt-1 w-full border border-border-strong bg-transparent px-3 py-2 text-[14px] text-paper focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label className="block">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              CPC anchor for the patent measurement (optional, e.g. H01M4/5825)
+            </span>
+            <input
+              name="cpc"
+              maxLength={20}
+              placeholder="H01M4/5825"
+              className="mt-1 w-full border border-border-strong bg-transparent px-3 py-2 font-mono text-[13px] text-paper focus:border-accent focus:outline-none"
             />
           </label>
           <div className="flex flex-col gap-2 font-mono text-[11px] text-muted">

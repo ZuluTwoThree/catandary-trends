@@ -440,12 +440,18 @@ export async function createDossierOrder(input: {
   slug?: string;
   question?: string;
   quant: boolean;
+  /** CPC anchor for the patent measurement (e.g. H01M4/5825); empty = cascade guesses. */
+  cpc?: string;
 }): Promise<number | null> {
   const topic = input.topic.trim();
   if (!topic || !ORDERABLE.test(topic)) return null;
   const slug = slugifyTopic(input.slug?.trim() || topic);
   const question = input.question?.trim() || null;
-  const params = JSON.stringify(input.quant ? {} : { quant: false });
+  const cpc = (input.cpc ?? "").replace(/\s+/g, "").toUpperCase();
+  const params = JSON.stringify({
+    ...(input.quant ? {} : { quant: false }),
+    ...(cpc && /^[A-H]\d{2}[A-Z]\d{1,4}\/\d{1,6}$/.test(cpc) ? { cpc } : {}),
+  });
   const row = await q1<{ id: number }>(
     `INSERT INTO dossier_orders (slug, topic, question, params_json)
      VALUES ($1, $2, $3, $4) RETURNING id`,

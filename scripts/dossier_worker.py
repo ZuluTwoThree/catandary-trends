@@ -73,11 +73,20 @@ RUN_DEFAULTS = {"steps": 6, "sources": 24, "per_query": 6, "scope": "both",
                 # reproduziert den Pfad davor.
                 "measure": os.getenv("DOSSIER_MEASURE", "1")
                           not in ("0", "false", "no"),
-                # DR-Modus (2026-09-07): Arbeitsweise eines Deep-Research-
-                # Agenten — Primaerquellen zuerst lesen, Notizen vor dem
-                # Schreiben, Sampling nach Modellkarte. Default aus.
-                "dr": os.getenv("DOSSIER_DR", "0")
-                      not in ("0", "false", "no", "")}
+                # DR-Vorlauf (2026-09-07; Default AN seit 2026-09-13): Primaer-
+                # quellen zuerst lesen, Faktenzettel und Kalender-Kandidaten VOR
+                # dem Schreiben, Sampling nach Modellkarte. In der LFP-Serie war
+                # das der einzige Hebel, der die Faktenquote verlaesslich ueber
+                # die Untergrenze hob (v8: 2,90 gegen 1,0-2,4 ohne). Kostet
+                # ~12 min je Dossier. DOSSIER_DR=0 oder params {"dr": false}
+                # reproduzieren den Pfad davor.
+                "dr": os.getenv("DOSSIER_DR", "1")
+                      not in ("0", "false", "no", ""),
+                # CPC-Anker fuer die Patentmessung (2026-09-13): die Kaskade
+                # findet fuer eine Themenformulierung wie "LFP cells for storage
+                # and EVs" keine Klasse mit Trefferdichte; der Owner kennt sie
+                # (H01M4/5825). None = raten wie bisher.
+                "cpc": None}
 
 
 def _params(order: dict) -> dict:
@@ -195,7 +204,8 @@ def _run_phases(todo: list[dict], assume_model_up: bool, skip_quant: bool) -> in
                 for o in wants_quant:
                     logger.info("Quant-Messung für #%d %r", o["id"], o["topic"])
                     quants[o["id"]] = build_quant_evidence(
-                        o["topic"], measure=_params(o)["measure"])
+                        o["topic"], measure=_params(o)["measure"],
+                        cpc=_params(o)["cpc"])
         except Exception as exc:                                    # noqa: BLE001
             logger.warning("Quant-Phase nicht möglich (%s) — Dossiers laufen "
                            "ohne Messblock", exc)
@@ -261,6 +271,10 @@ def main() -> int:
     ap.add_argument("--slug", help="Serien-Slug für --order-new (Default: aus TOPIC)")
     ap.add_argument("--question", help="eigene Frage für --order-new "
                                        "(Default: Foresight-Standardfrage)")
+    ap.add_argument("--cpc", help="CPC-Anker für die Patentmessung bei --order-new "
+                                  "(z. B. H01M4/5825); ohne: Kaskade rät")
+    ap.add_argument("--no-dr", action="store_true",
+                    help="--order-new ohne DR-Vorlauf (Faktenzettel/Kalender-Kandidaten)")
     ap.add_argument("--run", action="store_true",
                     help="mit --order-new: den neuen Auftrag sofort abarbeiten")
     ap.add_argument("--assume-model-up", action="store_true",
@@ -294,8 +308,13 @@ def main() -> int:
     new_id = None
     if args.order_new:
         orders_mod.ensure_schema()
+        params = {}
+        if args.cpc:
+            params["cpc"] = args.cpc.replace(" ", "").upper()
+        if args.no_dr:
+            params["dr"] = False
         new_id = orders_mod.create_order(args.order_new, slug=args.slug,
-                                         question=args.question)
+                                         question=args.question, params=params or None)
         print(f"Auftrag #{new_id} angelegt ({args.order_new!r})")
         if not args.run:
             return 0

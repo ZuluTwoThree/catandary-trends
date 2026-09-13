@@ -1218,8 +1218,49 @@ def format_quant_evidence(analysis: dict, topic: str, meta: dict | None = None,
             "appendix": measurement_appendix(analysis, topic, meta, lang, dynamics)}
 
 
+def measure_anchor(topic: str, cpc: str) -> dict | None:
+    """Messung an einer vom Owner genannten CPC-Klasse (2026-09-13).
+
+    Die Kaskade raet die Klasse aus der Themenformulierung und scheitert an
+    Formulierungen wie "LFP cells for stationary storage and EVs" (kein
+    Patenttitel traegt alle Begriffe, keine Klasse erreicht 2 % Dichte). Kennt
+    der Owner die Klasse (H01M4/5825 = Phosphat-Kathoden), wird dort gemessen:
+    erst mit Embedding-Gate (analyze_query mit codes), sonst rein per SQL
+    (analyze_codes). Gibt None zurueck, wenn auch das keine Trajektorie
+    ergibt — dann laeuft die Kaskade wie bisher."""
+    code = re.sub(r"\s+", "", cpc or "").upper()
+    if not code:
+        return None
+    attempts: list[dict] = []
+    res = None
+    try:
+        from scripts.tech_analyze import analyze_query
+        res = analyze_query(topic, codes=[code])
+    except Exception as exc:                                        # noqa: BLE001
+        attempts.append({"phrase": code, "verdict": "error", "reason": f"anchor via query: {exc}"})
+        res = None
+    if not _measurable(res):
+        try:
+            from scripts.tech_analyze import analyze_codes
+            raw = analyze_codes([code])
+            if _measurable(raw):
+                res = {**raw, "off_topic": False, "candidates": [], "leadtime": None,
+                       "query": topic}
+        except Exception as exc:                                    # noqa: BLE001
+            attempts.append({"phrase": code, "verdict": "error", "reason": f"anchor via codes: {exc}"})
+            res = None
+    if not _measurable(res):
+        attempts.append({"phrase": code, "verdict": "no_trajectory",
+                         "reason": "owner-set CPC anchor yielded no trajectory"})
+        logger.warning("quant: CPC anchor %s yielded no trajectory — falling back to the cascade", code)
+        return {"analysis": None, "attempts": attempts}
+    attempts.append({"phrase": code, "verdict": "ok", "reason": "owner-set CPC anchor"})
+    return {"analysis": res, "phrase": topic, "resolved_via": f"anchor {code}",
+            "attempts": attempts}
+
+
 def build_quant_evidence(topic: str, lang: str = "en",
-                         measure: bool = True) -> dict:
+                         measure: bool = True, cpc: str | None = None) -> dict:
     """Messung + Formatierung. Gibt IMMER ein Dict zurück:
     {"ok": bool, "reason": str|None, "sources": [...], "note": str|None,
      "summary": dict|None, "appendix": str|None}. Fehler (kein Postgres, kein
@@ -1249,8 +1290,23 @@ def build_quant_evidence(topic: str, lang: str = "en",
         out.pop("appendix", None)
         return {"ok": True, "reason": None, "appendix": None, **out}
 
+    anchor_attempts: list[dict] = []
+    found: dict | None = None
+    if cpc:
+        try:
+            anchored = measure_anchor(topic, cpc)
+        except SystemExit as exc:
+            anchored = {"analysis": None, "attempts": [{"phrase": cpc, "verdict": "error",
+                                                        "reason": f"embedding failed: {exc}"}]}
+        if anchored and _measurable(anchored.get("analysis")):
+            found = anchored
+        elif anchored:
+            anchor_attempts = list(anchored.get("attempts") or [])
     try:
-        found = measure_topic(topic)
+        if found is None:
+            found = measure_topic(topic)
+            if anchor_attempts:
+                found["attempts"] = anchor_attempts + list(found.get("attempts") or [])
     except SystemExit as exc:  # embed_query raises SystemExit on embed failure
         return {"ok": False, "reason": f"embedding failed: {exc}",
                 "sources": [], "note": None, "summary": None,

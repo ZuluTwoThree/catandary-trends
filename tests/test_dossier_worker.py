@@ -155,3 +155,18 @@ class TestRunWorker:
         m.mark_failed(oid, "old error")
         assert w.run_worker(only_order=oid) == 0
         assert m.get_order(oid)["status"] == "review"
+
+
+def test_dr_prepass_is_on_by_default_and_cpc_is_a_known_param(monkeypatch):
+    import importlib
+    monkeypatch.delenv("DOSSIER_DR", raising=False)
+    import scripts.dossier_worker as w
+    importlib.reload(w)
+    assert w.RUN_DEFAULTS["dr"] is True and w.RUN_DEFAULTS["cpc"] is None
+    assert w._params({"params": {"dr": False, "cpc": "H01M4/5825"}})["dr"] is False
+    assert w._params({"params": {"cpc": "H01M4/5825"}})["cpc"] == "H01M4/5825"
+    monkeypatch.setenv("DOSSIER_DR", "0")
+    importlib.reload(w)
+    assert w.RUN_DEFAULTS["dr"] is False
+    monkeypatch.delenv("DOSSIER_DR", raising=False)
+    importlib.reload(w)

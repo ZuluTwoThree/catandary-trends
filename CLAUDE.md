@@ -1420,8 +1420,16 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   danach den **Ruhezustand** wieder her (Symlink `start-active.sh` → 8B-208k,
   llama-server läuft wieder, falls er vorher lief).
 - **Jeder Lauf endet in `review`;** `done` nur per Owner-Sign-off im Desk.
-- **DR-Modus = Feature in Development (seit 2026-09-07, `params = {"dr": true}`
-  / `DOSSIER_DR=1`, Default aus):** Deep-Research-Arbeitsweise (Primärquellen
+- **DR-Vorlauf ist Default (seit 2026-09-13; `params {"dr": false}` / `DOSSIER_DR=0`
+  schaltet ab):** Primärquellen zuerst lesen, Faktenzettel (≥ 6 Plätze für Paper, 3 für
+  Förderung) und Kalender-Kandidaten VOR dem Schreiben. In der LFP-Serie (v1–v8, 12.09.)
+  war das der einzige Hebel, der die Faktenquote verlässlich über 2,0 hob (v8: 2,90; ohne
+  Vorlauf 1,0–2,4 je nach Wurf); kostet ~12 min je Dossier. Dazu **Best-of-2** im
+  Erstentwurf (`DOSSIER_DRAFTS`), ein zweiter Neuwurf nur für Strukturbefunde
+  (`DOSSIER_REWRITES`), zitatgetriebener Abruf ungelesener Treffer, Web-Cache und ein
+  optionaler **CPC-Anker** für die Patentmessung (`params {"cpc": "H01M4/5825"}`, Desk-Feld
+  „CPC anchor", CLI `--cpc`) — Chronik in `docs/agentic_dossiers.md`, Runde 15.
+- **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
   zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
   themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,
   Reparatur je Satz vor der Streichung). Ziel „besser als Sonnet Deep Research"

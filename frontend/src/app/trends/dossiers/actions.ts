@@ -49,8 +49,10 @@ export async function createOrderAction(formData: FormData): Promise<void> {
   const slug = String(formData.get("slug") ?? "");
   const question = String(formData.get("question") ?? "");
   const quant = formData.get("quant") === "on";
+  const cpc = String(formData.get("cpc") ?? "");
   const id = await createDossierOrder({
     topic,
+    cpc: cpc || undefined,
     slug: slug || undefined,
     question: question || undefined,
     quant,

@@ -104,3 +104,8 @@ class TestSlugify:
 
     def test_never_empty(self):
         assert m.slugify("???") == "dossier"
+
+
+def test_dr_and_cpc_survive_the_param_filter():
+    from pipeline import dossier_orders as o
+    assert o._clean_params({"dr": False, "cpc": "H01M4/5825", "bogus": 1}) == {"dr": False, "cpc": "H01M4/5825"}

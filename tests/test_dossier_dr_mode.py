@@ -1412,3 +1412,25 @@ def test_an_intro_line_before_a_list_is_not_a_fragment():
     assert not [x for x in ds.fragment_findings(body) if "colon" in x]
     alone = "The following questions remain open:\n\nSome prose that is not a list."
     assert [x for x in ds.fragment_findings(alone) if "colon" in x]
+
+
+def test_harvest_reserves_seats_for_papers_and_funding(monkeypatch):
+    """40 gelesene Webseiten duerfen die Paper nicht mehr verdraengen."""
+    asked = []
+
+    class _F:
+        def __init__(self):
+            self.facts = []
+
+    monkeypatch.setattr(cr.llamacpp_client, "chat_structured",
+                        lambda **kw: asked.append(kw["prompt"]) or _F())
+    web = [{"id": f"W{i}", "kind": "web", "rank": 1, "title": f"page {i}", "url": f"https://a{i}.gov/x",
+            "text": "x" * 5000} for i in range(40)]
+    papers = [{"id": f"P{i}", "kind": "paper", "rank": 1, "title": f"paper {i}", "url": f"https://doi.org/{i}",
+               "text": "abstract " * 60} for i in range(3)]
+    funding = [{"id": "F0", "kind": "funding", "rank": 0, "title": "grant", "url": "https://ec.europa.eu/g",
+                "text": "grant text " * 40}]
+    cr.harvest_facts(web + papers + funding, "q", max_sources=10, dr=True)
+    titles = " ".join(asked)
+    assert all(f"paper {i}" in titles for i in range(3)) and "grant" in titles
+    assert len(asked) == 10

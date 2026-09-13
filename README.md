@@ -186,9 +186,9 @@ höchstens ein Nachzug für Strukturbefunde (`DOSSIER_REWRITES`), Best-of-2 im
 Erstentwurf (`DOSSIER_DRAFTS`), kein Kritiker-Modell
 ([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-entscheidungsebene-2026-09-07)).
 
-**DR-Modus — Feature in Development** (`DOSSIER_DR=1`, `--dr`,
-`params = {"dr": true}`; Default aus; Ziel „besser als Sonnet Deep Research"
-offen, Stand und Wiederaufnahme in
+**DR-Vorlauf — Default seit 2026-09-13** (`DOSSIER_DR=0`, `--no-dr` oder
+`params = {"dr": false}` schalten ab; das Ziel „besser als Sonnet Deep
+Research" für die *Schreibweise* bleibt offen, Stand und Wiederaufnahme in
 [`docs/dossier_vs_deep_research_2026-09-07.md`](docs/dossier_vs_deep_research_2026-09-07.md),
 Issue #100):
 Arbeitsweise eines Deep-Research-Agenten — Primärquellen werden vor dem
@@ -313,7 +313,8 @@ Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
 | `DRAFT_JUDGE=1` | Stage 10 Draft-Richter (0 = aus; nur in `scheduled_cycle.sh` gelesen) |
 | `TDM_RESPECT=1` | Fetcher beachtet maschinenlesbare TDM-Vorbehalte |
 | `DOSSIER_MEASURE=0` | Dossier ohne Messkette (alter Pfad, reproduzierbar) |
-| `DOSSIER_DR=1` | Dossier im DR-Modus: Primärquellen zuerst lesen, Faktenbuch vor dem Schreiben, Sampling nach Modellkarte (Default aus) |
+| `DOSSIER_DR=0` | Dossier OHNE DR-Vorlauf (Primärquellen zuerst, Faktenzettel, Kalender-Kandidaten — Default AN seit 2026-09-13) |
+| `DOSSIER_DRAFTS`, `DOSSIER_REWRITES` | Best-of-N im Erstentwurf (Default 2) und Zahl der gezielten Neuwürfe (Default 2 = ein Nachzug für Strukturbefunde) |
 | `NEWSLETTER_DEEP_DIVE` | `dry-run` aktiviert den Deep-Dive-Schritt im Montagslauf (nur in der Crontab setzen, s. Handbuch §7.3) |
 | `RESEND_API_KEY`, `NEWSLETTER_FROM`, `NEWSLETTER_UNSUB_SECRET`, `NEWSLETTER_PUBLIC_BASE`, `NL_EXPORT_URL`, `NL_EXPORT_TOKEN` | Newsletter-Versandkette (#16) |
 | `NEWSLETTER_APPROVER` | Name, der als Freigebender in `approved_by` landet (Default `owner`); Frontend-Env |
