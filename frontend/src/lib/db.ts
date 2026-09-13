@@ -1769,6 +1769,45 @@ export async function getMethodologyStats(): Promise<MethodologyStats> {
   return cached("methodology-stats", 3_600_000, fetchMethodologyStats);
 }
 
+export interface BriefingStats {
+  sources: number | null;
+  analyzed: number | null;
+  published: number | null;
+  patents: number | null;
+  /** planner estimate (pg_class.reltuples) — an exact COUNT over 45 M rows times out */
+  researchWorks: number | null;
+}
+
+/**
+ * Cheap, never-failing corpus numbers for the customer briefing
+ * (/trends/foresight/pitch). getMethodologyStats() runs a MIN/MAX over all
+ * raw_entries and a three-way join over 1.7 M trends — both exceed the 20 s
+ * statement timeout on a cold cache and took the deck down with a 500
+ * (2026-09-13). Here every number is its own query, each failure becomes
+ * null (rendered as "—"), and the 45 M-row research corpus is read from the
+ * planner estimate instead of counted. Cached 1 h.
+ */
+export async function getBriefingStats(): Promise<BriefingStats> {
+  return cached("briefing-stats", 3_600_000, async () => {
+    const one = async (sql: string): Promise<number | null> => {
+      try {
+        const r = await q1<{ c: number | string }>(sql);
+        return r?.c == null ? null : Number(r.c);
+      } catch {
+        return null;
+      }
+    };
+    const [sources, analyzed, published, patents, researchWorks] = await Promise.all([
+      one("SELECT COUNT(*)::int c FROM sources WHERE active = true"),
+      one("SELECT COUNT(*)::int c FROM trends"),
+      one("SELECT COUNT(*)::int c FROM trends WHERE status = 'published'"),
+      one("SELECT COUNT(*)::int c FROM raw_entries WHERE pub_number IS NOT NULL"),
+      one("SELECT reltuples::bigint c FROM pg_class WHERE relname = 'research_corpus'"),
+    ]);
+    return { sources, analyzed, published, patents, researchWorks };
+  });
+}
+
 export function readMethodologyStatsSnapshot(
   file: string | undefined = process.env.METHODOLOGY_STATS_FILE
 ): MethodologyStats | null {

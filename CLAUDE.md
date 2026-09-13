@@ -1058,6 +1058,13 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                     ?artifacts=1 blendet Repository-Einträge/Nicht-Paper ein — Default aus, seit 2026-09-05)
   /research/pulse, /research/pulse/[theme] → Research Pulse (#73, seit 2026-09-04): Wochen-Synthese je Theme,
                                    Tabelle research_pulse, „Recompute"-Knopf (Owner-App); Cron nur als Vorschlag
+  /pitch                           → Kunden-Briefing (seit 2026-09-13): Präsentation im Browser nach dem
+                                     McKinsey-SCR-Q-Rahmen (Situation, Complication, Resolution, Question), sieben
+                                     Folien, Pfeiltasten/Rail, Zahlen live aus dem Korpus (`getBriefingStats`,
+                                     billige Zählungen + Planer-Schätzung für research_corpus — die
+                                     Methodik-Aggregate liefen in den 20-s-Timeout). Owner-only wie das
+                                     ganze Cockpit; Ehrlichkeitsregeln der Launch-Site gelten (kein Methoden-USP,
+                                     keine Kundenlogos, TIR = relative Entwicklung).
   /ventures, /ventures/company/[id] → Startup Explorer (#87, seit 2026-08-23):
                                      Firmen-Korpus mit Evidenz-Timeline + Brücken
                                    (ungegated — Owner-Werkzeug; im PUBLIC_MODE/Export 404.

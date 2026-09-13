@@ -402,6 +402,38 @@ on-demand (Rebuild würde Enrichment verwerfen).
 
 ---
 
+
+### 5.10 Kunden-Briefing (`/trends/foresight/pitch`)
+
+**Wozu.** Catandary Foresight einem Interessenten vorstellen — im Browser, im
+Design der Seite, statt als PDF oder Folien. Aufgebaut nach dem
+McKinsey-Rahmen **Situation → Complication → Resolution → Question**: was
+Strategieteams heute lesen (Fachpresse), warum das zu spät und zu unsicher ist
+(Volumen, Versprechen gegen Realität, kein Belegpfad), was Foresight anders
+macht (Korpus in vier Ebenen → Messung der Innovationskette → datiertes,
+belegtes Dossier → deterministische Prüfung + Mensch), wie ein Dossier geprüft
+wird (mit echtem Kalenderblock aus dem LFP-Dossier), welche Frage der Kunde
+mitbringt (Timing, Skepsis, Exposure) und die zwei Angebotsformen; zum Schluss
+„What we do not claim" und der Kontakt.
+
+**Bedienung.** Öffnen über das Foresight-Cockpit („Briefing deck for prospects
+→") oder direkt `/trends/foresight/pitch`. **← → / Bild↑↓ / Pos1 / Ende**
+blättern, die Rail rechts zeigt die Folie und springt per Klick; die URL trägt
+die Folie (`#s3`), ein geteilter Link landet also auf derselben Stelle. Am
+besten im Vollbild des Browsers (F11) über Tailscale Serve vom MacBook.
+
+**Zahlen.** Die vier Kacheln der Titelfolie kommen live aus der Datenbank
+(aktive Quellen, analysierte Signale, Forschungswerke ≈ Planer-Schätzung,
+Patente mit Zitationsgraph), 1 h gecacht; fällt eine Zählung aus, steht „—",
+die Seite bleibt. Die Methodik-Aggregate wurden bewusst *nicht* verwendet
+(20-s-Timeout auf kaltem Cache).
+
+**Regeln.** Dieselben wie für die Launch-Site: kein Methoden-USP („nur wir"),
+keine Kundenlogos oder Zertifikate, die Verbesserungsrate als *relative
+Entwicklung* und nicht als Frühwarnung, KI-Erzeugung und menschliche Abnahme
+offen benannt. Die Seite ist Owner-only (PUBLIC_MODE 404, nicht im statischen
+Export) — sie zitiert Arbeit im Review-Status.
+
 ## 6. Dossier-Desk (`/trends/dossiers`)
 
 **Wozu.** Scouting-Dossiers zu Technologiefeldern bestellen: der agentische

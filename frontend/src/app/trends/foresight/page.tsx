@@ -28,6 +28,15 @@ export default async function ForesightRoute() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
+      {/* Customer briefing (SCR-Q deck, owner-only like the whole cockpit). */}
+      <div className="mb-4 flex justify-end">
+        <Link
+          href="/trends/foresight/pitch"
+          className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted hover:text-accent"
+        >
+          Briefing deck for prospects →
+        </Link>
+      </div>
       {/* Lead-time proof strip (#23): the USP, above the fold, one click to the
           full view. Only real, reliable leads. */}
       {leads.length > 0 && (
