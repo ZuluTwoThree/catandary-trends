@@ -5439,6 +5439,14 @@ def run(question: str, max_steps: int, max_sources: int,
                                len(cites2.get("distorted") or []),
                                len(cites2.get("misattributed") or []),
                                len(measure_bad2))
+            # Kalender aus den Kandidaten auffuellen (2026-09-13): datiert, belegt,
+            # themenbezogen — der Code traegt ein, was das Modell liegen liess.
+            if cal_cands:
+                report, n_fill = dossier_structure.fill_calendar(
+                    report, cal_cands, lang, year_floor, calendar_terms, calendar_min)
+                if n_fill:
+                    structure["calendar_filled"] = int(structure.get("calendar_filled") or 0) + n_fill
+                    logger.info("calendar: %d row(s) added from the dated-fact ledger", n_fill)
             # Die Gliederungspruefung laeuft NACH der Streichung: sie beschreibt das
             # Dokument, das ausgeliefert wird. Im B6-Lauf nahm die Streichung einer
             # themenfremd belegten Zeile der Option 2 ihren Zeithorizont — und das

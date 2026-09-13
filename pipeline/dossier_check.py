@@ -246,6 +246,11 @@ def check_result(result: dict) -> dict:
         findings.append(
             f"{st['dropped_sentences']} Satz/Saetze gestrichen: "
             + ", ".join(why) + ".")
+    if st.get("calendar_filled"):
+        findings.append(
+            f"Kalender: {int(st['calendar_filled'])} Zeile(n) aus dem Faktenzettel ergaenzt "
+            f"(datiert, belegt, themenbezogen — im Dokument als 'added from the dated-fact "
+            f"ledger' markiert).")
     if st.get("adopted_sources") or st.get("precanon_stripped"):
         findings.append(
             f"Zitatgetriebener Abruf: {int(st.get('adopted_sources') or 0)} vom Entwurf "

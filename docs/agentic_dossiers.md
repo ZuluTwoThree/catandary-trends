@@ -1306,3 +1306,18 @@ und Zwei-Wort-Begriffe aus 500 Schlagzeilen (solid-state 105, sodium-ion 54,
 lithium-ion 29, lithium metal 10, zinc 9, second-life 8, lfp 6, lithium-sulfur 6,
 iron-air 5, anode-free 5 …) und legt sie dem Modell mit Zählung vor; 10–14
 Items, Feldwort nicht wiederholen.
+
+**v2 der Landschaft (Order #35, nach dem Karten-Fix):** 12 Teilfelder, jetzt
+korpusverankert — solid-state 1.136 Signale / 19.117 Patente, sodium-ion
+258 / 1.297, aqueous zinc 163 / 2.071, grid-scale storage 102, lithium-sulfur
+73 / 710, lithium metal anode 71 / 797, degradation 71, second-life 67, SEI
+41 / 1.442, iron-air 29 / 6, high-voltage cathode 17 / 547, black mass 9 / 75.
+Endkontrolle: ein Befund (Kalender 3/5), Faktenquote 2,46, 30 Quellen,
+2.233 Wörter, Messblock vorhanden, 0 unbelegt, 0 gestrichene Zitate; Cache
+86 von 117 Suchanfragen, 142 von 202 Seiten. Der Kalender ist damit in vier
+von fünf Läufen der EINZIGE verbliebene Sperrbefund, obwohl der Vorlauf
+jeweils ≥ 5 datierte, belegte Kandidaten vorlegte — das Modell schreibt drei.
+Konsequenz (R13-3 zu Ende gedacht): `fill_calendar` trägt fehlende Zeilen
+aus den Kandidaten selbst ein — datiert, mit Katalog-id, themenbezogen,
+sichtbar als „added from the dated-fact ledger (auto)", nur bis zum Soll und
+ohne Dubletten; der Prüfnachweis nennt die Zahl (`calendar_filled`).

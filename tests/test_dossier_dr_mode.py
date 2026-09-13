@@ -1476,3 +1476,24 @@ def test_corpus_term_candidates_surface_recurring_compounds():
     assert c["sodium-ion"] == 2 and c["solid-state"] == 2
     assert c["lithium metal"] == 2
     assert "battery" not in c
+
+
+def test_fill_calendar_adds_dated_cited_on_topic_candidates_until_the_minimum():
+    doc = ("## Decision summary\n\nx [[W1]].\n\n## What happens next\n\n"
+           "| Date | Event | Source | Why it matters |\n|---|---|---|---|\n"
+           "| 2027 | BYD solid-state pilot production | [[W1]] | matters |\n"
+           "| Q2 2027 | Samsung SDI solid-state line | [[W2]] | matters |\n"
+           "| 2027 | Geely pilot | [[W3]] | matters |\n\n## What the evidence does not support\n\n- y\n")
+    cands = [{"when": "18 Feb 2027", "statement": "EU battery passport becomes mandatory", "id": "L4"},
+             {"when": "2027", "statement": "BYD solid-state pilot production starts", "id": "W1"},   # schon drin
+             {"when": "8 Oct 2026", "statement": "Horizon Europe battery call deadline", "id": "F2"},
+             {"when": "2028", "statement": "Unrelated vanadium plant", "id": "M9"}]
+    out, n = ds.fill_calendar(doc, cands, "en", 2026, ["battery", "solid-state"], min_rows=5)
+    assert n == 2
+    assert "| 18 Feb 2027 | EU battery passport becomes mandatory | [[L4]] | added from the dated-fact ledger (auto) |" in out
+    assert "vanadium" not in out
+    # 2 gueltige Zeilen + 2 ergaenzte = 4 (Geely-Zeile bleibt themenfremd); mehr
+    # Kandidaten gibt es nicht — der Rest ist ehrlich ein Befund.
+    assert ds.calendar_rows(out, "en", 2026, ["battery", "solid-state"])["ok"] == 4
+    same, n0 = ds.fill_calendar(out, cands, "en", 2026, ["battery", "solid-state"], min_rows=5)
+    assert n0 == 0 and same == out

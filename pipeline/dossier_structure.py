@@ -1315,6 +1315,61 @@ def calendar_source_counts(report_md: str, lang: str = "en",
     return counts
 
 
+def fill_calendar(report_md: str, candidates: list[dict], lang: str = "en",
+                  year_floor: int | None = None, topic_terms=(),
+                  min_rows: int | None = None) -> tuple[str, int]:
+    """Fehlende Kalenderzeilen aus den deterministisch gesammelten Kandidaten
+    ergaenzen (2026-09-13). R13-3 legte dem Modell die Kandidaten VOR; in vier
+    von fuenf Laeufen schrieb es trotzdem drei statt fuenf Zeilen — obwohl
+    die Kandidaten datiert, belegt und themenbezogen sind. Was der Code schon
+    weiss, traegt er jetzt selbst ein, sichtbar markiert ("from the dated-fact
+    ledger"), bis das Soll erreicht ist. Gibt (Bericht, Zahl der Zeilen) zurueck;
+    ohne Kalenderabschnitt oder ohne Bedarf bleibt alles unveraendert."""
+    need = int(min_rows) if min_rows else MIN_CALENDAR_ROWS
+    L = _lang(lang)
+    sections = split_sections(body_text(report_md), L)
+    sect = sections.get("next")
+    if not sect or not candidates:
+        return report_md, 0
+    have = calendar_rows(report_md, lang, year_floor, topic_terms)["ok"]
+    if have >= need:
+        return report_md, 0
+    # Letzte Tabellenzeile des Abschnitts im Originaltext finden.
+    start = report_md.find(sect)
+    if start < 0:
+        return report_md, 0
+    end = start + len(sect)
+    lines = report_md[start:end].split("\n")
+    last_row = max((i for i, ln in enumerate(lines) if ln.strip().startswith("|")), default=-1)
+    if last_row < 1:
+        return report_md, 0
+    present = report_md[start:end].lower()
+    added: list[str] = []
+    note = "aus dem Faktenzettel ergaenzt (automatisch)" if L == "de" else "added from the dated-fact ledger (auto)"
+    for c in candidates:
+        if have + len(added) >= need:
+            break
+        cid, when, stmt = str(c.get("id") or ""), str(c.get("when") or "").strip(), " ".join(str(c.get("statement") or "").split())
+        if not cid or not when or not stmt:
+            continue
+        if not has_date(when + " " + stmt, year_floor):
+            continue
+        if topic_terms and not _row_on_topic(when + " " + stmt, topic_terms):
+            continue
+        # Dublette: derselbe Anfang steht schon in der Tabelle (der Kandidat ist
+        # oft laenger als die Zeile des Modells), oder dieselbe Quelle mit
+        # demselben Datum ist schon eingetragen.
+        head = stmt[:25].lower()
+        if head in present or (f"[[{cid}]]" in present and when.lower() in present):
+            continue
+        added.append(f"| {when} | {stmt.replace('|', '/')} | [[{cid}]] | {note} |")
+        present += " " + stmt.lower()
+    if not added:
+        return report_md, 0
+    lines[last_row + 1:last_row + 1] = added
+    return report_md[:start] + "\n".join(lines) + report_md[end:], len(added)
+
+
 def calendar_findings(report_md: str, lang: str = "en",
                       year_floor: int | None = None,
                       topic_terms=(), min_rows: int | None = None) -> list[str]:
