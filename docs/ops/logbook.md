@@ -83,6 +83,13 @@ Nacht ein zweiter Lauf mit einem kompletten Stage-8-Pass, ~28 min). Embedding
 09:00 auf 30.000, damit der Samstag (Wochen-Ingester) in einem Lauf durchgeht.
 Erste Nacht mit beidem: 12.09.
 
+## 2026-09-15 · decision · Druckbares Foresight-Dossier aus dem Produkt genommen
+`/trends/foresight/dossier` + CSV-Export (`/api/foresight/export`) entfernt: las nur den
+Cluster-Snapshot vom 03.08. (kein Cron, kein Knopf), Cluster-Labels aus Top-Termen,
+Anteils-Deltas ohne Kalibrierung — dieselbe Klasse wie das am 25.08. entfernte Radar.
+Cluster/Evolution/MovingNow lesen denselben Snapshot; Liste weiterer Kandidaten liegt
+dem Owner vor.
+
 ## 2026-09-10 · change · RTX 5080 auf bequiet als zweite GPU
 Tailnet 100.119.239.40, Ollama auf :11434, 16 GB (13,9 frei am Sperrbildschirm).
 Owner-Fenster 01:00–17:00. Gemessen: 12,4 Texte/s gegen 6,6/s lokal, cos 0,9995

@@ -1048,7 +1048,8 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                    schreibt nur eine Kandidatendatei; measure_mega_axes --write-yaml bleibt die einzige Schreibquelle der Badge-Felder).
                                    Der SQLite-Prototyp discover_mega_trends.py wurde 2026-09-09 entfernt (zeigte auf die vor-Postgres-DB, abgelöst).
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
-  /clusters /technology /lead-time /evolution /dossier
+  /clusters /technology /lead-time /evolution   (das druckbare Foresight-Dossier /dossier samt CSV-Export
+     wurde am 2026-09-15 entfernt: es las nur den ungeeichten Cluster-Snapshot vom 03.08. — Owner-Entscheid)
     (Technologie-Suche: Query-Quality-Gate #67 seit 2026-09-04, `pipeline/query_gate.py` — eine Anfrage
      bekommt nur dann eine Zahl, wenn ihre 20 nächsten CPC-Klassen alle unter d20 ≤ 0,36 liegen UND
      mindestens ein Patenttitel alle Terme enthält; weicht das Wort-Feld der Titeltreffer (≥ 40 %) vom

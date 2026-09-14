@@ -320,13 +320,7 @@ steady / cooling und „shifting in meaning" bei starker Drift. Liest die
 persistierte Lineage; rechnen mit
 `python -m pipeline.foresight_snapshot --lineage [--since … --until … --step … --span …]`.
 
-### 5.5 Foresight-Dossier zum Drucken (`/trends/foresight/dossier?vertical=<V>`)
-
-Ein-Seiten-Zusammenfassung „rising / holding / cooling" aus dem aktuellen
-Cluster-Snapshot, druckoptimiert (kein Chrome im Ausdruck). Nicht zu
-verwechseln mit dem Dossier-Desk (Abschnitt 6).
-
-### 5.6 Research Explorer (`/trends/foresight/research`)
+### 5.5 Research Explorer (`/trends/foresight/research`)
 
 **Wozu.** Suche über den 45-Mio.-Korpus (`research_corpus`, OpenAlex-Snapshot,
 monatlich am 5.) und die kuratierte **Signal-Schicht** (`research_signals`,
@@ -345,7 +339,7 @@ Signal-Schicht statt im 45M-Korpus) · `?src=arxiv,biorxiv,medrxiv,openalex,jour
 bis zu 25 Live-Treffer pro Tag direkt von OpenAlex (serverseitig, Key nie im
 Client).
 
-### 5.7 Research Pulse (`/trends/foresight/research/pulse`, `/pulse/<theme>`)
+### 5.6 Research Pulse (`/trends/foresight/research/pulse`, `/pulse/<theme>`)
 
 **Wozu.** Wochen-Synthese je Mega-Theme aus den frischen Forschungssignalen:
 Volumen der ISO-Woche vs. Median der vier Vorwochen, KMeans-Cluster (k ≤ 5,
@@ -370,7 +364,7 @@ praktisch leer. Ein Journal-Batch erscheint als „emerging ×22" — Datenreali
 im Fußtext erklärt. Jeder Lauf ist eine neue Zeile (`research_pulse`
 versioniert); die Seite zeigt je Theme/Woche die jüngste.
 
-### 5.8 Patent Explorer (`/trends/foresight/patents`)
+### 5.7 Patent Explorer (`/trends/foresight/patents`)
 
 **Wozu.** 19 Mio.+ Patente (EPO-DOCDB-Back-File mit Abstract, CPC, Familien,
 Anmeldern), plus Kennzahlen je Technologie-Achse.
@@ -389,7 +383,7 @@ Seite „Looking for the company?" an. Filter `?cpc=`, `?country=` (Ämter mit
 Zitationsmetriken der letzten ~7 Jahre sind unreif. Radare und TIR-Forschungsläufe
 laufen bewusst nicht per Cron.
 
-### 5.9 Startup Explorer (`/trends/foresight/ventures`, `/company/<id>`)
+### 5.8 Startup Explorer (`/trends/foresight/ventures`, `/company/<id>`)
 
 Firmen-Korpus (~145k Firmen, ~420k datierte Ereignisse aus Primärquellen:
 Funding-Regex aus Presse, SEC Form D, SBIR/CORDIS-Grants, HN-Launches,
@@ -403,7 +397,7 @@ on-demand (Rebuild würde Enrichment verwerfen).
 ---
 
 
-### 5.10 Kunden-Briefing (`/trends/foresight/pitch`)
+### 5.9 Kunden-Briefing (`/trends/foresight/pitch`)
 
 **Wozu.** Catandary Foresight einem Interessenten vorstellen — im Browser, im
 Design der Seite, statt als PDF oder Folien. Aufgebaut nach dem

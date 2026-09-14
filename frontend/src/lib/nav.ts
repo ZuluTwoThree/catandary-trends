@@ -27,7 +27,6 @@ export const FORESIGHT_NAV: NavItem[] = [
   { href: "/trends/foresight/technology", label: "Technology" },
   { href: "/trends/foresight/lead-time", label: "Lead Time" },
   { href: "/trends/foresight/evolution", label: "Evolution" },
-  { href: "/trends/foresight/dossier", label: "Dossier" },
   { href: "/trends/dossiers", label: "Scouting Desk" },
 ];
 
