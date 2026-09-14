@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { linkPrefetch } from "@/lib/renderMode";
-import { getAllAnalyses, formatAnalysisDate } from "@/lib/analyses";
+import { getAllAnalyses, formatAnalysisDate, showDrafts } from "@/lib/analyses";
 import { sitePath } from "@/lib/sitePaths";
 
 export const metadata = {
@@ -15,7 +15,7 @@ export const metadata = {
  * so this renders at build/request time with no DB call.
  */
 export default function AnalysisIndexPage() {
-  const analyses = getAllAnalyses();
+  const analyses = getAllAnalyses({ includeDrafts: showDrafts() });
 
   return (
     <div className="mx-auto max-w-4xl px-6 md:px-10 py-14">
@@ -66,6 +66,11 @@ export default function AnalysisIndexPage() {
                 </time>
                 <div className="min-w-0">
                   <h2 className="font-display text-[20px] leading-snug text-paper group-hover:text-accent transition-colors">
+                    {a.draft && (
+                      <span className="mr-2 align-middle border border-warn/60 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-warn">
+                        Draft
+                      </span>
+                    )}
                     {a.title}
                   </h2>
                   <p className="font-sans text-sm text-muted mt-1 leading-relaxed">

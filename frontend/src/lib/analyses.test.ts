@@ -177,6 +177,12 @@ describe("findAnalysisBySlug", () => {
     expect(findAnalysisBySlug(files, "draft-one")).toBeNull();
   });
 
+  it("returns a draft only when the owner preview asks for it (includeDrafts)", () => {
+    expect(findAnalysisBySlug(files, "draft-one", { includeDrafts: true })?.slug).toBe("draft-one");
+    expect(buildAnalysisList(files, { includeDrafts: true }).map((a) => a.slug)).toEqual(["published-one", "draft-one"]);
+    expect(buildAnalysisList(files).map((a) => a.slug)).toEqual(["published-one"]);
+  });
+
   it("still enforces slug-collision checking even though the match may be a draft", () => {
     const colliding: RawAnalysisFile[] = [
       { ...file({ slug: "dup" }), filename: "a.md" },

@@ -6,6 +6,7 @@ import {
   formatAnalysisDate,
   analysisImageExists,
   analysisImagePath,
+  showDrafts,
 } from "@/lib/analyses";
 import MarkdownBody from "@/components/MarkdownBody";
 import AnalysisCta from "@/components/AnalysisCta";
@@ -24,7 +25,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const analysis = getAnalysisBySlug(slug);
+  const analysis = getAnalysisBySlug(slug, { includeDrafts: showDrafts() });
   if (!analysis) return { title: "Analysis not found" };
 
   const hasImage = analysisImageExists(analysis.image);
@@ -50,11 +51,18 @@ export default async function AnalysisPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const analysis = getAnalysisBySlug(slug);
+  const analysis = getAnalysisBySlug(slug, { includeDrafts: showDrafts() });
   if (!analysis) notFound();
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-14">
+      {analysis.draft && (
+        <aside className="mb-8 border border-warn/50 px-4 py-3 font-mono text-[11px] leading-relaxed text-warn">
+          Draft — visible on this instance only. Not listed publicly, not in the
+          static export, not in the sitemap until <code>draft</code> is removed
+          from <code>content/analyses/{analysis.slug}.md</code>.
+        </aside>
+      )}
       <article>
         <header className="mb-10 border-b border-border pb-8">
           <span className="eyebrow">Analysis</span>

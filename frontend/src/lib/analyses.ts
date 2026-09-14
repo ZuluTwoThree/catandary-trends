@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isPublicMode } from "./publicMode";
+import { isStaticExport } from "./renderMode";
 import yaml from "js-yaml";
 
 /**
@@ -149,18 +151,35 @@ function parseAndValidate(files: RawAnalysisFile[]): Analysis[] {
   return parsed.map((p) => p.analysis);
 }
 
-/** Published (non-draft) analyses, newest `date` first. */
-export function buildAnalysisList(files: RawAnalysisFile[]): Analysis[] {
+export interface AnalysisQuery {
+  /** Owner preview only (`showDrafts()`): list/render `draft: true` files too.
+   *  Never true under PUBLIC_MODE or in the static export. */
+  includeDrafts?: boolean;
+}
+
+/** Drafts are visible on the owner instance so a person can read a piece at
+ *  its final URL before flipping `draft` — the same pattern as the newsletter
+ *  Deep-Dive dry-run. The public site and the export never see them. */
+export function showDrafts(): boolean {
+  return !isPublicMode() && !isStaticExport();
+}
+
+/** Published (non-draft) analyses, newest `date` first (drafts too with `includeDrafts`). */
+export function buildAnalysisList(files: RawAnalysisFile[], opts: AnalysisQuery = {}): Analysis[] {
   return parseAndValidate(files)
-    .filter((a) => !a.draft)
+    .filter((a) => opts.includeDrafts || !a.draft)
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 }
 
 /** A single analysis by slug — null both when the slug doesn't exist AND when it is a draft
  *  ("draft: true wird nirgends gelistet/gerendert", #93 — a draft 404s exactly like a miss). */
-export function findAnalysisBySlug(files: RawAnalysisFile[], slug: string): Analysis | null {
+export function findAnalysisBySlug(
+  files: RawAnalysisFile[],
+  slug: string,
+  opts: AnalysisQuery = {}
+): Analysis | null {
   const found = parseAndValidate(files).find((a) => a.slug === slug);
-  if (!found || found.draft) return null;
+  if (!found || (found.draft && !opts.includeDrafts)) return null;
   return found;
 }
 
@@ -175,12 +194,12 @@ function readContentFiles(): RawAnalysisFile[] {
     }));
 }
 
-export function getAllAnalyses(): Analysis[] {
-  return buildAnalysisList(readContentFiles());
+export function getAllAnalyses(opts: AnalysisQuery = {}): Analysis[] {
+  return buildAnalysisList(readContentFiles(), opts);
 }
 
-export function getAnalysisBySlug(slug: string): Analysis | null {
-  return findAnalysisBySlug(readContentFiles(), slug);
+export function getAnalysisBySlug(slug: string, opts: AnalysisQuery = {}): Analysis | null {
+  return findAnalysisBySlug(readContentFiles(), slug, opts);
 }
 
 /** Whether the frontmatter's `image` file actually exists under `public/analyses/`.
