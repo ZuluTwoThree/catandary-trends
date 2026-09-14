@@ -81,6 +81,7 @@ def test_run_note_with_a_model_stub(db, monkeypatch):
     nid = store.create_note("lfp", 9, {"industry": "utilities", "geography": "Germany"},
                             "Decide whether to procure 20 MWh of LFP storage by 2027")
     monkeypatch.setattr(sa, "thinking_server", lambda assume_model_up=False: __import__("contextlib").nullcontext())
+    monkeypatch.setattr(sa, "ADVISOR_MIN_WORDS", 50)     # der Stub ist kuerzer als eine echte Notiz
     seen = {}
 
     def chat(model, prompt, system=None, **kw):
@@ -107,3 +108,18 @@ def test_run_note_with_a_model_stub(db, monkeypatch):
     assert c["reader_ok"] is True and c["unfilled"] == [] and c["foreign_figures"] == []
     assert "[IEA storage review](https://www.iea.org/x)" in n["note_md"]
     assert "<think>" not in n["note_md"]
+
+
+def test_run_note_retries_without_thinking_and_fails_on_empty_answer(db, monkeypatch):
+    dbm, store = db
+    _seed_dossier(dbm)
+    import scripts.advisory as sa
+    from pipeline import llamacpp_client
+    nid = store.create_note("lfp", 9, {}, "Decide something")
+    monkeypatch.setattr(sa, "thinking_server", lambda assume_model_up=False: __import__("contextlib").nullcontext())
+    calls = []
+    monkeypatch.setattr(llamacpp_client, "chat", lambda model, prompt, system=None, **kw: calls.append(kw.get("enable_thinking")) or "<think>only thoughts</think>")
+    assert sa.run_note(nid) is False
+    assert calls == [True, False]                      # zweiter Versuch ohne Denken, dann Abbruch
+    n = store.get_note(nid)
+    assert n["status"] == "failed" and "empty note" in (n["error"] or "")

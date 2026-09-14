@@ -1430,3 +1430,14 @@ Dossiers, deterministische Prüfung (gestrichene Marker, Platzhalter, Zahlen
 gegen Dossier + Profil), dann der Leser, dann **die Freigabe durch einen
 Menschen** (`approved_at`). Die Optionsregeln des Dossiers (Effort nie aus der
 Fördergrenze, Platzhalter = unerfüllt) leben im Advisor-Prompt weiter.
+
+**Erster echter Lauf (14.09., Notiz #1, LFP v9, fiktiver DACH-Speicherintegrator):**
+233 s, Denken an — und **0 Wörter**: Denkspur und Antwort zählen beide gegen
+`max_tokens`, mit 6.000 blieb nach dem Denken nichts für die Antwort, und die
+Prüfung nannte die leere Notiz „ok" (keine gestrichenen Marker, keine
+Platzhalter …). Fix im selben Zug: `ADVISOR_MAX_TOKENS` Default 24.000, unter
+`ADVISOR_MIN_WORDS` (300) ein zweiter Versuch **ohne** Denken, danach `failed`
+mit klarem Fehler statt einer leeren `review`-Notiz; `ok` verlangt jetzt
+zusätzlich mindestens zwei `### Option`-Blöcke (Null-Option + eine echte).
+Außerdem stellt `thinking_server` den Ruhezustand her, wie er vor dem Lauf
+war (8B-Server läuft wieder, wenn er vorher lief) — nach #1 stand die Unit.

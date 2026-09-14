@@ -44,7 +44,10 @@ logger = logging.getLogger("advisory")
 
 THINKING_START = os.getenv("ADVISOR_START_SCRIPT", "start-qwen3.8-27b-thinking.sh")
 ADVISOR_TIMEOUT = float(os.getenv("ADVISOR_TIMEOUT", "2400"))
-ADVISOR_MAX_TOKENS = int(os.getenv("ADVISOR_MAX_TOKENS", "6000"))
+# Denkspur UND Antwort zaehlen gegen max_tokens: mit 6.000 blieb beim ersten Lauf
+# (14.09., Notiz #1) nach dem Denken keine Antwort uebrig — 233 s fuer 0 Woerter.
+ADVISOR_MAX_TOKENS = int(os.getenv("ADVISOR_MAX_TOKENS", "24000"))
+ADVISOR_MIN_WORDS = 300
 
 
 @contextmanager
@@ -55,6 +58,8 @@ def thinking_server(assume_model_up: bool = False):
         yield
         return
     saved = gpu_handover._safe_saved_target()
+    was_active = gpu_handover._run(["systemctl", "--user", "is-active", gpu_handover.LLAMA_UNIT],
+                                   timeout=20).returncode == 0
     target = gpu_handover.LLAMA_CPP_ROOT / THINKING_START
     if not target.is_file():
         raise RuntimeError(f"thinking start script missing: {target}")
@@ -69,6 +74,11 @@ def thinking_server(assume_model_up: bool = False):
         yield
     finally:
         gpu_handover._teardown(saved)
+        if was_active:
+            # Ruhezustand wie vor dem Lauf: der 8B-Klassifikator laeuft wieder
+            # (der Symlink zeigt nach _teardown schon auf ihn).
+            logger.info("Restoring the resting server (%s)", saved)
+            gpu_handover._run(["systemctl", "--user", "start", gpu_handover.LLAMA_UNIT], timeout=60)
 
 
 def catalog_for(dossier: dict) -> tuple[list[dict], str]:
@@ -117,6 +127,17 @@ def run_note(note_id: int, assume_model_up: bool = False) -> bool:
                                        enable_thinking=True, temperature=0.4,
                                        max_tokens=ADVISOR_MAX_TOKENS)
             text = re.sub(r"<think>.*?</think>", "", raw or "", flags=re.DOTALL).strip()
+            if len(re.findall(r"\S+", text)) < ADVISOR_MIN_WORDS:
+                # Denken hat die Antwort verschluckt (oder abgebrochen): ein
+                # zweiter Versuch ohne Denkspur ist besser als eine leere Notiz.
+                logger.warning("advisor answer has %d word(s) — retrying without thinking",
+                               len(re.findall(r"\S+", text)))
+                raw = llamacpp_client.chat(model=cr.MODEL, system=adv.ADVISOR_SYSTEM, prompt=prompt,
+                                           enable_thinking=False, temperature=0.4,
+                                           max_tokens=ADVISOR_MAX_TOKENS)
+                text = re.sub(r"<think>.*?</think>", "", raw or "", flags=re.DOTALL).strip()
+            if len(re.findall(r"\S+", text)) < ADVISOR_MIN_WORDS:
+                raise RuntimeError(f"advisor returned {len(re.findall(chr(92) + 'S+', text))} words — empty note")
             lang = str(result.get("lang") or "en")
             # [[client]] markiert Profil-Fakten — kein Katalog-Eintrag, darf die
             # Kanonisierung nicht als Phantom-Zitat streichen.
@@ -143,8 +164,13 @@ def run_note(note_id: int, assume_model_up: bool = False) -> bool:
         for f in majors[:4]:
             findings.append(f"Leser (nicht sperrend) [{f.get('section', '?')}]: {f.get('issue', '')} "
                             f"— Vorschlag: {f.get('suggestion', '')}")
+        n_options = len(re.findall(r"^###\s*Option\s+\d", note_md, re.MULTILINE))
+        if n_options < 2:
+            findings.append(f"Nur {n_options} Optionsblock/-bloecke (### Option N) — mindestens die Null-Option "
+                            f"und eine echte Option.")
         check = {
-            "ok": not stripped and not unfilled and not foreign,
+            "ok": not stripped and not unfilled and not foreign and n_options >= 2,
+            "options": n_options,
             "reader_ok": (bool(reader.get("answers_question")) and not majors) if reader else None,
             "stripped_citations": int(stripped), "unfilled": unfilled, "foreign_figures": foreign,
             "cited": len(cited_srcs), "words": len(re.findall(r"\S+", note_md)),
