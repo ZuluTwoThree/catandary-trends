@@ -1475,7 +1475,8 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
 - **Advisor statt Optionen (Owner 2026-09-14):** das Dossier trägt „Decision points and watch items"
   (3–6 belegte Auslöser, keine Empfehlung; `watch_findings`), Optionen liegen beim **Advisor**:
   `scripts/advisory.py` + `pipeline/advisory.py` + `pipeline/advisory_store.py` (Tabelle
-  `advisory_notes`, additiv, Live-DB 14.09.) — 27B mit Denken (`start-qwen3.8-27b-thinking.sh`),
+  `advisory_notes`, additiv, Live-DB 14.09.) — 27B mit Denken (`start-qwen3.8-27b-thinking.sh`,
+  Denkbudget 8.192 Tokens im Startskript — ohne Budget dachte es 24k Tokens und antwortete nie; unter 300 Wörtern Rückfall ohne Denken),
   Beraterrolle, geschlossener Dossier-Katalog, Null-Option, Aufwand nur aus Vergleichsfällen,
   Prüfung (Marker, Platzhalter, fremde Zahlen) + Leser, **Freigabe nur durch einen Menschen**
   (`approved_at`, wie Newsletter). Desk: Formular auf der Dossierseite,

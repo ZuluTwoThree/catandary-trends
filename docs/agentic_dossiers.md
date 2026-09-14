@@ -1441,3 +1441,15 @@ mit klarem Fehler statt einer leeren `review`-Notiz; `ok` verlangt jetzt
 zusätzlich mindestens zwei `### Option`-Blöcke (Null-Option + eine echte).
 Außerdem stellt `thinking_server` den Ruhezustand her, wie er vor dem Lauf
 war (8B-Server läuft wieder, wenn er vorher lief) — nach #1 stand die Unit.
+
+**Notiz #2 (17:12, 1.034 s):** der Denk-Durchgang dachte exakt 24.000 Tokens
+(800 s) und antwortete nie — das Modell kommt bei diesem 13k-Prompt nicht zum
+Schluss. Die gelieferte Notiz stammt vom Rückfall ohne Denken: `ok` (11 Quellen,
+3 Optionen, 1.481 Wörter, keine fremden Zahlen), Leser dagegen: beantwortet den
+Auftrag nicht exakt (Hybrid-Option statt der gestellten Binärfrage, 40 M€ und
+500 MWh/a nicht adressiert) und der Aufwands-Vergleichsfall (9-GWh-Liefervertrag
+für 500 MWh/a) trägt nicht. Konsequenzen: **Denkbudget im Startskript**
+(`~/llama.cpp/start-qwen3.8-27b-thinking.sh`: `--reasoning-budget 8192`, ~4,5 min;
+llama.cpp schließt die Denkmarke dann selbst), und der Prompt verlangt jetzt
+Vergleichsfälle von Art *und* Größenordnung des Kunden sowie eine Empfehlung,
+die die Auftragsfrage exakt so beantwortet, wie sie gestellt ist.

@@ -44,7 +44,10 @@ Method, in this order:
    - Effort: an order of magnitude from a COMPARABLE CASE in the dossier
      (a plant, a round, a programme of similar kind), named and cited — never
      from a grant ceiling or a funding budget: "the effort is what the grant
-     pays" is circular and is rejected.
+     pays" is circular and is rejected. The comparable must be of the
+     client's KIND and SCALE: a buyer's supply agreement for a buyer, not a
+     plant investment; if the nearest case differs by more than an order of
+     magnitude, say so instead of using it.
      Better no figure at all than one that does not carry.
      "No figure in the evidence", "unknown", "n/a" or a whole
      sentence saying the effort cannot be sized count as an UNFILLED field;
@@ -57,7 +60,10 @@ Method, in this order:
    - Against it: the strongest argument against — from the evidence, not
      from prudence in general.
 4. Recommendation: which option, with a confidence (low / medium / high) and
-   the two facts that would change your mind. One paragraph.
+   the two facts that would change your mind. One paragraph. It must answer
+   the decision exactly as the scope poses it (volume, budget, deadline,
+   named alternatives) — an extra option you added does not replace that
+   answer.
 5. Evidence used: the catalog ids you relied on, one line.
 
 Rules: every external number, date, name or claim comes from the dossier and
