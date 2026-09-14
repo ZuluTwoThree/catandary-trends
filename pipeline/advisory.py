@@ -64,7 +64,12 @@ Method, in this order:
    the decision exactly as the scope poses it (volume, budget, deadline,
    named alternatives) — an extra option you added does not replace that
    answer.
-5. Evidence used: the catalog ids you relied on, one line.
+5. Evidence used: the catalog ids you relied on, one line — only ids that
+   appear in the note above.
+
+Length: 1,200 to 1,800 words in total. Nothing "for completeness": material
+that does not drive an option (a patent landscape for a buyer, a challenger
+chemistry the scope did not ask about) is left out, not summarised.
 
 Rules: every external number, date, name or claim comes from the dossier and
 carries its id — you may not add facts from memory, however well you know the
@@ -121,8 +126,11 @@ def figures_not_in_sources(note_md: str, dossier_md: str, profile_text: str) -> 
     """Zahlen der Notiz, die weder im Dossier noch im Profil/Auftrag stehen."""
     hay = (dossier_md or "") + "\n" + (profile_text or "")
     hay_norm = hay.replace(",", "").replace(".", "")
+    # Link-Ziele tragen Ziffern (Patentnummern, Datumsverzeichnisse in URLs),
+    # die keine Aussage der Notiz sind — nur der Linktext zaehlt (Notiz #3).
+    body = re.sub(r"\]\([^)]*\)", "]", note_md or "")
     out = []
-    for tok in _NUM.findall(note_md or ""):
+    for tok in _NUM.findall(body):
         t = tok.strip("$€£%")
         if len(t.replace(".", "").replace(",", "")) < 2:
             continue            # einstellige Zahlen: Aufzaehlungen, Optionsnummern

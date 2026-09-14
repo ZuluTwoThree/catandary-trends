@@ -48,6 +48,7 @@ ADVISOR_TIMEOUT = float(os.getenv("ADVISOR_TIMEOUT", "2400"))
 # (14.09., Notiz #1) nach dem Denken keine Antwort uebrig — 233 s fuer 0 Woerter.
 ADVISOR_MAX_TOKENS = int(os.getenv("ADVISOR_MAX_TOKENS", "24000"))
 ADVISOR_MIN_WORDS = 300
+ADVISOR_MAX_WORDS = int(os.getenv("ADVISOR_MAX_WORDS", "2400"))   # Prompt sagt 1.200-1.800; #3 kam mit 4.512
 
 
 @contextmanager
@@ -168,12 +169,17 @@ def run_note(note_id: int, assume_model_up: bool = False) -> bool:
         if n_options < 2:
             findings.append(f"Nur {n_options} Optionsblock/-bloecke (### Option N) — mindestens die Null-Option "
                             f"und eine echte Option.")
+        words = len(re.findall(r"\S+", note_md))
+        too_long = words > ADVISOR_MAX_WORDS
+        if too_long:
+            findings.append(f"{words} Woerter — ueber dem Deckel von {ADVISOR_MAX_WORDS} "
+                            f"(Vollstaendigkeits-Absaetze statt Optionstreiber).")
         check = {
-            "ok": not stripped and not unfilled and not foreign and n_options >= 2,
+            "ok": not stripped and not unfilled and not foreign and n_options >= 2 and not too_long,
             "options": n_options,
             "reader_ok": (bool(reader.get("answers_question")) and not majors) if reader else None,
             "stripped_citations": int(stripped), "unfilled": unfilled, "foreign_figures": foreign,
-            "cited": len(cited_srcs), "words": len(re.findall(r"\S+", note_md)),
+            "cited": len(cited_srcs), "words": words,
             "reader": reader, "findings": findings, "seconds": round(time.time() - t0, 1),
         }
         store.mark_review(note_id, note_md, check, f"{cr.MODEL} (thinking)", time.time() - t0)

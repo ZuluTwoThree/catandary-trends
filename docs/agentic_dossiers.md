@@ -1453,3 +1453,16 @@ für 500 MWh/a) trägt nicht. Konsequenzen: **Denkbudget im Startskript**
 llama.cpp schließt die Denkmarke dann selbst), und der Prompt verlangt jetzt
 Vergleichsfälle von Art *und* Größenordnung des Kunden sowie eine Empfehlung,
 die die Auftragsfrage exakt so beantwortet, wie sie gestellt ist.
+
+**Notiz #3 (17:24, 576 s, Denken mit 8k-Budget):** der Sprung. Beantwortet die
+Binärfrage exakt (Option 1 Europa — Zaragoza, ElevenEs als Ausweich —, bis
+40 M€, Q1 2027, Konfidenz mittel, Option 2 USA an der Geographie verworfen:
+jede US-LFP-Zusage im Beleg geht an US-Abnehmer; Null-Option = tickende Uhr
+bis 18.08.2027), Aufwand ehrlich aus der Preisreihe ($44–100/kWh × 500 MWh/a
+≈ 22–50 M$/a) statt aus dem 9-GWh-Vergleichsfall, datierte Abbruchkriterien.
+Leser: „beantwortet die Frage" ✓, zwei schwere Einwände gegen die
+Vollständigkeits-Absätze (Patentlage, Natrium-Ionen, Eisen-Luft — für einen
+Käufer irrelevant); 4.512 Wörter; die Zahlenprüfung stolperte über eine
+Ziffernfolge aus einer Quell-URL. Konsequenzen: Längenbudget im Prompt
+(1.200–1.800 Wörter, nichts „for completeness"), Deckel `ADVISOR_MAX_WORDS`
+2.400 als Prüfregel, Link-Ziele aus der Zahlenprüfung.

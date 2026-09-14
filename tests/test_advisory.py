@@ -70,6 +70,8 @@ def test_prompt_and_checks():
     assert adv.unfilled_fields(note) == ["Effort"]
     foreign = adv.figures_not_in_sources(note, "plant start 2026 … $100/kWh", "2000 staff")
     assert "$4.5" in foreign and "2026" not in foreign and "$100" not in foreign
+    linked = "price above $100/kWh [Patent term](https://x.org/2701/20110704.html)"
+    assert adv.figures_not_in_sources(linked, "$100/kWh", "") == []     # URL-Ziffern zaehlen nicht
 
 
 def test_run_note_with_a_model_stub(db, monkeypatch):
