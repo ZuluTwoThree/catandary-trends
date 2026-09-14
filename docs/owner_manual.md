@@ -871,8 +871,10 @@ LinkedIn-Teaser und Kontinuitätsnachweis für Interessenten (#93 Etappe 2).
 **Bedienung.** Eine Analyse ist eine Markdown-Datei
 `frontend/content/analyses/<slug>.md` mit Frontmatter `slug, title, date, teaser,
 image, corpus_asof, author, draft` (Vorlage `_template.md`); das Bild liegt unter
-`frontend/public/analyses/<image>`. `draft: true` = nie gelistet, `/analysis/<slug>`
-404. Veröffentlichen = `draft: false` setzen, Bild ablegen, committen (Versionierung
+`frontend/public/analyses/<image>`. `draft: true` = öffentlich nie gelistet, im Export und
+unter PUBLIC_MODE 404 — **auf der Owner-Instanz (:3001/:3004) aber sichtbar** (seit 2026-09-14:
+„Draft“-Marke in der Liste, Hinweisbanner auf der Seite), damit ein Stück an seiner
+endgültigen URL gelesen werden kann, bevor es live geht. Veröffentlichen = `draft: false` setzen, Bild ablegen, committen (Versionierung
 über git, kein Admin-UI). Deep-Dive-Drafts (Abschnitt 7.3) landen hier zum
 Redigieren: Kopf mit Gate/Audit, Kondensat, darunter das volle Dossier;
 Autor-Zeile umschreiben, kürzen, `draft: false`.
