@@ -2865,3 +2865,34 @@ class TestTopicBinding:
         three = ds.calendar_findings(doc, "en", 2026, ["iron-air"], min_rows=3)
         assert five and "mindestens 5" in five[0]
         assert three == [] or all("mindestens 3" not in x for x in three)
+
+
+def test_writer_handover_swaps_the_server_only_when_configured(monkeypatch):
+    from pipeline import llamacpp_client, gpu_handover
+    chat = _Chat()
+    _structured(monkeypatch)
+    monkeypatch.setattr(llamacpp_client, "chat", chat)
+    monkeypatch.setenv("DOSSIER_DRAFTS", "1")
+    monkeypatch.setenv("DOSSIER_REWRITES", "1")
+    monkeypatch.setenv("DOSSIER_WRITE", "single")
+    monkeypatch.setattr(cr, "search_research", lambda *a, **k: [])
+    monkeypatch.setattr(cr, "search_patents", lambda *a, **k: [])
+    monkeypatch.setattr(cr, "brave_search", lambda q, n=6: [])
+    monkeypatch.setattr(cr, "fetch_web_page_status", lambda url: (LEGAL_PAGE, "fetched"))
+    swaps = []
+    monkeypatch.setattr(gpu_handover, "llama_server_start",
+                        lambda model, timeout=240, swap_symlink=False: swaps.append((model, swap_symlink)))
+    monkeypatch.setenv("DOSSIER_WRITER_MODEL", "Big-Writer-UD-Q2_K_XL-00001-of-00003.gguf")
+    out = cr.run("What should we do?", max_steps=1, max_sources=8, retrieval="fts",
+                 per_query=2, web_steps=0, max_web_sources=0,
+                 topic="GLP-1 and incretin technology", measure=True,
+                 seed_sources=[dict(x) for x in SEEDS], seed_notes=["seed"])
+    assert swaps == [("Big-Writer-UD-Q2_K_XL-00001-of-00003.gguf", True)]
+    assert out["writer_model"].startswith("Big-Writer") and "writer Big-Writer" in out["model"]
+    monkeypatch.delenv("DOSSIER_WRITER_MODEL")
+    swaps.clear()
+    out = cr.run("What should we do?", max_steps=1, max_sources=8, retrieval="fts",
+                 per_query=2, web_steps=0, max_web_sources=0,
+                 topic="GLP-1 and incretin technology", measure=True,
+                 seed_sources=[dict(x) for x in SEEDS], seed_notes=["seed"])
+    assert swaps == [] and out["writer_model"] == cr.MODEL

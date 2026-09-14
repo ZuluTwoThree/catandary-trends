@@ -316,6 +316,7 @@ Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
 | `TDM_RESPECT=1` | Fetcher beachtet maschinenlesbare TDM-Vorbehalte |
 | `DOSSIER_MEASURE=0` | Dossier ohne Messkette (alter Pfad, reproduzierbar) |
 | `DOSSIER_DR=0` | Dossier OHNE DR-Vorlauf (Primärquellen zuerst, Faktenzettel, Kalender-Kandidaten — Default AN seit 2026-09-13) |
+| `DOSSIER_WRITER_MODEL`, `DOSSIER_WRITER_TIMEOUT` | Schreibphase (Sektionen, Leser, Neuwurf) auf einem anderen Modell — GGUF-Name aus `gpu_handover.MODEL_START_SCRIPTS`, z. B. `Qwen3.8-Flash-Next-UD-Q2_K_XL-00001-of-00003.gguf` (125B/6B MoE, Test seit 2026-09-14); Client-Timeout dafür 1800 s |
 | `DOSSIER_WRITE=single` | Dossier in EINEM Schreibaufruf (Best-of-2) statt Sektion für Sektion (Default `sections` seit 2026-09-14) |
 | `DOSSIER_READER=0` | Dossier ohne den Leser (zweiter Blick desselben Modells mit eigener Anweisung: Einwände in den Neuwurf, Resthinweise in den Prüfnachweis; Default an seit 2026-09-13) |
 | `DOSSIER_DRAFTS`, `DOSSIER_REWRITES` | Best-of-N im Erstentwurf (Default 2) und Zahl der gezielten Neuwürfe (Default 2 = ein Nachzug für Strukturbefunde) |

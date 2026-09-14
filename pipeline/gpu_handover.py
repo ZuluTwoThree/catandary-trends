@@ -71,6 +71,11 @@ MODEL_START_SCRIPTS: dict[str, Path] = {
     # Content-gen candidate under evaluation (#11): Gemma 4 26B-A4B MoE (QAT).
     # Registered so the handover can swap it in for A/B runs against the 30B.
     "gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf": LLAMA_CPP_ROOT / "start-gemma4-26b.sh",
+    # Dossier-Schreiber unter Test (Owner 2026-09-14): Qwen3.8-Flash-Next, 125B/6B
+    # aktiv MoE, 51B n-Gramm-Tabelle lazy von der SSD; ~20-22 GB VRAM mit
+    # --n-cpu-moe, ~30 t/s. Nur fuer die Schreibphase (DOSSIER_WRITER_MODEL).
+    "Qwen3.8-Flash-Next-UD-Q2_K_XL-00001-of-00003.gguf": LLAMA_CPP_ROOT / "start-qwen3.8-flash-next.sh",
+    "Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf": LLAMA_CPP_ROOT / "start-qwen3.8-flash-next-iq4.sh",
     # Draft-judge / dossier-researcher model. Key = the SERVED model id (what
     # /v1/models reports and pipeline.draft_judge.JUDGE_MODEL expects), not a
     # GGUF filename — swap_active_symlink keys on Path(...).name either way,

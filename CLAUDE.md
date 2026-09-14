@@ -1467,6 +1467,11 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   Leser löst seit 14.09. auch den zweiten Neuwurf aus (schwere Einwände), Landschafts-Modus
   verlangt die Tabelle `### Landscape` (Prüfregel `landscape_findings`), Regulatorik-Gliederung
   feldneutral (SPC nur Pharma/Pflanzenschutz), Desk zeigt Endkontrolle **und** Leser.
+- **Stärkerer Schreiber (Test seit 2026-09-14):** `DOSSIER_WRITER_MODEL=<GGUF>` schaltet nach
+  Recherche/Audit/Faktenzettel den llama-server für Sektionen, Leser und Neuwurf auf ein anderes
+  registriertes Modell um (`gpu_handover.llama_server_start(..., swap_symlink=True)`); registriert:
+  Qwen3.8-Flash-Next UD-Q2_K_XL / UD-IQ4_XS (125B/6B aktiv, ~20–22 GB VRAM mit `--n-cpu-moe`, ~200 t/s
+  Prompt, Client-Timeout 1800 s). `result.writer_model` und `model` vermerken es.
 - **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
   zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
   themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,

@@ -1396,3 +1396,7 @@ zweiter Neuwurf wird heute nur von Strukturbefunden ausgelöst.
   nicht fand, als „Analyse".
 - **Beide Ampeln:** Desk-Liste und Dossieransicht zeigen neben der
   Endkontrolle den Leser (`reader_ok`), ebenso `dossier_worker --list`.
+- **Stärkerer Schreiber unter Test:** `DOSSIER_WRITER_MODEL` (GGUF-Name) schaltet
+  vor dem Schreiben auf ein registriertes Modell um; erster Test:
+  Qwen3.8-Flash-Next UD-Q2_K_XL (125B/6B aktiv, 51B n-Gramm-Tabelle lazy von
+  der SSD, ~20–22 GB VRAM) auf `quantum-computing-hardware` v2 gegen v1 (27B).

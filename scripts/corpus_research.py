@@ -5405,6 +5405,27 @@ def run(question: str, max_steps: int, max_sources: int,
 
     base_sampling = dict(write_sampling or {"temperature": 0.4})
     write_mode = (os.getenv("DOSSIER_WRITE", "sections") or "sections").strip().lower()
+    # Staerkerer Schreiber (Owner-Test 2026-09-14): ab hier — Sektionen, Leser,
+    # Neuwurf — antwortet ein anderes Modell auf :8090, wenn DOSSIER_WRITER_MODEL
+    # (GGUF-Dateiname, in gpu_handover.MODEL_START_SCRIPTS registriert) gesetzt
+    # ist. Recherche, Audit und Faktenzettel liefen bereits auf dem 27B; den
+    # Ruhezustand stellt der Worker am Ende wie bisher her.
+    writer_model = (os.getenv("DOSSIER_WRITER_MODEL") or "").strip()
+    if writer_model and Path(writer_model).name != Path(MODEL).name:
+        from pipeline import gpu_handover
+        logger.info("writer handover: %s → %s", MODEL, writer_model)
+        gpu_handover.llama_server_start(writer_model, timeout=900, swap_symlink=True)
+        # Ein 125B-MoE mit CPU-Experten verarbeitet den Prompt mit ~200 t/s: ein
+        # Neuwurf-Prompt von 60k Token braucht allein 5 min — ueber der
+        # Client-Grenze von 600 s. Fuer den Lauf anheben, nicht global.
+        want = float(os.getenv("DOSSIER_WRITER_TIMEOUT", "1800"))
+        if llamacpp_client.TIMEOUT < want:
+            logger.info("writer handover: raising the client timeout %.0fs → %.0fs",
+                        llamacpp_client.TIMEOUT, want)
+            llamacpp_client.TIMEOUT = want
+        active_model = writer_model
+    else:
+        active_model = MODEL
     if write_mode == "sections" and measure:
         # Abschnittsweises Schreiben (2026-09-14, #100): je Sektion ein Aufruf mit
         # dem ganzen Material und den schon geschriebenen Sektionen; die
@@ -5968,7 +5989,8 @@ def run(question: str, max_steps: int, max_sources: int,
         "measure": bool(measure),
         "structure": structure,
         "corpus_stats": (corpus_stats or {}).get("summary"),
-        "model": MODEL,
+        "model": (MODEL if active_model == MODEL else f"{MODEL} + writer {Path(active_model).name}"),
+        "writer_model": active_model,
         # DR-Modus mitschreiben: der Vergleich gegen die Laeufe davor haengt
         # daran, dass im Datensatz steht, welche Arbeitsweise gelaufen ist.
         "dr": bool(dr),
