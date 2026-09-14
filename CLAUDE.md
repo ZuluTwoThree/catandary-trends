@@ -1461,6 +1461,12 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   als „Leser (nicht sperrend)" im Prüfnachweis (`reader_ok` im check_json). Er kann nichts
   freigeben, sperren oder selbst umschreiben. `DOSSIER_READER=0` schaltet ab. Kalender: fehlende
   Zeilen füllt `fill_calendar` aus den belegten Kandidaten (sichtbar markiert).
+- **Abschnittsweises Schreiben ist Default (seit 2026-09-14, `DOSSIER_WRITE=sections`):** je
+  Pflichtsektion ein Aufruf mit vollem Material und den fertigen Sektionen als Kontext, Kurzfassung
+  zuletzt (`write_sections`/`take_section`); `single` = alter Ein-Aufruf-Pfad mit Best-of-2. Der
+  Leser löst seit 14.09. auch den zweiten Neuwurf aus (schwere Einwände), Landschafts-Modus
+  verlangt die Tabelle `### Landscape` (Prüfregel `landscape_findings`), Regulatorik-Gliederung
+  feldneutral (SPC nur Pharma/Pflanzenschutz), Desk zeigt Endkontrolle **und** Leser.
 - **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
   zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
   themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,

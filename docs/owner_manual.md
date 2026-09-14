@@ -521,6 +521,11 @@ hinzufügen) gehen in denselben Neuwurf-Auftrag wie die Code-Befunde. Nach der
 Endfassung liest er ein zweites Mal; was dann bleibt, steht im Prüfnachweis als
 „Leser (nicht sperrend)" und in der Review-Ansicht — als Lesehilfe für deinen
 Sign-off, nie als Sperre. Ausschalten: `DOSSIER_READER=0`.
+Seit 14.09. löst der Leser auch den zweiten Neuwurf aus, wenn nach dem ersten
+schwere Einwände bleiben; Liste und Dossieransicht zeigen beide Ampeln
+(„end-control clean" / „reader objects"). Der Bericht entsteht seit 14.09.
+**Sektion für Sektion** (sieben Aufrufe, Kurzfassung zuletzt) statt in einem
+Zug — `DOSSIER_WRITE=single` stellt den alten Pfad her.
 
 **Die Messkette (seit 2026-09-07, Default AN).** Ein Dossier trägt jetzt zwei
 codegenerierte Anhänge, die nicht das Modell schreibt, sondern der Code:

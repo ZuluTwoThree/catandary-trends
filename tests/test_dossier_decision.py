@@ -469,6 +469,7 @@ def test_measure_path_end_to_end(monkeypatch):
     monkeypatch.setattr(llamacpp_client, "chat", chat)
     monkeypatch.setenv("DOSSIER_DRAFTS", "1")      # ein Entwurf: der Test zaehlt Aufrufe
     monkeypatch.setenv("DOSSIER_REWRITES", "1")    # und genau EIN Neuwurf (der Test prueft dessen Pfad)
+    monkeypatch.setenv("DOSSIER_WRITE", "single")   # ein Schreibaufruf (der Test zaehlt sie)
     # R9-1/R9-2: drei Katalogeintraege mit FREMDEM, primaerem Original — der
     # Kalender braucht drei verschiedene Quellen, und die Rangregel gilt jetzt
     # fuer jede Aussage der Kernabschnitte.
@@ -2815,6 +2816,7 @@ def test_a_second_rewrite_that_makes_things_worse_is_discarded(monkeypatch):
     monkeypatch.setattr(llamacpp_client, "chat", chat)
     monkeypatch.setenv("DOSSIER_DRAFTS", "1")
     monkeypatch.setenv("DOSSIER_REWRITES", "2")
+    monkeypatch.setenv("DOSSIER_WRITE", "single")
     monkeypatch.setattr(cr, "search_research", lambda *a, **k: [])
     monkeypatch.setattr(cr, "search_patents", lambda *a, **k: [])
     monkeypatch.setattr(cr, "brave_search", lambda q, n=6: [

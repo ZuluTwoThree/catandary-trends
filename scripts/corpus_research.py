@@ -387,19 +387,26 @@ order, with exactly these top-level headings and no others:
 ## Regulatory and IP status
   Write this from the REGULATORY/IP SWEEP RECORD supplied below, which was
   collected deterministically for exactly this section. Cover, in this order:
-  patent expiry and supplementary protection (SPC) in Europe; marketing
-  authorisations and pending decisions (EMA, FDA, national agencies); court
-  decisions and injunctions; and which product claims are legally permitted —
-  which authorised claims a product could carry today, and which wording is
-  not permitted. Treat Europe as its own market and say explicitly where it
-  differs from the rest of the world. Where the sweep found nothing usable on
-  one of these points, say so in one sentence instead of leaving it out.
+  the patent position (expiries, litigation, licensing — and supplementary
+  protection certificates ONLY where the field has them: SPCs exist for
+  medicinal and plant-protection products, for nothing else); the field's own
+  regulatory instruments and pending decisions, as the sweep names them (EMA/
+  FDA for medicines, EFSA novel-food opinions and FDA GRAS notices for food,
+  product-safety, CE, trade and export rules for hardware and materials —
+  never a pharma instrument for a non-pharma field); court decisions and
+  injunctions; and which product claims are legally permitted today, and
+  which wording is not. Treat Europe as its own market and say explicitly
+  where it differs from the rest of the world. Where the sweep found nothing
+  usable on one of these points, say so in ONE sentence — never pad a point
+  with an instrument that does not apply to this field, and never list what
+  the sweep failed to find as if it were analysis.
   Never infer a legal status that the evidence does not state.
 
 ## What happens next
   A table of DATED, CITED events that are still ahead: regulatory decisions,
-  read-outs of running trials, patent and SPC expiries, reimbursement
-  decisions, quarterly results. Exactly these four columns, in this order:
+  read-outs of running trials, patent expiries (SPC only where the field
+  has them), reimbursement decisions, plant commissionings, contract starts,
+  quarterly results. Exactly these four columns, in this order:
 
   | Date | Event | Source | Why it matters |
 
@@ -613,11 +620,32 @@ beides trägt. Die Abschnitte 1-7 bleiben zusammen UNTER 2800 Wörtern; die für
 dich erzeugten Anhänge zählen nicht mit."""
 
 
-def report_system(measure: bool, lang: str = "en") -> str:
-    """Der System-Prompt des Berichts. `measure=False` liefert exakt den alten."""
+_LANDSCAPE_OUTLINE_EN = """LANDSCAPE MODE. The question asks for a map of a FIELD, not for one
+technology. In "What is moving", directly after the movers table and before
+the prose, add a subsection "### Landscape" with a table of exactly these
+four columns:
+
+  | Sub-field | Maturity | What happened (dated) | Source |
+
+One row per sub-field of the LANDSCAPE MAP supplied to you — every one of
+them, in the map's order. Maturity is one of: research / pilot / commercial.
+"What happened" is one dated fact from the evidence with its citation; a
+sub-field for which the evidence holds no dated fact keeps its row and says
+"no dated evidence in this run" in that column. A sub-field missing from the
+table is a finding, and so is a sub-field that appears nowhere else in the
+text. The rest of the dossier then reads the pattern ACROSS the sub-fields:
+which move fastest by dated evidence, which are promise without delivery,
+where they compete for the same application."""
+
+
+def report_system(measure: bool, lang: str = "en", landscape: bool = False) -> str:
+    """Der System-Prompt des Berichts. `measure=False` liefert exakt den alten;
+    `landscape=True` haengt die Pflichttabelle des Landschafts-Modus an."""
     if not measure:
         return REPORT_SYSTEM
     outline = _OUTLINE_DE if lang == "de" else _OUTLINE_EN
+    if landscape:
+        outline = outline + "\n\n" + _LANDSCAPE_OUTLINE_EN
     return outline + "\n\n" + REPORT_SYSTEM_IDS
 
 
@@ -3792,7 +3820,7 @@ def canonicalize_citations(report: str, sources: list[dict],
 
 def draft_score(report: str, citable_sources: list[dict], lang: str,
                 measured_keys, sector_fields, year_floor, calendar_terms,
-                calendar_min: int | None = None) -> dict:
+                calendar_min: int | None = None, landscape_names: list[str] | None = None) -> dict:
     """Deterministische Guete eines Entwurfs fuer Best-of-N: Faktenquote je 100
     Woerter (das Mass, an dem der Neuwurf gemessen wird) minus Struktur- und
     Zitatbefunde. Keine Modellbewertung."""
@@ -3800,13 +3828,69 @@ def draft_score(report: str, citable_sources: list[dict], lang: str,
                                              rank_of=source_rank)
     findings = dossier_structure.structure_findings(
         report, lang, measured=measured_keys, sectors=sector_fields,
-        year_floor=year_floor, density=density, topic_terms=calendar_terms, calendar_min=calendar_min)
+        year_floor=year_floor, density=density, topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names)
     cites = dossier_structure.verify_cited_figures(report, citable_sources)
     n_cite = (len(cites.get("unverified") or []) + len(cites.get("off_topic") or [])
               + len(cites.get("distorted") or []) + len(cites.get("misattributed") or []))
     per100 = float(density.get("per100") or 0.0)
     return {"score": per100 * 100 - 25 * len(findings) - 3 * n_cite,
             "density": per100, "structural": len(findings), "citation": n_cite}
+
+
+SECTION_ORDER = ("moving", "regip", "next", "unsupported", "options", "open", "decision")
+
+
+def take_section(text: str, heading: str) -> str:
+    """Aus einer Modellantwort genau die Sektion `## heading` herausschneiden:
+    ab der Ueberschrift bis zur naechsten Top-Level-Ueberschrift. Fehlt die
+    Ueberschrift, wird der Text (ohne Vorspann bis zur ersten Ueberschrift)
+    unter sie gestellt."""
+    t = re.sub(r"<think>.*?</think>", "", text or "", flags=re.DOTALL).strip()
+    lines = t.split("\n")
+    start = next((i for i, ln in enumerate(lines)
+                  if re.match(r"^\s*#{1,2}\s*" + re.escape(heading) + r"\s*$", ln, re.IGNORECASE)), None)
+    if start is None:
+        first_h = next((i for i, ln in enumerate(lines) if ln.startswith("#")), 0)
+        body = lines[first_h:]
+        if body and re.match(r"^\s*#{1,2}\s+\S", body[0]):
+            body = body[1:]
+        return f"## {heading}\n\n" + "\n".join(body).strip() + "\n"
+    end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\s*##\s+\S", lines[i])), len(lines))
+    out = lines[start:end]
+    out[0] = f"## {heading}"
+    return "\n".join(out).strip() + "\n"
+
+
+def write_sections(sys_prompt: str, report_prompt: str, lang: str, sampling: dict) -> str:
+    """Der Bericht Sektion fuer Sektion, in SECTION_ORDER (Kurzfassung zuletzt)."""
+    spec = {k: h for k, h, _p in dossier_structure.SECTIONS[dossier_structure._lang(lang)]}
+    written: dict[str, str] = {}
+    for key in SECTION_ORDER:
+        heading = spec[key]
+        prior = "\n\n".join(written[k] for k in SECTION_ORDER if k in written)
+        directive = (
+            f"\n\nSECTION DIRECTIVE: write ONLY the section \"## {heading}\" now. Start with exactly "
+            f"that heading, follow everything the outline says about this section, and write no "
+            f"other section and no preamble. The sections already written are supplied for "
+            f"coherence — do not repeat their sentences, refer to them where needed."
+            + (" This is the decision summary: three statements that carry the decision, each "
+               "resting on the sections below and on a (primary) citation." if key == "decision" else ""))
+        prompt = (report_prompt
+                  + (f"\n\n<untrusted_sections_written>\n{shield(prior)}\n</untrusted_sections_written>\n"
+                     if prior else "")
+                  + f"\n\nWrite the section \"## {heading}\" now"
+                  + (" — auf DEUTSCH." if lang == "de" else "."))
+        try:
+            raw = llamacpp_client.chat(model=MODEL, system=sys_prompt + directive, prompt=prompt,
+                                       enable_thinking=False, **sampling)
+        except Exception as exc:                                    # noqa: BLE001
+            logger.warning("section %r failed: %r — left empty", heading, exc)
+            raw = f"## {heading}\n\n"
+        sect = take_section(raw, heading)
+        written[key] = sect
+        logger.info("  section %-12s %5d words", key, dossier_structure.count_words(sect))
+    order = [k for k, _h, _p in dossier_structure.SECTIONS[dossier_structure._lang(lang)]]
+    return "\n\n".join(written[k] for k in order if k in written).strip() + "\n"
 
 
 class ReaderFinding(BaseModel):
@@ -5176,7 +5260,8 @@ def run(question: str, max_steps: int, max_sources: int,
         [t for t in anchor_terms(topic or question, cap=6) if t]
         + [t for r in landscape for t in anchor_terms(r["name"], cap=3) if t]
         + [str(e).lower() for e in entities][:12]))
-    sys_prompt = report_system(measure, lang)
+    sys_prompt = report_system(measure, lang, landscape=bool(landscape))
+    landscape_names = [r["name"] for r in landscape]
     if dr:
         # Arbeitsanweisung statt Regelwerk: die Notizen sind gemacht, jetzt
         # wird ausgewaehlt und geordnet. Genau das trennt einen Analysten mit
@@ -5319,16 +5404,25 @@ def run(question: str, max_steps: int, max_sources: int,
         return rep
 
     base_sampling = dict(write_sampling or {"temperature": 0.4})
-    report = _draft(base_sampling)
+    write_mode = (os.getenv("DOSSIER_WRITE", "sections") or "sections").strip().lower()
+    if write_mode == "sections" and measure:
+        # Abschnittsweises Schreiben (2026-09-14, #100): je Sektion ein Aufruf mit
+        # dem ganzen Material und den schon geschriebenen Sektionen; die
+        # Kurzfassung zuletzt, weil sie zusammenfasst. Ein 27B, das 2.500
+        # Woerter in einem Zug schreibt, schwankte zwischen 1,0 und 2,4 Fakten
+        # je 100 Woerter — je Sektion faellt der Druck, alles auf einmal zu halten.
+        report = write_sections(sys_prompt, report_prompt, lang, base_sampling)
+    else:
+        report = _draft(base_sampling)
     # Best-of-N (2026-09-12): derselbe Auftrag ergab an einem Tag Faktenquoten
     # von 2,37 (v4) und 1,23 (v5) im Erstentwurf — die Varianz des einen
     # Schreibaufrufs ist groesser als jeder Prompt-Effekt. Ein zweiter Entwurf
     # mit waermerem Sampling, deterministisch bewertet (Faktenquote, Struktur-
     # befunde, Zitatfehler), kostet ~3 min und nimmt den schlechten Wurf heraus.
-    n_drafts = max(1, int(os.getenv("DOSSIER_DRAFTS", "2") or 2)) if measure else 1
+    n_drafts = max(1, int(os.getenv("DOSSIER_DRAFTS", "2") or 2)) if (measure and write_mode != "sections") else 1
     if n_drafts > 1:
         best = draft_score(report, citable_sources, lang, measured_keys,
-                           sector_fields, year_floor, calendar_terms, calendar_min)
+                           sector_fields, year_floor, calendar_terms, calendar_min, landscape_names)
         logger.info("draft 1: score %.1f (density %.2f, %d structural, %d citation)",
                     best["score"], best["density"], best["structural"], best["citation"])
         for i in range(2, n_drafts + 1):
@@ -5338,7 +5432,7 @@ def run(question: str, max_steps: int, max_sources: int,
                 alt_sampling["seed"] = int(alt_sampling["seed"]) + i
             alt = _draft(alt_sampling)
             sc = draft_score(alt, citable_sources, lang, measured_keys,
-                             sector_fields, year_floor, calendar_terms, calendar_min)
+                             sector_fields, year_floor, calendar_terms, calendar_min, landscape_names)
             logger.info("draft %d: score %.1f (density %.2f, %d structural, %d citation)",
                         i, sc["score"], sc["density"], sc["structural"], sc["citation"])
             if sc["score"] > best["score"]:
@@ -5400,7 +5494,7 @@ def run(question: str, max_steps: int, max_sources: int,
         findings = dossier_structure.structure_findings(
             report, lang, measured=measured_keys, sectors=sector_fields,
             year_floor=year_floor, density=density,
-            topic_terms=calendar_terms, calendar_min=calendar_min)
+            topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names)
         cites = dossier_structure.verify_cited_figures(report, citable_sources)
         # Befund 2 (falsche Seite) und Befund 3 (Zahl ohne Beleg) der Jurys vom
         # 2026-09-07 laufen durch denselben Kanal wie die Zahlenpruefung:
@@ -5607,49 +5701,55 @@ def run(question: str, max_steps: int, max_sources: int,
             structure["findings_after"] = dossier_structure.structure_findings(
                 report, lang, measured=measured_keys, sectors=sector_fields,
                 year_floor=year_floor, density=density_after,
-                topic_terms=calendar_terms, calendar_min=calendar_min)
+                topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names)
 
         _settle()
-        # Zweiter Neuwurf NUR fuer Strukturbefunde, die nach dem ersten noch stehen
-        # (LFP v4, 2026-09-12: Effort-Platzhalter in zwei Optionen, Kalender 3/5 —
-        # alles Dinge, die der erste Neuwurf ueber 33 Zitatbefunden liegen liess).
-        # Gedeckelt durch DOSSIER_REWRITES (Default 2 = ein Nachzug); ein Neuwurf,
-        # der die Befunde nicht senkt, beendet die Schleife.
+        # Zweiter Neuwurf (2026-09-13/14): fuer Strukturbefunde UND fuer die
+        # schweren Einwaende des Lesers auf der Fassung nach dem ersten Neuwurf
+        # (Abnahme #36/#37: die Leser-Befunde ueberlebten den ersten Neuwurf und
+        # standen nur noch im Pruefnachweis). Gedeckelt durch DOSSIER_REWRITES;
+        # ein Nachzug, der weder Struktur- noch Leser-Befunde senkt, wird verworfen.
         max_rewrites = max(1, int(os.getenv("DOSSIER_REWRITES", "2") or 2))
-        while (structure["findings_after"]
+        reader_now = reader_review(report, question, topic or question, landscape, lang) \
+            if reader_enabled() else None
+
+        def _majors(rv) -> int:
+            if not rv:
+                return 0
+            return sum(1 for f in (rv.get("findings") or []) if f.get("severity") == "major") \
+                + (1 if rv.get("answers_question") is False else 0)
+
+        while ((structure["findings_after"] or _majors(reader_now))
                and int(structure.get("rewrites") or 0) < max_rewrites):
-            before_n = len(structure["findings_after"])
-            # Sicherung: ein Nachzug, der die Lage nicht verbessert, wird
-            # VERWORFEN, nicht ausgeliefert. Iron-Air v1 (13.09.): der zweite
-            # Neuwurf jagte der Faktenquote hinterher, zog Foerder- und
-            # Vanadium-Fakten aus Behoerdenseiten heran (Rang 0, datiert — aber
-            # themenfremd), liess von 23 zitierten Quellen 4 uebrig und ging von
-            # 1 auf 4 Strukturbefunde; ausgeliefert wurde trotzdem diese Fassung.
-            prev_report, prev_structure = report, copy.deepcopy(structure)
-            if not _rewrite(list(structure["findings_after"]), [],
-                            "structural findings remain — one more targeted rewrite"):
+            before_n, before_m = len(structure["findings_after"]), _majors(reader_now)
+            prev_report, prev_structure, prev_reader = report, copy.deepcopy(structure), reader_now
+            extra = reader_lines(reader_now, lang)
+            if not _rewrite(list(structure["findings_after"]) + extra, [],
+                            f"structural/reader findings remain ({before_n} structural, "
+                            f"{before_m} reader) — one more targeted rewrite"):
                 break
             _settle()
-            if len(structure["findings_after"]) >= before_n:
-                logger.warning("second rewrite did not reduce the structural findings "
-                               "(%d → %d) — discarding it, keeping the previous version",
-                               before_n, len(structure["findings_after"]))
+            reader_now = reader_review(report, question, topic or question, landscape, lang) \
+                if reader_enabled() else None
+            after_n, after_m = len(structure["findings_after"]), _majors(reader_now)
+            improved = after_n < before_n or (after_n == before_n and after_m < before_m)
+            if not improved:
+                logger.warning("second rewrite did not improve (structural %d → %d, reader %d → %d) "
+                               "— discarding it, keeping the previous version",
+                               before_n, after_n, before_m, after_m)
                 n_rw = int(structure.get("rewrites") or 0)
                 report = prev_report
                 structure.clear()
                 structure.update(prev_structure)
                 structure["rewrites"] = n_rw
                 structure["second_rewrite_discarded"] = True
+                reader_now = prev_reader
                 break
-        # Leser, zweiter Blick auf die Endfassung: nur Hinweise fuer den Owner
-        # (Pruefnachweis, Desk), kein Neuwurf mehr, keine Sperre.
-        if reader_enabled():
-            reader2 = reader_review(report, question, topic or question, landscape, lang)
-            structure["reader_after"] = reader2
-            if reader2 is not None:
-                logger.info("reader (final): answers_question=%s, %d finding(s) — %s",
-                            reader2.get("answers_question"), len(reader2.get("findings") or []),
-                            (reader2.get("overall") or "")[:120])
+        structure["reader_after"] = reader_now
+        if reader_now is not None:
+            logger.info("reader (final): answers_question=%s, %d finding(s) — %s",
+                        reader_now.get("answers_question"), len(reader_now.get("findings") or []),
+                        (reader_now.get("overall") or "")[:120])
         structure["words_after"] = dossier_structure.count_words(
             dossier_structure.body_text(report))
         structure.update(dossier_structure.option_measure_stats(

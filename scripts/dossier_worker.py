@@ -306,8 +306,10 @@ def main() -> int:
             extra = ""
             if o["status"] == "review":
                 c = o.get("check") or {}
+                rd = c.get("reader_ok")
                 extra = (f"  v{o.get('dossier_version')} "
-                         f"{'✓ Endkontrolle sauber' if c.get('ok') else '⚠ ' + str(len(c.get('findings') or [])) + ' Befund(e)'}")
+                         f"{'✓ Endkontrolle sauber' if c.get('ok') else '⚠ ' + str(len(c.get('findings') or [])) + ' Befund(e)'}"
+                         + ("" if rd is None else (" · Leser ✓" if rd else " · Leser ✗")))
             elif o["status"] == "failed":
                 extra = f"  {o.get('error') or ''}"
             print(f"#{o['id']:>4} [{o['status']:>9}] {o['slug']} — "

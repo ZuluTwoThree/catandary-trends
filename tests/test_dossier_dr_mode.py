@@ -1534,3 +1534,40 @@ def test_field_anchor_forms_keep_the_narrow_field_word():
     assert cr.field_anchor_forms("quantum computing hardware") == ["quantum"]
     assert cr.field_anchor_forms("batteries") == ["batteries"]      # Postgres stemmt selbst
     assert cr.field_anchor_forms("energy storage")                      # nichts Enges → alle Formen
+
+
+# --------------------------------------------------------------------------
+# Abschnittsweises Schreiben + Landkarten-Pflicht (2026-09-14)
+# --------------------------------------------------------------------------
+
+def test_take_section_cuts_exactly_one_section():
+    raw = ("Sure, here is the section.\n\n## What is moving\n\n| Actor | x |\n|---|---|\n| A | b |\n\n"
+           "Prose [[T1]].\n\n## Regulatory and IP status\n\nleak\n")
+    out = cr.take_section(raw, "What is moving")
+    assert out.startswith("## What is moving\n") and "Prose [[T1]]." in out and "leak" not in out
+    # Ueberschrift fehlt → Text wird unter die verlangte Ueberschrift gestellt
+    out2 = cr.take_section("Some prose without heading [[T1]].", "Open questions and limits")
+    assert out2.startswith("## Open questions and limits\n") and "[[T1]]" in out2
+
+
+def test_write_sections_assembles_in_outline_order(monkeypatch):
+    seen = []
+
+    def chat(model, prompt, system=None, **kw):
+        h = system.split('write ONLY the section "## ')[1].split('"')[0]
+        seen.append(h)
+        return f"## {h}\n\nBody of {h} [[T1]].\n"
+
+    monkeypatch.setattr(cr.llamacpp_client, "chat", chat)
+    out = cr.write_sections("SYS", "PROMPT", "en", {"temperature": 0.3})
+    assert seen[0] == "What is moving" and seen[-1] == "Decision summary"
+    heads = [l for l in out.splitlines() if l.startswith("## ")]
+    assert heads[0] == "## Decision summary" and heads[1] == "## What is moving" and len(heads) == 7
+
+
+def test_landscape_findings_name_uncovered_subfields():
+    body = "## What is moving\n\nSodium-ion cells ship [[T1]]. Solid-state pilots start [[T2]].\n"
+    f = ds.landscape_findings(body, ["sodium-ion battery", "solid-state battery", "aqueous zinc battery"])
+    assert len(f) == 1 and "1 of 3" in f[0] and "aqueous zinc battery" in f[0]
+    assert ds.landscape_findings(body, []) == []
+    assert not [x for x in ds.structure_findings(body, "en", landscape_items=["sodium-ion battery"]) if "Landscape" in x]

@@ -285,6 +285,16 @@ export default async function DossierPage({
             ) : (
               <span className="text-warn">{check.findings.length} finding(s)</span>
             )}
+            {check.reader_ok !== null && check.reader_ok !== undefined && (
+              <>
+                {" · reader "}
+                {check.reader_ok ? (
+                  <span className="text-accent">no major objection</span>
+                ) : (
+                  <span className="text-warn">objects</span>
+                )}
+              </>
+            )}
             <span className="text-muted">
               {" "}
               · {check.cited}/{check.sources} sources cited · {check.words} words

@@ -1643,12 +1643,52 @@ def summary_findings(summary: str, body: str, lang: str = "en") -> list[str]:
     return out
 
 
+_LANDSCAPE_GENERIC = frozenset("""
+battery batteries cell cells system systems technology technologies device devices
+material materials hardware computing architecture architectures platform platforms
+storage energy
+""".split())
+
+
+def landscape_findings(report_md: str, items: list[str] | None, lang: str = "en") -> list[str]:
+    """Landschafts-Modus (2026-09-14): jedes Teilfeld der Karte muss im
+    Fliesstext vorkommen — Quantum v1 nutzte 4 von 11, obwohl die Karte
+    gepinnt vorlag. Ein Teilfeld gilt als abgedeckt, wenn sein Name (oder alle
+    seine spezifischen Woerter) im Text steht."""
+    names = [str(x) for x in (items or []) if str(x).strip()]
+    if not names:
+        return []
+    body = body_text(report_md).lower()
+    missing = []
+    for n in names:
+        low = n.lower()
+        # Nur die spezifischen Woerter muessen vorkommen: "sodium-ion battery"
+        # ist abgedeckt, wenn "sodium-ion" im Text steht — nicht erst mit "battery".
+        words = [w for w in re.findall(r"[a-z0-9][a-z0-9+#./-]*", low)
+                 if len(w) >= 4 and w not in _LANDSCAPE_GENERIC]
+        if low in body or (words and all(w in body for w in words)):
+            continue
+        missing.append(n)
+    if not missing:
+        return []
+    L = _lang(lang)
+    return [(f"Landschaft: {len(missing)} von {len(names)} Teilfeldern der Karte kommen im Text nicht vor: "
+             f"{'; '.join(missing)}. Jedes Teilfeld braucht eine Zeile in der Tabelle '### Landscape' "
+             f"(Reife, datierter Fakt, Beleg) — ohne datierten Beleg eine Zeile, die genau das sagt.")
+            if L == "de" else
+            (f"Landscape: {len(missing)} of {len(names)} sub-fields from the map do not appear in the text: "
+             f"{'; '.join(missing)}. Each sub-field needs a row in the '### Landscape' table (maturity, "
+             f"dated fact, citation) — without dated evidence, a row that says so. ERGAENZEN aus dem "
+             f"Evidenzblock.")]
+
+
 def structure_findings(report_md: str, lang: str = "en",
                        measured: list[str] | None = None,
                        sectors: list[str] | None = None,
                        year_floor: int | None = None,
                        density: dict | None = None,
-                       topic_terms=(), calendar_min: int | None = None) -> list[str]:
+                       topic_terms=(), calendar_min: int | None = None,
+                       landscape_items: list[str] | None = None) -> list[str]:
     """Was am fertigen Bericht mechanisch nicht stimmt. Leere Liste = sauber.
 
     `measured` = die gemessenen Groessen (measured_needles): jede Option muss
@@ -1742,6 +1782,7 @@ def structure_findings(report_md: str, lang: str = "en",
                 f"adressieren.")
     findings += calendar_findings(report_md, L, year_floor, topic_terms, min_rows=calendar_min)
     findings += actor_findings(report_md, L, topic_terms)
+    findings += landscape_findings(report_md, landscape_items, L)
     # R14-2d: Bruchstuecke gehen in den Neuwurf, bevor die Streichung neue
     # erzeugt — nackte Etiketten, haengende Doppelpunkte, kleine Satzanfaenge.
     findings += fragment_findings(body, L)

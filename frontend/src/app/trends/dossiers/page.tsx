@@ -76,6 +76,8 @@ function CheckSummary({ order }: { order: DossierOrder }) {
         {" "}
         · {c.cited}/{c.sources} cited · {c.words} words
         {c.quant_ok === false && " · no quant block"}
+        {c.reader_ok === false && " · reader objects"}
+        {c.reader_ok === true && " · reader ok"}
       </span>
     </span>
   );

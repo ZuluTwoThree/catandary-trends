@@ -40,6 +40,8 @@ export interface DossierCheck {
   open_questions: number;
   words: number;
   quant_ok?: boolean;
+  /** The reader's verdict (same model, adversarial system prompt): null = not run. */
+  reader_ok?: boolean | null;
   seconds?: number;
 }
 
@@ -162,6 +164,7 @@ function parseCheck(raw: unknown): DossierCheck | null {
       open_questions: Number(o.open_questions ?? 0),
       words: Number(o.words ?? 0),
       quant_ok: o.quant_ok === undefined ? undefined : Boolean(o.quant_ok),
+      reader_ok: o.reader_ok === undefined || o.reader_ok === null ? null : Boolean(o.reader_ok),
       seconds: o.seconds === undefined ? undefined : Number(o.seconds),
     };
   } catch {

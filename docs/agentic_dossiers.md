@@ -1369,3 +1369,30 @@ nicht trifft (FDA-GRAS-Notices, EFSA-Register) — der Rechts-Sweep fragt
 pharma-geprägt (SPC, Patentablauf) und produziert dort Boilerplate. (4) Die
 Leser-Befunde des ersten Durchgangs überleben den Neuwurf teilweise; ein
 zweiter Neuwurf wird heute nur von Strukturbefunden ausgelöst.
+
+### Runde 18 (2026-09-14) — die vier Lehren und abschnittsweises Schreiben
+
+- **Abschnittsweises Schreiben** (`DOSSIER_WRITE=sections`, Default; `single`
+  = der alte Ein-Aufruf-Pfad mit Best-of-2): `write_sections` schreibt je
+  Pflichtsektion einen Aufruf mit dem ganzen Material und den schon
+  geschriebenen Sektionen als Kontext (`<untrusted_sections_written>`), die
+  Kurzfassung zuletzt; `take_section` schneidet genau die verlangte Sektion aus
+  der Antwort. Reihenfolge: moving → regip → next → unsupported → options →
+  open → decision; Ausgabe in Gliederungsreihenfolge. Kosten ~7 × (Prompt +
+  400–700 Token) statt 2 × 2.500 Wörter.
+- **Landkarte als Pflicht** (Landschafts-Modus): `_LANDSCAPE_OUTLINE_EN`
+  verlangt in „What is moving" eine Tabelle `### Landscape` (Teilfeld, Reife,
+  datierter Fakt, Beleg — eine Zeile je Kartenpunkt, notfalls „no dated
+  evidence in this run"); `landscape_findings` meldet Teilfelder, deren
+  spezifische Wörter im Text fehlen, als Strukturbefund (trägt ERGAENZEN).
+- **Leser löst den zweiten Neuwurf aus:** nach dem ersten Neuwurf liest der
+  Leser; schwere Einwände (oder „beantwortet die Frage nicht") gehen mit den
+  Strukturbefunden in den zweiten Neuwurf; danach liest er erneut. Verworfen
+  wird der Nachzug, wenn weder Strukturbefunde noch schwere Leser-Einwände
+  sinken; der letzte Leser-Stand steht im Prüfnachweis (`reader_after`).
+- **Regulatorik feldneutral:** die Gliederung nennt SPC nur noch für Arznei-
+  und Pflanzenschutzmittel, verlangt die Instrumente des Felds (EFSA/GRAS für
+  Food, CE/Export für Hardware) und verbietet Auflistungen dessen, was der Sweep
+  nicht fand, als „Analyse".
+- **Beide Ampeln:** Desk-Liste und Dossieransicht zeigen neben der
+  Endkontrolle den Leser (`reader_ok`), ebenso `dossier_worker --list`.
