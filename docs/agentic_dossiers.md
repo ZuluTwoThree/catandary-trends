@@ -1466,3 +1466,16 @@ Käufer irrelevant); 4.512 Wörter; die Zahlenprüfung stolperte über eine
 Ziffernfolge aus einer Quell-URL. Konsequenzen: Längenbudget im Prompt
 (1.200–1.800 Wörter, nichts „for completeness"), Deckel `ADVISOR_MAX_WORDS`
 2.400 als Prüfregel, Link-Ziele aus der Zahlenprüfung.
+
+**Notiz #4 (17:34, 522 s):** 3.091 Wörter (Budget im Prompt 1.200–1.800 — das
+Modell hält Längenvorgaben nur grob ein), vier Optionen + Null (die Hybrid-
+Option ist zurück, diesmal sauber als eigene Option ausgewiesen), Empfehlung
+weiter Option 1 mit Rückfall auf den kleineren EU-Anker. Leser: beantwortet die
+Frage ✓, aber vier schwere Einwände — einer davon ein **echter Fehler**
+(NextStar Windsor liegt in Kanada und wird als „europäischer Produzent"
+geführt), die anderen berechtigt, aber vom Dossier nicht lösbar (kein
+EU-Preisaufschlag im Beleg, das Datum 18.08.2027 nur aus zwei Rang-2-Quellen).
+**Stand nach vier Läufen:** die Kette funktioniert (Denken mit Budget, Prüfung,
+Leser, Freigabe), die Substanz mit Denken ist die eines brauchbaren Erstentwurfs
+— genau dafür ist der Mensch im Loop da. Offen: Längendisziplin des 27B, und
+ob Leser-Befunde einen Neuwurf auslösen sollen (kostet ~5 min je Runde).
