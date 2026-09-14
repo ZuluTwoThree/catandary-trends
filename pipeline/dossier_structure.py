@@ -38,8 +38,11 @@ from pipeline.grounding import (_concrete_tokens, _in_source, _source_words,
 # 2.200-2.800 ist das Fenster des Siegertexts (2.833) plus unsere zwei
 # Pflicht-Zusatzabschnitte (Recht/IP, Entscheidungsgeruest). Nur die OBERE
 # Grenze loest einen Neuwurf aus; zu kurz ist ein Befund, kein Neuwurf.
-BODY_WORDS_MIN = 2200
-BODY_WORDS_MAX = 2800
+BODY_WORDS_MIN = 1800
+BODY_WORDS_MAX = 2400
+# Optionen liegen seit 2026-09-14 beim Advisor (kundenspezifisch, mit Freigabe).
+OPTIONAL_SECTIONS = frozenset({"options"})
+WATCH_MIN_ITEMS = 3
 SUMMARY_WORDS_MAX = 200
 MIN_OPTIONS, MAX_OPTIONS = 2, 5
 
@@ -148,9 +151,13 @@ SECTIONS: dict[str, list[tuple[str, str, str]]] = {
          r"what happens next|what comes next|catalyst calendar|dated catalysts"),
         ("unsupported", "What the evidence does not support",
          r"evidence does not support|does not support"),
+        ("watch", "Decision points and watch items",
+         r"decision points|watch items|watch list"),
+        ("open", "Open questions and limits", r"open questions"),
+        # Optionen sind seit 2026-09-14 KEIN Teil des Dossiers mehr (der Advisor
+        # schreibt sie je Kunde); der Eintrag bleibt fuers Parsen aelterer Fassungen.
         ("options", "Options for a mid-sized European company",
          r"^options\b|options for a"),
-        ("open", "Open questions and limits", r"open questions"),
     ],
     "de": [
         ("decision", "Entscheidungs-Kurzfassung", r"entscheidungs"),
@@ -160,9 +167,11 @@ SECTIONS: dict[str, list[tuple[str, str, str]]] = {
          r"was als n(ä|ae)chstes|terminkalender|anstehende termine"),
         ("unsupported", "Was die Belege nicht hergeben",
          r"nicht hergeben|nicht belegt|nicht tragen"),
+        ("watch", "Entscheidungspunkte und Beobachtungsliste",
+         r"entscheidungspunkte|beobachtungsliste"),
+        ("open", "Offene Fragen und Grenzen", r"offene fragen"),
         ("options", "Optionen für ein mittelständisches europäisches Unternehmen",
          r"^optionen\b|optionen für"),
-        ("open", "Offene Fragen und Grenzen", r"offene fragen"),
     ],
 }
 
@@ -1370,6 +1379,27 @@ def fill_calendar(report_md: str, candidates: list[dict], lang: str = "en",
     return report_md[:start] + "\n".join(lines) + report_md[end:], len(added)
 
 
+def watch_findings(report_md: str, lang: str = "en", topic_terms=()) -> list[str]:
+    """'Decision points and watch items' (seit 2026-09-14 statt der Optionen):
+    mindestens WATCH_MIN_ITEMS Aufzaehlungspunkte, jeder mit Beleg und
+    Themenbezug — was ein Leser beobachten und woran er entscheiden wuerde,
+    ohne Empfehlung fuer einen Kunden, den das Dossier nicht kennt."""
+    L = _lang(lang)
+    sections = split_sections(body_text(report_md), L)
+    sect = sections.get("watch")
+    if sect is None:
+        return []                       # fehlender Abschnitt: eigener Befund
+    items = [ln.strip() for ln in sect.split("\n") if re.match(r"^\s*(?:[-*+]|\d{1,2}[.)])\s+\S", ln)]
+    good = [ln for ln in items if _has_citation(ln) and (not topic_terms or _row_on_topic(ln, topic_terms))]
+    if len(good) >= WATCH_MIN_ITEMS:
+        return []
+    heading = dict((k, h) for k, h, _p in SECTIONS[L])["watch"]
+    return [(f"'{heading}': nur {len(good)} von mindestens {WATCH_MIN_ITEMS} Punkten tragen einen Beleg "
+             f"und einen Themenbezug ({len(items)} Punkte insgesamt). Jeder Punkt: ein Ausloeser oder "
+             f"Termin aus den Belegen, was er entscheiden wuerde, Zitat im selben Punkt — keine "
+             f"Empfehlung, keine Foerderfrist als Ausloeser.")]
+
+
 def calendar_findings(report_md: str, lang: str = "en",
                       year_floor: int | None = None,
                       topic_terms=(), min_rows: int | None = None) -> list[str]:
@@ -1717,7 +1747,7 @@ def structure_findings(report_md: str, lang: str = "en",
             f"Pflichtabschnitt oder einen Beleg zu verlieren.")
     sections = split_sections(body, L)
     for key, heading, _pat in SECTIONS[L]:
-        if key not in sections:
+        if key not in sections and key not in OPTIONAL_SECTIONS:
             findings.append(f"Pflichtabschnitt fehlt: '## {heading}'.")
     summary = sections.get("decision", "")
     if summary and count_words(summary) > SUMMARY_WORDS_MAX:
@@ -1780,6 +1810,7 @@ def structure_findings(report_md: str, lang: str = "en",
                 f"Optionsabschnitt deckt '{name}' nicht ab — die Frage nennt "
                 f"dieses Feld ausdruecklich; mindestens eine Option muss es "
                 f"adressieren.")
+    findings += watch_findings(report_md, L, topic_terms)
     findings += calendar_findings(report_md, L, year_floor, topic_terms, min_rows=calendar_min)
     findings += actor_findings(report_md, L, topic_terms)
     findings += landscape_findings(report_md, landscape_items, L)
@@ -2019,14 +2050,14 @@ def _strip_clause(sentence: str, token: str) -> str | None:
 # nie stillschweigend nachsichtig.
 
 PRIMARY_RANK = 1
-CORE_SECTIONS = ("decision", "options", "next")
+CORE_SECTIONS = ("decision", "watch", "next", "options")
 # R9-1 (jury_13.md 2026-09-07): die Rangregel galt bis R8 nur fuer ZAHLEN.
 # Der komplette Patentkalender inklusive der Kernaussage „SPCs ... 2031-2032"
 # hing damit an `formblends.com`, einem Compounding-Vermarkter — „2031" ist
 # keine Praezisionszahl, also sah `weak_source_figures` den Satz nie. Ab jetzt
 # gilt die Regel fuer jede AUSSAGE in der Kurzfassung, unter „Recht und
 # Schutzrechte", im Terminkalender und in den Optionen.
-CLAIM_SECTIONS = ("decision", "regip", "next", "options")
+CLAIM_SECTIONS = ("decision", "regip", "next", "watch", "options")
 # R10-1: Abschnitte, in denen ein datierter Satz OHNE Beleg ein Befund ist —
 # die drei, die ueber die Welt berichten. Der Optionsabschnitt fehlt bewusst
 # (s. Begruendung in `weak_source_claims`).

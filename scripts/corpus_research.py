@@ -431,35 +431,16 @@ order, with exactly these top-level headings and no others:
   Where two sources contradict each other on a checkable fact, say so and name
   both readings rather than silently choosing one.
 
-## Options for a mid-sized European company
-  Two to four options. Each one starts with its own heading "### Option N —
-  <short name>" and then carries exactly these five labelled lines:
-  - Trigger: the condition or event that would start it, with its citation.
-    Where a MEASURED quantity from the list below genuinely carries the
-    argument, name it verbatim — with the meaning the appendix gives it, and
-    for no other claim. Where none does, argue from cited evidence instead:
-    better no figure at all than one that does not carry the point. An option
-    with neither a usable measured figure nor a citation is incomplete.
-  - Time horizon: by when it would have to happen
-  - Effort: a rough order of magnitude — money, time or capability, with a
-    citation. A range or a comparable case from the evidence is enough
-    ("a launch of this kind cost X in 2026 [[id]]"). Take it from the
-    EFFORT ANCHORS list below wherever one fits, and say what it anchors.
-    "No figure in the evidence", "unknown", "n/a" and any other placeholder
-    count as an UNFILLED field, not as an honest one — and so does a whole
-    sentence saying the effort cannot be sized from this evidence, which is
-    the same placeholder in longer form. Only when the EFFORT ANCHORS list is
-    empty may you drop the line entirely and say in the option's running
-    text, with a citation, why the effort cannot be sized.
-  - Risk: what it exposes, including the existing business
-  - Against it: the strongest argument against this option
-  Taken together, the options must cover EVERY field the question names — if
-  it asks about food, nutrition and health technology, an option set that only
-  addresses food labelling answers a third of the question. One option may
-  cover more than one field, but no named field may go unaddressed.
-  Close the section with one short paragraph on what this movement costs the
-  EXISTING business (volume at risk, cannibalisation), if the evidence says
-  anything about it at all.
+## Decision points and watch items
+  No recommendations: this dossier does not know its reader, and options are
+  written later for a named customer. Instead, three to six bullet points a
+  decision-maker in this field would watch — each one names a TRIGGER the
+  evidence dates or defines (a plant start, a regulatory decision, a published
+  spec, a price level, a court ruling), what that trigger would DECIDE (which
+  reading of the field it confirms or refutes), and its citation in the same
+  bullet. Funding-call deadlines are not triggers of the technology. Close
+  with one sentence on what the evidence says about the cost of this
+  movement to incumbents (volume at risk, cannibalisation), if anything.
 
 ## Open questions and limits
   What stayed open, characterised from the coverage ledger, plus the
@@ -467,8 +448,8 @@ order, with exactly these top-level headings and no others:
   period, volume at risk). Name them as open; do not estimate them.
 
 SOURCE RANK: every STATEMENT — not just every figure — in the Decision
-summary, in "Regulatory and IP status", in "What happens next" and in the
-Options must rest on a catalog entry marked (primary): an authority, a
+summary, in "Regulatory and IP status", in "What happens next" and in
+"Decision points and watch items" must rest on a catalog entry marked (primary): an authority, a
 register, a court, a company's own IR/SEC filing, a peer-reviewed journal or
 a law firm's professional publication. If the only evidence for a statement is
 weaker than that, either drop the statement or append "(secondary source only)"
@@ -494,7 +475,7 @@ it is about, and give its figure where the evidence has one. The
 floor is 2.0 per 100 words. Reaching it by writing more prose is impossible:
 prose adds words and no facts, so it lowers the ratio. Replace every sentence
 that carries no date, no named actor and no figure with one that does.
-Sections 1-7 together must stay UNDER 2800 words; the appendices generated for
+Sections 1-7 together must stay UNDER 2400 words; the appendices generated for
 you do not count. This is a decision paper for a board, not a briefing for a
 technical team — cut background before evidence."""
 
@@ -563,31 +544,16 @@ Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
   kostet den Leser mehr als jede Auslassung. Widersprechen sich zwei Quellen in einer prüfbaren Tatsache, steht
   das hier mit beiden Lesarten.
 
-## Optionen für ein mittelständisches europäisches Unternehmen
-  Zwei bis vier Optionen. Jede beginnt mit einer eigenen Überschrift
-  "### Option N — <Kurzname>" und trägt dann genau diese fünf Zeilen:
-  - Auslöser: Bedingung oder Ereignis, das sie startet
-  - Zeithorizont: bis wann sie stattfinden müsste
-  - Aufwand: grobe Größenordnung — Geld, Zeit oder Fähigkeiten, mit Beleg.
-    Eine Spanne oder ein vergleichbarer Fall aus dem Material genügt; nimm
-    sie aus der Liste AUFWANDS-ANKER weiter unten, wo eine passt, und sage,
-    wofür sie der Anker ist. "Keine Zahl im Material", "unbekannt", "n/a" und
-    jeder andere Platzhalter gelten als NICHT erfülltes Feld — ebenso ein
-    ganzer Satz, der sagt, der Aufwand lasse sich nicht beziffern; das ist
-    derselbe Platzhalter in lang. Nur wenn die Ankerliste leer ist, entfällt
-    die Zeile ganz und der Optionstext sagt belegt, warum sich der Aufwand
-    nicht beziffern lässt.
-  - Risiko: was sie aussetzt, einschließlich des Bestandsgeschäfts
-  - Dagegen spricht: das stärkste Gegenargument
-  Trägt eine GEMESSENE Größe aus der Liste unten die Begründung wirklich, nenne
-  sie wörtlich — in der Bedeutung, die der Messanhang ihr gibt, und für keine
-  andere Aussage. Trägt keine, begründe aus Belegen: besser keine Zahl als
-  eine, die nicht trägt. Eine Option ohne verwendbare Messgröße UND ohne
-  Beleg ist unvollständig. Zusammen müssen die Optionen JEDES Feld abdecken,
-  das die Frage nennt.
-  Zum Schluss ein kurzer Absatz dazu, was diese Bewegung das BESTANDSGESCHÄFT
-  kostet (gefährdetes Volumen, Kannibalisierung), soweit die Belege dazu
-  überhaupt etwas hergeben.
+## Entscheidungspunkte und Beobachtungsliste
+  Keine Empfehlungen: dieses Dossier kennt seinen Leser nicht; Optionen
+  entstehen später für einen benannten Kunden. Stattdessen drei bis sechs
+  Punkte, die ein Entscheider in diesem Feld beobachten würde — jeder nennt
+  einen AUSLÖSER, den die Belege datieren oder definieren (Werksstart,
+  Behördenentscheid, veröffentlichte Spezifikation, Preisniveau, Urteil), was
+  dieser Auslöser ENTSCHEIDEN würde, und sein Zitat im selben Punkt.
+  Förderfristen sind keine Auslöser der Technologie. Schluss: ein Satz dazu,
+  was die Belege über die Kosten dieser Bewegung für das Bestandsgeschäft
+  sagen, falls überhaupt.
 
 ## Offene Fragen und Grenzen
   Was offen blieb, charakterisiert aus dem Coverage-Ledger, plus die
@@ -616,7 +582,7 @@ Datum UND ein mit (primary) markiertes Zitat im selben Satz trägt. Die
 Untergrenze ist 2,0 je 100 Wörter. Sie lässt sich nicht durch mehr Prosa
 erreichen: Prosa bringt Wörter und keine Fakten und senkt die Quote. Ersetze
 jeden Satz ohne Datum, ohne benannten Akteur und ohne Zahl durch einen, der
-beides trägt. Die Abschnitte 1-7 bleiben zusammen UNTER 2800 Wörtern; die für
+beides trägt. Die Abschnitte 1-7 bleiben zusammen UNTER 2400 Wörtern; die für
 dich erzeugten Anhänge zählen nicht mit."""
 
 
@@ -3837,12 +3803,12 @@ def draft_score(report: str, citable_sources: list[dict], lang: str,
             "density": per100, "structural": len(findings), "citation": n_cite}
 
 
-SECTION_ORDER = ("moving", "regip", "next", "unsupported", "options", "open", "decision")
+SECTION_ORDER = ("moving", "regip", "next", "unsupported", "watch", "open", "decision")
 # Wortbudgets je Sektion (Summe ~2.450, Obergrenze des Dossiers 2.800). Ohne
 # Budget schrieb Flash-Next 700-1.050 Woerter JE Sektion (Quantum v2, 14.09.):
 # jeder Aufruf sieht nur seine Sektion und haelt sie fuer das ganze Dossier.
 SECTION_WORDS = {"moving": 700, "regip": 350, "next": 250, "unsupported": 250,
-                 "options": 550, "open": 200, "decision": 150}
+                 "watch": 250, "open": 200, "decision": 150}
 
 
 def take_section(text: str, heading: str) -> str:
@@ -3878,7 +3844,7 @@ def write_sections(sys_prompt: str, report_prompt: str, lang: str, sampling: dic
             f"\n\nSECTION DIRECTIVE: write ONLY the section \"## {heading}\" now. Start with exactly "
             f"that heading, follow everything the outline says about this section, and write no "
             f"other section and no preamble. LENGTH: about {budget} words for this section — the "
-            f"whole dossier must stay under 2800 words across its seven sections, so this section "
+            f"whole dossier must stay under 2400 words across its seven sections, so this section "
             f"is one part, not the paper; tables count. The sections already written are supplied "
             f"for coherence — do not repeat their sentences, refer to them where needed."
             + (" This is the decision summary: three statements that carry the decision, each "
@@ -3925,11 +3891,12 @@ Judge what a mechanical check cannot: does the dossier answer the question
 asked (not a neighbouring one)? Is every section ABOUT the stated topic, or
 does it drift to adjacent technologies, funding programmes or authorities?
 Does the decision summary summarise the decision, or repeat the body? Are the
-options real choices a mid-sized company could act on, each with a trigger, a
-horizon, an effort and a risk that follow from the evidence? If a landscape
-map is given, is every sub-field with substance covered, and is the weight
-right? Is the argument coherent from summary to options? Where is the text
-padded, repetitive or hedged into meaninglessness?
+decision points concrete — a dated or defined trigger and what it would
+decide — rather than generic advice, and free of recommendations for a
+customer the dossier does not know? If a landscape map is given, is every
+sub-field with substance covered, and is the weight right? Is the argument
+coherent from summary to decision points? Where is the text padded,
+repetitive or hedged into meaninglessness?
 
 Rules: at most 8 findings, most consequential first, each with the section, a
 verbatim passage (or empty if a section is missing altogether), the objection
@@ -5337,7 +5304,7 @@ def run(question: str, max_steps: int, max_sources: int,
            f"deleted:\n{blocked_brief}\n\n"
            if measure and blocked_brief else "")
         + (f"The question names these fields: {', '.join(sector_fields)}. The "
-           f"option set must address all of them.\n\n"
+           f"decision points and the body must address all of them.\n\n"
            if measure and sector_fields else "")
         + (f"FACT LEDGER — {len(fact_ledger)} dated findings, each taken from "
            f"ONE primary source and mechanically checked against that source "

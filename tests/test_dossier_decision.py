@@ -62,7 +62,7 @@ _CALENDAR = ["| Date | Event | Source | Why it matters |",
 
 
 def _report(summary_words: int = 40, options: int = 2,
-            drop_field: str | None = None, filler: int = 2200,
+            drop_field: str | None = None, filler: int = 1600,
             cite: bool = True, calendar: bool = True,
             chain: bool = True, dense: bool = False,
             summary_extra: str = "") -> str:
@@ -102,6 +102,10 @@ def _report(summary_words: int = 40, options: int = 2,
              "## What happens next", ""]
     body += (_CALENDAR if calendar else ["Nothing dated."]) + [""]
     body += ["## What the evidence does not support", "", "Nothing.", "",
+             "## Decision points and watch items", "",
+             "- 2027: GLP-1 oral read-out — decides the oral thesis [[T1]].",
+             "- 2027: GLP-1 EU SPC expiry — decides generic timing [[T2]].",
+             "- Q1 2027: GLP-1 pricing decision — decides margin [[T3]].", "",
              "## Options for a mid-sized European company", ""]
     for i in range(1, options + 1):
         body += [f"### Option {i} — Something", ""]
@@ -158,15 +162,21 @@ class TestOutline:
 
     def test_prompt_carries_exactly_the_checked_headings(self):
         sysprompt = cr.report_system(True, "en")
-        for _key, heading, _pat in ds.SECTIONS["en"]:
+        for key, heading, _pat in ds.SECTIONS["en"]:
+            if key in ds.OPTIONAL_SECTIONS:
+                assert f"## {heading}" not in sysprompt      # Optionen liegen beim Advisor
+                continue
             assert f"## {heading}" in sysprompt
+        from pipeline import advisory
         for label in ds.OPTION_LABELS["en"]:
-            assert label in sysprompt
+            assert label in advisory.ADVISOR_SYSTEM
         assert str(ds.BODY_WORDS_MAX) in sysprompt
 
     def test_german_outline_matches_the_german_check(self):
         sysprompt = cr.report_system(True, "de")
-        for _key, heading, _pat in ds.SECTIONS["de"]:
+        for key, heading, _pat in ds.SECTIONS["de"]:
+            if key in ds.OPTIONAL_SECTIONS:
+                continue
             assert f"## {heading}" in sysprompt
 
     def test_old_path_is_reproducible(self):
@@ -1423,12 +1433,13 @@ class TestMeasuredFiguresMustCarry:
         assert "not reportable" in blocked and "calibrated only to ~2019" in blocked
 
     def test_the_outline_states_the_rule_instead_of_the_mandate(self):
+        """Seit 2026-09-14 steht die Regel im Advisor-Prompt (Optionen je Kunde)."""
+        from pipeline import advisory
         for lang in ("en", "de"):
             sysprompt = cr.report_system(True, lang)
             assert ("EVERY option must" not in sysprompt
                     and "Jede Option muss mindestens eine GEMESSENE" not in sysprompt)
-            assert ("no figure at all than one that does not carry" in sysprompt
-                    or "besser keine Zahl als" in sysprompt)
+        assert "no figure at all than one that does not carry" in advisory.ADVISOR_SYSTEM
 
     def test_the_check_reports_options_without_measure_but_not_as_a_defect(self):
         res = {"report": "x", "sources": [], "evidence": [], "cited": [],
@@ -2618,12 +2629,12 @@ class TestR9NoEmptyMandatoryFields:
         assert ds.calendar_findings(_report()) == []
 
     def test_the_outline_states_the_two_rules(self):
+        from pipeline import advisory
         for lang in ("en", "de"):
             sysprompt = cr.report_system(True, lang)
             assert ("THREE different sources" in sysprompt
                     or "DREI verschiedene Quellen" in sysprompt)
-            assert ("count as an UNFILLED field" in sysprompt
-                    or "NICHT erfülltes Feld" in sysprompt)
+        assert "count as an UNFILLED field" in advisory.ADVISOR_SYSTEM
 
 
 class TestRoundSevenAndEightGainsSurviveRoundNine:
