@@ -1413,3 +1413,20 @@ verworfen (Struktur 3 → 3, Leser 5 → 6). Leser: vier Teilfelder ohne datiert
 Fakt (Evidenzlage), ein Widerspruch Kurzfassung/Fließtext (photonisch), zirkuläre
 Aufwandsangaben in zwei Optionen. Urteil: mehr Substanz, keine Disziplin — ein
 fairer Vergleich braucht v3 mit Budgets auf beiden Modellen.
+
+### Runde 19 (2026-09-14) — Optionen raus, der Advisor rein
+
+Owner-Entscheid: „Options for a mid-sized European company" war in jeder
+Abnahme die schwächste Sektion, weil das Dossier seinen Leser nicht kennt. Das
+Dossier endet jetzt mit **Decision points and watch items** (3–6 belegte
+Auslöser mit dem, was sie entscheiden würden; Förderfristen sind keine
+Auslöser; Wortband 1.800–2.400). Die Beratung ist ein eigenes Artefakt:
+`advisory_notes` je Dossier-Version, Kundenprofil und Auftragsumfang als
+Daten, ein Modell in der Beraterrolle **mit Denken** (`ADVISOR_SYSTEM`: Situation
+→ Optionenraum mit Null-Option → je Option Trigger/Horizont/Aufwand aus
+Vergleichsfall/Wer zahlt/Risiko/Abbruchkriterium/Gegenargument →
+Empfehlung mit Konfidenz → benutzte Belege), geschlossener Katalog des
+Dossiers, deterministische Prüfung (gestrichene Marker, Platzhalter, Zahlen
+gegen Dossier + Profil), dann der Leser, dann **die Freigabe durch einen
+Menschen** (`approved_at`). Die Optionsregeln des Dossiers (Effort nie aus der
+Fördergrenze, Platzhalter = unerfüllt) leben im Advisor-Prompt weiter.

@@ -674,6 +674,42 @@ Doku: `docs/agentic_dossiers.md`, Skizze `docs/corpus_research_sketch.md`.
 
 ---
 
+
+### 6.5 Advisor — Beratungsnotiz je Kunde
+
+**Wozu.** Das Dossier kennt seinen Leser nicht; deshalb trägt es seit dem
+14.09. keine Optionen mehr, sondern „Decision points and watch items". Die
+Beratung entsteht später, wenn Kunde und Auftrag bekannt sind — als eigene,
+versionierte Notiz zu **einer** Dossier-Version.
+
+**Bedienung.** Auf der Dossierseite unter „Advisory notes for this dossier" →
+„New advisory note": Kundenprofil (Branche, Größe, Position in der
+Wertschöpfung, Fähigkeiten, Geografie, Horizont, Risikoappetit, Notizen) und
+der **Auftragsumfang** (Pflicht: die anstehende Entscheidung, was drin und
+draußen ist, Budget/Zeit). „Create note" legt die Notiz an und startet den
+Advisor (Haken „start right away"; ~10–20 min: 27B mit eingeschaltetem Denken,
+Symlink auf `start-qwen3.8-27b-thinking.sh`, Ruhezustand danach). Die Ansicht
+`/trends/dossiers/<slug>/advisory/<id>` zeigt Profil, Auftrag, Prüfung
+(„check clean/objects" · „reader ok/objects") und die Notiz: Situation für
+diesen Kunden, Optionen inkl. Null-Option — je Option Trigger, Horizont,
+Aufwand **aus einem Vergleichsfall des Dossiers** (Fördergrenzen sind
+verboten), Wer zahlt, Risiko, Abbruchkriterium, Gegenargument —, Empfehlung
+mit Konfidenz und „was meine Meinung ändern würde", benutzte Belege.
+
+**Regeln.** Geschlossener Katalog: jede externe Zahl/Aussage muss aus dem
+Dossier stammen und trägt dessen Zitat; Kundenfakten kommen aus dem Profil
+(„(client profile)"). Deterministisch geprüft: gestrichene Marker,
+Platzhalter in Pflichtfeldern, Zahlen, die weder im Dossier noch im Profil
+stehen; danach liest der Leser. **Nichts geht raus ohne deine Freigabe**
+(„Approve for delivery" → `approved_at/approved_by`; „Withdraw approval"
+nimmt sie zurück) — dieselbe Regel wie beim Newsletter.
+
+**CLI.** `python -m scripts.advisory --new --dossier <slug>[@v] --profile-file
+p.json --scope "…" --run`, `--note <id>`, `--list [--dossier <slug>]`,
+`--approve <id> [--approval-note "…"]`, `--withdraw <id>`. Log
+`data/advisory/<stamp>.log`, Lock `data/advisory.lock`; läuft ein
+Dossier-Worker, verweigert der Desk den Start („busy").
+
 ## 7. Newsletter
 
 ### 7.1 Website-Edition (automatisch, Di 09:00)

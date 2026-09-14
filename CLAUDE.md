@@ -1472,6 +1472,14 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   registriertes Modell um (`gpu_handover.llama_server_start(..., swap_symlink=True)`); registriert:
   Qwen3.8-Flash-Next UD-Q2_K_XL / UD-IQ4_XS (125B/6B aktiv, ~20–22 GB VRAM mit `--n-cpu-moe`, ~200 t/s
   Prompt, Client-Timeout 1800 s). `result.writer_model` und `model` vermerken es.
+- **Advisor statt Optionen (Owner 2026-09-14):** das Dossier trägt „Decision points and watch items"
+  (3–6 belegte Auslöser, keine Empfehlung; `watch_findings`), Optionen liegen beim **Advisor**:
+  `scripts/advisory.py` + `pipeline/advisory.py` + `pipeline/advisory_store.py` (Tabelle
+  `advisory_notes`, additiv, Live-DB 14.09.) — 27B mit Denken (`start-qwen3.8-27b-thinking.sh`),
+  Beraterrolle, geschlossener Dossier-Katalog, Null-Option, Aufwand nur aus Vergleichsfällen,
+  Prüfung (Marker, Platzhalter, fremde Zahlen) + Leser, **Freigabe nur durch einen Menschen**
+  (`approved_at`, wie Newsletter). Desk: Formular auf der Dossierseite,
+  `/trends/dossiers/<slug>/advisory/<id>`, Lock `data/advisory.lock`.
 - **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
   zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
   themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,

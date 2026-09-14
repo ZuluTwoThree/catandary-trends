@@ -13,6 +13,14 @@ import {
   createRerunOrder,
   requeueDossierOrder,
 } from "@/lib/dossiers";
+import {
+  approveAdvisoryNote,
+  createAdvisoryNote,
+  PROFILE_FIELDS,
+  requeueAdvisoryNote,
+  withdrawAdvisoryNote,
+} from "@/lib/advisory";
+import { startAdvisory } from "@/lib/advisoryWorker";
 
 /**
  * Owner actions for the dossier desk (#95). Every action re-checks
@@ -111,4 +119,61 @@ export async function rerunSeriesAction(formData: FormData): Promise<void> {
   if (!id) redirect("/trends/dossiers?worker=noseries");
   const r = startWorker(workerArgs(id) ?? []);
   redirect(`/trends/dossiers?worker=${noticeFor(r)}&order=${id}`);
+}
+
+// --- Advisory notes (the Advisor, 2026-09-14) --------------------------------
+// Options for ONE client from ONE dossier. Created here, run detached
+// (scripts.advisory --note N, 27B with thinking), released ONLY by a person.
+
+export async function createAdvisoryAction(formData: FormData): Promise<void> {
+  await guard();
+  const slug = String(formData.get("slug") ?? "");
+  const version = Number(formData.get("version"));
+  if (!slug || !Number.isInteger(version) || version <= 0) throw new Error("bad dossier");
+  const profile: Record<string, string> = {};
+  for (const [k] of PROFILE_FIELDS) profile[k] = String(formData.get(k) ?? "");
+  const scope = String(formData.get("scope") ?? "");
+  const id = await createAdvisoryNote({ dossierSlug: slug, dossierVersion: version, profile, scope });
+  if (!id) throw new Error("note not created (scope missing?)");
+  let notice = "created";
+  if (formData.get("run") === "on") notice = noticeFor(startAdvisory(id));
+  revalidatePath(`/trends/dossiers/${slug}`);
+  redirect(`/trends/dossiers/${slug}/advisory/${id}?worker=${notice}`);
+}
+
+export async function runAdvisoryAction(formData: FormData): Promise<void> {
+  await guard();
+  const id = orderId(formData);
+  const slug = String(formData.get("slug") ?? "");
+  const r = startAdvisory(id);
+  revalidatePath(`/trends/dossiers/${slug}/advisory/${id}`);
+  redirect(`/trends/dossiers/${slug}/advisory/${id}?worker=${noticeFor(r)}`);
+}
+
+export async function requeueAdvisoryAction(formData: FormData): Promise<void> {
+  await guard();
+  const id = orderId(formData);
+  const slug = String(formData.get("slug") ?? "");
+  await requeueAdvisoryNote(id);
+  const r = startAdvisory(id);
+  revalidatePath(`/trends/dossiers/${slug}/advisory/${id}`);
+  redirect(`/trends/dossiers/${slug}/advisory/${id}?worker=${noticeFor(r)}`);
+}
+
+export async function approveAdvisoryAction(formData: FormData): Promise<void> {
+  await guard();
+  const id = orderId(formData);
+  const slug = String(formData.get("slug") ?? "");
+  await approveAdvisoryNote(id, "owner", String(formData.get("note") ?? ""));
+  revalidatePath(`/trends/dossiers/${slug}/advisory/${id}`);
+  redirect(`/trends/dossiers/${slug}/advisory/${id}`);
+}
+
+export async function withdrawAdvisoryAction(formData: FormData): Promise<void> {
+  await guard();
+  const id = orderId(formData);
+  const slug = String(formData.get("slug") ?? "");
+  await withdrawAdvisoryNote(id);
+  revalidatePath(`/trends/dossiers/${slug}/advisory/${id}`);
+  redirect(`/trends/dossiers/${slug}/advisory/${id}`);
 }

@@ -10,7 +10,8 @@ import {
   type DossierProvenance,
   type DossierLedgerRow,
 } from "@/lib/dossiers";
-import { approveAction, rerunSeriesAction } from "../actions";
+import { approveAction, createAdvisoryAction, rerunSeriesAction, runAdvisoryAction } from "../actions";
+import { listAdvisoryNotes, PROFILE_FIELDS } from "@/lib/advisory";
 
 export const dynamic = "force-dynamic";
 
@@ -210,6 +211,7 @@ export default async function DossierPage({
   const version = Number.isInteger(requested) && requested > 0 ? requested : undefined;
 
   const doc = await getDossier(slug, version);
+  const advisoryNotes = await listAdvisoryNotes(slug);
   if (!doc) notFound();
   const [versions, order] = await Promise.all([
     listVersions(slug),
@@ -324,6 +326,97 @@ export default async function DossierPage({
           )}
         </aside>
       )}
+
+      {/* The Advisor (2026-09-14): options are written per client, from this
+          dossier version, by a model in the consultant role with thinking on —
+          and released only by a person. */}
+      <aside className="mt-6 border border-border p-4">
+        <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+          Advisory notes for this dossier
+        </p>
+        {advisoryNotes.length > 0 ? (
+          <ul className="mt-2 space-y-1 font-mono text-[11px] leading-[1.7]">
+            {advisoryNotes.map((n) => (
+              <li key={n.id} className="flex flex-wrap items-center gap-x-3">
+                <Link href={`/trends/dossiers/${slug}/advisory/${n.id}`} className="text-paper hover:text-accent">
+                  #{n.id} · v{n.dossierVersion} · {n.scope.slice(0, 70)}
+                </Link>
+                <span className={n.status === "approved" ? "text-accent" : n.status === "failed" ? "text-warn" : "text-muted"}>
+                  {n.status}
+                </span>
+                {n.check && (
+                  <span className="text-muted">
+                    {n.check.ok ? "check clean" : "check objects"}
+                    {n.check.reader_ok === true && " · reader ok"}
+                    {n.check.reader_ok === false && " · reader objects"}
+                  </span>
+                )}
+                {(n.status === "queued" || n.status === "failed") && (
+                  <form action={runAdvisoryAction}>
+                    <input type="hidden" name="id" value={n.id} />
+                    <input type="hidden" name="slug" value={slug} />
+                    <button className="text-accent hover:underline">run</button>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 font-sans text-[13px] text-muted">
+            None yet. Describe the client and the decision on the table; the Advisor writes options from
+            this dossier version only, and nothing is delivered before you approve it.
+          </p>
+        )}
+        <details className="mt-4">
+          <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.16em] text-accent">
+            New advisory note (v{doc.version})
+          </summary>
+          <form action={createAdvisoryAction} className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <input type="hidden" name="slug" value={slug} />
+            <input type="hidden" name="version" value={doc.version} />
+            {PROFILE_FIELDS.map(([k, label]) => (
+              <label key={k} className={k === "notes" || k === "capabilities" ? "block md:col-span-2" : "block"}>
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">{label}</span>
+                {k === "notes" || k === "capabilities" ? (
+                  <textarea
+                    name={k}
+                    rows={2}
+                    maxLength={1000}
+                    className="mt-1 w-full border border-border-strong bg-transparent px-3 py-2 text-[13px] text-paper focus:border-accent focus:outline-none"
+                  />
+                ) : (
+                  <input
+                    name={k}
+                    maxLength={300}
+                    className="mt-1 w-full border border-border-strong bg-transparent px-3 py-2 text-[13px] text-paper focus:border-accent focus:outline-none"
+                  />
+                )}
+              </label>
+            ))}
+            <label className="block md:col-span-2">
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                Engagement scope — the decision on the table, what is in and out, budget and time (required)
+              </span>
+              <textarea
+                name="scope"
+                rows={3}
+                required
+                maxLength={4000}
+                className="mt-1 w-full border border-border-strong bg-transparent px-3 py-2 text-[14px] text-paper focus:border-accent focus:outline-none"
+              />
+            </label>
+            <label className="flex items-center gap-2 font-mono text-[11px] text-muted">
+              <input type="checkbox" name="run" defaultChecked={!workerBusy} className="accent-current" />
+              start the Advisor right away (27B, thinking on, ~10–20 min)
+            </label>
+            <div className="flex items-end justify-end">
+              <button className="border border-accent px-4 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-accent hover:bg-accent hover:text-ink">
+                Create note
+              </button>
+            </div>
+          </form>
+        </details>
+      </aside>
 
       <article className="mt-8">
         <MarkdownBody source={doc.reportMd} />
