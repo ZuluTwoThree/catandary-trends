@@ -3838,6 +3838,11 @@ def draft_score(report: str, citable_sources: list[dict], lang: str,
 
 
 SECTION_ORDER = ("moving", "regip", "next", "unsupported", "options", "open", "decision")
+# Wortbudgets je Sektion (Summe ~2.450, Obergrenze des Dossiers 2.800). Ohne
+# Budget schrieb Flash-Next 700-1.050 Woerter JE Sektion (Quantum v2, 14.09.):
+# jeder Aufruf sieht nur seine Sektion und haelt sie fuer das ganze Dossier.
+SECTION_WORDS = {"moving": 700, "regip": 350, "next": 250, "unsupported": 250,
+                 "options": 550, "open": 200, "decision": 150}
 
 
 def take_section(text: str, heading: str) -> str:
@@ -3868,11 +3873,14 @@ def write_sections(sys_prompt: str, report_prompt: str, lang: str, sampling: dic
     for key in SECTION_ORDER:
         heading = spec[key]
         prior = "\n\n".join(written[k] for k in SECTION_ORDER if k in written)
+        budget = SECTION_WORDS.get(key, 300)
         directive = (
             f"\n\nSECTION DIRECTIVE: write ONLY the section \"## {heading}\" now. Start with exactly "
             f"that heading, follow everything the outline says about this section, and write no "
-            f"other section and no preamble. The sections already written are supplied for "
-            f"coherence — do not repeat their sentences, refer to them where needed."
+            f"other section and no preamble. LENGTH: about {budget} words for this section — the "
+            f"whole dossier must stay under 2800 words across its seven sections, so this section "
+            f"is one part, not the paper; tables count. The sections already written are supplied "
+            f"for coherence — do not repeat their sentences, refer to them where needed."
             + (" This is the decision summary: three statements that carry the decision, each "
                "resting on the sections below and on a (primary) citation." if key == "decision" else ""))
         prompt = (report_prompt
