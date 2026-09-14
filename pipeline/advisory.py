@@ -103,9 +103,10 @@ def unfilled_fields(note_md: str) -> list[str]:
     for m in re.finditer(r"^\s*-\s*\*{0,2}(" + "|".join(OPTION_LABELS) + r")\*{0,2}\s*:\s*(.*)$",
                          note_md or "", re.MULTILINE):
         label, val = m.group(1), m.group(2).strip().lower()
-        if (not val or val in ("n/a", "unknown", "none", "-", "—")
-                or "cannot be sized" in val or "no figure in the evidence" in val
-                or len(val.split()) < 3):
+        bare = re.sub(r"[\[\(].*?[\]\)]", "", val).strip(" .;:")   # ohne Zitat-Links
+        if (not bare or bare in ("n/a", "unknown", "none", "-", "—", "tbd", "not applicable")
+                or "cannot be sized" in bare or "no figure in the evidence" in bare
+                or "not available" in bare):
             out.append(label)
     return out
 
