@@ -1400,3 +1400,16 @@ zweiter Neuwurf wird heute nur von Strukturbefunden ausgelöst.
   vor dem Schreiben auf ein registriertes Modell um; erster Test:
   Qwen3.8-Flash-Next UD-Q2_K_XL (125B/6B aktiv, 51B n-Gramm-Tabelle lazy von
   der SSD, ~20–22 GB VRAM) auf `quantum-computing-hardware` v2 gegen v1 (27B).
+
+**Ergebnis Flash-Next-Test (14.09., Order #38, Quantum-Hardware v2, sektionsweise,
+noch ohne Wortbudgets):** Modellwechsel in 17 s, 21,5 GB VRAM, 5,5 min je Sektion,
+Lauf 95 min (v1 mit 27B: 49 min). Landkarte vollständig (12/12 Teilfelder in
+`### Landscape`, vier davon ehrlich „no dated evidence"), Kurzfassung mit drei
+datierten Primäraussagen — inhaltlich klar über v1. Aber 4.793 Wörter
+(Obergrenze 2.800; jede Sektion hielt sich für das ganze Papier → Wortbudgets
+je Sektion nachgezogen, `d2946a4`), dadurch Faktenquote 1,67 trotz **80**
+datierter Primärangaben (v1: 61); Kurzfassung 235 Wörter; zweiter Neuwurf
+verworfen (Struktur 3 → 3, Leser 5 → 6). Leser: vier Teilfelder ohne datierten
+Fakt (Evidenzlage), ein Widerspruch Kurzfassung/Fließtext (photonisch), zirkuläre
+Aufwandsangaben in zwei Optionen. Urteil: mehr Substanz, keine Disziplin — ein
+fairer Vergleich braucht v3 mit Budgets auf beiden Modellen.
