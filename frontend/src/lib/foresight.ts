@@ -121,9 +121,14 @@ export async function getLatestClusterRun(
         status: string | null;
         date: string | null;
       }>(
-        "SELECT id, title_en, source_url, source_name, slug, status, " +
-          "to_char(sort_date, 'YYYY-MM-DD') AS date " +
-          "FROM trends WHERE id = ANY($1::int[])",
+        // The engine ranks representatives by the RAW ENTRY's published_date,
+        // so the card must show that same date — trends.sort_date is
+        // LEAST(published, created_at) and would print a different day for the
+        // same row, making a date-sorted list look unsorted.
+        "SELECT t.id, t.title_en, t.source_url, t.source_name, t.slug, t.status, " +
+          "to_char(COALESCE(r.published_date, t.sort_date), 'YYYY-MM-DD') AS date " +
+          "FROM trends t JOIN raw_entries r ON r.id = t.raw_entry_id " +
+          "WHERE t.id = ANY($1::int[])",
         [repIds]
       );
       for (const r of reps) {
