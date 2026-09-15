@@ -83,6 +83,13 @@ Nacht ein zweiter Lauf mit einem kompletten Stage-8-Pass, ~28 min). Embedding
 09:00 auf 30.000, damit der Samstag (Wochen-Ingester) in einem Lauf durchgeht.
 Erste Nacht mit beidem: 12.09.
 
+## 2026-09-15 · change · Seiten ohne Kundennutzen bereinigt (Owner-Liste)
+Cluster/Evolution bleiben als Owner-Instrument nach der Radar-Regel: Rechenstand
+sichtbar + „Recompute"-Knopf (CPU-only, detached, `data/foresight_snapshot.lock`);
+Cockpit-Kacheln und Feed-Streifen tragen das Snapshot-Datum. `/trends/quality-preview`
+(A/B-Vorschau vom Juli) gelöscht, `ab_test_prompt.py --preview` entfernt. Technology-
+Kopf ohne Testvermerk/Gating-Rest. Ventures/Research/Pulse/Patents unverändert.
+
 ## 2026-09-15 · decision · Druckbares Foresight-Dossier aus dem Produkt genommen
 `/trends/foresight/dossier` + CSV-Export (`/api/foresight/export`) entfernt: las nur den
 Cluster-Snapshot vom 03.08. (kein Cron, kein Knopf), Cluster-Labels aus Top-Termen,

@@ -107,8 +107,11 @@ const TIER_CONFIG = {
 // ---------------------------------------------------------------------------
 export default function ForesightCockpit({
   topClusters = [],
+  clustersAsOf = null,
 }: {
   topClusters?: ForesightCluster[];
+  /** Date of the persisted cluster snapshot the tiles come from (radar rule: always show the stamp). */
+  clustersAsOf?: string | null;
 } = {}) {
   const [query, setQuery] = useState("");
   const [vertical, setVertical] = useState<string | null>(null);
@@ -439,7 +442,7 @@ export default function ForesightCockpit({
             <div className="space-y-4">
               <div className="flex items-baseline justify-between">
                 <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-                  —— Moving right now
+                  —— Moving right now{clustersAsOf ? ` · snapshot ${clustersAsOf}` : ""}
                 </div>
                 <Link
                   href="/trends/foresight/clusters"

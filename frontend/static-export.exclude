@@ -12,7 +12,6 @@
 # --- 1. BLOCKED_PREFIXES (publicMode.ts) ---
 src/app/trends/foresight/
 src/app/trends/review/
-src/app/trends/quality-preview/
 src/app/trends/dossiers/
 src/app/trends/newsletter/review/
 src/app/trends/ops/

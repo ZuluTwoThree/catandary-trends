@@ -7,6 +7,7 @@ import {
 } from "@/lib/foresight";
 import { VERTICALS } from "@/lib/types";
 import ThreadSparkline from "@/components/foresight/ThreadSparkline";
+import SnapshotRecompute from "@/components/foresight/SnapshotRecompute";
 import ForesightCta from "@/components/ForesightCta";
 
 export const dynamic = "force-dynamic";
@@ -68,6 +69,7 @@ export default async function EvolutionPage({
   const requested =
     typeof raw.vertical === "string" ? raw.vertical.toUpperCase() : null;
   const scope = requested ? `vertical:${requested}` : "global";
+  const notice = typeof raw.worker === "string" ? raw.worker : undefined;
 
   const scopes = new Set(await getLineageScopes());
   let data =
@@ -124,6 +126,13 @@ export default async function EvolutionPage({
           trend before it is obvious.{span ? ` Covering ${span}.` : ""}
         </p>
       </div>
+
+      <SnapshotRecompute
+        mode="lineage"
+        asOf={span ? `windows ${span}` : null}
+        back={requested ? `/trends/foresight/evolution?vertical=${requested}` : "/trends/foresight/evolution"}
+        notice={notice}
+      />
 
       <div className="mb-8 flex flex-wrap gap-2">
         <Link

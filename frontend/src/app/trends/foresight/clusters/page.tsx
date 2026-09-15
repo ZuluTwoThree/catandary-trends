@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getClusterScopes, getLatestClusterRun } from "@/lib/foresight";
 import { VERTICALS } from "@/lib/types";
 import ClusterCard from "@/components/foresight/ClusterCard";
+import SnapshotRecompute from "@/components/foresight/SnapshotRecompute";
 import ForesightCta from "@/components/ForesightCta";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ export default async function ClustersExplorerPage({
   const raw = await searchParams;
   const requested = typeof raw.vertical === "string" ? raw.vertical.toUpperCase() : null;
   const scope = requested ? `vertical:${requested}` : "global";
+  const notice = typeof raw.worker === "string" ? raw.worker : undefined;
 
   const available = new Set(await getClusterScopes());
   const data =
@@ -70,6 +72,14 @@ export default async function ClustersExplorerPage({
           )}
         </p>
       </div>
+
+      {/* Radar rule (Owner 2026-09-15): a document with a date and a button, no cron. */}
+      <SnapshotRecompute
+        mode="clusters"
+        asOf={asOf}
+        back={requested ? `/trends/foresight/clusters?vertical=${requested}` : "/trends/foresight/clusters"}
+        notice={notice}
+      />
 
       {/* Single visible control: vertical tabs (only scopes that exist) */}
       <div className="flex items-center gap-1 flex-wrap mb-8">

@@ -63,7 +63,6 @@ export const config = {
   matcher: [
     "/trends/foresight/:path*",
     "/trends/review/:path*",
-    "/trends/quality-preview/:path*",
     "/trends/dossiers/:path*",
     "/trends/newsletter/review/:path*",
     "/trends/ops/:path*",

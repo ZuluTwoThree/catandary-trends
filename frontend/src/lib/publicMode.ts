@@ -33,7 +33,6 @@ export function isPublicMode(): boolean {
 export const BLOCKED_PREFIXES = [
   "/trends/foresight",
   "/trends/review",
-  "/trends/quality-preview",
   "/trends/dossiers",
   "/trends/newsletter/review",
   "/trends/ops",

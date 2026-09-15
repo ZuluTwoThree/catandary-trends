@@ -24,13 +24,16 @@ export default async function MovingNow() {
     .sort((a, b) => b.sov_delta_pp - a.sov_delta_pp)
     .slice(0, 5);
   if (rising.length < 3) return null;
+  const asOf = new Date(data.run.created_at + "Z").toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+  });
 
   return (
     <section className="mb-10">
       <div className="mb-3 flex items-baseline justify-between">
         <h2 className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
           <span className="text-accent">What&apos;s moving</span>
-          <span className="text-muted/70"> / rising clusters</span>
+          <span className="text-muted/70"> / rising clusters · snapshot {asOf}</span>
         </h2>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

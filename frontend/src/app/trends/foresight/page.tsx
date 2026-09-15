@@ -25,6 +25,9 @@ export default async function ForesightRoute() {
     .slice()
     .sort((a, b) => b.sov_delta_pp - a.sov_delta_pp || b.size - a.size)
     .slice(0, 4);
+  const clustersAsOf = run?.run.created_at
+    ? new Date(run.run.created_at + "Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : null;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -63,7 +66,7 @@ export default async function ForesightRoute() {
           </div>
         </Link>
       )}
-      <ForesightCockpit topClusters={topClusters} />
+      <ForesightCockpit topClusters={topClusters} clustersAsOf={clustersAsOf} />
     </div>
   );
 }

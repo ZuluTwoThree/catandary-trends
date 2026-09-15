@@ -309,16 +309,22 @@ gerechnet (`scripts/weekly_patent_analytics.sh`).
 sortiert nach steigendem Anteil, mit Momentum-Badge, Quellenbestätigung und
 Evidenzlinks; Datum des Rechenstands im Kopf. Die Seite liest **persistierte
 Snapshots** (`foresight_runs`/`foresight_clusters`). Neu rechnen — bewusst nur
-auf Knopfdruck im Terminal, kein Cron:
-`python -m pipeline.foresight_snapshot --all-verticals [--dim1024]`.
+auf Knopfdruck, kein Cron (Radar-Regel; Owner 2026-09-15: die Cluster-Schicht
+bleibt als Owner-Instrument mit sichtbarem Rechenstand): Knopf **Recompute
+snapshot** im Kopf der Seite (startet `python -m pipeline.foresight_snapshot
+--all-verticals` detached, CPU-only, Log `data/foresight_snapshot/<stamp>-clusters.log`,
+Lock `data/foresight_snapshot.lock`) oder dasselbe im Terminal `[--dim1024]`.
+Derselbe Snapshot speist die Kacheln „Moving right now" im Cockpit und den
+Streifen „What's moving" über dem Feed — beide zeigen sein Datum.
 Validierung: `scripts/foresight_validation.py` (Known-Trend-Recovery 23/24).
 
 ### 5.4 Evolution (`/trends/foresight/evolution?vertical=<V>`)
 
 Cluster-Abstammung über Zeitfenster: Fäden mit *New* / *Fading*, rising /
 steady / cooling und „shifting in meaning" bei starker Drift. Liest die
-persistierte Lineage; rechnen mit
-`python -m pipeline.foresight_snapshot --lineage [--since … --until … --step … --span …]`.
+persistierte Lineage; rechnen mit dem Knopf **Recompute lineage** im Kopf
+(`python -m pipeline.foresight_snapshot --lineage`, detached, CPU-only) oder im
+Terminal mit Fensterparametern `[--since … --until … --step … --span …]`.
 
 ### 5.5 Research Explorer (`/trends/foresight/research`)
 

@@ -44,7 +44,6 @@ describe("isBlockedInPublicMode", () => {
     "/trends/foresight/ventures",
     "/trends/foresight/ventures/company/5",
     "/trends/review",
-    "/trends/quality-preview",
     "/trends/dossiers",
     "/trends/dossiers/solid-state-batteries",
     "/api/foresight/analyze",
@@ -92,7 +91,7 @@ describe("isBlockedInPublicMode", () => {
     // Guards against a naive startsWith() on the raw prefix string.
     expect(isBlockedInPublicMode("/trends/foresights")).toBe(false);
     expect(isBlockedInPublicMode("/trends/reviewer")).toBe(false);
-    expect(isBlockedInPublicMode("/trends/quality-previews")).toBe(false);
+    expect(isBlockedInPublicMode("/trends/dossiersx")).toBe(false);
     expect(isBlockedInPublicMode("/api/foresighter")).toBe(false);
   });
 });

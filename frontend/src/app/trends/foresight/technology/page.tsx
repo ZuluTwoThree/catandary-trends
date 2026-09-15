@@ -12,14 +12,13 @@ export const metadata = {
 };
 
 /**
- * Technology Explorer (frontend revamp test, issues #3/#23/#28).
+ * Technology Explorer (issues #3/#23/#28; query-quality gate #67).
  *
  * Low-threshold UX: loads as a finished editorial view — curated technology
  * axes sorted by research lead time, each card a plain-language statement
- * backed by the four-tier evidence. No filters, no configuration.
- *
- * Subscription gating is display-only for this test (visual concept for
- * free/starter/pro/super pro+; real auth/payment is issue #17).
+ * backed by the four-tier evidence. No filters, no configuration. Owner
+ * instrument: 404 under PUBLIC_MODE, never in the static export; there is no
+ * subscription tier and no gate (#93, 2026-09-03).
  */
 
 async function corpusStats() {

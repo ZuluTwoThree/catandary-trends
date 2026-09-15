@@ -6,11 +6,10 @@ variants — A = the current production CONTENT_EN_SYSTEM, B = a candidate with
 signal-type-specific framing and forced concreteness — and has an independent
 Claude judge score them pairwise on a fixed rubric (source fidelity, specificity,
 originality, cliché-freedom). Non-destructive: it never writes to `trends`; it
-emits a JSON + Markdown report to data/ and (optionally) a preview payload the
-dev-only /trends/quality-preview page renders in real article styling.
+emits a JSON + Markdown report to data/. (The dev-only /trends/quality-preview
+page that rendered a preview payload was removed on 2026-09-15; --preview is gone.)
 
     python scripts/ab_test_prompt.py --n 30            # 30 stratified trends
-    python scripts/ab_test_prompt.py --n 12 --preview  # + write preview JSON
     python scripts/ab_test_prompt.py --ids 52719,675892
 
 Runs content-gen on the same GPU path as the pipeline (llama.cpp 30B via the
@@ -54,7 +53,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 logger = logging.getLogger(__name__)
 
 DATA = Path(__file__).parent.parent / "data"
-PREVIEW = Path(__file__).parent.parent / "frontend" / "public" / "quality_preview.json"
 
 
 # ---- sampling ---------------------------------------------------------------
@@ -175,7 +173,7 @@ Score both articles and pick the better trend brief."""
 
 # ---- main -------------------------------------------------------------------
 
-def run(rows: list[dict], make_preview: bool) -> dict:
+def run(rows: list[dict]) -> dict:
     results = []
     gpu_ctx = (gpu_handover.content_gen_on_llamacpp(STAGE5_MODEL)
                if STAGE5_BACKEND == "llamacpp" else nullcontext())
@@ -235,14 +233,6 @@ def run(rows: list[dict], make_preview: bool) -> dict:
     (DATA / f"content_ab_{ts}.json").write_text(json.dumps({"report": report, "results": results}, indent=2))
     (DATA / f"content_ab_{ts}.md").write_text(render_md(report, results))
     logger.info("wrote data/content_ab_%s.{json,md}", ts)
-    if make_preview:
-        PREVIEW.parent.mkdir(parents=True, exist_ok=True)
-        # `generated` carries the report object (the dev preview page reads
-        # report.wins / report.mean_*); items are the judged A/B pairs.
-        PREVIEW.write_text(json.dumps(
-            {"generated": report, "ts": ts, "items": [r for r in results if r.get("scores")][:12]},
-            indent=2))
-        logger.info("wrote %s (%d items)", PREVIEW, min(12, len(results)))
     print("\n" + render_md(report, results[:3]))
     return report
 
@@ -301,7 +291,6 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Content-quality A/B harness (#11)")
     ap.add_argument("--n", type=int, default=30)
     ap.add_argument("--ids", help="comma-separated trend ids (overrides --n)")
-    ap.add_argument("--preview", action="store_true", help="also write frontend/public/quality_preview.json")
     args = ap.parse_args()
     if STAGE5_BACKEND != "llamacpp":
         logger.warning("STAGE5_BACKEND=%s — this harness expects llamacpp for GPU content-gen", STAGE5_BACKEND)
@@ -311,7 +300,7 @@ def main() -> int:
     if not rows:
         return 1
     t0 = time.time()
-    run(rows, args.preview)
+    run(rows)
     logger.info("done in %.0fs", time.time() - t0)
     return 0
 
