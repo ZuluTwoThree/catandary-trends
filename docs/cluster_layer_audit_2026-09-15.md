@@ -110,3 +110,33 @@ bei angehobenem `hnsw.ef_search`.
 - **k bleibt eine Schätzung** auf einer 4.000er-Stichprobe.
 - **Alte Läufe** vor dem 15.09. haben die neuen Spalten nicht; die Seite liest
   sie als „kein Panel" und zeigt die Zusatzzahlen nicht.
+
+## Stabilitätsprobe (nach dem Umbau)
+
+FASHION dreimal gerechnet, k=9 fest, um zu sehen, ob die Richtungen von der
+Zufallsinitialisierung oder vom Fensterschnitt abhängen:
+
+| Cluster | 24 Mon., Seed 42 | 24 Mon., Seed 7 | 18 Mon., Seed 42 |
+|---|---|---|---|
+| Streetwear · Collaboration | +4,2 pp | +5,6 pp | +8,3 pp |
+| Beauty · Beauty Industry | +4,9 pp | +4,8 pp | +2,6 pp |
+| Electric Vehicles | −1,7 pp | −1,8 pp | −0,7 pp |
+| Sustainable Design · Materials | −5,6 pp | −6,6 pp | −9,4 pp |
+
+Die Extreme behalten ihre Richtung unter beiden Störungen. In der Mitte nicht:
+„Brand Strategy · Luxury Fashion" steht einmal bei +0,2 pp und einmal bei
+−3,1 pp, weil die Clustergrenze anders fällt und der Nachbarcluster
+„Luxury Brands" mal eigenständig ist und mal aufgeht. Bewegungen unterhalb von
+etwa 1,5 pp sind damit innerhalb der Eigenvarianz des Verfahrens.
+
+Daraus die zusätzliche Regel `MOMENTUM_MIN_RELATIVE = 0,10`: ein Cluster braucht
+neben dem Prozentpunkt auch ein Zehntel seines eigenen Anteils, bevor er ein
+Abzeichen bekommt. Auf den Läufen vom 15.09. ändert das keine einzige
+Einstufung — die Prozentpunkt-Schwelle greift bei den heutigen Clustergrößen
+zuerst — es begrenzt den bekannten Fehlerfall, dass ein 30-Prozent-Cluster
+wegen 1,1 pp Rauschen als „Rising" erscheint.
+
+**Ergebnis global (Lauf 123, 567.911 Signale, k=28, Panel 122 Quellen / 44 %):**
+6 steigend, 17 stabil, 5 fallend. 17 der 28 Cluster erreichen 50 % Mega-Reinheit
+und zeigen die Zuordnung, 5 werden zu über 40 % von einer einzigen Quelle
+getragen und sagen das jetzt.

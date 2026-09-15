@@ -364,3 +364,25 @@ def test_volume_spike_of_a_panel_source_does_not_create_momentum():
     assert abs(by_tag["a"]["sov_delta_pp"]) < 1.0
     # the raw volume change stays visible as its own number
     assert by_tag["a"]["vol_delta_pct"] > 400   # 40 items early window, 220 late
+
+
+def test_a_large_cluster_needs_a_relative_move_not_just_a_percentage_point():
+    """Seed-to-seed variance moves mid-sized clusters by 1-3 pp on its own."""
+    # Cluster A holds ~30 % and gains 1.2 pp = 4 % of itself → not a direction.
+    rows = []
+    for m in [f"2025-{x:02d}" for x in range(1, 13)]:
+        early = m <= "2025-04"
+        a = 30 if early else 31
+        rows += _panel_rows([m] * a, ["FeedOne"] * a, tag="a")
+        rows += _panel_rows([m] * (70 if early else 69), ["FeedOne"] * 70, tag="b")[: 70 if early else 69]
+    for i, r in enumerate(rows):
+        r["id"] = 40_000 + i
+    X = np.array([[1.0, 0.0] if r["tags"] == ["a"] else [0.0, 1.0] for r in rows],
+                 dtype=np.float32)
+    labels = np.array([0 if r["tags"] == ["a"] else 1 for r in rows])
+    centroids = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
+    res = foresight.analyze(rows, X, labels, centroids, now=datetime(2026, 6, 1))
+    a = next(c for c in res["clusters"] if c["top_tags"][0] == "a")
+    assert a["sov_delta_pp"] == 1.0 or a["momentum"] == "stable"
+    # a small cluster making the same absolute move IS a direction
+    assert foresight.MOMENTUM_MIN_RELATIVE == 0.10

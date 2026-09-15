@@ -43,6 +43,15 @@ GENERIC_TAGS = {
 MOMENTUM_RISING_PP = 1.0
 MOMENTUM_DECLINING_PP = -1.0
 
+# …plus a relative floor. Re-running FASHION with a different KMeans seed moved
+# mid-sized clusters by 1–3 pp purely because the cluster boundaries landed
+# elsewhere (stability check 2026-09-15: the extremes kept their direction under
+# seed AND window changes, the middle did not). A large cluster must therefore
+# move by a tenth of its own share, not just by a percentage point, before it
+# gets a badge. On the 2026-09-15 runs this changes no classification — the pp
+# gate binds first at today's cluster sizes — it bounds a known failure mode.
+MOMENTUM_MIN_RELATIVE = 0.10
+
 # Momentum is judged inside the most recent N months only. The corpus mixes
 # acquisition eras (patent/research back-file dominates 2002-2020, RSS the
 # recent years); an all-history SoV window measures that source-composition
@@ -579,8 +588,10 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
                 wseries[midx[mk]] += rw[j]
         se, sl = share(wseries, early_idx), share(wseries, late_idx)
         delta_pp = (sl - se) * 100
-        momentum = ("rising" if delta_pp > MOMENTUM_RISING_PP
-                    else "declining" if delta_pp < MOMENTUM_DECLINING_PP
+        up = sl >= se * (1 + MOMENTUM_MIN_RELATIVE) if se else True
+        down = sl <= se * (1 - MOMENTUM_MIN_RELATIVE) if se else False
+        momentum = ("rising" if delta_pp > MOMENTUM_RISING_PP and up
+                    else "declining" if delta_pp < MOMENTUM_DECLINING_PP and down
                     else "stable")
         # Share of voice is zero-sum: one cluster surging pushes every other
         # into negative pp even when they grew. Raw item counts answer the
