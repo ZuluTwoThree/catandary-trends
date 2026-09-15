@@ -24,7 +24,7 @@ import { repoRoot } from "./researchPulseWorker";
  * re-checks owner mode + same-origin before reaching here.
  */
 
-export type SnapshotMode = "clusters" | "lineage";
+export type SnapshotMode = "clusters" | "lineage" | "emerging";
 
 export interface SnapshotWorkerStatus {
   running: boolean;
@@ -63,7 +63,8 @@ export function snapshotWorkerStatus(): SnapshotWorkerStatus {
     const j = JSON.parse(raw) as { pid?: unknown; startedAt?: unknown; log?: unknown; mode?: unknown };
     const pid = Number(j.pid);
     if (!Number.isInteger(pid) || pid <= 0) return none;
-    const mode = j.mode === "clusters" || j.mode === "lineage" ? j.mode : null;
+    const mode =
+      j.mode === "clusters" || j.mode === "lineage" || j.mode === "emerging" ? j.mode : null;
     const startedAt = typeof j.startedAt === "string" ? j.startedAt : null;
     const log = typeof j.log === "string" ? j.log : null;
     if (!alive(pid)) return none;
@@ -77,6 +78,9 @@ export function snapshotWorkerStatus(): SnapshotWorkerStatus {
 export function snapshotWorkerArgs(mode: string): string[] | null {
   if (mode === "clusters") return ["-m", "pipeline.foresight_snapshot", "--all-verticals", "--dim1024"];
   if (mode === "lineage") return ["-m", "pipeline.foresight_snapshot", "--lineage", "--dim1024"];
+  // The emerging layer has its own module: fine partition of a recent slice,
+  // then a dating pass over the whole archive. CPU only, ~5 min per scope.
+  if (mode === "emerging") return ["-m", "pipeline.emerging_snapshot", "--all-verticals"];
   return null;
 }
 
@@ -86,7 +90,8 @@ export function startSnapshotWorker(mode: string): SnapshotStartResult {
   if (snapshotWorkerStatus().running) return { ok: false, reason: "busy" };
   const root = repoRoot();
   const py = path.join(root, ".venv", "bin", "python");
-  const mod = path.join(root, "pipeline", "foresight_snapshot.py");
+  const mod = path.join(root, "pipeline",
+    mode === "emerging" ? "emerging_snapshot.py" : "foresight_snapshot.py");
   if (!fs.existsSync(py) || !fs.existsSync(mod)) return { ok: false, reason: "missing", detail: root };
   const logDir = path.join(root, "data", "foresight_snapshot");
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -108,11 +113,11 @@ export function startSnapshotWorker(mode: string): SnapshotStartResult {
 /** Notice after a Recompute click: ?worker=<code>. */
 export const SNAPSHOT_NOTICE: Record<string, { text: string; warn: boolean }> = {
   started: {
-    text: "Recompute started — CPU only, 10–20 minutes over the full signal space. Reload to see the new snapshot date.",
+    text: "Recompute started — CPU only, 10–45 minutes depending on the layer. Reload to see the new date.",
     warn: false,
   },
   busy: { text: "A snapshot run is already in progress; try again once it has finished.", warn: true },
-  missing: { text: "Worker not found: .venv/bin/python or pipeline/foresight_snapshot.py missing next to this frontend.", warn: true },
+  missing: { text: "Worker not found: .venv/bin/python or the snapshot module is missing next to this frontend.", warn: true },
   spawn: { text: "The worker could not be started (see server log).", warn: true },
   bad: { text: "Unknown snapshot mode — nothing started.", warn: true },
 };

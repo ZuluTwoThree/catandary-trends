@@ -13,6 +13,33 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-15 · change · Zweite Schicht: Emerging-Nester (was ist neu statt was ist laut)
+
+Auf die Owner-Frage „was müsste man tun, dass wirklich Trends entdeckt werden?"
+gebaut, **neben** der Cluster-Schicht, nicht statt ihr. k-Means teilt den
+Bestand restlos auf, also ist jede Zelle ein Themengebiet; ein Trend ist die
+umgekehrte Form, eine kleine dichte junge Stelle, zu der der Rest nicht gehört.
+
+- `pipeline/emerging.py` + `pipeline/emerging_snapshot.py`: frischer
+  90-Tage-Schnitt fein zerlegt, nur dichte Zellen bleiben (global 83 Nester aus
+  784 Zellen, 12 % des Schnitts), Zellen mit fast gleichem Zentrum
+  zusammengefügt.
+- Danach läuft der **ganze Bestand** am Zentrumsvektor vorbei und wird je Monat
+  gezählt: 1.749.202 Dokumente über 449 Monate in 212 s, Speicher bleibt bei
+  einem Block. Daraus erster Monat, Alter, Neuheits-Hebel (korpus-normiert),
+  Beschleunigung und neues Vokabular gegen den Stand von vor 24 bis 36 Monaten.
+- Seite `/trends/foresight/emerging` mit eigenem Knopf „Recompute pockets";
+  Tabellen `emerging_runs`/`emerging_nests`, additiv, Live-DB angelegt. Kein Cron.
+- Gefunden u. a.: Retrieval Augmented Generation (10 Monate alt), Vision Language
+  Models in der Robotik (6), KV-Cache-Kompression (10), Batterie-Ladezustands-
+  schätzung (3). Ebenfalls ganz oben: 647 Dokumente Pseudowissenschaft aus einem
+  Massen-Ingest — tatsächlich dicht und neu. Jede Karte trägt deshalb ihre
+  Schwächen (Quellenzahl, größte Quelle, Anteil je klassifizierter Dokumente).
+
+Offen und dokumentiert: Bestätigung über die vier Lead-Time-Ebenen, Akteure statt
+Artikel zählen, Namen vom Modell, Prüfung gegen datierbare bekannte Trends.
+Details: `docs/emerging_nests_2026-09-15.md`.
+
 ## 2026-09-15 · change · Cluster-Schicht: Momentum maß den eigenen Quellenausbau
 
 Die Karten auf `/trends/foresight/clusters` sortierten nach einem Anteilswert,

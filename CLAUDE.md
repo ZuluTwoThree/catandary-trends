@@ -1048,7 +1048,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                    schreibt nur eine Kandidatendatei; measure_mega_axes --write-yaml bleibt die einzige Schreibquelle der Badge-Felder).
                                    Der SQLite-Prototyp discover_mega_trends.py wurde 2026-09-09 entfernt (zeigte auf die vor-Postgres-DB, abgelöst).
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
-  /clusters /clusters/<id> /technology /lead-time /evolution
+  /clusters /clusters/<id> /emerging /technology /lead-time /evolution
     (Cluster-Schicht seit 2026-09-15: Snapshot ueber die letzten 24 Monate statt des
      ganzen Archivs (`--window-months`), Momentum als Anteil am Gehoer auf einem FESTEN
      QUELLENPANEL (nur Quellen, die in beiden Vergleichsfenstern geliefert haben) mit
@@ -1059,6 +1059,26 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      Der Schwerpunktvektor wird jetzt persistiert und traegt die Detailseite
      /clusters/<id>: pgvector-Nachbarschaft im selben Scope/Fenster, 12 zentrumsnaechste
      + 12 neueste Signale, Messblock. Anlass + Messungen: docs/cluster_layer_audit_2026-09-15.md)
+    (/emerging = ZWEITE Signalraum-Schicht seit 2026-09-15, neben den Clustern, nicht
+     statt ihnen — Owner-Frage „was muesste man tun, dass wirklich Trends entdeckt
+     werden?". k-Means teilt den Bestand restlos auf, also ist jede Zelle ein
+     Themengebiet; ein Trend ist die umgekehrte Form. pipeline/emerging.py +
+     emerging_snapshot.py: frischer 90-Tage-Schnitt fein zerlegt (Zellzahl ist ein
+     RECHENBUDGET, nicht Prinzip: global 400 Dok/Zelle, kleine Bereiche 40), nur
+     Zellen mit Kohaesion >= 0,75 bleiben (global 83 Nester aus 784 Zellen = 12 %
+     des Schnitts, Rest ist ausdruecklich Rauschen), deckungsgleiche Zentren wieder
+     vereint. Danach laeuft der GANZE Bestand am Zentrum vorbei und wird je Monat
+     gezaehlt (1,75M Dokumente / 449 Monate / 212 s, Speicher = ein Block) ->
+     erster Monat, Alter, Neuheits-Hebel (korpus-normiert, saettigt bei ~4,5),
+     Beschleunigung, neues Vokabular gegen den Stand vor 24-36 Monaten. Karte zeigt
+     als Kopfzeile das ALTER und immer die Schwaechen (Quellenzahl, groesste Quelle,
+     Anteil klassifizierter Dokumente) — die Schicht ist ein Sucher, kein Urteil:
+     im ersten Lauf stand ganz oben ein dichtes, brandneues Nest mit 647 Dokumenten
+     Pseudowissenschaft aus einem Massen-Ingest. Tabellen emerging_runs/
+     emerging_nests, additiv, Live-DB 15.09. Kein Cron, Knopf „Recompute pockets".
+     Offen: Bestaetigung ueber die vier Lead-Time-Ebenen, Akteure statt Artikel
+     zaehlen, Namen vom Modell, Pruefung gegen datierbare bekannte Trends.
+     docs/emerging_nests_2026-09-15.md)
     (das druckbare Foresight-Dossier /dossier samt CSV-Export
      wurde am 2026-09-15 entfernt: es las nur den ungeeichten Cluster-Snapshot vom 03.08. — Owner-Entscheid)
     (Technologie-Suche: Query-Quality-Gate #67 seit 2026-09-04, `pipeline/query_gate.py` — eine Anfrage

@@ -101,11 +101,17 @@ TIER_FILTERS: dict[str, tuple[str, list[str]]] = {
 }
 
 
-def load_signals(status: str = "signal,published", vertical: str | None = None,
+def iter_signals(status: str = "signal,published", vertical: str | None = None,
                  source_like: str | None = None, limit: int = 0,
                  since: str | None = None, until: str | None = None,
-                 dim1024: bool = False, tier: str | None = None) -> list[dict]:
-    """Load embedded trends joined to their raw entry's published_date.
+                 dim1024: bool = False, tier: str | None = None,
+                 chunk_size: int = LOAD_CHUNK):
+    """Yield embedded trends in keyset-paginated chunks (list[dict] per chunk).
+
+    Same filters as `load_signals`, which is just this drained into one list.
+    Streaming matters for passes that walk the WHOLE archive without holding it:
+    the emerging-nest history scan multiplies every chunk against the nest
+    centroids and keeps only counts, so 1.75M rows cost one chunk of memory.
 
     status: comma list or 'all'. vertical: primary_vertical or None/'ALL' for no
     filter. source_like: comma-separated substrings OR-matched against
@@ -162,11 +168,11 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     # took the frontend service down with it. Each chunk is parsed to raw
     # float32 bytes immediately, so only 4 KB/row stays resident.
     base_where = " AND ".join(where)
-    out: list[dict] = []
+    seen = 0
     last_id = 0
     with get_connection() as c:
         while True:
-            chunk = min(LOAD_CHUNK, limit - len(out)) if limit else LOAD_CHUNK
+            chunk = min(chunk_size, limit - seen) if limit else chunk_size
             if chunk <= 0:
                 break
             sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, "
@@ -177,6 +183,7 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
             rows = c.execute(sql, [*params, last_id, chunk]).fetchall()
             if not rows:
                 break
+            batch: list[dict] = []
             for raw in rows:
                 r = dict(raw)
                 last_id = r["id"]
@@ -192,8 +199,23 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
                     r["tags"] = tags if isinstance(tags, list) else (json.loads(tags) if tags else [])
                 except Exception:
                     r["tags"] = []
-                out.append(r)
+                batch.append(r)
+            seen += len(rows)
             del rows
+            if batch:
+                yield batch
+
+
+def load_signals(status: str = "signal,published", vertical: str | None = None,
+                 source_like: str | None = None, limit: int = 0,
+                 since: str | None = None, until: str | None = None,
+                 dim1024: bool = False, tier: str | None = None) -> list[dict]:
+    """All matching embedded trends in one list (see `iter_signals` for filters)."""
+    out: list[dict] = []
+    for batch in iter_signals(status=status, vertical=vertical, source_like=source_like,
+                              limit=limit, since=since, until=until, dim1024=dim1024,
+                              tier=tier):
+        out.extend(batch)
     return out
 
 

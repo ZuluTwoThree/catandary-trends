@@ -25,6 +25,7 @@ export async function recomputeSnapshotAction(formData: FormData): Promise<void>
   revalidatePath("/trends/foresight");
   revalidatePath("/trends/foresight/clusters");
   revalidatePath("/trends/foresight/evolution");
+  revalidatePath("/trends/foresight/emerging");
   const target = back.startsWith("/trends/foresight/") ? back : "/trends/foresight/clusters";
   redirect(`${target}${target.includes("?") ? "&" : "?"}worker=${r.ok ? "started" : r.reason}`);
 }

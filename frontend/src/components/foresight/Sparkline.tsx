@@ -8,11 +8,14 @@ export default function Sparkline({
   months,
   label,
   className = "w-full h-9",
+  unit = "share",
 }: {
   points: number[]; // share values 0..1, chronological
   months: string[]; // same length, YYYY-MM
   label: string;
   className?: string; // the detail view renders the same series taller
+  /** What the values are. The emerging layer plots counts, not shares. */
+  unit?: "share" | "count";
 }) {
   if (points.length < 2) return null;
   const W = 220;
@@ -25,7 +28,10 @@ export default function Sparkline({
   const last = points[points.length - 1];
   const first = months[0];
   const lastM = months[months.length - 1];
-  const title = `Share of monthly signal volume, ${first} to ${lastM}. Latest: ${(last * 100).toFixed(1)}%.`;
+  const title =
+    unit === "count"
+      ? `Documents per month resembling this pocket, ${first} to ${lastM}. Latest: ${Math.round(last)}.`
+      : `Share of monthly signal volume, ${first} to ${lastM}. Latest: ${(last * 100).toFixed(1)}%.`;
 
   return (
     <svg

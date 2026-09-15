@@ -24,7 +24,12 @@ export default function SnapshotRecompute({
 }) {
   const worker = snapshotWorkerStatus();
   const n = notice ? SNAPSHOT_NOTICE[notice] : undefined;
-  const label = mode === "lineage" ? "Recompute lineage" : "Recompute snapshot";
+  const label =
+    mode === "lineage"
+      ? "Recompute lineage"
+      : mode === "emerging"
+        ? "Recompute pockets"
+        : "Recompute snapshot";
   return (
     <div className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-2 border border-border px-4 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
       <span>
