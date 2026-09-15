@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import fs from "node:fs";
+import { spawnDetached } from "./detachedSpawn";
 import path from "node:path";
 import { MEGA_TRENDS } from "./mega-trends.generated";
 import { cliWeek, type PulseWeekRef } from "./researchPulse";
@@ -112,13 +112,7 @@ export function startPulseWorker(theme: string, week: PulseWeekRef | null): Puls
   try {
     fs.mkdirSync(logDir, { recursive: true });
     const fd = fs.openSync(log, "a");
-    const child = spawn(py, [script, ...args], {
-      cwd: root,
-      env,
-      detached: true,
-      stdio: ["ignore", fd, fd],
-    });
-    child.unref();
+    const child = spawnDetached(py, [script, ...args], { unit: "pulse", cwd: root, env, logFd: fd });
     fs.closeSync(fd);
     if (!child.pid) return { ok: false, reason: "spawn" };
     fs.writeFileSync(

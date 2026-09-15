@@ -312,8 +312,14 @@ Snapshots** (`foresight_runs`/`foresight_clusters`). Neu rechnen — bewusst nur
 auf Knopfdruck, kein Cron (Radar-Regel; Owner 2026-09-15: die Cluster-Schicht
 bleibt als Owner-Instrument mit sichtbarem Rechenstand): Knopf **Recompute
 snapshot** im Kopf der Seite (startet `python -m pipeline.foresight_snapshot
---all-verticals` detached, CPU-only, Log `data/foresight_snapshot/<stamp>-clusters.log`,
-Lock `data/foresight_snapshot.lock`) oder dasselbe im Terminal `[--dim1024]`.
+--all-verticals --dim1024` detached, CPU-only, 10–20 min, Log
+`data/foresight_snapshot/<stamp>-clusters.log`, Lock `data/foresight_snapshot.lock`)
+oder dasselbe im Terminal. **`--dim1024` ist Pflicht** über 1 Mio. Signale: der
+erste Desk-Lauf am 15.09. nahm die 4096er-Spalte, wuchs auf 56 GB und wurde vom
+Kernel abgeschossen — samt `:3001`, weil der Prozess im Cgroup des Frontend-Dienstes
+hing. Seither laufen alle Desk-Jobs (Dossier, Advisor, Pulse, Snapshot) in einem
+eigenen systemd-Scope mit `MemoryMax` (Default 40 GB, `WORKER_MEMORY_MAX` in
+`frontend/.env.local`), und der Lader liest die Vektoren seitenweise (20.000 Zeilen).
 Derselbe Snapshot speist die Kacheln „Moving right now" im Cockpit und den
 Streifen „What's moving" über dem Feed — beide zeigen sein Datum.
 Validierung: `scripts/foresight_validation.py` (Known-Trend-Recovery 23/24).

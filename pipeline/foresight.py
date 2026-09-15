@@ -52,6 +52,7 @@ MOMENTUM_DECLINING_PP = -1.0
 MOMENTUM_WINDOW_MONTHS = 36
 
 MINIBATCH_ABOVE = 100_000  # switch to MiniBatchKMeans above this many points
+LOAD_CHUNK = 20_000        # rows per keyset page in load_signals (memory, not speed)
 
 
 # ---------------------------------------------------------------- data loading
@@ -125,31 +126,45 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     # SQLite it is the raw float32 blob.
     emb_col = f"t.{emb_field}::text" if db_mod.USE_POSTGRES else f"t.{emb_field}"
     src_join = (" LEFT JOIN sources s ON r.source_id = s.id" if tier else "")
-    sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, "
-           "       t.primary_vertical, t.status, t.source_url, "
-           f"       r.published_date, {emb_col} AS embedding "
-           f"FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id{src_join} "
-           f"WHERE {' AND '.join(where)}")
-    if limit:
-        sql += " LIMIT ?"
-        params.append(limit)
+    # Keyset pagination on t.id instead of one fetchall: under Postgres the
+    # vector arrives as TEXT (~10 KB per 1024-dim row, ~40 KB at 4096), and a
+    # single result set over 1.75M rows held every string at once — the
+    # 2026-09-15 recompute from the desk reached 56 GB and the OOM killer
+    # took the frontend service down with it. Each chunk is parsed to raw
+    # float32 bytes immediately, so only 4 KB/row stays resident.
+    base_where = " AND ".join(where)
+    out: list[dict] = []
+    last_id = 0
     with get_connection() as c:
-        rows = [dict(r) for r in c.execute(sql, params).fetchall()]
-    out = []
-    for r in rows:
-        emb = db_mod._vector_to_bytes(r["embedding"])
-        if not isinstance(emb, (bytes, bytearray)) or len(emb) < 4:
-            continue
-        r["_emb"] = bytes(emb)
-        r["embedding"] = None  # drop duplicate blob reference, keep memory flat
-        if isinstance(r["published_date"], datetime):
-            r["published_date"] = r["published_date"].isoformat()
-        try:
-            tags = r["tags"]
-            r["tags"] = tags if isinstance(tags, list) else (json.loads(tags) if tags else [])
-        except Exception:
-            r["tags"] = []
-        out.append(r)
+        while True:
+            chunk = min(LOAD_CHUNK, limit - len(out)) if limit else LOAD_CHUNK
+            if chunk <= 0:
+                break
+            sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, "
+                   "       t.primary_vertical, t.status, t.source_url, "
+                   f"       r.published_date, {emb_col} AS embedding "
+                   f"FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id{src_join} "
+                   f"WHERE {base_where} AND t.id > ? ORDER BY t.id LIMIT ?")
+            rows = c.execute(sql, [*params, last_id, chunk]).fetchall()
+            if not rows:
+                break
+            for raw in rows:
+                r = dict(raw)
+                last_id = r["id"]
+                emb = db_mod._vector_to_bytes(r["embedding"])
+                if not isinstance(emb, (bytes, bytearray)) or len(emb) < 4:
+                    continue
+                r["_emb"] = bytes(emb)
+                r["embedding"] = None  # drop the text/blob reference, keep memory flat
+                if isinstance(r["published_date"], datetime):
+                    r["published_date"] = r["published_date"].isoformat()
+                try:
+                    tags = r["tags"]
+                    r["tags"] = tags if isinstance(tags, list) else (json.loads(tags) if tags else [])
+                except Exception:
+                    r["tags"] = []
+                out.append(r)
+            del rows
     return out
 
 

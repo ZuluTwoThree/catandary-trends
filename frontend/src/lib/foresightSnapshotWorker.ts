@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import fs from "node:fs";
+import { spawnDetached } from "./detachedSpawn";
 import path from "node:path";
 import { repoRoot } from "./researchPulseWorker";
 
@@ -9,12 +9,16 @@ import { repoRoot } from "./researchPulseWorker";
  * button, never a cron). Same shape as the pulse worker: the button does what
  * the owner would type on the workstation,
  *
- *   .venv/bin/python -m pipeline.foresight_snapshot --all-verticals   (clusters)
- *   .venv/bin/python -m pipeline.foresight_snapshot --lineage          (evolution)
+ *   .venv/bin/python -m pipeline.foresight_snapshot --all-verticals --dim1024   (clusters)
+ *   .venv/bin/python -m pipeline.foresight_snapshot --lineage --dim1024          (evolution)
+ *
+ * --dim1024 is not optional here: the first desk run (2026-09-15) went for the
+ * full 4096-dim column, reached 56 GB and was OOM-killed — taking the :3001
+ * service with it. The job now runs in its own systemd scope (detachedSpawn).
  *
  * detached from the Next process, output to data/foresight_snapshot/<stamp>.log.
  * CPU only (KMeans on the stored embeddings, no model, no GPU handover), so
- * it may run beside anything else. One run at a time via data/foresight_snapshot.lock.
+ * it may run beside anything else; 10–20 min over ~1.75M signals. One run at a time via data/foresight_snapshot.lock.
  *
  * Server-side only; app/trends/foresight/actions.ts is the sole caller and
  * re-checks owner mode + same-origin before reaching here.
@@ -71,8 +75,8 @@ export function snapshotWorkerStatus(): SnapshotWorkerStatus {
 
 /** Only the two fixed invocations ever reach the shell — no user input becomes an argument. */
 export function snapshotWorkerArgs(mode: string): string[] | null {
-  if (mode === "clusters") return ["-m", "pipeline.foresight_snapshot", "--all-verticals"];
-  if (mode === "lineage") return ["-m", "pipeline.foresight_snapshot", "--lineage"];
+  if (mode === "clusters") return ["-m", "pipeline.foresight_snapshot", "--all-verticals", "--dim1024"];
+  if (mode === "lineage") return ["-m", "pipeline.foresight_snapshot", "--lineage", "--dim1024"];
   return null;
 }
 
@@ -91,8 +95,7 @@ export function startSnapshotWorker(mode: string): SnapshotStartResult {
   try {
     fs.mkdirSync(logDir, { recursive: true });
     const fd = fs.openSync(log, "a");
-    const child = spawn(py, args, { cwd: root, env, detached: true, stdio: ["ignore", fd, fd] });
-    child.unref();
+    const child = spawnDetached(py, args, { unit: `snapshot-${mode}`, cwd: root, env, logFd: fd });
     fs.closeSync(fd);
     if (!child.pid) return { ok: false, reason: "spawn" };
     fs.writeFileSync(lockPath(), JSON.stringify({ pid: child.pid, startedAt: new Date().toISOString(), log, mode }));
@@ -105,7 +108,7 @@ export function startSnapshotWorker(mode: string): SnapshotStartResult {
 /** Notice after a Recompute click: ?worker=<code>. */
 export const SNAPSHOT_NOTICE: Record<string, { text: string; warn: boolean }> = {
   started: {
-    text: "Recompute started — CPU only, a few minutes for all scopes. Reload to see the new snapshot date.",
+    text: "Recompute started — CPU only, 10–20 minutes over the full signal space. Reload to see the new snapshot date.",
     warn: false,
   },
   busy: { text: "A snapshot run is already in progress; try again once it has finished.", warn: true },

@@ -1394,6 +1394,10 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
 
 - **Aufträge erteilt nur der Owner** — im Desk `/trends/dossiers` (Auftragszettel)
   oder per `scripts/dossier_worker.py --order-new`. Kein Kundenpfad.
+- **Jeder vom Desk gestartete Job läuft in einem eigenen systemd-Scope** (seit 2026-09-15,
+  `frontend/src/lib/detachedSpawn.ts`: `systemd-run --user --scope -p MemoryMax=40G`, Fallback
+  plain spawn ohne systemd-run). Anlass: ein OOM-Kill des Cluster-Recompute im Cgroup des
+  Frontend-Dienstes riss `:3001` mit. Gilt für Dossier-Worker, Advisor, Pulse und Snapshot.
 - **Radar-Regel: nur auf Knopfdruck, kein Cron.** Der Desk startet den Worker
   („Run now" / „Run N queued" / „Recompute · v(n+1)" je Serie) über
   `frontend/src/lib/dossierWorker.ts`: `.venv/bin/python -m scripts.dossier_worker

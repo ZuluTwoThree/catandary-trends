@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import fs from "node:fs";
+import { spawnDetached } from "./detachedSpawn";
 import path from "node:path";
 
 /**
@@ -106,13 +106,9 @@ export function startWorker(args: string[]): StartResult {
   try {
     fs.mkdirSync(logDir, { recursive: true });
     const fd = fs.openSync(log, "a");
-    const child = spawn(py, ["-m", "scripts.dossier_worker", ...args], {
-      cwd: root,
-      env,
-      detached: true,
-      stdio: ["ignore", fd, fd],
+    const child = spawnDetached(py, ["-m", "scripts.dossier_worker", ...args], {
+      unit: "dossier", cwd: root, env, logFd: fd,
     });
-    child.unref();
     fs.closeSync(fd);
     if (!child.pid) return { ok: false, reason: "spawn" };
     fs.writeFileSync(

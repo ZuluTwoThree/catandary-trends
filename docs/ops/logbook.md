@@ -83,6 +83,15 @@ Nacht ein zweiter Lauf mit einem kompletten Stage-8-Pass, ~28 min). Embedding
 09:00 auf 30.000, damit der Samstag (Wochen-Ingester) in einem Lauf durchgeht.
 Erste Nacht mit beidem: 12.09.
 
+## 2026-09-15 · change · Desk-Jobs in eigenem systemd-Scope, Snapshot-Lader seitenweise
+Erster Recompute-Klick 13:07: `foresight_snapshot --all-verticals` ohne `--dim1024`
+las 1,75 Mio. Vektoren als Text in einem fetchall, 56 GB RSS, OOM-Kill 13:15 — und
+weil der Prozess im Cgroup von `catandary-frontend.service` hing, fiel :3001 mit
+(systemd-Neustart nach 5 s, Log leer, Lock verwaist). Fix: `lib/detachedSpawn.ts`
+wickelt jeden vom Frontend gestarteten Job in `systemd-run --user --scope -p
+MemoryMax=40G`; `load_signals` liest per Keyset-Pagination (20k Zeilen) und hält nur
+die float32-Bytes; der Knopf setzt `--dim1024`.
+
 ## 2026-09-15 · change · Seiten ohne Kundennutzen bereinigt (Owner-Liste)
 Cluster/Evolution bleiben als Owner-Instrument nach der Radar-Regel: Rechenstand
 sichtbar + „Recompute"-Knopf (CPU-only, detached, `data/foresight_snapshot.lock`);

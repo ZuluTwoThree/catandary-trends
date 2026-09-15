@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import fs from "node:fs";
+import { spawnDetached } from "./detachedSpawn";
 import path from "node:path";
 import { repoRoot, workerStatus, type StartResult } from "./dossierWorker";
 
@@ -46,13 +46,9 @@ export function startAdvisory(noteId: number): StartResult {
   try {
     fs.mkdirSync(logDir, { recursive: true });
     const fd = fs.openSync(log, "a");
-    const child = spawn(py, ["-m", "scripts.advisory", "--note", String(noteId)], {
-      cwd: root,
-      env,
-      detached: true,
-      stdio: ["ignore", fd, fd],
+    const child = spawnDetached(py, ["-m", "scripts.advisory", "--note", String(noteId)], {
+      unit: "advisory", cwd: root, env, logFd: fd,
     });
-    child.unref();
     fs.closeSync(fd);
     if (!child.pid) return { ok: false, reason: "spawn" };
     fs.writeFileSync(
