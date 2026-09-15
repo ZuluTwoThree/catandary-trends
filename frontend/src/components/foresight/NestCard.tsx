@@ -7,6 +7,7 @@ import {
   caveats,
   historyTail,
   isYoung,
+  nestTitle,
   noveltyText,
 } from "@/lib/nestCard";
 
@@ -19,6 +20,7 @@ export default function NestCard({ nest }: { nest: EmergingNest }) {
   const hist = historyTail(nest);
   const flags = caveats(nest);
   const accel = accelText(nest);
+  const title = nestTitle(nest);
 
   return (
     <article className="border border-border bg-card/40 p-6 flex flex-col gap-3 hover:border-accent/40 transition-colors">
@@ -56,7 +58,17 @@ export default function NestCard({ nest }: { nest: EmergingNest }) {
         </span>
       </div>
 
-      <h2 className="font-display text-[22px] leading-tight text-paper">{nest.label}</h2>
+      <div>
+        <h2 className="font-display text-[22px] leading-tight text-paper">{title.name}</h2>
+        {title.sub && (
+          <div
+            className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mt-1"
+            title="Name written by the local model from the pocket's own titles, checked word by word against them. Underneath: the label derived from its tags."
+          >
+            tags say: {title.sub}
+          </div>
+        )}
+      </div>
 
       <p className="font-sans text-sm text-text leading-relaxed">
         {noveltyText(nest)}

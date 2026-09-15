@@ -379,9 +379,25 @@ oben ein Nest mit 647 Dokumenten Pseudowissenschaft aus einem Forschungs-Sweep �
 tatsächlich dicht, tatsächlich neu, inhaltlich wertlos. Deshalb die Schwächen
 auf jeder Karte statt stiller Filter.
 
+**Namen.** Der Titel einer Karte kommt vom lokalen Modell: es liest die
+zentrumsnächsten Titel des Nests und benennt sie. Jedes bedeutungstragende Wort
+muss im Nest wirklich vorkommen, sonst wird der Name verworfen und das
+Schlagwort-Label bleibt stehen; unter dem Namen steht klein „tags say: …", damit
+man beides sieht. 311 von 328 Nestern bekamen am 15.09. einen Namen, aus
+„World · Action" wurde „World-Action Models". Abschaltbar mit `--no-llm-names`.
+
+**Prüfung gegen bekannte Trends.** `.venv/bin/python scripts/validate_emerging.py`
+lässt die Erkennung auf 21 historischen Stichtagen laufen und hält 20 datierbare
+Trends aus `known_trends.yaml` dagegen. Ergebnis 15.09.: 9 von 20 gefunden, 5 vor
+dem Mainstream, Median-Vorlauf 6 Monate, Gegenproben nie über 0,62. Die
+Mainstream-Daten in der Datei sind eine Einschätzung, keine Messung — korrigiere
+sie, und die Vorlaufzeiten ändern sich mit. Lies das Ergebnis zusammen mit dem
+Abschnitt „Ehrliche Lesart" in `docs/emerging_nests_2026-09-15.md`.
+
 **Neu rechnen** (kein Cron, Radar-Regel): Knopf **Recompute pockets** im Kopf
 der Seite oder im Terminal `python -m pipeline.emerging_snapshot --all-verticals`
-(nur CPU, kein Modell; global ~5 min, kleine Vertikale Sekunden).
+(CPU für Erkennung und Datierung, eine GPU-Übergabe für die Namen; global ~6 min,
+kleine Vertikale Sekunden).
 Tabellen `emerging_runs`/`emerging_nests`, je Bereich bleibt ein Lauf stehen.
 Methode, Messungen und die offenen Punkte: `docs/emerging_nests_2026-09-15.md`.
 

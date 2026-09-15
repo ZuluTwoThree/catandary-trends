@@ -79,6 +79,8 @@ def migrate_emerging_tables() -> None:
         add_columns(conn, "emerging_nests", {
             "tagged_share": "REAL",
             "established_share": "REAL",
+            "llm_label": "TEXT",        # model-written name, grounding-checked
+            "llm_label_note": "TEXT",   # why it was refused, when it was
         })
         conn.execute("CREATE INDEX IF NOT EXISTS idx_enests_run ON emerging_nests(run_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_eruns_scope "
@@ -112,10 +114,37 @@ def _month_back(n: int, now: datetime | None = None) -> str:
     return f"{y:04d}-{m:02d}"
 
 
+def name_nests_on_gpu(nests: list[dict], scope: str) -> None:
+    """Let the local model name the pockets. Never fatal.
+
+    One handover for all of them, exactly like Research Pulse: if llama-server
+    already serves the naming model this is a no-op, otherwise the symlink is
+    swapped and restored afterwards. Detection and dating stay CPU-only — this
+    is the single GPU step, and a refused handover simply leaves the
+    deterministic tag labels in place."""
+    from pipeline.nest_naming import NAME_MODEL, name_nests
+    try:
+        from pipeline.gpu_handover import content_gen_on_llamacpp
+        with content_gen_on_llamacpp(NAME_MODEL):
+            summary = name_nests(
+                nests, model=NAME_MODEL,
+                progress=lambda i, n: logger.info("[%s] named %d/%d", scope, i, n))
+    except Exception as exc:
+        logger.warning("[%s] naming skipped (%s: %s) — tag labels kept",
+                       scope, exc.__class__.__name__, exc)
+        for n in nests:
+            n.setdefault("llm_label", None)
+            n.setdefault("llm_label_note", f"handover failed: {exc.__class__.__name__}")
+        return
+    logger.info("[%s] %d of %d pockets got a model-written name",
+                scope, summary["named"], summary["total"])
+
+
 def run_emerging(scope: str, status: str = "signal,published",
                  window_days: int = DEFAULT_WINDOW_DAYS, cells: int | None = None,
                  min_cohesion: float | None = None, history_since: str | None = None,
-                 seed: int = 42, now: datetime | None = None) -> int | None:
+                 seed: int = 42, now: datetime | None = None,
+                 llm_names: bool = True) -> int | None:
     """Detect nests in the recent slice, date them against the archive, persist."""
     vertical = scope.split(":", 1)[1] if scope.startswith("vertical:") else None
     now = now or datetime.now()
@@ -165,7 +194,7 @@ def run_emerging(scope: str, status: str = "signal,published",
     if not nests:
         logger.warning("[%s] no nest passed the quality gate — skipping", scope)
         return None
-    describe_nests(nests, rows)
+    describe_nests(nests, rows, X=X)
 
     centroids = np.vstack([n["centroid"] for n in nests])
     thresholds = np.array([max(HIST_SIM_FLOOR, n["radius_p25"]) for n in nests],
@@ -182,6 +211,9 @@ def run_emerging(scope: str, status: str = "signal,published",
                 scope, hist["scanned"], len(hist["months"]), time.time() - t1)
     score_nests(nests, hist, now=now)
 
+    if llm_names:
+        name_nests_on_gpu(nests, scope)
+
     months = hist["months"]
     with get_connection() as conn:
         returning = " RETURNING id" if db_mod.USE_POSTGRES else ""
@@ -197,13 +229,14 @@ def run_emerging(scope: str, status: str = "signal,published",
             conn.execute(
                 "INSERT INTO emerging_nests (run_id, label, size, cohesion, n_sources,"
                 " top_source, top_source_share, tagged_share, established_share,"
-                " verticals, top_tags, new_terms,"
+                " llm_label, llm_label_note, verticals, top_tags, new_terms,"
                 " first_month, age_months, hits_total, hits_recent, novelty_lift,"
                 " accel, rep_trend_ids, rep_titles, history_months, history_hits,"
-                " centroid, threshold) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " centroid, threshold) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (run_id, n["label"], n["size"], n["cohesion"], n["n_sources"],
                  n["top_source"], n["top_source_share"], n["tagged_share"],
-                 n["established_share"], json.dumps(n["verticals"]),
+                 n["established_share"], n.get("llm_label"), n.get("llm_label_note"),
+                 json.dumps(n["verticals"]),
                  json.dumps(n["top_tags"]), json.dumps(n["new_terms"]),
                  n["first_month"], n["age_months"], n["hits_total"], n["hits_recent"],
                  n["novelty_lift"], n["accel"], json.dumps(n["rep_trend_ids"]),
@@ -230,6 +263,8 @@ def main() -> int:
     ap.add_argument("--history-since", default=None,
                     help="limit the dating scan (default: the whole archive)")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--no-llm-names", action="store_true",
+                    help="skip the naming step (the only GPU step there is)")
     ap.add_argument("--keep", type=int, default=1, help="runs to keep per scope")
     args = ap.parse_args()
 
@@ -242,7 +277,8 @@ def main() -> int:
     for scope in scopes:
         if run_emerging(scope, status=args.status, window_days=args.window_days,
                         cells=args.cells, min_cohesion=args.min_cohesion,
-                        history_since=args.history_since, seed=args.seed) is not None:
+                        history_since=args.history_since, seed=args.seed,
+                        llm_names=not args.no_llm_names) is not None:
             ok += 1
     pruned = prune_old_emerging_runs(keep_per_scope=args.keep)
     print(f"{ok}/{len(scopes)} emerging runs persisted ({pruned} stale runs pruned).")

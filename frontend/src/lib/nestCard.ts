@@ -10,6 +10,21 @@ import type { EmergingNest, EmergingRun } from "./emerging";
  * than silently dropped, because the judgement is the owner's.
  */
 
+/**
+ * What the card calls the pocket, and what it shows underneath.
+ *
+ * The model-written name reads like a topic; the tag label is the thing that
+ * was actually measured. Showing both keeps the naming step from quietly
+ * becoming the source of truth — if the name is wrong, the label next to it
+ * says so immediately.
+ */
+export function nestTitle(nest: EmergingNest): { name: string; sub: string | null } {
+  if (nest.llm_label && nest.llm_label !== nest.label) {
+    return { name: nest.llm_label, sub: nest.label };
+  }
+  return { name: nest.label, sub: null };
+}
+
 /** Up to this age a pocket counts as genuinely young. */
 export const YOUNG_MONTHS = 18;
 

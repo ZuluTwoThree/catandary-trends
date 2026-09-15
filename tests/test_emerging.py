@@ -243,3 +243,23 @@ def test_established_share_is_zero_when_nothing_is_known_about_the_sources():
     nests = [{"top_tags": [], "source_counts": {"X": 5}}]
     E.score_nests(nests, _history([f"2025-{m:02d}" for m in range(1, 13)], 100, [[5] * 12]))
     assert nests[0]["established_share"] == 0.0
+
+
+def test_top_n_replaces_the_absolute_gate_with_a_relative_one():
+    """The corpus of 2025 is diffuser than the corpus of 2026; an absolute bar
+    then answers 'was our intake dense' instead of 'was the trend findable'."""
+    rng = np.random.default_rng(23)
+    dim = 32
+    blobs = []
+    for axis, spread in ((0, 0.02), (1, 0.05), (2, 0.12), (3, 0.2)):
+        c = np.zeros(dim, dtype=np.float32); c[axis] = 1.0
+        blobs.append(_blob(c, 80, spread, rng))
+    X = np.vstack(blobs)
+    strict = E.detect_nests(X, k=16, seed=42)                 # 0.75 bar
+    loose = E.detect_nests(X, k=16, seed=42, top_n=4)
+    assert len(loose) >= len(strict)
+    assert len(loose) <= 4
+    # the relative run still reports density, so the caller can re-apply the bar
+    would_pass = [n for n in loose if n["cohesion"] >= E.MIN_COHESION]
+    assert len(would_pass) == len(strict)
+    assert all(n["members"].size >= E.MIN_NEST_SIZE for n in loose)

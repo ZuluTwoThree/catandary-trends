@@ -13,6 +13,35 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-15 · change · Emerging: Namen vom Modell und der erste Rücktest
+
+Punkte 5 und 6 der Trendfindungs-Liste, auf Owner-Auftrag.
+
+**Namen.** `pipeline/nest_naming.py` lässt das lokale Modell die
+zentrumsnächsten Titel eines Nests lesen und benennen. Jedes bedeutungstragende
+Wort muss im Nest vorkommen, sonst fällt der Name durch und das Schlagwort-Label
+bleibt — dieselbe Grounding-Regel wie bei den Artikeln. Namen sind je Lauf
+eindeutig, Patenttitel schreien nicht mehr. 311 von 328 Nestern benannt; aus
+„World · Action" wurde „World-Action Models", aus „Defect Passivation · Electron
+Selective Layer" „Self-Assembled Monolayers for Perovskite Solar Cells". Die
+Karte zeigt beides. Einziger GPU-Schritt der Schicht, ~0,2 s je Nest.
+
+**Rücktest.** `scripts/validate_emerging.py` + `known_trends.yaml`: 21 Stichtage
+2021-07 bis 2026-09, 20 datierbare Trends, drei Gegenproben. **9 von 20
+gefunden, 5 vor dem Mainstream, Median-Vorlauf 6 Monate**, Gegenproben nie über
+0,62.
+
+Der Test hat sich dabei selbst korrigiert: in der ersten Fassung meldete er 15
+von 20 und 23 Monate Vorlauf, weil ein einziges Nest „Machine Learning · Neural
+Networks" nahe genug an drei verschiedenen KI-Trends lag. Seitdem muss das
+getroffene Nest ein Kennwort des Trends auch wirklich enthalten. Bei fünf
+Trends fand der Test nicht einmal das Feld (Wärmepumpen, Psychedelika, Quiet
+Luxury, Hyrox, Inferenz-Effizienz) — das ist ein Quellen-, kein
+Erkennungsproblem, dieselbe Lücke wie bei den dünnen Vertikalen.
+
+Ehrliche Lesart im Doku-Abschnitt gleichen Namens: die verfolgenswerte Zahl ist
+die Trefferquote, nicht der Vorlauf.
+
 ## 2026-09-15 · change · Zweite Schicht: Emerging-Nester (was ist neu statt was ist laut)
 
 Auf die Owner-Frage „was müsste man tun, dass wirklich Trends entdeckt werden?"

@@ -1,0 +1,205 @@
+# Bekannte, datierbare Trends — Prüfmenge für den Emerging-Detektor.
+#
+# Zweck: messen, ob die Schicht Dinge findet, die nachweislich stattgefunden
+# haben, und wie früh. Ohne diese Messung ist jede Aussage über Früherkennung
+# eine Behauptung (scripts/validate_emerging.py, docs/emerging_nests_2026-09-15.md).
+#
+# Felder je Eintrag:
+#   key         eindeutiger Schlüssel
+#   name        Klartextname
+#   query       Beschreibung, die eingebettet und gegen die Nest-Zentren
+#               verglichen wird. In der Sprache der Quellen, also Englisch.
+#   terms       Kennwörter des Trends. Ein Treffer zählt NUR, wenn mindestens
+#               eines davon im getroffenen Nest wirklich vorkommt (Titel oder
+#               Schlagworte). Ohne diese Regel traf am 2026-09-15 ein einziges
+#               Nest "Machine Learning · Neural Networks" gleich drei
+#               verschiedene KI-Trends und bescherte ihnen 26 Monate Vorlauf —
+#               gemessen wurde das Feld, nicht der Trend.
+#   mainstream  Monat, in dem der Trend unstrittig im Mainstream ankam
+#               (YYYY-MM). Das ist die Latte: alles davor ist Vorlauf.
+#   basis       woran das Datum festgemacht ist — nachprüfbar halten
+#   vertical    optional, nur zur Gruppierung im Bericht
+#
+# WICHTIG: die Daten unten sind eine begründete Einschätzung, keine Messung.
+# Sie sind bewusst als Datei geführt, damit der Owner sie korrigieren kann;
+# jede Korrektur ändert die Vorlaufzeiten im Bericht unmittelbar.
+#
+# `controls` sind Gegenproben: Themen, die im Korpus nicht als Nest auftauchen
+# dürfen. Trifft eine davon, ist die Schwelle zu locker und der ganze Bericht
+# wertlos.
+
+trends:
+  - key: rag
+    terms: ["retrieval augmented", "retrieval-augmented", " rag "]
+    name: Retrieval-augmented generation
+    query: "retrieval augmented generation: grounding large language model answers in retrieved documents"
+    mainstream: "2023-06"
+    basis: "Nach ChatGPT-Plugins und LangChain-Welle Standardbaustein jeder LLM-Anwendung"
+    vertical: TECH
+
+  - key: llm_agents
+    terms: ["agentic", "llm agent", "language model agent", "tool use", "tool-use"]
+    name: LLM-Agenten und Werkzeugnutzung
+    query: "autonomous large language model agents that plan, call tools and act over multiple steps"
+    mainstream: "2024-06"
+    basis: "Agent-Frameworks als Produktkategorie, nicht mehr nur Demos"
+    vertical: TECH
+
+  - key: vla_robotics
+    terms: ["vision language action", "vision-language-action", "vision language model", "embodied"]
+    name: Vision-Language-Action-Modelle in der Robotik
+    query: "vision language action models for robot manipulation and embodied control"
+    mainstream: "2024-07"
+    basis: "RT-2 und Nachfolger, Foundation Models als Robotersteuerung"
+    vertical: TECH
+
+  - key: inference_efficiency
+    terms: ["kv cache", "kv-cache", "inference efficiency", "quantization", "quantisation"]
+    name: Inferenz-Effizienz großer Sprachmodelle
+    query: "kv cache compression, quantisation and attention efficiency for faster language model inference"
+    mainstream: "2024-09"
+    basis: "Kostendruck beim Betrieb, eigene Werkzeugklasse"
+    vertical: TECH
+
+  - key: small_models
+    terms: ["small language model", "on-device", "on device", "edge inference"]
+    name: Kleine Sprachmodelle auf dem Gerät
+    query: "small language models running on device for private low latency assistants"
+    mainstream: "2024-06"
+    basis: "Phi/Gemma-Klasse, On-Device-Assistenten in Endgeräten"
+    vertical: TECH
+
+  - key: ai_chip_controls
+    terms: ["export control", "export restriction", "entity list"]
+    name: Exportkontrollen für KI-Chips
+    query: "export controls on advanced ai accelerator chips and semiconductor equipment"
+    mainstream: "2022-10"
+    basis: "US-Exportkontrollen Oktober 2022"
+    vertical: TECH
+
+  - key: quantum_error_correction
+    terms: ["error correction", "logical qubit", "surface code"]
+    name: Quanten-Fehlerkorrektur
+    query: "quantum error correction with logical qubits and surface codes"
+    mainstream: "2023-02"
+    basis: "Logische Qubits als Messlatte statt roher Qubit-Zahl"
+    vertical: TECH
+
+  - key: glp1
+    terms: ["glp-1", "glp1", "semaglutide", "tirzepatide", "wegovy", "ozempic"]
+    name: GLP-1-Abnehmmedikamente
+    query: "glp-1 receptor agonists semaglutide and tirzepatide for obesity and weight loss"
+    mainstream: "2023-01"
+    basis: "Wegovy/Mounjaro-Welle, Lieferengpässe, Kostenträgerdebatte"
+    vertical: HEALTH
+
+  - key: psychedelics
+    terms: ["psilocybin", "mdma", "psychedelic"]
+    name: Psychedelika in der Psychiatrie
+    query: "psilocybin and mdma assisted therapy for depression and ptsd in clinical trials"
+    mainstream: "2023-06"
+    basis: "Phase-3-Ergebnisse und Zulassungsanträge"
+    vertical: HEALTH
+
+  - key: ultra_processed
+    terms: ["ultra-processed", "ultra processed", "ultraprocessed"]
+    name: Ultra-verarbeitete Lebensmittel
+    query: "ultra processed foods and their link to chronic disease and public health policy"
+    mainstream: "2023-10"
+    basis: "NOVA-Klassifikation in Leitlinien und Politik angekommen"
+    vertical: FOOD
+
+  - key: precision_fermentation
+    terms: ["precision fermentation", "animal-free", "animal free dairy"]
+    name: Präzisionsfermentation für Milchproteine
+    query: "precision fermentation of dairy proteins without animals for food ingredients"
+    mainstream: "2022-06"
+    basis: "Erste Marktzulassungen und Produkte mit fermentiertem Molkenprotein"
+    vertical: FOOD
+
+  - key: plant_based_downturn
+    terms: ["plant-based", "plant based", "meat alternative", "meat substitute"]
+    name: Einbruch bei Fleischersatz
+    query: "plant based meat sales decline, category contraction and consumer fatigue"
+    mainstream: "2023-04"
+    basis: "Umsatzrückgänge und Abschreibungen der Kategorie — bewusst ein FALLENDER Trend"
+    vertical: FOOD
+
+  - key: heat_pumps
+    terms: ["heat pump"]
+    name: Wärmepumpen
+    query: "residential heat pumps replacing gas boilers, subsidies and installation capacity"
+    mainstream: "2022-09"
+    basis: "Europäische Energiekrise, Förderprogramme"
+    vertical: ECO
+
+  - key: sodium_ion
+    terms: ["sodium-ion", "sodium ion", "na-ion"]
+    name: Natrium-Ionen-Batterien
+    query: "sodium ion batteries as a lithium free alternative for grid storage and entry level vehicles"
+    mainstream: "2023-04"
+    basis: "Erste Serienzellen und Fahrzeugankündigungen"
+    vertical: ECO
+
+  - key: direct_air_capture
+    terms: ["direct air capture", "dac plant", "carbon removal"]
+    name: Direct Air Capture
+    query: "direct air capture of carbon dioxide, engineered removal plants and purchase agreements"
+    mainstream: "2022-08"
+    basis: "US-Förderung und erste große Abnahmeverträge"
+    vertical: ECO
+
+  - key: grid_storage_lfp
+    terms: ["lithium iron phosphate", "lfp", "grid-scale storage", "grid scale storage"]
+    name: Netzspeicher mit LFP-Zellen
+    query: "grid scale battery energy storage systems using lithium iron phosphate cells"
+    mainstream: "2023-06"
+    basis: "LFP als Standardchemie für stationäre Großspeicher"
+    vertical: ECO
+
+  - key: perovskite_tandem
+    terms: ["perovskite"]
+    name: Perowskit-Tandem-Solarzellen
+    query: "perovskite silicon tandem solar cells, efficiency records and stability under field conditions"
+    mainstream: "2023-09"
+    basis: "Pilotlinien und Wirkungsgradrekorde über 30 Prozent"
+    vertical: ECO
+
+  - key: quiet_luxury
+    terms: ["quiet luxury", "understated luxury", "logo-free"]
+    name: Quiet Luxury
+    query: "quiet luxury and understated logo free dressing in premium fashion"
+    mainstream: "2023-05"
+    basis: "Saison- und Handelsthema quer durch die Modepresse"
+    vertical: FASHION
+
+  - key: textile_regulation
+    terms: ["textile waste", "product passport", "producer responsibility", "ecodesign"]
+    name: EU-Regeln für Textil-Kreislauf
+    query: "eu regulation on textile waste, digital product passport and extended producer responsibility for clothing"
+    mainstream: "2024-03"
+    basis: "Ökodesign-Verordnung und textilspezifische Vorgaben"
+    vertical: FASHION
+
+  - key: hyrox
+    terms: ["hyrox"]
+    name: Hyrox als Wettkampfformat
+    query: "hyrox fitness racing events, gym based competitive endurance racing"
+    mainstream: "2024-06"
+    basis: "Ausverkaufte Events und Studio-Partnerprogramme"
+    vertical: LIFESTYLE
+
+# Gegenproben: dürfen nie als Nest auftauchen. Treffen sie, ist die Schwelle
+# zu locker.
+controls:
+  - key: falconry
+    name: Mittelalterliche Falknerei
+    query: "medieval falconry training techniques, hawking equipment and hunting birds"
+
+  - key: pottery
+    name: Studio-Töpferei
+    query: "hand thrown stoneware glazing techniques for studio pottery kilns"
+
+  - key: harpsichord
+    name: Cembalo-Stimmung
+    query: "baroque harpsichord tuning temperaments and historical keyboard maintenance"

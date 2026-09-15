@@ -137,11 +137,22 @@ def pick_cells(n_docs: int) -> int:
 
 def detect_nests(X: np.ndarray, k: int | None = None, seed: int = 42,
                  min_cohesion: float = MIN_COHESION,
-                 min_size: int = MIN_NEST_SIZE) -> list[dict]:
+                 min_size: int = MIN_NEST_SIZE,
+                 top_n: int | None = None) -> list[dict]:
     """Fine partition → keep the tight cells → merge near-duplicates.
 
     Returns [{members: np.ndarray of row indices, centroid, cohesion, radius_p25}]
     sorted by size, largest first. X must be L2-normalized (build_matrix does).
+
+    `top_n` replaces the absolute density gate with a relative one: keep the n
+    densest pockets whatever their density. Production uses the absolute gate,
+    because a fixed bar is the only thing that makes two runs comparable. The
+    backtest uses the relative one, because the corpus of 2025 is diffuser than
+    the corpus of 2026 and an absolute bar would answer "was our intake dense
+    back then" instead of "was the trend findable" (measured 2026-09-15: the
+    same gate keeps 98 pockets in the last 90 days and 7 in a 2025 slice).
+    Each returned nest carries its cohesion, so the caller can still say which
+    ones would have cleared the production bar.
     """
     n = X.shape[0]
     k = k or pick_cells(n)
@@ -155,6 +166,7 @@ def detect_nests(X: np.ndarray, k: int | None = None, seed: int = 42,
     # Quality gate first, SIZE gate last. A real pocket that the fine partition
     # happened to slice into a dozen slivers would otherwise be thrown away
     # sliver by sliver before it ever got the chance to be put back together.
+    gate = 0.0 if top_n else min_cohesion
     cand: list[dict] = []
     for cid in range(k):
         members = np.flatnonzero(labels == cid)
@@ -162,7 +174,7 @@ def detect_nests(X: np.ndarray, k: int | None = None, seed: int = 42,
             continue
         sims = X[members] @ centers[cid]
         cohesion = float(sims.mean())
-        if cohesion < min_cohesion:
+        if cohesion < gate:
             continue
         cand.append({
             "members": members,
@@ -188,12 +200,20 @@ def detect_nests(X: np.ndarray, k: int | None = None, seed: int = 42,
         dup["cohesion"] = round(float(sims.mean()), 4)
         dup["radius_p25"] = float(np.percentile(sims, 25))
     kept = [c for c in kept if c["members"].size >= min_size]
+    if top_n:
+        kept.sort(key=lambda c: -c["cohesion"])
+        kept = kept[:top_n]
     kept.sort(key=lambda c: -c["members"].size)
     return kept
 
 
-def describe_nests(nests: list[dict], rows: list[dict]) -> None:
-    """Attach label, tags, sources, verticals and representatives, in place."""
+def describe_nests(nests: list[dict], rows: list[dict],
+                   X: np.ndarray | None = None) -> None:
+    """Attach label, tags, sources, verticals and representatives, in place.
+
+    With X the most CENTRAL member titles are collected as `name_titles` for
+    pipeline.nest_naming — the centre describes the pocket best, while the
+    representatives shown on the card are chosen for recency instead."""
     counters = []
     for nest in nests:
         members = [rows[i] for i in nest["members"]]
@@ -242,6 +262,17 @@ def describe_nests(nests: list[dict], rows: list[dict]) -> None:
                 break
         nest["rep_trend_ids"] = [r["id"] for r in reps]
         nest["rep_titles"] = [(r["title_en"] or "")[:120] for r in reps]
+        if X is not None:
+            sims = X[nest["members"]] @ nest["centroid"]
+            central = [members[j]["title_en"] or "" for j in np.argsort(-sims)[:10]]
+        else:
+            central = []
+        seen_t: dict[str, None] = {}
+        for t in central + nest["rep_titles"]:
+            t = (t or "").strip()
+            if t:
+                seen_t.setdefault(t[:160], None)
+        nest["name_titles"] = list(seen_t)[:14]
 
 
 # --- history ---------------------------------------------------------------

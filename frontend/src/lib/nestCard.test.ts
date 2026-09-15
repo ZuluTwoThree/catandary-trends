@@ -7,6 +7,7 @@ import {
   historyTail,
   isYoung,
   noveltyText,
+  nestTitle,
   runProvenance,
 } from "./nestCard";
 import type { EmergingNest, EmergingRun } from "./emerging";
@@ -15,6 +16,8 @@ function nest(over: Partial<EmergingNest> = {}): EmergingNest {
   return {
     id: 1,
     label: "Retrieval Augmented Generation · Natural Language Processing",
+    llm_label: null,
+    llm_label_note: null,
     size: 251,
     cohesion: 0.78,
     n_sources: 15,
@@ -111,6 +114,19 @@ describe("emerging cards — age is the headline, weaknesses are printed", () =>
     expect(
       caveats(nest({ tagged_share: 0.8, n_sources: 20, top_source_share: 0.2, established_share: 0.9 }))
     ).toEqual([]);
+  });
+
+  it("shows the model name with the measured label underneath", () => {
+    expect(nestTitle(nest({ llm_label: "Retrieval Augmented Generation" }))).toEqual({
+      name: "Retrieval Augmented Generation",
+      sub: "Retrieval Augmented Generation · Natural Language Processing",
+    });
+  });
+
+  it("shows the tag label alone when no name survived the check", () => {
+    const t = nestTitle(nest({ llm_label: null }));
+    expect(t.name).toBe("Retrieval Augmented Generation · Natural Language Processing");
+    expect(t.sub).toBeNull();
   });
 
   it("states what the run did", () => {

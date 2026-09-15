@@ -1076,9 +1076,21 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      im ersten Lauf stand ganz oben ein dichtes, brandneues Nest mit 647 Dokumenten
      Pseudowissenschaft aus einem Massen-Ingest. Tabellen emerging_runs/
      emerging_nests, additiv, Live-DB 15.09. Kein Cron, Knopf „Recompute pockets".
+     NAMEN (seit 2026-09-15 abends, pipeline/nest_naming.py): das lokale Modell
+     liest die zentrumsnaechsten Titel und benennt das Nest; jedes bedeutungs-
+     tragende Wort muss im Nest vorkommen, sonst faellt der Name durch und das
+     Schlagwort-Label bleibt (Karte zeigt beides). 311 von 328 benannt; einziger
+     GPU-Schritt der Schicht, --no-llm-names schaltet ihn ab.
+     PRUEFUNG (scripts/validate_emerging.py + known_trends.yaml): Ruecktest auf
+     21 Stichtagen gegen 20 datierbare Trends. 9 von 20 gefunden, 5 vor dem
+     Mainstream, Median-Vorlauf 6 Monate, Gegenproben nie ueber 0,62. Ein
+     Treffer zaehlt nur, wenn das getroffene Nest ein Kennwort des Trends auch
+     WIRKLICH enthaelt — ohne diese Regel meldete der Test 15 von 20 und 23
+     Monate, weil ein einziges Nest "Machine Learning · Neural Networks" gleich
+     drei KI-Trends traf. Bei 5 Trends fand der Test nicht einmal das Feld:
+     Quellenproblem, kein Erkennungsproblem.
      Offen: Bestaetigung ueber die vier Lead-Time-Ebenen, Akteure statt Artikel
-     zaehlen, Namen vom Modell, Pruefung gegen datierbare bekannte Trends.
-     docs/emerging_nests_2026-09-15.md)
+     zaehlen. docs/emerging_nests_2026-09-15.md)
     (das druckbare Foresight-Dossier /dossier samt CSV-Export
      wurde am 2026-09-15 entfernt: es las nur den ungeeichten Cluster-Snapshot vom 03.08. — Owner-Entscheid)
     (Technologie-Suche: Query-Quality-Gate #67 seit 2026-09-04, `pipeline/query_gate.py` — eine Anfrage

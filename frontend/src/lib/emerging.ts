@@ -22,7 +22,12 @@ export interface NestRep {
 
 export interface EmergingNest {
   id: number;
+  /** Deterministic label from the pocket's own tags or titles. */
   label: string;
+  /** Model-written name, or null when it did not survive the grounding check.
+   *  Both are shown: the name reads, the label is what was measured. */
+  llm_label: string | null;
+  llm_label_note: string | null;
   size: number;
   cohesion: number;
   n_sources: number;
@@ -83,7 +88,8 @@ const RUN_COLUMNS =
   "first_month, last_month, created_at::text AS created_at";
 
 const NEST_COLUMNS =
-  "SELECT id, label, size, cohesion, n_sources, top_source, top_source_share, " +
+  "SELECT id, label, llm_label, llm_label_note, size, cohesion, n_sources, " +
+  "top_source, top_source_share, " +
   "tagged_share, established_share, verticals, top_tags, new_terms, " +
   "first_month, age_months, " +
   "hits_total, hits_recent, novelty_lift, accel, history_months, history_hits, " +
@@ -144,6 +150,8 @@ export async function getLatestEmergingRun(
     const nests: EmergingNest[] = rows.map((r) => ({
       id: r.id as number,
       label: (r.label as string) || "Nest",
+      llm_label: (r.llm_label as string) || null,
+      llm_label_note: (r.llm_label_note as string) || null,
       size: r.size as number,
       cohesion: (r.cohesion as number) ?? 0,
       n_sources: (r.n_sources as number) ?? 0,
