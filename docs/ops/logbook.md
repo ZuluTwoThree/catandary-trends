@@ -13,6 +13,33 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-15 · change · Cluster-Schicht: Momentum maß den eigenen Quellenausbau
+
+Die Karten auf `/trends/foresight/clusters` sortierten nach einem Anteilswert,
+der das frühe gegen das späte Drittel der letzten 36 Monate stellte. In diesem
+Fenster wuchs der Korpus von rund 10.000 auf 129.124 Signale im Monat und der
+Quellenmix drehte von 49 % Fachpresse auf 56 % Forschung. Oben standen deshalb
+die Forschungs- und Patent-Cluster, unten die Fachpresse-Themen. Umbau:
+
+- Snapshot clustert die **letzten 24 Monate** (`--window-months`, 0 = Archiv).
+  Global 567.911 statt 1.749.201 Signale, neun Scopes in 3,5 statt 10,5 min.
+- Momentum auf **festem Quellenpanel** (nur Quellen mit Lieferung in beiden
+  Fenstern; global 122 Quellen, 44 % Abdeckung; unter 25 % wird es verworfen
+  und als `cohort_applied = 0` vermerkt).
+- **Dämpfung** von Mengenausschlägen je Quelle auf deren Median. Eine Quelle
+  war im FASHION-Lauf von ~50 auf ~350 Beiträge/Monat gesprungen (Nachtrags-
+  Ingest) und erzeugte allein den einzigen Aufsteiger: +18,4 pp → +4,2 pp.
+- Laufender Monat fällt aus Achse und Vergleich.
+- Karte nennt die beiden Anteile statt einer nackten pp-Zahl, die größte
+  Einzelquelle mit Anteil statt „confirmed by N independent sources", Kohäsion
+  in Worten, Mega-Trend erst ab 50 % Reinheit. Belege sind die neuesten
+  zentrumsnahen Signale, eines je Quelle.
+- Neue Detailseite `/trends/foresight/clusters/<id>` auf dem jetzt
+  persistierten Schwerpunktvektor (pgvector, 0,09 s).
+
+Additive Spalten auf `foresight_runs`/`foresight_clusters`, Live-DB migriert.
+Kein Cron betroffen. Befund und Messungen: `docs/cluster_layer_audit_2026-09-15.md`.
+
 ## 2026-09 · plan · bequiet von Ollama auf llama.cpp umstellen
 gpu: bequiet
 

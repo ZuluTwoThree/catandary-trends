@@ -27,6 +27,7 @@ import argparse
 import json
 import logging
 import time
+from datetime import datetime
 
 from pipeline import db as db_mod
 from pipeline.db import get_connection
@@ -39,7 +40,31 @@ logger = logging.getLogger("foresight_snapshot")
 VERTICALS = ["FOOD", "TECH", "HEALTH", "ECO", "DESIGN", "FASHION", "BIZ", "LIFESTYLE"]
 MIN_SIGNALS = 200
 
-DEFAULT_K_RANGE = {"global": (16, 30), "vertical": (8, 16)}
+# Raised 2026-09-15: the silhouette pick landed at 27 of a 30 ceiling on the
+# global space, which is the classic sign the ceiling — not the data — chose k.
+DEFAULT_K_RANGE = {"global": (16, 36), "vertical": (8, 20)}
+
+# Snapshots cluster a recent window by default. The page they feed is called
+# "What's moving now"; clustering 1.75M signals back to 1983 answered a
+# different question and produced 27 buckets of 65k items each, which are
+# subject areas, not trends. --window-months 0 restores the full-history atlas.
+DEFAULT_WINDOW_MONTHS = 24
+
+
+def _add_columns(conn, table: str, cols: dict[str, str]) -> None:
+    """Additive ALTERs that are safe to repeat on either backend.
+
+    Postgres has ADD COLUMN IF NOT EXISTS; SQLite does not, so there the
+    existing column set is read first. A failed ALTER must never be caught
+    blindly under Postgres — it would poison the surrounding transaction."""
+    if db_mod.USE_POSTGRES:
+        for name, ddl in cols.items():
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {ddl}")
+        return
+    have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    for name, ddl in cols.items():
+        if name not in have:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
 
 
 def migrate_foresight_tables() -> None:
@@ -80,6 +105,25 @@ def migrate_foresight_tables() -> None:
                      "ON foresight_clusters(run_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fruns_scope "
                      "ON foresight_runs(scope, created_at)")
+        # Additive columns (2026-09-15 audit). Kept out of the CREATE above so
+        # existing installations gain them too; both branches are no-ops on a
+        # second run.
+        blob_ = "BYTEA" if db_mod.USE_POSTGRES else "BLOB"
+        _add_columns(conn, "foresight_clusters", {
+            "centroid": blob_,              # was declared but never written
+            "top_source": "TEXT",           # largest single source in the cluster
+            "top_source_share": "REAL",     # its share of the cluster
+            "vol_delta_pct": "REAL",        # raw item count late vs early window
+            "share_early": "REAL",          # panel share in the early window
+            "share_late": "REAL",           # … and in the late one
+        })
+        _add_columns(conn, "foresight_runs", {
+            "since": "TEXT",                # ISO lower bound of the clustered window
+            "window_months": "INTEGER",     # 0/NULL = full history
+            "cohort_sources": "INTEGER",    # sources in the fixed momentum panel
+            "cohort_coverage": "REAL",      # share of window rows the panel carries
+            "cohort_applied": "INTEGER",    # 0 = panel too thin, all sources counted
+        })
         # Lineage artifacts (issue #2 phase 1): cross-window cluster evolution.
         blob = "BYTEA" if db_mod.USE_POSTGRES else "BLOB"
         conn.execute(
@@ -219,15 +263,49 @@ def run_lineage(scope: str, status: str = "signal,published",
     return run_id
 
 
+def _centroid_bytes(vec) -> bytes:
+    """L2-normalized float32 bytes of a cluster centroid.
+
+    Persisted so the frontend can answer "show me this cluster" without
+    re-clustering: the detail page runs a pgvector nearest-neighbour search
+    against it. The column existed since the first migration but was never
+    written (audit 2026-09-15), which is why a card could show three
+    representatives and nothing else."""
+    import numpy as _np
+    v = _np.asarray(vec, dtype=_np.float32)
+    return (v / max(float(_np.linalg.norm(v)), 1e-9)).astype(_np.float32).tobytes()
+
+
+def window_since(window_months: int, now: datetime | None = None) -> str | None:
+    """ISO first-of-month N months back, or None for the full history."""
+    if not window_months:
+        return None
+    d = (now or datetime.now()).replace(day=1)
+    y, m = d.year, d.month - window_months
+    while m <= 0:
+        m += 12
+        y -= 1
+    return f"{y:04d}-{m:02d}-01"
+
+
 def run_snapshot(scope: str, status: str = "signal,published",
                  k: int | None = None, k_range: tuple[int, int] | None = None,
                  limit: int = 0, source_like: str | None = None,
                  tier: str | None = None, dim1024: bool = False,
-                 noise_weight: bool = False) -> int | None:
-    """Cluster one scope and persist the artifacts. Returns run_id or None."""
+                 noise_weight: bool = False,
+                 window_months: int = DEFAULT_WINDOW_MONTHS,
+                 since: str | None = None) -> int | None:
+    """Cluster one scope and persist the artifacts. Returns run_id or None.
+
+    window_months limits the clustered slice to the last N months (0 = full
+    history); an explicit `since` overrides it."""
     vertical = scope.split(":", 1)[1] if scope.startswith("vertical:") else None
     if k_range is None:
         k_range = DEFAULT_K_RANGE["vertical" if vertical else "global"]
+    if since is None:
+        since = window_since(window_months)
+    else:
+        window_months = 0
 
     t0 = time.time()
     # Canonical tier scoping (TIER_FILTERS in the engine): a known tier label
@@ -236,10 +314,11 @@ def run_snapshot(scope: str, status: str = "signal,published",
     tier_scope = tier if (tier in TIER_FILTERS and not source_like) else None
     rows = load_signals(status=status, vertical=vertical,
                         source_like=source_like, limit=limit, dim1024=dim1024,
-                        tier=tier_scope)
-    logger.info("[%s] %d signals with embedding (status=%s%s%s)", scope, len(rows),
+                        tier=tier_scope, since=since)
+    logger.info("[%s] %d signals with embedding (status=%s%s%s%s)", scope, len(rows),
                 status, f", source_like={source_like}" if source_like else "",
-                f", tier={tier_scope}" if tier_scope else "")
+                f", tier={tier_scope}" if tier_scope else "",
+                f", since={since}" if since else ", full history")
     if len(rows) < MIN_SIGNALS:
         logger.warning("[%s] below MIN_SIGNALS=%d — skipping", scope, MIN_SIGNALS)
         return None
@@ -253,6 +332,12 @@ def run_snapshot(scope: str, status: str = "signal,published",
         logger.info("[%s] noise-weighting active: %d sources weighted", scope, len(sw))
     result = analyze(rows, X, labels, centroids, source_weights=sw)
     months = result["months"]
+    coh = result["cohort"]
+    logger.info("[%s] momentum panel: %d sources present in both windows, "
+                "%.0f%% of window rows%s%s", scope, coh["sources"],
+                coh["coverage"] * 100,
+                "" if coh["applied"] else " — TOO THIN, all sources counted",
+                f", running month {coh['dropped_month']} dropped" if coh["dropped_month"] else "")
 
     with get_connection() as conn:
         # RETURNING id under PG (the wrapper's .lastrowid reads it); plain
@@ -260,21 +345,29 @@ def run_snapshot(scope: str, status: str = "signal,published",
         returning = " RETURNING id" if db_mod.USE_POSTGRES else ""
         cur = conn.execute(
             "INSERT INTO foresight_runs (scope, tier, status_filter, k, signals,"
-            f" first_month, last_month) VALUES (?, ?, ?, ?, ?, ?, ?){returning}",
+            " first_month, last_month, since, window_months, cohort_sources,"
+            f" cohort_coverage, cohort_applied) VALUES (?,?,?,?,?,?,?,?,?,?,?,?){returning}",
             (scope, tier, status, k_used, len(rows),
-             months[0] if months else None, months[-1] if months else None))
+             months[0] if months else None, months[-1] if months else None,
+             since, window_months, coh["sources"], coh["coverage"],
+             1 if coh["applied"] else 0))
         run_id = cur.lastrowid
         for c in result["clusters"]:
             conn.execute(
                 "INSERT INTO foresight_clusters (run_id, cluster_idx, label, size,"
                 " cohesion, mega_trend, mega_purity, verticals, top_tags, n_sources,"
                 " momentum, sov_delta_pp, tier, rep_trend_ids, rep_titles,"
-                " monthly_series) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " monthly_series, centroid, top_source, top_source_share,"
+                " vol_delta_pct, share_early, share_late)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (run_id, c["cluster_idx"], c["label"], c["size"], c["cohesion"],
                  c["mega_trend"], c["mega_purity"], json.dumps(c["verticals"]),
                  json.dumps(c["top_tags"]), c["n_sources"], c["momentum"],
                  c["sov_delta_pp"], tier, json.dumps(c["rep_trend_ids"]),
-                 json.dumps(c["rep_titles"]), json.dumps(c["monthly_series"])))
+                 json.dumps(c["rep_titles"]), json.dumps(c["monthly_series"]),
+                 _centroid_bytes(centroids[c["cluster_idx"]]),
+                 c["top_source"], c["top_source_share"], c["vol_delta_pct"],
+                 c["share_early"], c["share_late"]))
     logger.info("[%s] run %d persisted: k=%d, %d clusters, %.0fs",
                 scope, run_id, k_used, len(result["clusters"]), time.time() - t0)
     return run_id
@@ -296,9 +389,14 @@ def main() -> int:
                     help="lead-time tier label stored on run+clusters (radar ring)")
     ap.add_argument("--dim1024", action="store_true",
                     help="cluster on the Matryoshka 1024-dim column (full-space runs)")
+    ap.add_argument("--window-months", type=int, default=DEFAULT_WINDOW_MONTHS,
+                    help=f"cluster only the last N months (default {DEFAULT_WINDOW_MONTHS}; "
+                         "0 = full history). Ignored with --lineage.")
     ap.add_argument("--lineage", action="store_true",
                     help="build a cross-window lineage instead of a single snapshot")
-    ap.add_argument("--since", default="2016-01-01", help="lineage: first window start")
+    ap.add_argument("--since", default=None,
+                    help="explicit ISO lower bound (snapshot: overrides --window-months; "
+                         "lineage: first window start, default 2016-01-01)")
     ap.add_argument("--until", default=None, help="lineage: coverage end (default today)")
     ap.add_argument("--step", type=int, default=3, help="lineage: window step in months")
     ap.add_argument("--span", type=int, default=12, help="lineage: window span in months")
@@ -317,7 +415,8 @@ def main() -> int:
     done = 0
     for scope in scopes:
         if args.lineage:
-            rid = run_lineage(scope, status=args.status, since=args.since,
+            rid = run_lineage(scope, status=args.status,
+                              since=args.since or "2016-01-01",
                               until=args.until, step_months=args.step,
                               span_months=args.span, k_range=k_range,
                               dim1024=args.dim1024)
@@ -325,7 +424,8 @@ def main() -> int:
             rid = run_snapshot(scope, status=args.status, k=args.k, k_range=k_range,
                                limit=args.limit, source_like=args.source_like,
                                tier=args.tier, dim1024=args.dim1024,
-                               noise_weight=args.noise_weight)
+                               noise_weight=args.noise_weight,
+                               window_months=args.window_months, since=args.since)
         done += 1 if rid else 0
     pruned = (prune_old_lineage_runs(keep_per_scope=1) if args.lineage
               else prune_old_runs(keep_per_scope=1))

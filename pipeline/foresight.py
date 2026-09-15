@@ -47,9 +47,29 @@ MOMENTUM_DECLINING_PP = -1.0
 # acquisition eras (patent/research back-file dominates 2002-2020, RSS the
 # recent years); an all-history SoV window measures that source-composition
 # shift, not the trend (validation 2026-07-02 caught -60pp "declines" that
-# were just the patent ingest window ending). Within a recent window the
-# composition is near-stable, so share-of-voice means what it claims.
+# were just the patent ingest window ending).
 MOMENTUM_WINDOW_MONTHS = 36
+
+# …but a recent window is NOT automatically composition-stable, and by
+# 2026-09 it plainly was not: inside the last 36 months the mix moved from
+# 49 % trade media / 28 % research (2023) to 19 % / 56 % (2026), and monthly
+# volume went from ~10k to 129k as the source count grew 226 → 560. The
+# early-vs-late share comparison was therefore measuring our own onboarding.
+# Fix: only sources that delivered in BOTH the early and the late window get a
+# voice in the share maths — a fixed panel, the way a price index holds its
+# basket. Raw counts (size, n, n_sources, the monthly `n` series) stay
+# unfiltered for display honesty; only `share`/`sov_delta_pp` use the panel.
+# If the panel would cover less than MIN_COHORT_COVERAGE of the two windows'
+# rows (tiny or freshly-built corpora), it is dropped and every source counts
+# again — reported as cohort_applied=False rather than silently.
+MIN_COHORT_COVERAGE = 0.25
+
+# Representatives: a signal must be at least this central (percentile of the
+# cluster's cosine-to-centroid) to qualify, and among those the NEWEST win,
+# one per source. Centroid-nearest alone returns the blandest, often years-old
+# member — five generic patent titles for an 83k cluster (audit 2026-09-15).
+REP_CENTRALITY_PCT = 60
+REP_MIN_MEMBERS = 20      # below this, centrality percentile is meaningless
 
 MINIBATCH_ABOVE = 100_000  # switch to MiniBatchKMeans above this many points
 LOAD_CHUNK = 20_000        # rows per keyset page in load_signals (memory, not speed)
@@ -257,6 +277,17 @@ ACRONYM_DISPLAY = {
     "mrna": "mRNA", "dna": "DNA", "rna": "RNA", "crispr": "CRISPR", "co2": "CO2",
     "esg": "ESG", "b2b": "B2B", "d2c": "D2C", "saas": "SaaS", "nlp": "NLP",
     "gpu": "GPU", "suv": "SUV", "hvac": "HVAC", "3d": "3D", "usa": "USA",
+    # Added 2026-09-15 after the label audit produced "Nft · Blockchain",
+    # "Sbir Funding · Education" and "Circular Economy · Eu Funding": the
+    # geo/generic filter only drops these as STANDALONE tags, so they survive
+    # inside compounds and must be cased per token here.
+    "nft": "NFT", "nfts": "NFTs", "sbir": "SBIR", "eu": "EU", "uk": "UK",
+    "us": "US", "sec": "SEC", "fda": "FDA", "ema": "EMA", "nasa": "NASA",
+    "ipo": "IPO", "cpg": "CPG", "vc": "VC", "cbd": "CBD", "gmo": "GMO",
+    "led": "LED", "uav": "UAV", "uavs": "UAVs", "sme": "SME", "smes": "SMEs",
+    "ceo": "CEO", "cfo": "CFO", "gdpr": "GDPR", "ip": "IP", "pfas": "PFAS",
+    "hiv": "HIV", "ncd": "NCD", "iso": "ISO", "csr": "CSR", "erp": "ERP",
+    "cdmo": "CDMO", "gpus": "GPUs", "ott": "OTT", "vod": "VOD", "diy": "DIY",
 }
 
 
@@ -298,13 +329,14 @@ def derive_label(tags: list[str], fallback: str = "Unlabelled cluster") -> str:
     return " · ".join(_pretty(p) for p in picked)
 
 
-def distinctive_label(tag_counter: Counter, size: int, tag_df: dict[str, int],
-                      n_clusters: int, fallback: str = "Unlabelled cluster") -> str:
-    """Label a cluster by its most DISTINCTIVE tags (tf-idf across clusters), not
-    just its most frequent. Fixes the 'every FOOD cluster is Plant-Based' problem:
-    a tag common to many clusters (df high) is downweighted, so each cluster
-    surfaces what sets it apart (cultivated meat vs plant-based milk vs …).
-    `tag_df` = number of clusters each normalized tag appears in."""
+def distinctive_terms(tag_counter: Counter, size: int, tag_df: dict[str, int],
+                      n_clusters: int, top: int = 6) -> list[str]:
+    """Ranked DISTINCTIVE tag stems for a cluster (tf-idf across clusters), not
+    just the most frequent. Fixes the 'every FOOD cluster is Plant-Based'
+    problem: a tag common to many clusters (df high) is downweighted, so each
+    cluster surfaces what sets it apart (cultivated meat vs plant-based milk
+    vs …). `tag_df` = number of clusters each normalized tag appears in.
+    Returns normalized stems; `_pretty` turns them into display form."""
     # Sum counts of tag variants that normalize to the same concept
     # ('plant-based' + 'plant based' → one entry) before scoring.
     norm_counts: Counter = Counter()
@@ -317,52 +349,201 @@ def distinctive_label(tag_counter: Counter, size: int, tag_df: dict[str, int],
         tf = cnt / max(size, 1)
         idf = np.log(n_clusters / (1 + tag_df.get(norm, 0))) + 1.0  # +1 keeps it positive
         scored.append((tf * idf, norm))
-    scored.sort(key=lambda x: -x[0])
-    picked = [norm for _, norm in scored[:2]]
+    scored.sort(key=lambda x: (-x[0], x[1]))  # deterministic on ties
+    return [norm for _, norm in scored[:top]]
+
+
+def distinctive_label(tag_counter: Counter, size: int, tag_df: dict[str, int],
+                      n_clusters: int, fallback: str = "Unlabelled cluster") -> str:
+    """Two most distinctive tags as one label. Kept for callers that label a
+    single cluster; `assign_labels` is the run-wide variant that also
+    guarantees uniqueness."""
+    picked = distinctive_terms(tag_counter, size, tag_df, n_clusters, top=2)
     if not picked:
         return derive_label([t for t, _ in tag_counter.most_common(6)], fallback)
     return " · ".join(_pretty(p) for p in picked)
 
 
+def unique_label(terms: list[str], used: set[str], fallback: str) -> str:
+    """A label from `terms` that no other cluster in the run carries yet.
+
+    Two clusters of the same run used to end up with the identical label (the
+    2026-09-15 FASHION run had 'Sustainable Fashion · Circular Economy' twice,
+    with opposite momentum) — indistinguishable cards making contradictory
+    claims. Candidates widen in a fixed order, so the same input always yields
+    the same label: the top pair, then pairs reaching into the third term, then
+    a triple, and only then a numbered suffix."""
+    combos: list[tuple[str, ...]] = []
+    if len(terms) >= 2:
+        combos.append((terms[0], terms[1]))
+    if len(terms) >= 3:
+        combos += [(terms[0], terms[2]), (terms[1], terms[2]),
+                   (terms[0], terms[1], terms[2])]
+    if len(terms) >= 4:
+        combos += [(terms[0], terms[3]), (terms[0], terms[1], terms[3])]
+    if len(terms) == 1:
+        combos.append((terms[0],))
+    for combo in combos:
+        label = " · ".join(_pretty(t) for t in combo)
+        if label not in used:
+            return label
+    base = (" · ".join(_pretty(t) for t in terms[:2]) if terms else fallback)
+    for n in range(2, 99):
+        label = f"{base} ({n})"
+        if label not in used:
+            return label
+    return base
+
+
+def _pick_reps(members: list[dict], sims: np.ndarray, limit: int = 5) -> list[dict]:
+    """Representative signals: central enough, then newest, one per source.
+
+    Ranking purely by cosine-to-centroid returns the most AVERAGE member of the
+    cluster, which in a six-figure cluster means an old, generic item — the
+    2026-09-15 audit found five near-identical Google Patents titles standing
+    for an 83k cluster. Centrality becomes a gate instead of the ranking: only
+    members above the REP_CENTRALITY_PCT percentile qualify, and among those the
+    most recent win, at most one per source so the list shows corroboration
+    rather than one feed five times."""
+    if len(members) == 0:
+        return []
+    order = np.argsort(-sims)
+    if len(members) < REP_MIN_MEMBERS:
+        return [members[j] for j in order[:limit]]
+    cutoff = float(np.percentile(sims, REP_CENTRALITY_PCT))
+    cands = [j for j in range(len(members)) if sims[j] >= cutoff]
+    # newest first; cosine breaks ties between same-day items
+    cands.sort(key=lambda j: ((members[j]["published_date"] or ""), float(sims[j])),
+               reverse=True)
+    reps: list[dict] = []
+    seen: set[str] = set()
+    spare: list[dict] = []
+    for j in cands:
+        src = members[j]["source_name"] or ""
+        if src and src in seen:
+            if len(spare) < limit:
+                spare.append(members[j])
+            continue
+        if src:
+            seen.add(src)
+        reps.append(members[j])
+        if len(reps) >= limit:
+            break
+    # A genuinely single-source cluster (a patent pool, one journal) would
+    # otherwise show one line instead of five; top up from the same ranking.
+    for m in spare:
+        if len(reps) >= limit:
+            break
+        reps.append(m)
+    return reps or [members[j] for j in order[:limit]]
+
+
 def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
-            centroids: np.ndarray, source_weights: dict[str, float] | None = None) -> dict:
+            centroids: np.ndarray, source_weights: dict[str, float] | None = None,
+            now: datetime | None = None) -> dict:
     """Per-cluster analysis + global month axis.
 
-    Returns {"months": [...], "totals": [...], "clusters": [cluster-dict, ...]}
-    with each cluster carrying size, cohesion, dominant mega-trend + purity,
-    verticals, top tags, source corroboration, representatives, a monthly
+    Returns {"months", "totals", "clusters", "cohort"} with each cluster
+    carrying size, cohesion, dominant mega-trend + purity, verticals, top tags,
+    source spread + concentration, representatives, its centroid, a monthly
     series (count + share of the scope's monthly volume) and SoV momentum
     (Δ share between the early and late thirds of the sufficiently-dense
-    months — share-of-voice removes the source-onboarding growth bias).
+    months).
+
+    Two corrections from the 2026-09-15 audit:
+
+    * the running (incomplete) month is dropped from the month axis — it
+      otherwise ends every sparkline on a half-month dip and lets whichever
+      ingest happened to run that week steer the late window;
+    * share/momentum are computed on a FIXED SOURCE PANEL (sources that
+      delivered in both the early and the late window, see MIN_COHORT_COVERAGE),
+      so corpus growth cannot masquerade as a trend.
 
     source_weights (#2 phase 2): optional {source_name: weight in [0,1]} that
     down-weights noisy sources in the SHARE / momentum maths (a low-pass-rate
     feed contributes less voice) while raw counts — size, n, n_sources — stay
-    unweighted for display honesty. None (default) = every source weight 1.0,
-    i.e. byte-identical to the unweighted behaviour.
+    unweighted for display honesty. None (default) = every source weight 1.0.
     """
-    def _w(r: dict) -> float:
-        if not source_weights:
-            return 1.0
-        return source_weights.get(r["source_name"], 1.0)
+    # One month lookup per row, reused by every pass below.
+    rmonth = [month_key(r["published_date"]) for r in rows]
 
-    months = sorted({m for r in rows if (m := month_key(r["published_date"]))})
+    months = sorted({m for m in rmonth if m})
+    running = (now or datetime.now()).strftime("%Y-%m")
+    dropped_month = running if months and months[-1] == running else None
+    if dropped_month:
+        months = months[:-1]
     midx = {m: i for i, m in enumerate(months)}
+
     totals = [0] * len(months)          # raw monthly volume (display / density gate)
-    wtotals = [0.0] * len(months)       # weighted monthly volume (share denominator)
-    for r in rows:
-        mk = month_key(r["published_date"])
+    for i, r in enumerate(rows):
+        mk = rmonth[i]
         if mk in midx:
             totals[midx[mk]] += 1
-            wtotals[midx[mk]] += _w(r)
 
-    # SoV windows: only the most recent MOMENTUM_WINDOW_MONTHS with enough
-    # volume (source composition is near-stable there), early/late thirds.
+    # SoV windows: the most recent MOMENTUM_WINDOW_MONTHS with enough volume,
+    # early/late thirds.
     window_start = max(0, len(months) - MOMENTUM_WINDOW_MONTHS)
     meaningful = [i for i in range(window_start, len(months)) if totals[i] >= 5]
     third = max(1, len(meaningful) // 3) if meaningful else 0
     early_idx = set(meaningful[:third])
     late_idx = set(meaningful[-third:]) if third else set()
+
+    # Fixed source panel: present in both comparison windows.
+    early_m = {months[i] for i in early_idx}
+    late_m = {months[i] for i in late_idx}
+    early_src: set[str] = set()
+    late_src: set[str] = set()
+    win_rows = 0
+    for i, r in enumerate(rows):
+        mk = rmonth[i]
+        src = r["source_name"] or ""
+        if mk in early_m:
+            early_src.add(src)
+            win_rows += 1
+        elif mk in late_m:
+            late_src.add(src)
+            win_rows += 1
+    cohort = (early_src & late_src) - {""}
+    covered = sum(1 for i, r in enumerate(rows)
+                  if (rmonth[i] in early_m or rmonth[i] in late_m)
+                  and (r["source_name"] or "") in cohort)
+    coverage = covered / win_rows if win_rows else 0.0
+    cohort_applied = bool(cohort) and coverage >= MIN_COHORT_COVERAGE
+
+    # Per-source monthly volume, and each source's typical output in an active
+    # month. A source already inside the panel can still distort a window by
+    # changing its OWN rate: the 2026-09-15 FASHION run had one outlet going
+    # from ~50 items a month to 378/353/347 in April-June (a back-ingest, not a
+    # publishing surge), which alone produced the run's single "rising"
+    # cluster. Months above a source's median are damped back to it, so an
+    # outlet contributes roughly one voice per month however many rows arrive.
+    # Quiet months are NOT lifted — only spikes are suspect.
+    src_month: Counter = Counter()
+    for i, r in enumerate(rows):
+        if rmonth[i] in midx:
+            src_month[(r["source_name"] or "", rmonth[i])] += 1
+    by_src: dict[str, list[int]] = {}
+    for (src, _m), n in src_month.items():
+        by_src.setdefault(src, []).append(n)
+    src_median = {s: float(np.median(v)) for s, v in by_src.items()}
+
+    def _w(i: int, r: dict) -> float:
+        src = r["source_name"] or ""
+        if cohort_applied and src not in cohort:
+            return 0.0
+        w = source_weights.get(src, 1.0) if source_weights else 1.0
+        n = src_month.get((src, rmonth[i]), 0)
+        med = src_median.get(src, 0.0)
+        if n > med > 0:
+            w *= med / n
+        return w
+
+    rw = [_w(i, r) for i, r in enumerate(rows)]   # final per-row voice
+    wtotals = [0.0] * len(months)       # panel volume (share denominator)
+    for i in range(len(rows)):
+        mk = rmonth[i]
+        if mk in midx:
+            wtotals[midx[mk]] += rw[i]
 
     def share(series: list[float], idxs: set[int]) -> float:
         num = sum(series[i] for i in idxs)
@@ -380,28 +561,36 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
         cen = cen / max(np.linalg.norm(cen), 1e-9)
         sims = X[idxs] @ cen
         cohesion = float(np.mean(sims))
-        reps = [members[j] for j in np.argsort(-sims)[:5]]
+        reps = _pick_reps(members, sims)
         megas = Counter(m["mega_trend"] for m in members if m["mega_trend"])
         dom, dom_n = (megas.most_common(1)[0] if megas else (None, 0))
         tags = Counter(t for m in members for t in (m["tags"] or []))
         verts = [v for v, _ in Counter(
             m["primary_vertical"] for m in members if m["primary_vertical"]).most_common(3)]
-        sources = {m["source_name"] for m in members if m["source_name"]}
+        src_counts = Counter(m["source_name"] for m in members if m["source_name"])
+        top_source, top_n = src_counts.most_common(1)[0] if src_counts else (None, 0)
 
         series = [0] * len(months)          # raw counts (display)
-        wseries = [0.0] * len(months)       # weighted counts (share/momentum)
-        for m in members:
-            mk = month_key(m["published_date"])
+        wseries = [0.0] * len(months)       # panel counts (share/momentum)
+        for j in idxs:
+            mk = rmonth[j]
             if mk in midx:
                 series[midx[mk]] += 1
-                wseries[midx[mk]] += _w(m)
+                wseries[midx[mk]] += rw[j]
         se, sl = share(wseries, early_idx), share(wseries, late_idx)
         delta_pp = (sl - se) * 100
         momentum = ("rising" if delta_pp > MOMENTUM_RISING_PP
                     else "declining" if delta_pp < MOMENTUM_DECLINING_PP
                     else "stable")
+        # Share of voice is zero-sum: one cluster surging pushes every other
+        # into negative pp even when they grew. Raw item counts answer the
+        # question the badge cannot ("did we simply see more of this?"), and
+        # both windows span the same number of months, so the ratio is fair.
+        ve = sum(series[i] for i in early_idx)
+        vl = sum(series[i] for i in late_idx)
+        vol_delta_pct = round((vl / ve - 1) * 100, 1) if ve else None
         if len(meaningful) < 6:
-            momentum, delta_pp = "unknown", 0.0
+            momentum, delta_pp, vol_delta_pct = "unknown", 0.0, None
 
         top_tags = [t for t, _ in tags.most_common(12)]
         clusters.append({
@@ -414,9 +603,19 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
             "mega_purity": round(dom_n / len(members), 4) if members else 0.0,
             "verticals": verts,
             "top_tags": top_tags,
-            "n_sources": len(sources),
+            "n_sources": len(src_counts),
+            "top_source": top_source,
+            "top_source_share": round(top_n / len(members), 4) if members else 0.0,
             "momentum": momentum,
             "sov_delta_pp": round(delta_pp, 2),
+            # The two shares the delta is made of. A pp figure alone is not
+            # readable: +0.5 pp is a big move for a 1 % cluster and noise for a
+            # 20 % one, and the raw item count cannot substitute (in the
+            # 2026-09 corpus EVERY cluster grew three- to fiftyfold because the
+            # corpus did).
+            "share_early": round(se, 4),
+            "share_late": round(sl, 4),
+            "vol_delta_pct": vol_delta_pct,
             "rep_trend_ids": [r["id"] for r in reps],
             "rep_titles": [(r["title_en"] or "")[:120] for r in reps],
             "monthly_series": [
@@ -429,7 +628,8 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
     # Second pass: relabel each cluster by tag distinctiveness across clusters, so
     # near-identical clusters (e.g. the plant-based cluster of FOOD) surface what
     # sets them apart rather than repeating the vertical's dominant tag. tag_df =
-    # in how many clusters each normalized tag ranks in the top 20.
+    # in how many clusters each normalized tag ranks in the top 20. Labels are
+    # assigned largest-cluster-first and must be unique within the run.
     tag_df: Counter = Counter()
     for c in clusters:
         top20 = [t for t, _ in c["_tag_counter"].most_common(20)]
@@ -437,11 +637,25 @@ def analyze(rows: list[dict], X: np.ndarray, labels: np.ndarray,
             if norm:
                 tag_df[norm] += 1
     n_c = len(clusters)
-    for c in clusters:
-        c["label"] = distinctive_label(c["_tag_counter"], c["size"], tag_df, n_c,
-                                       fallback=c["label"])
+    used: set[str] = set()
+    for c in sorted(clusters, key=lambda c: -c["size"]):
+        terms = distinctive_terms(c["_tag_counter"], c["size"], tag_df, n_c)
+        c["label"] = unique_label(terms, used, fallback=c["label"])
+        used.add(c["label"])
         del c["_tag_counter"]
-    return {"months": months, "totals": totals, "clusters": clusters}
+    return {
+        "months": months,
+        "totals": totals,
+        "clusters": clusters,
+        "cohort": {
+            "applied": cohort_applied,
+            "sources": len(cohort),
+            "coverage": round(coverage, 4),
+            "dropped_month": dropped_month,
+            "early_window": [min(early_m), max(early_m)] if early_m else None,
+            "late_window": [min(late_m), max(late_m)] if late_m else None,
+        },
+    }
 
 
 # -------------------------------------------------------------------- lineage

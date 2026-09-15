@@ -44,7 +44,7 @@ export default async function MovingNow() {
           return (
             <Link
               key={c.id}
-              href={`/trends/foresight/clusters?vertical=${c.verticals[0] ?? ""}`}
+              href={`/trends/foresight/clusters/${c.id}`}
               className="group border border-border border-l-[3px] p-4 transition-colors hover:bg-accent/[0.02]"
               style={{ borderLeftColor: v?.color ?? "var(--color-accent)" }}
             >
@@ -62,8 +62,10 @@ export default async function MovingNow() {
               <div className="mt-1.5 font-medium leading-snug group-hover:text-accent">
                 {c.label}
               </div>
+              {/* No "corroborated by N sources" (audit 2026-09-15): the count
+                  is breadth, not verification. State the measured delta. */}
               <div className="mt-1 text-xs text-muted">
-                rising for months · corroborated by {c.n_sources} sources
+                +{c.sov_delta_pp.toFixed(1)} pp share of attention · {c.n_sources} sources
               </div>
             </Link>
           );
