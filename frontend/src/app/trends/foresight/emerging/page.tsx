@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getEmergingScopes, getLatestEmergingRun } from "@/lib/emerging";
-import { runProvenance, isYoung } from "@/lib/nestCard";
+import { runProvenance, isYoung, TIER_LABEL } from "@/lib/nestCard";
+import { TIERS } from "@/lib/tiers";
 import { VERTICALS } from "@/lib/types";
 import NestCard from "@/components/foresight/NestCard";
 import SnapshotRecompute from "@/components/foresight/SnapshotRecompute";
@@ -30,7 +31,8 @@ export default async function EmergingPage({
 }) {
   const raw = await searchParams;
   const requested = typeof raw.vertical === "string" ? raw.vertical.toUpperCase() : null;
-  const scope = requested ? `vertical:${requested}` : "global";
+  const tier = typeof raw.tier === "string" ? raw.tier.toLowerCase() : null;
+  const scope = tier ? `tier:${tier}` : requested ? `vertical:${requested}` : "global";
   const notice = typeof raw.worker === "string" ? raw.worker : undefined;
   const onlyYoung = raw.young === "1";
 
@@ -58,7 +60,11 @@ export default async function EmergingPage({
       {label}
     </Link>
   );
-  const base = requested ? `/trends/foresight/emerging?vertical=${requested}` : "/trends/foresight/emerging";
+  const base = tier
+    ? `/trends/foresight/emerging?tier=${tier}`
+    : requested
+      ? `/trends/foresight/emerging?vertical=${requested}`
+      : "/trends/foresight/emerging";
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -98,10 +104,22 @@ export default async function EmergingPage({
         notice={notice}
       />
 
-      <div className="flex items-center gap-1 flex-wrap mb-4">
+      <div className="flex items-center gap-1 flex-wrap mb-2">
         {tab("/trends/foresight/emerging", "All industries", scope === "global")}
         {VERTICALS.filter((v) => available.has(`vertical:${v.id}`)).map((v) =>
           tab(`/trends/foresight/emerging?vertical=${v.id}`, v.label, scope === `vertical:${v.id}`)
+        )}
+      </div>
+
+      {/* Owner 2026-09-15: a science trend is not a market trend. Each tier is
+          clustered on its own, because the embedding carries register as well
+          as topic — a market pocket is only found by market vocabulary. */}
+      <div className="flex items-center gap-1 flex-wrap mb-8">
+        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mr-2">
+          by conversation
+        </span>
+        {TIERS.filter((t) => available.has(`tier:${t}`)).map((t) =>
+          tab(`/trends/foresight/emerging?tier=${t}`, TIER_LABEL[t], scope === `tier:${t}`)
         )}
       </div>
 
@@ -125,7 +143,7 @@ export default async function EmergingPage({
           <p className="font-sans text-text mb-2">No emerging run for this scope yet.</p>
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
             Run it with the button above, or on the workstation:
-            python -m pipeline.emerging_snapshot --all-verticals
+            python -m pipeline.emerging_snapshot --all-verticals --all-tiers
           </p>
         </div>
       ) : (

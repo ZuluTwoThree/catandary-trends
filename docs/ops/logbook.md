@@ -13,6 +13,34 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-16 · change · Emerging: vier Ebenen statt einer Zeitachse
+
+Owner-Einwand: ein Wissenschaftstrend ist nicht dasselbe wie ein Markttrend,
+auch bei gleichem Thema. Perowskit wird erforscht, patentiert, gefördert und
+erst dann am Markt diskutiert — vier Gespräche, vier Anfänge. Der Detektor
+datierte bisher das früheste und nannte es den Trend; genau das erklärt die
+unglaubwürdigen +26 Monate aus dem Rücktest.
+
+- `pipeline/tiers.py` ordnet jede Zeile einer Ebene zu (Zwilling der
+  SQL-`TIER_FILTERS`), der Archiv-Scan zählt je Monat **und Ebene**. Jedes Nest
+  trägt jetzt vier Erstauftritte, die Reihenfolge und den Abstand
+  Wissenschaft → Markt.
+- **Befund, der den Rest erklärt:** die Einbettung kodiert den Sprachstil mit.
+  „perovskite tandem solar cells" trifft in 400.000 Dokumenten 146 Forschungs-
+  und 2 Marktzeilen. Die Ebene lässt sich deshalb nicht nachträglich aus einem
+  gemeinsamen Nest lösen.
+- Konsequenz: Scope `tier:<t>` (`--all-tiers`), jede Ebene für sich geclustert.
+  Die Marktebene liefert dann echte Marktgespräche (Smart Glasses · Privacy
+  Concerns, EU Regulations · Regulatory Delay, Sugar Tax · Public Health) und
+  braucht feinere Zellen: 5 Nester bei 207 Dok/Zelle, 46 bei 69. Der Lauf merkt
+  das selbst und rechnet einmal nach.
+- Akteure statt Artikel: verschiedene Firmen in den Markt-Ähnlichen, früh gegen
+  spät. Untergrenze, weil nur 13 % der Fachpresse-Zeilen einen extrahierten
+  Namen tragen — steht so auf der Karte.
+
+Reiter „by conversation" auf `/trends/foresight/emerging`. Additive Spalten,
+Live-DB. Kein Cron. `docs/emerging_nests_2026-09-15.md`.
+
 ## 2026-09-15 · change · Emerging: Namen vom Modell und der erste Rücktest
 
 Punkte 5 und 6 der Trendfindungs-Liste, auf Owner-Auftrag.

@@ -5,10 +5,23 @@
     python -m pipeline.emerging_snapshot --scope vertical:FOOD --window-days 120
     python -m pipeline.emerging_snapshot --all-verticals
 
+    python -m pipeline.emerging_snapshot --scope tier:market
+    python -m pipeline.emerging_snapshot --all-tiers
+
 Detection runs on a recent slice; the history scan then walks the WHOLE archive
 so each nest can be dated. Deliberately separate from `foresight_snapshot`: the
 cluster layer answers "what is the room talking about", this one answers "what
 is new". Both stay on the page at the same time (Owner 2026-09-15).
+
+SCOPES. 'global' and 'vertical:<V>' cut the corpus by subject. 'tier:<t>' cuts
+it by CONVERSATION — research, patents, funding, market. Owner 2026-09-15: a
+science trend is not a market trend even when the topic is identical. The two
+cannot be separated after the fact, because the embedding carries register as
+well as topic: a query written in scientific language retrieves science. Over
+400,000 recent documents, "perovskite tandem solar cells" matched 146 science
+rows above cosine 0.75 and 2 market rows; the market conversation exists, it
+just does not speak that way. Clustering each tier on its own is the only way a
+market pocket gets found by market vocabulary.
 
 CPU only, no GPU, no model. On-demand like every radar artifact — no cron.
 """
@@ -24,9 +37,10 @@ import numpy as np
 
 from pipeline import db as db_mod
 from pipeline.db import get_connection
-from pipeline.emerging import (HIST_SIM_FLOOR, describe_nests, detect_nests,
-                               pick_cells, scan_history, score_nests)
+from pipeline.emerging import (HIST_SIM_FLOOR, MAX_CELLS, describe_nests,
+                               detect_nests, pick_cells, scan_history, score_nests)
 from pipeline.foresight import build_matrix, load_signals
+from pipeline.tiers import TIERS
 from pipeline.foresight_snapshot import add_columns
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
@@ -37,6 +51,14 @@ DEFAULT_WINDOW_DAYS = 90
 MIN_SIGNALS = 800           # below this a slice has no density to speak of
 MAX_WINDOW_DAYS = 180       # thin verticals get a wider slice, once
 OLD_TAG_WINDOW = (24, 36)   # months back: the vocabulary baseline
+ACTOR_WINDOW = (6, 24)      # months back: "late" is the last 6, "early" ends at 24
+# Below this a scope has effectively found nothing; the partition is then too
+# coarse for how diffuse that corpus is, and one finer attempt is made. The
+# market tier is the case that forced it: 41,563 trade-press documents gave 5
+# pockets at 207 documents per cell and 46 at 69 (measured 2026-09-15). Trade
+# press writes about everything, so its pockets are small.
+MIN_NESTS_TARGET = 10
+CELL_RETRY_FACTOR = 3
 
 
 def migrate_emerging_tables() -> None:
@@ -81,6 +103,11 @@ def migrate_emerging_tables() -> None:
             "established_share": "REAL",
             "llm_label": "TEXT",        # model-written name, grounding-checked
             "llm_label_note": "TEXT",   # why it was refused, when it was
+            "tiers": "TEXT",            # JSON: per lead-time tier, dated separately
+            "tier_order": "TEXT",       # JSON: tiers in the order they started
+            "science_to_market_months": "INTEGER",
+            "actors_early": "INTEGER",  # distinct market companies/brands…
+            "actors_late": "INTEGER",   # …early vs late window
         })
         conn.execute("CREATE INDEX IF NOT EXISTS idx_enests_run ON emerging_nests(run_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_eruns_scope "
@@ -140,18 +167,28 @@ def name_nests_on_gpu(nests: list[dict], scope: str) -> None:
                 scope, summary["named"], summary["total"])
 
 
+def scope_parts(scope: str) -> tuple[str | None, str | None]:
+    """('vertical:FOOD') -> ('FOOD', None); ('tier:market') -> (None, 'market')."""
+    if scope.startswith("vertical:"):
+        return scope.split(":", 1)[1], None
+    if scope.startswith("tier:"):
+        return None, scope.split(":", 1)[1]
+    return None, None
+
+
 def run_emerging(scope: str, status: str = "signal,published",
                  window_days: int = DEFAULT_WINDOW_DAYS, cells: int | None = None,
                  min_cohesion: float | None = None, history_since: str | None = None,
                  seed: int = 42, now: datetime | None = None,
                  llm_names: bool = True) -> int | None:
     """Detect nests in the recent slice, date them against the archive, persist."""
-    vertical = scope.split(":", 1)[1] if scope.startswith("vertical:") else None
+    vertical, tier = scope_parts(scope)
     now = now or datetime.now()
     since = (now - timedelta(days=window_days)).strftime("%Y-%m-%d")
 
     t0 = time.time()
-    rows = load_signals(status=status, vertical=vertical, dim1024=True, since=since)
+    rows = load_signals(status=status, vertical=vertical, tier=tier,
+                        dim1024=True, since=since)
     logger.info("[%s] %d signals in the last %d days (since %s)",
                 scope, len(rows), window_days, since)
     if len(rows) < MIN_SIGNALS and window_days < MAX_WINDOW_DAYS:
@@ -159,7 +196,8 @@ def run_emerging(scope: str, status: str = "signal,published",
         # 2026-09-15) — widen the slice once rather than leave a vertical blind.
         window_days = MAX_WINDOW_DAYS
         since = (now - timedelta(days=window_days)).strftime("%Y-%m-%d")
-        rows = load_signals(status=status, vertical=vertical, dim1024=True, since=since)
+        rows = load_signals(status=status, vertical=vertical, tier=tier,
+                            dim1024=True, since=since)
         logger.info("[%s] thin slice — widened to %d days: %d signals (since %s)",
                     scope, window_days, len(rows), since)
     if len(rows) < MIN_SIGNALS:
@@ -168,8 +206,8 @@ def run_emerging(scope: str, status: str = "signal,published",
 
     kwargs = {} if min_cohesion is None else {"min_cohesion": min_cohesion}
 
-    def _detect(mat):
-        kk = cells or pick_cells(mat.shape[0])
+    def _detect(mat, force_k: int | None = None):
+        kk = force_k or cells or pick_cells(mat.shape[0])
         found = detect_nests(mat, k=kk, seed=seed, **kwargs)
         logger.info("[%s] %d cells -> %d nests holding %.0f%% of the slice (%.0fs)",
                     scope, kk, len(found),
@@ -179,6 +217,14 @@ def run_emerging(scope: str, status: str = "signal,published",
 
     X = build_matrix(rows)
     k, nests = _detect(X)
+    if len(nests) < MIN_NESTS_TARGET and not cells:
+        finer = min(MAX_CELLS, max(k * CELL_RETRY_FACTOR, 1), X.shape[0] // 20)
+        if finer > k:
+            logger.info("[%s] only %d pockets at %d documents per cell — retrying "
+                        "with %d cells", scope, len(nests), X.shape[0] // max(k, 1), finer)
+            k2, nests2 = _detect(X, force_k=finer)
+            if len(nests2) > len(nests):
+                k, nests = k2, nests2
     if not nests and window_days < MAX_WINDOW_DAYS:
         # A thin vertical can be above MIN_SIGNALS and still have no pocket
         # dense enough in 90 days (DESIGN, 1,619 documents, 2026-09-15).
@@ -186,8 +232,9 @@ def run_emerging(scope: str, status: str = "signal,published",
         window_days = MAX_WINDOW_DAYS
         since = (now - timedelta(days=window_days)).strftime("%Y-%m-%d")
         del X
-        rows = load_signals(status=status, vertical=vertical, dim1024=True, since=since)
-        logger.info("[%s] nothing dense enough — widened to %d days: %d signals",
+        rows = load_signals(status=status, vertical=vertical, tier=tier,
+                            dim1024=True, since=since)
+        logger.info("[%s] nothing dense enough — widened to %d signals",
                     scope, window_days, len(rows))
         X = build_matrix(rows)
         k, nests = _detect(X)
@@ -202,10 +249,15 @@ def run_emerging(scope: str, status: str = "signal,published",
     del X, rows
 
     t1 = time.time()
+    # The dating scan stays UNSCOPED by tier on purpose: a market pocket should
+    # be dated against everything, so its research prehistory shows up in its
+    # tier profile instead of being hidden by the scope it was found in.
     hist = scan_history(centroids, thresholds, status=status, vertical=vertical,
                         dim1024=True, since=history_since,
                         tag_windows=(_month_back(OLD_TAG_WINDOW[1], now),
                                      _month_back(OLD_TAG_WINDOW[0], now)),
+                        actor_windows=(_month_back(ACTOR_WINDOW[1], now),
+                                       _month_back(ACTOR_WINDOW[0], now)),
                         progress=lambda n: logger.info("[%s] scanned %d …", scope, n))
     logger.info("[%s] history: %d documents over %d months (%.0fs)",
                 scope, hist["scanned"], len(hist["months"]), time.time() - t1)
@@ -229,14 +281,19 @@ def run_emerging(scope: str, status: str = "signal,published",
             conn.execute(
                 "INSERT INTO emerging_nests (run_id, label, size, cohesion, n_sources,"
                 " top_source, top_source_share, tagged_share, established_share,"
-                " llm_label, llm_label_note, verticals, top_tags, new_terms,"
+                " llm_label, llm_label_note, tiers, tier_order,"
+                " science_to_market_months, actors_early, actors_late,"
+                " verticals, top_tags, new_terms,"
                 " first_month, age_months, hits_total, hits_recent, novelty_lift,"
                 " accel, rep_trend_ids, rep_titles, history_months, history_hits,"
-                " centroid, threshold) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " centroid, threshold)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (run_id, n["label"], n["size"], n["cohesion"], n["n_sources"],
                  n["top_source"], n["top_source_share"], n["tagged_share"],
                  n["established_share"], n.get("llm_label"), n.get("llm_label_note"),
-                 json.dumps(n["verticals"]),
+                 json.dumps(n.get("tiers") or {}), json.dumps(n.get("tier_order") or []),
+                 n.get("science_to_market_months"), n.get("actors_early"),
+                 n.get("actors_late"), json.dumps(n["verticals"]),
                  json.dumps(n["top_tags"]), json.dumps(n["new_terms"]),
                  n["first_month"], n["age_months"], n["hits_total"], n["hits_recent"],
                  n["novelty_lift"], n["accel"], json.dumps(n["rep_trend_ids"]),
@@ -254,6 +311,9 @@ def main() -> int:
     ap.add_argument("--scope", default=None, help="'global' or 'vertical:<V>'")
     ap.add_argument("--all-verticals", action="store_true",
                     help="run global + one snapshot per vertical")
+    ap.add_argument("--all-tiers", action="store_true",
+                    help="one snapshot per lead-time tier (research, patents, "
+                         "funding, market) — each conversation on its own")
     ap.add_argument("--status", default="signal,published")
     ap.add_argument("--window-days", type=int, default=DEFAULT_WINDOW_DAYS,
                     help=f"detection slice in days (default {DEFAULT_WINDOW_DAYS})")
@@ -268,11 +328,12 @@ def main() -> int:
     ap.add_argument("--keep", type=int, default=1, help="runs to keep per scope")
     args = ap.parse_args()
 
-    if not args.scope and not args.all_verticals:
-        ap.error("need --scope or --all-verticals")
+    if not args.scope and not args.all_verticals and not args.all_tiers:
+        ap.error("need --scope, --all-verticals or --all-tiers")
     migrate_emerging_tables()
     scopes = ([args.scope] if args.scope else []) + \
-             (["global"] + [f"vertical:{v}" for v in VERTICALS] if args.all_verticals else [])
+             (["global"] + [f"vertical:{v}" for v in VERTICALS] if args.all_verticals else []) + \
+             ([f"tier:{t}" for t in TIERS] if args.all_tiers else [])
     ok = 0
     for scope in scopes:
         if run_emerging(scope, status=args.status, window_days=args.window_days,

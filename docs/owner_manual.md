@@ -379,6 +379,24 @@ oben ein Nest mit 647 Dokumenten Pseudowissenschaft aus einem Forschungs-Sweep �
 tatsächlich dicht, tatsächlich neu, inhaltlich wertlos. Deshalb die Schwächen
 auf jeder Karte statt stiller Filter.
 
+**Die vier Ebenen.** Ein Wissenschaftstrend ist nicht dasselbe wie ein
+Markttrend, auch bei gleichem Thema (Owner 2026-09-15). Jedes Nest wird deshalb
+**getrennt je Ebene datiert** — Forschung, Patente, Förderung, Markt —, und die
+Karte zeigt, welches Gespräch es hauptsächlich ist, wann die anderen begannen und
+wie viele Monate zwischen Forschung und Markt liegen. Dazu die Zahl der
+**verschiedenen genannten Firmen** früh gegen spät; weil nur 13 % der
+Fachpresse-Zeilen einen extrahierten Namen tragen, ist das eine Untergrenze und
+sagt das auch.
+
+Die Reiter **by conversation** über dem Raster öffnen Läufe, die **nur** eine
+Ebene geclustert haben. Das ist nötig, nicht Kosmetik: die Einbettung kodiert den
+Sprachstil mit, eine wissenschaftlich formulierte Anfrage findet fast nur
+Wissenschaft (gemessen: „perovskite tandem solar cells" trifft in 400.000
+Dokumenten 146 Forschungs- und 2 Marktzeilen). Ein Marktgespräch wird nur
+gefunden, wenn man die Fachpresse für sich clustert. Die Marktebene bekommt dabei
+automatisch feinere Zellen — Fachpresse schreibt über alles, ihre Nester sind
+klein.
+
 **Namen.** Der Titel einer Karte kommt vom lokalen Modell: es liest die
 zentrumsnächsten Titel des Nests und benennt sie. Jedes bedeutungstragende Wort
 muss im Nest wirklich vorkommen, sonst wird der Name verworfen und das
@@ -395,9 +413,10 @@ sie, und die Vorlaufzeiten ändern sich mit. Lies das Ergebnis zusammen mit dem
 Abschnitt „Ehrliche Lesart" in `docs/emerging_nests_2026-09-15.md`.
 
 **Neu rechnen** (kein Cron, Radar-Regel): Knopf **Recompute pockets** im Kopf
-der Seite oder im Terminal `python -m pipeline.emerging_snapshot --all-verticals`
+der Seite oder im Terminal `python -m pipeline.emerging_snapshot --all-verticals --all-tiers`
 (CPU für Erkennung und Datierung, eine GPU-Übergabe für die Namen; global ~6 min,
-kleine Vertikale Sekunden).
+je Ebene ~5 min, kleine Vertikale Sekunden). Einzelne Bereiche mit
+`--scope tier:market` oder `--scope vertical:FOOD`.
 Tabellen `emerging_runs`/`emerging_nests`, je Bereich bleibt ein Lauf stehen.
 Methode, Messungen und die offenen Punkte: `docs/emerging_nests_2026-09-15.md`.
 

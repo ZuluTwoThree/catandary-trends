@@ -2,6 +2,11 @@ import type { EmergingNest } from "@/lib/emerging";
 import Sparkline from "./Sparkline";
 import {
   accelText,
+  actorText,
+  dominantTier,
+  leadText,
+  TIER_LABEL,
+  tierSteps,
   ageIsMeaningful,
   ageText,
   caveats,
@@ -21,6 +26,10 @@ export default function NestCard({ nest }: { nest: EmergingNest }) {
   const flags = caveats(nest);
   const accel = accelText(nest);
   const title = nestTitle(nest);
+  const steps = tierSteps(nest);
+  const main = dominantTier(nest);
+  const lead = leadText(nest);
+  const actors = actorText(nest);
 
   return (
     <article className="border border-border bg-card/40 p-6 flex flex-col gap-3 hover:border-accent/40 transition-colors">
@@ -37,6 +46,17 @@ export default function NestCard({ nest }: { nest: EmergingNest }) {
           <span title="Mean cosine of a member to the pocket centre.">
             density {nest.cohesion.toFixed(2)}
           </span>
+          {main && (
+            <>
+              <span className="text-border">·</span>
+              <span
+                className="text-accent"
+                title="Which of the four conversations this pocket mostly is — research, patents, funding or the market. A science trend is not a market trend even when the topic is the same."
+              >
+                {TIER_LABEL[main]}
+              </span>
+            </>
+          )}
           {nest.verticals.length > 0 && (
             <>
               <span className="text-border">·</span>
@@ -74,6 +94,28 @@ export default function NestCard({ nest }: { nest: EmergingNest }) {
         {noveltyText(nest)}
         {accel && <span className="text-muted"> {accel}</span>}
       </p>
+
+      {steps.length > 0 && (
+        <div className="border-t border-border/60 pt-3">
+          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-1.5">
+            When each conversation started
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px]">
+            {steps.map((st, i) => (
+              <span key={st.tier} className="flex items-center gap-2">
+                {i > 0 && <span className="text-border">then</span>}
+                <span>
+                  <span className="text-paper">{st.label}</span>{" "}
+                  <span className="text-muted tabular-nums">{st.first_month}</span>
+                  <span className="text-muted"> ({Math.round(st.share * 100)} %)</span>
+                </span>
+              </span>
+            ))}
+          </div>
+          {lead && <div className="font-sans text-xs text-text mt-1.5">{lead}</div>}
+          {actors && <div className="font-sans text-xs text-muted mt-1">{actors}</div>}
+        </div>
+      )}
 
       {nest.new_terms.length > 0 && (
         <div className="font-mono text-[10px] text-accent">

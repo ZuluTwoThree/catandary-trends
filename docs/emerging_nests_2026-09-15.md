@@ -206,6 +206,76 @@ Wiederholen mit `.venv/bin/python scripts/validate_emerging.py`; Bericht nach
 sind eine begründete Einschätzung des Modells, keine Messung — jede Korrektur
 durch den Owner ändert die Vorlaufzeiten unmittelbar.
 
+## Die vier Ebenen (Punkte 3 und 4)
+
+Owner-Einwand, und er sitzt: *„ein science trend ist nicht das selbe wie ein
+markttrend, selbst wenn thematisch deckungsgleich."* Perowskit wird erforscht,
+dann patentiert, dann wird die Skalierung gefördert, und erst danach diskutiert
+der Markt darüber. Das sind vier Gespräche über ein Thema, jedes mit eigenem
+Anfang. Ein Detektor, der sie zusammenwirft, datiert das früheste und nennt es
+den Trend — genau der Fehler, den der Rücktest bei Perowskit (+26 Monate) und
+GLP-1 (+18) gezeigt hat.
+
+### Jedes Nest trägt jetzt sein Ebenen-Profil
+
+Der Archiv-Scan zählt die Ähnlichen nicht mehr nur je Monat, sondern **je Monat
+und Ebene** (`pipeline/tiers.py` ordnet jede Zeile zu, dieselben Regeln wie die
+SQL-Bedingungen der Lead-Time-Schicht). Daraus je Nest: Erstauftritt, Alter und
+Lautstärke getrennt für Forschung, Patente, Förderung und Markt, die Reihenfolge
+der Anfänge und der Abstand Wissenschaft → Markt. Die Karte zeigt, **welches
+Gespräch** ein Nest hauptsächlich ist, und wann die anderen begannen.
+
+### Der Befund, der den Rest erklärt
+
+Die Nester der bisherigen Läufe sind zu fast 100 % Wissenschaft. Die Ursache ist
+nicht die Themenwahl, sondern die Einbettung: **sie kodiert den Sprachstil der
+Ebene mit.** Gemessen an 400.000 Dokumenten der letzten zwei Jahre:
+
+| Anfrage | Wissenschaft | Patente | Förderung | Markt |
+|---|---|---|---|---|
+| „perovskite silicon tandem solar cells" ab cos 0,75 | 146 | 0 | 0 | 2 |
+| „heat pumps replacing gas boilers" ab cos 0,60 | 179 | 1 | 11 | 58 |
+
+Eine wissenschaftlich formulierte Anfrage findet Wissenschaft. Das Marktgespräch
+über Perowskit existiert, es spricht nur anders. Deshalb lässt sich die Ebene
+**nicht nachträglich** aus einem gemeinsamen Nest herauslösen.
+
+### Konsequenz: jede Ebene wird für sich geclustert
+
+Neuer Scope `tier:<science|patent|funding|market>` (`--all-tiers`). Ein
+Markt-Nest wird dann von Marktvokabular gefunden. Erster Lauf der Marktebene,
+41.563 Zeilen Fachpresse aus 90 Tagen, 46 Nester:
+
+- Smart Glasses · Privacy Concerns
+- EU Regulations · Regulatory Delay
+- Sugar Tax · Public Health
+- Model Release Restrictions · Security Concerns
+
+Das sind Marktgespräche, keine Forschungsfelder. Die Marktebene brauchte dafür
+**feinere Zellen**: bei 207 Dokumenten je Zelle fand sie 5 Nester, bei 69 dann
+46. Fachpresse schreibt über alles, ihre Nester sind klein. Der Lauf merkt das
+selbst und rechnet einmal feiner nach.
+
+### Akteure statt Artikel (Punkt 4)
+
+Für jedes Nest werden die **verschiedenen Firmen und Marken** gezählt, die in
+seinen Markt-Ähnlichen genannt werden, früh gegen spät. Ausbreitung über Akteure
+ist das, was einen Trend ausmacht; Artikelzahl misst nur Berichterstattung.
+
+Die Decke ist klar und steht auf der Karte: **nur 13 % der Fachpresse-Zeilen
+tragen überhaupt einen extrahierten Namen** (Forschung 1 %, Patente 0 %), weil
+die Extraktion nur im Artikel-Pfad läuft und Signale sie nie sehen. Die Zahl ist
+damit eine Untergrenze, kein Zensus. Wer sie erhöhen will, muss die Extraktion
+auf den Signalpfad ausweiten — das wäre die nächste Ausbaustufe.
+
+### Was das für die Trendfindung heißt
+
+Der Wert der Schicht liegt jetzt weniger im einzelnen Nest als im **Vergleich
+der Ebenen**: dieselbe Sache, viermal datiert. Solange die Marktebene dünn ist,
+bleibt der Abstand Wissenschaft → Markt aber meist unmessbar — nicht weil es ihn
+nicht gibt, sondern weil in unserem Korpus auf der Marktseite zu wenig steht.
+Das ist dieselbe Quellenlücke, die schon der Rücktest zeigte.
+
 ## Betrieb
 
     python -m pipeline.emerging_snapshot --all-verticals

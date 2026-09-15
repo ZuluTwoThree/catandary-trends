@@ -1,4 +1,4 @@
-import type { EmergingNest, EmergingRun } from "./emerging";
+import type { EmergingNest, EmergingRun, TierName } from "./emerging";
 
 /**
  * Wording and small judgements for the emerging-nest cards. Pure, so every
@@ -125,4 +125,68 @@ export function historyTail(
   const m = nest.history_months.slice(-months);
   const v = nest.history_hits.slice(-months);
   return { months: m, values: v };
+}
+
+
+/* ------------------------------ lead-time tiers --------------------------- */
+/**
+ * Owner 2026-09-15: "ein science trend ist nicht das selbe wie ein markttrend,
+ * selbst wenn thematisch deckungsgleich". Perovskite is researched, patented,
+ * funded and only then argued about in the trade press. The card therefore
+ * shows WHICH conversation this pocket is, and when the others started.
+ */
+export const TIER_LABEL: Record<TierName, string> = {
+  science: "research",
+  patent: "patents",
+  funding: "funding",
+  market: "market",
+};
+
+export interface TierStep {
+  tier: TierName;
+  label: string;
+  first_month: string | null;
+  share: number;
+}
+
+export function tierSteps(nest: EmergingNest): TierStep[] {
+  return nest.tier_order
+    .filter((t) => nest.tiers[t]?.first_month)
+    .map((t) => ({
+      tier: t,
+      label: TIER_LABEL[t],
+      first_month: nest.tiers[t]!.first_month,
+      share: nest.tiers[t]!.share_of_nest,
+    }));
+}
+
+/** Which conversation this pocket mostly IS. */
+export function dominantTier(nest: EmergingNest): TierName | null {
+  let best: TierName | null = null;
+  let share = 0;
+  for (const t of Object.keys(nest.tiers) as TierName[]) {
+    const s = nest.tiers[t]?.share_of_nest ?? 0;
+    if (s > share) {
+      share = s;
+      best = t;
+    }
+  }
+  return share >= 0.5 ? best : null;
+}
+
+export function leadText(nest: EmergingNest): string | null {
+  const m = nest.science_to_market_months;
+  if (m == null) return null;
+  if (m > 0) return `Research led the market by ${m} month${m === 1 ? "" : "s"}.`;
+  if (m < 0) return `The market got there ${-m} month${m === -1 ? "" : "s"} before the research did.`;
+  return "Research and market started the same month.";
+}
+
+/** Distinct companies named, with the coverage caveat that makes it a floor. */
+export function actorText(nest: EmergingNest): string | null {
+  if (!nest.actors_late) return null;
+  const from = nest.actors_early
+    ? `${nest.actors_early} two years ago, ${nest.actors_late} now`
+    : `${nest.actors_late}`;
+  return `Named companies: ${from}. Only 13 % of trade-press rows carry an extracted name, so this is a floor.`;
 }

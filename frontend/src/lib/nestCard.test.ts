@@ -7,8 +7,12 @@ import {
   historyTail,
   isYoung,
   noveltyText,
+  actorText,
+  dominantTier,
+  leadText,
   nestTitle,
   runProvenance,
+  tierSteps,
 } from "./nestCard";
 import type { EmergingNest, EmergingRun } from "./emerging";
 
@@ -36,6 +40,11 @@ function nest(over: Partial<EmergingNest> = {}): EmergingNest {
     accel: 2.4,
     history_months: ["2025-01", "2025-02", "2025-03"],
     history_hits: [0, 2, 40],
+    tiers: {},
+    tier_order: [],
+    science_to_market_months: null,
+    actors_early: 0,
+    actors_late: 0,
     reps: [],
     ...over,
   };
@@ -127,6 +136,48 @@ describe("emerging cards — age is the headline, weaknesses are printed", () =>
     const t = nestTitle(nest({ llm_label: null }));
     expect(t.name).toBe("Retrieval Augmented Generation · Natural Language Processing");
     expect(t.sub).toBeNull();
+  });
+
+  it("names which conversation the pocket is, and when the others started", () => {
+    const n = nest({
+      tiers: {
+        science: { first_month: "2020-08", age_months: 74, hits: 884, hits_recent: 300, share_of_nest: 0.96 },
+        market: { first_month: "2026-06", age_months: 4, hits: 30, hits_recent: 30, share_of_nest: 0.04 },
+      },
+      tier_order: ["science", "market"],
+      science_to_market_months: 70,
+    });
+    expect(tierSteps(n).map((s) => `${s.label} ${s.first_month}`)).toEqual([
+      "research 2020-08",
+      "market 2026-06",
+    ]);
+    expect(dominantTier(n)).toBe("science");
+    expect(leadText(n)).toBe("Research led the market by 70 months.");
+  });
+
+  it("says plainly when the market got there first", () => {
+    expect(leadText(nest({ science_to_market_months: -3 }))).toBe(
+      "The market got there 3 months before the research did."
+    );
+    expect(leadText(nest({ science_to_market_months: null }))).toBeNull();
+  });
+
+  it("calls no tier dominant when the pocket is genuinely mixed", () => {
+    const mixed = nest({
+      tiers: {
+        science: { first_month: "2024-01", age_months: 20, hits: 10, hits_recent: 5, share_of_nest: 0.4 },
+        market: { first_month: "2024-06", age_months: 15, hits: 10, hits_recent: 5, share_of_nest: 0.4 },
+      },
+      tier_order: ["science", "market"],
+    });
+    expect(dominantTier(mixed)).toBeNull();
+  });
+
+  it("reports named companies as a floor, never as a census", () => {
+    const t = actorText(nest({ actors_early: 4, actors_late: 20 }));
+    expect(t).toContain("4 two years ago, 20 now");
+    expect(t).toContain("floor");
+    expect(actorText(nest({ actors_late: 0 }))).toBeNull();
   });
 
   it("states what the run did", () => {

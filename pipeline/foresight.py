@@ -160,7 +160,10 @@ def iter_signals(status: str = "signal,published", vertical: str | None = None,
     # Under Postgres the embedding is a pgvector — cast to text and parse; under
     # SQLite it is the raw float32 blob.
     emb_col = f"t.{emb_field}::text" if db_mod.USE_POSTGRES else f"t.{emb_field}"
-    src_join = (" LEFT JOIN sources s ON r.source_id = s.id" if tier else "")
+    # The join is unconditional since 2026-09-15: every row carries its
+    # source_type so `pipeline.tiers.tier_of` can place it on a lead-time tier
+    # while streaming. sources is a 600-row table, so this is a hash join.
+    src_join = " LEFT JOIN sources s ON r.source_id = s.id"
     # Keyset pagination on t.id instead of one fetchall: under Postgres the
     # vector arrives as TEXT (~10 KB per 1024-dim row, ~40 KB at 4096), and a
     # single result set over 1.75M rows held every string at once — the
@@ -177,6 +180,7 @@ def iter_signals(status: str = "signal,published", vertical: str | None = None,
                 break
             sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, "
                    "       t.primary_vertical, t.status, t.source_url, "
+                   "       t.brands, t.companies, s.source_type, "
                    f"       r.published_date, {emb_col} AS embedding "
                    f"FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id{src_join} "
                    f"WHERE {base_where} AND t.id > ? ORDER BY t.id LIMIT ?")
@@ -194,11 +198,12 @@ def iter_signals(status: str = "signal,published", vertical: str | None = None,
                 r["embedding"] = None  # drop the text/blob reference, keep memory flat
                 if isinstance(r["published_date"], datetime):
                     r["published_date"] = r["published_date"].isoformat()
-                try:
-                    tags = r["tags"]
-                    r["tags"] = tags if isinstance(tags, list) else (json.loads(tags) if tags else [])
-                except Exception:
-                    r["tags"] = []
+                for field in ("tags", "brands", "companies"):
+                    try:
+                        val = r.get(field)
+                        r[field] = val if isinstance(val, list) else (json.loads(val) if val else [])
+                    except Exception:
+                        r[field] = []
                 batch.append(r)
             seen += len(rows)
             del rows

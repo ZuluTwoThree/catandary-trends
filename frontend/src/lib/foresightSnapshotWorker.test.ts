@@ -5,7 +5,9 @@ describe("snapshotWorkerArgs — only the three fixed invocations reach the shel
   it("maps each mode to its module invocation", () => {
     expect(snapshotWorkerArgs("clusters")).toEqual(["-m", "pipeline.foresight_snapshot", "--all-verticals", "--dim1024"]);
     expect(snapshotWorkerArgs("lineage")).toEqual(["-m", "pipeline.foresight_snapshot", "--lineage", "--dim1024"]);
-    expect(snapshotWorkerArgs("emerging")).toEqual(["-m", "pipeline.emerging_snapshot", "--all-verticals"]);
+    expect(snapshotWorkerArgs("emerging")).toEqual([
+      "-m", "pipeline.emerging_snapshot", "--all-verticals", "--all-tiers",
+    ]);
   });
 
   it("rejects anything else, including injected flags", () => {

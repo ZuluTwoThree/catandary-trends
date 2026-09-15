@@ -80,7 +80,8 @@ export function snapshotWorkerArgs(mode: string): string[] | null {
   if (mode === "lineage") return ["-m", "pipeline.foresight_snapshot", "--lineage", "--dim1024"];
   // The emerging layer has its own module: fine partition of a recent slice,
   // then a dating pass over the whole archive. CPU only, ~5 min per scope.
-  if (mode === "emerging") return ["-m", "pipeline.emerging_snapshot", "--all-verticals"];
+  if (mode === "emerging")
+    return ["-m", "pipeline.emerging_snapshot", "--all-verticals", "--all-tiers"];
   return null;
 }
 

@@ -39,6 +39,7 @@ from sklearn.cluster import MiniBatchKMeans
 
 from pipeline.foresight import (LOAD_CHUNK, build_matrix, distinctive_terms,
                                 iter_signals, month_key, unique_label, _norm_tag)
+from pipeline.tiers import TIERS, tier_of
 
 logger = logging.getLogger("emerging")
 
@@ -69,6 +70,14 @@ MIN_HIST_HITS = 3          # months below this are noise, not a first appearance
 NOVELTY_WINDOW_MONTHS = 6  # "recent" for the novelty lift
 ACCEL_RECENT_MONTHS = 3
 ACCEL_BASE_MONTHS = 9      # the nine months before the recent three
+
+# A month needs at least this many lookalikes on a tier before the tier counts
+# as having started. One stray paper is not the beginning of a conversation.
+TIER_MIN_HITS = 3
+# Distinct actors are only meaningful where the pipeline extracts them, which is
+# the market tier: research and patent rows never pass the extraction stage.
+ACTOR_TIER = "market"
+ACTOR_CAP = 400            # per nest and window, so a set cannot run away
 
 # A nest can only be dated against sources that were already being read. The
 # first FOOD run (2026-09-15) filled its top ten with agronomy pockets "first
@@ -281,6 +290,7 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
                  status: str = "signal,published", vertical: str | None = None,
                  dim1024: bool = True, since: str | None = None,
                  tag_windows: tuple[str, str] | None = None,
+                 actor_windows: tuple[str, str] | None = None,
                  chunk_size: int = LOAD_CHUNK,
                  progress=None) -> dict:
     """Count, per month, how many archive documents look like each nest.
@@ -292,12 +302,21 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
     are collected alongside, so a nest can be asked whether its vocabulary
     existed back then.
 
-    Returns {months, totals (corpus docs per month), hits (n_nests × n_months),
-    old_tags, recent_tags, source_first (first corpus month per source), scanned}.
+    actor_windows: ('YYYY-MM', 'YYYY-MM') — the end of the early window and the
+    start of the late one. Distinct market actors are collected per nest for
+    both, so diffusion across companies can be told apart from more coverage of
+    the same ones.
+
+    Returns {months, totals, hits, tier_hits (per tier, n_nests × n_months),
+    tier_totals, actors, old_tags, recent_tags, source_first, scanned}.
     """
     hits_by_month: dict[str, np.ndarray] = {}
+    tier_hits: dict[str, dict[str, np.ndarray]] = {t: {} for t in TIERS}
+    tier_totals: dict[str, Counter] = {t: Counter() for t in TIERS}
     totals: Counter = Counter()
     source_first: dict[str, str] = {}
+    actors: list[dict[str, set]] = [{"early": set(), "late": set()}
+                                    for _ in range(centroids.shape[0])]
     old_tags: Counter = Counter()
     recent_tags: Counter = Counter()
     n_nests = centroids.shape[0]
@@ -317,6 +336,9 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
             src = r["source_name"] or ""
             if src and (src not in source_first or mk < source_first[src]):
                 source_first[src] = mk
+            tier = tier_of(src, r.get("source_type"))
+            if tier:
+                tier_totals[tier][mk] += 1
             row = above[i]
             if row.any():
                 arr = hits_by_month.get(mk)
@@ -324,6 +346,26 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
                     arr = np.zeros(n_nests, dtype=np.int32)
                     hits_by_month[mk] = arr
                 arr += row
+                if tier:
+                    tarr = tier_hits[tier].get(mk)
+                    if tarr is None:
+                        tarr = np.zeros(n_nests, dtype=np.int32)
+                        tier_hits[tier][mk] = tarr
+                    tarr += row
+                # Who is doing it, not how often it is written about. Only the
+                # market tier carries extracted actors; research and patent
+                # rows never reach the extraction stage.
+                if tier == ACTOR_TIER and actor_windows:
+                    bucket = ("early" if mk <= actor_windows[0]
+                              else "late" if mk >= actor_windows[1] else None)
+                    if bucket:
+                        names = [n for n in (list(r.get("brands") or [])
+                                             + list(r.get("companies") or [])) if n]
+                        if names:
+                            for j in np.flatnonzero(row):
+                                bag = actors[j][bucket]
+                                if len(bag) < ACTOR_CAP:
+                                    bag.update(str(n).strip().lower() for n in names[:6])
             if tag_windows:
                 bucket = (old_tags if tag_windows[0] <= mk <= tag_windows[1]
                           else recent_tags)
@@ -342,10 +384,21 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
         arr = hits_by_month.get(m)
         if arr is not None:
             hits[:, j] = arr
+    by_tier = {}
+    for t in TIERS:
+        arr = np.zeros((n_nests, len(months)), dtype=np.int32)
+        for j, m in enumerate(months):
+            a = tier_hits[t].get(m)
+            if a is not None:
+                arr[:, j] = a
+        by_tier[t] = arr
     return {
         "months": months,
         "totals": [totals[m] for m in months],
         "hits": hits,
+        "tier_hits": by_tier,
+        "tier_totals": {t: [tier_totals[t][m] for m in months] for t in TIERS},
+        "actors": [{k: len(v) for k, v in a.items()} for a in actors],
         "old_tags": old_tags,
         "recent_tags": recent_tags,
         "source_first": source_first,
@@ -373,6 +426,15 @@ def score_nests(nests: list[dict], history: dict, now: datetime | None = None) -
     * established_share — how much of the nest comes from sources that were
       already being read two years ago. Near zero means its age is a fact about
       our subscriptions, not about the world.
+    * tiers / tier_order / science_to_market_months — the same pocket dated
+      SEPARATELY on research, patents, funding and the market. Owner
+      2026-09-15: a science trend is not a market trend even when the topic is
+      identical, and perovskite is researched years before anyone argues about
+      it in the trade press. One date for a pocket is the earliest of four
+      conversations, which is why the layer reported ages that felt too early.
+    * actors_early / actors_late / actor_growth — distinct companies and brands
+      named in the market-tier lookalikes. Diffusion across actors is what a
+      trend is; article counts only measure coverage.
     """
     months = history["months"]
     totals = np.asarray(history["totals"], dtype=np.float64)
@@ -382,7 +444,9 @@ def score_nests(nests: list[dict], history: dict, now: datetime | None = None) -
             n.update(history_months=[], history_hits=[], first_month=None,
                      age_months=None, novelty_lift=None, accel=None,
                      hits_total=0, hits_recent=0, new_terms=[],
-                     established_share=0.0)
+                     established_share=0.0, tiers={}, tier_order=[],
+                     science_to_market_months=None, actors_early=0,
+                     actors_late=0, actor_growth=None)
         return
 
     recent = sorted(_months_back(months, NOVELTY_WINDOW_MONTHS))
@@ -394,6 +458,8 @@ def score_nests(nests: list[dict], history: dict, now: datetime | None = None) -
     corpus_acc_recent = float(totals[acc_recent].sum()) or 1.0
     corpus_acc_base = float(totals[acc_base].sum()) if acc_base else 0.0
 
+    tier_hits: dict = history.get("tier_hits") or {}
+    actors: list = history.get("actors") or []
     source_first: dict = history.get("source_first") or {}
     # the month a source must predate to count as established
     ref = months[-1]
@@ -440,7 +506,44 @@ def score_nests(nests: list[dict], history: dict, now: datetime | None = None) -
             if new_rate > 0 and (old_rate == 0 or new_rate / old_rate >= 3.0):
                 new_terms.append(t)
 
+        # Per tier: when did THIS conversation start, and how loud is it now.
+        # Four tiers, four first appearances — the gap between them is the
+        # lead time the product is actually about.
+        tiers: dict[str, dict] = {}
+        for tname in TIERS:
+            tser = tier_hits.get(tname)
+            if tser is None:
+                continue
+            row = tser[i]
+            tot = int(row.sum())
+            if not tot:
+                continue
+            fi = next((j for j in range(len(months)) if row[j] >= TIER_MIN_HITS), None)
+            tiers[tname] = {
+                "first_month": months[fi] if fi is not None else None,
+                "age_months": (len(months) - fi) if fi is not None else None,
+                "hits": tot,
+                "hits_recent": int(row[recent].sum()),
+                "share_of_nest": round(tot / total, 3) if total else 0.0,
+            }
+        order = [t for t in sorted(tiers, key=lambda t: tiers[t]["first_month"] or "9999")
+                 if tiers[t]["first_month"]]
+        lag = None
+        if "science" in tiers and "market" in tiers:
+            a, b = tiers["science"]["first_month"], tiers["market"]["first_month"]
+            if a and b:
+                lag = (int(b[:4]) - int(a[:4])) * 12 + (int(b[5:7]) - int(a[5:7]))
+
+        act = actors[i] if i < len(actors) else {}
+        a_early, a_late = act.get("early", 0), act.get("late", 0)
+
         nest.update(
+            tiers=tiers,
+            tier_order=order,
+            science_to_market_months=lag,
+            actors_early=a_early,
+            actors_late=a_late,
+            actor_growth=(round(a_late / a_early, 2) if a_early else None),
             history_months=months,
             history_hits=[int(x) for x in series],
             first_month=first_month,

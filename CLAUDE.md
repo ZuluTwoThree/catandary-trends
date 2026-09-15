@@ -1089,8 +1089,22 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      Monate, weil ein einziges Nest "Machine Learning · Neural Networks" gleich
      drei KI-Trends traf. Bei 5 Trends fand der Test nicht einmal das Feld:
      Quellenproblem, kein Erkennungsproblem.
-     Offen: Bestaetigung ueber die vier Lead-Time-Ebenen, Akteure statt Artikel
-     zaehlen. docs/emerging_nests_2026-09-15.md)
+     EBENEN (Owner 2026-09-15: "ein science trend ist nicht das selbe wie ein
+     markttrend, selbst wenn thematisch deckungsgleich"): pipeline/tiers.py ordnet
+     jede Zeile einer Lead-Time-Ebene zu (Zwilling der SQL-TIER_FILTERS); der
+     Archiv-Scan zaehlt je Monat UND Ebene, also traegt jedes Nest vier
+     Erstauftritte, die Reihenfolge und den Abstand Wissenschaft->Markt. Dazu
+     Akteure: verschiedene Firmen/Marken in den Markt-Aehnlichen, frueh gegen
+     spaet — Untergrenze, weil nur 13 % der Fachpresse-Zeilen einen extrahierten
+     Namen tragen (Forschung 1 %, Patente 0 %: Extraktion laeuft nur im
+     Artikel-Pfad). WICHTIG: die Ebene laesst sich NICHT nachtraeglich aus einem
+     gemeinsamen Nest loesen, weil die Einbettung den Sprachstil mitkodiert —
+     "perovskite tandem solar cells" trifft in 400.000 Dokumenten 146
+     Forschungs- und 2 Marktzeilen. Deshalb eigener Scope `tier:<t>`
+     (`--all-tiers`), der jede Ebene fuer sich clustert; die Marktebene bekommt
+     automatisch feinere Zellen (bei 207 Dok/Zelle 5 Nester, bei 69 dann 46).
+     Offen: Extraktion auf den Signalpfad ausweiten, damit Akteure zaehlbar
+     werden. docs/emerging_nests_2026-09-15.md)
     (das druckbare Foresight-Dossier /dossier samt CSV-Export
      wurde am 2026-09-15 entfernt: es las nur den ungeeichten Cluster-Snapshot vom 03.08. — Owner-Entscheid)
     (Technologie-Suche: Query-Quality-Gate #67 seit 2026-09-04, `pipeline/query_gate.py` — eine Anfrage

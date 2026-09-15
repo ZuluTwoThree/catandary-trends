@@ -20,6 +20,16 @@ export interface NestRep {
   date: string | null;
 }
 
+export type TierName = "science" | "patent" | "funding" | "market";
+
+export interface TierFact {
+  first_month: string | null;
+  age_months: number | null;
+  hits: number;
+  hits_recent: number;
+  share_of_nest: number;
+}
+
 export interface EmergingNest {
   id: number;
   /** Deterministic label from the pocket's own tags or titles. */
@@ -56,6 +66,17 @@ export interface EmergingNest {
   accel: number | null;
   history_months: string[];
   history_hits: number[];
+  /** The same pocket dated separately on research, patents, funding and the
+   *  market. Owner 2026-09-15: a science trend is not a market trend even when
+   *  the topic is identical. */
+  tiers: Partial<Record<TierName, TierFact>>;
+  tier_order: TierName[];
+  science_to_market_months: number | null;
+  /** Distinct companies and brands named in the market-tier lookalikes.
+   *  Only 13 % of trade-press rows carry an extracted actor, so this is a
+   *  floor, never a census. */
+  actors_early: number;
+  actors_late: number;
   reps: NestRep[];
 }
 
@@ -75,6 +96,7 @@ export interface EmergingRun {
 
 function parseJson<T>(raw: unknown, fallback: T): T {
   if (Array.isArray(raw)) return raw as unknown as T;
+  if (raw && typeof raw === "object") return raw as T;   // jsonb comes back parsed
   if (typeof raw !== "string" || !raw) return fallback;
   try {
     return JSON.parse(raw) as T;
@@ -93,6 +115,7 @@ const NEST_COLUMNS =
   "tagged_share, established_share, verticals, top_tags, new_terms, " +
   "first_month, age_months, " +
   "hits_total, hits_recent, novelty_lift, accel, history_months, history_hits, " +
+  "tiers, tier_order, science_to_market_months, actors_early, actors_late, " +
   "rep_trend_ids";
 
 /** Latest persisted emerging run for a scope, newest pockets first. */
@@ -170,6 +193,12 @@ export async function getLatestEmergingRun(
       accel: r.accel == null ? null : (r.accel as number),
       history_months: parseJson<string[]>(r.history_months, []),
       history_hits: parseJson<number[]>(r.history_hits, []),
+      tiers: parseJson<Partial<Record<TierName, TierFact>>>(r.tiers, {}),
+      tier_order: parseJson<TierName[]>(r.tier_order, []),
+      science_to_market_months:
+        r.science_to_market_months == null ? null : (r.science_to_market_months as number),
+      actors_early: (r.actors_early as number) ?? 0,
+      actors_late: (r.actors_late as number) ?? 0,
       reps: parseJson<number[]>(r.rep_trend_ids, [])
         .map((id) => repMap.get(id))
         .filter((x): x is NestRep => Boolean(x)),

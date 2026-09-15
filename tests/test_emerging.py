@@ -263,3 +263,81 @@ def test_top_n_replaces_the_absolute_gate_with_a_relative_one():
     would_pass = [n for n in loose if n["cohesion"] >= E.MIN_COHESION]
     assert len(would_pass) == len(strict)
     assert all(n["members"].size >= E.MIN_NEST_SIZE for n in loose)
+
+
+# --- lead-time tiers (Owner 2026-09-15) -------------------------------------
+# "ein science trend ist nicht das selbe wie ein markttrend, selbst wenn
+# thematisch deckungsgleich" — perovskite is researched, then patented, then
+# funded, then argued about. One date per pocket is the earliest of four.
+
+def _tier_history(months, per_tier, corpus=1000):
+    """per_tier: {tier: [counts per month]} for a single nest."""
+    total = np.sum([per_tier.get(t, [0] * len(months)) for t in ("science", "patent",
+                                                                 "funding", "market")], axis=0)
+    return {
+        "months": list(months),
+        "totals": [corpus] * len(months),
+        "hits": np.array([total], dtype=np.int32),
+        "tier_hits": {t: np.array([per_tier.get(t, [0] * len(months))], dtype=np.int32)
+                      for t in ("science", "patent", "funding", "market")},
+        "tier_totals": {t: [corpus // 4] * len(months) for t in
+                        ("science", "patent", "funding", "market")},
+        "actors": [{"early": 0, "late": 0}],
+        "old_tags": {}, "recent_tags": {}, "source_first": {}, "scanned": 0,
+    }
+
+
+def test_each_tier_is_dated_separately():
+    months = [f"2024-{m:02d}" for m in range(1, 13)] + [f"2025-{m:02d}" for m in range(1, 13)]
+    hist = _tier_history(months, {
+        "science": [5] * 24,                      # there from the start
+        "patent":  [0] * 6 + [4] * 18,            # six months later
+        "funding": [0] * 12 + [3] * 12,           # a year later
+        "market":  [0] * 18 + [6] * 6,            # only in the last half year
+    })
+    nests = [{"top_tags": [], "source_counts": {}}]
+    E.score_nests(nests, hist)
+    t = nests[0]["tiers"]
+    assert t["science"]["first_month"] == "2024-01"
+    assert t["patent"]["first_month"] == "2024-07"
+    assert t["funding"]["first_month"] == "2025-01"
+    assert t["market"]["first_month"] == "2025-07"
+    assert nests[0]["tier_order"] == ["science", "patent", "funding", "market"]
+    assert nests[0]["science_to_market_months"] == 18
+
+
+def test_a_pure_market_pocket_has_no_science_lead():
+    months = [f"2025-{m:02d}" for m in range(1, 13)]
+    hist = _tier_history(months, {"market": [8] * 12})
+    nests = [{"top_tags": [], "source_counts": {}}]
+    E.score_nests(nests, hist)
+    assert list(nests[0]["tiers"]) == ["market"]
+    assert nests[0]["science_to_market_months"] is None
+    assert nests[0]["tier_order"] == ["market"]
+
+
+def test_a_single_stray_paper_does_not_start_a_tier():
+    months = [f"2025-{m:02d}" for m in range(1, 13)]
+    hist = _tier_history(months, {"science": [1, 1, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5]})
+    nests = [{"top_tags": [], "source_counts": {}}]
+    E.score_nests(nests, hist)
+    assert nests[0]["tiers"]["science"]["first_month"] == "2025-05"
+
+
+def test_actor_diffusion_is_reported_next_to_the_counts():
+    months = [f"2025-{m:02d}" for m in range(1, 13)]
+    hist = _tier_history(months, {"market": [10] * 12})
+    hist["actors"] = [{"early": 4, "late": 20}]
+    nests = [{"top_tags": [], "source_counts": {}}]
+    E.score_nests(nests, hist)
+    assert nests[0]["actors_early"] == 4
+    assert nests[0]["actors_late"] == 20
+    assert nests[0]["actor_growth"] == 5.0
+
+
+def test_scope_parts_reads_both_kinds_of_scope():
+    from pipeline.emerging_snapshot import scope_parts
+    assert scope_parts("global") == (None, None)
+    assert scope_parts("vertical:FOOD") == ("FOOD", None)
+    assert scope_parts("tier:market") == (None, "market")
+    assert scope_parts("tier:science") == (None, "science")
