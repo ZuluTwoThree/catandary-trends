@@ -260,6 +260,33 @@ Hub mit Kennzahlen des Korpus und Einstiegen in die Werkzeuge; Menü:
 Desk*; Research Explorer, Research Pulse, Patent Explorer und Startup Explorer
 sind vom Cockpit aus verlinkt. Alles owner-only (`PUBLIC_MODE`/Export: 404).
 
+### 5.0 Archiv einer Quelle nachladen (`scripts/ingest_sitemap_archive.py`)
+
+Ein RSS-Feed zeigt die letzten zehn Einträge. Alles davor sieht der Korpus nie —
+und genau dort liegt die Frühphase eines Trends. Eine Sitemap listet dagegen das
+ganze Archiv, und robots.txt nennt sie meist selbst.
+
+    .venv/bin/python scripts/ingest_sitemap_archive.py sciencealert.com --dry-run
+    .venv/bin/python scripts/ingest_sitemap_archive.py sciencealert.com \
+        --source "ScienceAlert Health" --since 2014-01 --until 2020-01 --apply
+    .venv/bin/python scripts/ingest_sitemap_archive.py --check-blocked
+
+**Was es nicht tut.** Es fasst nichts an, was robots sperrt: die Sitemap-URL und
+jede Artikel-URL werden einzeln mit demselben Matcher geprüft wie im Fetcher.
+Es holt keine Volltexte, sondern legt nur `raw_entries` an; den Text holt später
+`article_fetcher`, der jeden Artikel erneut auf robots und TDM-Vorbehalt prüft.
+Und es löscht nichts — doppelte URLs werden übersprungen, Bestehendes bleibt.
+Eine Quelle legt es auch nicht an: ein Archiv gehört zu einer Quelle, die schon
+in `sources.yaml` geprüft steht.
+
+**`--check-blocked`** beantwortet die Frage, ob der Weg auch für Quellen trägt,
+die wir nicht pollen dürfen. Bei vielen Häusern trifft die robots-Regel nur den
+Feed-Pfad, während Sitemap und Artikel erlaubt sind — dann ist das Archiv keine
+Umgehung, sondern die offene Tür des Hauses. Lauf vom 2026-09-16 über 34
+gesperrte Quellen: **2 Treffer** (Netzpolitik.org, Finextra).
+
+Drossel eine Anfrage pro Sekunde, `SITEMAP_DELAY` und `SITEMAP_MAX` stellen um.
+
 ### 5.1 Technologie-Suche (`/trends/foresight/technology`)
 
 **Wozu.** Freitext → Patentfeld (feine CPC-Codes) → Verbesserungsrate K(t) aus
