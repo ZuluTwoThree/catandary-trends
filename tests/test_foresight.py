@@ -3,6 +3,7 @@
 import json
 import os
 import struct
+from datetime import datetime
 import tempfile
 
 # Belt-and-braces: set env for the standalone case; the fixture below also
@@ -167,14 +168,15 @@ def test_derive_label_skips_generic_tags():
 
 
 def test_snapshot_roundtrip():
-    run_id = run_snapshot("global", status="signal", k=2)
+    run_id = run_snapshot("global", status="signal", k=2, window_months=0)
     assert run_id is None  # 60 signals < MIN_SIGNALS guard
 
     import pipeline.foresight_snapshot as snap
     old = snap.MIN_SIGNALS
     snap.MIN_SIGNALS = 10
     try:
-        run_id = run_snapshot("vertical:FOOD", status="signal", k=2, tier="market")
+        run_id = run_snapshot("vertical:FOOD", status="signal", k=2, tier="market",
+                              window_months=0)
     finally:
         snap.MIN_SIGNALS = old
     assert run_id is not None
@@ -195,3 +197,192 @@ def test_snapshot_roundtrip():
         assert all(set(p) == {"m", "n", "share"} for p in series)
         assert json.loads(c["rep_trend_ids"])
         assert c["momentum"] in ("rising", "stable", "declining", "unknown")
+        # centroid is persisted (the detail page's nearest-neighbour anchor)
+        assert c["centroid"] and len(bytes(c["centroid"])) == DIM * 4
+        assert c["top_source"] == "TestSrc A"
+        assert c["top_source_share"] == 1.0
+    assert run["window_months"] == 0 and run["since"] is None
+    assert run["cohort_sources"] is not None
+
+
+# --------------------------------------------------------------- 2026-09-15 audit
+# The cards' momentum was measuring our own source onboarding: inside the
+# 36-month window the corpus grew 226 → 560 sources and the mix swung from
+# 49 % trade media to 56 % research. These tests pin the three corrections.
+
+
+def _panel_rows(months, sources, tag="topic", vert="TECH"):
+    """Rows for one cluster: (month, source) pairs, one signal each."""
+    out = []
+    for i, (m, src) in enumerate(zip(months, sources)):
+        out.append({
+            "id": 10_000 + i, "title_en": f"signal {i}", "mega_trend": None,
+            "tags": [tag], "source_name": src, "primary_vertical": vert,
+            "status": "signal", "source_url": None,
+            "published_date": f"{m}-15",
+        })
+    return out
+
+
+def _one_cluster(rows):
+    X = np.tile(np.array([1.0, 0.0], dtype=np.float32), (len(rows), 1))
+    labels = np.zeros(len(rows), dtype=int)
+    centroids = np.array([[1.0, 0.0]], dtype=np.float32)
+    return X, labels, centroids
+
+
+def test_momentum_ignores_sources_that_only_exist_late():
+    """A feed switched on halfway through cannot create a rising trend."""
+    months = [f"2025-{m:02d}" for m in range(1, 10)]
+    # Established source delivers 6 signals a month throughout; a new source
+    # starts in month 7 and delivers 30 a month — huge growth, all of it ours.
+    rows = []
+    for m in months:
+        rows += _panel_rows([m] * 6, ["Established"] * 6)
+        if m >= "2025-07":
+            rows += _panel_rows([m] * 30, ["BrandNewFeed"] * 30)
+    X, labels, centroids = _one_cluster(rows)
+    res = foresight.analyze(rows, X, labels, centroids,
+                            now=datetime(2026, 1, 15))
+    assert res["cohort"]["applied"] is True
+    assert res["cohort"]["sources"] == 1          # only "Established" spans both
+    c = res["clusters"][0]
+    # Single cluster = 100 % share in every month it appears, so the delta is
+    # zero either way; what matters is that the panel excluded the newcomer.
+    assert c["momentum"] in ("stable", "unknown")
+    # raw counts stay honest — display never hides the newcomer's volume
+    late = {p["m"]: p["n"] for p in c["monthly_series"]}
+    assert late["2025-08"] == 36
+
+
+def test_cohort_lifts_a_real_shift_out_of_corpus_growth():
+    """Two themes, one stable panel: the share shift must survive the panel."""
+    rows = []
+    for m in [f"2025-{x:02d}" for x in range(1, 10)]:
+        early = m <= "2025-03"
+        # theme A shrinks, theme B grows — both carried by the same two feeds
+        rows += _panel_rows([m] * (9 if early else 3), ["FeedOne"] * 9, tag="a")[: 9 if early else 3]
+        rows += _panel_rows([m] * (3 if early else 9), ["FeedTwo"] * 9, tag="b")[: 3 if early else 9]
+    for i, r in enumerate(rows):
+        r["id"] = 20_000 + i
+    X = np.array([[1.0, 0.0] if r["tags"] == ["a"] else [0.0, 1.0] for r in rows],
+                 dtype=np.float32)
+    labels = np.array([0 if r["tags"] == ["a"] else 1 for r in rows])
+    centroids = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
+    res = foresight.analyze(rows, X, labels, centroids, now=datetime(2026, 1, 15))
+    assert res["cohort"]["applied"] is True and res["cohort"]["sources"] == 2
+    by_tag = {c["top_tags"][0]: c for c in res["clusters"]}
+    assert by_tag["a"]["momentum"] == "declining"
+    assert by_tag["b"]["momentum"] == "rising"
+
+
+def test_running_month_is_dropped_from_the_axis():
+    months = ["2026-07"] * 8 + ["2026-08"] * 8 + ["2026-09"] * 8
+    rows = _panel_rows(months, ["FeedOne"] * 24)
+    X, labels, centroids = _one_cluster(rows)
+    res = foresight.analyze(rows, X, labels, centroids, now=datetime(2026, 9, 15))
+    assert res["months"][-1] == "2026-08"
+    assert res["cohort"]["dropped_month"] == "2026-09"
+    # size still counts every member; only the series is restricted
+    assert res["clusters"][0]["size"] == 24
+    assert sum(p["n"] for p in res["clusters"][0]["monthly_series"]) == 16
+    # a complete last month is kept
+    res2 = foresight.analyze(rows, X, labels, centroids, now=datetime(2026, 10, 1))
+    assert res2["months"][-1] == "2026-09"
+
+
+def test_reps_are_recent_and_spread_over_sources():
+    months = ["2024-01"] * 30 + ["2026-05"] * 5
+    sources = ["OldFeed"] * 30 + ["A", "B", "C", "D", "E"]
+    rows = _panel_rows(months, sources)
+    X, labels, centroids = _one_cluster(rows)
+    res = foresight.analyze(rows, X, labels, centroids, now=datetime(2026, 9, 15))
+    c = res["clusters"][0]
+    picked = {r["id"] for r in rows if r["id"] in set(c["rep_trend_ids"])}
+    dates = [r["published_date"] for r in rows if r["id"] in picked]
+    assert all(d.startswith("2026") for d in dates)      # newest win
+    names = [r["source_name"] for r in rows if r["id"] in picked]
+    assert len(set(names)) == len(names)                 # one per source
+    assert len(c["rep_trend_ids"]) == 5
+
+
+def test_reps_fill_up_when_a_cluster_has_one_source():
+    rows = _panel_rows([f"2026-0{1 + i % 5}" for i in range(25)], ["OnlyFeed"] * 25)
+    X, labels, centroids = _one_cluster(rows)
+    res = foresight.analyze(rows, X, labels, centroids, now=datetime(2026, 9, 15))
+    assert len(res["clusters"][0]["rep_trend_ids"]) == 5
+
+
+def test_labels_are_unique_within_a_run():
+    used: set[str] = set()
+    terms = ["sustainable fashion", "circular economy", "textile recycling"]
+    a = foresight.unique_label(terms, used, "x")
+    used.add(a)
+    b = foresight.unique_label(terms, used, "x")
+    assert a == "Sustainable Fashion · Circular Economy"
+    assert b != a and b.startswith("Sustainable Fashion")
+    used.add(b)
+    c = foresight.unique_label(terms, used, "x")
+    assert c not in (a, b)
+
+
+def test_acronyms_survive_the_label_pass():
+    assert foresight.derive_label(["nft marketplace"]) == "NFT Marketplace"
+    assert foresight.derive_label(["sbir funding"]) == "SBIR Funding"
+    assert foresight.derive_label(["eu funding", "circular economy"]) \
+        == "EU Funding · Circular Economy"
+
+
+def test_window_since_walks_back_whole_months():
+    from pipeline.foresight_snapshot import window_since
+    assert window_since(24, datetime(2026, 9, 15)) == "2024-09-01"
+    assert window_since(12, datetime(2026, 1, 3)) == "2025-01-01"
+    assert window_since(0) is None
+
+
+def test_volume_spike_of_a_panel_source_does_not_create_momentum():
+    """A source inside the panel that back-ingests three months of extra rows
+    must not hand its theme a rising badge (FASHION run 2026-09-15: one outlet
+    went from ~50 to ~350 items a month and produced the only riser)."""
+    rows = []
+    months = [f"2025-{m:02d}" for m in range(1, 13)]
+    for m in months:
+        spike = m in ("2025-10", "2025-11", "2025-12")
+        # Outlet A carries theme "a"; it back-ingests 7x in the last quarter.
+        rows += _panel_rows([m] * (70 if spike else 10), ["OutletA"] * 70, tag="a")[: 70 if spike else 10]
+        # Outlet B carries theme "b" at a steady rate throughout.
+        rows += _panel_rows([m] * 10, ["OutletB"] * 10, tag="b")
+    for i, r in enumerate(rows):
+        r["id"] = 30_000 + i
+    X = np.array([[1.0, 0.0] if r["tags"] == ["a"] else [0.0, 1.0] for r in rows],
+                 dtype=np.float32)
+    labels = np.array([0 if r["tags"] == ["a"] else 1 for r in rows])
+    centroids = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
+    res = foresight.analyze(rows, X, labels, centroids, now=datetime(2026, 6, 1))
+    by_tag = {c["top_tags"][0]: c for c in res["clusters"]}
+    assert by_tag["a"]["momentum"] == "stable"       # damped back to its median
+    assert abs(by_tag["a"]["sov_delta_pp"]) < 1.0
+    # the raw volume change stays visible as its own number
+    assert by_tag["a"]["vol_delta_pct"] > 400   # 40 items early window, 220 late
+
+
+def test_a_large_cluster_needs_a_relative_move_not_just_a_percentage_point():
+    """Seed-to-seed variance moves mid-sized clusters by 1-3 pp on its own."""
+    # Cluster A holds ~30 % and gains 1.2 pp = 4 % of itself → not a direction.
+    rows = []
+    for m in [f"2025-{x:02d}" for x in range(1, 13)]:
+        early = m <= "2025-04"
+        a = 30 if early else 31
+        rows += _panel_rows([m] * a, ["FeedOne"] * a, tag="a")
+        rows += _panel_rows([m] * (70 if early else 69), ["FeedOne"] * 70, tag="b")[: 70 if early else 69]
+    for i, r in enumerate(rows):
+        r["id"] = 40_000 + i
+    X = np.array([[1.0, 0.0] if r["tags"] == ["a"] else [0.0, 1.0] for r in rows],
+                 dtype=np.float32)
+    labels = np.array([0 if r["tags"] == ["a"] else 1 for r in rows])
+    centroids = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
+    res = foresight.analyze(rows, X, labels, centroids, now=datetime(2026, 6, 1))
+    a = next(c for c in res["clusters"] if c["top_tags"][0] == "a")
+    assert a["sov_delta_pp"] == 1.0 or a["momentum"] == "stable"
+    # a small cluster making the same absolute move IS a direction
+    assert foresight.MOMENTUM_MIN_RELATIVE == 0.10

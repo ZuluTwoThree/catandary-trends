@@ -7,10 +7,12 @@ export default function Sparkline({
   points,
   months,
   label,
+  className = "w-full h-9",
 }: {
   points: number[]; // share values 0..1, chronological
   months: string[]; // same length, YYYY-MM
   label: string;
+  className?: string; // the detail view renders the same series taller
 }) {
   if (points.length < 2) return null;
   const W = 220;
@@ -28,7 +30,7 @@ export default function Sparkline({
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
-      className="w-full h-9 text-muted"
+      className={`${className} text-muted`}
       role="img"
       aria-label={title}
     >

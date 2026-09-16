@@ -1,4 +1,4 @@
-import { q, q1 } from "./pg";
+import { q, q1, withTransaction } from "./pg";
 
 /**
  * Read access to the persisted foresight artifacts (foresight_runs /
@@ -12,6 +12,9 @@ export interface ClusterRep {
   title: string;
   source_url: string | null;
   source_name: string | null;
+  slug: string | null;
+  status: string | null;
+  date: string | null;
 }
 
 export interface ForesightCluster {
@@ -25,6 +28,19 @@ export interface ForesightCluster {
   verticals: string[];
   top_tags: string[];
   n_sources: number;
+  /** Largest single source in the cluster and its share — concentration, so a
+   *  "420 sources" headline cannot imply corroboration it does not have. */
+  top_source: string | null;
+  top_source_share: number;
+  /** The two panel shares the pp delta is made of (0..1). A pp figure alone
+   *  is unreadable: +0.5 pp is a big move for a 1 % cluster, noise for a 20 %
+   *  one. */
+  share_early: number | null;
+  share_late: number | null;
+  /** Raw item count change, late vs early window. Kept for the detail view —
+   *  in a growing corpus every cluster's raw count grows, so it says more
+   *  about our ingest than about the theme. */
+  vol_delta_pct: number | null;
   momentum: "rising" | "stable" | "declining" | "unknown";
   sov_delta_pp: number;
   tier: string | null;
@@ -41,6 +57,27 @@ export interface ForesightRun {
   first_month: string | null;
   last_month: string | null;
   created_at: string;
+  /** Clustered slice: ISO lower bound and its length (0/null = full history). */
+  since: string | null;
+  window_months: number | null;
+  /** Momentum panel: sources that delivered in BOTH comparison windows, and
+   *  the share of window rows they carry. applied=false means the panel was
+   *  too thin and every source counted. */
+  cohort_sources: number | null;
+  cohort_coverage: number | null;
+  cohort_applied: boolean;
+}
+
+/** Row of the cluster detail view: a signal near the cluster centre. */
+export interface ClusterNeighbour {
+  id: number;
+  title: string;
+  source_name: string | null;
+  source_url: string | null;
+  slug: string | null;
+  status: string | null;
+  date: string | null;
+  sim: number;
 }
 
 function parseJson<T>(raw: unknown, fallback: T): T {
@@ -57,16 +94,16 @@ export async function getLatestClusterRun(
   scope: string
 ): Promise<{ run: ForesightRun; clusters: ForesightCluster[] } | null> {
   try {
-    const run = await q1<ForesightRun>(
-      "SELECT id, scope, tier, k, signals, first_month, last_month, created_at::text as created_at " +
-        "FROM foresight_runs WHERE scope = $1 ORDER BY id DESC LIMIT 1",
+    const run = await q1<RunRow>(
+      RUN_COLUMNS + " FROM foresight_runs WHERE scope = $1 ORDER BY id DESC LIMIT 1",
       [scope]
     );
     if (!run) return null;
 
-    const rows = await q("SELECT * FROM foresight_clusters WHERE run_id = $1 ORDER BY size DESC", [
-      run.id,
-    ]);
+    const rows = await q(
+      CLUSTER_COLUMNS + " FROM foresight_clusters WHERE run_id = $1 ORDER BY size DESC",
+      [run.id]
+    );
 
     // Evidence one click away: resolve representative signals to their
     // original source links in one query.
@@ -80,8 +117,18 @@ export async function getLatestClusterRun(
         title_en: string;
         source_url: string | null;
         source_name: string | null;
+        slug: string | null;
+        status: string | null;
+        date: string | null;
       }>(
-        "SELECT id, title_en, source_url, source_name FROM trends WHERE id = ANY($1::int[])",
+        // The engine ranks representatives by the RAW ENTRY's published_date,
+        // so the card must show that same date — trends.sort_date is
+        // LEAST(published, created_at) and would print a different day for the
+        // same row, making a date-sorted list look unsorted.
+        "SELECT t.id, t.title_en, t.source_url, t.source_name, t.slug, t.status, " +
+          "to_char(COALESCE(r.published_date, t.sort_date), 'YYYY-MM-DD') AS date " +
+          "FROM trends t JOIN raw_entries r ON r.id = t.raw_entry_id " +
+          "WHERE t.id = ANY($1::int[])",
         [repIds]
       );
       for (const r of reps) {
@@ -90,6 +137,9 @@ export async function getLatestClusterRun(
           title: r.title_en,
           source_url: r.source_url,
           source_name: r.source_name,
+          slug: r.slug,
+          status: r.status,
+          date: r.date,
         });
       }
     }
@@ -105,6 +155,11 @@ export async function getLatestClusterRun(
       verticals: parseJson<string[]>(r.verticals, []),
       top_tags: parseJson<string[]>(r.top_tags, []),
       n_sources: (r.n_sources as number) ?? 0,
+      top_source: (r.top_source as string) || null,
+      top_source_share: (r.top_source_share as number) ?? 0,
+      share_early: r.share_early == null ? null : (r.share_early as number),
+      share_late: r.share_late == null ? null : (r.share_late as number),
+      vol_delta_pct: r.vol_delta_pct == null ? null : (r.vol_delta_pct as number),
       momentum: (r.momentum as ForesightCluster["momentum"]) || "unknown",
       sov_delta_pp: (r.sov_delta_pp as number) ?? 0,
       tier: (r.tier as string) || null,
@@ -116,9 +171,137 @@ export async function getLatestClusterRun(
         []
       ),
     }));
-    return { run, clusters };
+    return { run: hydrateRun(run), clusters };
   } catch {
     return null; // tables not present yet → page renders its empty state
+  }
+}
+
+const RUN_COLUMNS =
+  "SELECT id, scope, tier, k, signals, first_month, last_month, " +
+  "created_at::text AS created_at, since, window_months, cohort_sources, " +
+  "cohort_coverage, cohort_applied";
+
+const CLUSTER_COLUMNS =
+  "SELECT id, run_id, cluster_idx, label, size, cohesion, mega_trend, mega_purity, " +
+  "verticals, top_tags, n_sources, top_source, top_source_share, vol_delta_pct, " +
+  "share_early, share_late, " +
+  "momentum, sov_delta_pp, tier, rep_trend_ids, rep_titles, monthly_series";
+
+type RunRow = Omit<ForesightRun, "cohort_applied"> & { cohort_applied: number | boolean | null };
+
+function hydrateRun(r: RunRow): ForesightRun {
+  return {
+    ...r,
+    since: r.since ?? null,
+    window_months: r.window_months ?? null,
+    cohort_sources: r.cohort_sources ?? null,
+    cohort_coverage: r.cohort_coverage ?? null,
+    // pre-2026-09-15 runs have no column value; treat them as "not applied"
+    cohort_applied: r.cohort_applied === 1 || r.cohort_applied === true,
+  };
+}
+
+/**
+ * One cluster plus its run — the detail view's anchor. Cards used to be a dead
+ * end: 95,000 signals behind three representative titles and no way in
+ * (audit 2026-09-15).
+ */
+export async function getClusterDetail(
+  clusterId: number
+): Promise<{ run: ForesightRun; cluster: ForesightCluster } | null> {
+  try {
+    const row = await q1<Record<string, unknown>>(
+      CLUSTER_COLUMNS + " FROM foresight_clusters WHERE id = $1",
+      [clusterId]
+    );
+    if (!row) return null;
+    const run = await q1<RunRow>(RUN_COLUMNS + " FROM foresight_runs WHERE id = $1", [
+      row.run_id as number,
+    ]);
+    if (!run) return null;
+    const data = await getLatestClusterRun(run.scope);
+    const cluster = data?.clusters.find((c) => c.id === clusterId);
+    if (!cluster) return null;
+    return { run: hydrateRun(run), cluster };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Signals nearest the cluster centre, inside the run's own scope and window.
+ *
+ * The centroid is persisted with the cluster (float32 bytes), so "show me this
+ * cluster" is one pgvector lookup instead of re-clustering or storing hundreds
+ * of thousands of memberships. ef_search is raised for this statement only —
+ * the default (40) caps the candidate list far below the page size — which is
+ * why this runs on a single pooled client inside a transaction.
+ */
+export async function getClusterNeighbours(
+  clusterId: number,
+  limit = 200
+): Promise<ClusterNeighbour[]> {
+  try {
+    return await withTransaction(async (client) => {
+      const meta = await client.query(
+        "SELECT c.centroid, r.scope, r.since, r.status_filter " +
+          "FROM foresight_clusters c JOIN foresight_runs r ON r.id = c.run_id " +
+          "WHERE c.id = $1",
+        [clusterId]
+      );
+      const m = meta.rows[0];
+      if (!m?.centroid) return [];
+      const vec = Buffer.isBuffer(m.centroid) ? m.centroid : Buffer.from(m.centroid);
+      const floats = new Float32Array(
+        vec.buffer.slice(vec.byteOffset, vec.byteOffset + vec.byteLength)
+      );
+      if (floats.length < 8) return [];
+      const literal = "[" + Array.from(floats, (v) => v.toFixed(6)).join(",") + "]";
+      const scope = String(m.scope || "");
+      const vertical = scope.startsWith("vertical:") ? scope.slice("vertical:".length) : null;
+      const statuses = String(m.status_filter || "signal,published")
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
+
+      const where = [
+        "t.embedding_1024 IS NOT NULL",
+        "t.status = ANY($2::text[])",
+      ];
+      const params: unknown[] = [literal, statuses];
+      if (vertical) {
+        params.push(vertical);
+        where.push(`t.primary_vertical = $${params.length}`);
+      }
+      if (m.since) {
+        params.push(m.since);
+        where.push(`r.published_date >= $${params.length}`);
+      }
+      params.push(limit);
+      await client.query("SET LOCAL hnsw.ef_search = 400");
+      const res = await client.query(
+        "SELECT t.id, t.title_en, t.source_name, t.source_url, t.slug, t.status, " +
+          "to_char(COALESCE(r.published_date, t.sort_date), 'YYYY-MM-DD') AS date, " +
+          "1 - (t.embedding_1024 <=> $1::vector) AS sim " +
+          "FROM trends t JOIN raw_entries r ON r.id = t.raw_entry_id " +
+          `WHERE ${where.join(" AND ")} ` +
+          `ORDER BY t.embedding_1024 <=> $1::vector LIMIT $${params.length}`,
+        params
+      );
+      return res.rows.map((r) => ({
+        id: r.id as number,
+        title: (r.title_en as string) || "",
+        source_name: (r.source_name as string) || null,
+        source_url: (r.source_url as string) || null,
+        slug: (r.slug as string) || null,
+        status: (r.status as string) || null,
+        date: (r.date as string) || null,
+        sim: Number(r.sim ?? 0),
+      }));
+    });
+  } catch {
+    return [];
   }
 }
 

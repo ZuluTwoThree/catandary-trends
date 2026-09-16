@@ -1048,7 +1048,18 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                    schreibt nur eine Kandidatendatei; measure_mega_axes --write-yaml bleibt die einzige Schreibquelle der Badge-Felder).
                                    Der SQLite-Prototyp discover_mega_trends.py wurde 2026-09-09 entfernt (zeigte auf die vor-Postgres-DB, abgelöst).
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
-  /clusters /technology /lead-time /evolution   (das druckbare Foresight-Dossier /dossier samt CSV-Export
+  /clusters /clusters/<id> /technology /lead-time /evolution
+    (Cluster-Schicht seit 2026-09-15: Snapshot ueber die letzten 24 Monate statt des
+     ganzen Archivs (`--window-months`), Momentum als Anteil am Gehoer auf einem FESTEN
+     QUELLENPANEL (nur Quellen, die in beiden Vergleichsfenstern geliefert haben) mit
+     Daempfung von Mengenausschlaegen je Quelle auf deren Median, laufender Monat raus,
+     rohe Mengenaenderung als zweite Zahl, groesste Einzelquelle mit Anteil statt
+     "confirmed by N sources", Belege = neueste zentrumsnahe Signale (eines je Quelle),
+     Titel innerhalb eines Laufs eindeutig, Mega-Zuordnung erst ab 50 % Reinheit.
+     Der Schwerpunktvektor wird jetzt persistiert und traegt die Detailseite
+     /clusters/<id>: pgvector-Nachbarschaft im selben Scope/Fenster, 12 zentrumsnaechste
+     + 12 neueste Signale, Messblock. Anlass + Messungen: docs/cluster_layer_audit_2026-09-15.md)
+    (das druckbare Foresight-Dossier /dossier samt CSV-Export
      wurde am 2026-09-15 entfernt: es las nur den ungeeichten Cluster-Snapshot vom 03.08. — Owner-Entscheid)
     (Technologie-Suche: Query-Quality-Gate #67 seit 2026-09-04, `pipeline/query_gate.py` — eine Anfrage
      bekommt nur dann eine Zahl, wenn ihre 20 nächsten CPC-Klassen alle unter d20 ≤ 0,36 liegen UND

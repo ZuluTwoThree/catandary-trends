@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getClusterScopes, getLatestClusterRun } from "@/lib/foresight";
 import { VERTICALS } from "@/lib/types";
 import ClusterCard from "@/components/foresight/ClusterCard";
+import { runProvenance } from "@/lib/clusterCard";
 import SnapshotRecompute from "../SnapshotRecompute";
 import ForesightCta from "@/components/ForesightCta";
 
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Trend Clusters — Catandary Trends",
   description:
-    "What's moving right now: data-driven trend clusters from the full signal space, with momentum and source corroboration.",
+    "What's moving right now: data-driven trend clusters from the recent signal space, with share-of-attention momentum measured on a fixed source panel.",
 };
 
 /**
@@ -65,12 +66,16 @@ export default async function ClustersExplorerPage({
           ) : (
             "our"
           )}{" "}
-          analyzed signals — grouped by meaning, ranked by momentum, confirmed
-          across independent sources.
-          {asOf && (
-            <span className="text-muted"> Updated {asOf}.</span>
-          )}
+          analyzed signals of the{" "}
+          {data?.run.window_months ? `last ${data.run.window_months} months` : "archive"} —
+          grouped by meaning, ranked by how their share of attention moved.
+          {asOf && <span className="text-muted"> Computed {asOf}.</span>}
         </p>
+        {data && (
+          <p className="font-sans text-sm text-muted leading-relaxed max-w-2xl mt-3">
+            {runProvenance(data.run)}
+          </p>
+        )}
       </div>
 
       {/* Radar rule (Owner 2026-09-15): a document with a date and a button, no cron. */}
@@ -121,7 +126,7 @@ export default async function ClustersExplorerPage({
       ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {clusters.map((c) => (
-              <ClusterCard key={c.id} cluster={c} />
+              <ClusterCard key={c.id} cluster={c} showVerticals={scope === "global"} />
             ))}
           </div>
       )}

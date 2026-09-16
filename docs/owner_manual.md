@@ -305,10 +305,35 @@ gerechnet (`scripts/weekly_patent_analytics.sh`).
 
 ### 5.3 Cluster (`/trends/foresight/clusters?vertical=<V>`)
 
-„What's moving now": datengetriebene Cluster aus dem vollen Signalraum,
-sortiert nach steigendem Anteil, mit Momentum-Badge, Quellenbestätigung und
-Evidenzlinks; Datum des Rechenstands im Kopf. Die Seite liest **persistierte
-Snapshots** (`foresight_runs`/`foresight_clusters`). Neu rechnen — bewusst nur
+„What's moving now": datengetriebene Cluster aus dem Signalraum der **letzten
+24 Monate** (`--window-months`, 0 = ganzes Archiv), sortiert nach steigendem
+Anteil, mit Momentum-Badge, Quellenkonzentration und Evidenzlinks; Rechenstand
+und Messgrundlage stehen im Kopf. Die Seite liest **persistierte Snapshots**
+(`foresight_runs`/`foresight_clusters`).
+
+**Was auf einer Karte steht (Überarbeitung 2026-09-15).** Der Momentum-Wert ist
+der Anteil am Gehör, gemessen auf einem **festen Quellenpanel**: nur Quellen,
+die im frühen *und* im späten Vergleichsfenster geliefert haben, zählen mit.
+Vorher verglich die Rechnung eine Fachpresse-Ära mit einer Forschungs-Ära und
+maß damit unseren eigenen Quellenausbau (226 → 560 Quellen); AI- und
+Patent-Cluster stiegen, Fachpresse-Themen fielen. Zusätzlich wird ein Monat,
+in dem eine Quelle weit über ihrem eigenen Median liefert, auf diesen Median
+gedämpft — ein Nachtrags-Ingest sieht sonst aus wie Momentum (FASHION-Lauf
+15.09.: eine Quelle sprang von ~50 auf ~350 Beiträge/Monat und erzeugte allein
+den einzigen Aufsteiger, +18,4 pp → +4,2 pp nach Dämpfung). Der **laufende
+Monat** fällt ganz heraus. Weil Anteil am Gehör ein Nullsummenmaß ist, steht
+die **rohe Mengenänderung** als zweite Zahl daneben. Die Karte nennt außerdem
+die **größte Einzelquelle** mit ihrem Anteil (Quellenzahl ist Breite, keine
+Bestätigung — der frühere Satz „confirmed by N independent sources" ist weg),
+die **Kohäsion** in Worten und den Mega-Trend nur ab 50 % Reinheit. Belege sind
+die **neuesten** Signale nahe am Clusterzentrum, höchstens eines je Quelle
+(vorher die zentrumsnächsten, also die durchschnittlichsten und oft Jahre alten).
+Titel sind innerhalb eines Laufs eindeutig.
+
+**Klick auf den Titel oder „Open cluster"** öffnet `/trends/foresight/clusters/<id>`:
+Messwerte, großer Anteilsverlauf, die 12 zentrumsnächsten und die 12 neuesten
+Signale der Nachbarschaft (pgvector gegen den gespeicherten Schwerpunkt, im selben
+Scope und Zeitfenster), alle Tags und ein Absatz, wie gemessen wurde. Neu rechnen — bewusst nur
 auf Knopfdruck, kein Cron (Radar-Regel; Owner 2026-09-15: die Cluster-Schicht
 bleibt als Owner-Instrument mit sichtbarem Rechenstand): Knopf **Recompute
 snapshot** im Kopf der Seite (startet `python -m pipeline.foresight_snapshot

@@ -1,28 +1,25 @@
+import Link from "next/link";
 import { getMegaTrendInfo } from "@/lib/types";
 import type { ForesightCluster } from "@/lib/foresight";
 import MomentumBadge from "./MomentumBadge";
 import Sparkline from "./Sparkline";
+import { clusterSummary, concentrationNote, megaAttribution, cohesionLabel } from "@/lib/clusterCard";
 
 const SPARK_MONTHS = 36; // readability: recent window, not the 2002+ tail
 
-export default function ClusterCard({ cluster }: { cluster: ForesightCluster }) {
-  const mega = cluster.mega_trend ? getMegaTrendInfo(cluster.mega_trend) : undefined;
+export default function ClusterCard({
+  cluster,
+  showVerticals = true,
+}: {
+  cluster: ForesightCluster;
+  /** A vertical-scoped run has one vertical on every card — pointless there. */
+  showVerticals?: boolean;
+}) {
+  const mega = megaAttribution(cluster) ? getMegaTrendInfo(cluster.mega_trend!) : undefined;
   const series = cluster.monthly_series.slice(-SPARK_MONTHS);
   const points = series.map((p) => p.share);
   const months = series.map((p) => p.m);
-
-  // Plain-language summary — one statement plus corroboration, no repeated
-  // momentum phrase (COPY-16); detail numbers stay in the badge tooltip.
-  const corroboration = `confirmed by ${cluster.n_sources.toLocaleString("en-US")} independent source${cluster.n_sources === 1 ? "" : "s"}`;
-  const deltaText = `${cluster.sov_delta_pp > 0 ? "+" : ""}${cluster.sov_delta_pp.toFixed(1)} pp share of attention`;
-  const summary =
-    cluster.momentum === "rising"
-      ? `Gaining ground (${deltaText}) — ${corroboration}.`
-      : cluster.momentum === "declining"
-        ? `Cooling off (${deltaText}) — ${corroboration}.`
-        : cluster.momentum === "unknown"
-          ? `Newly observed (still too early to call a direction) — ${corroboration}.`
-          : `Holding steady — ${corroboration}.`;
+  const conc = concentrationNote(cluster);
 
   return (
     <article
@@ -38,11 +35,15 @@ export default function ClusterCard({ cluster }: { cluster: ForesightCluster }) 
             signals
           </span>
           <span className="text-border">·</span>
-          <span>
-            <span className="text-accent tabular-nums">{cluster.n_sources}</span>{" "}
-            sources
+          <span title={conc.title}>
+            <span className="text-accent tabular-nums">{cluster.n_sources}</span> sources
+            {conc.text && <span className="text-muted">, {conc.text}</span>}
           </span>
-          {cluster.verticals.length > 0 && (
+          <span className="text-border">·</span>
+          <span title="Mean cosine of a member to the cluster centre — how tightly the signals actually belong together.">
+            {cohesionLabel(cluster.cohesion)}
+          </span>
+          {showVerticals && cluster.verticals.length > 0 && (
             <>
               <span className="text-border">·</span>
               <span>{cluster.verticals.join(" / ")}</span>
@@ -53,10 +54,15 @@ export default function ClusterCard({ cluster }: { cluster: ForesightCluster }) 
       </div>
 
       <h2 className="font-display text-[22px] leading-tight text-paper">
-        {cluster.label}
+        <Link
+          href={`/trends/foresight/clusters/${cluster.id}`}
+          className="hover:text-accent transition-colors"
+        >
+          {cluster.label}
+        </Link>
       </h2>
 
-      <p className="font-sans text-sm text-text leading-relaxed">{summary}</p>
+      <p className="font-sans text-sm text-text leading-relaxed">{clusterSummary(cluster)}</p>
 
       {points.length >= 2 && (
         <Sparkline points={points} months={months} label={cluster.label} />
@@ -64,18 +70,24 @@ export default function ClusterCard({ cluster }: { cluster: ForesightCluster }) 
 
       {mega && (
         <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
-          Part of <span className="text-paper">{mega.name_en}</span>
+          Mostly part of <span className="text-paper">{mega.name_en}</span>{" "}
+          <span className="tabular-nums">({Math.round(cluster.mega_purity * 100)} %)</span>
         </div>
       )}
 
       {cluster.reps.length > 0 && (
         <div className="border-t border-border/60 pt-3 mt-1">
           <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-2">
-            Representative signals
+            Recent signals in this cluster
           </div>
           <ul className="space-y-1.5">
             {cluster.reps.slice(0, 3).map((r) => (
               <li key={r.id} className="text-sm leading-snug">
+                {r.date && (
+                  <span className="font-mono text-[10px] text-muted tabular-nums mr-2">
+                    {r.date}
+                  </span>
+                )}
                 {r.source_url ? (
                   <a
                     href={r.source_url}
@@ -84,9 +96,7 @@ export default function ClusterCard({ cluster }: { cluster: ForesightCluster }) 
                     className="text-text hover:text-accent transition-colors"
                   >
                     {r.title}
-                    {r.source_name && (
-                      <span className="text-muted"> — {r.source_name}</span>
-                    )}
+                    {r.source_name && <span className="text-muted"> — {r.source_name}</span>}
                   </a>
                 ) : (
                   <span className="text-text">{r.title}</span>
@@ -94,6 +104,12 @@ export default function ClusterCard({ cluster }: { cluster: ForesightCluster }) 
               </li>
             ))}
           </ul>
+          <Link
+            href={`/trends/foresight/clusters/${cluster.id}`}
+            className="inline-block mt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-accent hover:underline"
+          >
+            Open cluster
+          </Link>
         </div>
       )}
 
