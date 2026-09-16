@@ -314,3 +314,81 @@ sie über Namenswechsel hinweg funktioniert. Reihenfolge:
 2. Erst danach die Akteursverfolgung an die Themensuche hängen.
 3. Namenssuche per Textvergleich bleibt in jedem Fall unbrauchbar (Formo →
    Formoterol, Remilk → SUREMILK LLC); gebraucht wird der Stamm mit Aliassen.
+
+---
+
+## Korrektur: ein Google-Treffer widerlegt Stufe 1 in ihrer ersten Fassung
+
+Der Owner hat eine Google-Suche gemacht und sofort einen ScienceAlert-Artikel
+über die erste künstliche Kuhmilch gefunden — aus der Muufri-Zeit. Ich hatte
+zuvor geschrieben, was vor der ersten Veröffentlichung passiere, stehe in keinem
+Text. **Das war falsch**, und zwar doppelt.
+
+### Der frühe Beleg liegt in unserem eigenen Korpus
+
+Gesucht, gefunden: **2014-12, „Coming Soon From 3 Vegan Scientists: Lab-Grown
+Milk", Modern Farmer.** Das ist die Muufri-Geschichte, sechs Jahre vor der
+Forschungswelle, und sie steht bei uns. Unsere Fachpresse reicht weiter zurück
+als angenommen: 20.651 Zeilen allein 2013, einzelne Quellen bis 2000.
+
+Es war also weder ein Quellen- noch ein Archivproblem. Es war ein **Abrufproblem**.
+
+### Warum die Vektorsuche ihn nicht findet
+
+| Prüfung | Ergebnis |
+|---|---|
+| moderne Anfrage („precision fermentation of dairy proteins…"), 1.000 nächste Nachbarn | Artikel **nicht dabei** |
+| der Artikel selbst als Anfrage, Belege vor 2017 | nur Agtech-Finanzierungsnews bei 0,55–0,61, nichts zum Thema |
+| Volltextsuche „lab-grown milk" | **0,5 s, ältester Treffer 2014-12** |
+
+Der Grund: die Einbettung verortet den Artikel nach seinem Charakter — kurze,
+launige Startup-Meldung — nicht nach dem Fachthema. Die Fachsprache von 2020
+trifft die Alltagssprache von 2014 nicht, und umgekehrt hilft auch kein
+Weiterhangeln von Dokument zu Dokument.
+
+### Ein Thema ist keine Vokabel, sondern eine Wortfolge
+
+| Begriff | ältester Beleg |
+|---|---|
+| lab-grown milk | 2014-12 |
+| animal-free dairy | 2018-03 |
+| precision fermentation | 2020-03 |
+
+Jede Wortgeneration hat ihr eigenes Anfangsdatum. Wer heute den heutigen Begriff
+eingibt, kann per Konstruktion nur dessen Ära finden. Das erklärt nebenbei den
+Rücktest: RAG wurde „erst 2026-01" erkannt, obwohl das Feld ab 2023-10 da war.
+
+### Die Wortkette lässt sich automatisch rückwärts laufen — mit einem Gate
+
+Versuch: aus den ältesten Treffern eines Begriffs die auffälligen Wortpaare
+ziehen und prüfen, ob eines davon weiter zurückreicht.
+
+- Runde 1 aus „precision fermentation" (2020-03) → **„perfect day" 2016-09**
+- Runde 2 → **„animal-free dairy" 2018-03**
+- daneben Abdriften: „whey protein" 1992, „ice cream" 1996, „using precision" 2007
+
+Der Mechanismus trägt, driftet aber in Allgemeinplätze. Die Lösung ist genau die
+Stärke, die der Vektorsuche hier fehlt: **jeder lexikalische Kandidat wird per
+Einbettung gegen den Themenschwerpunkt geprüft**, und nur wer nah genug bleibt,
+wird ein Glied der Kette. „Ice cream" fällt damit raus, „animal-free dairy"
+bleibt.
+
+### Stufe 1, neu gefasst
+
+Die Anfrage-Maschine ist **hybrid**, nicht vektorbasiert:
+
+1. Vektorsuche je Ebene für das Heute — findet, was thematisch passt, unabhängig
+   von der Wortwahl der Gegenwart.
+2. **Volltextsuche für die Vergangenheit** — findet die alten, konkreten
+   Wortprägungen, die die Vektorsuche nachweislich verfehlt. Index
+   `idx_trends_fts` ist vorhanden, 0,5 s.
+3. **Wortketten-Lauf**: aus den ältesten Treffern Kandidaten ziehen, jeden per
+   Einbettung gegen den Themenschwerpunkt gaten, die überlebenden als weitere
+   Suchbegriffe. Abbruch, wenn keiner mehr weiter zurückreicht.
+4. Der Bericht zeigt die **Wortgenerationen** mit ihren Daten. Das ist nicht
+   Beiwerk, sondern das Ergebnis: es macht sichtbar, wann ein Thema wie hieß.
+
+Und die ehrliche Formulierung für Vorlaufzeiten: nicht „wir sehen ab dem Proof
+of Concept", sondern **„wir sehen ab der ersten Wortprägung, die jemand
+aufgeschrieben hat — wenn wir die richtige Vokabel treffen."** Genau dafür ist
+der Wortketten-Lauf da.
