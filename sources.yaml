@@ -2329,12 +2329,12 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: pv magazine International
-      fulltext: true
+      fulltext: false   # 2026-09-16: Artikel liefern 403 fuer unseren Bot (zweimal geprueft) — kein Volltext, Teaser bleibt
       feed_url: https://www.pv-magazine.com/feed/
       type: trade_media
       lead_time_tier: market
       tdm_checked: "2026-09-04"
-      tdm_status: ok
+      tdm_status: blocked
     - name: Solarserver
       fulltext: true
       feed_url: https://www.solarserver.de/feed/

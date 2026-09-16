@@ -197,16 +197,31 @@ def check_blocked() -> int:
             rp = robots_for(host, client)
             sms = sitemaps_from_robots(host, client)
             feed_ok = rp is None or robots_allows(rp, "CatandaryTrendsBot", s["feed_url"])
-            sm_ok = bool(sms) and (rp is None or robots_allows(rp, "CatandaryTrendsBot", sms[0]))
-            verdict = "SITEMAP MOEGLICH" if (sm_ok and not feed_ok) else (
-                "sitemap erlaubt" if sm_ok else "keine/gesperrte sitemap")
-            if sm_ok and not feed_ok:
+            allowed = bool(sms) and (rp is None or robots_allows(rp, "CatandaryTrendsBot", sms[0]))
+            # Die Regel zu lesen genuegt nicht: bei Finextra erlaubt robots die
+            # Sitemap, der Server antwortet aber mit 403 (2026-09-16). Geprueft
+            # wird deshalb die Tuer, nicht der Aushang.
+            reachable, note = False, ""
+            if allowed:
+                try:
+                    r = client.get(sms[0])
+                    reachable = r.status_code == 200 and "<" in r.text[:200]
+                    note = f"HTTP {r.status_code}"
+                except Exception as exc:
+                    note = type(exc).__name__
+                time.sleep(DELAY)
+            verdict = ("SITEMAP MOEGLICH" if (reachable and not feed_ok)
+                       else "sitemap erreichbar" if reachable
+                       else "sitemap erlaubt, aber nicht erreichbar" if allowed
+                       else "keine/gesperrte sitemap")
+            if reachable and not feed_ok:
                 ok += 1
-            print(f"  {verdict:<18} {s['name'][:34]:<34} {host}")
+            print(f"  {verdict:<38} {s['name'][:30]:<30} {host}")
             if sms:
-                print(f"                     {sms[0][:78]}")
+                print(f"     {note:<8} {sms[0][:70]}")
             time.sleep(DELAY)
-    print(f"\n{ok} Quellen, bei denen robots den Feed sperrt, die Sitemap aber erlaubt.")
+    print(f"\n{ok} Quellen, bei denen robots den Feed sperrt und die Sitemap "
+          f"wirklich ausliefert.")
     return 0
 
 

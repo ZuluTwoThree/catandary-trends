@@ -122,3 +122,30 @@ def test_robots_sitemap_lines_are_read_as_the_invitation_they_are():
     c = FakeClient({"https://x.example/robots.txt":
                     "User-agent: *\nDisallow: /wp-json/\nSitemap: https://x.example/sitemap_index.xml\n"})
     assert SA.sitemaps_from_robots("x.example", c) == ["https://x.example/sitemap_index.xml"]
+
+
+def test_a_sitemap_that_robots_allows_may_still_be_shut(monkeypatch):
+    """Finextra 2026-09-16: robots erlaubt die Sitemap, der Server antwortet mit
+    403. Die Regel zu lesen genuegt nicht, die Tuer muss angefasst werden."""
+    class Shut(FakeClient):
+        def get(self, url):
+            if url.endswith("robots.txt"):
+                return super().get(url)
+
+            class R:
+                status_code = 403
+                text = ""
+                content = b""
+
+                def raise_for_status(self):
+                    raise RuntimeError("403")
+            return R()
+
+    c = Shut({"https://x.example/robots.txt":
+              "User-agent: *\nDisallow: /feed\nSitemap: https://x.example/sitemap.xml\n"})
+    assert SA.sitemaps_from_robots("x.example", c) == ["https://x.example/sitemap.xml"]
+    # walk_sitemaps ueberspringt sie, statt sie als Erfolg zu zaehlen
+    SA.DELAY = 0
+    urls, skipped = SA.walk_sitemaps(["https://x.example/sitemap.xml"], None,
+                                     "CatandaryTrendsBot", c)
+    assert urls == [] and skipped == ["https://x.example/sitemap.xml"]
