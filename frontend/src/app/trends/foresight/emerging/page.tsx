@@ -4,7 +4,7 @@ import { runProvenance, isYoung, TIER_LABEL } from "@/lib/nestCard";
 import { TIERS } from "@/lib/tiers";
 import { VERTICALS } from "@/lib/types";
 import NestCard from "@/components/foresight/NestCard";
-import SnapshotRecompute from "@/components/foresight/SnapshotRecompute";
+import SnapshotRecompute from "../SnapshotRecompute";
 
 export const dynamic = "force-dynamic";
 

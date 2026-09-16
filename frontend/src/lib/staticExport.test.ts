@@ -223,3 +223,50 @@ describe("the surviving app tree is exportable", () => {
     expect(importers).toEqual([]);
   });
 });
+
+/**
+ * Nothing outside a stripped tree may import from inside it.
+ *
+ * The export build rsyncs the source WITHOUT the blocked trees and then type
+ * checks what remains. A component that lives in src/components but imports a
+ * server action from src/app/trends/foresight therefore survives the strip
+ * while its import does not, and the build dies on "Cannot find module". That
+ * is exactly how the 03:15 publish failed on 2026-09-16: nothing was uploaded
+ * and the previous day's site stayed online until someone read the alert.
+ */
+describe("no file outside the stripped trees imports from inside one", () => {
+  const strippedTrees = readExcludes()
+    .filter((e) => e.startsWith("src/app/") && e.endsWith("/"))
+    .map((e) => e.replace(/^src\//, "").replace(/\/$/, "")); // e.g. app/trends/foresight
+
+  function walk(dir: string, out: string[] = []): string[] {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full, out);
+      else if (/\.(ts|tsx)$/.test(entry.name)) out.push(full);
+    }
+    return out;
+  }
+
+  it("has trees to check", () => {
+    expect(strippedTrees.length).toBeGreaterThan(3);
+  });
+
+  it("finds no import crossing into a stripped tree", () => {
+    const files = walk(path.join(FRONTEND, "src"));
+    const offenders: string[] = [];
+    for (const file of files) {
+      const rel = path.relative(path.join(FRONTEND, "src"), file).replace(/\\/g, "/");
+      // a file inside a stripped tree is stripped along with it — fine
+      if (strippedTrees.some((t) => rel.startsWith(`${t}/`))) continue;
+      const src = fs.readFileSync(file, "utf-8");
+      for (const tree of strippedTrees) {
+        // "@/app/trends/foresight/…" — the alias form is the one that compiles
+        if (new RegExp(`from\\s+["']@/${tree}/`).test(src)) {
+          offenders.push(`${rel} -> @/${tree}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
