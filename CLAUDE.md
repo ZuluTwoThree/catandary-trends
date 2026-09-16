@@ -1048,7 +1048,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                    schreibt nur eine Kandidatendatei; measure_mega_axes --write-yaml bleibt die einzige Schreibquelle der Badge-Felder).
                                    Der SQLite-Prototyp discover_mega_trends.py wurde 2026-09-09 entfernt (zeigte auf die vor-Postgres-DB, abgelöst).
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
-  /clusters /clusters/<id> /technology /lead-time /evolution
+  /clusters /clusters/<id> /emerging /technology /lead-time /evolution
     (Cluster-Schicht seit 2026-09-15: Snapshot ueber die letzten 24 Monate statt des
      ganzen Archivs (`--window-months`), Momentum als Anteil am Gehoer auf einem FESTEN
      QUELLENPANEL (nur Quellen, die in beiden Vergleichsfenstern geliefert haben) mit
@@ -1059,6 +1059,52 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      Der Schwerpunktvektor wird jetzt persistiert und traegt die Detailseite
      /clusters/<id>: pgvector-Nachbarschaft im selben Scope/Fenster, 12 zentrumsnaechste
      + 12 neueste Signale, Messblock. Anlass + Messungen: docs/cluster_layer_audit_2026-09-15.md)
+    (/emerging = ZWEITE Signalraum-Schicht seit 2026-09-15, neben den Clustern, nicht
+     statt ihnen — Owner-Frage „was muesste man tun, dass wirklich Trends entdeckt
+     werden?". k-Means teilt den Bestand restlos auf, also ist jede Zelle ein
+     Themengebiet; ein Trend ist die umgekehrte Form. pipeline/emerging.py +
+     emerging_snapshot.py: frischer 90-Tage-Schnitt fein zerlegt (Zellzahl ist ein
+     RECHENBUDGET, nicht Prinzip: global 400 Dok/Zelle, kleine Bereiche 40), nur
+     Zellen mit Kohaesion >= 0,75 bleiben (global 83 Nester aus 784 Zellen = 12 %
+     des Schnitts, Rest ist ausdruecklich Rauschen), deckungsgleiche Zentren wieder
+     vereint. Danach laeuft der GANZE Bestand am Zentrum vorbei und wird je Monat
+     gezaehlt (1,75M Dokumente / 449 Monate / 212 s, Speicher = ein Block) ->
+     erster Monat, Alter, Neuheits-Hebel (korpus-normiert, saettigt bei ~4,5),
+     Beschleunigung, neues Vokabular gegen den Stand vor 24-36 Monaten. Karte zeigt
+     als Kopfzeile das ALTER und immer die Schwaechen (Quellenzahl, groesste Quelle,
+     Anteil klassifizierter Dokumente) — die Schicht ist ein Sucher, kein Urteil:
+     im ersten Lauf stand ganz oben ein dichtes, brandneues Nest mit 647 Dokumenten
+     Pseudowissenschaft aus einem Massen-Ingest. Tabellen emerging_runs/
+     emerging_nests, additiv, Live-DB 15.09. Kein Cron, Knopf „Recompute pockets".
+     NAMEN (seit 2026-09-15 abends, pipeline/nest_naming.py): das lokale Modell
+     liest die zentrumsnaechsten Titel und benennt das Nest; jedes bedeutungs-
+     tragende Wort muss im Nest vorkommen, sonst faellt der Name durch und das
+     Schlagwort-Label bleibt (Karte zeigt beides). 311 von 328 benannt; einziger
+     GPU-Schritt der Schicht, --no-llm-names schaltet ihn ab.
+     PRUEFUNG (scripts/validate_emerging.py + known_trends.yaml): Ruecktest auf
+     21 Stichtagen gegen 20 datierbare Trends. 9 von 20 gefunden, 5 vor dem
+     Mainstream, Median-Vorlauf 6 Monate, Gegenproben nie ueber 0,62. Ein
+     Treffer zaehlt nur, wenn das getroffene Nest ein Kennwort des Trends auch
+     WIRKLICH enthaelt — ohne diese Regel meldete der Test 15 von 20 und 23
+     Monate, weil ein einziges Nest "Machine Learning · Neural Networks" gleich
+     drei KI-Trends traf. Bei 5 Trends fand der Test nicht einmal das Feld:
+     Quellenproblem, kein Erkennungsproblem.
+     EBENEN (Owner 2026-09-15: "ein science trend ist nicht das selbe wie ein
+     markttrend, selbst wenn thematisch deckungsgleich"): pipeline/tiers.py ordnet
+     jede Zeile einer Lead-Time-Ebene zu (Zwilling der SQL-TIER_FILTERS); der
+     Archiv-Scan zaehlt je Monat UND Ebene, also traegt jedes Nest vier
+     Erstauftritte, die Reihenfolge und den Abstand Wissenschaft->Markt. Dazu
+     Akteure: verschiedene Firmen/Marken in den Markt-Aehnlichen, frueh gegen
+     spaet — Untergrenze, weil nur 13 % der Fachpresse-Zeilen einen extrahierten
+     Namen tragen (Forschung 1 %, Patente 0 %: Extraktion laeuft nur im
+     Artikel-Pfad). WICHTIG: die Ebene laesst sich NICHT nachtraeglich aus einem
+     gemeinsamen Nest loesen, weil die Einbettung den Sprachstil mitkodiert —
+     "perovskite tandem solar cells" trifft in 400.000 Dokumenten 146
+     Forschungs- und 2 Marktzeilen. Deshalb eigener Scope `tier:<t>`
+     (`--all-tiers`), der jede Ebene fuer sich clustert; die Marktebene bekommt
+     automatisch feinere Zellen (bei 207 Dok/Zelle 5 Nester, bei 69 dann 46).
+     Offen: Extraktion auf den Signalpfad ausweiten, damit Akteure zaehlbar
+     werden. docs/emerging_nests_2026-09-15.md)
     (das druckbare Foresight-Dossier /dossier samt CSV-Export
      wurde am 2026-09-15 entfernt: es las nur den ungeeichten Cluster-Snapshot vom 03.08. — Owner-Entscheid)
     (Technologie-Suche: Query-Quality-Gate #67 seit 2026-09-04, `pipeline/query_gate.py` — eine Anfrage

@@ -349,7 +349,78 @@ Derselbe Snapshot speist die Kacheln „Moving right now" im Cockpit und den
 Streifen „What's moving" über dem Feed — beide zeigen sein Datum.
 Validierung: `scripts/foresight_validation.py` (Known-Trend-Recovery 23/24).
 
-### 5.4 Evolution (`/trends/foresight/evolution?vertical=<V>`)
+### 5.4 Emerging (`/trends/foresight/emerging?vertical=<V>`)
+
+Die zweite Signalraum-Schicht, **neben** den Clustern (Owner 2026-09-15, auf die
+Frage „was müsste man tun, dass wirklich Trends entdeckt werden?"). Cluster
+beantworten „worüber wird am meisten geredet", diese Seite „was ist neu".
+
+**Verfahren.** Ein frischer Zeitschnitt (90 Tage; ein zu dünner Bereich bekommt
+einmalig 180) wird fein zerlegt, es bleiben nur die wirklich dichten Zellen
+(global 83 Nester aus 784 Zellen, also 12 % des Schnitts — der Rest ist
+ausdrücklich Rauschen), und fast deckungsgleiche Zellen werden wieder vereint.
+Danach läuft der **gesamte Bestand** am Zentrum jedes Nests vorbei und wird je
+Monat gezählt. Das ergibt: erster Monat mit mindestens drei Ähnlichen, Alter,
+Neuheits-Hebel (Anteil der Treffer in den letzten sechs Monaten gegen den
+Anteil, den der Korpus dort hat — 1,0 heißt „verteilt wie das Archiv", 4,5 ist
+die Sättigung), Beschleunigung und neues Vokabular gegen den Stand von vor 24
+bis 36 Monaten.
+
+**Auf der Karte** steht als Kopfzeile das **Alter**, nicht die Größe. Darunter
+der Neuheits-Satz, neue Begriffe, der Monatsverlauf der Ähnlichen über fünf
+Jahre, die drei neuesten Belege und — immer — die Schwächen: Quellenzahl, Anteil
+der größten Quelle und wie viel des Nests je eine Klassifizierungsstufe gesehen
+hat. Ein Nest mit 0 % ist reines Massen-Ingest-Material, das kein Pipeline-Schritt
+je gelesen hat. Filter „show only pockets under 18 months" oben.
+
+**Das ist ein Sucher, kein Urteil.** Die Sortierung nach Aktualität hebt
+zwangsläufig auch Tagesnachrichten und Massenquellen. Im ersten Lauf stand ganz
+oben ein Nest mit 647 Dokumenten Pseudowissenschaft aus einem Forschungs-Sweep —
+tatsächlich dicht, tatsächlich neu, inhaltlich wertlos. Deshalb die Schwächen
+auf jeder Karte statt stiller Filter.
+
+**Die vier Ebenen.** Ein Wissenschaftstrend ist nicht dasselbe wie ein
+Markttrend, auch bei gleichem Thema (Owner 2026-09-15). Jedes Nest wird deshalb
+**getrennt je Ebene datiert** — Forschung, Patente, Förderung, Markt —, und die
+Karte zeigt, welches Gespräch es hauptsächlich ist, wann die anderen begannen und
+wie viele Monate zwischen Forschung und Markt liegen. Dazu die Zahl der
+**verschiedenen genannten Firmen** früh gegen spät; weil nur 13 % der
+Fachpresse-Zeilen einen extrahierten Namen tragen, ist das eine Untergrenze und
+sagt das auch.
+
+Die Reiter **by conversation** über dem Raster öffnen Läufe, die **nur** eine
+Ebene geclustert haben. Das ist nötig, nicht Kosmetik: die Einbettung kodiert den
+Sprachstil mit, eine wissenschaftlich formulierte Anfrage findet fast nur
+Wissenschaft (gemessen: „perovskite tandem solar cells" trifft in 400.000
+Dokumenten 146 Forschungs- und 2 Marktzeilen). Ein Marktgespräch wird nur
+gefunden, wenn man die Fachpresse für sich clustert. Die Marktebene bekommt dabei
+automatisch feinere Zellen — Fachpresse schreibt über alles, ihre Nester sind
+klein.
+
+**Namen.** Der Titel einer Karte kommt vom lokalen Modell: es liest die
+zentrumsnächsten Titel des Nests und benennt sie. Jedes bedeutungstragende Wort
+muss im Nest wirklich vorkommen, sonst wird der Name verworfen und das
+Schlagwort-Label bleibt stehen; unter dem Namen steht klein „tags say: …", damit
+man beides sieht. 311 von 328 Nestern bekamen am 15.09. einen Namen, aus
+„World · Action" wurde „World-Action Models". Abschaltbar mit `--no-llm-names`.
+
+**Prüfung gegen bekannte Trends.** `.venv/bin/python scripts/validate_emerging.py`
+lässt die Erkennung auf 21 historischen Stichtagen laufen und hält 20 datierbare
+Trends aus `known_trends.yaml` dagegen. Ergebnis 15.09.: 9 von 20 gefunden, 5 vor
+dem Mainstream, Median-Vorlauf 6 Monate, Gegenproben nie über 0,62. Die
+Mainstream-Daten in der Datei sind eine Einschätzung, keine Messung — korrigiere
+sie, und die Vorlaufzeiten ändern sich mit. Lies das Ergebnis zusammen mit dem
+Abschnitt „Ehrliche Lesart" in `docs/emerging_nests_2026-09-15.md`.
+
+**Neu rechnen** (kein Cron, Radar-Regel): Knopf **Recompute pockets** im Kopf
+der Seite oder im Terminal `python -m pipeline.emerging_snapshot --all-verticals --all-tiers`
+(CPU für Erkennung und Datierung, eine GPU-Übergabe für die Namen; global ~6 min,
+je Ebene ~5 min, kleine Vertikale Sekunden). Einzelne Bereiche mit
+`--scope tier:market` oder `--scope vertical:FOOD`.
+Tabellen `emerging_runs`/`emerging_nests`, je Bereich bleibt ein Lauf stehen.
+Methode, Messungen und die offenen Punkte: `docs/emerging_nests_2026-09-15.md`.
+
+### 5.5 Evolution (`/trends/foresight/evolution?vertical=<V>`)
 
 Cluster-Abstammung über Zeitfenster: Fäden mit *New* / *Fading*, rising /
 steady / cooling und „shifting in meaning" bei starker Drift. Liest die
@@ -357,7 +428,7 @@ persistierte Lineage; rechnen mit dem Knopf **Recompute lineage** im Kopf
 (`python -m pipeline.foresight_snapshot --lineage`, detached, CPU-only) oder im
 Terminal mit Fensterparametern `[--since … --until … --step … --span …]`.
 
-### 5.5 Research Explorer (`/trends/foresight/research`)
+### 5.6 Research Explorer (`/trends/foresight/research`)
 
 **Wozu.** Suche über den 45-Mio.-Korpus (`research_corpus`, OpenAlex-Snapshot,
 monatlich am 5.) und die kuratierte **Signal-Schicht** (`research_signals`,
@@ -376,7 +447,7 @@ Signal-Schicht statt im 45M-Korpus) · `?src=arxiv,biorxiv,medrxiv,openalex,jour
 bis zu 25 Live-Treffer pro Tag direkt von OpenAlex (serverseitig, Key nie im
 Client).
 
-### 5.6 Research Pulse (`/trends/foresight/research/pulse`, `/pulse/<theme>`)
+### 5.7 Research Pulse (`/trends/foresight/research/pulse`, `/pulse/<theme>`)
 
 **Wozu.** Wochen-Synthese je Mega-Theme aus den frischen Forschungssignalen:
 Volumen der ISO-Woche vs. Median der vier Vorwochen, KMeans-Cluster (k ≤ 5,
@@ -401,7 +472,7 @@ praktisch leer. Ein Journal-Batch erscheint als „emerging ×22" — Datenreali
 im Fußtext erklärt. Jeder Lauf ist eine neue Zeile (`research_pulse`
 versioniert); die Seite zeigt je Theme/Woche die jüngste.
 
-### 5.7 Patent Explorer (`/trends/foresight/patents`)
+### 5.8 Patent Explorer (`/trends/foresight/patents`)
 
 **Wozu.** 19 Mio.+ Patente (EPO-DOCDB-Back-File mit Abstract, CPC, Familien,
 Anmeldern), plus Kennzahlen je Technologie-Achse.
@@ -420,7 +491,7 @@ Seite „Looking for the company?" an. Filter `?cpc=`, `?country=` (Ämter mit
 Zitationsmetriken der letzten ~7 Jahre sind unreif. Radare und TIR-Forschungsläufe
 laufen bewusst nicht per Cron.
 
-### 5.8 Startup Explorer (`/trends/foresight/ventures`, `/company/<id>`)
+### 5.9 Startup Explorer (`/trends/foresight/ventures`, `/company/<id>`)
 
 Firmen-Korpus (~145k Firmen, ~420k datierte Ereignisse aus Primärquellen:
 Funding-Regex aus Presse, SEC Form D, SBIR/CORDIS-Grants, HN-Launches,
@@ -434,7 +505,7 @@ on-demand (Rebuild würde Enrichment verwerfen).
 ---
 
 
-### 5.9 Kunden-Briefing (`/trends/foresight/pitch`)
+### 5.10 Kunden-Briefing (`/trends/foresight/pitch`)
 
 **Wozu.** Catandary Foresight einem Interessenten vorstellen — im Browser, im
 Design der Seite, statt als PDF oder Folien. Aufgebaut nach dem

@@ -24,6 +24,7 @@ export const PRIMARY_NAV: NavItem[] = [
 export const FORESIGHT_NAV: NavItem[] = [
   { href: "/trends/foresight", label: "Cockpit" },
   { href: "/trends/foresight/clusters", label: "Clusters" },
+  { href: "/trends/foresight/emerging", label: "Emerging" },
   { href: "/trends/foresight/technology", label: "Technology" },
   { href: "/trends/foresight/lead-time", label: "Lead Time" },
   { href: "/trends/foresight/evolution", label: "Evolution" },

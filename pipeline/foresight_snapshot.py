@@ -51,7 +51,7 @@ DEFAULT_K_RANGE = {"global": (16, 36), "vertical": (8, 20)}
 DEFAULT_WINDOW_MONTHS = 24
 
 
-def _add_columns(conn, table: str, cols: dict[str, str]) -> None:
+def add_columns(conn, table: str, cols: dict[str, str]) -> None:
     """Additive ALTERs that are safe to repeat on either backend.
 
     Postgres has ADD COLUMN IF NOT EXISTS; SQLite does not, so there the
@@ -109,7 +109,7 @@ def migrate_foresight_tables() -> None:
         # existing installations gain them too; both branches are no-ops on a
         # second run.
         blob_ = "BYTEA" if db_mod.USE_POSTGRES else "BLOB"
-        _add_columns(conn, "foresight_clusters", {
+        add_columns(conn, "foresight_clusters", {
             "centroid": blob_,              # was declared but never written
             "top_source": "TEXT",           # largest single source in the cluster
             "top_source_share": "REAL",     # its share of the cluster
@@ -117,7 +117,7 @@ def migrate_foresight_tables() -> None:
             "share_early": "REAL",          # panel share in the early window
             "share_late": "REAL",           # … and in the late one
         })
-        _add_columns(conn, "foresight_runs", {
+        add_columns(conn, "foresight_runs", {
             "since": "TEXT",                # ISO lower bound of the clustered window
             "window_months": "INTEGER",     # 0/NULL = full history
             "cohort_sources": "INTEGER",    # sources in the fixed momentum panel

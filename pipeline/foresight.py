@@ -95,17 +95,29 @@ TIER_FILTERS: dict[str, tuple[str, list[str]]] = {
                 ["%Preprints%"]),
     "patent": ("(t.source_name LIKE ? OR t.source_name LIKE ?)",
                ["Google Patents%", "EPO %"]),
-    "funding": ("(" + " OR ".join(["t.source_name LIKE ?"] * 5) + ")",
+    # Owner 2026-09-16: a startup raising money is a funding signal however
+    # loudly the trade press reports it; the market starts at the product.
+    # Keep in step with pipeline.tiers.tier_of (tests/test_tiers.py checks).
+    "funding": ("((" + " OR ".join(["t.source_name LIKE ?"] * 5) + ")"
+                " OR (s.source_type IN ('trade_media', 'press_wire', 'brand')"
+                "     AND t.trend_signal_type = 'funding'))",
                 ["NIH RePORTER%", "NSF %", "OpenAIRE%", "UKRI%", "SEC Form D%"]),
-    "market": ("s.source_type IN ('trade_media', 'press_wire', 'brand')", []),
+    "market": ("s.source_type IN ('trade_media', 'press_wire', 'brand')"
+               " AND COALESCE(t.trend_signal_type, '') <> 'funding'", []),
 }
 
 
-def load_signals(status: str = "signal,published", vertical: str | None = None,
+def iter_signals(status: str = "signal,published", vertical: str | None = None,
                  source_like: str | None = None, limit: int = 0,
                  since: str | None = None, until: str | None = None,
-                 dim1024: bool = False, tier: str | None = None) -> list[dict]:
-    """Load embedded trends joined to their raw entry's published_date.
+                 dim1024: bool = False, tier: str | None = None,
+                 chunk_size: int = LOAD_CHUNK):
+    """Yield embedded trends in keyset-paginated chunks (list[dict] per chunk).
+
+    Same filters as `load_signals`, which is just this drained into one list.
+    Streaming matters for passes that walk the WHOLE archive without holding it:
+    the emerging-nest history scan multiplies every chunk against the nest
+    centroids and keeps only counts, so 1.75M rows cost one chunk of memory.
 
     status: comma list or 'all'. vertical: primary_vertical or None/'ALL' for no
     filter. source_like: comma-separated substrings OR-matched against
@@ -154,7 +166,10 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     # Under Postgres the embedding is a pgvector — cast to text and parse; under
     # SQLite it is the raw float32 blob.
     emb_col = f"t.{emb_field}::text" if db_mod.USE_POSTGRES else f"t.{emb_field}"
-    src_join = (" LEFT JOIN sources s ON r.source_id = s.id" if tier else "")
+    # The join is unconditional since 2026-09-15: every row carries its
+    # source_type so `pipeline.tiers.tier_of` can place it on a lead-time tier
+    # while streaming. sources is a 600-row table, so this is a hash join.
+    src_join = " LEFT JOIN sources s ON r.source_id = s.id"
     # Keyset pagination on t.id instead of one fetchall: under Postgres the
     # vector arrives as TEXT (~10 KB per 1024-dim row, ~40 KB at 4096), and a
     # single result set over 1.75M rows held every string at once — the
@@ -162,21 +177,23 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
     # took the frontend service down with it. Each chunk is parsed to raw
     # float32 bytes immediately, so only 4 KB/row stays resident.
     base_where = " AND ".join(where)
-    out: list[dict] = []
+    seen = 0
     last_id = 0
     with get_connection() as c:
         while True:
-            chunk = min(LOAD_CHUNK, limit - len(out)) if limit else LOAD_CHUNK
+            chunk = min(chunk_size, limit - seen) if limit else chunk_size
             if chunk <= 0:
                 break
             sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, "
                    "       t.primary_vertical, t.status, t.source_url, "
+                   "       t.brands, t.companies, t.trend_signal_type, s.source_type, "
                    f"       r.published_date, {emb_col} AS embedding "
                    f"FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id{src_join} "
                    f"WHERE {base_where} AND t.id > ? ORDER BY t.id LIMIT ?")
             rows = c.execute(sql, [*params, last_id, chunk]).fetchall()
             if not rows:
                 break
+            batch: list[dict] = []
             for raw in rows:
                 r = dict(raw)
                 last_id = r["id"]
@@ -187,13 +204,29 @@ def load_signals(status: str = "signal,published", vertical: str | None = None,
                 r["embedding"] = None  # drop the text/blob reference, keep memory flat
                 if isinstance(r["published_date"], datetime):
                     r["published_date"] = r["published_date"].isoformat()
-                try:
-                    tags = r["tags"]
-                    r["tags"] = tags if isinstance(tags, list) else (json.loads(tags) if tags else [])
-                except Exception:
-                    r["tags"] = []
-                out.append(r)
+                for field in ("tags", "brands", "companies"):
+                    try:
+                        val = r.get(field)
+                        r[field] = val if isinstance(val, list) else (json.loads(val) if val else [])
+                    except Exception:
+                        r[field] = []
+                batch.append(r)
+            seen += len(rows)
             del rows
+            if batch:
+                yield batch
+
+
+def load_signals(status: str = "signal,published", vertical: str | None = None,
+                 source_like: str | None = None, limit: int = 0,
+                 since: str | None = None, until: str | None = None,
+                 dim1024: bool = False, tier: str | None = None) -> list[dict]:
+    """All matching embedded trends in one list (see `iter_signals` for filters)."""
+    out: list[dict] = []
+    for batch in iter_signals(status=status, vertical=vertical, source_like=source_like,
+                              limit=limit, since=since, until=until, dim1024=dim1024,
+                              tier=tier):
+        out.extend(batch)
     return out
 
 

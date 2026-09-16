@@ -13,6 +13,90 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-16 · change · Emerging: vier Ebenen statt einer Zeitachse
+
+Owner-Einwand: ein Wissenschaftstrend ist nicht dasselbe wie ein Markttrend,
+auch bei gleichem Thema. Perowskit wird erforscht, patentiert, gefördert und
+erst dann am Markt diskutiert — vier Gespräche, vier Anfänge. Der Detektor
+datierte bisher das früheste und nannte es den Trend; genau das erklärt die
+unglaubwürdigen +26 Monate aus dem Rücktest.
+
+- `pipeline/tiers.py` ordnet jede Zeile einer Ebene zu (Zwilling der
+  SQL-`TIER_FILTERS`), der Archiv-Scan zählt je Monat **und Ebene**. Jedes Nest
+  trägt jetzt vier Erstauftritte, die Reihenfolge und den Abstand
+  Wissenschaft → Markt.
+- **Befund, der den Rest erklärt:** die Einbettung kodiert den Sprachstil mit.
+  „perovskite tandem solar cells" trifft in 400.000 Dokumenten 146 Forschungs-
+  und 2 Marktzeilen. Die Ebene lässt sich deshalb nicht nachträglich aus einem
+  gemeinsamen Nest lösen.
+- Konsequenz: Scope `tier:<t>` (`--all-tiers`), jede Ebene für sich geclustert.
+  Die Marktebene liefert dann echte Marktgespräche (Smart Glasses · Privacy
+  Concerns, EU Regulations · Regulatory Delay, Sugar Tax · Public Health) und
+  braucht feinere Zellen: 5 Nester bei 207 Dok/Zelle, 46 bei 69. Der Lauf merkt
+  das selbst und rechnet einmal nach.
+- Akteure statt Artikel: verschiedene Firmen in den Markt-Ähnlichen, früh gegen
+  spät. Untergrenze, weil nur 13 % der Fachpresse-Zeilen einen extrahierten
+  Namen tragen — steht so auf der Karte.
+
+Reiter „by conversation" auf `/trends/foresight/emerging`. Additive Spalten,
+Live-DB. Kein Cron. `docs/emerging_nests_2026-09-15.md`.
+
+## 2026-09-15 · change · Emerging: Namen vom Modell und der erste Rücktest
+
+Punkte 5 und 6 der Trendfindungs-Liste, auf Owner-Auftrag.
+
+**Namen.** `pipeline/nest_naming.py` lässt das lokale Modell die
+zentrumsnächsten Titel eines Nests lesen und benennen. Jedes bedeutungstragende
+Wort muss im Nest vorkommen, sonst fällt der Name durch und das Schlagwort-Label
+bleibt — dieselbe Grounding-Regel wie bei den Artikeln. Namen sind je Lauf
+eindeutig, Patenttitel schreien nicht mehr. 311 von 328 Nestern benannt; aus
+„World · Action" wurde „World-Action Models", aus „Defect Passivation · Electron
+Selective Layer" „Self-Assembled Monolayers for Perovskite Solar Cells". Die
+Karte zeigt beides. Einziger GPU-Schritt der Schicht, ~0,2 s je Nest.
+
+**Rücktest.** `scripts/validate_emerging.py` + `known_trends.yaml`: 21 Stichtage
+2021-07 bis 2026-09, 20 datierbare Trends, drei Gegenproben. **9 von 20
+gefunden, 5 vor dem Mainstream, Median-Vorlauf 6 Monate**, Gegenproben nie über
+0,62.
+
+Der Test hat sich dabei selbst korrigiert: in der ersten Fassung meldete er 15
+von 20 und 23 Monate Vorlauf, weil ein einziges Nest „Machine Learning · Neural
+Networks" nahe genug an drei verschiedenen KI-Trends lag. Seitdem muss das
+getroffene Nest ein Kennwort des Trends auch wirklich enthalten. Bei fünf
+Trends fand der Test nicht einmal das Feld (Wärmepumpen, Psychedelika, Quiet
+Luxury, Hyrox, Inferenz-Effizienz) — das ist ein Quellen-, kein
+Erkennungsproblem, dieselbe Lücke wie bei den dünnen Vertikalen.
+
+Ehrliche Lesart im Doku-Abschnitt gleichen Namens: die verfolgenswerte Zahl ist
+die Trefferquote, nicht der Vorlauf.
+
+## 2026-09-15 · change · Zweite Schicht: Emerging-Nester (was ist neu statt was ist laut)
+
+Auf die Owner-Frage „was müsste man tun, dass wirklich Trends entdeckt werden?"
+gebaut, **neben** der Cluster-Schicht, nicht statt ihr. k-Means teilt den
+Bestand restlos auf, also ist jede Zelle ein Themengebiet; ein Trend ist die
+umgekehrte Form, eine kleine dichte junge Stelle, zu der der Rest nicht gehört.
+
+- `pipeline/emerging.py` + `pipeline/emerging_snapshot.py`: frischer
+  90-Tage-Schnitt fein zerlegt, nur dichte Zellen bleiben (global 83 Nester aus
+  784 Zellen, 12 % des Schnitts), Zellen mit fast gleichem Zentrum
+  zusammengefügt.
+- Danach läuft der **ganze Bestand** am Zentrumsvektor vorbei und wird je Monat
+  gezählt: 1.749.202 Dokumente über 449 Monate in 212 s, Speicher bleibt bei
+  einem Block. Daraus erster Monat, Alter, Neuheits-Hebel (korpus-normiert),
+  Beschleunigung und neues Vokabular gegen den Stand von vor 24 bis 36 Monaten.
+- Seite `/trends/foresight/emerging` mit eigenem Knopf „Recompute pockets";
+  Tabellen `emerging_runs`/`emerging_nests`, additiv, Live-DB angelegt. Kein Cron.
+- Gefunden u. a.: Retrieval Augmented Generation (10 Monate alt), Vision Language
+  Models in der Robotik (6), KV-Cache-Kompression (10), Batterie-Ladezustands-
+  schätzung (3). Ebenfalls ganz oben: 647 Dokumente Pseudowissenschaft aus einem
+  Massen-Ingest — tatsächlich dicht und neu. Jede Karte trägt deshalb ihre
+  Schwächen (Quellenzahl, größte Quelle, Anteil je klassifizierter Dokumente).
+
+Offen und dokumentiert: Bestätigung über die vier Lead-Time-Ebenen, Akteure statt
+Artikel zählen, Namen vom Modell, Prüfung gegen datierbare bekannte Trends.
+Details: `docs/emerging_nests_2026-09-15.md`.
+
 ## 2026-09-15 · change · Cluster-Schicht: Momentum maß den eigenen Quellenausbau
 
 Die Karten auf `/trends/foresight/clusters` sortierten nach einem Anteilswert,
