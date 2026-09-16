@@ -30,9 +30,22 @@ export default function DeckNav({ count, labels }: { count: number; labels: stri
     [slides]
   );
 
+  // Restore the slide from the URL — once, after the first paint. Two reasons
+  // it does not belong in the keyboard effect below: that one re-runs on every
+  // slide change, so it re-read the hash it had just written; and
+  // scrollIntoView needs the sections laid out, which is what the animation
+  // frame waits for. (The lint rule react-hooks/set-state-in-effect had CI red
+  // on every commit since the deck landed on 2026-09-13.)
   useEffect(() => {
     const m = /^#s(\d+)$/.exec(location.hash);
-    if (m) go(Number(m[1]));
+    if (!m) return;
+    const id = requestAnimationFrame(() => go(Number(m[1])));
+    return () => cancelAnimationFrame(id);
+    // mount only: the hash is read once, afterwards `go` owns it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
