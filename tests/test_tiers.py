@@ -54,3 +54,38 @@ def test_the_python_rules_agree_with_the_sql_tier_filters():
     for name in ("NIH RePORTER x", "NSF Awards", "OpenAIRE projects", "UKRI grants",
                  "SEC Form D"):
         assert tier_of(name, "api") == "funding"
+
+
+# --- Owner-Definition 2026-09-16 -------------------------------------------
+# "Forschung ist Forschung von Institutionen, keine vagen Startup-Berichte.
+#  Startups sind für mich verbunden mit Funding und erst ein möglicher
+#  Markttrend, wenn sie Produkte wirklich lancieren."
+
+def test_a_startup_raising_money_is_funding_however_loudly_the_press_reports_it():
+    assert tier_of("AgFunderNews", "trade_media", "funding") == "funding"
+    assert tier_of("vegconomist", "trade_media", "funding") == "funding"
+    assert tier_of("PR Newswire", "press_wire", "funding") == "funding"
+
+
+def test_the_market_starts_at_the_product():
+    assert tier_of("vegconomist", "trade_media", "product_launch") == "market"
+    assert tier_of("Food Dive", "trade_media", "market_shift") == "market"
+    assert tier_of("Food Dive", "trade_media", "regulation") == "market"
+
+
+def test_press_coverage_of_a_study_is_still_press_not_institutional_research():
+    # a trade-press piece ABOUT research is coverage; the research tier holds
+    # what institutions themselves publish
+    assert tier_of("Food Navigator", "trade_media", "research") == "market"
+    assert tier_of("Nature Food", "research", "research") == "science"
+
+
+def test_the_signal_type_never_moves_a_registry_or_a_patent_office():
+    assert tier_of("NIH RePORTER (US)", "api", "product_launch") == "funding"
+    assert tier_of("Google Patents (FOOD)", "api", "funding") == "patent"
+    assert tier_of("arXiv Preprints", "api", "funding") == "science"
+
+
+def test_without_a_signal_type_the_mapping_is_unchanged():
+    assert tier_of("TechCrunch", "trade_media") == "market"
+    assert tier_of("TechCrunch", "trade_media", None) == "market"

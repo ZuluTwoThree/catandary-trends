@@ -336,7 +336,7 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
             src = r["source_name"] or ""
             if src and (src not in source_first or mk < source_first[src]):
                 source_first[src] = mk
-            tier = tier_of(src, r.get("source_type"))
+            tier = tier_of(src, r.get("source_type"), r.get("trend_signal_type"))
             if tier:
                 tier_totals[tier][mk] += 1
             row = above[i]

@@ -95,9 +95,15 @@ TIER_FILTERS: dict[str, tuple[str, list[str]]] = {
                 ["%Preprints%"]),
     "patent": ("(t.source_name LIKE ? OR t.source_name LIKE ?)",
                ["Google Patents%", "EPO %"]),
-    "funding": ("(" + " OR ".join(["t.source_name LIKE ?"] * 5) + ")",
+    # Owner 2026-09-16: a startup raising money is a funding signal however
+    # loudly the trade press reports it; the market starts at the product.
+    # Keep in step with pipeline.tiers.tier_of (tests/test_tiers.py checks).
+    "funding": ("((" + " OR ".join(["t.source_name LIKE ?"] * 5) + ")"
+                " OR (s.source_type IN ('trade_media', 'press_wire', 'brand')"
+                "     AND t.trend_signal_type = 'funding'))",
                 ["NIH RePORTER%", "NSF %", "OpenAIRE%", "UKRI%", "SEC Form D%"]),
-    "market": ("s.source_type IN ('trade_media', 'press_wire', 'brand')", []),
+    "market": ("s.source_type IN ('trade_media', 'press_wire', 'brand')"
+               " AND COALESCE(t.trend_signal_type, '') <> 'funding'", []),
 }
 
 
@@ -180,7 +186,7 @@ def iter_signals(status: str = "signal,published", vertical: str | None = None,
                 break
             sql = ("SELECT t.id, t.title_en, t.mega_trend, t.tags, t.source_name, "
                    "       t.primary_vertical, t.status, t.source_url, "
-                   "       t.brands, t.companies, s.source_type, "
+                   "       t.brands, t.companies, t.trend_signal_type, s.source_type, "
                    f"       r.published_date, {emb_col} AS embedding "
                    f"FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id{src_join} "
                    f"WHERE {base_where} AND t.id > ? ORDER BY t.id LIMIT ?")

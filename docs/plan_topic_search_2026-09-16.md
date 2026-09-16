@@ -157,3 +157,72 @@ Fachpresse-Zeilen tragen einen extrahierten Firmennamen. Die Suche macht diese
 Lücken sichtbar und beantwortbar — sie schließt sie nicht. Der größte Hebel für
 die Qualität bleibt die Extraktion auf dem Signalpfad und die Marktabdeckung,
 nicht der Algorithmus.
+
+---
+
+## Nachtrag nach der Owner-Rückmeldung (2026-09-16)
+
+### Häkchen je Ebene: ja, und sie kosten nichts
+
+Der Plan sieht ohnehin eine Abfrage je Ebene vor, ein Häkchen entscheidet nur,
+welche laufen. Gemessen an GLP-1, je Ebene eine eigene Nachbarschaftssuche:
+
+| Ebene | Belege | erstmals | Verlauf | Zeit |
+|---|---|---|---|---|
+| Forschung | 869 | 2009-07 | 2021:12 → 2026:87 | 0,74 s |
+| Patente | 124 | 2016-08 | 9 in 2026 | 0,01 s |
+| Förderung | 32 | 2024-07 | verstreut | 0,02 s |
+| Markt | 85 | 2024-03 | dünn | 0,02 s |
+
+**Aber nicht addieren.** Eine Summe aus 869 Forschungs- und 85 Marktbelegen ist
+die Forschungskurve mit Rauschen. Mehrere Häkchen zeigen die Ebenen
+nebeneinander und den Abstand zwischen ihnen; sie verschmelzen nie zu einer
+Kurve.
+
+### Zwei Messbefunde, die Stufe 1 festlegen
+
+**Die feste Schwelle scheitert je Ebene.** Bei GLP-1 liegt der beste Patenttreffer
+bei 0,72, der beste Marktreffer bei 0,77. Mit fester Schwelle 0,75 meldet die
+Patentebene null Treffer, obwohl das Spitzenpatent „SEMAGLUTIDE IN MEDICAL
+THERAPY INCLUDING WEIGHT MANAGEMENT" heißt. Die relative Schwelle je Ebene ist
+Bedingung, nicht Verfeinerung.
+
+**Der Index hungert seltene Ebenen aus.** Er holt die 1.000 global nächsten
+Nachbarn und filtert erst danach; davon sind 12 Patente. Die exakte Suche über
+die 123.846 Patentvektoren dauert 2,1 Sekunden und findet die richtigen.
+Regel für Stufe 1: häufige Ebenen über den Index, seltene exakt, automatisch
+umgeschaltet — selbstregulierend, weil die kleinen Ebenen die billige exakte
+Suche sind. (Der saubere Weg wäre iteratives Index-Scannen; wir liegen auf
+pgvector 0.6.0, das kam erst in 0.8.)
+
+### Ebenen-Definition, vom Owner präzisiert
+
+> „Forschung ist Forschung von Institutionen, keine vagen Startup-Berichte.
+> Startups sind für mich verbunden mit Funding und erst ein möglicher
+> Markttrend, wenn sie Produkte wirklich lancieren."
+
+Umgesetzt, weil das Feld dafür existiert: `trends.trend_signal_type` ist auf
+**100 %** der Zeilen gesetzt. `tier_of` nimmt es jetzt entgegen —
+Fachpresse mit Typ `funding` zählt als Förderung, nicht als Markt. Das
+verschiebt **39.852 von 661.416** Fachpresse-Zeilen. Die SQL-Zwillinge in
+`TIER_FILTERS` wurden mitgezogen, `tests/test_tiers.py` prüft beide Seiten.
+Einschränkung, die bleibt: der Typ ist eine Einstufung der Pipeline, keine
+Tatsache.
+
+Am Beispiel Präzisionsfermentation trennt das sauber:
+
+| Ebene | erstmals | frühester Beleg |
+|---|---|---|
+| Forschung (Institutionen) | Sprung 2020 | 26 Belege 2020, davor einstellig |
+| Förderung (inkl. Startup-Geld) | 2021-09 | Formo 50 Mio., Perfect Day 350 Mio. |
+| Markt (ohne Geldnachrichten) | 2020-05 | Perfect Day, FDA-Freigabe, Produkt im Handel |
+
+### Prüfmenge: Stand nach der Rückmeldung
+
+- Alle 20 Daten sind **Marktdaten** (Owner bestätigt). Der Rücktest prüft sie
+  deshalb gegen die **Markt-Ebene**. Dafür ist keine weitere Eingabe nötig.
+- **Quiet Luxury** und **EU-Textilregeln** sind für Owner und Modell unsicher →
+  `uncertain: true`, zählen nicht in die Kopfzahl, bleiben in der Tabelle.
+- **Präzisionsfermentation** bekommt als einziger Trend ein Forschungsdatum,
+  sobald der Owner es setzt (`research:`); die Messung oben liegt als Vorlage
+  daneben. Nur wo dieses Feld steht, wird die Forschungs-Ebene geprüft.

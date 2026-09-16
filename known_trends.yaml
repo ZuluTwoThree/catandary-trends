@@ -15,8 +15,18 @@
 #               Nest "Machine Learning · Neural Networks" gleich drei
 #               verschiedene KI-Trends und bescherte ihnen 26 Monate Vorlauf —
 #               gemessen wurde das Feld, nicht der Trend.
-#   mainstream  Monat, in dem der Trend unstrittig im Mainstream ankam
-#               (YYYY-MM). Das ist die Latte: alles davor ist Vorlauf.
+#   mainstream  Monat, in dem der Trend am MARKT ankam (YYYY-MM). Owner
+#               bestaetigt 2026-09-16: alle Daten hier sind Marktdaten. Sie
+#               gehoeren deshalb gegen die MARKT-Ebene geprueft, nicht gegen
+#               die Forschung — genau dieser Vergleich von Ungleichem erzeugte
+#               am 15.09. die unglaubwuerdigen +26 Monate fuer Perowskit.
+#   research    optional: Monat, in dem die INSTITUTIONELLE Forschung anzog.
+#               Owner-Definition 2026-09-16: Forschung ist Forschung von
+#               Institutionen; ein Startup, das Geld einsammelt, ist Foerderung,
+#               und Markt wird es erst mit einem echten Produkt. Nur wo dieses
+#               Feld steht, wird die Forschungs-Ebene ueberhaupt geprueft.
+#   uncertain   true = Datum ist unsicher (Owner UND Modell). Zaehlt nicht in
+#               die Kopfzahl des Berichts, bleibt aber in der Tabelle.
 #   basis       woran das Datum festgemacht ist — nachprüfbar halten
 #   vertical    optional, nur zur Gruppierung im Bericht
 #
@@ -111,6 +121,12 @@ trends:
 
   - key: precision_fermentation
     terms: ["precision fermentation", "animal-free", "animal free dairy"]
+    # Forschungsdatum: OFFEN, wartet auf den Owner. Messung 2026-09-16 als
+    # Vorlage — institutionelle Belege je Jahr: 2018:3 2019:6 2020:26 2021:37
+    # 2022:35 2023:27 2024:31 2025:37 2026:148. Der Sprung liegt bei 2020.
+    # Foerderung setzt 2021-09 ein (Formo 50 Mio., Perfect Day 350 Mio.),
+    # Markt 2020-05 (Perfect Day, FDA-Freigabe, Produkt im Handel).
+    research: null
     name: Präzisionsfermentation für Milchproteine
     query: "precision fermentation of dairy proteins without animals for food ingredients"
     mainstream: "2022-06"
@@ -166,6 +182,7 @@ trends:
     vertical: ECO
 
   - key: quiet_luxury
+    uncertain: true
     terms: ["quiet luxury", "understated luxury", "logo-free"]
     name: Quiet Luxury
     query: "quiet luxury and understated logo free dressing in premium fashion"
@@ -174,6 +191,7 @@ trends:
     vertical: FASHION
 
   - key: textile_regulation
+    uncertain: true
     terms: ["textile waste", "product passport", "producer responsibility", "ecodesign"]
     name: EU-Regeln für Textil-Kreislauf
     query: "eu regulation on textile waste, digital product passport and extended producer responsibility for clothing"
