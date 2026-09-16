@@ -142,11 +142,18 @@ trends:
       Technologieursprung vor 2013 in einem Startup, an benachbarten Molekuelen.
       Ausserhalb jeder Textquelle, die wir haben. Der frueheste beobachtbare
       Beleg ist eine Fachpresse-Erwaehnung der Firma 2016-09 — also weder
-      Forschung noch Patent.
+      Forschung noch Patent. UND: Startups benennen sich um. Perfect Day hiess
+      zuvor Muufri, Formo hiess Legendairy (Owner 2026-09-16). Gemessen im
+      Korpus: "Legendairy" erstmals 2019-12 ("Lab-Made Cheese Maker Legendairy
+      Raises $4.7 Million"), "Formo" erst 2021-09 — wer nur den heutigen Namen
+      verfolgt, verliert 21 Monate. "Muufri" kommt gar nicht vor.
     name: Präzisionsfermentation für Milchproteine
     query: "precision fermentation of dairy proteins without animals for food ingredients"
-    mainstream: "2022-06"
-    basis: "Erste Marktzulassungen und Produkte mit fermentiertem Molkenprotein"
+    mainstream: "2020-05"
+    basis: >-
+      Owner 2026-09-16, korrigiert von 2022-06 auf das FRUEHE Datum: Perfect Day
+      erhaelt die FDA-Freigabe und das Produkt ist im Handel. 2022-06 war die
+      breite Marktankunft, nicht der erste Marktzugang.
     vertical: FOOD
 
   - key: plant_based_downturn

@@ -279,3 +279,38 @@ und sie gehört in jede Aussage über Vorlaufzeit.
 *Nebenbefund: die Suche nach Akteursnamen per Textvergleich ist unbrauchbar.
 „Formo" traf Formoterol, „Remilk" traf SUREMILK LLC. Akteursverfolgung braucht
 den Firmenstamm des Startup Explorers, keine Namenssuche.*
+
+### Startups benennen sich um — und der frühe Beleg hängt am alten Namen
+
+Owner 2026-09-16: Perfect Day hieß zuvor Muufri, Formo hieß Legendairy. Weil
+das früheste beobachtbare Signal die **Firma** ist (siehe oben), trifft das
+genau die Stelle, an der Vorlauf entsteht. Nachgemessen:
+
+| Name | erster Beleg im Korpus |
+|---|---|
+| Legendairy (früher) | 2019-12, „Lab-Made Cheese Maker Legendairy Raises $4.7 Million" |
+| Formo (heute) | 2021-09, „Formo nets $50m for animal-free cheese" |
+| Muufri (früher) | kommt nicht vor |
+| Perfect Day (heute) | 2016-09 |
+
+**21 Monate Unterschied** allein durch den Namen. Wer nur den heutigen Namen
+verfolgt, sieht die frühe Phase nicht — und findet stattdessen Fehltreffer:
+eine Suche nach „Formo" liefert als ältesten Treffer eine Formoterol-Studie von
+1997.
+
+**Was fehlt, konkret.** Der Firmenstamm des Startup Explorers führt **keine**
+früheren Namen: `gleif_entities` hat nur `name` (aus `Entity.LegalName`),
+`ch_companies` nur `name`. Beide Quellen liefern die Historie aber mit —
+GLEIF unter `Entity.OtherEntityNames` (dort stehen frühere Rechtsnamen),
+Companies House unter `previous_company_names`. Der Ingest liest diese Felder
+heute nicht (`scripts/ingest_gleif.py`, Spaltenkarte `COLS`).
+
+**Folge für den Plan.** Die Akteursverfolgung ist erst dann ein Frühsignal, wenn
+sie über Namenswechsel hinweg funktioniert. Reihenfolge:
+
+1. Frühere Namen im Ingest mitnehmen (eine Nebentabelle `company_names`,
+   Name + Gültigkeit + Quelle) — ohne das bleibt jede Akteurszeitreihe bei der
+   letzten Umbenennung stehen.
+2. Erst danach die Akteursverfolgung an die Themensuche hängen.
+3. Namenssuche per Textvergleich bleibt in jedem Fall unbrauchbar (Formo →
+   Formoterol, Remilk → SUREMILK LLC); gebraucht wird der Stamm mit Aliassen.
