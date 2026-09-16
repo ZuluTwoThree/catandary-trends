@@ -63,8 +63,8 @@ def test_disk_rules(db):
     t = oa.DEFAULTS
     s = _sample()
     s["disks"][0]["mounts"][0]["avail_bytes"] = 300_000_000_000        # 15 % frei auf "/" → unter 20
-    s["disks"][1]["temp_c"] = 55                                       # HDD zu warm
-    s["disks"][1]["smart"]["temp_c"] = 55
+    s["disks"][1]["temp_c"] = 57                                       # HDD zu warm (Grenze 55)
+    s["disks"][1]["smart"]["temp_c"] = 57
     prev = {"disks": [{"dev": "sda", "smart": {"reallocated": 0, "pending": 0}}]}
     s["disks"][1]["smart"]["pending"] = 2                             # steigt 0 → 2
     res = oa.evaluate(s, {"prev_full": prev, "open": [], "medians": {}, "daily_max": []}, t)
@@ -167,3 +167,66 @@ def test_job_hang_message_uses_local_time_with_zone(db, monkeypatch):
     finally:
         monkeypatch.delenv("TZ", raising=False)
         time.tzset()
+
+
+# --- Plattentemperatur, nachgeschaerft 2026-09-16 ----------------------------
+# Anlass: "resolved: nvme0n1: 65.8 °C, limit 65 °C" — waehrend dasselbe
+# Laufwerk warning_temp_time 0 meldete, also nach eigener Auskunft nie zu heiss
+# war. Die Grenzwerte stammen jetzt aus den Datenblaettern der verbauten
+# Laufwerke, und das Laufwerk selbst ist der eigentliche Kronzeuge.
+
+def _disk(dev="nvme0n1", temp=50.0, rot=False, **smart):
+    base = {"type": "nvme", "passed": True, "media_errors": 0, "critical_warning": 0,
+            "percentage_used": 3, "available_spare": 100}
+    base.update(smart)
+    return {"dev": dev, "temp_c": temp, "rotational": rot, "smart": base}
+
+
+def _temps(oa, sample, prev=None):
+    return {r.kind: r for r in oa.rule_disks(sample, prev, oa.DEFAULTS)}
+
+
+def test_a_normal_nvme_load_temperature_is_no_longer_an_alarm(db):
+    _, oa = db
+    """Kingston NV2, Lexar NM790 und Kingston A400 sind alle 0-70 °C
+    spezifiziert; 65,8 °C unter Dauerlast ist Betrieb, kein Vorfall."""
+    r = _temps(oa, {"disks": [_disk(temp=65.8)]})
+    assert r["disk_temp"].findings == []
+
+
+def test_above_the_datasheet_limit_it_still_alarms(db):
+    _, oa = db
+    r = _temps(oa, {"disks": [_disk(temp=69.0)]})
+    assert len(r["disk_temp"].findings) == 1
+    assert "69" in r["disk_temp"].findings[0].message
+
+
+def test_the_spinning_disk_keeps_its_own_lower_limit(db):
+    _, oa = db
+    """Seagate Barracuda ST2000DM008: Betrieb 0-60 °C."""
+    assert _temps(oa, {"disks": [_disk("sda", temp=54.0, rot=True)]})["disk_temp"].findings == []
+    assert _temps(oa, {"disks": [_disk("sda", temp=56.0, rot=True)]})["disk_temp"].findings
+
+
+def test_the_drive_itself_is_the_witness_when_it_says_it_was_too_hot(db):
+    _, oa = db
+    prev = {"disks": [_disk(warning_temp_time=10, critical_comp_time=0)]}
+    now = {"disks": [_disk(temp=52.0, warning_temp_time=14, critical_comp_time=0)]}
+    f = _temps(oa, now, prev)["disk_smart"].findings
+    assert len(f) == 1
+    assert "own warning temperature" in f[0].message and "10 → 14" in f[0].message
+
+
+def test_time_above_the_critical_temperature_is_reported_separately(db):
+    _, oa = db
+    prev = {"disks": [_disk(warning_temp_time=14, critical_comp_time=0)]}
+    now = {"disks": [_disk(warning_temp_time=14, critical_comp_time=1)]}
+    f = _temps(oa, now, prev)["disk_smart"].findings
+    assert len(f) == 1 and "CRITICAL" in f[0].message
+
+
+def test_a_counter_that_stands_still_is_not_an_alarm(db):
+    _, oa = db
+    prev = {"disks": [_disk(warning_temp_time=314, critical_comp_time=1)]}
+    now = {"disks": [_disk(warning_temp_time=314, critical_comp_time=1)]}
+    assert _temps(oa, now, prev)["disk_smart"].findings == []
