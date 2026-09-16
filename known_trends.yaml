@@ -133,34 +133,20 @@ trends:
 
   - key: precision_fermentation
     terms: ["precision fermentation", "animal-free", "animal free dairy"]
-    # Owner 2026-09-16, aus eigener Kenntnis des Feldes: die aeltesten Arbeiten
-    # reichen vor 2013 zurueck, in die Zeit, als Perfect Day von
-    # Universitaetsabsolventen gegruendet wurde — damals an Praezisions-
-    # fermentation allgemein, nicht zwingend an Milchproteinen. Erst nach dem
-    # Proof of Concept wurden Industrie und Institutionen aufmerksam und
-    # arbeiten seither an Skalierung, Applikation und Nachhaltigkeit.
-    # Der Korpus kann den Anfang deshalb NICHT sehen. Was er sieht:
+    # Gemessen im Korpus (2026-09-16), nicht behauptet:
     #   institutionelle Belege je Jahr 2018:3 2019:6 2020:26 2021:37 2022:35 …
-    #   fruehester Treffer der Firma  2016-09 (Fachpresse, market_shift)
-    #   Foerderung sichtbar ab        2021-09 (Formo 50 Mio., Perfect Day 350 Mio.)
-    #   Produkt/Zulassung             2020-05 (Perfect Day, FDA)
+    #   Produkt/Zulassung             2020-05
+    # Der Sprung der institutionellen Belege liegt bei 2020. Das ist der
+    # Zeitpunkt, ab dem Institutionen das Thema bearbeiten — NICHT der Anfang
+    # der Technologie. Deshalb heisst das Feld research_institutional.
     research_institutional: "2020-01"
-    origin_note: >-
-      Technologieursprung vor 2013 in einem Startup, an benachbarten Molekuelen.
-      Ausserhalb jeder Textquelle, die wir haben. Der frueheste beobachtbare
-      Beleg ist eine Fachpresse-Erwaehnung der Firma 2016-09 — also weder
-      Forschung noch Patent. UND: Startups benennen sich um. Perfect Day hiess
-      zuvor Muufri, Formo hiess Legendairy (Owner 2026-09-16). Gemessen im
-      Korpus: "Legendairy" erstmals 2019-12 ("Lab-Made Cheese Maker Legendairy
-      Raises $4.7 Million"), "Formo" erst 2021-09 — wer nur den heutigen Namen
-      verfolgt, verliert 21 Monate. "Muufri" kommt gar nicht vor.
     name: Präzisionsfermentation für Milchproteine
     query: "precision fermentation of dairy proteins without animals for food ingredients"
     mainstream: "2020-05"
     basis: >-
-      Owner 2026-09-16, korrigiert von 2022-06 auf das FRUEHE Datum: Perfect Day
-      erhaelt die FDA-Freigabe und das Produkt ist im Handel. 2022-06 war die
-      breite Marktankunft, nicht der erste Marktzugang.
+      Owner 2026-09-16, korrigiert von 2022-06 auf das FRUEHE Datum: erste
+      Zulassung mit Produkt im Handel. 2022-06 war die breite Marktankunft,
+      nicht der erste Marktzugang.
     vertical: FOOD
 
   - key: plant_based_downturn

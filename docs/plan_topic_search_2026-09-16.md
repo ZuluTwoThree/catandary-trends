@@ -220,8 +220,8 @@ Am Beispiel Präzisionsfermentation trennt das sauber:
 | Ebene | erstmals | frühester Beleg |
 |---|---|---|
 | Forschung (Institutionen) | Sprung 2020 | 26 Belege 2020, davor einstellig |
-| Förderung (inkl. Startup-Geld) | 2021-09 | Formo 50 Mio., Perfect Day 350 Mio. |
-| Markt (ohne Geldnachrichten) | 2020-05 | Perfect Day, FDA-Freigabe, Produkt im Handel |
+| Förderung (inkl. Startup-Geld) | 2021-09 | zwei grosse Finanzierungsrunden |
+| Markt (ohne Geldnachrichten) | 2020-05 | Zulassung, Produkt im Handel |
 
 ### Prüfmenge: Stand nach der Rückmeldung
 
@@ -236,105 +236,78 @@ Am Beispiel Präzisionsfermentation trennt das sauber:
 ### Die Reihenfolge der Ebenen ist kein Gesetz
 
 Der Plan unterstellte stillschweigend Forschung → Patente → Förderung → Markt.
-Der Owner hat das am eigenen Fachgebiet widerlegt (2026-09-16,
-Präzisionsfermentation von Milchproteinen):
-
-> Die ältesten Forschungen gehen zurück bis vor 2013, in eine Zeit, in der
-> Perfect Day von Universitätsabsolventen gegründet wurde. Sie haben sich mit
-> Präzisionsfermentation beschäftigt, nicht zwingend um Milchproteine
-> herzustellen, sondern andere Moleküle. Erst als dort ein Proof of Concept
-> erreicht war, wurden Industrie und institutionelle Einrichtungen darauf
-> aufmerksam und beschäftigen sich seither mit Skalierung, Applikation und
-> Nachhaltigkeit.
-
-Nachgemessen, was unser Korpus davon sieht:
+Das gilt nicht allgemein. Bei Technologien, die in einem Unternehmen entstehen,
+**folgt** die institutionelle Forschung dem Proof of Concept, statt ihm
+vorauszugehen; die Institutionen arbeiten dann an Skalierung, Anwendung und
+Nachhaltigkeit. An einem durchgerechneten Fall aus dem Korpus (2026-09-16) sah
+die tatsächliche Reihenfolge so aus:
 
 | Ereignis | im Korpus sichtbar ab |
 |---|---|
-| Technologieursprung im Startup, benachbarte Moleküle | **gar nicht** |
-| erste Erwähnung der Firma (Fachpresse, `market_shift`) | 2016-09 |
-| Produkt und Zulassung (Perfect Day, FDA) | 2020-05 |
-| institutionelle Forschungswelle | 2020 (3 → 6 → **26** Belege/Jahr) |
-| Förderung | 2021-09 |
+| erste Erwähnung des Unternehmens (Fachpresse) | Jahr 0 |
+| Produkt und Zulassung | Jahr +4 |
+| institutionelle Forschungswelle | Jahr +4 (3 → 6 → 26 Belege/Jahr) |
+| Förderung | Jahr +5 |
 
-Patente helfen hier nicht: die nächsten Treffer der Patentebene liegen bei
-Ähnlichkeit 0,62–0,66 und sind thematisch daneben („Expression of human milk
-proteins in transgenic plants", 2011).
+Patente halfen dort nicht: die nächsten Treffer der Patentebene lagen bei
+Ähnlichkeit 0,62–0,66 und thematisch daneben.
 
 **Drei Folgerungen für den Bau:**
 
 1. **Keine erwartete Reihenfolge fest verdrahten.** Die Seite zeigt die
-   beobachtete Reihenfolge, sie bewertet sie nicht. Ein „Forschung führt den
-   Markt um N Monate" ist eine Beobachtung je Thema, kein Modell.
-2. **Die institutionelle Forschungswelle ist ein Bestätigungssignal, kein
-   Frühsignal** — jedenfalls bei Technologien, die im Startup entstehen. Sie
-   folgt dem Proof of Concept. Das Feld heißt deshalb
-   `research_institutional`, nicht `research`.
-3. **Das früheste beobachtbare Signal war die Firma**, nicht die Forschung und
-   nicht das Patent: 2016-09 in der Fachpresse, vier Jahre vor Produkt und
-   Forschungswelle. Wer früh sein will, muss Akteure verfolgen. Dafür existiert
-   der Startup Explorer (#87) bereits — er gehört an die Themensuche
-   angebunden, nicht danebengestellt.
+   beobachtete Reihenfolge, sie bewertet sie nicht. „Forschung führt den Markt
+   um N Monate" ist eine Beobachtung je Thema, kein Modell.
+2. **Die institutionelle Forschungswelle kann ein Bestätigungssignal sein, kein
+   Frühsignal.** Das Feld heißt deshalb `research_institutional`, nicht
+   `research`.
+3. **Das früheste beobachtbare Signal war das Unternehmen**, nicht die Forschung
+   und nicht das Patent — vier Jahre vor Produkt und Forschungswelle. Wer früh
+   sein will, muss Akteure verfolgen. Der Startup Explorer (#87) existiert dafür
+   bereits und gehört an die Themensuche angebunden.
 
-**Und eine Obergrenze, die bleibt.** Was vor der ersten Veröffentlichung
-passiert, steht in keinem Text. Für diese Klasse von Technologien ist die
-ehrliche Aussage: wir können ab dem Proof of Concept sehen, nicht davor. Das ist
-keine Schwäche des Algorithmus, sondern die Grenze textbasierter Beobachtung —
-und sie gehört in jede Aussage über Vorlaufzeit.
-
-*Nebenbefund: die Suche nach Akteursnamen per Textvergleich ist unbrauchbar.
-„Formo" traf Formoterol, „Remilk" traf SUREMILK LLC. Akteursverfolgung braucht
-den Firmenstamm des Startup Explorers, keine Namenssuche.*
+*Nebenbefund: die Suche nach Akteursnamen per Textvergleich ist unbrauchbar —
+ein Firmenname traf eine gleichnamige Arzneistoffstudie von 1997, ein anderer
+eine namensähnliche Firma aus einem Förderregister. Akteursverfolgung braucht
+den Firmenstamm, keine Namenssuche.*
 
 ### Startups benennen sich um — und der frühe Beleg hängt am alten Namen
 
-Owner 2026-09-16: Perfect Day hieß zuvor Muufri, Formo hieß Legendairy. Weil
-das früheste beobachtbare Signal die **Firma** ist (siehe oben), trifft das
-genau die Stelle, an der Vorlauf entsteht. Nachgemessen:
-
-| Name | erster Beleg im Korpus |
-|---|---|
-| Legendairy (früher) | 2019-12, „Lab-Made Cheese Maker Legendairy Raises $4.7 Million" |
-| Formo (heute) | 2021-09, „Formo nets $50m for animal-free cheese" |
-| Muufri (früher) | kommt nicht vor |
-| Perfect Day (heute) | 2016-09 |
-
-**21 Monate Unterschied** allein durch den Namen. Wer nur den heutigen Namen
-verfolgt, sieht die frühe Phase nicht — und findet stattdessen Fehltreffer:
-eine Suche nach „Formo" liefert als ältesten Treffer eine Formoterol-Studie von
-1997.
+Unternehmen wechseln ihren Namen, und weil das früheste beobachtbare Signal das
+Unternehmen ist, trifft das genau die Stelle, an der Vorlauf entsteht. An einem
+Paar aus dem Korpus nachgemessen (2026-09-16): der **frühere** Name erscheint
+2019-12, der **heutige** erst 2021-09. **21 Monate Unterschied allein durch den
+Namen.** Wer nur den heutigen Namen verfolgt, sieht die frühe Phase nicht.
 
 **Was fehlt, konkret.** Der Firmenstamm des Startup Explorers führt **keine**
 früheren Namen: `gleif_entities` hat nur `name` (aus `Entity.LegalName`),
 `ch_companies` nur `name`. Beide Quellen liefern die Historie aber mit —
-GLEIF unter `Entity.OtherEntityNames` (dort stehen frühere Rechtsnamen),
-Companies House unter `previous_company_names`. Der Ingest liest diese Felder
-heute nicht (`scripts/ingest_gleif.py`, Spaltenkarte `COLS`).
+GLEIF unter `Entity.OtherEntityNames`, Companies House unter
+`previous_company_names`. Der Ingest liest diese Felder heute nicht
+(`scripts/ingest_gleif.py`, Spaltenkarte `COLS`).
 
 **Folge für den Plan.** Die Akteursverfolgung ist erst dann ein Frühsignal, wenn
 sie über Namenswechsel hinweg funktioniert. Reihenfolge:
 
-1. Frühere Namen im Ingest mitnehmen (eine Nebentabelle `company_names`,
-   Name + Gültigkeit + Quelle) — ohne das bleibt jede Akteurszeitreihe bei der
-   letzten Umbenennung stehen.
+1. Frühere Namen im Ingest mitnehmen (Nebentabelle `company_names`: Name,
+   Gültigkeit, Quelle) — ohne das bleibt jede Akteurszeitreihe bei der letzten
+   Umbenennung stehen.
 2. Erst danach die Akteursverfolgung an die Themensuche hängen.
-3. Namenssuche per Textvergleich bleibt in jedem Fall unbrauchbar (Formo →
-   Formoterol, Remilk → SUREMILK LLC); gebraucht wird der Stamm mit Aliassen.
+3. Namenssuche per Textvergleich bleibt unbrauchbar; gebraucht wird der Stamm
+   mit Aliassen.
 
 ---
 
 ## Korrektur: ein Google-Treffer widerlegt Stufe 1 in ihrer ersten Fassung
 
-Der Owner hat eine Google-Suche gemacht und sofort einen ScienceAlert-Artikel
-über die erste künstliche Kuhmilch gefunden — aus der Muufri-Zeit. Ich hatte
-zuvor geschrieben, was vor der ersten Veröffentlichung passiere, stehe in keinem
-Text. **Das war falsch**, und zwar doppelt.
+Eine gewöhnliche Websuche fand für ein Thema, das unser Korpus erst Jahre später
+kennt, sofort einen Pressebericht aus der Frühzeit. Ich hatte zuvor geschrieben,
+was vor der ersten Veröffentlichung passiere, stehe in keinem Text. **Das war
+falsch**, und zwar doppelt.
 
 ### Der frühe Beleg liegt in unserem eigenen Korpus
 
-Gesucht, gefunden: **2014-12, „Coming Soon From 3 Vegan Scientists: Lab-Grown
-Milk", Modern Farmer.** Das ist die Muufri-Geschichte, sechs Jahre vor der
-Forschungswelle, und sie steht bei uns. Unsere Fachpresse reicht weiter zurück
+Gesucht, gefunden: ein Fachpressebericht von **2014-12**, sechs Jahre vor der
+Forschungswelle — in unserem eigenen Bestand. Unsere Fachpresse reicht weiter zurück
 als angenommen: 20.651 Zeilen allein 2013, einzelne Quellen bis 2000.
 
 Es war also weder ein Quellen- noch ein Archivproblem. Es war ein **Abrufproblem**.
@@ -369,7 +342,7 @@ Rücktest: RAG wurde „erst 2026-01" erkannt, obwohl das Feld ab 2023-10 da war
 Versuch: aus den ältesten Treffern eines Begriffs die auffälligen Wortpaare
 ziehen und prüfen, ob eines davon weiter zurückreicht.
 
-- Runde 1 aus „precision fermentation" (2020-03) → **„perfect day" 2016-09**
+- Runde 1 aus „precision fermentation" (2020-03) → **ein Firmenname, 2016-09**
 - Runde 2 → **„animal-free dairy" 2018-03**
 - daneben Abdriften: „whey protein" 1992, „ice cream" 1996, „using precision" 2007
 
