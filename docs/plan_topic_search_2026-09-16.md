@@ -226,3 +226,56 @@ Am Beispiel Präzisionsfermentation trennt das sauber:
 - **Präzisionsfermentation** bekommt als einziger Trend ein Forschungsdatum,
   sobald der Owner es setzt (`research:`); die Messung oben liegt als Vorlage
   daneben. Nur wo dieses Feld steht, wird die Forschungs-Ebene geprüft.
+
+### Die Reihenfolge der Ebenen ist kein Gesetz
+
+Der Plan unterstellte stillschweigend Forschung → Patente → Förderung → Markt.
+Der Owner hat das am eigenen Fachgebiet widerlegt (2026-09-16,
+Präzisionsfermentation von Milchproteinen):
+
+> Die ältesten Forschungen gehen zurück bis vor 2013, in eine Zeit, in der
+> Perfect Day von Universitätsabsolventen gegründet wurde. Sie haben sich mit
+> Präzisionsfermentation beschäftigt, nicht zwingend um Milchproteine
+> herzustellen, sondern andere Moleküle. Erst als dort ein Proof of Concept
+> erreicht war, wurden Industrie und institutionelle Einrichtungen darauf
+> aufmerksam und beschäftigen sich seither mit Skalierung, Applikation und
+> Nachhaltigkeit.
+
+Nachgemessen, was unser Korpus davon sieht:
+
+| Ereignis | im Korpus sichtbar ab |
+|---|---|
+| Technologieursprung im Startup, benachbarte Moleküle | **gar nicht** |
+| erste Erwähnung der Firma (Fachpresse, `market_shift`) | 2016-09 |
+| Produkt und Zulassung (Perfect Day, FDA) | 2020-05 |
+| institutionelle Forschungswelle | 2020 (3 → 6 → **26** Belege/Jahr) |
+| Förderung | 2021-09 |
+
+Patente helfen hier nicht: die nächsten Treffer der Patentebene liegen bei
+Ähnlichkeit 0,62–0,66 und sind thematisch daneben („Expression of human milk
+proteins in transgenic plants", 2011).
+
+**Drei Folgerungen für den Bau:**
+
+1. **Keine erwartete Reihenfolge fest verdrahten.** Die Seite zeigt die
+   beobachtete Reihenfolge, sie bewertet sie nicht. Ein „Forschung führt den
+   Markt um N Monate" ist eine Beobachtung je Thema, kein Modell.
+2. **Die institutionelle Forschungswelle ist ein Bestätigungssignal, kein
+   Frühsignal** — jedenfalls bei Technologien, die im Startup entstehen. Sie
+   folgt dem Proof of Concept. Das Feld heißt deshalb
+   `research_institutional`, nicht `research`.
+3. **Das früheste beobachtbare Signal war die Firma**, nicht die Forschung und
+   nicht das Patent: 2016-09 in der Fachpresse, vier Jahre vor Produkt und
+   Forschungswelle. Wer früh sein will, muss Akteure verfolgen. Dafür existiert
+   der Startup Explorer (#87) bereits — er gehört an die Themensuche
+   angebunden, nicht danebengestellt.
+
+**Und eine Obergrenze, die bleibt.** Was vor der ersten Veröffentlichung
+passiert, steht in keinem Text. Für diese Klasse von Technologien ist die
+ehrliche Aussage: wir können ab dem Proof of Concept sehen, nicht davor. Das ist
+keine Schwäche des Algorithmus, sondern die Grenze textbasierter Beobachtung —
+und sie gehört in jede Aussage über Vorlaufzeit.
+
+*Nebenbefund: die Suche nach Akteursnamen per Textvergleich ist unbrauchbar.
+„Formo" traf Formoterol, „Remilk" traf SUREMILK LLC. Akteursverfolgung braucht
+den Firmenstamm des Startup Explorers, keine Namenssuche.*

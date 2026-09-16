@@ -20,11 +20,16 @@
 #               gehoeren deshalb gegen die MARKT-Ebene geprueft, nicht gegen
 #               die Forschung — genau dieser Vergleich von Ungleichem erzeugte
 #               am 15.09. die unglaubwuerdigen +26 Monate fuer Perowskit.
-#   research    optional: Monat, in dem die INSTITUTIONELLE Forschung anzog.
-#               Owner-Definition 2026-09-16: Forschung ist Forschung von
-#               Institutionen; ein Startup, das Geld einsammelt, ist Foerderung,
-#               und Markt wird es erst mit einem echten Produkt. Nur wo dieses
-#               Feld steht, wird die Forschungs-Ebene ueberhaupt geprueft.
+#   research_institutional
+#               optional: Monat, ab dem die INSTITUTIONELLE Forschung anzog.
+#               Bewusst NICHT "Beginn der Forschung": bei Technologien, die in
+#               einem Startup entstehen, folgt die Institution dem Proof of
+#               Concept, sie geht ihm nicht voraus (Owner 2026-09-16 am Beispiel
+#               Praezisionsfermentation). Nur wo dieses Feld steht, wird die
+#               Forschungs-Ebene ueberhaupt geprueft.
+#   origin_note Freitext: wo die Technologie wirklich herkommt, wenn das vor
+#               allem liegt, was der Korpus sehen kann. Wird nie geprueft, nur
+#               gelesen — damit niemand den ersten Beleg fuer den Anfang haelt.
 #   uncertain   true = Datum ist unsicher (Owner UND Modell). Zaehlt nicht in
 #               die Kopfzahl des Berichts, bleibt aber in der Tabelle.
 #   basis       woran das Datum festgemacht ist — nachprüfbar halten
@@ -121,12 +126,23 @@ trends:
 
   - key: precision_fermentation
     terms: ["precision fermentation", "animal-free", "animal free dairy"]
-    # Forschungsdatum: OFFEN, wartet auf den Owner. Messung 2026-09-16 als
-    # Vorlage — institutionelle Belege je Jahr: 2018:3 2019:6 2020:26 2021:37
-    # 2022:35 2023:27 2024:31 2025:37 2026:148. Der Sprung liegt bei 2020.
-    # Foerderung setzt 2021-09 ein (Formo 50 Mio., Perfect Day 350 Mio.),
-    # Markt 2020-05 (Perfect Day, FDA-Freigabe, Produkt im Handel).
-    research: null
+    # Owner 2026-09-16, aus eigener Kenntnis des Feldes: die aeltesten Arbeiten
+    # reichen vor 2013 zurueck, in die Zeit, als Perfect Day von
+    # Universitaetsabsolventen gegruendet wurde — damals an Praezisions-
+    # fermentation allgemein, nicht zwingend an Milchproteinen. Erst nach dem
+    # Proof of Concept wurden Industrie und Institutionen aufmerksam und
+    # arbeiten seither an Skalierung, Applikation und Nachhaltigkeit.
+    # Der Korpus kann den Anfang deshalb NICHT sehen. Was er sieht:
+    #   institutionelle Belege je Jahr 2018:3 2019:6 2020:26 2021:37 2022:35 …
+    #   fruehester Treffer der Firma  2016-09 (Fachpresse, market_shift)
+    #   Foerderung sichtbar ab        2021-09 (Formo 50 Mio., Perfect Day 350 Mio.)
+    #   Produkt/Zulassung             2020-05 (Perfect Day, FDA)
+    research_institutional: "2020-01"
+    origin_note: >-
+      Technologieursprung vor 2013 in einem Startup, an benachbarten Molekuelen.
+      Ausserhalb jeder Textquelle, die wir haben. Der frueheste beobachtbare
+      Beleg ist eine Fachpresse-Erwaehnung der Firma 2016-09 — also weder
+      Forschung noch Patent.
     name: Präzisionsfermentation für Milchproteine
     query: "precision fermentation of dairy proteins without animals for food ingredients"
     mainstream: "2022-06"
