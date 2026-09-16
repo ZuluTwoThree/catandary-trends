@@ -117,7 +117,14 @@ def _rule_regex(pattern: str) -> re.Pattern:
     anchored = pattern.endswith("$")
     if anchored:
         pattern = pattern[:-1]
-    parts = [re.escape(quote(p, safe="/:@!$&'()*+,;=~")) for p in pattern.split("*")]
+    # `?` MUSS in der safe-Liste stehen. Ohne es kodiert quote() das Fragezeichen
+    # der Regel zu %3F, waehrend robots_allows den Query der URL roh anhaengt —
+    # die beiden konnten sich nie treffen, und damit war JEDE query-basierte
+    # Regel wirkungslos: `Disallow: /*?utm_source=`, `/?rest_route=`, `/*?s=`.
+    # Gefunden am 2026-09-16 bei der Quellenpruefung von sciencealert.com, wo
+    # unser Pruefer die per robots gesperrte WordPress-Schnittstelle als erlaubt
+    # meldete.
+    parts = [re.escape(quote(p, safe="/:@!$&'()*+,;=~?")) for p in pattern.split("*")]
     return re.compile("^" + ".*".join(parts) + ("$" if anchored else ""))
 
 
