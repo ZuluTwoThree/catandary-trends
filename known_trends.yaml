@@ -1,3 +1,10 @@
+# INTERN. Diese Datei wird von keiner Seite gerendert (Owner 2026-09-16):
+# sie enthaelt Fachwissen des Owners zu einzelnen Faellen, das ausdruecklich
+# NICHT ins Frontend gehoert. Gelesen wird sie allein von
+# scripts/validate_emerging.py; das Frontend liest aus docs/ nur
+# docs/ops/logbook.md. Wer hier etwas ergaenzt, haelt sich daran: allgemeine
+# Zusammenhaenge duerfen ins Produkt, der einzelne Fall nicht.
+#
 # Bekannte, datierbare Trends — Prüfmenge für den Emerging-Detektor.
 #
 # Zweck: messen, ob die Schicht Dinge findet, die nachweislich stattgefunden

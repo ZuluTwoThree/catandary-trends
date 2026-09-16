@@ -1,5 +1,11 @@
 # Plan: Themensuche als Hauptmodus, Entdeckung als Vorschlagslieferant
 
+> **Intern.** Dieses Papier zitiert Fachwissen des Owners zu einzelnen Fällen
+> (Präzisionsfermentation, Firmenhistorien). Owner 2026-09-16: daraus kommt
+> **nichts ins Frontend**; allgemeine Zusammenhänge dürfen ins Produkt, der
+> einzelne Fall nicht. Gerendert wird aus `docs/` ohnehin nur
+> `docs/ops/logbook.md` — dieses Papier nicht.
+
 Owner-Entscheid 2026-09-16, nach der Messung vom Vortag: der Nutzer gibt einen
 Begriff ein und bekommt die Trenddaten dazu. Die Cluster- und Nest-Entdeckung
 bleibt, verliert aber ihren Platz als Produkt und wird zum Zulieferer von
