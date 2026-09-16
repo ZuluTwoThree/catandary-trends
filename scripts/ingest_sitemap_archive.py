@@ -257,9 +257,15 @@ def main() -> int:
     known = db_mod.known_entry_urls([u for u, _ in allowed])
     fresh = [(u, lm) for u, lm in allowed if u not in known]
 
+    dated = [(u, lm) for u, lm in in_win if lm]
+    undated = len(in_win) - len(dated)
     print(f"\n  URLs in den Sitemaps      {len(urls):>7}")
     print(f"  davon im Zeitfenster      {len(in_win):>7}"
           + (f"   ({args.since or 'Anfang'} .. {args.until or 'heute'})" if args.since or args.until else ""))
+    # Getrennt ausweisen: undatierte URLs bleiben absichtlich drin (die aeltesten
+    # Seiten tragen oft kein lastmod), aber sie sind KEIN Beleg fuer das Fenster.
+    print(f"     davon mit Datum        {len(dated):>7}")
+    print(f"     ohne lastmod           {undated:>7}   (bleiben drin, Datum unbekannt)")
     print(f"  davon robots-erlaubt      {len(allowed):>7}" + (f"   ({blocked_n} gesperrt)" if blocked_n else ""))
     print(f"  davon schon im Bestand    {len(allowed) - len(fresh):>7}")
     print(f"  NEU                       {len(fresh):>7}")
@@ -269,8 +275,11 @@ def main() -> int:
 
     if not args.apply:
         print("\n  Dry-Run — nichts geschrieben. Mit --apply ausfuehren.")
-        for u, lm in fresh[:5]:
-            print(f"    {lm or '?':<10} {u}")
+        # Stichprobe aus den DATIERTEN, sonst zeigt sie die undatierten zuerst
+        # und damit heutige Artikel statt der Jahrgaenge, die man sehen wollte.
+        sample = [x for x in fresh if x[1]][:5] or fresh[:5]
+        for u, lm in sample:
+            print(f"    {lm or 'ohne Datum':<12} {u}")
         return 0
 
     picked = pick_source(args.source, host)
