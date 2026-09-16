@@ -351,6 +351,12 @@ def parse_smart_json(d: dict) -> dict:
             "available_spare": nv.get("available_spare"),
             "media_errors": nv.get("media_errors"),
             "critical_warning": nv.get("critical_warning"),
+            # Minuten, die das Laufwerk ueber SEINER eigenen Warn- bzw.
+            # Kritisch-Schwelle verbracht hat. Das ist die geraeteeigene
+            # Wahrheit ueber "zu heiss" — genauer als jede Zahl, die wir von
+            # aussen setzen, weil jeder Controller sie selbst kennt.
+            "warning_temp_time": nv.get("warning_temp_time"),
+            "critical_comp_time": nv.get("critical_comp_time"),
         })
         return out
     table = ((d.get("ata_smart_attributes") or {}).get("table")) or []

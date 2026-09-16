@@ -50,7 +50,11 @@ def test_smart_json_nvme_and_ata():
         "power_on_time": {"hours": 1234},
         "nvme_smart_health_information_log": {"percentage_used": 3, "available_spare": 100,
                                               "media_errors": 0, "critical_warning": 0}})
+    # warning_temp_time/critical_comp_time seit 2026-09-16: das Laufwerk selbst
+    # sagt, wie lange es ueber SEINER Schwelle war — genauer als jede Zahl, die
+    # wir von aussen setzen (Anlass: Alarm bei 65,8 °C, Zaehler stand auf 0).
     assert nvme == {"passed": True, "temp_c": 41, "power_on_hours": 1234, "type": "nvme",
+                    "warning_temp_time": None, "critical_comp_time": None,
                     "percentage_used": 3, "available_spare": 100, "media_errors": 0,
                     "critical_warning": 0}
     ata = op.parse_smart_json({

@@ -42,9 +42,29 @@ def test_the_known_trends_file_is_usable_as_written():
 
 
 def test_the_trend_dates_are_inside_the_period_the_corpus_can_speak_about():
+    """The corpus carries 61k signals in 2019 and 96k in 2020; before that it
+    thins out into the patent and OpenAlex back-file."""
     trends, _ = V.load_known(os.path.join(_ROOT, "known_trends.yaml"))
     for t in trends:
-        assert "2021-01" <= t["mainstream"] <= "2026-09", t["key"]
+        assert "2019-01" <= t["mainstream"] <= "2026-09", t["key"]
+
+
+def test_the_backtest_starts_early_enough_to_give_every_trend_a_chance():
+    """A trend whose market date precedes the first test date can never show a
+    positive lead — the window, not the detector, would be the finding. The
+    default start therefore has to move when an early trend enters the set
+    (precision fermentation moved to 2020-05 on 2026-09-16)."""
+    trends, _ = V.load_known(os.path.join(_ROOT, "known_trends.yaml"))
+    earliest = min(t["mainstream"] for t in trends)
+    import argparse, contextlib, io
+    ap_default = None
+    parser_src = open(os.path.join(_ROOT, "scripts", "validate_emerging.py")).read()
+    for line in parser_src.splitlines():
+        if '"--from"' in line and "default=" in line:
+            ap_default = line.split('default="')[1].split('"')[0]
+    assert ap_default, "could not read the default --from"
+    assert ap_default < earliest, (
+        f"backtest starts {ap_default} but {earliest} is already in the set")
 
 
 def test_embed_refuses_a_chat_model_answering_the_embedding_endpoint(monkeypatch):

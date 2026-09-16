@@ -1,5 +1,11 @@
 # Plan: Themensuche als Hauptmodus, Entdeckung als Vorschlagslieferant
 
+> **Intern.** Dieses Papier zitiert Fachwissen des Owners zu einzelnen Fällen
+> (Präzisionsfermentation, Firmenhistorien). Owner 2026-09-16: daraus kommt
+> **nichts ins Frontend**; allgemeine Zusammenhänge dürfen ins Produkt, der
+> einzelne Fall nicht. Gerendert wird aus `docs/` ohnehin nur
+> `docs/ops/logbook.md` — dieses Papier nicht.
+
 Owner-Entscheid 2026-09-16, nach der Messung vom Vortag: der Nutzer gibt einen
 Begriff ein und bekommt die Trenddaten dazu. Die Cluster- und Nest-Entdeckung
 bleibt, verliert aber ihren Platz als Produkt und wird zum Zulieferer von
@@ -214,8 +220,8 @@ Am Beispiel Präzisionsfermentation trennt das sauber:
 | Ebene | erstmals | frühester Beleg |
 |---|---|---|
 | Forschung (Institutionen) | Sprung 2020 | 26 Belege 2020, davor einstellig |
-| Förderung (inkl. Startup-Geld) | 2021-09 | Formo 50 Mio., Perfect Day 350 Mio. |
-| Markt (ohne Geldnachrichten) | 2020-05 | Perfect Day, FDA-Freigabe, Produkt im Handel |
+| Förderung (inkl. Startup-Geld) | 2021-09 | zwei grosse Finanzierungsrunden |
+| Markt (ohne Geldnachrichten) | 2020-05 | Zulassung, Produkt im Handel |
 
 ### Prüfmenge: Stand nach der Rückmeldung
 
@@ -226,3 +232,142 @@ Am Beispiel Präzisionsfermentation trennt das sauber:
 - **Präzisionsfermentation** bekommt als einziger Trend ein Forschungsdatum,
   sobald der Owner es setzt (`research:`); die Messung oben liegt als Vorlage
   daneben. Nur wo dieses Feld steht, wird die Forschungs-Ebene geprüft.
+
+### Die Reihenfolge der Ebenen ist kein Gesetz
+
+Der Plan unterstellte stillschweigend Forschung → Patente → Förderung → Markt.
+Das gilt nicht allgemein. Bei Technologien, die in einem Unternehmen entstehen,
+**folgt** die institutionelle Forschung dem Proof of Concept, statt ihm
+vorauszugehen; die Institutionen arbeiten dann an Skalierung, Anwendung und
+Nachhaltigkeit. An einem durchgerechneten Fall aus dem Korpus (2026-09-16) sah
+die tatsächliche Reihenfolge so aus:
+
+| Ereignis | im Korpus sichtbar ab |
+|---|---|
+| erste Erwähnung des Unternehmens (Fachpresse) | Jahr 0 |
+| Produkt und Zulassung | Jahr +4 |
+| institutionelle Forschungswelle | Jahr +4 (3 → 6 → 26 Belege/Jahr) |
+| Förderung | Jahr +5 |
+
+Patente halfen dort nicht: die nächsten Treffer der Patentebene lagen bei
+Ähnlichkeit 0,62–0,66 und thematisch daneben.
+
+**Drei Folgerungen für den Bau:**
+
+1. **Keine erwartete Reihenfolge fest verdrahten.** Die Seite zeigt die
+   beobachtete Reihenfolge, sie bewertet sie nicht. „Forschung führt den Markt
+   um N Monate" ist eine Beobachtung je Thema, kein Modell.
+2. **Die institutionelle Forschungswelle kann ein Bestätigungssignal sein, kein
+   Frühsignal.** Das Feld heißt deshalb `research_institutional`, nicht
+   `research`.
+3. **Das früheste beobachtbare Signal war das Unternehmen**, nicht die Forschung
+   und nicht das Patent — vier Jahre vor Produkt und Forschungswelle. Wer früh
+   sein will, muss Akteure verfolgen. Der Startup Explorer (#87) existiert dafür
+   bereits und gehört an die Themensuche angebunden.
+
+*Nebenbefund: die Suche nach Akteursnamen per Textvergleich ist unbrauchbar —
+ein Firmenname traf eine gleichnamige Arzneistoffstudie von 1997, ein anderer
+eine namensähnliche Firma aus einem Förderregister. Akteursverfolgung braucht
+den Firmenstamm, keine Namenssuche.*
+
+### Startups benennen sich um — und der frühe Beleg hängt am alten Namen
+
+Unternehmen wechseln ihren Namen, und weil das früheste beobachtbare Signal das
+Unternehmen ist, trifft das genau die Stelle, an der Vorlauf entsteht. An einem
+Paar aus dem Korpus nachgemessen (2026-09-16): der **frühere** Name erscheint
+2019-12, der **heutige** erst 2021-09. **21 Monate Unterschied allein durch den
+Namen.** Wer nur den heutigen Namen verfolgt, sieht die frühe Phase nicht.
+
+**Was fehlt, konkret.** Der Firmenstamm des Startup Explorers führt **keine**
+früheren Namen: `gleif_entities` hat nur `name` (aus `Entity.LegalName`),
+`ch_companies` nur `name`. Beide Quellen liefern die Historie aber mit —
+GLEIF unter `Entity.OtherEntityNames`, Companies House unter
+`previous_company_names`. Der Ingest liest diese Felder heute nicht
+(`scripts/ingest_gleif.py`, Spaltenkarte `COLS`).
+
+**Folge für den Plan.** Die Akteursverfolgung ist erst dann ein Frühsignal, wenn
+sie über Namenswechsel hinweg funktioniert. Reihenfolge:
+
+1. Frühere Namen im Ingest mitnehmen (Nebentabelle `company_names`: Name,
+   Gültigkeit, Quelle) — ohne das bleibt jede Akteurszeitreihe bei der letzten
+   Umbenennung stehen.
+2. Erst danach die Akteursverfolgung an die Themensuche hängen.
+3. Namenssuche per Textvergleich bleibt unbrauchbar; gebraucht wird der Stamm
+   mit Aliassen.
+
+---
+
+## Korrektur: ein Google-Treffer widerlegt Stufe 1 in ihrer ersten Fassung
+
+Eine gewöhnliche Websuche fand für ein Thema, das unser Korpus erst Jahre später
+kennt, sofort einen Pressebericht aus der Frühzeit. Ich hatte zuvor geschrieben,
+was vor der ersten Veröffentlichung passiere, stehe in keinem Text. **Das war
+falsch**, und zwar doppelt.
+
+### Der frühe Beleg liegt in unserem eigenen Korpus
+
+Gesucht, gefunden: ein Fachpressebericht von **2014-12**, sechs Jahre vor der
+Forschungswelle — in unserem eigenen Bestand. Unsere Fachpresse reicht weiter zurück
+als angenommen: 20.651 Zeilen allein 2013, einzelne Quellen bis 2000.
+
+Es war also weder ein Quellen- noch ein Archivproblem. Es war ein **Abrufproblem**.
+
+### Warum die Vektorsuche ihn nicht findet
+
+| Prüfung | Ergebnis |
+|---|---|
+| moderne Anfrage („precision fermentation of dairy proteins…"), 1.000 nächste Nachbarn | Artikel **nicht dabei** |
+| der Artikel selbst als Anfrage, Belege vor 2017 | nur Agtech-Finanzierungsnews bei 0,55–0,61, nichts zum Thema |
+| Volltextsuche „lab-grown milk" | **0,5 s, ältester Treffer 2014-12** |
+
+Der Grund: die Einbettung verortet den Artikel nach seinem Charakter — kurze,
+launige Startup-Meldung — nicht nach dem Fachthema. Die Fachsprache von 2020
+trifft die Alltagssprache von 2014 nicht, und umgekehrt hilft auch kein
+Weiterhangeln von Dokument zu Dokument.
+
+### Ein Thema ist keine Vokabel, sondern eine Wortfolge
+
+| Begriff | ältester Beleg |
+|---|---|
+| lab-grown milk | 2014-12 |
+| animal-free dairy | 2018-03 |
+| precision fermentation | 2020-03 |
+
+Jede Wortgeneration hat ihr eigenes Anfangsdatum. Wer heute den heutigen Begriff
+eingibt, kann per Konstruktion nur dessen Ära finden. Das erklärt nebenbei den
+Rücktest: RAG wurde „erst 2026-01" erkannt, obwohl das Feld ab 2023-10 da war.
+
+### Die Wortkette lässt sich automatisch rückwärts laufen — mit einem Gate
+
+Versuch: aus den ältesten Treffern eines Begriffs die auffälligen Wortpaare
+ziehen und prüfen, ob eines davon weiter zurückreicht.
+
+- Runde 1 aus „precision fermentation" (2020-03) → **ein Firmenname, 2016-09**
+- Runde 2 → **„animal-free dairy" 2018-03**
+- daneben Abdriften: „whey protein" 1992, „ice cream" 1996, „using precision" 2007
+
+Der Mechanismus trägt, driftet aber in Allgemeinplätze. Die Lösung ist genau die
+Stärke, die der Vektorsuche hier fehlt: **jeder lexikalische Kandidat wird per
+Einbettung gegen den Themenschwerpunkt geprüft**, und nur wer nah genug bleibt,
+wird ein Glied der Kette. „Ice cream" fällt damit raus, „animal-free dairy"
+bleibt.
+
+### Stufe 1, neu gefasst
+
+Die Anfrage-Maschine ist **hybrid**, nicht vektorbasiert:
+
+1. Vektorsuche je Ebene für das Heute — findet, was thematisch passt, unabhängig
+   von der Wortwahl der Gegenwart.
+2. **Volltextsuche für die Vergangenheit** — findet die alten, konkreten
+   Wortprägungen, die die Vektorsuche nachweislich verfehlt. Index
+   `idx_trends_fts` ist vorhanden, 0,5 s.
+3. **Wortketten-Lauf**: aus den ältesten Treffern Kandidaten ziehen, jeden per
+   Einbettung gegen den Themenschwerpunkt gaten, die überlebenden als weitere
+   Suchbegriffe. Abbruch, wenn keiner mehr weiter zurückreicht.
+4. Der Bericht zeigt die **Wortgenerationen** mit ihren Daten. Das ist nicht
+   Beiwerk, sondern das Ergebnis: es macht sichtbar, wann ein Thema wie hieß.
+
+Und die ehrliche Formulierung für Vorlaufzeiten: nicht „wir sehen ab dem Proof
+of Concept", sondern **„wir sehen ab der ersten Wortprägung, die jemand
+aufgeschrieben hat — wenn wir die richtige Vokabel treffen."** Genau dafür ist
+der Wortketten-Lauf da.

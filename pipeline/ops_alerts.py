@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 THRESHOLDS_PATH = PROJECT_ROOT / "ops_alerts.yaml"
 DEFAULTS: dict = {
     "disk_free_pct_min": 10, "disk_free_pct_min_system": 20,
-    "disk_temp_hdd_max_c": 50, "disk_temp_ssd_max_c": 65,
+    "disk_temp_hdd_max_c": 55, "disk_temp_ssd_max_c": 68,
     "nvme_wear_pct_max": 90, "nvme_spare_pct_min": 10,
     "gpu_temp_max_c": 88, "gpu_foreign_vram_mib": 1500,
     "db_connections_pct_max": 80,
@@ -113,6 +113,16 @@ def rule_disks(sample: dict, prev_full: dict | None, t: dict) -> list[RuleResult
                     smart.append(Finding("disk_smart", dev, f"{dev}: spare {s['available_spare']} %"))
                 if _rose(p.get("media_errors"), s.get("media_errors")):
                     smart.append(Finding("disk_smart", dev, f"{dev}: media errors rising {p.get('media_errors')} → {s.get('media_errors')}"))
+                # Das Laufwerk als Kronzeuge: steigt die Zeit ueber SEINER
+                # eigenen Schwelle, ist es zu heiss — unabhaengig davon, welche
+                # Zahl wir oben gesetzt haben. Anlass 2026-09-16: der Alarm
+                # feuerte bei 65,8 °C, waehrend dasselbe Laufwerk
+                # warning_temp_time 0 meldete, also nie gewarnt hatte.
+                for k, label in (("warning_temp_time", "minutes above its own warning temperature"),
+                                 ("critical_comp_time", "minutes above its own CRITICAL temperature")):
+                    if _rose(p.get(k), s.get(k)):
+                        smart.append(Finding("disk_smart", dev,
+                                             f"{dev}: {label} rising {p.get(k)} → {s.get(k)}"))
             elif s.get("type") == "ata":
                 for k, label in (("reallocated", "reallocated sectors"), ("pending", "pending sectors"),
                                  ("uncorrectable", "uncorrectable sectors")):

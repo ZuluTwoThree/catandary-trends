@@ -1,3 +1,10 @@
+# INTERN. Diese Datei wird von keiner Seite gerendert (Owner 2026-09-16):
+# sie enthaelt Fachwissen des Owners zu einzelnen Faellen, das ausdruecklich
+# NICHT ins Frontend gehoert. Gelesen wird sie allein von
+# scripts/validate_emerging.py; das Frontend liest aus docs/ nur
+# docs/ops/logbook.md. Wer hier etwas ergaenzt, haelt sich daran: allgemeine
+# Zusammenhaenge duerfen ins Produkt, der einzelne Fall nicht.
+#
 # Bekannte, datierbare Trends — Prüfmenge für den Emerging-Detektor.
 #
 # Zweck: messen, ob die Schicht Dinge findet, die nachweislich stattgefunden
@@ -20,11 +27,16 @@
 #               gehoeren deshalb gegen die MARKT-Ebene geprueft, nicht gegen
 #               die Forschung — genau dieser Vergleich von Ungleichem erzeugte
 #               am 15.09. die unglaubwuerdigen +26 Monate fuer Perowskit.
-#   research    optional: Monat, in dem die INSTITUTIONELLE Forschung anzog.
-#               Owner-Definition 2026-09-16: Forschung ist Forschung von
-#               Institutionen; ein Startup, das Geld einsammelt, ist Foerderung,
-#               und Markt wird es erst mit einem echten Produkt. Nur wo dieses
-#               Feld steht, wird die Forschungs-Ebene ueberhaupt geprueft.
+#   research_institutional
+#               optional: Monat, ab dem die INSTITUTIONELLE Forschung anzog.
+#               Bewusst NICHT "Beginn der Forschung": bei Technologien, die in
+#               einem Startup entstehen, folgt die Institution dem Proof of
+#               Concept, sie geht ihm nicht voraus (Owner 2026-09-16 am Beispiel
+#               Praezisionsfermentation). Nur wo dieses Feld steht, wird die
+#               Forschungs-Ebene ueberhaupt geprueft.
+#   origin_note Freitext: wo die Technologie wirklich herkommt, wenn das vor
+#               allem liegt, was der Korpus sehen kann. Wird nie geprueft, nur
+#               gelesen — damit niemand den ersten Beleg fuer den Anfang haelt.
 #   uncertain   true = Datum ist unsicher (Owner UND Modell). Zaehlt nicht in
 #               die Kopfzahl des Berichts, bleibt aber in der Tabelle.
 #   basis       woran das Datum festgemacht ist — nachprüfbar halten
@@ -121,16 +133,20 @@ trends:
 
   - key: precision_fermentation
     terms: ["precision fermentation", "animal-free", "animal free dairy"]
-    # Forschungsdatum: OFFEN, wartet auf den Owner. Messung 2026-09-16 als
-    # Vorlage — institutionelle Belege je Jahr: 2018:3 2019:6 2020:26 2021:37
-    # 2022:35 2023:27 2024:31 2025:37 2026:148. Der Sprung liegt bei 2020.
-    # Foerderung setzt 2021-09 ein (Formo 50 Mio., Perfect Day 350 Mio.),
-    # Markt 2020-05 (Perfect Day, FDA-Freigabe, Produkt im Handel).
-    research: null
+    # Gemessen im Korpus (2026-09-16), nicht behauptet:
+    #   institutionelle Belege je Jahr 2018:3 2019:6 2020:26 2021:37 2022:35 …
+    #   Produkt/Zulassung             2020-05
+    # Der Sprung der institutionellen Belege liegt bei 2020. Das ist der
+    # Zeitpunkt, ab dem Institutionen das Thema bearbeiten — NICHT der Anfang
+    # der Technologie. Deshalb heisst das Feld research_institutional.
+    research_institutional: "2020-01"
     name: Präzisionsfermentation für Milchproteine
     query: "precision fermentation of dairy proteins without animals for food ingredients"
-    mainstream: "2022-06"
-    basis: "Erste Marktzulassungen und Produkte mit fermentiertem Molkenprotein"
+    mainstream: "2020-05"
+    basis: >-
+      Owner 2026-09-16, korrigiert von 2022-06 auf das FRUEHE Datum: erste
+      Zulassung mit Produkt im Handel. 2022-06 war die breite Marktankunft,
+      nicht der erste Marktzugang.
     vertical: FOOD
 
   - key: plant_based_downturn

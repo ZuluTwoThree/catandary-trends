@@ -8,8 +8,17 @@
 # Platten
 disk_free_pct_min: 10          # jeder eingehaengte Datentraeger
 disk_free_pct_min_system: 20   # "/" (System + Postgres): schon bei 80 % voll warnen
-disk_temp_hdd_max_c: 50
-disk_temp_ssd_max_c: 65
+# Aus den Datenblaettern der verbauten Laufwerke (geprueft 2026-09-16), nicht
+# aus dem Bauch. HDD: Seagate Barracuda ST2000DM008, Betrieb 0-60 °C -> Warnung
+# bei 55. SSD/NVMe: Kingston NV2, Lexar NM790 und Kingston A400 sind alle
+# 0-70 °C spezifiziert -> Warnung bei 68. Die 65 davor lagen unter dem, was ein
+# DRAM-loses NVMe unter Dauerlast normal erreicht; der Alarm vom 16.09. kam bei
+# 65,8 °C, waehrend das Laufwerk selbst nie gewarnt hatte.
+# Der eigentliche Waechter ist warning_temp_time/critical_comp_time: steigt die
+# Zeit, die ein Laufwerk ueber SEINER eigenen Schwelle verbringt, gibt es Alarm,
+# ganz ohne diese Zahlen (Regel disk_smart).
+disk_temp_hdd_max_c: 55
+disk_temp_ssd_max_c: 68
 nvme_wear_pct_max: 90
 nvme_spare_pct_min: 10
 # HDD-Sektorzaehler und NVMe-Medienfehler: Alarm nur, wenn sie STEIGEN

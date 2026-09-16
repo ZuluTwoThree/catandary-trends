@@ -145,9 +145,11 @@ def run_date(month: str, seed: int = 42, top_n: int = TOP_N) -> tuple[np.ndarray
 def main() -> int:
     ap = argparse.ArgumentParser(description="Backtest the emerging detector")
     ap.add_argument("--known", default="known_trends.yaml")
-    ap.add_argument("--from", dest="start", default="2021-07",
-                    help="first test date; the corpus carries ~80-120k signals a "
-                         "year back to 2019")
+    ap.add_argument("--from", dest="start", default="2019-07",
+                    help="first test date. Must precede the earliest market date "
+                         "in known_trends.yaml, otherwise the window decides the "
+                         "result instead of the detector (tests check this). The "
+                         "corpus carries 61k signals in 2019 and ~100k a year after")
     ap.add_argument("--to", dest="end", default=None, help="default: last full month")
     ap.add_argument("--step", type=int, default=3, help="months between test dates")
     ap.add_argument("--trends", default=None, help="comma list of keys, default all")

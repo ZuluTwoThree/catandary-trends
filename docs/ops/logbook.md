@@ -13,6 +13,33 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-16 · change · Plattentemperatur: Grenzwerte aus den Datenblättern, Laufwerk als Kronzeuge
+
+Anlass: wiederholte Mails „nvme0n1: 65.8 °C, limit 65 °C". Nachgeprüft, was
+verbaut ist und was die Laufwerke selbst sagen:
+
+| Gerät | Modell | Betrieb laut Datenblatt | jetzt |
+|---|---|---|---|
+| nvme0n1 | Kingston NV2 500 GB | 0–70 °C | 48 °C |
+| nvme1n1 | Lexar NM790 2 TB | 0–70 °C | 42 °C |
+| sda | Seagate Barracuda ST2000DM008 | 0–60 °C | 37 °C |
+| sdb | Kingston A400 240 GB | 0–70 °C | 35 °C |
+
+Der Alarm lag mit 65 °C **unter** dem, was ein DRAM-loses NVMe unter Dauerlast
+normal erreicht. Neue Grenzen: SSD/NVMe **68**, HDD **55** — jeweils knapp unter
+dem Datenblatt, nicht darüber.
+
+Der eigentliche Fund steckt aber in den Laufwerken selbst: sie zählen mit, wie
+viele Minuten sie über **ihrer eigenen** Warn- und Kritisch-Schwelle lagen.
+nvme0n1 meldet dort **0 und 0** — es hat bei 65,8 °C nie gewarnt. nvme1n1 dagegen
+meldet **314 Minuten über Warn- und 1 Minute über Kritisch-Schwelle** bei erst
+255 Betriebsstunden, und davon hat unser Alarm nie etwas gesagt.
+
+Der Sampler liest diese Zähler jetzt mit (`warning_temp_time`,
+`critical_comp_time`), und eine Regel schlägt an, wenn sie **steigen** — dieselbe
+Logik wie bei den Sektorfehlern. Damit hängt die Warnung am Urteil des
+Herstellers statt an einer Zahl von uns.
+
 ## 2026-09-16 · change · Emerging: vier Ebenen statt einer Zeitachse
 
 Owner-Einwand: ein Wissenschaftstrend ist nicht dasselbe wie ein Markttrend,
