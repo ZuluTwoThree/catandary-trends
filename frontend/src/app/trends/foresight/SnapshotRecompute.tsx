@@ -1,4 +1,4 @@
-import { recomputeSnapshotAction } from "@/app/trends/foresight/actions";
+import { recomputeSnapshotAction } from "./actions";
 import {
   SNAPSHOT_NOTICE,
   snapshotWorkerStatus,
@@ -10,6 +10,14 @@ import {
  * document with a date and a button, no cron). Server component; the action
  * re-checks owner mode and same-origin. `asOf` is the persisted run's date
  * (null = no snapshot yet), `back` the page to return to.
+ *
+ * Lives INSIDE app/trends/foresight rather than in components/, and must stay
+ * there: it imports the server action from this tree, and the static export
+ * strips the whole tree (static-export.exclude mirrors BLOCKED_PREFIXES). As a
+ * component it survived the strip while its import did not, and the 03:15
+ * publish died on "Cannot find module @/app/trends/foresight/actions" —
+ * nothing uploaded, the previous day's site left online (2026-09-16).
+ * `staticExport.test.ts` now fails any import that crosses this boundary.
  */
 export default function SnapshotRecompute({
   mode,

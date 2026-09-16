@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getClusterScopes, getLatestClusterRun } from "@/lib/foresight";
 import { VERTICALS } from "@/lib/types";
 import ClusterCard from "@/components/foresight/ClusterCard";
-import SnapshotRecompute from "@/components/foresight/SnapshotRecompute";
+import SnapshotRecompute from "../SnapshotRecompute";
 import ForesightCta from "@/components/ForesightCta";
 
 export const dynamic = "force-dynamic";
