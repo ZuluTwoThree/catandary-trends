@@ -289,9 +289,12 @@ des Teasers.
 Aus dem Nachhollauf (Owner): DigiTimes, Mongabay, Tech Funding News, Apparel
 Resources, HPCwire, Retail Gazette auf `fulltext: false` / `tdm_status: blocked`
 (Artikelseiten 403, Feeds laufen weiter). Project Syndicate bekommt als erster
-Host eine eigene Rate (`article_fetcher.HOST_DELAYS`, 10 s statt 1 s): 37 von
-52 Anfragen kamen mit 429 zurück. Netzpolitik-Archiv nicht abgerufen (30.573
-URLs, 400 neu, alles Menüseiten).
+Host eine eigene Rate (`article_fetcher.HOST_DELAYS`): 37 von 52 Anfragen
+kamen mit 429 zurück. Erst 10 s, am Abend auf 2 s gesetzt (Owner) — Messung:
+1,5 s: 9 ok, dann 429; 3 s direkt danach 20/20 × 429; nach 10 min Pause mit
+10 s Abstand 30/30 × 429. Kontingent je Zeitfenster mit langer Strafzeit, kein
+Intervall; der Nachtlauf (5–10 Artikel) bleibt darunter. Netzpolitik-Archiv
+nicht abgerufen (30.573 URLs, 400 neu, alles Menüseiten).
 
 ## 2026-09-17 · change · Themensuche Stufe 1: Anfrage-Maschine + Suchtabelle topic_vectors
 duration: 6 h
