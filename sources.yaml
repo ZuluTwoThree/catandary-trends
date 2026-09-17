@@ -1159,12 +1159,12 @@ verticals:
       tdm_status: ok
       discovered_via: triage
     - name: HPCwire
-      fulltext: true
+      fulltext: false   # 2026-09-17: Artikel liefern 403 fuer unseren Bot (0 von 45 Artikeln erreichbar, Nachhollauf) — kein Volltext, Teaser bleibt
       feed_url: https://www.hpcwire.com/feed/
       type: trade_media
       lead_time_tier: market
       tdm_checked: "2026-09-04"
-      tdm_status: ok
+      tdm_status: blocked
       discovered_via: triage
     - name: Microsoft Source
       fulltext: true
@@ -1184,12 +1184,12 @@ verticals:
       tdm_status: ok
       discovered_via: own   # China-Tech
     - name: DigiTimes
-      fulltext: true
+      fulltext: false   # 2026-09-17: Artikel liefern 403 fuer unseren Bot (74 von 389 Artikeln erreichbar, Nachhollauf) — kein Volltext, Teaser bleibt
       feed_url: https://www.digitimes.com/rss/daily.xml
       type: trade_media
       lead_time_tier: market
       tdm_checked: "2026-09-04"
-      tdm_status: ok
+      tdm_status: blocked
       discovered_via: own   # Halbleiter/Supply-Chain Taiwan; offener Tages-Feed
     - name: Silicon Republic
       fulltext: true
@@ -2301,12 +2301,12 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: Mongabay
-      fulltext: true
+      fulltext: false   # 2026-09-17: Artikel liefern 403 fuer unseren Bot (0 von 85 Artikeln erreichbar, Nachhollauf) — kein Volltext, Teaser bleibt
       feed_url: https://news.mongabay.com/feed
       type: trade_media
       lead_time_tier: market
       tdm_checked: "2026-09-04"
-      tdm_status: ok
+      tdm_status: blocked
     - name: Yale Environment 360
       fulltext: true
       feed_url: https://e360.yale.edu/feed.xml
@@ -3060,13 +3060,13 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: Apparel Resources
-      fulltext: true
+      fulltext: false   # 2026-09-17: Artikel liefern 403 fuer unseren Bot (0 von 58 Artikeln erreichbar, Nachhollauf) — kein Volltext, Teaser bleibt
       relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
       feed_url: https://apparelresources.com/feed/
       type: trade_media
       lead_time_tier: now
       tdm_checked: "2026-09-04"
-      tdm_status: ok
+      tdm_status: blocked
     - name: Drapers
       fulltext: true
       relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
@@ -3441,13 +3441,13 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: Retail Gazette
-      fulltext: true
+      fulltext: false   # 2026-09-17: Artikel liefern 403 fuer unseren Bot (10 von 52 Artikeln erreichbar, Nachhollauf) — kein Volltext, Teaser bleibt
       relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
       feed_url: https://www.retailgazette.co.uk/feed/
       type: trade_media
       lead_time_tier: now
       tdm_checked: "2026-09-04"
-      tdm_status: ok
+      tdm_status: blocked
     - name: Modern Retail
       fulltext: true
       relevance_min: 0.6   # breiter Feed / now-tier (#97 WP3)
@@ -3497,13 +3497,13 @@ verticals:
       tdm_status: ok
       discovered_via: own   # Startup-Medium FR (franzoesisch)
     - name: Tech Funding News
-      fulltext: true
+      fulltext: false   # 2026-09-17: Artikel liefern 403 fuer unseren Bot (0 von 69 Artikeln erreichbar, Nachhollauf) — kein Volltext, Teaser bleibt
       relevance_min: 0.6   # breiter Feed / now-tier (#97 WP2b)
       feed_url: https://techfundingnews.com/feed/
       type: trade_media
       lead_time_tier: now
       tdm_checked: "2026-09-04"
-      tdm_status: ok
+      tdm_status: blocked
       discovered_via: own   # Funding-Meldungen EU
     - name: Chain Drug Review
       fulltext: true
