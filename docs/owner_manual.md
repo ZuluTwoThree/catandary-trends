@@ -563,6 +563,49 @@ Entwicklung* und nicht als Frühwarnung, KI-Erzeugung und menschliche Abnahme
 offen benannt. Die Seite ist Owner-only (PUBLIC_MODE 404, nicht im statischen
 Export) — sie zitiert Arbeit im Review-Status.
 
+### 5.11 Themensuche (CLI, Stufe 1)
+
+Ein Begriff rein, die Datenlage raus — noch ohne Seite (Stufe 2 folgt).
+
+```bash
+cd ~/projects/catandary-trends
+.venv/bin/python -m pipeline.topic_report "precision fermentation of dairy proteins"
+.venv/bin/python -m pipeline.topic_report "glp-1 weight loss" --tiers market,patent
+.venv/bin/python -m pipeline.topic_report "hyrox" --fresh --json > /tmp/hyrox.json
+```
+
+**Was die Tabelle zeigt.** Eine Zeile je Ebene: `status` (`ok`, `thin` = unter
+5 Treffer, `none` = nichts Nahes), `head` (Ø der fünf besten Ähnlichkeiten),
+`cut` (angewandte Schwelle), `hits` roh und `damped` (Monate einer Quelle über
+ihrem eigenen Median gekappt), `1st hit` (ältester Treffer), `sustain` (erster
+Monat mit ≥ 3 Treffern), `age`, `recent` (letzte 6 Monate), `index` (`tier` =
+eigener Index der Ebene, `scan` = Index fehlt), größte Quelle mit Anteil,
+`(capped)` wenn die Treffer das 1.000er-Fenster füllen — dann ist die Kurve
+ein Boden, keine Zählung. Darunter: Reihenfolge der Ebenen und Abstand
+Forschung → Markt, Neuheits-Hebel (1,0 = verteilt wie der Korpus),
+Beschleunigung, Anteil etablierter Quellen, Marktakteure früh → spät; die
+ältesten Volltext-Treffer; frühere Vokabeln (Wortpaare der ältesten Titel,
+nur wenn sie nah an der Anfrage bleiben). Eine Kurzanfrage, deren Nachbarn
+sich über Vertikale verteilen, kommt als Rückfrage mit drei Feldern zurück.
+
+**Anfragen formulieren.** In der Sprache der Quellen (Englisch), so wie die
+gesuchte Ebene spricht: eine fachsprachliche Anfrage findet Forschung, eine
+Produktsprache den Markt. Für die Volltext-Spur gelten `websearch`-Regeln
+(`"phrase"`, `OR`, `-wort`).
+
+**Cache.** Gleiche Anfrage + gleiche Ebenen = sofort aus `topic_reports`
+(7 Tage); `--fresh` rechnet neu. Die Korpus-Monatszahlen liegen 24 h in
+`topic_cache`.
+
+**Suchtabelle.** `topic_vectors` (Ebene + Vektorkopie je Trend, vier HNSW-
+Teilindizes) wird von jeder Anfrage um neue Zeilen ergänzt. Einmalig bzw. nach
+einem Restore: `.venv/bin/python scripts/migrate_topic_vectors.py --indexes`
+(~2 min füllen, ~20 min Indizes); `--status` zählt, `--reconcile` sammelt
+Nachzügler ein.
+
+**Voraussetzung.** Der CPU-Embedder `catandary-embed-cpu` (`:8091`) muss laufen —
+ohne ihn bricht die Anfrage mit einer klaren Meldung ab.
+
 ## 6. Dossier-Desk (`/trends/dossiers`)
 
 **Wozu.** Scouting-Dossiers zu Technologiefeldern bestellen: der agentische

@@ -89,3 +89,38 @@ def test_the_signal_type_never_moves_a_registry_or_a_patent_office():
 def test_without_a_signal_type_the_mapping_is_unchanged():
     assert tier_of("TechCrunch", "trade_media") == "market"
     assert tier_of("TechCrunch", "trade_media", None) == "market"
+
+
+# --- SQL twin for the trends.tier column (2026-09-17) -----------------------
+
+def test_the_sql_case_assigns_exactly_what_tier_of_assigns():
+    """`trends.tier` is filled by SQL, the streaming passes use Python. They
+    must never disagree about a row."""
+    import sqlite3
+    from pipeline.tiers import tier_case_sql
+    expr, params = tier_case_sql(t="t", s="t")
+    cases = [
+        ("Google Patents (TECH)", "api", None),
+        ("EPO DOCDB (HEALTH)", "api", "funding"),
+        ("NIH RePORTER (US Biomedical Funding)", "api", "product_launch"),
+        ("SBIR/STTR Awards", "api", None),
+        ("CORDIS EU Research Projects", "api", None),
+        ("arXiv Preprints", "api", "funding"),
+        ("OpenAlex fresh: Batteries", "api", None),
+        ("Nature Food", "research", "research"),
+        ("TechCrunch", "trade_media", None),
+        ("AgFunderNews", "trade_media", "funding"),
+        ("PR Newswire", "press_wire", "FUNDING"),
+        ("Siemens Newsroom", "brand", "product_launch"),
+        ("Food Navigator", "trade_media", "research"),
+        ("  TechCrunch ", "trade_media", None),
+        ("Something", "api", None),
+        (None, None, None),
+    ]
+    conn = sqlite3.connect(":memory:")
+    for name, stype, sig in cases:
+        got = conn.execute(
+            f"SELECT {expr} AS tier FROM (SELECT ? AS source_name, ? AS source_type, "
+            "? AS trend_signal_type) t", [*params, name, stype, sig]).fetchone()[0]
+        want = tier_of(name, stype, sig) or "none"
+        assert got == want, (name, stype, sig, got, want)

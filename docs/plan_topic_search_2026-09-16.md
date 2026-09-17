@@ -84,6 +84,66 @@ Kette. Ohne die Bremse driftet der Lauf in Allgemeinplätze.
 additiv). Wiederholte Anfragen sind sofort da, und die Liste der gestellten
 Fragen ist später eine Vorschlagsquelle.
 
+### Stand Stufe 1 — gebaut am 2026-09-17 (`pipeline/topic_report.py`)
+
+Die Maschine steht als Modul + CLI (`python -m pipeline.topic_report "<Begriff>"
+[--tiers science,patent,funding,market] [--no-walk] [--fresh] [--json]`). Die
+Messungen vor dem Bau haben zwei Punkte des Plans korrigiert:
+
+**„Exakt statt Index" ist auf den großen Ebenen nicht 2 s, sondern 47–94 s.**
+Die 2,1 s galten nur für die Patentebene (124k Zeilen); Markt (625k) und
+Forschung (607k) laufen als Seq-Scan über TOAST bei 128 MB `shared_buffers`
+in Minuten, und die Hälfte der Zeit war der Join durch die 22-Mio.-Tabelle
+`raw_entries`. Der Plan sah „seltene Ebenen exakt" vor — das trägt nicht.
+
+**Die Lösung ist ein Index je Ebene, und der braucht eine Nebentabelle.**
+Ein partieller HNSW-Index braucht ein Spaltenprädikat; für Forschung und
+Markt kommt die Ebene aus `sources.source_type`, also musste sie auf die
+Zeile. Der erste Versuch — Spalte `trends.tier` per UPDATE — war ein Fehler:
+jedes Non-HOT-Update auf `trends` schreibt einen neuen Eintrag in den 14-GB-
+HNSW-Index; ein 50k-Batch hing fünf Minuten in `DataFileRead` und hinterließ
+285k tote Indexeinträge, bevor er abgebrochen wurde. Deshalb `topic_vectors`
+(trend_id, tier, Kopie des 1024er-Vektors): 1,76 Mio. Zeilen in 2 min
+eingefügt, 7,2 GB, vier `CREATE INDEX CONCURRENTLY` (~100 s je 124k Zeilen).
+Ebenen in der Tabelle: Markt 603k, Forschung 420k, Förderung 215k, Patente
+60k, keine 391. Neue Zeilen holt jede Anfrage per `topup()` nach (ids über
+dem Höchststand), Nachzügler einmal täglich per Anti-Join.
+
+**Der Teilindex wirkt, gemessen auf Patenten:** global+Filter gegen Ebenen-Index
+bei 1.000 Nachbarn ≥ 0,62 — GLP-1 8 : 34, Perowskit 0 : 14, Präzisions-
+fermentation 1 : 58, Natrium-Ionen 0 : 32.
+
+**Schwellen, kalibriert am 17.09.:** Kopf = Mittel der fünf besten
+Ähnlichkeiten je Ebene. Gegenproben (Falknerei, Töpferei, Cembalo) kamen auf
+0,52–0,63, echte Themen in ihrer starken Ebene auf 0,74–0,91, Patente sprechen
+tiefer (0,68–0,69 für echte Themen, 0,52–0,57 für Gegenproben). Daher
+`HEAD_MIN` je Ebene (Forschung/Markt 0,68, Förderung 0,66, Patente 0,64), Cut =
+max(Kopf − 0,08, 0,62); beides steht im Bericht. 0,08 statt 0,12: mit 0,12 zog
+die Forschungsebene bei Präzisionsfermentation das ganze Feld herein (tragend
+seit 2001-02, 616 Zeilen), mit 0,08 datiert sie das Thema (2020-01, 155
+Zeilen) und der erste Markttreffer fällt auf 2020-05 — beides deckt sich mit
+den unabhängig notierten Daten in `known_trends.yaml`. Offen bleibt der Boden
+0,62 auf der Förderebene: Projektbeschreibungen sprechen breit, für Perowskit
+kamen dort Solarprojekte seit 1990 herein — Stufe 4 misst das. Hyrox in der Forschung: Kopf
+0,62 → „nichts Nahes" — korrekt.
+
+**Was der Bericht je Ebene sagt:** Status (none / thin < 5 / ok), Kopf, Cut,
+Treffer roh und quellengedämpft, erster Treffer, erster *tragender* Monat
+(≥ 3 Treffer, Regel des Nest-Scorers), Alter, Treffer der letzten 6 Monate,
+Index (tier / scan), größte Quelle mit Anteil, `capped` wenn die Treffer das
+1.000er-Fenster füllen (die Kurve ist dann ein Boden). Übergreifend: Reihenfolge
+der Ebenen, Abstand Forschung → Markt, Neuheits-Hebel, Beschleunigung, Anteil
+etablierter Quellen, Marktakteure früh/spät. Dazu die ältesten Volltext-Treffer
+(Vektor-gegated ≥ 0,62) und der Wortketten-Lauf (Wortpaare der ältesten Titel,
+eingebettet, behalten ab cos 0,72 zur Anfrage, per Volltext datiert — 0,70
+ließ „dairy products“ und „starter cultures“ durch).
+Kurzanfragen (≤ 2 Wörter), deren Nachbarn sich über Vertikale verteilen
+(größte < 40 %) oder deren bester Kopf unter 0,75 bleibt („rag“ wird als Lappen
+eingebettet, Kopf 0,686), kommen als Rückfrage zurück. Laufzeit warm ≈ 2,5 s
+(Einbetten 0,5, vier Suchen je 0,2–0,3, Wortkette 1,4), Korpus-Monatszahlen
+7,6 s einmal je 24 h, aus dem Cache 0,9 s. Berichte liegen in
+`topic_reports` (7 Tage Cache), Korpus-Monatszahlen in `topic_cache` (24 h).
+
 ---
 
 ## Stufe 2 — Die Seite (`/trends/foresight/topic?q=…`)

@@ -1563,6 +1563,41 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   zitiert/gestrichen, Messblock, Modell/Dauer) + Bericht (Markdown inkl.
   Tabellen) + Coverage-Anhang + Versionswechsler.
 
+## Themensuche — Stufe 1, die Anfrage-Maschine (seit 2026-09-17, `pipeline/topic_report.py`)
+
+Owner-Entscheid 2026-09-16: der Nutzer gibt einen Begriff ein und bekommt die
+Datenlage dazu; Cluster/Nester werden Vorschlagslieferant. Plan, Messungen und
+Stand: `docs/plan_topic_search_2026-09-16.md` (intern). Stufe 1 ist Modul + CLI,
+noch keine Seite:
+
+    .venv/bin/python -m pipeline.topic_report "precision fermentation of dairy proteins" [--tiers market,patent] [--no-walk] [--fresh] [--json]
+
+- **Je Ebene eine Suche** (Forschung / Patente / Förderung / Markt), nie
+  gepoolt — die Einbettung folgt dem Sprachstil. Sucht auf **`topic_vectors`**
+  (trend_id, tier, Kopie von `embedding_1024`; additive Migration
+  `_migrate_topic_vectors` in `init_db`, Füllung `scripts/migrate_topic_vectors.py`,
+  Live-DB 17.09.: 1,3 Mio. Zeilen, 7,2 GB) mit **vier partiellen HNSW-Indizes**
+  `idx_topic_vectors_<tier>`. Warum Nebentabelle statt Spalte: ein UPDATE auf
+  `trends` ist non-HOT und schreibt in den 14-GB-HNSW-Index (Versuch am 17.09.
+  abgebrochen, 285k tote Einträge). Ebene je Zeile: `tiers.tier_case_sql`, SQL-
+  Zwilling von `tier_of` (Paritätstest). Neue Zeilen: `topic_vectors.topup()` vor
+  jeder Anfrage, `reconcile()` täglich.
+- **Schwellen relativ je Ebene:** Kopf (Ø der 5 besten) muss `HEAD_MIN` erreichen
+  (Forschung/Markt 0,68, Förderung 0,66, Patente 0,64 — Gegenproben lagen bei
+  0,52–0,63), Cut = max(Kopf − 0,08, 0,62) — mit 0,12 zog die Forschung das ganze
+  Feld herein (Präzisionsfermentation „tragend seit 2001“), mit 0,08 datiert sie
+  das Thema (2020-01); beides steht im Bericht.
+- **Ehrlichkeit:** `capped` (1.000er-Fenster voll → Kurve ist ein Boden), `thin`
+  (< 5 Treffer), Quellendämpfung als zweite Zahl, Anteil etablierter Quellen,
+  Rückfrage bei Kurzanfragen (Vertikal-Streuung oder bester Kopf < 0,75),
+  „nichts Nahes“ als Antwort.
+- **Vergangenheit per Volltext** (`idx_trends_fts`, Vektor-gegated) + Wortketten-
+  Lauf (Wortpaare der ältesten Titel, cos ≥ 0,72 zur Anfrage, per Volltext datiert).
+- **Laufzeit** warm ≈ 2,5 s, Korpus-Monatszahlen 7,6 s einmal je 24 h, Cache 0,9 s.
+- **Cache:** `topic_reports` (7 Tage), `topic_cache` (Korpus-Monatszahlen, 24 h).
+- Offen (Stufen 2–4): Seite mit Ebenen-Häkchen, Vorschläge aus den Nestern,
+  Markt-Rücktest gegen `known_trends.yaml`.
+
 ## Research Pulse (#73 Teil 1, seit 2026-09-04)
 
 Wöchentliche Synthese je Mega-Signal-Theme aus dem frischen Forschungskorpus

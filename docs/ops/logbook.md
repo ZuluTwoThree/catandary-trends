@@ -292,3 +292,21 @@ Resources, HPCwire, Retail Gazette auf `fulltext: false` / `tdm_status: blocked`
 Host eine eigene Rate (`article_fetcher.HOST_DELAYS`, 10 s statt 1 s): 37 von
 52 Anfragen kamen mit 429 zurück. Netzpolitik-Archiv nicht abgerufen (30.573
 URLs, 400 neu, alles Menüseiten).
+
+## 2026-09-17 · change · Themensuche Stufe 1: Anfrage-Maschine + Suchtabelle topic_vectors
+duration: 6 h
+gpu: nein (CPU-Embedder :8091)
+`pipeline/topic_report.py` (Modul + CLI): ein Begriff rein, je Ebene
+(Forschung/Patente/Förderung/Markt) Kopf, Cut, Treffer roh/gedämpft, erster
+und erster tragender Monat, Reihenfolge der Ebenen, Abstand Forschung→Markt,
+Volltext-Älteste, frühere Vokabeln, Rückfrage bei Kurzanfragen. Unterbau:
+Nebentabelle `topic_vectors` (Ebene + Vektorkopie je Trend, 1,76 Mio. Zeilen in
+127 s, 7,2 GB) mit vier HNSW-Teilindizes (Forschung 154 s, Patente 32 s,
+Förderung 98 s, Markt 174 s) — der Teilindex findet auf Patenten 14–58 Zeilen,
+wo der globale Index nach dem Filtern 0–8 ließ. Abgebrochener erster Weg:
+Spalte `trends.tier` per UPDATE — Non-HOT-Updates schreiben in den 14-GB-HNSW-
+Index, 5 min je 50k-Batch, 285k tote Tupel hinterlassen (Autovacuum räumt).
+Kalibrierung: Kopf − 0,08 datiert Präzisionsfermentation auf 2020-01
+(Forschung tragend) / 2020-05 (erster Markttreffer) — deckungsgleich mit den
+unabhängig notierten Daten. Warm 2,6 s je Anfrage, Cache 0,9 s. Tabellen
+`topic_reports`/`topic_cache` (init_db). Keine Cron-Änderung.

@@ -616,6 +616,60 @@ def _migrate_judged_at():
             conn.execute("ALTER TABLE trends ADD COLUMN judged_at TEXT")
 
 
+def _migrate_topic_vectors():
+    """Side table of the topic engine (2026-09-17): one row per embedded trend
+    with its lead-time tier and a COPY of the 1024-dim vector, so each tier can
+    carry its own partial HNSW index. Idempotent, additive.
+
+    Why not a column on trends: a filtered nearest-neighbour query through the
+    global index keeps the 1,000 globally nearest rows and filters afterwards —
+    0-8 patent rows survived for four known topics where an index on the tier
+    alone found 14-58. A tier column on trends would have needed an UPDATE of
+    every row, and every non-HOT update on trends inserts a new entry into the
+    14 GB HNSW index (measured 2026-09-17: one 50k batch spent five minutes in
+    DataFileRead and left 285k dead index entries before it was cancelled).
+    INSERTs into a side table cost nothing on trends. Fill and indexes:
+    pipeline.topic_vectors / scripts/migrate_topic_vectors.py."""
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS topic_vectors ("
+                " trend_id INTEGER PRIMARY KEY REFERENCES trends(id) ON DELETE CASCADE,"
+                " tier TEXT NOT NULL,"
+                " embedding_1024 VECTOR(1024) NOT NULL)")
+        else:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS topic_vectors ("
+                " trend_id INTEGER PRIMARY KEY REFERENCES trends(id) ON DELETE CASCADE,"
+                " tier TEXT NOT NULL,"
+                " embedding_1024 BLOB NOT NULL)")
+
+
+def _migrate_topic_reports():
+    """Cache + corpus-statistics tables of the topic engine (2026-09-17).
+
+    topic_reports: one row per answered query (query, tiers, JSON report) —
+    repeated questions are served from here, and the list of questions asked
+    is a suggestion source for the later stages. topic_cache: small keyed JSON
+    values that are expensive and query-independent (corpus month totals per
+    tier, first month of every source). Additive, idempotent."""
+    pk = "id SERIAL PRIMARY KEY" if USE_POSTGRES else "id INTEGER PRIMARY KEY AUTOINCREMENT"
+    created = ("created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if USE_POSTGRES
+               else "created_at TEXT DEFAULT (datetime('now'))")
+    with get_connection() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS topic_reports ("
+            f" {pk}, query TEXT NOT NULL, query_norm TEXT NOT NULL, tiers TEXT NOT NULL,"
+            " params TEXT, report TEXT NOT NULL, duration_s REAL,"
+            f" {created})")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_topic_reports_q "
+                     "ON topic_reports (query_norm, tiers, created_at)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS topic_cache ("
+            " key TEXT PRIMARY KEY, value TEXT NOT NULL,"
+            f" computed_at {'TIMESTAMP' if USE_POSTGRES else 'TEXT'} NOT NULL)")
+
+
 def _migrate_review_reason():
     """Add trends.review_reason to pre-existing databases. Idempotent (#11).
 
@@ -1277,6 +1331,8 @@ def init_db():
     _migrate_fulltext_refetch()
     _migrate_judged_at()
     _migrate_review_reason()
+    _migrate_topic_vectors()
+    _migrate_topic_reports()
     _migrate_sources_llm_pipeline()
     _migrate_patent_graph()
     _migrate_patent_cpc()
