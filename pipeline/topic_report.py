@@ -262,10 +262,28 @@ def actor_sets(rows: list[dict], windows: tuple[str, str] | None) -> dict[str, i
     return {"early": len(early), "late": len(late)}
 
 
+def spread_by_source(rows: list[dict], limit: int, max_per_source: int = 1) -> list[dict]:
+    """Take `limit` rows in their incoming order, at most `max_per_source` from
+    one source; a source's surplus fills up only if the list would be short."""
+    picked, spare, seen = [], [], Counter()
+    for r in rows:
+        key = r.get("source_name") or ""
+        if key and seen[key] >= max_per_source:
+            spare.append(r)
+            continue
+        seen[key] += 1
+        picked.append(r)
+        if len(picked) >= limit:
+            return picked
+    return picked + spare[: max(0, limit - len(picked))]
+
+
 def _compact(row: dict) -> dict:
     d = row.get("published_date")
     return {"id": row.get("id"), "title": (row.get("title_en") or "")[:140],
-            "source": row.get("source_name"), "date": (d.isoformat()[:10] if hasattr(d, "isoformat") else (str(d)[:10] if d else None)),
+            "source": row.get("source_name"), "url": row.get("source_url"),
+            "slug": row.get("slug") if row.get("status") == "published" else None,
+            "date": (d.isoformat()[:10] if hasattr(d, "isoformat") else (str(d)[:10] if d else None)),
             "sim": round(float(row.get("sim") or 0), 3)}
 
 
@@ -289,8 +307,8 @@ def embed_query(text: str, host: str | None = None) -> np.ndarray:
     return v / n if n else v
 
 
-_ROW_COLS = ("t.id, t.title_en, t.source_name, v.tier, t.trend_signal_type, "
-             "t.primary_vertical, t.tags, t.brands, t.companies, r.published_date")
+_ROW_COLS = ("t.id, t.title_en, t.source_name, t.source_url, t.slug, t.status, v.tier, "
+             "t.trend_signal_type, t.primary_vertical, t.tags, t.brands, t.companies, r.published_date")
 
 
 def search_tier(vec: np.ndarray, tier: str, exact: bool = False) -> list[dict]:
@@ -545,7 +563,15 @@ def build_report(query: str, tiers: list[str], results: dict[str, dict],
             # has a first hit and no sustained month — both are said.
             "first_hit": next((m for m, c in zip(months, series) if c), None),
             "oldest": [_compact(r) for r in sorted(a["hits"], key=lambda r: str(r.get("published_date") or "9999"))[:3]],
+            "newest": [_compact(r) for r in spread_by_source(
+                sorted([r for r in a["hits"] if r.get("published_date")],
+                       key=lambda r: str(r.get("published_date")), reverse=True), 5)],
             "sample": [_compact(r) for r in a["hits"][:5]],
+            # share of hits that passed the classification stages (carry tags):
+            # signals straight from an ingester never did, so a low value says
+            # the tier's rows were never looked at by the pipeline.
+            "tagged_share": (round(sum(1 for r in a["hits"] if r.get("tags")) / len(a["hits"]), 3)
+                             if a["hits"] else None),
         }
     for t in TIERS:
         tier_hits.setdefault(t, np.zeros((1, n), dtype=np.int32))

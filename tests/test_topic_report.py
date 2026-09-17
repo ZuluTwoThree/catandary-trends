@@ -211,3 +211,10 @@ def test_the_fts_expression_matches_the_researchers_one_textually():
 def test_query_normalisation_is_the_cache_key():
     assert T.normalise_query("  GLP-1   Agonists ") == "glp-1 agonists"
     assert T.query_tokens("the RAG of things") == ["rag", "things"]
+
+
+def test_newest_rows_spread_over_sources():
+    rows = [{"source_name": "A", "i": i} for i in range(4)] + [{"source_name": "B", "i": 9}]
+    out = T.spread_by_source(rows, 3)
+    assert [r["source_name"] for r in out] == ["A", "B", "A"]
+    assert T.spread_by_source(rows, 2) == [rows[0], rows[4]]

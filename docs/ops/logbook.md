@@ -310,3 +310,15 @@ Kalibrierung: Kopf − 0,08 datiert Präzisionsfermentation auf 2020-01
 (Forschung tragend) / 2020-05 (erster Markttreffer) — deckungsgleich mit den
 unabhängig notierten Daten. Warm 2,6 s je Anfrage, Cache 0,9 s. Tabellen
 `topic_reports`/`topic_cache` (init_db). Keine Cron-Änderung.
+
+## 2026-09-17 · change · Themensuche Stufen 2–5 auf dev (Owner testet vor dem Merge)
+duration: 3 h
+Seite `/trends/foresight/topic` (GET-Formular, Häkchen je Ebene, Bericht mit
+Wortgenerationen, Ebenen-Streifen, 60-Monats-Kurven, neueste Belege je Quelle,
+Schwächen je Block, Rückfrage bei Kurzanfragen), Vorschläge unter dem Suchfeld
+(Nest-Namen, neues Vokabular, gestellte Fragen), Rücktest
+`scripts/validate_topic_search.py`: Markt 18/18 gezählte Trends gefunden,
+Gegenproben 0/3, tragender Marktmonat im Median 23 Monate nach dem Marktdatum
+(Korpus vor 2024 dünn), erster Einzeltreffer 72 Monate davor. Rückbau: Desk-
+Knopf rechnet Nester nur noch global + 4 Ebenen, Vertikal-Reiter weg. Nichts
+auf main, kein Cron berührt.

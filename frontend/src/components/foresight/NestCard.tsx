@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { EmergingNest } from "@/lib/emerging";
 import Sparkline from "./Sparkline";
 import {
@@ -64,6 +65,14 @@ export default function NestCard({ nest }: { nest: EmergingNest }) {
             </>
           )}
         </div>
+        <span className="flex items-center gap-2 shrink-0">
+        <Link
+          href={`/trends/foresight/topic?q=${encodeURIComponent(title.name)}`}
+          className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted hover:text-accent"
+          title="Check this pocket's name as a topic across all four conversations"
+        >
+          search →
+        </Link>
         <span
           className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em] px-2 py-0.5 border shrink-0"
           style={{
@@ -75,6 +84,7 @@ export default function NestCard({ nest }: { nest: EmergingNest }) {
         >
           {ageText(nest)}
           {!ageIsMeaningful(nest) && " ?"}
+        </span>
         </span>
       </div>
 

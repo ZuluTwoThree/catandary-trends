@@ -201,6 +201,52 @@ Erst wenn die Suche steht und Stufe 4 eine Zahl liefert:
 - die Cluster-Schicht weiter beobachten, aber nicht mehr tunen
 - keine Arbeit mehr in Zellgrößen, Verschmelzung, k-Wahl
 
+## Stand Stufen 2–5 — gebaut am 2026-09-17 (alles auf `dev`, Owner testet vor dem Merge)
+
+**Stufe 2, Seite `/trends/foresight/topic?q=…&tiers=…`.** GET-Formular ohne
+JavaScript (die URL ist die Anfrage), Häkchen je Ebene, darunter der Bericht in
+der Reihenfolge des Plans: Belegzahl je Ebene mit Kopf und angewandtem Cut,
+**Wortgenerationen** (frühere Wortpaare mit Datum, älteste Volltext-Belege),
+Ebenen-Streifen (tragender Monat je Konversation, Abstand in Monaten, erster
+Treffer daneben), Kurve je Ebene über 60 Monate, neueste Belege je Ebene
+(höchstens einer je Quelle, verlinkt auf Artikel oder Quelle), Schwächen auf
+jedem Block (dünn, Fenster voll, Quellenzahl, größte Quelle ≥ 50 %, gedämpfte
+Ausschläge, Anteil klassifizierter Zeilen, Anteil etablierter Quellen, Index
+fehlt). Rückfrage bei mehrdeutiger Kurzanfrage als eigener Block mit drei
+Feldern. Die Seite ruft `python -m pipeline.topic_report --json` (execFile,
+ein argv-Element, nie interpoliert); `frontend/src/lib/topicReport.ts`,
+`topicView.ts` (reine Helfer, Vitest), `components/foresight/TopicReportView.tsx`.
+
+**Stufe 3, Vorschläge unter dem Suchfeld** (`lib/topicSuggestions.ts`,
+`components/foresight/TopicSuggestions.tsx`): (1) die Namen der Nester aus dem
+jeweils letzten Lauf von global + vier Ebenen, mit Etikett Ebene · Alter ·
+Zeilen; (2) neues Vokabular (`new_terms` der Nester); (3) gestellte Fragen mit
+ihrem Ergebnis (aus `topic_reports`: seit wann, Markt-Erstauftritt, „asked
+back", „nothing close"). Jede Nest-Karte trägt außerdem „search →". Ein
+Vorschlag darf danebenliegen — er ist eine Einladung.
+
+**Stufe 4, Rücktest** (`scripts/validate_topic_search.py`, Ergebnis
+`data/topic_validation.json`, 10 s für 20 Trends + 3 Gegenproben): **Markt-
+Ebene 18 von 18 gezählten Trends gefunden** (Ebene antwortet UND ein Kennwort
+steht in einem Treffer-Titel; 0 Antworten ohne Kennwort; die beiden `uncertain`
+zählen nicht), **Gegenproben 0 von 3 beantwortet**. Forschung nur bei
+Präzisionsfermentation prüfbar: tragend 2020-01 = `research_institutional`.
+Vorlauf ist nicht die Zielgröße, wird aber ausgewiesen: der erste *tragende*
+Marktmonat liegt im Median **23 Monate nach** dem Marktdatum (nur 3 von 18
+davor), der erste *Einzeltreffer* im Median 72 Monate davor. Lesart: die Suche
+findet jedes bekannte Thema, aber die Marktebene des Korpus ist vor 2024 dünn
+(Quellenausbau) — drei Treffer in einem Monat gibt es für die meisten Themen
+erst, seit die Fachpresse breit abonniert ist. Das ist eine Aussage über die
+Quellen, nicht über das Verfahren, und der Anteil etablierter Quellen auf der
+Seite sagt es je Anfrage.
+
+**Stufe 5, Rückbau.** Der Desk-Knopf „Recompute pockets" rechnet nur noch
+global + vier Ebenen (`--scope global --all-tiers`), nicht mehr 13 Bereiche;
+die Vertikal-Reiter auf `/emerging` sind weg (ein alter Vertikal-Lauf bleibt
+per URL erreichbar, als solcher beschriftet). Zellgrößen, Verschmelzung, k-Wahl
+werden nicht mehr angefasst; die Cluster-Schicht bleibt, ungetunt. Das Cockpit
+führt die Themensuche als ersten Einstieg.
+
 ## Aufwand und Reihenfolge
 
 | Stufe | Aufwand | hängt ab von |

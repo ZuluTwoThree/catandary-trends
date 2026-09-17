@@ -349,6 +349,17 @@ export default function ForesightCockpit({
           {/* Entry points to the explorers, so the hub isn't a dead end */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Link
+              href="/trends/foresight/topic"
+              className="group border border-accent/60 p-4 hover:border-accent hover:bg-accent/5 transition-colors"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                Topic search →
+              </div>
+              <div className="font-sans text-sm text-text mt-1">
+                A term in, the data situation out — research, patents, funding and market dated separately, with the words it used to go by
+              </div>
+            </Link>
+            <Link
               href="/trends/foresight/technology"
               className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
             >

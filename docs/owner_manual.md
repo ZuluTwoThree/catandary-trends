@@ -563,48 +563,74 @@ Entwicklung* und nicht als Frühwarnung, KI-Erzeugung und menschliche Abnahme
 offen benannt. Die Seite ist Owner-only (PUBLIC_MODE 404, nicht im statischen
 Export) — sie zitiert Arbeit im Review-Status.
 
-### 5.11 Themensuche (CLI, Stufe 1)
+### 5.11 Themensuche (`/trends/foresight/topic`)
 
-Ein Begriff rein, die Datenlage raus — noch ohne Seite (Stufe 2 folgt).
+Ein Begriff rein, die Datenlage raus — je Konversation (Forschung, Patente,
+Förderung, Markt) getrennt gesucht und getrennt datiert. *Stand 17.09.2026:
+auf `dev` (:3004), noch nicht auf `main`.*
 
-```bash
-cd ~/projects/catandary-trends
-.venv/bin/python -m pipeline.topic_report "precision fermentation of dairy proteins"
-.venv/bin/python -m pipeline.topic_report "glp-1 weight loss" --tiers market,patent
-.venv/bin/python -m pipeline.topic_report "hyrox" --fresh --json > /tmp/hyrox.json
-```
+**Seite.** Begriff ins Feld, Häkchen bei den Ebenen, *Search*. Die URL ist die
+Anfrage (`?q=…&tiers=market,patent`), ein Lesezeichen ist eine gespeicherte
+Suche; `&fresh=1` (Link „recompute" unten) rechnet neu statt aus dem Cache.
+Von oben nach unten:
 
-**Was die Tabelle zeigt.** Eine Zeile je Ebene: `status` (`ok`, `thin` = unter
-5 Treffer, `none` = nichts Nahes), `head` (Ø der fünf besten Ähnlichkeiten),
-`cut` (angewandte Schwelle), `hits` roh und `damped` (Monate einer Quelle über
-ihrem eigenen Median gekappt), `1st hit` (ältester Treffer), `sustain` (erster
-Monat mit ≥ 3 Treffern), `age`, `recent` (letzte 6 Monate), `index` (`tier` =
-eigener Index der Ebene, `scan` = Index fehlt), größte Quelle mit Anteil,
-`(capped)` wenn die Treffer das 1.000er-Fenster füllen — dann ist die Kurve
-ein Boden, keine Zählung. Darunter: Reihenfolge der Ebenen und Abstand
-Forschung → Markt, Neuheits-Hebel (1,0 = verteilt wie der Korpus),
-Beschleunigung, Anteil etablierter Quellen, Marktakteure früh → spät; die
-ältesten Volltext-Treffer; frühere Vokabeln (Wortpaare der ältesten Titel,
-nur wenn sie nah an der Anfrage bleiben). Eine Kurzanfrage, deren Nachbarn
-sich über Vertikale verteilen, kommt als Rückfrage mit drei Feldern zurück.
+1. **Belege je Ebene** mit `head` (Ø der fünf besten Ähnlichkeiten) und `cut`
+   (angewandte Schwelle = max(head − 0,08, 0,62)). „—" = nichts Nahes (Kopf
+   unter dem Minimum der Ebene), „thin" = unter 5 Treffer, „+" = das
+   1.000er-Fenster ist voll, die Zahl ist ein Boden.
+2. **What it was called, and when** — frühere Wortpaare aus den ältesten
+   Treffern (nur wenn sie nah an der Anfrage bleiben, ≥ 0,72; anklickbar als
+   neue Suche) und die ältesten Volltext-Belege, die der Vektor akzeptiert.
+3. **When each conversation began** — je Ebene der erste *tragende* Monat
+   (≥ 3 Treffer in einem Monat), daneben der erste Einzeltreffer und der
+   Abstand zur vorigen Konversation; darunter Forschung → Markt in Monaten,
+   Neuheits-Hebel, Beschleunigung, Anteil etablierter Quellen, Marktakteure.
+4. **Last 60 months** — Kurve je Ebene, die neuesten Belege (einer je Quelle,
+   verlinkt), und die **Schwächen** des Blocks (⚠): zu dünn, Fenster voll,
+   nur 1–2 Quellen, größte Quelle ≥ 50 %, gedämpfte Ausschläge einer Quelle,
+   wenige klassifizierte Zeilen, junge Quellen, fehlender Index.
+5. **Rückfrage** statt Bericht bei Kurzanfragen (≤ 2 Wörter), die sich über
+   Vertikale verteilen oder deren bester Kopf unter 0,75 liegt („rag" wird als
+   Lappen eingebettet): drei Felder mit Beispieltiteln — Anfrage präzisieren.
+
+**Vorschläge unter dem Suchfeld:** Namen der Nester (letzter Lauf global +
+Ebenen, Etikett Ebene · Alter · Zeilen), neues Vokabular, gestellte Fragen mit
+Ergebnis. Auf jeder Nest-Karte unter `/emerging` steht „search →".
 
 **Anfragen formulieren.** In der Sprache der Quellen (Englisch), so wie die
-gesuchte Ebene spricht: eine fachsprachliche Anfrage findet Forschung, eine
+gesuchte Ebene spricht — eine fachsprachliche Anfrage findet Forschung, eine
 Produktsprache den Markt. Für die Volltext-Spur gelten `websearch`-Regeln
 (`"phrase"`, `OR`, `-wort`).
 
+**CLI (dasselbe Ergebnis als Text oder JSON):**
+
+```bash
+cd ~/projects/ct-dev
+.venv/bin/python -m pipeline.topic_report "precision fermentation of dairy proteins"
+.venv/bin/python -m pipeline.topic_report "glp-1 weight loss" --tiers market,patent --json
+```
+
+**Rücktest** gegen `known_trends.yaml` (Marktebene; Forschung nur mit
+`research_institutional`): `.venv/bin/python scripts/validate_topic_search.py`
+→ `data/topic_validation.json`, ~10 s. Stand 17.09.: Markt 18/18, Gegenproben
+0/3; tragender Marktmonat im Median 23 Monate nach dem Marktdatum (Korpus vor
+2024 dünn), erster Einzeltreffer 72 Monate davor.
+
 **Cache.** Gleiche Anfrage + gleiche Ebenen = sofort aus `topic_reports`
-(7 Tage); `--fresh` rechnet neu. Die Korpus-Monatszahlen liegen 24 h in
-`topic_cache`.
+(7 Tage); Korpus-Monatszahlen 24 h in `topic_cache`.
 
 **Suchtabelle.** `topic_vectors` (Ebene + Vektorkopie je Trend, vier HNSW-
-Teilindizes) wird von jeder Anfrage um neue Zeilen ergänzt. Einmalig bzw. nach
-einem Restore: `.venv/bin/python scripts/migrate_topic_vectors.py --indexes`
-(~2 min füllen, ~20 min Indizes); `--status` zählt, `--reconcile` sammelt
-Nachzügler ein.
+Teilindizes, 23 GB) wird von jeder Anfrage um neue Zeilen ergänzt. Einmalig
+bzw. nach einem Restore: `.venv/bin/python scripts/migrate_topic_vectors.py
+--indexes` (~2 min füllen, ~8 min Indizes); `--status` zählt, `--reconcile`
+sammelt Nachzügler ein.
 
-**Voraussetzung.** Der CPU-Embedder `catandary-embed-cpu` (`:8091`) muss laufen —
-ohne ihn bricht die Anfrage mit einer klaren Meldung ab.
+**Voraussetzung.** Der CPU-Embedder `catandary-embed-cpu` (`:8091`) muss laufen
+— ohne ihn zeigt die Seite die Fehlermeldung der Maschine.
+
+**Emerging seit Stufe 5:** der Knopf *Recompute pockets* rechnet nur noch
+global + vier Ebenen (`--scope global --all-tiers`); die Vertikal-Reiter sind
+weg, eine Vertikal-Frage ist eine Themensuche.
 
 ## 6. Dossier-Desk (`/trends/dossiers`)
 

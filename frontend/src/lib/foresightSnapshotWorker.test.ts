@@ -6,7 +6,7 @@ describe("snapshotWorkerArgs — only the three fixed invocations reach the shel
     expect(snapshotWorkerArgs("clusters")).toEqual(["-m", "pipeline.foresight_snapshot", "--all-verticals", "--dim1024"]);
     expect(snapshotWorkerArgs("lineage")).toEqual(["-m", "pipeline.foresight_snapshot", "--lineage", "--dim1024"]);
     expect(snapshotWorkerArgs("emerging")).toEqual([
-      "-m", "pipeline.emerging_snapshot", "--all-verticals", "--all-tiers",
+      "-m", "pipeline.emerging_snapshot", "--scope", "global", "--all-tiers",
     ]);
   });
 

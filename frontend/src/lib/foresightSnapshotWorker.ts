@@ -80,8 +80,11 @@ export function snapshotWorkerArgs(mode: string): string[] | null {
   if (mode === "lineage") return ["-m", "pipeline.foresight_snapshot", "--lineage", "--dim1024"];
   // The emerging layer has its own module: fine partition of a recent slice,
   // then a dating pass over the whole archive. CPU only, ~5 min per scope.
+  // Stage 5 of the topic-search plan (2026-09-17): global plus the four
+  // conversations, no longer one run per vertical — the search page is where
+  // a topic is checked, the pockets only supply suggestions.
   if (mode === "emerging")
-    return ["-m", "pipeline.emerging_snapshot", "--all-verticals", "--all-tiers"];
+    return ["-m", "pipeline.emerging_snapshot", "--scope", "global", "--all-tiers"];
   return null;
 }
 

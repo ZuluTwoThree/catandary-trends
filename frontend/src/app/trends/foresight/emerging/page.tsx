@@ -2,7 +2,6 @@ import Link from "next/link";
 import { getEmergingScopes, getLatestEmergingRun } from "@/lib/emerging";
 import { runProvenance, isYoung, TIER_LABEL } from "@/lib/nestCard";
 import { TIERS } from "@/lib/tiers";
-import { VERTICALS } from "@/lib/types";
 import NestCard from "@/components/foresight/NestCard";
 import SnapshotRecompute from "../SnapshotRecompute";
 
@@ -93,7 +92,12 @@ export default async function EmergingPage({
           <Link href="/trends/foresight/clusters" className="text-accent hover:underline">
             The cluster layer
           </Link>{" "}
-          answers the other question, what the room talks about most.
+          answers the other question, what the room talks about most. To check one topic across all
+          four conversations,{" "}
+          <Link href="/trends/foresight/topic" className="text-accent hover:underline">
+            search it
+          </Link>
+          .
         </p>
       </div>
 
@@ -104,11 +108,13 @@ export default async function EmergingPage({
         notice={notice}
       />
 
+      {/* Stage 5 of the topic-search plan (2026-09-17): runs are global plus
+          the four conversations. Per-vertical runs are no longer computed; a
+          vertical question is a topic search now. */}
       <div className="flex items-center gap-1 flex-wrap mb-2">
         {tab("/trends/foresight/emerging", "All industries", scope === "global")}
-        {VERTICALS.filter((v) => available.has(`vertical:${v.id}`)).map((v) =>
-          tab(`/trends/foresight/emerging?vertical=${v.id}`, v.label, scope === `vertical:${v.id}`)
-        )}
+        {requested && available.has(`vertical:${requested}`) &&
+          tab(`/trends/foresight/emerging?vertical=${requested}`, `${requested} (old run)`, true)}
       </div>
 
       {/* Owner 2026-09-15: a science trend is not a market trend. Each tier is
@@ -143,7 +149,7 @@ export default async function EmergingPage({
           <p className="font-sans text-text mb-2">No emerging run for this scope yet.</p>
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
             Run it with the button above, or on the workstation:
-            python -m pipeline.emerging_snapshot --all-verticals --all-tiers
+            python -m pipeline.emerging_snapshot --scope global --all-tiers
           </p>
         </div>
       ) : (
