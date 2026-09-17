@@ -325,3 +325,15 @@ Suche macht diese Lücken sichtbar und beantwortbar — sie schließt sie nicht.
 **Nicht geplant** (Owner 2026-09-16): die adaptive Drossel. Nach der Messung
 haben wir uns nirgends ein 429 eingefangen; die fehlende Rückstufung bei 429/503
 und das ignorierte Crawl-delay bleiben notiert, aber nicht terminiert.
+
+---
+
+## Stand 2026-09-17 abends: zurückgebaut, Redesign Issue #106
+
+Der Owner hat die Seite getestet: zu überladen mit Beispielen, verwirrend,
+Sprache unklar, Inhalt nicht nachvollziehbar. Die Umsetzung der Stufen 1–5 ist
+auf `feature/topic-search` (e2907f4) geparkt, auf `dev` zurückgenommen, die
+Tabellen aus der Live-DB gelöscht. Was bleibt: die Messungen oben (Ebenen-
+Index, Kalibrierung, Rücktest 18/18) und die Lehre, dass die *Maschine* trägt
+und die *Darstellung* neu gedacht werden muss — eine Frage je Seite, Klartext,
+Belege erst in der Tiefe. Wiederaufnahme: Issue #106.

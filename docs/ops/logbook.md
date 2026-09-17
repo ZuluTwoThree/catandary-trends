@@ -325,3 +325,13 @@ Gegenproben 0/3, tragender Marktmonat im Median 23 Monate nach dem Marktdatum
 (Korpus vor 2024 dünn), erster Einzeltreffer 72 Monate davor. Rückbau: Desk-
 Knopf rechnet Nester nur noch global + 4 Ebenen, Vertikal-Reiter weg. Nichts
 auf main, kein Cron berührt.
+
+## 2026-09-17 · decision · Themensuche zurückgebaut, Redesign als Issue #106
+Owner nach dem Test der Seite: „zu überladen mit all den Beispielen und zu
+verwirrend. Sprache ist nicht klar. Inhalt nicht nachvollziehbar." Stufen 1–5
+auf `feature/topic-search` (e2907f4) geparkt, auf `dev` zurückgenommen
+(Revert von 546f0d4 und 432fc2d), kein Merge nach `main`. Die drei Tabellen
+`topic_vectors` (23 GB), `topic_reports`, `topic_cache` aus der Live-DB
+gelöscht — Neuaufbau in ~10 min per `scripts/migrate_topic_vectors.py
+--indexes` auf dem Branch. Die Messungen (Rücktest Markt 18/18, Ebenen-Index
+gegen globalen Index, Kalibrierung) stehen im Plan und im Issue.

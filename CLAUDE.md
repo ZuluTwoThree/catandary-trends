@@ -1049,9 +1049,6 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                    schreibt nur eine Kandidatendatei; measure_mega_axes --write-yaml bleibt die einzige Schreibquelle der Badge-Felder).
                                    Der SQLite-Prototyp discover_mega_trends.py wurde 2026-09-09 entfernt (zeigte auf die vor-Postgres-DB, abgelöst).
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
-  /topic?q=…&tiers=…              → Themensuche (seit 2026-09-17, auf dev): Begriff rein, je Ebene
-                                     Belege/Cut/Datierung, Wortgenerationen, Vorschläge aus den Nestern
-                                     — Abschnitt „Themensuche" unten
   /clusters /clusters/<id> /emerging /technology /lead-time /evolution
     (Cluster-Schicht seit 2026-09-15: Snapshot ueber die letzten 24 Monate statt des
      ganzen Archivs (`--window-months`), Momentum als Anteil am Gehoer auf einem FESTEN
@@ -1565,55 +1562,6 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   am 2026-09-03 ausgeführt**. Leseansicht: Herkunftskopf (Frage, Belegmix,
   zitiert/gestrichen, Messblock, Modell/Dauer) + Bericht (Markdown inkl.
   Tabellen) + Coverage-Anhang + Versionswechsler.
-
-## Themensuche — Stufe 1, die Anfrage-Maschine (seit 2026-09-17, `pipeline/topic_report.py`)
-
-Owner-Entscheid 2026-09-16: der Nutzer gibt einen Begriff ein und bekommt die
-Datenlage dazu; Cluster/Nester werden Vorschlagslieferant. Plan, Messungen und
-Stand: `docs/plan_topic_search_2026-09-16.md` (intern). Stufe 1 ist Modul + CLI,
-noch keine Seite:
-
-    .venv/bin/python -m pipeline.topic_report "precision fermentation of dairy proteins" [--tiers market,patent] [--no-walk] [--fresh] [--json]
-
-- **Je Ebene eine Suche** (Forschung / Patente / Förderung / Markt), nie
-  gepoolt — die Einbettung folgt dem Sprachstil. Sucht auf **`topic_vectors`**
-  (trend_id, tier, Kopie von `embedding_1024`; additive Migration
-  `_migrate_topic_vectors` in `init_db`, Füllung `scripts/migrate_topic_vectors.py`,
-  Live-DB 17.09.: 1,3 Mio. Zeilen, 7,2 GB) mit **vier partiellen HNSW-Indizes**
-  `idx_topic_vectors_<tier>`. Warum Nebentabelle statt Spalte: ein UPDATE auf
-  `trends` ist non-HOT und schreibt in den 14-GB-HNSW-Index (Versuch am 17.09.
-  abgebrochen, 285k tote Einträge). Ebene je Zeile: `tiers.tier_case_sql`, SQL-
-  Zwilling von `tier_of` (Paritätstest). Neue Zeilen: `topic_vectors.topup()` vor
-  jeder Anfrage, `reconcile()` täglich.
-- **Schwellen relativ je Ebene:** Kopf (Ø der 5 besten) muss `HEAD_MIN` erreichen
-  (Forschung/Markt 0,68, Förderung 0,66, Patente 0,64 — Gegenproben lagen bei
-  0,52–0,63), Cut = max(Kopf − 0,08, 0,62) — mit 0,12 zog die Forschung das ganze
-  Feld herein (Präzisionsfermentation „tragend seit 2001“), mit 0,08 datiert sie
-  das Thema (2020-01); beides steht im Bericht.
-- **Ehrlichkeit:** `capped` (1.000er-Fenster voll → Kurve ist ein Boden), `thin`
-  (< 5 Treffer), Quellendämpfung als zweite Zahl, Anteil etablierter Quellen,
-  Rückfrage bei Kurzanfragen (Vertikal-Streuung oder bester Kopf < 0,75),
-  „nichts Nahes“ als Antwort.
-- **Vergangenheit per Volltext** (`idx_trends_fts`, Vektor-gegated) + Wortketten-
-  Lauf (Wortpaare der ältesten Titel, cos ≥ 0,72 zur Anfrage, per Volltext datiert).
-- **Laufzeit** warm ≈ 2,5 s, Korpus-Monatszahlen 7,6 s einmal je 24 h, Cache 0,9 s.
-- **Cache:** `topic_reports` (7 Tage), `topic_cache` (Korpus-Monatszahlen, 24 h).
-- **Stufe 2 Seite** `/trends/foresight/topic?q=…&tiers=…` (GET-Formular, Häkchen je
-  Ebene; ruft die CLI per execFile mit `--json`; `lib/topicReport.ts`, `lib/topicView.ts`,
-  `components/foresight/TopicReportView.tsx`): Belege je Ebene + Cut, Wortgenerationen,
-  Ebenen-Streifen, 60-Monats-Kurven, neueste Belege je Quelle, Schwächen je Block.
-- **Stufe 3 Vorschläge** unter dem Suchfeld (`lib/topicSuggestions.ts`): Nest-Namen
-  (global + Ebenen, Etikett Ebene · Alter · Zeilen), neues Vokabular, gestellte Fragen mit
-  Ergebnis; jede Nest-Karte trägt „search →".
-- **Stufe 4 Rücktest** `scripts/validate_topic_search.py` → `data/topic_validation.json`:
-  Markt-Ebene **18/18** gezählte Trends gefunden (Antwort + Kennwort im Titel), Gegenproben
-  0/3, Forschung bei Präzisionsfermentation tragend 2020-01 = `research_institutional`.
-  Vorlauf (nicht Zielgröße): tragender Marktmonat im Median 23 Monate NACH dem Marktdatum,
-  erster Einzeltreffer 72 Monate davor — Marktebene vor 2024 dünn (Quellenausbau).
-- **Stufe 5 Rückbau:** Desk-Knopf rechnet Nester nur noch `--scope global --all-tiers`
-  (13 → 5 Läufe), Vertikal-Reiter auf `/emerging` entfernt, keine Zell-/Merge-/k-Arbeit mehr.
-- **Stand:** alles auf `dev` (Owner 2026-09-17: erst selbst testen, dann Merge). Die
-  Tabellen liegen schon in der gemeinsamen Live-DB.
 
 ## Research Pulse (#73 Teil 1, seit 2026-09-04)
 

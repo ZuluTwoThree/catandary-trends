@@ -310,9 +310,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Persist emerging-nest snapshots")
     ap.add_argument("--scope", default=None, help="'global' or 'vertical:<V>'")
     ap.add_argument("--all-verticals", action="store_true",
-                    help="run global + one snapshot per vertical (no longer the default "
-                         "set since 2026-09-17 — the desk runs --scope global --all-tiers; "
-                         "a vertical question is a topic search now)")
+                    help="run global + one snapshot per vertical")
     ap.add_argument("--all-tiers", action="store_true",
                     help="one snapshot per lead-time tier (research, patents, "
                          "funding, market) — each conversation on its own")

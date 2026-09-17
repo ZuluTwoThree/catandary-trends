@@ -67,37 +67,3 @@ def tier_counts(rows) -> dict[str, int]:
         if t:
             out[t] += 1
     return out
-
-
-def tier_case_sql(t: str = "t", s: str = "s") -> tuple[str, list[str]]:
-    """SQL CASE expression that assigns the same tier as `tier_of`, row by row.
-
-    Used to fill and refresh `trends.tier` (2026-09-17), the column the
-    per-tier HNSW indexes are built on. `t` is the trends alias (source_name,
-    trend_signal_type), `s` the sources alias (source_type). Same precedence as
-    `tier_of`; rows that belong to no tier get 'none' so they are never
-    re-examined. Returns (expression, params) with `?` placeholders.
-    """
-    name = f"LOWER(TRIM(COALESCE({t}.source_name, '')))"
-    stype = f"LOWER(TRIM(COALESCE({s}.source_type, '')))"
-    sig = f"LOWER(TRIM(COALESCE({t}.trend_signal_type, '')))"
-    params: list[str] = []
-    patent = " OR ".join([f"{name} LIKE ?"] * len(PATENT_PREFIXES))
-    params += [p + "%" for p in PATENT_PREFIXES]
-    funding = " OR ".join([f"{name} LIKE ?"] * len(FUNDING_PREFIXES))
-    params += [p + "%" for p in FUNDING_PREFIXES]
-    science = f"{stype} = 'research' OR " + " OR ".join([f"{name} LIKE ?"] * len(SCIENCE_MARKERS))
-    params += [f"%{m}%" for m in SCIENCE_MARKERS]
-    market_types = ", ".join(f"'{x}'" for x in sorted(MARKET_TYPES))
-    expr = (
-        "CASE"
-        f" WHEN {patent} THEN 'patent'"
-        f" WHEN {funding} THEN 'funding'"
-        f" WHEN {science} THEN 'science'"
-        f" WHEN {stype} IN ({market_types}) THEN"
-        f"  CASE WHEN {sig} = 'funding' THEN 'funding' ELSE 'market' END"
-        f" WHEN {name} LIKE ? THEN 'science'"
-        " ELSE 'none' END"
-    )
-    params.append("openalex%")
-    return expr, params
