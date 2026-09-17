@@ -70,6 +70,18 @@ UA = os.getenv("CRAWLER_USER_AGENT", DEFAULT_USER_AGENT)
 MIN_TEXT_CHARS = 400          # below this the extraction is not worth keeping
 MAX_TEXT_CHARS = 12_000       # cap what we store (stages slice the first ~1.5k anyway)
 PER_HOST_DELAY = 1.0          # seconds between requests to the same host
+# Hosts, die die Regelrate nicht vertragen, bekommen ihre eigene. Project
+# Syndicate antwortete im Nachhollauf vom 2026-09-17 auf 37 von 52 Anfragen mit
+# 429 bei 1/s (Owner: "auf die langsame Host-Rate setzen"). Ein Nachtlauf holt
+# dort eine Handvoll Artikel, 10 s Abstand kosten also nichts.
+HOST_DELAYS: dict[str, float] = {
+    "www.project-syndicate.org": 10.0,
+}
+
+
+def host_delay(host: str) -> float:
+    """Seconds to keep between two requests to `host`."""
+    return HOST_DELAYS.get(host, PER_HOST_DELAY)
 FETCH_WORKERS = int(os.getenv("FETCH_WORKERS", "8"))   # fetch_batch threads (hosts in parallel, never a host)
 
 # --- TDM reservation (§44b Abs. 3 UrhG; TDMRep, W3C Community Group) ---------
@@ -193,7 +205,7 @@ def _throttle(host: str) -> None:
         lock = _host_locks.setdefault(host, threading.Lock())
     with lock:
         last = _last_hit.get(host, 0.0)
-        wait = PER_HOST_DELAY - (time.time() - last)
+        wait = host_delay(host) - (time.time() - last)
         if wait > 0:
             time.sleep(wait)
         _last_hit[host] = time.time()

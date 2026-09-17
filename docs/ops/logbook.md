@@ -284,3 +284,11 @@ Apparel Resources 58, HPCwire 45, Retail Gazette 42), 429 45 (Project Syndicate
 37, ECDC 7), Timeouts 105. Kein Embedding berührt (Vektor = Titel+Teaser),
 nichts gelöscht. Nutzen: Dossiers lesen für diese Einträge den Artikel statt
 des Teasers.
+
+## 2026-09-17 · change · Sechs 403-Quellen ohne Volltext, Project Syndicate auf 10 s
+Aus dem Nachhollauf (Owner): DigiTimes, Mongabay, Tech Funding News, Apparel
+Resources, HPCwire, Retail Gazette auf `fulltext: false` / `tdm_status: blocked`
+(Artikelseiten 403, Feeds laufen weiter). Project Syndicate bekommt als erster
+Host eine eigene Rate (`article_fetcher.HOST_DELAYS`, 10 s statt 1 s): 37 von
+52 Anfragen kamen mit 429 zurück. Netzpolitik-Archiv nicht abgerufen (30.573
+URLs, 400 neu, alles Menüseiten).
