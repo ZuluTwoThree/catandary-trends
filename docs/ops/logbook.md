@@ -271,3 +271,16 @@ dort: 19.294 Vektoren in 29 min, die 3090 blieb unberührt.
 §44b Abs. 2 S. 2 UrhG nennt keine Frist, sondern bindet sie an den Zweck;
 dokumentierter Zweck ist die längsschnittliche Trendanalyse. Nachhollauf holte
 32.234 von 34.484 gelöschten Volltexten zurück.
+
+## 2026-09-17 · change · Volltext-Nachhollauf über die letzten 14 Tage
+duration: 2 h 31 min
+Zufallsstichprobe zeigte: die Einträge ohne Text im 14-Tage-Fenster waren nie
+geholt worden (83 % sofort verfügbar), während die 400 neuesten — die
+Fehlschläge der letzten Nacht — nur 9 % ergaben. Lauf
+`refetch_fulltext.py --min-age-days 0 --since 2026-09-03 --limit 0 --apply`:
+14.471 geprüft, **12.176 Volltexte** (84 %), Ø 4.051 Zeichen, 49 MB. Reste:
+too_short 1.231, 403 757 (DigiTimes 314, Mongabay 85, Tech Funding News 69,
+Apparel Resources 58, HPCwire 45, Retail Gazette 42), 429 45 (Project Syndicate
+37, ECDC 7), Timeouts 105. Kein Embedding berührt (Vektor = Titel+Teaser),
+nichts gelöscht. Nutzen: Dossiers lesen für diese Einträge den Artikel statt
+des Teasers.
