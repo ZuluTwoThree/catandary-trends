@@ -758,6 +758,14 @@ verticals:
       discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Trends in Food Science & Technology / Comprehensive Reviews (Frontiers-Lizenzpolitik: alle Artikel CC BY 4.0)
   TECH:
     sources:
+    - name: ScienceAlert Tech
+      feed_url: https://www.sciencealert.com/tech/feed
+      type: trade_media
+      lead_time_tier: market
+      fulltext: true
+      tdm_checked: 2026-09-16
+      tdm_status: ok   # robots allow (Feed + Artikel), Bot 200, kein TDM-Signal, ETag+Last-Modified
+      discovered_via: own
     - name: Frontiers in Materials
       feed_url: https://www.frontiersin.org/journals/materials/rss
       type: trade_media
@@ -1650,6 +1658,14 @@ verticals:
       discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Nature Machine Intelligence; keine Lizenz strukturell erkannt -> kein Volltext
   HEALTH:
     sources:
+    - name: ScienceAlert Health
+      feed_url: https://www.sciencealert.com/health/feed
+      type: trade_media
+      lead_time_tier: market
+      fulltext: true
+      tdm_checked: 2026-09-16
+      tdm_status: ok   # robots allow (Feed + Artikel), Bot 200, kein TDM-Signal, ETag+Last-Modified
+      discovered_via: own   # Owner 2026-09-16: populaerwissenschaftliche Ebene fehlte uns ganz
     - name: Frontiers in Bioengineering and Biotechnology
       feed_url: https://www.frontiersin.org/journals/bioengineering-and-biotechnology/rss
       type: trade_media
@@ -2069,6 +2085,14 @@ verticals:
       discovered_via: oa-ersatz-2026-09-09   # Ersatz fuer Nature Aging (Frontiers-Lizenzpolitik)
   ECO:
     sources:
+    - name: ScienceAlert Environment
+      feed_url: https://www.sciencealert.com/environment/feed
+      type: trade_media
+      lead_time_tier: market
+      fulltext: true
+      tdm_checked: 2026-09-16
+      tdm_status: ok   # robots allow (Feed + Artikel), Bot 200, kein TDM-Signal, ETag+Last-Modified
+      discovered_via: own
     - name: Frontiers in Energy Research
       feed_url: https://www.frontiersin.org/journals/energy-research/rss
       type: trade_media
@@ -2305,12 +2329,12 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: pv magazine International
-      fulltext: true
+      fulltext: false   # 2026-09-16: Artikel liefern 403 fuer unseren Bot (zweimal geprueft) — kein Volltext, Teaser bleibt
       feed_url: https://www.pv-magazine.com/feed/
       type: trade_media
       lead_time_tier: market
       tdm_checked: "2026-09-04"
-      tdm_status: ok
+      tdm_status: blocked
     - name: Solarserver
       fulltext: true
       feed_url: https://www.solarserver.de/feed/

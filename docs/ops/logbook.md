@@ -13,6 +13,23 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-16 · change · robots-Prüfer ignorierte jede Regel mit Fragezeichen
+
+Bei der Quellenprüfung von sciencealert.com meldete unser Prüfer die
+WordPress-Schnittstelle `/?rest_route=` als **erlaubt**, obwohl robots.txt sie
+ausdrücklich sperrt. Ursache in `article_fetcher._rule_regex`: die Regelseite
+kodierte das `?` zu `%3F`, während `robots_allows` den Query der URL roh
+anhängt. Die beiden konnten sich nie treffen, also war **jede query-basierte
+Regel wirkungslos** — `Disallow: /*?utm_source=`, `/?rest_route=`, `/*?s=`.
+
+Ein Zeichen in der safe-Liste behebt es. Nachgemessen: **117 von 380 aktiven
+Quellen-Hosts** führen solche Regeln. Kehrseite geprüft, damit der Fix keine
+Abdeckung kostet: von 1.200 Artikel-URLs der letzten 14 Tage mit Query wird
+**keine einzige** neu gesperrt — die Regeln zielen auf Such- und
+Tracking-Parameter, unsere Feed-Links tragen die nicht.
+
+Zwei Regressionstests in `test_probe_source_compliance.py`.
+
 ## 2026-09-16 · change · Plattentemperatur: Grenzwerte aus den Datenblättern, Laufwerk als Kronzeuge
 
 Anlass: wiederholte Mails „nvme0n1: 65.8 °C, limit 65 °C". Nachgeprüft, was

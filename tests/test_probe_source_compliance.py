@@ -485,6 +485,24 @@ class TestRobotsRfc9309:
         assert psc.robots_allows(rp, psc.UA, "https://x.example/a/b.pdf?x=1")
         assert psc.robots_allows(rp, psc.UA, "https://x.example/a/b.pdfx")
 
+    def test_query_rules_bite(self):
+        """`?` in einer Regel wurde bis 2026-09-16 zu %3F kodiert, waehrend die
+        URL-Seite ihren Query roh anhaengte — damit war JEDE query-basierte
+        Regel wirkungslos. Gefunden bei der Pruefung von sciencealert.com, wo
+        unser Pruefer die per robots gesperrte WordPress-Schnittstelle als
+        erlaubt meldete."""
+        rp = self._rp("User-agent: *\nDisallow: /?rest_route=\nDisallow: /*?utm_source=\n")
+        assert not psc.robots_allows(rp, psc.UA, "https://x.example/?rest_route=/wp/v2/posts")
+        assert not psc.robots_allows(rp, psc.UA, "https://x.example/artikel?utm_source=news")
+        # ohne den Parameter bleibt dieselbe Seite erlaubt
+        assert psc.robots_allows(rp, psc.UA, "https://x.example/artikel")
+        assert psc.robots_allows(rp, psc.UA, "https://x.example/")
+
+    def test_a_query_rule_does_not_block_a_different_parameter(self):
+        rp = self._rp("User-agent: *\nDisallow: /*?s=\n")
+        assert not psc.robots_allows(rp, psc.UA, "https://x.example/suche?s=trend")
+        assert psc.robots_allows(rp, psc.UA, "https://x.example/suche?q=trend")
+
     def test_longest_match_wins_and_tie_allows(self):
         rp = self._rp("User-agent: *\nDisallow: /news/\nAllow: /news/public/\n")
         assert not psc.robots_allows(rp, psc.UA, "https://x.example/news/secret")

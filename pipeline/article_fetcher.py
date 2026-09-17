@@ -117,7 +117,14 @@ def _rule_regex(pattern: str) -> re.Pattern:
     anchored = pattern.endswith("$")
     if anchored:
         pattern = pattern[:-1]
-    parts = [re.escape(quote(p, safe="/:@!$&'()*+,;=~")) for p in pattern.split("*")]
+    # `?` MUSS in der safe-Liste stehen. Ohne es kodiert quote() das Fragezeichen
+    # der Regel zu %3F, waehrend robots_allows den Query der URL roh anhaengt —
+    # die beiden konnten sich nie treffen, und damit war JEDE query-basierte
+    # Regel wirkungslos: `Disallow: /*?utm_source=`, `/?rest_route=`, `/*?s=`.
+    # Gefunden am 2026-09-16 bei der Quellenpruefung von sciencealert.com, wo
+    # unser Pruefer die per robots gesperrte WordPress-Schnittstelle als erlaubt
+    # meldete.
+    parts = [re.escape(quote(p, safe="/:@!$&'()*+,;=~?")) for p in pattern.split("*")]
     return re.compile("^" + ".*".join(parts) + ("$" if anchored else ""))
 
 
@@ -447,10 +454,17 @@ def fetch_batch(limit: int = 100) -> int:
                                      (res.text, rid))
                     filled += 1
                 elif res.reason:
-                    reasons[res.reason.split(" ")[0]] += 1
+                    # Den ganzen Grund behalten, nicht nur das erste Wort. Bis
+                    # 2026-09-16 landete jedes "http 403", "http 429", "http 503"
+                    # im selben Eimer "http" — und genau deshalb war zwei Wochen
+                    # lang nicht sichtbar, dass wir kein Sperr-, sondern ein
+                    # Abholproblem haben (24 von 25 schwachen Quellen antworten
+                    # mit 200). Ohne den Code kann niemand eine Drosselung von
+                    # einer Bot-Sperre unterscheiden.
+                    reasons[res.reason.strip()] += 1
     logger.info("enriched %d/%d entries with full text (%d TDM-reserved, kept teaser only; "
                 "misses: %s)", filled, len(rows), reserved,
-                ", ".join(f"{k} {v}" for k, v in reasons.most_common(6)) or "none")
+                ", ".join(f"{k} {v}" for k, v in reasons.most_common(8)) or "none")
     return filled
 
 

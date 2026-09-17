@@ -1,15 +1,17 @@
 # Plan: Themensuche als Hauptmodus, Entdeckung als Vorschlagslieferant
 
-> **Intern.** Dieses Papier zitiert Fachwissen des Owners zu einzelnen Fällen
-> (Präzisionsfermentation, Firmenhistorien). Owner 2026-09-16: daraus kommt
-> **nichts ins Frontend**; allgemeine Zusammenhänge dürfen ins Produkt, der
-> einzelne Fall nicht. Gerendert wird aus `docs/` ohnehin nur
-> `docs/ops/logbook.md` — dieses Papier nicht.
+> **Intern.** Dieses Papier hält Messungen an einzelnen Fällen fest. Owner
+> 2026-09-16: daraus kommt **nichts ins Frontend**; allgemeine Zusammenhänge
+> dürfen ins Produkt, der einzelne Fall nicht. Gerendert wird aus `docs/`
+> ohnehin nur `docs/ops/logbook.md` — dieses Papier nicht.
 
-Owner-Entscheid 2026-09-16, nach der Messung vom Vortag: der Nutzer gibt einen
-Begriff ein und bekommt die Trenddaten dazu. Die Cluster- und Nest-Entdeckung
-bleibt, verliert aber ihren Platz als Produkt und wird zum Zulieferer von
-Vorschlägen.
+Owner-Entscheid 2026-09-16: der Nutzer gibt einen Begriff ein und bekommt die
+Trenddaten dazu. Die Cluster- und Nest-Entdeckung bleibt, verliert aber ihren
+Platz als Produkt und wird zum Zulieferer von Vorschlägen.
+
+*Konsolidiert am 2026-09-16 abends. Die erste Fassung vom Vormittag wurde durch
+drei Messreihen an mehreren Stellen widerlegt; die Stufen unten tragen den
+korrigierten Stand, die Belege stehen gesammelt unter „Befunde".*
 
 ## Warum diese Richtung, in Zahlen
 
@@ -34,9 +36,8 @@ unabhängig davon, ob die Kurve aus einem Nest oder aus einer Anfrage stammt:
 - `pipeline/tiers.py` — Zuordnung jeder Zeile zu Forschung / Patente / Förderung /
   Markt, plus die Ebenen-Auswertung aus `score_nests`
 - Akteurszählung aus den Markt-Ähnlichen
-- `scripts/validate_emerging.py` — ist technisch **bereits** ein Anfrage-Modus:
-  bettet 20 Anfragen ein und baut Monatskurven je Ebene
-- der CPU-Embedder auf `:8091` und der HNSW-Index auf `embedding_1024`
+- `scripts/validate_emerging.py` — technisch **bereits** ein Anfrage-Modus
+- der CPU-Embedder auf `:8091`, der HNSW-Index und `idx_trends_fts`
 
 Was wegfällt: Zellgrößen, Verschmelzungsschwellen, k-Wahl, Benennung,
 Titel-Eindeutigkeit — der größte Teil der Tuning-Arbeit vom 15.09.
@@ -46,328 +47,175 @@ Titel-Eindeutigkeit — der größte Teil der Tuning-Arbeit vom 15.09.
 ## Stufe 1 — Die Anfrage-Maschine (`pipeline/topic_report.py`)
 
 Eingang ein Begriff, Ausgang ein Bericht. Kein Modell außer dem Embedder.
+**Hybrid, nicht vektorbasiert** — das ist die wichtigste Korrektur gegenüber der
+ersten Fassung.
 
-**1.1 Abruf je Ebene, nicht global.** Vier ANN-Abfragen statt einer. Grund ist
-gemessen: die Einbettung kodiert den Sprachstil mit, eine wissenschaftlich
-formulierte Anfrage liefert Wissenschaft (Perowskit: 40 von 40 Treffern
-Forschung). Wer die Marktebene nicht getrennt abfragt, sieht sie leer, obwohl
-sie es nicht ist. `hnsw.ef_search = 1000` ist die gemessene Obergrenze je
-Abfrage, 1.000 Nachbarn in 0,10 s.
+**1.1 Vektorsuche je Ebene, nicht global.** Vier Abfragen statt einer, weil die
+Einbettung den Sprachstil mitkodiert: eine wissenschaftlich formulierte Anfrage
+liefert Wissenschaft. Häkchen je Ebene entscheiden, welche laufen; mehrere
+Häkchen zeigen die Ebenen **nebeneinander** und **addieren sie nie**.
 
-**1.2 Schwelle relativ je Ebene.** Eine feste Zahl geht schief: gut formulierte
-Anfragen treffen bei 0,82–0,93, die Marktbelege zu Wärmepumpen lagen bei
-0,60–0,65. Genommen wird je Ebene der Abstand zum eigenen Verteilungskopf, mit
-absolutem Boden, und **der Schnitt wird angezeigt**. Der Nutzer sieht, wie weit
-die Belege vom Thema weg sind.
+**1.2 Schwelle relativ je Ebene, und sichtbar.** Eine feste Zahl scheitert
+nachweislich. Genommen wird je Ebene der Abstand zum eigenen Verteilungskopf mit
+absolutem Boden; der angewandte Schnitt steht im Bericht.
 
-**1.3 Kurve und Kennzahlen.** Die Treffer werden nach Monat und Ebene gezählt,
-dann läuft die vorhandene Bewertung darüber: Erstauftritt je Ebene, Reihenfolge
-der Ebenen, Abstand Forschung → Markt, Neuheits-Hebel, Beschleunigung,
-Quellenkonzentration, etablierte Quellen, genannte Firmen.
+**1.3 Seltene Ebenen exakt statt über den Index.** Der HNSW-Index holt die
+global nächsten Nachbarn und filtert erst danach — eine kleine Ebene verhungert
+dabei. Regel: häufige Ebenen über den Index, seltene exakt, automatisch
+umgeschaltet. Selbstregulierend, weil die kleinen Ebenen die billige exakte
+Suche sind.
 
-**1.4 Ehrlichkeits-Gates, die es schon gibt.**
+**1.4 Volltextsuche für die Vergangenheit.** Die Vektorsuche verfehlt die alten,
+konkreten Wortprägungen nachweislich vollständig. `idx_trends_fts` liegt vor,
+0,5 s je Anfrage.
+
+**1.5 Wortketten-Lauf mit Vektor-Bremse.** Aus den ältesten Treffern eines
+Begriffs werden auffällige Wortpaare gezogen; jeder Kandidat wird per Einbettung
+gegen den Themenschwerpunkt geprüft, und nur wer nah bleibt, wird ein Glied der
+Kette. Ohne die Bremse driftet der Lauf in Allgemeinplätze.
+
+**1.6 Ehrlichkeits-Gates.**
 - Dämpfung von Mengenausschlägen je Quelle (ein Nachtrags-Ingest ist kein Trend)
 - Wächter etablierter Quellen (ein neues Abo ist kein neues Thema)
-- Rückfrage statt Fehlantwort bei mehrdeutigen Kurzbegriffen — dasselbe Muster
-  wie das Query-Quality-Gate der Technologie-Suche (#67)
-- **Neu und nötig:** eine Aussage „dazu haben wir zu wenig". Hyrox liefert sechs
-  Belege im gesamten Korpus. Das ist die richtige Antwort, nicht eine Kurve aus
-  sechs Punkten.
+- Rückfrage statt Fehlantwort bei mehrdeutigen Kurzbegriffen (Muster: #67)
+- „dazu haben wir zu wenig" als eigene Antwort, nicht als Kurve aus sechs Punkten
 
-**1.5 Zwischenspeicher.** Jeder Bericht wird gespeichert (`topic_reports`,
+**1.7 Zwischenspeicher.** Jeder Bericht wird gespeichert (`topic_reports`,
 additiv). Wiederholte Anfragen sind sofort da, und die Liste der gestellten
-Fragen ist später die ehrlichste Vorschlagsquelle, die es gibt.
+Fragen ist später eine Vorschlagsquelle.
 
 ---
 
 ## Stufe 2 — Die Seite (`/trends/foresight/topic?q=…`)
 
-Ein Suchfeld, darunter der Bericht. Aufbau der Karte ist schon entworfen und
-getestet, er wird übernommen:
+Suchfeld, Häkchen je Ebene, darunter der Bericht:
 
-- Kopf: Begriff, Belegzahl je Ebene, angewandter Schnitt
-- Ebenen-Streifen: wann jede Konversation begann, Abstand Forschung → Markt
+- Kopf: Begriff, Belegzahl je Ebene, **angewandter Schnitt**
+- **Wortgenerationen** mit ihren Daten — kein Beiwerk, sondern das Ergebnis:
+  es macht sichtbar, wann ein Thema wie hieß
+- Ebenen-Streifen: wann jede Konversation begann, Abstand zwischen ihnen
 - Kurve je Ebene über 60 Monate
-- neues Vokabular rund um den Begriff
 - die neuesten Belege je Ebene, höchstens einer je Quelle
 - Schwächen offen: Quellenzahl, größte Einzelquelle, Anteil etablierter Quellen,
   Anteil klassifizierter Dokumente
 
-Owner-Werkzeug wie der Rest des Cockpits, also unter `PUBLIC_MODE` gesperrt und
-nicht im statischen Export.
+Owner-Werkzeug wie der Rest des Cockpits: unter `PUBLIC_MODE` gesperrt, nicht im
+statischen Export.
 
 ---
 
 ## Stufe 3 — Der Vorschlagslieferant
 
-Die Nest-Läufe bleiben, wandern aber unter das Suchfeld. Drei Quellen für
-Vorschläge, alle schon vorhanden:
+Die Nest-Läufe bleiben, wandern aber unter das Suchfeld. Drei Quellen, alle
+vorhanden:
 
-1. **Nest-Namen.** Der Benennungsschritt vom 15.09. zahlt genau hier ein: der
-   Name eines Nests ist der Begriff, den man eingeben würde
-   („World-Action Models", „Self-Assembled Monolayers for Perovskite Solar
-   Cells"). 311 von 328 Nestern haben einen.
-2. **Neues Vokabular.** Begriffe, die es im Korpus vor 24 Monaten kaum gab und
-   heute häufig sind — fällt im Datierungs-Scan bereits ab, ohne dass ein Nest
-   nötig wäre.
-3. **Gestellte Fragen.** Was schon gesucht wurde, mit dem Ergebnis daneben.
+1. **Nest-Namen.** Der Benennungsschritt vom 15.09. zahlt hier ein: der Name
+   eines Nests ist der Begriff, den man eingeben würde. 311 von 328 haben einen.
+2. **Neues Vokabular** — fällt im Datierungs-Scan bereits ab.
+3. **Gestellte Fragen** mit ihrem Ergebnis.
 
 Vorgeschlagen wird mit Etikett: Alter, Belegzahl, welche Ebene. Ein Vorschlag
-darf danebenliegen — er ist eine Einladung zur Suche, kein Befund. Damit
-verliert der Pseudowissenschafts-Fund vom 15.09. seine Sprengkraft: als
-Vorschlag ist er harmlos, als Spitzenmeldung war er peinlich.
+darf danebenliegen — er ist eine Einladung zur Suche, kein Befund.
 
 ---
 
 ## Stufe 4 — Prüfung des Suchmodus
 
-Der Rücktest wird umgebaut, und zwar auf die Erkenntnis vom 15.09.: Perowskit
-+26 und GLP-1 +18 waren **Forschungs**-Erstauftritte, gemessen gegen ein
-**Markt**-Datum. Zwei verschiedene Trends gegeneinander gehalten.
-
-- `known_trends.yaml` bekommt je Trend **zwei** Daten: wann die Forschung
-  begann und wann der Markt es aufnahm.
-- Geprüft wird je Ebene gegen das passende Datum.
-- Die Kennwort-Regel bleibt (ohne sie meldete der Test 15 von 20 statt 9).
+- Die 20 Daten in `known_trends.yaml` sind **Marktdaten** (Owner bestätigt) und
+  werden gegen die **Markt-Ebene** geprüft. Dafür ist keine weitere Eingabe nötig.
+- `research_institutional` wird nur dort geprüft, wo es gesetzt ist (bisher ein
+  Trend). Das Feld heißt bewusst nicht `research`: bei Technologien, die in einem
+  Unternehmen entstehen, **folgt** die institutionelle Forschung dem Proof of
+  Concept.
+- Zwei Trends sind als `uncertain` markiert und zählen nicht in die Kopfzahl.
+- Die Kennwort-Regel bleibt: ohne sie meldete der Test 15 von 20 statt 9.
 - Zielgröße ist die **Trefferquote je Ebene**, nicht der Vorlauf.
-
-Erst diese Zahl rechtfertigt nach außen ein Wort wie Vorlaufzeit.
 
 ---
 
 ## Stufe 5 — Was zurückgebaut wird
 
-Nichts sofort. Wenn die Suche steht und Stufe 4 eine Zahl liefert:
+Erst wenn die Suche steht und Stufe 4 eine Zahl liefert:
 
 - Nest-Läufe von 13 Bereichen auf global plus die vier Ebenen kürzen
-- die Cluster-Schicht (`/clusters`) weiter beobachten, aber nicht mehr tunen
+- die Cluster-Schicht weiter beobachten, aber nicht mehr tunen
 - keine Arbeit mehr in Zellgrößen, Verschmelzung, k-Wahl
 
 ## Aufwand und Reihenfolge
 
 | Stufe | Aufwand | hängt ab von |
 |---|---|---|
-| 1 Anfrage-Maschine | ~1 Tag | nichts, alles vorhanden |
+| 1 Anfrage-Maschine | ~1,5 Tage (hybrid; war ~1) | nichts, alles vorhanden |
 | 2 Seite | ~0,5 Tag | Stufe 1 |
 | 3 Vorschläge | ~0,5 Tag | Stufe 1, Nest-Läufe (da) |
-| 4 Prüfung | ~0,5 Tag | Stufe 1 + Owner-Daten je Ebene |
-
-Stufe 4 braucht eine Owner-Entscheidung: die zweiten Daten in
-`known_trends.yaml` sind eine fachliche Einschätzung, keine Messung.
-
-## Was der Plan nicht löst
-
-Die Quellen. Bei fünf der zwanzig bekannten Trends fand der Rücktest nicht
-einmal das Feld, die Marktebene ist auf vielen Themen dünn, und nur 13 % der
-Fachpresse-Zeilen tragen einen extrahierten Firmennamen. Die Suche macht diese
-Lücken sichtbar und beantwortbar — sie schließt sie nicht. Der größte Hebel für
-die Qualität bleibt die Extraktion auf dem Signalpfad und die Marktabdeckung,
-nicht der Algorithmus.
+| 4 Prüfung | ~0,5 Tag | Stufe 1 |
 
 ---
 
-## Nachtrag nach der Owner-Rückmeldung (2026-09-16)
+## Befunde, auf denen der Plan steht (2026-09-15/16 gemessen)
 
-### Häkchen je Ebene: ja, und sie kosten nichts
+**Abruf ist schnell genug.** 0,30 s einbetten, 0,10 s suchen, bis zu 1.000
+Nachbarn je Abfrage (`hnsw.ef_search` deckelt bei 1.000). Vier Ebenen-Abfragen
+bleiben unter einer Sekunde.
 
-Der Plan sieht ohnehin eine Abfrage je Ebene vor, ein Häkchen entscheidet nur,
-welche laufen. Gemessen an GLP-1, je Ebene eine eigene Nachbarschaftssuche:
+**Die feste Schwelle scheitert je Ebene.** Bei einer Anfrage lag der beste
+Patenttreffer bei 0,72, der beste Marktreffer bei 0,77. Mit einem festen Schnitt
+von 0,75 hätte die Patentebene null gemeldet, obwohl der Spitzentreffer den
+gesuchten Wirkstoff im Titel führt.
 
-| Ebene | Belege | erstmals | Verlauf | Zeit |
-|---|---|---|---|---|
-| Forschung | 869 | 2009-07 | 2021:12 → 2026:87 | 0,74 s |
-| Patente | 124 | 2016-08 | 9 in 2026 | 0,01 s |
-| Förderung | 32 | 2024-07 | verstreut | 0,02 s |
-| Markt | 85 | 2024-03 | dünn | 0,02 s |
+**Der Index hungert seltene Ebenen aus.** Von 1.000 global nächsten Nachbarn
+blieben nach dem Ebenenfilter 12 übrig. Die exakte Suche über die 123.846
+Vektoren derselben Ebene dauert 2,1 s und findet die richtigen.
 
-**Aber nicht addieren.** Eine Summe aus 869 Forschungs- und 85 Marktbelegen ist
-die Forschungskurve mit Rauschen. Mehrere Häkchen zeigen die Ebenen
-nebeneinander und den Abstand zwischen ihnen; sie verschmelzen nie zu einer
-Kurve.
+**Die Einbettung folgt dem Sprachstil.** Über 400.000 Dokumente traf eine
+fachsprachliche Anfrage 146 Forschungs- und 2 Marktzeilen. Das Marktgespräch
+existiert, es spricht nur anders. Die Ebene lässt sich deshalb **nicht**
+nachträglich aus einem gemeinsamen Nest lösen — daher Scope `tier:<t>`.
 
-### Zwei Messbefunde, die Stufe 1 festlegen
+**Ein Thema ist keine Vokabel, sondern eine Wortfolge.** Drei Begriffe für
+dasselbe Thema haben drei verschiedene Anfangsdaten: 2014-12, 2018-03, 2020-03.
+Eine Anfrage in der heutigen Sprache erreicht die Frühphase nicht — der älteste
+Beleg war **nicht** unter den 1.000 nächsten Nachbarn, und auch das Weiterhangeln
+von Dokument zu Dokument führte nicht hin. Die Volltextsuche fand ihn in 0,5 s.
 
-**Die feste Schwelle scheitert je Ebene.** Bei GLP-1 liegt der beste Patenttreffer
-bei 0,72, der beste Marktreffer bei 0,77. Mit fester Schwelle 0,75 meldet die
-Patentebene null Treffer, obwohl das Spitzenpatent „SEMAGLUTIDE IN MEDICAL
-THERAPY INCLUDING WEIGHT MANAGEMENT" heißt. Die relative Schwelle je Ebene ist
-Bedingung, nicht Verfeinerung.
+**Der Wortketten-Lauf trägt, driftet aber.** Zwei Runden führten von der heutigen
+Fachvokabel über einen Firmennamen zur Vorgängervokabel — und daneben in
+Allgemeinplätze wie „whey protein" (1992) und „ice cream" (1996). Daher die
+Vektor-Bremse.
 
-**Der Index hungert seltene Ebenen aus.** Er holt die 1.000 global nächsten
-Nachbarn und filtert erst danach; davon sind 12 Patente. Die exakte Suche über
-die 123.846 Patentvektoren dauert 2,1 Sekunden und findet die richtigen.
-Regel für Stufe 1: häufige Ebenen über den Index, seltene exakt, automatisch
-umgeschaltet — selbstregulierend, weil die kleinen Ebenen die billige exakte
-Suche sind. (Der saubere Weg wäre iteratives Index-Scannen; wir liegen auf
-pgvector 0.6.0, das kam erst in 0.8.)
+**Die Reihenfolge der Ebenen ist kein Gesetz.** An einem durchgerechneten Fall:
+Unternehmen im Jahr 0 sichtbar, Produkt und institutionelle Forschungswelle in
+Jahr +4, Förderung in Jahr +5. Patente halfen nicht (beste Treffer 0,62–0,66,
+thematisch daneben). Das früheste beobachtbare Signal war das **Unternehmen**.
 
-### Ebenen-Definition, vom Owner präzisiert
-
-> „Forschung ist Forschung von Institutionen, keine vagen Startup-Berichte.
-> Startups sind für mich verbunden mit Funding und erst ein möglicher
-> Markttrend, wenn sie Produkte wirklich lancieren."
-
-Umgesetzt, weil das Feld dafür existiert: `trends.trend_signal_type` ist auf
-**100 %** der Zeilen gesetzt. `tier_of` nimmt es jetzt entgegen —
-Fachpresse mit Typ `funding` zählt als Förderung, nicht als Markt. Das
-verschiebt **39.852 von 661.416** Fachpresse-Zeilen. Die SQL-Zwillinge in
-`TIER_FILTERS` wurden mitgezogen, `tests/test_tiers.py` prüft beide Seiten.
-Einschränkung, die bleibt: der Typ ist eine Einstufung der Pipeline, keine
-Tatsache.
-
-Am Beispiel Präzisionsfermentation trennt das sauber:
-
-| Ebene | erstmals | frühester Beleg |
-|---|---|---|
-| Forschung (Institutionen) | Sprung 2020 | 26 Belege 2020, davor einstellig |
-| Förderung (inkl. Startup-Geld) | 2021-09 | zwei grosse Finanzierungsrunden |
-| Markt (ohne Geldnachrichten) | 2020-05 | Zulassung, Produkt im Handel |
-
-### Prüfmenge: Stand nach der Rückmeldung
-
-- Alle 20 Daten sind **Marktdaten** (Owner bestätigt). Der Rücktest prüft sie
-  deshalb gegen die **Markt-Ebene**. Dafür ist keine weitere Eingabe nötig.
-- **Quiet Luxury** und **EU-Textilregeln** sind für Owner und Modell unsicher →
-  `uncertain: true`, zählen nicht in die Kopfzahl, bleiben in der Tabelle.
-- **Präzisionsfermentation** bekommt als einziger Trend ein Forschungsdatum,
-  sobald der Owner es setzt (`research:`); die Messung oben liegt als Vorlage
-  daneben. Nur wo dieses Feld steht, wird die Forschungs-Ebene geprüft.
-
-### Die Reihenfolge der Ebenen ist kein Gesetz
-
-Der Plan unterstellte stillschweigend Forschung → Patente → Förderung → Markt.
-Das gilt nicht allgemein. Bei Technologien, die in einem Unternehmen entstehen,
-**folgt** die institutionelle Forschung dem Proof of Concept, statt ihm
-vorauszugehen; die Institutionen arbeiten dann an Skalierung, Anwendung und
-Nachhaltigkeit. An einem durchgerechneten Fall aus dem Korpus (2026-09-16) sah
-die tatsächliche Reihenfolge so aus:
-
-| Ereignis | im Korpus sichtbar ab |
-|---|---|
-| erste Erwähnung des Unternehmens (Fachpresse) | Jahr 0 |
-| Produkt und Zulassung | Jahr +4 |
-| institutionelle Forschungswelle | Jahr +4 (3 → 6 → 26 Belege/Jahr) |
-| Förderung | Jahr +5 |
-
-Patente halfen dort nicht: die nächsten Treffer der Patentebene lagen bei
-Ähnlichkeit 0,62–0,66 und thematisch daneben.
-
-**Drei Folgerungen für den Bau:**
-
-1. **Keine erwartete Reihenfolge fest verdrahten.** Die Seite zeigt die
-   beobachtete Reihenfolge, sie bewertet sie nicht. „Forschung führt den Markt
-   um N Monate" ist eine Beobachtung je Thema, kein Modell.
-2. **Die institutionelle Forschungswelle kann ein Bestätigungssignal sein, kein
-   Frühsignal.** Das Feld heißt deshalb `research_institutional`, nicht
-   `research`.
-3. **Das früheste beobachtbare Signal war das Unternehmen**, nicht die Forschung
-   und nicht das Patent — vier Jahre vor Produkt und Forschungswelle. Wer früh
-   sein will, muss Akteure verfolgen. Der Startup Explorer (#87) existiert dafür
-   bereits und gehört an die Themensuche angebunden.
-
-*Nebenbefund: die Suche nach Akteursnamen per Textvergleich ist unbrauchbar —
-ein Firmenname traf eine gleichnamige Arzneistoffstudie von 1997, ein anderer
-eine namensähnliche Firma aus einem Förderregister. Akteursverfolgung braucht
-den Firmenstamm, keine Namenssuche.*
-
-### Startups benennen sich um — und der frühe Beleg hängt am alten Namen
-
-Unternehmen wechseln ihren Namen, und weil das früheste beobachtbare Signal das
-Unternehmen ist, trifft das genau die Stelle, an der Vorlauf entsteht. An einem
-Paar aus dem Korpus nachgemessen (2026-09-16): der **frühere** Name erscheint
-2019-12, der **heutige** erst 2021-09. **21 Monate Unterschied allein durch den
-Namen.** Wer nur den heutigen Namen verfolgt, sieht die frühe Phase nicht.
-
-**Was fehlt, konkret.** Der Firmenstamm des Startup Explorers führt **keine**
-früheren Namen: `gleif_entities` hat nur `name` (aus `Entity.LegalName`),
-`ch_companies` nur `name`. Beide Quellen liefern die Historie aber mit —
-GLEIF unter `Entity.OtherEntityNames`, Companies House unter
-`previous_company_names`. Der Ingest liest diese Felder heute nicht
-(`scripts/ingest_gleif.py`, Spaltenkarte `COLS`).
-
-**Folge für den Plan.** Die Akteursverfolgung ist erst dann ein Frühsignal, wenn
-sie über Namenswechsel hinweg funktioniert. Reihenfolge:
-
-1. Frühere Namen im Ingest mitnehmen (Nebentabelle `company_names`: Name,
-   Gültigkeit, Quelle) — ohne das bleibt jede Akteurszeitreihe bei der letzten
-   Umbenennung stehen.
-2. Erst danach die Akteursverfolgung an die Themensuche hängen.
-3. Namenssuche per Textvergleich bleibt unbrauchbar; gebraucht wird der Stamm
-   mit Aliassen.
+**Umbenennungen brechen die Akteursverfolgung.** Früherer Name erstmals 2019-12,
+heutiger Name erst 2021-09 — 21 Monate Unterschied. Der Firmenstamm führt keine
+früheren Namen: `gleif_entities` nur `name` aus `Entity.LegalName`,
+`ch_companies` nur `name`. Beide Quellen liefern die Historie mit (GLEIF
+`Entity.OtherEntityNames`, Companies House `previous_company_names`), der Ingest
+liest sie nicht. **Vorbedingung** für die Akteursverfolgung: Aliasse im Stamm
+(Nebentabelle `company_names`: Name, Gültigkeit, Quelle). Namenssuche per
+Textvergleich bleibt unbrauchbar.
 
 ---
 
-## Korrektur: ein Google-Treffer widerlegt Stufe 1 in ihrer ersten Fassung
+## Was der Plan braucht und was er nicht löst
 
-Eine gewöhnliche Websuche fand für ein Thema, das unser Korpus erst Jahre später
-kennt, sofort einen Pressebericht aus der Frühzeit. Ich hatte zuvor geschrieben,
-was vor der ersten Veröffentlichung passiere, stehe in keinem Text. **Das war
-falsch**, und zwar doppelt.
+**Volltext ist der Rohstoff.** Am 16.09. fehlten **12.360** Volltexte der letzten
+14 Tage bei Quellen, die auf Volltext stehen, und keiner war je nachgeholt
+worden. Von 25 schwachen Quellen antworten 24 mit HTTP 200, nur eine mit 403 —
+es war nie ein Sperr-, sondern ein Abholproblem. Der Nachhollauf ist
+Voraussetzung, nicht Beiwerk: die Suche kann nur finden, was als Text dasteht.
 
-### Der frühe Beleg liegt in unserem eigenen Korpus
+**Archivtiefe entscheidet über jede Aussage zur Frühphase.** Ein Feed zeigt zehn
+Einträge. `scripts/ingest_sitemap_archive.py` liest das Archiv einer erlaubten
+Quelle über ihre Sitemaps ein (Issue #105 für den ersten großen Lauf).
 
-Gesucht, gefunden: ein Fachpressebericht von **2014-12**, sechs Jahre vor der
-Forschungswelle — in unserem eigenen Bestand. Unsere Fachpresse reicht weiter zurück
-als angenommen: 20.651 Zeilen allein 2013, einzelne Quellen bis 2000.
+**Die Quellen bleiben der Engpass.** Bei fünf von zwanzig bekannten Trends fand
+der Rücktest nicht einmal das Feld, die Marktebene ist auf vielen Themen dünn,
+und nur 13 % der Fachpresse-Zeilen tragen einen extrahierten Firmennamen. Die
+Suche macht diese Lücken sichtbar und beantwortbar — sie schließt sie nicht.
 
-Es war also weder ein Quellen- noch ein Archivproblem. Es war ein **Abrufproblem**.
-
-### Warum die Vektorsuche ihn nicht findet
-
-| Prüfung | Ergebnis |
-|---|---|
-| moderne Anfrage („precision fermentation of dairy proteins…"), 1.000 nächste Nachbarn | Artikel **nicht dabei** |
-| der Artikel selbst als Anfrage, Belege vor 2017 | nur Agtech-Finanzierungsnews bei 0,55–0,61, nichts zum Thema |
-| Volltextsuche „lab-grown milk" | **0,5 s, ältester Treffer 2014-12** |
-
-Der Grund: die Einbettung verortet den Artikel nach seinem Charakter — kurze,
-launige Startup-Meldung — nicht nach dem Fachthema. Die Fachsprache von 2020
-trifft die Alltagssprache von 2014 nicht, und umgekehrt hilft auch kein
-Weiterhangeln von Dokument zu Dokument.
-
-### Ein Thema ist keine Vokabel, sondern eine Wortfolge
-
-| Begriff | ältester Beleg |
-|---|---|
-| lab-grown milk | 2014-12 |
-| animal-free dairy | 2018-03 |
-| precision fermentation | 2020-03 |
-
-Jede Wortgeneration hat ihr eigenes Anfangsdatum. Wer heute den heutigen Begriff
-eingibt, kann per Konstruktion nur dessen Ära finden. Das erklärt nebenbei den
-Rücktest: RAG wurde „erst 2026-01" erkannt, obwohl das Feld ab 2023-10 da war.
-
-### Die Wortkette lässt sich automatisch rückwärts laufen — mit einem Gate
-
-Versuch: aus den ältesten Treffern eines Begriffs die auffälligen Wortpaare
-ziehen und prüfen, ob eines davon weiter zurückreicht.
-
-- Runde 1 aus „precision fermentation" (2020-03) → **ein Firmenname, 2016-09**
-- Runde 2 → **„animal-free dairy" 2018-03**
-- daneben Abdriften: „whey protein" 1992, „ice cream" 1996, „using precision" 2007
-
-Der Mechanismus trägt, driftet aber in Allgemeinplätze. Die Lösung ist genau die
-Stärke, die der Vektorsuche hier fehlt: **jeder lexikalische Kandidat wird per
-Einbettung gegen den Themenschwerpunkt geprüft**, und nur wer nah genug bleibt,
-wird ein Glied der Kette. „Ice cream" fällt damit raus, „animal-free dairy"
-bleibt.
-
-### Stufe 1, neu gefasst
-
-Die Anfrage-Maschine ist **hybrid**, nicht vektorbasiert:
-
-1. Vektorsuche je Ebene für das Heute — findet, was thematisch passt, unabhängig
-   von der Wortwahl der Gegenwart.
-2. **Volltextsuche für die Vergangenheit** — findet die alten, konkreten
-   Wortprägungen, die die Vektorsuche nachweislich verfehlt. Index
-   `idx_trends_fts` ist vorhanden, 0,5 s.
-3. **Wortketten-Lauf**: aus den ältesten Treffern Kandidaten ziehen, jeden per
-   Einbettung gegen den Themenschwerpunkt gaten, die überlebenden als weitere
-   Suchbegriffe. Abbruch, wenn keiner mehr weiter zurückreicht.
-4. Der Bericht zeigt die **Wortgenerationen** mit ihren Daten. Das ist nicht
-   Beiwerk, sondern das Ergebnis: es macht sichtbar, wann ein Thema wie hieß.
-
-Und die ehrliche Formulierung für Vorlaufzeiten: nicht „wir sehen ab dem Proof
-of Concept", sondern **„wir sehen ab der ersten Wortprägung, die jemand
-aufgeschrieben hat — wenn wir die richtige Vokabel treffen."** Genau dafür ist
-der Wortketten-Lauf da.
+**Nicht geplant** (Owner 2026-09-16): die adaptive Drossel. Nach der Messung
+haben wir uns nirgends ein 429 eingefangen; die fehlende Rückstufung bei 429/503
+und das ignorierte Crawl-delay bleiben notiert, aber nicht terminiert.
