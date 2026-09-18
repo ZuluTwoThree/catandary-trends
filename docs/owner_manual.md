@@ -1674,6 +1674,35 @@ ist die DB nicht erreichbar, steht `[ops_events] WARN` im Log und der Job
 läuft weiter. Die Seite `/trends/ops`, das Logbuch `docs/ops/logbook.md` und
 die Alarme (`ops_alerts`) sind seit 2026-09-11 live — Details in §11.9.
 
+### 11.10 Prompt-Katalog (`/trends/ops/prompts`)
+
+**Wozu.** Nachlesen, was die Sprachmodelle in diesem System als Systemanweisung
+bekommen — ohne im Code zu suchen. Ein Eintrag je LLM-Funktion: kurz, was die
+Funktion tut und wann sie läuft (Cron, Desk-Knopf, nur auf Zuruf), welches
+Modell antwortet, wo der Prompt steht (Datei:Zeile) und der Prompt selbst zum
+Aufklappen. Bei Stage 6 (Artikel) und beim Dossier-Schreiber steht darunter
+zusätzlich der Bauer des User-Prompts (Quelltext bzw. gerenderte Direktive).
+
+**Wo.** `/trends/ops/prompts`, verlinkt oben rechts auf `/trends/ops`
+(„Prompts →"). Owner-Seite: im PUBLIC_MODE 404, im statischen Export nie
+gebaut (dieselben drei Schlösser wie das Ops-Dashboard).
+
+**Woher die Texte kommen.** Die Seite ruft `python -m pipeline.prompt_catalog
+--json` auf und liest die Prompts aus den Modulen — sie zeigt also immer den
+Stand des Codes, aus dem die Instanz läuft (`:3001` = main, `:3004` = dev).
+60 Sekunden Cache. Ein Eintrag, der nicht lädt (Umbenennung, Importfehler),
+erscheint rot mit der Fehlermeldung statt zu verschwinden.
+
+```bash
+.venv/bin/python -m pipeline.prompt_catalog --list    # eine Zeile je Eintrag, mit Zeichenzahl
+```
+
+**Was nicht drin ist.** Embedding-Aufrufe (keine Anweisung), die
+Distill-Klassifikationsköpfe (kein Modell), die A/B-, Benchmark- und
+Eval-Skripte unter `scripts/`. Neue LLM-Funktion → neuer Eintrag in
+`build_catalog()` (Test `tests/test_prompt_catalog.py` prüft, dass jeder Eintrag
+lädt und auf eine echte Datei zeigt).
+
 ## 12. Sicherheit und Recht (kurz)
 
 - **Erreichbarkeit.** `:3001`, `:3004`, `:3999` und der `llama-server :8090`

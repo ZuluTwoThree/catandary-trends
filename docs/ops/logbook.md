@@ -13,6 +13,13 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-18 · change · Prompt-Katalog /trends/ops/prompts
+
+Owner-Seite neben Ops: alle 28 Systemanweisungen der LLM-Prozesse live aus dem Code,
+je mit Funktionsbeschreibung, Modell, Auslöser, Datei:Zeile. Nebenfund und Fix:
+`corpus_research.PROFILE_SYSTEM` war doppelt definiert — die Suchrichtungen jedes
+Dossiers liefen unter der Firmenprofil-Anweisung (jetzt `COMPANY_PROFILE_SYSTEM`).
+
 ## 2026-09-18 · change · Dossier-Rechercheur: PDFs lesbar, Kalender-Auffüller mit Primärlatte
 
 Anlass datacenter-virtualization v1/v2 (Aufträge 39/40, je 33 min). Drei Harness-Fehler
