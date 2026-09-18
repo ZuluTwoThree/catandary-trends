@@ -601,7 +601,11 @@ Herkunftskopf). Erzwingen lässt sich beides je Auftrag über
 - **Technology field** (Pflicht, ≤ 500 Zeichen) — die Phrase, die auch gemessen wird;
 - **Series slug** (optional) — gleicher Slug = nächste Version derselben Serie;
 - **Custom question** (optional) — ersetzt die Foresight-Standardfrage; ändert
-  die Recherche, nicht die Messung;
+  die Recherche, nicht die Messung. **Muss eine Frage sein:** der Planer baut
+  seine Suchschritte aus diesem Feld. Eine Leserbeschreibung („the dossier is a
+  free sample for the IT manager of …") wird zum Forschungsgegenstand — so
+  entstand am 18.09. ein Dossier über IT-Dienstleister statt über
+  Virtualisierung. Kontext zum Leser als zweiten Satz HINTER die Frage;
 - **CPC anchor** (optional, seit 2026-09-13, z. B. `H01M4/5825`) — die
   Patentklasse, in der gemessen werden soll. Normalerweise nicht nötig: die
   Kaskade misst die Kernphrase ohne Anwendungs-Anhängsel und wählt bei einer

@@ -1571,3 +1571,66 @@ def test_landscape_findings_name_uncovered_subfields():
     assert len(f) == 1 and "1 of 3" in f[0] and "aqueous zinc battery" in f[0]
     assert ds.landscape_findings(body, []) == []
     assert not [x for x in ds.structure_findings(body, "en", landscape_items=["sodium-ion battery"]) if "Landscape" in x]
+
+
+class TestCalendarFillGuards:
+    """2026-09-18: was der Auffueller ohne Urteil eintraegt, muss primaer belegt
+    und terminiert sein; Werbe-Anreisser sind keine Kandidaten."""
+
+    BODY = ("## What happens next\n\n| Date | Event | Source | Why it matters |\n"
+            "|---|---|---|---|\n"
+            "| 11 October 2027 | vSphere 8 support ends [[S1]] | [[S1]] | hard date |\n\n"
+            "## Open questions and limits\n\nx.\n")
+
+    def _cands(self):
+        return [
+            {"id": "S2", "when": "2026", "statement": "Global data center investment is on track to approach $1 trillion in 2026."},
+            {"id": "S3", "when": "2026", "statement": "It sets out how the EIC will allocate its funding for the year 2026."},
+            {"id": "S4", "when": "Q2 2026", "statement": "Adoption of the EU data center rating scheme is scheduled for Q2 2026."},
+            {"id": "S5", "when": "March 2027", "statement": "The data center rating regulation applies from March 2027."},
+        ]
+
+    def test_bare_year_and_rank2_are_not_filled(self):
+        ranks = {"S2": 2, "S3": 0, "S4": 0, "S5": 2}
+        out, n = ds.fill_calendar(self.BODY, self._cands(), "en", 2026,
+                                  ("data center", "virtualization", "eic"), 3,
+                                  rank_of=lambda cid: ranks[cid])
+        assert n == 1
+        assert "rating scheme" in out and "$1 trillion" not in out
+        assert "EIC will allocate" not in out and "March 2027" not in out
+
+    def test_without_rank_of_only_the_bare_year_rule_applies(self):
+        out, n = ds.fill_calendar(self.BODY, self._cands(), "en", 2026,
+                                  ("data center", "eic"), 5)
+        assert n == 2 and "$1 trillion" not in out and "EIC will allocate" not in out
+
+    def test_marketing_openers_are_no_candidates(self):
+        led = [{"id": "F1", "date": "2026", "statement": "Discover the top data center events of 2026, where experts will unveil innovations."},
+               {"id": "F2", "date": "Q4 2026", "statement": "The data center rating regulation is expected to be adopted in Q4 2026."}]
+        c = cr.calendar_candidates(led, [], ["data center"], [], 2026)
+        assert [x["id"] for x in c] == ["F2"]
+
+
+class TestTableRowsAreOneClaim:
+    """2026-09-18: eine Kalenderzeile zerfiel am Satzpunkt in Bruchstuecke; die
+    Streichung nahm das Bruchstueck mit dem Datum und liess "|" stehen."""
+
+    ROW = "| 12 September 2025 | The EU Data Act applies. | [Data Act](https://x.eu/a) | Defines the frame. |"
+    BODY = ("## What happens next\n\n| Date | Event | Source | Why |\n|---|---|---|---|\n"
+            + ROW + "\n| 2027 | Other. | [B](https://y.eu/b) | why |\n\n"
+            "## Open questions and limits\n\nOne sentence. Another one.\n")
+
+    def test_split_claims_keeps_rows_whole(self):
+        claims = ds.split_claims(self.BODY)
+        assert self.ROW in claims
+        assert not any(c.strip() == "|" for c in claims)
+        assert "One sentence." in claims and "Another one." in claims
+
+    def test_drop_removes_the_whole_row(self):
+        out, n = ds.drop_unverified(
+            self.BODY, [{"sentence": self.ROW, "tokens": ["EU"], "kind": "subject",
+                         "url": "https://x.eu/a", "section": "next"}], "en")
+        assert n == 1
+        assert "Data Act" not in out
+        assert not any(ln.strip() == "|" for ln in out.splitlines())
+        assert "| 2027 | Other." in out

@@ -271,17 +271,39 @@ def split_claims(text: str) -> list[str]:
     enthalten Satzzeichen ("Transformative or overhyped? The impact of …").
     Ein naiver Split zerlegt genau dort und trennt die Behauptung von ihrem
     Beleg — im R5-Dossier fiel deshalb der teuerste Satz des Berichts aus der
-    Beleg-Verifikation heraus (er stand danach zitatlos da)."""
-    spans = [(m.start(), m.end()) for m in _LINK.finditer(text or "")]
-    out, start = [], 0
-    for m in _SENT_SPLIT.finditer(text or ""):
-        if any(a < m.start() < b for a, b in spans):
-            continue
-        if not m.group(0).startswith("\n") and _abbrev_break(text, m.start()):
-            continue
-        out.append(text[start:m.start()])
-        start = m.end()
-    out.append(text[start:])
+    Beleg-Verifikation heraus (er stand danach zitatlos da).
+
+    Eine TABELLENZEILE ist EINE Aussage (2026-09-18). Vorher zerfiel
+    "| 12 Sept 2025 | The Act applies. | [Source](…) | Why. |" am Punkt in drei
+    Bruchstuecke; die Beleg-Pruefung strich das Bruchstueck mit dem Datum, und
+    im Kalender blieb eine Zeile aus "| [Source](…) | Why. |" oder ein nacktes
+    "|" stehen (datacenter-virtualization v1/v2)."""
+    out: list[str] = []
+    buf: list[str] = []
+
+    def _flush() -> None:
+        chunk = "\n".join(buf)
+        buf.clear()
+        if not chunk.strip():
+            return
+        spans = [(m.start(), m.end()) for m in _LINK.finditer(chunk)]
+        start = 0
+        for m in _SENT_SPLIT.finditer(chunk):
+            if any(a < m.start() < b for a, b in spans):
+                continue
+            if not m.group(0).startswith("\n") and _abbrev_break(chunk, m.start()):
+                continue
+            out.append(chunk[start:m.start()])
+            start = m.end()
+        out.append(chunk[start:])
+
+    for line in (text or "").split("\n"):
+        if line.strip().startswith("|"):
+            _flush()
+            out.append(line.strip())
+        else:
+            buf.append(line)
+    _flush()
     return [x for x in out if x.strip()]
 
 
@@ -1324,16 +1346,28 @@ def calendar_source_counts(report_md: str, lang: str = "en",
     return counts
 
 
+_BARE_YEAR = re.compile(r"^\s*(?:19|20)\d{2}\s*$")
+
+
 def fill_calendar(report_md: str, candidates: list[dict], lang: str = "en",
                   year_floor: int | None = None, topic_terms=(),
-                  min_rows: int | None = None) -> tuple[str, int]:
+                  min_rows: int | None = None, rank_of=None) -> tuple[str, int]:
     """Fehlende Kalenderzeilen aus den deterministisch gesammelten Kandidaten
     ergaenzen (2026-09-13). R13-3 legte dem Modell die Kandidaten VOR; in vier
     von fuenf Laeufen schrieb es trotzdem drei statt fuenf Zeilen — obwohl
     die Kandidaten datiert, belegt und themenbezogen sind. Was der Code schon
     weiss, traegt er jetzt selbst ein, sichtbar markiert ("from the dated-fact
     ledger"), bis das Soll erreicht ist. Gibt (Bericht, Zahl der Zeilen) zurueck;
-    ohne Kalenderabschnitt oder ohne Bedarf bleibt alles unveraendert."""
+    ohne Kalenderabschnitt oder ohne Bedarf bleibt alles unveraendert.
+
+    Was der Code OHNE Urteil eintraegt, muss die Primaerlatte nehmen
+    (2026-09-18): `rank_of(id)` > 1 (Presse, Blogs, Veranstaltungsseiten)
+    wird nicht eingetragen, und eine nackte Jahreszahl ist kein Termin. In
+    datacenter-virtualization v1 UND v2 standen dieselben drei Zeilen aus dem
+    Faktenzettel: ein Veranstaltungs-Werbetext, eine Marktprognose und eine
+    Programmbeschreibung — alle "2026", zwei davon Rang 2. Das Modell darf
+    solche Zeilen weiterhin selbst schreiben (mit Rangvermerk); der
+    Auffueller nicht."""
     need = int(min_rows) if min_rows else MIN_CALENDAR_ROWS
     L = _lang(lang)
     sections = split_sections(body_text(report_md), L)
@@ -1363,6 +1397,14 @@ def fill_calendar(report_md: str, candidates: list[dict], lang: str = "en",
             continue
         if not has_date(when + " " + stmt, year_floor):
             continue
+        if _BARE_YEAR.match(when):
+            continue
+        if rank_of is not None:
+            try:
+                if int(rank_of(cid)) > 1:
+                    continue
+            except (TypeError, ValueError, KeyError):
+                continue
         if topic_terms and not _row_on_topic(when + " " + stmt, topic_terms):
             continue
         # Dublette: derselbe Anfang steht schon in der Tabelle (der Kandidat ist
@@ -2295,8 +2337,14 @@ def drop_unverified(report_md: str, unverified: list[dict],
                 dropped += 1
                 continue
         if s in out:
-            out = out.replace(s + " ", "", 1) if (s + " ") in out \
-                else out.replace(s, "", 1)
+            if _TABLE_ROW.match(s):
+                # Eine Tabellenzeile faellt als ganze Zeile, samt Zeilenumbruch —
+                # sonst bleibt ein leeres "|" in der Tabelle stehen.
+                out = re.sub(r"^[ \t]*" + re.escape(s) + r"[ \t]*\n?", "", out,
+                             count=1, flags=re.MULTILINE)
+            else:
+                out = out.replace(s + " ", "", 1) if (s + " ") in out \
+                    else out.replace(s, "", 1)
             dropped += 1
     # Doppelte Leerzeichen/Leerzeilen, die durch die Streichung entstehen.
     out = re.sub(r"[ \t]{2,}", " ", out)

@@ -2721,6 +2721,13 @@ CAL_SENTENCE_WORDS = 45
 
 
 _URL_IN_TEXT = re.compile(r"\b(?:https?://|www\.)\S+|\b\S+\.(?:com|org|net|eu|de|gov|io)/\S*")
+# Imperativ-Anreisser einer Veranstaltungs- oder Verkaufsseite sind kein
+# Termin ("Discover the top data center events of 2026, where industry experts
+# will unveil …" stand in zwei Dossiers als Kalenderzeile, 2026-09-18).
+_CAL_MARKETING_RE = re.compile(
+    r"^(?:discover|explore|learn|join|register|sign up|find out|don'?t miss|"
+    r"save the date|book|get ready|meet|see you|entdecke|erfahren sie|"
+    r"jetzt anmelden|melden sie sich)\b", re.IGNORECASE)
 _LIST_MARK = re.compile(r"^[\s\-–—*•·>|]+")
 
 
@@ -2813,6 +2820,8 @@ def calendar_candidates(fact_ledger: list[dict], sources: list[dict],
         when = _when_label(f"{date} {stmt}", this_year, today)
         if not when or not stmt or not _relevant(f"{date} {stmt}"):
             continue
+        if _CAL_MARKETING_RE.match(stmt):
+            continue
         key = stmt.lower()[:80]
         if key in seen:
             continue
@@ -2838,6 +2847,8 @@ def calendar_candidates(fact_ledger: list[dict], sources: list[dict],
                 continue
             when = _when_label(sent, this_year, today)
             if not when or not _relevant(sent):
+                continue
+            if _CAL_MARKETING_RE.match(sent):
                 continue
             key = low[:80]
             if key in seen:
@@ -5682,8 +5693,10 @@ def run(question: str, max_steps: int, max_sources: int,
             # Kalender aus den Kandidaten auffuellen (2026-09-13): datiert, belegt,
             # themenbezogen — der Code traegt ein, was das Modell liegen liess.
             if cal_cands:
+                _rank_by_id = {str(x.get("id")): int(x.get("rank", 2)) for x in citable_sources}
                 report, n_fill = dossier_structure.fill_calendar(
-                    report, cal_cands, lang, year_floor, calendar_terms, calendar_min)
+                    report, cal_cands, lang, year_floor, calendar_terms, calendar_min,
+                    rank_of=lambda cid: _rank_by_id.get(str(cid), 2))
                 if n_fill:
                     structure["calendar_filled"] = int(structure.get("calendar_filled") or 0) + n_fill
                     logger.info("calendar: %d row(s) added from the dated-fact ledger", n_fill)

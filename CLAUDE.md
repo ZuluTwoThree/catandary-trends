@@ -1484,6 +1484,13 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   Seitentexte 7 Tage in `data/web_cache.sqlite` — über Läufe hinweg (drei LFP-Läufe am
   12.09.: 340 Brave-Aufrufe, 156 verschiedene; Kontingent nachmittags erschöpft). Nur
   stabile Ausgänge werden gespeichert; `WEB_CACHE=0` schaltet ab.
+- **PDF-Volltext + Kalender-Auffüller mit Primärlatte (seit 2026-09-18, Runde 20):** der
+  Fetcher liest PDFs (pypdf, 60 Seiten; TDM-Header gilt weiter) — vorher war jeder BSI-
+  Grundschutz-Baustein `too_short`. `fill_calendar` trägt nur noch Rang ≤ 1 und präzise
+  Termine ein (nackte Jahreszahl = Zeitraum), Werbe-Anreißer sind keine Kandidaten; eine
+  Tabellenzeile ist in `split_claims` EINE Aussage (keine leeren „|"-Zeilen mehr nach der
+  Streichung). **Frage-Feld = eine Frage:** eine Leserbeschreibung dort wird zum
+  Forschungsgegenstand (datacenter-virtualization v1). `docs/agentic_dossiers.md`, Runde 20.
 - **Streng lokal:** Quant-Vorstufe (`pipeline/dossier_quant.py`, Embedding-Handover)
   → Recherche auf Qwen3.8-27B (`model_on_llamacpp` mit den Stage-10-Guards:
   VRAM < 1100 MiB Fremdbelegung, Identitäts-Check `/v1/models`) → deterministische

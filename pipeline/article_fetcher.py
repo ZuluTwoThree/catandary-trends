@@ -69,6 +69,7 @@ DEFAULT_USER_AGENT = ("CatandaryTrendsBot/1.0 "
 UA = os.getenv("CRAWLER_USER_AGENT", DEFAULT_USER_AGENT)
 MIN_TEXT_CHARS = 400          # below this the extraction is not worth keeping
 MAX_TEXT_CHARS = 12_000       # cap what we store (stages slice the first ~1.5k anyway)
+PDF_MAX_PAGES = 60            # a Grundschutz building block is ~10 pages; a whole compendium is not wanted
 PER_HOST_DELAY = 1.0          # seconds between requests to the same host
 # Hosts, die die Regelrate nicht vertragen, bekommen ihre eigene. Project
 # Syndicate antwortete im Nachhollauf vom 2026-09-17 auf 37 von 52 Anfragen mit
@@ -360,6 +361,53 @@ class FetchResult:
         return bool(self.reason and self.reason.startswith("tdm:"))
 
 
+def _looks_like_pdf(content_type: str, final_url: str, head: bytes) -> bool:
+    ctype = (content_type or "").lower()
+    if "application/pdf" in ctype or "application/x-pdf" in ctype:
+        return True
+    if head[:5] == b"%PDF-":
+        return True
+    return urlparse(final_url).path.lower().endswith(".pdf")
+
+
+def pdf_text(data: bytes, max_pages: int = PDF_MAX_PAGES) -> str:
+    """Text of a PDF (first `max_pages` pages), or "" when it cannot be read.
+
+    Until 2026-09-18 every PDF went through trafilatura like HTML and came
+    back "too_short": the dossier's primary-first pass found the BSI
+    IT-Grundschutz block SYS.1.5 Virtualisierung four times and could read it
+    zero times — the one regulatory baseline the question asked for, dropped
+    because it is published as a PDF. Encrypted files with an empty user
+    password are opened; anything else is skipped, never guessed."""
+    try:
+        from pypdf import PdfReader
+    except ImportError:                                            # pragma: no cover
+        logger.warning("pypdf is not installed — PDF full text skipped")
+        return ""
+    try:
+        import io
+        reader = PdfReader(io.BytesIO(data))
+        if reader.is_encrypted:
+            try:
+                reader.decrypt("")
+            except Exception:                                      # noqa: BLE001
+                return ""
+        parts: list[str] = []
+        for i, page in enumerate(reader.pages):
+            if i >= max_pages:
+                break
+            parts.append(page.extract_text() or "")
+    except Exception as e:                                         # noqa: BLE001
+        logger.debug("pdf extraction failed: %r", e)
+        return ""
+    text = "\n".join(parts)
+    text = re.sub(r"(?<=\w)-\n(?=[a-zäöüß])", "", text)     # hy-\nphenation
+    text = re.sub(r"[ \t\f\r]+", " ", text)
+    text = re.sub(r" ?\n ?", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def fetch_fulltext_result(url: str, client: httpx.Client | None = None,
                           open_licence: str | None = None) -> FetchResult:
     """Fetch + extract clean article text, with the reason when nothing is kept.
@@ -404,16 +452,21 @@ def fetch_fulltext_result(url: str, client: httpx.Client | None = None,
                 if why:
                     logger.info("TDM reservation (%s) on the redirect target %s (from %s)", why, final, url)
                     return FetchResult(None, f"tdm:{why}")
+        is_pdf = _looks_like_pdf(r.headers.get("content-type", ""), final, r.content[:8])
         if respect_tdm:
-            why = tdm_reservation_in_headers(r.headers) or tdm_reservation_in_html(r.text)
+            why = tdm_reservation_in_headers(r.headers) or (
+                None if is_pdf else tdm_reservation_in_html(r.text))
             if why:
                 logger.info("TDM reservation (%s) — full text not stored, feed teaser only: %s", why, url)
                 return FetchResult(None, f"tdm:{why}")
         if open_licence:
             logger.info("open licence %s — host TDM reservation not applied: %s", open_licence, url)
-        text = trafilatura.extract(
-            r.text, include_comments=False, include_tables=False,
-            no_fallback=False, favor_precision=True)
+        if is_pdf:
+            text = pdf_text(r.content)
+        else:
+            text = trafilatura.extract(
+                r.text, include_comments=False, include_tables=False,
+                no_fallback=False, favor_precision=True)
         if not text or len(text) < MIN_TEXT_CHARS:
             return FetchResult(None, "too_short")
         return FetchResult(text[:MAX_TEXT_CHARS])

@@ -13,6 +13,14 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-18 · change · Dossier-Rechercheur: PDFs lesbar, Kalender-Auffüller mit Primärlatte
+
+Anlass datacenter-virtualization v1/v2 (Aufträge 39/40, je 33 min). Drei Harness-Fehler
+behoben: PDFs kamen als too_short zurück (BSI SYS.1.5 viermal gefunden, nie gelesen — jetzt
+pypdf), der Kalender-Auffüller trug Rang-2-Werbetext mit nackter Jahreszahl ein (jetzt Rang
+≤ 1 + präziser Termin), Streichung ließ leere „|"-Zeilen (Tabellenzeile = eine Aussage).
+Brave: metered, kein Monatsdeckel; 919 Aufrufe im September. Cache too_short geleert.
+
 ## 2026-09-18 · change · Research Pulse: Samstags-Cron installiert, W36/W37 nachgerechnet
 
 Die Seite stand seit dem 05.09. auf W35: der Cron `0 12 * * 6 weekly_research_pulse.sh`

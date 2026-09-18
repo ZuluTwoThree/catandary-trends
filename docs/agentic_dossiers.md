@@ -1479,3 +1479,59 @@ EU-Preisaufschlag im Beleg, das Datum 18.08.2027 nur aus zwei Rang-2-Quellen).
 Leser, Freigabe), die Substanz mit Denken ist die eines brauchbaren Erstentwurfs
 — genau dafür ist der Mensch im Loop da. Offen: Längendisziplin des 27B, und
 ob Leser-Befunde einen Neuwurf auslösen sollen (kostet ~5 min je Runde).
+
+### Runde 20 (2026-09-18) — datacenter virtualization: Frage-Feld, PDFs, Kalender-Auffüller
+
+Owner-Auftrag von 14:02 (Auftrag #39): Thema „datacenter virtualization", im
+Frage-Feld aber keine Frage, sondern eine Leserbeschreibung („The purpose of the
+dossier is to provide a free sample for the IT Manager of a small German
+technology firm …"). **Der Planer nahm die Leserbeschreibung als Gegenstand:**
+alle sechs Planschritte handelten von IT-Dienstleistern für den Mittelstand,
+keiner von Virtualisierung; die Korpussuche fragte Virtualisierung nie ab. Nur
+die festen Regulatorik-Muster und die Patentmessung liefen auf dem Thema. v1
+war ein Digest über EIC-Förderung und EU-Rechtsakte (33 min, ok=false, Leser
+zweimal „beantwortet die Frage nicht").
+
+**v2 (#40, 17:14, 33 min)** mit echter Frage („Which virtualization stack should
+a small German IT service firm run … after the VMware licensing change, and
+which BSI, GDPR and EU Data Act requirements apply?" + Kontextsatz): Plan 6/6
+auf dem Thema, Kurzfassung Proxmox VE + vSphere-8-Stichtag 11.10.2027 +
+Data-Act-Äquivalenzpflicht. Trotzdem ok=false: Faktenquote 0,8 (Soll 2,0),
+Kernaussagen auf Rang-2-Material (Nutanix, Anbieter-Blogs, dev.to), Widerspruch
+Kurzfassung/Entscheidungspunkt zu VS-NfD, „Spurs (retailer)" erfunden. Drei
+**Harness-Befunde** aus beiden Versionen, alle behoben:
+
+1. **PDFs waren unlesbar.** `article_fetcher.fetch_fulltext_result` schickte
+   jede Antwort durch trafilatura; ein PDF kam als `too_short` zurück. Der
+   Primärquellen-Vorlauf fand den BSI-Baustein **SYS.1.5 Virtualisierung** in
+   vier Editionen und las ihn null Mal — der eine Maßstab, nach dem die Frage
+   fragte. Jetzt: `pdf_text()` (pypdf, erste 60 Seiten, Silbentrennung
+   geglättet; TDM-Header gilt weiter, HTML-Meta entfällt) bei
+   `application/pdf`, `%PDF-`-Magic oder `.pdf`-Pfad. Live: SYS.1.5 Edition
+   2023 → 12.000 Zeichen. Gecachte `too_short`-Seiten wurden geleert (28 im
+   main-Cache, 65 in dev). `tests/test_pdf_fetch.py`.
+2. **Der Kalender-Auffüller trug ohne Urteil Rang-2-Werbetext ein.** In v1 UND
+   v2 standen dieselben drei Zeilen „added from the dated-fact ledger": ein
+   Veranstaltungs-Anreißer („Discover the top data center events of 2026 …"),
+   eine Dell'Oro-Marktprognose, eine EIC-Programmbeschreibung — alle mit nackter
+   Jahreszahl, zwei von Rang 2. Der Themen-Gate war erfüllt („data center",
+   Entität „EIC"). Jetzt: `fill_calendar(rank_of=…)` trägt nur Rang ≤ 1 und
+   nur präzise Termine ein (Tag/Monat/Quartal/Halbjahr; „2026" allein ist ein
+   Zeitraum, kein Auslöser); `calendar_candidates` verwirft Imperativ-Anreißer
+   (`_CAL_MARKETING_RE`). Das Modell darf solche Zeilen weiter selbst schreiben
+   (mit Rangvermerk) — der Code nicht.
+3. **Leere Tabellenzeilen „|".** `split_claims` zerlegte eine Kalenderzeile am
+   Satzpunkt in Bruchstücke; `drop_unverified` strich das Bruchstück mit dem
+   Datum und ließ „| [Source](…) | Why. |" oder ein nacktes „|" stehen (v2:
+   drei Zeilen). Jetzt ist eine Tabellenzeile EINE Aussage (wie in
+   `_section_sentences` schon immer), und eine gestrichene Zeile fällt samt
+   Zeilenumbruch.
+
+**Brave-Kontingent (Owner-Frage):** Header `x-ratelimit-policy: 50;w=1,
+0;w=2592000` — 50 Anfragen/s, keine Monatsobergrenze (metered), Abrechnungs-
+fenster endet in ~12 Tagen. Verbrauch September aus den Dossier-Ergebnissen:
+919 API-Aufrufe über 40 Dossiers (v1 110, v2 42 + 74 aus dem Cache).
+
+v3 (#41) läuft mit der geschärften Frage („keine Verschlusssachen, Maßstab
+IT-Grundschutz SYS.1.5") und den drei Fixes — Ergebnis unten, sobald da.
+
