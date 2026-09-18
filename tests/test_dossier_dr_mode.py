@@ -1562,7 +1562,8 @@ def test_write_sections_assembles_in_outline_order(monkeypatch):
     out = cr.write_sections("SYS", "PROMPT", "en", {"temperature": 0.3})
     assert seen[0] == "What is moving" and seen[-1] == "Decision summary"
     heads = [l for l in out.splitlines() if l.startswith("## ")]
-    assert heads[0] == "## Decision summary" and heads[1] == "## What is moving" and len(heads) == 7
+    assert heads[0] == "## What this is about" and heads[1] == "## Decision summary" and heads[2] == "## What is moving" and len(heads) == 8
+    assert seen.index("What this is about") == len(seen) - 2
 
 
 def test_landscape_findings_name_uncovered_subfields():
@@ -1634,3 +1635,29 @@ class TestTableRowsAreOneClaim:
         assert "Data Act" not in out
         assert not any(ln.strip() == "|" for ln in out.splitlines())
         assert "| 2027 | Other." in out
+
+
+class TestAboutSection:
+    """Einstieg fuer Fachfremde (Owner 2026-09-18): Pflicht, Wortband, ohne Zahlen."""
+
+    def test_missing_about_is_a_finding(self):
+        md = _doc("Regip.")
+        assert any("What this is about" in f for f in ds.structure_findings(md, "en"))
+
+    def test_figures_and_short_text_are_findings(self):
+        short = "## What this is about\n\nProxmox is a hypervisor. It matters.\n\n"
+        f = ds.about_findings(ds.split_sections(short, "en")["about"], "en", ("proxmox",))
+        assert any("Band" in x for x in f)
+        with_fig = ("## What this is about\n\n" + " ".join(["Proxmox VE is a KVM-based hypervisor that hosts virtual machines on ordinary servers and replaces a licensed platform."] * 3)
+                    + " It reached 1.5 million hosts in 2025.\n\n")
+        f = ds.about_findings(ds.split_sections(with_fig, "en")["about"], "en", ("proxmox",))
+        assert any("Zahlen/Daten" in x for x in f) and not any("Band" in x for x in f)
+
+    def test_clean_about_passes_and_is_left_out_of_the_fact_quota(self):
+        about = "## What this is about\n\n" + " ".join(["Proxmox VE is a KVM-based hypervisor that hosts virtual machines on ordinary servers and replaces a licensed platform; the question turns on licensing and compliance."] * 3) + "\n\n"
+        assert ds.about_findings(ds.split_sections(about, "en")["about"], "en", ("proxmox",)) == []
+        body = "## What is moving\n\nOn 12 May 2026 Proxmox shipped version 9 [[T1]].\n"
+        d_with = ds.fact_density(about + body, _SRC, "en")
+        d_without = ds.fact_density(body, _SRC, "en")
+        assert d_with["words"] == d_without["words"] and d_with["per100"] == d_without["per100"]
+

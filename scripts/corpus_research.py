@@ -359,8 +359,16 @@ REPORT_SYSTEM_IDS = _REPORT_SYSTEM_TMPL.format(cite_rule=_CITE_RULE_ID)
 # deterministisch (pipeline/dossier_structure.py), nicht erhofft.
 # --------------------------------------------------------------------------
 
-_OUTLINE_EN = """MANDATORY OUTLINE. Write exactly these seven sections, in this
+_OUTLINE_EN = """MANDATORY OUTLINE. Write exactly these eight sections, in this
 order, with exactly these top-level headings and no others:
+
+## What this is about
+  60-220 words for a reader who does not know this field: what the technology
+  or field IS in plain words (what it does, what it replaces or competes with,
+  who uses it), and why it matters for THIS question — what the decision turns
+  on. Background, not evidence: no figures, no dates, no citations here;
+  anything quantitative belongs, cited, in the sections below. Draw on the
+  field profile and the evidence you read, not on the question's own words.
 
 ## Decision summary
   At most 200 words. The three statements that would carry a decision, each
@@ -475,12 +483,19 @@ it is about, and give its figure where the evidence has one. The
 floor is 2.0 per 100 words. Reaching it by writing more prose is impossible:
 prose adds words and no facts, so it lowers the ratio. Replace every sentence
 that carries no date, no named actor and no figure with one that does.
-Sections 1-7 together must stay UNDER 2400 words; the appendices generated for
+Sections 1-8 together must stay UNDER 2400 words; the appendices generated for
 you do not count. This is a decision paper for a board, not a briefing for a
 technical team — cut background before evidence."""
 
-_OUTLINE_DE = """VERBINDLICHE GLIEDERUNG. Schreibe genau diese sieben
+_OUTLINE_DE = """VERBINDLICHE GLIEDERUNG. Schreibe genau diese acht
 Abschnitte, in dieser Reihenfolge, mit genau diesen Überschriften:
+
+## Worum es geht
+  60-220 Wörter für einen Leser ohne Fachkenntnis: was die Technologie oder
+  das Feld IST (was sie tut, was sie ersetzt oder womit sie konkurriert, wer
+  sie einsetzt), und warum das für DIESE Frage zählt — woran die Entscheidung
+  hängt. Hintergrund, kein Beleg: keine Zahlen, keine Daten, keine Zitate;
+  alles Quantitative gehört belegt in die Abschnitte darunter.
 
 ## Entscheidungs-Kurzfassung
   Höchstens 200 Wörter. Die drei Aussagen, die eine Entscheidung tragen, jede
@@ -3814,11 +3829,14 @@ def draft_score(report: str, citable_sources: list[dict], lang: str,
             "density": per100, "structural": len(findings), "citation": n_cite}
 
 
-SECTION_ORDER = ("moving", "regip", "next", "unsupported", "watch", "open", "decision")
+# "about" nach den Beleg-Sektionen und vor der Kurzfassung: der Einstieg soll
+# erklaeren, warum das Thema fuer die Frage zaehlt — das weiss der Schreiber
+# erst, wenn die Beleg-Sektionen stehen.
+SECTION_ORDER = ("moving", "regip", "next", "unsupported", "watch", "open", "about", "decision")
 # Wortbudgets je Sektion (Summe ~2.450, Obergrenze des Dossiers 2.800). Ohne
 # Budget schrieb Flash-Next 700-1.050 Woerter JE Sektion (Quantum v2, 14.09.):
 # jeder Aufruf sieht nur seine Sektion und haelt sie fuer das ganze Dossier.
-SECTION_WORDS = {"moving": 700, "regip": 350, "next": 250, "unsupported": 250,
+SECTION_WORDS = {"about": 150, "moving": 700, "regip": 350, "next": 250, "unsupported": 250,
                  "watch": 250, "open": 200, "decision": 150}
 
 
@@ -3855,11 +3873,15 @@ def write_sections(sys_prompt: str, report_prompt: str, lang: str, sampling: dic
             f"\n\nSECTION DIRECTIVE: write ONLY the section \"## {heading}\" now. Start with exactly "
             f"that heading, follow everything the outline says about this section, and write no "
             f"other section and no preamble. LENGTH: about {budget} words for this section — the "
-            f"whole dossier must stay under 2400 words across its seven sections, so this section "
+            f"whole dossier must stay under 2400 words across its eight sections, so this section "
             f"is one part, not the paper; tables count. The sections already written are supplied "
             f"for coherence — do not repeat their sentences, refer to them where needed."
             + (" This is the decision summary: three statements that carry the decision, each "
-               "resting on the sections below and on a (primary) citation." if key == "decision" else ""))
+               "resting on the sections below and on a (primary) citation." if key == "decision" else "")
+            + (" This is the background section for a reader who does not know the field: what "
+               "the technology is in plain words and why it matters for the question asked — "
+               "no figures, no dates, no citations; the evidence sections already written tell "
+               "you what the decision turns on." if key == "about" else ""))
         prompt = (report_prompt
                   + (f"\n\n<untrusted_sections_written>\n{shield(prior)}\n</untrusted_sections_written>\n"
                      if prior else "")

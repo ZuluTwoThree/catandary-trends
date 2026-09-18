@@ -1585,3 +1585,82 @@ pve.proxmox.com, learn.microsoft.com, EUR-Lex-Text des Data Act, BSI-PDFs),
 nicht Register — das Rangmodell kennt sie nur als Rang 2, deshalb tragen alle
 vier Versionen „secondary source only" an den Kernaussagen.
 
+### Runde 21 (2026-09-18) — der Einstieg für Fachfremde, und der Workflow als Engpass
+
+**Owner-Wunsch:** Dossiers entstehen domänenübergreifend, ohne tiefes
+Themenverständnis des Bestellers; der Agent beschafft, was nötig ist. Dazu ein
+kurzer Abschnitt am Anfang, worum es technologisch geht und warum das für die
+Frage zählt.
+
+**Gebaut:** `## What this is about` als erste von jetzt acht Pflichtsektionen
+(`SECTIONS`, `_OUTLINE_EN/_DE`), 60–220 Wörter, Hintergrund ohne Belegpflicht
+und deshalb ohne Zahlen/Daten (`about_findings`; Bezeichner mit Ziffern wie
+„GLP-1", „SYS.1.5", „vSphere 8" und die Themenbegriffe zählen nicht —
+`background_figures`), Thema muss genannt sein, zählt nicht zur Faktenquote
+(`fact_density` ohne den Abschnitt). Schreibreihenfolge: nach den Beleg-
+Sektionen, vor der Kurzfassung — der Schreiber weiß dann, woran die Entscheidung
+hängt. Sektionsweise Direktive dazu in `write_sections`. Tests: Fixture in
+`test_dossier_decision._report`, `TestAboutSection`, Reihenfolge-Test.
+
+**Workflow-Befund über v1–v4 (nicht themenspezifisch).** Der Ablauf ist:
+Quant-Messung → Plan → Korpus-Agent → Audit → interner Sweep → Entitäten +
+Feldprofil → Regulatorik/Markt/Förder/Katalysator-Sweeps → Web-Agent (14
+Schritte) → Primärquellen-Vorlauf → Re-Audit → Faktenzettel/Kalender/Akteure →
+Schreiben (Sektionen) → Leser → Neuwurf → Reparatur/Streichung → zweiter
+Neuwurf → Leser → Endkontrolle. Was daran domänenunabhängig schwach ist, in
+der Reihenfolge des Hebels:
+
+1. **Kein Auftrags-Intake.** Das Frage-Feld geht ungeprüft in Planer und
+   Profil (v1: Leserbeschreibung wurde Forschungsgegenstand). Nötig ist ein
+   strukturierter Auftrag vor dem ersten Suchschritt: Was wird entschieden?
+   Wer liest? Welche Randbedingungen? Fragetyp (Technikwahl, Landschaft,
+   Regulatorik, Markt)? Und: Dossier oder Advisor? Ein „which should we"-Auftrag
+   ist ein Advisor-Auftrag mit Dossier als Vorstufe.
+2. **Owner-Checkpoint nach Plan und Profil.** Nach ~2 Minuten Rechenzeit
+   stehen Feldprofil, Plan und die Primärquellen-Klassen. Dort einen Halt
+   einbauen (Desk zeigt es, Owner bestätigt oder korrigiert in einem Satz),
+   bevor 30–85 Minuten laufen. Dafür braucht der Owner kein Fachwissen: „der
+   Plan handelt von IT-Dienstleistern, nicht von Virtualisierung" sieht jeder.
+3. **Feste Sweep-Muster laufen für jedes Feld.** AI Act, CE, SPC, Erstattung,
+   Abwärme — in allen vier Versionen Themenfremdes im Kalender und in der
+   Regulatorik. Seit dem PROFILE-Fix liefert das Profil brauchbare
+   Regulatoren/Ereignistypen; die festen Muster sollten nur noch Rückfall ohne
+   Profil sein, und Profil-Instrumente vor dem Sweep gegen den Korpus gezählt
+   werden (wie die Landschafts-Teilfelder).
+4. **Rangmodell kennt nur Register/Journale/Presse.** Für eine Technikwahl
+   sind Hersteller-Doku, Normen und CVE-Datenbanken die Primärquellen
+   (Broadcom-Lifecycle-Seite, pve.proxmox.com, learn.microsoft.com,
+   EUR-Lex-Text). Das Profil sollte je Feld die „autoritativen Quellklassen"
+   benennen, und Hosts, die es nennt, bekommen Rang 1 — verifiziert durch den
+   Abruf. Sonst trägt jede Kernaussage „secondary source only".
+5. **Widersprüche überleben den Neuwurf.** v2 und v4: Kurzfassung empfiehlt,
+   „does not support" verneint. Der Leser findet es, der Neuwurf ist ein
+   Ganzdokument-Aufruf, der zweite wird bei Nichtbesserung verworfen. Nötig:
+   Leser-Befund „contradiction" als sperrender Strukturbefund mit gezieltem
+   Neuwurf NUR der beiden betroffenen Sektionen.
+6. **Prüfung ist Token-Abgleich, keine Aussagenprüfung.** „BSI Baustein" fehlt
+   wörtlich im deutschen PDF → der einzige SYS.1.5-Satz fällt (v4); „Data Act
+   does not apply" steht auf keiner Seite, wurde aber nicht gefangen (v3), weil
+   kein Token fehlte. Für Kernsektionen einen Entailment-Schritt (Modell liest
+   Satz + zitierte Seite: gestützt / nicht gestützt / widersprochen), Token-Check
+   nur als Vorfilter; Subjektabgleich stamm- und wortweise statt als Phrase.
+7. **Quoten unabhängig vom Material.** Fünf Akteurzeilen, fünf Kalenderzeilen,
+   drei Beobachtungspunkte — für eine Technikwahl gibt es wenige datierte
+   Ereignisse, also füllt das Modell (Veranstaltungen, Förderfristen). Die
+   Kalender-Untergrenze folgt seit 13.09. den Kandidaten; Akteurtabelle und
+   Beobachtungspunkte sollten ebenso aus dem Faktenzettel bemessen werden.
+8. **Web-Agent wiederholt sich.** v3: dreimal dieselbe GDPR-Suche in Folge;
+   exakte Dubletten werden übersprungen, Fast-Dubletten nicht. Cosinus-Dedup
+   der Anfragen + Budget je Lücke statt global.
+9. **„ok" heißt nur: keine unbelegte Zahl, nichts gestrichen.** Leser,
+   Widersprüche, Dichte, Kalender-Themenbezug stehen daneben. Ein
+   „abgabereif"-Verbund (Leser beantwortet, kein Widerspruch, Dichte ≥ Floor,
+   Kalender themenbezogen) gehört als dritte Ampel in den Desk — erst dann
+   Sign-off.
+10. Klein: PDF-Titel aus Metadaten/Dateiname statt erster Textzeile; Kalender-
+    Daten vor dem heutigen Tag sind keine Auslöser (v3).
+
+Ergebnis für ein Kundenmuster heute bleibt: Dossier + Advisor-Notiz + eine
+Stunde Redaktion. Die Punkte 1, 2, 3 und 5 sind der Weg, das auf „Dossier +
+Advisor, ohne Redaktion" zu bringen; 4 und 6 heben die Belegqualität.
+

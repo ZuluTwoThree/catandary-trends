@@ -661,8 +661,18 @@ Sign-off, nie als Sperre. Ausschalten: `DOSSIER_READER=0`.
 Seit 14.09. löst der Leser auch den zweiten Neuwurf aus, wenn nach dem ersten
 schwere Einwände bleiben; Liste und Dossieransicht zeigen beide Ampeln
 („end-control clean" / „reader objects"). Der Bericht entsteht seit 14.09.
-**Sektion für Sektion** (sieben Aufrufe, Kurzfassung zuletzt) statt in einem
+**Sektion für Sektion** (acht Aufrufe, Kurzfassung zuletzt) statt in einem
 Zug — `DOSSIER_WRITE=single` stellt den alten Pfad her.
+
+**Einstieg „What this is about" (Owner 2026-09-18).** Jedes Dossier beginnt
+mit 60–220 Wörtern für einen Leser ohne Fachkenntnis: was die Technologie oder
+das Feld ist (was sie tut, was sie ersetzt, wer sie einsetzt) und warum sie
+für genau diese Frage zählt. Der Abschnitt ist Hintergrund ohne Belegpflicht —
+deshalb darf er keine Zahlen und keine Daten enthalten (Bezeichner wie
+„GLP-1" oder „SYS.1.5" zählen nicht als Zahl), und er zählt nicht zur
+Faktenquote. Der Schreiber verfasst ihn nach den Beleg-Sektionen und vor der
+Kurzfassung, damit er weiß, woran die Entscheidung hängt. Prüfregeln:
+Pflichtabschnitt, Wortband, keine Zahlen, Thema genannt.
 
 **Die Messkette (seit 2026-09-07, Default AN).** Ein Dossier trägt jetzt zwei
 codegenerierte Anhänge, die nicht das Modell schreibt, sondern der Code:

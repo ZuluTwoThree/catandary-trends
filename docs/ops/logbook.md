@@ -13,6 +13,13 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-18 · change · Dossier: Einstieg „What this is about" als achte Pflichtsektion
+
+Owner-Wunsch: Hintergrund für Fachfremde am Anfang jedes Dossiers — was die Technologie
+ist, warum sie für die Frage zählt. 60–220 Wörter, keine Zahlen/Daten, außerhalb der
+Faktenquote, geschrieben nach den Beleg-Sektionen. Workflow-Befund über v1–v4 mit zehn
+Punkten in docs/agentic_dossiers.md Runde 21.
+
 ## 2026-09-18 · change · Prompt-Katalog /trends/ops/prompts
 
 Owner-Seite neben Ops: alle 28 Systemanweisungen der LLM-Prozesse live aus dem Code,

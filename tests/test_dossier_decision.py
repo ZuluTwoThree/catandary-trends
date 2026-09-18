@@ -74,7 +74,17 @@ def _report(summary_words: int = 40, options: int = 2,
     # summary, die nichts zusammenfasst"). Die Gesamtwortzahl bleibt
     # `summary_words`, damit die 200-Woerter-Obergrenze weiter geprueft wird.
     _per = max(4, summary_words // 3)
-    body = ["# Dossier", "", "## Decision summary", ""]
+    # Seit 2026-09-18 beginnt jedes Dossier mit dem Einstieg fuer Fachfremde:
+    # 60-220 Woerter, keine Zahl, kein Datum, das Thema genannt.
+    body = ["# Dossier", "", "## What this is about", "",
+            " ".join(["GLP-1 receptor agonists are peptide medicines that mimic a gut hormone "
+                      "to lower blood sugar and appetite; they compete with older diabetes "
+                      "drugs and now define the obesity market. This matters for the question "
+                      "because supply, patents and reimbursement decide who can sell them."] * 1
+                     + ["The field moves through trials, approvals and pricing rules rather "
+                        "than through product launches alone, so timing matters more than "
+                        "technology here."]),
+            "", "## Decision summary", ""]
     # Seit 2026-09-13 muss mindestens eine Aussage das Thema nennen (die
     # e2e-Laeufe fragen nach GLP-1) — die Wortzahl bleibt gleich.
     body += [f"{i}. " + " ".join((["GLP-1"] if i == 1 else []) + [f"claim{i}"] * (_per - (1 if i == 1 else 0)))
@@ -1828,7 +1838,7 @@ class TestCatalystCalendar:
         assert "## What happens next" in cr._OUTLINE_EN
         assert "| Date | Event | Source | Why it matters |" in cr._OUTLINE_EN
         assert "## Was als Nächstes ansteht" in cr._OUTLINE_DE
-        assert "sieben" in cr._OUTLINE_DE and "seven" in cr._OUTLINE_EN
+        assert "acht" in cr._OUTLINE_DE and "eight" in cr._OUTLINE_EN
 
 
 class TestChainCoverage:

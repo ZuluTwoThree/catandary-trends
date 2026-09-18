@@ -42,6 +42,8 @@ BODY_WORDS_MIN = 1800
 BODY_WORDS_MAX = 2400
 # Optionen liegen seit 2026-09-14 beim Advisor (kundenspezifisch, mit Freigabe).
 OPTIONAL_SECTIONS = frozenset({"options"})
+ABOUT_WORDS_MIN = 60           # "What this is about": Hintergrund fuer Fachfremde
+ABOUT_WORDS_MAX = 220
 WATCH_MIN_ITEMS = 3
 SUMMARY_WORDS_MAX = 200
 MIN_OPTIONS, MAX_OPTIONS = 2, 5
@@ -143,6 +145,11 @@ _SOURCES_HEADING = re.compile(
 # (key, Ueberschrift wie sie im Bericht stehen soll, Erkennungsmuster)
 SECTIONS: dict[str, list[tuple[str, str, str]]] = {
     "en": [
+        # Einstieg fuer Leser ohne Fachkenntnis (Owner 2026-09-18): worum es
+        # technologisch geht und warum das fuer die Frage zaehlt. Hintergrund,
+        # keine Belegpflicht — dafuer keine Zahlen und keine Daten (die gehoeren
+        # in die belegten Abschnitte) und ein Wortband.
+        ("about", "What this is about", r"what (this|it) is about|about the topic|^background"),
         ("decision", "Decision summary", r"decision summary|decision brief"),
         ("moving", "What is moving", r"what is moving|what is actually moving"),
         ("regip", "Regulatory and IP status",
@@ -160,6 +167,7 @@ SECTIONS: dict[str, list[tuple[str, str, str]]] = {
          r"^options\b|options for a"),
     ],
     "de": [
+        ("about", "Worum es geht", r"worum es geht|^hintergrund"),
         ("decision", "Entscheidungs-Kurzfassung", r"entscheidungs"),
         ("moving", "Was sich bewegt", r"was sich bewegt"),
         ("regip", "Recht und Schutzrechte", r"recht und schutzrechte|rechts?[- ]"),
@@ -1603,6 +1611,10 @@ def fact_density(report_md: str, sources: list[dict] | None = None,
     (fehlt der Rueckruf, gilt ein Link ohne Katalogeintrag als Rang 2)."""
     by_id, by_url = _source_index(sources or [])
     body = body_text(report_md)
+    # Der Einstiegsabschnitt ist Hintergrund ohne Belegpflicht (2026-09-18) —
+    # er zaehlt weder Woerter noch Fakten zur Quote, sonst druecken 150 Woerter
+    # Erklaerung die Quote jedes Dossiers um ~7 %.
+    body = _without_section(body, "about", _lang(lang))
     words = count_words(body)
     dated = primary = specifics = 0
     for raw in split_claims(body):
@@ -1754,6 +1766,72 @@ def landscape_findings(report_md: str, items: list[str] | None, lang: str = "en"
              f"Evidenzblock.")]
 
 
+def _without_section(body: str, key: str, lang: str = "en") -> str:
+    """Der Bericht ohne einen Abschnitt — samt seiner Ueberschrift."""
+    spec = dict((k, pat) for k, _h, pat in SECTIONS[_lang(lang)])
+    pat = spec.get(key)
+    if not pat:
+        return body
+    heads = [(m.start(), m.end(), len(m.group(1)), m.group(2)) for m in _HEADING.finditer(body)]
+    for i, (st, _e, level, title) in enumerate(heads):
+        low = _HEAD_ENUM.sub("", title.strip().lower())
+        if re.search(pat, low, re.IGNORECASE):
+            end = next((h[0] for h in heads[i + 1:] if h[2] <= level), len(body))
+            return body[:st] + body[end:]
+    return body
+
+
+# Bezeichner mit Ziffern sind keine Zahlenangaben: "GLP-1", "SYS.1.5", "H01M4/5825",
+# "vSphere 8" — die Ziffer gehoert zum Namen, nicht zu einer Behauptung.
+_IDENT_WITH_DIGIT = re.compile(r"\b(?:[A-Za-z]+[-./]?\d[\w./-]*|\d[\w./-]*[-./][A-Za-z]+)\b")
+
+
+def background_figures(text: str, topic_terms=()) -> list[str]:
+    """Zahlen und Daten eines Hintergrundtexts, die eine Belegpflicht ausloesen
+    wuerden: Jahreszahlen, Prozent, Betraege, mehrstellige Zahlen. Bezeichner
+    mit Ziffern und die Themenbegriffe selbst zaehlen nicht, einstellige
+    Zahlen ("three vendors", "version 8") auch nicht."""
+    t = text
+    for term in topic_terms or ():
+        if term:
+            t = re.sub(re.escape(str(term)), " ", t, flags=re.IGNORECASE)
+    t = _IDENT_WITH_DIGIT.sub(" ", t)
+    out = []
+    for tok in sorted(_concrete_tokens(t)):
+        core = re.sub(r"[^\d]", "", tok)
+        if len(core) >= 2 or any(c in tok for c in "%€$£"):
+            out.append(tok)
+    return out
+
+
+def about_findings(about: str, lang: str = "en", topic_terms=()) -> list[str]:
+    """'What this is about' (2026-09-18): 60-220 Woerter Hintergrund fuer einen
+    Leser ohne Fachkenntnis — was die Technologie ist und warum sie fuer die
+    Frage zaehlt. Ohne Belegpflicht, deshalb OHNE Zahlen und Daten: was
+    quantitativ ist, gehoert in die belegten Abschnitte. Fehlt der Abschnitt,
+    meldet das die Pflichtabschnitt-Pruefung."""
+    if not about:
+        return []
+    L = _lang(lang)
+    heading = dict((k, h) for k, h, _p in SECTIONS[L])["about"]
+    out: list[str] = []
+    text = prose(about)
+    n = count_words(text)
+    if n < ABOUT_WORDS_MIN or n > ABOUT_WORDS_MAX:
+        out.append(f"'{heading}' hat {n} Woerter — Band {ABOUT_WORDS_MIN}-{ABOUT_WORDS_MAX}: "
+                   f"ein kurzer Hintergrund fuer einen Leser ohne Fachkenntnis, was die "
+                   f"Technologie ist und warum sie fuer die Frage zaehlt.")
+    figs = background_figures(text, topic_terms)
+    if figs:
+        out.append(f"'{heading}' traegt Zahlen/Daten {figs[:6]} — der Einstieg ist Hintergrund "
+                   f"ohne Belegpflicht und deshalb ohne jede Zahl; Zahlen und Daten gehoeren "
+                   f"belegt in die Abschnitte darunter.")
+    if topic_terms and not _row_on_topic(text, topic_terms):
+        out.append(f"'{heading}' nennt das Thema nicht — der Abschnitt erklaert genau die "
+                   f"Technologie, nach der gefragt ist.")
+    return out
+
+
 def structure_findings(report_md: str, lang: str = "en",
                        measured: list[str] | None = None,
                        sectors: list[str] | None = None,
@@ -1791,11 +1869,13 @@ def structure_findings(report_md: str, lang: str = "en",
     for key, heading, _pat in SECTIONS[L]:
         if key not in sections and key not in OPTIONAL_SECTIONS:
             findings.append(f"Pflichtabschnitt fehlt: '## {heading}'.")
+    headings = {k: h for k, h, _p in SECTIONS[L]}
     summary = sections.get("decision", "")
     if summary and count_words(summary) > SUMMARY_WORDS_MAX:
         findings.append(
-            f"'{SECTIONS[L][0][1]}' hat {count_words(summary)} Woerter — "
+            f"'{headings['decision']}' hat {count_words(summary)} Woerter — "
             f"hoechstens {SUMMARY_WORDS_MAX}.")
+    findings += about_findings(sections.get("about", ""), L, topic_terms)
     if "decision" in sections:
         findings += summary_findings(summary, body, L)
         # Themenbezug der Kurzfassung (Iron-Air v1, 2026-09-13): drei belegte
