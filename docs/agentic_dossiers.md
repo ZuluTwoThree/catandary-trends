@@ -1532,6 +1532,56 @@ Kurzfassung/Entscheidungspunkt zu VS-NfD, „Spurs (retailer)" erfunden. Drei
 fenster endet in ~12 Tagen. Verbrauch September aus den Dossier-Ergebnissen:
 919 API-Aufrufe über 40 Dossiers (v1 110, v2 42 + 74 aus dem Cache).
 
-v3 (#41) läuft mit der geschärften Frage („keine Verschlusssachen, Maßstab
-IT-Grundschutz SYS.1.5") und den drei Fixes — Ergebnis unten, sobald da.
+**v3 (#41, 18:27, 31 min, 27B)** mit der geschärften Frage („keine Verschlusssachen,
+Maßstab IT-Grundschutz SYS.1.5") und den drei Fixes: SYS.1.5 (Edition 2022, PDF)
+gelesen, Rang 0, trägt Kurzfassung und Regulatorik; keine leeren Zeilen, der
+Auffüller trug bei 12 Kandidaten 0 ein (Primärlatte). Trotzdem ok=false:
+Faktenquote 0,57, 1.398 Wörter, 36 Sätze gestrichen, Kurzfassung ohne
+Empfehlung (Fusionsfreigabe 2023 + „SYS.1.5 gilt"), **falsche Rechtsaussage**
+„the EU Data Act does not apply to the firm's B2B service-provider model"
+(zwei Absätze später wird die Äquivalenzpflicht doch behandelt), Kalender mit
+vier vergangenen Nachrichten-Daten aus Juli–September 2026 (die Strukturprüfung
+lässt jedes Datum des laufenden Jahres durch — vierte Harness-Lücke, offen).
+Beim Bau des Prompt-Katalogs (gleicher Tag) fiel auf, dass `PROFILE_SYSTEM`
+doppelt definiert war und die Suchrichtungen v1–v3 unter der
+Firmenprofil-Anweisung liefen — behoben (`COMPANY_PROFILE_SYSTEM`).
+
+**v4 (#42, 19:40, 84 min, Schreiber Qwen3.8-Flash-Next UD-IQ4_XS,
+6–7 min je Sektion)** mit derselben Frage und dem PROFILE-Fix: Faktenquote 1,58
+(Soll 2,0), 1.706 Wörter, 41 Sätze geprüft, 19 gestrichen, Data Act jetzt
+richtig als anwendbar („data processing service", Wechselpflichten) mit
+Kanzlei-Belegen, ein CVE-Beobachtungspunkt (CVE-2026-51080), Broadcoms
+VDDK-Rückzug. Aber: Kurzfassung sagt „leading candidate" Proxmox, der Abschnitt
+„What the evidence does not support" sagt „no definitive recommendation" —
+derselbe Widerspruch wie v2; SYS.1.5 ist wieder WEG (der einzige Satz mit
+PDF-Beleg fiel der Themenprüfung zum Opfer: „'BSI Baustein' absent from …pdf" —
+Subjektabgleich gegen deutschen PDF-Text); Kalender mit AI-Act-Verbot
+„Dezember 2026" (erfunden, vom Leser benannt) und Abwärme-Quoten (Thema
+Rechenzentrumsbau, nicht Stack-Wahl); Zahlen der Kurzfassung („1.5 million
+hosts", „150 % to 1,500 %") aus einem Rang-2-Blog. Leser: „beantwortet die Frage
+nicht", 7 Befunde; zweiter Neuwurf verworfen (Struktur 4 → 5).
+
+| | v1 | v2 | v3 | v4 |
+|---|---|---|---|---|
+| Schreiber | 27B | 27B | 27B | Flash-Next IQ4 |
+| Planschritte zum Thema | 0/6 | 6/6 | 6/6 | 6/6 |
+| Fließtext (Wörter) | 1.970 | 1.990 | 1.398 | 1.706 |
+| Faktenquote /100 W | — | 0,8 | 0,57 | 1,58 |
+| Sätze geprüft / gestrichen | 21 / 5 | 30 / 18 | 15 / 36 | 41 / 19 |
+| SYS.1.5 im Text | nein | nein | ja | nein (gestrichen) |
+| Data Act korrekt | — | ja | **nein** | ja |
+| Leser: Frage beantwortet | nein | nein | nein | nein |
+| Dauer | 33 min | 33 min | 31 min | 84 min |
+
+**Befund über alle vier:** Der Rahmen des Scouting-Dossiers ist seit Runde 19
+bewusst empfehlungsfrei (Optionen liegen beim Advisor). Eine Frage „which stack
+should the firm run" verlangt ein Urteil; der Leser bemängelt bei jeder Version
+zu Recht, dass es fehlt — aber das Dossier DARF es laut Schreiber-Anweisung
+nicht geben. Die Empfehlung gehört in die Advisor-Notiz zu diesem Dossier
+(Kundenprofil: Gruppe + Partner, keine VS-NfD, Windows-Lizenzen?, VMware-
+Vertragsstand?). Zweiter Befund: die Primärquellen dieses Themas sind
+Hersteller-Doku und Normen (Broadcom-Lifecycle-Seite für den 11.10.2027,
+pve.proxmox.com, learn.microsoft.com, EUR-Lex-Text des Data Act, BSI-PDFs),
+nicht Register — das Rangmodell kennt sie nur als Rang 2, deshalb tragen alle
+vier Versionen „secondary source only" an den Kernaussagen.
 
