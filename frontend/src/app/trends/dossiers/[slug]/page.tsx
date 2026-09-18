@@ -5,6 +5,7 @@ import { canManageDossiers } from "@/lib/dossier-access";
 import { workerStatus } from "@/lib/dossierWorker";
 import {
   getDossier,
+  getDossierOutcome,
   getOrderForVersion,
   listVersions,
   type DossierProvenance,
@@ -213,9 +214,10 @@ export default async function DossierPage({
   const doc = await getDossier(slug, version);
   const advisoryNotes = await listAdvisoryNotes(slug);
   if (!doc) notFound();
-  const [versions, order] = await Promise.all([
+  const [versions, order, outcome] = await Promise.all([
     listVersions(slug),
     getOrderForVersion(slug, doc.version),
+    getDossierOutcome(slug, doc.version),
   ]);
   const check = order?.check ?? null;
   const workerBusy = workerStatus().running;
@@ -302,6 +304,27 @@ export default async function DossierPage({
               · {check.cited}/{check.sources} sources cited · {check.words} words
               {check.open_questions > 0 && ` · ${check.open_questions} open question(s)`}
             </span>
+            {/* Third light (plan stage 0): reader answers ∧ no contradiction ∧
+                density ≥ floor ∧ tables on topic — pipeline/dossier_utility.py,
+                stored in dossier_run_outcomes; "—" = no outcome row yet. */}
+            {" · delivery "}
+            {outcome ? (
+              outcome.deliveryReady ? (
+                <span className="text-accent">ready</span>
+              ) : (
+                <span className="text-warn">not ready</span>
+              )
+            ) : (
+              <span className="text-muted">—</span>
+            )}
+            {outcome && (
+              <span className="text-muted">
+                {" "}
+                · U {outcome.utility == null ? "—" : outcome.utility.toFixed(2)}
+                {outcome.densityNorm != null && ` · density ${outcome.densityNorm.toFixed(2)}`}
+                {outcome.primaryShare != null && ` · primary ${Math.round(outcome.primaryShare * 100)}%`}
+              </span>
+            )}
           </p>
           {check.findings.length > 0 && (
             <ul className="mt-2 list-disc pl-5 font-mono text-[11px] leading-[1.7] text-warn">

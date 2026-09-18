@@ -1560,6 +1560,17 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   Prüfung (Marker, Platzhalter, fremde Zahlen) + Leser, **Freigabe nur durch einen Menschen**
   (`approved_at`, wie Newsletter). Desk: Formular auf der Dossierseite,
   `/trends/dossiers/<slug>/advisory/<id>`, Lock `data/advisory.lock`.
+- **Messlatte je Lauf (Stufe 0 des Plans `docs/plan_dossier_agent_2026-09-18.md`, seit 2026-09-19):**
+  `pipeline/dossier_utility.py` rechnet aus `dossiers.result` + Endkontrolle den Nutzen **U**
+  (Faktenquote/2,0 · Primäranteil der Zitate · Widerspruchsfreiheit · Themenbezug der Tabellen ·
+  Leser-Urteil, gewichtet je Fragetyp-Preset, fehlende Komponenten herausnormiert; minus Laufzeit-
+  und Web-Kosten) und die dritte Desk-Ampel **„delivery-ready"** (Leser beantwortet ∧ kein Widerspruch
+  ∧ Dichte ≥ 2,0 ∧ Tabellen themenbezogen). Tabelle `dossier_run_outcomes` (eine Zeile je
+  `dossiers.id`; `scripts/migrate_dossier_run_outcomes.py`, additiv, Live-DB 19.09., nicht in
+  `init_db`), Worker schreibt sie am Laufende (nie sperrend), `scripts/dossier_eval.py
+  --backfill|--scoreboard [--json]` für alle alten Läufe. Baseline 19.09.: 48 Läufe, **0
+  abgabereif**, 7 mit Leser / 0 „beantwortet", mean U 0,476; LFP v9 Platz 4/48, perovskite v1/v2
+  ohne Strukturprotokoll nicht messbar. `answered_must` ist Platzhalter für Stufe 1. Runde 22.
 - **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
   zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
   themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,

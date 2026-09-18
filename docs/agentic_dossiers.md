@@ -1664,3 +1664,75 @@ Ergebnis für ein Kundenmuster heute bleibt: Dossier + Advisor-Notiz + eine
 Stunde Redaktion. Die Punkte 1, 2, 3 und 5 sind der Weg, das auf „Dossier +
 Advisor, ohne Redaktion" zu bringen; 4 und 6 heben die Belegqualität.
 
+### Runde 22 (2026-09-19) — Stufe 0: die Messlatte (`dossier_run_outcomes`, dritte Ampel)
+
+Erster Schritt des Plans `docs/plan_dossier_agent_2026-09-18.md`. Bevor der
+Agent nutzenbasiert entscheidet, muss der Nutzen messbar sein — und zwar für
+jeden Lauf, der je gespeichert wurde, ohne Modell.
+
+**Gebaut.** `pipeline/dossier_utility.py` rechnet aus `dossiers.result`
+(Struktur-, Leser-, Zitat- und Quellenprotokoll) und `dossier_orders`
+(Endkontrolle, `reviewed_at`) je Lauf sieben Komponenten und den Nutzen U;
+`scripts/migrate_dossier_run_outcomes.py` legt die Tabelle
+`dossier_run_outcomes` an (eine Zeile je `dossiers.id`, Upsert; additiv, auf
+der Live-DB am 19.09. ausgeführt, wie die Dossier-Tabellen nicht in
+`init_db`); `scripts/dossier_eval.py --backfill` rechnet alle Läufe nach,
+`--scoreboard` zeigt sie je Serie (`--json` für Maschinen); der Worker
+schreibt die Zeile am Ende jedes Laufs (`record_run`, nie sperrend — schlägt
+es fehl, steht eine Warnung im Log und der Lauf endet normal in `review`).
+Desk: dritte Ampel **„delivery-ready"** neben Endkontrolle und Leser in Liste,
+Serienkarte und Dossieransicht (dort mit U, Dichte, Primäranteil); „—" ohne
+Outcome-Zeile. Tests: `tests/test_dossier_utility.py` (Komponenten,
+Gewichte, Herausnormierung, Kostenstrafe, Ampel, Upsert gegen SQLite).
+
+**Komponenten** (je in [0, 1], None = vom Lauf nicht erzeugt):
+`density_norm` = Faktenquote nach dem Neuwurf / 2,0 (gedeckelt; Rückfall
+vorher, sonst 0) · `primary_share` = Anteil zitierter Katalog-IDs mit Rang ≤ 1
+(fehlender Rang = 2; None ohne Zitate) · `no_contradiction` = 0 bei
+`coherence`-Befund des Lesers oder „contradict" im Urteil, sonst 1 ·
+`tables_on_topic` = 1 − min(2, Strukturbefunde „off topic"/„nicht zum Thema"
+nach dem Neuwurf)/2 · `reader_answers` = Leser-Urteil (None ohne Leser) ·
+`answered_must` = Pflichtpunkte des Auftrags — **Platzhalter, ab Stufe 1** ·
+dazu roh `cost_minutes`, `web_calls` (Brave + SearXNG) und das Label
+`signed_off`.
+
+**Gewichte** (Preset `technology`, Default; die Fragetypen `landscape`,
+`regulatory`, `market`, `evidence` liegen als Presets bereit, Stufe 1 wählt
+sie aus dem Auftrag): Dichte 0,25 · Primäranteil 0,20 · kein Widerspruch 0,20 ·
+Tabellen 0,10 · Leser 0,25; `answered_must` zusätzlich 0,25, sobald messbar.
+Fehlende Komponenten werden **herausnormiert, nie als 0 gewertet**. Kosten:
+−0,02 je angefangene 10 min über 30 min, −0,01 je angefangene 10 Web-Aufrufe
+über 40. **Abgabereif** = Leser beantwortet ∧ kein Widerspruch ∧ Dichte ≥ 2,0
+∧ Tabellen themenbezogen; ohne Leser nie.
+
+**Baseline über die 48 Läufe (Backfill 19.09.):**
+
+| | |
+|---|---|
+| Läufe / abgabereif | 48 / **0** |
+| mit Leser (seit 14.09.) / davon „beantwortet" | 7 / 0 |
+| vom Owner abgenommen | 3 |
+| mean U über alle | 0,476 |
+| ohne Strukturprotokoll (vor 07.09.; U aus Defaults 0,308) | 14 |
+| stärkste Serien (mean U) | glp1-dr2 0,915 · glp1-dr3 0,877 · batteries-landscape 0,841 · glp1-dr4 0,817 · iron-air-batteries 0,767 |
+| schwächste Serien | datacenter-virtualization **0,254** (v1 0,551 → v2 0,178 → v3 0,126 → v4 0,160) · perovskite / askea / newsletter-deepdive 0,308 (kein Protokoll) |
+| iron-phosphate-battery v9 (abgenommen) | U 0,832, **Platz 4 von 48** — im oberen Drittel |
+| perovskite v1 / v2 (abgenommen) | U 0,308, Platz 40 / 41 — **kein Strukturprotokoll**, keine Ränge: U misst nur, was gespeichert ist |
+
+Drei Lesarten. (1) Die Messlatte bestätigt Runde 21: **kein einziger Lauf ist
+abgabereif**, und bei allen sieben Läufen mit Leser fehlt das Urteil
+„beantwortet". (2) Die datacenter-Serie fällt von v1 nach v2–v4 auf ein
+Viertel — genau der „Dichte fällt durch den Neuwurf"-Befund aus dem Plan, jetzt
+als Zahl. (3) Der Plan fragte, ob die drei abgenommenen Dossiers im oberen
+Drittel liegen: LFP v9 ja (Platz 4); die beiden Perowskit-Läufe vom 03.09.
+sind **nicht messbar**, nicht schlecht — sie liegen vor Messkette und
+Rangmodell. Die Regression im Sinne des Plans (U deterministisch, abgenommene
+Läufe oben) ist deshalb nur für LFP belegt; eine Wiederholung der
+Perowskit-Serie mit heutigem Harness würde die Frage beantworten.
+
+**Grenzen von Stufe 0, bewusst:** `no_contradiction` ist Token-Abgleich auf
+dem Leser-Text (Stufe 4 bringt die Aussagenprüfung); `tables_on_topic` liest
+Strukturbefunde, nicht die Tabellen selbst; U vergleicht nur Läufe mit
+gleichem Protokollstand fair (Spalte „* kein Strukturprotokoll" im
+Scoreboard). `owner_edit_diff` ist als Spalte da und bleibt bis Stufe 5 leer.
+

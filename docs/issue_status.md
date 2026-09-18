@@ -125,6 +125,13 @@
 >   (Feed, Methodology, Newsletter, Landing) nicht gesetzt; Smoke an zwei Artikeln auf `:3001`.
 > - Nicht angefasst: Newsletter-Konstante/-Ansicht, `/analysis`, Landing.
 
+> **Nachtrag 19.09.2026 — Stufe 0 des Dossier-Agent-Plans (Messlatte, Runde 22)** (`docs/agentic_dossiers.md`):
+> - `scripts/migrate_dossier_run_outcomes.py` auf der Live-DB ausgeführt (additiv, idempotent,
+>   `dossier_run_outcomes` neu — wie `dossier_orders`/`dossiers`/`advisory_notes` **nicht in `init_db`**;
+>   auf einer frischen DB von Hand nachziehen, bekannte Migrationslücke).
+> - `scripts/dossier_eval.py --backfill` über alle 48 Läufe: 0 abgabereif, mean U 0,476, LFP v9 Platz 4/48;
+>   perovskite v1/v2 ohne Strukturprotokoll (vor 07.09.) nicht messbar. Worker schreibt seither je Lauf.
+
 Vollständiges Audit aller offenen Issues in der Nacht 2026-08-28 (Referenz `main` = `a6455bf`).
 Jede Aussage gegen Code, DB, crontab und die laufende Instanz (:3001) geprüft.
 **Ergebnis: 14 geschlossen, 1 neu (#94) → Backlog 36 → 23 offen.**

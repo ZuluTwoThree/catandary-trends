@@ -134,6 +134,19 @@ def process_order(order: dict, quant: dict | None,
         logger.info("order #%d → review: dossiers %s v%d (%.0fs, ok=%s, "
                     "%d Befund(e))", oid, order["slug"], version,
                     check["seconds"], check["ok"], len(check["findings"]))
+        # Stufe 0 (Messlatte): Nutzen U + dritte Ampel je Lauf — Replay über
+        # das, was gerade gespeichert wurde. Darf den Lauf nie scheitern lassen.
+        try:
+            from pipeline import dossier_utility
+            ev = dossier_utility.record_run(order["slug"], version, oid,
+                                            result, check)
+            if ev:
+                logger.info("order #%d outcome: U=%.3f delivery_ready=%s reader=%s",
+                            oid, ev["utility"], ev["delivery_ready"],
+                            ev["reader_answers"])
+        except Exception as exc:                                    # noqa: BLE001
+            logger.warning("order #%d: dossier_run_outcomes nicht geschrieben (%s: %s)",
+                           oid, type(exc).__name__, exc)
         return True
     except Exception as exc:                                        # noqa: BLE001
         logger.exception("order #%d failed", oid)

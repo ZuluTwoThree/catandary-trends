@@ -664,6 +664,34 @@ schwere Einwände bleiben; Liste und Dossieransicht zeigen beide Ampeln
 **Sektion für Sektion** (acht Aufrufe, Kurzfassung zuletzt) statt in einem
 Zug — `DOSSIER_WRITE=single` stellt den alten Pfad her.
 
+**Dritte Ampel „delivery-ready" und die Messlatte (seit 2026-09-19, Stufe 0
+des Plans `docs/plan_dossier_agent_2026-09-18.md`).** Neben „end-control
+clean" und „reader ok/objects" steht je Lauf eine dritte Ampel: **delivery-
+ready** = der Leser sagt „beantwortet die Frage" ∧ kein Widerspruchsbefund ∧
+Faktenquote ≥ 2,0 ∧ Tabellen ohne „nicht zum Thema"-Befund. Sie steht in der
+Auftragsliste, auf der Serienkarte (jüngste Version) und im Endkontroll-Panel
+der Dossieransicht — dort zusätzlich der Nutzen **U** (0–1, gewichtete Summe
+aus Faktenquote, Primäranteil der Zitate, Widerspruchsfreiheit, Themenbezug
+der Tabellen und Leser-Urteil, minus Laufzeit- und Web-Kosten; Rechenregeln
+und Gewichte im Kopf von `pipeline/dossier_utility.py`), Dichte und
+Primäranteil. „—" heißt: für diesen Lauf gibt es noch keine Outcome-Zeile.
+Der Worker schreibt sie am Ende jedes Laufs in `dossier_run_outcomes`; alte
+Läufe holt der Backfill nach. Ohne Leser ist ein Lauf nie delivery-ready —
+das Urteil fehlt dann, es ist nicht „gut". Die Ampel ersetzt deinen Sign-off
+nicht; sie sagt, ob der Lauf die messbaren Hürden nimmt.
+
+```bash
+.venv/bin/python scripts/migrate_dossier_run_outcomes.py     # einmalig (auf der Live-DB am 19.09. geschehen)
+.venv/bin/python scripts/dossier_eval.py --backfill          # U für alle bisherigen Läufe (Upsert, ~1 s, kein Modell)
+.venv/bin/python scripts/dossier_eval.py --scoreboard        # eine Zeile je Lauf, je Serie; Zusammenfassung unten
+.venv/bin/python scripts/dossier_eval.py --scoreboard --json # für Skripte
+```
+
+Im Scoreboard markiert „* kein Strukturprotokoll" Läufe vor dem 07.09.: ihr
+U kommt aus Defaults (Dichte 0, Primäranteil 0 %) und ist mit heutigen Läufen
+nicht vergleichbar. Baseline vom 19.09.: 48 Läufe, 0 delivery-ready, mean U
+0,476 (Runde 22 in `docs/agentic_dossiers.md`).
+
 **Einstieg „What this is about" (Owner 2026-09-18).** Jedes Dossier beginnt
 mit 60–220 Wörtern für einen Leser ohne Fachkenntnis: was die Technologie oder
 das Feld ist (was sie tut, was sie ersetzt, wer sie einsetzt) und warum sie

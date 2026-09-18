@@ -136,6 +136,79 @@ export interface DossierDoc {
   ledger: DossierLedgerRow[];
 }
 
+/**
+ * Utility U of one run (pipeline/dossier_utility.py, plan stage 0): stored per
+ * dossiers.id in dossier_run_outcomes by the worker and by
+ * `scripts/dossier_eval.py --backfill`. "delivery-ready" is the third light
+ * next to end-control and reader: reader answers ∧ no contradiction ∧ fact
+ * density ≥ floor ∧ tables on topic. Missing row → the desk shows "—".
+ */
+export interface DossierOutcome {
+  slug: string;
+  version: number;
+  utility: number | null;
+  deliveryReady: boolean;
+  readerAnswers: boolean | null;
+  signedOff: boolean;
+  densityNorm: number | null;
+  primaryShare: number | null;
+}
+
+export function outcomeKey(slug: string, version: number): string {
+  return `${slug}:${version}`;
+}
+
+/** All outcome rows keyed by slug:version — 50-odd rows, one query. */
+export async function listDossierOutcomes(): Promise<Map<string, DossierOutcome>> {
+  const map = new Map<string, DossierOutcome>();
+  try {
+    const t = await q1<{ t: string | null }>(
+      `SELECT to_regclass('public.dossier_run_outcomes')::text AS t`
+    );
+    if (!t?.t) return map;
+    const rows = await q<{
+      slug: string;
+      version: number;
+      utility: number | null;
+      delivery_ready: boolean;
+      reader_answers: boolean | null;
+      signed_off: boolean;
+      density: string | null;
+      primary: string | null;
+    }>(
+      `SELECT slug, version, utility, delivery_ready, reader_answers, signed_off,
+              components->>'density_norm' AS density,
+              components->>'primary_share' AS primary
+         FROM dossier_run_outcomes`
+    );
+    for (const r of rows) {
+      map.set(outcomeKey(r.slug, Number(r.version)), {
+        slug: r.slug,
+        version: Number(r.version),
+        utility: num(r.utility),
+        deliveryReady: Boolean(r.delivery_ready),
+        readerAnswers: r.reader_answers === null || r.reader_answers === undefined
+          ? null
+          : Boolean(r.reader_answers),
+        signedOff: Boolean(r.signed_off),
+        densityNorm: num(r.density),
+        primaryShare: num(r.primary),
+      });
+    }
+  } catch {
+    /* table missing or DB down: the desk shows "—" */
+  }
+  return map;
+}
+
+export async function getDossierOutcome(
+  slug: string,
+  version: number
+): Promise<DossierOutcome | null> {
+  const all = await listDossierOutcomes();
+  return all.get(outcomeKey(slug, version)) ?? null;
+}
+
 export async function dossierTablesReady(): Promise<boolean> {
   try {
     const row = await q1<{ orders: string | null; dossiers: string | null }>(

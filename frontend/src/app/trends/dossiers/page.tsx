@@ -5,8 +5,11 @@ import { workerStatus } from "@/lib/dossierWorker";
 import {
   dossierTablesReady,
   listDossierOrders,
+  listDossierOutcomes,
   listDossierSeries,
+  outcomeKey,
   type DossierOrder,
+  type DossierOutcome,
 } from "@/lib/dossiers";
 import {
   approveAction,
@@ -62,7 +65,26 @@ function fmt(ts: string | null): string {
   return d.toLocaleString("en-GB", { hour12: false, dateStyle: "short", timeStyle: "short" });
 }
 
-function CheckSummary({ order }: { order: DossierOrder }) {
+/** Third light (plan stage 0, 2026-09-19): "delivery-ready" = reader answers
+ *  ∧ no contradiction ∧ fact density ≥ floor ∧ tables on topic — computed by
+ *  pipeline/dossier_utility.py and stored per run in dossier_run_outcomes.
+ *  "—" = no outcome row (run predates the table and no backfill yet). */
+function DeliveryLight({ outcome }: { outcome: DossierOutcome | null | undefined }) {
+  if (!outcome) return <span className="text-muted"> · delivery —</span>;
+  return outcome.deliveryReady ? (
+    <span className="text-accent"> · delivery-ready</span>
+  ) : (
+    <span className="text-warn"> · not delivery-ready</span>
+  );
+}
+
+function CheckSummary({
+  order,
+  outcome,
+}: {
+  order: DossierOrder;
+  outcome: DossierOutcome | null | undefined;
+}) {
   const c = order.check;
   if (!c) return null;
   return (
@@ -79,11 +101,23 @@ function CheckSummary({ order }: { order: DossierOrder }) {
         {c.reader_ok === false && " · reader objects"}
         {c.reader_ok === true && " · reader ok"}
       </span>
+      <DeliveryLight outcome={outcome} />
+      {outcome?.utility != null && (
+        <span className="text-muted"> · U {outcome.utility.toFixed(2)}</span>
+      )}
     </span>
   );
 }
 
-function OrderRow({ order, workerBusy }: { order: DossierOrder; workerBusy: boolean }) {
+function OrderRow({
+  order,
+  workerBusy,
+  outcome,
+}: {
+  order: DossierOrder;
+  workerBusy: boolean;
+  outcome: DossierOutcome | null | undefined;
+}) {
   const runLabel = order.status === "failed" ? "Run again" : "Run now";
   return (
     <li className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border px-1 py-3">
@@ -103,7 +137,7 @@ function OrderRow({ order, workerBusy }: { order: DossierOrder; workerBusy: bool
         </Link>
       )}
       <span className="ml-auto flex items-center gap-3">
-        <CheckSummary order={order} />
+        <CheckSummary order={order} outcome={outcome} />
         {order.status === "review" && (
           <form action={approveAction}>
             <input type="hidden" name="id" value={order.id} />
@@ -149,9 +183,9 @@ export default async function DossierDeskPage({
   const notice = typeof sp.worker === "string" ? NOTICE[sp.worker] : undefined;
 
   const ready = await dossierTablesReady();
-  const [orders, series] = ready
-    ? await Promise.all([listDossierOrders(), listDossierSeries()])
-    : [[], []];
+  const [orders, series, outcomes] = ready
+    ? await Promise.all([listDossierOrders(), listDossierSeries(), listDossierOutcomes()])
+    : [[], [], new Map<string, DossierOutcome>()];
   const queued = orders.filter((o) => o.status === "queued").length;
   const inReview = orders.filter((o) => o.status === "review").length;
   const runningInDb = orders.filter((o) => o.status === "running").length;
@@ -313,7 +347,14 @@ export default async function DossierDeskPage({
         ) : (
           <ul className="mt-2">
             {orders.map((o) => (
-              <OrderRow key={o.id} order={o} workerBusy={workerBusy} />
+              <OrderRow
+                key={o.id}
+                order={o}
+                workerBusy={workerBusy}
+                outcome={
+                  o.dossierVersion != null ? outcomes.get(outcomeKey(o.slug, o.dossierVersion)) : null
+                }
+              />
             ))}
           </ul>
         )}
@@ -339,6 +380,7 @@ export default async function DossierDeskPage({
                   <p className="mt-1 font-mono text-[11px] text-muted">
                     {s.versions} version(s) · latest v{s.latestVersion}
                     {s.latestAt ? ` · ${s.latestAt.slice(0, 10)}` : ""}
+                    <DeliveryLight outcome={outcomes.get(outcomeKey(s.slug, s.latestVersion))} />
                   </p>
                 </div>
                 <form action={rerunSeriesAction} className="mt-auto">

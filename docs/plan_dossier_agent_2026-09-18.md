@@ -93,6 +93,20 @@ Desk: dritte Ampel **„abgabereif"** (Leser beantwortet ∧ kein Widerspruch �
 Dichte ≥ Floor ∧ Tabellen themenbezogen) neben Endkontrolle und Leser.
 *Abnahme:* Baseline-Zahlen im Bericht; kein Lauf ohne Outcome-Zeile.
 
+**Stand Stufe 0 (2026-09-19, gebaut — Runde 22 in `docs/agentic_dossiers.md`):**
+`pipeline/dossier_utility.py` (Komponenten, U, Presets je Fragetyp, Ampel,
+`record_run`), `scripts/migrate_dossier_run_outcomes.py` (auf der Live-DB
+ausgeführt), `scripts/dossier_eval.py --backfill|--scoreboard [--json]`, Worker-
+Hook am Laufende (nie sperrend), dritte Ampel „delivery-ready" im Desk,
+`tests/test_dossier_utility.py`. Baseline über 48 Läufe: **0 abgabereif**,
+7 mit Leser / 0 „beantwortet", mean U 0,476; LFP v9 Platz 4 von 48 (oberes
+Drittel), perovskite v1/v2 Platz 40/41 — **nicht messbar** (kein Struktur-
+protokoll, keine Ränge vor dem 07.09.), also nur für LFP als Regression belegt.
+`answered_must` ist als Komponente vorgesehen (Gewicht 0,25, herausnormiert,
+solange None) und wartet auf die Pflichtpunkte aus Stufe 1. Der Regressionstest
+gegen die 48 Läufe ist ein Scoreboard-Ausdruck, kein Assert: die drei
+abgenommenen Läufe sind mit heutigem Protokollstand nicht vergleichbar.
+
 ### Stufe 1 — Auftrags-Intake und Owner-Checkpoint (2 Tage)
 
 `pipeline/dossier_brief.py`: aus Thema + Fragefeld ein **strukturierter
