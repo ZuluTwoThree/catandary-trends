@@ -59,7 +59,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from pipeline import dossier_structure, llamacpp_client
+from pipeline import dossier_entailment, dossier_structure, llamacpp_client
 from pipeline.article_fetcher import fetch_fulltext, fetch_fulltext_result
 from pipeline import web_cache, web_search
 from pipeline.db import get_connection
@@ -907,6 +907,37 @@ def web_stats() -> dict:
     return dict(_web_stats)
 
 
+# Seiten-Boilerplate, das Suchmaschinen als "Titel" eines PDFs liefern, wenn
+# das Dokument keine Metadaten traegt: "Seite 1 von 9 SYS.1.5 Virtualisierung
+# 1. Beschreibung", "Stand Februar 2022 ...", "Page 1 of 12 ...".
+_PDF_BOILERPLATE_RE = re.compile(
+    r"(?:\bseite\s+\d+\s+von\s+\d+\b|\bpage\s+\d+\s+of\s+\d+\b|^\s*stand\s+\w+\s+(?:19|20)\d{2}\b"
+    r"|\b\d\.\d\.?\s+[A-ZÄÖÜ]|\b1\.\s+(?:beschreibung|einleitung|introduction)\b)",
+    re.IGNORECASE)
+
+
+def _is_pdf_url(url: str) -> bool:
+    from urllib.parse import urlparse
+    return urlparse(url or "").path.lower().endswith(".pdf")
+
+
+def pdf_title(url: str, hit_title: str | None) -> str:
+    """Titel einer PDF-Quelle (Stufe 4, 2026-09-19): der Suchmaschinen-Titel,
+    wenn er wie ein Titel aussieht; sonst der Dateiname ohne Endung. Die
+    Quellenliste von datacenter-virtualization v3 zeigte "Stand Februar 2022
+    Seite 1 von 9 SYS.1.5 Virtualisierung 1. Beschreibung" — die erste
+    Textzeile des PDFs, kein Titel."""
+    from urllib.parse import unquote, urlparse
+    title = _TAG_RE.sub("", hit_title or "").strip()
+    if title and not _PDF_BOILERPLATE_RE.search(title) and len(title.split()) <= 24:
+        return title
+    name = unquote(urlparse(url or "").path.rsplit("/", 1)[-1])
+    name = re.sub(r"\.pdf$", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"[_+]+", " ", name).strip(" -")
+    name = re.sub(r"\s{2,}", " ", name)
+    return name or title or url
+
+
 def brave_search(query: str, count: int = 6) -> list[dict]:
     """Web search via the Brave Search API, shaped like a catalog entry.
 
@@ -944,7 +975,8 @@ def brave_search(query: str, count: int = 6) -> list[dict]:
             "id": f"W{len(out)}",          # provisional; run() renumbers on add
             "trend_id": None,
             "kind": "web",
-            "title": _TAG_RE.sub("", w.get("title") or url)[:200],
+            "title": (pdf_title(url, w.get("title")) if _is_pdf_url(url)
+                      else _TAG_RE.sub("", w.get("title") or url))[:200],
             "url": url,
             "origin": url,
             "outlet": (w.get("profile") or {}).get("name")
@@ -3054,8 +3086,19 @@ _REPAIRABLE_KINDS = ("figure", "sourceless", "distorted", "misattributed",
                      "measure")
 
 
+REPAIR_PASSAGE_CHARS = 1200
+REPAIR_PASSAGE_CHARS_2 = 3600      # zweiter Durchgang: die Seite neu und breiter lesen
+
+
 def repair_sentences(report: str, findings: list[dict], sources: list[dict],
-                     sampling: dict | None = None) -> tuple[str, int]:
+                     sampling: dict | None = None, *, pass_no: int = 1,
+                     only: set[str] | None = None) -> tuple[str, int]:
+    """Ein Reparaturdurchgang. `pass_no=2` (Stufe 4, 2026-09-19): die Seite
+    wird breiter neu gelesen (REPAIR_PASSAGE_CHARS_2 statt 1200 Zeichen, mit
+    den Schluesselwoertern des Satzes) und das Modell soll die ungestuetzte
+    Angabe durch das ERSETZEN, was die Seite sagt — statt sie nur zu
+    streichen. `only`: nur diese Saetze (Kernsektion oder Themenbezug);
+    alles andere faellt wie bisher."""
     by_url = {str(x.get("url")): x for x in sources or [] if x.get("url")}
     done: set[str] = set()
     repaired = 0
@@ -3068,15 +3111,26 @@ def repair_sentences(report: str, findings: list[dict], sources: list[dict],
         toks = [str(t) for t in (e.get("tokens") or []) if str(t).strip()]
         if not sent or not toks or sent in done or sent not in report:
             continue
+        if only is not None and sent not in only:
+            continue
         done.add(sent)
         page = str(by_url.get(str(e.get("url") or ""), {}).get("text") or "")
-        passage = key_passages(page, toks, limit=1200) if page else ""
+        if pass_no >= 2:
+            terms = toks + [w for w in re.findall(r"[A-Za-z\u00c0-\u024f]{5,}", dossier_structure.prose(sent))][:12]
+            passage = key_passages(page, terms, limit=REPAIR_PASSAGE_CHARS_2) if page else ""
+        else:
+            passage = key_passages(page, toks, limit=REPAIR_PASSAGE_CHARS) if page else ""
         prompt = (f"Sentence:\n{sent}\n\nUnsupported specifics: "
                   f"{', '.join(toks)}\n\n"
                   + (f"<untrusted_page_excerpt>\n{shield(passage)}\n"
                      f"</untrusted_page_excerpt>\n\n" if passage else "")
-                  + "Rewrite the sentence without the unsupported specifics, "
-                    "or answer DROP.")
+                  + ("SECOND ATTEMPT — the sentence matters to the decision. Re-read the "
+                     "excerpt: if the page states the same matter with a different figure, "
+                     "date or name, rewrite the sentence with EXACTLY what the page says; "
+                     "otherwise rewrite it without the unsupported specifics, or answer DROP."
+                     if pass_no >= 2 else
+                     "Rewrite the sentence without the unsupported specifics, "
+                     "or answer DROP."))
         try:
             out = llamacpp_client.chat(
                 model=MODEL, system=REPAIR_SYSTEM, prompt=prompt,
@@ -3812,7 +3866,9 @@ def canonicalize_citations(report: str, sources: list[dict],
 
 def draft_score(report: str, citable_sources: list[dict], lang: str,
                 measured_keys, sector_fields, year_floor, calendar_terms,
-                calendar_min: int | None = None, landscape_names: list[str] | None = None) -> dict:
+                calendar_min: int | None = None, landscape_names: list[str] | None = None,
+                actor_min: int | None = None, watch_min: int | None = None,
+                today=None) -> dict:
     """Deterministische Guete eines Entwurfs fuer Best-of-N: Faktenquote je 100
     Woerter (das Mass, an dem der Neuwurf gemessen wird) minus Struktur- und
     Zitatbefunde. Keine Modellbewertung."""
@@ -3820,7 +3876,8 @@ def draft_score(report: str, citable_sources: list[dict], lang: str,
                                              rank_of=source_rank)
     findings = dossier_structure.structure_findings(
         report, lang, measured=measured_keys, sectors=sector_fields,
-        year_floor=year_floor, density=density, topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names)
+        year_floor=year_floor, density=density, topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names,
+        actor_min=actor_min, watch_min=watch_min, today=today)
     cites = dossier_structure.verify_cited_figures(report, citable_sources)
     n_cite = (len(cites.get("unverified") or []) + len(cites.get("off_topic") or [])
               + len(cites.get("distorted") or []) + len(cites.get("misattributed") or []))
@@ -3898,6 +3955,66 @@ def write_sections(sys_prompt: str, report_prompt: str, lang: str, sampling: dic
         logger.info("  section %-12s %5d words", key, dossier_structure.count_words(sect))
     order = [k for k, _h, _p in dossier_structure.SECTIONS[dossier_structure._lang(lang)]]
     return "\n\n".join(written[k] for k in order if k in written).strip() + "\n"
+
+
+def rewrite_sections(report: str, keys: list[str], directive: str, sys_prompt: str,
+                     report_prompt: str, lang: str, sampling: dict,
+                     model: str | None = None) -> str:
+    """Gezielter Neuwurf NUR der genannten Sektionen (Widerspruchs-Gate, Stufe 4,
+    2026-09-19): je Sektion ein Aufruf wie in `write_sections`, der ganze
+    uebrige Bericht als Kontext, der Befund als Direktive; die neue Sektion
+    ersetzt die alte an Ort und Stelle. Ein Aufruf, der scheitert oder eine
+    leere Sektion liefert, laesst die Sektion stehen."""
+    spec = {k: h for k, h, _p in dossier_structure.SECTIONS[dossier_structure._lang(lang)]}
+    out = report
+    for key in keys:
+        heading = spec.get(key)
+        if not heading or dossier_structure.section_span(out, key, lang) is None:
+            continue
+        budget = SECTION_WORDS.get(key, 300)
+        sect_directive = (
+            f"\n\nSECTION DIRECTIVE: rewrite ONLY the section \"## {heading}\" now. Start with exactly "
+            f"that heading and write no other section and no preamble. LENGTH: about {budget} words. "
+            f"The rest of the dossier is supplied unchanged for coherence. A mechanical check found a "
+            f"CONTRADICTION between the decision summary and another section; resolve it in THIS "
+            f"section so that both say the same thing — either take the summary back to what the "
+            f"evidence supports, or make the limitation precise enough that it no longer contradicts "
+            f"the summary. No new facts, figures, dates or citations; keep every citation id that "
+            f"already stands in this section unless the sentence it belongs to is removed.\n\n"
+            f"FINDINGS:\n{directive}")
+        prompt = (report_prompt
+                  + f"\n\n<untrusted_current_dossier>\n{shield(dossier_structure.body_text(out))}\n"
+                    f"</untrusted_current_dossier>\n"
+                  + f"\n\nRewrite the section \"## {heading}\" now"
+                  + (" — auf DEUTSCH." if lang == "de" else "."))
+        try:
+            raw = llamacpp_client.chat(model=model or MODEL, system=sys_prompt + sect_directive,
+                                       prompt=prompt, enable_thinking=False, **(sampling or {}))
+        except Exception as exc:                                    # noqa: BLE001
+            logger.warning("targeted rewrite of %r failed: %r — section kept", heading, exc)
+            continue
+        sect = take_section(raw, heading)
+        if dossier_structure.count_words(sect) < 15:
+            logger.warning("targeted rewrite of %r came back empty — section kept", heading)
+            continue
+        out = dossier_structure.replace_section(out, key, sect, lang)
+        logger.info("  rewrote section %-12s %5d words (contradiction gate)", key,
+                    dossier_structure.count_words(sect))
+    return out
+
+
+def _is_contradiction_finding(f: dict) -> bool:
+    return f.get("kind") == "coherence" or "contradict" in str(f.get("issue") or "").lower()
+
+
+def without_contradictions(review: dict | None) -> dict | None:
+    """Leser-Review ohne die Widerspruchs-Befunde — die laufen ueber das
+    Widerspruchs-Gate (gezielter Neuwurf zweier Sektionen), nicht ueber den
+    Ganzdokument-Neuwurf."""
+    if not review:
+        return review
+    return {**review, "findings": [f for f in (review.get("findings") or [])
+                                   if not _is_contradiction_finding(f)]}
 
 
 class ReaderFinding(BaseModel):
@@ -5215,6 +5332,10 @@ def run(question: str, max_steps: int, max_sources: int,
     eff_anchors: list[dict] = []
     actor_rows: list[dict] = []
     calendar_min: int | None = None
+    actor_min: int | None = None
+    watch_min: int | None = None
+    # Ein Kalendertermin vor dem heutigen Tag ist kein Ausloeser (Stufe 4).
+    today = datetime.now(timezone.utc).date()
     if dr:
         cal_cands = calendar_candidates(
             fact_ledger, citable_sources, terms, entities,
@@ -5237,6 +5358,18 @@ def run(question: str, max_steps: int, max_sources: int,
         actor_rows = actor_map(fact_ledger, citable_sources, entities, terms)
         logger.info("actor map: %d row(s) over %d actor(s)", len(actor_rows),
                     len({r["actor"] for r in actor_rows}))
+        # Quoten aus dem Material (Stufe 4, 2026-09-19): Akteurtabelle und
+        # Beobachtungspunkte wie der Kalender aus dem Faktenzettel bemessen —
+        # die Luecke wird benannt, nicht gefuellt.
+        actor_min = dossier_structure.actor_min_from_material(len(actor_rows))
+        n_dated = sum(1 for f in fact_ledger if str(f.get("date") or "").strip()) + len(cal_cands)
+        watch_min = dossier_structure.watch_min_from_material(n_dated)
+        if actor_min < dossier_structure.ACTOR_ROWS_MIN:
+            logger.info("actor-table minimum lowered to %d — only %d actor-map row(s) in the material",
+                        actor_min, len(actor_rows))
+        if watch_min < dossier_structure.WATCH_MIN_ITEMS:
+            logger.info("watch-items minimum lowered to %d — only %d dated fact(s)/candidate(s)",
+                        watch_min, n_dated)
     ledger_json = json.dumps(ledger, ensure_ascii=False)
     # R6-2/R6-3 (jury_7.md/jury_8.md): die Optionen muessen an die Messung
     # gebunden und ueber alle in der Frage genannten Felder verteilt sein.
@@ -5451,7 +5584,8 @@ def run(question: str, max_steps: int, max_sources: int,
     n_drafts = max(1, int(os.getenv("DOSSIER_DRAFTS", "2") or 2)) if (measure and write_mode != "sections") else 1
     if n_drafts > 1:
         best = draft_score(report, citable_sources, lang, measured_keys,
-                           sector_fields, year_floor, calendar_terms, calendar_min, landscape_names)
+                           sector_fields, year_floor, calendar_terms, calendar_min, landscape_names,
+                           actor_min=actor_min, watch_min=watch_min, today=today)
         logger.info("draft 1: score %.1f (density %.2f, %d structural, %d citation)",
                     best["score"], best["density"], best["structural"], best["citation"])
         for i in range(2, n_drafts + 1):
@@ -5461,7 +5595,8 @@ def run(question: str, max_steps: int, max_sources: int,
                 alt_sampling["seed"] = int(alt_sampling["seed"]) + i
             alt = _draft(alt_sampling)
             sc = draft_score(alt, citable_sources, lang, measured_keys,
-                             sector_fields, year_floor, calendar_terms, calendar_min, landscape_names)
+                             sector_fields, year_floor, calendar_terms, calendar_min, landscape_names,
+                             actor_min=actor_min, watch_min=watch_min, today=today)
             logger.info("draft %d: score %.1f (density %.2f, %d structural, %d citation)",
                         i, sc["score"], sc["density"], sc["structural"], sc["citation"])
             if sc["score"] > best["score"]:
@@ -5473,7 +5608,7 @@ def run(question: str, max_steps: int, max_sources: int,
     # Der Leser (2026-09-13): liest den gewaehlten Entwurf vor dem Neuwurf.
     reader1 = reader_review(report, question, topic or question, landscape, lang) \
         if (measure and reader_enabled()) else None
-    reader1_lines = reader_lines(reader1, lang)
+    reader1_lines = reader_lines(without_contradictions(reader1), lang)
     if reader1 is not None:
         logger.info("reader: answers_question=%s, %d finding(s) — %s",
                     reader1.get("answers_question"), len(reader1_lines),
@@ -5505,7 +5640,16 @@ def run(question: str, max_steps: int, max_sources: int,
                  "catalog_ranks": {}, "self_only_dropped": 0,
                  "adopted_sources": 0, "precanon_stripped": 0,
                  "reader": None, "reader_after": None,
-                 "chain": {}}
+                 "chain": {},
+                 # Stufe 4 (2026-09-19): Aussagenpruefung, Widerspruchs-Gate,
+                 # gewichtete Reparatur, Quoten aus dem Material.
+                 "entailment": {"enabled": False},
+                 "contradicted_before": 0, "contradicted_after": [],
+                 "contradictions_before": [], "contradictions_after": [],
+                 "contradiction_rewrites": 0,
+                 "repaired_pass2": 0, "drop_core": 0, "drop_filler": 0,
+                 "actor_min": actor_min, "watch_min": watch_min,
+                 "calendar_min": calendar_min}
     # Der eigene Messanhang ist der EINZIGE Beleg, den eine Zahl ohne Zitat im
     # Satz haben darf: er steht codegeneriert im selben Dokument.
     measured_text = "\n".join(
@@ -5523,7 +5667,8 @@ def run(question: str, max_steps: int, max_sources: int,
         findings = dossier_structure.structure_findings(
             report, lang, measured=measured_keys, sectors=sector_fields,
             year_floor=year_floor, density=density,
-            topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names)
+            topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names,
+            actor_min=actor_min, watch_min=watch_min, today=today)
         cites = dossier_structure.verify_cited_figures(report, citable_sources)
         # Befund 2 (falsche Seite) und Befund 3 (Zahl ohne Beleg) der Jurys vom
         # 2026-09-07 laufen durch denselben Kanal wie die Zahlenpruefung:
@@ -5546,6 +5691,37 @@ def run(question: str, max_steps: int, max_sources: int,
                     + list(weak))
         for e in sourceless:
             cite_all.append({**e, "kind": "sourceless"})
+        # Aussagenpruefung (Stufe 4, 2026-09-19): das Modell liest je zitierter
+        # Seite die Saetze der Kernsektionen — gestuetzt / widersprochen /
+        # unbezogen. Token-Abgleich bleibt Vorfilter (skip), Urteile werden je
+        # (Satz, Seite) gemerkt, damit der Nachlauf nur Neues fragt.
+        entailment_on = dossier_entailment.entailment_enabled()
+        ent_cache: dict = {}
+        ent_first = None
+        ent_last = None
+        if entailment_on:
+            ent_first = dossier_entailment.check_entailment(
+                report, citable_sources, lang, model=active_model,
+                skip={e["sentence"] for e in cite_all}, cache=ent_cache)
+            ent_last = ent_first
+            cite_all += list(ent_first["contradicted"]) + list(ent_first["unrelated"])
+            logger.info("entailment: %d/%d page(s), %d sentence(s), %d call(s) in %.0fs — "
+                        "%d supported, %d contradicted, %d unrelated%s",
+                        ent_first["pages"], ent_first["pages_total"], ent_first["sentences"],
+                        ent_first["calls"], ent_first["seconds"], ent_first["supported"],
+                        len(ent_first["contradicted"]), len(ent_first["unrelated"]),
+                        " (capped)" if ent_first["capped"] else "")
+            for e in ent_first["contradicted"]:
+                logger.warning("contradicted by %s: %s — page: %s", e["url"][:60],
+                               e["sentence"][:90], e["tokens"][0][:90])
+        structure["contradicted_before"] = len(ent_first["contradicted"]) if ent_first else 0
+        # Widerspruchs-Gate, mechanischer Teil, vor dem ersten Neuwurf nur
+        # protokolliert (der gezielte Neuwurf laeuft auf der Endfassung).
+        structure["contradictions_before"] = [
+            c["text"] for c in (dossier_structure.contradiction_findings(report, lang, calendar_terms)
+                                + dossier_structure.contradiction_from_reader(reader1, lang))]
+        for t in structure["contradictions_before"]:
+            logger.warning("contradiction: %s", t[:160])
         structure["findings"] = findings
         structure["cite_findings"] = cite_all
         structure["cites_checked"] = cites["checked"]
@@ -5645,7 +5821,8 @@ def run(question: str, max_steps: int, max_sources: int,
         if findings or cite_all or reader1_lines:
             _rewrite(findings + reader1_lines, cite_all,
                      f"one targeted rewrite ({len(reader1_lines)} reader finding(s) included)")
-        def _recheck(rep: str):
+        def _recheck(rep: str, entail: bool = True):
+            nonlocal ent_last
             c2 = dossier_structure.verify_cited_figures(rep, citable_sources)
             sl2 = dossier_structure.sourceless_figures(
                 rep, citable_sources, measured_text)
@@ -5661,7 +5838,26 @@ def run(question: str, max_steps: int, max_sources: int,
                     + list(mb2) + list(w2))
             for e in sl2:
                 all2.append({**e, "kind": "sourceless"})
+            if entail and entailment_on:
+                ent2 = dossier_entailment.check_entailment(
+                    rep, citable_sources, lang, model=active_model,
+                    skip={e["sentence"] for e in all2}, cache=ent_cache)
+                ent_last = ent2
+                all2 += list(ent2["contradicted"]) + list(ent2["unrelated"])
+                if ent2["calls"]:
+                    logger.info("entailment (recheck): %d call(s), %d new sentence(s), %d contradicted, "
+                                "%d unrelated", ent2["calls"], ent2["sentences"],
+                                len(ent2["contradicted"]), len(ent2["unrelated"]))
             return c2, sl2, mb2, w2, all2
+
+        def _core_or_topic(rep: str, findings: list[dict]) -> set[str]:
+            """Saetze, die Reparatur verdienen: in einer Kernsektion oder mit
+            Themenbezug (Stufe 4: reparieren vor streichen, mit Abwaegung)."""
+            core = {snt for _k, snt in dossier_structure._section_sentences(
+                rep, lang, dossier_entailment.ENTAILMENT_SECTIONS)}
+            return {e["sentence"] for e in findings
+                    if e.get("sentence") and (e["sentence"] in core
+                                              or dossier_structure._row_on_topic(e["sentence"], calendar_terms))}
 
         def _settle() -> None:
             """Nach einem Neuwurf: pruefen, (DR) reparieren, streichen, dann die
@@ -5679,7 +5875,31 @@ def run(question: str, max_steps: int, max_sources: int,
                     int(structure.get("repaired_sentences") or 0) + n_rep)
                 if n_rep:
                     logger.info("repaired %d sentence(s) before deletion", n_rep)
-                    cites2, sourceless2, measure_bad2, weak2, cite_all2 = _recheck(report)
+                    cites2, sourceless2, measure_bad2, weak2, cite_all2 = _recheck(report, entail=False)
+                # Zweiter Durchgang (Stufe 4, 2026-09-19) NUR fuer Saetze einer
+                # Kernsektion oder mit Themenbezug: die Seite breiter neu lesen
+                # und die Angabe ersetzen statt streichen. Ein Fuellsatz faellt
+                # wie bisher sofort.
+                core = _core_or_topic(report, cite_all2)
+                if core:
+                    report, n2 = repair_sentences(
+                        report, cite_all2, citable_sources, dr_sampling("work", dr),
+                        pass_no=2, only=core)
+                    structure["repaired_pass2"] = int(structure.get("repaired_pass2") or 0) + n2
+                    structure["repaired_sentences"] = int(structure.get("repaired_sentences") or 0) + n2
+                    if n2:
+                        logger.info("repaired %d core/on-topic sentence(s) in the second pass", n2)
+                        cites2, sourceless2, measure_bad2, weak2, cite_all2 = _recheck(report, entail=False)
+            if cite_all2:
+                core_now = _core_or_topic(report, cite_all2)
+                falling = [e for e in cite_all2 if e.get("kind") not in ("weaksource", "weakclaim")]
+                n_core = sum(1 for e in falling if e["sentence"] in core_now)
+                structure["drop_core"] = int(structure.get("drop_core") or 0) + n_core
+                structure["drop_filler"] = int(structure.get("drop_filler") or 0) + (len(falling) - n_core)
+                logger.info("deletion candidates: %d core/on-topic (after %d repair pass(es)), %d filler",
+                            n_core, 2 if dr else 0, len(falling) - n_core)
+            structure["contradicted_after"] = [
+                e["sentence"] for e in cite_all2 if e.get("kind") == "contradicted"]
             structure["cite_findings_after"] = cite_all2
             structure["cites_checked"] = cites2["checked"]
             structure["cites_figures"] = cites2["figures"]
@@ -5718,7 +5938,7 @@ def run(question: str, max_steps: int, max_sources: int,
                 _rank_by_id = {str(x.get("id")): int(x.get("rank", 2)) for x in citable_sources}
                 report, n_fill = dossier_structure.fill_calendar(
                     report, cal_cands, lang, year_floor, calendar_terms, calendar_min,
-                    rank_of=lambda cid: _rank_by_id.get(str(cid), 2))
+                    rank_of=lambda cid: _rank_by_id.get(str(cid), 2), today=today)
                 if n_fill:
                     structure["calendar_filled"] = int(structure.get("calendar_filled") or 0) + n_fill
                     logger.info("calendar: %d row(s) added from the dated-fact ledger", n_fill)
@@ -5732,7 +5952,8 @@ def run(question: str, max_steps: int, max_sources: int,
             structure["findings_after"] = dossier_structure.structure_findings(
                 report, lang, measured=measured_keys, sectors=sector_fields,
                 year_floor=year_floor, density=density_after,
-                topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names)
+                topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names,
+                actor_min=actor_min, watch_min=watch_min, today=today)
 
         _settle()
         # Zweiter Neuwurf (2026-09-13/14): fuer Strukturbefunde UND fuer die
@@ -5747,14 +5968,17 @@ def run(question: str, max_steps: int, max_sources: int,
         def _majors(rv) -> int:
             if not rv:
                 return 0
-            return sum(1 for f in (rv.get("findings") or []) if f.get("severity") == "major") \
+            # Widerspruchs-Befunde (coherence/"contradict") laufen ueber das
+            # Widerspruchs-Gate unten, nicht ueber den Ganzdokument-Neuwurf.
+            return sum(1 for f in (rv.get("findings") or [])
+                       if f.get("severity") == "major" and not _is_contradiction_finding(f)) \
                 + (1 if rv.get("answers_question") is False else 0)
 
         while ((structure["findings_after"] or _majors(reader_now))
                and int(structure.get("rewrites") or 0) < max_rewrites):
             before_n, before_m = len(structure["findings_after"]), _majors(reader_now)
             prev_report, prev_structure, prev_reader = report, copy.deepcopy(structure), reader_now
-            extra = reader_lines(reader_now, lang)
+            extra = reader_lines(without_contradictions(reader_now), lang)
             if not _rewrite(list(structure["findings_after"]) + extra, [],
                             f"structural/reader findings remain ({before_n} structural, "
                             f"{before_m} reader) — one more targeted rewrite"):
@@ -5776,6 +6000,37 @@ def run(question: str, max_steps: int, max_sources: int,
                 structure["second_rewrite_discarded"] = True
                 reader_now = prev_reader
                 break
+        # --- Widerspruchs-Gate (Stufe 4, 2026-09-19) ---------------------
+        # Mechanisch (Kurzfassung gegen "does not support"/"Decision points")
+        # und aus dem Leser (coherence/"contradict"): EIN gezielter Neuwurf nur
+        # der beiden betroffenen Sektionen mit dem Befund als Direktive. Bleibt
+        # der Widerspruch, ist er ein sperrender Strukturbefund.
+        def _contradictions(rv) -> list[dict]:
+            return (dossier_structure.contradiction_findings(report, lang, calendar_terms)
+                    + dossier_structure.contradiction_from_reader(rv, lang))
+
+        contra = _contradictions(reader_now)
+        if contra:
+            keys = ["decision"] + sorted({c["section"] for c in contra if c.get("section") not in (None, "decision")})
+            directive = "\n".join(f"{i}. {c['text']}" for i, c in enumerate(contra, 1))
+            logger.warning("contradiction gate: %d finding(s) (%s) — targeted rewrite of %s",
+                           len(contra), ", ".join(sorted({c["source"] for c in contra})), ", ".join(keys))
+            new_report = rewrite_sections(report, keys, directive, sys_prompt, report_prompt, lang,
+                                          write_sampling or {"temperature": 0.3}, model=active_model)
+            if new_report != report:
+                report = new_report
+                structure["contradiction_rewrites"] = int(structure.get("contradiction_rewrites") or 0) + 1
+                structure["rewritten"] = True
+                _settle()
+                reader_now = reader_review(report, question, topic or question, landscape, lang) \
+                    if reader_enabled() else None
+                contra = _contradictions(reader_now)
+            structure["contradictions_after"] = [c["text"] for c in contra]
+            if contra:
+                logger.warning("contradiction survives the targeted rewrite — blocking finding")
+                structure["findings_after"] = list(structure["findings_after"]) + [c["text"] for c in contra]
+        if entailment_on:
+            structure["entailment"] = dossier_entailment.entailment_summary(ent_first, ent_last)
         structure["reader_after"] = reader_now
         if reader_now is not None:
             logger.info("reader (final): answers_question=%s, %d finding(s) — %s",
@@ -5787,7 +6042,7 @@ def run(question: str, max_steps: int, max_sources: int,
             report, lang, measured_keys, sector_fields))
         structure["advisory"] = dossier_structure.length_advisory(report, lang)
         structure["calendar"] = dossier_structure.calendar_rows(
-            report, lang, year_floor)
+            report, lang, year_floor, today=today)
         structure["chain"] = dossier_structure.chain_coverage(report, lang)
         ranks = {}
         for src in citable_sources:

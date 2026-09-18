@@ -392,6 +392,20 @@ def build_catalog() -> list[PromptEntry]:
         cr, "REPAIR_SYSTEM"))
 
     E.append(_load(PromptEntry(
+        key="dossier-entailment", group="dossier", title="Dossier · statement check (entailment)",
+        function=("Stage 4 'check instead of delete' (2026-09-19): for every cited page, all "
+                  "sentences of the core sections (decision summary, decision points, calendar, "
+                  "regulatory/IP) that cite it are judged in ONE structured call — supported / "
+                  "contradicted / unrelated, with a verbatim quote. The token check remains the "
+                  "pre-filter; 'contradicted' is a blocking finding (rewrite directive, then the "
+                  "sentence is dropped); 'unrelated' maps to the off-topic citation finding. "
+                  "Verdicts are cached per (sentence, page) within a run; at most 25 pages per pass."),
+        model="Qwen3.8-27B (or the writer model), temperature 0",
+        trigger="Every dossier run (DOSSIER_ENTAILMENT=0 disables)",
+        symbol="pipeline.dossier_entailment:ENTAILMENT_SYSTEM"),
+        "pipeline.dossier_entailment", "ENTAILMENT_SYSTEM"))
+
+    E.append(_load(PromptEntry(
         key="dossier-company-site", group="dossier", title="Company dossier · site choice",
         function=("Legacy company path: picks the company's own domain out of search results "
                   "(not directories or press) before the profile is extracted."),

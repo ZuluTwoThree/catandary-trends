@@ -176,6 +176,32 @@ zwei Anfragen mit Cosinus ≥ 0,9 in einem Lauf.
 *Abnahme:* datacenter v3 (Data-Act-Satz) und v4 (Widerspruch) werden im Replay
 gefangen; Dichte nach Neuwurf ≥ vorher in ≥ 90 % der Läufe.
 
+**Stand Stufe 4 (2026-09-19, gebaut — Runde 23 in `docs/agentic_dossiers.md`):**
+`pipeline/dossier_entailment.py` (Aussagenprüfung je zitierter Seite, ein
+strukturierter Aufruf je Seite, Urteile je (Satz, Seite) gecacht, ≤ 25 Seiten
+je Durchgang, `DOSSIER_ENTAILMENT=0` schaltet ab), Subjektabgleich per Stamm
+(`_in_source_phrase`: lange Wörter stammweise, kurze Qualifizierer wie „BSI"
+nicht verlangt), zweiter Reparaturdurchgang nur für Kern-/Themen-Sätze
+(`repair_sentences(pass_no=2, only=…)`, Seite breiter neu gelesen),
+Widerspruchs-Gate (`contradiction_findings` mechanisch: Urteil der Kurzfassung
+gegen verneintes Urteil in „does not support"/„Decision points";
+`contradiction_from_reader` für `coherence`/„contradict") mit gezieltem
+Neuwurf NUR der beiden Sektionen (`rewrite_sections`, `replace_section`),
+danach sperrend; Quoten aus dem Material (`actor_min_from_material`,
+`watch_min_from_material`, Befund nennt das Soll und verlangt die Lücke in
+„Open questions"); Kalendertermine vor dem Laufdatum zählen als `passed`;
+PDF-Titel aus Dateiname statt erster Textzeile; `scripts/dossier_replay.py`.
+Replay über 48 Läufe: v3-Satz ist ein Modellurteil (im Replay nicht
+ausführbar, Unit-Test mit Fake-Modell), **v4 wird mechanisch gefangen**
+(dazu datacenter v2 und quantum v2 — 3 Läufe, 4 Paare; vor der
+Urteils-Bedingung 7 Läufe, 14 Paare, 11 davon Einschränkungen), 22 Kalender-
+zeilen in 13 Läufen mit am Laufdatum vergangenem Termin (datacenter v3: 4), 25 von 135 gespeicherten
+Subjekt-Befunden würde der Stammabgleich jetzt akzeptieren, von 243
+gestrichenen Sätzen standen **169 in einer Kernsektion oder nannten das
+Thema** (bekämen jetzt zwei Reparaturen), 74 waren Füllsätze. Die
+Dichte-Abnahme (≥ 90 %) braucht Live-Läufe — offen bis zum nächsten
+datacenter-/LFP-Vergleichslauf.
+
 ### Stufe 5 — Die Lernschleife (1–2 Tage)
 
 Nach jedem Lauf: `dossier_run_outcomes` (Stufe 0) + Fortschreibung von

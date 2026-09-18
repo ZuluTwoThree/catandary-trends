@@ -29,7 +29,9 @@ Korpus, Quellenliste) zaehlen nie mit — sie sind Anhang, kein Bericht.
 """
 from __future__ import annotations
 
+import calendar as _calendar
 import re
+from datetime import date
 
 from pipeline.grounding import (_concrete_tokens, _in_source, _source_words,
                                 ungrounded_specifics)
@@ -1162,11 +1164,111 @@ def _date_years(text: str) -> list[int]:
     return out
 
 
-def has_date(text: str, year_floor: int | None = None) -> bool:
+def has_date(text: str, year_floor: int | None = None,
+             today: date | None = None) -> bool:
+    """Traegt der Text ein Datum (ab `year_floor`)? Mit `today` zaehlt ein
+    Termin, der schon vergangen ist, NICHT — s. `date_passed`."""
     years = _date_years(text)
-    if year_floor is None:
-        return bool(years)
-    return any(y >= year_floor for y in years)
+    if year_floor is not None:
+        years = [y for y in years if y >= year_floor]
+    if not years:
+        return False
+    if today is not None and date_passed(text, today, year_floor):
+        return False
+    return True
+
+
+_MONTH_NO = {"jan": 1, "feb": 2, "mar": 3, "mär": 3, "mae": 3, "apr": 4, "may": 5,
+             "mai": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10, "okt": 10,
+             "nov": 11, "dec": 12, "dez": 12}
+_ISO = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+_DMY = re.compile(r"^(\d{1,2})[./](\d{1,2})[./]((?:19|20)\d{2})$")
+_QH = re.compile(r"^(?:([QH])([1-4])\s*[-/ ]?\s*((?:19|20)\d{2})|((?:19|20)\d{2})\s*[-/ ]?\s*([QH])([1-4]))$",
+                 re.IGNORECASE)
+_D_MON_Y = re.compile(rf"^(\d{{1,2}})\.?\s+({_MONTHS})\.?,?\s+((?:19|20)\d{{2}})$", re.IGNORECASE)
+_MON_D_Y = re.compile(rf"^({_MONTHS})\.?\s+(\d{{1,2}}),?\s+((?:19|20)\d{{2}})$", re.IGNORECASE)
+_MON_Y = re.compile(rf"^({_MONTHS})\.?\s+((?:19|20)\d{{2}})$", re.IGNORECASE)
+
+
+def _month_end(y: int, m: int) -> date:
+    return date(y, m, _calendar.monthrange(y, m)[1])
+
+
+def _safe_date(y: int, m: int, d: int) -> date | None:
+    try:
+        return date(y, m, d)
+    except ValueError:
+        return None
+
+
+def date_points(text: str) -> list[tuple[int, str, date]]:
+    """Jede Datumsangabe des Texts als (Jahr, Praezision, ENDE des Zeitraums).
+
+    Praezision: day | month | quarter | half | year. Ein Tag endet an seinem
+    Tag, ein Monat am Monatsletzten, ein Quartal/Halbjahr an dessen Ende, ein
+    nacktes Jahr (auch "early/mid/late 2026") am 31.12. — es ist ein Zeitraum,
+    kein Termin, und gilt das ganze Jahr."""
+    out: list[tuple[int, str, date]] = []
+    for m in _DATE_RE.finditer(text or ""):
+        hit = " ".join(m.group(0).split())
+        mm = _ISO.match(hit)
+        if mm:
+            d = _safe_date(int(mm.group(1)), int(mm.group(2)), int(mm.group(3)))
+            if d:
+                out.append((d.year, "day", d))
+            continue
+        mm = _DMY.match(hit)
+        if mm:
+            a, b, y = int(mm.group(1)), int(mm.group(2)), int(mm.group(3))
+            dd, mo = (a, b) if b <= 12 else (b, a)
+            d = _safe_date(y, mo, dd) if mo <= 12 else None
+            if d:
+                out.append((y, "day", d))
+            continue
+        mm = _QH.match(hit)
+        if mm:
+            kind = (mm.group(1) or mm.group(5)).upper()
+            n = int(mm.group(2) or mm.group(6))
+            y = int(mm.group(3) or mm.group(4))
+            if kind == "Q":
+                out.append((y, "quarter", _month_end(y, n * 3)))
+            else:
+                out.append((y, "half", _month_end(y, 6 if n == 1 else 12)))
+            continue
+        mm = _D_MON_Y.match(hit) or _MON_D_Y.match(hit)
+        if mm:
+            if _D_MON_Y.match(hit):
+                dd, mon, y = int(mm.group(1)), mm.group(2), int(mm.group(3))
+            else:
+                mon, dd, y = mm.group(1), int(mm.group(2)), int(mm.group(3))
+            mo = _MONTH_NO.get(mon[:3].lower())
+            d = _safe_date(y, mo, dd) if mo else None
+            if d:
+                out.append((y, "day", d))
+            continue
+        mm = _MON_Y.match(hit)
+        if mm:
+            mo = _MONTH_NO.get(mm.group(1)[:3].lower())
+            y = int(mm.group(2))
+            if mo:
+                out.append((y, "month", _month_end(y, mo)))
+            continue
+        ym = re.search(r"(?:19|20)\d{2}", hit)
+        if ym:
+            y = int(ym.group(0))
+            out.append((y, "year", date(y, 12, 31)))
+    return out
+
+
+def date_passed(text: str, today: date, year_floor: int | None = None) -> bool:
+    """Sind ALLE Termine des Texts schon vorbei? Nur Tag/Monat/Quartal/Halbjahr
+    koennen vergehen; ein nacktes Jahr des laufenden Jahres bleibt gueltig
+    (Stufe 4, 2026-09-19: datacenter-virtualization v3 trug vier
+    Nachrichten-Daten aus Juli-September 2026 als "Ausloeser")."""
+    pts = [p for p in date_points(text) if year_floor is None or p[0] >= year_floor]
+    if not pts:
+        return False
+    return all(end < today for _y, _prec, end in pts)
 
 
 def table_rows(section_text: str) -> list[list[str]]:
@@ -1202,17 +1304,26 @@ def _row_on_topic(line: str, topic_terms) -> bool:
 
 def calendar_rows(report_md: str, lang: str = "en",
                   year_floor: int | None = None,
-                  topic_terms=()) -> dict:
+                  topic_terms=(), today: date | None = None) -> dict:
     """Bilanz des Katalysator-Kalenders: wie viele Zeilen Datum UND Beleg
-    tragen, und woran die uebrigen scheitern."""
+    tragen, und woran die uebrigen scheitern. Mit `today` zaehlt eine Zeile,
+    deren Termin (Tag/Monat/Quartal/Halbjahr) schon vorbei ist, als
+    `passed` — kein Ausloeser mehr."""
     sections = split_sections(body_text(report_md), _lang(lang))
     rows = table_rows(sections.get("next", ""))
-    ok = no_date = no_cite = off_topic = 0
+    ok = no_date = no_cite = off_topic = passed = 0
     for cells in rows:
         line = " ".join(cells)
         # Der Kopf ("Date | Event | Source | ...") traegt weder Datum noch Beleg
         # und wird nicht als Mangel gezaehlt.
         dated, cited = has_date(line, year_floor), _has_citation(line)
+        # Vergangen ist der TERMIN der Zeile (Spalte "Date"), nicht jede
+        # Jahreszahl im Ereignistext: "11 September 2026 | forecast flags the
+        # 2027 deadline" ist eine Meldung vom September, kein Termin 2027.
+        when = cells[0] if date_points(cells[0]) else line
+        if dated and cited and today is not None and date_passed(when, today, year_floor):
+            passed += 1
+            continue
         if dated and cited:
             # R14 (DR4): der Themenbezug muss im EREIGNIS stehen, nicht in der
             # frei geschriebenen Spalte "Why it matters" — dort stand "funds
@@ -1228,7 +1339,7 @@ def calendar_rows(report_md: str, lang: str = "en",
         else:
             no_cite += 1
     return {"rows": len(rows), "ok": ok, "no_date": no_date, "no_cite": no_cite,
-            "off_topic": off_topic,
+            "off_topic": off_topic, "passed": passed,
             "sources": len(calendar_sources(report_md, lang, year_floor))}
 
 
@@ -1275,9 +1386,13 @@ def actor_rows(report_md: str, lang: str = "en", topic_terms=()) -> dict:
             "no_cite": no_cite, "off_topic": off_topic, "sources": len(sources)}
 
 
-def actor_findings(report_md: str, lang: str = "en", topic_terms=()) -> list[str]:
+def actor_findings(report_md: str, lang: str = "en", topic_terms=(),
+                   min_rows: int | None = None) -> list[str]:
+    """`min_rows` (Stufe 4, 2026-09-19): das Soll folgt dem Material
+    (`actor_min_from_material`); ohne Angabe gilt ACTOR_ROWS_MIN."""
     a = actor_rows(report_md, lang, topic_terms)
     L = _lang(lang)
+    need = int(min_rows) if min_rows else ACTOR_ROWS_MIN
     out: list[str] = []
     if a["rows"] == 0:
         out.append("„Was sich bewegt“ trägt keine Akteur-Tabelle (| Actor | "
@@ -1286,17 +1401,18 @@ def actor_findings(report_md: str, lang: str = "en", topic_terms=()) -> list[str
                    "'What is moving' carries no actor table (| Actor | What "
                    "happened | Date | Source |) — it is mandatory.")
         return out
-    if a["ok"] < ACTOR_ROWS_MIN:
+    if a["ok"] < need:
         out.append(f"Akteur-Tabelle: nur {a['ok']} vollständige Zeile(n) "
                    f"(Akteur + Zahl/Datum + Beleg + Themenbezug), mindestens "
-                   f"{ACTOR_ROWS_MIN} nötig — {a['no_figure']} ohne Zahl/Datum, "
-                   f"{a['no_cite']} ohne Beleg, {a['off_topic']} nicht zum Thema."
+                   f"{need} nötig — {a['no_figure']} ohne Zahl/Datum, "
+                   f"{a['no_cite']} ohne Beleg, {a['off_topic']} nicht zum Thema"
+                   f"{_gap_note(need, ACTOR_ROWS_MIN, L)}."
                    if L == "de" else
                    f"actor table: only {a['ok']} complete row(s) (actor + "
                    f"figure/date + citation + on topic), at least "
-                   f"{ACTOR_ROWS_MIN} needed — {a['no_figure']} without a "
+                   f"{need} needed — {a['no_figure']} without a "
                    f"figure or date, {a['no_cite']} without a citation, "
-                   f"{a['off_topic']} off topic.")
+                   f"{a['off_topic']} off topic{_gap_note(need, ACTOR_ROWS_MIN, L)}.")
     if a["ok"] and a["sources"] < ACTOR_SOURCES_MIN:
         out.append(f"Akteur-Tabelle stützt sich auf {a['sources']} Quelle(n); "
                    f"mindestens {ACTOR_SOURCES_MIN} verschiedene nötig."
@@ -1359,7 +1475,8 @@ _BARE_YEAR = re.compile(r"^\s*(?:19|20)\d{2}\s*$")
 
 def fill_calendar(report_md: str, candidates: list[dict], lang: str = "en",
                   year_floor: int | None = None, topic_terms=(),
-                  min_rows: int | None = None, rank_of=None) -> tuple[str, int]:
+                  min_rows: int | None = None, rank_of=None,
+                  today: date | None = None) -> tuple[str, int]:
     """Fehlende Kalenderzeilen aus den deterministisch gesammelten Kandidaten
     ergaenzen (2026-09-13). R13-3 legte dem Modell die Kandidaten VOR; in vier
     von fuenf Laeufen schrieb es trotzdem drei statt fuenf Zeilen — obwohl
@@ -1382,7 +1499,7 @@ def fill_calendar(report_md: str, candidates: list[dict], lang: str = "en",
     sect = sections.get("next")
     if not sect or not candidates:
         return report_md, 0
-    have = calendar_rows(report_md, lang, year_floor, topic_terms)["ok"]
+    have = calendar_rows(report_md, lang, year_floor, topic_terms, today=today)["ok"]
     if have >= need:
         return report_md, 0
     # Letzte Tabellenzeile des Abschnitts im Originaltext finden.
@@ -1404,6 +1521,9 @@ def fill_calendar(report_md: str, candidates: list[dict], lang: str = "en",
         if not cid or not when or not stmt:
             continue
         if not has_date(when + " " + stmt, year_floor):
+            continue
+        if today is not None and date_passed(when if date_points(when) else when + " " + stmt,
+                                             today, year_floor):
             continue
         if _BARE_YEAR.match(when):
             continue
@@ -1429,30 +1549,65 @@ def fill_calendar(report_md: str, candidates: list[dict], lang: str = "en",
     return report_md[:start] + "\n".join(lines) + report_md[end:], len(added)
 
 
-def watch_findings(report_md: str, lang: str = "en", topic_terms=()) -> list[str]:
+WATCH_MIN_FLOOR = 2
+ACTOR_ROWS_FLOOR = 2
+
+
+def watch_min_from_material(n_dated: int) -> int:
+    """Soll der Beobachtungspunkte aus dem Material (Stufe 4, 2026-09-19):
+    max(2, min(WATCH_MIN_ITEMS, datierte Faktenzettel-Zeilen + Kalender-
+    Kandidaten)) — wie das Kalender-Soll seit 13.09."""
+    return max(WATCH_MIN_FLOOR, min(WATCH_MIN_ITEMS, int(n_dated)))
+
+
+def actor_min_from_material(n_rows: int) -> int:
+    """Soll der Akteur-Tabelle aus dem Material: max(2, min(5, Zeilen der
+    Akteur-Landkarte))."""
+    return max(ACTOR_ROWS_FLOOR, min(ACTOR_ROWS_MIN, int(n_rows)))
+
+
+def _gap_note(need: int, full: int, lang: str) -> str:
+    """Ist das Soll aus dem Material niedriger als die Vollquote, muss die
+    Luecke benannt werden — nicht gefuellt."""
+    if need >= full:
+        return ""
+    return (f" (Soll aus dem Material: {need} statt {full} — die Luecke gehoert "
+            f"in 'Offene Fragen und Grenzen' benannt, nicht gefuellt)"
+            if _lang(lang) == "de" else
+            f" (Soll aus dem Material: {need} statt {full} — die Luecke gehoert "
+            f"in 'Open questions and limits' benannt, nicht gefuellt)")
+
+
+def watch_findings(report_md: str, lang: str = "en", topic_terms=(),
+                   min_items: int | None = None) -> list[str]:
     """'Decision points and watch items' (seit 2026-09-14 statt der Optionen):
-    mindestens WATCH_MIN_ITEMS Aufzaehlungspunkte, jeder mit Beleg und
-    Themenbezug — was ein Leser beobachten und woran er entscheiden wuerde,
-    ohne Empfehlung fuer einen Kunden, den das Dossier nicht kennt."""
+    mindestens `min_items` (Default WATCH_MIN_ITEMS) Aufzaehlungspunkte, jeder
+    mit Beleg und Themenbezug — was ein Leser beobachten und woran er
+    entscheiden wuerde, ohne Empfehlung fuer einen Kunden, den das Dossier
+    nicht kennt. `min_items` folgt seit Stufe 4 dem Material
+    (`watch_min_from_material`)."""
     L = _lang(lang)
+    need = int(min_items) if min_items else WATCH_MIN_ITEMS
     sections = split_sections(body_text(report_md), L)
     sect = sections.get("watch")
     if sect is None:
         return []                       # fehlender Abschnitt: eigener Befund
     items = [ln.strip() for ln in sect.split("\n") if re.match(r"^\s*(?:[-*+]|\d{1,2}[.)])\s+\S", ln)]
     good = [ln for ln in items if _has_citation(ln) and (not topic_terms or _row_on_topic(ln, topic_terms))]
-    if len(good) >= WATCH_MIN_ITEMS:
+    if len(good) >= need:
         return []
     heading = dict((k, h) for k, h, _p in SECTIONS[L])["watch"]
-    return [(f"'{heading}': nur {len(good)} von mindestens {WATCH_MIN_ITEMS} Punkten tragen einen Beleg "
-             f"und einen Themenbezug ({len(items)} Punkte insgesamt). Jeder Punkt: ein Ausloeser oder "
+    return [(f"'{heading}': nur {len(good)} von mindestens {need} Punkten tragen einen Beleg "
+             f"und einen Themenbezug ({len(items)} Punkte insgesamt){_gap_note(need, WATCH_MIN_ITEMS, L)}. "
+             f"Jeder Punkt: ein Ausloeser oder "
              f"Termin aus den Belegen, was er entscheiden wuerde, Zitat im selben Punkt — keine "
              f"Empfehlung, keine Foerderfrist als Ausloeser.")]
 
 
 def calendar_findings(report_md: str, lang: str = "en",
                       year_floor: int | None = None,
-                      topic_terms=(), min_rows: int | None = None) -> list[str]:
+                      topic_terms=(), min_rows: int | None = None,
+                      today: date | None = None) -> list[str]:
     """Zu wenige datierte, belegte Zeilen im Katalysator-Kalender = Neuwurf.
 
     `min_rows` (2026-09-13): das Soll haengt am belegten Material. Hat der
@@ -1464,7 +1619,7 @@ def calendar_findings(report_md: str, lang: str = "en",
     sections = split_sections(body_text(report_md), _lang(lang))
     if "next" not in sections:
         return []                       # fehlender Abschnitt: eigener Befund
-    c = calendar_rows(report_md, lang, year_floor, topic_terms)
+    c = calendar_rows(report_md, lang, year_floor, topic_terms, today=today)
     if c["ok"] >= need:
         counts = calendar_source_counts(report_md, lang, year_floor)
         top = max(counts.values(), default=0)
@@ -1492,6 +1647,9 @@ def calendar_findings(report_md: str, lang: str = "en",
     if c.get("off_topic"):
         detail.append(f"{c['off_topic']} Zeile(n) datiert und belegt, aber "
                       f"nicht zum Thema")
+    if c.get("passed"):
+        detail.append(f"{c['passed']} Zeile(n) mit einem Termin, der schon "
+                      f"vergangen ist (kein Ausloeser mehr)")
     heading = dict((k, h) for k, h, _p in SECTIONS[_lang(lang)])["next"]
     return [f"'{heading}': nur {c['ok']} von mindestens {need} "
             f"Tabellenzeilen tragen Datum UND Beleg"
@@ -1502,7 +1660,11 @@ def calendar_findings(report_md: str, lang: str = "en",
               f"nichts schaetzen."
             + (" Und der Termin muss vom THEMA handeln: die Laufzeit eines "
                "Foerderprogramms ist kein Ereignis der Technologie, nach der "
-               "gefragt ist." if c.get("off_topic") else "")]
+               "gefragt ist." if c.get("off_topic") else "")
+            + (" Ein Termin, der vor dem heutigen Tag liegt, ist kein "
+               "Ausloeser: nur Ereignisse aufnehmen, die noch bevorstehen "
+               "(vergangene Meldungen gehoeren nach 'What is moving')."
+               if c.get("passed") else "")]
 
 
 # --------------------------------------------------------------------------
@@ -1838,8 +2000,16 @@ def structure_findings(report_md: str, lang: str = "en",
                        year_floor: int | None = None,
                        density: dict | None = None,
                        topic_terms=(), calendar_min: int | None = None,
-                       landscape_items: list[str] | None = None) -> list[str]:
+                       landscape_items: list[str] | None = None,
+                       actor_min: int | None = None,
+                       watch_min: int | None = None,
+                       today: date | None = None) -> list[str]:
     """Was am fertigen Bericht mechanisch nicht stimmt. Leere Liste = sauber.
+
+    `actor_min` / `watch_min` (Stufe 4, 2026-09-19): Sollwerte aus dem
+    Material (s. `actor_min_from_material`, `watch_min_from_material`); ohne
+    Angabe gelten die Vollquoten. `today`: ein Kalendertermin vor diesem Tag
+    zaehlt als vergangen.
 
     `measured` = die gemessenen Groessen (measured_needles): jede Option muss
     mindestens eine davon nennen. `sectors` = die Felder, die die Frage nennt
@@ -1932,9 +2102,10 @@ def structure_findings(report_md: str, lang: str = "en",
                 f"Optionsabschnitt deckt '{name}' nicht ab — die Frage nennt "
                 f"dieses Feld ausdruecklich; mindestens eine Option muss es "
                 f"adressieren.")
-    findings += watch_findings(report_md, L, topic_terms)
-    findings += calendar_findings(report_md, L, year_floor, topic_terms, min_rows=calendar_min)
-    findings += actor_findings(report_md, L, topic_terms)
+    findings += watch_findings(report_md, L, topic_terms, min_items=watch_min)
+    findings += calendar_findings(report_md, L, year_floor, topic_terms, min_rows=calendar_min,
+                                  today=today)
+    findings += actor_findings(report_md, L, topic_terms, min_rows=actor_min)
     findings += landscape_findings(report_md, landscape_items, L)
     # R14-2d: Bruchstuecke gehen in den Neuwurf, bevor die Streichung neue
     # erzeugt — nackte Etiketten, haengende Doppelpunkte, kleine Satzanfaenge.
@@ -2734,8 +2905,19 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
         if kind == "subject":
             lines.append(
                 f"Die zitierte Seite ({e['url'][:80]}) handelt NICHT von "
-                f"{toks} — der Beleg traegt diese Aussage nicht. Satz mit einem "
+                f"{toks} — der Beleg traegt diese Aussage nicht"
+                + (f" ({e['detail']})" if e.get("detail") else "")
+                + f". Satz mit einem "
                 f"passenden Beleg neu schreiben oder streichen: "
+                f"\"{e['sentence'][:180]}\"")
+        elif kind == "contradicted":
+            # Stufe 4 (2026-09-19): die Aussagenpruefung hat den Satz gegen die
+            # zitierte Seite gelesen — sie sagt das GEGENTEIL. Sperrend: der
+            # Satz wird richtiggestellt oder faellt nach dem Neuwurf.
+            lines.append(
+                f"Die zitierte Seite ({e['url'][:80]}) WIDERSPRICHT dem Satz — "
+                f"woertlich dort: {toks}. Aussage nach der Quelle richtigstellen "
+                f"(nur was die Seite sagt) oder streichen: "
                 f"\"{e['sentence'][:180]}\"")
         elif kind == "reach":
             lines.append(
@@ -3021,13 +3203,71 @@ def unverified_subjects(sentence: str, page: str) -> list[str]:
     return bad
 
 
+STEM_MIN_CHARS = 5
+# Flexionsendungen, die ein Wortstamm abwirft (deutsch und englisch): Bausteins,
+# Bausteine, Bausteinen, Baustein — alle derselbe Gegenstand.
+_STEM_SUFFIXES = ("ern", "en", "es", "er", "em", "s", "e", "n")
+_UMLAUT = {"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"}
+
+
+def _stem(word: str) -> str:
+    """Vergleichsform eines Wortes: klein, Umlaute transliteriert, ohne
+    Bindestrich/Apostroph, ohne Flexionsendung — aber nie kuerzer als
+    STEM_MIN_CHARS (sonst gilt das Wort als kurz und wird exakt verglichen)."""
+    w = (word or "").lower()
+    for k, v in _UMLAUT.items():
+        w = w.replace(k, v)
+    w = re.sub(r"[-'’.]", "", w)
+    w = _POSSESSIVE_RE_S.sub("", w)
+    for suf in _STEM_SUFFIXES:
+        if w.endswith(suf) and len(w) - len(suf) >= STEM_MIN_CHARS:
+            return w[:-len(suf)]
+    return w
+
+
+_POSSESSIVE_RE_S = re.compile(r"['’]s$")
+STEM_SLACK = 3      # "baustein" trifft "bausteinen", nicht "bausteinkasten"
+
+
+def _stem_in_source(word: str, src: set[str]) -> bool:
+    """Wortweise per Stamm: der Stamm des Satzworts muss am Anfang eines
+    Seitenworts stehen, das hoechstens STEM_SLACK Zeichen laenger ist."""
+    if _in_source(word, src):
+        return True
+    stem = _stem(word)
+    if len(stem) < STEM_MIN_CHARS:
+        return False
+    for f in src:
+        if f.startswith(stem) and len(f) - len(stem) <= STEM_SLACK:
+            return True
+        # umgekehrt: die Seite hat die Grundform, der Satz die Flexion
+        if stem.startswith(f) and len(f) >= STEM_MIN_CHARS and len(stem) - len(f) <= STEM_SLACK:
+            return True
+    return False
+
+
 def _in_source_phrase(name: str, src: set[str]) -> bool:
-    """Ein mehrteiliger Name gilt als belegt, wenn ALLE seine Namensteile in der
-    Seite stehen (Verbindungswoerter zaehlen nicht mit). "Eli Lilly" verlangt
-    "Eli" UND "Lilly"; ein Artikel ueber Novo Nordisk hat beides nicht."""
+    """Ein mehrteiliger Name gilt als belegt, wenn seine BEDEUTUNGSTRAGENDEN
+    Namensteile auf der Seite stehen — stamm- und wortweise, nicht als Phrase
+    (Stufe 4, 2026-09-19). "Eli Lilly" verlangt "Lilly"; ein Artikel ueber Novo
+    Nordisk hat das nicht.
+
+    Bedeutungstragend ist ein Wort mit Stamm >= STEM_MIN_CHARS Zeichen; kurze
+    Qualifizierer wie "BSI", "EU", "US" werden nicht verlangt, sobald ein
+    langes Wort des Namens traegt. Anlass (datacenter-virtualization v4,
+    2026-09-18): "BSI Baustein SYS.1.5" gegen den BSI-Baustein selbst — die
+    Seite schreibt "Baustein", "Bausteins", "Bausteine", aber nie das Wort
+    "BSI"; der einzige Satz mit PDF-Beleg fiel deshalb der Themenpruefung zum
+    Opfer. Ein Name ohne langes Wort ("EU AI") verlangt wie bisher alle Teile
+    woertlich; Verbindungswoerter zaehlen nie mit."""
     words = [w for w in re.split(r"\s+", name)
              if w and w.lower() not in _NAME_GLUE]
-    return all(_in_source(w, src) for w in words) if words else True
+    if not words:
+        return True
+    long_words = [w for w in words if len(_stem(w)) >= STEM_MIN_CHARS]
+    if long_words:
+        return all(_stem_in_source(w, src) for w in long_words)
+    return all(_in_source(w, src) for w in words)
 
 
 # --------------------------------------------------------------------------
@@ -3495,3 +3735,178 @@ def sourceless_figures(report_md: str, sources: list[dict],
         if figs:
             out.append({"sentence": sentence, "tokens": figs, "url": ""})
     return out
+
+
+# --------------------------------------------------------------------------
+# Widerspruchs-Gate (Stufe 4, 2026-09-19 — Plan docs/plan_dossier_agent_2026-09-18.md)
+# --------------------------------------------------------------------------
+# datacenter-virtualization v2 und v4: die Kurzfassung nennt Proxmox VE den
+# "leading candidate", der Abschnitt "What the evidence does not support" sagt
+# "the evidence fails to support a definitive technical recommendation for a
+# single virtualization stack ... Proxmox VE". Der Leser fand es, der
+# Ganzdokument-Neuwurf liess es stehen. Mechanisch: eine Aussage der
+# Kurzfassung, deren Gegenstand (Akteur/Produkt aus `subject_names`) in
+# "does not support" oder "Decision points" in einem Satz MIT Verneinung
+# wieder auftaucht, der ausserdem ein weiteres Inhaltswort der Aussage teilt.
+_NEGATION_RE = re.compile(
+    r"\b(?:not|no|never|fails?|failed|unsupported|cannot|can't|lacks?|lacking|"
+    r"insufficient|neither|nor|without|nicht|kein(?:e|en|er|es)?|fehlt|fehlen|"
+    r"weder|ungestützt|unbelegt)\b", re.IGNORECASE)
+CONTRADICTION_SECTIONS = ("unsupported", "watch")
+# Nur URTEILE koennen sich widersprechen: die Kurzfassung wertet ("leading
+# candidate", "should", "viable", "only"), und der andere Abschnitt verneint
+# ein Urteil ("no authority validates it as the superior platform", "a
+# definitive recommendation cannot be made"). Ohne diese Bedingung meldete das
+# Replay 14 Paare in 7 Laeufen, davon waren 11 Einschraenkungen ("no excerpt
+# is stored", "not specific to Europe") oder Widerlegungen eines ZITIERTEN
+# Irrtums ("**The EU already has a binding framework.** It does not.") — mit
+# ihr bleiben die Paare aus datacenter v2/v4 und quantum v2.
+_EVALUATIVE_RE = re.compile(
+    r"\b(?:leading|candidates?|recommend(?:s|ed|ation|ations)?|superior|best|preferr?ed|prefer|"
+    r"should|definitive|viable|only|fastest|clear(?:ly)?|favou?r(?:s|ed|able)?|optimal|"
+    r"strongest|winner|dominant|decisive|validates?|proven|confirmed|the answer|"
+    r"empfohlen|empfehlung|beste[rn]?|einzig|eindeutig|ueberlegen|überlegen|bevorzugt)\b",
+    re.IGNORECASE)
+MAX_CONTRADICTIONS = 6
+_CONTRA_STOP = frozenset("""
+about above after again against along among around because before being below
+between could every first should since still their there these those through
+under until where which while whose would other others another every within
+evidence dossier support supports supported section summary decision recommend
+recommendation recommendations definitive single leading candidate candidates
+firm firms company companies question technical technology technologies
+""".split())
+
+
+def _content_stems(text: str) -> set[str]:
+    out: set[str] = set()
+    for w in re.findall(r"[A-Za-zÀ-ɏ][A-Za-zÀ-ɏ'’-]{3,}", prose(text or "")):
+        st = _stem(w)
+        if len(st) >= STEM_MIN_CHARS and st not in _CONTRA_STOP and w.lower() not in _CONTRA_STOP:
+            out.add(st)
+    return out
+
+
+def section_key_for(label: str, lang: str = "en") -> str | None:
+    """Gliederungsschluessel zu einer (Leser-)Ueberschrift — dieselben Muster
+    wie `split_sections`; None, wenn keines trifft."""
+    low = _HEAD_ENUM.sub("", (label or "").strip().lower())
+    for key, _h, pat in SECTIONS[_lang(lang)]:
+        if re.search(pat, low, re.IGNORECASE):
+            return key
+    return None
+
+
+def contradiction_findings(report_md: str, lang: str = "en",
+                           topic_terms=()) -> list[dict]:
+    """Mechanische Widersprueche zwischen Kurzfassung und "Was die Belege nicht
+    hergeben" / "Entscheidungspunkte". Jeder Befund: {"kind": "contradiction",
+    "summary": Satz der Kurzfassung, "other": widersprechender Satz,
+    "section": Schluessel des anderen Abschnitts, "text": Befundtext}."""
+    L = _lang(lang)
+    body = body_text(report_md)
+    sections = split_sections(body, L)
+    summary = sections.get("decision", "")
+    if not summary:
+        return []
+    headings = {k: h for k, h, _p in SECTIONS[L]}
+    others = _section_sentences(report_md, L, CONTRADICTION_SECTIONS)
+    out: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for claim in summary_claims(summary):
+        if not _EVALUATIVE_RE.search(prose(claim)):
+            continue                    # keine Wertung, nichts zu widersprechen
+        names = [n for n in subject_names(claim) if len(_stem(n.split()[-1])) >= STEM_MIN_CHARS
+                 or len(n.split()) > 1]
+        if not names:
+            continue
+        claim_stems = _content_stems(claim)
+        for key, sent in others:
+            if len(out) >= MAX_CONTRADICTIONS:
+                break
+            ps = prose(sent)
+            if not _NEGATION_RE.search(ps) or not _EVALUATIVE_RE.search(ps):
+                continue
+            words = _source_words(prose(sent))
+            hit = [n for n in names if _in_source_phrase(n, words)]
+            if not hit:
+                continue
+            name_stems = {_stem(w) for n in hit for w in n.split()}
+            shared = (claim_stems & _content_stems(sent)) - name_stems
+            if not shared:
+                continue
+            pair = (claim[:120], sent[:120])
+            if pair in seen:
+                continue
+            seen.add(pair)
+            text = (f"Widerspruch zwischen '{headings['decision']}' und '{headings[key]}' "
+                    f"zu {', '.join(hit[:3])}: die Kurzfassung sagt \"{prose(claim)[:180]}\" — "
+                    f"der andere Abschnitt sagt \"{prose(sent)[:180]}\". Beide Abschnitte "
+                    f"muessen dasselbe sagen: entweder die Kurzfassung auf das "
+                    f"zuruecknehmen, was die Belege tragen, oder die Einschraenkung "
+                    f"praezisieren, damit sie der Kurzfassung nicht widerspricht.")
+            out.append({"kind": "contradiction", "source": "mechanical",
+                        "summary": claim, "other": sent, "section": key,
+                        "names": hit[:3], "text": text})
+    return out
+
+
+def contradiction_from_reader(review: dict | None, lang: str = "en") -> list[dict]:
+    """Leser-Befunde der Art `coherence` — oder deren Einwand "contradict"
+    enthaelt — als Widerspruchs-Befunde derselben Form. Der andere Abschnitt
+    ist der vom Leser genannte (Default "unsupported")."""
+    L = _lang(lang)
+    headings = {k: h for k, h, _p in SECTIONS[L]}
+    out: list[dict] = []
+    for f in (review or {}).get("findings") or []:
+        issue = str(f.get("issue") or "")
+        if f.get("kind") != "coherence" and "contradict" not in issue.lower():
+            continue
+        key = section_key_for(str(f.get("section") or ""), L)
+        if key in (None, "decision"):
+            key = "unsupported"
+        text = (f"Widerspruch (Leser) zwischen '{headings['decision']}' und "
+                f"'{headings.get(key, key)}': {issue[:300]}"
+                + (f" — Aenderung: {f['suggestion'][:200]}" if f.get("suggestion") else "")
+                + (f" (Stelle: \"{f['passage'][:160]}\")" if f.get("passage") else ""))
+        out.append({"kind": "contradiction", "source": "reader",
+                    "summary": str(f.get("passage") or ""), "other": "",
+                    "section": key, "names": [], "text": text})
+    return out
+
+
+def section_span(report_md: str, key: str, lang: str = "en") -> tuple[int, int] | None:
+    """(Anfang, Ende) des Abschnitts `key` im Bericht — von der Ueberschrift bis
+    zur naechsten gleich- oder hoeherrangigen Ueberschrift des Fliesstexts.
+    `body_text` ist ein Praefix des Berichts, die Positionen gelten also im
+    ganzen Dokument."""
+    L = _lang(lang)
+    body = body_text(report_md)
+    spec = SECTIONS[L]
+    # m.start(1) statt m.start(): `^\s{0,3}` frisst sonst die Leerzeile davor.
+    heads = [(m.start(1), m.end(), len(m.group(1)), m.group(2))
+             for m in _HEADING.finditer(body)]
+    taken: set[str] = set()
+    for i, (s, _e, level, title) in enumerate(heads):
+        low = _HEAD_ENUM.sub("", title.strip().lower())
+        for k, _h, pat in spec:
+            if k in taken:
+                continue
+            if re.search(pat, low, re.IGNORECASE):
+                taken.add(k)
+                if k == key:
+                    end = next((h[0] for h in heads[i + 1:] if h[2] <= level), len(body))
+                    return s, end
+                break
+    return None
+
+
+def replace_section(report_md: str, key: str, new_md: str, lang: str = "en") -> str:
+    """Abschnitt `key` durch `new_md` (beginnt mit seiner Ueberschrift)
+    ersetzen; fehlt der Abschnitt, bleibt der Bericht unveraendert."""
+    span = section_span(report_md, key, lang)
+    if span is None:
+        return report_md
+    s, e = span
+    new = (new_md or "").strip() + "\n\n"
+    return report_md[:s] + new + report_md[e:].lstrip("\n")

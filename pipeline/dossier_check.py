@@ -234,7 +234,14 @@ def check_result(result: dict) -> dict:
         if uncited:
             why.append(f"{uncited}× stand eine datierte Aussage ohne jeden "
                        f"Beleg in einem Kernabschnitt und wurde gestrichen")
+        # Stufe 4 (2026-09-19): die Aussagenpruefung hat den Satz gegen die
+        # zitierte Seite gelesen, und die Seite sagt das Gegenteil.
+        n_contra = len(st.get("contradicted_after") or [])
+        if n_contra:
+            why.append(f"{n_contra}× widersprach die zitierte Seite dem Satz "
+                       f"(Aussagenpruefung) und er wurde gestrichen")
         rest = (int(st["dropped_sentences"]) - int(st.get("off_topic_after") or 0)
+                - n_contra
                 - int(st.get("sourceless_after") or 0)
                 - int(st.get("distorted_after") or 0)
                 - int(st.get("misattributed_after") or 0)
@@ -246,6 +253,32 @@ def check_result(result: dict) -> dict:
         findings.append(
             f"{st['dropped_sentences']} Satz/Saetze gestrichen: "
             + ", ".join(why) + ".")
+    contradicted = [str(x) for x in (st.get("contradicted_after") or [])]
+    if contradicted:
+        findings.append(
+            f"{len(contradicted)} Satz/Saetze, denen die zitierte Seite widerspricht "
+            f"(Aussagenpruefung), gestrichen: "
+            + " | ".join(f"\"{c[:140]}\"" for c in contradicted[:3])
+            + (f" (+{len(contradicted) - 3} weitere)" if len(contradicted) > 3 else ""))
+    ent = st.get("entailment") or {}
+    if ent.get("enabled"):
+        b, a = ent.get("before") or {}, ent.get("after") or {}
+        findings.append(
+            f"Aussagenpruefung: {int(ent.get('calls') or 0)} Aufruf(e), "
+            f"{ent.get('seconds', 0)} s — vor dem Neuwurf {b.get('sentences', 0)} Satz/Saetze auf "
+            f"{b.get('pages', 0)} Seite(n): {b.get('supported', 0)} gestuetzt, "
+            f"{b.get('contradicted', 0)} widersprochen, {b.get('unrelated', 0)} unbezogen"
+            + (f"; Endfassung: {a.get('contradicted', 0)} widersprochen, "
+               f"{a.get('unrelated', 0)} unbezogen" if a else "")
+            + (" (Seitenzahl gedeckelt)" if (b.get("capped") or a.get("capped")) else "") + ".")
+    if st.get("contradictions_after"):
+        findings.append(
+            f"Widerspruch Kurzfassung/Rest nach dem gezielten Neuwurf noch offen "
+            f"({len(st['contradictions_after'])}) — sperrend, s. Strukturbefunde.")
+    elif st.get("contradiction_rewrites"):
+        findings.append(
+            f"Widerspruchs-Gate: {int(st['contradiction_rewrites'])} gezielter Neuwurf der "
+            f"betroffenen Sektionen, danach kein Widerspruch mehr gefunden.")
     rd = st.get("reader_after") or {}
     if rd:
         majors = [f for f in (rd.get("findings") or []) if f.get("severity") == "major"]
@@ -301,5 +334,7 @@ def check_result(result: dict) -> dict:
         "options_measured": int(st.get("options_measured") or 0),
         "options_unsupported": int(st.get("options_unsupported") or 0),
         "sectors_missing": list(st.get("sectors_missing") or []),
+        "contradicted": contradicted,
+        "contradictions": list(st.get("contradictions_after") or []),
         "findings": findings,
     }

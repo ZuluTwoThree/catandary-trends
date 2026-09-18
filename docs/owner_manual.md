@@ -702,6 +702,43 @@ Faktenquote. Der Schreiber verfasst ihn nach den Beleg-Sektionen und vor der
 Kurzfassung, damit er weiß, woran die Entscheidung hängt. Prüfregeln:
 Pflichtabschnitt, Wortband, keine Zahlen, Thema genannt.
 
+**Prüfen statt Streichen (Stufe 4, seit 2026-09-19).** Vier Änderungen an der
+Prüfkette, alle Default an:
+
+- **Aussagenprüfung.** Nach dem Token-Abgleich liest das Modell je zitierter
+  Seite alle Sätze der Kernsektionen (Kurzfassung, Decision points, Kalender,
+  Recht/IP), die diese Seite zitieren — ein Aufruf je Seite, höchstens 25
+  Seiten je Durchgang — und urteilt „gestützt / widersprochen / unbezogen"
+  mit Zitatstelle. „Widersprochen" (die Seite sagt das Gegenteil, wie „Data
+  Act does not apply" in datacenter v3) geht in den Neuwurf-Auftrag; bleibt
+  der Satz, wird er gestrichen und steht im Prüfnachweis („… widerspricht die
+  zitierte Seite"). Urteile werden je Satz und Seite gemerkt, der Nachlauf
+  fragt nur Neues. Kosten ~10–30 s je Seite. Ausschalten:
+  `DOSSIER_ENTAILMENT=0` (Umgebung des Workers).
+- **Reparatur vor Streichung.** Ein beanstandeter Satz in einer Kernsektion
+  oder mit Themenbezug bekommt zwei Reparaturversuche (der zweite liest die
+  Seite breiter und darf die Zahl der Seite einsetzen), bevor er fällt; ein
+  Füllsatz fällt wie bisher sofort. Log: „deletion candidates: N core/on-topic,
+  M filler".
+- **Widerspruchs-Gate.** Sagt die Kurzfassung ein Urteil („leading
+  candidate") und „What the evidence does not support" oder „Decision points"
+  verneinen es (mechanisch erkannt) — oder der Leser meldet `coherence` —,
+  werden NUR diese beiden Sektionen einmal gezielt neu geschrieben. Bleibt der
+  Widerspruch, sperrt er die Endkontrolle (Strukturbefund „Widerspruch
+  zwischen …"). Der Ganzdokument-Neuwurf bekommt solche Leser-Befunde nicht
+  mehr.
+- **Quoten aus dem Material.** Akteurtabelle und Beobachtungspunkte werden
+  wie der Kalender aus dem Faktenzettel bemessen (Akteure max(2, min(5,
+  Landkarten-Zeilen)), Beobachtungspunkte max(2, min(3, datierte Fakten +
+  Kalender-Kandidaten))); der Befund nennt das geltende Soll und verlangt, die
+  Lücke unter „Open questions and limits" zu benennen. Kalenderzeilen mit
+  einem Termin vor dem Laufdatum zählen als „vergangen", nicht als erfüllt.
+
+Regeländerungen ohne Modell gegen alle gespeicherten Läufe messen:
+`.venv/bin/python scripts/dossier_replay.py [--slug <serie>] [--json]` —
+Strukturbefunde, Widersprüche, vergangene Kalenderzeilen, Kern- gegen
+Füllsatz-Streichungen je Lauf.
+
 **Die Messkette (seit 2026-09-07, Default AN).** Ein Dossier trägt jetzt zwei
 codegenerierte Anhänge, die nicht das Modell schreibt, sondern der Code:
 

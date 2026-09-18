@@ -1736,3 +1736,109 @@ Strukturbefunde, nicht die Tabellen selbst; U vergleicht nur Läufe mit
 gleichem Protokollstand fair (Spalte „* kein Strukturprotokoll" im
 Scoreboard). `owner_edit_diff` ist als Spalte da und bleibt bis Stufe 5 leer.
 
+
+### Runde 23 (2026-09-19) — Stufe 4: Prüfen statt Streichen
+
+Plan `docs/plan_dossier_agent_2026-09-18.md`, Stufe 4 — die vier Hebel gegen
+das Muster „Richtigkeit durch Streichen": Aussagenprüfung, Reparatur vor
+Streichung, Widerspruchs-Gate, Quoten aus dem Material. Dazu die zwei kleinen
+Punkte aus Runde 21 (PDF-Titel, vergangene Kalendertermine) und das Replay.
+
+**Aussagenprüfung (`pipeline/dossier_entailment.py`).** Der Token-Abgleich
+(`verify_cited_figures`) prüft Zahlen und Namen; „the EU Data Act does not
+apply" (v3) ging durch, weil kein Token fehlte. Jetzt liest das Modell (das
+aktive Schreibermodell, strukturiert, T = 0) **je zitierter Seite** alle Sätze
+der Kernsektionen (`CORE_SECTIONS` + Recht/IP), die diese Seite zitieren, in
+EINEM Aufruf — Seitentext auf ~6.000 Zeichen um die besten Wortreffer gekürzt
+(`page_excerpt`, Lead bleibt) — und urteilt je Satz `supported` /
+`contradicted` / `unrelated` mit einem Zitat ≤ 200 Zeichen. Regeln: Token-
+Befunde sind Vorfilter (`skip`), ein Widerspruch ohne Zitatstelle zählt als
+`unrelated` (Fehlen ist kein Widerspruch), Urteile werden je (Satz, Seite) im
+Lauf gecacht (nach dem Neuwurf kosten nur neue Sätze Aufrufe), höchstens 25
+Seiten je Durchgang (meistzitierte zuerst, Deckelung wird geloggt).
+`contradicted` → Zeile in der Neuwurf-Direktive („Die zitierte Seite
+WIDERSPRICHT dem Satz — wörtlich dort: …"), nach dem Neuwurf Streichung über
+den normalen Pfad, Endkontrolle: `check_json["contradicted"]` +
+Befundzeile; `unrelated` → bestehender Themenbefund (`kind: subject`).
+`DOSSIER_ENTAILMENT=0` schaltet ab; Aufrufe und Sekunden in
+`structure["entailment"]`, Prompt im Katalog (`dossier-entailment`).
+
+**Subjektabgleich per Stamm.** `_in_source_phrase` verlangte bis heute jedes
+Wort des Namens wörtlich (possessiv-/diakritika-tolerant). Die BSI-Seite
+schreibt „Baustein", „Bausteins", „Bausteine" — und nie „BSI" (nur im
+Hostnamen); „BSI Baustein SYS.1.5" fiel. Jetzt: Wörter mit Stamm ≥ 5 Zeichen
+(`_stem`: klein, Umlaute transliteriert, Bindestrich/Apostroph raus,
+Flexionsendung ab) müssen alle als Stamm auf der Seite stehen (Seitenwort
+beginnt mit dem Stamm, höchstens 3 Zeichen länger, oder umgekehrt); kurze
+Qualifizierer („BSI", „EU", „US") werden nicht mehr verlangt, sobald ein
+langes Wort trägt. Ein Name nur aus kurzen Wörtern („EU AI") braucht wie
+bisher alle. „Eli Lilly" gegen die Novo-Seite fällt weiterhin.
+
+**Reparatur vor Streichung, gewichtet.** `repair_sentences(pass_no=2,
+only=…)`: nach dem ersten Durchgang bekommen Sätze, die in einer Kernsektion
+stehen oder einen Themenbegriff nennen, einen zweiten — Seite auf 3.600
+statt 1.200 Zeichen um die Schlüsselwörter des Satzes neu gelesen, Auftrag
+„wenn die Seite dieselbe Sache mit anderer Zahl/Datum/Name sagt, EXAKT das
+einsetzen". Der Guard bleibt: die beanstandete Angabe darf nicht
+wiederkommen. Füllsätze fallen wie bisher sofort. Zähler `repaired_pass2`,
+`drop_core`, `drop_filler` (Log „deletion candidates: N core/on-topic, M
+filler").
+
+**Widerspruchs-Gate.** Mechanisch (`contradiction_findings`): eine Aussage
+der Kurzfassung, die ein URTEIL trägt (`_EVALUATIVE_RE`: leading, candidate,
+recommend, superior, should, definitive, viable, only, fastest …), deren
+Gegenstand (`subject_names`, Stammabgleich) in „What the evidence does not
+support" oder „Decision points" in einem Satz mit Verneinung UND Urteilswort
+wieder auftaucht, der außerdem ein weiteres Inhaltswort teilt → Befund mit
+beiden Sätzen. Leser-Befunde `coherence` oder mit „contradict" im Einwand
+werden auf dieselbe Form abgebildet (`contradiction_from_reader`) und aus
+dem Ganzdokument-Neuwurf herausgenommen (`without_contradictions`,
+`_majors` zählt sie nicht). Auf der Endfassung (nach dem zweiten Neuwurf):
+EIN gezielter Neuwurf NUR der beiden Sektionen (`rewrite_sections`: je
+Sektion ein Aufruf wie `write_sections`, der ganze Bericht als Kontext, der
+Befund als Direktive, `replace_section` setzt sie an Ort und Stelle), dann
+`_settle()` + Leser; bleibt ein Widerspruch, steht er in `findings_after`
+und sperrt (`contradictions_before/after`, `contradiction_rewrites`).
+
+**Quoten aus dem Material.** `structure_findings(actor_min=, watch_min=,
+today=)`: `actor_min_from_material` = max(2, min(5, Zeilen der Akteur-
+Landkarte)), `watch_min_from_material` = max(2, min(3, datierte Faktenzettel-
+Zeilen + Kalender-Kandidaten)); der Befund nennt das geltende Soll und, wenn
+es unter der Vollquote liegt, „die Lücke gehört in 'Open questions and
+limits' benannt, nicht gefüllt". `draft_score` bekommt dieselben Werte.
+
+**Kalender: vergangene Termine.** `date_points` liefert je Datumsangabe das
+ENDE des Zeitraums (Tag, Monatsletzter, Quartals-/Halbjahresende; nacktes
+Jahr und „mid-2026" = 31.12.). `calendar_rows(today=)` zählt eine Zeile,
+deren Termin (Spalte „Date"; ohne Datum dort: alle Daten der Zeile) vor `today` endet, als `passed` — kein Ausloeser; der
+Befund sagt es („N Zeile(n) mit einem Termin, der schon vergangen ist").
+`fill_calendar(today=)` trägt solche Kandidaten nicht ein. `run()` gibt das
+Laufdatum durch.
+
+**PDF-Titel.** `pdf_title(url, hit_title)`: bei `.pdf`-Pfaden bleibt der
+Suchmaschinen-Titel nur, wenn er kein Seiten-Boilerplate ist („Seite 1 von
+9", „Stand Februar 2022", „1. Beschreibung"); sonst der Dateiname ohne
+Endung („SYS 1 5 Virtualisierung Edition 2022").
+
+**Replay (`scripts/dossier_replay.py`)** — alle Textprüfungen ohne Modell
+über die 48 gespeicherten Läufe (`report` + `result.sources`), `today` =
+Laufdatum:
+
+| Messung | Wert |
+|---|---|
+| Läufe mit mechanischem Widerspruch | **3** (datacenter v2, datacenter v4, quantum v2), 4 Paare — v4 gefangen |
+| … ohne die Urteils-Bedingung | 7 Läufe, 14 Paare, davon 11 Einschränkungen/Widerlegungen zitierter Irrtümer (glp1-decision, glp1-r3, LFP v2, datacenter v3, 4× quantum „Quantum Act") |
+| Läufe mit Leser-`coherence`/„contradict" | 3 (quantum v2, datacenter v2, v3) |
+| Kalenderzeilen mit am Laufdatum vergangenem Termin (Spalte „Date") | **22 in 13 Läufen** (LFP v2: 5, datacenter v3: die vier Nachrichten-Daten aus Runde 20, iron-air 2, LFP v7 2, je 1 in dr3/LFP v4/v5/quantum v2/datacenter v4 u. a.) |
+| Gespeicherte Subjekt-Befunde, jetzt vom Stammabgleich akzeptiert | 25 von 135 (datacenter v4: 3 von 12, darunter der SYS.1.5-Satz) |
+| Gestrichene Sätze (ohne Rangvermerke) | 243 — **169 Kern/Thema** (bekämen jetzt zwei Reparaturen), 74 Füllsätze |
+
+Der v3-Satz („Data Act does not apply") ist ein Modellurteil und im Replay
+nicht ausführbar; der Unit-Test (`tests/test_dossier_entailment.py`) spielt
+ihn mit einem Fake-Modell durch: Befund → Direktive → Streichung →
+`check_json["contradicted"]`. Die Abnahme „Dichte nach Neuwurf ≥ vorher in
+≥ 90 % der Läufe" braucht Live-Läufe (nächster datacenter-/LFP-Vergleich).
+
+**Umgebungsschalter:** `DOSSIER_ENTAILMENT` (1/0). Alles andere ohne
+Schalter. Tests: `tests/test_dossier_entailment.py` (41 mit
+`test_dossier_contradiction.py`), volle Suite grün (1.867 passed).

@@ -1571,6 +1571,25 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   --backfill|--scoreboard [--json]` für alle alten Läufe. Baseline 19.09.: 48 Läufe, **0
   abgabereif**, 7 mit Leser / 0 „beantwortet", mean U 0,476; LFP v9 Platz 4/48, perovskite v1/v2
   ohne Strukturprotokoll nicht messbar. `answered_must` ist Platzhalter für Stufe 1. Runde 22.
+- **Stufe 4 „Prüfen statt Streichen" (2026-09-19, Plan `docs/plan_dossier_agent_2026-09-18.md`):**
+  `pipeline/dossier_entailment.py` — das Modell liest je zitierter Seite alle Sätze der
+  Kernsektionen (Kurzfassung, Decision points, Kalender, Recht/IP) in EINEM strukturierten
+  Aufruf: `supported`/`contradicted`/`unrelated` mit Zitat; Token-Abgleich bleibt Vorfilter,
+  `contradicted` ist sperrend (Neuwurf-Direktive, danach Streichung, `check_json["contradicted"]`),
+  `unrelated` = Themenbefund; Urteile je (Satz, Seite) gecacht, ≤ 25 Seiten je Durchgang,
+  `DOSSIER_ENTAILMENT=0` schaltet ab, Zahlen in `structure["entailment"]`. Subjektabgleich stamm-
+  und wortweise („BSI Baustein" gegen den Baustein selbst gilt). Reparatur vor Streichung:
+  Sätze einer Kernsektion oder mit Themenbezug bekommen einen zweiten Durchgang mit breiter
+  gelesener Seite; Füllsätze fallen wie bisher (`drop_core`/`drop_filler`). Widerspruchs-Gate:
+  mechanisch (`contradiction_findings`: Urteil der Kurzfassung gegen verneintes Urteil in „does
+  not support"/„Decision points") oder Leser-`coherence` → gezielter Neuwurf NUR der beiden
+  Sektionen (`rewrite_sections`), bleibt er, sperrt er (ok=false). Quoten aus dem Material:
+  Akteurtabelle max(2, min(5, Akteur-Zeilen)), Beobachtungspunkte max(2, min(3, datierte
+  Fakten + Kalender-Kandidaten)), Lücke in „Open questions" benannt. Kalendertermine vor dem
+  Laufdatum zählen als `passed`, nicht als ok. PDF-Titel aus dem Dateinamen statt der ersten
+  Textzeile. `scripts/dossier_replay.py` misst jede Regeländerung ohne Modell über alle
+  gespeicherten Läufe (19.09.: v4-Widerspruch gefangen, 3 Läufe/4 Paare; 169 von 243
+  gestrichenen Sätzen waren Kern/Thema). Runde 23.
 - **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
   zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
   themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,
