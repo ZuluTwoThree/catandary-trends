@@ -127,6 +127,23 @@ Newsletter-Deep-Dive setzen 0 = nicht warten) weiter.
 *Abnahme:* datacenter v1 wird am Intake abgewiesen; ein Test-Auftrag „which stack"
 wird als Dossier + Advisor geroutet.
 
+**Stand Stufe 1 (2026-09-19, gebaut — Runde 24 in `docs/agentic_dossiers.md`):**
+`pipeline/dossier_brief.py` (Brief-Schema, deterministischer Fragecheck,
+Advisor-Weiche, `build_brief`, `must_answer_scores` mit Zitat-Prüfung),
+`scripts/migrate_dossier_brief.py` (auf der Live-DB ausgeführt: `brief_json /
+plan_json / profile_json / confirmed_at / owner_note`, Status
+`awaiting_confirmation`), Worker-Phase 0 (Fragecheck → Intake → Halt;
+`--confirm N [--note …]`), `run(brief=, profile=, plan=)` (Profil und Plan
+werden hereingereicht, nur der Auftrag ist ein zusätzlicher Aufruf), MUST-
+ANSWER-Block + Kurzfassungs-Gliederung + Leser-Checkliste, `answered_must`
+belegt und Preset nach Fragetyp, Desk-Panel mit Bestätigen/Korrigieren und
+Fragecheck im Formular. **Beide Abnahmepunkte per Test belegt** (v1-Text
+abgewiesen, „which stack should" → Dossier + Advisor). **Abweichungen vom
+Plan:** kein `DOSSIER_CHECKPOINT_MIN` — der Halt ist ohne Frist, Cron-Pfade
+(Deep-Dive) schalten den Checkpoint ab; `dossier_field_profiles` (Stufe 5)
+nicht angelegt, die Korrektur steht als `owner_note` am Zettel; das Zeit-/
+Kostenbudget im Auftrag fehlt noch. Erster Live-Lauf mit Intake offen.
+
 ### Stufe 2 — Beschaffung aus dem Profil, Primärquellen je Feld (2 Tage)
 
 Feste Sweep-Muster (`REGULATORY_PATTERNS` …) nur noch ohne Profil. Das Profil

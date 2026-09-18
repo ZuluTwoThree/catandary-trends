@@ -11,12 +11,21 @@ Dossiers sind proprietäre Owner-Dokumente. Drei Festlegungen des Owners
     finale Durchsicht macht immer der Owner. Der Agent liefert vorher seine
     eigene Endkontrolle (pipeline/dossier_check.py) als check_json mit.
 
-Statusfluss:
+Statusfluss (seit Stufe 1 des Dossier-Agent-Plans, 2026-09-19, mit
+Owner-Checkpoint):
 
     queued ──(worker)──▶ running ──▶ review ──(Owner)──▶ done
-       │                    │
-       ▼ (Owner)            ▼ (Fehler)
+       │                    │  │
+       │                    │  └──(Intake, checkpoint)──▶ awaiting_confirmation
+       │                    │            (Owner: confirm [+ Korrektur]) ──▶ queued
+       ▼ (Owner)            ▼ (Fehler / Intake abgewiesen)
     cancelled            failed ──(Owner: requeue)──▶ queued
+
+Der Intake (pipeline/dossier_brief.py) legt Auftrag, Feldprofil und Plan auf
+den Zettel (brief_json/profile_json/plan_json); beim Checkpoint bleibt der
+Auftrag in 'awaiting_confirmation', bis der Owner bestätigt — mit oder ohne
+Korrektur in einem Satz (owner_note; der Worker hängt sie als "Owner
+correction: …" an die Frage und rechnet Auftrag/Profil/Plan dann neu).
 
 Die Tabelle wird — wie dead_links (#48) — NICHT in db.init_db() verdrahtet.
 Auf der Live-DB legt sie scripts/migrate_dossier_orders.py einmalig manuell an;
@@ -32,7 +41,8 @@ import unicodedata
 from pipeline import db as db_mod
 from pipeline.db import get_connection
 
-VALID_STATUS = ("queued", "running", "review", "done", "failed", "cancelled")
+VALID_STATUS = ("queued", "running", "awaiting_confirmation", "review", "done",
+                "failed", "cancelled")
 
 # Worker-Parameter, die ein Auftrag überschreiben darf (alles andere in
 # params_json wird ignoriert, damit ein Tippfehler nicht still versandet).
@@ -44,7 +54,22 @@ ALLOWED_PARAMS = frozenset(
      # filterte diese Liste "dr" still heraus — params={"dr": true} kam nie an.
      "dr", "cpc",
      # 2026-09-13: "mode" = technology | landscape (Teilfeld-Karte fuer breite Felder)
-     "mode"))
+     "mode",
+     # 2026-09-19 (Stufe 1): "checkpoint" = nach Auftrag/Profil/Plan auf den Owner
+     # warten (Desk: an; CLI --order-new und Newsletter-Deep-Dive: aus).
+     "checkpoint"))
+
+# Spalten der Stufe 1 (additive Migration scripts/migrate_dossier_brief.py;
+# ensure_schema zieht sie idempotent nach, damit Tests und Worker sie haben).
+BRIEF_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    # (Name, Postgres-Typ, SQLite-Typ)
+    ("brief_json", "JSONB", "TEXT"),
+    ("plan_json", "JSONB", "TEXT"),
+    ("profile_json", "JSONB", "TEXT"),
+    ("confirmed_at", "TIMESTAMP", "TEXT"),
+    ("owner_note", "TEXT", "TEXT"),
+)
+STATUS_CHECK = "CHECK (status IN (" + ",".join(f"'{s}'" for s in VALID_STATUS) + "))"
 
 
 def _ddl() -> str:
@@ -64,15 +89,17 @@ def _ddl() -> str:
         "  question TEXT,"                 # NULL → foresight_question(topic)
         "  params_json TEXT NOT NULL DEFAULT '{}',"
         "  status TEXT NOT NULL DEFAULT 'queued'"
-        "    CHECK (status IN ('queued','running','review','done','failed','cancelled')),"
+        f"    {STATUS_CHECK},"
         "  error TEXT,"
         "  check_json TEXT,"               # Endkontrolle des Agenten
         "  dossier_version INTEGER,"       # erzeugte Version in dossiers(slug, version)
         f" created_at {ts_default},"
         f" started_at {ts},"
         f" finished_at {ts},"
-        f" reviewed_at {ts}"
-        ")")
+        f" reviewed_at {ts},"
+        + ", ".join(f"{name} {pg if db_mod.USE_POSTGRES else lite}"
+                    for name, pg, lite in BRIEF_COLUMNS)
+        + ")")
 
 
 def _dossiers_ddl() -> str:
@@ -99,11 +126,56 @@ def _dossiers_ddl() -> str:
         ")")
 
 
+def _existing_columns(conn) -> set[str]:
+    if db_mod.USE_POSTGRES:
+        rows = conn.execute(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_name = 'dossier_orders'").fetchall()
+        return {dict(r)["column_name"] for r in rows}
+    rows = conn.execute("PRAGMA table_info(dossier_orders)").fetchall()
+    return {dict(r)["name"] for r in rows}
+
+
+def migrate_brief_columns(conn) -> list[str]:
+    """Stufe-1-Spalten additiv nachziehen; gibt die neu angelegten zurück."""
+    have = _existing_columns(conn)
+    added = []
+    for name, pg, lite in BRIEF_COLUMNS:
+        if name in have:
+            continue
+        conn.execute(f"ALTER TABLE dossier_orders ADD COLUMN {name} "
+                     f"{pg if db_mod.USE_POSTGRES else lite}")
+        added.append(name)
+    return added
+
+
+def migrate_status_check(conn) -> bool:
+    """Postgres: die CHECK-Constraint auf VALID_STATUS heben (drop + re-add).
+    SQLite kann eine Tabellen-Constraint nicht ändern — dort gilt sie nur für
+    neu angelegte Tabellen (Tests legen frisch an). True = geändert."""
+    if not db_mod.USE_POSTGRES:
+        return False
+    rows = conn.execute(
+        "SELECT conname, pg_get_constraintdef(oid) AS def FROM pg_constraint "
+        "WHERE conrelid = 'dossier_orders'::regclass AND contype = 'c'").fetchall()
+    for r in rows:
+        r = dict(r)
+        if "status" not in (r["def"] or ""):
+            continue
+        if all(f"'{s}'" in r["def"] for s in VALID_STATUS):
+            return False
+        conn.execute(f"ALTER TABLE dossier_orders DROP CONSTRAINT {r['conname']}")
+    conn.execute(f"ALTER TABLE dossier_orders ADD CONSTRAINT dossier_orders_status_check "
+                 f"{STATUS_CHECK}")
+    return True
+
+
 def ensure_schema() -> None:
     """Idempotent; auf der Live-DB übernimmt das die manuelle Migration."""
     with get_connection() as conn:
         conn.execute(_ddl())
         conn.execute(_dossiers_ddl())
+        migrate_brief_columns(conn)
 
 
 def slugify(text: str) -> str:
@@ -142,6 +214,19 @@ def create_order(topic: str, slug: str | None = None, question: str | None = Non
         return int(cur.lastrowid)
 
 
+def _json_col(v):
+    """JSON-Spalte lesen: SQLite liefert den String, psycopg2 bei JSONB schon
+    das Objekt."""
+    if v is None or v == "":
+        return None
+    if isinstance(v, (dict, list)):
+        return v
+    try:
+        return json.loads(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def _row(r) -> dict:
     d = dict(r)
     try:
@@ -152,6 +237,11 @@ def _row(r) -> dict:
         d["check"] = json.loads(d["check_json"]) if d.get("check_json") else None
     except (TypeError, ValueError):
         d["check"] = None
+    for col, key in (("brief_json", "brief"), ("profile_json", "profile"),
+                     ("plan_json", "plan")):
+        d[key] = _json_col(d.get(col))
+    d.setdefault("confirmed_at", None)
+    d.setdefault("owner_note", None)
     return d
 
 
@@ -217,6 +307,59 @@ def mark_failed(order_id: int, error: str) -> bool:
                        ((error or "unknown error")[:2000],))
 
 
+# --- Stufe 1: Intake und Owner-Checkpoint ----------------------------------
+
+def _dumps(obj) -> str | None:
+    return None if obj is None else json.dumps(obj, ensure_ascii=False)
+
+
+def store_intake(order_id: int, brief: dict | None, profile: dict | None,
+                 plan: dict | None) -> None:
+    """Auftrag/Profil/Plan auf den Zettel legen (jeder Status; der Desk zeigt
+    sie auch nach dem Lauf)."""
+    with get_connection() as conn:
+        conn.execute("UPDATE dossier_orders SET brief_json = ?, profile_json = ?, "
+                     "plan_json = ? WHERE id = ?",
+                     (_dumps(brief), _dumps(profile), _dumps(plan), order_id))
+
+
+def mark_awaiting(order_id: int, brief: dict | None, profile: dict | None,
+                  plan: dict | None) -> bool:
+    """running → awaiting_confirmation (Checkpoint): der Worker hält an, der
+    Desk zeigt Auftrag, Feldprofil und Plan."""
+    return _transition(order_id, ("running",), "awaiting_confirmation",
+                       ", brief_json = ?, profile_json = ?, plan_json = ?",
+                       (_dumps(brief), _dumps(profile), _dumps(plan)))
+
+
+def confirm(order_id: int, note: str | None = None) -> bool:
+    """awaiting_confirmation → queued. Die Notiz („Korrektur in einem Satz")
+    wird gespeichert; der Worker hängt sie beim nächsten Lauf als
+    "Owner correction: …" an die Frage und rechnet Auftrag/Profil/Plan neu.
+    Leer = Bestätigung: die gespeicherten Artefakte werden weiterverwendet."""
+    note = " ".join((note or "").split())[:1000] or None
+    return _transition(order_id, ("awaiting_confirmation",), "queued",
+                       ", confirmed_at = CURRENT_TIMESTAMP, owner_note = ?", (note,))
+
+
+def reject_intake(order_id: int, reason: str) -> bool:
+    """Intake abgewiesen (kein Fragesatz o. ä.) → failed mit dem Grund; der
+    Owner korrigiert die Frage auf einem neuen Zettel oder reiht neu ein."""
+    return _transition(order_id, ("running", "queued"), "failed",
+                       ", finished_at = CURRENT_TIMESTAMP, error = ?",
+                       (("intake rejected: " + (reason or "no question"))[:2000],))
+
+
+def effective_question(order: dict, default: str) -> str:
+    """Die Frage, mit der der Lauf arbeitet: das Fragefeld (sonst `default`)
+    plus die Owner-Korrektur aus dem Checkpoint."""
+    q = (order.get("question") or "").strip() or default
+    note = " ".join((order.get("owner_note") or "").split())
+    if note:
+        q = f"{q}\n\nOwner correction: {note}"
+    return q
+
+
 def approve(order_id: int) -> bool:
     """Owner-Abnahme nach der finalen Durchsicht."""
     return _transition(order_id, ("review",), "done",
@@ -224,7 +367,7 @@ def approve(order_id: int) -> bool:
 
 
 def cancel(order_id: int) -> bool:
-    return _transition(order_id, ("queued",), "cancelled")
+    return _transition(order_id, ("queued", "awaiting_confirmation"), "cancelled")
 
 
 def requeue(order_id: int) -> bool:

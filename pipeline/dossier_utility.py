@@ -24,11 +24,12 @@ weil der Lauf das Signal nicht erzeugt hat — z. B. Läufe vor dem Leser):
                     Strukturprüfung (Läufe vor dem 07.09.).
   reader_answers    Leser-Urteil „beantwortet die Frage" (reader_after, sonst
                     reader) als 1/0; None ohne Leser.
-  answered_must     Anteil belegt beantworteter Pflichtpunkte des Auftrags.
-                    **Stufe 1** liefert die Pflichtpunkte (`must_answer`);
-                    bis dahin immer None und damit aus der Gewichtung
-                    herausnormiert. Der Platz ist absichtlich schon da, damit
-                    Gewichte und Tabelle nicht zweimal wandern.
+  answered_must     Anteil belegt beantworteter Pflichtpunkte des Auftrags
+                    (`result["brief_eval"]["answered_share"]`, Stufe 1 seit
+                    2026-09-19: `pipeline/dossier_brief.must_answer_scores`,
+                    ein Modellurteil je Punkt, mechanisch am Zitat geprüft).
+                    None bei Läufen ohne Auftrag (vor Stufe 1, CLI) und damit
+                    aus der Gewichtung herausnormiert.
   cost_minutes      Laufzeit in Minuten (roh, nicht in [0, 1]).
   web_calls         Brave- + SearXNG-API-Aufrufe des Laufs (roh).
   signed_off        Owner-Abnahme (reviewed_at gesetzt) — Label, keine
@@ -41,8 +42,8 @@ Nutzen:
     − 0,02 je angefangene 10 Minuten über 30 Minuten Laufzeit
     − 0,01 je angefangene 10 Web-Aufrufe über 40
 
-Gewichte je Fragetyp (`WEIGHT_PRESETS`; Default `technology`, Stufe 1 wählt
-den Typ aus dem Auftrag). Die fünf Qualitätsgewichte summieren je Preset auf
+Gewichte je Fragetyp (`WEIGHT_PRESETS`; Default `technology`; seit Stufe 1
+wählt der Worker den Typ aus dem Auftrag, `brief.question_type`). Die fünf Qualitätsgewichte summieren je Preset auf
 1,0; `answered_must` trägt zusätzlich 0,25 und greift erst, wenn die
 Komponente messbar ist:
 
@@ -198,14 +199,32 @@ def _web_calls(result: dict) -> int:
     return total
 
 
+def _answered_must(res: dict) -> float | None:
+    """Stufe 1: Anteil der Pflichtpunkte mit belegter Antwort. Vorrang hat
+    `answered_share`; sonst aus den Items gezählt. None ohne Auftrag."""
+    ev = _as_dict(res.get("brief_eval"))
+    if not ev:
+        return None
+    share = ev.get("answered_share")
+    if share is not None:
+        try:
+            return round(min(1.0, max(0.0, float(share))), 4)
+        except (TypeError, ValueError):
+            pass
+    items = [i for i in (ev.get("items") or []) if isinstance(i, dict)]
+    if not items:
+        return None
+    return round(sum(1 for i in items if i.get("answered")) / len(items), 4)
+
+
 def components(result: dict | str | None, check: dict | str | None,
                reviewed_at: Any) -> dict:
     """Alle Komponenten eines Laufs aus dem, was er gespeichert hat.
     `check` (Endkontrolle) trägt heute keine eigene Komponente: sein
     `reader_ok` heißt „kein schwerer Einwand", nicht „beantwortet die Frage",
     und wird deshalb bewusst NICHT als Antwort gewertet. Der Parameter bleibt,
-    damit Stufe 1 (Pflichtpunkte) und Stufe 4 (Aussagenprüfung) dort ansetzen
-    können, ohne die Signatur zu ändern."""
+    damit Stufe 4 (Aussagenprüfung) dort ansetzen kann, ohne die Signatur zu
+    ändern."""
     res = _as_dict(result)
     _ = _as_dict(check)
     structure = _as_dict(res.get("structure"))
@@ -222,7 +241,7 @@ def components(result: dict | str | None, check: dict | str | None,
         "no_contradiction": _no_contradiction(reader),
         "tables_on_topic": _tables_on_topic(structure),
         "reader_answers": (None if reader_answers is None else (1 if reader_answers else 0)),
-        "answered_must": None,   # Stufe 1: Pflichtpunkte des Auftrags
+        "answered_must": _answered_must(res),
         "cost_minutes": cost_minutes,
         "web_calls": _web_calls(res),
         "signed_off": reviewed_at is not None,

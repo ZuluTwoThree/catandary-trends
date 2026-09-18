@@ -14,19 +14,64 @@ import { q, q1 } from "./pg";
  *
  *   queued → running → review → done   ('done' only via owner approval here)
  *   queued → cancelled · running/queued → failed → queued (requeue)
+ *   running → awaiting_confirmation → queued   (stage 1 checkpoint, 2026-09-19:
+ *     the worker's intake parks the order with brief/profile/plan on the slip;
+ *     the owner confirms or corrects in one sentence — confirmDossierOrder)
  */
+
+/** Structured order brief (pipeline/dossier_brief.Brief) — written by the
+ *  worker's intake before the first search step. */
+export interface DossierBrief {
+  questionType: "technology" | "landscape" | "regulatory" | "market" | "evidence";
+  decision: string;
+  reader: string;
+  constraints: string[];
+  mustAnswer: string[];
+  artefact: "dossier" | "dossier+advisor";
+  isQuestion: boolean;
+  rejectionReason: string;
+}
+
+/** Field profile (corpus_research.TopicProfile) — the search directions. */
+export interface DossierFieldProfile {
+  field: string;
+  regulators: string[];
+  eventTypes: string[];
+  actorTypes: string[];
+  actorSeeds: string[];
+}
+
+export interface DossierPlan {
+  title: string;
+  steps: { title: string; query: string }[];
+  /** Landscape mode: sub-fields with corpus counts (empty otherwise). */
+  landscape: { name: string; signals?: number }[];
+}
 
 export interface DossierOrder {
   id: number;
   slug: string;
   topic: string;
   question: string | null;
-  status: "queued" | "running" | "review" | "done" | "failed" | "cancelled";
+  status:
+    | "queued"
+    | "running"
+    | "awaiting_confirmation"
+    | "review"
+    | "done"
+    | "failed"
+    | "cancelled";
   error: string | null;
   check: DossierCheck | null;
   dossierVersion: number | null;
   createdAt: string | null;
   finishedAt: string | null;
+  /** Stage 1 intake artefacts (null on orders that predate it). */
+  brief: DossierBrief | null;
+  profile: DossierFieldProfile | null;
+  plan: DossierPlan | null;
+  confirmedAt: string | null;
+  ownerNote: string | null;
 }
 
 /** Agent end-control verdict (pipeline/dossier_check.py). */
@@ -256,6 +301,74 @@ interface OrderRow {
   dossier_version: number | null;
   created_at: string | null;
   finished_at: string | null;
+  brief_json: unknown;
+  profile_json: unknown;
+  plan_json: unknown;
+  confirmed_at: string | null;
+  owner_note: string | null;
+}
+
+function strList(v: unknown): string[] {
+  return Array.isArray(v) ? v.map((x) => String(x ?? "").trim()).filter(Boolean) : [];
+}
+
+function asObject(raw: unknown): Record<string, unknown> | null {
+  if (!raw) return null;
+  try {
+    const o = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return o && typeof o === "object" && !Array.isArray(o) ? (o as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseBrief(raw: unknown): DossierBrief | null {
+  const o = asObject(raw);
+  if (!o) return null;
+  const qt = String(o.question_type ?? "technology");
+  const art = String(o.artefact ?? "dossier");
+  return {
+    questionType: (["technology", "landscape", "regulatory", "market", "evidence"].includes(qt)
+      ? qt
+      : "technology") as DossierBrief["questionType"],
+    decision: String(o.decision ?? ""),
+    reader: String(o.reader ?? ""),
+    constraints: strList(o.constraints),
+    mustAnswer: strList(o.must_answer),
+    artefact: art === "dossier+advisor" ? "dossier+advisor" : "dossier",
+    isQuestion: o.is_question === undefined ? true : Boolean(o.is_question),
+    rejectionReason: String(o.rejection_reason ?? ""),
+  };
+}
+
+function parseProfile(raw: unknown): DossierFieldProfile | null {
+  const o = asObject(raw);
+  if (!o) return null;
+  return {
+    field: String(o.field ?? ""),
+    regulators: strList(o.regulators),
+    eventTypes: strList(o.event_types),
+    actorTypes: strList(o.actor_types),
+    actorSeeds: strList(o.actor_seeds),
+  };
+}
+
+function parsePlan(raw: unknown): DossierPlan | null {
+  const o = asObject(raw);
+  if (!o) return null;
+  const steps = Array.isArray(o.steps)
+    ? o.steps
+        .map((st) => asObject(st))
+        .filter((st): st is Record<string, unknown> => st !== null)
+        .map((st) => ({ title: String(st.title ?? ""), query: String(st.query ?? "") }))
+    : [];
+  const landscape = Array.isArray(o.landscape)
+    ? o.landscape
+        .map((r) => asObject(r))
+        .filter((r): r is Record<string, unknown> => r !== null)
+        .map((r) => ({ name: String(r.name ?? ""), signals: num(r.signals) ?? undefined }))
+    : [];
+  return { title: String(o.title ?? ""), steps, landscape };
 }
 
 function toOrder(r: OrderRow): DossierOrder {
@@ -270,17 +383,22 @@ function toOrder(r: OrderRow): DossierOrder {
     dossierVersion: r.dossier_version,
     createdAt: r.created_at ? String(r.created_at) : null,
     finishedAt: r.finished_at ? String(r.finished_at) : null,
+    brief: parseBrief(r.brief_json),
+    profile: parseProfile(r.profile_json),
+    plan: parsePlan(r.plan_json),
+    confirmedAt: r.confirmed_at ? String(r.confirmed_at) : null,
+    ownerNote: r.owner_note ?? null,
   };
 }
 
+const ORDER_SELECT = `SELECT id, slug, topic, question, status, error, check_json,
+              dossier_version, created_at::text, finished_at::text,
+              brief_json, profile_json, plan_json, confirmed_at::text, owner_note
+         FROM dossier_orders`;
+
 export async function listDossierOrders(limit = 60): Promise<DossierOrder[]> {
   try {
-    const rows = await q<OrderRow>(
-      `SELECT id, slug, topic, question, status, error, check_json,
-              dossier_version, created_at::text, finished_at::text
-         FROM dossier_orders ORDER BY id DESC LIMIT $1`,
-      [limit]
-    );
+    const rows = await q<OrderRow>(`${ORDER_SELECT} ORDER BY id DESC LIMIT $1`, [limit]);
     return rows.map(toOrder);
   } catch {
     return [];
@@ -295,9 +413,7 @@ export async function getOrderForVersion(
 ): Promise<DossierOrder | null> {
   try {
     const r = await q1<OrderRow>(
-      `SELECT id, slug, topic, question, status, error, check_json,
-              dossier_version, created_at::text, finished_at::text
-         FROM dossier_orders
+      `${ORDER_SELECT}
         WHERE slug = $1 AND dossier_version = $2
         ORDER BY id DESC LIMIT 1`,
       [slug, version]
@@ -524,7 +640,9 @@ export async function createDossierOrder(input: {
   const slug = slugifyTopic(input.slug?.trim() || topic);
   const question = input.question?.trim() || null;
   const cpc = (input.cpc ?? "").replace(/\s+/g, "").toUpperCase();
+  // Desk orders pause at the owner checkpoint (stage 1); CLI orders do not.
   const params = JSON.stringify({
+    checkpoint: true,
     ...(input.quant ? {} : { quant: false }),
     ...(cpc && /^[A-H]\d{2}[A-Z]\d{1,4}\/\d{1,6}$/.test(cpc) ? { cpc } : {}),
   });
@@ -556,6 +674,13 @@ export async function createRerunOrder(slug: string): Promise<number | null> {
   if (last) {
     ({ topic, question } = last);
     params = last.params_json || "{}";
+    // A recompute from the desk pauses at the checkpoint like a new desk order,
+    // even if the series was first ordered from the CLI.
+    try {
+      params = JSON.stringify({ ...JSON.parse(params), checkpoint: true });
+    } catch {
+      params = JSON.stringify({ checkpoint: true });
+    }
   } else {
     const d = await q1<{ topic: string | null; question: string }>(
       `SELECT topic, question FROM dossiers WHERE slug = $1
@@ -594,7 +719,24 @@ export async function approveDossierOrder(id: number): Promise<boolean> {
 }
 
 export async function cancelDossierOrder(id: number): Promise<boolean> {
-  return transition(id, ["queued"], "cancelled");
+  return transition(id, ["queued", "awaiting_confirmation"], "cancelled");
+}
+
+/**
+ * Owner checkpoint (stage 1): confirm the intake — with an optional one-sentence
+ * correction. Mirrors pipeline.dossier_orders.confirm: the note is stored on the
+ * slip; the worker appends it to the question as "Owner correction: …" and
+ * recomputes brief/profile/plan (an empty note reuses the stored ones).
+ */
+export async function confirmDossierOrder(id: number, note: string): Promise<boolean> {
+  const clean = note.split(/\s+/).filter(Boolean).join(" ").slice(0, 1000) || null;
+  const rows = await q<{ id: number }>(
+    `UPDATE dossier_orders
+        SET status = 'queued', confirmed_at = now(), owner_note = $2
+      WHERE id = $1 AND status = 'awaiting_confirmation' RETURNING id`,
+    [id, clean]
+  );
+  return rows.length === 1;
 }
 
 export async function requeueDossierOrder(id: number): Promise<boolean> {

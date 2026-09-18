@@ -601,11 +601,17 @@ Herkunftskopf). Erzwingen lässt sich beides je Auftrag über
 - **Technology field** (Pflicht, ≤ 500 Zeichen) — die Phrase, die auch gemessen wird;
 - **Series slug** (optional) — gleicher Slug = nächste Version derselben Serie;
 - **Custom question** (optional) — ersetzt die Foresight-Standardfrage; ändert
-  die Recherche, nicht die Messung. **Muss eine Frage sein:** der Planer baut
-  seine Suchschritte aus diesem Feld. Eine Leserbeschreibung („the dossier is a
-  free sample for the IT manager of …") wird zum Forschungsgegenstand — so
-  entstand am 18.09. ein Dossier über IT-Dienstleister statt über
-  Virtualisierung. Kontext zum Leser als zweiten Satz HINTER die Frage;
+  die Recherche, nicht die Messung. **Muss eine Frage sein — wird seit
+  2026-09-19 geprüft:** das Feld braucht ein `?` oder ein Fragewort am Anfang
+  (englisch oder deutsch); eine Leserbeschreibung („the dossier is a free
+  sample for the IT manager of …") lehnt das Formular schon beim Absenden ab
+  (Hinweis unter dem Feld), die Server Action noch einmal, und der Worker
+  würde sie als `failed · intake rejected: …` liegen lassen — so entstand am
+  18.09. ein Dossier über IT-Dienstleister statt über Virtualisierung.
+  Kontext zum Leser als zweiten Satz HINTER die Frage. Eine
+  „which … should we"-/Empfehlungsfrage wird als **Dossier + Advisor**
+  eingeordnet (das Dossier bleibt urteilsfrei, die Optionen schreibt der
+  Advisor, §6.5);
 - **CPC anchor** (optional, seit 2026-09-13, z. B. `H01M4/5825`) — die
   Patentklasse, in der gemessen werden soll. Normalerweise nicht nötig: die
   Kaskade misst die Kernphrase ohne Anwendungs-Anhängsel und wählt bei einer
@@ -617,6 +623,37 @@ Herkunftskopf). Erzwingen lässt sich beides je Auftrag über
   Lead-Time → Hub-Patente als zitierbare Quelle „Q1");
 - Checkbox *start the worker right away*.
 „Place order" legt den Auftragszettel (`dossier_orders`, Status `queued`) an.
+
+**Checkpoint (seit 2026-09-19, Stufe 1 des Dossier-Agent-Plans).** Jeder
+Desk-Auftrag hält nach ~2 Minuten an, bevor die 30–85 Minuten Recherche
+laufen: der Worker macht aus Thema + Frage einen **strukturierten Auftrag**
+(Fragetyp, die Entscheidung in einem Satz, der Leser, Randbedingungen, 3–6
+**Pflichtpunkte**, Artefakt Dossier / Dossier + Advisor), rechnet das
+Feldprofil (Regulatoren, Ereignistypen, Akteure) und den Plan, legt alles auf
+den Zettel und setzt ihn auf `awaiting_confirmation`. Der Desk zeigt die
+drei Blöcke im Panel unter dem Auftrag („N at the checkpoint" im Kopf) mit dem
+Formular:
+- **Confirm** ohne Text → der Auftrag geht auf `queued`, die gespeicherten
+  Artefakte laufen weiter (kein zweiter Intake); mit „run right away" startet
+  der Worker sofort, sonst *Run now*.
+- **Correct in one sentence** („the plan is about IT service providers, not
+  virtualization") → ebenfalls `queued`; der Worker hängt den Satz als
+  „Owner correction: …" an die Frage, rechnet Auftrag, Profil und Plan neu und
+  läuft ohne zweiten Halt durch. Dafür brauchst du kein Fachwissen — ob der
+  Plan vom richtigen Feld handelt, sieht jeder.
+- **Cancel** ist am Checkpoint möglich.
+Die Pflichtpunkte tragen weiter: sie gliedern die Kurzfassung (eine tragende,
+zitierte Aussage je Punkt), sind die Checkliste des Lesers, und nach der
+Endfassung prüft ein Aufruf je Punkt, ob er belegt beantwortet ist
+(`answered_must` in der Nutzenfunktion, Preset nach Fragetyp).
+Schalter: `params {"checkpoint": false}` lässt einen Auftrag durchlaufen
+(Desk und *Recompute* setzen `true`; CLI `--order-new` läuft ohne Halt,
+`--checkpoint` schaltet ihn ein; der Newsletter-Deep-Dive nie);
+`DOSSIER_CHECKPOINT=0` in der Umgebung erzwingt aus. Terminal:
+`.venv/bin/python -m scripts.dossier_worker --confirm <N> [--note "…"] [--run]`;
+`--list` zeigt wartende Aufträge mit Typ, Artefakt und Pflichtpunktzahl.
+Hergang: `docs/agentic_dossiers.md`, Runde 24.
+
 Jeder Auftrag läuft seit 2026-09-13 mit **DR-Vorlauf** (Primärquellen zuerst
 lesen, Faktenzettel mit festen Plätzen für Paper und Förderung, Kalender-
 Kandidaten — dann erst schreiben; ~12 min mehr); abschalten nur per CLI

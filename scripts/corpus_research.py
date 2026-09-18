@@ -59,7 +59,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from pipeline import dossier_entailment, dossier_structure, llamacpp_client
+from pipeline import dossier_brief, dossier_entailment, dossier_structure, llamacpp_client
 from pipeline.article_fetcher import fetch_fulltext, fetch_fulltext_result
 from pipeline import web_cache, web_search
 from pipeline.db import get_connection
@@ -3918,8 +3918,21 @@ def take_section(text: str, heading: str) -> str:
     return "\n".join(out).strip() + "\n"
 
 
-def write_sections(sys_prompt: str, report_prompt: str, lang: str, sampling: dict) -> str:
-    """Der Bericht Sektion fuer Sektion, in SECTION_ORDER (Kurzfassung zuletzt)."""
+def write_sections(sys_prompt: str, report_prompt: str, lang: str, sampling: dict,
+                   must_answer: list[str] | None = None) -> str:
+    """Der Bericht Sektion fuer Sektion, in SECTION_ORDER (Kurzfassung zuletzt).
+    `must_answer` (Stufe 1): die Pflichtpunkte des Auftrags gliedern die
+    Kurzfassung — je Punkt eine tragende Aussage, in dieser Reihenfolge."""
+    must = [str(m) for m in (must_answer or []) if str(m).strip()]
+    decision_directive = (
+        (" This is the decision summary: exactly one carrying statement per MUST-ANSWER "
+         f"point of the order, in this order ({len(must)} statements, at most 200 words "
+         "together), each resting on the sections below and on a (primary) citation; a "
+         "point the evidence cannot answer gets one sentence saying so, no statement:\n"
+         + "\n".join(f"  {i}. {m}" for i, m in enumerate(must, 1)))
+        if must else
+        " This is the decision summary: three statements that carry the decision, each "
+        "resting on the sections below and on a (primary) citation.")
     spec = {k: h for k, h, _p in dossier_structure.SECTIONS[dossier_structure._lang(lang)]}
     written: dict[str, str] = {}
     for key in SECTION_ORDER:
@@ -3933,8 +3946,7 @@ def write_sections(sys_prompt: str, report_prompt: str, lang: str, sampling: dic
             f"whole dossier must stay under 2400 words across its eight sections, so this section "
             f"is one part, not the paper; tables count. The sections already written are supplied "
             f"for coherence — do not repeat their sentences, refer to them where needed."
-            + (" This is the decision summary: three statements that carry the decision, each "
-               "resting on the sections below and on a (primary) citation." if key == "decision" else "")
+            + (decision_directive if key == "decision" else "")
             + (" This is the background section for a reader who does not know the field: what "
                "the technology is in plain words and why it matters for the question asked — "
                "no figures, no dates, no citations; the evidence sections already written tell "
@@ -4066,7 +4078,7 @@ def reader_enabled() -> bool:
 
 
 def reader_review(report: str, question: str, topic: str, landscape: list[dict] | None,
-                  lang: str = "en") -> dict | None:
+                  lang: str = "en", must_answer: list[str] | None = None) -> dict | None:
     """Der Leser (Owner 2026-09-13, praezisiert die Regel vom 06.09.: kein
     Richter, ein Leser): dasselbe Modell mit eigener Systemanweisung liest den
     Entwurf und liefert strukturierte Einwaende — ohne neue Fakten. Seine
@@ -4080,6 +4092,9 @@ def reader_review(report: str, question: str, topic: str, landscape: list[dict] 
     if landscape:
         land = ("\nLandscape map (sub-fields with corpus counts):\n"
                 + "\n".join(f"- {r['name']} ({r['signals']} signals)" for r in landscape) + "\n")
+    checklist = dossier_brief.must_answer_checklist(must_answer)
+    if checklist:
+        land += "\n" + checklist + "\n"
     try:
         res = llamacpp_client.chat_structured(
             model=MODEL, schema=ReaderReview, system=READER_SYSTEM,
@@ -4505,6 +4520,55 @@ def save_dossier(slug: str, topic: str, question: str, report_md: str,
 # The loop
 # --------------------------------------------------------------------------
 
+def build_plan(question: str, max_steps: int, topic: str = "", scope: str = "both",
+               mode: str = "technology") -> tuple[Plan, list[dict], int]:
+    """Landkarte (Landschafts-Modus) + Rechercheplan — EIN Planer-Aufruf
+    (bzw. im Landschafts-Modus der Karten-Aufruf). Der Intake (Stufe 1) ruft
+    das vor dem Owner-Checkpoint auf, run() nur, wenn kein Plan übergeben
+    wurde. Gibt (Plan, Landkarte, max_steps) zurück."""
+    landscape: list[dict] = []
+    if mode == "landscape":
+        try:
+            sample = [str(x.get("title") or "") for x in search_corpus(topic or question, 500, scope)]
+        except Exception as exc:                                    # noqa: BLE001
+            logger.warning("landscape sample search failed: %r", exc)
+            sample = []
+        landscape = build_landscape_map(topic or question, sample)
+    if landscape:
+        plan = Plan(title=f"Landscape of {topic or question}",
+                    steps=[PlanStep(title=r["name"], query=r["query"]) for r in landscape])
+        max_steps = max(max_steps, min(len(landscape), LANDSCAPE_MAX_ITEMS))
+    else:
+        plan = llamacpp_client.chat_structured(
+            model=MODEL, schema=Plan, temperature=0.3, max_tokens=2048,
+            system=PLANNER_SYSTEM.format(max_steps=max_steps),
+            prompt=f"Question:\n{question}\n\nReturn the plan as JSON.",
+            require_all_fields=True)
+    if plan is None:
+        raise RuntimeError("planner returned nothing — is the model up on :8090?")
+    logger.info("plan: %s", plan.title)
+    return plan, landscape, max_steps
+
+
+def plan_record(plan: Plan, landscape: list[dict] | None = None) -> dict:
+    """Speicherform des Plans (dossier_orders.plan_json) = Eingabeform für run(plan=)."""
+    return {"title": plan.title, "steps": [st.model_dump() for st in plan.steps],
+            "landscape": list(landscape or [])}
+
+
+def coerce_profile(profile) -> TopicProfile | None:
+    """Gespeichertes Profil (dict) → TopicProfile; None bei Unbrauchbarem."""
+    if profile is None:
+        return None
+    if isinstance(profile, TopicProfile):
+        return profile
+    try:
+        return TopicProfile.model_validate(profile)
+    except Exception as exc:                                        # noqa: BLE001
+        logger.warning("stored topic profile unusable (%r) — recomputing", exc)
+        return None
+
+
 def run(question: str, max_steps: int, max_sources: int,
         retrieval: str, per_query: int, scope: str = "both",
         web_steps: int = 14, max_web_sources: int = 32,
@@ -4513,8 +4577,18 @@ def run(question: str, max_steps: int, max_sources: int,
         seed_notes: list[str] | None = None,
         quant: dict | None = None, measure: bool | None = None,
         corpus_stats: dict | None = None, dr: bool | None = None,
-        mode: str = "technology") -> dict:
-    """`measure` (Default an, DOSSIER_MEASURE=0 schaltet ab) bündelt die
+        mode: str = "technology",
+        brief: dict | None = None, profile: dict | TopicProfile | None = None,
+        plan: dict | None = None) -> dict:
+    """`brief`/`profile`/`plan` (Stufe 1, 2026-09-19): vom Intake des Workers
+    VOR dem Owner-Checkpoint gerechnet und hier übergeben, damit der Lauf sie
+    nicht ein zweites Mal rechnet (`plan` = `plan_record()`, trägt im
+    Landschafts-Modus auch die Karte). Fehlen sie, rechnet run() wie bisher.
+    Der Auftrag (`brief`) steuert den Berichts-Prompt (MUST ANSWER, Gliederung
+    der Kurzfassung), die Leser-Checkliste und die Pflichtpunkt-Bewertung am
+    Ende (`result["brief_eval"]`).
+
+    `measure` (Default an, DOSSIER_MEASURE=0 schaltet ab) bündelt die
     Messkette von 2026-09-06: gepinnte Messnotiz + codegenerierter Messanhang
     (M2), Zitate über Katalog-IDs statt Freitext-URLs (M4), audit-unabhängiger
     Sweep mit höheren Kappen und einer Nachrunde (M6). `measure=False`
@@ -4615,43 +4689,32 @@ def run(question: str, max_steps: int, max_sources: int,
             logger.info("quant preamble: %d measured source(s) injected",
                         len(quant.get("sources") or []))
 
-    # --- landscape map (mode="landscape", 2026-09-13) ------------------------
-    # Ein breites Feld ("batteries") hat keine EINE Kommerzialisierungslinie.
-    # Das Modell schlaegt Teilfelder vor, der Korpus zaehlt nach, und der Plan
-    # bekommt je Teilfeld einen Suchschritt — Breite per Konstruktion statt per
-    # Hoffnung. Die Karte steht gepinnt in den Notizen und als Anhang im Dossier.
+    # --- landscape map + plan --------------------------------------------
+    # Seit Stufe 1 (2026-09-19) in build_plan() — der Intake des Workers
+    # rechnet beides VOR dem Owner-Checkpoint und gibt es als `plan` herein;
+    # ohne Intake (CLI, alte Aufrufer) passiert hier dasselbe wie vorher.
     landscape: list[dict] = []
-    if mode == "landscape":
-        try:
-            sample = [str(x.get("title") or "") for x in search_corpus(topic or question, 500, scope)]
-        except Exception as exc:                                    # noqa: BLE001
-            logger.warning("landscape sample search failed: %r", exc)
-            sample = []
-        landscape = build_landscape_map(topic or question, sample)
+    if plan is not None:
+        plan_obj = Plan.model_validate({"title": plan.get("title") or (topic or question),
+                                        "steps": plan.get("steps") or []})
+        landscape = list(plan.get("landscape") or [])
         if landscape:
-            notes.insert(pinned_notes, landscape_note(landscape, topic or question))
-            pinned_notes += 1
-            logger.info("landscape map: %d sub-field(s) — %s", len(landscape),
-                        "; ".join(f"{r['name']} ({r['signals']})" for r in landscape[:8]))
-        else:
-            logger.warning("landscape map empty — falling back to the ordinary plan")
-
-    # --- plan -------------------------------------------------------------
-    if landscape:
-        plan = Plan(title=f"Landscape of {topic or question}",
-                    steps=[PlanStep(title=r["name"], query=r["query"]) for r in landscape])
-        max_steps = max(max_steps, min(len(landscape), LANDSCAPE_MAX_ITEMS))
+            max_steps = max(max_steps, min(len(landscape), LANDSCAPE_MAX_ITEMS))
+        logger.info("plan (from intake): %s", plan_obj.title)
     else:
-        plan = llamacpp_client.chat_structured(
-            model=MODEL, schema=Plan, temperature=0.3, max_tokens=2048,
-            system=PLANNER_SYSTEM.format(max_steps=max_steps),
-            prompt=f"Question:\n{question}\n\nReturn the plan as JSON.",
-            require_all_fields=True)
-    if plan is None:
-        raise RuntimeError("planner returned nothing — is the model up on :8090?")
-    logger.info("plan: %s", plan.title)
-    for i, s in enumerate(plan.steps, 1):
-        logger.info("  %d. %s — %s", i, s.title, s.query)
+        plan_obj, landscape, max_steps = build_plan(question, max_steps, topic, scope, mode)
+    plan = plan_obj
+    if landscape:
+        notes.insert(pinned_notes, landscape_note(landscape, topic or question))
+        pinned_notes += 1
+        logger.info("landscape map: %d sub-field(s) — %s", len(landscape),
+                    "; ".join(f"{r['name']} ({r['signals']})" for r in landscape[:8]))
+    elif mode == "landscape":
+        logger.warning("landscape map empty — falling back to the ordinary plan")
+    for i, st in enumerate(plan.steps, 1):
+        logger.info("  %d. %s — %s", i, st.title, st.query)
+    brief = dict(brief) if brief else None
+    must_answer = [str(m) for m in ((brief or {}).get("must_answer") or []) if str(m).strip()]
 
     plan_json = json.dumps(plan.model_dump(), ensure_ascii=False)
     seeds = [s.query for s in plan.steps]
@@ -4818,7 +4881,11 @@ def run(question: str, max_steps: int, max_sources: int,
         phrase = (normalize_topic(topic or question) or topic or question).strip()
         nb_hits = corpus_neighbour_hits(topic or question)
         vertical = verticals_of_topic(topic or question, nb_hits)
-        profile = topic_profile(topic or question, question, [])
+        profile = coerce_profile(profile)
+        if profile is None:
+            profile = topic_profile(topic or question, question, [])
+        else:
+            logger.info("topic profile: from intake")
         pq = profile_queries(profile, phrase, terms, question, vertical)
         logger.info("topic vertical(s): %s (from %d corpus neighbour(s))",
                     "+".join(vertical), len(nb_hits))
@@ -5472,6 +5539,7 @@ def run(question: str, max_steps: int, max_sources: int,
         + (f"The question names these fields: {', '.join(sector_fields)}. The "
            f"decision points and the body must address all of them.\n\n"
            if measure and sector_fields else "")
+        + (dossier_brief.brief_block(brief) + "\n\n" if brief else "")
         + (f"FACT LEDGER — {len(fact_ledger)} dated findings, each taken from "
            f"ONE primary source and mechanically checked against that source "
            f"(the date and every figure appear in it verbatim). This is your "
@@ -5573,7 +5641,8 @@ def run(question: str, max_steps: int, max_sources: int,
         # Kurzfassung zuletzt, weil sie zusammenfasst. Ein 27B, das 2.500
         # Woerter in einem Zug schreibt, schwankte zwischen 1,0 und 2,4 Fakten
         # je 100 Woerter — je Sektion faellt der Druck, alles auf einmal zu halten.
-        report = write_sections(sys_prompt, report_prompt, lang, base_sampling)
+        report = write_sections(sys_prompt, report_prompt, lang, base_sampling,
+                                must_answer=must_answer)
     else:
         report = _draft(base_sampling)
     # Best-of-N (2026-09-12): derselbe Auftrag ergab an einem Tag Faktenquoten
@@ -5606,7 +5675,7 @@ def run(question: str, max_steps: int, max_sources: int,
     if _ad or _rm:
         logger.info("cite-driven fetch after the draft: %d adopted, %d citation(s) removed", _ad, _rm)
     # Der Leser (2026-09-13): liest den gewaehlten Entwurf vor dem Neuwurf.
-    reader1 = reader_review(report, question, topic or question, landscape, lang) \
+    reader1 = reader_review(report, question, topic or question, landscape, lang, must_answer=must_answer) \
         if (measure and reader_enabled()) else None
     reader1_lines = reader_lines(without_contradictions(reader1), lang)
     if reader1 is not None:
@@ -5962,7 +6031,7 @@ def run(question: str, max_steps: int, max_sources: int,
         # standen nur noch im Pruefnachweis). Gedeckelt durch DOSSIER_REWRITES;
         # ein Nachzug, der weder Struktur- noch Leser-Befunde senkt, wird verworfen.
         max_rewrites = max(1, int(os.getenv("DOSSIER_REWRITES", "2") or 2))
-        reader_now = reader_review(report, question, topic or question, landscape, lang) \
+        reader_now = reader_review(report, question, topic or question, landscape, lang, must_answer=must_answer) \
             if reader_enabled() else None
 
         def _majors(rv) -> int:
@@ -5984,7 +6053,7 @@ def run(question: str, max_steps: int, max_sources: int,
                             f"{before_m} reader) — one more targeted rewrite"):
                 break
             _settle()
-            reader_now = reader_review(report, question, topic or question, landscape, lang) \
+            reader_now = reader_review(report, question, topic or question, landscape, lang, must_answer=must_answer) \
                 if reader_enabled() else None
             after_n, after_m = len(structure["findings_after"]), _majors(reader_now)
             improved = after_n < before_n or (after_n == before_n and after_m < before_m)
@@ -6022,7 +6091,7 @@ def run(question: str, max_steps: int, max_sources: int,
                 structure["contradiction_rewrites"] = int(structure.get("contradiction_rewrites") or 0) + 1
                 structure["rewritten"] = True
                 _settle()
-                reader_now = reader_review(report, question, topic or question, landscape, lang) \
+                reader_now = reader_review(report, question, topic or question, landscape, lang, must_answer=must_answer) \
                     if reader_enabled() else None
                 contra = _contradictions(reader_now)
             structure["contradictions_after"] = [c["text"] for c in contra]
@@ -6222,8 +6291,26 @@ def run(question: str, max_steps: int, max_sources: int,
     if measure and (quant or {}).get("appendix"):
         report = report.rstrip() + "\n" + quant["appendix"]
 
+    # Stufe 1: Pflichtpunkte gegen die Endfassung — EIN strukturierter Aufruf,
+    # jedes "beantwortet" mechanisch am Zitat geprueft (wörtlich im Text UND
+    # zitiert). Der Anteil ist `answered_must` der Nutzenfunktion.
+    brief_eval = None
+    if must_answer:
+        try:
+            items = dossier_brief.must_answer_scores(report, must_answer, model=active_model)
+            brief_eval = {"items": items,
+                          "answered_share": dossier_brief.answered_share(items),
+                          "answered": sum(1 for i in items if i.get("answered")),
+                          "total": len(items)}
+            logger.info("must-answer: %d of %d answered with a cited statement",
+                        brief_eval["answered"], brief_eval["total"])
+        except Exception as exc:                                    # noqa: BLE001
+            logger.warning("must-answer scoring skipped: %r", exc)
+
     return {
         "question": question,
+        "brief": brief,
+        "brief_eval": brief_eval,
         "plan": plan.model_dump(),
         "trace": trace,
         "sources": sources,

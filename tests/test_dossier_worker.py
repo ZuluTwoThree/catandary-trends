@@ -37,7 +37,31 @@ def fresh(monkeypatch):
     monkeypatch.setattr(w, "build_quant_evidence", lambda t: dict(QUANT_FAIL))
     # Tests fassen systemd nie an: Ausgangszustand "nicht aktiv" → kein Neustart.
     monkeypatch.setattr(w, "_llama_unit_active", lambda: False)
+    # Stufe 1: der Intake (Auftrag/Profil/Plan) laeuft ohne Modell gegen Fakes;
+    # der Checkpoint ist fuer die Altpfad-Tests aus (die Checkpoint-Tests unten
+    # schalten ihn je Test wieder ein).
+    monkeypatch.setenv("DOSSIER_CHECKPOINT", "0")
+    monkeypatch.setattr(w.dossier_brief, "build_brief",
+                        lambda topic, question, params, **k: FakeBrief(topic, question))
+    monkeypatch.setattr(w.corpus_research, "topic_profile", lambda *a, **k: None)
+    monkeypatch.setattr(w.corpus_research, "build_plan",
+                        lambda q, n, topic="", scope="both", mode="technology":
+                        (w.corpus_research.Plan(title=f"plan for {topic}", steps=[
+                            w.corpus_research.PlanStep(title="s1", query="q1")]), [], n))
     yield
+
+
+class FakeBrief:
+    """Ersatz fuer dossier_brief.Brief mit model_dump()."""
+    def __init__(self, topic, question):
+        self.d = {"question_type": "technology", "decision": f"decide {topic}",
+                  "reader": "a board", "constraints": [],
+                  "must_answer": ["A?", "B?", "C?"], "artefact": "dossier",
+                  "is_question": True, "rejection_reason": ""}
+        self.question = question
+
+    def model_dump(self):
+        return dict(self.d)
 
 
 def _dossier_rows():
@@ -181,3 +205,125 @@ def test_landscape_mode_is_a_known_param_and_picks_the_landscape_question(monkey
     assert w._params({"params": {"mode": "landscape"}})["mode"] == "landscape"
     from pipeline import dossier_orders as o
     assert o._clean_params({"mode": "landscape"}) == {"mode": "landscape"}
+
+
+class TestCheckpointFlow:
+    """Stufe 1 (2026-09-19): Intake → awaiting_confirmation → confirm → queued → run."""
+
+    def test_order_pauses_then_runs_with_the_correction(self, monkeypatch):
+        monkeypatch.setenv("DOSSIER_CHECKPOINT", "1")
+        seen: dict = {}
+        def fake_run(question, *a, **k):
+            seen["question"] = question
+            seen["brief"] = k.get("brief")
+            seen["plan"] = k.get("plan")
+            return dict(RESULT)
+        monkeypatch.setattr(w.corpus_research, "run", fake_run)
+        oid = m.create_order("datacenter virtualization",
+                             question="Which stack should we run after the Broadcom change?",
+                             params={"checkpoint": True})
+        # 1. Worker-Start: Intake, Halt am Checkpoint — run() wird NICHT gerufen
+        assert w.run_worker() == 0
+        o = m.get_order(oid)
+        assert o["status"] == "awaiting_confirmation"
+        assert o["brief"]["must_answer"] == ["A?", "B?", "C?"]
+        assert o["plan"]["steps"] == [{"title": "s1", "query": "q1"}]
+        assert o["plan"]["title"] == "plan for datacenter virtualization"
+        assert "question" not in seen
+        # Owner korrigiert in einem Satz
+        assert m.confirm(oid, "the plan is about IT service firms, not virtualization")
+        assert m.get_order(oid)["status"] == "queued"
+        # 2. Worker-Start: kein zweiter Halt, Korrektur haengt an der Frage,
+        #    Auftrag/Plan werden neu gerechnet (Korrektur aendert die Frage)
+        assert w.run_worker() == 0
+        o = m.get_order(oid)
+        assert o["status"] == "review" and o["dossier_version"] == 1
+        assert seen["question"].endswith(
+            "Owner correction: the plan is about IT service firms, not virtualization")
+        assert seen["brief"]["must_answer"] == ["A?", "B?", "C?"]
+        assert seen["plan"]["title"] == "plan for datacenter virtualization"
+
+    def test_confirmation_without_note_reuses_the_stored_artefacts(self, monkeypatch):
+        monkeypatch.setenv("DOSSIER_CHECKPOINT", "1")
+        calls = {"brief": 0, "plan": 0}
+        def counting_brief(topic, question, params, **k):
+            calls["brief"] += 1
+            return FakeBrief(topic, question)
+        monkeypatch.setattr(w.dossier_brief, "build_brief", counting_brief)
+        seen: dict = {}
+        def fake_run(question, *a, **k):
+            seen["plan"] = k.get("plan"); seen["brief"] = k.get("brief")
+            return dict(RESULT)
+        monkeypatch.setattr(w.corpus_research, "run", fake_run)
+        oid = m.create_order("t", question="What moves?")
+        assert w.run_worker() == 0
+        assert m.get_order(oid)["status"] == "awaiting_confirmation"
+        assert calls["brief"] == 1
+        m.confirm(oid)                                   # ohne Korrektur
+        assert w.run_worker() == 0
+        assert m.get_order(oid)["status"] == "review"
+        assert calls["brief"] == 1                       # kein zweiter Intake
+        assert seen["plan"]["steps"] == [{"title": "s1", "query": "q1"}]
+        assert seen["brief"]["question_type"] == "technology"
+
+    def test_checkpoint_off_by_param_runs_straight_through(self, monkeypatch):
+        monkeypatch.setenv("DOSSIER_CHECKPOINT", "1")
+        seen: dict = {}
+        def fake_run(question, *a, **k):
+            seen["brief"] = k.get("brief"); return dict(RESULT)
+        monkeypatch.setattr(w.corpus_research, "run", fake_run)
+        oid = m.create_order("t", question="What moves?", params={"checkpoint": False})
+        assert w.run_worker() == 0
+        o = m.get_order(oid)
+        assert o["status"] == "review"
+        assert o["brief"]["artefact"] == "dossier"       # Intake trotzdem gespeichert
+        assert seen["brief"]["must_answer"] == ["A?", "B?", "C?"]
+
+    def test_env_forces_checkpoint_off(self, monkeypatch):
+        monkeypatch.setenv("DOSSIER_CHECKPOINT", "0")
+        monkeypatch.setattr(w.corpus_research, "run", lambda *a, **k: dict(RESULT))
+        oid = m.create_order("t", question="What moves?", params={"checkpoint": True})
+        assert w.run_worker() == 0
+        assert m.get_order(oid)["status"] == "review"
+
+    def test_non_question_is_rejected_before_any_model_call(self, monkeypatch):
+        def boom(*a, **k):
+            raise AssertionError("no model call expected")
+        monkeypatch.setattr(w.dossier_brief, "build_brief", boom)
+        monkeypatch.setattr(w.corpus_research, "run", boom)
+        oid = m.create_order("datacenter virtualization",
+                             question="The purpose of the dossier is to provide a free sample "
+                                      "for the IT Manager of a small German technology firm.")
+        assert w.run_worker() == 2
+        o = m.get_order(oid)
+        assert o["status"] == "failed" and o["error"].startswith("intake rejected:")
+        assert "does not ask" in o["error"]
+
+    def test_only_order_refuses_an_awaiting_order(self, monkeypatch):
+        monkeypatch.setenv("DOSSIER_CHECKPOINT", "1")
+        monkeypatch.setattr(w.corpus_research, "run", lambda *a, **k: dict(RESULT))
+        oid = m.create_order("t", question="What moves?")
+        assert w.run_worker(only_order=oid) == 0
+        assert m.get_order(oid)["status"] == "awaiting_confirmation"
+        assert w.run_worker(only_order=oid) == 1          # wartet auf den Owner
+        assert m.get_order(oid)["status"] == "awaiting_confirmation"
+
+    def test_question_type_selects_the_utility_preset(self, monkeypatch):
+        monkeypatch.setattr(w.dossier_brief, "build_brief",
+                            lambda t, q, p, **k: FakeBriefTyped("regulatory"))
+        res = dict(RESULT)
+        res["brief_eval"] = {"answered_share": 0.5, "items": []}
+        monkeypatch.setattr(w.corpus_research, "run", lambda *a, **k: dict(res))
+        m.create_order("t", question="Which rules apply?")
+        assert w.run_worker() == 0
+        from pipeline import dossier_utility
+        rows = dossier_utility.list_outcomes()
+        assert len(rows) == 1
+        assert rows[0]["weights"] == dossier_utility.WEIGHT_PRESETS["regulatory"]
+        assert rows[0]["components"]["answered_must"] == 0.5
+
+
+class FakeBriefTyped(FakeBrief):
+    def __init__(self, qtype):
+        super().__init__("t", "q")
+        self.d["question_type"] = qtype

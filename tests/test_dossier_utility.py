@@ -47,7 +47,7 @@ class TestComponents:
         assert c["no_contradiction"] == 1
         assert c["tables_on_topic"] == 1.0
         assert c["reader_answers"] == 1
-        assert c["answered_must"] is None               # Stufe 1
+        assert c["answered_must"] is None               # ohne Auftrag (vor Stufe 1)
         assert c["cost_minutes"] == 25.0
         assert c["web_calls"] == 10
         assert c["signed_off"] is False
@@ -183,6 +183,13 @@ class TestStore:
         from pipeline import dossier_orders, dossier_utility
         importlib.reload(dossier_orders)
         importlib.reload(dossier_utility)
+        # pipeline.config wird nicht neu geladen — der Pfad bleibt die geteilte
+        # Test-DB; die Tabellen deshalb frisch anlegen (sonst hinterlaesst der
+        # Worker-Test eine Outcome-Zeile, die hier mit dossiers.id=1 joint).
+        from pipeline.db import get_connection
+        with get_connection() as conn:
+            for t in ("dossier_run_outcomes", "dossiers", "dossier_orders"):
+                conn.execute(f"DROP TABLE IF EXISTS {t}")
         dossier_orders.ensure_schema()
         dossier_utility.ensure_schema()
         yield
@@ -204,3 +211,37 @@ class TestStore:
         assert rows[0]["order_id"] == 7 and bool(rows[0]["signed_off"]) is True
         assert rows[0]["components"]["density_norm"] == 1.0
         assert du.record_run("nope", 1, None, res, None) is None
+
+
+class TestAnsweredMust:
+    """Stufe 1: answered_must aus result["brief_eval"]."""
+
+    @pytest.fixture(autouse=True)
+    def _fns(self):
+        from pipeline import dossier_utility as du
+        global components, utility
+        components, utility = du.components, du.utility
+
+    def test_share_is_read_and_clamped(self):
+        r = _result()
+        r["brief_eval"] = {"answered_share": 0.6667, "items": []}
+        assert components(r, None, None)["answered_must"] == 0.6667
+        r["brief_eval"] = {"answered_share": 1.4}
+        assert components(r, None, None)["answered_must"] == 1.0
+
+    def test_counted_from_items_when_share_missing(self):
+        r = _result()
+        r["brief_eval"] = {"items": [{"answered": True}, {"answered": False}, {"answered": True}]}
+        assert components(r, None, None)["answered_must"] == 0.6667
+
+    def test_unmeasured_without_brief(self):
+        r = _result()
+        r["brief_eval"] = None
+        assert components(r, None, None)["answered_must"] is None
+
+    def test_it_enters_the_utility_with_its_weight(self):
+        r = _result(ranks=(0, 1))
+        assert utility(components(r, None, None)) == 1.0
+        r["brief_eval"] = {"answered_share": 0.0}
+        # 5 Qualitaetsgewichte = 1,0 bei Wert 1; answered_must 0,25 bei 0 → 1/(1,25) = 0,8
+        assert utility(components(r, None, None)) == 0.8

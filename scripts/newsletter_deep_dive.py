@@ -879,6 +879,8 @@ def run(year: int, week: int, dry_run: bool = True, theme_override: str | None =
     params = dict(RESEARCH_PARAMS)
     params["web_steps"] = web_steps
     params["web_sources"] = 12 if web_steps > 0 else 0
+    # Cron-Pfad: kein Owner-Checkpoint (Stufe 1) — der Auftrag läuft durch.
+    params["checkpoint"] = False
     orders_mod.ensure_schema()
     oid = orders_mod.create_order(theme["name_en"], slug=slug, question=question,
                                   params=params)

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DossierQuestionField } from "@/components/DossierQuestionField";
 import { canManageDossiers } from "@/lib/dossier-access";
 import { workerStatus } from "@/lib/dossierWorker";
 import {
@@ -14,6 +15,7 @@ import {
 import {
   approveAction,
   cancelAction,
+  confirmOrderAction,
   createOrderAction,
   rerunSeriesAction,
   runOrderAction,
@@ -37,6 +39,7 @@ export const metadata = {
 const STATUS_CLASS: Record<DossierOrder["status"], string> = {
   queued: "text-muted",
   running: "text-accent",
+  awaiting_confirmation: "text-warn",
   review: "text-warn",
   done: "text-paper",
   failed: "text-warn",
@@ -54,6 +57,15 @@ const NOTICE: Record<string, { text: string; warn: boolean }> = {
   missing: { text: "Worker not found: .venv/bin/python or scripts/dossier_worker.py missing next to this frontend.", warn: true },
   spawn: { text: "The worker could not be started (see server log).", warn: true },
   noseries: { text: "No such series to recompute.", warn: true },
+  confirmed: { text: "Confirmed — the order is queued again; start it with Run now.", warn: false },
+  notawaiting: { text: "That order is not waiting at the checkpoint any more.", warn: true },
+};
+
+const INTAKE_NOTICE: Record<string, string> = {
+  notaquestion:
+    "Not placed: the question field does not ask anything (no '?' and no interrogative " +
+    "opening) — it reads as a purpose or reader description. Write the question first and put " +
+    "the context in a second sentence after it.",
 };
 
 /** Lock timestamps are UTC ISO strings — show them in the workstation's
@@ -109,6 +121,125 @@ function CheckSummary({
   );
 }
 
+/**
+ * Owner checkpoint (plan stage 1, 2026-09-19): after the worker's intake —
+ * structured brief, field profile, research plan, ~2 minutes of model time —
+ * the order waits here before the 30–85-minute run. Confirm as is, or correct
+ * in one sentence: the worker then appends "Owner correction: …" to the
+ * question and recomputes brief/profile/plan without a second stop.
+ */
+function CheckpointPanel({ order, workerBusy }: { order: DossierOrder; workerBusy: boolean }) {
+  const b = order.brief;
+  const p = order.profile;
+  const plan = order.plan;
+  const H = "font-mono text-[10px] uppercase tracking-[0.14em] text-muted";
+  return (
+    <div className="mt-2 w-full border border-warn/40 bg-warn/5 p-4">
+      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-warn">
+        Checkpoint — confirm or correct before the run
+      </p>
+      <div className="mt-3 grid gap-4 md:grid-cols-3">
+        <div>
+          <p className={H}>Order brief</p>
+          {b ? (
+            <>
+              <p className="mt-1 font-mono text-[11px] text-paper">
+                {b.questionType} · {b.artefact}
+                {b.artefact === "dossier+advisor" && (
+                  <span className="text-muted"> (evidence first, options via the Advisor)</span>
+                )}
+              </p>
+              <p className="mt-1 text-[13px] leading-[1.5] text-paper">{b.decision}</p>
+              <p className="mt-1 font-mono text-[11px] text-muted">Reader: {b.reader}</p>
+              {b.constraints.length > 0 && (
+                <p className="mt-1 font-mono text-[11px] text-muted">
+                  Constraints: {b.constraints.join("; ")}
+                </p>
+              )}
+              <p className={`mt-2 ${H}`}>Must answer</p>
+              <ol className="mt-1 list-decimal pl-5 text-[13px] leading-[1.5] text-paper">
+                {b.mustAnswer.map((m, i) => (
+                  <li key={i}>{m}</li>
+                ))}
+              </ol>
+            </>
+          ) : (
+            <p className="mt-1 font-mono text-[11px] text-muted">—</p>
+          )}
+        </div>
+        <div>
+          <p className={H}>Field profile</p>
+          {p ? (
+            <>
+              <p className="mt-1 text-[13px] text-paper">{p.field}</p>
+              {p.regulators.length > 0 && (
+                <p className="mt-1 font-mono text-[11px] text-muted">
+                  Regulators: {p.regulators.slice(0, 8).join(" · ")}
+                </p>
+              )}
+              {p.eventTypes.length > 0 && (
+                <p className="mt-1 font-mono text-[11px] text-muted">
+                  Event types: {p.eventTypes.slice(0, 8).join(" · ")}
+                </p>
+              )}
+              {p.actorTypes.length > 0 && (
+                <p className="mt-1 font-mono text-[11px] text-muted">
+                  Actors: {p.actorTypes.slice(0, 8).join(" · ")}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="mt-1 font-mono text-[11px] text-muted">
+              — (no web stage in this order, so no profile)
+            </p>
+          )}
+        </div>
+        <div>
+          <p className={H}>Plan{plan?.title ? ` · ${plan.title}` : ""}</p>
+          {plan && plan.steps.length > 0 ? (
+            <ol className="mt-1 list-decimal pl-5 text-[13px] leading-[1.5] text-paper">
+              {plan.steps.map((st, i) => (
+                <li key={i}>
+                  {st.title}
+                  <span className="font-mono text-[11px] text-muted"> — {st.query}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="mt-1 font-mono text-[11px] text-muted">—</p>
+          )}
+          {plan && plan.landscape.length > 0 && (
+            <p className="mt-1 font-mono text-[11px] text-muted">
+              Landscape: {plan.landscape.map((r) => `${r.name}${r.signals != null ? ` (${r.signals})` : ""}`).join(" · ")}
+            </p>
+          )}
+        </div>
+      </div>
+      <form action={confirmOrderAction} className="mt-4 grid gap-2 md:grid-cols-[1fr_auto]">
+        <input type="hidden" name="id" value={order.id} />
+        <label className="block">
+          <span className={H}>Correct in one sentence (optional — the worker recomputes brief and plan with it)</span>
+          <textarea
+            name="note"
+            rows={2}
+            maxLength={1000}
+            placeholder='e.g. "the plan is about IT service providers, not virtualization"'
+            className="mt-1 w-full border border-border-strong bg-transparent px-3 py-2 text-[13px] text-paper placeholder:text-muted focus:border-accent focus:outline-none"
+          />
+        </label>
+        <div className="flex flex-col items-end justify-end gap-2">
+          <label className="flex items-center gap-2 font-mono text-[11px] text-muted">
+            <input type="checkbox" name="run" defaultChecked={!workerBusy} className="accent-current" />
+            run right away
+          </label>
+          <button className={BTN_ACCENT}>Confirm</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+
 function OrderRow({
   order,
   workerBusy,
@@ -157,7 +288,7 @@ function OrderRow({
             )}
           </form>
         )}
-        {order.status === "queued" && (
+        {(order.status === "queued" || order.status === "awaiting_confirmation") && (
           <form action={cancelAction}>
             <input type="hidden" name="id" value={order.id} />
             <button className={BTN_QUIET}>Cancel</button>
@@ -166,6 +297,14 @@ function OrderRow({
       </span>
       {order.error && (
         <p className="w-full font-mono text-[11px] text-warn">{order.error}</p>
+      )}
+      {order.status === "awaiting_confirmation" && (
+        <CheckpointPanel order={order} workerBusy={workerBusy} />
+      )}
+      {order.status === "queued" && order.ownerNote && (
+        <p className="w-full font-mono text-[11px] text-muted">
+          Owner correction: {order.ownerNote}
+        </p>
       )}
     </li>
   );
@@ -181,6 +320,7 @@ export default async function DossierDeskPage({
 
   const sp = await searchParams;
   const notice = typeof sp.worker === "string" ? NOTICE[sp.worker] : undefined;
+  const intakeNotice = typeof sp.intake === "string" ? INTAKE_NOTICE[sp.intake] : undefined;
 
   const ready = await dossierTablesReady();
   const [orders, series, outcomes] = ready
@@ -188,6 +328,7 @@ export default async function DossierDeskPage({
     : [[], [], new Map<string, DossierOutcome>()];
   const queued = orders.filter((o) => o.status === "queued").length;
   const inReview = orders.filter((o) => o.status === "review").length;
+  const awaiting = orders.filter((o) => o.status === "awaiting_confirmation").length;
   const runningInDb = orders.filter((o) => o.status === "running").length;
   const worker = workerStatus();
   const workerBusy = worker.running || runningInDb > 0;
@@ -205,7 +346,11 @@ export default async function DossierDeskPage({
           Place an order slip and start the worker: the agentic researcher
           runs fully on the local model, measures the innovation chain first,
           audits its own report and parks the result here as <em>review</em>{" "}
-          until you sign it off. Nothing runs on a schedule — a dossier is a
+          until you sign it off. Every desk order first stops at a{" "}
+          <em>checkpoint</em>: after ~2 minutes the worker shows the structured
+          brief (what is decided, who reads, must-answer points), the field
+          profile and the plan — confirm or correct in one sentence before the
+          long run. Nothing runs on a schedule — a dossier is a
           dated document, recomputed only on your click — and nothing leaves
           the machine. Every order first reads primary sources and builds a
           fact ledger and calendar candidates before writing (the DR
@@ -214,6 +359,9 @@ export default async function DossierDeskPage({
         </p>
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em]">
           <span className="text-paper">{queued} queued</span>
+          <span className={awaiting ? "text-warn" : "text-muted"}>
+            {awaiting} at the checkpoint
+          </span>
           <span className={inReview ? "text-warn" : "text-muted"}>
             {inReview} awaiting your review
           </span>
@@ -228,6 +376,12 @@ export default async function DossierDeskPage({
           }`}
         >
           {notice.text}
+        </p>
+      )}
+
+      {intakeNotice && (
+        <p className="mt-6 border border-warn/40 bg-warn/5 px-4 py-3 font-mono text-[12px] text-warn">
+          {intakeNotice}
         </p>
       )}
 
@@ -300,14 +454,10 @@ export default async function DossierDeskPage({
           <label className="block md:col-span-2">
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
               Custom question (optional — default: the standard foresight
-              framing on the field)
+              framing on the field). Must be a question; reader context goes in a
+              second sentence after it.
             </span>
-            <textarea
-              name="question"
-              rows={2}
-              maxLength={2000}
-              className="mt-1 w-full border border-border-strong bg-transparent px-3 py-2 text-[14px] text-paper focus:border-accent focus:outline-none"
-            />
+            <DossierQuestionField className="mt-1 w-full border border-border-strong bg-transparent px-3 py-2 text-[14px] text-paper focus:border-accent focus:outline-none" />
           </label>
           <label className="block">
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">

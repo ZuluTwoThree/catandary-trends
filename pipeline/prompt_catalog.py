@@ -277,13 +277,42 @@ def build_catalog() -> list[PromptEntry]:
     # ---------------- Dossiers ----------------
     cr = "scripts.corpus_research"
     E.append(_load(PromptEntry(
+        key="dossier-brief", group="dossier", title="Dossier · order intake (structured brief)",
+        function=("Stage 1 of the dossier-agent plan (2026-09-19): before the first search step "
+                  "the order (topic + question field + context) becomes a structured brief — "
+                  "question type, the decision, the reader, constraints, 3–6 must-answer "
+                  "points, artefact routing (dossier / dossier+advisor). Deterministic rules "
+                  "override the model: a question field without a question is rejected "
+                  "(datacenter v1), a 'which … should we' question routes to the Advisor. "
+                  "The must-answer points drive the writer (MUST ANSWER block, decision-summary "
+                  "structure), the reader's checklist and the utility slot answered_must."),
+        model="Qwen3.8-27B (llama.cpp), structured (Brief), temperature 0",
+        trigger="Every dossier run from the worker (desk or CLI) — then the owner checkpoint "
+                "(params {\"checkpoint\": true}, desk default; DOSSIER_CHECKPOINT=0 forces off)",
+        symbol="pipeline.dossier_brief:BRIEF_SYSTEM"),
+        "pipeline.dossier_brief", "BRIEF_SYSTEM"))
+
+    E.append(_load(PromptEntry(
+        key="dossier-must-answer", group="dossier", title="Dossier · must-answer scoring",
+        function=("One structured call after the final report: for each must-answer point of "
+                  "the brief, is it answered with a cited statement? The quote is verified "
+                  "mechanically (verbatim in the text, citation in the same sentence) — an "
+                  "unverifiable 'answered' counts as not answered. The share becomes "
+                  "answered_must in pipeline/dossier_utility.py."),
+        model="Qwen3.8-27B (or the writer model), structured (MustAnswerEval), temperature 0",
+        trigger="Every dossier run with a brief",
+        symbol="pipeline.dossier_brief:MUST_ANSWER_SYSTEM"),
+        "pipeline.dossier_brief", "MUST_ANSWER_SYSTEM"))
+
+    E.append(_load(PromptEntry(
         key="dossier-profile", group="dossier", title="Dossier · search directions (topic profile)",
         function=("First model call of a dossier run: from topic and question, describe the "
                   "field so the search engine can be asked the right things — who decides, "
                   "what dated events happen, what a board asks about law/IP and market. The "
                   "output seeds the web queries; every fact is verified against pages later."),
         model="Qwen3.8-27B (llama.cpp), structured (TopicProfile)",
-        trigger="Every dossier run (desk 'Run now' or scripts/dossier_worker.py)",
+        trigger="Every dossier run — since stage 1 (2026-09-19) computed once in the worker's "
+                "intake before the checkpoint and handed into run()",
         symbol=f"{cr}:PROFILE_SYSTEM",
         notes=["Until 2026-09-18 this name was silently overwritten by the company-profile prompt "
                "further down the file — the search directions ran under the wrong instruction."]),

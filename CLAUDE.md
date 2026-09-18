@@ -1598,6 +1598,22 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   Owner abgenommen; Engpass ist der Ein-Aufruf-Schreibschritt. Stand,
   Diagnose, Wiederaufnahme: `docs/dossier_vs_deep_research_2026-09-07.md`,
   Issue #100.
+- **Auftrags-Intake + Owner-Checkpoint (Stufe 1 des Dossier-Agent-Plans, seit 2026-09-19,
+  `docs/plan_dossier_agent_2026-09-18.md`, Runde 24):** vor dem ersten Suchschritt wird der
+  Auftrag strukturiert (`pipeline/dossier_brief.py`: Fragetyp, Entscheidung, Leser,
+  Randbedingungen, 3–6 **Pflichtpunkte**, Artefakt Dossier / Dossier + Advisor — „which …
+  should we" routet deterministisch zum Advisor). **Ein Fragefeld ohne Frage wird abgewiesen,
+  nicht interpretiert** (Formular, Server Action, Worker: `?` oder Fragewort am Anfang; datacenter
+  v1 fiel so). Worker-Phase 0: Fragecheck → Auftrag + Feldprofil + Plan (Profil/Plan werden in
+  `run(brief=, profile=, plan=)` hereingereicht, nur der Auftrag ist ein zusätzlicher Aufruf) →
+  Status `awaiting_confirmation`; der Desk zeigt die drei Blöcke, der Owner bestätigt oder
+  korrigiert in einem Satz (`owner_note` → „Owner correction: …" an der Frage, Intake neu, kein
+  zweiter Halt). Schalter `params {"checkpoint": true|false}` (Desk an, CLI `--order-new`/Deep-Dive
+  aus), `DOSSIER_CHECKPOINT=0` erzwingt aus; CLI `--confirm N [--note …]`. Pflichtpunkte gliedern
+  die Kurzfassung, sind Leser-Checkliste und werden nach der Endfassung je Punkt geprüft
+  (`must_answer_scores`, Zitat muss wörtlich und zitiert im Text stehen) → `answered_must` in der
+  Nutzenfunktion, Preset nach Fragetyp. Migration `scripts/migrate_dossier_brief.py` (Live-DB
+  19.09.: `brief_json/plan_json/profile_json/confirmed_at/owner_note`, CHECK um den Status erweitert).
 - **Zugriff:** lokal standardmäßig AN (`DOSSIERS_ENABLED=0` = Not-Aus);
   `PUBLIC_MODE=1` blockt die Route (`BLOCKED_PREFIXES` + `proxy.ts`), der
   statische Export baut sie nie (`frontend/static-export.exclude`, Drift-Wächter

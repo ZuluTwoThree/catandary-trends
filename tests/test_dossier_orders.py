@@ -109,3 +109,73 @@ class TestSlugify:
 def test_dr_and_cpc_survive_the_param_filter():
     from pipeline import dossier_orders as o
     assert o._clean_params({"dr": False, "cpc": "H01M4/5825", "bogus": 1}) == {"dr": False, "cpc": "H01M4/5825"}
+
+
+class TestCheckpointTransitions:
+    """Stufe 1 (2026-09-19): Intake und Owner-Checkpoint."""
+
+    BRIEF = {"question_type": "regulatory", "must_answer": ["A?", "B?", "C?"],
+             "artefact": "dossier", "decision": "d", "reader": "r", "constraints": [],
+             "is_question": True, "rejection_reason": ""}
+    PLAN = {"title": "p", "steps": [{"title": "s", "query": "q"}], "landscape": []}
+
+    def test_running_to_awaiting_stores_the_artefacts(self):
+        oid = m.create_order("t", question="What moves?")
+        assert not m.mark_awaiting(oid, self.BRIEF, None, self.PLAN)   # queued → nein
+        m.mark_running(oid)
+        assert m.mark_awaiting(oid, self.BRIEF, {"field": "f"}, self.PLAN)
+        o = m.get_order(oid)
+        assert o["status"] == "awaiting_confirmation"
+        assert o["brief"] == self.BRIEF and o["plan"] == self.PLAN and o["profile"] == {"field": "f"}
+        assert o["confirmed_at"] is None and o["owner_note"] is None
+
+    def test_confirm_returns_to_queued_with_note(self):
+        oid = m.create_order("t", question="What moves?")
+        assert not m.confirm(oid)                       # nur aus awaiting_confirmation
+        m.mark_running(oid)
+        m.mark_awaiting(oid, self.BRIEF, None, self.PLAN)
+        assert m.confirm(oid, "  the plan is about IT service firms,   not virtualization ")
+        o = m.get_order(oid)
+        assert o["status"] == "queued" and o["confirmed_at"] is not None
+        assert o["owner_note"] == "the plan is about IT service firms, not virtualization"
+        assert o["brief"] == self.BRIEF                 # Artefakte bleiben sichtbar
+        # die Korrektur haengt am Lauf-Text, nicht am Fragefeld
+        assert o["question"] == "What moves?"
+        assert m.effective_question(o, "default") == \
+            "What moves?\n\nOwner correction: the plan is about IT service firms, not virtualization"
+        assert m.mark_running(oid)                      # naechster Worker-Start
+
+    def test_confirm_without_note(self):
+        oid = m.create_order("t")
+        m.mark_running(oid)
+        m.mark_awaiting(oid, self.BRIEF, None, self.PLAN)
+        assert m.confirm(oid, "")
+        o = m.get_order(oid)
+        assert o["owner_note"] is None and o["confirmed_at"] is not None
+        assert m.effective_question(o, "default question") == "default question"
+
+    def test_reject_intake_is_failed_with_reason(self):
+        oid = m.create_order("t", question="The purpose of the dossier is a sample.")
+        m.mark_running(oid)
+        assert m.reject_intake(oid, "no question")
+        o = m.get_order(oid)
+        assert o["status"] == "failed" and o["error"] == "intake rejected: no question"
+        assert m.requeue(oid)
+
+    def test_cancel_from_awaiting(self):
+        oid = m.create_order("t")
+        m.mark_running(oid)
+        m.mark_awaiting(oid, self.BRIEF, None, self.PLAN)
+        assert m.cancel(oid)
+        assert m.get_order(oid)["status"] == "cancelled"
+
+    def test_store_intake_keeps_status(self):
+        oid = m.create_order("t")
+        m.mark_running(oid)
+        m.store_intake(oid, self.BRIEF, None, self.PLAN)
+        o = m.get_order(oid)
+        assert o["status"] == "running" and o["brief"] == self.BRIEF
+
+    def test_checkpoint_param_survives_the_filter(self):
+        assert m._clean_params({"checkpoint": False}) == {"checkpoint": False}
+        assert "awaiting_confirmation" in m.VALID_STATUS

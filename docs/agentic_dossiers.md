@@ -1842,3 +1842,102 @@ ihn mit einem Fake-Modell durch: Befund → Direktive → Streichung →
 **Umgebungsschalter:** `DOSSIER_ENTAILMENT` (1/0). Alles andere ohne
 Schalter. Tests: `tests/test_dossier_entailment.py` (41 mit
 `test_dossier_contradiction.py`), volle Suite grün (1.867 passed).
+
+
+### Runde 24 (2026-09-19) — Stufe 1: Auftrags-Intake und Owner-Checkpoint
+
+Plan `docs/plan_dossier_agent_2026-09-18.md`, Stufe 1 — die Punkte 1 und 2
+aus Runde 21: kein Auftrag ging bisher geprüft in den Lauf (v1: die
+Leserbeschreibung wurde Forschungsgegenstand), und zwischen „Auftrag
+erteilt" und „Dossier liegt vor" gab es keinen Halt, obwohl Profil und Plan
+nach ~2 Minuten stehen und die Fehlrichtung dort für jeden sichtbar ist.
+
+**Intake (`pipeline/dossier_brief.py`).** Vor dem ersten Suchschritt wird
+aus Thema + Fragefeld ein strukturierter Auftrag (`Brief`, 27B strukturiert,
+T = 0): Fragetyp (`technology | landscape | regulatory | market | evidence`),
+die Entscheidung in einem Satz, der Leser, Randbedingungen, **Pflichtpunkte**
+(`must_answer`, 3–6 konkrete Fragen, gedeckelt und dedupliziert) und die
+Artefakt-Weiche (`dossier | dossier+advisor`). Zwei Regeln sind
+deterministisch und schlagen das Modell: `deterministic_question_check`
+(leer = Standardfrage; sonst `?` oder Fragewort am Anfang, englisch und
+deutsch — datacenter v1 fällt mit Grund durch, **vor jedem Modellaufruf**)
+und `route_artefact` („which … should", „recommend", „best option" →
+Dossier + Advisor; ein Modellurteil „Dossier" wird überschrieben). Ein echter
+Fragesatz kann vom Modell nicht abgewiesen werden (`is_question` folgt der
+Regel, nicht dem Modell — ein falscher Abbruch wäre teurer als ein
+schwacher Auftrag). Landschafts-Modus erzwingt den Typ `landscape`.
+
+**Checkpoint (Worker, Phase 0).** `process_order` läuft jetzt in zwei
+Hälften ohne langlebigen Prozess: Fragecheck → `reject_intake` (Status
+`failed`, `error = "intake rejected: …"`) oder Intake auf dem 27B (Auftrag;
+Feldprofil — der bestehende `TopicProfile`-Aufruf, nur wenn der Lauf ihn
+braucht (`measure` + Web); Plan — der bisherige Planer-/Landkarten-Schritt,
+herausgezogen als `corpus_research.build_plan`). Alles landet auf dem
+Zettel (`brief_json`, `profile_json`, `plan_json`). Mit Checkpoint →
+`mark_awaiting` (`running → awaiting_confirmation`), Worker-Ende wie ein
+normaler Lauf (Ruhezustand). Der Desk zeigt Auftrag, Profil, Plan; der
+Owner bestätigt oder korrigiert in einem Satz (`confirm`, → `queued`,
+`confirmed_at`, `owner_note`). Nächster Worker-Start: ohne Korrektur laufen
+die gespeicherten Artefakte in `run(brief=, profile=, plan=)` weiter (kein
+zweiter Intake); mit Korrektur hängt `effective_question` sie als
+„Owner correction: …" an die Frage, Auftrag/Profil/Plan werden neu
+gerechnet, kein zweiter Halt. Der einzige zusätzliche Modellaufruf gegenüber
+Runde 23 ist der Auftrag selbst — Profil und Plan wurden vorher in `run()`
+gerechnet und werden jetzt hereingereicht. Schalter: `params
+{"checkpoint": true|false}` (Desk und *Recompute* schreiben `true`; CLI
+`--order-new` schreibt `false`, `--checkpoint` schaltet ein;
+`scripts/newsletter_deep_dive.py` schreibt `false`; Default für Zettel ohne
+den Parameter: an), `DOSSIER_CHECKPOINT=0` erzwingt aus. CLI:
+`--confirm N [--note "…"] [--run]`; `--list` zeigt wartende Aufträge mit
+Typ/Artefakt/Pflichtpunktzahl.
+
+**Der Auftrag im Lauf.** Berichts-Prompt: Block `ORDER BRIEF` (Typ,
+Artefakt, Entscheidung, Leser, Randbedingungen) + `MUST ANSWER` (je Punkt
+eine zitierte Aussage, offene Punkte nach „Open questions"); die Direktive
+der Kurzfassung in `write_sections` verlangt **genau eine tragende Aussage je
+Pflichtpunkt in dieser Reihenfolge** (ohne Auftrag wie bisher drei
+Aussagen). Leser: Checkliste der Pflichtpunkte im Prompt, jeder unbeantwortete
+ist ein `missing`-Befund (alle vier Leser-Aufrufe). Nach der Endfassung
+`must_answer_scores`: EIN strukturierter Aufruf, je Punkt `answered` +
+wörtliches Zitat; „beantwortet" gilt nur, wenn das Zitat (whitespace-/
+markennormalisiert) im ausgelieferten Text steht **und** der Satz eine
+Quellenmarke trägt — sonst `answered=False` mit Grund („quote not in the
+dossier", „answering sentence carries no citation"). `result["brief"]`,
+`result["brief_eval"]` (Items, `answered_share`, Zähler). Nutzenfunktion:
+`answered_must` = `answered_share` (Stufe-0-Platz jetzt belegt, Gewicht
+0,25), Preset = `brief.question_type` (`record_run(preset=)`).
+
+**Datenmodell.** `scripts/migrate_dossier_brief.py` (additiv, idempotent,
+**auf der Live-DB am 19.09. ausgeführt**): `dossier_orders.brief_json /
+plan_json / profile_json JSONB`, `confirmed_at`, `owner_note`; CHECK auf
+`status` per drop + re-add um `awaiting_confirmation` erweitert
+(`VALID_STATUS`, `_ddl()`; `ensure_schema` zieht die Spalten nach). Wie die
+anderen Dossier-Tabellen nicht in `init_db`. Neue Übergänge:
+`mark_awaiting`, `confirm`, `reject_intake`, `store_intake`, `cancel` auch
+aus `awaiting_confirmation`.
+
+**Desk.** Neuer Status in der Liste mit Panel: Auftrag (Typ · Artefakt,
+Entscheidung, Leser, Randbedingungen, Pflichtpunkte), Feldprofil (Feld,
+Regulatoren, Ereignistypen, Akteure), Plan (Schritte, Landkarte) und das
+Formular „Correct in one sentence" + *Confirm* (mit „run right away"). Das
+Bestellformular prüft die Frage clientseitig (`DossierQuestionField`,
+`lib/dossierIntake.ts` — TS-Spiegel der Python-Regel, Vitest gegen
+dieselben Fälle) und die Server Action noch einmal (Hinweis `?intake=
+notaquestion`). Zähler „N at the checkpoint" im Kopf.
+
+**Abnahme laut Plan:** datacenter v1 wird am Intake abgewiesen (Unit-Test mit
+dem Originaltext, Worker-Test ohne Modellaufruf); „which stack should …"
+wird als Dossier + Advisor geroutet (deterministisch, gegen ein Modell, das
+„Dossier" sagt). **Nicht gebaut:** `dossier_field_profiles` und
+`DOSSIER_CHECKPOINT_MIN` (Weiterlaufen nach Frist) — der Halt ist bewusst
+ohne Uhr: ein Auftrag wartet, bis jemand hinschaut; Cron-Pfade schalten den
+Checkpoint ab statt ihn zu bemessen. Das Feldprofil bekommt wie bisher
+keine Korpus-Titel (Entscheidung aus dem PROFILE-Fix: Schlagzeilen wurden
+Feldstruktur). Der Zeit-/Kostenrahmen aus dem Plan fehlt im Auftrag noch.
+Tests: `tests/test_dossier_brief.py`, `test_dossier_orders.py`
+(Checkpoint-Übergänge), `test_dossier_worker.py` (Halt → Bestätigung mit
+Korrektur → Lauf; Bestätigung ohne Korrektur = kein zweiter Intake;
+Parameter/Env; Abweisung ohne Modellaufruf; Preset), `test_dossier_utility.py`
+(`answered_must`), Vitest `dossierIntake.test.ts`; volle Suite 1.918 passed.
+Erster Live-Lauf mit Intake steht aus (datacenter v5 lief noch mit dem Code
+von Runde 23).

@@ -5,10 +5,12 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isSameOriginHeaders } from "@/lib/apiGuards";
 import { canManageDossiers } from "@/lib/dossier-access";
+import { questionCheck } from "@/lib/dossierIntake";
 import { startWorker, workerArgs, type StartResult } from "@/lib/dossierWorker";
 import {
   approveDossierOrder,
   cancelDossierOrder,
+  confirmDossierOrder,
   createDossierOrder,
   createRerunOrder,
   requeueDossierOrder,
@@ -58,6 +60,9 @@ export async function createOrderAction(formData: FormData): Promise<void> {
   const question = String(formData.get("question") ?? "");
   const quant = formData.get("quant") === "on";
   const cpc = String(formData.get("cpc") ?? "");
+  // Stage 1 intake rule, server side (the form checks it too): a question
+  // field that is not a question is refused here, not researched.
+  if (!questionCheck(question).ok) redirect("/trends/dossiers?intake=notaquestion");
   const id = await createDossierOrder({
     topic,
     cpc: cpc || undefined,
@@ -79,6 +84,22 @@ export async function approveAction(formData: FormData): Promise<void> {
   revalidatePath("/trends/dossiers");
   const slug = String(formData.get("slug") ?? "");
   if (slug) revalidatePath(`/trends/dossiers/${slug}`);
+}
+
+/** Owner checkpoint (stage 1): confirm the intake, optionally with a
+ *  one-sentence correction; the order goes back to queued. */
+export async function confirmOrderAction(formData: FormData): Promise<void> {
+  await guard();
+  const id = orderId(formData);
+  const note = String(formData.get("note") ?? "");
+  const ok = await confirmDossierOrder(id, note);
+  revalidatePath("/trends/dossiers");
+  if (!ok) redirect("/trends/dossiers?worker=notawaiting");
+  if (formData.get("run") === "on") {
+    const r = startWorker(workerArgs(id) ?? []);
+    redirect(`/trends/dossiers?worker=${noticeFor(r)}&order=${id}`);
+  }
+  redirect(`/trends/dossiers?worker=confirmed&order=${id}`);
 }
 
 export async function cancelAction(formData: FormData): Promise<void> {

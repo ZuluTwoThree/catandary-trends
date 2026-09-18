@@ -11,6 +11,18 @@ vollständig auf dem lokalen Modell; kein Cloud-Hop, Dossiers sind proprietär.
 
 Ablauf pro Lauf (alle offenen Aufträge, älteste zuerst):
 
+  Phase 0 — Intake (Stufe 1, 2026-09-19; pipeline/dossier_brief.py):
+      deterministischer Fragecheck (kein Fragesatz → 'failed' mit Grund, kein
+      Modellaufruf), dann auf dem 27B: strukturierter Auftrag (Fragetyp,
+      Entscheidung, Leser, Pflichtpunkte, Artefakt-Weiche), Feldprofil, Plan —
+      alles auf den Zettel. Mit Checkpoint (params {"checkpoint": true} —
+      Desk-Default; CLI --order-new und Newsletter-Deep-Dive: aus;
+      DOSSIER_CHECKPOINT=0 erzwingt aus) hält der Auftrag in
+      'awaiting_confirmation', bis der Owner im Desk bestätigt oder in einem
+      Satz korrigiert (--confirm N [--note …] von hier). Der nächste Worker-
+      Start rechnet dann mit den gespeicherten Artefakten weiter — nach einer
+      Korrektur mit neuer Frage und neuem Intake, ohne zweiten Halt.
+
   Phase 1 — Quant-Vorstufe (ein Embedding-Handover für alle Aufträge):
       pipeline/dossier_quant.py misst die Innovationskette je Thema
       (CPC → TIR-Trajektorie → Lead-Time → Leitpatente). Fehlt GPU/Postgres,
@@ -32,6 +44,7 @@ parallel zum 04:00-Full-Cycle laufen lassen.
     python -m scripts.dossier_worker --order 7    # genau diesen Auftrag
     python -m scripts.dossier_worker --order-new "solid-state batteries"
     python -m scripts.dossier_worker --assume-model-up   # 27B läuft schon
+    python -m scripts.dossier_worker --confirm 7 [--note "…"]   # Checkpoint bestätigen
 """
 from __future__ import annotations
 
@@ -45,6 +58,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from pipeline import dossier_brief
 from pipeline import dossier_orders as orders_mod
 from pipeline import gpu_handover
 from pipeline.config import EMBED_MODEL
@@ -90,7 +104,18 @@ RUN_DEFAULTS = {"steps": 6, "sources": 24, "per_query": 6, "scope": "both",
                 # Landschafts-Modus (2026-09-13): breites Feld → Teilfeld-Karte,
                 # ein Suchschritt je Teilfeld, Landkarten-Frage statt der
                 # Kommerzialisierungs-Frage EINER Technologie.
-                "mode": "technology"}
+                "mode": "technology",
+                # Owner-Checkpoint (Stufe 1, 2026-09-19): nach Auftrag/Profil/Plan
+                # anhalten. Default AN (Desk-Aufträge, auch ältere Zettel ohne den
+                # Parameter); --order-new und der Newsletter-Deep-Dive schreiben
+                # false; DOSSIER_CHECKPOINT=0 erzwingt aus (checkpoint_enabled).
+                "checkpoint": True}
+
+
+def checkpoint_enabled(p: dict) -> bool:
+    if os.getenv("DOSSIER_CHECKPOINT", "1").strip().lower() in ("0", "false", "no", "off"):
+        return False
+    return bool(p.get("checkpoint", True))
 
 
 def _params(order: dict) -> dict:
@@ -100,17 +125,71 @@ def _params(order: dict) -> dict:
     return p
 
 
+def default_question(order: dict, p: dict) -> str:
+    topic = order["topic"]
+    return (corpus_research.landscape_question(topic) if p["mode"] == "landscape"
+            else corpus_research.foresight_question(topic))
+
+
+def intake(order: dict, p: dict, question: str) -> tuple[dict, dict | None, dict]:
+    """Phase 0 auf dem 27B: Auftrag → Feldprofil → Plan (drei Aufrufe; das
+    Profil nur, wenn der Lauf es braucht — measure + Web). Der Auftrag ist der
+    einzige zusätzliche Modellaufruf gegenüber vorher: Profil und Plan
+    rechnete run() bisher selbst und bekommt sie jetzt herein."""
+    topic = order["topic"]
+    brief = dossier_brief.build_brief(topic, question, p).model_dump()
+    profile = None
+    if p["measure"] and p["web_steps"] > 0:
+        prof = corpus_research.topic_profile(topic, question, [])
+        profile = prof.model_dump() if prof is not None else None
+    plan_obj, landscape, _ = corpus_research.build_plan(
+        question, p["steps"], topic, p["scope"], p["mode"])
+    plan = corpus_research.plan_record(plan_obj, landscape)
+    logger.info("intake #%d: type=%s artefact=%s must_answer=%d profile=%s plan=%d step(s)",
+                order["id"], brief["question_type"], brief["artefact"],
+                len(brief["must_answer"]), "yes" if profile else "no", len(plan["steps"]))
+    return brief, profile, plan
+
+
 def process_order(order: dict, quant: dict | None,
-                  corpus_stats: dict | None = None) -> bool:
-    """Einen als 'running' markierten Auftrag zu Ende führen → 'review'.
-    True = Dossier gespeichert; False = fehlgeschlagen (Status 'failed')."""
+                  corpus_stats: dict | None = None) -> str:
+    """Einen als 'running' markierten Auftrag weiterführen. Rückgabe:
+    'review' (Dossier gespeichert), 'awaiting' (Checkpoint: Auftrag wartet auf
+    den Owner), 'failed' (Status 'failed', auch bei abgewiesenem Intake)."""
     oid, topic = order["id"], order["topic"]
     p = _params(order)
-    question = (order.get("question") or "").strip() \
-        or (corpus_research.landscape_question(topic) if p["mode"] == "landscape"
-            else corpus_research.foresight_question(topic))
+    # Phase 0a — deterministisch, vor jedem Modellaufruf: das Fragefeld muss
+    # eine Frage sein (datacenter v1: eine Leserbeschreibung wurde Thema).
+    ok, reason = dossier_brief.deterministic_question_check(order.get("question"))
+    if not ok:
+        logger.warning("order #%d intake rejected: %s", oid, reason)
+        orders_mod.reject_intake(oid, reason)
+        return "failed"
+    question = orders_mod.effective_question(order, default_question(order, p))
     t0 = time.time()
     try:
+        # Phase 0b — Intake. Gespeicherte Artefakte gelten nur nach einer
+        # Bestätigung OHNE Korrektur; eine Korrektur ändert die Frage, also
+        # werden Auftrag, Profil und Plan neu gerechnet (ohne zweiten Halt).
+        confirmed = bool(order.get("confirmed_at"))
+        corrected = bool((order.get("owner_note") or "").strip())
+        brief, profile, plan = order.get("brief"), order.get("profile"), order.get("plan")
+        if not (confirmed and not corrected and brief and plan):
+            brief, profile, plan = intake(order, p, question)
+            if not brief.get("is_question", True):
+                logger.warning("order #%d intake rejected by the brief: %s",
+                               oid, brief.get("rejection_reason"))
+                orders_mod.reject_intake(oid, brief.get("rejection_reason") or "no question")
+                return "failed"
+            if checkpoint_enabled(p) and not confirmed:
+                orders_mod.mark_awaiting(oid, brief, profile, plan)
+                logger.info("order #%d → awaiting_confirmation (checkpoint: brief, "
+                            "profile, plan on the slip — confirm in the desk or with "
+                            "--confirm %d)", oid, oid)
+                return "awaiting"
+            orders_mod.store_intake(oid, brief, profile, plan)
+        else:
+            logger.info("order #%d: confirmed — using the stored brief/profile/plan", oid)
         result = corpus_research.run(
             question, p["steps"], p["sources"], p["retrieval"], p["per_query"],
             p["scope"], p["web_steps"], p["web_sources"], topic=topic,
@@ -119,7 +198,7 @@ def process_order(order: dict, quant: dict | None,
             quant=quant if (quant and (quant.get("ok") or p["measure"]))
                   else None,
             measure=p["measure"], corpus_stats=corpus_stats, dr=p["dr"],
-            mode=p["mode"])
+            mode=p["mode"], brief=brief, profile=profile, plan=plan)
         version = corpus_research.save_dossier(
             order["slug"], topic, question, result["report"], result)
         check = check_result(result)
@@ -138,8 +217,11 @@ def process_order(order: dict, quant: dict | None,
         # das, was gerade gespeichert wurde. Darf den Lauf nie scheitern lassen.
         try:
             from pipeline import dossier_utility
+            preset = (brief or {}).get("question_type")
+            if preset not in dossier_utility.WEIGHT_PRESETS:
+                preset = dossier_utility.DEFAULT_PRESET
             ev = dossier_utility.record_run(order["slug"], version, oid,
-                                            result, check)
+                                            result, check, preset=preset)
             if ev:
                 logger.info("order #%d outcome: U=%.3f delivery_ready=%s reader=%s",
                             oid, ev["utility"], ev["delivery_ready"],
@@ -147,11 +229,11 @@ def process_order(order: dict, quant: dict | None,
         except Exception as exc:                                    # noqa: BLE001
             logger.warning("order #%d: dossier_run_outcomes nicht geschrieben (%s: %s)",
                            oid, type(exc).__name__, exc)
-        return True
+        return "review"
     except Exception as exc:                                        # noqa: BLE001
         logger.exception("order #%d failed", oid)
         orders_mod.mark_failed(oid, f"{type(exc).__name__}: {exc}")
-        return False
+        return "failed"
 
 
 def _llama_unit_active() -> bool:
@@ -190,6 +272,10 @@ def run_worker(only_order: int | None = None, assume_model_up: bool = False,
         if o["status"] == "failed":
             orders_mod.requeue(only_order)
             o = orders_mod.get_order(only_order)
+        if o["status"] == "awaiting_confirmation":
+            logger.error("order #%d wartet am Checkpoint auf dich — im Desk bestätigen "
+                         "oder: --confirm %d [--note \"…\"]", only_order, only_order)
+            return 1
         if o["status"] != "queued":
             logger.error("order #%d ist %s, nicht queued", only_order, o["status"])
             return 1
@@ -256,7 +342,7 @@ def _run_phases(todo: list[dict], assume_model_up: bool, skip_quant: bool) -> in
         ctx = gpu_handover.model_on_llamacpp(
             RESEARCH_MODEL, vram_free_below_mib=JUDGE_VRAM_FREE_MIB)
 
-    done = failed = skipped = 0
+    done = failed = skipped = awaiting = 0
     try:
         with ctx:
             for o in todo:
@@ -265,9 +351,11 @@ def _run_phases(todo: list[dict], assume_model_up: bool, skip_quant: bool) -> in
                                    o["id"])
                     skipped += 1
                     continue
-                if process_order(o, quants.get(o["id"]),
-                                 tallies.get(o["id"])):
+                outcome = process_order(o, quants.get(o["id"]), tallies.get(o["id"]))
+                if outcome == "review":
                     done += 1
+                elif outcome == "awaiting":
+                    awaiting += 1
                 else:
                     failed += 1
     except RuntimeError as exc:
@@ -275,8 +363,8 @@ def _run_phases(todo: list[dict], assume_model_up: bool, skip_quant: bool) -> in
         # alle unberührten Aufträge bleiben queued.
         logger.error("GPU-Handover verweigert: %s", exc)
         return 1
-    logger.info("fertig: %d review, %d failed, %d übersprungen",
-                done, failed, skipped)
+    logger.info("fertig: %d review, %d awaiting_confirmation, %d failed, %d übersprungen",
+                done, awaiting, failed, skipped)
     return 0 if failed == 0 else 2
 
 
@@ -299,6 +387,13 @@ def main() -> int:
                     help="--order-new ohne DR-Vorlauf (Faktenzettel/Kalender-Kandidaten)")
     ap.add_argument("--run", action="store_true",
                     help="mit --order-new: den neuen Auftrag sofort abarbeiten")
+    ap.add_argument("--checkpoint", action="store_true",
+                    help="--order-new: nach Auftrag/Profil/Plan auf Bestätigung warten "
+                         "(Desk-Default; CLI-Aufträge laufen sonst durch)")
+    ap.add_argument("--confirm", type=int, metavar="N",
+                    help="Auftrag N am Checkpoint bestätigen (→ queued; mit --run sofort weiter)")
+    ap.add_argument("--note", help="--confirm: Korrektur in einem Satz (wird als "
+                                   "'Owner correction: …' an die Frage gehängt)")
     ap.add_argument("--assume-model-up", action="store_true",
                     help=f"kein GPU-Handover; verlangt, dass :8090 bereits "
                          f"{RESEARCH_MODEL} serviert")
@@ -325,14 +420,35 @@ def main() -> int:
                          + ("" if rd is None else (" · Leser ✓" if rd else " · Leser ✗")))
             elif o["status"] == "failed":
                 extra = f"  {o.get('error') or ''}"
+            elif o["status"] == "awaiting_confirmation":
+                b = o.get("brief") or {}
+                extra = (f"  ⏸ Checkpoint: {b.get('question_type', '?')} / "
+                         f"{b.get('artefact', '?')} · {len(b.get('must_answer') or [])} "
+                         f"Pflichtpunkte — --confirm {o['id']} [--note …]")
             print(f"#{o['id']:>4} [{o['status']:>9}] {o['slug']} — "
                   f"{o['topic']}{extra}")
         return 0
 
+    if args.confirm is not None:
+        orders_mod.ensure_schema()
+        if not orders_mod.confirm(args.confirm, args.note):
+            o = orders_mod.get_order(args.confirm)
+            print(f"Auftrag #{args.confirm} ist {'unbekannt' if not o else o['status']}, "
+                  f"nicht awaiting_confirmation")
+            return 1
+        print(f"Auftrag #{args.confirm} bestätigt"
+              + (f" mit Korrektur: {args.note!r}" if args.note else "") + " → queued")
+        if not args.run:
+            return 0
+        return run_worker(only_order=args.confirm, assume_model_up=args.assume_model_up,
+                          skip_quant=args.skip_quant)
+
     new_id = None
     if args.order_new:
         orders_mod.ensure_schema()
-        params = {}
+        # CLI-Aufträge laufen ohne Checkpoint durch (Owner sitzt am Terminal);
+        # --checkpoint schaltet ihn ein wie im Desk.
+        params = {"checkpoint": bool(args.checkpoint)}
         if args.cpc:
             params["cpc"] = args.cpc.replace(" ", "").upper()
         if args.no_dr:
@@ -340,7 +456,7 @@ def main() -> int:
         if args.mode:
             params["mode"] = args.mode
         new_id = orders_mod.create_order(args.order_new, slug=args.slug,
-                                         question=args.question, params=params or None)
+                                         question=args.question, params=params)
         print(f"Auftrag #{new_id} angelegt ({args.order_new!r})")
         if not args.run:
             return 0
