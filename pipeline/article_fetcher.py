@@ -72,10 +72,14 @@ MAX_TEXT_CHARS = 12_000       # cap what we store (stages slice the first ~1.5k 
 PER_HOST_DELAY = 1.0          # seconds between requests to the same host
 # Hosts, die die Regelrate nicht vertragen, bekommen ihre eigene. Project
 # Syndicate antwortete im Nachhollauf vom 2026-09-17 auf 37 von 52 Anfragen mit
-# 429 bei 1/s (Owner: "auf die langsame Host-Rate setzen"). Ein Nachtlauf holt
-# dort eine Handvoll Artikel, 10 s Abstand kosten also nichts.
+# 429 bei 1/s. Gemessen am selben Tag: bei 1,5 s kamen 9 durch, dann 429; bei
+# 3 s direkt danach 20 von 20 mit 429; nach 10 min Pause mit 10 s Abstand 30
+# von 30 mit 429. Das ist ein Kontingent je Zeitfenster mit langer Strafzeit,
+# kein Intervall — der Abstand ist nicht der Hebel. Der Nachtlauf holt dort
+# 5-10 Artikel und bleibt unter jedem Kontingent; 2 s halten den Host nur von
+# Bursts fern (Owner 2026-09-17: 10 s zu langsam).
 HOST_DELAYS: dict[str, float] = {
-    "www.project-syndicate.org": 10.0,
+    "www.project-syndicate.org": 2.0,
 }
 
 

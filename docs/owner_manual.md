@@ -490,9 +490,13 @@ in Sekunden, Absatz ~1 min (Modell-Load); Lock `data/research_pulse.lock`, Log
 `python scripts/research_pulse.py [--week 2026-W35] [--themes a,b] [--no-llm] [--limit N] [-v]`
 (Default: letzte abgeschlossene Woche, alle 28 Themes; ohne LLM ~14 s).
 
-**Cron-Vorschlag, nicht installiert:** `0 12 * * 6 scripts/weekly_research_pulse.sh`
-(auskommentiert in `deploy/crontab.txt`; idempotent, Kollisionswächter). Owner
-entscheidet Cron vs. Knopf.
+**Cron (installiert 2026-09-18):** `0 12 * * 6 scripts/weekly_research_pulse.sh` rechnet
+jeden Samstag die Vorwoche für alle 28 Themes (idempotent, Kollisionswächter; ~1 min).
+Der Lauf meldet sich in der Montags-Morgen-Mail (Zeile „GPU cron weekly_research_pulse",
+mit Woche, Themes, Texten); blocked oder failed erzwingt die Mail. Fehlt eine Woche
+trotzdem (Rechner aus, Cron blockiert), von Hand nachholen:
+`python scripts/research_pulse.py --week 2026-W36`. Vor dem 18.09. war die Zeile nur
+ein Vorschlag — deshalb stand die Seite zwei Wochen auf W35.
 
 **Grenzen.** Kein Text unter 5 Papers. 6 der 28 Themes sind in der Forschung
 praktisch leer. Ein Journal-Batch erscheint als „emerging ×22" — Datenrealität,
@@ -1365,7 +1369,7 @@ im Handover still).
 | 5. 02:00 | OpenAlex-Monats-Sync (45M-Korpus) | `scripts/sync_openalex_monthly.sh` | installiert |
 | 6. 12:00 | Startup-Register (CORDIS/SBIR/GLEIF/CH) | `scripts/monthly_startup_sources.sh` | installiert |
 | 03:15 täglich | **Statischer Export → Webspace** | `scripts/publish_static_site.sh` | **installiert in `deploy/crontab.txt`, nicht installiert** (kein `webspace.env`) |
-| 12:00 Sa | Research Pulse | `scripts/weekly_research_pulse.sh` | **Vorschlag, auskommentiert** |
+| 12:00 Sa | Research Pulse (Vorwoche, 28 Themes) | `scripts/weekly_research_pulse.sh` | installiert (2026-09-18) |
 | 09:00 **Di** | Newsletter-Versand | `scripts/newsletter_tonight.sh` | **gegated, auskommentiert** (#16) |
 | 08:30 täglich | Subscriber-Sync MySQL → Postgres | `python -m scripts.sync_subscribers` (Datei liegt noch unter `docs/launch/newsletter-doi-php/`) | **auskommentiert** (#16) |
 

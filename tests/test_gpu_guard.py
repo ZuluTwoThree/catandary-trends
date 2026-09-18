@@ -239,3 +239,27 @@ class TestFalsePositives:
         (tmp_path / "pids").write_text(f"{foreign}\n")
         r = run("gpu_guard_busy; echo rc=$?", env)
         assert "rc=0" in r.stdout, r.stdout + r.stderr              # belegt
+
+
+class TestPulseNoteInMorningMail:
+    """Der Samstags-Pulse (Cron seit 2026-09-18) meldet sich wie die Ingester
+    über data/weekly_research_pulse_last.json in der Montags-Mail — mit Woche
+    und Themenzahlen, damit „ok" auch heißt: es wurde etwas gerechnet."""
+
+    def test_pulse_note_line_carries_week_and_theme_counts(self, tmp_path, monkeypatch):
+        import datetime
+        from scripts import review_notify as rn
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data").mkdir()
+        ts = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=42)
+        (tmp_path / "data" / "weekly_research_pulse_last.json").write_text(json.dumps({
+            "date": ts.isoformat(), "job": "weekly_research_pulse", "status": "ok",
+            "gpu_steps_done": 1, "gpu_steps_skipped": 0, "blocked_by": "",
+            "week": "2026-W37", "themes": 28, "with_text": 19, "errors": 0, "rc": 0}))
+        notes = rn.gpu_job_notes()
+        assert [n["job"] for n in notes] == ["weekly_research_pulse"]
+        line = rn._gpu_job_line(notes[0])
+        assert "week=2026-W37" in line and "themes=28" in line and "with_text=19" in line
+        assert "blocked by" not in line
+        _, _, text = rn.build_mail(0, 0, None, [], None, None, notes)
+        assert "GPU cron weekly_research_pulse: ok" in text

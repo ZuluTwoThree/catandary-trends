@@ -13,6 +13,14 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-18 · change · Research Pulse: Samstags-Cron installiert, W36/W37 nachgerechnet
+
+Die Seite stand seit dem 05.09. auf W35: der Cron `0 12 * * 6 weekly_research_pulse.sh`
+war nur ein auskommentierter Vorschlag, der Knopf rechnet ein Theme und wurde nicht
+gedrückt. W36 und W37 von Hand nachgerechnet (58 s / 54 s, je 19 von 28 Themes mit Text,
+0 Fehler). Cron installiert (Owner); der Wrapper schreibt jetzt auf jedem Ausgang eine
+Notiz für die Montags-Morgen-Mail.
+
 ## 2026-09-16 · change · robots-Prüfer ignorierte jede Regel mit Fragezeichen
 
 Bei der Quellenprüfung von sciencealert.com meldete unser Prüfer die
@@ -289,6 +297,49 @@ des Teasers.
 Aus dem Nachhollauf (Owner): DigiTimes, Mongabay, Tech Funding News, Apparel
 Resources, HPCwire, Retail Gazette auf `fulltext: false` / `tdm_status: blocked`
 (Artikelseiten 403, Feeds laufen weiter). Project Syndicate bekommt als erster
-Host eine eigene Rate (`article_fetcher.HOST_DELAYS`, 10 s statt 1 s): 37 von
-52 Anfragen kamen mit 429 zurück. Netzpolitik-Archiv nicht abgerufen (30.573
-URLs, 400 neu, alles Menüseiten).
+Host eine eigene Rate (`article_fetcher.HOST_DELAYS`): 37 von 52 Anfragen
+kamen mit 429 zurück. Erst 10 s, am Abend auf 2 s gesetzt (Owner) — Messung:
+1,5 s: 9 ok, dann 429; 3 s direkt danach 20/20 × 429; nach 10 min Pause mit
+10 s Abstand 30/30 × 429. Kontingent je Zeitfenster mit langer Strafzeit, kein
+Intervall; der Nachtlauf (5–10 Artikel) bleibt darunter. Netzpolitik-Archiv
+nicht abgerufen (30.573 URLs, 400 neu, alles Menüseiten).
+
+## 2026-09-17 · change · Themensuche Stufe 1: Anfrage-Maschine + Suchtabelle topic_vectors
+duration: 6 h
+gpu: nein (CPU-Embedder :8091)
+`pipeline/topic_report.py` (Modul + CLI): ein Begriff rein, je Ebene
+(Forschung/Patente/Förderung/Markt) Kopf, Cut, Treffer roh/gedämpft, erster
+und erster tragender Monat, Reihenfolge der Ebenen, Abstand Forschung→Markt,
+Volltext-Älteste, frühere Vokabeln, Rückfrage bei Kurzanfragen. Unterbau:
+Nebentabelle `topic_vectors` (Ebene + Vektorkopie je Trend, 1,76 Mio. Zeilen in
+127 s, 7,2 GB) mit vier HNSW-Teilindizes (Forschung 154 s, Patente 32 s,
+Förderung 98 s, Markt 174 s) — der Teilindex findet auf Patenten 14–58 Zeilen,
+wo der globale Index nach dem Filtern 0–8 ließ. Abgebrochener erster Weg:
+Spalte `trends.tier` per UPDATE — Non-HOT-Updates schreiben in den 14-GB-HNSW-
+Index, 5 min je 50k-Batch, 285k tote Tupel hinterlassen (Autovacuum räumt).
+Kalibrierung: Kopf − 0,08 datiert Präzisionsfermentation auf 2020-01
+(Forschung tragend) / 2020-05 (erster Markttreffer) — deckungsgleich mit den
+unabhängig notierten Daten. Warm 2,6 s je Anfrage, Cache 0,9 s. Tabellen
+`topic_reports`/`topic_cache` (init_db). Keine Cron-Änderung.
+
+## 2026-09-17 · change · Themensuche Stufen 2–5 auf dev (Owner testet vor dem Merge)
+duration: 3 h
+Seite `/trends/foresight/topic` (GET-Formular, Häkchen je Ebene, Bericht mit
+Wortgenerationen, Ebenen-Streifen, 60-Monats-Kurven, neueste Belege je Quelle,
+Schwächen je Block, Rückfrage bei Kurzanfragen), Vorschläge unter dem Suchfeld
+(Nest-Namen, neues Vokabular, gestellte Fragen), Rücktest
+`scripts/validate_topic_search.py`: Markt 18/18 gezählte Trends gefunden,
+Gegenproben 0/3, tragender Marktmonat im Median 23 Monate nach dem Marktdatum
+(Korpus vor 2024 dünn), erster Einzeltreffer 72 Monate davor. Rückbau: Desk-
+Knopf rechnet Nester nur noch global + 4 Ebenen, Vertikal-Reiter weg. Nichts
+auf main, kein Cron berührt.
+
+## 2026-09-17 · decision · Themensuche zurückgebaut, Redesign als Issue #106
+Owner nach dem Test der Seite: „zu überladen mit all den Beispielen und zu
+verwirrend. Sprache ist nicht klar. Inhalt nicht nachvollziehbar." Stufen 1–5
+auf `feature/topic-search` (e2907f4) geparkt, auf `dev` zurückgenommen
+(Revert von 546f0d4 und 432fc2d), kein Merge nach `main`. Die drei Tabellen
+`topic_vectors` (23 GB), `topic_reports`, `topic_cache` aus der Live-DB
+gelöscht — Neuaufbau in ~10 min per `scripts/migrate_topic_vectors.py
+--indexes` auf dem Branch. Die Messungen (Rücktest Markt 18/18, Ebenen-Index
+gegen globalen Index, Kalibrierung) stehen im Plan und im Issue.

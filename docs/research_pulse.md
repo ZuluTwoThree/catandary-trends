@@ -176,11 +176,12 @@ Newsletter-Cron: `%G/%V` von vor 7 Tagen):
 - **Knopf:** `/trends/foresight/research/pulse/<theme>` → „Recompute" (Server Action,
   Owner-Modus + Same-Origin-Check, spawnt `scripts/research_pulse.py --themes <key> --week …`
   detached; Lock `data/research_pulse.lock`, Log `data/research_pulse/<stamp>.log`).
-- **Cron-Vorschlag** (auskommentiert in `deploy/crontab.txt`, nicht installiert):
-  `0 12 * * 6 scripts/weekly_research_pulse.sh` — Samstag nach dem Ingester (Ende zuletzt
-  08:13), Kollisionswächter (Ingester/Dossier-Worker/Cycle, max 90 min), idempotent
-  (Woche mit ≥ 20 Texten = no-op). Owner entscheidet Cron vs. Knopf; die Newsletter-Edition ist
-  der Präzedenzfall für Cron.
+- **Cron** (installiert 2026-09-18, Owner): `0 12 * * 6 scripts/weekly_research_pulse.sh` —
+  Samstag nach dem Ingester (Ende zuletzt 08:13), Kollisionswächter (Ingester/Dossier-Worker/
+  Cycle, max 90 min), idempotent (Woche mit ≥ 20 gerechneten Themes = no-op). Status-Notiz
+  `data/weekly_research_pulse_last.json` → Montags-Morgen-Mail. Bis zum 18.09. war die Zeile
+  nur ein Vorschlag; W36 und W37 fehlten und wurden von Hand nachgerechnet (58 s / 54 s,
+  je 19 von 28 Themes mit Text — 6 Themes hatten 0 Papers, 3 unter 5).
 - **Flags:** `--week 2026-W35`, `--themes a,b`, `--no-llm`, `--limit N` (die N
   volumenstärksten), `-v`.
 - **Explorer-Facetten** (Signal-Schicht): `?src=arxiv,biorxiv,medrxiv,openalex,journals`,
@@ -192,7 +193,7 @@ Newsletter-Cron: `%G/%V` von vor 7 Tagen):
 
 ## 5. Nicht in diesem Paket
 
-Autoren-Enrichment, Sprach-Kennzeichnung (#73 Teil 2, separat), Wächter-Verdrahtung des
-Pulse in `cycle_watchdog.py` (erst mit installiertem Cron sinnvoll). Offen aus 1a: die
+Autoren-Enrichment, Sprach-Kennzeichnung (#73 Teil 2, separat). (Die Wächter-Verdrahtung
+läuft seit 18.09. über die Morgen-Mail, nicht über `cycle_watchdog.py`.) Offen aus 1a: die
 ResearchGate-DOIs (`10.13140/rg.2.2.…`) laufen als `unknown` weiter mit — Preprint-artige
 Selbstveröffentlichungen, kein Repository-Host; ob sie zählen sollen, ist eine Owner-Frage.

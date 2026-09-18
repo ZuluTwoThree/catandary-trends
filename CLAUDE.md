@@ -179,7 +179,7 @@ Alle 8 Vertikale sind abgedeckt. Die DB-Zählung zieht immer erst mit dem nächs
 - **2026-09-09, Weg A — Signalbetrieb:** die 33 Vorbehalts-Quellen laufen wieder (`active: true`), liefern aber nie Artikelmaterial (`llm_pipeline: false`) und ihr Teaser wird gar nicht erst gespeichert (`store_excerpt: false`, neues Feld — der Poller schreibt nur Titel, URL und Datum). Bibliografische Metadaten sind nicht geschützt, das Abstract im Teaser sehr wohl; §44b Abs. 3 sperrt TDM, nicht die Kenntnisnahme einer Tatsache. Damit kommt der analytische Wert zurück, ohne ein Wort geschützten Textes zu speichern. Der Samstagslauf verarbeitet sie über `signal_batch_embedded.py --signal-only` (30 der 33 sind `source_type=research` und liefen ohnehin mit; die drei `trade_media` — Lebensmittelzeitung, Horizont, Robb Report — fänden sonst keinen Lauf). 527 → 560.
 - **2026-09-09, Wege B+C — Lizenz je Artikel schlägt Host-Vorbehalt:** ein Verlag kann site-weit TDM vorbehalten und denselben Artikel unter CC BY veröffentlichen; die Lizenz ist eine Erlaubnis, der Vorbehalt sperrt nur die Schranke, die ein lizenzierter Zugriff nicht braucht. `pipeline/open_license.py` löst gegen OpenAlex auf (DOI aus der URL, sonst Titelsuche mit Titelabgleich), prüft `best_oa_location.license` (offen: cc-by/cc-by-sa/cc0/public domain; **nie** `-nc`, **nie** `-nd`) und rankt die offenen Fundstellen (Datenrepositorien zuletzt). `scripts/resolve_open_licence.py` (Default Dry-Run, `--apply`, Cron 03:45) holt den Volltext von dort — **vom Vorbehalts-Host wird nichts geholt, der Feed ist nur Entdeckungs-Index** (Weg C, dieselbe Regel wie für Aggregatoren seit 03.09.) — und schreibt `raw_content` + `open_licence` + `oa_url` (additive Migration `_migrate_open_licence`, **in `init_db` verdrahtet**, Live-DB 09.09.). `open_licence` ist zugleich die Eintrittskarte in den Cycle: `get_unprocessed_entries` lässt solche Einträge zu, obwohl ihre Quelle im Signalbetrieb läuft (`active` bleibt das härtere Gate). Jeder Eintrag wird mit `--apply` **genau einmal** geprüft: `raw_entries.licence_checked_at` wird bei jedem Ausgang gestempelt, auch bei „nicht offen" (additive Migration `_migrate_licence_checked`, in `init_db` verdrahtet, Live-DB 09.09.). Ohne diese Marke fragte der nächtliche Lauf dieselben ~85 % Nicht-Offenen jede Nacht neu ab — die Zeilen bleiben ja unverarbeitet, bis der Samstagslauf sie einzieht — und bei ~254 Einträgen/Tag gegen `--limit 300` käme der ältere Teil des Pools nie an die Reihe. Ausbeute an 60 echten Einträgen: 10 offen lizenziert (17 %), davon **7 mit Volltext (12 %)** — bei ~500 Einträgen/Woche aus diesen Quellen rund 58 Artikel/Woche. Nature Communications und Scientific Reports (zusammen 12.380 Werke seit 07/2026, 100 % OA, 4.089 CC BY) sind über diesen Weg erreichbar, über Weg D nicht: `nature.com` liefert eine site-weite `tdmrep.json`.
   **Compliance-Fix im selben Zug:** `article_fetcher.fetch_fulltext_result` prüfte robots und TDM nur gegen die ANGEFRAGTE URL. Ein DOI-Link (`doi.org/10.1038/…` → `nature.com/articles/…`) umging damit die site-weite `tdmrep.json` von nature.com — 12.000 Zeichen wurden gespeichert. Die Ziel-URL nach Weiterleitungen wird jetzt erneut geprüft. Der Parameter `open_licence=` hebt **nur** den TDM-Vorbehalt auf, nie robots.txt (Zugriffspolitik der Seite, kein Rechtevorbehalt).
-- **2026-09-11, Option A — Volltext für alle `ok`-Quellen (Owner):** Messung der letzten 14 Tage: die 305 Quellen mit `tdm_status: ok` aber `fulltext: false` lieferten 10.500 Einträge und **19** Volltexte; die 165 Opt-in-Quellen 9.098 Einträge mit 69 % Text (seit dem Fix vom 08.09. 73–100 % je Quelle; Rest = Bezahlartikel wie heise+, gelöschte Seiten, bildlastige Beiträge). Die Regel „Volltext nur bei offener Lizenz" war strenger als §44b: geprüft sind bei allen `ok`-Quellen robots, Bot-Zugang und Vorbehalt, und der Fetcher prüft jeden Artikel erneut. **302 Quellen auf `fulltext: true`** → 480 von 560; erwartet rund +7.000 Volltexte je 14 Tage. `fetch_batch` dafür parallelisiert (`FETCH_WORKERS=8`, Host-Drossel 1 Anfrage/s bleibt; seit 2026-09-17 mit Ausnahmetabelle `article_fetcher.HOST_DELAYS` — Project Syndicate 10 s, weil 1/s dort 429 erzeugt). Zugleich **User-Agent V2:** `CatandaryTrendsBot/1.0 (+https://catandary.de/trends/methodology)` — die Mailadresse steht auf der Methodik-Seite (Abschnitt „Our crawler"), nicht mehr in jedem Log. Anlass: `docs/embedding_eval_2026-09-11.md` (der Hebel für Inhaltsanalyse ist Text, nicht ein zweiter Vektor).
+- **2026-09-11, Option A — Volltext für alle `ok`-Quellen (Owner):** Messung der letzten 14 Tage: die 305 Quellen mit `tdm_status: ok` aber `fulltext: false` lieferten 10.500 Einträge und **19** Volltexte; die 165 Opt-in-Quellen 9.098 Einträge mit 69 % Text (seit dem Fix vom 08.09. 73–100 % je Quelle; Rest = Bezahlartikel wie heise+, gelöschte Seiten, bildlastige Beiträge). Die Regel „Volltext nur bei offener Lizenz" war strenger als §44b: geprüft sind bei allen `ok`-Quellen robots, Bot-Zugang und Vorbehalt, und der Fetcher prüft jeden Artikel erneut. **302 Quellen auf `fulltext: true`** → 480 von 560; erwartet rund +7.000 Volltexte je 14 Tage. `fetch_batch` dafür parallelisiert (`FETCH_WORKERS=8`, Host-Drossel 1 Anfrage/s bleibt; seit 2026-09-17 mit Ausnahmetabelle `article_fetcher.HOST_DELAYS` — Project Syndicate 2 s; gemessen ist die Sperre dort ein Kontingent je Zeitfenster mit langer Strafzeit, kein Intervall: nach 10 min Pause mit 10 s Abstand 30/30 × 429). Zugleich **User-Agent V2:** `CatandaryTrendsBot/1.0 (+https://catandary.de/trends/methodology)` — die Mailadresse steht auf der Methodik-Seite (Abschnitt „Our crawler"), nicht mehr in jedem Log. Anlass: `docs/embedding_eval_2026-09-11.md` (der Hebel für Inhaltsanalyse ist Text, nicht ein zweiter Vektor).
 - **2026-09-17, Nachhollauf + Sperren:** `refetch_fulltext.py --since 2026-09-03 --min-age-days 0 --apply` holte 12.176 von 14.471 Volltexten (84 %) nach — die Einträge waren nie geholt worden. Sieben Quellen sperren Artikelseiten trotz `tdm_status: ok` per 403 (DigiTimes 74/389 erreichbar, Retail Gazette 10/52, Mongabay/Tech Funding News/Apparel Resources/HPCwire 0) → `fulltext: false`, `tdm_status: blocked` (Owner); pv magazine International schon am 16.09.
 - **Offen:** die 17 Quellen, deren robots.txt nur die Feed-URL sperrt (Owner-Entscheid seit 04.09.); DESIGN/FASHION ohne OA-Ersatz; die juristische Bestätigung von „Lizenz sticht Vorbehalt".
 
@@ -669,11 +669,13 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Default off = der Montagslauf ist unverändert. docs/newsletter_deep_dive.md.
 0 9 * * 1    scripts/weekly_newsletter_publish.sh
 
-# Research Pulse (#73, VORSCHLAG — auskommentiert in deploy/crontab.txt, NICHT installiert):
-# Samstag 12:00 nach weekly_ingesters.sh; rechnet die Vorwoche für alle 28 Themes
-# (Stats + KMeans ~15 s, Gemma-Absätze via GPU-Handover ~2 s/Text). Owner entscheidet
-# Cron vs. „Recompute"-Knopf. Wächter-Datei: data/research_pulse_last.json.
-#0 12 * * 6   scripts/weekly_research_pulse.sh
+# Research Pulse (#73, INSTALLIERT 2026-09-18 — Owner; bis dahin nur Vorschlag, die Seite
+# stand deshalb vom 05.09. bis 18.09. auf W35): Samstag 12:00 nach weekly_ingesters.sh;
+# rechnet die Vorwoche für alle 28 Themes (Stats + KMeans ~15 s, Gemma-Absätze via
+# GPU-Handover; gemessen 54–58 s je Woche, 19/28 Themes mit Text — unter 5 Papers kein Text).
+# Idempotent (≥20 Themes gerechnet = no-op). Wächter-Notiz data/weekly_research_pulse_last.json →
+# Montags-Morgen-Mail (review_notify.py); der „Recompute"-Knopf bleibt für Einzel-Themes.
+0 12 * * 6   scripts/weekly_research_pulse.sh
 
 # Statischer Export → Webspace (täglich 03:15, INSTALLIERT 2026-09-05): nach dem
 # Review-Tag und ~45 min vor dem 04:00-Cycle — veröffentlicht wird der freigegebene Stand.
@@ -1116,7 +1118,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
   /research /patents               (Research-/Patent-Explorer; Explorer-Facetten ?src/?range/?sort/?concept/?layer=signals seit #73;
                                     ?artifacts=1 blendet Repository-Einträge/Nicht-Paper ein — Default aus, seit 2026-09-05)
   /research/pulse, /research/pulse/[theme] → Research Pulse (#73, seit 2026-09-04): Wochen-Synthese je Theme,
-                                   Tabelle research_pulse, „Recompute"-Knopf (Owner-App); Cron nur als Vorschlag
+                                   Tabelle research_pulse, „Recompute"-Knopf (Owner-App); Cron Sa 12:00 seit 2026-09-18
   /pitch                           → Kunden-Briefing (seit 2026-09-13): Präsentation im Browser nach dem
                                      McKinsey-SCR-Q-Rahmen (Situation, Complication, Resolution, Question), sieben
                                      Folien, Pfeiltasten/Rail, Zahlen live aus dem Korpus (`getBriefingStats`,
@@ -1590,8 +1592,10 @@ Prognosen). Versioniert in `research_pulse` (additive Migration `scripts/migrate
   `/pulse/[theme]` (Herkunftskopf, Messblock, Text, Cluster, „Recompute"-Knopf = Server Action mit
   Owner-Modus + Origin-Check, spawnt das Skript wie der Dossier-Worker). Einstiege: Research
   Explorer, Foresight-Cockpit, `/trends/mega/[m]` (nur Owner-Modus — Foresight ist nicht im Export).
-- **Betrieb:** Cron nur als auskommentierter Vorschlag (`deploy/crontab.txt`, Wrapper
-  `scripts/weekly_research_pulse.sh`, Sa 12:00); Owner-Entscheidung Cron vs. Knopf offen.
+- **Betrieb:** Cron **installiert 2026-09-18** (Owner-Entscheid; `deploy/crontab.txt`, Wrapper
+  `scripts/weekly_research_pulse.sh`, Sa 12:00, Status-Notiz in die Montags-Mail). Bis dahin
+  nur Vorschlag: W36/W37 fehlten und wurden am 18.09. von Hand nachgerechnet (je ~55 s,
+  19/28 Themes mit Text). Der Knopf bleibt für einzelne Themes/Wochen.
 - Methode/Datenlage: `docs/research_pulse.md`.
 
 ## Newsletter Deep Dive (#96 Phase 1, seit 2026-09-04 — Dry-Run, nicht scharf)
