@@ -669,11 +669,13 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Default off = der Montagslauf ist unverändert. docs/newsletter_deep_dive.md.
 0 9 * * 1    scripts/weekly_newsletter_publish.sh
 
-# Research Pulse (#73, VORSCHLAG — auskommentiert in deploy/crontab.txt, NICHT installiert):
-# Samstag 12:00 nach weekly_ingesters.sh; rechnet die Vorwoche für alle 28 Themes
-# (Stats + KMeans ~15 s, Gemma-Absätze via GPU-Handover ~2 s/Text). Owner entscheidet
-# Cron vs. „Recompute"-Knopf. Wächter-Datei: data/research_pulse_last.json.
-#0 12 * * 6   scripts/weekly_research_pulse.sh
+# Research Pulse (#73, INSTALLIERT 2026-09-18 — Owner; bis dahin nur Vorschlag, die Seite
+# stand deshalb vom 05.09. bis 18.09. auf W35): Samstag 12:00 nach weekly_ingesters.sh;
+# rechnet die Vorwoche für alle 28 Themes (Stats + KMeans ~15 s, Gemma-Absätze via
+# GPU-Handover; gemessen 54–58 s je Woche, 19/28 Themes mit Text — unter 5 Papers kein Text).
+# Idempotent (≥20 Themes gerechnet = no-op). Wächter-Notiz data/weekly_research_pulse_last.json →
+# Montags-Morgen-Mail (review_notify.py); der „Recompute"-Knopf bleibt für Einzel-Themes.
+0 12 * * 6   scripts/weekly_research_pulse.sh
 
 # Statischer Export → Webspace (täglich 03:15, INSTALLIERT 2026-09-05): nach dem
 # Review-Tag und ~45 min vor dem 04:00-Cycle — veröffentlicht wird der freigegebene Stand.
@@ -1116,7 +1118,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
   /research /patents               (Research-/Patent-Explorer; Explorer-Facetten ?src/?range/?sort/?concept/?layer=signals seit #73;
                                     ?artifacts=1 blendet Repository-Einträge/Nicht-Paper ein — Default aus, seit 2026-09-05)
   /research/pulse, /research/pulse/[theme] → Research Pulse (#73, seit 2026-09-04): Wochen-Synthese je Theme,
-                                   Tabelle research_pulse, „Recompute"-Knopf (Owner-App); Cron nur als Vorschlag
+                                   Tabelle research_pulse, „Recompute"-Knopf (Owner-App); Cron Sa 12:00 seit 2026-09-18
   /pitch                           → Kunden-Briefing (seit 2026-09-13): Präsentation im Browser nach dem
                                      McKinsey-SCR-Q-Rahmen (Situation, Complication, Resolution, Question), sieben
                                      Folien, Pfeiltasten/Rail, Zahlen live aus dem Korpus (`getBriefingStats`,
@@ -1590,8 +1592,10 @@ Prognosen). Versioniert in `research_pulse` (additive Migration `scripts/migrate
   `/pulse/[theme]` (Herkunftskopf, Messblock, Text, Cluster, „Recompute"-Knopf = Server Action mit
   Owner-Modus + Origin-Check, spawnt das Skript wie der Dossier-Worker). Einstiege: Research
   Explorer, Foresight-Cockpit, `/trends/mega/[m]` (nur Owner-Modus — Foresight ist nicht im Export).
-- **Betrieb:** Cron nur als auskommentierter Vorschlag (`deploy/crontab.txt`, Wrapper
-  `scripts/weekly_research_pulse.sh`, Sa 12:00); Owner-Entscheidung Cron vs. Knopf offen.
+- **Betrieb:** Cron **installiert 2026-09-18** (Owner-Entscheid; `deploy/crontab.txt`, Wrapper
+  `scripts/weekly_research_pulse.sh`, Sa 12:00, Status-Notiz in die Montags-Mail). Bis dahin
+  nur Vorschlag: W36/W37 fehlten und wurden am 18.09. von Hand nachgerechnet (je ~55 s,
+  19/28 Themes mit Text). Der Knopf bleibt für einzelne Themes/Wochen.
 - Methode/Datenlage: `docs/research_pulse.md`.
 
 ## Newsletter Deep Dive (#96 Phase 1, seit 2026-09-04 — Dry-Run, nicht scharf)

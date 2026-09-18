@@ -108,10 +108,14 @@ def deep_dive_stats() -> dict | None:
 
 
 # GPU cron wrappers that leave a status note via scripts/lib/gpu_guard.sh
-# (gpu_guard_note): data/<job>_last.json. The Saturday ingesters run 06:00, the
-# next review mail goes out Monday ~06:00 — 60 h freshness carries it exactly
-# into that one mail and not into Tuesday's.
-GPU_JOB_NOTES = ("weekly_ingesters", "monthly_startup_sources")
+# (gpu_guard_note): data/<job>_last.json. The Saturday ingesters run 06:00 and
+# the Research Pulse 12:00 (cron since 2026-09-18); the next review mail goes
+# out Monday ~06:00 — 60 h freshness carries both exactly into that one mail
+# and not into Tuesday's.
+GPU_JOB_NOTES = ("weekly_ingesters", "monthly_startup_sources", "weekly_research_pulse")
+# Optional note fields the line shows verbatim when present (pulse: which ISO
+# week was computed and how many themes got a Gemma paragraph).
+GPU_JOB_NOTE_EXTRAS = ("week", "themes", "with_text", "errors", "note")
 GPU_JOB_NOTE_MAX_AGE_H = 60
 
 
@@ -146,6 +150,9 @@ def _gpu_job_line(n: dict) -> str:
         line += f" (blocked by: {n['blocked_by']})"
     if n.get("status") == "blocked":
         line += "; skipped signals stay unprocessed and are caught up by the next run"
+    extras = [f"{k}={n[k]}" for k in GPU_JOB_NOTE_EXTRAS if n.get(k) not in (None, "")]
+    if extras:
+        line += "; " + ", ".join(extras)
     line += f"; rc={n.get('rc')}"
     return line
 

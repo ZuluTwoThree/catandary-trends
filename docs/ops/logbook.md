@@ -13,6 +13,14 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-18 · change · Research Pulse: Samstags-Cron installiert, W36/W37 nachgerechnet
+
+Die Seite stand seit dem 05.09. auf W35: der Cron `0 12 * * 6 weekly_research_pulse.sh`
+war nur ein auskommentierter Vorschlag, der Knopf rechnet ein Theme und wurde nicht
+gedrückt. W36 und W37 von Hand nachgerechnet (58 s / 54 s, je 19 von 28 Themes mit Text,
+0 Fehler). Cron installiert (Owner); der Wrapper schreibt jetzt auf jedem Ausgang eine
+Notiz für die Montags-Morgen-Mail.
+
 ## 2026-09-16 · change · robots-Prüfer ignorierte jede Regel mit Fragezeichen
 
 Bei der Quellenprüfung von sciencealert.com meldete unser Prüfer die

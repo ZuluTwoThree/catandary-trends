@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Wöchentlicher Research Pulse (#73 Teil 1) — VORSCHLAG, NICHT INSTALLIERT.
-# Cron-Vorschlag: 0 12 * * 6 (Samstag 12:00, nach weekly_ingesters.sh 06:00,
-# das zuletzt 08:13 endete). Owner entscheidet Cron vs. „Recompute"-Knopf
-# (/trends/foresight/research/pulse/<theme>) — die Radar-Regel gilt für
-# Radare; die Wochen-Newsletter-Edition läuft per Cron, der Pulse ist vom
-# selben Typ (deterministische Datenbasis, datierte Wochen-Edition).
+# Wöchentlicher Research Pulse (#73 Teil 1) — INSTALLIERT seit 2026-09-18
+# (Owner). Cron: 0 12 * * 6 (Samstag 12:00, nach weekly_ingesters.sh 06:00,
+# das zuletzt 08:13 endete). Bis dahin war die Zeile nur ein Vorschlag, und
+# die Seite blieb zwei Wochen lang auf W35 stehen — der „Recompute"-Knopf
+# (/trends/foresight/research/pulse/<theme>) rechnet nur ein Theme, niemand
+# drückte ihn. Die Radar-Regel („nur auf Knopfdruck") gilt für Radare; die
+# Wochen-Newsletter-Edition läuft per Cron, der Pulse ist vom selben Typ
+# (deterministische Datenbasis, datierte Wochen-Edition).
 #
 # Rechnet die VORWOCHE (ISO, deterministisch wie weekly_newsletter_publish.sh:
 # %G/%V von vor 7 Tagen) für alle 28 Themes: Stats + Cluster (CPU/SQL, ~15 s)
@@ -19,10 +21,11 @@
 # nicht nötig — der Existenz-Check unten überspringt eine schon gerechnete
 # Woche (Wiederholung ist der Knopf im Frontend oder ein manueller Aufruf).
 #
-# Wächter: data/research_pulse_last.json (finished_at, themes, with_text,
-# errors, status) — scripts/cycle_watchdog.py kann darauf prüfen, sobald der
-# Cron installiert ist (bis dahin bewusst nicht verdrahtet: ein Samstags-
-# „missing" ohne Cron wäre Rauschen).
+# Wächter: jeder Ausgang (blocked / exists / gelaufen) schreibt per
+# gpu_guard_note data/weekly_research_pulse_last.json; scripts/review_notify.py
+# nimmt die Notiz in die Montags-Morgen-Mail (60 h Frische), ein Status ≠ ok
+# erzwingt die Mail. Das Skript selbst schreibt zusätzlich
+# data/research_pulse_last.json (finished_at, themes, with_text, errors).
 
 set -u
 
@@ -55,17 +58,22 @@ WEEK_ARG=$(printf '%d-W%02d' "$YEAR" "$WEEK")
   source "$REPO/scripts/lib/gpu_guard.sh"
   if ! gpu_guard_wait weekly_research_pulse; then
     echo "ABORT: GPU-Lauf nach ${GPU_GUARD_MAX_MIN} min immer noch aktiv — Pulse ${WEEK_ARG} von Hand nachholen"
+    BLOCKED_BY="$(gpu_guard_busy | head -3 | tr '\n' ';')"
+    gpu_guard_note weekly_research_pulse blocked gpu_steps_done=0 gpu_steps_skipped=1 \
+      "blocked_by=$BLOCKED_BY" week="$WEEK_ARG" rc=75
     ops_event_end 75 "blocked: fremder GPU-Job"
     echo "weekly_research_pulse.sh end $(date -Iseconds) (gen=blocked)"
     exit 1
   fi
 
-  # Idempotenz: Woche schon gerechnet (alle Themes) → nichts tun.
+  # Idempotenz: Woche schon gerechnet (≥20 der 28 Themes haben eine Zeile) → nichts tun.
+  # Bewusst NICHT „mit Text": unter 5 Papers gibt es keinen Absatz, real sind es 19/28 —
+  # ein Text-Kriterium ≥20 hätte jede Woche ein zweites Mal gerechnet.
   DONE=$("$PY" - <<PYEOF
 from pipeline.db import get_connection
 with get_connection() as c:
     try:
-        r = c.execute("SELECT count(DISTINCT theme) AS n FROM research_pulse WHERE year = ? AND week = ? AND text IS NOT NULL", (${YEAR}, ${WEEK})).fetchone()
+        r = c.execute("SELECT count(DISTINCT theme) AS n FROM research_pulse WHERE year = ? AND week = ?", (${YEAR}, ${WEEK})).fetchone()
         print(r["n"] if isinstance(r, dict) else r[0])
     except Exception:
         print(0)
@@ -73,6 +81,8 @@ PYEOF
 )
   if [ "${DONE:-0}" -ge 20 ]; then
     echo "Pulse ${WEEK_ARG} existiert bereits (${DONE} Themes mit Text) — nichts zu tun."
+    gpu_guard_note weekly_research_pulse ok gpu_steps_done=0 gpu_steps_skipped=0 \
+      week="$WEEK_ARG" with_text="$DONE" note=exists rc=0
     ops_event_end 0 "exists"
     echo "weekly_research_pulse.sh end $(date -Iseconds) (gen=exists)"
     exit 0
@@ -81,6 +91,19 @@ PYEOF
   echo "----- research_pulse.py --week ${WEEK_ARG} (alle Themes, Gemma-Texte) -----"
   "$PY" scripts/research_pulse.py --week "$WEEK_ARG"
   RC=$?
+  # Themenzahlen aus der Skript-Notiz in die Wrapper-Notiz übernehmen.
+  read -r P_THEMES P_TEXT P_ERRORS <<<"$("$PY" - <<PYEOF
+import json
+try:
+    d = json.load(open("data/research_pulse_last.json"))
+    print(d.get("themes", 0), d.get("with_text", 0), len(d.get("errors") or []))
+except Exception:
+    print(0, 0, 0)
+PYEOF
+)"
+  if [ "$RC" -ne 0 ] || [ "${P_ERRORS:-0}" -gt 0 ]; then NOTE_STATUS=failed; else NOTE_STATUS=ok; fi
+  gpu_guard_note weekly_research_pulse "$NOTE_STATUS" gpu_steps_done=1 gpu_steps_skipped=0 \
+    week="$WEEK_ARG" themes="${P_THEMES:-0}" with_text="${P_TEXT:-0}" errors="${P_ERRORS:-0}" rc="$RC"
   echo "----- Ruhezustand: start-active.sh → $(readlink /home/dirk/llama.cpp/start-active.sh 2>/dev/null), llama-server $(systemctl --user is-active llama-server.service 2>/dev/null) -----"
   ops_event_end "$RC"
   echo "weekly_research_pulse.sh end $(date -Iseconds) (gen=$RC)"
