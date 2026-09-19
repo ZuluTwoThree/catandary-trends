@@ -763,7 +763,14 @@ Prüfkette, alle Default an:
   werden NUR diese beiden Sektionen einmal gezielt neu geschrieben. Bleibt der
   Widerspruch, sperrt er die Endkontrolle (Strukturbefund „Widerspruch
   zwischen …"). Der Ganzdokument-Neuwurf bekommt solche Leser-Befunde nicht
-  mehr.
+  mehr. **Seit Runde 28 (19.09.):** ein Satz, der nur sagt, dass das Dossier
+  KEINE Empfehlung/Wahl gibt („does not provide a definitive recommendation on
+  which stack"), ist kein Widerspruch — das Dossier empfiehlt seit dem Advisor
+  nichts —, außer die Kurzfassung empfiehlt selbst; Leser-Einwände der Art
+  „does not summarize", „drifts", „dilutes the focus" laufen als normale
+  Leser-Befunde. Der Prüfnachweis zeigt die ausgeschlossenen Kandidaten als
+  Zeile „Widerspruchs-Gate: N Kandidat(en) als Scope-Aussage … ausgeschlossen"
+  (nicht sperrend).
 - **Quoten aus dem Material.** Akteurtabelle und Beobachtungspunkte werden
   wie der Kalender aus dem Faktenzettel bemessen (Akteure max(2, min(5,
   Landkarten-Zeilen)), Beobachtungspunkte max(2, min(3, datierte Fakten +
@@ -1109,10 +1116,32 @@ Korpus hat ≥ 3 Regulierungs-/Entscheidungssignale in 12 Monaten. Web-Budget
 `DOSSIER_OUTLINE=decision` in der Umgebung; die dritte Ampel „delivery-ready"
 verlangt seit dem Umbau die Reifegrad-Sektion und bleibt für alte Läufe rot.
 
+**Erweiterter Satz (seit Runde 28, 19.09.).** Neben den Signalen, die ALLE
+Themenbegriffe tragen, zählt der Korpus-Durchgang die Signale mit EINEM
+Themenbegriff plus einem Produkt-/Akteursnamen aus dem Feldprofil oder den
+Pflichtpunkten des Auftrags (datacenter: 31 Kern + 95 erweitert, VMware ×11,
+Broadcom ×7 …). Die Tabelle und die dünnen Bereiche bleiben auf dem Kern; die
+vier neuesten erweiterten Signale sind als `T<id>` zitierbar, im Prompt und im
+Herkunftskopf als „extended" markiert, im Desk-Block als Zeile „Extended".
+
+**Prüfnachweis seit Runde 28.** Die Streichzeile heißt jetzt „N Sätze
+gestrichen oder gekennzeichnet: 2× enthielt die zitierte Web-Seite …, 15×
+zitierte die Seite ein anderes Thema …, 4× Rang-2-Vermerk …" — je Grund über
+alle Durchgänge gezählt (vorher stand dort eine Rechnung, v7: „23 von 27" bei
+real 2). Dazu, wenn es vorkam: „Zahlenprüfung: N× stand die Zahl nicht im
+gespeicherten Ausschnitt des Rechtstexts, aber im vollen Text". Die Zahlen-
+prüfung erkennt Datumsformate (13 December 2023 = 2023-12-13 = 13.12.2023),
+Zifferngruppen, „6.0" = „6", Rechtsakt-Nummern (wenn im Katalog), Artikel-
+Listen, Versionsnummern und die Zahlen des eigenen Korpus-Blocks — ein Token,
+das in KEINER Form irgendwo steht, fällt weiterhin.
+
 **Prüfen ohne Lauf.** `.venv/bin/python -c "from pipeline import
 dossier_corpus_evidence as ce; print(ce.build('<Thema>', None,
-terms=['<Begriff>', '<Begriff>']).rendered_md)"` — read-only, kein Modell.
-Chronik: [`docs/agentic_dossiers.md`](agentic_dossiers.md), Runde 27.
+terms=['<Begriff>', '<Begriff>'], entities=['<Name>']).rendered_md)"` —
+read-only, kein Modell. Regeländerungen ohne Modell messen:
+`.venv/bin/python scripts/dossier_replay.py [--slug <serie>]` (Widersprüche,
+Kalender, Subjektabgleich, gespeicherte Zahlen-Befunde gegen die heutige Regel).
+Chronik: [`docs/agentic_dossiers.md`](agentic_dossiers.md), Runden 27–28.
 
 ## 7. Newsletter
 

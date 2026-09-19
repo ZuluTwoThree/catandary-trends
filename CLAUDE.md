@@ -1605,6 +1605,22 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   Nutzen: `corpus_share` 0,15 in jedem Preset, Reifegrad Bedingung von `delivery_ready`.
   Treffer-Regel: grober Stamm über Titel + Teaser + Tags (FTS-Präfix `virtualizati:*` traf
   `virtual` nicht). Werkzeugvorschlag (Reranker, NER, Wayback) nur als Doku in Runde 27.
+- **Runde 28 (2026-09-19, datacenter v7 — zwei Prüfketten-Fehler):** (1) Widerspruchs-Gate:
+  eine Verneinung des EMPFEHLENS/WÄHLENS („does not provide a definitive recommendation") ist
+  eine Scope-Aussage, kein Widerspruch — außer die Kurzfassung empfiehlt selbst (v4 bleibt, v7
+  fällt); Leser-`coherence` zählt nur mit benanntem Widerspruch, sonst Fokus/Drift → normaler
+  Leser-Pfad; Ausschlüsse in `structure["contradiction_scope_excluded"]`. (2) Zahlenprüfung
+  (`unverified_tokens(claim, page, measured, catalog)`): Datums-/Quartalsangaben in jedem Format,
+  Zifferngruppen, Null-Nachkommastelle, Rechtsakt-Nummern nur wenn im Katalog, Artikel-Listen,
+  Versionsnummern; Zahlen des eigenen Messblocks (jetzt inkl. Korpus-Evidenz-Block) nur in Sätzen,
+  die von der Messung sprechen; Rechtstexte auf Abruf aus dem vollen Cache-Text neu geschnitten
+  (`legal_text.reslice_for`). Replay: 367 gestrichene Tokens → 316 bleiben (Format 10, Bezeichner
+  23, Messblock 18 gerettet); die „23 von 27" in v7 waren eine Rechnung des Prüfnachweises
+  (Gesamt minus Zähler des letzten Durchgangs) — jetzt `drops_by_kind` je Grund über alle
+  Durchgänge. (3) Korpus-Evidenz: erweiterter Satz aus EINEM Themenbegriff + Produkt-/
+  Akteursname (Profil `actor_seeds`, Eigennamen der Pflichtpunkte) — datacenter 31 Kern + 95
+  erweitert; Tabelle/Dünne-Regel bleiben Kern, Desk zeigt „Extended". `docs/agentic_dossiers.md`
+  Runde 28, Tests `tests/test_dossier_r28.py`.
 - **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
   zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
   themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,

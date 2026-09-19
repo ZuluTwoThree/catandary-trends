@@ -5476,9 +5476,14 @@ def run(question: str, max_steps: int, max_sources: int,
     corpus_ev: dossier_corpus_evidence.CorpusEvidence | None = None
     if measure:
         try:
+            # Runde 28: die Akteur-/Produktnamen des Profils (Stufe 2) bilden
+            # den erweiterten Satz — das Profil kommt vom Intake; ohne Intake
+            # (CLI) gibt es hier noch keines, dann nur die Pflichtpunkt-Namen.
+            _prof = coerce_profile(profile)
+            _ents = list(getattr(_prof, "actor_seeds", None) or []) if _prof is not None else []
             corpus_ev = dossier_corpus_evidence.build(
                 topic or question, brief, terms=anchor_terms(topic or question)[:4],
-                search=search, row_to_source=_row_to_source)
+                search=search, row_to_source=_row_to_source, entities=_ents)
         except Exception as exc:                                    # noqa: BLE001
             logger.warning("corpus evidence pass failed (%r) — everything counts as thin", exc)
             corpus_ev = None
@@ -6773,6 +6778,7 @@ def run(question: str, max_steps: int, max_sources: int,
                  "contradicted_before": 0, "contradicted_after": [],
                  "contradictions_before": [], "contradictions_after": [],
                  "contradiction_rewrites": 0, "contradiction_scope_excluded": [],
+                 "drops_by_kind": {}, "legal_rescued": 0,
                  "repaired_pass2": 0, "drop_core": 0, "drop_filler": 0,
                  "actor_min": actor_min, "watch_min": watch_min,
                  "calendar_min": calendar_min,
@@ -6781,9 +6787,15 @@ def run(question: str, max_steps: int, max_sources: int,
                  "marketing_repaired": 0, "marketing_searches": 0}
     # Der eigene Messanhang ist der EINZIGE Beleg, den eine Zahl ohne Zitat im
     # Satz haben darf: er steht codegeneriert im selben Dokument.
+    # Runde 28: auch der Korpus-Evidenz-Block (Anteile je 10k, Zaehlungen je
+    # Ebene und Quartal) und der Duenne-Bereiche-Block sind eigene, deter-
+    # ministische Messung — ihre Zahlen liefen bis v7 als "ohne Beleg" bzw.
+    # als "nicht auf der zitierten Web-Seite" durch die Streichung.
     measured_text = "\n".join(
         x for x in ((quant or {}).get("appendix") or "",
-                    (corpus_stats or {}).get("appendix") or "") if x)
+                    (corpus_stats or {}).get("appendix") or "",
+                    (corpus_ev.rendered_md if (corpus_ev is not None and corpus_ev.ok) else ""),
+                    dossier_corpus_evidence.render_thin_block(thin_rows) if thin_rows else "") if x)
     structure["adopted_sources"] = _ad
     structure["precanon_stripped"] = _rm
     structure["reader"] = reader1
@@ -6799,7 +6811,10 @@ def run(question: str, max_steps: int, max_sources: int,
             topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names,
             actor_min=actor_min, watch_min=watch_min, today=today,
             outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas)
-        cites = dossier_structure.verify_cited_figures(report, citable_sources)
+        cites = dossier_structure.verify_cited_figures(report, citable_sources, measured_text)
+        if cites.get("legal_rescued"):
+            logger.info("citation: %d figure(s) found in the full legal text on re-slice",
+                        len(cites["legal_rescued"]))
         # Befund 2 (falsche Seite) und Befund 3 (Zahl ohne Beleg) der Jurys vom
         # 2026-09-07 laufen durch denselben Kanal wie die Zahlenpruefung:
         # ein Neuwurf, danach mechanische Streichung.
@@ -6970,7 +6985,8 @@ def run(question: str, max_steps: int, max_sources: int,
                      f"one targeted rewrite ({len(reader1_lines)} reader finding(s) included)")
         def _recheck(rep: str, entail: bool = True):
             nonlocal ent_last
-            c2 = dossier_structure.verify_cited_figures(rep, citable_sources)
+            c2 = dossier_structure.verify_cited_figures(rep, citable_sources, measured_text)
+            structure["legal_rescued"] = int(structure.get("legal_rescued") or 0) + len(c2.get("legal_rescued") or [])
             sl2 = dossier_structure.sourceless_figures(
                 rep, citable_sources, measured_text)
             mb2 = dossier_structure.measure_use_findings(
@@ -7151,10 +7167,13 @@ def run(question: str, max_steps: int, max_sources: int,
                 # Letzte Instanz: eine Zahl, die die zitierte Seite nicht hergibt,
                 # ein Beleg, der von etwas anderem handelt, und eine Zahl ganz ohne
                 # Beleg bleiben nicht im Dokument stehen.
+                by_kind = structure.setdefault("drops_by_kind", {})
                 report, dropped = dossier_structure.drop_unverified(
-                    report, cite_all2, lang)
+                    report, cite_all2, lang, counts=by_kind)
                 structure["dropped_sentences"] = (
                     int(structure.get("dropped_sentences") or 0) + dropped)
+                logger.info("drops by kind (cumulative): %s",
+                            ", ".join(f"{k}={v}" for k, v in sorted(by_kind.items())))
                 logger.warning("dropped/trimmed %d sentence(s): %d unsupported "
                                "figure(s), %d off-topic citation(s), %d sourceless "
                                "figure(s), %d distorted claim(s), %d misattributed "

@@ -17,6 +17,12 @@ Laeuft OHNE Modell — nur die reinen Textpruefungen aus
   * Streichungen: wie viele gestrichene Saetze standen in einer Kernsektion
     oder nannten einen Themenbegriff (bekaemen jetzt zwei Reparaturen) und
     wie viele waren Fuellsaetze
+  * Zahlenpruefung (Runde 28): jeder gespeicherte "figure"-Befund (Satz,
+    Tokens, Seite) wird mit der heutigen Regel neu bewertet — welche Tokens
+    bleiben unbelegt, und welche Regel die uebrigen rettet (Formatvariante,
+    Bezeichner, eigener Messblock, Artikelschnitt im Rechtstext); dazu die
+    Einordnung, ob ein noch offenes Token im vollen gecachten Seitentext
+    jenseits der Speicherkappe steht
 
 Die alten Regeln lassen sich nicht mehr ausfuehren; gedruckt werden die
 heutigen Zaehlungen und daneben die im Protokoll gespeicherten (findings_after
@@ -85,6 +91,108 @@ def _rank_of(sources: list[dict]):
     return rank
 
 
+def _measured_text(res: dict) -> str:
+    """Eigener Messblock des Laufs aus dem gespeicherten Ergebnis: Korpus-
+    Evidenz (rendered_md) + die Nadeln der Messung (Skalare)."""
+    parts = [str(((res.get("corpus_evidence") or {}).get("rendered_md")) or "")]
+    try:
+        inv = ds.measure_inventory(res.get("quant") or {}, res.get("corpus_stats") or {})
+        parts.append(" ".join(ds._flatten_needles(inv["usable"]) + ds._flatten_needles(inv["blocked"])))
+    except Exception:                                               # noqa: BLE001
+        pass
+    return "\n".join(p for p in parts if p)
+
+
+def _cached_page(url: str) -> str:
+    try:
+        from pipeline import web_cache
+        hit = web_cache.cache_get("page", web_cache.make_key("page", url))
+        return str(hit.get("text") or "") if isinstance(hit, dict) else ""
+    except Exception:                                               # noqa: BLE001
+        return ""
+
+
+def figure_replay(st: dict, sources: list[dict], measured: str) -> dict:
+    """Gespeicherte figure-Befunde (vor und nach dem Neuwurf, je Satz+Seite
+    einmal) mit der heutigen `unverified_tokens`-Regel neu bewertet."""
+    from pipeline import legal_text
+    by_url: dict = {}
+    for s_ in sources:
+        if s_.get("origin"):
+            by_url.setdefault(s_["origin"], s_)
+    for s_ in sources:
+        by_url[s_.get("url")] = s_
+    catalog = ds.catalog_text(sources)
+    out = {"findings": 0, "tokens": 0, "still": 0, "still_findings": 0,
+           "rescued": {"format": 0, "designator": 0, "measured": 0, "legal": 0},
+           "beyond_cap": 0, "absent": 0, "items": []}
+    seen: set = set()
+    for stage in ("cite_findings", "cite_findings_after"):
+        for e in st.get(stage) or []:
+            if e.get("kind") != "figure":
+                continue
+            key = (e.get("sentence"), e.get("url"))
+            if key in seen:
+                continue
+            seen.add(key)
+            src = by_url.get(e.get("url")) or {}
+            hay = " ".join(str(src.get(k) or "") for k in ("text", "title", "snippet", "date"))
+            claim = ds.prose(str(e.get("sentence") or ""))
+            stored = [str(t) for t in (e.get("tokens") or [])]
+            out["findings"] += 1
+            out["tokens"] += len(stored)
+            # Regeln einzeln, in Reihenfolge
+            fmt = set(ds.unverified_tokens(claim, hay))
+            desig = set(ds.unverified_tokens(claim, hay, catalog=catalog))
+            meas = set(ds.unverified_tokens(claim, hay, measured, catalog))
+            remaining = set(meas)
+            legal_hit = False
+            url = str(e.get("url") or "")
+            if remaining and legal_text.is_legal_host(url):
+                full = legal_text.cached_full_text(url)
+                if full and len(full) > len(str(src.get("text") or "")):
+                    kept, _labels = legal_text.reslice_for(url, ds._reslice_terms(claim), full_text=full)
+                    if kept:
+                        again = set(ds.unverified_tokens(claim, hay + "\n" + kept, measured, catalog))
+                        if again < remaining:
+                            legal_hit = True
+                            remaining = again
+            page_full = _cached_page(url) if remaining else ""
+            desig_tokens = {ds._norm_token(x) for x in ds._designator_tokens(claim, catalog)}
+            for t in stored:
+                if t not in fmt and ds._norm_token(t) in desig_tokens:
+                    out["rescued"]["designator"] += 1
+                    why = "designator"
+                elif t not in fmt:
+                    out["rescued"]["format"] += 1
+                    why = "format"
+                elif t not in desig:
+                    out["rescued"]["designator"] += 1
+                    why = "designator"
+                elif t not in meas:
+                    out["rescued"]["measured"] += 1
+                    why = "measured"
+                elif t not in remaining and legal_hit:
+                    out["rescued"]["legal"] += 1
+                    why = "legal"
+                else:
+                    out["still"] += 1
+                    n = ds._norm_token(t)
+                    beyond = bool(page_full) and len(page_full) > len(str(src.get("text") or "")) \
+                        and not ds.unverified_tokens(claim, page_full, measured, catalog).count(t)
+                    if beyond:
+                        out["beyond_cap"] += 1
+                        why = "beyond_cap"
+                    else:
+                        out["absent"] += 1
+                        why = "absent"
+                out["items"].append({"stage": stage, "token": t, "why": why, "url": url[:80],
+                                     "sentence": claim[:140]})
+            if remaining:
+                out["still_findings"] += 1
+    return out
+
+
 def replay_one(row: dict) -> dict:
     res = row["result"]
     report = str(res.get("report") or row["report_md"] or "")
@@ -135,9 +243,12 @@ def replay_one(row: dict) -> dict:
         else:
             dropped_filler += 1
 
+    figs = figure_replay(st, sources, _measured_text(res))
+
     return {
         "id": row["id"], "slug": row["slug"], "version": row["version"],
         "run_day": str(run_day) if run_day else None,
+        "figures": figs,
         "words": ds.count_words(ds.body_text(report)),
         "density": round(float(density.get("per100") or 0.0), 2),
         "findings_now": len(findings),
@@ -197,6 +308,14 @@ def main(argv=None) -> int:
     dc, df = sum(r['dropped_core'] for r in out), sum(r['dropped_filler'] for r in out)
     print(f"dropped sentences (stored cite_findings_after, without rank marks): "
           f"{dc + df} — core/on-topic {dc}, filler {df}")
+    F = [r["figures"] for r in out]
+    resc = {k: sum(f["rescued"][k] for f in F) for k in ("format", "designator", "measured", "legal")}
+    print(f"figure findings stored (sentence+page, before+after): {sum(f['findings'] for f in F)} with "
+          f"{sum(f['tokens'] for f in F)} token(s) — under today's rule still unverified: "
+          f"{sum(f['still'] for f in F)} token(s) in {sum(f['still_findings'] for f in F)} finding(s); "
+          f"rescued: format {resc['format']}, designator {resc['designator']}, measured {resc['measured']}, "
+          f"legal re-slice {resc['legal']}; of the remaining: {sum(f['beyond_cap'] for f in F)} present only "
+          f"beyond the stored cap (cached full page), {sum(f['absent'] for f in F)} absent from the page")
     for r in out:
         for t in r["contradiction_texts"]:
             print(f"  [{r['id']} {r['slug']} v{r['version']}] {t}")

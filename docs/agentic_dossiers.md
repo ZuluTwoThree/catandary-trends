@@ -2407,3 +2407,157 @@ schreibt und ob ≥ 60 % Korpus-Zeilen in der Bewegungs-Tabelle mit 7
 repräsentativen Signalen erreichbar sind (sonst muss `REPRESENTATIVE_MAX`
 oder `RECENT_PER_TIER` steigen); die Akteur-Zeile bleibt eine Untergrenze,
 bis NER auf dem Signalpfad läuft.
+
+
+### Runde 28 (2026-09-19) — v7: Scope-Aussagen im Widerspruchs-Gate, Formatvarianten in der Zahlenprüfung, Korpus-Evidenz mit Produktnamen
+
+Anlass: der erste Live-Lauf im Scout-Grundriss (`datacenter-virtualization`
+v7, Auftrag #45, 14:16–15:01) endete mit zwei Befunden, die beide Prüfkette
+waren, nicht Dossier: „Widerspruch Kurzfassung/Rest nach dem gezielten
+Neuwurf noch offen (3) — sperrend" und „27 Sätze gestrichen: 23× enthielt die
+zitierte Web-Seite die behauptete Zahl nicht".
+
+**1. Widerspruchs-Gate ohne Scope-Aussagen.** Das Dossier empfiehlt seit
+Runde 19 nichts (Optionen liegen beim Advisor), und der Scout-Grundriss sagt
+das im Urteil ausdrücklich; „Open questions" formuliert es als „the corpus
+does not provide a definitive recommendation on which stack …". Für die
+mechanische Regel (geteiltes Inhaltswort + Verneinung + Urteilswort) und für
+den Leser (`kind: coherence`) sah das aus wie ein Widerspruch zur
+Kurzfassung. Die drei gespeicherten v7-Befunde waren allesamt Leser-
+`coherence`-Einwände OHNE benannten Widerspruch: „does not summarize the
+decision", „drifts into adjacent topics", „dilutes the focus". Neu
+(`pipeline/dossier_structure.py`):
+
+- `is_scope_statement`: eine Verneinung, die das EMPFEHLEN/WÄHLEN/ENTSCHEIDEN
+  betrifft („does not provide a definitive recommendation", „fails to support
+  a definitive technical recommendation", „cannot provide a tailored
+  recommendation", „no source ranks the candidates"), ist eine Aussage über
+  den Geltungsbereich, kein Widerspruch — es sei denn, die Kurzfassung selbst
+  EMPFIEHLT (`claim_recommends`/`summary_recommends`: recommend, should,
+  leading/preferred candidate, best choice, the answer is …). Damit bleibt der
+  echte v4-Fehler ein Befund (Kurzfassung „Proxmox VE is the leading
+  candidate" gegen „fails to support a definitive recommendation": zwei
+  Meinungen im selben Bericht) und v7 fällt aus dem Gate (Kurzfassung ohne
+  Empfehlung). Entscheidung dokumentiert in
+  `tests/test_dossier_contradiction.py`
+  (`test_the_v4_pattern_is_caught_because_the_summary_recommends`,
+  `test_the_same_scope_statement_is_excluded_when_the_summary_recommends_nothing`).
+- `reader_contradiction_class`: ein Leser-Befund ist nur dann ein Widerspruch,
+  wenn sein Einwand einen benennt (`contradict|inconsistent|conflict|
+  incompatible|at odds|denies|refutes …`); `coherence` ohne diese Marke ist
+  ein Fokus-/Drift-Einwand und geht zurück in den normalen Leser-Pfad
+  (Ganzdokument-Neuwurf, `_majors` zählt ihn wieder); ein Scope-Einwand zählt
+  nur, wenn die Kurzfassung des Berichts empfiehlt (`contradiction_from_reader`
+  bekommt `report_md`). `_is_contradiction_finding`/`without_contradictions`
+  in `corpus_research.py` nutzen dieselbe Einordnung.
+- Ausgeschlossene Kandidaten stehen in `structure["contradiction_scope_excluded"]`
+  (Log „contradiction candidate excluded (scope|drift)"), die Endkontrolle
+  meldet sie als Zeile („Widerspruchs-Gate: N Kandidat(en) als Scope-Aussage …
+  ausgeschlossen"), nicht sperrend.
+
+Replay über die 51 gespeicherten Läufe: die 5 gespeicherten sperrenden
+Widersprüche (v5 1, v6 1, v7 3) sind jetzt alle ausgeschlossen (v5/v6 als
+Scope — „cannot assume a single stack", „cannot provide a specific
+recommendation" —, v7 dreimal Drift); die mechanischen Paare aus v2, v4 und
+quantum v2 bleiben (dort empfiehlt die Kurzfassung: „Run Proxmox VE", „leading
+candidate", „moving fastest").
+
+**2. Die „23 von 27" waren eine Rechnung, keine Messung.** `dossier_check`
+zog vom kumulierten `dropped_sentences` die Zähler des LETZTEN Durchgangs ab
+(`off_topic_after`, `weakclaim_after` …) und nannte den Rest „Zahl nicht auf
+der Seite". v7 hatte drei Durchgänge (18 + 4 verworfen + 9): laut Log 2
+Zahlen-Befunde, 3 Themen-Befunde per Token, 5 + 6 „unbezogen" aus der
+Aussagenprüfung, 1 widersprochen, 1 ohne Beleg, 1 Messgröße, 7 Themen-Befunde
+im letzten Durchgang, dazu Rangvermerke und Anschluss-Absätze. Jetzt zählt
+`drop_unverified(counts=)` je Streichgrund über ALLE Durchgänge
+(`structure["drops_by_kind"]`, Log „drops by kind (cumulative)"), und der
+Prüfnachweis schreibt „N Sätze gestrichen oder gekennzeichnet: 2× enthielt die
+zitierte Web-Seite …, 15× zitierte die Seite ein anderes Thema …, 4× Rang-2
+…, 3× Anschluss-Absatz …"; alte Läufe ohne den Zähler behalten die Rechnung.
+
+**3. Was die Zahlenprüfung tatsächlich strich (Replay über alle 51 Läufe,
+217 gespeicherte figure-Befunde vor + nach dem Neuwurf, 367 Tokens, gegen
+die gespeicherten Seitentexte):**
+
+| Kategorie | Tokens | Beispiele |
+|---|---:|---|
+| (i) wirklich nicht auf der Seite | **315** | „next 12 months" (Horizont des Modells), „$200 billion", „12–18 months", „2027 window", „The web sweep admitted 66 sources" (eigene Zählung des Modells, v7), „Regulation 2024/1028" (falsche Nummer, v3) |
+| (ii) da, anders formatiert | 10 | ISO-Datum gegen Monatsname (v6/v7 „2023-12-13" ↔ „13 December 2023"), Wortdatum gegen Punktdatum (v2 „29 September 2020" ↔ „29.09.2020"; batteries „July 28, 2023" ↔ „28.7.2023"), Null-Nachkommastelle („12.0" ↔ „12"), „€4 billion" ↔ „€4.0" |
+| (iii) nur jenseits der Speicherkappe | 1 nachweisbar (glp1-dr4, food.ec.europa.eu) | die Caches älterer Läufe sind abgelaufen — die Zahl ist eine Untergrenze; für Rechtstexte gibt es seither den Artikelschnitt auf Abruf |
+| (iv) aus Messblock/Korpus-Zählung, gegen eine Web-Seite geprüft | 18 (figure) + alle 6 `sourceless`-Tokens aus v7 | „median 3.3%/yr (n=1,878, 2005–2026)", „12.0-year cycle time" gegen EMA-/EFSA-Seiten; v7 „3.62 per 10,000", „0.74 per 10,000" — die Anteile je 10k des eigenen Korpus-Blocks liefen als „ohne Beleg" |
+| (v) Bezeichner im Katalog / Namensbestandteil | 23 | „Regulation (EU) 2023/2854" (im Katalog als L23/L24/L26), „Regulation (EC) 1924/2006", „GDPR Article 28/32", „Articles 28 and 32", „Proxmox Datacenter Manager 1.0" |
+
+Für v7 selbst: 3 figure-Befunde vor dem Neuwurf → „12" (ii), „2854" (v),
+„66" (i); die 6 `sourceless`-Tokens (iv). **Was mechanisch gefixt ist**
+(`unverified_tokens(claim, page, measured, catalog)`, alles exakter Vergleich,
+nie Teilstring):
+
+- `page_variants`: Zifferngruppen mit Leer-/Schmalleerzeichen („10 605"),
+  Null-Nachkommastelle („6.0" ↔ „6", nicht „8,000" ↔ „8"); Datumsangaben
+  werden als GANZE Angabe in beliebigem Format verglichen (`_dates_in`,
+  `_date_tokens`: dd Month yyyy, Month dd, yyyy, ISO, dd.mm.yyyy, deutsch),
+  Quartale/Halbjahre ebenso (`_periods_in`). Bewusst nicht: Datums-
+  komponenten als Tokens (die „02" aus „2027-02-18" belegte sonst „>2 kWh").
+- `_designator_tokens`: Rechtsakt-Nummern nur, wenn der Katalog des Laufs
+  (`catalog_text`: Titel, URL, Teaser, Text aller Einträge) die Nummer führt —
+  „2024/1028" fällt weiter; Artikel-Listen („Article 28/32", „Articles 5 and
+  6"); Versionsnummern hinter einem Namen, nie hinter Währung/Einheit („USD
+  12.9", „1.5 GW" bleiben Messwerte).
+- `_measured_tokens`: Zahlen aus dem eigenen Messblock nur, wenn der Satz von
+  der Messung SPRICHT (`_MEASURE_CUE`: measured, median, per 10,000, signals,
+  n=, cycle time, tier, quarter …) — „the next 12 months" wird nicht durch
+  „cycle time 12.0 years" belegt. `measured_text` in `run()` enthält jetzt
+  den Korpus-Evidenz-Block und den Dünne-Bereiche-Block (auch für
+  `sourceless_figures`).
+- Rechtstexte: steht das Token nicht im gespeicherten Ausschnitt, holt
+  `verify_cited_figures` den vollen gecachten Text (`legal_text.cached_full_text`,
+  Schlüssel „page-legal", kein Netz) und schneidet ihn um die Wörter des
+  SATZES neu (`legal_text.reslice_for` → `slice_articles`); `legal_rescued`
+  zählt, `structure["legal_rescued"]` + Prüfnachweis-Zeile. Im Replay 0 —
+  die Caches sind abgelaufen und v7s EUR-Lex-Seiten liefen über den normalen
+  Abruf (12.000 Zeichen, „the opening"); die Regel trägt ab dem nächsten Lauf.
+- Kategorie (i) ist nicht abgeschwächt: `tests/test_dossier_r28.py::
+  TestNoWeakeningForAbsentFigures`.
+
+Replay vorher/nachher: von 367 Tokens bleiben **316 unbelegt (in 192 von 217
+Befunden)**, gerettet 51 (Format 10, Bezeichner 23, Messblock 18, Rechtstext 0).
+Von v7s drei Befunden überleben zwei die Prüfung nicht mehr, einer („66") zu
+Recht. Der Prüfnachweis-Satz „23× …" entfällt für neue Läufe durch die
+Zählung je Grund.
+
+**4. Korpus-Evidenz mit Produktnamen.** `dossier_corpus_evidence.build(…,
+entities=)`: die Akteur-/Produktnamen des Profils (Stufe 2, `actor_seeds`,
+`clean_entity` ohne Klammerzusatz) und die Eigennamen der Pflichtpunkte
+(`proper_nouns`: „Proxmox, Nutanix, OpenStack, VMware, Broadcom", „BSI
+IT-Grundschutz", „SYS.1.5", „EU Data Act") bilden den **erweiterten Satz**:
+ein Name ersetzt EINEN der Themenbegriffe, nie beide (Zeile trägt mindestens
+einen Themenstamm UND einen Namen, Wortgrenze). Messung 19.09.: reines ODER
+über die Profilnamen zog 1.790 Zeilen (Microsoft ×1213, European Commission
+×439, eine indonesische Bank „BSI") und machte jeden Pflichtpunkt „gedeckt";
+mit der Stamm-Bedingung: **Kern 31, erweitert +95** (12 Monate 67: market 57,
+funding 6, science 3, patent 1; Namen Microsoft ×71, VMware ×11, Broadcom ×7,
+Nutanix ×3, OpenStack ×2, Red Hat ×2, Proxmox ×1). Tabelle, Akteure und die
+Ebenen-Dünne-Regel bleiben Kern; Pflichtpunkte und `gap_is_thin` zählen eine
+erweiterte Zeile nur über den Namen, der sie hereinholte — die dünnen Bereiche
+von v7 (science, funding, BSI SYS.1.5, regulatory, calendar) bleiben identisch.
+Die vier neuesten erweiterten Zeilen kommen als Katalogeinträge mit `why:
+"extended: <Name>"` in den Bericht, `rendered_md` trägt die Zeile „EXTENDED set
+(flagged, not in the table above …)", `result["corpus_evidence"]` die Felder
+`extra_terms`, `n_signals_extended(_12m)`, `tier_totals_extended_12m`,
+`extended_hits`; der Desk zeigt „Extended" im Korpus-Block.
+
+**Tests:** `tests/test_dossier_contradiction.py` (Scope/Drift/Empfehlung),
+`tests/test_dossier_r28.py` (Formatvarianten je Fall, Bezeichner, Messblock
+mit/ohne Stichwort, Rechtstext-Nachschlag mit Fake-Volltext, Zähler je
+Streichgrund, Prüfnachweis-Zeilen), `tests/test_dossier_corpus_evidence.py`
+(erweiterter Satz: Name + Themenstamm, Eigennamen, Rendering). Replay:
+`scripts/dossier_replay.py` misst jetzt zusätzlich die gespeicherten figure-
+Befunde gegen die heutige Regel (Zeile „figure findings stored …") und die
+Ausschlüsse des Gates. Volle Suite grün.
+
+**Offen:** Kategorie (iii) ist mit abgelaufenen Caches nicht messbar — der
+Artikelschnitt für Rechtstexte greift erst in neuen Läufen; die
+`_MEASURE_CUE`-Liste ist eine Wortliste (ein Satz, der die Messung ohne
+eines dieser Wörter zitiert, bleibt beim alten Verhalten); der erweiterte
+Korpus-Satz ist mit „Microsoft" + „virtual" (71 von 95) noch breit — ein
+Reranker (Runde 27, Werkzeugvorschlag) wäre der nächste Hebel.

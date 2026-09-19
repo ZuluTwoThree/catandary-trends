@@ -200,6 +200,11 @@ export interface DossierCorpusEvidence {
   sources: { name: string; n: number }[];
   representative: { id: string; kind: string; tier: string | null; title: string; date: string; outlet: string; why: string }[];
   regulatory12m: number;
+  /** Runde 28: erweiterter Satz — ein Themenbegriff plus Produkt-/Akteursname (Profil, Pflichtpunkte). */
+  extraTerms: string[];
+  nSignalsExtended: number;
+  nSignalsExtended12m: number;
+  extendedHits: { name: string; n: number }[];
   thinAreas: { area: string; kind: string; reason: string }[];
 }
 
@@ -272,6 +277,10 @@ export function parseCorpusEvidence(raw: unknown): DossierCorpusEvidence | null 
       why: String(a.why ?? ""),
     })),
     regulatory12m: num(r.regulatory_12m) ?? 0,
+    extraTerms: Array.isArray(r.extra_terms) ? r.extra_terms.map(String) : [],
+    nSignalsExtended: num(r.n_signals_extended) ?? 0,
+    nSignalsExtended12m: num(r.n_signals_extended_12m) ?? 0,
+    extendedHits: list(r.extended_hits, (a) => ({ name: String(a.name ?? ""), n: num(a.n) ?? 0 })),
     thinAreas: list(r.thin_areas, (a) => ({
       area: String(a.area ?? ""), kind: String(a.kind ?? ""), reason: String(a.reason ?? ""),
     })),

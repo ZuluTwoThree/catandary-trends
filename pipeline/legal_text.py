@@ -151,3 +151,36 @@ def slice_articles(text: str, terms, limit: int = LEGAL_KEEP_CHARS) -> tuple[str
     out = "\n\n".join(a.text for a in kept)[:limit]
     labels = [a.label + (" (Definitions)" if a.is_definitions else "") for a in kept]
     return out, labels
+
+
+# --------------------------------------------------------------------------
+# Runde 28 (2026-09-19): Nachschlag im vollen Rechtstext
+# --------------------------------------------------------------------------
+# Die Zahlenpruefung (`dossier_structure.verify_cited_figures`) sieht nur den
+# gespeicherten Ausschnitt (<= LEGAL_KEEP_CHARS). Der volle Text liegt aber im
+# Web-Cache unter dem Schluessel "page-legal" — steht die Zahl in einem Artikel,
+# den die Lueckenbegriffe beim Abruf nicht getroffen haben, wird hier um die
+# Begriffe des SATZES neu geschnitten und darin nachgeschlagen. Kein Netz.
+
+def cached_full_text(url: str) -> str | None:
+    """Der beim Abruf gecachte volle Rechtstext (oder None)."""
+    if not is_legal_host(url):
+        return None
+    try:
+        from pipeline import web_cache
+        hit = web_cache.cache_get("page", web_cache.make_key("page-legal", url))
+    except Exception:                                               # noqa: BLE001
+        return None
+    if isinstance(hit, dict) and hit.get("text"):
+        return str(hit["text"])
+    return None
+
+
+def reslice_for(url: str, terms, full_text: str | None = None,
+                limit: int = LEGAL_KEEP_CHARS) -> tuple[str, list[str]]:
+    """Artikelschnitt um `terms` (die Woerter des zu pruefenden Satzes) aus dem
+    vollen Text — `full_text` oder der Cache. ("", []) wenn nichts vorliegt."""
+    full = full_text if full_text is not None else cached_full_text(url)
+    if not full:
+        return "", []
+    return slice_articles(full, list(terms or []), limit=limit)

@@ -315,6 +315,15 @@ Verschmelzung mit Regulatorik — alle Kalenderprüfungen hängen an dem
 Schlüssel); „does not support" bleibt optional parsbar; die Abnahme (≥ 60 %
 Korpus-Zeilen, ≤ 50 % Web-Aufrufe) braucht den ersten Live-Lauf der Serie.
 
+**Nachtrag Runde 28 (2026-09-19, nach dem ersten Scout-Lauf v7):** zwei
+Prüfketten-Fehler behoben — das Widerspruchs-Gate (Stufe 4) hielt
+Scope-Aussagen („does not provide a definitive recommendation") und Leser-
+Fokus-Einwände für Widersprüche; die Zahlenprüfung strich Formatvarianten,
+Bezeichner und Zahlen des eigenen Korpus-Blocks, und der Prüfnachweis
+rechnete „23 von 27" statt zu zählen. Korpus-Evidenz zusätzlich mit einem
+erweiterten Satz (ein Themenbegriff + Produkt-/Akteursname). Runde 28 in
+`docs/agentic_dossiers.md`.
+
 ### Ausblick (nicht im Plan)
 
 Feintuning des Schreibers auf Paare (Entwurf → freigegebene Fassung), sobald

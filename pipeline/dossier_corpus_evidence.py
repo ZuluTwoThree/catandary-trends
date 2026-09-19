@@ -154,6 +154,86 @@ def row_matches(row: dict, stems: list[str]) -> bool:
     return all(s in hay for s in stems)
 
 
+# Runde 28 (2026-09-19): erweiterter Satz. Die UND-Regel ueber die Themen-
+# begriffe fand fuer "datacenter virtualization" 42 Zeilen, mit den Produkt-
+# und Akteursnamen des Profils (Proxmox, VMware, Nutanix, Broadcom …) sind es
+# 92 — "VMware" + "virtualization" traegt das Thema, ohne "datacenter". Namen
+# aus dem Profil (Stufe 2, `actor_seeds`) und die Eigennamen der Pflichtpunkte
+# ersetzen EINEN der Themenbegriffe, nie beide (Messung 19.09.: reines ODER
+# ueber die Profilnamen = 1.790 Zeilen, davon 1.213 "Microsoft").
+_ENTITY_STOP = frozenset("""
+the and for with from into that this what which when where how why who whom
+does specific technical procedural regulatory current key top two three
+german european eu us uk american chinese french british global regional
+article articles act regulation directive section chapter annex
+company companies firm firms provider providers service services market
+security processing processor controller obligations requirements standard
+""".split())
+_LEAD_STOP = frozenset("""
+which what how why who when where does the german european american chinese french
+british swiss austrian dutch italian spanish global regional specific
+""".split())
+_PROPER = re.compile(r"\b(?:[A-Z][A-Za-z0-9]*(?:[-.][A-Za-z0-9]+)*|[A-Z]{2,}(?:[-.][A-Za-z0-9]+)*)"
+                     r"(?:\s+(?:[A-Z][A-Za-z0-9]*(?:[-.][A-Za-z0-9]+)*|[A-Z]{2,}))*")
+
+
+def clean_entity(name: str) -> str:
+    """Profilname ohne Klammerzusatz: "BSI (Federal Office …)" -> "BSI"."""
+    n = re.sub(r"\s*\([^)]*\)", "", str(name or "")).strip(" .,;:'\"")
+    return n
+
+
+def proper_nouns(text: str, cap: int = 8) -> list[str]:
+    """Eigennamen eines Pflichtpunkts: grossgeschriebene Wortfolgen, nicht am
+    Satzanfang, ohne Fuellwoerter und Gattungsbegriffe (`_ENTITY_STOP`),
+    Akronyme ab 3 Zeichen; Klammerlisten werden aufgeloest."""
+    out: list[str] = []
+    text = str(text or "")
+    for m in _PROPER.finditer(text):
+        if m.start() == 0 or text[max(0, m.start() - 2):m.start()].strip() in (".", "?", "!"):
+            continue
+        for piece in re.split(r"\s*(?:,|/|;|\bor\b|\band\b)\s*", m.group(0)):
+            words = piece.split()
+            # fuehrende Demonyme/Fragewoerter ab ("German IT" -> "IT"), die
+            # Phrase selbst bleibt ganz ("EU Data Act" ist ein Name)
+            while words and words[0].lower().strip(".-") in _LEAD_STOP:
+                words = words[1:]
+            cand = " ".join(words).strip(" .,;:")
+            if not cand:
+                continue
+            if len(cand) < 4 and not (cand.isupper() and len(cand) >= 3):
+                continue
+            if len(words) == 1 and cand.lower() in _ENTITY_STOP:
+                continue
+            if cand not in out:
+                out.append(cand)
+            if len(out) >= cap:
+                return out
+    return out
+
+
+def _entity_regex(term: str) -> re.Pattern | None:
+    t = clean_entity(term)
+    if len(t) < 3:
+        return None
+    words = [re.escape(w) for w in re.split(r"[\s\-]+", t) if w]
+    if not words:
+        return None
+    return re.compile(r"(?<![A-Za-z0-9])" + r"[\s\-]*".join(words) + r"(?![A-Za-z0-9])", re.IGNORECASE)
+
+
+def row_matches_any(row: dict, terms: list[str]) -> list[str]:
+    """Welche der Namen (Wort-/Phrasengrenze, gross/klein egal, Bindestrich
+    oder Leerzeichen frei) die Zeile traegt."""
+    hay = raw_text(row)
+    hit: list[str] = []
+    for t in terms or ():
+        rx = _entity_regex(t)
+        if rx is not None and rx.search(hay):
+            hit.append(clean_entity(t))
+    return hit
+
+
 def gap_terms(text: str, cap: int = 6) -> list[str]:
     """Inhaltswörter einer Lücke/eines Pflichtpunkts (≥ 4 Zeichen, ohne
     Füllwörter) — für die Treffer-Regel je Pflichtpunkt."""
@@ -271,21 +351,28 @@ def prequery_tsquery(terms) -> str:
 
 
 def fetch_topic_rows(stems: list[str], since: date, limit: int = FETCH_LIMIT,
-                     terms: list[str] | None = None) -> list[dict]:
+                     terms: list[str] | None = None, entities: list[str] | None = None,
+                     topic_nouns: list[str] | None = None) -> list[dict]:
     """Vorauswahl über den Index (Postgres: OR der gestemmten Begriffe auf dem
     FTS-Vektor, neueste zuerst bis `limit`; SQLite: LIKE je Stamm), dann die
     AND-Regel in Python. Gibt Zeilen mit `source_type` (per Namen) und `tier`
-    zurück."""
+    zurück. Runde 28: `entities` (Profilnamen) und `topic_nouns` (Eigennamen
+    der Pflichtpunkte) liefern den ERWEITERTEN Satz: ein Name als ODER-
+    Alternative zur UND-Regel, aber immer zusammen mit mindestens EINEM
+    Themenstamm — solche Zeilen tragen `extended` = die getroffenen Namen."""
     from pipeline.db import get_connection
     if not stems:
         return []
+    entities = [e for e in (entities or []) if clean_entity(e)]
+    topic_nouns = [e for e in (topic_nouns or []) if clean_entity(e)]
     cols = ("id, slug, status, title_en, summary_en, source_url, source_name, "
             "primary_vertical, published_at, sort_date, trend_signal_type, brands, companies, tags")
     with get_connection() as conn:
         if _is_postgres():
             conn.execute(f"SET statement_timeout = '{STATEMENT_TIMEOUT}'")
             from pipeline.dossier_quant import FTS_VECTOR
-            tsq = prequery_tsquery(terms if terms is not None else stems)
+            tsq = prequery_tsquery(list(terms if terms is not None else stems)
+                                   + [clean_entity(e) for e in entities + topic_nouns])
             if not tsq:
                 return []
             sql = (f"SELECT {cols} FROM trends WHERE {FTS_VECTOR} @@ to_tsquery('english', ?) "
@@ -293,21 +380,35 @@ def fetch_topic_rows(stems: list[str], since: date, limit: int = FETCH_LIMIT,
                    f"ORDER BY sort_date DESC LIMIT ?")
             rows = conn.execute(sql, (tsq, since.isoformat(), *STATUSES, limit)).fetchall()
         else:
-            like = " AND ".join("replace(replace(lower(coalesce(title_en,'') || ' ' || "
-                                "coalesce(summary_en,'') || ' ' || coalesce(tags,'')), ' ', ''), "
-                                "'-', '') LIKE ?"
-                                for _ in stems)
+            hay_sql = ("replace(replace(lower(coalesce(title_en,'') || ' ' || "
+                       "coalesce(summary_en,'') || ' ' || coalesce(tags,'')), ' ', ''), '-', '')")
+            like = "(" + " AND ".join(f"{hay_sql} LIKE ?" for _ in stems) + ")"
+            params: list = [f"%{s}%" for s in stems]
+            extra = [normalize_text(clean_entity(e)) for e in entities + topic_nouns]
+            extra = [e for e in extra if e]
+            if extra:
+                like = "(" + like + " OR " + " OR ".join(f"{hay_sql} LIKE ?" for _ in extra) + ")"
+                params += [f"%{e}%" for e in extra]
             sql = (f"SELECT {cols} FROM trends WHERE {like} AND sort_date >= ? "
                    f"AND status IN ({', '.join('?' for _ in STATUSES)}) "
                    f"ORDER BY sort_date DESC LIMIT ?")
-            rows = conn.execute(sql, (*[f"%{s}%" for s in stems], since.isoformat(),
-                                      *STATUSES, limit)).fetchall()
+            rows = conn.execute(sql, (*params, since.isoformat(), *STATUSES, limit)).fetchall()
     types = source_types()
     out: list[dict] = []
     for r in rows:
         r = dict(r)
-        if not row_matches(r, stems):
-            continue
+        core = row_matches(r, stems)
+        ext: list[str] = []
+        if not core and (entities or topic_nouns):
+            # Name UND mindestens ein Themenstamm: ein reines ODER ueber die
+            # Profilnamen zog am 19.09. 1.790 Zeilen (Microsoft x1213, European
+            # Commission x439, eine indonesische Bank "BSI") und machte jeden
+            # Pflichtpunkt "gedeckt".
+            if any(st in row_text(r) for st in stems):
+                ext = row_matches_any(r, entities) or row_matches_any(r, topic_nouns)
+            if not ext:
+                continue
+        r["extended"] = ext
         r["brands"] = _json_list(r.get("brands"))
         r["companies"] = _json_list(r.get("companies"))
         r["tags"] = _json_list(r.get("tags"))
@@ -394,6 +495,13 @@ class CorpusEvidence:
     thin_areas: list[dict] = field(default_factory=list)
     rendered_md: str = ""
     rows: list[dict] = field(default_factory=list, repr=False)
+    # Runde 28: erweiterter Satz (Profil-/Pflichtpunkt-Namen als ODER)
+    extra_terms: list[str] = field(default_factory=list)
+    rows_extended: list[dict] = field(default_factory=list, repr=False)
+    n_signals_extended: int = 0
+    n_signals_extended_12m: int = 0
+    tier_totals_extended_12m: dict = field(default_factory=dict)
+    extended_hits: list[dict] = field(default_factory=list)
 
     # -- Abfragen -------------------------------------------------------
     def thin_names(self) -> list[str]:
@@ -411,6 +519,9 @@ class CorpusEvidence:
         if not terms:
             return True
         hits = sum(1 for r in self.rows if text_hits_gap(raw_text(r), terms))
+        # Erweiterte Zeilen zaehlen nur ueber den Namen, der sie hereinholte —
+        # sonst deckt "Microsoft" + "virtual" jede Luecke mit zwei Fuellwoertern.
+        hits += sum(1 for r in self.rows_extended if _names_in(text, r.get("extended") or []))
         return hits < THIN_MUST_MIN
 
     def catalog_ids(self) -> set[str]:
@@ -432,6 +543,10 @@ class CorpusEvidence:
                                for s in self.representative],
             "must_hits": self.must_hits, "regulatory_12m": self.regulatory_12m,
             "thin_areas": self.thin_areas, "rendered_md": self.rendered_md,
+            "extra_terms": self.extra_terms, "n_signals_extended": self.n_signals_extended,
+            "n_signals_extended_12m": self.n_signals_extended_12m,
+            "tier_totals_extended_12m": self.tier_totals_extended_12m,
+            "extended_hits": self.extended_hits,
         }
 
 
@@ -543,12 +658,23 @@ def pick_representative(rows: list[dict], search, topic: str, stems: list[str],
     return out[:cap]
 
 
+def _names_in(text: str, names: list[str]) -> bool:
+    low = normalize_text(text)
+    return any(normalize_text(n) and normalize_text(n) in low for n in names)
+
+
 def must_answer_hits(must: list[str], rows: list[dict], search, stems: list[str]) -> list[dict]:
     out: list[dict] = []
     for item in must:
         terms = gap_terms(item)
         ids: set[str] = set()
         for r in rows:
+            if r.get("extended"):
+                # Runde 28: eine erweiterte Zeile trifft den Pflichtpunkt nur
+                # ueber den Namen, der sie hereinholte ("SYS.1.5", "Proxmox").
+                if _names_in(item, r.get("extended") or []):
+                    ids.add(f"T{r['id']}")
+                continue
             if text_hits_gap(raw_text(r), terms):
                 ids.add(f"T{r['id']}")
         if search is not None and terms:
@@ -617,9 +743,18 @@ def render_block(ev: CorpusEvidence) -> str:
     if ev.sources:
         L.append("Outlets: " + "; ".join(f"{s['name']} ×{s['n']}" for s in ev.sources))
     L.append(f"Regulation/decision signals in 12 months: {ev.regulatory_12m}.")
+    if ev.extra_terms:
+        tt = ev.tier_totals_extended_12m or {}
+        L.append(f"EXTENDED set (flagged, not in the table above — signals carrying ONE topic term "
+                 f"plus a product/actor name from the brief or the field profile: "
+                 f"{', '.join(ev.extra_terms[:10])}): {ev.n_signals_extended:,} further signal(s) "
+                 f"since {ev.since}, {ev.n_signals_extended_12m:,} in 12 months ("
+                 + ", ".join(f"{t} {int(tt.get(t, 0))}" for t in TIERS) + ")"
+                 + ("; names hit: " + "; ".join(f"{h['name']} ×{h['n']}" for h in ev.extended_hits[:8])
+                    if ev.extended_hits else "") + ".")
     L.append("")
     if ev.representative:
-        L.append("Representative signals (cite by id):")
+        L.append("Representative signals (cite by id; 'extended' = matched by a product/actor name):")
         for s in ev.representative:
             L.append(f"- [[{s['id']}]] [{s['kind']}] {s.get('date') or '—'} · {s.get('tier') or '?'} · "
                      f"{s.get('title')}" + (f" — {s['outlet']}" if s.get("outlet") else "")
@@ -645,11 +780,20 @@ def render_note(ev: CorpusEvidence) -> str:
 # Einstieg
 # --------------------------------------------------------------------------
 
+EXTENDED_REPRESENTATIVE = 4
+
+
 def build(topic: str, brief: dict | None = None, *, terms: list[str] | None = None,
           search=None, since_months: int = SINCE_MONTHS, today: date | None = None,
-          row_to_source=None) -> CorpusEvidence:
+          row_to_source=None, entities: list[str] | None = None) -> CorpusEvidence:
     """Der Korpus-Durchgang. Gibt IMMER ein CorpusEvidence zurück; jeder DB-
-    oder Suchfehler wird zum Fehlgrund (`ok=False`), nie zum Absturz."""
+    oder Suchfehler wird zum Fehlgrund (`ok=False`), nie zum Absturz.
+
+    Runde 28: `entities` (Akteur-/Produktnamen des Profils, Stufe 2) und die
+    Eigennamen der Pflichtpunkte des Auftrags bilden den ERWEITERTEN Satz
+    (Name + mindestens ein Themenstamm); die Tabelle, die Akteure und die
+    Duenne-Regel je Ebene bleiben auf dem Kernsatz (UND ueber die Themen-
+    begriffe), Pflichtpunkt-Treffer und `gap_is_thin` zaehlen beide."""
     t0 = time.time()
     today = today or datetime.now().date()
     ev = CorpusEvidence(measured_on=today.isoformat())
@@ -661,12 +805,23 @@ def build(topic: str, brief: dict | None = None, *, terms: list[str] | None = No
     ev.since = since.isoformat()
     ev.quarters = last_quarters(today, QUARTERS)
     must = [str(m) for m in ((brief or {}).get("must_answer") or []) if str(m).strip()]
+    ents = [clean_entity(e) for e in (entities or []) if clean_entity(e)]
+    ents = [e for e in dict.fromkeys(ents) if e.lower() not in {t.lower() for t in ev.terms}]
+    nouns: list[str] = []
+    for item in must:
+        for n in proper_nouns(item):
+            if n.lower() not in {e.lower() for e in ents} and n.lower() not in {t.lower() for t in ev.terms}:
+                if n not in nouns:
+                    nouns.append(n)
+    ev.extra_terms = ents + nouns
     if not ev.stems:
         ev.reason = "no usable topic terms"
         ev.rendered_md = render_block(ev)
         return ev
     try:
-        rows = fetch_topic_rows(ev.stems, since, terms=ev.terms)
+        rows_all = fetch_topic_rows(ev.stems, since, terms=ev.terms, entities=ents, topic_nouns=nouns)
+        rows = [r for r in rows_all if not r.get("extended")]
+        rows_ext = [r for r in rows_all if r.get("extended")]
     except Exception as exc:                                        # noqa: BLE001
         logger.warning("corpus evidence: topic rows not measured (%r)", exc)
         ev.reason = f"corpus rows not measured ({type(exc).__name__})"
@@ -679,24 +834,45 @@ def build(topic: str, brief: dict | None = None, *, terms: list[str] | None = No
         logger.warning("corpus evidence: tier totals not measured (%r) — raw counts only", exc)
     ev.ok = True
     ev.rows = rows
+    ev.rows_extended = rows_ext
     ev.n_signals = len(rows)
     cut12 = months_ago(today, 12).isoformat()
     rows12 = [r for r in rows if _date_of(r) >= cut12]
     ev.n_signals_12m = len(rows12)
+    ev.n_signals_extended = len(rows_ext)
+    ext12 = [r for r in rows_ext if _date_of(r) >= cut12]
+    ev.n_signals_extended_12m = len(ext12)
+    ev.tier_totals_extended_12m = {t: sum(1 for r in ext12 if r.get("tier") == t) for t in TIERS}
+    hits: Counter = Counter(n for r in rows_ext for n in (r.get("extended") or []))
+    ev.extended_hits = [{"name": k, "n": n} for k, n in sorted(hits.items(), key=lambda kv: (-kv[1], kv[0]))]
     ev.signals_by_tier_quarter = tally_tier_quarter(rows, ev.quarters, totals)
     ev.tier_totals_12m = {t: sum(1 for r in rows12 if r.get("tier") == t) for t in TIERS}
     ev.actors = tally_actors(rows)
     ev.sources = tally_sources(rows)
     ev.regulatory_12m = regulatory_count(rows, months_ago(today, 12))
     ev.representative = pick_representative(rows, search, topic, ev.stems, row_to_source)
-    ev.must_hits = must_answer_hits(must, rows, search, ev.stems)
+    if rows_ext and len(ev.representative) < REPRESENTATIVE_MAX + EXTENDED_REPRESENTATIVE:
+        to_src = row_to_source or default_row_to_source
+        seen_ids = {s_["id"] for s_ in ev.representative}
+        for r in sorted(rows_ext, key=_date_of, reverse=True)[:EXTENDED_REPRESENTATIVE]:
+            src = to_src(r, "article" if r.get("status") == "published" else "signal")
+            if src["id"] in seen_ids:
+                continue
+            src["tier"] = r.get("tier")
+            src["why"] = "extended: " + ", ".join(r.get("extended") or [])[:60]
+            src["fetched"] = True
+            seen_ids.add(src["id"])
+            ev.representative.append(src)
+    ev.must_hits = must_answer_hits(must, rows + rows_ext, search, ev.stems)
     ev.thin_areas = find_thin_areas(ev.tier_totals_12m, ev.must_hits, ev.regulatory_12m)
     ev.seconds = round(time.time() - t0, 1)
     ev.rendered_md = render_block(ev)
     logger.info("corpus evidence: %d signal(s) since %s (%d in 12 months), tiers 12m %s, "
-                "%d actor(s), %d representative, thin: %s (%.1fs)",
+                "%d actor(s), %d representative, extended +%d (%s), thin: %s (%.1fs)",
                 ev.n_signals, ev.since, ev.n_signals_12m, ev.tier_totals_12m, len(ev.actors),
-                len(ev.representative), ", ".join(ev.thin_names()) or "nothing", ev.seconds)
+                len(ev.representative), ev.n_signals_extended,
+                ", ".join(ev.extra_terms[:6]) or "no names",
+                ", ".join(ev.thin_names()) or "nothing", ev.seconds)
     return ev
 
 

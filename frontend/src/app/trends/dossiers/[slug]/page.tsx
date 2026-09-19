@@ -157,6 +157,15 @@ function CorpusEvidence({ ev, gating }: { ev: DossierCorpusEvidence; gating: Dos
             </dd>
             <dt className={label}>Outlets</dt>
             <dd className="text-text">{ev.sources.length > 0 ? ev.sources.map((s) => `${s.name} ×${s.n}`).join(" · ") : "—"}</dd>
+            {ev.extraTerms.length > 0 && (
+              <>
+                <dt className={label}>Extended</dt>
+                <dd className="text-muted" title="one topic term plus a product/actor name from the brief or the field profile — flagged, not in the table">
+                  +{ev.nSignalsExtended.toLocaleString("en-US")} signal(s) ({ev.nSignalsExtended12m.toLocaleString("en-US")} in 12 months) carrying one topic term plus a name
+                  {ev.extendedHits.length > 0 && `: ${ev.extendedHits.slice(0, 8).map((h) => `${h.name} ×${h.n}`).join(" · ")}`}
+                </dd>
+              </>
+            )}
             <dt className={label}>Representative</dt>
             <dd className="text-muted">
               {ev.representative.length > 0

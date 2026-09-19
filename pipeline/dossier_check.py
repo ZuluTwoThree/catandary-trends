@@ -201,7 +201,47 @@ def check_result(result: dict) -> dict:
             + ", ".join(st["sectors_missing"]) + ".")
     for a in (st.get("advisory") or []):
         findings.append(a)
-    if st.get("dropped_sentences"):
+    by_kind = st.get("drops_by_kind") or {}
+    if st.get("dropped_sentences") and by_kind:
+        # Runde 28: je Streichgrund ueber ALLE Durchgaenge gezaehlt
+        # (`drop_unverified(counts=)`). Die alte Rechnung unten zog die
+        # Zaehler des LETZTEN Durchgangs vom Gesamt ab und nannte den Rest
+        # "Zahl nicht auf der Seite" — datacenter v7: "23 von 27", real 2.
+        labels = [
+            ("figure", "enthielt die zitierte Web-Seite die behauptete Zahl nicht"),
+            ("subject", "zitierte die Seite ein anderes Thema als der Satz (oder die Aussagenpruefung "
+                        "fand die Seite unbezogen)"),
+            ("contradicted", "widersprach die zitierte Seite dem Satz (Aussagenpruefung)"),
+            ("sourceless", "stand eine Praezisionszahl ohne Beleg im Satz"),
+            ("distorted", "gab der Satz die Seite verdreht wieder (Qualifizierer/Groessenordnung/Kategoriewort)"),
+            ("qualifier", "gab der Satz die Seite verdreht wieder (Qualifizierer)"),
+            ("magnitude", "gab der Satz die Seite verdreht wieder (Groessenordnung)"),
+            ("category", "gab der Satz die Seite verdreht wieder (Kategoriewort)"),
+            ("misattributed", "stand die Zahl auf der Seite bei einer anderen Studie"),
+            ("measure", "nannte der Satz eine eigene Messgroesse, die die Verwendbarkeitsregel sperrt"),
+            ("marked_secondary", "ruhte eine Kernaussage nur auf Rang-2-Material und wurde als "
+                                 "\"secondary source only\" gekennzeichnet"),
+            ("weaksource", "ruhte eine Kernaussage der Kurzfassung nur auf Rang-2-Material und wurde gestrichen"),
+            ("weakclaim", "ruhte eine Kernaussage der Kurzfassung nur auf Rang-2-Material und wurde gestrichen"),
+            ("uncited", "stand eine datierte Aussage ohne jeden Beleg in einem Kernabschnitt"),
+            ("marketing", "hing eine Hersteller-Aussage nur an Marketingseiten"),
+            ("reach", "berief sich der Satz auf ein Verzeichnis, das die Seite nicht fuehrt"),
+            ("orphan", "blieb ein Anschluss-Absatz oder ein leeres Etikett ohne Bezug zurueck (mechanisch mit entfernt)"),
+        ]
+        why = []
+        seen_k: set[str] = set()
+        for k, label in labels:
+            n = int(by_kind.get(k) or 0)
+            if n:
+                why.append(f"{n}× {label}")
+                seen_k.add(k)
+        for k, n in sorted(by_kind.items()):
+            if k not in seen_k and int(n or 0):
+                why.append(f"{int(n)}× Streichgrund '{k}'")
+        findings.append(
+            f"{st['dropped_sentences']} Satz/Saetze gestrichen oder gekennzeichnet: "
+            + ", ".join(why) + ".")
+    elif st.get("dropped_sentences"):
         # Drei Streichgruende, drei Formulierungen — "die Zahl stand nicht auf
         # der Seite" war nach Runde 3 nicht mehr die ganze Wahrheit.
         why = []
@@ -275,6 +315,16 @@ def check_result(result: dict) -> dict:
             + (f"; Endfassung: {a.get('contradicted', 0)} widersprochen, "
                f"{a.get('unrelated', 0)} unbezogen" if a else "")
             + (" (Seitenzahl gedeckelt)" if (b.get("capped") or a.get("capped")) else "") + ".")
+    if st.get("legal_rescued"):
+        findings.append(
+            f"Zahlenpruefung: {int(st['legal_rescued'])}× stand die Zahl nicht im gespeicherten "
+            f"Ausschnitt des Rechtstexts, aber im vollen Text (Artikelschnitt um die Woerter des "
+            f"Satzes) — nicht gestrichen.")
+    if st.get("contradiction_scope_excluded"):
+        findings.append(
+            f"Widerspruchs-Gate: {len(st['contradiction_scope_excluded'])} Kandidat(en) als "
+            f"Scope-Aussage (das Dossier empfiehlt nichts) oder Fokus-/Drift-Einwand ausgeschlossen "
+            f"— kein Widerspruch zwischen Tatsachen.")
     if st.get("contradictions_after"):
         findings.append(
             f"Widerspruch Kurzfassung/Rest nach dem gezielten Neuwurf noch offen "

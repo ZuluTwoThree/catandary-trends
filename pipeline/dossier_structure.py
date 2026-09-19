@@ -34,7 +34,7 @@ import re
 from urllib.parse import urlparse
 from datetime import date
 
-from pipeline.grounding import (_concrete_tokens, _in_source, _source_words,
+from pipeline.grounding import (_concrete_tokens, _in_source, _source_words, _norm_token,
                                 ungrounded_specifics)
 
 # --- Laengenbudget --------------------------------------------------------
@@ -2291,30 +2291,252 @@ _VERIFIABLE_KINDS = ("web", "legal", "market", "entity")
 # "1,2 Mio. Patienten". Fuer Dezimalwerte pruefen wir deshalb ZUSAETZLICH
 # trennzeichen-erhaltend: 1.2 darf 1,2 oder 1·2 auf der Seite treffen, aber
 # niemals 12. Ganze Zahlen bleiben beim toleranten Pfad von grounding.py.
-_DECIMAL_RE = re.compile(r"^[$€£]?\s?(\d{1,3})[.,\u00b7](\d{1,2})%?$")
+_DECIMAL_RE = re.compile(r"^[$€£]?\s?(\d{1,3})[.,·](\d{1,2})%?$")
 
 
 def _decimal_on_page(token: str, page: str) -> bool:
     m = _DECIMAL_RE.match(token)
     if not m:
         return True
-    pat = re.compile(rf"(?<!\d){re.escape(m.group(1))}[.,\u00b7]{re.escape(m.group(2))}"
+    pat = re.compile(rf"(?<!\d){re.escape(m.group(1))}[.,·]{re.escape(m.group(2))}"
                      rf"(?!\d)")
-    return bool(pat.search(page or ""))
+    if pat.search(page or ""):
+        return True
+    # Runde 28: "6.0" ist "6" — ein Dezimalwert mit Null-Nachkommastelle darf
+    # die ganze Zahl auf der Seite treffen (exakt, als eigenes Token).
+    if set(m.group(2)) == {"0"}:
+        return bool(re.search(rf"(?<![\d.,·]){re.escape(m.group(1))}(?![\d.,·]\d)",
+                              page or ""))
+    return False
 
 
-def unverified_tokens(claim: str, page: str) -> list[str]:
+# --------------------------------------------------------------------------
+# Runde 28 (2026-09-19): Formatvarianten, Bezeichner, Messblock, Rechtstext
+# --------------------------------------------------------------------------
+# datacenter v7 verlor "12" aus einer ISO-Datumsangabe (2023-12-13) gegen eine
+# Seite mit "13 December 2023", v2 "29" aus "29 September 2020" gegen
+# "29.09.2020", v6 "12" gegen "22.12.2023"; "2854" aus "Regulation (EU)
+# 2023/2854" ist ein Bezeichner des Rechtsakts (im Katalog belegt), und die
+# Anteile je 10.000 aus dem eigenen Korpus-Block liefen als "ohne Beleg".
+# Alles hier ist Formatvergleich: kein Token wird akzeptiert, das die Seite
+# (oder der eigene Messblock, oder der Katalog) nicht in IRGENDEINER Form
+# traegt.
+_MONTHS = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7,
+    "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7, "aug": 8, "sep": 9,
+    "sept": 9, "oct": 10, "nov": 11, "dec": 12,
+    "januar": 1, "februar": 2, "märz": 3, "maerz": 3, "mai": 5, "juni": 6, "juli": 7,
+    "oktober": 10, "dezember": 12, "mär": 3, "okt": 10, "dez": 12,
+}
+_MONTH_ALT = "|".join(sorted(_MONTHS, key=len, reverse=True))
+_DATE_DMY_WORD = re.compile(
+    rf"(?<!\d)(\d{{1,2}})\.?\s+({_MONTH_ALT})\.?\s+(\d{{4}})(?!\d)", re.IGNORECASE)
+_DATE_MDY_WORD = re.compile(
+    rf"\b({_MONTH_ALT})\.?\s+(\d{{1,2}})(?:st|nd|rd|th)?,?\s+(\d{{4}})(?!\d)", re.IGNORECASE)
+_DATE_ISO = re.compile(r"(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)")
+_DATE_DOT = re.compile(r"(?<!\d)(\d{1,2})[./](\d{1,2})[./](\d{4})(?!\d)")
+_QUARTER_ALPHA = re.compile(r"\b([QH])([1-4])\s*[/ -]?\s*((?:19|20)\d{2})\b", re.IGNORECASE)
+_QUARTER_ALPHA_REV = re.compile(r"\b((?:19|20)\d{2})\s*[- /]\s*([QH])([1-4])\b", re.IGNORECASE)
+_QUARTER_WORD = re.compile(
+    r"\b(first|second|third|fourth|1st|2nd|3rd|4th|erste[sn]?|zweite[sn]?|dritte[sn]?|vierte[sn]?)"
+    r"\s+(quarter|half|quartal|halbjahr)(?:\s+(?:of|von))?\s+((?:19|20)\d{2})\b", re.IGNORECASE)
+_ORDINALS = {"first": 1, "1st": 1, "second": 2, "2nd": 2, "third": 3, "3rd": 3, "fourth": 4, "4th": 4}
+_GROUPED_DIGITS = re.compile(r"(?<![\d.,])(\d{1,3}(?:[    ]\d{3})+)(?![\d.,]\d)")
+# Genau ein oder zwei Nullen nach dem Trenner, keine Ziffer danach — "8,000"
+# ist eine Tausendergruppe und impliziert KEINE "8" (Iron-Air v3: "8+ hour"
+# gegen "8,000 cycle warranties").
+_ZERO_DECIMAL = re.compile(r"(?<![\d.,\u00b7])(\d+)[.,]0{1,2}(?![\d.,\u00b7]?\d)(?!%)")
+# Bezeichner eines Rechtsakts: "Regulation (EU) 2023/2854", "(EC) No 1924/2006",
+# "Directive 2019/944", "Verordnung (EU) 2016/679" — ein Name, keine Messung;
+# akzeptiert nur, wenn die Nummer im Katalog des Laufs vorkommt.
+_ACT_ID = re.compile(
+    r"\b(?:Regulation|Directive|Decision|Verordnung|Richtlinie|Beschluss|Reg\.|RL)\s*"
+    r"(?:\((?:EU|EC|EEC|EG|EWG|EU,\s*Euratom)\)\s*)?(?:No\.?\s*|Nr\.?\s*)?"
+    r"(\d{1,4}/\d{1,4})(?:/(?:EU|EC|EEC|EG))?\b")
+_ACT_ID_BARE = re.compile(r"(?<![\d/])(\d{1,4}/\d{1,4})(?![\d/])")
+# Versionsnummer hinter einem grossgeschriebenen Namen: "PDM 1.0",
+# "Datacenter Manager 1.0", "vSphere 8.0" — Bezeichner, kein Messwert.
+# Kein Waehrungs-/Einheitenwort davor ("USD 12.9", "EUR 0.5") und keine
+# Groessenangabe dahinter ("12.9 billion", "1.5 GW") — das sind Messwerte.
+_VERSION_STOP = frozenset("""
+usd eur gbp chf jpy cny cad aud sek nok dkk pln czk huf inr krw brl mxn rmb
+bn mn mio mrd million billion trillion thousand approx approximately
+about around circa nearly almost over under above below only just some
+january february march april may june july august september october november
+december jan feb mar apr jun jul aug sep sept oct nov dec
+q1 q2 q3 q4 h1 h2 fy cagr gdp
+""".split())
+_VERSION_AFTER_NAME = re.compile(
+    r"\b(?P<name>[A-Z][A-Za-z]+|[a-z][A-Z][A-Za-z]+)\s+v?(?P<ver>\d{1,2}\.\d{1,2}(?:\.\d{1,3})?)"
+    r"(?!\s*(?:%|percent|bn|mn|m\b|k\b|billion|million|trillion|thousand|per\b|"
+    r"[kmgt]?wh?\b|years?|months?|weeks?|days?|hours?|tonnes?|tons?|units?|patients?|"
+    r"[€$£]|euro|dollar|pounds?))\b")
+
+
+def _dates_in(text: str) -> set[tuple[int, int, int]]:
+    out: set[tuple[int, int, int]] = set()
+    for m in _DATE_DMY_WORD.finditer(text or ""):
+        mo = _MONTHS.get(m.group(2).lower())
+        if mo:
+            out.add((int(m.group(3)), mo, int(m.group(1))))
+    for m in _DATE_MDY_WORD.finditer(text or ""):
+        mo = _MONTHS.get(m.group(1).lower())
+        if mo:
+            out.add((int(m.group(3)), mo, int(m.group(2))))
+    for m in _DATE_ISO.finditer(text or ""):
+        out.add((int(m.group(1)), int(m.group(2)), int(m.group(3))))
+    for m in _DATE_DOT.finditer(text or ""):
+        out.add((int(m.group(3)), int(m.group(2)), int(m.group(1))))
+    return {(y, mo, d) for y, mo, d in out if 1 <= mo <= 12 and 1 <= d <= 31}
+
+
+def _periods_in(text: str) -> set[tuple[int, str]]:
+    """(Jahr, "Q2"/"H1") — "Q2 2026", "2026-Q2", "second quarter of 2026"."""
+    out: set[tuple[int, str]] = set()
+    for m in _QUARTER_ALPHA.finditer(text or ""):
+        out.add((int(m.group(3)), (m.group(1) + m.group(2)).upper()))
+    for m in _QUARTER_ALPHA_REV.finditer(text or ""):
+        out.add((int(m.group(1)), (m.group(2) + m.group(3)).upper()))
+    for m in _QUARTER_WORD.finditer(text or ""):
+        w = m.group(1).lower()
+        n = _ORDINALS.get(w) or {"e": 1, "z": 2, "d": 3, "v": 4}.get(w[0], 0)
+        unit = "Q" if m.group(2).lower().startswith("q") else "H"
+        if n and (unit == "Q" or n <= 2):
+            out.add((int(m.group(3)), f"{unit}{n}"))
+    return out
+
+
+def _date_tokens(text: str, dates: set[tuple[int, int, int]]) -> set[str]:
+    """Die Tokens des Satzes, die zu einer Datumsangabe gehoeren, deren Datum
+    (in irgendeinem Format) auf der Seite steht."""
+    out: set[str] = set()
+    for rx, order in ((_DATE_DMY_WORD, (3, 2, 1)), (_DATE_MDY_WORD, (3, 1, 2)),
+                      (_DATE_ISO, (1, 2, 3)), (_DATE_DOT, (3, 2, 1))):
+        for m in rx.finditer(text or ""):
+            g = [m.group(i) for i in order]
+            mo = _MONTHS.get(g[1].lower()) if not g[1].isdigit() else int(g[1])
+            if not mo:
+                continue
+            if (int(g[0]), mo, int(g[2])) in dates:
+                out |= _concrete_tokens(m.group(0))
+    return out
+
+
+def _period_tokens(text: str, periods: set[tuple[int, str]]) -> set[str]:
+    out: set[str] = set()
+    for rx, yi, qi in ((_QUARTER_ALPHA, 3, None), (_QUARTER_ALPHA_REV, 1, None), (_QUARTER_WORD, 3, None)):
+        for m in rx.finditer(text or ""):
+            if rx is _QUARTER_WORD:
+                w = m.group(1).lower()
+                n = _ORDINALS.get(w) or {"e": 1, "z": 2, "d": 3, "v": 4}.get(w[0], 0)
+                key = (int(m.group(3)), ("Q" if m.group(2).lower().startswith("q") else "H") + str(n))
+            elif rx is _QUARTER_ALPHA:
+                key = (int(m.group(3)), (m.group(1) + m.group(2)).upper())
+            else:
+                key = (int(m.group(1)), (m.group(2) + m.group(3)).upper())
+            if key in periods:
+                out |= _concrete_tokens(m.group(0))
+    return out
+
+
+def page_variants(page: str) -> str:
+    """Zusaetzliche Schreibweisen, die die Seite impliziert: "10 605" ->
+    "10605", "6.0" -> "6". Wird NICHT an den
+    Heuhaufen gehaengt, sondern nur EXAKT (normalisiert) verglichen — sonst
+    naehrte "12 900" ueber die Teilstring-Toleranz von `ungrounded_specifics`
+    eine erfundene "12.9"."""
+    if not page:
+        return ""
+    extra: list[str] = []
+    for m in _GROUPED_DIGITS.finditer(page):
+        extra.append(re.sub(r"[    ]", "", m.group(1)))
+    for m in _ZERO_DECIMAL.finditer(page):
+        extra.append(m.group(1))
+    # Datumsangaben NICHT als Tokens: eine Monatskomponente "02" aus
+    # "2027-02-18" belegte sonst die "2" aus ">2 kWh" (batteries v1). Daten
+    # vergleicht `_date_tokens` als ganze Angabe in beliebigem Format.
+    return " ".join(extra)
+
+
+def _act_ids(claim: str) -> set[str]:
+    return {m.group(1) for m in _ACT_ID.finditer(claim or "")}
+
+
+# "Article 28/32", "Articles 28 and 32", "Art. 28, 32", "§§ 3, 4" — jede
+# Nummer der Liste ist ein Bezeichner (grounding.py kennt nur die erste).
+_ARTICLE_LIST = re.compile(
+    r"\b(?:Articles?|Art\.|Artikel|§§?|Sections?|Sec\.|Paragraphs?|Abs\.|Absatz|Absätze)\s*"
+    r"(\d{1,4}[a-z]?(?:\s*(?:/|,|;|and|und|&|or|oder|to|bis|-|–)\s*\d{1,4}[a-z]?)*)")
+
+
+def _designator_tokens(claim: str, catalog: str = "") -> set[str]:
+    """Tokens des Satzes, die einen NAMEN tragen: Rechtsakt-Nummern (nur wenn
+    der Katalog des Laufs die Nummer fuehrt), Artikel-Listen und Versions-
+    nummern hinter einem Namen."""
+    out: set[str] = set()
+    cat_ids = {m.group(1) for m in _ACT_ID_BARE.finditer(catalog or "")} if catalog else set()
+    for ident in _act_ids(claim):
+        if ident in cat_ids:
+            out |= _concrete_tokens(ident.replace("/", " "))
+            out.add(ident)
+    for m in _ARTICLE_LIST.finditer(claim or ""):
+        out |= set(re.findall(r"\d{1,4}", m.group(1)))
+    for m in _VERSION_AFTER_NAME.finditer(claim or ""):
+        if m.group("name").lower() not in _VERSION_STOP:
+            out.add(m.group("ver"))
+    return out
+
+
+# Nur ein Satz, der von der EIGENEN Messung spricht, darf seine Zahl aus dem
+# Messblock beziehen — "the next 12 months" wird nicht dadurch belegt, dass die
+# Zykluszeit 12.0 Jahre betraegt.
+_MEASURE_CUE = re.compile(
+    r"measured|measurement|median|improvement rate|cycle time|centrality|per 10[,.]?000|"
+    r"per 10k|/10k|\bn\s?=|signals?\b|corpus|patent citation|measured class|tier\b|"
+    r"quarter|\bQ[1-4]\b|takeoff|gemessen|Median|Zykluszeit|Signale|Korpus", re.IGNORECASE)
+
+
+def _measured_tokens(claim: str, tokens: list[str], measured: str) -> set[str]:
+    if not measured or not tokens or not _MEASURE_CUE.search(claim or ""):
+        return set()
+    have = {_norm_token(t) for t in _concrete_tokens(measured)}
+    out: set[str] = set()
+    for t in tokens:
+        if _norm_token(t) in have and (_DECIMAL_RE.match(t) is None or _decimal_on_page(t, measured)):
+            out.add(t)
+    return out
+
+
+def unverified_tokens(claim: str, page: str, measured: str = "",
+                      catalog: str = "") -> list[str]:
     """Konkrete Tokens des Satzes, die die zitierte Seite nicht hergibt.
 
     Basis ist `ungrounded_specifics` (dieselbe Mechanik wie das Publish-Gate),
-    verschaerft um die Dezimalpruefung oben."""
+    verschaerft um die Dezimalpruefung oben. Runde 28: Formatvarianten der
+    Seite (`page_variants`, exakter Vergleich), Datums-/Quartalsangaben in
+    beliebigem Format, Bezeichner (Rechtsakt im Katalog, Artikel-Listen,
+    Versionsnummer) und Zahlen aus dem EIGENEN Messblock (`measured`), wenn
+    der Satz von der Messung spricht — die sind belegt, nur nicht von der
+    Seite. Ein Token, das in KEINER Form irgendwo steht, bleibt unbelegt."""
+    page = page or ""
     bad = list(ungrounded_specifics(claim, page))
     for t in sorted(_concrete_tokens(claim)):
         if t in bad or _DECIMAL_RE.match(t) is None:
             continue
         if not _decimal_on_page(t, page):
             bad.append(t)
-    return bad
+    if not bad:
+        return []
+    # "6.0 years" gegen "6 years": Null-Nachkommastelle, ganze Zahl exakt da.
+    bad = [t for t in bad if not (_DECIMAL_RE.match(t) and _decimal_on_page(t, page))]
+    variant_norms = {_norm_token(v) for v in _concrete_tokens(page_variants(page))}
+    grounded = {t for t in bad if _norm_token(t) in variant_norms}
+    grounded |= _date_tokens(claim, _dates_in(page)) | _period_tokens(claim, _periods_in(page))
+    grounded |= _designator_tokens(claim, catalog)
+    grounded |= _measured_tokens(claim, bad, measured)
+    gnorm = {_norm_token(g) for g in grounded}
+    return [t for t in bad if t not in grounded and _norm_token(t) not in gnorm]
 
 
 def _cited_in(sentence: str, by_id: dict, by_url: dict) -> list[dict]:
@@ -2333,7 +2555,19 @@ def _cited_in(sentence: str, by_id: dict, by_url: dict) -> list[dict]:
     return out
 
 
-def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
+def catalog_text(sources: list[dict]) -> str:
+    """Titel, URL, Teaser und Text aller Katalogeintraege — fuer Bezeichner
+    (Rechtsakt-Nummern), die der Satz nennt und der Katalog fuehrt."""
+    return "\n".join(" ".join(str(s.get(k) or "") for k in ("title", "url", "origin", "snippet", "text"))
+                     for s in sources or [])
+
+
+def _reslice_terms(claim: str) -> list[str]:
+    return [w for w in re.findall(r"[A-Za-zÀ-ɏ][A-Za-zÀ-ɏ'-]{3,}", claim or "")][:16]
+
+
+def verify_cited_figures(report_md: str, sources: list[dict], measured: str = "",
+                         legal_full=None) -> dict:
     """Jeden Satz, der AUSSCHLIESSLICH gefetchte Web-/Rechtsquellen zitiert,
     gegen deren Volltext pruefen.
 
@@ -2343,9 +2577,15 @@ def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
     bleibt er dem bestehenden Pfad ueberlassen — dessen Beleg ist der
     Evidenzblock, nicht eine Seite.
 
+    Runde 28: `measured` (eigener Messblock + Korpus-Evidenz) belegt Zahlen,
+    die daraus stammen; fuer Rechtstexte wird bei fehlendem Token der volle
+    gecachte Text um die Woerter des Satzes neu geschnitten (`legal_full`:
+    url -> Volltext, Default = Web-Cache; `legal_rescued` zaehlt).
+
     Rueckgabe: {"checked": n Saetze, "figures": n gepruefte Tokens,
                 "unverified": [{"sentence":…, "tokens":[…], "url":…}]}
     """
+    from pipeline import legal_text as _legal
     by_id, by_url = {}, {}
     for s in sources:
         by_id[s.get("id")] = s
@@ -2353,12 +2593,15 @@ def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
             by_url.setdefault(s["origin"], s)
     for s in sources:
         by_url[s.get("url")] = s
+    catalog = catalog_text(sources)
+    full_of = legal_full if legal_full is not None else _legal.cached_full_text
     body = body_text(report_md)
     checked = figures = subjects = 0
     bad: list[dict] = []
     off_topic: list[dict] = []
     distorted: list[dict] = []
     misattributed: list[dict] = []
+    legal_rescued: list[dict] = []
     for raw in split_claims(body):
         sentence = raw.strip()
         if not sentence or sentence.startswith("#"):
@@ -2373,7 +2616,27 @@ def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
             " ".join(str(c.get(k) or "") for k in ("text", "title", "snippet", "date"))
             for c in cited)
         claim = prose(sentence)
-        tokens = unverified_tokens(claim, haystack)
+        tokens = unverified_tokens(claim, haystack, measured, catalog)
+        if tokens:
+            # Rechtstext: im vollen Text um die Woerter des Satzes neu schneiden.
+            for c in cited:
+                url = str(c.get("url") or "")
+                if not _legal.is_legal_host(url):
+                    continue
+                full = full_of(url)
+                if not full or len(full) <= len(str(c.get("text") or "")):
+                    continue
+                kept, labels = _legal.reslice_for(url, _reslice_terms(claim), full_text=full)
+                if not kept:
+                    continue
+                again = unverified_tokens(claim, haystack + "\n" + kept, measured, catalog)
+                if len(again) < len(tokens):
+                    legal_rescued.append({"sentence": sentence, "url": url,
+                                          "tokens": [t for t in tokens if t not in again],
+                                          "articles": labels[:6]})
+                    tokens = again
+                if not tokens:
+                    break
         checked += 1
         figures += len(_concrete_tokens(claim))
         if tokens:
@@ -2401,7 +2664,8 @@ def verify_cited_figures(report_md: str, sources: list[dict]) -> dict:
                                   "url": cited[0].get("url", "")})
     return {"checked": checked, "figures": figures, "unverified": bad,
             "subjects": subjects, "off_topic": off_topic,
-            "distorted": distorted, "misattributed": misattributed}
+            "distorted": distorted, "misattributed": misattributed,
+            "legal_rescued": legal_rescued}
 
 
 # R10-1: „Time horizon" und „Effort" einer Option sind PLANFELDER — sie sagen,
@@ -2867,7 +3131,7 @@ def _remaining_claims(section_text: str) -> list[str]:
 
 
 def drop_unverified(report_md: str, unverified: list[dict],
-                    lang: str = "en") -> tuple[str, int]:
+                    lang: str = "en", counts: dict | None = None) -> tuple[str, int]:
     """Saetze, deren Zahl in der zitierten Seite nicht steht, aus dem Bericht
     entfernen. Letzte Instanz nach dem einen Neuwurf — eine Zahl, die die
     zitierte Quelle nicht hergibt, darf nicht im Dokument stehen bleiben.
@@ -2883,6 +3147,14 @@ def drop_unverified(report_md: str, unverified: list[dict],
     laut Auftrag (R9-1) nicht stehenbleiben — die drei Saetze, die eine
     Entscheidung tragen, sind entweder primaer belegt oder nicht da."""
     out, dropped = report_md, 0
+
+    def _count(kind: str) -> None:
+        # Runde 28: je Streichgrund zaehlen — ueber alle Durchgaenge summiert
+        # der Aufrufer (`structure["drops_by_kind"]`); vorher rechnete der
+        # Pruefnachweis "gesamt minus Zaehler des LETZTEN Durchgangs" und nannte
+        # den Rest "Zahl nicht auf der Seite" (v7: 23 von 27, real 2).
+        if counts is not None:
+            counts[kind] = int(counts.get(kind) or 0) + 1
     # Die Kurzfassung darf durch die Streichung nicht LEER werden (R10-2: "eine
     # Kurzfassung, die nichts zusammenfasst, ist schlimmer als keine" — LFP v3,
     # 2026-09-12: beide Saetze fielen, die Ueberschrift blieb allein). Traegt die
@@ -2903,6 +3175,7 @@ def drop_unverified(report_md: str, unverified: list[dict],
                 if marked != s:
                     out = out.replace(s, marked, 1)
                     dropped += 1
+                    _count("marked_secondary")
                 continue
             # Kurzfassung: streichen (faellt in den allgemeinen Pfad unten).
         if s in decision:
@@ -2917,6 +3190,7 @@ def drop_unverified(report_md: str, unverified: list[dict],
             if trimmed:
                 out = out.replace(s, trimmed, 1)
                 dropped += 1
+                _count(str(e.get("kind") or "figure"))
                 continue
         if s in out:
             if _TABLE_ROW.match(s):
@@ -2928,6 +3202,7 @@ def drop_unverified(report_md: str, unverified: list[dict],
                 out = out.replace(s + " ", "", 1) if (s + " ") in out \
                     else out.replace(s, "", 1)
             dropped += 1
+            _count(str(e.get("kind") or "figure"))
     # Doppelte Leerzeichen/Leerzeilen, die durch die Streichung entstehen.
     out = re.sub(r"[ \t]{2,}", " ", out)
     # Eine Aufzaehlungszeile, deren Inhalt gestrichen wurde, darf nicht als
@@ -2938,6 +3213,8 @@ def drop_unverified(report_md: str, unverified: list[dict],
     out = _renumber_lists(out)
     out, orphans = _mend_paragraphs(out, report_md)
     dropped += orphans
+    if counts is not None and orphans:
+        counts["orphan"] = int(counts.get("orphan") or 0) + orphans
     out = _mend_inline(_mend_tables(out))
     out = re.sub(r"\n{3,}", "\n\n", out)
     return out, dropped

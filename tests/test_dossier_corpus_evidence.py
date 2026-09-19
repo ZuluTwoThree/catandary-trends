@@ -102,6 +102,13 @@ def corpus():
     # ein Signal mit Quelle ohne Ebene (api, kein Name-Muster) -> tier None
     rows.append((400, "Datacenter virtualization thread", "HN", 5, "signal",
                  "2026-09-05", "market_shift", "[]", "[]"))
+    # Runde 28, erweiterter Satz: EIN Themenbegriff plus ein Name aus Profil/
+    # Pflichtpunkt (130: "virtualization" + VMware) — nicht Kern; 131 traegt
+    # nur den Namen (kein Themenstamm) und bleibt draussen.
+    rows.append((130, "VMware licensing shock hits virtualization customers", "Broadcom terms", 1,
+                 "published", "2026-06-05", "market_shift", '["VMware"]', "[]"))
+    rows.append((131, "Microsoft quarterly results beat estimates", "cloud", 1, "published",
+                 "2026-06-06", "market_shift", '["Microsoft"]', "[]"))
     # Fuellstoff fuer die 10k-Normierung: 600 Markt-Signale in 2026-Q3 ohne Thema
     for i in range(1000, 1600):
         rows.append((i, f"Unrelated retail item {i}", "shoes", 1, "signal",
@@ -240,6 +247,53 @@ class TestBuild:
         assert d["n_signals"] == 19 and "rows" not in d
         assert d["representative"][0]["id"].startswith("T")
         assert ce.render_note(ev).startswith("Deterministic corpus evidence")
+
+    def test_extended_set_needs_one_topic_term_plus_a_name(self, corpus):
+        """Runde 28: Profil-/Pflichtpunkt-Namen als ODER-Alternative zu EINEM
+        Themenbegriff; die Tabelle und die Ebenen-Regel bleiben auf dem Kern."""
+        ev = ce.build("datacenter virtualization",
+                      {"must_answer": ["Which alternatives (e.g., Proxmox, Nutanix, or VMware) are viable?"]},
+                      terms=["datacenter", "virtualization"], today=TODAY,
+                      entities=["Microsoft", "VMware", "BSI (Federal Office for Information Security)"])
+        assert ev.n_signals == 19                                   # Kern unveraendert
+        assert ev.tier_totals_12m["market"] == 10
+        assert ev.extra_terms == ["Microsoft", "VMware", "BSI", "Proxmox", "Nutanix"]
+        assert ev.n_signals_extended == 1 and ev.n_signals_extended_12m == 1
+        assert ev.tier_totals_extended_12m == {"science": 0, "patent": 0, "funding": 0, "market": 1}
+        assert ev.extended_hits == [{"name": "VMware", "n": 1}]
+        assert [r["id"] for r in ev.rows_extended] == [130]
+        assert "T131" not in ev.catalog_ids()                        # Name ohne Themenstamm
+        ext = [s for s in ev.representative if str(s["why"]).startswith("extended")]
+        assert [s["id"] for s in ext] == ["T130"] and ext[0]["why"] == "extended: VMware"
+        assert "EXTENDED set (flagged" in ev.rendered_md and "VMware ×1" in ev.rendered_md
+        d = ev.as_dict()
+        assert d["n_signals_extended"] == 1 and d["extra_terms"][1] == "VMware"
+        # der Pflichtpunkt zaehlt die erweiterte Zeile nur ueber ihren Namen
+        assert ev.must_hits[0]["hits"] >= 1
+        assert ce._names_in("VMware licensing terms", ["VMware"])
+        assert ev.gap_is_thin("Proxmox rollout") is True                # ein Treffer < 2 bleibt duenn
+        # Akteure bleiben Kern (VMware nur aus der Tag-Zeile 120)
+        names = {a["name"]: a["n"] for a in ev.actors}
+        assert names["VMware"] == 1
+
+    def test_without_names_nothing_is_extended(self, corpus):
+        ev = ce.build("datacenter virtualization", None, terms=["datacenter", "virtualization"], today=TODAY)
+        assert ev.extra_terms == [] and ev.n_signals_extended == 0
+        assert "EXTENDED set" not in ev.rendered_md
+
+    def test_proper_nouns_and_entity_cleaning(self):
+        assert ce.proper_nouns("Which specific virtualization stack alternatives (e.g., Proxmox, Nutanix, "
+                               "OpenStack, or remaining VMware options) are viable for a small German IT "
+                               "service firm post-Broadcom acquisition?") == \
+            ["Proxmox", "Nutanix", "OpenStack", "VMware", "Broadcom"]
+        assert ce.proper_nouns("What controls does BSI IT-Grundschutz building block SYS.1.5 "
+                               "'Virtualisierung' mandate?") == ["BSI IT-Grundschutz", "SYS.1.5", "Virtualisierung"]
+        assert ce.proper_nouns("What obligations does the EU Data Act impose?") == ["EU Data Act"]
+        assert ce.proper_nouns("How do GDPR Article 28 (Processor) and Article 32 (Security of Processing) "
+                               "translate?") == ["GDPR Article"]
+        assert ce.clean_entity("BSI (Federal Office for Information Security)") == "BSI"
+        row = {"title_en": "Red-Hat ships OpenShift Virtualization", "summary_en": "", "tags": []}
+        assert ce.row_matches_any(row, ["Red Hat", "VMware", "Hats"]) == ["Red Hat"]
 
     def test_no_terms_means_not_ok(self):
         ev = ce.build("the of and", None, terms=[], today=TODAY)
