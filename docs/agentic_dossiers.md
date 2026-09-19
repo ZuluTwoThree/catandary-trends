@@ -2065,3 +2065,151 @@ die Messung über alte Läufe. **Nicht gebaut:** `dossier_query_stats` (Stufe
 Tests: `test_dossier_profile_queries.py` (25), ein Test in
 `test_dossier_dr_mode.py` invertiert (vollständiges Profil schlägt das
 Rückgrat; dünnes Profil bekommt es); volle Suite 1.944 passed, tsc grün.
+
+### Runde 26 (2026-09-19) — Stufe 3: der nutzenbasierte Rechercheur
+
+Plan `docs/plan_dossier_agent_2026-09-18.md`, Stufe 3, plus die drei Lehren
+des Handdurchgangs (`docs/dossier_manual_run_2026-09-19.md`): Rechtstexte
+artikelweise, zwei Seiten je Hersteller-Aussage, der Leser urteilt an den
+Pflichtpunkten. Bis Runde 25 liefen Korpus- und Web-Agent feste Schrittzahlen
+ab (6 + 14) und das Modell allein entschied, welche Lücke dran ist und wann
+Schluss ist; dieselbe Anfrage lief nur dann nicht zweimal, wenn sie
+zeichengleich war (datacenter v5: „BSI IT-Grundschutz SYS.1.5 Virtualisierung
+Baustein Anforderungen" und dieselbe Anfrage mit vertauschten Wörtern).
+
+**1. VOI-Planer (`pipeline/dossier_planner.py`).** Jede offene Lücke trägt
+ein **Gewicht** nach Herkunft (Pflichtpunkt des Auftrags 3,0 > Audit-Lücke
+2,0 > Planschritt 1,0 > festes Muster/Perspektive 0,7), eine **Deckung** in
+[0, 1] (aufgenommene + gelesene Quellen zur Lücke, sättigend bei 3), eine
+**Erfolgswahrscheinlichkeit** (aus `dossier_query_stats`, s. 3; +0,1, wenn
+das Feld bewährte Hosts aus `dossier_source_priors` kennt; Rückfall 0,5) und
+**Kosten** je Aktion (Suche 1, Abruf 2, Öffnen 0,5). `next_action()` ist der
+Argmax von `weight · (1 − coverage) · p_success / cost`; `should_stop()`,
+wenn der beste erwartete Zuwachs unter `DOSSIER_VOI_MIN_GAIN` (Default
+0,15) fällt oder das Aktionsbudget aus ist. Je Lücke und Phase höchstens
+drei Aktionen (`PER_GAP_BUDGET`) — vorher gab es nur das globale Budget.
+Verdrahtet in **beiden** Schleifen von `run()`: der Korpus-Agent plant über
+Planschritte + Pflichtpunkte, der Web-Agent über die nummerierten Lücken
+(Pflichtpunkte stehen jetzt VOR den Audit-Lücken in `gaps`, bekommen den
+internen Sweep und im Ledger `kind: must`; Perspektiv-Lücken des Profils
+bekommen eine eigene Ledger-Zeile an der richtigen Stelle — vorher zeigte
+`ledger[tg]` einer Perspektiv-Lücke auf eine Plan-Zeile). Das Modell schlägt
+weiterhin die konkrete Anfrage vor (`AGENT_SYSTEM`/`WEB_AGENT_SYSTEM`
+unverändert; der Prompt trägt eine Zeile `PLANNER — work on THIS gap now …`
+mit Gewicht, Deckung, erwartetem Zuwachs, Vorschlag search/fetch und, falls
+bekannt, der Schablone, die für diese Lückenart schon einmal trug). Ein
+„finish" des Modells gilt nur, wenn der Planer zustimmt oder das Budget
+aus ist; abgelehnte „finish" und übersprungene Dubletten kosten je eine
+Budgeteinheit und eine Aktion der Lücke (sonst könnte das Modell den Lauf
+endlos verzögern; nach drei Absagen auf derselben Lücke geht der Planer
+weiter). Budget: `brief.budget_minutes`, falls der Auftrag es trägt (linear
+zu 6 + 14 Aktionen je 30 min, 2–40), sonst `max_steps`/`web_steps`. Jede
+Entscheidung steht in `result["voi"]` (`corpus`/`web`: Budget, Gewichte,
+Deckung, `trace` mit `act`/`result`/`stop` und Grund; `dedup`; `budget`;
+`query_stats_updated`).
+
+**2. Fast-Dubletten (`QueryDedup`).** Vor jeder Anfrage in Korpus-Agent,
+Web-Agent und Coverage-Sweep: Cosinus über den CPU-Embedder ≥ 0,9
+(`RESEARCH_EMBED_HOST`, nur bei `retrieval=vector`) → übersprungen und
+protokolliert; ist kein Embedder da oder fällt er im Lauf aus, Token-Jaccard
+≥ 0,8 (einmal geloggt, für den Rest des Laufs). Das Modell bekommt
+`QUERY REFUSED … repeats an earlier query`. **Offline-Messung über die 49
+gespeicherten Läufe (Jaccard-Regel, in Laufreihenfolge):** 367 Web-Suchen,
+davon **4 (1,1 %)** wären übersprungen worden (glp1-dr4, LFP v6, iron-air v1,
+datacenter v5 — dort genau das SYS.1.5-Paar, Jaccard 0,86); 182 Korpus-Suchen,
+**0**. Schwellen-Empfindlichkeit: 0,6 → 10, 0,7 → 6, 0,8 → 4, 0,9 → 1. Der
+zeichengleiche Wiederholungsschutz gab es schon; die Fast-Dublette ist in
+den alten Läufen selten — der Wert der Regel liegt in der Kombination mit
+dem Planer (ohne Budget je Lücke lohnte sich das Paraphrasieren).
+
+**3. Erfahrungsbasis `dossier_query_stats` (`pipeline/dossier_query_stats.py`,
+Migration `scripts/migrate_dossier_query_stats.py`, auf der Live-DB am 19.09.
+ausgeführt).** PK (gap_kind, template): `n_used`, `n_hits`, `n_admitted`
+(**Läufe mit ≥ 1 aufgenommener Quelle** — Erfolgszähler ≤ n_used, sonst wäre
+das Beta-Mittel keine Wahrscheinlichkeit), `n_read`, `n_cited`, `updated_at`.
+Die **Schablone** ist die Anfrage mit Themenbegriffen → `{topic}`, Akteuren →
+`{entity}`, Regulatoren/Instrumenten des Profils → `{instrument}`,
+Jahreszahlen → `{year}`, Zahlen → `{n}`; Plural-s fällt, aufeinanderfolgende
+Platzhalter werden zusammengezogen („semaglutide EMA approval date" und
+„Proxmox BSI approval date" → `{topic} {instrument} approval date`).
+`p_success` je Lückenart = Beta-Mittel `(n_admitted + 1) / (n_used + 2)`
+der Schablone, bei ≥ 2 Schablonen Thompson-Sampling (Ziehung aus
+Beta(n_admitted + 1, n_used − n_admitted + 1) je Schablone, die beste
+gewinnt; `rng` mit Seed 73 je Lauf). Fortschreibung am Laufende aus Ledger,
+`web.steps` (jetzt mit `kind`), `trace` und den Quellen (`query` = die
+Anfrage, die den Treffer aufnahm — neu; alte Läufe kennen nur den gap-Index,
+dann zählt der Treffer für jede Anfrage dieser Lücke); nie sperrend.
+**Backfill über 49 Läufe: 549 Anfragen → 542 Schablonen (audit 288, plan
+254; must 0 — kein alter Lauf trug einen Auftrag), 166 davon mit `{entity}`
+(Akteure für alte Läufe per `harvest_entities` aus dem Katalog geerntet).
+Nur 6 Schablonen kommen ≥ 2× vor.** Ehrlich: modellgeschriebene Anfragen
+wiederholen ihre Form fast nie — die Tabelle wird erst über künftige Läufe
+zu Erfahrung, bis dahin liefert sie dem Planer für die meisten Lückenarten
+den Prior 0,5. `python -m pipeline.dossier_query_stats --show [--kind K]`.
+
+**4. Rechtstexte artikelweise (`pipeline/legal_text.py`, Lehre 6/7).** Für
+`eur-lex.europa.eu`, `gesetze-im-internet.de`, `legislation.gov.uk`,
+`ecfr.gov`, `federalregister.gov` (eine Liste, `LEGAL_HOSTS`) holt
+`fetch_page_for_gap` die Seite mit `fetch_fulltext_result(max_chars=1.500.000)`
+(neuer Parameter, Default unverändert 12.000; eigener Cache-Schlüssel
+`page-legal`) und behält als Seitentext nur den **Definitionsartikel** und
+die **Artikel/Paragraphen, deren Überschrift oder Text die Begriffe der Lücke
+trifft** (Lückentext + Pflichtpunkte + Themenbegriffe), ≤ 12.000 Zeichen,
+in Dokumentreihenfolge; `src["legal_articles"]` nennt sie („Article 2
+(Definitions), Article 23, Article 29, Article 31"). Erkannt werden
+`Article|Art.|Artikel|§|Section|Sec.|Rule|Regulation N` am Zeilenanfang;
+ohne Artikelstruktur bleibt der Anfang. Gilt im Web-Agenten, im
+Leseauffangnetz, im Primärquellen-Vorlauf und im zitatgetriebenen Abruf;
+scheitert der große Abruf, entscheidet der normale Pfad. **Befund in den
+gespeicherten Läufen:** 36 EUR-Lex-URLs im Katalog, 30 gelesen in 8 Läufen —
+**alle auf 961–3.600 Zeichen gekappt** (`MAX_BODY_CHARS`); Kapitel VI des
+Data Act war so nie erreichbar.
+
+**5. Zwei Seiten je Hersteller-Aussage (`dossier_structure.marketing_only_claims`,
+Lehre 5).** Ein Satz der Kernsektionen (Kurzfassung, Recht/IP, Kalender,
+Beobachtungspunkte, Optionen), dessen Belege ALLE Marketingseiten sind
+(Pfad `/pricing`, `/products/`, `/product/`, `/solutions/`, `/compare`, oder
+Rang 2 auf der eigenen Seite eines Akteurs — Host trägt den Akteurnamen),
+ist ein Befund `marketing`, es sei denn derselbe Satz oder derselbe Absatz
+zitiert auch eine Doku-/FAQ-/Normenseite (Rang ≤ 1, `is_doc_host`, oder Pfad
+`/docs`, `/wiki`, `/faq`, `/documentation`, `/support`). Im Neuwurf eine
+eigene Direktive; in `_settle()` **vor der Streichung** eine gezielte Suche
+`site:<host> (docs OR faq OR documentation) <Begriffe des Satzes>` (≤ 4 je
+Durchgang, `MARKETING_REPAIR_MAX`), die erste lesbare Doku-Seite, die den
+Satz laut Aussagenprüfung STÜTZT (`dossier_entailment.support_verdict`, ein
+Aufruf, ein Satz), wird zitiert (`add_citation`) und der Befund ist
+erledigt; sonst fällt der Satz über den normalen Streichpfad. Zähler
+`marketing_before/after/repaired/searches` im Strukturprotokoll. **Offline:**
+31 Marketing-URLs in den 49 Katalogen, 4 zitiert (2 davon `.gov`, Rang 0 —
+von der Regel bewusst ausgenommen; Proxmox-Vergleichsseite in „What the
+evidence does not support", Medi-Weightloss-Preisseite in einer Option) —
+**0 Befunde** nach heutiger Regel; der Proxmox-Fall des Handdurchgangs lag
+in keinem gespeicherten Lauf, weil die Preisseite nie in den Katalog kam.
+
+**6. Der Leser urteilt an den Pflichtpunkten.** `ReaderReview` trägt
+`answered_items`/`unanswered_items` (Default leer — alte Fakes bleiben
+gültig); mit Auftrag heißt `answers_question`: **jeder Pflichtpunkt ist mit
+einer zitierten Aussage beantwortet und nichts im Dossier widerspricht sich**
+— mechanisch aus `unanswered_items` und `coherence`-Befunden abgeleitet, das
+Modell kann es nicht überstimmen. `READER_SYSTEM` und die Checkliste sagen
+ausdrücklich: **eine Empfehlung wird NICHT erwartet** (sie gehört dem
+Advisor) und darf nie als fehlend gelten. Ohne Auftrag (alte Zettel) das
+bisherige Urteil. `reader_lines` nennt die unbeantworteten Punkte mit
+ERGAENZEN-Marke (Evidenzblock kommt mit). Katalog-Eintrag `dossier-reader`
+angepasst.
+
+**Nicht gebaut / Abweichungen:** die Schreiberwahl nach Budget (27B vs.
+Flash-Next) aus dem Plan — `DOSSIER_WRITER_MODEL` bleibt Env-Override, der
+Auftrag trägt noch kein Budget (`budget_minutes` wird gelesen, sobald Stufe 1
+es schreibt); die festen Sweeps (Recht/Markt/Förderung/Kalender) laufen
+weiter mit ihren Musterbudgets und ohne Planer (sie sind deterministisch,
+ihre Anfragen sind per Bau verschieden); Embedding-Dedup nur bei
+Vektorsuche (sonst wäre der CPU-Embedder ein zweiter Ausfallpunkt). Die
+Abnahme laut Plan („gleiche Dichte bei ≤ 70 % der Web-Aufrufe auf der
+LFP-Serie") braucht Live-Läufe — offen bis zum nächsten Vergleichslauf;
+messbar ist sie dann über `voi.web.used` gegen `web.steps` der Vorgänger.
+Tests: `tests/test_dossier_planner.py` (46: Argmax, Stoppregel, Budget je
+Lücke, Thompson mit Seed, Dedup Jaccard + Fake-Embedder + Ausfall, Schablone,
+Upsert/Backfill auf SQLite, Artikel-Slicer mit synthetischem Data-Act-Text,
+Marketing-Regel Proxmox Preis vs. FAQ, Leser-Schema, Verdrahtung in `run()`
+mit Fakes). Volle Suite grün.

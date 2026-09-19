@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import calendar as _calendar
 import re
+from urllib.parse import urlparse
 from datetime import date
 
 from pipeline.grounding import (_concrete_tokens, _in_source, _source_words,
@@ -2508,6 +2509,179 @@ def weak_source_claims(report_md: str, sources: list[dict], lang: str = "en",
     return out
 
 
+# --------------------------------------------------------------------------
+# Zwei Seiten je Hersteller-Aussage (Stufe 3, 2026-09-19 — Lehre 5 des
+# Handdurchgangs: die Proxmox-PREISSEITE ergab „ohne Subscription nur
+# non-production"; erst FAQ (AGPLv3) und Package_Repositories („not
+# recommended … production") trugen die belastbare Aussage). Eine Aussage in
+# einer Kernsektion, die NUR an Marketingseiten hängt (Preis-, Produkt-,
+# Lösungs-, Vergleichsseite oder die eigene Seite eines Anbieters vom Rang 2),
+# ist ein Befund „marketing" — es sei denn, derselbe Satz oder derselbe Absatz
+# zitiert auch eine Dokumentations-/FAQ-/Normenseite (Rang ≤ 1, Doku-Host
+# oder Doku-Pfad).
+# --------------------------------------------------------------------------
+
+MARKETING_PATHS = ("/pricing", "/products/", "/product/", "/solutions/", "/compare")
+DOC_PATHS = ("/docs", "/wiki", "/faq", "/documentation", "/support")
+_HOST_LABEL_STOP = frozenset("www com org net de eu io co uk gov info".split())
+
+
+def _url_path(url: str) -> str:
+    try:
+        return (urlparse(str(url or "")).path or "/").lower()
+    except ValueError:
+        return "/"
+
+
+def _url_host(url: str) -> str:
+    try:
+        return urlparse(str(url or "")).netloc.lower().removeprefix("www.")
+    except ValueError:
+        return ""
+
+
+def is_marketing_url(url: str) -> bool:
+    path = _url_path(url)
+    return any(p in path for p in MARKETING_PATHS)
+
+
+def is_doc_url(url: str, is_doc_host=None) -> bool:
+    path = _url_path(url)
+    if any(p in path for p in DOC_PATHS):
+        return True
+    if is_doc_host is not None:
+        try:
+            return bool(is_doc_host(_url_host(url)))
+        except Exception:                                           # noqa: BLE001
+            return False
+    return False
+
+
+def vendor_own_site(url: str, entities) -> bool:
+    """Der Host trägt den Namen eines Akteurs („proxmox.com" ↔ Proxmox)."""
+    host = _url_host(url)
+    labels = {x for x in host.split(".") if x and x not in _HOST_LABEL_STOP}
+    for e in entities or ():
+        for w in re.findall(r"[a-z0-9]{4,}", str(e or "").lower()):
+            if w in labels:
+                return True
+    return False
+
+
+def _is_doc_source(src: dict, is_doc_host=None) -> bool:
+    rank = int(2 if src.get("rank") is None else src["rank"])
+    url = str(src.get("url") or src.get("origin") or "")
+    return rank <= PRIMARY_RANK or is_doc_url(url, is_doc_host)
+
+
+def _is_marketing_source(src: dict, entities, is_doc_host=None) -> bool:
+    if _is_doc_source(src, is_doc_host):
+        return False
+    url = str(src.get("url") or src.get("origin") or "")
+    if is_marketing_url(url):
+        return True
+    rank = int(2 if src.get("rank") is None else src["rank"])
+    return rank == 2 and vendor_own_site(url, entities)
+
+
+def claim_terms(sentence: str, cap: int = 6) -> list[str]:
+    """Inhaltswörter eines Satzes für die gezielte Doku-Suche."""
+    out: list[str] = []
+    for w in re.findall(r"[A-Za-z\u00c0-\u024f][A-Za-z\u00c0-\u024f0-9-]{3,}", prose(sentence)):
+        wl = w.lower()
+        if wl in _SUBJECT_STOP or wl in _CONTRA_STOP or wl in out:
+            continue
+        out.append(wl)
+        if len(out) >= cap:
+            break
+    return out
+
+
+def _paragraph_sentences(report_md: str, lang: str, keys: tuple[str, ...]):
+    """(Abschnitt, Absatz-Nr., Satz) — für „derselbe Absatz zitiert auch …"."""
+    sections = split_sections(body_text(report_md), _lang(lang))
+    for key in keys:
+        text = sections.get(key, "")
+        if not text:
+            continue
+        for pi, para in enumerate(_PARA_BREAK.split(text)):
+            for line in para.splitlines():
+                if line.strip().startswith("|"):
+                    yield key, pi, line.strip()
+                else:
+                    for c in split_claims(line):
+                        if c.strip():
+                            yield key, pi, c.strip()
+
+
+def marketing_only_claims(report_md: str, sources: list[dict], lang: str = "en",
+                          entities=(), is_doc_host=None,
+                          sections: tuple[str, ...] = CLAIM_SECTIONS) -> list[dict]:
+    """Sätze der Kernsektionen, deren Belege ALLE Marketingseiten sind und
+    deren Absatz keine Doku-/FAQ-/Normenseite zitiert. Rückgabe im Kanal von
+    `verify_cited_figures`: [{"sentence", "tokens", "kind": "marketing",
+    "detail", "url", "host", "section", "terms"}]."""
+    by_id, by_url = _source_index(sources)
+    rows = list(_paragraph_sentences(report_md, lang, sections))
+    para_has_doc: dict[tuple[str, int], bool] = {}
+    for key, pi, sent in rows:
+        if sent.startswith("#"):
+            continue
+        for c in _cited_in(sent, by_id, by_url):
+            if _is_doc_source(c, is_doc_host):
+                para_has_doc[(key, pi)] = True
+    out: list[dict] = []
+    seen: set[str] = set()
+    for key, pi, sent in rows:
+        if sent.startswith("#") or _EMPTY_CLAIM.match(sent) or sent in seen:
+            continue
+        cited = _cited_in(sent, by_id, by_url)
+        if not cited:
+            continue
+        if any(_is_doc_source(c, is_doc_host) for c in cited):
+            continue
+        if not all(_is_marketing_source(c, entities, is_doc_host) for c in cited):
+            continue
+        if para_has_doc.get((key, pi)):
+            continue
+        if len(_WORDISH.findall(prose(sent))) < MIN_CLAIM_WORDS:
+            continue
+        seen.add(sent)
+        url = str(cited[0].get("url") or cited[0].get("origin") or "")
+        hosts = sorted({_url_host(str(c.get("url") or c.get("origin") or "")) for c in cited} - {""})
+        out.append({"sentence": sent, "tokens": [prose(sent).strip()[:60]],
+                    "kind": "marketing", "detail": ", ".join(hosts[:3]),
+                    "url": url, "host": _url_host(url), "section": key,
+                    "terms": claim_terms(sent)})
+    return out
+
+
+def doc_search_query(host: str, terms) -> str:
+    """`site:<host> (docs OR faq OR documentation) <claim terms>`."""
+    host = str(host or "").removeprefix("www.")
+    # Marketingseiten liegen oft auf www., die Doku auf einer Subdomain —
+    # die registrierbare Domain fasst beide.
+    parts = host.split(".")
+    if len(parts) > 2 and parts[-2] not in ("co", "com", "org", "gov", "ac"):
+        host = ".".join(parts[-2:])
+    return f"site:{host} (docs OR faq OR documentation) {' '.join(terms or [])}".strip()
+
+
+def add_citation(report_md: str, sentence: str, marker: str) -> str:
+    """Den Marker an den Satz hängen (vor dem Schlusszeichen), einmal."""
+    if sentence not in report_md or marker in sentence:
+        return report_md
+    body = sentence.rstrip()
+    tail = sentence[len(body):]
+    if body.endswith((".", "!", "?")):
+        new = body[:-1].rstrip() + " " + marker + body[-1] + tail
+    elif body.endswith("|"):
+        new = body[:-1].rstrip() + " " + marker + " |" + tail
+    else:
+        new = body + " " + marker + tail
+    return report_md.replace(sentence, new, 1)
+
+
 def weak_source_figures(report_md: str, sources: list[dict], lang: str = "en",
                         measured: str = "") -> list[dict]:
     """Nur der Zahlen-Teil von `weak_source_claims` (R8-2, unveraendert)."""
@@ -2976,6 +3150,14 @@ def revision_prompt(findings: list[str], cite_findings: list[dict],
                 f"Fachpublikation einer Patentkanzlei, im Katalog mit "
                 f"(primary) markiert. {way_out} "
                 f"Betroffen: \"{e['sentence'][:180]}\"")
+        elif kind == "marketing":
+            lines.append(
+                f"Aussage nur mit MARKETINGSEITEN belegt ({e.get('detail', '')}: Preis-, "
+                f"Produkt- oder Anbieterseite). Eine Hersteller-Aussage braucht eine "
+                f"zweite Seite desselben Hauses — Dokumentation, FAQ, Lizenztext, Norm "
+                f"(im Katalog mit (primary) oder als docs/wiki/faq-Seite) — IM SELBEN "
+                f"Satz oder Absatz; sonst die Aussage als Anbieterangabe kennzeichnen "
+                f"oder streichen: \"{e['sentence'][:180]}\"")
         elif kind == "uncited":
             lines.append(
                 f"Datierte Aussage OHNE jeden Beleg in einem Kernabschnitt: "

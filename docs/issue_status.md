@@ -149,6 +149,16 @@
 >   84 Rang-1-Kandidaten (n_cited ≥ 2, n_dropped = 0, n_read ≥ 1). `--backfill` rechnet die Tabelle NEU
 >   (löscht vorher); der Worker addiert seither je Lauf.
 
+> **Nachtrag 19.09.2026 — Stufe 3 des Dossier-Agent-Plans (nutzenbasierter Rechercheur, Runde 26)** (`docs/agentic_dossiers.md`):
+> - `scripts/migrate_dossier_query_stats.py --backfill` auf der Live-DB ausgeführt (additiv, idempotent):
+>   Tabelle `dossier_query_stats` (PK (gap_kind, template): n_used, n_hits, n_admitted, n_read, n_cited,
+>   updated_at) — wie die anderen Dossier-Tabellen **nicht in `init_db`**; auf einer frischen DB von Hand
+>   nachziehen. Ohne Tabelle rechnet der Planer mit dem Prior 0,5 und der Lauf schreibt nichts (Hinweis im Log).
+> - Backfill über 49 gespeicherte Läufe: 549 Anfragen → 542 Schablonen (audit 288, plan 254), nur 6 ≥ 2×
+>   — Erfahrung entsteht erst über künftige Läufe. `--backfill` rechnet NEU (löscht vorher).
+> - Neue Umgebungsvariable `DOSSIER_VOI_MIN_GAIN` (Default 0,15). `fetch_fulltext_result(max_chars=)` ist
+>   ein neuer optionaler Parameter, Default unverändert (Feed-Pfad unberührt).
+
 Vollständiges Audit aller offenen Issues in der Nacht 2026-08-28 (Referenz `main` = `a6455bf`).
 Jede Aussage gegen Code, DB, crontab und die laufende Instanz (:3001) geprüft.
 **Ergebnis: 14 geschlossen, 1 neu (#94) → Backlog 36 → 23 offen.**

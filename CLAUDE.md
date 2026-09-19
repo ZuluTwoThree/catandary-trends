@@ -1635,6 +1635,26 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   Sweep-Akteure), **Primärquellen-Vorlauf nach Nutzen** (Rang × Profil-/Erfahrungs-Host ×
   Pflichtpunkt-Bezug, Budget unverändert), Vermerk `structure["calendar_off_profile"]`. Abnahme
   „Primäranteil ≥ 60 %" braucht den nächsten Live-Lauf.
+- **Nutzenbasierter Rechercheur (Stufe 3, seit 2026-09-19, Runde 26):** feste
+  Schrittzahlen weichen dem VOI-Planer (`pipeline/dossier_planner.py`) — jede
+  Lücke trägt Gewicht (Pflichtpunkt 3 > Audit 2 > Plan 1 > Muster 0,7), Deckung
+  und Erfolgswahrscheinlichkeit aus `dossier_query_stats`; Argmax von
+  `weight·(1−coverage)·p/cost`, Stopp bei Zuwachs < `DOSSIER_VOI_MIN_GAIN`
+  (0,15) oder Budget aus, höchstens 3 Aktionen je Lücke; das Modell formuliert
+  die Anfrage, der Planer wählt Lücke und Ende (Trace in `result["voi"]`).
+  Fast-Dubletten (Cosinus ≥ 0,9 über den CPU-Embedder, sonst Jaccard ≥ 0,8)
+  werden übersprungen. Erfahrungsbasis `dossier_query_stats` (PK (gap_kind,
+  template), Schablone = Anfrage mit `{topic}`/`{entity}`/`{instrument}`/
+  `{year}`; Migration `scripts/migrate_dossier_query_stats.py`, Live-DB
+  19.09.). Dazu die Lehren des Handdurchgangs (`docs/dossier_manual_run_
+  2026-09-19.md`): Rechtstexte von EUR-Lex/gesetze-im-internet/legislation.gov.uk/
+  eCFR/Federal Register werden **artikelweise** gelesen (`pipeline/legal_text.py`:
+  Definitionsartikel + Artikel mit Begriffstreffer, ≤ 12.000 Zeichen); eine
+  Kernaussage, die nur an Marketingseiten hängt, braucht eine **zweite Seite
+  desselben Hauses** (Doku/FAQ — gezielte `site:`-Suche vor der Streichung,
+  Aussagenprüfung entscheidet); der **Leser urteilt an den Pflichtpunkten**
+  (`answered_items`/`unanswered_items`), eine Empfehlung wird ausdrücklich
+  nicht erwartet.
 - **Zugriff:** lokal standardmäßig AN (`DOSSIERS_ENABLED=0` = Not-Aus);
   `PUBLIC_MODE=1` blockt die Route (`BLOCKED_PREFIXES` + `proxy.ts`), der
   statische Export baut sie nie (`frontend/static-export.exclude`, Drift-Wächter

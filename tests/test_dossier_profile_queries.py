@@ -331,6 +331,10 @@ def _src(i, url, title="", snippet=""):
 class TestPrimaryFirstOrder:
     def test_rank_then_prior_then_must_terms_then_hit_order(self, monkeypatch):
         read: list[str] = []
+        # Stufe 3: EUR-Lex laeuft artikelweise ueber fetch_fulltext_result —
+        # hier ohne Netz gescheitert, dann faellt der Abruf auf den Stub zurueck.
+        from pipeline.article_fetcher import FetchResult
+        monkeypatch.setattr(cr, "fetch_fulltext_result", lambda url, **kw: FetchResult(None, "error"))
         monkeypatch.setattr(cr, "fetch_web_page_status",
                             lambda url: (read.append(url) or ("body 12 May 2026", "ok")))
         sources = [

@@ -198,6 +198,26 @@ v3/v4) — der Auftrag entscheidet, nicht die Env.
 *Abnahme:* gleiche Dichte bei ≤ 70 % der Web-Aufrufe auf der LFP-Serie; keine
 zwei Anfragen mit Cosinus ≥ 0,9 in einem Lauf.
 
+**Stand Stufe 3 (2026-09-19, gebaut — Runde 26 in `docs/agentic_dossiers.md`):**
+`pipeline/dossier_planner.py` (Lücken mit Gewicht 3/2/1/0,7, Deckung sättigend
+bei 3, `p_success` aus `dossier_query_stats` + Prior-Bonus, Kosten 1/2/0,5,
+Argmax, Stopp bei Zuwachs < `DOSSIER_VOI_MIN_GAIN` = 0,15 oder Budget aus,
+Budget je Lücke 3, Trace in `result["voi"]`), verdrahtet in Korpus- UND
+Web-Agent (das Modell formuliert, der Planer wählt Lücke und Ende; „finish"
+nur mit Zustimmung); Pflichtpunkte sind Lücken ersten Ranges; Fast-Dubletten
+(Cosinus ≥ 0,9 über den CPU-Embedder, sonst Jaccard ≥ 0,8) in beiden
+Schleifen und im Coverage-Sweep; `dossier_query_stats` (Migration auf der
+Live-DB ausgeführt, Backfill 549 Anfragen → 542 Schablonen, nur 6 ≥ 2×);
+dazu die drei Lehren des Handdurchgangs: Rechtstexte artikelweise
+(`pipeline/legal_text.py`, `fetch_fulltext_result(max_chars=)`), zwei Seiten
+je Hersteller-Aussage (`marketing_only_claims` + Doku-Suche vor der
+Streichung), Leser-Urteil an den Pflichtpunkten (`answered_items`/
+`unanswered_items`, Empfehlung ausdrücklich nicht erwartet). **Abweichungen:**
+keine Schreiberwahl nach Budget (Auftrag trägt noch kein Budget;
+`DOSSIER_WRITER_MODEL` bleibt Env); feste Sweeps ohne Planer. Offline: 4 von
+367 Web-Suchen der alten Läufe wären Dubletten gewesen; die Abnahme (≤ 70 %
+Web-Aufrufe bei gleicher Dichte) braucht den nächsten LFP-/datacenter-Lauf.
+
 ### Stufe 4 — Prüfen statt Streichen (2 Tage)
 
 1. **Aussagenprüfung** für Kernsektionen: Satz + zitierte Seite → `supported /

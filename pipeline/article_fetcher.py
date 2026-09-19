@@ -409,8 +409,15 @@ def pdf_text(data: bytes, max_pages: int = PDF_MAX_PAGES) -> str:
 
 
 def fetch_fulltext_result(url: str, client: httpx.Client | None = None,
-                          open_licence: str | None = None) -> FetchResult:
+                          open_licence: str | None = None,
+                          max_chars: int | None = None) -> FetchResult:
     """Fetch + extract clean article text, with the reason when nothing is kept.
+
+    `max_chars` (Stufe 3 des Dossier-Agent-Plans, 2026-09-19): Kappe des
+    gespeicherten Textes, Default `MAX_TEXT_CHARS`. Der Dossier-Rechercheur
+    holt Rechtstexte (EUR-Lex, gesetze-im-internet …) mit einer viel größeren
+    Kappe und behält danach nur die Artikel, die zur Lücke passen
+    (`pipeline/legal_text.py`) — der Feed-Pfad bleibt bei 12.000.
 
     `open_licence`: the caller has verified that THIS article carries an open
     licence (CC BY / CC0 / public domain — see pipeline/open_license.py). A
@@ -469,7 +476,7 @@ def fetch_fulltext_result(url: str, client: httpx.Client | None = None,
                 no_fallback=False, favor_precision=True)
         if not text or len(text) < MIN_TEXT_CHARS:
             return FetchResult(None, "too_short")
-        return FetchResult(text[:MAX_TEXT_CHARS])
+        return FetchResult(text[:(MAX_TEXT_CHARS if max_chars is None else int(max_chars))])
     except Exception as e:  # noqa: BLE001
         logger.debug("fetch failed %s: %r", url, e)
         return FetchResult(None, f"error {type(e).__name__}")

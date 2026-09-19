@@ -275,7 +275,9 @@ def must_answer_checklist(must_answer: list[str] | None) -> str:
         return ""
     return ("MUST-ANSWER checklist from the order — for each point ask: is it answered "
             "with a cited statement? Each point that is not is a 'missing' finding "
-            "(section: the one where the answer belongs):\n"
+            "(section: the one where the answer belongs). Copy every item verbatim into "
+            "answered_items or unanswered_items. A recommendation is NOT one of the items "
+            "and must not be asked for:\n"
             + "\n".join(f"  {i}. {m}" for i, m in enumerate(must, 1)))
 
 

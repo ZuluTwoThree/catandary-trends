@@ -830,6 +830,70 @@ bestimmt, wonach gesucht wird. Was es steuert:
   Kalenderzeilen, deren Instrument nicht im Profil steht (AI-Act-Zeile im
   Virtualisierungs-Dossier) — ein Hinweis, kein Befund.
 
+**Der nutzenbasierte Rechercheur (Stufe 3, seit 2026-09-19).** Der Lauf
+arbeitet keine festen Schrittzahlen mehr ab. Ein Planer
+(`pipeline/dossier_planner.py`) führt eine Liste offener Lücken — die
+Pflichtpunkte deines Auftrags (Gewicht 3), die Lücken aus dem Audit (2), die
+Planschritte (1) und die Perspektiven des Profils (0,7) — und wählt vor
+jedem Zug die Lücke mit dem größten erwarteten Zuwachs je Kosten
+(`Gewicht · (1 − Deckung) · Erfolgswahrscheinlichkeit / Kosten`; Deckung =
+aufgenommene + gelesene Quellen zur Lücke, voll bei 3; Suche kostet 1,
+Abruf 2, Öffnen 0,5). Das Modell formuliert weiterhin die Anfrage; ob es
+aufhören darf, entscheidet der Planer. Was du davon siehst und stellst:
+
+- **`DOSSIER_VOI_MIN_GAIN`** (Umgebung des Workers, Default `0.15`): die
+  Schwelle, unter der der Planer aufhört. Höher (z. B. `0.3`) = kürzere,
+  billigere Läufe, die nur Pflichtpunkte und Audit-Lücken bedienen; niedriger
+  (`0.05`) = auch Planschritte und Perspektiven werden bis zur Sättigung
+  gesucht. Das Budget je Phase bleibt die Obergrenze (`max_steps`/`web_steps`,
+  bzw. `budget_minutes` im Auftrag, sobald der Intake es schreibt); je Lücke
+  höchstens drei Aktionen.
+- **Der Trace** steht in `result["voi"]` (Desk: Herkunftskopf-JSON; Terminal:
+  `dossiers.result->'voi'`): je Phase `budget`, `used`, `gain_floor`, die
+  Lücken mit Gewicht/Deckung/Erfolgswahrscheinlichkeit/Schablone und `trace`
+  — jede Entscheidung als `act` (welche Lücke, welcher Score, welche Aktion
+  vorgeschlagen), `result` (was die Aktion brachte: aufgenommen, gelesen,
+  oder „refused"/„near-duplicate skipped") und `stop` mit Grund (`budget`,
+  `gain below floor`, `no gap left`). `dedup` zählt die übersprungenen
+  Fast-Dubletten (Cosinus ≥ 0,9 über den CPU-Embedder bei Vektorsuche, sonst
+  Wort-Jaccard ≥ 0,8) mit der Anfrage, der sie glichen. Im Log: „planner:
+  corpus budget …", „PLANNER — work on THIS gap now …" im Prompt, „finish
+  refused — planner gain …", „near-duplicate query skipped".
+- **Erfahrungsbasis `dossier_query_stats`.** Am Ende jedes Laufs schreibt der
+  Worker je Lückenart (`must`, `audit`, `plan`, `pattern`) und
+  Anfrage-Schablone (Anfrage mit `{topic}`, `{entity}`, `{instrument}`,
+  `{year}` statt der Themenwörter), wie oft sie lief, wie oft sie mindestens
+  eine Quelle brachte, wie viele davon gelesen und zitiert wurden. Der Planer
+  liest daraus die Erfolgswahrscheinlichkeit einer Lückenart (bei mehreren
+  Schablonen per Thompson-Sampling) und nennt dem Modell die Schablone, die
+  schon einmal trug. Ansehen und neu rechnen:
+
+  ```bash
+  .venv/bin/python -m pipeline.dossier_query_stats --show [--kind must]
+  .venv/bin/python scripts/migrate_dossier_query_stats.py --backfill     # aus allen Läufen NEU (löscht vorher)
+  ```
+
+  Stand 19.09.: 49 Läufe, 549 Anfragen, 542 Schablonen — nur 6 kommen
+  zweimal vor. Die Tabelle wird erst über künftige Läufe zu Erfahrung; bis
+  dahin rechnet der Planer mit 0,5.
+- **Rechtstexte artikelweise.** Seiten von EUR-Lex, gesetze-im-internet,
+  legislation.gov.uk, eCFR und Federal Register werden ganz geholt und dann
+  auf den Definitionsartikel plus die Artikel gekürzt, die zur Lücke passen
+  (≤ 12.000 Zeichen statt der 3.600 für gewöhnliche Seiten). Welche Artikel
+  behalten wurden, steht an der Quelle (`legal_articles`) und im Log („legal
+  text …: kept Article 2 (Definitions), Article 23 …"). Vorher endete der
+  Data-Act-Text vor Kapitel VI.
+- **Zwei Seiten je Hersteller-Aussage.** Ein Satz der Kernsektionen, der
+  nur an Preis-/Produkt-/Vergleichsseiten oder der eigenen Seite eines
+  Anbieters hängt, ist ein Befund `marketing`; vor der Streichung sucht der
+  Lauf einmal `site:<host> (docs OR faq OR documentation) <Begriffe>` und
+  zitiert die erste Doku-Seite, die den Satz laut Aussagenprüfung stützt.
+  Zähler im Strukturprotokoll: `marketing_before/after/repaired/searches`.
+- **Leser an den Pflichtpunkten.** „Beantwortet die Frage" heißt mit Auftrag:
+  jeder Pflichtpunkt mit zitierter Aussage beantwortet, kein Widerspruch;
+  der Leser listet `answered_items`/`unanswered_items`. Eine fehlende
+  Empfehlung ist kein Befund mehr — die gehört dem Advisor (§ 6.5).
+
 **Die Messkette (seit 2026-09-07, Default AN).** Ein Dossier trägt jetzt zwei
 codegenerierte Anhänge, die nicht das Modell schreibt, sondern der Code:
 

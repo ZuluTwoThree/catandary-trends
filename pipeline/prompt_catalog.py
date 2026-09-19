@@ -404,7 +404,12 @@ def build_catalog() -> list[PromptEntry]:
                   "and the final version. Findings (max. 8, with passage and a testable "
                   "change; suggestions that introduce figures are dropped) go into the "
                   "targeted rewrite; the final reading is reported as non-blocking "
-                  "(reader_ok). It cannot approve, block or rewrite."),
+                  "(reader_ok). It cannot approve, block or rewrite. Since Stufe 3 "
+                  "(2026-09-19) the verdict answers_question is judged against the order's "
+                  "MUST-ANSWER checklist (every item answered with a cited statement, no "
+                  "self-contradiction; answered_items / unanswered_items) — a recommendation "
+                  "is explicitly NOT expected and never counts as missing. Without a brief "
+                  "the old question-based verdict stands."),
         model="Qwen3.8-27B (or the writer model), structured (ReaderReview)",
         trigger="Every dossier run (DOSSIER_READER=0 disables)",
         symbol=f"{cr}:READER_SYSTEM"),

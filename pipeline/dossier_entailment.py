@@ -183,6 +183,27 @@ def _ask(model: str, source: dict, sentences: list[str], chat) -> EntailmentRevi
                 require_all_fields=True, verify_model=True)
 
 
+def support_verdict(sentence: str, source: dict, *, model: str, chat=None) -> tuple[str, str]:
+    """EIN Satz gegen EINE Seite (Stufe 3, Zwei-Seiten-Regel): (Urteil, Zitat).
+    Fehler → ("unrelated", "") — ein Ausfall spricht nie FÜR die Seite."""
+    from pipeline import llamacpp_client
+    chat = chat or llamacpp_client.chat_structured
+    try:
+        res = _ask(model, source, [sentence], chat)
+    except Exception as exc:                                        # noqa: BLE001
+        logger.warning("support verdict failed: %r", exc)
+        return "unrelated", ""
+    if res is None:
+        return "unrelated", ""
+    for v in res.verdicts:
+        if v.sentence_index == 0:
+            quote = " ".join((v.quote or "").split())[:QUOTE_CHARS]
+            if v.verdict == "contradicted" and not quote:
+                return "unrelated", ""
+            return v.verdict, quote
+    return "unrelated", ""
+
+
 def check_entailment(report_md: str, sources: list[dict], lang: str = "en", *,
                      model: str, skip: set[str] | None = None,
                      max_pages: int = MAX_PAGES, chat=None,
