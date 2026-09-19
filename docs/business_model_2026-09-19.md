@@ -70,6 +70,32 @@ kann das ohne eine Zeile Auth-Code; der Rückbau vom 03.09. (#93) bleibt gültig
 Setup-Gebühren (900 €) und Jahresfakturierung sind hier nicht eingerechnet; sie
 glätten die ersten Monate. Ein einziges Sheet pro Monat trifft das Ziel allein.
 
+## 5a. Musterblätter (20.09.2026)
+
+Beide Angebote sind als Muster aus der Live-DB gerechnet — reine SQL-Messung,
+kein Modelltext, PDF über Playwright-Chromium (`scripts/field_watch_demo/`):
+
+- **Technology Trajectory Sheet** — `docs/samples/trajectory_sheet_lfp_2026-09-20.pdf`
+  (Lithium-Eisenphosphat-Zellen): 3.547 Patente mit Feldbegriff in zwei Wellen
+  (2008–2012, 2021–), Verbesserungsrate Median 6,1 %/a (Klasse H01M4/5825,
+  12.145 Patente im Graph), Zykluszeit 11,0 Jahre, 96 % der Anmeldungen 2021–26
+  aus China, nach CPC überwiegend Recycling (Y02W/B09B/C02F, Brunp-Gesellschaften);
+  Forschung 5.821 Werke, Anteil 0,6 → 5,2 je 10.000; Förderebene leer (3 Signale).
+  Sechs Seiten, Abschnitt 7 (Einordnung) als gekennzeichneter Entwurf.
+- **Field Watch** — `docs/samples/field_watch_food_2026-W38.pdf` (Beispielkunde
+  Molkerei-/Lebensmittel-Mittelstand, Felder Präzisionsfermentation, pflanzliche
+  Milchalternativen, faserbasierte Verpackung): je Feld und Ebene die Woche gegen
+  den Median der vier Vorwochen (Präzisionsfermentation Markt 9 vs. 3,5 = +157 %,
+  Wissenschaft 5 vs. 3), 12 Quartale auf festem Quellenpanel, Signale der Woche
+  mit Quelle, neue Akteure (Ferm Labs, Amai Proteins, Formo …), Nester, dünne Zellen.
+  Fünf Seiten, eine je Feld.
+
+Befund aus dem Bau: die Wochenzahlen sind bei FOOD-Feldern einstellig — das Blatt
+zeigt Bewegung, das Quartal Richtung; die Ehrlichkeit „dünne Zelle" ist Teil des
+Formats, nicht ein Mangel. Der Sheet-Reifegradblock läuft noch über die
+archivierte Messkaskade (`archive/dossiers-2026-09-19`, `measure_quant.py`) —
+der Umbau nach `scripts/field_watch.py` ist Woche 1–2 des Plans.
+
 ## 6. Weg dorthin (90 Tage)
 
 | Wann | Was | Ergebnis |
