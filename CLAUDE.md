@@ -613,11 +613,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # VRAM-Freiräumen tötet seit 2026-09-10 nur noch Prozesse, die laut nvidia-smi
 # wirklich VRAM halten (--query-compute-apps). Das frühere pauschale
 # `pkill -f build/bin/llama-server` erwischte auch den CPU-Embedder auf :8091
-# (0 MiB VRAM), der die Vektorsuche des Rechercheurs bedient — er lag nach dem
+# (0 MiB VRAM), der Vektorsuchen abseits der GPU bedient — er lag nach dem
 # ersten Nachtlauf tot da. Die Unit hat jetzt zusätzlich Restart=always.
 # Kollisionswächter (#98, seit 2026-09-05, scripts/lib/gpu_guard.sh): Wrapper
 # UND scheduled_cycle.sh warten vor dem VRAM-Freiräumen, bis kein fremder
-# GPU-Job läuft (Ingester, Dossier-Worker, Pulse, Deep Dive, zweiter Cycle;
+# GPU-Job läuft (Ingester, Pulse, Deep Dive, zweiter Cycle;
 # max GPU_GUARD_MAX_MIN=90 min), sonst Abbruch mit rc=75 ohne etwas anzufassen
 # (end-Zeile → Wächter-Mail). Vor Stage 10 dasselbe (30 min → Richter-Skip);
 # der Ruhezustand wird am Ende nicht hergestellt, wenn inzwischen ein fremder
@@ -662,11 +662,10 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # dieselbe abgeschlossene ISO-Woche, geprueft): generiert die
 # Vorwoche (deterministisch) nach newsletter_editions — /trends/newsletter
 # zeigt sie sofort. KEIN Versand (der wartet auf #16/Launch).
-# Optional (#96 Phase 1, seit 2026-09-04, NICHT gesetzt): NEWSLETTER_DEEP_DIVE=dry-run
-# hängt nach der Edition den „Deep Dive of the Week"-Dry-Run an (27B-Rechercheur
-# über den Dossier-Auftragspfad → Gemma-Kondensat → Ruhezustand; ~5 min; schreibt
-# newsletter_editions.deep_dive mit dry_run=true, öffentlich nie gerendert).
-# Default off = der Montagslauf ist unverändert. docs/newsletter_deep_dive.md.
+# Optional (#96, NICHT gesetzt): NEWSLETTER_DEEP_DIVE=dry-run hängt nach der
+# Edition den „Deep Dive of the Week"-Schritt an — seit 2026-09-19 schreibt der
+# nur noch status "disabled" (Rechercheur = Scouting-Dossiers entfernt), kein
+# Modell. Default off. docs/newsletter_deep_dive.md.
 0 9 * * 1    scripts/weekly_newsletter_publish.sh
 
 # Research Pulse (#73, INSTALLIERT 2026-09-18 — Owner; bis dahin nur Vorschlag, die Seite
@@ -813,7 +812,7 @@ ist eine Zeile (Job, Start, Ende, rc, Notiz). Schreiber: die neun Shell-Wrapper
 blocked/exists/skipped/locked) und die neun Python-Crons/Worker über
 `pipeline.ops_events.record("<job>")` um `main()` (backup_db, purge_raw_content,
 resolve_open_licence, discovery_loop, monthly_source_check, check_source_links,
-dossier_worker, research_pulse). `OPS_EVENT_ID` wird exportiert:
+research_pulse; `dossier_worker` bis 2026-09-19). `OPS_EVENT_ID` wird exportiert:
 ein Python-Skript unter einem Wrapper übernimmt dessen Zeile statt eine zweite
 anzulegen (Notizen wie `gpu=remote …` landen dann dort). Das Protokoll
 darf einen Lauf nie verhindern — DB weg → Warnung im Log, Job läuft weiter. **Auch der Import ist optional** (seit 2026-09-12): die Crontab startet
@@ -899,22 +898,11 @@ Act Art. 50 — Anwaltstext offen, intern ab jetzt gesetzt): je Block ein Badge
 *Computed* (SQL, kein Modell), Trend-Links = *Curated*, verlinkte Artikel selbst
 modellgeschrieben); ein Hinweissatz (`AI_DISCLOSURE_EN`, Python + TS-Mirror in
 `frontend/src/lib/aiDisclosure.ts`, per pytest gegen Drift gepinnt) steht im
-Mail-Fuß **und** in der Website-Edition. **Deep Dive of the Week (#96, Phase 1
-seit 2026-09-04, Dry-Run, nicht scharf):** `scripts/newsletter_deep_dive.py` wählt
-das stärkste Mega-Theme der Woche (Anteils-Delta gegen 4 Vorwochen, Varianz-Regel
-über die letzten 4 Editionen), lässt den Korpus-Rechercheur über den Dossier-
-Auftragspfad laufen (Serie `newsletter-deepdive-<J>-w<KW>`, Desk-sichtbar,
-Zeitbudget 20 min), prüft Ehrlichkeits-Gates (Audit ≥ 8 belegte Aussagen, < 3
-Widersprüche, Zitate 100 % kanonisch, 0 unbelegte Zahlen) und lässt Gemma ein
-300–500-Wörter-Kondensat NUR formulieren (jede Zahl/URL wird gegen das Dossier
-nachgeprüft). Speichert `newsletter_editions.deep_dive` (JSONB, additive Migration
-`scripts/migrate_newsletter_deep_dive.py`, Live-DB 2026-09-04) und einen Draft nach
-`frontend/content/analyses/` (`draft: true`). Öffentlich gerendert nur bei
-`gate_passed && !dry_run` (Phase 2); im Dry-Run zeigt die Owner-Instanz einen
-Hinweisblock mit Desk-Link, Export/PUBLIC_MODE filtern. Im Wrapper nur mit
-`NEWSLETTER_DEEP_DIVE=dry-run` aktiv (Default off). Erster Dry-Run 2026-09-04
-(W35, `digital_trust_and_data_sovereignty`): 260 s, Gate verfehlt am Audit
-(6 < 8 belegte Aussagen), Kondensat 362 Wörter sauber — `docs/newsletter_deep_dive.md`.
+Mail-Fuß **und** in der Website-Edition. **Deep Dive of the Week (#96):** seit 2026-09-19
+stillgelegt — `scripts/newsletter_deep_dive.py` schreibt nur noch `status:
+"disabled"` (der Rechercheur dahinter, die Scouting-Dossiers, ist entfernt);
+der gespeicherte Dry-Run (W35, `gate_failed`) rendert weiter, öffentlich nie. Abschnitt
+„Newsletter Deep Dive" unten, Historie `docs/newsletter_deep_dive.md`.
 
 ### Feed-Poller Architektur
 
@@ -976,9 +964,11 @@ cross_industry:
 - **Embedding-Server auf der CPU (`:8091`, seit 2026-09-09, #97):** systemd user unit
   `catandary-embed-cpu.service` (`~/llama.cpp/start-qwen3-emb-cpu.sh`, dasselbe
   Qwen3-Embedding-8B wie Stage 5, aber `CUDA_VISIBLE_DEVICES=""` und `-ngl 0`). Er existiert für
-  die **Vektorsuche des Korpus-Rechercheurs**: während ein Dossier läuft, hält `:8090` den
-  27B — ein Embedding-Request dorthin würde vom Chatmodell beantwortet, und die ANN-Suche liefe
-  gegen einen Vektor aus einem anderen Raum. Kostet ~5 GB RAM, **0 MiB VRAM**, ~0,3 s je Anfrage.
+  **Vektorsuchen, während `:8090` ein Chatmodell hält** — ein Embedding-Request dorthin würde
+  vom Chatmodell beantwortet, und die ANN-Suche liefe gegen einen Vektor aus einem anderen Raum.
+  Erster Nutzer war der Korpus-Rechercheur der Scouting-Dossiers (entfernt 2026-09-19); heute
+  u. a. `scripts/validate_emerging.py` (`RESEARCH_EMBED_HOST`). Kostet ~5 GB RAM, **0 MiB VRAM**,
+  ~0,3 s je Anfrage.
   `-ngl 0` allein genügt nicht: llama.cpp legt den Compute-Buffer trotzdem auf CUDA0 (bei
   `-ub 8192` sind das 5,4 GB) und stirbt neben dem GPU-Server an OOM — daher der harte
   Device-Ausschluss und der kleine Batch.
@@ -1138,7 +1128,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                    + Freigabe/Zurückziehen + KI-Kennzeichnung je Block; im PUBLIC_MODE 404 und aus dem
                                    statischen Export ausgeschlossen (BLOCKED_PREFIXES + static-export.exclude + canReview())
 /trends/ops                      → Ops-Dashboard (#104, seit 2026-09-11; Owner, im PUBLIC_MODE 404, nicht im Export): Jetzt-Kacheln (GPU lokal + bequiet, CPU/RAM, Postgres, Queues, Sampler), alle vier Platten (Füllstand, I/O, Temperatur, SMART-Ampel, „voll in N Tagen"), 24-h/7-d-Diagramme als server-gerendertes SVG mit Job-Bändern aus ops_events, Job-Statistik (28 Tage, Median-Dauer) und die letzten 40 Läufe; ?range=24h|7d, Auto-Refresh 60 s. **Wochenplan** (Stufe 4): die INSTALLIERTE Crontab (`crontab -l`, Fallback `deploy/crontab.txt`) als Wochenraster, Blockbreite = gemessene Median-Dauer, Überschneidungen aufgelistet; **Logbuch** `docs/ops/logbook.md` (versioniert, `## <Datum> · change|plan|decision|idea · <Titel>`, optional `duration:`/`gpu:`-Zeilen) gerendert, `plan`-Einträge mit Tag erscheinen im Wochenplan. **Alarme** (Stufe 5) als Banner oben (offen) + zuletzt entwarnt; Regeln/Schwellen s. Cron-Block.
-/trends/dossiers, /trends/dossiers/[slug] → Owner-Dossier-Desk (#95; lokal standardmäßig AN, `DOSSIERS_ENABLED=0` = Not-Aus; unter PUBLIC_MODE geblockt und aus dem statischen Export ausgeschlossen): Scouting-Dossier-Aufträge erteilen, „Neu rechnen" startet den Worker on-demand, Bericht mit Herkunftskopf/Coverage-Anhang + Agenten-Endkontrolle lesen, Sign-off — siehe `docs/agentic_dossiers.md`
+/trends/dossiers, /trends/dossiers/[slug] → ENTFERNT 2026-09-19 (Owner-Dossier-Desk #95, „Das Feature trägt nicht"; s. Abschnitt „Scouting-Dossiers — entfernt"; Rückweg Tag `archive/dossiers-2026-09-19`). Lokal wie im Export 404.
 /imprint, /privacy, /enquiry     → Rechtstexte + Anfrage (mailto); im Export unter /trends/… (s. o.), da der Publisher den Webroot nie schreibt
 ```
 
@@ -1393,7 +1383,7 @@ Alle 6 Sprints sind abgeschlossen. Neue Features und Verbesserungen werden direk
 
 1. **Statischer Export** der öffentlichen Seiten aufs Hetzner-Webhosting (#82/#93, Welle 2 in `docs/launch/09_launch_plan_2026-09-02.md`; Design `docs/audits/2026-09-02_static_export_design.md`)
 2. **Launch-Rest** — `unsubscribe.php` + Sender-Umbau (#16), Auth/Stripe-Rückbau + Landing-Copy (#93), Compliance-Punkte aus `docs/audits/2026-09-02_compliance_review.md`
-3. **Owner-App** — Korpus-Rechercheur-Frontend (#95), Query-Quality-Gate (#67), Research Pulse (#73), Newsletter-Deep-Dive (#96)
+3. **Owner-App** — Query-Quality-Gate (#67), Research Pulse (#73); Field Watch als Nachfolge-Idee der entfernten Scouting-Dossiers (#108). *(Korpus-Rechercheur-Frontend #95 und Newsletter-Deep-Dive #96 sind seit 2026-09-19 entfernt bzw. stillgelegt.)*
 
 *(Die früheren drei Punkte — Cron-Orchestrierung, Newsletter-Generator, „Hetzner Caddy + PM2" — sind erledigt bzw. überholt: alle Crons laufen (s. Cron-Block oben), die Newsletter-Website-Edition läuft per Cron seit 29.08., PM2 ist seit #38 durch systemd ersetzt, der VPS-Pfad ist verworfen.)*
 
@@ -1440,130 +1430,62 @@ Auf der 24-GB-Karte kann Stage 6 (Content-Generierung) auf ein deutlich größer
 - **Modell (aktuell):** **Gemma-4-26B-A4B-it-qat-UD-Q4_K_XL** (~16 GB), Start-Skript `start-gemma4-26b.sh`. Umstellung von Qwen3-30B via **#11 (2026-07-14)** nach kontrolliertem A/B (n=70, Fisher p=0.013): 30B erfand in **32,9 %** der Bodies fake Spezifika (z. B. „Ordinance 2023-47"), Gemma-26B nur **8,6 %**. *(Die Wortziel-Behauptung ist widerlegt — Median am Umstiegstag 14.07. von 131 auf 105 gefallen, seither ~109. ~100 Wörter sind seit 2026-08-19 die akzeptierte Länge; siehe `docs/confidence_threshold_eval_2026-08-18.md`.)* Qwen3.6-35B (`start-qwen3.6-35b.sh`) bleibt installiert und revertierbar; das 30B (GGUF + Startskript) wurde beim llama.cpp-Umbau 2026-08-29 entfernt. Geladen via `llama-server` (systemd user unit `llama-server.service`, Port 8090).
 - **Routing:** `STAGE5_BACKEND=llamacpp` in `scheduled_cycle.sh` aktiviert den Pfad — gegated nur darauf, dass das in `STAGE5_MODEL` gesetzte **Start-Skript** (aktuell `start-gemma4-26b.sh`) existiert und das erwartete GGUF referenziert, **nicht** darauf, worauf `start-active.sh` beim Start zeigt. Content-Gen versucht damit **immer** das gesetzte Modell, egal welches Modell (oder keines) bei Pipeline-Start geladen war.
 - **GPU-Handover:** `pipeline/gpu_handover.py` (`content_gen_on_llamacpp`) **hängt vor Stage 6 den Symlink `start-active.sh` selbst auf das Content-Gen-Start-Skript um** (speichert das vorherige Ziel), entlädt die Ollama-Modelle, startet llama-server, und stoppt es nach Stage 6 wieder + **stellt den Symlink zurück** (wie die 8B-/Embedding-Handover). Der Pre-Flight prüft danach konsistent das nun gesetzte Modell — OOM-Schutz bleibt. Stages 7–9 nutzen Ollama wieder (Qwen3 8B für Reclassify on-demand). MODEL_START_SCRIPTS mappt die Content-Gen-GGUFs (Gemma-26B + 30B + 35B) auf ihre Start-Skripte.
-- **Besitz der Unit — Cleanup nur eigene Server (#98, seit 2026-09-05):** `llama_server_start` vermerkt nach dem Ready-Check `MAINPID OWNERPID` in `data/llama-server.<job>.pid` (`<job>` = `GPU_JOB_NAME` oder Stem des Einstiegsskripts: `run_full_cycle`, `signal_batch_embedded`, `dossier_worker` …; gleiches Format wie `llama_unit_record_owner` in `scripts/lib/gpu_guard.sh`, der Richter-Block nutzt `scheduled_cycle-judge`). `llama_server_stop` stoppt die Unit nur, wenn ihre MainPID noch die vermerkte ist — hat ein anderer Job sie inzwischen neu gestartet, bleibt sie stehen (Warnung `is not the one this job started … leaving it running`) und der Symlink wird ebenfalls nicht angefasst (der andere Job stellt den Ruhezustand bei seinem Exit her). Umgekehrt verweigert `llama_server_start` die Übernahme eines Servers, den ein noch **lebender** anderer Job vermerkt hat (`RuntimeError: … belongs to running job <job> (pid N)`); Vermerke toter Jobs werden dabei gelöscht. Ohne Vermerk (MainPID beim Start unlesbar) gilt der alte Stop-Pfad. Die Ausnahme „VRAM freiräumen vor dem Cycle" (`full_cycle_cron.sh` killt ALLE manuellen `build/bin/llama-server`) bleibt, läuft aber nur noch, wenn der Kollisionswächter keinen fremden GPU-Job sieht — sonst Abbruch rc=75.
+- **Besitz der Unit — Cleanup nur eigene Server (#98, seit 2026-09-05):** `llama_server_start` vermerkt nach dem Ready-Check `MAINPID OWNERPID` in `data/llama-server.<job>.pid` (`<job>` = `GPU_JOB_NAME` oder Stem des Einstiegsskripts: `run_full_cycle`, `signal_batch_embedded`, `research_pulse` …; gleiches Format wie `llama_unit_record_owner` in `scripts/lib/gpu_guard.sh`, der Richter-Block nutzt `scheduled_cycle-judge`). `llama_server_stop` stoppt die Unit nur, wenn ihre MainPID noch die vermerkte ist — hat ein anderer Job sie inzwischen neu gestartet, bleibt sie stehen (Warnung `is not the one this job started … leaving it running`) und der Symlink wird ebenfalls nicht angefasst (der andere Job stellt den Ruhezustand bei seinem Exit her). Umgekehrt verweigert `llama_server_start` die Übernahme eines Servers, den ein noch **lebender** anderer Job vermerkt hat (`RuntimeError: … belongs to running job <job> (pid N)`); Vermerke toter Jobs werden dabei gelöscht. Ohne Vermerk (MainPID beim Start unlesbar) gilt der alte Stop-Pfad. Die Ausnahme „VRAM freiräumen vor dem Cycle" (`full_cycle_cron.sh` killt ALLE manuellen `build/bin/llama-server`) bleibt, läuft aber nur noch, wenn der Kollisionswächter keinen fremden GPU-Job sieht — sonst Abbruch rc=75.
 - **Content-Guard:** Wortzahl-Validator retryt bis zu 3× bei vorzeitig terminierten Body-Strings (Grammar-Artefakt bei temp 0.7). In den ersten vier Nachtläufen war die "alle 3 Versuche failed"-Rate <0,25 %.
 - **Modell-Identitäts-Check je Request (#98, seit 2026-09-05):** llama-server ignoriert das `model`-Feld und antwortet mit dem geladenen GGUF. `llamacpp_client.chat_structured(verify_model=True)` — gesetzt in allen llama.cpp-Pfaden der Stages 2/3/4/6/8 — prüft vor dem ersten Request (TTL-gecacht, `LLAMACPP_MODEL_CHECK_TTL=30` s je erwartetem Modell) und vor **jedem Retry** `GET /v1/models`; weicht das geladene Modell ab, fliegt `ModelMismatchError` (nie retryt, nie zu `None` verschluckt). Stage 6 bricht dann ab: der getroffene und alle folgenden Einträge bleiben **unprocessed** (nicht gefiltert), die schon generierten laufen in Stage 7 weiter, `errors` zählt die Reste → `run_full_cycle` endet mit Exit 2. In den 8B-Stages propagiert der Fehler aus `_concurrent`/`reclassify_drafts` und beendet den Lauf; der Hybrid-Pfad fällt bei Mismatch bewusst NICHT auf den Voll-8B-Pfad zurück. Ein unerreichbarer Server ist kein Urteil (der Request selbst entscheidet). Vorfall: 05.09. antwortete der Embedding-Server auf die Content-Requests mit 200 OK, der Cliché-Guard verwarf jeden Body und Stage 6 re-rollte stundenlang.
 - **Rückbau:** `STAGE5_BACKEND=ollama` (Env-Override) erzwingt den Ollama-14B-Pfad. Alternativ das Content-Gen-Start-Skript entfernen/umbenennen → `scheduled_cycle.sh` fällt automatisch auf Ollama zurück. **Zurück auf 30B/35B:** in `scheduled_cycle.sh` `STAGE5_MODEL`/`STAGE5_START` auf `start-qwen3-30b.sh` bzw. `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` + `start-qwen3.6-35b.sh` zeigen lassen. (Das bloße Umhängen von `start-active.sh` deaktiviert den Pfad **nicht** — der Handover hängt selbst um.)
 - **Zugehörige Goals:** offene Erweiterung der Quellen-Architektur, siehe `goals/` und `pipeline_expansion_prompt.md`.
 
-## Agentic Scouting-Dossiers — Owner-Desk `/trends/dossiers` (#95, seit 2026-09-03 auf `dev`)
+## Scouting-Dossiers — entfernt 2026-09-19 (Owner: „Das Feature trägt nicht")
 
-Der agentische Rechercheur (`scripts/corpus_research.py`) als Owner-Werkzeug
-mit Frontend — Details, Runbook und Abnahmelauf in `docs/agentic_dossiers.md`.
-Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
+**Was es war (#95, 2026-09-01 bis 2026-09-19, 30 Runden auf `dev`; auf `main`
+stand der Desk-Stand vom 2026-09-03 plus Messkette/Entscheidungsebene/DR/
+Advisor):** ein agentischer Korpus-Rechercheur (`scripts/corpus_research.py`,
+Qwen3.8-27B lokal) als Owner-Werkzeug mit Desk `/trends/dossiers` —
+Auftragszettel, Worker auf Knopfdruck, Messkette (CPC → TIR → Lead-Time),
+DR-Vorlauf, Leser, Endkontrolle, Advisor mit Freigabe durch einen Menschen,
+plus der „Deep Dive of the Week" des Newsletters über denselben Auftragspfad.
 
-- **Aufträge erteilt nur der Owner** — im Desk `/trends/dossiers` (Auftragszettel)
-  oder per `scripts/dossier_worker.py --order-new`. Kein Kundenpfad.
-- **Jeder vom Desk gestartete Job läuft in einem eigenen systemd-Scope** (seit 2026-09-15,
-  `frontend/src/lib/detachedSpawn.ts`: `systemd-run --user --scope -p MemoryMax=40G`, Fallback
-  plain spawn ohne systemd-run). Anlass: ein OOM-Kill des Cluster-Recompute im Cgroup des
-  Frontend-Dienstes riss `:3001` mit. Gilt für Dossier-Worker, Advisor, Pulse und Snapshot.
-- **Radar-Regel: nur auf Knopfdruck, kein Cron.** Der Desk startet den Worker
-  („Run now" / „Run N queued" / „Recompute · v(n+1)" je Serie) über
-  `frontend/src/lib/dossierWorker.ts`: `.venv/bin/python -m scripts.dossier_worker
-  [--order N]` detached, Log `data/dossier_worker/<stamp>.log`, Lock
-  `data/dossier_worker.lock` (ein Worker zugleich). Nicht parallel zum
-  04:00-Full-Cycle starten.
-- **Ein geöffneter Eintrag zeigt Beleg UND Einordnung (seit 2026-09-10):** bei einem `published`
-  Trend bekommt das Modell den **Quellenauszug** (Originalwortlaut, „quote from HERE") *und*
-  unseren geschriebenen Artikel, getrennt beschriftet. Vorher schlossen sie sich aus — es sah nur
-  die Modellprosa und nie das Original, obwohl der Auszug bei 92 % der veröffentlichten Einträge
-  in der DB liegt (85.924 von 93.790, gemessen 10.09.). Bei Signalen war der Auszug ohnehin das
-  Einzige (96 % haben einen, Median 775 Zeichen) — 94 % des Korpus gingen also schon immer als
-  Quelltext ins Dossier. HTML im Auszug wird vorher entfernt (`clean_source_text`), der Wortlaut
-  bleibt unangetastet, sonst wäre er nicht zitierfähig.
-- **Vektorsuche statt Volltext (seit 2026-09-09, #97):** die Korpusauswahl lief bis dahin über
-  Postgres-FTS (`--retrieval fts`), weil der 27B und ein GPU-Embedder nicht beide auf die Karte
-  passen. Mit dem CPU-Embedder auf `:8091` (`RESEARCH_EMBED_HOST`) schaltet `dossier_worker`
-  von selbst auf `vector` um; `corpus_research.embed_query` prüft die Vektorbreite (< 1024 Dim =
-  ein Chatmodell hat geantwortet → harter Abbruch statt stiller Unsinn). Fällt der Endpunkt im
-  Lauf aus, sucht der Rest per Volltext weiter und der Grund steht in den Notizen — ein Dossier
-  stirbt daran nie. Vergleich an einer realen Anfrage: Vektorsuche 0,3 s, Volltextsuche 4,9 s,
-  **Überlappung 1 von 6 Treffern** — die beiden Verfahren finden Unterschiedliches.
-- **Web-Cache (seit 2026-09-12):** `pipeline/web_cache.py` hält Brave-Treffer 72 h und
-  Seitentexte 7 Tage in `data/web_cache.sqlite` — über Läufe hinweg (drei LFP-Läufe am
-  12.09.: 340 Brave-Aufrufe, 156 verschiedene; Kontingent nachmittags erschöpft). Nur
-  stabile Ausgänge werden gespeichert; `WEB_CACHE=0` schaltet ab.
-- **Streng lokal:** Quant-Vorstufe (`pipeline/dossier_quant.py`, Embedding-Handover)
-  → Recherche auf Qwen3.8-27B (`model_on_llamacpp` mit den Stage-10-Guards:
-  VRAM < 1100 MiB Fremdbelegung, Identitäts-Check `/v1/models`) → deterministische
-  Endkontrolle (`pipeline/dossier_check.py`: Zahlen-Grounding, Zitat-Bilanz,
-  beide Sprachfassungen des Coverage-Anhangs abgetrennt). Der Worker stellt
-  danach den **Ruhezustand** wieder her (Symlink `start-active.sh` → 8B-208k,
-  llama-server läuft wieder, falls er vorher lief).
-- **Jeder Lauf endet in `review`;** `done` nur per Owner-Sign-off im Desk.
-- **DR-Vorlauf ist Default (seit 2026-09-13; `params {"dr": false}` / `DOSSIER_DR=0`
-  schaltet ab):** Primärquellen zuerst lesen, Faktenzettel (≥ 6 Plätze für Paper, 3 für
-  Förderung) und Kalender-Kandidaten VOR dem Schreiben. In der LFP-Serie (v1–v8, 12.09.)
-  war das der einzige Hebel, der die Faktenquote verlässlich über 2,0 hob (v8: 2,90; ohne
-  Vorlauf 1,0–2,4 je nach Wurf); kostet ~12 min je Dossier. Dazu **Best-of-2** im
-  Erstentwurf (`DOSSIER_DRAFTS`), ein zweiter Neuwurf nur für Strukturbefunde
-  (`DOSSIER_REWRITES`), zitatgetriebener Abruf ungelesener Treffer, Web-Cache und ein
-  optionaler **CPC-Anker** für die Patentmessung (`params {"cpc": "H01M4/5825"}`, Desk-Feld
-  „CPC anchor", CLI `--cpc`) — Chronik in `docs/agentic_dossiers.md`, Runde 15.
-  **CPC-Entdecker seit 2026-09-13 vom Auftragsthema entkoppelt:** die Kaskade misst zuerst
-  die Kernphrase ohne Anwendungs-Anhängsel (`head_phrase`: „… (LFP) cells for stationary
-  storage and EVs" → „lithium iron phosphate cells"), die Dichteregel rechnet gegen Patente
-  *mit Text* (BDDS ohne Abstract: H01M4/5825 hat 24.409 Patente, 212 mit Text — 2 % waren
-  unerreichbar) und zählt direkt je Klasse statt über die 40k-gedeckelte Trefferliste; bleibt
-  eine breite Klasse stehen, prüft „schärfer per Titel" (`title_candidates` + UND-Dichte), ob
-  eine Titelklasse derselben Familie ≥ 1,5× dichter ist — für LFP H01M4/5825 (25,9 % gegen
-  1,9 % für H01M10/052) ohne Anker. Der Anker bleibt als Override.
-- **Web-Suche mit Fallback + Landschafts-Modus (seit 2026-09-13):** `pipeline/web_search.py` —
-  Brave zuerst, bei 402/429/5xx/Netzfehler oder ohne Schlüssel die lokale **SearXNG**-Instanz
-  (Docker `searxng`, 127.0.0.1:8888, `deploy/searxng/settings.yml`; `WEB_SEARCH_BACKEND`,
-  `SEARXNG_URL`). `--mode landscape` / `params {"mode": "landscape"}`: Teilfeld-Karte
-  (Modell schlägt vor, Korpus zählt nach, < 5 Signale fällt), ein Suchschritt je Teilfeld,
-  `landscape_question`, Themenbegriffe aller Teilfelder, Anhang „Landscape map“. **v1-Härtung
-  (Runde 16):** Neuwurf mit Themenbindung (Fremdfakten zählen nicht), Kurzfassung muss das Thema
-  nennen, Kalender-Soll = max(3, min(5, belegte Kandidaten)), verschlechternder zweiter Neuwurf
-  wird verworfen.
-- **Der Leser (Owner 2026-09-13 — präzisiert „kein Kritiker-Modell" vom 06.09.):** dasselbe 27B
-  mit eigener Systemanweisung (`READER_SYSTEM`: fordernder Vorstand, adversarial, darf keine
-  Fakten hinzufügen) liest den gewählten Erstentwurf und die Endfassung. Befunde des ersten
-  Lesens (max. 8, mit Zitatstelle und konkreter Änderung; Vorschläge mit neuen Zahlen werden
-  verworfen) gehen als zusätzliche Zeilen in denselben Neuwurf-Auftrag; die des zweiten stehen
-  als „Leser (nicht sperrend)" im Prüfnachweis (`reader_ok` im check_json). Er kann nichts
-  freigeben, sperren oder selbst umschreiben. `DOSSIER_READER=0` schaltet ab. Kalender: fehlende
-  Zeilen füllt `fill_calendar` aus den belegten Kandidaten (sichtbar markiert).
-- **Abschnittsweises Schreiben ist Default (seit 2026-09-14, `DOSSIER_WRITE=sections`):** je
-  Pflichtsektion ein Aufruf mit vollem Material und den fertigen Sektionen als Kontext, Kurzfassung
-  zuletzt (`write_sections`/`take_section`); `single` = alter Ein-Aufruf-Pfad mit Best-of-2. Der
-  Leser löst seit 14.09. auch den zweiten Neuwurf aus (schwere Einwände), Landschafts-Modus
-  verlangt die Tabelle `### Landscape` (Prüfregel `landscape_findings`), Regulatorik-Gliederung
-  feldneutral (SPC nur Pharma/Pflanzenschutz), Desk zeigt Endkontrolle **und** Leser.
-- **Stärkerer Schreiber (Test seit 2026-09-14):** `DOSSIER_WRITER_MODEL=<GGUF>` schaltet nach
-  Recherche/Audit/Faktenzettel den llama-server für Sektionen, Leser und Neuwurf auf ein anderes
-  registriertes Modell um (`gpu_handover.llama_server_start(..., swap_symlink=True)`); registriert:
-  Qwen3.8-Flash-Next UD-Q2_K_XL / UD-IQ4_XS (125B/6B aktiv, ~20–22 GB VRAM mit `--n-cpu-moe`, ~200 t/s
-  Prompt, Client-Timeout 1800 s). `result.writer_model` und `model` vermerken es.
-- **Advisor statt Optionen (Owner 2026-09-14):** das Dossier trägt „Decision points and watch items"
-  (3–6 belegte Auslöser, keine Empfehlung; `watch_findings`), Optionen liegen beim **Advisor**:
-  `scripts/advisory.py` + `pipeline/advisory.py` + `pipeline/advisory_store.py` (Tabelle
-  `advisory_notes`, additiv, Live-DB 14.09.) — 27B mit Denken (`start-qwen3.8-27b-thinking.sh`,
-  Denkbudget 8.192 Tokens im Startskript — ohne Budget dachte es 24k Tokens und antwortete nie; unter 300 Wörtern Rückfall ohne Denken),
-  Beraterrolle, geschlossener Dossier-Katalog, Null-Option, Aufwand nur aus Vergleichsfällen,
-  Prüfung (Marker, Platzhalter, fremde Zahlen) + Leser, **Freigabe nur durch einen Menschen**
-  (`approved_at`, wie Newsletter). Desk: Formular auf der Dossierseite,
-  `/trends/dossiers/<slug>/advisory/<id>`, Lock `data/advisory.lock`.
-- **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
-  zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
-  themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,
-  Reparatur je Satz vor der Streichung). Ziel „besser als Sonnet Deep Research"
-  nach vier Blindgutachten (5,57–5,9 gegen 6,3–7,43) **nicht erreicht**, vom
-  Owner abgenommen; Engpass ist der Ein-Aufruf-Schreibschritt. Stand,
-  Diagnose, Wiederaufnahme: `docs/dossier_vs_deep_research_2026-09-07.md`,
-  Issue #100.
-- **Zugriff:** lokal standardmäßig AN (`DOSSIERS_ENABLED=0` = Not-Aus);
-  `PUBLIC_MODE=1` blockt die Route (`BLOCKED_PREFIXES` + `proxy.ts`), der
-  statische Export baut sie nie (`frontend/static-export.exclude`, Drift-Wächter
-  `staticExport.test.ts`). Server Actions prüfen zusätzlich Same-Origin
-  (`isSameOriginHeaders`, `lib/apiGuards.ts`).
-- **Tabellen** `dossier_orders` + `dossiers` (versioniert: slug+version) via
-  `scripts/migrate_dossier_orders.py` — additiv, idempotent, **auf der Live-DB
-  am 2026-09-03 ausgeführt**. Leseansicht: Herkunftskopf (Frage, Belegmix,
-  zitiert/gestrichen, Messblock, Modell/Dauer) + Bericht (Markdown inkl.
-  Tabellen) + Coverage-Anhang + Versionswechsler.
+**Warum entfernt:** sieben Dossierversionen zum selben Thema und 48 Läufe
+insgesamt zeigten ein stabiles Muster — alles, was die Plattform *misst*,
+hält; alles, was das Modell *schreiben* muss (Beschaffung fremder
+Primärquellen, Verdichtung, Urteil), wackelt; der Leser war nie zufrieden.
+Messungen, Runden und Befunde: `docs/agentic_dossiers.md` (auf `dev` bis
+Runde 30), `docs/dossier_vs_deep_research_2026-09-07.md`; auf `dev`
+zusätzlich `docs/dossier_manual_run_2026-09-19.md` und
+`docs/plan_dossier_agent_2026-09-18.md` — bleiben als Historie stehen, je mit
+Banner.
+
+**Was bleibt (generisch, ohne Dossier-Abhängigkeit):** `pipeline/web_search.py`
+(Brave → SearXNG-Fallback), `pipeline/web_cache.py` (`data/web_cache.sqlite`),
+`article_fetcher.pdf_text` + `max_chars` (PDF-Abruf, große Kappe), der
+CPU-Embedder `:8091` (`catandary-embed-cpu.service`, `RESEARCH_EMBED_HOST`),
+`frontend/src/lib/detachedSpawn.ts` (Pulse, Snapshot),
+`pipeline/gpu_handover.model_on_llamacpp` (Draft-Richter) und die
+Modellregistrierung Qwen3.8-Flash-Next. Auf `dev` außerdem
+`pipeline/legal_text.py` und der Prompt-Katalog (ohne die Gruppen
+`dossier`/`advisor`). **DB-Tabellen bleiben stehen, kein DROP** (wie bei
+früheren Rückbauten): `dossier_orders`, `dossiers`, `dossier_run_outcomes`,
+`dossier_source_priors`, `dossier_query_stats`, `advisory_notes`; nichts liest
+oder schreibt sie mehr.
+
+**Entfernt (auf `main`):** `pipeline/{advisory,advisory_store,dossier_check,
+dossier_corpus_stats,dossier_orders,dossier_quant,dossier_structure}.py`,
+`scripts/{advisory,corpus_research,dossier_topic_probe,dossier_worker,migrate_dossier_orders}.py`,
+`tests/test_{advisory,dossier_*,open_item_shows_both,research_vector_retrieval}.py`,
+`frontend/src/app/trends/dossiers/**`,
+`frontend/src/lib/{dossiers,dossierWorker,dossier-access,advisory,advisoryWorker}.ts`,
+Nav-Eintrag „Scouting Desk", Cockpit-Karte, `/trends/dossiers` aus
+`BLOCKED_PREFIXES`/`proxy.ts`/`static-export.exclude`, `DOSSIERS_ENABLED`-Env,
+die Muster `dossier_worker|corpus_research` aus `gpu_guard.sh`/`ops_probe.py`.
+Die Owner-Guards der Pulse-/Snapshot-Actions nutzen jetzt `canReview()`
+(`lib/review-access.ts`); `repoRoot()` lebt in `lib/researchPulseWorker.ts`
+(`WORKER_ROOT`, früher `DOSSIER_WORKER_ROOT`).
+
+**Rückweg:** Git-Tag `archive/dossiers-2026-09-19` (dev-HEAD `177c34f` vor dem
+Rückbau, Runden 1–30). **Nachfolge-Idee:** „Field Watch" — die Plattform als
+Messinstrument, nicht als Autor: `docs/value_proposition_field_watch_2026-09-19.md`
+(auf `dev`) und Issue #108.
 
 ## Research Pulse (#73 Teil 1, seit 2026-09-04)
 
@@ -1590,7 +1512,7 @@ Prognosen). Versioniert in `research_pulse` (additive Migration `scripts/migrate
   ohne LLM 15 s, 1 Theme mit Gemma 19 s.
 - **Frontend:** `/trends/foresight/research/pulse` (Übersicht + Wochen-Wechsler),
   `/pulse/[theme]` (Herkunftskopf, Messblock, Text, Cluster, „Recompute"-Knopf = Server Action mit
-  Owner-Modus + Origin-Check, spawnt das Skript wie der Dossier-Worker). Einstiege: Research
+  Owner-Modus `canReview()` + Origin-Check, spawnt das Skript detached via `detachedSpawn.ts`). Einstiege: Research
   Explorer, Foresight-Cockpit, `/trends/mega/[m]` (nur Owner-Modus — Foresight ist nicht im Export).
 - **Betrieb:** Cron **installiert 2026-09-18** (Owner-Entscheid; `deploy/crontab.txt`, Wrapper
   `scripts/weekly_research_pulse.sh`, Sa 12:00, Status-Notiz in die Montags-Mail). Bis dahin
@@ -1598,29 +1520,26 @@ Prognosen). Versioniert in `research_pulse` (additive Migration `scripts/migrate
   19/28 Themes mit Text). Der Knopf bleibt für einzelne Themes/Wochen.
 - Methode/Datenlage: `docs/research_pulse.md`.
 
-## Newsletter Deep Dive (#96 Phase 1, seit 2026-09-04 — Dry-Run, nicht scharf)
+## Newsletter Deep Dive (#96 — seit 2026-09-19 stillgelegt)
 
-Rechercheur-gestützte Sektion „Deep Dive of the Week" für die Website-Edition;
-vollständige Kette gebaut, standardmäßig aus. Details, Gates, Kalibrier-Protokoll
-und Phase-2-Schalter: `docs/newsletter_deep_dive.md`.
+Die rechercheur-gestützte Sektion „Deep Dive of the Week" lief vom 2026-09-04
+bis 2026-09-19 als Dry-Run über den Auftragspfad der Scouting-Dossiers. Mit
+deren Rückbau gibt es den Rechercheur nicht mehr; Historie, Gates und
+Kalibrier-Protokoll: `docs/newsletter_deep_dive.md`.
 
-- **Kette:** `scripts/newsletter_deep_dive.py --year J --week KW [--dry-run]` — Themenwahl
-  (SQL, deterministisch, Ranking gespeichert) → Dossier-Auftrag → `scripts/dossier_worker.py`
-  (27B-Handover mit Stage-10-Guards, Endkontrolle, Status `review`, im Desk als Serie
-  `newsletter-deepdive-<J>-w<KW>`) → Gate → Gemma-Kondensat (`content_gen_on_llamacpp`)
-  mit deterministischer Nachprüfung → `newsletter_editions.deep_dive` + `/analysis`-Draft
-  + `data/newsletter_deep_dive_last.json` (Morgen-Mail-Zeile). Ruhezustand danach
-  (llama-server aktiv auf 8B-208k) — E2E verifiziert 2026-09-04.
-- **Nie ein Blocker:** kein Thema / Handover verweigert / Zeitbudget (20 min, SIGALRM)
-  / Gate verfehlt → Edition unverändert, `deep_dive.status` protokolliert den Grund.
-- **Öffentlich nur `gate_passed && !dry_run`** (`lib/newsletterEditions.ts isPublicDeepDive`,
-  durchgesetzt in API-Route unter PUBLIC_MODE, `rewriteEditionForExport`, `EditionBody`);
-  Owner-Instanz zeigt Dry-Runs als Hinweisblock mit Desk-Link und Belegart-Badges.
-- **Scharfschaltung** (`--apply`, Web-Stufe, Cron-Env) erst nach Owner-Blick auf 2–3 Wochen
-  Dry-Run — die Dry-Runs sind zugleich die #95-Testläufe.
-- Nebenfund/Fix 2026-09-04: `pipeline/dossier_check.py` zählte Slug-IDs/Patentnummern in
-  Zitat-URLs als „unbelegte Zahlen" — Links werden jetzt vor dem Zahlen-Check auf ihr
-  Label reduziert (betrifft alle Desk-Dossiers).
+- **Heute:** `scripts/newsletter_deep_dive.py --year J --week KW` macht nur noch die
+  deterministische Themenwahl (Ranking gespeichert) und schreibt dann hart
+  `status: "disabled"`, `error: "dossier feature removed 2026-09-19"` nach
+  `newsletter_editions.deep_dive` — derselbe Pfad wie `no_theme`: Edition
+  unverändert, kein Modell, keine GPU, rc 2 (`dd=2` in der end-Zeile des Wrappers,
+  nie ein Blocker). `data/newsletter_deep_dive_last.json` + Morgen-Mail-Zeile
+  (`review_notify._deep_dive_line`) nennen den Grund. Der Wrapper-Schalter
+  `NEWSLETTER_DEEP_DIVE=dry-run` bleibt Default off.
+- **Gespeicherte Editionen** (ein Dry-Run: W35 2026, `gate_failed`) rendern weiter: Gate-, Kondensat-
+  und Speicher-Funktionen bleiben im Skript, `DeepDive.tsx`/`newsletterEditions.ts`
+  zeigen den Datensatz ohne Desk-Link (den Desk gibt es nicht mehr;
+  `dossier_slug`/`dossier_version` sind reine Anzeigefelder). Öffentlich
+  weiterhin nur `gate_passed && !dry_run` — also nie.
 
 ## Technische Hinweise
 

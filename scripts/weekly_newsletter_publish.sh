@@ -17,15 +17,12 @@
 # aendert sich dadurch nicht, 'vor 7 Tagen' trifft an beiden Tagen dieselbe
 # abgeschlossene ISO-Woche.
 #
-# Optionaler Schritt „Deep Dive of the Week" (#96, Phase 1): NUR wenn
-# NEWSLETTER_DEEP_DIVE=dry-run gesetzt ist (Default off — der Montagslauf
-# ändert sich nicht, bis der Owner es in der crontab setzt). Läuft NACH der
-# Edition: Rechercheur auf Qwen3.8-27B über den Dossier-Auftragspfad, Gemma-
-# Kondensat, danach Ruhezustand (start-active.sh → 8B-208k, llama-server
-# aktiv). Schreibt newsletter_editions.deep_dive mit dry_run=true — öffentlich
-# nie gerendert. Fehler dort sind nie ein Blocker für die Edition (eigener
-# Exit-Code in der end-Zeile: dd=…). Scharfschaltung (--apply) erst nach
-# Owner-Blick auf 2–3 Wochen Dry-Run — docs/newsletter_deep_dive.md.
+# Optionaler Schritt „Deep Dive of the Week" (#96): NUR wenn
+# NEWSLETTER_DEEP_DIVE=dry-run gesetzt ist (Default off). Seit 2026-09-19 ist
+# der Rechercheur dahinter (Scouting-Dossiers) entfernt — das Skript schreibt
+# dann nur noch status "disabled" nach newsletter_editions.deep_dive (rc 2 in
+# der end-Zeile: dd=2), kein Modell, keine GPU. Nie ein Blocker für die
+# Edition. docs/newsletter_deep_dive.md.
 
 set -u
 
@@ -120,7 +117,7 @@ PYEOF
         echo "----- deep dive skipped: edition generation failed (gen=$RC) -----"
         DD_RC="skipped"
       else
-        echo "----- deep dive (dry-run) for ${YEAR}-W${WEEK}: 27B research → Gemma condensate → resting state -----"
+        echo "----- deep dive (dry-run) for ${YEAR}-W${WEEK}: researcher removed 2026-09-19 — records status disabled -----"
         "$PY" -m scripts.newsletter_deep_dive --year "$YEAR" --week "$WEEK" --dry-run
         DD_RC=$?
         echo "----- deep dive exit code: $DD_RC (never blocks the edition) -----"

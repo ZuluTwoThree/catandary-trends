@@ -1,12 +1,15 @@
 [Unit]
 # Eigener Embedding-Server auf der CPU, Port 8091 (#97, 2026-09-09).
 #
-# Warum getrennt: waehrend ein Dossier laeuft, haelt :8090 den 27B-Rechercheur.
-# Ein Embedding-Request dorthin wuerde vom Chatmodell beantwortet — die
+# Warum getrennt: waehrend :8090 ein Chatmodell haelt (Draft-Richter, Content-
+# Gen), wuerde ein Embedding-Request dorthin vom Chatmodell beantwortet — die
 # Vektorsuche liefe gegen einen Vektor aus einem anderen Raum. Auf der 24-GB-
 # Karte koennen beide nicht resident sein, deshalb CPU (CUDA_VISIBLE_DEVICES=""
 # im Startskript). Kostet ~5 GB RAM, 0 MiB VRAM; eine Anfrage ~0,3 s.
-Description=Catandary embedding server (CPU, port 8091) for corpus-research vector retrieval
+# Urspruenglicher Nutzer war der Korpus-Rechercheur der Scouting-Dossiers
+# (Feature entfernt 2026-09-19); heute nutzt ihn u. a. scripts/validate_emerging.py
+# (RESEARCH_EMBED_HOST).
+Description=Catandary embedding server (CPU, port 8091) for vector retrieval off the GPU
 After=network.target
 
 [Service]

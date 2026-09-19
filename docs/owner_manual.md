@@ -9,7 +9,7 @@ Setup: [`README.md`](../README.md). Architektur-Vertrag: [`CLAUDE.md`](../CLAUDE
 Cron und Wächter laufen aus dem **main-Worktree** `~/projects/catandary-trends`
 (dort liegen auch `data/*_last.json` und die Logs zeigen dorthin). GPU-Regel für
 alles, was ein Modell braucht: **nicht parallel** zum 04:00-Full-Cycle, zum
-Samstags-Ingester, zu einem laufenden Dossier-Worker oder Research-Pulse-Lauf —
+Samstags-Ingester oder zu einem laufenden Research-Pulse-Lauf —
 jedes Werkzeug übernimmt `:8090` exklusiv und stellt danach den Ruhezustand
 wieder her.
 
@@ -20,7 +20,7 @@ wieder her.
 3. [Review-Seite](#3-review-seite-trendsreview)
 4. [Mega Signal Themes und Methodik-Seite](#4-mega-signal-themes-und-methodik-seite)
 5. [Foresight-Cockpit](#5-foresight-cockpit-trendsforesight)
-6. [Dossier-Desk](#6-dossier-desk-trendsdossiers)
+6. [Dossier-Desk — entfernt 2026-09-19](#6-dossier-desk--entfernt-2026-09-19)
 7. [Newsletter](#7-newsletter)
 8. [Analysen](#8-analysen-analysis)
 9. [Statischer Export](#9-statischer-export--die-öffentliche-website)
@@ -256,8 +256,8 @@ Abschnitt „Source Use & Removal Requests" liegt als Entwurf in
 ## 5. Foresight-Cockpit (`/trends/foresight`)
 
 Hub mit Kennzahlen des Korpus und Einstiegen in die Werkzeuge; Menü:
-*Cockpit · Clusters · Technology · Lead Time · Evolution · Dossier · Scouting
-Desk*; Research Explorer, Research Pulse, Patent Explorer und Startup Explorer
+*Cockpit · Clusters · Emerging · Technology · Lead Time · Evolution*;
+Research Explorer, Research Pulse, Patent Explorer und Startup Explorer
 sind vom Cockpit aus verlinkt. Alles owner-only (`PUBLIC_MODE`/Export: 404).
 
 ### 5.0 Archiv einer Quelle nachladen (`scripts/ingest_sitemap_archive.py`)
@@ -369,7 +369,7 @@ snapshot** im Kopf der Seite (startet `python -m pipeline.foresight_snapshot
 oder dasselbe im Terminal. **`--dim1024` ist Pflicht** über 1 Mio. Signale: der
 erste Desk-Lauf am 15.09. nahm die 4096er-Spalte, wuchs auf 56 GB und wurde vom
 Kernel abgeschossen — samt `:3001`, weil der Prozess im Cgroup des Frontend-Dienstes
-hing. Seither laufen alle Desk-Jobs (Dossier, Advisor, Pulse, Snapshot) in einem
+hing. Seither laufen alle Desk-Jobs (Pulse, Snapshot) in einem
 eigenen systemd-Scope mit `MemoryMax` (Default 40 GB, `WORKER_MEMORY_MAX` in
 `frontend/.env.local`), und der Lader liest die Vektoren seitenweise (20.000 Zeilen).
 Derselbe Snapshot speist die Kacheln „Moving right now" im Cockpit und den
@@ -567,281 +567,15 @@ Entwicklung* und nicht als Frühwarnung, KI-Erzeugung und menschliche Abnahme
 offen benannt. Die Seite ist Owner-only (PUBLIC_MODE 404, nicht im statischen
 Export) — sie zitiert Arbeit im Review-Status.
 
-## 6. Dossier-Desk (`/trends/dossiers`)
+## 6. Dossier-Desk — entfernt 2026-09-19
 
-**Wozu.** Scouting-Dossiers zu Technologiefeldern bestellen: der agentische
-Rechercheur (`scripts/corpus_research.py`) durchsucht die eigenen Korpora
-(Artikel, Signale, Paper, Patente), optional das Web, **misst und zählt** vorher
-die Innovationskette (CPC → TIR-Trajektorie, Lead-Time, Zykluszeit,
-Zentralitäts-Peak, Leitpatente; dazu die Korpus-Zählung je Jahr) und liefert
-einen zitierten Bericht mit maschineller Endkontrolle. Proprietäre
-Owner-Dokumente: streng lokal (Qwen3.8-27B), kein Kundenpfad, kein Cron.
-
-**Wo.** `/trends/dossiers` (Desk), `/trends/dossiers/<slug>?v=<n>` (Leseansicht).
-Lokal standardmäßig an; `DOSSIERS_ENABLED=0` = Not-Aus; im Export nie gebaut.
-
-**Wie der Rechercheur sucht (seit 09.09.2026).** Standard ist jetzt die
-**Vektorsuche** über `trends.embedding_1024`, sobald `RESEARCH_EMBED_HOST`
-gesetzt ist (`.env`: `http://127.0.0.1:8091`) und der CPU-Embedder läuft:
-
-```bash
-systemctl --user status catandary-embed-cpu       # muss active sein
-curl -s http://127.0.0.1:8091/v1/models | head -c 80
-```
-
-Der eigene Server ist nötig, weil `:8090` während des Laufs den 27B hält — ein
-Embedding-Request dorthin käme vom Chatmodell. Er läuft auf der CPU
-(~5 GB RAM, **kein VRAM**), eine Anfrage dauert ~0,3 s. Ist er aus, sucht der
-Rechercheur per Volltext wie vorher; fällt er mitten im Lauf aus, schaltet er
-selbst zurück und schreibt den Grund in die Notizen (sichtbar im
-Herkunftskopf). Erzwingen lässt sich beides je Auftrag über
-`params = {"retrieval": "fts"}` bzw. `"vector"`.
-
-**Auftrag anlegen (Desk).** Formular „New order slip":
-- **Technology field** (Pflicht, ≤ 500 Zeichen) — die Phrase, die auch gemessen wird;
-- **Series slug** (optional) — gleicher Slug = nächste Version derselben Serie;
-- **Custom question** (optional) — ersetzt die Foresight-Standardfrage; ändert
-  die Recherche, nicht die Messung;
-- **CPC anchor** (optional, seit 2026-09-13, z. B. `H01M4/5825`) — die
-  Patentklasse, in der gemessen werden soll. Normalerweise nicht nötig: die
-  Kaskade misst die Kernphrase ohne Anwendungs-Anhängsel und wählt bei einer
-  breiten Klasse die dichtere Titelklasse derselben Familie (für LFP findet sie
-  `H01M4/5825` selbst). Der Anker ist der Override, wenn du die Klasse besser
-  kennst als der Entdecker. Codes ohne Leerzeichen; findet der Anker keine
-  Trajektorie, läuft die Kaskade wie bisher und der Messanhang nennt beides;
-- Checkbox *measure the innovation chain first* (Quant-Vorstufe: CPC → TIR →
-  Lead-Time → Hub-Patente als zitierbare Quelle „Q1");
-- Checkbox *start the worker right away*.
-„Place order" legt den Auftragszettel (`dossier_orders`, Status `queued`) an.
-Jeder Auftrag läuft seit 2026-09-13 mit **DR-Vorlauf** (Primärquellen zuerst
-lesen, Faktenzettel mit festen Plätzen für Paper und Förderung, Kalender-
-Kandidaten — dann erst schreiben; ~12 min mehr); abschalten nur per CLI
-`--no-dr` bzw. `params {"dr": false}`. Der Erstentwurf wird zweimal geschrieben
-und der faktendichtere genommen; danach ein Neuwurf plus höchstens ein Nachzug
-für Strukturbefunde. Hergang: `docs/agentic_dossiers.md`, Runde 15.
-
-**Breites Feld statt einer Technologie (Landschafts-Modus, seit 2026-09-13,
-nur CLI):** `python -m scripts.dossier_worker --order-new "batteries" --mode
-landscape --run`. Vor dem Plan schlägt das Modell 8–14 Teilfelder vor (aus
-Feld + 60 Korpus-Schlagzeilen), der Korpus zählt jedes nach (Trend-Signale und
-Patente mit Text, UND aller Begriffe); Teilfelder unter 5 Signalen fallen weg.
-Der Plan bekommt je Teilfeld einen Suchschritt, die Frage ist die
-Landkarten-Frage (was gibt es, was bewegt sich, was ist Hype, was beobachten),
-die Themenbegriffe für Actor-Tabelle/Kalender/Kurzfassung umfassen alle
-Teilfelder, und das Dossier trägt den Anhang „Landscape map“ mit den Zahlen.
-Die Struktur- und Belegregeln bleiben dieselben.
-
-**Web-Suche mit Fallback (seit 2026-09-13):** Brave zuerst; antwortet Brave mit
-402 (Kontingent), 429, 5xx oder gar nicht, übernimmt die lokale SearXNG-Instanz
-(Metasuche über Brave/Google u. a.). Container: `docker run -d --name searxng
---restart unless-stopped -p 127.0.0.1:8888:8080 -v <repo>/data/searxng:/etc/searxng
-searxng/searxng:latest` mit `deploy/searxng/settings.yml` (JSON-Format an,
-Limiter aus). Prüfen: `curl 'http://127.0.0.1:8888/search?q=test&format=json'`;
-`docker restart searxng`, wenn er nicht antwortet. `WEB_SEARCH_BACKEND=searxng`
-erzwingt ihn, `result.web.cache.searxng_api` zählt je Lauf.
-
-**Warum ein v1 jetzt eher trägt (Runde 16, 13.09.):** Neuwurf-Aufträge nennen
-das Thema und verbieten Fremdfakten; die Kurzfassung muss das Thema nennen; das
-Kalender-Soll folgt den belegten Kandidaten (mind. 3 statt starr 5); ein zweiter
-Neuwurf, der nichts bessert, wird verworfen. Details `docs/agentic_dossiers.md`.
-
-**Der Leser (seit 2026-09-13):** Vor dem Neuwurf liest dasselbe Modell den
-Entwurf noch einmal — als fordernder Vorstand, nicht als Autor: Beantwortet
-das Dossier die Frage? Ist jede Sektion beim Thema? Sind die Optionen
-entscheidungsfähig? Fehlt ein Teilfeld der Landkarte? Seine Einwände (höchstens
-acht, mit Zitatstelle und konkreter Änderung; er darf keine Zahlen oder Namen
-hinzufügen) gehen in denselben Neuwurf-Auftrag wie die Code-Befunde. Nach der
-Endfassung liest er ein zweites Mal; was dann bleibt, steht im Prüfnachweis als
-„Leser (nicht sperrend)" und in der Review-Ansicht — als Lesehilfe für deinen
-Sign-off, nie als Sperre. Ausschalten: `DOSSIER_READER=0`.
-Seit 14.09. löst der Leser auch den zweiten Neuwurf aus, wenn nach dem ersten
-schwere Einwände bleiben; Liste und Dossieransicht zeigen beide Ampeln
-(„end-control clean" / „reader objects"). Der Bericht entsteht seit 14.09.
-**Sektion für Sektion** (sieben Aufrufe, Kurzfassung zuletzt) statt in einem
-Zug — `DOSSIER_WRITE=single` stellt den alten Pfad her.
-
-**Die Messkette (seit 2026-09-07, Default AN).** Ein Dossier trägt jetzt zwei
-codegenerierte Anhänge, die nicht das Modell schreibt, sondern der Code:
-
-- **„Measured development"** — Jahres-Zeitreihe je Reifegrad
-  (Forschung/Patente/Förderung/Markt), Take-off-Jahre, Patent→Markt-Vorlauf,
-  Verbesserungsrate K(t) mit n je Fenster, Zykluszeit und Zentralitäts-Peak.
-- **„What the corpus counts"** — wie viele Treffer der eigene Korpus zum Thema
-  überhaupt hat, je Jahr, Vertikale, Signaltyp, Quelle, plus Top-Geldgeber der
-  Forschung.
-
-Findet die Messung das Feld nicht, **steht der Fehlschlag mit jedem Versuch im
-Dossier** (vorher verschwand er stumm). Die Endkontrolle meldet zusätzlich
-„Messung ausgefallen" bzw. „gemessen, aber im Text nicht verwendet".
-Zitiert wird über Katalog-IDs statt URL-Freitext, der Paper-/Patent-Sweep läuft
-auch ohne Audit-Befund (Kappen 24 Paper / 16 Patente) und bekommt nach dem
-Re-Audit genau eine Nachrunde.
-
-Abschalten (alter Pfad, reproduzierbar): `DOSSIER_MEASURE=0` in der Umgebung
-des Workers, `--no-measure` bei `scripts/corpus_research.py`, oder
-`params = {"measure": false}` am Auftragszettel.
-
-**DR-Modus (seit 2026-09-07, Default AUS — Feature in Development; das
-Ziel „besser als Sonnet Deep Research" ist offen, Stand in
-`docs/dossier_vs_deep_research_2026-09-07.md`, Issue #100).** Die Arbeitsweise eines
-Deep-Research-Agenten: der Lauf liest vor dem Schreiben bis zu 28 ungelesene
-Treffer **nach Rang** (Behörde/Register/Journal zuerst, Presse gar nicht),
-zieht daraus **Notizen** — datierte Einzelaussagen, jede maschinell gegen ihren
-Quelltext geprüft — und schreibt den Bericht aus diesem Faktenbuch statt aus
-dem Rohmaterial; gesampelt wird nach Modellkarte (temp 0.7, top_p 0.80,
-top_k 20, presence_penalty 0.5 — die 1.5 der Karte bestrafen genau die
-Wiederholung, von der eine Faktentabelle lebt) statt nur über die Temperatur.
-Seit Runde 13 legt der Lauf dem Bericht außerdem zwei fertige Listen vor:
-**Kalender-Kandidaten** (datierte Zukunftstermine, aus jeder gelesenen Seite
-maschinell gezogen und gegen sie geprüft) und **Aufwands-Anker** (Förderbeträge,
-Programmbudgets, Verfahrensdauern aus Förder-/Rechtsseiten). Seit Runde 14
-kommt eine **Akteur-Landkarte** dazu (je Akteur die jüngste belegte Aussage
-mit Zahl oder Datum; „Was sich bewegt" beginnt mit einer Pflichttabelle), die
-Streichung arbeitet auf Absatzebene und repariert Sätze mit ungestützter Zahl
-erst per Modell, und die Suchrichtungen sind **themenneutral**: Kern +
-kuratiertes Rückgrat je Vertikale + Modellprofil. Welche Anfragen ein Thema
-auslöst, zeigt ohne Lauf:
-
-```bash
-.venv/bin/python scripts/dossier_topic_probe.py "solid-state batteries"
-.venv/bin/python scripts/dossier_topic_probe.py "vertical farming" --brave --read 5
-```
-
-(rechnet das Profil gegen den gerade laufenden llama-server — im Ruhezustand
-das 8B, aussagekräftig erst mit dem 27B). Einschalten:
-
-```bash
-DOSSIER_DR=1 .venv/bin/python -m scripts.dossier_worker --order N
-python scripts/corpus_research.py --foresight "solid-state batteries" --dr --quant
-# oder am Auftragszettel: params = {"dr": true}
-```
-
-Der Modus kostet Laufzeit (ein Modellaufruf je Primärquelle) und macht den
-Bericht faktendichter, aber strenger: Aussagen ohne Primärquelle werden in der
-Kurzfassung gestrichen.
-
-**Denken einschalten (optional, seit 2026-09-07).** Der 27B kann mit Reasoning
-laufen. Dafür eine Datei `~/.config/catandary/llama-server.env` anlegen —
-die Unit `llama-server.service` liest sie, wenn sie existiert:
-
-```
-LLAMA_REASONING=on
-LLAMA_REASONING_EFFORT=medium     # low | medium | high | xhigh
-```
-
-Dazu den Lauf mit `DOSSIER_DR_THINK=1` starten (dann gilt der denkende
-Sampling-Satz der Modellkarte und ein Client-Zeitlimit von 2.400 s statt 600).
-**Kein `LLAMA_ARG_THINK_BUDGET` setzen:** läuft die Denkspur ins Budget,
-schließt llama.cpp die Denkmarke selbst und das Modell überlegt im Antwortfeld
-weiter — am 2026-09-07 standen so 51 Zeilen Überlegung vor der ersten
-Überschrift. **Datei nach dem Lauf wieder löschen** — sonst denkt auch der
-nächtliche Draft-Richter, und der Cycle wird deutlich langsamer. Der
-Berichts- und der Revisionsaufruf des Dossiers denken seit Runde 13 in keinem
-Fall (`enable_thinking: false` je Anfrage) — geschrieben wird nach dem
-nicht-denkenden Satz der Modellkarte, egal wie der Server gestartet wurde. Ein Vergleichslauf gegen die Runden davor steht in
-`docs/agentic_dossiers.md` (Abschnitt „Die DR-Runde").
-
-**Firmen-Dossier, Fokus, Sprache — nur per CLI.** Der Desk kennt nur den
-Themen-Modus. Für ein Firmen-Dossier (web-first die eigene Website der Firma,
-dann das Trendumfeld aus den Korpora), einen Zusatzschwerpunkt oder deutschen
-Bericht:
-
-```bash
-python scripts/corpus_research.py --company "Askea Feinmechanik, Amtzell" --lang de \
-    --focus "Portfolio Medizintechnik" --slug askea --quant --web-steps 6
-python scripts/corpus_research.py --foresight "solid-state batteries" --slug ssb --quant
-# --lang de|en (Default: de bei --company, sonst en) · --web-steps 0 = offline
-```
-
-Mit `--slug` landet der Lauf als nächste Version in `dossiers` und erscheint im
-Desk als Serie.
-
-**Worker starten.** Knöpfe im Desk: **Run now** (ein Auftrag), **Run N queued**
-(alle offenen), **Run again** (nach `failed`), **Cancel**, in der Leseansicht
-**Recompute · v(n+1)**. Der Desk spawnt `python -m scripts.dossier_worker
-[--order N]` detached (Lock `data/dossier_worker.lock`, Log
-`data/dossier_worker/<stamp>.log`); „Worker started — 10–20 minutes; reload to
-follow." Ein Worker zugleich. Terminal-Äquivalente:
-
-```bash
-python -m scripts.dossier_worker --list
-python -m scripts.dossier_worker --order-new "solid-state batteries" --run
-python -m scripts.dossier_worker                 # alle queued abarbeiten
-python -m scripts.dossier_worker --order 7       # nur diesen (failed wird neu eingereiht)
-python -m scripts.dossier_worker --assume-model-up   # :8090 serviert schon das 27B
-python -m scripts.dossier_worker --skip-quant
-```
-
-Ablauf je Lauf: Phase 1 Embedding-Handover + Quant-Messblock → Phase 1b
-Korpus-Zählung (CPU/SQL, kein Modell) → Phase 2 27B-Handover (VRAM-Vorab-Check
-< 1,1 GB Fremdbelegung, Identitäts-Check `/v1/models`) → Plan → Korpus-Suche →
-Audit → Paper-/Patent-Sweep (auch ohne Audit-Befund) → Web → Re-Audit → eine
-Sweep-Nachrunde → Bericht → **Zitat-Kanonisierung** (Katalog-IDs; jede URL muss
-im gesammelten Katalog stehen, sonst gestrichen) → Mess- und Korpus-Anhang →
-Endkontrolle → Status **`review`**. Danach Ruhezustand (Symlink 8B-208k,
-llama-server wieder aktiv, falls er lief).
-
-**Leseansicht.** *Herkunftskopf* (Frage, Belegmix Artikel/Signale/Paper/
-Patente/Web, zitiert/gestrichen, Messblock-Kurzfassung, Modell, Retrieval,
-Dauer, Sprache) → *Endkontroll-Panel* (unbelegte Zahlen, gestrichene Zitate,
-Zitatquote, offene Fragen; „end-control clean" oder N findings) → *Bericht*
-(Markdown inkl. Tabellen) → *Coverage-Anhang* (Ledger je Lücke: Paper/Patente/
-Web-Queries/-Treffer/-Fetches) → *Versionswechsler*. **Sign off (this version)**
-setzt `done`; das passiert nie automatisch.
-
-**Abnahmekriterien** (Abnahmelauf 03.09., „perovskite tandem photovoltaics"):
-≥ 95 % der Zitate im fertigen Dossier belegt (8/8), 0 erfundene URLs (alle per
-HEAD/GET erreichbar), 0 unbelegte Zahlen, wörtliche Zitate im Material, Ledger
-vollständig, Dauer 10–15 min (477 s Recherche, 568 s Wandzeit).
-
-**Grenzen.** Vor der Kanonisierung erfindet das Modell plausible Pfade bekannter
-Domains — **Streichungsquote 46,7 %** der Zitat-Instanzen im Abnahmelauf (bei
-`--lang de` ähnlich); der fertige Text ist sauber, verliert aber Belege. Lücken,
-die erst das Re-Audit aufwirft, werden nicht mehr gesweept und fehlen im
-Ledger. Kein Versions-Diff (nur Wechsler). Die Quant-Vorstufe misst das
-**Thema**, nicht die eigene Frage. Web-Treffer sind ungeranked, der
-Patent-Sweep titelbasiert. `--retrieval vector` ist ungetestet (Default FTS).
-Nicht parallel zum 04:00-Cycle starten.
-
-Doku: `docs/agentic_dossiers.md`, Skizze `docs/corpus_research_sketch.md`.
-
----
-
-
-### 6.5 Advisor — Beratungsnotiz je Kunde
-
-**Wozu.** Das Dossier kennt seinen Leser nicht; deshalb trägt es seit dem
-14.09. keine Optionen mehr, sondern „Decision points and watch items". Die
-Beratung entsteht später, wenn Kunde und Auftrag bekannt sind — als eigene,
-versionierte Notiz zu **einer** Dossier-Version.
-
-**Bedienung.** Auf der Dossierseite unter „Advisory notes for this dossier" →
-„New advisory note": Kundenprofil (Branche, Größe, Position in der
-Wertschöpfung, Fähigkeiten, Geografie, Horizont, Risikoappetit, Notizen) und
-der **Auftragsumfang** (Pflicht: die anstehende Entscheidung, was drin und
-draußen ist, Budget/Zeit). „Create note" legt die Notiz an und startet den
-Advisor (Haken „start right away"; ~10–20 min: 27B mit eingeschaltetem Denken,
-Symlink auf `start-qwen3.8-27b-thinking.sh`, Ruhezustand danach). Die Ansicht
-`/trends/dossiers/<slug>/advisory/<id>` zeigt Profil, Auftrag, Prüfung
-(„check clean/objects" · „reader ok/objects") und die Notiz: Situation für
-diesen Kunden, Optionen inkl. Null-Option — je Option Trigger, Horizont,
-Aufwand **aus einem Vergleichsfall des Dossiers** (Fördergrenzen sind
-verboten), Wer zahlt, Risiko, Abbruchkriterium, Gegenargument —, Empfehlung
-mit Konfidenz und „was meine Meinung ändern würde", benutzte Belege.
-
-**Regeln.** Geschlossener Katalog: jede externe Zahl/Aussage muss aus dem
-Dossier stammen und trägt dessen Zitat; Kundenfakten kommen aus dem Profil
-(„(client profile)"). Deterministisch geprüft: gestrichene Marker,
-Platzhalter in Pflichtfeldern, Zahlen, die weder im Dossier noch im Profil
-stehen; danach liest der Leser. **Nichts geht raus ohne deine Freigabe**
-(„Approve for delivery" → `approved_at/approved_by`; „Withdraw approval"
-nimmt sie zurück) — dieselbe Regel wie beim Newsletter.
-
-**CLI.** `python -m scripts.advisory --new --dossier <slug>[@v] --profile-file
-p.json --scope "…" --run`, `--note <id>`, `--list [--dossier <slug>]`,
-`--approve <id> [--approval-note "…"]`, `--withdraw <id>`. Log
-`data/advisory/<stamp>.log`, Lock `data/advisory.lock`; läuft ein
-Dossier-Worker, verweigert der Desk den Start („busy").
+Der Scouting-Dossier-Desk `/trends/dossiers` (Korpus-Rechercheur, Messkette,
+Leser, Advisor) wurde am 2026-09-19 entfernt — Owner: „Das Feature trägt
+nicht" (7 Versionen zu einem Thema, 48 Läufe, Leser nie zufrieden). Historie
+und Messungen: `docs/agentic_dossiers.md`; Rückweg: Git-Tag
+`archive/dossiers-2026-09-19`; Nachfolge-Idee „Field Watch":
+`docs/value_proposition_field_watch_2026-09-19.md` (auf `dev`), Issue #108.
+DB-Tabellen bleiben stehen (kein DROP); die Route ist lokal wie im Export 404.
 
 ## 7. Newsletter
 
@@ -864,51 +598,33 @@ Lokal: `/trends/newsletter` ist eine Client-Seite mit Wochen-Wechsler
 des 30-Tage-Fensters zeigen auf die Primärquelle), `/trends/newsletter/unsubscribed`.
 Editions-URLs sind lokal 404 (dort gilt die Client-Seite).
 
-### 7.3 Deep Dive of the Week — Dry-Run (#96 Phase 1, nicht scharf)
+### 7.3 Deep Dive of the Week — stillgelegt seit 2026-09-19 (#96)
 
-**Wozu.** Rechercheur-gestützte Sektion zum stärksten Wochenthema. Phase 1 baut
-die ganze Kette, zeigt das Ergebnis aber nur dem Owner.
+**Was es war.** Rechercheur-gestützte Sektion zum stärksten Wochenthema, als
+Dry-Run über den Auftragspfad der Scouting-Dossiers (27B-Rechercheur → Gate →
+Gemma-Kondensat). Mit dem Rückbau der Dossiers (§6) gibt es den Rechercheur
+nicht mehr.
 
-**Einschalten.** In `crontab -e` die Montagszeile ergänzen:
-`0 9 * * 1  NEWSLETTER_DEEP_DIVE=dry-run /home/dirk/projects/catandary-trends/scripts/weekly_newsletter_publish.sh`
-(Default `off` — heute nicht gesetzt). Läuft dann *nach* der Edition; ~4–5 min.
+**Was heute passiert.** Ist `NEWSLETTER_DEEP_DIVE=dry-run` in der Crontab gesetzt
+(Default `off` — heute nicht gesetzt), läuft nach der Edition
+`scripts/newsletter_deep_dive.py`: Themenwahl (SQL, deterministisch, Ranking
+gespeichert) und dann hart `status: "disabled"`, `error: "dossier feature removed
+2026-09-19"` in `newsletter_editions.deep_dive` — Edition unverändert, kein
+Modell, keine GPU, Exit-Code 2 (`dd=2` in der end-Zeile, nie ein Blocker). Die
+Dienstag-Morgen-Mail zeigt „disabled — researcher removed 2026-09-19".
 
-**Was passiert.** Themenwahl (SQL, deterministisch: Anteils-Delta je Mega-Theme
-gegen 4 Vorwochen, ≥ 15 Signale, Varianz-Regel über die letzten 4 Editionen)
-→ Dossier-Auftrag `newsletter-deepdive-<J>-w<KW>` → Worker (27B, Zeitbudget
-20 min, ohne Web-Stufe) → **Gate** → Gemma-Kondensat 300–500 Wörter (nur
-belegte Kernaussagen + Zitatkatalog als Kontext) → deterministische Nachprüfung
-→ speichern.
-
-**Was das Gate prüft.** `supported_claims` ≥ 8 belegte Kernaussagen ·
-`contradictions` < 3 · `citations_canonical` 100 % · `dossier_grounded` 0
-unbelegte Zahlen · `condensate`: Wortzahl, alle Links im Katalog, alle Zahlen im
-Dossier, ≥ 4 Belege, reine Prosa, keine Meta-Rede über die Beleglage.
-`gate_passed` = alle fünf.
-
-**Wo der Owner es sieht.** In der Edition auf der Owner-Instanz als Block
-„Deep-Dive Dry-Run — not public" (Thema, Gate-Chips ok/fail, Audit-Zahlen,
-Gründe, Kondensat-Vorschau, Link „Open the dossier in the desk →"); das Dossier
-selbst im Desk (Status `review`); ein Draft unter
-`frontend/content/analyses/newsletter-deepdive-<J>-w<KW>.md` (`draft: true`,
-untracked); eine Zeile in der Dienstag-Morgen-Mail. Öffentlich gerendert wird
-nur `gate_passed && !dry_run` — im Dry-Run also nie (Export-Nachweis 04.09.:
-keine Spur in `out/`).
+**Wo der Owner es sieht.** Der gespeicherte Dry-Run W35 2026 (`gate_failed`)
+rendert weiter als Block „Deep-Dive Dry-Run — not public" (Thema, Gate-Chips,
+Audit, Kondensat-Vorschau; ohne Desk-Link). Öffentlich nur `gate_passed &&
+!dry_run` — also nie.
 
 **Terminal.**
 ```bash
 python -m scripts.newsletter_deep_dive --year 2026 --week 35 --theme-only   # Ranking, kein Modell
-python -m scripts.newsletter_deep_dive --year 2026 --week 35                # Dry-Run (Edition muss existieren)
-python -m scripts.newsletter_deep_dive --year 2026 --week 35 --theme quantum_information_science
-python -m scripts.newsletter_deep_dive --year 2026 --week 35 --from-dossier newsletter-deepdive-2026-w35@3
-#   ^ nur Gate + Kondensat auf einem bestehenden Dossier, kein 27B-Lauf
+python -m scripts.newsletter_deep_dive --year 2026 --week 35                # schreibt status "disabled"
 ```
 
-**Stand.** Drei Dry-Runs W35 (Thema `digital_trust_and_data_sovereignty`): Gate
-verfehlt nur an `supported_claims` (6–7 < 8) — ohne Web-Stufe trägt der Korpus
-zu einem News-Thema ~6 belegte Aussagen; Kondensat jeweils sauber. Phase 2
-(Owner-Entscheid nach 2–3 Wochen): `--web-steps 6`, Schwellen kalibrieren,
-`--apply`, E-Mail-Template. Doku: `docs/newsletter_deep_dive.md`.
+Historie (Gates, Kalibrierung, drei Dry-Runs W35): `docs/newsletter_deep_dive.md`.
 
 ### 7.4 Versand-Kette (#16, gegated — läuft nicht)
 
@@ -1008,9 +724,8 @@ image, corpus_asof, author, draft` (Vorlage `_template.md`); das Bild liegt unte
 unter PUBLIC_MODE 404 — **auf der Owner-Instanz (:3001/:3004) aber sichtbar** (seit 2026-09-14:
 „Draft“-Marke in der Liste, Hinweisbanner auf der Seite), damit ein Stück an seiner
 endgültigen URL gelesen werden kann, bevor es live geht. Veröffentlichen = `draft: false` setzen, Bild ablegen, committen (Versionierung
-über git, kein Admin-UI). Deep-Dive-Drafts (Abschnitt 7.3) landen hier zum
-Redigieren: Kopf mit Gate/Audit, Kondensat, darunter das volle Dossier;
-Autor-Zeile umschreiben, kürzen, `draft: false`.
+über git, kein Admin-UI). *(Bis 2026-09-19 landeten hier auch die
+Deep-Dive-Drafts aus Abschnitt 7.3; der Schritt ist stillgelegt.)*
 
 **Grenzen.** Im Export wird `/analysis/<slug>` nur gebaut, wenn mindestens eine
 Analyse `draft: false` hat. Die Root-Seite `/analysis` gehört zu den Root-Dateien,
@@ -1039,7 +754,7 @@ PUBLIC_WINDOW_DAYS=3 scripts/build_public_static.sh /pfad/zum/out    # Schnellte
 Env: `PUBLIC_WINDOW_DAYS` (30), `PUBLIC_NOINDEX` (**1** bis zum Launch),
 `PUBLIC_SITE_URL` (`https://catandary.de`), `KEEP_STAGING=1` (Debug). Das Skript
 kopiert `frontend/` per rsync in `frontend/.export/site/` ohne alles aus
-`frontend/static-export.exclude` (Foresight, Review, Dossiers, API, Proxy),
+`frontend/static-export.exclude` (Foresight, Review, Ops, API, Proxy),
 baut mit `STATIC_EXPORT=1 PUBLIC_MODE=1`, verifiziert (404/Index/Feed/Expired/
 Sitemap, Artikel > 0, **kein** `"status":"draft"` im Payload, `index.json`
 valide), kopiert die `.htaccess` aus `frontend/public-export/` hinein und
@@ -1250,7 +965,7 @@ wird das in `.env`: `REMOTE_EMBED_HOST`, `REMOTE_GPU_WINDOW`,
 
 Grenze: 16 GB, davon am Sperrbildschirm 13,9 GB frei — bei angemeldetem
 Benutzer weniger. Das reicht für 8B, 14B und den Embedder, nicht für das
-Gemma-4-26B der Artikelerzeugung oder den 27B-Rechercheur.
+Gemma-4-26B der Artikelerzeugung oder den 27B-Richter.
 
 **Zweiter Vektorraum über den Quelltext (#102) — zurückgebaut am 11.09.2026.**
 Die Messung über 95.023 Zeilen (`docs/embedding_eval_2026-09-11.md`) zeigte
@@ -1447,7 +1162,7 @@ nvidia-smi --query-gpu=memory.used,memory.total --format=csv
    Nichts ist verloren: die betroffenen Einträge sind weder verarbeitet noch
    gefiltert und laufen beim nächsten Cycle erneut (Stage-Zwischenergebnisse sind
    gecacht). Prüfen, welcher Job es war (`~/logs/catandary-ingesters-*.log`,
-   `data/dossier_worker/`), dann §11.8 — der Wächter sollte das verhindert haben.
+   `data/research_pulse/`), dann §11.8 — der Wächter sollte das verhindert haben.
 8. Endet ein `signal_batch`-/Ingester-Lauf mit `ABORT distill: 20 embedding
    backend failures in a row … Exit 3` (Wrapper-rc 3), war der Embedding-Server
    weg. Nichts markiert: Server prüfen (Punkte 1–4), dann den Schritt wiederholen
@@ -1479,7 +1194,7 @@ Statusdateien im main-Worktree `data/`: `draft_judge_last.json`,
 (nur vorhanden, solange ein übersprungener GPU-Schritt nachzuholen ist),
 `llama-server.<job>.pid` (Besitzvermerk der Unit, §11.8),
 `ops_sampler_state.json` (Zählerstände des Ops-Samplers für CPU-/I/O-Deltas, §11.9); Worker-Logs
-`data/dossier_worker/`, `data/research_pulse/`.
+`data/research_pulse/`, `data/foresight_snapshot/`.
 
 ### 11.7 Pipeline von Hand
 
@@ -1506,8 +1221,8 @@ Embedding-Server der Ingester (2.275 Distill-Aufrufe „Connection refused").
 `scheduled_cycle.sh`, `weekly_ingesters.sh`, `monthly_startup_sources.sh`,
 `weekly_newsletter_publish.sh`, `weekly_research_pulse.sh`) ruft vor seinem
 GPU-Schritt `gpu_guard_wait <job>` auf: läuft ein anderer bekannter GPU-Job
-(`scheduled_cycle.sh`, `run_full_cycle`, `signal_batch*`, `dossier_worker`,
-`corpus_research`, `research_pulse`, `newsletter_deep_dive`, `newsletter_generator`,
+(`scheduled_cycle.sh`, `run_full_cycle`, `signal_batch*`,
+`research_pulse`, `newsletter_deep_dive`, `newsletter_generator`,
 die Wrapper selbst), wartet er — Default 90 min (`GPU_GUARD_MAX_MIN`), Poll 60 s
 — und gibt danach auf. Logzeilen: `[gpu_guard/<job>] fremder GPU-Job aktiv —
 warte (max 90 min):` mit PID + Kommandozeile, `… frei nach ~N min — weiter`
@@ -1533,7 +1248,7 @@ rm data/weekly_ingesters_pending_min_id                        # oder den Samsta
 in `data/llama-server.<job>.pid` und stoppt beim Aufräumen nur noch einen Server
 mit **dieser** MainPID — die Python-Handover in `pipeline/gpu_handover.py`
 (`<job>` = Einstiegsskript: `run_full_cycle`, `signal_batch_embedded`,
-`dossier_worker`, `research_pulse`, `newsletter_deep_dive` …) ebenso wie der
+`research_pulse`, `newsletter_deep_dive` …) ebenso wie der
 Richter-Block in `scheduled_cycle.sh` (`scheduled_cycle-judge`,
 `llama_unit_record_owner` / `llama_unit_stop_owned`). Hat inzwischen ein anderer
 Job die Unit neu gestartet, bleibt sie stehen und auch der Symlink wird nicht

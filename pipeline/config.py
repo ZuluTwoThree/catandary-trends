@@ -101,12 +101,12 @@ STAGE6_SOURCE_MAX_CHARS = int(os.getenv("STAGE6_SOURCE_MAX_CHARS", "4000"))
 # Bruchstueck), laesst normale RSS-Teaser (Median 508 Zeichen) unberuehrt.
 MIN_SOURCE_TEXT_CHARS = int(os.getenv("MIN_SOURCE_TEXT_CHARS", "80"))
 
-# Eigener Embedding-Endpunkt fuer die Vektorsuche des Korpus-Rechercheurs
-# (#97, 2026-09-09). Waehrend ein Dossier laeuft, haelt :8090 den 27B — ein
-# Embedding-Request dorthin wuerde vom Chatmodell beantwortet. Ist die Variable
-# gesetzt, benutzt scripts/corpus_research.py --retrieval vector diesen Host
-# (CPU-Server, ~/llama.cpp/start-qwen3-emb-cpu.sh auf :8091) und der
-# Dossier-Worker schaltet von sich aus auf Vektorsuche um. Leer = FTS wie bisher.
+# Eigener Embedding-Endpunkt auf der CPU (:8091, #97, 2026-09-09): dasselbe
+# Qwen3-Embedding-8B wie Stage 5, aber ohne VRAM — fuer Vektorsuchen, waehrend
+# :8090 ein Chatmodell haelt (ein Embedding-Request dorthin wuerde vom Chatmodell
+# beantwortet). Urspruenglicher Nutzer war der Korpus-Rechercheur der
+# Scouting-Dossiers (Feature entfernt 2026-09-19); der Server bleibt als
+# systemd-Unit catandary-embed-cpu.service bestehen. Leer = kein CPU-Endpunkt.
 RESEARCH_EMBED_HOST = os.getenv("RESEARCH_EMBED_HOST", "")
 
 # qwen3:8b stages backend (pipeline Stages 2 Relevance, 3 Extraction,

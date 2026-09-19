@@ -9,7 +9,7 @@ und genau diese Verwechslung von Form und Inhalt war der Befund vom 2026-09-09
 
 Der WORTLAUT bleibt unangetastet: Tags raus, Entities aufloesen, Leerraum
 normalisieren. Sonst waere der Auszug als Zitat nicht mehr brauchbar
-(scripts/corpus_research.py zeigt ihn als Beleg mit „quote from HERE").
+(der fruehere Korpus-Rechercheur zeigte ihn als Beleg mit „quote from HERE").
 """
 from __future__ import annotations
 

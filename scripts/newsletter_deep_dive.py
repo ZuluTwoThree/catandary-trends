@@ -1,44 +1,26 @@
 #!/usr/bin/env python3
-"""„Deep Dive of the Week" für den Wochen-Newsletter (#96, Phase 1 = Dry-Run).
+"""„Deep Dive of the Week" für den Wochen-Newsletter (#96) — seit 2026-09-19 STILLGELEGT.
 
-Rechercheur-gestützte Einordnung des stärksten Wochenthemas, als eigener
-Schritt NACH der Edition (scripts/weekly_newsletter_publish.sh setzt ihn nur,
-wenn NEWSLETTER_DEEP_DIVE=dry-run gesetzt ist — standardmäßig passiert nichts).
-Standardmäßig --dry-run: das Ergebnis landet in newsletter_editions.deep_dive
-mit dry_run=true und wird öffentlich NIE gerendert; das Frontend zeigt dem
-Owner einen Hinweisblock mit Link aufs Dossier im Desk. --apply (Phase 2)
-schaltet erst nach Owner-Blick auf 2–3 Wochen Dry-Run scharf.
+Der Schritt war eine rechercheur-gestützte Einordnung des stärksten
+Wochenthemas: Themenwahl → Auftrag an den Korpus-Rechercheur der
+Scouting-Dossiers (27B) → Ehrlichkeits-Gate → Gemma-Kondensat → Speichern.
+Mit dem Rückbau der Scouting-Dossiers (Owner 2026-09-19: „Das Feature trägt
+nicht", Tag `archive/dossiers-2026-09-19`) gibt es den Rechercheur nicht mehr.
 
-Kette (Handover-Reihenfolge 27B → Gemma → Ruhezustand):
+Was das Skript heute tut: die deterministische Themenwahl (auditierbar, wie
+bisher) und dann ein hartes, protokolliertes Ergebnis `status: "disabled"` in
+`newsletter_editions.deep_dive` — derselbe Pfad wie „no_theme": die Edition
+bleibt unverändert, der Datensatz nennt den Grund, die Morgen-Mail-Zeile
+(scripts/review_notify.py) zeigt ihn. Kein Modell wird geladen, keine GPU
+angefasst. Gate-, Kondensat- und Speicher-Funktionen bleiben im Modul, damit
+gespeicherte Editionen (deep_dive-JSON früherer Dry-Runs) weiter gerendert
+und getestet werden können (frontend/src/components/newsletter/DeepDive.tsx).
 
-  1. Themenwahl, deterministisch: stärkstes Mega-Signal-Theme nach dem
-     Signal-Delta der Woche (Anteil der Woche vs. Anteil der vier Vorwochen,
-     Anteile statt Rohzahlen — dieselbe Normierung wie pipeline.mega_momentum);
-     Varianz-Regel: Themen der letzten THEME_EXCLUDE_EDITIONS Editionen mit
-     Deep-Dive sind ausgeschlossen. Ranking wird mitgespeichert (auditierbar).
-  2. Rechercheur-Lauf über den Dossier-Auftragspfad (dossier_orders →
-     scripts/dossier_worker.py), damit Endkontrolle + Desk greifen. Serie
-     `newsletter-deepdive-<jahr>-w<kw>`, Phase 1 ohne Web (--web-steps 0),
-     Zeitbudget TIME_BUDGET_MIN (SIGALRM → Auftrag 'failed', Handover räumt auf).
-  3. Ehrlichkeits-Gate über Audit + Endkontrolle des Dossiers (Startwerte
-     unten, im Dry-Run zu kalibrieren — docs/newsletter_deep_dive.md).
-  4. Kondensat auf Gemma-4-26B (Content-Stimme): 300–500 Wörter, Gemma
-     formuliert NUR — jede Zahl/URL muss im auditierten Dossier vorkommen
-     (Nachprüfung: Zitat-Katalog-Abgleich + pipeline.grounding), sonst Gate
-     verfehlt. Im Dry-Run wird das Kondensat auch bei verfehltem Dossier-Gate
-     erzeugt (Kalibrier-Material); mit --apply entfällt es dann.
-  5. Speichern (deep_dive JSON), Draft-Markdown nach frontend/content/analyses
-     (draft: true — nie gelistet/gerendert), data/newsletter_deep_dive_last.json
-     für Wächter/Morgen-Mail, eine Logzeile.
+Wrapper: scripts/weekly_newsletter_publish.sh ruft den Schritt nur mit
+NEWSLETTER_DEEP_DIVE=dry-run auf (Default aus — so bleibt es).
 
-Graceful Degradation: Themenwahl leer / Handover verweigert / Zeitbudget
-gerissen / Gate verfehlt → die Edition bleibt wie sie ist, der Deep-Dive-
-Datensatz protokolliert den Grund. Nie ein Blocker für die Edition.
-
-    python -m scripts.newsletter_deep_dive --year 2026 --week 35            # dry-run
+    python -m scripts.newsletter_deep_dive --year 2026 --week 35            # → disabled
     python -m scripts.newsletter_deep_dive --year 2026 --week 35 --theme-only
-    python -m scripts.newsletter_deep_dive --year 2026 --week 35 --theme quantum_information_science
-    python -m scripts.newsletter_deep_dive --year 2026 --week 35 --from-dossier newsletter-deepdive-2026-w35@3
 """
 from __future__ import annotations
 
@@ -47,7 +29,6 @@ import json
 import logging
 import os
 import re
-import signal
 import sys
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -59,11 +40,9 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from pipeline import db as db_mod  # noqa: E402
-from pipeline import dossier_orders as orders_mod  # noqa: E402
 from pipeline import gpu_handover  # noqa: E402
 from pipeline.config import DATA_DIR, PROJECT_ROOT, load_mega_trends  # noqa: E402
 from pipeline.db import get_connection  # noqa: E402
-from pipeline.dossier_check import COVERAGE_HEADINGS  # noqa: E402
 from pipeline.grounding import ungrounded_specifics  # noqa: E402
 from pipeline.newsletter_generator import (  # noqa: E402
     BANNED_PHRASES, ensure_deep_dive_column)
@@ -79,22 +58,30 @@ WORDS_MIN, WORDS_MAX = 300, 500
 MIN_CITATIONS = 4           # distinkte Belege im Kondensat
 CONDENSE_ATTEMPTS = 3
 
-TIME_BUDGET_MIN = int(os.getenv("NEWSLETTER_DEEP_DIVE_BUDGET_MIN", "20"))
 THEME_EXCLUDE_EDITIONS = 4
 THEME_MIN_WEEK_SIGNALS = 15
 THEME_PRIOR_WEEKS = 4
 WEEK_SIGNALS_IN_PROMPT = 6
 
-RESEARCH_MODEL = "Qwen3.8-27B"           # scripts.corpus_research.MODEL
+RESEARCH_MODEL = "Qwen3.8-27B"           # historischer Rechercheur (entfernt 2026-09-19)
 CONDENSE_MODEL = os.getenv("NEWSLETTER_DEEP_DIVE_MODEL",
                            "gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf")
 CONDENSE_SEED = 96
 CONDENSE_TEMPERATURE = 0.3
 JUDGE_VRAM_FREE_MIB = 1100               # Stage-10-Regel (27B)
 
-RESEARCH_PARAMS = {"steps": 6, "sources": 24, "per_query": 6, "scope": "both",
-                   "web_steps": 0, "web_sources": 0, "retrieval": "fts",
-                   "quant": False}
+DISABLED_REASON = "dossier feature removed 2026-09-19"
+
+# Code-generierte Anhänge früherer Dossier-Berichte (ehemals
+# pipeline.dossier_check.COVERAGE_HEADINGS) — nur noch zum Abschneiden beim
+# Lesen gespeicherter Berichte (report_body).
+COVERAGE_HEADINGS = (
+    "<!-- audit-annex -->",
+    "## How this dossier was checked (auto-generated)",
+    "## Wie dieses Dossier geprüft wurde (automatisch erzeugt)",
+    "## Research coverage (auto-generated)",
+    "## Recherche-Abdeckung (automatisch erzeugt)",
+)
 
 KINDS = ("article", "signal", "paper", "patent", "web")
 LAST_PATH = DATA_DIR / "newsletter_deep_dive_last.json"
@@ -102,10 +89,6 @@ ANALYSES_DIR = PROJECT_ROOT / "frontend" / "content" / "analyses"
 
 _LINK = re.compile(r"\[([^\]\n]+)\]\((https?://[^)\s]+)\)")
 _SOURCES_HEADING = re.compile(r"^## (?:Sources|Quellen)\s*$", re.MULTILINE)
-
-
-class DeepDiveTimeout(Exception):
-    """Zeitbudget der Recherche gerissen (SIGALRM)."""
 
 
 # ---------------------------------------------------------------------------
@@ -253,84 +236,6 @@ def build_question(theme: dict, signals: list[dict], year: int, week: int) -> st
         f"do the internal research and patent corpora add? Distinguish "
         f"established facts from claims throughout, and say plainly what the "
         f"corpus cannot answer.")
-
-
-# ---------------------------------------------------------------------------
-# 2. Recherche über den Auftragspfad, mit Zeitbudget
-# ---------------------------------------------------------------------------
-
-def _write_worker_lock() -> None:
-    """Der Desk (lib/dossierWorker.ts) prüft data/dossier_worker.lock per
-    kill(pid, 0) — so sieht der Owner „running" und startet keinen zweiten
-    Worker unter dem Deep-Dive weg."""
-    try:
-        (DATA_DIR / "dossier_worker.lock").write_text(json.dumps({
-            "pid": os.getpid(),
-            "startedAt": datetime.now(timezone.utc).isoformat(timespec="milliseconds")
-            .replace("+00:00", "Z"),
-            "log": None, "args": ["newsletter_deep_dive"]}))
-    except OSError as exc:                                          # noqa: BLE001
-        logger.warning("worker lock not written: %s", exc)
-
-
-def run_research(order_id: int, budget_min: int = TIME_BUDGET_MIN) -> dict:
-    """Den Auftrag über scripts.dossier_worker abarbeiten (27B-Handover mit
-    VRAM-/Identitäts-Guard, Endkontrolle, Ruhezustand danach) und das
-    Zeitbudget per SIGALRM durchsetzen. Der Alarm wirft im Worker eine
-    Exception, die process_order als 'failed' verbucht und deren Weg durch
-    den Handover-Context die Karte sauber zurücklässt; ein vom Rechercheur
-    verschluckter Alarm (dessen except-Exception-Stellen) wird 30 s später
-    erneut geworfen."""
-    from scripts import dossier_worker
-
-    def _alarm(signum, frame):
-        signal.setitimer(signal.ITIMER_REAL, 30)
-        raise DeepDiveTimeout(f"time budget of {budget_min} min exceeded")
-
-    _write_worker_lock()
-    prev = signal.signal(signal.SIGALRM, _alarm)
-    signal.setitimer(signal.ITIMER_REAL, budget_min * 60)
-    t0 = time.time()
-    rc: int | None = None
-    error: str | None = None
-    try:
-        rc = dossier_worker.run_worker(only_order=order_id, skip_quant=True)
-    except DeepDiveTimeout as exc:
-        error = str(exc)
-    except Exception as exc:                                        # noqa: BLE001
-        error = f"{type(exc).__name__}: {exc}"
-        logger.exception("worker crashed")
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, prev)
-    order = orders_mod.get_order(order_id) or {}
-    if order.get("status") in ("queued", "running"):
-        # rc=1 ohne Exception = der Worker hat den Lauf gar nicht begonnen
-        # (GPU-Handover verweigert: VRAM/Identität — Diagnose im Worker-Log).
-        orders_mod.mark_failed(order_id, error or
-                               f"worker rc={rc}: run not started (GPU handover "
-                               f"refused or order not runnable — see log)")
-        order = orders_mod.get_order(order_id) or order
-    return {"rc": rc, "error": error or order.get("error"),
-            "status": order.get("status"), "order": order,
-            "seconds": round(time.time() - t0, 1)}
-
-
-def load_dossier(slug: str, version: int) -> dict | None:
-    with get_connection() as conn:
-        row = conn.execute(
-            "SELECT report_md, result, model, created_at FROM dossiers "
-            "WHERE slug = ? AND version = ?", (slug, version)).fetchone()
-    if not row:
-        return None
-    d = dict(row)
-    res = d["result"]
-    if isinstance(res, str):
-        res = json.loads(res)
-    res = dict(res)
-    res.setdefault("report", d["report_md"])
-    res["model"] = res.get("model") or d.get("model")
-    return res
 
 
 # ---------------------------------------------------------------------------
@@ -778,7 +683,7 @@ def write_last(payload: dict, status: str, error: str | None = None) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Ruhezustand (Muster scripts/research_pulse.py / dossier_worker.py)
+# Ruhezustand (Muster scripts/research_pulse.py)
 # ---------------------------------------------------------------------------
 
 def _llama_unit_active() -> bool:
@@ -835,9 +740,10 @@ def choose(year: int, week: int, override: str | None = None) -> tuple[dict | No
 
 
 def run(year: int, week: int, dry_run: bool = True, theme_override: str | None = None,
-        web_steps: int = 0, budget_min: int = TIME_BUDGET_MIN,
-        write_draft: bool = True, condense_model: str = CONDENSE_MODEL,
-        research=run_research, condense_fn=condense) -> dict:
+        write_draft: bool = False) -> dict:
+    """Themenwahl protokollieren, dann hart `status: "disabled"` speichern —
+    der Rechercheur (Scouting-Dossiers) ist seit 2026-09-19 entfernt. Kein
+    Modell, keine GPU; die Edition bleibt unverändert."""
     t_all = time.time()
     ensure_deep_dive_column()
     with get_connection() as conn:
@@ -847,9 +753,8 @@ def run(year: int, week: int, dry_run: bool = True, theme_override: str | None =
     payload: dict = {
         "year": year, "week": week, "dry_run": dry_run, "gate_passed": False,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "models": {"research": RESEARCH_MODEL, "condense": None},
+        "models": {"research": None, "condense": None},
         "body_md": None, "citations": [], "words": 0,
-        "web_steps": web_steps, "time_budget_min": budget_min,
     }
 
     theme, choice = choose(year, week, theme_override)
@@ -866,184 +771,15 @@ def run(year: int, week: int, dry_run: bool = True, theme_override: str | None =
                     "theme_delta": {k: theme[k] for k in
                                     ("week_n", "prior_n", "prior_weekly_mean", "share_week",
                                      "share_prior", "rel_change", "emerging")}})
-    signals = [{"title_en": s["title"], "source_name": s["source_name"],
-                "slug": s["slug"], "source_url": s["source_url"]}
-               for s in choice["week_signals"]]
-    logger.info("deep_dive %d-W%02d: theme %s (%d signals this week, rel %s, excluded %s)",
-                year, week, theme["key"], theme["week_n"], theme["rel_change"],
-                choice["excluded_recent"])
-
-    # --- Recherche ---------------------------------------------------------
-    slug = deep_dive_slug(year, week)
-    question = build_question(theme, signals, year, week)
-    params = dict(RESEARCH_PARAMS)
-    params["web_steps"] = web_steps
-    params["web_sources"] = 12 if web_steps > 0 else 0
-    # Cron-Pfad: kein Owner-Checkpoint (Stufe 1) — der Auftrag läuft durch.
-    params["checkpoint"] = False
-    orders_mod.ensure_schema()
-    oid = orders_mod.create_order(theme["name_en"], slug=slug, question=question,
-                                  params=params)
-    payload.update({"dossier_slug": slug, "order_id": oid, "question": question})
-    logger.info("deep_dive: order #%d %s — research on %s (budget %d min, web_steps=%d)",
-                oid, slug, RESEARCH_MODEL, budget_min, web_steps)
-    was_active = _llama_unit_active()
-    rr = research(oid, budget_min)
-    payload["research_seconds"] = rr["seconds"]
-    order = rr["order"]
-    if rr["status"] != "review" or not order.get("dossier_version"):
-        payload["status"] = "research_failed"
-        payload["error"] = rr.get("error") or f"order status {rr['status']}"
-        payload["seconds"] = round(time.time() - t_all, 1)
-        save_deep_dive(year, week, payload)
-        if write_draft:
-            payload["analysis_draft"] = str(write_analysis_draft(payload, None))
-        write_last(payload, "research_failed", payload["error"])
-        _restore_resting_server(was_active)
-        logger.error("deep_dive %d-W%02d: research failed (%s) — edition unchanged",
-                     year, week, payload["error"])
-        return payload
-    version = int(order["dossier_version"])
-    result = load_dossier(slug, version)
-    if result is None:
-        raise RuntimeError(f"dossier {slug} v{version} vanished")
-    return _finish(payload, theme, signals, result, version, order.get("check") or {},
-                   dry_run=dry_run, write_draft=write_draft, condense_model=condense_model,
-                   condense_fn=condense_fn, was_active=was_active, t_all=t_all)
-
-
-def _finish(payload: dict, theme: dict, signals: list[dict], result: dict, version: int,
-            check: dict, *, dry_run: bool, write_draft: bool, condense_model: str,
-            condense_fn, was_active: bool, t_all: float) -> dict:
-    """Gate → Kondensat → Speichern/Draft/Wächter — gemeinsamer Schluss von
-    run() (frischer Rechercheur-Lauf) und run_from_dossier() (bestehendes
-    Dossier, kein 27B-Lauf)."""
-    year, week, slug = payload["year"], payload["week"], payload["dossier_slug"]
-    payload["dossier_version"] = version
-    payload["corpus_asof"] = str(result.get("finished_at") or "")[:10]
-    payload["models"]["research"] = result.get("model") or RESEARCH_MODEL
-
-    # --- Gate --------------------------------------------------------------
-    gate = evaluate_gates(result, check)
-    payload.update({"audit": gate["audit"], "gates": gate["gates"],
-                    "gate_reasons": gate["reasons"], "dossier_gate": gate["passed"],
-                    "endcontrol": {k: check.get(k) for k in
-                                   ("ok", "findings", "stripped_citations", "cited",
-                                    "open_questions", "words", "seconds")}})
-    logger.info("deep_dive: dossier gate %s — %s", "PASSED" if gate["passed"] else "FAILED",
-                json.dumps(gate["audit"], ensure_ascii=False))
-
-    # --- Kondensat ---------------------------------------------------------
-    if gate["passed"] or dry_run:
-        try:
-            with gpu_handover.content_gen_on_llamacpp(condense_model):
-                served = gpu_handover._served_model() or condense_model
-                payload["models"]["condense"] = Path(served).name
-                c = condense_fn(theme, year, week, signals, result, model=condense_model)
-        except RuntimeError as exc:
-            c = None
-            payload["error"] = f"condense handover refused: {exc}"
-            logger.error("deep_dive: %s", payload["error"])
-        finally:
-            _restore_resting_server(was_active)
-        if c is not None:
-            payload.update({
-                "body_md": c["text"], "words": c["words"],
-                "citations": [{"url": s["url"], "title": s["title"],
-                               "kind": s.get("kind", "article"),
-                               "outlet": s.get("outlet") or None,
-                               "date": s.get("date") or None} for s in c["citations"]],
-                "condensate_check": {"checks": c["checks"], "reasons": c["reasons"],
-                                     "unknown_links": c["unknown_links"],
-                                     "ungrounded": c["ungrounded"],
-                                     "meta_talk": c.get("meta_talk", []),
-                                     "paragraphs": c["paragraphs"],
-                                     "paragraphs_without_citation": c["paragraphs_without_citation"],
-                                     "attempts": c["attempts"]},
-            })
-            payload["gate_passed"] = bool(gate["passed"] and c["ok"])
-            payload["gates"] = {**gate["gates"], "condensate": c["ok"]}
-    else:
-        _restore_resting_server(was_active)
-        payload["gates"] = {**gate["gates"], "condensate": False}
-
-    payload["status"] = "ok" if payload["gate_passed"] else "gate_failed"
+    payload["status"] = "disabled"
+    payload["error"] = DISABLED_REASON
     payload["seconds"] = round(time.time() - t_all, 1)
     save_deep_dive(year, week, payload)
-    if write_draft:
-        payload["analysis_draft"] = str(write_analysis_draft(payload, result))
-    write_last(payload, payload["status"], payload.get("error"))
-    logger.info("deep_dive %d-W%02d: %s — theme %s, dossier %s v%d, gate_passed=%s, "
-                "%d words, %.0fs total (dry_run=%s)",
-                year, week, payload["status"], theme["key"], slug, version,
-                payload["gate_passed"], payload["words"], payload["seconds"], dry_run)
+    write_last(payload, "disabled", DISABLED_REASON)
+    logger.warning("deep_dive %d-W%02d: DISABLED (%s) — theme would have been %s "
+                   "(%d signals this week); edition unchanged, no research run",
+                   year, week, DISABLED_REASON, theme["key"], theme["week_n"])
     return payload
-
-
-def parse_dossier_ref(ref: str) -> tuple[str, int]:
-    """'newsletter-deepdive-2026-w35@3' → (slug, 3)."""
-    m = re.fullmatch(r"\s*([a-z0-9-]+)@(\d+)\s*", ref or "")
-    if not m:
-        raise SystemExit(f"--from-dossier expects <slug>@<version>, got {ref!r}")
-    return m.group(1), int(m.group(2))
-
-
-def run_from_dossier(year: int, week: int, slug: str, version: int, dry_run: bool = True,
-                     theme_override: str | None = None, write_draft: bool = True,
-                     condense_model: str = CONDENSE_MODEL, condense_fn=condense) -> dict:
-    """Nur Gate + Gemma-Kondensat + Nachprüfung auf einem BESTEHENDEN Dossier —
-    kein 27B-Lauf. Überschreibt deep_dive der Edition (dry_run wie gewählt).
-    Thema/Wochensignale kommen aus dem gespeicherten Datensatz der Edition,
-    sonst aus der Themenwahl; die Endkontrolle wird deterministisch neu
-    gerechnet (die gespeicherte kann aus der Zeit vor einem dossier_check-Fix
-    stammen)."""
-    from pipeline.dossier_check import check_result
-    t_all = time.time()
-    ensure_deep_dive_column()
-    with get_connection() as conn:
-        if not edition_exists(conn, year, week):
-            raise SystemExit(f"edition {year}-W{week:02d} does not exist")
-        row = conn.execute("SELECT deep_dive FROM newsletter_editions WHERE year = ? AND week = ?",
-                           (year, week)).fetchone()
-        prev = _decode_deep_dive(dict(row).get("deep_dive")) or {}
-        order_row = conn.execute(
-            "SELECT id FROM dossier_orders WHERE slug = ? AND dossier_version = ? "
-            "ORDER BY id DESC LIMIT 1", (slug, version)).fetchone()
-    result = load_dossier(slug, version)
-    if result is None:
-        raise SystemExit(f"dossier {slug} v{version} does not exist")
-    theme_key = theme_override or prev.get("theme")
-    theme, choice = choose(year, week, theme_key)
-    if theme is None:
-        raise SystemExit("no theme — pass --theme KEY")
-    signals = [{"title_en": s["title"], "source_name": s["source_name"],
-                "slug": s["slug"], "source_url": s["source_url"]}
-               for s in choice["week_signals"]]
-    check = check_result(result)
-    check["recomputed"] = True
-    payload: dict = {
-        "year": year, "week": week, "dry_run": dry_run, "gate_passed": False,
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "models": {"research": RESEARCH_MODEL, "condense": None},
-        "body_md": None, "citations": [], "words": 0,
-        "web_steps": prev.get("web_steps"), "time_budget_min": prev.get("time_budget_min"),
-        "theme": theme["key"], "theme_name": theme["name_en"],
-        "theme_delta": {k: theme[k] for k in
-                        ("week_n", "prior_n", "prior_weekly_mean", "share_week",
-                         "share_prior", "rel_change", "emerging")},
-        "theme_choice": choice, "dossier_slug": slug,
-        "order_id": int(dict(order_row)["id"]) if order_row else prev.get("order_id"),
-        "question": result.get("question"),
-        "research_seconds": prev.get("research_seconds"),
-        "regenerated_from": f"{slug}@{version}",
-        "regenerated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-    }
-    logger.info("deep_dive %d-W%02d: regenerate from dossier %s v%d (theme %s, no research run)",
-                year, week, slug, version, theme["key"])
-    was_active = _llama_unit_active()
-    return _finish(payload, theme, signals, result, version, check, dry_run=dry_run,
-                   write_draft=write_draft, condense_model=condense_model,
-                   condense_fn=condense_fn, was_active=was_active, t_all=t_all)
 
 
 def main() -> int:
@@ -1058,14 +794,6 @@ def main() -> int:
     ap.add_argument("--theme", metavar="KEY", help="Owner-Override der Themenwahl")
     ap.add_argument("--theme-only", action="store_true",
                     help="nur Ranking + Wahl ausgeben, kein Modell")
-    ap.add_argument("--web-steps", type=int, default=0,
-                    help="Web-Stufe des Rechercheurs (Phase 1: 0 = nur interne Korpora)")
-    ap.add_argument("--budget-min", type=int, default=TIME_BUDGET_MIN)
-    ap.add_argument("--no-draft", action="store_true",
-                    help="keinen /analysis-Draft schreiben")
-    ap.add_argument("--from-dossier", metavar="SLUG@VERSION",
-                    help="kein 27B-Lauf: Gate + Gemma-Kondensat + Nachprüfung auf "
-                         "diesem bestehenden Dossier, deep_dive der Edition wird überschrieben")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
@@ -1091,15 +819,7 @@ def main() -> int:
 
     dry_run = not args.apply
     try:
-        if args.from_dossier:
-            slug, version = parse_dossier_ref(args.from_dossier)
-            payload = run_from_dossier(args.year, args.week, slug, version, dry_run=dry_run,
-                                       theme_override=args.theme,
-                                       write_draft=not args.no_draft)
-        else:
-            payload = run(args.year, args.week, dry_run=dry_run, theme_override=args.theme,
-                          web_steps=args.web_steps, budget_min=args.budget_min,
-                          write_draft=not args.no_draft)
+        payload = run(args.year, args.week, dry_run=dry_run, theme_override=args.theme)
     except SystemExit:
         raise
     except Exception as exc:                                        # noqa: BLE001
@@ -1107,6 +827,7 @@ def main() -> int:
         write_last({"year": args.year, "week": args.week, "dry_run": dry_run},
                    "error", f"{type(exc).__name__}: {exc}")
         return 1
+    # rc 2 = "disabled": der Wrapper protokolliert ihn (dd=2), blockt nie.
     return 0 if payload.get("status") in ("ok", "gate_failed") else 2
 
 

@@ -1,5 +1,7 @@
 # Dossier vs. Deep Research — Stand der Zielerreichung (2026-09-07)
 
+> **Feature entfernt 2026-09-19** (Owner: „Das Feature trägt nicht"), s. CLAUDE.md, Abschnitt „Scouting-Dossiers — entfernt". Dieses Dokument bleibt als Historie; Code-Stand davor: Tag `archive/dossiers-2026-09-19`.
+
 **Ziel (Owner, 2026-09-07):** Das Dossier-Tool (`scripts/corpus_research.py`,
 Owner-Desk `/trends/dossiers`) soll zu einem gewählten Thema im Blindgutachten
 besser bewertet werden als ein Deep Research mit Sonnet 5. Testthema GLP-1.

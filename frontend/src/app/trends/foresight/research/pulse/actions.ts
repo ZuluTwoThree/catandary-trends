@@ -4,14 +4,14 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isSameOriginHeaders } from "@/lib/apiGuards";
-import { canManageDossiers } from "@/lib/dossier-access";
+import { canReview } from "@/lib/review-access";
 import { parsePulseWeek, pulsePath } from "@/lib/researchPulse";
 import { startPulseWorker } from "@/lib/researchPulseWorker";
 
 /**
  * "Recompute" for one Research Pulse theme (#73). A Server Action is a real
  * HTTP endpoint and this one starts GPU work on the workstation, so it has
- * the same two locks as the dossier desk: owner mode (canManageDossiers —
+ * the same two locks as the review queue: owner mode (canReview —
  * open on the owner instance, closed under PUBLIC_MODE and in the static
  * export, which does not even build /trends/foresight/*) and the
  * same-origin check from lib/apiGuards.ts.
@@ -20,7 +20,7 @@ import { startPulseWorker } from "@/lib/researchPulseWorker";
  * button write the same table; the page always shows the newest row.
  */
 async function guard(): Promise<void> {
-  if (!canManageDossiers()) throw new Error("not permitted");
+  if (!canReview()) throw new Error("not permitted");
   if (!isSameOriginHeaders(await headers())) throw new Error("cross-origin request refused");
 }
 

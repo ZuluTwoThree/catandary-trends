@@ -19,7 +19,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 SCRIPTS = ["backup_db", "purge_raw_content", "resolve_open_licence", "discovery_loop",
-           "monthly_source_check", "check_source_links", "dossier_worker", "research_pulse"]
+           "monthly_source_check", "check_source_links", "research_pulse"]
 
 
 @pytest.mark.parametrize("name", SCRIPTS)

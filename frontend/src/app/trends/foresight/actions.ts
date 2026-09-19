@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isSameOriginHeaders } from "@/lib/apiGuards";
-import { canManageDossiers } from "@/lib/dossier-access";
+import { canReview } from "@/lib/review-access";
 import { startSnapshotWorker } from "@/lib/foresightSnapshotWorker";
 
 /**
@@ -13,7 +13,7 @@ import { startSnapshotWorker } from "@/lib/foresightSnapshotWorker";
  * the static export, which never builds /trends/foresight/*) and same-origin.
  */
 async function guard(): Promise<void> {
-  if (!canManageDossiers()) throw new Error("not permitted");
+  if (!canReview()) throw new Error("not permitted");
   if (!isSameOriginHeaders(await headers())) throw new Error("cross-origin request refused");
 }
 

@@ -66,6 +66,8 @@ export interface NewsletterDeepDive {
   theme_name?: string | null;
   body_md?: string | null;
   citations?: DeepDiveCitation[];
+  /** Historical: the scouting-dossier behind older runs (feature removed
+   *  2026-09-19 — the desk no longer exists, these are display-only). */
   dossier_slug?: string | null;
   dossier_version?: number | null;
   corpus_asof?: string | null;
@@ -115,13 +117,6 @@ export function isPublicDeepDive(dd: NewsletterDeepDive | null | undefined): dd 
 
 export function publicDeepDive(dd: NewsletterDeepDive | null | undefined): NewsletterDeepDive | null {
   return isPublicDeepDive(dd) ? dd : null;
-}
-
-/** Owner desk link of the dossier behind a deep dive (workstation only). */
-export function deepDiveDeskPath(dd: NewsletterDeepDive): string | null {
-  if (!dd.dossier_slug) return null;
-  const v = dd.dossier_version;
-  return `/trends/dossiers/${dd.dossier_slug}${v ? `?v=${v}` : ""}`;
 }
 
 export interface EditionSummary {

@@ -13,6 +13,18 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-19 · decision · Scouting-Dossiers entfernt
+
+Owner: „Das Feature trägt nicht." Nach 30 Runden (auf `dev`), sieben Versionen zu einem
+Thema und 48 Läufen war das Muster stabil — alles Gemessene hält, alles vom Modell
+Geschriebene wackelt, der Leser war nie zufrieden. Desk `/trends/dossiers`,
+Korpus-Rechercheur, Advisor, alle `dossier_*`-Module/Skripte/Tests und der
+Deep-Dive-Rechercheur des Newsletters (schreibt jetzt `status: "disabled"`) sind aus `dev`
+und `main`. Bleiben: Web-Suche/-Cache, PDF-Abruf, CPU-Embedder `:8091`, `detachedSpawn.ts`;
+DB-Tabellen stehen (kein DROP). Rückweg: Tag `archive/dossiers-2026-09-19`. Nachfolge-Idee
+„Field Watch": `docs/value_proposition_field_watch_2026-09-19.md` (dev), #108. Keine
+GPU-Läufe im Rückbau.
+
 ## 2026-09-18 · change · Research Pulse: Samstags-Cron installiert, W36/W37 nachgerechnet
 
 Die Seite stand seit dem 05.09. auf W35: der Cron `0 12 * * 6 weekly_research_pulse.sh`

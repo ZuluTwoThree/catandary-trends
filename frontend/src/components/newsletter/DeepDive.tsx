@@ -2,7 +2,6 @@ import Link from "next/link";
 import { safeHref } from "@/lib/safeHref";
 import { linkPrefetch } from "@/lib/renderMode";
 import {
-  deepDiveDeskPath,
   type DeepDiveCitation,
   type DeepDiveKind,
   type NewsletterDeepDive,
@@ -16,11 +15,15 @@ import {
  *                     passed and the run was live (lib/newsletterEditions.ts
  *                     isPublicDeepDive — the caller decides, this component
  *                     trusts it). Every citation link carries the evidence-
- *                     kind badge of the dossier source it points at; the
- *                     footer names the corpus snapshot and the dossier.
- *   DeepDiveOwnerNote the owner-instance note for a dry run / a failed gate:
- *                     theme, gate verdict, audit numbers, desk link, and the
- *                     condensate as a preview. Never rendered in the static
+ *                     kind badge of the source it points at; the footer
+ *                     names the corpus snapshot and (for older runs) the
+ *                     dossier that produced it.
+ *   DeepDiveOwnerNote the owner-instance note for a dry run / a failed gate /
+ *                     the "disabled" record written since 2026-09-19 (the
+ *                     researcher behind the deep dive — the scouting dossiers
+ *                     — was removed; stored editions still render): theme,
+ *                     gate verdict, audit numbers, and the condensate as a
+ *                     preview. Never rendered in the static
  *                     export (EditionBody checks isStaticExport) and never
  *                     delivered under PUBLIC_MODE (the API route strips it).
  *
@@ -199,11 +202,13 @@ function num(v: unknown): string {
 }
 
 export function DeepDiveOwnerNote({ dd, index }: { dd: NewsletterDeepDive; index: string }) {
-  const desk = deepDiveDeskPath(dd);
   const audit = (dd.audit ?? {}) as Record<string, unknown>;
   const reasons = [...(dd.gate_reasons ?? []), ...(dd.condensate_check?.reasons ?? [])];
   const status = dd.status ?? (dd.gate_passed ? "ok" : "gate_failed");
-  const verdict = dd.gate_passed ? "gate passed" : status === "ok" ? "ok" : status.replace(/_/g, " ");
+  const verdict =
+    status === "disabled"
+      ? "disabled — researcher removed 2026-09-19"
+      : dd.gate_passed ? "gate passed" : status === "ok" ? "ok" : status.replace(/_/g, " ");
 
   return (
     <section className="mb-12" data-owner-note="deep-dive-dry-run">
@@ -231,15 +236,6 @@ export function DeepDiveOwnerNote({ dd, index }: { dd: NewsletterDeepDive; index
           ) : (
             <>No eligible theme this week{dd.error ? ` — ${dd.error}` : ""}.</>
           )}
-          {desk ? (
-            <>
-              {" "}
-              ·{" "}
-              <Link prefetch={linkPrefetch()} href={desk} className="text-accent hover:underline">
-                Open the dossier in the desk →
-              </Link>
-            </>
-          ) : null}
         </p>
         {dd.gates ? <GateChips gates={dd.gates} /> : null}
         {dd.audit ? (

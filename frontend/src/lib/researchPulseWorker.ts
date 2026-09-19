@@ -6,7 +6,7 @@ import { cliWeek, type PulseWeekRef } from "./researchPulse";
 
 /**
  * "Recompute" for one Research Pulse theme (#73) — the same shape as the
- * dossier worker (lib/dossierWorker.ts): the button does exactly what the
+ * former dossier worker (removed 2026-09-19): the button does exactly what the
  * owner would type on the workstation,
  *
  *   .venv/bin/python scripts/research_pulse.py --themes <key> --week 2026-W35
@@ -35,8 +35,10 @@ export type PulseStartResult =
   | { ok: true; pid: number; log: string }
   | { ok: false; reason: "busy" | "missing" | "spawn" | "bad"; detail?: string };
 
+/** Repo root: the frontend runs with cwd=<repo>/frontend on both worktrees.
+ *  Shared by every desk worker (pulse, snapshot, newsletter preview). */
 export function repoRoot(): string {
-  return process.env.DOSSIER_WORKER_ROOT || path.resolve(process.cwd(), "..");
+  return process.env.WORKER_ROOT || path.resolve(process.cwd(), "..");
 }
 
 function lockPath(): string {

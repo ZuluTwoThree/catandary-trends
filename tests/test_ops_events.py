@@ -122,7 +122,7 @@ def test_reaper_closes_a_run_whose_process_is_gone(db):
     dbm, oe = db
     dead = 2**31 - 2                                     # keine gueltige Linux-pid → ESRCH
     eid = oe.start("backup_db", pid=dead)
-    other = oe.start("dossier_worker", pid=None)          # lebt (wir selbst)
+    other = oe.start("other_job", pid=None)          # lebt (wir selbst)
     legacy = oe.start("weekly_patents")
     with dbm.get_connection() as conn:                    # Altbestand ohne pid: nie anfassen
         conn.execute("UPDATE ops_events SET pid = NULL WHERE id = ?", (legacy,))

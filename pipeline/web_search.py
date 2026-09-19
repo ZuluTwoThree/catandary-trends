@@ -11,7 +11,7 @@ deploy/searxng/settings.yml, JSON-Format an, Limiter aus).
 
 `results` ist die ROHE Trefferliste in Brave-Form ({url, title, description,
 page_age, profile.name}) — SearXNG-Treffer werden dorthin umgeformt, damit der
-Aufrufer (scripts/corpus_research.brave_search) nichts unterscheiden muss.
+Aufrufer nichts unterscheiden muss.
 
 Umgebung: WEB_SEARCH_BACKEND = auto (Default) | brave | searxng;
 SEARXNG_URL (Default http://127.0.0.1:8888); BRAVE_SEARCH_API_KEY.

@@ -52,7 +52,7 @@ START_ACTIVE = Path(os.getenv("LLAMA_START_ACTIVE",
 VRAM_FREE_THRESHOLD_MIB = int(os.getenv("VRAM_FREE_THRESHOLD_MIB", "3000"))
 # Ownership records of the unit (#98): data/llama-server.<job>.pid, one line
 # "MAINPID OWNERPID". <job> = GPU_JOB_NAME or the entry script's stem
-# (run_full_cycle, signal_batch_embedded, dossier_worker, …).
+# (run_full_cycle, signal_batch_embedded, research_pulse, …).
 PID_DIR = Path(os.getenv("LLAMA_PID_DIR",
                          str(Path(__file__).resolve().parent.parent / "data")))
 
@@ -71,12 +71,13 @@ MODEL_START_SCRIPTS: dict[str, Path] = {
     # Content-gen candidate under evaluation (#11): Gemma 4 26B-A4B MoE (QAT).
     # Registered so the handover can swap it in for A/B runs against the 30B.
     "gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf": LLAMA_CPP_ROOT / "start-gemma4-26b.sh",
-    # Dossier-Schreiber unter Test (Owner 2026-09-14): Qwen3.8-Flash-Next, 125B/6B
-    # aktiv MoE, 51B n-Gramm-Tabelle lazy von der SSD; ~20-22 GB VRAM mit
-    # --n-cpu-moe, ~30 t/s. Nur fuer die Schreibphase (DOSSIER_WRITER_MODEL).
+    # Qwen3.8-Flash-Next, 125B/6B aktiv MoE, 51B n-Gramm-Tabelle lazy von der
+    # SSD; ~20-22 GB VRAM mit --n-cpu-moe, ~30 t/s. Registriert seit 2026-09-14
+    # (damals als Schreiber der Scouting-Dossiers, Feature entfernt 2026-09-19);
+    # bleibt fuer Versuche per model_on_llamacpp verfuegbar.
     "Qwen3.8-Flash-Next-UD-Q2_K_XL-00001-of-00003.gguf": LLAMA_CPP_ROOT / "start-qwen3.8-flash-next.sh",
     "Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf": LLAMA_CPP_ROOT / "start-qwen3.8-flash-next-iq4.sh",
-    # Draft-judge / dossier-researcher model. Key = the SERVED model id (what
+    # Draft-judge model (Stage 10). Key = the SERVED model id (what
     # /v1/models reports and pipeline.draft_judge.JUDGE_MODEL expects), not a
     # GGUF filename — swap_active_symlink keys on Path(...).name either way,
     # and the pre-flight checks that the start script's text references

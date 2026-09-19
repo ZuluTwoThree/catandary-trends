@@ -357,7 +357,7 @@ def _investor_enrich_prompt(title: str, excerpt: str) -> str:
 def llm_extract_investors(model: str, title: str, excerpt: str) -> InvestorEnrichmentResult | None:
     """chat_structured against llama-server (json_schema response_format,
     temperature 0, enable_thinking=False handled inside llamacpp_client) —
-    same pattern as scripts/corpus_research.py's Plan/AgentAction/Audit calls.
+    same pattern as the former corpus researcher's Plan/AgentAction/Audit calls.
     Retries + markdown-fence stripping + Pydantic validation are handled by
     chat_structured; returns None only once its retry budget is exhausted."""
     return llamacpp_client.chat_structured(
