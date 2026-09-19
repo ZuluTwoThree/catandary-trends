@@ -4107,6 +4107,42 @@ _EVALUATIVE_RE = re.compile(
     r"empfohlen|empfehlung|beste[rn]?|einzig|eindeutig|ueberlegen|überlegen|bevorzugt)\b",
     re.IGNORECASE)
 MAX_CONTRADICTIONS = 6
+# Runde 28 (2026-09-19, datacenter v7): ein Dossier OHNE Empfehlung (Owner-
+# Regel seit Runde 19, Scout-Grundriss seit Runde 27) sagt in "Open questions"
+# oder "does not support" von sich selbst, dass es keinen Stack empfiehlt —
+# "the corpus does not provide a definitive recommendation on which stack".
+# Das ist eine AUSSAGE UEBER DEN GELTUNGSBEREICH des Dossiers, kein Widerspruch
+# zu einer Tatsache. Sie zaehlt nur dann als Widerspruch, wenn die Kurzfassung
+# selbst EMPFIEHLT (v4: "Proxmox VE is the leading candidate" gegen "fails to
+# support a definitive technical recommendation") — dann hat der Bericht zwei
+# Meinungen, sonst hat er eine und benennt ihre Grenze.
+_SCOPE_RE = re.compile(
+    r"(?:\b(?:no|not|never|cannot|can't|won't|without|nicht|kein(?:e|en|er|es)?)\b"
+    r"|n't\b|\b(?:fails?|failed|unable|refuses?|refused|declines?|declined)\s+to\b)"
+    r"(?:\s+\S+){0,3}?\s+(?:"
+    r"recommend\w*|prescrib\w*|endors\w*|choos\w*|chose|choice|select\w*|pick\w*|rank\w*|"
+    r"(?:a\s+|the\s+)?(?:definitive|firm|final|single|clear|specific|tailored)\s+(?:\w+\s+)?"
+    r"(?:recommendation|choice|selection|ranking|verdict|answer|stack|option|platform|vendor)|"
+    r"which\s+[^.;:]{0,40}?\b(?:is|are|would\s+be)\s+(?:best|right|superior|optimal|preferable)|"
+    r"empfehl\w*|empfohlen|auswahl|wahl|entscheid\w*)",
+    re.IGNORECASE)
+# Nur eine Kurzfassung, die EMPFIEHLT, kann einer Scope-Aussage widersprechen.
+_RECOMMEND_RE = re.compile(
+    r"\b(?:recommend\w*|should|must\s+(?:adopt|choose|select|migrate\s+to)|"
+    r"(?:leading|primary|top|preferred|best|obvious|natural|strongest)\s+(?:candidate|choice|option|stack|pick)|"
+    r"candidate\s+of\s+choice|is\s+the\s+(?:best|right|preferred|optimal|superior|obvious|natural)\s+"
+    r"(?:choice|option|candidate|stack|path|platform)|the\s+answer\s+is|"
+    r"(?:we|the\s+firm|the\s+company)\s+(?:should|ought\s+to)|"
+    r"choose|select|adopt|go\s+with|favou?r(?:s|ed)?|prefer(?:s|red)?|winner|superior|"
+    r"empf(?:ehl|ohl)\w*|sollte\w*|beste[rn]?\s+(?:wahl|option))\b", re.IGNORECASE)
+# Ein Leser-Befund ist nur dann ein Widerspruch, wenn er einen benennt —
+# "does not summarize", "drifts into adjacent topics", "dilutes the focus"
+# (die drei v7-Befunde der Art `coherence`) sind Fokus-/Drift-Befunde und
+# gehoeren in den Ganzdokument-Neuwurf, nicht in das Widerspruchs-Gate.
+_CONTRA_MARK_RE = re.compile(
+    r"contradict|inconsisten|incoheren|conflict|incompatible|at odds|contrary|"
+    r"opposite|disagree|mismatch|cannot both|den(?:y|ies|ied|ial)\b|refut|negat|"
+    r"widerspr|unvereinbar|widerspruch", re.IGNORECASE)
 _CONTRA_STOP = frozenset("""
 about above after again against along among around because before being below
 between could every first should since still their there these those through
@@ -4136,12 +4172,55 @@ def section_key_for(label: str, lang: str = "en") -> str | None:
     return None
 
 
+def is_scope_statement(text: str) -> bool:
+    """Sagt der Satz, dass (die Belege / das Dossier / der Korpus) KEINE
+    Empfehlung, Auswahl oder Entscheidung hergeben? Dann beschreibt er den
+    Geltungsbereich, keine Tatsache."""
+    return bool(_SCOPE_RE.search(prose(text or "")))
+
+
+def claim_recommends(text: str) -> bool:
+    """Traegt die Aussage selbst eine Empfehlung/Wahl?"""
+    return bool(_RECOMMEND_RE.search(prose(text or "")))
+
+
+def summary_recommends(report_md: str, lang: str = "en") -> bool:
+    """Empfiehlt die Kurzfassung (Decision summary / Scout's verdict) etwas?
+    Nur dann kann eine Scope-Aussage im Rest des Berichts ihr widersprechen."""
+    L = _lang(lang)
+    summary = split_sections(body_text(report_md), L).get("decision", "")
+    return any(claim_recommends(c) for c in summary_claims(summary))
+
+
+def reader_contradiction_class(finding: dict, summary_recommends_: bool = False) -> str | None:
+    """Einordnung eines Leser-Befunds fuer das Widerspruchs-Gate:
+    "contradiction" (zwei Stellen behaupten Unvereinbares), "scope" (der
+    Einwand handelt davon, dass keine Empfehlung/Wahl gegeben wird — nur ein
+    Widerspruch, wenn die Kurzfassung selbst empfiehlt), "drift" (Art
+    `coherence`, aber ohne benannten Widerspruch: Fokus, Zusammenfassung,
+    Abschweifung) oder None (kein Kandidat)."""
+    issue = str(finding.get("issue") or "")
+    kind = str(finding.get("kind") or "")
+    if kind != "coherence" and "contradict" not in issue.lower():
+        return None
+    if is_scope_statement(issue) and not summary_recommends_:
+        return "scope"
+    if not _CONTRA_MARK_RE.search(issue):
+        return "drift"
+    return "contradiction"
+
+
 def contradiction_findings(report_md: str, lang: str = "en",
-                           topic_terms=()) -> list[dict]:
+                           topic_terms=(), excluded: list | None = None) -> list[dict]:
     """Mechanische Widersprueche zwischen Kurzfassung und "Was die Belege nicht
     hergeben" / "Entscheidungspunkte". Jeder Befund: {"kind": "contradiction",
     "summary": Satz der Kurzfassung, "other": widersprechender Satz,
-    "section": Schluessel des anderen Abschnitts, "text": Befundtext}."""
+    "section": Schluessel des anderen Abschnitts, "text": Befundtext}.
+
+    Runde 28: ein Kandidat, dessen Verneinung das EMPFEHLEN/WAEHLEN betrifft
+    (`is_scope_statement`), ist eine Scope-Aussage und kein Widerspruch — es
+    sei denn, die Kurzfassungs-Aussage empfiehlt selbst (`claim_recommends`).
+    Ausgeschlossene Kandidaten landen in `excluded` (wenn uebergeben)."""
     L = _lang(lang)
     body = body_text(report_md)
     sections = split_sections(body, L)
@@ -4160,6 +4239,7 @@ def contradiction_findings(report_md: str, lang: str = "en",
         if not names:
             continue
         claim_stems = _content_stems(claim)
+        recommends = claim_recommends(claim)
         for key, sent in others:
             if len(out) >= MAX_CONTRADICTIONS:
                 break
@@ -4178,6 +4258,15 @@ def contradiction_findings(report_md: str, lang: str = "en",
             if pair in seen:
                 continue
             seen.add(pair)
+            if is_scope_statement(ps) and not recommends:
+                if excluded is not None:
+                    excluded.append({
+                        "kind": "contradiction", "source": "mechanical", "why": "scope",
+                        "summary": claim, "other": sent, "section": key, "names": hit[:3],
+                        "text": (f"Scope-Aussage, kein Widerspruch ('{headings[key]}': "
+                                 f"\"{ps[:160]}\" — die Kurzfassung empfiehlt nichts: "
+                                 f"\"{prose(claim)[:120]}\")")})
+                continue
             text = (f"Widerspruch zwischen '{headings['decision']}' und '{headings[key]}' "
                     f"zu {', '.join(hit[:3])}: die Kurzfassung sagt \"{prose(claim)[:180]}\" — "
                     f"der andere Abschnitt sagt \"{prose(sent)[:180]}\". Beide Abschnitte "
@@ -4190,20 +4279,41 @@ def contradiction_findings(report_md: str, lang: str = "en",
     return out
 
 
-def contradiction_from_reader(review: dict | None, lang: str = "en") -> list[dict]:
+def contradiction_from_reader(review: dict | None, lang: str = "en",
+                              report_md: str | None = None,
+                              excluded: list | None = None) -> list[dict]:
     """Leser-Befunde der Art `coherence` — oder deren Einwand "contradict"
     enthaelt — als Widerspruchs-Befunde derselben Form. Der andere Abschnitt
-    ist der vom Leser genannte (Default "unsupported")."""
+    ist der vom Leser genannte (Default "unsupported").
+
+    Runde 28: nur Befunde, die zwei Stellen mit unvereinbaren TATSACHEN
+    benennen (`reader_contradiction_class` == "contradiction"). Scope-Einwaende
+    ("cannot provide a recommendation") zaehlen nur, wenn die Kurzfassung des
+    Berichts (`report_md`) selbst empfiehlt; Fokus-/Drift-Einwaende der Art
+    `coherence` ohne benannten Widerspruch laufen ueber den normalen
+    Leser-Pfad. Beide Gruppen landen in `excluded` (wenn uebergeben)."""
     L = _lang(lang)
     headings = {k: h for k, h, _p in SECTIONS[L]}
+    rec = summary_recommends(report_md, L) if report_md else False
     out: list[dict] = []
     for f in (review or {}).get("findings") or []:
         issue = str(f.get("issue") or "")
-        if f.get("kind") != "coherence" and "contradict" not in issue.lower():
+        cls = reader_contradiction_class(f, rec)
+        if cls is None:
             continue
         key = section_key_for(str(f.get("section") or ""), L)
         if key in (None, "decision"):
             key = "unsupported"
+        if cls != "contradiction":
+            if excluded is not None:
+                why = ("Scope-Aussage (keine Empfehlung), die Kurzfassung empfiehlt nichts"
+                       if cls == "scope" else "kein benannter Widerspruch (Fokus/Drift)")
+                excluded.append({"kind": "contradiction", "source": "reader", "why": cls,
+                                 "summary": str(f.get("passage") or ""), "other": "",
+                                 "section": key, "names": [],
+                                 "text": f"Leser-Befund ({f.get('kind')}) ausgeschlossen — {why}: "
+                                         f"{issue[:200]}"})
+            continue
         text = (f"Widerspruch (Leser) zwischen '{headings['decision']}' und "
                 f"'{headings.get(key, key)}': {issue[:300]}"
                 + (f" — Aenderung: {f['suggestion'][:200]}" if f.get("suggestion") else "")

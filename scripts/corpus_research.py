@@ -4739,18 +4739,24 @@ def rewrite_sections(report: str, keys: list[str], directive: str, sys_prompt: s
     return out
 
 
-def _is_contradiction_finding(f: dict) -> bool:
-    return f.get("kind") == "coherence" or "contradict" in str(f.get("issue") or "").lower()
+def _is_contradiction_finding(f: dict, report: str | None = None, lang: str = "en") -> bool:
+    """Runde 28: nur ein Leser-Befund, der zwei Stellen mit unvereinbaren
+    Tatsachen benennt, gehoert ins Widerspruchs-Gate; Scope-Einwaende (keine
+    Empfehlung) nur, wenn die Kurzfassung des Berichts selbst empfiehlt;
+    Fokus-/Drift-Einwaende der Art `coherence` bleiben im normalen Leser-Pfad."""
+    rec = dossier_structure.summary_recommends(report, lang) if report else False
+    return dossier_structure.reader_contradiction_class(f, rec) == "contradiction"
 
 
-def without_contradictions(review: dict | None) -> dict | None:
+def without_contradictions(review: dict | None, report: str | None = None,
+                           lang: str = "en") -> dict | None:
     """Leser-Review ohne die Widerspruchs-Befunde — die laufen ueber das
     Widerspruchs-Gate (gezielter Neuwurf zweier Sektionen), nicht ueber den
     Ganzdokument-Neuwurf."""
     if not review:
         return review
     return {**review, "findings": [f for f in (review.get("findings") or [])
-                                   if not _is_contradiction_finding(f)]}
+                                   if not _is_contradiction_finding(f, report, lang)]}
 
 
 class ReaderFinding(BaseModel):
@@ -6728,7 +6734,7 @@ def run(question: str, max_steps: int, max_sources: int,
     # Der Leser (2026-09-13): liest den gewaehlten Entwurf vor dem Neuwurf.
     reader1 = reader_review(report, question, topic or question, landscape, lang, must_answer=must_answer) \
         if (measure and reader_enabled()) else None
-    reader1_lines = reader_lines(without_contradictions(reader1), lang)
+    reader1_lines = reader_lines(without_contradictions(reader1, report, lang), lang)
     if reader1 is not None:
         logger.info("reader: answers_question=%s, %d finding(s) — %s",
                     reader1.get("answers_question"), len(reader1_lines),
@@ -6766,7 +6772,7 @@ def run(question: str, max_steps: int, max_sources: int,
                  "entailment": {"enabled": False},
                  "contradicted_before": 0, "contradicted_after": [],
                  "contradictions_before": [], "contradictions_after": [],
-                 "contradiction_rewrites": 0,
+                 "contradiction_rewrites": 0, "contradiction_scope_excluded": [],
                  "repaired_pass2": 0, "drop_core": 0, "drop_filler": 0,
                  "actor_min": actor_min, "watch_min": watch_min,
                  "calendar_min": calendar_min,
@@ -6850,11 +6856,19 @@ def run(question: str, max_steps: int, max_sources: int,
         structure["contradicted_before"] = len(ent_first["contradicted"]) if ent_first else 0
         # Widerspruchs-Gate, mechanischer Teil, vor dem ersten Neuwurf nur
         # protokolliert (der gezielte Neuwurf laeuft auf der Endfassung).
+        _scope_ex: list[dict] = []
         structure["contradictions_before"] = [
-            c["text"] for c in (dossier_structure.contradiction_findings(report, lang, calendar_terms)
-                                + dossier_structure.contradiction_from_reader(reader1, lang))]
+            c["text"] for c in (dossier_structure.contradiction_findings(
+                                    report, lang, calendar_terms, excluded=_scope_ex)
+                                + dossier_structure.contradiction_from_reader(
+                                    reader1, lang, report, excluded=_scope_ex))]
         for t in structure["contradictions_before"]:
             logger.warning("contradiction: %s", t[:160])
+        # Runde 28: Scope-Aussagen (keine Empfehlung) und Fokus-/Drift-Einwaende
+        # sind keine Widersprueche — protokolliert, nicht gesperrt.
+        structure["contradiction_scope_excluded"] = [e["text"] for e in _scope_ex]
+        for e in _scope_ex:
+            logger.info("contradiction candidate excluded (%s): %s", e.get("why"), e["text"][:160])
         structure["findings"] = findings
         structure["cite_findings"] = cite_all
         structure["cites_checked"] = cites["checked"]
@@ -7193,14 +7207,15 @@ def run(question: str, max_steps: int, max_sources: int,
             # Widerspruchs-Befunde (coherence/"contradict") laufen ueber das
             # Widerspruchs-Gate unten, nicht ueber den Ganzdokument-Neuwurf.
             return sum(1 for f in (rv.get("findings") or [])
-                       if f.get("severity") == "major" and not _is_contradiction_finding(f)) \
+                       if f.get("severity") == "major"
+                       and not _is_contradiction_finding(f, report, lang)) \
                 + (1 if rv.get("answers_question") is False else 0)
 
         while ((structure["findings_after"] or _majors(reader_now))
                and int(structure.get("rewrites") or 0) < max_rewrites):
             before_n, before_m = len(structure["findings_after"]), _majors(reader_now)
             prev_report, prev_structure, prev_reader = report, copy.deepcopy(structure), reader_now
-            extra = reader_lines(without_contradictions(reader_now), lang)
+            extra = reader_lines(without_contradictions(reader_now, report, lang), lang)
             if not _rewrite(list(structure["findings_after"]) + extra, [],
                             f"structural/reader findings remain ({before_n} structural, "
                             f"{before_m} reader) — one more targeted rewrite"):
@@ -7228,8 +7243,17 @@ def run(question: str, max_steps: int, max_sources: int,
         # der beiden betroffenen Sektionen mit dem Befund als Direktive. Bleibt
         # der Widerspruch, ist er ein sperrender Strukturbefund.
         def _contradictions(rv) -> list[dict]:
-            return (dossier_structure.contradiction_findings(report, lang, calendar_terms)
-                    + dossier_structure.contradiction_from_reader(rv, lang))
+            ex: list[dict] = []
+            found = (dossier_structure.contradiction_findings(report, lang, calendar_terms, excluded=ex)
+                     + dossier_structure.contradiction_from_reader(rv, lang, report, excluded=ex))
+            known = set(structure.get("contradiction_scope_excluded") or [])
+            for e in ex:
+                if e["text"] not in known:
+                    known.add(e["text"])
+                    structure["contradiction_scope_excluded"] = list(
+                        structure.get("contradiction_scope_excluded") or []) + [e["text"]]
+                    logger.info("contradiction candidate excluded (%s): %s", e.get("why"), e["text"][:160])
+            return found
 
         contra = _contradictions(reader_now)
         if contra:

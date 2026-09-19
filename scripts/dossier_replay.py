@@ -100,8 +100,10 @@ def replay_one(row: dict) -> dict:
         report, lang, year_floor=year_floor, density=density, topic_terms=terms,
         calendar_min=st.get("calendar_min"), actor_min=st.get("actor_min"),
         watch_min=st.get("watch_min"), today=run_day)
-    contra_mech = ds.contradiction_findings(report, lang, terms)
-    contra_reader = ds.contradiction_from_reader(st.get("reader_after") or st.get("reader"), lang)
+    contra_ex: list[dict] = []
+    contra_mech = ds.contradiction_findings(report, lang, terms, excluded=contra_ex)
+    contra_reader = ds.contradiction_from_reader(st.get("reader_after") or st.get("reader"), lang,
+                                                 report, excluded=contra_ex)
     cal_run = ds.calendar_rows(report, lang, year_floor, terms, today=run_day)
     cal_plain = ds.calendar_rows(report, lang, year_floor, terms)
 
@@ -142,6 +144,9 @@ def replay_one(row: dict) -> dict:
         "findings_stored": len(st.get("findings_after") or []),
         "contradictions_mechanical": len(contra_mech),
         "contradictions_reader": len(contra_reader),
+        "contradictions_stored": len(st.get("contradictions_after") or []),
+        "contradictions_excluded": len(contra_ex),
+        "contradiction_excluded_why": [e["why"] for e in contra_ex],
         "contradiction_texts": [c["text"][:200] for c in contra_mech],
         "calendar_ok_run_day": cal_run["ok"], "calendar_passed_run_day": cal_run.get("passed", 0),
         "calendar_ok_plain": cal_plain["ok"],
@@ -179,6 +184,11 @@ def main(argv=None) -> int:
           f" ({sum(r['contradictions_mechanical'] for r in out)} finding(s))")
     print(f"runs with a reader contradiction finding: "
           f"{sum(1 for r in out if r['contradictions_reader'])}")
+    print(f"contradiction candidates excluded as scope/drift (Runde 28): "
+          f"{sum(r['contradictions_excluded'] for r in out)} in "
+          f"{sum(1 for r in out if r['contradictions_excluded'])} run(s) — "
+          f"stored blocking contradictions: {sum(r['contradictions_stored'] for r in out)} in "
+          f"{sum(1 for r in out if r['contradictions_stored'])} run(s)")
     print(f"calendar rows with a date already passed on the run day: "
           f"{sum(r['calendar_passed_run_day'] for r in out)} in "
           f"{sum(1 for r in out if r['calendar_passed_run_day'])} run(s)")
