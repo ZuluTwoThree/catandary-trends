@@ -2096,6 +2096,70 @@ def moving_corpus_findings(section: str, corpus_ids, lang: str = "en") -> list[s
              f"N…, Q…) zuerst; Web-Zeilen nur dort, wo der Korpus duenn ist.")]
 
 
+def _name_regex(name: str) -> "re.Pattern | None":
+    words = [re.escape(w) for w in re.split(r"[\s\-]+", str(name or "").strip()) if w]
+    if not words or len("".join(words)) < 3:
+        return None
+    return re.compile(r"(?<![A-Za-z0-9])" + r"[\s\-]*".join(words) + r"(?![A-Za-z0-9])", re.IGNORECASE)
+
+
+def _table_lines(section: str) -> list[tuple[str, list[str]]]:
+    """(Rohzeile, Zellen) je Tabellenzeile — ohne Trennzeile."""
+    out: list[tuple[str, list[str]]] = []
+    for line in (section or "").splitlines():
+        if not _TABLE_ROW.match(line) or _TABLE_DELIM.match(line):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        out.append((line, cells))
+    return out
+
+
+def moving_off_topic_rows(section: str, topic_terms, names=(), lang: str = "en") -> list[dict]:
+    """Runde 30 (v9, 2026-09-19): Zeilen der Bewegungs-Tabelle, deren Text
+    (alle Zellen: Akteur, Signal, Quelle) weder ein Themenwort noch
+    einen THEMENSPEZIFISCHEN Namen traegt (`names` = die spezifischen Namen
+    des Korpus-Satzes, VMware/Proxmox — nicht Microsoft, nicht EU Commission):
+    "Microsoft ends support for Windows 11 24H2 and Office 2021", "EU
+    Commission draft on online game providers" standen mit Datum und Beleg in
+    der Tabelle eines Server-Virtualisierungs-Dossiers. Nur belegte
+    Zeilen (der Kopf traegt keinen Beleg). Rueckgabe wie die Zitatbefunde:
+    `sentence` = die Rohzeile (der Streichpfad `drop_unverified` nimmt
+    Tabellenzeilen als Ganzes), `kind` = "off_topic_row". Ohne Themenwoerter
+    ist die Regel aus (alter Pfad)."""
+    if not topic_terms:
+        return []
+    rxs = [rx for rx in (_name_regex(n) for n in (names or ())) if rx is not None]
+    out: list[dict] = []
+    for line, cells in _table_lines(section):
+        joined = " ".join(cells)
+        if not _has_citation(joined):
+            continue
+        # die ganze Zeile: Datum/Ebene tragen kein Themenwort, und die Spalten-
+        # folge unterscheidet sich je Grundriss (Scout: Date|Tier|Actor|Signal|
+        # Source; Entscheidung: Actor|What happened|Date|Source)
+        text = joined
+        if _row_on_topic(text, topic_terms) or any(rx.search(prose(text)) for rx in rxs):
+            continue
+        label = " ".join(cells[2:]) if len(cells) >= 4 else joined     # ohne Datum/Ebene
+        out.append({"sentence": line.strip(), "tokens": [prose(label)[:80]], "kind": "off_topic_row",
+                    "url": ""})
+    return out
+
+
+def moving_off_topic_findings(section: str, topic_terms, names=(), lang: str = "en") -> list[str]:
+    rows = moving_off_topic_rows(section, topic_terms, names, lang)
+    if not rows:
+        return []
+    L = _lang(lang)
+    heading = heading_for("moving", L)
+    sample = "; ".join(r["tokens"][0][:60] for r in rows[:3])
+    return [(f"'{heading}': {len(rows)} Zeile(n) ohne Themenbezug — weder ein Themenwort "
+             f"({', '.join(str(t) for t in list(topic_terms)[:4])}) noch ein Produkt-/Akteursname des "
+             f"Korpus-Satzes im Signal- oder Quellentext — werden mechanisch gestrichen: {sample}. "
+             f"Die Tabelle traegt nur Signale ZUM THEMA; ein datierter, belegter Vorgang aus einem "
+             f"anderen Feld gehoert nicht hinein.")]
+
+
 _THIN_STOP = frozenset("""which what does apply applies after that this with from exist exists
 their there they them than then when where whose should would could must need needs about into
 over under between still also been being have were will""".split())
@@ -2147,8 +2211,14 @@ def structure_findings(report_md: str, lang: str = "en",
                        today: date | None = None,
                        outline: str | None = None,
                        corpus_ids=None,
-                       thin_areas: list[dict] | None = None) -> list[str]:
+                       thin_areas: list[dict] | None = None,
+                       moving_terms=None, moving_names=None) -> list[str]:
     """Was am fertigen Bericht mechanisch nicht stimmt. Leere Liste = sauber.
+
+    `moving_terms` / `moving_names` (Runde 30): Themenwoerter OHNE die
+    generischen Akteure und die themenspezifischen Namen des Korpus-Satzes —
+    Zeilen der Bewegungs-Tabelle ohne beides werden gemeldet und im
+    Streichpfad entfernt (`moving_off_topic_rows`). None = Regel aus.
 
     `outline` (Scouting-Umbau, 2026-09-19): "decision" (Default) oder "scout";
     bestimmt die Pflichtabschnitte. Im Scout-Grundriss zusaetzlich: der
@@ -2196,6 +2266,8 @@ def structure_findings(report_md: str, lang: str = "en",
             findings += maturity_findings(sections["maturity"], measured or [], L)
         if "moving" in sections and corpus_ids is not None:
             findings += moving_corpus_findings(sections["moving"], corpus_ids, L)
+        if "moving" in sections and moving_terms:
+            findings += moving_off_topic_findings(sections["moving"], moving_terms, moving_names or (), L)
         if "thin" in sections:
             findings += thin_findings(sections["thin"], thin_areas or [], L)
     summary = sections.get("decision", "")

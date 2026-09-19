@@ -94,10 +94,17 @@ def corpus():
                  "2026-08-30", "research", "[]", "[]"))
     rows.append((201, "Data-center virtualisation energy model", "paper", 2, "signal",
                  "2026-04-30", "research", "[]", "[]"))
-    # Patente: 6 in 12 Monaten (nicht dünn)
+    # Patente: 6 in 12 Monaten (nicht dünn) — die Phrase steht im Titel
     for i in range(300, 306):
-        rows.append((i, f"VIRTUAL MACHINE PLACEMENT IN A DATA CENTER {i}", "claims", 3, "signal",
+        rows.append((i, f"DATA CENTER VIRTUALIZATION: VM PLACEMENT {i}", "claims", 3, "signal",
                      f"2026-0{1 + i % 6}-15", "patent", "[]", "[]"))
+    # Runde 30: beide Themenwoerter, aber 5 Woerter auseinander -> keine Phrase,
+    # kein Kern (vorher: UND-Regel ueber Staemme traf sie)
+    rows.append((306, "VIRTUAL MACHINE PLACEMENT IN A DATA CENTER", "claims", 3, "signal",
+                 "2026-05-15", "patent", "[]", "[]"))
+    # Runde 30: "serv" darf "services" nicht treffen (Titel ohne Server)
+    rows.append((307, "Virtual reserve services for data center loads", "grid paper", 2, "signal",
+                 "2026-08-01", "research", "[]", "[]"))
     # Förderung: 0 -> dünn
     # ein Signal mit Quelle ohne Ebene (api, kein Name-Muster) -> tier None
     rows.append((400, "Datacenter virtualization thread", "HN", 5, "signal",
@@ -109,6 +116,20 @@ def corpus():
                  "published", "2026-06-05", "market_shift", '["VMware"]', "[]"))
     rows.append((131, "Microsoft quarterly results beat estimates", "cloud", 1, "published",
                  "2026-06-06", "market_shift", '["Microsoft"]', "[]"))
+    # Runde 30: Proxmox ist themenspezifisch (9 von 9 Kandidatenzeilen im
+    # Kern) -> der Name allein traegt die Zeile in den erweiterten Satz
+    rows.append((132, "Proxmox opens Canadian subsidiary", "24/7 enterprise support from October", 1,
+                 "published", "2026-09-03", "product_launch", '["Proxmox"]', "[]"))
+    # Runde 30: Instrumente des Feldes mit Datum (Regulatorik-/Kalender-Regel)
+    rows.append((500, "BSI IT-Grundschutz SYS.1.5 update for virtualized data center hosts",
+                 "the new building block applies from Q2 2027", 1, "published",
+                 "2026-08-10", "regulation", "[]", "[]"))
+    rows.append((501, "EU Data Act chapter VI obligations for data center virtualization providers",
+                 "switching rules apply from 12 August 2025", 1, "published",
+                 "2026-05-01", "regulation", "[]", "[]"))
+    rows.append((502, "GDPR Article 32 guidance on data-center virtualization security",
+                 "published 2026-03-01, review due 2027-01-31", 1, "published",
+                 "2026-03-02", "regulation", "[]", "[]"))
     # Fuellstoff fuer die 10k-Normierung: 600 Markt-Signale in 2026-Q3 ohne Thema
     for i in range(1000, 1600):
         rows.append((i, f"Unrelated retail item {i}", "shoes", 1, "signal",
@@ -130,13 +151,73 @@ class TestTextRule:
         assert ce.crude_stem("datacenters") == "datacent"
         assert ce.term_stems(["datacenter", "virtualization"]) == ["datacent", "virtual"]
 
-    def test_row_matches_needs_every_term_and_reads_tags(self):
+    def test_row_matches_is_the_old_stem_rule(self):
         stems = ce.term_stems(["datacenter", "virtualization"])
         assert ce.row_matches({"title_en": "Data center virtualization", "summary_en": ""}, stems)
         assert ce.row_matches({"title_en": "Virtualized data centres", "summary_en": ""}, stems)
         assert not ce.row_matches({"title_en": "Virtualization of the desktop", "summary_en": ""}, stems)
         assert ce.row_matches({"title_en": "Cloud pricing", "summary_en": "",
                                "tags": ["data-center", "virtualization"]}, stems)
+
+    def test_phrase_rule_window_and_word_level_stems(self):
+        terms = ["server", "virtualization"]
+        for t in ("Server virtualization market", "Virtualized servers cut costs",
+                  "Virtualization of servers", "server virtualisation (UK spelling)",
+                  "Citrix reclaims server virtualization share"):
+            assert ce.phrase_match({"title_en": t, "summary_en": ""}, terms), t
+        for t in ("The server farm runs a virtual assistant",           # 4 Woerter auseinander
+                  "Design of Virtual Reserve Services",                  # services != server
+                  "Virtual reality on the game server",                   # virtual … server: 4 auseinander
+                  "USER IDENTITY SHARING SYSTEM FOR VIRTUAL ASSET SERVICE"):
+            assert not ce.phrase_match({"title_en": t, "summary_en": ""}, terms), t
+        # zusammengeschriebener Begriff trifft zwei Tokens
+        assert ce.phrase_match({"title_en": "Data center virtualization", "summary_en": ""},
+                               ["datacenter", "virtualization"])
+        assert ce.phrase_match({"title_en": "Cloud pricing", "summary_en": "",
+                                "tags": ["data-center", "virtualization"]}, ["datacenter", "virtualization"])
+        assert not ce.phrase_match({"title_en": "VIRTUAL MACHINE PLACEMENT IN A DATA CENTER", "summary_en": ""},
+                                   ["datacenter", "virtualization"])
+        # Mehrwortbegriff
+        assert ce.phrase_match({"title_en": "Proxmox VE 8 release", "summary_en": ""}, ["Proxmox VE"])
+        assert ce.tok_hits("servers", "serv") is False or ce.crude_stem("servers") == "serv"
+        assert ce.tok_hits(ce.crude_stem("servers"), "serv") and not ce.tok_hits(ce.crude_stem("services"), "serv")
+        assert ce.tok_hits(ce.crude_stem("virtualized"), "virtual")
+        assert ce.word_tokens("Virtualized Servers") == ["virtualiz", "serv"]
+
+    def test_min_cosine_env(self, monkeypatch):
+        monkeypatch.delenv("CORPUS_MIN_COSINE", raising=False)
+        assert ce.min_cosine() == 0.55
+        monkeypatch.setenv("CORPUS_MIN_COSINE", "0.62")
+        assert ce.min_cosine() == 0.62
+        monkeypatch.setenv("CORPUS_MIN_COSINE", "nonsense")
+        assert ce.min_cosine() == 0.55
+
+    def test_dates_and_windows(self):
+        assert [p for _d, p in ce.text_dates("due 2026-11-01, Q2 2027 and 12 September 2025")] == ["day", "day", "quarter"]
+        assert ce.text_dates("by October 2026")[0] == (date(2026, 10, 31), "month")
+        assert ce.text_dates("support ends 14.10.2025")[0][0] == date(2025, 10, 14)
+        assert ce.text_dates("March 3, 2027")[0][0] == date(2027, 3, 3)
+        assert ce.text_dates("in 2027")[0] == (date(2027, 12, 31), "year")
+        assert ce.dated_within("published 2026-03-01", TODAY) and not ce.dated_within("in 2024", TODAY)
+        assert ce.dated_within("in 2026", TODAY) and not ce.dated_within("12 August 2025", TODAY)
+        assert ce.future_dated("Q2 2027", TODAY) and ce.future_dated("October 2026", TODAY)
+        assert not ce.future_dated("2026-09-01", TODAY) and not ce.future_dated("no date here", TODAY)
+        assert ce.future_dated("by 2026", TODAY)                     # nacktes laufendes Jahr: zukunftsnah
+
+    def test_instruments_and_item_names(self):
+        assert ce.instrument_mentions("BSI IT-Grundschutz SYS.1.5, GDPR Art. 28 and 32, Regulation (EU) 2023/2854, "
+                                      "ISO/IEC 27001 and NIS2") == \
+            ["SYS.1.5", "Art. 28 and 32", "Regulation (EU) 2023/2854", "ISO/IEC 27001", "NIS2",
+             "IT-Grundschutz", "GDPR"]
+        assert ce.is_instrument_item("Which dated events — vendor support deadlines?")
+        assert ce.is_instrument_item("What are the specific operational requirements imposed by BSI?")
+        assert not ce.is_instrument_item("What is the current stage of the technology cycle?")
+        names = ce.item_names("What do BSI IT-Grundschutz SYS.1.5 and EU Data Act chapter VI require of VMware hosts?",
+                              ["VMware", "Microsoft"])
+        assert "BSI IT-Grundschutz SYS.1.5" in names and "SYS.1.5" in names and "EU Data Act" in names
+        assert "VMware" in names and "Microsoft" not in names
+        row = {"title_en": "New SYS 1.5 building block", "summary_en": "", "tags": []}
+        assert ce.names_in_row(row, ["SYS.1.5"]) == ["SYS.1.5"]
 
     def test_prequery_is_or_of_plain_terms(self):
         assert ce.prequery_tsquery(["datacenter", "virtualization"]) == "datacenter | virtualization"
@@ -160,20 +241,26 @@ class TestTextRule:
 # ---------------------------------------------------------------------------
 
 class TestBuild:
+    INSTR = ["BSI IT-Grundschutz SYS.1.5 (Virtualization)", "GDPR Article 32 (Security of processing)",
+             "EU Data Act Chapter VI (Switching)"]
+
     def test_counts_by_tier_and_quarter(self, corpus):
         ev = ce.build("datacenter virtualization", {"must_answer": []},
                       terms=["datacenter", "virtualization"], today=TODAY)
         assert ev.ok and ev.since == "2024-09-01"
-        # 10 Markt (9 + Tag-Treffer) + 2 Wissenschaft + 6 Patent + 1 ohne Ebene = 19;
-        # 121 (2019) und 122 (nur ein Begriff) nicht.
-        assert ev.n_signals == 19
-        assert ev.tier_totals_12m == {"science": 2, "patent": 6, "funding": 0, "market": 10}
+        # Kern = Phrase: 13 Markt (9 + Tag-Treffer 120 + 500/501/502) + 2 Wissenschaft
+        # + 6 Patent + 1 ohne Ebene = 22; nicht: 121 (2019), 122 (ein Begriff),
+        # 306 (Woerter 5 auseinander), 307 ("services" ist kein "server").
+        assert ev.n_signals == 22 and ev.n_signals_phrase == 22 and ev.n_signals_cosine == 0
+        assert ev.cosine_available is False                     # SQLite hat keinen Vektor
+        assert ev.tier_totals_12m == {"science": 2, "patent": 6, "funding": 0, "market": 13}
         q3 = ev.signals_by_tier_quarter["market"]["2026-Q3"]
-        assert q3["n"] == 5                      # 100, 101, 102, 103 (Juli), 120
-        # Normierung: Nenner = ALLE Markt-Signale des Quartals (5 + 600 Fuellstoff + 122)
-        assert q3["total"] == 606 and q3["per_10k"] == pytest.approx(5 * 10_000 / 606, rel=1e-3)
-        # zu kleine Ebene traegt keinen Anteil
+        assert q3["n"] == 6                      # 100, 101, 102, 103 (Juli), 120, 500
+        # Normierung: Nenner = ALLE Markt-Signale des Quartals (6 + 600 Fuellstoff + 122 + 132)
+        assert q3["total"] == 608 and q3["per_10k"] == pytest.approx(6 * 10_000 / 608, rel=1e-3)
         assert ev.signals_by_tier_quarter["science"]["2026-Q3"]["per_10k"] is None
+        ids = {r["id"] for r in ev.rows}
+        assert 306 not in ids and 307 not in ids and 122 not in ids
 
     def test_actors_and_sources(self, corpus):
         ev = ce.build("datacenter virtualization", None, terms=["datacenter", "virtualization"], today=TODAY)
@@ -181,105 +268,177 @@ class TestBuild:
         assert names["Broadcom"]["n"] == 9 and names["Proxmox"]["n"] == 9
         assert names["Broadcom"]["first"] == "2025-11-11" and names["Broadcom"]["last"] == "2026-09-10"
         assert names["VMware"]["n"] == 1
-        assert ev.sources[0] == {"name": "The Register", "n": 10}
+        assert ev.sources[0] == {"name": "The Register", "n": 13}
 
-    def test_representative_are_catalog_entries(self, corpus):
-        ev = ce.build("datacenter virtualization", None, terms=["datacenter", "virtualization"], today=TODAY)
-        ids = [s["id"] for s in ev.representative]
-        # je Ebene die zwei neuesten
-        assert "T100" in ids and "T101" in ids            # market, neueste
-        assert "T200" in ids and "T201" in ids            # science
-        assert len([s for s in ev.representative if s["tier"] == "patent"]) == 2
-        for s in ev.representative:
-            assert s["id"].startswith("T") and s["kind"] in ("article", "signal")
-            assert s["fetched"] is True and s["why"] == "recent"
-        art = next(s for s in ev.representative if s["id"] == "T100")
-        assert art["kind"] == "article" and art["url"].endswith("/t-100")
+    def test_representative_are_scored_catalog_entries(self, corpus):
+        """Runde 30: je Ebene die nuetzlichsten (Aktualitaet, Trefferstaerke,
+        Pflichtpunkt-Naehe), market 6 / patent 3 / science 3 / funding 2, plus
+        2 Regulierungszeilen; eine Zeile ohne Themenwort im Titel nie."""
+        ev = ce.build("datacenter virtualization", {"must_answer": ["Which Broadcom licensing change?"]},
+                      terms=["datacenter", "virtualization"], today=TODAY, instruments=self.INSTR)
+        by_tier = {}
+        for s_ in ev.representative:
+            if s_["why"] != "regulation":
+                by_tier.setdefault(s_["tier"], []).append(s_)
+        assert len(by_tier["market"]) == 6 and len(by_tier["patent"]) == 3
+        assert len(by_tier["science"]) == 2                       # nur 2 vorhanden
+        assert "funding" not in by_tier
+        ids = [s_["id"] for s_ in ev.representative]
+        assert "T100" in ids and "T101" in ids                    # neueste Markt-Zeilen
+        assert "T120" not in ids                                  # Titel "Cloud provider changes pricing": kein Themenwort
+        assert "T306" not in ids and "T307" not in ids
+        for s_ in ev.representative:
+            assert s_["id"].startswith("T") and s_["kind"] in ("article", "signal")
+            assert s_["fetched"] is True and "score" in s_["score"]
+            assert s_["why"] in ("phrase", "cosine", "regulation") or s_["why"].startswith("extended")
+        top = next(s_ for s_ in ev.representative if s_["id"] == "T100")
+        assert top["kind"] == "article" and top["url"].endswith("/t-100")
+        assert top["score"]["recency"] > 0.9 and top["score"]["match"] == 1.0
+        # Pflichtpunkt-Naehe ohne Embedder = Wortueberdeckung ("Broadcom licensing" in 100)
+        assert top["score"]["must"] > 0
+        # die zwei Regulierungszeilen nennen ein Instrument des Feldes
+        reg = [s_ for s_ in ev.representative if s_["why"] == "regulation"]
+        assert len(reg) == 2 and all(s_["id"] in ("T500", "T501", "T502") for s_ in reg)
         assert ev.catalog_ids() == set(ids)
 
-    def test_nearest_from_search_joins_representative(self, corpus):
-        def search(q, n):
-            return [{"id": "T300", "kind": "signal", "title": "VIRTUAL MACHINE PLACEMENT IN A DATA CENTER 300",
-                     "snippet": "claims", "url": "https://src/300", "outlet": "EPO DOCDB (TECH)"},
-                    {"id": "T999", "kind": "signal", "title": "Unrelated", "snippet": "shoes",
-                     "url": "https://src/999", "outlet": ""}]
-        ev = ce.build("datacenter virtualization", None, terms=["datacenter", "virtualization"],
-                      search=search, today=TODAY)
-        by = {s["id"]: s for s in ev.representative}
-        assert "T999" not in by                             # kein Themenbegriff -> nicht aufgenommen
-        assert by["T300"]["why"] == "nearest" and by["T300"]["tier"] == "patent"
+    def test_score_row_components(self):
+        row = {"id": 1, "title_en": "Proxmox virtualization for data centers", "summary_en": "",
+               "tags": [], "sort_date": "2026-09-19", "match": "phrase", "brands": ["Proxmox"]}
+        sc = ce.score_row(row, TODAY, ["datacent", "virtual"], ["Proxmox"], [["proxmox", "support"]])
+        assert sc["recency"] == 1.0 and sc["match"] == 1.0 and sc["must"] == 0.5
+        assert sc["score"] == pytest.approx(0.5 + 0.3 + 0.1)
+        old = dict(row, sort_date="2025-03-01", match="extended", extended=["Proxmox"])
+        assert ce.score_row(old, TODAY, ["datacent", "virtual"], ["Proxmox"], [])["recency"] == 0.0
+        assert ce.score_row(old, TODAY, ["datacent", "virtual"], ["Proxmox"], [])["match"] == 0.8
+        cos = dict(row, match="cosine", cos_must=0.7, title_en="Something virtual")
+        assert ce.score_row(cos, TODAY, ["datacent", "virtual"], [], [])["must"] == 0.7
 
-    def test_thin_rules(self, corpus):
+    def test_must_answer_covered_only_by_names(self, corpus):
         must = ["Which hypervisor alternatives to VMware exist after the Broadcom licensing change?",
-                "Which BSI IT-Grundschutz requirements apply to virtualization servers?"]
+                "Which BSI IT-Grundschutz requirements apply to virtualization servers?",
+                "What is the current stage of the datacenter virtualization cycle?"]
         ev = ce.build("datacenter virtualization", {"must_answer": must},
-                      terms=["datacenter", "virtualization"], today=TODAY)
+                      terms=["datacenter", "virtualization"], today=TODAY, instruments=self.INSTR)
+        by = {m["item"]: m for m in ev.must_hits}
+        # Punkt 1: Namen VMware/Broadcom -> 9 Zeilen "after Broadcom" + 130 -> gedeckt
+        assert by[must[0]]["names"] == ["VMware", "Broadcom"] and by[must[0]]["via"] == "names"
+        assert by[must[0]]["hits"] >= 2 and not by[must[0]]["thin"]
+        # Punkt 2: Instrument-Punkt ("requirements"): nur 500 nennt IT-Grundschutz UND traegt
+        # ein Datum (Q2 2027) -> 1 < 2 -> duenn
+        assert by[must[1]]["instrument"] is True
+        assert "BSI IT-Grundschutz" in by[must[1]]["names"]
+        assert by[must[1]]["hits"] == 1 and by[must[1]]["thin"]
+        # Punkt 3: keine Namen -> Inhaltswoerter gegen den KERN
+        assert by[must[2]]["via"].startswith("common words") and not by[must[2]]["thin"]
         thin = ev.thin_names()
-        assert "science" in thin and "funding" in thin          # < 5 in 12 Monaten
-        assert "patent" not in thin and "market" not in thin
-        # Pflichtpunkt 1: Broadcom/hypervisor/licensing stehen in 9 Zeilen -> gedeckt
-        assert must[0] not in thin
-        # Pflichtpunkt 2: BSI/Grundschutz nirgends -> dünn
-        assert must[1] in thin
-        # Regulatorik: 2 regulation-Signale < 3 -> regulatory + calendar dünn
-        assert ev.regulatory_12m == 2
-        assert "regulatory" in thin and "calendar" in thin
-        assert ev.is_thin("calendar") and not ev.is_thin("market")
-        assert ev.gap_is_thin("BSI Grundschutz baustein") is True
-        assert ev.gap_is_thin("Broadcom hypervisor licensing") is False
+        assert must[1] in thin and must[0] not in thin
+        reason = next(t["reason"] for t in ev.thin_areas if t["area"] == must[1])
+        assert "naming" in reason and "date" in reason
 
-    def test_regulatory_threshold_clears_the_fixed_areas(self, corpus):
-        ev = ce.build("datacenter virtualization", None, terms=["datacenter", "virtualization"], today=TODAY)
+    def test_instrument_item_without_names_uses_profile_instruments_and_specific_vendors(self, corpus):
+        must = ["Which dated events lie ahead — vendor support deadlines and regulatory milestones?"]
+        ev = ce.build("datacenter virtualization", {"must_answer": must},
+                      terms=["datacenter", "virtualization"], today=TODAY, instruments=self.INSTR,
+                      entities=["Microsoft", "Proxmox"])
+        m = ev.must_hits[0]
+        assert m["instrument"] and m["via"] == "profile instruments + topic-specific vendors"
+        # Profil-Instrumente + Proxmox (spezifisch); Microsoft (1 Kandidat) nicht
+        assert "Proxmox" in m["names"] and "Microsoft" not in m["names"]
+        assert "BSI IT-Grundschutz SYS.1.5" in m["names"]
+        # 500 (Q2 2027), 501 ("12 August 2025" liegt vor 2025-09-01: nicht in 12 Monaten),
+        # 502 (2027-01-31), 132 (Proxmox, "October" ohne Jahr: kein Datum) -> 2 -> gedeckt
+        assert m["hits"] == 2 and not m["thin"]
+
+    def test_regulatory_and_calendar_need_field_instruments(self, corpus):
+        ev = ce.build("datacenter virtualization", None, terms=["datacenter", "virtualization"],
+                      today=TODAY, instruments=self.INSTR)
+        # generisch: 2 regulation-Typen der Fixture (101, 103) + 500-502 = 5 — zaehlen nicht
+        assert ev.regulatory_12m == 5
+        # 500 (SYS.1.5), 501 (Data Act chapter VI), 502 (GDPR Article 32) nennen ein Instrument
+        assert ev.regulatory_named_12m == 3
+        # Zukunft: 500 (Q2 2027), 502 (2027-01-31); 501 nur Vergangenheit -> 2 < 3
+        assert ev.calendar_named_12m == 2
+        thin = ev.thin_names()
+        assert "regulatory" not in thin and "calendar" in thin
+        assert "instrument of this field" in next(t["reason"] for t in ev.thin_areas if t["area"] == "calendar")
+        # ohne Profil-Instrumente: beides duenn, egal wie viele Regulierungssignale
+        ev0 = ce.build("datacenter virtualization", None, terms=["datacenter", "virtualization"], today=TODAY)
+        assert ev0.regulatory_named_12m == 0 and "regulatory" in ev0.thin_names() and "calendar" in ev0.thin_names()
+        assert "do not count" in next(t["reason"] for t in ev0.thin_areas if t["area"] == "regulatory")
+
+    def test_find_thin_areas_old_callers_keep_the_generic_rule(self):
         thin = ce.find_thin_areas({"science": 9, "patent": 9, "funding": 9, "market": 9}, [], reg_12m=3)
         assert thin == []
         thin = ce.find_thin_areas({"science": 9, "patent": 9, "funding": 9, "market": 9}, [], reg_12m=2)
         assert [t["area"] for t in thin] == ["regulatory", "calendar"]
-        assert ev.ok
+        thin = ce.find_thin_areas({"science": 9, "patent": 9, "funding": 9, "market": 9}, [], 40,
+                                  reg_named_12m=3, cal_named_12m=1)
+        assert [t["area"] for t in thin] == ["calendar"]
 
     def test_rendered_block_and_dict(self, corpus):
         ev = ce.build("datacenter virtualization", {"must_answer": ["BSI Grundschutz?"]},
-                      terms=["datacenter", "virtualization"], today=TODAY)
+                      terms=["datacenter", "virtualization"], today=TODAY, instruments=self.INSTR)
         md = ev.rendered_md
+        assert "topic phrase 'datacenter virtualization'" in md and "cosine >= 0.55" in md
+        assert "no embedder this run" in md
         assert "| Tier | 2024-Q4 |" in md and "| market |" in md
-        assert "Broadcom ×9" in md and "The Register ×10" in md
-        assert "[[T100]]" in md and "THIN in the corpus" in md
+        assert "Broadcom ×9" in md and "The Register ×13" in md
+        assert "naming an instrument of this field" in md and "future-dated 2" in md
+        assert "[[T100]]" in md and "THIN in the corpus" in md and "score 0." in md
         d = ev.as_dict()
-        assert d["n_signals"] == 19 and "rows" not in d
-        assert d["representative"][0]["id"].startswith("T")
+        assert d["n_signals"] == 22 and "rows" not in d
+        assert d["representative"][0]["id"].startswith("T") and d["representative"][0]["score"]
+        assert d["min_cosine"] == 0.55 and d["regulatory_named_12m"] == 3 and d["instruments"][0].startswith("BSI")
+        assert d["anchor"].startswith("datacenter virtualization")
         assert ce.render_note(ev).startswith("Deterministic corpus evidence")
 
-    def test_extended_set_needs_one_topic_term_plus_a_name(self, corpus):
-        """Runde 28: Profil-/Pflichtpunkt-Namen als ODER-Alternative zu EINEM
-        Themenbegriff; die Tabelle und die Ebenen-Regel bleiben auf dem Kern."""
+    def test_extended_set_names_plus_stem_or_specific_name(self, corpus):
+        """Runde 28: Name + EIN Themenstamm (130). Runde 30: ein themen-
+        spezifischer Name allein (132, Proxmox: 9 von 10 Kandidatenzeilen im
+        Kern); ein generischer Name allein (131, Microsoft) bleibt draussen;
+        der Stamm zaehlt auf Wortebene ("serv" trifft "services" nicht)."""
         ev = ce.build("datacenter virtualization",
                       {"must_answer": ["Which alternatives (e.g., Proxmox, Nutanix, or VMware) are viable?"]},
                       terms=["datacenter", "virtualization"], today=TODAY,
                       entities=["Microsoft", "VMware", "BSI (Federal Office for Information Security)"])
-        assert ev.n_signals == 19                                   # Kern unveraendert
-        assert ev.tier_totals_12m["market"] == 10
+        assert ev.n_signals == 22                                   # Kern unveraendert
         assert ev.extra_terms == ["Microsoft", "VMware", "BSI", "Proxmox", "Nutanix"]
-        assert ev.n_signals_extended == 1 and ev.n_signals_extended_12m == 1
-        assert ev.tier_totals_extended_12m == {"science": 0, "patent": 0, "funding": 0, "market": 1}
-        assert ev.extended_hits == [{"name": "VMware", "n": 1}]
-        assert [r["id"] for r in ev.rows_extended] == [130]
-        assert "T131" not in ev.catalog_ids()                        # Name ohne Themenstamm
-        ext = [s for s in ev.representative if str(s["why"]).startswith("extended")]
-        assert [s["id"] for s in ext] == ["T130"] and ext[0]["why"] == "extended: VMware"
-        assert "EXTENDED set (flagged" in ev.rendered_md and "VMware ×1" in ev.rendered_md
+        assert sorted(r["id"] for r in ev.rows_extended) == [130, 132]
+        assert ev.n_signals_extended == 2 and ev.n_signals_extended_12m == 2
+        assert ev.tier_totals_extended_12m == {"science": 0, "patent": 0, "funding": 0, "market": 2}
+        assert ev.extended_hits == [{"name": "Proxmox", "n": 1}, {"name": "VMware", "n": 1}]
+        assert ev.specific_names == ["Proxmox"]
+        assert ev.name_specificity["Proxmox"] == pytest.approx(0.9)
+        assert ev.name_specificity["Microsoft"] == 0.0 and ev.name_specificity["Nutanix"] is None
+        assert "T131" not in ev.catalog_ids()
+        # 132 traegt Proxmox im Titel -> darf repraesentativ werden; 130 (VMware ist nicht
+        # spezifisch: 2 Kandidaten) nur ueber die Phrase im Titel — die fehlt
+        ids = ev.catalog_ids()
+        assert "T132" in ids and "T130" not in ids
+        why = next(s_["why"] for s_ in ev.representative if s_["id"] == "T132")
+        assert why == "extended: Proxmox"
+        assert "EXTENDED set (flagged" in ev.rendered_md and "Proxmox ×1" in ev.rendered_md
+        assert "topic-specific names" in ev.rendered_md
         d = ev.as_dict()
-        assert d["n_signals_extended"] == 1 and d["extra_terms"][1] == "VMware"
-        # der Pflichtpunkt zaehlt die erweiterte Zeile nur ueber ihren Namen
-        assert ev.must_hits[0]["hits"] >= 1
+        assert d["n_signals_extended"] == 2 and d["specific_names"] == ["Proxmox"]
+        # der Pflichtpunkt zaehlt ueber seine Namen (Proxmox, Nutanix, VMware): 100-108 + 130 + 132
+        assert ev.must_hits[0]["hits"] >= 2 and not ev.must_hits[0]["thin"]
         assert ce._names_in("VMware licensing terms", ["VMware"])
         assert ev.gap_is_thin("Proxmox rollout") is True                # ein Treffer < 2 bleibt duenn
-        # Akteure bleiben Kern (VMware nur aus der Tag-Zeile 120)
         names = {a["name"]: a["n"] for a in ev.actors}
-        assert names["VMware"] == 1
+        assert names["VMware"] == 1                                    # Akteure bleiben Kern
 
     def test_without_names_nothing_is_extended(self, corpus):
         ev = ce.build("datacenter virtualization", None, terms=["datacenter", "virtualization"], today=TODAY)
         assert ev.extra_terms == [] and ev.n_signals_extended == 0
         assert "EXTENDED set" not in ev.rendered_md
+
+    def test_embedder_failure_degrades_to_phrase_rule(self, corpus):
+        def embed(text):
+            raise RuntimeError("embedder down")
+        ev = ce.build("datacenter virtualization", {"must_answer": ["x"]},
+                      terms=["datacenter", "virtualization"], today=TODAY, embed=embed)
+        assert ev.ok and ev.n_signals == 22 and ev.cosine_available is False
 
     def test_proper_nouns_and_entity_cleaning(self):
         assert ce.proper_nouns("Which specific virtualization stack alternatives (e.g., Proxmox, Nutanix, "
@@ -291,6 +450,8 @@ class TestBuild:
         assert ce.proper_nouns("What obligations does the EU Data Act impose?") == ["EU Data Act"]
         assert ce.proper_nouns("How do GDPR Article 28 (Processor) and Article 32 (Security of Processing) "
                                "translate?") == ["GDPR Article"]
+        # Runde 30: "AI-driven" ist ein Attribut, kein Name (zog 777 Zeilen)
+        assert ce.proper_nouns("Which themes (sovereignty, AI-driven workloads on Hyper-V) are signals?") == ["Hyper-V"]
         assert ce.clean_entity("BSI (Federal Office for Information Security)") == "BSI"
         row = {"title_en": "Red-Hat ships OpenShift Virtualization", "summary_en": "", "tags": []}
         assert ce.row_matches_any(row, ["Red Hat", "VMware", "Hats"]) == ["Red Hat"]
@@ -480,6 +641,51 @@ class TestScoutOutline:
         assert len(f) == 1 and "nur 1 von 5 belegten Tabellenzeilen (20%)" in f[0]
         # ohne corpus_ids ist die Regel aus
         assert ds.moving_corpus_findings("| a | [[T9]] |", None, "en") == []
+
+    WINDOWS_ROW = ("| 2026-07-13 | market | Microsoft | Ends support for Windows 11 24H2 and Office 2021 by 2026 | "
+                   "[Microsoft ends support for Windows 11 24H2 and Office 2021 by 2026](https://www.golem.de/x) |")
+    GAME_ROW = ("| 2026-09-17 | regulation | EU Commission | Draft proposes new restrictions for online game providers | "
+                "[EU Commission Draft Proposes New Restrictions for Online Game Providers](https://www.gamesindustry.biz/y) |")
+    VDDK_ROW = ("| 2026-09-15 | market | Broadcom | Removes VDDK downloads, blocking VMware migrations | "
+                "[Broadcom restricts VMware migration tools](https://www.swissitmagazine.ch/z) |")
+
+    def test_moving_table_off_topic_rows_are_flagged_and_deleted(self):
+        """Runde 30 (v9): die Windows-11- und die Online-Game-Zeile tragen Datum
+        und Beleg, aber weder Themenwort noch themenspezifischen Namen —
+        der Akteur (Microsoft, EU Commission) zaehlt nicht."""
+        rows = ["| 2026-09-10 | market | Proxmox | pushes virtualization [[T100]] | [[T100]] |",
+                self.WINDOWS_ROW, self.GAME_ROW, self.VDDK_ROW,
+                "| 2026-09-02 | market | VMware | vSphere Standard upgrade | [[T103]] |"]
+        rep = _scout_report(moving_rows=rows)
+        sec = ds.split_sections(ds.body_text(rep), "en")["moving"]
+        off = ds.moving_off_topic_rows(sec, ("server", "virtualization"), ["VMware", "Proxmox"], "en")
+        assert [e["tokens"][0][:26] for e in off] == ["Microsoft Ends support for", "EU Commission Draft propos"]
+        assert all(e["kind"] == "off_topic_row" and e["sentence"].startswith("|") for e in off)
+        # VDDK-Zeile bleibt ("VMware" im Signaltext), vSphere-Zeile bleibt ("VMware" als Akteur —
+        # ein THEMENSPEZIFISCHER Name in der Akteur-Spalte traegt die Zeile; "Microsoft" nicht,
+        # weil er nicht in `names` steht)
+        off2 = ds.moving_off_topic_rows(sec, ("server", "virtualization"), ["VMware", "Proxmox", "Microsoft"], "en")
+        assert len(off2) == 1 and off2[0]["tokens"][0].startswith("EU Commission")
+        # Kopfzeile (kein Beleg) und leere Namenliste
+        assert ds.moving_off_topic_rows("| Date | Tier | Actor | Signal | Source |\n|---|---|---|---|---|",
+                                        ("server",), [], "en") == []
+        assert ds.moving_off_topic_rows(sec, (), ["VMware"], "en") == []           # Regel aus
+        # Befund + Streichung im selben Pfad wie themenfremd belegte Saetze
+        f = ds.structure_findings(rep, "en", measured=MEASURED, topic_terms=("virtualization",),
+                                  calendar_min=3, actor_min=2, watch_min=2, outline="scout",
+                                  corpus_ids=CORPUS_IDS | {"T103"}, thin_areas=THIN, today=TODAY,
+                                  moving_terms=("server", "virtualization"), moving_names=["VMware", "Proxmox"])
+        assert any("2 Zeile(n) ohne Themenbezug" in x and "mechanisch gestrichen" in x for x in f), f
+        counts: dict = {}
+        out, n = ds.drop_unverified(rep, off, "en", counts=counts)
+        assert n == 2 and counts == {"off_topic_row": 2}
+        assert "Windows 11 24H2" not in out and "online game providers" not in out
+        assert "VDDK downloads" in out and "pushes virtualization" in out
+        # ohne moving_terms kein Befund (alter Pfad)
+        f0 = ds.structure_findings(rep, "en", measured=MEASURED, topic_terms=("virtualization",),
+                                   calendar_min=3, actor_min=2, watch_min=2, outline="scout",
+                                   corpus_ids=CORPUS_IDS | {"T103"}, thin_areas=THIN, today=TODAY)
+        assert not any("ohne Themenbezug" in x for x in f0)
 
     def test_thin_section_must_name_every_thin_area(self):
         rep = _scout_report(thin="- science — nothing on the web either.")

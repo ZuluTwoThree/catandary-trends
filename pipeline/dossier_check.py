@@ -227,6 +227,8 @@ def check_result(result: dict) -> dict:
             ("marketing", "hing eine Hersteller-Aussage nur an Marketingseiten"),
             ("reach", "berief sich der Satz auf ein Verzeichnis, das die Seite nicht fuehrt"),
             ("orphan", "blieb ein Anschluss-Absatz oder ein leeres Etikett ohne Bezug zurueck (mechanisch mit entfernt)"),
+            ("off_topic_row", "stand eine Zeile ohne Themenbezug in der Bewegungs-Tabelle (weder Themenwort "
+                              "noch themenspezifischer Name — mechanisch gestrichen, Runde 30)"),
         ]
         why = []
         seen_k: set[str] = set()

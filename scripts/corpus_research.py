@@ -4572,7 +4572,7 @@ def draft_score(report: str, citable_sources: list[dict], lang: str,
                 calendar_min: int | None = None, landscape_names: list[str] | None = None,
                 actor_min: int | None = None, watch_min: int | None = None,
                 today=None, outline: str | None = None, corpus_ids=None,
-                thin_areas: list[dict] | None = None) -> dict:
+                thin_areas: list[dict] | None = None, moving_terms=None, moving_names=None) -> dict:
     """Deterministische Guete eines Entwurfs fuer Best-of-N: Faktenquote je 100
     Woerter (das Mass, an dem der Neuwurf gemessen wird) minus Struktur- und
     Zitatbefunde. Keine Modellbewertung."""
@@ -4582,7 +4582,8 @@ def draft_score(report: str, citable_sources: list[dict], lang: str,
         report, lang, measured=measured_keys, sectors=sector_fields,
         year_floor=year_floor, density=density, topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names,
         actor_min=actor_min, watch_min=watch_min, today=today,
-        outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas)
+        outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas,
+        moving_terms=moving_terms, moving_names=moving_names)
     cites = dossier_structure.verify_cited_figures(report, citable_sources)
     n_cite = (len(cites.get("unverified") or []) + len(cites.get("off_topic") or [])
               + len(cites.get("distorted") or []) + len(cites.get("misattributed") or []))
@@ -5481,9 +5482,16 @@ def run(question: str, max_steps: int, max_sources: int,
             # (CLI) gibt es hier noch keines, dann nur die Pflichtpunkt-Namen.
             _prof = coerce_profile(profile)
             _ents = list(getattr(_prof, "actor_seeds", None) or []) if _prof is not None else []
+            # Runde 30: die Instrumente des Feldes (Profil-`regulators`) tragen
+            # die Regulatorik-/Kalender-Regel; der CPU-Embedder liefert den
+            # Kosinus-Boden des Kerns und die Pflichtpunkt-Naehe der
+            # repraesentativen Zeilen (ohne ihn: Phrasenregel + Wortueberdeckung).
+            _instr = list(getattr(_prof, "regulators", None) or []) if _prof is not None else []
+            from pipeline.config import RESEARCH_EMBED_HOST as _reh_ev
             corpus_ev = dossier_corpus_evidence.build(
                 topic or question, brief, terms=anchor_terms(topic or question)[:4],
-                search=search, row_to_source=_row_to_source, entities=_ents)
+                search=search, row_to_source=_row_to_source, entities=_ents,
+                instruments=_instr, embed=(embed_query if _reh_ev else None))
         except Exception as exc:                                    # noqa: BLE001
             logger.warning("corpus evidence pass failed (%r) — everything counts as thin", exc)
             corpus_ev = None
@@ -6513,6 +6521,16 @@ def run(question: str, max_steps: int, max_sources: int,
         [t for t in anchor_terms(topic or question, cap=6) if t]
         + [t for r in landscape for t in anchor_terms(r["name"], cap=3) if t]
         + [str(e).lower() for e in entities][:12]))
+    # Runde 30: Off-topic-Wache der Bewegungs-Tabelle. Themenwoerter OHNE die
+    # Akteure (calendar_terms traegt "microsoft" und "eu commission" — damit
+    # waere "Microsoft ends support for Windows 11" on-topic) plus die
+    # THEMENSPEZIFISCHEN Namen des Korpus-Satzes (VMware, Proxmox …). Ohne
+    # Korpus-Evidenz bleibt die Wache aus (None) — keine Streichung ohne Mass.
+    moving_terms = (list(dict.fromkeys(
+        [t for t in anchor_terms(topic or question, cap=6) if t]
+        + [t for r in landscape for t in anchor_terms(r["name"], cap=3) if t]))
+        if (corpus_ev is not None and corpus_ev.ok) else None)
+    moving_names = list(corpus_ev.specific_names) if (corpus_ev is not None and corpus_ev.ok) else []
     sys_prompt = report_system(measure, lang, landscape=bool(landscape), outline=outline)
     corpus_ids = {s_["id"] for s_ in citable_sources if dossier_corpus_evidence.is_corpus_source(s_)}
     thin_rows = dossier_corpus_evidence.thin_yield(
@@ -6715,7 +6733,8 @@ def run(question: str, max_steps: int, max_sources: int,
         best = draft_score(report, citable_sources, lang, measured_keys,
                            sector_fields, year_floor, calendar_terms, calendar_min, landscape_names,
                            actor_min=actor_min, watch_min=watch_min, today=today,
-                           outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas)
+                           outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas,
+                           moving_terms=moving_terms, moving_names=moving_names)
         logger.info("draft 1: score %.1f (density %.2f, %d structural, %d citation)",
                     best["score"], best["density"], best["structural"], best["citation"])
         for i in range(2, n_drafts + 1):
@@ -6727,7 +6746,8 @@ def run(question: str, max_steps: int, max_sources: int,
             sc = draft_score(alt, citable_sources, lang, measured_keys,
                              sector_fields, year_floor, calendar_terms, calendar_min, landscape_names,
                              actor_min=actor_min, watch_min=watch_min, today=today,
-                             outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas)
+                             outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas,
+                           moving_terms=moving_terms, moving_names=moving_names)
             logger.info("draft %d: score %.1f (density %.2f, %d structural, %d citation)",
                         i, sc["score"], sc["density"], sc["structural"], sc["citation"])
             if sc["score"] > best["score"]:
@@ -6810,7 +6830,8 @@ def run(question: str, max_steps: int, max_sources: int,
             year_floor=year_floor, density=density,
             topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names,
             actor_min=actor_min, watch_min=watch_min, today=today,
-            outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas)
+            outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas,
+            moving_terms=moving_terms, moving_names=moving_names)
         cites = dossier_structure.verify_cited_figures(report, citable_sources, measured_text)
         if cites.get("legal_rescued"):
             logger.info("citation: %d figure(s) found in the full legal text on re-slice",
@@ -7138,6 +7159,17 @@ def run(question: str, max_steps: int, max_sources: int,
                     cites2, sourceless2, measure_bad2, weak2, cite_all2 = _recheck(report, entail=False)
             structure["marketing_after"] = len(mk2)
             cite_all2 = list(cite_all2) + list(mk2)
+            # Runde 30: Zeilen der Bewegungs-Tabelle ohne Themenbezug fallen im
+            # selben Streichpfad wie themenfremd belegte Saetze (ganze Zeile).
+            if moving_terms:
+                _secs = dossier_structure.split_sections(dossier_structure.body_text(report), lang)
+                off_rows = dossier_structure.moving_off_topic_rows(
+                    _secs.get("moving", ""), moving_terms, moving_names, lang)
+                if off_rows:
+                    structure["moving_off_topic"] = int(structure.get("moving_off_topic") or 0) + len(off_rows)
+                    for e in off_rows:
+                        logger.warning("moving table row off topic — deleted: %s", e["tokens"][0][:90])
+                    cite_all2 = cite_all2 + off_rows
             if cite_all2:
                 core_now = _core_or_topic(report, cite_all2)
                 falling = [e for e in cite_all2 if e.get("kind") not in ("weaksource", "weakclaim")]
@@ -7205,7 +7237,8 @@ def run(question: str, max_steps: int, max_sources: int,
                 year_floor=year_floor, density=density_after,
                 topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names,
                 actor_min=actor_min, watch_min=watch_min, today=today,
-                outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas)
+                outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas,
+                moving_terms=moving_terms, moving_names=moving_names)
             structure["maturity_present"] = "maturity" in dossier_structure.split_sections(
                 dossier_structure.body_text(report), lang)
             structure["outline"] = outline
