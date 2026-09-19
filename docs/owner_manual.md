@@ -1106,23 +1106,58 @@ Bereiche und das Web-Gating (wie viele Lücken ans Web gingen, welche Sweeps
 liefen, Budget). Im Herkunftskopf-JSON: `corpus_evidence`, `web_gating`,
 `outline`.
 
-**Regeln.** Eine Ebene ist dünn bei < 5 Signalen in 12 Monaten; ein
-Pflichtpunkt bei < 2 Korpustreffern; Regulatorik und Kalender immer, außer der
-Korpus hat ≥ 3 Regulierungs-/Entscheidungssignale in 12 Monaten. Web-Budget
-= dünne Bereiche × 4, mindestens 6, höchstens `web_steps`. Ohne Korpus-Evidenz
-(DB-Fehler) gilt alles als dünn — der Lauf verhält sich wie vorher.
+**Was „zum Thema" heißt (seit Runde 30, 19.09.).** Der **Kern** sind Signale,
+deren Titel/Teaser/Tags die Themen-Phrase tragen — alle Themenwörter innerhalb
+von drei Wörtern, Wortstämme egal („virtualized servers", „server
+virtualisation"; „services" ist kein „server") — oder deren Vektor einen
+Kosinus ≥ `CORPUS_MIN_COSINE` (Env, Default 0,55) zum Anker „Thema + Namen
+aus Profil und Auftrag" hat (CPU-Embedder :8091; ist er weg, gilt die Phrase
+allein, der Block sagt es). Vorher zählte jeder Themenstamm irgendwo im Text:
+server virtualization v9 hatte 276 „Signale", darunter Virtual-Reality-Papiere
+und Virtual-Asset-Patente; jetzt 71. Der **erweiterte** Satz ist namensbasiert:
+Produkt-/Akteursname aus Profil oder Pflichtpunkt plus ein Themenwort — oder
+der Name allein, wenn er themenspezifisch ist (≥ 40 % seiner Zeilen im Kern:
+VMware, Proxmox ja; Microsoft, EU Commission nein). Der Block nennt die
+spezifischen Namen.
+
+**Was „dünn" heißt (seit Runde 30).** Eine Ebene ist dünn bei < 5 Kern-
+Signalen in 12 Monaten. Ein **Pflichtpunkt** ist gedeckt nur, wenn ≥ 2 Zeilen
+(Kern oder erweitert) seine **Namen** tragen — Eigennamen, Instrumente
+(SYS.1.5, Art. 28, Regulation (EU) 2023/2854, ISO/IEC 27001, GDPR, Data Act),
+Vendor-Namen des Profils, die der Punkt nennt — nie seine Allerweltswörter.
+Nennt der Punkt Regulierung, Fristen, Support-Ende, Meilensteine oder
+Anforderungen, muss die Zeile das Instrument nennen UND ein Datum der letzten
+12 Monate oder der Zukunft tragen; nennt er selbst kein Instrument („vendor
+support deadlines"), gelten die Profil-Instrumente und die themenspezifischen
+Vendor-Namen. Ein Punkt ohne jeden Namen („Wo steht die Technologie im
+Zyklus?") zählt über seine Inhaltswörter gegen den Kern. **Regulatorik und
+Kalender sind immer dünn**, außer ≥ 3 Zeilen der letzten 12 Monate nennen ein
+Instrument DES FELDES (Profil-`regulators`); der Kalender verlangt dazu
+Zukunftsdaten. Irgendein Regulierungssignal (v9: EU-Entwurf zu Online-Games)
+zählt nicht mehr. Web-Budget = dünne Bereiche × 4, mindestens 6, höchstens
+`web_steps`. Ohne Korpus-Evidenz (DB-Fehler) gilt alles als dünn — der Lauf
+verhält sich wie vorher.
+
+**Repräsentative Signale (seit Runde 30).** Je Ebene die nützlichsten: 0,5 ·
+Aktualität (12 Monate) + 0,3 · Trefferstärke (Phrase, Name im Titel) + 0,2 ·
+Nähe zu den Pflichtpunkten; market 6, patent 3, science 3, funding 2, dazu 2
+Regulierungszeilen, je Ebene mindestens eine mit Akteur. Eine Zeile, deren
+Titel weder Themenwort noch (bei erweiterten) themenspezifischen Namen trägt,
+wird nie repräsentativ. Die Bewertung steht im Herkunftskopf
+(`corpus_evidence.representative[].score`) und im Log. **Off-topic-Wache:**
+eine Zeile der Tabelle „What is moving", die weder Themenwort noch
+themenspezifischen Namen trägt („Microsoft ends support for Windows 11"), wird
+als Befund gemeldet und mechanisch gestrichen (Prüfnachweis: Streichgrund
+„Zeile ohne Themenbezug in der Bewegungs-Tabelle").
 
 **Alter Grundriss.** `params {"outline": "decision"}` am Auftragszettel oder
 `DOSSIER_OUTLINE=decision` in der Umgebung; die dritte Ampel „delivery-ready"
 verlangt seit dem Umbau die Reifegrad-Sektion und bleibt für alte Läufe rot.
 
-**Erweiterter Satz (seit Runde 28, 19.09.).** Neben den Signalen, die ALLE
-Themenbegriffe tragen, zählt der Korpus-Durchgang die Signale mit EINEM
-Themenbegriff plus einem Produkt-/Akteursnamen aus dem Feldprofil oder den
-Pflichtpunkten des Auftrags (datacenter: 31 Kern + 95 erweitert, VMware ×11,
-Broadcom ×7 …). Die Tabelle und die dünnen Bereiche bleiben auf dem Kern; die
-vier neuesten erweiterten Signale sind als `T<id>` zitierbar, im Prompt und im
-Herkunftskopf als „extended" markiert, im Desk-Block als Zeile „Extended".
+**Erweiterter Satz (seit Runde 28, 19.09.; Regel seit Runde 30 s. o.).**
+Die Tabelle, die Akteure und die Ebenen-Regel bleiben auf dem Kern; erweiterte
+Signale sind als `T<id>` zitierbar, im Prompt und im Herkunftskopf als
+„extended: <Name>" markiert, im Desk-Block als Zeile „Extended".
 
 **Prüfnachweis seit Runde 28.** Die Streichzeile heißt jetzt „N Sätze
 gestrichen oder gekennzeichnet: 2× enthielt die zitierte Web-Seite …, 15×
@@ -1137,8 +1172,10 @@ das in KEINER Form irgendwo steht, fällt weiterhin.
 
 **Prüfen ohne Lauf.** `.venv/bin/python -c "from pipeline import
 dossier_corpus_evidence as ce; print(ce.build('<Thema>', None,
-terms=['<Begriff>', '<Begriff>'], entities=['<Name>']).rendered_md)"` —
-read-only, kein Modell. Regeländerungen ohne Modell messen:
+terms=['<Begriff>', '<Begriff>'], entities=['<Name>'],
+instruments=['<Rechtsakt>']).rendered_md)"` — read-only, kein Modell; mit
+`embed=` (z. B. `scripts.corpus_research.embed_query`) auch der Kosinus-Boden,
+`CORPUS_MIN_COSINE=0.6` in der Umgebung verschiebt ihn für einen Lauf. Regeländerungen ohne Modell messen:
 `.venv/bin/python scripts/dossier_replay.py [--slug <serie>]` (Widersprüche,
 Kalender, Subjektabgleich, gespeicherte Zahlen-Befunde gegen die heutige Regel).
 Chronik: [`docs/agentic_dossiers.md`](agentic_dossiers.md), Runden 27–28.

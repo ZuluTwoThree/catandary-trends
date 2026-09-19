@@ -2585,3 +2585,149 @@ erweiterter Korpus-Satz über Profil-Akteure und Pflichtpunkt-Namen).
 Zwei Lehren für den Auftrag: das Technologiefeld kurz halten (die Kernregel
 ist eine UND-Regel), Produktnamen gehören in die Frage, nicht ins Feld.
 
+
+### Runde 30 (2026-09-19) — v9: Korpus-Präzision, Deckung nach Namen, Regulatorik/Kalender immer dünn, repräsentative Signale nach Nutzen, Off-topic-Wache
+
+**v9 (`server-virtualization-scout` v2, Auftrag #47, 16:31–17:00, 24 min)** mit
+dem kurzen Feld „server virtualization" und der Fünf-Punkte-Scouting-Frage:
+U 0,56 (bester Wert von 50 Läufen), Primäranteil 90 %, Korpusanteil 100 %,
+kein Widerspruch — und der Leser hatte trotzdem recht, dass der Inhalt daneben
+liegt. Korpus-Evidenz: **276 Signale**, Ebenen 12 m market 103 / patent 60 /
+funding 18 / science 67, **dünn: nichts** → `web gating: 0 of 15 gaps go to
+the web, sweeps none`, null Web-Aufrufe. In der Tabelle „What is moving":
+„Microsoft ends support for Windows 11 24H2 and Office 2021" (Client-Software),
+„EU Commission draft on online game providers" (nichts mit dem Feld zu tun),
+vier akteurlose Patente; kein Vendor-Termin im Kalender; SYS.1.5/Data Act
+ohne Inhalt. Dabei HAT der Korpus die Marktsignale: 74 Zeilen seit Januar mit
+`vmware|broadcom|proxmox|hyper-v|nutanix|hypervisor` im Titel (Broadcom
+entfernt VDDK 15.09., Spurs senkt VMware-Kosten um 85 % 03.09., Proxmox
+24/7-Support 03.09., VMware zurück zu vSphere Standard 02.09., europäische
+Cloud-Anbieter warnen vor Broadcom 04.09.) — keines wurde repräsentativ.
+
+**Fünf Ursachen, fünf Regeln** (`pipeline/dossier_corpus_evidence.py`,
+`pipeline/dossier_structure.py`, `scripts/corpus_research.py`):
+
+1. **Kern = Phrase oder Kosinus, nie bloßer Stamm.** Die Kernregel war „jeder
+   Themenstamm irgendwo im Text": `serv` traf „services", „serving",
+   „observe"; `virtual` traf Virtual Reality, Virtual Assets, „virtual
+   screening". Jetzt: alle Themenwörter innerhalb eines **3-Wort-Fensters**,
+   auf Wortebene stamm-unempfindlich (`phrase_match`, `tok_hits`: kurze
+   Stämme nur exakt — „servers" → serv ✓, „services" → servic ✗; ab 6 Zeichen
+   als Präfix — „virtualized" ✓) — ODER Kosinus ≥ `CORPUS_MIN_COSINE` (Env,
+   Default 0,55) zum **Anker „Thema + Namen aus Profil und Auftrag"**. Der
+   Anker ist gemessen: „server virtualization" allein zieht bei 0,55 über die
+   6.644 Kandidaten 208 Zeilen, darunter 24 VR-/Virtual-Asset-Treffer (der
+   Vektor hängt am Wort „virtual"); Thema + Namen 47 Zeilen, 14 mit Vendor im
+   Titel, 0 VR. Der Kosinus läuft in SQL nur auf dem FTS-Kandidatensatz (OR
+   der Begriffe und Namen): ein reiner ANN-Durchgang (ef_search 1000) brachte
+   269 zusätzliche Zeilen über Serverless/Microservices ohne ein Themenwort —
+   verworfen. Ohne Embedder (`RESEARCH_EMBED_HOST` leer oder Server weg) gilt
+   die Phrase allein, im Log und im Block vermerkt.
+2. **Deckung eines Pflichtpunkts nur über seine Namen.** Bis v9 galt „≥ 2
+   Zeilen mit zwei seiner Allerweltswörter" — „verifiable changes … last
+   months" war mit 2 Treffern gedeckt, der SYS.1.5-Punkt mit 13 (über die
+   indonesische Bank „BSI" und „AI-driven"). Jetzt zählen nur Zeilen, die
+   einen **Namen** des Punkts tragen: Eigennamen (`proper_nouns`, jetzt auch
+   nach dem Satzanfangswort — „Which BSI IT-Grundschutz …"; „AI-driven" ist
+   ein Attribut, kein Name mehr — es zog 777 Zeilen), Instrument-Bezeichner
+   (`instrument_mentions`: `SYS.1.5`, `Art. 28 and 32`, `Regulation (EU)
+   2023/2854`, `ISO/IEC 27001`, `NIS2`, `GDPR`, `Data Act` …) und die
+   Vendor-Namen des Profils, die der Punkt selbst nennt. Ein Punkt über
+   **Regulierung, Fristen, Support-Ende, Meilensteine, Anforderungen**
+   (`is_instrument_item`) zählt eine Zeile nur, wenn sie das Instrument nennt
+   UND ein Datum der letzten 12 Monate oder der Zukunft trägt (`text_dates`:
+   ISO, dd.mm.yyyy, „12 September 2025", „October 2026", Q2 2027, nacktes
+   Jahr ab dem laufenden); nennt er selbst kein Instrument („vendor support
+   deadlines and regulatory milestones"), gelten die Profil-Instrumente und
+   die **themenspezifischen** Vendor-Namen als seine Namen. Ein Punkt ganz
+   ohne Namen („Wo steht die Technologie im Zyklus?") zählt weiter über
+   Inhaltswörter — gegen den jetzt präzisen Kern.
+3. **Regulatorik und Kalender immer dünn, außer das Feld selbst ist belegt.**
+   v9 hatte 16 „Regulierungssignale" (Typ regulation/decision oder Wortliste)
+   — keines über das Feld (Online-Games, DMA). Jetzt: `instrument_rows` =
+   Zeilen der letzten 12 Monate, die ein Instrument DES FELDES nennen (Profil-
+   `regulators`, ohne Klammerzusatz, plus die Bezeichner darin); Regulatorik
+   ist dünn unter 3, der Kalender verlangt dazu Zukunftsdaten (`future_dated`).
+   Der generische Zähler bleibt als Anzeige („6 generic regulation signals —
+   they do not count").
+4. **Repräsentative Signale nach Nutzen statt „neueste je Ebene + nächste der
+   Vektorsuche".** `score_row` = 0,5 · Aktualität (linear über 365 Tage) +
+   0,3 · Trefferstärke (Phrase 1,0; Kosinus-Kern 0,6, mit Name im Titel 0,8;
+   Name im Titel 0,8 + 0,1 je weiterem; Name nur im Teaser 0,5) + 0,2 ·
+   Kosinus zur nächsten Pflichtpunkt-Frage (Embedder; sonst Wortüberdeckung).
+   Je Ebene Top-k (market 6, patent 3, science 3, funding 2) + 2
+   Regulierungszeilen (Instrument des Feldes, sonst Signaltyp), je Ebene
+   mindestens eine akteurbenannte Zeile, wo es eine gibt; jede Auswahl steht
+   mit ihren drei Komponenten im Log und in `result.corpus_evidence.
+   representative[].score`. **Nie repräsentativ:** eine Kern-Zeile, deren
+   Titel weder Themenwort noch Namen trägt („Cloud provider changes pricing"
+   mit Tag-Treffer; „AliveCor … Medicare"), und eine erweiterte Zeile, deren
+   Titel keinen themenspezifischen Namen trägt („Flash-Aurora … serving library
+   for Microsoft Aurora", „EU Commission draft on online game providers").
+   Die zentrumsnächsten Treffer der Vektorsuche (undatiert, ohne Ebene:
+   „IntelŴVirtualization Technology" von 2006) entfallen.
+5. **Off-topic-Wache der Bewegungs-Tabelle.** `moving_off_topic_rows`: eine
+   belegte Zeile, deren Text (Akteur, Signal, Quelle) weder ein Themenwort
+   (`moving_terms` = Themenanker + Landschaftsbegriffe, OHNE die Akteure —
+   `calendar_terms` trägt „microsoft" und „eu commission", damit wäre die
+   Windows-11-Zeile on-topic) noch einen **themenspezifischen** Namen trägt,
+   wird als Befund gemeldet („N Zeile(n) ohne Themenbezug … werden mechanisch
+   gestrichen") und im selben Streichpfad wie themenfremd belegte Sätze
+   entfernt (`drop_unverified`, Streichgrund `off_topic_row`, im Prüfnachweis
+   benannt). Ohne Korpus-Evidenz bleibt die Wache aus. Test mit genau den
+   v9-Zeilen (Windows 11, Online-Games): beide fallen, die VDDK-Zeile bleibt.
+
+**Namensspezifität** (`name_specificity`, Nebenprodukt von 1): Anteil der
+Kandidatenzeilen eines Namens, die im Kern liegen (mindestens 3 Kandidaten).
+Gemessen für v9: VMware 0,51, Proxmox 0,50, Nutanix 0,29, HPE 0,16, Red Hat
+0,10, Microsoft 0,007, EU Commission 0,00, BSI 0,00, Dell 0,00, Lenovo 0,00.
+Ab `NAME_SPECIFICITY_MIN` 0,4 trägt der Name **allein** eine Zeile in den
+erweiterten Satz („Proxmox launches 24/7 enterprise support", „European Cloud
+Providers Warn of Broadcom's VMware Expansion" — beide ohne Themenstamm);
+generische Namen brauchen weiter Name + Themenstamm (Runde 28, jetzt auf
+Wortebene). Die spezifischen Namen sind zugleich die Namen der Off-topic-
+Wache und der Instrument-Fallback in Regel 2.
+
+**Messung vorher/nachher, live-DB, gespeicherter Auftrag v2 (Brief +
+Profil), ohne Lauf:**
+
+| | vorher (v9) | nachher |
+|---|---:|---:|
+| Kandidaten (FTS OR Begriffe + Namen) | 11.907 | 6.644 (ohne „AI-driven") |
+| Kern seit 2024-09 | 276 | **71** (Phrase 17, Kosinus 54) |
+| Kern 12 m market / patent / funding / science | 103 / 60 / 18 / 67 | **39 / 20 / 2 / 3** |
+| erweitert | 964 (AI-driven ×777, Microsoft ×160) | **69** (Microsoft ×40, VMware ×17, Proxmox ×3 …) |
+| Zeilen mit Vendor im Titel (2026, market) im Kern/erweitert | 20 | **31** |
+| Instrument-Zeilen 12 m (Feld) / davon zukunftsdatiert | – | 0 / 0 |
+| dünn | nichts | science, funding, Pflichtpunkte 2/3/4, regulatory, calendar |
+| Web-Gating (gespeicherte 15 Lücken) | 0 ans Web, Sweeps keine, Budget 6 | **6 ans Web** (Pflichtpunkte 2/3/4, drei Audit-Lücken), Sweeps regulatory + funding + catalyst, Budget 14 |
+
+Die zehn neuesten Markt-Zeilen nach dem Umbau sind zur Hälfte noch generische
+Namen + Themenstamm (EU-Zölle mit „EU Commission", Windows-Patches mit
+„Server" im Titel) — sie stehen im **erweiterten** Satz, werden nicht
+repräsentativ und fallen als Tabellenzeile der Wache. Die repräsentativen
+Marktzeilen sind jetzt: VMware zurück zu vSphere Standard (Phrase, 0,89),
+Broadcom entfernt VDDK (Kosinus, 0,83), Spurs −85 % VMware-Kosten (0,83),
+VMware + AMD (0,82), europäische Cloud-Anbieter warnen (erweitert VMware,
+0,81), Broadcom Private AI Cloud (0,81); Patente: „Virtualized file server",
+„Virtual computer management system, synchronous server", „Application
+execution on a virtual server"; Wissenschaft: Confidential VMs, Secure
+Encrypted Virtualization. Vier akteurlose Patente und „Vacuumtronics" sind
+weg.
+
+**Tests:** `tests/test_dossier_corpus_evidence.py` (Phrasenfenster und
+Wortstämme, Env-Boden, Datumsformen, Instrumente, Deckung nach Namen mit
+Datumspflicht, Profil-Fallback mit spezifischen Vendors, Regulatorik/Kalender
+über Instrumente, Bewertung der repräsentativen Zeilen, Namensspezifität,
+Embedder-Ausfall, Off-topic-Wache mit den v9-Zeilen inkl. Streichung). Volle
+Suite grün (2.072).
+
+**Offen:** der Kosinus-Boden ist ein Skalar auf einem Embedder, der
+Wortnähe („virtual") stark gewichtet — der Anker mit Namen hält das in
+Schach, ein Reranker (Runde 27) bliebe der bessere Hebel; die Instrument-
+Regex ist eine Liste (SYS/APP/…, Art., Regulation/Directive (EU), ISO/IEC,
+NIS2, C5, GDPR/Data Act/AI Act/CRA/DORA) — ein Feld mit anderen Bezeichnern
+(FDA 510(k), EN-Normen) trägt sie nur über die Profil-Instrumente; der
+Kalender bleibt bei diesem Thema dünn, weil der Korpus keine
+zukunftsdatierten Instrument-Zeilen hat — das ist richtig so, die Web-Stufe
+ist dafür da. v10 wäre der erste Lauf mit diesen Regeln.

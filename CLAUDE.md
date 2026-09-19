@@ -1621,6 +1621,28 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   Akteursname (Profil `actor_seeds`, Eigennamen der Pflichtpunkte) — datacenter 31 Kern + 95
   erweitert; Tabelle/Dünne-Regel bleiben Kern, Desk zeigt „Extended". `docs/agentic_dossiers.md`
   Runde 28, Tests `tests/test_dossier_r28.py`.
+- **Runde 30 (2026-09-19, server-virtualization v9 — Korpus voll, Inhalt daneben):** v9 hatte
+  276 „Signale", dünn nichts, 0 Web-Aufrufe, und in der Tabelle Windows-11-Support-Ende und
+  einen EU-Entwurf zu Online-Games. Fünf Regeln in `pipeline/dossier_corpus_evidence.py`:
+  (1) **Kern = Themen-Phrase** (alle Wörter im 3-Wort-Fenster, Wortstämme: „services" ist kein
+  „server") **oder Kosinus ≥ `CORPUS_MIN_COSINE`** (Env, 0,55) zum Anker „Thema + Namen" (Thema
+  allein zog 24 VR-Treffer, Thema + Namen 0) — kein bloßer Stamm mehr; Kosinus in SQL nur auf
+  dem FTS-Kandidatensatz (ein reiner ANN-Lauf brachte 269 Serverless-Zeilen). (2) **Deckung
+  eines Pflichtpunkts nur über seine Namen** (Eigennamen, Instrumente `SYS.1.5`/`Art. 28`/
+  `Regulation (EU) 2023/2854`/`ISO/IEC 27001`, Vendor-Namen), bei Frist-/Regel-Punkten nur
+  mit Datum der letzten 12 Monate oder der Zukunft; ohne Namen im Punkt: Profil-Instrumente +
+  themenspezifische Vendors. (3) **Regulatorik/Kalender immer dünn**, außer ≥ 3 Zeilen in 12
+  Monaten nennen ein Instrument DES FELDES (Kalender: mit Zukunftsdatum) — generische
+  Regulierungssignale zählen nicht. (4) **Repräsentative Signale nach Nutzen**: 0,5 Aktualität
+  + 0,3 Trefferstärke + 0,2 Pflichtpunkt-Kosinus, market 6 / patent 3 / science 3 / funding 2
+  + 2 Regulierung, je Ebene ein Akteur; Titel ohne Themenwort/spezifischen Namen nie. (5)
+  **Off-topic-Wache** der Bewegungs-Tabelle (`dossier_structure.moving_off_topic_rows`): Zeile
+  ohne Themenwort und ohne themenspezifischen Namen → Befund + Streichung (`off_topic_row`).
+  Namensspezifität = Anteil der Kandidatenzeilen eines Namens im Kern (VMware 0,51, Proxmox
+  0,50; Microsoft 0,007, EU Commission 0) — ab 0,4 trägt der Name allein in den erweiterten
+  Satz, sonst Name + Themenwort. „AI-driven" ist kein Eigenname mehr (777 Zeilen). Messung
+  v9-Auftrag ohne Lauf: Kern 276 → 71, erweitert 964 → 69, Vendor-Zeilen 20 → 31, dünn
+  nichts → 7 Bereiche, Web-Gating 0 → 6 Lücken + 3 Sweeps. `docs/agentic_dossiers.md` Runde 30.
 - **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
   zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
   themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,
