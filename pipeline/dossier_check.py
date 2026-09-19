@@ -167,7 +167,11 @@ def check_result(result: dict) -> dict:
             "eigene Patent-/Zeitreihenmessung (Messanhang nennt jeden Versuch).")
     elif measured:
         measurement_used = _measurement_used(body, quant)
-        if not measurement_used:
+        # Scout-Grundriss (2026-09-19): die Reifegrad-Sektion MUSS gemessene
+        # Groessen nennen — das prueft die Strukturpruefung (maturity_findings)
+        # mit dem genaueren Befund; der stehende Befund hier bleibt nur fuer den
+        # Entscheidungs-Grundriss, sonst stuende derselbe Mangel zweimal.
+        if not measurement_used and str(result.get("outline") or "") != "scout":
             findings.append(
                 "Gemessen, aber im Berichtstext nicht verwendet: keine der "
                 "gemessenen Groessen taucht ausserhalb des Messanhangs auf.")

@@ -1139,7 +1139,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                    statischen Export ausgeschlossen (BLOCKED_PREFIXES + static-export.exclude + canReview())
 /trends/ops                      → Ops-Dashboard (#104, seit 2026-09-11; Owner, im PUBLIC_MODE 404, nicht im Export): Jetzt-Kacheln (GPU lokal + bequiet, CPU/RAM, Postgres, Queues, Sampler), alle vier Platten (Füllstand, I/O, Temperatur, SMART-Ampel, „voll in N Tagen"), 24-h/7-d-Diagramme als server-gerendertes SVG mit Job-Bändern aus ops_events, Job-Statistik (28 Tage, Median-Dauer) und die letzten 40 Läufe; ?range=24h|7d, Auto-Refresh 60 s. **Wochenplan** (Stufe 4): die INSTALLIERTE Crontab (`crontab -l`, Fallback `deploy/crontab.txt`) als Wochenraster, Blockbreite = gemessene Median-Dauer, Überschneidungen aufgelistet; **Logbuch** `docs/ops/logbook.md` (versioniert, `## <Datum> · change|plan|decision|idea · <Titel>`, optional `duration:`/`gpu:`-Zeilen) gerendert, `plan`-Einträge mit Tag erscheinen im Wochenplan. **Alarme** (Stufe 5) als Banner oben (offen) + zuletzt entwarnt; Regeln/Schwellen s. Cron-Block.
 /trends/ops/prompts              → Prompt-Katalog (seit 2026-09-18; Owner, wie /trends/ops gesperrt): jede Systemanweisung, die ein Sprachmodell in diesem System bekommt, LIVE aus dem Code gelesen (`pipeline/prompt_catalog.py --json`, 60-s-Cache im Frontend) — je Eintrag: was die umgebende Funktion tut und wann sie läuft, welches Modell antwortet, Datei:Zeile, der Prompt selbst aufklappbar, bei Stage 6 und dem Dossier-Schreiber zusätzlich der User-Prompt-Bauer. 28 Einträge in 7 Gruppen (Feed-Pipeline, Richter, Foresight, Newsletter, Dossiers, Advisor, On-demand). Nicht drin: Embeddings, Distill-Heads, A/B-/Eval-Skripte. Nebenfund beim Bau: `corpus_research.PROFILE_SYSTEM` war doppelt definiert (Firmenprofil überschrieb die Suchrichtungen) → `COMPANY_PROFILE_SYSTEM`.
-/trends/dossiers, /trends/dossiers/[slug] → Owner-Dossier-Desk (#95; lokal standardmäßig AN, `DOSSIERS_ENABLED=0` = Not-Aus; unter PUBLIC_MODE geblockt und aus dem statischen Export ausgeschlossen): Scouting-Dossier-Aufträge erteilen, „Neu rechnen" startet den Worker on-demand, Bericht mit Herkunftskopf/Coverage-Anhang + Agenten-Endkontrolle lesen, Sign-off — siehe `docs/agentic_dossiers.md`
+/trends/dossiers, /trends/dossiers/[slug] → Owner-Dossier-Desk (#95; lokal standardmäßig AN, `DOSSIERS_ENABLED=0` = Not-Aus; unter PUBLIC_MODE geblockt und aus dem statischen Export ausgeschlossen): Scouting-Dossier-Aufträge erteilen, „Neu rechnen" startet den Worker on-demand, Bericht mit Herkunftskopf, **Korpus-Evidenz-Block** (seit 2026-09-19: Signale je Ebene × Quartal mit Anteil je 10k, Akteure, Outlets, dünne Bereiche, Web-Gating), Coverage-Anhang + Agenten-Endkontrolle lesen, Sign-off — siehe `docs/agentic_dossiers.md`
 /imprint, /privacy, /enquiry     → Rechtstexte + Anfrage (mailto); im Export unter /trends/… (s. o.), da der Publisher den Webroot nie schreibt
 ```
 
@@ -1590,6 +1590,21 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   Textzeile. `scripts/dossier_replay.py` misst jede Regeländerung ohne Modell über alle
   gespeicherten Läufe (19.09.: v4-Widerspruch gefangen, 3 Läufe/4 Paare; 169 von 243
   gestrichenen Sätzen waren Kern/Thema). Runde 23.
+- **Scouting-Bericht aus Korpus + Messblock (Owner-Ziel 2026-09-19, Stufe 6, Runde 27):**
+  vor Plan und Agenten läuft `pipeline/dossier_corpus_evidence.py` — Signale je Ebene
+  (`tiers.tier_of`) und Quartal (roh + Anteil je 10.000 wie `emerging.py`), Akteure aus
+  `brands`/`companies`, Outlets, repräsentative Signale als Katalogeinträge `T<id>`, und die
+  **dünnen Bereiche** (Ebene < 5 Signale/12 Monate, Pflichtpunkt < 2 Treffer, Regulatorik/
+  Kalender immer außer ≥ 3 Regulierungssignale). **Web nur dort:** Sweeps, Web-Agent,
+  Coverage-Sweep und DR-Vorlauf laufen nur für dünne Lücken, Budget `len(thin) × 4`
+  (6..`web_steps`), Protokoll `result["web_gating"]`. Grundriss `outline="scout"` (Default;
+  `params {"outline": "decision"}` = alt): Scout's verdict, **Maturity and position in the
+  cycle** (nur Messblock + Korpus-Tabelle, ≥ 2 gemessene Größen — löst „gemessen, aber nicht
+  verwendet" ab), What is moving (`| Date | Tier | Actor | Signal | Source |`, ≥ 60 %
+  Korpus-ids), Regulatory, What happens next, **Where the evidence is thin**, Watch, Open.
+  Nutzen: `corpus_share` 0,15 in jedem Preset, Reifegrad Bedingung von `delivery_ready`.
+  Treffer-Regel: grober Stamm über Titel + Teaser + Tags (FTS-Präfix `virtualizati:*` traf
+  `virtual` nicht). Werkzeugvorschlag (Reranker, NER, Wayback) nur als Doku in Runde 27.
 - **DR-*Schreibweise* = Feature in Development (seit 2026-09-07):** Deep-Research-Arbeitsweise (Primärquellen
   zuerst, Faktenzettel, Akteur-Landkarte, Kalender-Kandidaten, Aufwands-Anker,
   themenneutrale Suchrichtungen aus Kern + Rückgrat je Vertikale + Modellprofil,

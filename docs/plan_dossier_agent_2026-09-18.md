@@ -278,6 +278,43 @@ beste Schablonen, U-Trend).
 *Abnahme:* zweiter Lauf im selben Feld liest die bestätigten Hosts zuerst und
 braucht weniger Web-Aufrufe; U steigt über die Serie, nicht nur die Dichte.
 
+### Stufe 6 — Scouting-Umbau (Owner-Ziel 19.09.)
+
+Owner-Ziel 2026-09-19: „Umbau des Dossiers zum Scouting-Bericht basierend auf
+Daten des Korpus und Messblock. Websuche und Deep Research nur für Bereiche
+zur Ergänzung oder Beleg dessen, was im Korpus dünn ist. Alles mit lokalen
+Tools, keine Cloud-Modelle." Der Korpus wird vom Suchraum zur Grundlage: ein
+deterministischer Durchgang VOR Plan und Agenten liefert Signale je Ebene und
+Quartal (roh + Anteil je 10.000), Akteure, Quellen, repräsentative Signale als
+zitierbare Katalogeinträge und die **dünnen Bereiche**; nur diese bekommen
+Web-Schritte, Sweeps und Budget. Der Bericht folgt einem Scouting-Grundriss
+(Reifegrad aus dem Messblock, Bewegung korpus-zuerst, „Wo die Belege dünn
+sind" als Pflicht). Nutzen: `corpus_share` als Komponente, Reifegrad als
+Bedingung der dritten Ampel.
+*Abnahme:* datacenter-Serie im Scout-Grundriss mit ≥ 60 % Korpus-Zeilen in
+der Bewegungs-Tabelle, ≤ 50 % der bisherigen Web-Aufrufe, Reifegrad-Sektion
+mit ≥ 2 gemessenen Größen; Werkzeugvorschlag für Reranker/NER/Archivabruf.
+
+**Stand Stufe 6 (2026-09-19, gebaut — Runde 27 in `docs/agentic_dossiers.md`):**
+`pipeline/dossier_corpus_evidence.py` (`build`, `web_gating`, `thin_yield`;
+Treffer-Regel mit grobem Stamm über Titel + Teaser + Tags, FTS-Vorauswahl ohne
+Präfix), verdrahtet in `run()` direkt nach dem Quant-Vorspann; Gating vor den
+Sweeps und der Web-Stufe (`result["web_gating"]`), DR-Vorlauf liest nur Seiten
+der Web-Lücken; Scout-Grundriss `outline="scout"` (Default, `params
+{"outline": "decision"}` = alt) mit `maturity_findings` (≥ 2 gemessene
+Größen), `moving_corpus_findings` (≥ 60 %), `thin_findings`; `corpus_share`
+0,15 in jedem Preset, `maturity_present` in `delivery_ready`; Desk-Block
+„Corpus evidence" über dem Bericht; Werkzeugvorschlag (Reranker
+bge-reranker-v2-m3, GLiNER/spaCy-NER, Wayback/CC-Client, PDF-Tabellen,
+Zitations-Resolver) in Runde 27. Messung datacenter (Live-DB, read-only):
+31 Signale seit 2024-09, 26 in 12 Monaten (science 2 · patent 6 · funding 0 ·
+market 17), dünn: science, funding, regulatory, calendar; die Sweeps Markt
+entfällt, Regulatorik/Förderung/Katalysator laufen. **Abweichungen:** der
+Kalender bleibt eine eigene Sektion (`next`, kleinere Änderung als die
+Verschmelzung mit Regulatorik — alle Kalenderprüfungen hängen an dem
+Schlüssel); „does not support" bleibt optional parsbar; die Abnahme (≥ 60 %
+Korpus-Zeilen, ≤ 50 % Web-Aufrufe) braucht den ersten Live-Lauf der Serie.
+
 ### Ausblick (nicht im Plan)
 
 Feintuning des Schreibers auf Paare (Entwurf → freigegebene Fassung), sobald
@@ -293,6 +330,7 @@ Feintuning des Schreibers auf Paare (Entwurf → freigegebene Fassung), sobald
 | 4 Prüfen statt Streichen | 2 | 0 |
 | 3 VOI-Planer | 2 | 1, 2 |
 | 5 Lernschleife | 1–2 | 0, 2, 3 |
+| 6 Scouting-Umbau (Owner 19.09.) | 1 | 1, 3 |
 
 Zehn bis elf Tage. Stufe 4 kann parallel zu 1/2 laufen (unabhängig). Nach den
 Stufen 0, 1, 2, 4 ist der Zustand „Dossier + Advisor ohne Redaktion" für

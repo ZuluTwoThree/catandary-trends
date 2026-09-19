@@ -2323,7 +2323,8 @@ cycle** (NEU — nur aus Messblock und Korpus-Ebenenhistorie, muss ≥ 2
 gemessene Größen mit exaktem Wert nennen, `maturity_findings`; zählt wie
 „about" nicht zur Faktenquote; damit hat die Messung eine Sektion, in der sie
 stehen MUSS — der stehende Endkontroll-Befund „gemessen, aber nicht
-verwendet" wird strukturell abgelöst) · **What is moving** (Tabelle `| Date |
+verwendet" wird strukturell abgelöst und `dossier_check` meldet ihn im
+Scout-Grundriss nicht mehr doppelt) · **What is moving** (Tabelle `| Date |
 Tier | Actor | Signal | Source |`, ≥ 60 % der belegten Zeilen zitieren
 Korpus-/Mess-ids T…/P…/N…/Q…, `moving_corpus_findings`) · Regulatory and IP
 status · What happens next (der Kalender bleibt eine eigene Sektion — die

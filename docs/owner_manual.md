@@ -1077,6 +1077,43 @@ p.json --scope "…" --run`, `--note <id>`, `--list [--dossier <slug>]`,
 `data/advisory/<stamp>.log`, Lock `data/advisory.lock`; läuft ein
 Dossier-Worker, verweigert der Desk den Start („busy").
 
+### 6.6 Scouting-Bericht aus Korpus und Messblock (seit 2026-09-19)
+
+**Was anders ist.** Jedes Dossier beginnt mit einem deterministischen
+Korpus-Durchgang (`pipeline/dossier_corpus_evidence.py`, ~1 s): Signale zum
+Thema je Ebene (science/patent/funding/market) und Quartal — roh und als
+Anteil je 10.000 Signale der Ebene —, Akteure, Outlets, die repräsentativen
+Signale als zitierbare Katalogeinträge, und die **dünnen Bereiche**. Nur für
+diese laufen Websuche, Sweeps und der DR-Vorlauf; alles andere schreibt der
+Bericht aus dem Korpus und dem Messblock. Der Bericht folgt dem Scouting-
+Grundriss: *Scout's verdict* · *Maturity and position in the cycle* (nur aus
+Messblock + Korpus-Tabelle, muss zwei gemessene Größen nennen) · *What is
+moving* (Tabelle Date/Tier/Actor/Signal/Source, ≥ 60 % Korpus-Zeilen) ·
+*Regulatory and IP status* · *What happens next* · *Where the evidence is
+thin* · *Decision points* · *Open questions*.
+
+**Wo du es siehst.** Leseansicht `/trends/dossiers/<slug>`: Block „Corpus
+evidence" über dem Bericht — Tabelle Ebene × letzte 8 Quartale (Zahl und
+Anteil je 10k, 12-Monats-Summe), Akteure, Outlets, repräsentative ids, dünne
+Bereiche und das Web-Gating (wie viele Lücken ans Web gingen, welche Sweeps
+liefen, Budget). Im Herkunftskopf-JSON: `corpus_evidence`, `web_gating`,
+`outline`.
+
+**Regeln.** Eine Ebene ist dünn bei < 5 Signalen in 12 Monaten; ein
+Pflichtpunkt bei < 2 Korpustreffern; Regulatorik und Kalender immer, außer der
+Korpus hat ≥ 3 Regulierungs-/Entscheidungssignale in 12 Monaten. Web-Budget
+= dünne Bereiche × 4, mindestens 6, höchstens `web_steps`. Ohne Korpus-Evidenz
+(DB-Fehler) gilt alles als dünn — der Lauf verhält sich wie vorher.
+
+**Alter Grundriss.** `params {"outline": "decision"}` am Auftragszettel oder
+`DOSSIER_OUTLINE=decision` in der Umgebung; die dritte Ampel „delivery-ready"
+verlangt seit dem Umbau die Reifegrad-Sektion und bleibt für alte Läufe rot.
+
+**Prüfen ohne Lauf.** `.venv/bin/python -c "from pipeline import
+dossier_corpus_evidence as ce; print(ce.build('<Thema>', None,
+terms=['<Begriff>', '<Begriff>']).rendered_md)"` — read-only, kein Modell.
+Chronik: [`docs/agentic_dossiers.md`](agentic_dossiers.md), Runde 27.
+
 ## 7. Newsletter
 
 ### 7.1 Website-Edition (automatisch, Di 09:00)
