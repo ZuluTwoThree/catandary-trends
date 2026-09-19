@@ -199,3 +199,30 @@ class TestPromptBlocks:
     def test_checklist_empty_without_points(self):
         assert b.must_answer_checklist([]) == ""
         assert "MUST-ANSWER checklist" in b.must_answer_checklist(["A?"])
+
+
+class TestTolerantQuoteMatch:
+    """2026-09-19: v8 der Scout-Serie — drei beantwortete Pflichtpunkte fielen
+    mit 'quote not in the dossier' durch, weil das Modell paraphrasierte."""
+
+    REPORT = ("## Scout's verdict\n\nIn the adoption lifecycle, server virtualization is in the maturity "
+              "phase, with a measured patent cycle time of 5.0 years indicating established foundational "
+              "architecture rather than emerging innovation [Patent](https://x.org/p).\n")
+
+    def test_verbatim_still_wins(self):
+        from pipeline.dossier_brief import quote_in_report
+        assert quote_in_report("server virtualization is in the maturity phase", self.REPORT) == (True, True)
+
+    def test_paraphrase_with_high_word_coverage_is_found(self):
+        from pipeline.dossier_brief import quote_in_report
+        q = "server virtualization is in the maturity phase with a measured patent cycle time of 5.0 years"
+        assert quote_in_report(q, self.REPORT) == (True, True)
+
+    def test_unrelated_quote_is_not_found(self):
+        from pipeline.dossier_brief import quote_in_report
+        assert quote_in_report("Proxmox VE subscriptions cost 370 euro per socket and year", self.REPORT) == (False, False)
+
+    def test_uncited_sentence_is_found_but_not_cited(self):
+        from pipeline.dossier_brief import quote_in_report
+        rep = "## X\n\nServer virtualization is in the maturity phase with a patent cycle time of five years.\n"
+        assert quote_in_report("virtualization is in the maturity phase with a patent cycle time of five years", rep) == (True, False)

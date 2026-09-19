@@ -295,9 +295,33 @@ def _norm(s: str) -> str:
     return " ".join(s.lower().replace("’", "'").replace("“", '"').replace("”", '"').split())
 
 
+_QWORD = re.compile(r"[a-z0-9][a-z0-9.,%/-]*")
+QUOTE_MIN_COVERAGE = 0.8
+
+
+def _qtokens(s: str) -> list[str]:
+    return [w.strip(".,;:") for w in _QWORD.findall(_norm(s)) if len(w.strip(".,;:")) > 1]
+
+
+def _coverage(quote_tokens: list[str], text: str) -> float:
+    """Anteil der Zitatwörter, die im Text vorkommen (Reihenfolge egal)."""
+    if not quote_tokens:
+        return 0.0
+    have = set(_qtokens(text))
+    return sum(1 for t in quote_tokens if t in have) / len(quote_tokens)
+
+
 def quote_in_report(quote: str, report_md: str) -> tuple[bool, bool]:
-    """(gefunden, zitiert): steht das Zitat wörtlich (normalisiert) im Bericht,
-    und trägt der Satz, in dem es steht, eine Quellenmarke?"""
+    """(gefunden, zitiert): steht das Zitat im Bericht, und trägt der Satz, in
+    dem es steht, eine Quellenmarke?
+
+    Wörtlich (normalisiert) zuerst. Sonst tolerant (2026-09-19): das Modell
+    gibt das Zitat aus dem gelesenen Text paraphrasiert oder über eine
+    Satzgrenze hinweg zurück, und der Bericht ist nach der Kanonisierung ein
+    anderer String als der, den es las (Marken → Links). In v8 der Scout-Serie
+    fielen so drei von fünf beantworteten Pflichtpunkten mit "quote not in
+    the dossier" durch. Ein Satz (oder zwei benachbarte Sätze) gilt als
+    Fundstelle, wenn er ≥ QUOTE_MIN_COVERAGE der Zitatwörter trägt."""
     q = _norm(quote or "")
     if len(q) < 20:
         return False, False
@@ -311,6 +335,20 @@ def quote_in_report(quote: str, report_md: str) -> tuple[bool, bool]:
     for para in text.split("\n"):
         if q in _norm(para):
             return True, bool(_CITE_RE.search(para))
+    # Tolerant: Wortüberdeckung je Satz bzw. Satzpaar.
+    qt = _qtokens(quote)
+    if len(qt) < 5:
+        return False, False
+    best = (0.0, False)
+    for para in text.split("\n"):
+        sents = [x for x in _SENT_SPLIT.split(para) if x.strip()]
+        for i, sent in enumerate(sents):
+            for window in (sent, " ".join(sents[i:i + 2])):
+                c = _coverage(qt, window)
+                if c > best[0]:
+                    best = (c, bool(_CITE_RE.search(window)))
+    if best[0] >= QUOTE_MIN_COVERAGE:
+        return True, best[1]
     return False, False
 
 
@@ -355,6 +393,7 @@ def must_answer_scores(report_md: str, must_answer: list[str] | None, chat=None,
         found, cited = quote_in_report(quote, body) if it.answered else (False, False)
         answered = bool(it.answered and found and cited)
         out.append({"item": m, "answered": answered, "quote": quote if found else "",
+                    "quote_raw": quote,
                     "verified": bool(it.answered) == answered,
                     "reason": ("" if answered else
                                "not answered" if not it.answered else

@@ -2561,3 +2561,27 @@ Artikelschnitt für Rechtstexte greift erst in neuen Läufen; die
 eines dieser Wörter zitiert, bleibt beim alten Verhalten); der erweiterte
 Korpus-Satz ist mit „Microsoft" + „virtual" (71 von 95) noch breit — ein
 Reranker (Runde 27, Werkzeugvorschlag) wäre der nächste Hebel.
+
+### Runde 29 (2026-09-19) — Scouting-Frage v8, Zählfehler, tolerante Zitatprüfung
+
+**v8 (`server-virtualization-scout` v1, Auftrag #46, 49 min, 27B)** mit der
+Scouting-Frage (fünf Punkte: Zyklus, 24-Monats-Bewegung, Termine, Rechtsrahmen
+in Umrissen, Signal/Rauschen) und dem breiten Feld „server virtualization and
+hypervisor platforms (VMware vSphere, Proxmox VE, Hyper-V, Nutanix AHV, KVM)":
+U 0,28 (bester Wert der Familie), kein Widerspruch, Primäranteil 65 %,
+Faktenquote 1,19 — aber **Korpus-Evidenz 0 Signale**, weil die Kernregel alle
+Themenwörter des Felds zugleich verlangt; 15 von 16 Lücken gingen ins Web, der
+Intake wählte „landscape". Pflichtpunkte 0/5 mit Grund „quote not in the
+dossier" bei drei Punkten, die der Text erkennbar beantwortet (Reifegrad mit
+Zykluszeit 5,0 Jahre, Termine, Rechtsrahmen): der Prüfer verlangte das
+Modellzitat wörtlich, das Modell paraphrasiert und der kanonisierte Bericht ist
+ein anderer String als der gelesene. **Fix:** `quote_in_report` prüft
+tolerant (≥ 80 % Wortüberdeckung je Satz oder Satzpaar, Zitatmarke im
+Fenster), `quote_raw` wird gespeichert; `scripts/rescore_must_answer.py`
+bewertet gespeicherte Läufe mit einem 27B-Handover neu. v9 läuft mit dem
+kurzen Feld „server virtualization" und derselben Frage (R28-Code:
+erweiterter Korpus-Satz über Profil-Akteure und Pflichtpunkt-Namen).
+
+Zwei Lehren für den Auftrag: das Technologiefeld kurz halten (die Kernregel
+ist eine UND-Regel), Produktnamen gehören in die Frage, nicht ins Feld.
+
