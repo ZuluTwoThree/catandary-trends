@@ -1627,8 +1627,10 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   Reparatur je Satz vor der Streichung). Ziel „besser als Sonnet Deep Research"
   nach vier Blindgutachten (5,57–5,9 gegen 6,3–7,43) **nicht erreicht**, vom
   Owner abgenommen; Engpass ist der Ein-Aufruf-Schreibschritt. Stand,
-  Diagnose, Wiederaufnahme: `docs/dossier_vs_deep_research_2026-09-07.md`,
-  Issue #100.
+  Diagnose: `docs/dossier_vs_deep_research_2026-09-07.md`. **Owner-Entscheid 2026-09-19: der
+  DR-Schreiber ist verworfen** (Ziel „besser als Sonnet Deep Research" entfällt); der
+  Primärquellen-Vorlauf mit Faktenzettel bleibt als Beschaffungsschritt. #100 und #107 sind in
+  Issue #108 zusammengeführt (Dossier-Agent + Field Watch).
 - **Auftrags-Intake + Owner-Checkpoint (Stufe 1 des Dossier-Agent-Plans, seit 2026-09-19,
   `docs/plan_dossier_agent_2026-09-18.md`, Runde 24):** vor dem ersten Suchschritt wird der
   Auftrag strukturiert (`pipeline/dossier_brief.py`: Fragetyp, Entscheidung, Leser,
