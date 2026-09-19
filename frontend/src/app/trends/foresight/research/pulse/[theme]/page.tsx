@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPulseTheme, getPulseThemeWeeks, getPulseWeeks } from "@/lib/db";
-import { canManageDossiers } from "@/lib/dossier-access";
+import { canReview } from "@/lib/review-access";
 import { MEGA_TRENDS } from "@/lib/mega-trends.generated";
 import { isoWeekRangeLabel } from "@/lib/newsletterEditions";
 import {
@@ -122,7 +122,7 @@ export default async function ResearchPulseThemePage({
   const row = week ? await getPulseTheme(theme, week.year, week.week) : null;
   const worker = pulseWorkerStatus();
   const notice = sp.worker ? NOTICE[sp.worker] : undefined;
-  const owner = canManageDossiers();
+  const owner = canReview();
   const tone = row ? ratioTone(row.stats.ratio) : "none";
 
   return (

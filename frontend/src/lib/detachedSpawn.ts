@@ -4,7 +4,7 @@ import fs from "node:fs";
 /**
  * Start a workstation job from the Next process without sharing its fate.
  *
- * Every desk button (dossier worker, advisory, research pulse, cluster
+ * Every desk button (research pulse, cluster
  * snapshot) spawns a detached Python process. Detached or not, that child
  * lives in the cgroup of the systemd service that runs :3001 — and on
  * 2026-09-15 the cluster recompute grew to 56 GB, the kernel OOM-killed it,

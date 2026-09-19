@@ -13,6 +13,18 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-19 · decision · Scouting-Dossiers entfernt
+
+Owner: „Das Feature trägt nicht." Nach 30 Runden, sieben Versionen zu einem Thema und
+48 Läufen war das Muster stabil — alles Gemessene hält, alles vom Modell Geschriebene
+wackelt, der Leser war nie zufrieden. Desk `/trends/dossiers`, Korpus-Rechercheur, Advisor,
+alle `dossier_*`-Module/Skripte/Tests, die Prompt-Gruppen `dossier`/`advisor` und der
+Deep-Dive-Rechercheur des Newsletters (schreibt jetzt `status: "disabled"`) sind aus `dev`
+und `main`. Bleiben: Web-Suche/-Cache, Rechtstext-Slicer, PDF-Abruf, Prompt-Katalog,
+CPU-Embedder `:8091`, `detachedSpawn.ts`; DB-Tabellen stehen (kein DROP). Rückweg: Tag
+`archive/dossiers-2026-09-19`. Nachfolge-Idee „Field Watch":
+`docs/value_proposition_field_watch_2026-09-19.md`, #108. Keine GPU-Läufe im Rückbau.
+
 ## 2026-09-18 · change · Dossier: Einstieg „What this is about" als achte Pflichtsektion
 
 Owner-Wunsch: Hintergrund für Fachfremde am Anfang jedes Dossiers — was die Technologie

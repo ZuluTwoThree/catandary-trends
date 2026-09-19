@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def test_every_entry_loads_and_points_at_source():
     entries = pc.build_catalog()
-    assert len(entries) >= 25
+    assert len(entries) >= 14
     keys = [e.key for e in entries]
     assert len(keys) == len(set(keys))
     known_groups = {k for k, _t in pc.GROUPS}
@@ -25,18 +25,10 @@ def test_every_entry_loads_and_points_at_source():
         assert e.line > 0, e.key
 
 
-def test_topic_profile_prompt_is_not_shadowed_by_the_company_one():
-    """2026-09-18: corpus_research.py definierte PROFILE_SYSTEM zweimal; die
-    Suchrichtungen liefen unter der Firmenprofil-Anweisung."""
-    from scripts import corpus_research as cr
-    assert cr.PROFILE_SYSTEM.startswith("You prepare the search directions")
-    assert cr.COMPANY_PROFILE_SYSTEM.startswith("You are extracting a company profile")
-    assert cr.PROFILE_SYSTEM != cr.COMPANY_PROFILE_SYSTEM
-
-
 def test_json_cli_roundtrip():
     out = subprocess.run([sys.executable, "-m", "pipeline.prompt_catalog", "--json"],
                          cwd=ROOT, capture_output=True, text=True, timeout=120, check=True).stdout
     data = json.loads(out)
-    assert {g["key"] for g in data["groups"]} >= {"feed", "dossier"}
+    assert {g["key"] for g in data["groups"]} >= {"feed", "newsletter", "ondemand"}
+    assert "dossier" not in {g["key"] for g in data["groups"]}   # entfernt 2026-09-19
     assert any(e["key"] == "stage6-content" and e["user_template_kind"] == "source" for e in data["entries"])

@@ -19,8 +19,8 @@ export function allowedHosts(request: Request): Set<string> {
 
 /**
  * Same, from a bare Headers object — what a Server Action gets from
- * `headers()` (next/headers); it has no Request to hand over. The dossier
- * desk's actions (#95) start GPU work, so they run this check too.
+ * `headers()` (next/headers); it has no Request to hand over. Desk actions
+ * that start GPU work (pulse, snapshot recompute) run this check too.
  */
 export function allowedHostsFromHeaders(headers: Headers): Set<string> {
   const hosts = new Set<string>();

@@ -1,5 +1,7 @@
 # Deep Research über den eigenen Korpus (Skizze, 2026-08-26)
 
+> **Feature entfernt 2026-09-19** (Owner: „Das Feature trägt nicht"), s. CLAUDE.md, Abschnitt „Scouting-Dossiers — entfernt". Dieses Dokument bleibt als Historie; Code-Stand davor: Tag `archive/dossiers-2026-09-19`.
+
 `scripts/corpus_research.py` — ein agentischer Rechercheur, der über die
 publizierten Trends läuft statt über das Web: Plan → Schleife → Audit → zitierter
 Bericht. Gedacht als Vorstufe für das Foresight-Dossier, das heute ein einziger

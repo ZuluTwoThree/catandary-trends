@@ -132,7 +132,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ? []
     : [
         hub("/trends/foresight", "daily", 0.9),
-        ...["clusters", "technology", "lead-time", "evolution", "dossier"].map((page) =>
+        ...["clusters", "technology", "lead-time", "evolution"].map((page) =>
           hub(`/trends/foresight/${page}`, "weekly", 0.8)
         ),
       ];

@@ -10,7 +10,7 @@ for a short, bounded window:
   - content generation + grounding gate: the same night (run_full_cycle)
   - auto-publish grounding re-check: the same night
   - draft judge (stage 10): fresh drafts only, stamped judged_at, never re-judged
-  - corpus_research / dossiers: read raw_content of published trends as
+  - the former corpus researcher (removed 2026-09-19) read raw_content of published trends as
     evidence when present, fall back to the feed excerpt otherwise
 
 **Aufbewahrungsfrist 60 Monate (Owner-Entscheidung 2026-09-10, vorher 14 Tage.)**

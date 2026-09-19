@@ -2,7 +2,7 @@
  * LLM system-instruction catalogue for /trends/ops/prompts (owner page).
  * Node-only: runs `python -m pipeline.prompt_catalog --json` next to this
  * frontend so the page always shows the prompts the code actually sends.
- * Cached in-process for 60 s (the Python import of corpus_research takes ~1 s).
+ * Cached in-process for 60 s (the Python imports behind the catalog take ~1 s).
  */
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";

@@ -110,7 +110,7 @@ describe("parseInline — bold and links", () => {
   });
 });
 
-describe("parseMarkdown — pipe tables (#95 dossier reports)", () => {
+describe("parseMarkdown — pipe tables", () => {
   it("parses a header, a separator and body rows into a table block", () => {
     const src = [
       "| Actor | Claim | Status |",

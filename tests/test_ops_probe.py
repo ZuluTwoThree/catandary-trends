@@ -68,7 +68,7 @@ def test_smart_json_nvme_and_ata():
 
 def test_gpu_guard_patterns_read_from_the_shell_file():
     pats = op.gpu_guard_patterns()
-    assert "scheduled_cycle" in pats and "dossier_worker" in pats
+    assert "scheduled_cycle" in pats and "research_pulse" in pats
 
 
 # --- Platten gegen einen nachgebauten /sys-Baum --------------------------------------

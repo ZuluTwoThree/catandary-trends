@@ -1,5 +1,7 @@
 # Newsletter „Deep Dive of the Week" (#96) — Phase 1: Dry-Run-Kette
 
+> **Stillgelegt 2026-09-19:** der Rechercheur dahinter (Scouting-Dossiers) ist entfernt (Owner: „Das Feature trägt nicht"), `scripts/newsletter_deep_dive.py` schreibt nur noch `status: "disabled"` — s. CLAUDE.md, Abschnitte „Scouting-Dossiers — entfernt" und „Newsletter Deep Dive". Dieses Dokument bleibt als Historie; Code-Stand davor: Tag `archive/dossiers-2026-09-19`.
+
 Stand 2026-09-04 (Phase 1 auf `dev`, **nicht scharf**). Owner-Auftrag 2026-08-30:
 der Wochen-Newsletter (Website-Edition, Mo 09:00) bekommt eine rechercheur-
 gestützte Sektion zum stärksten Wochenthema — zitierte Einordnung aus den

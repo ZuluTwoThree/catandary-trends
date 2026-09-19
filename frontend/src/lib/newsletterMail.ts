@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
-import { repoRoot } from "./dossierWorker";
+import { repoRoot } from "./researchPulseWorker";
 
 /**
  * The recipient's mail, rendered for the release view (owner mandate

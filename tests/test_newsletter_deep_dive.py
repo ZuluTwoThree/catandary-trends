@@ -14,7 +14,6 @@ import os
 import pytest
 
 import pipeline.db as pdb
-from pipeline import dossier_orders as orders_mod
 from pipeline import newsletter_generator as ng
 from pipeline.db import get_connection
 import scripts.newsletter_deep_dive as dd
@@ -44,7 +43,6 @@ def own_db(monkeypatch, tmp_path):
             "year INTEGER NOT NULL, week INTEGER NOT NULL, editorial TEXT, "
             "vertical_summaries TEXT, mega_trend_radar TEXT, trend_refs TEXT, "
             "total_signals INTEGER DEFAULT 0, created_at TEXT, UNIQUE(year, week))")
-    orders_mod.ensure_schema()
     monkeypatch.setattr(dd, "LAST_PATH", tmp_path / "last.json")
     monkeypatch.setattr(dd, "ANALYSES_DIR", tmp_path / "analyses")
     monkeypatch.setattr(dd, "_llama_unit_active", lambda: False)
@@ -315,94 +313,40 @@ def _seed_week_b():
 class TestRun:
     def test_requires_the_edition(self):
         with pytest.raises(SystemExit, match="does not exist"):
-            dd.run(YEAR, WEEK, research=lambda oid, b: None)
+            dd.run(YEAR, WEEK)
 
     def test_no_theme_leaves_edition_with_a_note(self):
         _add_edition(YEAR, WEEK)
-        p = dd.run(YEAR, WEEK, research=lambda oid, b: pytest.fail("no research expected"))
+        p = dd.run(YEAR, WEEK)
         assert p["status"] == "no_theme" and p["gate_passed"] is False
         assert json.loads(dd.LAST_PATH.read_text())["status"] == "no_theme"
 
-    def test_research_failure_degrades(self, monkeypatch):
+    def test_theme_found_but_researcher_removed_records_disabled(self, monkeypatch):
+        """Seit 2026-09-19: der Rechercheur (Scouting-Dossiers) ist weg — der
+        Schritt protokolliert hart 'disabled', laedt kein Modell und laesst
+        die Edition unveraendert."""
         _seed_week_b()
-
-        def failing(oid, budget):
-            orders_mod.mark_running(oid)
-            orders_mod.mark_failed(oid, "DeepDiveTimeout: time budget of 20 min exceeded")
-            return {"rc": 2, "error": "DeepDiveTimeout: time budget of 20 min exceeded",
-                    "status": "failed", "order": orders_mod.get_order(oid), "seconds": 1.0}
-        called = []
-        monkeypatch.setattr(dd, "condense", lambda *a, **k: called.append(1))
-        p = dd.run(YEAR, WEEK, research=failing)
-        assert p["status"] == "research_failed" and "time budget" in p["error"]
-        assert p["dossier_slug"] == "newsletter-deepdive-2026-w35"
-        assert called == []
+        monkeypatch.setattr(dd, "condense", lambda *a, **k: pytest.fail("no model call expected"))
+        monkeypatch.setattr(dd.gpu_handover, "content_gen_on_llamacpp",
+                            lambda *a, **k: pytest.fail("no GPU handover expected"))
+        p = dd.run(YEAR, WEEK)
+        assert p["status"] == "disabled" and p["error"] == dd.DISABLED_REASON
+        assert p["theme"] == "b" and p["body_md"] is None and p["gate_passed"] is False
+        assert "dossier_slug" not in p
         with get_connection() as conn:
             row = dict(conn.execute("SELECT deep_dive FROM newsletter_editions WHERE week = ?",
                                     (WEEK,)).fetchone())
         stored = json.loads(row["deep_dive"])
-        assert stored["dry_run"] is True and stored["gate_passed"] is False
-        assert stored["theme"] == "b" and stored["body_md"] is None
-        # Auftrag im Desk sichtbar als failed
-        assert orders_mod.get_order(p["order_id"])["status"] == "failed"
-        # Draft trotzdem (mit Hinweis), Wächter-JSON
-        assert (dd.ANALYSES_DIR / "newsletter-deepdive-2026-w35.md").exists()
-        assert json.loads(dd.LAST_PATH.read_text())["status"] == "research_failed"
-
-    def test_dry_run_end_to_end_with_fakes(self, monkeypatch):
-        _seed_week_b()
-        res = _result()
-
-        def fake_research(oid, budget):
-            orders_mod.mark_running(oid)
-            o = orders_mod.get_order(oid)
-            from scripts.corpus_research import save_dossier
-            v = save_dossier(o["slug"], o["topic"], o["question"], res["report"], res)
-            orders_mod.mark_review(oid, v, {"ok": True, "ungrounded": [], "findings": [],
-                                            "stripped_citations": 0, "cited": 2, "sources": 3,
-                                            "open_questions": 1, "words": 12, "seconds": 3.0})
-            return {"rc": 0, "error": None, "status": "review",
-                    "order": orders_mod.get_order(oid), "seconds": 3.0}
-
-        links = [f"[Src {i}](https://catandary.de/trends/src-{i})" for i in (1, 2, 1, 2)]
-
-        def fake_condense(theme, year, week, signals, result, chat=None, model=None, attempts=3):
-            return dd.verify_condensate(_prose(320, links), dd.cited_sources(result),
-                                        dd.grounding_material(result, signals)) | {"attempts": []}
-        monkeypatch.setattr(dd.gpu_handover, "_served_model", lambda: "./models/gemma.gguf")
-        p = dd.run(YEAR, WEEK, research=fake_research, condense_fn=fake_condense)
-        assert p["dossier_gate"] is True
-        # 2 distinkte Belege < MIN_CITATIONS → Kondensat-Check verfehlt → gate_failed
-        assert p["gates"]["condensate"] is False and p["gate_passed"] is False
-        assert p["status"] == "gate_failed" and p["dry_run"] is True
-        assert p["models"] == {"research": "Qwen3.8-27B", "condense": "gemma.gguf"}
-        assert p["dossier_version"] == 1 and p["corpus_asof"] == "2026-09-04"
-        assert len(p["citations"]) == 2 and p["citations"][0]["kind"] == "article"
-        with get_connection() as conn:
-            row = dict(conn.execute("SELECT deep_dive FROM newsletter_editions WHERE week = ?",
-                                    (WEEK,)).fetchone())
-        stored = json.loads(row["deep_dive"])
-        assert stored["body_md"].count("https://catandary.de/trends/src-1") == 2
+        assert stored["status"] == "disabled" and stored["dry_run"] is True
         assert stored["theme_choice"]["ranking"][0]["key"] == "b"
-        assert orders_mod.get_order(p["order_id"])["status"] == "review"
-        assert (dd.ANALYSES_DIR / "newsletter-deepdive-2026-w35.md").read_text().count("draft: true") == 1
+        last = json.loads(dd.LAST_PATH.read_text())
+        assert last["status"] == "disabled" and last["error"] == dd.DISABLED_REASON
+        assert not (dd.ANALYSES_DIR / "newsletter-deepdive-2026-w35.md").exists()
 
-    def test_apply_skips_condensate_when_dossier_gate_fails(self, monkeypatch):
+    def test_cli_exit_code_marks_disabled_as_non_ok(self, monkeypatch):
         _seed_week_b()
-        res = _result(supported=3)
-
-        def fake_research(oid, budget):
-            orders_mod.mark_running(oid)
-            o = orders_mod.get_order(oid)
-            from scripts.corpus_research import save_dossier
-            v = save_dossier(o["slug"], o["topic"], o["question"], res["report"], res)
-            orders_mod.mark_review(oid, v, {"ok": True, "ungrounded": []})
-            return {"rc": 0, "error": None, "status": "review",
-                    "order": orders_mod.get_order(oid), "seconds": 1.0}
-        p = dd.run(YEAR, WEEK, dry_run=False, research=fake_research,
-                   condense_fn=lambda *a, **k: pytest.fail("condensate must be skipped"))
-        assert p["status"] == "gate_failed" and p["dry_run"] is False
-        assert p["body_md"] is None and p["gates"]["condensate"] is False
+        monkeypatch.setattr("sys.argv", ["newsletter_deep_dive", "--year", str(YEAR), "--week", str(WEEK)])
+        assert dd.main() == 2
 
 
 # ---- Morgen-Mail-Zeile (scripts/review_notify.py) ---------------------------
@@ -419,7 +363,15 @@ class TestMorningMailLine:
         line = rn._deep_dive_line(d)
         assert line.startswith("Newsletter deep dive (dry-run) W35/2026: gate_failed — theme Theme B")
         assert "6 supported / 1 contradictions / 0 ungrounded" in line
-        assert "gate failed: supported_claims" in line and "v1" in line
+        assert "gate failed: supported_claims" in line
+
+    def test_disabled_line_names_the_removal(self):
+        from scripts import review_notify as rn
+        line = rn._deep_dive_line({"year": 2026, "week": 38, "status": "disabled", "dry_run": True,
+                                   "theme": "b", "theme_name": "Theme B",
+                                   "error": dd.DISABLED_REASON})
+        assert line.startswith("Newsletter deep dive (dry-run) W38/2026: disabled — theme Theme B")
+        assert "researcher removed 2026-09-19" in line and dd.DISABLED_REASON in line
 
     def test_stats_reads_fresh_file_only(self, monkeypatch, tmp_path):
         from scripts import review_notify as rn
@@ -504,54 +456,6 @@ class TestPromptContext:
         assert "Open questions" not in prompt and "cannot answer" not in prompt
         assert "never pad" in prompt
         assert "unverified" in dd.CONDENSE_SYSTEM and "silence, not commentary" in dd.CONDENSE_SYSTEM
-
-
-class TestFromDossier:
-    def test_parse_ref(self):
-        assert dd.parse_dossier_ref("newsletter-deepdive-2026-w35@3") == ("newsletter-deepdive-2026-w35", 3)
-        with pytest.raises(SystemExit):
-            dd.parse_dossier_ref("nope")
-
-    def test_regenerates_without_research(self, monkeypatch):
-        _seed_week_b()
-        res = _result()
-        from scripts.corpus_research import save_dossier
-        oid = orders_mod.create_order("Theme B", slug="newsletter-deepdive-2026-w35")
-        orders_mod.mark_running(oid)
-        v = save_dossier("newsletter-deepdive-2026-w35", "Theme B", "q", res["report"], res)
-        orders_mod.mark_review(oid, v, {"ok": False, "ungrounded": ["24531336"]})  # veraltete Endkontrolle
-        dd.ensure_deep_dive_column()
-        dd.save_deep_dive(YEAR, WEEK, {"theme": "b", "theme_name": "B", "dry_run": True,
-                                       "body_md": "OLD TEXT", "web_steps": 0,
-                                       "research_seconds": 200.0, "order_id": oid})
-        links = [f"[Src {i}](https://catandary.de/trends/src-{i})" for i in (1, 2, 1, 2)]
-
-        def fake_condense(theme, year, week, signals, result, chat=None, model=None, attempts=3):
-            return dd.verify_condensate(_prose(320, links), dd.cited_sources(result),
-                                        dd.grounding_material(result, signals)) | {"attempts": []}
-        monkeypatch.setattr(dd.gpu_handover, "_served_model", lambda: "./models/gemma.gguf")
-        research_called = []
-        monkeypatch.setattr(dd, "run_research", lambda *a, **k: research_called.append(1))
-        p = dd.run_from_dossier(YEAR, WEEK, "newsletter-deepdive-2026-w35", v,
-                                condense_fn=fake_condense)
-        assert research_called == []
-        assert p["regenerated_from"] == f"newsletter-deepdive-2026-w35@{v}"
-        assert p["order_id"] == oid and p["research_seconds"] == 200.0
-        assert p["theme"] == "b" and p["dossier_version"] == v
-        # Endkontrolle neu gerechnet: die veraltete Slug-ID-Meldung ist weg
-        assert p["audit"]["dossier_ungrounded"] == 0 and p["gates"]["dossier_grounded"] is True
-        with get_connection() as conn:
-            row = dict(conn.execute("SELECT deep_dive FROM newsletter_editions WHERE week = ?",
-                                    (WEEK,)).fetchone())
-        stored = json.loads(row["deep_dive"])
-        assert "OLD TEXT" not in stored["body_md"] and stored["dry_run"] is True
-        assert stored["regenerated_from"].endswith(f"@{v}")
-        assert dd.LAST_PATH.exists()
-
-    def test_missing_dossier_is_a_clear_error(self):
-        _add_edition(YEAR, WEEK)
-        with pytest.raises(SystemExit, match="does not exist"):
-            dd.run_from_dossier(YEAR, WEEK, "newsletter-deepdive-2026-w35", 9)
 
 
 class TestCleanCondensate:

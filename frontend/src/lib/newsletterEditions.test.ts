@@ -16,7 +16,6 @@ import {
   editionExcerpt,
   isPublicDeepDive,
   publicDeepDive,
-  deepDiveDeskPath,
   type NewsletterDeepDive,
   type NewsletterEdition,
 } from "@/lib/newsletterEditions";
@@ -208,11 +207,5 @@ describe("deep dive of the week (#96)", () => {
     const pub = rewriteEditionForExport({ ...base, deep_dive: live }, ctx);
     expect(pub.deep_dive?.theme).toBe("digital_trust_and_data_sovereignty");
     expect(rewriteEditionForExport(base, ctx).deep_dive).toBeNull();
-  });
-
-  it("links the owner desk at the dossier version", () => {
-    expect(deepDiveDeskPath(live)).toBe("/trends/dossiers/newsletter-deepdive-2026-w35?v=2");
-    expect(deepDiveDeskPath({ ...live, dossier_version: null })).toBe("/trends/dossiers/newsletter-deepdive-2026-w35");
-    expect(deepDiveDeskPath({ ...live, dossier_slug: null })).toBeNull();
   });
 });

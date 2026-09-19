@@ -63,7 +63,7 @@ SMARTCTL = os.getenv("SMARTCTL", "/usr/sbin/smartctl")
 #: der Sampler denselben Begriff von "GPU-Job" hat und nicht driftet.
 GPU_GUARD_SH = Path(__file__).resolve().parent.parent / "scripts" / "lib" / "gpu_guard.sh"
 _DEFAULT_PATTERNS = (r"scheduled_cycle\.sh|full_cycle_cron\.sh|run_full_cycle|signal_batch|"
-                     r"weekly_ingesters\.sh|dossier_worker|corpus_research|research_pulse|"
+                     r"weekly_ingesters\.sh|research_pulse|"
                      r"newsletter_deep_dive")
 SKIP_BLOCK = re.compile(r"^(loop|ram|zram|sr|fd|dm-|md)")
 

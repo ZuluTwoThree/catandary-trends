@@ -123,7 +123,7 @@ class TestTakeoverGuard:
     def test_stale_record_of_dead_job_is_ignored_and_removed(self, harness, monkeypatch):
         state, calls, d = harness
         state["main_pid"] = 4242
-        stale = d / "llama-server.dossier_worker.pid"
+        stale = d / "llama-server.old_job.pid"
         stale.write_text("4242 999999\n")
         monkeypatch.setattr(gh, "_pid_alive", lambda pid: False)
         self._arm_start(monkeypatch)

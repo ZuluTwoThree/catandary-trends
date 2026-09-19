@@ -19,8 +19,8 @@
  *    only, no nesting.
  *  - Inline `**bold**` and inline `[text](url)` links.
  *  - Pipe tables (GFM shape: a header row, a `---` separator row, body rows;
- *    added for the dossier reports of #95, whose actor comparisons are
- *    tables). Cells carry inline markup; alignment colons are ignored.
+ *    added 2026-09 for report-style analyses with comparison tables).
+ *    Cells carry inline markup; alignment colons are ignored.
  *
  * Deliberately NOT supported (renders as literal characters, not an error):
  * italics, inline code / fenced code blocks, blockquotes, images,

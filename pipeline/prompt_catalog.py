@@ -29,8 +29,6 @@ GROUPS = (
     ("judge", "Draft judge (Stage 10)"),
     ("foresight", "Foresight layer"),
     ("newsletter", "Newsletter"),
-    ("dossier", "Scouting dossiers (owner desk)"),
-    ("advisor", "Advisor"),
     ("ondemand", "Owner tools, on demand only"),
 )
 
@@ -264,212 +262,16 @@ def build_catalog() -> list[PromptEntry]:
 
     E.append(_load(PromptEntry(
         key="newsletter-deepdive", group="newsletter", title="Newsletter · Deep Dive condensation",
-        function=("Condenses a finished scouting dossier (chosen theme of the week, researcher "
-                  "run through the dossier order path) into a 300–500-word section. The model "
-                  "only phrases: every figure and URL is checked back against the dossier's "
-                  "supported claims and citation catalog. Phase 1 = dry-run, never rendered "
-                  "publicly (gate_passed && !dry_run required)."),
+        function=("Condenses an audited research result on the chosen theme of the week into a "
+                  "300–500-word section. The model only phrases: every figure and URL is "
+                  "checked back against the supported claims and citation catalog. Kept for "
+                  "stored editions — the researcher behind it (scouting dossiers) was removed "
+                  "on 2026-09-19, so the script now records status 'disabled' instead of "
+                  "running; this prompt is no longer called."),
         model="Gemma-4-26B-A4B (NEWSLETTER_DEEP_DIVE_MODEL)",
-        trigger="Only with NEWSLETTER_DEEP_DIVE=dry-run in the Tuesday wrapper (default off)",
+        trigger="None since 2026-09-19 (feature disabled; wrapper flag NEWSLETTER_DEEP_DIVE stays off)",
         symbol="scripts.newsletter_deep_dive:CONDENSE_SYSTEM"),
         "scripts.newsletter_deep_dive", "CONDENSE_SYSTEM"))
-
-    # ---------------- Dossiers ----------------
-    cr = "scripts.corpus_research"
-    E.append(_load(PromptEntry(
-        key="dossier-brief", group="dossier", title="Dossier · order intake (structured brief)",
-        function=("Stage 1 of the dossier-agent plan (2026-09-19): before the first search step "
-                  "the order (topic + question field + context) becomes a structured brief — "
-                  "question type, the decision, the reader, constraints, 3–6 must-answer "
-                  "points, artefact routing (dossier / dossier+advisor). Deterministic rules "
-                  "override the model: a question field without a question is rejected "
-                  "(datacenter v1), a 'which … should we' question routes to the Advisor. "
-                  "The must-answer points drive the writer (MUST ANSWER block, decision-summary "
-                  "structure), the reader's checklist and the utility slot answered_must."),
-        model="Qwen3.8-27B (llama.cpp), structured (Brief), temperature 0",
-        trigger="Every dossier run from the worker (desk or CLI) — then the owner checkpoint "
-                "(params {\"checkpoint\": true}, desk default; DOSSIER_CHECKPOINT=0 forces off)",
-        symbol="pipeline.dossier_brief:BRIEF_SYSTEM"),
-        "pipeline.dossier_brief", "BRIEF_SYSTEM"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-must-answer", group="dossier", title="Dossier · must-answer scoring",
-        function=("One structured call after the final report: for each must-answer point of "
-                  "the brief, is it answered with a cited statement? The quote is verified "
-                  "mechanically (verbatim in the text, citation in the same sentence) — an "
-                  "unverifiable 'answered' counts as not answered. The share becomes "
-                  "answered_must in pipeline/dossier_utility.py."),
-        model="Qwen3.8-27B (or the writer model), structured (MustAnswerEval), temperature 0",
-        trigger="Every dossier run with a brief",
-        symbol="pipeline.dossier_brief:MUST_ANSWER_SYSTEM"),
-        "pipeline.dossier_brief", "MUST_ANSWER_SYSTEM"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-profile", group="dossier", title="Dossier · search directions (topic profile)",
-        function=("First model call of a dossier run: from topic and question, describe the "
-                  "field so the search engine can be asked the right things — who decides, "
-                  "what dated events happen, what a board asks about law/IP and market. The "
-                  "output seeds the web queries; every fact is verified against pages later."),
-        model="Qwen3.8-27B (llama.cpp), structured (TopicProfile)",
-        trigger="Every dossier run — since stage 1 (2026-09-19) computed once in the worker's "
-                "intake before the checkpoint and handed into run()",
-        symbol=f"{cr}:PROFILE_SYSTEM",
-        notes=["Until 2026-09-18 this name was silently overwritten by the company-profile prompt "
-               "further down the file — the search directions ran under the wrong instruction."]),
-        cr, "PROFILE_SYSTEM"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-planner", group="dossier", title="Dossier · research plan",
-        function=("Turns the question into up to N search steps over the own corpus "
-                  "(articles, signals, papers, patents), the last one a counter-evidence step."),
-        model="Qwen3.8-27B, structured",
-        trigger="Every dossier run",
-        symbol=f"{cr}:PLANNER_SYSTEM",
-        notes=["{max_steps} is filled at call time."]),
-        cr, "PLANNER_SYSTEM"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-agent", group="dossier", title="Dossier · corpus research agent",
-        function=("Step loop over the own corpus: search (vector search via the CPU embedder on "
-                  ":8091, FTS fallback), open a catalog entry (source excerpt AND our article, "
-                  "separately labelled), or finish. Budgeted; every step lands in the ledger."),
-        model="Qwen3.8-27B, structured (AgentAction)",
-        trigger="Every dossier run",
-        symbol=f"{cr}:AGENT_SYSTEM"),
-        cr, "AGENT_SYSTEM"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-audit", group="dossier", title="Dossier · evidence audit",
-        function=("Maps evidence to claims before writing: supported claims, inferences, gaps. "
-                  "Runs after the corpus phase and again after the web phase (re-audit). The "
-                  "gaps drive the web agent and the internal sweep; the honesty gates of the "
-                  "newsletter deep dive read the same audit."),
-        model="Qwen3.8-27B, structured (Audit), T=0.2",
-        trigger="Every dossier run (twice)",
-        symbol=f"{cr}:AUDIT_SYSTEM"),
-        cr, "AUDIT_SYSTEM"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-web-agent", group="dossier", title="Dossier · web gap closer",
-        function=("Closes audit gaps on the web: Brave Search (SearXNG fallback), fetch through "
-                  "the robots/TDM-honouring fetcher (PDFs readable since 2026-09-18), source "
-                  "rank filter (registers/agencies 0, own sites/journals 1, press 2, "
-                  "self-publishing platforms rejected)."),
-        model="Qwen3.8-27B, structured (WebAction)",
-        trigger="Every dossier run with web enabled",
-        symbol=f"{cr}:WEB_AGENT_SYSTEM"),
-        cr, "WEB_AGENT_SYSTEM"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-harvest", group="dossier", title="Dossier · fact ledger (DR pre-pass)",
-        function=("Deep-research pre-pass (default since 2026-09-13): reads primary pages first "
-                  "and takes dated, attributed notes per source into the fact ledger — the "
-                  "material the writer must use. Calendar candidates and the actor map are "
-                  "derived from it deterministically."),
-        model="Qwen3.8-27B, structured (LedgerFacts)",
-        trigger="Every dossier run unless params {\"dr\": false} / DOSSIER_DR=0",
-        symbol=f"{cr}:HARVEST_SYSTEM"),
-        cr, "HARVEST_SYSTEM"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-landscape", group="dossier", title="Dossier · landscape map (landscape mode)",
-        function=("In --mode landscape: proposes the sub-fields of a broad field; the corpus "
-                  "counts each one back (< 5 signals drops it), every remaining sub-field gets "
-                  "its own search step and a row in the mandatory '### Landscape' table."),
-        model="Qwen3.8-27B, structured (LandscapeMap)",
-        trigger="Only in landscape mode",
-        symbol=f"{cr}:LANDSCAPE_SYSTEM"),
-        cr, "LANDSCAPE_SYSTEM"))
-
-    def _render_report(func):
-        return func(measure=True, lang="en", landscape=False)
-
-    E.append(_load(PromptEntry(
-        key="dossier-writer", group="dossier", title="Dossier · writer (report system prompt)",
-        function=("The writer's instruction: outline of the seven mandatory sections, citation "
-                  "rule (catalog ids in double brackets, canonicalised to links afterwards), "
-                  "what may not be stated (measured figures are appended by code, never "
-                  "quoted by the model). Since 2026-09-14 the report is written section by "
-                  "section (DOSSIER_WRITE=sections) with a per-section directive and word "
-                  "budget; the rendered directive template is shown below."),
-        model="Qwen3.8-27B, or DOSSIER_WRITER_MODEL (Qwen3.8-Flash-Next) after a model swap",
-        trigger="Every dossier run",
-        symbol=f"{cr}:report_system()",
-        notes=["Rendered here with measure=True, lang=en, landscape=False. The landscape variant appends the '### Landscape' outline."]),
-        cr, "report_system", render=_render_report, user_func="write_sections"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-reader", group="dossier", title="Dossier · the reader (adversarial review)",
-        function=("Same model, different role: a demanding board member reads the chosen draft "
-                  "and the final version. Findings (max. 8, with passage and a testable "
-                  "change; suggestions that introduce figures are dropped) go into the "
-                  "targeted rewrite; the final reading is reported as non-blocking "
-                  "(reader_ok). It cannot approve, block or rewrite. Since Stufe 3 "
-                  "(2026-09-19) the verdict answers_question is judged against the order's "
-                  "MUST-ANSWER checklist (every item answered with a cited statement, no "
-                  "self-contradiction; answered_items / unanswered_items) — a recommendation "
-                  "is explicitly NOT expected and never counts as missing. Without a brief "
-                  "the old question-based verdict stands."),
-        model="Qwen3.8-27B (or the writer model), structured (ReaderReview)",
-        trigger="Every dossier run (DOSSIER_READER=0 disables)",
-        symbol=f"{cr}:READER_SYSTEM"),
-        cr, "READER_SYSTEM"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-repair", group="dossier", title="Dossier · sentence repair before deletion",
-        function=("For every sentence the citation check flagged (figure not on the cited page, "
-                  "subject mismatch), one attempt to repair it from the cited page before it is "
-                  "dropped (R14-4: repair, re-check, then delete)."),
-        model="Qwen3.8-27B (or the writer model)",
-        trigger="Every dossier run with findings",
-        symbol=f"{cr}:REPAIR_SYSTEM"),
-        cr, "REPAIR_SYSTEM"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-entailment", group="dossier", title="Dossier · statement check (entailment)",
-        function=("Stage 4 'check instead of delete' (2026-09-19): for every cited page, all "
-                  "sentences of the core sections (decision summary, decision points, calendar, "
-                  "regulatory/IP) that cite it are judged in ONE structured call — supported / "
-                  "contradicted / unrelated, with a verbatim quote. The token check remains the "
-                  "pre-filter; 'contradicted' is a blocking finding (rewrite directive, then the "
-                  "sentence is dropped); 'unrelated' maps to the off-topic citation finding. "
-                  "Verdicts are cached per (sentence, page) within a run; at most 25 pages per pass."),
-        model="Qwen3.8-27B (or the writer model), temperature 0",
-        trigger="Every dossier run (DOSSIER_ENTAILMENT=0 disables)",
-        symbol="pipeline.dossier_entailment:ENTAILMENT_SYSTEM"),
-        "pipeline.dossier_entailment", "ENTAILMENT_SYSTEM"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-company-site", group="dossier", title="Company dossier · site choice",
-        function=("Legacy company path: picks the company's own domain out of search results "
-                  "(not directories or press) before the profile is extracted."),
-        model="Qwen3.8-27B, structured (SiteChoice)",
-        trigger="Company dossiers only",
-        symbol=f"{cr}:SITE_CHOICE_SYSTEM"),
-        cr, "SITE_CHOICE_SYSTEM"))
-
-    E.append(_load(PromptEntry(
-        key="dossier-company-profile", group="dossier", title="Company dossier · profile extraction",
-        function=("Legacy company path: extracts a grounded company profile from the fetched "
-                  "own-site pages (English fields seeding the corpus search)."),
-        model="Qwen3.8-27B, structured (CompanyProfile), T=0.2",
-        trigger="Company dossiers only",
-        symbol=f"{cr}:COMPANY_PROFILE_SYSTEM",
-        notes=["Renamed from PROFILE_SYSTEM on 2026-09-18 (it had shadowed the topic-profile prompt)."]),
-        cr, "COMPANY_PROFILE_SYSTEM"))
-
-    # ---------------- Advisor ----------------
-    E.append(_load(PromptEntry(
-        key="advisor", group="advisor", title="Advisor · options for one client",
-        function=("Options section for ONE named client from ONE dossier: closed catalog of the "
-                  "dossier's citations, client profile and engagement scope as data, "
-                  "zero-option mandatory, effort only from comparable cases. Checked "
-                  "(markers, placeholders, foreign figures) and read by the reader; released "
-                  "only by a human (approved_at)."),
-        model="Qwen3.8-27B with thinking (start-qwen3.8-27b-thinking.sh, 8,192-token thinking budget)",
-        trigger="Desk form on the dossier page → scripts/advisory.py (no cron)",
-        symbol="pipeline.advisory:ADVISOR_SYSTEM"),
-        "pipeline.advisory", "ADVISOR_SYSTEM"))
 
     # ---------------- On demand / not scheduled ----------------
     E.append(_load(PromptEntry(

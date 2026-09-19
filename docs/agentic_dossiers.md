@@ -1,5 +1,7 @@
 # Agentic Scouting-Dossiers (Owner-only) — `/trends/dossiers`
 
+> **Feature entfernt 2026-09-19** (Owner: „Das Feature trägt nicht"), s. CLAUDE.md, Abschnitt „Scouting-Dossiers — entfernt". Dieses Dokument bleibt als Historie; Code-Stand davor: Tag `archive/dossiers-2026-09-19`.
+
 Stand 2026-09-07 (Runde 3: Themenschärfe R3-1 bis R3-4 — s. „Die dritte
 Runde" weiter unten; davor am selben Tag Entscheidungsebene S1-S4 und
 Messkette M1/M2/M3/M4/M6, davor 2026-09-03

@@ -131,7 +131,7 @@ class TestPatterns:
     def test_known_gpu_jobs_are_covered(self, env):
         r = run("echo $GPU_GUARD_PATTERNS", env)
         for name in ("scheduled_cycle", "full_cycle_cron", "run_full_cycle",
-                     "signal_batch", "weekly_ingesters", "dossier_worker",
+                     "signal_batch", "weekly_ingesters",
                      "research_pulse", "newsletter_deep_dive"):
             assert name in r.stdout, name
 

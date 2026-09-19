@@ -164,13 +164,16 @@ def _deep_dive_line(dd: dict) -> str:
     tag = "dry-run" if dd.get("dry_run", True) else "LIVE"
     head = (f"Newsletter deep dive ({tag}) W{dd.get('week')}/{dd.get('year')}: "
             f"{dd.get('status')} — theme {dd.get('theme_name') or dd.get('theme') or '—'}")
-    if dd.get("theme"):
+    if dd.get("status") == "disabled":
+        # Der Rechercheur (Scouting-Dossiers) ist seit 2026-09-19 entfernt;
+        # der Schritt protokolliert nur noch, dass er nichts getan hat.
+        head += "; researcher removed 2026-09-19 — edition unchanged"
+    elif dd.get("theme"):
         head += (f"; audit {audit.get('supported', '?')} supported / "
                  f"{audit.get('contradictions', '?')} contradictions / "
                  f"{audit.get('dossier_ungrounded', '?')} ungrounded; "
                  f"{dd.get('words') or 0} words; gate "
-                 f"{'passed' if dd.get('gate_passed') else 'failed: ' + (', '.join(failed) or 'n/a')}; "
-                 f"dossier {dd.get('dossier_slug')} v{dd.get('dossier_version') or '?'}")
+                 f"{'passed' if dd.get('gate_passed') else 'failed: ' + (', '.join(failed) or 'n/a')}")
     if dd.get("error"):
         head += f"; error: {dd['error']}"
     return head

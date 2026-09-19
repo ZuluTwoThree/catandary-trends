@@ -1,11 +1,12 @@
-"""Rechtstexte artikelweise lesen — Stufe 3 des Plans
-docs/plan_dossier_agent_2026-09-18.md, Lehre 6/7 des Handdurchgangs
-(`docs/dossier_manual_run_2026-09-19.md`): der EUR-Lex-Volltext des Data Act
-war beim Abruf vor Kapitel VI abgeschnitten, und die entscheidende Ausnahme
-(Art. 31) tauchte in keiner Dossierversion auf, weil niemand den Artikel je
-gelesen hatte.
+"""Rechtstexte artikelweise lesen (generischer Slicer; entstanden 2026-09-19
+für den Rechercheur der Scouting-Dossiers — Feature entfernt 2026-09-19, der
+Slicer bleibt ohne Abhängigkeit zu den Dossier-Modulen). Anlass damals: der
+EUR-Lex-Volltext des Data Act war beim Abruf vor Kapitel VI abgeschnitten, und
+die entscheidende Ausnahme (Art. 31) tauchte in keiner Berichtsversion auf,
+weil niemand den Artikel je gelesen hatte (Historie:
+docs/plan_dossier_agent_2026-09-18.md, docs/dossier_manual_run_2026-09-19.md).
 
-Für die Hosts in `LEGAL_HOSTS` holt der Rechercheur die Seite mit einer sehr
+Für die Hosts in `LEGAL_HOSTS` holt der Aufrufer die Seite mit einer sehr
 viel größeren Kappe (`LEGAL_FETCH_CHARS`) und behält als Seitentext nur
 
   (a) den Definitionsartikel und
@@ -156,7 +157,7 @@ def slice_articles(text: str, terms, limit: int = LEGAL_KEEP_CHARS) -> tuple[str
 # --------------------------------------------------------------------------
 # Runde 28 (2026-09-19): Nachschlag im vollen Rechtstext
 # --------------------------------------------------------------------------
-# Die Zahlenpruefung (`dossier_structure.verify_cited_figures`) sieht nur den
+# Eine Zahlenpruefung des Aufrufers sieht typischerweise nur den
 # gespeicherten Ausschnitt (<= LEGAL_KEEP_CHARS). Der volle Text liegt aber im
 # Web-Cache unter dem Schluessel "page-legal" — steht die Zahl in einem Artikel,
 # den die Lueckenbegriffe beim Abruf nicht getroffen haben, wird hier um die

@@ -6,7 +6,8 @@ RTX 3090). It polls curated primary sources (RSS, preprints, patents, funding,
 company registers), classifies the signals, writes short English trend articles,
 and offers a set of analyst tools on top of the corpus: technology trajectories
 from the patent citation graph, cross-tier lead time, cluster momentum, a
-research explorer with weekly "pulse" syntheses, and agentic scouting dossiers.
+research explorer with weekly "pulse" syntheses. (Agentic scouting dossiers were
+built Sept 2026 and removed on 2026-09-19 — see CLAUDE.md.)
 The public website (`catandary.de/trends`) is a **static export** of a 30-day
 article window uploaded to shared web hosting; there is no SaaS, no login, no
 payment — the business is sales-led (individual analyses, "Super Pro+"). This
@@ -19,7 +20,7 @@ README is the owner's manual; it is written in German.
 Catandary Trends ist die **Owner-App** eines Einzelunternehmers: ein lokal
 laufendes Trend-Scouting- und Foresight-Werkzeug, das jede Nacht Fachquellen
 liest, Signale klassifiziert, kurze englische Trend-Artikel schreibt und darauf
-Analysewerkzeuge anbietet. Alles — Klassifikation, Texte, Recherche-Dossiers —
+Analysewerkzeuge anbietet. Alles — Klassifikation, Texte, Synthesen —
 läuft auf lokalen Modellen (llama.cpp, Port 8090, eine RTX 3090 mit 24 GB).
 Cloud-APIs sind Opt-in-Fallbacks.
 
@@ -35,7 +36,7 @@ Nach außen gibt es genau zwei Dinge:
   (`/enquiry`). Es gibt keine Tarife, keine Accounts, keine Zahlungsstrecke
   (Rückbau 03.09.2026, Issue #93).
 
-Alles andere — Review-Queue, Foresight-Cockpit, Dossier-Desk, Research Pulse —
+Alles andere — Review-Queue, Foresight-Cockpit, Research Pulse, Ops —
 ist **nur auf der Workstation** erreichbar (`:3001` main, `:3004` dev) und im
 Export gar nicht enthalten.
 
@@ -58,7 +59,6 @@ Stand je Issue in [`docs/issue_status.md`](docs/issue_status.md).
    - [2.1 Karte der Owner-Funktionen](#21-karte-der-owner-funktionen)
    - [2.2 Routine: Morgen nach dem Nachtlauf](#22-routine-morgen-nach-dem-nachtlauf)
    - [2.3 Routine: Öffentliche Website aktualisieren](#23-routine-öffentliche-website-aktualisieren-bis-der-cron-läuft)
-   - [2.4 Routine: Scouting-Dossier bestellen](#24-routine-scouting-dossier-bestellen)
    - ausführlich je Funktion: [`docs/owner_manual.md`](docs/owner_manual.md)
 3. [Setup](#3-setup)
 4. [Architektur in einer Seite](#4-architektur-in-einer-seite)
@@ -75,7 +75,7 @@ Stand je Issue in [`docs/issue_status.md`](docs/issue_status.md).
 |---|---|---|
 | `http://localhost:3001` | **Produktive Owner-Instanz** aus dem `main`-Worktree `~/projects/catandary-trends` (`next start`, systemd user unit `catandary-frontend`) | läuft dauerhaft; nach einem `main`-Update: `cd frontend && npm run build && systemctl --user restart catandary-frontend` |
 | `http://localhost:3004` | Dev-Server aus dem `dev`-Worktree `~/projects/ct-dev` | `cd ~/projects/ct-dev/frontend && npx next dev --turbopack -p 3004` (in tmux, Session `ct`) |
-| `http://localhost:3999` | **PUBLIC_MODE-Vorschau** = so sieht die öffentliche Seite aus (Foresight/Review/Dossiers → 404, Feed auf 30 Tage gefenstert) | `cd ~/projects/ct-dev/frontend && PUBLIC_MODE=1 NEXT_DIST_DIR=.next-public npx next dev --turbopack -p 3999` |
+| `http://localhost:3999` | **PUBLIC_MODE-Vorschau** = so sieht die öffentliche Seite aus (Foresight/Review/Ops → 404, Feed auf 30 Tage gefenstert) | `cd ~/projects/ct-dev/frontend && PUBLIC_MODE=1 NEXT_DIST_DIR=.next-public npx next dev --turbopack -p 3999` |
 | `http://localhost:8098` | Lokaler Apache (Docker) mit dem **fertigen statischen Export** und den echten `.htaccess`-Regeln | `scripts/htaccess_test_server.sh` (Handbuch §9) |
 | `:8090` | `llama-server` (systemd user unit `llama-server.service`), Ruhezustand = Qwen3-8B | läuft dauerhaft; Handbuch §11 |
 
@@ -113,24 +113,25 @@ Karte und die drei Routinen, die man auswendig kennen sollte.
 | **Research Pulse** | `/trends/foresight/research/pulse[/<theme>]` | Cron Sa 12:00 (`weekly_research_pulse.sh`, seit 2026-09-18); *Recompute*-Knopf je Theme oder `scripts/research_pulse.py` | [§5.7](docs/owner_manual.md#57-research-pulse-trendsforesightresearchpulse-pulsetheme) |
 | Patent Explorer | `/trends/foresight/patents` | Nummer/CPC/Jahr automatisch, `company:"…"`, `"phrase"` `OR` `-x` | [§5.8](docs/owner_manual.md#58-patent-explorer-trendsforesightpatents) |
 | Startup Explorer | `/trends/foresight/ventures` | Firmen mit Evidenz-Timeline | [§5.9](docs/owner_manual.md#59-startup-explorer-trendsforesightventures-companyid) |
-| **Dossier-Desk** | `/trends/dossiers` | Auftrag (Frage muss eine Frage sein) → *Run now* → **Checkpoint** (`awaiting_confirmation`: Auftrag, Feldprofil, Plan — *Confirm* oder Korrektur in einem Satz, seit 2026-09-19) → *Run now* → `review` → *Sign off*; *Recompute · v(n+1)*; Firma/Fokus/Sprache nur CLI `scripts/corpus_research.py`; CLI `--confirm N [--note …]` | [§6](docs/owner_manual.md#6-dossier-desk-trendsdossiers) |
-| Newsletter (Edition, Archiv, Deep-Dive Dry-Run, Versand, Abmeldung) | `/trends/newsletter` | Edition Mo 09:00 automatisch; `NEWSLETTER_DEEP_DIVE=dry-run` in der Crontab; Versand gegated (#16) | [§7](docs/owner_manual.md#7-newsletter) |
+| Newsletter (Edition, Archiv, Versand, Abmeldung) | `/trends/newsletter` | Edition Di 09:00 automatisch; Deep-Dive-Schritt seit 2026-09-19 stillgelegt (`status: disabled`); Versand gegated (#16) | [§7](docs/owner_manual.md#7-newsletter) |
 | **Newsletter freigeben** (Pflicht vor jedem Versand) | `/trends/newsletter/review` | Ausgabe als Mail lesen → *Release for sending*; ohne Freigabe bricht der Sender mit Exit 2 ab | [§7.5](docs/owner_manual.md#75-ausgabe-freigeben-trendsnewsletterreview) |
 | Analysen | `/analysis` | Markdown in `frontend/content/analyses/`, `draft: false` = live; Drafts nur auf der Owner-Instanz sichtbar | [§8](docs/owner_manual.md#8-analysen-analysis) |
 | **Statischer Export** | `scripts/build_public_static.sh` → `htaccess_test_server.sh` → `publish_static_site.py --apply` | täglich 06:30 (Cron vorbereitet); `PUBLIC_NOINDEX=0` zum Launch | [§9](docs/owner_manual.md#9-statischer-export--die-öffentliche-website) |
 | Quellen | `sources.yaml` | `probe_source_compliance.py --yaml` → eintragen → `verify_feeds.py`; `apply_source_hygiene.py --apply` nach jeder Flag-Änderung (synct `active` + `llm_pipeline`); Signalbetrieb statt Abschalten (`llm_pipeline: false` + `store_excerpt: false`); `resolve_open_licence.py --apply` schaltet CC-BY-Artikel aus Vorbehalts-Quellen frei; `python -m pipeline.feed_poller --dry-run` zeigt vorab, wie viel Neues die Feeds bringen; `takedown.py`, `purge_raw_content.py` | [§10](docs/owner_manual.md#10-quellen-verwalten) |
 | Betrieb | `crontab -l`, `~/logs/`, `data/*_last.json` | Wächter-Mails, Backup/Restore, GPU-Ruhezustand, llama-server-Reparatur; Kollisionswächter der GPU-Crons (`scripts/lib/gpu_guard.sh`, wartet 90 min, dann Skip + Pending-Datei); `scripts/reset_embedding_errors.py --apply` holt als `embedding_error` aussortierte Einträge zurück | [§11](docs/owner_manual.md#11-betrieb-cron-wächter-backup-gpu-logs), [§11.8](docs/owner_manual.md#118-kollisionswächter-und-besitz-des-llama-servers-98) |
-| Korpus-Rechercheur: Vektorsuche | `systemctl --user status catandary-embed-cpu` | CPU-Embedder auf `:8091` (kein VRAM); `RESEARCH_EMBED_HOST` in `.env` schaltet den Dossier-Worker auf Vektorsuche | [§6](docs/owner_manual.md#6-dossier-desk-trendsdossiers) |
-| **Advisor — Beratungsnotiz je Kunde** (seit 2026-09-14) | Dossierseite `/trends/dossiers/<slug>` → „New advisory note" (Kundenprofil + Auftragsumfang); Ansicht `/trends/dossiers/<slug>/advisory/<id>` mit Freigabe; CLI `python -m scripts.advisory --new --dossier <slug> --profile-file p.json --scope "…" --run`, `--approve <id>` | Optionen entstehen nicht mehr im Dossier: ein Modell in der Beraterrolle (27B, Denken an) schreibt aus Dossier + Profil + Auftrag Situation, Optionen inkl. Null-Option (Trigger, Horizont, Aufwand aus Vergleichsfall, Wer zahlt, Risiko, Abbruchkriterium), Empfehlung mit Konfidenz; geschlossener Katalog, Zahlen gegen Dossier/Profil, Leser; **Freigabe nur durch dich** (`approved_at`) | [§6.5](docs/owner_manual.md#65-advisor--beratungsnotiz-je-kunde) |
-| **Dossier: Landschafts-Modus** | `python -m scripts.dossier_worker --order-new "batteries" --mode landscape --run` (params `{"mode": "landscape"}`) | breites Feld → Teilfeld-Karte (Modell schlägt vor, Korpus zählt nach), ein Suchschritt je Teilfeld, Landkarten-Frage, Anhang „Landscape map“ im Dossier | [§6](docs/owner_manual.md#6-dossier-desk-trendsdossiers) |
-| **Dossier: Messlatte + dritte Ampel** (seit 2026-09-19) | Desk-Ampel „delivery-ready" je Lauf; CLI `.venv/bin/python scripts/dossier_eval.py --backfill` (U für alle Läufe nachrechnen), `--scoreboard [--json]` (Zeile je Lauf, je Serie) | Nutzen U aus Faktenquote, Primäranteil, Widerspruchsfreiheit, Tabellen-Themenbezug, Leser-Urteil (`pipeline/dossier_utility.py`, Tabelle `dossier_run_outcomes`); Replay über gespeicherte Läufe, kein Modell | [§6](docs/owner_manual.md#6-dossier-desk-trendsdossiers) |
-| **Dossier: Profilbeschaffung + Erfahrungsbasis** (seit 2026-09-19) | Checkpoint-Panel zeigt die Quellklassen des Profils; CLI `.venv/bin/python -m pipeline.dossier_priors --show [--field F]` (Erfahrungsbasis je Feld/Host ansehen), `scripts/migrate_dossier_source_priors.py --backfill` (aus allen Läufen neu rechnen) | Das Feldprofil führt die Sweeps (Regulatoren, Ereignistypen, Akteurtypen, Quellklassen); feste Muster nur Rückfall; Doku-/Normen-Hosts und Profil-/Erfahrungs-Hosts Rang 1; Tabelle `dossier_source_priors` wird je Lauf fortgeschrieben | [§6](docs/owner_manual.md#6-dossier-desk-trendsdossiers) |
-| **Dossier: Scouting-Bericht aus Korpus + Messblock** (seit 2026-09-19) | Läuft automatisch; Desk zeigt „Corpus evidence" über dem Bericht; `params {"outline": "decision"}` / `DOSSIER_OUTLINE=decision` = alter Grundriss; Probe ohne Lauf: `python -c "from pipeline import dossier_corpus_evidence as ce; print(ce.build('<Thema>', None, terms=[…]).rendered_md)"` | Korpus-Durchgang vor Plan/Agenten (Signale je Ebene × Quartal mit Anteil je 10k, Akteure, Outlets, repräsentative Katalogeinträge, dünne Bereiche); Web/Sweeps/DR-Vorlauf nur für dünne Bereiche (`result["web_gating"]`); Grundriss mit Reifegrad (≥ 2 gemessene Größen), korpus-zuerst-Tabelle (≥ 60 %), „Where the evidence is thin"; `corpus_share` im Nutzen | [§6.6](docs/owner_manual.md#66-scouting-bericht-aus-korpus-und-messblock-seit-2026-09-19) |
-| **Dossier: nutzenbasierter Rechercheur** (seit 2026-09-19) | Läuft automatisch in jedem Dossier; Trace in `result["voi"]` (Herkunftskopf-JSON); CLI `.venv/bin/python -m pipeline.dossier_query_stats --show [--kind K]` (Anfrage-Schablonen ansehen), `scripts/migrate_dossier_query_stats.py --backfill` (aus allen Läufen neu rechnen); Umgebung `DOSSIER_VOI_MIN_GAIN` (Default 0,15) | VOI-Planer statt fester Schrittzahlen (Lücken mit Gewicht Pflichtpunkt 3 > Audit 2 > Plan 1 > Muster 0,7, Deckung, Erfolgswahrscheinlichkeit aus `dossier_query_stats`; „finish" nur mit Zustimmung des Planers), Fast-Dubletten übersprungen, Rechtstexte artikelweise, zwei Seiten je Hersteller-Aussage, Leser urteilt an den Pflichtpunkten | [§6](docs/owner_manual.md#6-dossier-desk-trendsdossiers) |
 | **Kunden-Briefing** | `/trends/foresight/pitch` (Foresight-Cockpit → „Briefing deck for prospects") | SCR-Q-Präsentation im Browser (7 Folien, ← → / Rail, `#s3`-Links), Korpuszahlen live; nur Owner-Instanz (PUBLIC_MODE 404, nicht im Export) | [§5.10](docs/owner_manual.md#510-kunden-briefing-trendsforesightpitch) |
 | **Ops-Dashboard** (#104) | `/trends/ops` (Foresight-Cockpit → „Ops"); Logbuch `docs/ops/logbook.md`; Alarm-Schwellen `ops_alerts.yaml`; `systemctl --user status catandary-ops-sampler.timer`; `python -m pipeline.ops_events open` (offene Läufe) / `close-orphans` (tote Läufe schließen — macht der Sampler minütlich selbst) | minütlich eine Messzeile nach `ops_samples` (GPU lokal + bequiet, CPU/RAM, alle Platten, Postgres); jeder Cron-/Worker-Lauf eine Zeile in `ops_events` (Start, Ende, rc, Notiz); `python -m scripts.ops_sampler --print [--full]` zeigt eine Messung; SMART nach `deploy/sudoers/catandary-smart` | [§11.9](docs/owner_manual.md#119-ops-dashboard-trendsops-104) |
 | **Prompt-Katalog** | `/trends/ops/prompts` (Ops → „Prompts →"); `python -m pipeline.prompt_catalog --list` | alle Systemanweisungen der LLM-Prozesse live aus dem Code, je mit Funktionsbeschreibung, Modell, Auslöser und Datei:Zeile | [§11.10](docs/owner_manual.md#1110-prompt-katalog-trendsopsprompts) |
 | Sicherheit & Recht | — | Binding aller Interfaces (Entscheid offen), TDM-Regime, Takedown | [§12](docs/owner_manual.md#12-sicherheit-und-recht-kurz) |
+
+**Entfernt (bleibt hier als Merkposten):** *Scouting-Dossier-Desk* `/trends/dossiers`
+mit Korpus-Rechercheur, Advisor und Deep-Dive-Rechercheur — Owner 2026-09-19:
+„Das Feature trägt nicht" (7 Versionen zu einem Thema, 48 Läufe, Leser nie
+zufrieden). Rückweg Tag `archive/dossiers-2026-09-19`; Historie
+`docs/agentic_dossiers.md`; Nachfolge-Idee „Field Watch"
+(`docs/value_proposition_field_watch_2026-09-19.md`, #108). DB-Tabellen
+`dossier_orders`/`dossiers`/`dossier_run_outcomes`/`dossier_source_priors`/
+`dossier_query_stats`/`advisory_notes` bleiben stehen, kein DROP.
 
 ### 2.2 Routine: Morgen nach dem Nachtlauf
 
@@ -158,67 +159,6 @@ scripts/htaccess_test_server.sh           # optional: Apache-Test auf :8098, nac
 Voraussetzung: `~/.config/catandary/webspace.env` (chmod 600) — existiert noch
 nicht (Owner-Aktion, Abschnitt 6). Build ≤ 12 h alt, ≥ 1000 Artikel, ≤ 60 %
 Löschungen, sonst Exit 2.
-
-### 2.4 Routine: Scouting-Dossier bestellen
-
-`http://localhost:3001/trends/dossiers` → *New order slip*: Technology field,
-optional Series slug und eigene Frage, Häkchen „measure the innovation chain
-first" und „start the worker right away" → *Place order*. Worker läuft 10–20 min
-(GPU exklusiv, nicht parallel zum Cycle), Ergebnis steht in `review`; in der
-Leseansicht Herkunftskopf, Endkontrolle, Bericht, Coverage-Anhang lesen → *Sign
-off*. Gleicher Slug später erneut = nächste Version (*Recompute · v(n+1)*).
-Terminal: `.venv/bin/python -m scripts.dossier_worker --order-new "solid-state batteries" --run`.
-
-Seit 2026-09-07 trägt jedes Dossier zwei codegenerierte Mess-Anhänge
-(„Measured development" = Zeitreihe je Reifegrad, Take-offs, Vorlaufzeit,
-K(t), Zykluszeit, Zentralitäts-Peak; „What the corpus counts" = Korpus-Zählung
-je Jahr/Vertikale/Quelle) — und meldet es sichtbar, wenn die Messung ausfällt.
-Alter Pfad: `DOSSIER_MEASURE=0` bzw. `--no-measure`
-([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-messkette-2026-09-07)).
-
-Ebenfalls seit 2026-09-07 ist der Bericht **entscheidungsorientiert**: sieben
-Pflichtabschnitte (Decision summary ≤ 200 Wörter · What is moving · Regulatory
-and IP status · What happens next · What the evidence does not support ·
-Options · Open questions), Längenband 2.200–2.800 Wörter Fließtext (beide
-Grenzen lösen den Neuwurf aus), je Option ein Go/No-Go-Gerüst
-(Trigger/Time horizon/Effort/Risk/Against it). „What happens next" ist ein
-Kalender datierter, belegter Termine (mindestens fünf Zeilen), und jede der
-vier Ebenen der Innovationskette — Wissenschaft, Patente, Förderung, Markt —
-braucht im Fließtext eine datierte und belegte Aussage. Der Rechts- und
-Zulassungsstatus kommt aus einem eigenen Sweep mit festen Suchmustern
-(SPC/Patentablauf Europa, EMA, FDA, anstehende Entscheidungstermine,
-Gerichtsentscheidungen, EFSA-Health-Claims) und eigenem Budget; jede im
-Fließtext zitierte Web-Zahl wird gegen den Volltext genau der zitierten Seite
-geprüft — was dort nicht steht, fliegt raus. Kernzahlen in Kurzfassung,
-Optionen und Kalender brauchen zusätzlich eine Quelle vom Rang 0/1 (Behörde,
-Register, Gericht, Firmen-IR/SEC, Fachjournal), sonst werden sie als „nur
-sekundär belegt" gekennzeichnet oder gestrichen. Ein gezielter Neuwurf plus
-höchstens ein Nachzug für Strukturbefunde (`DOSSIER_REWRITES`), Best-of-2 im
-Erstentwurf (`DOSSIER_DRAFTS`), kein Kritiker-Modell
-([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-entscheidungsebene-2026-09-07)).
-
-**DR-Vorlauf — Default seit 2026-09-13** (`DOSSIER_DR=0`, `--no-dr` oder
-`params = {"dr": false}` schalten ab; das Ziel „besser als Sonnet Deep
-Research" für die *Schreibweise* bleibt offen, Stand und Wiederaufnahme in
-[`docs/dossier_vs_deep_research_2026-09-07.md`](docs/dossier_vs_deep_research_2026-09-07.md),
-Issue #100):
-Arbeitsweise eines Deep-Research-Agenten — Primärquellen werden vor dem
-Schreiben **nach Rang** gelesen, daraus entsteht ein **Faktenbuch** aus
-datierten Einzelaussagen (jede maschinell gegen ihren Quelltext geprüft), und
-der Bericht wird aus diesem Faktenbuch geschrieben; gesampelt wird nach
-Modellkarte statt nur über die Temperatur. Seit Runde 13 bekommt der Bericht
-zusätzlich **Kalender-Kandidaten** (datierte Zukunftstermine aus den gelesenen
-Seiten) und **Aufwands-Anker** (Förderbeträge, Programmbudgets,
-Verfahrensdauern) als fertige Listen vorgelegt, und eine dritte Sweep-Welle
-fragt je Akteur nur nach Terminen. Seit Runde 14 außerdem eine
-**Akteur-Landkarte** (Pflichttabelle in „Was sich bewegt"), Streichung auf
-Absatzebene mit Reparatur je Satz, und **themenneutrale Suchrichtungen**:
-themenunabhängiger Kern + kuratiertes Rückgrat je Vertikale (Vertikale aus den
-Korpus-Nachbarn) + Modellprofil (Regulatoren, Ereignistypen, Akteur-Saatgut,
-Perspektiven). Probe ohne Lauf: `scripts/dossier_topic_probe.py "<Thema>"`.
-Kostet Laufzeit, hebt die
-Faktenquote (erster Lauf: 0,94 gegen 0,25 der Runde davor)
-([`docs/agentic_dossiers.md`](docs/agentic_dossiers.md#die-dr-runde-2026-09-07--arbeitsweise-statt-regelwerk)).
 
 ---
 
@@ -258,7 +198,6 @@ einer frischen DB einmalig von Hand, jede idempotent:
 
 ```bash
 .venv/bin/python scripts/migrate_dead_links.py           # dead_links (Link-Check --mark)
-.venv/bin/python scripts/migrate_dossier_orders.py       # dossier_orders + dossiers
 .venv/bin/python scripts/migrate_research_pulse.py       # research_pulse
 .venv/bin/python scripts/migrate_newsletter_deep_dive.py # newsletter_editions.deep_dive
 .venv/bin/python scripts/migrate_newsletter_approval.py  # newsletter_editions.approved_at/_by/_note
@@ -275,7 +214,7 @@ Auf der Live-DB sind alle genannten ausgeführt (Stand 04.09.2026).
 | Ruhezustand, Relevanz/Extraktion/Klassifikation/Reclassify | `Qwen3-8B-UD-Q4_K_XL.gguf` | `start-qwen3-8b-208k.sh` | 212 992 |
 | Embeddings | `Qwen3-Embedding-8B-Q4_K_M.gguf` | `start-qwen3-emb.sh` | 8 192 |
 | Content-Generierung, Newsletter, Research-Pulse-Texte | `gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf` (+ mmproj, mtp) | `start-gemma4-26b.sh` | 262 144 |
-| Draft-Richter, Dossier-Rechercheur | `Qwen3.8-27B-UD-Q4_K_XL.gguf` | `start-qwen3.8-27b.sh` | bis 262 144 |
+| Draft-Richter | `Qwen3.8-27B-UD-Q4_K_XL.gguf` | `start-qwen3.8-27b.sh` | bis 262 144 |
 | Revert-Option Content-Gen | `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` | `start-qwen3.6-35b.sh` | 131 072 |
 
 Die systemd-Unit `~/.config/systemd/user/llama-server.service` startet
@@ -323,19 +262,12 @@ Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
 | `AUTO_PUBLISH_GROUNDING_GATE=1` | Grounding-Gate vor Auto-Publish (Handbuch §3) |
 | `DRAFT_JUDGE=1` | Stage 10 Draft-Richter (0 = aus; nur in `scheduled_cycle.sh` gelesen) |
 | `TDM_RESPECT=1` | Fetcher beachtet maschinenlesbare TDM-Vorbehalte |
-| `DOSSIER_MEASURE=0` | Dossier ohne Messkette (alter Pfad, reproduzierbar) |
-| `DOSSIER_DR=0` | Dossier OHNE DR-Vorlauf (Primärquellen zuerst, Faktenzettel, Kalender-Kandidaten — Default AN seit 2026-09-13) |
-| `DOSSIER_WRITER_MODEL`, `DOSSIER_WRITER_TIMEOUT` | Schreibphase (Sektionen, Leser, Neuwurf) auf einem anderen Modell — GGUF-Name aus `gpu_handover.MODEL_START_SCRIPTS`, z. B. `Qwen3.8-Flash-Next-UD-Q2_K_XL-00001-of-00003.gguf` (125B/6B MoE, Test seit 2026-09-14); Client-Timeout dafür 1800 s |
-| `DOSSIER_WRITE=single` | Dossier in EINEM Schreibaufruf (Best-of-2) statt Sektion für Sektion (Default `sections` seit 2026-09-14) |
-| `DOSSIER_READER=0` | Dossier ohne den Leser (zweiter Blick desselben Modells mit eigener Anweisung: Einwände in den Neuwurf, Resthinweise in den Prüfnachweis; Default an seit 2026-09-13) |
-| `DOSSIER_DRAFTS`, `DOSSIER_REWRITES` | Best-of-N im Erstentwurf (Default 2) und Zahl der gezielten Neuwürfe (Default 2 = ein Nachzug für Strukturbefunde) |
-| `DOSSIER_VOI_MIN_GAIN` | Schwelle des VOI-Planers (Default `0.15`): unter diesem erwarteten Zuwachs je Kosten hört Korpus- bzw. Web-Agent auf; höher = kürzere Läufe, niedriger = auch Planschritte/Perspektiven bis zur Sättigung (seit 2026-09-19) |
 | `NEWSLETTER_DEEP_DIVE` | `dry-run` aktiviert den Deep-Dive-Schritt im Montagslauf (nur in der Crontab setzen, s. Handbuch §7.3) |
 | `RESEND_API_KEY`, `NEWSLETTER_FROM`, `NEWSLETTER_UNSUB_SECRET`, `NEWSLETTER_PUBLIC_BASE`, `NL_EXPORT_URL`, `NL_EXPORT_TOKEN` | Newsletter-Versandkette (#16) |
 | `NEWSLETTER_APPROVER` | Name, der als Freigebender in `approved_by` landet (Default `owner`); Frontend-Env |
 | `REVIEW_NOTIFY_TO`, `REVIEW_URL` | Empfänger und Link der Morgen-Mail |
-| `BRAVE_SEARCH_API_KEY`, `FIRECRAWL_API_KEY` | Web-Stufe des Rechercheurs bzw. Backfill |
-| `WEB_SEARCH_BACKEND`, `SEARXNG_URL` | Web-Suche des Rechercheurs (seit 2026-09-13): `auto` = Brave zuerst, bei 402/429/5xx/Netzfehler oder ohne Schlüssel SearXNG (Docker `searxng`, 127.0.0.1:8888, `deploy/searxng/settings.yml`); `brave`/`searxng` erzwingen |
+| `BRAVE_SEARCH_API_KEY`, `FIRECRAWL_API_KEY` | Web-Suche (`pipeline/web_search.py`) bzw. Backfill |
+| `WEB_SEARCH_BACKEND`, `SEARXNG_URL` | Web-Suche `pipeline/web_search.py` (seit 2026-09-13; ohne aktiven Aufrufer seit dem Dossier-Rückbau 2026-09-19): `auto` = Brave zuerst, bei 402/429/5xx/Netzfehler oder ohne Schlüssel SearXNG (Docker `searxng`, 127.0.0.1:8888, `deploy/searxng/settings.yml`); `brave`/`searxng` erzwingen |
 | `WEB_CACHE`, `WEB_CACHE_SEARCH_TTL_HOURS`, `WEB_CACHE_PAGE_TTL_HOURS`, `WEB_CACHE_PATH` | Cache der Web-Stufe (seit 2026-09-12): Brave-Treffer 72 h, Seitentexte 7 Tage in `data/web_cache.sqlite`; `python -m pipeline.web_cache stats\|purge\|clear` |
 | `OPENALEX_API_KEY`, `EPO_OPS_*`, `EPO_LOGIN`/`EPO_PASSWORD` | Akquise-APIs |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL_CLASSIFY` | nur für `CLASSIFY_BACKEND=anthropic` |
@@ -346,7 +278,6 @@ Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
 | Variable | Bedeutung |
 |---|---|
 | `PUBLIC_MODE=1` | Instanz verhält sich wie die öffentliche Seite (Blockliste `lib/publicMode.ts`, Fenster `PUBLIC_WINDOW_DAYS`) — nur für die :3999-Vorschau |
-| `DOSSIERS_ENABLED=0` | Not-Aus für den Dossier-Desk (Default an) |
 | `AUTH_SECRET` | signiert die Newsletter-Abmelde-Tokens (≥ 16 Zeichen) |
 | `PUBLIC_BASE_URL` | App-Origin für den Same-Origin-Check der POST-Routen |
 | `CONTACT_EMAIL` | Adresse hinter `/enquiry` (Default `trends@catandary.de`) |
@@ -367,7 +298,7 @@ Build-Variablen des Exports (`STATIC_EXPORT`, `PUBLIC_NOINDEX`,
 │ science  OpenAlex (45M Werke,  │  │ Full Cycle Mo–Fr 04:00       │  │ Owner-App :3001 (Next.js 16) │
 │          Fresh-Sweep), arXiv/  │  │  Poll → Titel-Dedup →        │  │  Feed · Review · Mega ·      │
 │          bioRxiv/medRxiv       │  │  Relevanz/Extraktion/        │  │  Foresight-Cockpit ·         │
-│ patent   EPO DOCDB Back-File   │─▶│  Klassifikation (Distill +   │─▶│  Dossier-Desk · Newsletter   │
+│ patent   EPO DOCDB Back-File   │─▶│  Klassifikation (Distill +   │─▶│  Ops · Newsletter            │
 │          (18,7M, 112M Zitate)  │  │  8B) → Embedding-Dedup →     │  │                              │
 │ funding  NSF/NIH/OpenAIRE/UKRI │  │  Content EN (Gemma-26B) →    │  │ Statischer Export → Hetzner  │
 │          SEC Form D, SBIR,     │  │  Reclassify → Auto-Publish   │  │  Webspace: /trends (30 Tage) │
@@ -431,7 +362,7 @@ geleert), `trends` (Artikel und Signale; `status` draft/published/rejected/
 signal, `embedding` 4096 + `embedding_1024` HNSW, `auto_published`,
 `reviewed_at`, `judged_at`), `newsletter_editions` (+ `deep_dive` JSONB,
 + `approved_at`/`approved_by`/`approval_note` = Freigabe-Gate des Versands),
-`dossier_orders` + `dossiers` (slug + version), `research_pulse`,
+`dossier_orders` + `dossiers` (Altbestand, Feature entfernt 2026-09-19), `research_pulse`,
 `research_signals`/`research_corpus`, Patent-Graph (`patent_links`,
 `patent_cpc_full`, `patent_search`), `foresight_runs`/`foresight_clusters`,
 `cpc_tier_series`, `dead_links`, `startup_companies`.
@@ -455,7 +386,7 @@ cd frontend && npm run lint
 
 Vitest-Wächter, die man kennen sollte: `staticExport.test.ts` (Blockliste
 `publicMode.ts` ↔ `static-export.exclude`), `aiCrawlers.test.ts` (Crawler-Liste
-↔ `.htaccess`-Regex), `dossier-access.test.ts`, `newsletterEditions.test.ts`
+↔ `.htaccess`-Regex), `newsletterEditions.test.ts`
 (Render-Regel Deep Dive). Python: `tests/test_query_gate.py` (Fixture mit
 Live-Vektoren; nach einem Embedding-Modellwechsel neu messen mit
 `scripts/measure_query_gate.py`), `tests/test_publish_static_site.py`

@@ -374,7 +374,7 @@ def pdf_text(data: bytes, max_pages: int = PDF_MAX_PAGES) -> str:
     """Text of a PDF (first `max_pages` pages), or "" when it cannot be read.
 
     Until 2026-09-18 every PDF went through trafilatura like HTML and came
-    back "too_short": the dossier's primary-first pass found the BSI
+    back "too_short": the former scouting-dossier researcher found the BSI
     IT-Grundschutz block SYS.1.5 Virtualisierung four times and could read it
     zero times — the one regulatory baseline the question asked for, dropped
     because it is published as a PDF. Encrypted files with an empty user
@@ -413,11 +413,12 @@ def fetch_fulltext_result(url: str, client: httpx.Client | None = None,
                           max_chars: int | None = None) -> FetchResult:
     """Fetch + extract clean article text, with the reason when nothing is kept.
 
-    `max_chars` (Stufe 3 des Dossier-Agent-Plans, 2026-09-19): Kappe des
-    gespeicherten Textes, Default `MAX_TEXT_CHARS`. Der Dossier-Rechercheur
-    holt Rechtstexte (EUR-Lex, gesetze-im-internet …) mit einer viel größeren
-    Kappe und behält danach nur die Artikel, die zur Lücke passen
-    (`pipeline/legal_text.py`) — der Feed-Pfad bleibt bei 12.000.
+    `max_chars` (seit 2026-09-19): Kappe des gespeicherten Textes, Default
+    `MAX_TEXT_CHARS`. Gedacht für Rechtstexte (EUR-Lex, gesetze-im-internet …),
+    die mit einer viel größeren Kappe geholt und danach artikelweise
+    geschnitten werden (`pipeline/legal_text.py`) — der Feed-Pfad bleibt bei
+    12.000. (Erster Nutzer war der Rechercheur der Scouting-Dossiers, Feature
+    entfernt 2026-09-19; der Parameter bleibt generisch.)
 
     `open_licence`: the caller has verified that THIS article carries an open
     licence (CC BY / CC0 / public domain — see pipeline/open_license.py). A

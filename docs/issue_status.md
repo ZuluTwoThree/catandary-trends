@@ -1,5 +1,16 @@
 # Issue-Status (Stand 2026-08-28 — Audit nach dem Geschäftsmodell-Wechsel; Nachträge bis 2026-09-09)
 
+> **Nachtrag 19.09.2026 — Scouting-Dossiers ENTFERNT (Owner: „Das Feature trägt nicht")**:
+> - Alle Dossier-/Advisor-Module, Skripte, Tests, das Desk `/trends/dossiers` und die
+>   Migrationsskripte `migrate_dossier_{orders,brief,run_outcomes,source_priors,query_stats}.py` sind aus
+>   dem Code (Tag `archive/dossiers-2026-09-19` = Stand davor). Die Migrationsnotizen weiter unten
+>   sind Historie: **Tabellen bleiben, Feature entfernt** — `dossier_orders`, `dossiers`,
+>   `dossier_run_outcomes`, `dossier_source_priors`, `dossier_query_stats`, `advisory_notes` stehen
+>   auf der Live-DB, kein DROP, nichts liest oder schreibt sie mehr; die frühere „Migrationslücke"
+>   (nicht in `init_db`) ist damit gegenstandslos. #100 und #107 (in #108 zusammengeführt) tragen
+>   die Nachfolge-Idee „Field Watch" (`docs/value_proposition_field_watch_2026-09-19.md`).
+> - Newsletter-Deep-Dive (#96) stillgelegt: `scripts/newsletter_deep_dive.py` schreibt `status: "disabled"`.
+
 > **Nachtrag 02.09.2026** (vollständig: `docs/audits/2026-09-02_issue_audit.md`, `_compliance_review.md`,
 > `_security_review.md`, `_static_export_design.md`; Plan: `docs/launch/09_launch_plan_2026-09-02.md`):
 > - Alle vier manuellen DB-Schritte des 28.08.-Audits sind **erledigt** und gegen die Live-DB verifiziert:
@@ -285,7 +296,7 @@ das ist genau das Werkzeug, das die Analysen für Etappe 2 produziert. Review + 
   generieren, ResearchGate-DOIs (`10.13140`) als Owner-Frage.
 - **#94** Startup-Explorer-Reste
 
-## 🆕 #100 — Dossier-Tool vs. Deep Research (Sonnet 5): Ziel offen, DR-Modus Feature in Development (2026-09-07)
+## #100 — Dossier-Tool vs. Deep Research — überholt: Feature entfernt 2026-09-19, s. Nachtrag oben (Historie 2026-09-07)
 
 Vier DR-Läufe im Blindgutachten verloren (5,57 : 7,43 · 5,7 : 6,9 · 5,9 : 6,3 ·
 5,7 : 6,9). Owner hat den Stand abgenommen, Ziel nicht mehr aktuell; DR-Modus

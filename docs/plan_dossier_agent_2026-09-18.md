@@ -1,5 +1,7 @@
 # Plan: Der Dossier-Agent als nutzen- und lernbasierter Auftragnehmer
 
+> **Feature entfernt 2026-09-19** (Owner: „Das Feature trägt nicht"), s. CLAUDE.md, Abschnitt „Scouting-Dossiers — entfernt". Dieses Dokument bleibt als Historie; Code-Stand davor: Tag `archive/dossiers-2026-09-19`.
+
 > **Intern.** Messungen an einzelnen Läufen; nichts davon ins Frontend. Grundlage:
 > 48 Dossiers vom 26.08. bis 18.09.2026 (Tabelle `dossiers` + `dossier_orders`),
 > die Chronik `docs/agentic_dossiers.md` (Runden 1–21) und Issue #107.
