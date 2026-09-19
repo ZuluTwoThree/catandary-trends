@@ -109,7 +109,11 @@ RUN_DEFAULTS = {"steps": 6, "sources": 24, "per_query": 6, "scope": "both",
                 # anhalten. Default AN (Desk-Aufträge, auch ältere Zettel ohne den
                 # Parameter); --order-new und der Newsletter-Deep-Dive schreiben
                 # false; DOSSIER_CHECKPOINT=0 erzwingt aus (checkpoint_enabled).
-                "checkpoint": True}
+                "checkpoint": True,
+                # Grundriss (Scouting-Umbau, 2026-09-19): None = "scout" (Default,
+                # DOSSIER_OUTLINE als Env-Rueckfall); params {"outline": "decision"}
+                # = der Entscheidungs-Grundriss von vor dem Umbau.
+                "outline": None}
 
 
 def checkpoint_enabled(p: dict) -> bool:
@@ -198,7 +202,8 @@ def process_order(order: dict, quant: dict | None,
             quant=quant if (quant and (quant.get("ok") or p["measure"]))
                   else None,
             measure=p["measure"], corpus_stats=corpus_stats, dr=p["dr"],
-            mode=p["mode"], brief=brief, profile=profile, plan=plan)
+            mode=p["mode"], brief=brief, profile=profile, plan=plan,
+            outline=p.get("outline"))
         version = corpus_research.save_dossier(
             order["slug"], topic, question, result["report"], result)
         check = check_result(result)

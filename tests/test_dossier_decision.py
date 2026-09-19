@@ -171,23 +171,26 @@ class TestOutline:
         assert ds.count_words(ds.body_text(doc)) < ds.BODY_WORDS_MAX
 
     def test_prompt_carries_exactly_the_checked_headings(self):
-        sysprompt = cr.report_system(True, "en")
-        for key, heading, _pat in ds.SECTIONS["en"]:
-            if key in ds.OPTIONAL_SECTIONS:
-                assert f"## {heading}" not in sysprompt      # Optionen liegen beim Advisor
-                continue
-            assert f"## {heading}" in sysprompt
+        # Beide Grundrisse: jede Pflichtueberschrift steht im Prompt, keine
+        # optionale (Optionen liegen beim Advisor; im Scout-Grundriss ist
+        # „does not support" optional, im Entscheidungs-Grundriss Reifegrad/thin).
+        for outline in ("decision", "scout"):
+            sysprompt = cr.report_system(True, "en", outline=outline)
+            for key in ds.required_keys(outline):
+                assert f"## {ds.heading_for(key, 'en', outline)}" in sysprompt, (outline, key)
+            for key in ds.optional_keys(outline):
+                assert f"## {ds.heading_for(key, 'en', outline)}" not in sysprompt, (outline, key)
+        sysprompt = cr.report_system(True, "en", outline="decision")
         from pipeline import advisory
         for label in ds.OPTION_LABELS["en"]:
             assert label in advisory.ADVISOR_SYSTEM
         assert str(ds.BODY_WORDS_MAX) in sysprompt
 
     def test_german_outline_matches_the_german_check(self):
-        sysprompt = cr.report_system(True, "de")
-        for key, heading, _pat in ds.SECTIONS["de"]:
-            if key in ds.OPTIONAL_SECTIONS:
-                continue
-            assert f"## {heading}" in sysprompt
+        for outline in ("decision", "scout"):
+            sysprompt = cr.report_system(True, "de", outline=outline)
+            for key in ds.required_keys(outline):
+                assert f"## {ds.heading_for(key, 'de', outline)}" in sysprompt, (outline, key)
 
     def test_old_path_is_reproducible(self):
         assert cr.report_system(False, "en") == cr.REPORT_SYSTEM
@@ -510,10 +513,14 @@ def test_measure_path_end_to_end(monkeypatch):
     monkeypatch.setattr(cr, "fetch_web_page_status",
                         lambda url: (LEGAL_PAGE, "fetched"))
 
+    # Der Musterbericht der Fakes folgt dem Entscheidungs-Grundriss — der
+    # Scout-Grundriss (Default seit 2026-09-19) wird in
+    # tests/test_dossier_corpus_evidence.py geprueft.
     out = cr.run("What should we do?", max_steps=1, max_sources=8,
                  retrieval="fts", per_query=2, web_steps=1, max_web_sources=2,
                  topic="GLP-1 and incretin technology", measure=True,
-                 seed_sources=[dict(x) for x in SEEDS], seed_notes=["seed"])
+                 seed_sources=[dict(x) for x in SEEDS], seed_notes=["seed"],
+                 outline="decision")
 
     # 1. Rechts-Sweep hat einen eigenen Katalogbereich gefuellt — und seit
     #    Runde 5 laeuft danach die zweite Welle je Entitaet, also MEHR als die

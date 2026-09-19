@@ -14,8 +14,10 @@ import pytest
 
 def _result(*, per100_after=2.4, per100_before=1.2, reader=True, answers=True,
             findings_after=None, contradiction=False, ranks=(0, 1, 2, None),
-            seconds=1500, brave=10, searxng=0, with_structure=True):
-    sources = [{"id": f"S{i}", "rank": r} for i, r in enumerate(ranks)]
+            seconds=1500, brave=10, searxng=0, with_structure=True,
+            maturity=True, kinds=("article", "signal", "web", "measurement")):
+    sources = [{"id": f"S{i}", "rank": r, "kind": kinds[i % len(kinds)]}
+               for i, r in enumerate(ranks)]
     cited = [s["id"] for s in sources]
     structure = None
     if with_structure:
@@ -24,6 +26,8 @@ def _result(*, per100_after=2.4, per100_before=1.2, reader=True, answers=True,
             "density_after": {"per100": per100_after, "words": 1900},
             "findings": ["Faktenquote 1.2 …"],
             "findings_after": findings_after if findings_after is not None else [],
+            # Scouting-Umbau: Reifegrad-Sektion ist Bedingung der dritten Ampel
+            "maturity_present": maturity,
         }
         if reader:
             rd = {"overall": "The dossier answers the question." if not contradiction
@@ -113,12 +117,16 @@ class TestComponents:
 class TestUtility:
     def test_presets_sum_to_one_over_quality_keys(self):
         from pipeline.dossier_utility import WEIGHT_PRESETS, MUST_ANSWER_WEIGHT
+        from pipeline.dossier_utility import CORPUS_SHARE_WEIGHT
+        # Scouting-Umbau (2026-09-19): corpus_share traegt 0,15 in jedem Preset,
+        # die fuenf uebrigen Qualitaetsgewichte sind darauf renormiert.
         quality = ("density_norm", "primary_share", "no_contradiction",
-                   "tables_on_topic", "reader_answers")
+                   "tables_on_topic", "reader_answers", "corpus_share")
         assert set(WEIGHT_PRESETS) == {"technology", "landscape", "regulatory",
                                        "market", "evidence"}
         for name, w in WEIGHT_PRESETS.items():
             assert sum(w[k] for k in quality) == pytest.approx(1.0), name
+            assert w["corpus_share"] == CORPUS_SHARE_WEIGHT == 0.15
             assert w["answered_must"] == MUST_ANSWER_WEIGHT
 
     def test_perfect_run_scores_one(self):
@@ -166,10 +174,31 @@ class TestDeliveryReady:
 
     @pytest.mark.parametrize("kw", [
         {"reader": False}, {"answers": False}, {"contradiction": True},
-        {"per100_after": 1.9}, {"findings_after": ["calendar: off topic"]}])
+        {"per100_after": 1.9}, {"findings_after": ["calendar: off topic"]},
+        {"maturity": False}])
     def test_each_gate_blocks(self, kw):
         from pipeline.dossier_utility import components, delivery_ready
         assert delivery_ready(components(_result(**kw), None, None)) is False
+
+    def test_old_runs_without_the_maturity_field_are_never_ready(self):
+        from pipeline.dossier_utility import components, delivery_ready
+        res = _result()
+        del res["structure"]["maturity_present"]
+        c = components(res, None, None)
+        assert c["maturity_present"] is None and delivery_ready(c) is False
+
+
+class TestCorpusShare:
+    def test_share_counts_corpus_and_measurement_kinds(self):
+        from pipeline.dossier_utility import components
+        # kinds cycle article, signal, web, measurement over 4 sources -> 3 of 4
+        assert components(_result(), None, None)["corpus_share"] == pytest.approx(0.75)
+
+    def test_no_citations_means_unmeasured(self):
+        from pipeline.dossier_utility import components
+        res = _result()
+        res["cited"] = []
+        assert components(res, None, None)["corpus_share"] is None
 
 
 class TestStore:

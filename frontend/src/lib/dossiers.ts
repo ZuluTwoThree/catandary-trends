@@ -172,6 +172,46 @@ export interface DossierLedgerRow {
   unreadable: string[];
 }
 
+/**
+ * Corpus evidence of a run (pipeline/dossier_corpus_evidence.py, scouting
+ * rebuild 2026-09-19): our own deterministic pass over the corpus BEFORE any
+ * model hop — signals per tier and quarter (count + share per 10,000 of that
+ * tier), actors, outlets, representative catalog ids and the areas that were
+ * thin (the only ones the web stage ran for). Null: run before the rebuild or
+ * the pass was not measured.
+ */
+export interface DossierCorpusCell {
+  n: number;
+  per10k: number | null;
+}
+
+export interface DossierCorpusEvidence {
+  ok: boolean;
+  reason: string | null;
+  terms: string[];
+  since: string;
+  measuredOn: string;
+  nSignals: number;
+  nSignals12m: number;
+  quarters: string[];
+  /** tier → quarter → cell, tiers in innovation-chain order */
+  tiers: { tier: string; cells: DossierCorpusCell[]; total12m: number }[];
+  actors: { name: string; n: number; first: string | null; last: string | null }[];
+  sources: { name: string; n: number }[];
+  representative: { id: string; kind: string; tier: string | null; title: string; date: string; outlet: string; why: string }[];
+  regulatory12m: number;
+  thinAreas: { area: string; kind: string; reason: string }[];
+}
+
+export interface DossierWebGating {
+  corpusEvidenceOk: boolean;
+  webGaps: number;
+  corpusOnlyGaps: number;
+  sweeps: { name: string; ran: boolean }[];
+  webBudget: number;
+  webSteps: number;
+}
+
 export interface DossierDoc {
   slug: string;
   version: number;
@@ -187,6 +227,69 @@ export interface DossierDoc {
   model: string | null;
   provenance: DossierProvenance;
   ledger: DossierLedgerRow[];
+  /** Scouting rebuild (2026-09-19): corpus-first evidence block + web gating. */
+  corpusEvidence: DossierCorpusEvidence | null;
+  webGating: DossierWebGating | null;
+  outline: string | null;
+}
+
+const TIER_ORDER = ["science", "patent", "funding", "market"];
+
+export function parseCorpusEvidence(raw: unknown): DossierCorpusEvidence | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const quarters = Array.isArray(r.quarters) ? r.quarters.map(String) : [];
+  const byTier = (r.signals_by_tier_quarter ?? {}) as Record<string, Record<string, Record<string, unknown>>>;
+  const totals = (r.tier_totals_12m ?? {}) as Record<string, unknown>;
+  const tiers = TIER_ORDER.filter((t) => t in byTier || t in totals).map((tier) => ({
+    tier,
+    total12m: num(totals[tier]) ?? 0,
+    cells: quarters.map((q) => {
+      const c = byTier[tier]?.[q] ?? {};
+      return { n: num(c.n) ?? 0, per10k: num(c.per_10k) };
+    }),
+  }));
+  const list = <T,>(v: unknown, f: (x: Record<string, unknown>) => T): T[] =>
+    Array.isArray(v) ? v.filter((x) => x && typeof x === "object").map((x) => f(x as Record<string, unknown>)) : [];
+  return {
+    ok: Boolean(r.ok),
+    reason: r.reason ? String(r.reason) : null,
+    terms: Array.isArray(r.terms) ? r.terms.map(String) : [],
+    since: String(r.since ?? ""),
+    measuredOn: String(r.measured_on ?? ""),
+    nSignals: num(r.n_signals) ?? 0,
+    nSignals12m: num(r.n_signals_12m) ?? 0,
+    quarters,
+    tiers,
+    actors: list(r.actors, (a) => ({
+      name: String(a.name ?? ""), n: num(a.n) ?? 0,
+      first: a.first ? String(a.first) : null, last: a.last ? String(a.last) : null,
+    })),
+    sources: list(r.sources, (a) => ({ name: String(a.name ?? ""), n: num(a.n) ?? 0 })),
+    representative: list(r.representative, (a) => ({
+      id: String(a.id ?? ""), kind: String(a.kind ?? ""), tier: a.tier ? String(a.tier) : null,
+      title: String(a.title ?? ""), date: String(a.date ?? ""), outlet: String(a.outlet ?? ""),
+      why: String(a.why ?? ""),
+    })),
+    regulatory12m: num(r.regulatory_12m) ?? 0,
+    thinAreas: list(r.thin_areas, (a) => ({
+      area: String(a.area ?? ""), kind: String(a.kind ?? ""), reason: String(a.reason ?? ""),
+    })),
+  };
+}
+
+export function parseWebGating(raw: unknown): DossierWebGating | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const sweeps = (r.sweeps ?? {}) as Record<string, unknown>;
+  return {
+    corpusEvidenceOk: Boolean(r.corpus_evidence_ok),
+    webGaps: Array.isArray(r.web_gaps) ? r.web_gaps.length : 0,
+    corpusOnlyGaps: Array.isArray(r.corpus_only_gaps) ? r.corpus_only_gaps.length : 0,
+    sweeps: ["regulatory", "market", "funding", "catalyst"].map((name) => ({ name, ran: Boolean(sweeps[name]) })),
+    webBudget: num(r.web_budget) ?? 0,
+    webSteps: num(r.web_steps) ?? 0,
+  };
 }
 
 /**
@@ -574,7 +677,10 @@ const DOC_SELECT = `SELECT slug, version, topic, question, report_md, model,
          result->>'retrieval' AS retrieval, result->>'scope' AS scope,
          result->>'seconds'   AS seconds,   result->>'finished_at' AS finished_at,
          result->>'lang'      AS lang,      result->'quant' AS quant,
-         result->'ledger'     AS ledger
+         result->'ledger'     AS ledger,
+         result->'corpus_evidence' AS corpus_evidence,
+         result->'web_gating' AS web_gating,
+         result->>'outline'   AS outline
     FROM dossiers`;
 
 function toDoc(r: Record<string, unknown>): DossierDoc {
@@ -605,6 +711,9 @@ function toDoc(r: Record<string, unknown>): DossierDoc {
       quant,
     },
     ledger: parseLedger(r.ledger),
+    corpusEvidence: parseCorpusEvidence(r.corpus_evidence),
+    webGating: parseWebGating(r.web_gating),
+    outline: r.outline ? String(r.outline) : null,
   };
 }
 

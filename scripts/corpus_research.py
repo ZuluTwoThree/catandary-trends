@@ -59,8 +59,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from pipeline import (dossier_brief, dossier_entailment, dossier_planner, dossier_query_stats,
-                      dossier_structure, legal_text, llamacpp_client)
+from pipeline import (dossier_brief, dossier_corpus_evidence, dossier_entailment,
+                      dossier_planner, dossier_query_stats, dossier_structure, legal_text,
+                      llamacpp_client)
 from pipeline.article_fetcher import fetch_fulltext, fetch_fulltext_result
 from pipeline import web_cache, web_search
 from pipeline.db import get_connection
@@ -602,6 +603,216 @@ beides trägt. Die Abschnitte 1-7 bleiben zusammen UNTER 2400 Wörtern; die für
 dich erzeugten Anhänge zählen nicht mit."""
 
 
+# --------------------------------------------------------------------------
+# Der Scouting-Grundriss (Owner-Ziel 2026-09-19, Stufe 6): der Bericht entsteht
+# aus dem eigenen Korpus und dem Messblock; das Web ergaenzt oder belegt NUR,
+# was der Korpus duenn hat. Neun Pflichtabschnitte, geprueft in
+# pipeline/dossier_structure.py (outline="scout"). Der Entscheidungs-Grundriss
+# davor bleibt ueber params {"outline": "decision"} erreichbar.
+# --------------------------------------------------------------------------
+
+_OUTLINE_SCOUT_EN = """MANDATORY OUTLINE — SCOUTING REPORT. This dossier is built from OUR OWN
+corpus (articles, signals, papers, patents — the CORPUS EVIDENCE block and the
+catalog ids T…/P…/N…) and from OUR OWN measurement (the MEASURED QUANTITIES).
+Web pages were fetched ONLY for the areas the corpus evidence marks as THIN,
+and they are cited only there and in the calendar. Write exactly these nine
+sections, in this order, with exactly these top-level headings and no others:
+
+## What this is about
+  60-220 words for a reader who does not know this field: what the technology
+  or field IS in plain words (what it does, what it replaces or competes with,
+  who uses it), and why it matters for THIS question. Background, not
+  evidence: no figures, no dates, no citations here.
+
+## Scout's verdict
+  At most 200 words: three cited statements about the FIELD — its MATURITY
+  (where it stands in the cycle, from the measured block), its MOVEMENT (what
+  verifiably moved in the last eight quarters, from the corpus evidence) and
+  its TIMELINE (the next dated decision or event). Each statement carries a
+  citation or rests on a measured quantity named with its exact value. No
+  recommendation: this dossier does not know its reader.
+
+## Maturity and position in the cycle
+  Written ONLY from the MEASURED QUANTITIES and the CORPUS EVIDENCE table
+  (signals per tier and quarter): take-off years per tier, cycle time,
+  patents in the measured class, improvement rate where usable, and the
+  tier × quarter movement (which tier carries the field now, which is
+  fading, share per 10,000). Name at least TWO measured quantities with their
+  exact values. Our own measured quantities carry NO citation — the appendix
+  is their evidence. No web page is cited here.
+
+## What is moving
+  Open with a table — exactly these five columns:
+
+  | Date | Tier | Actor | Signal | Source |
+
+  Corpus first: at least 60 % of the rows cite a corpus or measurement entry
+  (ids T…, P…, N…, Q…) — take them from the REPRESENTATIVE SIGNALS and the
+  catalog; web rows only for areas the corpus evidence marks as thin. Tier is
+  one of science / patent / funding / market. Each row: a date the evidence
+  states, an actor the evidence names (or "—" for a paper/patent without an
+  extracted actor), the signal in one clause, the citation. Then the prose:
+  what verifiably changed, with dates, named actors and figures, read ACROSS
+  the tiers (does the science lead the market, or the other way round?).
+  Use each measured quantity for exactly one claim, with exactly one value.
+
+## Regulatory and IP status
+  From the REGULATORY/IP SWEEP RECORD where one was collected (the sweep ran
+  only if the corpus held fewer than three regulation/decision signals) and
+  from the corpus signals of type regulation/decision otherwise. The patent
+  position (expiries, litigation, licensing — SPCs ONLY where the field has
+  them: medicinal and plant-protection products, nothing else); the field's
+  own regulatory instruments and pending decisions, as the evidence names
+  them (never a pharma instrument for a non-pharma field); court decisions;
+  which product claims are legally permitted today. Treat Europe as its own
+  market. Where nothing usable was found on one of these points, say so in
+  ONE sentence — never pad with an instrument that does not apply.
+
+## What happens next
+  A table of DATED, CITED events still ahead — exactly these four columns:
+
+  | Date | Event | Source | Why it matters |
+
+  At least three rows, resting on at least three different sources where
+  the evidence has them; every row about the SUBJECT OF THE QUESTION, every
+  date one the evidence states (day, month, quarter or half-year, with its
+  year), the citation in the Source column. Never estimate a date. Sort
+  earliest first.
+
+## Where the evidence is thin
+  One bullet per THIN AREA named in the corpus evidence: what the corpus held
+  (the count), and what the web stage brought for exactly this area — the
+  pages, cited by id, and the one fact each carries — or that it brought
+  nothing. This section is the honest map of what this dossier does NOT rest
+  on our own data for. Contradictions between two sources on a checkable
+  fact go here too, with both readings.
+
+## Decision points and watch items
+  No recommendations. Three to six bullet points a decision-maker in this
+  field would watch — each one names a TRIGGER the evidence dates or defines
+  (a plant start, a regulatory decision, a published spec, a price level, a
+  court ruling), what that trigger would DECIDE, and its citation in the same
+  bullet. Funding-call deadlines are not triggers of the technology.
+
+## Open questions and limits
+  What stayed open, characterised from the coverage ledger, plus the
+  commercial questions this dossier cannot answer. Name them as open; do not
+  estimate them. Name every tier the corpus evidence shows as thin that the
+  web did not fill.
+
+SOURCE RANK: every STATEMENT in the verdict, in "Regulatory and IP status",
+in "What happens next" and in "Decision points and watch items" must rest on
+a catalog entry marked (primary), on a corpus entry, or on a measured
+quantity. A statement whose only evidence is weaker is dropped or carries
+"(secondary source only)" — and no such sentence stands in the verdict. Our
+own measured quantities and corpus counts carry no citation: the appendices
+in this document are their evidence.
+
+COVERAGE: the innovation chain has four tiers — science, patents, funding,
+market. Each tier needs at least one statement in the running text that
+carries BOTH a date and a citation in the same sentence; a tier the corpus
+evidence marks as thin and the web did not fill is named as a gap in "Where
+the evidence is thin" and in "Open questions and limits".
+
+FACT DENSITY is the measure, not length: DATED, PRIMARY-SOURCED statements
+per 100 words of running text ("What this is about" and "Maturity" do not
+count). The floor is 2.0 per 100 words. Sections 1-9 together must stay
+UNDER 2400 words; the appendices generated for you do not count."""
+
+_OUTLINE_SCOUT_DE = """VERBINDLICHE GLIEDERUNG — SCOUTING-BERICHT. Dieses Dossier entsteht aus
+UNSEREM EIGENEN Korpus (Artikel, Signale, Paper, Patente — der Block
+KORPUS-EVIDENZ und die Katalog-ids T…/P…/N…) und aus UNSERER EIGENEN Messung
+(die GEMESSENEN GRÖSSEN). Webseiten wurden NUR für die Bereiche geholt, die
+die Korpus-Evidenz als DÜNN ausweist, und nur dort und im Kalender zitiert.
+Schreibe genau diese neun Abschnitte, in dieser Reihenfolge, mit genau
+diesen Überschriften:
+
+## Worum es geht
+  60-220 Wörter für einen Leser ohne Fachkenntnis: was die Technologie oder
+  das Feld IST und warum das für DIESE Frage zählt. Hintergrund, kein Beleg:
+  keine Zahlen, keine Daten, keine Zitate.
+
+## Urteil des Scouts
+  Höchstens 200 Wörter: drei belegte Aussagen über das FELD — REIFEGRAD
+  (Stand im Zyklus, aus dem Messblock), BEWEGUNG (was sich in den letzten
+  acht Quartalen nachweislich bewegt hat, aus der Korpus-Evidenz) und
+  ZEITLINIE (die nächste datierte Entscheidung). Jede Aussage trägt ein Zitat
+  oder eine gemessene Größe mit exaktem Wert. Keine Empfehlung.
+
+## Reifegrad und Position im Zyklus
+  NUR aus den GEMESSENEN GRÖSSEN und der Tabelle der KORPUS-EVIDENZ (Signale
+  je Ebene und Quartal): Take-off je Ebene, Zykluszeit, Patente der gemessenen
+  Klasse, Verbesserungsrate wo verwendbar, und die Bewegung Ebene × Quartal
+  (welche Ebene trägt das Feld jetzt, welche klingt ab, Anteil je 10.000).
+  Nenne mindestens ZWEI gemessene Größen mit exaktem Wert. Eigene Messgrößen
+  tragen KEIN Zitat — der Anhang ist ihr Beleg. Keine Webseite wird hier
+  zitiert.
+
+## Was sich bewegt
+  Beginne mit einer Tabelle — genau diese fünf Spalten:
+
+  | Datum | Ebene | Akteur | Signal | Quelle |
+
+  Korpus zuerst: mindestens 60 % der Zeilen zitieren einen Korpus- oder
+  Mess-Eintrag (ids T…, P…, N…, Q…) — aus den REPRÄSENTATIVEN SIGNALEN und
+  dem Katalog; Web-Zeilen nur für Bereiche, die die Korpus-Evidenz als dünn
+  ausweist. Ebene ist science / patent / funding / market. Je Zeile ein
+  Datum aus den Belegen, ein benannter Akteur (oder „—" bei Paper/Patent ohne
+  extrahierten Namen), das Signal in einem Halbsatz, der Beleg. Danach der
+  Fließtext über die Ebenen hinweg. Jede gemessene Größe trägt genau eine
+  Aussage mit genau einem Wert.
+
+## Recht und Schutzrechte
+  Aus dem RECHTS-/IP-SUCHPROTOKOLL, falls eines erhoben wurde (der Sweep lief
+  nur, wenn der Korpus weniger als drei Regulierungs-/Entscheidungssignale
+  hatte), sonst aus den Korpussignalen vom Typ Regulierung/Entscheidung.
+  Patentlage (SPC nur bei Arznei-/Pflanzenschutzmitteln), Instrumente und
+  offene Entscheidungen des Feldes, Gerichtsentscheidungen, zulässige
+  Auslobungen. Europa als eigener Markt. Wo nichts Verwertbares vorlag: ein
+  Satz, nie auffüllen.
+
+## Was als Nächstes ansteht
+  Tabelle DATIERTER, BELEGTER Ereignisse, die bevorstehen — genau diese vier
+  Spalten:
+
+  | Datum | Ereignis | Quelle | Bedeutung |
+
+  Mindestens drei Zeilen aus mindestens drei Quellen, soweit die Belege sie
+  hergeben; jede Zeile zum Gegenstand der Frage, jedes Datum aus den Belegen
+  (Tag, Monat, Quartal oder Halbjahr mit Jahr), das Zitat in der Spalte
+  Quelle. Nie schätzen. Früheste zuerst.
+
+## Wo die Belege dünn sind
+  Je DÜNNEM BEREICH der Korpus-Evidenz ein Punkt: was der Korpus hatte (die
+  Zahl) und was die Web-Stufe für genau diesen Bereich brachte — die Seiten
+  mit id und je ein Fakt — oder dass sie nichts brachte. Widersprüche zweier
+  Quellen in einer prüfbaren Tatsache stehen hier mit beiden Lesarten.
+
+## Entscheidungspunkte und Beobachtungsliste
+  Keine Empfehlungen. Drei bis sechs Punkte mit je einem AUSLÖSER, den die
+  Belege datieren oder definieren, was er ENTSCHEIDEN würde, und dem Zitat im
+  selben Punkt. Förderfristen sind keine Auslöser der Technologie.
+
+## Offene Fragen und Grenzen
+  Was offen blieb (aus dem Coverage-Ledger), die kaufmännischen Fragen, die
+  das Dossier nicht beantworten kann, und jede Ebene, die die Korpus-Evidenz
+  als dünn ausweist und die das Web nicht gefüllt hat.
+
+QUELLENRANG: jede AUSSAGE im Urteil, unter „Recht und Schutzrechte", „Was als
+Nächstes ansteht" und in den Entscheidungspunkten ruht auf einem mit
+(primary) markierten Katalogeintrag, einem Korpus-Eintrag oder einer
+gemessenen Größe; Schwächeres entfällt oder trägt „(nur sekundär belegt)" —
+nie im Urteil. Eigene Messgrößen und Korpuszählungen tragen kein Zitat.
+
+ABDECKUNG: vier Ebenen — Wissenschaft, Patente, Förderung, Markt — je eine
+datierte UND belegte Aussage im Fließtext; eine dünne, vom Web nicht gefüllte
+Ebene wird unter „Wo die Belege dünn sind" und „Offene Fragen" benannt.
+
+FAKTENQUOTE statt Länge: datierte, primärbelegte Angaben je 100 Wörter
+(„Worum es geht" und „Reifegrad" zählen nicht). Untergrenze 2,0. Die neun
+Abschnitte bleiben zusammen UNTER 2400 Wörtern."""
+
+
 _LANDSCAPE_OUTLINE_EN = """LANDSCAPE MODE. The question asks for a map of a FIELD, not for one
 technology. In "What is moving", directly after the movers table and before
 the prose, add a subsection "### Landscape" with a table of exactly these
@@ -620,15 +831,26 @@ which move fastest by dated evidence, which are promise without delivery,
 where they compete for the same application."""
 
 
-def report_system(measure: bool, lang: str = "en", landscape: bool = False) -> str:
+def default_outline() -> str:
+    """Grundriss des Laufs: "scout" (Default seit 2026-09-19) oder "decision";
+    `DOSSIER_OUTLINE` als Env-Rueckfall, `params {"outline": …}` je Auftrag."""
+    return dossier_structure.outline_key(os.getenv("DOSSIER_OUTLINE", "scout") or "scout")
+
+
+def report_system(measure: bool, lang: str = "en", landscape: bool = False,
+                  outline: str | None = None) -> str:
     """Der System-Prompt des Berichts. `measure=False` liefert exakt den alten;
-    `landscape=True` haengt die Pflichttabelle des Landschafts-Modus an."""
+    `landscape=True` haengt die Pflichttabelle des Landschafts-Modus an;
+    `outline` waehlt den Grundriss (scout | decision)."""
     if not measure:
         return REPORT_SYSTEM
-    outline = _OUTLINE_DE if lang == "de" else _OUTLINE_EN
+    if dossier_structure.outline_key(outline) == "scout":
+        text = _OUTLINE_SCOUT_DE if lang == "de" else _OUTLINE_SCOUT_EN
+    else:
+        text = _OUTLINE_DE if lang == "de" else _OUTLINE_EN
     if landscape:
-        outline = outline + "\n\n" + _LANDSCAPE_OUTLINE_EN
-    return outline + "\n\n" + REPORT_SYSTEM_IDS
+        text = text + "\n\n" + _LANDSCAPE_OUTLINE_EN
+    return text + "\n\n" + REPORT_SYSTEM_IDS
 
 
 # --------------------------------------------------------------------------
@@ -2931,7 +3153,7 @@ def read_primary_first(sources: list[dict], notes: list[str],
                        entities: list[str] | None = None,
                        budget: int = DR_READ_BUDGET,
                        must_terms: list[str] | None = None,
-                       prior_hosts=None) -> dict:
+                       prior_hosts=None, only_gaps=None) -> dict:
     """Ungelesene Treffer nach erwartetem NUTZEN lesen (Stufe 2, 2026-09-19):
     Rang zuerst (Behoerde/Register vor Doku/Journal), innerhalb des Rangs
     Hosts aus Profil/Erfahrungsbasis (`prior_hosts`), dann Treffer, deren
@@ -2941,7 +3163,11 @@ def read_primary_first(sources: list[dict], notes: list[str],
     Nur Arten, die ohne Volltext nicht zitierfaehig sind (web/legal/market/
     entity). Rang 2 wird hier nicht angefasst — davon liest der Lauf ohnehin
     genug; es geht um die Primaerquellen, die bisher liegen blieben.
-    Budget unveraendert."""
+    Budget unveraendert.
+
+    `only_gaps` (Scouting-Umbau, 2026-09-19): Menge der Luecken-Indizes, die
+    ans Web gingen — Treffer einer anderen Luecke werden nicht gelesen. Treffer
+    ohne Luecke (Sweeps) laufen mit: die Sweeps selbst sind schon gegated."""
     ents = tuple(entities or ())
     prior_set = {_host_of(h if "://" in str(h) else f"https://{h}") for h in (prior_hosts or ())}
     prior_set |= set(run_primary_hosts())
@@ -2951,6 +3177,9 @@ def read_primary_first(sources: list[dict], notes: list[str],
                                "funding"):
             continue
         if src.get("fetched"):
+            continue
+        if only_gaps is not None and isinstance(src.get("gap"), int) \
+                and src["gap"] not in only_gaps:
             continue
         url = str(src.get("url") or "")
         if not url:
@@ -4342,7 +4571,8 @@ def draft_score(report: str, citable_sources: list[dict], lang: str,
                 measured_keys, sector_fields, year_floor, calendar_terms,
                 calendar_min: int | None = None, landscape_names: list[str] | None = None,
                 actor_min: int | None = None, watch_min: int | None = None,
-                today=None) -> dict:
+                today=None, outline: str | None = None, corpus_ids=None,
+                thin_areas: list[dict] | None = None) -> dict:
     """Deterministische Guete eines Entwurfs fuer Best-of-N: Faktenquote je 100
     Woerter (das Mass, an dem der Neuwurf gemessen wird) minus Struktur- und
     Zitatbefunde. Keine Modellbewertung."""
@@ -4351,7 +4581,8 @@ def draft_score(report: str, citable_sources: list[dict], lang: str,
     findings = dossier_structure.structure_findings(
         report, lang, measured=measured_keys, sectors=sector_fields,
         year_floor=year_floor, density=density, topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names,
-        actor_min=actor_min, watch_min=watch_min, today=today)
+        actor_min=actor_min, watch_min=watch_min, today=today,
+        outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas)
     cites = dossier_structure.verify_cited_figures(report, citable_sources)
     n_cite = (len(cites.get("unverified") or []) + len(cites.get("off_topic") or [])
               + len(cites.get("distorted") or []) + len(cites.get("misattributed") or []))
@@ -4364,11 +4595,18 @@ def draft_score(report: str, citable_sources: list[dict], lang: str,
 # erklaeren, warum das Thema fuer die Frage zaehlt — das weiss der Schreiber
 # erst, wenn die Beleg-Sektionen stehen.
 SECTION_ORDER = ("moving", "regip", "next", "unsupported", "watch", "open", "about", "decision")
+# Scout-Grundriss: Reifegrad zuerst (er haengt nur an Messblock + Korpus-
+# Tabelle und gibt den Beleg-Sektionen den Rahmen), das Urteil zuletzt.
+SECTION_ORDERS = {
+    "decision": SECTION_ORDER,
+    "scout": ("maturity", "moving", "regip", "next", "thin", "watch", "open", "about", "decision"),
+}
 # Wortbudgets je Sektion (Summe ~2.450, Obergrenze des Dossiers 2.800). Ohne
 # Budget schrieb Flash-Next 700-1.050 Woerter JE Sektion (Quantum v2, 14.09.):
 # jeder Aufruf sieht nur seine Sektion und haelt sie fuer das ganze Dossier.
 SECTION_WORDS = {"about": 150, "moving": 700, "regip": 350, "next": 250, "unsupported": 250,
-                 "watch": 250, "open": 200, "decision": 150}
+                 "watch": 250, "open": 200, "decision": 150,
+                 "maturity": 200, "thin": 200}
 
 
 def take_section(text: str, heading: str) -> str:
@@ -4393,10 +4631,14 @@ def take_section(text: str, heading: str) -> str:
 
 
 def write_sections(sys_prompt: str, report_prompt: str, lang: str, sampling: dict,
-                   must_answer: list[str] | None = None) -> str:
-    """Der Bericht Sektion fuer Sektion, in SECTION_ORDER (Kurzfassung zuletzt).
-    `must_answer` (Stufe 1): die Pflichtpunkte des Auftrags gliedern die
-    Kurzfassung — je Punkt eine tragende Aussage, in dieser Reihenfolge."""
+                   must_answer: list[str] | None = None,
+                   outline: str | None = None) -> str:
+    """Der Bericht Sektion fuer Sektion, in SECTION_ORDERS[outline] (Kurzfassung
+    zuletzt). `must_answer` (Stufe 1): die Pflichtpunkte des Auftrags gliedern
+    die Kurzfassung — je Punkt eine tragende Aussage, in dieser Reihenfolge."""
+    okey = dossier_structure.outline_key(outline)
+    order = SECTION_ORDERS[okey]
+    n_sections = len(dossier_structure.required_keys(okey))
     must = [str(m) for m in (must_answer or []) if str(m).strip()]
     decision_directive = (
         (" This is the decision summary: exactly one carrying statement per MUST-ANSWER "
@@ -4407,20 +4649,28 @@ def write_sections(sys_prompt: str, report_prompt: str, lang: str, sampling: dic
         if must else
         " This is the decision summary: three statements that carry the decision, each "
         "resting on the sections below and on a (primary) citation.")
-    spec = {k: h for k, h, _p in dossier_structure.SECTIONS[dossier_structure._lang(lang)]}
     written: dict[str, str] = {}
-    for key in SECTION_ORDER:
-        heading = spec[key]
-        prior = "\n\n".join(written[k] for k in SECTION_ORDER if k in written)
+    for key in order:
+        heading = dossier_structure.heading_for(key, lang, okey)
+        prior = "\n\n".join(written[k] for k in order if k in written)
         budget = SECTION_WORDS.get(key, 300)
         directive = (
             f"\n\nSECTION DIRECTIVE: write ONLY the section \"## {heading}\" now. Start with exactly "
             f"that heading, follow everything the outline says about this section, and write no "
             f"other section and no preamble. LENGTH: about {budget} words for this section — the "
-            f"whole dossier must stay under 2400 words across its eight sections, so this section "
+            f"whole dossier must stay under 2400 words across its {n_sections} sections, so this section "
             f"is one part, not the paper; tables count. The sections already written are supplied "
             f"for coherence — do not repeat their sentences, refer to them where needed."
             + (decision_directive if key == "decision" else "")
+            + (" This is the maturity section: write it ONLY from the MEASURED QUANTITIES and the "
+               "CORPUS EVIDENCE table (signals per tier and quarter) — name at least two measured "
+               "quantities with their exact values, cite no web page here." if key == "maturity" else "")
+            + (" This is the thin-evidence section: one bullet per THIN AREA from the corpus "
+               "evidence — the corpus count, then what the web stage brought for exactly this area "
+               "(pages cited by id) or that it brought nothing." if key == "thin" else "")
+            + (" The table is corpus-first: at least 60 % of its rows cite corpus or measurement "
+               "entries (ids T…, P…, N…, Q…); web rows only for thin areas."
+               if (key == "moving" and okey == "scout") else "")
             + (" This is the background section for a reader who does not know the field: what "
                "the technology is in plain words and why it matters for the question asked — "
                "no figures, no dates, no citations; the evidence sections already written tell "
@@ -4439,22 +4689,22 @@ def write_sections(sys_prompt: str, report_prompt: str, lang: str, sampling: dic
         sect = take_section(raw, heading)
         written[key] = sect
         logger.info("  section %-12s %5d words", key, dossier_structure.count_words(sect))
-    order = [k for k, _h, _p in dossier_structure.SECTIONS[dossier_structure._lang(lang)]]
-    return "\n\n".join(written[k] for k in order if k in written).strip() + "\n"
+    final = list(dossier_structure.required_keys(okey))
+    return "\n\n".join(written[k] for k in final if k in written).strip() + "\n"
 
 
 def rewrite_sections(report: str, keys: list[str], directive: str, sys_prompt: str,
                      report_prompt: str, lang: str, sampling: dict,
-                     model: str | None = None) -> str:
+                     model: str | None = None, outline: str | None = None) -> str:
     """Gezielter Neuwurf NUR der genannten Sektionen (Widerspruchs-Gate, Stufe 4,
     2026-09-19): je Sektion ein Aufruf wie in `write_sections`, der ganze
     uebrige Bericht als Kontext, der Befund als Direktive; die neue Sektion
     ersetzt die alte an Ort und Stelle. Ein Aufruf, der scheitert oder eine
     leere Sektion liefert, laesst die Sektion stehen."""
-    spec = {k: h for k, h, _p in dossier_structure.SECTIONS[dossier_structure._lang(lang)]}
     out = report
     for key in keys:
-        heading = spec.get(key)
+        heading = dossier_structure.heading_for(key, lang, outline) \
+            if key in dict((k, h) for k, h, _p in dossier_structure.SECTIONS[dossier_structure._lang(lang)]) else None
         if not heading or dossier_structure.section_span(out, key, lang) is None:
             continue
         budget = SECTION_WORDS.get(key, 300)
@@ -5090,7 +5340,7 @@ def run(question: str, max_steps: int, max_sources: int,
         corpus_stats: dict | None = None, dr: bool | None = None,
         mode: str = "technology",
         brief: dict | None = None, profile: dict | TopicProfile | None = None,
-        plan: dict | None = None) -> dict:
+        plan: dict | None = None, outline: str | None = None) -> dict:
     """`brief`/`profile`/`plan` (Stufe 1, 2026-09-19): vom Intake des Workers
     VOR dem Owner-Checkpoint gerechnet und hier übergeben, damit der Lauf sie
     nicht ein zweites Mal rechnet (`plan` = `plan_record()`, trägt im
@@ -5106,6 +5356,9 @@ def run(question: str, max_steps: int, max_sources: int,
     reproduziert den Pfad davor exakt."""
     if measure is None:
         measure = os.getenv("DOSSIER_MEASURE", "1") not in ("0", "false", "no")
+    # Scouting-Umbau (Owner 2026-09-19): Grundriss des Berichts. Ohne `measure`
+    # gibt es keinen Grundriss (alter Pfad).
+    outline = dossier_structure.outline_key(outline) if outline else default_outline()
     # Stufe 2: Primaerhosts gelten je Lauf — Reste eines frueheren Auftrags im
     # selben Prozess (Worker mit mehreren Zetteln) duerfen nicht nachwirken.
     set_run_primary_hosts(())
@@ -5206,6 +5459,36 @@ def run(question: str, max_steps: int, max_sources: int,
             pinned_notes = 1
             logger.info("quant preamble: %d measured source(s) injected",
                         len(quant.get("sources") or []))
+
+    # --- corpus evidence (Scouting-Umbau, Owner 2026-09-19) ----------------
+    # Dritte deterministische Vorstufe, VOR Plan und Agenten: was der Korpus
+    # zum Thema je Ebene und Quartal traegt, welche Akteure und Quellen, die
+    # repraesentativen Signale als zitierbare Katalogeintraege — und welche
+    # Bereiche DUENN sind. Nur die duennen bekommen spaeter Web-Schritte,
+    # Sweeps und Budget (web_gating). Faellt die Messung aus, gilt alles als
+    # duenn und der Lauf verhaelt sich wie vor Stufe 6.
+    corpus_ev: dossier_corpus_evidence.CorpusEvidence | None = None
+    if measure:
+        try:
+            corpus_ev = dossier_corpus_evidence.build(
+                topic or question, brief, terms=anchor_terms(topic or question)[:4],
+                search=search, row_to_source=_row_to_source)
+        except Exception as exc:                                    # noqa: BLE001
+            logger.warning("corpus evidence pass failed (%r) — everything counts as thin", exc)
+            corpus_ev = None
+        if corpus_ev is not None and corpus_ev.ok:
+            for s_ in corpus_ev.representative:
+                if s_["id"] not in seen_ids:
+                    seen_ids.add(s_["id"])
+                    sources.append(s_)
+            notes.insert(pinned_notes, dossier_corpus_evidence.render_note(corpus_ev))
+            pinned_notes += 1
+            logger.info("corpus evidence: %d signal(s) since %s, %d representative injected, "
+                        "thin: %s", corpus_ev.n_signals, corpus_ev.since,
+                        len(corpus_ev.representative), ", ".join(corpus_ev.thin_names()) or "nothing")
+        elif corpus_ev is not None:
+            logger.info("corpus evidence: not measured (%s)", corpus_ev.reason)
+    gating: dict | None = None
 
     # --- landscape map + plan --------------------------------------------
     # Seit Stufe 1 (2026-09-19) in build_plan() — der Intake des Workers
@@ -5543,21 +5826,42 @@ def run(question: str, max_steps: int, max_sources: int,
                         "web_queries": [], "web_sources": 0, "web_fetched": 0})
         else:
             logger.info("topic profile: none — fixed patterns")
-        logger.info("regulatory/IP sweep: %d query pattern(s)", len(pq["regulatory"]))
-        reg_added, reg_record = sweep_regulatory(
-            topic or question, sources, seen_ids, notes, ledger, per_query,
-            terms=web_filter, entities=entities, patterns=pq["regulatory"])
-        logger.info("regulatory/IP sweep: +%d source(s)", reg_added)
-        logger.info("market/reimbursement sweep: %d query pattern(s)", len(pq["market"]))
-        mkt_added, mkt_record = sweep_market(
-            topic or question, sources, seen_ids, notes, ledger, per_query,
-            terms=web_filter, entities=entities, patterns=pq["market"])
-        logger.info("market/reimbursement sweep: +%d source(s)", mkt_added)
-        logger.info("funding sweep: %d query pattern(s)", len(pq["funding"]))
-        fund_added, fund_record = sweep_funding(
-            topic or question, sources, seen_ids, notes, ledger, per_query,
-            terms=web_filter, entities=entities, patterns=pq["funding"])
-        logger.info("funding sweep: +%d source(s)", fund_added)
+        # Scouting-Umbau: Web nur, wo der Korpus duenn ist. Die Perspektiv-
+        # Luecken des Profils stehen jetzt in `gaps`; ab hier ist die Liste
+        # vollstaendig und das Gating gilt fuer Sweeps UND Web-Agent.
+        gating = dossier_corpus_evidence.web_gating(corpus_ev, gaps, gap_kinds, web_steps)
+        logger.info("web gating: corpus evidence %s — %d of %d gap(s) go to the web, sweeps %s, "
+                    "budget %d of %d", "ok" if gating["corpus_evidence_ok"] else "missing",
+                    len(gating["web_gaps"]), len(gaps),
+                    ",".join(k for k, v in gating["sweeps"].items() if v) or "none",
+                    gating["web_budget"], web_steps)
+        if gating["sweeps"]["regulatory"]:
+            logger.info("regulatory/IP sweep: %d query pattern(s)", len(pq["regulatory"]))
+            reg_added, reg_record = sweep_regulatory(
+                topic or question, sources, seen_ids, notes, ledger, per_query,
+                terms=web_filter, entities=entities, patterns=pq["regulatory"])
+            logger.info("regulatory/IP sweep: +%d source(s)", reg_added)
+        else:
+            reg_record = (f"(regulatory/IP web sweep NOT run: the corpus holds "
+                          f"{corpus_ev.regulatory_12m if corpus_ev else 0} regulation/decision "
+                          f"signal(s) in 12 months — write this section from the corpus signals.)")
+            logger.info("regulatory/IP sweep skipped — corpus not thin")
+        if gating["sweeps"]["market"]:
+            logger.info("market/reimbursement sweep: %d query pattern(s)", len(pq["market"]))
+            mkt_added, mkt_record = sweep_market(
+                topic or question, sources, seen_ids, notes, ledger, per_query,
+                terms=web_filter, entities=entities, patterns=pq["market"])
+            logger.info("market/reimbursement sweep: +%d source(s)", mkt_added)
+        else:
+            logger.info("market sweep skipped — market tier not thin in the corpus")
+        if gating["sweeps"]["funding"]:
+            logger.info("funding sweep: %d query pattern(s)", len(pq["funding"]))
+            fund_added, fund_record = sweep_funding(
+                topic or question, sources, seen_ids, notes, ledger, per_query,
+                terms=web_filter, entities=entities, patterns=pq["funding"])
+            logger.info("funding sweep: +%d source(s)", fund_added)
+        else:
+            logger.info("funding sweep skipped — funding tier not thin in the corpus")
 
         # --- zweite Welle: <Entitaet> <Ereignistyp> ----------------------
         # Zweite Ernte, jetzt ueber dem Material der ersten Welle (Korpus +
@@ -5579,7 +5883,7 @@ def run(question: str, max_steps: int, max_sources: int,
             logger.info("entity hygiene: %d kept for the sweeps %s, %d not (function "
                         "words / seen once): %s", len(sweep_ents), sweep_ents,
                         len(dropped_ents), dropped_ents[:8])
-        if sweep_ents or sweep_subs:
+        if (sweep_ents or sweep_subs) and (gating["sweeps"]["regulatory"] or gating["sweeps"]["market"]):
             sub_added, sub_record = sweep_substance_legal(
                 topic or question, sweep_subs, sources, seen_ids, notes,
                 ledger, per_query, web_filter, sweep_ents,
@@ -5603,12 +5907,15 @@ def run(question: str, max_steps: int, max_sources: int,
         # passiert haben (typisiert: org/substance), gedeckelt.
         cat_ents = [e for e in sweep_entities(entities, sources, profile)
                     if entity_kind(e) in ("org", "substance")][:CAT_MAX_ENTITIES]
-        cat_added, cat_record = sweep_catalysts(
-            topic or question, cat_ents, sources, seen_ids, notes, ledger,
-            per_query, terms=web_filter, patterns=pq["catalyst"],
-            entity_patterns=pq["entity_catalyst"])
-        logger.info("catalyst sweep: +%d source(s) (%d actor(s): %s)", cat_added,
-                    len(cat_ents), cat_ents)
+        if gating["sweeps"]["catalyst"]:
+            cat_added, cat_record = sweep_catalysts(
+                topic or question, cat_ents, sources, seen_ids, notes, ledger,
+                per_query, terms=web_filter, patterns=pq["catalyst"],
+                entity_patterns=pq["entity_catalyst"])
+            logger.info("catalyst sweep: +%d source(s) (%d actor(s): %s)", cat_added,
+                        len(cat_ents), cat_ents)
+        else:
+            logger.info("catalyst sweep skipped — calendar not thin in the corpus")
         if instrument_counts:
             instrument_unseen = mark_unseen_instruments(ledger, notes, instrument_counts)
             if instrument_unseen:
@@ -5624,15 +5931,24 @@ def run(question: str, max_steps: int, max_sources: int,
     # die zweite Welle zutage gefoerdert hat. Ohne die Entitaeten wuerde ein
     # Treffer ueber "Metsera" am reinen Themenfilter scheitern.
     web_terms = entity_terms(terms, entities)
-    if web_steps > 0 and gaps:
-        logger.info("web stage: %d gap(s) to cover, %d action(s) allowed",
-                    len(gaps), web_steps)
-        wstate = ResearchState(summary=state.summary, gaps=gaps, unsupported=[])
+    if gating is None:
+        gating = dossier_corpus_evidence.web_gating(corpus_ev, gaps, gap_kinds, web_steps)
+    web_idx: list[int] = list(gating["web_gaps"])
+    web_budget = min(web_budget, gating["web_budget"]) if web_idx else 0
+    voi["budget"]["web"] = web_budget
+    if web_steps > 0 and web_idx:
+        logger.info("web stage: %d of %d gap(s) go to the web (corpus-only: %s), %d action(s) allowed",
+                    len(web_idx), len(gaps), gating["corpus_only_gaps"], web_budget)
+        wstate = ResearchState(summary=state.summary, gaps=[gaps[i] for i in web_idx], unsupported=[])
         finish_notice = ""
         reject_notice = ""
         wstep = 0
+        web_gap_objs = dossier_planner.make_gaps([(gap_kinds[i], gaps[i]) for i in web_idx])
+        for g_, i_ in zip(web_gap_objs, web_idx):
+            g_.index = i_
+            g_.key = f"{g_.kind}:{i_}"
         web_planner = dossier_planner.Planner(
-            dossier_planner.make_gaps(list(zip(gap_kinds, gaps))), phase="web",
+            web_gap_objs, phase="web",
             budget=web_budget, stats=dossier_query_stats.templates_for,
             prior_hosts=profile_hosts + prior_hosts)
         for g in web_planner.gaps:
@@ -5654,7 +5970,7 @@ def run(question: str, max_steps: int, max_sources: int,
                 logger.info("web stage: planner stops (%s)",
                             (web_planner.trace[-1] or {}).get("reason") if web_planner.trace else "?")
                 break
-            numbered = "\n".join(f"{i}: {g}" for i, g in enumerate(gaps))
+            numbered = "\n".join(f"{i}: {gaps[i]}" for i in web_idx)
             wprompt = (
                 f"Question:\n{shield(question)}\n\n"
                 f"Open questions (index: text) — cover EVERY index at least once:\n"
@@ -5690,7 +6006,7 @@ def run(question: str, max_steps: int, max_sources: int,
             logger.info("web step %d: %s gap=%s — %s (%s)", wstep, wkind, tg,
                         waction.title, warg[:70])
             if wkind == "finish":
-                uncovered = [i for i in range(len(gaps)) if i not in attempted]
+                uncovered = [i for i in web_idx if i not in attempted]
                 if web_planner.budget_left() <= 1 or web_planner.accept_finish():
                     web_planner.record(decision.gap, "finish", note="accepted")
                     web_trace.append({"step": wstep, "action": "finish"})
@@ -5848,7 +6164,7 @@ def run(question: str, max_steps: int, max_sources: int,
 
         # Coverage sweep: any question the agent never addressed gets ONE
         # deterministic web search — "not searched" must never survive silently.
-        for gi in [i for i in range(len(gaps)) if i not in attempted]:
+        for gi in [i for i in web_idx if i not in attempted]:
             focus = _gap_terms(gaps[gi]).replace(" | ", " ")
             anchor = _gap_terms(topic or question, cap=5,
                                 extra_noise=frozenset()).replace(" | ", " ")
@@ -5915,7 +6231,7 @@ def run(question: str, max_steps: int, max_sources: int,
         # question (robots permitting), capped globally.
         fetch_budget = DR_FETCH_BUDGET if dr else BACKSTOP_FETCH_BUDGET
         per_gap = DR_PER_GAP if dr else BACKSTOP_PER_GAP
-        for gi in range(len(gaps)):
+        for gi in web_idx:
             if fetch_budget <= 0:
                 break
             gap_srcs = [x for x in sources
@@ -5951,7 +6267,8 @@ def run(question: str, max_steps: int, max_sources: int,
     if dr:
         dr_read = read_primary_first(sources, notes, ledger, web_terms,
                                      entities, must_terms=must_answer_terms(must_answer),
-                                     prior_hosts=profile_hosts + prior_hosts)
+                                     prior_hosts=profile_hosts + prior_hosts,
+                                     only_gaps=set(web_idx))
         logger.info("primary-first: %d of %d candidate page(s) read, %d failed",
                     dr_read["read"], dr_read["candidates"], dr_read["failed"])
 
@@ -6185,7 +6502,12 @@ def run(question: str, max_steps: int, max_sources: int,
         [t for t in anchor_terms(topic or question, cap=6) if t]
         + [t for r in landscape for t in anchor_terms(r["name"], cap=3) if t]
         + [str(e).lower() for e in entities][:12]))
-    sys_prompt = report_system(measure, lang, landscape=bool(landscape))
+    sys_prompt = report_system(measure, lang, landscape=bool(landscape), outline=outline)
+    corpus_ids = {s_["id"] for s_ in citable_sources if dossier_corpus_evidence.is_corpus_source(s_)}
+    thin_rows = dossier_corpus_evidence.thin_yield(
+        corpus_ev, gating, gaps, ledger,
+        {"regulatory": reg_added, "market": mkt_added, "funding": fund_added, "catalyst": cat_added})
+    thin_areas = list(corpus_ev.thin_areas) if (corpus_ev and corpus_ev.ok) else []
     landscape_names = [r["name"] for r in landscape]
     if dr:
         # Arbeitsanweisung statt Regelwerk: die Notizen sind gemacht, jetzt
@@ -6248,6 +6570,16 @@ def run(question: str, max_steps: int, max_sources: int,
            f"from one of them must name that subject — about anything else "
            f"these figures say nothing, however plausible the inference "
            f"sounds.\n\n" if measure and measured_brief else "")
+        + (f"CORPUS EVIDENCE (cite by id) — our own deterministic pass over the corpus, "
+           f"run before any model hop: signals per tier and quarter (count and share per "
+           f"10,000 of that tier), actors, outlets, representative signals with catalog ids, "
+           f"and the areas that are THIN. The counts carry NO citation (the pass is their "
+           f"evidence); the representative signals are catalog entries and ARE cited by id. "
+           f"The maturity section and the movers table are built from this block first.\n"
+           f"{corpus_ev.rendered_md}\n\n"
+           if measure and corpus_ev is not None and corpus_ev.ok else "")
+        + (dossier_corpus_evidence.render_thin_block(thin_rows) + "\n\n"
+           if measure and thin_rows else "")
         + (f"MEASURED QUANTITIES YOU MUST NOT USE — they are in the appendix, "
            f"but our own honesty limits bar them from the report. Naming one "
            f"anywhere in the text is an error, and a sentence that does so is "
@@ -6359,7 +6691,7 @@ def run(question: str, max_steps: int, max_sources: int,
         # Woerter in einem Zug schreibt, schwankte zwischen 1,0 und 2,4 Fakten
         # je 100 Woerter — je Sektion faellt der Druck, alles auf einmal zu halten.
         report = write_sections(sys_prompt, report_prompt, lang, base_sampling,
-                                must_answer=must_answer)
+                                must_answer=must_answer, outline=outline)
     else:
         report = _draft(base_sampling)
     # Best-of-N (2026-09-12): derselbe Auftrag ergab an einem Tag Faktenquoten
@@ -6371,7 +6703,8 @@ def run(question: str, max_steps: int, max_sources: int,
     if n_drafts > 1:
         best = draft_score(report, citable_sources, lang, measured_keys,
                            sector_fields, year_floor, calendar_terms, calendar_min, landscape_names,
-                           actor_min=actor_min, watch_min=watch_min, today=today)
+                           actor_min=actor_min, watch_min=watch_min, today=today,
+                           outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas)
         logger.info("draft 1: score %.1f (density %.2f, %d structural, %d citation)",
                     best["score"], best["density"], best["structural"], best["citation"])
         for i in range(2, n_drafts + 1):
@@ -6382,7 +6715,8 @@ def run(question: str, max_steps: int, max_sources: int,
             alt = _draft(alt_sampling)
             sc = draft_score(alt, citable_sources, lang, measured_keys,
                              sector_fields, year_floor, calendar_terms, calendar_min, landscape_names,
-                             actor_min=actor_min, watch_min=watch_min, today=today)
+                             actor_min=actor_min, watch_min=watch_min, today=today,
+                             outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas)
             logger.info("draft %d: score %.1f (density %.2f, %d structural, %d citation)",
                         i, sc["score"], sc["density"], sc["structural"], sc["citation"])
             if sc["score"] > best["score"]:
@@ -6457,7 +6791,8 @@ def run(question: str, max_steps: int, max_sources: int,
             report, lang, measured=measured_keys, sectors=sector_fields,
             year_floor=year_floor, density=density,
             topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names,
-            actor_min=actor_min, watch_min=watch_min, today=today)
+            actor_min=actor_min, watch_min=watch_min, today=today,
+            outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas)
         cites = dossier_structure.verify_cited_figures(report, citable_sources)
         # Befund 2 (falsche Seite) und Befund 3 (Zahl ohne Beleg) der Jurys vom
         # 2026-09-07 laufen durch denselben Kanal wie die Zahlenpruefung:
@@ -6836,7 +7171,11 @@ def run(question: str, max_steps: int, max_sources: int,
                 report, lang, measured=measured_keys, sectors=sector_fields,
                 year_floor=year_floor, density=density_after,
                 topic_terms=calendar_terms, calendar_min=calendar_min, landscape_items=landscape_names,
-                actor_min=actor_min, watch_min=watch_min, today=today)
+                actor_min=actor_min, watch_min=watch_min, today=today,
+                outline=outline, corpus_ids=corpus_ids, thin_areas=thin_areas)
+            structure["maturity_present"] = "maturity" in dossier_structure.split_sections(
+                dossier_structure.body_text(report), lang)
+            structure["outline"] = outline
 
         _settle()
         # Zweiter Neuwurf (2026-09-13/14): fuer Strukturbefunde UND fuer die
@@ -6899,7 +7238,8 @@ def run(question: str, max_steps: int, max_sources: int,
             logger.warning("contradiction gate: %d finding(s) (%s) — targeted rewrite of %s",
                            len(contra), ", ".join(sorted({c["source"] for c in contra})), ", ".join(keys))
             new_report = rewrite_sections(report, keys, directive, sys_prompt, report_prompt, lang,
-                                          write_sampling or {"temperature": 0.3}, model=active_model)
+                                          write_sampling or {"temperature": 0.3}, model=active_model,
+                                          outline=outline)
             if new_report != report:
                 report = new_report
                 structure["contradiction_rewrites"] = int(structure.get("contradiction_rewrites") or 0) + 1
@@ -7178,6 +7518,10 @@ def run(question: str, max_steps: int, max_sources: int,
         "lang": lang,
         "scope": scope,
         "mode": mode, "landscape": landscape,
+        "outline": outline,
+        # Scouting-Umbau (2026-09-19): Korpus-Evidenz + Web-Gating des Laufs
+        "corpus_evidence": (corpus_ev.as_dict() if corpus_ev is not None else None),
+        "web_gating": gating,
         "web": {"cache": web_stats(), "steps": web_trace, "queries": sorted(web_queries),
                 "fetched": sorted(fetched_web)},
         "kinds": {k: sum(1 for s in sources if s["kind"] == k)

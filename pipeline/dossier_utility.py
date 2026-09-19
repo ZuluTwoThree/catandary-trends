@@ -53,8 +53,14 @@ Komponente messbar ist:
   market      density 0,30 · primary 0,15 · no_contradiction 0,20 · tables 0,10 · reader 0,25
   evidence    density 0,30 · primary 0,30 · no_contradiction 0,15 · tables 0,05 · reader 0,20
 
+Seit dem Scouting-Umbau (2026-09-19) tritt `corpus_share` (Anteil der
+zitierten ids, die Korpus-/Mess-Eintraege sind) mit 0,15 in JEDES Preset; die
+fuenf Gewichte oben werden dafuer mit 0,85 skaliert, die Summe der sechs
+bleibt 1,0.
+
 „Abgabereif" (dritte Ampel im Desk, Runde 21 Punkt 9): Leser beantwortet ∧
-kein Widerspruch ∧ Dichte ≥ 2,0 ∧ Tabellen themenbezogen. Ein Lauf ohne Leser
+kein Widerspruch ∧ Dichte ≥ 2,0 ∧ Tabellen themenbezogen ∧ Reifegrad-Sektion
+vorhanden (`structure.maturity_present`, Scouting-Umbau). Ein Lauf ohne Leser
 ist nie abgabereif — das Urteil fehlt, es ist nicht „gut".
 
 Ergebnis je Lauf steht in `dossier_run_outcomes` (eine Zeile je dossiers.id;
@@ -81,9 +87,14 @@ WEB_PER_10_CALLS = 0.01
 MUST_ANSWER_WEIGHT = 0.25    # greift erst ab Stufe 1 (answered_must messbar)
 
 QUALITY_KEYS = ("density_norm", "primary_share", "no_contradiction",
-                "tables_on_topic", "reader_answers", "answered_must")
+                "tables_on_topic", "reader_answers", "corpus_share", "answered_must")
+CORPUS_SHARE_WEIGHT = 0.15   # Scouting-Umbau (2026-09-19): in jedem Preset gleich
+CORPUS_KINDS = frozenset({"article", "signal", "paper", "patent", "measurement"})
 
-WEIGHT_PRESETS: dict[str, dict[str, float]] = {
+# Die fuenf Qualitaetsgewichte von vor dem Umbau summieren je Preset auf 1,0;
+# `corpus_share` kommt mit 0,15 dazu und die fuenf werden auf 0,85 renormiert —
+# die Summe der sechs bleibt 1,0.
+_BASE_PRESETS: dict[str, dict[str, float]] = {
     "technology": {"density_norm": 0.25, "primary_share": 0.20, "no_contradiction": 0.20,
                    "tables_on_topic": 0.10, "reader_answers": 0.25},
     "landscape":  {"density_norm": 0.20, "primary_share": 0.15, "no_contradiction": 0.20,
@@ -94,6 +105,11 @@ WEIGHT_PRESETS: dict[str, dict[str, float]] = {
                    "tables_on_topic": 0.10, "reader_answers": 0.25},
     "evidence":   {"density_norm": 0.30, "primary_share": 0.30, "no_contradiction": 0.15,
                    "tables_on_topic": 0.05, "reader_answers": 0.20},
+}
+WEIGHT_PRESETS: dict[str, dict[str, float]] = {
+    name: {k: round(v * (1.0 - CORPUS_SHARE_WEIGHT), 4) for k, v in w.items()}
+    | {"corpus_share": CORPUS_SHARE_WEIGHT}
+    for name, w in _BASE_PRESETS.items()
 }
 for _p in WEIGHT_PRESETS.values():
     _p.setdefault("answered_must", MUST_ANSWER_WEIGHT)
@@ -152,6 +168,29 @@ def _primary_share(result: dict) -> float | None:
     ids = [str(c) for c in cited]
     primary = sum(1 for c in ids if ranks.get(c, 2) <= 1)
     return round(primary / len(ids), 4)
+
+
+def _corpus_share(result: dict) -> float | None:
+    """Anteil der zitierten ids, die Korpus- oder Mess-Eintraege sind (article/
+    signal/paper/patent/measurement) — Scouting-Umbau 2026-09-19: der Bericht
+    soll auf den eigenen Daten stehen, das Web nur ergaenzen."""
+    cited = result.get("cited") or []
+    if not isinstance(cited, list) or not cited:
+        return None
+    kinds: dict[str, str] = {}
+    for s in result.get("sources") or []:
+        if isinstance(s, dict) and s.get("id") is not None:
+            kinds[str(s["id"])] = str(s.get("kind") or "")
+    ids = [str(c) for c in cited]
+    n = sum(1 for c in ids if kinds.get(c, "") in CORPUS_KINDS)
+    return round(n / len(ids), 4)
+
+
+def _maturity_present(structure: dict) -> int | None:
+    """1/0 aus dem Strukturprotokoll (`maturity_present`, seit dem Scouting-
+    Umbau); None fuer aeltere Laeufe ohne den Schluessel."""
+    v = structure.get("maturity_present") if structure else None
+    return None if v is None else (1 if v else 0)
 
 
 def _no_contradiction(reader: dict | None) -> int:
@@ -241,6 +280,8 @@ def components(result: dict | str | None, check: dict | str | None,
         "no_contradiction": _no_contradiction(reader),
         "tables_on_topic": _tables_on_topic(structure),
         "reader_answers": (None if reader_answers is None else (1 if reader_answers else 0)),
+        "corpus_share": _corpus_share(res),
+        "maturity_present": _maturity_present(structure),
         "answered_must": _answered_must(res),
         "cost_minutes": cost_minutes,
         "web_calls": _web_calls(res),
@@ -286,12 +327,15 @@ def utility(comps: dict, weights: dict[str, float] | str | None = None) -> float
 
 def delivery_ready(comps: dict) -> bool:
     """Dritte Ampel: Leser beantwortet ∧ kein Widerspruch ∧ Dichte ≥ Floor ∧
-    Tabellen themenbezogen. Ohne Leser nie."""
+    Tabellen themenbezogen ∧ Reifegrad-Sektion vorhanden (Scouting-Umbau
+    2026-09-19; Laeufe ohne das Protokollfeld sind nie abgabereif). Ohne
+    Leser nie."""
     return bool(
         comps.get("reader_answers") == 1
         and comps.get("no_contradiction") == 1
         and (comps.get("density_norm") or 0.0) >= 1.0
         and comps.get("tables_on_topic") == 1
+        and comps.get("maturity_present") == 1
     )
 
 

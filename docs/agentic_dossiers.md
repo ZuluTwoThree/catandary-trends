@@ -392,6 +392,9 @@ bleibt reproduzierbar. Kein Kritiker-Modell, keine Schreib-Kritik-Schleife.
   Reproduzierbarkeit des alten Pfads.
 - `tests/test_dossier_corpus_stats.py` — Korpus-Zählung: Q0, Jahresreihen im
   Anhang, benannte Grenzen, Teil- und Totalausfall.
+- `tests/test_dossier_corpus_evidence.py` — Scouting-Umbau (Runde 27):
+  Korpus-Evidenz je Ebene/Quartal auf einer SQLite-Fixture, Dünne-Regeln,
+  Gating, Scout-Grundriss, Verdrahtung in `run()`.
 - `tests/test_dossier_decision.py` — die Entscheidungsebene: Pflichtabschnitte,
   Längenobergrenze, 200-Wörter-Kappe, Pflichtfelder je Option, Stabilität der
   Wortzahl über die Kanonisierung; Rechts-Sweep (jedes Muster gesucht und
@@ -2213,3 +2216,193 @@ Lücke, Thompson mit Seed, Dedup Jaccard + Fake-Embedder + Ausfall, Schablone,
 Upsert/Backfill auf SQLite, Artikel-Slicer mit synthetischem Data-Act-Text,
 Marketing-Regel Proxmox Preis vs. FAQ, Leser-Schema, Verdrahtung in `run()`
 mit Fakes). Volle Suite grün.
+
+### Runde 27 (2026-09-19) — Stufe 6: der Scouting-Bericht aus Korpus und Messblock
+
+**Owner-Ziel (19.09.):** „Umbau des Dossiers zum Scouting-Bericht basierend auf
+Daten des Korpus und Messblock. Websuche und Deep Research nur für Bereiche zur
+Ergänzung oder Beleg dessen, was im Korpus dünn ist. Alles mit lokalen Tools,
+keine Cloud-Modelle." Bis Runde 26 war der eigene Korpus für den Schreiber eine
+Suchmaschine (Trefferlisten des Agenten) plus eine Jahreszählung (M3); die
+Ebenen, Akteure und Quellen der letzten acht Quartale kamen nur zufällig in den
+Bericht, und das Web lief für JEDE Lücke — auch für solche, die der Korpus
+längst deckte (datacenter v1–v5: 14 Web-Schritte + vier Sweeps, egal was der
+Korpus hatte).
+
+**1. Korpus-Evidenz (`pipeline/dossier_corpus_evidence.py`).** Dritte
+deterministische Vorstufe in `run()`, direkt nach dem Quant-Vorspann und VOR
+Plan, Agenten und Web. Eingabe: Themenbegriffe (`anchor_terms`, ≤ 4), der
+Auftrag (Pflichtpunkte), `since_months` (24), die Suche des Laufs (Vektor über
+den CPU-Embedder, sonst Volltext) plus ein eigener Durchgang über
+`trends.title_en/summary_en/tags` mit `sources.source_type` per Namen
+(`trends` hat keine `source_type`-Spalte). Ausgabe `CorpusEvidence`:
+
+- `signals_by_tier_quarter` — je Ebene (`pipeline/tiers.tier_of`) und Quartal
+  die rohe Zahl UND der Anteil je 10.000 Signale derselben Ebene im selben
+  Quartal (Normierung wie `emerging.py`: der eigene Ingest-Zuwachs bläht die
+  Reihe nicht auf; unter 500 Signalen je Ebene-Quartal kein Anteil).
+- `actors` aus `trends.brands`/`companies` (Top 12, Zahl, erstes/letztes
+  Auftreten — Untergrenze, Extraktion läuft nur im Artikelpfad), `sources`
+  (Top-Outlets).
+- `representative` (≤ 16): die zwei neuesten je Ebene + die zentrumsnächsten
+  aus der Vektorsuche, jedes als zitierbarer Katalogeintrag `T<id>` (Art
+  article/signal wie `_row_to_source`, `fetched=True`, `why` recent|nearest).
+- `thin_areas`: eine Ebene mit < 5 Signalen in 12 Monaten; ein Pflichtpunkt
+  mit < 2 Korpustreffern (Regex + Vektor); `regulatory` und `calendar` IMMER,
+  es sei denn ≥ 3 Signale vom Typ regulation/decision (oder mit
+  Regulierungs-Wörtern) in 12 Monaten.
+- `rendered_md`: Tabelle Ebene × letzte 8 Quartale, Akteur-/Quellenzeile,
+  repräsentative Liste mit ids, THIN-Zeile — als `CORPUS EVIDENCE (cite by
+  id)` im Berichtsprompt (der Messblock `measured_brief` bleibt daneben) und
+  als gepinnte Notiz im Evidenzblock; `result["corpus_evidence"]` (ohne die
+  Rohzeilen).
+
+**Treffer-Regel (zwei Befunde beim Bauen):** (a) der FTS-Präfix
+`virtualization:*` wird zu `virtualizati:*` und trifft das Lexem `virtual`
+NICHT — 0 statt 50 Zeilen; die Vorauswahl ist jetzt ein OR der gestemmten
+Begriffe ohne Präfix, die UND-Regel über alle Begriffe läuft in Python mit
+einem groben Stamm (`crude_stem`: „virtualization" → „virtual", „datacenters"
+→ „datacent", ein Suffix-Schnitt wie Snowball) über dem normalisierten Text
+(klein, britisch → amerikanisch, trennerfrei — „Data-Centre Virtualisation"
+trifft „datacenter virtualization"). (b) Der FTS-Vektor des Index enthält die
+**Tags**; ohne sie fand die Regel 14 statt 42 Zeilen, weil die Klassifikation
+„data-center"/„virtualization" oft nur als Tag steht — Titel, Teaser und Tags
+sind jetzt in beiden Pfaden die Textbasis. Jede DB-Stufe degradiert einzeln;
+ohne Korpus-Evidenz gilt ALLES als dünn und der Lauf verhält sich wie vor
+Stufe 6.
+
+**Messung (read-only, Live-DB 19.09., Thema „datacenter virtualization",
+Begriffe datacenter + virtualization, 0,6 s):** 31 Signale seit 2024-09 (26 in
+12 Monaten; 42 seit 2020), Ebenen 12 m: science 2, patent 6, funding 0,
+market 17.
+
+| Ebene | 24-Q4 | 25-Q1 | 25-Q2 | 25-Q3 | 25-Q4 | 26-Q1 | 26-Q2 | 26-Q3 |
+|---|---|---|---|---|---|---|---|---|
+| science | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 (0,1/10k) |
+| patent | 2 (17,9/10k) | 0 | 0 | 0 | 0 | 0 | 5 (4,2/10k) | 1 (0,15/10k) |
+| funding | 0 | 0 | 0 | 1 (0,74/10k) | 0 | 0 | 0 | 0 |
+| market | 1 (0,99/10k) | 0 | 0 | 1 (1,09/10k) | 0 | 0 | 12 (3,62/10k) | 5 (1,27/10k) |
+
+Akteure: Broadcom ×1, KRISS ×1, Spectrum ×1 (13 % der Fachpresse-Zeilen tragen
+einen Namen — die Untergrenze aus `docs/emerging_nests_2026-09-15.md` gilt
+hier genauso). Outlets: EPO DOCDB ×6, The Register ×5, heise ×4, Google Patents
+×2, Semiconductor Engineering ×2. Repräsentativ: T1724293, T1695524 (science),
+T1618587, T250212 (patent), T432358 (funding), T1760210, T1134181 (market).
+**Dünn: science, funding, regulatory, calendar** — patent und market sind
+gedeckt; von den drei Pflichtpunkten des Handdurchgangs ist „BSI SYS.1.5"
+dünn (0 Treffer), „Data Act" dünn (1), „Hypervisor-Alternativen nach
+Broadcom" gedeckt. *(Die im Auftrag genannten 92/49 stammen aus einer
+Messung des abgebrochenen Vorlaufs mit unbekannter Regel; mit der jetzigen
+Regel sind es 42 seit 2020 und 17 Markt-Signale in 2026 — die Zahl steht mit
+ihrer Regel im Bericht, nicht die alte.)*
+
+**2. Web nur, wo der Korpus dünn ist (`web_gating`).** Nach Audit und
+Perspektiv-Lücken (die Liste `gaps` ist dann vollständig) entscheidet
+`dossier_corpus_evidence.web_gating`: Pflichtpunkte gehen ans Web nur bei
+< 2 Korpustreffern, Audit-/Plan-/Perspektiv-Lücken nur, wenn < 2 Zeilen des
+Korpus-Durchgangs ihre Begriffe tragen; die Sweeps hängen an den dünnen
+Bereichen (Regulatorik ↔ `regulatory`, Markt ↔ Markt-Ebene, Förderung ↔
+Förder-Ebene, Katalysator ↔ `calendar`; die zweite Welle je Akteur nur, wenn
+Regulatorik oder Markt dünn). Der Web-Planer bekommt nur die Web-Lücken
+(Index bleibt der Ledger-Index), der Prompt nummeriert nur sie, Coverage-
+Sweep und Lese-Auffangnetz laufen nur über sie, der DR-Vorlauf liest nur
+Seiten dieser Lücken (`read_primary_first(only_gaps=)`; Sweep-Treffer ohne
+Lücke laufen mit, die Sweeps selbst sind schon gegated). Budget
+`len(thin) × 4`, mindestens 6, höchstens `web_steps`. Jede Entscheidung steht
+in `result["web_gating"]` (`decisions` je Lücke mit Grund, `sweeps`,
+`web_budget`). Für datacenter (4 dünne Bereiche + 2 dünne Pflichtpunkte):
+Regulatorik-, Förder- und Katalysator-Sweep laufen, der Markt-Sweep nicht;
+Budget 14 → 14 (6 × 4 = 24 gedeckelt).
+
+**3. Scouting-Grundriss (`outline="scout"`, Default für alle Modi; Landschaft
+behält ihre Tabelle).** `_OUTLINE_SCOUT_EN/_DE`, neun Pflichtabschnitte in
+`dossier_structure.OUTLINES["scout"]`: What this is about · **Scout's verdict**
+(drei belegte Aussagen über das FELD: Reifegrad, Bewegung, Zeitlinie; das
+Muster erkennt weiter „Decision summary") · **Maturity and position in the
+cycle** (NEU — nur aus Messblock und Korpus-Ebenenhistorie, muss ≥ 2
+gemessene Größen mit exaktem Wert nennen, `maturity_findings`; zählt wie
+„about" nicht zur Faktenquote; damit hat die Messung eine Sektion, in der sie
+stehen MUSS — der stehende Endkontroll-Befund „gemessen, aber nicht
+verwendet" wird strukturell abgelöst) · **What is moving** (Tabelle `| Date |
+Tier | Actor | Signal | Source |`, ≥ 60 % der belegten Zeilen zitieren
+Korpus-/Mess-ids T…/P…/N…/Q…, `moving_corpus_findings`) · Regulatory and IP
+status · What happens next (der Kalender bleibt eine eigene Sektion — die
+kleinere Änderung: `calendar_rows`, `fill_calendar`, `calendar_findings`,
+`calendar_off_profile` hängen alle am Schlüssel `next`) · **Where the
+evidence is thin** (NEU — je dünnem Bereich ein Punkt, `thin_findings` prüft,
+dass jeder benannt ist; ersetzt „What the evidence does not support" als
+Pflicht, das bleibt parsbar/optional und im Widerspruchs-Gate) · Decision
+points and watch items · Open questions and limits. Schreibreihenfolge
+`SECTION_ORDERS["scout"]`: Reifegrad zuerst, Urteil zuletzt; Direktiven je
+Sektion, `outline_block`/`required_keys`/`optional_keys`/`heading_for`
+je Grundriss, alle drei Strukturprüfungen und `draft_score` tragen
+`outline`, `corpus_ids`, `thin_areas`. Der Berichtsprompt bekommt zusätzlich
+`THIN AREAS — what the corpus lacked, and what the web stage brought`
+(`thin_yield`: je Bereich Anfragen/aufgenommene/gelesene Seiten aus Ledger und
+Sweeps). Alter Grundriss: `params {"outline": "decision"}` oder
+`DOSSIER_OUTLINE=decision`; die Prüfung (`structure_findings`) hat weiter
+„decision" als Default, damit gespeicherte Läufe und alte Tests gelten.
+
+**4. Nutzen.** `corpus_share` (Anteil der zitierten ids, die Korpus-/Mess-
+Einträge sind: article/signal/paper/patent/measurement) mit Gewicht 0,15 in
+jedem Preset, die fünf bisherigen Gewichte auf 0,85 renormiert (Summe der
+sechs 1,0); `maturity_present` (aus `structure`) ist Bedingung der dritten
+Ampel — ein Lauf ohne das Feld (alle 49 vor dem Umbau) ist nie abgabereif.
+
+**5. Desk.** Die Leseansicht zeigt über dem Bericht den Block „Corpus
+evidence": Tabelle Ebene × Quartal (Zahl + Anteil je 10k, 12-Monats-Summe),
+Akteure, Outlets, repräsentative ids, dünne Bereiche und das Gating (Web-
+Lücken, Korpus-only, gelaufene Sweeps, Budget); `lib/dossiers.ts`
+(`parseCorpusEvidence`, `parseWebGating`, `outline`). tsc + vitest (496) grün,
+`/trends/dossiers` auf :3004 → 200.
+
+**6. Werkzeugvorschlag (nur Doku, nichts installiert).**
+- *Lokaler Cross-Encoder-Reranker (bge-reranker-v2-m3, ~570 M Parameter):*
+  ordnet je dünnem Bereich die Web-Treffer nach Relevanz Lücke → Seite, bevor
+  gelesen wird — heute entscheiden Rang + Trefferreihenfolge + Pflichtpunkt-
+  Wörter (`primary_first_score`), und der Handdurchgang zeigte, dass die
+  richtige Seite oft nicht die erste ist. Kosten: ~1,2 GB VRAM (fp16) oder
+  CPU ~0,3 s je Paar; Risiko: ein zweites Modell im Handover-Fenster, bei
+  CPU-Betrieb 20–40 Paare je Lücke = 10 s — tragbar, aber nur wenn er wie der
+  CPU-Embedder als eigener Dienst läuft.
+- *Lokale NER (GLiNER-medium oder spaCy de_core_news_lg + en_core_web_lg):*
+  macht Akteure auf dem Signalpfad zählbar — heute tragen nur 13 % der
+  Fachpresse-Zeilen, 1 % Forschung, 0 % Patente einen Namen, weil die
+  Extraktion nur im Artikelpfad läuft; die Akteur-Zeile der Korpus-Evidenz ist
+  deshalb eine Untergrenze. Kosten: GLiNER ~0,5 GB VRAM oder CPU ~50 ms je
+  Titel+Teaser (Samstagslauf über 20k Zeilen ≈ 17 min CPU); Risiko:
+  Namensvarianten ohne Kanonisierung (Broadcom Inc./Broadcom) — braucht die
+  Entitätshygiene aus Stufe 2 als Nachstufe.
+- *Lokaler Wayback-/Common-Crawl-Client (CDX-API + WARC-Abruf, oder
+  `wayback`-Python-Paket):* holt verschwundene oder umgezogene Primärseiten
+  (Broadcom-KBs, Lifecycle-Seiten) als datierte Kopie — der Dossier-Fetcher
+  meldet heute „Fetch failed" und die Aussage fällt. Kosten: kein Modell,
+  Netz (archive.org ist ratenbegrenzt, ~1 Abruf/s); Risiko: die Kopie ist
+  eine Momentaufnahme mit eigenem Datum, das im Dossier stehen muss, und
+  robots/TDM gelten für das Original — nur Rang-0/1-Hosts, nur als Beleg
+  einer Aussage, die die Seite damals trug.
+- *Außerdem gefunden:* ein lokaler PDF-Tabellen-Extraktor (pdfplumber oder
+  camelot, CPU) für Regulierungs-PDFs mit Anforderungstabellen (BSI SYS.1.5
+  A1–A28 als Tabelle statt Fließtext); und ein lokaler Zitations-Resolver
+  über OpenAlex-Schnappschuss (`research_corpus`), der jedem repräsentativen
+  Paper seine Zitationen im eigenen Korpus anhängt — kein Modell, eine
+  SQL-Kante, macht die Wissenschafts-Ebene der Korpus-Evidenz gewichtet
+  statt gezählt.
+
+**Tests:** `tests/test_dossier_corpus_evidence.py` (31: Textregel mit Stämmen
+und Tags, SQLite-Fixture über Ebenen/Quartale mit 10k-Normierung, Akteure,
+Quellen, repräsentative Katalogeinträge, Nächste aus der Suche, alle drei
+Dünne-Regeln, Rendering, Degradierung; Gating mit Budget-Untergrenze/-Deckel
+und Rückfall; Scout-Grundriss mit Reifegrad-Nadelregel, Korpusanteil der
+Tabelle, Dünne-Sektion, Faktenquote ohne Reifegrad; Verdrahtung in `run()`
+mit Fakes: Sweeps und Web-Lücken nur für dünne Bereiche, Blöcke im Prompt,
+Ergebnisfelder). `test_dossier_utility.py` um `corpus_share` und die
+Reifegrad-Bedingung erweitert; `test_dossier_decision.py` prüft beide
+Grundrisse gegen beide Prompts. Volle Suite grün.
+
+**Offen:** der erste Live-Lauf im Scout-Grundriss (datacenter-Serie, v7) —
+erst er zeigt, ob das 27B die Reifegrad-Sektion aus Messblock + Tabelle
+schreibt und ob ≥ 60 % Korpus-Zeilen in der Bewegungs-Tabelle mit 7
+repräsentativen Signalen erreichbar sind (sonst muss `REPRESENTATIVE_MAX`
+oder `RECENT_PER_TIER` steigen); die Akteur-Zeile bleibt eine Untergrenze,
+bis NER auf dem Signalpfad läuft.

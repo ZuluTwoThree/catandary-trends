@@ -45,6 +45,43 @@ BODY_WORDS_MIN = 1800
 BODY_WORDS_MAX = 2400
 # Optionen liegen seit 2026-09-14 beim Advisor (kundenspezifisch, mit Freigabe).
 OPTIONAL_SECTIONS = frozenset({"options"})
+
+# Grundrisse (Scouting-Umbau, Owner 2026-09-19). "decision" = der Entscheidungs-
+# grundriss seit 2026-09-07 (Default der Pruefung, damit gespeicherte Laeufe
+# und alte Tests unveraendert gelten); "scout" = der Scouting-Bericht aus
+# Korpus + Messblock: Reifegrad und duenne Bereiche sind Pflicht, „does not
+# support" wird optional. `params {"outline": "decision"}` waehlt den alten.
+OUTLINES: dict[str, tuple[str, ...]] = {
+    "decision": ("about", "decision", "moving", "regip", "next", "unsupported", "watch", "open"),
+    "scout": ("about", "decision", "maturity", "moving", "regip", "next", "thin", "watch", "open"),
+}
+DEFAULT_OUTLINE = "decision"          # Pruefung/alte Aufrufer
+SCOUT_HEADINGS = {                    # abweichende Ueberschriften des Scout-Grundrisses
+    "en": {"decision": "Scout's verdict"},
+    "de": {"decision": "Urteil des Scouts"},
+}
+MATURITY_NEEDLES_MIN = 2              # gemessene Groessen, die der Reifegrad nennen muss
+MOVING_CORPUS_SHARE_MIN = 0.6         # Anteil der Bewegungs-Zeilen mit Korpus-/Mess-Beleg
+
+
+def outline_key(outline: str | None) -> str:
+    return outline if outline in OUTLINES else DEFAULT_OUTLINE
+
+
+def required_keys(outline: str | None = None) -> tuple[str, ...]:
+    return OUTLINES[outline_key(outline)]
+
+
+def optional_keys(outline: str | None = None, lang: str = "en") -> frozenset:
+    req = set(required_keys(outline))
+    return frozenset(k for k, _h, _p in SECTIONS[_lang(lang)] if k not in req)
+
+
+def heading_for(key: str, lang: str = "en", outline: str | None = None) -> str:
+    L = _lang(lang)
+    if outline_key(outline) == "scout" and key in SCOUT_HEADINGS[L]:
+        return SCOUT_HEADINGS[L][key]
+    return dict((k, h) for k, h, _p in SECTIONS[L])[key]
 ABOUT_WORDS_MIN = 60           # "What this is about": Hintergrund fuer Fachfremde
 ABOUT_WORDS_MAX = 220
 WATCH_MIN_ITEMS = 3
@@ -153,12 +190,21 @@ SECTIONS: dict[str, list[tuple[str, str, str]]] = {
         # keine Belegpflicht — dafuer keine Zahlen und keine Daten (die gehoeren
         # in die belegten Abschnitte) und ein Wortband.
         ("about", "What this is about", r"what (this|it) is about|about the topic|^background"),
-        ("decision", "Decision summary", r"decision summary|decision brief"),
+        ("decision", "Decision summary", r"decision summary|decision brief|scout'?s verdict|^verdict"),
+        # Scouting-Umbau (Owner 2026-09-19): Reifegrad NUR aus Messblock und
+        # Korpus-Ebenenhistorie — die einzige Sektion, die gemessene Groessen
+        # verwenden MUSS (>= 2 Nadeln).
+        ("maturity", "Maturity and position in the cycle",
+         r"maturity|position in the cycle|reifegrad"),
         ("moving", "What is moving", r"what is moving|what is actually moving"),
         ("regip", "Regulatory and IP status",
          r"(regulator\w*|legal)[^\n]{0,20}(and|/|&)[^\n]{0,20}ip|ip[^\n]{0,20}(and|/|&)[^\n]{0,20}regulator"),
         ("next", "What happens next",
          r"what happens next|what comes next|catalyst calendar|dated catalysts"),
+        # Scouting-Umbau: die duennen Bereiche des Korpus und was das Web dazu
+        # brachte — im Scout-Grundriss Pflicht, „does not support" dort optional.
+        ("thin", "Where the evidence is thin",
+         r"evidence is thin|where .*thin|thin evidence|duenn|dünn"),
         ("unsupported", "What the evidence does not support",
          r"evidence does not support|does not support"),
         ("watch", "Decision points and watch items",
@@ -171,11 +217,13 @@ SECTIONS: dict[str, list[tuple[str, str, str]]] = {
     ],
     "de": [
         ("about", "Worum es geht", r"worum es geht|^hintergrund"),
-        ("decision", "Entscheidungs-Kurzfassung", r"entscheidungs"),
+        ("decision", "Entscheidungs-Kurzfassung", r"entscheidungs|urteil des scouts|scout-urteil"),
+        ("maturity", "Reifegrad und Position im Zyklus", r"reifegrad|position im zyklus"),
         ("moving", "Was sich bewegt", r"was sich bewegt"),
         ("regip", "Recht und Schutzrechte", r"recht und schutzrechte|rechts?[- ]"),
         ("next", "Was als Nächstes ansteht",
          r"was als n(ä|ae)chstes|terminkalender|anstehende termine"),
+        ("thin", "Wo die Belege dünn sind", r"belege d(ü|ue)nn|d(ü|ue)nn sind"),
         ("unsupported", "Was die Belege nicht hergeben",
          r"nicht hergeben|nicht belegt|nicht tragen"),
         ("watch", "Entscheidungspunkte und Beobachtungsliste",
@@ -211,14 +259,11 @@ def _lang(lang: str) -> str:
     return "de" if lang == "de" else "en"
 
 
-def outline_block(lang: str = "en") -> str:
+def outline_block(lang: str = "en", outline: str | None = None) -> str:
     """Die Gliederung als Prompt-Baustein — wortgleich zu dem, was geprueft wird."""
     L = _lang(lang)
-    if L == "de":
-        return "\n".join(f"{i}. ## {h}" for i, (_, h, _) in
-                         enumerate(SECTIONS["de"], 1))
-    return "\n".join(f"{i}. ## {h}" for i, (_, h, _) in
-                     enumerate(SECTIONS["en"], 1))
+    return "\n".join(f"{i}. ## {heading_for(k, L, outline)}"
+                     for i, k in enumerate(required_keys(outline), 1))
 
 
 def body_text(report_md: str) -> str:
@@ -1778,6 +1823,9 @@ def fact_density(report_md: str, sources: list[dict] | None = None,
     # er zaehlt weder Woerter noch Fakten zur Quote, sonst druecken 150 Woerter
     # Erklaerung die Quote jedes Dossiers um ~7 %.
     body = _without_section(body, "about", _lang(lang))
+    # Der Reifegrad (Scout-Grundriss) traegt nur gemessene Groessen — die
+    # tragen per Regel KEIN Zitat und koennen die Quote nur druecken.
+    body = _without_section(body, "maturity", _lang(lang))
     words = count_words(body)
     dated = primary = specifics = 0
     for raw in split_claims(body):
@@ -1995,6 +2043,98 @@ def about_findings(about: str, lang: str = "en", topic_terms=()) -> list[str]:
     return out
 
 
+def _distinct_measured(measured: list[str]) -> dict[str, list[str]]:
+    """Nadelformen derselben Groesse ("10,605"/"10605") zu einem Wert buendeln."""
+    out: dict[str, list[str]] = {}
+    for n in measured or ():
+        key = str(n).replace(",", "").strip().lower()
+        out.setdefault(key, []).append(str(n))
+    return out
+
+
+def maturity_findings(section: str, measured: list[str], lang: str = "en") -> list[str]:
+    """Scout-Grundriss: „Maturity and position in the cycle" entsteht NUR aus
+    Messblock und Korpus-Ebenenhistorie und muss deshalb mindestens
+    MATURITY_NEEDLES_MIN verschiedene gemessene Groessen nennen (weniger, wenn
+    weniger gemessen wurde). Das loest den stehenden Endkontroll-Befund
+    „gemessen, aber nicht verwendet" strukturell ab: die Messung hat eine
+    Sektion, in der sie stehen MUSS."""
+    L = _lang(lang)
+    groups = _distinct_measured(measured)
+    need = min(MATURITY_NEEDLES_MIN, len(groups))
+    if need == 0:
+        return []
+    used = [k for k, forms in groups.items() if any(_needle_hit(section, f) for f in forms)]
+    if len(used) >= need:
+        return []
+    shown = ", ".join(sorted(groups)[:6])
+    heading = heading_for("maturity", L)
+    return [(f"'{heading}': nur {len(used)} von mindestens {need} gemessenen Groessen "
+             f"verwendet (verwendbar: {shown}). Der Reifegrad entsteht aus dem Messblock und "
+             f"der Korpus-Ebenenhistorie — Take-off, Zykluszeit, Patentzahl, Signale je Ebene "
+             f"und Quartal — mit den exakten Werten; ohne sie ist die Einordnung eine Meinung.")]
+
+
+def moving_corpus_findings(section: str, corpus_ids, lang: str = "en") -> list[str]:
+    """Scout-Grundriss: die Tabelle unter „What is moving" ist korpus-zuerst —
+    mindestens MOVING_CORPUS_SHARE_MIN der belegten Zeilen zitieren einen
+    Korpus-/Mess-Eintrag (T…/P…/N…/Q…); Web-Zeilen nur fuer duenne Bereiche."""
+    L = _lang(lang)
+    ids = {str(x) for x in (corpus_ids or ())}
+    rows = [cells for cells in table_rows(section) if _has_citation(" ".join(cells))]
+    if not rows:
+        return []
+    corpus_rows = sum(1 for cells in rows if _citation_keys(" ".join(cells)) & ids)
+    share = corpus_rows / len(rows)
+    if share >= MOVING_CORPUS_SHARE_MIN:
+        return []
+    heading = heading_for("moving", L)
+    return [(f"'{heading}': nur {corpus_rows} von {len(rows)} belegten Tabellenzeilen "
+             f"({share:.0%}) zitieren einen Korpus- oder Mess-Eintrag — mindestens "
+             f"{MOVING_CORPUS_SHARE_MIN:.0%} muessen es sein. Die Tabelle ist korpus-zuerst: "
+             f"Zeilen aus den REPRAESENTATIVEN SIGNALEN und dem Katalog des Korpus (ids T…, P…, "
+             f"N…, Q…) zuerst; Web-Zeilen nur dort, wo der Korpus duenn ist.")]
+
+
+_THIN_STOP = frozenset("""which what does apply applies after that this with from exist exists
+their there they them than then when where whose should would could must need needs about into
+over under between still also been being have were will""".split())
+
+
+def thin_findings(section: str, thin_areas: list[dict], lang: str = "en") -> list[str]:
+    """Scout-Grundriss: „Where the evidence is thin" muss jeden duennen Bereich
+    benennen — Ebenen und feste Bereiche per Wort, Pflichtpunkte ueber ihre
+    Begriffe."""
+    L = _lang(lang)
+    if not thin_areas:
+        return []
+    low = (section or "").lower()
+    missing: list[str] = []
+    for t in thin_areas:
+        area = str(t.get("area") or "")
+        if t.get("kind") == "must":
+            terms = [w for w in re.findall(r"[a-z][a-z0-9]{3,}", area.lower())
+                     if w not in _THIN_STOP][:6]
+            hits = sum(1 for w in terms if w in low)
+            need = 1 if len(terms) <= 2 else 2
+            if terms and hits < need:
+                missing.append(area[:60])
+        else:
+            words = {"science": ("science", "wissenschaft", "research", "forschung"),
+                     "patent": ("patent",), "funding": ("funding", "foerder", "förder", "grant"),
+                     "market": ("market", "markt"), "regulatory": ("regulat", "recht", "legal"),
+                     "calendar": ("calendar", "kalender", "dated", "termin", "timeline")}.get(area, (area,))
+            if not any(w in low for w in words):
+                missing.append(area)
+    if not missing:
+        return []
+    heading = heading_for("thin", L)
+    return [(f"'{heading}': {len(missing)} duenne(r) Bereich(e) nicht benannt — "
+             + "; ".join(missing)
+             + ". Je duennem Bereich ein Punkt: was der Korpus hatte, was das Web dazu brachte "
+               "(mit Zitat) oder dass es nichts brachte.")]
+
+
 def structure_findings(report_md: str, lang: str = "en",
                        measured: list[str] | None = None,
                        sectors: list[str] | None = None,
@@ -2004,8 +2144,18 @@ def structure_findings(report_md: str, lang: str = "en",
                        landscape_items: list[str] | None = None,
                        actor_min: int | None = None,
                        watch_min: int | None = None,
-                       today: date | None = None) -> list[str]:
+                       today: date | None = None,
+                       outline: str | None = None,
+                       corpus_ids=None,
+                       thin_areas: list[dict] | None = None) -> list[str]:
     """Was am fertigen Bericht mechanisch nicht stimmt. Leere Liste = sauber.
+
+    `outline` (Scouting-Umbau, 2026-09-19): "decision" (Default) oder "scout";
+    bestimmt die Pflichtabschnitte. Im Scout-Grundriss zusaetzlich: der
+    Reifegrad muss >= MATURITY_NEEDLES_MIN gemessene Groessen nennen
+    (`measured`), die Bewegungs-Tabelle muss zu >= MOVING_CORPUS_SHARE_MIN aus
+    Korpus-/Mess-Belegen bestehen (`corpus_ids`), und „Where the evidence is
+    thin" muss jeden duennen Bereich (`thin_areas`) benennen.
 
     `actor_min` / `watch_min` (Stufe 4, 2026-09-19): Sollwerte aus dem
     Material (s. `actor_min_from_material`, `watch_min_from_material`); ohne
@@ -2037,10 +2187,17 @@ def structure_findings(report_md: str, lang: str = "en",
             f"(Zielband {BODY_WORDS_MIN}-{BODY_WORDS_MAX}), ohne einen "
             f"Pflichtabschnitt oder einen Beleg zu verlieren.")
     sections = split_sections(body, L)
-    for key, heading, _pat in SECTIONS[L]:
-        if key not in sections and key not in OPTIONAL_SECTIONS:
-            findings.append(f"Pflichtabschnitt fehlt: '## {heading}'.")
+    for key in required_keys(outline):
+        if key not in sections:
+            findings.append(f"Pflichtabschnitt fehlt: '## {heading_for(key, L, outline)}'.")
     headings = {k: h for k, h, _p in SECTIONS[L]}
+    if outline_key(outline) == "scout":
+        if "maturity" in sections:
+            findings += maturity_findings(sections["maturity"], measured or [], L)
+        if "moving" in sections and corpus_ids is not None:
+            findings += moving_corpus_findings(sections["moving"], corpus_ids, L)
+        if "thin" in sections:
+            findings += thin_findings(sections["thin"], thin_areas or [], L)
     summary = sections.get("decision", "")
     if summary and count_words(summary) > SUMMARY_WORDS_MAX:
         findings.append(
@@ -3934,7 +4091,7 @@ _NEGATION_RE = re.compile(
     r"\b(?:not|no|never|fails?|failed|unsupported|cannot|can't|lacks?|lacking|"
     r"insufficient|neither|nor|without|nicht|kein(?:e|en|er|es)?|fehlt|fehlen|"
     r"weder|ungestützt|unbelegt)\b", re.IGNORECASE)
-CONTRADICTION_SECTIONS = ("unsupported", "watch")
+CONTRADICTION_SECTIONS = ("unsupported", "thin", "watch")
 # Nur URTEILE koennen sich widersprechen: die Kurzfassung wertet ("leading
 # candidate", "should", "viable", "only"), und der andere Abschnitt verneint
 # ein Urteil ("no authority validates it as the superior platform", "a

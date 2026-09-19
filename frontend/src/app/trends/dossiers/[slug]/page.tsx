@@ -10,6 +10,8 @@ import {
   listVersions,
   type DossierProvenance,
   type DossierLedgerRow,
+  type DossierCorpusEvidence,
+  type DossierWebGating,
 } from "@/lib/dossiers";
 import { approveAction, createAdvisoryAction, rerunSeriesAction, runAdvisoryAction } from "../actions";
 import { listAdvisoryNotes, PROFILE_FIELDS } from "@/lib/advisory";
@@ -98,6 +100,91 @@ function Provenance({ p, question, model }: { p: DossierProvenance; question: st
           {p.scope ?? "—"} · {fmtDuration(p.seconds)} · report {p.lang ?? "en"} · strictly local
         </dd>
       </dl>
+    </section>
+  );
+}
+
+/**
+ * Corpus evidence (scouting rebuild, 2026-09-19): what OUR corpus holds on the
+ * topic per tier and quarter, who moves in it and which outlets carry it —
+ * rendered above the report, because the report is built from this block
+ * first and the web only filled the areas listed as thin.
+ */
+function CorpusEvidence({ ev, gating }: { ev: DossierCorpusEvidence; gating: DossierWebGating | null }) {
+  const label = "font-mono text-[10px] uppercase tracking-[0.14em] text-muted";
+  return (
+    <section className="mt-6 border border-border bg-card px-5 py-4">
+      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+        Corpus evidence · signals matching all of {ev.terms.join(", ") || "—"} since {ev.since || "—"}
+        <span className="text-paper"> · {ev.nSignals.toLocaleString("en-US")}</span>
+        <span> ({ev.nSignals12m.toLocaleString("en-US")} in 12 months)</span>
+      </p>
+      {ev.ok ? (
+        <>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full border-collapse text-left text-[12px] leading-[1.5]">
+              <thead>
+                <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                  <th className="py-1 pr-3 font-normal">Tier</th>
+                  {ev.quarters.map((q) => (
+                    <th key={q} className="px-2 py-1 font-normal">{q}</th>
+                  ))}
+                  <th className="px-2 py-1 font-normal">12 m</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ev.tiers.map((t) => (
+                  <tr key={t.tier} className="border-b border-border last:border-b-0">
+                    <td className="py-1 pr-3 font-mono text-[11px] text-paper">{t.tier}</td>
+                    {t.cells.map((c, i) => (
+                      <td key={i} className="px-2 py-1 font-mono text-[11px] text-text" title="count (share per 10,000 of this tier in that quarter)">
+                        {c.n}
+                        <span className="text-muted">{c.per10k === null ? " (—)" : ` (${c.per10k}/10k)`}</span>
+                      </td>
+                    ))}
+                    <td className="px-2 py-1 font-mono text-[11px] text-paper">{t.total12m}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <dl className="mt-3 grid gap-x-6 gap-y-2 text-[13px] leading-[1.6] md:grid-cols-[max-content_1fr]">
+            <dt className={label}>Actors</dt>
+            <dd className="text-text">
+              {ev.actors.length > 0
+                ? ev.actors.map((a) => `${a.name} ×${a.n}`).join(" · ")
+                : "none extracted on these signals (extraction runs only on the article path)"}
+            </dd>
+            <dt className={label}>Outlets</dt>
+            <dd className="text-text">{ev.sources.length > 0 ? ev.sources.map((s) => `${s.name} ×${s.n}`).join(" · ") : "—"}</dd>
+            <dt className={label}>Representative</dt>
+            <dd className="text-muted">
+              {ev.representative.length > 0
+                ? ev.representative.map((r) => `${r.id} · ${r.tier ?? "?"} · ${r.date || "—"}`).join(" · ")
+                : "none"}
+              {ev.regulatory12m > 0 && ` — ${ev.regulatory12m} regulation/decision signal(s) in 12 months`}
+            </dd>
+            <dt className={label}>Thin</dt>
+            <dd className="text-text">
+              {ev.thinAreas.length > 0
+                ? ev.thinAreas.map((t) => (t.kind === "must" ? t.area.slice(0, 60) : t.area)).join(" · ")
+                : "nothing — no web research was needed"}
+              {gating && (
+                <span className="text-muted">
+                  {" "}
+                  — web: {gating.webGaps} gap(s), {gating.corpusOnlyGaps} corpus-only, sweeps{" "}
+                  {gating.sweeps.filter((s) => s.ran).map((s) => s.name).join("/") || "none"}, budget{" "}
+                  {gating.webBudget}/{gating.webSteps}
+                </span>
+              )}
+            </dd>
+          </dl>
+        </>
+      ) : (
+        <p className="mt-2 font-sans text-[13px] text-muted">
+          not measured{ev.reason ? ` (${ev.reason})` : ""} — every area counted as thin, the web stage ran as before the rebuild
+        </p>
+      )}
     </section>
   );
 }
@@ -279,6 +366,8 @@ export default async function DossierPage({
       </header>
 
       <Provenance p={doc.provenance} question={doc.question} model={doc.model} />
+
+      {doc.corpusEvidence && <CorpusEvidence ev={doc.corpusEvidence} gating={doc.webGating} />}
 
       {check && (
         <aside className="mt-6 border border-border p-4">
