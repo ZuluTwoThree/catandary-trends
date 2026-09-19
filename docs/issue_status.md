@@ -140,6 +140,15 @@
 > - Desk-Aufträge halten seither am Checkpoint (`params {"checkpoint": true}`); CLI `--order-new` und der
 >   Newsletter-Deep-Dive laufen ohne Halt; `DOSSIER_CHECKPOINT=0` erzwingt aus.
 
+> **Nachtrag 19.09.2026 — Stufe 2 des Dossier-Agent-Plans (Profilbeschaffung + Primärquellen je Feld, Runde 25)** (`docs/agentic_dossiers.md`):
+> - `scripts/migrate_dossier_source_priors.py --backfill` auf der Live-DB ausgeführt (additiv, idempotent):
+>   Tabelle `dossier_source_priors` (PK (field, host): n_read, n_cited, n_dropped, rank_seen, updated_at) —
+>   wie die anderen Dossier-Tabellen **nicht in `init_db`**; auf einer frischen DB von Hand nachziehen. Ohne
+>   Tabelle liest und schreibt der Lauf nichts (Warnung im Log, Lauf endet normal).
+> - Backfill über 49 gespeicherte Läufe: 12 Felder (alte Läufe ohne Profil unter ihrem Thema), 916 Hosts,
+>   84 Rang-1-Kandidaten (n_cited ≥ 2, n_dropped = 0, n_read ≥ 1). `--backfill` rechnet die Tabelle NEU
+>   (löscht vorher); der Worker addiert seither je Lauf.
+
 Vollständiges Audit aller offenen Issues in der Nacht 2026-08-28 (Referenz `main` = `a6455bf`).
 Jede Aussage gegen Code, DB, crontab und die laufende Instanz (:3001) geprüft.
 **Ergebnis: 14 geschlossen, 1 neu (#94) → Backlog 36 → 23 offen.**

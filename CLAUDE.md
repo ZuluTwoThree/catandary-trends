@@ -1614,6 +1614,27 @@ Kern-Kontrakt (Owner 2026-09-01, Frontend-Integration 2026-09-03):
   (`must_answer_scores`, Zitat muss wörtlich und zitiert im Text stehen) → `answered_must` in der
   Nutzenfunktion, Preset nach Fragetyp. Migration `scripts/migrate_dossier_brief.py` (Live-DB
   19.09.: `brief_json/plan_json/profile_json/confirmed_at/owner_note`, CHECK um den Status erweitert).
+- **Beschaffung aus dem Profil, Primärquellen je Feld (Stufe 2 des Dossier-Agent-Plans, seit
+  2026-09-19, Runde 25):** das Feldprofil trägt **Quellklassen** (`TopicProfile.source_classes`:
+  Register/Aufsicht/Gericht/Norm/Hersteller-Doku/CVE-Datenbank/Statistik/Börsenpflicht/Journal/
+  Presse, mit Hosts) und **führt die Sweeps**: Recht/Markt/Förderung/Kalender entstehen nur aus dem
+  themenneutralen Kern + Profil (Regulatoren, Ereignistypen, Akteurtypen); das Rückgrat der Vertikale
+  (`VERTICAL_SETS`, Quelle der AI-Act-/CE-Zeilen im Virtualisierungs-Dossier) und die festen Listen
+  (SPC/EMA/Erstattung/Horizon) sind nur noch Rückfall je Feld (< 2 brauchbare Regulatoren, < 2 echte
+  Ereignisse, kein Profil; `fallback`-Schlüssel im Log). Profil-Instrumente werden vor dem Sweep gegen
+  den Korpus gezählt (Reihenfolge, nie Streichung), 0/0-Instrumente im Ledger vermerkt. **Rang nach
+  Feld:** Doku-/Normen-Hosts (`is_doc_host`: learn.microsoft.com, knowledge.broadcom.com,
+  pve.proxmox.com, docs.*, *.readthedocs.io, iso/etsi/cve …) Rang 1; Profil-Hosts Rang 1 je Lauf
+  (`set_run_primary_hosts`); Tabelle **`dossier_source_priors`** (`pipeline/dossier_priors.py`,
+  `scripts/migrate_dossier_source_priors.py [--backfill]`, additiv, Live-DB 19.09., nicht in
+  `init_db`): je (Feld, Host) gelesen/zitiert/gestrichen, am Laufende fortgeschrieben (nie sperrend),
+  Rang 1 beim nächsten Lauf im Feld bei n_cited ≥ 2 ∧ n_dropped = 0 ∧ n_read ≥ 1; Backfill 49 Läufe →
+  12 Felder, 916 Hosts, 84 Rang-1-Kandidaten; `python -m pipeline.dossier_priors --show [--field F]`.
+  **Entitätshygiene** (`sweep_entities`: Satzanfangs-Stopliste, Kleinschreibungs-Regel, ≥ 2
+  Katalogeinträge oder Profil-Saat, typisiert, gedeckelt — „However/General/Security" werden nie
+  Sweep-Akteure), **Primärquellen-Vorlauf nach Nutzen** (Rang × Profil-/Erfahrungs-Host ×
+  Pflichtpunkt-Bezug, Budget unverändert), Vermerk `structure["calendar_off_profile"]`. Abnahme
+  „Primäranteil ≥ 60 %" braucht den nächsten Live-Lauf.
 - **Zugriff:** lokal standardmäßig AN (`DOSSIERS_ENABLED=0` = Not-Aus);
   `PUBLIC_MODE=1` blockt die Route (`BLOCKED_PREFIXES` + `proxy.ts`), der
   statische Export baut sie nie (`frontend/static-export.exclude`, Drift-Wächter

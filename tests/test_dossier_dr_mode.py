@@ -1291,10 +1291,26 @@ class TestR14VerticalBackbone:
         assert "gigafactory commissioning expected 2027" in cat
         assert "CES decision" in reg          # Profil ergaenzt, ersetzt nicht
 
-    def test_a_health_topic_gets_the_pharma_backbone(self):
+    def test_a_complete_profile_beats_the_vertical_backbone(self):
+        """Stufe 2 (2026-09-19): das Profil fuehrt. Ein vollstaendiges
+        Batterie-Profil unter einer HEALTH-Zuordnung bringt KEINE
+        EMA-/Phase-3-Anfragen mehr — vorher ergaenzte das Rueckgrat immer
+        (datacenter v1-v5: AI Act, CE marking, SPC in einem
+        Virtualisierungs-Dossier)."""
         pq = cr.profile_queries(_profile(), "GLP-1 incretin", [], vertical="HEALTH")
+        assert not any("EMA CHMP opinion" in q for q in pq["regulatory"])
+        assert not any("phase 3 readout" in q for q in pq["catalyst"])
+        assert any("EU Battery Regulation decision" in q for q in pq["regulatory"])
+        assert pq["fallback"] == ()
+
+    def test_a_thin_profile_still_gets_the_backbone(self):
+        prof = _profile()
+        prof.regulators = ["EMA"]                       # < PROFILE_MIN_REGULATORS
+        prof.event_types = ["investment"]               # nichts Brauchbares
+        pq = cr.profile_queries(prof, "GLP-1 incretin", [], vertical="HEALTH")
         assert any("EMA CHMP opinion" in q for q in pq["regulatory"])
         assert any("phase 3 readout" in q for q in pq["catalyst"])
+        assert set(pq["fallback"]) == {"regulators", "events"}
 
 
 def test_an_event_type_must_name_an_event():

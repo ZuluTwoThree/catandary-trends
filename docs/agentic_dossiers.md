@@ -1941,3 +1941,127 @@ Parameter/Env; Abweisung ohne Modellaufruf; Preset), `test_dossier_utility.py`
 (`answered_must`), Vitest `dossierIntake.test.ts`; volle Suite 1.918 passed.
 Erster Live-Lauf mit Intake steht aus (datacenter v5 lief noch mit dem Code
 von Runde 23).
+
+### Runde 25 (2026-09-19) — Stufe 2: Beschaffung aus dem Profil, Primärquellen je Feld
+
+Plan `docs/plan_dossier_agent_2026-09-18.md`, Stufe 2 — die Punkte 3 und 4
+aus Runde 21. Messung an den fünf `datacenter-virtualization`-Versionen: AI
+Act, CE marking, SPC, Erstattung und Abwärme standen im Kalender und in der
+Regulatorik, obwohl das Feld Virtualisierung ist; Primäranteil der zitierten
+Quellen 29–62 % (Ziel ≥ 60 %); das v5-Log (00:47) baute Katalysator-Anfragen
+aus Pseudo-Entitäten — `However expected date decision 2027`, `General
+product launch date`, `Security next milestone timeline` — großgeschriebene
+Satzanfänge als Akteure, jeder mit jedem Muster multipliziert (6 Treffer, 0
+aufgenommen). Vier Ursachen, vier Bauteile:
+
+**1. Das Profil führt die Sweeps (`profile_queries`).** Mit Profil bestehen
+Recht, Markt, Förderung und Kalender nur noch aus dem themenneutralen Kern
+(`REG_CORE`, `MKT_CORE`, neu `FUND_CORE`, `CATALYST_PATTERNS`, `ENT_*_CORE`)
+plus dem, was das Profil nennt: Regulatoren/Instrumente (Kurzform, ohne
+Verweigerungen), Ereignistypen (nur solche mit Ereigniswort — „end of
+support" zählt jetzt, `_EVENT_NOUNS` um end/sunset/eol/renewal/audit
+erweitert), Akteurtypen (Markt: `{t} {Akteur} adoption demand pricing`,
+Förderung: `{t} {Akteur} funding round raised`). Das Rückgrat der Vertikale
+(`VERTICAL_SETS` — die Quelle der AI-Act-/CE-Zeilen im TECH-Feld) und die
+festen Listen (`REGULATORY_PATTERNS` mit SPC/EMA, `MARKET_PATTERNS` mit
+Erstattung, `FUNDING_PATTERNS` mit Horizon/EIC) sind nur noch **Rückfall, je
+Feld einzeln:** Regulatoren, wenn das Profil < 2 brauchbare nennt;
+Ereignisse, wenn < 2 echte; Förderung nur ohne Profil; ohne Profil und
+Vertikale der alte Pfad. Der Schlüssel `fallback` sagt, welche Felder
+zurückgefallen sind (Log: „profile queries: backbone/fixed fallback for …").
+Vor dem Sweep zählt `count_instruments` jedes Instrument/Ereignis gegen den
+Korpus (Volltextsuche, 5 Treffer), das Log nennt die Zahlen, die Reihenfolge
+der Sweeps folgt ihnen (Budgets werden der Reihe nach vergeben) — **nichts
+wird deshalb gestrichen**: der Korpus ist presselastig, ein
+Register-Instrument fehlt dort oft und ist trotzdem richtig. Nach den Sweeps
+vermerkt `mark_unseen_instruments` Instrumente mit 0 Korpus- **und** 0
+Web-Treffern im Ledger (`instrument_unseen`) und in den Notizen
+(„INSTRUMENT CHECK — … do not cite them as facts"), `result["instrument_
+counts"]`/`["instrument_unseen"]`. Der Prompt (`PROFILE_SYSTEM`) sagt dem
+Modell jetzt ausdrücklich, dass nur Genanntes gesucht wird und Nachbarfelder
+nicht auffüllen dürfen; Prompt-Katalog liest ihn live.
+
+**2. Quellklassen im Profil (`TopicProfile.source_classes`).** Neues Feld:
+3–6 `SourceClass` (`kind` ∈ register | agency | court | standards_body |
+vendor_documentation | vulnerability_database | statistics_office |
+exchange_filing | journal | trade_press | other, `name`, `hosts`, `why`).
+Default leer, damit vor Stufe 2 gespeicherte `profile_json` weiter
+validieren; der Modellaufruf verlangt das Feld. Die Hosts werden je Lauf zu
+**Rang 1** (`set_run_primary_hosts`, modulweit, weil `source_rank()` an ~15
+Stellen ohne Kontext läuft; `run()` setzt die Menge beim Start und am Ende
+zurück; `extra_primary=` für einen Einzelaufruf). Desk-Checkpoint zeigt die
+Klassen („Source classes (rank 1 for this run)").
+
+**3. Rang nach Feld.** (a) Generische Dokumentations-/Normen-Hostklasse →
+Rang 1 (`is_doc_host`: `learn.microsoft.com`, `knowledge.broadcom.com`,
+`pve.proxmox.com`, `iso.org`, `etsi.org`, `cve.org`, `docs.*`/`developer.*`/
+`support.*`/`kb.*`/`help.*` mit Subdomain, `*.readthedocs.io` …; Rangfilter
+greift vorher, `support.fandom.com` bleibt 3; `nvd.nist.gov` ist als .gov
+schon 0). (b) **Erfahrungsbasis `dossier_source_priors`** (PK (field, host):
+n_read, n_cited, n_dropped, rank_seen, updated_at; `pipeline/dossier_priors.py`,
+Migration `scripts/migrate_dossier_source_priors.py`, **auf der Live-DB am
+19.09. ausgeführt**): am Ende jedes Laufs zählt `update_from_run` je Host
+gelesen (Web-Arten mit `fetched`), zitiert (`cited`-IDs) und gestrichen
+(`structure.cite_findings_after` ohne weaksource/weakclaim — die werden
+gekennzeichnet, nicht gestrichen); Feld = `profile.field` normalisiert,
+sonst Themenphrase; **nie sperrend**. Beim Start bekommt ein Host desselben
+Felds Rang 1, wenn **n_cited ≥ 2, n_dropped = 0 und n_read ≥ 1** — der
+Lesevorbehalt kam aus dem Backfill: ohne ihn wäre `theregister.com` (0×
+gelesen, 7× als Original unserer Korpus-Artikel zitiert) für Virtualisierung
+„Erfahrung" geworden, also Presse als Primärquelle. Backfill über die 49
+gespeicherten Läufe (`--backfill`, rechnet die Tabelle NEU): 12 Felder
+(alte Läufe ohne Profil laufen unter ihrem Thema — die LFP-Serie steht
+deshalb zweimal), **916 Hosts, 84 Rang-1-Kandidaten** (112 ohne
+Lesevorbehalt); datacenter virtualization: 162 Hosts, 5 Rang 1
+(eic.ec.europa.eu, gdpr-text.com, lw.com, massivegrid.com, moduledge.com);
+GLP-1: 194 Hosts, 25; LFP: 121/20; quantum: 88/8. Ehrlich dazu: die Regel
+lernt auch Hosting-Anbieter-Blogs (massivegrid, moduledge) als „bewährt",
+weil zweimal zitiert und nie gestrichen — sie ist Erfahrung, kein
+Rangurteil, und der Abruf prüft jede Seite wie zuvor.
+`python -m pipeline.dossier_priors --show [--field F]` zeigt die Tabelle,
+`*` markiert die Rang-1-Kandidaten.
+
+**4. Entitätshygiene vor jedem Akteur-Sweep.** `_ENTITY_STOP` um
+satzanfängliche Füllwörter (however, furthermore, according, meanwhile,
+overall, therefore …) und `_ENTITY_STOP_SOLO` um generische Einzelwörter
+(general, security, data, cloud, storage, platform, licensing …) erweitert;
+neue Regel in `harvest_entities`: ein Einzelwort, das im Katalog auch klein
+geschrieben vorkommt, ist ein gewöhnliches Wort, kein Name („security" —
+„Proxmox" steht nie klein). `sweep_entities()` lässt nur Entitäten in ein
+Sweep-Muster, die in ≥ 2 Katalogeinträgen (Titel/Snippet) stehen **oder**
+Profil-Saat sind, gedeckelt auf 6; der Katalysator-Sweep fragt je Akteur nur
+noch typisierte Entitäten (`entity_kind`: org/substance) ab, gedeckelt auf
+`CAT_MAX_ENTITIES`. Log: „entity hygiene: N kept …, M not (function words /
+seen once)".
+
+**5. Primärquellen-Vorlauf nach Nutzen.** `read_primary_first` sortiert
+Kandidaten nach (Rang ↑, Prior-Bonus — Host aus Profil/Erfahrung —, Zahl der
+Pflichtpunkt-Stämme in Titel+Snippet ↓, Trefferreihenfolge) statt nur nach
+Rang und Trefferreihenfolge; `must_answer_terms` aus dem Auftrag (Stufe 1);
+die ersten zehn stehen mit Score im Log und in `dr_read["order"]`. Budget
+unverändert (`DR_READ_BUDGET` 28).
+
+**6. Vermerk statt Befund:** `structure["calendar_off_profile"]` zählt
+Kalenderzeilen, die ein bekanntes Instrument (`_KNOWN_INSTRUMENTS`: ai act,
+ce marking, spc, reimbursement, waste heat, ema, efsa …) nennen, das im Profil
+nicht steht — mit Instrument und Beispielzeilen. Kein Strukturbefund, keine
+Sperre; die Stelle, an der der Owner die AI-Act-Zeile sieht, bevor sie
+Redaktion kostet.
+
+**Abnahme laut Plan:** „keine AI-Act-/Abwärme-Zeile in einem
+Virtualisierungs-Dossier" — per Test belegt für die Anfragen
+(`tests/test_dossier_profile_queries.py`: ein Virtualisierungs-Profil mit
+TECH-Vertikale erzeugt keine Anfrage mit ai act / spc / reimbursement / ce
+marking / waste heat / ema / efsa / pdufa / horizon europe; ein
+Pharma-Profil weiterhin EMA/SPC; `However`/`Security`/`General` werden nie
+Sweep-Entitäten, `Proxmox`/`Broadcom` schon). Was das Modell trotz Profil in
+den Kalender schreibt, fängt der Vermerk (6). „Primäranteil ≥ 60 % auf der
+datacenter-Serie" braucht einen Live-Lauf — **offen** bis zum nächsten
+datacenter-/LFP-Vergleichslauf (der auch der erste Lauf mit Intake ist).
+Replay (`scripts/dossier_replay.py`) ist hier nicht anwendbar: die 49
+gespeicherten Läufe tragen kein Profil; der Backfill der Erfahrungsbasis ist
+die Messung über alte Läufe. **Nicht gebaut:** `dossier_query_stats` (Stufe
+3/5), Owner-Korrekturen der Quellklassen in `dossier_field_profiles` (Stufe 5).
+Tests: `test_dossier_profile_queries.py` (25), ein Test in
+`test_dossier_dr_mode.py` invertiert (vollständiges Profil schlägt das
+Rückgrat; dünnes Profil bekommt es); volle Suite 1.944 passed, tsc grün.

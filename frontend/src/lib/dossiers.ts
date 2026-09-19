@@ -33,12 +33,20 @@ export interface DossierBrief {
 }
 
 /** Field profile (corpus_research.TopicProfile) — the search directions. */
+/** Who publishes the authoritative facts of the field (Stufe 2, 2026-09-19). */
+export interface DossierSourceClass {
+  kind: string;
+  name: string;
+  hosts: string[];
+}
+
 export interface DossierFieldProfile {
   field: string;
   regulators: string[];
   eventTypes: string[];
   actorTypes: string[];
   actorSeeds: string[];
+  sourceClasses: DossierSourceClass[];
 }
 
 export interface DossierPlan {
@@ -350,6 +358,15 @@ function parseProfile(raw: unknown): DossierFieldProfile | null {
     eventTypes: strList(o.event_types),
     actorTypes: strList(o.actor_types),
     actorSeeds: strList(o.actor_seeds),
+    sourceClasses: (Array.isArray(o.source_classes) ? o.source_classes : [])
+      .map((x) => asObject(x))
+      .filter((x): x is Record<string, unknown> => x !== null)
+      .map((x) => ({
+        kind: String(x.kind ?? "other"),
+        name: String(x.name ?? ""),
+        hosts: strList(x.hosts),
+      }))
+      .filter((x) => x.name.length > 0),
   };
 }
 

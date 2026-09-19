@@ -776,6 +776,60 @@ Regeländerungen ohne Modell gegen alle gespeicherten Läufe messen:
 Strukturbefunde, Widersprüche, vergangene Kalenderzeilen, Kern- gegen
 Füllsatz-Streichungen je Lauf.
 
+**Das Profil führt die Beschaffung (Stufe 2, seit 2026-09-19).** Das
+Feldprofil, das du am Checkpoint siehst, ist nicht mehr nur Anzeige: es
+bestimmt, wonach gesucht wird. Was es steuert:
+
+- **Suchrichtungen.** Recht, Markt, Förderung und Kalender werden nur aus
+  einem themenneutralen Kern und dem Profil gebaut — Regulatoren/Instrumente
+  („EU Data Act cloud switching"), Ereignistypen („end of general support
+  date"), Akteurtypen („hypervisor vendor"). Die alten festen Listen (SPC, EMA,
+  Erstattung, Horizon Europe) und das Rückgrat der Vertikale (AI Act, CE
+  marking für TECH) laufen nur noch, wenn das Profil dünn ist (weniger als
+  zwei brauchbare Regulatoren, weniger als zwei echte Ereignistypen) oder
+  fehlt. **Deshalb lohnt die Korrektur am Checkpoint:** steht ein fremdes
+  Instrument im Profil, wird es gesucht; fehlt das richtige, fehlt es im
+  Dossier. Im Log: „profile instruments vs corpus: …" (Korpustreffer je
+  Instrument, bestimmt die Reihenfolge, streicht nichts) und ggf. „profile
+  instruments without any corpus or web hit" — solche stehen im Prüfanhang
+  als nicht belegbar.
+- **Quellklassen → Rang 1.** Das Profil nennt, wer die autoritativen Fakten
+  veröffentlicht (Register, Aufsicht, Gericht, Norm, Hersteller-Doku,
+  CVE-Datenbank, Statistikamt, Börsenpflicht, Journal, Presse) mit Hosts;
+  diese Hosts gelten in diesem Lauf als Primärquelle (Rang 1), ebenso
+  generische Dokumentations-/Normen-Hosts (learn.microsoft.com,
+  knowledge.broadcom.com, pve.proxmox.com, docs.*, *.readthedocs.io,
+  iso.org, etsi.org, cve.org). Ein Kernsatz aus der Broadcom-Lifecycle-Seite
+  trägt damit keinen „secondary source only"-Vermerk mehr.
+- **Erfahrungsbasis `dossier_source_priors`.** Am Ende jedes Laufs zählt der
+  Worker je Feld und Host, wie oft dort gelesen, zitiert und eine zitierte
+  Aussage später gestrichen wurde. Beim nächsten Auftrag im selben Feld
+  (Feldname des Profils, normalisiert) bekommt ein Host Rang 1, der
+  mindestens zweimal zitiert, nie gestrichen und mindestens einmal wirklich
+  gelesen wurde. Ansehen:
+
+  ```bash
+  .venv/bin/python -m pipeline.dossier_priors --show                         # alle Felder
+  .venv/bin/python -m pipeline.dossier_priors --show --field "datacenter virtualization"
+  .venv/bin/python scripts/migrate_dossier_source_priors.py --backfill        # Tabelle aus allen Läufen NEU rechnen
+  ```
+
+  `*` markiert die Hosts, die beim nächsten Lauf Rang 1 bekommen. Der
+  Backfill löscht die Tabelle und rechnet sie aus `dossiers.result` neu;
+  alte Läufe ohne Profil zählen unter ihrem Thema. Stand 19.09.: 49 Läufe,
+  12 Felder, 916 Hosts, 84 Rang-1-Kandidaten. Die Regel ist Erfahrung, kein
+  Urteil — ein zweimal sauber zitierter Anbieter-Blog steht auch darin; der
+  Abruf prüft jede Seite weiterhin.
+- **Akteure.** Nur Namen, die in mindestens zwei Katalogeinträgen stehen oder
+  als Saat im Profil, kommen in die Akteur-Sweeps (höchstens sechs);
+  Satzanfänge wie „However", „General", „Security" nie mehr (datacenter v5).
+- **Primärquellen-Vorlauf.** Gelesen wird nach erwartetem Nutzen: Rang,
+  dann Hosts aus Profil/Erfahrung, dann Treffer, deren Titel Begriffe der
+  Pflichtpunkte tragen. Die ersten zehn stehen mit Score im Log.
+- **Vermerk im Herkunftskopf-Protokoll:** `calendar_off_profile` zählt
+  Kalenderzeilen, deren Instrument nicht im Profil steht (AI-Act-Zeile im
+  Virtualisierungs-Dossier) — ein Hinweis, kein Befund.
+
 **Die Messkette (seit 2026-09-07, Default AN).** Ein Dossier trägt jetzt zwei
 codegenerierte Anhänge, die nicht das Modell schreibt, sondern der Code:
 

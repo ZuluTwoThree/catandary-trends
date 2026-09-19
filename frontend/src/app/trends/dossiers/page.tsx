@@ -187,6 +187,15 @@ function CheckpointPanel({ order, workerBusy }: { order: DossierOrder; workerBus
                   Actors: {p.actorTypes.slice(0, 8).join(" · ")}
                 </p>
               )}
+              {p.sourceClasses.length > 0 && (
+                <p className="mt-1 font-mono text-[11px] text-muted">
+                  Source classes (rank 1 for this run):{" "}
+                  {p.sourceClasses
+                    .slice(0, 6)
+                    .map((s) => `${s.kind.replace(/_/g, " ")} — ${s.name}${s.hosts.length > 0 ? ` (${s.hosts.slice(0, 2).join(", ")})` : ""}`)
+                    .join(" · ")}
+                </p>
+              )}
             </>
           ) : (
             <p className="mt-1 font-mono text-[11px] text-muted">

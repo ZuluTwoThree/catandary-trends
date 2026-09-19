@@ -158,6 +158,31 @@ Trefferreihenfolge.
 *Abnahme:* Primäranteil der zitierten Quellen ≥ 60 % auf der datacenter-Serie
 (heute 29–41 %); keine AI-Act-/Abwärme-Zeile in einem Virtualisierungs-Dossier.
 
+**Stand Stufe 2 (2026-09-19, gebaut — Runde 25 in `docs/agentic_dossiers.md`):**
+`TopicProfile.source_classes` (Register/Aufsicht/Gericht/Norm/Hersteller-Doku/
+CVE-Datenbank/Statistik/Börsenpflicht/Journal/Presse, mit Hosts) — die Hosts
+sind je Lauf Rang 1 (`set_run_primary_hosts`); generische Doku-/Normen-Hosts
+(`is_doc_host`: learn.microsoft.com, knowledge.broadcom.com, pve.proxmox.com,
+docs.*, *.readthedocs.io, iso/etsi/cve …) Rang 1; `profile_queries` baut
+Recht/Markt/Förderung/Kalender nur aus Kern + Profil (Regulatoren,
+Ereignistypen, Akteurtypen), Rückgrat der Vertikale und feste Listen nur noch
+je Feld als Rückfall (< 2 brauchbare Regulatoren / < 2 echte Ereignisse /
+kein Profil; `fallback`-Schlüssel); Instrumente werden vor dem Sweep gegen den
+Korpus gezählt und danach geordnet, **nicht gestrichen** (Abweichung vom Plan:
+kein „< 5 Signale fällt" — der Korpus ist presselastig), 0-Korpus-und-0-Web-
+Instrumente stehen im Ledger/den Notizen; `dossier_source_priors`
+(`pipeline/dossier_priors.py`, Migration auf der Live-DB ausgeführt, Backfill
+über 49 Läufe: 12 Felder, 916 Hosts, 84 Rang-1-Kandidaten) — Rang 1 bei
+n_cited ≥ 2, n_dropped = 0 **und n_read ≥ 1** (Zusatz gegenüber dem Plan:
+sonst wäre Fachpresse als Original unserer Korpus-Artikel „Erfahrung");
+Entitätshygiene (`sweep_entities`: Stopliste, ≥ 2 Katalogeinträge oder
+Profil-Saat, typisiert, gedeckelt); Primärquellen-Vorlauf nach Rang ×
+Prior × Pflichtpunkt-Bezug; `structure["calendar_off_profile"]` als Vermerk.
+**Abnahme:** die AI-Act-/SPC-/Erstattungs-Anfragen sind per Test aus einem
+Virtualisierungs-Profil verschwunden; der Primäranteil ≥ 60 % braucht den
+nächsten Live-Lauf der datacenter-Serie (offen). `dossier_query_stats` und
+`dossier_field_profiles` bleiben für Stufe 3/5.
+
 ### Stufe 3 — Der nutzenbasierte Rechercheur (2 Tage)
 
 Ersetzt feste Schrittzahlen im Korpus- und Web-Agenten durch einen
