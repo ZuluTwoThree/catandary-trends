@@ -217,18 +217,20 @@ export default async function MethodologyPage() {
         </div>
       </section>
 
-      {/* Our crawler — the page the User-Agent points at (V2, 2026-09-11):
-          the bot names itself and links here; the contact lives here, not in
-          every publisher's request log. */}
-      <section id="crawler" className="mb-16">
+      {/* Our AI agent — the page the User-Agent points at (V2, 2026-09-11):
+          the agent names itself and links here; the contact lives here, not in
+          every publisher's request log. Owner 2026-09-20: "AI agent", not
+          "crawler" — the facts publishers need (token, rate, robots, TDM
+          opt-outs, contact) stay exactly as they were. */}
+      <section id="ai-agent" className="mb-16">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-6">
-          05 — Our crawler
+          05 — Our AI agent
         </div>
         <div className="border border-border bg-card/40 p-5 space-y-3">
           <p className="font-sans text-sm text-text leading-relaxed">
-            Catandary reads publicly available articles to detect trends across industries. The software
-            identifies itself as <code className="font-mono text-[12px] text-paper">CatandaryTrendsBot/1.0</code>,
-            fetches at most one page per second per site, and respects <code className="font-mono text-[12px]">robots.txt</code>{" "}
+            The Catandary AI agent reads publicly available articles to keep the database current across
+            industries. It identifies itself as <code className="font-mono text-[12px] text-paper">CatandaryTrendsBot/1.0</code>,
+            requests at most one page per second per site, and respects <code className="font-mono text-[12px]">robots.txt</code>{" "}
             (address the token <code className="font-mono text-[12px]">CatandaryTrendsBot</code> to allow, limit or exclude it).
           </p>
           <p className="font-sans text-sm text-text leading-relaxed">
