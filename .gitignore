@@ -68,3 +68,7 @@ pdf/
 # env files (secrets)
 .env*
 !.env.example
+
+# Field Watch: Kundenfelder bleiben lokal (nur example.yaml im Repo)
+fields/*.yaml
+!fields/example*.yaml

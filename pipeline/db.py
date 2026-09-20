@@ -1254,6 +1254,51 @@ def _migrate_ops():
         conn._conn.commit()
 
 
+FIELD_WATCH_SCHEMA_PG = """
+CREATE TABLE IF NOT EXISTS field_watch_runs (
+    id SERIAL PRIMARY KEY,
+    customer TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    week TEXT,
+    field_slug TEXT,
+    computed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    payload JSONB NOT NULL,
+    pdf_path TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_fwr_customer ON field_watch_runs (customer, computed_at DESC);
+"""
+
+FIELD_WATCH_SCHEMA_SQLITE = """
+CREATE TABLE IF NOT EXISTS field_watch_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    week TEXT,
+    field_slug TEXT,
+    computed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    payload TEXT NOT NULL,
+    pdf_path TEXT
+);
+"""
+
+
+def _migrate_field_watch():
+    """field_watch_runs (2026-09-20, Pivot 'gemessene Lage je Feld'): eine Zeile
+    je erzeugtem Blatt — Wochenblatt (kind='week'), Trajectory Sheet
+    (kind='sheet'), Feldprobe (kind='probe') — mit Kunde, Woche, Feld, dem
+    vollen Messergebnis als JSON und dem PDF-Pfad. Die Kundenfelder selbst
+    liegen in fields/<kunde>.yaml (nicht in der DB, nicht im Repo).
+    Additiv, idempotent, in init_db verdrahtet."""
+    if not USE_POSTGRES:
+        with get_connection() as conn:
+            conn.executescript(FIELD_WATCH_SCHEMA_SQLITE)
+        return
+    with get_connection() as conn:
+        cur = conn._conn.cursor()
+        cur.execute(FIELD_WATCH_SCHEMA_PG)
+        conn._conn.commit()
+
+
 def init_db():
     """Initialize database schema."""
     if USE_POSTGRES:
@@ -1285,6 +1330,7 @@ def init_db():
     _migrate_embedding_full()
     _migrate_source_lead_time_tier()
     _migrate_ops()
+    _migrate_field_watch()
 
 
 # --- Source Operations ---

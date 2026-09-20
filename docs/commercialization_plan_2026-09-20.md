@@ -123,11 +123,11 @@ Rechnung (Google-Risiko auf 32 k KI-Artikeln/Monat).
 
 | Wann | Was | Aufwand |
 |---|---|---|
-| W39 (22.–28.09.) | `scripts/field_watch.py <kunde>`: liest `fields/<kunde>.yaml` (Name, Felder, Suchbegriffe, CPC-Anker), rechnet Woche + Quartale, schreibt `field_watch_runs` (additiv: kunde, feld, woche, json) und PDF nach `data/field_watch/<kunde>/<woche>.pdf` | 2 Tage |
-| W39 | Reifegradblock ohne Archiv-Tag: `measure_quant` auf `scripts/tech_analyze.analyze_query(codes=[anker])` + Zykluszeit/Zentralität aus dem Tag portiert (`cycle_time`, `centrality_peak`) | 1 Tag |
-| W40 | Feldprobe-Kommando `field_watch.py --probe "<phrase>"` (Abschnitt 1 als eine Seite, 15 min) | 0,5 Tag |
-| W41 | Cron Sa 12:30 nach dem Pulse (`weekly_field_watch.sh`, Wächter-Notiz in die Montags-Mail, `ops_events`), Merge nach `main` dem Owner vorgelegt | 0,5 Tag |
-| W42 | Kundenseite: statischer Export der Blätter je Kunde in `trends/clients/<kunde>/` (Index + PDFs), Publisher-Allowlist | 1 Tag |
+| ~~W39~~ **erledigt 20.09.** | `scripts/field_watch.py <kunde>`: liest `fields/<kunde>.yaml` (Name, Felder, Suchbegriffe, CPC-Anker), rechnet Woche + Quartale, schreibt `field_watch_runs` und PDF nach `data/field_watch/<kunde>/<woche>.pdf` | — |
+| ~~W39~~ **erledigt 20.09.** | Reifegradblock ohne Archiv-Tag: `pipeline/field_watch.quant_block` über die CPC-Anker (`tir_trajectory`, `cycle_time`, Zentralitäts-Peak portiert) | — |
+| ~~W40~~ **erledigt 20.09.** | Feldprobe `field_watch.py --probe "<phrase>"` (Seite 1 + Kandidatenklassen; ohne `--cpc` GPU-Handover) | — |
+| ~~W41~~ **Vorlage steht** | `weekly_field_watch.sh` + Crontab-Zeile Sa 12:30 (Notiz in die Montags-Mail, `ops_events`); **scharf erst mit dem Merge nach `main`** | Owner |
+| ~~W42~~ **erledigt 20.09.** | Kundenseite: `field_watch.py --export` baut `index.html` + PDFs; Upload per SFTP nach `trends/clients/<kunde>/` (Publisher-Schutz `OWNER_SUBTREES`, `.htaccess`-Vorlagen) | — |
 | nach erstem Kunden | lokale NER auf dem Signalpfad (GLiNER/spaCy), damit Akteure zählbar werden; OA-Lücke Materialforschung nur bei FASHION/DESIGN-Feld | 3 Tage |
 | nach zweitem Kunden | Rechtsrahmen-Anhang (artikelweise Rechtstexte, `pipeline/legal_text.py` existiert) als gekennzeichneter Zusatz | 2 Tage |
 
@@ -193,4 +193,14 @@ Budget bis dahin: Betrieb ≈ 150 €/Monat, Anwalt einmalig ≈ 500 €, sonst 
 1. Namen und Preise aus Abschnitt 1 freigeben (Sheet 1.490 / Field Watch 390 + 900 / Day 1.200; Pilot 290).
 2. Preise sichtbar auf der Site (Abweichung vom 26.08.) — ja.
 3. Erste Direktansprache: Suwelack mit der vorhandenen Feldprobe Präzisionsfermentation.
+   — **Owner 20.09.: nein, ein anderer Kunde wird gewählt** (Owner-Wahl, nicht Teil des Plans).
 4. Startpunkt Bau: `field_watch.py` in W39, Cron-Merge nach `main` erst nach Vorlage.
+
+**Stand 20.09.2026 abends — 1, 2 und 4 umgesetzt (dev):** Preise und Namen auf
+der Landing (`preview.html`, Owner lädt hoch), Muster-PDFs unter `/trends/samples/`,
+Methodik-Abschnitt „How a field is measured", Kundenbereich `trends/clients/`
+publisher-geschützt + `.htaccess`-Vorlagen; Produkt `scripts/field_watch.py`
+(Wochenblatt, Sheet, Feldprobe, Export, `field_watch_runs`, Tests), Cron-Wrapper
+`weekly_field_watch.sh` + Crontab-Zeile Sa 12:30 als Vorlage. Offen aus §7:
+NER (nach erstem Kunden), Rechtsrahmen-Anhang (nach zweitem); aus §6: Upload der
+Landing, htpasswd auf dem Webspace (Owner); aus §8: Leistungsbeschreibung/AGB.

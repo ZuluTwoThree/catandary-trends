@@ -567,6 +567,71 @@ Entwicklung* und nicht als Frühwarnung, KI-Erzeugung und menschliche Abnahme
 offen benannt. Die Seite ist Owner-only (PUBLIC_MODE 404, nicht im statischen
 Export) — sie zitiert Arbeit im Review-Status.
 
+### 5.11 Field Watch, Trajectory Sheet, Feldprobe (`scripts/field_watch.py`)
+
+Die drei Produkte des Pivots vom 20.09.2026 (`docs/commercialization_plan_2026-09-20.md`):
+**Trajectory Sheet** (ein Feld, 6 Seiten, 1.490 €), **Field Watch** (drei Felder,
+Wochenblatt, 390 €/Monat) und die kostenlose **Feldprobe** (Seite 1 des Sheets).
+Alles ist deterministische SQL-Messung — kein Sprachmodell schreibt ein Wort;
+der einzige Prosa-Abschnitt (`reading:`) kommt von dir.
+
+**Kundendatei anlegen** — `fields/<kunde>.yaml` (Vorlage `fields/example.yaml`;
+echte Kunden sind per `.gitignore` vom Repo ausgenommen):
+
+```yaml
+customer: "Firma GmbH"
+slug: firma
+fields:
+  - name: Präzisionsfermentation
+    terms: [precision fermentation, recombinant whey, animal-free dairy]
+    cpc: [C12P21/02, A23J3/08]      # Anker für den Reifegradblock (K(t), Zykluszeit)
+    reading: ""                     # Einordnung im Sheet — nur wenn du sie schreibst
+```
+
+Feld = Suchphrasen (Titel/Teaser/Tags des Signalkorpus, Titel+Abstract des
+Patentindex) + CPC-Anker. Das Mapping ist dein Checkpoint: Feldprobe rechnen,
+Kandidatenklassen ansehen, Anker eintragen, Kunde gibt frei; es steht auf jedem Blatt.
+
+**Kommandos** (alle aus dem Repo-Root, `.venv/bin/python`):
+
+| Was | Kommando | Dauer |
+|---|---|---|
+| Feldprobe (Seite 1 + Anker-Vorschlag) | `scripts/field_watch.py --probe "precision fermentation" [--terms a,b] [--cpc C12P21/02] [--requester "Name"]` | ~10 s mit `--cpc`; ohne Anker fragt die Technologie-Suche nach Klassen (GPU-Handover, ~1 min) |
+| Wochenblatt (Vorwoche) | `scripts/field_watch.py <kunde>` — `--week 2026-09-14` für eine bestimmte Woche | ~40 s je drei Felder |
+| Trajectory Sheet eines Feldes | `scripts/field_watch.py <kunde> --sheet <feld-slug>` | ~20–40 s |
+| Kundenseite bauen | `scripts/field_watch.py <kunde> --export` → `data/field_watch/<kunde>/site/` (index.html + PDFs) | Sekunden |
+| alle Kunden (Cron) | `scripts/field_watch.py --all` | — |
+
+Ausgabe: `data/field_watch/<kunde>/<woche>.{pdf,html,json}` bzw.
+`sheet-<feld>-<datum>.*`; Feldproben unter `data/field_watch/probes/`. Jede
+Erzeugung eine Zeile in `field_watch_runs` (Kunde, Art, Woche, Feld, Messung als
+JSON, PDF-Pfad). `--sample` stempelt „Beispiel zur Demonstration" (die Muster in
+`docs/samples/` und auf der Website unter `/trends/samples/` sind so entstanden:
+`fields/example.yaml` Woche 38, `fields/example-lfp.yaml --sheet lfp`). `--no-pdf`
+lässt das PDF weg; das PDF kommt aus dem Playwright-Chromium der Frontend-Tests
+(`FIELD_WATCH_CHROME` überschreibt den Pfad).
+
+**Lesen:** Wochenblatt = je Feld und Ebene diese Woche gegen den Median der vier
+Vorwochen (grün ≥ +25 %, rot ≤ −25 %), 12 Quartale auf festem Quellenpanel,
+Signale der Woche mit Quelle, neue Akteure, Nester, „Wo die Evidenz dünn ist".
+Sheet = Auf einen Blick, Reifegrad-Karte (K(t) aus dem Patentgraph der Anker,
+Zykluszeit, Zentralitäts-Peak), vier Ebenen 1990–heute (Wissenschaft ab 2010,
+Markt ab 2020 in Breite), Quartale, Anmelder/CPC-Subklassen, meistzitierte
+Werke/Patente, Nester, Einordnung (nur wenn `reading:` gesetzt), dünne Zellen,
+Methodik. Die Regeln stehen öffentlich auf `/trends/methodology#field-method`.
+
+**Kundenbereich:** `trends/clients/<kunde>/` auf dem Webspace, von Hand per SFTP
+(Inhalt = `--export`-Ordner), `.htaccess`-Vorlagen in `deploy/webspace/`
+(Basic Auth, `htpasswd -B` außerhalb des Webroots, noindex). Der Publisher fasst
+`trends/clients/` nie an (`OWNER_SUBTREES`) — weder Upload noch Löschen, auch nicht
+mit `--full` oder rsync.
+
+**Cron (Vorschlag, scharf erst mit dem Merge nach `main`):** `30 12 * * 6
+scripts/weekly_field_watch.sh` — Wochenblätter aller Kunden nach dem Research
+Pulse; keine GPU, kein Kollisionswächter; ohne Kundendateien no-op; Notiz
+`data/weekly_field_watch_last.json` in der Montags-Mail. Die Kundenseite wird
+bewusst nicht automatisch hochgeladen — du sichtest das Blatt zuerst.
+
 ## 6. Dossier-Desk — entfernt 2026-09-19
 
 Der Scouting-Dossier-Desk `/trends/dossiers` (Korpus-Rechercheur, Messkette,

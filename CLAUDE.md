@@ -676,6 +676,13 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Montags-Morgen-Mail (review_notify.py); der „Recompute"-Knopf bleibt für Einzel-Themes.
 0 12 * * 6   scripts/weekly_research_pulse.sh
 
+# Field Watch (Pivot 2026-09-20, VORSCHLAG — scharf erst mit dem Merge nach main):
+# Samstag 12:30 nach dem Pulse; Wochenblätter aller fields/<kunde>.yaml
+# (scripts/field_watch.py --all), reine SQL-Messung ohne GPU (~40 s je Kunde),
+# ohne Kundendateien no-op. Notiz data/weekly_field_watch_last.json → Montags-Mail.
+# Die Kundenseite (trends/clients/<kunde>/, htpasswd) lädt der Owner von Hand hoch.
+30 12 * * 6  scripts/weekly_field_watch.sh
+
 # Statischer Export → Webspace (täglich 03:15, INSTALLIERT 2026-09-05): nach dem
 # Review-Tag und ~45 min vor dem 04:00-Cycle — veröffentlicht wird der freigegebene Stand.
 # build_public_static.sh + publish_static_site.py --apply, Log ~/logs/catandary-publish-*.log
@@ -1519,6 +1526,54 @@ Prognosen). Versioniert in `research_pulse` (additive Migration `scripts/migrate
   nur Vorschlag: W36/W37 fehlten und wurden am 18.09. von Hand nachgerechnet (je ~55 s,
   19/28 Themes mit Text). Der Knopf bleibt für einzelne Themes/Wochen.
 - Methode/Datenlage: `docs/research_pulse.md`.
+
+## Field Watch / Trajectory Sheet / Feldprobe (Produkt, seit 2026-09-20)
+
+Der Pivot vom 19./20.09. (`docs/business_model_2026-09-19.md`,
+`docs/commercialization_plan_2026-09-20.md`, Owner-Freigabe der Namen und Preise
+20.09.): **das Messen ist das Produkt, Prosa kommt vom Owner.** Drei Angebote,
+Preise sichtbar auf der Landing (`docs/launch/preview.html`, FAQ, Muster-PDFs
+unter `/trends/samples/` aus `frontend/public`): Trajectory Sheet 1.490 € je
+Feld, Field Watch 390 €/Monat für drei Felder (Setup 900 €, +90 €/Feld, Pilot
+290 €), Analyst Day 1.200 €, Feldprobe frei. Kein Checkout, keine Konten —
+Rechnung.
+
+- **Code:** `pipeline/field_watch.py` (Messung: `measure_week`, `measure_sheet`,
+  `probe`, `quant_block`; `TIER_SQL` = SQL-Zwilling von `tiers.tier_of`, per Test
+  gegen dessen Marker gepinnt), `pipeline/field_watch_render.py` (HTML/SVG/PDF,
+  Chromium der Playwright-Installation, `FIELD_WATCH_CHROME`), CLI
+  `scripts/field_watch.py` (`<kunde>` Wochenblatt · `--sheet <feld>` ·
+  `--probe "<phrase>"` · `--export` Kundenseite · `--all` Cron · `--sample`).
+- **Feld** = `fields/<kunde>.yaml` (Vorlage `fields/example.yaml`, echte Kunden
+  gitignored): Suchphrasen (`phraseto_tsquery` gegen `idx_trends_fts` bzw.
+  `patent_search.tsv`) + CPC-Anker für den Reifegradblock (`tir_trajectory` über
+  die Anker, Zykluszeit, Zentralitäts-Peak — kein Embedding, keine GPU). Ohne
+  `--cpc` holt nur die Feldprobe Kandidatenklassen aus der Technologie-Suche
+  (GPU-Handover). Das Mapping ist der Owner-Checkpoint und steht auf jedem Blatt.
+- **Regeln, die auf jedem Blatt stehen** (und öffentlich auf
+  `/trends/methodology#field-method`): Ebene nach Quellentyp; Anteil je 10.000
+  Signale der Ebene; Quartale auf **festem Quellenpanel** (Quelle in den ersten
+  UND letzten vier Quartalen des Fensters aktiv — Milchalternativen roh 65 → 16
+  je 10k, Panel 66 → 59: die Sammelrampe 2026, nicht das Feld); Take-off =
+  Ramp-Regel (≥ 15 % des Peaks, ≥ 3), am Fensterrand als Rand berichtet;
+  Wissenschaft aus `research_corpus` ab 2010, Markt ab 2020 in Breite;
+  Akteure = Extraktion (13 % der Presse-Zeilen, Untergrenze); dünne Zellen als
+  Tabelle. **Kein Modelltext im Produktpfad** — der Kennzeichnungsfuß
+  („deterministische Abfragen, kein Sprachmodell") bleibt nur so wahr; die
+  einzige Prosa ist `reading:` aus der Kundendatei, als vom Analysten gekennzeichnet.
+- **Ausgabe:** `data/field_watch/<kunde>/` (`<woche>.{pdf,html,json}`,
+  `sheet-<feld>-<datum>.*`, `site/` für den Kundenbereich), Feldproben unter
+  `probes/`; Protokoll `field_watch_runs` (additive Migration
+  `_migrate_field_watch`, in `init_db`, Live-DB 20.09.).
+- **Kundenbereich:** `trends/clients/<kunde>/` auf dem Webspace, Upload von Hand
+  (SFTP), Basic Auth per `.htaccess`-Vorlagen in `deploy/webspace/`. Der Publisher
+  schützt den Teilbaum (`publish_static_site.OWNER_SUBTREES`: nie schreiben,
+  listen, löschen — sftp-Plan, `--full`, rsync-Exclude; Test).
+- **Cron:** `scripts/weekly_field_watch.sh`, Zeile Sa 12:30 in `deploy/crontab.txt`
+  — Vorschlag, scharf erst mit dem Merge nach `main`; ohne Kundendateien no-op;
+  Notiz in der Montags-Mail (`review_notify.GPU_JOB_NOTES`).
+- **Muster:** `docs/samples/` (LFP-Sheet, FOOD-Wochenblatt W38), erzeugt mit
+  `--sample` aus `fields/example*.yaml`; Kopien auf der Website.
 
 ## Newsletter Deep Dive (#96 — seit 2026-09-19 stillgelegt)
 

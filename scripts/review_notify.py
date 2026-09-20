@@ -112,10 +112,11 @@ def deep_dive_stats() -> dict | None:
 # the Research Pulse 12:00 (cron since 2026-09-18); the next review mail goes
 # out Monday ~06:00 — 60 h freshness carries both exactly into that one mail
 # and not into Tuesday's.
-GPU_JOB_NOTES = ("weekly_ingesters", "monthly_startup_sources", "weekly_research_pulse")
+GPU_JOB_NOTES = ("weekly_ingesters", "monthly_startup_sources", "weekly_research_pulse",
+                 "weekly_field_watch")   # kein GPU-Job, aber derselbe Notiz-Weg (Sa 12:30)
 # Optional note fields the line shows verbatim when present (pulse: which ISO
 # week was computed and how many themes got a Gemma paragraph).
-GPU_JOB_NOTE_EXTRAS = ("week", "themes", "with_text", "errors", "note")
+GPU_JOB_NOTE_EXTRAS = ("week", "themes", "with_text", "errors", "note", "customers")
 GPU_JOB_NOTE_MAX_AGE_H = 60
 
 
