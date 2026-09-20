@@ -48,7 +48,7 @@
  */
 
 export const AI_DISCLOSURE_EN =
-  "Sections of this briefing are generated from our corpus by a local " +
+  "Sections of this briefing are generated from our database by a local " +
   "language model and checked automatically; the selection and this edition " +
   "were reviewed and released by a person.";
 

@@ -52,7 +52,7 @@ BASE_URL = "https://catandary.de"
 # Mirror: frontend/src/lib/aiDisclosure.ts (drift guard in
 # tests/test_newsletter_ai_disclosure.py).
 AI_DISCLOSURE_EN = (
-    "Sections of this briefing are generated from our corpus by a local "
+    "Sections of this briefing are generated from our database by a local "
     "language model and checked automatically; the selection and this edition "
     "were reviewed and released by a person."
 )

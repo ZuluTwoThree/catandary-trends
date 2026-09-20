@@ -1491,7 +1491,7 @@ lädt und auf eine echte Datei zeigt).
 - **Eigenes TDM-Regime (Owner 03.09.).** Wir beachten fremde Vorbehalte
   (`TDM_RESPECT=1`, robots.txt RFC 9309, ehrlicher UA
   `CatandaryTrendsBot/1.0 (+https://catandary.de/trends/methodology)` (V2 seit 11.09.: die Mailadresse
-  steht auf der Methodik-Seite unter „Our crawler", nicht mehr in jedem Log),
+  steht auf der Methodik-Seite unter „Our AI agent" (bis 20.09. „Our crawler"), nicht mehr in jedem Log),
   ≤ 1 Request/s/Host, Volltext nur bei `fulltext: true`, Aufbewahrung 60 Monate)
   — und erklären selbst einen: `TDM-Reservation: 1`-Header auf `/trends/**` und
   `/_next/**`, `tdm-reservation`/`tdm-policy`-Meta + `robots: noai, noimageai`
