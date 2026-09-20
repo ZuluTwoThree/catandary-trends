@@ -5,7 +5,7 @@ import { dynamicUnlessStatic } from "@/lib/renderMode";
 export const metadata = {
   title: "How We Measure — Catandary Trends",
   description:
-    "Our method: legal primary sources across four lead-time tiers (research, patents, funding, market), analyzed by local models, with every trend traceable to its original source.",
+    "Our method: the Catandary proprietary database across four lead-time tiers (science, patents, funding, market), measured by local models, with every trend traceable to its source.",
 };
 
 const TIERS = [
@@ -14,28 +14,28 @@ const TIERS = [
     label: "Science",
     color: "#a78bfa",
     horizon: "earliest",
-    desc: "Peer-reviewed research and preprints (OpenAlex, arXiv, bioRxiv, journals). The first place a new idea appears — often years before the market.",
+    desc: "Peer-reviewed research and preprints — 45.5 million scholarly works. The first place a new idea appears, often years before the market.",
   },
   {
     key: "patent",
     label: "Patents",
     color: "#60a5fa",
     horizon: "early",
-    desc: "Patent filings (EPO, DOCDB). Committed R&D investment, filed on average ~7 years before a technology reaches the market.",
+    desc: "Patent records — 42.6 million, 18.7 million of them in the citation graph our sheets measure. Committed R&D investment, filed on average ~7 years before a technology reaches the market.",
   },
   {
     key: "funding",
     label: "Funding",
     color: "#34d399",
     horizon: "mid",
-    desc: "Public research & innovation grants (NSF, NIH, OpenAIRE, UKRI). Where money is being committed — before the products exist.",
+    desc: "Public research and innovation grants, and financing rounds reported in the trade press. Where money is being committed — before the products exist.",
   },
   {
     key: "market",
     label: "Market",
     color: "#d4ff3a",
     horizon: "now",
-    desc: "Trade press, industry newsrooms and press wires. Confirmation that a trend has reached the market.",
+    desc: "Trade press, company newsrooms and press releases across eight industries. Confirmation that a trend has reached the market.",
   },
 ];
 
@@ -71,9 +71,10 @@ export default async function MethodologyPage() {
           How we <span className="italic">measure</span>
         </h1>
         <p className="font-sans text-text text-lg leading-relaxed max-w-2xl">
-          No black box. We read legal primary sources across four lead-time
-          tiers, analyze them with local models, and keep every trend traceable
-          to the original source you can click through to.
+          No black box. We measure the Catandary proprietary database — 21.9
+          million dated signals since 1990 — across four lead-time tiers with
+          local models, and keep every trend traceable to a source you can
+          click through to.
         </p>
       </div>
 
@@ -131,7 +132,7 @@ export default async function MethodologyPage() {
           ))}
         </div>
         <p className="font-sans text-sm text-muted leading-relaxed max-w-2xl mt-6">
-          Measured in our own corpus: patent signals precede the market by a
+          Measured in the database: patent signals precede the market by a
           median of ~7 years across trend clusters. Coverage spans
           {s.dateSpan.first ? ` ${s.dateSpan.first}` : ""} to
           {s.dateSpan.last ? ` ${s.dateSpan.last}` : ""}.
@@ -141,15 +142,15 @@ export default async function MethodologyPage() {
       {/* Pipeline */}
       <section className="mb-16">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-6">
-          02 — From source to signal
+          02 — From the database to a signal
         </div>
         <ol className="space-y-4 max-w-2xl">
           {[
-            ["Collect", "We pull only legal primary sources — RSS feeds, official APIs and open datasets. No aggregators, no scraping of third-party content."],
+            ["Hold", "The Catandary proprietary database keeps every signal dated and attributed to its source — science, patents, funding and market, since 1990."],
             ["Filter", "Each item is judged for relevance and de-duplicated, so noise and repeats never reach the analysis."],
             ["Classify", "Local models assign industry verticals, PESTEL dimensions, signal type and a canonical signal theme."],
             ["Cluster", "Signals are grouped by meaning (their embeddings), revealing trend clusters and their momentum over time."],
-            ["Attribute", "Every published article and every cluster links back to the primary sources it is built from."],
+            ["Attribute", "Every published article and every cluster links back to the sources it is built from."],
           ].map(([step, desc], i) => (
             <li key={step} className="flex items-start gap-5">
               <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent shrink-0 pt-1 w-6">
@@ -171,10 +172,10 @@ export default async function MethodologyPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
-            ["Traceable", "Every trend links to its primary source. Nothing is asserted without a citation you can check."],
-            ["Independent", "We run on local models and open data — not on any single vendor's feed or agenda."],
+            ["Traceable", "Every trend links to its source. Nothing is asserted without a citation you can check."],
+            ["Independent", "We run on local models and our own database — not on any single vendor's feed or agenda."],
             ["Relevance-scored", "Each signal carries a Catandary Relevance Score (0–100) weighing cross-industry impact, breadth and maturity."],
-            ["Momentum, normalized", "Trend momentum is measured as share of attention over time, so a growing corpus never masquerades as a growing trend."],
+            ["Momentum, normalized", "Trend momentum is measured as share of attention over time, so a growing database never masquerades as a growing trend."],
           ].map(([h, d]) => (
             <div key={h} className="border border-border bg-card/40 p-5">
               <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent mb-2">
@@ -199,8 +200,8 @@ export default async function MethodologyPage() {
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
-            ["Field", "A list of search phrases (matched in title, teaser and tags of the signal corpus, and in title + abstract of the patent index) plus one or more patent classes for the citation graph. Mapped by us, signed off by the client, printed on the sheet."],
-            ["Tier", "By source type: science (OpenAlex sweeps, preprint servers, journals), patents (offices), funding (NSF, NIH, CORDIS, UKRI, SEC Form D — and trade-press items about funding rounds), market (trade media, press wires, brands)."],
+            ["Field", "A list of search phrases, matched against the signal records and the patent records of the database, plus one or more patent classes for the citation graph. Mapped by us, signed off by the client, printed on the sheet."],
+            ["Tier", "By kind of record: science (papers and preprints), patents, funding (public grants and financing rounds — including rounds reported in the trade press), market (trade press, company newsrooms, press releases)."],
             ["Share, not count", "Yearly and quarterly figures are shares per 10,000 signals of that tier — this removes our own collection ramp. Quarters use a fixed source panel: only sources active in both the first and the last four quarters of the window count."],
             ["Take-off", "The first year a tier reaches 15 % of its peak year with at least three hits. A take-off at the edge of a data window is reported as a boundary, never as a lead time."],
             ["Improvement rate", "Peer-reviewed SPNP method on the patent citation graph, five-year windows, median over complete windows. Calibrated to ~2019; later windows carry the direction, not the magnitude. It is a relative rate, not a forecast."],
