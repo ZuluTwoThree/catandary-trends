@@ -1,0 +1,22 @@
+# /trends/clients/.htaccess — OWNER-MANAGED customer area for Field Watch
+# (2026-09-20). Uploaded by hand next to the per-customer folders; the
+# publisher (scripts/publish_static_site.py, OWNER_SUBTREES) never writes,
+# lists or deletes anything below /trends/clients/.
+#
+# Layout:
+#   /trends/clients/.htaccess            this file (everything below needs a login)
+#   /trends/clients/<kunde>/.htaccess    "Require user <kunde>" (see trends-clients-kunde.htaccess)
+#   /trends/clients/<kunde>/index.html   list of the weekly sheets (field_watch.py --export)
+#   /trends/clients/<kunde>/<woche>.pdf  the sheets
+#
+# The password file lives OUTSIDE the webroot (Hetzner: e.g. /usr/home/<user>/.htpasswd-clients);
+# add a user with  htpasswd -B /usr/home/<user>/.htpasswd-clients <kunde>
+AuthType Basic
+AuthName "Catandary Field Watch"
+AuthUserFile /usr/home/CHANGE_ME/.htpasswd-clients
+Require valid-user
+Options -Indexes
+<IfModule mod_headers.c>
+  Header set X-Robots-Tag "noindex, nofollow, noarchive"
+  Header set Cache-Control "private, no-store"
+</IfModule>

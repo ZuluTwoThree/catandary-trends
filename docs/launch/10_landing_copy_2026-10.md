@@ -1,5 +1,10 @@
 # 10 — Landing-Copy für den Launch 01.10.2026 (ohne SaaS, #93)
 
+> **Überholt in Abschnitt „For clients" seit 2026-09-20:** die Dossier-/Super-Pro+-Karten
+> sind in `preview.html` durch die drei Produkte des Pivots ersetzt (Trajectory Sheet 1.490 €,
+> Field Watch 390 €/Monat, Analyst Day 1.200 €, Feldprobe frei) — Owner-Freigabe 20.09.,
+> Belege `docs/commercialization_plan_2026-09-20.md` §1 und §6. Der Rest dieses Blatts gilt weiter.
+
 **Status:** Entwurf für den Owner, 2026-09-03. Die Copy ist in `preview.html` bereits
 eingebaut; dieses Blatt ist die Vorlage mit Belegen, damit der Owner jede Zeile in seiner
 Stimme umschreiben oder streichen kann. **Seine Stimme entscheidet.**

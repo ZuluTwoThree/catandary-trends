@@ -1,0 +1,3 @@
+# /trends/clients/<kunde>/.htaccess — one customer sees only their own folder.
+# Replace KUNDE with the htpasswd user name of that customer.
+Require user KUNDE
