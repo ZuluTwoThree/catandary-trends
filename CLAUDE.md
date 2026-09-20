@@ -676,6 +676,13 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Montags-Morgen-Mail (review_notify.py); der „Recompute"-Knopf bleibt für Einzel-Themes.
 0 12 * * 6   scripts/weekly_research_pulse.sh
 
+# Field Watch (Pivot 2026-09-20, VORSCHLAG — scharf erst mit dem Merge nach main):
+# Samstag 12:30 nach dem Pulse; Wochenblätter aller fields/<kunde>.yaml
+# (scripts/field_watch.py --all), reine SQL-Messung ohne GPU (~40 s je Kunde),
+# ohne Kundendateien no-op. Notiz data/weekly_field_watch_last.json → Montags-Mail.
+# Die Kundenseite (trends/clients/<kunde>/, htpasswd) lädt der Owner von Hand hoch.
+30 12 * * 6  scripts/weekly_field_watch.sh
+
 # Statischer Export → Webspace (täglich 03:15, INSTALLIERT 2026-09-05): nach dem
 # Review-Tag und ~45 min vor dem 04:00-Cycle — veröffentlicht wird der freigegebene Stand.
 # build_public_static.sh + publish_static_site.py --apply, Log ~/logs/catandary-publish-*.log
@@ -1128,6 +1135,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                    + Freigabe/Zurückziehen + KI-Kennzeichnung je Block; im PUBLIC_MODE 404 und aus dem
                                    statischen Export ausgeschlossen (BLOCKED_PREFIXES + static-export.exclude + canReview())
 /trends/ops                      → Ops-Dashboard (#104, seit 2026-09-11; Owner, im PUBLIC_MODE 404, nicht im Export): Jetzt-Kacheln (GPU lokal + bequiet, CPU/RAM, Postgres, Queues, Sampler), alle vier Platten (Füllstand, I/O, Temperatur, SMART-Ampel, „voll in N Tagen"), 24-h/7-d-Diagramme als server-gerendertes SVG mit Job-Bändern aus ops_events, Job-Statistik (28 Tage, Median-Dauer) und die letzten 40 Läufe; ?range=24h|7d, Auto-Refresh 60 s. **Wochenplan** (Stufe 4): die INSTALLIERTE Crontab (`crontab -l`, Fallback `deploy/crontab.txt`) als Wochenraster, Blockbreite = gemessene Median-Dauer, Überschneidungen aufgelistet; **Logbuch** `docs/ops/logbook.md` (versioniert, `## <Datum> · change|plan|decision|idea · <Titel>`, optional `duration:`/`gpu:`-Zeilen) gerendert, `plan`-Einträge mit Tag erscheinen im Wochenplan. **Alarme** (Stufe 5) als Banner oben (offen) + zuletzt entwarnt; Regeln/Schwellen s. Cron-Block.
+/trends/ops/prompts              → Prompt-Katalog (seit 2026-09-18; Owner, wie /trends/ops gesperrt): jede Systemanweisung, die ein Sprachmodell in diesem System bekommt, LIVE aus dem Code gelesen (`pipeline/prompt_catalog.py --json`, 60-s-Cache im Frontend) — je Eintrag: was die umgebende Funktion tut und wann sie läuft, welches Modell antwortet, Datei:Zeile, der Prompt selbst aufklappbar, bei Stage 6 und dem Dossier-Schreiber zusätzlich der User-Prompt-Bauer. 28 Einträge in 7 Gruppen (Feed-Pipeline, Richter, Foresight, Newsletter, Dossiers, Advisor, On-demand). Nicht drin: Embeddings, Distill-Heads, A/B-/Eval-Skripte. Nebenfund beim Bau: `corpus_research.PROFILE_SYSTEM` war doppelt definiert (Firmenprofil überschrieb die Suchrichtungen) → `COMPANY_PROFILE_SYSTEM`.
 /trends/dossiers, /trends/dossiers/[slug] → ENTFERNT 2026-09-19 (Owner-Dossier-Desk #95, „Das Feature trägt nicht"; s. Abschnitt „Scouting-Dossiers — entfernt"; Rückweg Tag `archive/dossiers-2026-09-19`). Lokal wie im Export 404.
 /imprint, /privacy, /enquiry     → Rechtstexte + Anfrage (mailto); im Export unter /trends/… (s. o.), da der Publisher den Webroot nie schreibt
 ```
@@ -1438,54 +1446,53 @@ Auf der 24-GB-Karte kann Stage 6 (Content-Generierung) auf ein deutlich größer
 
 ## Scouting-Dossiers — entfernt 2026-09-19 (Owner: „Das Feature trägt nicht")
 
-**Was es war (#95, 2026-09-01 bis 2026-09-19, 30 Runden auf `dev`; auf `main`
-stand der Desk-Stand vom 2026-09-03 plus Messkette/Entscheidungsebene/DR/
-Advisor):** ein agentischer Korpus-Rechercheur (`scripts/corpus_research.py`,
-Qwen3.8-27B lokal) als Owner-Werkzeug mit Desk `/trends/dossiers` —
-Auftragszettel, Worker auf Knopfdruck, Messkette (CPC → TIR → Lead-Time),
-DR-Vorlauf, Leser, Endkontrolle, Advisor mit Freigabe durch einen Menschen,
-plus der „Deep Dive of the Week" des Newsletters über denselben Auftragspfad.
+**Was es war (#95, 2026-09-01 bis 2026-09-19, 30 Runden):** ein agentischer
+Korpus-Rechercheur (`scripts/corpus_research.py`, Qwen3.8-27B lokal) als
+Owner-Werkzeug mit Desk `/trends/dossiers` — Auftragszettel, Worker auf
+Knopfdruck, Messkette (CPC → TIR → Lead-Time), DR-Vorlauf, Leser,
+abschnittsweises Schreiben, Endkontrolle, Korpus-Evidenz-Block, Advisor mit
+Freigabe durch einen Menschen, plus der „Deep Dive of the Week" des
+Newsletters über denselben Auftragspfad.
 
 **Warum entfernt:** sieben Dossierversionen zum selben Thema und 48 Läufe
 insgesamt zeigten ein stabiles Muster — alles, was die Plattform *misst*,
 hält; alles, was das Modell *schreiben* muss (Beschaffung fremder
-Primärquellen, Verdichtung, Urteil), wackelt; der Leser war nie zufrieden.
-Messungen, Runden und Befunde: `docs/agentic_dossiers.md` (auf `dev` bis
-Runde 30), `docs/dossier_vs_deep_research_2026-09-07.md`; auf `dev`
-zusätzlich `docs/dossier_manual_run_2026-09-19.md` und
+Primärquellen, Verdichtung, Urteil), wackelt; der Leser war nie zufrieden,
+auch nicht bei v9 mit dem besten Nutzenwert von 50 Läufen (U 0,56). Messungen,
+Runden und Befunde: `docs/agentic_dossiers.md` (Runden 1–30),
+`docs/dossier_vs_deep_research_2026-09-07.md`, `docs/dossier_manual_run_2026-09-19.md`,
 `docs/plan_dossier_agent_2026-09-18.md` — bleiben als Historie stehen, je mit
 Banner.
 
 **Was bleibt (generisch, ohne Dossier-Abhängigkeit):** `pipeline/web_search.py`
 (Brave → SearXNG-Fallback), `pipeline/web_cache.py` (`data/web_cache.sqlite`),
-`article_fetcher.pdf_text` + `max_chars` (PDF-Abruf, große Kappe), der
-CPU-Embedder `:8091` (`catandary-embed-cpu.service`, `RESEARCH_EMBED_HOST`),
-`frontend/src/lib/detachedSpawn.ts` (Pulse, Snapshot),
-`pipeline/gpu_handover.model_on_llamacpp` (Draft-Richter) und die
-Modellregistrierung Qwen3.8-Flash-Next. Auf `dev` außerdem
-`pipeline/legal_text.py` und der Prompt-Katalog (ohne die Gruppen
-`dossier`/`advisor`). **DB-Tabellen bleiben stehen, kein DROP** (wie bei
-früheren Rückbauten): `dossier_orders`, `dossiers`, `dossier_run_outcomes`,
-`dossier_source_priors`, `dossier_query_stats`, `advisory_notes`; nichts liest
-oder schreibt sie mehr.
+`pipeline/legal_text.py` (Rechtstexte artikelweise schneiden),
+`article_fetcher.pdf_text` + `max_chars` (PDF-Abruf, große Kappe für
+Rechtstexte), `pipeline/prompt_catalog.py` + `/trends/ops/prompts` (ohne die
+Gruppen `dossier`/`advisor`), der CPU-Embedder `:8091`
+(`catandary-embed-cpu.service`, `RESEARCH_EMBED_HOST` — heute u. a. für
+`scripts/validate_emerging.py`), `frontend/src/lib/detachedSpawn.ts` (Pulse,
+Snapshot), `pipeline/gpu_handover.model_on_llamacpp` (Draft-Richter) und die
+Modellregistrierung Qwen3.8-Flash-Next. **DB-Tabellen bleiben stehen, kein
+DROP** (wie bei früheren Rückbauten): `dossier_orders`, `dossiers`,
+`dossier_run_outcomes`, `dossier_source_priors`, `dossier_query_stats`,
+`advisory_notes`; nichts liest oder schreibt sie mehr.
 
-**Entfernt (auf `main`):** `pipeline/{advisory,advisory_store,dossier_check,
-dossier_corpus_stats,dossier_orders,dossier_quant,dossier_structure}.py`,
-`scripts/{advisory,corpus_research,dossier_topic_probe,dossier_worker,migrate_dossier_orders}.py`,
-`tests/test_{advisory,dossier_*,open_item_shows_both,research_vector_retrieval}.py`,
-`frontend/src/app/trends/dossiers/**`,
-`frontend/src/lib/{dossiers,dossierWorker,dossier-access,advisory,advisoryWorker}.ts`,
-Nav-Eintrag „Scouting Desk", Cockpit-Karte, `/trends/dossiers` aus
-`BLOCKED_PREFIXES`/`proxy.ts`/`static-export.exclude`, `DOSSIERS_ENABLED`-Env,
-die Muster `dossier_worker|corpus_research` aus `gpu_guard.sh`/`ops_probe.py`.
-Die Owner-Guards der Pulse-/Snapshot-Actions nutzen jetzt `canReview()`
-(`lib/review-access.ts`); `repoRoot()` lebt in `lib/researchPulseWorker.ts`
-(`WORKER_ROOT`, früher `DOSSIER_WORKER_ROOT`).
+**Entfernt:** `pipeline/{advisory,advisory_store,dossier_*}.py`,
+`scripts/{advisory,corpus_research,dossier_*,rescore_must_answer,migrate_dossier_*}.py`,
+`tests/test_{advisory,dossier_*}.py`, `frontend/src/app/trends/dossiers/**`,
+`frontend/src/lib/{dossiers,dossierWorker,dossier-access,dossierIntake,advisory,advisoryWorker}.ts`,
+`DossierQuestionField.tsx`, Nav-Eintrag „Scouting Desk", Cockpit-Karte,
+`/trends/dossiers` aus `BLOCKED_PREFIXES`/`proxy.ts`/`static-export.exclude`,
+`DOSSIERS_ENABLED`/`DOSSIER_*`-Env, die Muster `dossier_worker|corpus_research`
+aus `gpu_guard.sh`/`ops_probe.py`. Die Owner-Guards der Pulse-/Snapshot-Actions
+nutzen jetzt `canReview()` (`lib/review-access.ts`); `repoRoot()` lebt in
+`lib/researchPulseWorker.ts` (`WORKER_ROOT`, früher `DOSSIER_WORKER_ROOT`).
 
 **Rückweg:** Git-Tag `archive/dossiers-2026-09-19` (dev-HEAD `177c34f` vor dem
 Rückbau, Runden 1–30). **Nachfolge-Idee:** „Field Watch" — die Plattform als
 Messinstrument, nicht als Autor: `docs/value_proposition_field_watch_2026-09-19.md`
-(auf `dev`) und Issue #108.
+und Issue #108.
 
 ## Research Pulse (#73 Teil 1, seit 2026-09-04)
 
@@ -1520,6 +1527,54 @@ Prognosen). Versioniert in `research_pulse` (additive Migration `scripts/migrate
   19/28 Themes mit Text). Der Knopf bleibt für einzelne Themes/Wochen.
 - Methode/Datenlage: `docs/research_pulse.md`.
 
+## Field Watch / Trajectory Sheet / Feldprobe (Produkt, seit 2026-09-20)
+
+Der Pivot vom 19./20.09. (`docs/business_model_2026-09-19.md`,
+`docs/commercialization_plan_2026-09-20.md`, Owner-Freigabe der Namen und Preise
+20.09.): **das Messen ist das Produkt, Prosa kommt vom Owner.** Drei Angebote,
+Preise sichtbar auf der Landing (`docs/launch/preview.html`, FAQ, Muster-PDFs
+unter `/trends/samples/` aus `frontend/public`): Trajectory Sheet 1.490 € je
+Feld, Field Watch 390 €/Monat für drei Felder (Setup 900 €, +90 €/Feld, Pilot
+290 €), Analyst Day 1.200 €, Feldprobe frei. Kein Checkout, keine Konten —
+Rechnung.
+
+- **Code:** `pipeline/field_watch.py` (Messung: `measure_week`, `measure_sheet`,
+  `probe`, `quant_block`; `TIER_SQL` = SQL-Zwilling von `tiers.tier_of`, per Test
+  gegen dessen Marker gepinnt), `pipeline/field_watch_render.py` (HTML/SVG/PDF,
+  Chromium der Playwright-Installation, `FIELD_WATCH_CHROME`), CLI
+  `scripts/field_watch.py` (`<kunde>` Wochenblatt · `--sheet <feld>` ·
+  `--probe "<phrase>"` · `--export` Kundenseite · `--all` Cron · `--sample`).
+- **Feld** = `fields/<kunde>.yaml` (Vorlage `fields/example.yaml`, echte Kunden
+  gitignored): Suchphrasen (`phraseto_tsquery` gegen `idx_trends_fts` bzw.
+  `patent_search.tsv`) + CPC-Anker für den Reifegradblock (`tir_trajectory` über
+  die Anker, Zykluszeit, Zentralitäts-Peak — kein Embedding, keine GPU). Ohne
+  `--cpc` holt nur die Feldprobe Kandidatenklassen aus der Technologie-Suche
+  (GPU-Handover). Das Mapping ist der Owner-Checkpoint und steht auf jedem Blatt.
+- **Regeln, die auf jedem Blatt stehen** (und öffentlich auf
+  `/trends/methodology#field-method`): Ebene nach Quellentyp; Anteil je 10.000
+  Signale der Ebene; Quartale auf **festem Quellenpanel** (Quelle in den ersten
+  UND letzten vier Quartalen des Fensters aktiv — Milchalternativen roh 65 → 16
+  je 10k, Panel 66 → 59: die Sammelrampe 2026, nicht das Feld); Take-off =
+  Ramp-Regel (≥ 15 % des Peaks, ≥ 3), am Fensterrand als Rand berichtet;
+  Wissenschaft aus `research_corpus` ab 2010, Markt ab 2020 in Breite;
+  Akteure = Extraktion (13 % der Presse-Zeilen, Untergrenze); dünne Zellen als
+  Tabelle. **Kein Modelltext im Produktpfad** — der Kennzeichnungsfuß
+  („deterministische Abfragen, kein Sprachmodell") bleibt nur so wahr; die
+  einzige Prosa ist `reading:` aus der Kundendatei, als vom Analysten gekennzeichnet.
+- **Ausgabe:** `data/field_watch/<kunde>/` (`<woche>.{pdf,html,json}`,
+  `sheet-<feld>-<datum>.*`, `site/` für den Kundenbereich), Feldproben unter
+  `probes/`; Protokoll `field_watch_runs` (additive Migration
+  `_migrate_field_watch`, in `init_db`, Live-DB 20.09.).
+- **Kundenbereich:** `trends/clients/<kunde>/` auf dem Webspace, Upload von Hand
+  (SFTP), Basic Auth per `.htaccess`-Vorlagen in `deploy/webspace/`. Der Publisher
+  schützt den Teilbaum (`publish_static_site.OWNER_SUBTREES`: nie schreiben,
+  listen, löschen — sftp-Plan, `--full`, rsync-Exclude; Test).
+- **Cron:** `scripts/weekly_field_watch.sh`, Zeile Sa 12:30 in `deploy/crontab.txt`
+  — Vorschlag, scharf erst mit dem Merge nach `main`; ohne Kundendateien no-op;
+  Notiz in der Montags-Mail (`review_notify.GPU_JOB_NOTES`).
+- **Muster:** `docs/samples/` (LFP-Sheet, FOOD-Wochenblatt W38), erzeugt mit
+  `--sample` aus `fields/example*.yaml`; Kopien auf der Website.
+
 ## Newsletter Deep Dive (#96 — seit 2026-09-19 stillgelegt)
 
 Die rechercheur-gestützte Sektion „Deep Dive of the Week" lief vom 2026-09-04
@@ -1540,6 +1595,8 @@ Kalibrier-Protokoll: `docs/newsletter_deep_dive.md`.
   zeigen den Datensatz ohne Desk-Link (den Desk gibt es nicht mehr;
   `dossier_slug`/`dossier_version` sind reine Anzeigefelder). Öffentlich
   weiterhin nur `gate_passed && !dry_run` — also nie.
+- Prompt `newsletter-deepdive` bleibt im Katalog (Gruppe `newsletter`) mit dem
+  Vermerk, dass er nicht mehr aufgerufen wird.
 
 ## Technische Hinweise
 

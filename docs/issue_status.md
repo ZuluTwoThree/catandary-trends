@@ -1,14 +1,14 @@
 # Issue-Status (Stand 2026-08-28 — Audit nach dem Geschäftsmodell-Wechsel; Nachträge bis 2026-09-09)
 
 > **Nachtrag 19.09.2026 — Scouting-Dossiers ENTFERNT (Owner: „Das Feature trägt nicht")**:
-> - Alle Dossier-/Advisor-Module, Skripte, Tests, das Desk `/trends/dossiers` und
->   `migrate_dossier_orders.py` sind aus dem Code (Tag `archive/dossiers-2026-09-19` = dev-Stand davor,
->   Runden 1–30). Die Migrationsnotizen weiter unten sind Historie: **Tabellen bleiben, Feature
->   entfernt** — `dossier_orders`, `dossiers`, `dossier_run_outcomes`, `dossier_source_priors`,
->   `dossier_query_stats`, `advisory_notes` stehen auf der Live-DB, kein DROP, nichts liest oder
->   schreibt sie mehr; die frühere „Migrationslücke" (nicht in `init_db`) ist damit gegenstandslos.
->   #100 und #107 (in #108 zusammengeführt) tragen die Nachfolge-Idee „Field Watch"
->   (`docs/value_proposition_field_watch_2026-09-19.md`, auf `dev`).
+> - Alle Dossier-/Advisor-Module, Skripte, Tests, das Desk `/trends/dossiers` und die
+>   Migrationsskripte `migrate_dossier_{orders,brief,run_outcomes,source_priors,query_stats}.py` sind aus
+>   dem Code (Tag `archive/dossiers-2026-09-19` = Stand davor). Die Migrationsnotizen weiter unten
+>   sind Historie: **Tabellen bleiben, Feature entfernt** — `dossier_orders`, `dossiers`,
+>   `dossier_run_outcomes`, `dossier_source_priors`, `dossier_query_stats`, `advisory_notes` stehen
+>   auf der Live-DB, kein DROP, nichts liest oder schreibt sie mehr; die frühere „Migrationslücke"
+>   (nicht in `init_db`) ist damit gegenstandslos. #100 und #107 (in #108 zusammengeführt) tragen
+>   die Nachfolge-Idee „Field Watch" (`docs/value_proposition_field_watch_2026-09-19.md`).
 > - Newsletter-Deep-Dive (#96) stillgelegt: `scripts/newsletter_deep_dive.py` schreibt `status: "disabled"`.
 
 > **Nachtrag 02.09.2026** (vollständig: `docs/audits/2026-09-02_issue_audit.md`, `_compliance_review.md`,
@@ -135,6 +135,40 @@
 >   `SoftwareApplication` — `tdm-reservation` unverändert vorhanden, `generator` auf Nicht-Artikelseiten
 >   (Feed, Methodology, Newsletter, Landing) nicht gesetzt; Smoke an zwei Artikeln auf `:3001`.
 > - Nicht angefasst: Newsletter-Konstante/-Ansicht, `/analysis`, Landing.
+
+> **Nachtrag 19.09.2026 — Stufe 0 des Dossier-Agent-Plans (Messlatte, Runde 22)** (`docs/agentic_dossiers.md`):
+> - `scripts/migrate_dossier_run_outcomes.py` auf der Live-DB ausgeführt (additiv, idempotent,
+>   `dossier_run_outcomes` neu — wie `dossier_orders`/`dossiers`/`advisory_notes` **nicht in `init_db`**;
+>   auf einer frischen DB von Hand nachziehen, bekannte Migrationslücke).
+> - `scripts/dossier_eval.py --backfill` über alle 48 Läufe: 0 abgabereif, mean U 0,476, LFP v9 Platz 4/48;
+>   perovskite v1/v2 ohne Strukturprotokoll (vor 07.09.) nicht messbar. Worker schreibt seither je Lauf.
+
+> **Nachtrag 19.09.2026 — Stufe 1 des Dossier-Agent-Plans (Intake + Owner-Checkpoint, Runde 24)** (`docs/agentic_dossiers.md`):
+> - `scripts/migrate_dossier_brief.py` auf der Live-DB ausgeführt (additiv, idempotent): `dossier_orders.brief_json /
+>   plan_json / profile_json / confirmed_at / owner_note`, Status-CHECK um `awaiting_confirmation` erweitert (drop +
+>   re-add) — wie die anderen Dossier-Tabellen **nicht in `init_db`**; auf einer frischen DB von Hand nachziehen
+>   (`ensure_schema` legt die Spalten mit an, die CHECK-Erweiterung auf einer bestehenden Postgres-Tabelle nur das Skript).
+> - Desk-Aufträge halten seither am Checkpoint (`params {"checkpoint": true}`); CLI `--order-new` und der
+>   Newsletter-Deep-Dive laufen ohne Halt; `DOSSIER_CHECKPOINT=0` erzwingt aus.
+
+> **Nachtrag 19.09.2026 — Stufe 2 des Dossier-Agent-Plans (Profilbeschaffung + Primärquellen je Feld, Runde 25)** (`docs/agentic_dossiers.md`):
+> - `scripts/migrate_dossier_source_priors.py --backfill` auf der Live-DB ausgeführt (additiv, idempotent):
+>   Tabelle `dossier_source_priors` (PK (field, host): n_read, n_cited, n_dropped, rank_seen, updated_at) —
+>   wie die anderen Dossier-Tabellen **nicht in `init_db`**; auf einer frischen DB von Hand nachziehen. Ohne
+>   Tabelle liest und schreibt der Lauf nichts (Warnung im Log, Lauf endet normal).
+> - Backfill über 49 gespeicherte Läufe: 12 Felder (alte Läufe ohne Profil unter ihrem Thema), 916 Hosts,
+>   84 Rang-1-Kandidaten (n_cited ≥ 2, n_dropped = 0, n_read ≥ 1). `--backfill` rechnet die Tabelle NEU
+>   (löscht vorher); der Worker addiert seither je Lauf.
+
+> **Nachtrag 19.09.2026 — Stufe 3 des Dossier-Agent-Plans (nutzenbasierter Rechercheur, Runde 26)** (`docs/agentic_dossiers.md`):
+> - `scripts/migrate_dossier_query_stats.py --backfill` auf der Live-DB ausgeführt (additiv, idempotent):
+>   Tabelle `dossier_query_stats` (PK (gap_kind, template): n_used, n_hits, n_admitted, n_read, n_cited,
+>   updated_at) — wie die anderen Dossier-Tabellen **nicht in `init_db`**; auf einer frischen DB von Hand
+>   nachziehen. Ohne Tabelle rechnet der Planer mit dem Prior 0,5 und der Lauf schreibt nichts (Hinweis im Log).
+> - Backfill über 49 gespeicherte Läufe: 549 Anfragen → 542 Schablonen (audit 288, plan 254), nur 6 ≥ 2×
+>   — Erfahrung entsteht erst über künftige Läufe. `--backfill` rechnet NEU (löscht vorher).
+> - Neue Umgebungsvariable `DOSSIER_VOI_MIN_GAIN` (Default 0,15). `fetch_fulltext_result(max_chars=)` ist
+>   ein neuer optionaler Parameter, Default unverändert (Feed-Pfad unberührt).
 
 Vollständiges Audit aller offenen Issues in der Nacht 2026-08-28 (Referenz `main` = `a6455bf`).
 Jede Aussage gegen Code, DB, crontab und die laufende Instanz (:3001) geprüft.

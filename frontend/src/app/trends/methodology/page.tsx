@@ -186,12 +186,42 @@ export default async function MethodologyPage() {
         </div>
       </section>
 
+      {/* Field method — the rules printed on every Trajectory Sheet / Field
+          Watch (owner 2026-09-20). Same wording as the sheets' "Methodik"
+          table; if a rule changes there, it changes here. */}
+      <section id="field-method" className="mb-16">
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-6">
+          04 — How a field is measured
+        </div>
+        <p className="font-sans text-sm text-text leading-relaxed max-w-2xl mb-5">
+          Our client reports (Trajectory Sheet, Field Watch) measure one field across four tiers. These are
+          the rules behind every number; each sheet prints them together with its n, window and method.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[
+            ["Field", "A list of search phrases (matched in title, teaser and tags of the signal corpus, and in title + abstract of the patent index) plus one or more patent classes for the citation graph. Mapped by us, signed off by the client, printed on the sheet."],
+            ["Tier", "By source type: science (OpenAlex sweeps, preprint servers, journals), patents (offices), funding (NSF, NIH, CORDIS, UKRI, SEC Form D — and trade-press items about funding rounds), market (trade media, press wires, brands)."],
+            ["Share, not count", "Yearly and quarterly figures are shares per 10,000 signals of that tier — this removes our own collection ramp. Quarters use a fixed source panel: only sources active in both the first and the last four quarters of the window count."],
+            ["Take-off", "The first year a tier reaches 15 % of its peak year with at least three hits. A take-off at the edge of a data window is reported as a boundary, never as a lead time."],
+            ["Improvement rate", "Peer-reviewed SPNP method on the patent citation graph, five-year windows, median over complete windows. Calibrated to ~2019; later windows carry the direction, not the magnitude. It is a relative rate, not a forecast."],
+            ["Thin cells", "Where a tier has fewer than five signals, where a window is incomplete, or where only 13 % of press rows carry an extracted actor name, the sheet says so in a table. No model writes any part of a sheet; one paragraph of reading is written by a person and labelled."],
+          ].map(([h, d]) => (
+            <div key={h} className="border border-border bg-card/40 p-5">
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-accent mb-2">
+                {h}
+              </div>
+              <p className="font-sans text-sm text-text leading-relaxed">{d}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Our crawler — the page the User-Agent points at (V2, 2026-09-11):
           the bot names itself and links here; the contact lives here, not in
           every publisher's request log. */}
       <section id="crawler" className="mb-16">
         <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-6">
-          04 — Our crawler
+          05 — Our crawler
         </div>
         <div className="border border-border bg-card/40 p-5 space-y-3">
           <p className="font-sans text-sm text-text leading-relaxed">

@@ -288,6 +288,9 @@ export default async function OpsPage({ searchParams }: { searchParams: Promise<
           <p className="text-muted text-sm mt-1">What the machine is doing — GPU, disks, database, every job run. One sample per minute, seven days kept.</p>
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/trends/ops/prompts" className="font-mono text-[10px] uppercase tracking-[0.14em] px-2 py-1 border border-border text-muted hover:text-paper hover:border-accent">
+            Prompts →
+          </Link>
           <nav className="flex gap-1 font-mono text-[10px] uppercase tracking-[0.14em]">
             {(Object.keys(RANGES) as (keyof typeof RANGES)[]).map((k) => (
               <Link key={k} href={`/trends/ops?range=${k}`}

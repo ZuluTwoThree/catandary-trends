@@ -212,6 +212,21 @@ class TestPaths:
         with pytest.raises(ps.PathViolation):
             ps.guard_remote("/public_html", rel)
 
+    @pytest.mark.parametrize("rel", ["trends/clients", "trends/clients/.htaccess",
+                                     "trends/clients/acme/2026-W38.pdf"])
+    def test_customer_areas_are_owner_subtrees(self, rel):
+        """trends/clients/<kunde>/ (Field Watch, 2026-09-20) is uploaded by hand
+        and lives INSIDE the managed prefix: never written, never listed, never
+        deleted — the sftp plan drops it, --full skips it, rsync excludes it."""
+        assert not ps.is_managed(rel)
+        with pytest.raises(ps.PathViolation):
+            ps.guard_remote("/public_html", rel)
+        remote = {rel: (None, 10), "trends/a-1.html": ("x", 1)}
+        plan = ps.build_plan({"trends/a-1.html": ("x", 1)}, remote)
+        assert plan.deletes == []
+        assert ps.rsync_owner_excludes("trends") == ["--exclude", "/clients/"]
+        assert ps.rsync_owner_excludes("_next") == []
+
     def test_root_allowlist_is_exactly_feed_page_one(self):
         """trends.html + trends.txt are the only webroot files the publisher
         owns (Next writes /trends there; /trends.txt is the router's payload)."""

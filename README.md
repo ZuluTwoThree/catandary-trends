@@ -121,6 +121,8 @@ Karte und die drei Routinen, die man auswendig kennen sollte.
 | Betrieb | `crontab -l`, `~/logs/`, `data/*_last.json` | Wächter-Mails, Backup/Restore, GPU-Ruhezustand, llama-server-Reparatur; Kollisionswächter der GPU-Crons (`scripts/lib/gpu_guard.sh`, wartet 90 min, dann Skip + Pending-Datei); `scripts/reset_embedding_errors.py --apply` holt als `embedding_error` aussortierte Einträge zurück | [§11](docs/owner_manual.md#11-betrieb-cron-wächter-backup-gpu-logs), [§11.8](docs/owner_manual.md#118-kollisionswächter-und-besitz-des-llama-servers-98) |
 | **Kunden-Briefing** | `/trends/foresight/pitch` (Foresight-Cockpit → „Briefing deck for prospects") | SCR-Q-Präsentation im Browser (7 Folien, ← → / Rail, `#s3`-Links), Korpuszahlen live; nur Owner-Instanz (PUBLIC_MODE 404, nicht im Export) | [§5.10](docs/owner_manual.md#510-kunden-briefing-trendsforesightpitch) |
 | **Ops-Dashboard** (#104) | `/trends/ops` (Foresight-Cockpit → „Ops"); Logbuch `docs/ops/logbook.md`; Alarm-Schwellen `ops_alerts.yaml`; `systemctl --user status catandary-ops-sampler.timer`; `python -m pipeline.ops_events open` (offene Läufe) / `close-orphans` (tote Läufe schließen — macht der Sampler minütlich selbst) | minütlich eine Messzeile nach `ops_samples` (GPU lokal + bequiet, CPU/RAM, alle Platten, Postgres); jeder Cron-/Worker-Lauf eine Zeile in `ops_events` (Start, Ende, rc, Notiz); `python -m scripts.ops_sampler --print [--full]` zeigt eine Messung; SMART nach `deploy/sudoers/catandary-smart` | [§11.9](docs/owner_manual.md#119-ops-dashboard-trendsops-104) |
+| **Prompt-Katalog** | `/trends/ops/prompts` (Ops → „Prompts →"); `python -m pipeline.prompt_catalog --list` | alle Systemanweisungen der LLM-Prozesse live aus dem Code, je mit Funktionsbeschreibung, Modell, Auslöser und Datei:Zeile | [§11.10](docs/owner_manual.md#1110-prompt-katalog-trendsopsprompts) |
+| **Field Watch / Trajectory Sheet / Feldprobe** (Pivot 20.09.) | `scripts/field_watch.py`; Kundenfelder `fields/<kunde>.yaml` (Vorlage `fields/example.yaml`, gitignored) | `--probe "<phrase>"` (Seite 1 + CPC-Vorschlag), `<kunde>` (Wochenblatt), `<kunde> --sheet <feld>` (Trajectory Sheet), `<kunde> --export` (Kundenseite für `trends/clients/<kunde>/`, htpasswd-Vorlagen `deploy/webspace/`); Ausgabe `data/field_watch/`, Protokoll `field_watch_runs`; reine SQL-Messung, kein Modelltext; Cron-Vorschlag Sa 12:30 `weekly_field_watch.sh` (nach Merge) | [§5.11](docs/owner_manual.md#511-field-watch-trajectory-sheet-feldprobe-scriptsfield_watchpy) |
 | Sicherheit & Recht | — | Binding aller Interfaces (Entscheid offen), TDM-Regime, Takedown | [§12](docs/owner_manual.md#12-sicherheit-und-recht-kurz) |
 
 **Entfernt (bleibt hier als Merkposten):** *Scouting-Dossier-Desk* `/trends/dossiers`
@@ -128,7 +130,7 @@ mit Korpus-Rechercheur, Advisor und Deep-Dive-Rechercheur — Owner 2026-09-19:
 „Das Feature trägt nicht" (7 Versionen zu einem Thema, 48 Läufe, Leser nie
 zufrieden). Rückweg Tag `archive/dossiers-2026-09-19`; Historie
 `docs/agentic_dossiers.md`; Nachfolge-Idee „Field Watch"
-(`docs/value_proposition_field_watch_2026-09-19.md` auf `dev`, #108). DB-Tabellen
+(`docs/value_proposition_field_watch_2026-09-19.md`, #108). DB-Tabellen
 `dossier_orders`/`dossiers`/`dossier_run_outcomes`/`dossier_source_priors`/
 `dossier_query_stats`/`advisory_notes` bleiben stehen, kein DROP.
 

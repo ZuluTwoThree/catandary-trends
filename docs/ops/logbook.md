@@ -15,15 +15,37 @@ selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
 ## 2026-09-19 · decision · Scouting-Dossiers entfernt
 
-Owner: „Das Feature trägt nicht." Nach 30 Runden (auf `dev`), sieben Versionen zu einem
-Thema und 48 Läufen war das Muster stabil — alles Gemessene hält, alles vom Modell
-Geschriebene wackelt, der Leser war nie zufrieden. Desk `/trends/dossiers`,
-Korpus-Rechercheur, Advisor, alle `dossier_*`-Module/Skripte/Tests und der
+Owner: „Das Feature trägt nicht." Nach 30 Runden, sieben Versionen zu einem Thema und
+48 Läufen war das Muster stabil — alles Gemessene hält, alles vom Modell Geschriebene
+wackelt, der Leser war nie zufrieden. Desk `/trends/dossiers`, Korpus-Rechercheur, Advisor,
+alle `dossier_*`-Module/Skripte/Tests, die Prompt-Gruppen `dossier`/`advisor` und der
 Deep-Dive-Rechercheur des Newsletters (schreibt jetzt `status: "disabled"`) sind aus `dev`
-und `main`. Bleiben: Web-Suche/-Cache, PDF-Abruf, CPU-Embedder `:8091`, `detachedSpawn.ts`;
-DB-Tabellen stehen (kein DROP). Rückweg: Tag `archive/dossiers-2026-09-19`. Nachfolge-Idee
-„Field Watch": `docs/value_proposition_field_watch_2026-09-19.md` (dev), #108. Keine
-GPU-Läufe im Rückbau.
+und `main`. Bleiben: Web-Suche/-Cache, Rechtstext-Slicer, PDF-Abruf, Prompt-Katalog,
+CPU-Embedder `:8091`, `detachedSpawn.ts`; DB-Tabellen stehen (kein DROP). Rückweg: Tag
+`archive/dossiers-2026-09-19`. Nachfolge-Idee „Field Watch":
+`docs/value_proposition_field_watch_2026-09-19.md`, #108. Keine GPU-Läufe im Rückbau.
+
+## 2026-09-18 · change · Dossier: Einstieg „What this is about" als achte Pflichtsektion
+
+Owner-Wunsch: Hintergrund für Fachfremde am Anfang jedes Dossiers — was die Technologie
+ist, warum sie für die Frage zählt. 60–220 Wörter, keine Zahlen/Daten, außerhalb der
+Faktenquote, geschrieben nach den Beleg-Sektionen. Workflow-Befund über v1–v4 mit zehn
+Punkten in docs/agentic_dossiers.md Runde 21.
+
+## 2026-09-18 · change · Prompt-Katalog /trends/ops/prompts
+
+Owner-Seite neben Ops: alle 28 Systemanweisungen der LLM-Prozesse live aus dem Code,
+je mit Funktionsbeschreibung, Modell, Auslöser, Datei:Zeile. Nebenfund und Fix:
+`corpus_research.PROFILE_SYSTEM` war doppelt definiert — die Suchrichtungen jedes
+Dossiers liefen unter der Firmenprofil-Anweisung (jetzt `COMPANY_PROFILE_SYSTEM`).
+
+## 2026-09-18 · change · Dossier-Rechercheur: PDFs lesbar, Kalender-Auffüller mit Primärlatte
+
+Anlass datacenter-virtualization v1/v2 (Aufträge 39/40, je 33 min). Drei Harness-Fehler
+behoben: PDFs kamen als too_short zurück (BSI SYS.1.5 viermal gefunden, nie gelesen — jetzt
+pypdf), der Kalender-Auffüller trug Rang-2-Werbetext mit nackter Jahreszahl ein (jetzt Rang
+≤ 1 + präziser Termin), Streichung ließ leere „|"-Zeilen (Tabellenzeile = eine Aussage).
+Brave: metered, kein Monatsdeckel; 919 Aufrufe im September. Cache too_short geleert.
 
 ## 2026-09-18 · change · Research Pulse: Samstags-Cron installiert, W36/W37 nachgerechnet
 

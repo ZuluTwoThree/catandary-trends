@@ -79,6 +79,12 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # (review_notify.py, 60 h Frische; blocked/failed erzwingt die Mail).
 0 12 * * 6 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_research_pulse.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_research_pulse.sh || echo "$(date -Iseconds) skip weekly_research_pulse (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-research-pulse-skip.log
 
+# Field Watch (Pivot 2026-09-20): Wochenblätter für alle fields/<kunde>.yaml,
+# Samstag 12:30 nach dem Pulse; reine SQL-Messung, keine GPU, ~40 s je Kunde.
+# Ohne Kundendateien no-op (rc 0). Wächter: data/weekly_field_watch_last.json
+# → Montags-Morgen-Mail. Kundenseite wird NICHT automatisch hochgeladen.
+30 12 * * 6 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_field_watch.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_field_watch.sh || echo "$(date -Iseconds) skip weekly_field_watch (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-field-watch-skip.log
+
 # Statischer Export → Webspace (Schritt 8, seit 2026-09-02; NOCH NICHT in der echten crontab —
 # Webspace-Zugang fehlt): täglich 06:30. Mo–Fr nach dem Full Cycle (Ende 05:55–06:12,
 # Kollisionswächter wartet max 90 min), Sa/So ohne Cycle — das 30-Tage-Fenster rollt

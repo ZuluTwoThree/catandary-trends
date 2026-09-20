@@ -1,0 +1,12 @@
+# Zweite Beispieldatei: das Feld des Muster-Trajectory-Sheets in docs/samples/.
+# Anker H01M4/5825 (Phosphat-/Olivin-Kathoden) — die Klasse, die die alte
+# Messkaskade per Titel-Schärfung für "lithium iron phosphate battery cells"
+# fand; H01M10/052 (alle Li-Ionen-Zellen) wäre zu breit.
+customer: "Beispiel — Energiespeicher-Mittelstand"
+slug: example-lfp
+fields:
+  - name: Lithium-Eisenphosphat-Zellen (LFP)
+    name_en: Lithium iron phosphate (LFP) cells
+    slug: lfp
+    terms: [lithium iron phosphate, LFP battery, LFP batteries, LFP cell, LFP cells, LiFePO4, LFP cathode, iron phosphate cathode, lithium ferro phosphate]
+    cpc: [H01M4/5825]

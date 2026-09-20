@@ -394,6 +394,9 @@ bleibt reproduzierbar. Kein Kritiker-Modell, keine Schreib-Kritik-Schleife.
   Reproduzierbarkeit des alten Pfads.
 - `tests/test_dossier_corpus_stats.py` — Korpus-Zählung: Q0, Jahresreihen im
   Anhang, benannte Grenzen, Teil- und Totalausfall.
+- `tests/test_dossier_corpus_evidence.py` — Scouting-Umbau (Runde 27):
+  Korpus-Evidenz je Ebene/Quartal auf einer SQLite-Fixture, Dünne-Regeln,
+  Gating, Scout-Grundriss, Verdrahtung in `run()`.
 - `tests/test_dossier_decision.py` — die Entscheidungsebene: Pflichtabschnitte,
   Längenobergrenze, 200-Wörter-Kappe, Pflichtfelder je Option, Stabilität der
   Wortzahl über die Kanonisierung; Rechts-Sweep (jedes Muster gesucht und
@@ -1481,3 +1484,1252 @@ EU-Preisaufschlag im Beleg, das Datum 18.08.2027 nur aus zwei Rang-2-Quellen).
 Leser, Freigabe), die Substanz mit Denken ist die eines brauchbaren Erstentwurfs
 — genau dafür ist der Mensch im Loop da. Offen: Längendisziplin des 27B, und
 ob Leser-Befunde einen Neuwurf auslösen sollen (kostet ~5 min je Runde).
+
+### Runde 20 (2026-09-18) — datacenter virtualization: Frage-Feld, PDFs, Kalender-Auffüller
+
+Owner-Auftrag von 14:02 (Auftrag #39): Thema „datacenter virtualization", im
+Frage-Feld aber keine Frage, sondern eine Leserbeschreibung („The purpose of the
+dossier is to provide a free sample for the IT Manager of a small German
+technology firm …"). **Der Planer nahm die Leserbeschreibung als Gegenstand:**
+alle sechs Planschritte handelten von IT-Dienstleistern für den Mittelstand,
+keiner von Virtualisierung; die Korpussuche fragte Virtualisierung nie ab. Nur
+die festen Regulatorik-Muster und die Patentmessung liefen auf dem Thema. v1
+war ein Digest über EIC-Förderung und EU-Rechtsakte (33 min, ok=false, Leser
+zweimal „beantwortet die Frage nicht").
+
+**v2 (#40, 17:14, 33 min)** mit echter Frage („Which virtualization stack should
+a small German IT service firm run … after the VMware licensing change, and
+which BSI, GDPR and EU Data Act requirements apply?" + Kontextsatz): Plan 6/6
+auf dem Thema, Kurzfassung Proxmox VE + vSphere-8-Stichtag 11.10.2027 +
+Data-Act-Äquivalenzpflicht. Trotzdem ok=false: Faktenquote 0,8 (Soll 2,0),
+Kernaussagen auf Rang-2-Material (Nutanix, Anbieter-Blogs, dev.to), Widerspruch
+Kurzfassung/Entscheidungspunkt zu VS-NfD, „Spurs (retailer)" erfunden. Drei
+**Harness-Befunde** aus beiden Versionen, alle behoben:
+
+1. **PDFs waren unlesbar.** `article_fetcher.fetch_fulltext_result` schickte
+   jede Antwort durch trafilatura; ein PDF kam als `too_short` zurück. Der
+   Primärquellen-Vorlauf fand den BSI-Baustein **SYS.1.5 Virtualisierung** in
+   vier Editionen und las ihn null Mal — der eine Maßstab, nach dem die Frage
+   fragte. Jetzt: `pdf_text()` (pypdf, erste 60 Seiten, Silbentrennung
+   geglättet; TDM-Header gilt weiter, HTML-Meta entfällt) bei
+   `application/pdf`, `%PDF-`-Magic oder `.pdf`-Pfad. Live: SYS.1.5 Edition
+   2023 → 12.000 Zeichen. Gecachte `too_short`-Seiten wurden geleert (28 im
+   main-Cache, 65 in dev). `tests/test_pdf_fetch.py`.
+2. **Der Kalender-Auffüller trug ohne Urteil Rang-2-Werbetext ein.** In v1 UND
+   v2 standen dieselben drei Zeilen „added from the dated-fact ledger": ein
+   Veranstaltungs-Anreißer („Discover the top data center events of 2026 …"),
+   eine Dell'Oro-Marktprognose, eine EIC-Programmbeschreibung — alle mit nackter
+   Jahreszahl, zwei von Rang 2. Der Themen-Gate war erfüllt („data center",
+   Entität „EIC"). Jetzt: `fill_calendar(rank_of=…)` trägt nur Rang ≤ 1 und
+   nur präzise Termine ein (Tag/Monat/Quartal/Halbjahr; „2026" allein ist ein
+   Zeitraum, kein Auslöser); `calendar_candidates` verwirft Imperativ-Anreißer
+   (`_CAL_MARKETING_RE`). Das Modell darf solche Zeilen weiter selbst schreiben
+   (mit Rangvermerk) — der Code nicht.
+3. **Leere Tabellenzeilen „|".** `split_claims` zerlegte eine Kalenderzeile am
+   Satzpunkt in Bruchstücke; `drop_unverified` strich das Bruchstück mit dem
+   Datum und ließ „| [Source](…) | Why. |" oder ein nacktes „|" stehen (v2:
+   drei Zeilen). Jetzt ist eine Tabellenzeile EINE Aussage (wie in
+   `_section_sentences` schon immer), und eine gestrichene Zeile fällt samt
+   Zeilenumbruch.
+
+**Brave-Kontingent (Owner-Frage):** Header `x-ratelimit-policy: 50;w=1,
+0;w=2592000` — 50 Anfragen/s, keine Monatsobergrenze (metered), Abrechnungs-
+fenster endet in ~12 Tagen. Verbrauch September aus den Dossier-Ergebnissen:
+919 API-Aufrufe über 40 Dossiers (v1 110, v2 42 + 74 aus dem Cache).
+
+**v3 (#41, 18:27, 31 min, 27B)** mit der geschärften Frage („keine Verschlusssachen,
+Maßstab IT-Grundschutz SYS.1.5") und den drei Fixes: SYS.1.5 (Edition 2022, PDF)
+gelesen, Rang 0, trägt Kurzfassung und Regulatorik; keine leeren Zeilen, der
+Auffüller trug bei 12 Kandidaten 0 ein (Primärlatte). Trotzdem ok=false:
+Faktenquote 0,57, 1.398 Wörter, 36 Sätze gestrichen, Kurzfassung ohne
+Empfehlung (Fusionsfreigabe 2023 + „SYS.1.5 gilt"), **falsche Rechtsaussage**
+„the EU Data Act does not apply to the firm's B2B service-provider model"
+(zwei Absätze später wird die Äquivalenzpflicht doch behandelt), Kalender mit
+vier vergangenen Nachrichten-Daten aus Juli–September 2026 (die Strukturprüfung
+lässt jedes Datum des laufenden Jahres durch — vierte Harness-Lücke, offen).
+Beim Bau des Prompt-Katalogs (gleicher Tag) fiel auf, dass `PROFILE_SYSTEM`
+doppelt definiert war und die Suchrichtungen v1–v3 unter der
+Firmenprofil-Anweisung liefen — behoben (`COMPANY_PROFILE_SYSTEM`).
+
+**v4 (#42, 19:40, 84 min, Schreiber Qwen3.8-Flash-Next UD-IQ4_XS,
+6–7 min je Sektion)** mit derselben Frage und dem PROFILE-Fix: Faktenquote 1,58
+(Soll 2,0), 1.706 Wörter, 41 Sätze geprüft, 19 gestrichen, Data Act jetzt
+richtig als anwendbar („data processing service", Wechselpflichten) mit
+Kanzlei-Belegen, ein CVE-Beobachtungspunkt (CVE-2026-51080), Broadcoms
+VDDK-Rückzug. Aber: Kurzfassung sagt „leading candidate" Proxmox, der Abschnitt
+„What the evidence does not support" sagt „no definitive recommendation" —
+derselbe Widerspruch wie v2; SYS.1.5 ist wieder WEG (der einzige Satz mit
+PDF-Beleg fiel der Themenprüfung zum Opfer: „'BSI Baustein' absent from …pdf" —
+Subjektabgleich gegen deutschen PDF-Text); Kalender mit AI-Act-Verbot
+„Dezember 2026" (erfunden, vom Leser benannt) und Abwärme-Quoten (Thema
+Rechenzentrumsbau, nicht Stack-Wahl); Zahlen der Kurzfassung („1.5 million
+hosts", „150 % to 1,500 %") aus einem Rang-2-Blog. Leser: „beantwortet die Frage
+nicht", 7 Befunde; zweiter Neuwurf verworfen (Struktur 4 → 5).
+
+| | v1 | v2 | v3 | v4 |
+|---|---|---|---|---|
+| Schreiber | 27B | 27B | 27B | Flash-Next IQ4 |
+| Planschritte zum Thema | 0/6 | 6/6 | 6/6 | 6/6 |
+| Fließtext (Wörter) | 1.970 | 1.990 | 1.398 | 1.706 |
+| Faktenquote /100 W | — | 0,8 | 0,57 | 1,58 |
+| Sätze geprüft / gestrichen | 21 / 5 | 30 / 18 | 15 / 36 | 41 / 19 |
+| SYS.1.5 im Text | nein | nein | ja | nein (gestrichen) |
+| Data Act korrekt | — | ja | **nein** | ja |
+| Leser: Frage beantwortet | nein | nein | nein | nein |
+| Dauer | 33 min | 33 min | 31 min | 84 min |
+
+**Befund über alle vier:** Der Rahmen des Scouting-Dossiers ist seit Runde 19
+bewusst empfehlungsfrei (Optionen liegen beim Advisor). Eine Frage „which stack
+should the firm run" verlangt ein Urteil; der Leser bemängelt bei jeder Version
+zu Recht, dass es fehlt — aber das Dossier DARF es laut Schreiber-Anweisung
+nicht geben. Die Empfehlung gehört in die Advisor-Notiz zu diesem Dossier
+(Kundenprofil: Gruppe + Partner, keine VS-NfD, Windows-Lizenzen?, VMware-
+Vertragsstand?). Zweiter Befund: die Primärquellen dieses Themas sind
+Hersteller-Doku und Normen (Broadcom-Lifecycle-Seite für den 11.10.2027,
+pve.proxmox.com, learn.microsoft.com, EUR-Lex-Text des Data Act, BSI-PDFs),
+nicht Register — das Rangmodell kennt sie nur als Rang 2, deshalb tragen alle
+vier Versionen „secondary source only" an den Kernaussagen.
+
+### Runde 21 (2026-09-18) — der Einstieg für Fachfremde, und der Workflow als Engpass
+
+**Owner-Wunsch:** Dossiers entstehen domänenübergreifend, ohne tiefes
+Themenverständnis des Bestellers; der Agent beschafft, was nötig ist. Dazu ein
+kurzer Abschnitt am Anfang, worum es technologisch geht und warum das für die
+Frage zählt.
+
+**Gebaut:** `## What this is about` als erste von jetzt acht Pflichtsektionen
+(`SECTIONS`, `_OUTLINE_EN/_DE`), 60–220 Wörter, Hintergrund ohne Belegpflicht
+und deshalb ohne Zahlen/Daten (`about_findings`; Bezeichner mit Ziffern wie
+„GLP-1", „SYS.1.5", „vSphere 8" und die Themenbegriffe zählen nicht —
+`background_figures`), Thema muss genannt sein, zählt nicht zur Faktenquote
+(`fact_density` ohne den Abschnitt). Schreibreihenfolge: nach den Beleg-
+Sektionen, vor der Kurzfassung — der Schreiber weiß dann, woran die Entscheidung
+hängt. Sektionsweise Direktive dazu in `write_sections`. Tests: Fixture in
+`test_dossier_decision._report`, `TestAboutSection`, Reihenfolge-Test.
+
+**Workflow-Befund über v1–v4 (nicht themenspezifisch).** Der Ablauf ist:
+Quant-Messung → Plan → Korpus-Agent → Audit → interner Sweep → Entitäten +
+Feldprofil → Regulatorik/Markt/Förder/Katalysator-Sweeps → Web-Agent (14
+Schritte) → Primärquellen-Vorlauf → Re-Audit → Faktenzettel/Kalender/Akteure →
+Schreiben (Sektionen) → Leser → Neuwurf → Reparatur/Streichung → zweiter
+Neuwurf → Leser → Endkontrolle. Was daran domänenunabhängig schwach ist, in
+der Reihenfolge des Hebels:
+
+1. **Kein Auftrags-Intake.** Das Frage-Feld geht ungeprüft in Planer und
+   Profil (v1: Leserbeschreibung wurde Forschungsgegenstand). Nötig ist ein
+   strukturierter Auftrag vor dem ersten Suchschritt: Was wird entschieden?
+   Wer liest? Welche Randbedingungen? Fragetyp (Technikwahl, Landschaft,
+   Regulatorik, Markt)? Und: Dossier oder Advisor? Ein „which should we"-Auftrag
+   ist ein Advisor-Auftrag mit Dossier als Vorstufe.
+2. **Owner-Checkpoint nach Plan und Profil.** Nach ~2 Minuten Rechenzeit
+   stehen Feldprofil, Plan und die Primärquellen-Klassen. Dort einen Halt
+   einbauen (Desk zeigt es, Owner bestätigt oder korrigiert in einem Satz),
+   bevor 30–85 Minuten laufen. Dafür braucht der Owner kein Fachwissen: „der
+   Plan handelt von IT-Dienstleistern, nicht von Virtualisierung" sieht jeder.
+3. **Feste Sweep-Muster laufen für jedes Feld.** AI Act, CE, SPC, Erstattung,
+   Abwärme — in allen vier Versionen Themenfremdes im Kalender und in der
+   Regulatorik. Seit dem PROFILE-Fix liefert das Profil brauchbare
+   Regulatoren/Ereignistypen; die festen Muster sollten nur noch Rückfall ohne
+   Profil sein, und Profil-Instrumente vor dem Sweep gegen den Korpus gezählt
+   werden (wie die Landschafts-Teilfelder).
+4. **Rangmodell kennt nur Register/Journale/Presse.** Für eine Technikwahl
+   sind Hersteller-Doku, Normen und CVE-Datenbanken die Primärquellen
+   (Broadcom-Lifecycle-Seite, pve.proxmox.com, learn.microsoft.com,
+   EUR-Lex-Text). Das Profil sollte je Feld die „autoritativen Quellklassen"
+   benennen, und Hosts, die es nennt, bekommen Rang 1 — verifiziert durch den
+   Abruf. Sonst trägt jede Kernaussage „secondary source only".
+5. **Widersprüche überleben den Neuwurf.** v2 und v4: Kurzfassung empfiehlt,
+   „does not support" verneint. Der Leser findet es, der Neuwurf ist ein
+   Ganzdokument-Aufruf, der zweite wird bei Nichtbesserung verworfen. Nötig:
+   Leser-Befund „contradiction" als sperrender Strukturbefund mit gezieltem
+   Neuwurf NUR der beiden betroffenen Sektionen.
+6. **Prüfung ist Token-Abgleich, keine Aussagenprüfung.** „BSI Baustein" fehlt
+   wörtlich im deutschen PDF → der einzige SYS.1.5-Satz fällt (v4); „Data Act
+   does not apply" steht auf keiner Seite, wurde aber nicht gefangen (v3), weil
+   kein Token fehlte. Für Kernsektionen einen Entailment-Schritt (Modell liest
+   Satz + zitierte Seite: gestützt / nicht gestützt / widersprochen), Token-Check
+   nur als Vorfilter; Subjektabgleich stamm- und wortweise statt als Phrase.
+7. **Quoten unabhängig vom Material.** Fünf Akteurzeilen, fünf Kalenderzeilen,
+   drei Beobachtungspunkte — für eine Technikwahl gibt es wenige datierte
+   Ereignisse, also füllt das Modell (Veranstaltungen, Förderfristen). Die
+   Kalender-Untergrenze folgt seit 13.09. den Kandidaten; Akteurtabelle und
+   Beobachtungspunkte sollten ebenso aus dem Faktenzettel bemessen werden.
+8. **Web-Agent wiederholt sich.** v3: dreimal dieselbe GDPR-Suche in Folge;
+   exakte Dubletten werden übersprungen, Fast-Dubletten nicht. Cosinus-Dedup
+   der Anfragen + Budget je Lücke statt global.
+9. **„ok" heißt nur: keine unbelegte Zahl, nichts gestrichen.** Leser,
+   Widersprüche, Dichte, Kalender-Themenbezug stehen daneben. Ein
+   „abgabereif"-Verbund (Leser beantwortet, kein Widerspruch, Dichte ≥ Floor,
+   Kalender themenbezogen) gehört als dritte Ampel in den Desk — erst dann
+   Sign-off.
+10. Klein: PDF-Titel aus Metadaten/Dateiname statt erster Textzeile; Kalender-
+    Daten vor dem heutigen Tag sind keine Auslöser (v3).
+
+Ergebnis für ein Kundenmuster heute bleibt: Dossier + Advisor-Notiz + eine
+Stunde Redaktion. Die Punkte 1, 2, 3 und 5 sind der Weg, das auf „Dossier +
+Advisor, ohne Redaktion" zu bringen; 4 und 6 heben die Belegqualität.
+
+### Runde 22 (2026-09-19) — Stufe 0: die Messlatte (`dossier_run_outcomes`, dritte Ampel)
+
+Erster Schritt des Plans `docs/plan_dossier_agent_2026-09-18.md`. Bevor der
+Agent nutzenbasiert entscheidet, muss der Nutzen messbar sein — und zwar für
+jeden Lauf, der je gespeichert wurde, ohne Modell.
+
+**Gebaut.** `pipeline/dossier_utility.py` rechnet aus `dossiers.result`
+(Struktur-, Leser-, Zitat- und Quellenprotokoll) und `dossier_orders`
+(Endkontrolle, `reviewed_at`) je Lauf sieben Komponenten und den Nutzen U;
+`scripts/migrate_dossier_run_outcomes.py` legt die Tabelle
+`dossier_run_outcomes` an (eine Zeile je `dossiers.id`, Upsert; additiv, auf
+der Live-DB am 19.09. ausgeführt, wie die Dossier-Tabellen nicht in
+`init_db`); `scripts/dossier_eval.py --backfill` rechnet alle Läufe nach,
+`--scoreboard` zeigt sie je Serie (`--json` für Maschinen); der Worker
+schreibt die Zeile am Ende jedes Laufs (`record_run`, nie sperrend — schlägt
+es fehl, steht eine Warnung im Log und der Lauf endet normal in `review`).
+Desk: dritte Ampel **„delivery-ready"** neben Endkontrolle und Leser in Liste,
+Serienkarte und Dossieransicht (dort mit U, Dichte, Primäranteil); „—" ohne
+Outcome-Zeile. Tests: `tests/test_dossier_utility.py` (Komponenten,
+Gewichte, Herausnormierung, Kostenstrafe, Ampel, Upsert gegen SQLite).
+
+**Komponenten** (je in [0, 1], None = vom Lauf nicht erzeugt):
+`density_norm` = Faktenquote nach dem Neuwurf / 2,0 (gedeckelt; Rückfall
+vorher, sonst 0) · `primary_share` = Anteil zitierter Katalog-IDs mit Rang ≤ 1
+(fehlender Rang = 2; None ohne Zitate) · `no_contradiction` = 0 bei
+`coherence`-Befund des Lesers oder „contradict" im Urteil, sonst 1 ·
+`tables_on_topic` = 1 − min(2, Strukturbefunde „off topic"/„nicht zum Thema"
+nach dem Neuwurf)/2 · `reader_answers` = Leser-Urteil (None ohne Leser) ·
+`answered_must` = Pflichtpunkte des Auftrags — **Platzhalter, ab Stufe 1** ·
+dazu roh `cost_minutes`, `web_calls` (Brave + SearXNG) und das Label
+`signed_off`.
+
+**Gewichte** (Preset `technology`, Default; die Fragetypen `landscape`,
+`regulatory`, `market`, `evidence` liegen als Presets bereit, Stufe 1 wählt
+sie aus dem Auftrag): Dichte 0,25 · Primäranteil 0,20 · kein Widerspruch 0,20 ·
+Tabellen 0,10 · Leser 0,25; `answered_must` zusätzlich 0,25, sobald messbar.
+Fehlende Komponenten werden **herausnormiert, nie als 0 gewertet**. Kosten:
+−0,02 je angefangene 10 min über 30 min, −0,01 je angefangene 10 Web-Aufrufe
+über 40. **Abgabereif** = Leser beantwortet ∧ kein Widerspruch ∧ Dichte ≥ 2,0
+∧ Tabellen themenbezogen; ohne Leser nie.
+
+**Baseline über die 48 Läufe (Backfill 19.09.):**
+
+| | |
+|---|---|
+| Läufe / abgabereif | 48 / **0** |
+| mit Leser (seit 14.09.) / davon „beantwortet" | 7 / 0 |
+| vom Owner abgenommen | 3 |
+| mean U über alle | 0,476 |
+| ohne Strukturprotokoll (vor 07.09.; U aus Defaults 0,308) | 14 |
+| stärkste Serien (mean U) | glp1-dr2 0,915 · glp1-dr3 0,877 · batteries-landscape 0,841 · glp1-dr4 0,817 · iron-air-batteries 0,767 |
+| schwächste Serien | datacenter-virtualization **0,254** (v1 0,551 → v2 0,178 → v3 0,126 → v4 0,160) · perovskite / askea / newsletter-deepdive 0,308 (kein Protokoll) |
+| iron-phosphate-battery v9 (abgenommen) | U 0,832, **Platz 4 von 48** — im oberen Drittel |
+| perovskite v1 / v2 (abgenommen) | U 0,308, Platz 40 / 41 — **kein Strukturprotokoll**, keine Ränge: U misst nur, was gespeichert ist |
+
+Drei Lesarten. (1) Die Messlatte bestätigt Runde 21: **kein einziger Lauf ist
+abgabereif**, und bei allen sieben Läufen mit Leser fehlt das Urteil
+„beantwortet". (2) Die datacenter-Serie fällt von v1 nach v2–v4 auf ein
+Viertel — genau der „Dichte fällt durch den Neuwurf"-Befund aus dem Plan, jetzt
+als Zahl. (3) Der Plan fragte, ob die drei abgenommenen Dossiers im oberen
+Drittel liegen: LFP v9 ja (Platz 4); die beiden Perowskit-Läufe vom 03.09.
+sind **nicht messbar**, nicht schlecht — sie liegen vor Messkette und
+Rangmodell. Die Regression im Sinne des Plans (U deterministisch, abgenommene
+Läufe oben) ist deshalb nur für LFP belegt; eine Wiederholung der
+Perowskit-Serie mit heutigem Harness würde die Frage beantworten.
+
+**Grenzen von Stufe 0, bewusst:** `no_contradiction` ist Token-Abgleich auf
+dem Leser-Text (Stufe 4 bringt die Aussagenprüfung); `tables_on_topic` liest
+Strukturbefunde, nicht die Tabellen selbst; U vergleicht nur Läufe mit
+gleichem Protokollstand fair (Spalte „* kein Strukturprotokoll" im
+Scoreboard). `owner_edit_diff` ist als Spalte da und bleibt bis Stufe 5 leer.
+
+
+### Runde 23 (2026-09-19) — Stufe 4: Prüfen statt Streichen
+
+Plan `docs/plan_dossier_agent_2026-09-18.md`, Stufe 4 — die vier Hebel gegen
+das Muster „Richtigkeit durch Streichen": Aussagenprüfung, Reparatur vor
+Streichung, Widerspruchs-Gate, Quoten aus dem Material. Dazu die zwei kleinen
+Punkte aus Runde 21 (PDF-Titel, vergangene Kalendertermine) und das Replay.
+
+**Aussagenprüfung (`pipeline/dossier_entailment.py`).** Der Token-Abgleich
+(`verify_cited_figures`) prüft Zahlen und Namen; „the EU Data Act does not
+apply" (v3) ging durch, weil kein Token fehlte. Jetzt liest das Modell (das
+aktive Schreibermodell, strukturiert, T = 0) **je zitierter Seite** alle Sätze
+der Kernsektionen (`CORE_SECTIONS` + Recht/IP), die diese Seite zitieren, in
+EINEM Aufruf — Seitentext auf ~6.000 Zeichen um die besten Wortreffer gekürzt
+(`page_excerpt`, Lead bleibt) — und urteilt je Satz `supported` /
+`contradicted` / `unrelated` mit einem Zitat ≤ 200 Zeichen. Regeln: Token-
+Befunde sind Vorfilter (`skip`), ein Widerspruch ohne Zitatstelle zählt als
+`unrelated` (Fehlen ist kein Widerspruch), Urteile werden je (Satz, Seite) im
+Lauf gecacht (nach dem Neuwurf kosten nur neue Sätze Aufrufe), höchstens 25
+Seiten je Durchgang (meistzitierte zuerst, Deckelung wird geloggt).
+`contradicted` → Zeile in der Neuwurf-Direktive („Die zitierte Seite
+WIDERSPRICHT dem Satz — wörtlich dort: …"), nach dem Neuwurf Streichung über
+den normalen Pfad, Endkontrolle: `check_json["contradicted"]` +
+Befundzeile; `unrelated` → bestehender Themenbefund (`kind: subject`).
+`DOSSIER_ENTAILMENT=0` schaltet ab; Aufrufe und Sekunden in
+`structure["entailment"]`, Prompt im Katalog (`dossier-entailment`).
+
+**Subjektabgleich per Stamm.** `_in_source_phrase` verlangte bis heute jedes
+Wort des Namens wörtlich (possessiv-/diakritika-tolerant). Die BSI-Seite
+schreibt „Baustein", „Bausteins", „Bausteine" — und nie „BSI" (nur im
+Hostnamen); „BSI Baustein SYS.1.5" fiel. Jetzt: Wörter mit Stamm ≥ 5 Zeichen
+(`_stem`: klein, Umlaute transliteriert, Bindestrich/Apostroph raus,
+Flexionsendung ab) müssen alle als Stamm auf der Seite stehen (Seitenwort
+beginnt mit dem Stamm, höchstens 3 Zeichen länger, oder umgekehrt); kurze
+Qualifizierer („BSI", „EU", „US") werden nicht mehr verlangt, sobald ein
+langes Wort trägt. Ein Name nur aus kurzen Wörtern („EU AI") braucht wie
+bisher alle. „Eli Lilly" gegen die Novo-Seite fällt weiterhin.
+
+**Reparatur vor Streichung, gewichtet.** `repair_sentences(pass_no=2,
+only=…)`: nach dem ersten Durchgang bekommen Sätze, die in einer Kernsektion
+stehen oder einen Themenbegriff nennen, einen zweiten — Seite auf 3.600
+statt 1.200 Zeichen um die Schlüsselwörter des Satzes neu gelesen, Auftrag
+„wenn die Seite dieselbe Sache mit anderer Zahl/Datum/Name sagt, EXAKT das
+einsetzen". Der Guard bleibt: die beanstandete Angabe darf nicht
+wiederkommen. Füllsätze fallen wie bisher sofort. Zähler `repaired_pass2`,
+`drop_core`, `drop_filler` (Log „deletion candidates: N core/on-topic, M
+filler").
+
+**Widerspruchs-Gate.** Mechanisch (`contradiction_findings`): eine Aussage
+der Kurzfassung, die ein URTEIL trägt (`_EVALUATIVE_RE`: leading, candidate,
+recommend, superior, should, definitive, viable, only, fastest …), deren
+Gegenstand (`subject_names`, Stammabgleich) in „What the evidence does not
+support" oder „Decision points" in einem Satz mit Verneinung UND Urteilswort
+wieder auftaucht, der außerdem ein weiteres Inhaltswort teilt → Befund mit
+beiden Sätzen. Leser-Befunde `coherence` oder mit „contradict" im Einwand
+werden auf dieselbe Form abgebildet (`contradiction_from_reader`) und aus
+dem Ganzdokument-Neuwurf herausgenommen (`without_contradictions`,
+`_majors` zählt sie nicht). Auf der Endfassung (nach dem zweiten Neuwurf):
+EIN gezielter Neuwurf NUR der beiden Sektionen (`rewrite_sections`: je
+Sektion ein Aufruf wie `write_sections`, der ganze Bericht als Kontext, der
+Befund als Direktive, `replace_section` setzt sie an Ort und Stelle), dann
+`_settle()` + Leser; bleibt ein Widerspruch, steht er in `findings_after`
+und sperrt (`contradictions_before/after`, `contradiction_rewrites`).
+
+**Quoten aus dem Material.** `structure_findings(actor_min=, watch_min=,
+today=)`: `actor_min_from_material` = max(2, min(5, Zeilen der Akteur-
+Landkarte)), `watch_min_from_material` = max(2, min(3, datierte Faktenzettel-
+Zeilen + Kalender-Kandidaten)); der Befund nennt das geltende Soll und, wenn
+es unter der Vollquote liegt, „die Lücke gehört in 'Open questions and
+limits' benannt, nicht gefüllt". `draft_score` bekommt dieselben Werte.
+
+**Kalender: vergangene Termine.** `date_points` liefert je Datumsangabe das
+ENDE des Zeitraums (Tag, Monatsletzter, Quartals-/Halbjahresende; nacktes
+Jahr und „mid-2026" = 31.12.). `calendar_rows(today=)` zählt eine Zeile,
+deren Termin (Spalte „Date"; ohne Datum dort: alle Daten der Zeile) vor `today` endet, als `passed` — kein Ausloeser; der
+Befund sagt es („N Zeile(n) mit einem Termin, der schon vergangen ist").
+`fill_calendar(today=)` trägt solche Kandidaten nicht ein. `run()` gibt das
+Laufdatum durch.
+
+**PDF-Titel.** `pdf_title(url, hit_title)`: bei `.pdf`-Pfaden bleibt der
+Suchmaschinen-Titel nur, wenn er kein Seiten-Boilerplate ist („Seite 1 von
+9", „Stand Februar 2022", „1. Beschreibung"); sonst der Dateiname ohne
+Endung („SYS 1 5 Virtualisierung Edition 2022").
+
+**Replay (`scripts/dossier_replay.py`)** — alle Textprüfungen ohne Modell
+über die 48 gespeicherten Läufe (`report` + `result.sources`), `today` =
+Laufdatum:
+
+| Messung | Wert |
+|---|---|
+| Läufe mit mechanischem Widerspruch | **3** (datacenter v2, datacenter v4, quantum v2), 4 Paare — v4 gefangen |
+| … ohne die Urteils-Bedingung | 7 Läufe, 14 Paare, davon 11 Einschränkungen/Widerlegungen zitierter Irrtümer (glp1-decision, glp1-r3, LFP v2, datacenter v3, 4× quantum „Quantum Act") |
+| Läufe mit Leser-`coherence`/„contradict" | 3 (quantum v2, datacenter v2, v3) |
+| Kalenderzeilen mit am Laufdatum vergangenem Termin (Spalte „Date") | **22 in 13 Läufen** (LFP v2: 5, datacenter v3: die vier Nachrichten-Daten aus Runde 20, iron-air 2, LFP v7 2, je 1 in dr3/LFP v4/v5/quantum v2/datacenter v4 u. a.) |
+| Gespeicherte Subjekt-Befunde, jetzt vom Stammabgleich akzeptiert | 25 von 135 (datacenter v4: 3 von 12, darunter der SYS.1.5-Satz) |
+| Gestrichene Sätze (ohne Rangvermerke) | 243 — **169 Kern/Thema** (bekämen jetzt zwei Reparaturen), 74 Füllsätze |
+
+Der v3-Satz („Data Act does not apply") ist ein Modellurteil und im Replay
+nicht ausführbar; der Unit-Test (`tests/test_dossier_entailment.py`) spielt
+ihn mit einem Fake-Modell durch: Befund → Direktive → Streichung →
+`check_json["contradicted"]`. Die Abnahme „Dichte nach Neuwurf ≥ vorher in
+≥ 90 % der Läufe" braucht Live-Läufe (nächster datacenter-/LFP-Vergleich).
+
+**Umgebungsschalter:** `DOSSIER_ENTAILMENT` (1/0). Alles andere ohne
+Schalter. Tests: `tests/test_dossier_entailment.py` (41 mit
+`test_dossier_contradiction.py`), volle Suite grün (1.867 passed).
+
+
+### Runde 24 (2026-09-19) — Stufe 1: Auftrags-Intake und Owner-Checkpoint
+
+Plan `docs/plan_dossier_agent_2026-09-18.md`, Stufe 1 — die Punkte 1 und 2
+aus Runde 21: kein Auftrag ging bisher geprüft in den Lauf (v1: die
+Leserbeschreibung wurde Forschungsgegenstand), und zwischen „Auftrag
+erteilt" und „Dossier liegt vor" gab es keinen Halt, obwohl Profil und Plan
+nach ~2 Minuten stehen und die Fehlrichtung dort für jeden sichtbar ist.
+
+**Intake (`pipeline/dossier_brief.py`).** Vor dem ersten Suchschritt wird
+aus Thema + Fragefeld ein strukturierter Auftrag (`Brief`, 27B strukturiert,
+T = 0): Fragetyp (`technology | landscape | regulatory | market | evidence`),
+die Entscheidung in einem Satz, der Leser, Randbedingungen, **Pflichtpunkte**
+(`must_answer`, 3–6 konkrete Fragen, gedeckelt und dedupliziert) und die
+Artefakt-Weiche (`dossier | dossier+advisor`). Zwei Regeln sind
+deterministisch und schlagen das Modell: `deterministic_question_check`
+(leer = Standardfrage; sonst `?` oder Fragewort am Anfang, englisch und
+deutsch — datacenter v1 fällt mit Grund durch, **vor jedem Modellaufruf**)
+und `route_artefact` („which … should", „recommend", „best option" →
+Dossier + Advisor; ein Modellurteil „Dossier" wird überschrieben). Ein echter
+Fragesatz kann vom Modell nicht abgewiesen werden (`is_question` folgt der
+Regel, nicht dem Modell — ein falscher Abbruch wäre teurer als ein
+schwacher Auftrag). Landschafts-Modus erzwingt den Typ `landscape`.
+
+**Checkpoint (Worker, Phase 0).** `process_order` läuft jetzt in zwei
+Hälften ohne langlebigen Prozess: Fragecheck → `reject_intake` (Status
+`failed`, `error = "intake rejected: …"`) oder Intake auf dem 27B (Auftrag;
+Feldprofil — der bestehende `TopicProfile`-Aufruf, nur wenn der Lauf ihn
+braucht (`measure` + Web); Plan — der bisherige Planer-/Landkarten-Schritt,
+herausgezogen als `corpus_research.build_plan`). Alles landet auf dem
+Zettel (`brief_json`, `profile_json`, `plan_json`). Mit Checkpoint →
+`mark_awaiting` (`running → awaiting_confirmation`), Worker-Ende wie ein
+normaler Lauf (Ruhezustand). Der Desk zeigt Auftrag, Profil, Plan; der
+Owner bestätigt oder korrigiert in einem Satz (`confirm`, → `queued`,
+`confirmed_at`, `owner_note`). Nächster Worker-Start: ohne Korrektur laufen
+die gespeicherten Artefakte in `run(brief=, profile=, plan=)` weiter (kein
+zweiter Intake); mit Korrektur hängt `effective_question` sie als
+„Owner correction: …" an die Frage, Auftrag/Profil/Plan werden neu
+gerechnet, kein zweiter Halt. Der einzige zusätzliche Modellaufruf gegenüber
+Runde 23 ist der Auftrag selbst — Profil und Plan wurden vorher in `run()`
+gerechnet und werden jetzt hereingereicht. Schalter: `params
+{"checkpoint": true|false}` (Desk und *Recompute* schreiben `true`; CLI
+`--order-new` schreibt `false`, `--checkpoint` schaltet ein;
+`scripts/newsletter_deep_dive.py` schreibt `false`; Default für Zettel ohne
+den Parameter: an), `DOSSIER_CHECKPOINT=0` erzwingt aus. CLI:
+`--confirm N [--note "…"] [--run]`; `--list` zeigt wartende Aufträge mit
+Typ/Artefakt/Pflichtpunktzahl.
+
+**Der Auftrag im Lauf.** Berichts-Prompt: Block `ORDER BRIEF` (Typ,
+Artefakt, Entscheidung, Leser, Randbedingungen) + `MUST ANSWER` (je Punkt
+eine zitierte Aussage, offene Punkte nach „Open questions"); die Direktive
+der Kurzfassung in `write_sections` verlangt **genau eine tragende Aussage je
+Pflichtpunkt in dieser Reihenfolge** (ohne Auftrag wie bisher drei
+Aussagen). Leser: Checkliste der Pflichtpunkte im Prompt, jeder unbeantwortete
+ist ein `missing`-Befund (alle vier Leser-Aufrufe). Nach der Endfassung
+`must_answer_scores`: EIN strukturierter Aufruf, je Punkt `answered` +
+wörtliches Zitat; „beantwortet" gilt nur, wenn das Zitat (whitespace-/
+markennormalisiert) im ausgelieferten Text steht **und** der Satz eine
+Quellenmarke trägt — sonst `answered=False` mit Grund („quote not in the
+dossier", „answering sentence carries no citation"). `result["brief"]`,
+`result["brief_eval"]` (Items, `answered_share`, Zähler). Nutzenfunktion:
+`answered_must` = `answered_share` (Stufe-0-Platz jetzt belegt, Gewicht
+0,25), Preset = `brief.question_type` (`record_run(preset=)`).
+
+**Datenmodell.** `scripts/migrate_dossier_brief.py` (additiv, idempotent,
+**auf der Live-DB am 19.09. ausgeführt**): `dossier_orders.brief_json /
+plan_json / profile_json JSONB`, `confirmed_at`, `owner_note`; CHECK auf
+`status` per drop + re-add um `awaiting_confirmation` erweitert
+(`VALID_STATUS`, `_ddl()`; `ensure_schema` zieht die Spalten nach). Wie die
+anderen Dossier-Tabellen nicht in `init_db`. Neue Übergänge:
+`mark_awaiting`, `confirm`, `reject_intake`, `store_intake`, `cancel` auch
+aus `awaiting_confirmation`.
+
+**Desk.** Neuer Status in der Liste mit Panel: Auftrag (Typ · Artefakt,
+Entscheidung, Leser, Randbedingungen, Pflichtpunkte), Feldprofil (Feld,
+Regulatoren, Ereignistypen, Akteure), Plan (Schritte, Landkarte) und das
+Formular „Correct in one sentence" + *Confirm* (mit „run right away"). Das
+Bestellformular prüft die Frage clientseitig (`DossierQuestionField`,
+`lib/dossierIntake.ts` — TS-Spiegel der Python-Regel, Vitest gegen
+dieselben Fälle) und die Server Action noch einmal (Hinweis `?intake=
+notaquestion`). Zähler „N at the checkpoint" im Kopf.
+
+**Abnahme laut Plan:** datacenter v1 wird am Intake abgewiesen (Unit-Test mit
+dem Originaltext, Worker-Test ohne Modellaufruf); „which stack should …"
+wird als Dossier + Advisor geroutet (deterministisch, gegen ein Modell, das
+„Dossier" sagt). **Nicht gebaut:** `dossier_field_profiles` und
+`DOSSIER_CHECKPOINT_MIN` (Weiterlaufen nach Frist) — der Halt ist bewusst
+ohne Uhr: ein Auftrag wartet, bis jemand hinschaut; Cron-Pfade schalten den
+Checkpoint ab statt ihn zu bemessen. Das Feldprofil bekommt wie bisher
+keine Korpus-Titel (Entscheidung aus dem PROFILE-Fix: Schlagzeilen wurden
+Feldstruktur). Der Zeit-/Kostenrahmen aus dem Plan fehlt im Auftrag noch.
+Tests: `tests/test_dossier_brief.py`, `test_dossier_orders.py`
+(Checkpoint-Übergänge), `test_dossier_worker.py` (Halt → Bestätigung mit
+Korrektur → Lauf; Bestätigung ohne Korrektur = kein zweiter Intake;
+Parameter/Env; Abweisung ohne Modellaufruf; Preset), `test_dossier_utility.py`
+(`answered_must`), Vitest `dossierIntake.test.ts`; volle Suite 1.918 passed.
+Erster Live-Lauf mit Intake steht aus (datacenter v5 lief noch mit dem Code
+von Runde 23).
+
+### Runde 25 (2026-09-19) — Stufe 2: Beschaffung aus dem Profil, Primärquellen je Feld
+
+Plan `docs/plan_dossier_agent_2026-09-18.md`, Stufe 2 — die Punkte 3 und 4
+aus Runde 21. Messung an den fünf `datacenter-virtualization`-Versionen: AI
+Act, CE marking, SPC, Erstattung und Abwärme standen im Kalender und in der
+Regulatorik, obwohl das Feld Virtualisierung ist; Primäranteil der zitierten
+Quellen 29–62 % (Ziel ≥ 60 %); das v5-Log (00:47) baute Katalysator-Anfragen
+aus Pseudo-Entitäten — `However expected date decision 2027`, `General
+product launch date`, `Security next milestone timeline` — großgeschriebene
+Satzanfänge als Akteure, jeder mit jedem Muster multipliziert (6 Treffer, 0
+aufgenommen). Vier Ursachen, vier Bauteile:
+
+**1. Das Profil führt die Sweeps (`profile_queries`).** Mit Profil bestehen
+Recht, Markt, Förderung und Kalender nur noch aus dem themenneutralen Kern
+(`REG_CORE`, `MKT_CORE`, neu `FUND_CORE`, `CATALYST_PATTERNS`, `ENT_*_CORE`)
+plus dem, was das Profil nennt: Regulatoren/Instrumente (Kurzform, ohne
+Verweigerungen), Ereignistypen (nur solche mit Ereigniswort — „end of
+support" zählt jetzt, `_EVENT_NOUNS` um end/sunset/eol/renewal/audit
+erweitert), Akteurtypen (Markt: `{t} {Akteur} adoption demand pricing`,
+Förderung: `{t} {Akteur} funding round raised`). Das Rückgrat der Vertikale
+(`VERTICAL_SETS` — die Quelle der AI-Act-/CE-Zeilen im TECH-Feld) und die
+festen Listen (`REGULATORY_PATTERNS` mit SPC/EMA, `MARKET_PATTERNS` mit
+Erstattung, `FUNDING_PATTERNS` mit Horizon/EIC) sind nur noch **Rückfall, je
+Feld einzeln:** Regulatoren, wenn das Profil < 2 brauchbare nennt;
+Ereignisse, wenn < 2 echte; Förderung nur ohne Profil; ohne Profil und
+Vertikale der alte Pfad. Der Schlüssel `fallback` sagt, welche Felder
+zurückgefallen sind (Log: „profile queries: backbone/fixed fallback for …").
+Vor dem Sweep zählt `count_instruments` jedes Instrument/Ereignis gegen den
+Korpus (Volltextsuche, 5 Treffer), das Log nennt die Zahlen, die Reihenfolge
+der Sweeps folgt ihnen (Budgets werden der Reihe nach vergeben) — **nichts
+wird deshalb gestrichen**: der Korpus ist presselastig, ein
+Register-Instrument fehlt dort oft und ist trotzdem richtig. Nach den Sweeps
+vermerkt `mark_unseen_instruments` Instrumente mit 0 Korpus- **und** 0
+Web-Treffern im Ledger (`instrument_unseen`) und in den Notizen
+(„INSTRUMENT CHECK — … do not cite them as facts"), `result["instrument_
+counts"]`/`["instrument_unseen"]`. Der Prompt (`PROFILE_SYSTEM`) sagt dem
+Modell jetzt ausdrücklich, dass nur Genanntes gesucht wird und Nachbarfelder
+nicht auffüllen dürfen; Prompt-Katalog liest ihn live.
+
+**2. Quellklassen im Profil (`TopicProfile.source_classes`).** Neues Feld:
+3–6 `SourceClass` (`kind` ∈ register | agency | court | standards_body |
+vendor_documentation | vulnerability_database | statistics_office |
+exchange_filing | journal | trade_press | other, `name`, `hosts`, `why`).
+Default leer, damit vor Stufe 2 gespeicherte `profile_json` weiter
+validieren; der Modellaufruf verlangt das Feld. Die Hosts werden je Lauf zu
+**Rang 1** (`set_run_primary_hosts`, modulweit, weil `source_rank()` an ~15
+Stellen ohne Kontext läuft; `run()` setzt die Menge beim Start und am Ende
+zurück; `extra_primary=` für einen Einzelaufruf). Desk-Checkpoint zeigt die
+Klassen („Source classes (rank 1 for this run)").
+
+**3. Rang nach Feld.** (a) Generische Dokumentations-/Normen-Hostklasse →
+Rang 1 (`is_doc_host`: `learn.microsoft.com`, `knowledge.broadcom.com`,
+`pve.proxmox.com`, `iso.org`, `etsi.org`, `cve.org`, `docs.*`/`developer.*`/
+`support.*`/`kb.*`/`help.*` mit Subdomain, `*.readthedocs.io` …; Rangfilter
+greift vorher, `support.fandom.com` bleibt 3; `nvd.nist.gov` ist als .gov
+schon 0). (b) **Erfahrungsbasis `dossier_source_priors`** (PK (field, host):
+n_read, n_cited, n_dropped, rank_seen, updated_at; `pipeline/dossier_priors.py`,
+Migration `scripts/migrate_dossier_source_priors.py`, **auf der Live-DB am
+19.09. ausgeführt**): am Ende jedes Laufs zählt `update_from_run` je Host
+gelesen (Web-Arten mit `fetched`), zitiert (`cited`-IDs) und gestrichen
+(`structure.cite_findings_after` ohne weaksource/weakclaim — die werden
+gekennzeichnet, nicht gestrichen); Feld = `profile.field` normalisiert,
+sonst Themenphrase; **nie sperrend**. Beim Start bekommt ein Host desselben
+Felds Rang 1, wenn **n_cited ≥ 2, n_dropped = 0 und n_read ≥ 1** — der
+Lesevorbehalt kam aus dem Backfill: ohne ihn wäre `theregister.com` (0×
+gelesen, 7× als Original unserer Korpus-Artikel zitiert) für Virtualisierung
+„Erfahrung" geworden, also Presse als Primärquelle. Backfill über die 49
+gespeicherten Läufe (`--backfill`, rechnet die Tabelle NEU): 12 Felder
+(alte Läufe ohne Profil laufen unter ihrem Thema — die LFP-Serie steht
+deshalb zweimal), **916 Hosts, 84 Rang-1-Kandidaten** (112 ohne
+Lesevorbehalt); datacenter virtualization: 162 Hosts, 5 Rang 1
+(eic.ec.europa.eu, gdpr-text.com, lw.com, massivegrid.com, moduledge.com);
+GLP-1: 194 Hosts, 25; LFP: 121/20; quantum: 88/8. Ehrlich dazu: die Regel
+lernt auch Hosting-Anbieter-Blogs (massivegrid, moduledge) als „bewährt",
+weil zweimal zitiert und nie gestrichen — sie ist Erfahrung, kein
+Rangurteil, und der Abruf prüft jede Seite wie zuvor.
+`python -m pipeline.dossier_priors --show [--field F]` zeigt die Tabelle,
+`*` markiert die Rang-1-Kandidaten.
+
+**4. Entitätshygiene vor jedem Akteur-Sweep.** `_ENTITY_STOP` um
+satzanfängliche Füllwörter (however, furthermore, according, meanwhile,
+overall, therefore …) und `_ENTITY_STOP_SOLO` um generische Einzelwörter
+(general, security, data, cloud, storage, platform, licensing …) erweitert;
+neue Regel in `harvest_entities`: ein Einzelwort, das im Katalog auch klein
+geschrieben vorkommt, ist ein gewöhnliches Wort, kein Name („security" —
+„Proxmox" steht nie klein). `sweep_entities()` lässt nur Entitäten in ein
+Sweep-Muster, die in ≥ 2 Katalogeinträgen (Titel/Snippet) stehen **oder**
+Profil-Saat sind, gedeckelt auf 6; der Katalysator-Sweep fragt je Akteur nur
+noch typisierte Entitäten (`entity_kind`: org/substance) ab, gedeckelt auf
+`CAT_MAX_ENTITIES`. Log: „entity hygiene: N kept …, M not (function words /
+seen once)".
+
+**5. Primärquellen-Vorlauf nach Nutzen.** `read_primary_first` sortiert
+Kandidaten nach (Rang ↑, Prior-Bonus — Host aus Profil/Erfahrung —, Zahl der
+Pflichtpunkt-Stämme in Titel+Snippet ↓, Trefferreihenfolge) statt nur nach
+Rang und Trefferreihenfolge; `must_answer_terms` aus dem Auftrag (Stufe 1);
+die ersten zehn stehen mit Score im Log und in `dr_read["order"]`. Budget
+unverändert (`DR_READ_BUDGET` 28).
+
+**6. Vermerk statt Befund:** `structure["calendar_off_profile"]` zählt
+Kalenderzeilen, die ein bekanntes Instrument (`_KNOWN_INSTRUMENTS`: ai act,
+ce marking, spc, reimbursement, waste heat, ema, efsa …) nennen, das im Profil
+nicht steht — mit Instrument und Beispielzeilen. Kein Strukturbefund, keine
+Sperre; die Stelle, an der der Owner die AI-Act-Zeile sieht, bevor sie
+Redaktion kostet.
+
+**Abnahme laut Plan:** „keine AI-Act-/Abwärme-Zeile in einem
+Virtualisierungs-Dossier" — per Test belegt für die Anfragen
+(`tests/test_dossier_profile_queries.py`: ein Virtualisierungs-Profil mit
+TECH-Vertikale erzeugt keine Anfrage mit ai act / spc / reimbursement / ce
+marking / waste heat / ema / efsa / pdufa / horizon europe; ein
+Pharma-Profil weiterhin EMA/SPC; `However`/`Security`/`General` werden nie
+Sweep-Entitäten, `Proxmox`/`Broadcom` schon). Was das Modell trotz Profil in
+den Kalender schreibt, fängt der Vermerk (6). „Primäranteil ≥ 60 % auf der
+datacenter-Serie" braucht einen Live-Lauf — **offen** bis zum nächsten
+datacenter-/LFP-Vergleichslauf (der auch der erste Lauf mit Intake ist).
+Replay (`scripts/dossier_replay.py`) ist hier nicht anwendbar: die 49
+gespeicherten Läufe tragen kein Profil; der Backfill der Erfahrungsbasis ist
+die Messung über alte Läufe. **Nicht gebaut:** `dossier_query_stats` (Stufe
+3/5), Owner-Korrekturen der Quellklassen in `dossier_field_profiles` (Stufe 5).
+Tests: `test_dossier_profile_queries.py` (25), ein Test in
+`test_dossier_dr_mode.py` invertiert (vollständiges Profil schlägt das
+Rückgrat; dünnes Profil bekommt es); volle Suite 1.944 passed, tsc grün.
+
+### Runde 26 (2026-09-19) — Stufe 3: der nutzenbasierte Rechercheur
+
+Plan `docs/plan_dossier_agent_2026-09-18.md`, Stufe 3, plus die drei Lehren
+des Handdurchgangs (`docs/dossier_manual_run_2026-09-19.md`): Rechtstexte
+artikelweise, zwei Seiten je Hersteller-Aussage, der Leser urteilt an den
+Pflichtpunkten. Bis Runde 25 liefen Korpus- und Web-Agent feste Schrittzahlen
+ab (6 + 14) und das Modell allein entschied, welche Lücke dran ist und wann
+Schluss ist; dieselbe Anfrage lief nur dann nicht zweimal, wenn sie
+zeichengleich war (datacenter v5: „BSI IT-Grundschutz SYS.1.5 Virtualisierung
+Baustein Anforderungen" und dieselbe Anfrage mit vertauschten Wörtern).
+
+**1. VOI-Planer (`pipeline/dossier_planner.py`).** Jede offene Lücke trägt
+ein **Gewicht** nach Herkunft (Pflichtpunkt des Auftrags 3,0 > Audit-Lücke
+2,0 > Planschritt 1,0 > festes Muster/Perspektive 0,7), eine **Deckung** in
+[0, 1] (aufgenommene + gelesene Quellen zur Lücke, sättigend bei 3), eine
+**Erfolgswahrscheinlichkeit** (aus `dossier_query_stats`, s. 3; +0,1, wenn
+das Feld bewährte Hosts aus `dossier_source_priors` kennt; Rückfall 0,5) und
+**Kosten** je Aktion (Suche 1, Abruf 2, Öffnen 0,5). `next_action()` ist der
+Argmax von `weight · (1 − coverage) · p_success / cost`; `should_stop()`,
+wenn der beste erwartete Zuwachs unter `DOSSIER_VOI_MIN_GAIN` (Default
+0,15) fällt oder das Aktionsbudget aus ist. Je Lücke und Phase höchstens
+drei Aktionen (`PER_GAP_BUDGET`) — vorher gab es nur das globale Budget.
+Verdrahtet in **beiden** Schleifen von `run()`: der Korpus-Agent plant über
+Planschritte + Pflichtpunkte, der Web-Agent über die nummerierten Lücken
+(Pflichtpunkte stehen jetzt VOR den Audit-Lücken in `gaps`, bekommen den
+internen Sweep und im Ledger `kind: must`; Perspektiv-Lücken des Profils
+bekommen eine eigene Ledger-Zeile an der richtigen Stelle — vorher zeigte
+`ledger[tg]` einer Perspektiv-Lücke auf eine Plan-Zeile). Das Modell schlägt
+weiterhin die konkrete Anfrage vor (`AGENT_SYSTEM`/`WEB_AGENT_SYSTEM`
+unverändert; der Prompt trägt eine Zeile `PLANNER — work on THIS gap now …`
+mit Gewicht, Deckung, erwartetem Zuwachs, Vorschlag search/fetch und, falls
+bekannt, der Schablone, die für diese Lückenart schon einmal trug). Ein
+„finish" des Modells gilt nur, wenn der Planer zustimmt oder das Budget
+aus ist; abgelehnte „finish" und übersprungene Dubletten kosten je eine
+Budgeteinheit und eine Aktion der Lücke (sonst könnte das Modell den Lauf
+endlos verzögern; nach drei Absagen auf derselben Lücke geht der Planer
+weiter). Budget: `brief.budget_minutes`, falls der Auftrag es trägt (linear
+zu 6 + 14 Aktionen je 30 min, 2–40), sonst `max_steps`/`web_steps`. Jede
+Entscheidung steht in `result["voi"]` (`corpus`/`web`: Budget, Gewichte,
+Deckung, `trace` mit `act`/`result`/`stop` und Grund; `dedup`; `budget`;
+`query_stats_updated`).
+
+**2. Fast-Dubletten (`QueryDedup`).** Vor jeder Anfrage in Korpus-Agent,
+Web-Agent und Coverage-Sweep: Cosinus über den CPU-Embedder ≥ 0,9
+(`RESEARCH_EMBED_HOST`, nur bei `retrieval=vector`) → übersprungen und
+protokolliert; ist kein Embedder da oder fällt er im Lauf aus, Token-Jaccard
+≥ 0,8 (einmal geloggt, für den Rest des Laufs). Das Modell bekommt
+`QUERY REFUSED … repeats an earlier query`. **Offline-Messung über die 49
+gespeicherten Läufe (Jaccard-Regel, in Laufreihenfolge):** 367 Web-Suchen,
+davon **4 (1,1 %)** wären übersprungen worden (glp1-dr4, LFP v6, iron-air v1,
+datacenter v5 — dort genau das SYS.1.5-Paar, Jaccard 0,86); 182 Korpus-Suchen,
+**0**. Schwellen-Empfindlichkeit: 0,6 → 10, 0,7 → 6, 0,8 → 4, 0,9 → 1. Der
+zeichengleiche Wiederholungsschutz gab es schon; die Fast-Dublette ist in
+den alten Läufen selten — der Wert der Regel liegt in der Kombination mit
+dem Planer (ohne Budget je Lücke lohnte sich das Paraphrasieren).
+
+**3. Erfahrungsbasis `dossier_query_stats` (`pipeline/dossier_query_stats.py`,
+Migration `scripts/migrate_dossier_query_stats.py`, auf der Live-DB am 19.09.
+ausgeführt).** PK (gap_kind, template): `n_used`, `n_hits`, `n_admitted`
+(**Läufe mit ≥ 1 aufgenommener Quelle** — Erfolgszähler ≤ n_used, sonst wäre
+das Beta-Mittel keine Wahrscheinlichkeit), `n_read`, `n_cited`, `updated_at`.
+Die **Schablone** ist die Anfrage mit Themenbegriffen → `{topic}`, Akteuren →
+`{entity}`, Regulatoren/Instrumenten des Profils → `{instrument}`,
+Jahreszahlen → `{year}`, Zahlen → `{n}`; Plural-s fällt, aufeinanderfolgende
+Platzhalter werden zusammengezogen („semaglutide EMA approval date" und
+„Proxmox BSI approval date" → `{topic} {instrument} approval date`).
+`p_success` je Lückenart = Beta-Mittel `(n_admitted + 1) / (n_used + 2)`
+der Schablone, bei ≥ 2 Schablonen Thompson-Sampling (Ziehung aus
+Beta(n_admitted + 1, n_used − n_admitted + 1) je Schablone, die beste
+gewinnt; `rng` mit Seed 73 je Lauf). Fortschreibung am Laufende aus Ledger,
+`web.steps` (jetzt mit `kind`), `trace` und den Quellen (`query` = die
+Anfrage, die den Treffer aufnahm — neu; alte Läufe kennen nur den gap-Index,
+dann zählt der Treffer für jede Anfrage dieser Lücke); nie sperrend.
+**Backfill über 49 Läufe: 549 Anfragen → 542 Schablonen (audit 288, plan
+254; must 0 — kein alter Lauf trug einen Auftrag), 166 davon mit `{entity}`
+(Akteure für alte Läufe per `harvest_entities` aus dem Katalog geerntet).
+Nur 6 Schablonen kommen ≥ 2× vor.** Ehrlich: modellgeschriebene Anfragen
+wiederholen ihre Form fast nie — die Tabelle wird erst über künftige Läufe
+zu Erfahrung, bis dahin liefert sie dem Planer für die meisten Lückenarten
+den Prior 0,5. `python -m pipeline.dossier_query_stats --show [--kind K]`.
+
+**4. Rechtstexte artikelweise (`pipeline/legal_text.py`, Lehre 6/7).** Für
+`eur-lex.europa.eu`, `gesetze-im-internet.de`, `legislation.gov.uk`,
+`ecfr.gov`, `federalregister.gov` (eine Liste, `LEGAL_HOSTS`) holt
+`fetch_page_for_gap` die Seite mit `fetch_fulltext_result(max_chars=1.500.000)`
+(neuer Parameter, Default unverändert 12.000; eigener Cache-Schlüssel
+`page-legal`) und behält als Seitentext nur den **Definitionsartikel** und
+die **Artikel/Paragraphen, deren Überschrift oder Text die Begriffe der Lücke
+trifft** (Lückentext + Pflichtpunkte + Themenbegriffe), ≤ 12.000 Zeichen,
+in Dokumentreihenfolge; `src["legal_articles"]` nennt sie („Article 2
+(Definitions), Article 23, Article 29, Article 31"). Erkannt werden
+`Article|Art.|Artikel|§|Section|Sec.|Rule|Regulation N` am Zeilenanfang;
+ohne Artikelstruktur bleibt der Anfang. Gilt im Web-Agenten, im
+Leseauffangnetz, im Primärquellen-Vorlauf und im zitatgetriebenen Abruf;
+scheitert der große Abruf, entscheidet der normale Pfad. **Befund in den
+gespeicherten Läufen:** 36 EUR-Lex-URLs im Katalog, 30 gelesen in 8 Läufen —
+**alle auf 961–3.600 Zeichen gekappt** (`MAX_BODY_CHARS`); Kapitel VI des
+Data Act war so nie erreichbar.
+
+**5. Zwei Seiten je Hersteller-Aussage (`dossier_structure.marketing_only_claims`,
+Lehre 5).** Ein Satz der Kernsektionen (Kurzfassung, Recht/IP, Kalender,
+Beobachtungspunkte, Optionen), dessen Belege ALLE Marketingseiten sind
+(Pfad `/pricing`, `/products/`, `/product/`, `/solutions/`, `/compare`, oder
+Rang 2 auf der eigenen Seite eines Akteurs — Host trägt den Akteurnamen),
+ist ein Befund `marketing`, es sei denn derselbe Satz oder derselbe Absatz
+zitiert auch eine Doku-/FAQ-/Normenseite (Rang ≤ 1, `is_doc_host`, oder Pfad
+`/docs`, `/wiki`, `/faq`, `/documentation`, `/support`). Im Neuwurf eine
+eigene Direktive; in `_settle()` **vor der Streichung** eine gezielte Suche
+`site:<host> (docs OR faq OR documentation) <Begriffe des Satzes>` (≤ 4 je
+Durchgang, `MARKETING_REPAIR_MAX`), die erste lesbare Doku-Seite, die den
+Satz laut Aussagenprüfung STÜTZT (`dossier_entailment.support_verdict`, ein
+Aufruf, ein Satz), wird zitiert (`add_citation`) und der Befund ist
+erledigt; sonst fällt der Satz über den normalen Streichpfad. Zähler
+`marketing_before/after/repaired/searches` im Strukturprotokoll. **Offline:**
+31 Marketing-URLs in den 49 Katalogen, 4 zitiert (2 davon `.gov`, Rang 0 —
+von der Regel bewusst ausgenommen; Proxmox-Vergleichsseite in „What the
+evidence does not support", Medi-Weightloss-Preisseite in einer Option) —
+**0 Befunde** nach heutiger Regel; der Proxmox-Fall des Handdurchgangs lag
+in keinem gespeicherten Lauf, weil die Preisseite nie in den Katalog kam.
+
+**6. Der Leser urteilt an den Pflichtpunkten.** `ReaderReview` trägt
+`answered_items`/`unanswered_items` (Default leer — alte Fakes bleiben
+gültig); mit Auftrag heißt `answers_question`: **jeder Pflichtpunkt ist mit
+einer zitierten Aussage beantwortet und nichts im Dossier widerspricht sich**
+— mechanisch aus `unanswered_items` und `coherence`-Befunden abgeleitet, das
+Modell kann es nicht überstimmen. `READER_SYSTEM` und die Checkliste sagen
+ausdrücklich: **eine Empfehlung wird NICHT erwartet** (sie gehört dem
+Advisor) und darf nie als fehlend gelten. Ohne Auftrag (alte Zettel) das
+bisherige Urteil. `reader_lines` nennt die unbeantworteten Punkte mit
+ERGAENZEN-Marke (Evidenzblock kommt mit). Katalog-Eintrag `dossier-reader`
+angepasst.
+
+**Nicht gebaut / Abweichungen:** die Schreiberwahl nach Budget (27B vs.
+Flash-Next) aus dem Plan — `DOSSIER_WRITER_MODEL` bleibt Env-Override, der
+Auftrag trägt noch kein Budget (`budget_minutes` wird gelesen, sobald Stufe 1
+es schreibt); die festen Sweeps (Recht/Markt/Förderung/Kalender) laufen
+weiter mit ihren Musterbudgets und ohne Planer (sie sind deterministisch,
+ihre Anfragen sind per Bau verschieden); Embedding-Dedup nur bei
+Vektorsuche (sonst wäre der CPU-Embedder ein zweiter Ausfallpunkt). Die
+Abnahme laut Plan („gleiche Dichte bei ≤ 70 % der Web-Aufrufe auf der
+LFP-Serie") braucht Live-Läufe — offen bis zum nächsten Vergleichslauf;
+messbar ist sie dann über `voi.web.used` gegen `web.steps` der Vorgänger.
+Tests: `tests/test_dossier_planner.py` (46: Argmax, Stoppregel, Budget je
+Lücke, Thompson mit Seed, Dedup Jaccard + Fake-Embedder + Ausfall, Schablone,
+Upsert/Backfill auf SQLite, Artikel-Slicer mit synthetischem Data-Act-Text,
+Marketing-Regel Proxmox Preis vs. FAQ, Leser-Schema, Verdrahtung in `run()`
+mit Fakes). Volle Suite grün.
+
+### Runde 27 (2026-09-19) — Stufe 6: der Scouting-Bericht aus Korpus und Messblock
+
+**Owner-Ziel (19.09.):** „Umbau des Dossiers zum Scouting-Bericht basierend auf
+Daten des Korpus und Messblock. Websuche und Deep Research nur für Bereiche zur
+Ergänzung oder Beleg dessen, was im Korpus dünn ist. Alles mit lokalen Tools,
+keine Cloud-Modelle." Bis Runde 26 war der eigene Korpus für den Schreiber eine
+Suchmaschine (Trefferlisten des Agenten) plus eine Jahreszählung (M3); die
+Ebenen, Akteure und Quellen der letzten acht Quartale kamen nur zufällig in den
+Bericht, und das Web lief für JEDE Lücke — auch für solche, die der Korpus
+längst deckte (datacenter v1–v5: 14 Web-Schritte + vier Sweeps, egal was der
+Korpus hatte).
+
+**1. Korpus-Evidenz (`pipeline/dossier_corpus_evidence.py`).** Dritte
+deterministische Vorstufe in `run()`, direkt nach dem Quant-Vorspann und VOR
+Plan, Agenten und Web. Eingabe: Themenbegriffe (`anchor_terms`, ≤ 4), der
+Auftrag (Pflichtpunkte), `since_months` (24), die Suche des Laufs (Vektor über
+den CPU-Embedder, sonst Volltext) plus ein eigener Durchgang über
+`trends.title_en/summary_en/tags` mit `sources.source_type` per Namen
+(`trends` hat keine `source_type`-Spalte). Ausgabe `CorpusEvidence`:
+
+- `signals_by_tier_quarter` — je Ebene (`pipeline/tiers.tier_of`) und Quartal
+  die rohe Zahl UND der Anteil je 10.000 Signale derselben Ebene im selben
+  Quartal (Normierung wie `emerging.py`: der eigene Ingest-Zuwachs bläht die
+  Reihe nicht auf; unter 500 Signalen je Ebene-Quartal kein Anteil).
+- `actors` aus `trends.brands`/`companies` (Top 12, Zahl, erstes/letztes
+  Auftreten — Untergrenze, Extraktion läuft nur im Artikelpfad), `sources`
+  (Top-Outlets).
+- `representative` (≤ 16): die zwei neuesten je Ebene + die zentrumsnächsten
+  aus der Vektorsuche, jedes als zitierbarer Katalogeintrag `T<id>` (Art
+  article/signal wie `_row_to_source`, `fetched=True`, `why` recent|nearest).
+- `thin_areas`: eine Ebene mit < 5 Signalen in 12 Monaten; ein Pflichtpunkt
+  mit < 2 Korpustreffern (Regex + Vektor); `regulatory` und `calendar` IMMER,
+  es sei denn ≥ 3 Signale vom Typ regulation/decision (oder mit
+  Regulierungs-Wörtern) in 12 Monaten.
+- `rendered_md`: Tabelle Ebene × letzte 8 Quartale, Akteur-/Quellenzeile,
+  repräsentative Liste mit ids, THIN-Zeile — als `CORPUS EVIDENCE (cite by
+  id)` im Berichtsprompt (der Messblock `measured_brief` bleibt daneben) und
+  als gepinnte Notiz im Evidenzblock; `result["corpus_evidence"]` (ohne die
+  Rohzeilen).
+
+**Treffer-Regel (zwei Befunde beim Bauen):** (a) der FTS-Präfix
+`virtualization:*` wird zu `virtualizati:*` und trifft das Lexem `virtual`
+NICHT — 0 statt 50 Zeilen; die Vorauswahl ist jetzt ein OR der gestemmten
+Begriffe ohne Präfix, die UND-Regel über alle Begriffe läuft in Python mit
+einem groben Stamm (`crude_stem`: „virtualization" → „virtual", „datacenters"
+→ „datacent", ein Suffix-Schnitt wie Snowball) über dem normalisierten Text
+(klein, britisch → amerikanisch, trennerfrei — „Data-Centre Virtualisation"
+trifft „datacenter virtualization"). (b) Der FTS-Vektor des Index enthält die
+**Tags**; ohne sie fand die Regel 14 statt 42 Zeilen, weil die Klassifikation
+„data-center"/„virtualization" oft nur als Tag steht — Titel, Teaser und Tags
+sind jetzt in beiden Pfaden die Textbasis. Jede DB-Stufe degradiert einzeln;
+ohne Korpus-Evidenz gilt ALLES als dünn und der Lauf verhält sich wie vor
+Stufe 6.
+
+**Messung (read-only, Live-DB 19.09., Thema „datacenter virtualization",
+Begriffe datacenter + virtualization, 0,6 s):** 31 Signale seit 2024-09 (26 in
+12 Monaten; 42 seit 2020), Ebenen 12 m: science 2, patent 6, funding 0,
+market 17.
+
+| Ebene | 24-Q4 | 25-Q1 | 25-Q2 | 25-Q3 | 25-Q4 | 26-Q1 | 26-Q2 | 26-Q3 |
+|---|---|---|---|---|---|---|---|---|
+| science | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 (0,1/10k) |
+| patent | 2 (17,9/10k) | 0 | 0 | 0 | 0 | 0 | 5 (4,2/10k) | 1 (0,15/10k) |
+| funding | 0 | 0 | 0 | 1 (0,74/10k) | 0 | 0 | 0 | 0 |
+| market | 1 (0,99/10k) | 0 | 0 | 1 (1,09/10k) | 0 | 0 | 12 (3,62/10k) | 5 (1,27/10k) |
+
+Akteure: Broadcom ×1, KRISS ×1, Spectrum ×1 (13 % der Fachpresse-Zeilen tragen
+einen Namen — die Untergrenze aus `docs/emerging_nests_2026-09-15.md` gilt
+hier genauso). Outlets: EPO DOCDB ×6, The Register ×5, heise ×4, Google Patents
+×2, Semiconductor Engineering ×2. Repräsentativ: T1724293, T1695524 (science),
+T1618587, T250212 (patent), T432358 (funding), T1760210, T1134181 (market).
+**Dünn: science, funding, regulatory, calendar** — patent und market sind
+gedeckt; von den drei Pflichtpunkten des Handdurchgangs ist „BSI SYS.1.5"
+dünn (0 Treffer), „Data Act" dünn (1), „Hypervisor-Alternativen nach
+Broadcom" gedeckt. *(Die im Auftrag genannten 92/49 stammen aus einer
+Messung des abgebrochenen Vorlaufs mit unbekannter Regel; mit der jetzigen
+Regel sind es 42 seit 2020 und 17 Markt-Signale in 2026 — die Zahl steht mit
+ihrer Regel im Bericht, nicht die alte.)*
+
+**2. Web nur, wo der Korpus dünn ist (`web_gating`).** Nach Audit und
+Perspektiv-Lücken (die Liste `gaps` ist dann vollständig) entscheidet
+`dossier_corpus_evidence.web_gating`: Pflichtpunkte gehen ans Web nur bei
+< 2 Korpustreffern, Audit-/Plan-/Perspektiv-Lücken nur, wenn < 2 Zeilen des
+Korpus-Durchgangs ihre Begriffe tragen; die Sweeps hängen an den dünnen
+Bereichen (Regulatorik ↔ `regulatory`, Markt ↔ Markt-Ebene, Förderung ↔
+Förder-Ebene, Katalysator ↔ `calendar`; die zweite Welle je Akteur nur, wenn
+Regulatorik oder Markt dünn). Der Web-Planer bekommt nur die Web-Lücken
+(Index bleibt der Ledger-Index), der Prompt nummeriert nur sie, Coverage-
+Sweep und Lese-Auffangnetz laufen nur über sie, der DR-Vorlauf liest nur
+Seiten dieser Lücken (`read_primary_first(only_gaps=)`; Sweep-Treffer ohne
+Lücke laufen mit, die Sweeps selbst sind schon gegated). Budget
+`len(thin) × 4`, mindestens 6, höchstens `web_steps`. Jede Entscheidung steht
+in `result["web_gating"]` (`decisions` je Lücke mit Grund, `sweeps`,
+`web_budget`). Für datacenter (4 dünne Bereiche + 2 dünne Pflichtpunkte):
+Regulatorik-, Förder- und Katalysator-Sweep laufen, der Markt-Sweep nicht;
+Budget 14 → 14 (6 × 4 = 24 gedeckelt).
+
+**3. Scouting-Grundriss (`outline="scout"`, Default für alle Modi; Landschaft
+behält ihre Tabelle).** `_OUTLINE_SCOUT_EN/_DE`, neun Pflichtabschnitte in
+`dossier_structure.OUTLINES["scout"]`: What this is about · **Scout's verdict**
+(drei belegte Aussagen über das FELD: Reifegrad, Bewegung, Zeitlinie; das
+Muster erkennt weiter „Decision summary") · **Maturity and position in the
+cycle** (NEU — nur aus Messblock und Korpus-Ebenenhistorie, muss ≥ 2
+gemessene Größen mit exaktem Wert nennen, `maturity_findings`; zählt wie
+„about" nicht zur Faktenquote; damit hat die Messung eine Sektion, in der sie
+stehen MUSS — der stehende Endkontroll-Befund „gemessen, aber nicht
+verwendet" wird strukturell abgelöst und `dossier_check` meldet ihn im
+Scout-Grundriss nicht mehr doppelt) · **What is moving** (Tabelle `| Date |
+Tier | Actor | Signal | Source |`, ≥ 60 % der belegten Zeilen zitieren
+Korpus-/Mess-ids T…/P…/N…/Q…, `moving_corpus_findings`) · Regulatory and IP
+status · What happens next (der Kalender bleibt eine eigene Sektion — die
+kleinere Änderung: `calendar_rows`, `fill_calendar`, `calendar_findings`,
+`calendar_off_profile` hängen alle am Schlüssel `next`) · **Where the
+evidence is thin** (NEU — je dünnem Bereich ein Punkt, `thin_findings` prüft,
+dass jeder benannt ist; ersetzt „What the evidence does not support" als
+Pflicht, das bleibt parsbar/optional und im Widerspruchs-Gate) · Decision
+points and watch items · Open questions and limits. Schreibreihenfolge
+`SECTION_ORDERS["scout"]`: Reifegrad zuerst, Urteil zuletzt; Direktiven je
+Sektion, `outline_block`/`required_keys`/`optional_keys`/`heading_for`
+je Grundriss, alle drei Strukturprüfungen und `draft_score` tragen
+`outline`, `corpus_ids`, `thin_areas`. Der Berichtsprompt bekommt zusätzlich
+`THIN AREAS — what the corpus lacked, and what the web stage brought`
+(`thin_yield`: je Bereich Anfragen/aufgenommene/gelesene Seiten aus Ledger und
+Sweeps). Alter Grundriss: `params {"outline": "decision"}` oder
+`DOSSIER_OUTLINE=decision`; die Prüfung (`structure_findings`) hat weiter
+„decision" als Default, damit gespeicherte Läufe und alte Tests gelten.
+
+**4. Nutzen.** `corpus_share` (Anteil der zitierten ids, die Korpus-/Mess-
+Einträge sind: article/signal/paper/patent/measurement) mit Gewicht 0,15 in
+jedem Preset, die fünf bisherigen Gewichte auf 0,85 renormiert (Summe der
+sechs 1,0); `maturity_present` (aus `structure`) ist Bedingung der dritten
+Ampel — ein Lauf ohne das Feld (alle 49 vor dem Umbau) ist nie abgabereif.
+
+**5. Desk.** Die Leseansicht zeigt über dem Bericht den Block „Corpus
+evidence": Tabelle Ebene × Quartal (Zahl + Anteil je 10k, 12-Monats-Summe),
+Akteure, Outlets, repräsentative ids, dünne Bereiche und das Gating (Web-
+Lücken, Korpus-only, gelaufene Sweeps, Budget); `lib/dossiers.ts`
+(`parseCorpusEvidence`, `parseWebGating`, `outline`). tsc + vitest (496) grün,
+`/trends/dossiers` auf :3004 → 200.
+
+**6. Werkzeugvorschlag (nur Doku, nichts installiert).**
+- *Lokaler Cross-Encoder-Reranker (bge-reranker-v2-m3, ~570 M Parameter):*
+  ordnet je dünnem Bereich die Web-Treffer nach Relevanz Lücke → Seite, bevor
+  gelesen wird — heute entscheiden Rang + Trefferreihenfolge + Pflichtpunkt-
+  Wörter (`primary_first_score`), und der Handdurchgang zeigte, dass die
+  richtige Seite oft nicht die erste ist. Kosten: ~1,2 GB VRAM (fp16) oder
+  CPU ~0,3 s je Paar; Risiko: ein zweites Modell im Handover-Fenster, bei
+  CPU-Betrieb 20–40 Paare je Lücke = 10 s — tragbar, aber nur wenn er wie der
+  CPU-Embedder als eigener Dienst läuft.
+- *Lokale NER (GLiNER-medium oder spaCy de_core_news_lg + en_core_web_lg):*
+  macht Akteure auf dem Signalpfad zählbar — heute tragen nur 13 % der
+  Fachpresse-Zeilen, 1 % Forschung, 0 % Patente einen Namen, weil die
+  Extraktion nur im Artikelpfad läuft; die Akteur-Zeile der Korpus-Evidenz ist
+  deshalb eine Untergrenze. Kosten: GLiNER ~0,5 GB VRAM oder CPU ~50 ms je
+  Titel+Teaser (Samstagslauf über 20k Zeilen ≈ 17 min CPU); Risiko:
+  Namensvarianten ohne Kanonisierung (Broadcom Inc./Broadcom) — braucht die
+  Entitätshygiene aus Stufe 2 als Nachstufe.
+- *Lokaler Wayback-/Common-Crawl-Client (CDX-API + WARC-Abruf, oder
+  `wayback`-Python-Paket):* holt verschwundene oder umgezogene Primärseiten
+  (Broadcom-KBs, Lifecycle-Seiten) als datierte Kopie — der Dossier-Fetcher
+  meldet heute „Fetch failed" und die Aussage fällt. Kosten: kein Modell,
+  Netz (archive.org ist ratenbegrenzt, ~1 Abruf/s); Risiko: die Kopie ist
+  eine Momentaufnahme mit eigenem Datum, das im Dossier stehen muss, und
+  robots/TDM gelten für das Original — nur Rang-0/1-Hosts, nur als Beleg
+  einer Aussage, die die Seite damals trug.
+- *Außerdem gefunden:* ein lokaler PDF-Tabellen-Extraktor (pdfplumber oder
+  camelot, CPU) für Regulierungs-PDFs mit Anforderungstabellen (BSI SYS.1.5
+  A1–A28 als Tabelle statt Fließtext); und ein lokaler Zitations-Resolver
+  über OpenAlex-Schnappschuss (`research_corpus`), der jedem repräsentativen
+  Paper seine Zitationen im eigenen Korpus anhängt — kein Modell, eine
+  SQL-Kante, macht die Wissenschafts-Ebene der Korpus-Evidenz gewichtet
+  statt gezählt.
+
+**Tests:** `tests/test_dossier_corpus_evidence.py` (31: Textregel mit Stämmen
+und Tags, SQLite-Fixture über Ebenen/Quartale mit 10k-Normierung, Akteure,
+Quellen, repräsentative Katalogeinträge, Nächste aus der Suche, alle drei
+Dünne-Regeln, Rendering, Degradierung; Gating mit Budget-Untergrenze/-Deckel
+und Rückfall; Scout-Grundriss mit Reifegrad-Nadelregel, Korpusanteil der
+Tabelle, Dünne-Sektion, Faktenquote ohne Reifegrad; Verdrahtung in `run()`
+mit Fakes: Sweeps und Web-Lücken nur für dünne Bereiche, Blöcke im Prompt,
+Ergebnisfelder). `test_dossier_utility.py` um `corpus_share` und die
+Reifegrad-Bedingung erweitert; `test_dossier_decision.py` prüft beide
+Grundrisse gegen beide Prompts. Volle Suite grün.
+
+**Offen:** der erste Live-Lauf im Scout-Grundriss (datacenter-Serie, v7) —
+erst er zeigt, ob das 27B die Reifegrad-Sektion aus Messblock + Tabelle
+schreibt und ob ≥ 60 % Korpus-Zeilen in der Bewegungs-Tabelle mit 7
+repräsentativen Signalen erreichbar sind (sonst muss `REPRESENTATIVE_MAX`
+oder `RECENT_PER_TIER` steigen); die Akteur-Zeile bleibt eine Untergrenze,
+bis NER auf dem Signalpfad läuft.
+
+
+### Runde 28 (2026-09-19) — v7: Scope-Aussagen im Widerspruchs-Gate, Formatvarianten in der Zahlenprüfung, Korpus-Evidenz mit Produktnamen
+
+Anlass: der erste Live-Lauf im Scout-Grundriss (`datacenter-virtualization`
+v7, Auftrag #45, 14:16–15:01) endete mit zwei Befunden, die beide Prüfkette
+waren, nicht Dossier: „Widerspruch Kurzfassung/Rest nach dem gezielten
+Neuwurf noch offen (3) — sperrend" und „27 Sätze gestrichen: 23× enthielt die
+zitierte Web-Seite die behauptete Zahl nicht".
+
+**1. Widerspruchs-Gate ohne Scope-Aussagen.** Das Dossier empfiehlt seit
+Runde 19 nichts (Optionen liegen beim Advisor), und der Scout-Grundriss sagt
+das im Urteil ausdrücklich; „Open questions" formuliert es als „the corpus
+does not provide a definitive recommendation on which stack …". Für die
+mechanische Regel (geteiltes Inhaltswort + Verneinung + Urteilswort) und für
+den Leser (`kind: coherence`) sah das aus wie ein Widerspruch zur
+Kurzfassung. Die drei gespeicherten v7-Befunde waren allesamt Leser-
+`coherence`-Einwände OHNE benannten Widerspruch: „does not summarize the
+decision", „drifts into adjacent topics", „dilutes the focus". Neu
+(`pipeline/dossier_structure.py`):
+
+- `is_scope_statement`: eine Verneinung, die das EMPFEHLEN/WÄHLEN/ENTSCHEIDEN
+  betrifft („does not provide a definitive recommendation", „fails to support
+  a definitive technical recommendation", „cannot provide a tailored
+  recommendation", „no source ranks the candidates"), ist eine Aussage über
+  den Geltungsbereich, kein Widerspruch — es sei denn, die Kurzfassung selbst
+  EMPFIEHLT (`claim_recommends`/`summary_recommends`: recommend, should,
+  leading/preferred candidate, best choice, the answer is …). Damit bleibt der
+  echte v4-Fehler ein Befund (Kurzfassung „Proxmox VE is the leading
+  candidate" gegen „fails to support a definitive recommendation": zwei
+  Meinungen im selben Bericht) und v7 fällt aus dem Gate (Kurzfassung ohne
+  Empfehlung). Entscheidung dokumentiert in
+  `tests/test_dossier_contradiction.py`
+  (`test_the_v4_pattern_is_caught_because_the_summary_recommends`,
+  `test_the_same_scope_statement_is_excluded_when_the_summary_recommends_nothing`).
+- `reader_contradiction_class`: ein Leser-Befund ist nur dann ein Widerspruch,
+  wenn sein Einwand einen benennt (`contradict|inconsistent|conflict|
+  incompatible|at odds|denies|refutes …`); `coherence` ohne diese Marke ist
+  ein Fokus-/Drift-Einwand und geht zurück in den normalen Leser-Pfad
+  (Ganzdokument-Neuwurf, `_majors` zählt ihn wieder); ein Scope-Einwand zählt
+  nur, wenn die Kurzfassung des Berichts empfiehlt (`contradiction_from_reader`
+  bekommt `report_md`). `_is_contradiction_finding`/`without_contradictions`
+  in `corpus_research.py` nutzen dieselbe Einordnung.
+- Ausgeschlossene Kandidaten stehen in `structure["contradiction_scope_excluded"]`
+  (Log „contradiction candidate excluded (scope|drift)"), die Endkontrolle
+  meldet sie als Zeile („Widerspruchs-Gate: N Kandidat(en) als Scope-Aussage …
+  ausgeschlossen"), nicht sperrend.
+
+Replay über die 51 gespeicherten Läufe: die 5 gespeicherten sperrenden
+Widersprüche (v5 1, v6 1, v7 3) sind jetzt alle ausgeschlossen (v5/v6 als
+Scope — „cannot assume a single stack", „cannot provide a specific
+recommendation" —, v7 dreimal Drift); die mechanischen Paare aus v2, v4 und
+quantum v2 bleiben (dort empfiehlt die Kurzfassung: „Run Proxmox VE", „leading
+candidate", „moving fastest").
+
+**2. Die „23 von 27" waren eine Rechnung, keine Messung.** `dossier_check`
+zog vom kumulierten `dropped_sentences` die Zähler des LETZTEN Durchgangs ab
+(`off_topic_after`, `weakclaim_after` …) und nannte den Rest „Zahl nicht auf
+der Seite". v7 hatte drei Durchgänge (18 + 4 verworfen + 9): laut Log 2
+Zahlen-Befunde, 3 Themen-Befunde per Token, 5 + 6 „unbezogen" aus der
+Aussagenprüfung, 1 widersprochen, 1 ohne Beleg, 1 Messgröße, 7 Themen-Befunde
+im letzten Durchgang, dazu Rangvermerke und Anschluss-Absätze. Jetzt zählt
+`drop_unverified(counts=)` je Streichgrund über ALLE Durchgänge
+(`structure["drops_by_kind"]`, Log „drops by kind (cumulative)"), und der
+Prüfnachweis schreibt „N Sätze gestrichen oder gekennzeichnet: 2× enthielt die
+zitierte Web-Seite …, 15× zitierte die Seite ein anderes Thema …, 4× Rang-2
+…, 3× Anschluss-Absatz …"; alte Läufe ohne den Zähler behalten die Rechnung.
+
+**3. Was die Zahlenprüfung tatsächlich strich (Replay über alle 51 Läufe,
+217 gespeicherte figure-Befunde vor + nach dem Neuwurf, 367 Tokens, gegen
+die gespeicherten Seitentexte):**
+
+| Kategorie | Tokens | Beispiele |
+|---|---:|---|
+| (i) wirklich nicht auf der Seite | **315** | „next 12 months" (Horizont des Modells), „$200 billion", „12–18 months", „2027 window", „The web sweep admitted 66 sources" (eigene Zählung des Modells, v7), „Regulation 2024/1028" (falsche Nummer, v3) |
+| (ii) da, anders formatiert | 10 | ISO-Datum gegen Monatsname (v6/v7 „2023-12-13" ↔ „13 December 2023"), Wortdatum gegen Punktdatum (v2 „29 September 2020" ↔ „29.09.2020"; batteries „July 28, 2023" ↔ „28.7.2023"), Null-Nachkommastelle („12.0" ↔ „12"), „€4 billion" ↔ „€4.0" |
+| (iii) nur jenseits der Speicherkappe | 1 nachweisbar (glp1-dr4, food.ec.europa.eu) | die Caches älterer Läufe sind abgelaufen — die Zahl ist eine Untergrenze; für Rechtstexte gibt es seither den Artikelschnitt auf Abruf |
+| (iv) aus Messblock/Korpus-Zählung, gegen eine Web-Seite geprüft | 18 (figure) + alle 6 `sourceless`-Tokens aus v7 | „median 3.3%/yr (n=1,878, 2005–2026)", „12.0-year cycle time" gegen EMA-/EFSA-Seiten; v7 „3.62 per 10,000", „0.74 per 10,000" — die Anteile je 10k des eigenen Korpus-Blocks liefen als „ohne Beleg" |
+| (v) Bezeichner im Katalog / Namensbestandteil | 23 | „Regulation (EU) 2023/2854" (im Katalog als L23/L24/L26), „Regulation (EC) 1924/2006", „GDPR Article 28/32", „Articles 28 and 32", „Proxmox Datacenter Manager 1.0" |
+
+Für v7 selbst: 3 figure-Befunde vor dem Neuwurf → „12" (ii), „2854" (v),
+„66" (i); die 6 `sourceless`-Tokens (iv). **Was mechanisch gefixt ist**
+(`unverified_tokens(claim, page, measured, catalog)`, alles exakter Vergleich,
+nie Teilstring):
+
+- `page_variants`: Zifferngruppen mit Leer-/Schmalleerzeichen („10 605"),
+  Null-Nachkommastelle („6.0" ↔ „6", nicht „8,000" ↔ „8"); Datumsangaben
+  werden als GANZE Angabe in beliebigem Format verglichen (`_dates_in`,
+  `_date_tokens`: dd Month yyyy, Month dd, yyyy, ISO, dd.mm.yyyy, deutsch),
+  Quartale/Halbjahre ebenso (`_periods_in`). Bewusst nicht: Datums-
+  komponenten als Tokens (die „02" aus „2027-02-18" belegte sonst „>2 kWh").
+- `_designator_tokens`: Rechtsakt-Nummern nur, wenn der Katalog des Laufs
+  (`catalog_text`: Titel, URL, Teaser, Text aller Einträge) die Nummer führt —
+  „2024/1028" fällt weiter; Artikel-Listen („Article 28/32", „Articles 5 and
+  6"); Versionsnummern hinter einem Namen, nie hinter Währung/Einheit („USD
+  12.9", „1.5 GW" bleiben Messwerte).
+- `_measured_tokens`: Zahlen aus dem eigenen Messblock nur, wenn der Satz von
+  der Messung SPRICHT (`_MEASURE_CUE`: measured, median, per 10,000, signals,
+  n=, cycle time, tier, quarter …) — „the next 12 months" wird nicht durch
+  „cycle time 12.0 years" belegt. `measured_text` in `run()` enthält jetzt
+  den Korpus-Evidenz-Block und den Dünne-Bereiche-Block (auch für
+  `sourceless_figures`).
+- Rechtstexte: steht das Token nicht im gespeicherten Ausschnitt, holt
+  `verify_cited_figures` den vollen gecachten Text (`legal_text.cached_full_text`,
+  Schlüssel „page-legal", kein Netz) und schneidet ihn um die Wörter des
+  SATZES neu (`legal_text.reslice_for` → `slice_articles`); `legal_rescued`
+  zählt, `structure["legal_rescued"]` + Prüfnachweis-Zeile. Im Replay 0 —
+  die Caches sind abgelaufen und v7s EUR-Lex-Seiten liefen über den normalen
+  Abruf (12.000 Zeichen, „the opening"); die Regel trägt ab dem nächsten Lauf.
+- Kategorie (i) ist nicht abgeschwächt: `tests/test_dossier_r28.py::
+  TestNoWeakeningForAbsentFigures`.
+
+Replay vorher/nachher: von 367 Tokens bleiben **316 unbelegt (in 192 von 217
+Befunden)**, gerettet 51 (Format 10, Bezeichner 23, Messblock 18, Rechtstext 0).
+Von v7s drei Befunden überleben zwei die Prüfung nicht mehr, einer („66") zu
+Recht. Der Prüfnachweis-Satz „23× …" entfällt für neue Läufe durch die
+Zählung je Grund.
+
+**4. Korpus-Evidenz mit Produktnamen.** `dossier_corpus_evidence.build(…,
+entities=)`: die Akteur-/Produktnamen des Profils (Stufe 2, `actor_seeds`,
+`clean_entity` ohne Klammerzusatz) und die Eigennamen der Pflichtpunkte
+(`proper_nouns`: „Proxmox, Nutanix, OpenStack, VMware, Broadcom", „BSI
+IT-Grundschutz", „SYS.1.5", „EU Data Act") bilden den **erweiterten Satz**:
+ein Name ersetzt EINEN der Themenbegriffe, nie beide (Zeile trägt mindestens
+einen Themenstamm UND einen Namen, Wortgrenze). Messung 19.09.: reines ODER
+über die Profilnamen zog 1.790 Zeilen (Microsoft ×1213, European Commission
+×439, eine indonesische Bank „BSI") und machte jeden Pflichtpunkt „gedeckt";
+mit der Stamm-Bedingung: **Kern 31, erweitert +95** (12 Monate 67: market 57,
+funding 6, science 3, patent 1; Namen Microsoft ×71, VMware ×11, Broadcom ×7,
+Nutanix ×3, OpenStack ×2, Red Hat ×2, Proxmox ×1). Tabelle, Akteure und die
+Ebenen-Dünne-Regel bleiben Kern; Pflichtpunkte und `gap_is_thin` zählen eine
+erweiterte Zeile nur über den Namen, der sie hereinholte — die dünnen Bereiche
+von v7 (science, funding, BSI SYS.1.5, regulatory, calendar) bleiben identisch.
+Die vier neuesten erweiterten Zeilen kommen als Katalogeinträge mit `why:
+"extended: <Name>"` in den Bericht, `rendered_md` trägt die Zeile „EXTENDED set
+(flagged, not in the table above …)", `result["corpus_evidence"]` die Felder
+`extra_terms`, `n_signals_extended(_12m)`, `tier_totals_extended_12m`,
+`extended_hits`; der Desk zeigt „Extended" im Korpus-Block.
+
+**Tests:** `tests/test_dossier_contradiction.py` (Scope/Drift/Empfehlung),
+`tests/test_dossier_r28.py` (Formatvarianten je Fall, Bezeichner, Messblock
+mit/ohne Stichwort, Rechtstext-Nachschlag mit Fake-Volltext, Zähler je
+Streichgrund, Prüfnachweis-Zeilen), `tests/test_dossier_corpus_evidence.py`
+(erweiterter Satz: Name + Themenstamm, Eigennamen, Rendering). Replay:
+`scripts/dossier_replay.py` misst jetzt zusätzlich die gespeicherten figure-
+Befunde gegen die heutige Regel (Zeile „figure findings stored …") und die
+Ausschlüsse des Gates. Volle Suite grün.
+
+**Offen:** Kategorie (iii) ist mit abgelaufenen Caches nicht messbar — der
+Artikelschnitt für Rechtstexte greift erst in neuen Läufen; die
+`_MEASURE_CUE`-Liste ist eine Wortliste (ein Satz, der die Messung ohne
+eines dieser Wörter zitiert, bleibt beim alten Verhalten); der erweiterte
+Korpus-Satz ist mit „Microsoft" + „virtual" (71 von 95) noch breit — ein
+Reranker (Runde 27, Werkzeugvorschlag) wäre der nächste Hebel.
+
+### Runde 29 (2026-09-19) — Scouting-Frage v8, Zählfehler, tolerante Zitatprüfung
+
+**v8 (`server-virtualization-scout` v1, Auftrag #46, 49 min, 27B)** mit der
+Scouting-Frage (fünf Punkte: Zyklus, 24-Monats-Bewegung, Termine, Rechtsrahmen
+in Umrissen, Signal/Rauschen) und dem breiten Feld „server virtualization and
+hypervisor platforms (VMware vSphere, Proxmox VE, Hyper-V, Nutanix AHV, KVM)":
+U 0,28 (bester Wert der Familie), kein Widerspruch, Primäranteil 65 %,
+Faktenquote 1,19 — aber **Korpus-Evidenz 0 Signale**, weil die Kernregel alle
+Themenwörter des Felds zugleich verlangt; 15 von 16 Lücken gingen ins Web, der
+Intake wählte „landscape". Pflichtpunkte 0/5 mit Grund „quote not in the
+dossier" bei drei Punkten, die der Text erkennbar beantwortet (Reifegrad mit
+Zykluszeit 5,0 Jahre, Termine, Rechtsrahmen): der Prüfer verlangte das
+Modellzitat wörtlich, das Modell paraphrasiert und der kanonisierte Bericht ist
+ein anderer String als der gelesene. **Fix:** `quote_in_report` prüft
+tolerant (≥ 80 % Wortüberdeckung je Satz oder Satzpaar, Zitatmarke im
+Fenster), `quote_raw` wird gespeichert; `scripts/rescore_must_answer.py`
+bewertet gespeicherte Läufe mit einem 27B-Handover neu. v9 läuft mit dem
+kurzen Feld „server virtualization" und derselben Frage (R28-Code:
+erweiterter Korpus-Satz über Profil-Akteure und Pflichtpunkt-Namen).
+
+Zwei Lehren für den Auftrag: das Technologiefeld kurz halten (die Kernregel
+ist eine UND-Regel), Produktnamen gehören in die Frage, nicht ins Feld.
+
+
+### Runde 30 (2026-09-19) — v9: Korpus-Präzision, Deckung nach Namen, Regulatorik/Kalender immer dünn, repräsentative Signale nach Nutzen, Off-topic-Wache
+
+**v9 (`server-virtualization-scout` v2, Auftrag #47, 16:31–17:00, 24 min)** mit
+dem kurzen Feld „server virtualization" und der Fünf-Punkte-Scouting-Frage:
+U 0,56 (bester Wert von 50 Läufen), Primäranteil 90 %, Korpusanteil 100 %,
+kein Widerspruch — und der Leser hatte trotzdem recht, dass der Inhalt daneben
+liegt. Korpus-Evidenz: **276 Signale**, Ebenen 12 m market 103 / patent 60 /
+funding 18 / science 67, **dünn: nichts** → `web gating: 0 of 15 gaps go to
+the web, sweeps none`, null Web-Aufrufe. In der Tabelle „What is moving":
+„Microsoft ends support for Windows 11 24H2 and Office 2021" (Client-Software),
+„EU Commission draft on online game providers" (nichts mit dem Feld zu tun),
+vier akteurlose Patente; kein Vendor-Termin im Kalender; SYS.1.5/Data Act
+ohne Inhalt. Dabei HAT der Korpus die Marktsignale: 74 Zeilen seit Januar mit
+`vmware|broadcom|proxmox|hyper-v|nutanix|hypervisor` im Titel (Broadcom
+entfernt VDDK 15.09., Spurs senkt VMware-Kosten um 85 % 03.09., Proxmox
+24/7-Support 03.09., VMware zurück zu vSphere Standard 02.09., europäische
+Cloud-Anbieter warnen vor Broadcom 04.09.) — keines wurde repräsentativ.
+
+**Fünf Ursachen, fünf Regeln** (`pipeline/dossier_corpus_evidence.py`,
+`pipeline/dossier_structure.py`, `scripts/corpus_research.py`):
+
+1. **Kern = Phrase oder Kosinus, nie bloßer Stamm.** Die Kernregel war „jeder
+   Themenstamm irgendwo im Text": `serv` traf „services", „serving",
+   „observe"; `virtual` traf Virtual Reality, Virtual Assets, „virtual
+   screening". Jetzt: alle Themenwörter innerhalb eines **3-Wort-Fensters**,
+   auf Wortebene stamm-unempfindlich (`phrase_match`, `tok_hits`: kurze
+   Stämme nur exakt — „servers" → serv ✓, „services" → servic ✗; ab 6 Zeichen
+   als Präfix — „virtualized" ✓) — ODER Kosinus ≥ `CORPUS_MIN_COSINE` (Env,
+   Default 0,55) zum **Anker „Thema + Namen aus Profil und Auftrag"**. Der
+   Anker ist gemessen: „server virtualization" allein zieht bei 0,55 über die
+   6.644 Kandidaten 208 Zeilen, darunter 24 VR-/Virtual-Asset-Treffer (der
+   Vektor hängt am Wort „virtual"); Thema + Namen 47 Zeilen, 14 mit Vendor im
+   Titel, 0 VR. Der Kosinus läuft in SQL nur auf dem FTS-Kandidatensatz (OR
+   der Begriffe und Namen): ein reiner ANN-Durchgang (ef_search 1000) brachte
+   269 zusätzliche Zeilen über Serverless/Microservices ohne ein Themenwort —
+   verworfen. Ohne Embedder (`RESEARCH_EMBED_HOST` leer oder Server weg) gilt
+   die Phrase allein, im Log und im Block vermerkt.
+2. **Deckung eines Pflichtpunkts nur über seine Namen.** Bis v9 galt „≥ 2
+   Zeilen mit zwei seiner Allerweltswörter" — „verifiable changes … last
+   months" war mit 2 Treffern gedeckt, der SYS.1.5-Punkt mit 13 (über die
+   indonesische Bank „BSI" und „AI-driven"). Jetzt zählen nur Zeilen, die
+   einen **Namen** des Punkts tragen: Eigennamen (`proper_nouns`, jetzt auch
+   nach dem Satzanfangswort — „Which BSI IT-Grundschutz …"; „AI-driven" ist
+   ein Attribut, kein Name mehr — es zog 777 Zeilen), Instrument-Bezeichner
+   (`instrument_mentions`: `SYS.1.5`, `Art. 28 and 32`, `Regulation (EU)
+   2023/2854`, `ISO/IEC 27001`, `NIS2`, `GDPR`, `Data Act` …) und die
+   Vendor-Namen des Profils, die der Punkt selbst nennt. Ein Punkt über
+   **Regulierung, Fristen, Support-Ende, Meilensteine, Anforderungen**
+   (`is_instrument_item`) zählt eine Zeile nur, wenn sie das Instrument nennt
+   UND ein Datum der letzten 12 Monate oder der Zukunft trägt (`text_dates`:
+   ISO, dd.mm.yyyy, „12 September 2025", „October 2026", Q2 2027, nacktes
+   Jahr ab dem laufenden); nennt er selbst kein Instrument („vendor support
+   deadlines and regulatory milestones"), gelten die Profil-Instrumente und
+   die **themenspezifischen** Vendor-Namen als seine Namen. Ein Punkt ganz
+   ohne Namen („Wo steht die Technologie im Zyklus?") zählt weiter über
+   Inhaltswörter — gegen den jetzt präzisen Kern.
+3. **Regulatorik und Kalender immer dünn, außer das Feld selbst ist belegt.**
+   v9 hatte 16 „Regulierungssignale" (Typ regulation/decision oder Wortliste)
+   — keines über das Feld (Online-Games, DMA). Jetzt: `instrument_rows` =
+   Zeilen der letzten 12 Monate, die ein Instrument DES FELDES nennen (Profil-
+   `regulators`, ohne Klammerzusatz, plus die Bezeichner darin); Regulatorik
+   ist dünn unter 3, der Kalender verlangt dazu Zukunftsdaten (`future_dated`).
+   Der generische Zähler bleibt als Anzeige („6 generic regulation signals —
+   they do not count").
+4. **Repräsentative Signale nach Nutzen statt „neueste je Ebene + nächste der
+   Vektorsuche".** `score_row` = 0,5 · Aktualität (linear über 365 Tage) +
+   0,3 · Trefferstärke (Phrase 1,0; Kosinus-Kern 0,6, mit Name im Titel 0,8;
+   Name im Titel 0,8 + 0,1 je weiterem; Name nur im Teaser 0,5) + 0,2 ·
+   Kosinus zur nächsten Pflichtpunkt-Frage (Embedder; sonst Wortüberdeckung).
+   Je Ebene Top-k (market 6, patent 3, science 3, funding 2) + 2
+   Regulierungszeilen (Instrument des Feldes, sonst Signaltyp), je Ebene
+   mindestens eine akteurbenannte Zeile, wo es eine gibt; jede Auswahl steht
+   mit ihren drei Komponenten im Log und in `result.corpus_evidence.
+   representative[].score`. **Nie repräsentativ:** eine Kern-Zeile, deren
+   Titel weder Themenwort noch Namen trägt („Cloud provider changes pricing"
+   mit Tag-Treffer; „AliveCor … Medicare"), und eine erweiterte Zeile, deren
+   Titel keinen themenspezifischen Namen trägt („Flash-Aurora … serving library
+   for Microsoft Aurora", „EU Commission draft on online game providers").
+   Die zentrumsnächsten Treffer der Vektorsuche (undatiert, ohne Ebene:
+   „IntelŴVirtualization Technology" von 2006) entfallen.
+5. **Off-topic-Wache der Bewegungs-Tabelle.** `moving_off_topic_rows`: eine
+   belegte Zeile, deren Text (Akteur, Signal, Quelle) weder ein Themenwort
+   (`moving_terms` = Themenanker + Landschaftsbegriffe, OHNE die Akteure —
+   `calendar_terms` trägt „microsoft" und „eu commission", damit wäre die
+   Windows-11-Zeile on-topic) noch einen **themenspezifischen** Namen trägt,
+   wird als Befund gemeldet („N Zeile(n) ohne Themenbezug … werden mechanisch
+   gestrichen") und im selben Streichpfad wie themenfremd belegte Sätze
+   entfernt (`drop_unverified`, Streichgrund `off_topic_row`, im Prüfnachweis
+   benannt). Ohne Korpus-Evidenz bleibt die Wache aus. Test mit genau den
+   v9-Zeilen (Windows 11, Online-Games): beide fallen, die VDDK-Zeile bleibt.
+
+**Namensspezifität** (`name_specificity`, Nebenprodukt von 1): Anteil der
+Kandidatenzeilen eines Namens, die im Kern liegen (mindestens 3 Kandidaten).
+Gemessen für v9: VMware 0,51, Proxmox 0,50, Nutanix 0,29, HPE 0,16, Red Hat
+0,10, Microsoft 0,007, EU Commission 0,00, BSI 0,00, Dell 0,00, Lenovo 0,00.
+Ab `NAME_SPECIFICITY_MIN` 0,4 trägt der Name **allein** eine Zeile in den
+erweiterten Satz („Proxmox launches 24/7 enterprise support", „European Cloud
+Providers Warn of Broadcom's VMware Expansion" — beide ohne Themenstamm);
+generische Namen brauchen weiter Name + Themenstamm (Runde 28, jetzt auf
+Wortebene). Die spezifischen Namen sind zugleich die Namen der Off-topic-
+Wache und der Instrument-Fallback in Regel 2.
+
+**Messung vorher/nachher, live-DB, gespeicherter Auftrag v2 (Brief +
+Profil), ohne Lauf:**
+
+| | vorher (v9) | nachher |
+|---|---:|---:|
+| Kandidaten (FTS OR Begriffe + Namen) | 11.907 | 6.644 (ohne „AI-driven") |
+| Kern seit 2024-09 | 276 | **71** (Phrase 17, Kosinus 54) |
+| Kern 12 m market / patent / funding / science | 103 / 60 / 18 / 67 | **39 / 20 / 2 / 3** |
+| erweitert | 964 (AI-driven ×777, Microsoft ×160) | **69** (Microsoft ×40, VMware ×17, Proxmox ×3 …) |
+| Zeilen mit Vendor im Titel (2026, market) im Kern/erweitert | 20 | **31** |
+| Instrument-Zeilen 12 m (Feld) / davon zukunftsdatiert | – | 0 / 0 |
+| dünn | nichts | science, funding, Pflichtpunkte 2/3/4, regulatory, calendar |
+| Web-Gating (gespeicherte 15 Lücken) | 0 ans Web, Sweeps keine, Budget 6 | **6 ans Web** (Pflichtpunkte 2/3/4, drei Audit-Lücken), Sweeps regulatory + funding + catalyst, Budget 14 |
+
+Die zehn neuesten Markt-Zeilen nach dem Umbau sind zur Hälfte noch generische
+Namen + Themenstamm (EU-Zölle mit „EU Commission", Windows-Patches mit
+„Server" im Titel) — sie stehen im **erweiterten** Satz, werden nicht
+repräsentativ und fallen als Tabellenzeile der Wache. Die repräsentativen
+Marktzeilen sind jetzt: VMware zurück zu vSphere Standard (Phrase, 0,89),
+Broadcom entfernt VDDK (Kosinus, 0,83), Spurs −85 % VMware-Kosten (0,83),
+VMware + AMD (0,82), europäische Cloud-Anbieter warnen (erweitert VMware,
+0,81), Broadcom Private AI Cloud (0,81); Patente: „Virtualized file server",
+„Virtual computer management system, synchronous server", „Application
+execution on a virtual server"; Wissenschaft: Confidential VMs, Secure
+Encrypted Virtualization. Vier akteurlose Patente und „Vacuumtronics" sind
+weg.
+
+**Tests:** `tests/test_dossier_corpus_evidence.py` (Phrasenfenster und
+Wortstämme, Env-Boden, Datumsformen, Instrumente, Deckung nach Namen mit
+Datumspflicht, Profil-Fallback mit spezifischen Vendors, Regulatorik/Kalender
+über Instrumente, Bewertung der repräsentativen Zeilen, Namensspezifität,
+Embedder-Ausfall, Off-topic-Wache mit den v9-Zeilen inkl. Streichung). Volle
+Suite grün (2.072).
+
+**Offen:** der Kosinus-Boden ist ein Skalar auf einem Embedder, der
+Wortnähe („virtual") stark gewichtet — der Anker mit Namen hält das in
+Schach, ein Reranker (Runde 27) bliebe der bessere Hebel; die Instrument-
+Regex ist eine Liste (SYS/APP/…, Art., Regulation/Directive (EU), ISO/IEC,
+NIS2, C5, GDPR/Data Act/AI Act/CRA/DORA) — ein Feld mit anderen Bezeichnern
+(FDA 510(k), EN-Normen) trägt sie nur über die Profil-Instrumente; der
+Kalender bleibt bei diesem Thema dünn, weil der Korpus keine
+zukunftsdatierten Instrument-Zeilen hat — das ist richtig so, die Web-Stufe
+ist dafür da. v10 wäre der erste Lauf mit diesen Regeln.

@@ -1,0 +1,24 @@
+# Beispiel-Kundendatei für Field Watch (scripts/field_watch.py). Echte Kunden
+# liegen als fields/<kunde>.yaml daneben und sind per .gitignore vom Repo
+# ausgenommen — Kundendaten bleiben lokal.
+#
+# Feld = Liste von Suchphrasen (phraseto_tsquery; Titel/Teaser/Tags des
+# Signalkorpus, Titel+Abstract des Patentindex) + optionale CPC-Anker für den
+# Reifegradblock (K(t), Zykluszeit, Zentralität). Das Mapping macht der Owner,
+# der Kunde gibt es frei; es steht auf jedem Blatt. `reading:` ist der einzige
+# Prosa-Abschnitt des Trajectory Sheets — vom Analysten geschrieben, sonst leer.
+customer: "Beispiel — Molkerei-/Lebensmittel-Mittelstand"
+slug: example
+fields:
+  - name: Präzisionsfermentation
+    name_en: Precision fermentation
+    terms: [precision fermentation, recombinant whey, recombinant casein, animal-free dairy, beta-lactoglobulin, animal-free protein]
+    cpc: [C12P21/02, A23J3/08]
+  - name: Pflanzliche Milchalternativen
+    name_en: Plant-based dairy alternatives
+    terms: [plant-based dairy, oat milk, dairy alternative, dairy alternatives, milk alternative, plant-based cheese, vegan cheese, plant-based milk]
+    cpc: [A23C11/10, A23L11/60]
+  - name: Faserbasierte Verpackung
+    name_en: Fibre-based packaging
+    terms: [fiber-based packaging, fibre-based packaging, paper-based packaging, recyclable packaging, mono-material, paper bottle, molded fiber, moulded fibre]
+    cpc: [B65D65/46, D21J]
