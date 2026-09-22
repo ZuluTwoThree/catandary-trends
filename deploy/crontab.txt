@@ -6,15 +6,15 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 
 # DB-Backup täglich 02:45 (pg_dump -Fd -j4 + zstd → catandary-pg-<Datum>.dumpdir, verifiziert
 # per pg_restore --list; Restore: docs/restore_runbook.md). --keep-days 4 = Owner 2026-08-24.
-45 2 * * * /home/dirk/projects/catandary-trends/.venv/bin/python /home/dirk/projects/catandary-trends/scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4 >> /home/dirk/logs/catandary-backup.log 2>&1
+30 1 * * * /home/dirk/projects/catandary-trends/.venv/bin/python /home/dirk/projects/catandary-trends/scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4 >> /home/dirk/logs/catandary-backup.log 2>&1
 0 6 * * 0 /home/dirk/projects/catandary-trends/.venv/bin/python /home/dirk/projects/catandary-trends/scripts/discovery_loop.py >> /home/dirk/logs/catandary-discovery-loop.log 2>&1
 0 8 1 * * /home/dirk/projects/catandary-trends/.venv/bin/python /home/dirk/projects/catandary-trends/scripts/monthly_source_check.py --post-issue >> /home/dirk/logs/catandary-source-check.log 2>&1
 # Wöchentlicher BDDS-Patent-Ingest (#50) — --kind both: Amend trägt die Zitationen
-0 5 * * 2    /home/dirk/projects/catandary-trends/scripts/weekly_patents.sh
+45 3 * * 2    /home/dirk/projects/catandary-trends/scripts/weekly_patents.sh
 # Full Cycle Mo–Fr 04:00 (Wrapper räumt erst ALLES VRAM frei, Log: ~/logs/catandary-full-cycle-*.log)
 # Kollisionswächter (#98): wartet max 90 min auf fremde GPU-Jobs (Ingester/Worker/Pulse/zweiter
 # Cycle), sonst rc=75 ohne VRAM-Räumung (end-Zeile → Wächter-Mail). scripts/lib/gpu_guard.sh.
-0 4 * * 1-5 /home/dirk/projects/catandary-trends/scripts/full_cycle_cron.sh
+45 2 * * 1-5 /home/dirk/projects/catandary-trends/scripts/full_cycle_cron.sh
 
 # Nicht-RSS-Ingester wöchentlich (#4): Preprints + Funding (+ Form D im Quartalsmonat)
 # inkl. Distill-Verarbeitung der Neuzugänge (GPU-Handover; Samstag = GPU frei).
@@ -25,7 +25,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 0 6 * * 6 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_ingesters.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_ingesters.sh || echo "$(date -Iseconds) skip weekly_ingesters (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-ingesters-skip.log
 # Patentbasierte Rechnungen wöchentlich nach dem BDDS-Ingest (Di 05:00 → Refresh 08:00):
 # cpc_tier_series + cpc_insights + signal→CPC. Radare + TIR-Forschung bewusst NICHT im Cron.
-0 8 * * 2 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_patent_analytics.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_patent_analytics.sh || echo "$(date -Iseconds) skip weekly_patent_analytics (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-patent-analytics-skip.log
+45 6 * * 2 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_patent_analytics.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_patent_analytics.sh || echo "$(date -Iseconds) skip weekly_patent_analytics (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-patent-analytics-skip.log
 
 # OpenAlex-Monats-Sync (#80): neue Snapshot-Partitionen → research_corpus +
 # Journal-/Autoren-Nebentabellen + Statistik-Refresh. Amend-Analog, CPU/Netz.
@@ -39,7 +39,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # prüft er zusätzlich das heutige Backup-Artefakt (dumpdir, toc.dat, ≥1 GB).
 # Das `cd` ist Pflicht: cron startet in $HOME, dort findet Python weder
 # das Paket `scripts` noch die .env (ohne sie faellt die DB still auf SQLite).
-45 7 * * 1-5 cd /home/dirk/projects/catandary-trends && .venv/bin/python -m scripts.cycle_watchdog >> /home/dirk/logs/catandary-watchdog.log 2>&1
+45 7 * * * cd /home/dirk/projects/catandary-trends && .venv/bin/python -m scripts.cycle_watchdog >> /home/dirk/logs/catandary-watchdog.log 2>&1
 
 # Startup-Explorer-Quellen monatlich (#87, seit 2026-08-23): CORDIS + SBIR +
 # GLEIF + Companies House (--refresh/Neuzugaenge) + Enrichment + Distill der
@@ -67,7 +67,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # und speichert sie in newsletter_editions — /trends/newsletter zeigt sie sofort.
 # KEIN Versand (der bleibt unten gegated). Kollisionswaechter wartet auf einen
 # evtl. noch laufenden Full Cycle; idempotent (existierende Edition = no-op).
-0 9 * * 2 /home/dirk/projects/catandary-trends/scripts/weekly_newsletter_publish.sh
+45 7 * * 2 /home/dirk/projects/catandary-trends/scripts/weekly_newsletter_publish.sh
 
 # Research Pulse wöchentlich (#73 Teil 1) — INSTALLIERT 2026-09-18 (Owner; bis dahin nur
 # Vorschlag, die Seite stand deshalb zwei Wochen auf W35). Samstag 12:00 = nach
@@ -97,7 +97,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Der Wächter (07:45) prüft data/publish_last.json, sobald die Config existiert.
 # Existenz-Guard: Skript liegt bis zum nächsten dev→main-Merge nur auf dev.
 # INSTALLIERT 2026-09-05 (webspace.env liegt vor, Erst-Upload erfolgt):
-15 3 * * * [ -x /home/dirk/projects/catandary-trends/scripts/publish_static_site.sh ] && /home/dirk/projects/catandary-trends/scripts/publish_static_site.sh
+0 2 * * * [ -x /home/dirk/projects/catandary-trends/scripts/publish_static_site.sh ] && /home/dirk/projects/catandary-trends/scripts/publish_static_site.sh
 
 # Newsletter-Versandkette (#16) — NOCH NICHT AKTIV (auch nicht in der echten crontab), siehe
 # docs/launch/newsletter-doi-php/NEWSLETTER_GOLIVE.md für die Restliste.
@@ -128,7 +128,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Frist am 2026-09-10 von 14 Tagen auf 1825 Tage erweitert (Owner). Die Norm nennt keine
 # Frist, sie bindet sie an den Zweck; dokumentierter Zweck ist die laengsschnittliche
 # Trendanalyse (Lead-Time ueber Jahre). Endlich und begruendet bleibt sie.
-30 3 * * * cd /home/dirk/projects/catandary-trends && .venv/bin/python scripts/purge_raw_content.py --days 1825 --apply >> /home/dirk/logs/catandary-purge-raw.log 2>&1
+15 2 * * * cd /home/dirk/projects/catandary-trends && .venv/bin/python scripts/purge_raw_content.py --days 1825 --apply >> /home/dirk/logs/catandary-purge-raw.log 2>&1
 
 # Offen lizenzierte Artikel aus den Vorbehalts-Quellen freischalten (#97 Wege B+C,
 # installiert 2026-09-09). Laeuft nach der Volltext-Retention (03:30) und vor dem
@@ -136,4 +136,4 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # kommt von der offenen Fundstelle. Gemessene Ausbeute 09.09.: 10 von 60 Eintraegen
 # offen lizenziert, 7 davon mit Volltext (12 %) — bei ~500 Eintraegen/Woche also
 # rund 58 Artikel/Woche. Existenz-Guard: Skript liegt bis zum dev->main-Merge nur auf dev.
-45 3 * * * [ -f /home/dirk/projects/catandary-trends/scripts/resolve_open_licence.py ] && cd /home/dirk/projects/catandary-trends && .venv/bin/python scripts/resolve_open_licence.py --limit 300 --apply >> /home/dirk/logs/catandary-open-licence.log 2>&1
+30 2 * * * [ -f /home/dirk/projects/catandary-trends/scripts/resolve_open_licence.py ] && cd /home/dirk/projects/catandary-trends && .venv/bin/python scripts/resolve_open_licence.py --limit 300 --apply >> /home/dirk/logs/catandary-open-licence.log 2>&1

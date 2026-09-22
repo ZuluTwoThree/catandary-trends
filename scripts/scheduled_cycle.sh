@@ -278,6 +278,38 @@ PY
   fi
   # <<< Stage 10 <<<
 
+  # >>> Stage 11: Review-Agent (Owner 2026-09-22) >>>
+  # Prueft die Drafts, die ein Gate zurueckhaelt, auf AEQUIVALENZ statt auf
+  # Wortgleichheit: ist die beanstandete Zahl dieselbe Angabe in anderer Form
+  # ("1 000" / "1,000", "Seventy percent" / "70%", eine japanische Schreibung)
+  # und nennt die Quelle die Person wirklich? Jede Bestaetigung braucht ein
+  # WOERTLICHES Quellzitat, das gegen den Quelltext geprueft wird — das Modell
+  # kann nur bestaetigen, was dasteht. Ergaenzte Vornamen werden korrigiert und
+  # das Ergebnis durch dieselben Gates geschickt wie das Auto-Publish.
+  # Rollen-Halluzinationen ("the Foreign Secretary" -> ein Name aus dem
+  # Modellwissen), fehlende Personen und abweichende Schreibweisen bleiben beim
+  # Menschen und stehen als Vorschlag auf /trends/review.
+  # Messung 22.09.: von 183 Holds 100 aequivalent, danach 15 weitere repariert.
+  # Abschalten: REVIEW_AGENT=0. Nur pruefen, nichts schreiben: REVIEW_AGENT_APPLY=0.
+  # Dauer: ~1,5 s je Draft plus einmal Modell laden.
+  if [ "${REVIEW_AGENT:-1}" != "1" ]; then
+    echo
+    echo "----- stage 11: review agent DISABLED (REVIEW_AGENT=0) -----"
+  elif ! gpu_guard_wait scheduled_cycle-agent 30; then
+    echo
+    echo "----- review agent SKIPPED: fremder GPU-Job aktiv -----"
+  else
+    echo
+    echo "----- stage 11: review agent (Aequivalenz-Pruefung der gehaltenen Drafts) -----"
+    AGENT_ARGS="--handover -q"
+    [ "${REVIEW_AGENT_APPLY:-1}" = "1" ] && AGENT_ARGS="$AGENT_ARGS --apply"
+    # shellcheck disable=SC2086
+    GPU_JOB_NAME=scheduled_cycle-agent "$REPO/.venv/bin/python" "$REPO/scripts/review_agent.py" $AGENT_ARGS
+    RCA=$?
+    echo "----- review agent exit code: $RCA -----"
+  fi
+  # <<< Stage 11 <<<
+
   echo
   # Force the symlink back to the canonical 208K classifier before the final start.
   # A hard-killed mid-cycle handover (OOM/SIGKILL) can leave start-active.sh on a
@@ -300,5 +332,5 @@ PY
   fi
 
   echo
-  echo "scheduled_cycle.sh end  $(date -Iseconds)  (rc1=$RC1 rc2=$RC2 rc3=$RC3)"
+  echo "scheduled_cycle.sh end  $(date -Iseconds)  (rc1=$RC1 rc2=$RC2 rc3=$RC3 agent=${RCA:--})"
 } >> "$LOG" 2>&1

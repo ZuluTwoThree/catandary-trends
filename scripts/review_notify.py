@@ -88,6 +88,48 @@ def judge_stats() -> dict | None:
         return None
 
 
+def agent_stats() -> dict | None:
+    """Last night's review-agent numbers (scripts/review_agent.py, stage 11).
+
+    The agent re-reads the drafts a gate held and asks whether the flagged
+    figure is the same value said differently, and whether the source really
+    names the person; every confirmation needs a verbatim quote from the source.
+    A stale file (the stage was skipped or failed) must not read as if it ran."""
+    import datetime
+    p = Path("data/review_agent_last.json")
+    if not p.exists():
+        return None
+    try:
+        d = json.loads(p.read_text())
+        ts = datetime.datetime.fromisoformat(d["date"])
+        age = datetime.datetime.now(datetime.timezone.utc) - ts
+        if age.total_seconds() > 24 * 3600:
+            return None
+        return d
+    except (json.JSONDecodeError, KeyError, ValueError):
+        return None
+
+
+def _agent_line(a: dict) -> str:
+    """One line: what the agent settled and what it left for the reviewer."""
+    kinds: dict[str, int] = {}
+    for it in a.get("items", []):
+        for n in it.get("names", []):
+            if not n.get("ok"):
+                kinds[n.get("kind", "?")] = kinds.get(n.get("kind", "?"), 0) + 1
+    tail = ""
+    if kinds:
+        order = ("role_only", "surname_only", "absent", "misspelled", "translit")
+        parts = [f"{k}={kinds[k]}" for k in order if k in kinds]
+        parts += [f"{k}={v}" for k, v in kinds.items() if k not in order]
+        tail = f" Names left for you: {', '.join(parts)}."
+    mode = "checked only (no writes)" if a.get("dry_run") else f"{a.get('published', 0)} published"
+    return (f"Review agent (stage 11, {a.get('model', '?').split('/')[-1]}): "
+            f"{a.get('checked', 0)} held drafts checked, "
+            f"{a.get('equivalent', 0)} equivalent, {a.get('repaired', 0)} repaired, "
+            f"{a.get('human', 0)} left for you — {mode}.{tail}")
+
+
 def deep_dive_stats() -> dict | None:
     """The last newsletter deep-dive run (#96, scripts/newsletter_deep_dive.py),
     if fresh. Runs Monday after the edition; the Tuesday mail carries it. A
@@ -183,7 +225,8 @@ def _deep_dive_line(dd: dict) -> str:
 def build_mail(today: int, total: int, oldest: str | None,
                items: list[dict], judge: dict | None = None,
                deep_dive: dict | None = None,
-               gpu_jobs: list[dict] | None = None) -> tuple[str, str, str]:
+               gpu_jobs: list[dict] | None = None,
+               agent: dict | None = None) -> tuple[str, str, str]:
     subject = (f"Review: {today} article{'s' if today != 1 else ''} held overnight"
                if today else f"Review queue: {total} waiting")
 
@@ -210,6 +253,9 @@ def build_mail(today: int, total: int, oldest: str | None,
                      f"{judge.get('dup_blocked', 0)} duplicates.")
         if cats:
             lines.append(f"  Categories: {cats}")
+        lines.append("")
+    if agent:
+        lines.append(_agent_line(agent))
         lines.append("")
     if deep_dive:
         lines.append(_deep_dive_line(deep_dive))
@@ -241,6 +287,8 @@ def build_mail(today: int, total: int, oldest: str | None,
         f'<ul style="font-size:14px;padding-left:18px">{rows_html}</ul>'
         + (f'<p style="color:#666;font-size:13px">… and {today - len(items)} more</p>'
            if today > len(items) else "")
+        + (f'<p style="color:#666;font-size:13px">{html.escape(_agent_line(agent))}</p>'
+           if agent else "")
         + (f'<p style="color:#666;font-size:13px">{html.escape(_deep_dive_line(deep_dive))}</p>'
            if deep_dive else "")
         + "".join(f'<p style="color:#666;font-size:13px">{html.escape(_gpu_job_line(n))}</p>'
@@ -278,12 +326,14 @@ def main() -> int:
 
     today, total, oldest, items = fetch_queue()
     judge = judge_stats()
+    agent = agent_stats()
     deep_dive = deep_dive_stats()
     gpu_jobs = gpu_job_notes()
     gpu_trouble = [n for n in gpu_jobs if n.get("status") != "ok"]
-    logger.info("queue: %d held today, %d total, oldest %s | judge: %s | deep dive: %s | gpu crons: %s",
+    logger.info("queue: %d held today, %d total, oldest %s | judge: %s | agent: %s | deep dive: %s | gpu crons: %s",
                 today, total, oldest,
                 f"{judge['released']} released / {judge['held']} held" if judge else "no fresh run",
+                f"{agent['equivalent']}+{agent.get('repaired', 0)} of {agent['checked']}" if agent else "no fresh run",
                 deep_dive.get("status") if deep_dive else "no fresh run",
                 ", ".join(f"{n.get('job')}={n.get('status')}" for n in gpu_jobs) or "no fresh note")
 
@@ -291,11 +341,11 @@ def main() -> int:
     # judge run AND no deep-dive run AND no blocked/failed GPU cron. A night
     # where the judge released 200 articles deserves a mail even if the >=0.85
     # gate held nothing.
-    if today == 0 and judge is None and deep_dive is None and not gpu_trouble and not args.force:
-        logger.info("nothing held today, no judge run, no deep dive, GPU crons fine — no mail sent")
+    if today == 0 and judge is None and agent is None and deep_dive is None and not gpu_trouble and not args.force:
+        logger.info("nothing held today, no judge run, no agent run, no deep dive, GPU crons fine — no mail sent")
         return 0
 
-    subject, body_html, text = build_mail(today, total, oldest, items, judge, deep_dive, gpu_jobs)
+    subject, body_html, text = build_mail(today, total, oldest, items, judge, deep_dive, gpu_jobs, agent)
     if args.dry_run:
         print(f"--- Subject: {subject}\n\n{text}")
         return 0

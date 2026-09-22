@@ -159,3 +159,59 @@ class TestRepair:
         item["figures"] = [{"ok": False, "token": "20,000"}]
         kinds = {p["kind"] for p in proposals_for(item)}
         assert kinds == {"spelling", "drop_sentence"}
+
+
+# --- Nachtlauf (Stage 11, 2026-09-22) -------------------------------------
+class TestNightlyStage:
+    def _cycle(self) -> str:
+        from pathlib import Path
+        return (Path(__file__).resolve().parent.parent / "scripts" / "scheduled_cycle.sh").read_text()
+
+    def test_stage_11_runs_after_the_judge_and_can_be_switched_off(self):
+        s = self._cycle()
+        assert s.index("# <<< Stage 10 <<<") < s.index("# >>> Stage 11")
+        assert 'REVIEW_AGENT:-1' in s and 'REVIEW_AGENT_APPLY:-1' in s
+        # eigener Kollisionswächter, damit ein fremder GPU-Job nicht überfahren wird
+        assert "gpu_guard_wait scheduled_cycle-agent" in s
+        # der Handover gehört dem Agenten, nicht dem Shell-Skript
+        assert "--handover" in s
+        assert "agent=${RCA:--}" in s      # Exit-Code steht in der end-Zeile
+
+    def test_the_morning_mail_reports_the_agent(self):
+        from pathlib import Path
+        s = (Path(__file__).resolve().parent.parent / "scripts" / "review_notify.py").read_text()
+        assert "def agent_stats()" in s and "_agent_line(agent)" in s
+        # eine stale Datei darf nicht aussehen, als sei der Lauf von heute Nacht
+        block = s[s.index("def agent_stats()"):s.index("def _agent_line")]
+        assert "24 * 3600" in block
+
+
+class TestAgentLine:
+    def test_the_line_names_what_was_settled_and_what_is_left(self):
+        import importlib.util
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location(
+            "rn", Path(__file__).resolve().parent.parent / "scripts" / "review_notify.py")
+        rn = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rn)
+        line = rn._agent_line({
+            "model": "./models/gemma.gguf", "checked": 65, "equivalent": 0, "repaired": 15,
+            "human": 50, "published": 15, "dry_run": False,
+            "items": [{"names": [{"ok": False, "kind": "role_only"},
+                                 {"ok": False, "kind": "surname_only"},
+                                 {"ok": True, "kind": "named"}]}],
+        })
+        assert "65 held drafts checked" in line and "15 repaired" in line
+        assert "15 published" in line
+        assert "role_only=1" in line and "surname_only=1" in line and "named" not in line
+
+    def test_a_dry_run_says_it_wrote_nothing(self):
+        import importlib.util
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location(
+            "rn2", Path(__file__).resolve().parent.parent / "scripts" / "review_notify.py")
+        rn = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rn)
+        line = rn._agent_line({"model": "m", "checked": 3, "equivalent": 1, "repaired": 0,
+                               "human": 2, "published": 0, "dry_run": True, "items": []})
+        assert "no writes" in line
