@@ -112,3 +112,50 @@ class TestRomanisation:
 
     def test_empty_romanisation_never_confirms(self):
         assert not romanisation_matches("Mark Schneider", "")
+
+
+# --- Reparatur (Stufe 1, 2026-09-22) --------------------------------------
+from pipeline.review_agent import name_shaped, proposals_for, repair_name, repairs_for  # noqa: E402
+
+
+class TestNameShape:
+    def test_a_name_looks_like_a_name(self):
+        assert all(map(name_shaped, ["Badenoch", "Kerstin Papenfuss", "He Lifeng", "von der Leyen",
+                                     "Le Maire", "Christophe Périllat"]))
+
+    def test_a_handle_a_number_or_a_lowercase_blob_is_not_a_name(self):
+        # gemessener Fall 22.09.: Quellform „arnegiacomo" kam aus einer Repo-URL
+        assert not any(map(name_shaped, ["arnegiacomo", "Team 42", "a2 Milk", "", "der",
+                                         "john@example.com", "Урсула фон дер Ляєн"]))
+
+
+class TestRepair:
+    def test_the_added_given_name_is_replaced_everywhere(self):
+        body = "Kemi Badenoch stated it. Later Kemi Badenoch repeated it."
+        assert repair_name(body, "Kemi Badenoch", "Badenoch") == "Badenoch stated it. Later Badenoch repeated it."
+
+    def test_nothing_to_replace_returns_none(self):
+        assert repair_name("A text without the name.", "Kemi Badenoch", "Badenoch") is None
+        assert repair_name("Badenoch stated it.", "Badenoch", "Badenoch") is None
+
+    def _item(self, kind, name, form):
+        return {"names": [{"ok": False, "kind": kind, "name": name, "source_form": form}], "figures": []}
+
+    def test_only_surname_only_is_repaired_automatically(self):
+        assert repairs_for(self._item("surname_only", "Kemi Badenoch", "Badenoch"))
+        # Schreibweisen bleiben beim Menschen: welche Seite stimmt, ist ohne Weltwissen offen
+        assert repairs_for(self._item("misspelled", "Kerstin Papfuss", "Kerstin Papenfuss")) == []
+        assert repairs_for(self._item("role_only", "David Lammy", "Foreign Secretary")) == []
+
+    def test_a_repair_never_drops_the_surname(self):
+        # gemessener Fall: Quelle nennt ihn nur „Dario" — daraus darf kein Artikelname werden
+        assert repairs_for(self._item("surname_only", "Dario Amodei", "Dario")) == []
+
+    def test_a_handle_as_source_form_is_refused(self):
+        assert repairs_for(self._item("surname_only", "Arne Giacomo", "arnegiacomo")) == []
+
+    def test_unrepairable_findings_become_proposals(self):
+        item = self._item("misspelled", "Kerstin Papfuss", "Kerstin Papenfuss")
+        item["figures"] = [{"ok": False, "token": "20,000"}]
+        kinds = {p["kind"] for p in proposals_for(item)}
+        assert kinds == {"spelling", "drop_sentence"}

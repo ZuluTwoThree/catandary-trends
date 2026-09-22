@@ -43,6 +43,16 @@ erfunden. Der Fall „Quelle nennt den Nestle-Chef Філіп Навратіль
 schrieb Mark Schneider" faellt dabei auf — genau das, was der blinde zweite
 Durchgang leisten soll.
 
+**Reparatur (Stufe 1, 22.09. abends):** einen Befund korrigiert der Agent selbst —
+den ergaenzten Vornamen. Die Quellform ersetzt den Artikelnamen im ganzen Body,
+danach laufen DIESELBEN Gates wie beim Auto-Publish (Namen, Zahlen, Garbage,
+Laenge, Vollstaendigkeit); nur wenn alle gruen sind, gilt die Reparatur. Geglaubt
+wird ihr nichts, sie wird nachgemessen. Schutzregeln: die Quellform muss
+namensfoermig sein (kein Repo-Handle „arnegiacomo") und den Nachnamen behalten
+(kein „Dario Amodei" -> „Dario"). Alles andere — abweichende Schreibweisen,
+Saetze mit ungedeckter Zahl oder Person — steht als `proposals` im Bericht und
+bleibt beim Menschen.
+
 Default ist Dry-Run: Bericht nach data/review_agent_last.json und Tabelle.
 `--apply` veroeffentlicht die aequivalenten Drafts mit
 review_reason='agent:equivalent …' — durch dieselben uebrigen Gates wie
@@ -66,6 +76,7 @@ logger = logging.getLogger(__name__)
 REPORT_PATH = Path(DATA_DIR) / "review_agent_last.json"
 SOURCE_MAX_CHARS = 9000
 CONFIDENCE_MIN = 0.85
+MIN_BODY_WORDS = 60          # dieselbe Untergrenze wie der Garbage-Guard
 
 SYSTEM = (
     "You verify whether a figure in a short article is supported by its source text. "
@@ -320,6 +331,88 @@ def verify_name_verdict(v: NameVerdict | None, name: str, source: str) -> tuple[
     return False, "misspelled"
 
 
+def name_shaped(form: str) -> bool:
+    """Sieht die Quellform wie ein Personenname aus? Schutz gegen Fundstellen,
+    die woertlich in der Quelle stehen, aber kein Name sind — gemessen 22.09.:
+    „Arne Giacomo" haette sonst das GitHub-Handle „arnegiacomo" bekommen, Gate
+    gruen, Text Unsinn. Regel: 1-4 Woerter, jedes beginnt gross (oder ist ein
+    Namenspartikel wie „von"/„de"), keine Ziffern, kein Sonderzeichen-Klumpen."""
+    f = (form or "").strip().strip(".,;:")
+    if not f or any(ch.isdigit() for ch in f) or any(ch in f for ch in "@/\\_|<>()[]{}"):
+        return False
+    words = f.split()
+    if not 1 <= len(words) <= 4:
+        return False
+    particles = {"von", "van", "de", "der", "den", "del", "della", "di", "du", "da", "dos", "bin", "al", "le", "la"}
+    for i, w in enumerate(words):
+        w = w.strip(".,;:")
+        if not w:
+            return False
+        if w.lower() in particles and i < len(words) - 1:
+            continue    # „von der Leyen" ist eine gueltige Quellform, „Leyen von" nicht
+        if not w[0].isupper():
+            return False
+    return True
+
+
+def repair_name(body: str, article_name: str, source_form: str) -> str | None:
+    """Den Artikelnamen durch die Form der Quelle ersetzen — an JEDER Stelle des
+    Bodys, denn der ergaenzte Vorname taucht oft mehrfach auf. Gibt None zurueck,
+    wenn nichts zu ersetzen ist oder die Ersetzung nichts aendert."""
+    art = (article_name or "").strip()
+    form = (source_form or "").strip().strip(".,;:")
+    if not art or not form or art == form or art not in body:
+        return None
+    out = body.replace(art, form)
+    return out if out != body else None
+
+
+def repairs_for(item: dict) -> list[dict]:
+    """Die verlaesslich reparierbaren Befunde: NUR der ergaenzte Vorname
+    (`surname_only`) — die Quellform ersetzt den Artikelnamen, es kommt keine
+    Information hinzu, die nicht in der Quelle steht.
+
+    `misspelled` ist bewusst NICHT dabei (Messung 22.09., 4 echte Faelle):
+    zweimal haette der Tausch den Namen richtig gestellt (Papfuss->Papenfuss,
+    Kokotjalo->Kokotajlo), zweimal haette er einen Fehler der QUELLE uebernommen
+    (Xi Jinping->„Xi Jiping") oder den Nachnamen ganz verloren (Amodei->„Dario").
+    Welche Seite richtig schreibt, ist ohne Weltwissen nicht zu entscheiden —
+    und Weltwissen ist genau das, was hier nicht entscheiden soll. Diese Faelle
+    stehen als Vorschlag im Bericht (`proposals`) und bleiben beim Menschen."""
+    out = []
+    for n in item.get("names", []):
+        if n.get("ok") or n.get("kind") != "surname_only":
+            continue
+        form = (n.get("source_form") or "").strip()
+        if not form or not name_shaped(form) or form.lower() == n["name"].strip().lower():
+            continue
+        # Der Nachname des Artikels muss in der Quellform erhalten bleiben —
+        # sonst wuerde aus „Dario Amodei" ein blosses „Dario".
+        surname = n["name"].split()[-1].strip(".,;:").lower()
+        if surname and surname not in form.lower():
+            continue
+        out.append({"name": n["name"], "source_form": form, "kind": n["kind"]})
+    return out
+
+
+def proposals_for(item: dict) -> list[dict]:
+    """Was ein Mensch mit einem Klick uebernehmen koennte, der Agent aber nicht
+    selbst entscheidet: abweichende Schreibweisen (welche Seite stimmt?) und
+    Saetze, deren Zahl/Person die Quelle nicht deckt (das Gate waere danach
+    gruen, aber ob der Artikel noch etwas sagt, misst kein Gate)."""
+    out = []
+    for n in item.get("names", []):
+        if not n.get("ok") and n.get("kind") == "misspelled" and n.get("source_form"):
+            out.append({"kind": "spelling", "what": n["name"], "to": n["source_form"],
+                        "note": "Quelle schreibt es anders — welche Seite stimmt, entscheidet ein Mensch"})
+    drop = [f["token"] for f in item.get("figures", []) if not f["ok"]]
+    drop += [n["name"] for n in item.get("names", []) if not n.get("ok") and n.get("kind") in ("role_only", "absent")]
+    for d in drop:
+        out.append({"kind": "drop_sentence", "what": d,
+                    "note": "Satz mit dieser Angabe streichen"})
+    return out
+
+
 def sentence_with(body: str, token: str) -> str:
     """Der Satz des Artikels, der das beanstandete Token traegt (sonst der Body-Anfang)."""
     t = token.strip(".,;:")
@@ -479,6 +572,52 @@ def check_draft(t: dict, model: str) -> dict:
     return out
 
 
+def try_repair(t: dict, item: dict, source: str) -> dict | None:
+    """Reparatur versuchen und das Ergebnis GEGEN DIESELBEN GATES pruefen, die
+    das Auto-Publish anlegt. Nur wenn danach alles gruen ist, gilt sie —
+    geglaubt wird der Reparatur nichts, sie wird nachgemessen.
+
+    Gibt {"body", "changes", "words"} zurueck oder None."""
+    from pipeline.auto_publisher import _body_complete
+    from pipeline.content_guard import garbage_reasons
+    from pipeline.grounding import ungrounded_names, ungrounded_specifics
+    reps = repairs_for(item)
+    if not reps or item.get("garbled") or item.get("truncated"):
+        return None
+    if any(not f["ok"] for f in item.get("figures", [])):
+        return None          # eine unbelegte Zahl repariert kein Namenstausch
+    if any(not n["ok"] and n["kind"] != "surname_only" for n in item.get("names", [])):
+        return None          # role_only/absent/translit gehoeren dem Menschen
+    body = t.get("body_en") or ""
+    changes = []
+    for r in reps:
+        new = repair_name(body, r["name"], r["source_form"])
+        if new is None:
+            return None
+        body = new
+        changes.append(f'{r["name"]} → {r["source_form"]} ({r["kind"]})')
+    words = len(body.split())
+    if words < MIN_BODY_WORDS:
+        return None
+    if garbage_reasons(body, source) or not _body_complete(body):
+        return None
+    if ungrounded_names(body, source) or ungrounded_specifics(body, source):
+        return None
+    return {"body": body, "changes": changes, "words": words}
+
+
+def publish_repaired(item: dict, body: str) -> bool:
+    from pipeline.db import get_connection
+    reason = ("agent:repair:" + "; ".join(item["repair"]["changes"]))[:500]
+    with get_connection() as conn:
+        conn.execute("UPDATE trends SET body_en = ?, status = 'published', published_at = NOW(), "
+                     "auto_published = TRUE, review_reason = ? WHERE id = ? AND status = 'draft'",
+                     (body, reason, item["id"]))
+        if hasattr(conn, "commit"):
+            conn.commit()
+    return True
+
+
 def publish_equivalent(item: dict) -> bool:
     from pipeline.db import get_connection
     reason = ("agent:equivalent:" + item["why"])[:500]
@@ -491,7 +630,7 @@ def publish_equivalent(item: dict) -> bool:
 
 
 def run(limit: int | None = None, ids: list[int] | None = None, apply: bool = False,
-        model: str | None = None) -> dict:
+        model: str | None = None, no_repair: bool = False) -> dict:
     from pipeline import llamacpp_client
     served = llamacpp_client.served_model_id()
     if not served:
@@ -499,13 +638,27 @@ def run(limit: int | None = None, ids: list[int] | None = None, apply: bool = Fa
     model = model or served
     rows = held_drafts(limit, ids)
     report = {"date": datetime.now(timezone.utc).isoformat(timespec="seconds"), "model": served,
-              "dry_run": not apply, "checked": 0, "equivalent": 0, "human": 0, "published": 0, "items": []}
+              "dry_run": not apply, "checked": 0, "equivalent": 0, "repaired": 0, "human": 0,
+              "published": 0, "items": []}
     for t in rows:
         item = check_draft(t, model)
         report["checked"] += 1
+        item["proposals"] = proposals_for(item) if item["decision"] == "human" else []
+        if item["decision"] == "human" and not no_repair:
+            from pipeline.auto_publisher import _source_text
+            rep = try_repair(t, item, _source_text(t.get("raw_entry_id")) or "")
+            if rep:
+                item["repair"] = {"changes": rep["changes"], "words": rep["words"]}
+                item["decision"] = "repaired"
+                item["why"] = "; ".join(rep["changes"])
         if item["decision"] == "equivalent":
             report["equivalent"] += 1
             if apply and publish_equivalent(item):
+                report["published"] += 1
+                item["published"] = True
+        elif item["decision"] == "repaired":
+            report["repaired"] += 1
+            if apply and publish_repaired(item, rep["body"]):
                 report["published"] += 1
                 item["published"] = True
         else:

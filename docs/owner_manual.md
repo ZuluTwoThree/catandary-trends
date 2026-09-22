@@ -250,6 +250,24 @@ Rolle erfunden — darunter „the Foreign Secretary" → David Lammy und ein Ar
 der den Nestlé-Chef „Mark Schneider" nannte, während die (ukrainische) Quelle
 Філіп Навратіль nennt. Genau diese Fälle bleiben bei dir.
 
+**Reparatur (Stufe 1, seit 22.09. abends).** Einen Befund korrigiert der Agent
+selbst: den **ergänzten Vornamen**. Er setzt die Quellform im ganzen Body ein
+(„Kemi Badenoch stated" → „Badenoch stated", „Satella Nadella" → „Satya Nadella")
+und lässt danach **dieselben Gates** laufen wie das Auto-Publish — nur wenn alle
+grün sind, wird veröffentlicht (`review_reason = 'agent:repair: Kemi Badenoch →
+Badenoch (surname_only)'`). Zwei Schutzregeln aus der Messung: die Quellform muss
+namensförmig sein (ein Repo-Handle „arnegiacomo" wird abgelehnt) und den Nachnamen
+behalten („Dario Amodei" → „Dario" wäre kein Name mehr). `--no-repair` schaltet
+die Stufe ab.
+
+**Bewusst nicht automatisch:** abweichende **Schreibweisen**. Gemessen an vier
+echten Fällen wäre der Tausch zweimal richtig gewesen (Papfuss → Papenfuss,
+Kokotjalo → Kokotajlo) und zweimal falsch — einmal hätte er einen Tippfehler der
+Quelle übernommen („Xi Jinping" → „Xi Jiping"). Welche Seite richtig schreibt,
+ist ohne Weltwissen nicht zu entscheiden, und Weltwissen soll hier nicht
+entscheiden. Diese Fälle und die Satzstreichungen (Zahl/Person nicht gedeckt)
+stehen als **Vorschläge** unter der Tabelle und im Bericht (`proposals`).
+
 **Erstlauf 22.09. (Dry-Run, 183 Holds, Gemma-4-26B):** 100 äquivalent, 83 bleiben —
 davon 62 Namens-Holds, 20 Zahlen ohne Beleg, 1 garbled. Von den 120 Drafts mit
 reinen Zahlen-Holds waren 100 (83 %) vollständig belegt; Formen: 41 gleicher Wert
