@@ -142,10 +142,17 @@ const SELECT_RECHECK = `${SELECT_BASE}
  * batch; omit it for the whole backlog.
  */
 export async function getHeldDrafts(
-  opts: { sinceHours?: number; limit?: number } = {}
+  opts: { sinceHours?: number; limit?: number; id?: number } = {}
 ): Promise<ReviewItem[]> {
   const params: unknown[] = [REVIEW_CONFIDENCE_MIN];
   let sql = SELECT_HELD;
+  if (opts.id) {
+    // One row by id — what the proposal actions need. 'review' rows count too:
+    // the judge parks garbled drafts there and a fix may still apply.
+    params.push(opts.id);
+    sql = `${SELECT_BASE}
+   WHERE t.status IN ('draft','review') AND t.confidence >= $1 AND t.id = $${params.length}`;
+  }
   if (opts.sinceHours) {
     params.push(`${opts.sinceHours} hours`);
     sql += ` AND t.created_at >= NOW() - $${params.length}::interval`;
@@ -314,4 +321,69 @@ export async function requeueForRegeneration(id: number): Promise<RequeueResult>
     [row.raw_entry_id]
   );
   return { ok: true };
+}
+
+/** Minimum body length a repaired article must keep (same floor as the guard). */
+export const MIN_BODY_WORDS = 60;
+
+export type FixResult =
+  | { ok: true; published: boolean; words: number }
+  | { ok: false; reason: "not_draft" | "no_change" | "too_short" | "gate" };
+
+/**
+ * Apply a text fix a reviewer accepted from the agent's proposal, then judge the
+ * result BY THE SAME GATES as auto-publish. The fix is never trusted: if the
+ * repaired body still carries an unsupported figure or name, is garbled, cut off
+ * or too short, nothing is written and the reason comes back.
+ *
+ * `transform` gets the current body and returns the new one (or null when there
+ * is nothing to change). Callers build it from the agent's report, never from
+ * user input — see lib/agentReport.proposalAt.
+ */
+export async function applyBodyFix(
+  id: number,
+  transform: (body: string) => string | null
+): Promise<FixResult> {
+  const rows = await getHeldDrafts({ limit: 1, id });
+  const item = rows[0];
+  if (!item) return { ok: false, reason: "not_draft" };
+  const next = transform(item.body);
+  if (!next || next.trim() === item.body.trim()) return { ok: false, reason: "no_change" };
+  const words = next.trim().split(/\s+/).length;
+  if (words < MIN_BODY_WORDS) return { ok: false, reason: "too_short" };
+  const src = item.sourceText;
+  const stillBad =
+    ungroundedSpecifics(next, src).length > 0 ||
+    ungroundedNames(next, src).length > 0 ||
+    garbageReasons(next, src).length > 0 ||
+    !TERMINAL.test(next.trim());
+  if (stillBad) return { ok: false, reason: "gate" };
+  const done = await q<{ id: number }>(
+    `UPDATE trends
+        SET body_en = $2, status = 'published', auto_published = false,
+            published_at = COALESCE(published_at, NOW()),
+            reviewed_at = NOW(), review_reason = $3
+      WHERE id = $1 AND status IN ('draft', 'review')
+      RETURNING id`,
+    [id, next, "desk:agent-proposal"]
+  );
+  return { ok: true, published: done.length > 0, words };
+}
+
+/** Remove every sentence carrying `token` — the "drop that sentence" proposal. */
+export function dropSentencesWith(body: string, token: string): string | null {
+  const needle = token.trim().replace(/[.,;:]$/, "");
+  if (!needle) return null;
+  const parts = body.split(/(?<=[.!?])\s+/);
+  const kept = parts.filter((s) => !s.includes(needle));
+  if (kept.length === parts.length || kept.length === 0) return null;
+  return kept.join(" ").trim();
+}
+
+/** Replace a name with the form the source uses — the "spelling" proposal. */
+export function replaceName(body: string, from: string, to: string): string | null {
+  const a = from.trim();
+  const b = to.trim();
+  if (!a || !b || a === b || !body.includes(a)) return null;
+  return body.split(a).join(b);
 }

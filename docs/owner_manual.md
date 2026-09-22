@@ -195,6 +195,118 @@ alle Volltext-Prompts an der 4000-Zeichen-Kappe) ist mit
 
 ---
 
+### 3.x Review-Agent: Äquivalenz-Prüfung der Zahlen-Holds (Test, seit 2026-09-22)
+
+**Befund (Owner 22.09.):** die meisten Holds „Zahl nicht in der Quelle" sind keine
+Erfindungen, sondern andere Ausdrucksformen — „1 000 kilometres" gegen „1,000",
+„23 heures" gegen „11:00 PM", „31.12.2025" gegen „December 31, 2025", „Seventy percent"
+gegen „70%", „6,100万人" gegen „61 million". Das Gate vergleicht Token, ein Mensch
+vergleicht Bedeutung.
+
+`scripts/review_agent.py` macht den Bedeutungsvergleich mit dem geladenen Modell auf
+`:8090`, aber mit **Beleg-Zwang**: für jede beanstandete Zahl muss das Modell ein
+wörtliches Zitat aus der Quelle liefern; das Zitat wird gegen den Quelltext geprüft
+(Whitespace/Anführungszeichen/Groß-Klein normalisiert). Fehlt es dort, gilt die Zahl
+als nicht belegt — egal, was das Modell behauptet. Personennamen-Holds entscheidet
+der Agent nie (Formregel „refer to people exactly as the source does"), Garbage und
+abgeschnittene Bodies auch nicht; die bleiben bei dir.
+
+```bash
+.venv/bin/python scripts/review_agent.py            # Dry-Run über die ganze Warteschlange (~2,5 min für 180)
+.venv/bin/python scripts/review_agent.py --limit 20 # nur die jüngsten 20
+.venv/bin/python scripts/review_agent.py --ids 1794582,1794534
+.venv/bin/python scripts/review_agent.py --apply    # äquivalente Drafts veröffentlichen
+```
+
+Ausgabe: Tabelle (Entscheid `equivalent` / `human` mit Begründung und Beleg) und
+`data/review_agent_last.json` (je Draft jede Zahl mit Satz, Beleg, Form, Grund).
+`--apply` setzt äquivalente Drafts auf `published` mit `review_reason =
+'agent:equivalent: <Zahl> = "<Beleg>" (<Form>) …'` — nachvollziehbar in der DB; kein
+Reject, nichts wird verworfen. Braucht den llama-server auf `:8090` (nimmt das
+geladene Modell; nicht während des Nachtlaufs starten).
+
+**Namens-Holds (seit 22.09. abends).** Derselbe Beleg-Zwang, aber die Entscheidung
+fällt deterministisch an den Namensteilen; das Modell liefert Beleg, Quellform und
+ein Veto. Titel gehören nicht zur Identität („Chinese Vice Premier He Lifeng" =
+Quelle „Vize-Ministerpräsident He Lifeng"), der Nachname muss als eigenes Wort in
+der Quelle stehen, Vorname und Titel dürfen einen Tippfehler Abstand haben (Quelle
+„Urlula", Artikel „Ursula"). Andere Schriften klärt ein **zweiter, blinder
+Durchgang**: das Modell romanisiert nur die Quellform, ohne den Artikelnamen zu
+sehen — trifft die Romanisierung den Nachnamen, ist es dieselbe Person.
+
+| Klasse | Bedeutung | Folge |
+|---|---|---|
+| `named` | alle Namensteile stehen in der Quelle (Gate stolperte über Tippfehler/Kompositum) | veröffentlicht |
+| `translit_confirmed` | andere Schrift, Romanisierung passt (加藤 久明 → „Katō Hisaaki") | veröffentlicht |
+| `surname_only` | Quelle nennt nur den Nachnamen, der Artikel ergänzt den Vornamen | bleibt — „Write again" |
+| `role_only` | Quelle nennt nur eine Rolle, der Name kommt aus dem Modellwissen | bleibt — **der gefährliche Fall** |
+| `absent` | Person kommt in der Quelle nicht vor | bleibt |
+| `misspelled` | Nachname weicht von der Quelle ab (Artikel-Defekt) | bleibt |
+| `translit` | Romanisierung passt nicht zum Artikelnamen | bleibt |
+
+Gemessen am Bestand 22.09. (65 Namen in 83 Drafts): 16 nur andere Schrift, 17
+ergänzter Vorname, 16 gar nicht in der Quelle, 6 falsch geschrieben, 4 aus der
+Rolle erfunden — darunter „the Foreign Secretary" → David Lammy und ein Artikel,
+der den Nestlé-Chef „Mark Schneider" nannte, während die (ukrainische) Quelle
+Філіп Навратіль nennt. Genau diese Fälle bleiben bei dir.
+
+**Reparatur (Stufe 1, seit 22.09. abends).** Einen Befund korrigiert der Agent
+selbst: den **ergänzten Vornamen**. Er setzt die Quellform im ganzen Body ein
+(„Kemi Badenoch stated" → „Badenoch stated", „Satella Nadella" → „Satya Nadella")
+und lässt danach **dieselben Gates** laufen wie das Auto-Publish — nur wenn alle
+grün sind, wird veröffentlicht (`review_reason = 'agent:repair: Kemi Badenoch →
+Badenoch (surname_only)'`). Zwei Schutzregeln aus der Messung: die Quellform muss
+namensförmig sein (ein Repo-Handle „arnegiacomo" wird abgelehnt) und den Nachnamen
+behalten („Dario Amodei" → „Dario" wäre kein Name mehr). `--no-repair` schaltet
+die Stufe ab.
+
+**Bewusst nicht automatisch:** abweichende **Schreibweisen**. Gemessen an vier
+echten Fällen wäre der Tausch zweimal richtig gewesen (Papfuss → Papenfuss,
+Kokotjalo → Kokotajlo) und zweimal falsch — einmal hätte er einen Tippfehler der
+Quelle übernommen („Xi Jinping" → „Xi Jiping"). Welche Seite richtig schreibt,
+ist ohne Weltwissen nicht zu entscheiden, und Weltwissen soll hier nicht
+entscheiden. Diese Fälle und die Satzstreichungen (Zahl/Person nicht gedeckt)
+stehen als **Vorschläge** unter der Tabelle und im Bericht (`proposals`).
+
+**Im Review-Desk sichtbar (seit 22.09. abends).** `/trends/review` zeigt unter
+jeder Karte einen Block **„Agent check"** mit dem, was der letzte Lauf gefunden
+hat: je Name die Klasse im Klartext („source gives only a role — the name comes
+from the model, not the source"), die Schreibweise der Quelle, bei anderen
+Schriften die Romanisierung; je Zahl der wörtliche Quellbeleg oder der Grund,
+warum sie nicht gedeckt ist. Darüber steht, wie alt der Bericht ist („Agent check
+from 3 h ago") und wie man ihn erneuert. Läuft der Agent nie, fehlt der Block —
+die Seite funktioniert wie zuvor.
+
+**Ein-Klick-Vorschläge.** Wo der Agent etwas vorschlägt, steht ein Knopf:
+*Use the source's spelling: Kerstin Papfuss → Kerstin Papenfuss* oder *Drop that
+sentence: David Lammy*. Ein Klick wendet die Änderung an und lässt **dieselben
+Gates** laufen wie das Auto-Publish; nur wenn alle grün sind, wird der Artikel
+mit dem korrigierten Text veröffentlicht (`review_reason = 'desk:agent-proposal'`).
+Objektiert ein Gate, bleibt der Artikel unverändert stehen und die Karte bleibt.
+
+Sicherheit: der Browser schickt nur die Trend-ID und den **Index** des
+Vorschlags; welchen Text der Knopf einsetzt, liest die Server-Action frisch aus
+`data/review_agent_last.json`. Ein veralteter Tab oder ein gefälschter POST kann
+damit keinen beliebigen Text in einen Artikel schreiben. Ist der Bericht
+inzwischen ein anderer, passiert nichts.
+
+**Ein Publish von Hand ist endgültig (Owner-Regel 22.09.).** Drückst du
+*Publish*, ist der Artikel veröffentlicht — auch wenn ein Prüfer weiter
+widerspricht und auch wenn du einen Agent-Vorschlag NICHT angewendet hast. Der
+Einwand kann schlicht falsch sein: das Namens-Gate beanstandete „Per Second",
+herausgeschnitten aus „Tokens Per Second (TPS)"; im Kontext war nichts zu
+reparieren. Technisch: jede Handentscheidung stempelt `reviewed_at`, und
+`scripts/recheck_published_grounding.py` überspringt solche Zeilen (zweifach —
+in der Auswahl und im UPDATE). `--include-reviewed` öffnet sie wieder, wenn du
+bewusst einen Altbestand prüfen willst. Auch der Review-Agent und Stage 9 fassen
+sie nicht an. Gepinnt in `tests/test_human_publish_is_final.py`.
+
+**Erstlauf 22.09. (Dry-Run, 183 Holds, Gemma-4-26B):** 100 äquivalent, 83 bleiben —
+davon 62 Namens-Holds, 20 Zahlen ohne Beleg, 1 garbled. Von den 120 Drafts mit
+reinen Zahlen-Holds waren 100 (83 %) vollständig belegt; Formen: 41 gleicher Wert
+(Gate-Tokenisierung), 24 Zahlwort, 12 Übersetzung, 12 Spanne, 11 Datum, 11 Rundung.
+Noch kein Cron — Owner-Entscheid nach Sichtung des Berichts.
+
 ## 4. Mega Signal Themes und Methodik-Seite
 
 **Wozu.** `/trends/mega` ordnet jedes Signal einem der **28 kuratierten

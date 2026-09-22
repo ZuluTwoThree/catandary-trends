@@ -407,6 +407,17 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     → auto_published=true; Zahlen → data/draft_judge_last.json → Morgen-Mail
 ```
 
+**Ein Publish von Hand ist endgültig (Owner-Regel 2026-09-22).** Drückt der
+Owner auf `/trends/review` *Publish*, ist die Sache entschieden — auch gegen
+einen weiter widersprechenden Prüfer und auch ohne einen Agent-Vorschlag
+anzuwenden. Anlass: das Namens-Gate beanstandete „Per Second" aus „Tokens Per
+Second (TPS)" — kein Personenname, nichts zu reparieren. Marke ist `reviewed_at`
+(jede Handentscheidung setzt es); `scripts/recheck_published_grounding.py`
+überspringt solche Zeilen in der Auswahl UND im UPDATE (`--include-reviewed`
+hebt es für einen bewussten Audit auf), der Review-Agent nimmt nur
+`reviewed_at IS NULL`, Stage 9 nur Drafts. Test:
+`tests/test_human_publish_is_final.py`.
+
 **KI-Kennzeichnung je Artikel (#99, seit 2026-09-06, EU AI Act Art. 50 Abs. 4).**
 Alles oben ab Schritt 5 ist Maschinenarbeit, und die Schritte 9/10 sind
 ausschließlich automatische Gates — auch der Draft-Richter ist ein Modell. Ein

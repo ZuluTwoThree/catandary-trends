@@ -21,6 +21,15 @@ docs/owner_manual.md that stamp means "a human decided" (it also drives the
 regeneration attempt counter and the dedup exemption). review_reason is the
 marker of this sweep; publishing from the queue clears it.
 
+A HUMAN PUBLISH IS FINAL (owner rule, 2026-09-22). Rows a person decided on
+(reviewed_at IS NOT NULL) are skipped: when the owner reads the article next to
+its source and presses Publish, that settles it — even where a checker still
+objects. The objection may simply be wrong: the name gate flagged "Per Second"
+out of "Tokens Per Second (TPS)", the owner saw the context and published. A
+sweep that hauls such an article back would overrule the one judgement in this
+system that outranks every automatic one. --include-reviewed re-opens them for
+a deliberate audit (it never publishes anything, it only lists/parks rows).
+
     python scripts/recheck_published_grounding.py --names --garbage --dry-run
     python scripts/recheck_published_grounding.py --names --garbage --apply
     python scripts/recheck_published_grounding.py --garbage --status draft --apply
@@ -69,14 +78,22 @@ def source_of(r: dict) -> str:
                              lst("quotes"), lst("geography"))
 
 
-def iter_rows(status: str, since: str | None, batch: int):
+def row_filter(include_reviewed: bool) -> str:
+    """The SQL that keeps a human decision out of this sweep (owner 2026-09-22).
+
+    `reviewed_at` is stamped by every hand decision in the review desk —
+    publish, reject, or a one-click fix. Rows carrying it are settled."""
+    return "" if include_reviewed else "AND t.reviewed_at IS NULL "
+
+
+def iter_rows(status: str, since: str | None, batch: int, include_reviewed: bool = False):
     last = 0
     while True:
         with get_connection() as c:
             sql = ("SELECT t.id, t.source_name, t.created_at, t.body_en, "
                    "       re.title AS re_title, re.excerpt, re.raw_content, re.extraction_json "
                    "  FROM trends t LEFT JOIN raw_entries re ON re.id = t.raw_entry_id "
-                   " WHERE t.status = ? AND t.id > ? ")
+                   " WHERE t.status = ? AND t.id > ? " + row_filter(include_reviewed))
             params: list = [status, last]
             if since:
                 sql += "AND t.created_at >= ? "
@@ -115,8 +132,10 @@ def apply_hits(hits: list[dict], status: str, tag: str) -> int:
         chunk = hits[i:i + 500]
         with get_connection() as c:
             for h in chunk:
+                # Zweiter Riegel: auch ein Treffer aus einem aelteren Lauf wird
+                # nicht zurueckgeholt, wenn inzwischen ein Mensch entschieden hat.
                 c.execute("UPDATE trends SET status = 'review', review_reason = ? "
-                          " WHERE id = ? AND status = ?",
+                          " WHERE id = ? AND status = ? AND reviewed_at IS NULL",
                           (reason_string(tag, h["garbage"], h["names"]), h["id"], status))
                 n += 1
     return n
@@ -146,7 +165,9 @@ def write_report(path: Path, args, scanned: int, hits: list[dict], seconds: floa
             by_source[h["source_name"] or "?"][k] += 1
     lines = [
         f"\n## Lauf {date.today().isoformat()} — status={args.status}, "
-        f"{'APPLY' if args.apply else 'DRY-RUN'}"
+        + ("inkl. von Hand entschiedener Zeilen, " if args.include_reviewed
+           else "ohne von Hand entschiedene Zeilen, ")
+        + f"{'APPLY' if args.apply else 'DRY-RUN'}"
         + (f", since {args.since}" if args.since else ""),
         "",
         f"- Checks: {'garbage ' if args.garbage else ''}{'names' if args.names else ''}",
@@ -182,6 +203,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--garbage", action="store_true")
     ap.add_argument("--names", action="store_true")
+    ap.add_argument("--include-reviewed", action="store_true",
+                    help="auch Zeilen pruefen, die ein Mensch schon entschieden hat "
+                         "(Default: nein — ein Publish von Hand ist endgueltig)")
     ap.add_argument("--status", default="published",
                     help="which rows to scan (published | draft | review)")
     ap.add_argument("--since", help="YYYY-MM-DD, only rows created on/after")
@@ -201,7 +225,7 @@ def main() -> int:
     t0 = time.time()
     scanned = 0
     hits: list[dict] = []
-    for r in iter_rows(args.status, args.since, args.batch):
+    for r in iter_rows(args.status, args.since, args.batch, args.include_reviewed):
         scanned += 1
         garbage, names = check_row(r, args.garbage, args.names)
         if garbage or names:
