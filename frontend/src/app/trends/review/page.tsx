@@ -235,7 +235,7 @@ function Card({ item, agent }: { item: ReviewItem; agent?: AgentItem }) {
           </button>
         </form>
         <span className="ml-auto font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-          Publishing marks it human-reviewed, not auto-published
+          Publishing is final: marked human-reviewed, and later sweeps skip it
         </span>
       </footer>
     </article>

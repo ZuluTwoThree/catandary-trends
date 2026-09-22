@@ -290,6 +290,17 @@ Vorschlags; welchen Text der Knopf einsetzt, liest die Server-Action frisch aus
 damit keinen beliebigen Text in einen Artikel schreiben. Ist der Bericht
 inzwischen ein anderer, passiert nichts.
 
+**Ein Publish von Hand ist endgültig (Owner-Regel 22.09.).** Drückst du
+*Publish*, ist der Artikel veröffentlicht — auch wenn ein Prüfer weiter
+widerspricht und auch wenn du einen Agent-Vorschlag NICHT angewendet hast. Der
+Einwand kann schlicht falsch sein: das Namens-Gate beanstandete „Per Second",
+herausgeschnitten aus „Tokens Per Second (TPS)"; im Kontext war nichts zu
+reparieren. Technisch: jede Handentscheidung stempelt `reviewed_at`, und
+`scripts/recheck_published_grounding.py` überspringt solche Zeilen (zweifach —
+in der Auswahl und im UPDATE). `--include-reviewed` öffnet sie wieder, wenn du
+bewusst einen Altbestand prüfen willst. Auch der Review-Agent und Stage 9 fassen
+sie nicht an. Gepinnt in `tests/test_human_publish_is_final.py`.
+
 **Erstlauf 22.09. (Dry-Run, 183 Holds, Gemma-4-26B):** 100 äquivalent, 83 bleiben —
 davon 62 Namens-Holds, 20 Zahlen ohne Beleg, 1 garbled. Von den 120 Drafts mit
 reinen Zahlen-Holds waren 100 (83 %) vollständig belegt; Formen: 41 gleicher Wert
