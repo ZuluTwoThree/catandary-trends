@@ -225,6 +225,31 @@ Ausgabe: Tabelle (Entscheid `equivalent` / `human` mit Begründung und Beleg) un
 Reject, nichts wird verworfen. Braucht den llama-server auf `:8090` (nimmt das
 geladene Modell; nicht während des Nachtlaufs starten).
 
+**Namens-Holds (seit 22.09. abends).** Derselbe Beleg-Zwang, aber die Entscheidung
+fällt deterministisch an den Namensteilen; das Modell liefert Beleg, Quellform und
+ein Veto. Titel gehören nicht zur Identität („Chinese Vice Premier He Lifeng" =
+Quelle „Vize-Ministerpräsident He Lifeng"), der Nachname muss als eigenes Wort in
+der Quelle stehen, Vorname und Titel dürfen einen Tippfehler Abstand haben (Quelle
+„Urlula", Artikel „Ursula"). Andere Schriften klärt ein **zweiter, blinder
+Durchgang**: das Modell romanisiert nur die Quellform, ohne den Artikelnamen zu
+sehen — trifft die Romanisierung den Nachnamen, ist es dieselbe Person.
+
+| Klasse | Bedeutung | Folge |
+|---|---|---|
+| `named` | alle Namensteile stehen in der Quelle (Gate stolperte über Tippfehler/Kompositum) | veröffentlicht |
+| `translit_confirmed` | andere Schrift, Romanisierung passt (加藤 久明 → „Katō Hisaaki") | veröffentlicht |
+| `surname_only` | Quelle nennt nur den Nachnamen, der Artikel ergänzt den Vornamen | bleibt — „Write again" |
+| `role_only` | Quelle nennt nur eine Rolle, der Name kommt aus dem Modellwissen | bleibt — **der gefährliche Fall** |
+| `absent` | Person kommt in der Quelle nicht vor | bleibt |
+| `misspelled` | Nachname weicht von der Quelle ab (Artikel-Defekt) | bleibt |
+| `translit` | Romanisierung passt nicht zum Artikelnamen | bleibt |
+
+Gemessen am Bestand 22.09. (65 Namen in 83 Drafts): 16 nur andere Schrift, 17
+ergänzter Vorname, 16 gar nicht in der Quelle, 6 falsch geschrieben, 4 aus der
+Rolle erfunden — darunter „the Foreign Secretary" → David Lammy und ein Artikel,
+der den Nestlé-Chef „Mark Schneider" nannte, während die (ukrainische) Quelle
+Філіп Навратіль nennt. Genau diese Fälle bleiben bei dir.
+
 **Erstlauf 22.09. (Dry-Run, 183 Holds, Gemma-4-26B):** 100 äquivalent, 83 bleiben —
 davon 62 Namens-Holds, 20 Zahlen ohne Beleg, 1 garbled. Von den 120 Drafts mit
 reinen Zahlen-Holds waren 100 (83 %) vollständig belegt; Formen: 41 gleicher Wert
