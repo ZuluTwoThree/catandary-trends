@@ -268,6 +268,28 @@ ist ohne Weltwissen nicht zu entscheiden, und Weltwissen soll hier nicht
 entscheiden. Diese Fälle und die Satzstreichungen (Zahl/Person nicht gedeckt)
 stehen als **Vorschläge** unter der Tabelle und im Bericht (`proposals`).
 
+**Im Review-Desk sichtbar (seit 22.09. abends).** `/trends/review` zeigt unter
+jeder Karte einen Block **„Agent check"** mit dem, was der letzte Lauf gefunden
+hat: je Name die Klasse im Klartext („source gives only a role — the name comes
+from the model, not the source"), die Schreibweise der Quelle, bei anderen
+Schriften die Romanisierung; je Zahl der wörtliche Quellbeleg oder der Grund,
+warum sie nicht gedeckt ist. Darüber steht, wie alt der Bericht ist („Agent check
+from 3 h ago") und wie man ihn erneuert. Läuft der Agent nie, fehlt der Block —
+die Seite funktioniert wie zuvor.
+
+**Ein-Klick-Vorschläge.** Wo der Agent etwas vorschlägt, steht ein Knopf:
+*Use the source's spelling: Kerstin Papfuss → Kerstin Papenfuss* oder *Drop that
+sentence: David Lammy*. Ein Klick wendet die Änderung an und lässt **dieselben
+Gates** laufen wie das Auto-Publish; nur wenn alle grün sind, wird der Artikel
+mit dem korrigierten Text veröffentlicht (`review_reason = 'desk:agent-proposal'`).
+Objektiert ein Gate, bleibt der Artikel unverändert stehen und die Karte bleibt.
+
+Sicherheit: der Browser schickt nur die Trend-ID und den **Index** des
+Vorschlags; welchen Text der Knopf einsetzt, liest die Server-Action frisch aus
+`data/review_agent_last.json`. Ein veralteter Tab oder ein gefälschter POST kann
+damit keinen beliebigen Text in einen Artikel schreiben. Ist der Bericht
+inzwischen ein anderer, passiert nichts.
+
 **Erstlauf 22.09. (Dry-Run, 183 Holds, Gemma-4-26B):** 100 äquivalent, 83 bleiben —
 davon 62 Namens-Holds, 20 Zahlen ohne Beleg, 1 garbled. Von den 120 Drafts mit
 reinen Zahlen-Holds waren 100 (83 %) vollständig belegt; Formen: 41 gleicher Wert

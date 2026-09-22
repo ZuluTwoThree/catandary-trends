@@ -8,6 +8,14 @@ import {
   type ReviewItem,
 } from "@/lib/review";
 import { publishAction, rejectAction, requeueAction } from "./actions";
+import { applyProposalAction } from "./agent-actions";
+import {
+  ageHours,
+  getAgentReport,
+  NAME_KIND_LABEL,
+  PROPOSAL_LABEL,
+  type AgentItem,
+} from "@/lib/agentReport";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +44,80 @@ function markFlagged(body: string, flagged: string[]) {
   );
 }
 
-function Card({ item }: { item: ReviewItem }) {
+/**
+ * What the review agent found for this article (scripts/review_agent.py).
+ *
+ * The gate only says WHICH token it could not find; the agent says whether the
+ * source states the same thing in another form - "1 000" for "1,000",
+ * "Seventy percent" for "70%", a Japanese rendering for "Hisaaki Kato" - and,
+ * for names, which of several very different cases it is. The dangerous one is
+ * role_only: the source names an office, the model filled in a person from its
+ * training data, so a changed office-holder becomes a false attribution.
+ *
+ * Every line here quotes the source; the agent checked each quote verbatim.
+ */
+function AgentFindings({ item, agent }: { item: ReviewItem; agent: AgentItem }) {
+  const names = agent.names.filter((n) => !n.ok);
+  const figures = agent.figures.filter((f) => !f.ok);
+  const confirmed = [
+    ...agent.names.filter((n) => n.ok).map((n) => ({ label: n.name, evidence: n.evidence, form: "" })),
+    ...agent.figures.filter((f) => f.ok).map((f) => ({ label: f.token, evidence: f.evidence, form: f.form })),
+  ];
+  if (!names.length && !figures.length && !confirmed.length && !agent.proposals.length) return null;
+  return (
+    <section className="border-b border-border bg-card/40 px-5 py-3">
+      <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">Agent check</h3>
+      <ul className="mt-2 space-y-1.5 text-[12px] leading-[1.6]">
+        {names.map((n) => (
+          <li key={"n-" + n.name}>
+            <span className={n.kind === "role_only" ? "text-warn" : "text-paper"}>{n.name}</span>
+            <span className="text-muted"> &mdash; {NAME_KIND_LABEL[n.kind] ?? n.kind}</span>
+            {n.source_form && (
+              <span className="text-muted">
+                {" "}&middot; source writes <span className="text-paper">&ldquo;{n.source_form}&rdquo;</span>
+              </span>
+            )}
+            {n.latin && <span className="text-muted"> &middot; romanised &ldquo;{n.latin}&rdquo;</span>}
+          </li>
+        ))}
+        {figures.map((f) => (
+          <li key={"f-" + f.token}>
+            <span className="text-paper">{f.token}</span>
+            <span className="text-muted"> &mdash; not supported by the source ({f.why})</span>
+          </li>
+        ))}
+        {confirmed.map((c) => (
+          <li key={"ok-" + c.label} className="text-muted">
+            <span className="text-paper">{c.label}</span> &mdash; source says{" "}
+            <span className="text-paper">&ldquo;{c.evidence}&rdquo;</span>
+            {c.form ? " (" + c.form + ")" : ""}
+          </li>
+        ))}
+      </ul>
+      {agent.proposals.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">One-click</span>
+          {agent.proposals.map((p, i) => (
+            <form action={applyProposalAction} key={"p-" + i}>
+              <input type="hidden" name="id" value={item.id} />
+              <input type="hidden" name="index" value={i} />
+              <button
+                type="submit"
+                className="border border-accent/40 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-accent hover:bg-accent/10 transition-colors"
+                title={p.note + " \u2014 the result is checked by the same gates as auto-publish; if one objects, nothing is written."}
+              >
+                {PROPOSAL_LABEL[p.kind] ?? p.kind}: {p.what}
+                {p.to ? " \u2192 " + p.to : ""}
+              </button>
+            </form>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Card({ item, agent }: { item: ReviewItem; agent?: AgentItem }) {
   const date = new Date(item.createdAt).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
@@ -96,6 +177,8 @@ function Card({ item }: { item: ReviewItem }) {
           Person named differently than in the source: {item.names.map((n) => `"${n}"`).join(", ")}
         </p>
       )}
+
+      {agent && <AgentFindings item={item} agent={agent} />}
 
       <div className="grid gap-px bg-border md:grid-cols-2">
         <div className="bg-ink px-5 py-4">
@@ -173,12 +256,14 @@ export default async function ReviewPage({
   const scope: Scope =
     sp.scope === "all" ? "all" : sp.scope === "recheck" ? "recheck" : "today";
 
-  const [items, counts] = await Promise.all([
+  const [items, counts, agentReport] = await Promise.all([
     scope === "recheck"
       ? getRecheckQueue({ limit: 100 })
       : getHeldDrafts(scope === "today" ? { sinceHours: 30 } : { limit: 100 }),
     getReviewCounts(),
+    getAgentReport(),
   ]);
+  const agentAge = ageHours(agentReport);
 
   const tab = (s: Scope, label: string) => (
     <Link
@@ -246,13 +331,20 @@ export default async function ReviewPage({
         </p>
       ) : (
         <div className="mt-8 space-y-8">
+          {agentReport && agentAge != null && scope !== "recheck" && (
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              Agent check from {agentAge < 1 ? "the last hour" : Math.round(agentAge) + " h ago"}
+              {agentReport.dryRun ? " (dry run)" : ""} &middot; re-run:{" "}
+              <code className="text-paper">scripts/review_agent.py</code>
+            </p>
+          )}
           {scope === "recheck" && (
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
               Showing the newest 100 of {counts.recheck}; prefix {RECHECK_PREFIX} = corpus sweep
             </p>
           )}
           {items.map((i) => (
-            <Card key={i.id} item={i} />
+            <Card key={i.id} item={i} agent={agentReport?.items.get(i.id)} />
           ))}
         </div>
       )}
