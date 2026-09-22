@@ -6,6 +6,9 @@
   scripts/review_agent.py --ids 1794582,1794534
   scripts/review_agent.py --apply         aequivalente UND reparierte Drafts veroeffentlichen
   scripts/review_agent.py --no-repair     nur pruefen, keine Namen umschreiben
+  scripts/review_agent.py --handover      llama-server selbst auf das Content-Gen-Modell
+                                          umhaengen und danach den Ruhezustand wiederherstellen
+                                          (so laeuft der Agent im Nachtlauf, Stage 11)
 
 Braucht den llama-server auf :8090 (nimmt das geladene Modell). Bericht:
 data/review_agent_last.json. Exit 0; 3 ohne Server.
@@ -31,6 +34,8 @@ def main(argv=None) -> int:
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--model", help="Modellname fuer den Request (Default: das geladene)")
     ap.add_argument("--no-repair", action="store_true", help="nur pruefen, nichts umschreiben")
+    ap.add_argument("--handover", action="store_true",
+                    help="GPU-Handover auf das Content-Gen-Modell selbst machen (Nachtlauf)")
     ap.add_argument("-q", "--quiet", action="store_true")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.WARNING if args.quiet else logging.INFO,
@@ -38,7 +43,20 @@ def main(argv=None) -> int:
     for noisy in ("httpx", "httpcore", "pipeline.llamacpp_client"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     ids = [int(x) for x in args.ids.split(",")] if args.ids else None
-    r = run(limit=args.limit, ids=ids, apply=args.apply, model=args.model, no_repair=args.no_repair)
+    if args.handover:
+        # Stage 11 des Nachtlaufs: der Ruhezustand traegt das 8B, geprueft wird
+        # aber auf dem Content-Gen-Modell (es hat die Aequivalenz-Faelle in der
+        # Messung vom 22.09. entschieden). Der Handover haengt start-active.sh um,
+        # startet den Server und stellt den vorigen Zustand beim Verlassen wieder her.
+        from pipeline import gpu_handover
+        from pipeline.config import STAGE5_MODEL
+        was_active = _llama_unit_active()
+        with gpu_handover.content_gen_on_llamacpp(STAGE5_MODEL):
+            r = run(limit=args.limit, ids=ids, apply=args.apply, model=args.model,
+                    no_repair=args.no_repair)
+        _restore_resting_server(was_active)
+    else:
+        r = run(limit=args.limit, ids=ids, apply=args.apply, model=args.model, no_repair=args.no_repair)
     print(f'\n{"DRY-RUN" if r["dry_run"] else "APPLY"} · Modell {r["model"]} · geprüft {r["checked"]} · '
           f'äquivalent {r["equivalent"]} · repariert {r.get("repaired", 0)} · '
           f'bleibt beim Menschen {r["human"]} · veröffentlicht {r["published"]}')

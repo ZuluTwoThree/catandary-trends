@@ -268,6 +268,15 @@ ist ohne Weltwissen nicht zu entscheiden, und Weltwissen soll hier nicht
 entscheiden. Diese Fälle und die Satzstreichungen (Zahl/Person nicht gedeckt)
 stehen als **Vorschläge** unter der Tabelle und im Bericht (`proposals`).
 
+**Im Nachtlauf (Stage 11, seit 22.09.).** Der Agent läuft automatisch nach dem
+Draft-Richter: `scripts/review_agent.py --handover --apply`. Er hängt sich den
+llama-server selbst auf das Content-Gen-Modell um und stellt den Ruhezustand
+danach wieder her; ein eigener Kollisionswächter lässt ihn aus, wenn ein fremder
+GPU-Job läuft. Die Zahlen stehen am Morgen in der Mail („Review agent (stage 11):
+65 held drafts checked, 0 equivalent, 15 repaired, 50 left for you — 15
+published. Names left for you: role_only=4, surname_only=17, …"). Abschalten:
+`REVIEW_AGENT=0`; nur prüfen ohne zu schreiben: `REVIEW_AGENT_APPLY=0`.
+
 **Im Review-Desk sichtbar (seit 22.09. abends).** `/trends/review` zeigt unter
 jeder Karte einen Block **„Agent check"** mit dem, was der letzte Lauf gefunden
 hat: je Name die Klasse im Klartext („source gives only a role — the name comes
@@ -1249,7 +1258,7 @@ im Handover still).
 | 01:30 täglich | Postgres-Backup (dumpdir, zstd, keep 4 Tage) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4` | installiert |
 | 02:15 täglich | Volltext-Retention 60 Monate | `scripts/purge_raw_content.py --days 1825 --apply` | installiert (03.09., Frist 10.09. erweitert) |
 | 02:30 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
-| 02:45 Mo–Fr | Full Cycle + Draft-Richter + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch **3000** — so bemessen, dass ein normaler Tag in einem Lauf durchgeht; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |
+| 02:45 Mo–Fr | Full Cycle + Draft-Richter + **Review-Agent (Stage 11)** + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch **3000** — so bemessen, dass ein normaler Tag in einem Lauf durchgeht; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |
 | 07:45 täglich | Wächter (bewusst NICHT mitverschoben 22.09.) | `python -m scripts.cycle_watchdog` | installiert |
 | 07:45 **Di** | Newsletter-Website-Edition (von Mo verlegt 11.09., Zeit 22.09.) | `scripts/weekly_newsletter_publish.sh` | installiert (ohne `NEWSLETTER_DEEP_DIVE`) |
 | 03:45 Di | Patent-Ingest BDDS (Cr-Del + Amend) | `scripts/weekly_patents.sh` | installiert |

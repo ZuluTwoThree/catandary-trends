@@ -418,6 +418,27 @@ hebt es für einen bewussten Audit auf), der Review-Agent nimmt nur
 `reviewed_at IS NULL`, Stage 9 nur Drafts. Test:
 `tests/test_human_publish_is_final.py`.
 
+**Stage 11: Review-Agent (seit 2026-09-22, `REVIEW_AGENT=0` schaltet ab).**
+Nach dem Richter prüft `scripts/review_agent.py --handover --apply` die Drafts,
+die ein Gate zurückhält, auf **Äquivalenz statt Wortgleichheit**: ist die
+beanstandete Zahl dieselbe Angabe in anderer Form („1 000"/„1,000",
+„Seventy percent"/„70 %", 6,100万人/61 million, „23 heures"/„11:00 PM",
+„2015-25"/2025) und nennt die Quelle die Person wirklich? Jede Bestätigung
+braucht ein **wörtliches Quellzitat**, das gegen den Quelltext geprüft wird —
+das Modell kann nur bestätigen, was dasteht. Namen entscheidet eine
+deterministische Regel (Titel zählen nicht zur Identität, Nachname wortweise,
+Tippfehler-Toleranz bei Vornamen), andere Schriften ein **zweiter, blinder
+Durchgang**, der nur die Quellform romanisiert. Ergänzte Vornamen werden
+korrigiert und das Ergebnis durch dieselben Gates geschickt wie Auto-Publish.
+Beim Menschen bleiben: Rollen-Halluzinationen („the Foreign Secretary" → ein
+Name aus dem Modellwissen), fehlende Personen, abweichende Schreibweisen,
+ungeklärte Transliterationen — mit Klasse, Beleg und Ein-Klick-Vorschlag auf
+`/trends/review`. Eigener Kollisionswächter (`scheduled_cycle-agent`), eigener
+GPU-Handover auf das Content-Gen-Modell, Ruhezustand danach wiederhergestellt;
+Zahlen → `data/review_agent_last.json` → Morgen-Mail. Erste Messung 22.09.:
+von 183 Holds 100 äquivalent, danach 15 weitere repariert.
+`REVIEW_AGENT_APPLY=0` lässt ihn nur prüfen.
+
 **KI-Kennzeichnung je Artikel (#99, seit 2026-09-06, EU AI Act Art. 50 Abs. 4).**
 Alles oben ab Schritt 5 ist Maschinenarbeit, und die Schritte 9/10 sind
 ausschließlich automatische Gates — auch der Draft-Richter ist ein Modell. Ein
