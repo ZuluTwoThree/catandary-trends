@@ -195,6 +195,42 @@ alle Volltext-Prompts an der 4000-Zeichen-Kappe) ist mit
 
 ---
 
+### 3.x Review-Agent: Äquivalenz-Prüfung der Zahlen-Holds (Test, seit 2026-09-22)
+
+**Befund (Owner 22.09.):** die meisten Holds „Zahl nicht in der Quelle" sind keine
+Erfindungen, sondern andere Ausdrucksformen — „1 000 kilometres" gegen „1,000",
+„23 heures" gegen „11:00 PM", „31.12.2025" gegen „December 31, 2025", „Seventy percent"
+gegen „70%", „6,100万人" gegen „61 million". Das Gate vergleicht Token, ein Mensch
+vergleicht Bedeutung.
+
+`scripts/review_agent.py` macht den Bedeutungsvergleich mit dem geladenen Modell auf
+`:8090`, aber mit **Beleg-Zwang**: für jede beanstandete Zahl muss das Modell ein
+wörtliches Zitat aus der Quelle liefern; das Zitat wird gegen den Quelltext geprüft
+(Whitespace/Anführungszeichen/Groß-Klein normalisiert). Fehlt es dort, gilt die Zahl
+als nicht belegt — egal, was das Modell behauptet. Personennamen-Holds entscheidet
+der Agent nie (Formregel „refer to people exactly as the source does"), Garbage und
+abgeschnittene Bodies auch nicht; die bleiben bei dir.
+
+```bash
+.venv/bin/python scripts/review_agent.py            # Dry-Run über die ganze Warteschlange (~2,5 min für 180)
+.venv/bin/python scripts/review_agent.py --limit 20 # nur die jüngsten 20
+.venv/bin/python scripts/review_agent.py --ids 1794582,1794534
+.venv/bin/python scripts/review_agent.py --apply    # äquivalente Drafts veröffentlichen
+```
+
+Ausgabe: Tabelle (Entscheid `equivalent` / `human` mit Begründung und Beleg) und
+`data/review_agent_last.json` (je Draft jede Zahl mit Satz, Beleg, Form, Grund).
+`--apply` setzt äquivalente Drafts auf `published` mit `review_reason =
+'agent:equivalent: <Zahl> = "<Beleg>" (<Form>) …'` — nachvollziehbar in der DB; kein
+Reject, nichts wird verworfen. Braucht den llama-server auf `:8090` (nimmt das
+geladene Modell; nicht während des Nachtlaufs starten).
+
+**Erstlauf 22.09. (Dry-Run, 183 Holds, Gemma-4-26B):** 100 äquivalent, 83 bleiben —
+davon 62 Namens-Holds, 20 Zahlen ohne Beleg, 1 garbled. Von den 120 Drafts mit
+reinen Zahlen-Holds waren 100 (83 %) vollständig belegt; Formen: 41 gleicher Wert
+(Gate-Tokenisierung), 24 Zahlwort, 12 Übersetzung, 12 Spanne, 11 Datum, 11 Rundung.
+Noch kein Cron — Owner-Entscheid nach Sichtung des Berichts.
+
 ## 4. Mega Signal Themes und Methodik-Seite
 
 **Wozu.** `/trends/mega` ordnet jedes Signal einem der **28 kuratierten
