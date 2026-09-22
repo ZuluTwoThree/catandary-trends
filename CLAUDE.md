@@ -610,7 +610,9 @@ CREATE TABLE trend_clusters (
 
 ## Automatisierung & Scheduling
 
-### Cron-Jobs (realer Stand 2026-09-02 = `crontab -l`; Deploy-Template `deploy/crontab.txt` ist damit synchron)
+### Cron-Jobs (realer Stand 2026-09-22 = `crontab -l`; Deploy-Template `deploy/crontab.txt` ist damit synchron)
+
+**Zeitplan-Änderung 2026-09-22 (Owner):** die gesamte Wochentags-Kette startet **1 h 15 min früher** — der Quellenausbau auf 560 Feeds hat den Nachtlauf von knapp 3 h auf gemessene 3:48–5:26 verlängert, er endete zuletzt erst 08:44–09:24 und blockierte das Review beim Frühstück. Neu: 01:30 Backup · 02:00 Static Export · 02:15 Retention · 02:30 Lizenz-Auflösung · 02:45 Full Cycle · Di 03:45 Patent-Sweep · Di 06:45 Patent-Rechnungen · Di 07:45 Newsletter-Edition. **Nicht verschoben:** der Wächter (07:45, s. u.) und alle Wochenend-/Monatsjobs.
 
 ```
 # Env-Zeilen sind Pflicht: cron hat keine systemd-User-Session — ohne
@@ -618,7 +620,11 @@ CREATE TABLE trend_clusters (
 XDG_RUNTIME_DIR=/run/user/1000
 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 
-# Full Cycle Mo–Fr 04:00 (Feed-Polling + LLM-Pipeline + Auto-Publish in einem
+# Full Cycle Mo–Fr 02:45 (bis 2026-09-22: 04:00 — der Owner hat die ganze
+# Wochentags-Kette um 1 h 15 min vorgezogen, damit der Lauf beim Frühstück
+# fertig ist; nach dem Quellenausbau auf 560 Feeds dauert er 3:48–5:26 statt
+# knapp 3 h und endete zuletzt erst 08:44–09:24.)
+# (Feed-Polling + LLM-Pipeline + Auto-Publish in einem
 # Lauf via scheduled_cycle.sh; Wrapper räumt vorher ALLES VRAM frei, auch
 # manuell gestartete llama-server). Log: ~/logs/catandary-full-cycle-*.log
 # VRAM-Freiräumen tötet seit 2026-09-10 nur noch Prozesse, die laut nvidia-smi
@@ -649,9 +655,12 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Zu hoch kostet nichts — min(batch, vorhandene); gegen Massen-Ingest schützen
 # CYCLE_MAX_PER_SOURCE und die 50k-Sanity-Zählung. CYCLE_BATCH=N hebt ihn für
 # eine einzelne Nacht weiter an.
-0 4 * * 1-5  scripts/full_cycle_cron.sh
+45 2 * * 1-5  scripts/full_cycle_cron.sh
 
-# Waechter (seit 2026-08-17): meldet per Mail, wenn der Nachtlauf keine
+# Waechter 07:45 — BEWUSST NICHT mitverschoben (22.09.): er meldete bis dahin
+# jeden Werktag faelschlich "still running", weil der Cycle um 07:45 noch lief;
+# mit dem frueheren Start findet er einen fertigen Lauf vor.
+# (seit 2026-08-17): meldet per Mail, wenn der Nachtlauf keine
 # end-Zeile mit Exit-Code geschrieben hat. Der Wrapper schreibt sie als letzte
 # Handlung — stirbt er vorher (Stromausfall 17.08.), fehlt sie einfach und
 # niemand merkt es. Schweigen = alles in Ordnung. Wochenenden sind ausgenommen.
@@ -659,16 +668,16 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # catandary-pg-<Datum>.dumpdir, toc.dat da, ≥1 GB?) — Log-Zeilen zählen nicht.
 45 7 * * *   cd <repo> && .venv/bin/python -m scripts.cycle_watchdog
 
-# DB-Backup (täglich 02:45). Seit 2026-08-24: pg_dump -Fd -j4 + zstd:3 →
+# DB-Backup (täglich 01:30, bis 22.09. 02:45). Seit 2026-08-24: pg_dump -Fd -j4 + zstd:3 →
 # catandary-pg-<Datum>.dumpdir (~113 GB, ~18 min), verifiziert per
 # pg_restore --list gegen die Live-Tabellenzahl, Fehler FATAL. Der alte
 # -Fc/-Z6-Dump lief ab 13.07. jede Nacht in den 1-h-Timeout, wurde als
 # "non-fatal" verschluckt und meldete trotzdem "backup OK" — 42 Nächte ohne
 # restaurierbares Postgres-Backup. Restore: docs/restore_runbook.md.
 # keep-days 4 = Owner-Entscheidung 2026-08-24 (~480 GB Steady-State).
-45 2 * * *   .venv/bin/python scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4
+30 1 * * *   .venv/bin/python scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4
 
-# Newsletter-Website-Edition (Di 09:00, seit 2026-08-29; von Mo auf Di verlegt am
+# Newsletter-Website-Edition (Di 07:45, bis 22.09. 09:00; seit 2026-08-29; von Mo auf Di verlegt am
 # 2026-09-11, Owner — die Wochenrechnung 'vor 7 Tagen' trifft an beiden Tagen
 # dieselbe abgeschlossene ISO-Woche, geprueft): generiert die
 # Vorwoche (deterministisch) nach newsletter_editions — /trends/newsletter
@@ -677,7 +686,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Edition den „Deep Dive of the Week"-Schritt an — seit 2026-09-19 schreibt der
 # nur noch status "disabled" (Rechercheur = Scouting-Dossiers entfernt), kein
 # Modell. Default off. docs/newsletter_deep_dive.md.
-0 9 * * 1    scripts/weekly_newsletter_publish.sh
+45 7 * * 2   scripts/weekly_newsletter_publish.sh
 
 # Research Pulse (#73, INSTALLIERT 2026-09-18 — Owner; bis dahin nur Vorschlag, die Seite
 # stand deshalb vom 05.09. bis 18.09. auf W35): Samstag 12:00 nach weekly_ingesters.sh;
@@ -694,19 +703,19 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Die Kundenseite (trends/clients/<kunde>/, htpasswd) lädt der Owner von Hand hoch.
 30 12 * * 6  scripts/weekly_field_watch.sh
 
-# Statischer Export → Webspace (täglich 03:15, INSTALLIERT 2026-09-05): nach dem
-# Review-Tag und ~45 min vor dem 04:00-Cycle — veröffentlicht wird der freigegebene Stand.
+# Statischer Export → Webspace (täglich 02:00, bis 22.09. 03:15; INSTALLIERT 2026-09-05): nach dem
+# Review-Tag und ~45 min vor dem 02:45-Cycle — veröffentlicht wird der freigegebene Stand.
 # build_public_static.sh + publish_static_site.py --apply, Log ~/logs/catandary-publish-*.log
-15 3 * * *   scripts/publish_static_site.sh
+0 2 * * *    scripts/publish_static_site.sh
 
-# Volltext-Retention (täglich 03:30, INSTALLIERT 2026-09-03, Owner-Auftrag „100 % konform"):
+# Volltext-Retention (täglich 02:15, bis 22.09. 03:30; INSTALLIERT 2026-09-03, Owner-Auftrag „100 % konform"):
 # raw_content verarbeiteter raw_entries älter als 60 MONATE → NULL (§44b Abs. 2 S. 2 UrhG).
 # Frist am 2026-09-10 von 14 Tagen auf 1825 Tage erweitert (Owner). Die Norm nennt keine
 # Frist, sie bindet sie an den Zweck — dokumentierter Zweck ist die längsschnittliche
 # Trendanalyse (Lead-Time Forschung→Patent→Funding→Markt läuft über Jahre). Der Kreis der
 # Quellen wird NICHT erweitert: Vorbehalts-Quellen speichern weiterhin gar keinen Volltext.
 # Vorbehalts-Quellen: purge_raw_content.py --source … --ignore-state --also-extraction
-30 3 * * *   .venv/bin/python scripts/purge_raw_content.py --days 1825 --apply
+15 2 * * *   .venv/bin/python scripts/purge_raw_content.py --days 1825 --apply
 
 # Volltext-Vektoren (#102, 09:00): am 2026-09-11 vom Owner ZURUECKGEBAUT — der
 # zweite Vektorraum brachte keinen messbaren Gewinn (docs/embedding_eval_2026-09-11.md).
@@ -722,11 +731,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # schon damals scheiterte — ein Lauf ohne Filter zieht gezielt die Fehlschlaege
 # (gemessen 3 von 60 = 5 % gegen 54 von 60 = 90 %).
 
-# Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten (03:45,
+# Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten (02:30, bis 22.09. 03:45,
 # INSTALLIERT 2026-09-09, #97 Wege B+C): OpenAlex-Auflösung → Lizenzprüfung →
 # Volltext von der OFFENEN Fundstelle (nie vom Vorbehalts-Host) → raw_content +
 # open_licence. Ausbeute 12 % der Einträge, ~58 Artikel/Woche.
-45 3 * * *   .venv/bin/python scripts/resolve_open_licence.py --limit 300 --apply
+30 2 * * *   .venv/bin/python scripts/resolve_open_licence.py --limit 300 --apply
 # --also-excerpt (nur mit --ignore-state) setzt die geleerten Zeilen seit
 # 2026-09-09 im selben Zug auf processed + filtered_out +
 # filter_reason='source_text_purged' — ein Eintrag ohne Quelltext ist nie
@@ -738,14 +747,14 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Monatlicher Quellen-Check mit Issue-Post (1. des Monats, 08:00)
 0 8 1 * *    .venv/bin/python scripts/monthly_source_check.py --post-issue
 
-# Wöchentlicher Patent-Sweep (Dienstag 05:00; --kind both = Cr-Del + Amend,
+# Wöchentlicher Patent-Sweep (Dienstag 03:45, bis 22.09. 05:00; --kind both = Cr-Del + Amend,
 # Amend trägt CPC-Codes + Zitationskanten nach — hält den SPNP/TIR-Graph aktuell)
-0 5 * * 2    scripts/weekly_patents.sh
+45 3 * * 2   scripts/weekly_patents.sh
 
-# Patentbasierte Rechnungen nach dem Sweep (Dienstag 08:00, seit 2026-08-09):
+# Patentbasierte Rechnungen nach dem Sweep (Dienstag 06:45, bis 22.09. 08:00; seit 2026-08-09):
 # build_cpc_tier_series + build_cpc_insights + assign_cpc (alles CPU/SQL).
 # Radare + TIR-/SPNP-Forschungsläufe bewusst NICHT im Cron (Owner: on-demand).
-0 8 * * 2    scripts/weekly_patent_analytics.sh
+45 6 * * 2   scripts/weekly_patent_analytics.sh
 
 # OpenAlex-Monats-Sync (5. des Monats 02:00, seit 2026-08-15, #80; 07:00→02:00 am 2026-08-29 entzerrt — Erstlauf 05.09. fällt auf einen Ingester-Samstag): neue
 # Snapshot-Partitionen → research_corpus (45M-Suchschicht) + Journal-/
@@ -881,7 +890,7 @@ oben auf `/trends/ops`.
 **Mengenbremse statt Quellen-Verbot (Owner-Präzisierung 2026-08-20):** Funding-News
 dürfen über den regulären Cycle zu Artikeln werden. Verhindert wird nur, dass ein
 Massen-Ingest en masse in die Content-Generierung läuft (235k SBIR/CORDIS-Zeilen
-brachen den 04:00-Lauf an der 50k-Grenze ab): `get_unprocessed_entries` nimmt pro
+brachen den Nachtlauf an der 50k-Grenze ab): `get_unprocessed_entries` nimmt pro
 Quelle und Lauf höchstens `CYCLE_MAX_PER_SOURCE` (Default 200; RSS-Normalbetrieb
 liegt bei p95 ≈ 70/Tag) — der Rest bleibt liegen und gehört dem Distill-Pfad
 (`signal_batch`). Die 50k-Sanity-Zählung in `scheduled_cycle.sh` zählt denselben
@@ -1036,7 +1045,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
 
 - **Build:** `scripts/build_public_static.sh [OUT_DIR]` → Staging-Baum `frontend/.export/site` (Exclusion-Liste `frontend/static-export.exclude` = alles, was `BLOCKED_PREFIXES` in `src/proxy.ts` sperrt, plus Proxy/API/Unsubscribe; Vitest-Drift-Wächter), `STATIC_EXPORT=1 PUBLIC_MODE=1 next build` mit `output: 'export'`, Ergebnis `frontend/.export/out` + `out.manifest.tsv` (sha256/size/path) + `out.build_info.json`. ~15k Artikel (Fenster `PUBLIC_WINDOW_DAYS`, Default 30, Tagesgrenze via `lib/archiveWindow.ts`), ~30k Dateien / ~1 GB, ~60 s. Segment-Prefetch-Dateien werden entfernt, Link-Prefetch ist im Export aus.
 - **Methodik-Statistik:** der Build schreibt vorab `frontend/.export/methodology_stats.json` (`scripts/methodology_stats.py`, ohne statement_timeout) und reicht sie per `METHODOLOGY_STATS_FILE` an `next build` — die Live-Aggregate liefen unter 6 Build-Workern in den 20-s-Timeout (erster Produktions-Export 05.09.).
-- **Determinismus ist Pflicht:** zwei aufeinanderfolgende Builds müssen `diff -rq`-leer sein (konstante Build-ID, keine `new Date()` im Render, `sort_date DESC, id DESC`-Tiebreaker, Related = 3 Vorgänger derselben Vertikale, `source_date = LEAST(published, created_at)`). Während des 04:00-Cycles ist das nicht gegeben (DB ändert sich) — Publish läuft deshalb 06:30.
+- **Determinismus ist Pflicht:** zwei aufeinanderfolgende Builds müssen `diff -rq`-leer sein (konstante Build-ID, keine `new Date()` im Render, `sort_date DESC, id DESC`-Tiebreaker, Related = 3 Vorgänger derselben Vertikale, `source_date = LEAST(published, created_at)`). Während des Nachtlaufs (02:45) ist das nicht gegeben (DB ändert sich) — Publish läuft deshalb davor, 02:00.
 - **Render-Weichen:** `lib/renderMode.ts` (`isStaticExport()`) und `lib/publicMode.ts`; `generateStaticParams` nur im Export (Workstation-Build lieferte sonst 500 auf Artikel-/Mega-/Listing-Seiten, Fix `dd4490b`). Lokale Owner-Instanz (`npm run build` ohne Flags) verhält sich unverändert.
 - **URL-Schema Export:** `/trends` (= `trends/index.html`), `/trends/page/<n>`, `/trends/v/<vertical>[/page/<n>]`, `/trends/<slug>` (Apache-Rewrite auf `.html`, abgelaufene Slugs → **410** via Muster in `trends/.htaccess`), `/trends/mega[/<m>]`, `/trends/methodology`, `/trends/newsletter` (Signup + neueste Edition + Archivliste), `/trends/newsletter/<jahr>-w<kw>` (letzte 12 Editionen, `PUBLIC_NEWSLETTER_EDITIONS`; Artikel-Links außerhalb des Fensters → `source_url`), `/trends/newsletter/unsubscribed` (303-Ziel von `unsubscribe.php`, noindex), `/trends/imprint|privacy|enquiry`, `/trends/index.json` (Suchindex, ~2 MB gz, clientseitige Suche/Filter `components/StaticSearch.tsx`), `/trends/sitemap.xml`. `.htaccess` liegen verzeichnisweise in `trends/` und `_next/` — der **Webroot bleibt owner-verwaltet** (`index.html` = Landing `docs/launch/preview.html`, `robots.txt`, `newsletter/**` PHP-DOI); das Export-Root-`index.html` wird nicht hochgeladen.
 - **Publish:** `scripts/publish_static_site.py` (Default `--dry-run`, `--apply` schreibt) — Manifest-Delta gegen `trends/.publish-manifest.tsv` auf dem Webspace, verwaltet NUR `trends/**`, `_next/**` und die Root-Allowlist `trends.html`/`trends.txt`; Reihenfolge Assets → Artikel → Listing → Löschen; Gates: Build ≤ 12 h alt, ≥ 1000 Artikel, ≤ 60 % Löschungen. Backends `MODE=sftp|rsync|local` aus `~/.config/catandary/webspace.env` (0600; **fehlt noch — Owner-Aktion**). Summary `data/publish_last.json`, Wächter-Check in `cycle_watchdog.py` (nur aktiv, wenn die Config existiert).

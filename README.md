@@ -150,7 +150,7 @@ zufrieden). Rückweg Tag `archive/dossiers-2026-09-19`; Historie
 ### 2.3 Routine: Öffentliche Website aktualisieren (bis der Cron läuft)
 
 ```bash
-cd ~/projects/catandary-trends            # main-Worktree — nicht während des 04:00-Cycles
+cd ~/projects/catandary-trends            # main-Worktree — nicht während des 02:45-Cycles
 scripts/build_public_static.sh            # ~60 s → frontend/.export/out (+ Manifest, build_info.json)
 scripts/htaccess_test_server.sh           # optional: Apache-Test auf :8098, nach jedem Build neu starten
 .venv/bin/python scripts/publish_static_site.py          # Dry-Run: Plan je Phase
@@ -296,7 +296,7 @@ Build-Variablen des Exports (`STATIC_EXPORT`, `PUBLIC_NOINDEX`,
 ```
    AKQUISE (Lead-Time-Tiers)              VERARBEITUNG                          PRODUKT
 ┌────────────────────────────────┐  ┌──────────────────────────────┐  ┌──────────────────────────────┐
-│ science  OpenAlex (45M Werke,  │  │ Full Cycle Mo–Fr 04:00       │  │ Owner-App :3001 (Next.js 16) │
+│ science  OpenAlex (45M Werke,  │  │ Full Cycle Mo–Fr 02:45       │  │ Owner-App :3001 (Next.js 16) │
 │          Fresh-Sweep), arXiv/  │  │  Poll → Titel-Dedup →        │  │  Feed · Review · Mega ·      │
 │          bioRxiv/medRxiv       │  │  Relevanz/Extraktion/        │  │  Foresight-Cockpit ·         │
 │ patent   EPO DOCDB Back-File   │─▶│  Klassifikation (Distill +   │─▶│  Ops · Newsletter            │
@@ -432,7 +432,7 @@ Aus `docs/launch/09_launch_plan_2026-09-02.md`; Reihenfolge = Abhängigkeit.
 3. **Root-`.htaccess` ergänzen:** Inhalt von `docs/launch/root-htaccess.snippet`
    in die owner-verwaltete Root-Datei (TDM-Header + Bot-Sperre für Landing und
    `/newsletter/`).
-4. **Cron installiert (05.09.2026):** `15 3 * * *  scripts/publish_static_site.sh` — täglich nach dem Review-Tag, rund 45 min vor dem 04:00-Cycle
+4. **Cron installiert (05.09.2026, Zeit 22.09.):** `0 2 * * *  scripts/publish_static_site.sh` — täglich nach dem Review-Tag, rund 45 min vor dem 04:00-Cycle
    aus `deploy/crontab.txt` in `crontab -e` übernehmen. Der Wächter (07:45)
    prüft ab dann `data/publish_last.json`.
 5. **Newsletter-PHP nachziehen:** `_lib.php`, `unsubscribe.php`, `nl_config.php`

@@ -8,7 +8,7 @@ Setup: [`README.md`](../README.md). Architektur-Vertrag: [`CLAUDE.md`](../CLAUDE
 `:3004` (dev). Alle `python`-Aufrufe meinen `.venv/bin/python` im Repo-Root;
 Cron und Wächter laufen aus dem **main-Worktree** `~/projects/catandary-trends`
 (dort liegen auch `data/*_last.json` und die Logs zeigen dorthin). GPU-Regel für
-alles, was ein Modell braucht: **nicht parallel** zum 04:00-Full-Cycle, zum
+alles, was ein Modell braucht: **nicht parallel** zum 02:45-Full-Cycle, zum
 Samstags-Ingester oder zu einem laufenden Research-Pulse-Lauf —
 jedes Werkzeug übernimmt `:8090` exklusiv und stellt danach den Ruhezustand
 wieder her.
@@ -32,8 +32,8 @@ wieder her.
 
 ## 1. Morgenroutine — was nachts passiert und was morgens zu tun ist
 
-**Nachts (Mo–Fr, automatisch).** 02:45 Postgres-Backup · 03:30 Volltext-Retention
-(`raw_content` älter 14 Tage → NULL) · **04:00 Full Cycle** (`scripts/full_cycle_cron.sh`
+**Nachts (Mo–Fr, automatisch; seit 22.09. 1 h 15 min früher, damit der Lauf beim Frühstück fertig ist).** 01:30 Postgres-Backup · 02:15 Volltext-Retention
+(`raw_content` älter 60 Monate → NULL) · **02:45 Full Cycle** (`scripts/full_cycle_cron.sh`
 → `scheduled_cycle.sh`): VRAM freiräumen, RSS-Poll, Stages 1–9, Draft-Richter
 (Stage 10), Ruhezustand wiederherstellen, Morgen-Mail (`scripts/review_notify.py`)
 verschicken · 07:45 Wächter (`scripts/cycle_watchdog.py`). Der Cycle endet
@@ -150,7 +150,7 @@ landen hier. Ohne Entscheidung bleiben sie liegen.
   content_en_json=NULL` (der Stage-6-Cache muss weg, sonst kommt der alte Text
   wortgleich zurück) für ihre `raw_entry_id`s — und danach den Cycle von Hand starten:
   `tmux new -s rewrite` → `cd ~/projects/catandary-trends && bash
-  scripts/scheduled_cycle.sh 1500` (nur mit ≥ 6 h Luft zum 04:00-Lauf,
+  scripts/scheduled_cycle.sh 1500` (nur mit ≥ 6 h Luft zum 02:45-Lauf,
   Kollisionswächter greift). Vorlage: 08.09.2026, 813 Zeilen,
   `docs/compliance/grounding_recheck_2026-09-05.md` (Nachtrag).
 - Ein Namens-Treffer ist ein **Hold, kein Urteil**: „Donald Trump" bei Quelle
@@ -938,7 +938,7 @@ valide), kopiert die `.htaccess` aus `frontend/public-export/` hinein und
 schreibt Manifest + `build_info.json`. Referenz 04.09.: 15 178 Artikel,
 28 Mega-Seiten, 12 Editionen, 33 089 Dateien, 1,31 GB, 55 s Build. Zwei Läufe
 nacheinander müssen `diff -rq`-leer sein (Determinismus-Gate) — während des
-04:00-Cycles nicht gegeben; ein Build unter DB-Last kann am 20-s-Statement-Timeout
+Nachtlaufs nicht gegeben; ein Build unter DB-Last kann am 20-s-Statement-Timeout
 scheitern. Lock `frontend/.export/.lock` (gemeinsam mit dem Publisher).
 
 ### 9.2 Lokal prüfen (Apache im Docker)
@@ -993,7 +993,7 @@ Teilbäume. Exit 1 = Übertragungsfehler (erneut starten). Summary
 `data/publish_last.json` (nur bei `--apply`). `MODE=local` + `LOCAL_DEST=`
 = Vorschau in einen Ordner.
 
-**Cron (installiert 05.09.2026):** `15 3 * * *  scripts/publish_static_site.sh` — täglich nach dem Review-Tag, rund 45 min vor dem 04:00-Cycle
+**Cron (installiert 05.09.2026, Zeit 22.09.):** `0 2 * * *  scripts/publish_static_site.sh` — täglich nach dem Review-Tag, rund 45 min vor dem 04:00-Cycle
 — Lock, Kollisionswächter (wartet bis 90 min auf den Cycle), Build, `--apply`;
 ohne `webspace.env` stiller Skip; Log `~/logs/catandary-publish-<Datum>.log`.
 Wächter 07:45 prüft die Summary, sobald die Config existiert.
@@ -1246,21 +1246,21 @@ im Handover still).
 
 | Zeit | Job | Skript | Status |
 |---|---|---|---|
-| 02:45 täglich | Postgres-Backup (dumpdir, zstd, keep 4 Tage) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4` | installiert |
-| 03:30 täglich | Volltext-Retention 60 Monate | `scripts/purge_raw_content.py --days 1825 --apply` | installiert (03.09., Frist 10.09. erweitert) |
-| 03:45 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
-| 04:00 Mo–Fr | Full Cycle + Draft-Richter + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch **3000** — so bemessen, dass ein normaler Tag in einem Lauf durchgeht; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |
-| 07:45 Mo–Fr | Wächter | `python -m scripts.cycle_watchdog` | installiert |
-| 09:00 **Di** | Newsletter-Website-Edition (von Mo verlegt 11.09.) | `scripts/weekly_newsletter_publish.sh` | installiert (ohne `NEWSLETTER_DEEP_DIVE`) |
-| 05:00 Di | Patent-Ingest BDDS (Cr-Del + Amend) | `scripts/weekly_patents.sh` | installiert |
-| 08:00 Di | Patent-Rechnungen (assign_cpc, Tier-Serien, Insights) | `scripts/weekly_patent_analytics.sh` | installiert |
+| 01:30 täglich | Postgres-Backup (dumpdir, zstd, keep 4 Tage) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4` | installiert |
+| 02:15 täglich | Volltext-Retention 60 Monate | `scripts/purge_raw_content.py --days 1825 --apply` | installiert (03.09., Frist 10.09. erweitert) |
+| 02:30 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
+| 02:45 Mo–Fr | Full Cycle + Draft-Richter + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch **3000** — so bemessen, dass ein normaler Tag in einem Lauf durchgeht; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |
+| 07:45 täglich | Wächter (bewusst NICHT mitverschoben 22.09.) | `python -m scripts.cycle_watchdog` | installiert |
+| 07:45 **Di** | Newsletter-Website-Edition (von Mo verlegt 11.09., Zeit 22.09.) | `scripts/weekly_newsletter_publish.sh` | installiert (ohne `NEWSLETTER_DEEP_DIVE`) |
+| 03:45 Di | Patent-Ingest BDDS (Cr-Del + Amend) | `scripts/weekly_patents.sh` | installiert |
+| 06:45 Di | Patent-Rechnungen (assign_cpc, Tier-Serien, Insights) | `scripts/weekly_patent_analytics.sh` | installiert |
 | 06:00 Sa | Nicht-RSS-Ingester + Distill + Research-Index | `scripts/weekly_ingesters.sh` | installiert |
 | 06:00 So | Discovery-Loop (Mega-Kandidaten, Head-Retrain) | `scripts/discovery_loop.py` | installiert |
 | 1. 08:00 | Monats-Quellencheck (+ TDM-Re-Probe) → Issue #13 | `scripts/monthly_source_check.py --post-issue` | installiert |
 | 2. 07:00 | Backlink-Check → `dead_links` | `scripts/check_source_links.py --per-source 12 --mark` | installiert |
 | 5. 02:00 | OpenAlex-Monats-Sync (45M-Korpus) | `scripts/sync_openalex_monthly.sh` | installiert |
 | 6. 12:00 | Startup-Register (CORDIS/SBIR/GLEIF/CH) | `scripts/monthly_startup_sources.sh` | installiert |
-| 03:15 täglich | **Statischer Export → Webspace** | `scripts/publish_static_site.sh` | **installiert in `deploy/crontab.txt`, nicht installiert** (kein `webspace.env`) |
+| 02:00 täglich | **Statischer Export → Webspace** | `scripts/publish_static_site.sh` | **installiert in `deploy/crontab.txt`, nicht installiert** (kein `webspace.env`) |
 | 12:00 Sa | Research Pulse (Vorwoche, 28 Themes) | `scripts/weekly_research_pulse.sh` | installiert (2026-09-18) |
 | 09:00 **Di** | Newsletter-Versand | `scripts/newsletter_tonight.sh` | **gegated, auskommentiert** (#16) |
 | 08:30 täglich | Subscriber-Sync MySQL → Postgres | `python -m scripts.sync_subscribers` (Datei liegt noch unter `docs/launch/newsletter-doi-php/`) | **auskommentiert** (#16) |

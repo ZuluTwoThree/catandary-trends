@@ -13,6 +13,20 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-22 · change · Wochentags-Kette startet 1 h 15 min früher
+
+Owner: der Nachtlauf war beim Frühstück noch nicht fertig, das Review musste warten.
+Ursache ist der Quellenausbau auf 560 Feeds — gemessen (ops_events, 30 Tage) dauert
+der Full Cycle jetzt 3:48–5:26 statt knapp 3 h und endete zuletzt 08:44–09:24.
+Verschoben: 02:45→01:30 Backup, 03:15→02:00 Static Export, 03:30→02:15 Retention,
+03:45→02:30 Lizenz-Auflösung, 04:00→02:45 Full Cycle, Di 05:00→03:45 Patent-Sweep,
+Di 08:00→06:45 Patent-Rechnungen, Di 09:00→07:45 Newsletter-Edition. Reihenfolge und
+Abstände bleiben, der Export veröffentlicht weiter den am Vortag freigegebenen Stand.
+Nicht verschoben: der Wächter (07:45) — er meldete bisher jeden Werktag fälschlich
+"still running" (Log 21./22.09.), weil der Cycle um 07:45 noch lief; mit dem früheren
+Start findet er einen fertigen Lauf vor. Wochenend- und Monatsjobs unberührt.
+duration: Full Cycle 228–326 min (Median 299)
+
 ## 2026-09-19 · decision · Scouting-Dossiers entfernt
 
 Owner: „Das Feature trägt nicht." Nach 30 Runden, sieben Versionen zu einem Thema und
