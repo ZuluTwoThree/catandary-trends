@@ -24,7 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pipeline.review_agent import REPORT_PATH, run  # noqa: E402
+from pipeline.review_agent import (REPORT_PATH, llama_unit_active,  # noqa: E402
+                                   restore_resting_server, run)
 
 
 def main(argv=None) -> int:
@@ -50,11 +51,11 @@ def main(argv=None) -> int:
         # startet den Server und stellt den vorigen Zustand beim Verlassen wieder her.
         from pipeline import gpu_handover
         from pipeline.config import STAGE5_MODEL
-        was_active = _llama_unit_active()
+        was_active = llama_unit_active()
         with gpu_handover.content_gen_on_llamacpp(STAGE5_MODEL):
             r = run(limit=args.limit, ids=ids, apply=args.apply, model=args.model,
                     no_repair=args.no_repair)
-        _restore_resting_server(was_active)
+        restore_resting_server(was_active)
     else:
         r = run(limit=args.limit, ids=ids, apply=args.apply, model=args.model, no_repair=args.no_repair)
     print(f'\n{"DRY-RUN" if r["dry_run"] else "APPLY"} · Modell {r["model"]} · geprüft {r["checked"]} · '
