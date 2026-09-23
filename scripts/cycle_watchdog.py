@@ -74,6 +74,16 @@ PUBLISH_CONFIG = Path(os.environ.get("PUBLISH_CONFIG", "")).expanduser() \
     if os.environ.get("PUBLISH_CONFIG") else Path.home() / ".config" / "catandary" / "webspace.env"
 PUBLISH_LAST = Path(__file__).resolve().parent.parent / "data" / "publish_last.json"
 PUBLISH_LOG_GLOB = "catandary-publish-{stamp}.log"
+
+# Die Stage-Bilanz des Cycles steht im INNEREN Log (scheduled_cycle.sh), nicht im
+# Wrapper-Log: "scheduled_cycle.sh end  <ts>  (rc1=0 rc2=0 rc3=0 agent=1)".
+# Anlass 2026-09-23: Stage 11 (Review-Agent) stürzte sofort ab, der Wrapper endete
+# trotzdem mit rc=0 und niemand erfuhr davon — ein fehlgeschlagener Stage-Schritt
+# ist kein sauberer Lauf, auch wenn der Cycle als Ganzes durchlief.
+SCHEDULED_LOG_GLOB = "catandary-scheduled-{stamp}-*.log"
+STAGES_RE = re.compile(r"scheduled_cycle\.sh end\s+(\S+)\s+\(([^)]*)\)")
+STAGE_LABEL = {"rc1": "LLM run 1", "rc2": "LLM run 2", "rc3": "resting llama-server",
+               "agent": "review agent (stage 11)"}
 PUBLISH_RUNNING_HINTS = ("publish_static_site",)
 
 
@@ -332,6 +342,41 @@ def inspect_sampler(stamp: str) -> dict:
     return {"ok": True, "kind": "sampler", "log": None, "headline": f"ops sampler ok ({msg})", "detail": "", "tail": []}
 
 
+def inspect_stages(stamp: str) -> dict:
+    """Ist jede Stage des Cycles sauber durchgelaufen?
+
+    Der Wrapper meldet nur seinen eigenen Exit-Code; einzelne Stages schreiben
+    ihren in die end-Zeile des inneren Logs. Ein Wert != 0 (oder "blocked")
+    bedeutet: der Lauf lief, aber ein Schritt fiel aus — genau der Fall, der am
+    23.09. unbemerkt blieb."""
+    logs = sorted(LOG_DIR.glob(SCHEDULED_LOG_GLOB.format(stamp=stamp)))
+    if not logs:
+        if date.today().weekday() >= 5 and stamp == date.today().strftime("%Y%m%d"):
+            return {"ok": True, "kind": "stages-weekend", "log": None,
+                    "headline": "no cycle scheduled (weekend)", "detail": "", "tail": []}
+        return {"ok": True, "kind": "stages-nolog", "log": None,
+                "headline": "no stage log (cycle log check covers this)", "detail": "", "tail": []}
+    log = logs[-1]
+    m = STAGES_RE.search(log.read_text(errors="replace"))
+    if not m:
+        return {"ok": True, "kind": "stages-unfinished", "log": log,
+                "headline": "no stage summary yet (run unfinished)", "detail": "", "tail": []}
+    fields = dict(kv.split("=", 1) for kv in m.group(2).split() if "=" in kv)
+    bad = {k: v for k, v in fields.items() if v not in ("0", "-")}
+    if not bad:
+        return {"ok": True, "kind": "stages", "log": log,
+                "headline": f"all cycle stages clean ({m.group(2)})", "detail": "", "tail": []}
+    names = ", ".join(f"{STAGE_LABEL.get(k, k)} = {v}" for k, v in bad.items())
+    return {"ok": False, "kind": "stage-failed", "log": log,
+            "headline": f"A cycle stage failed: {names}",
+            "detail": f"The run itself finished ({m.group(1)}), so the wrapper reported success — "
+                      f"but one step did not do its job. Stage line: ({m.group(2)}). "
+                      "The log below shows what it said; nothing was lost, the step simply did "
+                      "not run.",
+            "tail": [ln for ln in log.read_text(errors="replace").splitlines()
+                     if ln.strip()][-15:]}
+
+
 def build_mail(v: dict, stamp: str) -> tuple[str, str, str]:
     nice = datetime.strptime(stamp, "%Y%m%d").strftime("%d.%m.%Y")
     subject = f"Catandary: {v['headline'].lower()} ({nice})"
@@ -383,12 +428,14 @@ def main() -> int:
     backup_v = inspect_backup(stamp)
     publish_v = inspect_publish(stamp)
     sampler_v = inspect_sampler(stamp)
+    stages_v = inspect_stages(stamp)
     logger.info("%s: cycle: %s (%s)", stamp, cycle_v["headline"], cycle_v["kind"])
+    logger.info("%s: stages: %s", stamp, stages_v["headline"])
     logger.info("%s: backup: %s", stamp, backup_v["headline"])
     logger.info("%s: publish: %s", stamp, publish_v["headline"])
     logger.info("%s: sampler: %s", stamp, sampler_v["headline"])
 
-    problems = [v for v in (cycle_v, backup_v, publish_v, sampler_v) if not v["ok"]]
+    problems = [v for v in (cycle_v, stages_v, backup_v, publish_v, sampler_v) if not v["ok"]]
     if not problems:
         if not args.force:
             return 0  # silence means healthy

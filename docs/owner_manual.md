@@ -268,6 +268,15 @@ ist ohne Weltwissen nicht zu entscheiden, und Weltwissen soll hier nicht
 entscheiden. Diese Fälle und die Satzstreichungen (Zahl/Person nicht gedeckt)
 stehen als **Vorschläge** unter der Tabelle und im Bericht (`proposals`).
 
+**Wenn Stage 11 ausfällt, sagt es der Wächter (seit 23.09.).** Der Wrapper meldet
+nur seinen eigenen Exit-Code; die Bilanz der einzelnen Stages steht in der
+end-Zeile des inneren Logs (`scheduled_cycle.sh end … (rc1=0 rc2=0 rc3=0
+agent=0)`). Der Morgen-Wächter liest sie jetzt und schickt eine Mail, sobald ein
+Wert ≠ 0 ist — mit den letzten Logzeilen, also z. B. dem Traceback. `agent=-`
+(Stage abgeschaltet oder übersprungen) ist kein Defekt. Anlass: am 23.09. stürzte
+Stage 11 in der ersten Zeile ab, der Cycle endete trotzdem mit rc=0 und der
+Ausfall fiel erst beim Nachfragen auf.
+
 **Im Nachtlauf (Stage 11, seit 22.09.).** Der Agent läuft automatisch nach dem
 Draft-Richter: `scripts/review_agent.py --handover --apply`. Er hängt sich den
 llama-server selbst auf das Content-Gen-Modell um und stellt den Ruhezustand

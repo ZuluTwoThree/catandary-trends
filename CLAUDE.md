@@ -678,7 +678,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # eine einzelne Nacht weiter an.
 45 2 * * 1-5  scripts/full_cycle_cron.sh
 
-# Waechter 07:45 — BEWUSST NICHT mitverschoben (22.09.): er meldete bis dahin
+# Waechter 07:45 — liest seit 23.09. auch die Stage-Bilanz des Cycles
+# (scheduled_cycle.sh end … rc1/rc2/rc3/agent): ein Wert != 0 ist eine Mail wert,
+# auch wenn der Wrapper mit rc=0 endete. Anlass: Stage 11 stuerzte am 23.09. ab
+# und niemand erfuhr es. `agent=-` = Stage abgeschaltet, kein Defekt.
+# BEWUSST NICHT mitverschoben (22.09.): er meldete bis dahin
 # jeden Werktag faelschlich "still running", weil der Cycle um 07:45 noch lief;
 # mit dem frueheren Start findet er einen fertigen Lauf vor.
 # (seit 2026-08-17): meldet per Mail, wenn der Nachtlauf keine
