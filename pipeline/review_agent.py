@@ -190,6 +190,87 @@ def evidence_in_source(evidence: str, source: str, min_chars: int = 6) -> bool:
 NON_DIGIT_FORMS = {"number-word", "decade", "translation", "range", "rounding", "time"}
 
 
+def _digits(s: str) -> str:
+    """Nur die Ziffern — „1 000" und „1,000" werden dasselbe, „21.09.2026" traegt 21."""
+    return re.sub(r"\D", "", s)
+
+
+NUMBER_WORDS = (
+    "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
+    "sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety "
+    "hundred thousand million billion trillion half quarter dozen "
+    "ein eine zwei drei vier fuenf fünf sechs sieben acht neun zehn elf zwoelf zwölf zwanzig "
+    "dreissig dreißig vierzig fuenfzig fünfzig hundert tausend millionen milliarden halb "
+    "un deux trois quatre cinq six sept huit neuf dix cent mille millions milliards demi "
+    "uno dos tres cuatro cinco seis siete ocho nueve diez ciento mil "
+    "en ett tva två tre fyra fem sex sju atta åtta nio tio hundra tusen "
+    "egy ketto kettő harom három negy négy ot öt hat het hét nyolc kilenc tiz tíz szaz száz ezer"
+).split()
+
+
+def _numbers_in(text: str) -> list[float]:
+    """Zahlen eines Textes — Tausendertrenner (Punkt, Komma, Leerzeichen) entfernt,
+    Dezimalkomma wie Dezimalpunkt gelesen."""
+    out: list[float] = []
+    for raw in re.findall(r"\d[\d .,\u00a0\u202f]*", text):
+        t = raw.strip(" .,\u00a0\u202f")
+        if not t:
+            continue
+        t = t.replace("\u00a0", "").replace("\u202f", "").replace(" ", "")
+        if "," in t and "." in t:
+            t = t.replace("." if t.rindex(",") > t.rindex(".") else ",", "")
+        t = t.replace(",", ".")
+        if t.count(".") > 1:
+            t = t.replace(".", "")
+        try:
+            out.append(float(t))
+        except ValueError:
+            continue
+    return out
+
+
+def evidence_supports_token(token: str, evidence: str, form: str) -> bool:
+    """Traegt das Zitat wirklich DIESE Angabe?
+
+    Die vom Modell genannte Form darf die Pruefung nicht allein steuern — sonst
+    genuegt es, eine strengere Form in eine laxere umzudeklarieren. Gemessen
+    23.09.: das 8B belegte das Jahr „2026" mit „59 % der Bevoelkerung ab 14
+    Jahren nutzen zumindest gelegentlich KI-Tools"; als die Ziffernpruefung fuer
+    „same" kam, nannte es dieselbe Fundstelle „number-word".
+
+    Reihenfolge — jede Stufe ist pruefbar:
+      1. Die Ziffern der Angabe stehen im Zitat  -> belegt (deckt gleiche Werte,
+         Trennerformate, Datums- und Uhrzeitteile).
+      2. Das Zitat ist nicht-lateinisch -> nicht nachrechenbar; hier entscheidet
+         der blinde Zweitdurchgang bzw. der Mensch, wir lassen es zu.
+      3. Das Zitat traegt ein Zahlwort -> Zahlwort-Fall.
+      4. Eine Zahl des Zitats rundet auf die Angabe oder klammert sie ein
+         (Spanne) -> belegt.
+      5. Sonst: nicht belegt.
+    """
+    tok_digits = _digits(token)
+    if not tok_digits or tok_digits in _digits(evidence):
+        return True
+    if has_non_latin(evidence):
+        return True
+    low = evidence.lower()
+    if any(re.search(rf"\b{w}\b", low) for w in NUMBER_WORDS):
+        return True
+    nums = _numbers_in(evidence)
+    if not nums:
+        return False
+    try:
+        t = float(tok_digits)
+    except ValueError:
+        return False
+    for n in nums:                       # Rundung: 207,5 -> 207, 5 % Toleranz
+        if n and abs(n - t) / max(abs(t), 1.0) <= 0.05:
+            return True
+    if len(nums) >= 2 and min(nums) <= t <= max(nums):   # Spanne: 2 000 bis 20 000
+        return True
+    return False
+
+
 def evidence_carries_number(evidence: str) -> bool:
     """Traegt der Beleg eine Ziffer? Zahlwoerter gibt es in jeder Quellsprache
     („tizennégy", „три тисячі", „Dreißigerjahren", „zehnjähriger") — eine
@@ -422,7 +503,7 @@ def sentence_with(body: str, token: str) -> str:
     return (body or "")[:300]
 
 
-def verify_verdict(v: FigureVerdict | None, source: str) -> tuple[bool, str]:
+def verify_verdict(v: FigureVerdict | None, source: str, token: str = "") -> tuple[bool, str]:
     """(gilt als belegt?, Grund). Belegt nur, wenn das Modell 'supported' sagt
     UND das Zitat woertlich in der Quelle steht UND eine Zahl traegt."""
     if v is None:
@@ -435,7 +516,34 @@ def verify_verdict(v: FigureVerdict | None, source: str) -> tuple[bool, str]:
         return False, "evidence not verbatim in source"
     if not evidence_carries_number(v.evidence) and (v.form or "") not in NON_DIGIT_FORMS:
         return False, f"evidence carries no figure (form {v.form or '?'})"
+    if not evidence_supports_token(token, v.evidence, v.form or ""):
+        return False, f"evidence does not carry {token} (form {v.form or '?'})"
     return True, v.form or "equivalent"
+
+
+# ---------------------------------------------------------------------------
+# GPU-Handover (Stage 11 des Nachtlaufs)
+# ---------------------------------------------------------------------------
+def llama_unit_active() -> bool:
+    """Laeuft die llama-server-Unit gerade? Der Handover stoppt sie am Ende;
+    lief sie vorher, muss sie danach wieder laufen (Ruhezustand)."""
+    from pipeline import gpu_handover
+    try:
+        r = gpu_handover._run(["systemctl", "--user", "is-active", gpu_handover.LLAMA_UNIT], timeout=15)
+        return r.stdout.strip() == "active"
+    except Exception:                                               # noqa: BLE001
+        return False
+
+
+def restore_resting_server(was_active: bool) -> None:
+    """Ruhezustand wiederherstellen — dieselbe Regel wie in scripts/research_pulse.py."""
+    if not was_active:
+        return
+    from pipeline import gpu_handover
+    try:
+        gpu_handover._run(["systemctl", "--user", "start", gpu_handover.LLAMA_UNIT], timeout=60)
+    except Exception as exc:                                        # noqa: BLE001
+        logger.error("llama-server konnte nicht neu gestartet werden: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -545,7 +653,18 @@ def check_draft(t: dict, model: str) -> dict:
                              "evidence": (v.evidence if v else "")[:200],
                              "source_form": (v.source_form if v else "")[:120],
                              "note": (v.note if v else "")[:160]})
-    figs = ungrounded_specifics(body, source)
+    seen = set()
+    for tok in ungrounded_specifics(body, source):
+        key = tok.strip(".,;:")
+        if key in seen:
+            continue
+        seen.add(key)
+        sent = sentence_with(body, tok)
+        v = ask_model(sent, key, source, model)
+        ok, why = verify_verdict(v, source, key)
+        out["figures"].append({"token": key, "sentence": sent[:240], "ok": ok, "why": why,
+                               "evidence": (v.evidence if v else "")[:200], "form": (v.form if v else ""),
+                               "note": (v.note if v else "")[:160]})
     bad_names = [n for n in out["names"] if not n["ok"]]
     bad_figs = [f for f in out["figures"] if not f["ok"]]
     if out["garbled"]:
