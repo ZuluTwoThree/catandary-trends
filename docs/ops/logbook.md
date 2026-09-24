@@ -13,6 +13,48 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-25 07:00 · plan · Nach dem Nachtlauf entscheiden: vier offene Punkte
+
+Erster Lauf mit den drei Änderungen vom 24.09. Zuerst die Zahlen ansehen:
+`~/logs/catandary-full-cycle-20260925-0245.log` (Endzeit, erwartet ~06:55 statt
+07:42), `data/draft_judge_last.json` (Kategorien — `source_mismatch` sollte
+deutlich unter den 103 von 600 der Vornacht liegen) und die Stage-Dauern im
+`catandary-scheduled-`-Log (Stage 8 erwartet ~6 statt 63 min, Stage 10 ~32
+statt 22 min, Stage 6 rund 14 min kürzer).
+
+**1. Signaltyp-Regression vom 14.07. — der eigentliche Fund.**
+`llm_processor._distill_signal_type` leitet den Signaltyp seit der Umstellung auf
+die Distill-Heads allein aus der Quellenart ab: Patentnummer → `patent`,
+Forschungsquelle → `research`, NSF/NIH/UKRI → `funding`, **alles andere →
+`market_shift`**. Seit dem 14.07. bekommt damit jeder Fachpresse-Artikel
+`market_shift`; `product_launch`, `partnership`, `regulation` und
+`consumer_behavior` wurden seither nie wieder vergeben (Bestand davor: 89.337 /
+13.447 / 76.262 / 9.786). Folge: die acht per A/B-Test eingeführten
+Schreibanweisungen in `SIGNAL_TYPE_FRAMING` kollabieren auf eine einzige — eine
+Partnerschaftsmeldung wird als Marktverschiebung geschrieben, und der
+Draft-Richter beanstandet sie folgerichtig als „kein Signal" (3 von 10
+`no_signal`-Fällen der Stichprobe vom 24.09.). Betrifft außerdem jede Auswertung,
+die nach Signaltyp filtert. Beispiele: #1799132 Laifen Swift 04 (Fashionista),
+#1766361 WestJet × Tim Hortons (Retail Insider), #1766817 Bluegrass Ingredients
+(Prepared Foods). Offen: Signaltyp wieder aus dem Inhalt bestimmen — eigener
+Distill-Head, Regelwerk auf der Extraktion oder zurück ans 8B.
+
+**2. Restliche Entwürfe im Fenster.** 3.048 mit kurzer Quelle. Empfehlung:
+liegenlassen — bei Quellen unter 4.000 Zeichen konnte die Kappe gar nicht
+irreführen.
+
+**3. Die 4.113 Alten außerhalb des 30-Tage-Fensters.** Liegenlassen, prüfen
+oder auf `rejected` abräumen. Sie kosten seit dem 24.09. keine Rechenzeit mehr
+und sind öffentlich unsichtbar (das Fenster filtert auf `sort_date`).
+
+**4. Ergebnis des Nachlaufs vom 24.09. abnehmen.** 1.942 Entwürfe mit Quelle
+> 4.000 Zeichen wurden mit der neuen Textbasis neu beurteilt,
+`data/draft_judge_rejudge.json`.
+
+Erledigt am 24.09. und ab dieser Nacht scharf: Stage 8 nur noch für neue
+Entwürfe · Wort-Untergrenze nur ab 1.000 Zeichen Quelle · Richter liest 12.000
+Zeichen + Extraktion · kein Pflicht-Ausblick am Artikelende mehr.
+
 ## 2026-09-22 · change · Wochentags-Kette startet 1 h 15 min früher
 
 Owner: der Nachtlauf war beim Frühstück noch nicht fertig, das Review musste warten.
