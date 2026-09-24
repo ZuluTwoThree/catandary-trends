@@ -28,6 +28,14 @@ CPC daneben) hat der Owner von Hand gelöscht — der Befehl war in der
 Agent-Sitzung als Massenlöschung blockiert; Issue geschlossen. Wirkung: die
 Pseudo-Klassen wie `5C15` verschwinden beim nächsten Rebuild aus
 `cpc_cooccurrence` (397.128 von 1,52 M Paaren) und aus der SPNP-Sektionswahl.
+Im selben Zug (Owner-Freigabe) die 1.490.819 japanischen FI-Zeilen bereinigt,
+die seit dem Backfill vom 02.09. zwar eine Subclass hatten, im Feld `cpc` aber
+noch die Editionsziffer trugen (`4H04N19/463`): 1.197.137 per UPDATE auf den
+Code ohne Ziffer (1 min 46 s), 293.682 gelöscht, weil dasselbe Patent den Code
+schon als CPC-Zeile hatte (20 %, Unique-Index). Kein Code in `patent_cpc`
+beginnt mehr mit einer Ziffer. Wirksam wird das in Kookkurrenz, SPNP-Sektion
+und `assign_cpc` beim nächsten Rebuild; `cpc LIKE 'H04N19/%'`-Suchen finden
+diese JP-Patente ab sofort (FI-Gruppe als CPC-Gruppe, auf Subclass-Ebene exakt).
 Kein Cron-Pfad berührt, kein Merge nötig.
 
 ## 2026-09-25 07:00 · plan · Nach dem Nachtlauf entscheiden: vier offene Punkte
