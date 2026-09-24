@@ -134,3 +134,17 @@ def test_make_content_guard_passes_source_length():
     body = "alpha " * (STAGE5_TARGET_BODY_WORDS - 20) + "end."
     assert make_content_guard("tiny source text")(_content(body)) is True
     assert make_content_guard("x" * 5000)(_content(body)) is False
+
+
+def test_closing_consequence_is_optional_and_source_bound():
+    """Owner 2026-09-24: no mandatory forward-looking closing sentence.
+
+    The old rule ("Close with a concrete, falsifiable consequence") collided with
+    the draft judge: two of 25 sampled holds were faithful articles whose only
+    objection was the speculative closer Stage 6 had demanded.
+    """
+    from pipeline.llm_processor import CONTENT_EN_SYSTEM
+
+    assert "Close with a concrete, falsifiable consequence" not in CONTENT_EN_SYSTEM
+    assert "OPTIONAL" in CONTENT_EN_SYSTEM
+    assert "end on the last fact" in CONTENT_EN_SYSTEM

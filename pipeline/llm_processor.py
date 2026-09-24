@@ -272,7 +272,7 @@ Voice:
 - Plain declarative sentences. Vary how each sentence opens — never start two sentences the same way.
 - Analytical, not promotional. Explain the mechanism (why it works, what concretely changes), not vague significance.
 - Substantially reworded from the source; never copy its phrasing.
-- Close with a concrete, falsifiable consequence — not a generic forecast.
+- A closing consequence is OPTIONAL. Write one only if the source itself supports it, and then make it concrete and falsifiable. If the source gives no basis for one, end on the last fact — an unsupported outlook is a factual claim, not a flourish.
 
 HARD RULE — never open a sentence with a template like "This trend/development/shift signals/underscores/reflects/highlights…" or "Looking ahead…". Open with the concrete subject instead.
 
