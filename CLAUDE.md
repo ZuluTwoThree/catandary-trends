@@ -340,6 +340,13 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       bei Prompts an dieser Kappe (User-Prompt ≈ 5k Zeichen ≈ 2k Tokens =
       -ub-Grenze des Gemma-Starts). Repro: scripts/repro_stage6_garbage.py
       (GPU, on demand, drei Arme: Produktion / cache_prompt=false / 2000 Zeichen).
+    → Schlusssatz ist OPTIONAL (Owner 2026-09-24). Bis dahin verlangte der
+      Prompt "Close with a concrete, falsifiable consequence" — ein Pflicht-
+      Ausblick, den der Draft-Richter anschließend als quellenfremd
+      beanstandete (2 von 25 Stichprobenfällen waren quellentreue Artikel,
+      deren einziger Einwand dieser erzwungene Schluss war). Jetzt: nur
+      schreiben, wenn die Quelle ihn trägt, sonst mit der letzten Tatsache
+      enden.
     → Prompt-Regel (seit 2026-09-05): "Never add first names, titles,
       affiliations, dates or figures that are not in the source; refer to
       people exactly as the source does."
