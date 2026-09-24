@@ -1,5 +1,9 @@
 # Issue-Status (Stand 2026-08-28 — Audit nach dem Geschäftsmodell-Wechsel; Nachträge bis 2026-09-09)
 
+> **Nachtrag 25.09.2026 (Nacht) — #110 Signaltyp-Head und #109 Story-Gruppierung auf `dev`, beides Owner-Gate für den Cron:**
+> - **#110** (neu): fünfter Distill-Head `models/distill/signal_type.joblib` (`scripts/train_signal_type_head.py`), Holdout-Genauigkeit 0,88 ab Konfidenz 0,6; verdrahtet hinter `DISTILL_SIGNAL_TYPE=1` (Default aus). Frontend: Label auf der Karte, `signal` im Suchindex, Filter in der Export-Suche. Offen: einschalten (Cron-Env → main-Merge, joblib kopieren), Bestand seit 14.07. nachziehen. `docs/signal_type_head_2026-09-25.md`.
+> - **#109** Stufe 1: `pipeline/stories.py` + `scripts/group_stories.py` + Tabelle `trend_stories` (Live-DB 25.09., 30 Tage gerechnet: 1.085 Gruppen, 1.895 Folgeberichte = 8,1 %); Artikelseite „Also reported by". Cron-Zeile 01:55 nur als Vorschlag in `deploy/crontab.txt`. Offen: Merge + Cron installieren; nach einer Woche entscheiden, ob Folgeberichte unveröffentlicht bleiben (Stufe 2).
+
 > **Nachtrag 24.09.2026 — vier Issues geschlossen, #79 wartet auf einen Handgriff:**
 > - **#95** Korpus-Rechercheur und **#96** Newsletter-Deep-Dive: mit dem Dossier-Rückbau vom 19.09. gegenstandslos, als „nicht weiterverfolgt" geschlossen.
 > - **#67** Query-Quality-Gate: gebaut, gemessen, `tests/test_query_gate.py` 18 passed; einziger Rest ist der Betriebshinweis „nach Embedding-Modellwechsel Fixture neu messen" (steht in `docs/tech_query_gate_2026-09-04.md`).

@@ -1341,6 +1341,47 @@ def _migrate_field_watch():
         cur.execute(FIELD_WATCH_SCHEMA_PG)
         conn._conn.commit()
 
+TREND_STORIES_SCHEMA_PG = """
+CREATE TABLE IF NOT EXISTS trend_stories (
+    trend_id INTEGER PRIMARY KEY REFERENCES trends(id) ON DELETE CASCADE,
+    story_id INTEGER NOT NULL,
+    lead_trend_id INTEGER NOT NULL,
+    brand_key TEXT,
+    similarity REAL,
+    computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_trend_stories_story ON trend_stories (story_id);
+"""
+
+TREND_STORIES_SCHEMA_SQLITE = """
+CREATE TABLE IF NOT EXISTS trend_stories (
+    trend_id INTEGER PRIMARY KEY,
+    story_id INTEGER NOT NULL,
+    lead_trend_id INTEGER NOT NULL,
+    brand_key TEXT,
+    similarity REAL,
+    computed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_trend_stories_story ON trend_stories (story_id);
+"""
+
+
+def _migrate_trend_stories():
+    """trend_stories (#109, 2026-09-25): one row per published article that the
+    story rule (pipeline/stories.py — same brand, 48 h, cosine >= 0.80,
+    transitive) puts into a group; story_id = lead_trend_id = the oldest
+    article's id, so re-runs over the same window are idempotent. Ungrouped
+    articles have no row. Written by scripts/group_stories.py --apply, read by
+    the article page ("also reported by"). Additiv, idempotent, in init_db."""
+    if not USE_POSTGRES:
+        with get_connection() as conn:
+            conn.executescript(TREND_STORIES_SCHEMA_SQLITE)
+        return
+    with get_connection() as conn:
+        cur = conn._conn.cursor()
+        cur.execute(TREND_STORIES_SCHEMA_PG)
+        conn._conn.commit()
+
 
 def init_db():
     """Initialize database schema."""
@@ -1375,6 +1416,7 @@ def init_db():
     _migrate_source_lead_time_tier()
     _migrate_ops()
     _migrate_field_watch()
+    _migrate_trend_stories()
 
 
 # --- Source Operations ---

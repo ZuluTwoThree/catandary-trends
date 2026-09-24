@@ -100,6 +100,11 @@ und Backlink. Lokal sieht der Owner den gesamten Korpus (Zehntausende Artikel),
   Quelle mit Backlink, verwandte Artikel. Ist die Quell-URL nachweislich tot
   (`dead_links`, monatlicher Link-Check), zeigt die Seite einen Hinweis und den
   Archiv-Link statt des toten Backlinks.
+- „Also reported by" (#109, seit 2026-09-25): berichten mehrere Quellen
+  dieselbe Meldung (gleiche Marke, 48 h, Kosinus ≥ 0,80), listet die
+  Artikelseite die anderen Berichte mit Quelle und Link; der älteste ist als
+  „first report" markiert. Gruppen rechnet `scripts/group_stories.py`
+  (§11.12); ohne Lauf fehlt der Abschnitt einfach.
 - Seitenaufrufe werden lokal in `trend_metrics` gezählt (`/api/track`; im Export
   abgeschaltet).
 
@@ -1294,6 +1299,7 @@ im Handover still).
 | Zeit | Job | Skript | Status |
 |---|---|---|---|
 | 01:30 täglich | Postgres-Backup (dumpdir, zstd, keep 4 Tage) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4` | installiert |
+| 01:55 täglich | Story-Gruppierung (#109) | `scripts/group_stories.py --days 3 --apply` | **Vorschlag** (25.09.), nicht installiert — scharf mit Merge nach main |
 | 02:15 täglich | Volltext-Retention 60 Monate | `scripts/purge_raw_content.py --days 1825 --apply` | installiert (03.09., Frist 10.09. erweitert) |
 | 02:30 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
 | 02:45 Mo–Fr | Full Cycle + Draft-Richter + **Review-Agent (Stage 11)** + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch **3000** — so bemessen, dass ein normaler Tag in einem Lauf durchgeht; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |
@@ -1681,6 +1687,33 @@ die historische Klassenverteilung am besten.
 **Bestand nachziehen** (Stufe 2, Owner-Entscheid, noch nicht gebaut): die
 Presse-Zeilen seit dem 14.07. neu labeln — gebatcht, nie als ein UPDATE
 (HNSW-Bloat, 17.09.).
+
+### 11.12 Story-Gruppierung (#109)
+
+**Wozu.** Eine Meldung, drei Artikel: der Dedup (Kosinus ≥ 0,92) misst
+Textähnlichkeit, drei Blickwinkel auf dieselbe Meldung liegen darunter. Statt
+die Schwelle zu senken (kostet ~9 % aller Artikel, löst den Fall nicht)
+gruppiert ein Nachlauf: gleiche extrahierte Marke · 48 h · Kosinus ≥ 0,80,
+transitiv. Der älteste Artikel führt. Nichts wird gefiltert oder
+entpubliziert — Stufe 1 misst und zeigt.
+
+```bash
+.venv/bin/python scripts/group_stories.py                 # Dry-Run, letzte 3 Tage, Kennzahlen + 5 größte Gruppen
+.venv/bin/python scripts/group_stories.py --days 30       # einen Monat messen
+.venv/bin/python scripts/group_stories.py --days 3 --apply   # trend_stories schreiben (Cron-Zeile)
+```
+
+Ausgabe: Zeile mit `groups`, `articles_in_groups`, `followers`,
+`follower_share`, Größenhistogramm; danach die größten Gruppen mit Quelle,
+Zeit, Kosinus zum Leitartikel und Titel. `data/story_groups_last.json` hält
+den letzten Lauf. `--apply` ist idempotent (story_id = id des Leitartikels);
+das Fenster wird jedes Mal neu gerechnet, Artikel, die aus einer Gruppe
+fallen, verlieren ihre Zeile. Stand 25.09. (26.08.–25.09.): 23.342 Artikel,
+1.085 Gruppen, 1.895 Folgeberichte (8,1 %).
+
+**Nächste Entscheidung (Owner, nach einer Woche):** Folgeberichte weiter
+veröffentlichen und nur anzeigen (heute) oder in Stage 5 gar nicht erst
+veröffentlichen (`mark_filtered`).
 
 ## 12. Sicherheit und Recht (kurz)
 

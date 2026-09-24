@@ -38,6 +38,22 @@ und `assign_cpc` beim nächsten Rebuild; `cpc LIKE 'H04N19/%'`-Suchen finden
 diese JP-Patente ab sofort (FI-Gruppe als CPC-Gruppe, auf Subclass-Ebene exakt).
 Kein Cron-Pfad berührt, kein Merge nötig.
 
+## 2026-09-25 · change · Story-Gruppierung (#109, Stufe 1) auf dev
+duration: 1h30m
+gpu: nein
+Block 3 der Nacht. Nachlauf statt schärferer Dedup-Schwelle: gleiche
+extrahierte Marke (Schlüssel ≤ 4 Wörter) · 48 h · Kosinus ≥ 0,80 auf
+embedding_1024 · transitiv, ältester Artikel führt. `pipeline/stories.py`,
+`scripts/group_stories.py` (Dry-Run/`--apply`, 3,5 s je 30 Tage), Tabelle
+`trend_stories` (additive Migration, Live-DB 25.09., 30 Tage geschrieben:
+2.980 Zeilen in 1.085 Gruppen). Gemessen 26.08.–25.09. über 23.342 Artikel:
+1.895 Folgeberichte (8,1 %; #109 hatte 7,2 % für den September), 776 Zweier-,
+165 Dreiergruppen; größte Apple-Keynote 50, Meta 42, OpenAI 32, Meta Muse 21 —
+Ketten über Folgemeldungen, wie erwartet. Artikelseite „Also reported by" mit
+Quelle, Link, „first report" (`getStorySiblings`, fensterbegrenzt), auf :3004
+gesehen. Cron-Zeile 01:55 als Vorschlag in `deploy/crontab.txt`, nicht
+installiert. Tests: 7 neue pytest, tsc 0, vitest 485.
+
 ## 2026-09-25 · change · Signaltyp-Head gebaut (#110), Karte + Export-Filter auf dev
 duration: 2h
 gpu: nein

@@ -34,9 +34,12 @@ export default function TrendArticle({
   related,
   tech = [],
   sourceDead = false,
+  story = [],
 }: {
   trend: Trend;
   related: Trend[];
+  /** #109: the other reports of the same story (oldest first), or empty. */
+  story?: Trend[];
   tech?: TrendTechMatch[];
   /** #48: true once check_source_links.py --mark has confirmed (2 strikes)
    *  the source_url is gone. Missing dead_links table degrades to false. */
@@ -287,6 +290,36 @@ export default function TrendArticle({
           </div>
         )}
       </article>
+
+      {/* Same story, other outlets (#109) — the oldest report leads */}
+      {story.length > 0 && (
+        <section className="mt-12" aria-labelledby="story-heading">
+          <h2 id="story-heading" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted mb-3">
+            <span aria-hidden="true">—— </span>Also reported by
+          </h2>
+          <ul className="border-t border-dashed border-border divide-y divide-dashed divide-border">
+            {story.map((r) => {
+              const first =
+                !!r.sort_date && !!trend.sort_date && r.sort_date < trend.sort_date && r.id === story[0].id;
+              return (
+                <li key={r.id} className="py-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted shrink-0">
+                    {r.source_name ?? "Source"}
+                    {first ? <span className="text-accent"> · first report</span> : null}
+                  </span>
+                  <Link
+                    prefetch={linkPrefetch()}
+                    href={`/trends/${r.slug}`}
+                    className="font-display text-[15px] leading-snug text-paper hover:text-accent transition-colors"
+                  >
+                    {r.title_en}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* Related Trends */}
       {related.length > 0 && (

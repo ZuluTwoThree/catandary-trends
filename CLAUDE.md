@@ -321,6 +321,24 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     → Embedding generieren
     → Cosine-Similarity gegen letzte 30 Tage prüfen
     → Wenn >0.92 Similarity: als Duplikat markieren, Ende
+    → Story-Gruppierung (#109, seit 2026-09-25 auf dev, NACHLAUF, nicht in
+      Stage 5): der Vektor misst Textähnlichkeit, nicht Ereignisgleichheit —
+      drei Redaktionen zur selben Meldung liegen bei 0,78–0,87 und werden alle
+      veröffentlicht; die Schwelle zu senken würfe ~9 % aller Artikel weg und
+      löste den gemessenen Fall trotzdem nicht. Stattdessen pipeline/stories.py:
+      gleiche extrahierte Marke (Schlüssel ≤ 4 Wörter — die Extraktion liefert
+      auch Schlagzeilen als „Marke") · sort_date ≤ 48 h · Kosinus ≥ 0,80 auf
+      embedding_1024 · Gruppen transitiv (Union-Find); der älteste Artikel
+      führt. Tabelle trend_stories (additiv, _migrate_trend_stories in init_db,
+      Live-DB 25.09.), Skript scripts/group_stories.py (Default Dry-Run,
+      --apply, ~3 s je 30 Tage), Artikelseite „Also reported by" mit Quelle +
+      Link (getStorySiblings, fensterbegrenzt wie Related). Gemessen 26.08.–
+      25.09.: 23.342 Artikel, 1.085 Gruppen, 1.895 Folgeberichte (8,1 %), 776
+      Zweier-, 165 Dreiergruppen, größte: Apple-Keynote 50, Meta 42, OpenAI 32,
+      Meta Muse 21. Stufe 1 = messen und zeigen; ob Folgeberichte gar nicht
+      erst veröffentlicht werden, entscheidet der Owner nach einer Woche
+      Betrieb (#109). Cron-Vorschlag 01:55 (deploy/crontab.txt), scharf erst
+      mit dem Merge nach main.
     │
     ▼
 [Schritt 5] CONTENT-GENERIERUNG EN (llama.cpp Gemma-4-26B / Ollama 14B)
@@ -785,6 +803,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Statischer Export → Webspace (täglich 02:00, bis 22.09. 03:15; INSTALLIERT 2026-09-05): nach dem
 # Review-Tag und ~45 min vor dem 02:45-Cycle — veröffentlicht wird der freigegebene Stand.
 # build_public_static.sh + publish_static_site.py --apply, Log ~/logs/catandary-publish-*.log
+# Story-Gruppierung (#109, VORSCHLAG 25.09., scharf erst mit dem Merge nach main): published
+# Artikel der letzten 3 Tage nach Marke · 48 h · Kosinus ≥ 0,80 gruppieren → trend_stories
+# („Also reported by" auf der Artikelseite). CPU, ~3 s, idempotent, nichts wird gefiltert.
+55 1 * * *   scripts/group_stories.py --days 3 --apply
+
 0 2 * * *    scripts/publish_static_site.sh
 
 # Volltext-Retention (täglich 02:15, bis 22.09. 03:30; INSTALLIERT 2026-09-03, Owner-Auftrag „100 % konform"):
