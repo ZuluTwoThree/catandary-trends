@@ -178,6 +178,28 @@ Published) oder **hält** — er verwirft nie. Jeder beurteilte Draft bekommt
 Cron-Umgebung. Der Richter braucht die GPU exklusiv (27B lässt ~1,1 GB Reserve);
 Fremdbelegung → SKIP mit Diagnose statt Timeout.
 
+**Was er liest (seit 24.09.2026).** 12.000 Zeichen Quelle plus die
+Extraktionsfelder — dieselbe Grundlage, aus der Stage 6 geschrieben hat. Bis
+dahin sah er nur die ersten 4.000 Zeichen und damit weniger als der Schreiber,
+weshalb Zahlen und Namen aus dem hinteren Teil langer Artikel als erfunden
+galten („source_mismatch"). An einer Stichprobe von 25 gehaltenen Entwürfen
+waren 5 von 10 solchen Urteilen aus genau diesem Grund falsch.
+
+**Eine Kohorte noch einmal beurteilen lassen.** Normalerweise wird jeder
+Entwurf genau einmal beurteilt. Nach einer Änderung daran, *was* der Richter
+liest, lohnt ein Nachlauf — der muss ausdrücklich angefordert werden:
+
+```bash
+.venv/bin/python -m pipeline.draft_judge \
+    --since-hours 720 --limit 2000 --rejudge --min-source-chars 4000 [--dry-run]
+```
+
+`--rejudge` nimmt auch schon gestempelte Zeilen, `--min-source-chars` grenzt auf
+die ein, die eine solche Änderung überhaupt bewegen kann. Die Zahlen landen in
+`data/draft_judge_rejudge.json`, nicht in der Datei der Morgen-Mail. Rechnen Sie
+mit gut 3 Sekunden je Entwurf. Vorher prüfen, dass kein Nachtlauf aktiv ist
+(`pgrep -f scheduled_cycle.sh`) — der Richter braucht die GPU allein.
+
 **Grenzen.** Today/Backlog zeigen nur Gate-Holds (Confidence ≥ 0,85). Vom
 Richter *gehaltene* Sub-Schwellen-Drafts erscheinen hier nicht; sie bleiben
 `draft` und sind über die CLI (`list draft`) erreichbar — außer der Richter

@@ -172,7 +172,8 @@ class TestJudgedAtStamp:
                 "re_title": "T", "raw_content": "src", "excerpt": "src",
                 "extraction_json": None}
         monkeypatch.setattr(dj, "STATS_PATH", tmp_path / "stats.json")
-        monkeypatch.setattr(dj, "_fetch_candidates", lambda h, l: [dict(cand)])
+        # *a/**k: _fetch_candidates gained rejudge/min_source_chars (2026-09-24)
+        monkeypatch.setattr(dj, "_fetch_candidates", lambda *a, **k: [dict(cand)])
         monkeypatch.setattr(dj, "judge_one", lambda d: dj.JudgeVerdict(
             publish=False, signal=False, category="no_signal", note=""))
 
@@ -190,7 +191,8 @@ class TestJudgedAtStamp:
                 "re_title": "T", "raw_content": "src", "excerpt": "src",
                 "extraction_json": None}
         monkeypatch.setattr(dj, "STATS_PATH", tmp_path / "stats.json")
-        monkeypatch.setattr(dj, "_fetch_candidates", lambda h, l: [dict(cand)])
+        # *a/**k: _fetch_candidates gained rejudge/min_source_chars (2026-09-24)
+        monkeypatch.setattr(dj, "_fetch_candidates", lambda *a, **k: [dict(cand)])
         monkeypatch.setattr(dj, "judge_one", lambda d: None)
         stats = dj.judge_recent_drafts(dry_run=False)
         assert stats["errors"] == 1 and self._judged_at(tid) is None

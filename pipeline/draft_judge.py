@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -41,8 +42,27 @@ from pipeline.config import DUPLICATE_SIMILARITY_THRESHOLD
 logger = logging.getLogger("draft_judge")
 
 STATS_PATH = Path("data/draft_judge_last.json")
+REJUDGE_STATS_PATH = Path("data/draft_judge_rejudge.json")
 JUDGE_MODEL = "Qwen3.8-27B"
 JUDGE_START_SCRIPT = "start-qwen3.8-27b.sh"
+
+# Wie viel Quelltext der Richter sieht. Bis 2026-09-24 waren es fest 4.000
+# Zeichen — WENIGER als die Grundlage des Artikels, den er beurteilt: die
+# Extraktion liest 12.000 Zeichen und reicht Zahlen, Namen, Daten und Zitate
+# aus dem hinteren Teil in den Schreib-Prompt von Stage 6. Der Artikel trug
+# damit zu Recht Angaben, die der Richter nicht finden konnte — und er nannte
+# sie erfunden. Stichprobe vom 24.09. (25 gehaltene Drafts, je neu beurteilt
+# und von Hand gegen die Quelle gelesen): 5 der 10 source_mismatch-Urteile
+# waren falsch, die beanstandete Angabe stand bei Position 4.005, 4.012,
+# 4.033, 5.111 und 7.021 — also 5, 12 bzw. 33 Zeichen hinter der Kappe.
+# Gegenprobe an 8 Drafts mit langer Quelle: 4 source_mismatch bei 4.000
+# Zeichen, 1 bei 12.000 + Extraktion; Preis 2,2 -> 3,2 s je Artikel.
+JUDGE_SOURCE_MAX_CHARS = int(os.getenv("JUDGE_SOURCE_MAX_CHARS", "12000"))
+# Der Extraktionsblock ist der zweite Teil derselben Reparatur und oft der
+# wirksamere: er traegt die woertlichen Belege aus dem GANZEN Artikel
+# ("51 Prozent: Anteil der Stiftung an der Brauerei"), also genau das, was
+# hinter jeder Kappe liegt. 0 schaltet ihn ab.
+JUDGE_EXTRACTION_MAX_CHARS = int(os.getenv("JUDGE_EXTRACTION_MAX_CHARS", "1500"))
 
 # Mirrors data/haiku_review/INSTRUCTIONS.md — the criteria that judged the
 # 10,884-article backlog. Keep the two in sync when editing.
@@ -170,18 +190,36 @@ def publish_draft(conn, trend_id: int, auto: bool) -> bool:
 
 # --- Nightly judge -----------------------------------------------------------
 
-def _fetch_candidates(since_hours: int, limit: int) -> list[dict]:
+def _fetch_candidates(since_hours: int, limit: int, rejudge: bool = False,
+                      min_source_chars: int = 0) -> list[dict]:
+    """Drafts to judge tonight.
+
+    `rejudge` drops the judged_at condition — the whole point of the stamp is
+    that a draft is judged once, so re-opening a standing cohort is a
+    deliberate act (after a change to JUDGE_SYSTEM or, as on 2026-09-24, to
+    what the judge gets to read). `min_source_chars` narrows a backfill to the
+    rows a change can actually move: the 4.000-char truncation could only
+    mislead on sources longer than that.
+    """
+    where = ["t.status = 'draft'", "(t.confidence < 0.85 OR t.confidence IS NULL)"]
+    params: list = []
+    if not rejudge:
+        where.append("t.judged_at IS NULL")
+    where.append("t.created_at > CURRENT_TIMESTAMP - make_interval(hours => ?)")
+    params.append(since_hours)
+    if min_source_chars:
+        where.append("length(COALESCE(re.raw_content, re.excerpt, '')) > ?")
+        params.append(min_source_chars)
+    params.append(limit)
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT t.id, t.title_en, t.body_en, t.confidence, t.source_name, "
             "       re.id AS re_id, re.url AS re_url, "
             "       re.title AS re_title, re.raw_content, re.excerpt, re.extraction_json "
             "  FROM trends t LEFT JOIN raw_entries re ON re.id = t.raw_entry_id "
-            " WHERE t.status = 'draft' AND (t.confidence < 0.85 OR t.confidence IS NULL) "
-            "   AND t.judged_at IS NULL "
-            "   AND t.created_at > CURRENT_TIMESTAMP - make_interval(hours => ?) "
+            " WHERE " + " AND ".join(where) +
             " ORDER BY t.id LIMIT ?",
-            (since_hours, limit),
+            tuple(params),
         ).fetchall()
     return [dict(r) for r in rows]
 
@@ -226,10 +264,30 @@ def _enrich_candidates(cands: list[dict]) -> int:
     return filled
 
 
+def _extraction_block(extraction_json: str | None) -> str:
+    """Verbatim evidence Stage 2 pulled from the FULL source, for the prompt.
+
+    Stage 6 writes with these fields in hand, so a figure or name from the back
+    of a long article legitimately reaches the draft. Without them the judge
+    calls exactly those specifics invented (measured 2026-09-24)."""
+    if not JUDGE_EXTRACTION_MAX_CHARS:
+        return ""
+    try:
+        e = json.loads(extraction_json or "{}")
+    except (ValueError, TypeError):
+        return ""
+    if not e:
+        return ""
+    return ("\nEXTRACTED FROM THE FULL SOURCE:\n"
+            + json.dumps(e, ensure_ascii=False)[:JUDGE_EXTRACTION_MAX_CHARS])
+
+
 def judge_one(d: dict) -> JudgeVerdict | None:
     from pipeline import llamacpp_client
-    src = ((d["re_title"] or "") + " | " + (d["raw_content"] or d["excerpt"] or ""))[:4000]
-    prompt = (f"SOURCE ({d['source_name'] or 'unknown'}):\n{src}\n\n"
+    src = ((d["re_title"] or "") + " | "
+           + (d["raw_content"] or d["excerpt"] or ""))[:JUDGE_SOURCE_MAX_CHARS]
+    ext = _extraction_block(d.get("extraction_json"))
+    prompt = (f"SOURCE ({d['source_name'] or 'unknown'}):\n{src}{ext}\n\n"
               f"DRAFT ARTICLE:\n{d['title_en']}\n\n{(d['body_en'] or '')[:2200]}\n\n"
               'Answer with JSON only: {"publish": true/false, "signal": true/false, '
               '"category": "ok"|"no_signal"|"thin_content"|"source_mismatch"|"broken_text", '
@@ -240,18 +298,24 @@ def judge_one(d: dict) -> JudgeVerdict | None:
 
 
 def judge_recent_drafts(since_hours: int = 30, limit: int = 600,
-                        dry_run: bool = False) -> dict:
+                        dry_run: bool = False, rejudge: bool = False,
+                        min_source_chars: int = 0) -> dict:
     """Judge last night's sub-threshold drafts; release approvals, hold the rest.
 
-    Returns the stats dict and persists it to STATS_PATH for the morning mail.
+    Returns the stats dict and persists it to STATS_PATH for the morning mail —
+    except on a `rejudge` backfill, which writes REJUDGE_STATS_PATH instead so
+    the morning mail keeps reporting the night's own run.
     """
     t0 = time.time()
-    cands = _fetch_candidates(since_hours, limit)
+    cands = _fetch_candidates(since_hours, limit, rejudge, min_source_chars)
     stats = {"date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
              "judged": 0, "released": 0, "held": 0, "gate_blocked": 0,
              "dup_blocked": 0, "garbled": 0, "errors": 0, "categories": {},
-             "dry_run": dry_run}
-    logger.info("draft judge: %d candidates (last %dh)", len(cands), since_hours)
+             "dry_run": dry_run, "rejudge": rejudge,
+             "min_source_chars": min_source_chars}
+    logger.info("draft judge: %d candidates (last %dh%s%s)", len(cands), since_hours,
+                ", re-judging already-judged rows" if rejudge else "",
+                f", source > {min_source_chars} chars" if min_source_chars else "")
     enriched = _enrich_candidates(cands)
     stats["fulltext_filled"] = enriched
     if enriched:
@@ -301,8 +365,9 @@ def judge_recent_drafts(since_hours: int = 30, limit: int = 600,
             elif dry_run:
                 stats["released"] += 1
     stats["seconds"] = round(time.time() - t0, 1)
-    STATS_PATH.parent.mkdir(exist_ok=True)
-    STATS_PATH.write_text(json.dumps(stats, indent=2))
+    out_path = REJUDGE_STATS_PATH if rejudge else STATS_PATH
+    out_path.parent.mkdir(exist_ok=True)
+    out_path.write_text(json.dumps(stats, indent=2))
     logger.info("draft judge done in %.0fs: %d judged, %d released, %d held, "
                 "%d gate-blocked, %d dup-blocked, %d garbled → review, %d errors",
                 stats["seconds"], stats["judged"], stats["released"], stats["held"],
@@ -317,8 +382,16 @@ def main() -> int:
     ap.add_argument("--since-hours", type=int, default=30)
     ap.add_argument("--limit", type=int, default=600)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--rejudge", action="store_true",
+                    help="also take drafts that already carry a judged_at stamp "
+                         "(deliberate backfill after a change to what the judge reads); "
+                         "writes data/draft_judge_rejudge.json, not the morning-mail file")
+    ap.add_argument("--min-source-chars", type=int, default=0,
+                    help="only drafts whose stored source is longer than this — "
+                         "narrows a backfill to the rows the change can move")
     args = ap.parse_args()
-    judge_recent_drafts(args.since_hours, args.limit, args.dry_run)
+    judge_recent_drafts(args.since_hours, args.limit, args.dry_run,
+                        rejudge=args.rejudge, min_source_chars=args.min_source_chars)
     return 0
 
 
