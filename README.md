@@ -263,6 +263,7 @@ Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
 | `STAGE5_BREVITY_MIN_SOURCE_CHARS=1000` | Ab welcher Quelltextlänge die Wort-Untergrenze (`STAGE5_TARGET_BODY_WORDS=100`) überhaupt eingefordert wird. Darunter wird ein kurzer sauberer Artikel sofort genommen — der Neuwurf liefert dreimal dieselbe kurze Antwort (seit 24.09.2026). `0` = Untergrenze gilt wieder immer |
 | `AUTO_PUBLISH_GROUNDING_GATE=1` | Grounding-Gate vor Auto-Publish (Handbuch §3) |
 | `DRAFT_JUDGE=1` | Stage 10 Draft-Richter (0 = aus; nur in `scheduled_cycle.sh` gelesen) |
+| `JUDGE_SOURCE_MAX_CHARS=12000`, `JUDGE_EXTRACTION_MAX_CHARS=1500` | Textbasis des Richters: so viel Quelle plus die Extraktionsfelder — dieselbe Grundlage, aus der Stage 6 geschrieben hat. Vorher 4.000 Zeichen ohne Extraktion, wodurch Angaben aus dem hinteren Teil langer Artikel als erfunden galten (Messung 24.09., s. CLAUDE.md Schritt 10) |
 | `TDM_RESPECT=1` | Fetcher beachtet maschinenlesbare TDM-Vorbehalte |
 | `NEWSLETTER_DEEP_DIVE` | `dry-run` aktiviert den Deep-Dive-Schritt im Montagslauf (nur in der Crontab setzen, s. Handbuch §7.3) |
 | `RESEND_API_KEY`, `NEWSLETTER_FROM`, `NEWSLETTER_UNSUB_SECRET`, `NEWSLETTER_PUBLIC_BASE`, `NL_EXPORT_URL`, `NL_EXPORT_TOKEN` | Newsletter-Versandkette (#16) |

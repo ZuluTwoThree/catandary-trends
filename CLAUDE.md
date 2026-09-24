@@ -409,6 +409,23 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       Published (pipeline/draft_judge.py). Garbage-Kandidaten gehen VOR dem
       Richter nach status='review' + review_reason='garbled:…' (divert_garbled,
       judged_at gestempelt) — Token-Suppe ist keine Ermessensfrage.
+    → **Textbasis des Richters (seit 2026-09-24):** 12.000 Zeichen Quelle
+      (`JUDGE_SOURCE_MAX_CHARS`) **plus die Extraktionsfelder**
+      (`JUDGE_EXTRACTION_MAX_CHARS=1500`) — also dieselbe Grundlage, aus der
+      Stage 6 geschrieben hat. Vorher sah er fest 4.000 Zeichen und damit
+      WENIGER als der Schreiber: die Extraktion liest 12.000 und reicht Zahlen,
+      Namen, Daten und Zitate aus dem hinteren Teil in den Content-Prompt. Der
+      Artikel trug dadurch zu Recht Angaben, die der Richter nicht finden
+      konnte — und er nannte sie erfunden. Stichprobe 24.09. (25 gehaltene
+      Drafts, neu beurteilt und von Hand gegen die Quelle gelesen): **5 der 10
+      `source_mismatch`-Urteile falsch**, die beanstandete Angabe stand bei
+      Position 4.005 („invents African ancestry"), 4.012 (Anmeldefrist), 4.033
+      (Ökonomenname), 5.111 (Augustiner) und 7.021 (carbon fibre). Gegenprobe
+      an 8 Drafts mit langer Quelle: 4 `source_mismatch` bei 4.000 Zeichen,
+      1 bei 12.000 + Extraktion. Preis: 2,2 → 3,2 s je Artikel, Stage 10 also
+      ~22 → ~32 min. Richtig lag er bei 3 von 10 (115-Zeichen-Bildunterschrift,
+      261-Zeichen-Teaser, ein echter Zahlendreher in einer ungarischen Quelle:
+      2,8 % Fettgehalt als Preisänderung gelesen).
     → Jeder beurteilte Draft wird judged_at-gestempelt und nie erneut
       beurteilt (seit 2026-08-25 — vorher richtete der Judge dieselbe
       gehaltene Kohorte jede Nacht neu und die frischen Drafts verhungerten
