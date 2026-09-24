@@ -51,7 +51,7 @@ from pipeline.db import (
 )
 from pipeline.llm_processor import (
     RELEVANCE_SYSTEM, EXTRACTION_SYSTEM, CLASSIFICATION_SYSTEM, is_advertorial,
-    normalize_title, embedding_to_bytes,
+    normalize_title, embedding_to_bytes, _distill_signal_type,
 )
 from pipeline.models import RelevanceResultSlim, ExtractionResult, ClassificationResult
 
@@ -552,21 +552,6 @@ def run(limit: int, execute: bool, embed_chunk: int,
     return 0
 
 
-def _distill_signal_type(e: dict) -> str:
-    """Deterministic trend_signal_type from the source (distill heads don't emit
-    it). Mirrors the lead-time tier map — patents/preprints/funding are the
-    early-tier signals that matter most for foresight."""
-    st = (e.get("source_type") or "").lower()
-    sn = (e.get("source_name") or "").lower()
-    if e.get("pub_number"):
-        return "patent"
-    if st == "research" or any(m in sn for m in ("arxiv", "rxiv", "preprint")):
-        return "research"
-    if st == "api" and any(m in sn for m in ("nsf", "nih", "reporter", "openaire", "ukri", "form d")):
-        return "funding"
-    return "market_shift"
-
-
 def run_distill(limit: int, execute: bool, embed_chunk: int,
                 include: list[str], exclude: list[str], workers: int = 24,
                 min_id: int = 0, source_type: str = "",
@@ -667,7 +652,7 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
                 title = e["title"] or "(untitled signal)"
                 vert = pred["primary_vertical"]
                 conf = pred["relevance"] if pred["relevance"] is not None else pred["vertical_confidence"]
-                sig_type = _distill_signal_type(e)
+                sig_type = _distill_signal_type(e, pred)
                 insert_trend(e["id"], {
                     "title_en": title, "title_de": None, "summary_en": None,
                     "summary_de": None, "body_en": None, "body_de": None,

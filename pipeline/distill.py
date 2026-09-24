@@ -30,6 +30,9 @@ logger = logging.getLogger(__name__)
 
 MODELS_DIR = Path(PROJECT_ROOT) / "models" / "distill"
 PESTEL_DIMS = ["P", "E", "S", "T", "En", "L"]
+# Fifth head (#110): trend_signal_type for press signals. Optional — the
+# classifier loads it when the file exists; scripts/train_signal_type_head.py writes it.
+SIGNAL_TYPE_HEAD_FILE = "signal_type.joblib"
 # Abstain (mega_trend=None) only when even the best class is DEEPLY rejected —
 # a gross no-fit like the Supergirl box-office trend (all 21 scores ≤ -1.6).
 # 0.0 (the OvR boundary) was too aggressive: 22% of plausible in-top-3 labels
@@ -50,11 +53,12 @@ def _normalize(X: np.ndarray) -> np.ndarray:
 class DistillClassifier:
     """Loads the persisted heads and classifies embeddings (batch-first)."""
 
-    def __init__(self, vertical, mega, pestel, relevance, meta: dict):
+    def __init__(self, vertical, mega, pestel, relevance, meta: dict, signal_type=None):
         self._vertical = vertical
         self._mega = mega
         self._pestel = pestel
         self._relevance = relevance
+        self._signal_type = signal_type
         self.meta = meta
 
     @classmethod
@@ -67,12 +71,14 @@ class DistillClassifier:
                 f"no trained distill heads under {d} — run scripts/train_distill_heads.py")
         meta = json.loads(meta_path.read_text())
         rel_path = d / "relevance.joblib"
+        st_path = d / SIGNAL_TYPE_HEAD_FILE
         return cls(
             vertical=joblib.load(d / "vertical.joblib"),
             mega=joblib.load(d / "mega.joblib"),
             pestel=joblib.load(d / "pestel.joblib"),
             relevance=joblib.load(rel_path) if rel_path.exists() else None,
             meta=meta,
+            signal_type=joblib.load(st_path) if st_path.exists() else None,
         )
 
     # ------------------------------------------------------------- batch API
@@ -109,6 +115,18 @@ class DistillClassifier:
         if self._relevance is not None:
             rel = self._relevance.predict_proba(Xn)[:, 1]
 
+        # #110: press signal type (5 classes). The head only ever speaks for
+        # press entries — the caller (_distill_signal_type) keeps the
+        # source-type rule for patent/research/funding and applies the
+        # confidence floor. Emitted as None when the head is not installed.
+        st_label = st_conf = None
+        if self._signal_type is not None:
+            st_prob = self._signal_type.predict_proba(Xn)
+            st_idx = st_prob.argmax(axis=1)
+            st_classes = np.asarray(self._signal_type.classes_)
+            st_label = st_classes[st_idx]
+            st_conf = st_prob[np.arange(n), st_idx]
+
         out = []
         for i in range(n):
             top_v = v_order[i, 0]
@@ -122,6 +140,8 @@ class DistillClassifier:
                 "pestel": [PESTEL_DIMS[j] for j in range(len(PESTEL_DIMS))
                            if p_pred[i, j] == 1],
                 "relevance": float(rel[i]) if rel is not None else None,
+                "signal_type": str(st_label[i]) if st_label is not None else None,
+                "signal_type_confidence": float(st_conf[i]) if st_conf is not None else None,
             })
         return out
 
@@ -132,3 +152,7 @@ class DistillClassifier:
     @property
     def has_relevance_head(self) -> bool:
         return self._relevance is not None
+
+    @property
+    def has_signal_type_head(self) -> bool:
+        return self._signal_type is not None

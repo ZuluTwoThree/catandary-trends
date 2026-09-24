@@ -87,6 +87,13 @@ und Backlink. Lokal sieht der Owner den gesamten Korpus (Zehntausende Artikel),
   Zeitraum, Score-Regler, Signaltyp, Sortierung, Quellen-Ausschluss,
   Listen-/Karten-Ansicht; aktive Filter erscheinen als Chips und lassen sich
   einzeln entfernen.
+- Signaltyp (seit 2026-09-25 auch auf der Karte, links neben der Quelle, und
+  als Chip-Gruppe „Signal" in der Suche des statischen Exports, Hash
+  `#signal=regulation,partnership`): Product launch / Partnership / Regulation /
+  Consumer behavior / Market shift / Funding / Research / Patent. **Achtung:**
+  Artikel vom 14.07. bis zur Aktivierung des Signaltyp-Heads (§11.11) tragen
+  für Presse durchweg `market_shift` — der Filter ist für diesen Zeitraum blind,
+  bis der Bestand nachgezogen ist (#110, Stufe 2).
 - Die Hybrid-Suche (FTS + pgvector-ANN, RRF-Fusion) steht zusätzlich als API
   bereit: `/api/search?q=…&vertical=FOOD&limit=20`.
 - Artikelseite: Titel, Body, Vertikal- und PESTEL-Badges, Mega-Theme, Score,
@@ -1641,6 +1648,39 @@ Distill-Klassifikationsköpfe (kein Modell), die A/B-, Benchmark- und
 Eval-Skripte unter `scripts/`. Neue LLM-Funktion → neuer Eintrag in
 `build_catalog()` (Test `tests/test_prompt_catalog.py` prüft, dass jeder Eintrag
 lädt und auf eine echte Datei zeigt).
+
+### 11.11 Signaltyp-Head (#110)
+
+**Wozu.** Seit der Hybrid-Klassifikation (14.07.2026) kam der Signaltyp allein
+aus der Quellenart — jede Presse-Meldung wurde `market_shift`. Der fünfte
+Distill-Head entscheidet für Presse zwischen product_launch, regulation,
+partnership, consumer_behavior und market_shift; patent/research/funding
+bleiben bei der Quellenart-Regel.
+
+**Trainieren** (CPU, kein GPU, ~8 min; fasst die vier anderen Heads nicht an):
+
+```bash
+.venv/bin/python scripts/train_signal_type_head.py            # voll: 553 k Teacher-Zeilen
+.venv/bin/python scripts/train_signal_type_head.py --no-write # nur Kennzahlen
+```
+
+Schreibt `models/distill/signal_type.joblib` + `signal_type_meta.json` und den
+Bericht `data/signal_type_head_report.{json,md}` (Holdout je Klasse, Genauigkeit
+je Konfidenz-Band, und was der Head auf den Presse-Zeilen seit dem 14.07.
+vergeben würde, mit Titel-Stichproben je Klasse). `models/` ist gitignored und
+liegt je Worktree — nach dem Merge nach `main` die Datei dorthin kopieren.
+
+**Einschalten.** `DISTILL_SIGNAL_TYPE=1` in der Umgebung des Cycles
+(`scheduled_cycle.sh`) bzw. des Samstagslaufs; `DISTILL_SIGNAL_TYPE_MIN_CONF`
+(Default 0,6) ist der Konfidenz-Boden, darunter bleibt es bei `market_shift`.
+Ohne Schalter oder ohne Datei verhält sich alles wie bisher. Gemessen (Holdout,
+25.09.): Genauigkeit 0,83 ab 0,5, 0,88 ab 0,6, 0,92 ab 0,7 — bei 92 / 76 / 61 %
+der Zeilen über der Schwelle; 0,6 trifft auf den Presse-Zeilen seit dem 14.07.
+die historische Klassenverteilung am besten.
+
+**Bestand nachziehen** (Stufe 2, Owner-Entscheid, noch nicht gebaut): die
+Presse-Zeilen seit dem 14.07. neu labeln — gebatcht, nie als ein UPDATE
+(HNSW-Bloat, 17.09.).
 
 ## 12. Sicherheit und Recht (kurz)
 

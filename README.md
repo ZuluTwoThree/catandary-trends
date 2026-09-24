@@ -357,7 +357,13 @@ Rohstoff der Foresight-Werkzeuge. Fällt der Embedding-Server aus, bleibt der
 Rest des Laufs unverarbeitet (Retry desselben Chunks, nach 20 Fehlern in Folge
 Exit 3) statt als `embedding_error` aussortiert zu werden (#98). Retrain: `scripts/train_distill_heads.py`
 (auch automatisch im Sonntag-Discovery-Loop, wenn `mega_trends.yaml` geändert
-wurde).
+wurde). **Fünfter Head (#110, Default aus):** `scripts/train_signal_type_head.py`
+schreibt `models/distill/signal_type.joblib` — den Signaltyp für Presse-Signale
+(product_launch / regulation / partnership / consumer_behavior / market_shift),
+den die Quellenart-Regel seit dem 14.07.2026 pauschal auf `market_shift` setzte.
+Scharf nur mit `DISTILL_SIGNAL_TYPE=1` (Konfidenz-Boden
+`DISTILL_SIGNAL_TYPE_MIN_CONF`, Default 0,6); Bericht
+`docs/signal_type_head_2026-09-25.md`, Handbuch [§11.11](docs/owner_manual.md#1111-signaltyp-head-110).
 
 **Datenmodell-Kern** (`pipeline/db.py`): `sources` (Registry, gespiegelt aus
 `sources.yaml`), `raw_entries` (21,6 Mio.; `raw_content` nach 14 Tagen
