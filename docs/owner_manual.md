@@ -1343,6 +1343,17 @@ nvidia-smi --query-gpu=memory.used,memory.total --format=csv
    09.09.2026 überspringt der Cycle Stage 8/9 selbst, wenn eine Phase keinen
    Trend angelegt hat — Drafts eines abgebrochenen Laufs holt der nächste
    Lauf mit Neuzugängen oder eben `resume_cycle.sh` nach.)
+   Seit 24.09.2026 nimmt Stage 8 nur die Drafts, die noch nicht eingeordnet
+   sind (`trends.reclassified_at IS NULL`) — bei einem abgebrochenen Lauf
+   also genau die schuldig gebliebenen. Soll der **ganze** Draft-Bestand neu
+   eingeordnet werden (nach einer Änderung an der Vertikalen-Taxonomie oder
+   an `CLASSIFY_SYSTEM`), braucht es den bewussten Vollauf — er dauert rund
+   eine Stunde:
+   ```bash
+   .venv/bin/python -c "from pipeline.reclassify import reclassify_drafts; \
+       print(reclassify_drafts(force=True))"
+   ```
+   (Nur mit laufendem 8B auf `:8090`, also nicht während des Nachtlaufs.)
 5b. Steht im Cycle-Log mehrere Nächte hintereinander derselbe Eintrag mit
    `content generation GARBLED, entry left unprocessed`: der Eintrag bleibt
    bewusst offen und wird jede Nacht erneut versucht (im selben Lauf seit

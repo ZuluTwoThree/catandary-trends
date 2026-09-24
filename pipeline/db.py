@@ -616,6 +616,49 @@ def _migrate_judged_at():
             conn.execute("ALTER TABLE trends ADD COLUMN judged_at TEXT")
 
 
+def _migrate_reclassified_at():
+    """Add trends.reclassified_at to pre-existing databases + backfill. Idempotent.
+
+    Stage-8 stamp. reclassify_drafts() used to re-ask the LLM about EVERY row
+    with status='draft' on every pass — and the cycle makes two passes a night.
+    At temperature 0 with an unchanged title+summary the answer is the same one
+    it gave the night the draft was created, so the repeat work changes nothing:
+    on 2026-09-24 all 380 changes had ids 1799262-1801148 while that night's
+    fresh trends were 1799255-1801154 — not one old draft moved. The backlog
+    pass over the old pool reported 0 changes four nights running (0/9353,
+    0/9397, 0/9624). Cost: 63 of the run's 273 minutes for 9.6k rows that had
+    already been classified.
+
+    The backfill stamps existing drafts with created_at: every draft was created
+    in a batch that inserted at least one trend, which is exactly the condition
+    under which Stage 8 ran that night (publish_stages_needed). Without it the
+    first run after this migration would pay the full pass once more.
+    The backfill runs ONLY in the call that adds the column. Repeating it on
+    every init_db would stamp exactly the drafts Stage 8 still owes work on —
+    a crashed run's fresh drafts would be marked done without ever being
+    classified. Hence the explicit column-exists check instead of
+    ADD COLUMN IF NOT EXISTS + unconditional UPDATE.
+
+    Wired into init_db from day one, like judged_at and review_reason."""
+    with get_connection() as conn:
+        if USE_POSTGRES:
+            exists = conn.execute(
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_name = 'trends' AND column_name = 'reclassified_at'"
+            ).fetchone()
+            if exists:
+                return
+            conn.execute("ALTER TABLE trends ADD COLUMN reclassified_at TIMESTAMP")
+            conn.execute("UPDATE trends SET reclassified_at = created_at WHERE status = 'draft'")
+            logger.info("Migration: trends.reclassified_at added, existing drafts stamped")
+            return
+        rows = conn.execute("PRAGMA table_info(trends)").fetchall()
+        names = [(r[1] if not hasattr(r, "keys") else r["name"]) for r in rows]
+        if "reclassified_at" not in names:
+            conn.execute("ALTER TABLE trends ADD COLUMN reclassified_at TEXT")
+            conn.execute("UPDATE trends SET reclassified_at = created_at WHERE status = 'draft'")
+
+
 def _migrate_review_reason():
     """Add trends.review_reason to pre-existing databases. Idempotent (#11).
 
@@ -1322,6 +1365,7 @@ def init_db():
     _migrate_fulltext_refetch()
     _migrate_judged_at()
     _migrate_review_reason()
+    _migrate_reclassified_at()
     _migrate_sources_llm_pipeline()
     _migrate_patent_graph()
     _migrate_patent_cpc()

@@ -343,6 +343,17 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     → Prompt-Regel (seit 2026-09-05): "Never add first names, titles,
       affiliations, dates or figures that are not in the source; refer to
       people exactly as the source does."
+    → Wort-Untergrenze (STAGE5_TARGET_BODY_WORDS=100) wird seit 2026-09-24 nur
+      noch eingefordert, wenn die Quelle mindestens
+      STAGE5_BREVITY_MIN_SOURCE_CHARS=1000 Zeichen hergibt. Darunter ist sie ein
+      Dünne-Quelle-Melder: das Modell kann keine Wörter schreiben, die in der
+      Quelle nicht stehen, liefert dreimal dieselbe kurze Antwort und die wird
+      nach aufgebrauchtem Budget ohnehin genommen. Gemessen an 5.355 Artikeln
+      (22.–24.09.): 242 der 250 Dauer-Fehlschläge kamen aus Quellen unter 1.000
+      Zeichen, darüber 0,2 % (8 von 4.352). In der Nacht auf den 24.09. kostete
+      das 86 × 2 volle Generierungen auf dem 26B. Stub-Grenze
+      (STAGE5_MIN_BODY_WORDS=25), Truncation, Klischee, Obergrenze und
+      Grounding gelten unverändert bei jeder Quellenlänge.
     → HARTER Garbage-Guard (#11, 2026-09-05; pipeline/content_guard.py):
       Nicht-Latein-Anteil > 0,5 %, Wort ≥ 4× in Folge / "URLURLURL",
       Unikat-Anteil < 35 %, < 60 Wörter, Nicht-Wort-Zeichen > 25 %,
@@ -368,6 +379,11 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
 [Schritt 8] RECLASSIFY (Qwen3 8B)
     → Vertikale per LLM-Semantic-Check korrigieren
     → Fängt Fehlklassifizierungen aus Schritt 3 ab
+    → Nur Drafts mit `reclassified_at IS NULL` (seit 2026-09-24): ein schon
+      eingeordneter Draft bekommt bei Temperatur 0 dieselbe Antwort noch
+      einmal. Belegt über vier Nächte: 0 Änderungen an ~9.600 alten Drafts
+      je Pass, alle 380 Änderungen vom 24.09. in der ID-Spanne derselben
+      Nacht. 63 → ~6 Minuten je Lauf.
     │
     ▼
 [Schritt 9] AUTO-PUBLISH
@@ -597,7 +613,7 @@ CREATE TABLE trends (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     -- seit dem Ursprungs-Schema dazugekommen (Live-DB 2026-09-02): sort_date, embedding_1024
     -- (pgvector-ANN auf dem 1024er-Matryoshka-Präfix), grounding_flags, grounding_checked_at,
-    -- reviewed_at, judged_at (Draft-Richter)
+    -- reviewed_at, judged_at (Draft-Richter), reclassified_at (Stage-8-Stempel, 24.09.)
 );
 
 -- Engagement-Tracking (für späteres Foresight-Feedback)
@@ -660,8 +676,19 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # (end-Zeile → Wächter-Mail). Vor Stage 10 dasselbe (30 min → Richter-Skip);
 # der Ruhezustand wird am Ende nicht hergestellt, wenn inzwischen ein fremder
 # Job die Unit hält (er stellt ihn selbst her).
-# Leerlauf-Schutz (seit 2026-09-09): Stage 8 (Reclassify über ALLE Drafts,
-# ~20 min je Pass) + Stage 9 laufen nur, wenn die Phase Trends angelegt hat;
+# Stage 8 fragt seit 2026-09-24 nur noch die Drafts, die er noch nicht
+# eingeordnet hat (`trends.reclassified_at IS NULL`, additive Migration
+# `_migrate_reclassified_at`, in `init_db`; der Bestand wurde beim Anlegen der
+# Spalte einmalig gestempelt). Vorher lief JEDER Pass über ALLE Drafts — bei
+# Temperatur 0 und unverändertem Titel+Summary kommt dabei dieselbe Antwort
+# heraus wie in der Nacht der Anlage: der Pass über den stehenden Bestand
+# meldete vier Nächte in Folge 0 Änderungen (0/9.353, 0/9.397, 0/9.624), und
+# alle 380 Änderungen vom 24.09. lagen im ID-Bereich derselben Nacht. Kosten
+# waren 63 von 273 Minuten je Lauf plus ~21.000 UPDATEs/Nacht auf eine Tabelle
+# mit HNSW-Indizes. Jetzt ~6 min. Ein Draft mit Klassifikationsfehler bleibt
+# ungestempelt und kommt wieder; `reclassify_drafts(force=True)` nimmt bewusst
+# den ganzen Bestand (nach Taxonomie- oder Prompt-Änderungen).
+# Leerlauf-Schutz (seit 2026-09-09): Stage 8 + Stage 9 laufen nur, wenn die Phase Trends angelegt hat;
 # Phase 3 und run 2 entfallen, wenn im Backlog nur Einträge stehen, die
 # Stage 6 im selben Lauf garbled liegen ließ (`garbled_ids` in
 # data/cycle_log.jsonl, `run_full_cycle.remaining_backlog`). Anlass 09.09.:
@@ -671,7 +698,8 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # dran — wiederholt sich das über mehrere Nächte, per Hand filtern.
 # Batch 3000 (seit 2026-09-10; vorher 600). So bemessen, dass ein normaler Tag in
 # EINEM Lauf durchgeht: mit 600 sprang run 2 an jedem Tag an und kostete jedes Mal
-# einen zweiten kompletten Stage-8-Pass (Reclassify über ALLE Drafts, ~28 min).
+# einen zweiten kompletten Stage-8-Pass (damals Reclassify über ALLE Drafts,
+# ~28 min; seit 24.09. kostet ein zweiter Pass fast nichts mehr).
 # Gemessener Anfall: 1.509–1.619/Tag mit 474 Quellen, stationär ~2.460 mit 560.
 # Zu hoch kostet nichts — min(batch, vorhandene); gegen Massen-Ingest schützen
 # CYCLE_MAX_PER_SOURCE und die 50k-Sanity-Zählung. CYCLE_BATCH=N hebt ihn für

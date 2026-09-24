@@ -331,8 +331,13 @@ def chat_structured(model: str, prompt: str, schema: type[T],
             if validate is not None and not validate(result):
                 vfails += 1
                 if vfails <= vcap and attempt < MAX_RETRIES - 1:
+                    # NOT only clichés: the same callback covers the stub floor,
+                    # mid-sentence truncation, the word floor and the grounding
+                    # gate. The old wording ("cliché retry") sent a 2026-09-24
+                    # investigation looking for clichés when the real drivers were
+                    # brevity (86) and grounding (58), with clichés at 0.
                     logger.warning("Content guard rejected output for %s "
-                                   "(cliché retry %d/%d) — re-rolling", model, vfails, vcap)
+                                   "(soft-guard retry %d/%d) — re-rolling", model, vfails, vcap)
                     continue  # no backoff: server is healthy, just re-roll
                 return result  # validate budget spent → accept the last result
             return result

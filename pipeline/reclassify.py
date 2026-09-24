@@ -182,20 +182,44 @@ def gate_mega_trends() -> dict:
     return {"checked": checked, "nulled": nulled}
 
 
-def reclassify_drafts() -> dict:
-    """Reclassify all draft trends. Returns stats dict."""
-    conn, c, ph = _open_conn()
+def reclassify_drafts(force: bool = False) -> dict:
+    """Reclassify drafts that have not been reclassified yet. Returns stats dict.
 
-    c.execute("SELECT id, title_en, summary_en, primary_vertical FROM trends WHERE status = 'draft' ORDER BY id")
+    Only rows with reclassified_at IS NULL — i.e. the drafts this run created.
+    An already-stamped draft would get the same verdict again: the classifier
+    runs at temperature 0 over an unchanged title+summary. Measured on the
+    nights of 2026-09-21..24, the pass over the standing pool of ~9.6k old
+    drafts changed 0 rows every single time, while all 380 changes of the
+    2026-09-24 run fell inside that night's own id range. The repeat pass cost
+    63 of 273 minutes and, as a side effect, rewrote ~21k trend rows a night
+    into a table carrying HNSW indexes.
+
+    force=True restores the old behaviour (every draft, stamped or not) — for
+    a deliberate full re-run after the taxonomy or CLASSIFY_SYSTEM changes.
+    A draft whose classification errored is left unstamped and comes back on
+    the next pass.
+    """
+    from pipeline.db import USE_POSTGRES
+    conn, c, ph = _open_conn()
+    now_sql = "NOW()" if USE_POSTGRES else "datetime('now')"
+
+    where = "status = 'draft'" if force else "status = 'draft' AND reclassified_at IS NULL"
+    c.execute(f"SELECT id, title_en, summary_en, primary_vertical FROM trends "
+              f"WHERE {where} ORDER BY id")
     rows = c.fetchall()
     total = len(rows)
 
-    if total == 0:
-        logger.info("Reclassify: no drafts to process")
-        conn.close()
-        return {"total": 0, "changed": 0, "errors": 0}
+    c.execute("SELECT count(*) AS n FROM trends WHERE status = 'draft'")
+    pool_row = c.fetchone()
+    pool_n = pool_row["n"] if pool_row is not None else 0
 
-    logger.info("Reclassify: processing %d drafts", total)
+    if total == 0:
+        logger.info("Reclassify: no drafts to process (pool: %d, all stamped)", pool_n)
+        conn.close()
+        return {"total": 0, "changed": 0, "errors": 0, "pool": pool_n}
+
+    logger.info("Reclassify: processing %d of %d drafts (%s)", total, pool_n,
+                "force: all" if force else "not yet reclassified")
     changed = 0
     errors = 0
     t0 = time.time()
@@ -219,7 +243,8 @@ def reclassify_drafts() -> dict:
             logger.info("Reclassify #%d: %s -> %s  %s", tid, old_primary, new_primary, title[:55])
 
         c.execute(
-            f"UPDATE trends SET primary_vertical = {ph}, verticals = {ph} WHERE id = {ph}",
+            f"UPDATE trends SET primary_vertical = {ph}, verticals = {ph}, "
+            f"reclassified_at = {now_sql} WHERE id = {ph}",
             (new_primary, json.dumps(new_verticals), tid),
         )
 
@@ -230,4 +255,4 @@ def reclassify_drafts() -> dict:
     elapsed = time.time() - t0
     logger.info("Reclassify done in %.1fs: %d/%d changed, %d errors", elapsed, changed, total, errors)
     conn.close()
-    return {"total": total, "changed": changed, "errors": errors}
+    return {"total": total, "changed": changed, "errors": errors, "pool": pool_n}

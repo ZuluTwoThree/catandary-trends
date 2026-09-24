@@ -49,6 +49,7 @@ from pipeline.config import (
     STAGE5_MIN_BODY_WORDS,
     EXTRACTION_STRICT,
     STAGE5_TARGET_BODY_WORDS,
+    STAGE5_BREVITY_MIN_SOURCE_CHARS,
     STAGE5_MAX_BODY_WORDS,
     STAGE5_MODEL,
     STAGE6_SOURCE_MAX_CHARS,
@@ -348,7 +349,8 @@ def make_content_guard(source: str):
     Used as the llama.cpp `validate` callback so ungrounded-specific bodies get
     re-rolled within the existing retry budget."""
     def guard(c: "GeneratedContent") -> bool:
-        return content_is_clean(c) and not ungrounded_specifics(c.body, source)
+        return (content_is_clean(c, source_chars=len(source or ""))
+                and not ungrounded_specifics(c.body, source))
     return guard
 
 
@@ -361,17 +363,39 @@ def make_garbage_guard(source: str):
     return guard
 
 
-def content_is_clean(c: "GeneratedContent") -> bool:
+def _brevity_applies(source_chars: int | None) -> bool:
+    """Is the word floor meaningful for a source of this length?
+
+    Below STAGE5_BREVITY_MIN_SOURCE_CHARS it is not: the model cannot write
+    words the source does not contain, so the re-roll returns the same short
+    body and the budget-exhausted result is accepted anyway. Of the 250 bodies
+    that stayed under the floor across 22.-24.09.2026, 242 came from sources
+    under 1000 characters; above that the floor failed permanently in 0.2 % of
+    cases. source_chars=None (callers that do not know the source, e.g. the
+    A/B harness and the unit tests) keeps the floor.
+    """
+    if source_chars is None or not STAGE5_BREVITY_MIN_SOURCE_CHARS:
+        return True
+    return source_chars >= STAGE5_BREVITY_MIN_SOURCE_CHARS
+
+
+def content_is_clean(c: "GeneratedContent", source_chars: int | None = None) -> bool:
     """Content guard. Rejects (→ re-roll) on: (a) a near-empty stub (hard garbage
     floor), (b) a body cut off mid-sentence (no terminal punctuation), (c) banned
     cliché phrases, or (d) BREVITY — below STAGE5_TARGET_BODY_WORDS.
 
-    On brevity: the prompt asks for 150-250 words and the model reliably lands
-    near 100. The owner accepted ~100 as the working length (2026-08-19), so the
-    floor sits there and only catches genuine stubs. It deliberately does NOT
-    match the prompt: asking high is what produces ~100 in the first place, and
-    lowering the ASK would likely shorten the output further. The floor is a
-    safety net, not the target.
+    On brevity: the prompt asks for 150-250 words. The owner accepted ~100 as the
+    working length (2026-08-19), so the floor sits there and only catches genuine
+    stubs. It deliberately does NOT match the prompt: asking high is what produces
+    a usable length in the first place, and lowering the ASK would likely shorten
+    the output further. The floor is a safety net, not the target. (Since the
+    full-text wave of 09/2026 — coverage 55 % → 86 %, median source 1.8k → 3.3k
+    chars — the median body sits near 160 words, not near 100 as it did when this
+    floor was set; the floor now only bites on thin sources.)
+
+    `source_chars` gates the brevity check: below STAGE5_BREVITY_MIN_SOURCE_CHARS
+    the floor is a thin-source detector and the re-roll cannot help — see
+    _brevity_applies. Omitting it keeps the floor unconditionally.
 
     The brevity re-roll is bounded by max_validate_retries, after which a
     short-but-clean body is accepted rather than looping forever."""
@@ -381,8 +405,8 @@ def content_is_clean(c: "GeneratedContent") -> bool:
         return False                                   # near-empty stub = real failure
     if not body.endswith((".", "!", "?", '"', "”")):   # cut off mid-sentence → retry
         return False
-    if words < STAGE5_TARGET_BODY_WORDS:                # Option B: too short → re-roll
-        return False
+    if words < STAGE5_TARGET_BODY_WORDS and _brevity_applies(source_chars):
+        return False                                   # Option B: too short → re-roll
     if STAGE5_MAX_BODY_WORDS and words > STAGE5_MAX_BODY_WORDS:  # #11: runaway → re-roll
         return False
     return not _CLICHE_RE.search(f"{c.body}\n{c.summary}")
