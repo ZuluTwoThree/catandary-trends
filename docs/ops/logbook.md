@@ -13,6 +13,20 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-24 · change · Vier Issues geschlossen, Pulse W35 nachgerechnet
+duration: 1h
+gpu: local
+Issue-Audit über die 27 offenen Issues: fünf waren ohne Owner-, Anwalts- oder
+Mehrtages-Gate abschließbar. Geschlossen: #95 und #96 (mit dem Dossier-Rückbau
+vom 19.09. gegenstandslos), #67 (Query-Quality-Gate, 18 Tests grün, Rest ist ein
+Betriebshinweis in der Doku), #73 (Research Pulse: Merge da, `kind` ohne NULL,
+Cron seit 18.09.). Für #73 die Woche W35 komplett nachgerechnet — bis heute hatte
+nur das AI-Theme einen Text: 28 Themes, 18 mit Text, 10 unter 5 Papers, 0 Fehler,
+62 s, ein Handover, Ruhezustand danach verifiziert. #79 bleibt offen bis der
+Owner die 4.421.765 JP-F-Term-Zeilen (`patent_cpc.subclass IS NULL`) von Hand
+löscht — der Befehl wurde in der Agent-Sitzung als Massenlöschung blockiert.
+Kein Cron-Pfad berührt, kein Merge nötig.
+
 ## 2026-09-25 07:00 · plan · Nach dem Nachtlauf entscheiden: vier offene Punkte
 
 Erster Lauf mit den drei Änderungen vom 24.09. Zuerst die Zahlen ansehen:

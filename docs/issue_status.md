@@ -1,5 +1,11 @@
 # Issue-Status (Stand 2026-08-28 — Audit nach dem Geschäftsmodell-Wechsel; Nachträge bis 2026-09-09)
 
+> **Nachtrag 24.09.2026 — vier Issues geschlossen, #79 wartet auf einen Handgriff:**
+> - **#95** Korpus-Rechercheur und **#96** Newsletter-Deep-Dive: mit dem Dossier-Rückbau vom 19.09. gegenstandslos, als „nicht weiterverfolgt" geschlossen.
+> - **#67** Query-Quality-Gate: gebaut, gemessen, `tests/test_query_gate.py` 18 passed; einziger Rest ist der Betriebshinweis „nach Embedding-Modellwechsel Fixture neu messen" (steht in `docs/tech_query_gate_2026-09-04.md`).
+> - **#73** Research Pulse: Merge erfolgt, `kind` ohne NULL, Cron seit 18.09.; W35 heute komplett nachgerechnet (28 Themes, 18 mit Text, 0 Fehler, 62 s). ResearchGate-DOIs als Owner-Frage nach #103 übertragen.
+> - **#79** patent_cpc: Parse-Fehler-Bucket = 0; übrig 4.421.765 JP-F-Term-Zeilen, Owner-Entscheid „löschen", der `DELETE … WHERE subclass IS NULL` wird vom Owner von Hand ausgeführt (Sicherheitsfilter der Agent-Sitzung), danach schließen.
+
 > **Nachtrag 19.09.2026 — Scouting-Dossiers ENTFERNT (Owner: „Das Feature trägt nicht")**:
 > - Alle Dossier-/Advisor-Module, Skripte, Tests, das Desk `/trends/dossiers` und die
 >   Migrationsskripte `migrate_dossier_{orders,brief,run_outcomes,source_priors,query_stats}.py` sind aus
@@ -282,9 +288,9 @@ das ist genau das Werkzeug, das die Analysen für Etappe 2 produziert. Review + 
 - **#92** Radar-Comeback als Analyst-Produkt: Baustein 1 Verankerung (3–5 T) → Baustein 2 Ehrlichkeit
   (3–4 T) → Baustein 3 Freigabe-UI. **Querverbindung:** die Regulatorik-Schwäche (#91) braucht harte
   Evidenz — genau das lieferte **#5** (EDGAR 8-K Material Events, Phase 1 isoliert machbar).
-- **#67** Query-Quality-Gate (Analysten-Werkzeugqualität; Heuristik + LLM-Graubereich)
+- ~~**#67** Query-Quality-Gate~~ — **geschlossen 24.09.2026** (s. Nachtrag oben)
 - **#7**-Reste: Legal-Events-Cap aufheben, Familien-Dedup im Analyse-Layer
-- **#73** Research Pulse / Explorer-Refinement — **Teil 1 + billige Refinements auf dev (2026-09-04):**
+- ~~**#73** Research Pulse / Explorer-Refinement~~ — **geschlossen 24.09.2026** (s. Nachtrag oben). Historie: **Teil 1 + billige Refinements auf dev (2026-09-04):**
   `research_pulse` (Tabelle + Skript + Seiten + Recompute-Knopf), Explorer-Facetten (Quelle/Zeitraum/Sortierung/
   Konzept), Deep-Links aus den Theme-Seiten, Cron-Vorschlag (nicht installiert). **Werk-Typ-Filter auf dev
   (2026-09-05, Owner-Befund Zenodo-Artefakt in den Top-Papers):** Ingest-Gate (nur article/preprint/review/
