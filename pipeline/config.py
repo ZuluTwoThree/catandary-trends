@@ -70,6 +70,19 @@ EXTRACTION_STRICT = os.getenv("EXTRACTION_STRICT", "1") == "1"
 # veroeffentlichten Artikeln, 14 Tage). Jeder dieser Neuwuerfe ist eine
 # volle Generierung auf dem 26B. Mit 100 faellt die Quote auf 29,1 %.
 STAGE5_TARGET_BODY_WORDS = int(os.getenv("STAGE5_TARGET_BODY_WORDS", "100"))
+# Ab welcher Quelltextlaenge die Wort-Untergrenze ueberhaupt eingefordert wird.
+# Darunter ist sie ein Dünne-Quelle-Melder, kein Laengenziel: der Neuwurf
+# verlangt vom Modell Woerter, die in der Quelle nicht stehen, bekommt dreimal
+# dieselbe kurze Antwort und akzeptiert sie dann ohnehin. Gemessen ueber 5.355
+# Artikel (22.-24.09.2026), Anteil der Bodies, die nach aufgebrauchtem Budget
+# UNTER der Grenze blieben: 0-250 Zeichen 29,1 % · 250-500 22,3 % · 500-750
+# 27,7 % · 750-1000 8,4 % — und ab 1000 Zeichen 0,2 % (8 von 4.352). 242 der
+# 250 Dauer-Fehlschlaege liegen also unter dieser Schwelle. In der Nacht auf
+# den 24.09. verbrannten 86 solcher Faelle je zwei volle Generierungen auf dem
+# 26B. Die Stub-Grenze STAGE5_MIN_BODY_WORDS bleibt davon unberuehrt — ein
+# echter Generierungsfehler wird weiterhin bei jeder Quellenlaenge neu gewuerfelt.
+# 0 schaltet die Ausnahme ab (Untergrenze gilt dann wieder immer).
+STAGE5_BREVITY_MIN_SOURCE_CHARS = int(os.getenv("STAGE5_BREVITY_MIN_SOURCE_CHARS", "1000"))
 # Symmetric max-word guard (#11), mirror of the MIN floor: re-roll a runaway body
 # above this ceiling (the prompt targets 150-250w). Set well above target so it
 # only catches genuine overruns, and it is bounded by max_validate_retries (a

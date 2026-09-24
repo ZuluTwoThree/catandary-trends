@@ -89,3 +89,48 @@ def test_fabrication_detector_passes_grounded_numbers():
     src = "The program generated 7,980 jobs with 36 corporations in its 2024 review."
     body = "It created 7,980 jobs across 36 corporations, per the 2024 review."
     assert fabricated_specifics(body, src) == []
+
+
+# --- Brevity floor only where the source can carry it (2026-09-24) ---
+# Measured over 5.355 bodies (22.-24.09.2026): of the 250 that stayed under the
+# 100-word floor after the retry budget, 242 came from sources below 1000 chars.
+# Re-rolling those is a full 26B generation for the same short answer.
+
+def test_brevity_floor_skipped_for_thin_sources():
+    from pipeline.llm_processor import content_is_clean
+    from pipeline.config import STAGE5_TARGET_BODY_WORDS
+
+    short_body = "word " * (STAGE5_TARGET_BODY_WORDS - 20) + "end."
+    # thin source → accept the short body instead of re-rolling
+    assert content_is_clean(_content(short_body), source_chars=400) is True
+    # enough source text → the floor still bites
+    assert content_is_clean(_content(short_body), source_chars=5000) is False
+    # caller that does not know the source keeps the old, unconditional floor
+    assert content_is_clean(_content(short_body)) is False
+
+
+def test_thin_source_does_not_disable_the_other_guards():
+    from pipeline.llm_processor import content_is_clean
+    from pipeline.config import STAGE5_MIN_BODY_WORDS, STAGE5_MAX_BODY_WORDS
+
+    # a real generation failure is still a failure, however thin the source
+    assert content_is_clean(_content("word " * (STAGE5_MIN_BODY_WORDS - 5) + "end."),
+                            source_chars=100) is False
+    # mid-sentence truncation
+    assert content_is_clean(_content("word " * 60 + "and then"), source_chars=100) is False
+    # runaway length
+    assert content_is_clean(_content("word " * (STAGE5_MAX_BODY_WORDS + 10) + "end."),
+                            source_chars=100) is False
+    # cliché
+    assert content_is_clean(_content("word " * 60 + "This trend signals a shift ahead."),
+                            source_chars=100) is False
+
+
+def test_make_content_guard_passes_source_length():
+    """The guard built for a thin source must accept a short clean body."""
+    from pipeline.llm_processor import make_content_guard
+    from pipeline.config import STAGE5_TARGET_BODY_WORDS
+
+    body = "alpha " * (STAGE5_TARGET_BODY_WORDS - 20) + "end."
+    assert make_content_guard("tiny source text")(_content(body)) is True
+    assert make_content_guard("x" * 5000)(_content(body)) is False

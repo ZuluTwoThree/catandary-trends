@@ -110,6 +110,9 @@ STATE
   if past_deadline; then
     echo "----- past deadline before Stage 8 — skipping -----"
   else
+    # Seit 2026-09-24 nur die noch nicht gestempelten Drafts (reclassified_at
+    # IS NULL) — genau das, was ein abgebrochener Lauf schuldig geblieben ist.
+    # Der ganze Bestand nur mit Absicht: reclassify_drafts(force=True).
     echo "----- Stage 8: reclassify_drafts() -----"
     "$PY" - <<'RECLASS'
 import logging, sys, time

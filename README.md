@@ -260,6 +260,7 @@ Postgres-Socket (`frontend/src/lib/pg.ts`); eine TCP-URL bricht die Peer-Auth.
 | `RSS_CLASSIFY_MODE=hybrid` | Distill-Heads entscheiden Relevanz/Vertikale/Mega/PESTEL, nur das unsichere Band geht ans 8B; `llm` = alter Vollpfad |
 | `CYCLE_MAX_PER_SOURCE=200` | Mengenbremse je Quelle und Lauf |
 | `EXTRACTION_STRICT=1` | Extraktion mit Wörtlichkeitsfilter |
+| `STAGE5_BREVITY_MIN_SOURCE_CHARS=1000` | Ab welcher Quelltextlänge die Wort-Untergrenze (`STAGE5_TARGET_BODY_WORDS=100`) überhaupt eingefordert wird. Darunter wird ein kurzer sauberer Artikel sofort genommen — der Neuwurf liefert dreimal dieselbe kurze Antwort (seit 24.09.2026). `0` = Untergrenze gilt wieder immer |
 | `AUTO_PUBLISH_GROUNDING_GATE=1` | Grounding-Gate vor Auto-Publish (Handbuch §3) |
 | `DRAFT_JUDGE=1` | Stage 10 Draft-Richter (0 = aus; nur in `scheduled_cycle.sh` gelesen) |
 | `TDM_RESPECT=1` | Fetcher beachtet maschinenlesbare TDM-Vorbehalte |
@@ -325,8 +326,8 @@ Technologie übereinanderlegbar.
 (Distill-Head, Band 0,3–0,7 ans 8B) · 3 strukturierte Extraktion (8B,
 Zahlen deterministisch per Regex aus der Quelle) · 4 Klassifikation
 (Distill-Heads) · 5 Embedding + Dedup (Cosine > 0,92) · 6 Artikel EN
-(Gemma-4-26B, ~100 Wörter, immer Englisch) · 7 Insert `draft` · 8 Reclassify
-(8B) · 9 Auto-Publish (Confidence ≥ 0,85, **Grounding-Gate**: erfundene Zahlen
+(Gemma-4-26B, ~160 Wörter, immer Englisch) · 7 Insert `draft` · 8 Reclassify
+(8B, nur noch nicht eingeordnete Drafts) · 9 Auto-Publish (Confidence ≥ 0,85, **Grounding-Gate**: erfundene Zahlen
 oder Jahre → Hold) · 10 Draft-Richter (Qwen3.8-27B beurteilt die Drafts unter
 der Schwelle, gibt frei oder hält, verwirft nie). Zwischen den Stufen wechselt
 `pipeline/gpu_handover.py` das Modell auf `:8090` (Symlink + VRAM-Check +
