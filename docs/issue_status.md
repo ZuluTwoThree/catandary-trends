@@ -4,7 +4,7 @@
 > - **#95** Korpus-Rechercheur und **#96** Newsletter-Deep-Dive: mit dem Dossier-Rückbau vom 19.09. gegenstandslos, als „nicht weiterverfolgt" geschlossen.
 > - **#67** Query-Quality-Gate: gebaut, gemessen, `tests/test_query_gate.py` 18 passed; einziger Rest ist der Betriebshinweis „nach Embedding-Modellwechsel Fixture neu messen" (steht in `docs/tech_query_gate_2026-09-04.md`).
 > - **#73** Research Pulse: Merge erfolgt, `kind` ohne NULL, Cron seit 18.09.; W35 heute komplett nachgerechnet (28 Themes, 18 mit Text, 0 Fehler, 62 s). ResearchGate-DOIs als Owner-Frage nach #103 übertragen.
-> - **#79** patent_cpc: Parse-Fehler-Bucket = 0; übrig 4.421.765 JP-F-Term-Zeilen, Owner-Entscheid „löschen", der `DELETE … WHERE subclass IS NULL` wird vom Owner von Hand ausgeführt (Sicherheitsfilter der Agent-Sitzung), danach schließen.
+> - **#79** patent_cpc: Parse-Fehler-Bucket = 0; die 4.421.765 JP-F-Term-Zeilen hat der Owner am 24.09. abends von Hand gelöscht (`DELETE 4421765`, `subclass IS NULL` = 0), Issue geschlossen. Nachwirkung: `cpc_cooccurrence` verliert beim nächsten Rebuild 397.128 Pseudo-Code-Paare, SPNP-Sektion für 235.898 JP-Patente wieder bestimmbar. Rest-Kosmetik: 1.490.819 Zeilen tragen im Feld `cpc` noch die Editionsziffer (`4H04N19/463`), Subclass ist korrekt.
 
 > **Nachtrag 19.09.2026 — Scouting-Dossiers ENTFERNT (Owner: „Das Feature trägt nicht")**:
 > - Alle Dossier-/Advisor-Module, Skripte, Tests, das Desk `/trends/dossiers` und die

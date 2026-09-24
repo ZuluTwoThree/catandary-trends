@@ -22,9 +22,12 @@ vom 19.09. gegenstandslos), #67 (Query-Quality-Gate, 18 Tests grün, Rest ist ei
 Betriebshinweis in der Doku), #73 (Research Pulse: Merge da, `kind` ohne NULL,
 Cron seit 18.09.). Für #73 die Woche W35 komplett nachgerechnet — bis heute hatte
 nur das AI-Theme einen Text: 28 Themes, 18 mit Text, 10 unter 5 Papers, 0 Fehler,
-62 s, ein Handover, Ruhezustand danach verifiziert. #79 bleibt offen bis der
-Owner die 4.421.765 JP-F-Term-Zeilen (`patent_cpc.subclass IS NULL`) von Hand
-löscht — der Befehl wurde in der Agent-Sitzung als Massenlöschung blockiert.
+62 s, ein Handover, Ruhezustand danach verifiziert. #79: die 4.421.765
+JP-F-Term-Zeilen (`patent_cpc.subclass IS NULL`, 235.898 Patente, alle mit
+CPC daneben) hat der Owner von Hand gelöscht — der Befehl war in der
+Agent-Sitzung als Massenlöschung blockiert; Issue geschlossen. Wirkung: die
+Pseudo-Klassen wie `5C15` verschwinden beim nächsten Rebuild aus
+`cpc_cooccurrence` (397.128 von 1,52 M Paaren) und aus der SPNP-Sektionswahl.
 Kein Cron-Pfad berührt, kein Merge nötig.
 
 ## 2026-09-25 07:00 · plan · Nach dem Nachtlauf entscheiden: vier offene Punkte
