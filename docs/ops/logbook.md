@@ -38,6 +38,25 @@ und `assign_cpc` beim nächsten Rebuild; `cpc LIKE 'H04N19/%'`-Suchen finden
 diese JP-Patente ab sofort (FI-Gruppe als CPC-Gruppe, auf Subclass-Ebene exakt).
 Kein Cron-Pfad berührt, kein Merge nötig.
 
+## 2026-09-25 · change · Signaltyp-Head gebaut (#110), Karte + Export-Filter auf dev
+duration: 2h
+gpu: nein
+Block 2 der Nacht (Owner-Go 24.09. 23:50). Fünfter Distill-Head für den Signaltyp
+von Presse-Signalen: `scripts/train_signal_type_head.py`, Teacher 552.964
+LLM-gelabelte Presse-Zeilen vor dem 14.07., Laden 288 s, Training 2 × ~95 s,
+CPU, 9 GB RAM, kein Cron berührt. Holdout balanced: Genauigkeit 0,80 gesamt,
+0,88 ab Konfidenz 0,6 (76 % der Zeilen), 0,92 ab 0,7; Makro-F1 0,67 (plain 0,62,
+findet aber nur ein Viertel der seltenen Klassen). Auf den 48.217 Presse-Zeilen
+seit dem 14.07. (heute alle market_shift) vergäbe der Head bei Boden 0,6:
+market_shift 64 %, regulation 18 %, product_launch 13 %, partnership 3,6 %,
+consumer_behavior 1,8 % — historisch 71/12/13/2,4/1,6. Verdrahtet hinter
+`DISTILL_SIGNAL_TYPE=1` (Default AUS, Boden 0,6), Regel bleibt für
+patent/research/funding; `signal_batch` nutzt dieselbe Funktion statt einer
+Kopie. Frontend auf dev: Label auf der Karte, `signal` im Suchindex, Chip-Gruppe
+in der Export-Suche. Gates: pytest 1.272 + 3 neue, vitest 485, tsc 0. Bericht
+`docs/signal_type_head_2026-09-25.md`. Offen (Owner): einschalten (Cron-Env →
+main-Merge, Head kopieren), Bestand seit 14.07. nachziehen (Stufe 2).
+
 ## 2026-09-25 07:00 · plan · Nach dem Nachtlauf entscheiden: vier offene Punkte
 
 Erster Lauf mit den drei Änderungen vom 24.09. Zuerst die Zahlen ansehen:
