@@ -55,6 +55,7 @@ function entry(over: Partial<IndexEntry> & { slug: string }): IndexEntry {
     trend_score: 0.7,
     source_name: null,
     source_type: "trade_media",
+    signal: null,
     ...over,
   };
 }
@@ -64,6 +65,7 @@ const F = (over: Partial<SearchFilters> = {}): SearchFilters => ({
   verticals: [],
   pestel: [],
   mega: [],
+  signal: [],
   ...over,
 });
 
@@ -117,6 +119,9 @@ describe("rowToEntry", () => {
     expect(e.pestel).toEqual(["S", "T"]);
     expect(e.sort_date).toBe("2026-08-30");
     expect(e.source_type).toBe("research");
+    expect(e.signal).toBe("research");
+    expect(rowToEntry(row({ slug: "b-2", trend_signal_type: "bogus" })).signal).toBeNull();
+    expect(rowToEntry(row({ slug: "c-3", trend_signal_type: "partnership" })).signal).toBe("partnership");
     expect(e.mega_trend).toBeNull();
     expect(e.source_name).toBeNull();
     expect(isoDate("garbage")).toBeNull();
@@ -149,7 +154,7 @@ describe("buildIndexEntries + serializeIndex", () => {
     expect(parsed).toHaveLength(4);
     expect(Object.keys(parsed[0])).toEqual([
       "slug", "title", "summary", "verticals", "pestel", "mega_trend",
-      "sort_date", "trend_score", "source_name", "source_type",
+      "sort_date", "trend_score", "source_name", "source_type", "signal",
     ]);
     expect(serializeIndex([])).toBe("[]\n");
   });
@@ -291,5 +296,24 @@ describe("entryToTrend", () => {
     expect(t.source_type).toBeNull();
     expect(t.status).toBe("published");
     expect(entryToTrend(entry({ slug: "p-1", source_type: "press_wire" })).source_type).toBe("press_wire");
+  });
+});
+
+describe("signal type (#110)", () => {
+  it("filters by chip, round-trips through the hash, drops unknown ids, and reaches the card", () => {
+    const a = rowToEntry(row({ slug: "a-1", trend_signal_type: "regulation", source_type: "trade_media" }));
+    const b = rowToEntry(row({ slug: "b-2", trend_signal_type: "market_shift", source_type: "trade_media" }));
+    const c = rowToEntry(row({ slug: "c-3", trend_signal_type: null, source_type: "trade_media" }));
+    expect(matchesChips(a, F({ signal: ["regulation"] }))).toBe(true);
+    expect(matchesChips(b, F({ signal: ["regulation"] }))).toBe(false);
+    expect(matchesChips(c, F({ signal: ["regulation"] }))).toBe(false);
+    expect(matchesChips(c, F())).toBe(true);
+    expect(isActive(F({ signal: ["regulation"] }))).toBe(true);
+    const hash = buildSearchHash(F({ signal: ["regulation", "partnership"] }));
+    expect(hash).toBe("#signal=regulation%2Cpartnership");
+    expect(parseSearchHash(hash)?.signal).toEqual(["regulation", "partnership"]);
+    expect(parseSearchHash("#signal=bogus,regulation,regulation")?.signal).toEqual(["regulation"]);
+    expect(entryToTrend(a).trend_signal_type).toBe("regulation");
+    expect(entryToTrend(c).trend_signal_type).toBe("market_shift");
   });
 });

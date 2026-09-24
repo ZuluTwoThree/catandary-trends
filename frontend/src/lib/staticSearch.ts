@@ -21,6 +21,7 @@ import {
   VERTICALS,
   type PestelDimension,
   type Trend,
+  type TrendSignalType,
   type Vertical,
 } from "./types";
 
@@ -36,6 +37,14 @@ export const MEGA_CHIP_LIMIT = 28;
  *  in (TrendCard labels those "Research" whatever the feed type). */
 export type IndexSourceType = "trade_media" | "press_wire" | "brand" | "api" | "research";
 
+/** Signal-type chips in display order (#110): the press types first — that is
+ *  what the fifth distill head decides — then the source-derived ones. */
+export const SIGNAL_TYPE_ORDER: readonly TrendSignalType[] = [
+  "product_launch", "partnership", "regulation", "consumer_behavior",
+  "market_shift", "funding", "research", "patent",
+];
+const SIGNAL_TYPE_IDS = new Set<string>(SIGNAL_TYPE_ORDER);
+
 export interface IndexEntry {
   slug: string;
   title: string;
@@ -49,6 +58,8 @@ export interface IndexEntry {
   trend_score: number | null;
   source_name: string | null;
   source_type: IndexSourceType | null;
+  /** trend_signal_type (#110) — null when the row carries none or an unknown one. */
+  signal: TrendSignalType | null;
 }
 
 export interface SearchFilters {
@@ -56,9 +67,10 @@ export interface SearchFilters {
   verticals: Vertical[];
   pestel: PestelDimension[];
   mega: string[];
+  signal: TrendSignalType[];
 }
 
-export const EMPTY_FILTERS: SearchFilters = { q: "", verticals: [], pestel: [], mega: [] };
+export const EMPTY_FILTERS: SearchFilters = { q: "", verticals: [], pestel: [], mega: [], signal: [] };
 
 /* ---------- build side: rows -> index ---------- */
 
@@ -135,6 +147,10 @@ export function rowToEntry(row: PublicIndexRow): IndexEntry {
   const rawType = row.trend_signal_type === "research" ? "research" : row.source_type;
   const source_type =
     rawType && SOURCE_TYPES.has(rawType) ? (rawType as IndexSourceType) : null;
+  const signal =
+    row.trend_signal_type && SIGNAL_TYPE_IDS.has(row.trend_signal_type)
+      ? (row.trend_signal_type as TrendSignalType)
+      : null;
   return {
     slug: row.slug,
     title: (row.title_en ?? "").replace(/\s+/g, " ").trim(),
@@ -146,6 +162,7 @@ export function rowToEntry(row: PublicIndexRow): IndexEntry {
     trend_score: typeof row.trend_score === "number" ? row.trend_score : null,
     source_name: row.source_name || null,
     source_type,
+    signal,
   };
 }
 
@@ -224,6 +241,9 @@ export function matchesChips(entry: IndexEntry, filters: SearchFilters): boolean
   if (filters.mega.length > 0 && (!entry.mega_trend || !filters.mega.includes(entry.mega_trend))) {
     return false;
   }
+  if (filters.signal.length > 0 && (!entry.signal || !filters.signal.includes(entry.signal))) {
+    return false;
+  }
   return true;
 }
 
@@ -298,6 +318,7 @@ export function isActive(filters: SearchFilters, defaults: SearchFilters = EMPTY
     filters.q.trim() !== "" ||
     filters.pestel.length > 0 ||
     filters.mega.length > 0 ||
+    filters.signal.length > 0 ||
     !sameSet(filters.verticals, defaults.verticals)
   );
 }
@@ -307,7 +328,7 @@ export function toggleValue<T>(list: T[], value: T): T[] {
 }
 
 /**
- * URL-hash form of the state (`#q=battery&v=TECH,ECO&pestel=T&mega=<key>`):
+ * URL-hash form of the state (`#q=battery&v=TECH,ECO&pestel=T&mega=<key>&signal=regulation`):
  * shareable and back-button-free (replaceState). Unknown ids are dropped on
  * parse; the empty state serializes to "".
  */
@@ -317,6 +338,7 @@ export function buildSearchHash(filters: SearchFilters): string {
   if (filters.verticals.length) params.set("v", filters.verticals.join(","));
   if (filters.pestel.length) params.set("pestel", filters.pestel.join(","));
   if (filters.mega.length) params.set("mega", filters.mega.join(","));
+  if (filters.signal.length) params.set("signal", filters.signal.join(","));
   const s = params.toString();
   return s ? `#${s}` : "";
 }
@@ -335,6 +357,7 @@ export function parseSearchHash(hash: string): SearchFilters | null {
     verticals: list("v").filter((v, i, a) => VERTICAL_IDS.has(v) && a.indexOf(v) === i) as Vertical[],
     pestel: list("pestel").filter((p, i, a) => PESTEL_IDS.has(p) && a.indexOf(p) === i) as PestelDimension[],
     mega: list("mega").filter((m, i, a) => /^[a-z0-9_]+$/.test(m) && a.indexOf(m) === i),
+    signal: list("signal").filter((t, i, a) => SIGNAL_TYPE_IDS.has(t) && a.indexOf(t) === i) as TrendSignalType[],
   };
   return isActive(filters) ? filters : null;
 }
@@ -360,7 +383,7 @@ export function entryToTrend(entry: IndexEntry): Trend {
     primary_vertical: primary,
     pestel: entry.pestel,
     tags: [],
-    trend_signal_type: entry.source_type === "research" ? "research" : "market_shift",
+    trend_signal_type: entry.signal ?? (entry.source_type === "research" ? "research" : "market_shift"),
     mega_trend: entry.mega_trend,
     macro_trend: null,
     trend_level: null,

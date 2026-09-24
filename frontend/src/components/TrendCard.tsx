@@ -6,6 +6,7 @@ import type { Trend } from "@/lib/types";
 import { getVerticalInfo } from "@/lib/types";
 import PestelBadge from "./PestelBadge";
 import TrendScore from "./TrendScore";
+import { SIGNAL_TYPE_LABELS } from "@/lib/filter-params";
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
   trade_media: "Trade",
@@ -36,6 +37,11 @@ export default function TrendCard({ trend }: { trend: Trend }) {
         ? "research"
         : trend.source_type ?? "trade_media"
     ] ?? "Trade";
+
+  // Signal type (#110) next to the source — omitted when it would only repeat
+  // the source label ("Research / Research").
+  const signalLabel = SIGNAL_TYPE_LABELS[trend.trend_signal_type] ?? null;
+  const showSignal = !!signalLabel && signalLabel !== sourceLabel;
 
   return (
     <Link prefetch={linkPrefetch()} href={`/trends/${trend.slug}`} className="block h-full">
@@ -82,6 +88,9 @@ export default function TrendCard({ trend }: { trend: Trend }) {
         {/* Footer — dashed rule, source + CRS bar */}
         <div className="flex items-center justify-between pt-3 border-t border-dashed border-border">
           <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
+            {showSignal ? (
+              <span className="text-paper/80">{signalLabel} · </span>
+            ) : null}
             {sourceLabel}
             {trend.source_name ? (
               <span className="text-muted"> / {trend.source_name}</span>
