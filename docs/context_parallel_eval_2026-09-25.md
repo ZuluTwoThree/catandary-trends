@@ -727,3 +727,121 @@ keine Rechenzeit.
 Testkohorte hat einen Quelltext-Median von 383 Zeichen gegen 3 314, also kürzere Prompts
 (weniger Prefill) und kürzere Artikel (weniger Generierung). Ein Kohortenvergleich misst die
 Kohorte, nicht die Konfiguration.
+
+---
+
+## 9. Volltext-Anreicherung traf die falschen Einträge (Fix 2026-09-26)
+
+Im 250er-Lauf vom 25.09. fiel auf, dass 9 % der Artikel am Garbage-Guard scheiterten. Die
+Ursache lag nicht beim Kontext, sondern in der Auswahl: **zwei Stellen entschieden unabhängig
+voneinander, welche Einträge wichtig sind, und zählten von entgegengesetzten Enden.**
+
+| Komponente | Sortierung | im Lauf verarbeitete ID-Spanne |
+|---|---|---|
+| `article_fetcher.fetch_batch` | `ORDER BY re.id DESC` — die **neuesten** | 25 494 906 – 25 509 134 |
+| `db.get_unprocessed_entries` | `ORDER BY re.fetched_at ASC`, pro Quelle gedeckelt, `min_id`-Fenster — die **ältesten** | 25 494 865 – 25 496 136 |
+
+Gemessene Überschneidung: **0 von 250.** Der Abrufer holte 226 Volltexte, der Cycle verarbeitete
+331 Einträge, von denen **13** Text trugen. Alle betroffenen Quellen stehen auf `fulltext: true`.
+
+**Warum es nachts nicht auffällt:** dort ist `CYCLE_BATCH=3000` grösser als der Tagesanfall
+(~2 460), also nehmen beide Schritte praktisch alles und die Zählrichtung ist gleichgültig. Der
+Fehler schlägt zu, sobald der Rückstand grösser ist als der Batch: nach einem ausgefallenen Lauf,
+nach einem langen Wochenende, bei einem Teillauf.
+
+**Fix:** `enrich_fulltext` fragt `get_unprocessed_entries(limit, min_id)` — denselben Aufruf, den
+`run_pipeline_batch` gleich danach macht — und übergibt die ID-Liste an `fetch_batch(ids=…)`.
+Damit erbt die Anreicherung jede Regel der Auswahl (Deckel pro Quelle, `min_id`, aktive Quellen),
+auch künftige. Kosten: die Auswahl läuft zweimal, gemessen 1,2 s je Lauf; sie ist lesend und
+`raw_content` beeinflusst sie nicht. Gegenprobe nach dem Fix: **225 von 225** angereicherten
+Einträgen stammen aus der Auswahl (die Differenz zu 250 sind Zeilen, die schon Text haben oder
+deren Quelle keinen Volltext erlaubt).
+
+Regressionstest `tests/test_enrichment_matches_selection.py`: prüft die Kopplung (die ID-Liste
+kommt aus der Auswahl, mit demselben Limit und Fenster), dass der ids-Zweig die bestehenden
+Filter behält (Opt-in-Quelle, unverarbeitet, kein Text) und dass eine leere Liste kein SQL baut.
+Diesen Test gab es nicht — deshalb blieb der Fehler seit dem 2026-09-08 unbemerkt.
+
+### 9.1 Rückholung der auf dünner Basis getroffenen Entscheidungen
+
+Wer auf Teaser-Basis als `not_relevant` verworfen wurde, ist endgültig weg: `processed` und
+`filtered_out` nehmen die Zeile für immer aus dem Pool. Aus den Läufen vom 25.09. betraf das:
+
+| Filtergrund | Zeilen | Quelltext-Median |
+|---|---|---|
+| `not_relevant_distill` | 174 | 259 Zeichen |
+| `insufficient_source_text` | 30 | 55 Zeichen |
+| `not_relevant` (8B-Band) | 29 | 329 Zeichen |
+| **zurückgeholt** | **233** | **259 Zeichen, keiner mit Volltext** |
+
+Duplikate wurden bewusst NICHT zurückgeholt: dieselbe Meldung bleibt dieselbe Meldung, egal wie
+viel Text sie trägt. Werkzeug: `scripts/requeue_thin_decisions.py` (Default Dry-Run, `--apply`,
+`--max-chars`, löscht die Stage-Caches mit, sonst liest der neue Lauf das alte Ergebnis).
+
+### 9.2 Gegenprobe: derselbe Einträge-Typ mit und ohne Fix
+
+Die 233 zurückgeholten Einträge liefen mit dem Fix erneut durch (26.09. ab 00:12, Batch 300).
+Dieselben Quellen, dieselbe Pipeline, nur die Anreicherung trifft jetzt die richtigen Zeilen:
+
+| | ohne Fix (25.09. 21:10–23:50) | mit Fix (26.09.) |
+|---|---|---|
+| Anreicherung | 226 Volltexte geholt, **13 von 331** verarbeiteten Einträgen trugen Text | **261 von 277** angefragten angereichert |
+| Textbasis der Auswahl (Median) | 305 Zeichen | **2 527 Zeichen** |
+| Einträge unter 1 000 Zeichen | 300 von 300 | **51 von 300** |
+| Artikel geschrieben | 319 | 77 (kleinere Kohorte) |
+| **Median Wörter je Artikel** | **75** | **158** |
+| Median Textbasis der Artikel | 305 Zeichen | **2 644 Zeichen** |
+| vom Garbage-Guard verworfen | 14/136 und 13/155 ≈ **10 %** | **2/79 ≈ 2,5 %** |
+
+Die Artikel liegen mit 158 Wörtern nicht knapp über der Grenze, sondern deutlich über dem Ziel
+von ~100 (Owner 2026-08-19). Vorher lagen sie mit 75 Wörtern unter der Stub-Schwelle des Guards,
+weshalb jeder zehnte verworfen wurde.
+
+**Nebenbefund zur Relevanz:** Die Verwurfsquote des Distill-Heads stieg in diesem Lauf auf 68 %
+(189 von 279) gegen 31 % im Nachtlauf. Das ist kein Effekt des Fixes, sondern der Kohorte: sie
+besteht überwiegend aus den 233 Einträgen, die schon einmal als irrelevant erkannt wurden. Zu
+beachten ist aber, dass der Volltext auch den Vektor verändert — das Embedding entsteht aus
+`title + excerpt[:500]`, und `excerpt` ist nach der Normalisierung der Volltextanfang statt des
+Teasers. Der Distill-Head ist auf Teaser-Embeddings trainiert (553 k Zeilen vor dem 14.07.).
+Solange der Nachtlauf ohnehin mit Volltext arbeitet, ist das der Normalfall; eine eigene Messung
+wäre es wert, wenn die Verwurfsquote im Dauerbetrieb steigt.
+
+### 9.3 War der Fehler in den letzten Wochen wirksam? Nein
+
+| Zeitraum | Einträge aus Opt-in-Quellen | ohne Volltext verarbeitet | Anteil |
+|---|---|---|---|
+| Nachtläufe 08.–24.09. (14 Läufe) | 2 159–3 445 je Tag | 74–174 | **3–6 %** |
+| Testläufe 25.09. (grosser stehender Rückstand) | 2 985 | 433 | **15 %** |
+
+Die 3–6 % sind **gescheiterte** Abrufe, keine übersprungenen: der Abrufer protokolliert es selbst
+(Nacht zum 25.09.: `enriched 2332/2445`, also 113 Fehlschläge = 4,6 %, deckungsgleich mit der
+DB-Messung). Der Fehler braucht Rückstand > Batch; in allen 14 geprüften Läufen lag der Rückstand
+bei 0–1 Eintrag und der Batch (3 000) über dem Tagesanfall (~2 450), also nahmen beide Schritte
+alles. Auch die Nacht zum 11.09. mit versehentlich 600 statt 3 000 endete bei 5 %: was dieser Lauf
+liegen liess, reicherte der Folgelauf an. In diesem Muster **verzögert** der Fehler, er verliert
+nicht.
+
+Was bleibt, ist ein anderes Thema: 41–83 Einträge je Tag werden ohne Volltext als irrelevant
+verworfen, über zwei Wochen ~800. Ursache sind die gescheiterten Abrufe (403, Timeout, zu kurze
+Seiten), nicht die Auswahl — sieben Quellen sperren Artikelseiten laut Chronik trotz
+`tdm_status: ok`.
+
+### 9.4 Endbilanz des Vergleichs (beide Phasen, 26.09. 00:12–00:54)
+
+| | ohne Fix (25.09.) | mit Fix (26.09.) |
+|---|---|---|
+| Artikel | 319 (191 published) | 309 (184 published) |
+| **Median Wörter** | **75** | **158** |
+| Median Textbasis | 305 Zeichen | **3 268 Zeichen** |
+| Anreicherung | 13 von 331 verarbeiteten trugen Text | **261/277** und **259/273** angefragte angereichert |
+| vom Guard verworfen | 14/136 + 13/155 = **10 %** | 2/79 + 3/235 = **1,6 %** |
+| als irrelevant verworfen (frische Kohorte) | 90/237 = **38 %** | 49/298 = **16 %** |
+| Laufzeit | 1 669 s für 2 × 250 | 2 449 s für 2 × 300 |
+
+Die Wortzahl verdoppelt sich, der Guard verwirft ein Sechstel so viel, und die Relevanzstufe
+behält mehr als doppelt so viele Einträge. Die Antwort auf die Frage, ob der Fehler zu Unrecht
+verworfene Artikel verursacht hat, lautet damit **für Läufe mit stehendem Rückstand: ja** — auf
+Teaser-Basis verwirft die Pipeline 38 % statt 16 %.
+
+**Ruhezustand:** Der Wrapper stellt ihn seit dem Fix selbst her (`trap`), verifiziert nach diesem
+Lauf: Symlink auf `start-qwen3-8b-208k.sh`, Unit aktiv, `:8090` serviert das 8B, 21 986 MiB.

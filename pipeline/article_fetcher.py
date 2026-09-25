@@ -42,6 +42,7 @@ import re
 import threading
 import time
 import urllib.robotparser
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse, urlsplit
@@ -491,20 +492,51 @@ def fetch_fulltext(url: str, client: httpx.Client | None = None) -> str | None:
     return fetch_fulltext_result(url, client=client).text
 
 
-def fetch_batch(limit: int = 100) -> int:
-    """Fill raw_content for unprocessed, opt-in-source entries that lack it."""
+def fetch_batch(limit: int = 100, ids: Sequence[int] | None = None) -> int:
+    """Fill raw_content for unprocessed, opt-in-source entries that lack it.
+
+    `ids` (2026-09-26): enrich EXACTLY these entries (intersected with the opt-in
+    sources and with those still lacking text), instead of picking a batch here.
+
+    Why this parameter exists: without it, two places chose independently which
+    entries matter, and they counted from opposite ends of the queue —
+    `fetch_batch` took `ORDER BY re.id DESC` (the newest), while the cycle's
+    `db.get_unprocessed_entries` takes `ORDER BY re.fetched_at ASC` (the oldest,
+    plus a per-source cap and the `min_id` window). With a backlog larger than the
+    batch the two sets did not overlap AT ALL — measured 2026-09-26: 0 of 250, and
+    in the run of 2026-09-25 only 13 of 331 processed entries had full text although
+    the fetcher had downloaded 226 of them. The articles were then written from a
+    two-sentence teaser, and the guard discarded 27 of them as too short.
+    The cycle therefore passes the very list it is about to process; every rule of
+    that selection (per-source cap, min_id, active sources) is inherited for free.
+    """
     names = fulltext_source_names()
     if not names:
         logger.warning("no sources flagged fulltext:true — nothing to do")
         return 0
+    if ids is not None and not ids:
+        # Vor der Verbindung: eine leere Liste braucht keine Abfrage und darf kein
+        # SQL mit leerer IN-Klausel bauen.
+        logger.info("0 entries to enrich (empty id list)")
+        return 0
     ph = ",".join("?" * len(names))
     with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT re.id, re.url FROM raw_entries re JOIN sources s ON re.source_id = s.id "
-            f"WHERE s.name IN ({ph}) AND re.processed = FALSE "
-            "AND (re.raw_content IS NULL OR re.raw_content = '') "
-            "ORDER BY re.id DESC LIMIT ?", (*names, limit)).fetchall()
-    logger.info("%d entries to enrich from %d opt-in sources", len(rows), len(names))
+        if ids is not None:
+            iph = ",".join("?" * len(ids))
+            rows = conn.execute(
+                "SELECT re.id, re.url FROM raw_entries re JOIN sources s ON re.source_id = s.id "
+                f"WHERE re.id IN ({iph}) AND s.name IN ({ph}) AND re.processed = FALSE "
+                "AND (re.raw_content IS NULL OR re.raw_content = '') "
+                "ORDER BY re.fetched_at ASC, re.id ASC", (*ids, *names)).fetchall()
+            logger.info("%d of %d requested entries need enrichment (opt-in sources, no text yet)",
+                        len(rows), len(ids))
+        else:
+            rows = conn.execute(
+                "SELECT re.id, re.url FROM raw_entries re JOIN sources s ON re.source_id = s.id "
+                f"WHERE s.name IN ({ph}) AND re.processed = FALSE "
+                "AND (re.raw_content IS NULL OR re.raw_content = '') "
+                "ORDER BY re.id DESC LIMIT ?", (*names, limit)).fetchall()
+            logger.info("%d entries to enrich from %d opt-in sources", len(rows), len(names))
     filled = reserved = 0
     reasons: Counter = Counter()
     items = [(r["id"] if isinstance(r, dict) else r[0], r["url"] if isinstance(r, dict) else r[1])

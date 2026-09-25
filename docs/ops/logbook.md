@@ -651,3 +651,32 @@ Guard-Ausfälle, schwächeres Grounding. Nicht angefasst (Cron-Pfad, Owner-Entsc
 Eigene Mängel behoben: `scripts/ctx_eval/testrun_batch.sh` stellt den Ruhezustand jetzt per
 `trap` wieder her (der Server lag nach dem ersten Testlauf 10 min tot) und respektiert den
 Kollisionswächter; der Kopfkommentar warnt vor der Zwei-Runden-Semantik.
+
+## 2026-09-26 · change · Volltext-Anreicherung trifft jetzt die verarbeiteten Einträge
+
+Fix zum Befund vom 25.09.: `enrich_fulltext` fragt `get_unprocessed_entries(limit, min_id)` —
+denselben Aufruf, den `run_pipeline_batch` gleich danach macht — und gibt die ID-Liste an
+`fetch_batch(ids=…)`. Vorher wählte der Fetcher `ORDER BY re.id DESC` (die neuesten), der Cycle
+nimmt die ältesten; bei Rückstand > Batch überlappten die Mengen mit **0 von 250**.
+
+Gemessen an denselben Einträgen (233 zurückgeholte plus frische, 26.09. 00:12–00:54):
+
+| | ohne Fix | mit Fix |
+|---|---|---|
+| Textbasis der Auswahl (Median) | 305 Zeichen | 2 527 Zeichen |
+| Median Wörter je Artikel | 75 | **158** |
+| vom Garbage-Guard verworfen | 10 % | **1,6 %** |
+| als irrelevant verworfen (frische Kohorte) | 38 % | **16 %** |
+
+**Historische Einordnung:** In den 14 Nachtläufen vom 08.–24.09. war der Fehler NICHT wirksam —
+Rückstand 0–1, Batch 3 000 über dem Tagesanfall (~2 450), also nahmen beide Schritte alles; 3–6 %
+ohne Volltext sind gescheiterte Abrufe (der Fetcher protokolliert `enriched 2332/2445`). Auch die
+Nacht zum 11.09. mit Batch 600 endete bei 5 %, weil der Folgelauf nachholte. Der Fehler verzögert
+in diesem Muster, er verliert nicht.
+
+Datenkorrektur: `scripts/requeue_thin_decisions.py --apply` hat 233 Einträge zurückgeholt, deren
+`not_relevant`/`insufficient_source_text`-Entscheidung auf 259 Zeichen Median gefallen war
+(Duplikate bewusst nicht). Regressionstest `tests/test_enrichment_matches_selection.py`.
+
+Offen als eigenes Thema: 41–83 Einträge je Tag werden ohne Volltext als irrelevant verworfen, weil
+der Abruf scheitert (403, Timeout) — über zwei Wochen ~800.

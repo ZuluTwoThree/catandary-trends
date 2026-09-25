@@ -6,6 +6,11 @@
 - Entries Stage 6 left garbled in this cycle are not retried in Phase 3, and a
   drain run whose backlog is only such entries is not started (2026-09-09: one
   entry, four reclassify passes, 1.5 h).
+- The enrichment gets the ID LIST of the rows the run will process, not a batch of
+  its own (2026-09-26). The fetcher used to pick `ORDER BY re.id DESC` while the
+  cycle takes the oldest first; with a backlog larger than the batch the two sets
+  did not overlap at all (measured 0 of 250), so the articles were written from a
+  two-sentence teaser.
 """
 from __future__ import annotations
 
@@ -39,7 +44,17 @@ def _drive(monkeypatch, argv: list[str], backlog: int, new_ids: list[int],
     monkeypatch.setattr(rfc, "run_poll", lambda: calls.append(("poll", None)) or {"new": 3, "duplicate": 0})
     monkeypatch.setattr(rfc, "write_cycle_log", lambda result: results.append(result))
     import pipeline.article_fetcher as af
-    monkeypatch.setattr(af, "fetch_batch", lambda limit=100: calls.append(("enrich", limit)) or 0)
+    import pipeline.db as db
+    # Auswahl, die BEIDE Seiten treffen: enrich_fulltext fragt sie, run_pipeline_batch
+    # (hier gestubbt) würde sie gleich danach genauso fragen.
+    def selection(limit=50, min_id=0, **kw):
+        # Der Aufrufer begrenzt `limit` schon auf den Pool (min(batch, backlog/new_ids)),
+        # also liefert die Auswahl genau so viele Zeilen, wie angefragt sind.
+        return [{"id": i} for i in range(1, limit + 1)]
+    monkeypatch.setattr(db, "get_unprocessed_entries", selection)
+    monkeypatch.setattr(af, "fetch_batch",
+                        lambda limit=100, ids=None: calls.append(
+                            ("enrich", len(ids) if ids is not None else limit)) or 0)
     rfc.main()
     return calls, results[-1]
 
