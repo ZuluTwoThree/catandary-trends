@@ -611,7 +611,8 @@ Nach dem Messbericht (`docs/context_parallel_eval_2026-09-25.md`) zeigen sechs S
 `draft_judge.JUDGE_START_SCRIPT`, `scheduled_cycle.sh` (Stage-5-Start und der Stage-10-Symlink)
 und die beiden Newsletter-Wrapper. Das 8B (Ruhezustand) und der Embedder bleiben unverändert.
 
-Wirkung: Gemma 15 072 statt 19 782 MiB, Richter 17 610 statt 23 094 MiB bei gleichem Durchsatz.
+Wirkung: Gemma 15 072 statt 19 782 MiB, Richter 17 610 statt 23 094 MiB. Kein Tempo-Effekt —
+gepaart gemessen liegt der Unterschied unter 5 % und kippt je nach Messreihe die Richtung.
 Beim Richter ist die Reserve der Punkt — vorher ~1,2 GB, jetzt ~6,7 GB; der VRAM-Vorabcheck vor
 Stufe 10 fängt seitdem einen Fall ab, der praktisch nicht mehr eintreten kann.
 

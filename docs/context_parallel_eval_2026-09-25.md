@@ -623,7 +623,7 @@ dieselben Handover noch einmal, diesmal mit voller Batchgröße.
 | Stufen 2–4 (hybrid) | 60,4 s | 45 Distill-behalten, 13 ans 8B, 33 verworfen → 54 Überlebende |
 | Stufe 5 | 53,5 s | 54 Überlebende |
 | Handover Gemma | 8 s Start | `n_slots = 1, n_ctx_slot = 16384`; **VRAM 15 048–15 060 MiB** |
-| Stufe 6 | 165,5 s | 50 Artikel, **4 am Guard zurückgehalten**; **3,1 s je Artikel** (Nachtlauf mit 256K: 3,5 s) |
+| Stufe 6 | 165,5 s | 50 Artikel, **4 am Guard zurückgehalten**; 3,1 s je Artikel — das ist NICHT mit dem Nachtlauf (3,47 s) vergleichbar, die Testkohorte hat kürzere Quellen und damit kürzere Prompts und Artikel (sauberer Tempo-Vergleich: 8.5) |
 | Stufen 7–9 | 26 s | 50 Trends, 11 reklassifiziert, 36 auto-publiziert |
 | Gesamt | 1 187 s | inkl. Poll über 560 Feeds |
 
@@ -696,7 +696,7 @@ wiederherstellen) und beurteilt die Entwürfe, die der Testlauf hinterlassen hat
 | Gemma VRAM unter Last | 19 782 MiB | **15 048–15 060 MiB** |
 | 27B VRAM unter Last | 23 094 MiB | **17 608 MiB** |
 | freie Reserve beim Richter | ~1,2 GB | **~6,7 GB** |
-| Stufe 6 je Artikel | 3,5 s (Nachtlauf 25.09.) | **3,1 s** |
+| Stufe 6 je Artikel | 3,47 s (Nachtlauf, andere Kohorte) | 3,1 s (Testkohorte) — **nicht vergleichbar**, s. 8.5 |
 | Stufe 10 je Entwurf | 2,1–3,0 s | 3,5 s (kleine Kohorte, Prefill-dominiert) |
 | Artikelqualität | — | unverändert (150 gepaarte Prompts: Guard-Quote identisch, Grounding p = 0,57) |
 | Fehler im Lauf | — | keine: 0 Modellwechsel-Abbrüche, 0 Gate-Blocks, 0 JSON-Fehler |
@@ -705,3 +705,25 @@ Was der Testlauf **nicht** zeigt: ob ein sehr langer Prompt (Newsletter über vi
 künftiger Pfad mit großem Kontext) im 16K-Fenster scheitern würde. Die Maximalfall-Sonden aus
 Abschnitt 3.1 decken den heutigen Code ab (Gemma 4 358, Richter 9 165 Token), ein neuer Pfad mit
 deutlich längeren Prompts müsste erneut geprüft werden.
+
+### 8.5 Tempo: kein belastbarer Unterschied
+
+Die Umstellung spart Speicher, nicht Zeit. Gepaart gemessen (identische Prompts, dieselbe
+Maschine, nur `-c` ändert sich):
+
+| Messung | 16 384 | 262 144 | Differenz |
+|---|---|---|---|
+| 150 Content-Prompts (repräsentativ) | 440,5 s | 452,4 s | **2,6 % schneller** |
+| 39 Content-Prompts (dünne Quellen) | 61,1 s | 63,9 s | **4,4 % schneller** |
+| Gemma Dauerlast conc 1 (Nachmittag) | 19,2 Anfragen/min | 19,3 | **0,5 % langsamer** |
+| Richter Dauerlast (Nachmittag) | 21,6 Anfragen/min | 22,4 | **3,6 % langsamer** |
+
+Die Richtung kippt zwischen den Messreihen, der Betrag bleibt unter 5 % — das ist Rauschen,
+kein Effekt. Auch theoretisch ist keiner zu erwarten: Die Attention läuft über die tatsächlich
+belegten Zellen, nicht über den reservierten Kontext; ein kleineres `-c` spart Allokation,
+keine Rechenzeit.
+
+**Die 3,1 s je Artikel im Testlauf gegen 3,47 s im Nachtlauf sind kein Beleg für Tempo.** Die
+Testkohorte hat einen Quelltext-Median von 383 Zeichen gegen 3 314, also kürzere Prompts
+(weniger Prefill) und kürzere Artikel (weniger Generierung). Ein Kohortenvergleich misst die
+Kohorte, nicht die Konfiguration.
