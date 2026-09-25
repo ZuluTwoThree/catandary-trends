@@ -48,6 +48,23 @@ per SQL inaktiv; Confectionery News / Food Navigator Asia: Dublette zum
 FoodNavigator-Sammelfeed entscheiden. Danach `apply_source_hygiene.py --apply`,
 Merge, #81 schließen (Reste stehen in #97).
 
+## 2026-09-25 13:30 · change · Richter setzt kein `reviewed_at` mehr, 7.765 Freigaben entstempelt
+duration: 30m
+gpu: nein
+Owner-Go. `draft_judge.publish_draft(auto=True)` stempelte `reviewed_at`, die
+Marke einer Handentscheidung (Regel 22.09.). Folge: alle Richter-Freigaben
+(~400 je Nacht) galten als „von Hand entschieden" und wurden vom Grounding-
+Nachlauf, vom Review-Agent und von Owner-Korrekturen mit `reviewed_at IS NULL`
+übersprungen — so kamen die Casino-Artikel am ersten Bereinigungs-UPDATE
+vorbei. Fix: der Richter lässt `reviewed_at` unberührt, `auto_published=true`
+bleibt seine Marke; Owner-entschiedene Freigaben (`auto=False`) stempeln
+weiter. Bestand: `scripts/reset_judge_reviewed_at.py --apply` — 7.765 Zeilen
+(auto_published, published, reviewed_at gesetzt; hand-verworfene und Desk-
+Freigaben unberührt), gebatcht 1.000/Commit. Frontend liest `reviewed_at`
+nirgends, nur die Schreibpfade der Review-Seite setzen es. Tests 1.299 grün.
+Scharf mit dem Merge: ab dann werden Richter-Freigaben von den Nachprüfungen
+erfasst.
+
 ## 2026-09-25 12:30 · change · Food+Tech Connect: Quelle abgeschaltet, Spam-Bestand gelöscht
 duration: 45m
 gpu: nein

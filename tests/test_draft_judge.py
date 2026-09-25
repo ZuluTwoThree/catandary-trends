@@ -122,7 +122,10 @@ class TestPublishDraft:
         assert row["review_reason"] == "garbled:non_latin_script:5.4%,too_short:10w"
         assert row["judged_at"] is not None
 
-    def test_release_marks_review_time_and_auto_flag(self):
+    def test_machine_release_sets_auto_flag_but_never_the_human_mark(self):
+        """reviewed_at is the mark of a person's decision (2026-09-22 rule);
+        the judge is a model, so its releases must leave it NULL — otherwise
+        the grounding re-check and the review agent skip them for good."""
         tid = self._mk("draft")
         with get_connection() as conn:
             assert publish_draft(conn, tid, auto=True) is True
@@ -130,7 +133,16 @@ class TestPublishDraft:
                 "SELECT status, auto_published, reviewed_at, published_at "
                 "  FROM trends WHERE id = ?", (tid,)).fetchone())
         assert row["status"] == "published"
-        assert row["reviewed_at"] is not None and row["published_at"] is not None
+        assert bool(row["auto_published"]) is True
+        assert row["reviewed_at"] is None and row["published_at"] is not None
+
+    def test_owner_decided_release_records_the_decision_time(self):
+        tid = self._mk("draft")
+        with get_connection() as conn:
+            assert publish_draft(conn, tid, auto=False) is True
+            row = dict(conn.execute(
+                "SELECT auto_published, reviewed_at FROM trends WHERE id = ?", (tid,)).fetchone())
+        assert not row["auto_published"] and row["reviewed_at"] is not None
 
 
 class TestJudgedAtStamp:

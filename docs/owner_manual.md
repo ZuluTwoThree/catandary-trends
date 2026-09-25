@@ -347,7 +347,10 @@ inzwischen ein anderer, passiert nichts.
 widerspricht und auch wenn du einen Agent-Vorschlag NICHT angewendet hast. Der
 Einwand kann schlicht falsch sein: das Namens-Gate beanstandete „Per Second",
 herausgeschnitten aus „Tokens Per Second (TPS)"; im Kontext war nichts zu
-reparieren. Technisch: jede Handentscheidung stempelt `reviewed_at`, und
+reparieren. Technisch: jede Handentscheidung stempelt `reviewed_at` — und nur
+sie: der Draft-Richter setzt die Marke seit 25.09. nicht mehr (bis dahin galten
+seine Freigaben als Handentscheidung und wurden nie nachgeprüft; Bestand mit
+`scripts/reset_judge_reviewed_at.py` bereinigt), und
 `scripts/recheck_published_grounding.py` überspringt solche Zeilen (zweifach —
 in der Auswahl und im UPDATE). `--include-reviewed` öffnet sie wieder, wenn du
 bewusst einen Altbestand prüfen willst. Auch der Review-Agent und Stage 9 fassen
