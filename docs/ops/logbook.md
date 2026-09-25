@@ -38,6 +38,30 @@ und `assign_cpc` beim nächsten Rebuild; `cpc LIKE 'H04N19/%'`-Suchen finden
 diese JP-Patente ab sofort (FI-Gruppe als CPC-Gruppe, auf Subclass-Ebene exakt).
 Kein Cron-Pfad berührt, kein Merge nötig.
 
+## 2026-10-01 · plan · Nach dem Monats-Check: zwölf stille Quellen reparieren, #81 schließen
+Der Monats-Check (01.10. 08:00) probt alle 560 Feeds. Danach die Befunde vom
+25.09. (#81-Kommentar) umsetzen: 9 Förderinfo-Themenfeeds (blocked, von
+„Bekanntmachungen (alle)" geshadowt), EE Times (403), ZVEI, IFPRI (leer)
+deaktivieren; WHO News und Civil Eats auf die aktuellen Feed-URLs umstellen;
+Modern Farmer prüfen; DB-Orphans Sourcing Journal + zweite Science-News-Zeile
+per SQL inaktiv; Confectionery News / Food Navigator Asia: Dublette zum
+FoodNavigator-Sammelfeed entscheiden. Danach `apply_source_hygiene.py --apply`,
+Merge, #81 schließen (Reste stehen in #97).
+
+## 2026-09-25 09:30 · change · Owner-Go für die Nachtarbeit: Signaltyp-Head scharf, Bestand nachgelabelt, Story-Cron installiert
+duration: 1h
+gpu: nein
+Owner um 09:20: „ja für 1 bis 4". Umgesetzt: `DISTILL_SIGNAL_TYPE=1` in
+`scheduled_cycle.sh` und `weekly_ingesters.sh`, `signal_type.joblib` nach
+`catandary-trends/models/distill/` kopiert; Bestand mit
+`scripts/relabel_signal_types.py --apply` nachgezogen — 49.681 Presse-Zeilen seit
+dem 14.07., **17.997 umgelabelt** (regulation 8.888, product_launch 6.422,
+partnership 1.792, consumer_behavior 895), 31.684 bleiben market_shift
+(Head unter 0,6), gebatcht 1.000 je Commit, nur Label + CRS-Score; Cron
+`55 1 * * * group_stories.py --days 3 --apply` installiert; Merge dev → main,
+:3001 neu gebaut. #81: Reparaturen nach dem Monats-Check am 01.10. (Plan-Eintrag),
+Reste nach #97.
+
 ## 2026-09-25 · change · Story-Gruppierung (#109, Stufe 1) auf dev
 duration: 1h30m
 gpu: nein

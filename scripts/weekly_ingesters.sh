@@ -33,6 +33,15 @@
 set -u
 
 REPO="/home/dirk/projects/catandary-trends"
+
+# >>> Signaltyp-Head (#110, Owner 25.09.2026) >>>
+# Fünfter Distill-Head: Presse-Signale bekommen product_launch / regulation /
+# partnership / consumer_behavior / market_shift aus dem Embedding statt pauschal
+# market_shift (Regression seit 14.07.). Greift nur, wenn models/distill/
+# signal_type.joblib im Worktree liegt (sonst wie bisher); Konfidenz-Boden 0,6
+# (docs/signal_type_head_2026-09-25.md). Abschalten: Zeile entfernen oder =0.
+export DISTILL_SIGNAL_TYPE=1
+# <<< Signaltyp-Head <<<
 LOG="/home/dirk/logs/catandary-ingesters-$(date +%Y%m%d).log"
 mkdir -p "$(dirname "$LOG")"
 

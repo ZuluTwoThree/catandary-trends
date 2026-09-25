@@ -91,9 +91,9 @@ und Backlink. Lokal sieht der Owner den gesamten Korpus (Zehntausende Artikel),
   als Chip-Gruppe „Signal" in der Suche des statischen Exports, Hash
   `#signal=regulation,partnership`): Product launch / Partnership / Regulation /
   Consumer behavior / Market shift / Funding / Research / Patent. **Achtung:**
-  Artikel vom 14.07. bis zur Aktivierung des Signaltyp-Heads (§11.11) tragen
-  für Presse durchweg `market_shift` — der Filter ist für diesen Zeitraum blind,
-  bis der Bestand nachgezogen ist (#110, Stufe 2).
+  Artikel vom 14.07. bis 25.09. trugen für Presse durchweg `market_shift`;
+  am 25.09. per Head nachgelabelt (§11.11), 31.684 blieben market_shift, weil
+  der Head dort unter der Konfidenz-Schwelle lag.
 - Die Hybrid-Suche (FTS + pgvector-ANN, RRF-Fusion) steht zusätzlich als API
   bereit: `/api/search?q=…&vertical=FOOD&limit=20`.
 - Artikelseite: Titel, Body, Vertikal- und PESTEL-Badges, Mega-Theme, Score,
@@ -1299,7 +1299,7 @@ im Handover still).
 | Zeit | Job | Skript | Status |
 |---|---|---|---|
 | 01:30 täglich | Postgres-Backup (dumpdir, zstd, keep 4 Tage) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4` | installiert |
-| 01:55 täglich | Story-Gruppierung (#109) | `scripts/group_stories.py --days 3 --apply` | **Vorschlag** (25.09.), nicht installiert — scharf mit Merge nach main |
+| 01:55 täglich | Story-Gruppierung (#109) | `scripts/group_stories.py --days 3 --apply` | installiert (25.09.) |
 | 02:15 täglich | Volltext-Retention 60 Monate | `scripts/purge_raw_content.py --days 1825 --apply` | installiert (03.09., Frist 10.09. erweitert) |
 | 02:30 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
 | 02:45 Mo–Fr | Full Cycle + Draft-Richter + **Review-Agent (Stage 11)** + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch **3000** — so bemessen, dass ein normaler Tag in einem Lauf durchgeht; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |
@@ -1676,17 +1676,20 @@ je Konfidenz-Band, und was der Head auf den Presse-Zeilen seit dem 14.07.
 vergeben würde, mit Titel-Stichproben je Klasse). `models/` ist gitignored und
 liegt je Worktree — nach dem Merge nach `main` die Datei dorthin kopieren.
 
-**Einschalten.** `DISTILL_SIGNAL_TYPE=1` in der Umgebung des Cycles
-(`scheduled_cycle.sh`) bzw. des Samstagslaufs; `DISTILL_SIGNAL_TYPE_MIN_CONF`
+**Einschalten.** Seit 25.09. aktiv: `DISTILL_SIGNAL_TYPE=1` steht in
+`scheduled_cycle.sh` und `weekly_ingesters.sh` (Zeile entfernen oder `=0` schaltet ab); `DISTILL_SIGNAL_TYPE_MIN_CONF`
 (Default 0,6) ist der Konfidenz-Boden, darunter bleibt es bei `market_shift`.
 Ohne Schalter oder ohne Datei verhält sich alles wie bisher. Gemessen (Holdout,
 25.09.): Genauigkeit 0,83 ab 0,5, 0,88 ab 0,6, 0,92 ab 0,7 — bei 92 / 76 / 61 %
 der Zeilen über der Schwelle; 0,6 trifft auf den Presse-Zeilen seit dem 14.07.
 die historische Klassenverteilung am besten.
 
-**Bestand nachziehen** (Stufe 2, Owner-Entscheid, noch nicht gebaut): die
-Presse-Zeilen seit dem 14.07. neu labeln — gebatcht, nie als ein UPDATE
-(HNSW-Bloat, 17.09.).
+**Bestand nachziehen** (Stufe 2, erledigt 25.09.): `scripts/relabel_signal_types.py`
+(Dry-Run; `--apply` schreibt gebatcht 1.000 Zeilen je Commit, nur
+`trend_signal_type` + `trend_score`). Lauf 25.09.: 49.681 Presse-Zeilen seit dem
+14.07. geprüft, 17.997 umgelabelt (regulation 8.888, product_launch 6.422,
+partnership 1.792, consumer_behavior 895). Nach einem Retrain des Heads erneut
+laufen lassen, wenn sich die Schwelle ändert.
 
 ### 11.12 Story-Gruppierung (#109)
 
@@ -1711,9 +1714,9 @@ das Fenster wird jedes Mal neu gerechnet, Artikel, die aus einer Gruppe
 fallen, verlieren ihre Zeile. Stand 25.09. (26.08.–25.09.): 23.342 Artikel,
 1.085 Gruppen, 1.895 Folgeberichte (8,1 %).
 
-**Nächste Entscheidung (Owner, nach einer Woche):** Folgeberichte weiter
-veröffentlichen und nur anzeigen (heute) oder in Stage 5 gar nicht erst
-veröffentlichen (`mark_filtered`).
+Cron seit 25.09. installiert (01:55). **Nächste Entscheidung (Owner, ab
+02.10.):** Folgeberichte weiter veröffentlichen und nur anzeigen (heute) oder in
+Stage 5 gar nicht erst veröffentlichen (`mark_filtered`).
 
 ## 12. Sicherheit und Recht (kurz)
 

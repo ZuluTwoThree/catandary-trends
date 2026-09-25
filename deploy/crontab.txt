@@ -85,7 +85,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # → Montags-Morgen-Mail. Kundenseite wird NICHT automatisch hochgeladen.
 30 12 * * 6 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_field_watch.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_field_watch.sh || echo "$(date -Iseconds) skip weekly_field_watch (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-field-watch-skip.log
 
-# Story-Gruppierung (#109, VORSCHLAG 2026-09-25 — scharf erst mit dem Merge nach main):
+# Story-Gruppierung (#109, INSTALLIERT 2026-09-25, Owner-Go):
 # täglich 01:55, vor dem Export. Published Artikel der letzten 3 Tage nach
 # gleicher extrahierter Marke · sort_date ≤ 48 h auseinander · Kosinus ≥ 0,80
 # (embedding_1024), transitiv, gruppieren → trend_stories; der älteste Artikel
