@@ -621,3 +621,33 @@ noch `Qwen3-30B-A3B-Q4_K_M.gguf` → `start-qwen3-30b.sh`, obwohl GGUF und Skrip
 llama.cpp-Umbau am 29.08. gelöscht wurden. Tote Zeile entfernt. Der Test prüft ab jetzt, dass
 jedes registrierte Skript existiert, das passende Modell lädt und dass die Shell-Wrapper dasselbe
 Skript meinen wie die Registry.
+
+## 2026-09-25 · change · 500 Backlog-Einträge mit den 16K-Skripten verarbeitet; Volltext-Befund
+
+duration: 23:17–23:45 (1 669 s)
+gpu: Gemma-Spitze 15 056 MiB, 8B 22 000 MiB; Ruhezustand danach hergestellt
+
+Owner-Auftrag „250 aus dem Backlog". `run_full_cycle` arbeitet zwei Runden ab (Phase 1 Backlog,
+Phase 3 „neue"), jede bis BATCH — es wurden 500 Einträge verarbeitet, 264 Artikel erzeugt,
+150 auto-publiziert. Die umgestellten Skripte liefen fehlerfrei: beide Handover in beide
+Richtungen, kein ModelMismatchError, 2,7 s je Artikel.
+
+**Befund (unabhängig von der Umstellung, betrifft `main`):** 27 Artikel (9 %) hielt der
+Garbage-Guard mit `too_short` zurück, weil nur 13 von 331 verarbeiteten Einträgen Volltext
+hatten — obwohl alle Quellen auf `fulltext: true` stehen und `article_fetcher` 226 Volltexte
+geholt hat. Ursache: die beiden Auswahlen ziehen in entgegengesetzter Richtung.
+
+| Komponente | Auswahl | ID-Spanne im Lauf |
+|---|---|---|
+| `article_fetcher.fetch_batch` | `ORDER BY re.id DESC LIMIT n` — die NEUESTEN | 25 494 906 – 25 509 134 |
+| `db.get_unprocessed_entries` | nach `fetched_at, id` aufsteigend — die ÄLTESTEN | 25 494 865 – 25 496 136 |
+
+Im Nachtlauf fällt das nicht auf: dort ist `CYCLE_BATCH=3000` grösser als der Tagesanfall
+(~2 460), also sind beide Mengen praktisch deckungsgleich. Sobald der Rückstand grösser ist als
+der Batch — nach einem Ausfall, einem Feiertag, einem Teillauf wie hier — verarbeitet der Cycle
+genau die Einträge, für die kein Volltext geholt wurde. Wirkung: dünne Artikel, mehr
+Guard-Ausfälle, schwächeres Grounding. Nicht angefasst (Cron-Pfad, Owner-Entscheidung).
+
+Eigene Mängel behoben: `scripts/ctx_eval/testrun_batch.sh` stellt den Ruhezustand jetzt per
+`trap` wieder her (der Server lag nach dem ersten Testlauf 10 min tot) und respektiert den
+Kollisionswächter; der Kopfkommentar warnt vor der Zwei-Runden-Semantik.
