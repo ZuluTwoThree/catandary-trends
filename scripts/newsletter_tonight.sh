@@ -60,7 +60,7 @@ export NEWSLETTER_LLM_BACKEND=llamacpp
     echo "----- :8090 serving '${CUR:-nothing}' — swapping to $WANT -----"
     systemctl --user stop llama-server.service 2>/dev/null
     sleep 3
-    ln -sfn start-gemma4-26b.sh /home/dirk/llama.cpp/start-active.sh \
+    ln -sfn start-gemma4-26b-ctx16k.sh /home/dirk/llama.cpp/start-active.sh \
       || echo "  WARN: symlink swap failed — starting whatever is active"
     systemctl --user start llama-server.service
     for i in $(seq 1 30); do

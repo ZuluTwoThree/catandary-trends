@@ -558,4 +558,150 @@ readlink ~/llama.cpp/start-active.sh   # muss start-qwen3-8b-208k.sh sein
 curl -s http://127.0.0.1:8090/v1/models
 ```
 
-Vollständige Ergebnistabelle aller 66 Messstufen: [`docs/context_parallel_eval_2026-09-25_results.md`](context_parallel_eval_2026-09-25_results.md) (versioniert; erzeugt aus dem nicht versionierten `data/ctx_eval/results.jsonl`).
+Vollständige Ergebnistabelle aller Messstufen: [`docs/context_parallel_eval_2026-09-25_results.md`](context_parallel_eval_2026-09-25_results.md) (versioniert; erzeugt aus dem nicht versionierten `data/ctx_eval/results.jsonl`).
+
+---
+
+## 8. Umstellung auf `dev` (25.09.2026) und Testlauf
+
+Umgestellt wurden die beiden Modelle aus den Empfehlungen 6.3 und 6.4; das 8B und der Embedder
+bleiben unverändert (6.2/6.5 werden nicht empfohlen, solange das VRAM nicht gebraucht wird).
+
+| Stelle | vorher | jetzt (`dev`) |
+|---|---|---|
+| `pipeline/gpu_handover.py` `MODEL_START_SCRIPTS[gemma…gguf]` | `start-gemma4-26b.sh` | `start-gemma4-26b-ctx16k.sh` |
+| `pipeline/gpu_handover.py` `MODEL_START_SCRIPTS["Qwen3.8-27B"]` | `start-qwen3.8-27b.sh` | `start-qwen3.8-27b-ctx16k.sh` |
+| `pipeline/draft_judge.py` `JUDGE_START_SCRIPT` | `start-qwen3.8-27b.sh` | `start-qwen3.8-27b-ctx16k.sh` |
+| `scripts/scheduled_cycle.sh` `STAGE5_START` | `start-gemma4-26b.sh` | `start-gemma4-26b-ctx16k.sh` |
+| `scripts/scheduled_cycle.sh` Stage-10-`ln -sf` | `start-qwen3.8-27b.sh` | `start-qwen3.8-27b-ctx16k.sh` |
+| `scripts/weekly_newsletter_publish.sh`, `scripts/newsletter_tonight.sh` | `start-gemma4-26b.sh` | `start-gemma4-26b-ctx16k.sh` |
+
+Der Ruhezustand (`CANONICAL_RESTING_SCRIPT` → `start-qwen3-8b-208k.sh`) ist unberührt, ebenso der
+Embedding-Pfad. Die alten Skripte liegen unverändert in `~/llama.cpp` — Rückweg ist, die sechs
+Stellen wieder auf sie zeigen zu lassen. **Nach der konstitutionellen Regel ist die Umstellung
+erst mit dem Merge nach `main` in Betrieb**; der Nachtlauf startet aus
+`~/projects/catandary-trends`.
+
+Testsuite nach der Umstellung: 1 299 bestanden, 20 übersprungen.
+
+### 8.1 Testlauf: echter Pipeline-Batch
+
+`scripts/ctx_eval/testrun_batch.sh 100` setzt dieselbe Umgebung wie `scheduled_cycle.sh`
+(`STAGE5_BACKEND`/`STAGE_8B_BACKEND`/`EMBED_BACKEND=llamacpp`, `LLAMACPP_MAX_TOKENS=2048`,
+`DISTILL_SIGNAL_TYPE=1`) und fährt `pipeline.run_full_cycle --batch 100`; ein Sampler schreibt
+alle zwei Sekunden VRAM und geladenes Modell mit.
+
+**Phase 1 (Backlog, 7 Einträge)** — testet beide Handover-Richtungen:
+
+| Ereignis | Beobachtung |
+|---|---|
+| Handover 8B | `already serving Qwen3-8B-UD-Q4_K_XL.gguf — nothing to do` (Ruhezustand unverändert) |
+| Stufen 2–4 (hybrid) | 3,7 s, 7 Überlebende |
+| Stufe 5 (Embeddings) | 61,7 s, 7 Cache-Treffer |
+| Handover Gemma | `Pre-flight OK: start-gemma4-26b-ctx16k.sh loads gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf`, danach `ready` nach 12 s |
+| Server-Konfiguration | `n_slots = 1, n_ctx_slot = 16384, kv_unified = 'false'` |
+| **VRAM unter Last** | **15 060 MiB** (Messung vom Nachmittag: 15 072 MiB, heute produktiv: 19 782) |
+| Stufe 6 | 46,0 s, 5 Artikel, 2 vom Garbage-Guard zurückgehalten (`too_short:46w`, `too_short:53w`) |
+| Rückgabe | `Restoring start-active.sh → start-qwen3-8b-208k.sh`, 8B wieder bereit nach 9 s |
+| Stufen 7–9 | 5 Trends angelegt, 1 reklassifiziert, 1 auto-publiziert |
+
+Zu den zwei zurückgehaltenen Artikeln: Beide Quellen sind dünn (384 und 657 Zeichen Quelltext),
+beide Einträge wurden im Nachtlauf desselben Tages um 02:53 geholt und dort schon liegen gelassen
+— der Backlog besteht genau aus den Resten, die Stufe 6 bereits einmal garbled zurückgab
+(`garbled_ids`, siehe `scheduled_cycle.sh`). Der Guard `too_short` greift unterhalb von 60 Wörtern
+und hat mit dem Kontextfenster nichts zu tun: Der Prompt passt in 16 384 Token mit Faktor 4.
+
+**Phase 2 (Feed-Poll)** und **Phase 3 (Batch 100)** folgen im selben Lauf; Phase 3 durchläuft
+dieselben Handover noch einmal, diesmal mit voller Batchgröße.
+
+**Phase 3 (Batch 100 nach dem Poll)** — 2 336 neue Einträge geholt, 100 verarbeitet:
+
+| Stufe | Dauer | Ergebnis |
+|---|---|---|
+| Stufe 1 (Titel-Dedup) | 9,0 s | 100 → 91 |
+| Embedding-Handover | 4 s Start | `start-qwen3-emb.sh`, danach zurück aufs 8B |
+| Stufen 2–4 (hybrid) | 60,4 s | 45 Distill-behalten, 13 ans 8B, 33 verworfen → 54 Überlebende |
+| Stufe 5 | 53,5 s | 54 Überlebende |
+| Handover Gemma | 8 s Start | `n_slots = 1, n_ctx_slot = 16384`; **VRAM 15 048–15 060 MiB** |
+| Stufe 6 | 165,5 s | 50 Artikel, **4 am Guard zurückgehalten**; **3,1 s je Artikel** (Nachtlauf mit 256K: 3,5 s) |
+| Stufen 7–9 | 26 s | 50 Trends, 11 reklassifiziert, 36 auto-publiziert |
+| Gesamt | 1 187 s | inkl. Poll über 560 Feeds |
+
+Alle Handover liefen in beide Richtungen sauber, der Ruhezustand wurde jedes Mal
+wiederhergestellt (`Restoring start-active.sh → start-qwen3-8b-208k.sh`), kein
+`ModelMismatchError`, kein Abbruch.
+
+### 8.2 Gegenprobe: liegt die Guard-Quote am Kontext oder an der Kohorte?
+
+Vier von 54 Artikeln (7,4 %) hielt der harte Guard mit `too_short` zurück (40–55 Wörter), im
+Nachtlauf vom 25.09. waren es 6 von 1 754 (0,3 %). Erste Erklärung liegt in den Daten:
+
+| Kohorte | Einträge | Quelltext-Median | unter 1 000 Zeichen |
+|---|---|---|---|
+| Testlauf 21:27 (frisch gepollt) | 50 | **383 Zeichen** | 34 (68 %) |
+| Nachtlauf 25.09. 02:45 | 1 753 | **3 314 Zeichen** | 312 (18 %) |
+
+Das Modell kann keine Wörter schreiben, die in der Quelle nicht stehen — genau dafür wurde die
+Wort-Untergrenze am 24.09. an `STAGE5_BREVITY_MIN_SOURCE_CHARS` gebunden. Die vier betroffenen
+Quellen haben 188, 384, 475 und 657 Zeichen.
+
+Weil „plausibel" kein Beleg ist, wurde gegengeprobt: dieselben 39 Content-Prompts der dünnsten
+Einträge dieses Laufs (< 1 500 Zeichen Quelltext), einmal auf `start-gemma4-26b-ctx16k.sh`,
+einmal auf `start-gemma4-26b.sh` (262 144), gleiche Temperatur 0,7, sequentiell
+(`scripts/ctx_eval/build_thin_ab.py`, `block_thin_ab.sh`, `thin_ab_eval.py`):
+
+| Arm (39 Prompts, Quelltext < 1 500 Zeichen) | Median Wörter | unter 60 (harter Guard) | unter 25 (Stub) |
+|---|---|---|---|
+| `start-gemma4-26b-ctx16k.sh` | 69 | 12 | 0 |
+| `start-gemma4-26b.sh` (262 144) | 71 | 8 | 0 |
+
+Gepaart über dieselben 39 Prompts: Fisher p = 0,44, Wilcoxon über die Wortzahlen p = 0,15.
+**Beide Arme liegen bei dünnen Quellen zwischen 20 und 30 % unter der Grenze** — die Quote ist ein
+Kohorten-Effekt, kein Kontext-Effekt. Der Unterschied 12 zu 8 ist bei n = 39 nicht von Rauschen zu
+trennen; die Gegenprobe kann einen kleinen Nachteil also nicht ausschließen, nur einen großen.
+Deshalb zusätzlich dieselbe Messung auf der **repräsentativen** Kohorte (150 Prompts, Quelltext-
+Median 3 052 Zeichen, also wie im Nachtlauf mit 3 314):
+
+| Arm (150 Prompts, Quelltext-Median 3 052 Zeichen) | Median Wörter | unter 60 | Bodies mit erfundenen Spezifika |
+|---|---|---|---|
+| `start-gemma4-26b-ctx16k.sh` | 154 | **5** | **5** (3,3 %) |
+| `start-gemma4-26b.sh` (262 144) | 156 | **5** | **8** (5,3 %) |
+
+Gepaart über dieselben 150 Prompts: Guard-Quote **identisch** (Fisher p = 1,0), Grounding ohne
+Unterschied (Fisher p = 0,57, Richtung sogar leicht zugunsten des kleineren Kontexts),
+Wortzahl-Verteilung p = 0,054 bei zwei Wörtern Median-Differenz — statistisch grenzwertig,
+praktisch bedeutungslos. **Der Kontext ändert die Artikel nicht.** Die 7,4 % des Testlaufs
+stammen aus seiner dünnen Kohorte, nicht aus der Umstellung.
+
+### 8.3 Testlauf Stufe 10 (Draft-Richter auf dem 16K/q8_0-27B)
+
+`scripts/ctx_eval/testrun_judge.sh 17` bildet den Stage-10-Block aus `scheduled_cycle.sh` nach
+(Unit stoppen, VRAM-Vorabcheck, Symlink, Identitätscheck, richten, Ruhezustand per `trap`
+wiederherstellen) und beurteilt die Entwürfe, die der Testlauf hinterlassen hat.
+
+| Ereignis | Beobachtung |
+|---|---|
+| Symlink + Start | `start-qwen3.8-27b-ctx16k.sh`, Server nach ~12 s bereit |
+| Identitätscheck | `served = models/Qwen3.8-27B-UD-Q4_K_XL.gguf` — der `grep -q "Qwen3.8-27B"` aus `scheduled_cycle.sh` greift unverändert |
+| Server-Konfiguration | `n_slots = 1, n_ctx_slot = 16384, kv_unified = 'false'` |
+| **VRAM unter Last** | **17 608 MiB** (Messung vom Nachmittag: 17 610; heute produktiv: 23 094) |
+| Urteile | 17 beurteilt, 4 freigegeben, 13 zurückgehalten, 0 Gate-Blocks, 0 Dubletten, 0 garbled, **0 Fehler** |
+| Dauer | 59 s für 17 Entwürfe = **3,5 s je Entwurf** |
+| Ruhezustand | per `trap` automatisch auf `start-qwen3-8b-208k.sh` zurück, `:8090` serviert wieder das 8B |
+
+### 8.4 Bilanz des Testlaufs
+
+| | vorher (Produktion) | nachher (dev) |
+|---|---|---|
+| Gemma VRAM unter Last | 19 782 MiB | **15 048–15 060 MiB** |
+| 27B VRAM unter Last | 23 094 MiB | **17 608 MiB** |
+| freie Reserve beim Richter | ~1,2 GB | **~6,7 GB** |
+| Stufe 6 je Artikel | 3,5 s (Nachtlauf 25.09.) | **3,1 s** |
+| Stufe 10 je Entwurf | 2,1–3,0 s | 3,5 s (kleine Kohorte, Prefill-dominiert) |
+| Artikelqualität | — | unverändert (150 gepaarte Prompts: Guard-Quote identisch, Grounding p = 0,57) |
+| Fehler im Lauf | — | keine: 0 Modellwechsel-Abbrüche, 0 Gate-Blocks, 0 JSON-Fehler |
+
+Was der Testlauf **nicht** zeigt: ob ein sehr langer Prompt (Newsletter über viele Artikel, ein
+künftiger Pfad mit großem Kontext) im 16K-Fenster scheitern würde. Die Maximalfall-Sonden aus
+Abschnitt 3.1 decken den heutigen Code ab (Gemma 4 358, Richter 9 165 Token), ein neuer Pfad mit
+deutlich längeren Prompts müsste erneut geprüft werden.

@@ -601,3 +601,22 @@ spart beim 8B 9 GB, kostet aber 36 % Durchsatz. KV-Quantisierung ist kein Qualit
 (Richter q4_0 vs. q8_0 an 150 Handentscheidungen: McNemar p = 0,29). Größter ungenutzter Hebel:
 Stufe 6 sequentiell 20,3 Anfragen/min gegen 30,0/min mit 4 Slots ohne unified = −35 min Nachtlauf,
 aber Umbau der Schleife.
+
+## 2026-09-25 · change · Gemma und Draft-Richter auf 16K-Kontext umgestellt (dev, main-Merge offen)
+
+gpu: Testlauf mit echtem Pipeline-Batch, Ruhezustand danach wiederhergestellt
+
+Nach dem Messbericht (`docs/context_parallel_eval_2026-09-25.md`) zeigen sechs Stellen jetzt auf
+`start-gemma4-26b-ctx16k.sh` und `start-qwen3.8-27b-ctx16k.sh`: die Registry in `gpu_handover`,
+`draft_judge.JUDGE_START_SCRIPT`, `scheduled_cycle.sh` (Stage-5-Start und der Stage-10-Symlink)
+und die beiden Newsletter-Wrapper. Das 8B (Ruhezustand) und der Embedder bleiben unverändert.
+
+Wirkung: Gemma 15 072 statt 19 782 MiB, Richter 17 610 statt 23 094 MiB bei gleichem Durchsatz.
+Beim Richter ist die Reserve der Punkt — vorher ~1,2 GB, jetzt ~6,7 GB; der VRAM-Vorabcheck vor
+Stufe 10 fängt seitdem einen Fall ab, der praktisch nicht mehr eintreten kann.
+
+Nebenbefund aus dem neuen Test `tests/test_start_scripts_match_registry.py`: Die Registry führte
+noch `Qwen3-30B-A3B-Q4_K_M.gguf` → `start-qwen3-30b.sh`, obwohl GGUF und Skript beim
+llama.cpp-Umbau am 29.08. gelöscht wurden. Tote Zeile entfernt. Der Test prüft ab jetzt, dass
+jedes registrierte Skript existiert, das passende Modell lädt und dass die Shell-Wrapper dasselbe
+Skript meinen wie die Registry.

@@ -1401,11 +1401,23 @@ readlink ~/llama.cpp/start-active.sh        # muss start-qwen3-8b-208k.sh sein
 ```
 
 Ergebnisse liegen in `data/ctx_eval/` (`results.jsonl`, `results_table.md`, `dump_*.jsonl`,
-`server-*.log`). **Vorbereitete, nicht aktive Startskript-Varianten** aus der Messung vom
-25.09.2026 (jede mit gemessenem VRAM-Budget im Kopfkommentar):
-`start-qwen3-8b-208k-ctx16.sh`, `start-gemma4-26b-ctx16k.sh`, `start-qwen3.8-27b-ctx16k.sh`,
-`start-qwen3-emb-16slots.sh`. Sie sind **nicht** in `gpu_handover.MODEL_START_SCRIPTS`
-eingetragen — eine Umstellung ist eine Owner-Entscheidung und geht über `main`.
+`server-*.log`, Testläufe unter `testrun/`). Startskript-Varianten aus der Messung vom
+25.09.2026, jede mit gemessenem VRAM-Budget im Kopfkommentar:
+
+| Skript | Status | Wirkung |
+|---|---|---|
+| `start-gemma4-26b-ctx16k.sh` | **auf `dev` aktiv**, `main`-Merge steht aus | Kontext 16 384 statt 262 144; 15 072 statt 19 782 MiB; Durchsatz gleich |
+| `start-qwen3.8-27b-ctx16k.sh` | **auf `dev` aktiv**, `main`-Merge steht aus | Kontext 16 384/q8_0 statt 262 144/q4_0; 17 610 statt 23 094 MiB; Reserve ~6,7 statt ~1,2 GB |
+| `start-qwen3-8b-208k-ctx16.sh` | vorbereitet, **nicht** aktiv | 16 statt 24 Slots; 16 506 statt 22 000 MiB, aber −3 % Durchsatz — nicht empfohlen, solange die GB nicht gebraucht werden |
+| `start-qwen3-emb-16slots.sh` | vorbereitet, **nicht** aktiv | 8 552 statt 11 096 MiB bei gleichem Durchsatz; betrifft eine Phase von 1–2 min je Nacht |
+
+Die beiden aktiven sind in `pipeline/gpu_handover.py` (`MODEL_START_SCRIPTS`),
+`pipeline/draft_judge.py` (`JUDGE_START_SCRIPT`), `scripts/scheduled_cycle.sh` und den beiden
+Newsletter-Wrappern eingetragen. **Rückweg:** dort wieder auf `start-gemma4-26b.sh` bzw.
+`start-qwen3.8-27b.sh` zeigen lassen — die alten Skripte liegen unverändert in `~/llama.cpp`.
+Testlauf der Umstellung: `scripts/ctx_eval/testrun_batch.sh 100` (echter Pipeline-Batch mit
+VRAM-Protokoll) und `scripts/ctx_eval/testrun_judge.sh 40` (Stufe 10 einzeln, stellt den
+Ruhezustand per `trap` auch bei Abbruch wieder her).
 
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert
 
