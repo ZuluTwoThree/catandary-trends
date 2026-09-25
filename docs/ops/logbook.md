@@ -48,6 +48,52 @@ per SQL inaktiv; Confectionery News / Food Navigator Asia: Dublette zum
 FoodNavigator-Sammelfeed entscheiden. Danach `apply_source_hygiene.py --apply`,
 Merge, #81 schließen (Reste stehen in #97).
 
+## 2026-09-25 12:30 · change · Food+Tech Connect: Quelle abgeschaltet, Spam-Bestand gelöscht
+duration: 45m
+gpu: nein
+Owner nach Sichtprüfung: „die Quelle ist Schrott, alle Artikel auf der Seite
+sind Spam, nur lange zurückliegende sind legit." Audit (lesend): Archiv 2010-07
+bis 2025-02 = 1.662 Einträge ohne Spam-Treffer, daraus 1.193 Signale (Juli-
+Backfill) — bleiben. Ab dem 06.07.2026 (erste Spam-ID 21601364) ausschließlich
+Casino-, Wett- und Adult-SEO in zehn Sprachen: 517 raw_entries, 103 Trends
+(9 published, 16 Drafts, 78 vom Richter verworfen). Der Owner hat beides von
+Hand gelöscht (`DELETE 103`, `DELETE 517`; Story-Zeilen per Cascade, Metriken
+gab es keine), Quelle 228 in DB und `sources.yaml` (dev, `bdf5cc7`) inaktiv. Die
+sechs noch veröffentlichten Spam-Seiten verschwinden mit dem Export 02:00.
+Nebenbefund: `draft_judge.publish_draft` setzt `reviewed_at` auch bei
+automatischen Freigaben — dadurch gelten Richter-Freigaben als Handentscheidung
+und werden vom Grounding-Nachlauf, vom Review-Agent und von Owner-Korrekturen
+mit `reviewed_at IS NULL` übersprungen. Fix vorgeschlagen (#111).
+
+## 2026-09-25 11:00 · change · Abnahme des Richter-Nachlaufs vom 24.09., alte Entwürfe abgeräumt, Spam-Feed entdeckt
+duration: 1h30m
+gpu: nein
+Owner-Go für die vier offenen Punkte des 07:00-Plans. **Nachtlauf 25.09.:** 3:45 h
+statt 4:57–5:26, Stage 8 5,6 min statt 63, Richter 534 beurteilt / 404 frei /
+118 gehalten, `source_mismatch` 14 statt 103 — die Änderungen vom 24.09. wirken.
+**Kurze Quellen** (3.365 Entwürfe im Fenster): liegen gelassen. **Alte Entwürfe:**
+`scripts/expire_old_drafts.py --apply` — 4.760 Entwürfe außerhalb des 30-Tage-
+Fensters (ältester 2024-05-16) auf `rejected`, `review_reason='expired:window'`,
+gebatcht, `reviewed_at` bleibt NULL. **Abnahme Nachlauf 24.09.** (1.942 neu
+beurteilt, 595 frei / 1.292 gehalten): je 10 Zufallsstichproben gegen die Quelle
+gelesen. Freigegeben: **10 von 10 quellentreu**, alle Zahlen und Namen belegt,
+zweimal ein optionaler Ausblick am Ende, ein Titel leicht überzeichnet („halts"
+statt reduziert). Gehalten: **10 von 10 zu Recht** — 2 mit echtem Fehler (heise
+„KI und Autismus": Rahmen erfunden, die Quelle ist ein Tagungsbericht; ZEW-China-
+Studie: „ifo Institute" statt DIW), 1 Casino-Werbung, 7 dünn oder ohne Signal
+(Ticker-Sammelmeldungen, Podcast-Transkript, Konferenzbericht ohne die Fakten
+der Quelle; einmal Extraktion komplett leer). Urteil: der Nachlauf ist abgenommen.
+**Nebenfund:** der Feed von **Food+Tech Connect** (Quelle 228) ist seit August
+kompromittiert — 217 von 363 Einträgen mehrsprachige Casino-SEO-Werbung
+(nvvcasino, gangstasino, betspino …); daraus wurden **5 Artikel automatisch
+veröffentlicht** (u. a. #1719217 Oscar Spin Casino, #1679578 Winshark Casino,
+#1759912 Pragmatic Play, #1719216 Betify), 38 als Drafts gehalten, 22 vom
+Richter verworfen. `is_advertorial` und Relevanz-Head haben das nicht gefangen.
+Abhilfe (Owner-Hand, Massenänderung vom Sitzungsfilter blockiert): Spam-Trends
+auf `rejected`, Quelle 228 in DB und `sources.yaml` deaktivieren, Merge; danach
+Export 02:00 nimmt die fünf Seiten vom Netz (410). Offen: ein Sprach-/Spam-Gate
+im Poller (Titel nicht in Quellensprache, Casino-Vokabular) — Issue anlegen.
+
 ## 2026-09-25 09:30 · change · Owner-Go für die Nachtarbeit: Signaltyp-Head scharf, Bestand nachgelabelt, Story-Cron installiert
 duration: 1h
 gpu: nein

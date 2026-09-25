@@ -221,6 +221,12 @@ verticals:
       tdm_checked: "2026-09-04"
       tdm_status: ok
     - name: Food+Tech Connect
+      # 2026-09-25: Feed kompromittiert — seit August 217 von 363 Einträgen
+      # mehrsprachige Casino-SEO-Werbung (nvvcasino, gangstasino, betspino …);
+      # 5 Spam-Artikel gingen automatisch live, 41 Trends am 25.09. verworfen,
+      # DB-Zeile 228 vom Owner deaktiviert. Wiederaufnahme nur nach Sichtprüfung
+      # des Feeds (Owner, #111).
+      active: false
       fulltext: true
       feed_url: https://foodtechconnect.com/feed/
       type: trade_media
