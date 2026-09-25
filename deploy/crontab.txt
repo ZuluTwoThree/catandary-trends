@@ -85,6 +85,16 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # → Montags-Morgen-Mail. Kundenseite wird NICHT automatisch hochgeladen.
 30 12 * * 6 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_field_watch.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_field_watch.sh || echo "$(date -Iseconds) skip weekly_field_watch (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-field-watch-skip.log
 
+# Story-Gruppierung (#109, INSTALLIERT 2026-09-25, Owner-Go):
+# täglich 01:55, vor dem Export. Published Artikel der letzten 3 Tage nach
+# gleicher extrahierter Marke · sort_date ≤ 48 h auseinander · Kosinus ≥ 0,80
+# (embedding_1024), transitiv, gruppieren → trend_stories; der älteste Artikel
+# führt, die Artikelseite zeigt "Also reported by". Nichts wird gefiltert oder
+# entpubliziert (Stufe 1 = messen und zeigen). CPU, ~3 s, idempotent (story_id =
+# id des Leitartikels), das Fenster überlappt den Vortag um den 48-h-Rahmen.
+# Gemessen 26.08.–25.09.: 23.342 Artikel, 1.085 Gruppen, 1.895 Folgeberichte (8,1 %).
+55 1 * * * cd /home/dirk/projects/catandary-trends && .venv/bin/python scripts/group_stories.py --days 3 --apply >> /home/dirk/logs/catandary-stories.log 2>&1
+
 # Statischer Export → Webspace (Schritt 8, seit 2026-09-02; NOCH NICHT in der echten crontab —
 # Webspace-Zugang fehlt): täglich 06:30. Mo–Fr nach dem Full Cycle (Ende 05:55–06:12,
 # Kollisionswächter wartet max 90 min), Sa/So ohne Cycle — das 30-Tage-Fenster rollt

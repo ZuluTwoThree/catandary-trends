@@ -208,6 +208,8 @@ Alle 8 Vertikale sind abgedeckt. Die DB-Zählung zieht immer erst mit dem nächs
 > **Kein Ollama-Zwang mehr im Full Cycle:** `run_full_cycle` erkennt seit 2026-07-01 die aktiven GPU-Backends. Läuft alles auf llama.cpp, wird der frühere Ollama-Preflight (`check_ollama` + `check_gpu` lädt qwen3:14b als CPU-Offload-Canary) **übersprungen** und stattdessen `check_gpu_nvidia_smi()` genutzt (nur `nvidia-smi`, kein Modell-Load). → **Ein llama.cpp-Cycle braucht Ollama nicht** (nicht mal laufend). Nur wenn ein GPU-Stage auf `ollama` steht, wird Ollama geprüft/benötigt.
 >
 > **Hybrid-Klassifikation ist Default im RSS-Cycle (seit 2026-07-11, #41, `7d03d14`):** `RSS_CLASSIFY_MODE=hybrid` — embed-first, dann **Distill-Embedding-Heads** für Vertical/Mega/PESTEL (GPU-frei, Sekunden statt Minuten). Relevanz als **Hybrid-Gate**: Distill entscheidet die sicheren Ränder (≥0.7 behalten, <0.3 verwerfen), nur das unsichere Band geht ans 8B (~21 % real). Extraktion (Markennamen) + Content-Gen bleiben LLM. Embeddings werden persistiert (auch für Gefilterte — Trend-Drift-Hedge), Stage 5 macht nur noch Dedup. Fallback: `RSS_CLASSIFY_MODE=llm` = alter Voll-8B-Pfad; lädt der Head nicht, fällt der Cycle automatisch zurück. Referenzwerte Prod-Cycle 2026-07-12: 0 Fehler, Stage-8-Korrekturquote ~3,5 % (Drift-Wächter: Retrain bei dauerhaft >30 % oder 8B-Band >35 %).
+>
+> **Signaltyp auf dem Distill-Pfad (#110, seit 2026-09-25 AKTIV — Owner-Go 25.09. 09:30; `DISTILL_SIGNAL_TYPE=1` in `scheduled_cycle.sh` und `weekly_ingesters.sh`, Config-Default bleibt aus):** die vier Heads geben keinen `trend_signal_type` aus; `llm_processor._distill_signal_type` (auch von `scripts/signal_batch.py` genutzt) leitete ihn seit dem 14.07. allein aus der Quellenart ab — Patentnummer → `patent`, Forschungsquelle → `research`, NSF/NIH/UKRI/Form D → `funding`, **alles andere → `market_shift`**. Folge: seit dem 14.07. bekam jeder Presse-Artikel `market_shift` (product_launch 10, regulation 27, partnership 2, consumer_behavior 2 gegen 89 k / 76 k / 13 k / 10 k davor), die acht Schreibanweisungen in `SIGNAL_TYPE_FRAMING` kollabierten für Presse auf eine, der Richter beanstandete Partnerschaftsmeldungen als „kein Signal", und der Signaltyp-Filter war blind. Abhilfe: ein **fünfter Head** `models/distill/signal_type.joblib` (`scripts/train_signal_type_head.py`, eigenes Skript, fasst die vier anderen nicht an; Teacher = die 553 k vom LLM-Pfad gelabelten Presse-Zeilen vor dem 14.07.; SGD log-loss, `class_weight='balanced'`; Holdout: market_shift P 0,92 / R 0,81, product_launch F1 0,72, regulation 0,68, partnership 0,59, consumer_behavior 0,51; Genauigkeit 0,88 ab Konfidenz 0,6, 0,92 ab 0,7). `DistillClassifier` lädt ihn, wenn die Datei existiert, und liefert `signal_type` + `signal_type_confidence`; die Regel bleibt für patent/research/funding maßgeblich, der Head entscheidet nur die fünf Presse-Klassen und **nur** mit `DISTILL_SIGNAL_TYPE=1` und Konfidenz ≥ `DISTILL_SIGNAL_TYPE_MIN_CONF` (Default 0,6 — dort trifft die Verteilung auf den 48 k Presse-Zeilen seit dem 14.07. die historische: market_shift 64 %, regulation 18 %, product_launch 13 %, partnership 3,6 %, consumer_behavior 1,8 %; vorher 71 / 12 / 13 / 2,4 / 1,6), sonst `market_shift`. Bericht `docs/signal_type_head_2026-09-25.md`, Rohdaten `data/signal_type_head_report.{json,md}`. Bestand nachgezogen am 25.09. (Stufe 2, `scripts/relabel_signal_types.py --apply`, gebatcht 1.000/Commit): von 49.681 Presse-Zeilen seit dem 14.07. **17.997 umgelabelt** (regulation 8.888, product_launch 6.422, partnership 1.792, consumer_behavior 895), 31.684 blieben market_shift; nur `trend_signal_type` + `trend_score` (CRS-Reife) geändert, Texte unverändert. Das Modell liegt je Worktree (`models/` ist gitignored — nach `main` kopiert am 25.09.; bei einem Retrain wieder kopieren). Frontend (Stufe 3, `dev`): Signaltyp-Label auf der Trendkarte neben der Quelle, Feld `signal` in `trends/index.json`, Chip-Gruppe „Signal" in der Export-Suche (`#signal=`).
 
 **Alternative Modelle zum Testen:**
 - Relevanz-Filter: Gemma 3 4B (`ollama pull gemma3:4b`, ~3.5 GB) – noch schneller
@@ -319,6 +321,23 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
     → Embedding generieren
     → Cosine-Similarity gegen letzte 30 Tage prüfen
     → Wenn >0.92 Similarity: als Duplikat markieren, Ende
+    → Story-Gruppierung (#109, seit 2026-09-25 auf dev, NACHLAUF, nicht in
+      Stage 5): der Vektor misst Textähnlichkeit, nicht Ereignisgleichheit —
+      drei Redaktionen zur selben Meldung liegen bei 0,78–0,87 und werden alle
+      veröffentlicht; die Schwelle zu senken würfe ~9 % aller Artikel weg und
+      löste den gemessenen Fall trotzdem nicht. Stattdessen pipeline/stories.py:
+      gleiche extrahierte Marke (Schlüssel ≤ 4 Wörter — die Extraktion liefert
+      auch Schlagzeilen als „Marke") · sort_date ≤ 48 h · Kosinus ≥ 0,80 auf
+      embedding_1024 · Gruppen transitiv (Union-Find); der älteste Artikel
+      führt. Tabelle trend_stories (additiv, _migrate_trend_stories in init_db,
+      Live-DB 25.09.), Skript scripts/group_stories.py (Default Dry-Run,
+      --apply, ~3 s je 30 Tage), Artikelseite „Also reported by" mit Quelle +
+      Link (getStorySiblings, fensterbegrenzt wie Related). Gemessen 26.08.–
+      25.09.: 23.342 Artikel, 1.085 Gruppen, 1.895 Folgeberichte (8,1 %), 776
+      Zweier-, 165 Dreiergruppen, größte: Apple-Keynote 50, Meta 42, OpenAI 32,
+      Meta Muse 21. Stufe 1 = messen und zeigen; ob Folgeberichte gar nicht
+      erst veröffentlicht werden, entscheidet der Owner nach einer Woche
+      Betrieb (#109). Cron 01:55 installiert am 25.09. (Owner-Go).
     │
     ▼
 [Schritt 5] CONTENT-GENERIERUNG EN (llama.cpp Gemma-4-26B / Ollama 14B)
@@ -783,6 +802,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Statischer Export → Webspace (täglich 02:00, bis 22.09. 03:15; INSTALLIERT 2026-09-05): nach dem
 # Review-Tag und ~45 min vor dem 02:45-Cycle — veröffentlicht wird der freigegebene Stand.
 # build_public_static.sh + publish_static_site.py --apply, Log ~/logs/catandary-publish-*.log
+# Story-Gruppierung (#109, INSTALLIERT 25.09.2026, Owner-Go): published
+# Artikel der letzten 3 Tage nach Marke · 48 h · Kosinus ≥ 0,80 gruppieren → trend_stories
+# („Also reported by" auf der Artikelseite). CPU, ~3 s, idempotent, nichts wird gefiltert.
+55 1 * * *   scripts/group_stories.py --days 3 --apply
+
 0 2 * * *    scripts/publish_static_site.sh
 
 # Volltext-Retention (täglich 02:15, bis 22.09. 03:30; INSTALLIERT 2026-09-03, Owner-Auftrag „100 % konform"):

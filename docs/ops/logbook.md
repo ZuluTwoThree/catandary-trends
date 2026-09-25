@@ -13,6 +13,90 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-24 · change · Vier Issues geschlossen, Pulse W35 nachgerechnet
+duration: 1h
+gpu: local
+Issue-Audit über die 27 offenen Issues: fünf waren ohne Owner-, Anwalts- oder
+Mehrtages-Gate abschließbar. Geschlossen: #95 und #96 (mit dem Dossier-Rückbau
+vom 19.09. gegenstandslos), #67 (Query-Quality-Gate, 18 Tests grün, Rest ist ein
+Betriebshinweis in der Doku), #73 (Research Pulse: Merge da, `kind` ohne NULL,
+Cron seit 18.09.). Für #73 die Woche W35 komplett nachgerechnet — bis heute hatte
+nur das AI-Theme einen Text: 28 Themes, 18 mit Text, 10 unter 5 Papers, 0 Fehler,
+62 s, ein Handover, Ruhezustand danach verifiziert. #79: die 4.421.765
+JP-F-Term-Zeilen (`patent_cpc.subclass IS NULL`, 235.898 Patente, alle mit
+CPC daneben) hat der Owner von Hand gelöscht — der Befehl war in der
+Agent-Sitzung als Massenlöschung blockiert; Issue geschlossen. Wirkung: die
+Pseudo-Klassen wie `5C15` verschwinden beim nächsten Rebuild aus
+`cpc_cooccurrence` (397.128 von 1,52 M Paaren) und aus der SPNP-Sektionswahl.
+Im selben Zug (Owner-Freigabe) die 1.490.819 japanischen FI-Zeilen bereinigt,
+die seit dem Backfill vom 02.09. zwar eine Subclass hatten, im Feld `cpc` aber
+noch die Editionsziffer trugen (`4H04N19/463`): 1.197.137 per UPDATE auf den
+Code ohne Ziffer (1 min 46 s), 293.682 gelöscht, weil dasselbe Patent den Code
+schon als CPC-Zeile hatte (20 %, Unique-Index). Kein Code in `patent_cpc`
+beginnt mehr mit einer Ziffer. Wirksam wird das in Kookkurrenz, SPNP-Sektion
+und `assign_cpc` beim nächsten Rebuild; `cpc LIKE 'H04N19/%'`-Suchen finden
+diese JP-Patente ab sofort (FI-Gruppe als CPC-Gruppe, auf Subclass-Ebene exakt).
+Kein Cron-Pfad berührt, kein Merge nötig.
+
+## 2026-10-01 · plan · Nach dem Monats-Check: zwölf stille Quellen reparieren, #81 schließen
+Der Monats-Check (01.10. 08:00) probt alle 560 Feeds. Danach die Befunde vom
+25.09. (#81-Kommentar) umsetzen: 9 Förderinfo-Themenfeeds (blocked, von
+„Bekanntmachungen (alle)" geshadowt), EE Times (403), ZVEI, IFPRI (leer)
+deaktivieren; WHO News und Civil Eats auf die aktuellen Feed-URLs umstellen;
+Modern Farmer prüfen; DB-Orphans Sourcing Journal + zweite Science-News-Zeile
+per SQL inaktiv; Confectionery News / Food Navigator Asia: Dublette zum
+FoodNavigator-Sammelfeed entscheiden. Danach `apply_source_hygiene.py --apply`,
+Merge, #81 schließen (Reste stehen in #97).
+
+## 2026-09-25 09:30 · change · Owner-Go für die Nachtarbeit: Signaltyp-Head scharf, Bestand nachgelabelt, Story-Cron installiert
+duration: 1h
+gpu: nein
+Owner um 09:20: „ja für 1 bis 4". Umgesetzt: `DISTILL_SIGNAL_TYPE=1` in
+`scheduled_cycle.sh` und `weekly_ingesters.sh`, `signal_type.joblib` nach
+`catandary-trends/models/distill/` kopiert; Bestand mit
+`scripts/relabel_signal_types.py --apply` nachgezogen — 49.681 Presse-Zeilen seit
+dem 14.07., **17.997 umgelabelt** (regulation 8.888, product_launch 6.422,
+partnership 1.792, consumer_behavior 895), 31.684 bleiben market_shift
+(Head unter 0,6), gebatcht 1.000 je Commit, nur Label + CRS-Score; Cron
+`55 1 * * * group_stories.py --days 3 --apply` installiert; Merge dev → main,
+:3001 neu gebaut. #81: Reparaturen nach dem Monats-Check am 01.10. (Plan-Eintrag),
+Reste nach #97.
+
+## 2026-09-25 · change · Story-Gruppierung (#109, Stufe 1) auf dev
+duration: 1h30m
+gpu: nein
+Block 3 der Nacht. Nachlauf statt schärferer Dedup-Schwelle: gleiche
+extrahierte Marke (Schlüssel ≤ 4 Wörter) · 48 h · Kosinus ≥ 0,80 auf
+embedding_1024 · transitiv, ältester Artikel führt. `pipeline/stories.py`,
+`scripts/group_stories.py` (Dry-Run/`--apply`, 3,5 s je 30 Tage), Tabelle
+`trend_stories` (additive Migration, Live-DB 25.09., 30 Tage geschrieben:
+2.980 Zeilen in 1.085 Gruppen). Gemessen 26.08.–25.09. über 23.342 Artikel:
+1.895 Folgeberichte (8,1 %; #109 hatte 7,2 % für den September), 776 Zweier-,
+165 Dreiergruppen; größte Apple-Keynote 50, Meta 42, OpenAI 32, Meta Muse 21 —
+Ketten über Folgemeldungen, wie erwartet. Artikelseite „Also reported by" mit
+Quelle, Link, „first report" (`getStorySiblings`, fensterbegrenzt), auf :3004
+gesehen. Cron-Zeile 01:55 als Vorschlag in `deploy/crontab.txt`, nicht
+installiert. Tests: 7 neue pytest, tsc 0, vitest 485.
+
+## 2026-09-25 · change · Signaltyp-Head gebaut (#110), Karte + Export-Filter auf dev
+duration: 2h
+gpu: nein
+Block 2 der Nacht (Owner-Go 24.09. 23:50). Fünfter Distill-Head für den Signaltyp
+von Presse-Signalen: `scripts/train_signal_type_head.py`, Teacher 552.964
+LLM-gelabelte Presse-Zeilen vor dem 14.07., Laden 288 s, Training 2 × ~95 s,
+CPU, 9 GB RAM, kein Cron berührt. Holdout balanced: Genauigkeit 0,80 gesamt,
+0,88 ab Konfidenz 0,6 (76 % der Zeilen), 0,92 ab 0,7; Makro-F1 0,67 (plain 0,62,
+findet aber nur ein Viertel der seltenen Klassen). Auf den 48.217 Presse-Zeilen
+seit dem 14.07. (heute alle market_shift) vergäbe der Head bei Boden 0,6:
+market_shift 64 %, regulation 18 %, product_launch 13 %, partnership 3,6 %,
+consumer_behavior 1,8 % — historisch 71/12/13/2,4/1,6. Verdrahtet hinter
+`DISTILL_SIGNAL_TYPE=1` (Default AUS, Boden 0,6), Regel bleibt für
+patent/research/funding; `signal_batch` nutzt dieselbe Funktion statt einer
+Kopie. Frontend auf dev: Label auf der Karte, `signal` im Suchindex, Chip-Gruppe
+in der Export-Suche. Gates: pytest 1.272 + 3 neue, vitest 485, tsc 0. Bericht
+`docs/signal_type_head_2026-09-25.md`. Offen (Owner): einschalten (Cron-Env →
+main-Merge, Head kopieren), Bestand seit 14.07. nachziehen (Stufe 2).
+
 ## 2026-09-25 07:00 · plan · Nach dem Nachtlauf entscheiden: vier offene Punkte
 
 Erster Lauf mit den drei Änderungen vom 24.09. Zuerst die Zahlen ansehen:

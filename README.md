@@ -117,6 +117,7 @@ Karte und die drei Routinen, die man auswendig kennen sollte.
 | **Newsletter freigeben** (Pflicht vor jedem Versand) | `/trends/newsletter/review` | Ausgabe als Mail lesen → *Release for sending*; ohne Freigabe bricht der Sender mit Exit 2 ab | [§7.5](docs/owner_manual.md#75-ausgabe-freigeben-trendsnewsletterreview) |
 | Analysen | `/analysis` | Markdown in `frontend/content/analyses/`, `draft: false` = live; Drafts nur auf der Owner-Instanz sichtbar | [§8](docs/owner_manual.md#8-analysen-analysis) |
 | **Statischer Export** | `scripts/build_public_static.sh` → `htaccess_test_server.sh` → `publish_static_site.py --apply` | täglich 06:30 (Cron vorbereitet); `PUBLIC_NOINDEX=0` zum Launch | [§9](docs/owner_manual.md#9-statischer-export--die-öffentliche-website) |
+| **Story-Gruppierung** (#109) | `scripts/group_stories.py --days 3 --apply` (Default Dry-Run) | täglich 01:55 (Cron installiert 25.09.); Artikelseite zeigt „Also reported by" | [§11.12](docs/owner_manual.md#1112-story-gruppierung-109) |
 | Quellen | `sources.yaml` | `probe_source_compliance.py --yaml` → eintragen → `verify_feeds.py`; `apply_source_hygiene.py --apply` nach jeder Flag-Änderung (synct `active` + `llm_pipeline`); Signalbetrieb statt Abschalten (`llm_pipeline: false` + `store_excerpt: false`); `resolve_open_licence.py --apply` schaltet CC-BY-Artikel aus Vorbehalts-Quellen frei; `python -m pipeline.feed_poller --dry-run` zeigt vorab, wie viel Neues die Feeds bringen; `takedown.py`, `purge_raw_content.py` | [§10](docs/owner_manual.md#10-quellen-verwalten) |
 | Betrieb | `crontab -l`, `~/logs/`, `data/*_last.json` | Wächter-Mails, Backup/Restore, GPU-Ruhezustand, llama-server-Reparatur; Kollisionswächter der GPU-Crons (`scripts/lib/gpu_guard.sh`, wartet 90 min, dann Skip + Pending-Datei); `scripts/reset_embedding_errors.py --apply` holt als `embedding_error` aussortierte Einträge zurück | [§11](docs/owner_manual.md#11-betrieb-cron-wächter-backup-gpu-logs), [§11.8](docs/owner_manual.md#118-kollisionswächter-und-besitz-des-llama-servers-98) |
 | **Kunden-Briefing** | `/trends/foresight/pitch` (Foresight-Cockpit → „Briefing deck for prospects") | SCR-Q-Präsentation im Browser (7 Folien, ← → / Rail, `#s3`-Links), Korpuszahlen live; nur Owner-Instanz (PUBLIC_MODE 404, nicht im Export) | [§5.10](docs/owner_manual.md#510-kunden-briefing-trendsforesightpitch) |
@@ -357,7 +358,13 @@ Rohstoff der Foresight-Werkzeuge. Fällt der Embedding-Server aus, bleibt der
 Rest des Laufs unverarbeitet (Retry desselben Chunks, nach 20 Fehlern in Folge
 Exit 3) statt als `embedding_error` aussortiert zu werden (#98). Retrain: `scripts/train_distill_heads.py`
 (auch automatisch im Sonntag-Discovery-Loop, wenn `mega_trends.yaml` geändert
-wurde).
+wurde). **Fünfter Head (#110, Default aus):** `scripts/train_signal_type_head.py`
+schreibt `models/distill/signal_type.joblib` — den Signaltyp für Presse-Signale
+(product_launch / regulation / partnership / consumer_behavior / market_shift),
+den die Quellenart-Regel seit dem 14.07.2026 pauschal auf `market_shift` setzte.
+Aktiv seit 25.09. (`DISTILL_SIGNAL_TYPE=1` in beiden Cron-Wrappern, Konfidenz-Boden
+`DISTILL_SIGNAL_TYPE_MIN_CONF` 0,6; Bestand seit 14.07. mit `scripts/relabel_signal_types.py` nachgezogen); Bericht
+`docs/signal_type_head_2026-09-25.md`, Handbuch [§11.11](docs/owner_manual.md#1111-signaltyp-head-110).
 
 **Datenmodell-Kern** (`pipeline/db.py`): `sources` (Registry, gespiegelt aus
 `sources.yaml`), `raw_entries` (21,6 Mio.; `raw_content` nach 14 Tagen

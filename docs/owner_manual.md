@@ -87,12 +87,24 @@ und Backlink. Lokal sieht der Owner den gesamten Korpus (Zehntausende Artikel),
   Zeitraum, Score-Regler, Signaltyp, Sortierung, Quellen-Ausschluss,
   Listen-/Karten-Ansicht; aktive Filter erscheinen als Chips und lassen sich
   einzeln entfernen.
+- Signaltyp (seit 2026-09-25 auch auf der Karte, links neben der Quelle, und
+  als Chip-Gruppe „Signal" in der Suche des statischen Exports, Hash
+  `#signal=regulation,partnership`): Product launch / Partnership / Regulation /
+  Consumer behavior / Market shift / Funding / Research / Patent. **Achtung:**
+  Artikel vom 14.07. bis 25.09. trugen für Presse durchweg `market_shift`;
+  am 25.09. per Head nachgelabelt (§11.11), 31.684 blieben market_shift, weil
+  der Head dort unter der Konfidenz-Schwelle lag.
 - Die Hybrid-Suche (FTS + pgvector-ANN, RRF-Fusion) steht zusätzlich als API
   bereit: `/api/search?q=…&vertical=FOOD&limit=20`.
 - Artikelseite: Titel, Body, Vertikal- und PESTEL-Badges, Mega-Theme, Score,
   Quelle mit Backlink, verwandte Artikel. Ist die Quell-URL nachweislich tot
   (`dead_links`, monatlicher Link-Check), zeigt die Seite einen Hinweis und den
   Archiv-Link statt des toten Backlinks.
+- „Also reported by" (#109, seit 2026-09-25): berichten mehrere Quellen
+  dieselbe Meldung (gleiche Marke, 48 h, Kosinus ≥ 0,80), listet die
+  Artikelseite die anderen Berichte mit Quelle und Link; der älteste ist als
+  „first report" markiert. Gruppen rechnet `scripts/group_stories.py`
+  (§11.12); ohne Lauf fehlt der Abschnitt einfach.
 - Seitenaufrufe werden lokal in `trend_metrics` gezählt (`/api/track`; im Export
   abgeschaltet).
 
@@ -1287,6 +1299,7 @@ im Handover still).
 | Zeit | Job | Skript | Status |
 |---|---|---|---|
 | 01:30 täglich | Postgres-Backup (dumpdir, zstd, keep 4 Tage) | `scripts/backup_db.py --dest /mnt/data-hdd/backups/catandary --skip-sqlite --keep-days 4` | installiert |
+| 01:55 täglich | Story-Gruppierung (#109) | `scripts/group_stories.py --days 3 --apply` | installiert (25.09.) |
 | 02:15 täglich | Volltext-Retention 60 Monate | `scripts/purge_raw_content.py --days 1825 --apply` | installiert (03.09., Frist 10.09. erweitert) |
 | 02:30 täglich | Offen lizenzierte Artikel der Vorbehalts-Quellen freischalten | `scripts/resolve_open_licence.py --limit 300 --apply` | installiert (09.09.) |
 | 02:45 Mo–Fr | Full Cycle + Draft-Richter + **Review-Agent (Stage 11)** + Morgen-Mail | `scripts/full_cycle_cron.sh` (Batch **3000** — so bemessen, dass ein normaler Tag in einem Lauf durchgeht; `CYCLE_BATCH=N` in der Crontab-Zeile hebt ihn für eine Nacht an) | installiert |
@@ -1641,6 +1654,69 @@ Distill-Klassifikationsköpfe (kein Modell), die A/B-, Benchmark- und
 Eval-Skripte unter `scripts/`. Neue LLM-Funktion → neuer Eintrag in
 `build_catalog()` (Test `tests/test_prompt_catalog.py` prüft, dass jeder Eintrag
 lädt und auf eine echte Datei zeigt).
+
+### 11.11 Signaltyp-Head (#110)
+
+**Wozu.** Seit der Hybrid-Klassifikation (14.07.2026) kam der Signaltyp allein
+aus der Quellenart — jede Presse-Meldung wurde `market_shift`. Der fünfte
+Distill-Head entscheidet für Presse zwischen product_launch, regulation,
+partnership, consumer_behavior und market_shift; patent/research/funding
+bleiben bei der Quellenart-Regel.
+
+**Trainieren** (CPU, kein GPU, ~8 min; fasst die vier anderen Heads nicht an):
+
+```bash
+.venv/bin/python scripts/train_signal_type_head.py            # voll: 553 k Teacher-Zeilen
+.venv/bin/python scripts/train_signal_type_head.py --no-write # nur Kennzahlen
+```
+
+Schreibt `models/distill/signal_type.joblib` + `signal_type_meta.json` und den
+Bericht `data/signal_type_head_report.{json,md}` (Holdout je Klasse, Genauigkeit
+je Konfidenz-Band, und was der Head auf den Presse-Zeilen seit dem 14.07.
+vergeben würde, mit Titel-Stichproben je Klasse). `models/` ist gitignored und
+liegt je Worktree — nach dem Merge nach `main` die Datei dorthin kopieren.
+
+**Einschalten.** Seit 25.09. aktiv: `DISTILL_SIGNAL_TYPE=1` steht in
+`scheduled_cycle.sh` und `weekly_ingesters.sh` (Zeile entfernen oder `=0` schaltet ab); `DISTILL_SIGNAL_TYPE_MIN_CONF`
+(Default 0,6) ist der Konfidenz-Boden, darunter bleibt es bei `market_shift`.
+Ohne Schalter oder ohne Datei verhält sich alles wie bisher. Gemessen (Holdout,
+25.09.): Genauigkeit 0,83 ab 0,5, 0,88 ab 0,6, 0,92 ab 0,7 — bei 92 / 76 / 61 %
+der Zeilen über der Schwelle; 0,6 trifft auf den Presse-Zeilen seit dem 14.07.
+die historische Klassenverteilung am besten.
+
+**Bestand nachziehen** (Stufe 2, erledigt 25.09.): `scripts/relabel_signal_types.py`
+(Dry-Run; `--apply` schreibt gebatcht 1.000 Zeilen je Commit, nur
+`trend_signal_type` + `trend_score`). Lauf 25.09.: 49.681 Presse-Zeilen seit dem
+14.07. geprüft, 17.997 umgelabelt (regulation 8.888, product_launch 6.422,
+partnership 1.792, consumer_behavior 895). Nach einem Retrain des Heads erneut
+laufen lassen, wenn sich die Schwelle ändert.
+
+### 11.12 Story-Gruppierung (#109)
+
+**Wozu.** Eine Meldung, drei Artikel: der Dedup (Kosinus ≥ 0,92) misst
+Textähnlichkeit, drei Blickwinkel auf dieselbe Meldung liegen darunter. Statt
+die Schwelle zu senken (kostet ~9 % aller Artikel, löst den Fall nicht)
+gruppiert ein Nachlauf: gleiche extrahierte Marke · 48 h · Kosinus ≥ 0,80,
+transitiv. Der älteste Artikel führt. Nichts wird gefiltert oder
+entpubliziert — Stufe 1 misst und zeigt.
+
+```bash
+.venv/bin/python scripts/group_stories.py                 # Dry-Run, letzte 3 Tage, Kennzahlen + 5 größte Gruppen
+.venv/bin/python scripts/group_stories.py --days 30       # einen Monat messen
+.venv/bin/python scripts/group_stories.py --days 3 --apply   # trend_stories schreiben (Cron-Zeile)
+```
+
+Ausgabe: Zeile mit `groups`, `articles_in_groups`, `followers`,
+`follower_share`, Größenhistogramm; danach die größten Gruppen mit Quelle,
+Zeit, Kosinus zum Leitartikel und Titel. `data/story_groups_last.json` hält
+den letzten Lauf. `--apply` ist idempotent (story_id = id des Leitartikels);
+das Fenster wird jedes Mal neu gerechnet, Artikel, die aus einer Gruppe
+fallen, verlieren ihre Zeile. Stand 25.09. (26.08.–25.09.): 23.342 Artikel,
+1.085 Gruppen, 1.895 Folgeberichte (8,1 %).
+
+Cron seit 25.09. installiert (01:55). **Nächste Entscheidung (Owner, ab
+02.10.):** Folgeberichte weiter veröffentlichen und nur anzeigen (heute) oder in
+Stage 5 gar nicht erst veröffentlichen (`mark_filtered`).
 
 ## 12. Sicherheit und Recht (kurz)
 

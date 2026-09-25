@@ -165,6 +165,20 @@ RSS_CLASSIFY_MODE = os.getenv("RSS_CLASSIFY_MODE", "hybrid")  # hybrid | llm
 DISTILL_REL_HIGH = float(os.getenv("DISTILL_REL_HIGH", "0.7"))   # >= → relevant (distill)
 DISTILL_REL_LOW = float(os.getenv("DISTILL_REL_LOW", "0.3"))     # < → not relevant (distill)
 
+# Fifth distill head (#110): trend_signal_type for PRESS signals. Since the
+# hybrid path (14.07.2026) the type came from the source type alone and every
+# trade-media entry became market_shift. With the head installed
+# (models/distill/signal_type.joblib, scripts/train_signal_type_head.py) and
+# this switch on, press entries get product_launch / regulation / partnership /
+# consumer_behavior / market_shift from the embedding; predictions under the
+# confidence floor fall back to market_shift (the rule's answer). The rule stays
+# authoritative for patent / research / funding. Off until the owner has seen
+# the holdout numbers (docs/signal_type_head_2026-09-25.md). Floor 0.6: holdout
+# accuracy 0.88 on the 76 % of rows above it, and the class mix on the press
+# rows since the cutover matches the pre-cutover mix (64/18/13/3.6/1.8 %).
+DISTILL_SIGNAL_TYPE = os.getenv("DISTILL_SIGNAL_TYPE", "0") == "1"
+DISTILL_SIGNAL_TYPE_MIN_CONF = float(os.getenv("DISTILL_SIGNAL_TYPE_MIN_CONF", "0.6"))
+
 # Grounding gate (#11): when on, auto_publisher holds any high-confidence draft
 # whose body contains a number/date/percentage absent from its source (a
 # fabricated specific) for manual review instead of publishing it. Trades some

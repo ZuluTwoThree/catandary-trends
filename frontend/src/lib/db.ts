@@ -209,6 +209,40 @@ export async function getRelatedPredecessors(
 }
 
 /**
+ * "Also reported by" (#109): the other published articles in the same story
+ * group — same extracted brand, within 48 h, cosine >= 0.80, closed
+ * transitively (pipeline/stories.py, written by scripts/group_stories.py).
+ * Oldest first, so the group's lead comes first unless it IS this article.
+ * Bounded by the archive window like the related cards, so the export never
+ * links to a slug it did not write. No `trend_stories` row → empty list.
+ */
+export async function getStorySiblings(
+  trend: Pick<Trend, "id">,
+  options: { max_age_days?: number | null; limit?: number } = {}
+): Promise<Trend[]> {
+  const params: unknown[] = [trend.id];
+  let query =
+    TREND_SELECT +
+    ` JOIN trend_stories ts ON ts.trend_id = t.id
+      WHERE t.status = 'published' AND t.id <> $1
+        AND ts.story_id = (SELECT story_id FROM trend_stories WHERE trend_id = $1)`;
+  if (options.max_age_days != null) {
+    params.push(windowStartIso(options.max_age_days));
+    query += ` AND t.sort_date >= $${params.length}::timestamptz`;
+  }
+  params.push(options.limit ?? 12);
+  query += ` ORDER BY t.sort_date ASC, t.id ASC LIMIT $${params.length}`;
+  try {
+    return (await q(query, params)).map(parseTrendRow);
+  } catch (err) {
+    // additive table — a database without it (fresh main worktree before the
+    // migration ran) renders the page without the section instead of a 500
+    if (/trend_stories/.test(String(err))) return [];
+    throw err;
+  }
+}
+
+/**
  * Published count per vertical inside the public window (null = whole
  * archive) — the tabs of the static listing (components/StaticFeed.tsx).
  * One value per window, so it is cached like the other aggregates; every

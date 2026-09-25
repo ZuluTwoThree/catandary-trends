@@ -4,6 +4,7 @@ import {
   getTrendBySlug,
   getPublicWindowSlugs,
   getRelatedPredecessors,
+  getStorySiblings,
   isSourceLinkDead,
 } from "@/lib/db";
 import { getTrendTechContext } from "@/lib/technology";
@@ -120,17 +121,18 @@ export default async function TrendArticlePage({
   // per article, which keeps exported pages byte-identical across builds.
   // The technology context is a pgvector query whose component renders
   // nothing in public mode, so it is not even asked for there.
-  const [related, tech, sourceDead] = await Promise.all([
+  const [related, tech, sourceDead, story] = await Promise.all([
     getRelatedPredecessors(trend, { limit: 3, max_age_days: windowDays }),
     isPublicMode() ? Promise.resolve([]) : getTrendTechContext(trend.id),
     isSourceLinkDead(trend.source_url),
+    getStorySiblings(trend, { max_age_days: windowDays }),
   ]);
   await afterMetadata(); // export determinism, see lib/renderMode.ts
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <TrendArticleJsonLd trend={trend} />
-      <TrendArticle trend={trend} related={related} tech={tech} sourceDead={sourceDead} />
+      <TrendArticle trend={trend} related={related} tech={tech} sourceDead={sourceDead} story={story} />
     </div>
   );
 }

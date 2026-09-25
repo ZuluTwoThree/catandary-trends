@@ -1,5 +1,15 @@
 # Issue-Status (Stand 2026-08-28 — Audit nach dem Geschäftsmodell-Wechsel; Nachträge bis 2026-09-09)
 
+> **Nachtrag 25.09.2026 (Nacht) — #110 Signaltyp-Head und #109 Story-Gruppierung auf `dev`, beides Owner-Gate für den Cron:**
+> - **#110** (neu): fünfter Distill-Head `models/distill/signal_type.joblib` (`scripts/train_signal_type_head.py`), Holdout-Genauigkeit 0,88 ab Konfidenz 0,6; verdrahtet hinter `DISTILL_SIGNAL_TYPE=1` (Default aus). Frontend: Label auf der Karte, `signal` im Suchindex, Filter in der Export-Suche. **Owner-Go 25.09. 09:30:** eingeschaltet (beide Wrapper, joblib nach main kopiert), Bestand nachgezogen (17.997 von 49.681 umgelabelt). `docs/signal_type_head_2026-09-25.md`.
+> - **#109** Stufe 1: `pipeline/stories.py` + `scripts/group_stories.py` + Tabelle `trend_stories` (Live-DB 25.09., 30 Tage gerechnet: 1.085 Gruppen, 1.895 Folgeberichte = 8,1 %); Artikelseite „Also reported by". **Owner-Go 25.09.:** Cron 01:55 installiert, Merge nach main. Ab 02.10. entscheiden, ob Folgeberichte unveröffentlicht bleiben (Stufe 2).
+
+> **Nachtrag 24.09.2026 — vier Issues geschlossen, #79 wartet auf einen Handgriff:**
+> - **#95** Korpus-Rechercheur und **#96** Newsletter-Deep-Dive: mit dem Dossier-Rückbau vom 19.09. gegenstandslos, als „nicht weiterverfolgt" geschlossen.
+> - **#67** Query-Quality-Gate: gebaut, gemessen, `tests/test_query_gate.py` 18 passed; einziger Rest ist der Betriebshinweis „nach Embedding-Modellwechsel Fixture neu messen" (steht in `docs/tech_query_gate_2026-09-04.md`).
+> - **#73** Research Pulse: Merge erfolgt, `kind` ohne NULL, Cron seit 18.09.; W35 heute komplett nachgerechnet (28 Themes, 18 mit Text, 0 Fehler, 62 s). ResearchGate-DOIs als Owner-Frage nach #103 übertragen.
+> - **#79** patent_cpc: Parse-Fehler-Bucket = 0; die 4.421.765 JP-F-Term-Zeilen hat der Owner am 24.09. abends von Hand gelöscht (`DELETE 4421765`, `subclass IS NULL` = 0), Issue geschlossen. Nachwirkung: `cpc_cooccurrence` verliert beim nächsten Rebuild 397.128 Pseudo-Code-Paare, SPNP-Sektion für 235.898 JP-Patente wieder bestimmbar. Nachgezogen 24.09. spät (Owner-Freigabe): die 1.490.819 FI-Zeilen mit Editionsziffer im Feld `cpc` (`4H04N19/463`) — 1.197.137 auf den Code ohne Ziffer gesetzt, 293.682 gelöscht, weil dasselbe Patent den Code schon als CPC-Zeile trug (Unique-Index `(pub_number, cpc)`). `patent_cpc` enthält keinen Code mit führender Ziffer mehr.
+
 > **Nachtrag 19.09.2026 — Scouting-Dossiers ENTFERNT (Owner: „Das Feature trägt nicht")**:
 > - Alle Dossier-/Advisor-Module, Skripte, Tests, das Desk `/trends/dossiers` und die
 >   Migrationsskripte `migrate_dossier_{orders,brief,run_outcomes,source_priors,query_stats}.py` sind aus
@@ -282,9 +292,9 @@ das ist genau das Werkzeug, das die Analysen für Etappe 2 produziert. Review + 
 - **#92** Radar-Comeback als Analyst-Produkt: Baustein 1 Verankerung (3–5 T) → Baustein 2 Ehrlichkeit
   (3–4 T) → Baustein 3 Freigabe-UI. **Querverbindung:** die Regulatorik-Schwäche (#91) braucht harte
   Evidenz — genau das lieferte **#5** (EDGAR 8-K Material Events, Phase 1 isoliert machbar).
-- **#67** Query-Quality-Gate (Analysten-Werkzeugqualität; Heuristik + LLM-Graubereich)
+- ~~**#67** Query-Quality-Gate~~ — **geschlossen 24.09.2026** (s. Nachtrag oben)
 - **#7**-Reste: Legal-Events-Cap aufheben, Familien-Dedup im Analyse-Layer
-- **#73** Research Pulse / Explorer-Refinement — **Teil 1 + billige Refinements auf dev (2026-09-04):**
+- ~~**#73** Research Pulse / Explorer-Refinement~~ — **geschlossen 24.09.2026** (s. Nachtrag oben). Historie: **Teil 1 + billige Refinements auf dev (2026-09-04):**
   `research_pulse` (Tabelle + Skript + Seiten + Recompute-Knopf), Explorer-Facetten (Quelle/Zeitraum/Sortierung/
   Konzept), Deep-Links aus den Theme-Seiten, Cron-Vorschlag (nicht installiert). **Werk-Typ-Filter auf dev
   (2026-09-05, Owner-Befund Zenodo-Artefakt in den Top-Papers):** Ingest-Gate (nur article/preprint/review/

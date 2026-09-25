@@ -58,6 +58,7 @@ from pipeline.config import (
     get_mega_trend_prompt_block,
     source_relevance_min,
 )
+from pipeline.config import DISTILL_SIGNAL_TYPE, DISTILL_SIGNAL_TYPE_MIN_CONF
 from pipeline.db import (
     get_recent_embeddings,
     get_recent_titles,
@@ -934,9 +935,16 @@ def relevance_band(rel: float | None, has_head: bool,
     return "llm"
 
 
-def _distill_signal_type(e: dict) -> str:
-    """Deterministic trend_signal_type (distill heads don't emit it) — mirrors
-    scripts/signal_batch._distill_signal_type / the lead-time tier map."""
+def _distill_signal_type(e: dict, pred: dict | None = None) -> str:
+    """trend_signal_type on the distill path (also used by scripts/signal_batch).
+
+    Source-type rule first — it mirrors the lead-time tier map and is the
+    better signal for patent / research / funding. Everything else is press;
+    there the fifth head (#110) decides between the five press classes when
+    it is installed, switched on (DISTILL_SIGNAL_TYPE=1) and confident enough
+    (>= DISTILL_SIGNAL_TYPE_MIN_CONF). Without it — the state from 14.07. to
+    the head's activation — every press entry is market_shift.
+    """
     st = (e.get("source_type") or "").lower()
     sn = (e.get("source_name") or "").lower()
     if e.get("pub_number"):
@@ -945,7 +953,16 @@ def _distill_signal_type(e: dict) -> str:
         return "research"
     if st == "api" and any(m in sn for m in ("nsf", "nih", "reporter", "openaire", "ukri", "form d")):
         return "funding"
+    if DISTILL_SIGNAL_TYPE and pred:
+        label = pred.get("signal_type")
+        conf = pred.get("signal_type_confidence") or 0.0
+        if label in PRESS_SIGNAL_TYPES and conf >= DISTILL_SIGNAL_TYPE_MIN_CONF:
+            return label
     return "market_shift"
+
+
+PRESS_SIGNAL_TYPES = frozenset(
+    {"market_shift", "product_launch", "regulation", "partnership", "consumer_behavior"})
 
 
 def hybrid_classify(survivors: list[dict]) -> tuple[list[dict], int, int]:
@@ -1055,7 +1072,7 @@ def hybrid_classify(survivors: list[dict]) -> tuple[list[dict], int, int]:
                 primary_vertical=pred["primary_vertical"], reason="distill")
             cls = ClassificationResult(
                 verticals=[pred["primary_vertical"]], pestel=pred["pestel"], tags=[],
-                trend_signal_type=_distill_signal_type(entry),
+                trend_signal_type=_distill_signal_type(entry, pred),
                 mega_trend=pred["mega_trend"], regions=[])
             save_stage_result(entry["id"], "classification", cls)
             entry["_classification"] = cls

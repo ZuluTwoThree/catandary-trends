@@ -11,7 +11,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { PESTEL, VERTICALS, type PestelDimension, type Vertical } from "@/lib/types";
+import {
+  PESTEL,
+  VERTICALS,
+  type PestelDimension,
+  type TrendSignalType,
+  type Vertical,
+} from "@/lib/types";
+import { SIGNAL_TYPE_LABELS } from "@/lib/filter-params";
 import {
   EMPTY_FILTERS,
   INDEX_PATH,
@@ -29,6 +36,7 @@ import {
   type PreparedEntry,
   type SearchFilters,
   type SearchResult,
+  SIGNAL_TYPE_ORDER,
 } from "@/lib/staticSearch";
 import TrendCard from "./TrendCard";
 
@@ -196,6 +204,8 @@ export default function StaticSearch() {
   const togglePestel = (p: PestelDimension) =>
     update({ ...filters, pestel: toggleValue(filters.pestel, p) });
   const toggleMega = (key: string) => update({ ...filters, mega: toggleValue(filters.mega, key) });
+  const toggleSignal = (t: TrendSignalType) =>
+    update({ ...filters, signal: toggleValue(filters.signal, t) });
 
   const visibleThemes = themesOpen ? themes : themes.slice(0, THEME_COLLAPSED);
 
@@ -325,6 +335,28 @@ export default function StaticSearch() {
                 style={{ color: on ? p.color : "var(--color-muted)" }}
               >
                 {p.id}
+              </button>
+            );
+          })}
+        </div>
+
+        <div role="group" aria-label="Signal type" className="flex flex-wrap items-stretch border border-border">
+          <span className={GROUP_LABEL}>Signal</span>
+          {SIGNAL_TYPE_ORDER.map((t, i) => {
+            const on = filters.signal.includes(t);
+            const last = i === SIGNAL_TYPE_ORDER.length - 1;
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => toggleSignal(t)}
+                aria-pressed={on}
+                title={SIGNAL_TYPE_LABELS[t]}
+                className={`${CHIP} ${!last ? "border-r border-border" : ""} ${
+                  on ? "bg-white/[0.04] text-accent" : CHIP_IDLE
+                }`}
+              >
+                <span>{SIGNAL_TYPE_LABELS[t]}</span>
               </button>
             );
           })}
