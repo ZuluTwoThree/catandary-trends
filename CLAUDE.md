@@ -464,9 +464,18 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       ohne Check würde ein geplatzter Symlink-Swap den Richter still
       aufs 8B schicken). E2E-getestet 2026-08-26.
     → auto_published=true; Zahlen → data/draft_judge_last.json → Morgen-Mail
+    → Setzt seit 2026-09-25 KEIN `reviewed_at` mehr (Owner-Go): die Spalte ist
+      die Marke einer Handentscheidung. Bis dahin stempelte der Richter sie
+      mit, 7.765 seiner Freigaben galten als „von Hand entschieden" und
+      wurden vom Grounding-Nachlauf, vom Review-Agent und von Owner-
+      Korrekturen mit `reviewed_at IS NULL` übersprungen (so kamen fünf
+      Casino-Spam-Artikel an der Bereinigung vorbei). Bestand am 25.09. per
+      `scripts/reset_judge_reviewed_at.py --apply` bereinigt (7.765 Zeilen,
+      gebatcht). Owner-entschiedene Freigaben (`publish_draft(auto=False)`,
+      z. B. release_haiku_approved.py) stempeln weiterhin.
 ```
 
-**Ein Publish von Hand ist endgültig (Owner-Regel 2026-09-22).** Drückt der
+**Ein Publish von Hand ist endgültig (Owner-Regel 2026-09-22; seit 25.09. setzt NUR noch eine Handentscheidung `reviewed_at` — der Richter nicht mehr, s. Stage 10).** Drückt der
 Owner auf `/trends/review` *Publish*, ist die Sache entschieden — auch gegen
 einen weiter widersprechenden Prüfer und auch ohne einen Agent-Vorschlag
 anzuwenden. Anlass: das Namens-Gate beanstandete „Per Second" aus „Tokens Per

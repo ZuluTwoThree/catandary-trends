@@ -176,14 +176,22 @@ def duplicate_of_published(conn, trend_id: int) -> int | None:
 
 
 def publish_draft(conn, trend_id: int, auto: bool) -> bool:
-    """Guarded release. auto=True marks a machine-judge release; the human
-    review path keeps auto_published=false."""
+    """Guarded release. auto=True is a machine release (the nightly judge):
+    it sets auto_published and leaves `reviewed_at` NULL — that column is the
+    mark of a HUMAN decision (owner rule 2026-09-22, "a publish by hand is
+    final"), and everything that respects it (recheck_published_grounding,
+    the review agent, hand corrections guarded by `reviewed_at IS NULL`)
+    skips such rows. Until 2026-09-25 the judge stamped it too, so 8.580 of
+    its releases counted as decided by a person and were never re-checked;
+    that is how five casino-spam articles got past the owner's clean-up.
+    auto=False (an owner-decided release such as release_haiku_approved.py)
+    keeps auto_published=false and records the decision time."""
     rows = conn.execute(
         "UPDATE trends SET status = 'published', auto_published = ?, "
         "       published_at = COALESCE(published_at, CURRENT_TIMESTAMP), "
-        "       reviewed_at = CURRENT_TIMESTAMP "
+        "       reviewed_at = CASE WHEN ? THEN reviewed_at ELSE CURRENT_TIMESTAMP END "
         " WHERE id = ? AND status = 'draft' RETURNING id",
-        (auto, trend_id),
+        (auto, auto, trend_id),
     ).fetchall()
     return bool(rows)
 
