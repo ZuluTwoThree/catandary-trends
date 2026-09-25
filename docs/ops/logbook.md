@@ -48,6 +48,23 @@ per SQL inaktiv; Confectionery News / Food Navigator Asia: Dublette zum
 FoodNavigator-Sammelfeed entscheiden. Danach `apply_source_hygiene.py --apply`,
 Merge, #81 schließen (Reste stehen in #97).
 
+## 2026-09-25 12:30 · change · Food+Tech Connect: Quelle abgeschaltet, Spam-Bestand gelöscht
+duration: 45m
+gpu: nein
+Owner nach Sichtprüfung: „die Quelle ist Schrott, alle Artikel auf der Seite
+sind Spam, nur lange zurückliegende sind legit." Audit (lesend): Archiv 2010-07
+bis 2025-02 = 1.662 Einträge ohne Spam-Treffer, daraus 1.193 Signale (Juli-
+Backfill) — bleiben. Ab dem 06.07.2026 (erste Spam-ID 21601364) ausschließlich
+Casino-, Wett- und Adult-SEO in zehn Sprachen: 517 raw_entries, 103 Trends
+(9 published, 16 Drafts, 78 vom Richter verworfen). Der Owner hat beides von
+Hand gelöscht (`DELETE 103`, `DELETE 517`; Story-Zeilen per Cascade, Metriken
+gab es keine), Quelle 228 in DB und `sources.yaml` (dev, `bdf5cc7`) inaktiv. Die
+sechs noch veröffentlichten Spam-Seiten verschwinden mit dem Export 02:00.
+Nebenbefund: `draft_judge.publish_draft` setzt `reviewed_at` auch bei
+automatischen Freigaben — dadurch gelten Richter-Freigaben als Handentscheidung
+und werden vom Grounding-Nachlauf, vom Review-Agent und von Owner-Korrekturen
+mit `reviewed_at IS NULL` übersprungen. Fix vorgeschlagen (#111).
+
 ## 2026-09-25 11:00 · change · Abnahme des Richter-Nachlaufs vom 24.09., alte Entwürfe abgeräumt, Spam-Feed entdeckt
 duration: 1h30m
 gpu: nein
