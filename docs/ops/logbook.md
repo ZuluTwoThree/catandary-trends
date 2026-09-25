@@ -580,3 +580,24 @@ auf `feature/topic-search` (e2907f4) geparkt, auf `dev` zurückgenommen
 gelöscht — Neuaufbau in ~10 min per `scripts/migrate_topic_vectors.py
 --indexes` auf dem Branch. Die Messungen (Rücktest Markt 18/18, Ebenen-Index
 gegen globalen Index, Kalibrierung) stehen im Plan und im Issue.
+
+## 2026-09-25 · change · Modell-Messplatz: Kontext, Parallelität, VRAM gemessen (nichts umgestellt)
+
+duration: 14:17–16:26 (Owner-Fenster „ab jetzt bis längstens 17 Uhr")
+gpu: Produktivserver gestoppt, Testserver auf :8190, danach `gpu-mode catandary` (verifiziert:
+start-active.sh → start-qwen3-8b-208k.sh, :8090 serviert Qwen3-8B)
+
+66 Laststufen über 8B, Gemma-26B, Qwen3.8-27B und den Embedder, mit echten Prompts aus der
+Live-DB. Werkzeuge unter `scripts/ctx_eval/`, Rohdaten `data/ctx_eval/`, Bericht
+`docs/context_parallel_eval_2026-09-25.md`. **Produktiv ist nichts geändert**; vier
+Startskript-Varianten liegen als neue Dateien in `~/llama.cpp` und sind nicht in
+`gpu_handover.MODEL_START_SCRIPTS` eingetragen.
+
+Kernbefunde: Kontext bei Gemma (262 144 → 16 384: −4,6 GB) und 27B (−5,4 GB) massiv
+überdimensioniert, Durchsatz identisch. Beim 8B umgekehrt: der 8 960-Token-Slot reicht für eine
+Extraktion aus einer CJK-Quelle nicht (12 000 Zeichen ≈ 8 300 Token) — Sonde verlor 24 von 24
+Antworten an `finish_reason=length`, der Eintrag endet als `extraction_error`. `--kv-unified`
+spart beim 8B 9 GB, kostet aber 36 % Durchsatz. KV-Quantisierung ist kein Qualitätshebel
+(Richter q4_0 vs. q8_0 an 150 Handentscheidungen: McNemar p = 0,29). Größter ungenutzter Hebel:
+Stufe 6 sequentiell 20,3 Anfragen/min gegen 30,0/min mit 4 Slots ohne unified = −35 min Nachtlauf,
+aber Umbau der Schleife.

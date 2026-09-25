@@ -1365,6 +1365,48 @@ curl -s localhost:8090/v1/models | python -m json.tool | grep '"id"'
 nvidia-smi --query-gpu=memory.used,memory.total --format=csv
 ```
 
+### 11.4a Kontext, Parallelität, VRAM messen (`scripts/ctx_eval/`, 2026-09-25)
+
+Werkzeugkasten, um für jedes Modell zu messen, wie viel Kontext es wirklich braucht, ab wie
+vielen gleichzeitigen Anfragen der Durchsatz nicht mehr steigt und wie viel VRAM eine kleinere
+Konfiguration spart. Bericht der ersten Messung: `docs/context_parallel_eval_2026-09-25.md`.
+**Alle Läufe brauchen ein Fenster ohne GPU-Cronjobs und stoppen den Produktivserver.**
+
+```bash
+gpu-mode status --hours 12                  # Fenster prüfen (GPU-Crons: Sa 06:00, Sa 12:00, Mo-Fr 02:45)
+systemctl --user stop llama-server.service
+
+.venv/bin/python scripts/ctx_eval/llama_log_stats.py /tmp/llama-server.log
+#   → je Modell: Prompt-/Ausgabelängen (Median/p99/Max), truncated, gleichzeitig belegte Slots
+
+.venv/bin/python scripts/ctx_eval/build_prompts.py 1000        # echte Prompts aus der Live-DB
+.venv/bin/python scripts/ctx_eval/build_quality_sets.py 75     # Handentscheidungen für den Qualitätsvergleich
+.venv/bin/python scripts/ctx_eval/build_probes.py              # längste erlaubte Anfrage (CJK-Quelle)
+
+scripts/ctx_eval/run_server.sh start start-gemma4-26b.sh test -c 16384 --parallel 1
+#   Testserver auf :8190 — NIE über start-*.sh (die killen den Produktivserver und binden :8090)
+.venv/bin/python scripts/ctx_eval/bench_parallel.py \
+    --prompts data/ctx_eval/prompts/gemma_stage6.jsonl \
+    --concurrency 1,2,4,8 --duration 120 --ramp 30 --label test --out data/ctx_eval/results.jsonl
+scripts/ctx_eval/run_server.sh stop
+
+scripts/ctx_eval/matrix.sh gemma            # fertige Messblöcke: gemma | 27b | emb
+scripts/ctx_eval/block_8b.sh                # 8B-Varianten (Server muss laufen)
+.venv/bin/python scripts/ctx_eval/summarize_results.py        # Markdown-Tabelle aller Stufen
+.venv/bin/python scripts/ctx_eval/quality_eval.py --kind judge \
+    a=data/ctx_eval/q_judge_q4.jsonl b=data/ctx_eval/q_judge_q8.jsonl
+
+gpu-mode catandary                          # IMMER am Ende, auch nach Abbruch
+readlink ~/llama.cpp/start-active.sh        # muss start-qwen3-8b-208k.sh sein
+```
+
+Ergebnisse liegen in `data/ctx_eval/` (`results.jsonl`, `results_table.md`, `dump_*.jsonl`,
+`server-*.log`). **Vorbereitete, nicht aktive Startskript-Varianten** aus der Messung vom
+25.09.2026 (jede mit gemessenem VRAM-Budget im Kopfkommentar):
+`start-qwen3-8b-208k-ctx16.sh`, `start-gemma4-26b-ctx16k.sh`, `start-qwen3.8-27b-ctx16k.sh`,
+`start-qwen3-emb-16slots.sh`. Sie sind **nicht** in `gpu_handover.MODEL_START_SCRIPTS`
+eingetragen — eine Umstellung ist eine Owner-Entscheidung und geht über `main`.
+
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert
 
 1. `systemctl --user status llama-server`, `tail -50 /tmp/llama-server.log`.
