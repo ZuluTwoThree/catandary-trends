@@ -793,11 +793,34 @@ Rausch-Anteil 0,81, Stabilität 0,82). Nur die Heads werden nicht neu trainiert,
 `mega_trends.yaml` neuer ist — sie arbeiten weiter mit dem alten Stand. Gemerkt hat es niemand:
 der Wächter prüft den Discovery-Loop nicht, und `loop finished WITH ERRORS` steht nur im Log.
 
-Drei Ansätze, in dieser Reihenfolge (alle auf dem Cron-Pfad, also Owner-Entscheid + `main`-Merge):
-1. Das 1024er-Matryoshka-Präfix laden statt 4096 — 7,5 statt 29,9 GB, und der Dedup/Distill-Pfad
-   arbeitet ohnehin auf `embedding_1024`. Wäre zu messen, ob die Head-Güte darunter leidet.
-2. `--sample` setzen (der Trainer kann das schon) — 500 k Zeilen reichen für SGD sehr wahrscheinlich.
-3. Den Fehlausgang sichtbar machen: `ops_events`-Notiz oder eine Zeile in der Morgen-Mail, damit
-   ein `WITH ERRORS` nicht wieder wochenlang unbemerkt bleibt.
+**Die Lösung existiert schon — sie wurde nur nicht übertragen** (Owner-Hinweis 26.09.: „ich habe
+da etwas in der Art in Erinnerung"). Am 15.09. traf denselben Fehler `foresight_snapshot`: ohne
+`--dim1024` las er 1,75 Mio. Vektoren als Text in einem `fetchall`, **56 GB RSS, OOM-Kill** — dieselbe
+Zahl wie hier. Behoben wurde er dreifach: seitenweiser Lader (Keyset, 20 k Zeilen, hält nur die
+float32-Bytes), `--dim1024` für das Matryoshka-Präfix (`emb_field = "embedding_1024" if dim1024`,
+`pipeline/foresight.py:148`, ebenso `discovery.py:103/247`) und ein systemd-Scope mit
+`MemoryMax=40G` für vom Frontend gestartete Jobs (`lib/detachedSpawn.ts`).
+
+`train_distill_heads.py` hat von den drei Teilen nur den Server-Cursor. Es lädt hart `embedding`
+(4096), kennt kein `--dim1024`, sammelt `chunks` und macht am Ende `np.vstack` — also doch die
+Vollmatrix. Und es läuft im Cron **ohne** MemoryMax, weil der Scope nur für Frontend-Jobs gilt.
+
+Prüfung, wo das Muster sonst noch steckt (Skripte, die `embedding` statt `embedding_1024` laden):
+
+| Skript | Matrix heute | mit 1024er | läuft unbeaufsichtigt? |
+|---|---|---|---|
+| `train_distill_heads.py` | 1 827 351 × 4096 = **29,9 GB** | 7,5 GB | **ja**, über `discovery_loop` (So 06:00) |
+| `train_signal_type_head.py` | 708 998 × 4096 = 11,6 GB | 2,9 GB | nein, on demand |
+| `propose_mega_trends.py`, `reclassify_mega.py`, `tir_metrics.py`, `mega_trend_reviewer.py`, `fix_mega_abstain.py`, `validate_distill_patents.py`, `distill_prototype.py`, `reclassify_concept_sources.py` | — | — | nein, on demand |
+
+Nur der Trainer läuft also unbeaufsichtigt — und genau er ist der einzige, der stirbt. Bei den
+übrigen sitzt jemand davor, wenn es knallt.
+
+Vorschlag (Cron-Pfad → Owner-Entscheid + `main`-Merge): **die Lösung vom 15.09. übertragen**, nicht
+neu erfinden — `--dim1024` plus seitenweises Laden nach dem Muster von `pipeline/foresight.py`.
+Vorher zu messen: was das 1024er-Präfix mit der Head-Güte macht (Holdout-Vergleich, der Trainer
+gibt ihn schon aus). `--sample` bleibt der billige Notausgang, falls die Güte leidet. Unabhängig
+davon fehlt die Sichtbarkeit: `loop finished WITH ERRORS` steht nur im Log, der Wächter prüft den
+Discovery-Loop nicht — drei Sonntage sind darum unbemerkt geblieben.
 
 Der nächste Lauf ist Sonntag 27.09. 06:00 und würde erneut scheitern.
