@@ -59,7 +59,7 @@ Die Mega/Macro-Einordnung wird auf der Free-Seite nur angeteasert – die vollst
 - **GPU:** NVIDIA RTX 3090 (24 GB GDDR6X) — die produktive lokale Karte (per `nvidia-smi` bestätigt). Vor jeder VRAM-/Koexistenz-Entscheidung trotzdem `nvidia-smi` prüfen (llama-server hält ~22 GB im Ruhezustand). *(Frühere Doku nannte alternativ eine 16-GB-Karte; produktiv ist es die 3090.)*
 - **Modelle laufen sequentiell** (nicht parallel) – VRAM wird zwischen Schritten freigegeben
 - **Peak-VRAM Ollama-Pfad:** ~10.7 GB (Qwen3 14B Q4_K_M) — passt auf der 24-GB-Karte mit Headroom
-- **llama.cpp-Pfad für Stage 6 (Content-Gen), aktuell:** **Gemma-4-26B-A4B-it-qat-UD-Q4_K_XL** (`start-gemma4-26b.sh`) — Umstellung von Qwen3-30B via #11 (2026-07-14) nach einem kontrollierten A/B: das 30B erfand in 32,9 % der Bodies erfundene Spezifika (fake Gesetze/Städte), das Gemma-26B nur 8,6 %. *(Die frühere Zusatzbehauptung, Gemma treffe das 150–250-Wörter-Ziel, ist durch den Dauerbetrieb widerlegt: der Median fiel am Umstiegstag von 131 auf 105 und liegt seither bei ~109. Owner hat ~100 am 2026-08-19 als Länge akzeptiert.)* Qwen3.6-35B-A3B (~24 GB) bleibt installiert und per `STAGE5_MODEL`/`STAGE5_START` **revertierbar**; das 30B wurde beim llama.cpp-Umbau 2026-08-29 entfernt (GGUF + start-qwen3-30b.sh). Mid-Pipeline-GPU-Handover (siehe `pipeline/gpu_handover.py`). Default-Backend (ohne `scheduled_cycle.sh`) bleibt Ollama.
+- **llama.cpp-Pfad für Stage 6 (Content-Gen), aktuell:** **Gemma-4-26B-A4B-it-qat-UD-Q4_K_XL** (`start-gemma4-26b.sh`) — Umstellung von Qwen3-30B via #11 (2026-07-14) nach einem kontrollierten A/B: das 30B erfand in 32,9 % der Bodies erfundene Spezifika (fake Gesetze/Städte), das Gemma-26B nur 8,6 %. *(Die frühere Zusatzbehauptung, Gemma treffe das 150–250-Wörter-Ziel, ist durch den Dauerbetrieb widerlegt: der Median fiel am Umstiegstag von 131 auf 105 und liegt seither bei ~109. Owner hat ~100 am 2026-08-19 als Länge akzeptiert.)* Qwen3.6-35B-A3B (~24 GB) bleibt installiert und per `STAGE5_MODEL`/`STAGE5_START` **revertierbar**; das 30B wurde beim llama.cpp-Umbau 2026-08-29 entfernt (GGUF + start-qwen3-30b.sh). Mid-Pipeline-GPU-Handover (siehe `pipeline/gpu_handover.py`). Default-Backend (ohne `scheduled_cycle.sh`) bleibt Ollama. **Kontext 262144 → 16384 seit 2026-09-25 (auf `dev`, `main`-Merge steht aus): `start-gemma4-26b-ctx16k.sh`** — gemessen gleicher Durchsatz (19,2 vs. 19,3 Anfragen/min), 15 072 statt 19 782 MiB VRAM; die längste reale Stage-6-Anfrage hatte 3 754 Token, der Maximalfall ~6 300 (`docs/context_parallel_eval_2026-09-25.md`). Das alte Skript bleibt unverändert liegen.
 - **Ollama-Konfiguration:** `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_KEEP_ALIVE=5m`
 
 ---
@@ -286,6 +286,23 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       das Polling — die schon geholten Einträge liefen weiter in die
       Content-Generierung, weshalb die am 04.09. abgeschalteten 33 Journale
       am 08.09. noch einmal 187 Artikel erzeugten.
+    → **Token-Kappe vor der Zeichen-Kappe (seit 2026-09-26):** `EXTRACT_CHARS`
+      (12.000) zählt ZEICHEN, der Slot des 8B fasst 8.960 TOKEN und die
+      Truncation-Leiter will darin noch 2.048 Ausgabe-Token unterbringen. In
+      lateinischer Schrift ist das nie knapp (gemessen an 60 Volltexten: 4,89
+      Zeichen je Token im Median, 3,43 im dichtesten Fall). In CJK sind 12.000
+      Zeichen 8.302–8.442 Token: der Prompt füllt den Slot allein, die Ausgabe
+      wird abgeschnitten, die Budget-Verdopplung nützt nichts, und nach drei
+      Versuchen endet der Eintrag als `extraction_error`. Sonde vom 25.09.
+      (`scripts/ctx_eval/build_probes.py`): 24 von 24 Antworten abgeschnitten.
+      `llm_processor.clip_to_token_budget` kappt deshalb auf
+      `EXTRACT_TOKEN_BUDGET` (Env, Default 6.000) geschätzte Token — CJK ~1
+      Token je Zeichen, alles andere 3,4 Zeichen je Token, bewusst konservativ.
+      Gemessen am Ernstfall: 12.000 Zeichen / 8.302 Token → 6.826 Zeichen /
+      4.652 Token; lateinische Volltexte bleiben unverändert (2.063–3.469
+      Token bei 12.000 Zeichen). Kein Tokenizer-Aufruf je Eintrag: das wären
+      2.500 HTTP-Anfragen je Nacht für ein Promille der Zeilen.
+      Test `tests/test_extraction_token_budget.py`.
     → EXTRACTION_STRICT=1 (Default seit 2026-08-21): alle Felder Pflicht,
       quotes/geography werden auf Wörtlichkeit gefiltert (~5,3 s/Artikel)
     → key_figures kommen NICHT vom Modell: deterministisch per Regex aus der
@@ -458,11 +475,23 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       am 600er-Limit); Kandidaten holen sich vorher fehlenden Volltext
       (nur Opt-in-Quellen, fulltext_filled in der JSON)
     → GPU-Handover mit zwei Guards (seit 2026-08-26): VRAM-Vorab-Check
-      (27B lässt nur ~1.1 GB Reserve — Fremdbelegung → SKIP mit klarer
-      Diagnose statt 240s-Timeout) + Modell-Identitäts-Check gegen
-      /v1/models (llama-server ignoriert den model-Namen im Request —
-      ohne Check würde ein geplatzter Symlink-Swap den Richter still
-      aufs 8B schicken). E2E-getestet 2026-08-26.
+      + Modell-Identitäts-Check gegen /v1/models (llama-server ignoriert
+      den model-Namen im Request — ohne Check würde ein geplatzter
+      Symlink-Swap den Richter still aufs 8B schicken). E2E-getestet
+      2026-08-26.
+    → **Kontext 262144/q4_0 → 16384/q8_0 seit 2026-09-25 (auf `dev`,
+      `main`-Merge steht aus): `start-qwen3.8-27b-ctx16k.sh`.** Der Richter
+      ist prefill-dominiert (Prompt-Median ~1.700, Ausgabe ~40 Token); die
+      längste je gesehene Anfrage hatte 5.879 Token, der Maximalfall mit
+      CJK-Quelle ~10.000. Gemessen: 17.610 statt 23.094 MiB, Durchsatz -4 %,
+      Urteile unverändert (150 Handentscheidungen, McNemar p = 0,29;
+      publish identisch in 142/150). Der eigentliche Gewinn ist die Reserve:
+      die alte Konfiguration liess nur ~1,2 GB frei, weshalb der
+      VRAM-Vorab-Check überhaupt nötig wurde (Unsloth-Vorfall 26.08.); jetzt
+      sind es ~6,7 GB. Mit 16K passt der KV-Cache in q8_0 (34.816 B/Token
+      → 0,55 GB) — q4_0 war eine Speicher-, keine Qualitätsentscheidung.
+      Messung: `docs/context_parallel_eval_2026-09-25.md`. Das alte Skript
+      bleibt unverändert liegen (Rückweg).
     → auto_published=true; Zahlen → data/draft_judge_last.json → Morgen-Mail
     → Setzt seit 2026-09-25 KEIN `reviewed_at` mehr (Owner-Go): die Spalte ist
       die Marke einer Handentscheidung. Bis dahin stempelte der Richter sie
@@ -771,6 +800,16 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # niemand merkt es. Schweigen = alles in Ordnung. Wochenenden sind ausgenommen.
 # Seit 2026-08-24 prüft er zusätzlich das heutige Backup-ARTEFAKT (existiert
 # catandary-pg-<Datum>.dumpdir, toc.dat da, ≥1 GB?) — Log-Zeilen zählen nicht.
+# Seit 2026-09-26 prüft er zusätzlich den llama-server: antwortet :8090, und serviert
+# er den Ruhezustand (Qwen3-8B-UD-Q4_K_XL)? Läuft gerade ein GPU-Job, ist ein anderes
+# Modell erwartet und es gibt keinen Alarm. Anlass: weekly_ingesters.sh stellte den
+# Ruhezustand nicht her (der Handover stoppt den Server und setzt nur den Symlink
+# zurück) — gemessen über ops_samples lag die Karte danach jeden Samstag leer da
+# (19.09.: 129 von 169 Messungen 07:30–12:00 ohne Modell; 26.09.: 106 von 109,
+# lückenlos 07:12–09:15), die Owner-Instanz hatte kein Modell, und der Wächter meldete
+# „alles in Ordnung", weil er nur die Stage-Bilanz des Cycles liest (am Wochenende gibt
+# es keine). Beides behoben: Wrapper stellt den Ruhezustand her (rest=… in der
+# end-Zeile), Wächter prüft ihn (`inspect_llama_server`).
 45 7 * * *   cd <repo> && .venv/bin/python -m scripts.cycle_watchdog
 
 # DB-Backup (täglich 01:30, bis 22.09. 02:45). Seit 2026-08-24: pg_dump -Fd -j4 + zstd:3 →

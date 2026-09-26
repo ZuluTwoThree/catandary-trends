@@ -44,7 +44,7 @@ logger = logging.getLogger("draft_judge")
 STATS_PATH = Path("data/draft_judge_last.json")
 REJUDGE_STATS_PATH = Path("data/draft_judge_rejudge.json")
 JUDGE_MODEL = "Qwen3.8-27B"
-JUDGE_START_SCRIPT = "start-qwen3.8-27b.sh"
+JUDGE_START_SCRIPT = "start-qwen3.8-27b-ctx16k.sh"  # 16K/q8_0 seit 2026-09-25
 
 # Wie viel Quelltext der Richter sieht. Bis 2026-09-24 waren es fest 4.000
 # Zeichen — WENIGER als die Grundlage des Artikels, den er beurteilt: die

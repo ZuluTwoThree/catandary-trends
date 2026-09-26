@@ -1365,6 +1365,82 @@ curl -s localhost:8090/v1/models | python -m json.tool | grep '"id"'
 nvidia-smi --query-gpu=memory.used,memory.total --format=csv
 ```
 
+### 11.4a Kontext, Parallelität, VRAM messen (`scripts/ctx_eval/`, 2026-09-25)
+
+Werkzeugkasten, um für jedes Modell zu messen, wie viel Kontext es wirklich braucht, ab wie
+vielen gleichzeitigen Anfragen der Durchsatz nicht mehr steigt und wie viel VRAM eine kleinere
+Konfiguration spart. Bericht der ersten Messung: `docs/context_parallel_eval_2026-09-25.md`.
+**Alle Läufe brauchen ein Fenster ohne GPU-Cronjobs und stoppen den Produktivserver.**
+
+```bash
+gpu-mode status --hours 12                  # Fenster prüfen (GPU-Crons: Sa 06:00, Sa 12:00, Mo-Fr 02:45)
+systemctl --user stop llama-server.service
+
+.venv/bin/python scripts/ctx_eval/llama_log_stats.py /tmp/llama-server.log
+#   → je Modell: Prompt-/Ausgabelängen (Median/p99/Max), truncated, gleichzeitig belegte Slots
+
+.venv/bin/python scripts/ctx_eval/build_prompts.py 1000        # echte Prompts aus der Live-DB
+.venv/bin/python scripts/ctx_eval/build_quality_sets.py 75     # Handentscheidungen für den Qualitätsvergleich
+.venv/bin/python scripts/ctx_eval/build_probes.py              # längste erlaubte Anfrage (CJK-Quelle)
+
+scripts/ctx_eval/run_server.sh start start-gemma4-26b.sh test -c 16384 --parallel 1
+#   Testserver auf :8190 — NIE über start-*.sh (die killen den Produktivserver und binden :8090)
+.venv/bin/python scripts/ctx_eval/bench_parallel.py \
+    --prompts data/ctx_eval/prompts/gemma_stage6.jsonl \
+    --concurrency 1,2,4,8 --duration 120 --ramp 30 --label test --out data/ctx_eval/results.jsonl
+scripts/ctx_eval/run_server.sh stop
+
+scripts/ctx_eval/matrix.sh gemma            # fertige Messblöcke: gemma | 27b | emb
+scripts/ctx_eval/block_8b.sh                # 8B-Varianten (Server muss laufen)
+.venv/bin/python scripts/ctx_eval/summarize_results.py        # Markdown-Tabelle aller Stufen
+.venv/bin/python scripts/ctx_eval/quality_eval.py --kind judge \
+    a=data/ctx_eval/q_judge_q4.jsonl b=data/ctx_eval/q_judge_q8.jsonl
+
+gpu-mode catandary                          # IMMER am Ende, auch nach Abbruch
+readlink ~/llama.cpp/start-active.sh        # muss start-qwen3-8b-208k.sh sein
+```
+
+Ergebnisse liegen in `data/ctx_eval/` (`results.jsonl`, `results_table.md`, `dump_*.jsonl`,
+`server-*.log`, Testläufe unter `testrun/`). Startskript-Varianten aus der Messung vom
+25.09.2026, jede mit gemessenem VRAM-Budget im Kopfkommentar:
+
+| Skript | Status | Wirkung |
+|---|---|---|
+| `start-gemma4-26b-ctx16k.sh` | **auf `dev` aktiv**, `main`-Merge steht aus | Kontext 16 384 statt 262 144; 15 072 statt 19 782 MiB; Durchsatz gleich |
+| `start-qwen3.8-27b-ctx16k.sh` | **auf `dev` aktiv**, `main`-Merge steht aus | Kontext 16 384/q8_0 statt 262 144/q4_0; 17 610 statt 23 094 MiB; Reserve ~6,7 statt ~1,2 GB |
+| `start-qwen3-8b-208k-ctx16.sh` | vorbereitet, **nicht** aktiv | 16 statt 24 Slots; 16 506 statt 22 000 MiB, aber −3 % Durchsatz — nicht empfohlen, solange die GB nicht gebraucht werden |
+| `start-qwen3-emb-16slots.sh` | vorbereitet, **nicht** aktiv | 8 552 statt 11 096 MiB bei gleichem Durchsatz; betrifft eine Phase von 1–2 min je Nacht |
+
+Die beiden aktiven sind in `pipeline/gpu_handover.py` (`MODEL_START_SCRIPTS`),
+`pipeline/draft_judge.py` (`JUDGE_START_SCRIPT`), `scripts/scheduled_cycle.sh` und den beiden
+Newsletter-Wrappern eingetragen. **Rückweg:** dort wieder auf `start-gemma4-26b.sh` bzw.
+`start-qwen3.8-27b.sh` zeigen lassen — die alten Skripte liegen unverändert in `~/llama.cpp`.
+Testlauf der Umstellung: `scripts/ctx_eval/testrun_batch.sh 100` (echter Pipeline-Batch mit
+VRAM-Protokoll) und `scripts/ctx_eval/testrun_judge.sh 40` (Stufe 10 einzeln, stellt den
+Ruhezustand per `trap` auch bei Abbruch wieder her).
+
+### 11.4b Der Wächter prüft den llama-server mit (seit 2026-09-26)
+
+Der Morgen-Wächter (07:45) meldet jetzt auch, wenn `:8090` nicht antwortet oder ein
+anderes Modell als den Ruhezustand serviert. Läuft gerade ein GPU-Job, gibt es keinen
+Alarm — dann gehört die Karte ihm.
+
+Anlass: `weekly_ingesters.sh` stellte den Ruhezustand nicht her. Der GPU-Handover stoppt
+den Server nach dem letzten Schritt und setzt nur den Symlink zurück; das abschließende
+`systemctl start` wie im Cycle fehlte. Gemessen über `ops_samples` lag die Karte danach
+jeden Samstag leer da (19.09.: 129 von 169 Messungen zwischen 07:30 und 12:00 ohne
+geladenes Modell; 26.09.: 106 von 109). Die Owner-Instanz auf :3001 hatte in dieser Zeit
+kein Modell. Beides ist behoben: der Wrapper stellt den Ruhezustand her (sichtbar als
+`rest=…` in seiner end-Zeile), der Wächter prüft ihn.
+
+Prüfen von Hand:
+
+```bash
+.venv/bin/python -m scripts.cycle_watchdog --dry-run --force   # zeigt alle Checks
+curl -s localhost:8090/v1/models | python -m json.tool | grep '"id"'
+gpu-mode catandary                                             # zurück in den Ruhezustand
+```
+
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert
 
 1. `systemctl --user status llama-server`, `tail -50 /tmp/llama-server.log`.

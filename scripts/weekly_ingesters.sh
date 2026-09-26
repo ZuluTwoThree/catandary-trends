@@ -215,7 +215,34 @@ with get_connection() as c:
   gpu_guard_note weekly_ingesters "$NOTE_STATUS" gpu_steps_done="$GPU_DONE" \
     gpu_steps_skipped="$GPU_SKIPPED" "blocked_by=$GPU_BLOCKED_BY" min_id="$MIN_ID" rc="$RC"
 
-  ops_event_end "$RC" "gpu_done=$GPU_DONE gpu_skipped=$GPU_SKIPPED min_id=$MIN_ID"
-  echo; echo "weekly_ingesters.sh end $(date -Iseconds) (rc=$RC gpu_done=$GPU_DONE gpu_skipped=$GPU_SKIPPED)"
+  # Ruhezustand herstellen (2026-09-26). Der GPU-Handover stoppt den Server nach dem
+  # letzten Distill-Schritt und stellt nur den SYMLINK zurueck — er startet die Unit
+  # nicht wieder. Dieser Wrapper hatte, anders als scheduled_cycle.sh (dort rc3), kein
+  # abschliessendes `systemctl start`: gemessen ueber ops_samples lag die Karte danach
+  # jeden Samstag leer da (19.09.: 129 von 169 Messungen zwischen 07:30 und 12:00 ohne
+  # geladenes Modell; 26.09.: 106 von 109, lueckenlos 07:12 bis 09:15). Die Owner-Instanz
+  # auf :3001 hatte in dieser Zeit kein Modell, und der Waechter meldete "alles in
+  # Ordnung", weil er den llama-server nicht prueft (seit 26.09. tut er es, s.
+  # cycle_watchdog.inspect_llama_server).
+  # Ausnahme wie im Cycle (#98): haelt ein fremder GPU-Job die Unit, gehoert ihm der
+  # Ruhezustand — nicht anfassen, er stellt ihn beim eigenen Exit her.
+  if BUSY=$(gpu_guard_busy); then
+    echo "----- Ruhezustand NICHT hergestellt: fremder GPU-Job aktiv (stellt ihn selbst her) -----"
+    echo "$BUSY" | sed 's/^/    /'
+    RC_REST=0
+  else
+    echo "----- Ruhezustand: start-active.sh -> start-qwen3-8b-208k.sh, llama-server starten -----"
+    ln -sf start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
+    systemctl --user start llama-server.service
+    RC_REST=$?
+    for i in $(seq 1 12); do
+      sleep 3
+      curl -sf -m 3 http://127.0.0.1:8090/v1/models >/dev/null 2>&1 && break
+    done
+    echo "----- Ruhezustand: $(readlink /home/dirk/llama.cpp/start-active.sh), llama-server $(systemctl --user is-active llama-server.service) (rc=$RC_REST) -----"
+  fi
+
+  ops_event_end "$RC" "gpu_done=$GPU_DONE gpu_skipped=$GPU_SKIPPED min_id=$MIN_ID rest=$RC_REST"
+  echo; echo "weekly_ingesters.sh end $(date -Iseconds) (rc=$RC gpu_done=$GPU_DONE gpu_skipped=$GPU_SKIPPED rest=$RC_REST)"
   exit "$RC"
 } >> "$LOG" 2>&1

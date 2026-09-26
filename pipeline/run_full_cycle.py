@@ -215,16 +215,28 @@ def remaining_backlog(min_id: int = 0) -> tuple[int, int]:
     return len(ids - last_cycle_garbled_ids()), len(ids)
 
 
-def enrich_fulltext(limit: int) -> int:
-    """Fill raw_content for unprocessed opt-in-source entries before an LLM run (#11).
+def enrich_fulltext(limit: int, min_id: int = 0) -> int:
+    """Fill raw_content for the entries THIS run is about to process (#11).
 
     Opt-in sources only (sources.yaml fulltext:true), robots/TDM-respecting,
     no-op when nothing is pending, never fatal — a fetch problem must not stop
     the cycle. Returns the number of entries enriched.
+
+    The id list comes from `get_unprocessed_entries` — the same call
+    `run_pipeline_batch` makes a moment later, with the same limit and min_id, so
+    the enrichment hits exactly the rows that will be written about (2026-09-26).
+    Before that the fetcher picked its own batch from the other end of the queue
+    (`ORDER BY re.id DESC`), and with a backlog larger than the batch the two sets
+    missed each other completely: measured 0 of 250 overlap, and in the run of
+    2026-09-25 only 13 of 331 processed entries carried full text although 226 had
+    been downloaded. Selecting twice costs ~1.2 s per run and nothing else; the
+    selection is read-only and `raw_content` does not affect it.
     """
     try:
         from pipeline.article_fetcher import fetch_batch
-        filled = fetch_batch(limit=limit)
+        from pipeline.db import get_unprocessed_entries
+        ids = [e["id"] for e in get_unprocessed_entries(limit, min_id)]
+        filled = fetch_batch(ids=ids)
         if filled:
             logger.info("Full-text: enriched %d entries before LLM", filled)
         return filled
@@ -307,7 +319,7 @@ def main():
                         backlog_count, args.min_id)
             logger.info("-" * 40)
             t0 = time.time()
-            enrich_fulltext(min(args.batch, backlog_count))
+            enrich_fulltext(min(args.batch, backlog_count), min_id=args.min_id)
             backlog_stats = run_llm(min(args.batch, backlog_count), min_id=args.min_id)
             garbled |= set(backlog_stats.get("garbled_ids", []))
             backlog_duration = time.time() - t0
@@ -351,7 +363,7 @@ def main():
             t0 = time.time()
             # batch sized to the whole pool: the garbled entries are still in
             # the queue and would otherwise crowd out real ones at the LIMIT
-            enrich_fulltext(min(args.batch, len(new_ids)))
+            enrich_fulltext(min(args.batch, len(new_ids)), min_id=args.min_id)
             llm_stats = run_llm(min(args.batch, len(new_ids)), min_id=args.min_id)
             garbled |= set(llm_stats.get("garbled_ids", []))
             llm_duration = time.time() - t0

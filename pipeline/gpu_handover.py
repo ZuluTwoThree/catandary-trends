@@ -62,15 +62,21 @@ PID_DIR = Path(os.getenv("LLAMA_PID_DIR",
 LLAMA_CPP_ROOT = Path(os.getenv("LLAMACPP_ROOT", "/home/dirk/llama.cpp"))
 MODEL_START_SCRIPTS: dict[str, Path] = {
     "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf":  LLAMA_CPP_ROOT / "start-qwen3.6-35b.sh",
-    # Stage-6 content-gen alternative: 30B-A3B MoE (~18 GB, 40K ctx, 2K/4K batch).
-    "Qwen3-30B-A3B-Q4_K_M.gguf":        LLAMA_CPP_ROOT / "start-qwen3-30b.sh",
+    # (Der frühere Stage-6-Kandidat Qwen3-30B-A3B ist hier RAUS: GGUF und
+    #  start-qwen3-30b.sh fielen dem llama.cpp-Umbau am 2026-08-29 zum Opfer,
+    #  der Eintrag zeigte seitdem auf eine Datei, die es nicht gibt. Gefunden
+    #  von tests/test_start_scripts_match_registry.py am 2026-09-25.)
     # Phase 2-4 default: the 208K-context / 24-slot 8B (parallel classification).
     # CLASSIFY_WORKERS=24 fans out across its slots. Swapped out for Stage 5/6.
     "Qwen3-8B-UD-Q4_K_XL.gguf":        LLAMA_CPP_ROOT / "start-qwen3-8b-208k.sh",
     "Qwen3-Embedding-8B-Q4_K_M.gguf":  LLAMA_CPP_ROOT / "start-qwen3-emb.sh",
     # Content-gen candidate under evaluation (#11): Gemma 4 26B-A4B MoE (QAT).
     # Registered so the handover can swap it in for A/B runs against the 30B.
-    "gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf": LLAMA_CPP_ROOT / "start-gemma4-26b.sh",
+    # Kontext 262144 -> 16384 seit 2026-09-25 (Messung docs/context_parallel_eval_2026-09-25.md):
+    # gleicher Durchsatz (19,2 vs. 19,3 Anfragen/min), 15 072 statt 19 782 MiB VRAM. Die laengste
+    # reale Stage-6-Anfrage hatte 3 754 Token, der Maximalfall ~6 300 — Marge 2,6.
+    # Zurueck: wieder auf start-gemma4-26b.sh zeigen lassen (Skript unveraendert vorhanden).
+    "gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf": LLAMA_CPP_ROOT / "start-gemma4-26b-ctx16k.sh",
     # Qwen3.8-Flash-Next, 125B/6B aktiv MoE, 51B n-Gramm-Tabelle lazy von der
     # SSD; ~20-22 GB VRAM mit --n-cpu-moe, ~30 t/s. Registriert seit 2026-09-14
     # (damals als Schreiber der Scouting-Dossiers, Feature entfernt 2026-09-19);
@@ -83,7 +89,12 @@ MODEL_START_SCRIPTS: dict[str, Path] = {
     # and the pre-flight checks that the start script's text references
     # "Qwen3.8-27B" (the GGUF filename carries it). If the script ever stops
     # matching, the handover refuses to start — the safe direction.
-    "Qwen3.8-27B": LLAMA_CPP_ROOT / "start-qwen3.8-27b.sh",
+    # Kontext 262144/q4_0 -> 16384/q8_0 seit 2026-09-25 (Messung s. o.): 17 610 statt 23 094 MiB,
+    # Durchsatz -4 %, Urteile unveraendert (150 Handentscheidungen, McNemar p = 0,29). Entscheidend
+    # ist die Reserve: die alte Konfiguration liess nur ~1,2 GB frei und kippte bei jeder
+    # Fremdbelegung in den OOM (daher der VRAM-Vorabcheck in scheduled_cycle.sh); jetzt ~6,7 GB.
+    # Zurueck: wieder auf start-qwen3.8-27b.sh zeigen lassen (Skript unveraendert vorhanden).
+    "Qwen3.8-27B": LLAMA_CPP_ROOT / "start-qwen3.8-27b-ctx16k.sh",
 }
 
 # The 208K classifier is the only valid *resting* state for start-active.sh:

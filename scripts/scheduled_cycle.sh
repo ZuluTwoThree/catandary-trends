@@ -73,7 +73,7 @@ mkdir -p "$(dirname "$LOG")"
   # undershoots. Revert = point these two back at the 30B (both registered in
   # gpu_handover.MODEL_START_SCRIPTS).
   export STAGE5_MODEL="gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf"
-  STAGE5_START="/home/dirk/llama.cpp/start-gemma4-26b.sh"
+  STAGE5_START="/home/dirk/llama.cpp/start-gemma4-26b-ctx16k.sh"
   if [ -f "$STAGE5_START" ] && grep -q "$STAGE5_MODEL" "$STAGE5_START" 2>/dev/null; then
     export STAGE5_BACKEND=llamacpp
     echo "----- Stage-6 backend: llamacpp ($STAGE5_MODEL), handover swaps symlink to 30B -----"
@@ -256,7 +256,7 @@ PY
     if [ "$JUDGE_VRAM_OK" != "1" ]; then
       echo "----- draft judge SKIPPED: VRAM von Fremdprozess belegt (${VRAM_USED:-?} MiB) -----"
     else
-      ln -sf start-qwen3.8-27b.sh /home/dirk/llama.cpp/start-active.sh
+      ln -sf start-qwen3.8-27b-ctx16k.sh /home/dirk/llama.cpp/start-active.sh
       systemctl --user start llama-server.service
       # Besitzvermerk (#98 c): data/llama-server.scheduled_cycle-judge.pid —
       # der Stop nach dem Richter trifft nur noch DIESEN Server (MainPID-Abgleich).

@@ -580,3 +580,150 @@ auf `feature/topic-search` (e2907f4) geparkt, auf `dev` zurückgenommen
 gelöscht — Neuaufbau in ~10 min per `scripts/migrate_topic_vectors.py
 --indexes` auf dem Branch. Die Messungen (Rücktest Markt 18/18, Ebenen-Index
 gegen globalen Index, Kalibrierung) stehen im Plan und im Issue.
+
+## 2026-09-25 · change · Modell-Messplatz: Kontext, Parallelität, VRAM gemessen (nichts umgestellt)
+
+duration: 14:17–16:26 (Owner-Fenster „ab jetzt bis längstens 17 Uhr")
+gpu: Produktivserver gestoppt, Testserver auf :8190, danach `gpu-mode catandary` (verifiziert:
+start-active.sh → start-qwen3-8b-208k.sh, :8090 serviert Qwen3-8B)
+
+66 Laststufen über 8B, Gemma-26B, Qwen3.8-27B und den Embedder, mit echten Prompts aus der
+Live-DB. Werkzeuge unter `scripts/ctx_eval/`, Rohdaten `data/ctx_eval/`, Bericht
+`docs/context_parallel_eval_2026-09-25.md`. **Produktiv ist nichts geändert**; vier
+Startskript-Varianten liegen als neue Dateien in `~/llama.cpp` und sind nicht in
+`gpu_handover.MODEL_START_SCRIPTS` eingetragen.
+
+Kernbefunde: Kontext bei Gemma (262 144 → 16 384: −4,6 GB) und 27B (−5,4 GB) massiv
+überdimensioniert, Durchsatz identisch. Beim 8B umgekehrt: der 8 960-Token-Slot reicht für eine
+Extraktion aus einer CJK-Quelle nicht (12 000 Zeichen ≈ 8 300 Token) — Sonde verlor 24 von 24
+Antworten an `finish_reason=length`, der Eintrag endet als `extraction_error`. `--kv-unified`
+spart beim 8B 9 GB, kostet aber 36 % Durchsatz. KV-Quantisierung ist kein Qualitätshebel
+(Richter q4_0 vs. q8_0 an 150 Handentscheidungen: McNemar p = 0,29). Größter ungenutzter Hebel:
+Stufe 6 sequentiell 20,3 Anfragen/min gegen 30,0/min mit 4 Slots ohne unified = −35 min Nachtlauf,
+aber Umbau der Schleife.
+
+## 2026-09-25 · change · Gemma und Draft-Richter auf 16K-Kontext umgestellt (dev, main-Merge offen)
+
+gpu: Testlauf mit echtem Pipeline-Batch, Ruhezustand danach wiederhergestellt
+
+Nach dem Messbericht (`docs/context_parallel_eval_2026-09-25.md`) zeigen sechs Stellen jetzt auf
+`start-gemma4-26b-ctx16k.sh` und `start-qwen3.8-27b-ctx16k.sh`: die Registry in `gpu_handover`,
+`draft_judge.JUDGE_START_SCRIPT`, `scheduled_cycle.sh` (Stage-5-Start und der Stage-10-Symlink)
+und die beiden Newsletter-Wrapper. Das 8B (Ruhezustand) und der Embedder bleiben unverändert.
+
+Wirkung: Gemma 15 072 statt 19 782 MiB, Richter 17 610 statt 23 094 MiB. Kein Tempo-Effekt —
+gepaart gemessen liegt der Unterschied unter 5 % und kippt je nach Messreihe die Richtung.
+Beim Richter ist die Reserve der Punkt — vorher ~1,2 GB, jetzt ~6,7 GB; der VRAM-Vorabcheck vor
+Stufe 10 fängt seitdem einen Fall ab, der praktisch nicht mehr eintreten kann.
+
+Nebenbefund aus dem neuen Test `tests/test_start_scripts_match_registry.py`: Die Registry führte
+noch `Qwen3-30B-A3B-Q4_K_M.gguf` → `start-qwen3-30b.sh`, obwohl GGUF und Skript beim
+llama.cpp-Umbau am 29.08. gelöscht wurden. Tote Zeile entfernt. Der Test prüft ab jetzt, dass
+jedes registrierte Skript existiert, das passende Modell lädt und dass die Shell-Wrapper dasselbe
+Skript meinen wie die Registry.
+
+## 2026-09-25 · change · 500 Backlog-Einträge mit den 16K-Skripten verarbeitet; Volltext-Befund
+
+duration: 23:17–23:45 (1 669 s)
+gpu: Gemma-Spitze 15 056 MiB, 8B 22 000 MiB; Ruhezustand danach hergestellt
+
+Owner-Auftrag „250 aus dem Backlog". `run_full_cycle` arbeitet zwei Runden ab (Phase 1 Backlog,
+Phase 3 „neue"), jede bis BATCH — es wurden 500 Einträge verarbeitet, 264 Artikel erzeugt,
+150 auto-publiziert. Die umgestellten Skripte liefen fehlerfrei: beide Handover in beide
+Richtungen, kein ModelMismatchError, 2,7 s je Artikel.
+
+**Befund (unabhängig von der Umstellung, betrifft `main`):** 27 Artikel (9 %) hielt der
+Garbage-Guard mit `too_short` zurück, weil nur 13 von 331 verarbeiteten Einträgen Volltext
+hatten — obwohl alle Quellen auf `fulltext: true` stehen und `article_fetcher` 226 Volltexte
+geholt hat. Ursache: die beiden Auswahlen ziehen in entgegengesetzter Richtung.
+
+| Komponente | Auswahl | ID-Spanne im Lauf |
+|---|---|---|
+| `article_fetcher.fetch_batch` | `ORDER BY re.id DESC LIMIT n` — die NEUESTEN | 25 494 906 – 25 509 134 |
+| `db.get_unprocessed_entries` | nach `fetched_at, id` aufsteigend — die ÄLTESTEN | 25 494 865 – 25 496 136 |
+
+Im Nachtlauf fällt das nicht auf: dort ist `CYCLE_BATCH=3000` grösser als der Tagesanfall
+(~2 460), also sind beide Mengen praktisch deckungsgleich. Sobald der Rückstand grösser ist als
+der Batch — nach einem Ausfall, einem Feiertag, einem Teillauf wie hier — verarbeitet der Cycle
+genau die Einträge, für die kein Volltext geholt wurde. Wirkung: dünne Artikel, mehr
+Guard-Ausfälle, schwächeres Grounding. Nicht angefasst (Cron-Pfad, Owner-Entscheidung).
+
+Eigene Mängel behoben: `scripts/ctx_eval/testrun_batch.sh` stellt den Ruhezustand jetzt per
+`trap` wieder her (der Server lag nach dem ersten Testlauf 10 min tot) und respektiert den
+Kollisionswächter; der Kopfkommentar warnt vor der Zwei-Runden-Semantik.
+
+## 2026-09-26 · change · Volltext-Anreicherung trifft jetzt die verarbeiteten Einträge
+
+Fix zum Befund vom 25.09.: `enrich_fulltext` fragt `get_unprocessed_entries(limit, min_id)` —
+denselben Aufruf, den `run_pipeline_batch` gleich danach macht — und gibt die ID-Liste an
+`fetch_batch(ids=…)`. Vorher wählte der Fetcher `ORDER BY re.id DESC` (die neuesten), der Cycle
+nimmt die ältesten; bei Rückstand > Batch überlappten die Mengen mit **0 von 250**.
+
+Gemessen an denselben Einträgen (233 zurückgeholte plus frische, 26.09. 00:12–00:54):
+
+| | ohne Fix | mit Fix |
+|---|---|---|
+| Textbasis der Auswahl (Median) | 305 Zeichen | 2 527 Zeichen |
+| Median Wörter je Artikel | 75 | **158** |
+| vom Garbage-Guard verworfen | 10 % | **1,6 %** |
+| als irrelevant verworfen (frische Kohorte) | 38 % | **16 %** |
+
+**Historische Einordnung:** In den 14 Nachtläufen vom 08.–24.09. war der Fehler NICHT wirksam —
+Rückstand 0–1, Batch 3 000 über dem Tagesanfall (~2 450), also nahmen beide Schritte alles; 3–6 %
+ohne Volltext sind gescheiterte Abrufe (der Fetcher protokolliert `enriched 2332/2445`). Auch die
+Nacht zum 11.09. mit Batch 600 endete bei 5 %, weil der Folgelauf nachholte. Der Fehler verzögert
+in diesem Muster, er verliert nicht.
+
+Datenkorrektur: `scripts/requeue_thin_decisions.py --apply` hat 233 Einträge zurückgeholt, deren
+`not_relevant`/`insufficient_source_text`-Entscheidung auf 259 Zeichen Median gefallen war
+(Duplikate bewusst nicht). Regressionstest `tests/test_enrichment_matches_selection.py`.
+
+Offen als eigenes Thema: 41–83 Einträge je Tag werden ohne Volltext als irrelevant verworfen, weil
+der Abruf scheitert (403, Timeout) — über zwei Wochen ~800.
+
+## 2026-09-26 · idea · Samstags bleibt der llama-server nach dem Ingester-Lauf aus
+
+Befund (gemessen, nicht vermutet): `scripts/weekly_ingesters.sh` stellt den Ruhezustand NICHT her.
+Der GPU-Handover stoppt den Server nach dem letzten Distill-Schritt und stellt nur den Symlink
+zurück; ein `systemctl --user start llama-server.service` wie am Ende von `scheduled_cycle.sh`
+(dort rc3) fehlt. Folge: ab Ende des Ingester-Laufs steht die Owner-Instanz ohne Modell da, bis
+der Montags-Cycle läuft.
+
+Belegt über `ops_samples` (07:30–12:00, samstags):
+
+| Samstag | Messungen | davon ohne geladenes Modell |
+|---|---|---|
+| 2026-09-19 | 169 | 129 |
+| 2026-09-26 | 109 | 106 |
+
+Am 26.09. lückenlos von 07:12 (Ende des Embedding-Schritts) bis 09:15, als der Server von Hand
+gestartet wurde. **Zweite Lücke:** `cycle_watchdog.py` prüft den llama-server gar nicht — er liest
+nur die Stage-Bilanz des Cycles (rc3), und am Wochenende gibt es keinen Cycle. Der Wächter meldete
+um 07:45 „alles in Ordnung", während kein Modell geladen war.
+
+Vorschlag (Cron-Pfad, also `main`-Merge nötig, dem Owner vorzulegen): am Ende von
+`weekly_ingesters.sh` denselben Block wie in `scheduled_cycle.sh` (Symlink auf den 208K-Klassifizierer
++ Unit starten, übersprungen wenn ein fremder GPU-Job die Unit hält), und im Wächter eine Prüfung
+„antwortet `:8090` mit dem Ruhezustands-Modell?" — sonst fällt das nächste Mal wieder niemandem auf.
+
+## 2026-09-26 · change · Extraktions-Kappe in Token, Ruhezustand im Ingester, Wächter prüft :8090
+
+Owner-Freigabe der Punkte 1–3 vom 26.09. Umgesetzt auf `dev`:
+
+**Extraktion (Punkt 2):** `llm_processor.clip_to_token_budget` kappt den Quelltext auf
+`EXTRACT_TOKEN_BUDGET` (Default 6.000) geschätzte Token, bevor die Zeichen-Kappe von 12.000
+greift. Schätzer konservativ: CJK ~1 Token je Zeichen, alles andere 3,4 Zeichen je Token
+(gemessen an 60 Volltexten: Median 4,89, dichtester Fall 3,43). Ernstfall geprüft gegen den
+echten Tokenizer: 12.000 Zeichen / 8.302 Token → 6.826 Zeichen / 4.652 Token; die fünf
+längsten lateinischen Volltexte bleiben unverändert (2.063–3.469 Token).
+
+**Ingester (Punkt 3a):** `weekly_ingesters.sh` stellt den Ruhezustand her (Symlink + Unit +
+Warten auf `/v1/models`), übersprungen wenn ein fremder GPU-Job die Unit hält. Sichtbar als
+`rest=…` in der end-Zeile und in der ops_events-Notiz.
+
+**Wächter (Punkt 3b):** `cycle_watchdog.inspect_llama_server` — antwortet `:8090`, und
+serviert er `Qwen3-8B-UD-Q4_K_XL`? Drei Ausgänge: ok, `llama-down`, `llama-wrong-model`;
+kein Alarm während eines GPU-Jobs. Live geprüft, Tests in
+`tests/test_watchdog_llama_server.py` und `tests/test_extraction_token_budget.py`.
+
+1.332 pytest grün. Alles auf dem Cron-Pfad, also erst mit dem `main`-Merge scharf.

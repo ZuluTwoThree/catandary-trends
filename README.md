@@ -124,6 +124,7 @@ Karte und die drei Routinen, die man auswendig kennen sollte.
 | **Ops-Dashboard** (#104) | `/trends/ops` (Foresight-Cockpit → „Ops"); Logbuch `docs/ops/logbook.md`; Alarm-Schwellen `ops_alerts.yaml`; `systemctl --user status catandary-ops-sampler.timer`; `python -m pipeline.ops_events open` (offene Läufe) / `close-orphans` (tote Läufe schließen — macht der Sampler minütlich selbst) | minütlich eine Messzeile nach `ops_samples` (GPU lokal + bequiet, CPU/RAM, alle Platten, Postgres); jeder Cron-/Worker-Lauf eine Zeile in `ops_events` (Start, Ende, rc, Notiz); `python -m scripts.ops_sampler --print [--full]` zeigt eine Messung; SMART nach `deploy/sudoers/catandary-smart` | [§11.9](docs/owner_manual.md#119-ops-dashboard-trendsops-104) |
 | **Prompt-Katalog** | `/trends/ops/prompts` (Ops → „Prompts →"); `python -m pipeline.prompt_catalog --list` | alle Systemanweisungen der LLM-Prozesse live aus dem Code, je mit Funktionsbeschreibung, Modell, Auslöser und Datei:Zeile | [§11.10](docs/owner_manual.md#1110-prompt-katalog-trendsopsprompts) |
 | **Field Watch / Trajectory Sheet / Feldprobe** (Pivot 20.09.) | `scripts/field_watch.py`; Kundenfelder `fields/<kunde>.yaml` (Vorlage `fields/example.yaml`, gitignored) | `--probe "<phrase>"` (Seite 1 + CPC-Vorschlag), `<kunde>` (Wochenblatt), `<kunde> --sheet <feld>` (Trajectory Sheet), `<kunde> --export` (Kundenseite für `trends/clients/<kunde>/`, htpasswd-Vorlagen `deploy/webspace/`); Ausgabe `data/field_watch/`, Protokoll `field_watch_runs`; reine SQL-Messung, kein Modelltext; Cron-Vorschlag Sa 12:30 `weekly_field_watch.sh` (nach Merge) | [§5.11](docs/owner_manual.md#511-field-watch-trajectory-sheet-feldprobe-scriptsfield_watchpy) |
+| **Modell-Messplatz** (`scripts/ctx_eval/`, 25.09.) | `scripts/ctx_eval/run_server.sh` (Testserver :8190), `bench_parallel.py`, `matrix.sh`, `block_8b.sh`, `llama_log_stats.py`, `quality_eval.py`, `summarize_results.py` | misst je Modell benötigten Kontext, Sättigungspunkt der Parallelität und VRAM; Prompts aus der Live-DB; braucht ein Fenster ohne GPU-Crons und `gpu-mode catandary` danach. Bericht: [`docs/context_parallel_eval_2026-09-25.md`](docs/context_parallel_eval_2026-09-25.md); vorbereitete, NICHT aktive Startskript-Varianten `~/llama.cpp/start-*-ctx16*.sh`, `start-qwen3-emb-16slots.sh` | [§11.4a](docs/owner_manual.md#114a-kontext-parallelität-vram-messen-scriptsctx_eval-2026-09-25) |
 | Sicherheit & Recht | — | Binding aller Interfaces (Entscheid offen), TDM-Regime, Takedown | [§12](docs/owner_manual.md#12-sicherheit-und-recht-kurz) |
 
 **Entfernt (bleibt hier als Merkposten):** *Scouting-Dossier-Desk* `/trends/dossiers`
@@ -215,9 +216,18 @@ Auf der Live-DB sind alle genannten ausgeführt (Stand 04.09.2026).
 |---|---|---|---|
 | Ruhezustand, Relevanz/Extraktion/Klassifikation/Reclassify | `Qwen3-8B-UD-Q4_K_XL.gguf` | `start-qwen3-8b-208k.sh` | 212 992 |
 | Embeddings | `Qwen3-Embedding-8B-Q4_K_M.gguf` | `start-qwen3-emb.sh` | 8 192 |
-| Content-Generierung, Newsletter, Research-Pulse-Texte | `gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf` (+ mmproj, mtp) | `start-gemma4-26b.sh` | 262 144 |
-| Draft-Richter | `Qwen3.8-27B-UD-Q4_K_XL.gguf` | `start-qwen3.8-27b.sh` | bis 262 144 |
+| Content-Generierung, Newsletter, Research-Pulse-Texte | `gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf` (+ mmproj, mtp) | **`start-gemma4-26b-ctx16k.sh`** (auf `dev`; `main` noch `start-gemma4-26b.sh`) | **16 384** (vorher 262 144) |
+| Draft-Richter | `Qwen3.8-27B-UD-Q4_K_XL.gguf` | **`start-qwen3.8-27b-ctx16k.sh`** (auf `dev`; `main` noch `start-qwen3.8-27b.sh`) | **16 384**, KV q8_0 (vorher 262 144, q4_0) |
 | Revert-Option Content-Gen | `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` | `start-qwen3.6-35b.sh` | 131 072 |
+
+**Kontextverkleinerung Gemma + Richter (25.09.2026, auf `dev`, `main`-Merge steht aus):** Beide
+Modelle liefen mit 262 144 Token Kontext, ihre längsten realen Anfragen haben 3 754 bzw. 5 879.
+Gemessen (`docs/context_parallel_eval_2026-09-25.md`): gleicher Durchsatz, Gemma 15 072 statt
+19 782 MiB, Richter 17 610 statt 23 094 MiB. Beim Richter ist die Reserve der eigentliche Punkt —
+die alte Konfiguration liess nur ~1,2 GB frei und kippte bei Fremdbelegung in den OOM. Die alten
+Skripte bleiben unverändert liegen; Rückweg = in `gpu_handover.MODEL_START_SCRIPTS`,
+`draft_judge.JUDGE_START_SCRIPT`, `scheduled_cycle.sh` und den beiden Newsletter-Wrappern wieder
+auf sie zeigen.
 
 Die systemd-Unit `~/.config/systemd/user/llama-server.service` startet
 `~/llama.cpp/start-active.sh` — einen **Symlink**, den die GPU-Handover
