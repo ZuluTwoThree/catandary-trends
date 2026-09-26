@@ -833,19 +833,22 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 45 7 * * 2   scripts/weekly_newsletter_publish.sh
 
 # Research Pulse (#73, INSTALLIERT 2026-09-18 — Owner; bis dahin nur Vorschlag, die Seite
-# stand deshalb vom 05.09. bis 18.09. auf W35): Samstag 12:00 nach weekly_ingesters.sh;
+# stand deshalb vom 05.09. bis 18.09. auf W35): Samstag 08:30 nach weekly_ingesters.sh
+# (bis 2026-09-26: 12:00 — Owner-Entscheid 26.09., die Samstags-Mittagsjobs vor 9 Uhr;
+# 08:30 haelt 17 min Puffer zum spaetesten beobachteten Ingester-Ende 08:13 am 29.08.,
+# und der Kollisionswaechter wartet notfalls bis 90 min statt zu scheitern);
 # rechnet die Vorwoche für alle 28 Themes (Stats + KMeans ~15 s, Gemma-Absätze via
 # GPU-Handover; gemessen 54–58 s je Woche, 19/28 Themes mit Text — unter 5 Papers kein Text).
 # Idempotent (≥20 Themes gerechnet = no-op). Wächter-Notiz data/weekly_research_pulse_last.json →
 # Montags-Morgen-Mail (review_notify.py); der „Recompute"-Knopf bleibt für Einzel-Themes.
-0 12 * * 6   scripts/weekly_research_pulse.sh
+30 8 * * 6   scripts/weekly_research_pulse.sh
 
-# Field Watch (Pivot 2026-09-20, VORSCHLAG — scharf erst mit dem Merge nach main):
-# Samstag 12:30 nach dem Pulse; Wochenblätter aller fields/<kunde>.yaml
+# Field Watch (Pivot 2026-09-20, in Betrieb seit dem main-Merge am 2026-09-26):
+# Samstag 08:45 nach dem Pulse (bis 26.09.: 12:30); Wochenblätter aller fields/<kunde>.yaml
 # (scripts/field_watch.py --all), reine SQL-Messung ohne GPU (~40 s je Kunde),
 # ohne Kundendateien no-op. Notiz data/weekly_field_watch_last.json → Montags-Mail.
 # Die Kundenseite (trends/clients/<kunde>/, htpasswd) lädt der Owner von Hand hoch.
-30 12 * * 6  scripts/weekly_field_watch.sh
+45 8 * * 6   scripts/weekly_field_watch.sh
 
 # Statischer Export → Webspace (täglich 02:00, bis 22.09. 03:15; INSTALLIERT 2026-09-05): nach dem
 # Review-Tag und ~45 min vor dem 02:45-Cycle — veröffentlicht wird der freigegebene Stand.
@@ -1284,7 +1287,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
   /research /patents               (Research-/Patent-Explorer; Explorer-Facetten ?src/?range/?sort/?concept/?layer=signals seit #73;
                                     ?artifacts=1 blendet Repository-Einträge/Nicht-Paper ein — Default aus, seit 2026-09-05)
   /research/pulse, /research/pulse/[theme] → Research Pulse (#73, seit 2026-09-04): Wochen-Synthese je Theme,
-                                   Tabelle research_pulse, „Recompute"-Knopf (Owner-App); Cron Sa 12:00 seit 2026-09-18
+                                   Tabelle research_pulse, „Recompute"-Knopf (Owner-App); Cron Sa 08:30 seit 2026-09-18 (bis 26.09. 12:00)
   /pitch                           → Kunden-Briefing (seit 2026-09-13): Präsentation im Browser nach dem
                                      McKinsey-SCR-Q-Rahmen (Situation, Complication, Resolution, Question), sieben
                                      Folien, Pfeiltasten/Rail, Zahlen live aus dem Korpus (`getBriefingStats`,

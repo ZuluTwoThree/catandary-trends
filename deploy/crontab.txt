@@ -70,20 +70,20 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 45 7 * * 2 /home/dirk/projects/catandary-trends/scripts/weekly_newsletter_publish.sh
 
 # Research Pulse wöchentlich (#73 Teil 1) — INSTALLIERT 2026-09-18 (Owner; bis dahin nur
-# Vorschlag, die Seite stand deshalb zwei Wochen auf W35). Samstag 12:00 = nach
+# Vorschlag, die Seite stand deshalb zwei Wochen auf W35). Samstag 08:30 (bis 2026-09-26: 12:00 — Owner-Entscheid 26.09.: die Samstags-Mittagsjobs vor 9 Uhr). 08:30 ist mit Puffer nach dem Ingester gewaehlt: der endete an den letzten sechs Samstagen um 05:17, 07:20, 07:20, 07:31, 07:36 und 08:13 — der spaeteste Fall laesst 17 min. Kollidiert er doch, wartet der Kollisionswaechter (max 90 min) statt zu scheitern; nach
 # weekly_ingesters.sh (06:00, Ende zuletzt 08:13; Kollisionswächter wartet max 90 min).
 # Rechnet die Vorwoche (%G/%V von vor 7 Tagen) für alle 28 Themes: Stats + KMeans-Cluster
 # (~15 s CPU) + je Theme mit ≥5 Papers ein Gemma-Absatz (ein GPU-Handover; gemessen
 # 18.09.: 54–58 s je Woche, 19 von 28 Themes mit Text). Idempotent (Woche mit ≥20 gerechneten Themes
 # = no-op). Wächter: data/weekly_research_pulse_last.json → Montags-Morgen-Mail
 # (review_notify.py, 60 h Frische; blocked/failed erzwingt die Mail).
-0 12 * * 6 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_research_pulse.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_research_pulse.sh || echo "$(date -Iseconds) skip weekly_research_pulse (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-research-pulse-skip.log
+30 8 * * 6 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_research_pulse.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_research_pulse.sh || echo "$(date -Iseconds) skip weekly_research_pulse (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-research-pulse-skip.log
 
 # Field Watch (Pivot 2026-09-20): Wochenblätter für alle fields/<kunde>.yaml,
-# Samstag 12:30 nach dem Pulse; reine SQL-Messung, keine GPU, ~40 s je Kunde.
+# Samstag 08:45 nach dem Pulse (bis 26.09.: 12:30); reine SQL-Messung, keine GPU, ~40 s je Kunde.
 # Ohne Kundendateien no-op (rc 0). Wächter: data/weekly_field_watch_last.json
 # → Montags-Morgen-Mail. Kundenseite wird NICHT automatisch hochgeladen.
-30 12 * * 6 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_field_watch.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_field_watch.sh || echo "$(date -Iseconds) skip weekly_field_watch (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-field-watch-skip.log
+45 8 * * 6 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_field_watch.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_field_watch.sh || echo "$(date -Iseconds) skip weekly_field_watch (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-field-watch-skip.log
 
 # Story-Gruppierung (#109, INSTALLIERT 2026-09-25, Owner-Go):
 # täglich 01:55, vor dem Export. Published Artikel der letzten 3 Tage nach

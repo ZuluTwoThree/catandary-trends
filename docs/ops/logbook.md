@@ -727,3 +727,38 @@ kein Alarm während eines GPU-Jobs. Live geprüft, Tests in
 `tests/test_watchdog_llama_server.py` und `tests/test_extraction_token_budget.py`.
 
 1.332 pytest grün. Alles auf dem Cron-Pfad, also erst mit dem `main`-Merge scharf.
+
+## 2026-09-26 · change · Samstags-Mittagsjobs auf vor 9 Uhr vorgezogen (Owner)
+
+`weekly_research_pulse.sh` 12:00 → **08:30**, `weekly_field_watch.sh` 12:30 → **08:45**.
+In der installierten Crontab geändert, `deploy/crontab.txt` und die Doku nachgezogen;
+Sicherung der alten Crontab in `data/ctx_eval/crontab.backup-20260926`.
+
+Zeitwahl nach den gemessenen Ingester-Enden der letzten sechs Samstage: 05:17, 07:20, 07:20,
+07:31, 07:36 und **08:13** (29.08.). 08:30 lässt im spätesten Fall 17 min Puffer; überschneidet
+sich der Ingester doch, wartet der Kollisionswächter (max 90 min) statt zu scheitern — der Pulse
+würde dann einfach etwas später laufen, immer noch vor 9 Uhr.
+
+Wirksam ab Samstag 03.10.; der Lauf von heute war schon durch (auf Owner-Wunsch auf 11:00
+vorgezogen, s. nächster Eintrag). Field Watch läuft ohne Kundendateien als no-op.
+
+## 2026-09-26 · change · Erster Produktivlauf des 16K-Gemma (Research Pulse, vorgezogen auf 11:00)
+
+gpu: Gemma-Spitze 15 038 MiB, Ruhezustand danach automatisch wieder 8B (21 986 MiB)
+duration: 64 s (11:00:03 – 11:01:08)
+
+Owner wollte den 12:00-Lauf vorgezogen und beobachtet. Ergebnis: **28 Themes, 20 mit Text,
+0 Fehler**, Woche 2026-W38 in `research_pulse`. Server lief mit `n_slots = 1,
+n_ctx_slot = 16384` — die Umstellung aus dem `main`-Merge greift also im Produktivbetrieb.
+
+| Zeit | VRAM | Modell |
+|---|---|---|
+| 11:00:03 | 21 986 MiB | 8B (Ruhezustand) |
+| 11:00:34 | 14 010 MiB | Wechsel, Gemma lädt |
+| 11:00:49 | 15 038 MiB | Gemma |
+| 11:01:19 | 21 986 MiB | 8B (Ruhezustand zurück) |
+
+15 038 MiB liegt innerhalb der Prüfstandsmessung (15 048–15 060) und **4,7 GB unter der alten
+Konfiguration** (19 782). Laufzeit 64 s gegen 54–58 s am 18.09. — andere Woche, andere
+Datenmenge (grösstes Theme 6 617 Papers), kein Konfigurationsvergleich. Der 12:00-Cron fand die
+Woche gerechnet und übersprang mit `exists`.
