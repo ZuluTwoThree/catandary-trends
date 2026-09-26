@@ -1625,15 +1625,18 @@ liest die Datei beim Aufruf; Reihenfolge sortiert sie selbst (neueste oben).
 **Alarme:** der Sampler prüft nach jeder Messung die Regeln aus
 `pipeline/ops_alerts.py`; die Schwellen stehen in **`ops_alerts.yaml`** im
 Repo-Root und wirken ohne Code beim nächsten Minutentakt. Was gemeldet wird:
-Platte unter 10 % frei (`/` mit Postgres schon unter 20 %), HDD über 50 °C /
-SSD über 65 °C, SMART FAILED, NVMe-Verschleiß ≥ 90 % oder Reserve < 10 %,
+Platte unter 10 % frei (`/` mit Postgres schon unter 20 %), HDD über 55 °C /
+SSD über 68 °C (aus den Datenblättern der verbauten Laufwerke, 16.09.), SMART FAILED, NVMe-Verschleiß ≥ 90 % oder Reserve < 10 %,
 Sektor-/Medienfehler-Zähler, die gegenüber der vorigen Messung **steigen**,
 GPU über 88 °C, Grafikspeicher belegt ohne antwortenden llama-server und ohne
 bekannten Job, mehr als 80 % der DB-Verbindungen, ein Job, der länger als das
 Doppelte seines Medians läuft, ein Job über 6 h (gezählt wird nur ein Lauf,
 dessen Prozess noch lebt — eine Zeile, deren Prozess ohne Ende-Eintrag starb,
 schließt der Sampler binnen einer Minute selbst und die Seite zeigt sie als
-„aborted"), ein Backlog, dessen
+„aborted"), **ein Job, dessen letzter abgeschlossener Lauf mit `rc != 0`
+endete** (seit 26.09.; bleibt gemeldet, bis derselbe Job wieder mit 0 endet —
+`rc = 75` ist der Skip des GPU-Kollisionswächters und kein Defekt,
+`job_failed_ignore_rc` in der yaml nimmt weitere auf), ein Backlog, dessen
 Tagesmaximum drei Tage in Folge steigt. **Eine Mail beim Auslösen, eine bei der
 Entwarnung** (gleiche Adresse wie der Wächter), dazwischen Ruhe; offene Alarme
 stehen als Banner oben auf `/trends/ops`, darunter aufklappbar die zuletzt

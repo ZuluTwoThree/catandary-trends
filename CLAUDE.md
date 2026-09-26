@@ -1021,12 +1021,16 @@ close-orphans`.
 **Alarme (#104 Stufe 5, seit 2026-09-11):** `pipeline/ops_alerts.py` läuft im
 Sampler nach jeder Messung; Schwellen in `ops_alerts.yaml` (Repo-Root, ohne Code
 änderbar). Regeln: Platte frei < 10 % (unter `/` = System + Postgres schon < 20 %),
-Platten-Temperatur (HDD > 50 °C, SSD > 65 °C), SMART FAILED / NVMe critical
+SMART FAILED / NVMe critical
 warning / Verschleiß ≥ 90 % / Reserve < 10 % / Sektor- und Medienfehler-Zähler
 **steigen** (gegen die vorige volle Messung, ein stabiler Wert ist kein Alarm),
-GPU > 88 °C, Fremdbelegung (> 1,5 GB VRAM, aber kein llama-server antwortet und
+GPU > 88 °C, Platten-Temperatur (HDD > 55 °C, SSD > 68 °C), Fremdbelegung (> 1,5 GB VRAM, aber kein llama-server antwortet und
 kein Job hält die Karte — der Ruhezustand mit 8B ist keiner), DB-Verbindungen
-> 80 %, Job läuft > 2 × seinen Median (28 d, ≥ 3 Läufe), Job läuft > 6 h
+> 80 %, letzter abgeschlossener Lauf eines Jobs endete mit `rc != 0` (seit
+2026-09-26; `job_failed_ignore_rc` klammert rc=75 = Wächter-Skip aus — Anlass:
+`discovery_loop` meldete drei Sonntage in Folge rc=1, die Zeile stand in
+`ops_events`, aber keine Regel las sie), Job läuft > 2 × seinen Median
+(28 d, ≥ 3 Läufe), Job läuft > 6 h
 („läuft" = Zeile offen **und** Prozess lebt — tote Läufe schließt der Sampler
 vorher, s. Laufprotokoll; Startzeit in der Mail seit 12.09. lokal mit Zone, nicht
 mehr fälschlich „UTC"),

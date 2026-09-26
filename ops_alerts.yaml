@@ -40,3 +40,11 @@ backlog_growth_days: 3         # Tagesmaximum des Backlogs steigt N Tage in Folg
 
 # Sampler selbst — prueft der Morgen-Waechter (scripts/cycle_watchdog.py), nicht der Sampler
 sampler_stale_min: 5
+
+# Fehlgeschlagene Laeufe (ops_events): der letzte ABGESCHLOSSENE Lauf eines Jobs
+# endete mit rc != 0. Der Alarm bleibt, bis derselbe Job wieder mit rc=0 endet.
+# Anlass 2026-09-26: discovery_loop meldete drei Sonntage in Folge rc=1 (der
+# Retrain der Distill-Heads wurde bei 56 GB OOM-getoetet) — die Zeile stand in
+# ops_events, aber keine Regel las sie.
+job_failed_lookback_days: 14
+job_failed_ignore_rc: [75]     # 75 = Skip des GPU-Kollisionswaechters, kein Defekt

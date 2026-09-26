@@ -134,7 +134,7 @@ def test_run_never_raises_and_mails_changes(db, monkeypatch):
     assert out["raised"] == 1 and out["mailed"] is True and sent == [(1, 0)]
     out2 = oa.run(_sample(gpu_temp_c=95))
     assert out2["raised"] == 0 and out2["mailed"] is None and len(sent) == 1
-    monkeypatch.setattr(oa, "_db_context", lambda: (_ for _ in ()).throw(RuntimeError("db down")))
+    monkeypatch.setattr(oa, "_db_context", lambda t=None: (_ for _ in ()).throw(RuntimeError("db down")))
     out3 = oa.run(_sample())
     assert out3["error"] and "db down" in out3["error"]
 
@@ -230,3 +230,52 @@ def test_a_counter_that_stands_still_is_not_an_alarm(db):
     prev = {"disks": [_disk(warning_temp_time=314, critical_comp_time=1)]}
     now = {"disks": [_disk(warning_temp_time=314, critical_comp_time=1)]}
     assert _temps(oa, now, prev)["disk_smart"].findings == []
+
+
+# --- rc != 0: drei Sonntage unbemerkt (2026-09-26) ---------------------------
+
+def _last(job, rc, ended):
+    return {"job": job, "rc": rc, "ended_at": ended}
+
+
+def test_a_job_that_ended_with_an_error_is_an_alarm(db):
+    """discovery_loop meldete rc=1 am 06./13./20.09. — niemand erfuhr es."""
+    _, oa = db
+    t = dict(oa.DEFAULTS)
+    ended = datetime(2026, 9, 20, 6, 15, tzinfo=timezone.utc)
+    res = oa.rule_job_failed([_last("discovery_loop", 1, ended)], t)
+    assert res.checked
+    assert [f.key for f in res.findings] == ["discovery_loop"]
+    assert "rc=1" in res.findings[0].message
+
+
+def test_a_successful_last_run_clears_the_way(db):
+    _, oa = db
+    ended = datetime(2026, 9, 20, 6, 15, tzinfo=timezone.utc)
+    res = oa.rule_job_failed([_last("discovery_loop", 0, ended)], dict(oa.DEFAULTS))
+    assert res.checked and res.findings == []
+
+
+def test_a_collision_guard_skip_is_no_defect(db):
+    """rc=75 heisst: fremder GPU-Job, nichts angefasst — kein Alarm."""
+    _, oa = db
+    ended = datetime(2026, 9, 20, 6, 15, tzinfo=timezone.utc)
+    res = oa.rule_job_failed([_last("weekly_ingesters", 75, ended)], dict(oa.DEFAULTS))
+    assert res.findings == []
+
+
+def test_an_unknown_end_is_not_reported_as_an_error(db):
+    """rc NULL = vom Sampler geschlossen; die Seite zeigt das als 'aborted'."""
+    _, oa = db
+    ended = datetime(2026, 9, 20, 6, 15, tzinfo=timezone.utc)
+    res = oa.rule_job_failed([_last("dossier_worker", None, ended)], dict(oa.DEFAULTS))
+    assert res.findings == []
+
+
+def test_without_the_query_the_rule_says_nothing(db):
+    """Kein last_runs im Kontext (SQLite-Pfad) → offene Alarme bleiben stehen."""
+    _, oa = db
+    s = _sample()
+    ctx = {"prev_full": None, "open": [], "medians": {}, "daily_max": []}
+    res = [r for r in oa.evaluate(s, ctx, dict(oa.DEFAULTS)) if r.kind == "job_failed"]
+    assert len(res) == 1 and res[0].checked is False
