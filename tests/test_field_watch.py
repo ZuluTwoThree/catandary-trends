@@ -147,8 +147,26 @@ class TestRender:
 
 class TestCron:
     def test_crontab_template_and_wrapper_agree(self):
+        """Field Watch laeuft samstags NACH dem Pulse — die Uhrzeit selbst ist frei.
+
+        Der Test pinnte bis 2026-09-26 "30 12 * * 6" und brach damit, als der Owner die
+        Samstags-Mittagsjobs auf vor 9 Uhr zog (Pulse 08:30, Field Watch 08:45). Gepinnt
+        gehoert die Reihenfolge, nicht die Minute: Field Watch liest, was der Lauf davor
+        gerechnet hat."""
+        import re
         crontab = (ROOT / "deploy" / "crontab.txt").read_text()
-        assert "30 12 * * 6" in crontab and "weekly_field_watch.sh" in crontab
+        times = {}
+        for line in crontab.splitlines():
+            m = re.match(r"^(\d+)\s+(\d+)\s+\*\s+\*\s+6\b", line)
+            if not m:
+                continue
+            for job in ("weekly_field_watch.sh", "weekly_research_pulse.sh"):
+                if job in line:
+                    times[job] = int(m.group(2)) * 60 + int(m.group(1))
+        assert "weekly_field_watch.sh" in times, "keine Samstags-Zeile fuer Field Watch"
+        assert "weekly_research_pulse.sh" in times, "keine Samstags-Zeile fuer den Pulse"
+        assert times["weekly_field_watch.sh"] > times["weekly_research_pulse.sh"], \
+            "Field Watch muss nach dem Pulse laufen"
         wrapper = (ROOT / "scripts" / "weekly_field_watch.sh").read_text()
         assert "field_watch.py --all" in wrapper and "gpu_guard_wait" not in wrapper   # keine GPU, kein Wächter
         assert "weekly_field_watch" in (ROOT / "scripts" / "review_notify.py").read_text()
