@@ -762,3 +762,65 @@ n_ctx_slot = 16384` — die Umstellung aus dem `main`-Merge greift also im Produ
 Konfiguration** (19 782). Laufzeit 64 s gegen 54–58 s am 18.09. — andere Woche, andere
 Datenmenge (grösstes Theme 6 617 Papers), kein Konfigurationsvergleich. Der 12:00-Cron fand die
 Woche gerechnet und übersprang mit `exists`.
+
+## 2026-09-26 · idea · Discovery-Loop: das Retrain der Distill-Heads stirbt seit Wochen am Speicher
+
+Aufgefallen, weil `mega_discovery.candidate.yaml` im main-Arbeitsbaum verändert war. Die Datei
+ist die Ausgabe des Sonntagslaufs (`discovery_loop.py`, 06:00) und versioniert — jeder Lauf macht
+den Arbeitsbaum damit „dirty". Das ist die harmlose Hälfte des Befunds.
+
+**Die andere Hälfte:** Der Loop endet seit mindestens drei Sonntagen mit Fehlern. Aus
+`~/logs/catandary-discovery-loop.log`:
+
+| Sonntag | discovery | retrain |
+|---|---|---|
+| 06.09. | — | `rc=-9` |
+| 13.09. | `rc=0` | `rc=-9` |
+| 20.09. | `rc=0` | `rc=-9` |
+
+`rc=-9` ist SIGKILL. Der Kernel bestätigt den Grund (`journalctl -k`, 20.09. 06:15:45):
+`Out of memory: Killed process 368337 (python) total-vm:60407508kB, anon-rss:56628700kB` —
+**56,6 GB**.
+
+Rechnung dahinter: `discovery_loop.retrain()` ruft `scripts/train_distill_heads.py` **ohne
+`--sample`**, der Trainer lädt `trends.embedding` (4096-dim) für alle gelabelten Zeilen. Das sind
+heute **1.827.351 Zeilen × 4096 × 4 Byte = 29,9 GB** als Matrix, plus der Text-Parse-Zwischen-
+schritt (`embedding::text` → `np.array`) und Kopien — 56 GB sind damit erklärt. Dasselbe Muster
+wie beim Snapshot-OOM vom 15.09., der :3001 mitriss.
+
+Wirkung: Die Discovery selbst läuft (die Kandidaten werden geschrieben, zuletzt 9 Themen,
+Rausch-Anteil 0,81, Stabilität 0,82). Nur die Heads werden nicht neu trainiert, obwohl
+`mega_trends.yaml` neuer ist — sie arbeiten weiter mit dem alten Stand. Gemerkt hat es niemand:
+der Wächter prüft den Discovery-Loop nicht, und `loop finished WITH ERRORS` steht nur im Log.
+
+**Die Lösung existiert schon — sie wurde nur nicht übertragen** (Owner-Hinweis 26.09.: „ich habe
+da etwas in der Art in Erinnerung"). Am 15.09. traf denselben Fehler `foresight_snapshot`: ohne
+`--dim1024` las er 1,75 Mio. Vektoren als Text in einem `fetchall`, **56 GB RSS, OOM-Kill** — dieselbe
+Zahl wie hier. Behoben wurde er dreifach: seitenweiser Lader (Keyset, 20 k Zeilen, hält nur die
+float32-Bytes), `--dim1024` für das Matryoshka-Präfix (`emb_field = "embedding_1024" if dim1024`,
+`pipeline/foresight.py:148`, ebenso `discovery.py:103/247`) und ein systemd-Scope mit
+`MemoryMax=40G` für vom Frontend gestartete Jobs (`lib/detachedSpawn.ts`).
+
+`train_distill_heads.py` hat von den drei Teilen nur den Server-Cursor. Es lädt hart `embedding`
+(4096), kennt kein `--dim1024`, sammelt `chunks` und macht am Ende `np.vstack` — also doch die
+Vollmatrix. Und es läuft im Cron **ohne** MemoryMax, weil der Scope nur für Frontend-Jobs gilt.
+
+Prüfung, wo das Muster sonst noch steckt (Skripte, die `embedding` statt `embedding_1024` laden):
+
+| Skript | Matrix heute | mit 1024er | läuft unbeaufsichtigt? |
+|---|---|---|---|
+| `train_distill_heads.py` | 1 827 351 × 4096 = **29,9 GB** | 7,5 GB | **ja**, über `discovery_loop` (So 06:00) |
+| `train_signal_type_head.py` | 708 998 × 4096 = 11,6 GB | 2,9 GB | nein, on demand |
+| `propose_mega_trends.py`, `reclassify_mega.py`, `tir_metrics.py`, `mega_trend_reviewer.py`, `fix_mega_abstain.py`, `validate_distill_patents.py`, `distill_prototype.py`, `reclassify_concept_sources.py` | — | — | nein, on demand |
+
+Nur der Trainer läuft also unbeaufsichtigt — und genau er ist der einzige, der stirbt. Bei den
+übrigen sitzt jemand davor, wenn es knallt.
+
+Vorschlag (Cron-Pfad → Owner-Entscheid + `main`-Merge): **die Lösung vom 15.09. übertragen**, nicht
+neu erfinden — `--dim1024` plus seitenweises Laden nach dem Muster von `pipeline/foresight.py`.
+Vorher zu messen: was das 1024er-Präfix mit der Head-Güte macht (Holdout-Vergleich, der Trainer
+gibt ihn schon aus). `--sample` bleibt der billige Notausgang, falls die Güte leidet. Unabhängig
+davon fehlt die Sichtbarkeit: `loop finished WITH ERRORS` steht nur im Log, der Wächter prüft den
+Discovery-Loop nicht — drei Sonntage sind darum unbemerkt geblieben.
+
+Der nächste Lauf ist Sonntag 27.09. 06:00 und würde erneut scheitern.
