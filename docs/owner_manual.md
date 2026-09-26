@@ -1317,7 +1317,8 @@ im Handover still).
 | 5. 02:00 | OpenAlex-Monats-Sync (45M-Korpus) | `scripts/sync_openalex_monthly.sh` | installiert |
 | 6. 12:00 | Startup-Register (CORDIS/SBIR/GLEIF/CH) | `scripts/monthly_startup_sources.sh` | installiert |
 | 02:00 täglich | **Statischer Export → Webspace** | `scripts/publish_static_site.sh` | **installiert in `deploy/crontab.txt`, nicht installiert** (kein `webspace.env`) |
-| 12:00 Sa | Research Pulse (Vorwoche, 28 Themes) | `scripts/weekly_research_pulse.sh` | installiert (2026-09-18) |
+| 08:30 Sa | Research Pulse (Vorwoche, 28 Themes) | `scripts/weekly_research_pulse.sh` | installiert (2026-09-18; Zeit ab 26.09., vorher 12:00) |
+| 08:45 Sa | Field Watch (Wochenblätter aller Kundenfelder) | `scripts/weekly_field_watch.sh` | installiert (2026-09-26; ohne Kundendateien no-op) |
 | 09:00 **Di** | Newsletter-Versand | `scripts/newsletter_tonight.sh` | **gegated, auskommentiert** (#16) |
 | 08:30 täglich | Subscriber-Sync MySQL → Postgres | `python -m scripts.sync_subscribers` (Datei liegt noch unter `docs/launch/newsletter-doi-php/`) | **auskommentiert** (#16) |
 
@@ -1373,7 +1374,7 @@ Konfiguration spart. Bericht der ersten Messung: `docs/context_parallel_eval_202
 **Alle Läufe brauchen ein Fenster ohne GPU-Cronjobs und stoppen den Produktivserver.**
 
 ```bash
-gpu-mode status --hours 12                  # Fenster prüfen (GPU-Crons: Sa 06:00, Sa 12:00, Mo-Fr 02:45)
+gpu-mode status --hours 12                  # Fenster prüfen (GPU-Crons: Sa 06:00, Sa 08:30, Mo-Fr 02:45)
 systemctl --user stop llama-server.service
 
 .venv/bin/python scripts/ctx_eval/llama_log_stats.py /tmp/llama-server.log
