@@ -50,6 +50,43 @@ def _normalize(X: np.ndarray) -> np.ndarray:
     return X / np.clip(np.linalg.norm(X, axis=1, keepdims=True), 1e-9, None)
 
 
+class _HeadInput:
+    """Feeds every head the width it was trained on, from one 4096-dim input.
+
+    Since 2026-09-26 the four main heads are trained on the 1024-dim Matryoshka
+    prefix (memory: scripts/train_distill_heads.py), while signal_type (#110)
+    is still a 4096-dim head. `trends.embedding_1024` IS `embedding[:1024]`
+    (db.insert_trend), so slicing then L2-normalising here is bit-for-bit what
+    the trainer did — callers keep passing the full vector and need no change.
+    Mixed widths are normal, so each width is prepared once and reused.
+    """
+
+    def __init__(self, X):
+        self._raw = np.asarray(X, dtype=np.float32)
+        if self._raw.ndim == 1:
+            self._raw = self._raw[None, :]
+        self._cache: dict[int, np.ndarray] = {}
+
+    @property
+    def width(self) -> int:
+        return int(self._raw.shape[1])
+
+    @property
+    def rows(self) -> int:
+        return int(self._raw.shape[0])
+
+    def for_head(self, head) -> np.ndarray:
+        d = int(getattr(head, "n_features_in_", 0) or self.width)
+        if d > self.width:
+            raise ValueError(
+                f"head expects {d} dims, got {self.width} — the embedding is "
+                "narrower than the head was trained on")
+        if d not in self._cache:
+            self._cache[d] = _normalize(self._raw if d == self.width
+                                        else self._raw[:, :d])
+        return self._cache[d]
+
+
 class DistillClassifier:
     """Loads the persisted heads and classifies embeddings (batch-first)."""
 
@@ -84,10 +121,10 @@ class DistillClassifier:
     # ------------------------------------------------------------- batch API
     def classify_batch(self, X) -> list[dict]:
         """Classify a batch of embeddings. X: (n, 4096) array-like."""
-        Xn = _normalize(X)
-        n = Xn.shape[0]
+        inp = _HeadInput(X)
+        n = inp.rows
 
-        v_scores = self._vertical.decision_function(Xn)
+        v_scores = self._vertical.decision_function(inp.for_head(self._vertical))
         if v_scores.ndim == 1:
             v_scores = np.stack([-v_scores, v_scores], axis=1)
         v_classes = np.asarray(self._vertical.classes_)
@@ -96,7 +133,7 @@ class DistillClassifier:
         v_exp = np.exp(v_scores - v_scores.max(axis=1, keepdims=True))
         v_prob = v_exp / v_exp.sum(axis=1, keepdims=True)
 
-        m_scores = self._mega.decision_function(Xn)
+        m_scores = self._mega.decision_function(inp.for_head(self._mega))
         if m_scores.ndim == 1:
             m_scores = np.stack([-m_scores, m_scores], axis=1)
         m_classes = np.asarray(self._mega.classes_)
@@ -109,11 +146,11 @@ class DistillClassifier:
         # published trends fall here (LIFESTYLE 56%). See issue #39.
         m_topscore = m_scores[np.arange(n), m_order[:, 0]]
 
-        p_pred = self._pestel.predict(Xn)
+        p_pred = self._pestel.predict(inp.for_head(self._pestel))
 
         rel = None
         if self._relevance is not None:
-            rel = self._relevance.predict_proba(Xn)[:, 1]
+            rel = self._relevance.predict_proba(inp.for_head(self._relevance))[:, 1]
 
         # #110: press signal type (5 classes). The head only ever speaks for
         # press entries — the caller (_distill_signal_type) keeps the
@@ -121,7 +158,7 @@ class DistillClassifier:
         # confidence floor. Emitted as None when the head is not installed.
         st_label = st_conf = None
         if self._signal_type is not None:
-            st_prob = self._signal_type.predict_proba(Xn)
+            st_prob = self._signal_type.predict_proba(inp.for_head(self._signal_type))
             st_idx = st_prob.argmax(axis=1)
             st_classes = np.asarray(self._signal_type.classes_)
             st_label = st_classes[st_idx]

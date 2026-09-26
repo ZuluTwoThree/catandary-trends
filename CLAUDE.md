@@ -893,7 +893,20 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # filter_reason='source_text_purged' — ein Eintrag ohne Quelltext ist nie
 # wieder Artikelmaterial (Anlass: die 04.09.-Leerung liess die Zeilen im Pool).
 
-# Source-Discovery-Loop (Sonntag 06:00)
+# Source-Discovery-Loop (Sonntag 06:00). Zweiter Schritt ist der Retrain der
+# Distill-Heads, wenn `mega_trends.yaml` neuer ist als `models/distill/meta.json`.
+# Der lief vom 07.08. bis 20.09. JEDEN Sonntag ins Leere: `train_distill_heads.py`
+# baute die Matrix aus 1,83 Mio. Zeilen x 4096 Dimensionen (29,9 GB) und hielt sie
+# durch ein abschliessendes np.vstack zweimal — 56,6 GB RSS, SIGKILL, rc=-9 im
+# Log, rc=1 in ops_events, und niemand erfuhr es (dafuer jetzt die Regel
+# `job_failed`, s. Alarme). Seit 2026-09-26: gezaehlt und keyset-paginiert in EINE
+# vorbelegte Matrix, und trainiert wird auf dem 1024er-Matryoshka-Praefix
+# (`--dim`, Default 1024 = `trends.embedding_1024`, das per Definition
+# `embedding[:1024]` ist) — 7,5 GB statt 29,9. Die Inferenz aendert sich nicht:
+# `pipeline/distill.py` schneidet jeden Vektor auf die Breite DES JEWEILIGEN Heads
+# (`n_features_in_`), damit die vier 1024er neben dem 4096er signal_type-Head
+# (#110) laufen. Ein Preflight bricht mit lesbarer Meldung ab, wenn Matrix +
+# sklearn-Kopie nicht in den freien Speicher passen, statt OOM-getoetet zu werden.
 0 6 * * 0    .venv/bin/python scripts/discovery_loop.py
 
 # Monatlicher Quellen-Check mit Issue-Post (1. des Monats, 08:00)

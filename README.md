@@ -362,13 +362,20 @@ einen Menschen, `AI_DISCLOSURE_EN`) und `/analysis` (schreibt der Owner selbst).
 Handbuch: [§12, KI-Kennzeichnung](docs/owner_manual.md#ki-kennzeichnung-der-artikel-99).
 
 **Distill-Pfad** (`pipeline/distill.py`, `scripts/signal_batch*.py`): lineare
-Heads auf den 4096-dim-Embeddings ersetzen die LLM-Klassifikation für den
+Heads auf den Signal-Embeddings ersetzen die LLM-Klassifikation für den
 Massen-Ingest; Ergebnis sind `status='signal'`-Zeilen ohne Artikel — der
 Rohstoff der Foresight-Werkzeuge. Fällt der Embedding-Server aus, bleibt der
 Rest des Laufs unverarbeitet (Retry desselben Chunks, nach 20 Fehlern in Folge
 Exit 3) statt als `embedding_error` aussortiert zu werden (#98). Retrain: `scripts/train_distill_heads.py`
 (auch automatisch im Sonntag-Discovery-Loop, wenn `mega_trends.yaml` geändert
-wurde). **Fünfter Head (#110, Default aus):** `scripts/train_signal_type_head.py`
+wurde). **Trainiert seit 2026-09-26 auf den ersten 1024 Dimensionen**
+(`--dim`, Matryoshka-Präfix = `trends.embedding_1024`): mit dem vollen Vektor
+brauchte der Lauf 1,83 Mio. × 4096 × 4 B als Matrix plus eine sklearn-Kopie und
+wurde drei Sonntage in Folge bei 56 GB OOM-getötet, ohne dass es auffiel — die
+produktiven Heads waren vom 07.08. Die Inferenz bekommt weiter den vollen
+Vektor: `pipeline/distill.py` schneidet für jeden Head auf dessen eigene Breite
+zu, so dass die vier 1024er neben dem 4096er `signal_type`-Head laufen. Ein
+Preflight bricht ab, wenn Matrix + Kopie nicht in den freien Speicher passen. **Fünfter Head (#110, Default aus):** `scripts/train_signal_type_head.py`
 schreibt `models/distill/signal_type.joblib` — den Signaltyp für Presse-Signale
 (product_launch / regulation / partnership / consumer_behavior / market_shift),
 den die Quellenart-Regel seit dem 14.07.2026 pauschal auf `market_shift` setzte.

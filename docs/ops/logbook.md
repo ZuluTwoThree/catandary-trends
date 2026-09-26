@@ -824,3 +824,112 @@ davon fehlt die Sichtbarkeit: `loop finished WITH ERRORS` steht nur im Log, der 
 Discovery-Loop nicht — drei Sonntage sind darum unbemerkt geblieben.
 
 Der nächste Lauf ist Sonntag 27.09. 06:00 und würde erneut scheitern.
+
+## 2026-09-26 · change · Retrain der Distill-Heads läuft wieder — auf dem 1024er-Präfix
+
+Umsetzung des Befunds von heute früh (Eintrag oben). Zwei Ursachen, beide behoben.
+
+**Erstens hielt der Lader die Matrix zweimal.** `_stream_trends` sammelte Häppchen in
+einer Liste und schloss mit `np.vstack(chunks)` — in dem Moment liegen Häppchen und
+Ergebnis nebeneinander, also 2 × 29,9 GB. Das allein erklärt die 56,6 GB, noch vor
+jeder sklearn-Kopie. Jetzt wird erst gezählt, dann keyset-paginiert in EINE vorbelegte
+Matrix geschrieben (Muster `pipeline/foresight.py`); der Server-Cursor entfällt.
+
+**Zweitens sind 4096 Dimensionen die Matrix.** `--dim` (Default **1024**) trainiert auf
+dem Matryoshka-Präfix, also auf `trends.embedding_1024` — das per Definition
+`embedding[:1024]` ist (`db.insert_trend`), weshalb es kein Abschneiden ins Blaue,
+sondern derselbe Vektorraum ist. Unter Postgres kommt damit auch ein Viertel des
+Textes über die Leitung.
+
+**Die Inferenz bleibt unangetastet.** Alle Aufrufer (`llm_processor`, `signal_batch`,
+`reclassify`, `mega_trend_reviewer`, die vier On-demand-Skripte) übergeben weiter den
+vollen 4096er-Vektor; `pipeline/distill._HeadInput` schneidet je Head auf dessen
+`n_features_in_` und normalisiert DANACH — bitgleich zu dem, was der Trainer geladen
+hat. Das ist die Voraussetzung dafür, dass die vier neuen 1024er neben dem 4096er
+`signal_type`-Head (#110) laufen; beide Breiten gleichzeitig sind heute auf der Platte
+geprüft, nicht nur im Unittest.
+
+Dazu zwei Kleinigkeiten, die beide aus dem Vorfall selbst folgen: ein **Preflight**
+rechnet `n × dim × 4 × 2,5` gegen `MemAvailable` und bricht mit lesbarer Meldung ab
+(der Faktor ist gemessen, nicht hergeleitet — das Laden ist mit 2,2–2,5 × Matrix die
+Spitze, nicht die spätere Kopie mit 1,9 ×), und **alle Ausgaben sind ungepuffert**: bei
+SIGKILL war der Puffer verloren, genau deshalb stand in den drei OOM-Logs so wenig.
+
+### A/B über die Dimension, identische Zeilen (205.567 Train / 22.840 Holdout)
+
+| | 1024 | 4096 | Δ |
+|---|---|---|---|
+| Vertical Top-1 | 0,9118 | 0,9297 | −1,79 pp |
+| Mega Top-1 | 0,8539 | 0,8673 | −1,34 pp |
+| Mega Top-3 | 0,9819 | 0,9849 | −0,30 pp |
+| PESTEL micro-F1 | 0,9169 | 0,9323 | −1,54 pp |
+| Laufzeit | 237 s | 886 s | 3,7 × |
+| Spitze RSS | 2,4 GB | 8,7 GB | 3,6 × |
+
+Das Präfix kostet also gut anderthalb Punkte je Head — bei gleicher Zeilenzahl.
+
+### Volllauf gegen den produktiven Stand
+
+Der Vergleich, der zählt: nicht 1024 gegen 4096, sondern **was heute nachts arbeitet
+gegen das, was installiert würde.** 2.648 s, Spitze 16,9 GB, rc 0.
+
+| | produktiv (4096, 1,02 Mio., 07.08.) | neu (1024, 1,83 Mio.) |
+|---|---|---|
+| Vertical Top-1 | 0,9099 | 0,9092 |
+| Mega Top-1 / Top-3 | 0,8429 / 0,9764 | **0,8525 / 0,9803** |
+| PESTEL micro-F1 | 0,9091 | **0,9170** |
+| Relevanz P / R / Acc | 0,8821 / 0,9030 / 0,8826 | 0,8818 / **0,8774** / 0,8839 |
+
+Die vierfache Zeilenzahl holt den Präfix-Verlust also auf und überholt ihn in der
+Summe — Vertical gleich, Mega und PESTEL besser.
+
+### Was schlechter wird, und es ist nicht nichts
+
+Die Summe verdeckt eine Umverteilung. Nach Mega-Klasse (Top-1-Recall im Holdout):
+
+| Klasse | alt | neu | n |
+|---|---|---|---|
+| quantum_information_science | 0,361 | **0,752** | 2.380 |
+| digital_healthcare_integration | 0,292 | **0,572** | 3.740 |
+| education_and_lifelong_learning | 0,191 | **0,569** | 1.525 |
+| clean_energy_transition | 0,873 | **0,907** | 18.218 |
+| circular_economy_and_zero_waste | 0,693 | 0,620 | 819 |
+| experience_economy_and_immersive_design | 0,401 | 0,326 | 599 |
+| next_generation_semiconductors | 0,329 | 0,168 | 452 |
+| connected_living_and_smart_spaces | 0,242 | 0,141 | 645 |
+| cultural_heritage_and_identity | 0,099 | 0,030 | 169 |
+| evolution_of_work_models | 0,094 | 0,014 | 138 |
+| **virtual_worlds_consolidation** | 0,047 | **0,000** | 300 |
+
+Das Muster ist eindeutig: es gewinnen die grossen Klassen, es verlieren die kleinen,
+und **eine Klasse wird unerreichbar** (`virtual_worlds_consolidation`) — in der
+produktiven Fassung war keine tot. Der Code nennt so eine Klasse an anderer Stelle
+zu Recht „dead weight in the yaml": sie steht in `mega_trends.yaml`, aber kein Signal
+bekommt sie mehr. Dass das nicht nur an der Datenmenge liegt, zeigt das A/B: bei
+gleichen Zeilen hatte 1024 zwei tote Klassen, 4096 eine.
+
+Naheliegende Kur, bewusst NICHT in denselben Lauf gepackt: `class_weight='balanced'`
+für den Mega-Head — genau das, was der Signaltyp-Head (#110) für seine kleinen Klassen
+schon tut. Das ist ein eigener Messlauf, keine Beifuhr.
+
+Zweiter Posten: die **Relevanz-Trefferquote fällt um 2,6 Punkte** (0,9030 → 0,8774) bei
+gleicher Präzision. Ein Teil ist die Datenlage, nicht die Dimension — es gibt jetzt
+322.824 Negativbeispiele gegen 256.575 im August, bei unverändert 300.000 Positiven.
+Das Hybrid-Tor mildert es (verworfen wird unter 0,3, behalten über 0,7, dazwischen
+entscheidet das 8B), ein schwächerer Recall schiebt also eher ins Zweifelsband als in
+den Müll — er kostet Rechenzeit, nicht Inhalt. Nach der ersten Nacht mit neuen Heads
+gehört `filtered/processed` in `data/cycle_log.jsonl` angesehen (zuletzt 65/300 = 22 %).
+
+### Sichtbarkeit
+
+Neue Alarmregel `job_failed`: endet der letzte abgeschlossene Lauf eines Jobs mit
+`rc != 0`, gibt es eine Mail, und der Alarm bleibt, bis derselbe Job wieder mit 0
+endet. Rauschprobe über 14 Tage `ops_events`: vier Zeilen mit `rc != 0` — zwei der
+echte Defekt, eine ein fehlgeschlagener `publish_static_site` (auch meldenswert), eine
+aus dem entfernten Dossier-Feature. `rc=75` (Skip des GPU-Kollisionswächters) ist über
+`job_failed_ignore_rc` in der yaml ausgeklammert.
+
+Der Sonntagslauf morgen 06:00 stösst den Retrain an (`mega_trends.yaml` vom 08.08. ist
+neuer als `meta.json` vom 07.08.) — **mit dem Merge nach `main` gelingt er, und die
+neuen Heads gehen in Betrieb.** Danach stellt sich der Schritt von selbst ab, bis die
+Taxonomie wieder geändert wird.
