@@ -762,3 +762,42 @@ n_ctx_slot = 16384` — die Umstellung aus dem `main`-Merge greift also im Produ
 Konfiguration** (19 782). Laufzeit 64 s gegen 54–58 s am 18.09. — andere Woche, andere
 Datenmenge (grösstes Theme 6 617 Papers), kein Konfigurationsvergleich. Der 12:00-Cron fand die
 Woche gerechnet und übersprang mit `exists`.
+
+## 2026-09-26 · idea · Discovery-Loop: das Retrain der Distill-Heads stirbt seit Wochen am Speicher
+
+Aufgefallen, weil `mega_discovery.candidate.yaml` im main-Arbeitsbaum verändert war. Die Datei
+ist die Ausgabe des Sonntagslaufs (`discovery_loop.py`, 06:00) und versioniert — jeder Lauf macht
+den Arbeitsbaum damit „dirty". Das ist die harmlose Hälfte des Befunds.
+
+**Die andere Hälfte:** Der Loop endet seit mindestens drei Sonntagen mit Fehlern. Aus
+`~/logs/catandary-discovery-loop.log`:
+
+| Sonntag | discovery | retrain |
+|---|---|---|
+| 06.09. | — | `rc=-9` |
+| 13.09. | `rc=0` | `rc=-9` |
+| 20.09. | `rc=0` | `rc=-9` |
+
+`rc=-9` ist SIGKILL. Der Kernel bestätigt den Grund (`journalctl -k`, 20.09. 06:15:45):
+`Out of memory: Killed process 368337 (python) total-vm:60407508kB, anon-rss:56628700kB` —
+**56,6 GB**.
+
+Rechnung dahinter: `discovery_loop.retrain()` ruft `scripts/train_distill_heads.py` **ohne
+`--sample`**, der Trainer lädt `trends.embedding` (4096-dim) für alle gelabelten Zeilen. Das sind
+heute **1.827.351 Zeilen × 4096 × 4 Byte = 29,9 GB** als Matrix, plus der Text-Parse-Zwischen-
+schritt (`embedding::text` → `np.array`) und Kopien — 56 GB sind damit erklärt. Dasselbe Muster
+wie beim Snapshot-OOM vom 15.09., der :3001 mitriss.
+
+Wirkung: Die Discovery selbst läuft (die Kandidaten werden geschrieben, zuletzt 9 Themen,
+Rausch-Anteil 0,81, Stabilität 0,82). Nur die Heads werden nicht neu trainiert, obwohl
+`mega_trends.yaml` neuer ist — sie arbeiten weiter mit dem alten Stand. Gemerkt hat es niemand:
+der Wächter prüft den Discovery-Loop nicht, und `loop finished WITH ERRORS` steht nur im Log.
+
+Drei Ansätze, in dieser Reihenfolge (alle auf dem Cron-Pfad, also Owner-Entscheid + `main`-Merge):
+1. Das 1024er-Matryoshka-Präfix laden statt 4096 — 7,5 statt 29,9 GB, und der Dedup/Distill-Pfad
+   arbeitet ohnehin auf `embedding_1024`. Wäre zu messen, ob die Head-Güte darunter leidet.
+2. `--sample` setzen (der Trainer kann das schon) — 500 k Zeilen reichen für SGD sehr wahrscheinlich.
+3. Den Fehlausgang sichtbar machen: `ops_events`-Notiz oder eine Zeile in der Morgen-Mail, damit
+   ein `WITH ERRORS` nicht wieder wochenlang unbemerkt bleibt.
+
+Der nächste Lauf ist Sonntag 27.09. 06:00 und würde erneut scheitern.
