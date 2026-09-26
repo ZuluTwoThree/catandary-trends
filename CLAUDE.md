@@ -893,7 +893,20 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # filter_reason='source_text_purged' — ein Eintrag ohne Quelltext ist nie
 # wieder Artikelmaterial (Anlass: die 04.09.-Leerung liess die Zeilen im Pool).
 
-# Source-Discovery-Loop (Sonntag 06:00)
+# Source-Discovery-Loop (Sonntag 06:00). Zweiter Schritt ist der Retrain der
+# Distill-Heads, wenn `mega_trends.yaml` neuer ist als `models/distill/meta.json`.
+# Der lief vom 07.08. bis 20.09. JEDEN Sonntag ins Leere: `train_distill_heads.py`
+# baute die Matrix aus 1,83 Mio. Zeilen x 4096 Dimensionen (29,9 GB) und hielt sie
+# durch ein abschliessendes np.vstack zweimal — 56,6 GB RSS, SIGKILL, rc=-9 im
+# Log, rc=1 in ops_events, und niemand erfuhr es (dafuer jetzt die Regel
+# `job_failed`, s. Alarme). Seit 2026-09-26: gezaehlt und keyset-paginiert in EINE
+# vorbelegte Matrix, und trainiert wird auf dem 1024er-Matryoshka-Praefix
+# (`--dim`, Default 1024 = `trends.embedding_1024`, das per Definition
+# `embedding[:1024]` ist) — 7,5 GB statt 29,9. Die Inferenz aendert sich nicht:
+# `pipeline/distill.py` schneidet jeden Vektor auf die Breite DES JEWEILIGEN Heads
+# (`n_features_in_`), damit die vier 1024er neben dem 4096er signal_type-Head
+# (#110) laufen. Ein Preflight bricht mit lesbarer Meldung ab, wenn Matrix +
+# sklearn-Kopie nicht in den freien Speicher passen, statt OOM-getoetet zu werden.
 0 6 * * 0    .venv/bin/python scripts/discovery_loop.py
 
 # Monatlicher Quellen-Check mit Issue-Post (1. des Monats, 08:00)
@@ -1021,12 +1034,16 @@ close-orphans`.
 **Alarme (#104 Stufe 5, seit 2026-09-11):** `pipeline/ops_alerts.py` läuft im
 Sampler nach jeder Messung; Schwellen in `ops_alerts.yaml` (Repo-Root, ohne Code
 änderbar). Regeln: Platte frei < 10 % (unter `/` = System + Postgres schon < 20 %),
-Platten-Temperatur (HDD > 50 °C, SSD > 65 °C), SMART FAILED / NVMe critical
+SMART FAILED / NVMe critical
 warning / Verschleiß ≥ 90 % / Reserve < 10 % / Sektor- und Medienfehler-Zähler
 **steigen** (gegen die vorige volle Messung, ein stabiler Wert ist kein Alarm),
-GPU > 88 °C, Fremdbelegung (> 1,5 GB VRAM, aber kein llama-server antwortet und
+GPU > 88 °C, Platten-Temperatur (HDD > 55 °C, SSD > 68 °C), Fremdbelegung (> 1,5 GB VRAM, aber kein llama-server antwortet und
 kein Job hält die Karte — der Ruhezustand mit 8B ist keiner), DB-Verbindungen
-> 80 %, Job läuft > 2 × seinen Median (28 d, ≥ 3 Läufe), Job läuft > 6 h
+> 80 %, letzter abgeschlossener Lauf eines Jobs endete mit `rc != 0` (seit
+2026-09-26; `job_failed_ignore_rc` klammert rc=75 = Wächter-Skip aus — Anlass:
+`discovery_loop` meldete drei Sonntage in Folge rc=1, die Zeile stand in
+`ops_events`, aber keine Regel las sie), Job läuft > 2 × seinen Median
+(28 d, ≥ 3 Läufe), Job läuft > 6 h
 („läuft" = Zeile offen **und** Prozess lebt — tote Läufe schließt der Sampler
 vorher, s. Laufprotokoll; Startzeit in der Mail seit 12.09. lokal mit Zone, nicht
 mehr fälschlich „UTC"),

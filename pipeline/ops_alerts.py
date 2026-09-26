@@ -38,6 +38,7 @@ DEFAULTS: dict = {
     "gpu_temp_max_c": 88, "gpu_foreign_vram_mib": 1500,
     "db_connections_pct_max": 80,
     "job_slow_factor": 2.0, "job_hang_hours": 6,
+    "job_failed_lookback_days": 14, "job_failed_ignore_rc": [75],
     "backlog_growth_days": 3, "sampler_stale_min": 5,
 }
 
@@ -185,6 +186,26 @@ def rule_jobs(open_events: list[dict], medians: dict[str, float], t: dict, now: 
     return [RuleResult("job_slow", True, slow), RuleResult("job_hang", True, hang)]
 
 
+def rule_job_failed(last_runs: list[dict], t: dict) -> RuleResult:
+    """Letzter ABGESCHLOSSENER Lauf eines Jobs endete mit rc != 0.
+
+    Anlass 2026-09-26: der Sonntags-Retrain der Distill-Heads endete drei
+    Sonntage in Folge mit rc=1 (der Trainer wurde bei 56 GB OOM-getoetet). Die
+    Zeile stand jedes Mal in ops_events, aber keine Regel las sie — der
+    Waechter prueft nur die Stage-Bilanz des Cycles, und am Wochenende gibt es
+    die nicht. Der Alarm bleibt stehen, bis ein spaeterer Lauf desselben Jobs
+    mit rc=0 endet; ein Skip des Kollisionswaechters (rc=75) ist kein Defekt
+    (`job_failed_ignore_rc` in der yaml, ohne Code erweiterbar).
+    """
+    ignore = {int(x) for x in (t.get("job_failed_ignore_rc") or [])}
+    f = [Finding("job_failed", r["job"],
+                 f"{r['job']} last run ended rc={r['rc']} "
+                 f"({r['ended_at'].astimezone():%d.%m. %H:%M %Z})")
+         for r in last_runs
+         if r.get("rc") is not None and int(r["rc"]) != 0 and int(r["rc"]) not in ignore]
+    return RuleResult("job_failed", True, f)
+
+
 def rule_backlog(daily_max: list[int | None], t: dict) -> RuleResult:
     """`daily_max`: Tagesmaximum des Backlogs, aelteste zuerst, letzter = heute."""
     n = int(t["backlog_growth_days"])
@@ -199,8 +220,10 @@ def rule_backlog(daily_max: list[int | None], t: dict) -> RuleResult:
 
 # --- Datenbank-Lesen fuer die Regeln ---------------------------------------------------------
 
-def _db_context() -> dict:
-    """prev_full (SMART-Vergleich), offene Laeufe, Mediane, Backlog-Tagesmaxima."""
+def _db_context(t: dict | None = None) -> dict:
+    """prev_full (SMART-Vergleich), offene Laeufe, Mediane, Backlog-Tagesmaxima,
+    letzter abgeschlossener Lauf je Job."""
+    t = t or load_thresholds()
     ctx: dict = {"prev_full": None, "open": [], "medians": {}, "daily_max": []}
     with get_connection() as conn:
         rows = conn.execute("SELECT disks FROM ops_samples WHERE is_full = ? ORDER BY ts DESC LIMIT 2",
@@ -215,6 +238,13 @@ def _db_context() -> dict:
             "SELECT job, started_at FROM ops_events WHERE ended_at IS NULL").fetchall()]
         if USE_POSTGRES:
             cur = conn._conn.cursor()
+            # je Job der NEUESTE abgeschlossene Lauf im Rueckblickfenster
+            cur.execute("""SELECT DISTINCT ON (job) job, rc, ended_at FROM ops_events
+                            WHERE ended_at IS NOT NULL
+                              AND started_at > now() - make_interval(days => %s)
+                            ORDER BY job, ended_at DESC""",
+                        (int(t["job_failed_lookback_days"]),))
+            ctx["last_runs"] = [{"job": r[0], "rc": r[1], "ended_at": r[2]} for r in cur.fetchall()]
             cur.execute("""SELECT job, percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM ended_at - started_at))
                              FROM ops_events WHERE rc = 0 AND ended_at IS NOT NULL
                               AND started_at > now() - interval '28 days'
@@ -242,6 +272,8 @@ def evaluate(sample: dict, ctx: dict, t: dict, now: datetime | None = None) -> l
     results += rule_gpu(sample, [e["job"] for e in ctx.get("open", [])], t)
     results.append(rule_db(sample, t))
     results += rule_jobs(ctx.get("open", []), ctx.get("medians", {}), t, now)
+    results.append(rule_job_failed(ctx["last_runs"], t) if ctx.get("last_runs") is not None
+                   else RuleResult("job_failed", False, []))
     results.append(rule_backlog(ctx.get("daily_max", []), t) if sample.get("is_full")
                    else RuleResult("backlog_growth", False, []))
     return results
@@ -310,7 +342,7 @@ def run(sample: dict, *, mail: bool = True) -> dict:
     out = {"raised": 0, "resolved": 0, "mailed": None, "error": None}
     try:
         t = load_thresholds()
-        ctx = _db_context()
+        ctx = _db_context(t)
         results = evaluate(sample, ctx, t)
         raised, resolved = sync(results)
         out["raised"], out["resolved"] = len(raised), len(resolved)

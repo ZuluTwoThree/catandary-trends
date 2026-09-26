@@ -11,12 +11,29 @@ signals). Heads (SGD log-loss on the L2-normalized 4096-dim embeddings):
                      filtered_out raw entries (needs scripts/embed_filtered.py
                      to have run; skipped with a warning otherwise)
 
-Postgres-aware: trends.embedding is a pgvector — streamed via a server-side
-cursor and parsed incrementally (a naive fetchall would pull ~26 GB of text).
-Holdout metrics are written to data/distill_heads_report.{json,md}; models to
-models/distill/ (+ meta.json with training provenance).
+Memory (the reason for --dim, 2026-09-26): the Sunday retrain via
+scripts/discovery_loop.py was OOM-killed on three consecutive Sundays (rc=-9,
+56.6 GB RSS) and nobody noticed — the productive heads are from 2026-08-07.
+Two causes, both fixed here:
 
-    python scripts/train_distill_heads.py                    # full training
+  * the loader collected per-chunk arrays and ended with one np.vstack, which
+    holds the whole matrix TWICE (1.83M x 4096 x 4 B = 29.9 GB each). It now
+    counts the rows first and streams them into a preallocated matrix, keyset-
+    paginated like pipeline.foresight (no server-side cursor).
+  * 4096 dimensions are the matrix; --dim 1024 trains on the Matryoshka prefix
+    (trends.embedding_1024 IS trends.embedding[:1024], see db.insert_trend), so
+    the matrix is 7.5 GB and each sklearn train/holdout copy 6.7 GB instead of
+    26.9. This is the default. Inference needs no change: DistillClassifier
+    slices every incoming vector to the head own n_features_in_.
+
+A preflight refuses to start when the estimate does not fit in MemAvailable —
+a legible error in the log beats a SIGKILL nobody reads.
+
+Holdout metrics are written to data/distill_heads_report.{json,md}; models to
+models/distill/ (+ meta.json with training provenance, including the dim).
+
+    python scripts/train_distill_heads.py                    # full, 1024-dim
+    python scripts/train_distill_heads.py --dim 4096         # the old matrix
     python scripts/train_distill_heads.py --sample 60000     # quick iteration
 """
 from __future__ import annotations
@@ -41,99 +58,182 @@ from pipeline import db as db_mod
 from pipeline.config import DATA_DIR
 from pipeline.distill import MODELS_DIR, PESTEL_DIMS
 
-DIM = 4096
+DIM_FULL = 4096          # trends.embedding
+DIM_PREFIX = 1024        # trends.embedding_1024 = embedding[:1024] (Matryoshka)
+DIM = DIM_FULL           # kept for callers that import it
+PAGE = 20_000            # keyset page size
+
+
+def _emb_column(dim: int) -> str:
+    """The column that already holds this prefix.
+
+    Under Postgres the prefix has its own column (embedding_1024), which also
+    means a quarter of the text to transfer and parse. SQLite (tests) has only
+    the full blob, so it is sliced while streaming.
+    """
+    if dim >= DIM_FULL or not db_mod.USE_POSTGRES:
+        return "embedding"
+    return "embedding_1024"
+
+
+def _peak_rss_gb() -> float:
+    import resource
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024 / 1024
+
+
+def _mem_available_gb() -> float:
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) / 1024 / 1024
+    except OSError:
+        pass
+    return 0.0
+
+
+def _preflight(n: int, dim: int, label: str) -> None:
+    """Refuse to start when the matrix plus one sklearn copy cannot fit.
+
+    sklearn gets X[tr] / X[te] as fancy-index COPIES, so the peak is the matrix
+    plus ~90 % of it. 56.6 GB on 2026-09-20 was exactly that arithmetic at
+    4096 dim; a SIGKILL in a Sunday cron log is the worst way to learn it.
+
+    The factor is MEASURED, not derived: loading peaks higher than the matrix
+    itself (one Python string plus one temporary array per row), 2.2x the matrix
+    at 1024 dim and 2.5x at 4096 in the runs of 2026-09-26, which is more than
+    the 1.9x of the later fit copy. 2.5 is therefore the honest bound; being
+    wrong in this direction only costs a legible refusal.
+    """
+    need = n * dim * 4 * 2.5 / 1024 ** 3
+    avail = _mem_available_gb()
+    print(f"preflight: {n:,} x {dim} -> ~{need:.1f} GB peak, "
+          f"{avail:.1f} GB available ({label})", flush=True)
+    if avail and need > 0.8 * avail:
+        raise MemoryError(
+            f"{need:.1f} GB estimated peak vs {avail:.1f} GB available — "
+            f"use --dim {DIM_PREFIX} or --sample N instead of being OOM-killed")
 
 
 # ------------------------------------------------------------------ loaders
-def _stream_trends(sample: int) -> tuple[np.ndarray, list[dict]]:
-    """Stream labeled trend embeddings into a preallocated matrix.
+def _stream_trends(sample: int, dim: int) -> tuple[np.ndarray, list[dict]]:
+    """Load labeled trend embeddings into ONE preallocated matrix.
 
-    Under PG uses a server-side cursor + text parse per row; under SQLite the
-    raw blobs. `sample`=0 loads everything.
+    Counted first, then keyset-paginated (pipeline.foresight pattern) so no
+    chunk list and no closing np.vstack — that vstack held the matrix twice.
+    `sample`>0 takes a deterministic id-modulo slice, not ORDER BY RANDOM():
+    reproducible, cheap, and identical across two runs, which is what an A/B
+    over the dimension needs.
     """
     t0 = time.time()
-    where = "embedding IS NOT NULL AND primary_vertical IS NOT NULL"
-    order = f" ORDER BY RANDOM() LIMIT {int(sample)}" if sample else ""
-    labels: list[dict] = []
+    col = _emb_column(dim)
+    where = f"{col} IS NOT NULL AND primary_vertical IS NOT NULL"
+    params: list = []
 
-    if db_mod.USE_POSTGRES:
-        import psycopg2
-        conn = psycopg2.connect(db_mod.DATABASE_URL)
-        cur = conn.cursor(name="distill_stream")  # server-side cursor
-        cur.itersize = 2000
-        cur.execute(f"SELECT id, primary_vertical, mega_trend, pestel::text, "
-                    f"embedding::text FROM trends WHERE {where}{order}")
-        chunks: list[np.ndarray] = []
-        buf: list[np.ndarray] = []
-        for rid, vert, mega, pestel, emb in cur:
-            vec = np.array(emb.strip("[]").split(","), dtype=np.float32)
-            if vec.shape[0] != DIM:
-                continue
-            buf.append(vec)
-            labels.append({"id": rid, "primary_vertical": vert, "mega_trend": mega,
-                           "pestel": json.loads(pestel) if pestel else []})
-            if len(buf) >= 20_000:
-                chunks.append(np.vstack(buf)); buf = []
-        if buf:
-            chunks.append(np.vstack(buf))
-        conn.close()
-        X = np.vstack(chunks) if chunks else np.empty((0, DIM), dtype=np.float32)
-    else:
+    with db_mod.get_connection() as c:
+        total = c.execute(f"SELECT COUNT(*) AS n FROM trends WHERE {where}").fetchone()["n"]
+    step = 0
+    if sample and total > sample:
+        step = total // int(sample) + 1
+        # A literal % would be read as a psycopg2 placeholder (see _load_filtered),
+        # and SQLite has no mod() unless compiled with the math functions.
+        where += (" AND mod(id, ?) = 0" if db_mod.USE_POSTGRES else " AND (id % ?) = 0")
+        params.append(step)
         with db_mod.get_connection() as c:
+            total = c.execute(f"SELECT COUNT(*) AS n FROM trends WHERE {where}",
+                              tuple(params)).fetchone()["n"]
+    _preflight(total, dim, f"sample step {step}" if step else "all labeled trends")
+
+    X = np.empty((total, dim), dtype=np.float32)
+    labels: list[dict] = []
+    emb_sel = f"{col}::text" if db_mod.USE_POSTGRES else col
+    pestel_sel = "pestel::text AS pestel" if db_mod.USE_POSTGRES else "pestel"
+    kept, last_id = 0, 0
+    with db_mod.get_connection() as c:
+        while kept < total:
             rows = c.execute(
-                f"SELECT id, primary_vertical, mega_trend, pestel, embedding "
-                f"FROM trends WHERE {where}{order}").fetchall()
-        X = np.empty((len(rows), DIM), dtype=np.float32)
-        kept = 0
-        for r in rows:
-            b = r["embedding"]
-            if not isinstance(b, (bytes, bytearray)) or len(b) != DIM * 4:
-                continue
-            X[kept] = np.frombuffer(b, dtype=np.float32)
-            pestel = r["pestel"]
-            labels.append({"id": r["id"], "primary_vertical": r["primary_vertical"],
-                           "mega_trend": r["mega_trend"],
-                           "pestel": json.loads(pestel) if isinstance(pestel, str) and pestel
-                           else (pestel or [])})
-            kept += 1
-        X = X[:kept]
+                f"SELECT id, primary_vertical, mega_trend, {pestel_sel}, "
+                f"{emb_sel} AS embedding FROM trends WHERE {where} AND id > ? "
+                f"ORDER BY id LIMIT ?", (*params, last_id, PAGE)).fetchall()
+            if not rows:
+                break
+            for r in rows:
+                last_id = r["id"]
+                raw = r["embedding"]
+                if isinstance(raw, str):
+                    vec = np.array(raw.strip("[]").split(","), dtype=np.float32)
+                else:
+                    b = raw.tobytes() if isinstance(raw, memoryview) else raw
+                    if not isinstance(b, (bytes, bytearray)) or len(b) < dim * 4:
+                        continue
+                    vec = np.frombuffer(b, dtype=np.float32, count=dim)
+                if vec.shape[0] < dim:
+                    continue
+                X[kept] = vec[:dim]
+                pestel = r["pestel"]
+                labels.append({"id": r["id"], "primary_vertical": r["primary_vertical"],
+                               "mega_trend": r["mega_trend"],
+                               "pestel": json.loads(pestel) if isinstance(pestel, str) and pestel
+                               else (pestel or [])})
+                kept += 1
+                if kept == total:
+                    break
+            del rows
+    X = X[:kept]
 
     X /= np.clip(np.linalg.norm(X, axis=1, keepdims=True), 1e-9, None)
-    print(f"trends: {X.shape[0]} × {DIM} loaded in {time.time()-t0:.0f}s")
+    print(f"trends: {X.shape[0]} x {dim} loaded in {time.time()-t0:.0f}s "
+          f"({X.nbytes / 1024**3:.1f} GB, peak RSS {_peak_rss_gb():.1f} GB)", flush=True)
     return X, labels
 
 
-def _load_filtered(max_n: int) -> np.ndarray:
+def _load_filtered(max_n: int, dim: int) -> np.ndarray:
     """Negatives for the relevance head: filtered_out embedding blobs (BYTEA).
 
     Only TRUE-irrelevance negatives — exclude entries filtered for reasons
     orthogonal to relevance (duplicates can be perfectly relevant; errors/too-old
     aren't judgments of relevance). Keeps not_relevant + off-foresight-noise
-    (~92% of filtered_out); drops the ~8% duplicate/error/too_old contamination."""
+    (~92% of filtered_out); drops the ~8% duplicate/error/too_old contamination.
+
+    Keyset-paginated like _stream_trends: the old single fetchall held every
+    16 KB blob at once (322k negatives = 5.3 GB of bytes on top of the matrix).
+    """
     t0 = time.time()
     # Patterns as bound params — literal % in the SQL would be read as psycopg2
     # placeholders (IndexError) under the ?→%s wrapper.
     pats = ["%duplicate%", "%error%", "too_old%", "%advertorial%", "%sponsored%"]
     excl = "(filter_reason IS NULL OR (" + " AND ".join(
         ["filter_reason NOT LIKE ?"] * len(pats)) + "))"
+    where = f"filtered_out = TRUE AND embedding_blob IS NOT NULL AND {excl}"
     with db_mod.get_connection() as c:
-        rows = c.execute(
-            "SELECT embedding_blob FROM raw_entries "
-            f"WHERE filtered_out = TRUE AND embedding_blob IS NOT NULL AND {excl} "
-            + (f"LIMIT {int(max_n)}" if max_n else ""), tuple(pats)).fetchall()
-    X = np.empty((len(rows), DIM), dtype=np.float32)
-    kept = 0
-    for r in rows:
-        b = r["embedding_blob"]
-        if isinstance(b, memoryview):
-            b = b.tobytes()
-        if not isinstance(b, (bytes, bytearray)) or len(b) != DIM * 4:
-            continue
-        X[kept] = np.frombuffer(b, dtype=np.float32)
-        kept += 1
+        total = c.execute(f"SELECT COUNT(*) AS n FROM raw_entries WHERE {where}",
+                          tuple(pats)).fetchone()["n"]
+    if max_n:
+        total = min(total, int(max_n))
+    X = np.empty((total, dim), dtype=np.float32)
+    kept, last_id = 0, 0
+    with db_mod.get_connection() as c:
+        while kept < total:
+            rows = c.execute(
+                f"SELECT id, embedding_blob FROM raw_entries WHERE {where} AND id > ? "
+                f"ORDER BY id LIMIT ?", (*pats, last_id, PAGE)).fetchall()
+            if not rows:
+                break
+            for r in rows:
+                last_id = r["id"]
+                b = r["embedding_blob"]
+                if isinstance(b, memoryview):
+                    b = b.tobytes()
+                if not isinstance(b, (bytes, bytearray)) or len(b) != DIM_FULL * 4:
+                    continue
+                X[kept] = np.frombuffer(b, dtype=np.float32, count=dim)
+                kept += 1
+                if kept == total:
+                    break
+            del rows
     X = X[:kept]
     X /= np.clip(np.linalg.norm(X, axis=1, keepdims=True), 1e-9, None)
-    print(f"filtered_out negatives: {X.shape[0]} loaded in {time.time()-t0:.0f}s")
+    print(f"filtered_out negatives: {X.shape[0]} x {dim} loaded in "
+          f"{time.time()-t0:.0f}s", flush=True)
     return X
 
 
@@ -145,7 +245,11 @@ def _head(seed: int = 42) -> SGDClassifier:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Train + persist distillation heads (#10)")
-    ap.add_argument("--sample", type=int, default=0, help="row cap (0 = all labeled trends)")
+    ap.add_argument("--sample", type=int, default=0,
+                    help="row cap (0 = all labeled trends); deterministic id-modulo slice")
+    ap.add_argument("--dim", type=int, default=DIM_PREFIX, choices=[DIM_PREFIX, DIM_FULL],
+                    help=f"embedding width to train on (default {DIM_PREFIX} = Matryoshka "
+                         f"prefix; {DIM_FULL} is the full vector and ~4x the memory)")
     ap.add_argument("--holdout", type=float, default=0.10)
     ap.add_argument("--neg-cap", type=int, default=0, help="cap on relevance negatives (0 = all)")
     ap.add_argument("--skip-relevance", action="store_true")
@@ -154,10 +258,11 @@ def main() -> int:
     args = ap.parse_args()
 
     t_all = time.time()
-    X, rows = _stream_trends(args.sample)
+    dim = int(args.dim)
+    X, rows = _stream_trends(args.sample, dim)
     n = len(rows)
     if n < 1000:
-        print("too few labeled trends"); return 1
+        print("too few labeled trends", flush=True); return 1
     rng = np.random.default_rng(42)
     idx = rng.permutation(n)
     n_te = int(n * args.holdout)
@@ -171,7 +276,7 @@ def main() -> int:
         existing = json.loads(rep_path.read_text())
     report: dict = existing or {
         "generated": datetime.now(timezone.utc).isoformat(),
-        "n_train": int(n - n_te), "n_holdout": int(n_te), "dim": DIM,
+        "n_train": int(n - n_te), "n_holdout": int(n_te), "dim": dim,
         "backend": "postgres" if db_mod.USE_POSTGRES else "sqlite",
     }
 
@@ -184,7 +289,7 @@ def main() -> int:
             "top1_agreement": round(float((clf_v.predict(X[te]) == yv[te]).mean()), 4),
             "classes": len(clf_v.classes_), "train_s": round(time.time() - t0, 1)}
         joblib.dump(clf_v, MODELS_DIR / "vertical.joblib")
-        print("vertical:", report["vertical"])
+        print("vertical:", report["vertical"], flush=True)
 
     if not args.relevance_only:
         # --- mega-trend (labeled rows only) ---
@@ -217,10 +322,10 @@ def main() -> int:
                                 "classes": len(classes), "train_s": round(time.time() - t0, 1),
                                 "per_class": per_class}
         joblib.dump(clf_m, MODELS_DIR / "mega.joblib")
-        print("mega:", {k: v for k, v in report["mega_trend"].items() if k != "per_class"})
+        print("mega:", {k: v for k, v in report["mega_trend"].items() if k != "per_class"}, flush=True)
         for c, m in sorted(per_class.items(), key=lambda kv: kv[1]["n_holdout"])[:12]:
             print(f"  small class {c}: n={m['n_holdout']} "
-                  f"top1={m['recall_top1']} top3={m['recall_top3']}")
+                  f"top1={m['recall_top1']} top3={m['recall_top3']}", flush=True)
 
         # --- pestel ---
         t0 = time.time()
@@ -238,14 +343,14 @@ def main() -> int:
             "micro_precision": round(prec, 4), "micro_recall": round(rec, 4),
             "train_s": round(time.time() - t0, 1)}
         joblib.dump(clf_p, MODELS_DIR / "pestel.joblib")
-        print("pestel:", report["pestel"])
+        print("pestel:", report["pestel"], flush=True)
 
     # --- relevance (calibrated; needs embed_filtered negatives) ---
     if not args.skip_relevance:
-        Xneg = _load_filtered(args.neg_cap)
+        Xneg = _load_filtered(args.neg_cap, dim)
         if Xneg.shape[0] < 5000:
             print(f"relevance head SKIPPED — only {Xneg.shape[0]} negatives "
-                  "(run scripts/embed_filtered.py first)")
+                  "(run scripts/embed_filtered.py first)", flush=True)
             report["relevance"] = {"skipped": True, "negatives": int(Xneg.shape[0])}
         else:
             t0 = time.time()
@@ -270,22 +375,28 @@ def main() -> int:
                 "recall": round(tp / (tp + fn) if tp + fn else 0.0, 4),
                 "accuracy": round(float((pred == yt).mean()), 4),
                 "positives": int(pos_cap), "negatives": int(Xneg.shape[0]),
+                "dim": dim,   # --relevance-only keeps the other heads, which may
+                              # have been trained at another width
                 "train_s": round(time.time() - t0, 1)}
             joblib.dump(clf_r, MODELS_DIR / "relevance.joblib")
-            print("relevance:", report["relevance"])
+            print("relevance:", report["relevance"], flush=True)
 
     meta = {"trained": report["generated"], "n_train": report["n_train"],
+            "dim": dim,
             "heads": [p.name for p in MODELS_DIR.glob("*.joblib")],
             "teacher": "8B LLM pipeline labels (trends table)",
             "report": report}
     (MODELS_DIR / "meta.json").write_text(json.dumps(meta, indent=2))
 
     report["total_s"] = round(time.time() - t_all, 1)
+    report["peak_rss_gb"] = round(_peak_rss_gb(), 1)
+    report["dim"] = dim
     Path(DATA_DIR, "distill_heads_report.json").write_text(json.dumps(report, indent=2))
     md = ["# Distillation Heads — Training Report",
           f"\nGeneriert: {report['generated']} · Train {report['n_train']:,} · "
-          f"Holdout {report['n_holdout']:,} · Backend {report['backend']} · "
-          f"{report['total_s']}s\n",
+          f"Holdout {report['n_holdout']:,} · Dim {report['dim']} · "
+          f"Backend {report['backend']} · {report['total_s']}s · "
+          f"Peak {report.get('peak_rss_gb', 0)} GB\n",
           "| Head | Metrik | Wert |", "|---|---|---|",
           f"| Vertical | Top-1 | **{report['vertical']['top1_agreement']*100:.1f}%** |",
           f"| Mega-Trend | Top-1 / Top-3 | **{report['mega_trend']['top1_agreement']*100:.1f}% / "
@@ -297,7 +408,8 @@ def main() -> int:
                   f"{r['recall']*100:.1f}% / {r['accuracy']*100:.1f}%** |")
     md.append("\nModelle: `models/distill/` · Rohdaten: `data/distill_heads_report.json`")
     Path(DATA_DIR, "distill_heads_report.md").write_text("\n".join(md))
-    print(f"\nDone in {report['total_s']}s — models in {MODELS_DIR}")
+    print(f"\nDone in {report['total_s']}s at dim {dim} — peak RSS "
+          f"{report['peak_rss_gb']} GB — models in {MODELS_DIR}", flush=True)
     return 0
 
 

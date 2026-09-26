@@ -68,6 +68,29 @@ Wochenende: Samstag 06:00 laufen die Nicht-RSS-Ingester (Preprints, Funding,
 Startup-Signale, OpenAlex-Fresh, Patent-Signale, Research-Index-Rebuild),
 Sonntag 06:00 der Discovery-Loop. Kein Cycle, keine Review-Mail, kein Wächter.
 
+Der Sonntagslauf hat zwei Schritte: Mega-Kandidaten suchen (schreibt
+`mega_discovery.candidate.yaml`, macht den Arbeitsbaum also „dirty" — das ist
+normal) und, wenn `mega_trends.yaml` neuer ist als `models/distill/meta.json`,
+die Distill-Heads neu trainieren. Ob beides durchlief, steht in
+`~/logs/catandary-discovery-loop.log` (`discovery rc=…`, `retrain rc=…`) und als
+Lauf-Zeile auf `/trends/ops`. **Endet der Lauf mit `rc != 0`, kommt seit dem
+26.09. eine Alarm-Mail** (Regel `job_failed`, §11.9) — vorher fiel das drei
+Sonntage lang nicht auf: der Retrain wurde bei 56 GB Speicher abgeschossen und
+die Heads blieben auf dem Stand vom 07.08. Retrain von Hand, wenn nötig:
+
+```bash
+cd ~/projects/catandary-trends
+.venv/bin/python scripts/train_distill_heads.py          # alle Zeilen, 1024 Dim
+.venv/bin/python scripts/train_distill_heads.py --sample 250000   # schnell
+```
+
+Der Lauf sagt vorher, wieviel Speicher er schätzt, und bricht ab, statt sich
+abschießen zu lassen. `--dim 4096` trainiert auf dem vollen Vektor — das passt
+auf dieser Maschine nur mit `--sample`. Die Modelle liegen in `models/`, das
+**pro Worktree** existiert und nicht in git ist: nach einem Retrain in `ct-dev`
+gehören sie nach `~/projects/catandary-trends/models/distill/` kopiert, sonst
+arbeitet der Nachtlauf mit den alten.
+
 ---
 
 ## 2. Trend-Feed, Artikelseite, Suche und Filter
@@ -1311,7 +1334,7 @@ im Handover still).
 | 03:45 Di | Patent-Ingest BDDS (Cr-Del + Amend) | `scripts/weekly_patents.sh` | installiert |
 | 06:45 Di | Patent-Rechnungen (assign_cpc, Tier-Serien, Insights) | `scripts/weekly_patent_analytics.sh` | installiert |
 | 06:00 Sa | Nicht-RSS-Ingester + Distill + Research-Index | `scripts/weekly_ingesters.sh` | installiert |
-| 06:00 So | Discovery-Loop (Mega-Kandidaten, Head-Retrain) | `scripts/discovery_loop.py` | installiert |
+| 06:00 So | Discovery-Loop (Mega-Kandidaten, Head-Retrain auf dem 1024er-Präfix seit 26.09.) | `scripts/discovery_loop.py` | installiert |
 | 1. 08:00 | Monats-Quellencheck (+ TDM-Re-Probe) → Issue #13 | `scripts/monthly_source_check.py --post-issue` | installiert |
 | 2. 07:00 | Backlink-Check → `dead_links` | `scripts/check_source_links.py --per-source 12 --mark` | installiert |
 | 5. 02:00 | OpenAlex-Monats-Sync (45M-Korpus) | `scripts/sync_openalex_monthly.sh` | installiert |
@@ -1625,15 +1648,18 @@ liest die Datei beim Aufruf; Reihenfolge sortiert sie selbst (neueste oben).
 **Alarme:** der Sampler prüft nach jeder Messung die Regeln aus
 `pipeline/ops_alerts.py`; die Schwellen stehen in **`ops_alerts.yaml`** im
 Repo-Root und wirken ohne Code beim nächsten Minutentakt. Was gemeldet wird:
-Platte unter 10 % frei (`/` mit Postgres schon unter 20 %), HDD über 50 °C /
-SSD über 65 °C, SMART FAILED, NVMe-Verschleiß ≥ 90 % oder Reserve < 10 %,
+Platte unter 10 % frei (`/` mit Postgres schon unter 20 %), HDD über 55 °C /
+SSD über 68 °C (aus den Datenblättern der verbauten Laufwerke, 16.09.), SMART FAILED, NVMe-Verschleiß ≥ 90 % oder Reserve < 10 %,
 Sektor-/Medienfehler-Zähler, die gegenüber der vorigen Messung **steigen**,
 GPU über 88 °C, Grafikspeicher belegt ohne antwortenden llama-server und ohne
 bekannten Job, mehr als 80 % der DB-Verbindungen, ein Job, der länger als das
 Doppelte seines Medians läuft, ein Job über 6 h (gezählt wird nur ein Lauf,
 dessen Prozess noch lebt — eine Zeile, deren Prozess ohne Ende-Eintrag starb,
 schließt der Sampler binnen einer Minute selbst und die Seite zeigt sie als
-„aborted"), ein Backlog, dessen
+„aborted"), **ein Job, dessen letzter abgeschlossener Lauf mit `rc != 0`
+endete** (seit 26.09.; bleibt gemeldet, bis derselbe Job wieder mit 0 endet —
+`rc = 75` ist der Skip des GPU-Kollisionswächters und kein Defekt,
+`job_failed_ignore_rc` in der yaml nimmt weitere auf), ein Backlog, dessen
 Tagesmaximum drei Tage in Folge steigt. **Eine Mail beim Auslösen, eine bei der
 Entwarnung** (gleiche Adresse wie der Wächter), dazwischen Ruhe; offene Alarme
 stehen als Banner oben auf `/trends/ops`, darunter aufklappbar die zuletzt
