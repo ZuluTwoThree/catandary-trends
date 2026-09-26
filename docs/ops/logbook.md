@@ -680,3 +680,28 @@ Datenkorrektur: `scripts/requeue_thin_decisions.py --apply` hat 233 Einträge zu
 
 Offen als eigenes Thema: 41–83 Einträge je Tag werden ohne Volltext als irrelevant verworfen, weil
 der Abruf scheitert (403, Timeout) — über zwei Wochen ~800.
+
+## 2026-09-26 · idea · Samstags bleibt der llama-server nach dem Ingester-Lauf aus
+
+Befund (gemessen, nicht vermutet): `scripts/weekly_ingesters.sh` stellt den Ruhezustand NICHT her.
+Der GPU-Handover stoppt den Server nach dem letzten Distill-Schritt und stellt nur den Symlink
+zurück; ein `systemctl --user start llama-server.service` wie am Ende von `scheduled_cycle.sh`
+(dort rc3) fehlt. Folge: ab Ende des Ingester-Laufs steht die Owner-Instanz ohne Modell da, bis
+der Montags-Cycle läuft.
+
+Belegt über `ops_samples` (07:30–12:00, samstags):
+
+| Samstag | Messungen | davon ohne geladenes Modell |
+|---|---|---|
+| 2026-09-19 | 169 | 129 |
+| 2026-09-26 | 109 | 106 |
+
+Am 26.09. lückenlos von 07:12 (Ende des Embedding-Schritts) bis 09:15, als der Server von Hand
+gestartet wurde. **Zweite Lücke:** `cycle_watchdog.py` prüft den llama-server gar nicht — er liest
+nur die Stage-Bilanz des Cycles (rc3), und am Wochenende gibt es keinen Cycle. Der Wächter meldete
+um 07:45 „alles in Ordnung", während kein Modell geladen war.
+
+Vorschlag (Cron-Pfad, also `main`-Merge nötig, dem Owner vorzulegen): am Ende von
+`weekly_ingesters.sh` denselben Block wie in `scheduled_cycle.sh` (Symlink auf den 208K-Klassifizierer
++ Unit starten, übersprungen wenn ein fremder GPU-Job die Unit hält), und im Wächter eine Prüfung
+„antwortet `:8090` mit dem Ruhezustands-Modell?" — sonst fällt das nächste Mal wieder niemandem auf.
