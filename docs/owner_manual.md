@@ -1406,8 +1406,8 @@ Ergebnisse liegen in `data/ctx_eval/` (`results.jsonl`, `results_table.md`, `dum
 
 | Skript | Status | Wirkung |
 |---|---|---|
-| `start-gemma4-26b-ctx16k.sh` | **auf `dev` aktiv**, `main`-Merge steht aus | Kontext 16 384 statt 262 144; 15 072 statt 19 782 MiB; Durchsatz gleich |
-| `start-qwen3.8-27b-ctx16k.sh` | **auf `dev` aktiv**, `main`-Merge steht aus | Kontext 16 384/q8_0 statt 262 144/q4_0; 17 610 statt 23 094 MiB; Reserve ~6,7 statt ~1,2 GB |
+| `start-gemma4-26b-ctx16k.sh` | **in Betrieb** (main-Merge 26.09.) | Kontext 16 384 statt 262 144; 15 072 statt 19 782 MiB; Durchsatz gleich |
+| `start-qwen3.8-27b-ctx16k.sh` | **in Betrieb** (main-Merge 26.09.) | Kontext 16 384/q8_0 statt 262 144/q4_0; 17 610 statt 23 094 MiB; Reserve ~6,7 statt ~1,2 GB |
 | `start-qwen3-8b-208k-ctx16.sh` | vorbereitet, **nicht** aktiv | 16 statt 24 Slots; 16 506 statt 22 000 MiB, aber −3 % Durchsatz — nicht empfohlen, solange die GB nicht gebraucht werden |
 | `start-qwen3-emb-16slots.sh` | vorbereitet, **nicht** aktiv | 8 552 statt 11 096 MiB bei gleichem Durchsatz; betrifft eine Phase von 1–2 min je Nacht |
 

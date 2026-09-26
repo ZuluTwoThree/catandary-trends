@@ -216,11 +216,11 @@ Auf der Live-DB sind alle genannten ausgeführt (Stand 04.09.2026).
 |---|---|---|---|
 | Ruhezustand, Relevanz/Extraktion/Klassifikation/Reclassify | `Qwen3-8B-UD-Q4_K_XL.gguf` | `start-qwen3-8b-208k.sh` | 212 992 |
 | Embeddings | `Qwen3-Embedding-8B-Q4_K_M.gguf` | `start-qwen3-emb.sh` | 8 192 |
-| Content-Generierung, Newsletter, Research-Pulse-Texte | `gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf` (+ mmproj, mtp) | **`start-gemma4-26b-ctx16k.sh`** (auf `dev`; `main` noch `start-gemma4-26b.sh`) | **16 384** (vorher 262 144) |
-| Draft-Richter | `Qwen3.8-27B-UD-Q4_K_XL.gguf` | **`start-qwen3.8-27b-ctx16k.sh`** (auf `dev`; `main` noch `start-qwen3.8-27b.sh`) | **16 384**, KV q8_0 (vorher 262 144, q4_0) |
+| Content-Generierung, Newsletter, Research-Pulse-Texte | `gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf` (+ mmproj, mtp) | **`start-gemma4-26b-ctx16k.sh`** (in Betrieb seit 26.09.) | **16 384** (vorher 262 144) |
+| Draft-Richter | `Qwen3.8-27B-UD-Q4_K_XL.gguf` | **`start-qwen3.8-27b-ctx16k.sh`** (in Betrieb seit 26.09.) | **16 384**, KV q8_0 (vorher 262 144, q4_0) |
 | Revert-Option Content-Gen | `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` | `start-qwen3.6-35b.sh` | 131 072 |
 
-**Kontextverkleinerung Gemma + Richter (25.09.2026, auf `dev`, `main`-Merge steht aus):** Beide
+**Kontextverkleinerung Gemma + Richter (25.09.2026, in Betrieb seit dem `main`-Merge am 26.09.):** Beide
 Modelle liefen mit 262 144 Token Kontext, ihre längsten realen Anfragen haben 3 754 bzw. 5 879.
 Gemessen (`docs/context_parallel_eval_2026-09-25.md`): gleicher Durchsatz, Gemma 15 072 statt
 19 782 MiB, Richter 17 610 statt 23 094 MiB. Beim Richter ist die Reserve der eigentliche Punkt —

@@ -59,7 +59,7 @@ Die Mega/Macro-Einordnung wird auf der Free-Seite nur angeteasert – die vollst
 - **GPU:** NVIDIA RTX 3090 (24 GB GDDR6X) — die produktive lokale Karte (per `nvidia-smi` bestätigt). Vor jeder VRAM-/Koexistenz-Entscheidung trotzdem `nvidia-smi` prüfen (llama-server hält ~22 GB im Ruhezustand). *(Frühere Doku nannte alternativ eine 16-GB-Karte; produktiv ist es die 3090.)*
 - **Modelle laufen sequentiell** (nicht parallel) – VRAM wird zwischen Schritten freigegeben
 - **Peak-VRAM Ollama-Pfad:** ~10.7 GB (Qwen3 14B Q4_K_M) — passt auf der 24-GB-Karte mit Headroom
-- **llama.cpp-Pfad für Stage 6 (Content-Gen), aktuell:** **Gemma-4-26B-A4B-it-qat-UD-Q4_K_XL** (`start-gemma4-26b.sh`) — Umstellung von Qwen3-30B via #11 (2026-07-14) nach einem kontrollierten A/B: das 30B erfand in 32,9 % der Bodies erfundene Spezifika (fake Gesetze/Städte), das Gemma-26B nur 8,6 %. *(Die frühere Zusatzbehauptung, Gemma treffe das 150–250-Wörter-Ziel, ist durch den Dauerbetrieb widerlegt: der Median fiel am Umstiegstag von 131 auf 105 und liegt seither bei ~109. Owner hat ~100 am 2026-08-19 als Länge akzeptiert.)* Qwen3.6-35B-A3B (~24 GB) bleibt installiert und per `STAGE5_MODEL`/`STAGE5_START` **revertierbar**; das 30B wurde beim llama.cpp-Umbau 2026-08-29 entfernt (GGUF + start-qwen3-30b.sh). Mid-Pipeline-GPU-Handover (siehe `pipeline/gpu_handover.py`). Default-Backend (ohne `scheduled_cycle.sh`) bleibt Ollama. **Kontext 262144 → 16384 seit 2026-09-25 (auf `dev`, `main`-Merge steht aus): `start-gemma4-26b-ctx16k.sh`** — gemessen gleicher Durchsatz (19,2 vs. 19,3 Anfragen/min), 15 072 statt 19 782 MiB VRAM; die längste reale Stage-6-Anfrage hatte 3 754 Token, der Maximalfall ~6 300 (`docs/context_parallel_eval_2026-09-25.md`). Das alte Skript bleibt unverändert liegen.
+- **llama.cpp-Pfad für Stage 6 (Content-Gen), aktuell:** **Gemma-4-26B-A4B-it-qat-UD-Q4_K_XL** (`start-gemma4-26b.sh`) — Umstellung von Qwen3-30B via #11 (2026-07-14) nach einem kontrollierten A/B: das 30B erfand in 32,9 % der Bodies erfundene Spezifika (fake Gesetze/Städte), das Gemma-26B nur 8,6 %. *(Die frühere Zusatzbehauptung, Gemma treffe das 150–250-Wörter-Ziel, ist durch den Dauerbetrieb widerlegt: der Median fiel am Umstiegstag von 131 auf 105 und liegt seither bei ~109. Owner hat ~100 am 2026-08-19 als Länge akzeptiert.)* Qwen3.6-35B-A3B (~24 GB) bleibt installiert und per `STAGE5_MODEL`/`STAGE5_START` **revertierbar**; das 30B wurde beim llama.cpp-Umbau 2026-08-29 entfernt (GGUF + start-qwen3-30b.sh). Mid-Pipeline-GPU-Handover (siehe `pipeline/gpu_handover.py`). Default-Backend (ohne `scheduled_cycle.sh`) bleibt Ollama. **Kontext 262144 → 16384 seit 2026-09-25, in Betrieb seit dem `main`-Merge am 2026-09-26: `start-gemma4-26b-ctx16k.sh`** — gemessen gleicher Durchsatz (19,2 vs. 19,3 Anfragen/min), 15 072 statt 19 782 MiB VRAM; die längste reale Stage-6-Anfrage hatte 3 754 Token, der Maximalfall ~6 300 (`docs/context_parallel_eval_2026-09-25.md`). Das alte Skript bleibt unverändert liegen.
 - **Ollama-Konfiguration:** `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_KEEP_ALIVE=5m`
 
 ---
@@ -479,8 +479,8 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       den model-Namen im Request — ohne Check würde ein geplatzter
       Symlink-Swap den Richter still aufs 8B schicken). E2E-getestet
       2026-08-26.
-    → **Kontext 262144/q4_0 → 16384/q8_0 seit 2026-09-25 (auf `dev`,
-      `main`-Merge steht aus): `start-qwen3.8-27b-ctx16k.sh`.** Der Richter
+    → **Kontext 262144/q4_0 → 16384/q8_0 seit 2026-09-25, in Betrieb seit dem
+      `main`-Merge am 2026-09-26: `start-qwen3.8-27b-ctx16k.sh`.** Der Richter
       ist prefill-dominiert (Prompt-Median ~1.700, Ausgabe ~40 Token); die
       längste je gesehene Anfrage hatte 5.879 Token, der Maximalfall mit
       CJK-Quelle ~10.000. Gemessen: 17.610 statt 23.094 MiB, Durchsatz -4 %,
