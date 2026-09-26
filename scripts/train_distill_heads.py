@@ -238,12 +238,14 @@ def _load_filtered(max_n: int, dim: int) -> np.ndarray:
 
 
 # ------------------------------------------------------------------ training
-def _head(seed: int = 42) -> SGDClassifier:
+def _head(seed: int = 42, class_weight: str | None = None) -> SGDClassifier:
     return SGDClassifier(loss="log_loss", alpha=1e-5, max_iter=25, tol=1e-4,
-                         random_state=seed)
+                         random_state=seed, class_weight=class_weight)
 
 
-def main() -> int:
+def _parser() -> argparse.ArgumentParser:
+    """Own function so a test can pin the defaults the Sunday cron runs with —
+    `discovery_loop.retrain()` starts this script WITHOUT arguments."""
     ap = argparse.ArgumentParser(description="Train + persist distillation heads (#10)")
     ap.add_argument("--sample", type=int, default=0,
                     help="row cap (0 = all labeled trends); deterministic id-modulo slice")
@@ -255,10 +257,38 @@ def main() -> int:
     ap.add_argument("--skip-relevance", action="store_true")
     ap.add_argument("--relevance-only", action="store_true",
                     help="retrain ONLY the relevance head, keep the other 3 heads")
-    args = ap.parse_args()
+    ap.add_argument("--mega-only", action="store_true",
+                    help="retrain ONLY the mega-trend head, keep the other 3")
+    ap.add_argument("--mega-class-weight", choices=["none", "balanced"], default="balanced",
+                    help="'balanced' weights the mega classes by inverse frequency. The "
+                         "aggregate hides that small classes starve: with 138 holdout rows "
+                         "against 18,218 for clean_energy_transition, "
+                         "virtual_worlds_consolidation reached recall 0 on 2026-09-26. The "
+                         "signal_type head (#110) uses balanced for exactly this reason. "
+                         "Default since the Owner decision of 2026-09-26: macro recall 0.5487 "
+                         "-> 0.8106 and no dead class, paid with 6,346 net worse assignments "
+                         "in the large classes (details in docs/ops/logbook.md).")
+    ap.add_argument("--mega-abstain-rate", type=float, default=0.072,
+                    help="Share of signals that should get mega_trend=None. The threshold is "
+                         "calibrated to this quantile at training time and stored with the "
+                         "model, because the decision-value SCALE depends on the dimension AND "
+                         "the class weighting: the productive 4096 head abstains on 7.2 %% at "
+                         "-1.0, the 1024 balanced head on 12.9 %% at the same number. 0.072 "
+                         "preserves the behaviour measured on 2026-09-26; raise or lower it "
+                         "deliberately, never by changing the dimension.")
+    return ap
+
+
+def main() -> int:
+    args = _parser().parse_args()
 
     t_all = time.time()
     dim = int(args.dim)
+    mega_cw = None if args.mega_class_weight == "none" else args.mega_class_weight
+    do_vertical = not args.relevance_only and not args.mega_only
+    do_mega = not args.relevance_only
+    do_pestel = not args.relevance_only and not args.mega_only
+    do_relevance = not args.skip_relevance and not args.mega_only
     X, rows = _stream_trends(args.sample, dim)
     n = len(rows)
     if n < 1000:
@@ -272,7 +302,7 @@ def main() -> int:
     # --relevance-only keeps the existing report and just refreshes the relevance key
     existing = {}
     rep_path = Path(DATA_DIR, "distill_heads_report.json")
-    if args.relevance_only and rep_path.exists():
+    if (args.relevance_only or args.mega_only) and rep_path.exists():
         existing = json.loads(rep_path.read_text())
     report: dict = existing or {
         "generated": datetime.now(timezone.utc).isoformat(),
@@ -280,7 +310,7 @@ def main() -> int:
         "backend": "postgres" if db_mod.USE_POSTGRES else "sqlite",
     }
 
-    if not args.relevance_only:
+    if do_vertical:
         # --- vertical ---
         t0 = time.time()
         yv = np.asarray([r["primary_vertical"] for r in rows])
@@ -291,13 +321,13 @@ def main() -> int:
         joblib.dump(clf_v, MODELS_DIR / "vertical.joblib")
         print("vertical:", report["vertical"], flush=True)
 
-    if not args.relevance_only:
+    if do_mega:
         # --- mega-trend (labeled rows only) ---
         t0 = time.time()
         m_mask = np.asarray([bool(r["mega_trend"]) for r in rows])
         ym = np.asarray([r["mega_trend"] or "" for r in rows])
         m_tr = tr[m_mask[tr]]; m_te = te[m_mask[te]]
-        clf_m = _head().fit(X[m_tr], ym[m_tr])
+        clf_m = _head(class_weight=mega_cw).fit(X[m_tr], ym[m_tr])
         scores = clf_m.decision_function(X[m_te])
         order = np.argsort(-scores, axis=1)
         classes = np.asarray(clf_m.classes_)
@@ -319,14 +349,33 @@ def main() -> int:
                                           for i in np.where(m)[0]])), 3)}
         report["mega_trend"] = {"top1_agreement": round(top1, 4),
                                 "top3_agreement": round(top3, 4),
-                                "classes": len(classes), "train_s": round(time.time() - t0, 1),
+                                "classes": len(classes),
+                                "class_weight": mega_cw or "none",
+                                "macro_recall_top1": round(float(np.mean(
+                                    [v["recall_top1"] for v in per_class.values()])), 4)
+                                if per_class else None,
+                                "dead_classes": sorted(
+                                    k for k, v in per_class.items() if v["recall_top1"] == 0),
+                                "train_s": round(time.time() - t0, 1),
                                 "per_class": per_class}
+        # Abstain-Schwelle mitkalibrieren. Sie wird auf dem GANZEN Holdout genommen,
+        # nicht nur auf den mega-gelabelten Zeilen: der Produktivstrom enthaelt
+        # Signale, denen kein Mega-Trend passt, und genau fuer die ist das Abstain
+        # da. Ohne diesen Schritt traegt `pipeline.distill.MEGA_ABSTAIN_THRESHOLD`
+        # eine Zahl von der 4096er-Skala und trifft einen anderen Verteilungspunkt.
+        abstain_thr = float(np.quantile(
+            clf_m.decision_function(X[te]).max(axis=1), args.mega_abstain_rate))
+        report["mega_trend"]["abstain_threshold"] = round(abstain_thr, 3)
+        report["mega_trend"]["abstain_rate_target"] = float(args.mega_abstain_rate)
+        print(f"mega abstain: Schwelle {abstain_thr:+.3f} fuer Zielquote "
+              f"{args.mega_abstain_rate*100:.1f} %", flush=True)
         joblib.dump(clf_m, MODELS_DIR / "mega.joblib")
         print("mega:", {k: v for k, v in report["mega_trend"].items() if k != "per_class"}, flush=True)
         for c, m in sorted(per_class.items(), key=lambda kv: kv[1]["n_holdout"])[:12]:
             print(f"  small class {c}: n={m['n_holdout']} "
                   f"top1={m['recall_top1']} top3={m['recall_top3']}", flush=True)
 
+    if do_pestel:
         # --- pestel ---
         t0 = time.time()
         mlb = MultiLabelBinarizer(classes=PESTEL_DIMS)
@@ -346,7 +395,7 @@ def main() -> int:
         print("pestel:", report["pestel"], flush=True)
 
     # --- relevance (calibrated; needs embed_filtered negatives) ---
-    if not args.skip_relevance:
+    if do_relevance:
         Xneg = _load_filtered(args.neg_cap, dim)
         if Xneg.shape[0] < 5000:
             print(f"relevance head SKIPPED — only {Xneg.shape[0]} negatives "
@@ -383,6 +432,7 @@ def main() -> int:
 
     meta = {"trained": report["generated"], "n_train": report["n_train"],
             "dim": dim,
+            "mega_abstain_threshold": report.get("mega_trend", {}).get("abstain_threshold"),
             "heads": [p.name for p in MODELS_DIR.glob("*.joblib")],
             "teacher": "8B LLM pipeline labels (trends table)",
             "report": report}
@@ -397,11 +447,21 @@ def main() -> int:
           f"Holdout {report['n_holdout']:,} · Dim {report['dim']} · "
           f"Backend {report['backend']} · {report['total_s']}s · "
           f"Peak {report.get('peak_rss_gb', 0)} GB\n",
-          "| Head | Metrik | Wert |", "|---|---|---|",
-          f"| Vertical | Top-1 | **{report['vertical']['top1_agreement']*100:.1f}%** |",
-          f"| Mega-Trend | Top-1 / Top-3 | **{report['mega_trend']['top1_agreement']*100:.1f}% / "
-          f"{report['mega_trend']['top3_agreement']*100:.1f}%** |",
-          f"| PESTEL | micro-F1 | **{report['pestel']['micro_f1']*100:.1f}%** |"]
+          "| Head | Metrik | Wert |", "|---|---|---|"]
+    # .get(): --mega-only/--relevance-only ohne vorhandenen Report soll nicht NACH
+    # 40 Minuten Rechnen an einem KeyError sterben.
+    if isinstance(report.get("vertical"), dict):
+        md.append(f"| Vertical | Top-1 | **{report['vertical']['top1_agreement']*100:.1f}%** |")
+    if isinstance(report.get("mega_trend"), dict):
+        m = report["mega_trend"]
+        md.append(f"| Mega-Trend ({m.get('class_weight', 'none')}) | Top-1 / Top-3 / macro-R | "
+                  f"**{m['top1_agreement']*100:.1f}% / {m['top3_agreement']*100:.1f}% / "
+                  f"{(m.get('macro_recall_top1') or 0)*100:.1f}%** |")
+        if m.get("dead_classes"):
+            md.append(f"| Mega-Trend | Klassen mit Recall 0 | "
+                      f"**{len(m['dead_classes'])}** ({', '.join(m['dead_classes'])}) |")
+    if isinstance(report.get("pestel"), dict):
+        md.append(f"| PESTEL | micro-F1 | **{report['pestel']['micro_f1']*100:.1f}%** |")
     if isinstance(report.get("relevance"), dict) and not report["relevance"].get("skipped"):
         r = report["relevance"]
         md.append(f"| Relevanz | P / R / Acc | **{r['precision']*100:.1f}% / "

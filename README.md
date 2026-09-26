@@ -375,7 +375,15 @@ wurde drei Sonntage in Folge bei 56 GB OOM-getötet, ohne dass es auffiel — di
 produktiven Heads waren vom 07.08. Die Inferenz bekommt weiter den vollen
 Vektor: `pipeline/distill.py` schneidet für jeden Head auf dessen eigene Breite
 zu, so dass die vier 1024er neben dem 4096er `signal_type`-Head laufen. Ein
-Preflight bricht ab, wenn Matrix + Kopie nicht in den freien Speicher passen. **Fünfter Head (#110, Default aus):** `scripts/train_signal_type_head.py`
+Preflight bricht ab, wenn Matrix + Kopie nicht in den freien Speicher passen.
+Der **Mega-Head ist `class_weight='balanced'`** (Owner 26.09.): macro-Recall 0,5487
+→ 0,8106, keine unerreichbare Klasse mehr, dafür 3,6 pp weniger Gesamtgenauigkeit
+— gewollt, weil das Label Themenseiten füllt und ein nie zugewiesenes Thema
+schlimmer ist als eine gelegentlich falsche Zuweisung (`--mega-class-weight none`
+für das alte Verhalten). Die **Abstain-Schwelle wird je Head mitkalibriert**
+(`--mega-abstain-rate`, Default 0,072) und in `meta.json` gelegt: der Maßstab der
+Entscheidungswerte hängt an Dimension und Gewichtung — `-1,0` bedeutet auf dem
+alten 4096er-Head 7,2 % Abstain, auf dem neuen 12,9 %. **Fünfter Head (#110, Default aus):** `scripts/train_signal_type_head.py`
 schreibt `models/distill/signal_type.joblib` — den Signaltyp für Presse-Signale
 (product_launch / regulation / partnership / consumer_behavior / market_shift),
 den die Quellenart-Regel seit dem 14.07.2026 pauschal auf `market_shift` setzte.

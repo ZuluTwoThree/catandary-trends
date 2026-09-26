@@ -933,3 +933,84 @@ Der Sonntagslauf morgen 06:00 stösst den Retrain an (`mega_trends.yaml` vom 08.
 neuer als `meta.json` vom 07.08.) — **mit dem Merge nach `main` gelingt er, und die
 neuen Heads gehen in Betrieb.** Danach stellt sich der Schritt von selbst ab, bis die
 Taxonomie wieder geändert wird.
+
+## 2026-09-26 · change · Mega-Head mit Klassengewichtung — und die Abstain-Schwelle gehört zum Modell
+
+Owner-Entscheid nach Messung. Der Mega-Head trainiert ab jetzt mit
+`class_weight='balanced'` (Default in `train_distill_heads.py`, der Sonntagslauf ruft
+ohne Flags auf). Anlass war der Befund aus dem Umstieg auf 1024 Dimensionen: die
+Summe sah besser aus als der produktive Stand, aber `virtual_worlds_consolidation`
+war unerreichbar geworden.
+
+### Drei Stände, Recall je Klasse (Auszug, nach Klassengröße)
+
+| Klasse | n | produktiv 07.08. | neu ungew. | neu balanced |
+|---|---|---|---|---|
+| virtual_worlds_consolidation | 58 | 0,019 | **0,000** | **0,793** |
+| evolution_of_work_models | 138 | 0,094 | 0,014 | **0,928** |
+| cultural_heritage_and_identity | 169 | 0,099 | 0,030 | 0,722 |
+| platformization_of_culture | 298 | 0,265 | 0,268 | 0,896 |
+| next_generation_semiconductors | 452 | 0,329 | 0,168 | 0,838 |
+| orbital_economy_expansion | 739 | 0,068 | 0,055 | 0,796 |
+| connected_living_and_smart_spaces | 645 | 0,242 | 0,141 | 0,651 |
+| inclusive_and_human_centric_design | 2.961 | 0,457 | 0,427 | 0,481 |
+| clean_energy_transition | 18.218 | 0,873 | 0,907 | 0,849 |
+| artificial_intelligence_and_automation | 32.850 | 0,896 | 0,923 | **0,740** |
+| personalized_health_and_longevity | 50.185 | 0,958 | 0,956 | 0,862 |
+
+| | Top-1 | Top-3 | macro-Recall | tote Klassen |
+|---|---|---|---|---|
+| produktiv 07.08. (4096, ungew.) | 0,8429 | 0,9764 | 0,5417 | 0 |
+| neu (1024, ungew.) | 0,8525 | 0,9803 | 0,5487 | 1 |
+| **neu (1024, balanced)** | 0,8165 | 0,9670 | **0,8106** | **0** |
+
+22 von 28 Klassen werden besser. Der Preis in Zeilen statt in Prozent: **7.163
+Holdout-Zeilen werden richtig statt falsch, 13.509 falsch statt richtig, Saldo
+−6.346** (−3,61 pp). 79 % der Verluste liegen in zwei Klassen (AI 6.012 Zeilen,
+personalized_health 4.717). Die Klassen unter 1.000 Zeilen, um die es geht, sind
+zusammen 3,0 % des Holdouts.
+
+Die Entscheidung ist also eine **Umverteilung, kein Gewinn**, und sie folgt dem Zweck
+des Labels: der Mega-Trend füllt `/trends/mega/<m>`, die Newsletter-Themenwahl und die
+28 Themes des Research Pulse. Ein Thema, das nie zugewiesen wird, hat eine leere Seite
+und zeichnet ein falsches Bild seines Feldes — das ist schlimmer als eine gelegentlich
+falsche Zuweisung. Für die Gesamtgenauigkeit wäre die andere Wahl richtig gewesen;
+`--mega-class-weight none` stellt sie her.
+
+`inclusive_and_human_centric_design` bewegt sich mit 2.961 Zeilen kaum (0,427 →
+0,481). Das ist kein Gewichtungsproblem, sondern ein Hinweis, dass die Klasse
+inhaltlich unscharf ist — Wiedervorlage bei der nächsten Taxonomie-Runde.
+
+### Der Nebenfund, der wichtiger war als die Gewichtung
+
+Beim Prüfen der Wechselwirkung mit `MEGA_ABSTAIN_THRESHOLD = -1.0` (ab wann ein Signal
+`mega_trend = NULL` bekommt) kam heraus: **die Schwelle war nie eine Naturkonstante,
+sondern an die 4096er-Skala geeicht.** Gemessen an 20.000 Zeilen quer durch den
+Bestand:
+
+| Mega-Head | Abstain bei −1,0 | Top-Score Median | p10 |
+|---|---|---|---|
+| produktiv (4096, ungewichtet) | **7,2 %** | +1,47 | −0,77 |
+| neu (1024, balanced) | **12,9 %** | +0,86 | −1,21 |
+
+Weniger Dimensionen liefern kleinere Entscheidungswerte, Klassengewichte verschieben
+sie zusätzlich. Mit dem unveränderten Wert hätte der Umstieg die Abstain-Quote fast
+verdoppelt — also mehr `mega_trend = NULL` und leerere Themenseiten, das genaue
+Gegenteil dessen, was die Gewichtung kaufen soll. Das hätte beim Merge am Nachmittag
+auffallen müssen und fiel erst beim zweiten Hinsehen auf.
+
+Behoben nicht durch eine neue Zahl, sondern durch Zuständigkeit: der Trainer nimmt das
+Quantil zur Zielquote `--mega-abstain-rate` (Default 0,072 = das produktive Verhalten)
+**auf dem ganzen Holdout** — nicht nur auf mega-gelabelten Zeilen, denn der
+Produktivstrom enthält Signale, denen kein Mega-Trend passt, und genau für die ist das
+Abstain da — und schreibt sie nach `models/distill/meta.json`. `DistillClassifier`
+benutzt die Schwelle des geladenen Modells; die Konstante in `pipeline/distill.py` ist
+nur noch der Rückfall für Heads von vor heute. Damit kann kein künftiger Wechsel von
+Dimension oder Gewichtung dieselbe stille Verschiebung mehr auslösen. Quantil-gleich
+wären auf dem Volllauf-Head −1,418 gewesen; der Trainer rechnet es je Lauf neu (beim
+40k-Probelauf −1,605 — dass die Zahl mitwandert, ist der Beweis, dass sie nicht
+konstant ist).
+
+Gepinnt sind jetzt auch die Cron-Defaults (`tests/test_distill_dim.py`): Dimension
+1024, `balanced`, Abstain-Zielquote 0,072, kein `--sample`. Der Sonntagslauf ruft ohne
+Argumente auf — diese vier Werte SIND das Produktivverhalten.
