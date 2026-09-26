@@ -907,6 +907,25 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # (`n_features_in_`), damit die vier 1024er neben dem 4096er signal_type-Head
 # (#110) laufen. Ein Preflight bricht mit lesbarer Meldung ab, wenn Matrix +
 # sklearn-Kopie nicht in den freien Speicher passen, statt OOM-getoetet zu werden.
+# Der Mega-Head trainiert seit dem 2026-09-26 mit `class_weight='balanced'`
+# (Owner-Entscheid nach Messung): der ueber Klassen gemittelte Recall steigt von
+# 0,5487 auf 0,8106 und keine Klasse bleibt unerreichbar (ungewichtet war
+# `virtual_worlds_consolidation` bei 0,000) — bezahlt mit 3,6 pp Gesamtgenauigkeit,
+# also netto 6.346 schlechteren Zuordnungen im Holdout, davon 79 % in den zwei
+# groessten Klassen (AI 0,923 -> 0,740, personalized_health 0,956 -> 0,862). Die
+# Begruendung ist der Zweck des Labels: der Mega-Trend fuellt Themenseiten,
+# Newsletter-Themenwahl und Research Pulse — eine Klasse, die nie zugewiesen wird,
+# ist dort schlimmer als eine gelegentlich falsche Zuweisung. `--mega-class-weight
+# none` stellt das alte Verhalten wieder her.
+# **Abstain-Schwelle wird mitkalibriert** (`--mega-abstain-rate`, Default 0,072):
+# der Maßstab der Entscheidungswerte haengt an der Dimension UND der Gewichtung,
+# nicht an der Natur. Derselbe Wert -1,0 bedeutet auf dem produktiven 4096er-Head
+# 7,2 % Abstain und auf dem 1024er-balanced-Head 12,9 % (gemessen an 20.000 Zeilen)
+# — und mehr Abstain heisst mehr `mega_trend = NULL`, also leerere Themenseiten.
+# Der Trainer nimmt deshalb das Quantil auf dem ganzen Holdout, schreibt die
+# Schwelle nach `models/distill/meta.json`, und `DistillClassifier` benutzt sie;
+# `pipeline.distill.MEGA_ABSTAIN_THRESHOLD` ist nur noch der Rueckfall fuer Heads
+# von vor dem 26.09.
 0 6 * * 0    .venv/bin/python scripts/discovery_loop.py
 
 # Monatlicher Quellen-Check mit Issue-Post (1. des Monats, 08:00)

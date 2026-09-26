@@ -196,3 +196,55 @@ def test_emb_column_is_backend_aware():
     assert tdh._emb_column(tdh.DIM_FULL) == "embedding"
     # SQLite has no prefix column — the blob is sliced while streaming
     assert tdh._emb_column(tdh.DIM_PREFIX) == "embedding"
+
+
+# --- Abstain-Schwelle gehoert zum Head, nicht in eine Konstante -------------
+
+def test_abstain_threshold_resolution_order():
+    from pipeline.distill import MEGA_ABSTAIN_THRESHOLD, _mega_abstain_threshold as thr
+
+    assert thr({"mega_abstain_threshold": -1.418}) == -1.418
+    assert thr({"report": {"mega_trend": {"abstain_threshold": -1.35}}}) == -1.35
+    # Heads von vor dem 26.09. tragen keine Schwelle -> die 4096er-Konstante gilt
+    assert thr({}) == MEGA_ABSTAIN_THRESHOLD
+    assert thr({"mega_abstain_threshold": None}) == MEGA_ABSTAIN_THRESHOLD
+
+
+def _clf_with_threshold(meta):
+    from sklearn.linear_model import SGDClassifier
+    from sklearn.multiclass import OneVsRestClassifier
+
+    rng = np.random.default_rng(3)
+    X = _unit(rng.normal(size=(40, 1024)).astype(np.float32))
+    y = np.array(["TECH", "FOOD"] * 20)
+    head = lambda: SGDClassifier(loss="log_loss", max_iter=20, random_state=0).fit(X, y)
+    return DistillClassifier(
+        vertical=head(), mega=head(),
+        pestel=OneVsRestClassifier(
+            SGDClassifier(loss="log_loss", max_iter=20, random_state=0)
+        ).fit(X, np.tile([[1, 0, 0, 0, 0, 0]], (40, 1))),
+        relevance=None, meta=meta), X
+
+
+def test_classify_uses_the_threshold_stored_with_the_model():
+    """Eine unerreichbar hohe Schwelle muss JEDE Mega-Zuordnung unterdruecken,
+    eine sehr tiefe keine — sonst haengt das Abstain weiter an der Konstante."""
+    hoch, X = _clf_with_threshold({"mega_abstain_threshold": 999.0})
+    assert all(o["mega_trend"] is None for o in hoch.classify_batch(X[:6]))
+    tief, X = _clf_with_threshold({"mega_abstain_threshold": -999.0})
+    assert all(o["mega_trend"] is not None for o in tief.classify_batch(X[:6]))
+    # mega_top3 bleibt unabhaengig vom Abstain befuellt
+    assert all(len(o["mega_top3"]) >= 1 for o in hoch.classify_batch(X[:6]))
+
+
+# --- Cron-Defaults (der Sonntagslauf ruft ohne Argumente auf) --------------
+
+def test_cron_defaults_are_balanced_and_1024():
+    """`discovery_loop.retrain()` startet den Trainer OHNE Flags — die Defaults
+    sind damit das produktive Verhalten und gehoeren gepinnt (Owner 26.09.)."""
+    d = vars(tdh._parser().parse_args([]))
+    assert d["dim"] == tdh.DIM_PREFIX
+    assert d["mega_class_weight"] == "balanced"
+    assert d["mega_abstain_rate"] == 0.072
+    assert d["sample"] == 0
+    assert d["relevance_only"] is False and d["mega_only"] is False

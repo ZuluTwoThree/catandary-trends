@@ -84,6 +84,15 @@ cd ~/projects/catandary-trends
 .venv/bin/python scripts/train_distill_heads.py --sample 250000   # schnell
 ```
 
+Der Mega-Kopf wird dabei mit `class_weight='balanced'` trainiert (Entscheidung vom
+26.09.): kleine Themen werden dadurch überhaupt erst zugewiesen — `virtual_worlds_
+consolidation` ging von Recall 0,000 auf 0,793, `evolution_of_work_models` von 0,014
+auf 0,928 —, dafür sinkt die Gesamtgenauigkeit um 3,6 Punkte, vor allem in den
+größten Klassen. `--mega-class-weight none` stellt das alte Verhalten her. Die
+Abstain-Schwelle (wann ein Signal *keinen* Mega-Trend bekommt) rechnet der Lauf
+selbst aus und legt sie zum Modell; sie darf nicht von Hand in
+`pipeline/distill.py` gesetzt werden, weil sie an Dimension und Gewichtung hängt.
+
 Der Lauf sagt vorher, wieviel Speicher er schätzt, und bricht ab, statt sich
 abschießen zu lassen. `--dim 4096` trainiert auf dem vollen Vektor — das passt
 auf dieser Maschine nur mit `--sample`. Die Modelle liegen in `models/`, das

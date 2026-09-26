@@ -33,6 +33,15 @@ PESTEL_DIMS = ["P", "E", "S", "T", "En", "L"]
 # Fifth head (#110): trend_signal_type for press signals. Optional — the
 # classifier loads it when the file exists; scripts/train_signal_type_head.py writes it.
 SIGNAL_TYPE_HEAD_FILE = "signal_type.joblib"
+# FALLBACK only. Since 2026-09-26 the trainer calibrates this threshold per head
+# and stores it in meta.json (`mega_abstain_threshold`); DistillClassifier prefers
+# that value. The reason is that the decision-value SCALE is not a constant of
+# nature: it depends on the embedding width AND the class weighting. Measured on
+# 20k rows, the 4096-dim unweighted head abstains on 7.2 % of signals at -1.0, the
+# 1024-dim balanced head on 12.9 % at the same number — and more abstaining means
+# more mega_trend=NULL, i.e. emptier theme pages. The number below stays right for
+# the heads it was calibrated on (4096, unweighted), which is why it remains the
+# fallback for models trained before the threshold was recorded.
 # Abstain (mega_trend=None) only when even the best class is DEEPLY rejected —
 # a gross no-fit like the Supergirl box-office trend (all 21 scores ≤ -1.6).
 # 0.0 (the OvR boundary) was too aggressive: 22% of plausible in-top-3 labels
@@ -87,6 +96,15 @@ class _HeadInput:
         return self._cache[d]
 
 
+def _mega_abstain_threshold(meta: dict) -> float:
+    """The threshold this mega head was calibrated with, else the 4096 fallback."""
+    for value in (meta.get("mega_abstain_threshold"),
+                  (meta.get("report") or {}).get("mega_trend", {}).get("abstain_threshold")):
+        if isinstance(value, (int, float)):
+            return float(value)
+    return MEGA_ABSTAIN_THRESHOLD
+
+
 class DistillClassifier:
     """Loads the persisted heads and classifies embeddings (batch-first)."""
 
@@ -97,6 +115,7 @@ class DistillClassifier:
         self._relevance = relevance
         self._signal_type = signal_type
         self.meta = meta
+        self.mega_abstain_threshold = _mega_abstain_threshold(meta)
 
     @classmethod
     def load(cls, models_dir: Path | None = None) -> "DistillClassifier":
@@ -172,7 +191,7 @@ class DistillClassifier:
                 "vertical_confidence": float(v_prob[i, top_v]),
                 "vertical_top2": [str(c) for c in v_classes[v_order[i, :2]]],
                 "mega_trend": (str(m_classes[m_order[i, 0]])
-                               if m_topscore[i] >= MEGA_ABSTAIN_THRESHOLD else None),
+                               if m_topscore[i] >= self.mega_abstain_threshold else None),
                 "mega_top3": [str(c) for c in m_classes[m_order[i, :3]]],
                 "pestel": [PESTEL_DIMS[j] for j in range(len(PESTEL_DIMS))
                            if p_pred[i, j] == 1],
