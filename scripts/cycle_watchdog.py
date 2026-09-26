@@ -342,6 +342,56 @@ def inspect_sampler(stamp: str) -> dict:
     return {"ok": True, "kind": "sampler", "log": None, "headline": f"ops sampler ok ({msg})", "detail": "", "tail": []}
 
 
+def inspect_llama_server(stamp: str) -> dict:
+    """Serviert :8090 den Ruhezustand? (2026-09-26)
+
+    Niemand hat das bisher geprueft. Der GPU-Handover stoppt den Server nach dem
+    letzten Schritt und stellt nur den Symlink zurueck; `scheduled_cycle.sh` startet
+    ihn am Ende wieder (rc3), `weekly_ingesters.sh` tat das bis zum 26.09. nicht.
+    Gemessen ueber `ops_samples`: am 19.09. lagen 129 von 169 Messungen zwischen 07:30
+    und 12:00 ohne geladenes Modell, am 26.09. 106 von 109 — die Owner-Instanz auf
+    :3001 hatte in dieser Zeit kein Modell, und der Waechter meldete "alles in Ordnung",
+    weil er nur die Stage-Bilanz des Cycles las (und am Wochenende gibt es keine).
+
+    Kein Alarm, wenn ein GPU-Job laeuft: dann gehoert die Karte ihm, und ein anderes
+    Modell als der Ruhezustand ist dort das erwartete Bild."""
+    import subprocess
+    import urllib.request
+    try:
+        busy = subprocess.run(["bash", "-c",
+                               f"source {Path(__file__).resolve().parent}/lib/gpu_guard.sh && gpu_guard_busy"],
+                              capture_output=True, text=True, timeout=30)
+        if busy.returncode == 0 and busy.stdout.strip():
+            return {"ok": True, "kind": "llama-busy", "log": None,
+                    "headline": "llama-server: GPU job running (no resting state expected)",
+                    "detail": "", "tail": []}
+    except Exception:  # noqa: BLE001 — guard nicht verfuegbar: weiterpruefen, nicht abbrechen
+        pass
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8090/v1/models", timeout=8) as r:
+            served = json.loads(r.read().decode())["data"][0]["id"]
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "kind": "llama-down", "log": None,
+                "headline": "llama-server on :8090 is not answering",
+                "detail": f"{type(e).__name__}: {e}. Die Owner-Instanz auf :3001 hat damit kein "
+                          "Modell, und jeder GPU-Job muss ihn erst selbst starten. "
+                          "Pruefen: `systemctl --user status llama-server`, "
+                          "`readlink ~/llama.cpp/start-active.sh`, "
+                          "`tail -30 /tmp/llama-server.log`. Zurueck in den Ruhezustand: "
+                          "`gpu-mode catandary`.",
+                "tail": []}
+    expected = "Qwen3-8B-UD-Q4_K_XL"
+    if expected not in served:
+        return {"ok": False, "kind": "llama-wrong-model", "log": None,
+                "headline": f"llama-server serves {served!r}, not the resting model",
+                "detail": "Ein Handover hat den Ruhezustand nicht wiederhergestellt (harter "
+                          "Abbruch mitten im Lauf?). Der naechste Verbraucher laeuft sonst gegen "
+                          "das falsche Modell. Zurueck: `gpu-mode catandary`.",
+                "tail": []}
+    return {"ok": True, "kind": "llama", "log": None,
+            "headline": f"llama-server ok ({served.rsplit('/', 1)[-1]})", "detail": "", "tail": []}
+
+
 def inspect_stages(stamp: str) -> dict:
     """Ist jede Stage des Cycles sauber durchgelaufen?
 
@@ -429,13 +479,15 @@ def main() -> int:
     publish_v = inspect_publish(stamp)
     sampler_v = inspect_sampler(stamp)
     stages_v = inspect_stages(stamp)
+    llama_v = inspect_llama_server(stamp)
     logger.info("%s: cycle: %s (%s)", stamp, cycle_v["headline"], cycle_v["kind"])
     logger.info("%s: stages: %s", stamp, stages_v["headline"])
     logger.info("%s: backup: %s", stamp, backup_v["headline"])
     logger.info("%s: publish: %s", stamp, publish_v["headline"])
     logger.info("%s: sampler: %s", stamp, sampler_v["headline"])
 
-    problems = [v for v in (cycle_v, stages_v, backup_v, publish_v, sampler_v) if not v["ok"]]
+    problems = [v for v in (cycle_v, stages_v, backup_v, publish_v, sampler_v, llama_v)
+                if not v["ok"]]
     if not problems:
         if not args.force:
             return 0  # silence means healthy

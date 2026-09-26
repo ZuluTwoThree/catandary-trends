@@ -1419,6 +1419,28 @@ Testlauf der Umstellung: `scripts/ctx_eval/testrun_batch.sh 100` (echter Pipelin
 VRAM-Protokoll) und `scripts/ctx_eval/testrun_judge.sh 40` (Stufe 10 einzeln, stellt den
 Ruhezustand per `trap` auch bei Abbruch wieder her).
 
+### 11.4b Der Wächter prüft den llama-server mit (seit 2026-09-26)
+
+Der Morgen-Wächter (07:45) meldet jetzt auch, wenn `:8090` nicht antwortet oder ein
+anderes Modell als den Ruhezustand serviert. Läuft gerade ein GPU-Job, gibt es keinen
+Alarm — dann gehört die Karte ihm.
+
+Anlass: `weekly_ingesters.sh` stellte den Ruhezustand nicht her. Der GPU-Handover stoppt
+den Server nach dem letzten Schritt und setzt nur den Symlink zurück; das abschließende
+`systemctl start` wie im Cycle fehlte. Gemessen über `ops_samples` lag die Karte danach
+jeden Samstag leer da (19.09.: 129 von 169 Messungen zwischen 07:30 und 12:00 ohne
+geladenes Modell; 26.09.: 106 von 109). Die Owner-Instanz auf :3001 hatte in dieser Zeit
+kein Modell. Beides ist behoben: der Wrapper stellt den Ruhezustand her (sichtbar als
+`rest=…` in seiner end-Zeile), der Wächter prüft ihn.
+
+Prüfen von Hand:
+
+```bash
+.venv/bin/python -m scripts.cycle_watchdog --dry-run --force   # zeigt alle Checks
+curl -s localhost:8090/v1/models | python -m json.tool | grep '"id"'
+gpu-mode catandary                                             # zurück in den Ruhezustand
+```
+
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert
 
 1. `systemctl --user status llama-server`, `tail -50 /tmp/llama-server.log`.

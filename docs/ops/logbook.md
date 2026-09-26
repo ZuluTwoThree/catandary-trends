@@ -705,3 +705,25 @@ Vorschlag (Cron-Pfad, also `main`-Merge nötig, dem Owner vorzulegen): am Ende v
 `weekly_ingesters.sh` denselben Block wie in `scheduled_cycle.sh` (Symlink auf den 208K-Klassifizierer
 + Unit starten, übersprungen wenn ein fremder GPU-Job die Unit hält), und im Wächter eine Prüfung
 „antwortet `:8090` mit dem Ruhezustands-Modell?" — sonst fällt das nächste Mal wieder niemandem auf.
+
+## 2026-09-26 · change · Extraktions-Kappe in Token, Ruhezustand im Ingester, Wächter prüft :8090
+
+Owner-Freigabe der Punkte 1–3 vom 26.09. Umgesetzt auf `dev`:
+
+**Extraktion (Punkt 2):** `llm_processor.clip_to_token_budget` kappt den Quelltext auf
+`EXTRACT_TOKEN_BUDGET` (Default 6.000) geschätzte Token, bevor die Zeichen-Kappe von 12.000
+greift. Schätzer konservativ: CJK ~1 Token je Zeichen, alles andere 3,4 Zeichen je Token
+(gemessen an 60 Volltexten: Median 4,89, dichtester Fall 3,43). Ernstfall geprüft gegen den
+echten Tokenizer: 12.000 Zeichen / 8.302 Token → 6.826 Zeichen / 4.652 Token; die fünf
+längsten lateinischen Volltexte bleiben unverändert (2.063–3.469 Token).
+
+**Ingester (Punkt 3a):** `weekly_ingesters.sh` stellt den Ruhezustand her (Symlink + Unit +
+Warten auf `/v1/models`), übersprungen wenn ein fremder GPU-Job die Unit hält. Sichtbar als
+`rest=…` in der end-Zeile und in der ops_events-Notiz.
+
+**Wächter (Punkt 3b):** `cycle_watchdog.inspect_llama_server` — antwortet `:8090`, und
+serviert er `Qwen3-8B-UD-Q4_K_XL`? Drei Ausgänge: ok, `llama-down`, `llama-wrong-model`;
+kein Alarm während eines GPU-Jobs. Live geprüft, Tests in
+`tests/test_watchdog_llama_server.py` und `tests/test_extraction_token_budget.py`.
+
+1.332 pytest grün. Alles auf dem Cron-Pfad, also erst mit dem `main`-Merge scharf.

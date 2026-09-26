@@ -286,6 +286,23 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       das Polling — die schon geholten Einträge liefen weiter in die
       Content-Generierung, weshalb die am 04.09. abgeschalteten 33 Journale
       am 08.09. noch einmal 187 Artikel erzeugten.
+    → **Token-Kappe vor der Zeichen-Kappe (seit 2026-09-26):** `EXTRACT_CHARS`
+      (12.000) zählt ZEICHEN, der Slot des 8B fasst 8.960 TOKEN und die
+      Truncation-Leiter will darin noch 2.048 Ausgabe-Token unterbringen. In
+      lateinischer Schrift ist das nie knapp (gemessen an 60 Volltexten: 4,89
+      Zeichen je Token im Median, 3,43 im dichtesten Fall). In CJK sind 12.000
+      Zeichen 8.302–8.442 Token: der Prompt füllt den Slot allein, die Ausgabe
+      wird abgeschnitten, die Budget-Verdopplung nützt nichts, und nach drei
+      Versuchen endet der Eintrag als `extraction_error`. Sonde vom 25.09.
+      (`scripts/ctx_eval/build_probes.py`): 24 von 24 Antworten abgeschnitten.
+      `llm_processor.clip_to_token_budget` kappt deshalb auf
+      `EXTRACT_TOKEN_BUDGET` (Env, Default 6.000) geschätzte Token — CJK ~1
+      Token je Zeichen, alles andere 3,4 Zeichen je Token, bewusst konservativ.
+      Gemessen am Ernstfall: 12.000 Zeichen / 8.302 Token → 6.826 Zeichen /
+      4.652 Token; lateinische Volltexte bleiben unverändert (2.063–3.469
+      Token bei 12.000 Zeichen). Kein Tokenizer-Aufruf je Eintrag: das wären
+      2.500 HTTP-Anfragen je Nacht für ein Promille der Zeilen.
+      Test `tests/test_extraction_token_budget.py`.
     → EXTRACTION_STRICT=1 (Default seit 2026-08-21): alle Felder Pflicht,
       quotes/geography werden auf Wörtlichkeit gefiltert (~5,3 s/Artikel)
     → key_figures kommen NICHT vom Modell: deterministisch per Regex aus der
@@ -783,6 +800,16 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # niemand merkt es. Schweigen = alles in Ordnung. Wochenenden sind ausgenommen.
 # Seit 2026-08-24 prüft er zusätzlich das heutige Backup-ARTEFAKT (existiert
 # catandary-pg-<Datum>.dumpdir, toc.dat da, ≥1 GB?) — Log-Zeilen zählen nicht.
+# Seit 2026-09-26 prüft er zusätzlich den llama-server: antwortet :8090, und serviert
+# er den Ruhezustand (Qwen3-8B-UD-Q4_K_XL)? Läuft gerade ein GPU-Job, ist ein anderes
+# Modell erwartet und es gibt keinen Alarm. Anlass: weekly_ingesters.sh stellte den
+# Ruhezustand nicht her (der Handover stoppt den Server und setzt nur den Symlink
+# zurück) — gemessen über ops_samples lag die Karte danach jeden Samstag leer da
+# (19.09.: 129 von 169 Messungen 07:30–12:00 ohne Modell; 26.09.: 106 von 109,
+# lückenlos 07:12–09:15), die Owner-Instanz hatte kein Modell, und der Wächter meldete
+# „alles in Ordnung", weil er nur die Stage-Bilanz des Cycles liest (am Wochenende gibt
+# es keine). Beides behoben: Wrapper stellt den Ruhezustand her (rest=… in der
+# end-Zeile), Wächter prüft ihn (`inspect_llama_server`).
 45 7 * * *   cd <repo> && .venv/bin/python -m scripts.cycle_watchdog
 
 # DB-Backup (täglich 01:30, bis 22.09. 02:45). Seit 2026-08-24: pg_dump -Fd -j4 + zstd:3 →

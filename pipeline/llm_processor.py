@@ -15,6 +15,7 @@ Processes raw RSS entries through:
 
 import json
 import logging
+import os
 import re
 import struct
 import sys
@@ -114,6 +115,51 @@ logger = logging.getLogger(__name__)
 # means more extractable items, which is precisely what used to overrun
 # max_tokens. The caps bound the OUTPUT, this bounds the INPUT.
 EXTRACT_CHARS = 12_000
+# ...aber Zeichen sind nicht Token (2026-09-26). EXTRACT_CHARS ist eine ZEICHEN-Kappe;
+# der Slot des 8B fasst 8.960 TOKEN, und die Truncation-Leiter in chat_structured will
+# darin noch bis 2.048 Ausgabe-Token unterbringen. In lateinischer Schrift ist das nie
+# knapp (gemessen an 60 Volltexten: 4,89 Zeichen je Token im Median, 3,43 im dichtesten
+# Fall, also hoechstens ~3.500 Token fuer 12.000 Zeichen). In CJK dagegen sind 12.000
+# Zeichen 8.442 Token: der Prompt fuellt den Slot allein, die Ausgabe wird abgeschnitten,
+# chat_structured verdoppelt das Budget (was nichts nuetzt — der Slot ist voll) und gibt
+# nach drei Versuchen None zurueck; der Eintrag endet als extraction_error und ist weg.
+# Nachgewiesen mit scripts/ctx_eval/build_probes.py: 24 von 24 Antworten abgeschnitten.
+#
+# Die Kappe rechnet deshalb in geschaetzten Token. Der Schaetzer ist bewusst KONSERVATIV
+# (CJK-Zeichen ~1 Token, alles andere 3,4 Zeichen je Token = der dichteste gemessene
+# Wert): er ueberschaetzt lieber, als einen Slot zu sprengen. Wirkung — latein 12.000
+# Zeichen → geschaetzt 3.529 Token, unter dem Budget, Text unveraendert; CJK 12.000
+# Zeichen → geschaetzt ~8.600, gekappt auf ~8.500 Zeichen. Ein Tokenizer-Aufruf je
+# Eintrag waere genauer, kostet aber bei ~2.500 Eintraegen je Nacht 2.500 HTTP-Anfragen
+# fuer einen Fall, der ein Promille der Zeilen betrifft.
+EXTRACT_TOKEN_BUDGET = int(os.getenv("EXTRACT_TOKEN_BUDGET", "6000"))
+_CJK_RE = re.compile(r"[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]")
+_CHARS_PER_TOKEN_LATIN = 3.4
+
+
+def estimate_tokens(text: str) -> int:
+    """Konservative Token-Schaetzung ohne Tokenizer-Aufruf (s. EXTRACT_TOKEN_BUDGET)."""
+    if not text:
+        return 0
+    cjk = len(_CJK_RE.findall(text))
+    return int(cjk + (len(text) - cjk) / _CHARS_PER_TOKEN_LATIN)
+
+
+def clip_to_token_budget(text: str, budget: int | None = None) -> str:
+    """Text auf ein geschaetztes Token-Budget kuerzen; unter dem Budget unveraendert.
+
+    Kappt proportional und korrigiert nach, statt zeichenweise zu zaehlen — bei 2.500
+    Eintraegen je Nacht soll das nichts kosten."""
+    budget = EXTRACT_TOKEN_BUDGET if budget is None else budget
+    if budget <= 0 or not text:
+        return text
+    est = estimate_tokens(text)
+    if est <= budget:
+        return text
+    cut = max(1, int(len(text) * budget / est))
+    while cut > 1 and estimate_tokens(text[:cut]) > budget:
+        cut = int(cut * 0.95)
+    return text[:cut]
 # Content-gen reads only the OPENING of the source (head, no tail) — see the
 # STAGE6_SOURCE_MAX_CHARS rationale in config.py (default 4000, env-tunable).
 CONTENT_CHARS = STAGE6_SOURCE_MAX_CHARS
@@ -498,7 +544,7 @@ def step_extraction(title: str, excerpt: str) -> ExtractionResult | None:
 
 Title: {title}
 
-Text: {excerpt[:EXTRACT_CHARS]}"""
+Text: {clip_to_token_budget(excerpt[:EXTRACT_CHARS])}"""
 
     # Effective model after the NuExtract→qwen3:8b fallback (NuExtract disabled).
     resolved_model = MODEL_EXTRACT if MODEL_EXTRACT != "nuextract" else "qwen3:8b"
