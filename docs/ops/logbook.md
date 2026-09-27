@@ -1014,3 +1014,49 @@ konstant ist).
 Gepinnt sind jetzt auch die Cron-Defaults (`tests/test_distill_dim.py`): Dimension
 1024, `balanced`, Abstain-Zielquote 0,072, kein `--sample`. Der Sonntagslauf ruft ohne
 Argumente auf — diese vier Werte SIND das Produktivverhalten.
+
+## 2026-09-27 · change · Der Sonntagslauf ist durchgelaufen — erstmals seit dem 07.08.
+
+`discovery_loop` 06:00–06:51, `retrain rc=0`, `loop done.` — **2.968 s, Spitze 17,0 GB**
+gegen 56,6 GB und SIGKILL an den drei Sonntagen davor. Die produktiven Heads tragen
+jetzt `trained: 2026-09-27`, 1.644.616 Trainingszeilen, 182.735 Holdout.
+
+| | Wert | gestern gemessen |
+|---|---|---|
+| Vertical Top-1 | 0,9092 | 0,9092 |
+| Mega (balanced) Top-1 / Top-3 | 0,8165 / 0,9670 | 0,8165 / 0,9670 |
+| Mega macro-Recall | 0,8106 | 0,8106 |
+| tote Klassen | **keine** | keine |
+| PESTEL micro-F1 | 0,9170 | 0,9170 |
+| Relevanz P / R / Acc | 0,8818 / 0,8774 / 0,8839 | dito |
+
+Exakt reproduziert, weil der Lader seit gestern deterministisch ist (Keyset nach `id`,
+kein `ORDER BY RANDOM()`). Dass die Vorhersage und der Produktivlauf sich auf die
+vierte Stelle treffen, ist der eigentliche Beleg dafür, dass die Messung von gestern
+den Produktivpfad beschrieben hat und nicht ein Laborartefakt war.
+
+**Die Abstain-Schwelle wurde mitkalibriert: −1,442** (Vorabrechnung sagte −1,418).
+Gegenprobe auf einer ANDEREN Stichprobe (10.564 Zeilen, `mod(id,173)` statt
+`mod(id,91)`): Abstain **6,72 %** bei Zielquote 7,2 % — und **12,58 %**, wenn dort die
+alte Konstante −1,0 gegolten hätte. Der Fund von gestern Abend hat also real eine
+Verdopplung der `mega_trend = NULL`-Quote verhindert, eine Stunde bevor sie in Betrieb
+gegangen wäre.
+
+**Die Alarmkette hat funktioniert**, und zwar vollständig: `job_failed / discovery_loop`
+ausgelöst 26.09. 17:36 (die Regel fand den rc=1 vom 20.09. beim ersten Messlauf nach
+dem Merge), **entwarnt 27.09. 06:52** — eine Minute nach dem erfolgreichen Lauf. Das
+ist der Zyklus, den die Regel verspricht, einmal komplett durchlaufen. Offen bleibt
+`job_failed / advisory` (rc=143 vom 14.09., entferntes Feature); er fällt am 28./29.09.
+aus dem 14-Tage-Fenster und entwarnt sich selbst.
+
+Nebenbei behoben: `meta.json` trug weder Laufzeit noch Spitzenspeicher, weil die Datei
+geschrieben wurde, BEVOR `total_s` und `peak_rss_gb` gesetzt waren — der Report daneben
+hatte sie, die Herkunftsdatei am Modell nicht. Genau die liest man aber, wenn man
+Wochen später wissen will, was ein Lauf gekostet hat.
+
+Offen: `inclusive_and_human_centric_design` bleibt trotz Gewichtung bei Recall 0,481
+(2.961 Zeilen) — kein Gewichtungsproblem, sondern eine inhaltlich unscharfe Klasse.
+Wiedervorlage bei der nächsten Taxonomie-Runde. Und der erste Nachtlauf mit den neuen
+Heads ist Montag, 28.09., 02:45; danach gehört `filtered/processed` in
+`data/cycle_log.jsonl` angesehen (zuletzt 65/300 = 22 %), weil die
+Relevanz-Trefferquote um 2,6 Punkte gefallen ist.
