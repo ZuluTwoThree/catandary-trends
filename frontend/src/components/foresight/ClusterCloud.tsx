@@ -69,7 +69,7 @@ in vec3 aPos;
 in vec4 aMeta; // month, tier, vertical, nest
 in float aHit;  // 1 = matches the search
 uniform float uYaw, uPitch, uRadius, uFocal, uMonthEnd, uWindowLen, uNest, uGhosts, uDpr, uAlpha;
-uniform float uNear, uSearch, uMaxScale;
+uniform float uNear, uSearch, uMaxScale, uHitSize;
 uniform vec3 uCenter;
 uniform vec2 uViewport;
 uniform int uTierMask, uVertMask, uColorBy;
@@ -121,12 +121,13 @@ void main() {
   else c = aMeta.w > 65534.5 ? vec3(0.32) : hsl(mod(aMeta.w * 137.508, 360.0) / 360.0, 0.65, 0.62);
   // (not "active": that is a reserved word in GLSL ES 3.0)
   bool inWindow = state > 1.5;
-  // With a search running every lit point is a match: draw them large and
-  // nearly opaque, and fade the context further, or a handful of matches
-  // disappears among 100,000 context points.
+  // With a search running every lit point is a match: drawn larger, with its
+  // own size and opacity (both fall with the number of matches, see hitStyle),
+  // and the context fades further — or a handful of matches disappears among
+  // 100,000 context points, while thousands would melt into white.
   bool searching = uSearch > 0.5;
-  gl_PointSize = (inWindow ? (searching ? 5.5 : 2.8) : 1.6) * min(scale, uMaxScale) * uDpr;
-  vColor = vec4(c, inWindow ? (searching ? 0.9 : uAlpha) : (searching ? 0.022 : 0.045));
+  gl_PointSize = (inWindow ? (searching ? uHitSize : 2.8) : 1.6) * min(scale, uMaxScale) * uDpr;
+  vColor = vec4(c, inWindow ? uAlpha : (searching ? 0.022 : 0.045));
 }`;
 
 const FRAG_SRC = `#version 300 es
@@ -141,12 +142,19 @@ void main() {
   outColor = vec4(vColor.rgb * a, a);
 }`;
 
+/** One set of points on the GPU: the sample, or the matches of a search. */
+interface Layer {
+  vao: WebGLVertexArrayObject;
+  bufs: WebGLBuffer[];
+  n: number;
+}
+
 interface Gl {
   gl: WebGL2RenderingContext;
   prog: WebGLProgram;
   loc: Record<string, WebGLUniformLocation | null>;
-  hitBuf: WebGLBuffer;
-  n: number;
+  sample: Layer;
+  hits: Layer | null;
 }
 
 function compile(gl: WebGL2RenderingContext, type: number, src: string): WebGLShader {
@@ -157,6 +165,44 @@ function compile(gl: WebGL2RenderingContext, type: number, src: string): WebGLSh
     throw new Error(gl.getShaderInfoLog(s) || "shader compile failed");
   }
   return s;
+}
+
+/**
+ * Upload a point set. `hit` is the aHit attribute of every point: 0 for the
+ * sample (context while a search runs), 1 for the matches of a search.
+ */
+function makeLayer(gl: WebGL2RenderingContext, prog: WebGLProgram, d: CloudData, hit: 0 | 1): Layer {
+  const vao = gl.createVertexArray()!;
+  gl.bindVertexArray(vao);
+  const attrib = (name: string, data: Float32Array, size: number): WebGLBuffer => {
+    const buf = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, name);
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+    return buf;
+  };
+  const meta = new Float32Array(d.n * 4);
+  for (let i = 0; i < d.n; i++) {
+    meta[i * 4] = d.month[i];
+    meta[i * 4 + 1] = d.tier[i];
+    meta[i * 4 + 2] = d.vertical[i];
+    meta[i * 4 + 3] = d.nest[i];
+  }
+  const bufs = [
+    attrib("aPos", d.pos, 3),
+    attrib("aMeta", meta, 4),
+    attrib("aHit", new Float32Array(d.n).fill(hit), 1),
+  ];
+  gl.bindVertexArray(null);
+  return { vao, bufs, n: d.n };
+}
+
+function dropLayer(gl: WebGL2RenderingContext, l: Layer | null): void {
+  if (!l) return;
+  gl.deleteVertexArray(l.vao);
+  for (const b of l.bufs) gl.deleteBuffer(b);
 }
 
 function setupGl(canvas: HTMLCanvasElement, d: CloudData): Gl {
@@ -170,38 +216,6 @@ function setupGl(canvas: HTMLCanvasElement, d: CloudData): Gl {
     throw new Error(gl.getProgramInfoLog(prog) || "shader link failed");
   }
   gl.useProgram(prog);
-  const vao = gl.createVertexArray();
-  gl.bindVertexArray(vao);
-
-  const posBuf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, d.pos, gl.STATIC_DRAW);
-  const aPos = gl.getAttribLocation(prog, "aPos");
-  gl.enableVertexAttribArray(aPos);
-  gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 0, 0);
-
-  const meta = new Float32Array(d.n * 4);
-  for (let i = 0; i < d.n; i++) {
-    meta[i * 4] = d.month[i];
-    meta[i * 4 + 1] = d.tier[i];
-    meta[i * 4 + 2] = d.vertical[i];
-    meta[i * 4 + 3] = d.nest[i];
-  }
-  const metaBuf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, metaBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, meta, gl.STATIC_DRAW);
-  const aMeta = gl.getAttribLocation(prog, "aMeta");
-  gl.enableVertexAttribArray(aMeta);
-  gl.vertexAttribPointer(aMeta, 4, gl.FLOAT, false, 0, 0);
-
-  // search matches: rewritten on every search, hence DYNAMIC_DRAW
-  const hitBuf = gl.createBuffer()!;
-  gl.bindBuffer(gl.ARRAY_BUFFER, hitBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(d.n), gl.DYNAMIC_DRAW);
-  const aHit = gl.getAttribLocation(prog, "aHit");
-  gl.enableVertexAttribArray(aHit);
-  gl.vertexAttribPointer(aHit, 1, gl.FLOAT, false, 0, 0);
-
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE); // additive: overlap becomes brightness
   gl.disable(gl.DEPTH_TEST);
@@ -209,11 +223,11 @@ function setupGl(canvas: HTMLCanvasElement, d: CloudData): Gl {
   const names = [
     "uYaw", "uPitch", "uRadius", "uFocal", "uMonthEnd", "uWindowLen", "uNest", "uGhosts",
     "uDpr", "uAlpha", "uViewport", "uTierMask", "uVertMask", "uColorBy", "uTierColors", "uVertColors",
-    "uCenter", "uNear", "uSearch", "uMaxScale",
+    "uCenter", "uNear", "uSearch", "uMaxScale", "uHitSize",
   ];
   const loc: Record<string, WebGLUniformLocation | null> = {};
   for (const u of names) loc[u] = gl.getUniformLocation(prog, u);
-  return { gl, prog, loc, hitBuf, n: d.n };
+  return { gl, prog, loc, sample: makeLayer(gl, prog, d, 0), hits: null };
 }
 
 interface PointDetail {
@@ -261,8 +275,14 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   const [tip, setTip] = useState<{ x: number; y: number; title: string; sub: string } | null>(null);
   const [hoverRing, setHoverRing] = useState(-1);
   const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<Uint8Array | null>(null);
-  const [hitCount, setHitCount] = useState(0);
+  // A search is a second point layer: every match in the whole corpus, placed
+  // in this cloud (not only the ~6 % of them that are in the sample).
+  const [hitData, setHitData] = useState<CloudData | null>(null);
+  const [searchInfo, setSearchInfo] = useState<{
+    outside: number;
+    bySource: { text: number; research: number; patents: number };
+    failed: string[];
+  } | null>(null);
   const [searchNote, setSearchNote] = useState<string | null>(null);
 
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -353,28 +373,35 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
+  // The sample draws as context while a search runs; picking, tooltip, click and
+  // double-click then work on the matches (`layer`), never on the context.
   const filter: CloudFilter = useMemo(
-    () => ({ tierMask, verticalMask: vertMask, monthEnd, windowLen, nest: nestSel, hits }),
-    [tierMask, vertMask, monthEnd, windowLen, nestSel, hits]
+    () => ({ tierMask, verticalMask: vertMask, monthEnd, windowLen, nest: nestSel, contextOnly: !!hitData }),
+    [tierMask, vertMask, monthEnd, windowLen, nestSel, hitData]
   );
+  const hitFilter: CloudFilter = useMemo(() => ({ ...filter, contextOnly: false }), [filter]);
+  const layer = hitData ?? data;
+  const layerFilter = hitData ? hitFilter : filter;
 
-  const active = useMemo(() => (data ? countActive(data, filter) : 0), [data, filter]);
+  const active = useMemo(() => (layer ? countActive(layer, layerFilter) : 0), [layer, layerFilter]);
   // Additive blending turns overlap into brightness — which saturates to white
   // when every month is lit at once (108k points). The per-point opacity
   // therefore falls with the number of lit points, so a 3-month window and the
   // whole archive both keep a readable density gradient.
-  const alpha = Math.min(0.6, Math.max(0.035, 0.5 * Math.pow(7200 / Math.max(1, active), 0.7)));
+  const alpha = hitData
+    ? Math.min(0.85, Math.max(0.06, 0.55 * Math.pow(1500 / Math.max(1, active), 0.6)))
+    : Math.min(0.6, Math.max(0.035, 0.5 * Math.pow(7200 / Math.max(1, active), 0.7)));
+  // a few matches large, tens of thousands small — each stays a point
+  const hitSize = Math.min(6, Math.max(2.8, 5.5 * Math.pow(2000 / Math.max(1, active), 0.25)));
 
   // ---- search matches into their GPU buffer (declared before the draw effect,
   // so a new result is uploaded before the frame that shows it)
   useEffect(() => {
     const g = glRef.current;
-    if (!g || !data) return;
-    const arr = new Float32Array(data.n);
-    if (hits) for (let i = 0; i < data.n; i++) arr[i] = hits[i];
-    g.gl.bindBuffer(g.gl.ARRAY_BUFFER, g.hitBuf);
-    g.gl.bufferSubData(g.gl.ARRAY_BUFFER, 0, arr);
-  }, [data, hits]);
+    if (!g) return;
+    dropLayer(g.gl, g.hits);
+    g.hits = hitData ? makeLayer(g.gl, g.prog, hitData, 1) : null;
+  }, [data, hitData]);
 
   // ---- draw whenever anything visible changes
   useEffect(() => {
@@ -410,10 +437,17 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     gl.uniform3fv(loc.uVertColors, vertColors);
     gl.uniform3f(loc.uCenter, cam.center[0], cam.center[1], cam.center[2]);
     gl.uniform1f(loc.uNear, NEAR);
-    gl.uniform1f(loc.uSearch, hits ? 1 : 0);
+    gl.uniform1f(loc.uSearch, hitData ? 1 : 0);
     gl.uniform1f(loc.uMaxScale, MAX_POINT_SCALE);
-    gl.drawArrays(gl.POINTS, 0, g.n);
-  }, [data, view, yaw, pitch, cam, size, monthEnd, windowLen, nestSel, ghosts, tierMask, vertMask, colorBy, tierColors, vertColors, alpha, hits]);
+    gl.uniform1f(loc.uHitSize, hitSize);
+    gl.bindVertexArray(g.sample.vao);
+    gl.drawArrays(gl.POINTS, 0, g.sample.n);
+    if (g.hits) {
+      gl.bindVertexArray(g.hits.vao);
+      gl.drawArrays(gl.POINTS, 0, g.hits.n);
+    }
+    gl.bindVertexArray(null);
+  }, [data, view, yaw, pitch, cam, size, monthEnd, windowLen, nestSel, ghosts, tierMask, vertMask, colorBy, tierColors, vertColors, alpha, hitSize, hitData]);
 
   // ---- clocks: spin and play
   // The spin pauses while the cursor rests on the canvas: it is there to show
@@ -482,8 +516,8 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   // ---- details for the panel and the tooltip, fetched once per signal
   const loadDetail = useCallback(
     (i: number): Promise<PointDetail | null> => {
-      if (!data) return Promise.resolve(null);
-      const id = data.trendId[i];
+      if (!layer) return Promise.resolve(null);
+      const id = layer.trendId[i];
       const hit = details.current.get(id);
       if (hit) return Promise.resolve(hit);
       return fetch(`/api/foresight/space/point?id=${id}`)
@@ -494,7 +528,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         })
         .catch(() => null);
     },
-    [data]
+    [layer]
   );
 
   const hideTip = useCallback(() => {
@@ -575,7 +609,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
           return;
         }
         setHoverRing(-1);
-        const i = pickNearest(data, filter, view, x, y);
+        const i = pickNearest(layer!, layerFilter, view, x, y);
         setHover(i);
         scheduleTip(i >= 0 ? `p${i}` : "", x, y, () =>
           loadDetail(i).then((d) =>
@@ -584,14 +618,14 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         );
       });
     },
-    [data, filter, view, scheduleTip, ringHits, rings, loadDetail]
+    [data, layer, layerFilter, view, scheduleTip, ringHits, rings, loadDetail]
   );
 
   const onPointerUp = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
       const d = drag.current;
       drag.current = null;
-      if (!d || d.moved || d.pan || !data || e.button !== 0) return;
+      if (!d || d.moved || d.pan || !layer || e.button !== 0) return;
       const { x, y } = localXY(e);
       const g = pickRing(ringHits, x, y);
       if (g >= 0) {
@@ -600,7 +634,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         setNestSel((cur) => (cur === k ? -1 : k));
         return;
       }
-      const i = pickNearest(data, filter, view, x, y, 8);
+      const i = pickNearest(layer, layerFilter, view, x, y, 8);
       setSelected(i);
       setDetail(null);
       if (i >= 0) {
@@ -608,7 +642,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         loadDetail(i).then((dd) => setDetail(dd));
       }
     },
-    [data, filter, view, loadDetail, ringHits, rings]
+    [layer, layerFilter, view, loadDetail, ringHits, rings]
   );
 
   /** Double-click: the point under the cursor becomes the pivot — or, over
@@ -623,15 +657,15 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         setCam((c) => ({ ...c, center: [n.x, n.y, n.z] }));
         return;
       }
-      const i = pickNearest(data, filter, view, x, y, 10);
-      if (i >= 0) {
-        setCam((c) => ({ ...c, center: [data.pos[i * 3], data.pos[i * 3 + 1], data.pos[i * 3 + 2]] }));
+      const i = layer ? pickNearest(layer, layerFilter, view, x, y, 10) : -1;
+      if (layer && i >= 0) {
+        setCam((c) => ({ ...c, center: [layer.pos[i * 3], layer.pos[i * 3 + 1], layer.pos[i * 3 + 2]] }));
       } else {
         const w = screenToWorld(x - view.width / 2, y - view.height / 2, view);
         setCam((c) => ({ ...c, center: [c.center[0] + w[0], c.center[1] + w[1], c.center[2] + w[2]] }));
       }
     },
-    [data, filter, view, ringHits, rings]
+    [data, layer, layerFilter, view, ringHits, rings]
   );
 
   // ---- mouse wheel: zoom toward the cursor. A native listener, because React
@@ -656,43 +690,55 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   const zoomButton = (factor: number) =>
     setCam((c) => zoomAt({ ...view, zoom: c.zoom, center: c.center }, factor, view.width / 2, view.height / 2));
 
-  // ---- search: the same full-text search as the feed, over this run's signals
+  // ---- search: the feed's full-text search over the WHOLE corpus (titles,
+  // summaries, tags, research and patent abstracts); every match comes back as
+  // a placed point, not only the ~6 % of them that happen to be in the sample.
   const runSearch = useCallback(
     (text: string) => {
       const qtext = text.trim();
       const seq = ++searchSeq.current;
+      // any selection belongs to the layer that is about to change
+      setSelected(-1);
+      setDetail(null);
+      setHover(-1);
       if (qtext.length < 2 || !data) {
         searchOn.current = false;
-        setHits(null);
-        setHitCount(0);
+        setHitData(null);
+        setSearchInfo(null);
         setSearchNote(null);
         return;
       }
       setSearchNote("searching…");
       fetch(`/api/foresight/space/search?run=${meta.runId}&q=${encodeURIComponent(qtext)}`)
-        .then((r) => r.json() as Promise<{ indices?: number[]; error?: string }>)
-        .then((j) => {
-          if (seq !== searchSeq.current) return; // a newer query is on its way
-          if (j.error || !j.indices) {
-            setSearchNote(j.error ?? "search failed");
-            return;
+        .then(async (r) => {
+          if (!r.ok) {
+            const j = (await r.json().catch(() => ({}))) as { error?: string };
+            throw new Error(j.error ?? `search failed (${r.status})`);
           }
-          const arr = new Uint8Array(data.n);
-          for (const i of j.indices) if (i >= 0 && i < data.n) arr[i] = 1;
+          const info = {
+            outside: Number(r.headers.get("X-Outside") ?? 0),
+            bySource: JSON.parse(r.headers.get("X-Sources") ?? "{}"),
+            failed: (r.headers.get("X-Failed") ?? "").split(",").filter(Boolean),
+          };
+          return { buf: await r.arrayBuffer(), info };
+        })
+        .then(({ buf, info }) => {
+          if (seq !== searchSeq.current) return; // a newer query is on its way
+          const hitsLayer = unpack(buf, meta.coordRange);
           // A NEW search opens the window to every month, so all matches are
           // visible at once; narrowing it (and Play) is then the owner's move.
           // Refining the query keeps whatever window was chosen meanwhile.
           if (!searchOn.current) setWindowLen(meta.months.length);
           searchOn.current = true;
-          setHits(arr);
-          setHitCount(j.indices.length);
-          setSearchNote(j.indices.length ? null : "no matches in the cloud");
+          setHitData(hitsLayer.n ? hitsLayer : null);
+          setSearchInfo(info);
+          setSearchNote(hitsLayer.n ? null : "no matches");
         })
-        .catch(() => {
-          if (seq === searchSeq.current) setSearchNote("search failed");
+        .catch((e: unknown) => {
+          if (seq === searchSeq.current) setSearchNote(e instanceof Error ? e.message : "search failed");
         });
     },
-    [data, meta.runId, meta.months.length]
+    [data, meta.runId, meta.months.length, meta.coordRange]
   );
 
   const onQuery = (v: string) => {
@@ -703,8 +749,8 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
 
   const mark = selected >= 0 ? selected : hover;
   const markProj =
-    data && mark >= 0
-      ? projectPoint(data.pos[mark * 3], data.pos[mark * 3 + 1], data.pos[mark * 3 + 2], view)
+    layer && mark >= 0 && mark < layer.n
+      ? projectPoint(layer.pos[mark * 3], layer.pos[mark * 3 + 1], layer.pos[mark * 3 + 2], view)
       : null;
   const markPos = markProj && markProj.visible ? markProj : null;
 
@@ -717,8 +763,9 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
       on ? "text-paper border-border bg-card" : "text-muted/60 border-border/50 line-through"
     }`;
 
-  const selTier = data && selected >= 0 ? tierByCode[data.tier[selected]] : null;
-  const selNest = data && selected >= 0 && data.nest[selected] !== NO_NEST ? meta.nests[data.nest[selected]] : null;
+  const sel = layer && selected >= 0 && selected < layer.n ? selected : -1;
+  const selTier = layer && sel >= 0 ? tierByCode[layer.tier[sel]] : null;
+  const selNest = layer && sel >= 0 && layer.nest[sel] !== NO_NEST ? meta.nests[layer.nest[sel]] : null;
   const nestMembers = useMemo(
     () => (data ? Array.from(data.nest).filter((x) => x !== NO_NEST).length : 0),
     [data]
@@ -828,9 +875,24 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
             aria-label="search the signals in the cloud"
             className="w-72 bg-ink border border-border px-2 py-1 font-mono text-[11px] text-paper placeholder:text-muted/70 focus:border-accent outline-none"
           />
-          {hits && (
-            <span className="font-mono text-[10px] text-accent whitespace-nowrap">
-              {hitCount.toLocaleString("en-US")} {hitCount === 1 ? "match" : "matches"}
+          {hitData && searchInfo && (
+            <span
+              className="font-mono text-[10px] text-accent whitespace-nowrap"
+              title={
+                `before de-duplication: ${searchInfo.bySource.text.toLocaleString("en-US")} in titles/summaries/tags, ` +
+                `${searchInfo.bySource.research.toLocaleString("en-US")} in research abstracts, ` +
+                `${searchInfo.bySource.patents.toLocaleString("en-US")} in patent abstracts`
+              }
+            >
+              {hitData.n.toLocaleString("en-US")} {hitData.n === 1 ? "match" : "matches"}
+              {searchInfo.outside > 0 && (
+                <span className="text-muted"> · {searchInfo.outside.toLocaleString("en-US")} before the window</span>
+              )}
+            </span>
+          )}
+          {searchInfo && searchInfo.failed.length > 0 && (
+            <span className="font-mono text-[10px] text-warn whitespace-nowrap">
+              partial — {searchInfo.failed.join(", ")} timed out
             </span>
           )}
           {searchNote && (
@@ -946,8 +1008,8 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
               <div className="absolute left-3 top-2 font-mono text-[10px] text-muted pointer-events-none">
                 {!data
                   ? "loading 1.7 MB of points…"
-                  : hits
-                    ? `${active.toLocaleString("en-US")} of ${hitCount.toLocaleString("en-US")} matches in the window`
+                  : hitData
+                    ? `${active.toLocaleString("en-US")} of ${hitData.n.toLocaleString("en-US")} matches in the window`
                     : `${active.toLocaleString("en-US")} of ${data.n.toLocaleString("en-US")} sampled signals in the window`}
               </div>
               {tip && (
@@ -967,7 +1029,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         </div>
 
         <div className="border border-border bg-card/30 p-4">
-          {selected >= 0 && data ? (
+          {sel >= 0 && layer ? (
             <div>
               <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent mb-2">
                 Signal

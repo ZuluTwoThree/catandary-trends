@@ -918,13 +918,25 @@ Titel mit Quelle und Datum; auf einer Ringlinie Name und Größe der Tasche. Sol
 Cursor über der Wolke ist, pausiert das Drehen — ein bewegtes Ziel ließe sich weder
 lesen noch treffen.
 
-*Suche:* Das Feld am Ende der Filterleiste durchsucht Titel, Zusammenfassung und Tags
-der Signale in der Wolke — dieselbe Volltextsuche wie `?q=` im Feed: `solar panel`
-verlangt beide Wörter, `"solar panel"` die Phrase, `-wort` schließt aus. Treffer
-leuchten groß, alles andere tritt zurück. Eine **neue** Suche öffnet das Fenster auf
-alle Monate, damit sofort alle Treffer zu sehen sind; danach eingrenzen und mit *Play*
-zusehen, wann sie auftauchen. Gemessen am 27.09.: `Solar Panel` 112 Treffer, die Phrase
-94, `perovskite` 137, `AI` 3.399 — 0,12 bis 0,57 s. Leeren beendet die Suche.
+*Suche:* Das Feld am Ende der Filterleiste durchsucht **den ganzen Bestand**, nicht
+nur die 108.000 Punkte der Stichprobe — drei Quellen parallel: Titel, Zusammenfassung
+und Tags (dieselbe Volltextsuche wie `?q=` im Feed), die **Abstracts der
+Forschungssignale** und die **Abstracts der Patente**. Syntax überall gleich: `solar
+panel` verlangt beide Wörter, `"solar panel"` die Phrase, `-wort` schließt aus. Jeder
+Treffer erscheint als eigener Punkt, weil der Wolkenlauf seit dem 27.09. **alle
+1,52 Mio. Signale des 15-Jahres-Fensters** in dieselbe Wolke einordnet (die Stichprobe
+bestimmt die Form, der Rest wird per `umap.transform` eingesetzt; ein Stichprobenpunkt
+behält dabei seine Position). Neben dem Feld steht die Trefferzahl, dahinter, wie viele
+Treffer vor dem Fenster liegen (älter als 15 Jahre oder undatiert) — beim Zeigen auf
+die Zahl die Aufteilung nach Quelle. Scheitert eine Quelle (Zeitlimit), steht
+„partial — … timed out" daneben. Gemessen am 27.09.: `solar panel` 2.288 Treffer (vorher
+nur die 112 der Stichprobe), `perovskite` 2.946, `battery` 19.214, `AI` 88.698 — 0,2 bis
+1,1 s; auch bei 88.698 Treffern läuft die Animation mit 60 Bildern/s. Treffer werden
+größer und kräftiger gezeichnet, je weniger es sind; die Stichprobe tritt als Schatten
+zurück. Abstract-Treffer heißen „der Begriff kommt vor", nicht „darum geht es" — bei
+Forschung oft als Methode oder Nebensatz. Eine **neue** Suche öffnet das Fenster auf
+alle Monate; danach eingrenzen und mit *Play* zusehen, wann die Treffer auftauchen.
+Leeren beendet die Suche.
 
 *Lesart* (steht auch auf der Seite): jeder Monat hat gleich viele Punkte — **Helligkeit
 zeigt, woraus ein Monat bestand, nie wie viel es gab**; Menge gehört auf die Messachsen.
@@ -939,7 +951,8 @@ Tage, die Wolke umfasst 15 Jahre.
 
 *Neu rechnen:* Knopf **Recompute cloud** oben auf der Seite (kein Cron) oder
 `.venv/bin/python -m pipeline.signal_space` (`--dry-run` zählt nur die Stichprobe,
-`--per-month`, `--months`). CPU, rund 2 Minuten, ~2,4 GB. Die letzten zwei Läufe bleiben
+`--per-month`, `--months`, `--sample-only` ohne das Einordnen aller Signale). CPU, rund
+10 Minuten, Spitze ~2,8 GB (das Einordnen der 1,4 Mio. übrigen Signale sind ~8 davon). Die letzten zwei Läufe bleiben
 in `signal_space_runs`. Die Nester kommen aus dem jüngsten *globalen* Emerging-Lauf — wer
 die Nester neu rechnet, sollte danach auch die Wolke neu rechnen.
 

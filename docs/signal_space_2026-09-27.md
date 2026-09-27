@@ -196,6 +196,38 @@ SVG-Ringen begann ein Zug, der auf einem Ring startete, keine Drehung — und in
 liegen die Ringe dicht. Ringe werden jetzt wie die Punkte auf der CPU getroffen
 (`pickRing`), die SVG-Ebene nimmt gar keine Zeigerereignisse mehr an.
 
+## Alle Signale eingeordnet, Suche über den ganzen Bestand (27.09., spät)
+
+Die Wolkensuche fand nur, was in der Stichprobe lag: 5–8 % der Treffer („solar panel"
+112 von 1.619 im Bestand). Seitdem ordnet der Lauf **jedes Signal des 15-Jahres-Fensters**
+in die Wolke ein: die Stichprobe (600 je Monat) bestimmt die Form, alle übrigen werden
+mit dem gelernten PCA + UMAP per `transform` eingesetzt, ein Stichprobenpunkt behält
+seine gelernte Position (Test: identische Koordinaten in beiden Blobs).
+
+| | |
+|---|---|
+| eingeordnet | 1.522.042 Signale, davon 1.414.042 per Transform |
+| Tempo Transform | ~6.750 Punkte/s nach einmaligem JIT; mit Laden 484 s |
+| Lauf gesamt | 597 s, Spitze 2,8 GB |
+| Blob `all_points` | 24,4 MB, nach trend_id sortiert (Binärsuche im Server) |
+
+Die Suche fragt drei Quellen parallel (Titel/Zusammenfassung/Tags, Forschungs- und
+Patent-Abstracts; jede darf einzeln scheitern, die Seite meldet es) und liefert die
+Treffer als gepackte Datensätze, die der Browser als zweite Punktschicht zeichnet:
+
+| Suche | vorher (Stichprobe) | jetzt | vor dem Fenster | Dauer |
+|---|---|---|---|---|
+| solar panel | 112 | 2.288 | 217 | 0,6 s |
+| "solar panel" | 94 | 1.742 | 178 | 0,2 s |
+| perovskite | 137 | 2.946 | 76 | 0,2 s |
+| battery | — | 19.214 | 734 | 1,1 s |
+| AI | 3.399 | 88.698 | 957 | 0,4 s |
+
+Bei 88.698 Treffern läuft die Animation weiter mit 61 Bildern/s. Deckkraft und
+Punktgröße der Treffer fallen mit ihrer Zahl — sonst liefen Tausende zu Weiß zusammen
+und die Ebenenfarbe ginge verloren. Abstract-Treffer bedeuten „kommt vor", nicht
+„darum geht es" (Stichprobe: ein Offshore-Wind-Paper, dessen Abstract Solarmodule nennt).
+
 ## Grenzen
 
 - Die Karte ist eine Projektion, kein Messwert — s. o.

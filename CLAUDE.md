@@ -1302,8 +1302,12 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      Navigation seit 27.09. abends: Drehpunkt (Doppelklick auf Signal/Ring), Shift-/Rechts-
      Ziehen verschiebt, Mausrad zoomt zum Cursor, Zoom x0,15-x50 (Grenze = 16-Bit-Koordinaten),
      Nahschnitt statt gespiegelter Punkte; Tooltip nach 1 s (Signaltitel bzw. Taschenname);
-     Suchfeld = Feed-Volltextsuche (websearch_to_tsquery auf idx_trends_fts) ueber die IDs des
-     Laufs, /api/foresight/space/search, 0,12-0,57 s. Ringe werden auf der CPU getroffen
+     Suchfeld seit 27.09. spaet ueber den GANZEN Bestand: Titel/Zusammenfassung/Tags (idx_trends_fts)
+     + Forschungs-Abstracts (research_signals.tsv) + Patent-Abstracts (patent_search.tsv),
+     parallel, jede Quelle darf einzeln scheitern; Treffer kommen als eigene Punktschicht,
+     weil der Lauf ALLE 1,52 Mio. Signale des Fensters per umap.transform einordnet
+     (Spalte all_points, nach trend_id sortiert, 24 MB; Lauf ~10 min, 2,8 GB). "solar panel"
+     2.288 statt 112 Treffer, "AI" 88.698, 0,2-1,1 s. Ringe werden auf der CPU getroffen
      (pickRing), die SVG-Ebene nimmt keine Klicks — sonst begann ein Zug auf einem Ring
      keine Drehung)
     (Cluster-Schicht seit 2026-09-15: Snapshot ueber die letzten 24 Monate statt des

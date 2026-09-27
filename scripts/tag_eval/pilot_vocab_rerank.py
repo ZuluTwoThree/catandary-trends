@@ -58,8 +58,10 @@ def unit(M: np.ndarray) -> np.ndarray:
 def patent_sample(n: int) -> tuple[list[dict], dict]:
     items = rows("""
         SELECT t.id, t.title_en AS title, r.excerpt,
-               -- the publication number from the Google Patents URL: raw_entries.pub_number
-               -- is not filled on every row (444 of 1,000 in the first dry run)
+               -- the publication number from the Google Patents URL. (It equals
+               -- raw_entries.pub_number — checked on 27.09., filled on all 136,769 patent
+               -- signals; the first dry run's 444 of 1,000 came from patents without CPC
+               -- rows in patent_cpc, not from a missing number.)
                split_part(split_part(r.url, '/patent/', 2), '/', 1) AS pub_number,
                t.embedding_1024::text AS emb
         FROM trends t JOIN raw_entries r ON r.id = t.raw_entry_id JOIN sources s ON s.id = r.source_id

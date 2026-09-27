@@ -219,3 +219,37 @@ def test_run_persists_one_row_is_reproducible_and_keeps_two():
     assert set(rec["trend_id"].tolist()) <= set(range(1, 121))
     assert set(rec["month"].tolist()) == {0, 1, 2}
     assert bytes(rows[0]["points"]) == bytes(rows[1]["points"])  # deterministic
+
+
+# ------------------------------------------------------------- place everything
+
+def test_every_signal_of_the_window_is_placed_and_samples_stay_put():
+    _seed({"2026-01": 40, "2026-02": 40, "2026-03": 40}, dim=1024,
+          extra=[("signal", "2025-06-01T10:00:00")])      # outside the window
+    ss.migrate_signal_space_tables()
+    with get_connection() as c:
+        c.execute("DELETE FROM signal_space_runs")
+    rid = ss.run(per_month=25, n_months=3, end_month="2026-03")
+    with get_connection() as c:
+        r = c.execute("SELECT points, all_points, n_all FROM signal_space_runs WHERE id = ?",
+                      (rid,)).fetchone()
+    sample = ss.unpack(bytes(r["points"]))
+    every = ss.unpack(bytes(r["all_points"]))
+    assert r["n_all"] == 120 == len(every)                 # all of the window, nothing else
+    ids = every["trend_id"].tolist()
+    assert ids == sorted(ids)                               # the server binary-searches this
+    assert 121 not in ids                                   # the 2025 row is outside the window
+    at = {int(t): k for k, t in enumerate(every["trend_id"])}
+    for rec in sample:                                      # fitted position == placed position
+        other = every[at[int(rec["trend_id"])]]
+        assert (rec["x"], rec["y"], rec["z"]) == (other["x"], other["y"], other["z"])
+        assert rec["month"] == other["month"] and rec["nest"] == other["nest"]
+
+
+def test_sample_only_leaves_the_placed_blob_empty():
+    _seed({"2026-01": 30, "2026-02": 30}, dim=1024)
+    ss.migrate_signal_space_tables()
+    rid = ss.run(per_month=20, n_months=2, end_month="2026-02", place_everything=False)
+    with get_connection() as c:
+        r = c.execute("SELECT all_points, n_all FROM signal_space_runs WHERE id = ?", (rid,)).fetchone()
+    assert r["all_points"] is None and r["n_all"] is None
