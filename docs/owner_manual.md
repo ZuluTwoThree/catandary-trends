@@ -646,6 +646,8 @@ je Ebene ~5 min, kleine Vertikale Sekunden). Einzelne Bereiche mit
 Tabellen `emerging_runs`/`emerging_nests`, je Bereich bleibt ein Lauf stehen.
 Methode, Messungen und die offenen Punkte: `docs/emerging_nests_2026-09-15.md`.
 
+Dieselben Nester räumlich und über die Zeit: §5.12 (`/trends/foresight/map`) — sie liest genau diesen Schnappschuss.
+
 ### 5.5 Evolution (`/trends/foresight/evolution?vertical=<V>`)
 
 Cluster-Abstammung über Zeitfenster: Fäden mit *New* / *Fading*, rising /
@@ -830,6 +832,123 @@ scripts/weekly_field_watch.sh` — Wochenblätter aller Kunden nach dem Research
 Pulse; keine GPU, kein Kollisionswächter; ohne Kundendateien no-op; Notiz
 `data/weekly_field_watch_last.json` in der Montags-Mail. Die Kundenseite wird
 bewusst nicht automatisch hochgeladen — du sichtest das Blatt zuerst.
+
+### 5.12 Signalraum in 3D (`/trends/foresight/map`)
+
+Dieselben Nester wie §5.4, aber mit Koordinaten und einer Uhr. Erreichbar über das
+**Foresight-Menü** in der Kopfzeile (Eintrag *Signal Space*, zwischen Emerging und
+Technology) — also von jeder Cockpit-Seite aus, auch von Clusters und Emerging; auf
+dem Handy in derselben Gruppe der Schublade. Die Seite rechnet **nichts** nach: sie liest den Emerging-Schnappschuss (Zentroid je Nest, dazu die
+Treffer je Monat aus dem Archiv-Scan) und ergänzt nur das, was dort fehlte — drei
+Achsen und einen Zeitregler. Gibt es für einen Bereich keinen Lauf, steht das da,
+mit Verweis auf den Recompute-Knopf der Emerging-Seite.
+
+**Zwei Ansichten, ein Umschalter oben links.**
+
+*Messachsen* (Default) ist die ehrliche: waagerecht das **Alter** des Nests
+(logarithmisch, Ticks bei 1/2/5/10/20 Jahren), senkrecht der **Anteil je 10.000
+Signalen desselben Monats** über zwölf rollende Monate (logarithmisch), in die
+Tiefe das **Wachstum** gegen die zwölf Monate davor (×0,25 bis ×4, Mitte „flat").
+Die Punkte *bewegen* sich: ein Monatsschritt ist ein Schritt auf der Bahn, und die
+Spur hinter jedem Nest zeigt das letzte Jahr. Die Kugelgröße ist der Anteil, mit
+**einer** Skala für den ganzen Durchlauf — eine Skala je Bild ließe jeden Monat
+gleich voll aussehen.
+
+*Karte* ist die Orientierungshilfe: die 1024-dimensionalen Zentroide per
+klassischem MDS auf drei Achsen gepresst. Hier steht die Position fest und nur die
+Größe atmet. Die Achsen sind **absichtlich unbeschriftet** — sie haben keine
+Einheit. Was die Projektion kostet, steht daneben: Shepard r, gehaltene Varianz und
+wie viele der fünf nächsten Nachbarn Nachbarn bleiben. Gemessen am 27.09.: global
+r 0,47 / 24 % / 47 %, `tier:science` r 0,73, `tier:market` r 0,64. Lies die Karte
+danach: unter 0,6 ist nur die *Gruppierung* ablesbar, keine Abstände und erst recht
+keine Richtungen. Eine lokale Nachoptimierung (Sammon) wurde gemessen und nicht
+eingebaut — sie hob r auf 0,71–0,73, verschlechterte aber die Nachbarschaftstreue
+bei einem von zwei Läufen (`docs/signal_space_2026-09-27.md`).
+
+**Bedienung.** Ziehen dreht den Raum, `+`/`−` zoomen, *Reset view* stellt den
+Blick zurück. *Spin* dreht langsam von selbst (das ist es, was die Tiefe überhaupt
+sichtbar macht) und hält an, sobald du ziehst. *Play* läuft durch die Monate,
+Pfeiltasten links/rechts gehen einen Monat weiter, der Regler springt direkt.
+*Trails* schaltet die Spuren ab. Zeigen auf einen Punkt blendet seine Zahlen
+rechts ein, Klicken hält sie fest.
+
+**Was rechts steht** — und warum: Monat, Anteil (mit der rohen Trefferzahl
+dahinter), Wachstum, Alter mit erstem Monat, Größe und Kohäsion des Nests,
+Quellenzahl **mit der größten Quelle und ihrem Anteil**, wie viel des Nests je
+eine Klassifizierungsstufe gesehen hat, und der Anteil etablierter Quellen. Liegt
+letzterer unter 50 %, sagt ein Satz darunter, dass das Alter dieses Nests eher
+etwas über unsere Abonnements aussagt als über die Welt. Darunter drei Belege mit
+Quelle und Datum. Ein dichtes, brandneues Nest kann ein einzelner Massen-Ingest
+sein — die Seite versteckt das nicht, sie zeigt es.
+
+**Normalisierung.** Der Korpus wird für den Stand **des Laufs** rekonstruiert
+(`trends.created_at <= Laufzeitpunkt`), nicht für heute: sonst sänke jedes Nest,
+weil die jüngsten Monate seit dem Schnappschuss um Zehntausende Zeilen gewachsen
+sind, die Nest-Treffer aber eingefroren sind. Der Rest (~0,02 %) sind Zeilen, deren
+Publikationsdatum am Lauftag noch in der Zukunft lag; die Seite nennt ihn.
+
+**Dritte Ansicht: *Signal cloud*** (seit 27.09.) zeigt nicht die Nester, sondern die
+**Signale selbst**: 600 aus jedem der letzten 180 Monate, zusammen 108.000, per UMAP
+in drei Dimensionen. Die Nester sitzen als Ringe in derselben Wolke; ein Klick auf
+einen Ring lässt seine Mitglieder aufleuchten. Ein Klick auf einen Punkt öffnet rechts
+Titel, Quelle, Datum, Ebene, Vertikale, Signaltyp und Nest — veröffentlichte Artikel
+verlinken auf die Artikelseite, alle anderen auf die Quelle.
+
+*Bedienung:* **Colour** färbt nach Ebene, Vertikale oder Nest. **Window** wählt, welche
+Monate hell leuchten (3 Monate, 12 Monate, alle); der Regler schiebt das Fenster, *Play*
+lässt es laufen. **Context** zeigt den Rest des Archivs als schwachen Schatten, damit die
+Form lesbar bleibt. **Nests** blendet die Ringe aus und ein (Ausblenden hebt auch eine
+gewählte Tasche auf, sonst bliebe ein Filter stehen, den man im Bild nicht mehr lösen
+kann); zum Anwählen einer Tasche genügt ein Klick auf die Ringlinie; ein Zug, der auf
+einem Ring beginnt, dreht oder verschiebt trotzdem. Die Chips unter *show* blenden Ebenen und Vertikalen ganz aus —
+gefiltert wird, nicht neu projiziert, deshalb bleiben die Positionen vergleichbar. Die
+Wolke ist immer global; auf einem anderen Tab steht ein Hinweis dazu.
+
+*Navigation:* Ziehen dreht. **Shift-Ziehen oder rechte Maustaste** verschiebt das
+Bild. Das **Mausrad** zoomt zum Cursor hin — der Punkt unter dem Cursor bleibt stehen.
+**Doppelklick** auf ein Signal oder einen Ring macht ihn zur Bildmitte; Drehen und
+Zoomen beziehen sich danach auf ihn. `+`/`−` zoomen um die Mitte, die Anzeige daneben
+nennt den Faktor (×0,15 bis ×50 — die Grenze setzt die 16-Bit-Speicherung der
+Koordinaten, darüber rasteten die Punkte sichtbar ein). *Reset view* stellt Blick,
+Zoom und Mitte zurück. Punkte, die beim Verschieben hinter die Kamera geraten, werden
+ausgeblendet statt gespiegelt gezeichnet.
+
+*Tooltip:* Bleibt der Cursor etwa **eine Sekunde** auf einem Signal, erscheint sein
+Titel mit Quelle und Datum; auf einer Ringlinie Name und Größe der Tasche. Solange der
+Cursor über der Wolke ist, pausiert das Drehen — ein bewegtes Ziel ließe sich weder
+lesen noch treffen.
+
+*Suche:* Das Feld am Ende der Filterleiste durchsucht Titel, Zusammenfassung und Tags
+der Signale in der Wolke — dieselbe Volltextsuche wie `?q=` im Feed: `solar panel`
+verlangt beide Wörter, `"solar panel"` die Phrase, `-wort` schließt aus. Treffer
+leuchten groß, alles andere tritt zurück. Eine **neue** Suche öffnet das Fenster auf
+alle Monate, damit sofort alle Treffer zu sehen sind; danach eingrenzen und mit *Play*
+zusehen, wann sie auftauchen. Gemessen am 27.09.: `Solar Panel` 112 Treffer, die Phrase
+94, `perovskite` 137, `AI` 3.399 — 0,12 bis 0,57 s. Leeren beendet die Suche.
+
+*Lesart* (steht auch auf der Seite): jeder Monat hat gleich viele Punkte — **Helligkeit
+zeigt, woraus ein Monat bestand, nie wie viel es gab**; Menge gehört auf die Messachsen.
+UMAP hält Nachbarschaften, keine Abstände: gemessen am 27.09. ist die Trustworthiness
+0,938 (was nah aussieht, ist nah), aber nur 24 % der zehn nächsten Nachbarn eines Signals
+bleiben seine Nachbarn — für Regionen und Dichte taugt die Wolke, für „was liegt direkt
+neben diesem Signal" nicht. Leere Flächen und Abstände zwischen fernen Regionen bedeuten
+nichts. Sofort sichtbar ist, dass die Einbettung nach **Schreibstil** trennt: Fachpresse,
+Forschung, Patente und Förderung liegen als eigene Kontinente, auch beim selben Thema.
+Nur 2,2 % der Punkte liegen in einem Nest — die Nester sind dichte Ecken der letzten 90
+Tage, die Wolke umfasst 15 Jahre.
+
+*Neu rechnen:* Knopf **Recompute cloud** oben auf der Seite (kein Cron) oder
+`.venv/bin/python -m pipeline.signal_space` (`--dry-run` zählt nur die Stichprobe,
+`--per-month`, `--months`). CPU, rund 2 Minuten, ~2,4 GB. Die letzten zwei Läufe bleiben
+in `signal_space_runs`. Die Nester kommen aus dem jüngsten *globalen* Emerging-Lauf — wer
+die Nester neu rechnet, sollte danach auch die Wolke neu rechnen.
+
+**Grenzen.** Gezeigt werden die letzten 180 Monate (15 Jahre); 24 weitere werden
+nur geladen, um die rollenden Fenster zu füllen. Ältere Monate stehen im
+Schnappschuss, ergeben aber bei wenigen hundert Signalen je Monat kein Bild. Die
+Seite ist wie das ganze Cockpit Owner-only (im `PUBLIC_MODE` 404, nie im Export) —
+deshalb darf sie interaktiv sein, wo die öffentlichen Seiten deterministisch sein
+müssen.
 
 ## 6. Dossier-Desk — entfernt 2026-09-19
 

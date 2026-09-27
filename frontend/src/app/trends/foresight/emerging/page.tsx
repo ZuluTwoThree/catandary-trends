@@ -135,6 +135,13 @@ export default async function EmergingPage({
           <span className="text-muted normal-case tracking-normal font-sans">
             {nests.length} of {all.length} shown
           </span>
+          <span className="text-border">·</span>
+          <Link
+            href={`/trends/foresight/map${tier ? `?tier=${tier}` : requested ? `?vertical=${requested}` : ""}`}
+            className="text-muted hover:text-accent"
+          >
+            see them in space and over time →
+          </Link>
         </div>
       )}
 

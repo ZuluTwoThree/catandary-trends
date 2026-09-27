@@ -1256,7 +1256,56 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                    schreibt nur eine Kandidatendatei; measure_mega_axes --write-yaml bleibt die einzige Schreibquelle der Badge-Felder).
                                    Der SQLite-Prototyp discover_mega_trends.py wurde 2026-09-09 entfernt (zeigte auf die vor-Postgres-DB, abgelöst).
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
-  /clusters /clusters/<id> /emerging /technology /lead-time /evolution
+  /clusters /clusters/<id> /emerging /map /technology /lead-time /evolution
+    (/map = Signalraum in 3D, seit 2026-09-27: DIESELBEN Nester wie /emerging, nur mit
+     Koordinaten und einer Uhr — es wird nichts nachgerechnet, die Seite liest den
+     Schnappschuss (Zentroid je Nest + Treffer je Monat aus dem Archiv-Scan). Zwei
+     Ansichten, ein Renderer: MESSACHSEN (Default) = Alter x Anteil je 10.000 Signalen
+     desselben Monats x Wachstum gegen das Vorjahr, alle drei rollend ueber 12 Monate,
+     die Punkte WANDERN, Spur = letztes Jahr; KARTE = die 1024-dim Zentroide per
+     klassischem MDS auf drei Achsen, Position fest, nur die Groesse atmet. Die
+     Kartenachsen sind bewusst unbeschriftet (sie haben keine Einheit), dafuer steht die
+     gemessene Verzerrung daneben: global Shepard r 0,47 / 24 % Varianz / 47 % der fuenf
+     naechsten Nachbarn bleiben; tier:science 0,73, tier:market 0,64. Normalisiert wird
+     gegen den Korpus ZUM LAUFZEITPUNKT (trends.created_at <= Lauf), sonst saehe jedes
+     Nest aus wie am Verblassen — die juengsten Monate sind seit dem Schnappschuss um
+     Zehntausende Zeilen gewachsen, die Nest-Treffer nicht (Rest ~0,02 %, wird genannt).
+     Kein Cron, kein Modell, keine GPU, keine neue Tabelle, keine 3D-Bibliothek: der
+     Renderer sind eine Rotationsmatrix, eine Perspektivdivision und ein Tiefensortieren
+     in SVG (~250 Knoten). Owner-only wie das ganze Cockpit. Mathe + Messungen:
+     frontend/src/lib/clusterMap.ts, docs/signal_space_2026-09-27.md. Im Foresight-Menue
+     der Kopfzeile als *Signal Space* — die eine Quelle dafuer ist FORESIGHT_NAV in
+     frontend/src/lib/nav.ts, aus der Header-Dropdown und Mobil-Schublade rendern;
+     ein Vitest haelt fest, dass JEDER Eintrag dieser Liste im PUBLIC_MODE 404 ist.
+     STUFE 3 (seit 2026-09-27): dritte Ansicht SIGNAL CLOUD = die Signale selbst, nicht die
+     Nester. pipeline/signal_space.py zieht deterministisch 600 Signale je Monat aus den
+     letzten 180 Monaten (108.000; kleinste (id*2654435761) mod 2^32 je Monat, Schnitt per
+     Fensterfunktion in der DB), L2 -> PCA 50 -> UMAP 3D (n_neighbors 30, Seed 42 -> bewusst
+     einfaedig), setzt die Nester des juengsten globalen Emerging-Laufs per transform in
+     dieselbe Wolke und markiert jeden Punkt mit seinem Nest (Regel des Archiv-Scans:
+     Kosinus >= Nest-Schwelle). Speicher: EINE Zeile je Lauf in signal_space_runs, Punkte
+     als gepackter BYTEA (16 B/Punkt, 1,7 MB), die letzten 2 Laeufe bleiben; nie ein
+     UPDATE auf trends. Erster Lauf 27.09.: 110 s, Spitze 2,4 GB, PCA-50 haelt 39 %,
+     Trustworthiness 0,938, aber nur 24 % der 10 naechsten Nachbarn bleiben -> Regionen
+     und Dichte ja, "was liegt neben diesem Signal" nein; nur 2.373 Punkte (2,2 %) liegen
+     in einem Nest. Gleiche Anzahl je Monat heisst: Helligkeit = Zusammensetzung, nicht
+     Menge. Sichtbar: die Einbettung trennt nach SCHREIBSTIL, Fachpresse/Forschung/
+     Patente/Foerderung liegen als eigene Kontinente. Renderer WebGL2 von Hand
+     (ClusterCloud.tsx, keine Bibliothek, Shader = Zwilling von lib/spaceCloud.ts
+     projectPoint/pointState, Picking auf der CPU), Deckkraft faellt mit der Zahl
+     leuchtender Punkte (sonst saettigt "all" zu Weiss). Daten: /api/foresight/space/points
+     (octet-stream, ETag = Lauf-ID) und /space/point?id= (Klick). Kein Cron: Knopf
+     "Recompute cloud" = Snapshot-Worker Modus "space" (spawnDetached). Neue
+     Abhaengigkeit umap-learn (+numba, pynndescent) — die venv von ct-dev IST die von main
+     (Symlink), sie war also mit der Installation am 27.09. auch dort; geprueft: nur
+     Zusaetze, numpy/scipy/sklearn unveraendert.
+     Navigation seit 27.09. abends: Drehpunkt (Doppelklick auf Signal/Ring), Shift-/Rechts-
+     Ziehen verschiebt, Mausrad zoomt zum Cursor, Zoom x0,15-x50 (Grenze = 16-Bit-Koordinaten),
+     Nahschnitt statt gespiegelter Punkte; Tooltip nach 1 s (Signaltitel bzw. Taschenname);
+     Suchfeld = Feed-Volltextsuche (websearch_to_tsquery auf idx_trends_fts) ueber die IDs des
+     Laufs, /api/foresight/space/search, 0,12-0,57 s. Ringe werden auf der CPU getroffen
+     (pickRing), die SVG-Ebene nimmt keine Klicks — sonst begann ein Zug auf einem Ring
+     keine Drehung)
     (Cluster-Schicht seit 2026-09-15: Snapshot ueber die letzten 24 Monate statt des
      ganzen Archivs (`--window-months`), Momentum als Anteil am Gehoer auf einem FESTEN
      QUELLENPANEL (nur Quellen, die in beiden Vergleichsfenstern geliefert haben) mit

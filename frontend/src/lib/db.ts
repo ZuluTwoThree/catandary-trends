@@ -43,7 +43,7 @@ const inflight = new Map<string, Promise<unknown>>();
  *  route await the same promise, so their RSC rows always stream in the same
  *  order (two independent queries finished in either order under pool
  *  contention and flipped the payload between builds). */
-function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+export function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   const hit = ttlCache.get(key);
   if (hit && Date.now() - hit.at < ttlMs) return Promise.resolve(hit.value as T);
   let p = inflight.get(key) as Promise<T> | undefined;
@@ -1663,7 +1663,7 @@ export interface TrendsFilterOptions {
 
 /** The tsvector expression MUST textually match the idx_trends_fts GIN index
  *  expression, or Postgres won't use the index. */
-const FTS_VECTOR =
+export const FTS_VECTOR =
   "to_tsvector('english', coalesce(title_en,'') || ' ' || coalesce(summary_en,'') || ' ' || coalesce(tags::text,''))";
 
 function buildFilterClauses(options: TrendsFilterOptions): {

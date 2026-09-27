@@ -1,3 +1,4 @@
+import { cached } from "./db";
 import { q, q1 } from "./pg";
 
 /**
@@ -219,4 +220,111 @@ export async function getEmergingScopes(): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+// ----------------------------------------------------------- signal-space view
+
+export interface EmergingSpace {
+  run: EmergingRun;
+  nests: EmergingNest[];
+  /** One 1024-dim centroid per nest, in the same order. Server-side only —
+   *  225 KB of vectors have no business in a browser payload. */
+  centroids: number[][];
+  /** The month axis of the run (identical for every nest of a run). */
+  months: string[];
+  /** Corpus signals per month AS THE RUN SAW THEM (see getCorpusMonthly). */
+  totals: number[];
+  /** Sum of `totals` — compared against run.scanned on the page, so the
+   *  normalisation states its own residual instead of implying exactness. */
+  corpusRows: number;
+}
+
+/**
+ * Corpus volume per month, reconstructed for the state the snapshot ran against.
+ *
+ * Same filter as pipeline/foresight.iter_signals (status, embedded, no future
+ * dates) plus the run's vertical scope — tier scopes are deliberately NOT
+ * filtered, because emerging_snapshot dates each pocket against the whole
+ * corpus regardless of the scope it was found in.
+ *
+ * `asOf` is what makes this usable at all: bounded by trends.created_at, the
+ * totals describe the corpus of the run. Against today's corpus every pocket
+ * would appear to fade, since the newest months have grown by tens of thousands
+ * of rows since the snapshot while the pockets' counts are frozen in it.
+ */
+export async function getCorpusMonthly(
+  asOf: string,
+  vertical: string | null
+): Promise<Map<string, number>> {
+  const key = `corpus-monthly:${asOf}:${vertical ?? "all"}`;
+  return cached(key, 3_600_000, async () => {
+    const params: unknown[] = [asOf];
+    let scope = "";
+    if (vertical) {
+      params.push(vertical);
+      scope = " AND t.primary_vertical = $2";
+    }
+    const rows = await q<{ m: string; n: string }>(
+      "SELECT to_char(r.published_date, 'YYYY-MM') AS m, count(*) AS n " +
+        "FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id " +
+        "WHERE t.status IN ('signal','published') AND t.embedding_1024 IS NOT NULL " +
+        "  AND r.published_date IS NOT NULL AND r.published_date <= CURRENT_TIMESTAMP " +
+        "  AND t.created_at <= $1" +
+        scope +
+        " GROUP BY 1",
+      params
+    );
+    return new Map(rows.map((r) => [r.m, Number(r.n)]));
+  });
+}
+
+/** Centroids of a run, keyed by nest id. float32 little-endian, as written by
+ *  numpy's tobytes() in pipeline/emerging_snapshot.py. */
+async function getCentroids(runId: number): Promise<Map<number, number[]>> {
+  const rows = await q<{ id: number; centroid: Buffer | null }>(
+    "SELECT id, centroid FROM emerging_nests WHERE run_id = $1",
+    [runId]
+  );
+  const out = new Map<number, number[]>();
+  for (const r of rows) {
+    if (!r.centroid || r.centroid.length < 4) continue;
+    const n = Math.floor(r.centroid.length / 4);
+    const view = new Float32Array(n);
+    for (let i = 0; i < n; i++) view[i] = r.centroid.readFloatLE(i * 4);
+    out.set(r.id, Array.from(view));
+  }
+  return out;
+}
+
+/** Everything the signal-space view needs for one scope, or null when the scope
+ *  has no run (or the tables are not there yet). */
+export async function getEmergingSpace(scope: string): Promise<EmergingSpace | null> {
+  const data = await getLatestEmergingRun(scope);
+  if (!data || data.nests.length === 0) return null;
+  const { run } = data;
+  const months = data.nests[0].history_months;
+  if (months.length === 0) return null;
+  const vertical = scope.startsWith("vertical:") ? scope.slice("vertical:".length) : null;
+  let centroidMap: Map<number, number[]>;
+  let corpus: Map<string, number>;
+  try {
+    [centroidMap, corpus] = await Promise.all([
+      getCentroids(run.id),
+      getCorpusMonthly(run.created_at, vertical),
+    ]);
+  } catch {
+    return null;
+  }
+  // Only pockets whose centroid is actually stored can be placed on the map.
+  const nests = data.nests.filter((n) => centroidMap.has(n.id));
+  const centroids = nests.map((n) => centroidMap.get(n.id)!);
+  const totals = months.map((m) => corpus.get(m) ?? 0);
+  return {
+    run,
+    nests,
+    centroids,
+    months,
+    totals,
+    corpusRows: totals.reduce((s, v) => s + v, 0),
+  };
 }

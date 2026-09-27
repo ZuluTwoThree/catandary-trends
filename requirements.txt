@@ -26,6 +26,7 @@ pytest-asyncio>=0.24.0
 rapidfuzz>=3.0
 numpy>=1.26
 scikit-learn>=1.4
+umap-learn>=0.5.12  # signal cloud, /trends/foresight/map (pipeline/signal_space.py); pulls numba — checked 2026-09-27 not to touch numpy/scipy/sklearn
 pyarrow>=14
 trafilatura>=2.1  # full-text article extraction (#11)
 pypdf>=6          # PDF text for the dossier fetcher (BSI Grundschutz, EU documents; 2026-09-18)

@@ -430,17 +430,21 @@ def main() -> int:
             joblib.dump(clf_r, MODELS_DIR / "relevance.joblib")
             print("relevance:", report["relevance"], flush=True)
 
+    # Erst fertigrechnen, dann schreiben: meta.json trug bisher WEDER Laufzeit noch
+    # Spitzenspeicher, weil es vor diesen drei Zeilen geschrieben wurde. Der Report
+    # daneben hatte sie — die Herkunftsdatei am Modell aber nicht, und genau die
+    # liest man, wenn man Wochen spaeter wissen will, was der Lauf gekostet hat.
+    report["total_s"] = round(time.time() - t_all, 1)
+    report["peak_rss_gb"] = round(_peak_rss_gb(), 1)
+    report["dim"] = dim
     meta = {"trained": report["generated"], "n_train": report["n_train"],
             "dim": dim,
             "mega_abstain_threshold": report.get("mega_trend", {}).get("abstain_threshold"),
+            "total_s": report["total_s"], "peak_rss_gb": report["peak_rss_gb"],
             "heads": [p.name for p in MODELS_DIR.glob("*.joblib")],
             "teacher": "8B LLM pipeline labels (trends table)",
             "report": report}
     (MODELS_DIR / "meta.json").write_text(json.dumps(meta, indent=2))
-
-    report["total_s"] = round(time.time() - t_all, 1)
-    report["peak_rss_gb"] = round(_peak_rss_gb(), 1)
-    report["dim"] = dim
     Path(DATA_DIR, "distill_heads_report.json").write_text(json.dumps(report, indent=2))
     md = ["# Distillation Heads — Training Report",
           f"\nGeneriert: {report['generated']} · Train {report['n_train']:,} · "
