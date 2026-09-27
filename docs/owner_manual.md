@@ -1593,6 +1593,28 @@ curl -s localhost:8090/v1/models | python -m json.tool | grep '"id"'
 gpu-mode catandary                                             # zurück in den Ruhezustand
 ```
 
+### 11.4c Schlagworte messen (`scripts/tag_eval/`, 2026-09-27)
+
+Zwei Piloten zur Frage, ob Forschungs- und Patentsignale billig Schlagworte bekommen
+können (seit dem 03.07. haben sie keine). Ergebnis und Zahlen:
+`docs/tag_eval_2026-09-27.md` — kurz: der Reranker hilft nur bei Patenten (Platz 1
+36 → 43 %) und schafft in llama.cpp nur 17–25 Paare/s; kleine LLMs (Gemma 4 E4B,
+Qwen3.5-4B) sind weder schneller als das 8B noch nah an dessen Tags.
+
+Wiederholen (braucht die ganze GPU, ~35 min; nur in einem Fenster ohne GPU-Crons):
+
+```bash
+scripts/tag_eval/run_pilots.sh          # hält :8090 an, stellt den vorherigen Zustand per trap wieder her
+.venv/bin/python scripts/tag_eval/pilot_small_llm_tags.py --compare   # Vergleichstabelle neu
+```
+
+Einzeln: `pilot_vocab_rerank.py --rerank-host … --embed-host … [--only patent|research]`
+und `LLAMACPP_HOST=… pilot_small_llm_tags.py --label <modell>`. Das Treiberskript
+startet Testserver auf 8093/8094/8095 per PID — nicht über `~/llama.cpp/start-*.sh`,
+deren `pkill` auch den CPU-Embedder :8091 träfe — und meldet sich über den
+Besitzvermerk `data/llama-server.tag_eval.pid` und `ops_events` an, damit der
+Fremdbelegungs-Alarm schweigt. Ergebnisse unter `data/tag_eval/` (nicht versioniert).
+
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert
 
 1. `systemctl --user status llama-server`, `tail -50 /tmp/llama-server.log`.
