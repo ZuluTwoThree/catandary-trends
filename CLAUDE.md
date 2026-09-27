@@ -1276,7 +1276,29 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      frontend/src/lib/clusterMap.ts, docs/signal_space_2026-09-27.md. Im Foresight-Menue
      der Kopfzeile als *Signal Space* — die eine Quelle dafuer ist FORESIGHT_NAV in
      frontend/src/lib/nav.ts, aus der Header-Dropdown und Mobil-Schublade rendern;
-     ein Vitest haelt fest, dass JEDER Eintrag dieser Liste im PUBLIC_MODE 404 ist)
+     ein Vitest haelt fest, dass JEDER Eintrag dieser Liste im PUBLIC_MODE 404 ist.
+     STUFE 3 (seit 2026-09-27): dritte Ansicht SIGNAL CLOUD = die Signale selbst, nicht die
+     Nester. pipeline/signal_space.py zieht deterministisch 600 Signale je Monat aus den
+     letzten 180 Monaten (108.000; kleinste (id*2654435761) mod 2^32 je Monat, Schnitt per
+     Fensterfunktion in der DB), L2 -> PCA 50 -> UMAP 3D (n_neighbors 30, Seed 42 -> bewusst
+     einfaedig), setzt die Nester des juengsten globalen Emerging-Laufs per transform in
+     dieselbe Wolke und markiert jeden Punkt mit seinem Nest (Regel des Archiv-Scans:
+     Kosinus >= Nest-Schwelle). Speicher: EINE Zeile je Lauf in signal_space_runs, Punkte
+     als gepackter BYTEA (16 B/Punkt, 1,7 MB), die letzten 2 Laeufe bleiben; nie ein
+     UPDATE auf trends. Erster Lauf 27.09.: 110 s, Spitze 2,4 GB, PCA-50 haelt 39 %,
+     Trustworthiness 0,938, aber nur 24 % der 10 naechsten Nachbarn bleiben -> Regionen
+     und Dichte ja, "was liegt neben diesem Signal" nein; nur 2.373 Punkte (2,2 %) liegen
+     in einem Nest. Gleiche Anzahl je Monat heisst: Helligkeit = Zusammensetzung, nicht
+     Menge. Sichtbar: die Einbettung trennt nach SCHREIBSTIL, Fachpresse/Forschung/
+     Patente/Foerderung liegen als eigene Kontinente. Renderer WebGL2 von Hand
+     (ClusterCloud.tsx, keine Bibliothek, Shader = Zwilling von lib/spaceCloud.ts
+     projectPoint/pointState, Picking auf der CPU), Deckkraft faellt mit der Zahl
+     leuchtender Punkte (sonst saettigt "all" zu Weiss). Daten: /api/foresight/space/points
+     (octet-stream, ETag = Lauf-ID) und /space/point?id= (Klick). Kein Cron: Knopf
+     "Recompute cloud" = Snapshot-Worker Modus "space" (spawnDetached). Neue
+     Abhaengigkeit umap-learn (+numba, pynndescent) — die venv von ct-dev IST die von main
+     (Symlink), sie war also mit der Installation am 27.09. auch dort; geprueft: nur
+     Zusaetze, numpy/scipy/sklearn unveraendert)
     (Cluster-Schicht seit 2026-09-15: Snapshot ueber die letzten 24 Monate statt des
      ganzen Archivs (`--window-months`), Momentum als Anteil am Gehoer auf einem FESTEN
      QUELLENPANEL (nur Quellen, die in beiden Vergleichsfenstern geliefert haben) mit

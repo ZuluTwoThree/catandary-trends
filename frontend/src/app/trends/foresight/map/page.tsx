@@ -5,6 +5,8 @@ import { NEIGHBOUR_K, normaliseCoords, projectToSpace } from "@/lib/clusterMap";
 import { TIERS } from "@/lib/tiers";
 import { VERTICALS } from "@/lib/types";
 import ClusterSpace, { type SpaceNestView } from "@/components/foresight/ClusterSpace";
+import { getLatestSpaceRun } from "@/lib/signalSpace";
+import SnapshotRecompute from "../SnapshotRecompute";
 
 export const dynamic = "force-dynamic";
 
@@ -41,8 +43,21 @@ export default async function SignalSpacePage({
   const tier = typeof raw.tier === "string" ? raw.tier.toLowerCase() : null;
   const scope = tier ? `tier:${tier}` : requested ? `vertical:${requested}` : "global";
 
-  const available = new Set(await getEmergingScopes());
-  const space = await getEmergingSpace(scope);
+  const notice = typeof raw.worker === "string" ? raw.worker : undefined;
+  const [availableScopes, space, cloud] = await Promise.all([
+    getEmergingScopes(),
+    getEmergingSpace(scope),
+    getLatestSpaceRun(),
+  ]);
+  const available = new Set(availableScopes);
+  const back = `/trends/foresight/map${tier ? `?tier=${tier}` : requested ? `?vertical=${requested}` : ""}`;
+  const cloudAsOf = cloud
+    ? new Date(cloud.createdAt.replace(" ", "T") + "Z").toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
 
   const tab = (href: string, label: string, active: boolean) => (
     <Link
@@ -171,6 +186,10 @@ export default async function SignalSpacePage({
     <div className="mx-auto max-w-7xl px-4 py-8">
       {header}
 
+      {/* Stamp + button for the signal cloud (stage 3). The two SVG views need
+          none: they read the emerging snapshot, which has its own button. */}
+      <SnapshotRecompute mode="space" asOf={cloudAsOf} back={back} notice={notice} />
+
       <ClusterSpace
         months={tailMonths}
         totals={tailTotals}
@@ -178,6 +197,12 @@ export default async function SignalSpacePage({
         coords={coords}
         warmup={warmup}
         projection={projection}
+        cloud={cloud}
+        cloudScopeNote={
+          scope === "global"
+            ? null
+            : "The signal cloud is always the whole corpus in one projection, so positions stay comparable. Narrow it with the tier and vertical switches instead of the tabs above."
+        }
       />
 
       <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">

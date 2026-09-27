@@ -37,7 +37,9 @@ export default function SnapshotRecompute({
       ? "Recompute lineage"
       : mode === "emerging"
         ? "Recompute pockets"
-        : "Recompute snapshot";
+        : mode === "space"
+          ? "Recompute cloud"
+          : "Recompute snapshot";
   return (
     <div className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-2 border border-border px-4 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
       <span>

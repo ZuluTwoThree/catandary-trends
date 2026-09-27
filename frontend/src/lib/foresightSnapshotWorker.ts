@@ -24,7 +24,7 @@ import { repoRoot } from "./researchPulseWorker";
  * re-checks owner mode + same-origin before reaching here.
  */
 
-export type SnapshotMode = "clusters" | "lineage" | "emerging";
+export type SnapshotMode = "clusters" | "lineage" | "emerging" | "space";
 
 export interface SnapshotWorkerStatus {
   running: boolean;
@@ -64,7 +64,9 @@ export function snapshotWorkerStatus(): SnapshotWorkerStatus {
     const pid = Number(j.pid);
     if (!Number.isInteger(pid) || pid <= 0) return none;
     const mode =
-      j.mode === "clusters" || j.mode === "lineage" || j.mode === "emerging" ? j.mode : null;
+      j.mode === "clusters" || j.mode === "lineage" || j.mode === "emerging" || j.mode === "space"
+        ? j.mode
+        : null;
     const startedAt = typeof j.startedAt === "string" ? j.startedAt : null;
     const log = typeof j.log === "string" ? j.log : null;
     if (!alive(pid)) return none;
@@ -82,6 +84,9 @@ export function snapshotWorkerArgs(mode: string): string[] | null {
   // then a dating pass over the whole archive. CPU only, ~5 min per scope.
   if (mode === "emerging")
     return ["-m", "pipeline.emerging_snapshot", "--all-verticals", "--all-tiers"];
+  // The signal cloud (/trends/foresight/map, "Cloud"): 108k sampled signals,
+  // PCA + UMAP on the CPU, ~1 GB, single-threaded on purpose (seeded).
+  if (mode === "space") return ["-m", "pipeline.signal_space"];
   return null;
 }
 
@@ -92,7 +97,11 @@ export function startSnapshotWorker(mode: string): SnapshotStartResult {
   const root = repoRoot();
   const py = path.join(root, ".venv", "bin", "python");
   const mod = path.join(root, "pipeline",
-    mode === "emerging" ? "emerging_snapshot.py" : "foresight_snapshot.py");
+    mode === "emerging"
+      ? "emerging_snapshot.py"
+      : mode === "space"
+        ? "signal_space.py"
+        : "foresight_snapshot.py");
   if (!fs.existsSync(py) || !fs.existsSync(mod)) return { ok: false, reason: "missing", detail: root };
   const logDir = path.join(root, "data", "foresight_snapshot");
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");

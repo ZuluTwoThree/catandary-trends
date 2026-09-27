@@ -17,6 +17,15 @@ import {
   type Vec3,
 } from "@/lib/clusterMap";
 import type { TierName } from "@/lib/emerging";
+import type { CloudMeta } from "@/lib/spaceCloud";
+import dynamic from "next/dynamic";
+
+// Stage 3 is WebGL and 1.7 MB of points: loaded only when the Cloud view is
+// opened, never on the server (there is no canvas there).
+const ClusterCloud = dynamic(() => import("./ClusterCloud"), {
+  ssr: false,
+  loading: () => <p className="font-mono text-[11px] text-muted p-6">loading the cloud…</p>,
+});
 
 /**
  * The signal space, drawn in three dimensions and walked month by month.
@@ -68,6 +77,10 @@ interface Props {
   /** Leading months that exist only to fill the trailing windows. */
   warmup: number;
   projection: { shepard: number; varShare: number; neighbourKeep: number };
+  /** Latest signal-cloud run (stage 3), or null when none was computed yet. */
+  cloud: CloudMeta | null;
+  /** Shown in the Cloud view when the page scope is not global. */
+  cloudScopeNote?: string | null;
 }
 
 const TIER_COLOR: Record<TierName, string> = {
@@ -153,8 +166,11 @@ export default function ClusterSpace({
   coords,
   warmup,
   projection,
+  cloud,
+  cloudScopeNote,
 }: Props) {
   const [mode, setMode] = useState<SpaceMode>("axes");
+  const [cloudOn, setCloudOn] = useState(false);
   const [idx, setIdx] = useState(months.length - 1);
   const [playing, setPlaying] = useState(false);
   const [spin, setSpin] = useState(true);
@@ -344,16 +360,67 @@ export default function ClusterSpace({
       on ? "text-accent border-accent bg-accent/10" : "text-muted border-border hover:text-paper"
     }`;
 
+  const modeButtons = (
+    <>
+      <button
+        type="button"
+        className={btn(!cloudOn && mode === "axes")}
+        onClick={() => {
+          setCloudOn(false);
+          setMode("axes");
+        }}
+      >
+        Measured axes
+      </button>
+      <button
+        type="button"
+        className={btn(!cloudOn && mode === "map")}
+        onClick={() => {
+          setCloudOn(false);
+          setMode("map");
+        }}
+      >
+        Map
+      </button>
+      <button
+        type="button"
+        className={btn(cloudOn)}
+        onClick={() => {
+          // the SVG clocks would keep ticking behind the canvas for nothing
+          setSpin(false);
+          setPlaying(false);
+          setCloudOn(true);
+        }}
+      >
+        Signal cloud
+      </button>
+    </>
+  );
+
+  if (cloudOn) {
+    return (
+      <div>
+        <div className="flex flex-wrap items-center gap-2 mb-3">{modeButtons}</div>
+        {cloudScopeNote && (
+          <p className="font-sans text-[12px] text-muted mb-3">{cloudScopeNote}</p>
+        )}
+        {cloud ? (
+          <ClusterCloud meta={cloud} />
+        ) : (
+          <div className="border border-border bg-card/30 p-6 font-sans text-sm text-text">
+            No signal cloud has been computed yet. Use <span className="text-paper">Recompute cloud</span>{" "}
+            above — about two minutes on the CPU.
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* controls */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <button type="button" className={btn(mode === "axes")} onClick={() => setMode("axes")}>
-          Measured axes
-        </button>
-        <button type="button" className={btn(mode === "map")} onClick={() => setMode("map")}>
-          Map
-        </button>
+        {modeButtons}
         <span className="w-4" />
         <button type="button" className={btn(playing)} onClick={() => setPlaying((p) => !p)}>
           {playing ? "Pause" : "Play"}

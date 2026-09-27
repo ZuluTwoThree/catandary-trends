@@ -108,6 +108,63 @@ Drei Entscheidungen, die im Bild sichtbar sind:
   drei Achsen, die Form bleibt); ein einzelnes exzentrisches Nest drückte sonst
   alle anderen zu einem Punkt.
 
+## Stufe 3 — die Signale selbst (gebaut am selben Tag)
+
+Owner-Entscheid: **UMAP** statt t-SNE (neue Abhängigkeit `umap-learn` mit numba und
+pynndescent). Gate vor dem Bau: `pip install --dry-run` durfte numpy 2.4.6, scipy
+1.18.0 und sklearn 1.9.0 nicht anfassen — tat es nicht, nur Zusätze. Wichtig dabei:
+die venv von `ct-dev` ist ein **Symlink auf die von `main`**, die Installation war also
+sofort auch dort. Volle pytest-Suite danach grün.
+
+**Stichprobe.** 600 je Monat aus den letzten 180 Monaten, deterministisch (kleinste
+`(id·2654435761) mod 2³²` je Monat; der Schnitt ist eine Fensterfunktion in der DB, es
+wandern nur die gewählten IDs). Alle 180 Monate erreichen die Quote: 108.000 Signale,
+Stichprobe in 6,4 s. Gleiche Anzahl je Monat, weil eine proportionale Stichprobe die
+Sammelrampe zeichnete — Helligkeit bedeutet damit Zusammensetzung, nie Menge.
+
+**Projektion.** L2 → PCA 50 (hält 39,2 % der Varianz) → UMAP 3D (n_neighbors 30,
+min_dist 0,1, Seed 42). Der Seed zwingt UMAP einfädig; das ist der Preis für dasselbe
+Bild bei gleichen Daten (Test: zwei Läufe → byte-identischer Blob) und wird bewusst
+gezahlt. Die 83 Nester des globalen Emerging-Laufs 43 werden per `transform` in
+dieselbe Wolke gesetzt; jeder Punkt erhält sein Nest nach der Regel des Archiv-Scans
+(Kosinus ≥ Schwelle des Nests).
+
+| Erster Lauf (27.09.) | |
+|---|---|
+| Laufzeit | 110 s (davon UMAP 88 s) |
+| Spitzen-RSS | 2,4 GB |
+| Blob | 1,7 MB (16 B/Punkt) |
+| PCA-50-Varianz | 39,2 % |
+| Trustworthiness @10 | **0,938** |
+| 10 nächste Nachbarn bleiben | **23,9 %** |
+| Punkte in einem Nest | 2.373 (2,2 %) |
+
+Lesart der beiden Gütezahlen, beide auf 3.000 gleichmäßig verteilten Punkten gegen die
+1024-dim Vektoren: Die Wolke erfindet kaum falsche Nachbarschaften (Trustworthiness
+0,94), verliert aber die genauen Nachbarn (24 %). Taugt für Regionen und Dichte, nicht
+für „was liegt direkt neben diesem Signal".
+
+**Befund im Bild.** Die Einbettung trennt nach Schreibstil: Fachpresse, Forschung,
+Patente und Förderung bilden eigene Kontinente. Die Nester liegen fast alle an der
+Nahtstelle Forschung/Markt. Das bestätigt von außen, was der Emerging-Rücktest am
+15.09. fand (die Ebene lässt sich nicht nachträglich aus einem gemeinsamen Nest lösen).
+
+**Bauweise.** Eine Zeile je Lauf in `signal_space_runs`, Punkte als ein gepackter
+BYTEA (x/y/z u16 · Monat u16 · Ebene u8 · Vertikale u8 · Nest u16 · trend_id u32,
+little-endian; die Code-Tabellen liegen mit im Lauf). Kein Tabellenzeilen-je-Punkt,
+kein Index, kein Schreiben auf `trends`. Renderer WebGL2 von Hand
+(`ClusterCloud.tsx`): ein Puffer, ein Shader, additive Mischung; der Vertex-Shader ist
+der Zwilling von `projectPoint`/`pointState` in `lib/spaceCloud.ts`, gepickt wird auf
+der CPU (~108.000 Projektionen je Mausbewegung, rund eine Millisekunde). Die Deckkraft
+fällt mit der Zahl leuchtender Punkte — bei „alle Monate" sättigte die additive
+Mischung sonst zu Weiß.
+
+Zwei Funde beim Bau: `active` ist in GLSL ES 3.0 ein reserviertes Wort (der Fehler
+erschien dank der Fehleranzeige als Meldung statt als leere Fläche); und die
+Nest-Beschriftungen drängen sich an der Nahtstelle, deshalb werden nur die sechs
+größten beschriftet, die einander nicht überdecken — die übrigen tragen den Namen
+als Tooltip.
+
 ## Grenzen
 
 - Die Karte ist eine Projektion, kein Messwert — s. o.
@@ -115,10 +172,8 @@ Drei Entscheidungen, die im Bild sichtbar sind:
   nennt deshalb immer die größte Quelle mit Anteil, den Anteil klassifizierter
   Mitglieder und den Anteil etablierter Quellen; unter 50 % steht ausdrücklich da,
   dass das Alter eher etwas über unsere Abonnements aussagt als über die Welt.
-- Gezeigt werden **Nester**, nicht die 1,75 Mio. Einzelsignale. Eine Punktwolke der
-  Signale bräuchte einen Projektionslauf in eine Nebentabelle (nie ein Massen-UPDATE
-  auf `trends` — HNSW), eine Stichprobe von wenigen Prozent und WebGL. Sie zeigte
-  Dichte und Löcher, aber keine Messung. Erst sinnvoll, wenn diese Seite trägt.
+- Die Signalwolke (Stufe 3) ist eine Stichprobe von 6 % des Korpus und eine
+  Projektion — sie zeigt Dichte und Löcher, keine Messung.
 - Owner-only wie das ganze Cockpit (`PUBLIC_MODE` 404, nie im Export). Genau
   deshalb darf sie interaktiv sein, wo die öffentlichen Seiten deterministisch
   sein müssen.

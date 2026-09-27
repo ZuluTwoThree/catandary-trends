@@ -887,6 +887,37 @@ weil die jüngsten Monate seit dem Schnappschuss um Zehntausende Zeilen gewachse
 sind, die Nest-Treffer aber eingefroren sind. Der Rest (~0,02 %) sind Zeilen, deren
 Publikationsdatum am Lauftag noch in der Zukunft lag; die Seite nennt ihn.
 
+**Dritte Ansicht: *Signal cloud*** (seit 27.09.) zeigt nicht die Nester, sondern die
+**Signale selbst**: 600 aus jedem der letzten 180 Monate, zusammen 108.000, per UMAP
+in drei Dimensionen. Die Nester sitzen als Ringe in derselben Wolke; ein Klick auf
+einen Ring lässt seine Mitglieder aufleuchten. Ein Klick auf einen Punkt öffnet rechts
+Titel, Quelle, Datum, Ebene, Vertikale, Signaltyp und Nest — veröffentlichte Artikel
+verlinken auf die Artikelseite, alle anderen auf die Quelle.
+
+*Bedienung:* **Colour** färbt nach Ebene, Vertikale oder Nest. **Window** wählt, welche
+Monate hell leuchten (3 Monate, 12 Monate, alle); der Regler schiebt das Fenster, *Play*
+lässt es laufen. **Context** zeigt den Rest des Archivs als schwachen Schatten, damit die
+Form lesbar bleibt. Die Chips unter *show* blenden Ebenen und Vertikalen ganz aus —
+gefiltert wird, nicht neu projiziert, deshalb bleiben die Positionen vergleichbar. Die
+Wolke ist immer global; auf einem anderen Tab steht ein Hinweis dazu.
+
+*Lesart* (steht auch auf der Seite): jeder Monat hat gleich viele Punkte — **Helligkeit
+zeigt, woraus ein Monat bestand, nie wie viel es gab**; Menge gehört auf die Messachsen.
+UMAP hält Nachbarschaften, keine Abstände: gemessen am 27.09. ist die Trustworthiness
+0,938 (was nah aussieht, ist nah), aber nur 24 % der zehn nächsten Nachbarn eines Signals
+bleiben seine Nachbarn — für Regionen und Dichte taugt die Wolke, für „was liegt direkt
+neben diesem Signal" nicht. Leere Flächen und Abstände zwischen fernen Regionen bedeuten
+nichts. Sofort sichtbar ist, dass die Einbettung nach **Schreibstil** trennt: Fachpresse,
+Forschung, Patente und Förderung liegen als eigene Kontinente, auch beim selben Thema.
+Nur 2,2 % der Punkte liegen in einem Nest — die Nester sind dichte Ecken der letzten 90
+Tage, die Wolke umfasst 15 Jahre.
+
+*Neu rechnen:* Knopf **Recompute cloud** oben auf der Seite (kein Cron) oder
+`.venv/bin/python -m pipeline.signal_space` (`--dry-run` zählt nur die Stichprobe,
+`--per-month`, `--months`). CPU, rund 2 Minuten, ~2,4 GB. Die letzten zwei Läufe bleiben
+in `signal_space_runs`. Die Nester kommen aus dem jüngsten *globalen* Emerging-Lauf — wer
+die Nester neu rechnet, sollte danach auch die Wolke neu rechnen.
+
 **Grenzen.** Gezeigt werden die letzten 180 Monate (15 Jahre); 24 weitere werden
 nur geladen, um die rollenden Fenster zu füllen. Ältere Monate stehen im
 Schnappschuss, ergeben aber bei wenigen hundert Signalen je Monat kein Bild. Die
