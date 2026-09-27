@@ -835,8 +835,10 @@ bewusst nicht automatisch hochgeladen — du sichtest das Blatt zuerst.
 
 ### 5.12 Signalraum in 3D (`/trends/foresight/map`)
 
-Dieselben Nester wie §5.4, aber mit Koordinaten und einer Uhr. Die Seite rechnet
-**nichts** nach: sie liest den Emerging-Schnappschuss (Zentroid je Nest, dazu die
+Dieselben Nester wie §5.4, aber mit Koordinaten und einer Uhr. Erreichbar über das
+**Foresight-Menü** in der Kopfzeile (Eintrag *Signal Space*, zwischen Emerging und
+Technology) — also von jeder Cockpit-Seite aus, auch von Clusters und Emerging; auf
+dem Handy in derselben Gruppe der Schublade. Die Seite rechnet **nichts** nach: sie liest den Emerging-Schnappschuss (Zentroid je Nest, dazu die
 Treffer je Monat aus dem Archiv-Scan) und ergänzt nur das, was dort fehlte — drei
 Achsen und einen Zeitregler. Gibt es für einen Bereich keinen Lauf, steht das da,
 mit Verweis auf den Recompute-Knopf der Emerging-Seite.

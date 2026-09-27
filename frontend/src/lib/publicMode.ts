@@ -17,8 +17,8 @@ export function isPublicMode(): boolean {
 
 /**
  * Path prefixes hidden entirely when PUBLIC_MODE=1 — the "Fällt weg" list
- * from issue #93: the Foresight tool suite (all nine /trends/foresight/*
- * routes and their /api/foresight/* backends), the two internal review
+ * from issue #93: the Foresight tool suite (the whole /trends/foresight/*
+ * tree and its /api/foresight/* backends), the two internal review
  * pages, the ops dashboard and the newsletter release desk
  * (/trends/newsletter/review — it releases mail to the list; owner mandate
  * 2026-09-06). The release desk sits UNDER a public prefix, which is why

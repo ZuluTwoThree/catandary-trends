@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, afterEach } from "vitest";
 import { isPublicMode, isBlockedInPublicMode } from "@/lib/publicMode";
+import { FORESIGHT_NAV } from "@/lib/nav";
 
 afterEach(() => {
   delete process.env.PUBLIC_MODE;
@@ -90,5 +91,14 @@ describe("isBlockedInPublicMode", () => {
     expect(isBlockedInPublicMode("/trends/foresights")).toBe(false);
     expect(isBlockedInPublicMode("/trends/reviewer")).toBe(false);
     expect(isBlockedInPublicMode("/api/foresighter")).toBe(false);
+  });
+});
+
+describe("the Foresight menu never points at a public route", () => {
+  it("blocks every entry of FORESIGHT_NAV under PUBLIC_MODE", () => {
+    process.env.PUBLIC_MODE = "1";
+    for (const item of FORESIGHT_NAV) {
+      expect(isBlockedInPublicMode(item.href)).toBe(true);
+    }
   });
 });

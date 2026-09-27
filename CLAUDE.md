@@ -1273,7 +1273,10 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      Kein Cron, kein Modell, keine GPU, keine neue Tabelle, keine 3D-Bibliothek: der
      Renderer sind eine Rotationsmatrix, eine Perspektivdivision und ein Tiefensortieren
      in SVG (~250 Knoten). Owner-only wie das ganze Cockpit. Mathe + Messungen:
-     frontend/src/lib/clusterMap.ts, docs/signal_space_2026-09-27.md)
+     frontend/src/lib/clusterMap.ts, docs/signal_space_2026-09-27.md. Im Foresight-Menue
+     der Kopfzeile als *Signal Space* — die eine Quelle dafuer ist FORESIGHT_NAV in
+     frontend/src/lib/nav.ts, aus der Header-Dropdown und Mobil-Schublade rendern;
+     ein Vitest haelt fest, dass JEDER Eintrag dieser Liste im PUBLIC_MODE 404 ist)
     (Cluster-Schicht seit 2026-09-15: Snapshot ueber die letzten 24 Monate statt des
      ganzen Archivs (`--window-months`), Momentum als Anteil am Gehoer auf einem FESTEN
      QUELLENPANEL (nur Quellen, die in beiden Vergleichsfenstern geliefert haben) mit
