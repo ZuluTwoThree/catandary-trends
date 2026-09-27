@@ -1060,3 +1060,18 @@ Wiedervorlage bei der nächsten Taxonomie-Runde. Und der erste Nachtlauf mit den
 Heads ist Montag, 28.09., 02:45; danach gehört `filtered/processed` in
 `data/cycle_log.jsonl` angesehen (zuletzt 65/300 = 22 %), weil die
 Relevanz-Trefferquote um 2,6 Punkte gefallen ist.
+
+## 2026-09-27 · change · 35B gestoppt, Ruhezustand 8B; GPU abends für Schlagwort-Piloten belegt
+
+Auf :8090 lief seit Sa 26.09. 19:13 **Qwen3.6-35B** (`start-active.sh` → `start-qwen3.6-35b.sh`,
+kein Besitzvermerk) statt des Ruhezustands. Owner 27.09.: „Wenn wir das 35B nicht benötigen,
+kannst du es stoppen." Seit 23:02 wieder **Qwen3-8B** (`start-qwen3-8b-208k.sh`) — den
+erwartet der Wächter um 07:45; der Nachtlauf 02:45 hätte ihn ohnehin hergestellt.
+
+Dazwischen war die Karte für zwei Piloten belegt (22:06–22:38 und 22:41–23:02), angemeldet
+über `data/llama-server.tag_eval.pid` und `ops_events` (Job `tag_eval`), damit
+`gpu_foreign` nicht mailt. Ergebnis: `docs/tag_eval_2026-09-27.md` — keine kleinen LLMs
+für Tags, Reranker nur bei Patenten besser und in llama.cpp zu langsam (17–25 Paare/s).
+Neu in `~/llama.cpp/models`: Qwen3-Reranker-0.6B (Q8_0), Qwen3.5-4B und Gemma 4 E4B (je Q4,
+zusammen ~7 GB, nicht gebraucht — Löschen auf Owner-Wort).
+

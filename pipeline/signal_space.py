@@ -55,7 +55,7 @@ import numpy as np
 
 from pipeline import db as db_mod
 from pipeline.db import get_connection
-from pipeline.foresight_snapshot import VERTICALS
+from pipeline.foresight_snapshot import VERTICALS, add_columns
 from pipeline.tiers import TIERS, tier_of
 
 try:  # the run log must never stop a run (pipeline/ops_events.py)
@@ -118,6 +118,9 @@ def migrate_signal_space_tables() -> None:
             f" points {blob},"
             f" {created})"
         )
+        # 27.09. (evening): every signal of the window placed into the cloud, so a
+        # search can show all matches, not only the ~6 % that are in the sample.
+        add_columns(conn, "signal_space_runs", {"all_points": blob, "n_all": "INTEGER"})
 
 
 # -------------------------------------------------------------------- months
@@ -303,18 +306,23 @@ def frame(Y: np.ndarray, extra: np.ndarray | None = None,
     scaling would stretch the shape; framing on the maximum would let one
     outlier shrink everything else to a dot.
     """
-    centre = np.median(Y, axis=0)
-    Yc = Y - centre
-    ext = np.max(np.abs(Yc), axis=1)
-    ref = float(np.quantile(ext, quantile)) if ext.size else 1.0
-    f = 1.0 / ref if ref > 0 else 1.0
+    centre, f = frame_params(Y, quantile)
     Ec = None if extra is None else (extra - centre) * f
-    return Yc * f, Ec
+    return (Y - centre) * f, Ec
+
+
+def frame_params(Y: np.ndarray, quantile: float = FRAME_QUANTILE) -> tuple[np.ndarray, float]:
+    """(centre, factor) of `frame`, so points placed later get the SAME framing."""
+    centre = np.median(Y, axis=0)
+    ext = np.max(np.abs(Y - centre), axis=1)
+    ref = float(np.quantile(ext, quantile)) if ext.size else 1.0
+    return centre, (1.0 / ref if ref > 0 else 1.0)
 
 
 def project(Xn: np.ndarray, C: np.ndarray, seed: int = SEED,
-            n_neighbors: int = UMAP_NEIGHBOURS, pca_dims: int = PCA_DIMS):
-    """(points (n,3), nest positions (k,3), PCA variance kept)."""
+            n_neighbors: int = UMAP_NEIGHBOURS, pca_dims: int = PCA_DIMS,
+            return_model: bool = False):
+    """(points (n,3), nest positions (k,3), PCA variance kept[, (pca, reducer)])."""
     from sklearn.decomposition import PCA
     import umap  # noqa: PLC0415 — heavy import (numba JIT), only when projecting
 
@@ -328,8 +336,74 @@ def project(Xn: np.ndarray, C: np.ndarray, seed: int = SEED,
                         n_jobs=1)
     Y = reducer.fit_transform(Z)
     N = reducer.transform(pca.transform(C)) if C.shape[0] else np.zeros((0, 3))
-    return (np.asarray(Y, dtype=np.float64), np.asarray(N, dtype=np.float64),
-            float(pca.explained_variance_ratio_.sum()))
+    out = (np.asarray(Y, dtype=np.float64), np.asarray(N, dtype=np.float64),
+           float(pca.explained_variance_ratio_.sum()))
+    return out + ((pca, reducer),) if return_model else out
+
+
+def _next_month(m: str) -> str:
+    y, mm = int(m[:4]), int(m[5:7]) + 1
+    return f"{y + (mm > 12):04d}-{(mm - 1) % 12 + 1:02d}"
+
+
+def place_all(months: list[str], model, C: np.ndarray, thr: np.ndarray,
+              fitted: dict[int, np.ndarray], chunk: int = 20_000) -> dict:
+    """Every embedded signal of the window, placed in the cloud of the sample.
+
+    The sample defines the layout (600 per month, so the intake ramp does not);
+    everything else is PLACED into it with the fitted PCA + UMAP (`transform`,
+    ~6,750 points/s measured 27.09. after a one-off JIT compile). A signal that
+    is part of the sample keeps its fitted position, so a search hit sits
+    exactly where that point is drawn. Streams with the keyset loader of the
+    archive scans — memory is one chunk, not the corpus.
+
+    Returns raw (unframed) coordinates plus the per-point attributes.
+    """
+    from pipeline.foresight import build_matrix, iter_signals
+
+    pca, reducer = model
+    pos = {m: i for i, m in enumerate(months)}
+    ids, month_idx, tiers, verts, nests, coords = [], [], [], [], [], []
+    seen = placed = 0
+    t0 = time.time()
+    for batch in iter_signals(status="signal,published", dim1024=db_mod.USE_POSTGRES,
+                              since=f"{months[0]}-01", until=f"{_next_month(months[-1])}-01",
+                              chunk_size=chunk):
+        X = build_matrix(batch)
+        if X.shape[1] > 1024:            # SQLite keeps the full vector; the prefix is the space
+            X = l2(X[:, :1024])
+        keep = [i for i, r in enumerate(batch) if (r["published_date"] or "")[:7] in pos]
+        if not keep:
+            continue
+        X = X[keep]
+        rows = [batch[i] for i in keep]
+        Y = np.empty((len(rows), 3), dtype=np.float64)
+        todo = []
+        for j, r in enumerate(rows):
+            hit = fitted.get(int(r["id"]))
+            if hit is None:
+                todo.append(j)
+            else:
+                Y[j] = hit
+        if todo:
+            Y[todo] = reducer.transform(pca.transform(X[todo]))
+            placed += len(todo)
+        ids.append(np.array([int(r["id"]) for r in rows], dtype=np.int64))
+        month_idx.append(np.array([pos[r["published_date"][:7]] for r in rows], dtype=np.int32))
+        tiers.append(np.array([TIER_CODES.get(tier_of(r.get("source_name"), r.get("source_type"),
+                                                      r.get("trend_signal_type")), 0) for r in rows]))
+        verts.append(np.array([VERTICAL_CODES.get(r.get("primary_vertical"), 0) for r in rows]))
+        nests.append(assign_nests(X, C, thr))
+        coords.append(Y)
+        seen += len(rows)
+        print(f"  placed {seen:,} ({placed:,} by transform, {time.time() - t0:.0f}s)", flush=True)
+    if not ids:
+        return {"ids": np.zeros(0, np.int64), "Y": np.zeros((0, 3)), "month": np.zeros(0, np.int32),
+                "tier": np.zeros(0, np.int32), "vertical": np.zeros(0, np.int32),
+                "nest": np.zeros(0, np.uint16), "transformed": 0}
+    return {"ids": np.concatenate(ids), "Y": np.vstack(coords), "month": np.concatenate(month_idx),
+            "tier": np.concatenate(tiers), "vertical": np.concatenate(verts),
+            "nest": np.concatenate(nests), "transformed": placed}
 
 
 def neighbour_keep(A: np.ndarray, B: np.ndarray, k: int) -> float:
@@ -397,7 +471,8 @@ def _peak_rss_gb() -> float:
 
 
 def run(per_month: int = DEFAULT_PER_MONTH, n_months: int = DEFAULT_MONTHS,
-        end_month: str | None = None, dry_run: bool = False) -> int | None:
+        end_month: str | None = None, dry_run: bool = False,
+        place_everything: bool = True) -> int | None:
     t0 = time.time()
     months = month_window(end_month or date.today().strftime("%Y-%m"), n_months)
     print(f"window {months[0]} .. {months[-1]}, {per_month} per month", flush=True)
@@ -434,15 +509,34 @@ def run(per_month: int = DEFAULT_PER_MONTH, n_months: int = DEFAULT_MONTHS,
           f"{members:,} points inside one", flush=True)
 
     t1 = time.time()
-    Y, N, pca_var = project(Xn, C)
+    Y, N, pca_var, model = project(Xn, C, return_model=True)
     print(f"projection: PCA {PCA_DIMS} keeps {pca_var:.1%} of the variance, "
           f"UMAP done ({time.time() - t1:.0f}s)", flush=True)
     keep, trust = quality(Xn, Y)
     print(f"quality: {keep:.1%} of the {QUALITY_K} nearest neighbours kept, "
           f"trustworthiness {trust:.3f}", flush=True)
 
-    Yf, Nf = frame(Y, N)
-    rng = float(max(np.abs(Yf).max(), np.abs(Nf).max() if Nf is not None and Nf.size else 0, 1.0))
+    centre, factor = frame_params(Y)
+    Yf = (Y - centre) * factor
+    Nf = (N - centre) * factor if N.size else N
+
+    everything = None
+    if place_everything:
+        t2 = time.time()
+        everything = place_all(months, model, C, thr,
+                               {tid: Y[i] for i, tid in enumerate(ids)})
+        everything["Y"] = (everything["Y"] - centre) * factor
+        print(f"placed all: {len(everything['ids']):,} signals, {everything['transformed']:,} "
+              f"by transform ({time.time() - t2:.0f}s)", flush=True)
+
+    # One range for both blobs, wide enough for every placed point: the browser
+    # decodes sample and search hits with the same coord_range.
+    extents = [np.abs(Yf).max(), 1.0]
+    if Nf is not None and Nf.size:
+        extents.append(np.abs(Nf).max())
+    if everything is not None and len(everything["ids"]):
+        extents.append(np.abs(everything["Y"]).max())
+    rng = float(max(extents))
     month_pos = {m: i for i, m in enumerate(months)}
     blob = pack(
         Yf,
@@ -466,6 +560,13 @@ def run(per_month: int = DEFAULT_PER_MONTH, n_months: int = DEFAULT_MONTHS,
     params = {"pca_dims": PCA_DIMS, "n_neighbors": UMAP_NEIGHBOURS,
               "min_dist": UMAP_MIN_DIST, "seed": SEED, "frame_quantile": FRAME_QUANTILE,
               "quality_sample": QUALITY_SAMPLE, "quality_k": QUALITY_K}
+    all_blob, n_all = None, None
+    if everything is not None:
+        # Sorted by trend id: the server finds a search hit by binary search.
+        o = np.argsort(everything["ids"], kind="stable")
+        all_blob = pack(everything["Y"][o], everything["month"][o], everything["tier"][o],
+                        everything["vertical"][o], everything["nest"][o], everything["ids"][o], rng)
+        n_all = int(len(o))
     duration = time.time() - t0
     peak = _peak_rss_gb()
     with get_connection() as c:
@@ -473,17 +574,18 @@ def run(per_month: int = DEFAULT_PER_MONTH, n_months: int = DEFAULT_MONTHS,
             "INSERT INTO signal_space_runs (method, params, n_points, per_month,"
             " first_month, last_month, months, emerging_run_id, nests, codes,"
             " coord_range, pca_variance, neighbour_keep, trustworthiness,"
-            " duration_s, peak_rss_gb, points)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
+            " duration_s, peak_rss_gb, points, all_points, n_all)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
             ("pca50-umap3", json.dumps(params), len(ids), per_month, months[0], months[-1],
              json.dumps(months), emerging_run, json.dumps(nest_json), json.dumps(codes),
              rng, pca_var, keep, trust, round(duration, 1), round(peak, 2),
-             blob)).fetchone()  # bytes -> BYTEA/BLOB on both backends
+             blob, all_blob, n_all)).fetchone()  # bytes -> BYTEA/BLOB on both backends
         run_id = int(row["id"])
         c.execute("DELETE FROM signal_space_runs WHERE id NOT IN "
                   "(SELECT id FROM signal_space_runs ORDER BY id DESC LIMIT ?)", (KEEP_RUNS,))
-    print(f"signal space run {run_id}: {len(ids):,} points, {len(blob) / 1e6:.1f} MB, "
-          f"{duration:.0f}s, peak RSS {peak:.1f} GB", flush=True)
+    print(f"signal space run {run_id}: {len(ids):,} points, {len(blob) / 1e6:.1f} MB"
+          + (f" + {n_all:,} placed ({len(all_blob) / 1e6:.1f} MB)" if all_blob else "")
+          + f", {duration:.0f}s, peak RSS {peak:.1f} GB", flush=True)
     return run_id
 
 
@@ -495,11 +597,14 @@ def main() -> int:
                     help=f"months back from the current one (default {DEFAULT_MONTHS})")
     ap.add_argument("--end-month", default=None, help="last month, YYYY-MM (default: now)")
     ap.add_argument("--dry-run", action="store_true", help="only count the sample")
+    ap.add_argument("--sample-only", action="store_true",
+                    help="skip placing every other signal (search then covers only the sample)")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     migrate_signal_space_tables()
     with ops_record("signal_space"):
-        rid = run(args.per_month, args.months, args.end_month, args.dry_run)
+        rid = run(args.per_month, args.months, args.end_month, args.dry_run,
+                  place_everything=not args.sample_only)
     return 0 if (rid is not None or args.dry_run) else 1
 
 

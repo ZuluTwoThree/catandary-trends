@@ -99,10 +99,10 @@ export interface CloudFilter {
   windowLen: number;
   /** Nest index the owner picked, or -1. */
   nest: number;
-  /** Search result: 1 = matches the query. null = no search running. A point
-   *  that does not match is dimmed to context, never removed, so the matches
-   *  stay readable against the shape of the whole cloud. */
-  hits?: Uint8Array | null;
+  /** Draw this layer only as context (a search is running and its matches
+   *  are a separate layer). Filtered points stay removed; everything else is
+   *  dimmed, never dropped, so the matches read against the whole cloud. */
+  contextOnly?: boolean;
 }
 
 export const ALL_BITS = 0xffff;
@@ -121,7 +121,7 @@ export function pointState(
   if (!((f.tierMask >> d.tier[i]) & 1)) return 0;
   if (!((f.verticalMask >> d.vertical[i]) & 1)) return 0;
   if (f.nest >= 0 && d.nest[i] !== f.nest) return 1;
-  if (f.hits && !f.hits[i]) return 1;
+  if (f.contextOnly) return 1;
   const m = d.month[i];
   return m <= f.monthEnd && m > f.monthEnd - f.windowLen ? 2 : 1;
 }
@@ -312,4 +312,58 @@ export function pickRing(
     }
   });
   return best;
+}
+
+// ------------------------------------------------------------ placed signals
+//
+// Since 27.09. (evening) every signal of the window is placed into the cloud,
+// in a second blob sorted by trend id (pipeline/signal_space.py place_all). A
+// search returns the full-corpus matches; these helpers find their records.
+
+/** trend_id of every record, in blob order (ascending for the placed blob). */
+export function recordIds(buf: Uint8Array): Uint32Array {
+  const n = Math.floor(buf.byteLength / RECORD_BYTES);
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const out = new Uint32Array(n);
+  for (let i = 0; i < n; i++) out[i] = dv.getUint32(i * RECORD_BYTES + 12, true);
+  return out;
+}
+
+/** Index of `id` in an ascending Uint32Array, or -1. */
+export function findSorted(ids: Uint32Array, id: number): number {
+  let lo = 0;
+  let hi = ids.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    const v = ids[mid];
+    if (v === id) return mid;
+    if (v < id) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return -1;
+}
+
+/**
+ * The records of `wanted` trend ids, packed back to back (same 16-byte layout,
+ * so the browser decodes them with `unpack`). `missing` counts ids that have no
+ * place in the cloud — matches outside its time window.
+ */
+export function collectRecords(
+  buf: Uint8Array,
+  ids: Uint32Array,
+  wanted: Iterable<number>
+): { records: Uint8Array; found: number; missing: number } {
+  const hits: number[] = [];
+  let missing = 0;
+  for (const id of wanted) {
+    const k = findSorted(ids, id);
+    if (k < 0) missing++;
+    else hits.push(k);
+  }
+  hits.sort((a, b) => a - b);
+  const out = new Uint8Array(hits.length * RECORD_BYTES);
+  hits.forEach((k, j) =>
+    out.set(buf.subarray(k * RECORD_BYTES, (k + 1) * RECORD_BYTES), j * RECORD_BYTES)
+  );
+  return { records: out, found: hits.length, missing };
 }

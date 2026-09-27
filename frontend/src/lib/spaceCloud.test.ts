@@ -8,6 +8,9 @@ import {
   ZOOM_MIN,
   panBy,
   pickRing,
+  collectRecords,
+  findSorted,
+  recordIds,
   screenToWorld,
   zoomAt,
   RECORD_BYTES,
@@ -163,29 +166,57 @@ describe("pickNearest", () => {
   });
 });
 
-describe("search hits", () => {
+describe("search: the sample becomes context", () => {
   const d = cloud([
     { p: [0, 0, 0], month: 11 },
-    { p: [0.3, 0, 0], month: 11 },
-    { p: [0.6, 0, 0], month: 11, tier: 3 },
+    { p: [0.3, 0, 0], month: 11, tier: 3 },
   ]);
 
-  it("dims every point that does not match, and removes nothing", () => {
-    const hits = new Uint8Array([0, 1, 1]);
-    expect(pointState(d, 0, { ...ALL, hits })).toBe(1);
-    expect(pointState(d, 1, { ...ALL, hits })).toBe(2);
-    expect(countActive(d, { ...ALL, hits })).toBe(2);
+  it("dims every sample point while a search layer is shown", () => {
+    expect(pointState(d, 0, { ...ALL, contextOnly: true })).toBe(1);
+    expect(countActive(d, { ...ALL, contextOnly: true })).toBe(0);
   });
 
-  it("still lets the tier filter remove a match", () => {
-    const hits = new Uint8Array([0, 1, 1]);
-    expect(pointState(d, 2, { ...ALL, hits, tierMask: ALL_BITS & ~(1 << 3) })).toBe(0);
+  it("still removes what the owner filtered out", () => {
+    expect(pointState(d, 1, { ...ALL, contextOnly: true, tierMask: ALL_BITS & ~(1 << 3) })).toBe(0);
   });
 
-  it("makes only matches pickable", () => {
+  it("makes nothing in a context layer pickable", () => {
     const v: View = { yaw: 0, pitch: 0, zoom: 1, width: 800, height: 600 };
     const at = projectPoint(0, 0, 0, v);
-    expect(pickNearest(d, { ...ALL, hits: new Uint8Array([0, 1, 1]) }, v, at.sx, at.sy)).toBe(-1);
+    expect(pickNearest(d, { ...ALL, contextOnly: true }, v, at.sx, at.sy)).toBe(-1);
+  });
+});
+
+describe("placed signals: finding search hits", () => {
+  // three records with trend ids 5, 9, 40 (ascending, as the placed blob is stored)
+  const blob = new Uint8Array(3 * RECORD_BYTES);
+  const dv = new DataView(blob.buffer);
+  [5, 9, 40].forEach((id, i) => {
+    dv.setUint16(i * RECORD_BYTES, 1000 + i, true); // x, to recognise the record
+    dv.setUint32(i * RECORD_BYTES + 12, id, true);
+  });
+
+  it("reads the trend ids", () => {
+    expect(Array.from(recordIds(blob))).toEqual([5, 9, 40]);
+  });
+
+  it("binary-searches them", () => {
+    const ids = recordIds(blob);
+    expect(findSorted(ids, 5)).toBe(0);
+    expect(findSorted(ids, 40)).toBe(2);
+    expect(findSorted(ids, 7)).toBe(-1);
+    expect(findSorted(new Uint32Array(0), 7)).toBe(-1);
+  });
+
+  it("collects the matching records and counts what has no place", () => {
+    const r = collectRecords(blob, recordIds(blob), [40, 123, 5]);
+    expect(r.found).toBe(2);
+    expect(r.missing).toBe(1);
+    const back = new DataView(r.records.buffer);
+    expect(back.getUint32(12, true)).toBe(5); // blob order, not request order
+    expect(back.getUint32(RECORD_BYTES + 12, true)).toBe(40);
+    expect(back.getUint16(RECORD_BYTES, true)).toBe(1002);
   });
 });
 

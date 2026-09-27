@@ -918,13 +918,25 @@ Titel mit Quelle und Datum; auf einer Ringlinie Name und Größe der Tasche. Sol
 Cursor über der Wolke ist, pausiert das Drehen — ein bewegtes Ziel ließe sich weder
 lesen noch treffen.
 
-*Suche:* Das Feld am Ende der Filterleiste durchsucht Titel, Zusammenfassung und Tags
-der Signale in der Wolke — dieselbe Volltextsuche wie `?q=` im Feed: `solar panel`
-verlangt beide Wörter, `"solar panel"` die Phrase, `-wort` schließt aus. Treffer
-leuchten groß, alles andere tritt zurück. Eine **neue** Suche öffnet das Fenster auf
-alle Monate, damit sofort alle Treffer zu sehen sind; danach eingrenzen und mit *Play*
-zusehen, wann sie auftauchen. Gemessen am 27.09.: `Solar Panel` 112 Treffer, die Phrase
-94, `perovskite` 137, `AI` 3.399 — 0,12 bis 0,57 s. Leeren beendet die Suche.
+*Suche:* Das Feld am Ende der Filterleiste durchsucht **den ganzen Bestand**, nicht
+nur die 108.000 Punkte der Stichprobe — drei Quellen parallel: Titel, Zusammenfassung
+und Tags (dieselbe Volltextsuche wie `?q=` im Feed), die **Abstracts der
+Forschungssignale** und die **Abstracts der Patente**. Syntax überall gleich: `solar
+panel` verlangt beide Wörter, `"solar panel"` die Phrase, `-wort` schließt aus. Jeder
+Treffer erscheint als eigener Punkt, weil der Wolkenlauf seit dem 27.09. **alle
+1,52 Mio. Signale des 15-Jahres-Fensters** in dieselbe Wolke einordnet (die Stichprobe
+bestimmt die Form, der Rest wird per `umap.transform` eingesetzt; ein Stichprobenpunkt
+behält dabei seine Position). Neben dem Feld steht die Trefferzahl, dahinter, wie viele
+Treffer vor dem Fenster liegen (älter als 15 Jahre oder undatiert) — beim Zeigen auf
+die Zahl die Aufteilung nach Quelle. Scheitert eine Quelle (Zeitlimit), steht
+„partial — … timed out" daneben. Gemessen am 27.09.: `solar panel` 2.288 Treffer (vorher
+nur die 112 der Stichprobe), `perovskite` 2.946, `battery` 19.214, `AI` 88.698 — 0,2 bis
+1,1 s; auch bei 88.698 Treffern läuft die Animation mit 60 Bildern/s. Treffer werden
+größer und kräftiger gezeichnet, je weniger es sind; die Stichprobe tritt als Schatten
+zurück. Abstract-Treffer heißen „der Begriff kommt vor", nicht „darum geht es" — bei
+Forschung oft als Methode oder Nebensatz. Eine **neue** Suche öffnet das Fenster auf
+alle Monate; danach eingrenzen und mit *Play* zusehen, wann die Treffer auftauchen.
+Leeren beendet die Suche.
 
 *Lesart* (steht auch auf der Seite): jeder Monat hat gleich viele Punkte — **Helligkeit
 zeigt, woraus ein Monat bestand, nie wie viel es gab**; Menge gehört auf die Messachsen.
@@ -939,7 +951,8 @@ Tage, die Wolke umfasst 15 Jahre.
 
 *Neu rechnen:* Knopf **Recompute cloud** oben auf der Seite (kein Cron) oder
 `.venv/bin/python -m pipeline.signal_space` (`--dry-run` zählt nur die Stichprobe,
-`--per-month`, `--months`). CPU, rund 2 Minuten, ~2,4 GB. Die letzten zwei Läufe bleiben
+`--per-month`, `--months`, `--sample-only` ohne das Einordnen aller Signale). CPU, rund
+10 Minuten, Spitze ~2,8 GB (das Einordnen der 1,4 Mio. übrigen Signale sind ~8 davon). Die letzten zwei Läufe bleiben
 in `signal_space_runs`. Die Nester kommen aus dem jüngsten *globalen* Emerging-Lauf — wer
 die Nester neu rechnet, sollte danach auch die Wolke neu rechnen.
 
@@ -1592,6 +1605,28 @@ Prüfen von Hand:
 curl -s localhost:8090/v1/models | python -m json.tool | grep '"id"'
 gpu-mode catandary                                             # zurück in den Ruhezustand
 ```
+
+### 11.4c Schlagworte messen (`scripts/tag_eval/`, 2026-09-27)
+
+Zwei Piloten zur Frage, ob Forschungs- und Patentsignale billig Schlagworte bekommen
+können (seit dem 03.07. haben sie keine). Ergebnis und Zahlen:
+`docs/tag_eval_2026-09-27.md` — kurz: der Reranker hilft nur bei Patenten (Platz 1
+36 → 43 %) und schafft in llama.cpp nur 17–25 Paare/s; kleine LLMs (Gemma 4 E4B,
+Qwen3.5-4B) sind weder schneller als das 8B noch nah an dessen Tags.
+
+Wiederholen (braucht die ganze GPU, ~35 min; nur in einem Fenster ohne GPU-Crons):
+
+```bash
+scripts/tag_eval/run_pilots.sh          # hält :8090 an, stellt den vorherigen Zustand per trap wieder her
+.venv/bin/python scripts/tag_eval/pilot_small_llm_tags.py --compare   # Vergleichstabelle neu
+```
+
+Einzeln: `pilot_vocab_rerank.py --rerank-host … --embed-host … [--only patent|research]`
+und `LLAMACPP_HOST=… pilot_small_llm_tags.py --label <modell>`. Das Treiberskript
+startet Testserver auf 8093/8094/8095 per PID — nicht über `~/llama.cpp/start-*.sh`,
+deren `pkill` auch den CPU-Embedder :8091 träfe — und meldet sich über den
+Besitzvermerk `data/llama-server.tag_eval.pid` und `ops_events` an, damit der
+Fremdbelegungs-Alarm schweigt. Ergebnisse unter `data/tag_eval/` (nicht versioniert).
 
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert
 

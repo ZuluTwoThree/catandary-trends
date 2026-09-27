@@ -1,6 +1,6 @@
 import { FTS_VECTOR } from "./db";
 import { q, q1 } from "./pg";
-import type { CloudMeta, CloudNest } from "./spaceCloud";
+import { collectRecords, recordIds, type CloudMeta, type CloudNest } from "./spaceCloud";
 
 /**
  * Read access to the signal cloud (signal_space_runs, written by
@@ -85,46 +85,83 @@ export async function getSpacePoint(id: number): Promise<SpacePoint | null> {
 
 // ------------------------------------------------------------------- search
 
-/** trend ids of a run in blob order, kept per run (a run never changes). */
-const idCache = new Map<number, number[]>();
+/**
+ * Every signal of a run's window, placed into its cloud (all_points, sorted by
+ * trend id) — kept in memory per run: ~24 MB for 1.5M signals, read once.
+ */
+const placedCache = new Map<number, { buf: Uint8Array; ids: Uint32Array }>();
 
-async function runTrendIds(runId: number): Promise<number[] | null> {
-  const hit = idCache.get(runId);
+async function placedSignals(runId: number): Promise<{ buf: Uint8Array; ids: Uint32Array } | null> {
+  const hit = placedCache.get(runId);
   if (hit) return hit;
-  const blob = await getSpaceBlob(runId);
-  if (!blob) return null;
-  const n = Math.floor(blob.length / 16);
-  const ids = new Array<number>(n);
-  for (let i = 0; i < n; i++) ids[i] = blob.readUInt32LE(i * 16 + 12);
-  if (idCache.size >= 2) idCache.delete(idCache.keys().next().value as number);
-  idCache.set(runId, ids);
-  return ids;
+  const r = await q1<{ all_points: Buffer | null }>(
+    "SELECT all_points FROM signal_space_runs WHERE id = $1",
+    [runId]
+  );
+  if (!r?.all_points) return null;
+  const buf = new Uint8Array(r.all_points.buffer, r.all_points.byteOffset, r.all_points.byteLength);
+  const entry = { buf, ids: recordIds(buf) };
+  if (placedCache.size >= 2) placedCache.delete(placedCache.keys().next().value as number);
+  placedCache.set(runId, entry);
+  return entry;
 }
 
 export interface SpaceSearchResult {
   q: string;
-  /** Point indices (positions in the blob), ascending. */
-  indices: number[];
+  /** Packed 16-byte records of the matches that have a place in the cloud. */
+  records: Uint8Array;
+  matches: number;
+  /** Matches outside the cloud's time window (older or undated). */
+  outside: number;
+  /** Matches per source, before de-duplication. */
+  bySource: { text: number; research: number; patents: number };
+  /** Sources that failed (e.g. hit the statement timeout) — the result is partial. */
+  failed: string[];
 }
 
 /**
- * Which points of a run match `query`. Same full-text search as the feed's
- * ?q= (title + summary + tags, `websearch_to_tsquery`, so "solar panel" needs
- * both words, a quoted phrase needs the phrase, -word excludes), restricted to
- * the run's own signals. Measured 27.09. on the 108k cloud: 0.12-0.57 s.
+ * All matches for `query` in the whole corpus, placed in the cloud. Three
+ * sources, queried in parallel, each allowed to fail on its own:
+ *
+ *   text      title + summary + tags (idx_trends_fts) — the feed's ?q= search
+ *   research  title + abstract of research signals (research_signals.tsv)
+ *   patents   title + abstract of patent signals (patent_search.tsv)
+ *
+ * Same syntax everywhere (websearch_to_tsquery): words must all occur, a quoted
+ * phrase must occur as a phrase, -word excludes. Measured 27.09. on the whole
+ * corpus: text and research under 1 s, patents 0.2–7 s ("battery").
  */
 export async function searchSpace(runId: number, query: string): Promise<SpaceSearchResult | null> {
-  const ids = await runTrendIds(runId);
-  if (!ids) return null;
-  const rows = await q<{ id: number }>(
-    `SELECT id FROM trends WHERE id = ANY($1::int[]) AND ${FTS_VECTOR} @@ websearch_to_tsquery('english', $2)`,
-    [ids, query]
-  );
-  const pos = new Map<number, number>();
-  ids.forEach((id, i) => pos.set(id, i));
-  const indices = rows
-    .map((r) => pos.get(Number(r.id)))
-    .filter((i): i is number => i !== undefined)
-    .sort((a, b) => a - b);
-  return { q: query, indices };
+  const placed = await placedSignals(runId);
+  if (!placed) return null;
+  const ts = "websearch_to_tsquery('english', $1)";
+  const [text, research, patents] = await Promise.allSettled([
+    q<{ id: number }>(
+      `SELECT id FROM trends WHERE status IN ('signal','published') AND ${FTS_VECTOR} @@ ${ts}`,
+      [query]
+    ),
+    q<{ id: number }>(`SELECT trend_id AS id FROM research_signals WHERE tsv @@ ${ts}`, [query]),
+    q<{ id: number }>(
+      "SELECT t.id FROM patent_search ps JOIN raw_entries r ON r.pub_number = ps.pub_number " +
+        `JOIN trends t ON t.raw_entry_id = r.id WHERE ps.tsv @@ ${ts}`,
+      [query]
+    ),
+  ]);
+  const ids = new Set<number>();
+  const failed: string[] = [];
+  const count = (name: string, res: PromiseSettledResult<{ id: number }[]>): number => {
+    if (res.status === "rejected") {
+      failed.push(name);
+      return 0;
+    }
+    for (const r of res.value) ids.add(Number(r.id));
+    return res.value.length;
+  };
+  const bySource = {
+    text: count("text", text),
+    research: count("research abstracts", research),
+    patents: count("patent abstracts", patents),
+  };
+  const { records, found, missing } = collectRecords(placed.buf, placed.ids, ids);
+  return { q: query, records, matches: found, outside: missing, bySource, failed };
 }
