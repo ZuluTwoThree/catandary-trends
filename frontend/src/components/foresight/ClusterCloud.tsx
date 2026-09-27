@@ -211,6 +211,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   const [monthEnd, setMonthEnd] = useState(lastMonth);
   const [windowLen, setWindowLen] = useState(12);
   const [ghosts, setGhosts] = useState(true);
+  const [showNests, setShowNests] = useState(true);
   const [colorBy, setColorBy] = useState<ColorBy>("tier");
   const [tierMask, setTierMask] = useState(ALL_BITS);
   const [vertMask, setVertMask] = useState(ALL_BITS);
@@ -501,6 +502,18 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         </button>
         <button
           type="button"
+          className={btn(showNests)}
+          onClick={() => {
+            // Hiding the rings also drops a picked pocket: with no ring left to
+            // click, the filter could not be undone from the picture.
+            if (showNests) setNestSel(-1);
+            setShowNests((v) => !v);
+          }}
+        >
+          Nests
+        </button>
+        <button
+          type="button"
           className={btn(false)}
           onClick={() => {
             setYaw(0.6);
@@ -604,43 +617,57 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
                 height={size.h}
                 viewBox={`0 0 ${size.w} ${size.h}`}
               >
-                {rings.map((r) => {
-                  const on = nestSel === r.k;
-                  const [cr, cg, cb] = nestColor(r.k);
-                  const col =
-                    colorBy === "nest"
-                      ? `rgb(${Math.round(cr * 255)},${Math.round(cg * 255)},${Math.round(cb * 255)})`
-                      : "#c8cabf";
-                  return (
-                    <g key={r.n.id}>
-                      <circle
-                        cx={r.p.sx}
-                        cy={r.p.sy}
-                        r={r.radius * r.p.scale}
-                        fill="none"
-                        stroke={on ? "#d4ff3a" : col}
-                        strokeOpacity={on ? 1 : 0.55}
-                        strokeWidth={on ? 2 : 1}
-                        className="pointer-events-auto cursor-pointer"
-                        onClick={() => setNestSel((s) => (s === r.k ? -1 : r.k))}
-                      >
-                        <title>{`${r.n.name} — ${r.n.members} sampled signals`}</title>
-                      </circle>
-                      {(labelled.has(r.k) || on) && (
-                        <text
-                          x={r.p.sx}
-                          y={r.p.sy - r.radius * r.p.scale - 4}
-                          textAnchor="middle"
-                          className="font-mono"
-                          fontSize={10}
-                          fill={on ? "#d4ff3a" : "#c8cabf"}
+                {showNests &&
+                  rings.map((r) => {
+                    const on = nestSel === r.k;
+                    const [cr, cg, cb] = nestColor(r.k);
+                    const col =
+                      colorBy === "nest"
+                        ? `rgb(${Math.round(cr * 255)},${Math.round(cg * 255)},${Math.round(cb * 255)})`
+                        : "#c8cabf";
+                    return (
+                      <g key={r.n.id}>
+                        <circle
+                          cx={r.p.sx}
+                          cy={r.p.sy}
+                          r={r.radius * r.p.scale}
+                          fill="none"
+                          stroke={on ? "#d4ff3a" : col}
+                          strokeOpacity={on ? 1 : 0.55}
+                          strokeWidth={on ? 2 : 1}
+                        />
+                        {/* Hit area: an invisible 10 px band on the ring line. An
+                            unfilled circle only takes clicks on its 1 px stroke, so
+                            the ring was nearly unclickable; filling it instead
+                            would steal the points inside from the canvas picker. */}
+                        <circle
+                          cx={r.p.sx}
+                          cy={r.p.sy}
+                          r={r.radius * r.p.scale}
+                          fill="none"
+                          stroke="transparent"
+                          strokeWidth={10}
+                          style={{ pointerEvents: "stroke" }}
+                          className="cursor-pointer"
+                          onClick={() => setNestSel((s) => (s === r.k ? -1 : r.k))}
                         >
-                          {r.n.name.length > 30 ? r.n.name.slice(0, 29) + "…" : r.n.name}
-                        </text>
-                      )}
-                    </g>
-                  );
-                })}
+                          <title>{`${r.n.name} — ${r.n.members} sampled signals`}</title>
+                        </circle>
+                        {(labelled.has(r.k) || on) && (
+                          <text
+                            x={r.p.sx}
+                            y={r.p.sy - r.radius * r.p.scale - 4}
+                            textAnchor="middle"
+                            className="font-mono"
+                            fontSize={10}
+                            fill={on ? "#d4ff3a" : "#c8cabf"}
+                          >
+                            {r.n.name.length > 30 ? r.n.name.slice(0, 29) + "…" : r.n.name}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
                 {markPos && (
                   <circle cx={markPos.sx} cy={markPos.sy} r={6} fill="none" stroke="#f4f4ee" strokeWidth={1.5} />
                 )}

@@ -897,7 +897,9 @@ verlinken auf die Artikelseite, alle anderen auf die Quelle.
 *Bedienung:* **Colour** färbt nach Ebene, Vertikale oder Nest. **Window** wählt, welche
 Monate hell leuchten (3 Monate, 12 Monate, alle); der Regler schiebt das Fenster, *Play*
 lässt es laufen. **Context** zeigt den Rest des Archivs als schwachen Schatten, damit die
-Form lesbar bleibt. Die Chips unter *show* blenden Ebenen und Vertikalen ganz aus —
+Form lesbar bleibt. **Nests** blendet die Ringe aus und ein (Ausblenden hebt auch eine
+gewählte Tasche auf, sonst bliebe ein Filter stehen, den man im Bild nicht mehr lösen
+kann); zum Anwählen einer Tasche genügt ein Klick auf die Ringlinie. Die Chips unter *show* blenden Ebenen und Vertikalen ganz aus —
 gefiltert wird, nicht neu projiziert, deshalb bleiben die Positionen vergleichbar. Die
 Wolke ist immer global; auf einem anderen Tab steht ein Hinweis dazu.
 
