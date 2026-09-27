@@ -4,16 +4,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ALL_BITS,
   FOCAL,
+  NEAR,
   NO_NEST,
   countActive,
   nestColor,
+  panBy,
   pickNearest,
+  pickRing,
   projectPoint,
+  screenToWorld,
   unpack,
   viewRadius,
+  zoomAt,
   type CloudData,
   type CloudFilter,
   type CloudMeta,
+  type Vec3,
   type View,
 } from "@/lib/spaceCloud";
 import { VERTICALS } from "@/lib/types";
@@ -45,6 +51,11 @@ const TIER_LABEL: Record<string, string> = {
   market: "market",
 };
 const MONTHS_PER_SEC = 6;
+/** How long the cursor must rest on a point before its title appears. */
+const TOOLTIP_DELAY_MS = 1000;
+/** Near points are drawn larger, but never more than this — with the pivot at
+ *  the rim of the cloud the perspective scale can reach FOCAL / NEAR ≈ 14. */
+const MAX_POINT_SCALE = 2.5;
 
 type ColorBy = "tier" | "vertical" | "nest";
 
@@ -56,7 +67,10 @@ function hex(h: string): [number, number, number] {
 const VERT_SRC = `#version 300 es
 in vec3 aPos;
 in vec4 aMeta; // month, tier, vertical, nest
+in float aHit;  // 1 = matches the search
 uniform float uYaw, uPitch, uRadius, uFocal, uMonthEnd, uWindowLen, uNest, uGhosts, uDpr, uAlpha;
+uniform float uNear, uSearch, uMaxScale;
+uniform vec3 uCenter;
 uniform vec2 uViewport;
 uniform int uTierMask, uVertMask, uColorBy;
 uniform vec3 uTierColors[5];
@@ -76,6 +90,7 @@ void main() {
   float state = 2.0;
   if (((uTierMask >> tier) & 1) == 0 || ((uVertMask >> vert) & 1) == 0) state = 0.0;
   else if (uNest >= 0.0 && abs(aMeta.w - uNest) > 0.5) state = 1.0;
+  else if (uSearch > 0.5 && aHit < 0.5) state = 1.0;
   else if (!(aMeta.x <= uMonthEnd && aMeta.x > uMonthEnd - uWindowLen)) state = 1.0;
   if (state < 0.5 || (state < 1.5 && uGhosts < 0.5)) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -83,13 +98,20 @@ void main() {
     vColor = vec4(0.0);
     return;
   }
-  // projectPoint(): yaw about y, then pitch about x, then perspective
+  // projectPoint(): pivot first, then yaw about y, pitch about x, perspective
+  vec3 p = aPos - uCenter;
   float cy = cos(uYaw), sy = sin(uYaw);
-  float x1 = aPos.x * cy + aPos.z * sy;
-  float z1 = -aPos.x * sy + aPos.z * cy;
+  float x1 = p.x * cy + p.z * sy;
+  float z1 = -p.x * sy + p.z * cy;
   float cp = cos(uPitch), sp = sin(uPitch);
-  float y2 = aPos.y * cp - z1 * sp;
-  float z2 = aPos.y * sp + z1 * cp;
+  float y2 = p.y * cp - z1 * sp;
+  float z2 = p.y * sp + z1 * cp;
+  if (uFocal + z2 <= uNear) { // behind the near plane: would come out mirrored
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    gl_PointSize = 0.0;
+    vColor = vec4(0.0);
+    return;
+  }
   float scale = uFocal / (uFocal + z2);
   gl_Position = vec4(x1 * uRadius * scale / (uViewport.x * 0.5),
                      y2 * uRadius * scale / (uViewport.y * 0.5), 0.0, 1.0);
@@ -99,8 +121,12 @@ void main() {
   else c = aMeta.w > 65534.5 ? vec3(0.32) : hsl(mod(aMeta.w * 137.508, 360.0) / 360.0, 0.65, 0.62);
   // (not "active": that is a reserved word in GLSL ES 3.0)
   bool inWindow = state > 1.5;
-  gl_PointSize = (inWindow ? 2.8 : 1.6) * scale * uDpr;
-  vColor = vec4(c, inWindow ? uAlpha : 0.045);
+  // With a search running every lit point is a match: draw them large and
+  // nearly opaque, and fade the context further, or a handful of matches
+  // disappears among 100,000 context points.
+  bool searching = uSearch > 0.5;
+  gl_PointSize = (inWindow ? (searching ? 5.5 : 2.8) : 1.6) * min(scale, uMaxScale) * uDpr;
+  vColor = vec4(c, inWindow ? (searching ? 0.9 : uAlpha) : (searching ? 0.022 : 0.045));
 }`;
 
 const FRAG_SRC = `#version 300 es
@@ -119,6 +145,7 @@ interface Gl {
   gl: WebGL2RenderingContext;
   prog: WebGLProgram;
   loc: Record<string, WebGLUniformLocation | null>;
+  hitBuf: WebGLBuffer;
   n: number;
 }
 
@@ -167,6 +194,14 @@ function setupGl(canvas: HTMLCanvasElement, d: CloudData): Gl {
   gl.enableVertexAttribArray(aMeta);
   gl.vertexAttribPointer(aMeta, 4, gl.FLOAT, false, 0, 0);
 
+  // search matches: rewritten on every search, hence DYNAMIC_DRAW
+  const hitBuf = gl.createBuffer()!;
+  gl.bindBuffer(gl.ARRAY_BUFFER, hitBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(d.n), gl.DYNAMIC_DRAW);
+  const aHit = gl.getAttribLocation(prog, "aHit");
+  gl.enableVertexAttribArray(aHit);
+  gl.vertexAttribPointer(aHit, 1, gl.FLOAT, false, 0, 0);
+
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE); // additive: overlap becomes brightness
   gl.disable(gl.DEPTH_TEST);
@@ -174,10 +209,11 @@ function setupGl(canvas: HTMLCanvasElement, d: CloudData): Gl {
   const names = [
     "uYaw", "uPitch", "uRadius", "uFocal", "uMonthEnd", "uWindowLen", "uNest", "uGhosts",
     "uDpr", "uAlpha", "uViewport", "uTierMask", "uVertMask", "uColorBy", "uTierColors", "uVertColors",
+    "uCenter", "uNear", "uSearch", "uMaxScale",
   ];
   const loc: Record<string, WebGLUniformLocation | null> = {};
   for (const u of names) loc[u] = gl.getUniformLocation(prog, u);
-  return { gl, prog, loc, n: d.n };
+  return { gl, prog, loc, hitBuf, n: d.n };
 }
 
 interface PointDetail {
@@ -205,7 +241,8 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   const [error, setError] = useState<string | null>(null);
   const [yaw, setYaw] = useState(0.6);
   const [pitch, setPitch] = useState(0.3);
-  const [zoom, setZoom] = useState(1);
+  // zoom and pivot change together (zoom toward the cursor moves both)
+  const [cam, setCam] = useState<{ zoom: number; center: Vec3 }>({ zoom: 1, center: [0, 0, 0] });
   const [spin, setSpin] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [monthEnd, setMonthEnd] = useState(lastMonth);
@@ -220,12 +257,25 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   const [selected, setSelected] = useState(-1);
   const [detail, setDetail] = useState<PointDetail | null>(null);
   const [size, setSize] = useState({ w: 900, h: 560 });
+  const [hovering, setHovering] = useState(false);
+  const [tip, setTip] = useState<{ x: number; y: number; title: string; sub: string } | null>(null);
+  const [hoverRing, setHoverRing] = useState(-1);
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<Uint8Array | null>(null);
+  const [hitCount, setHitCount] = useState(0);
+  const [searchNote, setSearchNote] = useState<string | null>(null);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<Gl | null>(null);
-  const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const drag = useRef<{ x: number; y: number; moved: boolean; pan: boolean } | null>(null);
   const pickFrame = useRef(0);
+  const tipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tipTarget = useRef("");
+  const details = useRef(new Map<number, PointDetail>());
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSeq = useRef(0);
+  const searchOn = useRef(false);
 
   // code -> name tables stored with the run, turned into shader colour arrays
   const tierByCode = useMemo(() => {
@@ -295,12 +345,17 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   }, [data]);
 
   const view: View = useMemo(
-    () => ({ yaw, pitch, zoom, width: size.w, height: size.h }),
-    [yaw, pitch, zoom, size]
+    () => ({ yaw, pitch, zoom: cam.zoom, center: cam.center, width: size.w, height: size.h }),
+    [yaw, pitch, cam, size]
   );
+  // the wheel listener is attached once and reads the current view from here
+  const viewRef = useRef(view);
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
   const filter: CloudFilter = useMemo(
-    () => ({ tierMask, verticalMask: vertMask, monthEnd, windowLen, nest: nestSel }),
-    [tierMask, vertMask, monthEnd, windowLen, nestSel]
+    () => ({ tierMask, verticalMask: vertMask, monthEnd, windowLen, nest: nestSel, hits }),
+    [tierMask, vertMask, monthEnd, windowLen, nestSel, hits]
   );
 
   const active = useMemo(() => (data ? countActive(data, filter) : 0), [data, filter]);
@@ -309,6 +364,17 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   // therefore falls with the number of lit points, so a 3-month window and the
   // whole archive both keep a readable density gradient.
   const alpha = Math.min(0.6, Math.max(0.035, 0.5 * Math.pow(7200 / Math.max(1, active), 0.7)));
+
+  // ---- search matches into their GPU buffer (declared before the draw effect,
+  // so a new result is uploaded before the frame that shows it)
+  useEffect(() => {
+    const g = glRef.current;
+    if (!g || !data) return;
+    const arr = new Float32Array(data.n);
+    if (hits) for (let i = 0; i < data.n; i++) arr[i] = hits[i];
+    g.gl.bindBuffer(g.gl.ARRAY_BUFFER, g.hitBuf);
+    g.gl.bufferSubData(g.gl.ARRAY_BUFFER, 0, arr);
+  }, [data, hits]);
 
   // ---- draw whenever anything visible changes
   useEffect(() => {
@@ -342,12 +408,19 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     gl.uniform1i(loc.uColorBy, colorBy === "tier" ? 0 : colorBy === "vertical" ? 1 : 2);
     gl.uniform3fv(loc.uTierColors, tierColors);
     gl.uniform3fv(loc.uVertColors, vertColors);
+    gl.uniform3f(loc.uCenter, cam.center[0], cam.center[1], cam.center[2]);
+    gl.uniform1f(loc.uNear, NEAR);
+    gl.uniform1f(loc.uSearch, hits ? 1 : 0);
+    gl.uniform1f(loc.uMaxScale, MAX_POINT_SCALE);
     gl.drawArrays(gl.POINTS, 0, g.n);
-  }, [data, view, yaw, pitch, size, monthEnd, windowLen, nestSel, ghosts, tierMask, vertMask, colorBy, tierColors, vertColors, alpha]);
+  }, [data, view, yaw, pitch, cam, size, monthEnd, windowLen, nestSel, ghosts, tierMask, vertMask, colorBy, tierColors, vertColors, alpha, hits]);
 
   // ---- clocks: spin and play
+  // The spin pauses while the cursor rests on the canvas: it is there to show
+  // depth when nobody is looking closely, and a moving target cannot be read,
+  // hovered or clicked.
   useEffect(() => {
-    if (!spin) return;
+    if (!spin || hovering) return;
     let raf = 0;
     let last = performance.now();
     const step = (t: number) => {
@@ -358,7 +431,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [spin]);
+  }, [spin, hovering]);
 
   useEffect(() => {
     if (!playing) return;
@@ -375,68 +448,17 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     return () => cancelAnimationFrame(raf);
   }, [playing, lastMonth, windowLen]);
 
-  // ---- pointer: drag turns, a still click picks, hovering highlights
-  const localXY = (e: React.PointerEvent) => {
-    const r = canvasRef.current!.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
-  };
-
-  const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    drag.current = { x: e.clientX, y: e.clientY, moved: false };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }, []);
-
-  const onPointerMove = useCallback(
-    (e: React.PointerEvent<HTMLCanvasElement>) => {
-      const d = drag.current;
-      if (d) {
-        const dx = e.clientX - d.x;
-        const dy = e.clientY - d.y;
-        if (Math.abs(dx) + Math.abs(dy) > 2) {
-          d.moved = true;
-          setSpin(false);
-        }
-        setYaw((y) => y + dx * 0.008);
-        setPitch((p) => Math.max(-1.3, Math.min(1.3, p + dy * 0.006)));
-        drag.current = { x: e.clientX, y: e.clientY, moved: d.moved };
-        return;
-      }
-      if (!data || spin) return; // picking a moving target helps no one
-      const { x, y } = localXY(e);
-      cancelAnimationFrame(pickFrame.current);
-      pickFrame.current = requestAnimationFrame(() => setHover(pickNearest(data, filter, view, x, y)));
-    },
-    [data, spin, filter, view]
-  );
-
-  const onPointerUp = useCallback(
-    (e: React.PointerEvent<HTMLCanvasElement>) => {
-      const d = drag.current;
-      drag.current = null;
-      if (!d || d.moved || !data) return;
-      const { x, y } = localXY(e);
-      const i = pickNearest(data, filter, view, x, y, 8);
-      setSelected(i);
-      setDetail(null);
-      if (i >= 0) {
-        setSpin(false);
-        fetch(`/api/foresight/space/point?id=${data.trendId[i]}`)
-          .then((r) => (r.ok ? r.json() : null))
-          .then((j: PointDetail | null) => setDetail(j))
-          .catch(() => setDetail(null));
-      }
-    },
-    [data, filter, view]
-  );
-
-
-  // ---- overlay: nest rings and the marked point, in CSS pixels
+  // ---- nest rings in CSS pixels: drawn by the SVG overlay, hit on the CPU
   const rings = useMemo(() => {
     const maxM = Math.max(1, ...meta.nests.map((n) => n.members));
     return meta.nests
       .map((n, k) => ({ n, k, p: projectPoint(n.x, n.y, n.z, view) }))
-      .filter((r) => r.n.members > 0)
-      .map((r) => ({ ...r, radius: 5 + 14 * Math.sqrt(r.n.members / maxM) }));
+      .filter((r) => r.n.members > 0 && r.p.visible)
+      .map((r) => ({
+        ...r,
+        p: { ...r.p, scale: Math.min(r.p.scale, MAX_POINT_SCALE) },
+        radius: 5 + 14 * Math.sqrt(r.n.members / maxM),
+      }));
   }, [meta.nests, view]);
   // Names for the largest pockets only, and only where they do not land on a
   // name already placed — the rings crowd at the research/market seam.
@@ -452,11 +474,239 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     }
     return ids;
   }, [rings]);
+  const ringHits = useMemo(
+    () => (showNests ? rings.map((r) => ({ sx: r.p.sx, sy: r.p.sy, r: r.radius * r.p.scale })) : []),
+    [rings, showNests]
+  );
+
+  // ---- details for the panel and the tooltip, fetched once per signal
+  const loadDetail = useCallback(
+    (i: number): Promise<PointDetail | null> => {
+      if (!data) return Promise.resolve(null);
+      const id = data.trendId[i];
+      const hit = details.current.get(id);
+      if (hit) return Promise.resolve(hit);
+      return fetch(`/api/foresight/space/point?id=${id}`)
+        .then((r) => (r.ok ? (r.json() as Promise<PointDetail>) : null))
+        .then((d) => {
+          if (d) details.current.set(id, d);
+          return d;
+        })
+        .catch(() => null);
+    },
+    [data]
+  );
+
+  const hideTip = useCallback(() => {
+    if (tipTimer.current) clearTimeout(tipTimer.current);
+    tipTimer.current = null;
+    tipTarget.current = "";
+    setTip(null);
+  }, []);
+
+  /** Start the one-second clock for whatever is under the cursor ("p<i>" for a
+   *  signal, "r<k>" for a ring, "" for nothing); something else restarts it. */
+  const scheduleTip = useCallback(
+    (key: string, x: number, y: number, load: () => Promise<{ title: string; sub: string } | null>) => {
+      if (key === tipTarget.current) return;
+      hideTip();
+      if (!key) return;
+      tipTarget.current = key;
+      tipTimer.current = setTimeout(() => {
+        load().then((t) => {
+          if (t && tipTarget.current === key) setTip({ x, y, ...t });
+        });
+      }, TOOLTIP_DELAY_MS);
+    },
+    [hideTip]
+  );
+
+  // ---- pointer: drag turns, Shift/right/middle-drag moves, a still click
+  // picks, a resting cursor shows the title, double-click re-centres
+  const localXY = (e: { clientX: number; clientY: number }) => {
+    const r = canvasRef.current!.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      const pan = e.shiftKey || e.button === 1 || e.button === 2;
+      drag.current = { x: e.clientX, y: e.clientY, moved: false, pan };
+      hideTip();
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    [hideTip]
+  );
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      const d = drag.current;
+      if (d) {
+        const dx = e.clientX - d.x;
+        const dy = e.clientY - d.y;
+        if (Math.abs(dx) + Math.abs(dy) > 2) {
+          d.moved = true;
+          setSpin(false);
+        }
+        if (d.pan) {
+          setCam((c) => ({ ...c, center: panBy({ ...viewRef.current, zoom: c.zoom, center: c.center }, dx, dy) }));
+        } else {
+          setYaw((y) => y + dx * 0.008);
+          setPitch((p) => Math.max(-1.3, Math.min(1.3, p + dy * 0.006)));
+        }
+        drag.current = { ...d, x: e.clientX, y: e.clientY };
+        return;
+      }
+      if (!data) return;
+      const { x, y } = localXY(e);
+      cancelAnimationFrame(pickFrame.current);
+      pickFrame.current = requestAnimationFrame(() => {
+        const g = pickRing(ringHits, x, y);
+        if (g >= 0) {
+          const n = rings[g].n;
+          setHover(-1);
+          setHoverRing(rings[g].k);
+          scheduleTip(`r${rings[g].k}`, x, y, () =>
+            Promise.resolve({
+              title: n.name,
+              sub: `pocket · ${n.members.toLocaleString("en-US")} sampled signals · click to light up, double-click to centre`,
+            })
+          );
+          return;
+        }
+        setHoverRing(-1);
+        const i = pickNearest(data, filter, view, x, y);
+        setHover(i);
+        scheduleTip(i >= 0 ? `p${i}` : "", x, y, () =>
+          loadDetail(i).then((d) =>
+            d ? { title: d.title, sub: [d.source_name, d.date].filter(Boolean).join(" · ") } : null
+          )
+        );
+      });
+    },
+    [data, filter, view, scheduleTip, ringHits, rings, loadDetail]
+  );
+
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      const d = drag.current;
+      drag.current = null;
+      if (!d || d.moved || d.pan || !data || e.button !== 0) return;
+      const { x, y } = localXY(e);
+      const g = pickRing(ringHits, x, y);
+      if (g >= 0) {
+        if (e.detail > 1) return; // the second click of a double-click
+        const k = rings[g].k;
+        setNestSel((cur) => (cur === k ? -1 : k));
+        return;
+      }
+      const i = pickNearest(data, filter, view, x, y, 8);
+      setSelected(i);
+      setDetail(null);
+      if (i >= 0) {
+        setSpin(false);
+        loadDetail(i).then((dd) => setDetail(dd));
+      }
+    },
+    [data, filter, view, loadDetail, ringHits, rings]
+  );
+
+  /** Double-click: the point under the cursor becomes the pivot — or, over
+   *  empty space, the spot on the pivot plane. Zoom then goes in there. */
+  const onDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!data) return;
+      const { x, y } = localXY(e);
+      const g = pickRing(ringHits, x, y);
+      if (g >= 0) {
+        const n = rings[g].n;
+        setCam((c) => ({ ...c, center: [n.x, n.y, n.z] }));
+        return;
+      }
+      const i = pickNearest(data, filter, view, x, y, 10);
+      if (i >= 0) {
+        setCam((c) => ({ ...c, center: [data.pos[i * 3], data.pos[i * 3 + 1], data.pos[i * 3 + 2]] }));
+      } else {
+        const w = screenToWorld(x - view.width / 2, y - view.height / 2, view);
+        setCam((c) => ({ ...c, center: [c.center[0] + w[0], c.center[1] + w[1], c.center[2] + w[2]] }));
+      }
+    },
+    [data, filter, view, ringHits, rings]
+  );
+
+  // ---- mouse wheel: zoom toward the cursor. A native listener, because React
+  // registers wheel handlers as passive and the page would scroll along.
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const mx = e.clientX - r.left;
+      const my = e.clientY - r.top;
+      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      const f = Math.exp(-dy * 0.0015);
+      setCam((c) => zoomAt({ ...viewRef.current, zoom: c.zoom, center: c.center }, f, mx, my));
+      hideTip();
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [error, hideTip]);
+
+  const zoomButton = (factor: number) =>
+    setCam((c) => zoomAt({ ...view, zoom: c.zoom, center: c.center }, factor, view.width / 2, view.height / 2));
+
+  // ---- search: the same full-text search as the feed, over this run's signals
+  const runSearch = useCallback(
+    (text: string) => {
+      const qtext = text.trim();
+      const seq = ++searchSeq.current;
+      if (qtext.length < 2 || !data) {
+        searchOn.current = false;
+        setHits(null);
+        setHitCount(0);
+        setSearchNote(null);
+        return;
+      }
+      setSearchNote("searching…");
+      fetch(`/api/foresight/space/search?run=${meta.runId}&q=${encodeURIComponent(qtext)}`)
+        .then((r) => r.json() as Promise<{ indices?: number[]; error?: string }>)
+        .then((j) => {
+          if (seq !== searchSeq.current) return; // a newer query is on its way
+          if (j.error || !j.indices) {
+            setSearchNote(j.error ?? "search failed");
+            return;
+          }
+          const arr = new Uint8Array(data.n);
+          for (const i of j.indices) if (i >= 0 && i < data.n) arr[i] = 1;
+          // A NEW search opens the window to every month, so all matches are
+          // visible at once; narrowing it (and Play) is then the owner's move.
+          // Refining the query keeps whatever window was chosen meanwhile.
+          if (!searchOn.current) setWindowLen(meta.months.length);
+          searchOn.current = true;
+          setHits(arr);
+          setHitCount(j.indices.length);
+          setSearchNote(j.indices.length ? null : "no matches in the cloud");
+        })
+        .catch(() => {
+          if (seq === searchSeq.current) setSearchNote("search failed");
+        });
+    },
+    [data, meta.runId, meta.months.length]
+  );
+
+  const onQuery = (v: string) => {
+    setQuery(v);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => runSearch(v), 350);
+  };
+
   const mark = selected >= 0 ? selected : hover;
-  const markPos =
+  const markProj =
     data && mark >= 0
       ? projectPoint(data.pos[mark * 3], data.pos[mark * 3 + 1], data.pos[mark * 3 + 2], view)
       : null;
+  const markPos = markProj && markProj.visible ? markProj : null;
 
   const btn = (on: boolean) =>
     `font-mono text-[10px] uppercase tracking-[0.14em] px-3 py-1.5 border transition-colors ${
@@ -518,17 +768,20 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
           onClick={() => {
             setYaw(0.6);
             setPitch(0.3);
-            setZoom(1);
+            setCam({ zoom: 1, center: [0, 0, 0] });
           }}
         >
           Reset view
         </button>
-        <button type="button" className={btn(false)} onClick={() => setZoom((z) => Math.min(3, z * 1.25))}>
+        <button type="button" className={btn(false)} onClick={() => zoomButton(1.25)}>
           +
         </button>
-        <button type="button" className={btn(false)} onClick={() => setZoom((z) => Math.max(0.4, z / 1.25))}>
+        <button type="button" className={btn(false)} onClick={() => zoomButton(1 / 1.25)}>
           −
         </button>
+        <span className="font-mono text-[10px] text-muted w-10">
+          ×{cam.zoom < 10 ? cam.zoom.toFixed(1) : cam.zoom.toFixed(0)}
+        </span>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 mb-3">
@@ -559,6 +812,31 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
             </button>
           ) : null
         )}
+        <span className="flex-1" />
+        <div className="flex items-center gap-2">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => onQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                if (searchTimer.current) clearTimeout(searchTimer.current);
+                runSearch(query);
+              }
+            }}
+            placeholder='search titles, e.g. solar panel or "solar panel"'
+            aria-label="search the signals in the cloud"
+            className="w-72 bg-ink border border-border px-2 py-1 font-mono text-[11px] text-paper placeholder:text-muted/70 focus:border-accent outline-none"
+          />
+          {hits && (
+            <span className="font-mono text-[10px] text-accent whitespace-nowrap">
+              {hitCount.toLocaleString("en-US")} {hitCount === 1 ? "match" : "matches"}
+            </span>
+          )}
+          {searchNote && (
+            <span className="font-mono text-[10px] text-muted whitespace-nowrap">{searchNote}</span>
+          )}
+        </div>
         {(tierMask !== ALL_BITS || vertMask !== ALL_BITS) && (
           <button
             type="button"
@@ -604,12 +882,22 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
               <canvas
                 ref={canvasRef}
                 style={{ width: size.w, height: size.h }}
-                className="block w-full touch-none select-none cursor-grab"
+                className={`block w-full touch-none select-none ${
+                  hover >= 0 || hoverRing >= 0 ? "cursor-pointer" : "cursor-grab"
+                }`}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
                 onPointerCancel={() => (drag.current = null)}
-                onPointerLeave={() => setHover(-1)}
+                onPointerEnter={() => setHovering(true)}
+                onPointerLeave={() => {
+                  setHovering(false);
+                  setHover(-1);
+                  setHoverRing(-1);
+                  hideTip();
+                }}
+                onDoubleClick={onDoubleClick}
+                onContextMenu={(e) => e.preventDefault()}
               />
               <svg
                 className="absolute inset-0 pointer-events-none"
@@ -633,26 +921,9 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
                           r={r.radius * r.p.scale}
                           fill="none"
                           stroke={on ? "#d4ff3a" : col}
-                          strokeOpacity={on ? 1 : 0.55}
-                          strokeWidth={on ? 2 : 1}
+                          strokeOpacity={on || hoverRing === r.k ? 1 : 0.55}
+                          strokeWidth={on || hoverRing === r.k ? 2 : 1}
                         />
-                        {/* Hit area: an invisible 10 px band on the ring line. An
-                            unfilled circle only takes clicks on its 1 px stroke, so
-                            the ring was nearly unclickable; filling it instead
-                            would steal the points inside from the canvas picker. */}
-                        <circle
-                          cx={r.p.sx}
-                          cy={r.p.sy}
-                          r={r.radius * r.p.scale}
-                          fill="none"
-                          stroke="transparent"
-                          strokeWidth={10}
-                          style={{ pointerEvents: "stroke" }}
-                          className="cursor-pointer"
-                          onClick={() => setNestSel((s) => (s === r.k ? -1 : r.k))}
-                        >
-                          <title>{`${r.n.name} — ${r.n.members} sampled signals`}</title>
-                        </circle>
                         {(labelled.has(r.k) || on) && (
                           <text
                             x={r.p.sx}
@@ -673,10 +944,24 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
                 )}
               </svg>
               <div className="absolute left-3 top-2 font-mono text-[10px] text-muted pointer-events-none">
-                {data
-                  ? `${active.toLocaleString("en-US")} of ${data.n.toLocaleString("en-US")} sampled signals in the window`
-                  : "loading 1.7 MB of points…"}
+                {!data
+                  ? "loading 1.7 MB of points…"
+                  : hits
+                    ? `${active.toLocaleString("en-US")} of ${hitCount.toLocaleString("en-US")} matches in the window`
+                    : `${active.toLocaleString("en-US")} of ${data.n.toLocaleString("en-US")} sampled signals in the window`}
               </div>
+              {tip && (
+                <div
+                  className="absolute pointer-events-none z-10 max-w-[280px] border border-border bg-card/95 px-3 py-2 shadow-lg"
+                  style={{
+                    left: tip.x + 300 > size.w ? tip.x - 292 : tip.x + 12,
+                    top: tip.y + 90 > size.h ? tip.y - 70 : tip.y + 12,
+                  }}
+                >
+                  <div className="font-sans text-[12px] leading-snug text-paper">{tip.title}</div>
+                  {tip.sub && <div className="mt-1 font-mono text-[10px] text-muted">{tip.sub}</div>}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -741,8 +1026,13 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
                 Rings are the pockets from the emerging layer, placed in the same cloud; click one
                 to light up its members. Only {nestMembers.toLocaleString("en-US")} of the sampled
                 signals fall inside any pocket — pockets are dense corners of the last 90 days,
-                the cloud spans fifteen years. Drag to turn (it stops the spin), click a point to
-                open it.
+                the cloud spans fifteen years.
+              </p>
+              <p className="font-sans text-[12px] text-muted leading-relaxed mt-3">
+                Drag to turn · Shift-drag or right-drag to move · wheel to zoom toward the
+                cursor · double-click a point (or a ring) to make it the centre. Rest on a point
+                for a second to see its title, click it to open it. The spin pauses while the
+                cursor is on the cloud.
               </p>
               {nestSel >= 0 && meta.nests[nestSel] && (
                 <p className="font-mono text-[11px] text-accent mt-3">

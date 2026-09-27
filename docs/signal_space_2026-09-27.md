@@ -165,6 +165,37 @@ Nest-Beschriftungen drängen sich an der Nahtstelle, deshalb werden nur die sech
 größten beschriftet, die einander nicht überdecken — die übrigen tragen den Namen
 als Tooltip.
 
+## Navigation und Suche (27.09., abends)
+
+Owner-Wunsch: näher heran und weiter heraus zoomen. Die Grenzen allein (×0,4–×3) waren
+nicht das Problem, sondern dass der Zoom um die Würfelmitte ging — bei ×10 sieht man nur
+die Mitte, und es gab kein Verschieben. Jetzt:
+
+- **Drehpunkt** `View.center`, im Shader und in `projectPoint` identisch zuerst
+  abgezogen. `screenToWorld` ist die exakte Umkehrung der Projektion in der Ebene des
+  Drehpunkts (Test über vier Blickwinkel, 6 Stellen). Darauf bauen `zoomAt` (Mausrad:
+  der Punkt unter dem Cursor bleibt stehen) und `panBy` (Shift-/Rechts-Ziehen).
+  Doppelklick setzt den Drehpunkt auf ein Signal oder eine Tasche.
+- **Zoom ×0,15 bis ×50.** Obergrenze aus der Speicherung: 16 Bit über ±1,53 ergeben bei
+  ×50 ein 0,55-px-Raster, ab ~×90 rasteten die Punkte sichtbar ein.
+- **Nahschnitt:** Mit dem Drehpunkt am Rand geraten ferne Punkte hinter die Kamera; die
+  Perspektivdivision würde sie gespiegelt zeichnen. Sie werden ausgeblendet und sind
+  nicht anklickbar; die Punktgröße ist nach oben begrenzt.
+- **Tooltip** nach 1 s für Signale (Titel, Quelle, Datum, einmal je Signal geholt) und
+  Ringe (Name, Größe). Das Drehen pausiert, solange der Cursor über der Wolke ist.
+- **Suche** = die Feed-Suche (`websearch_to_tsquery` auf `idx_trends_fts`), beschränkt
+  auf die IDs des Laufs: `Solar Panel` 112, `"solar panel"` 94, `perovskite` 137,
+  `AI` 3.399 Treffer, 0,12–0,57 s. Treffer werden groß gezeichnet, der Kontext
+  schwächer; eine neue Suche öffnet das Fenster auf alle Monate (im 12-Monats-Fenster
+  blieben von 112 Treffern 7 — zwischen 100.000 Schattenpunkten unsichtbar). Das Bild
+  zu „Solar Panel" zeigt einen dichten Knoten in der Fachpresse und eine eigene kleine
+  Patentgruppe daneben.
+
+Ein Fehler beim Bau, im Browsertest gefunden: Mit dem 10-px-Klickband auf den
+SVG-Ringen begann ein Zug, der auf einem Ring startete, keine Drehung — und in der Mitte
+liegen die Ringe dicht. Ringe werden jetzt wie die Punkte auf der CPU getroffen
+(`pickRing`), die SVG-Ebene nimmt gar keine Zeigerereignisse mehr an.
+
 ## Grenzen
 
 - Die Karte ist eine Projektion, kein Messwert — s. o.

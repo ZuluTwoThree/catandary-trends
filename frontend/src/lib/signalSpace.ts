@@ -1,3 +1,4 @@
+import { FTS_VECTOR } from "./db";
 import { q, q1 } from "./pg";
 import type { CloudMeta, CloudNest } from "./spaceCloud";
 
@@ -80,4 +81,50 @@ export async function getSpacePoint(id: number): Promise<SpacePoint | null> {
     [id]
   );
   return rows[0] ?? null;
+}
+
+// ------------------------------------------------------------------- search
+
+/** trend ids of a run in blob order, kept per run (a run never changes). */
+const idCache = new Map<number, number[]>();
+
+async function runTrendIds(runId: number): Promise<number[] | null> {
+  const hit = idCache.get(runId);
+  if (hit) return hit;
+  const blob = await getSpaceBlob(runId);
+  if (!blob) return null;
+  const n = Math.floor(blob.length / 16);
+  const ids = new Array<number>(n);
+  for (let i = 0; i < n; i++) ids[i] = blob.readUInt32LE(i * 16 + 12);
+  if (idCache.size >= 2) idCache.delete(idCache.keys().next().value as number);
+  idCache.set(runId, ids);
+  return ids;
+}
+
+export interface SpaceSearchResult {
+  q: string;
+  /** Point indices (positions in the blob), ascending. */
+  indices: number[];
+}
+
+/**
+ * Which points of a run match `query`. Same full-text search as the feed's
+ * ?q= (title + summary + tags, `websearch_to_tsquery`, so "solar panel" needs
+ * both words, a quoted phrase needs the phrase, -word excludes), restricted to
+ * the run's own signals. Measured 27.09. on the 108k cloud: 0.12-0.57 s.
+ */
+export async function searchSpace(runId: number, query: string): Promise<SpaceSearchResult | null> {
+  const ids = await runTrendIds(runId);
+  if (!ids) return null;
+  const rows = await q<{ id: number }>(
+    `SELECT id FROM trends WHERE id = ANY($1::int[]) AND ${FTS_VECTOR} @@ websearch_to_tsquery('english', $2)`,
+    [ids, query]
+  );
+  const pos = new Map<number, number>();
+  ids.forEach((id, i) => pos.set(id, i));
+  const indices = rows
+    .map((r) => pos.get(Number(r.id)))
+    .filter((i): i is number => i !== undefined)
+    .sort((a, b) => a - b);
+  return { q: query, indices };
 }

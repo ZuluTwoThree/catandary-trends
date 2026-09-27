@@ -1663,7 +1663,7 @@ export interface TrendsFilterOptions {
 
 /** The tsvector expression MUST textually match the idx_trends_fts GIN index
  *  expression, or Postgres won't use the index. */
-const FTS_VECTOR =
+export const FTS_VECTOR =
   "to_tsvector('english', coalesce(title_en,'') || ' ' || coalesce(summary_en,'') || ' ' || coalesce(tags::text,''))";
 
 function buildFilterClauses(options: TrendsFilterOptions): {

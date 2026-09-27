@@ -99,6 +99,10 @@ export interface CloudFilter {
   windowLen: number;
   /** Nest index the owner picked, or -1. */
   nest: number;
+  /** Search result: 1 = matches the query. null = no search running. A point
+   *  that does not match is dimmed to context, never removed, so the matches
+   *  stay readable against the shape of the whole cloud. */
+  hits?: Uint8Array | null;
 }
 
 export const ALL_BITS = 0xffff;
@@ -117,6 +121,7 @@ export function pointState(
   if (!((f.tierMask >> d.tier[i]) & 1)) return 0;
   if (!((f.verticalMask >> d.vertical[i]) & 1)) return 0;
   if (f.nest >= 0 && d.nest[i] !== f.nest) return 1;
+  if (f.hits && !f.hits[i]) return 1;
   const m = d.month[i];
   return m <= f.monthEnd && m > f.monthEnd - f.windowLen ? 2 : 1;
 }
@@ -132,13 +137,30 @@ export function countActive(d: CloudData, f: CloudFilter): number {
 /** Same camera as ClusterSpace.tsx, so the three views turn alike. */
 export const FOCAL = 3.4;
 
+export type Vec3 = [number, number, number];
+
 export interface View {
   yaw: number;
   pitch: number;
   zoom: number;
   width: number;
   height: number;
+  /** The pivot: the world point in the middle of the screen, which turning and
+   *  zooming happen around. Default: the origin of the cloud. */
+  center?: Vec3;
 }
+
+export const ZOOM_MIN = 0.15;
+/** The coordinates are 16-bit over about ±1.5 units; at ×50 that grid is 0.55 px
+ *  on screen, at ~×90 points would visibly snap to it. */
+export const ZOOM_MAX = 50;
+/** Points nearer to the camera than this (in depth units, FOCAL away) are not
+ *  drawn and cannot be picked. Moving the pivot to the rim of the cloud brings
+ *  far points round behind the camera, where the perspective divide would flip
+ *  them into mirror images. */
+export const NEAR = 0.25;
+
+const ORIGIN: Vec3 = [0, 0, 0];
 
 /** Radius of the unit cube on screen, in CSS pixels. */
 export function viewRadius(v: View): number {
@@ -155,7 +177,11 @@ export function projectPoint(
   y: number,
   z: number,
   v: View
-): { sx: number; sy: number; scale: number; depth: number } {
+): { sx: number; sy: number; scale: number; depth: number; visible: boolean } {
+  const c = v.center ?? ORIGIN;
+  x -= c[0];
+  y -= c[1];
+  z -= c[2];
   const cy = Math.cos(v.yaw);
   const sy = Math.sin(v.yaw);
   const x1 = x * cy + z * sy;
@@ -164,9 +190,57 @@ export function projectPoint(
   const sp = Math.sin(v.pitch);
   const y2 = y * cp - z1 * sp;
   const z2 = y * sp + z1 * cp;
-  const scale = FOCAL / (FOCAL + z2);
+  const visible = FOCAL + z2 > NEAR;
+  const scale = FOCAL / Math.max(FOCAL + z2, NEAR);
   const r = viewRadius(v);
-  return { sx: v.width / 2 + x1 * r * scale, sy: v.height / 2 - y2 * r * scale, scale, depth: z2 };
+  return {
+    sx: v.width / 2 + x1 * r * scale,
+    sy: v.height / 2 - y2 * r * scale,
+    scale,
+    depth: z2,
+    visible,
+  };
+}
+
+/**
+ * The world-space offset that appears as (dx, dy) screen pixels in the plane
+ * through the pivot. That plane sits at depth 0, where the perspective scale
+ * is exactly 1, so this is the inverse rotation of (dx, -dy, 0) / radius — the
+ * transpose of the yaw-then-pitch rotation in projectPoint.
+ */
+export function screenToWorld(dx: number, dy: number, v: View): Vec3 {
+  const r = viewRadius(v);
+  const a = dx / r;
+  const b = -dy / r;
+  const cp = Math.cos(v.pitch);
+  const sp = Math.sin(v.pitch);
+  const y = b * cp; // + z2 * sp, z2 = 0
+  const z1 = -b * sp; // + z2 * cp
+  const cy = Math.cos(v.yaw);
+  const sy = Math.sin(v.yaw);
+  return [a * cy - z1 * sy, y, a * sy + z1 * cy];
+}
+
+function add(a: Vec3, b: Vec3, k = 1): Vec3 {
+  return [a[0] + k * b[0], a[1] + k * b[1], a[2] + k * b[2]];
+}
+
+/**
+ * Zoom by `factor` so that the pivot-plane point under the cursor (mx, my)
+ * stays under the cursor — what a mouse wheel is expected to do. The zoom is
+ * clamped to [ZOOM_MIN, ZOOM_MAX]; the pivot moves by the factor actually
+ * applied, so hitting the limit never makes the picture jump.
+ */
+export function zoomAt(v: View, factor: number, mx: number, my: number): { zoom: number; center: Vec3 } {
+  const zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, v.zoom * factor));
+  const f = zoom / v.zoom;
+  const off = screenToWorld(mx - v.width / 2, my - v.height / 2, v);
+  return { zoom, center: add(v.center ?? ORIGIN, off, 1 - 1 / f) };
+}
+
+/** Drag the picture by (dx, dy) pixels: the pivot moves the opposite way. */
+export function panBy(v: View, dx: number, dy: number): Vec3 {
+  return add(v.center ?? ORIGIN, screenToWorld(dx, dy, v), -1);
 }
 
 /**
@@ -188,6 +262,7 @@ export function pickNearest(
   for (let i = 0; i < d.n; i++) {
     if (pointState(d, i, f) !== 2) continue;
     const p = projectPoint(d.pos[i * 3], d.pos[i * 3 + 1], d.pos[i * 3 + 2], v);
+    if (!p.visible) continue;
     const dx = p.sx - px;
     const dy = p.sy - py;
     const dd = dx * dx + dy * dy;
@@ -213,4 +288,28 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
     return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
   };
   return [f(0), f(8), f(4)];
+}
+
+/**
+ * The ring (pocket) whose outline passes within `band` px of (x, y), nearest
+ * outline first; -1 if none. Rings are hit on the CPU like the points, so the
+ * SVG overlay never takes a pointer event — a drag that starts on a ring still
+ * turns or moves the cloud.
+ */
+export function pickRing(
+  rings: { sx: number; sy: number; r: number }[],
+  x: number,
+  y: number,
+  band = 5
+): number {
+  let best = -1;
+  let bestD = band;
+  rings.forEach((g, k) => {
+    const d = Math.abs(Math.hypot(g.sx - x, g.sy - y) - g.r);
+    if (d <= bestD) {
+      best = k;
+      bestD = d;
+    }
+  });
+  return best;
 }

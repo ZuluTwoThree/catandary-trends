@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   ALL_BITS,
+  FOCAL,
+  NEAR,
   NO_NEST,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  panBy,
+  pickRing,
+  screenToWorld,
+  zoomAt,
   RECORD_BYTES,
   countActive,
   pickNearest,
@@ -152,5 +160,126 @@ describe("pickNearest", () => {
     const onlyTier2: CloudFilter = { ...ALL, tierMask: 1 << 2 };
     expect(pickNearest(d, onlyTier2, v, at.sx, at.sy)).toBe(2);
     expect(pickNearest(d, { ...onlyTier2, monthEnd: 11, windowLen: 1 }, v, at.sx, at.sy)).toBe(-1);
+  });
+});
+
+describe("search hits", () => {
+  const d = cloud([
+    { p: [0, 0, 0], month: 11 },
+    { p: [0.3, 0, 0], month: 11 },
+    { p: [0.6, 0, 0], month: 11, tier: 3 },
+  ]);
+
+  it("dims every point that does not match, and removes nothing", () => {
+    const hits = new Uint8Array([0, 1, 1]);
+    expect(pointState(d, 0, { ...ALL, hits })).toBe(1);
+    expect(pointState(d, 1, { ...ALL, hits })).toBe(2);
+    expect(countActive(d, { ...ALL, hits })).toBe(2);
+  });
+
+  it("still lets the tier filter remove a match", () => {
+    const hits = new Uint8Array([0, 1, 1]);
+    expect(pointState(d, 2, { ...ALL, hits, tierMask: ALL_BITS & ~(1 << 3) })).toBe(0);
+  });
+
+  it("makes only matches pickable", () => {
+    const v: View = { yaw: 0, pitch: 0, zoom: 1, width: 800, height: 600 };
+    const at = projectPoint(0, 0, 0, v);
+    expect(pickNearest(d, { ...ALL, hits: new Uint8Array([0, 1, 1]) }, v, at.sx, at.sy)).toBe(-1);
+  });
+});
+
+describe("navigation: pivot, pan, zoom at the cursor", () => {
+  const angles = [
+    [0, 0],
+    [0.6, 0.3],
+    [-1.1, 0.9],
+    [2.5, -0.7],
+  ];
+
+  it("puts the pivot in the middle of the screen", () => {
+    const v: View = { yaw: 0.6, pitch: 0.3, zoom: 2, width: 800, height: 600, center: [0.4, -0.2, 0.7] };
+    const p = projectPoint(0.4, -0.2, 0.7, v);
+    expect(p.sx).toBeCloseTo(400, 9);
+    expect(p.sy).toBeCloseTo(300, 9);
+  });
+
+  it("screenToWorld is the exact inverse of the projection in the pivot plane", () => {
+    for (const [yaw, pitch] of angles) {
+      const v: View = { yaw, pitch, zoom: 1.7, width: 910, height: 564, center: [0.1, 0.2, -0.3] };
+      const w = screenToWorld(123, -45, v);
+      const p = projectPoint(0.1 + w[0], 0.2 + w[1], -0.3 + w[2], v);
+      expect(p.sx).toBeCloseTo(455 + 123, 6);
+      expect(p.sy).toBeCloseTo(282 - 45, 6);
+      expect(p.depth).toBeCloseTo(0, 9);
+    }
+  });
+
+  it("zoomAt keeps the point under the cursor where it is", () => {
+    for (const [yaw, pitch] of angles) {
+      const v: View = { yaw, pitch, zoom: 1.3, width: 910, height: 564, center: [0, 0.1, 0] };
+      const mx = 700;
+      const my = 120;
+      const w = screenToWorld(mx - 455, my - 282, v);
+      const target: [number, number, number] = [w[0], 0.1 + w[1], w[2]];
+      const next = zoomAt(v, 4, mx, my);
+      const p = projectPoint(...target, { ...v, ...next });
+      expect(next.zoom).toBeCloseTo(5.2, 9);
+      expect(p.sx).toBeCloseTo(mx, 6);
+      expect(p.sy).toBeCloseTo(my, 6);
+    }
+  });
+
+  it("zooming at the screen centre leaves the pivot alone (the + and − buttons)", () => {
+    const v: View = { yaw: 0.6, pitch: 0.3, zoom: 1, width: 800, height: 600, center: [0.2, 0.3, 0.4] };
+    const next = zoomAt(v, 1.25, 400, 300);
+    expect(next.center).toEqual([0.2, 0.3, 0.4]);
+  });
+
+  it("clamps the zoom and does not move the picture once the limit is reached", () => {
+    const v: View = { yaw: 0, pitch: 0, zoom: ZOOM_MAX, width: 800, height: 600, center: [0, 0, 0] };
+    const next = zoomAt(v, 3, 100, 100);
+    expect(next.zoom).toBe(ZOOM_MAX);
+    next.center.forEach((c) => expect(c).toBeCloseTo(0, 12));
+    expect(zoomAt({ ...v, zoom: ZOOM_MIN }, 0.1, 400, 300).zoom).toBe(ZOOM_MIN);
+  });
+
+  it("panBy moves the content with the drag", () => {
+    for (const [yaw, pitch] of angles) {
+      const v: View = { yaw, pitch, zoom: 2, width: 800, height: 600, center: [0, 0, 0] };
+      const before = projectPoint(0, 0, 0, v);
+      const moved = projectPoint(0, 0, 0, { ...v, center: panBy(v, 30, -20) });
+      expect(moved.sx - before.sx).toBeCloseTo(30, 6);
+      expect(moved.sy - before.sy).toBeCloseTo(-20, 6);
+    }
+  });
+
+  it("hides and never picks what has come round behind the camera", () => {
+    const v: View = { yaw: 0, pitch: 0, zoom: 1, width: 800, height: 600, center: [0, 0, 0] };
+    const behind = projectPoint(0, 0, -(FOCAL - NEAR / 2), v);
+    expect(behind.visible).toBe(false);
+    const d = cloud([{ p: [0, 0, -(FOCAL - NEAR / 2)], month: 11 }]);
+    expect(pickNearest(d, ALL, v, behind.sx, behind.sy, 50)).toBe(-1);
+  });
+});
+
+describe("pickRing", () => {
+  const rings = [
+    { sx: 100, sy: 100, r: 10 },
+    { sx: 104, sy: 100, r: 20 },
+  ];
+
+  it("hits the outline, not the inside", () => {
+    expect(pickRing(rings, 110, 100)).toBe(0); // on ring 0's outline
+    expect(pickRing(rings, 100, 100)).toBe(-1); // centre of ring 0: free for the points
+  });
+
+  it("prefers the nearer outline when two are in reach", () => {
+    expect(pickRing(rings, 124, 100)).toBe(1);
+    expect(pickRing(rings, 111, 100)).toBe(0);
+  });
+
+  it("returns -1 far from every ring", () => {
+    expect(pickRing(rings, 300, 300)).toBe(-1);
   });
 });

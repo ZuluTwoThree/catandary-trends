@@ -899,9 +899,32 @@ Monate hell leuchten (3 Monate, 12 Monate, alle); der Regler schiebt das Fenster
 lässt es laufen. **Context** zeigt den Rest des Archivs als schwachen Schatten, damit die
 Form lesbar bleibt. **Nests** blendet die Ringe aus und ein (Ausblenden hebt auch eine
 gewählte Tasche auf, sonst bliebe ein Filter stehen, den man im Bild nicht mehr lösen
-kann); zum Anwählen einer Tasche genügt ein Klick auf die Ringlinie. Die Chips unter *show* blenden Ebenen und Vertikalen ganz aus —
+kann); zum Anwählen einer Tasche genügt ein Klick auf die Ringlinie; ein Zug, der auf
+einem Ring beginnt, dreht oder verschiebt trotzdem. Die Chips unter *show* blenden Ebenen und Vertikalen ganz aus —
 gefiltert wird, nicht neu projiziert, deshalb bleiben die Positionen vergleichbar. Die
 Wolke ist immer global; auf einem anderen Tab steht ein Hinweis dazu.
+
+*Navigation:* Ziehen dreht. **Shift-Ziehen oder rechte Maustaste** verschiebt das
+Bild. Das **Mausrad** zoomt zum Cursor hin — der Punkt unter dem Cursor bleibt stehen.
+**Doppelklick** auf ein Signal oder einen Ring macht ihn zur Bildmitte; Drehen und
+Zoomen beziehen sich danach auf ihn. `+`/`−` zoomen um die Mitte, die Anzeige daneben
+nennt den Faktor (×0,15 bis ×50 — die Grenze setzt die 16-Bit-Speicherung der
+Koordinaten, darüber rasteten die Punkte sichtbar ein). *Reset view* stellt Blick,
+Zoom und Mitte zurück. Punkte, die beim Verschieben hinter die Kamera geraten, werden
+ausgeblendet statt gespiegelt gezeichnet.
+
+*Tooltip:* Bleibt der Cursor etwa **eine Sekunde** auf einem Signal, erscheint sein
+Titel mit Quelle und Datum; auf einer Ringlinie Name und Größe der Tasche. Solange der
+Cursor über der Wolke ist, pausiert das Drehen — ein bewegtes Ziel ließe sich weder
+lesen noch treffen.
+
+*Suche:* Das Feld am Ende der Filterleiste durchsucht Titel, Zusammenfassung und Tags
+der Signale in der Wolke — dieselbe Volltextsuche wie `?q=` im Feed: `solar panel`
+verlangt beide Wörter, `"solar panel"` die Phrase, `-wort` schließt aus. Treffer
+leuchten groß, alles andere tritt zurück. Eine **neue** Suche öffnet das Fenster auf
+alle Monate, damit sofort alle Treffer zu sehen sind; danach eingrenzen und mit *Play*
+zusehen, wann sie auftauchen. Gemessen am 27.09.: `Solar Panel` 112 Treffer, die Phrase
+94, `perovskite` 137, `AI` 3.399 — 0,12 bis 0,57 s. Leeren beendet die Suche.
 
 *Lesart* (steht auch auf der Seite): jeder Monat hat gleich viele Punkte — **Helligkeit
 zeigt, woraus ein Monat bestand, nie wie viel es gab**; Menge gehört auf die Messachsen.

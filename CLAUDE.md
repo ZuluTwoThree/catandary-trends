@@ -1298,7 +1298,14 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      "Recompute cloud" = Snapshot-Worker Modus "space" (spawnDetached). Neue
      Abhaengigkeit umap-learn (+numba, pynndescent) — die venv von ct-dev IST die von main
      (Symlink), sie war also mit der Installation am 27.09. auch dort; geprueft: nur
-     Zusaetze, numpy/scipy/sklearn unveraendert)
+     Zusaetze, numpy/scipy/sklearn unveraendert.
+     Navigation seit 27.09. abends: Drehpunkt (Doppelklick auf Signal/Ring), Shift-/Rechts-
+     Ziehen verschiebt, Mausrad zoomt zum Cursor, Zoom x0,15-x50 (Grenze = 16-Bit-Koordinaten),
+     Nahschnitt statt gespiegelter Punkte; Tooltip nach 1 s (Signaltitel bzw. Taschenname);
+     Suchfeld = Feed-Volltextsuche (websearch_to_tsquery auf idx_trends_fts) ueber die IDs des
+     Laufs, /api/foresight/space/search, 0,12-0,57 s. Ringe werden auf der CPU getroffen
+     (pickRing), die SVG-Ebene nimmt keine Klicks — sonst begann ein Zug auf einem Ring
+     keine Drehung)
     (Cluster-Schicht seit 2026-09-15: Snapshot ueber die letzten 24 Monate statt des
      ganzen Archivs (`--window-months`), Momentum als Anteil am Gehoer auf einem FESTEN
      QUELLENPANEL (nur Quellen, die in beiden Vergleichsfenstern geliefert haben) mit
