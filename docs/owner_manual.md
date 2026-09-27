@@ -646,6 +646,8 @@ je Ebene ~5 min, kleine Vertikale Sekunden). Einzelne Bereiche mit
 Tabellen `emerging_runs`/`emerging_nests`, je Bereich bleibt ein Lauf stehen.
 Methode, Messungen und die offenen Punkte: `docs/emerging_nests_2026-09-15.md`.
 
+Dieselben Nester räumlich und über die Zeit: §5.12 (`/trends/foresight/map`) — sie liest genau diesen Schnappschuss.
+
 ### 5.5 Evolution (`/trends/foresight/evolution?vertical=<V>`)
 
 Cluster-Abstammung über Zeitfenster: Fäden mit *New* / *Fading*, rising /
@@ -830,6 +832,65 @@ scripts/weekly_field_watch.sh` — Wochenblätter aller Kunden nach dem Research
 Pulse; keine GPU, kein Kollisionswächter; ohne Kundendateien no-op; Notiz
 `data/weekly_field_watch_last.json` in der Montags-Mail. Die Kundenseite wird
 bewusst nicht automatisch hochgeladen — du sichtest das Blatt zuerst.
+
+### 5.12 Signalraum in 3D (`/trends/foresight/map`)
+
+Dieselben Nester wie §5.4, aber mit Koordinaten und einer Uhr. Die Seite rechnet
+**nichts** nach: sie liest den Emerging-Schnappschuss (Zentroid je Nest, dazu die
+Treffer je Monat aus dem Archiv-Scan) und ergänzt nur das, was dort fehlte — drei
+Achsen und einen Zeitregler. Gibt es für einen Bereich keinen Lauf, steht das da,
+mit Verweis auf den Recompute-Knopf der Emerging-Seite.
+
+**Zwei Ansichten, ein Umschalter oben links.**
+
+*Messachsen* (Default) ist die ehrliche: waagerecht das **Alter** des Nests
+(logarithmisch, Ticks bei 1/2/5/10/20 Jahren), senkrecht der **Anteil je 10.000
+Signalen desselben Monats** über zwölf rollende Monate (logarithmisch), in die
+Tiefe das **Wachstum** gegen die zwölf Monate davor (×0,25 bis ×4, Mitte „flat").
+Die Punkte *bewegen* sich: ein Monatsschritt ist ein Schritt auf der Bahn, und die
+Spur hinter jedem Nest zeigt das letzte Jahr. Die Kugelgröße ist der Anteil, mit
+**einer** Skala für den ganzen Durchlauf — eine Skala je Bild ließe jeden Monat
+gleich voll aussehen.
+
+*Karte* ist die Orientierungshilfe: die 1024-dimensionalen Zentroide per
+klassischem MDS auf drei Achsen gepresst. Hier steht die Position fest und nur die
+Größe atmet. Die Achsen sind **absichtlich unbeschriftet** — sie haben keine
+Einheit. Was die Projektion kostet, steht daneben: Shepard r, gehaltene Varianz und
+wie viele der fünf nächsten Nachbarn Nachbarn bleiben. Gemessen am 27.09.: global
+r 0,47 / 24 % / 47 %, `tier:science` r 0,73, `tier:market` r 0,64. Lies die Karte
+danach: unter 0,6 ist nur die *Gruppierung* ablesbar, keine Abstände und erst recht
+keine Richtungen. Eine lokale Nachoptimierung (Sammon) wurde gemessen und nicht
+eingebaut — sie hob r auf 0,71–0,73, verschlechterte aber die Nachbarschaftstreue
+bei einem von zwei Läufen (`docs/signal_space_2026-09-27.md`).
+
+**Bedienung.** Ziehen dreht den Raum, `+`/`−` zoomen, *Reset view* stellt den
+Blick zurück. *Spin* dreht langsam von selbst (das ist es, was die Tiefe überhaupt
+sichtbar macht) und hält an, sobald du ziehst. *Play* läuft durch die Monate,
+Pfeiltasten links/rechts gehen einen Monat weiter, der Regler springt direkt.
+*Trails* schaltet die Spuren ab. Zeigen auf einen Punkt blendet seine Zahlen
+rechts ein, Klicken hält sie fest.
+
+**Was rechts steht** — und warum: Monat, Anteil (mit der rohen Trefferzahl
+dahinter), Wachstum, Alter mit erstem Monat, Größe und Kohäsion des Nests,
+Quellenzahl **mit der größten Quelle und ihrem Anteil**, wie viel des Nests je
+eine Klassifizierungsstufe gesehen hat, und der Anteil etablierter Quellen. Liegt
+letzterer unter 50 %, sagt ein Satz darunter, dass das Alter dieses Nests eher
+etwas über unsere Abonnements aussagt als über die Welt. Darunter drei Belege mit
+Quelle und Datum. Ein dichtes, brandneues Nest kann ein einzelner Massen-Ingest
+sein — die Seite versteckt das nicht, sie zeigt es.
+
+**Normalisierung.** Der Korpus wird für den Stand **des Laufs** rekonstruiert
+(`trends.created_at <= Laufzeitpunkt`), nicht für heute: sonst sänke jedes Nest,
+weil die jüngsten Monate seit dem Schnappschuss um Zehntausende Zeilen gewachsen
+sind, die Nest-Treffer aber eingefroren sind. Der Rest (~0,02 %) sind Zeilen, deren
+Publikationsdatum am Lauftag noch in der Zukunft lag; die Seite nennt ihn.
+
+**Grenzen.** Gezeigt werden die letzten 180 Monate (15 Jahre); 24 weitere werden
+nur geladen, um die rollenden Fenster zu füllen. Ältere Monate stehen im
+Schnappschuss, ergeben aber bei wenigen hundert Signalen je Monat kein Bild. Die
+Seite ist wie das ganze Cockpit Owner-only (im `PUBLIC_MODE` 404, nie im Export) —
+deshalb darf sie interaktiv sein, wo die öffentlichen Seiten deterministisch sein
+müssen.
 
 ## 6. Dossier-Desk — entfernt 2026-09-19
 

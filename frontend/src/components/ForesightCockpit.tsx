@@ -371,6 +371,18 @@ export default function ForesightCockpit({
               </div>
             </Link>
             <Link
+              href="/trends/foresight/map"
+              className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                Signal Space 3D →
+              </div>
+              <div className="font-sans text-sm text-text mt-1">
+                The pockets in space and over time — age, share per 10,000 signals and
+                growth, month by month
+              </div>
+            </Link>
+            <Link
               href="/trends/foresight/research"
               className="group border border-border p-4 hover:border-accent hover:bg-accent/5 transition-colors"
             >

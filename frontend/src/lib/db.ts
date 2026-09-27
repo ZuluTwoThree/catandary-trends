@@ -43,7 +43,7 @@ const inflight = new Map<string, Promise<unknown>>();
  *  route await the same promise, so their RSC rows always stream in the same
  *  order (two independent queries finished in either order under pool
  *  contention and flipped the payload between builds). */
-function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+export function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
   const hit = ttlCache.get(key);
   if (hit && Date.now() - hit.at < ttlMs) return Promise.resolve(hit.value as T);
   let p = inflight.get(key) as Promise<T> | undefined;

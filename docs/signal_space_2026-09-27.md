@@ -1,0 +1,124 @@
+# Signalraum in 3D — Methode, Messungen, Grenzen (2026-09-27)
+
+Owner-Frage: *„Welche Möglichkeiten gibt es, die Cluster in den Daten visuell im
+Frontend in 3D und im Zeitverlauf sichtbar zu machen?"* — Antwort in Code:
+`/trends/foresight/map`, zwei Ansichten auf einem Renderer.
+
+Der Befund vorweg, weil er die ganze Bauweise bestimmt: **die Daten waren schon
+da.** Jedes Nest aus `emerging_nests` trägt seinen 1024-dimensionalen Zentroid
+und, aus dem Archiv-Scan, seine Treffer in jedem der 449 Monate. Es fehlten nur
+Koordinaten und eine Uhr. Die Seite rechnet deshalb **nichts** nach: kein Cron,
+kein Modell, keine GPU, keine neue Tabelle, keine Migration.
+
+## Zwei Koordinatenquellen
+
+| | Messachsen (Default) | Karte |
+|---|---|---|
+| Position | Alter × Anteil je 10.000 × Wachstum | 1024 → 3 per klassischem MDS |
+| bewegt sich über die Zeit | **ja** — ein Monat ist ein Schritt auf der Bahn | nein, nur die Größe atmet |
+| Achsen beschriftet | ja, mit Einheit und Ticks | **nein** — sie haben keine |
+| Aussage | Messung | Orientierung |
+
+Die Trennung ist der Kern. Eine bunte 3D-Wolke aus einer Projektion sieht nach
+Präzision aus und ist keine; die Seite sagt das an der Stelle, an der es jemand
+liest, und stellt daneben die Ansicht, deren Achsen tatsächlich etwas bedeuten.
+
+## Was die Projektion kostet (gemessen)
+
+Klassisches MDS über die Zentroide, also PCA — die Zentroide sind L2-normiert,
+damit ist der euklidische Abstand eine monotone Funktion des Kosinus.
+
+| Lauf | Nester | Shepard r | gehaltene Varianz | 5 nächste Nachbarn bleiben |
+|---|---|---|---|---|
+| `global` (43) | 83 | **0,474** | 24,4 % | 47 % |
+| `tier:science` (52) | 94 | **0,731** | 29,4 % | 55 % |
+| `tier:market` (55) | 55 | **0,635** | 26,8 % | 49 % |
+
+Lesart auf der Seite: ab 0,8 sind Abstände grob ablesbar, ab 0,6 Nachbarschaften,
+darunter nur die Gruppierung. Der globale Lauf liegt **darunter** — die Karte ist
+dort ein Navigationsbild und sonst nichts.
+
+Der TypeScript-Eigensolver (Potenziteration mit Gram-Schmidt-Deflation, fester
+Startvektor, feste Vorzeichenkonvention) reproduziert `numpy.linalg.eigh` auf drei
+Stellen: 0,474 / 24,4 % / 47 % in beiden Implementierungen. Er ist deterministisch,
+weil das Bild zwischen zwei Renderings nicht spiegeln darf.
+
+### Negativergebnis: lokale Nachoptimierung bringt es nicht
+
+Naheliegend wäre, nach dem MDS lokal nachzuoptimieren (Sammon-Stress, Gewicht
+1/d, 400 Schritte Gradientenabstieg vom MDS-Start). Gemessen:
+
+| Lauf | Shepard r | Nachbarn bleiben |
+|---|---|---|
+| `global` | 0,474 → **0,727** | 0,472 → 0,554 |
+| `tier:market` | 0,635 → **0,707** | 0,491 → **0,436** |
+
+Der Abstandsfehler sinkt deutlich, die **Nachbarschaftstreue** — das, wofür eine
+Karte benutzt wird — verbessert sich in einem Lauf und verschlechtert sich im
+anderen. Ein Verfahren mit Lernrate, das die entscheidende Größe nicht verlässlich
+verbessert, ist den Zuwachs an Beweglichkeit nicht wert. Bleibt bei MDS: ohne
+Parameter, exakt reproduzierbar, und sein Fehler ist rein „drei Achsen können 1024
+nicht halten".
+
+## Normalisierung: der Korpus zum Laufzeitpunkt
+
+Lautstärke ist ein **Anteil je 10.000 Signalen desselben Monats**, nie eine
+Zählung — rohe Zahlen zeichnen unsere eigene Sammelrampe (von einigen hundert
+Signalen je Monat auf über hunderttausend). Dieselbe Einheit wie in den
+Field-Watch-Blättern, aus demselben Grund.
+
+Entscheidend ist das **Wann** des Korpus. Gebunden an `trends.created_at <=
+Laufzeitpunkt`:
+
+| | Zeilen |
+|---|---|
+| heute, datiert, gleiche Filter | 1.812.312 |
+| zum Laufzeitpunkt (16.09. 00:26) | 1.749.548 |
+| vom Schnappschuss tatsächlich gescannt | 1.749.204 |
+
+Rest 0,02 % — Zeilen, deren Publikationsdatum am Lauftag noch in der Zukunft lag
+und die der Scan deshalb übersprang. Die Seite nennt den Rest, statt Exaktheit zu
+suggerieren. Gegen den **heutigen** Korpus sähe jedes Nest aus wie am Verblassen:
+die jüngsten Monate sind seit dem Schnappschuss um 63.000 Zeilen gewachsen, die
+Nest-Treffer sind darin eingefroren.
+
+## Bauweise
+
+Keine 3D-Bibliothek. Bei 55–94 Punkten sind es eine Rotationsmatrix, eine
+Perspektivdivision und ein Tiefensortieren; jede Spur ist **ein** `<path>` statt
+zwölf Segmenten, macht rund 250 SVG-Knoten und bleibt beim Drehen flüssig — ohne
+WebGL und ohne 150 KB three.js auf einer Seite, die es nicht braucht.
+
+- Mathematik: `frontend/src/lib/clusterMap.ts` (rein, 20 Vitests)
+- Renderer: `frontend/src/components/foresight/ClusterSpace.tsx`
+- Seite: `frontend/src/app/trends/foresight/map/page.tsx`
+- Daten: `getEmergingSpace` in `frontend/src/lib/emerging.ts`
+
+Laufzeit: 3,2 s beim ersten Aufruf je Bereich (die Monatssumme des Korpus, danach
+eine Stunde im TTL-Cache), 0,12 s warm. Nutzlast 232 KB für 83 Nester × 204 Monate.
+Gezeigt werden 180 Monate, 24 weitere werden nur geladen, um die rollenden Fenster
+zu füllen.
+
+Drei Entscheidungen, die im Bild sichtbar sind:
+- **Eine** Größenskala für den ganzen Durchlauf, nicht je Monat — sonst sähe jeder
+  Monat gleich voll aus, und die Animation zeigte nichts.
+- Spuren **brechen** in Monaten ohne Treffer, statt vom Achsenboden quer durch den
+  Würfel zu laufen.
+- Die Karte wird auf das 92-%-Quantil der Auslenkung gerahmt (ein Faktor für alle
+  drei Achsen, die Form bleibt); ein einzelnes exzentrisches Nest drückte sonst
+  alle anderen zu einem Punkt.
+
+## Grenzen
+
+- Die Karte ist eine Projektion, kein Messwert — s. o.
+- Ein dichtes, brandneues Nest kann ein einzelner Massen-Ingest sein. Das Panel
+  nennt deshalb immer die größte Quelle mit Anteil, den Anteil klassifizierter
+  Mitglieder und den Anteil etablierter Quellen; unter 50 % steht ausdrücklich da,
+  dass das Alter eher etwas über unsere Abonnements aussagt als über die Welt.
+- Gezeigt werden **Nester**, nicht die 1,75 Mio. Einzelsignale. Eine Punktwolke der
+  Signale bräuchte einen Projektionslauf in eine Nebentabelle (nie ein Massen-UPDATE
+  auf `trends` — HNSW), eine Stichprobe von wenigen Prozent und WebGL. Sie zeigte
+  Dichte und Löcher, aber keine Messung. Erst sinnvoll, wenn diese Seite trägt.
+- Owner-only wie das ganze Cockpit (`PUBLIC_MODE` 404, nie im Export). Genau
+  deshalb darf sie interaktiv sein, wo die öffentlichen Seiten deterministisch
+  sein müssen.

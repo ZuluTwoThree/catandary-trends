@@ -1256,7 +1256,24 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                    schreibt nur eine Kandidatendatei; measure_mega_axes --write-yaml bleibt die einzige Schreibquelle der Badge-Felder).
                                    Der SQLite-Prototyp discover_mega_trends.py wurde 2026-09-09 entfernt (zeigte auf die vor-Postgres-DB, abgelöst).
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
-  /clusters /clusters/<id> /emerging /technology /lead-time /evolution
+  /clusters /clusters/<id> /emerging /map /technology /lead-time /evolution
+    (/map = Signalraum in 3D, seit 2026-09-27: DIESELBEN Nester wie /emerging, nur mit
+     Koordinaten und einer Uhr — es wird nichts nachgerechnet, die Seite liest den
+     Schnappschuss (Zentroid je Nest + Treffer je Monat aus dem Archiv-Scan). Zwei
+     Ansichten, ein Renderer: MESSACHSEN (Default) = Alter x Anteil je 10.000 Signalen
+     desselben Monats x Wachstum gegen das Vorjahr, alle drei rollend ueber 12 Monate,
+     die Punkte WANDERN, Spur = letztes Jahr; KARTE = die 1024-dim Zentroide per
+     klassischem MDS auf drei Achsen, Position fest, nur die Groesse atmet. Die
+     Kartenachsen sind bewusst unbeschriftet (sie haben keine Einheit), dafuer steht die
+     gemessene Verzerrung daneben: global Shepard r 0,47 / 24 % Varianz / 47 % der fuenf
+     naechsten Nachbarn bleiben; tier:science 0,73, tier:market 0,64. Normalisiert wird
+     gegen den Korpus ZUM LAUFZEITPUNKT (trends.created_at <= Lauf), sonst saehe jedes
+     Nest aus wie am Verblassen — die juengsten Monate sind seit dem Schnappschuss um
+     Zehntausende Zeilen gewachsen, die Nest-Treffer nicht (Rest ~0,02 %, wird genannt).
+     Kein Cron, kein Modell, keine GPU, keine neue Tabelle, keine 3D-Bibliothek: der
+     Renderer sind eine Rotationsmatrix, eine Perspektivdivision und ein Tiefensortieren
+     in SVG (~250 Knoten). Owner-only wie das ganze Cockpit. Mathe + Messungen:
+     frontend/src/lib/clusterMap.ts, docs/signal_space_2026-09-27.md)
     (Cluster-Schicht seit 2026-09-15: Snapshot ueber die letzten 24 Monate statt des
      ganzen Archivs (`--window-months`), Momentum als Anteil am Gehoer auf einem FESTEN
      QUELLENPANEL (nur Quellen, die in beiden Vergleichsfenstern geliefert haben) mit
