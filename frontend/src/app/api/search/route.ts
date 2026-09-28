@@ -15,24 +15,13 @@ import { NextResponse } from "next/server";
 import { getPool, q, q1 } from "@/lib/pg";
 import { rateLimitInfo, clientIp } from "@/lib/rateLimit";
 import { archiveWindowDays } from "@/lib/archiveWindow";
+import { annLiteral as toAnnLiteral, embedQuery } from "@/lib/queryEmbedding";
 
 // Every search embeds the query (CPU embedder) + runs several DB aggregates, so an
 // unguarded public GET is a resource-exhaustion vector (#5-hardening). Per-IP
 // sliding-window limit; the trajectory route keeps its own stricter gate.
 const SEARCH_RL_LIMIT = 30; // requests …
 const SEARCH_RL_WINDOW_MS = 60_000; // … per minute per client
-
-// Query vectors come from the CPU embedding server (:8091, catandary-embed-cpu,
-// the same Qwen3-Embedding-8B as the pipeline — cos 0.9995 against the GPU
-// vectors). Until 2026-09-28 this called Ollama on :11434, which has not run since
-// the move to llama.cpp: every query silently fell back to text match only. Not
-// :8090 either — that server carries whatever chat model is loaded, and a chat
-// model answering /v1/embeddings would put the query into another space.
-const EMBED_HOST = process.env.RESEARCH_EMBED_HOST || "http://127.0.0.1:8091";
-const EMBED_TIMEOUT_MS = 15_000;
-const EMBED_DIM = 4096;
-/** ANN column dimension (Matryoshka prefix of the 4096-dim embedding). */
-const ANN_DIM = 1024;
 
 const RRF_K = 60; // RRF smoothing constant
 const ANALYTICS_MIN_N = 30; // minimum hits for analytics overlays
@@ -44,32 +33,6 @@ const ANALYTICS_MAX_IDS = 8000;
 /** Must textually match the idx_trends_fts GIN index expression. */
 const FTS_VECTOR =
   "to_tsvector('english', coalesce(title_en,'') || ' ' || coalesce(summary_en,'') || ' ' || coalesce(tags::text,''))";
-
-// ---------------------------------------------------------------------------
-// Query embedding (llama.cpp, OpenAI-compatible endpoint)
-// ---------------------------------------------------------------------------
-async function embedQuery(query: string): Promise<number[] | null> {
-  try {
-    const resp = await fetch(`${EMBED_HOST}/v1/embeddings`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input: query }),
-      signal: AbortSignal.timeout(EMBED_TIMEOUT_MS),
-    });
-    if (!resp.ok) return null;
-    const data = (await resp.json()) as { data?: Array<{ embedding?: number[] }> };
-    const vec = data.data?.[0]?.embedding;
-    if (!vec || vec.length !== EMBED_DIM) return null;
-    return vec;
-  } catch {
-    return null;
-  }
-}
-
-/** pgvector literal for the truncated (ANN) query vector. */
-function toAnnLiteral(vec: number[]): string {
-  return "[" + vec.slice(0, ANN_DIM).join(",") + "]";
-}
 
 // ---------------------------------------------------------------------------
 // Lexical search (Postgres FTS)

@@ -970,6 +970,26 @@ Forschung oft als Methode oder Nebensatz. Eine **neue** Suche öffnet das Fenste
 alle Monate; danach eingrenzen und mit *Play* zusehen, wann die Treffer auftauchen.
 Leeren beendet die Suche.
 
+*Suche nach Bedeutung* (seit 28.09.): der Schalter vor dem Feld wählt **Text** (die
+Stichwortsuche oben), **Meaning** (Vektorsuche) oder **Both** (Standard). *Meaning* bettet
+die Anfrage auf dem CPU-Embedder `:8091` ein und holt die **N nächsten Signale** über den
+HNSW-Index auf `embedding_1024` (N = 250 / 500 / 1.000 — pgvector 0.6 liefert je Anfrage
+höchstens 1.000; mehr ginge erst mit pgvector 0.8). Findet auch ohne gemeinsames Wort und
+in jeder Sprache: `Pflanzenkäse aus Cashew` → 971 Signale in der Wolke (Text: 0),
+`PV module recycling` → Recycling-Arbeiten, in denen „solar panel" nicht vorkommt.
+**Wichtig:** die Vektorsuche liefert eine *Rangfolge*, keine Treffermenge — irgendetwas ist
+immer „am nächsten", auch bei Unsinn. Deshalb stehen neben dem Feld die
+Ähnlichkeitsspanne (z. B. `similarity 0.84–0.63`, nächster bis letzter Treffer; die Skala
+schwankt von Anfrage zu Anfrage, also als Spanne lesen, nicht als Note), und die Treffer
+verblassen mit ihrem Rang (der nächste voll, der letzte auf 20 %). In *Both* sind die
+Treffer nach Herkunft gefärbt — **gelbgrün** = Text und Bedeutung, **weiß** = nur Text,
+**cyan** = nur Bedeutung — mit den drei Zahlen daneben; in *Text* und *Meaning* bleibt die
+Färbung nach Ebene/Vertikale. Tooltip und Detailfeld nennen je Punkt `match: text`,
+`meaning 0.72` oder `text + meaning 0.72`. Gemessen 28.09.: `solar panel` in *Both* 106
+beides / 2.186 nur Text / 825 nur Bedeutung; Antwort 0,3–1,3 s. Ist der Embedder weg,
+steht „partial — meaning (embedder :8091 unreachable) failed" daneben und die Textsuche
+läuft weiter.
+
 *Lesart* (steht auch auf der Seite): jeder Monat hat gleich viele Punkte — **Helligkeit
 zeigt, woraus ein Monat bestand, nie wie viel es gab**; Menge gehört auf die Messachsen.
 UMAP hält Nachbarschaften, keine Abstände: gemessen am 27.09. ist die Trustworthiness

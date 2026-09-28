@@ -21,6 +21,11 @@ import {
   type CloudMeta,
   type LayoutView,
   layoutView,
+  MATCH_MEANING,
+  MATCH_TEXT,
+  type SearchMode,
+  decodeSearchBody,
+  matchWeight,
   type Vec3,
   type View,
 } from "@/lib/spaceCloud";
@@ -69,9 +74,9 @@ function hex(h: string): [number, number, number] {
 const VERT_SRC = `#version 300 es
 in vec3 aPos;
 in vec4 aMeta; // month, tier, vertical, nest
-in float aHit;  // 1 = matches the search
+in vec2 aHit;   // x: 0 = sample, else MATCH_* flags of a search match; y: opacity factor
 uniform float uYaw, uPitch, uRadius, uFocal, uMonthEnd, uWindowLen, uNest, uGhosts, uDpr, uAlpha;
-uniform float uNear, uSearch, uMaxScale, uHitSize, uGhostAlpha, uBaseSize;
+uniform float uNear, uSearch, uMaxScale, uHitSize, uGhostAlpha, uBaseSize, uMatchColor;
 uniform vec3 uCenter;
 uniform vec2 uViewport;
 uniform int uTierMask, uVertMask, uColorBy;
@@ -92,7 +97,7 @@ void main() {
   float state = 2.0;
   if (((uTierMask >> tier) & 1) == 0 || ((uVertMask >> vert) & 1) == 0) state = 0.0;
   else if (uNest >= 0.0 && abs(aMeta.w - uNest) > 0.5) state = 1.0;
-  else if (uSearch > 0.5 && aHit < 0.5) state = 1.0;
+  else if (uSearch > 0.5 && aHit.x < 0.5) state = 1.0;
   else if (!(aMeta.x <= uMonthEnd && aMeta.x > uMonthEnd - uWindowLen)) state = 1.0;
   if (state < 0.5 || (state < 1.5 && uGhosts < 0.5)) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -121,6 +126,11 @@ void main() {
   if (uColorBy == 0) c = uTierColors[tier];
   else if (uColorBy == 1) c = uVertColors[vert];
   else c = aMeta.w > 65534.5 ? vec3(0.32) : hsl(mod(aMeta.w * 137.508, 360.0) / 360.0, 0.65, 0.62);
+  // "Both" search: a match is coloured by where it came from, not by its tier
+  if (uMatchColor > 0.5 && aHit.x > 0.5) {
+    int m = int(aHit.x + 0.5);
+    c = m == 3 ? vec3(0.831, 1.0, 0.227) : (m == 1 ? vec3(0.957, 0.957, 0.933) : vec3(0.31, 0.82, 1.0));
+  }
   // (not "active": that is a reserved word in GLSL ES 3.0)
   bool inWindow = state > 1.5;
   // With a search running every lit point is a match: drawn larger, with its
@@ -129,7 +139,8 @@ void main() {
   // 100,000 context points, while thousands would melt into white.
   bool searching = uSearch > 0.5;
   gl_PointSize = (inWindow ? (searching ? uHitSize : uBaseSize) : uBaseSize * 0.57) * min(scale, uMaxScale) * uDpr;
-  vColor = vec4(c, inWindow ? uAlpha : (searching ? 0.5 * uGhostAlpha : uGhostAlpha));
+  // a vector-only match fades with its rank (aHit.y, see matchWeight)
+  vColor = vec4(c, inWindow ? uAlpha * (aHit.x > 0.5 ? aHit.y : 1.0) : (searching ? 0.5 * uGhostAlpha : uGhostAlpha));
 }`;
 
 const FRAG_SRC = `#version 300 es
@@ -170,10 +181,16 @@ function compile(gl: WebGL2RenderingContext, type: number, src: string): WebGLSh
 }
 
 /**
- * Upload a point set. `hit` is the aHit attribute of every point: 0 for the
- * sample (context while a search runs), 1 for the matches of a search.
+ * Upload a point set. `hit` is the aHit attribute (2 floats per point): null
+ * for the sample (context while a search runs, all zero), otherwise the match
+ * flags and opacity factor of each search match.
  */
-function makeLayer(gl: WebGL2RenderingContext, prog: WebGLProgram, d: CloudData, hit: 0 | 1): Layer {
+function makeLayer(
+  gl: WebGL2RenderingContext,
+  prog: WebGLProgram,
+  d: CloudData,
+  hit: Float32Array | null
+): Layer {
   const vao = gl.createVertexArray()!;
   gl.bindVertexArray(vao);
   const attrib = (name: string, data: Float32Array, size: number): WebGLBuffer => {
@@ -195,7 +212,7 @@ function makeLayer(gl: WebGL2RenderingContext, prog: WebGLProgram, d: CloudData,
   const bufs = [
     attrib("aPos", d.pos, 3),
     attrib("aMeta", meta, 4),
-    attrib("aHit", new Float32Array(d.n).fill(hit), 1),
+    attrib("aHit", hit ?? new Float32Array(d.n * 2), 2),
   ];
   gl.bindVertexArray(null);
   return { vao, bufs, n: d.n };
@@ -225,11 +242,11 @@ function setupGl(canvas: HTMLCanvasElement, d: CloudData): Gl {
   const names = [
     "uYaw", "uPitch", "uRadius", "uFocal", "uMonthEnd", "uWindowLen", "uNest", "uGhosts",
     "uDpr", "uAlpha", "uViewport", "uTierMask", "uVertMask", "uColorBy", "uTierColors", "uVertColors",
-    "uCenter", "uNear", "uSearch", "uMaxScale", "uHitSize", "uGhostAlpha", "uBaseSize",
+    "uCenter", "uNear", "uSearch", "uMaxScale", "uHitSize", "uGhostAlpha", "uBaseSize", "uMatchColor",
   ];
   const loc: Record<string, WebGLUniformLocation | null> = {};
   for (const u of names) loc[u] = gl.getUniformLocation(prog, u);
-  return { gl, prog, loc, sample: makeLayer(gl, prog, d, 0), hits: null };
+  return { gl, prog, loc, sample: makeLayer(gl, prog, d, null), hits: null };
 }
 
 interface PointDetail {
@@ -292,9 +309,15 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   const [hitData, setHitData] = useState<CloudData | null>(null);
   const [searchInfo, setSearchInfo] = useState<{
     outside: number;
-    bySource: { text: number; research: number; patents: number };
+    bySource: { text: number; research: number; patents: number; meaning?: number };
     failed: string[];
+    mode: SearchMode;
+    kinds: { text: number; meaning: number; both: number };
+    simRange: [number, number] | null;
   } | null>(null);
+  // Keyword search, vector search ("meaning": the N nearest signals), or both.
+  const [searchMode, setSearchMode] = useState<SearchMode>("both");
+  const [meaningN, setMeaningN] = useState<number>(1000);
   const [searchNote, setSearchNote] = useState<string | null>(null);
 
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -444,8 +467,18 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     const g = glRef.current;
     if (!g) return;
     dropLayer(g.gl, g.hits);
-    g.hits = hitData ? makeLayer(g.gl, g.prog, hitData, 1) : null;
-  }, [data, hitData]);
+    let attr: Float32Array | null = null;
+    if (hitData) {
+      attr = new Float32Array(hitData.n * 2);
+      const [hi, lo] = searchInfo?.simRange ?? [1, 0];
+      for (let i = 0; i < hitData.n; i++) {
+        const m = hitData.match ? hitData.match[i] : MATCH_TEXT;
+        attr[i * 2] = m || MATCH_TEXT;
+        attr[i * 2 + 1] = matchWeight(hitData.sim ? hitData.sim[i] : 0, m, lo, hi);
+      }
+    }
+    g.hits = hitData && attr ? makeLayer(g.gl, g.prog, hitData, attr) : null;
+  }, [data, hitData, searchInfo]);
 
   // ---- draw whenever anything visible changes
   useEffect(() => {
@@ -484,6 +517,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     gl.uniform1f(loc.uSearch, hitData ? 1 : 0);
     gl.uniform1f(loc.uMaxScale, MAX_POINT_SCALE);
     gl.uniform1f(loc.uHitSize, hitSize);
+    gl.uniform1f(loc.uMatchColor, hitData && searchInfo?.mode === "both" ? 1 : 0);
     gl.uniform1f(loc.uGhostAlpha, ghostAlpha);
     gl.uniform1f(loc.uBaseSize, baseSize);
     gl.bindVertexArray(g.sample.vao);
@@ -493,7 +527,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
       gl.drawArrays(gl.POINTS, 0, g.hits.n);
     }
     gl.bindVertexArray(null);
-  }, [data, view, yaw, pitch, cam, size, monthEnd, windowLen, nestSel, ghosts, tierMask, vertMask, colorBy, tierColors, vertColors, alpha, hitSize, hitData, ghostAlpha, baseSize]);
+  }, [data, view, yaw, pitch, cam, size, monthEnd, windowLen, nestSel, ghosts, tierMask, vertMask, colorBy, tierColors, vertColors, alpha, hitSize, hitData, ghostAlpha, baseSize, searchInfo]);
 
   // ---- clocks: spin and play
   // The spin pauses while the cursor rests on the canvas: it is there to show
@@ -659,7 +693,9 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         setHover(i);
         scheduleTip(i >= 0 ? `p${i}` : "", x, y, () =>
           loadDetail(i).then((d) =>
-            d ? { title: d.title, sub: [d.source_name, d.date].filter(Boolean).join(" · ") } : null
+            d
+              ? { title: d.title, sub: [d.source_name, d.date, matchLabel(layer, i)].filter(Boolean).join(" · ") }
+              : null
           )
         );
       });
@@ -740,7 +776,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   // summaries, tags, research and patent abstracts); every match comes back as
   // a placed point, not only the ~6 % of them that happen to be in the sample.
   const runSearch = useCallback(
-    (text: string, lv: LayoutView = L) => {
+    (text: string, lv: LayoutView = L, mode: SearchMode = searchMode, n: number = meaningN) => {
       const qtext = text.trim();
       const seq = ++searchSeq.current;
       // any selection belongs to the layer that is about to change
@@ -756,23 +792,29 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
       }
       setSearchNote("searching…");
       fetch(
-        `/api/foresight/space/search?run=${meta.runId}&q=${encodeURIComponent(qtext)}${lv.key ? "&layout=alt" : ""}`
+        `/api/foresight/space/search?run=${meta.runId}&q=${encodeURIComponent(qtext)}` +
+          `${lv.key ? "&layout=alt" : ""}&mode=${mode}&n=${n}`
       )
         .then(async (r) => {
           if (!r.ok) {
             const j = (await r.json().catch(() => ({}))) as { error?: string };
             throw new Error(j.error ?? `search failed (${r.status})`);
           }
+          const sim = (r.headers.get("X-Sim") ?? "").split(",").filter(Boolean).map(Number);
           const info = {
             outside: Number(r.headers.get("X-Outside") ?? 0),
             bySource: JSON.parse(r.headers.get("X-Sources") ?? "{}"),
             failed: (r.headers.get("X-Failed") ?? "").split(",").filter(Boolean),
+            mode,
+            kinds: JSON.parse(r.headers.get("X-Kinds") ?? '{"text":0,"meaning":0,"both":0}'),
+            simRange: sim.length === 2 ? ([sim[0], sim[1]] as [number, number]) : null,
           };
           return { buf: await r.arrayBuffer(), info };
         })
         .then(({ buf, info }) => {
           if (seq !== searchSeq.current) return; // a newer query is on its way
-          const hitsLayer = unpack(buf, lv.coordRange);
+          const body = decodeSearchBody(buf);
+          const hitsLayer: CloudData = { ...unpack(body.records, lv.coordRange), sim: body.sim, match: body.match };
           // A NEW search opens the window to every month, so all matches are
           // visible at once; narrowing it (and Play) is then the owner's move.
           // Refining the query keeps whatever window was chosen meanwhile.
@@ -786,7 +828,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
           if (seq === searchSeq.current) setSearchNote(e instanceof Error ? e.message : "search failed");
         });
     },
-    [data, meta.runId, meta.months.length, L]
+    [data, meta.runId, meta.months.length, L, searchMode, meaningN]
   );
 
   const onQuery = (v: string) => {
@@ -950,7 +992,44 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
           ) : null
         )}
         <span className="flex-1" />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {(["text", "meaning", "both"] as SearchMode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={btn(searchMode === m)}
+              title={
+                m === "text"
+                  ? "keyword search: the words occur in the title, summary, tags or abstract"
+                  : m === "meaning"
+                    ? "vector search: the signals nearest in meaning — a ranking, not a set"
+                    : "keyword and vector search together, coloured by where a match came from"
+              }
+              onClick={() => {
+                if (searchMode === m) return;
+                setSearchMode(m);
+                if (searchOn.current && query.trim().length >= 2) runSearch(query, L, m, meaningN);
+              }}
+            >
+              {m === "text" ? "Text" : m === "meaning" ? "Meaning" : "Both"}
+            </button>
+          ))}
+          {searchMode !== "text" &&
+            [250, 500, 1000].map((k) => (
+              <button
+                key={k}
+                type="button"
+                className={btn(meaningN === k)}
+                title={`the ${k.toLocaleString("en-US")} nearest signals (pgvector returns at most 1,000 per query)`}
+                onClick={() => {
+                  if (meaningN === k) return;
+                  setMeaningN(k);
+                  if (searchOn.current && query.trim().length >= 2) runSearch(query, L, searchMode, k);
+                }}
+              >
+                {k.toLocaleString("en-US")}
+              </button>
+            ))}
           <input
             type="search"
             value={query}
@@ -961,7 +1040,11 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
                 runSearch(query);
               }
             }}
-            placeholder='search titles, e.g. solar panel or "solar panel"'
+            placeholder={
+              searchMode === "text"
+                ? 'search words, e.g. solar panel or "solar panel"'
+                : "search by meaning, e.g. PV module recycling — any language"
+            }
             aria-label="search the signals in the cloud"
             className="w-72 bg-ink border border-border px-2 py-1 font-mono text-[11px] text-paper placeholder:text-muted/70 focus:border-accent outline-none"
           />
@@ -971,7 +1054,10 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
               title={
                 `before de-duplication: ${searchInfo.bySource.text.toLocaleString("en-US")} in titles/summaries/tags, ` +
                 `${searchInfo.bySource.research.toLocaleString("en-US")} in research abstracts, ` +
-                `${searchInfo.bySource.patents.toLocaleString("en-US")} in patent abstracts`
+                `${searchInfo.bySource.patents.toLocaleString("en-US")} in patent abstracts` +
+                (searchInfo.bySource.meaning
+                  ? `, ${searchInfo.bySource.meaning.toLocaleString("en-US")} nearest by meaning`
+                  : "")
               }
             >
               {hitData.n.toLocaleString("en-US")} {hitData.n === 1 ? "match" : "matches"}
@@ -980,9 +1066,24 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
               )}
             </span>
           )}
+          {hitData && searchInfo && searchInfo.mode === "both" && (
+            <span className="font-mono text-[10px] text-muted whitespace-nowrap">
+              <Dot c="#d4ff3a" /> both {searchInfo.kinds.both.toLocaleString("en-US")} · <Dot c="#f4f4ee" /> text{" "}
+              {searchInfo.kinds.text.toLocaleString("en-US")} · <Dot c="#4fd1ff" /> meaning{" "}
+              {searchInfo.kinds.meaning.toLocaleString("en-US")}
+            </span>
+          )}
+          {hitData && searchInfo?.simRange && (
+            <span
+              className="font-mono text-[10px] text-muted whitespace-nowrap"
+              title="cosine similarity of the nearest and of the last returned signal — the scale differs from query to query, so read it as a range, not a grade"
+            >
+              similarity {searchInfo.simRange[0].toFixed(2)}–{searchInfo.simRange[1].toFixed(2)}
+            </span>
+          )}
           {searchInfo && searchInfo.failed.length > 0 && (
             <span className="font-mono text-[10px] text-warn whitespace-nowrap">
-              partial — {searchInfo.failed.join(", ")} timed out
+              partial — {searchInfo.failed.join(", ")} failed
             </span>
           )}
           {searchNote && (
@@ -1149,6 +1250,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
                     <Row k="signal type" v={detail.signal_type ?? "—"} />
                     <Row k="status" v={detail.status ?? "—"} />
                     <Row k="nest" v={selNest ? selNest.name : "none"} />
+                    {matchLabel(layer, sel) && <Row k="match" v={matchLabel(layer, sel)} />}
                   </dl>
                 </>
               ) : (
@@ -1256,6 +1358,20 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
       </div>
     </div>
   );
+}
+
+function Dot({ c }: { c: string }) {
+  return <span className="inline-block w-2 h-2 rounded-full align-middle mr-0.5" style={{ background: c }} />;
+}
+
+/** "text", "meaning 0.72", "text + meaning 0.72" — or "" outside a search. */
+function matchLabel(d: CloudData | null, i: number): string {
+  if (!d || !d.match || i < 0 || i >= d.n) return "";
+  const m = d.match[i];
+  const s = d.sim && m & MATCH_MEANING ? ` ${d.sim[i].toFixed(2)}` : "";
+  if (m === (MATCH_TEXT | MATCH_MEANING)) return `text + meaning${s}`;
+  if (m & MATCH_MEANING) return `meaning${s}`;
+  return m & MATCH_TEXT ? "text" : "";
 }
 
 function Row({ k, v }: { k: string; v: string }) {

@@ -1314,6 +1314,15 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      zeichnet der Schalter "All signals" (Standard beim Oeffnen, aus = Stichprobe) diese 1,52 Mio. auch (points?all=1, einmal geladen;
      Helligkeit = Menge statt Zusammensetzung, Punkte kleiner/blasser, Picking ohne
      Objekt je Punkt).
+     SUCHE NACH BEDEUTUNG seit 28.09. (auf dev): Schalter Text · Meaning · Both (Default Both);
+     Meaning = Anfrage auf dem CPU-Embedder :8091 (lib/queryEmbedding.ts, geteilt mit
+     /api/search) -> die N naechsten Signale per HNSW (idx_trends_embedding_1024_hnsw, alle
+     Zeilen, Filter status signal/published), N 250/500/1000 (pgvector 0.6: ef_search <= 1000).
+     Rangfolge, keine Menge: Treffer verblassen mit dem Rang (spaceCloud.matchWeight, relativ
+     zur Spanne DIESER Anfrage), Spanne steht daneben; in Both gefaerbt nach Herkunft
+     (gelbgruen beides / weiss Text / cyan Bedeutung, Shader-Attribut aHit = Flags + Gewicht).
+     Antwort = Datensaetze || f32 Aehnlichkeit || u8 Flag je Treffer (encodeSearchBody),
+     Header X-Kinds/X-Sim/X-Mode; ?mode=&n= am search-Endpunkt.
      ZWEI ANORDNUNGEN seit 28.09. (Owner-Go nach docs/space_eval_2026-09-28.md): Default
      "Topic" = je Ebene deren Mittelvektor abziehen (Schreibstil), dann UMAP-Kosinus direkt
      auf 1024 Dimensionen -> ein Thema aus Forschung/Patenten/Presse liegt beisammen
