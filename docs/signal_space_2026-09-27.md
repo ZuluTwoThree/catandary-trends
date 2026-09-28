@@ -241,7 +241,10 @@ und die Ebenenfarbe ginge verloren. Abstract-Treffer bedeuten „kommt vor", nic
   `all_points`, 24,4 MB, Laden 0,3 s lokal); dann ist Helligkeit Menge, nicht
   Zusammensetzung. Die Form bestimmt weiter die Stichprobe.
 - Ob eine andere Projektion Themen besser ordnet, misst `docs/space_eval_2026-09-28.md`
-  (Ebenen-Mittel abziehen + Kosinus auf 1024 ist besser; nicht umgestellt).
+  (Ebenen-Mittel abziehen + Kosinus auf 1024 ist besser). Seit 28.09. ist das die
+  Standard-Anordnung *Topic*; die hier beschriebene ist *Style* (Schalter *Layout*).
+  Lauf 4: 108.000 + 1.523.285 Signale in beiden Anordnungen, 1.224 s, Spitze 4,0 GB,
+  52 MB; Topic 25,1 % Nachbarn@10 / Trust 0,923, Style 23,9 % / 0,937.
 - Owner-only wie das ganze Cockpit (`PUBLIC_MODE` 404, nie im Export). Genau
   deshalb darf sie interaktiv sein, wo die öffentlichen Seiten deterministisch
   sein müssen.

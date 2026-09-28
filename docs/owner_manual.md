@@ -898,7 +898,20 @@ Publikationsdatum am Lauftag noch in der Zukunft lag; die Seite nennt ihn.
 
 **Dritte Ansicht: *Signal cloud*** (seit 27.09.) zeigt nicht die Nester, sondern die
 **Signale selbst**: 600 aus jedem der letzten 180 Monate, zusammen 108.000, per UMAP
-in drei Dimensionen. Die Nester sitzen als Ringe in derselben Wolke; ein Klick auf
+in drei Dimensionen.
+
+*Layout* (seit 28.09.) wählt zwischen zwei Anordnungen derselben Punkte:
+**Topic** (Standard) rechnet vor der Projektion den typischen Schreibstil jeder Ebene
+heraus (ihren Mittelvektor) — ein Thema aus Forschung, Patenten, Förderung und
+Fachpresse liegt dann in einer Region; **Style** ist die Anordnung vom 27.09., in der
+die Ebenen eigene Kontinente bilden. Gemessen (`docs/space_eval_2026-09-28.md`): die
+Treffer eines Suchbegriffs sind in *Topic* zu 34 % statt 21 % untereinander nächste
+Nachbarn, Forschung und Markt zum selben Thema liegen weniger als halb so weit
+auseinander. Suche, *All signals*, Taschen und Filter funktionieren in beiden; beim
+Umschalten wird eine laufende Suche in der neuen Anordnung neu platziert. Rechts
+unten stehen die Treuewerte der gewählten Anordnung. Ein Lauf rechnet beide
+(zuletzt 20 min, Spitze 4 GB); nur die alte: `python -m pipeline.signal_space
+--layouts style`. Die Nester sitzen als Ringe in derselben Wolke; ein Klick auf
 einen Ring lässt seine Mitglieder aufleuchten. Ein Klick auf einen Punkt öffnet rechts
 Titel, Quelle, Datum, Ebene, Vertikale, Signaltyp und Nest — veröffentlichte Artikel
 verlinken auf die Artikelseite, alle anderen auf die Quelle.
@@ -970,8 +983,10 @@ Tage, die Wolke umfasst 15 Jahre.
 
 *Neu rechnen:* Knopf **Recompute cloud** oben auf der Seite (kein Cron) oder
 `.venv/bin/python -m pipeline.signal_space` (`--dry-run` zählt nur die Stichprobe,
-`--per-month`, `--months`, `--sample-only` ohne das Einordnen aller Signale). CPU, rund
-10 Minuten, Spitze ~2,8 GB (das Einordnen der 1,4 Mio. übrigen Signale sind ~8 davon). Die letzten zwei Läufe bleiben
+`--per-month`, `--months`, `--sample-only` ohne das Einordnen aller Signale, `--layouts
+style` nur die alte Anordnung). CPU, mit beiden Anordnungen rund 20 Minuten, Spitze ~4 GB
+(das Einordnen der 1,4 Mio. übrigen Signale in beide sind ~17 davon; nur *Style* ~10 min,
+2,8 GB). Die letzten zwei Läufe bleiben
 in `signal_space_runs`. Die Nester kommen aus dem jüngsten *globalen* Emerging-Lauf — wer
 die Nester neu rechnet, sollte danach auch die Wolke neu rechnen.
 

@@ -253,3 +253,74 @@ def test_sample_only_leaves_the_placed_blob_empty():
     with get_connection() as c:
         r = c.execute("SELECT all_points, n_all FROM signal_space_runs WHERE id = ?", (rid,)).fetchone()
     assert r["all_points"] is None and r["n_all"] is None
+
+
+# ------------------------------------------------------------ two layouts (28.09.)
+
+def test_centring_removes_each_tiers_mean():
+    rng = np.random.default_rng(5)
+    codes = np.array([1] * 60 + [2] * 60)
+    topic = rng.normal(size=(120, 32))
+    style = np.zeros((120, 32))
+    style[:60, 0] = 8.0                                  # tier 1 "writes" along axis 0
+    style[60:, 1] = 8.0                                  # tier 2 along axis 1
+    X = _unit((topic + style).astype(np.float32))
+    M = ss.tier_means(X, codes)
+    assert M.shape == (len(ss.TIER_CODES), 32)
+    Xc = ss.center_tiers(X, codes, M)
+    assert np.allclose(np.linalg.norm(Xc, axis=1), 1.0, atol=1e-5)
+    # the style axes no longer separate the tiers
+    gap_before = abs(X[:60, 0].mean() - X[60:, 0].mean())
+    gap_after = abs(Xc[:60, 0].mean() - Xc[60:, 0].mean())
+    assert gap_after < 0.05 * gap_before
+    # a code with no rows falls back to the sample mean
+    assert np.allclose(M[3], X.mean(axis=0), atol=1e-6)
+
+
+def test_nest_centroids_lose_the_mean_weighted_by_their_tier_shares():
+    M = np.zeros((len(ss.TIER_CODES), 4), np.float32)
+    M[ss.TIER_CODES["science"]] = [1, 0, 0, 0]
+    M[ss.TIER_CODES["market"]] = [0, 1, 0, 0]
+    C = _unit(np.array([[2, 1, 1, 0], [2, 1, 1, 0]], np.float32))
+    nests = [{"tier_shares": {"science": 1.0}},
+             {"tier_shares": {"science": 0.5, "market": 0.5, "unknown": 0.9}}]
+    out = ss.center_nests(C, nests, M)
+    assert np.allclose(out[0], _unit((C[0] - M[ss.TIER_CODES["science"]])[None])[0], atol=1e-6)
+    half = 0.5 * M[ss.TIER_CODES["science"]] + 0.5 * M[ss.TIER_CODES["market"]]
+    assert np.allclose(out[1], _unit((C[1] - half)[None])[0], atol=1e-6)
+
+
+def test_a_run_stores_both_layouts_with_the_same_points():
+    _seed({"2026-01": 40, "2026-02": 40, "2026-03": 40}, dim=1024)
+    ss.migrate_signal_space_tables()
+    with get_connection() as c:
+        c.execute("DELETE FROM signal_space_runs")
+    rid = ss.run(per_month=25, n_months=3, end_month="2026-03")
+    with get_connection() as c:
+        r = c.execute("SELECT * FROM signal_space_runs WHERE id = ?", (rid,)).fetchone()
+    assert r["layout"] == "topic" and r["alt_layout"] == "style"
+    assert r["method"] == "tiercenter-cos1024-umap3+pca50-umap3"
+    assert r["pca_variance"] is None and 0 < r["alt_pca_variance"] <= 1
+    assert 0 <= r["alt_neighbour_keep"] <= 1 and r["alt_coord_range"] > 0
+    for main_col, alt_col in (("points", "alt_points"), ("all_points", "alt_all_points")):
+        a, b = ss.unpack(bytes(r[main_col])), ss.unpack(bytes(r[alt_col]))
+        for field in ("trend_id", "month", "tier", "vertical", "nest"):
+            assert (a[field] == b[field]).all()             # same points, only placed differently
+        assert not ((a["x"] == b["x"]) & (a["y"] == b["y"]) & (a["z"] == b["z"])).all()
+    # sample positions equal their placed positions in the second layout, too
+    sample, every = ss.unpack(bytes(r["alt_points"])), ss.unpack(bytes(r["alt_all_points"]))
+    at = {int(t): k for k, t in enumerate(every["trend_id"])}
+    for rec in sample:
+        other = every[at[int(rec["trend_id"])]]
+        assert (rec["x"], rec["y"], rec["z"]) == (other["x"], other["y"], other["z"])
+
+
+def test_a_single_layout_leaves_the_alt_columns_empty():
+    _seed({"2026-01": 30, "2026-02": 30}, dim=1024)
+    ss.migrate_signal_space_tables()
+    rid = ss.run(per_month=20, n_months=2, end_month="2026-02", layouts=("style",))
+    with get_connection() as c:
+        r = c.execute("SELECT layout, alt_layout, alt_points, method FROM signal_space_runs "
+                      "WHERE id = ?", (rid,)).fetchone()
+    assert r["layout"] == "style" and r["method"] == "pca50-umap3"
+    assert r["alt_layout"] is None and r["alt_points"] is None

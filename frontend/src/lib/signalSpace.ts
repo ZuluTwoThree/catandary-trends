@@ -24,7 +24,9 @@ export async function getLatestSpaceRun(): Promise<CloudMeta | null> {
   try {
     const r = await q1<Record<string, unknown>>(
       "SELECT id, created_at::text AS created_at, n_points, n_all, per_month, months, coord_range, " +
-        "pca_variance, neighbour_keep, trustworthiness, duration_s, emerging_run_id, nests, codes " +
+        "pca_variance, neighbour_keep, trustworthiness, duration_s, emerging_run_id, nests, codes, " +
+        "layout, alt_layout, alt_coord_range, alt_nests, alt_pca_variance, alt_neighbour_keep, " +
+        "alt_trustworthiness " +
         "FROM signal_space_runs ORDER BY id DESC LIMIT 1"
     );
     if (!r) return null;
@@ -37,7 +39,7 @@ export async function getLatestSpaceRun(): Promise<CloudMeta | null> {
       perMonth: Number(r.per_month ?? 0),
       months: parseJson<string[]>(r.months, []),
       coordRange: Number(r.coord_range ?? 1),
-      pcaVariance: Number(r.pca_variance ?? 0),
+      pcaVariance: r.pca_variance == null ? null : Number(r.pca_variance),
       neighbourKeep: Number(r.neighbour_keep ?? 0),
       trustworthiness: Number(r.trustworthiness ?? 0),
       durationS: Number(r.duration_s ?? 0),
@@ -45,16 +47,28 @@ export async function getLatestSpaceRun(): Promise<CloudMeta | null> {
       nests: parseJson<CloudNest[]>(r.nests, []),
       tierCodes: codes.tier ?? {},
       verticalCodes: codes.vertical ?? {},
+      // runs before 28.09. had one layout, the one now called "style"
+      layout: r.layout ? String(r.layout) : "style",
+      alt: r.alt_layout
+        ? {
+            layout: String(r.alt_layout),
+            coordRange: Number(r.alt_coord_range ?? 1),
+            nests: parseJson<[number, number, number][]>(r.alt_nests, []),
+            pcaVariance: r.alt_pca_variance == null ? null : Number(r.alt_pca_variance),
+            neighbourKeep: Number(r.alt_neighbour_keep ?? 0),
+            trustworthiness: Number(r.alt_trustworthiness ?? 0),
+          }
+        : null,
     };
   } catch {
     return null;
   }
 }
 
-/** The packed points of one run. */
-export async function getSpaceBlob(runId: number): Promise<Buffer | null> {
+/** The packed sample points of one run, in its default or its second layout. */
+export async function getSpaceBlob(runId: number, alt = false): Promise<Buffer | null> {
   const r = await q1<{ points: Buffer | null }>(
-    "SELECT points FROM signal_space_runs WHERE id = $1",
+    `SELECT ${alt ? "alt_points" : "points"} AS points FROM signal_space_runs WHERE id = $1`,
     [runId]
   );
   return r?.points ?? null;
@@ -90,26 +104,31 @@ export async function getSpacePoint(id: number): Promise<SpacePoint | null> {
  * Every signal of a run's window, placed into its cloud (all_points, sorted by
  * trend id) — kept in memory per run: ~24 MB for 1.5M signals, read once.
  */
-const placedCache = new Map<number, { buf: Uint8Array; ids: Uint32Array }>();
+const placedCache = new Map<string, { buf: Uint8Array; ids: Uint32Array }>();
 
-async function placedSignals(runId: number): Promise<{ buf: Uint8Array; ids: Uint32Array } | null> {
-  const hit = placedCache.get(runId);
+async function placedSignals(
+  runId: number,
+  alt = false
+): Promise<{ buf: Uint8Array; ids: Uint32Array } | null> {
+  const key = `${runId}:${alt ? "alt" : ""}`;
+  const hit = placedCache.get(key);
   if (hit) return hit;
   const r = await q1<{ all_points: Buffer | null }>(
-    "SELECT all_points FROM signal_space_runs WHERE id = $1",
+    `SELECT ${alt ? "alt_all_points" : "all_points"} AS all_points FROM signal_space_runs WHERE id = $1`,
     [runId]
   );
   if (!r?.all_points) return null;
   const buf = new Uint8Array(r.all_points.buffer, r.all_points.byteOffset, r.all_points.byteLength);
   const entry = { buf, ids: recordIds(buf) };
-  if (placedCache.size >= 2) placedCache.delete(placedCache.keys().next().value as number);
-  placedCache.set(runId, entry);
+  // two layouts of the latest run (~24 MB each), plus room for the previous run
+  if (placedCache.size >= 4) placedCache.delete(placedCache.keys().next().value as string);
+  placedCache.set(key, entry);
   return entry;
 }
 
 /** Every placed signal of a run, same 16-byte layout as the sample. */
-export async function getAllBlob(runId: number): Promise<Uint8Array | null> {
-  return (await placedSignals(runId))?.buf ?? null;
+export async function getAllBlob(runId: number, alt = false): Promise<Uint8Array | null> {
+  return (await placedSignals(runId, alt))?.buf ?? null;
 }
 
 export interface SpaceSearchResult {
@@ -137,8 +156,12 @@ export interface SpaceSearchResult {
  * phrase must occur as a phrase, -word excludes. Measured 27.09. on the whole
  * corpus: text and research under 1 s, patents 0.2–7 s ("battery").
  */
-export async function searchSpace(runId: number, query: string): Promise<SpaceSearchResult | null> {
-  const placed = await placedSignals(runId);
+export async function searchSpace(
+  runId: number,
+  query: string,
+  alt = false
+): Promise<SpaceSearchResult | null> {
+  const placed = await placedSignals(runId, alt);
   if (!placed) return null;
   const ts = "websearch_to_tsquery('english', $1)";
   const [text, research, patents] = await Promise.allSettled([

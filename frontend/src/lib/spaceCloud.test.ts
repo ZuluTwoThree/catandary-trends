@@ -19,7 +19,9 @@ import {
   pointState,
   projectPoint,
   unpack,
+  layoutView,
   type CloudData,
+  type CloudMeta,
   type CloudFilter,
   type View,
 } from "./spaceCloud";
@@ -312,5 +314,49 @@ describe("pickRing", () => {
 
   it("returns -1 far from every ring", () => {
     expect(pickRing(rings, 300, 300)).toBe(-1);
+  });
+});
+
+describe("layoutView", () => {
+  const base: CloudMeta = {
+    runId: 4, createdAt: "", nPoints: 2, nAll: 0, perMonth: 1, months: ["2026-01"],
+    coordRange: 1.5, pcaVariance: null, neighbourKeep: 0.26, trustworthiness: 0.92,
+    emergingRunId: null, durationS: 0, tierCodes: {}, verticalCodes: {},
+    nests: [
+      { id: 1, name: "a", tier: null, x: 0.1, y: 0.2, z: 0.3, members: 3 },
+      { id: 2, name: "b", tier: null, x: 0.4, y: 0.5, z: 0.6, members: 0 },
+    ],
+    layout: "topic",
+    alt: {
+      layout: "style", coordRange: 2.5, nests: [[-1, -2, -3]], pcaVariance: 0.39,
+      neighbourKeep: 0.24, trustworthiness: 0.94,
+    },
+  };
+
+  it("gives the default layout unchanged", () => {
+    const v = layoutView(base, false);
+    expect(v.key).toBe("");
+    expect(v.layout).toBe("topic");
+    expect(v.coordRange).toBe(1.5);
+    expect(v.nests).toBe(base.nests);
+    expect(v.pcaVariance).toBeNull();
+  });
+
+  it("swaps range, nest positions and quality for the second layout", () => {
+    const v = layoutView(base, true);
+    expect(v.key).toBe("alt");
+    expect(v.layout).toBe("style");
+    expect(v.coordRange).toBe(2.5);
+    expect([v.nests[0].x, v.nests[0].y, v.nests[0].z]).toEqual([-1, -2, -3]);
+    expect(v.nests[0].name).toBe("a");
+    // a nest without a stored position keeps its default one
+    expect([v.nests[1].x, v.nests[1].y, v.nests[1].z]).toEqual([0.4, 0.5, 0.6]);
+    expect([v.pcaVariance, v.neighbourKeep, v.trustworthiness]).toEqual([0.39, 0.24, 0.94]);
+  });
+
+  it("falls back to the default when a run has only one layout", () => {
+    const v = layoutView({ ...base, alt: null, layout: "style" }, true);
+    expect(v.key).toBe("");
+    expect(v.layout).toBe("style");
   });
 });

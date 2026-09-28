@@ -34,15 +34,75 @@ export interface CloudMeta {
   perMonth: number;
   months: string[];
   coordRange: number;
-  pcaVariance: number;
+  /** null for a layout without PCA ("topic": UMAP straight on 1024 dims). */
+  pcaVariance: number | null;
   neighbourKeep: number;
   trustworthiness: number;
+  /** Name of the default layout ("topic"; runs before 28.09. are "style"). */
+  layout: string;
+  /** The second layout of the same points, or null (runs before 28.09.). */
+  alt: CloudAltLayout | null;
   durationS: number;
   emergingRunId: number | null;
   nests: CloudNest[];
   /** code -> name, as stored with the run (so decoding never drifts). */
   tierCodes: Record<string, string>;
   verticalCodes: Record<string, string>;
+}
+
+/**
+ * A second arrangement of the same points (pipeline/signal_space.py LAYOUTS):
+ * its own coordinates, range and nest positions; months, tiers, verticals,
+ * nests and ids are identical.
+ */
+export interface CloudAltLayout {
+  layout: string;
+  coordRange: number;
+  /** [x, y, z] per nest, in the order of CloudMeta.nests. */
+  nests: [number, number, number][];
+  pcaVariance: number | null;
+  neighbourKeep: number;
+  trustworthiness: number;
+}
+
+/** What the page needs of one layout — the default or the alternative. */
+export interface LayoutView {
+  /** "" for the default, "alt" for the second (the API parameter). */
+  key: "" | "alt";
+  layout: string;
+  coordRange: number;
+  nests: CloudNest[];
+  pcaVariance: number | null;
+  neighbourKeep: number;
+  trustworthiness: number;
+}
+
+export function layoutView(meta: CloudMeta, alt: boolean): LayoutView {
+  if (!alt || !meta.alt) {
+    return {
+      key: "",
+      layout: meta.layout,
+      coordRange: meta.coordRange,
+      nests: meta.nests,
+      pcaVariance: meta.pcaVariance,
+      neighbourKeep: meta.neighbourKeep,
+      trustworthiness: meta.trustworthiness,
+    };
+  }
+  const a = meta.alt;
+  return {
+    key: "alt",
+    layout: a.layout,
+    coordRange: a.coordRange,
+    // a nest without a stored position keeps its default one rather than vanish
+    nests: meta.nests.map((n, i) => {
+      const p = a.nests[i];
+      return p ? { ...n, x: p[0], y: p[1], z: p[2] } : n;
+    }),
+    pcaVariance: a.pcaVariance,
+    neighbourKeep: a.neighbourKeep,
+    trustworthiness: a.trustworthiness,
+  };
 }
 
 export interface CloudData {

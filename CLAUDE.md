@@ -1285,7 +1285,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      Nester. pipeline/signal_space.py zieht deterministisch 600 Signale je Monat aus den
      letzten 180 Monaten (108.000; kleinste (id*2654435761) mod 2^32 je Monat, Schnitt per
      Fensterfunktion in der DB), L2 -> PCA 50 -> UMAP 3D (n_neighbors 30, Seed 42 -> bewusst
-     einfaedig), setzt die Nester des juengsten globalen Emerging-Laufs per transform in
+     einfaedig) [seit 28.09. ZWEI Anordnungen je Lauf, s. u.], setzt die Nester des juengsten globalen Emerging-Laufs per transform in
      dieselbe Wolke und markiert jeden Punkt mit seinem Nest (Regel des Archiv-Scans:
      Kosinus >= Nest-Schwelle). Speicher: EINE Zeile je Lauf in signal_space_runs, Punkte
      als gepackter BYTEA (16 B/Punkt, 1,7 MB), die letzten 2 Laeufe bleiben; nie ein
@@ -1313,7 +1313,19 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      (Spalte all_points, nach trend_id sortiert, 24 MB; Lauf ~10 min, 2,8 GB). Seit 28.09.
      zeichnet der Schalter "All signals" diese 1,52 Mio. auch (points?all=1, einmal geladen;
      Helligkeit = Menge statt Zusammensetzung, Punkte kleiner/blasser, Picking ohne
-     Objekt je Punkt). "solar panel"
+     Objekt je Punkt).
+     ZWEI ANORDNUNGEN seit 28.09. (Owner-Go nach docs/space_eval_2026-09-28.md): Default
+     "Topic" = je Ebene deren Mittelvektor abziehen (Schreibstil), dann UMAP-Kosinus direkt
+     auf 1024 Dimensionen -> ein Thema aus Forschung/Patenten/Presse liegt beisammen
+     (Begriffszusammenhalt 0,21 -> 0,34, Ebenenabstand 0,47 -> 0,20); "Style" = die
+     Anordnung vom 27.09. (PCA 50), per Schalter "Layout" auf der Seite. Ein Lauf lernt
+     beide auf derselben Stichprobe und laedt jedes Signal EINMAL fuer beide; Nest-
+     Zugehoerigkeit bleibt im Originalraum. Spalten layout + alt_* (alt_points,
+     alt_all_points, alt_coord_range, alt_nests, alt_pca_variance, alt_neighbour_keep,
+     alt_trustworthiness; additiv in migrate_signal_space_tables, Live-DB 28.09.);
+     API ?layout=alt an points und search. `--layouts style` rechnet nur die alte.
+     Lauf 4 (28.09.): 1.224 s, Spitze 4,0 GB, 52 MB; Topic 25 % Nachbarn/Trust 0,923,
+     Style 24 %/0,937. "solar panel"
      2.288 statt 112 Treffer, "AI" 88.698, 0,2-1,1 s. Ringe werden auf der CPU getroffen
      (pickRing), die SVG-Ebene nimmt keine Klicks — sonst begann ein Zug auf einem Ring
      keine Drehung)
