@@ -240,6 +240,8 @@ und die Ebenenfarbe ginge verloren. Abstract-Treffer bedeuten „kommt vor", nic
   Schalter *All signals* stattdessen alle 1,52 Mio. eingeordneten Signale (Blob
   `all_points`, 24,4 MB, Laden 0,3 s lokal); dann ist Helligkeit Menge, nicht
   Zusammensetzung. Die Form bestimmt weiter die Stichprobe.
+- Ob eine andere Projektion Themen besser ordnet, misst `docs/space_eval_2026-09-28.md`
+  (Ebenen-Mittel abziehen + Kosinus auf 1024 ist besser; nicht umgestellt).
 - Owner-only wie das ganze Cockpit (`PUBLIC_MODE` 404, nie im Export). Genau
   deshalb darf sie interaktiv sein, wo die öffentlichen Seiten deterministisch
   sein müssen.

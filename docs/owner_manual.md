@@ -1647,6 +1647,24 @@ deren `pkill` auch den CPU-Embedder :8091 träfe — und meldet sich über den
 Besitzvermerk `data/llama-server.tag_eval.pid` und `ops_events` an, damit der
 Fremdbelegungs-Alarm schweigt. Ergebnisse unter `data/tag_eval/` (nicht versioniert).
 
+### 11.4d Projektion der Signalwolke messen (`scripts/space_eval/`, 2026-09-28)
+
+Frage: ordnet eine andere Projektion die Themen in der Signalwolke besser an? Die
+Messlatte lernt jede Variante auf 36.000 Signalen (200 je Monat), setzt die Treffer von
+28 festen Suchbegriffen per `transform` ein und misst Treue zum Originalraum,
+Reinheit gegen Prüfer-CPC und OpenAlex-Themen, den Zusammenhalt der Treffer eines
+Begriffs und den Abstand der Ebenen (Forschung/Patente/Förderung/Markt) zum selben
+Thema. Ergebnis: `docs/space_eval_2026-09-28.md` — kurz: **Ebenen-Mittel abziehen +
+UMAP-Kosinus auf 1024** ist in allen Themenmaßen am besten (bei allen 28 Begriffen),
+kostet ~4 min mehr je Wolkenlauf und ist **nicht** umgestellt.
+
+```bash
+.venv/bin/python scripts/space_eval/eval_projection.py                 # 7 Varianten, ~5 min, CPU
+.venv/bin/python scripts/space_eval/eval_projection.py --seed 7 --out eval_projection_seed7.json
+```
+
+Nur lesend, keine GPU; Ergebnisse unter `data/space_eval/` (nicht versioniert).
+
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert
 
 1. `systemctl --user status llama-server`, `tail -50 /tmp/llama-server.log`.
