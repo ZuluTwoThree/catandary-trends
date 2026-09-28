@@ -1174,8 +1174,12 @@ cross_industry:
   3090 18–19/s), Vektoren gleich (Kosinus 0,998 gegen den CPU-Embedder der Workstation).
   **`pipeline/remote_gpu.py` spricht noch Ollama (`/api/embed`) an und passt nicht** — für einen
   Einbett-Lauf dort ein eigener llama-server per SSH, wie `scripts/space_eval/run_abstract_eval_bqu.sh`
-  (Nemotron anhalten nur mit Owner-Wort). Ob die Fensterregel 01–17 Uhr für die Ubuntu-Seite
-  gilt, ist nicht entschieden. Der Absatz darunter beschreibt die Windows-Seite.
+  (Nemotron anhalten nur mit Owner-Wort). **Für die 5080 gibt es keine feste Regel, wann sie frei
+  und wann sie für den Owner reserviert ist (Owner 28.09.) — vor jeder Nutzung fragen.** Die
+  Fensterregel 01–17 Uhr im Absatz darunter (Windows-Seite, `remote_gpu.REMOTE_GPU_WINDOW`) gilt
+  damit nicht mehr als Freigabe. Vektoren sind austauschbar: CPU-Embedder gegen gespeicherte
+  3090-Vektoren Kosinus 0,998 (200 Signale), 5080 gegen CPU 0,998. Der Absatz darunter
+  beschreibt die Windows-Seite.
 - **Zweite GPU im Tailnet — RTX 5080 auf `bequiet` (seit 2026-09-10):** Windows-Arbeitsplatz,
   Tailnet `100.119.239.40`, 1 ms über LAN (kein Relay). Ollama 0.33.3 auf `:11434` ohne
   Authentifizierung, elf Modelle vorhanden (u. a. `qwen3:8b`, `qwen3:14b`, `qwen3-embedding`,

@@ -167,6 +167,11 @@ Nemotron dafür angehalten (Owner), Qwen3-Embedding-8B (md5-gleiche GGUF) auf :8
 - **Gleicher Vektorraum:** 200 aufgeräumte Texte zusätzlich auf dem CPU-Embedder der
   Workstation (:8091) eingebettet → Kosinus im Mittel **0,998**, schlechtester 0,996. Beide
   Karten können sich einen Lauf teilen.
+- **Direkt gegen die 3090:** 200 produktive Forschungssignale (Vektoren von der 3090,
+  Rezept Titel + 500 roh) mit exakt demselben Text auf dem CPU-Embedder neu eingebettet →
+  Kosinus Ø **0,9982**, min 0,9954; 95 % gleiche 10 nächste Nachbarn. 5080 ↔ CPU liegt mit
+  0,9983 gleichauf — alle drei Wege streuen gleich wenig. Die Produktion mischt CPU (Suche)
+  und 3090 (Bestand) ohnehin schon.
 - **Die 5080 ist 1,75× so schnell wie die 3090.** Food-Pilot (~218.000): ~1,9 h auf der 5080
   allein, ~1,2 h mit beiden Karten; Variante C aus #114 (2,75 Mio.) ~15 h mit beiden.
 - **Betriebsfehler dabei:** das Treiberskript wurde während des Laufs korrigiert (Bash liest
