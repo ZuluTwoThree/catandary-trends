@@ -9,6 +9,7 @@ with the nest it belongs to.
     python -m pipeline.signal_space                 # compute + persist one run
     python -m pipeline.signal_space --dry-run       # only count the sample
     python -m pipeline.signal_space --per-month 300 --months 120
+    python -m pipeline.signal_space --layouts style  # only the 27.09. layout
 
 Design decisions, each with its reason:
 
@@ -26,7 +27,13 @@ Design decisions, each with its reason:
   owner filters. The cost is visible and stated on the page — the embedding
   encodes writing style, so research and trade press sit apart even on the same
   subject (docs/emerging_nests_2026-09-15.md).
-* **L2 -> PCA(50) -> UMAP(3D).** UMAP keeps neighbourhoods, not distances. The
+* **Two layouts per run (since 28.09.), see LAYOUTS.** "topic" (default):
+  subtract each tier's mean vector, then UMAP with cosine on all 1024 dims —
+  topics come together across tiers. "style": L2 -> PCA(50) -> UMAP, the layout
+  of 27.09., where the tiers form their own continents. Both are fitted on the
+  same sample; every signal is loaded once and placed into both. Measured in
+  docs/space_eval_2026-09-28.md (scripts/space_eval/eval_projection.py).
+* **UMAP keeps neighbourhoods, not distances.** The
   run records how much of that it achieved (kept nearest neighbours @10 and
   sklearn's trustworthiness on a 3,000-point subsample, both against the
   1024-dim vectors), and the page prints it.
@@ -77,6 +84,23 @@ QUALITY_K = 10
 FETCH_CHUNK = 5000
 KEEP_RUNS = 2
 HASH_MUL = 2654435761
+# Two layouts of the same signals (28.09., docs/space_eval_2026-09-28.md). The
+# first is the default picture; the second is kept as a switch on the page.
+#   topic  subtract each tier's mean vector (the writing style: research, patents,
+#          funding and trade press sit on separate continents even for one topic),
+#          then UMAP with cosine straight on the 1024-dim prefix. Measured against
+#          the old layout: hits of one search term 0.21 -> 0.34 of their neighbours
+#          (all 28 test terms better), research<->market gap 0.47 -> 0.20, CPC
+#          purity 0.47 -> 0.55; ~4 min more per run.
+#   style  the layout of 27.09.: PCA 50 -> UMAP euclidean. The continents are the
+#          point there — they show how differently the tiers write.
+LAYOUTS = {
+    "topic": {"tier_center": True, "pca_dims": None, "metric": "cosine",
+              "method": "tiercenter-cos1024-umap3"},
+    "style": {"tier_center": False, "pca_dims": PCA_DIMS, "metric": "euclidean",
+              "method": "pca50-umap3"},
+}
+DEFAULT_LAYOUTS = ("topic", "style")
 HASH_MOD = 2 ** 32
 
 NO_NEST = 0xFFFF
@@ -121,6 +145,16 @@ def migrate_signal_space_tables() -> None:
         # 27.09. (evening): every signal of the window placed into the cloud, so a
         # search can show all matches, not only the ~6 % that are in the sample.
         add_columns(conn, "signal_space_runs", {"all_points": blob, "n_all": "INTEGER"})
+        # 28.09.: a second layout of the same points (LAYOUTS). The first layout
+        # keeps the original columns; the second gets its own blobs, range, nest
+        # positions and quality. `layout` names the first (NULL = runs before
+        # 28.09., which were "style").
+        add_columns(conn, "signal_space_runs", {
+            "layout": "TEXT", "alt_layout": "TEXT",
+            "alt_points": blob, "alt_all_points": blob, "alt_coord_range": "REAL",
+            "alt_nests": "TEXT", "alt_pca_variance": "REAL",
+            "alt_neighbour_keep": "REAL", "alt_trustworthiness": "REAL",
+        })
 
 
 # -------------------------------------------------------------------- months
@@ -268,7 +302,9 @@ def latest_global_nests() -> tuple[int | None, list[dict], np.ndarray, np.ndarra
         dominant = max(tiers, key=lambda t: (tiers[t] or {}).get("share_of_nest", 0),
                        default=None)
         nests.append({"id": int(r["id"]), "name": r["llm_label"] or r["label"] or "Nest",
-                      "tier": dominant})
+                      "tier": dominant,
+                      "tier_shares": {t: float((tiers[t] or {}).get("share_of_nest") or 0)
+                                      for t in tiers}})
         cents.append(v)
         thr.append(float(r["threshold"] if r["threshold"] is not None else 1.0))
     C = l2(np.vstack(cents)) if cents else np.zeros((0, 1024), np.float32)
@@ -296,6 +332,38 @@ def assign_nests(Xn: np.ndarray, C: np.ndarray, thresholds: np.ndarray,
     return out
 
 
+# ------------------------------------------------------------ tier centring
+
+def tier_means(Xn: np.ndarray, codes: np.ndarray) -> np.ndarray:
+    """(len(TIER_CODES), dim): mean vector of each tier code in the sample; a
+    code without rows gets the sample mean (it then shifts nothing specific)."""
+    g = Xn.mean(axis=0) if len(Xn) else np.zeros(Xn.shape[1], np.float32)
+    M = np.tile(g, (len(TIER_CODES), 1)).astype(np.float32)
+    for c in np.unique(codes):
+        M[int(c)] = Xn[codes == c].mean(axis=0)
+    return M
+
+
+def center_tiers(X: np.ndarray, codes: np.ndarray, M: np.ndarray) -> np.ndarray:
+    """Subtract each row's tier mean and renormalise — the "topic" layout's input."""
+    return l2(X - M[codes]).astype(np.float32)
+
+
+def center_nests(C: np.ndarray, nests: list[dict], M: np.ndarray) -> np.ndarray:
+    """Nest centroids mix tiers: subtract the mean weighted by the nest's own
+    tier shares (from the archive scan), or the sample mean without shares."""
+    if C.shape[0] == 0:
+        return C
+    g = M.mean(axis=0)
+    out = np.empty_like(C)
+    for i, n in enumerate(nests):
+        sh = {t: w for t, w in (n.get("tier_shares") or {}).items() if w > 0 and t in TIER_CODES}
+        tot = sum(sh.values())
+        off = (sum(w * M[TIER_CODES[t]] for t, w in sh.items()) / tot) if tot else g
+        out[i] = C[i] - off
+    return l2(out).astype(np.float32)
+
+
 # ----------------------------------------------------------------- projection
 
 def frame(Y: np.ndarray, extra: np.ndarray | None = None,
@@ -320,24 +388,31 @@ def frame_params(Y: np.ndarray, quantile: float = FRAME_QUANTILE) -> tuple[np.nd
 
 
 def project(Xn: np.ndarray, C: np.ndarray, seed: int = SEED,
-            n_neighbors: int = UMAP_NEIGHBOURS, pca_dims: int = PCA_DIMS,
-            return_model: bool = False):
-    """(points (n,3), nest positions (k,3), PCA variance kept[, (pca, reducer)])."""
+            n_neighbors: int = UMAP_NEIGHBOURS, pca_dims: int | None = PCA_DIMS,
+            return_model: bool = False, metric: str = "euclidean"):
+    """(points (n,3), nest positions (k,3), PCA variance kept or None[, (pca|None, reducer)]).
+
+    `pca_dims=None` skips the PCA: UMAP then sees the full input (the "topic"
+    layout, with cosine)."""
     from sklearn.decomposition import PCA
     import umap  # noqa: PLC0415 — heavy import (numba JIT), only when projecting
 
-    dims = min(pca_dims, Xn.shape[1], max(2, Xn.shape[0] - 1))
-    pca = PCA(n_components=dims, random_state=seed, svd_solver="randomized")
-    Z = pca.fit_transform(Xn)
+    pca, var = None, None
+    Z = Xn
+    if pca_dims:
+        dims = min(pca_dims, Xn.shape[1], max(2, Xn.shape[0] - 1))
+        pca = PCA(n_components=dims, random_state=seed, svd_solver="randomized")
+        Z = pca.fit_transform(Xn)
+        var = float(pca.explained_variance_ratio_.sum())
     reducer = umap.UMAP(n_components=3, n_neighbors=min(n_neighbors, Xn.shape[0] - 1),
-                        min_dist=UMAP_MIN_DIST, metric="euclidean", random_state=seed,
+                        min_dist=UMAP_MIN_DIST, metric=metric, random_state=seed,
                         # A seed forces UMAP single-threaded. That is the price of the
                         # same picture on every run, and it is paid on purpose.
                         n_jobs=1)
     Y = reducer.fit_transform(Z)
-    N = reducer.transform(pca.transform(C)) if C.shape[0] else np.zeros((0, 3))
-    out = (np.asarray(Y, dtype=np.float64), np.asarray(N, dtype=np.float64),
-           float(pca.explained_variance_ratio_.sum()))
+    N = (reducer.transform(pca.transform(C) if pca is not None else C) if C.shape[0]
+         else np.zeros((0, 3)))
+    out = (np.asarray(Y, dtype=np.float64), np.asarray(N, dtype=np.float64), var)
     return out + ((pca, reducer),) if return_model else out
 
 
@@ -346,8 +421,8 @@ def _next_month(m: str) -> str:
     return f"{y + (mm > 12):04d}-{(mm - 1) % 12 + 1:02d}"
 
 
-def place_all(months: list[str], model, C: np.ndarray, thr: np.ndarray,
-              fitted: dict[int, np.ndarray], chunk: int = 20_000) -> dict:
+def place_all(months: list[str], layouts: list[dict], C: np.ndarray, thr: np.ndarray,
+              chunk: int = 20_000) -> dict:
     """Every embedded signal of the window, placed in the cloud of the sample.
 
     The sample defines the layout (600 per month, so the intake ramp does not);
@@ -357,13 +432,18 @@ def place_all(months: list[str], model, C: np.ndarray, thr: np.ndarray,
     exactly where that point is drawn. Streams with the keyset loader of the
     archive scans — memory is one chunk, not the corpus.
 
-    Returns raw (unframed) coordinates plus the per-point attributes.
+    `layouts`: one dict per layout — "model" (pca or None, reducer), "means"
+    (tier means to subtract, or None) and "fitted" ({trend_id: position}). Every
+    chunk is read ONCE and placed into all layouts; loading is the larger half.
+
+    Returns raw (unframed) coordinates per layout ("Y", a list in the order of
+    `layouts`) plus the per-point attributes.
     """
     from pipeline.foresight import build_matrix, iter_signals
 
-    pca, reducer = model
     pos = {m: i for i, m in enumerate(months)}
-    ids, month_idx, tiers, verts, nests, coords = [], [], [], [], [], []
+    ids, month_idx, tiers, verts, nests = [], [], [], [], []
+    coords: list[list[np.ndarray]] = [[] for _ in layouts]
     seen = placed = 0
     t0 = time.time()
     for batch in iter_signals(status="signal,published", dim1024=db_mod.USE_POSTGRES,
@@ -377,31 +457,37 @@ def place_all(months: list[str], model, C: np.ndarray, thr: np.ndarray,
             continue
         X = X[keep]
         rows = [batch[i] for i in keep]
-        Y = np.empty((len(rows), 3), dtype=np.float64)
-        todo = []
-        for j, r in enumerate(rows):
-            hit = fitted.get(int(r["id"]))
-            if hit is None:
-                todo.append(j)
-            else:
-                Y[j] = hit
-        if todo:
-            Y[todo] = reducer.transform(pca.transform(X[todo]))
-            placed += len(todo)
+        tcodes = np.array([TIER_CODES.get(tier_of(r.get("source_name"), r.get("source_type"),
+                                                  r.get("trend_signal_type")), 0) for r in rows])
+        for L, out in zip(layouts, coords):
+            Y = np.empty((len(rows), 3), dtype=np.float64)
+            todo = []
+            for j, r in enumerate(rows):
+                hit = L["fitted"].get(int(r["id"]))
+                if hit is None:
+                    todo.append(j)
+                else:
+                    Y[j] = hit
+            if todo:
+                Xt = X[todo] if L["means"] is None else center_tiers(X[todo], tcodes[todo], L["means"])
+                pca, reducer = L["model"]
+                Y[todo] = reducer.transform(pca.transform(Xt) if pca is not None else Xt)
+            out.append(Y)
+        placed += len(rows) - sum(1 for r in rows if int(r["id"]) in layouts[0]["fitted"])
         ids.append(np.array([int(r["id"]) for r in rows], dtype=np.int64))
         month_idx.append(np.array([pos[r["published_date"][:7]] for r in rows], dtype=np.int32))
-        tiers.append(np.array([TIER_CODES.get(tier_of(r.get("source_name"), r.get("source_type"),
-                                                      r.get("trend_signal_type")), 0) for r in rows]))
+        tiers.append(tcodes)
         verts.append(np.array([VERTICAL_CODES.get(r.get("primary_vertical"), 0) for r in rows]))
         nests.append(assign_nests(X, C, thr))
-        coords.append(Y)
         seen += len(rows)
         print(f"  placed {seen:,} ({placed:,} by transform, {time.time() - t0:.0f}s)", flush=True)
     if not ids:
-        return {"ids": np.zeros(0, np.int64), "Y": np.zeros((0, 3)), "month": np.zeros(0, np.int32),
+        return {"ids": np.zeros(0, np.int64), "Y": [np.zeros((0, 3)) for _ in layouts],
+                "month": np.zeros(0, np.int32),
                 "tier": np.zeros(0, np.int32), "vertical": np.zeros(0, np.int32),
                 "nest": np.zeros(0, np.uint16), "transformed": 0}
-    return {"ids": np.concatenate(ids), "Y": np.vstack(coords), "month": np.concatenate(month_idx),
+    return {"ids": np.concatenate(ids), "Y": [np.vstack(c) for c in coords],
+            "month": np.concatenate(month_idx),
             "tier": np.concatenate(tiers), "vertical": np.concatenate(verts),
             "nest": np.concatenate(nests), "transformed": placed}
 
@@ -472,7 +558,8 @@ def _peak_rss_gb() -> float:
 
 def run(per_month: int = DEFAULT_PER_MONTH, n_months: int = DEFAULT_MONTHS,
         end_month: str | None = None, dry_run: bool = False,
-        place_everything: bool = True) -> int | None:
+        place_everything: bool = True,
+        layouts: tuple[str, ...] = DEFAULT_LAYOUTS) -> int | None:
     t0 = time.time()
     months = month_window(end_month or date.today().strftime("%Y-%m"), n_months)
     print(f"window {months[0]} .. {months[-1]}, {per_month} per month", flush=True)
@@ -503,70 +590,80 @@ def run(per_month: int = DEFAULT_PER_MONTH, n_months: int = DEFAULT_MONTHS,
         print(f"warning: {blank} rows without a parsable vector", flush=True)
 
     emerging_run, nests, C, thr = latest_global_nests()
-    nest_idx = assign_nests(Xn, C, thr)
+    nest_idx = assign_nests(Xn, C, thr)          # membership lives in the ORIGINAL space
     members = int((nest_idx != NO_NEST).sum())
     print(f"nests: {len(nests)} from emerging run {emerging_run}, "
           f"{members:,} points inside one", flush=True)
+    tcodes = np.array([TIER_CODES.get(x.get("tier"), 0) for x in meta])
+    month_pos = {m: i for i, m in enumerate(months)}
+    sample_month = np.array([month_pos[m] for _, m in chosen])
+    sample_vert = np.array([VERTICAL_CODES.get(x.get("vertical"), 0) for x in meta])
 
-    t1 = time.time()
-    Y, N, pca_var, model = project(Xn, C, return_model=True)
-    print(f"projection: PCA {PCA_DIMS} keeps {pca_var:.1%} of the variance, "
-          f"UMAP done ({time.time() - t1:.0f}s)", flush=True)
-    keep, trust = quality(Xn, Y)
-    print(f"quality: {keep:.1%} of the {QUALITY_K} nearest neighbours kept, "
-          f"trustworthiness {trust:.3f}", flush=True)
-
-    centre, factor = frame_params(Y)
-    Yf = (Y - centre) * factor
-    Nf = (N - centre) * factor if N.size else N
+    fits = []
+    for name in layouts:
+        spec = LAYOUTS[name]
+        t1 = time.time()
+        means = tier_means(Xn, tcodes) if spec["tier_center"] else None
+        Xin = Xn if means is None else center_tiers(Xn, tcodes, means)
+        Cin = C if means is None else center_nests(C, nests, means)
+        Y, N, var, model = project(Xin, Cin, pca_dims=spec["pca_dims"], metric=spec["metric"],
+                                   return_model=True)
+        keep, trust = quality(Xn, Y)     # against the ORIGINAL space, for every layout
+        centre, factor = frame_params(Y)
+        fits.append({"name": name, "model": model, "means": means,
+                     "fitted": {tid: Y[i] for i, tid in enumerate(ids)},
+                     "Yf": (Y - centre) * factor, "Nf": (N - centre) * factor if N.size else N,
+                     "centre": centre, "factor": factor,
+                     "var": var, "keep": keep, "trust": trust})
+        print(f"layout {name} ({spec['method']}): "
+              + (f"PCA {spec['pca_dims']} keeps {var:.1%}, " if var is not None else "")
+              + f"{keep:.1%} of the {QUALITY_K} nearest neighbours kept, "
+              f"trustworthiness {trust:.3f} ({time.time() - t1:.0f}s)", flush=True)
 
     everything = None
     if place_everything:
         t2 = time.time()
-        everything = place_all(months, model, C, thr,
-                               {tid: Y[i] for i, tid in enumerate(ids)})
-        everything["Y"] = (everything["Y"] - centre) * factor
+        everything = place_all(months, fits, C, thr)
+        for f, Y in zip(fits, everything["Y"]):
+            f["all"] = (Y - f["centre"]) * f["factor"]
         print(f"placed all: {len(everything['ids']):,} signals, {everything['transformed']:,} "
-              f"by transform ({time.time() - t2:.0f}s)", flush=True)
+              f"by transform, {len(fits)} layout(s) ({time.time() - t2:.0f}s)", flush=True)
+        order = np.argsort(everything["ids"], kind="stable")   # the server binary-searches
+    for f in fits:
+        # One range per layout, wide enough for every placed point: the browser
+        # decodes sample and search hits of a layout with the same coord_range.
+        extents = [np.abs(f["Yf"]).max(), 1.0]
+        if f["Nf"] is not None and f["Nf"].size:
+            extents.append(np.abs(f["Nf"]).max())
+        if everything is not None and len(everything["ids"]):
+            extents.append(np.abs(f["all"]).max())
+        f["rng"] = float(max(extents))
+        f["blob"] = pack(f["Yf"], sample_month, tcodes, sample_vert, nest_idx, np.array(ids), f["rng"])
+        f["all_blob"] = None
+        if everything is not None:
+            o = order
+            f["all_blob"] = pack(f["all"][o], everything["month"][o], everything["tier"][o],
+                                 everything["vertical"][o], everything["nest"][o],
+                                 everything["ids"][o], f["rng"])
+        f["nest_xyz"] = [[round(float(v), 5) for v in p] for p in (f["Nf"] if f["Nf"] is not None else [])]
 
-    # One range for both blobs, wide enough for every placed point: the browser
-    # decodes sample and search hits with the same coord_range.
-    extents = [np.abs(Yf).max(), 1.0]
-    if Nf is not None and Nf.size:
-        extents.append(np.abs(Nf).max())
-    if everything is not None and len(everything["ids"]):
-        extents.append(np.abs(everything["Y"]).max())
-    rng = float(max(extents))
-    month_pos = {m: i for i, m in enumerate(months)}
-    blob = pack(
-        Yf,
-        np.array([month_pos[m] for _, m in chosen]),
-        np.array([TIER_CODES.get(x.get("tier"), 0) for x in meta]),
-        np.array([VERTICAL_CODES.get(x.get("vertical"), 0) for x in meta]),
-        nest_idx,
-        np.array(ids),
-        rng,
-    )
-    nest_json = [{**n, "x": round(float(p[0]), 5), "y": round(float(p[1]), 5),
-                  "z": round(float(p[2]), 5),
+    first = fits[0]
+    alt = fits[1] if len(fits) > 1 else None
+    nest_json = [{**{k: v for k, v in n.items() if k != "tier_shares"},
+                  "x": xyz[0], "y": xyz[1], "z": xyz[2],
                   "members": int((nest_idx == i).sum())}
-                 for i, (n, p) in enumerate(zip(nests, Nf if Nf is not None else []))]
+                 for i, (n, xyz) in enumerate(zip(nests, first["nest_xyz"]))]
     codes = {
         "tier": {str(v): k for k, v in TIER_CODES.items() if k},
         "vertical": {str(v): k for k, v in VERTICAL_CODES.items() if k},
         "no_nest": NO_NEST,
         "layout": [list(f) for f in PACK_DTYPE.descr],
     }
-    params = {"pca_dims": PCA_DIMS, "n_neighbors": UMAP_NEIGHBOURS,
-              "min_dist": UMAP_MIN_DIST, "seed": SEED, "frame_quantile": FRAME_QUANTILE,
+    params = {"layouts": {f["name"]: LAYOUTS[f["name"]] for f in fits},
+              "n_neighbors": UMAP_NEIGHBOURS, "min_dist": UMAP_MIN_DIST, "seed": SEED,
+              "frame_quantile": FRAME_QUANTILE,
               "quality_sample": QUALITY_SAMPLE, "quality_k": QUALITY_K}
-    all_blob, n_all = None, None
-    if everything is not None:
-        # Sorted by trend id: the server finds a search hit by binary search.
-        o = np.argsort(everything["ids"], kind="stable")
-        all_blob = pack(everything["Y"][o], everything["month"][o], everything["tier"][o],
-                        everything["vertical"][o], everything["nest"][o], everything["ids"][o], rng)
-        n_all = int(len(o))
+    n_all = int(len(everything["ids"])) if everything is not None else None
     duration = time.time() - t0
     peak = _peak_rss_gb()
     with get_connection() as c:
@@ -574,18 +671,29 @@ def run(per_month: int = DEFAULT_PER_MONTH, n_months: int = DEFAULT_MONTHS,
             "INSERT INTO signal_space_runs (method, params, n_points, per_month,"
             " first_month, last_month, months, emerging_run_id, nests, codes,"
             " coord_range, pca_variance, neighbour_keep, trustworthiness,"
-            " duration_s, peak_rss_gb, points, all_points, n_all)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
-            ("pca50-umap3", json.dumps(params), len(ids), per_month, months[0], months[-1],
+            " duration_s, peak_rss_gb, points, all_points, n_all, layout,"
+            " alt_layout, alt_points, alt_all_points, alt_coord_range, alt_nests,"
+            " alt_pca_variance, alt_neighbour_keep, alt_trustworthiness)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
+            ("+".join(LAYOUTS[f["name"]]["method"] for f in fits), json.dumps(params),
+             len(ids), per_month, months[0], months[-1],
              json.dumps(months), emerging_run, json.dumps(nest_json), json.dumps(codes),
-             rng, pca_var, keep, trust, round(duration, 1), round(peak, 2),
-             blob, all_blob, n_all)).fetchone()  # bytes -> BYTEA/BLOB on both backends
+             first["rng"], first["var"], first["keep"], first["trust"],
+             round(duration, 1), round(peak, 2),
+             first["blob"], first["all_blob"], n_all, first["name"],
+             alt["name"] if alt else None, alt["blob"] if alt else None,
+             alt["all_blob"] if alt else None, alt["rng"] if alt else None,
+             json.dumps(alt["nest_xyz"]) if alt else None, alt["var"] if alt else None,
+             alt["keep"] if alt else None, alt["trust"] if alt else None,
+             )).fetchone()  # bytes -> BYTEA/BLOB on both backends
         run_id = int(row["id"])
         c.execute("DELETE FROM signal_space_runs WHERE id NOT IN "
                   "(SELECT id FROM signal_space_runs ORDER BY id DESC LIMIT ?)", (KEEP_RUNS,))
-    print(f"signal space run {run_id}: {len(ids):,} points, {len(blob) / 1e6:.1f} MB"
-          + (f" + {n_all:,} placed ({len(all_blob) / 1e6:.1f} MB)" if all_blob else "")
-          + f", {duration:.0f}s, peak RSS {peak:.1f} GB", flush=True)
+    size = sum(len(f["blob"]) + len(f["all_blob"] or b"") for f in fits)
+    print(f"signal space run {run_id}: {len(ids):,} points"
+          + (f" + {n_all:,} placed" if n_all else "")
+          + f", layouts {', '.join(f['name'] for f in fits)}, {size / 1e6:.1f} MB, "
+          f"{duration:.0f}s, peak RSS {peak:.1f} GB", flush=True)
     return run_id
 
 
@@ -597,14 +705,20 @@ def main() -> int:
                     help=f"months back from the current one (default {DEFAULT_MONTHS})")
     ap.add_argument("--end-month", default=None, help="last month, YYYY-MM (default: now)")
     ap.add_argument("--dry-run", action="store_true", help="only count the sample")
+    ap.add_argument("--layouts", default=",".join(DEFAULT_LAYOUTS),
+                    help="layouts to compute, the first is the default picture "
+                         f"(choices: {', '.join(LAYOUTS)}; default {','.join(DEFAULT_LAYOUTS)})")
     ap.add_argument("--sample-only", action="store_true",
                     help="skip placing every other signal (search then covers only the sample)")
     args = ap.parse_args()
+    layouts = tuple(x.strip() for x in args.layouts.split(",") if x.strip())
+    if not layouts or any(x not in LAYOUTS for x in layouts) or len(layouts) > 2:
+        ap.error(f"--layouts takes one or two of {', '.join(LAYOUTS)}")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     migrate_signal_space_tables()
     with ops_record("signal_space"):
         rid = run(args.per_month, args.months, args.end_month, args.dry_run,
-                  place_everything=not args.sample_only)
+                  place_everything=not args.sample_only, layouts=layouts)
     return 0 if (rid is not None or args.dry_run) else 1
 
 

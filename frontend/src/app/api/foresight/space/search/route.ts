@@ -5,7 +5,7 @@ import { searchSpace } from "@/lib/signalSpace";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/foresight/space/search?run=<id>&q=<terms>
+ * GET /api/foresight/space/search?run=<id>&q=<terms>[&layout=alt]
  *
  * Body: the packed 16-byte records of every match that has a place in the
  * cloud (decode with lib/spaceCloud.unpack). The counts travel in headers so
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   if (query.length < 2 || query.length > 120) {
     return NextResponse.json({ error: "query must be 2–120 characters" }, { status: 400 });
   }
-  const res = await searchSpace(run, query);
+  const res = await searchSpace(run, query, url.searchParams.get("layout") === "alt");
   if (!res) {
     return NextResponse.json(
       { error: "this run has no placed signals — recompute the cloud" },

@@ -19,6 +19,8 @@ import {
   type CloudData,
   type CloudFilter,
   type CloudMeta,
+  type LayoutView,
+  layoutView,
   type Vec3,
   type View,
 } from "@/lib/spaceCloud";
@@ -267,6 +269,10 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   // of the window placed into it (1.5M, ~24 MB) — then brightness is volume.
   const [everything, setEverything] = useState(false);
   const loaded = useRef(new Map<string, CloudData>());
+  // Two arrangements of the same points (since 28.09.): the default groups by
+  // topic across tiers, the second keeps the writing-style continents of 27.09.
+  const [altLayout, setAltLayout] = useState(false);
+  const L = useMemo(() => layoutView(meta, altLayout), [meta, altLayout]);
   const [colorBy, setColorBy] = useState<ColorBy>("tier");
   const [tierMask, setTierMask] = useState(ALL_BITS);
   const [vertMask, setVertMask] = useState(ALL_BITS);
@@ -328,7 +334,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   // only when asked for); both sets stay in memory, so switching back is instant
   useEffect(() => {
     let cancelled = false;
-    const key = `${meta.runId}:${everything ? "all" : "sample"}`;
+    const key = `${meta.runId}:${everything ? "all" : "sample"}:${L.key}`;
     const reset = () => {
       // indices point into the previous set
       setSelected(-1);
@@ -351,13 +357,15 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
       reset();
       setData(null);
     });
-    fetch(`/api/foresight/space/points?run=${meta.runId}${everything ? "&all=1" : ""}`)
+    fetch(
+      `/api/foresight/space/points?run=${meta.runId}${everything ? "&all=1" : ""}${L.key ? "&layout=alt" : ""}`
+    )
       .then((r) => {
         if (!r.ok) throw new Error(`points request failed (${r.status})`);
         return r.arrayBuffer();
       })
       .then((buf) => {
-        const d = unpack(buf, meta.coordRange);
+        const d = unpack(buf, L.coordRange);
         loaded.current.set(key, d);
         if (!cancelled) setData(d);
       })
@@ -367,7 +375,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     return () => {
       cancelled = true;
     };
-  }, [meta.runId, meta.coordRange, everything]);
+  }, [meta.runId, L.key, L.coordRange, everything]);
 
   // ---- canvas follows its container
   useEffect(() => {
@@ -520,8 +528,8 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
 
   // ---- nest rings in CSS pixels: drawn by the SVG overlay, hit on the CPU
   const rings = useMemo(() => {
-    const maxM = Math.max(1, ...meta.nests.map((n) => n.members));
-    return meta.nests
+    const maxM = Math.max(1, ...L.nests.map((n) => n.members));
+    return L.nests
       .map((n, k) => ({ n, k, p: projectPoint(n.x, n.y, n.z, view) }))
       .filter((r) => r.n.members > 0 && r.p.visible)
       .map((r) => ({
@@ -529,7 +537,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         p: { ...r.p, scale: Math.min(r.p.scale, MAX_POINT_SCALE) },
         radius: 5 + 14 * Math.sqrt(r.n.members / maxM),
       }));
-  }, [meta.nests, view]);
+  }, [L.nests, view]);
   // Names for the largest pockets only, and only where they do not land on a
   // name already placed — the rings crowd at the research/market seam.
   const labelled = useMemo(() => {
@@ -730,7 +738,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   // summaries, tags, research and patent abstracts); every match comes back as
   // a placed point, not only the ~6 % of them that happen to be in the sample.
   const runSearch = useCallback(
-    (text: string) => {
+    (text: string, lv: LayoutView = L) => {
       const qtext = text.trim();
       const seq = ++searchSeq.current;
       // any selection belongs to the layer that is about to change
@@ -745,7 +753,9 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         return;
       }
       setSearchNote("searching…");
-      fetch(`/api/foresight/space/search?run=${meta.runId}&q=${encodeURIComponent(qtext)}`)
+      fetch(
+        `/api/foresight/space/search?run=${meta.runId}&q=${encodeURIComponent(qtext)}${lv.key ? "&layout=alt" : ""}`
+      )
         .then(async (r) => {
           if (!r.ok) {
             const j = (await r.json().catch(() => ({}))) as { error?: string };
@@ -760,7 +770,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         })
         .then(({ buf, info }) => {
           if (seq !== searchSeq.current) return; // a newer query is on its way
-          const hitsLayer = unpack(buf, meta.coordRange);
+          const hitsLayer = unpack(buf, lv.coordRange);
           // A NEW search opens the window to every month, so all matches are
           // visible at once; narrowing it (and Play) is then the owner's move.
           // Refining the query keeps whatever window was chosen meanwhile.
@@ -774,7 +784,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
           if (seq === searchSeq.current) setSearchNote(e instanceof Error ? e.message : "search failed");
         });
     },
-    [data, meta.runId, meta.months.length, meta.coordRange]
+    [data, meta.runId, meta.months.length, L]
   );
 
   const onQuery = (v: string) => {
@@ -858,6 +868,35 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         >
           All signals
         </button>
+        {meta.alt && (
+          <>
+            <span className="w-3" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mr-1">layout</span>
+            {[false, true].map((a) => {
+              const name = a ? meta.alt!.layout : meta.layout;
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  className={btn(altLayout === a)}
+                  title={
+                    name === "topic"
+                      ? "each tier's typical wording removed first — one topic from research, patents and press lands together"
+                      : "the embedding as it is — research, patents, funding and press form their own continents"
+                  }
+                  onClick={() => {
+                    if (altLayout === a) return;
+                    // the matches are placed per layout: fetch them again in the new one
+                    if (searchOn.current && query.trim().length >= 2) runSearch(query, layoutView(meta, a));
+                    setAltLayout(a);
+                  }}
+                >
+                  {name === "topic" ? "Topic" : "Style"}
+                </button>
+              );
+            })}
+          </>
+        )}
         <button
           type="button"
           className={btn(false)}
@@ -1151,6 +1190,24 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
                 </p>
               )}
               <p className="font-sans text-[12px] text-muted leading-relaxed mt-3">
+                {L.layout === "topic" ? (
+                  <>
+                    <span className="text-paper">Topic layout:</span>{" "}before projecting, each tier&apos;s
+                    typical wording (its mean vector) is taken out, so a subject from research, patents,
+                    funding and the trade press lands in one region. Measured: a search term&apos;s
+                    matches are 0.34 of each other&apos;s nearest neighbours instead of 0.21.
+                    {meta.alt && <> Switch to <span className="text-paper">Style</span> to see the tiers apart.</>}
+                  </>
+                ) : (
+                  <>
+                    <span className="text-paper">Style layout:</span>{" "}the embedding as it is. It encodes how
+                    a text is written as much as what it is about, so research, patents, funding and the
+                    trade press form their own continents, even on the same subject.
+                    {meta.alt && <> Switch to <span className="text-paper">Topic</span> to bring one subject together.</>}
+                  </>
+                )}
+              </p>
+              <p className="font-sans text-[12px] text-muted leading-relaxed mt-3">
                 Rings are the pockets from the emerging layer, placed in the same cloud; click one
                 to light up its members. Only {nestMembers.toLocaleString("en-US")} of the{" "}
                 {everything ? "" : "sampled "}signals fall inside any pocket — pockets are dense corners of the last 90 days,
@@ -1174,15 +1231,24 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
           )}
           <div className="mt-5 pt-4 border-t border-border font-mono text-[11px] text-muted space-y-1">
             <div>
+              layout: <span className="text-paper">{L.layout === "topic" ? "topic" : "writing style"}</span>
+            </div>
+            <div>
               nearest 10 kept:{" "}
-              <span className="text-paper">{(meta.neighbourKeep * 100).toFixed(0)} %</span>
+              <span className="text-paper">{(L.neighbourKeep * 100).toFixed(0)} %</span>
             </div>
             <div>
-              trustworthiness: <span className="text-paper">{meta.trustworthiness.toFixed(3)}</span>
+              trustworthiness: <span className="text-paper">{L.trustworthiness.toFixed(3)}</span>
             </div>
-            <div>
-              PCA-50 variance: <span className="text-paper">{(meta.pcaVariance * 100).toFixed(0)} %</span>
-            </div>
+            {L.pcaVariance != null ? (
+              <div>
+                PCA-50 variance: <span className="text-paper">{(L.pcaVariance * 100).toFixed(0)} %</span>
+              </div>
+            ) : (
+              <div>
+                input: <span className="text-paper">all 1,024 dims, cosine</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

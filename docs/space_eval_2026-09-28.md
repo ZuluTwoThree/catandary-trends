@@ -12,8 +12,14 @@
 eines Suchbegriffs liegen um gut 60 % dichter beisammen (0,21 → 0,34, bei allen 28 Begriffen besser),
 Forschung und Markt zum selben Thema rücken auf weniger als die Hälfte des alten Abstands
 zusammen, und die Nachbarschaften stimmen öfter mit den Prüfer-CPC-Klassen und den
-OpenAlex-Themen überein. Preis: etwa 4 Minuten mehr Rechenzeit je Wolkenlauf. **Nichts ist
-umgestellt** — die Produktion rechnet unverändert; Umbau erst nach Owner-Entscheid.
+OpenAlex-Themen überein. Preis: etwa 4 Minuten mehr Rechenzeit je Wolkenlauf.
+
+**Umgestellt am 28.09. (Owner: „Ja … und den bisherigen Stil per Schalter behalten"):**
+*Topic* ist die Standard-Anordnung der Wolke, die alte heißt *Style* und liegt hinter dem
+Schalter *Layout*. Ein Lauf rechnet beide auf derselben Stichprobe und lädt jedes Signal
+einmal. Lauf 4: 1.224 s (vorher 597 s — der zweite Transform über 1,4 Mio. Signale und
+das Kosinus-Einsetzen kosten mehr als hochgerechnet), Spitze 4,0 GB, 52 MB; Topic 25,1 %
+Nachbarn@10 / Trust 0,923, Style 23,9 % / 0,937 — deckungsgleich mit der Messlatte.
 
 ## Die Messlatte (`scripts/space_eval/eval_projection.py`)
 
@@ -81,7 +87,7 @@ Produktion (Seed).
 
 Speicher 2,3 GB Spitze in der Messung (36k), in der Produktion zuletzt 2,8 GB.
 
-## Was ein Umbau bedeutete (nicht gemacht)
+## Der Umbau (28.09. umgesetzt)
 
 - `pipeline/signal_space.py`: Ebenen-Mittel aus der Stichprobe lernen und mit dem Lauf
   speichern; jede Zeile vor PCA/UMAP um das Mittel ihrer Ebene verschieben und neu
