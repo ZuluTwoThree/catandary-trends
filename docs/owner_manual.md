@@ -127,7 +127,16 @@ und Backlink. Lokal sieht der Owner den gesamten Korpus (Zehntausende Artikel),
   am 25.09. per Head nachgelabelt (§11.11), 31.684 blieben market_shift, weil
   der Head dort unter der Konfidenz-Schwelle lag.
 - Die Hybrid-Suche (FTS + pgvector-ANN, RRF-Fusion) steht zusätzlich als API
-  bereit: `/api/search?q=…&vertical=FOOD&limit=20`.
+  bereit: `/api/search?q=…&vertical=FOOD&limit=20`. Sie trägt auch das Suchfeld
+  des Foresight-Cockpits. **Den Suchvektor rechnet der CPU-Embedder auf `:8091`**
+  (`catandary-embed-cpu`, dasselbe Qwen3-Embedding-8B wie die Pipeline; Adresse
+  über `RESEARCH_EMBED_HOST`). Bis zum 28.09.2026 fragte die Route Ollama auf
+  `:11434` — dort läuft seit der Umstellung auf llama.cpp nichts, die Semantik fiel
+  still weg und das Cockpit zeigte „(text match only)". Steht das wieder da: ist
+  `catandary-embed-cpu` aktiv (`systemctl --user status catandary-embed-cpu`)?
+  Die Antwort nennt es in `meta.embedding_available`; gemessen 28.09.:
+  `solar panel` 60 Text- + 60 Vektortreffer in 0,6 s, `Pflanzenkäse aus Cashew`
+  0 Text-, 18 reine Vektortreffer.
 - Artikelseite: Titel, Body, Vertikal- und PESTEL-Badges, Mega-Theme, Score,
   Quelle mit Backlink, verwandte Artikel. Ist die Quell-URL nachweislich tot
   (`dead_links`, monatlicher Link-Check), zeigt die Seite einen Hinweis und den
@@ -913,6 +922,16 @@ Koordinaten, darüber rasteten die Punkte sichtbar ein). *Reset view* stellt Bli
 Zoom und Mitte zurück. Punkte, die beim Verschieben hinter die Kamera geraten, werden
 ausgeblendet statt gespiegelt gezeichnet.
 
+*All signals* (seit 28.09.) zeichnet statt der Stichprobe **alle 1,52 Mio.
+eingeordneten Signale** des Fensters (die Spalte `all_points` des Laufs, ~24 MB, einmal
+geladen, danach schaltet der Knopf sofort hin und her). Die Form bleibt dieselbe — die
+Stichprobe hat sie festgelegt —, aber die **Helligkeit ist jetzt Menge**: die Monate seit
+dem Quellenausbau 2025/26 überstrahlen die frühen Jahre. Für „woraus bestand ein Monat"
+zurück auf die Stichprobe. Punkte werden kleiner und blasser gezeichnet, Hover, Klick,
+Tooltip, Nest-Filter und Suche funktionieren gleich (gemessen: 504.228 Punkte im
+12-Monats-Fenster; ein Treffertest über alle 1,52 Mio. ~18 ms). Der Knopf ist grau, wenn ein Lauf nicht alle
+Signale eingeordnet hat (Läufe vor dem 27.09. abends) — dann *Recompute cloud*.
+
 *Tooltip:* Bleibt der Cursor etwa **eine Sekunde** auf einem Signal, erscheint sein
 Titel mit Quelle und Datum; auf einer Ringlinie Name und Größe der Tasche. Solange der
 Cursor über der Wolke ist, pausiert das Drehen — ein bewegtes Ziel ließe sich weder
@@ -1627,6 +1646,24 @@ startet Testserver auf 8093/8094/8095 per PID — nicht über `~/llama.cpp/start
 deren `pkill` auch den CPU-Embedder :8091 träfe — und meldet sich über den
 Besitzvermerk `data/llama-server.tag_eval.pid` und `ops_events` an, damit der
 Fremdbelegungs-Alarm schweigt. Ergebnisse unter `data/tag_eval/` (nicht versioniert).
+
+### 11.4d Projektion der Signalwolke messen (`scripts/space_eval/`, 2026-09-28)
+
+Frage: ordnet eine andere Projektion die Themen in der Signalwolke besser an? Die
+Messlatte lernt jede Variante auf 36.000 Signalen (200 je Monat), setzt die Treffer von
+28 festen Suchbegriffen per `transform` ein und misst Treue zum Originalraum,
+Reinheit gegen Prüfer-CPC und OpenAlex-Themen, den Zusammenhalt der Treffer eines
+Begriffs und den Abstand der Ebenen (Forschung/Patente/Förderung/Markt) zum selben
+Thema. Ergebnis: `docs/space_eval_2026-09-28.md` — kurz: **Ebenen-Mittel abziehen +
+UMAP-Kosinus auf 1024** ist in allen Themenmaßen am besten (bei allen 28 Begriffen),
+kostet ~4 min mehr je Wolkenlauf und ist **nicht** umgestellt.
+
+```bash
+.venv/bin/python scripts/space_eval/eval_projection.py                 # 7 Varianten, ~5 min, CPU
+.venv/bin/python scripts/space_eval/eval_projection.py --seed 7 --out eval_projection_seed7.json
+```
+
+Nur lesend, keine GPU; Ergebnisse unter `data/space_eval/` (nicht versioniert).
 
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert
 

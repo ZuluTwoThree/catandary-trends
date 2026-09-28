@@ -16,15 +16,20 @@ import { getPool, q, q1 } from "@/lib/pg";
 import { rateLimitInfo, clientIp } from "@/lib/rateLimit";
 import { archiveWindowDays } from "@/lib/archiveWindow";
 
-// Every search embeds the query (local GPU) + runs several DB aggregates, so an
+// Every search embeds the query (CPU embedder) + runs several DB aggregates, so an
 // unguarded public GET is a resource-exhaustion vector (#5-hardening). Per-IP
 // sliding-window limit; the trajectory route keeps its own stricter gate.
 const SEARCH_RL_LIMIT = 30; // requests …
 const SEARCH_RL_WINDOW_MS = 60_000; // … per minute per client
 
-const OLLAMA_URL =
-  process.env.OLLAMA_CLIENT_HOST || "http://127.0.0.1:11434";
-const EMBED_MODEL = "qwen3-embedding";
+// Query vectors come from the CPU embedding server (:8091, catandary-embed-cpu,
+// the same Qwen3-Embedding-8B as the pipeline — cos 0.9995 against the GPU
+// vectors). Until 2026-09-28 this called Ollama on :11434, which has not run since
+// the move to llama.cpp: every query silently fell back to text match only. Not
+// :8090 either — that server carries whatever chat model is loaded, and a chat
+// model answering /v1/embeddings would put the query into another space.
+const EMBED_HOST = process.env.RESEARCH_EMBED_HOST || "http://127.0.0.1:8091";
+const EMBED_TIMEOUT_MS = 15_000;
 const EMBED_DIM = 4096;
 /** ANN column dimension (Matryoshka prefix of the 4096-dim embedding). */
 const ANN_DIM = 1024;
@@ -41,18 +46,19 @@ const FTS_VECTOR =
   "to_tsvector('english', coalesce(title_en,'') || ' ' || coalesce(summary_en,'') || ' ' || coalesce(tags::text,''))";
 
 // ---------------------------------------------------------------------------
-// Ollama query embedding
+// Query embedding (llama.cpp, OpenAI-compatible endpoint)
 // ---------------------------------------------------------------------------
 async function embedQuery(query: string): Promise<number[] | null> {
   try {
-    const resp = await fetch(`${OLLAMA_URL}/api/embed`, {
+    const resp = await fetch(`${EMBED_HOST}/v1/embeddings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: EMBED_MODEL, input: query }),
+      body: JSON.stringify({ input: query }),
+      signal: AbortSignal.timeout(EMBED_TIMEOUT_MS),
     });
     if (!resp.ok) return null;
-    const data = (await resp.json()) as { embeddings?: number[][] };
-    const vec = data.embeddings?.[0];
+    const data = (await resp.json()) as { data?: Array<{ embedding?: number[] }> };
+    const vec = data.data?.[0]?.embedding;
     if (!vec || vec.length !== EMBED_DIM) return null;
     return vec;
   } catch {

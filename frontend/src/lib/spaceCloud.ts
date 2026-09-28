@@ -29,6 +29,8 @@ export interface CloudMeta {
   runId: number;
   createdAt: string;
   nPoints: number;
+  /** Every signal of the window placed into the cloud (all_points); 0 = none. */
+  nAll: number;
   perMonth: number;
   months: string[];
   coordRange: number;
@@ -256,20 +258,37 @@ export function pickNearest(
   py: number,
   maxPx = 6
 ): number {
+  // projectPoint() inlined: with every signal loaded (1.5M) an object per point
+  // made each hover frame allocate 1.5M results. Same arithmetic, same order.
+  const c = v.center ?? ORIGIN;
+  const cy = Math.cos(v.yaw);
+  const sy = Math.sin(v.yaw);
+  const cp = Math.cos(v.pitch);
+  const sp = Math.sin(v.pitch);
+  const r = viewRadius(v);
+  const hw = v.width / 2;
+  const hh = v.height / 2;
   let best = -1;
   let bestD = maxPx * maxPx;
   let bestDepth = Infinity;
   for (let i = 0; i < d.n; i++) {
     if (pointState(d, i, f) !== 2) continue;
-    const p = projectPoint(d.pos[i * 3], d.pos[i * 3 + 1], d.pos[i * 3 + 2], v);
-    if (!p.visible) continue;
-    const dx = p.sx - px;
-    const dy = p.sy - py;
+    const x = d.pos[i * 3] - c[0];
+    const y = d.pos[i * 3 + 1] - c[1];
+    const z = d.pos[i * 3 + 2] - c[2];
+    const x1 = x * cy + z * sy;
+    const z1 = -x * sy + z * cy;
+    const y2 = y * cp - z1 * sp;
+    const z2 = y * sp + z1 * cp;
+    if (!(FOCAL + z2 > NEAR)) continue;
+    const scale = FOCAL / (FOCAL + z2);
+    const dx = hw + x1 * r * scale - px;
+    const dy = hh - y2 * r * scale - py;
     const dd = dx * dx + dy * dy;
-    if (dd < bestD || (dd === bestD && p.depth < bestDepth)) {
+    if (dd < bestD || (dd === bestD && z2 < bestDepth)) {
       best = i;
       bestD = dd;
-      bestDepth = p.depth;
+      bestDepth = z2;
     }
   }
   return best;

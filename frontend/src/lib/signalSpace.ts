@@ -23,7 +23,7 @@ function parseJson<T>(raw: unknown, fallback: T): T {
 export async function getLatestSpaceRun(): Promise<CloudMeta | null> {
   try {
     const r = await q1<Record<string, unknown>>(
-      "SELECT id, created_at::text AS created_at, n_points, per_month, months, coord_range, " +
+      "SELECT id, created_at::text AS created_at, n_points, n_all, per_month, months, coord_range, " +
         "pca_variance, neighbour_keep, trustworthiness, duration_s, emerging_run_id, nests, codes " +
         "FROM signal_space_runs ORDER BY id DESC LIMIT 1"
     );
@@ -33,6 +33,7 @@ export async function getLatestSpaceRun(): Promise<CloudMeta | null> {
       runId: Number(r.id),
       createdAt: String(r.created_at),
       nPoints: Number(r.n_points ?? 0),
+      nAll: Number(r.n_all ?? 0),
       perMonth: Number(r.per_month ?? 0),
       months: parseJson<string[]>(r.months, []),
       coordRange: Number(r.coord_range ?? 1),
@@ -104,6 +105,11 @@ async function placedSignals(runId: number): Promise<{ buf: Uint8Array; ids: Uin
   if (placedCache.size >= 2) placedCache.delete(placedCache.keys().next().value as number);
   placedCache.set(runId, entry);
   return entry;
+}
+
+/** Every placed signal of a run, same 16-byte layout as the sample. */
+export async function getAllBlob(runId: number): Promise<Uint8Array | null> {
+  return (await placedSignals(runId))?.buf ?? null;
 }
 
 export interface SpaceSearchResult {
