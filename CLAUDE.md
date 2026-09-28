@@ -1256,6 +1256,10 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
                                    schreibt nur eine Kandidatendatei; measure_mega_axes --write-yaml bleibt die einzige Schreibquelle der Badge-Felder).
                                    Der SQLite-Prototyp discover_mega_trends.py wurde 2026-09-09 entfernt (zeigte auf die vor-Postgres-DB, abgelöst).
 /trends/foresight                → Foresight-Cockpit (Hub) + Unterseiten:
+    (Suchfeld = /api/search, FTS + pgvector-ANN per RRF. Den Suchvektor rechnet seit
+     2026-09-28 der CPU-Embedder :8091 (RESEARCH_EMBED_HOST); bis dahin fragte die Route
+     Ollama :11434, das seit dem llama.cpp-Umzug nicht laeuft — die Semantik fiel still
+     weg, die Seite zeigte "(text match only)".)
   /clusters /clusters/<id> /emerging /map /technology /lead-time /evolution
     (/map = Signalraum in 3D, seit 2026-09-27: DIESELBEN Nester wie /emerging, nur mit
      Koordinaten und einer Uhr — es wird nichts nachgerechnet, die Seite liest den
@@ -1306,7 +1310,10 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      + Forschungs-Abstracts (research_signals.tsv) + Patent-Abstracts (patent_search.tsv),
      parallel, jede Quelle darf einzeln scheitern; Treffer kommen als eigene Punktschicht,
      weil der Lauf ALLE 1,52 Mio. Signale des Fensters per umap.transform einordnet
-     (Spalte all_points, nach trend_id sortiert, 24 MB; Lauf ~10 min, 2,8 GB). "solar panel"
+     (Spalte all_points, nach trend_id sortiert, 24 MB; Lauf ~10 min, 2,8 GB). Seit 28.09.
+     zeichnet der Schalter "All signals" diese 1,52 Mio. auch (points?all=1, einmal geladen;
+     Helligkeit = Menge statt Zusammensetzung, Punkte kleiner/blasser, Picking ohne
+     Objekt je Punkt). "solar panel"
      2.288 statt 112 Treffer, "AI" 88.698, 0,2-1,1 s. Ringe werden auf der CPU getroffen
      (pickRing), die SVG-Ebene nimmt keine Klicks — sonst begann ein Zug auf einem Ring
      keine Drehung)

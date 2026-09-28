@@ -69,7 +69,7 @@ in vec3 aPos;
 in vec4 aMeta; // month, tier, vertical, nest
 in float aHit;  // 1 = matches the search
 uniform float uYaw, uPitch, uRadius, uFocal, uMonthEnd, uWindowLen, uNest, uGhosts, uDpr, uAlpha;
-uniform float uNear, uSearch, uMaxScale, uHitSize;
+uniform float uNear, uSearch, uMaxScale, uHitSize, uGhostAlpha, uBaseSize;
 uniform vec3 uCenter;
 uniform vec2 uViewport;
 uniform int uTierMask, uVertMask, uColorBy;
@@ -126,8 +126,8 @@ void main() {
   // and the context fades further — or a handful of matches disappears among
   // 100,000 context points, while thousands would melt into white.
   bool searching = uSearch > 0.5;
-  gl_PointSize = (inWindow ? (searching ? uHitSize : 2.8) : 1.6) * min(scale, uMaxScale) * uDpr;
-  vColor = vec4(c, inWindow ? uAlpha : (searching ? 0.022 : 0.045));
+  gl_PointSize = (inWindow ? (searching ? uHitSize : uBaseSize) : uBaseSize * 0.57) * min(scale, uMaxScale) * uDpr;
+  vColor = vec4(c, inWindow ? uAlpha : (searching ? 0.5 * uGhostAlpha : uGhostAlpha));
 }`;
 
 const FRAG_SRC = `#version 300 es
@@ -223,7 +223,7 @@ function setupGl(canvas: HTMLCanvasElement, d: CloudData): Gl {
   const names = [
     "uYaw", "uPitch", "uRadius", "uFocal", "uMonthEnd", "uWindowLen", "uNest", "uGhosts",
     "uDpr", "uAlpha", "uViewport", "uTierMask", "uVertMask", "uColorBy", "uTierColors", "uVertColors",
-    "uCenter", "uNear", "uSearch", "uMaxScale", "uHitSize",
+    "uCenter", "uNear", "uSearch", "uMaxScale", "uHitSize", "uGhostAlpha", "uBaseSize",
   ];
   const loc: Record<string, WebGLUniformLocation | null> = {};
   for (const u of names) loc[u] = gl.getUniformLocation(prog, u);
@@ -263,6 +263,10 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   const [windowLen, setWindowLen] = useState(12);
   const [ghosts, setGhosts] = useState(true);
   const [showNests, setShowNests] = useState(true);
+  // The sample (600 a month) defines the layout; "All signals" draws every signal
+  // of the window placed into it (1.5M, ~24 MB) — then brightness is volume.
+  const [everything, setEverything] = useState(false);
+  const loaded = useRef(new Map<string, CloudData>());
   const [colorBy, setColorBy] = useState<ColorBy>("tier");
   const [tierMask, setTierMask] = useState(ALL_BITS);
   const [vertMask, setVertMask] = useState(ALL_BITS);
@@ -320,16 +324,42 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     [vertByCode]
   );
 
-  // ---- data: fetched only now that the Cloud view is open
+  // ---- data: fetched only now that the Cloud view is open (and the full set
+  // only when asked for); both sets stay in memory, so switching back is instant
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/foresight/space/points?run=${meta.runId}`)
+    const key = `${meta.runId}:${everything ? "all" : "sample"}`;
+    const reset = () => {
+      // indices point into the previous set
+      setSelected(-1);
+      setHover(-1);
+      setDetail(null);
+    };
+    const have = loaded.current.get(key);
+    if (have) {
+      queueMicrotask(() => {
+        if (cancelled) return;
+        reset();
+        setData(have);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    queueMicrotask(() => {
+      if (cancelled) return;
+      reset();
+      setData(null);
+    });
+    fetch(`/api/foresight/space/points?run=${meta.runId}${everything ? "&all=1" : ""}`)
       .then((r) => {
         if (!r.ok) throw new Error(`points request failed (${r.status})`);
         return r.arrayBuffer();
       })
       .then((buf) => {
-        if (!cancelled) setData(unpack(buf, meta.coordRange));
+        const d = unpack(buf, meta.coordRange);
+        loaded.current.set(key, d);
+        if (!cancelled) setData(d);
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -337,7 +367,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     return () => {
       cancelled = true;
     };
-  }, [meta.runId, meta.coordRange]);
+  }, [meta.runId, meta.coordRange, everything]);
 
   // ---- canvas follows its container
   useEffect(() => {
@@ -390,7 +420,11 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   // whole archive both keep a readable density gradient.
   const alpha = hitData
     ? Math.min(0.85, Math.max(0.06, 0.55 * Math.pow(1500 / Math.max(1, active), 0.6)))
-    : Math.min(0.6, Math.max(0.035, 0.5 * Math.pow(7200 / Math.max(1, active), 0.7)));
+    : Math.min(0.6, Math.max(everything ? 0.012 : 0.035, 0.5 * Math.pow(7200 / Math.max(1, active), 0.7)));
+  // Context (out-of-window) points: 14x as many with every signal loaded. The
+  // floor stays above what an 8-bit framebuffer still adds up (~1/255 per point).
+  const ghostAlpha = everything ? 0.012 : 0.045;
+  const baseSize = everything ? 2.0 : 2.8;
   // a few matches large, tens of thousands small — each stays a point
   const hitSize = Math.min(6, Math.max(2.8, 5.5 * Math.pow(2000 / Math.max(1, active), 0.25)));
 
@@ -440,6 +474,8 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     gl.uniform1f(loc.uSearch, hitData ? 1 : 0);
     gl.uniform1f(loc.uMaxScale, MAX_POINT_SCALE);
     gl.uniform1f(loc.uHitSize, hitSize);
+    gl.uniform1f(loc.uGhostAlpha, ghostAlpha);
+    gl.uniform1f(loc.uBaseSize, baseSize);
     gl.bindVertexArray(g.sample.vao);
     gl.drawArrays(gl.POINTS, 0, g.sample.n);
     if (g.hits) {
@@ -447,7 +483,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
       gl.drawArrays(gl.POINTS, 0, g.hits.n);
     }
     gl.bindVertexArray(null);
-  }, [data, view, yaw, pitch, cam, size, monthEnd, windowLen, nestSel, ghosts, tierMask, vertMask, colorBy, tierColors, vertColors, alpha, hitSize, hitData]);
+  }, [data, view, yaw, pitch, cam, size, monthEnd, windowLen, nestSel, ghosts, tierMask, vertMask, colorBy, tierColors, vertColors, alpha, hitSize, hitData, ghostAlpha, baseSize]);
 
   // ---- clocks: spin and play
   // The spin pauses while the cursor rests on the canvas: it is there to show
@@ -811,6 +847,19 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         </button>
         <button
           type="button"
+          className={btn(everything)}
+          disabled={meta.nAll === 0}
+          title={
+            meta.nAll > 0
+              ? `draw all ${meta.nAll.toLocaleString("en-US")} signals of the window instead of the ${meta.nPoints.toLocaleString("en-US")}-signal sample (~${Math.round((meta.nAll * 16) / 1e6)} MB)`
+              : "this run did not place every signal — recompute the cloud"
+          }
+          onClick={() => setEverything((v) => !v)}
+        >
+          All signals
+        </button>
+        <button
+          type="button"
           className={btn(false)}
           onClick={() => {
             setYaw(0.6);
@@ -1007,10 +1056,12 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
               </svg>
               <div className="absolute left-3 top-2 font-mono text-[10px] text-muted pointer-events-none">
                 {!data
-                  ? "loading 1.7 MB of points…"
+                  ? everything
+                    ? `loading ${Math.round((meta.nAll * 16) / 1e6)} MB — all ${meta.nAll.toLocaleString("en-US")} signals…`
+                    : `loading ${((meta.nPoints * 16) / 1e6).toFixed(1)} MB of points…`
                   : hitData
                     ? `${active.toLocaleString("en-US")} of ${hitData.n.toLocaleString("en-US")} matches in the window`
-                    : `${active.toLocaleString("en-US")} of ${data.n.toLocaleString("en-US")} sampled signals in the window`}
+                    : `${active.toLocaleString("en-US")} of ${data.n.toLocaleString("en-US")} ${everything ? "" : "sampled "}signals in the window`}
               </div>
               {tip && (
                 <div
@@ -1078,16 +1129,31 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
               <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent mb-2">
                 What you are looking at
               </div>
-              <p className="font-sans text-[13px] text-text leading-relaxed">
-                {meta.nPoints.toLocaleString("en-US")} signals, {meta.perMonth} from every one of the{" "}
-                {meta.months.length} months — so brightness shows what a month was{" "}
-                <span className="text-paper">made of</span>, never how much there was. Bright
-                points are the window, faint ones the rest of the archive for context.
-              </p>
+              {everything ? (
+                <p className="font-sans text-[13px] text-text leading-relaxed">
+                  All {data ? data.n.toLocaleString("en-US") : meta.nAll.toLocaleString("en-US")} signals
+                  of the {meta.months.length} months, each placed into the layout the{" "}
+                  {meta.nPoints.toLocaleString("en-US")}-signal sample defines — so here brightness{" "}
+                  <span className="text-paper">is volume</span>, and the collection ramp of 2025/26
+                  (far more sources, far more rows a month) outshines the early years. For what a
+                  month was made of, switch back to the sample. Bright points are the window,
+                  faint ones the rest of the archive for context.
+                </p>
+              ) : (
+                <p className="font-sans text-[13px] text-text leading-relaxed">
+                  {meta.nPoints.toLocaleString("en-US")} signals, {meta.perMonth} from every one of the{" "}
+                  {meta.months.length} months — so brightness shows what a month was{" "}
+                  <span className="text-paper">made of</span>, never how much there was. Bright
+                  points are the window, faint ones the rest of the archive for context.
+                  {meta.nAll > 0 && (
+                    <> “All signals” draws every one of the {meta.nAll.toLocaleString("en-US")} instead.</>
+                  )}
+                </p>
+              )}
               <p className="font-sans text-[12px] text-muted leading-relaxed mt-3">
                 Rings are the pockets from the emerging layer, placed in the same cloud; click one
-                to light up its members. Only {nestMembers.toLocaleString("en-US")} of the sampled
-                signals fall inside any pocket — pockets are dense corners of the last 90 days,
+                to light up its members. Only {nestMembers.toLocaleString("en-US")} of the{" "}
+                {everything ? "" : "sampled "}signals fall inside any pocket — pockets are dense corners of the last 90 days,
                 the cloud spans fifteen years.
               </p>
               <p className="font-sans text-[12px] text-muted leading-relaxed mt-3">

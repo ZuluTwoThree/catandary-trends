@@ -236,7 +236,10 @@ und die Ebenenfarbe ginge verloren. Abstract-Treffer bedeuten „kommt vor", nic
   Mitglieder und den Anteil etablierter Quellen; unter 50 % steht ausdrücklich da,
   dass das Alter eher etwas über unsere Abonnements aussagt als über die Welt.
 - Die Signalwolke (Stufe 3) ist eine Stichprobe von 6 % des Korpus und eine
-  Projektion — sie zeigt Dichte und Löcher, keine Messung.
+  Projektion — sie zeigt Dichte und Löcher, keine Messung. Seit 28.09. zeichnet der
+  Schalter *All signals* stattdessen alle 1,52 Mio. eingeordneten Signale (Blob
+  `all_points`, 24,4 MB, Laden 0,3 s lokal); dann ist Helligkeit Menge, nicht
+  Zusammensetzung. Die Form bestimmt weiter die Stichprobe.
 - Owner-only wie das ganze Cockpit (`PUBLIC_MODE` 404, nie im Export). Genau
   deshalb darf sie interaktiv sein, wo die öffentlichen Seiten deterministisch
   sein müssen.
