@@ -94,6 +94,11 @@ def main() -> int:
     ap.add_argument("--n", type=int, default=2000)
     ap.add_argument("--host", default="http://127.0.0.1:8091")
     ap.add_argument("--batch", type=int, default=32)
+    ap.add_argument("--out", default="eval_abstract_length.json")
+    ap.add_argument("--label", default="", help="which GPU/host this run used (stored in the report)")
+    ap.add_argument("--compare-host", default="",
+                    help="second embedding server: 200 cleaned texts embedded there too, "
+                         "mean cosine per text reported (same space across hardware?)")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
 
@@ -116,7 +121,7 @@ def main() -> int:
     log(f"{len(qtopics)} topic-name queries embedded")
 
     report: dict = {"n": len(rows), "structured_share": round(float(structured.mean()), 3),
-                    "queries": len(qtopics), "host": args.host, "recipes": {}}
+                    "queries": len(qtopics), "host": args.host, "label": args.label, "recipes": {}}
     vecs = {}
     for name, texts in recipes.items():
         chars = [len(t) for t in texts]
@@ -147,7 +152,14 @@ def main() -> int:
             "boilerplate_lift": round(float(cos[both].mean() - cos[neither].mean()), 4),
         }
         log(f"  {name}: {report['recipes'][name]}")
-        (OUT / "eval_abstract_length.json").write_text(json.dumps(report, indent=2))
+        (OUT / args.out).write_text(json.dumps(report, indent=2))
+    if args.compare_host:
+        sub = recipes["R1_clean500"][:200]
+        W, _ = embed(sub, args.compare_host, 8)
+        c = np.sum(W * vecs["R1_clean500"][:200], axis=1)
+        report["cross_host"] = {"host": args.compare_host, "n": len(sub),
+                                "cos_mean": round(float(c.mean()), 5), "cos_min": round(float(c.min()), 5)}
+        log(f"cross-host check vs {args.compare_host}: {report['cross_host']}")
     base = vecs["R0_raw500"]
     nb0 = knn(base, K)
     for name in ("R1_clean500", "R2_cleanfull"):
@@ -156,14 +168,14 @@ def main() -> int:
         report["recipes"][name]["cos_to_R0_mean"] = round(float(np.mean(np.sum(V * base, axis=1))), 4)
         report["recipes"][name]["neighbours_shared_with_R0"] = round(
             float(np.mean([len(set(x) & set(y)) / K for x, y in zip(nb0, nbv)])), 4)
-    (OUT / "eval_abstract_length.json").write_text(json.dumps(report, indent=2))
+    (OUT / args.out).write_text(json.dumps(report, indent=2))
 
     print("\nrecipe          chars  texts/s  topic@10  subfld@10  P@20   lift(struct)  cos→R0  nb∩R0")
     for name, r in report["recipes"].items():
         print(f"{name:14s} {r['median_chars']:6d} {r['texts_per_s']:8.2f} {r['topic_purity10']:9.3f} "
               f"{r['subfield_purity10']:10.3f} {r['retrieval_p20']:6.3f} {r['boilerplate_lift']:+12.4f} "
               f"{r.get('cos_to_R0_mean', 1.0):7.3f} {r.get('neighbours_shared_with_R0', 1.0):6.3f}")
-    log(f"structured abstracts in the sample: {report['structured_share']:.1%} -> {OUT / 'eval_abstract_length.json'}")
+    log(f"structured abstracts in the sample: {report['structured_share']:.1%} -> {OUT / args.out}")
     return 0
 
 

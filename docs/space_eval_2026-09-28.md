@@ -150,3 +150,27 @@ Server auf :8095 per PID, Besitzvermerk `data/llama-server.space_eval.pid` im
 main-Worktree, `ops_events` Job `space_eval`, Wiederherstellung per `trap`; ~11 min).
 Ohne GPU: `eval_abstract_length.py --host http://127.0.0.1:8091` (CPU, ~1 Text/s).
 Rohdaten `data/space_eval/eval_abstract_length.json`.
+
+### Dieselbe Messung auf der RTX 5080 (bequietUbuntu, 28.09., 23:11–23:24)
+
+Nemotron dafür angehalten (Owner), Qwen3-Embedding-8B (md5-gleiche GGUF) auf :8095,
+`scripts/space_eval/run_abstract_eval_bqu.sh`, Rohdaten `eval_abstract_length_5080.json`.
+
+| Rezept | Texte/s 5080 | (3090) | Themen-Reinheit@10 | Suche P@20 | Mehr-Ähnlichkeit strukturiert | Nachbarn wie R0 |
+|---|---|---|---|---|---|---|
+| R0 heute | **31,5** | 18,2 | 0,485 | 0,504 | +0,0096 | — |
+| R1 aufgeräumt + 500 | **33,3** | 18,9 | 0,483 | 0,500 | +0,0103 | 92 % |
+| R2 ganzer Abstract | **14,6** | 7,5 | 0,495 | 0,481 | +0,0237 | 58 % |
+
+- **Gleiches Ergebnis auf anderer Hardware** — alle Kennzahlen innerhalb ±0,004 der 3090;
+  die Empfehlung R1 steht.
+- **Gleicher Vektorraum:** 200 aufgeräumte Texte zusätzlich auf dem CPU-Embedder der
+  Workstation (:8091) eingebettet → Kosinus im Mittel **0,998**, schlechtester 0,996. Beide
+  Karten können sich einen Lauf teilen.
+- **Die 5080 ist 1,75× so schnell wie die 3090.** Food-Pilot (~218.000): ~1,9 h auf der 5080
+  allein, ~1,2 h mit beiden Karten; Variante C aus #114 (2,75 Mio.) ~15 h mit beiden.
+- **Betriebsfehler dabei:** das Treiberskript wurde während des Laufs korrigiert (Bash liest
+  Skripte beim Ausführen nach) → Syntaxfehler, die Aufräum-Kette lief nicht vollständig,
+  Nemotron scheiterte viermal am noch belegten VRAM und stand von 23:24 bis 23:33 (Neustart von
+  Hand; zusammen 31 min statt ~22). Behoben im Skript: Server über den Port gefunden statt über
+  `$!`, `pkill -f "[l]lama-server …"` (ohne Klammer traf das Muster die eigene SSH-Shell).

@@ -1706,7 +1706,12 @@ aufgeräumt + ganzer Abstract) und misst Themen-Reinheit, Suche und die Mehr-Äh
 strukturierter Abstracts. Braucht die GPU: hält den llama-server (:8090) ~11 min an, startet
 das Embedding-Modell auf :8095 per PID, meldet sich über
 `data/llama-server.space_eval.pid` und `ops_events` an und stellt :8090 per `trap` wieder
-her; bricht mit rc 75 ab, wenn ein GPU-Cron läuft. Ergebnis: aufgeräumt + 500 Zeichen
+her; bricht mit rc 75 ab, wenn ein GPU-Cron läuft. Dieselbe Messung auf der RTX 5080:
+`scripts/space_eval/run_abstract_eval_bqu.sh` — hält auf bequietUbuntu Nemotron an
+(`systemctl --user` per SSH `bqu`, nur mit Owner-Wort), startet dort das Embedding-Modell auf
+:8095, misst von der Workstation aus, prüft mit 200 Texten auf :8091, ob beide Maschinen
+denselben Vektorraum liefern, und startet Nemotron per `trap` neu; danach prüfen, ob :8090
+dort wirklich wieder antwortet. Ergebnis: aufgeräumt + 500 Zeichen
 (`pipeline/text_clean.embed_text`), der ganze Abstract bringt nichts und kostet 2,5×.
 
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert

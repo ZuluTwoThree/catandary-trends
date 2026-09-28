@@ -1164,6 +1164,18 @@ cross_industry:
 - **Styling:** Tailwind CSS v4 (`@theme`-Tokens in `frontend/src/app/globals.css` — Designsystem „Editorial Intelligence": IBM Plex Serif/Mono/Sans, Ink `#0a0c0a`, Akzent Chartreuse `#d4ff3a`, scharfe Kanten)
 - **DB-Anbindung:** eigener `pg`-Layer (`frontend/src/lib/pg.ts` + `db.ts`) auf PostgreSQL/pgvector, Socket-Default (kein Drizzle); teure Aggregat-Queries laufen über einen In-Process-TTL-Cache in `db.ts`
 - **Auth/Paywall:** **entfernt 2026-09-03 (#93, kein SaaS — Owner 26.08.)**. Magic-Link-Auth, Tier-Entitlements, `TierGate`, Stripe-Checkout/Webhook, `/account*`, `/trends/pricing`, `/api/auth*`, `/api/stripe*` sowie `scripts/migrate_accounts.py`/`set_user_tier.py` sind physisch aus dem Code; die DB-Tabellen `app_users`/`magic_tokens`/`research_live_usage` bleiben ungenutzt stehen (kein DROP). Es gibt keine Accounts: die Owner-Instanz sieht alles, der Review-Guard (`lib/review-access.ts`) ist nur noch „lokal ja, `PUBLIC_MODE`/Export nie" (`REVIEW_ENABLED` entfällt). `AUTH_SECRET` bleibt — er signiert die Newsletter-Abmelde-HMAC (`lib/unsubscribe.ts`). `PUBLIC_MODE=1` (`frontend/src/proxy.ts`, Blockliste `lib/publicMode.ts`) blendet nur noch `/trends/foresight*`, `/trends/review*`, `/api/foresight*` als 404 aus und fenstert den Feed auf `PUBLIC_WINDOW_DAYS` (`lib/archiveWindow.ts`, `archiveWindowDays()`); das frühere 28-Tage-Paywall-Fenster (#70) ist weg
+- **Stand 2026-09-28 — der 5080-Rechner heißt jetzt `bequietUbuntu` (Owner):** dieselbe Maschine,
+  Ubuntu auf eigener Platte (Dual-Boot; die Windows-Seite unten ist dann nicht erreichbar),
+  Tailnet `100.94.255.57`, SSH-Alias `bqu` (LAN-Rückweg `bqu-lan`). Dort läuft **kein Ollama**,
+  sondern llama.cpp als User-Unit `llama-server.service` (`systemctl --user`, ohne sudo) mit
+  **NVIDIA-Nemotron-3.5-Lightning-30B-A3B** (IQ3_XXS) auf `:8090`, ~14,3 GB VRAM.
+  `~/llama.cpp/models/Qwen3-Embedding-8B-Q4_K_M.gguf` liegt dort md5-gleich mit der Workstation.
+  Gemessen 28.09. (`docs/space_eval_2026-09-28.md`): **31–33 Texte/s** bei ~600 Zeichen (die
+  3090 18–19/s), Vektoren gleich (Kosinus 0,998 gegen den CPU-Embedder der Workstation).
+  **`pipeline/remote_gpu.py` spricht noch Ollama (`/api/embed`) an und passt nicht** — für einen
+  Einbett-Lauf dort ein eigener llama-server per SSH, wie `scripts/space_eval/run_abstract_eval_bqu.sh`
+  (Nemotron anhalten nur mit Owner-Wort). Ob die Fensterregel 01–17 Uhr für die Ubuntu-Seite
+  gilt, ist nicht entschieden. Der Absatz darunter beschreibt die Windows-Seite.
 - **Zweite GPU im Tailnet — RTX 5080 auf `bequiet` (seit 2026-09-10):** Windows-Arbeitsplatz,
   Tailnet `100.119.239.40`, 1 ms über LAN (kein Relay). Ollama 0.33.3 auf `:11434` ohne
   Authentifizierung, elf Modelle vorhanden (u. a. `qwen3:8b`, `qwen3:14b`, `qwen3-embedding`,
