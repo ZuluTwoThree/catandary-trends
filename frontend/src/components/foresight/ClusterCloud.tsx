@@ -267,7 +267,9 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   const [showNests, setShowNests] = useState(true);
   // The sample (600 a month) defines the layout; "All signals" draws every signal
   // of the window placed into it (1.5M, ~24 MB) — then brightness is volume.
-  const [everything, setEverything] = useState(false);
+  // Default on since 28.09. (owner: the cloud should show every signal); a run
+  // without placed signals falls back to the sample.
+  const [everything, setEverything] = useState(meta.nAll > 0);
   const loaded = useRef(new Map<string, CloudData>());
   // Two arrangements of the same points (since 28.09.): the default groups by
   // topic across tiers, the second keeps the writing-style continents of 27.09.

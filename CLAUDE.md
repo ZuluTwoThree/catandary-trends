@@ -1311,7 +1311,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      parallel, jede Quelle darf einzeln scheitern; Treffer kommen als eigene Punktschicht,
      weil der Lauf ALLE 1,52 Mio. Signale des Fensters per umap.transform einordnet
      (Spalte all_points, nach trend_id sortiert, 24 MB; Lauf ~10 min, 2,8 GB). Seit 28.09.
-     zeichnet der Schalter "All signals" diese 1,52 Mio. auch (points?all=1, einmal geladen;
+     zeichnet der Schalter "All signals" (Standard beim Oeffnen, aus = Stichprobe) diese 1,52 Mio. auch (points?all=1, einmal geladen;
      Helligkeit = Menge statt Zusammensetzung, Punkte kleiner/blasser, Picking ohne
      Objekt je Punkt).
      ZWEI ANORDNUNGEN seit 28.09. (Owner-Go nach docs/space_eval_2026-09-28.md): Default

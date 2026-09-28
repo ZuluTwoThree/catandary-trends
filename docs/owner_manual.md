@@ -935,8 +935,8 @@ Koordinaten, darüber rasteten die Punkte sichtbar ein). *Reset view* stellt Bli
 Zoom und Mitte zurück. Punkte, die beim Verschieben hinter die Kamera geraten, werden
 ausgeblendet statt gespiegelt gezeichnet.
 
-*All signals* (seit 28.09.) zeichnet statt der Stichprobe **alle 1,52 Mio.
-eingeordneten Signale** des Fensters (die Spalte `all_points` des Laufs, ~24 MB, einmal
+*All signals* (seit 28.09., **Standard beim Öffnen** — abschalten zeigt die Stichprobe)
+zeichnet statt der Stichprobe **alle 1,52 Mio. eingeordneten Signale** des Fensters (die Spalte `all_points` des Laufs, ~24 MB, einmal
 geladen, danach schaltet der Knopf sofort hin und her). Die Form bleibt dieselbe — die
 Stichprobe hat sie festgelegt —, aber die **Helligkeit ist jetzt Menge**: die Monate seit
 dem Quellenausbau 2025/26 überstrahlen die frühen Jahre. Für „woraus bestand ein Monat"
