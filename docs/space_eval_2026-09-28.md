@@ -108,3 +108,45 @@ Speicher 2,3 GB Spitze in der Messung (36k), in der Produktion zuletzt 2,8 GB.
 
 Rohdaten `data/space_eval/eval_projection*.json` (nicht versioniert), enthalten auch den
 Begriffszusammenhalt je Begriff.
+
+## Nachtrag: wie viel Abstract einbetten — und hilft Aufräumen? (28.09., abends, #114)
+
+Vor dem Food-Pilot aus #114 (~140.000 Arbeiten): dieselben **2.000 Food-Science-/Nutrition-
+Arbeiten** (Okt. 2023 bis heute) mit drei Rezepten eingebettet, Qwen3-Embedding-8B auf der
+3090 (8B dafür angehalten, per `trap` wiederhergestellt), 1024er-Präfix, Kosinus.
+
+| Rezept | Zeichen (Median) | Texte/s | Themen-Reinheit@10 | Subfeld@10 | Suche P@20 (36 Themennamen) | Mehr-Ähnlichkeit strukturierter Abstracts | Kosinus zu R0 | Nachbarn wie R0 |
+|---|---|---|---|---|---|---|---|---|
+| R0 heute: Titel + 500, roh | 613 | 18,2 | 0,486 | 0,802 | 0,501 | +0,0096 | — | — |
+| **R1 aufgeräumt + 500** | 613 | 18,9 | 0,484 | 0,800 | 0,503 | +0,0101 | 0,997 | 92 % |
+| R2 aufgeräumt, ganzer Abstract | 1.638 | 7,5 | 0,496 | 0,803 | 0,478 | +0,0241 | 0,914 | 58 % |
+
+„Aufgeräumt" = `pipeline/text_clean.py`: Überschriften am Anfang („Abstract", „Background" …,
+auch gestapelt), Zwischenüberschriften mit Doppelpunkt („Results:", „Methods:" …),
+HTML-Tags und Entities (auch maskiert, `&lt;jats:p&gt;`), Copyright-Zeilen — **vor** dem
+500-Zeichen-Schnitt. „Mehr-Ähnlichkeit" = mittlerer Kosinus fachfremder Paare, bei denen
+beide Abstracts strukturiert sind (15,9 % der Stichprobe), minus derselbe Wert für Paare
+ohne Struktur.
+
+- **Aufräumen ändert die Qualität nicht messbar** (alle Unterschiede ≤ 0,003) und die
+  Vektoren kaum (Kosinus 0,997). Die Mehr-Ähnlichkeit strukturierter Abstracts bleibt
+  auch ohne Überschriften (0,0101): sie kommt vom **Studientyp** (klinische
+  Ernährungsstudien ähneln einander im Aufbau), nicht von den Überschrift-Wörtern — die
+  sind in 500 Zeichen ein kleiner Anteil. Aufgeräumt wird trotzdem (Owner): keine
+  gemeinsamen Codeschnipsel und Etiketten im Vektor, HTML auch in Titeln, kostet nichts.
+- **Der ganze Abstract lohnt sich nicht:** Themen-Reinheit +0,010, Suche −0,023 (bei 36
+  Anfragen à 20 Treffern ist ~0,02 die Streuung — beides kein belastbarer Unterschied),
+  aber **2,5× langsamer**, und die Vektoren wären ein anderer Raum (nur 58 % gleiche
+  Nachbarn) als die 1,8 Mio. vorhandenen Signale. Dazu rückt der Studientyp stärker in den
+  Vektor (+0,024 statt +0,010): mehr Text heißt mehr gemeinsame Methoden-Sprache — dasselbe
+  Muster wie der Schreibstil der Ebenen (Hebel 2 oben).
+- **Empfehlung für #114: R1** — aufräumen, dann Titel + 500 Zeichen.
+- **Nebenbefund Durchsatz:** 18,9 Texte/s auf der 3090 bei ~600 Zeichen (die Planung in #114
+  rechnete mit 6,6/s, gemessen am 10.09. bei Ø 2.013 Zeichen). Der Food-Pilot (~218.000)
+  braucht damit ~3,2 h auf der 3090 allein; Variante C (2,75 Mio.) ~40 h.
+
+Wiederholen: `scripts/space_eval/run_abstract_eval.sh [--n 2000]` (hält :8090 an, eigener
+Server auf :8095 per PID, Besitzvermerk `data/llama-server.space_eval.pid` im
+main-Worktree, `ops_events` Job `space_eval`, Wiederherstellung per `trap`; ~11 min).
+Ohne GPU: `eval_abstract_length.py --host http://127.0.0.1:8091` (CPU, ~1 Text/s).
+Rohdaten `data/space_eval/eval_abstract_length.json`.

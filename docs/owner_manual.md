@@ -1700,6 +1700,15 @@ kostet ~4 min mehr je Wolkenlauf und ist **nicht** umgestellt.
 
 Nur lesend, keine GPU; Ergebnisse unter `data/space_eval/` (nicht versioniert).
 
+**Einbett-Rezept für Abstracts** (#114, 28.09.): `scripts/space_eval/run_abstract_eval.sh`
+bettet 2.000 Food-Arbeiten dreimal ein (heute roh + 500 Zeichen · aufgeräumt + 500 ·
+aufgeräumt + ganzer Abstract) und misst Themen-Reinheit, Suche und die Mehr-Ähnlichkeit
+strukturierter Abstracts. Braucht die GPU: hält den llama-server (:8090) ~11 min an, startet
+das Embedding-Modell auf :8095 per PID, meldet sich über
+`data/llama-server.space_eval.pid` und `ops_events` an und stellt :8090 per `trap` wieder
+her; bricht mit rc 75 ab, wenn ein GPU-Cron läuft. Ergebnis: aufgeräumt + 500 Zeichen
+(`pipeline/text_clean.embed_text`), der ganze Abstract bringt nichts und kostet 2,5×.
+
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert
 
 1. `systemctl --user status llama-server`, `tail -50 /tmp/llama-server.log`.
