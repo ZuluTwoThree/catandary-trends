@@ -830,6 +830,9 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Edition den „Deep Dive of the Week"-Schritt an — seit 2026-09-19 schreibt der
 # nur noch status "disabled" (Rechercheur = Scouting-Dossiers entfernt), kein
 # Modell. Default off. docs/newsletter_deep_dive.md.
+# Seit 2026-09-29 (auf dev, scharf mit dem naechsten main-Merge): hat der Lauf selbst auf
+# Gemma gewechselt, stellt er danach den 8B-Ruhezustand her (rest=… in der end-Zeile) —
+# am 29.09. lief :8090 nach der Edition mit Gemma weiter, kein Job hielt die Karte.
 45 7 * * 2   scripts/weekly_newsletter_publish.sh
 
 # Research Pulse (#73, INSTALLIERT 2026-09-18 — Owner; bis dahin nur Vorschlag, die Seite
@@ -926,6 +929,15 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Schwelle nach `models/distill/meta.json`, und `DistillClassifier` benutzt sie;
 # `pipeline.distill.MEGA_ABSTAIN_THRESHOLD` ist nur noch der Rueckfall fuer Heads
 # von vor dem 26.09.
+# **Relevanz-Head seit 2026-09-29 zurueck auf den Stand vom 26.07. (4096-dim, #115):** der
+# 1024er-Relevanz-Head aus dem Retrain vom 27.09. verwarf auf denselben Presse-Eintraegen
+# 40,6 % statt 35,0 % (664 von 6.967 frueher durchgelassenen, 435 davon veroeffentlicht) —
+# Trainingsmischung 48 % statt 54 % positiv verschiebt die kalibrierte Wahrscheinlichkeit, die
+# Schwellen 0,3/0,7 blieben fest. `models/distill/relevance.joblib` = Kopie von
+# `models/distill.bak-21classes/relevance.joblib` (in BEIDEN Worktrees), der neue liegt als
+# `relevance.joblib.2026-09-27` daneben; die anderen vier Heads bleiben die neuen. ACHTUNG:
+# ein Retrain ueberschreibt ihn wieder — bis #115 (Schwellen eichen + Uebernahme-Gate) gebaut
+# ist, nach jedem Retrain den alten Relevanz-Head zurueckkopieren.
 0 6 * * 0    .venv/bin/python scripts/discovery_loop.py
 
 # Monatlicher Quellen-Check mit Issue-Post (1. des Monats, 08:00)
@@ -1164,6 +1176,22 @@ cross_industry:
 - **Styling:** Tailwind CSS v4 (`@theme`-Tokens in `frontend/src/app/globals.css` — Designsystem „Editorial Intelligence": IBM Plex Serif/Mono/Sans, Ink `#0a0c0a`, Akzent Chartreuse `#d4ff3a`, scharfe Kanten)
 - **DB-Anbindung:** eigener `pg`-Layer (`frontend/src/lib/pg.ts` + `db.ts`) auf PostgreSQL/pgvector, Socket-Default (kein Drizzle); teure Aggregat-Queries laufen über einen In-Process-TTL-Cache in `db.ts`
 - **Auth/Paywall:** **entfernt 2026-09-03 (#93, kein SaaS — Owner 26.08.)**. Magic-Link-Auth, Tier-Entitlements, `TierGate`, Stripe-Checkout/Webhook, `/account*`, `/trends/pricing`, `/api/auth*`, `/api/stripe*` sowie `scripts/migrate_accounts.py`/`set_user_tier.py` sind physisch aus dem Code; die DB-Tabellen `app_users`/`magic_tokens`/`research_live_usage` bleiben ungenutzt stehen (kein DROP). Es gibt keine Accounts: die Owner-Instanz sieht alles, der Review-Guard (`lib/review-access.ts`) ist nur noch „lokal ja, `PUBLIC_MODE`/Export nie" (`REVIEW_ENABLED` entfällt). `AUTH_SECRET` bleibt — er signiert die Newsletter-Abmelde-HMAC (`lib/unsubscribe.ts`). `PUBLIC_MODE=1` (`frontend/src/proxy.ts`, Blockliste `lib/publicMode.ts`) blendet nur noch `/trends/foresight*`, `/trends/review*`, `/api/foresight*` als 404 aus und fenstert den Feed auf `PUBLIC_WINDOW_DAYS` (`lib/archiveWindow.ts`, `archiveWindowDays()`); das frühere 28-Tage-Paywall-Fenster (#70) ist weg
+- **Stand 2026-09-28 — der 5080-Rechner heißt jetzt `bequietUbuntu` (Owner):** dieselbe Maschine,
+  Ubuntu auf eigener Platte (Dual-Boot; die Windows-Seite unten ist dann nicht erreichbar),
+  Tailnet `100.94.255.57`, SSH-Alias `bqu` (LAN-Rückweg `bqu-lan`). Dort läuft **kein Ollama**,
+  sondern llama.cpp als User-Unit `llama-server.service` (`systemctl --user`, ohne sudo) mit
+  **NVIDIA-Nemotron-3.5-Lightning-30B-A3B** (IQ3_XXS) auf `:8090`, ~14,3 GB VRAM.
+  `~/llama.cpp/models/Qwen3-Embedding-8B-Q4_K_M.gguf` liegt dort md5-gleich mit der Workstation.
+  Gemessen 28.09. (`docs/space_eval_2026-09-28.md`): **31–33 Texte/s** bei ~600 Zeichen (die
+  3090 18–19/s), Vektoren gleich (Kosinus 0,998 gegen den CPU-Embedder der Workstation).
+  **`pipeline/remote_gpu.py` spricht noch Ollama (`/api/embed`) an und passt nicht** — für einen
+  Einbett-Lauf dort ein eigener llama-server per SSH, wie `scripts/space_eval/run_abstract_eval_bqu.sh`
+  (Nemotron anhalten nur mit Owner-Wort). **Für die 5080 gibt es keine feste Regel, wann sie frei
+  und wann sie für den Owner reserviert ist (Owner 28.09.) — vor jeder Nutzung fragen.** Die
+  Fensterregel 01–17 Uhr im Absatz darunter (Windows-Seite, `remote_gpu.REMOTE_GPU_WINDOW`) gilt
+  damit nicht mehr als Freigabe. Vektoren sind austauschbar: CPU-Embedder gegen gespeicherte
+  3090-Vektoren Kosinus 0,998 (200 Signale), 5080 gegen CPU 0,998. Der Absatz darunter
+  beschreibt die Windows-Seite.
 - **Zweite GPU im Tailnet — RTX 5080 auf `bequiet` (seit 2026-09-10):** Windows-Arbeitsplatz,
   Tailnet `100.119.239.40`, 1 ms über LAN (kein Relay). Ollama 0.33.3 auf `:11434` ohne
   Authentifizierung, elf Modelle vorhanden (u. a. `qwen3:8b`, `qwen3:14b`, `qwen3-embedding`,
@@ -1314,6 +1342,15 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      zeichnet der Schalter "All signals" (Standard beim Oeffnen, aus = Stichprobe) diese 1,52 Mio. auch (points?all=1, einmal geladen;
      Helligkeit = Menge statt Zusammensetzung, Punkte kleiner/blasser, Picking ohne
      Objekt je Punkt).
+     SUCHE NACH BEDEUTUNG seit 28.09. (auf dev): Schalter Text · Meaning · Both (Default Both);
+     Meaning = Anfrage auf dem CPU-Embedder :8091 (lib/queryEmbedding.ts, geteilt mit
+     /api/search) -> die N naechsten Signale per HNSW (idx_trends_embedding_1024_hnsw, alle
+     Zeilen, Filter status signal/published), N 250/500/1000 (pgvector 0.6: ef_search <= 1000).
+     Rangfolge, keine Menge: Treffer verblassen mit dem Rang (spaceCloud.matchWeight, relativ
+     zur Spanne DIESER Anfrage), Spanne steht daneben; in Both gefaerbt nach Herkunft
+     (gelbgruen beides / weiss Text / cyan Bedeutung, Shader-Attribut aHit = Flags + Gewicht).
+     Antwort = Datensaetze || f32 Aehnlichkeit || u8 Flag je Treffer (encodeSearchBody),
+     Header X-Kinds/X-Sim/X-Mode; ?mode=&n= am search-Endpunkt.
      ZWEI ANORDNUNGEN seit 28.09. (Owner-Go nach docs/space_eval_2026-09-28.md): Default
      "Topic" = je Ebene deren Mittelvektor abziehen (Schreibstil), dann UMAP-Kosinus direkt
      auf 1024 Dimensionen -> ein Thema aus Forschung/Patenten/Presse liegt beisammen

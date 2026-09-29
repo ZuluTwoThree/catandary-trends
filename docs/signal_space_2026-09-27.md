@@ -240,6 +240,11 @@ und die Ebenenfarbe ginge verloren. Abstract-Treffer bedeuten „kommt vor", nic
   Schalter *All signals* stattdessen alle 1,52 Mio. eingeordneten Signale (Blob
   `all_points`, 24,4 MB, Laden 0,3 s lokal); dann ist Helligkeit Menge, nicht
   Zusammensetzung. Die Form bestimmt weiter die Stichprobe.
+- Suche nach Bedeutung (28.09.): Schalter Text · Meaning · Both; *Meaning* holt die 250/500/1.000
+  nächsten Signale per HNSW (pgvector 0.6: höchstens 1.000 je Anfrage). Gemessen: `Pflanzenkäse
+  aus Cashew` 971 Treffer (Text 0, Ähnlichkeit 0,76–0,58), `solar panel` in *Both* 106 beides /
+  2.186 nur Text / 825 nur Bedeutung (0,84–0,63), 0,3–1,3 s. Eine Rangfolge, keine Menge —
+  die Treffer verblassen mit dem Rang.
 - Ob eine andere Projektion Themen besser ordnet, misst `docs/space_eval_2026-09-28.md`
   (Ebenen-Mittel abziehen + Kosinus auf 1024 ist besser). Seit 28.09. ist das die
   Standard-Anordnung *Topic*; die hier beschriebene ist *Style* (Schalter *Layout*).

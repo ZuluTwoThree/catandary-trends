@@ -970,6 +970,26 @@ Forschung oft als Methode oder Nebensatz. Eine **neue** Suche öffnet das Fenste
 alle Monate; danach eingrenzen und mit *Play* zusehen, wann die Treffer auftauchen.
 Leeren beendet die Suche.
 
+*Suche nach Bedeutung* (seit 28.09.): der Schalter vor dem Feld wählt **Text** (die
+Stichwortsuche oben), **Meaning** (Vektorsuche) oder **Both** (Standard). *Meaning* bettet
+die Anfrage auf dem CPU-Embedder `:8091` ein und holt die **N nächsten Signale** über den
+HNSW-Index auf `embedding_1024` (N = 250 / 500 / 1.000 — pgvector 0.6 liefert je Anfrage
+höchstens 1.000; mehr ginge erst mit pgvector 0.8). Findet auch ohne gemeinsames Wort und
+in jeder Sprache: `Pflanzenkäse aus Cashew` → 971 Signale in der Wolke (Text: 0),
+`PV module recycling` → Recycling-Arbeiten, in denen „solar panel" nicht vorkommt.
+**Wichtig:** die Vektorsuche liefert eine *Rangfolge*, keine Treffermenge — irgendetwas ist
+immer „am nächsten", auch bei Unsinn. Deshalb stehen neben dem Feld die
+Ähnlichkeitsspanne (z. B. `similarity 0.84–0.63`, nächster bis letzter Treffer; die Skala
+schwankt von Anfrage zu Anfrage, also als Spanne lesen, nicht als Note), und die Treffer
+verblassen mit ihrem Rang (der nächste voll, der letzte auf 20 %). In *Both* sind die
+Treffer nach Herkunft gefärbt — **gelbgrün** = Text und Bedeutung, **weiß** = nur Text,
+**cyan** = nur Bedeutung — mit den drei Zahlen daneben; in *Text* und *Meaning* bleibt die
+Färbung nach Ebene/Vertikale. Tooltip und Detailfeld nennen je Punkt `match: text`,
+`meaning 0.72` oder `text + meaning 0.72`. Gemessen 28.09.: `solar panel` in *Both* 106
+beides / 2.186 nur Text / 825 nur Bedeutung; Antwort 0,3–1,3 s. Ist der Embedder weg,
+steht „partial — meaning (embedder :8091 unreachable) failed" daneben und die Textsuche
+läuft weiter.
+
 *Lesart* (steht auch auf der Seite): jeder Monat hat gleich viele Punkte — **Helligkeit
 zeigt, woraus ein Monat bestand, nie wie viel es gab**; Menge gehört auf die Messachsen.
 UMAP hält Nachbarschaften, keine Abstände: gemessen am 27.09. ist die Trustworthiness
@@ -1679,6 +1699,20 @@ kostet ~4 min mehr je Wolkenlauf und ist **nicht** umgestellt.
 ```
 
 Nur lesend, keine GPU; Ergebnisse unter `data/space_eval/` (nicht versioniert).
+
+**Einbett-Rezept für Abstracts** (#114, 28.09.): `scripts/space_eval/run_abstract_eval.sh`
+bettet 2.000 Food-Arbeiten dreimal ein (heute roh + 500 Zeichen · aufgeräumt + 500 ·
+aufgeräumt + ganzer Abstract) und misst Themen-Reinheit, Suche und die Mehr-Ähnlichkeit
+strukturierter Abstracts. Braucht die GPU: hält den llama-server (:8090) ~11 min an, startet
+das Embedding-Modell auf :8095 per PID, meldet sich über
+`data/llama-server.space_eval.pid` und `ops_events` an und stellt :8090 per `trap` wieder
+her; bricht mit rc 75 ab, wenn ein GPU-Cron läuft. Dieselbe Messung auf der RTX 5080:
+`scripts/space_eval/run_abstract_eval_bqu.sh` — hält auf bequietUbuntu Nemotron an
+(`systemctl --user` per SSH `bqu`, nur mit Owner-Wort), startet dort das Embedding-Modell auf
+:8095, misst von der Workstation aus, prüft mit 200 Texten auf :8091, ob beide Maschinen
+denselben Vektorraum liefern, und startet Nemotron per `trap` neu; danach prüfen, ob :8090
+dort wirklich wieder antwortet. Ergebnis: aufgeräumt + 500 Zeichen
+(`pipeline/text_clean.embed_text`), der ganze Abstract bringt nichts und kostet 2,5×.
 
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert
 

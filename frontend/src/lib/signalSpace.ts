@@ -1,6 +1,14 @@
 import { FTS_VECTOR } from "./db";
-import { q, q1 } from "./pg";
-import { collectRecords, recordIds, type CloudMeta, type CloudNest } from "./spaceCloud";
+import { getPool, q, q1 } from "./pg";
+import { annLiteral, embedQuery } from "./queryEmbedding";
+import {
+  annotateMatches,
+  collectRecords,
+  recordIds,
+  type CloudMeta,
+  type CloudNest,
+  type SearchMode,
+} from "./spaceCloud";
 
 /**
  * Read access to the signal cloud (signal_space_runs, written by
@@ -133,15 +141,54 @@ export async function getAllBlob(runId: number, alt = false): Promise<Uint8Array
 
 export interface SpaceSearchResult {
   q: string;
+  mode: SearchMode;
   /** Packed 16-byte records of the matches that have a place in the cloud. */
   records: Uint8Array;
+  /** Per record: cosine to the query (0 for keyword-only matches) and MATCH_* flags. */
+  sim: Float32Array;
+  match: Uint8Array;
   matches: number;
   /** Matches outside the cloud's time window (older or undated). */
   outside: number;
-  /** Matches per source, before de-duplication. */
-  bySource: { text: number; research: number; patents: number };
+  /** Matches per source, before de-duplication; `meaning` = nearest signals returned. */
+  bySource: { text: number; research: number; patents: number; meaning: number };
+  /** Placed matches by origin: keyword only, vector only, both. */
+  kinds: { text: number; meaning: number; both: number };
+  /** Similarity of the nearest and of the last returned neighbour, or null. */
+  simRange: [number, number] | null;
   /** Sources that failed (e.g. hit the statement timeout) — the result is partial. */
   failed: string[];
+}
+
+/** pgvector 0.6: an HNSW scan returns at most ef_search rows (max 1000). */
+export const MEANING_MAX = 1000;
+export const MEANING_CHOICES = [250, 500, 1000] as const;
+
+/**
+ * The n signals nearest to the query vector (cosine on embedding_1024, the
+ * HNSW index over every row), restricted to what the cloud draws. A ranking,
+ * not a set: something is always "nearest", even for nonsense.
+ */
+async function nearestSignals(vec: number[], n: number): Promise<Map<number, number>> {
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    // ef_search bounds how many rows the scan can return; the status filter
+    // drops a few (drafts, rejected), so ask for some slack
+    await client.query(`SET LOCAL hnsw.ef_search = ${Math.min(MEANING_MAX, Math.max(400, 2 * n))}`);
+    const res = await client.query(
+      "SELECT id, 1 - (embedding_1024 <=> $1::vector) AS s FROM trends " +
+        "WHERE status IN ('signal','published') ORDER BY embedding_1024 <=> $1::vector LIMIT $2",
+      [annLiteral(vec), n]
+    );
+    await client.query("COMMIT");
+    return new Map(res.rows.map((r: { id: number; s: number }) => [Number(r.id), Number(r.s)]));
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 /**
@@ -155,26 +202,48 @@ export interface SpaceSearchResult {
  * Same syntax everywhere (websearch_to_tsquery): words must all occur, a quoted
  * phrase must occur as a phrase, -word excludes. Measured 27.09. on the whole
  * corpus: text and research under 1 s, patents 0.2–7 s ("battery").
+ *
+ * mode "meaning" / "both" adds (or uses only) the vector search: the query is
+ * embedded on the CPU embedder and its `meaningN` nearest signals join the
+ * matches (28.09.; measured 0.15 s embedding + 0.4–1.1 s HNSW for 1,000).
  */
 export async function searchSpace(
   runId: number,
   query: string,
-  alt = false
+  alt = false,
+  mode: SearchMode = "text",
+  meaningN = MEANING_MAX
 ): Promise<SpaceSearchResult | null> {
   const placed = await placedSignals(runId, alt);
   if (!placed) return null;
   const ts = "websearch_to_tsquery('english', $1)";
-  const [text, research, patents] = await Promise.allSettled([
-    q<{ id: number }>(
-      `SELECT id FROM trends WHERE status IN ('signal','published') AND ${FTS_VECTOR} @@ ${ts}`,
-      [query]
-    ),
-    q<{ id: number }>(`SELECT trend_id AS id FROM research_signals WHERE tsv @@ ${ts}`, [query]),
-    q<{ id: number }>(
-      "SELECT t.id FROM patent_search ps JOIN raw_entries r ON r.pub_number = ps.pub_number " +
-        `JOIN trends t ON t.raw_entry_id = r.id WHERE ps.tsv @@ ${ts}`,
-      [query]
-    ),
+  const useText = mode !== "meaning";
+  const useMeaning = mode !== "text";
+  const none = Promise.resolve([] as { id: number }[]);
+  const meaningP: Promise<Map<number, number>> = useMeaning
+    ? embedQuery(query).then((v) => {
+        if (!v) throw new Error("embedder unreachable");
+        return nearestSignals(v, Math.min(MEANING_MAX, Math.max(1, meaningN)));
+      })
+    : Promise.resolve(new Map());
+  const [text, research, patents, meaning] = await Promise.allSettled([
+    useText
+      ? q<{ id: number }>(
+          `SELECT id FROM trends WHERE status IN ('signal','published') AND ${FTS_VECTOR} @@ ${ts}`,
+          [query]
+        )
+      : none,
+    useText
+      ? q<{ id: number }>(`SELECT trend_id AS id FROM research_signals WHERE tsv @@ ${ts}`, [query])
+      : none,
+    useText
+      ? q<{ id: number }>(
+          "SELECT t.id FROM patent_search ps JOIN raw_entries r ON r.pub_number = ps.pub_number " +
+            `JOIN trends t ON t.raw_entry_id = r.id WHERE ps.tsv @@ ${ts}`,
+          [query]
+        )
+      : none,
+    meaningP,
   ]);
   const ids = new Set<number>();
   const failed: string[] = [];
@@ -186,11 +255,37 @@ export async function searchSpace(
     for (const r of res.value) ids.add(Number(r.id));
     return res.value.length;
   };
-  const bySource = {
+  const counted = {
     text: count("text", text),
     research: count("research abstracts", research),
     patents: count("patent abstracts", patents),
   };
+  const textIds = new Set(ids); // keyword matches only, before the neighbours join
+  let near = new Map<number, number>();
+  if (meaning.status === "rejected") {
+    failed.push(
+      String(meaning.reason).includes("embedder") ? "meaning (embedder :8091 unreachable)" : "meaning"
+    );
+  } else {
+    near = meaning.value;
+    for (const id of near.keys()) ids.add(id);
+  }
+  const bySource = { ...counted, meaning: near.size };
   const { records, found, missing } = collectRecords(placed.buf, placed.ids, ids);
-  return { q: query, records, matches: found, outside: missing, bySource, failed };
+  const { sim, match, counts } = annotateMatches(records, textIds, near);
+  const sims = [...near.values()];
+  const simRange: [number, number] | null = sims.length ? [Math.max(...sims), Math.min(...sims)] : null;
+  return {
+    q: query,
+    mode,
+    records,
+    sim,
+    match,
+    matches: found,
+    outside: missing,
+    bySource,
+    kinds: counts,
+    simRange,
+    failed,
+  };
 }

@@ -13,6 +13,15 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-09-29 · change · Distill-Relevanz-Head zurück auf 26.07. (#115)
+
+Der Retrain vom 27.09. lieferte einen Relevanz-Head, der auf denselben Presse-Einträgen
+40,6 % statt 35,0 % verwarf; die Nachtläufe 28. und 29.09. verloren dadurch zusammen 265
+Einträge, die der alte Head nicht verworfen hätte. 08:02: `models/distill/relevance.joblib`
+in main und dev durch den 4096er-Head vom 26.07. ersetzt (98 % gleiche Entscheidungen wie
+der bis 26.09. produktive), neuer als `relevance.joblib.2026-09-27` aufgehoben. Wirksam ab
+dem nächsten Lauf. Dauerhafte Lösung: #115.
+
 ## 2026-09-24 · change · Vier Issues geschlossen, Pulse W35 nachgerechnet
 duration: 1h
 gpu: local

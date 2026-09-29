@@ -20,6 +20,12 @@ import {
   projectPoint,
   unpack,
   layoutView,
+  annotateMatches,
+  decodeSearchBody,
+  encodeSearchBody,
+  matchWeight,
+  MATCH_MEANING,
+  MATCH_TEXT,
   type CloudData,
   type CloudMeta,
   type CloudFilter,
@@ -358,5 +364,51 @@ describe("layoutView", () => {
     const v = layoutView({ ...base, alt: null, layout: "style" }, true);
     expect(v.key).toBe("");
     expect(v.layout).toBe("style");
+  });
+});
+
+describe("text + meaning search", () => {
+  const packed = (ids: number[]): Uint8Array => {
+    const out = new Uint8Array(ids.length * RECORD_BYTES);
+    const dv = new DataView(out.buffer);
+    ids.forEach((id, i) => {
+      dv.setUint16(i * RECORD_BYTES, 1000 + i, true);
+      dv.setUint32(i * RECORD_BYTES + 12, id, true);
+    });
+    return out;
+  };
+
+  it("marks every match by origin and keeps the similarity of vector matches", () => {
+    const recs = packed([5, 9, 12, 40]);
+    const { sim, match, counts } = annotateMatches(recs, new Set([5, 9]), new Map([[9, 0.8], [12, 0.61]]));
+    expect(Array.from(match)).toEqual([MATCH_TEXT, MATCH_TEXT | MATCH_MEANING, MATCH_MEANING, 0]);
+    expect(sim[0]).toBe(0);
+    expect(sim[1]).toBeCloseTo(0.8, 6);
+    expect(sim[2]).toBeCloseTo(0.61, 6);
+    expect(counts).toEqual({ text: 1, meaning: 1, both: 1 });
+  });
+
+  it("round-trips records, similarity and match flags through one binary body", () => {
+    const recs = packed([3, 7, 11]);
+    const sim = new Float32Array([0, 0.75, 0.5]);
+    const match = new Uint8Array([MATCH_TEXT, 3, MATCH_MEANING]);
+    const body = encodeSearchBody(recs, sim, match);
+    expect(body.byteLength).toBe(3 * 21);
+    const copy = body.slice().buffer as ArrayBuffer;
+    const out = decodeSearchBody(copy);
+    expect(new Uint8Array(out.records)).toEqual(recs);
+    expect(Array.from(out.sim)).toEqual([0, 0.75, 0.5]);
+    expect(Array.from(out.match)).toEqual([1, 3, 2]);
+    expect(unpack(out.records, 1).trendId[2]).toBe(11);
+    expect(() => decodeSearchBody(new ArrayBuffer(20))).toThrow();
+  });
+
+  it("fades vector-only matches with their rank, never keyword matches", () => {
+    expect(matchWeight(0.84, MATCH_MEANING, 0.63, 0.84)).toBeCloseTo(1, 6);
+    expect(matchWeight(0.63, MATCH_MEANING, 0.63, 0.84)).toBeCloseTo(0.2, 6);
+    expect(matchWeight(0.735, MATCH_MEANING, 0.63, 0.84)).toBeCloseTo(0.6, 6);
+    expect(matchWeight(0.63, MATCH_TEXT | MATCH_MEANING, 0.63, 0.84)).toBe(1);
+    expect(matchWeight(0, MATCH_TEXT, 0.63, 0.84)).toBe(1);
+    expect(matchWeight(0.7, MATCH_MEANING, 0.7, 0.7)).toBe(1); // a single neighbour
   });
 });

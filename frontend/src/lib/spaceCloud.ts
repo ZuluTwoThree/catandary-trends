@@ -114,6 +114,10 @@ export interface CloudData {
   vertical: Uint8Array;
   nest: Uint16Array;
   trendId: Uint32Array;
+  /** Search matches only: MATCH_TEXT | MATCH_MEANING per point. */
+  match?: Uint8Array;
+  /** Search matches only: cosine to the query (0 where the vector search did not find it). */
+  sim?: Float32Array;
 }
 
 export function dequantise(q: number, range: number): number {
@@ -445,4 +449,83 @@ export function collectRecords(
     out.set(buf.subarray(k * RECORD_BYTES, (k + 1) * RECORD_BYTES), j * RECORD_BYTES)
   );
   return { records: out, found: hits.length, missing };
+}
+
+// ------------------------------------------------------ text + meaning search
+
+/**
+ * A search match came from the keyword search, the vector search, or both
+ * (bit flags). The vector search returns a RANKING — the N nearest signals —
+ * not a set, so its matches carry their similarity and are drawn fainter the
+ * further down the ranking they are.
+ */
+export const MATCH_TEXT = 1;
+export const MATCH_MEANING = 2;
+/** Bytes per record appended after the 16-byte records: f32 similarity + u8 match. */
+export const SEARCH_EXTRA_BYTES = 5;
+
+export type SearchMode = "text" | "meaning" | "both";
+
+/** Similarity and match kind for every packed record (record order kept). */
+export function annotateMatches(
+  records: Uint8Array,
+  text: Set<number>,
+  meaning: Map<number, number>
+): { sim: Float32Array; match: Uint8Array; counts: { text: number; meaning: number; both: number } } {
+  const n = records.byteLength / RECORD_BYTES;
+  const dv = new DataView(records.buffer, records.byteOffset, records.byteLength);
+  const sim = new Float32Array(n);
+  const match = new Uint8Array(n);
+  const counts = { text: 0, meaning: 0, both: 0 };
+  for (let i = 0; i < n; i++) {
+    const id = dv.getUint32(i * RECORD_BYTES + 12, true);
+    const s = meaning.get(id);
+    const m = (text.has(id) ? MATCH_TEXT : 0) | (s !== undefined ? MATCH_MEANING : 0);
+    match[i] = m;
+    sim[i] = s ?? 0;
+    if (m === (MATCH_TEXT | MATCH_MEANING)) counts.both++;
+    else if (m === MATCH_TEXT) counts.text++;
+    else if (m === MATCH_MEANING) counts.meaning++;
+  }
+  return { sim, match, counts };
+}
+
+/** records || similarity (f32 LE each) || match (u8 each) — one binary body. */
+export function encodeSearchBody(records: Uint8Array, sim: Float32Array, match: Uint8Array): Uint8Array {
+  const n = records.byteLength / RECORD_BYTES;
+  const out = new Uint8Array(n * (RECORD_BYTES + SEARCH_EXTRA_BYTES));
+  out.set(records, 0);
+  const dv = new DataView(out.buffer);
+  for (let i = 0; i < n; i++) dv.setFloat32(n * RECORD_BYTES + i * 4, sim[i], true);
+  out.set(match, n * (RECORD_BYTES + 4));
+  return out;
+}
+
+export function decodeSearchBody(buf: ArrayBuffer): { records: ArrayBuffer; sim: Float32Array; match: Uint8Array } {
+  const per = RECORD_BYTES + SEARCH_EXTRA_BYTES;
+  if (buf.byteLength % per !== 0) {
+    throw new Error(`search body of ${buf.byteLength} bytes is not a whole number of ${per}-byte matches`);
+  }
+  const n = buf.byteLength / per;
+  const dv = new DataView(buf);
+  const sim = new Float32Array(n);
+  for (let i = 0; i < n; i++) sim[i] = dv.getFloat32(n * RECORD_BYTES + i * 4, true);
+  return {
+    records: buf.slice(0, n * RECORD_BYTES),
+    sim,
+    match: new Uint8Array(buf.slice(n * (RECORD_BYTES + 4))),
+  };
+}
+
+/**
+ * Opacity factor of a match: 1 for a keyword match; for a vector-only match it
+ * falls from 1 (the most similar) to 0.2 (the last of the N) — relative to the
+ * query's own range, because the absolute scale differs from query to query
+ * (the 1,000th neighbour sat at 0.58 for one query, 0.66 for another).
+ */
+export function matchWeight(sim: number, match: number, lo: number, hi: number): number {
+  if (match & MATCH_TEXT) return 1;
+  if (!(match & MATCH_MEANING)) return 1;
+  const t = hi > lo ? (sim - lo) / (hi - lo) : 1;
+  return 0.2 + 0.8 * Math.min(1, Math.max(0, t));
 }

@@ -83,10 +83,12 @@ PYEOF
       | "$PY" -c "import json,sys;print(json.load(sys.stdin)['data'][0]['id'])" 2>/dev/null; }
   WANT="gemma-4-26B"
   CUR="$(MODEL_ID)"
+  SWAPPED=0
   if [ -n "$CUR" ] && [[ "$CUR" == *"$WANT"* ]]; then
     echo "----- :8090 already serving the content engine: $CUR -----"
   else
     echo "----- :8090 serving '${CUR:-nothing}' — swapping to $WANT -----"
+    SWAPPED=1
     systemctl --user stop llama-server.service 2>/dev/null
     sleep 3
     ln -sfn start-gemma4-26b-ctx16k.sh /home/dirk/llama.cpp/start-active.sh \
@@ -128,7 +130,35 @@ PYEOF
     *) echo "WARN: NEWSLETTER_DEEP_DIVE='${NEWSLETTER_DEEP_DIVE}' unknown (dry-run|off) — step skipped"; DD_RC="skipped" ;;
   esac
 
-  ops_event_end "$RC" "dd=$DD_RC"
-  echo "weekly_newsletter_publish.sh end $(date -Iseconds) (gen=$RC dd=$DD_RC)"
+  # ----- Ruhezustand wiederherstellen (seit 2026-09-29) -----------------------
+  # Hat DIESER Lauf auf Gemma gewechselt, gehoert der Karte danach wieder das 8B
+  # (Ruhezustand, den der Waechter prueft und die Owner-Instanz braucht). Bis zum
+  # 29.09. blieb Gemma stehen: am 29.09. lief :8090 nach der Edition W39 (07:46)
+  # mit Gemma-26B weiter, ohne dass ein Job die Karte hielt — der Waechter um 07:45
+  # kam eine Minute zu frueh. Dieselbe Luecke hatte weekly_ingesters.sh bis 26.09.
+  # War Gemma schon geladen (SWAPPED=0), hat es jemand anderes gewollt: nicht
+  # anfassen. Haelt ein fremder GPU-Job die Karte, stellt er den Ruhezustand her.
+  RC_REST="-"
+  if [ "$SWAPPED" -eq 1 ]; then
+    if BUSY=$(gpu_guard_busy); then
+      echo "----- Ruhezustand NICHT hergestellt: fremder GPU-Job aktiv (stellt ihn selbst her) -----"
+      echo "$BUSY" | sed 's/^/    /'
+      RC_REST="busy"
+    else
+      echo "----- Ruhezustand: start-active.sh -> start-qwen3-8b-208k.sh, llama-server neu starten -----"
+      ln -sfn start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
+      systemctl --user restart llama-server.service
+      RC_REST=$?
+      for i in $(seq 1 30); do
+        sleep 3
+        CUR="$(MODEL_ID)"
+        [[ "$CUR" == *"Qwen3-8B"* ]] && break
+      done
+      echo "----- Ruhezustand: $(readlink /home/dirk/llama.cpp/start-active.sh), :8090 serviert '${CUR:-nichts}' (rc=$RC_REST) -----"
+    fi
+  fi
+
+  ops_event_end "$RC" "dd=$DD_RC rest=$RC_REST"
+  echo "weekly_newsletter_publish.sh end $(date -Iseconds) (gen=$RC dd=$DD_RC rest=$RC_REST)"
   exit "$RC"
 } >> "$LOG" 2>&1
