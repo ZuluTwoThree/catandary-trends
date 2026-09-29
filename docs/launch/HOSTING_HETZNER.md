@@ -3,7 +3,7 @@
 `preview.html` is the **versioned copy of the live landing** on `https://catandary.de/`
 (state 2026-09-01, uploaded 17:47 CEST). It is one self-contained HTML document — no build,
 no database; CSS, JS, font stack, grain texture and inline SVGs are embedded. It references
-three sibling files that live next to it in the webroot and in this folder:
+sibling files that live next to it in the webroot and in this folder:
 
 | File | Purpose |
 |---|---|
@@ -11,6 +11,7 @@ three sibling files that live next to it in the webroot and in this folder:
 | `mark.svg` | icon (`<link rel="icon" type="image/svg+xml" href="/mark.svg">`) |
 | `favicon.ico` | fallback icon, 16×16 + 32×32 (`<link rel="alternate icon">`) |
 | `robots.txt` | allow-all; the page itself still carries `<meta name="robots" content="noindex">` |
+| `assets/signal-cloud.bin` | the hero's signal cloud (since 2026-09-29): 20,000 signals, geometry only (two positions, tier, month — no titles, no ids), ~280 KB; written by `scripts/export_landing_cloud.py` from the latest cloud run. Upload into `/assets/`; without it the hero shows its old 2D animation |
 
 The newsletter form posts to `/newsletter/subscribe.php` (double opt-in backend on the same
 webspace) — see `newsletter-doi-php/EINBAU.md` for that package and the upload order

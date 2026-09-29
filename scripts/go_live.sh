@@ -53,6 +53,19 @@ for line in open(os.path.expanduser("~/.config/catandary/webspace.env")):
         k, v = line.split("=", 1); cfg[k.strip()] = v.strip().strip("'\"").split("   #")[0].strip()
 t = paramiko.Transport((cfg["HOST"], int(cfg.get("PORT", 22)))); t.connect(username=cfg["USER"], password=cfg["PASSWORD"])
 s = paramiko.SFTPClient.from_transport(t); root = cfg["REMOTE_ROOT"]
+# the hero's signal cloud (assets/signal-cloud.bin, scripts/export_landing_cloud.py) goes up
+# FIRST: the page falls back to its old animation without it, but never the other way round
+asset = pathlib.Path(os.environ["CT_REPO"], "docs/launch/assets/signal-cloud.bin")
+if asset.exists():
+    try: s.stat(root + "/assets")
+    except IOError: s.mkdir(root + "/assets")
+    with s.open(root + "/assets/signal-cloud.bin.tmp", "wb") as f: f.write(asset.read_bytes())
+    try: s.posix_rename(root + "/assets/signal-cloud.bin.tmp", root + "/assets/signal-cloud.bin")
+    except Exception:
+        try: s.remove(root + "/assets/signal-cloud.bin")
+        except IOError: pass
+        s.rename(root + "/assets/signal-cloud.bin.tmp", root + "/assets/signal-cloud.bin")
+    print("assets/signal-cloud.bin:", s.stat(root + "/assets/signal-cloud.bin").st_size, "B")
 body = pathlib.Path(os.environ["CT_REPO"], "docs/launch/preview.html").read_bytes()
 with s.open(root + "/index.html.tmp", "wb") as f: f.write(body)
 try: s.posix_rename(root + "/index.html.tmp", root + "/index.html")
@@ -63,7 +76,7 @@ s.close(); t.close()
 PY
 say ""
 say "4. Verifikation"
-for u in / /trends /trends/methodology; do
+for u in / /assets/signal-cloud.bin /trends /trends/methodology; do
   printf '  %s https://catandary.de%s\n' "$(curl -s -o /dev/null -w '%{http_code}' --max-time 25 "https://catandary.de$u")" "$u"
 done
 printf '  robots.txt: %s\n' "$(curl -s --max-time 25 https://catandary.de/robots.txt | grep -c 'Disallow: /$' || true) Disallow-Zeilen (0 = frei)"

@@ -479,7 +479,7 @@ Aus `docs/launch/09_launch_plan_2026-09-02.md`; Reihenfolge = Abhängigkeit.
    `docs/launch/newsletter-doi-php/NEWSLETTER_GOLIVE.md`. Erst Export
    publizieren, dann das PHP hochladen (Redirect-Ziel
    `/trends/newsletter/unsubscribed`).
-6. **Landing:** `docs/launch/preview.html` als `index.html` hochladen; die
+6. **Landing:** `docs/launch/preview.html` als `index.html` hochladen, dazu `docs/launch/assets/signal-cloud.bin` nach `/assets/` (die Signalwolke im Hero; `go_live.sh` lädt beides); die
    SaaS-Preistabelle und der „Explore the live engine"-CTA darin sind noch
    nicht auf „Analysen statt Plattform" umgeschrieben (#93, Owner-Stimme).
    Countdown-Datum steht an **zwei** Stellen in der Datei.
