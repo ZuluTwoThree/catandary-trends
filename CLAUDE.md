@@ -926,6 +926,15 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Schwelle nach `models/distill/meta.json`, und `DistillClassifier` benutzt sie;
 # `pipeline.distill.MEGA_ABSTAIN_THRESHOLD` ist nur noch der Rueckfall fuer Heads
 # von vor dem 26.09.
+# **Relevanz-Head seit 2026-09-29 zurueck auf den Stand vom 26.07. (4096-dim, #115):** der
+# 1024er-Relevanz-Head aus dem Retrain vom 27.09. verwarf auf denselben Presse-Eintraegen
+# 40,6 % statt 35,0 % (664 von 6.967 frueher durchgelassenen, 435 davon veroeffentlicht) —
+# Trainingsmischung 48 % statt 54 % positiv verschiebt die kalibrierte Wahrscheinlichkeit, die
+# Schwellen 0,3/0,7 blieben fest. `models/distill/relevance.joblib` = Kopie von
+# `models/distill.bak-21classes/relevance.joblib` (in BEIDEN Worktrees), der neue liegt als
+# `relevance.joblib.2026-09-27` daneben; die anderen vier Heads bleiben die neuen. ACHTUNG:
+# ein Retrain ueberschreibt ihn wieder — bis #115 (Schwellen eichen + Uebernahme-Gate) gebaut
+# ist, nach jedem Retrain den alten Relevanz-Head zurueckkopieren.
 0 6 * * 0    .venv/bin/python scripts/discovery_loop.py
 
 # Monatlicher Quellen-Check mit Issue-Post (1. des Monats, 08:00)
