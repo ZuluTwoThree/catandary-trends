@@ -1361,6 +1361,13 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      alt_all_points, alt_coord_range, alt_nests, alt_pca_variance, alt_neighbour_keep,
      alt_trustworthiness; additiv in migrate_signal_space_tables, Live-DB 28.09.);
      API ?layout=alt an points und search. `--layouts style` rechnet nur die alte.
+     FOOD-PILOT (#114, 29.09., auf dev): scripts/food_pilot.py (select/takeover/status) +
+     scripts/run_food_pilot.sh (einmalig, kein Cron) holen Food-Patente (eine je Familie) und
+     Food-Science-/Nutrition-/Alt-Protein-Arbeiten ab Okt. 2023 in den Signalraum; Arbeiten als
+     raw_entries unter drei Pseudo-Quellen "OpenAlex corpus: …" mit llm_pipeline = FALSE.
+     scripts/signal_batch.py hat dafuer --ids-file (genau diese Eintraege) und --clean-text
+     (pipeline/text_clean.embed_text vor dem 500-Zeichen-Schnitt); beide Default aus, die
+     Wochenlaeufe betten unveraendert ein.
      Lauf 4 (28.09.): 1.224 s, Spitze 4,0 GB, 52 MB; Topic 25 % Nachbarn/Trust 0,923,
      Style 24 %/0,937. "solar panel"
      2.288 statt 112 Treffer, "AI" 88.698, 0,2-1,1 s. Ringe werden auf der CPU getroffen

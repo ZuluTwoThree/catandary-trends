@@ -83,3 +83,13 @@ def test_out_of_scope_rows_stay_unprocessed(seeded_db):
         n = c.execute("SELECT count(*) AS n FROM raw_entries "
                       "WHERE processed = FALSE").fetchone()["n"]
     assert n == 4  # pull markiert nichts — Scope-Filter verlieren keine Zeilen
+
+
+def test_ids_scope_takes_exactly_the_listed_unprocessed_rows(seeded_db):
+    # #114 Food pilot: a curated id list, intersected with "still unprocessed"
+    got = {r["id"] for r in pull_unprocessed(0, [], [], ids=[1, 2, 999])}
+    assert got == {1, 2}
+    assert pull_unprocessed(0, [], [], ids=[]) == []
+    # combines with the other scopes like any other filter
+    got = {r["id"] for r in pull_unprocessed(0, [], [], ids=[1, 2], published_after="2026-08-01")}
+    assert got == {1}
