@@ -52,6 +52,22 @@ _INLINE = re.compile(rf"(?<![A-Za-z])(?:{_LABEL_ALT})\s*:\s*", re.IGNORECASE)
 _WS = re.compile(r"\s+")
 
 
+# --- clean_source_text: the module's first function (#102, 2026-09-10) -------------
+# Kept verbatim. It keeps the WORDING (tags out, entities resolved, whitespace
+# normalised) so an excerpt stays quotable; clean_text() below goes further and
+# removes shared boilerplate before an embedding. No caller left since the
+# dossier removal (19.09.), kept so nothing disappears silently.
+_TAG_RE = re.compile(r"<[^>]+>")
+_BLANKS_RE = re.compile(r"[ \t]*\n\s*\n\s*")
+
+
+def clean_source_text(text: str | None) -> str:
+    """HTML-Tags und Entities raus, Leerraum normalisieren. Wortlaut bleibt."""
+    if not text:
+        return ""
+    return _BLANKS_RE.sub("\n\n", html.unescape(_TAG_RE.sub("", text))).strip()
+
+
 def clean_text(text: str | None) -> str:
     if not text:
         return ""

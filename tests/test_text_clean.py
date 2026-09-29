@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pipeline.text_clean import clean_text, embed_text
+from pipeline.text_clean import clean_source_text, clean_text, embed_text
 
 
 def test_leading_labels_go_even_stacked():
@@ -42,3 +42,8 @@ def test_embed_text_cuts_after_cleaning():
     assert embed_text("<i>T</i>", body) == "T\n" + "x" * 500
     assert embed_text("T", body, max_body=None) == "T\n" + "x" * 600
     assert embed_text(None, None) == "\n"
+
+
+def test_clean_source_text_keeps_the_wording():
+    assert clean_source_text("<p>Hello&#8217;s</p>\n\n\n<a href='x'>world</a>") == "Hello’s\n\nworld"
+    assert clean_source_text(None) == ""
