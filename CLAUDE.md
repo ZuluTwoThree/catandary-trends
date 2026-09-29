@@ -830,6 +830,9 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Edition den „Deep Dive of the Week"-Schritt an — seit 2026-09-19 schreibt der
 # nur noch status "disabled" (Rechercheur = Scouting-Dossiers entfernt), kein
 # Modell. Default off. docs/newsletter_deep_dive.md.
+# Seit 2026-09-29 (auf dev, scharf mit dem naechsten main-Merge): hat der Lauf selbst auf
+# Gemma gewechselt, stellt er danach den 8B-Ruhezustand her (rest=… in der end-Zeile) —
+# am 29.09. lief :8090 nach der Edition mit Gemma weiter, kein Job hielt die Karte.
 45 7 * * 2   scripts/weekly_newsletter_publish.sh
 
 # Research Pulse (#73, INSTALLIERT 2026-09-18 — Owner; bis dahin nur Vorschlag, die Seite
