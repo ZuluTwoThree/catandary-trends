@@ -1274,7 +1274,10 @@ Wächter 07:45 prüft die Summary, sobald die Config existiert.
 ### 9.4 Was owner-verwaltet bleibt (Webroot)
 
 `index.html` (= `docs/launch/preview.html`, die Landing), `mark.svg`,
-`favicon.ico`, `newsletter/**` (PHP-DOI), die Root-`.htaccess`. Der Publisher
+`favicon.ico`, `assets/signal-cloud.bin` (die Signalwolke im Hero, seit 29.09.;
+neu erzeugen mit `.venv/bin/python scripts/export_landing_cloud.py` nach einem
+neuen Wolkenlauf — 20.000 Punkte, nur Geometrie, keine Titel; ohne die Datei zeigt
+der Hero die alte 2D-Animation), `newsletter/**` (PHP-DOI), die Root-`.htaccess`. Der Publisher
 schreibt und löscht dort nie; alle anderen Root-Dateien des Exports
 (`404.html`, `imprint.html`, `analysis.html`, …) gelten als „outside scope".
 Rechtstexte und Anfrage haben deshalb Export-Adressen unter `/trends/imprint`,
