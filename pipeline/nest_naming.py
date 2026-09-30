@@ -61,11 +61,30 @@ EMPTY_NAMES = {
 }
 
 
+def unshout(title: str) -> str:
+    """Patent titles arrive in capitals (DOCDB). Shown to the model like that, it
+    answers in kind ("BEAM Measurement Method FOR Three-dimensional Antenna ARRAY",
+    30.09.), and a five-letter capital word looks like an acronym to titlecase().
+    A title that is mostly capitals goes in as sentence case; tokens with a digit
+    (5G, CD137) keep their spelling."""
+    letters = [c for c in title if c.isalpha()]
+    if len(letters) < 8 or sum(c.isupper() for c in letters) < 0.8 * len(letters):
+        return title
+    words = []
+    for i, w in enumerate(title.split()):
+        if any(ch.isdigit() for ch in w):
+            words.append(w)
+        else:
+            low = w.lower()
+            words.append(low[:1].upper() + low[1:] if i == 0 else low)
+    return " ".join(words)
+
+
 def build_prompt(titles: list[str], tags: list[str]) -> str:
     lines = ["Tags: " + ", ".join(tags[:10]) if tags else "Tags: none",
              "", "Titles:"]
     for t in titles[:NAME_MAX_TITLES]:
-        clean = re.sub(r"\s+", " ", (t or "").strip())[:160]
+        clean = unshout(re.sub(r"\s+", " ", (t or "").strip()))[:160]
         if clean:
             lines.append(f"- {clean}")
     lines += ["", "Name for what these have in common:"]
@@ -99,6 +118,8 @@ def titlecase(name: str) -> str:
         low = w.lower().strip(".,")
         if low in ACRONYM_DISPLAY:
             out.append(ACRONYM_DISPLAY[low])
+        elif low in GLUE and out:
+            out.append(low)                     # "for", "and" stay lower mid-name — also "FOR"
         elif w.isupper() and len(w) <= 5:
             out.append(w)                       # RAG, LLM, 5G — as written
         elif w.isupper():

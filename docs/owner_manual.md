@@ -1717,6 +1717,56 @@ denselben Vektorraum liefern, und startet Nemotron per `trap` neu; danach prüfe
 dort wirklich wieder antwortet. Ergebnis: aufgeräumt + 500 Zeichen
 (`pipeline/text_clean.embed_text`), der ganze Abstract bringt nichts und kostet 2,5×.
 
+### 11.4e Food-Pilot (Issue #114, `scripts/food_pilot.py`)
+
+Holt die Food-Domäne der letzten drei Jahre vollständig in den Signalraum (bis dahin
+fehlten Patente 2019–2025 fast ganz): **Patente** aus `EPO DOCDB (FOOD)` — eine
+Veröffentlichung je DOCDB-Familie (die früheste mit Abstract), ohne Gebrauchsmuster,
+Familien mit schon vorhandenem Signal übersprungen — und **Forschung** aus
+`research_corpus`: Subfelder Food Science (inkl. Culinary Culture and Tourism) und
+Nutrition and Dietetics, dazu alternative Proteine per Phrase in Titel/Abstract
+(Liste im Skript). Ohne Ersatzdatum 1. Januar, ohne Repository-Einträge, ohne schon
+vorhandene Forschungssignale.
+
+```bash
+.venv/bin/python scripts/food_pilot.py select              # zählt, schreibt data/food_pilot/ (nur lesend, ~1 min)
+.venv/bin/python scripts/food_pilot.py takeover --limit 500 # Trockenlauf; --apply schreibt raw_entries
+scripts/run_food_pilot.sh                                  # Volllauf: Übernahme, Einbetten, Ruhezustand, research_signals
+.venv/bin/python scripts/food_pilot.py status              # Ergebnis je Gruppe
+```
+
+Die Arbeiten kommen unter drei Pseudo-Quellen `OpenAlex corpus: Food Science | Nutrition
+and Dietetics | Alternative proteins` mit **`llm_pipeline = FALSE`** — der Nachtlauf
+schreibt daraus nie Artikel. Eingebettet wird über den regulären Signalpfad
+(`signal_batch_embedded.py --ids-file … --clean-text`): Relevanz-Head (Schwelle 0,5),
+Embedding-Dedup, Status `signal`; `--clean-text` nimmt Ebenen-Tag, Überschriften, HTML und
+Copyright vor dem 500-Zeichen-Schnitt heraus (`pipeline/text_clean.py`). Der Volllauf
+stellt danach den 8B-Ruhezustand her — der Einbett-Handover allein setzt nur den Symlink
+zurück und lässt die Unit gestoppt — und baut `research_signals` neu. Er muss **vor 02:45**
+fertig sein (der Nachtlauf wartet sonst bis 90 min auf die GPU und bricht ab).
+Auswahl 29.09.: 76.433 Patente, 129.788 Arbeiten (Food Science 75.494, Nutrition 49.484,
+alternative Proteine 4.810); Test mit 500 + 500: 839 Signale, Patente 79 % / Forschung 88 %
+übernommen, der Rest nicht relevant oder Duplikat. Danach die Wolke neu rechnen
+(*Recompute cloud*).
+
+### 11.4f Nester nachbenennen (`scripts/rename_nests.py`)
+
+Die Nester der Emerging-Schicht bekommen ihren Namen vom lokalen Modell (Gemma, ein
+GPU-Handover je Lauf). Scheitert dieser Handover, behalten sie ihre Schlagwort-Etiketten,
+und `llm_label_note` sagt „handover failed". Nachbenennen, ohne den Lauf neu zu rechnen:
+
+```bash
+.venv/bin/python scripts/rename_nests.py --runs 60,61,66            # zeigt, was es benennen würde
+.venv/bin/python scripts/rename_nests.py --runs 60,61,66 --apply    # benennt (GPU, ~1 min + Modellwechsel)
+.venv/bin/python scripts/rename_nests.py --runs 66 --redo --apply   # alle Nester eines Laufs neu
+```
+
+Gleiche Prüfung wie im Lauf (jedes tragende Wort muss im Nest vorkommen, Namen eindeutig
+je Lauf); Nester, die die Prüfung schon einmal verworfen hat, bleiben ohne `--all-unnamed`
+unangetastet. Danach startet das Skript das 8B wieder, falls es vorher lief (#116).
+30.09.: 41 von 49 nachbenannt (ECO, DESIGN, Ebene Patente), die 16 Patent-Nester danach mit
+`--redo` noch einmal, weil die Großbuchstaben der Patenttitel in die Namen durchschlugen.
+
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert
 
 1. `systemctl --user status llama-server`, `tail -50 /tmp/llama-server.log`.

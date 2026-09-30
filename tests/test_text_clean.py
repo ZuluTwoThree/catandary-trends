@@ -47,3 +47,8 @@ def test_embed_text_cuts_after_cleaning():
 def test_clean_source_text_keeps_the_wording():
     assert clean_source_text("<p>Hello&#8217;s</p>\n\n\n<a href='x'>world</a>") == "Hello’s\n\nworld"
     assert clean_source_text(None) == ""
+
+
+def test_the_stored_tier_tag_is_not_embedded():
+    assert clean_text("[Science · Food Science] Abstract: Whey proteins gel.") == "Whey proteins gel."
+    assert embed_text("T", "[Preprint · bioRxiv] Background: X.", 500) == "T\nX."

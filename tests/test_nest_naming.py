@@ -129,3 +129,15 @@ def test_two_pockets_never_get_the_same_name():
     assert nests[0]["llm_label"] == "Cosmetic Composition"
     assert nests[1]["llm_label"] is None
     assert nests[1]["llm_label_note"] == "duplicate of another pocket"
+
+
+
+def test_glue_words_stay_lower_even_when_shouted():
+    assert N.titlecase("Apparatus AND Device FOR Coding") == "Apparatus and Device for Coding"
+
+
+def test_shouting_titles_reach_the_model_in_sentence_case():
+    p = N.build_prompt(["IMAGE CAPTURING APPARATUS AND METHOD", "ANTI-CD137 ANTIBODY FOR 5G", "Normal title Here"], [])
+    assert "- Image capturing apparatus and method" in p
+    assert "- ANTI-CD137 antibody for 5G" in p   # tokens with a digit keep their spelling
+    assert "- Normal title Here" in p     # mixed-case titles are left alone

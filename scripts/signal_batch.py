@@ -38,6 +38,8 @@ import numpy as np
 from slugify import slugify
 
 from pipeline import anthropic_client, ollama_client, llamacpp_client
+from pipeline import db as db_mod
+from pipeline.text_clean import embed_text
 from pipeline.llamacpp_client import EmbeddingBackendError, is_backend_failure
 from pipeline.config import (
     ANTHROPIC_MODEL_CLASSIFY, RELEVANCE_THRESHOLD, DUPLICATE_SIMILARITY_THRESHOLD,
@@ -290,7 +292,7 @@ def _norm_rows(M: np.ndarray) -> np.ndarray:
 def pull_unprocessed(limit: int, include: list[str], exclude: list[str],
                      min_id: int = 0, source_type: str = "", no_patents: bool = False,
                      patents_only: bool = False, published_after: str = "",
-                     signal_only: bool = False) -> list[dict]:
+                     signal_only: bool = False, ids: list[int] | None = None) -> list[dict]:
     """Unprocessed entries, optionally scoped by source vertical (include/exclude),
     by source_type (e.g. 'api' = the funding ingests only), and to id > min_id
     (to classify only a fresh ingest, not older backlog). no_patents excludes
@@ -304,9 +306,19 @@ def pull_unprocessed(limit: int, include: list[str], exclude: list[str],
     signal_only scopes to sources flagged `llm_pipeline = FALSE` — the ones the
     content cycle never writes articles from (#97, 2026-09-09: the 33 sources
     with a TDM reservation run in signal mode). Three of them are trade_media
-    and would be caught by no other scheduled sweep."""
+    and would be caught by no other scheduled sweep.
+
+    ids (2026-09-29, #114 Food pilot) restricts the scope to exactly these
+    raw_entries — a curated selection, not "everything unprocessed"."""
     where = ["re.processed = FALSE", "re.filtered_out = FALSE"]
     params: list = []
+    if ids is not None:
+        if db_mod.USE_POSTGRES:
+            where.append("re.id = ANY(?)")
+            params.append(list(ids))
+        else:                                   # SQLite (tests): no array parameter
+            where.append(f"re.id IN ({','.join('?' * len(ids)) or 'NULL'})")
+            params += list(ids)
     if source_type:
         where.append("s.source_type = ?")
         params.append(source_type)
@@ -557,7 +569,8 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
                 min_id: int = 0, source_type: str = "",
                 relevance_threshold: float = 0.5, no_patents: bool = False,
                 patents_only: bool = False, published_after: str = "",
-                signal_only: bool = False) -> int:
+                signal_only: bool = False, ids: list[int] | None = None,
+                clean: bool = False) -> int:
     """Mass-ingest classification WITHOUT the LLM: embed each survivor, then run
     the distilled heads (pipeline/distill) for relevance/vertical/mega/PESTEL.
     ~0 marginal cost per item; the only GPU step is the shared embedding pass.
@@ -575,8 +588,9 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
               "kept as a signal (train it via embed_filtered.py + train_distill_heads.py).")
 
     entries = pull_unprocessed(limit, include, exclude, min_id, source_type, no_patents,
-                               patents_only, published_after, signal_only)
-    print(f"Unprocessed in scope: {len(entries)}")
+                               patents_only, published_after, signal_only, ids)
+    print(f"Unprocessed in scope: {len(entries)}"
+          + (" (text cleaned before embedding)" if clean else ""))
     if not entries:
         return 0
     if not execute:
@@ -606,7 +620,12 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
     aborted: EmbeddingAbort | None = None
     for i in range(0, len(survivors), embed_chunk):
         chunk = survivors[i:i + embed_chunk]
-        texts = [f"{e['title']}\n{(e['excerpt'] or '')[:500]}" for e in chunk]
+        # --clean-text (#114): boilerplate (tier tag, "Abstract:", section labels,
+        # HTML, copyright) out BEFORE the 500-char cut — pipeline/text_clean.py,
+        # measured in docs/space_eval_2026-09-28.md. Off by default: the weekly
+        # runs keep the recipe the 1.8M stored vectors were made with.
+        texts = ([embed_text(e["title"], e["excerpt"], 500) for e in chunk] if clean
+                 else [f"{e['title']}\n{(e['excerpt'] or '')[:500]}" for e in chunk])
         try:
             vecs = embed_chunk_resilient(texts, embed_state)
         except EmbeddingAbort as exc:
@@ -720,7 +739,18 @@ def main() -> int:
     ap.add_argument("--published-after", default="",
                     help="only entries with published_date >= YYYY-MM-DD (rolling window "
                          "for the weekly patent pass; explicit floor for backfills)")
+    ap.add_argument("--ids-file", default="",
+                    help="only the raw_entries whose ids are listed (one per line) — a curated "
+                         "selection such as the #114 Food pilot (scripts/food_pilot.py)")
+    ap.add_argument("--clean-text", action="store_true",
+                    help="clean title + excerpt before embedding (pipeline/text_clean.embed_text: "
+                         "tier tag, section labels, HTML, copyright out, then 500 chars)")
     args = ap.parse_args()
+    ids = None
+    if args.ids_file:
+        ids = [int(x) for x in Path(args.ids_file).read_text().split() if x.strip()]
+    if (ids is not None or args.clean_text) and args.backend != "distill":
+        ap.error("--ids-file / --clean-text are distill-backend options")
     if args.patents_only and args.no_patents:
         ap.error("--patents-only and --no-patents are mutually exclusive")
     if args.patents_only and args.backend != "distill":
@@ -731,7 +761,8 @@ def main() -> int:
         return run_distill(args.limit, args.execute, args.embed_chunk, inc, exc,
                            args.workers, args.min_id, args.source_type,
                            args.relevance_threshold, args.no_patents,
-                           args.patents_only, args.published_after, args.signal_only)
+                           args.patents_only, args.published_after, args.signal_only,
+                           ids, args.clean_text)
     return run(args.limit, args.execute, args.embed_chunk, inc, exc,
                args.backend, args.workers, args.min_id, args.source_type)
 

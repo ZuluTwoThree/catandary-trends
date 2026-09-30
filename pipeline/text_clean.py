@@ -16,7 +16,10 @@ What it does, in this order:
   3. drop copyright tails ("© 2024 Elsevier ...", "This article is protected by
      copyright. All rights reserved."),
   4. drop section labels: any number of them at the start ("Abstract Background:"),
-     and inline ones when followed by a colon ("... Results: ..."),
+     and inline ones when followed by a colon ("... Results: ..."), and a leading
+     tier tag like "[Science · Food Science]" — the OpenAlex ingests STORE it (it
+     carries the concept into research_signals.concept), but it is the same
+     boilerplate on every row of a source and does not belong in the vector,
   5. collapse whitespace.
 
 Content words are never touched: "Keywords: a, b" keeps a, b; a label word inside
@@ -50,6 +53,8 @@ _LEAD = re.compile(rf"^\s*(?:{_LABEL_ALT})\b\s*(?:[:.\-–—]\s*|\s+(?=(?-i:[A-
 # inline: only "Label:" (a colon makes it a heading, not a word in a sentence)
 _INLINE = re.compile(rf"(?<![A-Za-z])(?:{_LABEL_ALT})\s*:\s*", re.IGNORECASE)
 _WS = re.compile(r"\s+")
+# "[Science · Food Science] …" / "[Preprint · arXiv] …" — the same tag build_research_index.py strips
+_TIER_TAG = re.compile(r"^\s*\[[^\]]{1,80}\]\s*")
 
 
 # --- clean_source_text: the module's first function (#102, 2026-09-10) -------------
@@ -74,6 +79,7 @@ def clean_text(text: str | None) -> str:
     t = html.unescape(html.unescape(text))
     t = _TAG.sub(" ", t)
     t = _COPYRIGHT.sub("", t)
+    t = _TIER_TAG.sub("", t, count=1)
     for _ in range(4):                 # "Abstract Background: ..." — labels can stack
         new = _LEAD.sub("", t, count=1)
         if new == t:
