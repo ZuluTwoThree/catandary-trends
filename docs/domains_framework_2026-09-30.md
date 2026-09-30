@@ -76,3 +76,42 @@ Ladesäulen, Thermal Runaway, Vehicle-to-Grid, Akku-Recycling, *Tesla Semi*.
   digitaler Schlüssel) — die Saat braucht Schärfung (engere CPC-Präfixe) oder eine höhere
   `target_recall`-Strenge.
 - Der Hintergrund ist unbeschriftet; gemessene Fehltreffer-Raten sind Obergrenzen.
+
+## Ad-hoc: eine Domäne aus einem freien Begriff (30.09., abends)
+
+Owner: „Ich will die Domänen im Frontend als beliebige, unvorhersehbare Begriffe übergeben …
+und live die Nester darin entdecken." Machbarkeit auf dem heutigen (langsamen) Weg:
+`python -m pipeline.domains adhoc "<begriff>" --measure`, dann
+`emerging_snapshot --scope domain:q_<begriff>`. Saat automatisch: der Begriff als Phrase im
+Volltext (Titel/Zusammenfassung/Tags, Forschungs- und Patent-Abstracts) plus die 1.000 dem
+Begriff nächsten Signale (CPU-Embedder, HNSW). Schlüssel `q_…`; `--all-domains` und der
+Knopf rechnen Ad-hoc-Domänen nicht mit.
+
+| Begriff | Saat (Phrase / Vektor) | Mitglieder 90 Tage | Nester | Zeit (Sonde+Messung / Nester) |
+|---|---|---|---|---|
+| solid-state battery | 366 / 1.000 | 398 | **keine** — unter der Mindestgröße (800), auch nach 180 Tagen | 100 s / 174 s |
+| precision fermentation | 1.273 / 999 | 684 (180 Tage: mehr) | 11 | 95 s / 505 s |
+| digital twin | 3.173 / 996 | 3.475 | 31 | 98 s / 365 s |
+
+- **precision fermentation:** das Nest *Precision Fermentation* (erster Monat 2020-11; Ebenen
+  Förderung → Markt → Forschung), *Precision Fermentation for Sustainable Protein Production*
+  (2024-05), *Industrial Biotechnology Production* (2026-06, stark beschleunigend),
+  *Alternative Proteins and Cultivated Meat*, dazu Fermentationsverfahren-Patente.
+- **digital twin:** treffend *Urban Digital Twins* (2026-07), *Battery Digital Twins and
+  Management Systems* (2026-07, Beschleunigung 11), *Digital Twin Healthcare*,
+  *Digital Twins in Supply Chain Management* — aber die Domäne franst in allgemeine KI/
+  Industrie 4.0 aus (*AI in Medicine*, *AI-Driven Supply Chain Management*): die nächsten
+  Vektoren eines breiten Begriffs reichen weit.
+- **solid-state battery:** zu eng für die Mindestgröße der Nester-Suche (800 Signale im
+  Ausschnitt) — die ehrliche Antwort ist „zu dünn".
+
+**Folgerungen für einen Live-Dienst:**
+1. **Tempo:** Saat 2–4 s, Sonde ~10 s; die Minuten gehen auf das Laden von ~350.000 Vektoren
+   aus der Datenbank (~80–90 s je Laden, bei Verbreiterung zweimal) und den Archiv-Scan über
+   2 Mio. Zeilen (~280 s). Ein Dienst mit allen Vektoren im Speicher (~4 GB, halbe Genauigkeit)
+   macht daraus Sekunden.
+2. **Mindestgröße für Ad-hoc senken** (z. B. 150) und das Fenster auf 12 Monate erweitern,
+   sonst bleiben enge Begriffe leer.
+3. **Vorschau der Auswahl vor der Nester-Suche** (Größe, Stichproben, Anteil mit dem Begriff
+   im Text) — breite Begriffe franzen aus, mehrdeutige ziehen Fremdes.
+4. **Dichteprüfung relativ zur Domäne:** 66–84 % der Mitglieder landen in Nestern.

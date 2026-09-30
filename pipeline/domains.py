@@ -86,6 +86,7 @@ def load_definitions(path: Path | None = None) -> dict[str, dict]:
             "openalex_topics": [str(x) for x in seeds.get("openalex_topics") or []],
             "openalex_subfields": [str(x) for x in seeds.get("openalex_subfields") or []],
             "phrases": [str(x) for x in seeds.get("phrases") or []],
+            "vector_queries": [str(x) for x in seeds.get("vector_queries") or []],
             "target_recall": float(d.get("target_recall") or DEFAULT_TARGET_RECALL),
         }
     return out
@@ -110,7 +111,7 @@ def _hsort(ids):
 
 def seed_ids(defn: dict) -> dict[str, set[int]]:
     """Trend ids per seed kind (only embedded signal/published rows)."""
-    out: dict[str, set[int]] = {"cpc": set(), "openalex": set(), "phrases": set()}
+    out: dict[str, set[int]] = {"cpc": set(), "openalex": set(), "phrases": set(), "vector": set()}
     if not db_mod.USE_POSTGRES:
         raise RuntimeError("domain seeds need the Postgres corpus (CPC, OpenAlex, full text)")
     base = "t.status IN ('signal','published') AND t.embedding_1024 IS NOT NULL"
@@ -141,7 +142,40 @@ def seed_ids(defn: dict) -> dict[str, set[int]]:
                 "SELECT t.id FROM patent_search ps JOIN raw_entries r ON r.pub_number = ps.pub_number "
                 f"JOIN trends t ON t.raw_entry_id = r.id WHERE {base} AND ps.tsv @@ {ts}", (q,)).fetchall()}
             out["phrases"] = ids
+    for q in defn.get("vector_queries") or []:
+        out["vector"] |= nearest_to_text(q, VECTOR_SEEDS)
     return out
+
+
+VECTOR_SEEDS = 1000      # pgvector 0.6: an HNSW scan returns at most ef_search (1000) rows
+
+
+def nearest_to_text(text: str, k: int = VECTOR_SEEDS) -> set[int]:
+    """The k signals nearest to a free text (CPU embedder :8091, HNSW on embedding_1024)."""
+    import os
+    import httpx
+    host = os.getenv("RESEARCH_EMBED_HOST") or "http://127.0.0.1:8091"
+    r = httpx.post(f"{host}/v1/embeddings", json={"input": text}, timeout=60)
+    r.raise_for_status()
+    v = r.json()["data"][0]["embedding"][:DIM]
+    lit = "[" + ",".join(f"{x:.6f}" for x in v) + "]"
+    with get_connection() as c:
+        c.execute("SET hnsw.ef_search = 1000")
+        rows = c.execute("SELECT id FROM trends WHERE status IN ('signal','published') "
+                         "ORDER BY embedding_1024 <=> ?::vector LIMIT ?", (lit, k)).fetchall()
+    return {int(r["id"]) for r in rows}
+
+
+def adhoc_definition(term: str) -> dict:
+    """A domain from nothing but a term (Owner 30.09.: "I don't know beforehand what will be
+    searched"): seeds = the term as a phrase in titles/summaries/tags and in research and
+    patent abstracts, plus the signals nearest to the term's embedding."""
+    import re
+    t = " ".join(term.split())
+    key = "q_" + re.sub(r"[^a-z0-9]+", "_", t.lower()).strip("_")[:36]
+    return {"key": key, "name": t, "cpc": [], "openalex_topics": [], "openalex_subfields": [],
+            "phrases": [f'"{t}"'], "vector_queries": [t],
+            "target_recall": DEFAULT_TARGET_RECALL, "adhoc": True}
 
 
 def background_ids(n: int, exclude: set[int]) -> list[int]:
@@ -283,8 +317,9 @@ def train(key: str, defs: dict | None = None) -> dict:
     pos_all = set().union(*seeds.values())
     excl = training_excluded(list(pos_all))
     pos_all -= excl
-    logger.info("[%s] seeds: cpc %d, openalex %d, phrases %d -> %d positives (%d excluded: pilot recipe)",
-                key, len(seeds["cpc"]), len(seeds["openalex"]), len(seeds["phrases"]), len(pos_all), len(excl))
+    logger.info("[%s] seeds: cpc %d, openalex %d, phrases %d, vector %d -> %d positives (%d excluded: pilot recipe)",
+                key, len(seeds["cpc"]), len(seeds["openalex"]), len(seeds["phrases"]), len(seeds["vector"]),
+                len(pos_all), len(excl))
     if len(pos_all) < MIN_POSITIVES:
         raise ValueError(f"[{key}] only {len(pos_all)} positive seeds — add seeds to {DOMAINS_FILE.name}")
     bg = background_ids(BACKGROUND, pos_all)
@@ -411,6 +446,8 @@ def main() -> int:
     sub.add_parser("list")
     t = sub.add_parser("train"); t.add_argument("key"); t.add_argument("--measure", action="store_true")
     m = sub.add_parser("measure"); m.add_argument("key"); m.add_argument("--window-days", type=int, default=90)
+    a = sub.add_parser("adhoc", help="a domain from a free term: seeds from full text + nearest vectors")
+    a.add_argument("term"); a.add_argument("--measure", action="store_true")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
     migrate_domain_tables()
@@ -425,6 +462,13 @@ def main() -> int:
                   + (f"trained {tr['trained_at']}, threshold {tr['threshold']:.3f}, {tr['n_pos']:,} positives"
                      if tr else "not trained"))
         return 0
+    if args.cmd == "adhoc":
+        defn = adhoc_definition(args.term)
+        print(f"key: {defn['key']}")
+        print(json.dumps(train(defn["key"], {defn["key"]: defn}), indent=2))
+        args.key = defn["key"]
+        if not args.measure:
+            return 0
     if args.cmd == "train":
         print(json.dumps(train(args.key), indent=2))
         if not args.measure:
