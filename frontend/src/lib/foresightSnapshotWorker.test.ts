@@ -6,7 +6,7 @@ describe("snapshotWorkerArgs — only the four fixed invocations reach the shell
     expect(snapshotWorkerArgs("clusters")).toEqual(["-m", "pipeline.foresight_snapshot", "--all-verticals", "--dim1024"]);
     expect(snapshotWorkerArgs("lineage")).toEqual(["-m", "pipeline.foresight_snapshot", "--lineage", "--dim1024"]);
     expect(snapshotWorkerArgs("emerging")).toEqual([
-      "-m", "pipeline.emerging_snapshot", "--all-verticals", "--all-tiers",
+      "-m", "pipeline.emerging_snapshot", "--all-verticals", "--all-tiers", "--all-domains",
     ]);
     expect(snapshotWorkerArgs("space")).toEqual(["-m", "pipeline.signal_space"]);
   });

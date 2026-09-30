@@ -83,7 +83,7 @@ export function snapshotWorkerArgs(mode: string): string[] | null {
   // The emerging layer has its own module: fine partition of a recent slice,
   // then a dating pass over the whole archive. CPU only, ~5 min per scope.
   if (mode === "emerging")
-    return ["-m", "pipeline.emerging_snapshot", "--all-verticals", "--all-tiers"];
+    return ["-m", "pipeline.emerging_snapshot", "--all-verticals", "--all-tiers", "--all-domains"];
   // The signal cloud (/trends/foresight/map, "Cloud"): 108k sampled signals,
   // PCA + UMAP on the CPU, ~1 GB, single-threaded on purpose (seeded).
   if (mode === "space") return ["-m", "pipeline.signal_space"];

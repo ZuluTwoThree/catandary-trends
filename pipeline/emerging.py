@@ -292,7 +292,7 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
                  tag_windows: tuple[str, str] | None = None,
                  actor_windows: tuple[str, str] | None = None,
                  chunk_size: int = LOAD_CHUNK,
-                 progress=None) -> dict:
+                 progress=None, member=None) -> dict:
     """Count, per month, how many archive documents look like each nest.
 
     centroids: (n_nests, dim) L2-normalized. thresholds: (n_nests,) cosine
@@ -306,6 +306,10 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
     start of the late one. Distinct market actors are collected per nest for
     both, so diffusion across companies can be told apart from more coverage of
     the same ones.
+
+    member: optional callable(X, batch) -> bool mask. Rows outside it are skipped
+    entirely — not counted in the totals either — so a domain scope
+    (pipeline/domains.py) is dated and normalised within its own domain.
 
     Returns {months, totals, hits, tier_hits (per tier, n_nests × n_months),
     tier_totals, actors, old_tags, recent_tags, source_first, scanned}.
@@ -326,6 +330,15 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
     for batch in iter_signals(status=status, vertical=vertical, dim1024=dim1024,
                               since=since, chunk_size=chunk_size):
         X = build_matrix(batch)
+        read = len(batch)                           # "scanned" = rows read, members or not
+        if member is not None:
+            keep = member(X, batch)
+            if not keep.any():
+                scanned += read
+                continue
+            idx = np.flatnonzero(keep)
+            X = X[idx]
+            batch = [batch[i] for i in idx]
         S = X @ C                                   # (m, n_nests)
         above = S >= thresholds[None, :]
         for i, r in enumerate(batch):
@@ -373,7 +386,7 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
                     norm = _norm_tag(t)
                     if norm:
                         bucket[norm] += 1
-        scanned += len(batch)
+        scanned += read
         del X, S, above, batch
         if progress and scanned % (chunk_size * 25) == 0:
             progress(scanned)
