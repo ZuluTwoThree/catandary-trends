@@ -1749,6 +1749,24 @@ alternative Proteine 4.810); Test mit 500 + 500: 839 Signale, Patente 79 % / For
 übernommen, der Rest nicht relevant oder Duplikat. Danach die Wolke neu rechnen
 (*Recompute cloud*).
 
+### 11.4f Nester nachbenennen (`scripts/rename_nests.py`)
+
+Die Nester der Emerging-Schicht bekommen ihren Namen vom lokalen Modell (Gemma, ein
+GPU-Handover je Lauf). Scheitert dieser Handover, behalten sie ihre Schlagwort-Etiketten,
+und `llm_label_note` sagt „handover failed". Nachbenennen, ohne den Lauf neu zu rechnen:
+
+```bash
+.venv/bin/python scripts/rename_nests.py --runs 60,61,66            # zeigt, was es benennen würde
+.venv/bin/python scripts/rename_nests.py --runs 60,61,66 --apply    # benennt (GPU, ~1 min + Modellwechsel)
+.venv/bin/python scripts/rename_nests.py --runs 66 --redo --apply   # alle Nester eines Laufs neu
+```
+
+Gleiche Prüfung wie im Lauf (jedes tragende Wort muss im Nest vorkommen, Namen eindeutig
+je Lauf); Nester, die die Prüfung schon einmal verworfen hat, bleiben ohne `--all-unnamed`
+unangetastet. Danach startet das Skript das 8B wieder, falls es vorher lief (#116).
+30.09.: 41 von 49 nachbenannt (ECO, DESIGN, Ebene Patente), die 16 Patent-Nester danach mit
+`--redo` noch einmal, weil die Großbuchstaben der Patenttitel in die Namen durchschlugen.
+
 ### 11.5 Wenn der llama-server tot ist oder das falsche Modell serviert
 
 1. `systemctl --user status llama-server`, `tail -50 /tmp/llama-server.log`.

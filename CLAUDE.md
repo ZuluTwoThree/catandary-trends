@@ -1404,7 +1404,13 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      liest die zentrumsnaechsten Titel und benennt das Nest; jedes bedeutungs-
      tragende Wort muss im Nest vorkommen, sonst faellt der Name durch und das
      Schlagwort-Label bleibt (Karte zeigt beides). 311 von 328 benannt; einziger
-     GPU-Schritt der Schicht, --no-llm-names schaltet ihn ab.
+     GPU-Schritt der Schicht, --no-llm-names schaltet ihn ab. Scheitert der Handover
+     (llm_label_note "handover failed: …", am 29.09. ECO/DESIGN/tier:patent, 49 Nester),
+     benennt scripts/rename_nests.py --runs <ids> [--redo] --apply nach, ohne den Lauf neu
+     zu rechnen (ein Handover, gleiche Pruefung, Ruhezustand danach wiederhergestellt).
+     Seit 30.09. gehen Patenttitel in GROSSBUCHSTABEN als Satzschreibung ans Modell
+     (nest_naming.unshout) und "AND"/"FOR" werden klein — vorher hiessen Nester
+     "BEAM Measurement Method FOR … ARRAY".
      PRUEFUNG (scripts/validate_emerging.py + known_trends.yaml): Ruecktest auf
      21 Stichtagen gegen 20 datierbare Trends. 9 von 20 gefunden, 5 vor dem
      Mainstream, Median-Vorlauf 6 Monate, Gegenproben nie ueber 0,62. Ein
