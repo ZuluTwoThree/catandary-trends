@@ -66,3 +66,47 @@ die Domäne **Lebensmittel und Ernährung** bleibt oder um **Landwirtschaft** er
 (CPC A01B/C/G/H/K/N/P, OpenAlex *Agronomy and Crop Science*, *Horticulture*, *Soil Science*,
 *Animal Science and Zoology* als zusätzliche Positive) — beides ist mit derselben Sonde
 machbar, nur mit anderen Beschriftungen.
+
+## Drei Domänen: Food, Nutrition, Agriculture (Owner 30.09., abends)
+
+Owner: „Food, Agriculture und Nutrition sind drei eigene Domänen." Je Domäne eine eigene
+Ja/Nein-Sonde (ebenen-zentriert); ein Signal darf in mehreren liegen.
+
+| Domäne | Patente (Prüfer-CPC) | Forschung (OpenAlex-Subfeld) |
+|---|---|---|
+| Food | A23 ohne A23L33, A21B/C/D, A22B/C, C12C/G/J, C13B/K — 65.815 | Food Science — 3.187 (außerhalb des Pilots) |
+| Nutrition | A23L33 (Nährwert, Diät, Ergänzung) — 23.642 | Nutrition and Dietetics — 1.417 |
+| Agriculture | A01B/C/D/F/G/H/J/K/M, C05B/C/D/F/G — 8.852 | Agronomy & Crop Science, Horticulture, Soil Science, Animal Science & Zoology (hier nur Nutztier-Themen) — 3.049 |
+
+**Zurückgelegte Daten, Schwelle 0,5:**
+
+| | Patente P / R / AUC | Forschung P / R / AUC | Pilot-Arbeiten erkannt |
+|---|---|---|---|
+| Food | 0,94 / 0,98 / 0,991 | 0,75 / 0,84 / 0,982 | 66 % |
+| Nutrition | 0,80 / 0,97 / 0,972 | 0,51 / 0,67 / 0,965 | 62 % |
+| Agriculture | 0,71 / 0,93 / 0,973 | 0,58 / 0,93 / 0,980 | — |
+
+Die AUC ist überall hoch (die Rangfolge stimmt), die Präzision bei 0,5 in der Forschung
+niedriger: wenige Positive gegen 40.000 Negative, und die Grenzen der OpenAlex-Subfelder
+sind unscharf (Ernährung unter Medizin, Food Science gegen Nutrition). Eine Schwelle je
+Domäne, geeicht auf eine Zielpräzision, ist nötig.
+
+**Im 90-Tage-Ausschnitt (346.637 Signale), Schwelle 0,7:**
+
+| | Mitglieder | nach Etikett | nach Ebene |
+|---|---|---|---|
+| Food | 10.904 | FOOD 6.769 · TECH 2.201 · HEALTH 1.369 · ECO 287 · BIZ 239 | Forschung 6.218 · Patente 2.559 · Markt 2.072 |
+| Nutrition | 7.572 | HEALTH 4.190 · FOOD 2.186 · TECH 1.063 | Forschung 3.930 · Patente 2.550 · Markt 1.010 |
+| Agriculture | 22.335 | FOOD 8.536 · ECO 6.774 · TECH 6.107 · HEALTH 709 | Forschung 18.390 · Markt 2.140 · Patente 1.654 |
+
+Überlappung: Food ∩ Nutrition 3.458, Food ∩ Agriculture 2.529, Nutrition ∩ Agriculture 428;
+zusammen 34.645 Signale (10 % des Ausschnitts).
+
+- Die Stichproben sind überwiegend treffend (Gärbehälter, Kühl-/Gefriersystem und
+  Zuckertransporter unter Food; Funktionslebensmittel, NAD+-Präparat, kalorienreduzierte
+  Getränke unter Nutrition; Reisanbau, Stickstofffixierung, Schädlings-Phänologie unter
+  Agriculture).
+- **Presse (Markt-Ebene) hat keine unabhängige Beschriftung** — die Sonden haben nur an
+  Patenten und Forschung gelernt und übertragen das. Fehltreffer wie „Southeast Asian Tiger
+  Trafficking" (Agriculture 0,91) zeigen, dass die Markt-Ebene eine eigene Prüfung braucht
+  (Stichprobe von Hand oder eine eigene, strengere Schwelle).

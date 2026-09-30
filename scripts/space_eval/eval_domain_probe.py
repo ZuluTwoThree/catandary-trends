@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Can a domain ("Food") be cut out of the vector space — not by label, by embedding?
+"""Can a domain be cut out of the vector space — not by label, by embedding?
+
+Owner 30.09.2026: Food, Agriculture and Nutrition are three domains of their own. One
+independent yes/no probe per domain (a signal may belong to several — most nutrition
+patents also carry food classes). Labels per domain:
+
+  food         patents: A23* except A23L33, A21B/C/D, A22B/C, C12C/G/J, C13B/K
+               research: OpenAlex subfield Food Science
+  nutrition    patents: A23L33 (modifying nutritive qualities, dietetics, supplements)
+               research: Nutrition and Dietetics
+  agriculture  patents: A01B/C/D/F/G/H/J/K/M, C05B/C/D/F/G
+               research: Agronomy and Crop Science, Horticulture, Soil Science,
+                         Animal Science and Zoology
 
 Owner question 30.09.2026: two-stage pocket discovery — first restrict the signals to
 a domain via their embeddings, then look for pockets inside it. Stage 1 is measured
@@ -48,8 +60,20 @@ from pipeline.foresight import build_matrix, load_signals  # noqa: E402
 from pipeline.tiers import tier_of  # noqa: E402
 
 OUT = ROOT / "data" / "space_eval"
-FOOD_CPC = ("(pc.subclass LIKE 'A23%%' OR pc.subclass IN "
-            "('A21B','A21C','A21D','A22B','A22C','C12C','C12G','C12J','C13B','C13K'))")
+DOMAINS = {
+    "food": {
+        "cpc": "((pc.subclass LIKE 'A23%%' AND pc.cpc NOT LIKE 'A23L33%%') OR pc.subclass IN "
+               "('A21B','A21C','A21D','A22B','A22C','C12C','C12G','C12J','C13B','C13K'))",
+        "subfields": ("Food Science",), "vertical": "FOOD"},
+    "nutrition": {
+        "cpc": "(pc.cpc LIKE 'A23L33%%')",
+        "subfields": ("Nutrition and Dietetics",), "vertical": "HEALTH"},
+    "agriculture": {
+        "cpc": "(pc.subclass IN ('A01B','A01C','A01D','A01F','A01G','A01H','A01J','A01K','A01M',"
+               "'C05B','C05C','C05D','C05F','C05G'))",
+        "subfields": ("Agronomy and Crop Science", "Horticulture", "Soil Science",
+                      "Animal Science and Zoology"), "vertical": "FOOD"},
+}
 SEED = 42
 
 
@@ -68,14 +92,14 @@ def hsort(ids):
 
 
 def labels():
-    pat = rows(f"""SELECT t.id, bool_or({FOOD_CPC}) AS food
+    flags = ", ".join(f"bool_or({d['cpc']}) AS {k}" for k, d in DOMAINS.items())
+    pat = rows(f"""SELECT t.id, {flags}
                    FROM trends t JOIN raw_entries r ON r.id = t.raw_entry_id
                    JOIN patent_cpc pc ON pc.pub_number = r.pub_number
                    WHERE t.status = 'signal' AND t.embedding_1024 IS NOT NULL AND r.pub_number IS NOT NULL
                    GROUP BY t.id""")
     res = rows("""WITH ot AS (SELECT DISTINCT ON (topic) topic, subfield FROM openalex_topics ORDER BY topic)
-                  SELECT rs.trend_id AS id, ot.subfield IN ('Food Science','Nutrition and Dietetics') AS food,
-                         s.name LIKE 'OpenAlex corpus:%%' AS pilot
+                  SELECT rs.trend_id AS id, ot.subfield, s.name LIKE 'OpenAlex corpus:%%' AS pilot
                   FROM research_signals rs
                   JOIN research_corpus rc ON rc.doi = lower(rs.url)
                   JOIN ot ON ot.topic = rc.topic
@@ -115,80 +139,83 @@ def main() -> int:
     t0 = time.time()
 
     pat, res = labels()
-    log(f"labels: patents {len(pat):,} ({sum(r['food'] for r in pat):,} food), research {len(res):,} "
-        f"({sum(r['food'] for r in res):,} food, {sum(r['pilot'] for r in res):,} from the pilot)")
-    sets = {}
-    for name, rs in (("patent", pat), ("science", [r for r in res if not r["pilot"]])):
-        pos = hsort([r["id"] for r in rs if r["food"]])[: args.per_class]
-        neg = hsort([r["id"] for r in rs if not r["food"]])[: args.per_class]
-        sets[name] = (pos, neg)
-    pilot_ids = hsort([r["id"] for r in res if r["pilot"]])[: args.per_class]
+    for r in res:
+        for k, d in DOMAINS.items():
+            r[k] = r["subfield"] in d["subfields"]
+    log(f"labels: patents {len(pat):,}, research {len(res):,} ({sum(r['pilot'] for r in res):,} from the pilot); "
+        + ", ".join(f"{k}: {sum(r[k] for r in pat):,} patents / {sum(r[k] and not r['pilot'] for r in res):,} papers"
+                    for k in DOMAINS))
 
-    ids, y, tier = [], [], []
-    for name, (pos, neg) in sets.items():
-        ids += pos + neg; y += [1] * len(pos) + [0] * len(neg); tier += [name] * (len(pos) + len(neg))
-    X, _ = ss.load_vectors(ids)
-    X = ss.l2(X)
-    y = np.array(y, bool); tier = np.array(tier)
-    holdout = np.array([(i * ss.HASH_MUL) % ss.HASH_MOD % 5 == 0 for i in ids])
-    Xp, _ = ss.load_vectors(pilot_ids)
-    Xp = ss.l2(Xp)
-
-    # 90-day slice of the emerging layer (all tiers) — for tier means and the application
+    # the 90-day slice of the emerging layer — tier means, and where the probes are applied
     since = (datetime.now() - timedelta(days=args.window_days)).strftime("%Y-%m-%d")
     sl = load_signals(status="signal,published", dim1024=True, since=since)
     S = ss.l2(build_matrix(sl).astype(np.float32)[:, :1024])
     s_tier = np.array([tier_of(r.get("source_name"), r.get("source_type"), r.get("trend_signal_type")) or "none" for r in sl])
-    s_food_label = np.array([r.get("primary_vertical") == "FOOD" for r in sl])
-    log(f"90-day slice: {len(sl):,} signals since {since}, {int(s_food_label.sum()):,} labelled FOOD")
+    s_vert = np.array([r.get("primary_vertical") or "none" for r in sl])
+    log(f"90-day slice: {len(sl):,} signals since {since}")
     means = {t: S[s_tier == t].mean(axis=0) for t in np.unique(s_tier)}
     g = S.mean(axis=0)
 
     def centre(M, tiers):
         return ss.l2(M - np.vstack([means.get(t, g) for t in tiers]))
 
+    Sc = centre(S, s_tier)
     report = {"created": time.strftime("%Y-%m-%d %H:%M"), "per_class": args.per_class,
-              "train_sizes": {k: [len(v[0]), len(v[1])] for k, v in sets.items()},
-              "slice": {"since": since, "n": int(len(sl)), "food_label": int(s_food_label.sum())},
-              "variants": {}}
-    for variant in ("raw", "tier_centred"):
-        F = X if variant == "raw" else centre(X, tier)
+              "slice": {"since": since, "n": int(len(sl))}, "domains": {}}
+    member = {}
+    for dom, spec in DOMAINS.items():
+        ids, y, tier = [], [], []
+        sizes = {}
+        for tname, rs in (("patent", pat), ("science", [r for r in res if not r["pilot"]])):
+            pos = hsort([r["id"] for r in rs if r[dom]])[: args.per_class]
+            neg = hsort([r["id"] for r in rs if not r[dom]])[: args.per_class]
+            sizes[tname] = [len(pos), len(neg)]
+            ids += pos + neg; y += [1] * len(pos) + [0] * len(neg); tier += [tname] * (len(pos) + len(neg))
+        X, _ = ss.load_vectors(ids)
+        X = centre(ss.l2(X), tier)
+        y = np.array(y, bool); tier = np.array(tier)
+        holdout = np.array([(i * ss.HASH_MUL) % ss.HASH_MOD % 5 == 0 for i in ids])
         clf = LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced")
-        clf.fit(F[~holdout], y[~holdout])
-        r = {}
+        clf.fit(X[~holdout], y[~holdout])
+        r = {"train_sizes": sizes}
         for tname in ("patent", "science"):
             m = holdout & (tier == tname)
-            p = clf.predict_proba(F[m])[:, 1]
+            if y[m].sum() == 0:
+                continue
+            p = clf.predict_proba(X[m])[:, 1]
             r[tname] = {**metrics(y[m], p), "auc": round(float(roc_auc_score(y[m], p)), 4),
                         "at_precision_0.9": thr_for_precision(y[m], p)}
-        Fp = Xp if variant == "raw" else centre(Xp, ["science"] * len(Xp))
-        r["pilot_research_recall@0.5"] = round(float((clf.predict_proba(Fp)[:, 1] >= 0.5).mean()), 4)
-        Fs = S if variant == "raw" else centre(S, s_tier)
-        ps = clf.predict_proba(Fs)[:, 1]
-        pred = ps >= 0.5
-        per_tier = {}
-        for t in np.unique(s_tier):
-            m = s_tier == t
-            per_tier[str(t)] = {"n": int(m.sum()), "pred_food": int(pred[m].sum()),
-                                "food_label": int(s_food_label[m].sum()),
-                                "both": int((pred & s_food_label)[m].sum())}
-        r["slice"] = {"pred_food": int(pred.sum()), "food_label": int(s_food_label.sum()),
-                      "both": int((pred & s_food_label).sum()),
-                      "pred_not_label": int((pred & ~s_food_label).sum()),
-                      "label_not_pred": int((~pred & s_food_label).sum()), "per_tier": per_tier}
-        report["variants"][variant] = r
-        log(f"{variant}: {json.dumps({k: v for k, v in r.items() if k != 'slice'})}")
-        log(f"{variant} slice: {json.dumps({k: v for k, v in r['slice'].items() if k != 'per_tier'})}")
-        if variant == "tier_centred":
-            rng = np.random.default_rng(SEED)
-            for label, mask in (("predicted FOOD, labelled otherwise", pred & ~s_food_label),
-                                ("labelled FOOD, predicted not food", ~pred & s_food_label)):
-                idx = np.where(mask)[0]
-                pick = rng.choice(idx, min(15, len(idx)), replace=False) if len(idx) else []
-                print(f"\n--- {label} ({len(idx):,}) ---")
-                for i in pick:
-                    rr = sl[i]
-                    print(f"  {ps[i]:.2f} {s_tier[i]:8s} {str(rr.get('primary_vertical')):9s} {(rr.get('title_en') or rr.get('title') or '')[:95]}")
+        pilot_ids = hsort([x["id"] for x in res if x["pilot"] and x[dom]])[: args.per_class]
+        if pilot_ids:
+            Xp, _ = ss.load_vectors(pilot_ids)
+            Xp = centre(ss.l2(Xp), ["science"] * len(pilot_ids))
+            r["pilot_recall@0.5"] = round(float((clf.predict_proba(Xp)[:, 1] >= 0.5).mean()), 4)
+        ps = clf.predict_proba(Sc)[:, 1]
+        for thr in (0.5, 0.7):
+            pred = ps >= thr
+            vc = {}
+            for v in np.unique(s_vert[pred]):
+                vc[str(v)] = int((s_vert[pred] == v).sum())
+            tc = {str(t): int((s_tier[pred] == t).sum()) for t in np.unique(s_tier[pred])}
+            r[f"slice@{thr}"] = {"members": int(pred.sum()),
+                                 "by_vertical": dict(sorted(vc.items(), key=lambda kv: -kv[1])),
+                                 "by_tier": tc}
+        member[dom] = ps >= 0.7
+        report["domains"][dom] = r
+        log(f"{dom}: " + json.dumps({k: v for k, v in r.items() if not k.startswith("slice")}))
+        log(f"{dom} slice@0.7: " + json.dumps(r["slice@0.7"]))
+        rng = np.random.default_rng(SEED)
+        exp = spec["vertical"]
+        idx = np.where((ps >= 0.7) & (s_vert != exp))[0]
+        print(f"--- {dom}: member at 0.7 but labelled other than {exp} ({len(idx):,}) ---")
+        for i in (rng.choice(idx, min(8, len(idx)), replace=False) if len(idx) else []):
+            rr = sl[i]
+            print(f"  {ps[i]:.2f} {s_tier[i]:8s} {s_vert[i]:9s} {(rr.get('title_en') or '')[:95]}")
+    doms = list(member)
+    report["overlap@0.7"] = {f"{a}&{b}": int((member[a] & member[b]).sum())
+                             for i, a in enumerate(doms) for b in doms[i + 1:]}
+    report["union@0.7"] = int(np.logical_or.reduce([member[d] for d in doms]).sum())
+    log(f"overlap@0.7: {report['overlap@0.7']}, union {report['union@0.7']:,}")
     report["seconds"] = round(time.time() - t0)
     (OUT / "eval_domain_probe.json").write_text(json.dumps(report, indent=2))
     log(f"done in {report['seconds']} s -> {OUT / 'eval_domain_probe.json'}")
