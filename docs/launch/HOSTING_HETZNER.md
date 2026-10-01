@@ -356,7 +356,7 @@ CONNECTIONS=3
 HOST_KEY_POLICY=strict     # beim allerersten Lauf accept-new, danach strict
 KNOWN_HOSTS=~/.ssh/known_hosts
 # optional, vom Cron-Wrapper an den Build durchgereicht:
-PUBLIC_NOINDEX=1           # zum Launch 01.10. auf 0
+PUBLIC_NOINDEX=1           # zum Launch (So 04.10.2026, 20:00 CEST — verschoben vom 01.10.) auf 0
 # PUBLIC_WINDOW_DAYS=30
 CFG
 chmod 600 ~/.config/catandary/webspace.env
