@@ -719,7 +719,11 @@ misst unsere Abdeckung: viele Forschungs- und Patent-Nester datieren „2026-07"
 Ebenen erst seit Kurzem breit im Signalraum liegen.
 
 **Dienst:** `pipeline/domain_service.py`, systemd-Unit `catandary-domain-service`
-(127.0.0.1:8093, ~4 GB RAM, keine GPU). Läuft er nicht, sagt die Seite es.
+(127.0.0.1:8093, ~4 GB RAM, keine GPU). **Schalter oben auf der Seite** („Discovery
+service"): *aus* stoppt den Dienst und gibt den Speicher frei, er bleibt auch nach einem
+Neustart der Maschine aus (`disable --now`); *an* startet ihn (`enable --now`), nach
+~6–10 s ist er bereit. Solange er aus ist, ist *Select signals* gesperrt; die
+gespeicherten Domänen bleiben sichtbar.
 
 ```bash
 systemctl --user status catandary-domain-service

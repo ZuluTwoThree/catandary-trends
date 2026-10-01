@@ -1466,6 +1466,8 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      domänenzentriertem Kosinus, Untergruppen (emerging.group_nests, Spalten group_id/
      group_label, emerging_runs.params — additiv, Live-DB 01.10.), Namen vom ruhenden 8B nur
      ohne GPU-Job. Ergebnis = Lauf mit scope domain:q_<begriff>; Emerging zeigt ihn gruppiert.
+     Unit installiert + enabled seit 01.10. (aus main). Schalter auf der Seite (Owner 01.10.):
+     /api/foresight/discover/service → systemctl --user enable|disable --now (frei = ~4 GB).
     (das druckbare Foresight-Dossier /dossier samt CSV-Export
      wurde am 2026-09-15 entfernt: es las nur den ungeeichten Cluster-Snapshot vom 03.08. — Owner-Entscheid)
     (Technologie-Suche: Query-Quality-Gate #67 seit 2026-09-04, `pipeline/query_gate.py` — eine Anfrage

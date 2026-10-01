@@ -8,6 +8,8 @@
  * Owner-only: the page lives under /trends/foresight and the API under /api/foresight,
  * both blocked in PUBLIC_MODE and never exported.
  */
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { q } from "./pg";
 import type { ServiceHealth } from "./discoverJobs";
 
@@ -75,4 +77,39 @@ export function sameOrigin(request: Request): boolean {
   } catch {
     return false;
   }
+}
+
+/* ---------------------------------------------------------------- the switch
+ * Owner 2026-10-01: the discovery service holds ~4 GB of RAM while it runs, so it
+ * can be switched on and off from the page. "Off" is `disable --now` (stays off
+ * across a reboot), "on" is `enable --now` (loads the vector copy in ~10 s). */
+export const DOMAIN_SERVICE_UNIT = process.env.DOMAIN_SERVICE_UNIT || "catandary-domain-service";
+const run = promisify(execFile);
+
+export interface UnitState {
+  active: string;   // active | activating | inactive | failed | unknown
+  enabled: string;  // enabled | disabled | not-found | unknown
+}
+
+async function systemctl(args: string[]): Promise<string> {
+  try {
+    const { stdout } = await run("systemctl", ["--user", ...args], { timeout: 30_000 });
+    return stdout.trim();
+  } catch (e) {
+    const out = (e as { stdout?: string }).stdout;
+    return typeof out === "string" && out.trim() ? out.trim() : "unknown";
+  }
+}
+
+export async function serviceUnitState(): Promise<UnitState> {
+  const [active, enabled] = await Promise.all([
+    systemctl(["is-active", DOMAIN_SERVICE_UNIT]),
+    systemctl(["is-enabled", DOMAIN_SERVICE_UNIT]),
+  ]);
+  return { active, enabled };
+}
+
+export async function switchService(on: boolean): Promise<UnitState> {
+  await systemctl([on ? "enable" : "disable", "--now", DOMAIN_SERVICE_UNIT]);
+  return serviceUnitState();
 }

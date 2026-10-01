@@ -67,9 +67,15 @@ export default function DiscoverDesk({ saved }: { saved: FreeDomain[] }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [unit, setUnit] = useState<{ active: string; enabled: string } | null>(null);
+  const [switching, setSwitching] = useState(false);
   const [round, setRound] = useState(0); // re-arms the polling for the same job
 
   const loadHealth = useCallback(async () => {
+    fetch("/api/foresight/discover/service", { cache: "no-store" })
+      .then((r) => r.json())
+      .then(setUnit)
+      .catch(() => setUnit(null));
     try {
       const r = await fetch("/api/foresight/discover", { cache: "no-store" });
       const d = (await r.json()) as { health: ServiceHealth | null; error: string | null };
@@ -174,6 +180,24 @@ export default function DiscoverDesk({ saved }: { saved: FreeDomain[] }) {
     }
   }
 
+  async function toggle(on: boolean) {
+    setSwitching(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/foresight/discover/service", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ on }),
+      });
+      setUnit(await r.json());
+      // the copy loads in ~10 s after a start; look again a few times
+      for (const ms of [1500, 6000, 15000]) setTimeout(loadHealth, ms);
+      if (!on) setHealth(null);
+    } finally {
+      setSwitching(false);
+    }
+  }
+
   async function remove(key: string, name: string) {
     if (!window.confirm(`Delete the domain "${name}" and its pockets?`)) return;
     const r = await fetch(`/api/foresight/discover/domains/${key}`, { method: "DELETE" });
@@ -185,8 +209,41 @@ export default function DiscoverDesk({ saved }: { saved: FreeDomain[] }) {
   const pv = job?.preview;
   const tierTotal = pv ? Object.values(pv.by_tier).reduce((a, b) => a + b, 0) : 0;
 
+  const on = unit?.active === "active" || unit?.active === "activating";
   return (
     <div className="space-y-8">
+      {/* ---- the switch (Owner 01.10.: the service holds ~4 GB of RAM) ---- */}
+      <div className="flex flex-wrap items-center gap-3 border border-border px-5 py-3">
+        <span className={label}>Discovery service</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          disabled={switching || !unit}
+          onClick={() => toggle(!on)}
+          className={`relative h-5 w-9 border transition-colors disabled:opacity-40 ${
+            on ? "border-accent bg-accent/20" : "border-border bg-ink"
+          }`}
+          title={on ? "Switch off and free the memory" : "Switch on (loads in about 10 seconds)"}
+        >
+          <span
+            className={`absolute top-0.5 h-3.5 w-3.5 transition-all ${on ? "left-[18px] bg-accent" : "left-0.5 bg-muted"}`}
+          />
+        </button>
+        <span className="font-sans text-sm text-text">
+          {!unit
+            ? "state unknown"
+            : on
+              ? health?.ready
+                ? "on — holds about 4 GB of memory"
+                : "starting — loading the signal copy …"
+              : "off — no memory held; switch on to search"}
+        </span>
+        <span className="font-sans text-xs text-muted">
+          {unit && (unit.enabled === "enabled" ? "starts with the machine" : "stays off after a restart")}
+        </span>
+      </div>
+
       {/* ---- input ---- */}
       <form onSubmit={start} className="border border-border bg-card/40 p-5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-[2fr_2fr_auto_auto] gap-3 items-end">
