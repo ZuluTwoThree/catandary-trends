@@ -81,7 +81,30 @@ export interface EmergingNest {
   /** Domain runs of the discovery service: sub-group (1 = largest) and its name. */
   group_id: number | null;
   group_label: string | null;
+  /** Dated by the research and patent calendar (pipeline/calendar_dating.py, 01.10.):
+   *  how often the pocket's vocabulary appears per year in OpenAlex (from 2010) and the
+   *  patent corpus (from 1990). Null for runs before that, and for non-domain runs. */
+  calendar: CalendarDating | null;
   reps: NestRep[];
+}
+
+export interface CalendarSeries {
+  first: number | null;
+  /** first year = the corpus' first year in breadth, so the topic may be older */
+  edge: boolean;
+  takeoff: number | null;
+  growth: number | null;
+  total: number;
+  years: number[];
+  counts: number[];
+  per_million: number[];
+}
+
+export interface CalendarDating {
+  anchor: string[];
+  phrases: string[];
+  science?: CalendarSeries;
+  patent?: CalendarSeries;
 }
 
 export interface EmergingRun {
@@ -133,7 +156,7 @@ const NEST_COLUMNS =
   "first_month, age_months, " +
   "hits_total, hits_recent, novelty_lift, accel, history_months, history_hits, " +
   "tiers, tier_order, science_to_market_months, actors_early, actors_late, " +
-  "group_id, group_label, rep_trend_ids";
+  "group_id, group_label, calendar, rep_trend_ids";
 
 /** Latest persisted emerging run for a scope, newest pockets first. */
 export async function getLatestEmergingRun(
@@ -219,6 +242,7 @@ export async function getLatestEmergingRun(
       actors_late: (r.actors_late as number) ?? 0,
       group_id: r.group_id == null ? null : (r.group_id as number),
       group_label: (r.group_label as string) || null,
+      calendar: parseJson<CalendarDating | null>(r.calendar, null),
       reps: parseJson<number[]>(r.rep_trend_ids, [])
         .map((id) => repMap.get(id))
         .filter((x): x is NestRep => Boolean(x)),

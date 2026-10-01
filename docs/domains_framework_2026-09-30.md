@@ -179,3 +179,57 @@ Bestätigung *Nester*.
   (Owner 01.10.): Patente und Forschung tragen kalendarische Daten außerhalb des
   Signalraums (Patentbestand, OpenAlex-Suchschicht) — die sollen die Datierung tragen.
 - Lithium-Eisenphosphat erscheint unter „batteries" nicht als eigenes Nest.
+
+
+## Kalender-Datierung: Forschung und Patente statt Signalraum (01.10.2026)
+
+Owner 01.10.: „Patente und Forschung tragen kalendarische Daten zur zeitlichen Einordnung,
+die nutzbar sein müssten." Der Signalraum hält Forschung und Patente erst seit 2026 in der
+Breite, darum datierten fast alle Domänen-Nester „2026-07" — Redox-Flow- wie
+Magnesium-Batterien. `pipeline/calendar_dating.py` fragt stattdessen die beiden Bestände
+außerhalb des Signalraums: `research_corpus` (OpenAlex, 45,5 Mio. Arbeiten, in der Breite ab
+2010) und `patent_search` (20,0 Mio. Patente ab 1990), beide mit GIN-Volltextindex.
+
+**Verfahren je Nest:**
+1. *Wendungen:* 1-3-Wort-Folgen, die die Titel des Nests vom Rest der Domäne abheben —
+   Anteil im Nest × log(Anteil im Nest / Anteil in der Domäne), mindestens 12 % der Titel
+   und 3 Treffer, Domänenbegriff selbst ausgenommen; die zwei besten, keine enthält die andere.
+2. *Abfrage:* Anker (der freie Begriff + Schreibweisen, bei YAML-Domänen deren Phrasen) UND
+   eine der Wendungen (`phraseto_tsquery`, `&&`/`||`).
+3. *Je Jahr und Bestand:* Treffer und Treffer je Million Dokumente desselben Jahres — die
+   Bestände wachsen ungleich (Patente 2010-15 dünn, Forschung 2024 verdoppelt).
+4. *Kennzahlen:* erstes Jahr (≥ 3 Treffer; am Bestandsbeginn als „oder früher"
+   gekennzeichnet), Take-off (erstes Jahr mit ≥ 15 % der Spitzenrate, Field-Watch-Regel),
+   Wachstum (letzte drei vollständige Jahre über die drei davor). Das laufende Jahr zählt
+   in keine Kennzahl.
+
+**Betrieb:** Jahresbestand je Korpus ~55 s, darum in `~/.cache/catandary/calendar_totals.json`
+(eine Woche gültig), vom Dienst beim Start vorgewärmt; danach 0,02-15 s je Abfrage, vier
+parallel. Im Live-Dienst läuft die Datierung **nach** der Anzeige der Nester (1-40 s) und
+schreibt ins gespeicherte Ergebnis (`emerging_nests.calendar`, JSON, additiv, Live-DB 01.10.).
+YAML-Domänen (`emerging_snapshot --scope domain:<k>`, *Recompute pockets*) datieren mit.
+
+**Karte:** Kopfzeile „on record since <Jahr>" statt „first seen"; Block *On the record* mit
+Forschung/Patente (seit, Take-off, Wachstum, Anzahl, Kurve je Million), darunter die
+gezählte Abfrage im Wortlaut und „in our signals since …". „Nur unter 18 Monaten" folgt bei
+datierten Nestern dem Kalender (nicht am Bestandsbeginn, erstes Jahr ≥ Vorjahr).
+
+**Erste Ergebnisse** (Patente: erstes Jahr / Take-off / Wachstum, gegen den Signalraum):
+
+| Nest | Signalraum | Patente | Forschung |
+|---|---|---|---|
+| Sodium-Ion Battery Storage | 2024-12 | 2007 / 2019 / ×8,7 | 2011 / 2014 / ×1,3 |
+| Solid-State Battery Innovation | 2022-06 | 1994 / 2018 / ×3,3 | ≤ 2010 / 2013 / ×1,4 |
+| Redox Flow Battery Storage | 2026-07 | 2005 / 2009 / ×2,6 | ≤ 2010 / 2011 |
+| Remaining Useful Life Prediction | 2026-07 | 2019 / 2019 / ×2,4 | 2011 / 2013 / ×1,5 |
+| Cardiac Digital Twins | 2024-12 | 2025 / 2025 | 2019 / 2022 / ×5,1 |
+| Digital Twin Healthcare | 2021-07 | 2019 / 2021 / ×2,7 | 2018 / 2021 / ×3,2 |
+| Precision Fermented Lactoferrin | 2026-07 | 2023 / 2023 / ×4,0 | 2022 / 2023 / ×11,1 |
+
+**Grenzen:** Es ist eine Wortzählung. Wendungen können Rauschen tragen (Firmennamen wie
+„catl", „unitree"; Allerweltswörter wie „device", „project") — die Abfrage steht deshalb auf
+jeder Karte. Forschung reicht nur bis 2010 zurück: etablierte Themen stehen dort auf
+„2010 oder früher". Der Patentbestand trägt nicht jeden Begriff in seinem Index gleich gut
+(„solid-state battery" als Anker: erstes Jahr 2018, obwohl ältere Patente existieren).
+Globale, Vertikal- und Ebenen-Läufe werden (noch) nicht kalendarisch datiert — ihnen fehlt
+ein Anker, und eine Wendung allein ist zu breit.

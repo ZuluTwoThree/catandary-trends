@@ -110,6 +110,7 @@ def migrate_emerging_tables() -> None:
             "actors_late": "INTEGER",   # …early vs late window
             "group_id": "INTEGER",      # domain runs: sub-group (emerging.group_nests)
             "group_label": "TEXT",      # …and its name, shared by the group's nests
+            "calendar": "TEXT",         # JSON: dated by research/patent calendar (calendar_dating)
         })
         add_columns(conn, "emerging_runs", {
             "params": "TEXT",           # JSON: how a run was made (domain service)
@@ -242,8 +243,8 @@ def persist_run(scope: str, status: str, since: str, window_days: int, cells: in
                 " verticals, top_tags, new_terms,"
                 " first_month, age_months, hits_total, hits_recent, novelty_lift,"
                 " accel, rep_trend_ids, rep_titles, history_months, history_hits,"
-                " centroid, threshold, group_id, group_label)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " centroid, threshold, group_id, group_label, calendar)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (run_id, n["label"], n["size"], n["cohesion"], n["n_sources"],
                  n["top_source"], n["top_source_share"], n["tagged_share"],
                  n["established_share"], n.get("llm_label"), n.get("llm_label_note"),
@@ -257,7 +258,8 @@ def persist_run(scope: str, status: str, since: str, window_days: int, cells: in
                  json.dumps(n["history_hits"]),
                  n["centroid"].astype(np.float32).tobytes(),
                  float(max(HIST_SIM_FLOOR, n["radius_p25"])),
-                 n.get("group_id"), n.get("group_label")))
+                 n.get("group_id"), n.get("group_label"),
+                 json.dumps(n["calendar"]) if n.get("calendar") else None))
     return run_id
 
 
@@ -328,6 +330,9 @@ def run_emerging(scope: str, status: str = "signal,published",
         logger.warning("[%s] no nest passed the quality gate — skipping", scope)
         return None
     describe_nests(nests, rows, X=X)
+    if probe is not None:
+        member_titles = [[rows[i].get("title_en") or "" for i in n["members"]] for n in nests]
+        domain_titles = [r.get("title_en") or "" for r in rows]
 
     centroids = np.vstack([n["centroid"] for n in nests])
     thresholds = np.array([max(HIST_SIM_FLOOR, n["radius_p25"]) for n in nests],
@@ -350,6 +355,13 @@ def run_emerging(scope: str, status: str = "signal,published",
     logger.info("[%s] history: %d documents over %d months (%.0fs)",
                 scope, hist["scanned"], len(hist["months"]), time.time() - t1)
     score_nests(nests, hist, now=now)
+    if probe is not None:
+        # domains: date the pockets by the research and patent calendar (01.10.)
+        from pipeline.calendar_dating import date_nests
+        from pipeline.domains import load_definitions
+        defn = load_definitions().get(domain_of(scope)) or {}
+        anchor = [p.strip('"') for p in defn.get("phrases") or []][:8]
+        date_nests(nests, member_titles, domain_titles, anchor)
 
     if llm_names:
         name_nests_on_gpu(nests, scope)

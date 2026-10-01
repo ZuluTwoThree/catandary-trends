@@ -712,11 +712,18 @@ Foresight-Menü *Discover*, oder auf Emerging in der Zeile „by domain" *+ disc
 4. Unten **Discovered domains**: jede gespeicherte freie Domäne mit *run again* und *delete*
    (löscht Sonde und Nester-Lauf).
 
+**Kalender:** wenige Sekunden nach den Nestern kommt die Datierung gegen echte
+Kalenderdaten dazu (Ergebnis-Box: „Dating them against research and patents …"). Jede
+Karte zeigt dann oben **„on record since <Jahr>"** und den Block *On the record*:
+Forschung (OpenAlex, ab 2010) und Patente (ab 1990) mit erstem Jahr, Take-off, Wachstum
+der letzten drei Jahre und einer Kurve je Million Dokumente, darunter die gezählte Abfrage
+im Wortlaut. „2010 oder früher" heißt: dort beginnt unser Forschungsbestand.
+
 **Lesen:** ein Nest ist ein **Trend-Kandidat**, kein Urteil. Die Dichteprüfung ist relativ
 zur Domäne (dichteste 40 % ihrer Zellen, je Ebene), der wörtliche Anteil sagt, wie sehr die
 Auswahl am Begriff klebt (precision fermentation 19 %, digital twin 85 %). Das **Alter**
-misst unsere Abdeckung: viele Forschungs- und Patent-Nester datieren „2026-07", weil diese
-Ebenen erst seit Kurzem breit im Signalraum liegen.
+im Signalraum misst unsere Abdeckung (viele Nester „2026-07"); maßgeblich ist deshalb der
+Kalender oben auf der Karte. Er ist eine Wortzählung — die Abfrage steht dabei.
 
 **Dienst:** `pipeline/domain_service.py`, systemd-Unit `catandary-domain-service`
 (127.0.0.1:8093, ~4 GB RAM, keine GPU). **Schalter oben auf der Seite** („Discovery

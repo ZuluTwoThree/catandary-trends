@@ -1466,6 +1466,13 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      domänenzentriertem Kosinus, Untergruppen (emerging.group_nests, Spalten group_id/
      group_label, emerging_runs.params — additiv, Live-DB 01.10.), Namen vom ruhenden 8B nur
      ohne GPU-Job. Ergebnis = Lauf mit scope domain:q_<begriff>; Emerging zeigt ihn gruppiert.
+     KALENDER (seit 01.10.): pipeline/calendar_dating.py datiert Domänen-Nester gegen
+     research_corpus (ab 2010) und patent_search (ab 1990): kennzeichnende Wendungen der
+     Nest-Titel gegen die Domäne, Anker UND Wendung als tsquery, Treffer je Jahr und je Million,
+     erstes Jahr / Take-off (15 % der Spitze) / Wachstum 3 J. Spalte emerging_nests.calendar
+     (additiv, Live-DB 01.10.); Jahresbestand in ~/.cache/catandary/calendar_totals.json (7 Tage).
+     Live-Dienst datiert NACH der Anzeige, emerging_snapshot bei domain:-Scopes. Karte: „on record
+     since …", Block „On the record", Abfrage im Wortlaut. Bericht docs/domains_framework_2026-09-30.md.
      Unit installiert + enabled seit 01.10. (aus main). Schalter auf der Seite (Owner 01.10.):
      /api/foresight/discover/service → systemctl --user enable|disable --now (frei = ~4 GB).
     (das druckbare Foresight-Dossier /dossier samt CSV-Export

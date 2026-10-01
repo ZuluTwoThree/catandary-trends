@@ -1,4 +1,4 @@
-import type { EmergingNest, EmergingRun, TierName } from "./emerging";
+import type { CalendarSeries, EmergingNest, EmergingRun, TierName } from "./emerging";
 
 /**
  * Wording and small judgements for the emerging-nest cards. Pure, so every
@@ -30,17 +30,70 @@ export const YOUNG_MONTHS = 18;
 
 /** Is the age a statement about the world, or about our own intake? */
 export function ageIsMeaningful(nest: EmergingNest): boolean {
+  if (calendarFirst(nest)) return true;
   return nest.established_share >= 0.5;
 }
 
+/* ------------------------- the research and patent calendar ----------------- */
+/** Owner 01.10.: research and patents carry real dates. When a pocket has been dated
+ *  against them (pipeline/calendar_dating.py), that date leads — the signal space only
+ *  holds research and patents in breadth since 2026. */
+export const CALENDAR_LABEL: Record<"science" | "patent", string> = {
+  science: "Research",
+  patent: "Patents",
+};
+
+export function calendarFirst(
+  nest: EmergingNest
+): { year: number; edge: boolean; corpus: "science" | "patent" } | null {
+  const c = nest.calendar;
+  if (!c) return null;
+  let best: { year: number; edge: boolean; corpus: "science" | "patent" } | null = null;
+  for (const k of ["science", "patent"] as const) {
+    const s = c[k];
+    if (s?.first == null) continue;
+    if (!best || s.first < best.year) best = { year: s.first, edge: s.edge, corpus: k };
+  }
+  return best;
+}
+
+export function calendarLine(s: CalendarSeries, unit: string): string {
+  const parts = [s.first == null ? "no matches" : `since ${s.first}${s.edge ? " or earlier" : ""}`];
+  if (s.takeoff != null) parts.push(`take-off ${s.takeoff}`);
+  if (s.growth != null) parts.push(`×${s.growth.toFixed(1)} over the last three years`);
+  parts.push(`${s.total.toLocaleString("en-US")} ${unit}`);
+  return parts.join(" · ");
+}
+
+/** The counted query in words: anchor AND (phrase OR phrase). */
+export function calendarQuery(nest: EmergingNest): string | null {
+  const c = nest.calendar;
+  if (!c || !c.phrases.length) return null;
+  const q = (xs: string[]) => xs.map((x) => `"${x}"`).join(" or ");
+  return c.anchor.length ? `${q(c.anchor)} and (${q(c.phrases)})` : q(c.phrases);
+}
+
+/** Complete years of a series for a sparkline (the running year would read as a drop). */
+export function calendarSpark(s: CalendarSeries, thisYear = new Date().getFullYear()) {
+  const idx = s.years.map((y, i) => (y < thisYear ? i : -1)).filter((i) => i >= 0);
+  return {
+    years: idx.map((i) => String(s.years[i])),
+    values: idx.map((i) => s.per_million[i]),
+  };
+}
+
 export function ageText(nest: EmergingNest): string {
+  const cal = calendarFirst(nest);
+  if (cal) return `on record since ${cal.year}${cal.edge ? " or earlier" : ""}`;
   if (nest.age_months == null || !nest.first_month) return "no datable history";
   const m = nest.age_months;
   if (m < 24) return `first seen ${m} month${m === 1 ? "" : "s"} ago`;
   return `first seen ${nest.first_month}`;
 }
 
-export function isYoung(nest: EmergingNest): boolean {
+export function isYoung(nest: EmergingNest, thisYear = new Date().getFullYear()): boolean {
+  const cal = calendarFirst(nest);
+  if (cal) return !cal.edge && cal.year >= thisYear - 1;
   return (
     nest.age_months != null && nest.age_months <= YOUNG_MONTHS && ageIsMeaningful(nest)
   );

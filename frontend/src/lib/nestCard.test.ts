@@ -10,6 +10,9 @@ import {
   actorText,
   dominantTier,
   groupNests,
+  calendarFirst,
+  calendarQuery,
+  calendarSpark,
   leadText,
   nestTitle,
   runProvenance,
@@ -48,6 +51,7 @@ function nest(over: Partial<EmergingNest> = {}): EmergingNest {
     actors_late: 0,
     group_id: null,
     group_label: null,
+    calendar: null,
     reps: [],
     ...over,
   };
@@ -239,5 +243,39 @@ describe("live-discovered domain runs", () => {
     expect(text).toContain("densest 40 % of their cells");
     expect(text).toContain("27 %");
     expect(text).toContain("98,000");
+  });
+});
+
+
+describe("dated by the research and patent calendar", () => {
+  const series = (first: number | null, edge = false) => ({
+    first, edge, takeoff: first, growth: 2.5, total: 120,
+    years: [2024, 2025, 2026], counts: [10, 40, 70], per_million: [1, 4, 7],
+  });
+  const dated = (sci: number | null, pat: number | null, edge = false) =>
+    nest({
+      first_month: "2026-07",
+      age_months: 3,
+      established_share: 0.1,
+      calendar: { anchor: ["batteries"], phrases: ["redox flow", "flow battery"],
+                  science: series(sci, edge), patent: series(pat) },
+    });
+
+  it("leads with the earliest year on record, research or patents", () => {
+    expect(calendarFirst(dated(2010, 2005))).toEqual({ year: 2005, edge: false, corpus: "patent" });
+    expect(ageText(dated(2010, 2005))).toBe("on record since 2005");
+    expect(ageText(dated(2010, null, true))).toBe("on record since 2010 or earlier");
+    expect(ageIsMeaningful(dated(2010, 2005))).toBe(true);
+  });
+
+  it("is young only when the record itself is young — not because our signals are", () => {
+    expect(isYoung(dated(2010, 2005), 2026)).toBe(false);          // signal space says 3 months
+    expect(isYoung(dated(2025, 2026), 2026)).toBe(true);
+    expect(isYoung(dated(2025, null, true), 2026)).toBe(false);    // edge: may be older
+  });
+
+  it("says what was counted and drops the running year from the curve", () => {
+    expect(calendarQuery(dated(2010, 2005))).toBe('"batteries" and ("redox flow" or "flow battery")');
+    expect(calendarSpark(series(2024), 2026)).toEqual({ years: ["2024", "2025"], values: [1, 4] });
   });
 });

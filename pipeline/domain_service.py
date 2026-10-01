@@ -477,6 +477,8 @@ class Job:
         self._p = None
         self._thr = None
         self._previous_probe = None
+        self._calendar = None
+        self._nests = None
 
     def say(self, msg: str) -> None:
         self.stage = msg
@@ -617,6 +619,8 @@ def run_pockets(store: Store, job: Job) -> None:
     job.say(f"{len(nests)} pockets holding {share:.0%} of the selection — dating them …")
     describe_nests(nests, rows, X=X)
     group_nests(nests, center)
+    member_titles = [[rows[i].get("title_en") or "" for i in n["members"]] for n in nests]
+    domain_titles = [r.get("title_en") or "" for r in rows]
     del X, rows
 
     centroids = np.vstack([n["centroid"] for n in nests])
@@ -651,10 +655,12 @@ def run_pockets(store: Store, job: Job) -> None:
     for n in nests:
         groups.setdefault(n.get("group_id") or 0, []).append(n)
     job.t_pockets = round(time.time() - t0, 1)
+    job._calendar = (run_id, member_titles, domain_titles)
     job.result = {
         "run_id": run_id, "scope": f"domain:{job.key}", "nests": len(nests),
         "groups": len(groups), "in_pockets": round(share, 3),
         "named": sum(1 for n in nests if n.get("llm_label")), "naming": name_note,
+        "calendar": "running",
         "outline": [{"group": g, "label": (ns[0].get("group_label") or None),
                      "nests": [{"name": n.get("llm_label") or n["label"], "size": n["size"],
                                 "first_month": n.get("first_month")} for n in ns]}
@@ -662,7 +668,38 @@ def run_pockets(store: Store, job: Job) -> None:
     }
     job.state = "done"
     job.say(f"done: run {run_id}, {len(nests)} pockets in {len(groups)} groups "
-            f"({job.t_pockets:.0f}s)")
+            f"({job.t_pockets:.0f}s) — dating them against research and patents …")
+    job._nests = nests
+
+
+def run_calendar(job: Job) -> None:
+    """After the pockets are shown: date them by the research and patent calendar
+    (pipeline/calendar_dating.py) and write the result into the stored run."""
+    from pipeline.calendar_dating import date_nests
+    t0 = time.time()
+    run_id, member_titles, domain_titles = job._calendar
+    nests = job._nests
+    date_nests(nests, member_titles, domain_titles, [job.term] + job.also)
+    with get_connection() as c:
+        ids = [int(r["id"]) for r in c.execute(
+            "SELECT id FROM emerging_nests WHERE run_id = ? ORDER BY id", (run_id,)).fetchall()]
+        for nid, n in zip(ids, nests):
+            if n.get("calendar"):
+                c.execute("UPDATE emerging_nests SET calendar = ? WHERE id = ?",
+                          (json.dumps(n["calendar"]), nid))
+    by_name = {}
+    for n in nests:
+        cal = n.get("calendar") or {}
+        by_name[n.get("llm_label") or n["label"]] = {
+            k: {"first": (cal.get(k) or {}).get("first"), "edge": (cal.get(k) or {}).get("edge"),
+                "takeoff": (cal.get(k) or {}).get("takeoff")} for k in ("science", "patent")}
+    for g in job.result["outline"]:
+        for item in g["nests"]:
+            item["calendar"] = by_name.get(item["name"])
+    job.result["calendar"] = "done"
+    job.say(f"calendar: {sum(1 for n in nests if n.get('calendar'))} of {len(nests)} pockets dated "
+            f"in research and patents ({time.time() - t0:.0f}s)")
+    job._calendar = job._nests = None
 
 
 def discard(job: Job) -> None:
@@ -727,6 +764,8 @@ class Service:
             self.store.loading = "failed — see the service log"
             return
         self.ready = True
+        from pipeline.calendar_dating import warm
+        threading.Thread(target=warm, name="calendar-totals", daemon=True).start()
         while True:
             job_id, stage = self.q.get()
             job = self.jobs.get(job_id)
@@ -735,6 +774,13 @@ class Service:
             self.current = job_id
             try:
                 (run_select if stage == "select" else run_pockets)(self.store, job)
+                if stage == "pockets" and job.state == "done":
+                    try:
+                        run_calendar(job)
+                    except Exception as exc:     # noqa: BLE001 — the pockets stand without it
+                        job.result["calendar"] = "failed"
+                        job.say(f"calendar dating failed — {exc.__class__.__name__}: {exc}")
+                        logger.error("[%s] %s", job.key, traceback.format_exc())
             except Exception as exc:             # noqa: BLE001
                 job.state = "failed"
                 job.error = f"{exc.__class__.__name__}: {exc}"
@@ -830,6 +876,7 @@ def main() -> int:
             print(f"  outside {e['p']:.2f} {e['tier']:8s} {e['title'][:100]}")
         if job.preview["enough"]:
             run_pockets(store, job)
+            run_calendar(job)
             print(json.dumps(job.result, indent=2))
         return 0
     svc = Service(store)

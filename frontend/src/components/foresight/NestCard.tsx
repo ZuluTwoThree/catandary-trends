@@ -9,6 +9,10 @@ import {
   tierSteps,
   ageIsMeaningful,
   ageText,
+  CALENDAR_LABEL,
+  calendarLine,
+  calendarQuery,
+  calendarSpark,
   caveats,
   historyTail,
   isYoung,
@@ -71,7 +75,11 @@ export default function NestCard({ nest }: { nest: EmergingNest }) {
             borderColor: (isYoung(nest) ? "#d4ff3a" : "#a3a3a3") + "55",
             backgroundColor: (isYoung(nest) ? "#d4ff3a" : "#a3a3a3") + "10",
           }}
-          title="Months since the first month with at least three lookalikes anywhere in the archive."
+          title={
+            nest.calendar
+              ? "First year with at least three matching research works (OpenAlex, in breadth from 2010) or patents (from 1990). 'or earlier' = that is where the record starts."
+              : "Months since the first month with at least three lookalikes anywhere in the archive."
+          }
         >
           {ageText(nest)}
           {!ageIsMeaningful(nest) && " ?"}
@@ -94,6 +102,46 @@ export default function NestCard({ nest }: { nest: EmergingNest }) {
         {noveltyText(nest)}
         {accel && <span className="text-muted"> {accel}</span>}
       </p>
+
+      {nest.calendar && (nest.calendar.science || nest.calendar.patent) && (
+        <div className="border-t border-border/60 pt-3">
+          <div
+            className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-1.5"
+            title="Counted outside our signal space: OpenAlex works (45 M, in breadth from 2010) and patents (20 M, from 1990), per million documents of each year, so uneven corpus growth does not read as a trend. Take-off = first year at 15 % of the peak rate."
+          >
+            On the record
+          </div>
+          <div className="space-y-2">
+            {(["science", "patent"] as const).map((k) => {
+              const s = nest.calendar?.[k];
+              if (!s) return null;
+              const sp = calendarSpark(s);
+              return (
+                <div key={k}>
+                  <div className="font-mono text-[10px]">
+                    <span className="text-paper">{CALENDAR_LABEL[k]}</span>{" "}
+                    <span className="text-muted">{calendarLine(s, k === "science" ? "works" : "patents")}</span>
+                  </div>
+                  {sp.values.length >= 2 && s.total > 0 && (
+                    <Sparkline
+                      points={sp.values}
+                      months={sp.years}
+                      label={`${CALENDAR_LABEL[k]} per million`}
+                      className="w-full h-8"
+                      unit="count"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {calendarQuery(nest) && (
+            <div className="font-sans text-[11px] text-muted mt-1.5">
+              counted: {calendarQuery(nest)} · in our signals since {nest.first_month ?? "—"}
+            </div>
+          )}
+        </div>
+      )}
 
       {steps.length > 0 && (
         <div className="border-t border-border/60 pt-3">
