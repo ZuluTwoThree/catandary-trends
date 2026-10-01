@@ -78,6 +78,7 @@ from pipeline.models import (
 )
 from pipeline.auto_publisher import auto_publish
 from pipeline.content_guard import GarbledOutputError, garbage_reasons
+from pipeline.thin_sources import FILTER_REASON as THIN_REASON, NIGHTS as THIN_NIGHTS, note_too_short
 from pipeline.crs import compute_crs
 from pipeline.grounding import (figures_with_context, source_from_parts,
                                 ungrounded_specifics, verbatim_only)
@@ -913,6 +914,11 @@ def process_entry(entry: dict) -> dict | None:
     except GarbledOutputError as e:
         # Every attempt was token soup. Store nothing, mark nothing — the entry
         # stays unprocessed and gets a fresh chance next run (#11, 2026-09-05).
+        if note_too_short(entry_id, str(e)):
+            logger.warning("[%d] too short on %d nights — filtered as %s",
+                           entry_id, THIN_NIGHTS, THIN_REASON)
+            mark_filtered(entry_id, THIN_REASON)
+            return None
         logger.error("[%d] content generation GARBLED, entry left unprocessed: %s", entry_id, e)
         return None
 
@@ -1452,6 +1458,13 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
                     # stored and the entry is neither marked processed nor
                     # filtered — it stays in the queue for the next run. Counted
                     # separately so the summary line shows the episode.
+                    if note_too_short(entry["id"], str(e)):
+                        # third night too short for a thin source -> retire it (Owner 01.10.)
+                        logger.warning("[%d] too short on %d nights — filtered as %s",
+                                       entry["id"], THIN_NIGHTS, THIN_REASON)
+                        mark_filtered(entry["id"], THIN_REASON)
+                        filtered += 1
+                        continue
                     logger.error("[%d] content generation GARBLED, entry left unprocessed: %s",
                                  entry["id"], e)
                     garbled_stage6 += 1

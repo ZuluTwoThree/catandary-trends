@@ -776,7 +776,13 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # ein einziger Garbage-Eintrag (ArchDaily 827670, danach per mark_filtered
 # stillgelegt) kostete vier Reclassify-Pässe = 1,5 h. Solche Dauer-Garbled
 # bleiben absichtlich unprocessed und kommen im NÄCHSTEN Cycle noch einmal
-# dran — wiederholt sich das über mehrere Nächte, per Hand filtern.
+# dran. Ausnahme seit 2026-10-01 (Owner, Option b): scheitert ein Eintrag NUR an
+# „too_short" (dünne Quelle, das Modell schreibt ehrlich 40-59 Wörter), wird die Nacht
+# in data/garbled_too_short.json vermerkt; in der dritten Nacht filtert ihn Stage 6 mit
+# filter_reason='source_too_thin' (pipeline/thin_sources.py). Anlass: 13 solche Einträge
+# in der Nacht auf den 01.10., Carbios/Ecotextile in der sechsten Nacht; ihr Rest löste run 2
+# aus. Von 54 Betroffenen seit September kamen 47 bei einem späteren Versuch durch — daher
+# drei Nächte, nicht eine. Echte Token-Suppe bleibt wie bisher in der Warteschlange.
 # Batch 3000 (seit 2026-09-10; vorher 600). So bemessen, dass ein normaler Tag in
 # EINEM Lauf durchgeht: mit 600 sprang run 2 an jedem Tag an und kostete jedes Mal
 # einen zweiten kompletten Stage-8-Pass (damals Reclassify über ALLE Drafts,
