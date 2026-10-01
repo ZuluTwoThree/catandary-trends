@@ -193,6 +193,20 @@ def ollama_unload() -> None:
         _run([ob, "stop", m], timeout=30)
 
 
+def unit_start(timeout: int = 60):
+    """`systemctl --user start` for a DELIBERATE start, after clearing the start limit.
+
+    The unit allows 4 starts in 15 minutes (StartLimitBurst=4, StartLimitIntervalSec=900)
+    — a guard against crash loops under Restart=on-failure. Planned model swaps count
+    against it too: on 01.10. a short run 2 swapped 8B -> Gemma -> 8B four times between
+    06:08 and 06:17, the fifth start was refused ('start-limit-hit'), run 2 died with
+    "did not serve … within 240s" and the draft judge was skipped. `reset-failed` clears
+    the counter for this one deliberate start; crash restarts by systemd itself still
+    count against the limit."""
+    _run(["systemctl", "--user", "reset-failed", LLAMA_UNIT], timeout=15)
+    return _run(["systemctl", "--user", "start", LLAMA_UNIT], timeout=timeout)
+
+
 # ---- unit ownership (#98) ---------------------------------------------------
 
 def _job_name() -> str:
@@ -391,7 +405,7 @@ def llama_server_start(expected_model: str, timeout: int = 240,
     _wait_vram_below(VRAM_FREE_THRESHOLD_MIB, timeout=90)
 
     logger.info("Starting %s", LLAMA_UNIT)
-    _run(["systemctl", "--user", "start", LLAMA_UNIT], timeout=60)
+    unit_start()
 
     deadline = time.time() + timeout
     while time.time() < deadline:

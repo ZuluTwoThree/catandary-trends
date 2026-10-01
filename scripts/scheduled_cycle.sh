@@ -185,6 +185,7 @@ PY
   if [ "${PENDING}" -gt 50000 ]; then
     echo "ABORT: $PENDING pending non-patent entries exceeds the 50k sanity cap — refusing."
     ln -sf start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
+    systemctl --user reset-failed llama-server.service 2>/dev/null || true  # start limit (gpu_handover.unit_start)
     systemctl --user start llama-server.service
     exit 1
   fi
@@ -257,6 +258,7 @@ PY
       echo "----- draft judge SKIPPED: VRAM von Fremdprozess belegt (${VRAM_USED:-?} MiB) -----"
     else
       ln -sf start-qwen3.8-27b-ctx16k.sh /home/dirk/llama.cpp/start-active.sh
+      systemctl --user reset-failed llama-server.service 2>/dev/null || true  # start limit (gpu_handover.unit_start)
       systemctl --user start llama-server.service
       # Besitzvermerk (#98 c): data/llama-server.scheduled_cycle-judge.pid —
       # der Stop nach dem Richter trifft nur noch DIESEN Server (MainPID-Abgleich).
@@ -335,6 +337,7 @@ PY
     echo "----- resetting start-active.sh → start-qwen3-8b-208k.sh -----"
     ln -sf start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
     echo "----- restarting llama-server.service -----"
+    systemctl --user reset-failed llama-server.service 2>/dev/null || true  # start limit (gpu_handover.unit_start)
     systemctl --user start llama-server.service
     RC3=$?
     echo "----- llama-server start exit code: $RC3 -----"

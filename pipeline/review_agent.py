@@ -541,7 +541,7 @@ def restore_resting_server(was_active: bool) -> None:
         return
     from pipeline import gpu_handover
     try:
-        gpu_handover._run(["systemctl", "--user", "start", gpu_handover.LLAMA_UNIT], timeout=60)
+        gpu_handover.unit_start()
     except Exception as exc:                                        # noqa: BLE001
         logger.error("llama-server konnte nicht neu gestartet werden: %s", exc)
 

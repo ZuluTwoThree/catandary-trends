@@ -96,6 +96,7 @@ def main() -> int:
     finally:
         if was_active and not unit_active():
             log.info("restoring the resting state (llama-server.service was active before)")
+            subprocess.run(["systemctl", "--user", "reset-failed", "llama-server.service"], check=False)
             subprocess.run(["systemctl", "--user", "start", "llama-server.service"], check=False)
     with db.get_connection() as c:
         for nid, name, note in results:

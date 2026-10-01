@@ -233,6 +233,7 @@ with get_connection() as c:
   else
     echo "----- Ruhezustand: start-active.sh -> start-qwen3-8b-208k.sh, llama-server starten -----"
     ln -sf start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
+    systemctl --user reset-failed llama-server.service 2>/dev/null || true  # start limit (gpu_handover.unit_start)
     systemctl --user start llama-server.service
     RC_REST=$?
     for i in $(seq 1 12); do

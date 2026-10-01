@@ -91,6 +91,7 @@ STATE
       systemctl --user stop llama-server.service 2>/dev/null
       sleep 3
       ln -sfn "$STAGE8_START" "$LLAMA/start-active.sh"
+      systemctl --user reset-failed llama-server.service 2>/dev/null || true  # start limit (gpu_handover.unit_start)
       systemctl --user start llama-server.service
       for i in $(seq 1 40); do
         sleep 3
@@ -152,6 +153,7 @@ RECLASS
     systemctl --user stop llama-server.service 2>/dev/null
     sleep 3
     ln -sfn "$PREV_TARGET" "$LLAMA/start-active.sh"
+    systemctl --user reset-failed llama-server.service 2>/dev/null || true  # start limit (gpu_handover.unit_start)
     systemctl --user start llama-server.service
     for i in $(seq 1 40); do
       sleep 3

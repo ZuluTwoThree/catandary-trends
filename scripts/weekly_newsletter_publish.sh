@@ -93,6 +93,7 @@ PYEOF
     sleep 3
     ln -sfn start-gemma4-26b-ctx16k.sh /home/dirk/llama.cpp/start-active.sh \
       || echo "  WARN: symlink swap failed — starting whatever is active"
+    systemctl --user reset-failed llama-server.service 2>/dev/null || true  # start limit (gpu_handover.unit_start)
     systemctl --user start llama-server.service
     for i in $(seq 1 30); do
       sleep 3

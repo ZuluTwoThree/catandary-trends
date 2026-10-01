@@ -278,6 +278,7 @@ def free_vram_for_embeddings() -> bool:
 
 def restart_llama() -> None:
     logger.info("Stage 5 done: restarting %s", LLAMA_UNIT)
+    subprocess.run(["systemctl", "--user", "reset-failed", LLAMA_UNIT])   # start limit, see gpu_handover.unit_start
     subprocess.run(["systemctl", "--user", "start", LLAMA_UNIT])
 
 
