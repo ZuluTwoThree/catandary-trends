@@ -78,6 +78,9 @@ export interface EmergingNest {
    *  floor, never a census. */
   actors_early: number;
   actors_late: number;
+  /** Domain runs of the discovery service: sub-group (1 = largest) and its name. */
+  group_id: number | null;
+  group_label: string | null;
   reps: NestRep[];
 }
 
@@ -93,6 +96,19 @@ export interface EmergingRun {
   first_month: string | null;
   last_month: string | null;
   created_at: string;
+  /** How a run was made — set by the live discovery service (mode "live"). */
+  params: RunParams | null;
+}
+
+export interface RunParams {
+  mode?: string;
+  term?: string;
+  also?: string[];
+  window_months?: number;
+  members_window?: number;
+  members_archive?: number;
+  in_pockets?: number;
+  cohesion_quantile?: number;
 }
 
 function parseJson<T>(raw: unknown, fallback: T): T {
@@ -108,7 +124,7 @@ function parseJson<T>(raw: unknown, fallback: T): T {
 
 const RUN_COLUMNS =
   "SELECT id, scope, since, window_days, signals, cells, nests, scanned, " +
-  "first_month, last_month, created_at::text AS created_at";
+  "first_month, last_month, created_at::text AS created_at, params";
 
 const NEST_COLUMNS =
   "SELECT id, label, llm_label, llm_label_note, size, cohesion, n_sources, " +
@@ -117,18 +133,19 @@ const NEST_COLUMNS =
   "first_month, age_months, " +
   "hits_total, hits_recent, novelty_lift, accel, history_months, history_hits, " +
   "tiers, tier_order, science_to_market_months, actors_early, actors_late, " +
-  "rep_trend_ids";
+  "group_id, group_label, rep_trend_ids";
 
 /** Latest persisted emerging run for a scope, newest pockets first. */
 export async function getLatestEmergingRun(
   scope: string
 ): Promise<{ run: EmergingRun; nests: EmergingNest[] } | null> {
   try {
-    const run = await q1<EmergingRun>(
+    const raw = await q1<EmergingRun>(
       RUN_COLUMNS + " FROM emerging_runs WHERE scope = $1 ORDER BY id DESC LIMIT 1",
       [scope]
     );
-    if (!run) return null;
+    if (!raw) return null;
+    const run: EmergingRun = { ...raw, params: parseJson<RunParams | null>(raw.params, null) };
     const rows = await q(
       NEST_COLUMNS +
         " FROM emerging_nests WHERE run_id = $1 " +
@@ -200,6 +217,8 @@ export async function getLatestEmergingRun(
         r.science_to_market_months == null ? null : (r.science_to_market_months as number),
       actors_early: (r.actors_early as number) ?? 0,
       actors_late: (r.actors_late as number) ?? 0,
+      group_id: r.group_id == null ? null : (r.group_id as number),
+      group_label: (r.group_label as string) || null,
       reps: parseJson<number[]>(r.rep_trend_ids, [])
         .map((id) => repMap.get(id))
         .filter((x): x is NestRep => Boolean(x)),

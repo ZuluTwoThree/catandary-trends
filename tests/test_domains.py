@@ -105,3 +105,10 @@ def test_a_domain_slice_keeps_the_members_vectors_for_the_partition(monkeypatch)
     assert [r["i"] for r in got] == [0, 2, 4]
     X = ES.build_matrix(got)                     # the partition builds its matrix again
     assert X.shape == (3, 16) and np.allclose(np.linalg.norm(X, axis=1), 1.0)
+
+
+def test_seed_text_keeps_neighbouring_tags_apart():
+    row = {"txt": "Fermented feed for pigs", "tags": ["precision", "fermentation"]}
+    assert not D.carries_term(D._seed_text(row), ["precision fermentation"])
+    row = {"txt": "x", "tags": '["precision fermentation"]'}
+    assert D.carries_term(D._seed_text(row), ["precision fermentation"])

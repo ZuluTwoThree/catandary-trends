@@ -695,6 +695,42 @@ Domänen mit. **Vorsicht beim Alter:** Patent-Nester wirken jung, weil Patente i
 erst seit August 2026 (und für Food seit #114) vorliegen. Details und erste Messung:
 `docs/domains_framework_2026-09-30.md`.
 
+### 5.4b Live: Nester für einen freien Begriff (`/trends/foresight/discover`)
+
+Für Begriffe, die du nicht vorher in `domains.yaml` anlegen willst oder kannst. Im
+Foresight-Menü *Discover*, oder auf Emerging in der Zeile „by domain" *+ discover a term*.
+
+1. **Begriff** eingeben, optional **andere Schreibweisen** (Komma-getrennt, z. B.
+   `all-solid-state battery, SSB`), Fenster 6/12/24 Monate (Standard 12). *Select signals*.
+2. Nach ~10 s steht die **Auswahl**: wie viele Signale in den letzten 12 Monaten und im
+   ganzen Archiv, je Ebene, wie viel Prozent den Begriff wörtlich tragen, 14 Stichproben
+   „Inside the selection" und 8 „Just outside". Passen die Stichproben nicht (zu breit,
+   mehrdeutig), *Discard* und mit engerem Begriff oder anderen Schreibweisen neu.
+3. *Find pockets*: nach einigen Sekunden die Nester, in Untergruppen, mit Namen vom
+   ruhenden 8B (läuft gerade ein GPU-Job, bleiben die Schlagwort-Etiketten — einfach später
+   *run again*). *Open the pockets →* zeigt sie auf Emerging wie jede andere Domäne.
+4. Unten **Discovered domains**: jede gespeicherte freie Domäne mit *run again* und *delete*
+   (löscht Sonde und Nester-Lauf).
+
+**Lesen:** ein Nest ist ein **Trend-Kandidat**, kein Urteil. Die Dichteprüfung ist relativ
+zur Domäne (dichteste 40 % ihrer Zellen, je Ebene), der wörtliche Anteil sagt, wie sehr die
+Auswahl am Begriff klebt (precision fermentation 19 %, digital twin 85 %). Das **Alter**
+misst unsere Abdeckung: viele Forschungs- und Patent-Nester datieren „2026-07", weil diese
+Ebenen erst seit Kurzem breit im Signalraum liegen.
+
+**Dienst:** `pipeline/domain_service.py`, systemd-Unit `catandary-domain-service`
+(127.0.0.1:8093, ~4 GB RAM, keine GPU). Läuft er nicht, sagt die Seite es.
+
+```bash
+systemctl --user status catandary-domain-service
+journalctl --user -u catandary-domain-service -n 50
+.venv/bin/python -m pipeline.domain_service --rebuild          # Vektor-Kopie neu aufbauen (~6 min)
+.venv/bin/python -m pipeline.domain_service --once "batteries"  # ein Auftrag ohne Seite
+```
+
+Messungen, Stellschrauben und Grenzen: `docs/domains_framework_2026-09-30.md`, Abschnitt
+„Live-Dienst".
+
 ### 5.5 Evolution (`/trends/foresight/evolution?vertical=<V>`)
 
 Cluster-Abstammung über Zeitfenster: Fäden mit *New* / *Fading*, rising /

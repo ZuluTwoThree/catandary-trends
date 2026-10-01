@@ -109,8 +109,11 @@ def _hsort(ids):
     return sorted(ids, key=lambda i: (int(i) * HASH_MUL) % HASH_MOD)
 
 
-def seed_ids(defn: dict) -> dict[str, set[int]]:
-    """Trend ids per seed kind (only embedded signal/published rows)."""
+def seed_ids(defn: dict, nearest=None) -> dict[str, set[int]]:
+    """Trend ids per seed kind (only embedded signal/published rows).
+
+    nearest: optional callable(text, k) -> set of ids for the vector seeds (the domain
+    service answers it exactly from memory instead of the HNSW index)."""
     out: dict[str, set[int]] = {"cpc": set(), "openalex": set(), "phrases": set(), "vector": set()}
     if not db_mod.USE_POSTGRES:
         raise RuntimeError("domain seeds need the Postgres corpus (CPC, OpenAlex, full text)")
@@ -134,30 +137,99 @@ def seed_ids(defn: dict) -> dict[str, set[int]]:
             ts = "websearch_to_tsquery('english', ?)"
             fts = ("to_tsvector('english', coalesce(t.title_en,'') || ' ' || coalesce(t.summary_en,'') "
                    "|| ' ' || coalesce(t.tags::text,''))")
-            ids = {int(r["id"]) for r in c.execute(
-                f"SELECT t.id FROM trends t WHERE {base} AND {fts} @@ {ts}", (q,)).fetchall()}
-            ids |= {int(r["id"]) for r in c.execute(
-                f"SELECT rs.trend_id AS id FROM research_signals rs WHERE rs.tsv @@ {ts}", (q,)).fetchall()}
-            ids |= {int(r["id"]) for r in c.execute(
-                "SELECT t.id FROM patent_search ps JOIN raw_entries r ON r.pub_number = ps.pub_number "
-                f"JOIN trends t ON t.raw_entry_id = r.id WHERE {base} AND ps.tsv @@ {ts}", (q,)).fetchall()}
-            out["phrases"] = ids
+            hits = c.execute(
+                f"SELECT t.id, coalesce(t.title_en,'') || ' ' || coalesce(t.summary_en,'') AS txt, t.tags "
+                f"FROM trends t WHERE {base} AND {fts} @@ {ts}", (q,)).fetchall()
+            hits += c.execute(
+                "SELECT rs.trend_id AS id, coalesce(rs.title,'') || ' ' || coalesce(rs.abstract,'') AS txt, "
+                f"NULL AS tags FROM research_signals rs WHERE rs.tsv @@ {ts}", (q,)).fetchall()
+            hits += c.execute(
+                "SELECT t.id, coalesce(r.title,'') || ' ' || coalesce(r.excerpt,'') AS txt, NULL AS tags "
+                "FROM patent_search ps JOIN raw_entries r ON r.pub_number = ps.pub_number "
+                f"JOIN trends t ON t.raw_entry_id = r.id WHERE {base} AND ps.tsv @@ {ts}", (q,)).fetchall()
+            if defn.get("adhoc"):
+                # A free term is checked word for word: the stemmer folds "precision" and
+                # "precise" together and the tag list puts "precision" next to
+                # "fermentation" — of 1,063 signal hits for "precision fermentation" only
+                # 432 carried the term, of 14 patents 2 (01.10.).
+                terms = [p.strip('"') for p in defn["phrases"]]
+                hits = [h for h in hits if carries_term(_seed_text(h), terms)]
+            out["phrases"] = {int(h["id"]) for h in hits}
+    k = VECTOR_SEEDS
+    if defn.get("vector_fill") is not None:
+        # free terms: the nearest vectors only FILL UP a thin literal seed set. Next to
+        # 1,224 literal hits, the 1,000 vectors nearest to "precision fermentation" were
+        # general fermentation, and the probe followed them: 12 % of the selection named
+        # the term (01.10.).
+        k = max(0, int(defn["vector_fill"]) - len(out["phrases"]))
     for q in defn.get("vector_queries") or []:
-        out["vector"] |= nearest_to_text(q, VECTOR_SEEDS)
+        if k:
+            out["vector"] |= (nearest or nearest_to_text)(q, k)
     return out
 
 
 VECTOR_SEEDS = 1000      # pgvector 0.6: an HNSW scan returns at most ef_search (1000) rows
+ADHOC_VECTOR_FILL = 500  # free terms: literal + nearest seeds add up to at least this
+# Free terms keep half of their seeds per tier instead of 70 %: measured on five terms
+# (01.10.), the share of the selection that names the term rose from 0.26 to 0.67
+# (digital twin), 0.32 -> 0.45 (humanoid robots), 0.41 -> 0.49 (solid-state battery),
+# 0.71 -> 0.81 (batteries), while the selections stayed 230-6,100 signals large.
+ADHOC_TARGET_RECALL = 0.50
 
 
-def nearest_to_text(text: str, k: int = VECTOR_SEEDS) -> set[int]:
-    """The k signals nearest to a free text (CPU embedder :8091, HNSW on embedding_1024)."""
+def _seed_text(row) -> str:
+    """Title + summary/abstract, then each tag on its own, so two neighbouring tags
+    never read as one phrase."""
+    tags = row["tags"]
+    if isinstance(tags, str):
+        try:
+            tags = json.loads(tags)
+        except ValueError:
+            tags = []
+    parts = [row["txt"] or ""] + [str(t) for t in (tags or [])]
+    return " zzsep ".join(parts)
+
+
+def _stem(word: str) -> str:
+    w = word.lower()
+    if len(w) > 4 and w.endswith("ies"):
+        return w[:-3] + "y"
+    if len(w) > 4 and w.endswith(("sses", "shes", "ches", "xes")):
+        return w[:-2]
+    if len(w) > 3 and w.endswith("s") and not w.endswith("ss"):
+        return w[:-1]
+    return w
+
+
+def _words(text: str) -> list[str]:
+    import re
+    return [_stem(w) for w in re.findall(r"[A-Za-z0-9]+", text or "")]
+
+
+def carries_term(text: str, terms: list[str]) -> bool:
+    """Does the text carry one of the terms — every word of it, in any plural form
+    (battery/batteries), in order and adjacent?"""
+    words = _words(text)
+    for t in terms:
+        tw = _words(t)
+        if tw and any(words[i:i + len(tw)] == tw for i in range(len(words) - len(tw) + 1)):
+            return True
+    return False
+
+
+def embed_text(text: str) -> np.ndarray:
+    """The 1024-dim prefix of a free text's embedding (CPU embedder :8091), unnormalised."""
     import os
     import httpx
     host = os.getenv("RESEARCH_EMBED_HOST") or "http://127.0.0.1:8091"
     r = httpx.post(f"{host}/v1/embeddings", json={"input": text}, timeout=60)
     r.raise_for_status()
-    v = r.json()["data"][0]["embedding"][:DIM]
+    return np.asarray(r.json()["data"][0]["embedding"][:DIM], dtype=np.float32)
+
+
+def nearest_to_text(text: str, k: int = VECTOR_SEEDS) -> set[int]:
+    """The k signals nearest to a free text (CPU embedder :8091, HNSW on embedding_1024)."""
+    v = embed_text(text)
     lit = "[" + ",".join(f"{x:.6f}" for x in v) + "]"
     with get_connection() as c:
         c.execute("SET hnsw.ef_search = 1000")
@@ -166,16 +238,25 @@ def nearest_to_text(text: str, k: int = VECTOR_SEEDS) -> set[int]:
     return {int(r["id"]) for r in rows}
 
 
-def adhoc_definition(term: str) -> dict:
-    """A domain from nothing but a term (Owner 30.09.: "I don't know beforehand what will be
-    searched"): seeds = the term as a phrase in titles/summaries/tags and in research and
-    patent abstracts, plus the signals nearest to the term's embedding."""
+def adhoc_key(term: str) -> str:
     import re
     t = " ".join(term.split())
-    key = "q_" + re.sub(r"[^a-z0-9]+", "_", t.lower()).strip("_")[:36]
-    return {"key": key, "name": t, "cpc": [], "openalex_topics": [], "openalex_subfields": [],
-            "phrases": [f'"{t}"'], "vector_queries": [t],
-            "target_recall": DEFAULT_TARGET_RECALL, "adhoc": True}
+    return "q_" + re.sub(r"[^a-z0-9]+", "_", t.lower()).strip("_")[:36]
+
+
+def adhoc_definition(term: str, also: list[str] | None = None) -> dict:
+    """A domain from nothing but a term (Owner 30.09.: "I don't know beforehand what will be
+    searched"): seeds = the term as a phrase in titles/summaries/tags and in research and
+    patent abstracts, plus the signals nearest to the term's embedding. `also` = further
+    spellings or synonyms, each seeded the same way."""
+    t = " ".join(term.split())
+    extra = [" ".join(a.split()) for a in (also or []) if a and a.strip()]
+    extra = [a for a in dict.fromkeys(extra) if a.lower() != t.lower()]
+    terms = [t] + extra
+    return {"key": adhoc_key(t), "name": t, "cpc": [], "openalex_topics": [],
+            "openalex_subfields": [], "phrases": [f'"{x}"' for x in terms],
+            "vector_queries": terms, "also": extra, "vector_fill": ADHOC_VECTOR_FILL,
+            "target_recall": ADHOC_TARGET_RECALL, "adhoc": True}
 
 
 def background_ids(n: int, exclude: set[int]) -> list[int]:
@@ -303,41 +384,62 @@ def calibrate(y: np.ndarray, p: np.ndarray, target: float, prevalence: float) ->
     return 0.95
 
 
-def train(key: str, defs: dict | None = None) -> dict:
+def _db_vectors(ids: list[int]) -> tuple[np.ndarray, list[str]]:
+    from pipeline import signal_space as ss
+    X, meta = ss.load_vectors(ids)
+    return X, [m.get("tier") or "none" for m in meta]
+
+
+def _db_corpus_size() -> int:
+    with get_connection() as c:
+        return int(c.execute("SELECT count(*) AS n FROM trends WHERE status IN ('signal','published') "
+                             "AND embedding_1024 IS NOT NULL").fetchone()["n"])
+
+
+def train(key: str, defs: dict | None = None, *, seeds: dict | None = None,
+          vectors=None, background=None, excluded=None, corpus_size: int | None = None,
+          probe_out: list | None = None) -> dict:
+    """Seeds -> tier-centred logistic probe -> per-tier thresholds -> domain_probes.
+
+    The data access is injectable so the domain service (pipeline/domain_service.py)
+    can train from its in-memory copy with the SAME code: `seeds` (precomputed seed
+    ids per kind), `vectors(ids) -> (X, tiers)`, `background(n, exclude) -> ids`,
+    `excluded(ids) -> set`, `corpus_size`. Defaults read the database. `probe_out`, a
+    list, receives the trained DomainProbe."""
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import roc_auc_score
-    from pipeline import signal_space as ss
 
+    vectors = vectors or _db_vectors
+    background = background or background_ids
+    excluded = excluded or training_excluded
     defs = defs or load_definitions()
     if key not in defs:
         raise KeyError(f"no domain '{key}' in {DOMAINS_FILE.name}")
     defn = defs[key]
     t0 = time.time()
-    seeds = seed_ids(defn)
+    seeds = seeds if seeds is not None else seed_ids(defn)
     pos_all = set().union(*seeds.values())
-    excl = training_excluded(list(pos_all))
+    excl = excluded(list(pos_all))
     pos_all -= excl
     logger.info("[%s] seeds: cpc %d, openalex %d, phrases %d, vector %d -> %d positives (%d excluded: pilot recipe)",
                 key, len(seeds["cpc"]), len(seeds["openalex"]), len(seeds["phrases"]), len(seeds["vector"]),
                 len(pos_all), len(excl))
     if len(pos_all) < MIN_POSITIVES:
         raise ValueError(f"[{key}] only {len(pos_all)} positive seeds — add seeds to {DOMAINS_FILE.name}")
-    bg = background_ids(BACKGROUND, pos_all)
-    bg_excl = training_excluded(bg)
+    bg = background(BACKGROUND, pos_all)
+    bg_excl = excluded(bg)
     bg = [i for i in bg if i not in bg_excl]
     # positives capped per tier, so a seed that floods one tier cannot own the probe
     pos_list = _hsort(pos_all)
-    Xp, mp = ss.load_vectors(pos_list)
-    tp = [m.get("tier") or "none" for m in mp]
+    Xp, tp = vectors(pos_list)
     keep, per = [], {}
     for i, t in enumerate(tp):
         if per.get(t, 0) < MAX_POS_PER_TIER:
             per[t] = per.get(t, 0) + 1
             keep.append(i)
     Xp, tp, pos_list = Xp[keep], [tp[i] for i in keep], [pos_list[i] for i in keep]
-    Xb, mb = ss.load_vectors(bg)
-    tb = [m.get("tier") or "none" for m in mb]
-    Xb_n = ss.l2(Xb)
+    Xb, tb = vectors(bg)
+    Xb_n = Xb / np.clip(np.linalg.norm(Xb, axis=1, keepdims=True), 1e-9, None)
     means = {t: Xb_n[np.array(tb) == t].mean(axis=0) for t in set(tb)}
     probe = DomainProbe(key, None, means, 0.5)
     ids = pos_list + bg
@@ -349,9 +451,7 @@ def train(key: str, defs: dict | None = None) -> dict:
     clf.fit(X[~hold], y[~hold])
     probe.clf = clf
     p_hold = clf.predict_proba(X[hold])[:, 1]
-    with get_connection() as c:
-        corpus = c.execute("SELECT count(*) AS n FROM trends WHERE status IN ('signal','published') "
-                           "AND embedding_1024 IS NOT NULL").fetchone()["n"]
+    corpus = corpus_size if corpus_size is not None else _db_corpus_size()
     prevalence = (len(pos_all) + len(excl)) / max(corpus, 1)
     thr = threshold_for_recall(p_hold[y[hold]], defn["target_recall"])
     probe.threshold = thr
@@ -402,6 +502,8 @@ def train(key: str, defs: dict | None = None) -> dict:
                    len(pos_list), len(bg), probe.dumps()))
     logger.info("[%s] trained: threshold %.3f, AUC %s, per tier %s (%ds)", key, thr, metrics["auc"],
                 json.dumps(metrics["per_tier"]), metrics["seconds"])
+    if probe_out is not None:
+        probe_out.append(probe)
     return metrics
 
 

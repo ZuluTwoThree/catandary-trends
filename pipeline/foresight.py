@@ -111,8 +111,11 @@ def iter_signals(status: str = "signal,published", vertical: str | None = None,
                  source_like: str | None = None, limit: int = 0,
                  since: str | None = None, until: str | None = None,
                  dim1024: bool = False, tier: str | None = None,
-                 chunk_size: int = LOAD_CHUNK):
+                 chunk_size: int = LOAD_CHUNK, start_id: int = 0):
     """Yield embedded trends in keyset-paginated chunks (list[dict] per chunk).
+
+    start_id: only rows with t.id > start_id (an incremental reader — the domain
+    service, pipeline/domain_service.py — picks up where its copy ends).
 
     Same filters as `load_signals`, which is just this drained into one list.
     Streaming matters for passes that walk the WHOLE archive without holding it:
@@ -178,7 +181,7 @@ def iter_signals(status: str = "signal,published", vertical: str | None = None,
     # float32 bytes immediately, so only 4 KB/row stays resident.
     base_where = " AND ".join(where)
     seen = 0
-    last_id = 0
+    last_id = int(start_id or 0)
     with get_connection() as c:
         while True:
             chunk = min(chunk_size, limit - seen) if limit else chunk_size

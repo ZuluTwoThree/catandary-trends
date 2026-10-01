@@ -9,6 +9,7 @@ import {
   noveltyText,
   actorText,
   dominantTier,
+  groupNests,
   leadText,
   nestTitle,
   runProvenance,
@@ -45,6 +46,8 @@ function nest(over: Partial<EmergingNest> = {}): EmergingNest {
     science_to_market_months: null,
     actors_early: 0,
     actors_late: 0,
+    group_id: null,
+    group_label: null,
     reps: [],
     ...over,
   };
@@ -63,6 +66,7 @@ function run(over: Partial<EmergingRun> = {}): EmergingRun {
     first_month: "1983-01",
     last_month: "2026-09",
     created_at: "2026-09-15",
+    params: null,
     ...over,
   };
 }
@@ -195,5 +199,45 @@ describe("emerging cards — age is the headline, weaknesses are printed", () =>
     const tail = historyTail(long, 60);
     expect(tail.months).toHaveLength(60);
     expect(tail.values[59]).toBe(199);
+  });
+});
+
+
+describe("live-discovered domain runs", () => {
+  it("groups pockets by sub-group, biggest group first, page order kept inside", () => {
+    const ns = [
+      nest({ id: 1, size: 10, group_id: 2, group_label: "Thermal safety" }),
+      nest({ id: 2, size: 50, group_id: 1, group_label: "Chemistries" }),
+      nest({ id: 3, size: 12, group_id: 2, group_label: "Thermal safety" }),
+      nest({ id: 4, size: 40, group_id: 1, group_label: "Chemistries" }),
+    ];
+    const g = groupNests(ns)!;
+    expect(g.map((x) => x.id)).toEqual([1, 2]);
+    expect(g[0].nests.map((n) => n.id)).toEqual([2, 4]);
+    expect(g[0].size).toBe(90);
+    expect(g[1].label).toBe("Thermal safety");
+  });
+
+  it("does not group a plain run or a run with one group", () => {
+    expect(groupNests([nest(), nest({ id: 2 })])).toBeNull();
+    expect(groupNests([nest({ group_id: 1 }), nest({ id: 2, group_id: 1 })])).toBeNull();
+  });
+
+  it("says how a live run was made: term, window, selection, relative density", () => {
+    const text = runProvenance(
+      run({
+        scope: "domain:q_batteries",
+        nests: 24,
+        scanned: 98000,
+        window_days: 360,
+        params: { mode: "live", term: "batteries", also: ["accumulator"], window_months: 12,
+                  members_window: 28000, in_pockets: 0.27, cohesion_quantile: 0.6 },
+      })
+    );
+    expect(text).toContain('"batteries" (also accumulator)');
+    expect(text).toContain("28,000 signals of the last 12 months");
+    expect(text).toContain("densest 40 % of their cells");
+    expect(text).toContain("27 %");
+    expect(text).toContain("98,000");
   });
 });

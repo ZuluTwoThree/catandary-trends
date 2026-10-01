@@ -1,0 +1,20 @@
+[Unit]
+Description=Catandary live domain discovery (pipeline/domain_service.py, 127.0.0.1:8093)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+# Runs from the main worktree like the frontend on :3001. Holds every embedded signal
+# in memory (~4 GB float16); the copy lives in ~/.cache/catandary/domain_service and is
+# topped up with new rows before each job. No GPU: names come from the resting 8B on
+# :8090 only while no job holds the card.
+WorkingDirectory=/home/dirk/projects/catandary-trends
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/dirk/projects/catandary-trends/.venv/bin/python -m pipeline.domain_service --port 8093
+MemoryMax=16G
+Nice=5
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

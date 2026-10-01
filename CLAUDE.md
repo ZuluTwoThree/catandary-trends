@@ -1288,7 +1288,7 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      2026-09-28 der CPU-Embedder :8091 (RESEARCH_EMBED_HOST); bis dahin fragte die Route
      Ollama :11434, das seit dem llama.cpp-Umzug nicht laeuft — die Semantik fiel still
      weg, die Seite zeigte "(text match only)".)
-  /clusters /clusters/<id> /emerging /map /technology /lead-time /evolution
+  /clusters /clusters/<id> /emerging /discover /map /technology /lead-time /evolution
     (/map = Signalraum in 3D, seit 2026-09-27: DIESELBEN Nester wie /emerging, nur mit
      Koordinaten und einer Uhr — es wird nichts nachgerechnet, die Seite liest den
      Schnappschuss (Zentroid je Nest + Treffer je Monat aus dem Archiv-Scan). Zwei
@@ -1448,6 +1448,18 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      Whole-Body Control, 6G NTN). Grenzen: Patent-Alter ist Korpus-Artefakt (Patente erst seit
      08/2026), Dichtepruefung in engen Domaenen zu nachgiebig (51-75 % in Nestern).
      docs/domains_framework_2026-09-30.md, docs/domain_probe_2026-09-30.md
+     LIVE (seit 01.10., auf dev): /trends/foresight/discover — Begriff (+ Schreibweisen) eingeben,
+     Auswahl mit Vorschau (je Ebene, wörtlicher Anteil, Stichproben drin/knapp draußen), dann
+     Nester. Dienst pipeline/domain_service.py (127.0.0.1:8093, Unit
+     deploy/systemd/catandary-domain-service.service, ~4 GB RAM, keine GPU) hält alle 2,0 Mio.
+     eingebetteten Signale als float16 im Speicher (Kopie ~/.cache/catandary/domain_service,
+     Aufbau 5:40 min, Laden 3 s, neue Zeilen vor jedem Auftrag); Auswahl 7-12 s, Nester
+     0,4-13 s statt 95-100 s / 174-505 s. Freie Begriffe: 12 Monate, ab 150 Signalen,
+     Volltext-Saat wörtlich nachgeprüft, Vektor-Saat füllt nur auf 500 auf, Saat-Recall 0,5,
+     Dichte = dichteste 40 % der eigenen Zellen JE EBENE, Zusammenlegen auf roh UND
+     domänenzentriertem Kosinus, Untergruppen (emerging.group_nests, Spalten group_id/
+     group_label, emerging_runs.params — additiv, Live-DB 01.10.), Namen vom ruhenden 8B nur
+     ohne GPU-Job. Ergebnis = Lauf mit scope domain:q_<begriff>; Emerging zeigt ihn gruppiert.
     (das druckbare Foresight-Dossier /dossier samt CSV-Export
      wurde am 2026-09-15 entfernt: es las nur den ungeeichten Cluster-Snapshot vom 03.08. — Owner-Entscheid)
     (Technologie-Suche: Query-Quality-Gate #67 seit 2026-09-04, `pipeline/query_gate.py` — eine Anfrage

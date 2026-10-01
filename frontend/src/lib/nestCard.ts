@@ -110,6 +110,19 @@ export function caveats(nest: EmergingNest): Caveat[] {
 /** One line stating what the run actually did. */
 export function runProvenance(run: EmergingRun): string {
   const days = run.window_days ?? 0;
+  const p = run.params;
+  if (p?.mode === "live") {
+    const share = p.in_pockets != null ? `, holding ${Math.round(p.in_pockets * 100)} % of them` : "";
+    return (
+      `Discovered live for "${p.term}"${p.also?.length ? ` (also ${p.also.join(", ")})` : ""}: ` +
+      `${(p.members_window ?? run.signals).toLocaleString("en-US")} signals of the last ` +
+      `${p.window_months ?? Math.round(days / 30)} months were selected by meaning; ` +
+      `${run.nests} pockets are the densest ` +
+      `${Math.round((1 - (p.cohesion_quantile ?? 0.6)) * 100)} % of their cells${share}. ` +
+      `Each was dated against the domain's ${run.scanned.toLocaleString("en-US")} archived ` +
+      `signals, back to ${run.first_month ?? "the start"}.`
+    );
+  }
   return (
     `${run.nests} pockets found by cutting the last ${days} days into ${run.cells} cells ` +
     `and keeping only the tight ones. Each was then dated against all ` +
@@ -189,4 +202,33 @@ export function actorText(nest: EmergingNest): string | null {
     ? `${nest.actors_early} two years ago, ${nest.actors_late} now`
     : `${nest.actors_late}`;
   return `Named companies: ${from}. Only 13 % of trade-press rows carry an extracted name, so this is a floor.`;
+}
+
+
+/* ------------------------------ sub-groups -------------------------------- */
+export interface NestGroup {
+  id: number;
+  label: string | null;
+  size: number;
+  nests: EmergingNest[];
+}
+
+/**
+ * Pockets of a grouped run (discovery service) in group order, biggest group first,
+ * keeping the page's order inside each group. Null when the run is not grouped or
+ * everything sits in one group — then the plain grid reads better.
+ */
+export function groupNests(nests: EmergingNest[]): NestGroup[] | null {
+  if (!nests.some((n) => n.group_id != null)) return null;
+  const by = new Map<number, NestGroup>();
+  for (const n of nests) {
+    const id = n.group_id ?? 0;
+    const g = by.get(id) ?? { id, label: null, size: 0, nests: [] };
+    g.label = g.label ?? n.group_label;
+    g.size += n.size;
+    g.nests.push(n);
+    by.set(id, g);
+  }
+  if (by.size < 2) return null;
+  return [...by.values()].sort((a, b) => (a.id || 1e9) - (b.id || 1e9));
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getDomainNames, getEmergingScopes, getLatestEmergingRun } from "@/lib/emerging";
-import { runProvenance, isYoung, TIER_LABEL } from "@/lib/nestCard";
+import { groupNests, runProvenance, isYoung, TIER_LABEL } from "@/lib/nestCard";
 import { TIERS } from "@/lib/tiers";
 import { VERTICALS } from "@/lib/types";
 import NestCard from "@/components/foresight/NestCard";
@@ -51,6 +51,7 @@ export default async function EmergingPage({
   const data = await getLatestEmergingRun(scope);
   const all = data?.nests ?? [];
   const nests = onlyYoung ? all.filter(isYoung) : all;
+  const groups = groupNests(nests);
 
   const asOf = data?.run.created_at
     ? new Date(data.run.created_at + "Z").toLocaleDateString("en-US", {
@@ -139,7 +140,7 @@ export default async function EmergingPage({
       {/* Owner 2026-09-30: pockets inside freely chosen domains (domains.yaml) —
           membership decided by a probe on the embedding, trained on examiner CPC,
           OpenAlex topics and phrases, not by the classifier's vertical label. */}
-      {domainScopes.length > 0 && (
+      {(
         <div className="flex items-center gap-1 flex-wrap -mt-6 mb-8">
           <span
             className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mr-2"
@@ -150,6 +151,12 @@ export default async function EmergingPage({
           {domainScopes.map((k) =>
             tab(`/trends/foresight/emerging?domain=${k}`, domainNames[k] ?? k, scope === `domain:${k}`)
           )}
+          <Link
+            href="/trends/foresight/discover"
+            className="font-mono text-[10px] uppercase tracking-[0.14em] px-3 py-1.5 text-accent hover:underline"
+          >
+            + discover a term
+          </Link>
         </div>
       )}
 
@@ -182,6 +189,29 @@ export default async function EmergingPage({
             Run it with the button above, or on the workstation:
             python -m pipeline.emerging_snapshot --all-verticals --all-tiers
           </p>
+        </div>
+      ) : groups ? (
+        // Domain runs of the discovery service come grouped: sub-topics of the domain,
+        // average linkage on the domain-centred centroids (pipeline/emerging.group_nests).
+        <div className="space-y-10">
+          {groups.map((g) => (
+            <section key={g.id}>
+              <div className="flex items-baseline gap-3 mb-3 border-b border-border pb-2">
+                <h2 className="font-display text-xl text-paper">
+                  {g.nests.length > 1 ? g.label ?? `Group ${g.id}` : "On its own"}
+                </h2>
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                  {g.nests.length} {g.nests.length === 1 ? "pocket" : "pockets"} ·{" "}
+                  {g.size.toLocaleString("en-US")} signals
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {g.nests.map((n) => (
+                  <NestCard key={n.id} nest={n} />
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -59,6 +59,28 @@ MIN_COHESION = 0.75
 MIN_NEST_SIZE = 30
 # Two centres this similar describe the same pocket; the larger one absorbs it.
 MERGE_SIM = 0.92
+# Inside a DOMAIN every pocket shares the domain's own direction, so raw cosine says
+# little: in the batteries domain (run 74, 30.09.) the two "Aqueous Zinc-Ion Batteries"
+# pockets sat at 0.939 and "Lithium-ion Electrode Materials" vs "Battery Management and
+# Safety" at 0.947. With the domain's mean taken out first, the duplicates stand apart:
+# zinc 0.749, electrodes vs management < 0.63. A domain run therefore merges two final
+# pockets when raw >= MERGE_SIM AND domain-centred >= MERGE_CENTRED_SIM.
+MERGE_CENTRED_SIM = 0.70
+# Domain-relative density gate: a domain is dense everywhere, so the absolute 0.75 kept
+# 51-84 % of each domain's members in pockets (30.09.). A domain run keeps only the
+# densest 40 % of ITS OWN cells (and never below MIN_COHESION) — counted per
+# conversation: research abstracts sit closer together than press articles, and one
+# quantile over all cells kept 16 research pockets and not a single market or patent one
+# (batteries, 01.10.). A cell's conversation is the tier most of its members come from.
+# Swept on batteries / digital twin (01.10.): q 0.50 -> 38/26 pockets holding 41/40 % of
+# the selection, 0.60 -> 29/22 at 33 %, 0.75 -> 19/16 at 20 %; at 0.75 the solid-state
+# and recycling pockets of "batteries" fell out, at 0.60 they stay.
+DOMAIN_COHESION_QUANTILE = 0.60
+# Sub-groups: average linkage on the domain-centred centroids, cut at this cosine
+# distance. Measured on batteries (60 pockets): 0.6 -> 26 groups, 0.7 -> 14, 0.8 -> 8;
+# at 0.7 zinc/aqueous chemistries, lithium/sodium chemistries, thermal safety, grid and
+# EV systems, storage projects, recycling and state estimation each form one group.
+GROUP_DISTANCE = 0.70
 
 # --- history ---------------------------------------------------------------
 
@@ -147,7 +169,10 @@ def pick_cells(n_docs: int) -> int:
 def detect_nests(X: np.ndarray, k: int | None = None, seed: int = 42,
                  min_cohesion: float = MIN_COHESION,
                  min_size: int = MIN_NEST_SIZE,
-                 top_n: int | None = None) -> list[dict]:
+                 top_n: int | None = None,
+                 relative_quantile: float | None = None,
+                 center: np.ndarray | None = None,
+                 row_tiers: np.ndarray | None = None) -> list[dict]:
     """Fine partition → keep the tight cells → merge near-duplicates.
 
     Returns [{members: np.ndarray of row indices, centroid, cohesion, radius_p25}]
@@ -162,6 +187,16 @@ def detect_nests(X: np.ndarray, k: int | None = None, seed: int = 42,
     same gate keeps 98 pockets in the last 90 days and 7 in a 2025 slice).
     Each returned nest carries its cohesion, so the caller can still say which
     ones would have cleared the production bar.
+
+    `relative_quantile` (domain runs): the gate becomes the q-quantile of all cell
+    cohesions of THIS slice, never below `min_cohesion` — "the densest cells of the
+    domain" instead of "dense by the corpus' standard", which every cell of a domain is.
+    With `row_tiers` (one label per row) the quantile is taken among the cells of the
+    same majority tier, so each conversation keeps its own densest quarter.
+
+    `center` (domain runs): the domain's mean direction. After the usual merge, final
+    pockets are merged again while any pair is a duplicate by raw AND domain-centred
+    cosine (MERGE_SIM, MERGE_CENTRED_SIM) — see the constants for the measurement.
     """
     n = X.shape[0]
     k = k or pick_cells(n)
@@ -175,28 +210,54 @@ def detect_nests(X: np.ndarray, k: int | None = None, seed: int = 42,
     # Quality gate first, SIZE gate last. A real pocket that the fine partition
     # happened to slice into a dozen slivers would otherwise be thrown away
     # sliver by sliver before it ever got the chance to be put back together.
-    gate = 0.0 if top_n else min_cohesion
-    cand: list[dict] = []
+    cells: list[dict] = []
     for cid in range(k):
         members = np.flatnonzero(labels == cid)
         if members.size < 3:                 # degenerate cell, no density to judge
             continue
         sims = X[members] @ centers[cid]
-        cohesion = float(sims.mean())
-        if cohesion < gate:
-            continue
-        cand.append({
+        cells.append({
             "members": members,
             "centroid": centers[cid].astype(np.float32),
-            "cohesion": round(cohesion, 4),
+            "cohesion": round(float(sims.mean()), 4),
             "radius_p25": float(np.percentile(sims, 25)),
         })
+    gate = 0.0 if top_n else min_cohesion
+    if relative_quantile is not None and cells and not top_n:
+        overall = max(gate, float(np.quantile([c["cohesion"] for c in cells], relative_quantile)))
+        if row_tiers is None:
+            for c in cells:
+                c["gate"] = overall
+        else:
+            for c in cells:
+                vals, cnt = np.unique(row_tiers[c["members"]], return_counts=True)
+                c["tier"] = vals[int(np.argmax(cnt))]
+            by_tier: dict = {}
+            for c in cells:
+                by_tier.setdefault(c["tier"], []).append(c["cohesion"])
+            for c in cells:
+                coh = by_tier[c["tier"]]
+                c["gate"] = (max(gate, float(np.quantile(coh, relative_quantile)))
+                             if len(coh) >= 4 else overall)
+        cand = [c for c in cells if c["cohesion"] >= c["gate"]]
+    else:
+        cand = [c for c in cells if c["cohesion"] >= gate]
     cand.sort(key=lambda c: -c["members"].size)
 
     # Merge near-duplicate centres: fine k-means happily splits one pocket in two.
+    # In a domain run both cosines must agree (raw AND domain-centred), here and in the
+    # final consolidation — raw alone would fuse distinct sub-topics of the domain.
+    def _dup(u: np.ndarray, v: np.ndarray) -> bool:
+        if float(u @ v) < MERGE_SIM:
+            return False
+        if center is None:
+            return True
+        cu, cv = _centred(np.vstack([u, v]), center)
+        return float(cu @ cv) >= MERGE_CENTRED_SIM
+
     kept: list[dict] = []
     for c in cand:
-        dup = next((k2 for k2 in kept if float(k2["centroid"] @ c["centroid"]) >= MERGE_SIM), None)
+        dup = next((k2 for k2 in kept if _dup(k2["centroid"], c["centroid"])), None)
         if dup is None:
             kept.append(c)
             continue
@@ -208,12 +269,66 @@ def detect_nests(X: np.ndarray, k: int | None = None, seed: int = 42,
         dup["centroid"] = cen.astype(np.float32)
         dup["cohesion"] = round(float(sims.mean()), 4)
         dup["radius_p25"] = float(np.percentile(sims, 25))
+    if center is not None:
+        kept = _merge_centred(X, kept, center)
     kept = [c for c in kept if c["members"].size >= min_size]
     if top_n:
         kept.sort(key=lambda c: -c["cohesion"])
         kept = kept[:top_n]
     kept.sort(key=lambda c: -c["members"].size)
     return kept
+
+
+def _centred(C: np.ndarray, center: np.ndarray) -> np.ndarray:
+    D = np.atleast_2d(C).astype(np.float32) - np.asarray(center, np.float32)[None, :]
+    return D / np.clip(np.linalg.norm(D, axis=1, keepdims=True), 1e-9, None)
+
+
+def _merge_centred(X: np.ndarray, kept: list[dict], center: np.ndarray) -> list[dict]:
+    """Merge the most similar duplicate pair until none is left (domain runs)."""
+    kept = list(kept)
+    while len(kept) > 1:
+        C = np.vstack([c["centroid"] for c in kept])
+        raw = C @ C.T
+        cen = _centred(C, center)
+        cs = cen @ cen.T
+        ok = (raw >= MERGE_SIM) & (cs >= MERGE_CENTRED_SIM)
+        np.fill_diagonal(ok, False)
+        if not ok.any():
+            break
+        score = np.where(ok, cs, -np.inf)
+        i, j = np.unravel_index(int(np.argmax(score)), score.shape)
+        a, b = kept[min(i, j)], kept[max(i, j)]
+        merged = np.union1d(a["members"], b["members"])
+        c = X[merged].mean(axis=0)
+        c = c / max(float(np.linalg.norm(c)), 1e-9)
+        sims = X[merged] @ c
+        a.update(members=merged, centroid=c.astype(np.float32),
+                 cohesion=round(float(sims.mean()), 4),
+                 radius_p25=float(np.percentile(sims, 25)))
+        kept.pop(max(i, j))
+    return kept
+
+
+def group_nests(nests: list[dict], center: np.ndarray,
+                distance: float = GROUP_DISTANCE) -> None:
+    """Attach `group_id` (1..g) to each nest, in place: average linkage on the
+    domain-centred centroids, cut at `distance`. Groups are numbered by total size,
+    largest first, so the numbering is stable for the same nests."""
+    if not nests:
+        return
+    if len(nests) == 1:
+        nests[0]["group_id"] = 1
+        return
+    from scipy.cluster.hierarchy import fcluster, linkage
+    D = _centred(np.vstack([n["centroid"] for n in nests]), center)
+    raw = fcluster(linkage(D, "average", metric="cosine"), distance, "distance")
+    size: dict[int, int] = {}
+    for g, n in zip(raw, nests):
+        size[int(g)] = size.get(int(g), 0) + int(n.get("size") or n["members"].size)
+    order = {g: i + 1 for i, g in enumerate(sorted(size, key=lambda g: (-size[g], g)))}
+    for g, n in zip(raw, nests):
+        n["group_id"] = order[int(g)]
 
 
 def describe_nests(nests: list[dict], rows: list[dict],
@@ -292,7 +407,7 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
                  tag_windows: tuple[str, str] | None = None,
                  actor_windows: tuple[str, str] | None = None,
                  chunk_size: int = LOAD_CHUNK,
-                 progress=None, member=None) -> dict:
+                 progress=None, member=None, batches=None) -> dict:
     """Count, per month, how many archive documents look like each nest.
 
     centroids: (n_nests, dim) L2-normalized. thresholds: (n_nests,) cosine
@@ -311,6 +426,10 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
     entirely — not counted in the totals either — so a domain scope
     (pipeline/domains.py) is dated and normalised within its own domain.
 
+    batches: optional iterable of (X, rows) pairs to scan INSTEAD of the database —
+    X L2-normalised (len(rows), dim), rows with the iter_signals fields (minus the
+    vector). The domain service passes its in-memory members this way.
+
     Returns {months, totals, hits, tier_hits (per tier, n_nests × n_months),
     tier_totals, actors, old_tags, recent_tags, source_first, scanned}.
     """
@@ -327,9 +446,12 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
     scanned = 0
     C = np.ascontiguousarray(centroids.T)  # (dim, n_nests)
 
-    for batch in iter_signals(status=status, vertical=vertical, dim1024=dim1024,
-                              since=since, chunk_size=chunk_size):
-        X = build_matrix(batch)
+    source = batches if batches is not None else (
+        (None, b) for b in iter_signals(status=status, vertical=vertical, dim1024=dim1024,
+                                        since=since, chunk_size=chunk_size))
+    for X, batch in source:
+        if X is None:
+            X = build_matrix(batch)
         read = len(batch)                           # "scanned" = rows read, members or not
         if member is not None:
             keep = member(X, batch)

@@ -108,6 +108,11 @@ def migrate_emerging_tables() -> None:
             "science_to_market_months": "INTEGER",
             "actors_early": "INTEGER",  # distinct market companies/brands…
             "actors_late": "INTEGER",   # …early vs late window
+            "group_id": "INTEGER",      # domain runs: sub-group (emerging.group_nests)
+            "group_label": "TEXT",      # …and its name, shared by the group's nests
+        })
+        add_columns(conn, "emerging_runs", {
+            "params": "TEXT",           # JSON: how a run was made (domain service)
         })
         conn.execute("CREATE INDEX IF NOT EXISTS idx_enests_run ON emerging_nests(run_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_eruns_scope "
@@ -213,6 +218,49 @@ def scope_parts(scope: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+def persist_run(scope: str, status: str, since: str, window_days: int, cells: int,
+                nests: list[dict], hist: dict, params: dict | None = None) -> int:
+    """Write one run and its nests; returns the run id."""
+    migrate_emerging_tables()
+    months = hist["months"]
+    with get_connection() as conn:
+        returning = " RETURNING id" if db_mod.USE_POSTGRES else ""
+        cur = conn.execute(
+            "INSERT INTO emerging_runs (scope, status_filter, since, window_days,"
+            " signals, cells, nests, scanned, first_month, last_month, params)"
+            f" VALUES (?,?,?,?,?,?,?,?,?,?,?){returning}",
+            (scope, status, since, window_days, sum(n["size"] for n in nests), cells,
+             len(nests), hist["scanned"], months[0] if months else None,
+             months[-1] if months else None, json.dumps(params) if params else None))
+        run_id = cur.lastrowid
+        for n in nests:
+            conn.execute(
+                "INSERT INTO emerging_nests (run_id, label, size, cohesion, n_sources,"
+                " top_source, top_source_share, tagged_share, established_share,"
+                " llm_label, llm_label_note, tiers, tier_order,"
+                " science_to_market_months, actors_early, actors_late,"
+                " verticals, top_tags, new_terms,"
+                " first_month, age_months, hits_total, hits_recent, novelty_lift,"
+                " accel, rep_trend_ids, rep_titles, history_months, history_hits,"
+                " centroid, threshold, group_id, group_label)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (run_id, n["label"], n["size"], n["cohesion"], n["n_sources"],
+                 n["top_source"], n["top_source_share"], n["tagged_share"],
+                 n["established_share"], n.get("llm_label"), n.get("llm_label_note"),
+                 json.dumps(n.get("tiers") or {}), json.dumps(n.get("tier_order") or []),
+                 n.get("science_to_market_months"), n.get("actors_early"),
+                 n.get("actors_late"), json.dumps(n["verticals"]),
+                 json.dumps(n["top_tags"]), json.dumps(n["new_terms"]),
+                 n["first_month"], n["age_months"], n["hits_total"], n["hits_recent"],
+                 n["novelty_lift"], n["accel"], json.dumps(n["rep_trend_ids"]),
+                 json.dumps(n["rep_titles"]), json.dumps(n["history_months"]),
+                 json.dumps(n["history_hits"]),
+                 n["centroid"].astype(np.float32).tobytes(),
+                 float(max(HIST_SIM_FLOOR, n["radius_p25"])),
+                 n.get("group_id"), n.get("group_label")))
+    return run_id
+
+
 def run_emerging(scope: str, status: str = "signal,published",
                  window_days: int = DEFAULT_WINDOW_DAYS, cells: int | None = None,
                  min_cohesion: float | None = None, history_since: str | None = None,
@@ -306,41 +354,7 @@ def run_emerging(scope: str, status: str = "signal,published",
     if llm_names:
         name_nests_on_gpu(nests, scope)
 
-    months = hist["months"]
-    with get_connection() as conn:
-        returning = " RETURNING id" if db_mod.USE_POSTGRES else ""
-        cur = conn.execute(
-            "INSERT INTO emerging_runs (scope, status_filter, since, window_days,"
-            " signals, cells, nests, scanned, first_month, last_month)"
-            f" VALUES (?,?,?,?,?,?,?,?,?,?){returning}",
-            (scope, status, since, window_days, sum(n["size"] for n in nests), k,
-             len(nests), hist["scanned"], months[0] if months else None,
-             months[-1] if months else None))
-        run_id = cur.lastrowid
-        for n in nests:
-            conn.execute(
-                "INSERT INTO emerging_nests (run_id, label, size, cohesion, n_sources,"
-                " top_source, top_source_share, tagged_share, established_share,"
-                " llm_label, llm_label_note, tiers, tier_order,"
-                " science_to_market_months, actors_early, actors_late,"
-                " verticals, top_tags, new_terms,"
-                " first_month, age_months, hits_total, hits_recent, novelty_lift,"
-                " accel, rep_trend_ids, rep_titles, history_months, history_hits,"
-                " centroid, threshold)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (run_id, n["label"], n["size"], n["cohesion"], n["n_sources"],
-                 n["top_source"], n["top_source_share"], n["tagged_share"],
-                 n["established_share"], n.get("llm_label"), n.get("llm_label_note"),
-                 json.dumps(n.get("tiers") or {}), json.dumps(n.get("tier_order") or []),
-                 n.get("science_to_market_months"), n.get("actors_early"),
-                 n.get("actors_late"), json.dumps(n["verticals"]),
-                 json.dumps(n["top_tags"]), json.dumps(n["new_terms"]),
-                 n["first_month"], n["age_months"], n["hits_total"], n["hits_recent"],
-                 n["novelty_lift"], n["accel"], json.dumps(n["rep_trend_ids"]),
-                 json.dumps(n["rep_titles"]), json.dumps(n["history_months"]),
-                 json.dumps(n["history_hits"]),
-                 n["centroid"].astype(np.float32).tobytes(),
-                 float(max(HIST_SIM_FLOOR, n["radius_p25"]))))
+    run_id = persist_run(scope, status, since, window_days, k, nests, hist)
     logger.info("[%s] run %d persisted: %d nests, %.0fs total",
                 scope, run_id, len(nests), time.time() - t0)
     return run_id
