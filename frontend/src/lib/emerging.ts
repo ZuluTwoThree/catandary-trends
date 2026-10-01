@@ -210,6 +210,21 @@ export async function getLatestEmergingRun(
   }
 }
 
+/**
+ * Display names of the freely defined domains (pipeline/domains.py, domains.yaml):
+ * key -> name, from the trained probes. Empty when none is trained yet.
+ */
+export async function getDomainNames(): Promise<Record<string, string>> {
+  try {
+    const rows = await q<{ key: string; name: string | null }>(
+      "SELECT key, name FROM domain_probes ORDER BY key"
+    );
+    return Object.fromEntries(rows.map((r) => [r.key, r.name || r.key]));
+  } catch {
+    return {};
+  }
+}
+
 /** Scopes that have a persisted emerging run (drives the tab row). */
 export async function getEmergingScopes(): Promise<string[]> {
   try {

@@ -167,6 +167,43 @@ def name_nests_on_gpu(nests: list[dict], scope: str) -> None:
                 scope, summary["named"], summary["total"])
 
 
+def _tiers(batch: list[dict]) -> list[str]:
+    from pipeline.domains import tiers_of_rows
+    return tiers_of_rows(batch)
+
+
+def trained_domains() -> list[str]:
+    """Domains with a trained probe that are still defined in domains.yaml."""
+    from pipeline.domains import load_definitions, migrate_domain_tables
+    migrate_domain_tables()
+    with get_connection() as c:
+        trained = {r["key"] for r in c.execute("SELECT key FROM domain_probes").fetchall()}
+    return [k for k in load_definitions() if k in trained]
+
+
+def domain_of(scope: str) -> str | None:
+    """'domain:wireless' -> 'wireless' (a freely defined domain, pipeline/domains.py)."""
+    return scope.split(":", 1)[1] if scope.startswith("domain:") else None
+
+
+def load_scope(scope: str, status: str, since: str, probe=None) -> list[dict]:
+    """The recent slice of a scope. Vertical and tier scopes filter by label; a domain
+    scope takes every signal and keeps the members of the domain's probe — membership
+    from the embedding, not from the classifier's label (Owner 30.09.)."""
+    vertical, tier = scope_parts(scope)
+    rows = load_signals(status=status, vertical=vertical, tier=tier, dim1024=True, since=since)
+    if probe is None or not rows:
+        return rows
+    from pipeline.domains import tiers_of_rows
+    X = build_matrix(rows)                  # consumes each row's "_emb" bytes …
+    keep = probe.member(X, tiers_of_rows(rows))
+    out = []
+    for i in np.flatnonzero(keep):
+        rows[i]["_emb"] = X[i].tobytes()    # … so the members get theirs back
+        out.append(rows[i])
+    return out
+
+
 def scope_parts(scope: str) -> tuple[str | None, str | None]:
     """('vertical:FOOD') -> ('FOOD', None); ('tier:market') -> (None, 'market')."""
     if scope.startswith("vertical:"):
@@ -183,12 +220,15 @@ def run_emerging(scope: str, status: str = "signal,published",
                  llm_names: bool = True) -> int | None:
     """Detect nests in the recent slice, date them against the archive, persist."""
     vertical, tier = scope_parts(scope)
+    probe = None
+    if domain_of(scope):
+        from pipeline.domains import DomainProbe
+        probe = DomainProbe.load(domain_of(scope))
     now = now or datetime.now()
     since = (now - timedelta(days=window_days)).strftime("%Y-%m-%d")
 
     t0 = time.time()
-    rows = load_signals(status=status, vertical=vertical, tier=tier,
-                        dim1024=True, since=since)
+    rows = load_scope(scope, status, since, probe)
     logger.info("[%s] %d signals in the last %d days (since %s)",
                 scope, len(rows), window_days, since)
     if len(rows) < MIN_SIGNALS and window_days < MAX_WINDOW_DAYS:
@@ -196,8 +236,7 @@ def run_emerging(scope: str, status: str = "signal,published",
         # 2026-09-15) — widen the slice once rather than leave a vertical blind.
         window_days = MAX_WINDOW_DAYS
         since = (now - timedelta(days=window_days)).strftime("%Y-%m-%d")
-        rows = load_signals(status=status, vertical=vertical, tier=tier,
-                            dim1024=True, since=since)
+        rows = load_scope(scope, status, since, probe)
         logger.info("[%s] thin slice — widened to %d days: %d signals (since %s)",
                     scope, window_days, len(rows), since)
     if len(rows) < MIN_SIGNALS:
@@ -232,8 +271,7 @@ def run_emerging(scope: str, status: str = "signal,published",
         window_days = MAX_WINDOW_DAYS
         since = (now - timedelta(days=window_days)).strftime("%Y-%m-%d")
         del X
-        rows = load_signals(status=status, vertical=vertical, tier=tier,
-                            dim1024=True, since=since)
+        rows = load_scope(scope, status, since, probe)
         logger.info("[%s] nothing dense enough — widened to %d signals",
                     scope, window_days, len(rows))
         X = build_matrix(rows)
@@ -258,7 +296,9 @@ def run_emerging(scope: str, status: str = "signal,published",
                                      _month_back(OLD_TAG_WINDOW[0], now)),
                         actor_windows=(_month_back(ACTOR_WINDOW[1], now),
                                        _month_back(ACTOR_WINDOW[0], now)),
-                        progress=lambda n: logger.info("[%s] scanned %d …", scope, n))
+                        progress=lambda n: logger.info("[%s] scanned %d …", scope, n),
+                        member=(None if probe is None else
+                                lambda X, batch: probe.member(X, _tiers(batch))))
     logger.info("[%s] history: %d documents over %d months (%.0fs)",
                 scope, hist["scanned"], len(hist["months"]), time.time() - t1)
     score_nests(nests, hist, now=now)
@@ -308,7 +348,10 @@ def run_emerging(scope: str, status: str = "signal,published",
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Persist emerging-nest snapshots")
-    ap.add_argument("--scope", default=None, help="'global' or 'vertical:<V>'")
+    ap.add_argument("--scope", default=None,
+                    help="'global', 'vertical:<V>', 'tier:<t>' or 'domain:<key>' (domains.yaml)")
+    ap.add_argument("--all-domains", action="store_true",
+                    help="one snapshot per trained domain (pipeline.domains train <key>)")
     ap.add_argument("--all-verticals", action="store_true",
                     help="run global + one snapshot per vertical")
     ap.add_argument("--all-tiers", action="store_true",
@@ -328,12 +371,13 @@ def main() -> int:
     ap.add_argument("--keep", type=int, default=1, help="runs to keep per scope")
     args = ap.parse_args()
 
-    if not args.scope and not args.all_verticals and not args.all_tiers:
-        ap.error("need --scope, --all-verticals or --all-tiers")
+    if not args.scope and not args.all_verticals and not args.all_tiers and not args.all_domains:
+        ap.error("need --scope, --all-verticals, --all-tiers or --all-domains")
     migrate_emerging_tables()
     scopes = ([args.scope] if args.scope else []) + \
              (["global"] + [f"vertical:{v}" for v in VERTICALS] if args.all_verticals else []) + \
-             ([f"tier:{t}" for t in TIERS] if args.all_tiers else [])
+             ([f"tier:{t}" for t in TIERS] if args.all_tiers else []) + \
+             ([f"domain:{k}" for k in trained_domains()] if args.all_domains else [])
     ok = 0
     for scope in scopes:
         if run_emerging(scope, status=args.status, window_days=args.window_days,

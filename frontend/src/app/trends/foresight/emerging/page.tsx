@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getEmergingScopes, getLatestEmergingRun } from "@/lib/emerging";
+import { getDomainNames, getEmergingScopes, getLatestEmergingRun } from "@/lib/emerging";
 import { runProvenance, isYoung, TIER_LABEL } from "@/lib/nestCard";
 import { TIERS } from "@/lib/tiers";
 import { VERTICALS } from "@/lib/types";
@@ -32,11 +32,22 @@ export default async function EmergingPage({
   const raw = await searchParams;
   const requested = typeof raw.vertical === "string" ? raw.vertical.toUpperCase() : null;
   const tier = typeof raw.tier === "string" ? raw.tier.toLowerCase() : null;
-  const scope = tier ? `tier:${tier}` : requested ? `vertical:${requested}` : "global";
+  // a freely defined domain (domains.yaml): membership from the embedding, not the label
+  const domain =
+    typeof raw.domain === "string" && /^[a-z0-9_]{1,40}$/.test(raw.domain) ? raw.domain : null;
+  const scope = domain
+    ? `domain:${domain}`
+    : tier
+      ? `tier:${tier}`
+      : requested
+        ? `vertical:${requested}`
+        : "global";
   const notice = typeof raw.worker === "string" ? raw.worker : undefined;
   const onlyYoung = raw.young === "1";
 
   const available = new Set(await getEmergingScopes());
+  const domainNames = await getDomainNames();
+  const domainScopes = [...available].filter((s) => s.startsWith("domain:")).map((s) => s.slice(7));
   const data = await getLatestEmergingRun(scope);
   const all = data?.nests ?? [];
   const nests = onlyYoung ? all.filter(isYoung) : all;
@@ -60,7 +71,9 @@ export default async function EmergingPage({
       {label}
     </Link>
   );
-  const base = tier
+  const base = domain
+    ? `/trends/foresight/emerging?domain=${domain}`
+    : tier
     ? `/trends/foresight/emerging?tier=${tier}`
     : requested
       ? `/trends/foresight/emerging?vertical=${requested}`
@@ -122,6 +135,23 @@ export default async function EmergingPage({
           tab(`/trends/foresight/emerging?tier=${t}`, TIER_LABEL[t], scope === `tier:${t}`)
         )}
       </div>
+
+      {/* Owner 2026-09-30: pockets inside freely chosen domains (domains.yaml) —
+          membership decided by a probe on the embedding, trained on examiner CPC,
+          OpenAlex topics and phrases, not by the classifier's vertical label. */}
+      {domainScopes.length > 0 && (
+        <div className="flex items-center gap-1 flex-wrap -mt-6 mb-8">
+          <span
+            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted mr-2"
+            title="Domains are defined in domains.yaml; a signal belongs to one by its embedding, not by its vertical label"
+          >
+            by domain
+          </span>
+          {domainScopes.map((k) =>
+            tab(`/trends/foresight/emerging?domain=${k}`, domainNames[k] ?? k, scope === `domain:${k}`)
+          )}
+        </div>
+      )}
 
       {all.length > 0 && (
         <div className="flex items-center gap-3 mb-8 font-mono text-[10px] uppercase tracking-[0.14em]">

@@ -657,6 +657,44 @@ Methode, Messungen und die offenen Punkte: `docs/emerging_nests_2026-09-15.md`.
 
 Dieselben Nester räumlich und über die Zeit: §5.12 (`/trends/foresight/map`) — sie liest genau diesen Schnappschuss.
 
+### 5.4a Frei wählbare Domänen (`/trends/foresight/emerging?domain=<k>`)
+
+Nester nicht nur je Vertikale oder Ebene, sondern in einer **selbst definierten Domäne** —
+Wireless, Robotics, Elektromobilität, oder was immer du in `domains.yaml` einträgst. Ein
+Signal gehört zur Domäne, wenn **sein Embedding** es sagt, nicht das Vertikal-Etikett der
+Pipeline: eine kleine Sonde, trainiert auf Saat, die nicht von unseren Klassifikatoren stammt.
+
+**Neue Domäne anlegen** (Eintrag in `domains.yaml`, Repo-Wurzel):
+
+```yaml
+wireless:
+  name: Wireless communication
+  seeds:
+    cpc: [H04W, H04B7, H01Q]                 # Präfixe der Prüfer-CPC
+    openalex_topics: [Advanced MIMO Systems Optimization]
+    openalex_subfields: []
+    phrases: ['"5G"', '"6G"', '"Open RAN"']  # Volltext, "…" = Phrase
+  target_recall: 0.7                         # Anteil der Saat, den die Schwelle je Ebene behält
+```
+
+Je mehr Ebenen die Saat erreicht, desto besser überträgt die Sonde: CPC erreicht Patente,
+OpenAlex die Forschung, Phrasen auch die Presse.
+
+```bash
+.venv/bin/python -m pipeline.domains train wireless --measure    # ~1 min: Sonde, Schwellen je Ebene, Mitglieder in 90 Tagen, Stichproben
+.venv/bin/python -m pipeline.emerging_snapshot --scope domain:wireless   # Nester in der Domäne (~7 min, Benennung auf der GPU)
+.venv/bin/python -m pipeline.domains list
+```
+
+**Lesen:** `train --measure` nennt je Ebene Schwelle, Saat-Recall und die Fehltreffer-Rate
+auf dem Zufallshintergrund (eine Obergrenze — der Hintergrund ist unbeschriftet) und zeigt
+Stichproben „in" und „knapp darunter". Stimmen die Stichproben nicht, die Saat schärfen
+(engere CPC-Präfixe, eindeutigere Phrasen) und neu trainieren. Auf der Seite erscheint die
+Domäne als Reiter unter „by domain"; der Knopf *Recompute pockets* rechnet alle trainierten
+Domänen mit. **Vorsicht beim Alter:** Patent-Nester wirken jung, weil Patente im Signalraum
+erst seit August 2026 (und für Food seit #114) vorliegen. Details und erste Messung:
+`docs/domains_framework_2026-09-30.md`.
+
 ### 5.5 Evolution (`/trends/foresight/evolution?vertical=<V>`)
 
 Cluster-Abstammung über Zeitfenster: Fäden mit *New* / *Fading*, rising /

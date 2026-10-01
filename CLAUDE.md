@@ -1435,6 +1435,19 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
      automatisch feinere Zellen (bei 207 Dok/Zelle 5 Nester, bei 69 dann 46).
      Offen: Extraktion auf den Signalpfad ausweiten, damit Akteure zaehlbar
      werden. docs/emerging_nests_2026-09-15.md)
+     DOMAENEN (seit 2026-09-30, auf dev; Owner: Nester in frei gewaehlten Domaenen, unabhaengig
+     vom Vertikal-Etikett des 8B): domains.yaml definiert je Domaene Saat-Quellen (Pruefer-CPC-
+     Praefixe, OpenAlex-Themen/-Subfelder, Phrasen im Volltext); pipeline/domains.py trainiert
+     daraus eine ebenen-zentrierte lineare Sonde auf embedding_1024 gegen einen Zufalls-
+     hintergrund, Schwelle JE EBENE auf 70 % Saat-Recall (target_recall, nie < 0,5), gespeichert
+     in Tabelle domain_probes (additiv, Live-DB 30.09.). emerging_snapshot --scope domain:<k> /
+     --all-domains beschraenkt Ausschnitt UND Archiv-Scan auf die Mitglieder (scan_history
+     member=…); der Knopf "Recompute pockets" rechnet sie mit. Seite: Reiterzeile "by domain"
+     (?domain=<k>). Beispiele wireless / robotics / electric_mobility: 10.014 / 6.718 / 4.603
+     Mitglieder in 90 Tagen, 91 / 51 / 32 Nester (u. a. Vision-Language-Action Models, Humanoid
+     Whole-Body Control, 6G NTN). Grenzen: Patent-Alter ist Korpus-Artefakt (Patente erst seit
+     08/2026), Dichtepruefung in engen Domaenen zu nachgiebig (51-75 % in Nestern).
+     docs/domains_framework_2026-09-30.md, docs/domain_probe_2026-09-30.md
     (das druckbare Foresight-Dossier /dossier samt CSV-Export
      wurde am 2026-09-15 entfernt: es las nur den ungeeichten Cluster-Snapshot vom 03.08. — Owner-Entscheid)
     (Technologie-Suche: Query-Quality-Gate #67 seit 2026-09-04, `pipeline/query_gate.py` — eine Anfrage
