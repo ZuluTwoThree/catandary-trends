@@ -146,3 +146,10 @@ Gelegenheit mit größerer Stichprobe nachmessen.
   **Förderung 3.945 zurück**, 554 Duplikate, 4.058 ohne Beschreibung, 141 Form-D-Vehikel/
   -Branchen/-Beträge. Ohne gespeicherten Vektor (v. a. der Förder-Nachlauf vom Juli, ~132.000
   Zeilen) bräuchte es den GPU-Einbetter — nicht Teil dieses Schritts.
+- **Ausgeführt 02.10. 15:01–15:26 (1.511 s):** 55.758 Signale zurück (TECH 42.952, FOOD 6.959,
+  HEALTH 4.449, FASHION 603, BIZ 423, ECO 210, LIFESTYLE 106, DESIGN 56), 2.783 als Duplikat,
+  7.004 per Regel weiter verworfen.
+- **Ohne Vektor** bestehen 93.508 Zeilen die Regeln (73.534 Form D, 19.242 NIH, 443 NSF/OpenAIRE,
+  289 Patente; 38.922 fallen auch ohne Vektor durch die Regeln). `scripts/requeue_rule_signals.py`
+  setzt sie zurück, `signal_batch_embedded.py --ids-file data/requeue_rule_signals.ids` bettet sie
+  ein — geschätzt 1–1,5 h auf der 3090 (Texte ~250 Zeichen).
