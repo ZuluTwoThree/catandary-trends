@@ -1220,6 +1220,13 @@ cross_industry:
   Erster Nutzer war der Korpus-Rechercheur der Scouting-Dossiers (entfernt 2026-09-19); heute
   u. a. `scripts/validate_emerging.py` (`RESEARCH_EMBED_HOST`). Kostet ~5 GB RAM, **0 MiB VRAM**,
   ~0,3 s je Anfrage.
+  **Seit 2026-10-02 überlebt er GPU-Modellwechsel:** jedes GPU-Startskript in `~/llama.cpp`
+  begann mit `pkill -f "build/bin/llama-server"` und traf damit auch ihn (gleiches Programm) —
+  bei jedem Wechsel ~15 s weg, 164 Neustarts vom 25.09. bis 02.10., Cockpit-Suche und
+  Discover-Auswahl scheiterten in diesen Sekunden. Die 36 Startskripte rufen jetzt
+  `~/llama.cpp/stop-gpu-llama-servers.sh` (beendet jeden `llama-server`-Prozess außer dem auf
+  `--port 8091`; `DRY_RUN=1` listet nur), Originale in `~/llama.cpp/backup-start-scripts-20261002/`.
+  Neue Startskripte: dieselbe Zeile verwenden, nie ein nacktes `pkill -f build/bin/llama-server`.
   `-ngl 0` allein genügt nicht: llama.cpp legt den Compute-Buffer trotzdem auf CUDA0 (bei
   `-ub 8192` sind das 5,4 GB) und stirbt neben dem GPU-Server an OOM — daher der harte
   Device-Ausschluss und der kleine Batch.
