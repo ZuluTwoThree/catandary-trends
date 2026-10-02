@@ -107,7 +107,7 @@ arbeitet der Nachtlauf mit den alten.
 **Wozu.** Der Feed ist das redaktionelle Produkt: die publizierten Artikel
 (`trends.status = 'published'`), je ~100 Wörter Englisch, mit Quellennennung
 und Backlink. Lokal sieht der Owner den gesamten Korpus (Zehntausende Artikel),
-öffentlich nur die letzten 30 Tage.
+öffentlich nur die letzten 14 Tage (bis 02.10.2026: 30).
 
 **Wo.** `/trends` (Feed), `/trends/<slug>` (Artikel), `/trends?q=<Suche>`,
 `/trends?v=<VERTIKALE>`. `/trends/vertical/<v>` leitet auf `/trends?v=` um.
@@ -1130,7 +1130,7 @@ Lokal: `/trends/newsletter` ist eine Client-Seite mit Wochen-Wechsler
 (`?year=&week=`, Daten aus `/api/newsletter`). Im Export: `/trends/newsletter`
 (Signup + neueste Edition + Archivliste), `/trends/newsletter/<jahr>-w<kw>`
 (die letzten 12 Editionen, `PUBLIC_NEWSLETTER_EDITIONS`; Artikel-Links außerhalb
-des 30-Tage-Fensters zeigen auf die Primärquelle), `/trends/newsletter/unsubscribed`.
+des 14-Tage-Fensters zeigen auf die Primärquelle), `/trends/newsletter/unsubscribed`.
 Editions-URLs sind lokal 404 (dort gilt die Client-Seite).
 
 ### 7.3 Deep Dive of the Week — stillgelegt seit 2026-09-19 (#96)
@@ -1286,7 +1286,7 @@ scripts/build_public_static.sh                      # → frontend/.export/out (
 PUBLIC_WINDOW_DAYS=3 scripts/build_public_static.sh /pfad/zum/out    # Schnelltest
 ```
 
-Env: `PUBLIC_WINDOW_DAYS` (30), `PUBLIC_NOINDEX` (**1** bis zum Launch),
+Env: `PUBLIC_WINDOW_DAYS` (14, bis 02.10.2026: 30), `PUBLIC_NOINDEX` (**1** bis zum Launch),
 `PUBLIC_SITE_URL` (`https://catandary.de`), `KEEP_STAGING=1` (Debug). Das Skript
 kopiert `frontend/` per rsync in `frontend/.export/site/` ohne alles aus
 `frontend/static-export.exclude` (Foresight, Review, Ops, API, Proxy),
@@ -1331,7 +1331,7 @@ CONNECTIONS=3
 HOST_KEY_POLICY=strict     # erster Lauf accept-new, dann strict
 KNOWN_HOSTS=~/.ssh/known_hosts
 PUBLIC_NOINDEX=1           # zum Launch auf 0
-# PUBLIC_WINDOW_DAYS=30
+# PUBLIC_WINDOW_DAYS=14
 ```
 
 ```bash

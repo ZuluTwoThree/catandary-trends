@@ -20,7 +20,7 @@
 # lands in build_info.json.
 #
 # Env (all optional):
-#   PUBLIC_WINDOW_DAYS  article window in days (default 30; lib/archiveWindow.ts)
+#   PUBLIC_WINDOW_DAYS  article window in days (default 14 since 2026-10-02; lib/archiveWindow.ts)
 #   PUBLIC_NOINDEX      1 = robots.txt disallow-all + <meta robots noindex>
 #                       (default 1 until the 2026-10-01 launch)
 #   PUBLIC_SITE_URL     canonical base (default https://catandary.de)
@@ -42,7 +42,7 @@ BUILD_INFO="${OUT}.build_info.json"
 EXCLUDE_FILE="$FRONTEND/static-export.exclude"
 HTACCESS_DIR="$FRONTEND/public-export"
 
-WINDOW="${PUBLIC_WINDOW_DAYS:-30}"
+WINDOW="${PUBLIC_WINDOW_DAYS:-14}"
 NOINDEX="${PUBLIC_NOINDEX:-1}"
 SITE_URL="${PUBLIC_SITE_URL:-https://catandary.de}"
 

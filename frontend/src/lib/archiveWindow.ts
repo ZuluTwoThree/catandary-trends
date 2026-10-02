@@ -45,13 +45,14 @@ export function withinWindow(
 }
 
 /**
- * `PUBLIC_WINDOW_DAYS` (default 30): how far back the public showcase reaches.
+ * `PUBLIC_WINDOW_DAYS` (default 14 since 2026-10-02, Owner — 30 before): how far back
+ * the public showcase reaches.
  * Read by the PUBLIC_MODE preview (archiveWindowDays below) and by the static
  * export (slug list, sitemap) — the same env var on both, so a preview on
  * :3999 shows exactly what an export with the same setting would publish.
  * Anything that is not a positive integer falls back to the default.
  */
-export const DEFAULT_PUBLIC_WINDOW_DAYS = 30;
+export const DEFAULT_PUBLIC_WINDOW_DAYS = 14;
 
 export function parsePublicWindowDays(raw: string | undefined): number {
   if (raw === undefined || raw === "") return DEFAULT_PUBLIC_WINDOW_DAYS;

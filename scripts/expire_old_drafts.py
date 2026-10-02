@@ -34,7 +34,7 @@ REASON = "expired:window"
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Retire drafts older than the public window")
-    ap.add_argument("--days", type=int, default=30, help="window in days (PUBLIC_WINDOW_DAYS, default 30)")
+    ap.add_argument("--days", type=int, default=14, help="window in days (PUBLIC_WINDOW_DAYS, default 14)")
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--batch", type=int, default=1000)
     args = ap.parse_args()

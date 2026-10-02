@@ -97,7 +97,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 
 # Statischer Export → Webspace (Schritt 8, seit 2026-09-02; NOCH NICHT in der echten crontab —
 # Webspace-Zugang fehlt): täglich 06:30. Mo–Fr nach dem Full Cycle (Ende 05:55–06:12,
-# Kollisionswächter wartet max 90 min), Sa/So ohne Cycle — das 30-Tage-Fenster rollt
+# Kollisionswächter wartet max 90 min), Sa/So ohne Cycle — das 14-Tage-Fenster rollt
 # trotzdem, abgelaufene Artikel müssen raus. Wrapper: build_public_static.sh →
 # Taeglich 03:15 (Owner 05.09.): NACH dem Review-Tag und rund 45 min VOR dem 04:00-Cycle —
 # veroeffentlicht wird der Stand, den der Owner tagsueber freigegeben hat, nie frische

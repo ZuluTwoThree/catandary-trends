@@ -4,7 +4,7 @@
 # docs/launch/HOSTING_HETZNER.md, „Statischer Export — Publish").
 # Cron: 15 3 * * *  — täglich, rund 45 min VOR dem 04:00-Cycle (Owner 05.09.):
 # veröffentlicht wird der Stand nach einem vollen Review-Tag, nie frische
-# unbeurteilte Artikel. Am Wochenende läuft kein Cycle, das 30-Tage-Fenster
+# unbeurteilte Artikel. Am Wochenende läuft kein Cycle, das 14-Tage-Fenster
 # rollt aber weiter — abgelaufene Artikel müssen trotzdem raus.
 #
 # Ablauf: Kollisionswächter (Full Cycle) → build_public_static.sh →

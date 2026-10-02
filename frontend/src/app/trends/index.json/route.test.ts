@@ -45,7 +45,7 @@ describe("GET /trends/index.json", () => {
     const res = await GET();
     expect(res.headers.get("content-type")).toMatch(/^application\/json/);
     const text = await res.text();
-    expect(getPublicIndexRows).toHaveBeenCalledWith(30);
+    expect(getPublicIndexRows).toHaveBeenCalledWith(14);
     expect(text.split("\n").length - 1).toBe(2);
     const parsed = JSON.parse(text);
     expect(parsed.map((e: { slug: string }) => e.slug)).toEqual(["a-1", "b-2"]);

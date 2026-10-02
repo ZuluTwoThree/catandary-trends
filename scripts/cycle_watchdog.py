@@ -301,7 +301,7 @@ def inspect_publish(stamp: str) -> dict:
         return {"ok": False, "kind": "publish-stale", "log": log_path,
                 "headline": "The static site was not published today",
                 "detail": f"Last run finished {finished or 'never'} ({numbers}); nothing "
-                          f"for {date_tag}. The public 30-day window did not roll, "
+                          f"for {date_tag}. The public article window did not roll, "
                           "expired articles are still online and new ones are missing. "
                           + remedy,
                 "tail": tail}

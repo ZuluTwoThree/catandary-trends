@@ -55,11 +55,11 @@ describe("withinWindow", () => {
 });
 
 describe("PUBLIC_WINDOW_DAYS", () => {
-  it("defaults to 30", () => {
-    expect(DEFAULT_PUBLIC_WINDOW_DAYS).toBe(30);
-    expect(parsePublicWindowDays(undefined)).toBe(30);
-    expect(parsePublicWindowDays("")).toBe(30);
-    expect(publicWindowDays()).toBe(30);
+  it("defaults to 14 (Owner 2026-10-02; 30 before)", () => {
+    expect(DEFAULT_PUBLIC_WINDOW_DAYS).toBe(14);
+    expect(parsePublicWindowDays(undefined)).toBe(14);
+    expect(parsePublicWindowDays("")).toBe(14);
+    expect(publicWindowDays()).toBe(14);
   });
 
   it("takes a positive integer from the env", () => {
@@ -71,7 +71,7 @@ describe("PUBLIC_WINDOW_DAYS", () => {
 
   it("falls back on garbage", () => {
     for (const v of ["0", "-5", "1.5", "abc", "99999"]) {
-      expect(parsePublicWindowDays(v)).toBe(30);
+      expect(parsePublicWindowDays(v)).toBe(14);
     }
   });
 });

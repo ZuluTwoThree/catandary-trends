@@ -259,7 +259,7 @@ jeder Feed-Link ein 404. Deshalb hängen alle Links in die App **an derselben Lo
 6. **`/analysis`** verlinken, sobald erste Analyse + Adresse feststehen (Root-Seite wird nicht
    mit exportiert; `HOSTING_HETZNER.md` „Offen").
 7. **Newsletter-Versprechen** „note when a new analysis is out" behalten?
-8. **Fenster:** 30 Tage bleibt die Aussage der Seite („last 30 days", „around 15,000") — bei
+8. **Fenster — seit 02.10.2026 14 Tage (Owner):** Landing auf „last 14 days" umgestellt (Meta-/OG-Beschreibung, Hero-Subline, H2, Karte 01, Lede, FAQ, Footer); „around 15,000" passt (16.201 am 02.10.). Früher: 30 Tage blieb die Aussage der Seite („last 30 days", „around 15,000") — bei
    Wechsel auf 60/90 Tage (#93 Entscheidung 1) drei Stellen anpassen (Hero-Subline, Free-Lede,
    Free-Karte 01, Footer-Brand, FAQ „Where the limits are").
 9. **`noindex`** bleibt bis zum Launch (`preview.html:7`); zum 01.10. entfernen (Launch-Plan

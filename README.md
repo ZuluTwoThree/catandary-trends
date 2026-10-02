@@ -8,7 +8,7 @@ and offers a set of analyst tools on top of the corpus: technology trajectories
 from the patent citation graph, cross-tier lead time, cluster momentum, a
 research explorer with weekly "pulse" syntheses. (Agentic scouting dossiers were
 built Sept 2026 and removed on 2026-09-19 — see CLAUDE.md.)
-The public website (`catandary.de/trends`) is a **static export** of a 30-day
+The public website (`catandary.de/trends`) is a **static export** of a 14-day
 article window uploaded to shared web hosting; there is no SaaS, no login, no
 payment — the business is sales-led (individual analyses, "Super Pro+"). This
 README is the owner's manual; it is written in German.
@@ -27,7 +27,7 @@ Cloud-APIs sind Opt-in-Fallbacks.
 Nach außen gibt es genau zwei Dinge:
 
 - **Das Schaufenster:** `catandary.de` = statische Landing (owner-verwaltet) +
-  `catandary.de/trends` = **statischer Export** der letzten 30 Tage Artikel,
+  `catandary.de/trends` = **statischer Export** der letzten 14 Tage Artikel,
   Mega-Themen, Methodik und Newsletter-Archiv, per SFTP auf das bestehende
   Hetzner-Webhosting gelegt. Kein Server, keine Suche auf dem Server, keine
   Foresight-Werkzeuge. Countdown auf der Landing: **01.10.2026**.
@@ -75,7 +75,7 @@ Stand je Issue in [`docs/issue_status.md`](docs/issue_status.md).
 |---|---|---|
 | `http://localhost:3001` | **Produktive Owner-Instanz** aus dem `main`-Worktree `~/projects/catandary-trends` (`next start`, systemd user unit `catandary-frontend`) | läuft dauerhaft; nach einem `main`-Update: `cd frontend && npm run build && systemctl --user restart catandary-frontend` |
 | `http://localhost:3004` | Dev-Server aus dem `dev`-Worktree `~/projects/ct-dev` | `cd ~/projects/ct-dev/frontend && npx next dev --turbopack -p 3004` (in tmux, Session `ct`) |
-| `http://localhost:3999` | **PUBLIC_MODE-Vorschau** = so sieht die öffentliche Seite aus (Foresight/Review/Ops → 404, Feed auf 30 Tage gefenstert) | `cd ~/projects/ct-dev/frontend && PUBLIC_MODE=1 NEXT_DIST_DIR=.next-public npx next dev --turbopack -p 3999` |
+| `http://localhost:3999` | **PUBLIC_MODE-Vorschau** = so sieht die öffentliche Seite aus (Foresight/Review/Ops → 404, Feed auf 14 Tage gefenstert) | `cd ~/projects/ct-dev/frontend && PUBLIC_MODE=1 NEXT_DIST_DIR=.next-public npx next dev --turbopack -p 3999` |
 | `http://localhost:8098` | Lokaler Apache (Docker) mit dem **fertigen statischen Export** und den echten `.htaccess`-Regeln | `scripts/htaccess_test_server.sh` (Handbuch §9) |
 | `:8090` | `llama-server` (systemd user unit `llama-server.service`), Ruhezustand = Qwen3-8B | läuft dauerhaft; Handbuch §11 |
 
@@ -321,7 +321,7 @@ Build-Variablen des Exports (`STATIC_EXPORT`, `PUBLIC_NOINDEX`,
 │ patent   EPO DOCDB Back-File   │─▶│  Klassifikation (Distill +   │─▶│  Ops · Newsletter            │
 │          (18,7M, 112M Zitate)  │  │  8B) → Embedding-Dedup →     │  │                              │
 │ funding  NSF/NIH/OpenAIRE/UKRI │  │  Content EN (Gemma-26B) →    │  │ Statischer Export → Hetzner  │
-│          SEC Form D, SBIR,     │  │  Reclassify → Auto-Publish   │  │  Webspace: /trends (30 Tage) │
+│          SEC Form D, SBIR,     │  │  Reclassify → Auto-Publish   │  │  Webspace: /trends (14 Tage) │
 │          CORDIS                │  │  (≥ 0,85 + Grounding-Gate) → │  │  + Mega + Newsletter-Archiv  │
 │ market   ~560 RSS-Quellen,     │  │  Draft-Richter (27B)         │  └──────────────────────────────┘
 │          Presseverteiler,      │  │ Wochen-Ingester Sa 06:00     │

@@ -59,7 +59,7 @@ gebaut, nur in einem zweiten Modus. Ohne Flag ist `npm run build` / `next start`
 
 ```bash
 # vom Repo-Root; Ergebnis: frontend/.export/out (+ out.manifest.tsv, out.build_info.json)
-scripts/build_public_static.sh                 # volles Fenster (PUBLIC_WINDOW_DAYS=30)
+scripts/build_public_static.sh                 # volles Fenster (PUBLIC_WINDOW_DAYS=14, bis 02.10.2026: 30)
 PUBLIC_WINDOW_DAYS=3 scripts/build_public_static.sh /pfad/zum/out   # Schnelltest
 ```
 
@@ -67,7 +67,7 @@ PUBLIC_WINDOW_DAYS=3 scripts/build_public_static.sh /pfad/zum/out   # Schnelltes
 |---|---|---|
 | `STATIC_EXPORT=1` | vom Skript gesetzt | `next.config.ts` → `output: "export"`, `images.unoptimized`, `trailingSlash: false`, konstante Build-ID `catandary`, `experimental.cpus: 6`, `turbopack.root` |
 | `PUBLIC_MODE=1` | vom Skript gesetzt | Public-Mode-Rendering (kein Foresight/Pricing in Header/Footer/CTAs) |
-| `PUBLIC_WINDOW_DAYS` | 30 | Artikelfenster (Slug-Liste, Sitemap, Related-Untergrenze). Tagesgrenze (UTC-Mitternacht − N Tage, `lib/archiveWindow.ts`), damit zwei Builds am selben Tag dieselbe Menge sehen |
+| `PUBLIC_WINDOW_DAYS` | 14 (bis 02.10.2026: 30) | Artikelfenster (Slug-Liste, Sitemap, Related-Untergrenze). Tagesgrenze (UTC-Mitternacht − N Tage, `lib/archiveWindow.ts`), damit zwei Builds am selben Tag dieselbe Menge sehen |
 | `PUBLIC_NOINDEX` | 1 | `robots.txt` = Disallow all + `<meta name="robots" content="noindex, nofollow">`. **Zum Launch am 01.10. auf 0 setzen** |
 | `PUBLIC_SITE_URL` | `https://catandary.de` | `metadataBase` (Canonical/OG absolut), Sitemap-Basis |
 | `KEEP_STAGING=1` | – | `.next` im Staging-Baum stehen lassen (Debug) |
@@ -357,7 +357,7 @@ HOST_KEY_POLICY=strict     # beim allerersten Lauf accept-new, danach strict
 KNOWN_HOSTS=~/.ssh/known_hosts
 # optional, vom Cron-Wrapper an den Build durchgereicht:
 PUBLIC_NOINDEX=1           # zum Launch (So 04.10.2026, 20:00 CEST — verschoben vom 01.10.) auf 0
-# PUBLIC_WINDOW_DAYS=30
+# PUBLIC_WINDOW_DAYS=14
 CFG
 chmod 600 ~/.config/catandary/webspace.env
 ```
@@ -390,7 +390,7 @@ bekannten Hash gelten als unverändert.
 | Was | Wo |
 |---|---|
 | Cron-Wrapper | `scripts/publish_static_site.sh`: Lock, Kollisionswächter (wartet bis 90 min auf einen laufenden Full Cycle), `build_public_static.sh`, dann `--apply`. Ohne `webspace.env`: stiller Skip (Exit 0). Reicht `PUBLIC_NOINDEX`/`PUBLIC_WINDOW_DAYS`/`PUBLIC_SITE_URL` aus der Config an den Build durch |
-| Cron-Zeile | `15 3 * * *` in `deploy/crontab.txt` — täglich, auch Sa/So (das 30-Tage-Fenster rollt ohne Cycle weiter). **Noch nicht in der echten crontab** (Zugang fehlt) |
+| Cron-Zeile | `15 3 * * *` in `deploy/crontab.txt` — täglich, auch Sa/So (das 14-Tage-Fenster rollt ohne Cycle weiter). **Noch nicht in der echten crontab** (Zugang fehlt) |
 | Log | `~/logs/catandary-publish-<YYYYMMDD>.log` (Wrapper + Python im selben File) |
 | Summary | `data/publish_last.json` (Zeit, Commit, Modus, hoch/gelöscht/unverändert/übersprungen, Dauer, Fehler + Beispiele) — nur bei `--apply` geschrieben |
 | Wächter | `scripts/cycle_watchdog.py` (07:45): Summary muss vom Tag sein und `errors == 0`, sonst Mail (fehlt / veraltet / fehlgeschlagen / läuft noch). Schläft, solange `webspace.env` nicht existiert |
