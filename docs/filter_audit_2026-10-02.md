@@ -81,3 +81,54 @@ verworfene liegt — ein Thema, das die Schranke praktisch ganz entfernt.
 
 Nächster Schritt (Stufe 3, offen): geschichtete Stichprobe unabhängig beurteilen — Patente je
 Band, Förderung, Forschung 0,3–0,5 — und daraus Schwellen bzw. Regeln je Ebene ableiten.
+
+## Stufe 3 — unabhängiges Urteil an 305 Einträgen (02.10.)
+
+Geschichtete Stichprobe (Hash-Auswahl, letzte 120 Tage), gemischt und **blind** beurteilt —
+beim Lesen war weder Kopf-Wert noch „behalten/verworfen" sichtbar, nur die Ebene. Kriterien
+VOR dem Lesen festgelegt: *Signal* = konkrete Entwicklung, die als Trend-Beleg taugt (Technik,
+Produkt, Verfahren, Forschungsergebnis in einem der acht Vertikal-Felder, Förderung eines
+benannten F&E-Vorhabens, Markt-/Regulierungsschritt; bei Patenten jede beschriebene technische
+Erfindung). *Kein Signal* = Werbung, Rabatte, Klage-Aufrufe, Podcasts/Listen,
+Verwaltungs-Platzhalter, Pflanzensorten, Errata, historische Texte, Lokales/Persönliches. Dazu
+*unklar*. Urteilende Instanz: Claude, eine Person — Grenzfälle sind subjektiv, die Kategorien
+nicht. Stichprobe und Urteile: `data/filter_audit_stage3_{sample,labels}.json`.
+
+| Schicht | n | Signal | kein | unklar | Signal-Anteil (ohne unklar) | 95 %-Bereich |
+|---|---|---|---|---|---|---|
+| Patente verworfen, Kopf 0,0–0,1 | 25 | 23 | 2 | 0 | 92 % | 75–98 % |
+| Patente verworfen, Kopf 0,1–0,3 | 25 | 24 | 1 | 0 | 96 % | 80–99 % |
+| Patente verworfen, Kopf 0,3–0,5 | 25 | 23 | 2 | 0 | 92 % | 75–98 % |
+| Patente behalten | 25 | 25 | 0 | 0 | 100 % | 87–100 % |
+| Förderung verworfen, Kopf 0,0–0,3 | 20 | 8 | 11 | 1 | 42 % | 23–64 % |
+| Förderung verworfen, Kopf 0,3–0,5 | 20 | 13 | 2 | 5 | 87 % | 62–96 % |
+| Förderung behalten | 20 | 20 | 0 | 0 | 100 % | 84–100 % |
+| Forschung verworfen, Kopf 0,0–0,3 | 20 | 5 | 13 | 2 | 28 % | 12–51 % |
+| Forschung verworfen, Kopf 0,3–0,5 | 30 | 8 | 5 | 17 | 62 % | 36–82 % |
+| Forschung verworfen, 8B | 15 | 5 | 5 | 5 | 50 % | 24–76 % |
+| Forschung behalten | 20 | 16 | 2 | 2 | 89 % | 67–97 % |
+| Presse verworfen, Kopf 0,2–0,3 | 20 | 10 | 7 | 3 | 59 % | 36–78 % |
+| Presse verworfen, 8B | 20 | 4 | 9 | 7 | 31 % | 13–58 % |
+| Presse behalten | 20 | 10 | 5 | 5 | 67 % | 42–85 % |
+
+**Befund:**
+- **Patente:** 92–96 % der verworfenen Patente sind nach dem Kriterium Signale, in jedem
+  Kopf-Band. Die einzigen „kein Signal" sind **Pflanzensorten** (Luzerne, Tomate, Soja,
+  Leucanthemum) — per Titel/CPC A01H erkennbar. Der Kopf trägt bei Patenten nichts bei.
+  Vorbehalt: das Kriterium zählt jede technische Erfindung; viele verworfene Patente sind
+  kleinteilig (Rezepturen, Haushaltsgeräte), aber dieselbe Art steht auch im Behaltenen.
+- **Förderung:** Was der Kopf verwirft, ist zur Hälfte bis zu 87 % Signal; was zu Recht fällt,
+  ist per Regel erkennbar: SEC-Form-D-Meldungen von Immobilien-/Holding-/Dienstleistungs-/Bau-/
+  Restaurant-Vehikeln, NIH-„subproject"-Buchungszeilen, SAMHSA-Zeilen ohne Abstract, absurde
+  Beträge („$6").
+- **Forschung:** der Kopf trennt (verworfen 0,0–0,3: 28 % Signal gegen behalten 89 %); im Band
+  0,3–0,5 sind 17 von 30 unklar (alte OpenAlex-Werke ohne Abstract, generische HRM-Studien).
+- **Presse:** das 8B-verworfene ist überwiegend kein Signal (31 %); das Kopf-Band 0,2–0,3 (59 %)
+  unterscheidet sich in dieser kleinen Stichprobe nicht sicher vom Behaltenen (67 %) — die
+  Bereiche überlappen, n = 20 reicht für eine Aussage nicht.
+
+**Empfehlung:** Patente: Relevanz-Kopf im Signal-Pfad abschalten, nur Pflanzensorten per Regel
+aussortieren, die verworfenen Patente (mit Vektor) als Signale nachholen. Förderung: Kopf durch
+Regeln ersetzen (Form-D-Branchen, Buchungszeilen, fehlender Abstract, Mindestbetrag), Verworfenes
+nach diesen Regeln neu prüfen. Forschung und Presse: Kopf behalten; Presse-Band 0,2–0,3 bei
+Gelegenheit mit größerer Stichprobe nachmessen.

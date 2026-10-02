@@ -1,0 +1,2747 @@
+[
+{
+"rid": 23386099,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "OpenAlex: Aerospace engineering",
+"text": "Topological Surface States Originated Spin-Orbit Torques in Bi 2 Se 3 — [Science · Aerospace engineering] The three dimensional topological insulator bismuth selenide (Bi(2)Se(3)) is expected to possess strong spin-orbit coupling and spin-textured topological surface states and, thus, exhibit a high charge to spin current conversion efficiency. We evaluate spin-orbit torques in Bi(2)Se(3)/Co(40)Fe(40)B(20) devices at",
+"sid": "s001"
+},
+{
+"rid": 8842504,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.12",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "6th STREET, INC. raises $3.0M private round (Other Technology) — [Funding · SEC Form D] 6th STREET, INC. (Bel Air, MARYLAND) filed a Reg-D private offering. Industry: Other Technology. Total offering $3.0M, sold $2.2M. Filed 2025-04-02.",
+"sid": "s002"
+},
+{
+"rid": 25442727,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.04",
+"source": "EPO DOCDB (FOOD)",
+"text": "ALFALFA VARIETY 914T524 — The invention relates to the alfalfa variety designated 914T524. Provided by the invention are the seeds, plants and derivatives of the alfalfa variety 914T524. Also provided by the invention are tissue cultures of the alfalfa variety 914T524 and the plants regenerated therefrom. Still further provided by the invention are methods for producing alfalfa plants by crossing the alfalfa variety ",
+"sid": "s003"
+},
+{
+"rid": 20063395,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "The Spoon",
+"text": "Podcast: Designing Products For The Smart Kitchen With Matt Rolandson — What does a robot barista, smart oven and precision heated coffee cup all have in common? They’re all technology-forward food products that product design firm Ammunition Group had a hand […]",
+"sid": "s004"
+},
+{
+"rid": 25521700,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.15",
+"source": "OpenAlex fresh: Aerospace engineering",
+"text": "Multiphysics Turbulent Flow Analysis of a Foil-Wrapped Matchstick Rocket with Crimped Nozzle — [Science · Aerospace engineering]",
+"sid": "s005"
+},
+{
+"rid": 25275343,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.01",
+"source": "EPO DOCDB (HEALTH)",
+"text": "SURGICAL INSTRUMENT — Applicant: INTOCARE MEDICAL TECH SUZHOU CO LTD. CPC: A61B17/1285, A61B2017/2939, A61B2017/00473, A61B2017/00398, A61B2017/0046, A61B2017/00017.",
+"sid": "s006"
+},
+{
+"rid": 6840839,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (HEALTH)",
+"text": "-CD300c ANTI-CD300C ANTIBODY OR ANTIGEN BINDING FRAGMENT OF THE SAME AND USES THEREOF FOR PREVENTING OR TREATING DEGENERATIVE BRAIN DISEASES — The present invention relates to: a pharmaceutical composition for preventing or treating a degenerative brain disease containing at least one of an anti-CD300c antibody and an antigen-binding fragment thereof; a method for preventing or treating a degenerative brain disease u",
+"sid": "s007"
+},
+{
+"rid": 24607637,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.04",
+"source": "OpenAlex fresh: George (robot)",
+"text": "A History of the Philosophers - Indian philosopy - Ashvamedha -The Horse Sacrifice — [Science · George (robot)]",
+"sid": "s008"
+},
+{
+"rid": 23864241,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "ArchDaily",
+"text": "Sentry Bridge / Snøhetta + sbp — The New York State Office of Parks, Recreation and Historic Preservation (OPRHP) has unveiled the new Sentry Bridge at Watkins Glen State Park, a landmark gateway to one of New York's most iconic natural destinations. Designed by a team led by the New York-based studios of schlaich bergermann partner (sbp) and Snøhetta, the bridge reimagines a beloved park crossing through a design th",
+"sid": "s009"
+},
+{
+"rid": 25260593,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Impact Alpha",
+"text": "To steward responsible AI, investors need to think like campaigners — On June 12, 2026, SpaceX completed the largest IPO in history, raising $85 billion on a $1.78 trillion valuation and minting Elon Musk ... The post To steward responsible AI, investors need to think like campaigners appeared first on ImpactAlpha .",
+"sid": "s010"
+},
+{
+"rid": 24524860,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "MIT Technology Review",
+"text": "AI models flub these intelligence tests. Can you fare any better? — Puzzles and games have been central to AI development since the very beginning. Just as we humans like to test our smarts with crosswords or logic puzzles, developers can test how far models have advanced with a gaming gauntlet. The term “machine learning” was popularized in a 1959 article by the IBM computer scientist Arthur…",
+"sid": "s011"
+},
+{
+"rid": 8748171,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.35",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "CS1031 Canopy Apartments, DST raises $8.8M private round (Commercial) — [Funding · SEC Form D] CS1031 Canopy Apartments, DST (GLEN ALLEN, VIRGINIA) filed a Reg-D private offering. Industry: Commercial. Total offering $8.8M, sold $0. Filed None.",
+"sid": "s012"
+},
+{
+"rid": 23188084,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (FOOD)",
+"text": "Utilization method of cow milk endogenous lipase and application of cow milk endogenous lipase in preparation of zero-fat pasteurized milk — The invention belongs to the technical field of dairy product processing. The invention discloses a utilization method of cow milk endogenous lipase and application of the cow milk endogenous lipase in preparation of zero-fat pasteurized milk. Through degreasing, membrane breaki",
+"sid": "s013"
+},
+{
+"rid": 22032832,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.46",
+"source": "EPO DOCDB (HEALTH)",
+"text": "Implantable mandibular joint prosthesis and corresponding production method — An implantable mandibular joint prosthesis includes a first implant part that has an artificial condyle that can be attached to a lower jawbone, a second implant part that has a joint surface that can be attached to a cranium and that forms an abutment for the artificial condyle The second implant part comprises includes a first component w",
+"sid": "s014"
+},
+{
+"rid": 25438546,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.06",
+"source": "EPO DOCDB (TECH)",
+"text": "METHOD FOR PROVIDING DATA TRANSMISSION OF COMPUTING SYSTEM COMPUTER-READABLE RECORDING MEDIUM FOR PERFORMING DATA TRANSMISSION METHODS — Applicant: RESEARCH & BUSINESS FOUNDATION SUNGKYUNKWAN UNIV. CPC: H04L1/0045, H04L1/0047, H04L1/0057, H04L1/0061, H04L1/0041, H04L1/0047.",
+"sid": "s015"
+},
+{
+"rid": 9393375,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.37",
+"source": "OpenAlex Science (BIZ)",
+"text": "A Multidimensional Model of Organizational Legitimacy: Hospital Survival in Changing Institutional Environments — [Science · OpenAlex] Martin Ruef, W. Richard Scott, A Multidimensional Model of Organizational Legitimacy: Hospital Survival in Changing Institutional Environments, Administrative Science Quarterly, Vol. 43, No. 4 (Dec., 1998), pp. 877-904",
+"sid": "s016"
+},
+{
+"rid": 23889005,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.12",
+"source": "EPO DOCDB (TECH)",
+"text": "Two-dimensional data access for volatile memory — An example of an apparatus may include memory organized as at least one bank that includes two or more arrays, and circuitry communicatively coupled to the memory to select respective rows of the two or more arrays of a bank for a memory access operation based on an access orientation signal. Other examples are disclosed and claimed. Applicant: INTEL CORP. CPC: G11C7/",
+"sid": "s017"
+},
+{
+"rid": 24417730,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Tech Xplore AI/ML",
+"text": "Could robots help tackle loneliness? BBC's Ann Droid raises questions about the future of care — New BBC sitcom Ann Droid imagines a near future in which robots provide care and companionship to older people at home.",
+"sid": "s018"
+},
+{
+"rid": 24490425,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.19",
+"source": "EPO DOCDB (TECH)",
+"text": "INTERACTIVE SIGNALING FOR ENERGY SAVING — Applicant: INTERDIGITAL CE PATENT HOLDINGS SAS. CPC: H04N19/164, H04N19/103, H04N19/117, H04N19/156, H04N19/176, H04N19/577.",
+"sid": "s019"
+},
+{
+"rid": 24642072,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.28",
+"source": "Hypebeast",
+"text": "Nan Shufang Carries Its Scholar’s-Study Aesthetic Into Hong Kong With a Pacific Place Debut — The Beijing-born cultural brand’s first store outside Mainland China pairs wooden, porcelain and metal wares with hands-on cultural programming.",
+"sid": "s020"
+},
+{
+"rid": 24106328,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.39",
+"source": "SBIR/STTR Awards (US Startup R&D Funding)",
+"text": "ECHELON BIOSCIENCES, INC. wins undisclosed STTR Phase I award (Department of Health and Human Services) — [Funding · STTR Phase I · Department of Health and Human Services · Salt Lake City, UT · undisclosed] N/A. ECHELON BIOSCIENCES, INC. (0 employees): N/A",
+"sid": "s021"
+},
+{
+"rid": 733759,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "Google Patents (HEALTH)",
+"text": "Medical fluid cassettes and related systems — Systems relate to a reusable console system that can be used with a plurality of different types of disposable cassettes. The cassettes may be structured for different therapies, different fluid volumes, among others, or a combination thereof. The disposable cassette may include a plurality of fluid circuits. Each circuit may include a pump chamber disposed along the path",
+"sid": "s022"
+},
+{
+"rid": 13522279,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.11",
+"source": "EPO DOCDB (HEALTH)",
+"text": "Bacillus amyloliquefaciens GB3-2 and application thereof — The invention discloses bacillus amyloliquefaciens GB3-2 and application thereof, and belongs to the technical field of microorganisms, the bacillus amyloliquefaciens GB3-2 is preserved in the China General Microbiological Culture Collection Center on October 17, 2023, the preservation address is No. 3, No.1 yard, Beichen West Road, Chaoyang District, Beijing",
+"sid": "s023"
+},
+{
+"rid": 9364718,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.38",
+"source": "OpenAlex Science (ECO)",
+"text": "Bacterial Biogeochemistry: The Ecophysiology of Mineral Cycling — [Science · OpenAlex] Preface. Introduction. General Considerations: Bacterial Metabolism. Bioenergetics of Microbial Metabolism. Transport Mechanisms and Structure of Microbial Communities. Mineral Cycles: Hydrolysis of Organic Polymers. Comparison of Element Cycles. The Water Column: Prokaryotic Primary Producers. Water Column Bacteria and Mineralisat",
+"sid": "s024"
+},
+{
+"rid": 23483626,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.42",
+"source": "OpenAlex: Higher education",
+"text": "Flattening the learning curve of leadership development: reflections of five women higher education leaders during the Coronavirus pandemic of 2020 — [Science · Higher education] For an adult, non-traditional student focused college, the pandemic brought into stark reality the challenges that the dislocation brought ‘home,’ literally, for many people. This article presents a set of reflections of five women leaders a",
+"sid": "s025"
+},
+{
+"rid": 25434132,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (TECH)",
+"text": "SYSTEMS AND METHODS FOR PROTECTED EXECUTION-FINALITY CONTROL USING TWO-INSTANCE BINDING, CROSS-COMMITTED VALIDATION EVIDENCE, SCOPED NON-BEARER FINALITY AUTHORITY, AND INDEPENDENT FINALITY SINK RECONSTRUCTION — Systems and methods are disclosed for hardware-rooted protected execution-finality control of effect-capable operations in artificial-intelligence, telecom, cloud, financial, storage, network, and cyber-physic",
+"sid": "s026"
+},
+{
+"rid": 2060576,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.47",
+"source": "EPO DOCDB (HEALTH)",
+"text": "Animal Feed Additives Comprising a Polypeptide having Protease Activity and Uses Thereof — The present invention relates to animal feed and animal feed additives comprising polypeptides having protease activity, as well as methods of producing proteases, methods of producing animal feed and animal feed additives comprising proteases, and methods of using proteases to improve animal performance and the nutritional val",
+"sid": "s027"
+},
+{
+"rid": 23121133,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Förderdatenbank des Bundes",
+"text": "Förderung BioValid zur Entwicklung des Netzwerkes deutscher Forschungs- und Technologieinfrastrukturen – Vorbereitung der Teilnahme an IBISBA-ERIC (Modul 2) — ",
+"sid": "s028"
+},
+{
+"rid": 325186,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "Science Magazine News",
+"text": "An upset to the standard model — ",
+"sid": "s029"
+},
+{
+"rid": 23857421,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Medical Xpress",
+"text": "How functional neurological disorder is both 'all in your head' and beyond it — By the time many people with functional neurological disorder arrive in our clinic, they have heard the five words \"It's all in your head\" more times than they can count. They are told their brain scan was normal. Their electroencephalogram, a test that measures the brain's electrical activity, is reassuring. \"The good news is you don't h",
+"sid": "s030"
+},
+{
+"rid": 23660736,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "OpenAlex fresh: Microbiome",
+"text": "Gut, vaginal, and seminal microbiomes in couples with infertility or recurrent pregnancy loss: a two-cohort prospective study of reproductive outcomes — [Science · Microbiome]",
+"sid": "s031"
+},
+{
+"rid": 4614099,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.47",
+"source": "EPO DOCDB (FOOD)",
+"text": "Soybean cultivar 01220205 — A soybean cultivar designated 01220205 is disclosed. The invention relates to the seeds of soybean cultivar 01220205, to the plants of soybean cultivar 01220205, to the plant parts of soybean cultivar 01220205, and to methods for producing progeny of soybean cultivar 01220205. The invention also relates to methods for producing a soybean plant containing in its genetic material one or more",
+"sid": "s032"
+},
+{
+"rid": 8700816,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.30",
+"source": "OpenAlex Science (HEALTH)",
+"text": "Editor's Choice – 2017 ESC Guidelines on the Diagnosis and Treatment of Peripheral Arterial Diseases, in collaboration with the European Society for Vascular Surgery (ESVS) — [Science · OpenAlex]",
+"sid": "s033"
+},
+{
+"rid": 9495460,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "Food Cues, Stress, Motivation for Highly Palatable Foods and Weight Gain — [Funding · NIH/NIDDK · US-CT · $627k] DESCRIPTION (provided by applicant): Obesity is a global epidemic that greatly increases chronic disease burden. Overeating of highly palatable (HP) foods, especially in the ubiquitous food cue environment and in the context of stressful life events, are known to promote HP food craving, intake and weight ",
+"sid": "s034"
+},
+{
+"rid": 24747207,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Neue Landschaft",
+"text": "Der Kommentar: Schützt die Bäume – #Bürokratieabbau – Teil 2 — Auf den Deutschen Baumpflegetagen in Augsburg hat ein bundesweit aktiver Naturschutzbund festgestellt, dass ohne eine Baumschutzsatzung der Baumbestand in den Kommunen bedroht ist. Leider konnte mir bisher niemand echte Belege für eine solche Behauptung liefern. Ich hätte mich schon gefreut, wenn es endlich einen Nachweis für eine Wirksamkeit von Baumschu",
+"sid": "s035"
+},
+{
+"rid": 24429917,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.48",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Adronite, Inc. raises $3.4M private round (Other Technology) — [Funding · SEC Form D] Adronite, Inc. (SEATTLE, WASHINGTON) filed a Reg-D private offering. Industry: Other Technology. Total offering $3.4M, sold $3.4M. Filed 2026-04-27.",
+"sid": "s036"
+},
+{
+"rid": 527382,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Semiconductor Engineering",
+"text": "Chiplets: More Standards Needed — Current chiplet interface standardization efforts fall short when it comes to handling analog signals and power.",
+"sid": "s037"
+},
+{
+"rid": 21619324,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Food Manufacture",
+"text": "Dean’s £4.9m funding to support export business — Dean's of Huntly, the Scottish bakery business, has secured a £4.9 million funding package from Bank of Scotland to help drive its export business",
+"sid": "s038"
+},
+{
+"rid": 6987928,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.28",
+"source": "EPO DOCDB (FOOD)",
+"text": "HOLLOW CONFECTIONERY PRODUCT — Described herein is a confectionery product (10) having a hollow body (10A) formed by at least one first material that defines an outer surface of said product, wherein present on the outer surface is a second material, different from said first material, which reproduces a decorative element. The product is characterized in that said body comprises a first outer layer (20), formed by s",
+"sid": "s039"
+},
+{
+"rid": 24451809,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.21",
+"source": "Yanko Design",
+"text": "This Foldable A2 Scanner Fits in a Bag and Doubles as a Live Presenter — This Foldable A2 Scanner Fits in a Bag and Doubles as a Live Presenter Scanners haven’t changed much in how they occupy a workspace. A flatbed sits in the middle and claims that real estate whether it’s in use...",
+"sid": "s040"
+},
+{
+"rid": 8741406,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.34",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "HLBT Associates, LLC raises $6.4M private round (Commercial) — [Funding · SEC Form D] HLBT Associates, LLC (KANSAS CITY, MISSOURI) filed a Reg-D private offering. Industry: Commercial. Total offering $6.4M, sold $330,189. Filed None.",
+"sid": "s041"
+},
+{
+"rid": 8684092,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.35",
+"source": "OpenAlex Science (TECH)",
+"text": "Evaluating Recommendation Systems — [Science · OpenAlex]",
+"sid": "s042"
+},
+{
+"rid": 21654746,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "PNAS",
+"text": "The combinatorial innexin code of heterochannel electrical synapses governs synaptic function and is maintained by distinct cellular mechanisms — Proceedings of the National Academy of Sciences, Volume 123, Issue 28, July 2026. SignificanceThis study identifies previously uncharacterized organizational principles of electrical synapses, describes their functional significance, and elucidates mechanisms underlying the",
+"sid": "s043"
+},
+{
+"rid": 23737358,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.26",
+"source": "OpenAlex fresh: Primer (cosmetics)",
+"text": "Analisis Faktor Kerusakan Gambar Cadas pada Situs Ceruk Liabunta di Desa Bungi Kecamatan Mawasangka Timur Kabupaten Buton Tengah — [Science · Primer (cosmetics)] Ceruk Liabunta menampilkan gambar cadas figuratif dan non-figuratif, yang secara administratif terletak di pesisir Desa Bungi, Kecamatan Mawasangka Timur, Kabupaten Buton Tengah. Penelitian bertujuan untuk: (1) mengidentifikasi bentuk motif gambar cadas, (2)",
+"sid": "s044"
+},
+{
+"rid": 12402449,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.47",
+"source": "EPO DOCDB (FOOD)",
+"text": "Mixture powder dissolved in finished yellow wine and white spirit and preparation method thereof — The invention relates to the technical field of mixed powder, and particularly discloses mixture powder dissolved in finished yellow wine and white spirit and a preparation method of the mixture powder. The mixture powder consists of the following raw materials in percentage: 10-25% of fresh ginger powder, 20-25% of red",
+"sid": "s045"
+},
+{
+"rid": 22871260,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.39",
+"source": "EPO DOCDB (FOOD)",
+"text": "Fried food processing system and processing method — The invention relates to the technical field of food processing, in particular to a fried food processing system and method.The processing system comprises a frying bin, a separation bin is fixedly connected to the front end of the frying bin, a filter plate is fixedly connected to the lower side of the separation bin, rotating shafts are rotationally connected to ",
+"sid": "s046"
+},
+{
+"rid": 8809666,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.16",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "ProKeep, Inc. raises $9.0M private round (Other Technology) — [Funding · SEC Form D] ProKeep, Inc. (NEW ORLEANS, LOUISIANA) filed a Reg-D private offering. Industry: Other Technology. Total offering $9.0M, sold $9.0M. Filed 2022-03-09.",
+"sid": "s047"
+},
+{
+"rid": 21420466,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.29",
+"source": "Asia Times",
+"text": "Japan’s government computers get regularly hacked — ",
+"sid": "s048"
+},
+{
+"rid": 23398642,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.31",
+"source": "OpenAlex: Space exploration",
+"text": "A survey on orbital dynamics and navigation of asteroid missions — [Science · Space exploration]",
+"sid": "s049"
+},
+{
+"rid": 23725425,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.42",
+"source": "OpenAlex fresh: Organizational behavior",
+"text": "O papel da liderança na motivação dos colaboradores e seus impactos organizacionais. — [Science · Organizational behavior] This study examines the role of leadership in employee motivation and its impacts on performance, organizational climate, and the prevention of labor-related risks. The research is bibliographic and documentary, with a qualitative, descriptive, and explanatory approach. The study connects classic",
+"sid": "s050"
+},
+{
+"rid": 24542228,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "The Conversation",
+"text": "Worries that social media is making children lose touch with reality echo ancient Greeks’ fears about theatre — Concerns about the effect of social media on young minds mirror fears in ancient times around the way heightened drama affected audiences of public theatre.",
+"sid": "s051"
+},
+{
+"rid": 8759117,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.48",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Alpine Immune Sciences, Inc. raises $17.0M private round (Biotechnology) — [Funding · SEC Form D] Alpine Immune Sciences, Inc. (SEATTLE, WASHINGTON) filed a Reg-D private offering. Industry: Biotechnology. Total offering $17.0M, sold $17.0M. Filed None.",
+"sid": "s052"
+},
+{
+"rid": 6660535,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.39",
+"source": "EPO DOCDB (FOOD)",
+"text": "BEVERAGE CARTRIDGE — A beverage cartridge (10) and method for forming a beverage cartridge (10). An outer cup (12) may be made of paper and a polymer liner (20) provided at the inner space (24) of the cup (12). The liner (20) may define an interior space (24) that is closed by a lid (40), and the liner (20) and lid (40) may be impervious to moisture and gases, e.g., to protect a beverage material in the interior spac",
+"sid": "s053"
+},
+{
+"rid": 25442494,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.46",
+"source": "EPO DOCDB (TECH)",
+"text": "Paging enhancement mechanism — Embodiments of the present disclosure relate to devices, methods, apparatuses and computer readable storage media of paging enhancement mechanism. The method comprises: in accordance with a determination that no early paging indication is received from a second device during a set of indication occasions, determining, at a first device, whether a paging-related condition is met, the ear",
+"sid": "s054"
+},
+{
+"rid": 8047250,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "NSF Awards (US Federal Research Funding)",
+"text": "Frontier Space Physics Research at the Millstone Hill Geospace Facility — [Funding · NSF/Upper Atmospheric Facilities · US-MA · $4.8M] The Millstone Hill Geospace Facility is a crucial observatory for studies of the near-Earth space environment or geospace. For nearly 6 solar cycles, the Facility has been an anchor for mid-latitude and subauroral geospace research, the latitudinal region where most of the US populati",
+"sid": "s055"
+},
+{
+"rid": 9343813,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.46",
+"source": "OpenAlex Science (HEALTH)",
+"text": "Ribosome-inactivating proteins from plants — [Science · OpenAlex]",
+"sid": "s056"
+},
+{
+"rid": 25278016,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.07",
+"source": "EPO DOCDB (HEALTH)",
+"text": "Switch assembly for cleaning and caring appliance and cleaning and caring appliance — A switch assembly for a cleaning and caring appliance. The switch assembly comprises: a switch; and a switch rocker having a distal end and a proximal end, the switch being arranged below the distal end of the switch rocker such that the switch rocker operatively triggers the switch, wherein the rocker comprises a small arm, a large",
+"sid": "s057"
+},
+{
+"rid": 23342637,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "The Verge",
+"text": "Lenovo’s Legion Go S with SteamOS is down to its lowest price ever — Memory and storage prices will be inflated for the foreseeable future, so we’re always happy to find a good deal on capable gaming hardware, like this discount on the Lenovo Legion Go S with a Z2 Go processor and SteamOS. Normally $1,137.41 (and selling for close to $1,000 at Best Buy), Lenovo has the handheld […]",
+"sid": "s058"
+},
+{
+"rid": 679029,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "Google Patents (TECH)",
+"text": "A kind of rural area number IP broadcast method and system — A kind of rural area number ID broadcasting method and system, belong to broadcast technology field.The method comprise the steps that establishing podium level, establishing transport layer, establish terminating layer.System of the invention includes city-level public broadcasting management platform, county, township, at village level broadcast platform,",
+"sid": "s059"
+},
+{
+"rid": 9453273,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.08",
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "HIV PROTEINS AND PROTEIN INTERACTIONS — [Funding · NIH/NCRR · US-CA · $33] This subproject is one of many research subprojects utilizing the resources provided by a Center grant funded by NIH/NCRR. Primary support for the subproject and the subproject's principal investigator may have been provided by other sources, including other NIH sources. The Total Cost listed for the subproject likely represents the estimated ",
+"sid": "s060"
+},
+{
+"rid": 20161909,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.27",
+"source": "TechCrunch",
+"text": "Meet TechCrunch in Tunis, Cairo, Dubai and Beirut this month — TechCrunch just announced our first-ever Startup Battlefield MENA taking place in Beirut, Lebanon in October. We’re hitting the road to meet with regional early-stage startups, investors and entrepreneurs in July. Sign up below. Startups and investors can meet the TechCrunch team and learn more about TechCrunch’s Startup Battlefield program. Founders will",
+"sid": "s061"
+},
+{
+"rid": 9484514,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.35",
+"source": "OpenAlex Science (FOOD)",
+"text": "A Policy Agenda for Pro-Poor Agricultural Growth — [Science · OpenAlex]",
+"sid": "s062"
+},
+{
+"rid": 24716720,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.19",
+"source": "EPO DOCDB (TECH)",
+"text": "CONTENTION BASED PHYSICAL UPLINK SHARED CHANNEL IN TIME DIVISION DUPLEX — A wireless device, UE, can determine (630) to transmit uplink, UL, data to a network node The UE can further select (640) an UL transmission occasion of a plurality of UL transmission occasions during which to transmit the UL data. The UE can further transmit (650) the UL data during the UL transmission occasion. Applicant: TELEFONAKTIEBOLAGET ",
+"sid": "s063"
+},
+{
+"rid": 22043168,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.49",
+"source": "EPO DOCDB (TECH)",
+"text": "CONFINEMENT APPARATUS WITH PIPELINED ARCHITECTURE — A confinement apparatus includes a 2D array portion; and at least one pipelined portion. The 2D array section includes a 2D array of interconnected confinement regions. The at least one pipelined portion comprises a plurality of pipeline sections. Each pipeline section includes a first pipeline segment, an operation segment, and a second pipeline segment. Applicant:",
+"sid": "s064"
+},
+{
+"rid": 23397045,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "OpenAlex: Space exploration",
+"text": "Exoplanet spectroscopy and photometry with the Twinkle space telescope — [Science · Space exploration] The Twinkle space telescope has been designed for the characterisation of exoplanets and Solar System objects. Operating in a low Earth, Sun-synchronous orbit, Twinkle is equipped with a 45 cm telescope and visible (0.4 – 1 μ m) and infrared (1.3 – 4.5 μ m) spectrometers which can be operated simultaneously. Twinkle",
+"sid": "s065"
+},
+{
+"rid": 224088,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "vegconomist",
+"text": "Framptons Sees Plant-Based as the Future – Transitions From Egg Wholesale to 80% Plant-Based — Proving that plant-based is the future, Framptons has moved from egg wholesale to plant-based, evolving into the biggest co-packer of plant-based drinks in the UK with plant-based now accounting for 80% of the company’s business. “Roughly eight out of ten enquiries are plant-based. Of those, five relate to oat” Founded in 1",
+"sid": "s066"
+},
+{
+"rid": 22478424,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.35",
+"source": "EPO DOCDB (FOOD)",
+"text": "Polygonatum sibiricum and dendrobium candidum biscuit and making method thereof — The invention discloses polygonatum sibiricum and dendrobium candidum biscuits and a making method thereof. The polygonatum sibiricum and dendrobium candidum biscuits are made from, by weight, 180-280 parts of wheat flour, 50-80 parts of powdered sugar, 20-40 parts of grease, 60-80 parts of egg liquid, 10-35 parts of polygonatum sibiric",
+"sid": "s067"
+},
+{
+"rid": 9514768,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.03",
+"source": "OpenAlex Science (BIZ)",
+"text": "Annual World Bank Conference on Development Economics 1998 — [Science · OpenAlex] No AccessAnnual World Bank Conference on Development Economics (Global)1 Feb 2013Annual World Bank Conference on Development Economics 1998Authors/Editors: Boris Pleskovic and Joseph E. StiglitzBoris Pleskovic and Joseph E. Stiglitzhttps://doi.org/10.1596/0-8213-4321-1SectionsAboutPDF (1.7 MB) ToolsAdd to favoritesDownload CitationsTrac",
+"sid": "s068"
+},
+{
+"rid": 13840700,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.45",
+"source": "EPO DOCDB (HEALTH)",
+"text": "Ganoderma lucidum strain with high yield of flavone as well as culture medium, culture method and application of ganoderma lucidum strain — The invention discloses a ganoderma leucocontextum strain GA82, which is preserved in China General Microbiological Culture Collection Center (CGMCC) on May 29, 2023, and the preservation number is CGMCC NO.40597. The ganoderma leucocontextum strain GA82 can be used for preparing",
+"sid": "s069"
+},
+{
+"rid": 21628440,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Finextra",
+"text": "ClearBank appoints chief product officer — ClearBank, the enabler of real-time clearing and embedded banking, today announces that Ken Johnstone has joined as Chief Product Officer.",
+"sid": "s070"
+},
+{
+"rid": 21974908,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.24",
+"source": "EPO DOCDB (FOOD)",
+"text": "SYSTEM AND METHOD FOR EXTRUDING CONFECTIONERY PRODUCTS — A method for extruding a confectionery is provided including supplying a plurality of ingredients to a mixer. The ingredients are mixed to form a confectionery composition in said mixer. Crystals are formed in the confectionery composition while the confectionery composition is in said mixer and the confectionery composition is output from said mixer. Applicant",
+"sid": "s071"
+},
+{
+"rid": 20282315,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.21",
+"source": "STAT News",
+"text": "At this health care gathering, all the panelists and dealmakers are women — No manels here: At this health care conference, every speaker has been a woman.",
+"sid": "s072"
+},
+{
+"rid": 23744123,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.10",
+"source": "OpenAlex fresh: Social media",
+"text": "Social Companion Options Close to Me in Kuala Lumpur Guide — [Science · Social media] Introduction When searching for Social companion options close to me, many people are looking for trustworthy lifestyle support that can make everyday activities, business trips, or social occasions more enjoyable. Kuala Lumpur is a vibrant city with countless attractions, cultural landmarks, shopping destinations, and dining experi",
+"sid": "s073"
+},
+{
+"rid": 23245398,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (TECH)",
+"text": "APPARATUS AND METHOD FOR DETERRING A THIRD PARTY FROM COPYING A PRODUCT OR PROCESS — In some examples, deterring a third party from copying a product or process may include scanning code to generate scanned code. Text in the scanned code may be read and/or at least one image in the scanned code may be recognized. The text and/or the at least one image may be analyzed to determine whether the code includes a specified",
+"sid": "s074"
+},
+{
+"rid": 852568,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO OPS Patents",
+"text": "Aggregate communication acceleration method and device of GPU, equipment, medium and program product — The embodiment of the invention discloses a set communication acceleration method and device for GPUs, equipment, a medium and a program product. The method comprises the following steps: receiving input data sent by a source end GPU in a plurality of GPUs; performing expert routing calculation according to the inpu",
+"sid": "s075"
+},
+{
+"rid": 9706018,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.48",
+"source": "OpenAlex Science (HEALTH)",
+"text": "An Epidemic of Food-Borne Listeriosis in Western Switzerland: Description of 57 Cases Involving Adults — [Science · OpenAlex] This article describes 57 cases of listeriosis that occurred in adults in western Switzerland during an outbreak associated with the consumption of a soft cheese. Twenty-one percent of the cases were of bacteremia, 40% were of meningitis, and 39% were of meningoencephalitis. Overall, 42% of th",
+"sid": "s076"
+},
+{
+"rid": 13756559,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.09",
+"source": "EPO DOCDB (FOOD)",
+"text": "Novel rhizopus oligosporus strains and antimicrobial compositions comprising same — The invention relates to a rhizopus oligosporus CJCC02-20 strain preserved by a accession number KCCM12893P and an application of the rhizopus oligosporus CJCC02-20 strain. Applicant: CJ CHEILJEDANG CORP. CPC: A23L11/50, A01N63/30, A01P1/00, A23B2/783, A23K10/18, A23L23/00.",
+"sid": "s077"
+},
+{
+"rid": 9203112,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "Quantitative Analysis of AIB-1 Recruitment — [Funding · NIH/NIDDK · US-CO · $192k] DESCRIPTION (provided by applicant): The long-term goal of this research is to determine the mechanisms underlying eukaryotic gene regulation. Human progesterone receptors (PR), members of the nuclear receptor superfamily of ligand-activated transcription factors, serve as a model system. PR co-exist as two functionally distinct isofor",
+"sid": "s078"
+},
+{
+"rid": 24704554,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (HEALTH)",
+"text": "FLUID DELIVERY APPARATUS — The present disclosure describes a fluid delivery apparatus, comprising a fluid channel, an actuation assembly, and a flow restriction assembly. The fluid channel comprises a first channel, a reservoir, and a second channel, all of which are in fluid communication. The actuation assembly is configured to provide an actuation force to cause fluid to flow into or out of the reservoir. The flo",
+"sid": "s079"
+},
+{
+"rid": 23453372,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.36",
+"source": "OpenAlex: Human resource management",
+"text": "Current issues in International HRM: Alternative forms of assignments, careers and talent management in a global context — [Science · Human resource management] This special issue is dedicated to examining some current issues in international HRM; it contributes mainly to the field of HRM in the multinational enterprise. However, it clearly also draws on knowledge from cross-cultural IHRM. The guest editors have iden",
+"sid": "s080"
+},
+{
+"rid": 24632003,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Comprehensive Reviews in Food Science",
+"text": "Natural Pigments and Cyclodextrins: Overview on a Synergistic Approach to Encapsulation — ",
+"sid": "s081"
+},
+{
+"rid": 22851952,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (HEALTH)",
+"text": "DAMAGED DNA REPAIRING COMPOSITION INCLUDING GABA AS ACTIVE INGREDIENT — [Problem] To provide a composition for a supplement, medicine, food or drink, feed, or similar that is capable of repairing damaged DNA. [Solution] This damaged DNA repairing composition that is characterized by including GABA as an active ingredient can be used as a highly safe supplement, medicine, food or drink, or feed, for anti-aging or heal",
+"sid": "s082"
+},
+{
+"rid": 8798720,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.24",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "2021 East Coast Fund LLC raises $300,000 private round (Business Services) — [Funding · SEC Form D] 2021 East Coast Fund LLC (LEXINGTON, KENTUCKY) filed a Reg-D private offering. Industry: Business Services. Total offering $300,000, sold $0. Filed 2021-02-22.",
+"sid": "s083"
+},
+{
+"rid": 24633511,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "NEJM",
+"text": "Aspirin Omission at the Time of Primary Percutaneous Coronary Intervention in STEMI — New England Journal of Medicine, Ahead of Print.",
+"sid": "s084"
+},
+{
+"rid": 8737225,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.35",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Valencell, Inc. raises $2.6M private round (Other Technology) — [Funding · SEC Form D] Valencell, Inc. (RALEIGH, NORTH CAROLINA) filed a Reg-D private offering. Industry: Other Technology. Total offering $2.6M, sold $2.6M. Filed None.",
+"sid": "s085"
+},
+{
+"rid": 22026067,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.05",
+"source": "EPO DOCDB (FOOD)",
+"text": "COMPOSITION COMPRISING VERMOUTH WITH CARBON DIOXIDE — Applicant: DESTILERIAS MANUEL ACHA FABRICA DE LICORES S A. CPC: C12G1/06, C12G3/08, C12G3/024, C12G3/06, C12G3/04, C12G3/04.",
+"sid": "s086"
+},
+{
+"rid": 23810409,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.49",
+"source": "EPO DOCDB (ECO)",
+"text": "Functional aqueous solution supply apparatus — Functional aqueous solution supply apparatus (1) has a replenishment water production unit (3) that is supplied with ultrapure water (W) from a pipe conduit (2) and produces functional aqueous solution as washing water (W1), a storage tank (5) that is supplied/replenished with the produced washing water (W1) via a pipe (4), and a circulation pipe conduit (7) that supplie",
+"sid": "s087"
+},
+{
+"rid": 23745720,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.18",
+"source": "OpenAlex fresh: Ping (video games)",
+"text": "Implementasi hadis tentang memberi dalam buku ajar al-qur’an dan hadis kementerian agama kelas 6 di MI Al-Amin Banjar Sugihan: kajian living hadis riwayat imam muslim no. 1033 — [Science · Ping (video games)] Penelitian ini mengkaji tentang implementasi hadis keutamaan memberi yang terdapat dalam buku ajar al-Qur’an dan hadis oleh Kementerian Agama pada kelas 6 di MI Al-Amin Banjar Sugihan yang merujuk pada hadis dal",
+"sid": "s088"
+},
+{
+"rid": 8705984,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.46",
+"source": "OpenAlex Science (BIZ)",
+"text": "Managing Corporate Sustainability and CSR: A Conceptual Framework Combining Values, Strategies and Instruments Contributing to Sustainable Development — [Science · OpenAlex] ABSTRACT Sustainable development can be a source of success, innovation, and profitability for companies. To use this source and to deal with the challenge of sustainability, corporations need a framework they can rely on in order to identify opp",
+"sid": "s089"
+},
+{
+"rid": 25495860,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "BigHospitality",
+"text": "New restaurant and cafe River Kitchen to open in Arundel — River Kitchen, a new all-day restaurant and café overlooking the River Arun, will open in Arundel next year. The new venue will take over the former Waterside Café site following a major refurbishment and will serve coffee and breakfast in the morning, followed by lunch, drinks and dinner. The project is being developed by Fauna Collective, the group behind F",
+"sid": "s090"
+},
+{
+"rid": 8917529,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.39",
+"source": "OpenAlex Science (BIZ)",
+"text": "Social sources of information in opportunity recognition: Effects of mentors, industry networks, and professional forums — [Science · OpenAlex]",
+"sid": "s091"
+},
+{
+"rid": 9069176,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "OpenAlex Science (TECH)",
+"text": "On filtering the noise from the random parameters in Monte Carlo rendering — [Science · OpenAlex] Monte Carlo (MC) rendering systems can produce spectacular images but are plagued with noise at low sampling rates. In this work, we observe that this noise occurs in regions of the image where the sample values are a direct function of the random parameters used in the Monte Carlo system. Therefore, we propose a way to ",
+"sid": "s092"
+},
+{
+"rid": 9170274,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.41",
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "Mayo Clinic Vascular Medicine Clinical Research Training Program — [Funding · NIH/NHLBI · US-MN · $365k] DESCRIPTION (provided by applicant): Diseases of the arteries, veins, and lymphatics are common and frequently lethal, cause chronic pain and impairment, and incur substantial costs due to health care charges and lost earnings. Few physicians are adequately trained to care for patients with vascular diseases and e",
+"sid": "s093"
+},
+{
+"rid": 20164493,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "TechCrunch",
+"text": "Europe’s parliament calls for full audit of Facebook in wake of breach scandal — The European Parliament has called for a full audit of Facebook following a string of data breach scandals — including the Cambridge Analytica affair. MEPs are urging the company to allow European Union bodies to carry out a full audit to assess data protection and security of users’ personal data, following the scandal in which […]",
+"sid": "s094"
+},
+{
+"rid": 23700339,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "OpenAlex fresh: Battery (electricity)",
+"text": "Large-Scale Data Centers in High-Renewable-Penetration Power Systems: A Review of Flexible Resources, Grid Interactions, and Operational Impacts — [Science · Battery (electricity)] This paper reviews large-scale data centers in high-renewable-penetration power systems from the perspectives of flexible resources, grid interactions, and operational impacts. First, this paper summarizes the electrical and operational ch",
+"sid": "s095"
+},
+{
+"rid": 23330992,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.20",
+"source": "EPO DOCDB (FASHION)",
+"text": "A CORE SPUN YARN COMPRISING SHORT CELLULOSIC STAPLE FIBERS AND POLYMERIC FIBERS AND PROCESS FOR ITS PRODUCTION — Applicant: SANKO TEKSTIL ISLETMELERI SAN VE TIC A S. CPC: D02G3/36, D10B2201/01, D10B2331/04, D01D5/26, D01D5/34, D01F8/02.",
+"sid": "s096"
+},
+{
+"rid": 9499641,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.17",
+"source": "OpenAlex Science (TECH)",
+"text": "Modern structured analysis — [Science · OpenAlex]",
+"sid": "s097"
+},
+{
+"rid": 24714513,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.44",
+"source": "EPO DOCDB (TECH)",
+"text": "INSPECTION APPARATUS AND METHOD FOR CONTROLLING INSPECTION APPARATUS — An inspection apparatus configured to be communicably connected to an image forming apparatus for printing an image on a sheet, includes a controller for receiving at least a reference image and print setting information, registering the reference image based on the print setting information, receiving a scanned image generated by reading a printe",
+"sid": "s098"
+},
+{
+"rid": 23353727,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Lebensmittelzeitung",
+"text": "Fleischwarenhersteller: Bedford sieht Chancen für Genussprodukte — ",
+"sid": "s099"
+},
+{
+"rid": 21509021,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.23",
+"source": "Nonprofit Quarterly",
+"text": "Knight Foundation Extends Community Information Project — The Knight Foundation’s Community Information Challenge project supports the free flow of news and information and will receive support from Knight for another three years.",
+"sid": "s100"
+},
+{
+"rid": 21567932,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.21",
+"source": "Tubefilter",
+"text": "Wattpad Writers To Helm Original TV Projects For Universal Cable Productions — Digital story publishing platform Wattpad has announced a deal with Universal Cable Productions (UCP) — a division of NBCUniversal Cable Entertainment that produces shows like Mr. Robot and Suits — to develop original television projects derived from stories distributed via Wattpad. The ensuing series will come from multiple genres, accord",
+"sid": "s101"
+},
+{
+"rid": 8781009,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.31",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "iGambit, Inc. raises $24.5M private round (Other Health Care) — [Funding · SEC Form D] iGambit, Inc. (ATLANTA, GEORGIA) filed a Reg-D private offering. Industry: Other Health Care. Total offering $24.5M, sold $24.5M. Filed None.",
+"sid": "s102"
+},
+{
+"rid": 25843171,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Wired",
+"text": "Whatever AI Safety Is, It’s Not This — Asking AI companies to self-regulate is a great way to pretend like you’ve accomplished something.",
+"sid": "s103"
+},
+{
+"rid": 9734675,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.02",
+"source": "OpenAlex Science (TECH)",
+"text": "The nature of mathematical concepts. — [Science · OpenAlex]",
+"sid": "s104"
+},
+{
+"rid": 588877,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Gründerszene",
+"text": "Wenn ihr Android-Nutzer seid, solltet ihr diese Apps sofort löschen — Im Google Play Store verbergen sich zahlreiche Apps von unbekannten Anbietern, die gefährliche Viren enthalten. Hier stellen wir eine Liste von 15 häufig heruntergeladenen Apps vor, die ihr sofort deinstallieren und löschen solltet, denn sie könnten gefährlich für euch sein. Laut dem Wirtschaftsmagazin Forbes sind es gerade Apps, die angeblich die ",
+"sid": "s105"
+},
+{
+"rid": 24744157,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Longevity.Technology",
+"text": "Greenstone Biosciences awarded funding to advance type 1 diabetes research — Greenstone Biosciences has been awarded a Breakthrough T1D Industry Discovery and Development Partnership grant to develop a type 1 diabetes-derived islet cell platform aimed at understanding and protecting insulin-producing beta cells. The company plans to generate induced pluripotent stem cells from a diverse group of people with type 1 di",
+"sid": "s106"
+},
+{
+"rid": 24014579,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "SBIR/STTR Awards (US Startup R&D Funding)",
+"text": "Correlated Solutions, Inc. wins $150k SBIR Phase I award (Department of Defense) — [Funding · SBIR Phase I · Department of Defense · Irmo, SC · $150k] Noncontacting Full-Field Real-Time Strain Measurement System for Air Platforms in Combined Extreme Environments. Correlated Solutions, Inc. (13 employees; www.correlatedsolutions.com): ABSTRACT:A cooperative small business and university research and development progra",
+"sid": "s107"
+},
+{
+"rid": 791073,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "UKRI Gateway to Research (UK)",
+"text": "The effects of stochasticity and population structure on mathematical descriptions of evolutionary dynamics — [Funding · UKRI/EPSRC · UK] Research Area: Mathematical Biology Darwinian evolution is based on three fundamental principles: reproduction, mutation and selection. These determine how traits change in time within a population. There are numerous mathematical descriptions of the resulting evolutionary dynamics",
+"sid": "s108"
+},
+{
+"rid": 8846685,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.28",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "PharmassetX Inc. raises $20.0M private round (Pharmaceuticals) — [Funding · SEC Form D] PharmassetX Inc. (Louisville, KENTUCKY) filed a Reg-D private offering. Industry: Pharmaceuticals. Total offering $20.0M, sold $50,000. Filed 2025-10-10.",
+"sid": "s109"
+},
+{
+"rid": 23559638,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "arXiv Preprints",
+"text": "Internet of Things Platform Service Supply Innovation: Exploring the Impact of Overconfidence — [Preprint · arXiv:econ.GN] This paper explores the impact of manufacturers' overconfidence on their collaborative innovation with platforms in the Internet of Things (IoT) environment by constructing a game model. It is found that in both usage-based and revenue-sharing contracts, manufacturers' and platforms' innovation i",
+"sid": "s110"
+},
+{
+"rid": 8763298,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.14",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Espoquist, LLC raises $600,000 private round (Other Technology) — [Funding · SEC Form D] Espoquist, LLC (DARIEN, ILLINOIS) filed a Reg-D private offering. Industry: Other Technology. Total offering $600,000, sold $0. Filed None.",
+"sid": "s111"
+},
+{
+"rid": 8813847,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.44",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "PayByCar, Inc. raises $6.2M private round (Other Technology) — [Funding · SEC Form D] PayByCar, Inc. (HIGHLAND, NEW YORK) filed a Reg-D private offering. Industry: Other Technology. Total offering $6.2M, sold $5.1M. Filed 2022-04-15.",
+"sid": "s112"
+},
+{
+"rid": 8802901,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.09",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "OP 490 Metroplex Holdings, LLC raises $4.6M private round (Commercial) — [Funding · SEC Form D] OP 490 Metroplex Holdings, LLC (NASHVILLE, TENNESSEE) filed a Reg-D private offering. Industry: Commercial. Total offering $4.6M, sold $4.6M. Filed 2021-04-06.",
+"sid": "s113"
+},
+{
+"rid": 25123319,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.04",
+"source": "EPO DOCDB (HEALTH)",
+"text": "AUTOMATED CRANIAL BURR HOLE DEVICE — Applicant: HENRY M JACKSON FOUND ADVANCEMENT MILITARY MEDICINE INC. CPC: A61B17/1695, A61B17/1739, A61B2090/103, A61B90/10, A61B2090/033, A61B2018/00595.",
+"sid": "s114"
+},
+{
+"rid": 21257873,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.22",
+"source": "Designboom",
+"text": "ramón esteve: myrtus convention centre — the organic geometry of the building, developed under a circular grid, generates continuity between spaces, stimulating visitors to flow through them.",
+"sid": "s115"
+},
+{
+"rid": 23812383,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (TECH)",
+"text": "Methods and systems for checking resource integrity — Methods and systems are described for verifying the integrity of resources. A client device may send to a lookup server a request for information associated with accessing a resource. The client device may receive the information. A portion of the information may comprise a cryptographic value associated with the resource. The client device may use the information",
+"sid": "s116"
+},
+{
+"rid": 20675761,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.22",
+"source": "TechCrunch",
+"text": "This stupid gadget doesn't work and you shouldn't buy it and it sucks — Sure, we know that your cellphone won’t explode and kill you now, great. But what about that pesky, pesky radiation? While the jury’s still out on that one, you can look to snake-oil devices that at least make you think you’re doing something to mitigate their problems. Take the PowerDome, an add-on to your cellphone […]",
+"sid": "s117"
+},
+{
+"rid": 23238489,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.05",
+"source": "EPO DOCDB (DESIGN)",
+"text": "Mattresses with comfort and stability zones — A mattress may include a first section extending from the head end by a distance between 15 to 19 inches, and a second section adjacent to the first section and extending from the first section by a distance of 31 to 35 inches. In some embodiments, the first section includes a different material than the second section. The second section may include coil springs, foam, o",
+"sid": "s118"
+},
+{
+"rid": 23823041,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Horizont",
+"text": "Mit Kaminski auf Fehmarn: Podcasterin Karolin Junker de Neui: Was China dem deutschen Handel voraus hat (Teil 2) — ",
+"sid": "s119"
+},
+{
+"rid": 23750888,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "OpenAlex fresh: Higher education",
+"text": "Undergraduate Dental Education in Prosthodontics: Current Scenario and Future Trends — [Science · Higher education] Dentistry in India is currently being challenged to maintain its professionalism. We produce 25000-30000 dental graduates annually. The challenges any dental university faces is to optimize education to its students, prioritize clinical service to its patients and still enforce mandatory regulations and",
+"sid": "s120"
+},
+{
+"rid": 24188118,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "CORDIS EU Research Projects (SME Participations)",
+"text": "BLUEMORPH TECHNOLOGIES LTD secures EUR 50k Horizon 2020 grant (UVT) — [Funding · Horizon 2020 · SME · LONDON, UK · EUR 50k] UV cleaning for beverage tanks eliminating the need for water and chemicals. BLUEMORPH TECHNOLOGIES LTD: BlueMorph have developed a unique patented waterless sanitation system for steel vessels and large tanks used in the beverage production process (to be used by wineries, breweries, milk and j",
+"sid": "s121"
+},
+{
+"rid": 25275720,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.04",
+"source": "EPO DOCDB (TECH)",
+"text": "FEEDBACK INFORMATION TRANSMISSION METHOD AND APPARATUS, TERMINAL, AND NETWORK SIDE DEVICE — Applicant: VIVO MOBILE COMMUNICATION CO LTD. CPC: H04L1/1812, H04L1/1607, H04L5/0055, H04W72/0446, H04L5/0094, H04L5/0055.",
+"sid": "s122"
+},
+{
+"rid": 9636161,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "Role of Ubiquitination in Neurocristopathies and Neural Crest-Derived Cancers — [Funding · NIH/NIGMS · US-CA · $54k] PROJECT SUMMARY Human embryonic stem cells (hESCs) are an invaluable tool for human disease modeling and the field of regenerative medicine. Human ESCs behave like stem cells in culture, having the capacity to divide in culture (self-renew) and the ability to produce different cell types (differentiati",
+"sid": "s123"
+},
+{
+"rid": 25434365,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.07",
+"source": "EPO DOCDB (FASHION)",
+"text": "SOLE — This sole is provided with a forefoot portion Pf that supports the toe region and the metatarsal region of a shoe wearer. A sole lower surface 1u defining a ground contact surface of the forefoot portion Pf includes: a first medial metatarsal portion 2 for supporting the ball-of-the-big-toe region of the wearer; a first lateral metatarsal portion 3 for supporting the ball-of-the-little-toe region of the wearer",
+"sid": "s124"
+},
+{
+"rid": 21280752,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.28",
+"source": "Designboom",
+"text": "ujjval panchal & kinny soni design mango tree house in india — as suggested by its name, the home’s concept focuses on the appreciation and integration of several mature mango trees located on the bhopal, india plot.",
+"sid": "s125"
+},
+{
+"rid": 9481930,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.33",
+"source": "OpenAlex Science (HEALTH)",
+"text": "Visceral protein status and caloric intake in exercising versus nonexercising individuals with end-stage renal disease — [Science · OpenAlex]",
+"sid": "s126"
+},
+{
+"rid": 23341184,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.09",
+"source": "EPO DOCDB (FASHION)",
+"text": "MOBILE DRYING SYSTEM FOR A VEHICLE, IN PARTICULAR A CAMPING VEHICLE, COMMERCIAL VEHICLE OR SIMILAR — Applicant: EBERSPAECHER CLIMATE CONTROL SYS GMBH & CO KG. CPC: B60H1/2212, B60H1/2225, B60H1/2209, B60H1/2221, B60H1/00364, B60H1/00592.",
+"sid": "s127"
+},
+{
+"rid": 25277927,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.20",
+"source": "EPO DOCDB (HEALTH)",
+"text": "Method and apparatus for supporting a u-shaped portion of an elongate flexible element relative to a human body tissue — An apparatus and a method of engaging a U-shaped portion of an elongate flexible element with the apparatus. The apparatus has a body with an anchoring part, a channel extending up to the anchoring part, and an entry opening to the channel. With the U-shaped portion and body in an operative relatio",
+"sid": "s128"
+},
+{
+"rid": 8752352,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.23",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "REALIST PHARMA INC. raises $6 private round (Other Health Care) — [Funding · SEC Form D] REALIST PHARMA INC. (TORONTO, ONTARIO, CANADA) filed a Reg-D private offering. Industry: Other Health Care. Total offering $6, sold $6. Filed None.",
+"sid": "s129"
+},
+{
+"rid": 22917628,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.36",
+"source": "EPO DOCDB (FOOD)",
+"text": "Efficient and energy-saving beer malt continuous drying and baking integrated device — The efficient and energy-saving beer malt continuous drying and baking integrated device comprises a bottom plate, supporting frames are fixed to the corners of the top end of the bottom plate, a base is fixedly installed at the top ends of the multiple supporting frames, an outer drying box is arranged on one side of the top end o",
+"sid": "s130"
+},
+{
+"rid": 23268366,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "PNAS",
+"text": "At the boundary: Law and AI — Proceedings of the National Academy of Sciences, Volume 123, Issue 30, July 2026.",
+"sid": "s131"
+},
+{
+"rid": 21573100,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Tubefilter",
+"text": "Jeffrey Katzenberg’s Quibi To Produce ‘Frat Boy Genius,’ A Withering Look At Evan Spiegel — Jeffrey Katzenberg has revealed that one of Quibi’s launch titles will be a Snapchat-inspired version of The Social Network. The series, called Frat Boy Genius, will follow a semi-fictionalized version of Snap, Inc. founder and CEO Evan Spiegel. It’s narrated by a fictional character named Lily, who attended Stanford with Spie",
+"sid": "s132"
+},
+{
+"rid": 24552907,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.44",
+"source": "OpenAlex fresh: Reliability (semiconductor)",
+"text": "Career Decision Ambiguity Tolerance: Psychometric Evaluation of the Polish Version and Further Evidence for the Distinction Between Tolerance and Confidence — [Science · Reliability (semiconductor)] The present study introduces the concept of career decision ambiguity tolerance (CDAT) proposed by Xu and Tracey, and examines the psychometric properties of the Polish adaptation of the CDAT-R scale. CDAT refers to indiv",
+"sid": "s133"
+},
+{
+"rid": 8785190,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.44",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Gesture US, Inc. raises $930,000 private round (Other Technology) — [Funding · SEC Form D] Gesture US, Inc. (NEW YORK, NEW YORK) filed a Reg-D private offering. Industry: Other Technology. Total offering $930,000, sold $715,000. Filed None.",
+"sid": "s134"
+},
+{
+"rid": 263691,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Impact Alpha",
+"text": "Uganda’s gnuGrid pivots from solar data to financial data — ImpactAlpha, September 23 – Kampala-based gnuGrid launched in 2019 as a data and payments intermediary for home solar providers and microgrid operators and …",
+"sid": "s135"
+},
+{
+"rid": 13310124,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.16",
+"source": "EPO DOCDB (FOOD)",
+"text": "Chafing dish with dregs, vinegar and crayfish and making method of chafing dish — The invention provides a chafing dish containing dregs, vinegar and crayfish and a preparation method of the chafing dish. The dry-pot crayfish with the dregs and the vinegar comprises main materials, auxiliary materials and seasonings, the main materials comprise 900-1100 g of crayfish, and the auxiliary materials comprise 90-110 g of ",
+"sid": "s136"
+},
+{
+"rid": 9160925,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.36",
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "Comprehensive Campus Suicide Prevention — [Funding · NIH/SAMHSA · US-PA] ABSTRACT NOT PROVIDED",
+"sid": "s137"
+},
+{
+"rid": 9492876,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.24",
+"source": "OpenAlex Science (BIZ)",
+"text": "Consumers' Processing of Persuasive Advertisements: An Integrative Framework of Persuasion Theories — [Science · OpenAlex] Joan Meyers-Levy, Prashant Malaviya, Consumers' Processing of Persuasive Advertisements: An Integrative Framework of Persuasion Theories, Journal of Marketing, Vol. 63, Fundamental Issues and Directions for Marketing (1999), pp. 45-60",
+"sid": "s138"
+},
+{
+"rid": 577931,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "AthletechNews",
+"text": "Investment Outlook: What’s Winning in Health, Wellness & Longevity — Jamie Weeks breaks down which wellness concepts are getting investment and why, including the rise of Pilates and the emerging fields of brain health and unplugging.",
+"sid": "s139"
+},
+{
+"rid": 9166703,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.35",
+"source": "OpenAlex Science (TECH)",
+"text": "A 3D perfectly matched medium from modified maxwell's equations with stretched coordinates — [Science · OpenAlex] Abstract A modified set of Maxwell's equations is presented that includes complex coordinate stretching along the three Cartesian coordinates. The added degrees of freedom in the modified Maxwell's equations allow the specification of absorbing boundaries with zero reflection at all angles of incidence an",
+"sid": "s140"
+},
+{
+"rid": 25459917,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Helmholtz-Gemeinschaft",
+"text": "Früherkennung weiterdenken: Lungenkrebs — Erst seit Kurzem gibt es in Deutschland ein CT-Screening für langjährige Raucherinnen und Raucher. Der Epidemiologe Prof. Rudolf Kaaks erklärt, warum Berechtigte das Angebot oft nicht kennen und warum die regelmäßige Teilnahme an der Untersuchung wichtig ist.",
+"sid": "s141"
+},
+{
+"rid": 23332822,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.05",
+"source": "EPO DOCDB (FASHION)",
+"text": "Adjustable decorative drawstring — A drawstring for a garment includes fasteners for receiving select decorative elements. The length of the drawstring is such that when installed within a garment, only the decorative elements are exposed outside the garment. The fasteners and the drawstring reside within the garment and are therefore hidden from view. The drawstring can either be cut to a predetermined length, or ca",
+"sid": "s142"
+},
+{
+"rid": 9647107,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "OpenAlex Science (HEALTH)",
+"text": "Human hepatocyte culture systems for the in vitro evaluation of cytochrome P450 expression and regulation — [Science · OpenAlex]",
+"sid": "s143"
+},
+{
+"rid": 23267900,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "GlobeNewswire",
+"text": "Li Bang International Announces 1-for-200 Share Consolidation — JIANGYIN, China, July 29, 2026 (GLOBE NEWSWIRE) -- Li Bang International Corporation Inc. (“Li Bang International”) and its subsidiaries (collectively, the “Company,” “we,” “us,” “our company,” or “Li Bang”) (Nasdaq: LBGJ), a company engaged in designing, developing, producing, and selling stainless steel commercial kitchen equipment in China, today anno",
+"sid": "s144"
+},
+{
+"rid": 25119892,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (HEALTH)",
+"text": "AMINO-SUBSTITUTED PYRROLOTRIAZINE DERIVATIVES AS INHIBITORS OF SGK1 — The present invention provides compounds of Formula (I) or stereoisomers, tautomers, or pharmaceutically acceptable salts thereof, wherein all the variables am as defined herein. These compounds are selective SGK1 inhibitors. This invention also relates to pharmaceutical compositions comprising these compounds and methods of treating disorders asso",
+"sid": "s145"
+},
+{
+"rid": 23964030,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "SBIR/STTR Awards (US Startup R&D Funding)",
+"text": "EBASE, LLC wins $1.2M SBIR Phase II award (Department of Defense) — [Funding · SBIR Phase II · Department of Defense · Dulles, VA · $1.2M] Automated Space Threat Identification and Assessment. EBASE, LLC (12 employees; https://www.ebaseanalytics.com/): Our proposed technology addresses the need to detect and characterize co-orbital space threats from sparse and ambiguous data quickly and confidently. eBase proposes t",
+"sid": "s146"
+},
+{
+"rid": 722813,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "Google Patents (TECH)",
+"text": "Method, medium and equipment for reducing peak-to-average ratio of orthogonal frequency division multiplexing system — The embodiment of the disclosure relates to a method, medium and equipment for reducing peak-to-average ratio of an orthogonal frequency division multiplexing system. The method comprises the following steps: receiving original data of a signal to be transmitted; generating a first carrier signal of ",
+"sid": "s147"
+},
+{
+"rid": 8835739,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.49",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Electronic Lab Logs, Inc. raises $3.0M private round (Other Technology) — [Funding · SEC Form D] Electronic Lab Logs, Inc. (WILMINGTON, NORTH CAROLINA) filed a Reg-D private offering. Industry: Other Technology. Total offering $3.0M, sold $1.8M. Filed 2024-07-24.",
+"sid": "s148"
+},
+{
+"rid": 23649790,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "OpenAlex fresh: Life extension",
+"text": "Navigating the transformer shortage: Strategies for procurement, life extension, and alternative solutions — [Science · Life extension] A persistent transformer shortage is slowing grid upgrades, construction projects, and the transition to renewable energy. Rising demand, aging infrastructure, and long lead times mean that organizations must plan strategically to avoid costly delays. Practical approaches include tar",
+"sid": "s149"
+},
+{
+"rid": 639426,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Gründerszene",
+"text": "Der Aktienmarkt im Wandel: Plötzlich zählt mehr als nur Tech & KI — In den letzten Jahren verhielt sich der Aktienmarkt wie die Chicago Bulls der 1990er-Jahre: Wichtige Indizes haben wiederholt Rekordstände erreicht – ähnlich wie die Bulls, die in diesem Zeitraum wiederholt die NBA-Meisterschaft gewannen und in acht Jahren sechs Titel sammelten. Ein großer Teil der Kursgewinne konzentrierte sich auf eine Elitegruppe ",
+"sid": "s150"
+},
+{
+"rid": 23885434,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.08",
+"source": "EPO DOCDB (DESIGN)",
+"text": "PANEL INSTALLATION APPARATUS — A hand-held tool for supporting a horizontally-oriented panel, e.g. drywall, while installing the panel on a ceiling is provided. The tool has a gripping region, a plurality of spaced-apart elongated panel supports, a plurality of spaced-apart struts connecting the gripping region to the panel supports, and a holder configured to releasably retain fasteners for installing the panel of t",
+"sid": "s151"
+},
+{
+"rid": 23723828,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.36",
+"source": "OpenAlex fresh: Telecommuting",
+"text": "Secured Strategic Workspace Ambience During Global Pandemic Crisis — [Science · Telecommuting]",
+"sid": "s152"
+},
+{
+"rid": 2057005,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.48",
+"source": "EPO DOCDB (FOOD)",
+"text": "Hybrid Tomato Variety 'H2247' — Hybrid tomato variety ‘H2247’ is described. The tomato variety is a ground-culture hybrid processing tomato variety suitable for machine harvest and is adaptable to humid climactic regions such as the Northeastern USA, Canada and Spain. It is a main season variety with resistance to verticillium wilt, fusarium wilt races 1 and 2, root knot nematode, tomato spotted wilt virus and modera",
+"sid": "s153"
+},
+{
+"rid": 21289114,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.20",
+"source": "Designboom",
+"text": "cartier breathes new life into emblematic shapes presenting épure & excès at SIHH 2018 — cartier’s creative concept employs stark contrasts and parisian masters of metalwork, carpentry, leatherwork, marquetry and couture.",
+"sid": "s154"
+},
+{
+"rid": 23974976,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "SBIR/STTR Awards (US Startup R&D Funding)",
+"text": "VINCIVR, Inc. wins $670k SBIR Phase II award (Department of Defense) — [Funding · SBIR Phase II · Department of Defense · BRIGHTON, MA · $670k] CODEX: Adaptable Virtual Simulation Platform for Mobile App Based Technical Training. VINCIVR, Inc. (4 employees): 361 Training Squadron and AETC have determined a national defense-related need to deploy scalable 3D interactive training that can provide training both during t",
+"sid": "s155"
+},
+{
+"rid": 8765882,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.30",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "TCP Holdings, LLC raises $16.3M private round (Manufacturing) — [Funding · SEC Form D] TCP Holdings, LLC (HAMLET, NORTH CAROLINA) filed a Reg-D private offering. Industry: Manufacturing. Total offering $16.3M, sold $16.3M. Filed None.",
+"sid": "s156"
+},
+{
+"rid": 23115266,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.01",
+"source": "EPO DOCDB (DESIGN)",
+"text": "DOMESTIC APPLIANCE WITH A FASTENING DEVICE FOR FASTENING A DECORATIVE ELEMENT TO A DOOR OF THE DOMESTIC APPLIANCE — Applicant: GUANGDONG MIDEA KITCHEN AND BATH APPLIANCES MFG CO LTD. CPC: F25D23/028, F25D23/067, F25D2400/18, F25D23/10, A47L15/4265.",
+"sid": "s157"
+},
+{
+"rid": 24148515,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "SBIR/STTR Awards (US Startup R&D Funding)",
+"text": "Plaur Corp wins $50k SBIR Phase I award (Department of Defense) — [Funding · SBIR Phase I · Department of Defense · Columbia, SC · $50k] ADVANCE GUN BARREL TECHNOLOGY THROUGH PLASMA SURFACE ALLOYING. Plaur Corp (5 employees): THE HOSTILE ENVIRONMENT EXISTING AT THE BORE SURFACE OF GUN BARRELS USED IN HIGH RATE OF FIRE AIRCRAFT CANNONS PRESENTS A FORMIDABLE DESIGN CHALLENGE TO THE GUN DESIGNER. HEAT, FRICTION, CORROSI",
+"sid": "s158"
+},
+{
+"rid": 8860215,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.23",
+"source": "OpenAlex Science (HEALTH)",
+"text": "Evolving functions of endothelial cells in inflammation — [Science · OpenAlex]",
+"sid": "s159"
+},
+{
+"rid": 23541927,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.26",
+"source": "arXiv Preprints",
+"text": "Coarse-Graining and the Classification of Long-Range Correlations in Quantum Field Theory — [Preprint · arXiv:quant-ph] A conservation-law-guided classification framework is developed for the execution of coarse-graining operations in quantum field theory. Coarse-graining produces a selection at the level of Feynman diagrams. Diagrams with nonzero momentum transfer are suppressed by oscillatory factors, zero-momentum",
+"sid": "s160"
+},
+{
+"rid": 12320659,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.28",
+"source": "EPO DOCDB (FOOD)",
+"text": "Processing and formula for black golden bud milk extract — The invention discloses processing and a formula for black golden bud milk extraction, and belongs to the technical field of black golden bud milk extraction processing, and the processing method comprises the following steps: S1, preparing raw materials, and cleaning peanut buds and black peanut buds for later use; s2, extracting essence from the peanut spro",
+"sid": "s161"
+},
+{
+"rid": 23243513,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.03",
+"source": "EPO DOCDB (HEALTH)",
+"text": "SULFINYLAMINOBENZAMIDE AND SULFONYLAMINOBENZAMIDE DERIVATIVES — Provided is a compound of Formula (I):wherein the variable groups are defined herein. Applicant: ORSOBIO INC. CPC: C07C2602/44, C07C311/14, C07C311/21, C07C317/22, C07C311/29, C07D257/04.",
+"sid": "s162"
+},
+{
+"rid": 23548692,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "arXiv Preprints",
+"text": "Influence of Magnetospheric Plasma Environment on Surface Charging of the Lunar South Pole — [Preprint · arXiv:physics.space-ph] The lunar south pole is a key candidate region for future lunar exploration and base construction, but its charging characteristics under real topographic conditions and dynamic plasma environments remain insufficiently understood. A high-fidelity terrain model of the lunar south pole spann",
+"sid": "s163"
+},
+{
+"rid": 25114724,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.35",
+"source": "EPO DOCDB (FOOD)",
+"text": "Sandwich maker — A sandwich maker is provided, including a support structure, a pressing mechanism, a hot-pressing structure, a bearing structure, a conveying mechanism, and a controller. The pressing mechanism includes a first motor set, a first transmission rod, and a connecting base, where the connecting base performs linear reciprocating motion along a first direction driven by the first motor set and the first t",
+"sid": "s164"
+},
+{
+"rid": 23339731,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (TECH)",
+"text": "CORRELATING SECRET ALLOCATIONS, USE AND EXPOSURE — Cross-correlating identifiers are created and stored in a security asset database for corresponding security assets. The security asset database is used with the cross-correlating identifiers to perform functions for the underlying security assets without exposing the security assets. One function is a scan of network resources for potential exposure of the security ",
+"sid": "s165"
+},
+{
+"rid": 13002649,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (HEALTH)",
+"text": "Traditional Chinese medicine tea substitute drink for treating mild hypertension — The invention discloses a traditional Chinese medicine tea substitute drink for treating mild hypertension, which is prepared by the following steps: selecting chrysanthemum, sophora flower, dendrobe, lotus leaf and lophatherum gracile as raw materials, cleaning the raw materials, putting the raw materials into a water cup, boiling dri",
+"sid": "s166"
+},
+{
+"rid": 9185401,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.10",
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "VANDERBILT UNIVERSITY CTSA FOR CLINICAL TRIALS — [Funding · NIH/NCRR · US-TN · $738k] This subproject is one of many research subprojects utilizing the resources provided by a Center grant funded by NIH/NCRR. The subproject and investigator (PI) may have received primary funding from another NIH source, and thus could be represented in other CRISP entries. The institution listed is for the Center, which is not necess",
+"sid": "s167"
+},
+{
+"rid": 23447594,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "OpenAlex: Health informatics",
+"text": "Health policy experts’ perspectives on implementing mental health specialist video consultations in routine primary care – a qualitative interview study — [Science · Health informatics] BACKGROUND: Many patients with mental disorders are treated by their general practitioner (GP). Innovative technology-based integrated care models (e.g., mental health specialist video consultations) have been proposed to facilitate a",
+"sid": "s168"
+},
+{
+"rid": 23759250,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.27",
+"source": "biorxiv Preprints",
+"text": "Immune recognition of transmissible cancers in Tasmanian devils with MHC-I deletion — [Preprint · biorxiv:genetics] Withdrawal StatementThe authors have withdrawn this manuscript because further analysis has been undertaken and the manuscript completely re-written. Therefore, the authors do not wish this work to be cited as reference for the project. If you have any questions, please contact the corresponding author.",
+"sid": "s169"
+},
+{
+"rid": 9470984,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.10",
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "Teen Court — [Funding · NIH/SAMHSA · US-IL]",
+"sid": "s170"
+},
+{
+"rid": 628480,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Asia Times",
+"text": "Philippines-Vietnam teaming up on China in South China Sea — MANILA – Philippine President Ferdinand Marcos Jr has not only revitalized defense ties with traditional Western allies but has also doubled down on strategic cooperation with like-minded regional states pushing back against China’s South China Sea assertiveness. In particular, Vietnam has emerged as a pivotal player in the Philippines’ emerging regional st",
+"sid": "s171"
+},
+{
+"rid": 13066351,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.40",
+"source": "EPO DOCDB (FOOD)",
+"text": "Preparation method of cold-extracted freeze-dried coffee powder with fruit flavor — The invention relates to the technical field of food processing, in particular to a preparation method of fruit-flavored cold-extracted freeze-dried coffee powder, which comprises the following specific steps: S1, fruit raw material pretreatment: S1.1, raw material selection: selecting fresh fruits which are free of plant diseases and",
+"sid": "s172"
+},
+{
+"rid": 24166226,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "CORDIS EU Research Projects (SME Participations)",
+"text": "CLEIA secures EUR 202k Horizon Europe grant (CONVINCE) — [Funding · Horizon Europe · SME · NOLAY, FR · EUR 202k] CONtext-aware VerifIable dyNamiC dEliberation. CLEIA: In recent years, robots are being increasingly deployed outside strictly controlled environments. When faced with unexpected situations, these robots are often incapable of taking appropriate action and require human intervention. The goal of CONVINCE i",
+"sid": "s173"
+},
+{
+"rid": 8838323,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.26",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Hephae Energy Technology Corp raises $7.4M private round (Other Technology) — [Funding · SEC Form D] Hephae Energy Technology Corp (SPRING, TEXAS) filed a Reg-D private offering. Industry: Other Technology. Total offering $7.4M, sold $6.3M. Filed 2024-10-03.",
+"sid": "s174"
+},
+{
+"rid": 8850866,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.40",
+"source": "OpenAlex Science (HEALTH)",
+"text": "Attention to eyes is present but in decline in 2–6-month-old infants later diagnosed with autism — [Science · OpenAlex]",
+"sid": "s175"
+},
+{
+"rid": 375735,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "NEJM",
+"text": "An Early Look at mRNA Vaccines to Prevent Influenza — ",
+"sid": "s176"
+},
+{
+"rid": 21324536,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.20",
+"source": "Design Milk",
+"text": "Hunde Hus Dog House and Bedside Table — Etsy seller madshome has created a bedside table that also doubles as a stylish pup nest called the Hunde Hus. The home is available in left or right configurations as well as custom colors, and fits a smallish-sized dog. The sheepskin is optional.",
+"sid": "s177"
+},
+{
+"rid": 23270662,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "The Lancet",
+"text": "[Comment] What can psychiatrists expect from the next DSM? — ",
+"sid": "s178"
+},
+{
+"rid": 8754936,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.13",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "SECOND LABEL LLC raises undisclosed private round (Restaurants) — [Funding · SEC Form D] SECOND LABEL LLC (SAN FRANCISCO, CALIFORNIA) filed a Reg-D private offering. Industry: Restaurants. Total offering undisclosed, sold $295,000. Filed None.",
+"sid": "s179"
+},
+{
+"rid": 8715333,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.16",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "u9t, Inc. raises $400,003 private round (Other Technology) — [Funding · SEC Form D] u9t, Inc. (SAN JOSE, CALIFORNIA) filed a Reg-D private offering. Industry: Other Technology. Total offering $400,003, sold $400,003. Filed None.",
+"sid": "s180"
+},
+{
+"rid": 25257344,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "ArchDaily",
+"text": "Split-Level Apartment / Shiye Architecture Design and Research Practice — When a home is freed from the complex demands of multi-generational living and serves only the long-term residence of a single individual, the conventional order of domestic life becomes open to reinterpretation. Located in Chongqing , this project involves a stacked villa spanning approximately 200 square meters. Taking this context as a start",
+"sid": "s181"
+},
+{
+"rid": 22488760,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.17",
+"source": "EPO DOCDB (FOOD)",
+"text": "Preserved dogwood and preparation method thereof — The invention belongs to the technical field of food processing, and particularly relates to preserved dogwood and a preparation method thereof. The preserved dogwood is mainly prepared from the following raw materials in parts by weight: 70 to 90 parts of fresh dogwood, 5 to 10 parts of folium cortex eucommiae, 2 to 6 parts of folium forsythiae, 20 to 30 parts of fr",
+"sid": "s182"
+},
+{
+"rid": 25220990,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "OpenAlex fresh: Higher education",
+"text": "“PRO-Inclusion” Methodological Toolkit, Based on Neural Network Technologies, as a Means of Developing Teachers’ Inclusive Competence — [Science · Higher education] Introduction. The relevance of this study stems from the integration of artificial intelligence technologies into the inclusive education system, which is becoming a strategic vector for development due to these technologies’ ability to personalise learni",
+"sid": "s183"
+},
+{
+"rid": 22647172,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.42",
+"source": "EPO DOCDB (FOOD)",
+"text": "Onion food as well as preparation method and application thereof — An onion product containing sodium metabisulfite, a flavor, a food-grade acid, onions, flavor, onions and an acidified solution comprising water and a food-grade acid, which allows for commercialized sterility of onion food as much as possible. Although may be otherwise prepared, the onion product is produced from a four-step filling process, includin",
+"sid": "s184"
+},
+{
+"rid": 25494352,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "The Conversation",
+"text": "The English paid off the Vikings for almost a century. But was the Danegeld such a bad idea? — It’s easy to say now that paying the Vikings to go away ‘didn’t work’. But this obscures the fact paying off one Viking band didn’t ensure another would stop coming.",
+"sid": "s185"
+},
+{
+"rid": 21208311,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.24",
+"source": "Grist",
+"text": "Just like you, NASA wants to send your kids to Mars — but for different reasons — Watch the Human to Mars summit livestream this week, and see how NASA plans to get our asses to Mars.",
+"sid": "s186"
+},
+{
+"rid": 61495,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Food Navigator Asia",
+"text": "The frontiers of functional dairy — Chief Strategy Asia Officer · Bel Groupe · Dr. Ignatius Man-Yau Szeto · Assistant President · Yili · Yunn Lim · Senior Food Science Analyst · Mintel · Elan Halpern · Co-Founder · Sourmilk · Vibhah Shiriwastow · Founder · Four Leaves Co. Rob Yates · CEO · Tom Parker Creamery · Pearly Neo · Editor · FoodNavigator-Asia ·",
+"sid": "s187"
+},
+{
+"rid": 23570584,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "NSF Awards (US Federal Research Funding)",
+"text": "GEO-CM: Relative Timing and Temperature of Copper Mineralization in Porphyry Deposits — [Funding · NSF/NSF CriticalMinerals&Materials · US-CO · $452k] This project aims to increase understanding of Earth processes that result in the formation of economic porphyry copper resources. “Porphyry” means large crystals dispersed among fine grains. Porphyry deposits represent the world’s dominant source of the critical miner",
+"sid": "s188"
+},
+{
+"rid": 25282108,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.26",
+"source": "EPO DOCDB (ECO)",
+"text": "WATER PURIFIER — The present disclosure relates to a water purifier. Specifically, according to an embodiment of the present disclosure, a water purifier may be provided, including: a water purifier main body configured such that at least a part thereof is opened; a filter unit for filtering raw water to provide purified water; a flow channel providing a passage through which the raw water and the purified water flow",
+"sid": "s189"
+},
+{
+"rid": 23884824,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (ECO)",
+"text": "Methods and systems for retaining lateral control of an unmanned aerial vehicle during landing — Systems, devices, and methods including an unmanned aerial vehicle (UAV) (101); one or more inner wing panels (107) of the UAV; one or more outer wing panels (109) of the UAV; at least one inboard propeller (140) attached to at least one engine (110) disposed on the one or more inner wing panels; at least one tip propelle",
+"sid": "s190"
+},
+{
+"rid": 8734641,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.11",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Helpful Alliance Co raises $1.0M private round (Construction) — [Funding · SEC Form D] Helpful Alliance Co (Deerfield Beach, FLORIDA) filed a Reg-D private offering. Industry: Construction. Total offering $1.0M, sold $1.0M. Filed None.",
+"sid": "s191"
+},
+{
+"rid": 25450479,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.03",
+"source": "EPO DOCDB (DESIGN)",
+"text": "DOCKING STATION AND CLEANING SYSTEM — Applicant: BEIJING XIAOMI MOBILE SOFTWARE CO LTD. CPC: A47L2201/024, A47L9/0063, A47L11/4088, A47L7/0061, A47L11/4091, A47L9/2873.",
+"sid": "s192"
+},
+{
+"rid": 24715500,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (TECH)",
+"text": "Modular Image Capture Systems — A system including a mechanical stabilization system configured to control an orientation of an image capture module. The system includes a handheld module in communication with the mechanical stabilization system. The handheld module is shaped to be ergonomically held in a hand. The handheld module includes a battery, a connector, a fastening mechanism, microphones, and a mounting dev",
+"sid": "s193"
+},
+{
+"rid": 25210044,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "OpenAlex fresh: Carbon sequestration",
+"text": "Evaluation des biens et services écosystémiques de la mangrove de l’Aire Marine Protégée de Bamboug (Sénégal) — [Science · Carbon sequestration] The Bamboung Community Marine Protected Area (CMPA/B) plays a major role in providing a wide range of ecosystem services, including provisioning, regulating, supporting, and cultural services. However, the economic value of some of these services is still difficult to recogn",
+"sid": "s194"
+},
+{
+"rid": 23238633,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (HEALTH)",
+"text": "Method for multi-energy X-ray imaging, X-ray facility, treatment system, computer program and electronically readable data carrier — A method is provided for multi-energy X-ray imaging of a field of view in order to display a contrast material, located in the field of view, having an atomic number of at least 65, (e.g., at least 73), and/or a k-edge of at least 60 keV. In the method, two image datasets having differe",
+"sid": "s195"
+},
+{
+"rid": 23458540,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.44",
+"source": "OpenAlex: Human resource management",
+"text": "A Comparative Analysis of Domestic vs. International Human Resources Management (HRM) — [Science · Human resource management] The importance of understanding and effectively managing human resource management (HRM) practices in both domestic and international contexts cannot be overstated. As organizations expand their operations globally, they face unique challenges and opportunities related to HRM strategies, polic",
+"sid": "s196"
+},
+{
+"rid": 24710942,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.34",
+"source": "EPO DOCDB (TECH)",
+"text": "Method and apparatus, device, and medium for creating message channel — The present invention relates to the field of computer technologies, and discloses methods and apparatuses for creating a message channel, a device, and a medium. In the methods provided in embodiments of the present application, a client performs a message channel creation operation, and transmits a communication port for the message channel and",
+"sid": "s197"
+},
+{
+"rid": 23711285,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "biorxiv Preprints",
+"text": "X-ray Spectroscopy Meets Native Mass Spectrometry: Probing Gas-phase Protein Complexes — [Preprint · biorxiv:biochemistry] Gas-phase activation and dissociation studies of biomolecules, proteins and their non-covalent complexes using X-rays hold great promise for revealing new insights into the structure and function of biological samples. This is due to the unique properties of X-ray molecular interactions, such as ",
+"sid": "s198"
+},
+{
+"rid": 8723695,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.17",
+"source": "OpenAlex Science (TECH)",
+"text": "Mean squared error: Love it or leave it? A new look at Signal Fidelity Measures — [Science · OpenAlex] In this article, we have reviewed the reasons why we (collectively) want to love or leave the venerable (but perhaps hoary) MSE. We have also reviewed emerging alternative signal fidelity measures and discussed their potential application to a wide variety of problems. The message we are trying to send here is not t",
+"sid": "s199"
+},
+{
+"rid": 21627830,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.22",
+"source": "Yanko Design",
+"text": "The Tent That Packs Down to One Bag, Bed Included — The Tent That Packs Down to One Bag, Bed Included The camping tent hasn’t had a genuine rethink in decades. You still buy poles, you still wrestle with fiberglass or aluminum sleeves in the dark,...",
+"sid": "s200"
+},
+{
+"rid": 20276537,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "STAT News",
+"text": "Broad Institute prevails in heated dispute over CRISPR patents — The US patent office ruled Wednesday that hotly disputed patents on the revolutionary genome-editing technology CRISPR-Cas9 belong to the Broad Institute.",
+"sid": "s201"
+},
+{
+"rid": 740524,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (TECH)",
+"text": "System and method for intelligent static transfer switching — An intelligent static transfer switch provides a primary voltage source to a destination facility via a primary power supply, monitoring the voltage level associated with the primary power supply. When the primary voltage drops below a threshold level (e.g., conditions normally associated with a transfer to a backup power supply), the switch samples the wa",
+"sid": "s202"
+},
+{
+"rid": 23738955,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.24",
+"source": "OpenAlex fresh: Urban planning",
+"text": "Exploring gendered space in Frances Ha: a cinematic analysis of feminist urbanism in New York City — [Science · Urban planning] Film, as a cultural artefact, not only reflects but actively shapes social, political, and spatial imaginaries. Drawing on Henri Lefebvre’s theoretical insights into the social production of space and the ‘right to the city’, this article positions cinema as a critical medium through which u",
+"sid": "s203"
+},
+{
+"rid": 21258860,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Designboom",
+"text": "synecdoche design: edge condition — a pavilion designed using a method of stacking a single off-cuts of wood to make-up the entire structure.",
+"sid": "s204"
+},
+{
+"rid": 22044621,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.03",
+"source": "EPO DOCDB (HEALTH)",
+"text": "MICRONEEDLE SHEET AND APPLICATOR — Applicant: HISAMITSU PHARMACEUTICAL CO. CPC: A61M37/00, A61M37/0015, A61M2037/0061, A61M2037/0007, A61M2210/04, A61M37/0015.",
+"sid": "s205"
+},
+{
+"rid": 1862417,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.05",
+"source": "EPO DOCDB (FOOD)",
+"text": "HYBRID TOMATO VARIETY 72-CH0362 RZ — The present invention relates to a Solanum lycopersicum seed designated 72-CH0362 RZ. The present invention also relates to a Solanum lycopersicum plant produced by growing the 72-CH0362 RZ seed. The invention further relates to methods for producing the tomato cultivar, represented by tomato variety 72-CH0362 RZ. Applicant: RIJK ZWAAN ZAADTEELT EN ZAADHANDEL BV. CPC: A01H6/825, A",
+"sid": "s206"
+},
+{
+"rid": 23647206,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.29",
+"source": "The Conversation",
+"text": "Pesquisa revela como o ambiente insular influenciou a reprodução do lagarto mais típico de Fernando de Noronha — A Mabuia-de-Noronha chegou ao arquipélago por dispersão transoceânica, vinda da África, milhões de anos atrás",
+"sid": "s207"
+},
+{
+"rid": 21379266,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.26",
+"source": "Gründerszene",
+"text": "Einzigartige Waffe: Das sind die zwei mächtigsten Flugzeugträger-Klassen der Welt im Vergleich — Abseits des amerikanischen Militärs besitzt nur Frankreich einen nuklearbetriebenen Flugzeugträger. So schneidet er im Vergleich zu seinem amerikanischen Äquivalent ab:",
+"sid": "s208"
+},
+{
+"rid": 8805485,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.31",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Aether Catalyst Solutions, Inc. raises $65,109 private round (Other Technology) — [Funding · SEC Form D] Aether Catalyst Solutions, Inc. (BURNABY, BRITISH COLUMBIA, CANADA) filed a Reg-D private offering. Industry: Other Technology. Total offering $65,109, sold $28,485. Filed 2021-07-14.",
+"sid": "s209"
+},
+{
+"rid": 24706761,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.34",
+"source": "EPO DOCDB (TECH)",
+"text": "An encoder, a decoder and corresponding methods about signaling high level syntax — A method of coding implemented by a decoding device, the method comprising obtaining a bitstream for a coding block; obtaining a value of a syntax from the bitstream; obtaining a value of deblocking control parameter from the bitstream, when the value of the syntax is equal to a preset value. Applicant: HUAWEI TECHNOLOGIES CO LTD. CPC",
+"sid": "s210"
+},
+{
+"rid": 25152442,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "top agrar",
+"text": "Kriminalität auf britischen Höfen eskaliert - Polizei soll endlich was tun — Der britische Bauernverband NFU fordert angesichts zunehmender Kriminalität auf den Bauernhöfen verstärkte Polizeipräsenz. Auch das Hetzen von Hasen ist ein beliebtes Hobby der Hundehalter.",
+"sid": "s211"
+},
+{
+"rid": 25286145,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.08",
+"source": "EPO DOCDB (HEALTH)",
+"text": "COMPRESSION FOLDABLE FULL-SUTURE INTERFACE SCREW — Applicant: STAR SPORTS MEDICINE CO LTD. CPC: A61B17/0642, A61B2017/0649, A61B2017/0645, A61B17/844, A61B17/8863, A61B17/8872.",
+"sid": "s212"
+},
+{
+"rid": 8774244,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.27",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Raygun, LLC raises $582,000 private round (Retailing) — [Funding · SEC Form D] Raygun, LLC (DES MOINES, IOWA) filed a Reg-D private offering. Industry: Retailing. Total offering $582,000, sold $582,000. Filed None.",
+"sid": "s213"
+},
+{
+"rid": 8881120,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.43",
+"source": "OpenAlex Science (DESIGN)",
+"text": "Spatial Imaginaries Research in Geography: Synergies, Tensions, and New Directions — [Science · OpenAlex] Abstract Human geographers have produced a diverse, and growing, body of literature documenting the existence and consequence of spatial imaginaries. However, reviews explaining and evaluating how geographers conceptualize and empirically verify spatial imaginaries, along with the field's tensions and potential d",
+"sid": "s214"
+},
+{
+"rid": 24733910,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "The Register",
+"text": "Drowning in CVEs and thirsty for answers? Try CTEM — SPONSORED FEATURE: Boards want to know if they're less exposed than last quarter. Patching metrics aren't the solution",
+"sid": "s215"
+},
+{
+"rid": 21563751,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.22",
+"source": "Tubefilter",
+"text": "Adult Swim Looks To Cash In On “Too Many Cooks” Success — It’s been six weeks since Adult Swim first released “Too Many Cooks.” The 11-minute satire of 80s television openings has since drawn more than five million views and earned itself a gold title of its own on YouTube. With the holiday season in full swing, Adult Swim is looking to make a quick buck off its popular YouTube video with a line of t-shirts inspired ",
+"sid": "s216"
+},
+{
+"rid": 24137569,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "SBIR/STTR Awards (US Startup R&D Funding)",
+"text": "Logix Corp. wins $354k SBIR Phase II award (Department of Defense) — [Funding · SBIR Phase II · Department of Defense · Arlington, VA · $354k] AUTOMATED MISSILE ENGAGEMENT PLANNER. Logix Corp. (0 employees): LOGIX CORPORATION IS PROPOSING TO DEVELOP AN APPROACH AND PLAN TO AUTOMATE THE ENGAGEMENT PLANNING FUNCTION FOR A SINGLE OR SALVO FIRINGOF SUBMARINE-LAUNCHED HARPOON AND TOMAHAWK MISSILES. TWO SPECIFIC IMPROVEMEN",
+"sid": "s217"
+},
+{
+"rid": 25445078,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (TECH)",
+"text": "MEMORY DEVICE WITH COMMAND BLOCKING — An electronic device includes a memory device that is able to block execution of commands. The memory device includes memory circuitry and control circuitry. The memory circuitry stores data. The control circuitry is connected to the memory circuitry. The control circuitry receives a first signal from a host device, and blocks execution of commands to the memory circuitry based o",
+"sid": "s218"
+},
+{
+"rid": 25165273,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.24",
+"source": "Frontiers in Psychology",
+"text": "Self-worth and life meaning: the perceived narrative frames on the identity of people with disabilities — This study investigated the narrative frames of disability and their associations with disability identity in the context of China. Specifically, it explored the sense of Self-worth, Life Meaning, Perceived Discrimination, and Disability Denial in people with disabilities and the complex relationships between med",
+"sid": "s219"
+},
+{
+"rid": 21264638,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.25",
+"source": "Designboom",
+"text": "steve jobs’ venus yacht is unveiled — the yacht that was being designed by steve jobs up until his passing a little over a year ago, has made its first appearance as a finished product in the city of aalsmeer in the netherlands.",
+"sid": "s220"
+},
+{
+"rid": 689975,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "Google Patents (ECO)",
+"text": "A kind of plastic cement recycling pulverizer — The utility model is related to a kind of plastic cement recycling pulverizers, including shell, and it is set in turn in the first cutting mechanism and the second cutting mechanism in the shell, first cutting mechanism includes intermeshing a pair of of the pulverization roller being horizontally placed in the shell, second cutting mechanism includes the crushing chan",
+"sid": "s221"
+},
+{
+"rid": 9015056,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.31",
+"source": "OpenAlex Science (HEALTH)",
+"text": "Vibrio parahaemolyticus Diarrhea, Chile, 1998 and 2004 — [Science · OpenAlex] Analysis of clinical isolates of Vibrio parahaemolyticus from outbreaks in Chile in the cities of Puerto Montt in 2004 and Antofagasta in 1998 indicated that 23 of 24 isolates from Puerto Montt and 19 of 20 from Antofagasta belonged to the pandemic clonal complex that emerged in Southeast Asia in 1996.",
+"sid": "s222"
+},
+{
+"rid": 21421453,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Asia Times",
+"text": "Where will China’s super rich migrate if Trump kills the ‘golden visa’? — China’s super rich have for years been leaving the country and bringing their families and wealth with them. The number one choice of destination to migrate, normally via high-rolling investment visa schemes, has been the United States. But since Donald Trump took office in January he has already begun to take a harder stance on […]",
+"sid": "s223"
+},
+{
+"rid": 24177172,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "CORDIS EU Research Projects (SME Participations)",
+"text": "BASELOAD POWER ICELAND EHF. secures EUR 301k Horizon Europe grant (GEOFLEXHEAT) — [Funding · Horizon Europe · SME · Reykjavik, IS · EUR 301k] GEOTHERMAL EXTRACTION AND UPGRADE WITH FLEXIBLE USAGE FOR INDUSTRIAL HEAT APPLICATIONS. BASELOAD POWER ICELAND EHF.: The GEOFLEXheat project aims to revolutionize the European geothermal energy sector by introducing an innovative suite of technologies to enhance the extraction,",
+"sid": "s224"
+},
+{
+"rid": 24065128,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "SBIR/STTR Awards (US Startup R&D Funding)",
+"text": "Psychology Software Tools, Inc. wins $699k SBIR Phase II award (Department of Health and Human Services) — [Funding · SBIR Phase II · Department of Health and Human Services · PITTSBURGH, PA · $699k] Stimulus Delivery and Response Hardware for fMRI Studies in Substance Abuse. Psychology Software Tools, Inc. (0 employees; www.pstnet.com): DESCRIPTION (provided by applicant): Addiction is a critical issue for our socie",
+"sid": "s225"
+},
+{
+"rid": 23774377,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.49",
+"source": "biorxiv Preprints",
+"text": "A Waddingtonian description of the dynamics of Turing patterns — [Preprint · biorxiv:systems biology] Turing patterns are a well-studied model of reaction-diffusion equations for developmental patterning. Their applicability has often been limited by the difficulty in identifying candidate molecules that satisfy the requisite criteria for patterning. Here, we build on recent work on geometric models to describe Turin",
+"sid": "s226"
+},
+{
+"rid": 21359958,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Gründerszene",
+"text": "Zu viel Stress, zu wenig Schlaf: Gewerkschaften fordern bessere Arbeitsbedingungen für Pendler — Pendler BahnPatrik Stollarz/Getty Schöne neue Arbeitswelt? Etwa die Hälfte aller Beschäftigten in Deutschland arbeitet nicht mehr am Wohnort. Deshalb verlangen Gewerkschaften jetzt bessere Arbeitsbedingungen für die wachsende Zahl von Berufspendlern in Deutschland. Vor allem Fernpendler nähmen für den beruflichen Erfolg e",
+"sid": "s227"
+},
+{
+"rid": 9066592,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.04",
+"source": "OpenAlex Science (TECH)",
+"text": "Commentationes physico-mathematicae — [Science · OpenAlex]",
+"sid": "s228"
+},
+{
+"rid": 23810642,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.06",
+"source": "EPO DOCDB (DESIGN)",
+"text": "Elongated ceiling grid member and ceiling grid assembly including a plurality of the elongated ceiling grid member — An elongated ceiling grid member including (1) an upper portion having spaced upper portion side walls (a) threaded to receive and retain a first threaded member and (b) with lowermost edges, (2) a lower portion having spaced lower portion side walls (a) threaded to receive and retain a second threaded",
+"sid": "s229"
+},
+{
+"rid": 24541961,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "ScienceDaily Top",
+"text": "324-million-year-old fossil reveals how insects conquered land — Ancient fossils suggest insects conquered land through a long amphibious phase rather than making an abrupt jump from water to dry ground. A newly identified 324-million-year-old species still carried paddle-like abdominal limbs, revealing an evolutionary bridge between aquatic ancestors and modern six-legged insects.",
+"sid": "s230"
+},
+{
+"rid": 8776828,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.47",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Hungry Marketplace, Inc. raises $8.7M private round (Other Technology) — [Funding · SEC Form D] Hungry Marketplace, Inc. (ARLINGTON, VIRGINIA) filed a Reg-D private offering. Industry: Other Technology. Total offering $8.7M, sold $8.7M. Filed None.",
+"sid": "s231"
+},
+{
+"rid": 5133729,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.12",
+"source": "EPO DOCDB (FOOD)",
+"text": "Leucanthemum plant named ‘Doleuswedaishe’ — A new and distinct cultivar of Leucanthemum plant named ‘Doleuswedaishe’, characterized by its relatively compact, upright and mounded plant habit; freely branching habit; upright flowering stems; early and freely flowering habit; single-type inflorescences with white-colored ray florets and bright yellow-colored disc florets; good inflorescence longevity; and good garden p",
+"sid": "s232"
+},
+{
+"rid": 24755103,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "arXiv Preprints",
+"text": "Structurally Informed Connectivity Disruptions in Cocaine Use Disorder — [Preprint · arXiv:q-bio.NC] Cocaine Use Disorder (CUD) is associated with widespread alterations in large-scale functional brain networks, yet the mechanisms contributing to these changes and their relationship to clinical and cognitive outcomes remain poorly understood. To address this gap, we introduce a framework to extract structurally infor",
+"sid": "s233"
+},
+{
+"rid": 23449191,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.44",
+"source": "OpenAlex: Human resource management",
+"text": "Predicting Chinese human resource managers' strategic competence: Roles of identity, career variety, organizational support and career adaptability — [Science · Human resource management]",
+"sid": "s234"
+},
+{
+"rid": 22038610,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.17",
+"source": "EPO DOCDB (FASHION)",
+"text": "FASTENER PULL TAB WITH DETACHABLE PULL TAB ASSISTANT AND FASTENER SLIDER — A fastener pull tab with a detachable pull tab assistant includes: a pull tab body; and the pull tab assistant. The pull tab body includes an attachment hole, an assistant attachment portion on a periphery of the attachment hole, and a limiting groove penetrating through the assistant attachment portion. The pull tab assistant includes an assi",
+"sid": "s235"
+},
+{
+"rid": 8770063,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.20",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "CoolCAD Electronics, LLC raises $375,000 private round (Other Technology) — [Funding · SEC Form D] CoolCAD Electronics, LLC (COLLEGE PARK, MARYLAND) filed a Reg-D private offering. Industry: Other Technology. Total offering $375,000, sold $375,000. Filed None.",
+"sid": "s236"
+},
+{
+"rid": 9438146,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.45",
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "Role of TACI mutations in CVID — [Funding · NIH/NIAID · US-MA · $478k] Common variable immunodeficiency (CVID) is the most common human primary immunodeficiency. Patients with CVID suffer from recurrent infections and have an increased incidence of autoimmune disorders and lymphoid malignancies. TACI is a receptor for BAFF and APRIL expressed mainly on B cells, and plays an important role in B cell differentiation an",
+"sid": "s237"
+},
+{
+"rid": 20286496,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.26",
+"source": "STAT News",
+"text": "Chinese medical student accused of trying to smuggle cancer research material out of Boston — Chinese medical student accused of trying to smuggle cancer research material out of Boston",
+"sid": "s238"
+},
+{
+"rid": 23248071,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.04",
+"source": "EPO DOCDB (TECH)",
+"text": "RFID INLAY INCORPORATING A GROUND PLANE — Applicant: AVERY DENNISON RETAIL INFORMATION SERVICES LLC. CPC: H01Q1/38, H01Q9/40, H01Q1/2225, H01Q1/08, G06K19/0779, H01Q1/38.",
+"sid": "s239"
+},
+{
+"rid": 23621133,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "Project 3: Dynamics of Immune Signatures and Microbiome in Patients with Cervical Pre-Cancer and Cancer Among Women. — [Funding · NIH/NCI · US-FL · $518k] Cervical cancer is the fourth most common cause of cancer among women worldwide and the third leading cause of cancer death among women in low-resource settings. In the United States (US), it is the third most common gynecologic malignancy, with an estimated 13,820",
+"sid": "s240"
+},
+{
+"rid": 24736871,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "NYT Business",
+"text": "F.C.C. Asks Court to Toss ABC Suit Over Broadcast Licenses — The network sued the agency last month to stop it from taking steps that could force ABC stations off the air. The F.C.C. said the lawsuit was premature.",
+"sid": "s241"
+},
+{
+"rid": 314240,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Skift",
+"text": "Israel Tourism Sector Shuts Down After Hamas Attack — Israel had high hopes for tourism this year, not only as an economic driver, but as peacemaker with the rest of the world. Those hopes have come crashing down with last weekend’s Hamas attack.",
+"sid": "s242"
+},
+{
+"rid": 24625348,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.40",
+"source": "OpenAlex fresh: Human resource management",
+"text": "PERCEIVED TALENT MANAGEMENT PRACTICES AND PSYCHOLOGICAL CONTRACT FULFILLMENT AMONG BANKING EMPLOYEES: THE MEDIATING ROLE OF INDIVIDUALISM AND COLLECTIVISM — [Science · Human resource management]",
+"sid": "s243"
+},
+{
+"rid": 25282485,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (ECO)",
+"text": "MODULAR PLATFORM FOR RETRIEVING WATER SURFACE FLOATING CONTAMINANTS — The present invention relates to a modular platform for retrieving water surface floating contaminants, and may include: a Body part including a main frame; a Contaminated matter inlet disposed at a front part of the Body part and receiving contaminants; a Propulsion body provided in the Body part and exerting a propulsion force to move the Body pa",
+"sid": "s244"
+},
+{
+"rid": 24736151,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Trends in Biotechnology",
+"text": "Metabolic and enzyme engineering for steroid hormone biosynthesis — ",
+"sid": "s245"
+},
+{
+"rid": 8726279,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.34",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "TRADA, INC. raises $1.1M private round (Other Technology) — [Funding · SEC Form D] TRADA, INC. (BOULDER, COLORADO) filed a Reg-D private offering. Industry: Other Technology. Total offering $1.1M, sold $999,999. Filed None.",
+"sid": "s246"
+},
+{
+"rid": 24113093,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.33",
+"source": "SBIR/STTR Awards (US Startup R&D Funding)",
+"text": "PURESYN, INC. wins $713k SBIR Phase II award (Department of Health and Human Services) — [Funding · SBIR Phase II · Department of Health and Human Services · Malvern, PA · $713k] N/A. PURESYN, INC. (0 employees): N/A",
+"sid": "s247"
+},
+{
+"rid": 942720,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (FOOD)",
+"text": "COMPOSITION COMPRISING GANODERMA LUCIDUM MYCELIUM AND FERMENTED PRODUCT THEREOF FOR IMPROVING COMPANION ANIMAL SKIN CONDITION — The present invention relates to a composition comprising a Ganoderma lucidum mycelium culture or a lactic acid bacteria fermented product of the culture for skin regeneration, alleviation of skin diseases such as atopy, allergy, etc., skin inflammation, enhancement of antibacterial or antif",
+"sid": "s248"
+},
+{
+"rid": 24076074,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "SBIR/STTR Awards (US Startup R&D Funding)",
+"text": "I-MINDS wins $100k SBIR Phase I award (National Science Foundation) — [Funding · SBIR Phase I · National Science Foundation · Lincoln, NE · $100k] SBIR Phase I: I-MINDS: Intelligent Multiagent Infrastructure for Distributed Systems in Education. I-MINDS (5 employees): This Small Business Innovation Research (SBIR) Phase I project proposes an innovative multiagent technology called the Intelligent Multiagent Infrastru",
+"sid": "s249"
+},
+{
+"rid": 24719770,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.02",
+"source": "EPO DOCDB (HEALTH)",
+"text": "IMPLANT AND CONTRAST DELIVERY WITH STAGNATION DEVICE — Applicant: EDWARDS LIFESCIENCES CORP. CPC: A61B2017/1107, A61B17/11, A61B2017/1139, A61B17/12036, A61B17/1204, A61B17/12109.",
+"sid": "s250"
+},
+{
+"rid": 8718527,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.32",
+"source": "EPO DOCDB (FOOD)",
+"text": "Sweetener composition, food product and method for producing a food product — The invention relates to a sweetener composition for sweetening a food product. The sweetener composition comprises a sweetener component comprising sugar alcohol, and an anti-crystallizing component. The sweetener composition further comprises dissolved molecules of the sweeter component. The invention further relates to a food product and",
+"sid": "s251"
+},
+{
+"rid": 9562733,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.42",
+"source": "OpenAlex Science (BIZ)",
+"text": "Interactive Relations Between Universities and Firms: Empirical Evidence for Austria — [Science · OpenAlex]",
+"sid": "s252"
+},
+{
+"rid": 8872758,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.27",
+"source": "OpenAlex Science (DESIGN)",
+"text": "Discrete Choice Analysis — [Science · OpenAlex]",
+"sid": "s253"
+},
+{
+"rid": 21096267,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Renewable Energy World",
+"text": "Solar PV, Thermal in First-Home Development — Low-income housing efforts in Humboldt Bay, California are building with low energy consumption as a goal. Six Rivers Solar of Eureka just won a contract to supply each of the eight homes planned for the Windsong Energy Efficiency Project with 1 kW solar photovoltaic (PV) arrays and 40 sq. ft. solar thermal hot water systems.",
+"sid": "s254"
+},
+{
+"rid": 21622374,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Finextra",
+"text": "Banking Needs a New Operating Model — Banking is a bout to take another wild turn. For the last decade or so, banks have been on this so-...",
+"sid": "s255"
+},
+{
+"rid": 8787774,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.38",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Pattern Pharma Inc. raises $500,000 private round (Pharmaceuticals) — [Funding · SEC Form D] Pattern Pharma Inc. (TORONTO, ONTARIO, CANADA) filed a Reg-D private offering. Industry: Pharmaceuticals. Total offering $500,000, sold $500,000. Filed 2020-08-12.",
+"sid": "s256"
+},
+{
+"rid": 9192166,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "Re-engineering the MEGA software package — [Funding · NIH/NIGMS · US-AZ · $256k] DESCRIPTION (provided by applicant): The purpose of this proposal is to re-engineer the source code of the Molecular Evolutionary Genetics Analysis software (MEGA). Over the past 13 years, MEGA has been cited in more than 6,000 research publications spanning a diverse range of biological research disciplines, and it has been downloaded b",
+"sid": "s257"
+},
+{
+"rid": 23722231,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.48",
+"source": "OpenAlex fresh: Human resource management",
+"text": "Pengaruh Motivasi Ekstrinsik dan Intrinsik terhadap Kepuasan Kerja: Peran Kepemimpinan Transaksional di PT MAS Arya Semarang — [Science · Human resource management] Job satisfaction is an important factor in supporting employee productivity in manufacturing companies that implement target-oriented work systems. In the context of PT MAS Arya Semarang, a balance among extrinsic motivation, intrinsic motivation, and tra",
+"sid": "s258"
+},
+{
+"rid": 9697656,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "OpenAlex Science (BIZ)",
+"text": "Does the implementation of a clinical information system decrease the time intensive care nurses spend on documentation of care? — [Science · OpenAlex] BACKGROUND: The number of intensive care units (ICU) using a clinical information system (CIS) is increasing. It is believed that replacing manual charting with an automatic documentation system allocates nurses more time for patient care. The objective of this study ",
+"sid": "s259"
+},
+{
+"rid": 23761834,
+"tier": "research",
+"stratum": "research/kept",
+"reason": null,
+"source": "biorxiv Preprints",
+"text": "Accelerando and crescendo in African penguin display songs — [Preprint · biorxiv:animal behavior and cognition] Many species produce rhythmic sound sequences. Some purportedly speed up their vocalizations throughout a display, reminiscent of--but not necessarily equivalent to-- \"accelerando\" in human music. This phenomenon has been frequently reported but rarely quantified, which limits our ability to understand its ",
+"sid": "s260"
+},
+{
+"rid": 9585612,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.13",
+"source": "OpenAlex Science (ECO)",
+"text": "Caesarean section and risk of unexplained stillbirth in subsequent pregnancy — [Science · OpenAlex]",
+"sid": "s261"
+},
+{
+"rid": 23275309,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Frontiers in Sustainable Food Systems",
+"text": "Correction: Storage quality as food quality: integrated assessment of microwave and cold plasma effects on wheat beetles and grain antioxidant profile — ",
+"sid": "s262"
+},
+{
+"rid": 21086918,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.21",
+"source": "Renewable Energy World",
+"text": "Commentary: Vive la révolution! — According to Kenichi Ohmae, a corporate strategist and author of The Invisible Continent, a change in thinking is long overdue. Speaking at Edison Electric Institute’s conference, The New Millennium, in Montreal this June, he spoke of the “invisible continent,” which was “discovered” only in the past 50 years, and has begun to be “settled” since the mid-80s.",
+"sid": "s263"
+},
+{
+"rid": 8820612,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.13",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "INDEPENDENCE HOLDCO LP raises $3.0M private round (Business Services) — [Funding · SEC Form D] INDEPENDENCE HOLDCO LP (DALLAS, TEXAS) filed a Reg-D private offering. Industry: Business Services. Total offering $3.0M, sold $2.6M. Filed 2023-02-17.",
+"sid": "s264"
+},
+{
+"rid": 23783671,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Sifted",
+"text": "QMUL spinouts looking to raise — ",
+"sid": "s265"
+},
+{
+"rid": 13661383,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.18",
+"source": "EPO DOCDB (FOOD)",
+"text": "Premade old hen soup — The present invention discloses a prefabricated old hen soup, and belongs to the technical field of food processing, and the prefabricated old hen soup comprises the following steps: step 1, inspection of hens and side dishes; step 2, unfreezing the frozen hens; 3, trimming the hens; step 4, pretreating the hens, wherein the treatment process comprises salt water soaking and scallion and ginger",
+"sid": "s266"
+},
+{
+"rid": 24507759,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.13",
+"source": "EPO DOCDB (FOOD)",
+"text": "DOUGH PRESSING MACHINE — Disclosed is a dough pressing machine, including an upper cover, a rotating shaft, a lower cover, and an edge pressing structure; the upper cover is rotatably connected to the lower cover via the rotating shaft, the upper cover is capable of rotating relative to the lower cover to cover the lower cover to form a dough pressing chamber; the edge pressing structure is disposed within the dough ",
+"sid": "s267"
+},
+{
+"rid": 23730593,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.39",
+"source": "OpenAlex fresh: Tube (container)",
+"text": "A Novel Tilted Strut of Concrete-Filled Steel Tube with Belled Bearing Base — [Science · Tube (container)] ABSTRACT After publication, the authors requested changes to the first author’s affiliation. The affiliation was corrected and the updated paper was posted online on June 15, 2026. The authors apologize for the error. Traditional internal supports in deep foundation pit engineering are often energy-intensive, ti",
+"sid": "s268"
+},
+{
+"rid": 683210,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "Google Patents (TECH)",
+"text": "Electronic device for controlling an amplifier based on modulation and coding scheme and a ratio of receiving time and method for the same — According to various embodiments, disclosed are an electronic device and an operating method of the electronic device. The electronic device comprises: an antenna; a communication circuit including an amplifier that amplifies a signal received through the antenna; and a processo",
+"sid": "s269"
+},
+{
+"rid": 13848452,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.31",
+"source": "EPO DOCDB (FOOD)",
+"text": "Ginger tea packaged by dry liquid in two bins — The invention discloses dry-liquid two-bin packaged ginger tea, and belongs to the technical field of food processing.The dry-liquid two-bin packaged ginger tea is prepared from, by weight, 50-60 parts of ginger juice, 3-6 parts of minced ginger, 55-65 parts of brown sugar, 10-15 parts of red dates, 5-10 parts of wheat germ powder and 1-2 parts of additives, the ginger ",
+"sid": "s270"
+},
+{
+"rid": 24513304,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (HEALTH)",
+"text": "STABLE ROPIVACAINE CRYSTALS — A stable ropivacaine crystal is provided. The ropivacaine crystal has an aspect ratio of approximately less than or equal to 1:(1-2), a particle size distribution width value of less than or equal to 2, a small specific surface area, a stable structure, and the slowest release rate in a dissolution test, thereby achieving better clinical advantages. Applicant: ZHEJIANG CUIZE PHARMACEUTIC",
+"sid": "s271"
+},
+{
+"rid": 9719548,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "Interaction of enteropathogenic Yersinia and Vibrio cholera with engineered human intestinal tissue — [Funding · NIH/NIAID · US-MA · $418k] ABSTRACT Enteric infections caused by bacterial pathogens are often debilitating and life-threatening, especially for young children. In vivo rodent models and in vitro intestinal epithelial cell monolayers, the most common models for studying these pathogens, often do not recapi",
+"sid": "s272"
+},
+{
+"rid": 13272118,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.49",
+"source": "EPO DOCDB (FOOD)",
+"text": "Tea leaf capsule aroma enhancing process method — The invention belongs to the technical field of tea capsule aroma enhancement, and particularly relates to a tea capsule aroma enhancement process method which comprises the following steps: step 1, raw material selection and pretreatment; step 2, performing low-temperature vacuum aroma extraction; step 3, carrying out micronization treatment; 4, preparing an environm",
+"sid": "s273"
+},
+{
+"rid": 13828767,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.44",
+"source": "EPO DOCDB (FOOD)",
+"text": "Feed composition for animal health — Provided herein, inter alia, are daily ration, feed, and feed additive compositions comprising biologically efficient proteases useful for improving animal health and/or performance, as well as methods of making and using the same. Applicant: DANISCO. CPC: A23K50/75, A23K20/189, A23K20/189, A23K20/158, A23K50/75.",
+"sid": "s274"
+},
+{
+"rid": 213142,
+"tier": "press",
+"stratum": "press/kept",
+"reason": null,
+"source": "Green Queen",
+"text": "One Year Later: First Vegan ETF Proves Climate Investing Is Profitable — 3 Mins ReadOne year ago, Beyond Investing launched the world’s first cruelty-free and climate-forward exchange-traded fund (ETF), the US Vegan Climate ETF, on the New York Stock Exchange under the ticker VEGN. Now, one year later, VEGN stands strong and has proven that climate-conscious investing isn’t just ethical, but it’s profitable too. Sinc",
+"sid": "s275"
+},
+{
+"rid": 24025525,
+"tier": "funding",
+"stratum": "funding/kept",
+"reason": null,
+"source": "SBIR/STTR Awards (US Startup R&D Funding)",
+"text": "Glycobac, LLC wins $599k SBIR Phase I award (Department of Health and Human Services) — [Funding · SBIR Phase I · Department of Health and Human Services · LARAMIE, WY · $599k] A Novel Adherence Technology for Ophthalmic Medications. Glycobac, LLC (0 employees; http://glycobac.com/): DESCRIPTION: Most human therapeutic glycoproteins (biologics) are manufactured using mammalian cell lines that can add the human-type g",
+"sid": "s276"
+},
+{
+"rid": 22860924,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.44",
+"source": "EPO DOCDB (FOOD)",
+"text": "Sectional type mulberry leaf and preserved vegetable pickling device and technology — The invention relates to the technical field of mulberry leaf or preserved vegetable pickling, and provides a segmented mulberry leaf and preserved vegetable pickling device and process, the segmented mulberry leaf and preserved vegetable pickling device comprises a support and a cleaning tank, the cleaning tank is located on one si",
+"sid": "s277"
+},
+{
+"rid": 23341040,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.05",
+"source": "EPO DOCDB (HEALTH)",
+"text": "POLYMERIC MITRAL HEART VALVE — Applicant: SUZHOU HEARTHILL MEDICAL TECH CO LTD. CPC: A61F2/24, A61F2/2409, A61F2/2445, A61F2/2418, A61F2220/0075, A61F2210/00.",
+"sid": "s278"
+},
+{
+"rid": 8701803,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.23",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Tigeraire, Inc. raises $20.0M private round (Other Technology) — [Funding · SEC Form D] Tigeraire, Inc. (Richmond, VIRGINIA) filed a Reg-D private offering. Industry: Other Technology. Total offering $20.0M, sold $825,000. Filed 2024-02-28.",
+"sid": "s279"
+},
+{
+"rid": 22038987,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.18",
+"source": "EPO DOCDB (HEALTH)",
+"text": "Extraoral Orthopedic Device for the Protraction of the Upper and Lower Human Jaws — An extraoral orthopedic device (1) for the direct protraction of the maxilla and the direct or indirect protraction of the mandible, comprising: two metallic girders, one mouth girder (4), which is coupled through traction means (5) with an intraoral mechanism (6) and one connecting girder (3), which couples the said mouth girder (4) ",
+"sid": "s280"
+},
+{
+"rid": 23411185,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.35",
+"source": "OpenAlex: Satellite",
+"text": "Evaluating the state-of-the-art in remote volcanic eruption characterization Part I: Raikoke volcano, Kuril Islands — [Science · Satellite]",
+"sid": "s281"
+},
+{
+"rid": 25587376,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.16",
+"source": "EPO DOCDB (FOOD)",
+"text": "Porous materials comprising metal oxides and uses thereof — The present invention relates generally to the field of material science. More specifically, the present invention relates to porous materials comprising metals and metal oxides and their preparation and use. Applicant: ALOXY TECH PTE LTD. CPC: C25D11/04, C25D11/34, C25D11/024, A23B7/157, B01J20/02, B01J20/3236.",
+"sid": "s282"
+},
+{
+"rid": 9229185,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.29",
+"source": "NIH RePORTER (US Biomedical Funding)",
+"text": "CBH Substance Abuse Treatment and HIV Services TCE for South Central Indiana — [Funding · NIH/SAMHSA · US-IN]",
+"sid": "s283"
+},
+{
+"rid": 23888018,
+"tier": "patent",
+"stratum": "patent/head 0.3-0.5",
+"reason": "not_relevant_distill:0.34",
+"source": "EPO DOCDB (HEALTH)",
+"text": "Anatomical proximal humerus osteosynthesis devices and systems and methods of use thereof — Anatomical proximal humerus osteosynthesis bone plate devices, as well as kits and systems containing same, are disclosed. The bone plate devices are configured and adapted for attachment to a proximal humerus. The kits include at least two bone plate devices that differ from one another in at least one structural and/or size ",
+"sid": "s284"
+},
+{
+"rid": 23792088,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.25",
+"source": "EPO DOCDB (HEALTH)",
+"text": "ALDOSTERONE SYNTHETASE INHIBITOR, AND PREPARATION METHOD THEREFOR AND USE THEREOF — The present invention belongs to the technical field of chemical pharmaceuticals. Provided in the present invention are an aldosterone synthetase inhibitor, and a preparation method therefor and the use thereof. Applicant: SHENZHEN SALUBRIS PHARM CO LTD. CPC: A61K31/444, A61K31/4709, A61K31/4725, A61P3/12, A61P9/12, C07D221/04.",
+"sid": "s285"
+},
+{
+"rid": 24424173,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "The Lancet",
+"text": "[Editorial] Attacks on LGBTQ+ health are a threat to all — ",
+"sid": "s286"
+},
+{
+"rid": 23136870,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Business of Fashion",
+"text": "Opinion: Francesco Risso Can Make GU the Anti-Shein — To become a meaningful fast-fashion challenger, Fast Retailing CEO Tadashi Yanai must expand GU aggressively while preserving the brand’s quality, writes Bloomberg’s Juliana Liu.",
+"sid": "s287"
+},
+{
+"rid": 13964300,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.24",
+"source": "EPO DOCDB (HEALTH)",
+"text": "Bacillus velezensis XU183 and application thereof — The invention relates to the technical field of agricultural microorganisms, and particularly discloses bacillus velezensis XU183 and application thereof. The bacillus velezensis XU183 is preserved in the China General Microbiological Culture Collection Center on March 23, 2023, and the preservation number is CGMCC (China General Microbiological Culture Collection C",
+"sid": "s288"
+},
+{
+"rid": 8816431,
+"tier": "funding",
+"stratum": "funding/head 0.3-0.5",
+"reason": "not_relevant_distill:0.39",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "Stimulus, Inc. raises $3.0M private round (Other Technology) — [Funding · SEC Form D] Stimulus, Inc. (PHILADELPHIA, PENNSYLVANIA) filed a Reg-D private offering. Industry: Other Technology. Total offering $3.0M, sold $2.9M. Filed 2022-07-22.",
+"sid": "s289"
+},
+{
+"rid": 25118905,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.25",
+"source": "EPO DOCDB (HEALTH)",
+"text": "ENDOSCOPE AND METHOD OF DISASSEMBLING ENDOSCOPE — An endoscope includes an insertion portion, an operation portion, and a fitting mechanism coupling the insertion portion and the operation portion so as to be decouplable. The fitting mechanism includes a plate portion and a convex portion, and a fitted-shape portion and a hole. The convex portion is fitted to the fitted-shape portion. The hole exposes at least one of",
+"sid": "s290"
+},
+{
+"rid": 25316488,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "NYT Science",
+"text": "T. Rex, King of the Dinosaurs, Had a Body Temperature of 97 Degrees — Hotter than a crocodile, cooler than a chicken, T. Rex was definitely warm-blooded, according to a new study.",
+"sid": "s291"
+},
+{
+"rid": 24539877,
+"tier": "research",
+"stratum": "research/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Intl Journal of Fashion Design",
+"text": "Impact of using half-scale forms on learning patternmaking skills in a flat pattern course: students' and instructors’ perceptions — ",
+"sid": "s292"
+},
+{
+"rid": 23108501,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.18",
+"source": "EPO DOCDB (DESIGN)",
+"text": "Mixing Utensil — A mixing tool is disclosed, comprising a handle portion with an elongated shape and a tool portion connected to one end of the handle. The tool portion features an outer frame with a loop shape and multiple elongated fins, each attached to the outer frame. These elongated fins have a first edge that extends along the length of a first side of each fin. The sides of the fin may be configured at an ang",
+"sid": "s293"
+},
+{
+"rid": 25286755,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.08",
+"source": "EPO DOCDB (HEALTH)",
+"text": "INVARIANT NATURAL KILLER T CELL — Applicant: IMPERIAL COLLEGE INNOVATIONS LTD. CPC: C07K16/2809, C07K16/2878, A61P35/02, C07K2317/31, C07K2317/52, A61K40/31.",
+"sid": "s294"
+},
+{
+"rid": 8791955,
+"tier": "funding",
+"stratum": "funding/head 0.0-0.3",
+"reason": "not_relevant_distill:0.29",
+"source": "SEC Form D (Startup Private Offerings)",
+"text": "JET Projects LLC raises $400,000 private round (Business Services) — [Funding · SEC Form D] JET Projects LLC (TARZANA, CALIFORNIA) filed a Reg-D private offering. Industry: Business Services. Total offering $400,000, sold $400,000. Filed 2020-10-21.",
+"sid": "s295"
+},
+{
+"rid": 21528329,
+"tier": "press",
+"stratum": "press/head 0.2-0.3",
+"reason": "not_relevant_distill:0.21",
+"source": "Skift",
+"text": "The Well-Designed Chair That Could Make Flight Delays Less Painful — Although it might make long delays slightly more bearable for the average travelers, frequent flyers will still be laughing at them all the way to their lounge.",
+"sid": "s296"
+},
+{
+"rid": 2331032,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.11",
+"source": "EPO DOCDB (FOOD)",
+"text": "CRACKER — Disclosed is a cracker including: a first section, adapted to be garnished or to come into contact with accompanying foods; and a second section, adapted to act as holding means for the fingers of the consumer, remaining extraneous, in use, to contact with the accompanying foods. The first and the second section coact with each other to define geometric shapes adapted to evoke objects associable through use",
+"sid": "s297"
+},
+{
+"rid": 23563819,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.44",
+"source": "OpenAlex fresh: Artificial intelligence",
+"text": "eyereasoner/eyeprolog: v0.5.10 — [Science · Artificial intelligence] Speed up arithmetic factorization using the portable Prolog library Full Changelog: https://github.com/eyereasoner/eyeprolog/compare/v0.5.9...v0.5.10",
+"sid": "s298"
+},
+{
+"rid": 23817784,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.25",
+"source": "EPO DOCDB (TECH)",
+"text": "MULTI-NODE SUBSCRIBER MESSAGES — A responder node of a serial communications system is configured to receive a header part of a subscriber message frame with an identifier field that specifies the responder node is to send reply data to a commander node. During a response part of the subscriber message frame, the responder node sends reply data along with other reply data from at least one other responder node specif",
+"sid": "s299"
+},
+{
+"rid": 25290326,
+"tier": "press",
+"stratum": "press/8B",
+"reason": "not_relevant: (8B band)",
+"source": "Wired",
+"text": "The FBI Doubles Down on Easing ‘Bestiality’ Hiring Standards — FBI director Kash Patel claimed to US senators that the removal of a bar on hiring people who had engaged in bestiality was aimed at protecting sexual assault survivors.",
+"sid": "s300"
+},
+{
+"rid": 23336160,
+"tier": "patent",
+"stratum": "patent/head 0.1-0.3",
+"reason": "not_relevant_distill:0.14",
+"source": "EPO DOCDB (DESIGN)",
+"text": "DISHWASHER WITH DOOR ASSEMBLY — A dishwasher and door assembly for treating dishes according to a cycle of operation, the dishwasher comprising a tub at least partially defining a treating chamber having an open face for receiving dishes, and a door assembly movable between opened and closed positions. The door assembly includes a single-piece, outer panel and a pocket handle assembly. The outer panel defines a front",
+"sid": "s301"
+},
+{
+"rid": 25124395,
+"tier": "patent",
+"stratum": "patent/head 0.0-0.1",
+"reason": "not_relevant_distill:0.08",
+"source": "EPO DOCDB (TECH)",
+"text": "MULTIMEDIA WORK PROCESSING METHOD, APPARATUS AND DEVICE, AND STORAGE MEDIUM — Applicant: BEIJING ZITIAO NETWORK TECHNOLOGY CO LTD. CPC: G06F3/048, G06F16/44, G06F16/954, H04M1/72403, H04N21/4532, H04N21/4668.",
+"sid": "s302"
+},
+{
+"rid": 23652984,
+"tier": "research",
+"stratum": "research/head 0.3-0.5",
+"reason": "not_relevant_distill:0.46",
+"source": "OpenAlex fresh: Obesity",
+"text": "Floratox Reviews Does It Really Help with Weight Loss — [Science · Obesity] Floratox Losing weight is a goal shared by millions of people worldwide, but finding the right approach can be challenging. While a balanced diet and regular exercise remain the foundation of healthy weight management, many individuals also explore dietary supplements to support their efforts. One product that has gained attention is Floratox",
+"sid": "s303"
+},
+{
+"rid": 13446644,
+"tier": "patent",
+"stratum": "patent/kept",
+"reason": null,
+"source": "EPO DOCDB (FOOD)",
+"text": "Chenopodium quinoa biscuit containing GABA (gamma-aminobutyric acid) and preparation method thereof — The invention relates to quinoa biscuits containing GABA (gamma-aminobutyric acid). The quinoa biscuits are prepared from the following components in parts by weight: 30-40 parts of germinated quinoa flour, 60-70 parts of low-gluten flour, 14-16 parts of shortening, 0.5-1 part of table salt, 1-1.5 parts of dried yeas",
+"sid": "s304"
+},
+{
+"rid": 25488862,
+"tier": "research",
+"stratum": "research/head 0.0-0.3",
+"reason": "not_relevant_distill:0.24",
+"source": "Helmholtz-Gemeinschaft",
+"text": "CISPA und Professor Michael Backes trennen sich einvernehmlich — Nach den am 22. September 2026 vorgelegten Ergebnissen der Sonderprüfung trennen sich Prof. Dr. Dr. h.c. mult. Michael Backes und das CISPA einvernehmlich. Beide Seiten haben unterschiedliche Vorstellungen darüber, wie die Zukunft des international aufgestellten Forschungszentrum gestaltet werden soll.",
+"sid": "s305"
+}
+]
