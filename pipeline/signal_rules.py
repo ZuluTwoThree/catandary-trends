@@ -5,8 +5,10 @@ this make a trend article?"). On the signal path (scripts/signal_batch.py) it de
 alone, at 0.5, for research, patents and funding too. Measured (docs/filter_audit_2026-
 10-02.md): of the patents it dropped, 92-96 % were signals in every score band — the only
 misses were plant varieties; of the funding it dropped, 42-87 % — the true misses were
-recognisable by rule (real-estate and services Reg-D vehicles, NIH subproject bookings,
-rows without any description, absurd amounts). For press and research the head separates
+recognisable by rule (real-estate and services Reg-D vehicles, award notices without any
+description, absurd amounts). NIH "subproject" rows were on that list until the same day:
+their text is booking boilerplate, but their TITLE is a research topic ("Reticulocyte
+binding-like proteins as new generation malaria vaccines") — they stay (Owner 02.10.). For press and research the head separates
 and stays.
 
 So: patents and funding are judged by the rules below, everything else by the head.
@@ -23,7 +25,11 @@ RULE_TIERS = ("patent", "funding")
 
 # plant varieties and cultivars (CPC A01H / US plant patents): "SOYBEAN CULTIVAR 01220205",
 # "Phalaenopsis plant named 'PHA964388'", "HYBRID TOMATO VARIETY …" — but not "a variety of"
-PLANT = re.compile(r"\bcultivars?\b|\bplant named\b|\bvariet(?:y|ies)\b(?!\s+of\b)", re.I)
+PLANT = re.compile(r"\bcultivars?\b|\bplant named\b|\bvariet(?:y|ies)\b(?!\s+(?:of|packs?)\b)", re.I)
+# …unless the patent claims a method or a thing ("Breeding method of novel high-yield
+# wheat variety", "fertilizer applying super-close planting method for … variety")
+TECHNICAL = re.compile(r"\b(method|process|apparatus|system|device|composition|machine|"
+                       r"equipment|use of|preparation)\b", re.I)
 
 # SEC Form D industries that are not company or technology finance: real-estate vehicles
 # ("Commercial": 18,630 dropped, 833 kept), services, construction, restaurants, travel,
@@ -37,12 +43,14 @@ FORM_D_OUT = {
     "other banking and financial services", "investment banking", "hedge fund",
     "private equity fund", "venture capital fund", "other investment fund",
 }
-VEHICLE = re.compile(r"\b(DST|Fund|Funds|Holdings?|HoldCo|Properties|Apartments|Partners|"
-                     r"Realty|REIT|Investors|Portfolio)\b", re.I)
+# "Holdings" alone is also a company form ("ZEROEX HOLDINGS, INC.", Other Technology) —
+# only as an LLC/LP it marks a vehicle
+VEHICLE = re.compile(r"\b(DST|Fund|Funds|Properties|Apartments|Partners|Realty|REIT|Investors|"
+                     r"Portfolio)\b|\b(Holdings?|HoldCo)\b,?\s+(LLC|L\.?L\.?C|LP|L\.P)\b", re.I)
 INDUSTRY = re.compile(r"Industry:\s*([^.]+)\.")
 OFFERING = re.compile(r"Total offering \$([\d,.]+)\s*([MK]?)")
 NIH_SUBPROJECT = "This subproject is one of many research subprojects"
-MIN_OFFERING_USD = 25_000
+MIN_OFFERING_USD = 5_000      # $6, $300, $1,071 — not $15,000 BioNano Genomics
 MIN_DESCRIPTION = 40
 AWARD_NOTICE = re.compile(r"\b(wins|secures|receives)\b.*\b(award|grant|STTR|SBIR)\b", re.I)
 
@@ -77,7 +85,7 @@ def verdict(entry: dict) -> str | None:
     title = entry.get("title") or ""
     excerpt = entry.get("excerpt") or ""
     if tier == "patent":
-        return "plant_variety" if PLANT.search(title) else ""
+        return "plant_variety" if PLANT.search(title) and not TECHNICAL.search(title) else ""
     # funding
     if "Form D" in (entry.get("source_name") or "") or "SEC Form D" in excerpt:
         m = INDUSTRY.search(excerpt)
@@ -90,13 +98,14 @@ def verdict(entry: dict) -> str | None:
             return "form_d_amount"
         return ""
     if NIH_SUBPROJECT in excerpt:
-        return "nih_subproject"
+        # booking boilerplate below a research title — the title carries the topic
+        return "" if len(title.split()) >= 3 else "no_description"
     if len(_description(excerpt)) >= MIN_DESCRIPTION:
         return ""
     # No abstract. A grant's own title usually names the project ("Strategic and digital
     # improvements of a drain water microalgae product") and carries the topic; an award
     # notice ("X wins $70k SBIR Phase I award") names only the company — no topic, so it
     # would only add an "award" blob to the space.
-    if AWARD_NOTICE.search(title) or len(title.split()) < 4:
+    if AWARD_NOTICE.search(title) or len(title.split()) < 3:
         return "no_description"
     return ""

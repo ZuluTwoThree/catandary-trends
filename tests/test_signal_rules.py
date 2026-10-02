@@ -40,7 +40,9 @@ def test_grants_need_a_description_and_are_not_bookings():
     empty = "[Funding · STTR Phase I · Department of Health and Human Services · Salt Lake City, UT · undisclosed] N/A. ECHELON BIOSCIENCES, INC. (0 employees): N/A"
     assert R.verdict(F("ECHELON BIOSCIENCES wins STTR", empty, "SBIR/STTR Awards")) == "no_description"
     sub = "[Funding · NIH/NCRR · US-CA · $33] This subproject is one of many research subprojects utilizing the resources"
-    assert R.verdict(F("HIV PROTEINS AND PROTEIN INTERACTIONS", sub, "NIH RePORTER")) == "nih_subproject"
+    # the title is a research topic — kept since 02.10. (Owner); a bare title is not
+    assert R.verdict(F("RETICULOCYTE BINDING-LIKE PROTEINS AS NEW GENERATION MALARIA VACCINES", sub, "NIH RePORTER")) == ""
+    assert R.verdict(F("Core B", sub, "NIH RePORTER")) == "no_description"
     assert R.verdict(F("Teen Court", "[Funding · NIH/SAMHSA · US-IL]", "NIH RePORTER")) == "no_description"
 
 
@@ -59,3 +61,20 @@ def test_a_grant_title_is_its_description_an_award_notice_is_not():
     sbir = "[Funding · SBIR Phase I · Department of Commerce · EDMOND, OK · $50k] N/A. MECHMATH LLC (2 employees): N/A"
     assert R.verdict(F("MECHMATH LLC wins $50k SBIR Phase I award (Department of Commerce)", sbir,
                        "SBIR/STTR Awards")) == "no_description"
+
+
+def test_false_positives_found_in_the_kept_signal_space_stay_kept():
+    assert R.verdict(P("Breeding method of novel high-yield disease-resistant weak gluten wheat variety")) == ""
+    tech = "[Funding · SEC Form D] filed. Industry: Other Technology. Total offering $1.2M, sold $1.2M."
+    assert R.verdict(F("ZEROEX HOLDINGS, INC. raises $1.2M private round (Other Technology)", tech)) == ""
+    assert R.verdict(F("GP Matrix Holdings, LLC raises undisclosed private round", tech)) == "form_d_vehicle"
+    small = "[Funding · SEC Form D] filed. Industry: Pharmaceuticals. Total offering $15,000, sold $15,000."
+    assert R.verdict(F("BioNano Genomics, Inc raises $15,000 private round (Pharmaceuticals)", small)) == ""
+    absurd = "[Funding · SEC Form D] filed. Industry: Computers. Total offering $300, sold $300."
+    assert R.verdict(F("FamilyGram, Inc. raises $300 private round (Computers)", absurd)) == "form_d_amount"
+
+
+def test_short_topic_titles_and_variety_packs_stay():
+    sub = "[Funding · NIH/NIMH · US-MA · $120k] This subproject is one of many research subprojects"
+    assert R.verdict(F("MODELLING HIPPOCAMPUS SUB-STRUCTURES", sub, "NIH RePORTER")) == ""
+    assert R.verdict(P("Color Coded Cannabis Variety Pack and Directive of Use")) == ""

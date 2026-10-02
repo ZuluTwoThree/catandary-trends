@@ -153,3 +153,17 @@ Gelegenheit mit größerer Stichprobe nachmessen.
   289 Patente; 38.922 fallen auch ohne Vektor durch die Regeln). `scripts/requeue_rule_signals.py`
   setzt sie zurück, `signal_batch_embedded.py --ids-file data/requeue_rule_signals.ids` bettet sie
   ein — geschätzt 1–1,5 h auf der 3090 (Texte ~250 Zeichen).
+
+## Schrott im Behaltenen (02.10. nachmittags)
+
+Dieselben Regeln auf die 622.000 behaltenen Patent-/Förder-Signale angewandt: 11.173 Treffer
+(1,8 %). Sichtung der Treffer korrigierte die Regeln an fünf Stellen — NIH-„subproject"-Zeilen
+tragen Forschungstitel („Reticulocyte binding-like proteins as new generation malaria
+vaccines") und bleiben; Züchtungs-Verfahren und „Variety Pack" sind keine Sortenanmeldungen;
+„Holdings, Inc." ist eine Firmenform (nur „Holdings LLC/LP" gilt als Vehikel); Kleinstrunden ab
+$5.000 sind echt (BioNano Genomics $15.000); dreiwortige Thementitel („Modelling hippocampus
+sub-structures") zählen als Beschreibung. Danach (`scripts/retire_rule_junk.py`, Probelauf):
+**7.638 auszusortieren** — 5.712 Zuschlagsmeldungen bzw. Akronyme ohne Inhalt, 1.116
+Form-D-Immobilien/-Dienstleister/-Restaurants, 406 Form-D-Vehikel, 366 Pflanzensorten,
+29 absurde Beträge, dazu 9 veröffentlichte Artikel vom 24./25.08. aus Form-D-Vehikeln.
+Forschungs-Signale ohne Abstract (157.917 von 766.805) sind kein Schrott: der Titel trägt das Thema.
