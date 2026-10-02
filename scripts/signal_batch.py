@@ -40,6 +40,7 @@ from slugify import slugify
 from pipeline import anthropic_client, ollama_client, llamacpp_client
 from pipeline import db as db_mod
 from pipeline.text_clean import embed_text
+from pipeline.signal_rules import verdict as signal_verdict
 from pipeline.llamacpp_client import EmbeddingBackendError, is_backend_failure
 from pipeline.config import (
     ANTHROPIC_MODEL_CLASSIFY, RELEVANCE_THRESHOLD, DUPLICATE_SIMILARITY_THRESHOLD,
@@ -571,7 +572,7 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
                 relevance_threshold: float = 0.5, no_patents: bool = False,
                 patents_only: bool = False, published_after: str = "",
                 signal_only: bool = False, ids: list[int] | None = None,
-                clean: bool = False) -> int:
+                clean: bool = False, head_for_all: bool = False) -> int:
     """Mass-ingest classification WITHOUT the LLM: embed each survivor, then run
     the distilled heads (pipeline/distill) for relevance/vertical/mega/PESTEL.
     ~0 marginal cost per item; the only GPU step is the shared embedding pass.
@@ -651,8 +652,17 @@ def run_distill(limit: int, execute: bool, embed_chunk: int,
         chunk_start = kept_count
         for j, (e, v) in enumerate(valid):
             pred = preds[j]
-            # relevance gate (only when the head exists)
-            if pred["relevance"] is not None and pred["relevance"] < relevance_threshold:
+            # relevance gate. Patents and funding by RULE since 2026-10-02 (Owner): the
+            # head was trained on press verdicts and dropped 92-96 % signals among patents
+            # (docs/filter_audit_2026-10-02.md, pipeline/signal_rules.py). Press and
+            # research keep the head. --head-for-all restores the old behaviour.
+            rule = None if head_for_all else signal_verdict(e)
+            if rule:
+                mark_filtered(e["id"], f"rule:{rule}", _filtered_embedding(e, v))
+                not_relevant += 1
+                continue
+            if (rule is None and pred["relevance"] is not None
+                    and pred["relevance"] < relevance_threshold):
                 mark_filtered(e["id"], f"not_relevant_distill:{pred['relevance']:.2f}",
                               _filtered_embedding(e, v))
                 not_relevant += 1
@@ -740,6 +750,9 @@ def main() -> int:
     ap.add_argument("--published-after", default="",
                     help="only entries with published_date >= YYYY-MM-DD (rolling window "
                          "for the weekly patent pass; explicit floor for backfills)")
+    ap.add_argument("--head-for-all", action="store_true",
+                    help="judge patents and funding by the relevance head too (the behaviour "
+                         "before 2026-10-02; default: pipeline/signal_rules.py)")
     ap.add_argument("--ids-file", default="",
                     help="only the raw_entries whose ids are listed (one per line) — a curated "
                          "selection such as the #114 Food pilot (scripts/food_pilot.py)")
@@ -763,7 +776,7 @@ def main() -> int:
                            args.workers, args.min_id, args.source_type,
                            args.relevance_threshold, args.no_patents,
                            args.patents_only, args.published_after, args.signal_only,
-                           ids, args.clean_text)
+                           ids, args.clean_text, args.head_for_all)
     return run(args.limit, args.execute, args.embed_chunk, inc, exc,
                args.backend, args.workers, args.min_id, args.source_type)
 

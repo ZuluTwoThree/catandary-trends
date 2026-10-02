@@ -132,3 +132,17 @@ aussortieren, die verworfenen Patente (mit Vektor) als Signale nachholen. Förde
 Regeln ersetzen (Form-D-Branchen, Buchungszeilen, fehlender Abstract, Mindestbetrag), Verworfenes
 nach diesen Regeln neu prüfen. Forschung und Presse: Kopf behalten; Presse-Band 0,2–0,3 bei
 Gelegenheit mit größerer Stichprobe nachmessen.
+
+
+## Umsetzung (02.10.)
+
+- `pipeline/signal_rules.py` entscheidet im Signal-Pfad für Patente und Förderung; Presse und
+  Forschung bleiben beim Head. Tests `tests/test_signal_rules.py`, `tests/test_signal_batch_rules.py`.
+- Regel-Feinschliff am Probelauf: ein Förder-Eintrag ohne Abstract bleibt, wenn sein Titel ein
+  Projekttitel ist (OpenAIRE/NSF: „Rank-based Decomposable Losses for Machine Learning"); er
+  fällt, wenn der Titel nur eine Zuschlagsmeldung ist („X wins $50k SBIR Phase I award", N/A).
+- `scripts/recover_rule_signals.py` holt Verworfenes mit gespeichertem Vektor nach
+  (Probelauf 194 s): **Patente 51.813 zurück**, 2.229 Duplikate, 2.805 Pflanzensorten;
+  **Förderung 3.945 zurück**, 554 Duplikate, 4.058 ohne Beschreibung, 141 Form-D-Vehikel/
+  -Branchen/-Beträge. Ohne gespeicherten Vektor (v. a. der Förder-Nachlauf vom Juli, ~132.000
+  Zeilen) bräuchte es den GPU-Einbetter — nicht Teil dieses Schritts.

@@ -1616,7 +1616,7 @@ im Handover still).
 | 07:45 **Di** | Newsletter-Website-Edition (von Mo verlegt 11.09., Zeit 22.09.) | `scripts/weekly_newsletter_publish.sh` | installiert (ohne `NEWSLETTER_DEEP_DIVE`) |
 | 03:45 Di | Patent-Ingest BDDS (Cr-Del + Amend) | `scripts/weekly_patents.sh` | installiert |
 | 06:45 Di | Patent-Rechnungen (assign_cpc, Tier-Serien, Insights) | `scripts/weekly_patent_analytics.sh` | installiert |
-| 06:00 Sa | Nicht-RSS-Ingester + Distill + Research-Index | `scripts/weekly_ingesters.sh` | installiert |
+| 06:00 Sa | Nicht-RSS-Ingester + Distill + Research-Index (Relevanz: Presse/Forschung per Head, Patente/Förderung per Regel seit 02.10.) | `scripts/weekly_ingesters.sh` | installiert |
 | 06:00 So | Discovery-Loop (Mega-Kandidaten, Head-Retrain auf dem 1024er-Präfix seit 26.09.) | `scripts/discovery_loop.py` | installiert |
 | 1. 08:00 | Monats-Quellencheck (+ TDM-Re-Probe) → Issue #13 | `scripts/monthly_source_check.py --post-issue` | installiert |
 | 2. 07:00 | Backlink-Check → `dead_links` | `scripts/check_source_links.py --per-source 12 --mark` | installiert |
@@ -1823,7 +1823,8 @@ scripts/run_food_pilot.sh                                  # Volllauf: Übernahm
 Die Arbeiten kommen unter drei Pseudo-Quellen `OpenAlex corpus: Food Science | Nutrition
 and Dietetics | Alternative proteins` mit **`llm_pipeline = FALSE`** — der Nachtlauf
 schreibt daraus nie Artikel. Eingebettet wird über den regulären Signalpfad
-(`signal_batch_embedded.py --ids-file … --clean-text`): Relevanz-Head (Schwelle 0,5),
+(`signal_batch_embedded.py --ids-file … --clean-text`): Relevanz-Head (Schwelle 0,5; seit
+02.10. für Patente und Förderung stattdessen Regeln, `pipeline/signal_rules.py`),
 Embedding-Dedup, Status `signal`; `--clean-text` nimmt Ebenen-Tag, Überschriften, HTML und
 Copyright vor dem 500-Zeichen-Schnitt heraus (`pipeline/text_clean.py`). Der Volllauf
 stellt danach den 8B-Ruhezustand her — der Einbett-Handover allein setzt nur den Symlink
