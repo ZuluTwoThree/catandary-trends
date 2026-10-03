@@ -207,7 +207,8 @@ def main() -> int:
     s.add_argument("--quota", type=int, default=2000)
     s.add_argument("--patents-from", default="1990-01-01")
     s.add_argument("--science-from", default="2010-01-01")
-    s.add_argument("--until", default="2023-01-01")
+    s.add_argument("--until", default="2026-07-01",
+                   help="exclusive; from here the Saturday run embeds every new patent (60-day window)")
     s.add_argument("--force", action="store_true")
     w = sub.add_parser("work")
     w.add_argument("--host", required=True)

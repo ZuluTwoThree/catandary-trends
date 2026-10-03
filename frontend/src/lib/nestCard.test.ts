@@ -197,7 +197,7 @@ describe("emerging cards — age is the headline, weaknesses are printed", () =>
 
   it("names the history sample the run was dated against", () => {
     expect(runProvenance(run({ params: { history_sample: 1_104_000 } }))).toContain(
-      "1,749,202 archived signals plus a sample of 1,104,000 past patents (from 1990) and research works (from 2010), back to"
+      "1,749,202 archived signals plus a sample of 1,104,000 past patents (from 1990) and research works (from 2010), drawn up to mid-2026, back to"
     );
   });
 

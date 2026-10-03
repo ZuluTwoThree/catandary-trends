@@ -1711,7 +1711,8 @@ Ausgabe:
 
 **Einbetten** (`scripts/history_embed.py`, gebaut 03.10.):
 
-- `select`: füllt die Warteschlange `history_items` einmalig (~7,5 min).
+- `select`: füllt die Warteschlange `history_items` einmalig (~7,5 min). Default seit 03.10.: bis
+  2026-06. Ein späteres Zeitfenster hängst du mit `--force` und eigenem `--…-from`/`--until` an.
 - `scripts/run_history_embed.sh`: bettet auf 3090 + 5080 parallel ein (~6 h).
   - Die 5080 nur mit deinem Wort, denn Nemotron wird solange angehalten und am Ende
     wieder gestartet.

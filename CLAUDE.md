@@ -1234,8 +1234,10 @@ cross_industry:
   Vor 2023 liegen kaum Patente und Arbeiten im Signalraum (81 % der Patente mit Vektor
   stammen aus 2024–2026). Die Vergangenheit kommt deshalb als **gewichtete Stichprobe** dazu,
   nicht als Bestand, und **nicht in `trends`** (dort ~33 KB je Zeile, HNSW-Bloat):
-  - **Zufallsschicht:** je Monat 2.000 Patentfamilien (1990–2022) bzw. Arbeiten aus
-    `research_corpus` (2010–2022), gezogen über den kleinsten Hash. Jedes Dokument trägt das
+  - **Zufallsschicht:** je Monat 2.000 Patentfamilien (1990 bis 2026-06) bzw. Arbeiten aus
+    `research_corpus` (2010 bis 2026-06; erweitert am 03.10. nachmittags: bis dahin
+    bettet der Samstagslauf nur die letzten 60 Tage Patente ein, 2023–25 standen nur ~3 % der
+    Familien im Raum), gezogen über den kleinsten Hash. Jedes Dokument trägt das
     Gewicht Rahmen/Stichprobe.
   - **Zitationsschicht:** alle Patentfamilien, die ein Patent im Signalraum zitiert (die
     Brücke zum TIR-Graphen); gekennzeichnet und ungewichtet.
@@ -1246,7 +1248,8 @@ cross_industry:
   - **Werkzeuge:** `scripts/history_plan.py` (Probelauf), `scripts/history_embed.py`
     (select/work/status/check), `scripts/run_history_embed.sh` (3090 + 5080 parallel; die
     5080 nur mit Owner-Wort). `history_embed` steht in `GPU_GUARD_PATTERNS`.
-  - **Umfang:** 1.333.777 Dokumente, ~6 h; erster Lauf 03.10. ab 11:02.
+  - **Umfang:** 1.547.852 Dokumente (1.333.777 bis 2022 + 214.075 für 2023-01 bis 2026-06),
+    ~7 h; erster Lauf 03.10. ab 11:02.
   - **Tablespace `hdd`** (`/mnt/data-hdd/pg_tablespace`, seit 03.10.): kalte Daten gehören
     dorthin. Heute liegen dort `history_vectors` und die drei `*_old`-Tabellen (36 GB,
     `scripts/move_cold_tables_to_hdd.sh`). Restore-Folgen: `docs/restore_runbook.md`.

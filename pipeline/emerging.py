@@ -432,8 +432,8 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
     vector). The domain service passes its in-memory members this way.
 
     history: also count the history sample of the signal space (2026-10-03,
-    pipeline/history_vectors.py): per month up to 2,000 patent families (1990-2022)
-    and research works (2010-2022), random layer only, documents already in trends
+    pipeline/history_vectors.py): per month up to 2,000 patent families (1990 to 2026-06)
+    and research works (2010 to 2026-06), random layer only, documents already in trends
     skipped. Counted UNWEIGHTED like any other row — a first month then still means
     ">= 3 lookalikes", now in a uniform sample of the past instead of our thin
     pre-2023 intake; shares per tier stay comparable. Skipped for vertical scopes

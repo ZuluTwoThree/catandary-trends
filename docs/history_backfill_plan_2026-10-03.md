@@ -103,6 +103,33 @@ Gemessen (03.10.):
 - **Platz:** Die `*_old`-Tabellen liegen seit 03.10. im Tablespace `hdd`; auf `/` sind 34 GB
   mehr frei.
 
+## Erweiterung bis Juni 2026 (03.10. nachmittags, Owner)
+
+Gemessen nach Patentfamilien, als der Lauf schon lief:
+
+| Zeitraum | Familien mit Abstract | im Signalraum | nach dem Lauf ohne Vektor |
+|---|---|---|---|
+| 1990–2022 | 7,86 Mio. | 72k | 6,78 Mio. (durch die Stichprobe vertreten) |
+| 2023 bis heute | 4,79 Mio. | 203k | 4,59 Mio. (nicht vertreten) |
+
+**Patente:** Die Annahme „ab 2023 ist der Signalraum dicht" stimmte für die Fachpresse,
+nicht für Patente.
+- Der Samstagslauf bettet nur die letzten 60 Tage ein, der Rückstand blieb bewusst außen vor.
+- 2023–2025 stehen deshalb nur 15k–42k Patente je Jahr im Raum, gegen ~1,5 Mio. Familien
+  im Bestand: ~3 %, nicht zufällig.
+
+**Forschung:** Sie ist ab 2023 dicht genug, 2.700–8.400 Arbeiten je Monat. Diese stammen
+aber aus Feeds und Themen-Sweeps, nicht aus einer Zufallsziehung. Die Stichprobe muss
+durchlaufen, sonst wechselt die Zusammensetzung am Jahreswechsel 2022/23.
+
+**Umsetzung:** `history_embed.py select --force --patents-from 2023-01-01 --science-from
+2023-01-01 --until 2026-07-01`.
+- Ergebnis: 130.075 Patente (84.000 Zufall + 46.075 zitiert) und 84.000 Arbeiten,
+  angehängt an die laufende Warteschlange.
+- Die Warteschlange umfasst damit 1.547.852 Einträge.
+- Das Ende Juni 2026 ist gewählt, weil ab dort das 60-Tage-Fenster des Samstagslaufs greift.
+- Neuer Default von `select --until`: 2026-07-01.
+
 ## Lesen (gebaut 03.10.)
 
 - **Archiv-Scan** (`emerging.scan_history(history=True)`, Default in `emerging_snapshot`):

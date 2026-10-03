@@ -178,7 +178,7 @@ export function runProvenance(run: EmergingRun): string {
   }
   const past = p?.history_sample
     ? ` plus a sample of ${p.history_sample.toLocaleString("en-US")} past patents (from 1990) and ` +
-      `research works (from 2010)`
+      `research works (from 2010), drawn up to mid-2026`
     : "";
   return (
     `${run.nests} pockets found by cutting the last ${days} days into ${run.cells} cells ` +

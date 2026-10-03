@@ -222,8 +222,8 @@ def sample_ids(months: list[str], per_month: int,
     The per-month cut is a window function in the database, so only the chosen
     ids travel — not 1.8M (id, month) pairs.
 
-    history (03.10.): the random layer of the history sample (patents 1990-2022,
-    research 2010-2022, pipeline/history_vectors.py) joins the pool the 600 a
+    history (03.10.): the random layer of the history sample (patents from 1990,
+    research from 2010, both to 2026-06, pipeline/history_vectors.py) joins the pool the 600 a
     month are drawn from, under ids HISTORY_ID_BASE + item id. Before 2023 the
     pool then holds our thin own intake plus up to 2,000 per month and tier.
     """
@@ -828,7 +828,7 @@ def main() -> int:
                     help="layouts to compute, the first is the default picture "
                          f"(choices: {', '.join(LAYOUTS)}; default {','.join(DEFAULT_LAYOUTS)})")
     ap.add_argument("--no-history", action="store_true",
-                    help="leave out the history sample (patents 1990-2022, research 2010-2022)")
+                    help="leave out the history sample (patents from 1990, research from 2010, to 2026-06)")
     ap.add_argument("--sample-only", action="store_true",
                     help="skip placing every other signal (search then covers only the sample)")
     args = ap.parse_args()

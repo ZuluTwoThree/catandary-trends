@@ -401,7 +401,7 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--no-history", action="store_true",
                     help="date against trends only, without the history sample of patents "
-                         "1990-2022 / research 2010-2022 (pipeline/history_vectors.py)")
+                         "1990 / research from 2010, up to 2026-06 (pipeline/history_vectors.py)")
     ap.add_argument("--no-llm-names", action="store_true",
                     help="skip the naming step (the only GPU step there is)")
     ap.add_argument("--keep", type=int, default=1, help="runs to keep per scope")

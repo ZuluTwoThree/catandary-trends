@@ -274,7 +274,7 @@ function fmtMonth(m: string | undefined): string {
 export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   const lastMonth = Math.max(0, meta.months.length - 1);
   const [rawData, setData] = useState<CloudData | null>(null);
-  // The history sample (03.10.): patents 1990-2022 and research 2010-2022 drawn
+  // The history sample (03.10.): patents from 1990 and research from 2010, to 2026-06, drawn
   // into the cloud from history_vectors. Hiding it rebuilds the point set without
   // them (rare, so a CPU copy is fine) — the layout itself does not change.
   const [showPast, setShowPast] = useState(true);
@@ -946,7 +946,7 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
           <button
             type="button"
             className={btn(showPast)}
-            title="patents 1990-2022 and research 2010-2022 from the history sample (2,000 a month and tier, plus the patents the signal space cites)"
+            title="patents from 1990 and research from 2010, to mid-2026, from the history sample (2,000 a month and tier, plus the patents the signal space cites)"
             onClick={() => setShowPast((v) => !v)}
           >
             Past sample
@@ -1391,9 +1391,10 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
               </p>
               {meta.nHistoryAll + meta.nHistory > 0 && (
                 <p className="font-sans text-[12px] text-muted leading-relaxed mt-3">
-                  <span className="text-paper">Past sample:</span>{" "}before 2023 our own intake is thin, so
-                  patents (from 1990) and research (from 2010) come from a uniform sample of the archive —
-                  2,000 a month and tier — plus every patent that a patent in the signal space cites
+                  <span className="text-paper">Past sample:</span>{" "}until mid-2026 our own intake of patents
+                  and research is thin or hand-picked (the weekly run embeds only the last 60 days of patents),
+                  so patents (from 1990) and research (from 2010) also come from a uniform sample of the
+                  archive — 2,000 a month and tier — plus every patent that a patent in the signal space cites
                   ({meta.nHistoryAll.toLocaleString("en-US")} placed, {meta.nHistory.toLocaleString("en-US")} in the
                   drawn sample). One past point stands for many documents of its month; read past density as
                   composition, not volume.

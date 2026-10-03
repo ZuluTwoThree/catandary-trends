@@ -38,7 +38,7 @@ HISTORY_ID_BASE = 1 << 31
 # Synthetic source per tier, chosen so pipeline.tiers.tier_of places it right.
 SOURCES = {"patent": ("EPO DOCDB (history sample)", "api"),
            "science": ("OpenAlex corpus (history sample)", "research")}
-HISTORY_UNTIL = "2023-01"     # the sample covers the months before this one
+HISTORY_UNTIL = "2026-07"     # the sample covers the months before this one (extended 03.10.)
 
 
 def migrate_history_tables() -> None:
