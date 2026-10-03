@@ -1243,6 +1243,11 @@ cross_industry:
     Brücke zum TIR-Graphen); gekennzeichnet und ungewichtet.
   - **Tabellen** `history_items` (Warteschlange und Metadaten) und `history_vectors`
     (1024er-Präfix, float16, 2 KB), additiv in `pipeline/history_vectors.py`.
+  - **Forschung mit OpenAlex-Datum 1. Januar** (nur das Jahr bekannt; 55–89 % jedes Januars):
+    `scripts/history_redate.py` datiert sie per Crossref neu (59 %; Spalten
+    `month_openalex`/`month_source`). Der Rest wird `random:yearonly` und zählt nicht mit.
+    Der Januar ist mit Arbeiten vom 2.–31. Januar aufgefüllt (03.10.). Gebrauchsmuster
+    (Artcode U, fast alle CN, 115k) bleiben drin (Owner 03.10.).
   - **Textrezept** wie der Signalpfad (Titel + Abstract[:500]). Kosinus gegen
     `embedding_1024`: 0,998.
   - **Werkzeuge:** `scripts/history_plan.py` (Probelauf), `scripts/history_embed.py`

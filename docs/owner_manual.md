@@ -1719,6 +1719,11 @@ Ausgabe:
   - `NO_REMOTE=1` nimmt nur die 3090.
   - Ein zweiter Aufruf macht dort weiter, wo der erste aufgehört hat.
 - `status`: Fortschritt je Ebene und Schicht.
+- `scripts/history_redate.py [--apply]`: Datiert Forschungsarbeiten, die OpenAlex auf den
+  1. Januar setzt (nur Jahr bekannt), per Crossref auf ihren Monat. Ohne Monat fallen sie
+  aus der Zählung. `--refill-january --apply` füllt den Januar wieder auf, danach
+  `history_embed.py work`. Ergebnis 03.10.: 59 % datiert.
+  Ist neue Forschung in die Stichprobe gekommen, beide Schritte noch einmal laufen lassen.
 - `check --host URL`: Stimmt der Vektorraum mit `trends` überein? Gut ist ein Kosinus
   um 0,998.
 

@@ -130,6 +130,44 @@ durchlaufen, sonst wechselt die Zusammensetzung am Jahreswechsel 2022/23.
 - Das Ende Juni 2026 ist gewählt, weil ab dort das 60-Tage-Fenster des Samstagslaufs greift.
 - Neuer Default von `select --until`: 2026-07-01.
 
+## Forschung mit Datum 1. Januar neu datiert (03.10. abends, Owner)
+
+**Problem:** OpenAlex setzt `YYYY-01-01`, wenn nur das Jahr bekannt ist. In der Stichprobe
+waren damit 55–89 % jedes Januars (25.262 Arbeiten) in Wahrheit irgendwann im Jahr
+erschienen. Ein Thema konnte in der Forschungsebene bis zu elf Monate zu früh auftauchen.
+
+**Abfrage:** `scripts/history_redate.py` fragt Crossref je 50 DOIs. Es zählt der erste Monat
+**im selben Jahr**, in dieser Reihenfolge: online, print, issued, published, zuletzt das
+Registrierungsdatum der DOI (`created`). Ein `created` in einem späteren Jahr bedeutet eine
+nachgetragene DOI und wird verworfen.
+
+**Ergebnis:**
+
+| Ausgang | Arbeiten |
+|---|---|
+| Monat gefunden | 14.869 (59 %) |
+| davon über `created` | 10.204 |
+| davon über online | 3.464 |
+| davon über print | 1.199 |
+| ohne DOI | 6.597 |
+| nicht bei Crossref (v. a. DataCite) | 1.828 |
+| auch bei Crossref nur das Jahr | 1.968 |
+
+**Taugt `created`?** Wo es neben dem Online-Datum steht (3.215 Fälle): 83 % gleicher Monat,
+7 % ±1, 10 % weiter.
+
+**Umsetzung:**
+- Gefundene Monate ersetzen `history_items.month`. Der OpenAlex-Monat bleibt in
+  `month_openalex`, die Quelle steht in `month_source`.
+- Arbeiten ohne Monat bekommen die Schicht `random:yearonly`. Die Leser nehmen nur
+  `random`, also fallen sie aus Monatszählung und Wolke heraus.
+- Der ausgedünnte Januar (danach 400–1.311 je Jahr) wurde mit 22.370 Arbeiten vom 2.–31.
+  Januar wieder auf 2.000 aufgefüllt (`--refill-january`, `month_source
+  'openalex:jan-refill'`) und auf der 3090 eingebettet.
+- Die übrigen Monate tragen dadurch etwa 5–8 % mehr als die Quote.
+- `research_corpus` bleibt unverändert; die Crossref-Antworten liegen in
+  `data/crossref_dates.json`.
+
 ## Lesen (gebaut 03.10.)
 
 - **Archiv-Scan** (`emerging.scan_history(history=True)`, Default in `emerging_snapshot`):
