@@ -154,7 +154,9 @@ export default function NestCard({ nest }: { nest: EmergingNest }) {
                 {i > 0 && <span className="text-border">then</span>}
                 <span>
                   <span className="text-paper">{st.label}</span>{" "}
-                  <span className="text-muted tabular-nums">{st.first_month}</span>
+                  <span className="text-muted tabular-nums">
+                    {st.edge ? `${st.first_month} or earlier` : st.first_month}
+                  </span>
                   <span className="text-muted"> ({Math.round(st.share * 100)} %)</span>
                 </span>
               </span>

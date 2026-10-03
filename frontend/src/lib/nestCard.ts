@@ -82,10 +82,23 @@ export function calendarSpark(s: CalendarSeries, thisYear = new Date().getFullYe
   };
 }
 
+/**
+ * The archive holds no patent published before 1990 (EPO DOCDB back file; the history
+ * sample starts there too, pipeline/history_vectors.py). A patent conversation whose
+ * first month is the first month there is can be older — it is an edge, not a date.
+ */
+export const PATENT_FLOOR = "1990-01";
+
+export function isPatentEdge(month: string | null | undefined): boolean {
+  return !!month && month <= PATENT_FLOOR;
+}
+
 export function ageText(nest: EmergingNest): string {
   const cal = calendarFirst(nest);
   if (cal) return `on record since ${cal.year}${cal.edge ? " or earlier" : ""}`;
   if (nest.age_months == null || !nest.first_month) return "no datable history";
+  if (nest.first_month === PATENT_FLOOR && isPatentEdge(nest.tiers.patent?.first_month))
+    return "first seen 1990 or earlier";
   const m = nest.age_months;
   if (m < 24) return `first seen ${m} month${m === 1 ? "" : "s"} ago`;
   return `first seen ${nest.first_month}`;
@@ -217,6 +230,8 @@ export interface TierStep {
   label: string;
   first_month: string | null;
   share: number;
+  /** true when the month is the start of the archive for this tier, not a date (patents: 1990). */
+  edge: boolean;
 }
 
 export function tierSteps(nest: EmergingNest): TierStep[] {
@@ -227,6 +242,7 @@ export function tierSteps(nest: EmergingNest): TierStep[] {
       label: TIER_LABEL[t],
       first_month: nest.tiers[t]!.first_month,
       share: nest.tiers[t]!.share_of_nest,
+      edge: t === "patent" && isPatentEdge(nest.tiers[t]!.first_month),
     }));
 }
 

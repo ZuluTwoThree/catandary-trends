@@ -195,6 +195,28 @@ describe("emerging cards — age is the headline, weaknesses are printed", () =>
     );
   });
 
+  it("reads a patent start in January 1990 as the edge of the archive", () => {
+    const n = nest({
+      first_month: "1990-01",
+      age_months: 441,
+      tier_order: ["patent", "science"],
+      tiers: {
+        patent: { first_month: "1990-01", age_months: 441, hits: 40, hits_recent: 2, share_of_nest: 0.3 },
+        science: { first_month: "2011-03", age_months: 187, hits: 90, hits_recent: 9, share_of_nest: 0.7 },
+      },
+    });
+    expect(ageText(n)).toBe("first seen 1990 or earlier");
+    expect(tierSteps(n).map((s) => s.edge)).toEqual([true, false]);
+    const later = nest({
+      first_month: "1994-06",
+      age_months: 388,
+      tier_order: ["patent"],
+      tiers: { patent: { first_month: "1994-06", age_months: 388, hits: 5, hits_recent: 0, share_of_nest: 1 } },
+    });
+    expect(ageText(later)).toBe("first seen 1994-06");
+    expect(tierSteps(later)[0].edge).toBe(false);
+  });
+
   it("names the history sample the run was dated against", () => {
     expect(runProvenance(run({ params: { history_sample: 1_104_000 } }))).toContain(
       "1,749,202 archived signals plus a sample of 1,104,000 past patents (from 1990) and research works (from 2010), drawn up to mid-2026, back to"
