@@ -132,6 +132,8 @@ export interface RunParams {
   members_archive?: number;
   in_pockets?: number;
   cohesion_quantile?: number;
+  /** History sample rows counted in the dating scan (pipeline/history_vectors.py, 03.10.). */
+  history_sample?: number;
 }
 
 function parseJson<T>(raw: unknown, fallback: T): T {

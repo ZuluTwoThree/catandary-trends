@@ -2,7 +2,7 @@
 
 **Status (03.10. 11:05):** gebaut, der Einbettlauf auf 3090 + 5080 läuft. Tabellen `history_items` /
 `history_vectors` (additiv, `pipeline/history_vectors.py`), Warteschlange 1.333.777, Vektoren im
-Tablespace `hdd`. Wolke und Nester lesen die Vergangenheit noch nicht.
+Tablespace `hdd`. Archiv-Scan der Nester, Signalwolke und Zitationsflüsse lesen sie (s. „Lesen").
 
 ## Anlass
 
@@ -103,7 +103,26 @@ Gemessen (03.10.):
 - **Platz:** Die `*_old`-Tabellen liegen seit 03.10. im Tablespace `hdd`; auf `/` sind 34 GB
   mehr frei.
 
+## Lesen (gebaut 03.10.)
+
+- **Archiv-Scan** (`emerging.scan_history(history=True)`, Default in `emerging_snapshot`):
+  - Die Zufallsschicht zählt **ungewichtet** mit, nach den `trends`-Zeilen.
+  - Begründung: Gewichte hätten die Monatssummen vor 2023 auf den ganzen `research_corpus`
+    hochgerechnet (~240k Arbeiten je Monat gegen ~10–30k Forschungssignale danach). Damit
+    wären Neuheit und Beschleunigung am Übergang gekippt. Ungewichtet bleiben Anteile je
+    Ebene vergleichbar, und „erster Monat mit ≥ 3 Treffern" heißt drei Treffer in einer
+    gleichmäßigen Stichprobe.
+  - Die Gewichte bleiben gespeichert für spätere Hochrechnungen.
+  - Vertikal-Scopes lassen die Vergangenheit aus (sie hat kein Vertikal).
+  - Doppelte Dokumente schließt `history_items.dup_of_trend` aus (`mark_overlaps`, vor
+    jedem Lauf).
+- **Wolke** (`signal_space`): Die Zufallsschicht kommt in den Topf der 600 je Monat; „All
+  signals" ordnet beide Schichten ein. IDs `2^31 + item id`. Schalter *Past sample*.
+- **Zitationsflüsse** (`signal_space.citation_flows`): Nest → Nest über `patent_links`,
+  die stärksten 300 Paare je Lauf in `signal_space_runs.flows`. Schalter *Citation flows*.
+
 ## Nächste Schritte (nicht gebaut)
 
-1. Wolke und Archiv-Scan lesen die Nebentabelle mit Gewicht. Die Wolke bekommt die
-   Zitationskanten als gebündelte Flüsse zwischen Nestern.
+1. Nach dem Einbettlauf *Recompute pockets*, dann *Recompute cloud*, und die
+   Ergebnisse prüfen: Wie verschieben sich die Erstauftritte je Ebene? Wie dicht sind
+   die Flüsse?

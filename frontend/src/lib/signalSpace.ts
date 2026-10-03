@@ -4,7 +4,9 @@ import { annLiteral, embedQuery } from "./queryEmbedding";
 import {
   annotateMatches,
   collectRecords,
+  HISTORY_ID_BASE,
   recordIds,
+  type CloudFlows,
   type CloudMeta,
   type CloudNest,
   type SearchMode,
@@ -34,7 +36,7 @@ export async function getLatestSpaceRun(): Promise<CloudMeta | null> {
       "SELECT id, created_at::text AS created_at, n_points, n_all, per_month, months, coord_range, " +
         "pca_variance, neighbour_keep, trustworthiness, duration_s, emerging_run_id, nests, codes, " +
         "layout, alt_layout, alt_coord_range, alt_nests, alt_pca_variance, alt_neighbour_keep, " +
-        "alt_trustworthiness " +
+        "alt_trustworthiness, n_history, n_history_all, flows " +
         "FROM signal_space_runs ORDER BY id DESC LIMIT 1"
     );
     if (!r) return null;
@@ -55,6 +57,9 @@ export async function getLatestSpaceRun(): Promise<CloudMeta | null> {
       nests: parseJson<CloudNest[]>(r.nests, []),
       tierCodes: codes.tier ?? {},
       verticalCodes: codes.vertical ?? {},
+      nHistory: Number(r.n_history ?? 0),
+      nHistoryAll: Number(r.n_history_all ?? 0),
+      flows: parseJson<CloudFlows | null>(r.flows, null),
       // runs before 28.09. had one layout, the one now called "style"
       layout: r.layout ? String(r.layout) : "style",
       alt: r.alt_layout
@@ -92,10 +97,35 @@ export interface SpacePoint {
   date: string | null;
   vertical: string | null;
   signal_type: string | null;
+  /** Points of the history sample only (id >= HISTORY_ID_BASE). */
+  history?: { layer: string; cited: boolean; weight: number | null };
+}
+
+/** A point of the history sample: the patent (earliest publication of its family)
+ *  or the research work it stands for, with the layer it was drawn in. */
+async function getHistoryPoint(id: number): Promise<SpacePoint | null> {
+  const rows = await q<SpacePoint & { layer: string; cited: boolean; weight: number | null }>(
+    "SELECT h.id + $2::bigint AS id, " +
+      "COALESCE(r.title, rc.title, h.ref) AS title, " +
+      "CASE h.tier WHEN 'patent' THEN 'Patent (history sample)' ELSE 'Research (history sample)' END AS source_name, " +
+      "COALESCE(r.url, rc.doi, 'https://openalex.org/' || h.ref) AS source_url, NULL AS slug, " +
+      "'history' AS status, " +
+      "COALESCE(to_char(r.published_date, 'YYYY-MM-DD'), to_char(rc.published, 'YYYY-MM-DD')) AS date, " +
+      "NULL AS vertical, CASE h.tier WHEN 'patent' THEN 'patent' ELSE 'research' END AS signal_type, " +
+      "h.layer, h.cited, h.weight " +
+      "FROM history_items h LEFT JOIN raw_entries r ON r.id = h.raw_entry_id " +
+      "LEFT JOIN research_corpus rc ON h.tier = 'science' AND rc.id = h.ref WHERE h.id = $1",
+    [id - HISTORY_ID_BASE, HISTORY_ID_BASE]
+  );
+  const r = rows[0];
+  if (!r) return null;
+  const { layer, cited, weight, ...p } = r;
+  return { ...p, id: Number(p.id), history: { layer, cited, weight: weight == null ? null : Number(weight) } };
 }
 
 /** What the panel shows for a clicked point. */
 export async function getSpacePoint(id: number): Promise<SpacePoint | null> {
+  if (id >= HISTORY_ID_BASE) return getHistoryPoint(id);
   const rows = await q<SpacePoint>(
     "SELECT t.id, t.title_en AS title, t.source_name, t.source_url, t.slug, t.status, " +
       "to_char(COALESCE(r.published_date, t.sort_date), 'YYYY-MM-DD') AS date, " +

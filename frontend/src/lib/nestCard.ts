@@ -176,10 +176,14 @@ export function runProvenance(run: EmergingRun): string {
       `signals, back to ${run.first_month ?? "the start"}.`
     );
   }
+  const past = p?.history_sample
+    ? ` plus a sample of ${p.history_sample.toLocaleString("en-US")} past patents (from 1990) and ` +
+      `research works (from 2010)`
+    : "";
   return (
     `${run.nests} pockets found by cutting the last ${days} days into ${run.cells} cells ` +
     `and keeping only the tight ones. Each was then dated against all ` +
-    `${run.scanned.toLocaleString("en-US")} archived signals, back to ${run.first_month ?? "the start"}.`
+    `${run.scanned.toLocaleString("en-US")} archived signals${past}, back to ${run.first_month ?? "the start"}.`
   );
 }
 

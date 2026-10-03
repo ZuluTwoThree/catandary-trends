@@ -48,6 +48,27 @@ export interface CloudMeta {
   /** code -> name, as stored with the run (so decoding never drifts). */
   tierCodes: Record<string, string>;
   verticalCodes: Record<string, string>;
+  /** Points of the history sample (pipeline/history_vectors.py, 03.10.): in the
+   *  drawn sample, and among every placed point. 0 for runs before. */
+  nHistory: number;
+  nHistoryAll: number;
+  /** Patent citations between nests, or null (runs before 03.10.). */
+  flows: CloudFlows | null;
+}
+
+/** pipeline/signal_space.py citation_flows: [from nest, to nest, citations],
+ *  "from" cites "to" — the newer pocket builds on the older one. */
+export interface CloudFlows {
+  pairs: [number, number, number][];
+  edges: number;
+  patents_in_nests: number;
+}
+
+/** History points carry ids from 2^31 up (pipeline/history_vectors.HISTORY_ID_BASE). */
+export const HISTORY_ID_BASE = 2 ** 31;
+
+export function isHistoryId(id: number): boolean {
+  return id >= HISTORY_ID_BASE;
 }
 
 /**
@@ -151,6 +172,90 @@ export function unpack(buf: ArrayBuffer, range: number): CloudData {
     out.trendId[i] = dv.getUint32(o + 12, true);
   }
   return out;
+}
+
+/** The same cloud without the points of the history sample. */
+export function withoutHistory(d: CloudData): CloudData {
+  const keep: number[] = [];
+  for (let i = 0; i < d.n; i++) if (!isHistoryId(d.trendId[i])) keep.push(i);
+  if (keep.length === d.n) return d;
+  const n = keep.length;
+  const out: CloudData = {
+    n,
+    pos: new Float32Array(n * 3),
+    month: new Uint16Array(n),
+    tier: new Uint8Array(n),
+    vertical: new Uint8Array(n),
+    nest: new Uint16Array(n),
+    trendId: new Uint32Array(n),
+  };
+  keep.forEach((i, j) => {
+    out.pos.set(d.pos.subarray(i * 3, i * 3 + 3), j * 3);
+    out.month[j] = d.month[i];
+    out.tier[j] = d.tier[i];
+    out.vertical[j] = d.vertical[i];
+    out.nest[j] = d.nest[i];
+    out.trendId[j] = d.trendId[i];
+  });
+  return out;
+}
+
+export interface FlowArc {
+  from: number;
+  to: number;
+  n: number;
+  /** SVG path: a quadratic curve bowed to the right of the direction of travel. */
+  d: string;
+  width: number;
+  /** Arrow head position (on the curve near its end) and direction in radians. */
+  hx: number;
+  hy: number;
+  angle: number;
+}
+
+/**
+ * Citation flows as arcs between projected ring centres. Within-nest citations
+ * (from == to) are left out — they have no direction to draw; pairs whose rings
+ * are not on screen are skipped. Width grows with the square root of the count,
+ * relative to the strongest pair drawn.
+ */
+export function flowArcs(
+  pairs: [number, number, number][],
+  at: Map<number, { sx: number; sy: number }>,
+  opts: { top?: number; minCount?: number; maxWidth?: number } = {}
+): FlowArc[] {
+  const top = opts.top ?? 40;
+  const minCount = opts.minCount ?? 2;
+  const maxWidth = opts.maxWidth ?? 6;
+  const shown = pairs
+    .filter(([a, b, n]) => a !== b && n >= minCount && at.has(a) && at.has(b))
+    .sort((x, y) => y[2] - x[2])
+    .slice(0, top);
+  const peak = Math.max(1, ...shown.map((p) => p[2]));
+  return shown.map(([a, b, n]) => {
+    const p = at.get(a)!;
+    const q = at.get(b)!;
+    const dx = q.sx - p.sx;
+    const dy = q.sy - p.sy;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    // bow sideways by a fifth of the length, so A->B and B->A do not overlap
+    const cx = (p.sx + q.sx) / 2 + (dy / len) * len * 0.2;
+    const cy = (p.sy + q.sy) / 2 - (dx / len) * len * 0.2;
+    const t = 0.85;
+    const hx = (1 - t) * (1 - t) * p.sx + 2 * (1 - t) * t * cx + t * t * q.sx;
+    const hy = (1 - t) * (1 - t) * p.sy + 2 * (1 - t) * t * cy + t * t * q.sy;
+    const angle = Math.atan2(2 * t * (q.sy - cy) + 2 * (1 - t) * (cy - p.sy), 2 * t * (q.sx - cx) + 2 * (1 - t) * (cx - p.sx));
+    return {
+      from: a,
+      to: b,
+      n,
+      d: `M${p.sx.toFixed(1)},${p.sy.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${q.sx.toFixed(1)},${q.sy.toFixed(1)}`,
+      width: 0.8 + (maxWidth - 0.8) * Math.sqrt(n / peak),
+      hx,
+      hy,
+      angle,
+    };
+  });
 }
 
 // ------------------------------------------------------------ what is shown

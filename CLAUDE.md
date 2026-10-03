@@ -1250,7 +1250,21 @@ cross_industry:
   - **Tablespace `hdd`** (`/mnt/data-hdd/pg_tablespace`, seit 03.10.): kalte Daten gehören
     dorthin. Heute liegen dort `history_vectors` und die drei `*_old`-Tabellen (36 GB,
     `scripts/move_cold_tables_to_hdd.sh`). Restore-Folgen: `docs/restore_runbook.md`.
-  - **Noch offen:** Wolke und Nester lesen die Vergangenheit noch nicht.
+  - **Gelesen von:**
+    - Archiv-Scan der Nester (`emerging.scan_history(history=True)`, Default in
+      `emerging_snapshot`, `--no-history` schaltet ab): Die Zufallsschicht zählt ungewichtet
+      mit (2.000 je Monat und Ebene genügen für „erster Monat mit ≥ 3 Treffern"), außer in
+      Vertikal-Scopes. Die Laufangabe steht in `emerging_runs.params.history_sample`.
+    - Signalwolke (`signal_space`, `--no-history`): Die Zufallsschicht kommt in den Topf
+      der 600 je Monat, „All signals" ordnet Zufalls- und Zitationsschicht ein. Die IDs sind
+      `2^31 + item id` (`HISTORY_ID_BASE`), der Klick schlägt in `history_items` nach.
+    - Zitationsflüsse zwischen Nestern (`signal_space.citation_flows`: jedes Patent in einem
+      Nest, aus `trends` oder der Stichprobe, nachgeschlagen in `patent_links`).
+    - Neue Spalten `signal_space_runs.flows`, `n_history`, `n_history_all`,
+      `history_items.dup_of_trend` (alle additiv, Live-DB 03.10.).
+    - Frontend: Schalter *Past sample* und *Citation flows* (`lib/spaceCloud.ts`
+      `withoutHistory`/`flowArcs`).
+    - Der Discover-Dienst liest die Vergangenheit bewusst nicht (12-Monats-Fenster).
 - **Zugriff auf die Owner-Instanzen (seit 2026-09-05, Security E-1/E-2/E-4 behoben):** `:3001` (main, systemd), `:3004` (dev), `:3999` (dev, PUBLIC_MODE) und der llama-server `:8090` binden nur noch auf **127.0.0.1** (`-H 127.0.0.1` in `deploy/systemd/catandary-frontend.service`, `--host 127.0.0.1` in allen `~/llama.cpp/start-*.sh`). Vom MacBook geht es über **Tailscale Serve** (tailnet-only, HTTPS, Serve + HTTPS-Zertifikate im Tailnet aktiviert, Funnel bewusst aus): `https://kiworkstation.tail678c6e.ts.net` → :3001, `…:3004` → :3004, `…:3999` → :3999 (`tailscale serve status`). Direkt über die Tailnet-IP sind die Ports zu.
 - **Hosting (Ist 2026-09-02):** **Es gibt keinen VPS.** `catandary.de` = statische Landing (`docs/launch/preview.html`) auf dem bestehenden Hetzner-**Webhosting** (Shared Webspace, kein Node); die Next-App läuft nur lokal auf der Workstation, Port 3001 via systemd user unit `catandary-frontend` — `/trends` & Co. sind öffentlich 404. **Owner-Entscheid 02.09.: öffentliche Website = statischer Export (`next build` mit `output: 'export'`) aufs Webhosting** — Design `docs/audits/2026-09-02_static_export_design.md`, Plan `docs/launch/09_launch_plan_2026-09-02.md` (#82-Neuschnitt, Welle 2). Der VPS-Pfad (`docs/launch/HOSTING_PUBLIC_VPS.md`) ist damit verworfen.
 - **Reverse Proxy:** keiner im Einsatz — `deploy/Caddyfile` ist ein Relikt der verworfenen VPS-Planung (s. „Deployment" unten)

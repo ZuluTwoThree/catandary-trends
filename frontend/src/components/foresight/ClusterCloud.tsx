@@ -14,6 +14,8 @@ import {
   projectPoint,
   screenToWorld,
   unpack,
+  flowArcs,
+  withoutHistory,
   viewRadius,
   zoomAt,
   type CloudData,
@@ -259,6 +261,7 @@ interface PointDetail {
   date: string | null;
   vertical: string | null;
   signal_type: string | null;
+  history?: { layer: string; cited: boolean; weight: number | null };
 }
 
 function fmtMonth(m: string | undefined): string {
@@ -270,7 +273,16 @@ function fmtMonth(m: string | undefined): string {
 
 export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
   const lastMonth = Math.max(0, meta.months.length - 1);
-  const [data, setData] = useState<CloudData | null>(null);
+  const [rawData, setData] = useState<CloudData | null>(null);
+  // The history sample (03.10.): patents 1990-2022 and research 2010-2022 drawn
+  // into the cloud from history_vectors. Hiding it rebuilds the point set without
+  // them (rare, so a CPU copy is fine) — the layout itself does not change.
+  const [showPast, setShowPast] = useState(true);
+  const data = useMemo(
+    () => (rawData && !showPast ? withoutHistory(rawData) : rawData),
+    [rawData, showPast]
+  );
+  const [showFlows, setShowFlows] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [yaw, setYaw] = useState(0.6);
   const [pitch, setPitch] = useState(0.3);
@@ -401,6 +413,15 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
       cancelled = true;
     };
   }, [meta.runId, L.key, L.coordRange, everything]);
+
+  // indices of the previous point set mean nothing in the new one
+  useEffect(() => {
+    queueMicrotask(() => {
+      setSelected(-1);
+      setHover(-1);
+      setDetail(null);
+    });
+  }, [showPast]);
 
   // ---- canvas follows its container
   useEffect(() => {
@@ -588,6 +609,15 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     }
     return ids;
   }, [rings]);
+  // Citation flows between pockets: arcs from the citing pocket to the cited one,
+  // drawn only between rings that are on screen.
+  const arcs = useMemo(() => {
+    if (!showFlows || !showNests || !meta.flows?.pairs.length) return [];
+    const at = new Map(rings.map((r) => [r.k, { sx: r.p.sx, sy: r.p.sy }]));
+    const pairs =
+      nestSel >= 0 ? meta.flows.pairs.filter(([a, b]) => a === nestSel || b === nestSel) : meta.flows.pairs;
+    return flowArcs(pairs, at, { top: nestSel >= 0 ? 24 : 40 });
+  }, [showFlows, showNests, meta.flows, rings, nestSel]);
   const ringHits = useMemo(
     () => (showNests ? rings.map((r) => ({ sx: r.p.sx, sy: r.p.sy, r: r.radius * r.p.scale })) : []),
     [rings, showNests]
@@ -912,6 +942,26 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
         >
           All signals
         </button>
+        {meta.nHistoryAll + meta.nHistory > 0 && (
+          <button
+            type="button"
+            className={btn(showPast)}
+            title="patents 1990-2022 and research 2010-2022 from the history sample (2,000 a month and tier, plus the patents the signal space cites)"
+            onClick={() => setShowPast((v) => !v)}
+          >
+            Past sample
+          </button>
+        )}
+        {!!meta.flows?.pairs.length && (
+          <button
+            type="button"
+            className={btn(showFlows)}
+            title={`${meta.flows.edges.toLocaleString("en-US")} patent citations between ${meta.flows.patents_in_nests.toLocaleString("en-US")} patents inside pockets`}
+            onClick={() => setShowFlows((v) => !v)}
+          >
+            Citation flows
+          </button>
+        )}
         {meta.alt && (
           <>
             <span className="w-3" />
@@ -1158,6 +1208,17 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
                 height={size.h}
                 viewBox={`0 0 ${size.w} ${size.h}`}
               >
+                {arcs.map((a) => (
+                  <g key={`f${a.from}-${a.to}`}>
+                    <path d={a.d} fill="none" stroke="#7fd6ff" strokeOpacity={0.45} strokeWidth={a.width} />
+                    <path
+                      d="M0,0 L-7,-3.5 L-7,3.5 Z"
+                      fill="#7fd6ff"
+                      fillOpacity={0.7}
+                      transform={`translate(${a.hx.toFixed(1)},${a.hy.toFixed(1)}) rotate(${((a.angle * 180) / Math.PI).toFixed(1)})`}
+                    />
+                  </g>
+                ))}
                 {showNests &&
                   rings.map((r) => {
                     const on = nestSel === r.k;
@@ -1250,6 +1311,17 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
                     <Row k="signal type" v={detail.signal_type ?? "—"} />
                     <Row k="status" v={detail.status ?? "—"} />
                     <Row k="nest" v={selNest ? selNest.name : "none"} />
+                    {detail.history && (
+                      <Row
+                        k="history"
+                        v={
+                          detail.history.layer.startsWith("cited")
+                            ? "cited by a patent in the signal space"
+                            : `sample · stands for ~${Math.round(detail.history.weight ?? 1).toLocaleString("en-US")} documents of its month` +
+                              (detail.history.cited ? " · also cited" : "")
+                        }
+                      />
+                    )}
                     {matchLabel(layer, sel) && <Row k="match" v={matchLabel(layer, sel)} />}
                   </dl>
                 </>
@@ -1317,6 +1389,25 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
                 {everything ? "" : "sampled "}signals fall inside any pocket — pockets are dense corners of the last 90 days,
                 the cloud spans fifteen years.
               </p>
+              {meta.nHistoryAll + meta.nHistory > 0 && (
+                <p className="font-sans text-[12px] text-muted leading-relaxed mt-3">
+                  <span className="text-paper">Past sample:</span>{" "}before 2023 our own intake is thin, so
+                  patents (from 1990) and research (from 2010) come from a uniform sample of the archive —
+                  2,000 a month and tier — plus every patent that a patent in the signal space cites
+                  ({meta.nHistoryAll.toLocaleString("en-US")} placed, {meta.nHistory.toLocaleString("en-US")} in the
+                  drawn sample). One past point stands for many documents of its month; read past density as
+                  composition, not volume.
+                </p>
+              )}
+              {!!meta.flows?.pairs.length && (
+                <p className="font-sans text-[12px] text-muted leading-relaxed mt-3">
+                  <span className="text-paper">Citation flows:</span>{" "}an arc runs from a pocket whose patents
+                  cite to the pocket they cite — the newer builds on the older. Counted over{" "}
+                  {meta.flows.patents_in_nests.toLocaleString("en-US")} patents inside pockets (
+                  {meta.flows.edges.toLocaleString("en-US")} citations); citations within a pocket are not drawn.
+                  Click a ring to see only its flows.
+                </p>
+              )}
               <p className="font-sans text-[12px] text-muted leading-relaxed mt-3">
                 Drag to turn · Shift-drag or right-drag to move · wheel to zoom toward the
                 cursor · double-click a point (or a ring) to make it the centre. Rest on a point

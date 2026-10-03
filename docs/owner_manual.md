@@ -1095,6 +1095,32 @@ style` nur die alte Anordnung). CPU, mit beiden Anordnungen rund 20 Minuten, Spi
 in `signal_space_runs`. Die Nester kommen aus dem jüngsten *globalen* Emerging-Lauf — wer
 die Nester neu rechnet, sollte danach auch die Wolke neu rechnen.
 
+**Vergangenheit und Zitationsflüsse (seit 03.10.).** Liegt die Stichprobe der
+Vergangenheit vor (§11.3b, `history_vectors`), nimmt die Wolke sie mit:
+- **Stichprobe je Monat:** Die 600 Punkte je Monat werden aus `trends` **und** der
+  Zufallsschicht gezogen. Vor 2023 stammen Patente und Forschung damit überwiegend aus
+  der Stichprobe.
+- **All signals:** Auch alle Vergangenheits-Dokumente des Fensters werden eingeordnet,
+  einschließlich der zitierten Patente.
+- **Schalter *Past sample*:** blendet diese Punkte aus und ein; die Anordnung bleibt
+  dieselbe.
+- **Klick auf einen Vergangenheitspunkt:** zeigt Titel, Datum und Link (Patent bzw.
+  DOI), dazu die Schicht. Bei der Stichprobe steht dort, für wie viele Dokumente ihres
+  Monats der Punkt steht; bei den zitierten Patenten „cited by a patent in the signal
+  space".
+- **Schalter *Citation flows*:** zieht Bögen von einem Nest zu dem Nest, dessen Patente
+  es zitiert. Das neuere baut auf dem älteren auf; die Breite wächst mit der Wurzel der
+  Zahl. Zitate innerhalb eines Nests werden nicht gezeichnet. Klick auf einen Ring
+  zeigt nur seine Flüsse.
+- **Woher die Zählung kommt:** jedes Patent, das in einem Nest liegt, ob aus `trends`
+  oder aus der Stichprobe, nachgeschlagen in `patent_links`.
+- **Aus der Vergangenheit lassen:** `--no-history`.
+- **Reihenfolge nach neuen Vektoren:** erst *Recompute pockets*, denn der Archiv-Scan
+  datiert die Nester dann auch gegen die Vergangenheit (Patente ab 1990, Forschung ab
+  2010; `emerging_snapshot --no-history` schaltet das ab). Danach *Recompute cloud*.
+- **Lesart:** Ein Vergangenheitspunkt steht für viele Dokumente seines Monats; Dichte
+  vor 2023 heißt also Zusammensetzung, nicht Menge.
+
 **Grenzen.** Gezeigt werden die letzten 180 Monate (15 Jahre); 24 weitere werden
 nur geladen, um die rollenden Fenster zu füllen. Ältere Monate stehen im
 Schnappschuss, ergeben aber bei wenigen hundert Signalen je Monat kein Bild. Die

@@ -267,7 +267,7 @@ def run_emerging(scope: str, status: str = "signal,published",
                  window_days: int = DEFAULT_WINDOW_DAYS, cells: int | None = None,
                  min_cohesion: float | None = None, history_since: str | None = None,
                  seed: int = 42, now: datetime | None = None,
-                 llm_names: bool = True) -> int | None:
+                 llm_names: bool = True, history: bool = True) -> int | None:
     """Detect nests in the recent slice, date them against the archive, persist."""
     vertical, tier = scope_parts(scope)
     probe = None
@@ -343,8 +343,12 @@ def run_emerging(scope: str, status: str = "signal,published",
     # The dating scan stays UNSCOPED by tier on purpose: a market pocket should
     # be dated against everything, so its research prehistory shows up in its
     # tier profile instead of being hidden by the scope it was found in.
+    if history:
+        from pipeline.history_vectors import available, mark_overlaps
+        if available():
+            mark_overlaps()     # a document in trends and in the sample counts once
     hist = scan_history(centroids, thresholds, status=status, vertical=vertical,
-                        dim1024=True, since=history_since,
+                        dim1024=True, since=history_since, history=history,
                         tag_windows=(_month_back(OLD_TAG_WINDOW[1], now),
                                      _month_back(OLD_TAG_WINDOW[0], now)),
                         actor_windows=(_month_back(ACTOR_WINDOW[1], now),
@@ -352,8 +356,9 @@ def run_emerging(scope: str, status: str = "signal,published",
                         progress=lambda n: logger.info("[%s] scanned %d …", scope, n),
                         member=(None if probe is None else
                                 lambda X, batch: probe.member(X, _tiers(batch))))
-    logger.info("[%s] history: %d documents over %d months (%.0fs)",
-                scope, hist["scanned"], len(hist["months"]), time.time() - t1)
+    logger.info("[%s] history: %d documents + %d from the history sample over %d months (%.0fs)",
+                scope, hist["scanned"], hist.get("history_scanned", 0), len(hist["months"]),
+                time.time() - t1)
     score_nests(nests, hist, now=now)
     if probe is not None:
         # domains: date the pockets by the research and patent calendar (01.10.)
@@ -366,7 +371,9 @@ def run_emerging(scope: str, status: str = "signal,published",
     if llm_names:
         name_nests_on_gpu(nests, scope)
 
-    run_id = persist_run(scope, status, since, window_days, k, nests, hist)
+    run_id = persist_run(scope, status, since, window_days, k, nests, hist,
+                         params={"history_sample": hist.get("history_scanned", 0)}
+                         if hist.get("history_scanned") else None)
     logger.info("[%s] run %d persisted: %d nests, %.0fs total",
                 scope, run_id, len(nests), time.time() - t0)
     return run_id
@@ -392,6 +399,9 @@ def main() -> int:
     ap.add_argument("--history-since", default=None,
                     help="limit the dating scan (default: the whole archive)")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--no-history", action="store_true",
+                    help="date against trends only, without the history sample of patents "
+                         "1990-2022 / research 2010-2022 (pipeline/history_vectors.py)")
     ap.add_argument("--no-llm-names", action="store_true",
                     help="skip the naming step (the only GPU step there is)")
     ap.add_argument("--keep", type=int, default=1, help="runs to keep per scope")
@@ -409,7 +419,8 @@ def main() -> int:
         if run_emerging(scope, status=args.status, window_days=args.window_days,
                         cells=args.cells, min_cohesion=args.min_cohesion,
                         history_since=args.history_since, seed=args.seed,
-                        llm_names=not args.no_llm_names) is not None:
+                        llm_names=not args.no_llm_names,
+                        history=not args.no_history) is not None:
             ok += 1
     pruned = prune_old_emerging_runs(keep_per_scope=args.keep)
     print(f"{ok}/{len(scopes)} emerging runs persisted ({pruned} stale runs pruned).")

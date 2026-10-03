@@ -63,6 +63,10 @@ import numpy as np
 from pipeline import db as db_mod
 from pipeline.db import get_connection
 from pipeline.foresight_snapshot import VERTICALS, add_columns
+from pipeline.history_vectors import HISTORY_ID_BASE, iter_history
+from pipeline.history_vectors import available as history_available
+from pipeline.history_vectors import mark_overlaps as mark_history_overlaps
+from pipeline.history_vectors import unpack as unpack_history
 from pipeline.tiers import TIERS, tier_of
 
 try:  # the run log must never stop a run (pipeline/ops_events.py)
@@ -155,6 +159,10 @@ def migrate_signal_space_tables() -> None:
             "alt_nests": "TEXT", "alt_pca_variance": "REAL",
             "alt_neighbour_keep": "REAL", "alt_trustworthiness": "REAL",
         })
+        # 03.10.: the history sample (pipeline/history_vectors.py) joins the cloud;
+        # flows = patent citations between nests (JSON), n_history = history points.
+        add_columns(conn, "signal_space_runs", {"flows": "TEXT", "n_history": "INTEGER",
+                                                "n_history_all": "INTEGER"})
 
 
 # -------------------------------------------------------------------- months
@@ -196,29 +204,55 @@ def _signal_filter() -> str:
 
 # -------------------------------------------------------------------- pass 1
 
-def sample_ids(months: list[str], per_month: int) -> list[tuple[int, str]]:
+def _history_month_expr() -> str:
+    return ("to_char(make_date(h.month / 12, mod(h.month, 12) + 1, 1), 'YYYY-MM')"
+            if db_mod.USE_POSTGRES else "printf('%04d-%02d', h.month / 12, h.month % 12 + 1)")
+
+
+def _history_hash_expr() -> str:
+    base = HISTORY_ID_BASE
+    return (f"mod(({base}::bigint + h.id) * {HASH_MUL}, {HASH_MOD})" if db_mod.USE_POSTGRES
+            else f"((({base} + h.id) * {HASH_MUL}) % {HASH_MOD})")
+
+
+def sample_ids(months: list[str], per_month: int,
+               history: bool = True) -> list[tuple[int, str]]:
     """(trend_id, month) of the sample, ordered by month then hash.
 
     The per-month cut is a window function in the database, so only the chosen
     ids travel — not 1.8M (id, month) pairs.
+
+    history (03.10.): the random layer of the history sample (patents 1990-2022,
+    research 2010-2022, pipeline/history_vectors.py) joins the pool the 600 a
+    month are drawn from, under ids HISTORY_ID_BASE + item id. Before 2023 the
+    pool then holds our thin own intake plus up to 2,000 per month and tier.
     """
     if not months:
         return []
     mexpr = _month_expr()
-    sql = (
-        "SELECT id, m FROM ("
-        f"  SELECT t.id AS id, {mexpr} AS m,"
-        f"         row_number() OVER (PARTITION BY {mexpr}"
-        f"                            ORDER BY {_hash_expr()}, t.id) AS rn,"
-        f"         {_hash_expr()} AS h"
-        "  FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id"
-        f"  WHERE {_signal_filter()}"
-        f"    AND {mexpr} >= ? AND {mexpr} <= ?"
-        ") s WHERE rn <= ? ORDER BY m, h, id"
-    )
+    pool = (f"  SELECT t.id AS id, {mexpr} AS m, {_hash_expr()} AS h"
+            "  FROM trends t JOIN raw_entries r ON t.raw_entry_id = r.id"
+            f"  WHERE {_signal_filter()}"
+            f"    AND {mexpr} >= ? AND {mexpr} <= ?")
+    params: list = [months[0], months[-1]]
+    if history and history_available():
+        pool += (f"  UNION ALL SELECT {HISTORY_ID_BASE} + h.id AS id, {_history_month_expr()} AS m,"
+                 f"         {_history_hash_expr()} AS h"
+                 "  FROM history_items h"
+                 "  WHERE h.embedded_at IS NOT NULL AND h.layer = 'random'"
+                 "    AND h.dup_of_trend IS NULL AND h.month >= ? AND h.month <= ?")
+        params += [_mnum(months[0]), _mnum(months[-1])]
+    sql = ("SELECT id, m FROM ("
+           "  SELECT id, m, h, row_number() OVER (PARTITION BY m ORDER BY h, id) AS rn"
+           f"  FROM ({pool}) pool"
+           ") s WHERE rn <= ? ORDER BY m, h, id")
     with get_connection() as c:
-        rows = c.execute(sql, (months[0], months[-1], per_month)).fetchall()
+        rows = c.execute(sql, (*params, per_month)).fetchall()
     return [(int(r["id"]), str(r["m"])) for r in rows]
+
+
+def _mnum(m: str) -> int:
+    return int(m[:4]) * 12 + int(m[5:7]) - 1
 
 
 # -------------------------------------------------------------------- pass 2
@@ -233,6 +267,22 @@ def load_vectors(ids: list[int], dim: int = 1024) -> tuple[np.ndarray, list[dict
     meta: list[dict] = [{} for _ in ids]
     pos = {tid: i for i, tid in enumerate(ids)}
     emb = f"{_emb_col()}::text" if db_mod.USE_POSTGRES else _emb_col()
+    hist = [i for i in ids if i >= HISTORY_ID_BASE]
+    trend_ids = [i for i in ids if i < HISTORY_ID_BASE]
+    if hist:
+        with get_connection() as c:
+            for start in range(0, len(hist), FETCH_CHUNK):
+                chunk = [i - HISTORY_ID_BASE for i in hist[start:start + FETCH_CHUNK]]
+                q = ",".join("?" * len(chunk))
+                for r in c.execute("SELECT h.id, h.tier, v.vec FROM history_items h "
+                                   "JOIN history_vectors v ON v.item_id = h.id "
+                                   f"WHERE h.id IN ({q})", tuple(chunk)).fetchall():
+                    i = pos[HISTORY_ID_BASE + int(r["id"])]
+                    v = unpack_history(r["vec"])
+                    X[i, :min(dim, v.size)] = v[:dim]
+                    meta[i] = {"tier": r["tier"], "vertical": None}
+        print(f"  history vectors {len(hist):,}", flush=True)
+    ids = trend_ids
     with get_connection() as c:
         for start in range(0, len(ids), FETCH_CHUNK):
             chunk = ids[start:start + FETCH_CHUNK]
@@ -422,7 +472,7 @@ def _next_month(m: str) -> str:
 
 
 def place_all(months: list[str], layouts: list[dict], C: np.ndarray, thr: np.ndarray,
-              chunk: int = 20_000) -> dict:
+              chunk: int = 20_000, history: bool = True) -> dict:
     """Every embedded signal of the window, placed in the cloud of the sample.
 
     The sample defines the layout (600 per month, so the intake ramp does not);
@@ -436,22 +486,35 @@ def place_all(months: list[str], layouts: list[dict], C: np.ndarray, thr: np.nda
     (tier means to subtract, or None) and "fitted" ({trend_id: position}). Every
     chunk is read ONCE and placed into all layouts; loading is the larger half.
 
+    history (03.10.): after the trends rows, every embedded history item of the
+    window is placed too — the random layer AND the cited layer (the patents the
+    signal space builds on), under ids HISTORY_ID_BASE + item id.
+
     Returns raw (unframed) coordinates per layout ("Y", a list in the order of
-    `layouts`) plus the per-point attributes.
+    `layouts`) plus the per-point attributes and "n_history".
     """
     from pipeline.foresight import build_matrix, iter_signals
 
     pos = {m: i for i, m in enumerate(months)}
     ids, month_idx, tiers, verts, nests = [], [], [], [], []
     coords: list[list[np.ndarray]] = [[] for _ in layouts]
-    seen = placed = 0
+    seen = placed = n_history = 0
     t0 = time.time()
-    for batch in iter_signals(status="signal,published", dim1024=db_mod.USE_POSTGRES,
+
+    def source():
+        for b in iter_signals(status="signal,published", dim1024=db_mod.USE_POSTGRES,
                               since=f"{months[0]}-01", until=f"{_next_month(months[-1])}-01",
                               chunk_size=chunk):
-        X = build_matrix(batch)
-        if X.shape[1] > 1024:            # SQLite keeps the full vector; the prefix is the space
-            X = l2(X[:, :1024])
+            M = build_matrix(b)
+            if M.shape[1] > 1024:        # SQLite keeps the full vector; the prefix is the space
+                M = l2(M[:, :1024])
+            yield M, b
+        if history:
+            yield from iter_history(since=months[0], until=_next_month(months[-1]),
+                                    layers=("random", "cited"), chunk_size=chunk)
+
+    for X, batch in source():
+        n_history += sum(1 for r in batch if r.get("status") == "history")
         keep = [i for i, r in enumerate(batch) if (r["published_date"] or "")[:7] in pos]
         if not keep:
             continue
@@ -485,11 +548,53 @@ def place_all(months: list[str], layouts: list[dict], C: np.ndarray, thr: np.nda
         return {"ids": np.zeros(0, np.int64), "Y": [np.zeros((0, 3)) for _ in layouts],
                 "month": np.zeros(0, np.int32),
                 "tier": np.zeros(0, np.int32), "vertical": np.zeros(0, np.int32),
-                "nest": np.zeros(0, np.uint16), "transformed": 0}
+                "nest": np.zeros(0, np.uint16), "transformed": 0, "n_history": 0}
     return {"ids": np.concatenate(ids), "Y": [np.vstack(c) for c in coords],
             "month": np.concatenate(month_idx),
             "tier": np.concatenate(tiers), "vertical": np.concatenate(verts),
-            "nest": np.concatenate(nests), "transformed": placed}
+            "nest": np.concatenate(nests), "transformed": placed, "n_history": n_history}
+
+
+def citation_flows(ids: np.ndarray, nests: np.ndarray, top: int = 300) -> dict:
+    """Patent citations between nests (03.10.): every placed patent that sits in a
+    nest — trends signals and history items alike — is looked up in patent_links;
+    a citation from a patent of nest A to a patent of nest B counts as one flow A -> B
+    ("A builds on B"; A == B = within the nest). Indices are nest positions in the
+    run's nest list. Postgres only (patent_links is not in the test schema)."""
+    out = {"pairs": [], "edges": 0, "patents_in_nests": 0}
+    if not db_mod.USE_POSTGRES or not len(ids):
+        return out
+    inside = nests != NO_NEST
+    t_ids = [int(i) for i in ids[inside] if i < HISTORY_ID_BASE]
+    h_ids = [int(i) - HISTORY_ID_BASE for i in ids[inside] if i >= HISTORY_ID_BASE]
+    nest_of = {int(i): int(n) for i, n in zip(ids[inside], nests[inside])}
+    pub_nest: dict[str, int] = {}
+    with get_connection() as c:
+        for s in range(0, len(t_ids), 50_000):
+            for r in c.execute("SELECT t.id, r.pub_number FROM trends t JOIN raw_entries r "
+                               "ON r.id = t.raw_entry_id WHERE t.id = ANY(?) "
+                               "AND r.pub_number IS NOT NULL", (t_ids[s:s + 50_000],)).fetchall():
+                pub_nest[r["pub_number"]] = nest_of[int(r["id"])]
+        for s in range(0, len(h_ids), 50_000):
+            for r in c.execute("SELECT id, ref FROM history_items WHERE id = ANY(?) "
+                               "AND tier = 'patent'", (h_ids[s:s + 50_000],)).fetchall():
+                pub_nest[r["ref"]] = nest_of[HISTORY_ID_BASE + int(r["id"])]
+        pubs = list(pub_nest)
+        pairs: dict[tuple[int, int], int] = {}
+        edges = 0
+        for s in range(0, len(pubs), 20_000):
+            for r in c.execute("SELECT src_pub, dst_pub FROM patent_links WHERE link_type = 'cites' "
+                               "AND src_pub = ANY(?)", (pubs[s:s + 20_000],)).fetchall():
+                b = pub_nest.get(r["dst_pub"])
+                if b is None:
+                    continue
+                k = (pub_nest[r["src_pub"]], b)
+                pairs[k] = pairs.get(k, 0) + 1
+                edges += 1
+    ranked = sorted(pairs.items(), key=lambda kv: -kv[1])[:top]
+    out.update(pairs=[[a, b, n] for (a, b), n in ranked], edges=edges,
+               patents_in_nests=len(pub_nest))
+    return out
 
 
 def neighbour_keep(A: np.ndarray, B: np.ndarray, k: int) -> float:
@@ -559,18 +664,23 @@ def _peak_rss_gb() -> float:
 def run(per_month: int = DEFAULT_PER_MONTH, n_months: int = DEFAULT_MONTHS,
         end_month: str | None = None, dry_run: bool = False,
         place_everything: bool = True,
-        layouts: tuple[str, ...] = DEFAULT_LAYOUTS) -> int | None:
+        layouts: tuple[str, ...] = DEFAULT_LAYOUTS, history: bool = True) -> int | None:
     t0 = time.time()
     months = month_window(end_month or date.today().strftime("%Y-%m"), n_months)
     print(f"window {months[0]} .. {months[-1]}, {per_month} per month", flush=True)
+    history = history and history_available()
+    if history and not dry_run:
+        print(f"history sample: {mark_history_overlaps():,} new overlaps with trends marked",
+              flush=True)
 
-    chosen = sample_ids(months, per_month)
+    chosen = sample_ids(months, per_month, history=history)
+    n_hist_sample = sum(1 for tid, _ in chosen if tid >= HISTORY_ID_BASE)
     by_month: dict[str, int] = {}
     for _, m in chosen:
         by_month[m] = by_month.get(m, 0) + 1
     full = sum(1 for m in months if by_month.get(m, 0) >= per_month)
-    print(f"sample: {len(chosen):,} signals, {full}/{len(months)} months at the quota "
-          f"({time.time() - t0:.1f}s)", flush=True)
+    print(f"sample: {len(chosen):,} signals ({n_hist_sample:,} from the history sample), "
+          f"{full}/{len(months)} months at the quota ({time.time() - t0:.1f}s)", flush=True)
     if dry_run:
         years: dict[str, int] = {}
         for m, n in by_month.items():
@@ -621,14 +731,20 @@ def run(per_month: int = DEFAULT_PER_MONTH, n_months: int = DEFAULT_MONTHS,
               f"trustworthiness {trust:.3f} ({time.time() - t1:.0f}s)", flush=True)
 
     everything = None
+    flows = None
     if place_everything:
         t2 = time.time()
-        everything = place_all(months, fits, C, thr)
+        everything = place_all(months, fits, C, thr, history=history)
         for f, Y in zip(fits, everything["Y"]):
             f["all"] = (Y - f["centre"]) * f["factor"]
         print(f"placed all: {len(everything['ids']):,} signals, {everything['transformed']:,} "
               f"by transform, {len(fits)} layout(s) ({time.time() - t2:.0f}s)", flush=True)
         order = np.argsort(everything["ids"], kind="stable")   # the server binary-searches
+        t3 = time.time()
+        flows = citation_flows(everything["ids"], everything["nest"])
+        print(f"citation flows: {flows['edges']:,} citations between {flows['patents_in_nests']:,} "
+              f"patents in nests, {len(flows['pairs'])} nest pairs ({time.time() - t3:.0f}s)",
+              flush=True)
     for f in fits:
         # One range per layout, wide enough for every placed point: the browser
         # decodes sample and search hits of a layout with the same coord_range.
@@ -673,8 +789,9 @@ def run(per_month: int = DEFAULT_PER_MONTH, n_months: int = DEFAULT_MONTHS,
             " coord_range, pca_variance, neighbour_keep, trustworthiness,"
             " duration_s, peak_rss_gb, points, all_points, n_all, layout,"
             " alt_layout, alt_points, alt_all_points, alt_coord_range, alt_nests,"
-            " alt_pca_variance, alt_neighbour_keep, alt_trustworthiness)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
+            " alt_pca_variance, alt_neighbour_keep, alt_trustworthiness,"
+            " flows, n_history, n_history_all)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
             ("+".join(LAYOUTS[f["name"]]["method"] for f in fits), json.dumps(params),
              len(ids), per_month, months[0], months[-1],
              json.dumps(months), emerging_run, json.dumps(nest_json), json.dumps(codes),
@@ -685,6 +802,8 @@ def run(per_month: int = DEFAULT_PER_MONTH, n_months: int = DEFAULT_MONTHS,
              alt["all_blob"] if alt else None, alt["rng"] if alt else None,
              json.dumps(alt["nest_xyz"]) if alt else None, alt["var"] if alt else None,
              alt["keep"] if alt else None, alt["trust"] if alt else None,
+             json.dumps(flows) if flows else None, n_hist_sample,
+             int(everything["n_history"]) if everything is not None else None,
              )).fetchone()  # bytes -> BYTEA/BLOB on both backends
         run_id = int(row["id"])
         c.execute("DELETE FROM signal_space_runs WHERE id NOT IN "
@@ -708,6 +827,8 @@ def main() -> int:
     ap.add_argument("--layouts", default=",".join(DEFAULT_LAYOUTS),
                     help="layouts to compute, the first is the default picture "
                          f"(choices: {', '.join(LAYOUTS)}; default {','.join(DEFAULT_LAYOUTS)})")
+    ap.add_argument("--no-history", action="store_true",
+                    help="leave out the history sample (patents 1990-2022, research 2010-2022)")
     ap.add_argument("--sample-only", action="store_true",
                     help="skip placing every other signal (search then covers only the sample)")
     args = ap.parse_args()
@@ -718,7 +839,8 @@ def main() -> int:
     migrate_signal_space_tables()
     with ops_record("signal_space"):
         rid = run(args.per_month, args.months, args.end_month, args.dry_run,
-                  place_everything=not args.sample_only, layouts=layouts)
+                  place_everything=not args.sample_only, layouts=layouts,
+                  history=not args.no_history)
     return 0 if (rid is not None or args.dry_run) else 1
 
 

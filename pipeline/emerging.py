@@ -30,6 +30,7 @@ Nothing here writes to the DB; `pipeline.emerging_snapshot` persists.
 """
 from __future__ import annotations
 
+import itertools
 import logging
 from collections import Counter
 from datetime import datetime
@@ -407,7 +408,7 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
                  tag_windows: tuple[str, str] | None = None,
                  actor_windows: tuple[str, str] | None = None,
                  chunk_size: int = LOAD_CHUNK,
-                 progress=None, member=None, batches=None) -> dict:
+                 progress=None, member=None, batches=None, history: bool = False) -> dict:
     """Count, per month, how many archive documents look like each nest.
 
     centroids: (n_nests, dim) L2-normalized. thresholds: (n_nests,) cosine
@@ -430,8 +431,17 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
     X L2-normalised (len(rows), dim), rows with the iter_signals fields (minus the
     vector). The domain service passes its in-memory members this way.
 
+    history: also count the history sample of the signal space (2026-10-03,
+    pipeline/history_vectors.py): per month up to 2,000 patent families (1990-2022)
+    and research works (2010-2022), random layer only, documents already in trends
+    skipped. Counted UNWEIGHTED like any other row — a first month then still means
+    ">= 3 lookalikes", now in a uniform sample of the past instead of our thin
+    pre-2023 intake; shares per tier stay comparable. Skipped for vertical scopes
+    (history rows carry no vertical) and when `batches` replaces the database.
+
     Returns {months, totals, hits, tier_hits (per tier, n_nests × n_months),
-    tier_totals, actors, old_tags, recent_tags, source_first, scanned}.
+    tier_totals, actors, old_tags, recent_tags, source_first, scanned,
+    history_scanned}.
     """
     hits_by_month: dict[str, np.ndarray] = {}
     tier_hits: dict[str, dict[str, np.ndarray]] = {t: {} for t in TIERS}
@@ -446,9 +456,20 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
     scanned = 0
     C = np.ascontiguousarray(centroids.T)  # (dim, n_nests)
 
+    history_scanned = 0
+
+    def _history():
+        nonlocal history_scanned
+        from pipeline.history_vectors import iter_history
+        for X, b in iter_history(since=since, chunk_size=chunk_size):
+            history_scanned += len(b)
+            yield X, b
+
     source = batches if batches is not None else (
         (None, b) for b in iter_signals(status=status, vertical=vertical, dim1024=dim1024,
                                         since=since, chunk_size=chunk_size))
+    if history and batches is None and not (vertical and vertical.upper() != "ALL"):
+        source = itertools.chain(source, _history())
     for X, batch in source:
         if X is None:
             X = build_matrix(batch)
@@ -538,6 +559,7 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
         "recent_tags": recent_tags,
         "source_first": source_first,
         "scanned": scanned,
+        "history_scanned": history_scanned,
     }
 
 

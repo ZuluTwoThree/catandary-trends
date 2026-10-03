@@ -20,6 +20,10 @@ import {
   projectPoint,
   unpack,
   layoutView,
+  flowArcs,
+  HISTORY_ID_BASE,
+  isHistoryId,
+  withoutHistory,
   annotateMatches,
   decodeSearchBody,
   encodeSearchBody,
@@ -328,6 +332,7 @@ describe("layoutView", () => {
     runId: 4, createdAt: "", nPoints: 2, nAll: 0, perMonth: 1, months: ["2026-01"],
     coordRange: 1.5, pcaVariance: null, neighbourKeep: 0.26, trustworthiness: 0.92,
     emergingRunId: null, durationS: 0, tierCodes: {}, verticalCodes: {},
+    nHistory: 0, nHistoryAll: 0, flows: null,
     nests: [
       { id: 1, name: "a", tier: null, x: 0.1, y: 0.2, z: 0.3, members: 3 },
       { id: 2, name: "b", tier: null, x: 0.4, y: 0.5, z: 0.6, members: 0 },
@@ -410,5 +415,61 @@ describe("text + meaning search", () => {
     expect(matchWeight(0.63, MATCH_TEXT | MATCH_MEANING, 0.63, 0.84)).toBe(1);
     expect(matchWeight(0, MATCH_TEXT, 0.63, 0.84)).toBe(1);
     expect(matchWeight(0.7, MATCH_MEANING, 0.7, 0.7)).toBe(1); // a single neighbour
+  });
+});
+
+describe("history sample in the cloud", () => {
+  const cloud = (ids: number[]): CloudData => ({
+    n: ids.length,
+    pos: Float32Array.from(ids.flatMap((_, i) => [i, i + 0.5, -i])),
+    month: Uint16Array.from(ids.map((_, i) => i)),
+    tier: Uint8Array.from(ids.map(() => 2)),
+    vertical: Uint8Array.from(ids.map(() => 0)),
+    nest: Uint16Array.from(ids.map((_, i) => (i === 1 ? 3 : NO_NEST))),
+    trendId: Uint32Array.from(ids),
+  });
+
+  it("tells history ids by the top bit", () => {
+    expect(isHistoryId(HISTORY_ID_BASE)).toBe(true);
+    expect(isHistoryId(HISTORY_ID_BASE - 1)).toBe(false);
+    expect(isHistoryId(2_000_000)).toBe(false);
+  });
+
+  it("drops history points and keeps every attribute aligned", () => {
+    const d = cloud([10, HISTORY_ID_BASE + 5, 11, HISTORY_ID_BASE + 9]);
+    const out = withoutHistory(d);
+    expect(out.n).toBe(2);
+    expect(Array.from(out.trendId)).toEqual([10, 11]);
+    expect(Array.from(out.month)).toEqual([0, 2]);
+    expect(Array.from(out.pos)).toEqual([0, 0.5, -0, 2, 2.5, -2]);
+  });
+
+  it("returns the same object when there is nothing to drop", () => {
+    const d = cloud([1, 2]);
+    expect(withoutHistory(d)).toBe(d);
+  });
+});
+
+describe("flowArcs", () => {
+  const at = new Map([
+    [0, { sx: 0, sy: 0 }],
+    [1, { sx: 100, sy: 0 }],
+    [2, { sx: 0, sy: 100 }],
+  ]);
+
+  it("drops self-citations, rare pairs and rings off screen, strongest first", () => {
+    const arcs = flowArcs([[0, 0, 50], [0, 1, 9], [1, 2, 1], [2, 7, 30], [2, 0, 25]], at);
+    expect(arcs.map((a) => [a.from, a.to])).toEqual([[2, 0], [0, 1]]);
+    expect(arcs[0].width).toBeCloseTo(6);
+    expect(arcs[1].width).toBeLessThan(arcs[0].width);
+  });
+
+  it("bows A->B and B->A to opposite sides", () => {
+    const [ab] = flowArcs([[0, 1, 4]], at);
+    const [ba] = flowArcs([[1, 0, 4]], at);
+    expect(ab.d).not.toEqual(ba.d);
+    // the head sits near the target and points at it
+    expect(ab.hx).toBeGreaterThan(70);
+    expect(Math.cos(ab.angle)).toBeGreaterThan(0.5);
   });
 });
