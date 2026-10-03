@@ -394,13 +394,18 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
       reset();
       setData(null);
     });
-    fetch(
-      `/api/foresight/space/points?run=${meta.runId}${everything ? "&all=1" : ""}${L.key ? "&layout=alt" : ""}`
-    )
-      .then((r) => {
+    // Every placed signal is ~44 MB since the history sample joined (03.10.). The
+    // page keeps loaded sets in memory (`loaded`), so the big one skips the HTTP
+    // cache: two overlapping requests for it (dev double effects) failed with
+    // ERR_CACHE_WRITE_FAILURE. One retry covers a dropped connection.
+    const url = `/api/foresight/space/points?run=${meta.runId}${everything ? "&all=1" : ""}${L.key ? "&layout=alt" : ""}`;
+    const get = () =>
+      fetch(url, everything ? { cache: "no-store" } : undefined).then((r) => {
         if (!r.ok) throw new Error(`points request failed (${r.status})`);
         return r.arrayBuffer();
-      })
+      });
+    get()
+      .catch(() => (cancelled ? Promise.reject(new Error("cancelled")) : get()))
       .then((buf) => {
         const d = unpack(buf, L.coordRange);
         loaded.current.set(key, d);
