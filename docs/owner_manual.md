@@ -1664,7 +1664,8 @@ Ohne Argument ist es ein Probelauf, der nur zeigt, was passieren würde; `--appl
 Beim ersten Mal fragt `sudo` nach dem Passwort, weil der Tablespace einmalig als
 Superuser angelegt wird. Nicht während Backup (01:30) oder Cycle (02:45) starten, das
 Skript bricht dann mit rc 75 ab. Andere Tabellen: `TABLES="a b" scripts/…`.
-Restore danach: `docs/restore_runbook.md`, Abschnitt Tablespace.
+Restore danach: `docs/restore_runbook.md`, Abschnitt Tablespace. **Ausgeführt 03.10.:** die drei
+`*_old`-Tabellen und `history_vectors` liegen im Tablespace `hdd`.
 
 ### 11.3b Vergangenheit des Signalraums planen (`scripts/history_plan.py`, 2026-10-03)
 
@@ -1681,6 +1682,18 @@ Ausgabe:
 - `data/history_plan.json`.
 
 ~2,5 min. Plan und Ergebnis vom 03.10.: `docs/history_backfill_plan_2026-10-03.md`.
+
+**Einbetten** (`scripts/history_embed.py`, gebaut 03.10.):
+
+- `select`: füllt die Warteschlange `history_items` einmalig (~7,5 min).
+- `scripts/run_history_embed.sh`: bettet auf 3090 + 5080 parallel ein (~6 h).
+  - Die 5080 nur mit deinem Wort, denn Nemotron wird solange angehalten und am Ende
+    wieder gestartet.
+  - `NO_REMOTE=1` nimmt nur die 3090.
+  - Ein zweiter Aufruf macht dort weiter, wo der erste aufgehört hat.
+- `status`: Fortschritt je Ebene und Schicht.
+- `check --host URL`: Stimmt der Vektorraum mit `trends` überein? Gut ist ein Kosinus
+  um 0,998.
 
 ### 11.4 GPU-Ruhezustand
 

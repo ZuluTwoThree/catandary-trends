@@ -1230,6 +1230,27 @@ cross_industry:
   `-ngl 0` allein genügt nicht: llama.cpp legt den Compute-Buffer trotzdem auf CUDA0 (bei
   `-ub 8192` sind das 5,4 GB) und stirbt neben dem GPU-Server an OOM — daher der harte
   Device-Ausschluss und der kleine Batch.
+- **Vergangenheit des Signalraums (seit 2026-10-03, auf dev; Plan `docs/history_backfill_plan_2026-10-03.md`):**
+  Vor 2023 liegen kaum Patente und Arbeiten im Signalraum (81 % der Patente mit Vektor
+  stammen aus 2024–2026). Die Vergangenheit kommt deshalb als **gewichtete Stichprobe** dazu,
+  nicht als Bestand, und **nicht in `trends`** (dort ~33 KB je Zeile, HNSW-Bloat):
+  - **Zufallsschicht:** je Monat 2.000 Patentfamilien (1990–2022) bzw. Arbeiten aus
+    `research_corpus` (2010–2022), gezogen über den kleinsten Hash. Jedes Dokument trägt das
+    Gewicht Rahmen/Stichprobe.
+  - **Zitationsschicht:** alle Patentfamilien, die ein Patent im Signalraum zitiert (die
+    Brücke zum TIR-Graphen); gekennzeichnet und ungewichtet.
+  - **Tabellen** `history_items` (Warteschlange und Metadaten) und `history_vectors`
+    (1024er-Präfix, float16, 2 KB), additiv in `pipeline/history_vectors.py`.
+  - **Textrezept** wie der Signalpfad (Titel + Abstract[:500]). Kosinus gegen
+    `embedding_1024`: 0,998.
+  - **Werkzeuge:** `scripts/history_plan.py` (Probelauf), `scripts/history_embed.py`
+    (select/work/status/check), `scripts/run_history_embed.sh` (3090 + 5080 parallel; die
+    5080 nur mit Owner-Wort). `history_embed` steht in `GPU_GUARD_PATTERNS`.
+  - **Umfang:** 1.333.777 Dokumente, ~6 h; erster Lauf 03.10. ab 11:02.
+  - **Tablespace `hdd`** (`/mnt/data-hdd/pg_tablespace`, seit 03.10.): kalte Daten gehören
+    dorthin. Heute liegen dort `history_vectors` und die drei `*_old`-Tabellen (36 GB,
+    `scripts/move_cold_tables_to_hdd.sh`). Restore-Folgen: `docs/restore_runbook.md`.
+  - **Noch offen:** Wolke und Nester lesen die Vergangenheit noch nicht.
 - **Zugriff auf die Owner-Instanzen (seit 2026-09-05, Security E-1/E-2/E-4 behoben):** `:3001` (main, systemd), `:3004` (dev), `:3999` (dev, PUBLIC_MODE) und der llama-server `:8090` binden nur noch auf **127.0.0.1** (`-H 127.0.0.1` in `deploy/systemd/catandary-frontend.service`, `--host 127.0.0.1` in allen `~/llama.cpp/start-*.sh`). Vom MacBook geht es über **Tailscale Serve** (tailnet-only, HTTPS, Serve + HTTPS-Zertifikate im Tailnet aktiviert, Funnel bewusst aus): `https://kiworkstation.tail678c6e.ts.net` → :3001, `…:3004` → :3004, `…:3999` → :3999 (`tailscale serve status`). Direkt über die Tailnet-IP sind die Ports zu.
 - **Hosting (Ist 2026-09-02):** **Es gibt keinen VPS.** `catandary.de` = statische Landing (`docs/launch/preview.html`) auf dem bestehenden Hetzner-**Webhosting** (Shared Webspace, kein Node); die Next-App läuft nur lokal auf der Workstation, Port 3001 via systemd user unit `catandary-frontend` — `/trends` & Co. sind öffentlich 404. **Owner-Entscheid 02.09.: öffentliche Website = statischer Export (`next build` mit `output: 'export'`) aufs Webhosting** — Design `docs/audits/2026-09-02_static_export_design.md`, Plan `docs/launch/09_launch_plan_2026-09-02.md` (#82-Neuschnitt, Welle 2). Der VPS-Pfad (`docs/launch/HOSTING_PUBLIC_VPS.md`) ist damit verworfen.
 - **Reverse Proxy:** keiner im Einsatz — `deploy/Caddyfile` ist ein Relikt der verworfenen VPS-Planung (s. „Deployment" unten)

@@ -1,6 +1,8 @@
 # Vergangenheit des Signalraums vervollständigen, ohne die DB aufzublähen (Plan, 2026-10-03)
 
-**Status:** Plan + Probelauf (`scripts/history_plan.py`, schreibt nichts). Noch nichts eingebettet.
+**Status (03.10. 11:05):** gebaut, der Einbettlauf auf 3090 + 5080 läuft. Tabellen `history_items` /
+`history_vectors` (additiv, `pipeline/history_vectors.py`), Warteschlange 1.333.777, Vektoren im
+Tablespace `hdd`. Wolke und Nester lesen die Vergangenheit noch nicht.
 
 ## Anlass
 
@@ -70,10 +72,38 @@ Gemessen (03.10.):
 - **Einzelfragen bleiben Zufall:** „Liegt Patent X in Nest Y?" ist für die Vergangenheit
   nur dann beantwortbar, wenn X gezogen wurde (oder zitiert ist).
 
+## Gebaut (03.10.)
+
+- **Tabellen:**
+  - `history_items`: eine Zeile je Dokument der Stichprobe. Felder: Ebene, Verweis, Monat,
+    Schicht (`random` | `cited`), Kennzeichen `cited`, Gewicht und die Buchführung der Arbeiter.
+  - `history_vectors`: Item → 1024er-Präfix, L2-normiert, float16 (2.048 B), plus Gerät.
+  - Breite Zeilen werden nur einmal geschrieben, nie geändert; die Buchführung liegt auf den
+    schmalen Items. Die Vektortabelle liegt im Tablespace `hdd`.
+- **Auswahl** `scripts/history_embed.py select`: 1.021.777 Patente (792.000 Zufall + 229.777
+  zitiert) und 312.000 Arbeiten in 7,5 min.
+- **Arbeiter** `scripts/history_embed.py work --host URL --name GERÄT`:
+  - holen sich Pakete per `FOR UPDATE SKIP LOCKED`, beliebig viele Arbeiter auf beliebig
+    vielen Karten;
+  - ein Paket, dessen Vormerkung älter als 20 min ist, wird wieder frei; ein abgebrochener
+    Lauf verliert also nichts, und ein Neustart macht weiter;
+  - mit `--handover` holt der Arbeiter auf der lokalen 3090 das Einbettmodell auf :8090 und
+    stellt danach den Ruhezustand (8B) wieder her.
+- **Zwei Karten** `scripts/run_history_embed.sh`:
+  - hält auf bequietUbuntu Nemotron an, startet dort Qwen3-Embedding-8B auf :8095 und
+    startet die Unit im EXIT-Trap wieder;
+  - lokal ein Arbeiter mit Handover;
+  - `history_embed` steht in `GPU_GUARD_PATTERNS`, der Nachtlauf wartet also auf ihn;
+  - Logs: `~/logs/history-embed-{run,3090,5080}-<Zeit>.log`.
+- **Prüfung** `scripts/history_embed.py check --host URL`: bettet Patente ein, die schon in
+  `trends` stehen, und vergleicht mit `embedding_1024`, ohne etwas zu schreiben. Ergebnis
+  03.10. auf dem CPU-Embedder: Median 0,998, Minimum 0,994.
+- **Gemessen im Lauf:** 5080 ~35 Texte/s, 3090 ~26/s (beide höher als die Schätzung), also
+  ~6 h statt 7,3 h.
+- **Platz:** Die `*_old`-Tabellen liegen seit 03.10. im Tablespace `hdd`; auf `/` sind 34 GB
+  mehr frei.
+
 ## Nächste Schritte (nicht gebaut)
 
-1. Tabelle `history_vectors` (additiv) und ein Einbett-Lauf mit zwei Arbeitern: 3090 lokal
-   und 5080 auf bequietUbuntu per SSH-llama-server. Die 5080 nur nach Owner-Freigabe, weil
-   es dort kein festes Fenster gibt. Der Lauf ist in Stücken fortsetzbar.
-2. Wolke und Archiv-Scan lesen die Nebentabelle mit Gewicht. Die Wolke bekommt die
+1. Wolke und Archiv-Scan lesen die Nebentabelle mit Gewicht. Die Wolke bekommt die
    Zitationskanten als gebündelte Flüsse zwischen Nestern.
