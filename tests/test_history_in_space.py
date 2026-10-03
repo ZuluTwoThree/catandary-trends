@@ -148,3 +148,15 @@ def test_the_archive_scan_counts_history_only_when_asked():
     assert on["hits"][:, j].tolist() == [1, 1, 1]
     vert = scan_history(C, thr, dim1024=False, history=True, vertical="FOOD")
     assert vert["history_scanned"] == 0
+
+
+def test_research_dated_first_of_january_stays_out_of_the_monthly_scan():
+    vecs = _seed({"2015-01": 1, "2015-03": 1}, [("science", "2015-01", "random", True, False)])
+    # _seed dates trends rows to day k%27+1 -> the first row of 2015-01 is 2015-01-01
+    C = np.vstack([v[:1024] / np.linalg.norm(v[:1024]) for v in vecs.values()])
+    thr = np.full(len(C), 0.99, np.float32)
+    h = scan_history(C, thr, dim1024=False, history=True)
+    assert h["science_year_only"] == 1                   # the trends row of 1 January
+    j = h["months"].index("2015-01")
+    assert h["tier_totals"]["science"][j] == 1           # the history row of January still counts
+    assert h["tier_totals"]["science"][h["months"].index("2015-03")] == 1

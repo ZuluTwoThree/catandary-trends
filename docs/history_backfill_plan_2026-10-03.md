@@ -168,6 +168,16 @@ nachgetragene DOI und wird verworfen.
 - `research_corpus` bleibt unverändert; die Crossref-Antworten liegen in
   `data/crossref_dates.json`.
 
+**Rest im Archiv-Scan (Owner-Entscheid b, 03.10. abends):** Nach der Neudatierung begann
+die Forschungsebene noch bei 22 von 93 Nestern in einem Januar (erwartet ~8 %). Ursache sind
+die älteren Forschungssignale in `trends`: ~5.000 je Jahr vor 2012, davon ~8 % auf dem 1.
+Januar. In dünnen Jahren erreicht dieser Stapel die Schwelle „≥ 3 Treffer" zuerst im Januar.
+
+**Regel seit 03.10.:** `emerging.scan_history` lässt Forschungszeilen aus `trends` mit Datum 1.
+Januar aus der Monatszählung (`_year_only`). Die Zahl steht als `science_year_only` in
+`emerging_runs.params` und im Log. Ausgenommen sind die Zeilen der Stichprobe, deren Januar
+neu datiert und aufgefüllt ist. Die Daten selbst bleiben unverändert.
+
 ## Lesen (gebaut 03.10.)
 
 - **Archiv-Scan** (`emerging.scan_history(history=True)`, Default in `emerging_snapshot`):

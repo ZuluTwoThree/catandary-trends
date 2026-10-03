@@ -441,7 +441,10 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
 
     Returns {months, totals, hits, tier_hits (per tier, n_nests × n_months),
     tier_totals, actors, old_tags, recent_tags, source_first, scanned,
-    history_scanned}.
+    history_scanned, science_year_only}.
+
+    Research rows dated 1 January (year only, see _year_only) are left out of the
+    monthly counts.
     """
     hits_by_month: dict[str, np.ndarray] = {}
     tier_hits: dict[str, dict[str, np.ndarray]] = {t: {} for t in TIERS}
@@ -457,6 +460,7 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
     C = np.ascontiguousarray(centroids.T)  # (dim, n_nests)
 
     history_scanned = 0
+    year_only = 0
 
     def _history():
         nonlocal history_scanned
@@ -488,11 +492,14 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
             mk = month_key(r["published_date"])
             if not mk:
                 continue
-            totals[mk] += 1
             src = r["source_name"] or ""
+            tier = tier_of(src, r.get("source_type"), r.get("trend_signal_type"))
+            if tier == "science" and _year_only(r):
+                year_only += 1
+                continue
+            totals[mk] += 1
             if src and (src not in source_first or mk < source_first[src]):
                 source_first[src] = mk
-            tier = tier_of(src, r.get("source_type"), r.get("trend_signal_type"))
             if tier:
                 tier_totals[tier][mk] += 1
             row = above[i]
@@ -560,7 +567,23 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
         "source_first": source_first,
         "scanned": scanned,
         "history_scanned": history_scanned,
+        "science_year_only": year_only,
     }
+
+
+def _year_only(r: dict) -> bool:
+    """A research signal dated 1 January carries only its year: OpenAlex fills the day
+    and month when it knows no more (2026-10-03: ~8 % of the older research rows in
+    trends). In a thin year such a pile reaches MIN_HIST_HITS in January first, so a
+    pocket's research conversation would start up to eleven months early — these rows
+    stay out of the monthly scan. History-sample rows are exempt: their January was
+    re-dated via Crossref and refilled with works of 2-31 January
+    (scripts/history_redate.py), and the sample carries every month as day 1."""
+    if r.get("status") == "history":
+        return False
+    d = r.get("published_date")
+    d = d.isoformat() if hasattr(d, "isoformat") else str(d or "")
+    return d[5:10] == "01-01"
 
 
 def _months_back(months: list[str], n: int) -> set[int]:

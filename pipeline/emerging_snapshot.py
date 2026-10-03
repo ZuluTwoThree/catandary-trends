@@ -356,9 +356,10 @@ def run_emerging(scope: str, status: str = "signal,published",
                         progress=lambda n: logger.info("[%s] scanned %d …", scope, n),
                         member=(None if probe is None else
                                 lambda X, batch: probe.member(X, _tiers(batch))))
-    logger.info("[%s] history: %d documents + %d from the history sample over %d months (%.0fs)",
+    logger.info("[%s] history: %d documents + %d from the history sample over %d months, "
+                "%d research rows dated 1 January left out (%.0fs)",
                 scope, hist["scanned"], hist.get("history_scanned", 0), len(hist["months"]),
-                time.time() - t1)
+                hist.get("science_year_only", 0), time.time() - t1)
     score_nests(nests, hist, now=now)
     if probe is not None:
         # domains: date the pockets by the research and patent calendar (01.10.)
@@ -372,8 +373,9 @@ def run_emerging(scope: str, status: str = "signal,published",
         name_nests_on_gpu(nests, scope)
 
     run_id = persist_run(scope, status, since, window_days, k, nests, hist,
-                         params={"history_sample": hist.get("history_scanned", 0)}
-                         if hist.get("history_scanned") else None)
+                         params={k: v for k, v in (
+                             ("history_sample", hist.get("history_scanned", 0)),
+                             ("science_year_only", hist.get("science_year_only", 0))) if v} or None)
     logger.info("[%s] run %d persisted: %d nests, %.0fs total",
                 scope, run_id, len(nests), time.time() - t0)
     return run_id

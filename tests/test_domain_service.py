@@ -132,7 +132,7 @@ def test_the_archive_scan_reads_given_batches_like_the_database():
     rng = np.random.default_rng(7)
     X = rng.normal(size=(6, 8)).astype(np.float32)
     X /= np.linalg.norm(X, axis=1, keepdims=True)
-    rows = [{"published_date": f"2025-0{1 + i % 2}-01", "source_name": "s", "source_type": "research",
+    rows = [{"published_date": f"2025-0{1 + i % 2}-15", "source_name": "s", "source_type": "research",
              "trend_signal_type": None, "tags": [], "brands": [], "companies": []} for i in range(6)]
     hist = E.scan_history(X[:1], np.array([-1.0], np.float32), batches=iter([(X[:4], rows[:4]), (X[4:], rows[4:])]))
     assert hist["months"] == ["2025-01", "2025-02"] and hist["totals"] == [3, 3]
