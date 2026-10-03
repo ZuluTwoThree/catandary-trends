@@ -1656,6 +1656,32 @@ der eine Stolperstein: `CREATE EXTENSION vector` muss **vor** `pg_restore` als
 Superuser in die Zieldatenbank, sonst fehlen still alle Vektor-Tabellen. Der
 alte SQLite-Stand liegt einmalig unter `backups/catandary/frozen/`.
 
+### 11.3a Kalte Tabellen auf die HDD (`scripts/move_cold_tables_to_hdd.sh`, 2026-10-03)
+
+Verschiebt die drei `*_old`-Tabellen (36 GB, liest nur noch der Dump) samt Indizes in den
+Postgres-Tablespace `hdd` unter `/mnt/data-hdd/pg_tablespace`. Nichts wird gelöscht.
+Ohne Argument ist es ein Probelauf, der nur zeigt, was passieren würde; `--apply` führt aus.
+Beim ersten Mal fragt `sudo` nach dem Passwort, weil der Tablespace einmalig als
+Superuser angelegt wird. Nicht während Backup (01:30) oder Cycle (02:45) starten, das
+Skript bricht dann mit rc 75 ab. Andere Tabellen: `TABLES="a b" scripts/…`.
+Restore danach: `docs/restore_runbook.md`, Abschnitt Tablespace.
+
+### 11.3b Vergangenheit des Signalraums planen (`scripts/history_plan.py`, 2026-10-03)
+
+Probelauf, schreibt nichts. Zählt je Monat und Ebene, was eingebettet werden müsste, damit
+Wolke, Nester und Zitationsgraph eine Vergangenheit haben:
+- Patente 1990–2022, eine je Familie;
+- Forschung 2010–2022;
+- Quote je Monat `--quota` (Default 2.000) plus alle zitierten Patentfamilien.
+
+Ausgabe:
+- Tabelle je Jahr;
+- GPU-Stunden mit 3090 + 5080 parallel;
+- Größe der Nebentabelle;
+- `data/history_plan.json`.
+
+~2,5 min. Plan und Ergebnis vom 03.10.: `docs/history_backfill_plan_2026-10-03.md`.
+
 ### 11.4 GPU-Ruhezustand
 
 Normalzustand: `llama-server.service` aktiv, `~/llama.cpp/start-active.sh →

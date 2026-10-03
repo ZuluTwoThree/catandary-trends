@@ -42,6 +42,21 @@ pg_restore -d catandary_restore -j4 --no-owner --no-privileges \
 psql -d catandary_restore -c 'SELECT count(*) FROM trends'
 ```
 
+## Tablespace `hdd` (after `scripts/move_cold_tables_to_hdd.sh --apply`)
+
+Cold tables (the three `*_old`, 36 GB) live in the tablespace `hdd` under
+`/mnt/data-hdd/pg_tablespace`. The dump holds their data like any other table, but a
+restore needs the tablespace to exist **first** — or restore everything into the default
+location:
+
+```bash
+pg_restore -d catandary_restore -j4 --no-owner --no-privileges --no-tablespaces \
+    /mnt/data-hdd/backups/catandary/catandary-pg-<date>.dumpdir
+```
+
+If `/mnt/data-hdd` is not mounted at boot (fstab `nofail`), Postgres still starts, but
+reads of these tables fail — and so does the nightly dump.
+
 ## Disaster-recovery note
 
 For a real DR onto a fresh host, the same rule applies: install pgvector
