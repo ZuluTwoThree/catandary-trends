@@ -103,6 +103,17 @@ Gemessen (03.10.):
 - **Platz:** Die `*_old`-Tabellen liegen seit 03.10. im Tablespace `hdd`; auf `/` sind 34 GB
   mehr frei.
 
+## Nach dem Codex-Review (04.10.)
+
+- **Zitiert auf Familienebene:** „Zitiert" wird jetzt vor dem Abstract-Filter für die ganze
+  Familie bestimmt. 381 zitierte Familien fehlten deshalb.
+- **Familien-Dubletten:** Die Auswahl in zwei Fenstern (bis 2022, dann 2023 bis 2026-06) hatte
+  9.507 Familien doppelt aufgenommen. Bei Familien mit Mitgliedern auf beiden Seiten des
+  Jahreswechsels 2022/23 hängt das früheste Mitglied vom Fenster ab.
+  - `select` überspringt jetzt jede schon vertretene Familie.
+  - `dedupe` stellt die zweiten Mitglieder beiseite (Schicht `…:dupfamily`).
+  - `select --cited-only` holt die Zitationsschicht nach, ohne neu zu ziehen.
+
 ## Nächste Schritte (nicht gebaut)
 
 1. Wolke und Archiv-Scan lesen die Nebentabelle mit Gewicht. Die Wolke bekommt die
