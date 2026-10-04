@@ -402,3 +402,11 @@ body::before {
   .lp-cd-inner { justify-content: center; text-align: center; }
   .lp-cd-n { font-size: 1.2rem; }
 }
+
+/* Field Watch gate (components/FieldWatchGate.tsx): the hover note is shown
+   permanently where nothing can hover (touch screens). */
+@media (hover: none) {
+  .fw-gate-panel {
+    opacity: 1;
+  }
+}

@@ -141,6 +141,12 @@ und Backlink. Lokal sieht der Owner den gesamten Korpus (Zehntausende Artikel),
   Quelle mit Backlink, verwandte Artikel. Ist die Quell-URL nachweislich tot
   (`dead_links`, monatlicher Link-Check), zeigt die Seite einen Hinweis und den
   Archiv-Link statt des toten Backlinks.
+- **Field-Watch-Gate auf der öffentlichen Seite** (seit 04.10.): im Export und in
+  der PUBLIC_MODE-Vorschau (:3999) ist alles unter Body und Quellenblock —
+  Signaldetails, Tags, „Also reported by", Related — unscharf; bei Mauszeiger
+  darüber (auf dem Handy immer) steht der Hinweis „Field Watch clients only" mit
+  `contact@catandary.de`. Auf :3001/:3004 siehst du alles. Texte ändern:
+  `frontend/src/lib/fieldWatchGate.ts`.
 - „Also reported by" (#109, seit 2026-09-25): berichten mehrere Quellen
   dieselbe Meldung (gleiche Marke, 48 h, Kosinus ≥ 0,80), listet die
   Artikelseite die anderen Berichte mit Quelle und Link; der älteste ist als

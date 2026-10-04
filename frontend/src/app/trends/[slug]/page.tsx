@@ -132,7 +132,14 @@ export default async function TrendArticlePage({
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <TrendArticleJsonLd trend={trend} />
-      <TrendArticle trend={trend} related={related} tech={tech} sourceDead={sourceDead} story={story} />
+      <TrendArticle
+        trend={trend}
+        related={related}
+        tech={tech}
+        sourceDead={sourceDead}
+        story={story}
+        publicGate={isPublicMode()}
+      />
     </div>
   );
 }

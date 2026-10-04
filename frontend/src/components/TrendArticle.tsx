@@ -17,6 +17,7 @@ import VerticalBadge from "./VerticalBadge";
 import TrendScore from "./TrendScore";
 import ForesightCta from "./ForesightCta";
 import TechContext from "./TechContext";
+import FieldWatchGate from "./FieldWatchGate";
 
 const SIGNAL_TYPE_LABELS: Record<string, string> = {
   product_launch: "Product Launch",
@@ -35,9 +36,14 @@ export default function TrendArticle({
   tech = [],
   sourceDead = false,
   story = [],
+  publicGate = false,
 }: {
   trend: Trend;
   related: Trend[];
+  /** Public site (owner 2026-10-04): everything below the article and its
+   *  source is blurred behind the Field Watch gate. Decided on the server
+   *  (page.tsx: isPublicMode()) — PUBLIC_MODE is not visible to the client. */
+  publicGate?: boolean;
   /** #109: the other reports of the same story (oldest first), or empty. */
   story?: Trend[];
   tech?: TrendTechMatch[];
@@ -176,6 +182,62 @@ export default function TrendArticle({
           </div>
         )}
 
+        {/* Source Link */}
+        {trend.source_url && (
+          <div className="border border-border p-5">
+            <h2 className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-2">
+              Original Source
+            </h2>
+            {sourceHref ? (
+              <a
+                href={sourceHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:underline font-sans text-sm break-all"
+              >
+                {trend.source_name || trend.source_url}
+              </a>
+            ) : (
+              <span className="font-sans text-sm break-all">
+                {trend.source_name || trend.source_url}
+              </span>
+            )}
+            {licenseNotice && (
+              <p className="mt-3 text-xs text-muted leading-relaxed" data-testid="source-license">
+                {licenseNotice.text}{" "}
+                <a
+                  href={licenseNotice.licenseUrl}
+                  target="_blank"
+                  rel="noopener noreferrer license"
+                  className="text-accent hover:underline"
+                >
+                  {licenseNotice.licenseName}
+                </a>
+              </p>
+            )}
+            {sourceDead && sourceHref && (
+              <p className="mt-3 text-xs text-muted leading-relaxed">
+                {DEAD_SOURCE_NOTICE}.{" "}
+                <a
+                  href={archiveUrl(sourceHref)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent hover:underline"
+                >
+                  View archived copy
+                </a>
+              </p>
+            )}
+          </div>
+        )}
+
+        {/*
+          Field Watch gate (owner 2026-10-04): on the public site everything from
+          here down — signal details, tags, same-story reports, related signals —
+          is blurred with a hover note. The source block above stays visible:
+          attribution is mandatory and the AI disclosure promises it.
+        */}
+        <FieldWatchGate active={publicGate}>
         {/* Meta info */}
         <dl className="border-t border-border pt-6 mt-10 grid grid-cols-2 md:grid-cols-4 gap-6">
           {trend.trend_signal_type && (
@@ -241,56 +303,6 @@ export default function TrendArticle({
         {/* Technology context (#28) — plain-language bridge into the Foresight backbone */}
         <TechContext matches={tech} />
 
-        {/* Source Link */}
-        {trend.source_url && (
-          <div className="mt-10 border border-border p-5">
-            <h2 className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted mb-2">
-              Original Source
-            </h2>
-            {sourceHref ? (
-              <a
-                href={sourceHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent hover:underline font-sans text-sm break-all"
-              >
-                {trend.source_name || trend.source_url}
-              </a>
-            ) : (
-              <span className="font-sans text-sm break-all">
-                {trend.source_name || trend.source_url}
-              </span>
-            )}
-            {licenseNotice && (
-              <p className="mt-3 text-xs text-muted leading-relaxed" data-testid="source-license">
-                {licenseNotice.text}{" "}
-                <a
-                  href={licenseNotice.licenseUrl}
-                  target="_blank"
-                  rel="noopener noreferrer license"
-                  className="text-accent hover:underline"
-                >
-                  {licenseNotice.licenseName}
-                </a>
-              </p>
-            )}
-            {sourceDead && sourceHref && (
-              <p className="mt-3 text-xs text-muted leading-relaxed">
-                {DEAD_SOURCE_NOTICE}.{" "}
-                <a
-                  href={archiveUrl(sourceHref)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-accent hover:underline"
-                >
-                  View archived copy
-                </a>
-              </p>
-            )}
-          </div>
-        )}
-      </article>
-
       {/* Same story, other outlets (#109) — the oldest report leads */}
       {story.length > 0 && (
         <section className="mt-12" aria-labelledby="story-heading">
@@ -353,6 +365,8 @@ export default function TrendArticle({
           </div>
         </section>
       )}
+        </FieldWatchGate>
+      </article>
 
       <ForesightCta compact />
     </>

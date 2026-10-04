@@ -1351,7 +1351,12 @@ Der öffentliche Auftritt unter `catandary.de/trends` ist ein **statischer Expor
 ```
 /                                → Weiterleitung auf /trends (seit 2026-09-05; die frühere App-Landing war eine zweite, driftende Kopie — Countdown 01.09. statt 01.10., tote Links. Gepflegt ist nur `docs/launch/preview.html` auf catandary.de; der Export lädt `/` nicht hoch)
 /trends                          → Hauptfeed (Card-Grid, Filter-Bar inkl. Suche ?q= — es gibt KEINE separate /trends/search-Route)
-/trends/[slug]                   → Einzelner Trend-Artikel (trägt die KI-Kennzeichnung nach Art. 50 Abs. 4 direkt unter dem Titel, s. o.)
+/trends/[slug]                   → Einzelner Trend-Artikel (trägt die KI-Kennzeichnung nach Art. 50 Abs. 4 direkt unter dem Titel, s. o.).
+                                   Öffentlich (PUBLIC_MODE/Export, seit 2026-10-04, Owner): alles UNTER Body + Quellenblock — Signaldetails,
+                                   Tags, „Also reported by", Related — liegt verschleiert hinter dem Field-Watch-Gate
+                                   (`components/FieldWatchGate.tsx`, Texte `lib/fieldWatchGate.ts`): CSS-Blur, bei Hover (auf Touch immer)
+                                   der Hinweis „Field Watch clients only" + contact@catandary.de. Kein JS; Entscheidung serverseitig
+                                   in page.tsx (`publicGate={isPublicMode()}`). Quellenblock steht dafür direkt unter dem Body.
 /trends/vertical/[v]             → Redirect auf /trends?v=<VERTICAL> (im statischen Export nicht gebaut; Apache-301 auf /trends/v/<v>)
 /trends/page/[n], /trends/v/[vertical], /trends/v/[vertical]/page/[n]
                                  → statische Listing-Routen des Exports (24/Seite, lib/staticListing.ts); lokal per Request rendernd, nichts verlinkt sie dort
