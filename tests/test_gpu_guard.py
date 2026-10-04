@@ -135,6 +135,20 @@ class TestPatterns:
                      "research_pulse", "newsletter_deep_dive"):
             assert name in r.stdout, name
 
+    def test_history_embed_blocks_only_the_local_gpu_worker(self, env):
+        """The wrapper, `status`/`check` and the 5080 worker use no local VRAM; only the
+        `work --handover` worker does. A bare `history_embed` pattern made the cycle wait
+        90 min on the remote worker and then fail with rc=75 (review 2026-10-04)."""
+        import re
+        pat = run("echo $GPU_GUARD_PATTERNS", env).stdout.strip()
+        local = "/x/.venv/bin/python scripts/history_embed.py work --handover --host http://127.0.0.1:8090 --name 3090"
+        assert re.search(pat, local)
+        for cmd in ("/x/.venv/bin/python scripts/history_embed.py work --host http://100.94.255.57:8095 --name 5080",
+                    "/x/.venv/bin/python scripts/history_embed.py status",
+                    "/x/.venv/bin/python scripts/history_embed.py check --host http://127.0.0.1:8091",
+                    "bash scripts/run_history_embed.sh"):
+            assert not re.search(pat, cmd), cmd
+
 
 class TestNote:
     def test_note_writes_json_for_the_morning_mail(self, env):

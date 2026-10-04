@@ -16,7 +16,7 @@ set -euo pipefail
 DB=${DB:-catandary}
 DIR=${TABLESPACE_DIR:-/mnt/data-hdd/pg_tablespace}
 SPC=${TABLESPACE:-hdd}
-TABLES=${TABLES:-"patent_cpc_full_old patent_spnp_full_old patent_spnp_full_z3_old"}
+TABLES=${TABLES:-"patent_cpc_full_old patent_spnp_full_old patent_spnp_full_z3_old history_vectors"}
 APPLY=0; [ "${1:-}" = "--apply" ] && APPLY=1
 
 run() { if [ $APPLY = 1 ]; then echo "+ $*"; "$@"; else echo "would: $*"; fi; }

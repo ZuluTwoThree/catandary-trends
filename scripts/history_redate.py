@@ -69,6 +69,27 @@ def bare(doi: str) -> str:
     return doi.lower().replace("https://doi.org/", "").replace("http://doi.org/", "").strip()
 
 
+def resolve(row: dict, cache: dict) -> tuple[str, int | None, str]:
+    """What --apply does with one work: ("move", month, field), ("year-only", None, why)
+    or ("skip", None, "crossref unreachable"). A DOI that is NOT in the cache was never
+    answered (the batch failed after four attempts) — that is unknown, not year-only;
+    the row keeps month_source NULL and the next run asks again. Only a cached {} means
+    Crossref does not know the DOI."""
+    doi = row.get("doi")
+    if not doi:
+        return "year-only", None, "no DOI"
+    key = bare(doi)
+    if key not in cache:
+        return "skip", None, "crossref unreachable"
+    it = cache[key]
+    if not it:
+        return "year-only", None, "not at Crossref"
+    m, src = month_of(it, row["y"])
+    if m is None:
+        return "year-only", None, src
+    return "move", m, src
+
+
 def fetch(dois: list[str], cache: dict) -> None:
     todo = [d for d in dois if d not in cache]
     log(f"crossref: {len(dois):,} DOIs, {len(todo):,} not cached")
@@ -80,7 +101,10 @@ def fetch(dois: list[str], cache: dict) -> None:
                     r = cl.get("https://api.crossref.org/works",
                                params={"filter": ",".join("doi:" + d for d in part),
                                        "rows": BATCH, "select": SELECT})
-                    if r.status_code == 429 or r.status_code >= 500:
+                    if r.status_code != 200:
+                        # 429/5xx: Crossref is busy. 4xx: the batch itself was refused
+                        # (one odd DOI breaks the whole `filter=doi:…` list). Either way
+                        # this is NOT "not at Crossref" — never cache {} for it.
                         time.sleep(5 * (attempt + 1))
                         continue
                     j = r.json()
@@ -123,20 +147,16 @@ def redate(apply: bool) -> int:
     fetch(sorted({bare(r["doi"]) for r in rows if r["doi"]}), cache)
     moves, stat, months, agree = [], Counter(), Counter(), Counter()
     for r in rows:
-        it = cache.get(bare(r["doi"])) if r["doi"] else None
-        if not r["doi"]:
-            stat["no DOI"] += 1
-            moves.append((r["id"], None, "year-only"))
-            continue
-        if not it:
-            stat["not at Crossref"] += 1
-            moves.append((r["id"], None, "year-only"))
-            continue
-        m, src = month_of(it, r["y"])
+        kind, m, src = resolve(r, cache)
         stat[src] += 1
+        if kind == "skip":
+            continue                                # unanswered — asked again next run
         moves.append((r["id"], m, src))
         if m:
             months[m] += 1
+        it = cache.get(bare(r["doi"])) if r["doi"] else None
+        if not it:
+            continue
         # how good is the DOI registration date? compare where both exist
         on, _ = month_of({"published-online": it.get("published-online")}, r["y"])
         cr = ((it.get("created") or {}).get("date-parts") or [[None]])[0]
@@ -144,6 +164,9 @@ def redate(apply: bool) -> int:
             agree["same month" if cr[1] == on else "±1 month" if abs(cr[1] - on) == 1 else "further"] += 1
     dated = sum(1 for _, m, _ in moves if m)
     log(f"outcome: {dict(stat)}")
+    if stat["crossref unreachable"]:
+        log(f"{stat['crossref unreachable']:,} works got no answer from Crossref — left untouched, "
+            "a re-run asks again")
     log(f"dated {dated:,} of {len(rows):,} ({dated / max(len(rows), 1):.0%}); months {sorted(months.items())}")
     log(f"DOI registration vs online month where both exist: {dict(agree)}")
     if not apply:
@@ -179,16 +202,25 @@ def refill_january(apply: bool, quota: int) -> int:
             return 0
         n = 0
         for y, k in sorted(need.items()):
+            # weight = frame / sample, like the planner: the frame is every eligible
+            # work of 2-31 January, the sample the rows drawn from it — LEAST(frame, k),
+            # so a January whose frame is smaller than k gets weight 1, not < 1
+            # (Codex review on #121).
             n += c.execute(f"""
-                INSERT INTO history_items (tier, ref, month, layer, month_source)
-                SELECT 'science', rc.id, ? , 'random', 'openalex:jan-refill'
-                FROM research_corpus rc
-                WHERE rc.published >= make_date(?, 1, 2) AND rc.published < make_date(?, 2, 1)
-                  AND octet_length(rc.abstract) >= 80 AND NOT coalesce(rc.is_retracted, FALSE)
-                  AND NOT EXISTS (SELECT 1 FROM history_items h WHERE h.tier = 'science' AND h.ref = rc.id)
-                ORDER BY {HASH.format(k="hashtext(rc.id)::bigint & 2147483647")}, rc.id
+                WITH frame AS (
+                    SELECT rc.id
+                    FROM research_corpus rc
+                    WHERE rc.published >= make_date(?, 1, 2) AND rc.published < make_date(?, 2, 1)
+                      AND octet_length(rc.abstract) >= 80 AND NOT coalesce(rc.is_retracted, FALSE)
+                      AND NOT EXISTS (SELECT 1 FROM history_items h WHERE h.tier = 'science' AND h.ref = rc.id)
+                )
+                INSERT INTO history_items (tier, ref, month, layer, month_source, weight)
+                SELECT 'science', f.id, ? , 'random', 'openalex:jan-refill',
+                       (SELECT count(*) FROM frame)::real / LEAST((SELECT count(*) FROM frame), ?)
+                FROM frame f
+                ORDER BY {HASH.format(k="hashtext(f.id)::bigint & 2147483647")}, f.id
                 LIMIT ?
-                ON CONFLICT (tier, ref) DO NOTHING""", (y * 12, y, y, k)).rowcount
+                ON CONFLICT (tier, ref) DO NOTHING""", (y, y, y * 12, k, k)).rowcount
             c.commit()
         log(f"queued {n:,} January works — embed with history_embed.py work")
     return 0

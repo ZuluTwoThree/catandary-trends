@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.history_redate import bare, month_of
+from scripts.history_redate import bare, month_of, resolve
 
 
 def dp(*parts):
@@ -34,3 +34,16 @@ def test_a_month_in_another_year_does_not_count():
 
 def test_doi_urls_are_normalised():
     assert bare("https://doi.org/10.1039/D3TA00388D") == "10.1039/d3ta00388d"
+
+
+def test_an_unanswered_doi_is_skipped_not_marked_year_only():
+    """A batch that failed four times leaves its DOIs out of the cache. That is
+    "unknown", not "not at Crossref": the row must keep month_source NULL so the
+    next run asks again (review 2026-10-04: --apply used to file them as year-only
+    for good, and the re-run filter never saw them again)."""
+    row = {"id": 7, "doi": "10.1000/x", "y": 2021}
+    assert resolve(row, {}) == ("skip", None, "crossref unreachable")
+    assert resolve(row, {"10.1000/x": {}}) == ("year-only", None, "not at Crossref")
+    assert resolve(row, {"10.1000/x": {"issued": dp(2021, 4)}}) == ("move", 4, "issued")
+    assert resolve(row, {"10.1000/x": {"issued": dp(2021)}}) == ("year-only", None, "year-only")
+    assert resolve({"id": 8, "doi": None, "y": 2021}, {}) == ("year-only", None, "no DOI")

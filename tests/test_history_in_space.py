@@ -143,6 +143,7 @@ def test_the_archive_scan_counts_history_only_when_asked():
     on = scan_history(C, thr, dim1024=False, history=True)
     j = on["months"].index("2015-06")
     assert on["history_scanned"] == 3
+    assert on["scanned"] == off["scanned"]      # trends rows only; the sample is not counted twice
     assert on["totals"][j] == 3
     assert on["tier_totals"]["science"][j] == 3
     assert on["hits"][:, j].tolist() == [1, 1, 1]

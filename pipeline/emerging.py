@@ -565,7 +565,9 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
         "old_tags": old_tags,
         "recent_tags": recent_tags,
         "source_first": source_first,
-        "scanned": scanned,
+        # rows read from `trends` only — the sample is reported in history_scanned and
+        # must not be counted twice ("dated against N archived signals plus a sample of M")
+        "scanned": scanned - history_scanned,
         "history_scanned": history_scanned,
         "science_year_only": year_only,
     }

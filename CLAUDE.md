@@ -1253,8 +1253,20 @@ cross_industry:
   - **Textrezept** wie der Signalpfad (Titel + Abstract[:500]). Kosinus gegen
     `embedding_1024`: 0,998.
   - **Werkzeuge:** `scripts/history_plan.py` (Probelauf), `scripts/history_embed.py`
-    (select/work/status/check), `scripts/run_history_embed.sh` (3090 + 5080 parallel; die
-    5080 nur mit Owner-Wort). `history_embed` steht in `GPU_GUARD_PATTERNS`.
+    (select/work/status/check), `scripts/run_history_embed.sh` (Default **nur 3090**;
+    `WITH_5080=1` nimmt bequietUbuntu dazu — nur mit Owner-Wort für genau diesen Lauf, denn
+    Nemotron wird solange angehalten; der Embedder dort bindet seit 04.10. nur auf die
+    Tailnet-Adresse, nicht mehr `0.0.0.0`). Im Kollisionswächter steht seit 04.10. **nur der
+    lokale Arbeiter** (`history_embed\.py work.*--handover`), nicht das Wrapper-Skript,
+    `status`/`check` oder der 5080-Arbeiter — und der Nachtlauf wartet auf ihn höchstens
+    `GPU_GUARD_MAX_MIN` = 90 min, dann fällt er mit rc=75 aus (Wächter-Mail). Ein Lauf, der
+    um 02:45 noch läuft, kostet also die Nacht; vorher rechnen (≈ 7 h für den Vollbestand).
+    `history_vectors.available()` liefert seit 04.10. nur noch bei fehlender/leerer Tabelle
+    False; ist der Tablespace `hdd` nicht gemountet, bricht der Pocket-/Cloud-Lauf ab, statt
+    still ohne Vergangenheit zu rechnen. `history_redate.py --apply` markiert seit 04.10. nur
+    noch Werke als `year-only`, die Crossref wirklich nicht kennt; unbeantwortete Batches
+    (4xx/5xx/Timeout nach vier Versuchen) bleiben `month_source IS NULL` und werden beim
+    nächsten Lauf erneut gefragt.
   - **Umfang:** 1.547.852 Dokumente (1.333.777 bis 2022 + 214.075 für 2023-01 bis 2026-06),
     ~7 h; erster Lauf 03.10. ab 11:02.
   - **Tablespace `hdd`** (`/mnt/data-hdd/pg_tablespace`, seit 03.10.): kalte Daten gehören
