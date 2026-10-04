@@ -93,14 +93,23 @@ def select_patents(c, start: str, until: str, quota: int) -> int:
         WHERE l.link_type = 'cites'""")
     c.execute("CREATE INDEX ON h_cited(p)")
     c.execute("ANALYZE h_cited")
+    # Cited is a property of the FAMILY, decided before the abstract filter: the cited
+    # publication is often an abstract-less member (EP search report, B1 grant) whose
+    # sibling carries the text (Codex review on #118).
+    c.execute("""CREATE TEMP TABLE h_citedfam AS
+        SELECT DISTINCT coalesce(pf.family_id, -r.id) AS fid
+        FROM h_cited ci JOIN raw_entries r ON r.pub_number = ci.p
+        LEFT JOIN patent_family pf ON pf.pub_number = ci.p""")
+    c.execute("CREATE INDEX ON h_citedfam(fid)")
+    c.execute("ANALYZE h_citedfam")
     c.execute("""CREATE TEMP TABLE h_fam AS
         SELECT coalesce(pf.family_id, -r.id) AS fid,
                (array_agg(r.id ORDER BY r.published_date, r.id))[1] AS rid,
                (array_agg(r.pub_number ORDER BY r.published_date, r.id))[1] AS pub,
-               min(r.published_date) AS d, bool_or(ci.p IS NOT NULL) AS cited
+               min(r.published_date) AS d, bool_or(cf.fid IS NOT NULL) AS cited
         FROM raw_entries r
         LEFT JOIN patent_family pf ON pf.pub_number = r.pub_number
-        LEFT JOIN h_cited ci ON ci.p = r.pub_number
+        LEFT JOIN h_citedfam cf ON cf.fid = coalesce(pf.family_id, -r.id)
         WHERE r.pub_number IS NOT NULL AND octet_length(r.excerpt) >= ?
           AND r.published_date >= ? AND r.published_date < ?
         GROUP BY 1""", (MIN_ABSTRACT, start, until))
@@ -117,6 +126,7 @@ def select_patents(c, start: str, until: str, quota: int) -> int:
         WHERE rk <= ? OR cited
         ON CONFLICT (tier, ref) DO NOTHING""", (quota, quota, quota, quota)).rowcount
     c.execute("DROP TABLE h_fam")
+    c.execute("DROP TABLE h_citedfam")
     c.execute("DROP TABLE h_cited")
     return n
 
@@ -137,6 +147,15 @@ def select_science(c, start: str, until: str, quota: int) -> int:
                 AND NOT coalesce(rc.is_retracted, FALSE)) f
         WHERE rk <= ?
         ON CONFLICT (tier, ref) DO NOTHING""", (quota, start, until, MIN_ABSTRACT, quota)).rowcount
+
+
+def tier_has_items(c, tier: str, start: str, until: str) -> bool:
+    """Any queued item of `tier` in [start, until) ('YYYY-MM-DD')? The selection runs
+    per tier, so a run that died between the two inserts finishes the missing one."""
+    lo = int(start[:4]) * 12 + int(start[5:7]) - 1
+    hi = int(until[:4]) * 12 + int(until[5:7]) - 1
+    return c.execute("SELECT 1 FROM history_items WHERE tier = ? AND month >= ? AND month < ? LIMIT 1",
+                     (tier, lo, hi)).fetchone() is not None
 
 
 def claim(c, worker: str, n: int, stale_minutes: int = 20) -> list[dict]:

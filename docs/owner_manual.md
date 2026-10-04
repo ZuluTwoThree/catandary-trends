@@ -1711,8 +1711,10 @@ Ausgabe:
 
 **Einbetten** (`scripts/history_embed.py`, gebaut 03.10.):
 
-- `select`: füllt die Warteschlange `history_items` einmalig (~7,5 min). Default seit 03.10.: bis
-  2026-06. Ein späteres Zeitfenster hängst du mit `--force` und eigenem `--…-from`/`--until` an.
+- `select`: füllt die Warteschlange `history_items` je Ebene und Zeitfenster einmalig (~7,5 min).
+  Hat eine Ebene im Fenster schon Einträge, wird sie übersprungen; ein abgebrochener Lauf holt die
+  fehlende Ebene beim nächsten Aufruf nach. Default seit 03.10.: bis 2026-06. Ein neues Zeitfenster
+  hängst du mit eigenem `--…-from`/`--until` an; `--force` füllt ein schon belegtes Fenster auf.
 - `scripts/run_history_embed.sh`: bettet auf 3090 + 5080 parallel ein (~6 h).
   - Die 5080 nur mit deinem Wort, denn Nemotron wird solange angehalten und am Ende
     wieder gestartet.

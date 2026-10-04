@@ -45,17 +45,16 @@ def cmd_select(args) -> int:
     with get_connection() as c:
         c.execute("SET statement_timeout = 0")
         c.execute("SET work_mem = '1GB'")
-        have = c.execute("SELECT count(*) AS n FROM history_items").fetchone()["n"]
-        if have and not args.force:
-            log(f"queue already holds {have:,} items — nothing selected (--force adds missing ones)")
-            return 0
         t = time.time()
-        n_p = hv.select_patents(c, args.patents_from, args.until, args.quota)
-        c.commit()
-        log(f"patents queued: {n_p:,} ({time.time() - t:.0f} s)")
-        n_s = hv.select_science(c, args.science_from, args.until, args.quota)
-        c.commit()
-        log(f"science queued: {n_s:,} ({time.time() - t:.0f} s)")
+        # per tier: a run that died between the two inserts finishes the missing one
+        for tier, select, start in (("patent", hv.select_patents, args.patents_from),
+                                    ("science", hv.select_science, args.science_from)):
+            if not args.force and hv.tier_has_items(c, tier, start, args.until):
+                log(f"{tier}: already queued for {start} .. {args.until} — skipped (--force tops up)")
+                continue
+            n = select(c, start, args.until, args.quota)
+            c.commit()
+            log(f"{tier} queued: {n:,} ({time.time() - t:.0f} s)")
         c.execute("ANALYZE history_items")
     return 0
 
