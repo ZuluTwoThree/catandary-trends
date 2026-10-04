@@ -6,9 +6,12 @@ on:
 
 jobs:
   review:
+    # Nur der Repo-Owner darf den Review auslösen: das Repo ist öffentlich, und
+    # issue_comment feuert sonst für jeden, der "@claude" auf einen PR schreibt.
     if: |
       github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@claude')
+      contains(github.event.comment.body, '@claude') &&
+      github.event.comment.author_association == 'OWNER'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -23,7 +26,7 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_REVIEW }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
           plugins: "code-review@claude-code-plugins"
           prompt: "/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.issue.number }}"
