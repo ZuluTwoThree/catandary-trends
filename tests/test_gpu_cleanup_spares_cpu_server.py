@@ -48,3 +48,21 @@ class TestEmbedUnit:
 
     def test_cpu_server_runs_on_its_own_port(self):
         assert "start-qwen3-emb-cpu.sh" in UNIT.read_text()
+
+
+class TestDayAppsAreEvictedOnlyByPattern:
+    """Owner 04.10.2026: nemo-speech und whisper-server werden fuer den Nachtlauf beendet
+    (das 24-Slot-8B braucht ~22 GB). Nur Prozesse, die laut nvidia-smi VRAM halten UND
+    auf GPU_EVICT_PATTERNS passen — kein pkill auf Namen, nichts ausserhalb der Karte."""
+
+    def test_eviction_reads_the_vram_holders_from_nvidia_smi(self, wrapper):
+        assert "--query-compute-apps=pid,process_name,used_memory" in wrapper
+
+    def test_eviction_is_gated_by_the_pattern_variable(self, wrapper):
+        assert 'if [ -n "${GPU_EVICT_PATTERNS:-}" ]' in wrapper
+        assert 'grep -Eq "$GPU_EVICT_PATTERNS"' in wrapper
+        assert "pkill" not in wrapper.split("GPU_EVICT_PATTERNS", 1)[1].split("waiting for VRAM", 1)[0]
+
+    def test_default_pattern_names_the_owner_apps(self):
+        guard = (Path(__file__).parent.parent / "scripts" / "lib" / "gpu_guard.sh").read_text()
+        assert 'GPU_EVICT_PATTERNS="${GPU_EVICT_PATTERNS:-nemo-speech|whisper-server}"' in guard

@@ -231,8 +231,8 @@ with get_connection() as c:
     echo "$BUSY" | sed 's/^/    /'
     RC_REST=0
   else
-    echo "----- Ruhezustand: start-active.sh -> start-qwen3-8b-208k.sh, llama-server starten -----"
-    ln -sf start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
+    echo "----- Ruhezustand: start-active.sh -> $LLAMA_REST_SCRIPT, llama-server starten -----"
+    ln -sf "$LLAMA_REST_SCRIPT" /home/dirk/llama.cpp/start-active.sh
     systemctl --user reset-failed llama-server.service 2>/dev/null || true  # start limit (gpu_handover.unit_start)
     systemctl --user start llama-server.service
     RC_REST=$?

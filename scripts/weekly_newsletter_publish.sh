@@ -146,8 +146,8 @@ PYEOF
       echo "$BUSY" | sed 's/^/    /'
       RC_REST="busy"
     else
-      echo "----- Ruhezustand: start-active.sh -> start-qwen3-8b-208k.sh, llama-server neu starten -----"
-      ln -sfn start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
+      echo "----- Ruhezustand: start-active.sh -> $LLAMA_REST_SCRIPT, llama-server neu starten -----"
+      ln -sfn "$LLAMA_REST_SCRIPT" /home/dirk/llama.cpp/start-active.sh
       systemctl --user restart llama-server.service
       RC_REST=$?
       for i in $(seq 1 30); do

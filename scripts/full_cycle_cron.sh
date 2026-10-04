@@ -70,6 +70,22 @@ mkdir -p "$(dirname "$LOG")"
   else
     echo "  no VRAM-holding llama-server process found"
   fi
+  # Fremde Tagesanwendungen (Owner 04.10.: nemo-speech, whisper-server) werden fuer den
+  # Nachtlauf beendet — das 24-Slot-8B der Stufen 2-4 braucht ~22 GB und passt nicht
+  # neben ihre ~4,8 GB. Nur Prozesse, die laut nvidia-smi VRAM halten UND auf
+  # GPU_EVICT_PATTERNS (scripts/lib/gpu_guard.sh) passen; alles andere bleibt stehen.
+  if [ -n "${GPU_EVICT_PATTERNS:-}" ]; then
+    EVICTED=0
+    while IFS=, read -r epid ename emem; do
+      epid=$(echo "$epid" | tr -d ' '); ename=$(echo "$ename" | tr -d ' ')
+      [ -n "$epid" ] || continue
+      if printf '%s' "$ename" | grep -Eq "$GPU_EVICT_PATTERNS"; then
+        echo "  evicting PID $epid ($ename, ${emem} MiB) — not needed during the cycle (GPU_EVICT_PATTERNS)"
+        kill "$epid" 2>/dev/null && EVICTED=$((EVICTED + 1))
+      fi
+    done < <(nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader,nounits 2>/dev/null)
+    [ "$EVICTED" -gt 0 ] && echo "  evicted $EVICTED day-time GPU process(es)"
+  fi
 
   echo "----- waiting for VRAM to clear (<1500 MiB) -----"
   for i in $(seq 1 20); do

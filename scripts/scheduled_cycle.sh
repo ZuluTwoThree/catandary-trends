@@ -184,7 +184,7 @@ PY
   echo "----- non-patent unprocessed backlog: $PENDING -----"
   if [ "${PENDING}" -gt 50000 ]; then
     echo "ABORT: $PENDING pending non-patent entries exceeds the 50k sanity cap — refusing."
-    ln -sf start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
+    ln -sf "$LLAMA_REST_SCRIPT" /home/dirk/llama.cpp/start-active.sh
     systemctl --user reset-failed llama-server.service 2>/dev/null || true  # start limit (gpu_handover.unit_start)
     systemctl --user start llama-server.service
     exit 1
@@ -334,8 +334,8 @@ PY
     echo "$BUSY" | sed 's/^/    /'
     RC3=0
   else
-    echo "----- resetting start-active.sh → start-qwen3-8b-208k.sh -----"
-    ln -sf start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
+    echo "----- resetting start-active.sh → $LLAMA_REST_SCRIPT (lean resting 8B, 4 slots) -----"
+    ln -sf "$LLAMA_REST_SCRIPT" /home/dirk/llama.cpp/start-active.sh
     echo "----- restarting llama-server.service -----"
     systemctl --user reset-failed llama-server.service 2>/dev/null || true  # start limit (gpu_handover.unit_start)
     systemctl --user start llama-server.service

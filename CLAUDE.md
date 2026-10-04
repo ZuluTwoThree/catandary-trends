@@ -56,7 +56,7 @@ Die Mega/Macro-Einordnung wird auf der Free-Seite nur angeteasert – die vollst
 
 ## Hardware-Basis
 
-- **GPU:** NVIDIA RTX 3090 (24 GB GDDR6X) — die produktive lokale Karte (per `nvidia-smi` bestätigt). Vor jeder VRAM-/Koexistenz-Entscheidung trotzdem `nvidia-smi` prüfen (llama-server hält ~22 GB im Ruhezustand). *(Frühere Doku nannte alternativ eine 16-GB-Karte; produktiv ist es die 3090.)*
+- **GPU:** NVIDIA RTX 3090 (24 GB GDDR6X) — die produktive lokale Karte (per `nvidia-smi` bestätigt). Vor jeder VRAM-/Koexistenz-Entscheidung trotzdem `nvidia-smi` prüfen. **Ruhezustand seit 2026-10-04: das 8B schlank (`start-qwen3-8b.sh`, `-c 32768` = 4 Slots × 8 192, ~7,6 GB gemessen)** — die „208k" des Arbeitsskripts waren nie Dokumentlänge, sondern 24 Slots × 8 960 Token (KV-Cache 16,7 GB), und tagsüber braucht nichts die 24 Slots. Für Stufen 2–4/8 holt sich `gpu_handover.eight_b_on_llamacpp` selbst die 24-Slot-Konfiguration (`start-qwen3-8b-208k.sh`, ~22 GB): `_model_ready` vergleicht über `GET /props` die Slot-Zahl (`EIGHT_B_MIN_SLOTS`, Default 16 = gemessener Sättigungspunkt), nicht nur den GGUF-Namen; die Wrapper stellen am Ende `$LLAMA_REST_SCRIPT` (`scripts/lib/gpu_guard.sh`) her. Der Cycle-Wrapper beendet vor dem Lauf die Tagesanwendungen aus `GPU_EVICT_PATTERNS` (Default `nemo-speech|whisper-server`, Owner 04.10.), sonst passt das 22-GB-8B nicht. *(Frühere Doku nannte alternativ eine 16-GB-Karte; produktiv ist es die 3090.)*
 - **Modelle laufen sequentiell** (nicht parallel) – VRAM wird zwischen Schritten freigegeben
 - **Peak-VRAM Ollama-Pfad:** ~10.7 GB (Qwen3 14B Q4_K_M) — passt auf der 24-GB-Karte mit Headroom
 - **llama.cpp-Pfad für Stage 6 (Content-Gen), aktuell:** **Gemma-4-26B-A4B-it-qat-UD-Q4_K_XL** (`start-gemma4-26b.sh`) — Umstellung von Qwen3-30B via #11 (2026-07-14) nach einem kontrollierten A/B: das 30B erfand in 32,9 % der Bodies erfundene Spezifika (fake Gesetze/Städte), das Gemma-26B nur 8,6 %. *(Die frühere Zusatzbehauptung, Gemma treffe das 150–250-Wörter-Ziel, ist durch den Dauerbetrieb widerlegt: der Median fiel am Umstiegstag von 131 auf 105 und liegt seither bei ~109. Owner hat ~100 am 2026-08-19 als Länge akzeptiert.)* Qwen3.6-35B-A3B (~24 GB) bleibt installiert und per `STAGE5_MODEL`/`STAGE5_START` **revertierbar**; das 30B wurde beim llama.cpp-Umbau 2026-08-29 entfernt (GGUF + start-qwen3-30b.sh). Mid-Pipeline-GPU-Handover (siehe `pipeline/gpu_handover.py`). Default-Backend (ohne `scheduled_cycle.sh`) bleibt Ollama. **Kontext 262144 → 16384 seit 2026-09-25, in Betrieb seit dem `main`-Merge am 2026-09-26: `start-gemma4-26b-ctx16k.sh`** — gemessen gleicher Durchsatz (19,2 vs. 19,3 Anfragen/min), 15 072 statt 19 782 MiB VRAM; die längste reale Stage-6-Anfrage hatte 3 754 Token, der Maximalfall ~6 300 (`docs/context_parallel_eval_2026-09-25.md`). Das alte Skript bleibt unverändert liegen.
@@ -752,6 +752,10 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # `pkill -f build/bin/llama-server` erwischte auch den CPU-Embedder auf :8091
 # (0 MiB VRAM), der Vektorsuchen abseits der GPU bedient — er lag nach dem
 # ersten Nachtlauf tot da. Die Unit hat jetzt zusätzlich Restart=always.
+# Seit 2026-10-04 beendet der Wrapper zusätzlich fremde VRAM-Nutzer, deren
+# Prozessname auf GPU_EVICT_PATTERNS passt (Default nemo-speech|whisper-server,
+# Owner-Freigabe: tagsüber genutzt, nachts nicht gebraucht) — das 24-Slot-8B der
+# Stufen 2-4 braucht ~22 GB. Ruhezustand danach: schlankes 8B ($LLAMA_REST_SCRIPT, 4 Slots).
 # Kollisionswächter (#98, seit 2026-09-05, scripts/lib/gpu_guard.sh): Wrapper
 # UND scheduled_cycle.sh warten vor dem VRAM-Freiräumen, bis kein fremder
 # GPU-Job läuft (Ingester, Pulse, Deep Dive, zweiter Cycle;

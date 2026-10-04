@@ -42,6 +42,16 @@
 # nicht in den Wrappern.
 GPU_GUARD_PATTERNS="${GPU_GUARD_PATTERNS:-scheduled_cycle\.sh|full_cycle_cron\.sh|run_full_cycle|resume_cycle\.sh|signal_batch|weekly_ingesters\.sh|monthly_startup_sources\.sh|research_pulse|newsletter_deep_dive|newsletter_generator|weekly_newsletter_publish\.sh|newsletter_tonight\.sh|history_embed\.py work.*--handover}"
 GPU_GUARD_MAX_MIN="${GPU_GUARD_MAX_MIN:-90}"
+# Ruhezustand von :8090 (Owner 04.10.2026): das 8B schlank (-c 32768 = 4 Slots x 8 192, ~7,6 GB) statt der
+# 24-Slot-Arbeitskonfiguration (~22 GB). Zwilling von
+# pipeline.gpu_handover.CANONICAL_RESTING_SCRIPT (Test pinnt beide); die Wrapper stellen
+# ihn am Ende her, der Handover holt sich fuer Stufen 2-4/8 selbst das Arbeitsskript.
+LLAMA_REST_SCRIPT="${LLAMA_REST_SCRIPT:-start-qwen3-8b.sh}"
+# Fremde VRAM-Nutzer, die der Cycle-Wrapper vor dem Nachtlauf beenden darf (ERE auf den
+# Prozessnamen aus nvidia-smi). Owner 04.10.: nemo-speech und whisper-server werden
+# waehrend des Pipeline-Laufs nicht gebraucht; ohne das passt das 22-GB-8B nicht neben
+# ihre ~4,8 GB. Leer = nichts beenden.
+GPU_EVICT_PATTERNS="${GPU_EVICT_PATTERNS:-nemo-speech|whisper-server}"
 GPU_GUARD_POLL_SEC="${GPU_GUARD_POLL_SEC:-60}"
 GPU_GUARD_DATA_DIR="${GPU_GUARD_DATA_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)/data}"
 LLAMA_SERVER_UNIT="${LLAMA_SERVER_UNIT:-llama-server.service}"

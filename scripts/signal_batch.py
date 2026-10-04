@@ -209,14 +209,15 @@ def assert_local_classify_model() -> None:
     except Exception as e:
         raise SystemExit(
             f"backend=local: llama-server at {LLAMACPP_HOST} unreachable ({e}). "
-            f"Start the 208k classifier (start-qwen3-8b-208k.sh) first.")
+            f"Start the 8B (resting start-qwen3-8b.sh, or the 24-slot start-qwen3-8b-208k.sh for a big run) first.")
     want = STAGE_8B_MODEL
     if not any(m == want or Path(m).name == want for m in loaded):
         raise SystemExit(
             f"backend=local: :8090 serves {loaded or '[]'}, expected '{want}'. "
             f"The GPU-handover symlink likely points to the wrong model "
             f"(e.g. start-qwen3-emb.sh). Repoint start-active.sh -> "
-            f"start-qwen3-8b-208k.sh and restart llama-server.service, then re-run.")
+            f"start-qwen3-8b.sh (resting) or start-qwen3-8b-208k.sh (24 slots) and restart "
+            f"llama-server.service, then re-run.")
     logger.info("Preflight OK: :8090 serves the expected classifier (%s)", want)
 
 

@@ -1746,12 +1746,19 @@ Ausgabe:
 
 ### 11.4 GPU-Ruhezustand
 
-Normalzustand: `llama-server.service` aktiv, `~/llama.cpp/start-active.sh →
-start-qwen3-8b-208k.sh`, `/v1/models` meldet `Qwen3-8B-UD-Q4_K_XL`, `nvidia-smi`
-zeigt ~22 GB belegt (das 8B mit 208k Kontext). Jedes Werkzeug (Cycle, Richter,
-Worker, Pulse, Deep Dive, Newsletter) hängt den Symlink um, startet die Unit
-neu und stellt den Zustand danach wieder her; `scheduled_cycle.sh` setzt den
-Symlink am Ende **immer** zurück.
+Normalzustand (seit 04.10.2026): `llama-server.service` aktiv, `~/llama.cpp/start-active.sh →
+start-qwen3-8b.sh`, `/v1/models` meldet `Qwen3-8B-UD-Q4_K_XL`, `nvidia-smi`
+zeigt **~7,6 GB** belegt — das 8B mit 4 Slots à 8 192 Token (`-c 32768`). (Bis 04.10. stand hier das
+24-Slot-Skript `start-qwen3-8b-208k.sh` mit ~22 GB; die „208k" waren 24 Slots × 8 960
+Token, keine Dokumentlänge.) Für die Stufen 2–4/8 holt sich der Cycle selbst die
+24-Slot-Konfiguration: der Handover prüft über `/props`, wie viele Slots der Server
+hat, und startet bei weniger als 16 das Arbeitsskript. Jedes Werkzeug (Cycle, Richter,
+Worker, Pulse, Newsletter) hängt den Symlink um, startet die Unit neu und stellt den
+Zustand danach wieder her; `scheduled_cycle.sh` setzt den Symlink am Ende **immer**
+auf `$LLAMA_REST_SCRIPT` zurück. **Deine Tagesanwendungen** (nemo-speech,
+whisper-server) beendet der Nachtlauf vor dem Start — sie werden während des Laufs
+nicht gebraucht (deine Freigabe 04.10.), danach startet er sie nicht wieder.
+Ändern: `GPU_EVICT_PATTERNS` in `scripts/lib/gpu_guard.sh`.
 
 ```bash
 systemctl --user status llama-server

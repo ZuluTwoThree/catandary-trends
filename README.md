@@ -220,7 +220,8 @@ Auf der Live-DB sind alle genannten ausgeführt (Stand 04.09.2026).
 
 | Rolle | GGUF in `~/llama.cpp/models/` | Start-Skript | Kontext |
 |---|---|---|---|
-| Ruhezustand, Relevanz/Extraktion/Klassifikation/Reclassify | `Qwen3-8B-UD-Q4_K_XL.gguf` | `start-qwen3-8b-208k.sh` | 212 992 |
+| Relevanz/Extraktion/Klassifikation/Reclassify (Arbeitskonfiguration, Stufen 2–4/8) | `Qwen3-8B-UD-Q4_K_XL.gguf` | `start-qwen3-8b-208k.sh` | 212 992 = 24 Slots × 8 960, ~22 GB |
+| **Ruhezustand** (seit 04.10.2026: 4 Slots × 8 192, ~7,6 GB) | `Qwen3-8B-UD-Q4_K_XL.gguf` | **`start-qwen3-8b.sh`** | 32 768 |
 | Embeddings | `Qwen3-Embedding-8B-Q4_K_M.gguf` | `start-qwen3-emb.sh` | 8 192 |
 | Content-Generierung, Newsletter, Research-Pulse-Texte | `gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf` (+ mmproj, mtp) | **`start-gemma4-26b-ctx16k.sh`** (in Betrieb seit 26.09.) | **16 384** (vorher 262 144) |
 | Draft-Richter | `Qwen3.8-27B-UD-Q4_K_XL.gguf` | **`start-qwen3.8-27b-ctx16k.sh`** (in Betrieb seit 26.09.) | **16 384**, KV q8_0 (vorher 262 144, q4_0) |
@@ -238,7 +239,9 @@ auf sie zeigen.
 Die systemd-Unit `~/.config/systemd/user/llama-server.service` startet
 `~/llama.cpp/start-active.sh` — einen **Symlink**, den die GPU-Handover
 (`pipeline/gpu_handover.py`) für die Dauer eines Stages auf das passende
-Start-Skript umhängen und danach auf `start-qwen3-8b-208k.sh` zurückstellen.
+Start-Skript umhängen und danach auf den Ruhezustand `start-qwen3-8b.sh` zurückstellen
+(`$LLAMA_REST_SCRIPT` in `scripts/lib/gpu_guard.sh`; für Stufen 2–4/8 holt der Handover selbst
+das 24-Slot-Skript, weil er die Slot-Zahl über `/props` prüft).
 Log: `/tmp/llama-server.log` (unrotiert). Kein `--alias` in den Start-Skripten:
 der Handover prüft die Modell-Identität über `/v1/models` gegen den
 GGUF-Dateinamen. Wer die Unit startet, vermerkt ihre MainPID in

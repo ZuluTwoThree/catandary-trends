@@ -92,6 +92,33 @@ def test_scheduled_cycle_judge_swap_matches_registry() -> None:
 
 @skip_no_llama
 def test_resting_state_is_restored_to_the_classifier() -> None:
-    """Am Ende des Laufs muss der Symlink wieder auf den Ruhezustand zeigen."""
+    """Am Ende des Laufs muss der Symlink wieder auf den Ruhezustand zeigen — seit
+    04.10.2026 ueber die Shell-Variable LLAMA_REST_SCRIPT (scripts/lib/gpu_guard.sh), deren
+    Default der Zwilling von gpu_handover.CANONICAL_RESTING_SCRIPT ist."""
     text = (REPO / "scripts/scheduled_cycle.sh").read_text()
-    assert f"ln -sf {gpu_handover.CANONICAL_RESTING_SCRIPT} /home/dirk/llama.cpp/start-active.sh" in text
+    assert 'ln -sf "$LLAMA_REST_SCRIPT" /home/dirk/llama.cpp/start-active.sh' in text
+    guard = (REPO / "scripts/lib/gpu_guard.sh").read_text()
+    m = re.search(r'LLAMA_REST_SCRIPT="\$\{LLAMA_REST_SCRIPT:-([^}]+)\}"', guard)
+    assert m, "LLAMA_REST_SCRIPT fehlt in gpu_guard.sh"
+    assert m.group(1) == gpu_handover.CANONICAL_RESTING_SCRIPT
+    for wrapper in ("scripts/weekly_ingesters.sh", "scripts/weekly_newsletter_publish.sh",
+                    "scripts/run_food_pilot.sh"):
+        w = (REPO / wrapper).read_text()
+        assert "start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh" not in w, \
+            f"{wrapper}: stellt noch das 24-Slot-Skript als Ruhezustand her"
+        assert "$LLAMA_REST_SCRIPT" in w, f"{wrapper}: nutzt LLAMA_REST_SCRIPT nicht"
+
+
+@skip_no_llama
+def test_resting_script_is_the_lean_one_slot_8b() -> None:
+    """Ruhezustand = dasselbe 8B-GGUF schlank: -c 32768 ohne --parallel (= 4 Default-Slots,
+    ~7,6 GB statt ~22 GB, Owner 04.10.2026).
+    Das Arbeitsskript der Stufen 2-4 bleibt die 24-Slot-Konfiguration."""
+    rest = (LLAMA / gpu_handover.CANONICAL_RESTING_SCRIPT).read_text()
+    work = gpu_handover.MODEL_START_SCRIPTS[gpu_handover.CANONICAL_RESTING_MODEL].read_text()
+    assert gpu_handover.CANONICAL_RESTING_MODEL in rest
+    assert "--port 8090" in rest
+    assert not re.search(r"--parallel\s+(\d+)", rest), "Ruhe-Skript setzt --parallel — der Default (4) ist gewollt"
+    m = re.search(r"--parallel\s+(\d+)", work)
+    assert m and int(m.group(1)) >= gpu_handover.EIGHT_B_MIN_SLOTS, \
+        "Arbeitsskript hat weniger Slots, als der Handover verlangt"

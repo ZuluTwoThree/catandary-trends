@@ -68,7 +68,13 @@ MODEL_START_SCRIPTS: dict[str, Path] = {
     #  von tests/test_start_scripts_match_registry.py am 2026-09-25.)
     # Phase 2-4 default: the 208K-context / 24-slot 8B (parallel classification).
     # CLASSIFY_WORKERS=24 fans out across its slots. Swapped out for Stage 5/6.
-    "Qwen3-8B-UD-Q4_K_XL.gguf":        LLAMA_CPP_ROOT / "start-qwen3-8b-208k.sh",
+    # This is the WORKING configuration of the 8B; the resting state between jobs
+    # is the lean script below (RESTING_START_SCRIPT: -c 32768, llama.cpp's default
+    # 4 slots x 8 192) — same GGUF, ~7.6 GB instead
+    # of ~22 GB, because the 24 slots' KV cache (16.7 GB) is only needed while
+    # Stages 2-4/8 or the Saturday distill fan out (owner 2026-10-04: VRAM for
+    # other models and apps by day).
+    "Qwen3-8B-UD-Q4_K_XL.gguf":        LLAMA_CPP_ROOT / os.getenv("LLAMA_8B_WORK_SCRIPT", "start-qwen3-8b-208k.sh"),
     "Qwen3-Embedding-8B-Q4_K_M.gguf":  LLAMA_CPP_ROOT / "start-qwen3-emb.sh",
     # Content-gen candidate under evaluation (#11): Gemma 4 26B-A4B MoE (QAT).
     # Registered so the handover can swap it in for A/B runs against the 30B.
@@ -97,15 +103,28 @@ MODEL_START_SCRIPTS: dict[str, Path] = {
     "Qwen3.8-27B": LLAMA_CPP_ROOT / "start-qwen3.8-27b-ctx16k.sh",
 }
 
-# The 208K classifier is the only valid *resting* state for start-active.sh:
-# between handovers and after a cycle, :8090 should serve it. The embedding/30B/35B
-# scripts are transient — swapped in for a single stage only. If a handover is
-# hard-killed mid-stage (OOM/SIGKILL), its finally-based restore never runs and the
-# symlink is left on a transient script; the next handover would then save & "restore"
-# that poison value, cascading until the cycle ends on the wrong model. This stranded
+# The 8B is the only valid *resting* state for start-active.sh: between handovers
+# and after a cycle, :8090 should serve it. The embedding/30B/35B scripts are
+# transient — swapped in for a single stage only. If a handover is hard-killed
+# mid-stage (OOM/SIGKILL), its finally-based restore never runs and the symlink is
+# left on a transient script; the next handover would then save & "restore" that
+# poison value, cascading until the cycle ends on the wrong model. This stranded
 # the embedding server on :8090 once (2026-06-30), wasting a 10h BIZ run.
+#
+# Since 2026-10-04 the resting state is the LEAN script (`start-qwen3-8b.sh`,
+# -c 32768 = 4 default slots x 8 192, ~7.6 GB), not the 24-slot working script (~22 GB): the "208k" were never
+# document length but 24 x 8 960 tokens of parallel slots, and nothing that runs by
+# day (nest names, Discover, the watchdog's model check) needs the 24 slots.
+# The shell twin of this default is LLAMA_REST_SCRIPT in scripts/lib/gpu_guard.sh
+# (tests/test_start_scripts_match_registry.py pins both).
 CANONICAL_RESTING_MODEL = "Qwen3-8B-UD-Q4_K_XL.gguf"
-CANONICAL_RESTING_SCRIPT = MODEL_START_SCRIPTS[CANONICAL_RESTING_MODEL].name
+RESTING_START_SCRIPT = LLAMA_CPP_ROOT / os.getenv("LLAMA_REST_SCRIPT", "start-qwen3-8b.sh")
+CANONICAL_RESTING_SCRIPT = RESTING_START_SCRIPT.name
+# Slots the 8B WORK handover insists on. The lean resting server serves the same
+# GGUF, so a name check alone would say "already serving" and 24 workers would
+# queue on four slots (measured: 16 vs 58 requests/min). 16 = the measured saturation
+# point (docs/context_parallel_eval_2026-09-25.md); the working script has 24.
+EIGHT_B_MIN_SLOTS = int(os.getenv("EIGHT_B_MIN_SLOTS", "16"))
 
 
 def _safe_saved_target() -> str:
@@ -298,6 +317,19 @@ def _served_model() -> str | None:
         return None
 
 
+def _served_slots() -> int | None:
+    """Parallel slots of the running llama-server (`GET /props` → total_slots), or
+    None when the server is down or does not report it (then the caller must not
+    insist on a slot count — an older server is not a reason to restart)."""
+    try:
+        r = httpx.get(LLAMACPP_HEALTH.rsplit("/v1/models", 1)[0] + "/props", timeout=3)
+        r.raise_for_status()
+        n = r.json().get("total_slots")
+        return int(n) if n is not None else None
+    except Exception:
+        return None
+
+
 def _preflight_model_matches(expected_model: str) -> bool:
     """Verify start-active.sh resolves to a script that loads expected_model."""
     try:
@@ -316,9 +348,23 @@ def _preflight_model_matches(expected_model: str) -> bool:
     return False
 
 
-def _model_ready(expected_model: str) -> bool:
+def _model_ready(expected_model: str, min_slots: int | None = None) -> bool:
+    """The server serves `expected_model` — and, when `min_slots` is given, with at
+    least that many parallel slots. The lean resting 8B (4 slots) and the 24-slot working
+    8B are the same GGUF; only the slot count tells them apart."""
     served = _served_model()
-    return served is not None and Path(expected_model).name in served
+    if served is None or Path(expected_model).name not in served:
+        return False
+    if min_slots is None:
+        return True
+    slots = _served_slots()
+    if slots is None:
+        return True          # server does not report slots — do not restart blindly
+    if slots < min_slots:
+        logger.info("llama-server serves %s with %d slot(s), need %d — restarting with the working script",
+                    Path(expected_model).name, slots, min_slots)
+        return False
+    return True
 
 
 def _current_symlink_target() -> str | None:
@@ -359,7 +405,7 @@ def swap_active_symlink(expected_model: str) -> str | None:
 
 
 def llama_server_start(expected_model: str, timeout: int = 240,
-                       swap_symlink: bool = False) -> None:
+                       swap_symlink: bool = False, min_slots: int | None = None) -> None:
     """Free Ollama VRAM, start llama-server via systemd, wait until ready.
 
     When `swap_symlink=True`, swap start-active.sh to the start script
@@ -367,9 +413,15 @@ def llama_server_start(expected_model: str, timeout: int = 240,
     context manager; Stage 6's `content_gen_on_llamacpp` keeps the legacy
     behaviour (assumes scheduled_cycle.sh has set the symlink externally).
 
+    `min_slots`: insist on a parallel configuration (eight_b_on_llamacpp) — the
+    lean resting 8B is the same model and would otherwise count as "ready".
+
     Raises RuntimeError if pre-flight fails or the expected model never appears.
     """
-    if _model_ready(expected_model):
+    def ready() -> bool:
+        return _model_ready(expected_model) if min_slots is None else _model_ready(expected_model, min_slots)
+
+    if ready():
         logger.info("llama-server already serving %s", expected_model)
         return
 
@@ -412,7 +464,7 @@ def llama_server_start(expected_model: str, timeout: int = 240,
 
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if _model_ready(expected_model):
+        if ready():
             logger.info("llama-server ready: %s", expected_model)
             _record_ownership()
             return
@@ -540,16 +592,23 @@ def embed_on_llamacpp(expected_model: str):
 
 
 @contextmanager
-def eight_b_on_llamacpp(expected_model: str):
-    """Context manager: swap symlink to 8B start script, start server, restore on exit.
+def eight_b_on_llamacpp(expected_model: str, min_slots: int | None = None):
+    """Context manager: swap symlink to the 8B WORK script, start server, restore on exit.
 
     Used to wrap Stages 2/3/4 and Stage 8. The symlink is saved on entry and
-    restored on exit so the subsequent Stage 6 35B handover finds start-active.sh
+    restored on exit so the subsequent Stage 6 handover finds start-active.sh
     in its expected state. Also ensures `scheduled_cycle.sh`'s final
     `systemctl start llama-server.service` brings up the right model.
+
+    Since 2026-10-04 the resting server is the SAME GGUF with four slots, so the
+    "already serving" shortcut requires `min_slots` (default EIGHT_B_MIN_SLOTS)
+    parallel slots — otherwise the 24 workers of Stages 2-4 would queue on four
+    slots and Stages 2-4 would take ~3.5x as long.
     """
-    if _model_ready(expected_model):
-        logger.info("8B handover: llama-server already serving %s — nothing to do",
+    if min_slots is None:
+        min_slots = EIGHT_B_MIN_SLOTS
+    if _model_ready(expected_model, min_slots):
+        logger.info("8B handover: llama-server already serving %s with enough slots — nothing to do",
                     expected_model)
         try:
             yield
@@ -558,7 +617,7 @@ def eight_b_on_llamacpp(expected_model: str):
         return
 
     saved_target = _safe_saved_target()
-    llama_server_start(expected_model, swap_symlink=True)
+    llama_server_start(expected_model, swap_symlink=True, min_slots=min_slots)
     try:
         yield
     finally:

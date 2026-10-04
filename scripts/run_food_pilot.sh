@@ -31,7 +31,7 @@ LOG="/home/dirk/logs/food-pilot-$(date +%Y%m%d-%H%M).log"
   if BUSY=$(gpu_guard_busy); then
     echo "----- resting state NOT restored: another GPU job holds the card -----"; RC_REST=busy
   else
-    ln -sfn start-qwen3-8b-208k.sh /home/dirk/llama.cpp/start-active.sh
+    ln -sfn "$LLAMA_REST_SCRIPT" /home/dirk/llama.cpp/start-active.sh
     systemctl --user start llama-server.service; RC_REST=$?
     for i in $(seq 1 40); do sleep 3; curl -sf -m 3 http://127.0.0.1:8090/v1/models > /dev/null && break; done
     echo "----- resting state: $(readlink /home/dirk/llama.cpp/start-active.sh), llama-server $(systemctl --user is-active llama-server.service) -----"
