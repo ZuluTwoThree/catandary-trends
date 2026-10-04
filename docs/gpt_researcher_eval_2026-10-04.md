@@ -100,3 +100,46 @@ und die Feld-Einrichtung (B), in eigener venv, mit dem konformen Retriever (1) a
 Pflicht-Vorbau. Vorher lohnt der Vergleich mit Skill 6: wenn Claude Code mit fester
 Anleitung den Anhang in gleicher Qualität liefert, ist gpt-researcher eine
 Abhängigkeit ohne Gegenwert. Der Korpus-MCP (2) lohnt sich unabhängig davon.
+
+## 6. Nachtrag: konform per Fork? (Owner-Frage 04.10.)
+
+**Ja, technisch geht es — aber ein Fork ist der teurere Weg.** Im Code gibt es genau
+zwei Stellen, an denen gpt-researcher selbst Seiten holt:
+
+- `skills/browser.py` `BrowserManager.browse_urls` → `actions/web_scraping.scrape_urls`
+  → `scraper/scraper.py` `Scraper` (alle Scraper-Klassen: bs, browser, nodriver, PDF,
+  arXiv, Firecrawl, Tavily-Extract). Aufgerufen von der normalen Recherche, Deep Research
+  und den Nachlade-Pfaden (`researcher.py` Z. 252/965/1095).
+- `document/online_document.py` `OnlineDocumentLoader` (nur bei `document_urls`).
+
+Daneben schicken Retriever Suchanfragen an ihre APIs (Brave, SearXNG …) — das ist kein
+Seitenabruf. Wichtig: auch ein Retriever mit `requires_scraping=False` löst Scraping aus,
+sobald ein Treffer **ohne** `raw_content` kommt (`researcher.py` Z. 903–916).
+
+**Weg 1 — Fork:** `Scraper.extract_data_from_url` und `OnlineDocumentLoader` auf
+`article_fetcher.fetch_fulltext_result` umbiegen. Der Patch ist klein (~50 Zeilen), aber
+das Projekt ändert sich wöchentlich (3.200 Commits, letzter 26.09.); jedes Update ist ein
+Merge, und der Patch kann still wirkungslos werden, wenn oben ein neuer Abrufpfad dazukommt.
+
+**Weg 2 — ohne Fork, empfohlen:** ein eigener Starter (`scripts/gptr_run.py`, eigene venv):
+1. `RETRIEVER=custom` auf unseren Endpunkt (Abschnitt 4, Punkt 1), der nur Treffer **mit**
+   konform geholtem `raw_content` zurückgibt — Treffer ohne Text werden verworfen, nicht
+   durchgereicht.
+2. Vor dem Import `BrowserManager.browse_urls` durch eine Funktion ersetzen, die über
+   unseren Fetcher holt (robots, TDM nach Weiterleitung, `CatandaryTrendsBot/1.0`,
+   Host-Drossel), und `OnlineDocumentLoader.load` hart scheitern lassen. Fail closed:
+   jeder unbekannte Abrufweg endet im Fehler, nicht im Abruf.
+3. Konfiguration festnageln: `CONTEXT_FILTER=keyword` (Jev schickt Text an TypeSafe),
+   `IMAGE_GENERATION_ENABLED=False`, kein `MCP`, keine `source_urls`/`document_urls`,
+   `USER_AGENT` auf unseren Bot.
+4. Test, der eine Recherche gegen Attrappen fährt und jeden ausgehenden Request außer
+   127.0.0.1 als Fehler wertet — läuft bei jedem Versions-Update von gpt-researcher.
+
+Aufwand Weg 2: ~1,5 Tage inkl. Endpunkt. Er hält Updates aus, solange die zwei
+Einstiegspunkte heißen, wie sie heißen — und wenn nicht, scheitert der Test, statt still
+zu kratzen.
+
+**Was weder Fork noch Starter lösen:** die Kennzeichnung (kein Modelltext im Blatt),
+die Schreibqualität (Dossier-Befund) und die Speicherfrist der geholten Texte (der Starter
+muss Arbeitsverzeichnis und Memory nach dem Lauf löschen oder der 1825-Tage-Regel
+unterstellen).
