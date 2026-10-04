@@ -264,7 +264,9 @@ def send_edition(edition: dict, dry_run: bool, force: bool) -> int:
             logger.warning("DRY RUN ONLY — a real send of this edition is refused "
                            "until it is released at /trends/newsletter/review")
         if recipients:
-            logger.info("sample unsubscribe link: %s", unsubscribe_url(recipients[0]))
+            # The token is b64url(email).hmac — a real address would be readable in
+            # the log. A placeholder exercises the URL builder just as well.
+            logger.info("sample unsubscribe link: %s", unsubscribe_url("subscriber@example.invalid"))
         return len(recipients)
     if not recipients:
         return 0

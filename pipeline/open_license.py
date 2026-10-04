@@ -100,11 +100,16 @@ class OpenWork:
 
 
 def _rank_locations(work: dict) -> tuple[str, ...]:
-    """Alle offenen Fundstellen des Werks, Datenrepositorien zuletzt, ohne Dubletten."""
+    """Alle OFFEN LIZENZIERTEN Fundstellen des Werks, Datenrepositorien zuletzt, ohne
+    Dubletten. Die Lizenz muss an der Fundstelle selbst hängen (`is_oa` und ein offenes
+    `license`): nur dort hebt sie den TDM-Vorbehalt des Hosts auf. Bis 04.10. kamen alle
+    Fundstellen in die Liste und nur `best_oa_location` wurde auf die Lizenz geprüft — lag
+    die CC-BY-Kopie auf Zenodo und die Verlagsfassung war geschlossen, holte der Fetcher
+    mit `open_licence=` die geschlossene Verlagsseite am Vorbehalt vorbei."""
     seen: list[str] = []
     for loc in [work.get("best_oa_location"), work.get("primary_location"),
                 *(work.get("locations") or [])]:
-        if not loc:
+        if not loc or not loc.get("is_oa") or not is_open_licence(loc.get("license")):
             continue
         for u in (loc.get("pdf_url"), loc.get("landing_page_url")):
             if u and u not in seen:

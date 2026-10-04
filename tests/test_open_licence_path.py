@@ -98,11 +98,25 @@ class TestResolverHelpers:
         assert ol.clean_title("[Articles] Robotic knee") == "Robotic knee"
 
     def test_data_repositories_rank_last(self):
-        work = {"best_oa_location": {"pdf_url": "https://zenodo.org/record/1.pdf"},
-                "primary_location": {"landing_page_url": "https://publisher.example/a"},
+        work = {"best_oa_location": {"pdf_url": "https://zenodo.org/record/1.pdf",
+                                     "is_oa": True, "license": "cc-by"},
+                "primary_location": {"landing_page_url": "https://publisher.example/a",
+                                     "is_oa": True, "license": "cc-by"},
                 "locations": []}
         assert ol._rank_locations(work) == ("https://publisher.example/a",
                                             "https://zenodo.org/record/1.pdf")
+
+    def test_only_locations_that_carry_the_licence_are_fetched(self):
+        """Review 2026-10-04: the CC-BY copy sits on Zenodo, the publisher version is
+        closed (and on a TDM-reserved host). Only the licensed copy may be fetched with
+        the reservation lifted — the publisher URL must not appear at all."""
+        work = {"best_oa_location": {"pdf_url": "https://zenodo.org/record/1.pdf",
+                                     "is_oa": True, "license": "cc-by"},
+                "primary_location": {"landing_page_url": "https://www.nature.com/articles/x",
+                                     "is_oa": False, "license": None},
+                "locations": [{"landing_page_url": "https://repo.example/green",
+                               "is_oa": True, "license": None}]}
+        assert ol._rank_locations(work) == ("https://zenodo.org/record/1.pdf",)
 
     def test_is_open_needs_both_licence_and_location(self):
         assert not ol.OpenWork(licence="cc-by").is_open

@@ -37,7 +37,10 @@ FROM_ADDR = os.getenv("NEWSLETTER_FROM", "Catandary Trends <trends@send.catandar
 # Where the review UI lives. Localhost by default: the queue is an internal tool
 # and the app is not public yet.
 REVIEW_URL = os.getenv("REVIEW_URL", "http://localhost:3001/trends/review")
-TO_ADDR = os.getenv("REVIEW_NOTIFY_TO", "molkereimeister@web.de")
+# Recipient of the morning mail, the watchdog and the ops alerts. No default: the
+# repo is public, and a personal address does not belong in it (owner rule). Set
+# REVIEW_NOTIFY_TO in .env — `send()` refuses with a clear log line otherwise.
+TO_ADDR = os.getenv("REVIEW_NOTIFY_TO", "").strip()
 
 # Mirrors AUTO_PUBLISH_CONFIDENCE — only drafts the gate actually judged.
 CONFIDENCE_MIN = 0.85
@@ -301,6 +304,9 @@ def build_mail(today: int, total: int, oldest: str | None,
 def send(subject: str, body_html: str, text: str) -> bool:
     if not RESEND_API_KEY:
         logger.error("RESEND_API_KEY not set — cannot send")
+        return False
+    if not TO_ADDR:
+        logger.error("REVIEW_NOTIFY_TO not set — cannot send (recipient of the owner mails lives in .env)")
         return False
     try:
         r = httpx.post(
