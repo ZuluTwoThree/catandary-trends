@@ -282,7 +282,9 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
     () => (rawData && !showPast ? withoutHistory(rawData) : rawData),
     [rawData, showPast]
   );
-  const [showFlows, setShowFlows] = useState(true);
+  // Citation arcs are OFF by default (owner 2026-10-04): the cloud opens as points and
+  // rings; the network is a layer the reader switches on.
+  const [showFlows, setShowFlows] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [yaw, setYaw] = useState(0.6);
   const [pitch, setPitch] = useState(0.3);

@@ -1284,8 +1284,8 @@ cross_industry:
       Nest, aus `trends` oder der Stichprobe, nachgeschlagen in `patent_links`).
     - Neue Spalten `signal_space_runs.flows`, `n_history`, `n_history_all`,
       `history_items.dup_of_trend` (alle additiv, Live-DB 03.10.).
-    - Frontend: Schalter *Past sample* und *Citation flows* (`lib/spaceCloud.ts`
-      `withoutHistory`/`flowArcs`).
+    - Frontend: Schalter *Past sample* (Default an) und *Citation flows* (**Default aus**,
+      Owner 04.10.) (`lib/spaceCloud.ts` `withoutHistory`/`flowArcs`).
     - Der Discover-Dienst liest die Vergangenheit bewusst nicht (12-Monats-Fenster).
 - **Zugriff auf die Owner-Instanzen (seit 2026-09-05, Security E-1/E-2/E-4 behoben):** `:3001` (main, systemd), `:3004` (dev), `:3999` (dev, PUBLIC_MODE) und der llama-server `:8090` binden nur noch auf **127.0.0.1** (`-H 127.0.0.1` in `deploy/systemd/catandary-frontend.service`, `--host 127.0.0.1` in allen `~/llama.cpp/start-*.sh`). Vom MacBook geht es über **Tailscale Serve** (tailnet-only, HTTPS, Serve + HTTPS-Zertifikate im Tailnet aktiviert, Funnel bewusst aus): `https://kiworkstation.tail678c6e.ts.net` → :3001, `…:3004` → :3004, `…:3999` → :3999 (`tailscale serve status`). Direkt über die Tailnet-IP sind die Ports zu. **Seit 2026-10-04 verlangen die GET-Routen, die
   einen Python-Job mit GPU-Handover starten (`/api/foresight/query`, `…/query/evidence`, `…/tir`,

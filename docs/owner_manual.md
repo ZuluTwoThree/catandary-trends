@@ -1108,7 +1108,7 @@ Vergangenheit vor (§11.3b, `history_vectors`), nimmt die Wolke sie mit:
   DOI), dazu die Schicht. Bei der Stichprobe steht dort, für wie viele Dokumente ihres
   Monats der Punkt steht; bei den zitierten Patenten „cited by a patent in the signal
   space".
-- **Schalter *Citation flows*:** zieht Bögen von einem Nest zu dem Nest, dessen Patente
+- **Schalter *Citation flows*** (beim Öffnen aus, seit 04.10.): zieht Bögen von einem Nest zu dem Nest, dessen Patente
   es zitiert. Das neuere baut auf dem älteren auf; die Breite wächst mit der Wurzel der
   Zahl. Zitate innerhalb eines Nests werden nicht gezeichnet. Klick auf einen Ring
   zeigt nur seine Flüsse.
