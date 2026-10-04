@@ -873,8 +873,10 @@ Export) — sie zitiert Arbeit im Review-Status.
 Die drei Produkte des Pivots vom 20.09.2026 (`docs/commercialization_plan_2026-09-20.md`):
 **Trajectory Sheet** (ein Feld, 6 Seiten, 1.490 €), **Field Watch** (drei Felder,
 Wochenblatt, 390 €/Monat) und die kostenlose **Feldprobe** (Seite 1 des Sheets).
-Alles ist deterministische SQL-Messung — kein Sprachmodell schreibt ein Wort;
-der einzige Prosa-Abschnitt (`reading:`) kommt von dir.
+Alle Zahlen sind deterministische SQL-Messung — kein Sprachmodell rechnet mit.
+Geschriebene Abschnitte (Einordnung `reading:`, Rechtsrahmen-Anhang `regulatory:`,
+im Wochenblatt „Was hinter der Bewegung steckt") kommen von dir — auf Wunsch auf
+Grundlage eines maschinellen Entwurfs, den du umschreibst (§5.11a).
 
 **Kundendatei anlegen** — `fields/<kunde>.yaml` (Vorlage `fields/example.yaml`;
 echte Kunden sind per `.gitignore` vom Repo ausgenommen):
@@ -887,6 +889,8 @@ fields:
     terms: [precision fermentation, recombinant whey, animal-free dairy]
     cpc: [C12P21/02, A23J3/08]      # Anker für den Reifegradblock (K(t), Zykluszeit)
     reading: ""                     # Einordnung im Sheet — nur wenn du sie schreibst
+    regulatory: ""                  # Anhang A Rechtsrahmen (Markdown) — oder umgeschriebener Entwurf, §5.11a
+    regulatory_keywords: [novel food, food enzymes]   # nur für den Entwurf: Begriffe aus EU-Rechtsakt-Titeln
 ```
 
 Feld = Suchphrasen (Titel/Teaser/Tags des Signalkorpus, Titel+Abstract des
@@ -932,6 +936,65 @@ scripts/weekly_field_watch.sh` — Wochenblätter aller Kunden nach dem Research
 Pulse; keine GPU, kein Kollisionswächter; ohne Kundendateien no-op; Notiz
 `data/weekly_field_watch_last.json` in der Montags-Mail. Die Kundenseite wird
 bewusst nicht automatisch hochgeladen — du sichtest das Blatt zuerst.
+
+### 5.11a Recherche-Entwürfe und Korpus-MCP (`scripts/field_research.py`, seit 2026-10-04)
+
+Ergänzung zu Field Watch und Trajectory Sheet (Plan `docs/plan_field_research_2026-10-04.md`,
+Bewertung `docs/gpt_researcher_eval_2026-10-04.md`). Ein Recherche-Agent (gpt-researcher)
+schreibt **Entwürfe** für die geschriebenen Abschnitte; du schreibst sie vor der
+Auslieferung um. Die Zahlen der Blätter bleiben reine Messung.
+
+**Einmalig einrichten:** `scripts/setup_research_venv.sh` baut `~/venvs/catandary-research`
+(gpt-researcher 0.16.1, MCP-SDK; bewusst nicht die Cron-venv). Tests darin:
+`~/venvs/catandary-research/bin/python -m pytest -q tools/research/tests`.
+
+**Entwürfe erzeugen** (Repo-Root, `.venv/bin/python`; GPU-Handover auf Gemma-4-26B, danach
+Ruhezustand; bricht mit rc 75 ab, wenn ein GPU-Job läuft — `--wait-min N` wartet):
+
+| Was | Kommando | Dauer (gemessen 04.10.) |
+|---|---|---|
+| Anhang A Rechtsrahmen | `scripts/field_research.py regulatory <kunde> <feld>` | ~1 min (EUR-Lex über Cellar + Behördenseiten) |
+| Abschnitt 7 Einordnung | `scripts/field_research.py reading <kunde> <feld>` | ~3 min (Sheet-Messung zuerst) |
+| Wochenblatt-Notizen | `scripts/field_research.py movers <kunde> [--week D] [--min-delta 50]` | ~1 min je bewegtem Feld |
+| Feld einrichten | `scripts/field_research.py setup "<phrase>"` → YAML-Entwurf mit Zählung je Ebene | ~1 min |
+| Interessenten-Briefing | `scripts/field_research.py prospect "<firma>"` (nur intern) | ~1 min |
+| Übersicht / Aufräumen | `scripts/field_research.py list [<kunde>]` · `purge [--apply]` (älter als 1825 Tage) | Sekunden |
+
+`--dry-run` zeigt den Auftrag ohne Modell. `--llm anthropic` schickt den Kontext an Claude
+statt an das lokale Modell (verlässt dann den Rechner; braucht API-Guthaben — am 04.10.
+war das Konto leer, der Pfad ist verdrahtet, aber nicht durchgelaufen).
+
+**Ablage:** `data/field_watch/<kunde>/drafts/<feld>/<abschnitt>[-<woche>]-<datum>.md` mit Kopf
+(`status: draft`) und daneben `.json` (Quellen, Modell, Maschinentext, Quelltexte; 1825-Tage-Regel).
+Setup/Briefing unter `data/field_watch/_owner/drafts/`.
+
+**Entwurfsblatt ansehen:** `scripts/field_watch.py <kunde> --sheet <feld> --draft` bzw.
+`scripts/field_watch.py <kunde> --draft` (Wochenblatt). Datei `…-ENTWURF.pdf`, Wasserzeichen
+auf jeder Seite, rotes Badge am Abschnitt, **Anhang B mit Prüfhinweisen**: Links ohne Quelle
+im Lauf, Rechtsakt-Nummern, die nicht zur verlinkten CELEX passen, Zahlen in der Einordnung,
+die nicht aus der Messung stammen, Prognose-Formulierungen. `--export` nimmt Entwurfsdateien
+nie mit.
+
+**Ausliefern:** Entwurfsdatei öffnen, Text umschreiben, im Kopf `status: rewritten` setzen,
+Blatt **ohne** `--draft` bauen. Ein kaum geänderter Text (≥ 85 % gleich) wird abgelehnt.
+Das Blatt sagt dann „vom Analysten geschrieben und verantwortet, auf Grundlage eines
+maschinellen Rechercheentwurfs". Text in der Kundendatei (`reading:`/`regulatory:`) hat
+Vorrang vor jedem Entwurf.
+
+**Regeln, die der Starter erzwingt:** gpt-researcher holt keine Seite selbst — Suche und Abruf
+laufen über den Korpus-Dienst und den Fetcher (CatandaryTrendsBot, robots.txt, TDM-Vorbehalt);
+eine Netzsperre lässt nur 127.0.0.1 (und bei `--llm anthropic` `api.anthropic.com`) zu.
+EUR-Lex beantwortet Bots mit einer Challenge; Rechtsakte kommen daher über den Cellar des
+Amts für Veröffentlichungen, artikelweise geschnitten.
+
+**Korpus-MCP für Claude Code:** `.mcp.json` registriert den Server `catandary-corpus`
+(`bash tools/research/run_mcp.sh`). Werkzeuge: `search_signals`, `get_signal`,
+`search_research`, `search_patents`, `term_counts`, `field_list`, `field_week`,
+`field_sheet`, `field_probe`, `tir_block`, `emerging_nests`, `web_search`, `fetch_url`,
+`eurlex_search`. Alles lesend; der Server startet den Korpus-Dienst
+(`pipeline/corpus_service.py`) als Kindprozess mit Einmal-Token. Log:
+`/tmp/catandary-corpus-mcp.log`. Zwei Skills nutzen ihn: `.claude/skills/field-setup`
+und `.claude/skills/regulatory-annex`.
 
 ### 5.12 Signalraum in 3D (`/trends/foresight/map`)
 

@@ -2010,9 +2010,13 @@ Rechnung.
   Ramp-Regel (≥ 15 % des Peaks, ≥ 3), am Fensterrand als Rand berichtet;
   Wissenschaft aus `research_corpus` ab 2010, Markt ab 2020 in Breite;
   Akteure = Extraktion (13 % der Presse-Zeilen, Untergrenze); dünne Zellen als
-  Tabelle. **Kein Modelltext im Produktpfad** — der Kennzeichnungsfuß
-  („deterministische Abfragen, kein Sprachmodell") bleibt nur so wahr; die
-  einzige Prosa ist `reading:` aus der Kundendatei, als vom Analysten gekennzeichnet.
+  Tabelle. **Keine Modellzahl im Produktpfad.** Geschriebene Abschnitte (Einordnung
+  `reading:`, Anhang A Rechtsrahmen `regulatory:`, Wochen-Notiz „Was hinter der
+  Bewegung steckt") kommen vom Analysten. **Seit 2026-10-04 (Owner): Modelltext darf
+  als ENTWURF ins Blatt** — nur mit `--draft` (Wasserzeichen, `*-ENTWURF.*`, nie im
+  Export), und jedes Entwurfsblatt wird vor der Auslieferung von einem Menschen
+  umgeschrieben (`status: rewritten`; ein kaum geänderter Text wird abgelehnt). Der
+  Fuß sagt je Abschnitt, wer ihn geschrieben hat. Details: nächster Abschnitt.
 - **Ausgabe:** `data/field_watch/<kunde>/` (`<woche>.{pdf,html,json}`,
   `sheet-<feld>-<datum>.*`, `site/` für den Kundenbereich), Feldproben unter
   `probes/`; Protokoll `field_watch_runs` (additive Migration
@@ -2026,6 +2030,65 @@ Rechnung.
   Notiz in der Montags-Mail (`review_notify.GPU_JOB_NOTES`).
 - **Muster:** `docs/samples/` (LFP-Sheet, FOOD-Wochenblatt W38), erzeugt mit
   `--sample` aus `fields/example*.yaml`; Kopien auf der Website.
+
+## Recherche-Entwürfe und Korpus-MCP (seit 2026-10-04, auf `dev`)
+
+Owner-Auftrag 04.10. nach der Prüfung von gpt-researcher (`docs/gpt_researcher_eval_2026-10-04.md`,
+Plan `docs/plan_field_research_2026-10-04.md`). Owner-Festlegungen: Modelltext darf als Entwurf
+ins Blatt (Mensch schreibt um), für geholte Texte gilt die 1825-Tage-Regel.
+
+- **Eigene venv** `~/venvs/catandary-research` (`scripts/setup_research_venv.sh`,
+  `requirements-research.txt`: gpt-researcher **0.16.1** — 0.16.0 auf PyPI hat einen
+  Importfehler —, `mcp` 1.30.0, `langchain-anthropic`, `pytest`). **Nie in die Cron-venv**
+  (`.venv` = Symlink auf main); Test `tests/test_field_research.py` pinnt das.
+- **Korpus-API** `pipeline/corpus_api.py` (nur lesend, READ ONLY + `statement_timeout`):
+  `search_signals` (Text/Bedeutung/RRF; Bedeutung mit Ebenen-Filter fällt auf
+  Wortkandidaten + Vektorsortierung zurück, weil Patente/Förderung im Vektorraum
+  stilbedingt fern liegen), `get_signal`, `search_research` (mehrwortig ohne Operatoren =
+  Phrase), `search_patents`, `term_counts`, `field_list|week|sheet|probe` (ohne GPU),
+  `tir_block`, `emerging_nests`, `web_search` (site:-Listen in Fünfergruppen),
+  `fetch_url` (Fetcher + `legal_text`; **EUR-Lex über Cellar** —
+  `publications.europa.eu/resource/celex/<CELEX>` mit `Accept: application/xhtml+xml`,
+  weil EUR-Lex Bots mit HTTP 202 abweist; SSRF-Sperre auf nicht-öffentliche Adressen;
+  Cache nur für Treffer), `eurlex_search` (Cellar-SPARQL, Grundrechtsakte zuerst),
+  `gptr_retrieve`/`gptr_fetch` (Retriever-Format; **nie ein Treffer ohne Text**).
+- **Korpus-Dienst** `pipeline/corpus_service.py`: HTTP auf 127.0.0.1, Einmal-Token,
+  Aufrufe mit `Origin`-Kopf abgewiesen, Token im Log geschwärzt; läuft nur als
+  Kindprozess (`running_service()`, `--parent-pid`), keine Unit.
+- **MCP-Server** `tools/research/mcp_server.py` (Recherche-venv, FastMCP, stdio), in
+  `.mcp.json` als `catandary-corpus` (`bash tools/research/run_mcp.sh`); startet den
+  Dienst mit der Python der Main-venv des Worktrees; Log `/tmp/catandary-corpus-mcp.log`.
+- **gptr-Worker** `tools/research/gptr_run.py` (Recherche-venv, kein Pipeline-Import):
+  `RETRIEVER=custom` → Dienst; `BrowserManager.browse_urls` → Dienst `/gptr/fetch`;
+  `Scraper.run`/`scrape_urls`/`OnlineDocumentLoader.load` → Fehler; **Netzsperre auf
+  Socket-Ebene** (DNS + connect nur 127.0.0.1/::1, bei `--llm anthropic` zusätzlich
+  `api.anthropic.com`); `CONTEXT_FILTER=keyword`, keine Bilder, kein MCP-Retriever;
+  Kontext auf 5.500 Wörter gekürzt (Gemma-26B `-c 16384`). Tests in der Recherche-venv:
+  `tools/research/tests` (in der Main-venv übersprungen).
+- **Orchestrator** `scripts/field_research.py` (`regulatory|reading|movers|setup|prospect|list|purge`,
+  `--llm local|anthropic`, `--dry-run`, `--wait-min`): Messkontext per SQL vor dem Handover,
+  `gpu_handover.model_on_llamacpp(Gemma-26B, vram_free_below_mib=8500)`, Ruhezustand danach,
+  `ops_events` Job `field_research`, rc 75 bei belegter GPU. `field_research` steht seit
+  04.10. in `GPU_GUARD_PATTERNS` (`scripts/lib/gpu_guard.sh`) — **scharf erst mit dem
+  main-Merge**. Prompts + Kontextaufbau: `pipeline/field_research.py`
+  (Prompt-Katalog-Gruppe `field`).
+- **Entwürfe** `pipeline/field_drafts.py`: `data/field_watch/<kunde>/drafts/<feld>/…md` mit
+  YAML-Kopf (`status: draft|rewritten`) + `.json` (Quellen, Maschinentext, Quelltexte,
+  `retention_until`); `load_section` (rewritten vor draft, draft nur mit `--draft`),
+  `DraftNotRewritten` bei ≥ 85 % Ähnlichkeit, `review_hints` (Links ohne Quelle,
+  Rechtsakt-Nummer ≠ verlinkte CELEX, Einordnungszahlen außerhalb der Messung,
+  Prognose-Formulierungen), sicheres Markdown (`md_to_html`: erst escapen, nur http(s)-Links).
+  Das Wochenblatt im Cron bricht an einem falsch markierten `rewritten` nicht ab (Notiz fehlt, Warnung).
+- **Blätter:** `render_sheet(…, drafts=)`, `render_week(…, notes=)`; Anhang A Rechtsrahmen,
+  Anhang B Quellen/Prüfhinweise (nur Entwurf); Kundendatei-Felder `regulatory`,
+  `regulatory_keywords`, `regulatory_domains` (validate_customer).
+- **Skills** `.claude/skills/field-setup`, `.claude/skills/regulatory-annex` (versioniert;
+  `.gitignore` nimmt `.claude/*` außer `skills/` aus).
+- **Messung 04.10.** (Beispielfeld Präzisionsfermentation, Gemma lokal): Rechtsrahmen
+  ~1 min, 15 Quellen, 0 blockierte Verbindungen, ein falsch verlinkter Rechtsakt (vom
+  Prüfhinweis gefunden); Einordnung übernahm im ersten Lauf 7 Marktzahlen aus
+  Pressemitteilungen — Prompt verschärft + Zahlenprüfung, zweiter Lauf 0. `--llm anthropic`
+  ist verdrahtet, scheiterte aber am leeren API-Guthaben.
 
 ## Newsletter Deep Dive (#96 — seit 2026-09-19 stillgelegt)
 

@@ -9,6 +9,13 @@
 >    von einem Menschen umgeschrieben.
 > 2. Für geholte Texte gilt die **1825-Tage-Regel** (wie `raw_content`).
 
+> **Stand 2026-10-04 abends: P0–P8 gebaut und auf `dev`.** Abweichungen vom Plan:
+> gpt-researcher **0.16.1** (0.16.0 auf PyPI bricht beim Import); EUR-Lex-Texte über den
+> Cellar (EUR-Lex weist Bots mit HTTP 202 ab); Prüfhinweise (Anhang B) und Zahlenprüfung der
+> Einordnung kamen nach den ersten Live-Läufen dazu; `--llm anthropic` scheiterte am leeren
+> API-Guthaben (Pfad verdrahtet, Netzsperre lässt nur `api.anthropic.com` durch). Betrieb:
+> `docs/owner_manual.md` §5.11a, CLAUDE.md „Recherche-Entwürfe und Korpus-MCP".
+
 ## 0. Leitplanken
 
 - **Nichts kommt in die gemeinsame venv.** gpt-researcher und das MCP-SDK liegen in einer

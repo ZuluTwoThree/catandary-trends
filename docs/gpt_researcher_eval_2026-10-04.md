@@ -143,3 +143,13 @@ zu kratzen.
 die Schreibqualität (Dossier-Befund) und die Speicherfrist der geholten Texte (der Starter
 muss Arbeitsverzeichnis und Memory nach dem Lauf löschen oder der 1825-Tage-Regel
 unterstellen).
+
+## 7. Umsetzung (Owner-Auftrag 04.10.)
+
+Owner-Festlegungen: Modelltext darf als **Entwurf** ins Blatt (ein Mensch schreibt vor der
+Auslieferung um); für geholte Texte gilt die 1825-Tage-Regel. Gebaut wurde Weg 2 (Starter
+ohne Fork) samt Korpus-Dienst, MCP-Server, Entwurfsablage, Entwurfsblättern und zwei Skills —
+Plan und Stand: `docs/plan_field_research_2026-10-04.md`, Bedienung `docs/owner_manual.md` §5.11a.
+Die Bedenken aus Abschnitt 2 sind damit adressiert: Abruf nur konform (Punkt 1), Modelltext
+nur gekennzeichnet als Entwurf (Punkt 2), Schreibqualität bleibt beim Menschen (Punkt 3),
+GPU über Handover + Kollisionswächter (Punkt 4), eigene venv (Punkt 5).
