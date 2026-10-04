@@ -44,8 +44,11 @@ psql -d catandary_restore -c 'SELECT count(*) FROM trends'
 
 ## Tablespace `hdd` (after `scripts/move_cold_tables_to_hdd.sh --apply`)
 
-Cold tables (the three `*_old`, 36 GB) live in the tablespace `hdd` under
-`/mnt/data-hdd/pg_tablespace`. The dump holds their data like any other table, but a
+Cold tables live in the tablespace `hdd` under `/mnt/data-hdd/pg_tablespace`: the three
+`*_old` patent tables (36 GB) and `history_vectors` (the past of the signal space, ~4.3 GB —
+read by *Recompute pockets* and *Recompute cloud*; if the tablespace is missing those runs
+abort with an error instead of silently computing without the past). The script's default
+table list names all four. The dump holds their data like any other table, but a
 restore needs the tablespace to exist **first** — or restore everything into the default
 location:
 

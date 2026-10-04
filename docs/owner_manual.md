@@ -1720,11 +1720,15 @@ Ausgabe:
   ist, kommt nie ein zweites Mal hinein, egal aus welchem Fenster.
 - `dedupe`: ein Eintrag je Patentfamilie. Doppelte Mitglieder kommen in die Schicht
   `…:dupfamily` und werden nicht mehr gelesen; gelöscht wird nichts.
-- `scripts/run_history_embed.sh`: bettet auf 3090 + 5080 parallel ein (~6 h).
-  - Die 5080 nur mit deinem Wort, denn Nemotron wird solange angehalten und am Ende
-    wieder gestartet.
-  - `NO_REMOTE=1` nimmt nur die 3090.
+- `scripts/run_history_embed.sh`: bettet ein — ohne Zusatz nur auf der 3090.
+  - `WITH_5080=1 scripts/run_history_embed.sh` nimmt die 5080 dazu (3090 + 5080 ~6 h).
+    Nur mit deinem Wort für genau diesen Lauf, denn Nemotron auf bequietUbuntu wird solange
+    angehalten und erst am Ende wieder gestartet; der Embedder dort ist nur im Tailnet
+    erreichbar. (Bis 04.10. war die 5080 der Default und `NO_REMOTE=1` der Ausweg — das
+    ist umgedreht, `NO_REMOTE=1` wirkt weiter als Aus-Schalter.)
   - Ein zweiter Aufruf macht dort weiter, wo der erste aufgehört hat.
+  - Der Nachtlauf (02:45 Mo–Fr) wartet auf den lokalen Arbeiter höchstens 90 min und fällt
+    dann mit rc=75 aus — den Lauf so legen, dass er vorher fertig ist.
 - `status`: Fortschritt je Ebene und Schicht.
 - `scripts/history_redate.py [--apply]`: Datiert Forschungsarbeiten, die OpenAlex auf den
   1. Januar setzt (nur Jahr bekannt), per Crossref auf ihren Monat. Ohne Monat fallen sie

@@ -89,11 +89,12 @@ Gemessen (03.10.):
     Lauf verliert also nichts, und ein Neustart macht weiter;
   - mit `--handover` holt der Arbeiter auf der lokalen 3090 das Einbettmodell auf :8090 und
     stellt danach den Ruhezustand (8B) wieder her.
-- **Zwei Karten** `scripts/run_history_embed.sh`:
-  - hält auf bequietUbuntu Nemotron an, startet dort Qwen3-Embedding-8B auf :8095 und
-    startet die Unit im EXIT-Trap wieder;
+- **Zwei Karten** `scripts/run_history_embed.sh` (seit 04.10. Opt-in: `WITH_5080=1`, Default nur 3090):
+  - hält mit `WITH_5080=1` auf bequietUbuntu Nemotron an, startet dort Qwen3-Embedding-8B auf
+    :8095 (nur Tailnet-Adresse) und startet die Unit im EXIT-Trap wieder;
   - lokal ein Arbeiter mit Handover;
-  - `history_embed` steht in `GPU_GUARD_PATTERNS`, der Nachtlauf wartet also auf ihn;
+  - nur dieser lokale Arbeiter (`history_embed.py work --handover`) steht im Kollisionswächter;
+    der Nachtlauf wartet auf ihn höchstens 90 min (`GPU_GUARD_MAX_MIN`), dann fällt er mit rc=75 aus;
   - Logs: `~/logs/history-embed-{run,3090,5080}-<Zeit>.log`.
 - **Prüfung** `scripts/history_embed.py check --host URL`: bettet Patente ein, die schon in
   `trends` stehen, und vergleicht mit `embedding_1024`, ohne etwas zu schreiben. Ergebnis

@@ -1322,7 +1322,9 @@ export default function ClusterCloud({ meta }: { meta: CloudMeta }) {
                         v={
                           detail.history.layer.startsWith("cited")
                             ? "cited by a patent in the signal space"
-                            : `sample · stands for ~${Math.round(detail.history.weight ?? 1).toLocaleString("en-US")} documents of its month` +
+                            : (detail.history.weight != null && detail.history.weight > 0
+                                ? `sample · stands for ~${Math.round(detail.history.weight).toLocaleString("en-US")} documents of its month`
+                                : "sample · drawn from its month (share not recorded)") +
                               (detail.history.cited ? " · also cited" : "")
                         }
                       />

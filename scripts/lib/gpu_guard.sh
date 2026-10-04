@@ -40,7 +40,7 @@
 
 # Bekannte GPU-Jobs (ERE für pgrep -f). Reihenfolge egal; Ergänzungen hier,
 # nicht in den Wrappern.
-GPU_GUARD_PATTERNS="${GPU_GUARD_PATTERNS:-scheduled_cycle\.sh|full_cycle_cron\.sh|run_full_cycle|resume_cycle\.sh|signal_batch|weekly_ingesters\.sh|monthly_startup_sources\.sh|research_pulse|newsletter_deep_dive|newsletter_generator|weekly_newsletter_publish\.sh|newsletter_tonight\.sh|history_embed}"
+GPU_GUARD_PATTERNS="${GPU_GUARD_PATTERNS:-scheduled_cycle\.sh|full_cycle_cron\.sh|run_full_cycle|resume_cycle\.sh|signal_batch|weekly_ingesters\.sh|monthly_startup_sources\.sh|research_pulse|newsletter_deep_dive|newsletter_generator|weekly_newsletter_publish\.sh|newsletter_tonight\.sh|history_embed\.py work.*--handover}"
 GPU_GUARD_MAX_MIN="${GPU_GUARD_MAX_MIN:-90}"
 GPU_GUARD_POLL_SEC="${GPU_GUARD_POLL_SEC:-60}"
 GPU_GUARD_DATA_DIR="${GPU_GUARD_DATA_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)/data}"

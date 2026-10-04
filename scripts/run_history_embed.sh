@@ -2,12 +2,15 @@
 # Embed the history queue on BOTH GPUs at once (Owner 2026-10-03: "nutze die 5080, du kannst
 # sie heute dafür haben"). One-off, no cron. Re-running continues where it stopped.
 #
-#   scripts/run_history_embed.sh            # 3090 + 5080
-#   NO_REMOTE=1 scripts/run_history_embed.sh   # 3090 only
+#   scripts/run_history_embed.sh               # 3090 only (default)
+#   WITH_5080=1 scripts/run_history_embed.sh   # 3090 + 5080 — ONLY with the owner's word for
+#                                              # this run: Nemotron on bequietUbuntu is stopped
+#                                              # for the duration (CLAUDE.md: ask before every use)
 #
-# bequietUbuntu: stops the user unit llama-server.service (Nemotron on :8090), starts
-# Qwen3-Embedding-8B on :8095 (same GGUF, vectors cos 0.998 against the workstation's) and
-# restarts the unit in an EXIT trap — also on failure. Pattern: scripts/space_eval/run_abstract_eval_bqu.sh.
+# bequietUbuntu (WITH_5080=1): stops the user unit llama-server.service (Nemotron on :8090),
+# starts Qwen3-Embedding-8B on :8095 bound to the Tailnet address only (same GGUF, vectors
+# cos 0.998 against the workstation's) and restarts the unit in an EXIT trap — also on
+# failure. Pattern: scripts/space_eval/run_abstract_eval_bqu.sh.
 # Workstation: the worker swaps :8090 to the embedding model via gpu_handover (owner
 # record, symlink restore) and starts the resting 8B again afterwards.
 set -u
@@ -41,13 +44,13 @@ restore_remote() {
 }
 trap restore_remote EXIT
 
-if [ -z "${NO_REMOTE:-}" ]; then
+if [ -n "${WITH_5080:-}" ] && [ -z "${NO_REMOTE:-}" ]; then
   echo "[$(date +%T)] bequietUbuntu before: $(curl -s --max-time 3 "http://$HOST:8090/v1/models" | python3 -c 'import sys,json; print(json.load(sys.stdin)["data"][0]["id"])' 2> /dev/null)"
   if $SSH 'systemctl --user stop llama-server.service'; then
     REMOTE=1
     sleep 3
     timeout 20 $SSH 'cd ~/llama.cpp && (nohup ./build/bin/llama-server -m ./models/Qwen3-Embedding-8B-Q4_K_M.gguf \
-      --host 0.0.0.0 --port 8095 -ngl 99 -fa on --embedding --pooling last -c 32768 -np 8 -ub 2048 -b 8192 \
+      --host '"$HOST"' --port 8095 -ngl 99 -fa on --embedding --pooling last -c 32768 -np 8 -ub 2048 -b 8192 \
       > /tmp/emb8095.log 2>&1 < /dev/null &) ; true'
     for _ in $(seq 1 90); do curl -sf "http://$HOST:8095/health" > /dev/null && break; sleep 2; done
     if curl -sf "http://$HOST:8095/health" > /dev/null; then
@@ -59,6 +62,8 @@ if [ -z "${NO_REMOTE:-}" ]; then
   else
     echo "[$(date +%T)] could not stop Nemotron on bequietUbuntu — 3090 only"
   fi
+else
+  echo "[$(date +%T)] 3090 only (WITH_5080=1 adds bequietUbuntu — owner's word needed)"
 fi
 
 PIDS=()
