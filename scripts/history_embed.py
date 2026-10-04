@@ -47,6 +47,11 @@ def cmd_select(args) -> int:
         c.execute("SET work_mem = '1GB'")
         t = time.time()
         # per tier: a run that died between the two inserts finishes the missing one
+        if args.cited_only:
+            n = hv.select_patents(c, args.patents_from, args.until, args.quota, random=False)
+            c.commit()
+            log(f"cited patent families added: {n:,} ({time.time() - t:.0f} s)")
+            return 0
         for tier, select, start in (("patent", hv.select_patents, args.patents_from),
                                     ("science", hv.select_science, args.science_from)):
             if not args.force and hv.tier_has_items(c, tier, start, args.until):
@@ -157,6 +162,16 @@ def _work(args, counter: Counter, stop: threading.Event) -> int:
     return 3 if stop.is_set() else 0
 
 
+def cmd_dedupe(_args) -> int:
+    hv.migrate_history_tables()
+    with get_connection() as c:
+        c.execute("SET statement_timeout = 0")
+        n = hv.dedupe_families(c)
+        c.commit()
+    log(f"items set aside as a second member of an already represented family: {n:,}")
+    return 0
+
+
 def cmd_status(_args) -> int:
     with get_connection() as c:
         rows = hv.status(c)
@@ -209,6 +224,9 @@ def main() -> int:
     s.add_argument("--until", default="2026-07-01",
                    help="exclusive; from here the Saturday run embeds every new patent (60-day window)")
     s.add_argument("--force", action="store_true")
+    s.add_argument("--cited-only", action="store_true",
+                   help="only top up the cited layer (families cited by patents now in the signal space)")
+    sub.add_parser("dedupe", help="one item per patent family (set aside, never deleted)")
     w = sub.add_parser("work")
     w.add_argument("--host", required=True)
     w.add_argument("--name", required=True, help="device label stored with each vector")
@@ -223,7 +241,8 @@ def main() -> int:
     k.add_argument("--n", type=int, default=200)
     k.add_argument("--host", default="http://127.0.0.1:8091", help="default: the CPU embedder")
     args = ap.parse_args()
-    return {"select": cmd_select, "work": cmd_work, "status": cmd_status, "check": cmd_check}[args.cmd](args)
+    return {"select": cmd_select, "work": cmd_work, "status": cmd_status, "check": cmd_check,
+            "dedupe": cmd_dedupe}[args.cmd](args)
 
 
 if __name__ == "__main__":

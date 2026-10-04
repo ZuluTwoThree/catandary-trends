@@ -1715,6 +1715,11 @@ Ausgabe:
   Hat eine Ebene im Fenster schon Einträge, wird sie übersprungen; ein abgebrochener Lauf holt die
   fehlende Ebene beim nächsten Aufruf nach. Default seit 03.10.: bis 2026-06. Ein neues Zeitfenster
   hängst du mit eigenem `--…-from`/`--until` an; `--force` füllt ein schon belegtes Fenster auf.
+- `select --cited-only`: holt nur die Zitationsschicht nach, also Familien, die Patente im Signalraum
+  inzwischen neu zitieren. Es wird nichts neu zufällig gezogen. Eine Familie, die schon vertreten
+  ist, kommt nie ein zweites Mal hinein, egal aus welchem Fenster.
+- `dedupe`: ein Eintrag je Patentfamilie. Doppelte Mitglieder kommen in die Schicht
+  `…:dupfamily` und werden nicht mehr gelesen; gelöscht wird nichts.
 - `scripts/run_history_embed.sh`: bettet auf 3090 + 5080 parallel ein (~6 h).
   - Die 5080 nur mit deinem Wort, denn Nemotron wird solange angehalten und am Ende
     wieder gestartet.

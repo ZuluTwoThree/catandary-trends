@@ -82,10 +82,16 @@ def text_of(title: str | None, body: str | None) -> str:
     return f"{title or ''}\n{(body or '')[:TEXT_CHARS]}"
 
 
-def select_patents(c, start: str, until: str, quota: int) -> int:
+def select_patents(c, start: str, until: str, quota: int, random: bool = True) -> int:
     """Insert the patent sample: per month the `quota` families with the smallest hash
     (random layer, weighted) plus every family cited by a patent in the signal space
-    (cited layer). One row per family = its earliest publication with an abstract."""
+    (cited layer). One row per family = its earliest publication with an abstract.
+
+    A family already represented — from this window or another — is never inserted
+    again: the family's earliest member depends on the window, so two windows would
+    otherwise pick two members of one family (03.10.: 9,507 families twice, see
+    dedupe_families). random=False tops up the cited layer only (new patents in the
+    signal space cite new families) without drawing anything new at random."""
     c.execute("""CREATE TEMP TABLE h_cited AS SELECT DISTINCT l.dst_pub AS p FROM patent_links l
         JOIN (SELECT DISTINCT r.pub_number p FROM trends t JOIN raw_entries r ON r.id = t.raw_entry_id
               WHERE r.pub_number IS NOT NULL AND t.status IN ('signal','published')
@@ -113,18 +119,26 @@ def select_patents(c, start: str, until: str, quota: int) -> int:
         WHERE r.pub_number IS NOT NULL AND octet_length(r.excerpt) >= ?
           AND r.published_date >= ? AND r.published_date < ?
         GROUP BY 1""", (MIN_ABSTRACT, start, until))
+    c.execute("""CREATE TEMP TABLE h_have AS
+        SELECT DISTINCT coalesce(pf.family_id, -h.raw_entry_id) AS fid
+        FROM history_items h LEFT JOIN patent_family pf ON pf.pub_number = h.ref
+        WHERE h.tier = 'patent'""")
+    c.execute("CREATE INDEX ON h_have(fid)")
+    c.execute("ANALYZE h_have")
+    quota_in = quota if random else 0       # rank stays over the whole frame; only the cut moves
     n = c.execute(f"""
         INSERT INTO history_items (tier, ref, raw_entry_id, month, layer, cited, weight)
         SELECT 'patent', pub, rid, m, CASE WHEN rk <= ? THEN 'random' ELSE 'cited' END, cited,
                CASE WHEN rk <= ? THEN frame::real / LEAST(frame, ?) END
-        FROM (SELECT pub, rid, cited,
+        FROM (SELECT fid, pub, rid, cited,
                      extract(year FROM d)::int * 12 + extract(month FROM d)::int - 1 AS m,
                      row_number() OVER (PARTITION BY date_trunc('month', d)
                                         ORDER BY {HASH.format(k='abs(fid)')}, fid) AS rk,
                      count(*) OVER (PARTITION BY date_trunc('month', d)) AS frame
               FROM h_fam) f
-        WHERE rk <= ? OR cited
-        ON CONFLICT (tier, ref) DO NOTHING""", (quota, quota, quota, quota)).rowcount
+        WHERE (rk <= ? OR cited) AND NOT EXISTS (SELECT 1 FROM h_have WHERE h_have.fid = f.fid)
+        ON CONFLICT (tier, ref) DO NOTHING""", (quota_in, quota_in, quota, quota_in)).rowcount
+    c.execute("DROP TABLE h_have")
     c.execute("DROP TABLE h_fam")
     c.execute("DROP TABLE h_citedfam")
     c.execute("DROP TABLE h_cited")
@@ -147,6 +161,39 @@ def select_science(c, start: str, until: str, quota: int) -> int:
                 AND NOT coalesce(rc.is_retracted, FALSE)) f
         WHERE rk <= ?
         ON CONFLICT (tier, ref) DO NOTHING""", (quota, start, until, MIN_ABSTRACT, quota)).rowcount
+
+
+def dedupe_families(c) -> int:
+    """One item per patent family: where a family is represented more than once (two
+    selection windows picked two of its members), keep the one with the earliest month
+    (random before cited), give it the cited flag if any copy had it, and move the others
+    to layer '<layer>:dupfamily' — readers take 'random' and 'cited' only. Nothing is
+    deleted; idempotent. Returns the number of items set aside."""
+    rows = c.execute(
+        "SELECT h.id, h.month, h.layer, h.cited, coalesce(pf.family_id, -h.raw_entry_id) AS fid "
+        "FROM history_items h LEFT JOIN patent_family pf ON pf.pub_number = h.ref "
+        "WHERE h.tier = 'patent' AND h.layer IN ('random', 'cited')").fetchall()
+    fams: dict = {}
+    for r in rows:
+        fams.setdefault(r["fid"], []).append(r)
+    aside, cite = [], []
+    for items in fams.values():
+        if len(items) < 2:
+            continue
+        items.sort(key=lambda r: (r["month"], r["layer"] != "random", r["id"]))
+        keep, rest = items[0], items[1:]
+        aside += [r["id"] for r in rest]
+        if not keep["cited"] and any(r["cited"] or r["layer"] == "cited" for r in rest):
+            cite.append(keep["id"])
+    for s in range(0, len(aside), 1000):
+        part = aside[s:s + 1000]
+        c.execute(f"UPDATE history_items SET layer = layer || ':dupfamily' "
+                  f"WHERE id IN ({','.join('?' * len(part))})", tuple(part))
+    for s in range(0, len(cite), 1000):
+        part = cite[s:s + 1000]
+        c.execute(f"UPDATE history_items SET cited = TRUE WHERE id IN ({','.join('?' * len(part))})",
+                  tuple(part))
+    return len(aside)
 
 
 def tier_has_items(c, tier: str, start: str, until: str) -> bool:
