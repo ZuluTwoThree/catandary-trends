@@ -14,6 +14,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   AI_DISCLOSURE_EN,
+  AI_DISCLOSURE_UNREVIEWED_EN,
+  editionDisclosure,
   ARTICLE_DISCLOSURE_ARIA,
   ARTICLE_DISCLOSURE_EN,
   ARTICLE_DISCLOSURE_LABEL,
@@ -39,12 +41,24 @@ describe("AI_DISCLOSURE_EN", () => {
     expect(AI_DISCLOSURE_EN).not.toMatch(/best|unique|leading|proprietary|world/i);
   });
 
-  it("is what the website edition renders", () => {
+  it("is what the website edition renders — once a person has released it", () => {
     const src = fs.readFileSync(
       path.resolve(__dirname, "..", "components", "newsletter", "EditionBody.tsx"),
       "utf-8"
     );
-    expect(src).toMatch(/\{AI_DISCLOSURE_EN\}/);
+    expect(src).toMatch(/edition\.approved_at \? AI_DISCLOSURE_EN : AI_DISCLOSURE_UNREVIEWED_EN/);
+  });
+
+  it("is not claimed for an edition nobody has released yet", () => {
+    // The Tuesday cron writes the website edition unapproved; the export shows
+    // it at once. Until approved_at is set the human-release claim would be false.
+    expect(editionDisclosure(null)).toBe(AI_DISCLOSURE_UNREVIEWED_EN);
+    expect(editionDisclosure(undefined)).toBe(AI_DISCLOSURE_UNREVIEWED_EN);
+    expect(editionDisclosure("2026-10-04 09:00:00")).toBe(AI_DISCLOSURE_EN);
+    expect(AI_DISCLOSURE_UNREVIEWED_EN).toMatch(/not yet been reviewed by a person/);
+    expect(AI_DISCLOSURE_UNREVIEWED_EN).not.toMatch(/released by a person/);
+    expect(AI_DISCLOSURE_UNREVIEWED_EN).toMatch(/generated/);
+    expect(AI_DISCLOSURE_UNREVIEWED_EN).toMatch(/checked automatically/);
   });
 });
 

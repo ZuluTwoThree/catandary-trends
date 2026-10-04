@@ -1240,15 +1240,19 @@ Seite ist im PUBLIC_MODE 404 und im statischen Export gar nicht enthalten.
 | `Computed` | reine Rechnung über den Korpus, **kein** Sprachmodell | Signal Themes Radar (Signalzahlen je Thema, SQL) |
 | `Curated` | Auswahl bestehender Artikel — die verlinkten Artikel sind ihrerseits modellgeschrieben und verlinken ihre Quelle | Cited signals (Trend-Links) |
 
-Unter den Badges steht der Satz, den **jede** Ausgabe trägt — im Mail-Fuß und in
-der Website-Edition:
+Unter den Badges steht der Satz, den jede **freigegebene** Ausgabe trägt — im
+Mail-Fuß und in der Website-Edition:
 
-> Sections of this briefing are generated from our corpus by a local language
+> Sections of this briefing are generated from our database by a local language
 > model and checked automatically; the selection and this edition were reviewed
 > and released by a person.
 
 Er ist die öffentliche Form genau dieses Gates: solange die Freigabe Pflicht ist,
-stimmt der Satz. (Anwaltsprüfung zur ausdrücklichen Kennzeichnung nach EU AI Act
+stimmt der Satz. **Solange du eine Edition noch nicht freigegeben hast** (der
+Dienstags-Cron legt sie unfreigegeben an, die Website zeigt sie sofort), steht
+dort seit 04.10. stattdessen: „… this edition has not yet been reviewed by a
+person." — die Freigabe auf `/trends/newsletter/review` schaltet den Satz um
+(beim nächsten Export). (Anwaltsprüfung zur ausdrücklichen Kennzeichnung nach EU AI Act
 Art. 50 läuft — Issue #99; die interne Umsetzung steht bereits.) **Die
 Feed-Artikel tragen seit 06.09. einen anderen Satz**, weil dort niemand
 freigibt — siehe §12, „KI-Kennzeichnung der Artikel".

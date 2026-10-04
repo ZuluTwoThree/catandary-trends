@@ -1133,7 +1133,11 @@ Act Art. 50 — Anwaltstext offen, intern ab jetzt gesetzt): je Block ein Badge
 *Computed* (SQL, kein Modell), Trend-Links = *Curated*, verlinkte Artikel selbst
 modellgeschrieben); ein Hinweissatz (`AI_DISCLOSURE_EN`, Python + TS-Mirror in
 `frontend/src/lib/aiDisclosure.ts`, per pytest gegen Drift gepinnt) steht im
-Mail-Fuß **und** in der Website-Edition. **Deep Dive of the Week (#96):** seit 2026-09-19
+Mail-Fuß **und** in der Website-Edition — dort seit 2026-10-04 **nur für freigegebene
+Editionen** (`approved_at` gesetzt); der Dienstags-Cron schreibt die Edition unfreigegeben
+und der Export zeigt sie sofort, deshalb trägt sie bis zur Freigabe die Variante
+`AI_DISCLOSURE_UNREVIEWED_EN` („… this edition has not yet been reviewed by a person").
+Die Mail kennt diesen Zustand nicht (Sender verweigert ohne `approved_at`). **Deep Dive of the Week (#96):** seit 2026-09-19
 stillgelegt — `scripts/newsletter_deep_dive.py` schreibt nur noch `status:
 "disabled"` (der Rechercheur dahinter, die Scouting-Dossiers, ist entfernt);
 der gespeicherte Dry-Run (W35, `gate_failed`) rendert weiter, öffentlich nie. Abschnitt

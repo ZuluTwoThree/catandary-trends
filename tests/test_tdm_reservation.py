@@ -33,7 +33,7 @@ def isolated_fetcher(tmp_path, monkeypatch):
     monkeypatch.setattr(af, "TDM_RESPECT", True)
     monkeypatch.setattr(af, "TDMREP_CACHE_PATH", tmp_path / "tdmrep_cache.json")
     monkeypatch.setattr(af, "_tdmrep_cache", None)
-    monkeypatch.setattr(af, "_robots", {HOST: None})   # robots unreadable → allowed
+    monkeypatch.setattr(af, "_robots", {HOST: None})   # no robots.txt (4xx) → allowed
     monkeypatch.setattr(af, "_last_hit", {})
     yield
 

@@ -2053,7 +2053,8 @@ export async function getNewsletterEditionIndex(limit: number): Promise<EditionS
 export async function getNewsletterEdition(year: number, week: number): Promise<NewsletterEdition | null> {
   const row = await q1<Record<string, unknown>>(
     `SELECT id, year, week, editorial, vertical_summaries, mega_trend_radar, trend_refs,
-            total_signals, created_at::text AS created_at, deep_dive
+            total_signals, created_at::text AS created_at, deep_dive,
+            approved_at::text AS approved_at
        FROM newsletter_editions
       WHERE year = $1 AND week = $2
       LIMIT 1`,

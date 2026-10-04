@@ -150,12 +150,15 @@ export async function POST(request: NextRequest) {
 
     if (existing) {
       if (existing.unsubscribed_at) {
+        // Review 2026-10-04: a former subscriber who comes back needs a new opt-in.
+        // Leaving `confirmed` TRUE would put the address straight back on the send
+        // list without anyone having confirmed it this time.
         await q(
-          "UPDATE newsletter_subscribers SET unsubscribed_at = NULL, subscribed_at = NOW() WHERE id = $1",
+          "UPDATE newsletter_subscribers SET unsubscribed_at = NULL, confirmed = FALSE, subscribed_at = NOW() WHERE id = $1",
           [existing.id]
         );
         return NextResponse.json({
-          message: "Welcome back — you're subscribed again.",
+          message: "Welcome back — your address is noted again and awaits confirmation.",
         });
       }
       return NextResponse.json({ message: "You're already subscribed." });

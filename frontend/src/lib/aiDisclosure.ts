@@ -53,6 +53,23 @@ export const AI_DISCLOSURE_EN =
   "were reviewed and released by a person.";
 
 /**
+ * The same briefing BEFORE a person has released it. The cron writes the
+ * website edition on Tuesday morning unapproved and the static export shows it
+ * at once; until `approved_at` is set, the sentence above would claim a human
+ * read that has not happened (review 2026-10-04). The mail never reaches this
+ * state — the sender refuses without approved_at.
+ */
+export const AI_DISCLOSURE_UNREVIEWED_EN =
+  "Sections of this briefing are generated from our database by a local " +
+  "language model and checked automatically; this edition has not yet been " +
+  "reviewed by a person.";
+
+/** The disclosure sentence an edition carries, by its release state. */
+export function editionDisclosure(approvedAt: string | null | undefined): string {
+  return approvedAt ? AI_DISCLOSURE_EN : AI_DISCLOSURE_UNREVIEWED_EN;
+}
+
+/**
  * The feed article's disclosure — the express label under Art. 50 (4) for
  * /trends/<slug>. Every clause is a fact about the pipeline that produced the
  * page, and each one would have to be re-checked before it is reworded:
