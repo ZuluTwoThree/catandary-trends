@@ -65,3 +65,12 @@ def test_safe_href_mirrors_the_typescript_rule():
         assert m._safe_href(u) == u.strip(), u
     for u in bad:
         assert m._safe_href(u) is None, u
+
+
+def test_query_strings_in_markdown_urls_are_escaped_exactly_once():
+    """Codex review on #123: `[s](https://x/?a=1&b=2)` must render `&amp;` once,
+    not `&amp;amp;` — mail clients would read a parameter named `amp;b`."""
+    out = m._md_links_to_html("[source](https://example.test/?a=1&b=2) and A & B.", REFS)
+    assert 'href="https://example.test/?a=1&amp;b=2"' in out
+    assert "&amp;amp;" not in out
+    assert "A &amp; B." in out

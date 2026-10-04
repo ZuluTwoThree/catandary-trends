@@ -975,7 +975,11 @@ def _md_links_to_html(text: str, trend_refs: dict | None = None) -> str:
                 by_slug[t["slug"]] = t["source_url"]
 
     def repl(m: re.Match) -> str:
-        label, href = m.group(1), m.group(2)
+        # The text is escaped BEFORE matching (see below), so a URL's `&` arrives
+        # here as `&amp;`. Unescape the captured href back to the raw URL — _attr()
+        # escapes it exactly once for the attribute (Codex review on #123:
+        # `?a=1&b=2` otherwise ended as `&amp;amp;b=2`).
+        label, href = m.group(1), html.unescape(m.group(2))
         if href.startswith(("http://", "https://")):
             target = href
         elif href.startswith("/trends/"):
@@ -994,8 +998,8 @@ def _md_links_to_html(text: str, trend_refs: dict | None = None) -> str:
                 f'text-decoration: none;">{label}</a>')
 
     # Escape FIRST: the prose is model output and may carry markup. The link
-    # labels and hrefs are then taken from the escaped text (a URL's `&` arrives
-    # as `&amp;`, which is the correct form inside an attribute anyway).
+    # labels stay escaped; the hrefs are unescaped again in repl() before the
+    # allow-list and the single attribute escape.
     return re.sub(r'\[([^\]]+)\]\(([^)]+)\)', repl, html.escape(text, quote=False))
 
 
