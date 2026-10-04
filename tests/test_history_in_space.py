@@ -160,3 +160,25 @@ def test_research_dated_first_of_january_stays_out_of_the_monthly_scan():
     j = h["months"].index("2015-01")
     assert h["tier_totals"]["science"][j] == 1           # the history row of January still counts
     assert h["tier_totals"]["science"][h["months"].index("2015-03")] == 1
+
+
+def test_readers_add_columns_missing_on_an_older_history_table():
+    init_db()
+    with get_connection() as c:
+        c.execute("DROP TABLE IF EXISTS history_vectors")
+        c.execute("DROP TABLE IF EXISTS history_items")
+        # the table as #118 created it: no dup_of_trend yet
+        c.execute("""CREATE TABLE history_items (id INTEGER PRIMARY KEY AUTOINCREMENT, tier TEXT NOT NULL,
+            ref TEXT NOT NULL, raw_entry_id INTEGER, month INTEGER NOT NULL, layer TEXT NOT NULL,
+            cited INTEGER DEFAULT 0, weight REAL, claimed_by TEXT, claimed_at TIMESTAMP,
+            embedded_at TIMESTAMP, UNIQUE(tier, ref))""")
+        c.execute("CREATE TABLE history_vectors (item_id INTEGER PRIMARY KEY, vec BLOB NOT NULL, device TEXT)")
+        c.execute("INSERT INTO history_items (id, tier, ref, month, layer, embedded_at) "
+                  "VALUES (1, 'science', 'W1', ?, 'random', '2026-10-03')", (2015 * 12,))
+        c.execute("INSERT INTO history_vectors (item_id, vec) VALUES (1, ?)", (hv.pack(np.ones(1024)),))
+    hv._columns_checked = False
+    assert hv.available()
+    assert [r["id"] for _, b in hv.iter_history() for r in b] == [BASE + 1]
+    with get_connection() as c:
+        cols = {r[1] for r in c.execute("PRAGMA table_info(history_items)").fetchall()}
+    assert "dup_of_trend" in cols

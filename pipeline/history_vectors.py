@@ -93,14 +93,23 @@ def select_patents(c, start: str, until: str, quota: int) -> int:
         WHERE l.link_type = 'cites'""")
     c.execute("CREATE INDEX ON h_cited(p)")
     c.execute("ANALYZE h_cited")
+    # Cited is a property of the FAMILY, decided before the abstract filter: the cited
+    # publication is often an abstract-less member (EP search report, B1 grant) whose
+    # sibling carries the text (Codex review on #118).
+    c.execute("""CREATE TEMP TABLE h_citedfam AS
+        SELECT DISTINCT coalesce(pf.family_id, -r.id) AS fid
+        FROM h_cited ci JOIN raw_entries r ON r.pub_number = ci.p
+        LEFT JOIN patent_family pf ON pf.pub_number = ci.p""")
+    c.execute("CREATE INDEX ON h_citedfam(fid)")
+    c.execute("ANALYZE h_citedfam")
     c.execute("""CREATE TEMP TABLE h_fam AS
         SELECT coalesce(pf.family_id, -r.id) AS fid,
                (array_agg(r.id ORDER BY r.published_date, r.id))[1] AS rid,
                (array_agg(r.pub_number ORDER BY r.published_date, r.id))[1] AS pub,
-               min(r.published_date) AS d, bool_or(ci.p IS NOT NULL) AS cited
+               min(r.published_date) AS d, bool_or(cf.fid IS NOT NULL) AS cited
         FROM raw_entries r
         LEFT JOIN patent_family pf ON pf.pub_number = r.pub_number
-        LEFT JOIN h_cited ci ON ci.p = r.pub_number
+        LEFT JOIN h_citedfam cf ON cf.fid = coalesce(pf.family_id, -r.id)
         WHERE r.pub_number IS NOT NULL AND octet_length(r.excerpt) >= ?
           AND r.published_date >= ? AND r.published_date < ?
         GROUP BY 1""", (MIN_ABSTRACT, start, until))
@@ -117,6 +126,7 @@ def select_patents(c, start: str, until: str, quota: int) -> int:
         WHERE rk <= ? OR cited
         ON CONFLICT (tier, ref) DO NOTHING""", (quota, quota, quota, quota)).rowcount
     c.execute("DROP TABLE h_fam")
+    c.execute("DROP TABLE h_citedfam")
     c.execute("DROP TABLE h_cited")
     return n
 
@@ -137,6 +147,15 @@ def select_science(c, start: str, until: str, quota: int) -> int:
                 AND NOT coalesce(rc.is_retracted, FALSE)) f
         WHERE rk <= ?
         ON CONFLICT (tier, ref) DO NOTHING""", (quota, start, until, MIN_ABSTRACT, quota)).rowcount
+
+
+def tier_has_items(c, tier: str, start: str, until: str) -> bool:
+    """Any queued item of `tier` in [start, until) ('YYYY-MM-DD')? The selection runs
+    per tier, so a run that died between the two inserts finishes the missing one."""
+    lo = int(start[:4]) * 12 + int(start[5:7]) - 1
+    hi = int(until[:4]) * 12 + int(until[5:7]) - 1
+    return c.execute("SELECT 1 FROM history_items WHERE tier = ? AND month >= ? AND month < ? LIMIT 1",
+                     (tier, lo, hi)).fetchone() is not None
 
 
 def claim(c, worker: str, n: int, stale_minutes: int = 20) -> list[dict]:
@@ -191,10 +210,32 @@ def _month_num(s: str) -> int:
     return int(s[:4]) * 12 + int(s[5:7]) - 1
 
 
+_columns_checked = False
+
+
+def ensure_reader_columns() -> None:
+    """Columns the readers need on an EXISTING history_items (added after the table was
+    first created, e.g. dup_of_trend). Once per process; creates no table — a database
+    without a history sample stays untouched (Codex review on #119)."""
+    global _columns_checked
+    if _columns_checked:
+        return
+    with get_connection() as c:
+        if USE_POSTGRES:
+            if c.execute("SELECT to_regclass('history_items') AS t").fetchone()["t"]:
+                c.execute("ALTER TABLE history_items ADD COLUMN IF NOT EXISTS dup_of_trend BIGINT")
+        elif c.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'history_items'").fetchone():
+            cols = {r[1] for r in c.execute("PRAGMA table_info(history_items)").fetchall()}
+            if "dup_of_trend" not in cols:
+                c.execute("ALTER TABLE history_items ADD COLUMN dup_of_trend INTEGER")
+    _columns_checked = True
+
+
 def mark_overlaps() -> int:
     """history_items.dup_of_trend = the trends row that holds the same document, so
     readers that mix both never count a document twice. Idempotent; cheap (narrow rows).
     Postgres only (UPDATE … FROM); the SQLite test schema sets the column directly."""
+    ensure_reader_columns()
     if not USE_POSTGRES:
         return 0
     with get_connection() as c:
@@ -209,9 +250,13 @@ def mark_overlaps() -> int:
 
 
 def available() -> bool:
+    """A history sample with at least one vector — and the reader columns in place."""
     try:
         with get_connection() as c:
-            return bool(c.execute("SELECT 1 FROM history_vectors LIMIT 1").fetchone())
+            if not c.execute("SELECT 1 FROM history_vectors LIMIT 1").fetchone():
+                return False
+        ensure_reader_columns()
+        return True
     except Exception:                                             # noqa: BLE001
         return False
 

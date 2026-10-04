@@ -26,3 +26,16 @@ def test_text_recipe_matches_signal_path():
 def test_migration_is_idempotent_on_sqlite():
     hv.migrate_history_tables()
     hv.migrate_history_tables()
+
+
+def test_selection_is_checked_per_tier_and_window():
+    from pipeline.db import get_connection
+    hv.migrate_history_tables()
+    with get_connection() as c:
+        c.execute("DELETE FROM history_items")
+        c.execute("INSERT INTO history_items (tier, ref, month, layer) VALUES ('patent', 'P1', ?, 'random')",
+                  (1995 * 12 + 2,))
+        assert hv.tier_has_items(c, "patent", "1990-01-01", "2023-01-01")
+        assert not hv.tier_has_items(c, "science", "2010-01-01", "2023-01-01")   # died before science
+        assert not hv.tier_has_items(c, "patent", "2023-01-01", "2026-07-01")    # another window
+        c.execute("DELETE FROM history_items")
