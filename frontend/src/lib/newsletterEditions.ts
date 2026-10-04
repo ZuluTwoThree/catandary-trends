@@ -99,12 +99,6 @@ export interface NewsletterEdition {
   trend_refs: Record<string, TrendRef[]>;
   total_signals: number;
   created_at: string;
-  /**
-   * When a person released the edition on /trends/newsletter/review (null/absent
-   * = not yet). The website edition shows the "released by a person" sentence
-   * only when this is set; the cron writes editions unapproved.
-   */
-  approved_at?: string | null;
   /** #96 — null/absent for editions without a deep-dive run. */
   deep_dive?: NewsletterDeepDive | null;
 }

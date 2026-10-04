@@ -107,12 +107,7 @@ TDMREP_TTL_SECONDS = 24 * 3600      # max. one /.well-known/tdmrep.json request 
 NOAI_TOKENS = frozenset({"noai", "noimageai"})
 _HEAD_SCAN_CHARS = 200_000          # <meta> lives in <head>; no need to regex a 2 MB page
 
-# Per host: a parsed robots.txt, None = no rules (robots.txt answered 4xx or does
-# not exist → everything allowed), _ROBOTS_UNREACHABLE = the file could not be read
-# (5xx, timeout, connection error) → RFC 9309 §2.3.1.4: assume complete disallow.
-# Until 2026-10-04 both cases were None and a 503 on robots.txt let the article in.
-_ROBOTS_UNREACHABLE = object()
-_robots: dict[str, object] = {}
+_robots: dict[str, urllib.robotparser.RobotFileParser | None] = {}
 _last_hit: dict[str, float] = {}
 _tdmrep_cache: dict[str, dict] | None = None
 
@@ -187,21 +182,14 @@ def _robots_ok(url: str) -> bool:
         try:
             r = httpx.get(f"https://{host}/robots.txt", timeout=8,
                           follow_redirects=True, headers={"User-Agent": UA})
-            if r.status_code >= 500:
-                _robots[host] = _ROBOTS_UNREACHABLE     # server error → disallow
-            elif r.status_code == 200:
-                rp = urllib.robotparser.RobotFileParser()
-                rp.parse(r.text.splitlines())
-                _robots[host] = rp
-            else:
-                _robots[host] = None                    # 4xx → no rules → allowed
+            rp = urllib.robotparser.RobotFileParser()
+            rp.parse(r.text.splitlines() if r.status_code == 200 else [])
+            _robots[host] = rp
         except Exception:
-            _robots[host] = _ROBOTS_UNREACHABLE         # unreachable → disallow
+            _robots[host] = None  # unreadable robots → treat as allowed
     rp = _robots[host]
     if rp is None:
         return True
-    if rp is _ROBOTS_UNREACHABLE:
-        return False
     try:
         return robots_allows(rp, UA, url)
     except Exception:
