@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { rateLimit, clientIp, ConcurrencyGate } from "@/lib/rateLimit";
+import { isSameOrigin } from "@/lib/apiGuards";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
@@ -51,6 +52,10 @@ function repoRoot(): string {
  * ONE resolution, ONE TIR — the two views can never diverge again.
  */
 export async function GET(request: Request) {
+  // Security review 2026-10-04: a cross-site <img src=…> must not start a GPU job.
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
   const sp = new URL(request.url).searchParams;
   const q = (sp.get("q") || "").trim();
   const codesRaw = (sp.get("codes") || "").trim();

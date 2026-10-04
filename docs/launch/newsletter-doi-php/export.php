@@ -11,7 +11,15 @@ $cfg  = nl_cfg();
 $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['HTTP_X_EXPORT_TOKEN'] ?? '';
 $sent = str_starts_with($auth, 'Bearer ') ? substr($auth, 7) : $auth;
 
-if (!hash_equals((string)$cfg['export_token'], (string)$sent)) {
+/* Fail closed like nl_unsub_secret(): an unconfigured token (placeholder or
+   empty) must never let the subscriber list out — hash_equals('', '') is true. */
+$tok = (string)($cfg['export_token'] ?? '');
+if (strlen($tok) < 32 || str_starts_with($tok, 'CHANGE_ME') || $sent === '') {
+    error_log('nl: export_token not configured (nl_config.php block 6) or empty token sent');
+    http_response_code($sent === '' && strlen($tok) >= 32 ? 401 : 503);
+    exit;
+}
+if (!hash_equals($tok, (string)$sent)) {
     // Bremse gegen Token-Raten
     nl_throttle('ex', nl_client_ip(), 3600);
     http_response_code(401);

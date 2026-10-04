@@ -815,10 +815,24 @@ def make_handler(svc: Service):
             self.wfile.write(body)
 
         def _body(self) -> dict:
+            # JSON only: a text/plain body is what a cross-site page can send
+            # without a CORS preflight (security review 2026-10-04).
+            ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+            if ctype != "application/json":
+                raise ValueError("Content-Type must be application/json")
             n = int(self.headers.get("Content-Length") or 0)
             return json.loads(self.rfile.read(n) or b"{}") if n else {}
 
+        def _local(self) -> bool:
+            """The service binds to 127.0.0.1, but a browser on this machine can
+            still be pointed at it (DNS rebinding, a page calling localhost).
+            Only requests addressed to the loopback host are served."""
+            host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]").lower()
+            return host in ("127.0.0.1", "localhost", "::1")
+
         def do_GET(self):                        # noqa: N802
+            if not self._local():
+                return self._send(403, {"error": "loopback only"})
             parts = [p for p in self.path.split("?")[0].split("/") if p]
             if parts == ["health"]:
                 return self._send(200, svc.health())
@@ -829,6 +843,8 @@ def make_handler(svc: Service):
             return self._send(404, {"error": "not found"})
 
         def do_POST(self):                       # noqa: N802
+            if not self._local():
+                return self._send(403, {"error": "loopback only"})
             parts = [p for p in self.path.split("?")[0].split("/") if p]
             try:
                 if parts == ["jobs"]:
