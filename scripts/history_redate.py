@@ -203,7 +203,9 @@ def refill_january(apply: bool, quota: int) -> int:
         n = 0
         for y, k in sorted(need.items()):
             # weight = frame / sample, like the planner: the frame is every eligible
-            # work of 2-31 January, the sample the k rows drawn from it.
+            # work of 2-31 January, the sample the rows drawn from it — LEAST(frame, k),
+            # so a January whose frame is smaller than k gets weight 1, not < 1
+            # (Codex review on #121).
             n += c.execute(f"""
                 WITH frame AS (
                     SELECT rc.id
@@ -214,7 +216,7 @@ def refill_january(apply: bool, quota: int) -> int:
                 )
                 INSERT INTO history_items (tier, ref, month, layer, month_source, weight)
                 SELECT 'science', f.id, ? , 'random', 'openalex:jan-refill',
-                       (SELECT count(*) FROM frame)::real / ?
+                       (SELECT count(*) FROM frame)::real / LEAST((SELECT count(*) FROM frame), ?)
                 FROM frame f
                 ORDER BY {HASH.format(k="hashtext(f.id)::bigint & 2147483647")}, f.id
                 LIMIT ?
