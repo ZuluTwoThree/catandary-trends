@@ -373,17 +373,13 @@ def llama_server_start(expected_model: str, timeout: int = 240,
         logger.info("llama-server already serving %s", expected_model)
         return
 
-    if swap_symlink:
-        swap_active_symlink(expected_model)
-
-    if not _preflight_model_matches(expected_model):
-        raise RuntimeError(
-            f"start-active.sh does not load {expected_model}; aborting handover")
-
     # Ownership guard (#98): a server another ALIVE job recorded as its own is
     # never taken over — that is exactly how the Saturday ingesters pulled the
     # Gemma server from under the running cycle. Refuse with a clear message;
-    # the caller's entries stay untouched.
+    # the caller's entries stay untouched. Checked BEFORE the symlink swap
+    # (review 2026-10-04): a refused request used to leave start-active.sh
+    # pointing at ITS model, so a crash-restart of the owner's unit
+    # (Restart=on-failure) came back with the wrong GGUF.
     current = _unit_main_pid()
     if current is not None:
         owner = _foreign_owner(current)
@@ -393,6 +389,13 @@ def llama_server_start(expected_model: str, timeout: int = 240,
                 f"running job {owner} — refusing to take over the GPU for "
                 f"{Path(expected_model).name} (#98). Wait for that job or stop it "
                 f"explicitly.")
+
+    if swap_symlink:
+        swap_active_symlink(expected_model)
+
+    if not _preflight_model_matches(expected_model):
+        raise RuntimeError(
+            f"start-active.sh does not load {expected_model}; aborting handover")
 
     # Stop any llama-server already on the GPU FIRST. Without this, a pre-existing
     # server (e.g. an idle gpt-oss/8B from another context) keeps holding VRAM —

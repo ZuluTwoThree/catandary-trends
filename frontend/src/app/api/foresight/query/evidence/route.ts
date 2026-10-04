@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { isSameOrigin } from "@/lib/apiGuards";
+import { ConcurrencyGate } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
+// One heavy computation at a time (Python + GPU handover, 40-110 s).
+const gate = new ConcurrencyGate(1);
 export const maxDuration = 120;
 
 function repoRoot(): string {
@@ -25,6 +29,12 @@ function repoRoot(): string {
  * and year are validated before use.
  */
 export async function GET(request: Request) {
+  // Security review 2026-10-04: this GET starts a Python job and a GPU handover.
+  // A cross-site <img src=…> from any page the owner opens must not be able to
+  // trigger it (no Origin/Referer of ours → 403), and at most one runs at a time.
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") || "").trim();
   const tier = (url.searchParams.get("tier") || "").toLowerCase();
@@ -45,6 +55,12 @@ export async function GET(request: Request) {
   const argv = [script, q, "--evidence", tier, "--threshold", String(threshold), "--json"];
   if (yearOk) argv.push("--year", yearRaw);
 
+  if (!gate.tryAcquire()) {
+    return NextResponse.json(
+      { error: "computation service busy — try again shortly" },
+      { status: 503, headers: { "retry-after": "15" } }
+    );
+  }
   try {
     const stdout = await new Promise<string>((resolve, reject) => {
       execFile(py, argv, { cwd: root, timeout: 110_000, maxBuffer: 4 * 1024 * 1024 }, (err, out) =>
@@ -60,5 +76,7 @@ export async function GET(request: Request) {
       { error: timedOut ? "evidence lookup timed out" : "lookup failed" },
       { status: timedOut ? 504 : 500 }
     );
+  } finally {
+    gate.release();
   }
 }

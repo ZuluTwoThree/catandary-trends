@@ -10,6 +10,7 @@ Run weekly via cron: 0 9 * * 1
 """
 
 import argparse
+import html
 import json
 import logging
 import re
@@ -928,6 +929,29 @@ def get_newsletter_editions(limit: int = 12) -> list[dict]:
 # 6. HTML generation (for preview / email)
 # ---------------------------------------------------------------------------
 
+# Python twin of frontend/src/lib/safeHref.ts (security review 2026-10-04): the
+# mail is built from LLM prose, RSS titles and source URLs, none of which we wrote.
+# Only http(s):// absolute URLs pass into an href; everything else — javascript:,
+# data:, protocol-relative, control characters — becomes plain text. Site-relative
+# paths are resolved by the caller before they get here.
+_SAFE_ABS_RE = re.compile(r"^https?://[^\s/?#]+", re.I)
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _safe_href(url: str | None) -> str | None:
+    if not isinstance(url, str):
+        return None
+    v = url.strip()
+    if not v or _CONTROL_RE.search(v):
+        return None
+    return v if _SAFE_ABS_RE.match(v) else None
+
+
+def _attr(url: str) -> str:
+    """An href that passed _safe_href, escaped for an attribute."""
+    return html.escape(url, quote=True)
+
+
 def _md_links_to_html(text: str, trend_refs: dict | None = None) -> str:
     """Convert the stored markdown links into email-ready <a> tags.
 
@@ -963,12 +987,16 @@ def _md_links_to_html(text: str, trend_refs: dict | None = None) -> str:
                 target = f"{BASE_URL}{href}" if PUBLIC_SITE_LIVE else None
         else:
             target = f"{BASE_URL}{href}" if PUBLIC_SITE_LIVE else None
+        target = _safe_href(target)
         if not target:
             return label
-        return (f'<a href="{target}" style="color: {ACCENT}; '
+        return (f'<a href="{_attr(target)}" style="color: {ACCENT}; '
                 f'text-decoration: none;">{label}</a>')
 
-    return re.sub(r'\[([^\]]+)\]\(([^)]+)\)', repl, text)
+    # Escape FIRST: the prose is model output and may carry markup. The link
+    # labels and hrefs are then taken from the escaped text (a URL's `&` arrives
+    # as `&amp;`, which is the correct form inside an attribute anyway).
+    return re.sub(r'\[([^\]]+)\]\(([^)]+)\)', repl, html.escape(text, quote=False))
 
 
 def generate_html(edition: dict) -> str:
@@ -1041,14 +1069,16 @@ def generate_html(edition: dict) -> str:
 
         trend_items = ""
         for t in v_trends[:3]:
-            t_title = t.get("title", "")
-            source = t.get("source_name", "")
+            # Titles and outlet names are RSS/LLM text; the source URL is an
+            # RSS link — escape the former, allow-list the latter.
+            t_title = html.escape(t.get("title", "") or "", quote=False)
+            source = html.escape(t.get("source_name", "") or "", quote=False)
             # Straight to the outlet that reported it. A signal we cannot link
             # to its source is still listed, just not as a link — better than
             # pointing at a page that may not exist.
-            href = t.get("source_url", "")
+            href = _safe_href(t.get("source_url", ""))
             title_html = (
-                f'<a href="{href}" style="font-family: {serif}; color: {PAPER}; font-size: 15px; line-height: 1.35; text-decoration: underline; text-underline-offset: 2px;">{t_title}</a>'
+                f'<a href="{_attr(href)}" style="font-family: {serif}; color: {PAPER}; font-size: 15px; line-height: 1.35; text-decoration: underline; text-underline-offset: 2px;">{t_title}</a>'
                 if href else
                 f'<span style="font-family: {serif}; color: {PAPER}; font-size: 15px; line-height: 1.35;">{t_title}</span>'
             )
@@ -1080,8 +1110,8 @@ def generate_html(edition: dict) -> str:
               "declining": "&darr;", "stable": "&rarr;"}
     radar_items = ""
     for mt in radar:
-        name = mt.get("name_en", "")
-        count = mt.get("signal_count", 0)
+        name = html.escape(str(mt.get("name_en", "") or ""), quote=False)
+        count = int(mt.get("signal_count", 0) or 0)
         momentum = mt.get("momentum")  # measured; None = too thin for a claim
         mom = (f'<span style="color: {MUTED};">{arrows[momentum]} {momentum}</span>'
                if momentum in arrows else "")

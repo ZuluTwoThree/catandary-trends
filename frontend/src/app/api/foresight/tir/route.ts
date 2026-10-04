@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { isSameOrigin } from "@/lib/apiGuards";
+import { ConcurrencyGate } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
+// One heavy computation at a time (Python + GPU handover, 40-110 s).
+const gate = new ConcurrencyGate(1);
 export const maxDuration = 120;
 
 /** Repo root by walking up from cwd (dev = repo root, prod = frontend/). */
@@ -27,6 +31,12 @@ function repoRoot(): string {
  * argv — no injection).
  */
 export async function GET(request: Request) {
+  // Security review 2026-10-04: this GET starts a Python job and a GPU handover.
+  // A cross-site <img src=…> from any page the owner opens must not be able to
+  // trigger it (no Origin/Referer of ours → 403), and at most one runs at a time.
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
   const cpc = (new URL(request.url).searchParams.get("cpc") || "").toUpperCase();
   if (!/^[A-H][0-9]{2}[A-Z]$/.test(cpc)) {
     return NextResponse.json({ error: "invalid CPC subclass" }, { status: 400 });
@@ -36,6 +46,12 @@ export async function GET(request: Request) {
   const py = path.join(root, ".venv", "bin", "python");
   const script = path.join(root, "scripts", "tir_for_cpc.py");
 
+  if (!gate.tryAcquire()) {
+    return NextResponse.json(
+      { error: "computation service busy — try again shortly" },
+      { status: 503, headers: { "retry-after": "15" } }
+    );
+  }
   try {
     const stdout = await new Promise<string>((resolve, reject) => {
       execFile(
@@ -54,5 +70,7 @@ export async function GET(request: Request) {
       { error: timedOut ? "deep analysis timed out" : "computation failed" },
       { status: timedOut ? 504 : 500 }
     );
+  } finally {
+    gate.release();
   }
 }
