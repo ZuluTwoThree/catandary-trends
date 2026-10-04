@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createElement } from "react";
+import { createElement, type ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import FieldWatchGate from "@/components/FieldWatchGate";
 import {
@@ -10,15 +10,19 @@ import {
 } from "@/lib/fieldWatchGate";
 
 const child = createElement("section", { id: "below" }, "signal details");
+// Kinder als drittes Argument (eslint react/no-children-prop); die Props-Typen verlangen
+// children, daher der Cast — gerendert wird mit genau diesem Kind.
+const gate = (active: boolean) =>
+  createElement(FieldWatchGate, { active } as ComponentProps<typeof FieldWatchGate>, child);
 
 describe("FieldWatchGate", () => {
   it("renders the children untouched on the owner instance", () => {
-    const html = renderToStaticMarkup(createElement(FieldWatchGate, { active: false, children: child }));
+    const html = renderToStaticMarkup(gate(false));
     expect(html).toBe('<section id="below">signal details</section>');
   });
 
   it("blurs the children and explains the gate on the public site", () => {
-    const html = renderToStaticMarkup(createElement(FieldWatchGate, { active: true, children: child }));
+    const html = renderToStaticMarkup(gate(true));
     expect(html).toContain('data-testid="field-watch-gate"');
     expect(html).toMatch(/aria-hidden="true"[^>]*blur-\[6px\]/);
     expect(html).toContain('<section id="below">signal details</section>');
