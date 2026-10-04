@@ -182,6 +182,15 @@ export default function TrendArticle({
           </div>
         )}
 
+        {/*
+          Field Watch gate (owner 2026-10-04, source link included since the
+          same evening): on the public site everything from here down — the
+          source link, signal details, tags, same-story reports, related
+          signals — is blurred with a hover note. The attribution stays in the
+          markup (and in the JSON-LD `isBasedOn`), it is just not readable or
+          clickable for visitors without Field Watch.
+        */}
+        <FieldWatchGate active={publicGate}>
         {/* Source Link */}
         {trend.source_url && (
           <div className="border border-border p-5">
@@ -231,13 +240,6 @@ export default function TrendArticle({
           </div>
         )}
 
-        {/*
-          Field Watch gate (owner 2026-10-04): on the public site everything from
-          here down — signal details, tags, same-story reports, related signals —
-          is blurred with a hover note. The source block above stays visible:
-          attribution is mandatory and the AI disclosure promises it.
-        */}
-        <FieldWatchGate active={publicGate}>
         {/* Meta info */}
         <dl className="border-t border-border pt-6 mt-10 grid grid-cols-2 md:grid-cols-4 gap-6">
           {trend.trend_signal_type && (

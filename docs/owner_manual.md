@@ -142,7 +142,7 @@ und Backlink. Lokal sieht der Owner den gesamten Korpus (Zehntausende Artikel),
   (`dead_links`, monatlicher Link-Check), zeigt die Seite einen Hinweis und den
   Archiv-Link statt des toten Backlinks.
 - **Field-Watch-Gate auf der öffentlichen Seite** (seit 04.10.): im Export und in
-  der PUBLIC_MODE-Vorschau (:3999) ist alles unter Body und Quellenblock —
+  der PUBLIC_MODE-Vorschau (:3999) ist alles unter dem Body — Quellenlink,
   Signaldetails, Tags, „Also reported by", Related — unscharf; bei Mauszeiger
   darüber (auf dem Handy immer) steht der Hinweis „Field Watch clients only" mit
   `contact@catandary.de`. Auf :3001/:3004 siehst du alles. Texte ändern:
