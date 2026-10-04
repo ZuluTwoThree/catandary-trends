@@ -2031,7 +2031,7 @@ Rechnung.
 - **Muster:** `docs/samples/` (LFP-Sheet, FOOD-Wochenblatt W38), erzeugt mit
   `--sample` aus `fields/example*.yaml`; Kopien auf der Website.
 
-## Recherche-Entwürfe und Korpus-MCP (seit 2026-10-04, auf `dev`)
+## Recherche-Entwürfe und Korpus-MCP (seit 2026-10-04, in `main` seit dem Merge 04.10. 23:32, PR #124)
 
 Owner-Auftrag 04.10. nach der Prüfung von gpt-researcher (`docs/gpt_researcher_eval_2026-10-04.md`,
 Plan `docs/plan_field_research_2026-10-04.md`). Owner-Festlegungen: Modelltext darf als Entwurf
@@ -2069,8 +2069,7 @@ ins Blatt (Mensch schreibt um), für geholte Texte gilt die 1825-Tage-Regel.
   `--llm local|anthropic`, `--dry-run`, `--wait-min`): Messkontext per SQL vor dem Handover,
   `gpu_handover.model_on_llamacpp(Gemma-26B, vram_free_below_mib=8500)`, Ruhezustand danach,
   `ops_events` Job `field_research`, rc 75 bei belegter GPU. `field_research` steht seit
-  04.10. in `GPU_GUARD_PATTERNS` (`scripts/lib/gpu_guard.sh`) — **scharf erst mit dem
-  main-Merge**. Prompts + Kontextaufbau: `pipeline/field_research.py`
+  04.10. in `GPU_GUARD_PATTERNS` (`scripts/lib/gpu_guard.sh`), scharf seit dem main-Merge 04.10. Prompts + Kontextaufbau: `pipeline/field_research.py`
   (Prompt-Katalog-Gruppe `field`).
 - **Entwürfe** `pipeline/field_drafts.py`: `data/field_watch/<kunde>/drafts/<feld>/…md` mit
   YAML-Kopf (`status: draft|rewritten`) + `.json` (Quellen, Maschinentext, Quelltexte,
