@@ -14,6 +14,9 @@ fields:
     name_en: Precision fermentation
     terms: [precision fermentation, recombinant whey, recombinant casein, animal-free dairy, beta-lactoglobulin, animal-free protein]
     cpc: [C12P21/02, A23J3/08]
+    # Nur für den Entwurf Anhang A (scripts/field_research.py regulatory): Stichwörter, die in
+    # Titeln von EU-Rechtsakten stehen (die Feldbegriffe selbst tun das selten).
+    regulatory_keywords: [novel food, food enzymes, genetically modified food]
   - name: Pflanzliche Milchalternativen
     name_en: Plant-based dairy alternatives
     terms: [plant-based dairy, oat milk, dairy alternative, dairy alternatives, milk alternative, plant-based cheese, vegan cheese, plant-based milk]

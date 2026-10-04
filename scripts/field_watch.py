@@ -9,6 +9,11 @@
                                                        Feldprobe: Seite 1 des Sheets + Anker-Vorschlag
   --all                                                 alle fields/*.yaml (Cron), example.yaml ausgenommen
   --no-pdf                                              nur HTML/JSON
+  --draft                                               Entwurfsblatt: nimmt maschinelle Entwürfe aus
+                                                        scripts/field_research.py mit (Wasserzeichen,
+                                                        Datei *-ENTWURF.*, nie im Export). Ohne --draft
+                                                        nur Text des Analysten (Kundendatei oder
+                                                        umgeschriebener Entwurf, status: rewritten).
 
 <kunde> = fields/<kunde>.yaml (oder ein Pfad). Ausgabe: data/field_watch/<kunde>/
 {<woche>.{json,html,pdf} | sheet-<feld>-<datum>.{json,html,pdf}}; jede Erzeugung
@@ -29,6 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from pipeline import field_drafts  # noqa: E402
 from pipeline.field_watch import (FIELDS_DIR, OUT_DIR, load_customer, measure_sheet,  # noqa: E402
                                   measure_week, probe, save_run, slugify)
 from pipeline.field_watch_render import (dump_json, render_client_index, render_probe,  # noqa: E402
@@ -55,33 +61,55 @@ def _write(out_dir: Path, stem: str, payload: dict, html: str, pdf: bool) -> str
     return None
 
 
-def run_week(cust: dict, today: date, pdf: bool, sample: bool) -> dict:
+def week_notes(cust: dict, week: str, draft: bool) -> dict:
+    """Notizen „Was hinter der Bewegung steckt" je Feld. Ein falsch als rewritten markierter
+    Entwurf bricht das Wochenblatt NICHT (Cron) — er fehlt und wird gemeldet."""
+    notes = {}
+    for f in cust["fields"]:
+        try:
+            notes[f["slug"]] = field_drafts.load_section(cust["slug"], f["slug"], "movers", include_drafts=draft, week=week)
+        except field_drafts.DraftNotRewritten as exc:
+            logger.warning("%s", exc)
+    return {k: v for k, v in notes.items() if v}
+
+
+def run_week(cust: dict, today: date, pdf: bool, sample: bool, draft: bool = False) -> dict:
     d = measure_week(cust["fields"], today)
     out_dir = OUT_DIR / cust["slug"]
-    html = render_week(d, cust["customer"], sample=sample)
-    pdf_path = _write(out_dir, d["week"], d, html, pdf)
-    rid = save_run(cust["slug"], "week", d["week"], None, d, pdf_path)
+    notes = week_notes(cust, d["week"], draft)
+    html = render_week(d, cust["customer"], sample=sample, notes=notes)
+    is_draft = any(n["status"] == "draft" for n in notes.values())
+    stem = d["week"] + ("-ENTWURF" if is_draft else "")
+    pdf_path = _write(out_dir, stem, d, html, pdf)
+    rid = save_run(cust["slug"], "week-draft" if is_draft else "week", d["week"], None, d, pdf_path)
     for f in d["fields"]:
         print(f'  {f["name"]}: ' + ", ".join(f'{t} {f["week"][t]["n"]}' for t in ("science", "patent", "funding", "market"))
               + f' · neue Akteure {f["actors_new_week"]} · Nester {len(f["nests"])}')
-    print(f'wochenblatt {d["week"]} → {out_dir}/{d["week"]}.{"pdf" if pdf_path else "html"} (run {rid})')
+    print(f'wochenblatt {d["week"]} → {out_dir}/{stem}.{"pdf" if pdf_path else "html"} (run {rid})'
+          + ((" · Notizen: " + ", ".join(k + " (" + v["status"] + ")" for k, v in notes.items())) if notes else ""))
     return d
 
 
-def run_sheet(cust: dict, slug: str, today: date, pdf: bool, sample: bool) -> dict:
+def run_sheet(cust: dict, slug: str, today: date, pdf: bool, sample: bool, draft: bool = False) -> dict:
     field = next((f for f in cust["fields"] if f["slug"] == slug), None)
     if not field:
         raise SystemExit(f"Feld {slug!r} nicht in {cust['slug']} — vorhanden: {[f['slug'] for f in cust['fields']]}")
+    # Geschriebene Abschnitte: Kundendatei hat Vorrang; sonst umgeschriebener Entwurf; Entwurf nur mit --draft.
+    # Ein als rewritten markierter, aber kaum geänderter Entwurf bricht hier ab (DraftNotRewritten).
+    drafts = {sec: (None if field.get(sec) else field_drafts.load_section(cust["slug"], slug, sec, include_drafts=draft))
+              for sec in ("reading", "regulatory")}
     week = measure_week([field], today)
     d = measure_sheet(field, today)
     out_dir = OUT_DIR / cust["slug"]
-    stem = f"sheet-{slug}-{d['measured_on']}"
-    html = render_sheet(d, week, cust["customer"], sample=sample)
+    is_draft = any(v and v["status"] == "draft" for v in drafts.values())
+    stem = f"sheet-{slug}-{d['measured_on']}" + ("-ENTWURF" if is_draft else "")
+    html = render_sheet(d, week, cust["customer"], sample=sample, drafts=drafts)
     pdf_path = _write(out_dir, stem, {"sheet": d, "week": week}, html, pdf)
-    rid = save_run(cust["slug"], "sheet", week["week"], slug, {"sheet": d, "week": week}, pdf_path)
+    rid = save_run(cust["slug"], "sheet-draft" if is_draft else "sheet", week["week"], slug, {"sheet": d, "week": week}, pdf_path)
     q = d.get("quant") or {}
     print(f'sheet {field["name"]}: Patente {d["totals"]["patent"]}, Forschung {d["totals"]["science"]}, '
-          f'K-Median {q.get("K_median")}, Take-off {d["takeoff"]} → {out_dir}/{stem}.{"pdf" if pdf_path else "html"} (run {rid})')
+          f'K-Median {q.get("K_median")}, Take-off {d["takeoff"]} → {out_dir}/{stem}.{"pdf" if pdf_path else "html"} (run {rid})'
+          + "".join(f' · {sec}: {v["status"]}' for sec, v in drafts.items() if v))
     return d
 
 
@@ -106,12 +134,18 @@ def run_export(cust: dict) -> Path:
     site.mkdir(parents=True, exist_ok=True)
     entries = []
     for p in sorted(out_dir.glob("*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True):
+        if is_draft_file(p):
+            continue  # Entwurfsblätter gehen nie an den Kunden (Owner 2026-10-04)
         (site / p.name).write_bytes(p.read_bytes())
         label = f"Wochenblatt {p.stem}" if p.stem[:4].isdigit() else f"Trajectory Sheet {p.stem[6:]}"
         entries.append({"file": p.name, "label": label, "date": datetime.fromtimestamp(p.stat().st_mtime).strftime("%d.%m.%Y")})
     (site / "index.html").write_text(render_client_index(cust["customer"], entries), encoding="utf-8")
     print(f"kundenseite: {site} ({len(entries)} Blätter) — per SFTP nach trends/clients/{cust['slug']}/ (htpasswd, s. deploy/webspace/)")
     return site
+
+
+def is_draft_file(p: Path) -> bool:
+    return "-ENTWURF" in p.stem.upper()
 
 
 def customers_all() -> list[Path]:
@@ -131,6 +165,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--requester", default="", help="Name auf der Feldprobe")
     ap.add_argument("--no-pdf", action="store_true")
     ap.add_argument("--sample", action="store_true", help="Blatt als 'Beispiel zur Demonstration' kennzeichnen")
+    ap.add_argument("--draft", action="store_true", help="Entwurfsblatt mit maschinellen Entwürfen (nie im Export)")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     pdf = not args.no_pdf
@@ -164,9 +199,9 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 cust = load_customer(p)
                 if args.sheet:
-                    run_sheet(cust, args.sheet, today, pdf, args.sample)
+                    run_sheet(cust, args.sheet, today, pdf, args.sample, draft=args.draft)
                 elif not args.export:
-                    run_week(cust, today, pdf, args.sample)
+                    run_week(cust, today, pdf, args.sample, draft=args.draft)
                 if args.export:
                     run_export(cust)
             except Exception as exc:  # noqa: BLE001

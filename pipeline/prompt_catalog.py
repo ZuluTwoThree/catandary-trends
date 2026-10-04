@@ -30,6 +30,7 @@ GROUPS = (
     ("foresight", "Foresight layer"),
     ("newsletter", "Newsletter"),
     ("ondemand", "Owner tools, on demand only"),
+    ("field", "Trajectory Sheet / Field Watch drafts (on demand, owner rewrites before delivery)"),
 )
 
 
@@ -293,6 +294,41 @@ def build_catalog() -> list[PromptEntry]:
         trigger="Not scheduled (scripts/extract_press_rounds.py --mode investors)",
         symbol="scripts.extract_press_rounds:INVESTOR_ENRICH_SYSTEM"),
         "scripts.extract_press_rounds", "INVESTOR_ENRICH_SYSTEM"))
+
+    # ---------------- Field research drafts (Owner 2026-10-04) ----------------
+    _FR_MODEL = ("Gemma-4-26B (llama.cpp, GPU handover; default) or Claude via API (--llm anthropic) — "
+                 "driven by gpt-researcher 0.16.1 under the Catandary starter (tools/research/gptr_run.py)")
+    _FR_NOTES = ["gpt-researcher plans sub-queries itself (its own planner prompts, not listed here); "
+                 "only the writing instruction below is ours.",
+                 "It fetches nothing itself: retriever and page fetch go through the corpus service "
+                 "(CatandaryTrendsBot, robots.txt, TDM); a socket guard blocks every other connection.",
+                 "Output is a DRAFT (status: draft). It reaches a customer only after the analyst "
+                 "rewrites it and sets status: rewritten (pipeline/field_drafts.py)."]
+    for key, title, const, function, trigger in (
+        ("field-regulatory", "Trajectory Sheet · Annex A legal framework (draft)", "REGULATORY_PROMPT",
+         "Drafts the legal-framework annex of a Trajectory Sheet from legal/agency web pages and the "
+         "EUR-Lex acts found for the field's keywords (read article-wise via Cellar).",
+         "On demand: scripts/field_research.py regulatory <customer> <field>"),
+        ("field-reading", "Trajectory Sheet · section 7 reading (draft)", "READING_PROMPT",
+         "Drafts the reading paragraph; numbers only from the sheet measurement, explanations only "
+         "with a source from corpus or web.",
+         "On demand: scripts/field_research.py reading <customer> <field>"),
+        ("field-movers", "Field Watch · what is behind the movement (draft)", "MOVERS_PROMPT",
+         "For fields that moved clearly in a week (>= +50 %, >= 5 signals in a tier), drafts a short note "
+         "naming the announcements behind it.",
+         "On demand: scripts/field_research.py movers <customer> [--week D]"),
+        ("field-setup", "Field setup · candidate search phrases", "SETUP_PROMPT",
+         "Collects candidate search phrases for a new customer field; each is then counted "
+         "deterministically per tier (term_counts) and written as a YAML draft.",
+         "On demand: scripts/field_research.py setup \"<phrase>\""),
+        ("field-prospect", "Sales · prospect briefing (internal draft)", "PROSPECT_PROMPT",
+         "Internal briefing before a first call: business, technology fields with evidence, recent "
+         "announcements, possible fields for a sheet.",
+         "On demand: scripts/field_research.py prospect \"<company>\""),
+    ):
+        E.append(_load(PromptEntry(key=key, group="field", title=title, function=function, model=_FR_MODEL,
+                                   trigger=trigger, symbol=f"pipeline.field_research:{const}", notes=list(_FR_NOTES)),
+                       "pipeline.field_research", const))
 
     return E
 

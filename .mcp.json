@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "catandary-corpus": {
+      "command": "bash",
+      "args": ["tools/research/run_mcp.sh"]
+    }
+  }
+}

@@ -102,7 +102,12 @@ def validate_customer(doc: dict) -> dict:
         cpc = [str(c).strip() for c in (f.get("cpc") or []) if str(c).strip()]
         out.append({"name": f["name"], "name_en": f.get("name_en") or f["name"],
                     "slug": slugify(f.get("slug") or f["name"]), "terms": terms, "cpc": cpc,
-                    "reading": (f.get("reading") or "").strip()})
+                    "reading": (f.get("reading") or "").strip(),
+                    # Anhang A (Rechtsrahmen) — Text des Analysten (Markdown); Suche/Domains
+                    # für den Entwurf (scripts/field_research.py regulatory). Owner 2026-10-04.
+                    "regulatory": (f.get("regulatory") or "").strip(),
+                    "regulatory_keywords": [str(k).strip() for k in (f.get("regulatory_keywords") or []) if str(k).strip()],
+                    "regulatory_domains": [str(k).strip() for k in (f.get("regulatory_domains") or []) if str(k).strip()]})
     if len({f["slug"] for f in out}) != len(out):
         raise ValueError("fields yaml: doppelter Feld-Slug")
     doc["fields"] = out

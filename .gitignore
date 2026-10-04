@@ -37,7 +37,8 @@ frontend/next-env.d.ts
 # IDE
 .vscode/
 .idea/
-.claude/
+.claude/*
+!.claude/skills/
 *.swp
 *.swo
 

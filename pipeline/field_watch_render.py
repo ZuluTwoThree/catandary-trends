@@ -7,9 +7,14 @@ gegen weiße Fläche validiert, Tabellen als Relief). PDF über das Playwright-
 Chromium, das die Frontend-Tests ohnehin installiert haben
 (`FIELD_WATCH_CHROME` überschreibt den Pfad).
 
-Kein Satz in diesen Blättern stammt aus einem Modell. Der einzige Prosa-
-Abschnitt (Einordnung) kommt aus `fields/<kunde>.yaml` (`reading:`) und wird
-als vom Analysten geschrieben gekennzeichnet; fehlt er, fehlt der Abschnitt.
+Die Zahlen stammen nie aus einem Modell. Geschriebene Abschnitte (Owner 2026-10-04):
+Einordnung (Abschnitt 7), Rechtsrahmen (Anhang A) und im Wochenblatt „Was hinter der
+Bewegung steckt". Ihr Text kommt vom Analysten — aus `fields/<kunde>.yaml`
+(`reading:`/`regulatory:`) oder als umgeschriebener Entwurf (`status: rewritten`,
+`pipeline/field_drafts.py`). Maschinelle Entwürfe (`status: draft`) erscheinen nur im
+Entwurfsblatt (`--draft`): rotes Badge, Wasserzeichen auf jeder Seite, Quellen und
+Prüfhinweise in Anhang B, Fußtext „nicht zur Auslieferung". Jeder Abschnitt trägt, wer
+ihn geschrieben hat.
 """
 from __future__ import annotations
 
@@ -61,6 +66,12 @@ td.num, th.num { text-align: right; font-family: "IBM Plex Mono", Menlo, monospa
 .thin { background: #f6f7f4; border-left: 3px solid var(--ink); padding: 6pt 9pt; }
 .foot { margin-top: 14pt; padding-top: 6pt; border-top: 1px solid var(--line); font-size: 8pt; color: var(--ink2); }
 .pb { page-break-before: always; }
+.wm { position: fixed; top: 42%; left: -10%; right: -10%; text-align: center; transform: rotate(-28deg); font: 600 44pt "IBM Plex Sans", Arial, sans-serif; color: rgba(200, 40, 30, .13); z-index: 9; pointer-events: none; }
+.badge.draft { background: #c8281e; color: #fff; }
+.draftbox { border: 2px dashed #c8281e; padding: 4pt 9pt; margin: 6pt 0; }
+.written h4, .written h5 { font-family: "IBM Plex Serif", Georgia, serif; font-size: 10.5pt; margin: 8pt 0 3pt; }
+.written ul, .written ol { margin: 3pt 0 6pt 14pt; padding: 0; }
+.written li { margin: 1pt 0; }
 .nobreak { page-break-inside: avoid; }
 .sig { margin: 3pt 0; padding-left: 0; list-style: none; }
 .sig li { padding: 2pt 0; border-bottom: 1px dotted var(--line); font-size: 9pt; }
@@ -186,10 +197,67 @@ FOOT_COMMON = ("Alle Zählungen sind Korpus-Messungen, keine Marktstatistik; ein
                "Links führen zur Originalquelle. · Catandary · catandary.de/trends/methodology#field-method")
 
 
+WATERMARK = '<div class="wm">ENTWURF — nicht zur Auslieferung</div>'
+
+
+def written(yaml_text: str = "", draft: dict | None = None, markdown: bool = True) -> tuple[str, str | None]:
+    """Ein geschriebener Abschnitt → (html, Zustand). Zustand: analyst (Kundendatei),
+    rewritten (umgeschriebener Entwurf), draft (maschinell), None (nichts da)."""
+    from pipeline.field_drafts import md_to_html
+    if yaml_text:
+        body = md_to_html(yaml_text) if markdown else f"<p>{esc(yaml_text)}</p>"
+        return (f'<p><span class="badge">vom Analysten geschrieben</span></p><div class="written">{body}</div>', "analyst")
+    if not draft:
+        return "", None
+    model = esc(draft.get("model") or "Sprachmodell")
+    created = esc(str(draft.get("created") or "")[:10])
+    if draft["status"] == "rewritten":
+        return (f'<p><span class="badge">vom Analysten geschrieben</span> <span class="small">auf Grundlage eines '
+                f'maschinellen Rechercheentwurfs ({created})</span></p><div class="written">{md_to_html(draft["body"])}</div>',
+                "rewritten")
+    return (f'<p><span class="badge draft">Entwurf · maschinell · vor Auslieferung umschreiben</span> '
+            f'<span class="small">{model}, {created} · Quellen und Prüfhinweise im Anhang</span></p>'
+            f'<div class="written draftbox">{md_to_html(draft["body"])}</div>', "draft")
+
+
+def written_note(label: str, state: str | None) -> str:
+    if state == "analyst":
+        return f" {label} ist vom Analysten geschrieben und verantwortet."
+    if state == "rewritten":
+        return f" {label} ist vom Analysten geschrieben und verantwortet, auf Grundlage eines maschinellen Rechercheentwurfs."
+    if state == "draft":
+        return f" {label} ist ein maschineller ENTWURF und nicht zur Auslieferung bestimmt."
+    return ""
+
+
+def draft_annex(drafts: list[tuple[str, dict]], title: str = "Anhang B · Quellen und Prüfhinweise der Entwürfe") -> str:
+    """Nur im Entwurfsblatt: je Entwurf Quellen des Laufs und deterministische Prüfhinweise."""
+    from pipeline.field_drafts import review_hints
+    parts = []
+    for label, dr in drafts:
+        side = dr.get("sidecar") or {}
+        srcs = side.get("sources") or []
+        hints = review_hints(dr["body"], srcs, side.get("measurement"))
+        lis = "".join(f'<li><a href="{esc(x.get("url"))}">{esc(x.get("title") or x.get("url"))}</a></li>'
+                      for x in srcs if str(x.get("url") or "").startswith("http"))
+        hl = "".join(f"<li>{esc(h)}</li>" for h in hints) or '<li class="muted">keine Auffälligkeiten gefunden (das ersetzt keine Prüfung)</li>'
+        path = str(dr.get("path", ""))
+        path = path.split("/data/field_watch/", 1)[-1] if "/data/field_watch/" in path else path
+        parts.append(f'<h3>{esc(label)}</h3><div class="small">Datei: <span class="mono">data/field_watch/{esc(path)}</span> · '
+                     f'Modell {esc(dr.get("model") or "?")} · {len(srcs)} Quellen</div>'
+                     f'<div class="small"><b>Prüfhinweise</b></div><ul class="sig">{hl}</ul>'
+                     f'<div class="small"><b>Quellen des Laufs</b></div><ul class="sig">{lis or "<li class=muted>keine</li>"}</ul>')
+    if not parts:
+        return ""
+    return (f'<h2 class="pb">{esc(title)}</h2><p class="small">Nur im Entwurfsblatt. Zum Ausliefern: Entwurf umschreiben, '
+            f'im Kopf der Datei <span class="mono">status: rewritten</span> setzen, Blatt ohne <span class="mono">--draft</span> neu bauen.</p>'
+            + "".join(parts))
+
+
 # ---------------------------------------------------------------------------
 # Wochenblatt
 # ---------------------------------------------------------------------------
-def _field_week_block(f: dict, weeks: list[str], idx: int, total: int, panel_size: dict) -> str:
+def _field_week_block(f: dict, weeks: list[str], idx: int, total: int, panel_size: dict, note_html: str = "") -> str:
     wk = f["week"]
     tiles = "".join(
         f'<div class="tile"><div style="display:flex;align-items:center;gap:5pt;font-size:9pt;font-weight:600">'
@@ -224,6 +292,7 @@ def _field_week_block(f: dict, weeks: list[str], idx: int, total: int, panel_siz
     return f'''
 <div class="{"pb" if idx else ""}"><div class="kicker">Feld {idx + 1} von {total}</div><h1 style="font-size:19pt">{esc(f["name"])}</h1>
 <div class="small muted">Suchbegriffe: {esc(", ".join(f["terms"]))}{cpc} · {f["sources_90d"]} Quellen in 90 Tagen · Patente im Fenster: {fmt(f["patents_window"])}</div></div>
+{('<h3>Was hinter der Bewegung steckt</h3>' + note_html) if note_html else ""}
 <h3>Diese Woche je Ebene</h3>
 <div class="grid4">{tiles}</div>
 <h3>Bewegung, 12 Quartale — festes Quellenpanel</h3>
@@ -239,16 +308,21 @@ def _field_week_block(f: dict, weeks: list[str], idx: int, total: int, panel_siz
 </div>'''
 
 
-def render_week(d: dict, customer: str, sample: bool = False) -> str:
+def render_week(d: dict, customer: str, sample: bool = False, notes: dict | None = None) -> str:
+    """`notes` = {feld_slug: Entwurf/umgeschriebener Entwurf} (pipeline/field_drafts.load_section)."""
     weeks = d["weeks"]
     total = len(d["fields"])
-    blocks = "".join(_field_week_block(f, weeks, i, total, d["panel_size"]) for i, f in enumerate(d["fields"]))
+    notes = notes or {}
+    rendered = {slug: written(draft=n) for slug, n in notes.items() if n}
+    states = {st for _, st in rendered.values() if st}
+    blocks = "".join(_field_week_block(f, weeks, i, total, d["panel_size"], rendered.get(f.get("slug"), ("", None))[0])
+                     for i, f in enumerate(d["fields"]))
     rows = "".join(
         f'<tr><td><b>{esc(f["name"])}</b></td>' + "".join(f'<td>{delta_badge(f["week"][t]["n"], f["week"][t]["median4"])}</td>' for t in TIERS)
         + f'<td class="num">{f["actors_new_week"]}</td><td class="num">{len(f["nests"])}</td></tr>' for f in d["fields"])
     ps = d["panel_size"]
     body = f'''
-{_head("Field Watch · Wochenblatt", f'Woche {d["week"]} · {d["week_start"][8:]}.{d["week_start"][5:7]}.–{d["week_end"][8:]}.{d["week_end"][5:7]}.{d["week_end"][:4]} · Stand {d["measured_on"]}<br>Kunde: {esc(customer)}', sample)}
+{_head("Field Watch · Wochenblatt", f'Woche {d["week"]} · {d["week_start"][8:]}.{d["week_start"][5:7]}.–{d["week_end"][8:]}.{d["week_end"][5:7]}.{d["week_end"][:4]} · Stand {d["measured_on"]}<br>Kunde: {esc(customer)}' + ('<br><span class="badge draft">Entwurf</span>' if "draft" in states else ''), sample)}
 <h2 style="border:0;margin-top:12pt">Lage der Woche — {total} Felder</h2>
 <p class="small">Je Feld und Ebene: Signale dieser Woche gegen den Median der vier Vorwochen. Grün = mindestens +25 %, rot = mindestens −25 %, grau = im Band oder kein Vergleich möglich. Kleine Zahlen sind normal — die Woche zeigt Bewegung, das Quartal zeigt Richtung.</p>
 <table><tr><th>Feld</th>{"".join(f'<th><span class="dot" style="background:{COLORS[t]}"></span> {LABELS[t]}</th>' for t in TIERS)}<th class="num">neue Akteure</th><th class="num">Nester</th></tr>{rows}</table>
@@ -264,8 +338,20 @@ def render_week(d: dict, customer: str, sample: bool = False) -> str:
 <tr><td>Nester</td><td>dichte Themen des 90-Tage-Schnitts (k-Means, Kohäsion ≥ 0,75, jüngster Lauf je Scope), Treffer über Nest-Titel/repräsentative Titel</td></tr>
 <tr><td>Quartals-Scorecard</td><td>alle 13 Wochen ein Trajectory Sheet je Feld: Reifegrad-Karte (Patentgraph), Take-off je Ebene, Anmelder-Rangliste</td></tr>
 </table>
-<div class="foot"><b>Kennzeichnung:</b> Dieses Blatt enthält ausschließlich deterministische Abfragen des Catandary-Korpus; kein Sprachmodell hat Text erzeugt. {FOOT_COMMON}</div>'''
-    return page(f"Field Watch {d['week']} — {customer}", body)
+{draft_annex([(f'Was hinter der Bewegung steckt — {x["name"]}', notes[x["slug"]]) for x in d["fields"] if notes.get(x.get("slug")) and notes[x["slug"]]["status"] == "draft"], "Anhang · Quellen und Prüfhinweise der Entwürfe")}
+<div class="foot"><b>Kennzeichnung:</b> {week_label(states)} {FOOT_COMMON}</div>{WATERMARK if "draft" in states else ""}'''
+    return page(f"Field Watch {d['week']} — {customer}{' — ENTWURF' if 'draft' in states else ''}", body)
+
+
+def week_label(states: set) -> str:
+    if not states:
+        return "Dieses Blatt enthält ausschließlich deterministische Abfragen des Catandary-Korpus; kein Sprachmodell hat Text erzeugt."
+    base = "Alle Zahlen sind deterministische Abfragen des Catandary-Korpus (kein Sprachmodell beteiligt)."
+    if "draft" in states:
+        return base + " Die Notizen „Was hinter der Bewegung steckt\" sind maschinelle ENTWÜRFE — dieses Blatt ist nicht zur Auslieferung bestimmt."
+    if "rewritten" in states:
+        return base + " Die Notizen „Was hinter der Bewegung steckt\" sind vom Analysten geschrieben und verantwortet, auf Grundlage maschineller Rechercheentwürfe."
+    return base + " Die Notizen „Was hinter der Bewegung steckt\" sind vom Analysten geschrieben und verantwortet."
 
 
 # ---------------------------------------------------------------------------
@@ -281,8 +367,11 @@ def _series_block(ser: dict, t: str, y0: int, year_now: int, n_total: int) -> st
             f'<div class="small">n {fmt(n_total)} · Fenster {y0}–{year_now}{note}</div></div>')
 
 
-def render_sheet(d: dict, week: dict | None, customer: str, sample: bool = False) -> str:
+def render_sheet(d: dict, week: dict | None, customer: str, sample: bool = False,
+                 drafts: dict | None = None) -> str:
+    """`drafts` = {"reading": …, "regulatory": …} aus pipeline/field_drafts.load_section."""
     f = d["field"]
+    drafts = drafts or {}
     q = d.get("quant")
     ser = d["series"]
     year_now = int(d["measured_on"][:4])
@@ -391,9 +480,21 @@ def render_sheet(d: dict, week: dict | None, customer: str, sample: bool = False
     lands = "".join(
         f'<li>{esc((l["title"] or l["pub_number"]).title() if (l["title"] or "").isupper() else (l["title"] or l["pub_number"]))} '
         f'<span class="m">{esc(l["pub_number"])} · {str(l["published"])[:4]} · {fmt(l["cited_by"])}× im Korpus zitiert</span></li>' for l in d["landmarks"][:5])
-    reading = ""
-    if f.get("reading"):
-        reading = f'<h2>7 · Einordnung</h2><p><span class="badge">vom Analysten geschrieben</span> <span class="small">Der einzige geschriebene Abschnitt; er nennt nur Zahlen aus den Abschnitten 1–6.</span></p><p>{esc(f["reading"])}</p>'
+    r_html, r_state = written(f.get("reading") or "", drafts.get("reading"), markdown=False)
+    g_html, g_state = written(f.get("regulatory") or "", drafts.get("regulatory"))
+    reading = (f'<h2>7 · Einordnung</h2>{r_html}<p class="small">Nennt nur Zahlen aus den Abschnitten 1–6.</p>'
+               if r_state else "")
+    regulatory = (f'<h2 class="pb">Anhang A · Rechtsrahmen</h2><p class="small">Nicht Teil der Messung: geschriebener '
+                  f'Überblick über geltendes Recht und laufende Vorhaben, jede Aussage mit Quelle. Keine Rechtsberatung.</p>{g_html}'
+                  if g_state else "")
+    draft_mode = "draft" in (r_state, g_state)
+    annex_b = draft_annex([(lbl, dr) for lbl, dr, st in (("Abschnitt 7 · Einordnung", drafts.get("reading"), r_state),
+                                                          ("Anhang A · Rechtsrahmen", drafts.get("regulatory"), g_state))
+                           if st == "draft"])
+    written_parts = [x for x, st in (("die Einordnung in Abschnitt 7", r_state), ("der Rechtsrahmen in Anhang A", g_state)) if st]
+    intro_written = ("" if not written_parts else
+                     f"; {written_parts[0]} ist der einzige geschriebene Teil" if len(written_parts) == 1 else
+                     f"; geschriebene Teile sind {written_parts[0]} und {written_parts[1]}")
     thin_rows = []
     for t in TIERS:
         if d["totals"][t] < 5:
@@ -404,13 +505,14 @@ def render_sheet(d: dict, week: dict | None, customer: str, sample: bool = False
         thin_rows.append(("Verbesserungsrate", "kalibriert bis ~2019; jüngere Fenster unvollständig", "Spätere K-Werte als Richtung lesen, nicht als Größe."))
     thin_rows.append(("Anmelder", f'{fmt(d["patents_with_assignee_5y"])}/{fmt(d["patents_5y"])} mit Namen, unnormalisiert', "Rangfolge robust für die Spitze, Konzernzuordnung von Hand prüfen."))
     thin_rows.append(("Akteure Presse", "Extraktion nur im Artikelpfad (13 % der Zeilen)", "Liste ist Untergrenze."))
-    thin_rows.append(("Regulatorik / Kalender", "nicht Teil der Messung", "Rechtsrahmen auf Wunsch als gekennzeichneter Anhang."))
+    thin_rows.append(("Regulatorik / Kalender", "nicht Teil der Messung",
+                      "Rechtsrahmen in Anhang A (geschrieben, nicht gemessen)." if g_state else "Rechtsrahmen auf Wunsch als gekennzeichneter Anhang."))
     thin = "".join(f"<tr><td>{esc(a)}</td><td>{esc(b)}</td><td>{esc(c)}</td></tr>" for a, b, c in thin_rows)
     cpc_txt = ", ".join(f["cpc"]) if f.get("cpc") else "kein Anker"
     body = f'''
-{_head("Technology Trajectory Sheet", f'Stand {d["measured_on"]}<br>Kunde: {esc(customer)}', sample)}
+{_head("Technology Trajectory Sheet", f'Stand {d["measured_on"]}<br>Kunde: {esc(customer)}' + ('<br><span class="badge draft">Entwurf</span>' if draft_mode else ''), sample)}
 <div style="margin:14pt 0 6pt"><div class="kicker">Feld</div><h1>{esc(f["name"])}</h1><div class="muted">{esc(f.get("name_en") or "")} · Suchbegriffe: {esc(", ".join(f["terms"]))} · CPC-Anker: {esc(cpc_txt)}</div></div>
-<p>Dieses Blatt <b>misst</b> ein Technologiefeld über vier Ebenen — Wissenschaft, Patent, Förderung, Markt — aus dem Catandary-Korpus (21,9 M datierte Signale seit 1990, 45,5 M Forschungswerke seit 2010, 18,7 M Patente mit Zitationsgraph). Jede Zahl ist ein Abfrageergebnis mit n, Fenster und Methode (letzter Abschnitt). Es enthält keine Prognose und keine Empfehlung{"; die Einordnung in Abschnitt 7 ist der einzige geschriebene Teil" if f.get("reading") else ""}.</p>
+<p>Dieses Blatt <b>misst</b> ein Technologiefeld über vier Ebenen — Wissenschaft, Patent, Förderung, Markt — aus dem Catandary-Korpus (21,9 M datierte Signale seit 1990, 45,5 M Forschungswerke seit 2010, 18,7 M Patente mit Zitationsgraph). Jede Zahl ist ein Abfrageergebnis mit n, Fenster und Methode (letzter Abschnitt). Es enthält keine Prognose und keine Empfehlung{intro_written}.</p>
 <h2>1 · Auf einen Blick</h2>
 {tiles}
 <h2>2 · Reifegrad-Karte (Patentgraph)</h2>
@@ -446,8 +548,10 @@ def render_sheet(d: dict, week: dict | None, customer: str, sample: bool = False
 <tr><td>Take-off</td><td>Jahresreihe je Ebene</td><td>erstes Jahr mit ≥ 15 % des Spitzenjahres und mind. 3 Treffern</td></tr>
 <tr><td>Nester</td><td>emerging_nests, jüngster Lauf je Scope</td><td>k-Means im Signalraum, Kohäsion ≥ 0,75, Archiv-Scan je Monat und Ebene</td></tr>
 </table>
-<div class="foot"><b>Kennzeichnung:</b> Alle Zahlen sind deterministische Abfragen des Catandary-Korpus (kein Sprachmodell beteiligt).{" Abschnitt 7 ist vom Analysten geschrieben und verantwortet." if f.get("reading") else ""} {FOOT_COMMON}</div>'''
-    return page(f"Technology Trajectory Sheet — {f['name']}", body)
+{regulatory}
+{annex_b}
+<div class="foot"><b>Kennzeichnung:</b> Alle Zahlen sind deterministische Abfragen des Catandary-Korpus (kein Sprachmodell beteiligt).{written_note("Abschnitt 7", r_state)}{written_note("Anhang A", g_state)}{" Dieses Blatt ist ein ENTWURF und nicht zur Auslieferung bestimmt." if draft_mode else ""} {FOOT_COMMON}</div>{WATERMARK if draft_mode else ""}'''
+    return page(f"Technology Trajectory Sheet — {f['name']}{' — ENTWURF' if draft_mode else ''}", body)
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,8 @@
+# Eigene venv fuer Recherche-Werkzeuge (gpt-researcher + MCP-SDK), NICHT die Cron-venv.
+# Aufbau: scripts/setup_research_venv.sh  ->  ~/venvs/catandary-research
+# Diese venv importiert keinen Pipeline-Code; sie spricht nur HTTP mit dem
+# Korpus-Dienst (pipeline/corpus_service.py) und ggf. dem llama-server.
+gpt-researcher==0.16.1
+mcp==1.30.0
+langchain-anthropic==1.7.5
+pytest==8.4.2

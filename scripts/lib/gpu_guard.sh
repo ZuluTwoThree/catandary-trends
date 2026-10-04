@@ -40,7 +40,7 @@
 
 # Bekannte GPU-Jobs (ERE für pgrep -f). Reihenfolge egal; Ergänzungen hier,
 # nicht in den Wrappern.
-GPU_GUARD_PATTERNS="${GPU_GUARD_PATTERNS:-scheduled_cycle\.sh|full_cycle_cron\.sh|run_full_cycle|resume_cycle\.sh|signal_batch|weekly_ingesters\.sh|monthly_startup_sources\.sh|research_pulse|newsletter_deep_dive|newsletter_generator|weekly_newsletter_publish\.sh|newsletter_tonight\.sh|history_embed\.py work.*--handover}"
+GPU_GUARD_PATTERNS="${GPU_GUARD_PATTERNS:-scheduled_cycle\.sh|full_cycle_cron\.sh|run_full_cycle|resume_cycle\.sh|signal_batch|weekly_ingesters\.sh|monthly_startup_sources\.sh|research_pulse|field_research|newsletter_deep_dive|newsletter_generator|weekly_newsletter_publish\.sh|newsletter_tonight\.sh|history_embed\.py work.*--handover}"
 GPU_GUARD_MAX_MIN="${GPU_GUARD_MAX_MIN:-90}"
 # Ruhezustand von :8090 (Owner 04.10.2026): das 8B schlank (-c 32768 = 4 Slots x 8 192, ~7,6 GB) statt der
 # 24-Slot-Arbeitskonfiguration (~22 GB). Zwilling von
