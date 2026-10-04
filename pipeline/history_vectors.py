@@ -210,10 +210,32 @@ def _month_num(s: str) -> int:
     return int(s[:4]) * 12 + int(s[5:7]) - 1
 
 
+_columns_checked = False
+
+
+def ensure_reader_columns() -> None:
+    """Columns the readers need on an EXISTING history_items (added after the table was
+    first created, e.g. dup_of_trend). Once per process; creates no table — a database
+    without a history sample stays untouched (Codex review on #119)."""
+    global _columns_checked
+    if _columns_checked:
+        return
+    with get_connection() as c:
+        if USE_POSTGRES:
+            if c.execute("SELECT to_regclass('history_items') AS t").fetchone()["t"]:
+                c.execute("ALTER TABLE history_items ADD COLUMN IF NOT EXISTS dup_of_trend BIGINT")
+        elif c.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'history_items'").fetchone():
+            cols = {r[1] for r in c.execute("PRAGMA table_info(history_items)").fetchall()}
+            if "dup_of_trend" not in cols:
+                c.execute("ALTER TABLE history_items ADD COLUMN dup_of_trend INTEGER")
+    _columns_checked = True
+
+
 def mark_overlaps() -> int:
     """history_items.dup_of_trend = the trends row that holds the same document, so
     readers that mix both never count a document twice. Idempotent; cheap (narrow rows).
     Postgres only (UPDATE … FROM); the SQLite test schema sets the column directly."""
+    ensure_reader_columns()
     if not USE_POSTGRES:
         return 0
     with get_connection() as c:
@@ -228,9 +250,13 @@ def mark_overlaps() -> int:
 
 
 def available() -> bool:
+    """A history sample with at least one vector — and the reader columns in place."""
     try:
         with get_connection() as c:
-            return bool(c.execute("SELECT 1 FROM history_vectors LIMIT 1").fetchone())
+            if not c.execute("SELECT 1 FROM history_vectors LIMIT 1").fetchone():
+                return False
+        ensure_reader_columns()
+        return True
     except Exception:                                             # noqa: BLE001
         return False
 
