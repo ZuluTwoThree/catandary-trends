@@ -173,8 +173,9 @@ die Forschungsebene noch bei 22 von 93 Nestern in einem Januar (erwartet ~8 %). 
 die älteren Forschungssignale in `trends`: ~5.000 je Jahr vor 2012, davon ~8 % auf dem 1.
 Januar. In dünnen Jahren erreicht dieser Stapel die Schwelle „≥ 3 Treffer" zuerst im Januar.
 
-**Regel seit 03.10.:** `emerging.scan_history` lässt Forschungszeilen aus `trends` mit Datum 1.
-Januar aus der Monatszählung (`_year_only`). Die Zahl steht als `science_year_only` in
+**Regel seit 03.10.:** `emerging.scan_history` lässt Forschungszeilen aus **OpenAlex-Quellen** in
+`trends` mit Datum 1. Januar aus der Monatszählung (`_year_only`). Zeitschriften-Feeds und
+Preprint-Server (1.167 bzw. 155 solcher Zeilen) tragen echte Daten und zählen weiter (Codex-Review #120). Die Zahl steht als `science_year_only` in
 `emerging_runs.params` und im Log. Ausgenommen sind die Zeilen der Stichprobe, deren Januar
 neu datiert und aufgefüllt ist. Die Daten selbst bleiben unverändert.
 

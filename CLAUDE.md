@@ -1247,7 +1247,7 @@ cross_industry:
     `scripts/history_redate.py` datiert sie per Crossref neu (59 %; Spalten
     `month_openalex`/`month_source`). Der Rest wird `random:yearonly` und zählt nicht mit.
     Der Januar ist mit Arbeiten vom 2.–31. Januar aufgefüllt (03.10.).
-    Zusätzlich lässt der Archiv-Scan Forschungszeilen aus `trends` mit Datum 1. Januar aus
+    Zusätzlich lässt der Archiv-Scan Forschungszeilen aus OpenAlex-Quellen in `trends` mit Datum 1. Januar aus
     der Monatszählung (`emerging._year_only`, gezählt in `params.science_year_only`). Gebrauchsmuster
     (Artcode U, fast alle CN, 115k) bleiben drin (Owner 03.10.).
   - **Textrezept** wie der Signalpfad (Titel + Abstract[:500]). Kosinus gegen

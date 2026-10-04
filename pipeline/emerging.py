@@ -572,14 +572,21 @@ def scan_history(centroids: np.ndarray, thresholds: np.ndarray,
 
 
 def _year_only(r: dict) -> bool:
-    """A research signal dated 1 January carries only its year: OpenAlex fills the day
-    and month when it knows no more (2026-10-03: ~8 % of the older research rows in
-    trends). In a thin year such a pile reaches MIN_HIST_HITS in January first, so a
-    pocket's research conversation would start up to eleven months early — these rows
-    stay out of the monthly scan. History-sample rows are exempt: their January was
-    re-dated via Crossref and refilled with works of 2-31 January
-    (scripts/history_redate.py), and the sample carries every month as day 1."""
+    """A research signal FROM OPENALEX dated 1 January carries only its year: OpenAlex
+    fills the day and month when it knows no more (2026-10-03: ~8 % of the older research
+    rows in trends). In a thin year such a pile reaches MIN_HIST_HITS in January first,
+    so a pocket's research conversation would start up to eleven months early — these
+    rows stay out of the monthly scan.
+
+    Only OpenAlex sources: journal feeds and the preprint servers (arXiv, bioRxiv,
+    medRxiv) store the date their source gives, and a paper of 1 January there is a
+    paper of 1 January (Codex review on #120; measured 03.10.: 22,503 of the 23,825
+    research rows of 1 January come from OpenAlex sources). History-sample rows are
+    exempt too: their January was re-dated via Crossref and refilled with works of
+    2-31 January (scripts/history_redate.py), and the sample carries every month as day 1."""
     if r.get("status") == "history":
+        return False
+    if not (r.get("source_name") or "").lower().startswith("openalex"):
         return False
     d = r.get("published_date")
     d = d.isoformat() if hasattr(d, "isoformat") else str(d or "")
