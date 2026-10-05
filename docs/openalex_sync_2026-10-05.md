@@ -147,3 +147,9 @@ installiert, dev-Timer gestoppt.
 **Nachtrag 05.10. 23:30 (Owner):** Der Sync läuft nur noch **09:00–17:00** (`SYNC_WINDOW`, gleicher Tag;
 außerhalb startet nichts, Schritte 2–5 nur bis 16:00). Das Nachholen braucht damit vier statt zwei
 Tagesfenster — Erwartung: fertig gegen Ende der Woche.
+
+**Nachtrag 05.10. 23:45 (Owner): nur schreiben, wenn der Wert sich unterscheidet.** Alle Upserts/Updates
+des Ingests tragen `WHERE … IS DISTINCT FROM` (Zustand, Open-Access-Link, Rising-Papers-Zitationen,
+Zurückziehung). Gemessen in einer zurückgerollten Transaktion an 15.996 Werken beim ersten Kontakt
+(`updated_date=2026-09-22/part_0042`): Rising Papers 14.412 geplant → 5.390 geschrieben (37 %),
+Open Access 11.195 → 2.139 (19 %) — hochgerechnet ~38 Mio. Zeilenversionen weniger im Nachholen.

@@ -979,6 +979,8 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 #     laufende Teilstücke fertig), 2 Arbeitsprozesse mit nice/ionice, gemeinsame Sperre
 #     ~/.local/state/catandary/openalex_sync.lock, wartet bis SYNC_WAIT_MAX_MIN auf Nachtlauf/Patent-
 #     Jobs/Startup-Register/Ingester/Publish/Backup. Ohne neue Teilstücke nach dem S3-Listing fertig.
+#   * Upserts nur bei echtem Unterschied (`WHERE … IS DISTINCT FROM`, Owner 05.10.): erster Kontakt schreibt
+#     Rising Papers 37 %, Open Access 19 % der geplanten Zeilen (gemessen, zurückgerollte Transaktion).
 #   * Gemessen 05.10. (2 Teilstücke, 135.469 Werke): neu 3,5 %, Text echt geändert 2,1 % der
 #     vorhandenen, gekürzt behalten 0,4 %; zweites Lesen desselben Teilstücks schreibt 0 Zeilen.
 # 05.10.2026: OpenAlex hat ~87 % des Bestands neu ausgegeben; v1 lief 18 h, Export-Build scheiterte am

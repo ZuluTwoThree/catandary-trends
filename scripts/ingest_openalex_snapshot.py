@@ -166,7 +166,8 @@ def apply_plan(cur, p: ox.Plan) -> None:
              w.fwci, w.is_retracted) for w, d in p.update_text],
            template="(%s,%s,%s,%s,%s::date,%s::int,%s,%s,%s::int,%s::real,%s::boolean)", page_size=BATCH)
     if p.retraction:
-        ev(cur, "UPDATE research_corpus rc SET is_retracted = v.r FROM (VALUES %s) v(id, r) WHERE rc.id = v.id",
+        ev(cur, "UPDATE research_corpus rc SET is_retracted = v.r FROM (VALUES %s) v(id, r) "
+                "WHERE rc.id = v.id AND rc.is_retracted IS DISTINCT FROM v.r",
            p.retraction, template="(%s,%s::boolean)")
     if p.state:
         ev(cur, """INSERT INTO research_work_state (id, oa_fp, cited_by_count, fwci, cnp, type, is_retracted,
@@ -174,7 +175,12 @@ def apply_plan(cur, p: ox.Plan) -> None:
                    ON CONFLICT (id) DO UPDATE SET oa_fp = EXCLUDED.oa_fp, cited_by_count = EXCLUDED.cited_by_count,
                      fwci = EXCLUDED.fwci, cnp = EXCLUDED.cnp, type = EXCLUDED.type,
                      is_retracted = EXCLUDED.is_retracted, is_oa = EXCLUDED.is_oa, shortened = EXCLUDED.shortened,
-                     oa_updated = EXCLUDED.oa_updated, seen_at = EXCLUDED.seen_at""",
+                     oa_updated = EXCLUDED.oa_updated, seen_at = EXCLUDED.seen_at
+                   WHERE (research_work_state.oa_fp, research_work_state.cited_by_count, research_work_state.fwci,
+                          research_work_state.cnp, research_work_state.type, research_work_state.is_retracted,
+                          research_work_state.is_oa, research_work_state.shortened)
+                     IS DISTINCT FROM (EXCLUDED.oa_fp, EXCLUDED.cited_by_count, EXCLUDED.fwci, EXCLUDED.cnp,
+                          EXCLUDED.type, EXCLUDED.is_retracted, EXCLUDED.is_oa, EXCLUDED.shortened)""",
            p.state, template="(%s,%s::bigint,%s::int,%s::real,%s::real,%s,%s::boolean,%s::boolean,%s::boolean,"
                              "%s::date,CURRENT_DATE)", page_size=BATCH)
     side = p.side + [w for w, _ in p.update_text]
@@ -185,13 +191,18 @@ def apply_plan(cur, p: ox.Plan) -> None:
     if fr:
         ev(cur, "INSERT INTO research_work_funder (work_id, funder) VALUES %s ON CONFLICT DO NOTHING", fr)
     if p.oa:
+        # Nur schreiben, wenn sich der Link unterscheidet (Owner 05.10.): ON CONFLICT DO UPDATE legt
+        # sonst für jedes der ~24 Mio. OA-Werke beim ersten Kontakt eine neue Zeilenversion an.
         ev(cur, """INSERT INTO research_work_oa (work_id, oa_url) VALUES %s
-                   ON CONFLICT (work_id) DO UPDATE SET oa_url = EXCLUDED.oa_url""",
+                   ON CONFLICT (work_id) DO UPDATE SET oa_url = EXCLUDED.oa_url
+                   WHERE research_work_oa.oa_url IS DISTINCT FROM EXCLUDED.oa_url""",
            [(w.id, w.oa_url) for w in p.oa])
     if p.cites:
         ev(cur, """INSERT INTO research_citation_recent (work_id, cites_recent, cites_total) VALUES %s
                    ON CONFLICT (work_id) DO UPDATE SET cites_recent = EXCLUDED.cites_recent,
-                     cites_total = EXCLUDED.cites_total""",
+                     cites_total = EXCLUDED.cites_total
+                   WHERE (research_citation_recent.cites_recent, research_citation_recent.cites_total)
+                     IS DISTINCT FROM (EXCLUDED.cites_recent, EXCLUDED.cites_total)""",
            [(w.id, w.recent, w.total) for w in p.cites])
 
 
