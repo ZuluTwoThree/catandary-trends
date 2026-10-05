@@ -968,6 +968,10 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Snapshot-Partitionen → research_corpus (45M-Suchschicht) + Journal-/
 # Autoren-Nebentabellen + Statistik-Refresh (Amend-Analog, CPU/Netz)
 0 2 5 * *    scripts/sync_openalex_monthly.sh
+# 05.10.2026: OpenAlex hat ~87 % des Bestands neu ausgegeben (1.375 neue Teilstücke, 18 h Last,
+# Export-Build scheiterte am Timeout). Owner: kontrolliert angehalten ~20:00 nach Schritt 1 bei
+# 1.198/1.375; Schritte 2–5 offen; ~1,5 Mio. neue Werke, Zitations-Updates verworfen.
+# Befund + Vorschläge: docs/openalex_sync_2026-10-05.md. Fortsetzen: scripts/sync_openalex_monthly.sh
 
 # Nicht-RSS-Ingester wöchentlich (Samstag 06:00, seit 2026-08-09; 05:00→06:00 am 2026-08-29 entzerrt): Preprints
 # (arXiv/bioRxiv/medRxiv, 14-Tage-Fenster) + Funding (NSF/NIH/OpenAIRE/UKRI,
