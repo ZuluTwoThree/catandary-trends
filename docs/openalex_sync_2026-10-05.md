@@ -89,3 +89,39 @@ dem Statistik-Reset 26.09.; außer dem Sync schreibt nichts in die Tabelle) — 
 
 **Entscheidung offen (Owner):** wann die restlichen 177 Teilstücke und die Schritte 2–5 laufen —
 Vorschlag: erst Punkte 1 und 2 der Lastliste bauen (je ~½ Tag), dann in Fenstern fortsetzen.
+
+## 5. Umsetzung (Owner 05.10. abends)
+
+Owner: „Deduplizierung am Anfang ist ein wichtiger Schritt, jedoch nicht um den Preis, dass wesentliche
+Informationen verborgen bleiben, etwa wenn ein Abstract nachträglich hinzugefügt wird. Baue es so, dass
+Daten robuster, sparsamer und mehrwertstiftend einfließen." Gebaut auf `dev`:
+
+- **Ein Lesedurchgang, Änderungen erkennen** (`pipeline/openalex_sync.py`, `scripts/ingest_openalex_snapshot.py`):
+  je Batch der bekannte Stand aus `research_work_state` (neu) und — nur wo nötig — Titel/Abstract aus
+  `research_corpus`. Entscheidung je Werk siehe Tabelle; Journal/Förderer/OA/Rising-Papers im selben Durchgang.
+- **Textvergleich**, nachgemessen an zwei Teilstücken (135.469 Werke): Mit reinem Leerraum-Vergleich
+  galten 15 % als geändert, fast alles entferntes Markup. Mit Markup, Beschriftung („Abstract",
+  „Background") und Untertitel-Kürzung als Nicht-Änderung: **2,1 %** — das sind bereinigte und
+  vervollständigte Abstracts und wiederhergestellte Umlaute. Gekürzt (unser längerer Text bleibt): 0,4 %.
+
+  | Fall | Wirkung |
+  |---|---|
+  | neu | Zeile + Vektor, Zustand, Journal, Förderer, OA, Rising Papers, Archiv |
+  | Text echt geändert | Zeile neu (Titel, Abstract, Vektor, Metadaten), Archiv |
+  | OpenAlex nur Anfangsstück (Abstract oder Titel) | nichts in research_corpus, `shortened` im Zustand |
+  | zurückgezogen | Flag |
+  | Zitationen/FWCI/Perzentil/Typ/OA | nur `research_work_state` (+ Rising Papers, OA) |
+  | unverändert | nichts |
+
+- **Gemessen am echten Schreiblauf** (1 Teilstück): 2.330 neu, 1.369 Text, 1 zurückgezogen, 67.385
+  Zustandszeilen beim ersten Kontakt; **zweites Lesen: 0 Schreibvorgänge** (nach einem Fix: Postgres
+  liefert REAL als kurze Dezimalzahl, ein exakter Vergleich hätte jedes Mal 95 % neu geschrieben).
+- **Zeitfenster und sanfter Halt** im Wrapper, getestet: 2-min-Fenster → ein Teilstück, „pausiert",
+  Schritte 2–5 ausgelassen.
+- **Leser:** Trajectory Sheet „Meistzitierte Forschungswerke" und die Korpus-Suche (MCP) nehmen die
+  frischen Zitationen/FWCI, lassen zurückgezogene Werke weg und zeigen Titel ohne Markup.
+  Der Research Explorer im Frontend liest noch `research_corpus.cited_by_count` (offen).
+- **Nachholen:** Timer `catandary-openalex-catchup` ab 06.10. 09:00 täglich (3 Arbeitsprozesse,
+  `SYNC_REDO_SINCE=2026-10-05`): 174 offene + ~1.198 mit v1 gelesene Teilstücke. Erwartung: zwei
+  bis drei Fenster. Danach Schritte 2–5 (Aggregate, Archiv-Extrakt, Statistik) automatisch.
+- **Nicht umgesetzt:** Backlog-Messung des Ops-Samplers und Wiederholung des Export-Builds (eigene Punkte).

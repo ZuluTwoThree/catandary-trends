@@ -30,7 +30,8 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 
-import pipeline.config  # noqa: E402,F401  — lädt .env (BRAVE_SEARCH_API_KEY, DATABASE_URL)
+import pipeline.config  # noqa: E402,F401
+from pipeline.openalex_sync import strip_markup  # noqa: E402  — lädt .env (BRAVE_SEARCH_API_KEY, DATABASE_URL)
 
 logger = logging.getLogger(__name__)
 
@@ -356,19 +357,25 @@ def search_research(query: str, since_year: int | None = None, order: str = "cit
         raise ToolError("order must be cited or recent")
     n = _limit(limit)
     params: list = [query]
-    sql = f"tsv @@ {tsquery_sql(query)} AND NOT coalesce(is_retracted, false)"
+    sql = f"rc.tsv @@ {tsquery_sql(query)} AND NOT coalesce(rc.is_retracted, false)"
     if since_year:
-        sql += " AND year >= %s"
+        sql += " AND rc.year >= %s"
         params.append(int(since_year))
-    order_sql = "cited_by_count DESC NULLS LAST" if order == "cited" else "published DESC NULLS LAST"
+    order_sql = ("COALESCE(ws.cited_by_count, rc.cited_by_count) DESC NULLS LAST" if order == "cited"
+                 else "rc.published DESC NULLS LAST")
     with _ReadOnly("40s") as cur:
-        cur.execute(f"""SELECT id, doi, title, abstract, published, year, type, topic, cited_by_count, fwci
-                        FROM research_corpus WHERE {sql} ORDER BY {order_sql} LIMIT %s""", params + [n])
+        # Zitationen/FWCI: jüngster OpenAlex-Stand (research_work_state, Sync v2), sonst Stand beim Einlesen.
+        cur.execute(f"""SELECT rc.id, rc.doi, rc.title, rc.abstract, rc.published, rc.year, rc.type, rc.topic,
+                               COALESCE(ws.cited_by_count, rc.cited_by_count) AS cited_by_count,
+                               COALESCE(ws.fwci, rc.fwci) AS fwci, ws.cnp
+                        FROM research_corpus rc LEFT JOIN research_work_state ws ON ws.id = rc.id
+                        WHERE {sql} ORDER BY {order_sql} LIMIT %s""", params + [n])
         rows = cur.fetchall()
     out = [{"id": r["id"], "doi": r["doi"], "url": doi_url(r["doi"]),
-            "title": r["title"], "year": r["year"], "published": _iso(r["published"]), "type": r["type"],
+            "title": strip_markup(r["title"]), "year": r["year"], "published": _iso(r["published"]), "type": r["type"],
             "topic": r["topic"], "cited_by": r["cited_by_count"],
             "fwci": round(r["fwci"], 2) if r["fwci"] is not None else None,
+            "citation_percentile": round(r["cnp"], 3) if r["cnp"] is not None else None,
             "abstract": _clip(r["abstract"], _chars(abstract_chars, 600))} for r in rows]
     return {"query": query, "order": order, "n": len(out), "results": out}
 

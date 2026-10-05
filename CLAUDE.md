@@ -964,14 +964,30 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Radare + TIR-/SPNP-Forschungsläufe bewusst NICHT im Cron (Owner: on-demand).
 45 6 * * 2   scripts/weekly_patent_analytics.sh
 
-# OpenAlex-Monats-Sync (5. des Monats 02:00, seit 2026-08-15, #80; 07:00→02:00 am 2026-08-29 entzerrt — Erstlauf 05.09. fällt auf einen Ingester-Samstag): neue
-# Snapshot-Partitionen → research_corpus (45M-Suchschicht) + Journal-/
-# Autoren-Nebentabellen + Statistik-Refresh (Amend-Analog, CPU/Netz)
+# OpenAlex-Sync (#80). INSTALLIERT ist noch `0 2 5 * *` (5. des Monats 02:00) mit dem ALTEN Code;
+# auf dev seit 05.10.2026 v2 (scharf erst mit dem main-Merge + Crontab `0 9 * * *`):
+#   * EIN Lesedurchgang je Teilstück (pipeline/openalex_sync.py + scripts/ingest_openalex_snapshot.py):
+#     neue Werke → research_corpus; echt geänderte Texte (bereinigter/vervollständigter Abstract,
+#     wiederhergestellte Umlaute) → Zeile neu; Kürzung zum Anfangsstück und Titel-Untertitel-Verlust
+#     werden NICHT übernommen (`shortened`); Markup (<i>, <sub>, &lt;…&gt;), Leerraum und Beschriftungen
+#     („Abstract", „Background") zählen nicht als Änderung; Zurückziehungen → Flag. Zitationen, FWCI,
+#     Perzentil (cnp), Typ, OA → research_work_state (schmal, neu; die 147-GB-Tabelle bleibt unberührt),
+#     dazu research_citation_recent (Rising Papers, rollierend „laufendes + voriges Jahr") und
+#     research_work_oa/_journal/_funder in demselben Durchgang (Schritte 2/4 bauen nur noch Aggregate).
+#     Archiv: je Lauf eine eigene Datei `part_NNNN.v2-<stamp>.parquet` nur mit Neuem/Geändertem.
+#   * Zeitfenster: täglich ab 09:00 bis SYNC_UNTIL (00:30), sanfter Halt (Exit 3 = pausiert, SIGTERM =
+#     laufende Teilstücke fertig), 2 Arbeitsprozesse mit nice/ionice, gemeinsame Sperre
+#     ~/.local/state/catandary/openalex_sync.lock, wartet bis SYNC_WAIT_MAX_MIN auf Nachtlauf/Patent-
+#     Jobs/Startup-Register/Ingester/Publish/Backup. Ohne neue Teilstücke nach dem S3-Listing fertig.
+#   * Gemessen 05.10. (2 Teilstücke, 135.469 Werke): neu 3,5 %, Text echt geändert 2,1 % der
+#     vorhandenen, gekürzt behalten 0,4 %; zweites Lesen desselben Teilstücks schreibt 0 Zeilen.
+# 05.10.2026: OpenAlex hat ~87 % des Bestands neu ausgegeben; v1 lief 18 h, Export-Build scheiterte am
+# Timeout; Owner ließ ihn ~20:00 anhalten (1.198/1.375 mit v1, ~1,5 Mio. neue Werke, Zitations-Updates
+# verworfen). NACHHOLEN mit v2: transienter User-Timer `catandary-openalex-catchup` (täglich 09:00,
+# dev-Worktree, SYNC_WORKERS=3, SYNC_REDO_SINCE=2026-10-05 → liest die v1-Teilstücke mit v2 neu,
+# SYNC_WAIT_MAX_MIN=600). Nach dem main-Merge + Crontab-Umstellung: `systemctl --user stop
+# catandary-openalex-catchup.timer`. Befund: docs/openalex_sync_2026-10-05.md.
 0 2 5 * *    scripts/sync_openalex_monthly.sh
-# 05.10.2026: OpenAlex hat ~87 % des Bestands neu ausgegeben (1.375 neue Teilstücke, 18 h Last,
-# Export-Build scheiterte am Timeout). Owner: kontrolliert angehalten ~20:00 nach Schritt 1 bei
-# 1.198/1.375; Schritte 2–5 offen; ~1,5 Mio. neue Werke, Zitations-Updates verworfen.
-# Befund + Vorschläge: docs/openalex_sync_2026-10-05.md. Fortsetzen: scripts/sync_openalex_monthly.sh
 
 # Nicht-RSS-Ingester wöchentlich (Samstag 06:00, seit 2026-08-09; 05:00→06:00 am 2026-08-29 entzerrt): Preprints
 # (arXiv/bioRxiv/medRxiv, 14-Tage-Fenster) + Funding (NSF/NIH/OpenAIRE/UKRI,
@@ -1009,13 +1025,13 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # scripts/reset_embedding_errors.py [--since D|--min-id N|--source-type T] --apply
 0 6 * * 6    scripts/weekly_ingesters.sh
 
-# Startup-Explorer-Quellen monatlich (6. 12:00, seit 2026-08-23, #87): CORDIS +
+# Startup-Explorer-Quellen monatlich (6. 08:45 — bis 05.10.2026 12:00, Owner: vorgezogen; seit 2026-08-23, #87): CORDIS +
 # SBIR (--refresh) + GLEIF + Companies House + GLEIF/CH-Enrichment + Distill
 # der Neuzugänge + HDD-Download-Cleanup. Firmenstamm-Rebuild, Wikidata und
 # Brücken bewusst NICHT im Cron (Rebuild würde Enrichment verwerfen) — on-demand.
 # Distill-Schritt hinter dem Kollisionswächter (#98) wie weekly_ingesters
 # (Pending-Datei data/monthly_startup_sources_pending_min_id, Note-JSON).
-0 12 6 * *   scripts/monthly_startup_sources.sh
+45 8 6 * *   scripts/monthly_startup_sources.sh
 
 # Source-Link-Integrität monatlich (2. des Monats 07:00, Issue #48 — in der echten
 # crontab installiert; Cron-Lauf 02.09. 07:03 im Log, 12 bestätigt tot): Stichprobe published

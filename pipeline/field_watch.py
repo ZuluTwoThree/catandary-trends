@@ -409,9 +409,16 @@ def measure_sheet(field: dict, today: date | None = None) -> dict:
         cur.execute(f"SELECT year, count(*) n FROM research_corpus WHERE tsv @@ {q} AND year >= 1990 GROUP BY 1", params)
         for r in cur.fetchall():
             yearly["science"][r["year"]] = r["n"]
-        cur.execute(f"""SELECT id, doi, title, year, type, cited_by_count, fwci FROM research_corpus
-                        WHERE tsv @@ {q} AND year >= %s ORDER BY cited_by_count DESC NULLS LAST LIMIT 6""", params + [today.year - 8])
-        top_works = [dict(r) for r in cur.fetchall()]
+        # Zitationen/FWCI aus research_work_state (jüngster OpenAlex-Stand, Sync v2 seit 05.10.2026),
+        # sonst der Stand beim Einlesen; zurückgezogene Werke nie als „meistzitiert".
+        cur.execute(f"""SELECT rc.id, rc.doi, rc.title, rc.year, rc.type,
+                               COALESCE(ws.cited_by_count, rc.cited_by_count) AS cited_by_count,
+                               COALESCE(ws.fwci, rc.fwci) AS fwci
+                        FROM research_corpus rc LEFT JOIN research_work_state ws ON ws.id = rc.id
+                        WHERE rc.tsv @@ {q} AND rc.year >= %s AND NOT COALESCE(rc.is_retracted, FALSE)
+                        ORDER BY 6 DESC NULLS LAST LIMIT 6""", params + [today.year - 8])
+        from pipeline.openalex_sync import strip_markup
+        top_works = [dict(r, title=strip_markup(r["title"])) for r in cur.fetchall()]
         years = list(range(1990, today.year + 1))
         series = {t: [{"y": y, "n": yearly[t].get(y, 0),
                        "per10k": (round(10000 * yearly[t].get(y, 0) / denom[t][y], 1)

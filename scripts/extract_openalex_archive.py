@@ -37,6 +37,10 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from pipeline import db as db_mod  # noqa: E402
+from pipeline.openalex_sync import recent_floor  # noqa: E402
+
+# „Jüngste Zitationen" rollierend: laufendes + voriges Jahr (bis 05.10.2026 fest >= 2025).
+RECENT_FLOOR = recent_floor()
 
 ARCHIVE = "/mnt/data-hdd/openalex_snapshot"
 AUTHOR_CAP = 30
@@ -129,7 +133,7 @@ def process_part(part: str) -> tuple[str, int, str]:
                 total = sum(x.get("cited_by_count") or 0 for x in cby)
                 if total > 0:
                     recent = sum(x.get("cited_by_count") or 0 for x in cby
-                                 if (x.get("year") or 0) >= 2025)
+                                 if (x.get("year") or 0) >= RECENT_FLOOR)
                     cr_buf.append((wid, recent, total))
                 if len(af_buf) >= 2000:
                     flush()

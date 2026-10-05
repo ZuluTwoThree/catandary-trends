@@ -27,10 +27,13 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # cpc_tier_series + cpc_insights + signal→CPC. Radare + TIR-Forschung bewusst NICHT im Cron.
 45 6 * * 2 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_patent_analytics.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_patent_analytics.sh || echo "$(date -Iseconds) skip weekly_patent_analytics (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-patent-analytics-skip.log
 
-# OpenAlex-Monats-Sync (#80): neue Snapshot-Partitionen → research_corpus +
-# Journal-/Autoren-Nebentabellen + Statistik-Refresh. Amend-Analog, CPU/Netz.
-# 5. des Monats 02:00 (07:00→02:00 am 2026-08-29 entzerrt).
-0 2 5 * * [ -x /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh ] && /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh || echo "$(date -Iseconds) skip sync_openalex (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-openalex-skip.log
+# OpenAlex-Sync (#80, v2 seit 2026-10-05): TÄGLICH 09:00 als Zeitfenster bis 00:30 (SYNC_UNTIL).
+# Neue Teilstücke → research_corpus (neu/echt geändert/zurückgezogen) + research_work_state
+# (Zitationen, FWCI, OA, Typ) + Journal/Förderer/OA in EINEM Lesedurchgang; ohne neue Teilstücke
+# nach dem S3-Listing fertig. Wartet, solange Nachtlauf/Patent-Jobs/Startup-Register/Ingester/
+# Publish/Backup laufen. Bis 05.10.2026: 5. des Monats 02:00 am Stück — am 05.10. 18 h Last,
+# Export-Build scheiterte (docs/openalex_sync_2026-10-05.md).
+0 9 * * * [ -x /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh ] && /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh || echo "$(date -Iseconds) skip sync_openalex (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-openalex-skip.log
 
 # Wächter (seit 2026-08-17): meldet per Mail, wenn der Nachtlauf keine
 # end-Zeile mit Exit-Code geschrieben hat. Der Wrapper schreibt sie als
@@ -43,11 +46,12 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 
 # Startup-Explorer-Quellen monatlich (#87, seit 2026-08-23): CORDIS + SBIR +
 # GLEIF + Companies House (--refresh/Neuzugaenge) + Enrichment + Distill der
-# Neuzugaenge. 6. 12:00 = nach OpenAlex-Sync (5.) und ausserhalb der GPU-Fenster.
+# Neuzugaenge. 6. 08:45 (bis 05.10.2026: 12:00 — Owner: vorgezogen; der GPU-Schritt wartet
+# hinter dem Kollisionswaechter, falls die Di-Newsletter-Edition 07:45 noch die Karte haelt).
 # Die woechentlichen Signal-Ingester (HN/CT.gov/FDA/Presse-Regex) laufen im
 # bestehenden weekly_ingesters.sh (Samstag 06:00) mit. Distill-Schritt hinter dem
 # Kollisionswächter (#98, Pending-Datei data/monthly_startup_sources_pending_min_id).
-0 12 6 * * /home/dirk/projects/catandary-trends/scripts/monthly_startup_sources.sh
+45 8 6 * * /home/dirk/projects/catandary-trends/scripts/monthly_startup_sources.sh
 
 # Monatlicher Source-Link-Check (#48, in der echten crontab installiert; Lauf 02.09. 07:03): Stichprobe
 # published Backlinks (HEAD/GET), --mark upsertet bestätigt tote (404/410/ConnErr,

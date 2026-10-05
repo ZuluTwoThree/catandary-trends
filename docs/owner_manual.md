@@ -830,7 +830,7 @@ Funding-Regex aus Presse, SEC Form D, SBIR/CORDIS-Grants, HN-Launches,
 ClinicalTrials, FDA 510(k), GLEIF/Companies House). Filter: Text, Vertikale,
 Land, Ereignistyp. Firmenseite = Evidenz-Timeline mit Quellen und Brücken zu
 Artikeln/Patenten; Attributionsblock (OGL, CC BY, Public Domain) am Fuß. Daten:
-Signale wöchentlich (Sa), Register monatlich (6. 12:00,
+Signale wöchentlich (Sa), Register monatlich (6. 08:45,
 `monthly_startup_sources.sh`). Firmenstamm-Rebuild/Wikidata/Brücken nur
 on-demand (Rebuild würde Enrichment verwerfen).
 
@@ -1715,8 +1715,8 @@ im Handover still).
 | 06:00 So | Discovery-Loop (Mega-Kandidaten, Head-Retrain auf dem 1024er-Präfix seit 26.09.) | `scripts/discovery_loop.py` | installiert |
 | 1. 08:00 | Monats-Quellencheck (+ TDM-Re-Probe) → Issue #13 | `scripts/monthly_source_check.py --post-issue` | installiert |
 | 2. 07:00 | Backlink-Check → `dead_links` | `scripts/check_source_links.py --per-source 12 --mark` | installiert |
-| 5. 02:00 | OpenAlex-Monats-Sync (45M-Korpus) | `scripts/sync_openalex_monthly.sh` | installiert |
-| 6. 12:00 | Startup-Register (CORDIS/SBIR/GLEIF/CH) | `scripts/monthly_startup_sources.sh` | installiert |
+| 5. 02:00 | OpenAlex-Sync (45M-Korpus) — v2 auf dev: täglich 09:00 im Zeitfenster bis 00:30, nur Neues/Geändertes; Nachholen per Timer `catandary-openalex-catchup` (docs/openalex_sync_2026-10-05.md) | `scripts/sync_openalex_monthly.sh` | installiert (alter Code) |
+| 6. 08:45 | Startup-Register (CORDIS/SBIR/GLEIF/CH) — bis 05.10.2026 12:00 | `scripts/monthly_startup_sources.sh` | installiert |
 | 02:00 täglich | **Statischer Export → Webspace** | `scripts/publish_static_site.sh` | **installiert in `deploy/crontab.txt`, nicht installiert** (kein `webspace.env`) |
 | 08:30 Sa | Research Pulse (Vorwoche, 28 Themes) | `scripts/weekly_research_pulse.sh` | installiert (2026-09-18; Zeit ab 26.09., vorher 12:00) |
 | 08:45 Sa | Field Watch (Wochenblätter aller Kundenfelder) | `scripts/weekly_field_watch.sh` | installiert (2026-09-26; ohne Kundendateien no-op) |
