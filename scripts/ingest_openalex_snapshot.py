@@ -59,6 +59,8 @@ from pipeline.openalex_sync import reconstruct  # noqa: E402,F401  (Altnutzer im
 
 REPO = Path(__file__).resolve().parents[1]
 ARCHIVE = Path("/mnt/data-hdd/openalex_snapshot")
+# Vom nächtlichen Download (scripts/download_openalex.py) abgelegte, vorgefilterte Teilstücke.
+STAGING = Path(os.getenv("OPENALEX_STAGING", "/mnt/data-hdd/openalex_staging"))
 S3_PREFIX = "openalex/data/parquet/works/"
 STATUS = REPO / "data" / "openalex_sync_last.json"
 FINALIZE_MARKER = REPO / "data" / "openalex_sync_finalize_pending"
@@ -123,6 +125,19 @@ TSV = ("setweight(to_tsvector('english', left({t}, 2000)), 'A') || "
        "setweight(to_tsvector('english', left({a}, 16000)), 'B')")
 INSERT_TMPL = ("(%s,%s,%s,%s,%s::date,%s::int,%s,%s,%s::int,%s::real,%s::boolean,"
                + TSV.format(t="%s", a="%s") + ")")
+
+
+def keep_mask(rg):
+    """Der Ingest-Filter als Arrow-Maske (geteilt mit scripts/download_openalex.py)."""
+    import pyarrow as pa
+    import pyarrow.compute as pc
+    m = pc.is_in(rg["type"], value_set=pa.array(KEEP_TYPES))
+    m = pc.and_(m, pc.equal(rg["is_paratext"], False))
+    m = pc.and_(m, pc.equal(rg["language"], "en"))
+    m = pc.and_(m, pc.greater_equal(rg["publication_year"], MIN_YEAR))
+    m = pc.and_(m, pc.is_valid(rg["abstract_inverted_index"]))
+    return pc.and_(m, pc.or_(pc.greater(rg["publication_year"], CITE_FLOOR_BEFORE),
+                             pc.greater_equal(rg["cited_by_count"], 1)))
 
 
 def disk_ok() -> bool:
@@ -220,6 +235,10 @@ def _init_worker() -> None:
         pass
 
 
+def staged_path(part: str) -> Path:
+    return STAGING / Path(part).parent.name / Path(part).name
+
+
 def archive_path(part: str, stamp: str | None = None) -> Path:
     """Archivdatei eines Laufs. Jeder v2-Lauf schreibt eine EIGENE Datei
     (`part_0034.v2-202610061015.parquet`) und überschreibt nie — sonst gingen neue Werke eines
@@ -239,28 +258,29 @@ def process_part(part: str, dry_run: bool = False, prev_version: int | None = No
     import s3fs
 
     counts = {"rows": 0, "kept": 0, "new": 0, "text": 0, "retract": 0, "state": 0,
-              "unchanged": 0, "shortened": 0, "oa": 0, "cites": 0}
+              "unchanged": 0, "shortened": 0, "oa": 0, "cites": 0, "source": ""}
     fs = s3fs.S3FileSystem(anon=True)
     conn = psycopg2.connect(db_mod.DATABASE_URL)
     cur = conn.cursor()
     cur.execute("SET statement_timeout = '600s'")
     conn.commit()
+    local = staged_path(part)
     try:
-        f = pq.ParquetFile(fs.open("openalex/" + part if not part.startswith("openalex/") else part))
+        if local.exists():   # vom Download abgelegt: kein Netz, schon vorgefiltert
+            f = pq.ParquetFile(local)
+            side = Path(str(local) + ".json")
+            rows_total = json.loads(side.read_text())["rows_total"] if side.exists() else None
+        else:
+            f = pq.ParquetFile(fs.open("openalex/" + part if not part.startswith("openalex/") else part))
+            rows_total = None
+        counts["source"] = "local" if local.exists() else "s3"
         names = set(f.schema_arrow.names)
         cols = [c for c in COLS if c in names]
         archive_tables = []
         for i in range(f.metadata.num_row_groups):
             rg = f.read_row_group(i, columns=cols)
             counts["rows"] += rg.num_rows
-            m = pc.is_in(rg["type"], value_set=pa.array(KEEP_TYPES))
-            m = pc.and_(m, pc.equal(rg["is_paratext"], False))
-            m = pc.and_(m, pc.equal(rg["language"], "en"))
-            m = pc.and_(m, pc.greater_equal(rg["publication_year"], MIN_YEAR))
-            m = pc.and_(m, pc.is_valid(rg["abstract_inverted_index"]))
-            m = pc.and_(m, pc.or_(pc.greater(rg["publication_year"], CITE_FLOOR_BEFORE),
-                                  pc.greater_equal(rg["cited_by_count"], 1)))
-            kept = rg.filter(m)
+            kept = rg.filter(keep_mask(rg))
             if kept.num_rows == 0:
                 continue
             counts["kept"] += kept.num_rows
@@ -287,6 +307,8 @@ def process_part(part: str, dry_run: bool = False, prev_version: int | None = No
                 counts["cites"] += len(p.cites)
             if idx_archive:
                 archive_tables.append(kept.take(pa.array(sorted(set(idx_archive)))))
+        if rows_total is not None:
+            counts["rows"] = rows_total
         if not dry_run:
             if archive_tables:
                 out = archive_path(part, datetime.now().strftime("%Y%m%d%H%M"))
@@ -305,6 +327,9 @@ def process_part(part: str, dry_run: bool = False, prev_version: int | None = No
             for t in ("openalex_journal_state", "openalex_funder_state"):
                 cur.execute(f"INSERT INTO {t} (part) VALUES (%s) ON CONFLICT DO NOTHING", (part,))
             conn.commit()
+            if local.exists():                        # verarbeitet: Ablage freigeben
+                local.unlink()
+                Path(str(local) + ".json").unlink(missing_ok=True)
         return (part, counts, "")
     except Exception as e:  # noqa: BLE001 — Fehler je Datei melden, Lauf geht weiter
         try:
@@ -368,6 +393,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--redo-since", help="YYYY-MM-DD — mit v1 an/nach diesem Datum gelesene Teilstücke neu lesen")
     ap.add_argument("--parts", nargs="*", help="genau diese Teilstücke (Test)")
     ap.add_argument("--dry-run", action="store_true", help="nur zählen, nichts schreiben")
+    ap.add_argument("--local-only", action="store_true",
+                    help="nur vom Download abgelegte Teilstücke verarbeiten (kein S3-Lesen); offen bleibt, was noch "
+                         "nicht geladen ist — Exit 3, solange auf S3 etwas fehlt")
     args = ap.parse_args(argv)
 
     signal.signal(signal.SIGTERM, _on_term)
@@ -392,6 +420,12 @@ def main(argv: list[str] | None = None) -> int:
     fs = s3fs.S3FileSystem(anon=True)
     parts = args.parts or list_parts(fs)
     todo = args.parts or select_todo(parts, done, args.redo_since)
+    not_staged = 0
+    if args.local_only:
+        staged = [p for p in todo if staged_path(p).exists()]
+        not_staged = len(todo) - len(staged)
+        todo = staged
+        print(f"lokal abgelegt: {len(todo)}, noch nicht geladen: {not_staged}", flush=True)
     if args.max_files:
         todo = todo[:args.max_files]
     started = datetime.now()
@@ -402,10 +436,11 @@ def main(argv: list[str] | None = None) -> int:
               "paused": False, "reason": None, "dry_run": args.dry_run, "until": str(stop_at) if stop_at else None}
     write_status(status)
     if not todo:
-        status.update(ended=datetime.now(), reason="nothing to do")
+        status.update(ended=datetime.now(), remaining=not_staged,
+                      paused=bool(not_staged), reason="waiting for download" if not_staged else "nothing to do")
         write_status(status)
         conn.close()
-        return 0
+        return 3 if not_staged else 0
 
     totals: dict[str, int] = {}
     t0 = time.time()
@@ -438,7 +473,8 @@ def main(argv: list[str] | None = None) -> int:
                     continue
                 status["processed"] += 1
                 for k, v in counts.items():
-                    totals[k] = totals.get(k, 0) + v
+                    if isinstance(v, int):
+                        totals[k] = totals.get(k, 0) + v
                 n = status["processed"]
                 if n % 10 == 0 or n == len(todo) or args.dry_run or args.parts:
                     print(f"[{n}/{len(todo)}] gelesen {totals.get('kept', 0):,} · neu {totals.get('new', 0):,} · "
@@ -447,7 +483,7 @@ def main(argv: list[str] | None = None) -> int:
                           f"gekürzt (behalten) {totals.get('shortened', 0):,} · {time.time() - t0:.0f}s", flush=True)
                 status.update(remaining=len(queue) + len(inflight), totals=totals)
                 write_status(status)
-    remaining = len(queue)
+    remaining = len(queue) + not_staged          # lokal-Modus: Ungeladenes zählt als offen
     paused = remaining > 0 and rc == 0
     status.update(ended=datetime.now(), remaining=remaining, paused=paused, reason=_STOP["why"] or None,
                   totals=totals, hours=round((time.time() - t0) / 3600, 2))

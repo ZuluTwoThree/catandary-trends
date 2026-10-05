@@ -10,7 +10,9 @@
 # Die Schritte 2–5 starten nur bis SYNC_FINALIZE_BY (Default 16:00), sonst am nächsten Tag. Ohne neue Teilstücke ist
 # der Lauf nach dem S3-Listing fertig (Schritte 2–5 entfallen).
 #
-#   1. ingest_openalex_snapshot  — Teilstücke lesen + vergleichen + schreiben (Exit 3 = pausiert)
+#   0. (nachts, eigener Job) openalex_download.sh — Teilstücke laden + vorfiltern → HDD-Ablage
+#   1. ingest_openalex_snapshot  — abgelegte Teilstücke lesen + vergleichen + schreiben (Exit 3 = pausiert/
+#                                  noch nicht alles geladen)
 #   2. enrich_openalex_journals  — nur noch Aggregat (v2 markiert seine Teilstücke als erledigt)
 #   3. extract_openalex_archive  — Autoren/Institutionen/Zitationskurven aus den v2-Archivdateien
 #   4. enrich_openalex_funders_oa — nur noch Aggregat (wie 2)
@@ -26,6 +28,9 @@ LOG="$HOME/logs/catandary-openalex-sync-$(date +%Y%m%d).log"
 mkdir -p "$(dirname "$LOG")"
 SYNC_WINDOW="${SYNC_WINDOW:-09:00-17:00}"
 SYNC_FINALIZE_BY="${SYNC_FINALIZE_BY:-16:00}"
+# Seit 05.10.2026: nur lokal abgelegte Teilstücke verarbeiten (Download nachts per
+# scripts/openalex_download.sh). SYNC_LOCAL_ONLY=0 = altes Verhalten (direkt von S3 streamen).
+SYNC_LOCAL_ONLY="${SYNC_LOCAL_ONLY:-1}"
 SYNC_WORKERS="${SYNC_WORKERS:-2}"
 SYNC_REDO_SINCE="${SYNC_REDO_SINCE:-}"
 SYNC_WAIT_MAX_MIN="${SYNC_WAIT_MAX_MIN:-240}"
@@ -70,7 +75,7 @@ MARKER="$REPO/data/openalex_sync_finalize_pending"
   RC=0
   echo; echo "----- 1/5 Snapshot-Ingest v2 (lesen, vergleichen, schreiben) -----"
   "${NICE[@]}" python -u scripts/ingest_openalex_snapshot.py --workers "$SYNC_WORKERS" --window "$SYNC_WINDOW" \
-      ${SYNC_REDO_SINCE:+--redo-since "$SYNC_REDO_SINCE"}
+      ${SYNC_REDO_SINCE:+--redo-since "$SYNC_REDO_SINCE"} $( [ "$SYNC_LOCAL_ONLY" = "1" ] && echo --local-only )
   RC1=$?
   if [ "$RC1" -eq 3 ]; then
     echo "pausiert (Zeitfenster/Halt) — der Rest folgt im nächsten Fenster; Schritte 2–5 erst danach"

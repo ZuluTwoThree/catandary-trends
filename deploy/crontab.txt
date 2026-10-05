@@ -34,6 +34,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # nach dem S3-Listing fertig. Wartet, solange Nachtlauf/Patent-Jobs/Startup-Register/Ingester/
 # Publish/Backup laufen. Bis 05.10.2026: 5. des Monats 02:00 am Stück — am 05.10. 18 h Last,
 # Export-Build scheiterte (docs/openalex_sync_2026-10-05.md).
+# Download getrennt von der Verarbeitung (Owner 05.10.2026): nachts ab 17:00 bis 01:15 (vor dem
+# Backup) die offenen Teilstücke laden, vorfiltern (15 % der Größe) und auf der HDD ablegen; der
+# Sync um 09:00 verarbeitet nur noch lokale Dateien (SYNC_LOCAL_ONLY=1, Default). Vorschlag —
+# scharf erst mit dem main-Merge; DL_REDO_SINCE nur fürs Nachholen.
+0 17 * * * [ -x /home/dirk/projects/catandary-trends/scripts/openalex_download.sh ] && DL_REDO_SINCE=2026-10-05 /home/dirk/projects/catandary-trends/scripts/openalex_download.sh
 # Nachholen (installiert 05.10.2026 23:07 mit dem main-Merge): die Env-Variablen lesen die am 05.10.
 # mit v1 gelesenen Teilstücke mit v2 neu (3 Arbeitsprozesse, bis 10 h Warten auf die Morgen-Crons).
 # Nach Abschluss (data/openalex_sync_last.json: remaining 0, Schritte 2–5 gelaufen) entfernen.

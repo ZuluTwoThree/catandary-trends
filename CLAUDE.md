@@ -979,6 +979,12 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 #     laufende Teilstücke fertig), 2 Arbeitsprozesse mit nice/ionice, gemeinsame Sperre
 #     ~/.local/state/catandary/openalex_sync.lock, wartet bis SYNC_WAIT_MAX_MIN auf Nachtlauf/Patent-
 #     Jobs/Startup-Register/Ingester/Publish/Backup. Ohne neue Teilstücke nach dem S3-Listing fertig.
+#   * DOWNLOAD GETRENNT (Owner 05.10. nachts, auf dev): scripts/download_openalex.py + openalex_download.sh
+#     laden nachts (17:00–01:15) am Stück, filtern mit DEMSELBEN Filter (ingest.keep_mask) auf behaltene
+#     Zeilen + benötigte Spalten (gemessen 15 % der Größe) → /mnt/data-hdd/openalex_staging; Status
+#     openalex_download_state. Der Ingest liest Abgelegtes lokal (--local-only, Wrapper-Default
+#     SYNC_LOCAL_ONLY=1) und gibt die Ablage danach frei. Gemessen: Verarbeitung aus lokaler Datei 29 s
+#     statt 184 s je Teilstück (ohne Schreiben); Download am Stück 0,85 statt 1,4 GB Netz je Teilstück.
 #   * Upserts nur bei echtem Unterschied (`WHERE … IS DISTINCT FROM`, Owner 05.10.): erster Kontakt schreibt
 #     Rising Papers 37 %, Open Access 19 % der geplanten Zeilen (gemessen, zurückgerollte Transaktion).
 #   * Gemessen 05.10. (2 Teilstücke, 135.469 Werke): neu 3,5 %, Text echt geändert 2,1 % der

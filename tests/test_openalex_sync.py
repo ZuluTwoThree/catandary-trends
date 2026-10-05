@@ -172,3 +172,46 @@ class TestPlan:
         w = _work(oa=True)
         p = ox.plan_batch([w], {"W1": _state(w, is_oa=False)}, {})
         assert p.oa == [w]
+
+
+class TestDownloadSplit:
+    """Download und Verarbeitung getrennt (Owner 05.10.): derselbe Filter, dieselben Pfade."""
+
+    def test_download_and_ingest_share_filter_and_paths(self):
+        import sys
+        sys.path.insert(0, ".")
+        from scripts import download_openalex as dl, ingest_openalex_snapshot as ing
+        assert dl.ing.keep_mask is ing.keep_mask
+        p = "openalex/data/parquet/works/updated_date=2026-09-22/part_0034.parquet"
+        assert dl.staged_path(p) == ing.staged_path(p)
+        assert ing.staged_path(p).name == "part_0034.parquet" and ing.staged_path(p).parent.name == "updated_date=2026-09-22"
+
+    def test_keep_mask_matches_keep_row(self):
+        import pyarrow as pa
+        from scripts import ingest_openalex_snapshot as ing
+        rows = [
+            {"type": "article", "is_paratext": False, "language": "en", "publication_year": 2020,
+             "abstract_inverted_index": '{"a":[0]}', "cited_by_count": 1},
+            {"type": "article", "is_paratext": False, "language": "en", "publication_year": 2020,
+             "abstract_inverted_index": '{"a":[0]}', "cited_by_count": 0},
+            {"type": "dataset", "is_paratext": False, "language": "en", "publication_year": 2025,
+             "abstract_inverted_index": '{"a":[0]}', "cited_by_count": 0},
+            {"type": "preprint", "is_paratext": False, "language": "en", "publication_year": 2025,
+             "abstract_inverted_index": '{"a":[0]}', "cited_by_count": 0},
+            {"type": "review", "is_paratext": False, "language": "de", "publication_year": 2025,
+             "abstract_inverted_index": '{"a":[0]}', "cited_by_count": 5},
+        ]
+        mask = ing.keep_mask(pa.Table.from_pylist(rows)).to_pylist()
+        assert mask == [ox.keep_row(r) for r in rows] == [True, False, False, True, False]
+
+    @pytest.mark.parametrize("now,runs", [("17:30", True), ("23:59", True), ("00:30", True), ("01:20", False),
+                                          ("09:00", False), ("16:59", False)])
+    def test_download_wrapper_window(self, now, runs, tmp_path):
+        import re
+        import subprocess
+        from pathlib import Path
+        src = (Path(__file__).resolve().parents[1] / "scripts" / "openalex_download.sh").read_text()
+        cond = re.search(r'if ! \{ (.*?) \}; then', src).group(1)
+        script = f'DL_START=17:00; DL_UNTIL=01:15; NOW={now}; if {cond} then echo yes; else echo no; fi'
+        out = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout.strip()
+        assert out == ("yes" if runs else "no")

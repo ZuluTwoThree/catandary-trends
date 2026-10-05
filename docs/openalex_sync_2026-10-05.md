@@ -153,3 +153,21 @@ des Ingests tragen `WHERE … IS DISTINCT FROM` (Zustand, Open-Access-Link, Risi
 Zurückziehung). Gemessen in einer zurückgerollten Transaktion an 15.996 Werken beim ersten Kontakt
 (`updated_date=2026-09-22/part_0042`): Rising Papers 14.412 geplant → 5.390 geschrieben (37 %),
 Open Access 11.195 → 2.139 (19 %) — hochgerechnet ~38 Mio. Zeilenversionen weniger im Nachholen.
+
+## 7. Download und Verarbeitung getrennt (Owner 05.10. nachts)
+
+Owner: „Ziel ist Download und Datenverarbeitung zu trennen. Download-Rate ist bis zu 500 Mbit/s auf FTTH."
+
+Gemessen an einem offenen Teilstück (0,85 GB): Streamen während der Verarbeitung zog 1,4 GB über das Netz
+und dauerte 184 s; Download am Stück 0,85 GB in 77 s (11 MB/s, ein Strom); Verarbeitung aus der lokalen
+Datei **29 s** (15 s Lesen, 14 s Datenbank, ohne Schreiben); vorgefilterte Ablage 0,125 GB = 15 %.
+
+Gebaut (dev):
+- `scripts/download_openalex.py` — lädt offene Teilstücke parallel (`--streams`), neueste zuerst, filtert mit
+  `ingest_openalex_snapshot.keep_mask` (derselbe Filter wie der Ingest), legt atomar unter
+  `/mnt/data-hdd/openalex_staging/<partition>/<part>.parquet` (+ `.json` mit Zeilenzahl des Originals) ab,
+  löscht die Rohdatei; Status `openalex_download_state` (additiv); Fenster/sanfter Halt wie der Ingest.
+- `scripts/openalex_download.sh` — Fenster 17:00–01:15 (vor dem Backup), Sperre, Laufprotokoll.
+- Ingest: liest abgelegte Teilstücke lokal, gibt sie nach erfolgreicher Verarbeitung frei; `--local-only`
+  verarbeitet nur Abgelegtes und meldet Ungeladenes als offen (kein vorzeitiges Abschließen).
+- Sync-Wrapper: `SYNC_LOCAL_ONLY=1` (Default).
