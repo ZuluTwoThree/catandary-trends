@@ -219,3 +219,10 @@ class TestDownloadSplit:
         script = f'DL_START={start}; DL_UNTIL={until}; NOW={now}\n{block}if in_window; then echo yes; else echo no; fi'
         out = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout.strip()
         assert out == ("yes" if runs else "no")
+
+
+def test_download_throttle_math():
+    from scripts import download_openalex as dl
+    assert dl.throttle_sleep(7_000_000, 0.5, 7.0) == pytest.approx(0.5)     # 7 MB in 0,5 s bei 7 MB/s → 0,5 s warten
+    assert dl.throttle_sleep(7_000_000, 2.0, 7.0) == 0.0
+    assert dl.throttle_sleep(1, 0.0, 0) == 0.0

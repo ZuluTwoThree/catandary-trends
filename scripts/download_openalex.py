@@ -45,6 +45,14 @@ STAGING = Path(os.getenv("OPENALEX_STAGING", "/mnt/data-hdd/openalex_staging"))
 TMP = Path(os.getenv("OPENALEX_DL_TMP", str(Path.home() / ".cache" / "catandary" / "openalex_dl")))
 NVME_MIN_FREE = 100e9
 HDD_MIN_FREE = 150e9
+# Bremse während des Nachtlaufs (Owner 06.10.: parallel zum Cycle nur, wenn unkritisch). Gemessen
+# 06.10. 01:20: die Leitung der Workstation liefert ~11,4 MB/s (≈ 92 Mbit/s) — gegen Hetzner wie gegen
+# S3, ein Strom wie vier; schon EIN Download füllt sie. Solange scheduled_cycle.sh läuft, laden alle
+# Ströme zusammen höchstens DL_CYCLE_MBS (Default 7 MB/s ≈ 60 %), damit Feed-Abruf und Volltexte des
+# Nachtlaufs Platz haben. Ohne Nachtlauf: ungebremst.
+DL_CYCLE_MBS = float(os.getenv("DL_CYCLE_MBS", "7"))
+CHUNK = 8 * 1024 * 1024
+CYCLE_PATTERN = "[s]cheduled_cycle[.]sh|[f]ull_cycle_cron[.]sh"
 
 DDL = """CREATE TABLE IF NOT EXISTS openalex_download_state (
     part          TEXT PRIMARY KEY,
@@ -72,7 +80,42 @@ def _init_worker() -> None:
         pass
 
 
-def download_part(part: str) -> tuple[str, dict, str]:
+_cycle_cache = {"t": 0.0, "on": False}
+
+
+def cycle_running() -> bool:
+    """Läuft gerade der Nachtlauf? (alle 30 s neu geprüft)"""
+    if time.time() - _cycle_cache["t"] > 30:
+        r = subprocess.run(["pgrep", "-f", CYCLE_PATTERN], capture_output=True, text=True)
+        _cycle_cache.update(t=time.time(), on=bool(r.stdout.strip()))
+    return _cycle_cache["on"]
+
+
+def throttle_sleep(nbytes: int, elapsed: float, limit_mbs: float) -> float:
+    """Wie lange warten, damit `nbytes` in `elapsed` Sekunden höchstens `limit_mbs` MB/s ergeben."""
+    if limit_mbs <= 0:
+        return 0.0
+    return max(0.0, nbytes / (limit_mbs * 1e6) - elapsed)
+
+
+def copy_throttled(src, dst, streams: int) -> None:
+    """Kopiert in 8-MB-Stücken; während des Nachtlaufs auf DL_CYCLE_MBS / streams je Strom gebremst."""
+    window_start, window_bytes = time.time(), 0
+    while True:
+        chunk = src.read(CHUNK)
+        if not chunk:
+            break
+        dst.write(chunk)
+        if cycle_running():
+            window_bytes += len(chunk)
+            wait_s = throttle_sleep(window_bytes, time.time() - window_start, DL_CYCLE_MBS / max(streams, 1))
+            if wait_s:
+                time.sleep(wait_s)
+        else:
+            window_start, window_bytes = time.time(), 0
+
+
+def download_part(part: str, streams: int = 1) -> tuple[str, dict, str]:
     """Am Stück laden → filtern/projizieren → atomar in die Ablage. Rohdatei danach weg."""
     import pyarrow.parquet as pq
     import s3fs
@@ -82,7 +125,10 @@ def download_part(part: str) -> tuple[str, dict, str]:
     st: dict = {}
     try:
         t0 = time.time()
-        s3fs.S3FileSystem(anon=True).get(part if part.startswith("openalex/") else "openalex/" + part, str(raw))
+        fs = s3fs.S3FileSystem(anon=True)
+        with fs.open(part if part.startswith("openalex/") else "openalex/" + part, "rb", block_size=CHUNK) as src, \
+                open(raw, "wb") as dst:
+            copy_throttled(src, dst, streams)
         st["dl_seconds"] = time.time() - t0
         st["raw_bytes"] = raw.stat().st_size
         t1 = time.time()
@@ -137,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
     import psycopg2
     import s3fs
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--streams", type=int, default=3, help="parallele Downloads")
+    ap.add_argument("--streams", type=int, default=2, help="parallele Downloads (die Leitung ist mit einem schon voll)")
     ap.add_argument("--until", help="HH:MM — danach keine neuen Downloads (über Mitternacht)")
     ap.add_argument("--window", help="HH:MM-HH:MM am selben Tag; außerhalb startet nichts")
     ap.add_argument("--redo-since", help="wie beim Ingest: v1-Teilstücke ab diesem Datum ebenfalls laden")
@@ -186,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
                     print("ABBRUCH: Platz-Wächter (NVMe < 100 GB oder HDD < 150 GB frei).", flush=True)
                     break
                 part = queue.pop(0)
-                inflight[ex.submit(download_part, part)] = part
+                inflight[ex.submit(download_part, part, args.streams)] = part
             if not inflight:
                 break
             finished, _ = wait(list(inflight), return_when=FIRST_COMPLETED)

@@ -985,6 +985,9 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 #     openalex_download_state. Der Ingest liest Abgelegtes lokal (--local-only, Wrapper-Default
 #     SYNC_LOCAL_ONLY=1) und gibt die Ablage danach frei. Gemessen: Verarbeitung aus lokaler Datei 29 s
 #     statt 184 s je Teilstück (ohne Schreiben); Download am Stück 0,85 statt 1,4 GB Netz je Teilstück.
+#   * Leitung gemessen 06.10.: ~11,4 MB/s (≈ 92 Mbit/s, nicht die 500 des Tarifs; NIC 1 Gbit/s) — DL_STREAMS 2,
+#     Bremse während des Nachtlaufs DL_CYCLE_MBS=7. OpenAlex-Releases: 2. Mittwoch Jan/Apr/Jul/Okt, dazwischen
+#     gelegentlich; nächster 14.10.2026 (Tabelle in docs/openalex_sync_2026-10-05.md §8).
 #   * Upserts nur bei echtem Unterschied (`WHERE … IS DISTINCT FROM`, Owner 05.10.): erster Kontakt schreibt
 #     Rising Papers 37 %, Open Access 19 % der geplanten Zeilen (gemessen, zurückgerollte Transaktion).
 #   * Gemessen 05.10. (2 Teilstücke, 135.469 Werke): neu 3,5 %, Text echt geändert 2,1 % der

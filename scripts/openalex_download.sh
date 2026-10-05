@@ -7,7 +7,8 @@
 #   17:00–18:55 (DL_START=17:00 DL_UNTIL=18:55) und 23:00–08:30 (DL_START=23:00 DL_UNTIL=08:30,
 #   vor der Verarbeitung 09:00–17:00). DL_UNTIL ist der letzte Start eines Downloads; laufende
 #   werden fertig (je Teilstück ~1–2 min). Ein Start außerhalb des Fensters tut nichts.
-# DL_STREAMS parallele Downloads (Default 4).
+# DL_STREAMS parallele Downloads (Default 2 — die Leitung liefert ~11 MB/s, schon einer füllt sie;
+# während des Nachtlaufs bremst download_openalex.py auf DL_CYCLE_MBS, Default 7 MB/s).
 # Einmalig: DL_REDO_SINCE=2026-10-05 lädt auch die am 05.10. mit v1 gelesenen Teilstücke.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -15,7 +16,7 @@ LOG="$HOME/logs/catandary-openalex-download-$(date +%Y%m%d).log"
 mkdir -p "$(dirname "$LOG")"
 DL_START="${DL_START:-23:00}"
 DL_UNTIL="${DL_UNTIL:-08:30}"
-DL_STREAMS="${DL_STREAMS:-4}"
+DL_STREAMS="${DL_STREAMS:-2}"
 DL_REDO_SINCE="${DL_REDO_SINCE:-}"
 {
   echo "================================================================"

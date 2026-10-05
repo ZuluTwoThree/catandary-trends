@@ -172,3 +172,33 @@ Gebaut (dev):
 - Ingest: liest abgelegte Teilstücke lokal, gibt sie nach erfolgreicher Verarbeitung frei; `--local-only`
   verarbeitet nur Abgelegtes und meldet Ungeladenes als offen (kein vorzeitiges Abschließen).
 - Sync-Wrapper: `SYNC_LOCAL_ONLY=1` (Default).
+
+**Durchsatztest 06.10. 00:30–01:20 (Owner-Auftrag):** 2 parallele Downloads 11,3 MB/s, 4 parallel 11,6 MB/s,
+8 parallel Zeitüberschreitungen (`FSTimeoutError`). Gegenprobe ohne Last: Hetzner-Speedtest (Nürnberg) und
+S3 je ~11,4 MB/s ≈ 92 Mbit/s, ein Strom wie vier — **die Leitung der Workstation liefert ~92 Mbit/s, nicht 500**;
+die Netzwerkkarte `enp4s0` ist mit 1000 Mb/s Vollduplex verbunden, der Engpass liegt dahinter (Switch/Router/
+Kabel/Tarif — vom Rechner aus nicht bestimmbar). Folgen: `DL_STREAMS` Default 2 (einer füllt die Leitung schon);
+**Bremse während des Nachtlaufs**: läuft `scheduled_cycle.sh`, laden alle Ströme zusammen höchstens
+`DL_CYCLE_MBS` (7 MB/s ≈ 60 %) — getestet 6,8 MB/s. Rückstand ~614 GB ≈ 15 h Download, also gut eine Nacht
+plus das Fenster 17–19 Uhr. Testfehler unterwegs: das Testskript startete nach einer überzogenen Stufe die
+nächste mit bereits verstrichenem `--until`, das dann als „morgen" galt; abgebrochen, Rohdateien gelöscht.
+
+## 8. OpenAlex-Release-Termine (aus `s3://openalex/RELEASE_NOTES.txt`, gelesen 06.10.2026)
+
+Öffentliche Snapshot-Releases: **zweiter Mittwoch im Januar, April, Juli und Oktober** (UTC); dazwischen
+gelegentlich weitere. Seit 2025-01-29 quartalsweise angekündigt, tatsächlich 2026 fast monatlich:
+
+| Release | Inhalt laut Release Notes |
+|---|---|
+| 2026-09-23 | „quarterly snapshot with bug fixes and improvements" — der Release, der ~87 % neu ausgab |
+| 2026-06-25 | Korrespondenzautoren überarbeitet, 57 M Werke mit corresponding_institution_ids, neue Förderer, **1,4 Mio. Abstracts wiederhergestellt** |
+| 2026-05-22 | Autoren-Bereinigung (2,6 M Profile), 16 neue Förderer, Topics an Awards |
+| 2026-04-29 | **PubMed-Bug abgeschnittener Abstracts behoben (7 M Werke)**, raw_orcid, Japan IRDB |
+| 2026-03-30 | 12,1 M Awards, 283 neue Repository-Endpunkte, Topics/Concepts verbessert |
+| 2026-02-25 | weitere Entitäten im Snapshot |
+| 2026-02-03, 2026-01-15 | Datenqualität |
+| 2025-11-12 | Wechsel auf das „Walden"-Datenmodell; enthält „xpac"-Datensätze, Works gesamt 463 M |
+| 2025-01-29 | 350 k Junk-Abstracts entfernt; ab hier „quartalsweise" |
+
+Nächster regulärer Termin: **Mittwoch 14.10.2026**. Der tägliche Sync (09:00–17:00) und der nächtliche
+Download nehmen ihn ohne Eingriff mit.
