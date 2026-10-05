@@ -29,6 +29,20 @@ mails nothing; --dry-run stays allowed and says that the release is missing.
 There is no flag to switch the gate off, by design. --force only overrides the
 already-sent check, never the release.
 
+Robustness (2026-10-05, issue #16 check):
+  * the subscriber list is synced from the webspace (scripts/sync_subscribers.py) right
+    before every send — fail closed: no sync, no send (an unsubscribe on the website must
+    never be missed locally);
+  * a per-recipient delivery log (newsletter_deliveries) — a failed batch no longer marks
+    the edition as sent; a rerun mails only the recipients still missing; `sent_at` is set
+    once everyone has it;
+  * transient Resend errors (connection reset, 429, 5xx) are retried three times with an
+    Idempotency-Key, so a retry never duplicates a mail;
+  * --test-to ADDR sends the real mail of an edition to ONE address (REVIEW_NOTIFY_TO or
+    NEWSLETTER_TEST_TO), subject "[TEST]", without release and without marking anything —
+    the owner reads the mail in a real inbox before pressing Release.
+
+    python -m pipeline.newsletter_sender --test-to owner@… --year 2026 --week 40
     python -m pipeline.newsletter_sender --dry-run          # latest edition
     python -m pipeline.newsletter_sender --latest           # send latest
     python -m pipeline.newsletter_sender --year 2026 --week 29
@@ -68,6 +82,14 @@ UNSUB_SECRET = os.getenv("NEWSLETTER_UNSUB_SECRET", "")
 UNSUB_MAILTO = os.getenv("NEWSLETTER_UNSUB_MAILTO", "contact@catandary.de")
 MIN_SECRET_LEN = 16  # same bar as frontend/src/lib/unsubscribe.ts
 BATCH = 100
+RETRIES = 3
+RESEND_URL = "https://api.resend.com"
+
+
+def test_addresses() -> set[str]:
+    """Who may receive a --test-to mail: the owner (REVIEW_NOTIFY_TO) or NEWSLETTER_TEST_TO."""
+    raw = os.getenv("NEWSLETTER_TEST_TO", "") + "," + os.getenv("REVIEW_NOTIFY_TO", "")
+    return {a.strip().lower() for a in raw.split(",") if "@" in a}
 
 
 def migrate() -> None:
@@ -83,6 +105,16 @@ def migrate() -> None:
                 conn.execute(f"ALTER TABLE newsletter_editions ADD COLUMN {col} {typ}")
             except Exception:
                 pass  # already exists
+    with get_connection() as conn:
+        # One row per edition and recipient (2026-10-05): resume after a partial failure,
+        # proof of delivery. Additive.
+        conn.execute("""CREATE TABLE IF NOT EXISTS newsletter_deliveries (
+                            edition_id   INTEGER NOT NULL,
+                            email        TEXT NOT NULL,
+                            delivered_at TIMESTAMP,
+                            resend_id    TEXT,
+                            error        TEXT,
+                            PRIMARY KEY (edition_id, email))""")
     ensure_approval_columns()
 
 
@@ -227,6 +259,87 @@ class NotReleased(RuntimeError):
     """Raised instead of sending an edition no person has released."""
 
 
+class SyncFailed(RuntimeError):
+    """The subscriber list could not be synced from the webspace — nothing is sent."""
+
+
+class _Retryable(Exception):
+    pass
+
+
+def sync_recipients() -> None:
+    """Pull confirmations/unsubscribes from the webspace (system of record) right before
+    a send. Raises SyncFailed — an unsubscribe there must never be missed here."""
+    try:
+        from scripts import sync_subscribers
+        rc = sync_subscribers.main()
+    except Exception as e:  # noqa: BLE001
+        raise SyncFailed(f"subscriber sync failed: {e!r}") from e
+    if rc != 0:
+        raise SyncFailed(f"subscriber sync failed (rc={rc})")
+
+
+def delivered_to(edition_id) -> set[str]:
+    with get_connection() as conn:
+        rows = conn.execute("SELECT email FROM newsletter_deliveries WHERE edition_id = ? "
+                            "AND delivered_at IS NOT NULL", (edition_id,)).fetchall()
+    return {r["email"] for r in rows}
+
+
+def record_deliveries(edition_id, emails: list[str], ids: list[str] | None, error: str | None) -> None:
+    with get_connection() as conn:
+        for n, e in enumerate(emails):
+            rid = ids[n] if ids and n < len(ids) else None
+            conn.execute("DELETE FROM newsletter_deliveries WHERE edition_id = ? AND email = ?", (edition_id, e))
+            conn.execute("INSERT INTO newsletter_deliveries (edition_id, email, delivered_at, resend_id, error) "
+                         "VALUES (?, ?, " + ("CURRENT_TIMESTAMP" if not error else "NULL") + ", ?, ?)",
+                         (edition_id, e, rid, error))
+
+
+def idempotency_key(kind: str, edition_id, emails: list[str]) -> str:
+    return f"{kind}-{edition_id}-" + hashlib.sha256(",".join(sorted(emails)).encode()).hexdigest()[:32]
+
+
+def post_resend(client, path: str, payload, key: str):
+    """POST to Resend with retries on connection errors, 429 and 5xx. The Idempotency-Key
+    makes a retry after an ambiguous failure (reset after the server got it) harmless."""
+    last: Exception | None = None
+    for attempt in range(RETRIES):
+        try:
+            r = client.post(f"{RESEND_URL}{path}", json=payload,
+                            headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Idempotency-Key": key})
+            if r.status_code == 429 or r.status_code >= 500:
+                raise _Retryable(f"HTTP {r.status_code}")
+            r.raise_for_status()
+            return r.json()
+        except (httpx.TransportError, _Retryable) as e:
+            last = e
+            logger.warning("  Resend %s attempt %d/%d failed: %r", path, attempt + 1, RETRIES, e)
+            if attempt + 1 < RETRIES:
+                time.sleep(2 * (2 ** attempt))
+    raise RuntimeError(f"Resend {path} failed after {RETRIES} attempts: {last!r}")
+
+
+def send_test(edition: dict, address: str) -> str:
+    """The real mail of `edition` to ONE allow-listed address, subject [TEST]. No release
+    needed (this IS the reading before the release), nothing is marked as sent."""
+    if not unsubscribe_configured():
+        raise RuntimeError("NEWSLETTER_UNSUB_SECRET not set — refusing to render")
+    addr = (address or "").strip().lower()
+    allowed = test_addresses()
+    if addr not in allowed:
+        raise ValueError("test address must be REVIEW_NOTIFY_TO or listed in NEWSLETTER_TEST_TO")
+    if not RESEND_API_KEY:
+        raise RuntimeError("RESEND_API_KEY not set — cannot send")
+    subject = f"[TEST] Catandary Trends — Week {edition.get('week')}/{edition.get('year')}"
+    msg = build_message(addr, subject, generate_html(edition))
+    with httpx.Client(timeout=30) as client:
+        res = post_resend(client, "/emails", msg,
+                          idempotency_key(f"test{int(time.time())}", edition.get("id"), [addr]))
+    logger.info("test mail of %s-W%s sent (id %s)", edition.get("year"), edition.get("week"), res.get("id"))
+    return res.get("id") or ""
+
+
 def send_edition(edition: dict, dry_run: bool, force: bool) -> int:
     if not unsubscribe_configured():
         # Refuse even the dry run: its whole point is "would this send work?"
@@ -247,7 +360,17 @@ def send_edition(edition: dict, dry_run: bool, force: bool) -> int:
         logger.info("edition %s-W%s already sent at %s — skipping (use --force)",
                     edition.get("year"), edition.get("week"), edition["sent_at"])
         return 0
+    try:
+        sync_recipients()
+    except SyncFailed as e:
+        if not dry_run:
+            raise
+        logger.warning("%s — DRY RUN counts the local list without the latest webspace state", e)
     recipients = confirmed_subscribers()
+    done_already = set() if force else delivered_to(edition["id"])
+    if done_already:
+        logger.info("%d recipient(s) already have this edition — sending only to the rest", len(done_already))
+    recipients = [r for r in recipients if r not in done_already]
     subject = f"Catandary Trends — Week {edition.get('week')}/{edition.get('year')}"
     logger.info("edition %s-W%s: %d confirmed subscribers%s",
                 edition.get("year"), edition.get("week"), len(recipients),
@@ -274,28 +397,36 @@ def send_edition(edition: dict, dry_run: bool, force: bool) -> int:
         logger.error("RESEND_API_KEY not set — cannot send")
         return 0
 
-    sent = 0
+    sent = failed = 0
     with httpx.Client(timeout=30) as client:
         for i in range(0, len(recipients), BATCH):
             chunk = recipients[i:i + BATCH]
             payload = [build_message(email, subject, base_html) for email in chunk]
             try:
-                r = client.post("https://api.resend.com/emails/batch",
-                                headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-                                json=payload)
-                r.raise_for_status()
+                res = post_resend(client, "/emails/batch", payload,
+                                  idempotency_key("batch", edition["id"], chunk))
+                ids = [x.get("id") for x in (res.get("data") or [])]
+                record_deliveries(edition["id"], chunk, ids, None)
                 sent += len(chunk)
                 logger.info("  batch %d-%d sent", i, i + len(chunk))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
+                record_deliveries(edition["id"], chunk, None, str(e)[:300])
+                failed += len(chunk)
                 logger.error("  batch %d failed: %r", i, e)
             time.sleep(0.5)  # gentle on the API
 
+    total = len(delivered_to(edition["id"]))
+    if failed:
+        # Do NOT mark the edition as sent: a rerun mails only the recipients still missing.
+        logger.error("edition %s-W%s: %d delivered now, %d FAILED — not marked as sent; "
+                     "rerun to deliver the rest", edition.get("year"), edition.get("week"), sent, failed)
+        return sent
     with get_connection() as conn:
         conn.execute(
             "UPDATE newsletter_editions SET sent_at = CURRENT_TIMESTAMP, "
-            "recipients_count = ? WHERE id = ?", (sent, edition["id"]))
-    logger.info("edition %s-W%s sent to %d recipients",
-                edition.get("year"), edition.get("week"), sent)
+            "recipients_count = ? WHERE id = ?", (total, edition["id"]))
+    logger.info("edition %s-W%s sent to %d recipients (%d in total)",
+                edition.get("year"), edition.get("week"), sent, total)
     return sent
 
 
@@ -319,9 +450,22 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true",
                     help="render + count recipients, do not send")
     ap.add_argument("--force", action="store_true", help="resend even if already sent")
+    ap.add_argument("--test-to", metavar="ADDR",
+                    help="send the real mail to ONE allow-listed address ([TEST], no release needed, marks nothing)")
     args = ap.parse_args()
 
     migrate()
+    if args.test_to:
+        edition = get_edition(args.year, args.week)
+        if not edition:
+            logger.error("no matching edition found")
+            return 1
+        try:
+            send_test(edition, args.test_to)
+        except (ValueError, RuntimeError) as e:
+            logger.error("%s", e)
+            return 1
+        return 0
     if not (args.latest or (args.year and args.week) or args.dry_run):
         ap.error("need --latest, --dry-run, or --year+--week")
     if not unsubscribe_configured():
@@ -338,7 +482,11 @@ def main() -> int:
         logger.error("nothing sent. Open /trends/newsletter/review, read the "
                      "edition and press Release; --dry-run works meanwhile.")
         return 2
-    send_edition(edition, dry_run=args.dry_run, force=args.force)
+    try:
+        send_edition(edition, dry_run=args.dry_run, force=args.force)
+    except SyncFailed as e:
+        logger.error("%s — nothing sent", e)
+        return 3
     return 0
 
 

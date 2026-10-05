@@ -1269,8 +1269,20 @@ liegt (`unsubscribe.php`, `_lib.php`, `nl_config.php` Block 5 = `NEWSLETTER_UNSU
 Cron 08:30 vorbereitet) die bestätigten Adressen aus dem Hetzner-MySQL in
 `newsletter_subscribers` zieht, (3) die Links in den Mails auf `catandary.de` zeigen. Restliste:
 `docs/launch/newsletter-doi-php/NEWSLETTER_GOLIVE.md`. Sender testen:
-`python -m pipeline.newsletter_sender --latest --dry-run` (rendert, zählt
-Empfänger, sendet nicht). Der Wrapper erzeugt eine **frische** Edition — die ist
+`python -m pipeline.newsletter_sender --latest --dry-run` (holt die Abonnentenliste vom
+Webspace, rendert, zählt Empfänger, sendet nicht).
+
+**Seit 2026-10-05 (Prüfung #16):**
+- **Testmail an dich:** `python -m pipeline.newsletter_sender --year 2026 --week 40 --test-to <REVIEW_NOTIFY_TO>`
+  schickt die echte Mail mit Betreff `[TEST]` an genau eine Adresse (nur `REVIEW_NOTIFY_TO` oder
+  `NEWSLETTER_TEST_TO`), ohne Freigabe und ohne die Edition als versendet zu markieren — so liest
+  du die Mail im eigenen Postfach, bevor du freigibst.
+- **Abgleich vor jedem Versand:** der Sender holt Bestätigungen und Abmeldungen vom Webspace
+  (`scripts/sync_subscribers.py`); schlägt das fehl, wird nicht gesendet (Exit 3).
+- **Zustellprotokoll** `newsletter_deliveries` (je Edition und Empfänger): scheitert ein Teil,
+  bleibt die Edition „nicht versendet", ein zweiter Lauf schickt nur an die Fehlenden.
+- **Wiederholung:** Verbindungsfehler, 429 und 5xx werden dreimal mit Idempotency-Key wiederholt —
+  keine doppelten Mails. Der Wrapper erzeugt eine **frische** Edition — die ist
 naturgemäß noch nicht freigegeben, sein Versandschritt endet also mit `send=2`
 und einem Hinweis im Log. Das ist die vorgesehene Reihenfolge (erzeugen → lesen
 → freigeben → senden), kein Fehler.

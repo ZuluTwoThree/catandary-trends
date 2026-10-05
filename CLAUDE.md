@@ -1147,7 +1147,7 @@ freigegeben hat. `newsletter_editions` trägt dafür `approved_at`/`approved_by`
 Live-DB 2026-09-06); `pipeline/newsletter_sender.py` bricht ohne `approved_at`
 mit **Exit 2** ab (auch bei `--latest`; `--force` öffnet das Gate nicht, einen
 Abschalter gibt es bewusst nicht), `--dry-run` bleibt erlaubt und warnt, dass die
-Freigabe fehlt. Freigegeben wird auf **`/trends/newsletter/review`**: Editionsliste
+Freigabe fehlt. **Sender-Robustheit seit 2026-10-05 (Prüfung #16, auf dev):** Abgleich mit dem Webspace vor jedem Versand (fail closed, Exit 3), Zustellprotokoll `newsletter_deliveries` (Teilfehler → Edition bleibt unversendet, Wiederholung nur an Fehlende), Resend-Wiederholungen mit Idempotency-Key, `--test-to` (echte Mail an `REVIEW_NOTIFY_TO`/`NEWSLETTER_TEST_TO`, ohne Freigabe, markiert nichts); `review_notify.send` wiederholt ebenfalls (05.10. ging die Morgen-Mail an einem Verbindungsreset verloren). Freigegeben wird auf **`/trends/newsletter/review`**: Editionsliste
 mit Status (Entwurf/freigegeben/versendet), Vorschau **der echten Mail** (die Seite
 ruft `python -m pipeline.newsletter_preview` und zeigt das gelieferte HTML — ein
 Renderer für Mail und Vorschau, `render_email_html()`), Freigabe mit optionaler

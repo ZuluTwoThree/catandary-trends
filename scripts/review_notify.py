@@ -25,6 +25,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import time
+
 import httpx
 
 from pipeline.db import get_connection
@@ -308,19 +310,36 @@ def send(subject: str, body_html: str, text: str) -> bool:
     if not TO_ADDR:
         logger.error("REVIEW_NOTIFY_TO not set — cannot send (recipient of the owner mails lives in .env)")
         return False
-    try:
-        r = httpx.post(
-            "https://api.resend.com/emails",
-            headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-            json={"from": FROM_ADDR, "to": [TO_ADDR], "subject": subject,
-                  "html": body_html, "text": text},
-            timeout=20,
-        )
-        r.raise_for_status()
-        return True
-    except Exception as e:  # noqa: BLE001
-        logger.error("send failed: %r", e)
-        return False
+    # Drei Versuche mit Idempotency-Key (2026-10-05): die Morgen-Mail ging an diesem Tag
+    # zweimal an einem Verbindungsreset am Cloudflare-Rand vor Resend verloren, der dritte
+    # Versuch eine halbe Stunde später kam durch. Der Schlüssel (Betreff + Text) macht einen
+    # Wiederholungsversuch nach einem mehrdeutigen Fehler harmlos — keine doppelte Mail.
+    import hashlib
+    key = "notify-" + hashlib.sha256((subject + "\n" + text).encode("utf-8")).hexdigest()[:32]
+    for attempt in range(3):
+        try:
+            r = httpx.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Idempotency-Key": key},
+                json={"from": FROM_ADDR, "to": [TO_ADDR], "subject": subject,
+                      "html": body_html, "text": text},
+                timeout=20,
+            )
+            if r.status_code == 429 or r.status_code >= 500:
+                raise httpx.HTTPStatusError(f"HTTP {r.status_code}", request=r.request, response=r)
+            r.raise_for_status()
+            return True
+        except (httpx.TransportError, httpx.HTTPStatusError) as e:
+            retryable = isinstance(e, httpx.TransportError) or e.response.status_code in (429,) or e.response.status_code >= 500
+            logger.warning("send attempt %d/3 failed: %r", attempt + 1, e)
+            if not retryable or attempt == 2:
+                logger.error("send failed: %r", e)
+                return False
+            time.sleep(5 * (attempt + 1))
+        except Exception as e:  # noqa: BLE001
+            logger.error("send failed: %r", e)
+            return False
+    return False
 
 
 def main() -> int:

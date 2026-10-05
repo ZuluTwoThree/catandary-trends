@@ -207,7 +207,7 @@ class TestReleaseGate:
         """No opt-out option may exist — a switch would get used."""
         m = _mod(monkeypatch)
         flags = re.findall(r'add_argument\(\s*"(--[a-z-]+)"', Path(m.__file__).read_text())
-        assert flags == ["--latest", "--year", "--week", "--dry-run", "--force"]
+        assert flags == ["--latest", "--year", "--week", "--dry-run", "--force", "--test-to"]
 
     def _run_main(self, monkeypatch, edition, argv):
         m = _mod(monkeypatch)
@@ -263,3 +263,124 @@ class TestPreviewRenderer:
         m = _mod(monkeypatch)
         from pipeline.newsletter_generator import AI_DISCLOSURE_EN
         assert AI_DISCLOSURE_EN in m.render_email_html(self.EDITION)
+
+
+# --- robustness (2026-10-05, issue #16 check) ------------------------------------
+
+class _FakeConn:
+    def __init__(self, log):
+        self.log = log
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def execute(self, sql, params=()):
+        self.log.append((sql, params))
+        return self
+
+
+def _wired(monkeypatch, recipients, delivered=(), fail_batches=0, sync_ok=True):
+    """Sender with every outside effect replaced by a recorder."""
+    m = _mod(monkeypatch)
+    monkeypatch.setattr(m, "RESEND_API_KEY", "re_test")
+    calls = {"posts": [], "recorded": [], "sql": [], "sync": 0}
+    state = {"delivered": set(delivered), "fail": fail_batches}
+
+    def sync():
+        calls["sync"] += 1
+        if not sync_ok:
+            raise m.SyncFailed("export.php unreachable")
+
+    def post(client, path, payload, key):
+        calls["posts"].append((path, [x["to"][0] for x in payload] if isinstance(payload, list) else payload["to"], key))
+        if state["fail"]:
+            state["fail"] -= 1
+            raise RuntimeError("Resend down")
+        return {"data": [{"id": f"id{n}"} for n in range(len(payload))]} if isinstance(payload, list) else {"id": "t1"}
+
+    def record(eid, emails, ids, err):
+        calls["recorded"].append((list(emails), err))
+        if not err:
+            state["delivered"].update(emails)
+
+    monkeypatch.setattr(m, "sync_recipients", sync)
+    monkeypatch.setattr(m, "confirmed_subscribers", lambda: list(recipients))
+    monkeypatch.setattr(m, "delivered_to", lambda eid: set(state["delivered"]))
+    monkeypatch.setattr(m, "record_deliveries", record)
+    monkeypatch.setattr(m, "post_resend", post)
+    monkeypatch.setattr(m, "generate_html", lambda ed: "<p>{{UNSUBSCRIBE_URL}}</p>")
+    monkeypatch.setattr(m, "get_connection", lambda: _FakeConn(calls["sql"]))
+    monkeypatch.setattr(m.time, "sleep", lambda s: None)
+    return m, calls
+
+
+RELEASED = {"id": 40, "year": 2026, "week": 40, "approved_at": "2026-10-06 08:00:00", "approved_by": "owner"}
+
+
+class TestRobustDelivery:
+    def test_sync_runs_before_send_and_failure_blocks_it(self, monkeypatch):
+        m, calls = _wired(monkeypatch, ["a@x.de"], sync_ok=False)
+        with pytest.raises(m.SyncFailed):
+            m.send_edition(dict(RELEASED), dry_run=False, force=False)
+        assert calls["posts"] == [] and calls["sync"] == 1
+
+    def test_partial_failure_does_not_mark_sent_and_rerun_sends_only_the_rest(self, monkeypatch):
+        many = [f"u{n}@x.de" for n in range(150)]          # zwei Batches
+        m, calls = _wired(monkeypatch, many, fail_batches=0)
+        # erster Batch klappt, zweiter scheitert
+        orig = m.post_resend
+
+        def flaky(client, path, payload, key, _n=[0]):
+            _n[0] += 1
+            if _n[0] == 2:
+                calls["posts"].append((path, [x["to"][0] for x in payload], key))
+                raise RuntimeError("Resend down")
+            return orig(client, path, payload, key)
+        monkeypatch.setattr(m, "post_resend", flaky)
+        m.send_edition(dict(RELEASED), dry_run=False, force=False)
+        assert not any("sent_at" in sql for sql, _ in calls["sql"])
+        calls["posts"].clear()
+        monkeypatch.setattr(m, "post_resend", orig)
+        m.send_edition(dict(RELEASED), dry_run=False, force=False)
+        assert [len(p[1]) for p in calls["posts"]] == [50]               # nur die 50 fehlenden
+        assert any("sent_at" in sql for sql, _ in calls["sql"])
+
+    def test_idempotency_key_is_stable_per_batch(self, monkeypatch):
+        m = _mod(monkeypatch)
+        k1 = m.idempotency_key("batch", 40, ["b@x.de", "a@x.de"])
+        assert k1 == m.idempotency_key("batch", 40, ["a@x.de", "b@x.de"])
+        assert k1 != m.idempotency_key("batch", 41, ["a@x.de", "b@x.de"])
+
+    def test_post_resend_retries_transport_errors_with_the_same_key(self, monkeypatch):
+        m = _mod(monkeypatch)
+        import httpx
+        monkeypatch.setattr(m.time, "sleep", lambda s: None)
+        seen = []
+
+        class Client:
+            def __init__(self):
+                self.n = 0
+
+            def post(self, url, json, headers):
+                seen.append(headers["Idempotency-Key"])
+                self.n += 1
+                if self.n < 3:
+                    raise httpx.ConnectError("Connection reset by peer")
+                return httpx.Response(200, json={"id": "ok"}, request=httpx.Request("POST", url))
+        assert m.post_resend(Client(), "/emails", {"to": ["a@x.de"]}, "k-1") == {"id": "ok"}
+        assert seen == ["k-1", "k-1", "k-1"]
+
+    def test_test_to_needs_no_release_marks_nothing_and_only_allowlisted(self, monkeypatch):
+        monkeypatch.setenv("REVIEW_NOTIFY_TO", "owner@x.de")
+        monkeypatch.delenv("NEWSLETTER_TEST_TO", raising=False)
+        m, calls = _wired(monkeypatch, ["a@x.de", "b@x.de"])
+        unreleased = {"id": 40, "year": 2026, "week": 40}
+        assert m.send_test(unreleased, "Owner@X.de ") == "t1"
+        path, to, _ = calls["posts"][0]
+        assert path == "/emails" and to == ["owner@x.de"]
+        assert calls["sql"] == [] and calls["recorded"] == []
+        with pytest.raises(ValueError):
+            m.send_test(unreleased, "a@x.de")                             # Abonnent, nicht freigegeben
