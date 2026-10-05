@@ -964,8 +964,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Radare + TIR-/SPNP-Forschungsläufe bewusst NICHT im Cron (Owner: on-demand).
 45 6 * * 2   scripts/weekly_patent_analytics.sh
 
-# OpenAlex-Sync (#80). INSTALLIERT ist noch `0 2 5 * *` (5. des Monats 02:00) mit dem ALTEN Code;
-# auf dev seit 05.10.2026 v2 (scharf erst mit dem main-Merge + Crontab `0 9 * * *`):
+# OpenAlex-Sync (#80). v2 seit dem main-Merge 05.10.2026 23:05 (installiert `0 9 * * *`, vorher `0 2 5 * *`):
 #   * EIN Lesedurchgang je Teilstück (pipeline/openalex_sync.py + scripts/ingest_openalex_snapshot.py):
 #     neue Werke → research_corpus; echt geänderte Texte (bereinigter/vervollständigter Abstract,
 #     wiederhergestellte Umlaute) → Zeile neu; Kürzung zum Anfangsstück und Titel-Untertitel-Verlust
@@ -983,11 +982,12 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 #     vorhandenen, gekürzt behalten 0,4 %; zweites Lesen desselben Teilstücks schreibt 0 Zeilen.
 # 05.10.2026: OpenAlex hat ~87 % des Bestands neu ausgegeben; v1 lief 18 h, Export-Build scheiterte am
 # Timeout; Owner ließ ihn ~20:00 anhalten (1.198/1.375 mit v1, ~1,5 Mio. neue Werke, Zitations-Updates
-# verworfen). NACHHOLEN mit v2: transienter User-Timer `catandary-openalex-catchup` (täglich 09:00,
-# dev-Worktree, SYNC_WORKERS=3, SYNC_REDO_SINCE=2026-10-05 → liest die v1-Teilstücke mit v2 neu,
-# SYNC_WAIT_MAX_MIN=600). Nach dem main-Merge + Crontab-Umstellung: `systemctl --user stop
-# catandary-openalex-catchup.timer`. Befund: docs/openalex_sync_2026-10-05.md.
-0 2 5 * *    scripts/sync_openalex_monthly.sh
+# verworfen). NACHHOLEN mit v2 über die installierte Cron-Zeile selbst (Env SYNC_REDO_SINCE=2026-10-05
+# SYNC_WORKERS=3 SYNC_WAIT_MAX_MIN=600 → liest die v1-Teilstücke mit v2 neu); Erwartung zwei Tages-
+# fenster (gemessen/hochgerechnet: ~28 h mit 3 Prozessen). Nach Abschluss die Env aus der Zeile nehmen.
+# Der transiente dev-Timer `catandary-openalex-catchup` ist seit dem Merge gestoppt.
+# Befund + Zeitvergleich alter/neuer Weg: docs/openalex_sync_2026-10-05.md.
+0 9 * * *    SYNC_REDO_SINCE=2026-10-05 SYNC_WORKERS=3 SYNC_WAIT_MAX_MIN=600 scripts/sync_openalex_monthly.sh
 
 # Nicht-RSS-Ingester wöchentlich (Samstag 06:00, seit 2026-08-09; 05:00→06:00 am 2026-08-29 entzerrt): Preprints
 # (arXiv/bioRxiv/medRxiv, 14-Tage-Fenster) + Funding (NSF/NIH/OpenAIRE/UKRI,

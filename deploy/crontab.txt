@@ -33,7 +33,10 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # nach dem S3-Listing fertig. Wartet, solange Nachtlauf/Patent-Jobs/Startup-Register/Ingester/
 # Publish/Backup laufen. Bis 05.10.2026: 5. des Monats 02:00 am Stück — am 05.10. 18 h Last,
 # Export-Build scheiterte (docs/openalex_sync_2026-10-05.md).
-0 9 * * * [ -x /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh ] && /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh || echo "$(date -Iseconds) skip sync_openalex (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-openalex-skip.log
+# Nachholen (installiert 05.10.2026 23:07 mit dem main-Merge): die Env-Variablen lesen die am 05.10.
+# mit v1 gelesenen Teilstücke mit v2 neu (3 Arbeitsprozesse, bis 10 h Warten auf die Morgen-Crons).
+# Nach Abschluss (data/openalex_sync_last.json: remaining 0, Schritte 2–5 gelaufen) entfernen.
+0 9 * * * [ -x /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh ] && SYNC_REDO_SINCE=2026-10-05 SYNC_WORKERS=3 SYNC_WAIT_MAX_MIN=600 /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh || echo "$(date -Iseconds) skip sync_openalex (Skript fehlt)" >> /home/dirk/logs/catandary-openalex-skip.log
 
 # Wächter (seit 2026-08-17): meldet per Mail, wenn der Nachtlauf keine
 # end-Zeile mit Exit-Code geschrieben hat. Der Wrapper schreibt sie als

@@ -125,3 +125,21 @@ Daten robuster, sparsamer und mehrwertstiftend einfließen." Gebaut auf `dev`:
   `SYNC_REDO_SINCE=2026-10-05`): 174 offene + ~1.198 mit v1 gelesene Teilstücke. Erwartung: zwei
   bis drei Fenster. Danach Schritte 2–5 (Aggregate, Archiv-Extrakt, Statistik) automatisch.
 - **Nicht umgesetzt:** Backlog-Messung des Ops-Samplers und Wiederholung des Export-Builds (eigene Punkte).
+
+## 6. Zeitvergleich alter/neuer Weg (gemessen 05.10. abends) und Merge
+
+Gemessen je Schritt an einem typischen Teilstück (328.042 Zeilen, 0,86 GB; Archiv-Extrakt an einer
+Datei mit 22.993 Zeilen), linear auf die Zeilen hochgerechnet (±30 %).
+
+| je Teilstück, Rechensekunden eines Prozesses | alt | v2 erster Kontakt | v2 ab dem nächsten Release |
+|---|---|---|---|
+| Lesen + Vergleichen | 247 | 229 | 143 |
+| Schritte 2 + 4 (zwei weitere S3-Durchgänge mit JOIN aller Zeilen) | 125 | 0 | 0 |
+| Schritt 3 (Archiv-Extrakt) | 9 | ~1 | ~1 |
+| Summe | 381 | 230 (−40 %) | 144 (−62 %) |
+
+Restarbeit dieses Monats (1.372 Teilstücke, ~439 Mio. Zeilen): alter Weg zu Ende ~18 h (4 Prozesse,
+am Stück; verwirft Zitationen/Korrekturen/Zurückziehungen), v2-Nachholen ~28 h (3 Prozesse, in
+Fenstern). v2 braucht diesmal länger, weil es die 1.198 schon mit v1 gelesenen Teilstücke neu liest.
+Owner-Entscheid 05.10.: v2. **Merge nach main 05.10. 23:05**, Crontab `0 9 * * *` mit Nachhol-Env
+installiert, dev-Timer gestoppt.
