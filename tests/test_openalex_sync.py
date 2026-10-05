@@ -204,14 +204,18 @@ class TestDownloadSplit:
         mask = ing.keep_mask(pa.Table.from_pylist(rows)).to_pylist()
         assert mask == [ox.keep_row(r) for r in rows] == [True, False, False, True, False]
 
-    @pytest.mark.parametrize("now,runs", [("17:30", True), ("23:59", True), ("00:30", True), ("01:20", False),
-                                          ("09:00", False), ("16:59", False)])
-    def test_download_wrapper_window(self, now, runs, tmp_path):
+    @pytest.mark.parametrize("start,until,now,runs", [
+        ("17:00", "18:55", "17:30", True), ("17:00", "18:55", "18:55", False), ("17:00", "18:55", "19:30", False),
+        ("17:00", "18:55", "10:00", False), ("23:00", "08:30", "22:59", False), ("23:00", "08:30", "23:00", True),
+        ("23:00", "08:30", "01:20", True), ("23:00", "08:30", "08:29", True), ("23:00", "08:30", "09:00", False),
+        ("23:00", "08:30", "20:00", False)])
+    def test_download_wrapper_window(self, start, until, now, runs):
+        """19:00–23:00 bleibt die Leitung frei (Owner 06.10.)."""
         import re
         import subprocess
         from pathlib import Path
         src = (Path(__file__).resolve().parents[1] / "scripts" / "openalex_download.sh").read_text()
-        cond = re.search(r'if ! \{ (.*?) \}; then', src).group(1)
-        script = f'DL_START=17:00; DL_UNTIL=01:15; NOW={now}; if {cond} then echo yes; else echo no; fi'
+        block = re.search(r"(  if \[ \"\$DL_START\" .*?\n  fi\n)", src, re.S).group(1)
+        script = f'DL_START={start}; DL_UNTIL={until}; NOW={now}\n{block}if in_window; then echo yes; else echo no; fi'
         out = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout.strip()
         assert out == ("yes" if runs else "no")

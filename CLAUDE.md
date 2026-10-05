@@ -980,7 +980,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 #     ~/.local/state/catandary/openalex_sync.lock, wartet bis SYNC_WAIT_MAX_MIN auf Nachtlauf/Patent-
 #     Jobs/Startup-Register/Ingester/Publish/Backup. Ohne neue Teilstücke nach dem S3-Listing fertig.
 #   * DOWNLOAD GETRENNT (Owner 05.10. nachts, auf dev): scripts/download_openalex.py + openalex_download.sh
-#     laden nachts (17:00–01:15) am Stück, filtern mit DEMSELBEN Filter (ingest.keep_mask) auf behaltene
+#     laden in zwei Fenstern 17:00–18:55 und 23:00–08:30 (19–23 Uhr bleibt die Leitung frei, Owner 06.10.) am Stück, filtern mit DEMSELBEN Filter (ingest.keep_mask) auf behaltene
 #     Zeilen + benötigte Spalten (gemessen 15 % der Größe) → /mnt/data-hdd/openalex_staging; Status
 #     openalex_download_state. Der Ingest liest Abgelegtes lokal (--local-only, Wrapper-Default
 #     SYNC_LOCAL_ONLY=1) und gibt die Ablage danach frei. Gemessen: Verarbeitung aus lokaler Datei 29 s

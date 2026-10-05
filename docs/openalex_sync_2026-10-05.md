@@ -167,7 +167,8 @@ Gebaut (dev):
   `ingest_openalex_snapshot.keep_mask` (derselbe Filter wie der Ingest), legt atomar unter
   `/mnt/data-hdd/openalex_staging/<partition>/<part>.parquet` (+ `.json` mit Zeilenzahl des Originals) ab,
   löscht die Rohdatei; Status `openalex_download_state` (additiv); Fenster/sanfter Halt wie der Ingest.
-- `scripts/openalex_download.sh` — Fenster 17:00–01:15 (vor dem Backup), Sperre, Laufprotokoll.
+- `scripts/openalex_download.sh` — zwei Fenster 17:00–18:55 und 23:00–08:30 (Owner 06.10.: zwischen 19 und 23 Uhr
+  bleibt die Leitung frei), Sperre, Laufprotokoll.
 - Ingest: liest abgelegte Teilstücke lokal, gibt sie nach erfolgreicher Verarbeitung frei; `--local-only`
   verarbeitet nur Abgelegtes und meldet Ungeladenes als offen (kein vorzeitiges Abschließen).
 - Sync-Wrapper: `SYNC_LOCAL_ONLY=1` (Default).
