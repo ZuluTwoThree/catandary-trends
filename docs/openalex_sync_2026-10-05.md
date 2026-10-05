@@ -143,3 +143,7 @@ am Stück; verwirft Zitationen/Korrekturen/Zurückziehungen), v2-Nachholen ~28 h
 Fenstern). v2 braucht diesmal länger, weil es die 1.198 schon mit v1 gelesenen Teilstücke neu liest.
 Owner-Entscheid 05.10.: v2. **Merge nach main 05.10. 23:05**, Crontab `0 9 * * *` mit Nachhol-Env
 installiert, dev-Timer gestoppt.
+
+**Nachtrag 05.10. 23:30 (Owner):** Der Sync läuft nur noch **09:00–17:00** (`SYNC_WINDOW`, gleicher Tag;
+außerhalb startet nichts, Schritte 2–5 nur bis 16:00). Das Nachholen braucht damit vier statt zwei
+Tagesfenster — Erwartung: fertig gegen Ende der Woche.

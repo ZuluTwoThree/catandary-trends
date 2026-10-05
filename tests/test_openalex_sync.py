@@ -82,6 +82,14 @@ class TestHelpers:
         assert not ox.keep_row(base | {"language": "de"})
         assert not ox.keep_row(base | {"abstract_inverted_index": None})
 
+    def test_window_is_same_day_and_never_wraps(self):
+        assert ox.window_end("09:00-17:00", datetime(2026, 10, 6, 10, 0)) == (True, datetime(2026, 10, 6, 17, 0))
+        assert ox.window_end("09:00-17:00", datetime(2026, 10, 6, 17, 5))[0] is False   # nach dem Warten zu spät
+        assert ox.window_end("09:00-17:00", datetime(2026, 10, 6, 8, 59))[0] is False
+        assert ox.window_end(None) == (True, None)
+        with pytest.raises(ValueError):
+            ox.window_end("17:00-09:00")
+
     def test_deadline_wraps_midnight(self):
         assert ox.deadline("00:30", datetime(2026, 10, 6, 9, 0)) == datetime(2026, 10, 7, 0, 30)
         assert ox.deadline("23:00", datetime(2026, 10, 6, 9, 0)) == datetime(2026, 10, 6, 23, 0)

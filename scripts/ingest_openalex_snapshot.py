@@ -30,7 +30,7 @@ Statusdatei: data/openalex_sync_last.json; Marker data/openalex_sync_finalize_pe
 etwas verarbeitet wurde (der Wrapper baut dann die Aggregate).
 
     python scripts/ingest_openalex_snapshot.py --dry-run --max-files 2        # nur zählen
-    python scripts/ingest_openalex_snapshot.py --workers 2 --until 00:30      # Fensterlauf
+    python scripts/ingest_openalex_snapshot.py --workers 2 --window 09:00-17:00   # Fensterlauf
     python scripts/ingest_openalex_snapshot.py --redo-since 2026-10-05        # v1-Teilstücke dieses
                                                                               # Datums mit v2 nachholen
 """
@@ -351,7 +351,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--max-files", type=int, default=0)
-    ap.add_argument("--until", help="HH:MM — danach keine neuen Teilstücke (sanfter Halt, Exit 3)")
+    ap.add_argument("--until", help="HH:MM — danach keine neuen Teilstücke (sanfter Halt, Exit 3); über Mitternacht")
+    ap.add_argument("--window", help="HH:MM-HH:MM am selben Tag (z. B. 09:00-17:00) — außerhalb startet nichts, "
+                                      "am Ende sanfter Halt (Exit 3); hat Vorrang vor --until")
     ap.add_argument("--redo-since", help="YYYY-MM-DD — mit v1 an/nach diesem Datum gelesene Teilstücke neu lesen")
     ap.add_argument("--parts", nargs="*", help="genau diese Teilstücke (Test)")
     ap.add_argument("--dry-run", action="store_true", help="nur zählen, nichts schreiben")
@@ -359,7 +361,14 @@ def main(argv: list[str] | None = None) -> int:
 
     signal.signal(signal.SIGTERM, _on_term)
     signal.signal(signal.SIGINT, _on_term)
-    stop_at = ox.deadline(args.until)
+    if args.window:
+        inside, stop_at = ox.window_end(args.window)
+        if not inside:
+            print(f"außerhalb des Zeitfensters {args.window} — nichts gestartet", flush=True)
+            write_status({"started": datetime.now(), "paused": True, "reason": f"outside window {args.window}"})
+            return 3
+    else:
+        stop_at = ox.deadline(args.until)
     ARCHIVE.mkdir(parents=True, exist_ok=True)
     conn = psycopg2.connect(db_mod.DATABASE_URL)
     conn.autocommit = True

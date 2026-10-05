@@ -298,8 +298,25 @@ def plan_batch(works: list[Work], state: dict[str, dict], db_text: dict[str, dic
 
 
 # ---------------------------------------------------------------------------
-# Zeitfenster
+# Zeitfenster (Owner 05.10.2026: nur 09:00–17:00)
 # ---------------------------------------------------------------------------
+def window_end(window: str | None, now: datetime | None = None) -> tuple[bool, datetime | None]:
+    """„HH:MM-HH:MM" (gleicher Tag) → (jetzt im Fenster?, Ende heute). Kein Umbruch über
+    Mitternacht: wer nach dem Ende startet (z. B. nach langem Warten auf andere Jobs), ist
+    AUSSERHALB — sonst liefe ein 17:00-Fenster bis morgen 17:00."""
+    if not window:
+        return True, None
+    m = re.fullmatch(r"(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})", window.strip())
+    if not m:
+        raise ValueError(f"--window must be HH:MM-HH:MM, got {window!r}")
+    now = now or datetime.now()
+    h1, m1, h2, m2 = (int(x) for x in m.groups())
+    start = datetime.combine(now.date(), dtime(h1, m1))
+    end = datetime.combine(now.date(), dtime(h2, m2))
+    if end <= start:
+        raise ValueError("window must start and end on the same day (e.g. 09:00-17:00)")
+    return start <= now < end, end
+
 def deadline(until: str | None, now: datetime | None = None) -> datetime | None:
     """„HH:MM" → nächster solcher Zeitpunkt nach `now` (über Mitternacht hinweg)."""
     if not until:

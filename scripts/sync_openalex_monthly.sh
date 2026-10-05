@@ -5,8 +5,9 @@
 # Teilstück erkennt Änderungen statt sie zu verwerfen (neue Werke, echt geänderte Texte,
 # Zurückziehungen in research_corpus; Zitationen/FWCI/OA/Typ in der schmalen Tabelle
 # research_work_state), schreibt Journal, Förderer und Open Access gleich mit und arbeitet
-# in einem ZEITFENSTER: täglich ab 09:00, nach dem Ende der Morgen-Crons, bis SYNC_UNTIL
-# (Default 00:30); was dann offen ist, setzt der nächste Tag fort. Ohne neue Teilstücke ist
+# in einem ZEITFENSTER: täglich 09:00–17:00 (SYNC_WINDOW, Owner 05.10.2026), nach dem Ende der
+# Morgen-Crons; außerhalb startet nichts, um 17:00 sanfter Halt, der nächste Tag setzt fort.
+# Die Schritte 2–5 starten nur bis SYNC_FINALIZE_BY (Default 16:00), sonst am nächsten Tag. Ohne neue Teilstücke ist
 # der Lauf nach dem S3-Listing fertig (Schritte 2–5 entfallen).
 #
 #   1. ingest_openalex_snapshot  — Teilstücke lesen + vergleichen + schreiben (Exit 3 = pausiert)
@@ -23,7 +24,8 @@ set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 LOG="$HOME/logs/catandary-openalex-sync-$(date +%Y%m%d).log"
 mkdir -p "$(dirname "$LOG")"
-SYNC_UNTIL="${SYNC_UNTIL:-00:30}"
+SYNC_WINDOW="${SYNC_WINDOW:-09:00-17:00}"
+SYNC_FINALIZE_BY="${SYNC_FINALIZE_BY:-16:00}"
 SYNC_WORKERS="${SYNC_WORKERS:-2}"
 SYNC_REDO_SINCE="${SYNC_REDO_SINCE:-}"
 SYNC_WAIT_MAX_MIN="${SYNC_WAIT_MAX_MIN:-240}"
@@ -32,7 +34,7 @@ MARKER="$REPO/data/openalex_sync_finalize_pending"
 
 {
   echo "================================================================"
-  echo "sync_openalex_monthly.sh start $(date -Iseconds) (repo $REPO, bis $SYNC_UNTIL, Arbeitsprozesse $SYNC_WORKERS${SYNC_REDO_SINCE:+, redo-since $SYNC_REDO_SINCE})"
+  echo "sync_openalex_monthly.sh start $(date -Iseconds) (repo $REPO, Fenster $SYNC_WINDOW, Arbeitsprozesse $SYNC_WORKERS${SYNC_REDO_SINCE:+, redo-since $SYNC_REDO_SINCE})"
   echo "================================================================"
   cd "$REPO" || { echo "ABORT: cannot cd to $REPO"; exit 1; }
   mkdir -p "$REPO/data"
@@ -67,7 +69,7 @@ MARKER="$REPO/data/openalex_sync_finalize_pending"
   NICE=(nice -n 10 ionice -c 3)
   RC=0
   echo; echo "----- 1/5 Snapshot-Ingest v2 (lesen, vergleichen, schreiben) -----"
-  "${NICE[@]}" python -u scripts/ingest_openalex_snapshot.py --workers "$SYNC_WORKERS" --until "$SYNC_UNTIL" \
+  "${NICE[@]}" python -u scripts/ingest_openalex_snapshot.py --workers "$SYNC_WORKERS" --window "$SYNC_WINDOW" \
       ${SYNC_REDO_SINCE:+--redo-since "$SYNC_REDO_SINCE"}
   RC1=$?
   if [ "$RC1" -eq 3 ]; then
@@ -84,6 +86,12 @@ MARKER="$REPO/data/openalex_sync_finalize_pending"
     exit "$RC"
   fi
 
+  if [ "$(date +%H:%M)" \> "$SYNC_FINALIZE_BY" ]; then
+    echo "Schritte 2–5 erst morgen (nach $SYNC_FINALIZE_BY, Fenster $SYNC_WINDOW) — Marker bleibt"
+    ops_event_end "$RC" "finalize deferred"
+    echo; echo "sync_openalex_monthly.sh end $(date -Iseconds) (rc=$RC, finalize deferred)"
+    exit "$RC"
+  fi
   echo; echo "----- 2/5 Journal-Aggregat -----"
   "${NICE[@]}" python -u scripts/enrich_openalex_journals.py --workers "$SYNC_WORKERS" || RC=$?
 

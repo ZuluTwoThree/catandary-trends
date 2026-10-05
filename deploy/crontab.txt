@@ -27,7 +27,8 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # cpc_tier_series + cpc_insights + signal→CPC. Radare + TIR-Forschung bewusst NICHT im Cron.
 45 6 * * 2 [ -x /home/dirk/projects/catandary-trends/scripts/weekly_patent_analytics.sh ] && /home/dirk/projects/catandary-trends/scripts/weekly_patent_analytics.sh || echo "$(date -Iseconds) skip weekly_patent_analytics (Skript fehlt — merge ausstehend)" >> /home/dirk/logs/catandary-patent-analytics-skip.log
 
-# OpenAlex-Sync (#80, v2 seit 2026-10-05): TÄGLICH 09:00 als Zeitfenster bis 00:30 (SYNC_UNTIL).
+# OpenAlex-Sync (#80, v2 seit 2026-10-05): TÄGLICH im Zeitfenster 09:00–17:00 (SYNC_WINDOW, Owner 05.10.;
+# außerhalb startet nichts, um 17:00 sanfter Halt, Schritte 2–5 nur bis 16:00).
 # Neue Teilstücke → research_corpus (neu/echt geändert/zurückgezogen) + research_work_state
 # (Zitationen, FWCI, OA, Typ) + Journal/Förderer/OA in EINEM Lesedurchgang; ohne neue Teilstücke
 # nach dem S3-Listing fertig. Wartet, solange Nachtlauf/Patent-Jobs/Startup-Register/Ingester/

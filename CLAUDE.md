@@ -974,7 +974,8 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 #     dazu research_citation_recent (Rising Papers, rollierend „laufendes + voriges Jahr") und
 #     research_work_oa/_journal/_funder in demselben Durchgang (Schritte 2/4 bauen nur noch Aggregate).
 #     Archiv: je Lauf eine eigene Datei `part_NNNN.v2-<stamp>.parquet` nur mit Neuem/Geändertem.
-#   * Zeitfenster: täglich ab 09:00 bis SYNC_UNTIL (00:30), sanfter Halt (Exit 3 = pausiert, SIGTERM =
+#   * Zeitfenster (Owner 05.10. abends): täglich 09:00–17:00 (SYNC_WINDOW, gleicher Tag, kein Umbruch —
+#     wer nach 17:00 startet, startet nicht), Schritte 2–5 nur bis 16:00 (SYNC_FINALIZE_BY), sanfter Halt (Exit 3 = pausiert, SIGTERM =
 #     laufende Teilstücke fertig), 2 Arbeitsprozesse mit nice/ionice, gemeinsame Sperre
 #     ~/.local/state/catandary/openalex_sync.lock, wartet bis SYNC_WAIT_MAX_MIN auf Nachtlauf/Patent-
 #     Jobs/Startup-Register/Ingester/Publish/Backup. Ohne neue Teilstücke nach dem S3-Listing fertig.
@@ -983,8 +984,8 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # 05.10.2026: OpenAlex hat ~87 % des Bestands neu ausgegeben; v1 lief 18 h, Export-Build scheiterte am
 # Timeout; Owner ließ ihn ~20:00 anhalten (1.198/1.375 mit v1, ~1,5 Mio. neue Werke, Zitations-Updates
 # verworfen). NACHHOLEN mit v2 über die installierte Cron-Zeile selbst (Env SYNC_REDO_SINCE=2026-10-05
-# SYNC_WORKERS=3 SYNC_WAIT_MAX_MIN=600 → liest die v1-Teilstücke mit v2 neu); Erwartung zwei Tages-
-# fenster (gemessen/hochgerechnet: ~28 h mit 3 Prozessen). Nach Abschluss die Env aus der Zeile nehmen.
+# SYNC_WORKERS=3 SYNC_WAIT_MAX_MIN=600 → liest die v1-Teilstücke mit v2 neu); Erwartung ~28 h mit
+# 3 Prozessen = vier Fenster à 8 h (dienstags später, Patent-Rechnungen/Startup-Register gehen vor). Nach Abschluss die Env aus der Zeile nehmen.
 # Der transiente dev-Timer `catandary-openalex-catchup` ist seit dem Merge gestoppt.
 # Befund + Zeitvergleich alter/neuer Weg: docs/openalex_sync_2026-10-05.md.
 0 9 * * *    SYNC_REDO_SINCE=2026-10-05 SYNC_WORKERS=3 SYNC_WAIT_MAX_MIN=600 scripts/sync_openalex_monthly.sh
@@ -1311,7 +1312,7 @@ cross_industry:
     - Frontend: Schalter *Past sample* (Default an) und *Citation flows* (**Default aus**,
       Owner 04.10.) (`lib/spaceCloud.ts` `withoutHistory`/`flowArcs`).
     - Der Discover-Dienst liest die Vergangenheit bewusst nicht (12-Monats-Fenster).
-- **Zugriff auf die Owner-Instanzen (seit 2026-09-05, Security E-1/E-2/E-4 behoben):** `:3001` (main, systemd), `:3004` (dev), `:3999` (dev, PUBLIC_MODE) und der llama-server `:8090` binden nur noch auf **127.0.0.1** (`-H 127.0.0.1` in `deploy/systemd/catandary-frontend.service`, `--host 127.0.0.1` in allen `~/llama.cpp/start-*.sh`). Vom MacBook geht es über **Tailscale Serve** (tailnet-only, HTTPS, Serve + HTTPS-Zertifikate im Tailnet aktiviert, Funnel bewusst aus): `https://kiworkstation.tail678c6e.ts.net` → :3001, `…:3004` → :3004 (`tailscale serve status`). **Stand 04.10.2026 23:45 (geprüft):** Owner-Anweisung „nur main und dev" — `:3999` (PUBLIC_MODE-Vorschau, lief nicht mehr) und `:3997` (`python -m http.server` über `docs/launch`) samt ihren Tailscale-Weiterleitungen geschlossen; Wiederherstellen mit `tailscale serve --bg --https=<port> http://127.0.0.1:<port>`. **Abweichung:** die Haupt-Adresse ohne Port zeigt derzeit auf `127.0.0.1:8765` (Mitschrift-ASR-Adapter, Docker), nicht auf :3001 — main ist vom MacBook so nicht erreichbar, bis der Owner das zurückstellt. Direkt über die Tailnet-IP sind die Ports zu. **Seit 2026-10-04 verlangen die GET-Routen, die
+- **Zugriff auf die Owner-Instanzen (seit 2026-09-05, Security E-1/E-2/E-4 behoben):** `:3001` (main, systemd), `:3004` (dev), `:3999` (dev, PUBLIC_MODE) und der llama-server `:8090` binden nur noch auf **127.0.0.1** (`-H 127.0.0.1` in `deploy/systemd/catandary-frontend.service`, `--host 127.0.0.1` in allen `~/llama.cpp/start-*.sh`). Vom MacBook geht es über **Tailscale Serve** (tailnet-only, HTTPS, Serve + HTTPS-Zertifikate im Tailnet aktiviert, Funnel bewusst aus): `https://kiworkstation.tail678c6e.ts.net` → :3001, `…:3004` → :3004 (`tailscale serve status`). **Stand 04.10.2026 23:45 (geprüft):** Owner-Anweisung „nur main und dev" — `:3999` (PUBLIC_MODE-Vorschau, lief nicht mehr) und `:3997` (`python -m http.server` über `docs/launch`) samt ihren Tailscale-Weiterleitungen geschlossen; Wiederherstellen mit `tailscale serve --bg --https=<port> http://127.0.0.1:<port>`. **Seit 05.10.2026 23:20: main unter `https://kiworkstation.tail678c6e.ts.net:3001`** (`tailscale serve --bg --https=3001 http://127.0.0.1:3001`), dev unter `…:3004`. Die Haupt-Adresse ohne Port gehört bewusst dem Mitschrift-ASR-Adapter (`127.0.0.1:8765`, Docker; die iPhone-App nutzt sie, `~/mitschrift/repo/docs/planning/aufgaben.md`) — dort lieferte `/trends/newsletter/review` deshalb `{"detail":"Not Found"}` (FastAPI). Nicht zurückstellen, sonst ist Mitschrift weg. Direkt über die Tailnet-IP sind die Ports zu. **Seit 2026-10-04 verlangen die GET-Routen, die
   einen Python-Job mit GPU-Handover starten (`/api/foresight/query`, `…/query/evidence`, `…/tir`,
   `…/analyze`), einen Same-Origin-Nachweis (Origin- oder Referer-Header einer eigenen Instanz) und
   lassen je Route nur eine Berechnung zugleich zu** — ein `<img src=…>` auf einer fremden Seite im

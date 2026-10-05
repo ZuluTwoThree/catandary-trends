@@ -1727,7 +1727,7 @@ im Handover still).
 | 06:00 So | Discovery-Loop (Mega-Kandidaten, Head-Retrain auf dem 1024er-Präfix seit 26.09.) | `scripts/discovery_loop.py` | installiert |
 | 1. 08:00 | Monats-Quellencheck (+ TDM-Re-Probe) → Issue #13 | `scripts/monthly_source_check.py --post-issue` | installiert |
 | 2. 07:00 | Backlink-Check → `dead_links` | `scripts/check_source_links.py --per-source 12 --mark` | installiert |
-| tägl. 09:00 | OpenAlex-Sync v2 (45M-Korpus) — Zeitfenster bis 00:30, nur Neues/Geändertes; bis zum Abschluss des Nachholens mit `SYNC_REDO_SINCE=2026-10-05 SYNC_WORKERS=3` (docs/openalex_sync_2026-10-05.md) | `scripts/sync_openalex_monthly.sh` | installiert 05.10. |
+| tägl. 09:00–17:00 | OpenAlex-Sync v2 (45M-Korpus) — außerhalb startet nichts, nur Neues/Geändertes; bis zum Abschluss des Nachholens mit `SYNC_REDO_SINCE=2026-10-05 SYNC_WORKERS=3` (docs/openalex_sync_2026-10-05.md) | `scripts/sync_openalex_monthly.sh` | installiert 05.10. |
 | 6. 08:45 | Startup-Register (CORDIS/SBIR/GLEIF/CH) — bis 05.10.2026 12:00 | `scripts/monthly_startup_sources.sh` | installiert |
 | 02:00 täglich | **Statischer Export → Webspace** | `scripts/publish_static_site.sh` | **installiert in `deploy/crontab.txt`, nicht installiert** (kein `webspace.env`) |
 | 08:30 Sa | Research Pulse (Vorwoche, 28 Themes) | `scripts/weekly_research_pulse.sh` | installiert (2026-09-18; Zeit ab 26.09., vorher 12:00) |
