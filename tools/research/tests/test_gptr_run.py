@@ -131,3 +131,33 @@ def test_trim_context_respects_budget():
     out = gptr_run.trim_context(ctx, 400)
     assert sum(len(c.split()) for c in out) <= 401
     assert out[0].startswith("one")
+
+
+def test_mcp_http_bearer_auth_and_token_file(tmp_path):
+    import asyncio
+    import stat
+
+    from tools.research import mcp_server as ms
+
+    tok = ms.http_token(tmp_path / "t.token")
+    assert len(tok) >= 24 and ms.http_token(tmp_path / "t.token") == tok
+    assert stat.S_IMODE((tmp_path / "t.token").stat().st_mode) == 0o600
+
+    seen = []
+
+    async def app(scope, receive, send):
+        seen.append(scope["type"])
+
+    async def run(headers, typ="http"):
+        sent = []
+
+        async def send(m):
+            sent.append(m)
+        await ms.BearerAuth(app, tok)({"type": typ, "headers": headers}, None, send)
+        return sent
+
+    assert asyncio.run(run([]))[0]["status"] == 401
+    assert asyncio.run(run([(b"authorization", b"Bearer falsch")]))[0]["status"] == 401
+    assert asyncio.run(run([(b"authorization", f"Bearer {tok}".encode())])) == [] and seen == ["http"]
+    asyncio.run(run([], typ="lifespan"))
+    assert seen == ["http", "lifespan"]

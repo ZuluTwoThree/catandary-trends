@@ -1,0 +1,19 @@
+# Korpus-MCP für Open WebUI (Owner 06.10.2026): Streamable HTTP nur auf 127.0.0.1:8096,
+# Bearer-Token in ~/.config/catandary/corpus_mcp.token. Läuft aus main, nur lesend.
+# Installieren: cp deploy/systemd/catandary-corpus-mcp.service ~/.config/systemd/user/ &&
+#   systemctl --user daemon-reload && systemctl --user enable --now catandary-corpus-mcp
+[Unit]
+Description=Catandary corpus MCP (Streamable HTTP 127.0.0.1:8096) for Open WebUI
+After=network-online.target postgresql.service
+
+[Service]
+WorkingDirectory=%h/projects/catandary-trends
+ExecStart=/bin/bash %h/projects/catandary-trends/tools/research/run_mcp.sh --http --port 8096
+Environment=CORPUS_SERVICE_LOG=%h/logs/catandary-corpus-mcp.log
+Restart=on-failure
+RestartSec=10
+MemoryMax=8G
+Nice=5
+
+[Install]
+WantedBy=default.target

@@ -2090,6 +2090,12 @@ ins Blatt (Mensch schreibt um), für geholte Texte gilt die 1825-Tage-Regel.
 - **MCP-Server** `tools/research/mcp_server.py` (Recherche-venv, FastMCP, stdio), in
   `.mcp.json` als `catandary-corpus` (`bash tools/research/run_mcp.sh`); startet den
   Dienst mit der Python der Main-venv des Worktrees; Log `/tmp/catandary-corpus-mcp.log`.
+  **Seit 06.10. zusätzlich HTTP für Open WebUI** (Owner): `run_mcp.sh --http --port 8096`,
+  Streamable HTTP nur auf 127.0.0.1, `BearerAuth` gegen `~/.config/catandary/corpus_mcp.token`
+  (0600, wird erzeugt), Unit `deploy/systemd/catandary-corpus-mcp.service` aus `main`, Log
+  `~/logs/catandary-corpus-mcp.log`. Open WebUI (Workstation :8080) trägt ihn unter External
+  Tools als MCP (Streamable HTTP) ein; das Modell (Nemotron auf bequietUbuntu) steuert, die
+  Aufrufe laufen auf der Workstation. Werkzeuge sind synchron: ein langer Aufruf blockiert den Dienst.
 - **gptr-Worker** `tools/research/gptr_run.py` (Recherche-venv, kein Pipeline-Import):
   `RETRIEVER=custom` → Dienst; `BrowserManager.browse_urls` → Dienst `/gptr/fetch`;
   `Scraper.run`/`scrape_urls`/`OnlineDocumentLoader.load` → Fehler; **Netzsperre auf

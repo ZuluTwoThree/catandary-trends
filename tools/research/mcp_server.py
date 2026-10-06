@@ -7,6 +7,10 @@ der Python der Main-venv dieses Worktrees als Kindprozess (freier Port, Einmal-T
 endet mit uns) und reicht jeden Werkzeugaufruf per HTTP weiter.
 
 Start (stdio): `bash tools/research/run_mcp.sh` — so steht es in `.mcp.json`.
+Start (HTTP, für Open WebUI, Owner 06.10.): `run_mcp.sh --http [--port 8096]` — Streamable
+HTTP unter `http://127.0.0.1:8096/mcp`, nur Loopback, jede Anfrage braucht
+`Authorization: Bearer <Token>` aus `~/.config/catandary/corpus_mcp.token` (0600, wird beim
+ersten Start erzeugt). Unit: `deploy/systemd/catandary-corpus-mcp.service`.
 Alles lesend; Seitenabrufe nur über den konformen Fetcher (robots, TDM, Bot-Kennung).
 """
 from __future__ import annotations
@@ -170,5 +174,55 @@ def eurlex_search(keywords: list[str], in_force_only: bool = True, limit: int = 
     return _call("eurlex_search", keywords=keywords, in_force_only=in_force_only, limit=limit)
 
 
+TOKEN_FILE = Path(os.environ.get("CORPUS_MCP_TOKEN_FILE", Path.home() / ".config/catandary/corpus_mcp.token"))
+
+
+def http_token(path: Path = TOKEN_FILE) -> str:
+    """Token für den HTTP-Betrieb lesen; fehlt die Datei, eine neue mit 0600 anlegen."""
+    if path.exists():
+        tok = path.read_text(encoding="utf-8").strip()
+        if len(tok) >= 24:
+            return tok
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tok = secrets.token_urlsafe(32)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(tok + "\n")
+    return tok
+
+
+class BearerAuth:
+    """ASGI-Hülle: HTTP-Anfragen nur mit `Authorization: Bearer <token>`; Lifespan läuft durch."""
+
+    def __init__(self, app, token: str):
+        self.app = app
+        self.expected = f"Bearer {token}".encode()
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            got = dict(scope.get("headers") or []).get(b"authorization", b"")
+            if not secrets.compare_digest(got, self.expected):
+                await send({"type": "http.response.start", "status": 401,
+                            "headers": [(b"content-type", b"application/json"),
+                                        (b"www-authenticate", b"Bearer")]})
+                await send({"type": "http.response.body", "body": b'{"error":"unauthorized"}'})
+                return
+        await self.app(scope, receive, send)
+
+
+def serve_http(port: int) -> None:
+    import uvicorn
+    mcp.settings.host, mcp.settings.port = "127.0.0.1", port
+    app = BearerAuth(mcp.streamable_http_app(), http_token())
+    _start_service()                      # Korpus-Dienst sofort, nicht erst beim ersten Aufruf
+    print(f"catandary-corpus MCP: http://127.0.0.1:{port}{mcp.settings.streamable_http_path} "
+          f"(Bearer-Token in {TOKEN_FILE})", file=sys.stderr, flush=True)
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+
+
 if __name__ == "__main__":
-    mcp.run()
+    if "--http" in sys.argv:
+        port = int(sys.argv[sys.argv.index("--port") + 1]) if "--port" in sys.argv else 8096
+        serve_http(port)
+    else:
+        mcp.run()

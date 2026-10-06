@@ -994,7 +994,24 @@ Amts für Veröffentlichungen, artikelweise geschnitten.
 `eurlex_search`. Alles lesend; der Server startet den Korpus-Dienst
 (`pipeline/corpus_service.py`) als Kindprozess mit Einmal-Token. Log:
 `/tmp/catandary-corpus-mcp.log`. Zwei Skills nutzen ihn: `.claude/skills/field-setup`
-und `.claude/skills/regulatory-annex`.
+und `.claude/skills/regulatory-annex`. Beim ersten Start in einem Worktree fragt Claude
+Code nach der Freigabe des Projekt-Servers (oder `/mcp` → `catandary-corpus` aktivieren).
+
+**Korpus-MCP für Open WebUI (seit 2026-10-06):** derselbe Server läuft zusätzlich als
+Dienst `catandary-corpus-mcp` (`deploy/systemd/catandary-corpus-mcp.service`, aus `main`)
+im HTTP-Betrieb: `run_mcp.sh --http --port 8096` → `http://127.0.0.1:8096/mcp`, nur
+Loopback, jede Anfrage mit `Authorization: Bearer <Token>`. Das Token steht in
+`~/.config/catandary/corpus_mcp.token` (0600, beim ersten Start erzeugt; neues Token =
+Datei löschen, Dienst neu starten, in Open WebUI nachtragen). Log
+`~/logs/catandary-corpus-mcp.log`, Status `systemctl --user status catandary-corpus-mcp`.
+Eintragen in Open WebUI (Workstation, :8080 bzw. Tailnet :8443): *Admin Panel → Settings →
+External Tools → +* · Typ **MCP (Streamable HTTP)** · URL `http://127.0.0.1:8096/mcp` ·
+Auth **Bearer** mit dem Token · Sichtbarkeit nur Admin (`fetch_url`/`web_search` holen
+Seiten aus dem Netz, konform über den Fetcher). Im Chat das Werkzeug über das
+Werkzeug-Symbol zuschalten; beim Modell *Function Calling: Native* einstellen. Das Modell
+(z. B. Nemotron auf bequietUbuntu) entscheidet über die Aufrufe, ausgeführt werden sie auf
+der Workstation; die Datenbank sieht das Modell nur als Werkzeugergebnis. Ein langer
+Aufruf (`field_sheet`, Minuten) blockiert den Dienst solange.
 
 ### 5.12 Signalraum in 3D (`/trends/foresight/map`)
 
