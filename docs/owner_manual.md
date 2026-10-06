@@ -1010,7 +1010,8 @@ Auth **Bearer** mit dem Token · Sichtbarkeit nur Admin (`fetch_url`/`web_search
 Seiten aus dem Netz, konform über den Fetcher). Im Chat das Werkzeug über das
 Werkzeug-Symbol zuschalten; beim Modell *Function Calling: Native* einstellen. Das Modell
 (z. B. Nemotron auf bequietUbuntu) entscheidet über die Aufrufe, ausgeführt werden sie auf
-der Workstation; die Datenbank sieht das Modell nur als Werkzeugergebnis. Ein langer
+der Workstation; die Datenbank sieht das Modell nur als Werkzeugergebnis (Schritt für Schritt mit
+Fehlerbildern: `docs/openwebui_corpus_mcp.md`). Ein langer
 Aufruf (`field_sheet`, Minuten) blockiert den Dienst solange.
 
 ### 5.12 Signalraum in 3D (`/trends/foresight/map`)
