@@ -870,6 +870,10 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Die Kundenseite (trends/clients/<kunde>/, htpasswd) lädt der Owner von Hand hoch.
 45 8 * * 6   scripts/weekly_field_watch.sh
 
+# Router-Neuverbindung (Owner 07.10.2026): fest zwischen 01:00 und 02:00. Bis dahin wanderte sie
+# täglich ~1 min früher (02:42 am 28.09. → 02:31 am 07.10.) und brachte einen neuen IPv6-Präfix; der
+# Publish vom 07.10. lief über IPv6 und starb daran (ENETUNREACH 02:46). Im Fenster 01–02 liegen nur
+# lokale Jobs (Backup 01:30, Story-Gruppierung 01:55) und der OpenAlex-Download (S3 wiederholt selbst).
 # Statischer Export → Webspace (täglich 02:00, bis 22.09. 03:15; INSTALLIERT 2026-09-05): nach dem
 # Review-Tag und ~45 min vor dem 02:45-Cycle — veröffentlicht wird der freigegebene Stand.
 # build_public_static.sh + publish_static_site.py --apply, Log ~/logs/catandary-publish-*.log
@@ -998,13 +1002,15 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 #   * Gemessen 05.10. (2 Teilstücke, 135.469 Werke): neu 3,5 %, Text echt geändert 2,1 % der
 #     vorhandenen, gekürzt behalten 0,4 %; zweites Lesen desselben Teilstücks schreibt 0 Zeilen.
 # 05.10.2026: OpenAlex hat ~87 % des Bestands neu ausgegeben; v1 lief 18 h, Export-Build scheiterte am
-# Timeout; Owner ließ ihn ~20:00 anhalten (1.198/1.375 mit v1, ~1,5 Mio. neue Werke, Zitations-Updates
-# verworfen). NACHHOLEN mit v2 über die installierte Cron-Zeile selbst (Env SYNC_REDO_SINCE=2026-10-05
-# SYNC_WORKERS=3 SYNC_WAIT_MAX_MIN=600 → liest die v1-Teilstücke mit v2 neu); Erwartung ~28 h mit
-# 3 Prozessen = vier Fenster à 8 h (dienstags später, Patent-Rechnungen/Startup-Register gehen vor). Nach Abschluss die Env aus der Zeile nehmen.
-# Der transiente dev-Timer `catandary-openalex-catchup` ist seit dem Merge gestoppt.
+# Timeout; Owner ließ ihn ~20:00 anhalten (1.198/1.375 mit v1). NACHGEHOLT mit v2: Download 06.–07.10.
+# (1.347 Teilstücke, ~514 GB, fertig 07.10. 06:40), Verarbeitung 07.10. 09:00–11:43 (1.084 Teilstücke
+# in 2,7 h, 0 Fehler; Text geändert 496 k, Zurückziehungen 507, Zitations-Updates 14 Mio.), Schritte 2–5
+# bis 12:17, research_corpus 47,7 Mio. Die Nachhol-Env (SYNC_/DL_REDO_SINCE, SYNC_WORKERS=3,
+# SYNC_WAIT_MAX_MIN=600) ist seit 07.10. abends aus der Crontab (Owner).
 # Befund + Zeitvergleich alter/neuer Weg: docs/openalex_sync_2026-10-05.md.
-0 9 * * *    SYNC_REDO_SINCE=2026-10-05 SYNC_WORKERS=3 SYNC_WAIT_MAX_MIN=600 scripts/sync_openalex_monthly.sh
+0 9 * * *    scripts/sync_openalex_monthly.sh
+0 17 * * *   DL_START=17:00 DL_UNTIL=18:55 scripts/openalex_download.sh
+0 23 * * *   DL_START=23:00 DL_UNTIL=08:30 scripts/openalex_download.sh
 
 # Nicht-RSS-Ingester wöchentlich (Samstag 06:00, seit 2026-08-09; 05:00→06:00 am 2026-08-29 entzerrt): Preprints
 # (arXiv/bioRxiv/medRxiv, 14-Tage-Fenster) + Funding (NSF/NIH/OpenAIRE/UKRI,
@@ -1222,7 +1228,7 @@ cross_industry:
 ### Tech-Stack (Ist-Stand 2026-07-23)
 
 - **Framework:** Next.js 16 (App Router, Turbopack-Dev) + TypeScript + React 19
-- **Styling:** Tailwind CSS v4 (`@theme`-Tokens in `frontend/src/app/globals.css` — Designsystem „Editorial Intelligence": IBM Plex Serif/Mono/Sans, Ink `#0a0c0a`, Akzent Chartreuse `#d4ff3a`, scharfe Kanten)
+- **Styling:** Tailwind CSS v4 (`@theme`-Tokens in `frontend/src/app/globals.css` — Designsystem „Editorial Intelligence": IBM Plex Serif/Mono/Sans — seit 07.10.2026 lokal aus `frontend/src/fonts` per `next/font/local` (Googles Versionen, kein Abruf beim Build; Rezept `src/fonts/README.md`), Ink `#0a0c0a`, Akzent Chartreuse `#d4ff3a`, scharfe Kanten)
 - **DB-Anbindung:** eigener `pg`-Layer (`frontend/src/lib/pg.ts` + `db.ts`) auf PostgreSQL/pgvector, Socket-Default (kein Drizzle); teure Aggregat-Queries laufen über einen In-Process-TTL-Cache in `db.ts`
 - **Auth/Paywall:** **entfernt 2026-09-03 (#93, kein SaaS — Owner 26.08.)**. Magic-Link-Auth, Tier-Entitlements, `TierGate`, Stripe-Checkout/Webhook, `/account*`, `/trends/pricing`, `/api/auth*`, `/api/stripe*` sowie `scripts/migrate_accounts.py`/`set_user_tier.py` sind physisch aus dem Code; die DB-Tabellen `app_users`/`magic_tokens`/`research_live_usage` bleiben ungenutzt stehen (kein DROP). Es gibt keine Accounts: die Owner-Instanz sieht alles, der Review-Guard (`lib/review-access.ts`) ist nur noch „lokal ja, `PUBLIC_MODE`/Export nie" (`REVIEW_ENABLED` entfällt). `AUTH_SECRET` bleibt — er signiert die Newsletter-Abmelde-HMAC (`lib/unsubscribe.ts`). `PUBLIC_MODE=1` (`frontend/src/proxy.ts`, Blockliste `lib/publicMode.ts`) blendet nur noch `/trends/foresight*`, `/trends/review*`, `/api/foresight*` als 404 aus und fenstert den Feed auf `PUBLIC_WINDOW_DAYS` (`lib/archiveWindow.ts`, `archiveWindowDays()`); das frühere 28-Tage-Paywall-Fenster (#70) ist weg
 - **Stand 2026-09-28 — der 5080-Rechner heißt jetzt `bequietUbuntu` (Owner):** dieselbe Maschine,

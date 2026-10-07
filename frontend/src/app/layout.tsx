@@ -1,29 +1,50 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Serif, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
-const plexSerif = IBM_Plex_Serif({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
+// IBM Plex lokal (seit 2026-10-07, Owner): next/font/google holte die Font-CSS bei JEDEM
+// Build neu von Google. Am 07.10. erweiterte Google einen unicode-range (U+20C0 → U+20C4),
+// die CSS-Datei bekam einen neuen Namen, und jede Seite des statischen Exports galt als
+// geändert (28.206 Dateien statt ~2.600). Die Dateien in src/fonts/ sind dieselben
+// Versionen, die Google ausliefert (Serif 2.6, Mono 2.3, Sans 3.201, SIL OFL 1.1), mit
+// Googles Zeichenbereichen und OpenType-Features geschnitten — Rezept in src/fonts/README.md.
+const plexSerif = localFont({
+  src: [
+    { path: "../fonts/IBMPlexSerif-Regular.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/IBMPlexSerif-Italic.woff2", weight: "400", style: "italic" },
+    { path: "../fonts/IBMPlexSerif-Medium.woff2", weight: "500", style: "normal" },
+    { path: "../fonts/IBMPlexSerif-MediumItalic.woff2", weight: "500", style: "italic" },
+    { path: "../fonts/IBMPlexSerif-SemiBold.woff2", weight: "600", style: "normal" },
+    { path: "../fonts/IBMPlexSerif-SemiBoldItalic.woff2", weight: "600", style: "italic" },
+  ],
   variable: "--font-plex-serif",
   display: "swap",
+  fallback: ["Georgia", "serif"],
 });
 
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+const plexMono = localFont({
+  src: [
+    { path: "../fonts/IBMPlexMono-Regular.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/IBMPlexMono-Medium.woff2", weight: "500", style: "normal" },
+    { path: "../fonts/IBMPlexMono-SemiBold.woff2", weight: "600", style: "normal" },
+  ],
   variable: "--font-plex-mono",
   display: "swap",
+  fallback: ["ui-monospace", "monospace"],
 });
 
-const plexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
+const plexSans = localFont({
+  src: [
+    { path: "../fonts/IBMPlexSans-Light.woff2", weight: "300", style: "normal" },
+    { path: "../fonts/IBMPlexSans-Regular.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/IBMPlexSans-Medium.woff2", weight: "500", style: "normal" },
+    { path: "../fonts/IBMPlexSans-SemiBold.woff2", weight: "600", style: "normal" },
+  ],
   variable: "--font-plex-sans",
   display: "swap",
+  fallback: ["system-ui", "sans-serif"],
 });
 
 /**

@@ -13,6 +13,18 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-10-07 · change · Nachtlauf-Ausfall, Container-Fix, Router-Neuverbindung, Schriften lokal
+
+- **Nachtlauf 07.10. fiel aus** (0 Trends): `kill` auf NeMo/Whisper (root, Docker) scheiterte still,
+  3 GB blieben belegt, das 24-Slot-8B startete nicht. Fix `586daac`: `docker stop` vor, `docker start`
+  nach dem Lauf. Nachgeholt 12:37–17:50, rc=0, 1.989 + 292 Trends, Container automatisch zurück.
+- **Publish 02:00 brach ab:** nächtliche Router-Neuverbindung mit neuem IPv6-Präfix (02:31) traf den
+  Upload (lief über IPv6, ENETUNREACH 02:46); der Upload war lang, weil Google Fonts einen
+  unicode-range geändert hatte (neue CSS → 28.206 geänderte Dateien) und der Download die Leitung teilte.
+  Nachgeholt 12:27–12:37, 24.667 Dateien, 0 Fehler. Owner: Neuverbindung jetzt fest 01:00–02:00;
+  Schriften lokal (`frontend/src/fonts`, Googles Versionen, pixelgleich geprüft).
+- **OpenAlex-Nachholen abgeschlossen** (Download 06:40, Verarbeitung 12:17); Nachhol-Env aus der Crontab.
+
 ## 2026-09-29 · change · Distill-Relevanz-Head zurück auf 26.07. (#115)
 
 Der Retrain vom 27.09. lieferte einen Relevanz-Head, der auf denselben Presse-Einträgen
