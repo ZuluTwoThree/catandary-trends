@@ -1850,8 +1850,12 @@ hat, und startet bei weniger als 16 das Arbeitsskript. Jedes Werkzeug (Cycle, Ri
 Worker, Pulse, Newsletter) hängt den Symlink um, startet die Unit neu und stellt den
 Zustand danach wieder her; `scheduled_cycle.sh` setzt den Symlink am Ende **immer**
 auf `$LLAMA_REST_SCRIPT` zurück. **Deine Tagesanwendungen** (nemo-speech,
-whisper-server) beendet der Nachtlauf vor dem Start — sie werden während des Laufs
-nicht gebraucht (deine Freigabe 04.10.), danach startet er sie nicht wieder.
+whisper-server) stoppt der Nachtlauf vor dem Start — sie werden während des Laufs
+nicht gebraucht (deine Freigabe 04.10.). Seit 07.10. per `docker stop` auf ihre
+Container (ein `kill` scheiterte still, sie laufen als root, und Docker hätte sie
+ohnehin neu gestartet); die Namen stehen solange in `data/gpu_evicted_containers`. Am
+Ende des Laufs startet der Wrapper sie wieder (`docker start`), auch nach einem
+Fehlschlag — außer ein anderer GPU-Job läuft gerade, dann steht der Befehl im Log.
 Ändern: `GPU_EVICT_PATTERNS` in `scripts/lib/gpu_guard.sh`.
 
 ```bash

@@ -54,6 +54,9 @@ LLAMA_REST_SCRIPT="${LLAMA_REST_SCRIPT:-start-qwen3-8b.sh}"
 GPU_EVICT_PATTERNS="${GPU_EVICT_PATTERNS:-nemo-speech|whisper-server}"
 GPU_GUARD_POLL_SEC="${GPU_GUARD_POLL_SEC:-60}"
 GPU_GUARD_DATA_DIR="${GPU_GUARD_DATA_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)/data}"
+# Vermerk der vor dem Nachtlauf gestoppten Docker-Container (gpu_evict_pid/gpu_evict_restore).
+GPU_EVICT_STATE="${GPU_EVICT_STATE:-$GPU_GUARD_DATA_DIR/gpu_evicted_containers}"
+GPU_PROC_ROOT="${GPU_PROC_ROOT:-/proc}"
 LLAMA_SERVER_UNIT="${LLAMA_SERVER_UNIT:-llama-server.service}"
 
 _gpu_guard_ppid() { ps -o ppid= -p "$1" 2>/dev/null | tr -d ' '; }
@@ -183,4 +186,58 @@ llama_unit_stop_owned() {
   echo "[gpu_guard/$job] WARN: llama-server PID $cur gehört nicht diesem Job (unsere war $rec) — bleibt stehen"
   rm -f "$f"
   return 0
+}
+
+
+# --- Tagesanwendungen vor dem Nachtlauf freiräumen (seit 2026-10-07) ---------------
+# nemo-speech und whisper-server laufen in Docker-Containern als root mit
+# restart=unless-stopped. Ein `kill` als normaler Benutzer scheitert still (fremder
+# Benutzer), und selbst ein erfolgreicher kill holte Docker sofort zurück. Am 07.10.
+# blieben so 3 GB belegt, das 24-Slot-8B startete nicht (OOM, „did not serve … within
+# 240s"), run 1 und run 2 endeten rc=1, die Nacht lieferte 0 Trends. Bis dahin ging es
+# nur, weil die Container von Hand gestoppt worden waren. Jetzt: Prozess → Container
+# über die cgroup, `docker stop`, Name vermerken; nach dem Lauf `docker start`.
+
+gpu_container_of() {   # PID → Docker-Container-ID (64 hex) oder leer
+  sed -nE 's#.*docker-([0-9a-f]{64})\.scope.*#\1#p; s#.*/docker/([0-9a-f]{64}).*#\1#p' \
+    "$GPU_PROC_ROOT/$1/cgroup" 2>/dev/null | head -1
+}
+
+_GPU_EVICTED_NOW=" "
+gpu_evict_pid() {      # VRAM-Prozess freigeben: Container stoppen, sonst kill. rc 0 = frei
+  local pid=$1 cid name
+  cid=$(gpu_container_of "$pid")
+  if [ -n "$cid" ]; then
+    name=$(docker inspect -f '{{.Name}}' "$cid" 2>/dev/null | sed 's#^/##'); name=${name:-$cid}
+    case "$_GPU_EVICTED_NOW" in *" $name "*) return 0 ;; esac      # zweiter Prozess desselben Containers
+    if docker stop -t 30 "$cid" >/dev/null 2>&1; then
+      _GPU_EVICTED_NOW="$_GPU_EVICTED_NOW$name "
+      mkdir -p "$(dirname "$GPU_EVICT_STATE")"
+      grep -qxF "$name" "$GPU_EVICT_STATE" 2>/dev/null || echo "$name" >> "$GPU_EVICT_STATE"
+      echo "  stopped container $name (docker stop — restarted after the cycle)"
+      return 0
+    fi
+    echo "  WARNING: docker stop $name failed — its VRAM stays occupied"
+    return 1
+  fi
+  kill "$pid" 2>/dev/null && return 0
+  echo "  WARNING: kill $pid failed (other user?) — its VRAM stays occupied"
+  return 1
+}
+
+gpu_evict_restore() {  # nach dem Lauf: vermerkte Container wieder starten. rc 0 = nichts offen
+  [ -s "$GPU_EVICT_STATE" ] || return 0
+  local names name failed=0
+  names=$(tr '\n' ' ' < "$GPU_EVICT_STATE")
+  if gpu_guard_busy >/dev/null; then
+    echo "  day-time containers NOT restarted — a GPU job is running; later: docker start $names"
+    return 1
+  fi
+  while read -r name; do
+    [ -n "$name" ] || continue
+    if docker start "$name" >/dev/null 2>&1; then echo "  restarted container $name"
+    else echo "  WARNING: docker start $name failed"; failed=1; fi
+  done < "$GPU_EVICT_STATE"
+  [ "$failed" -eq 0 ] && rm -f "$GPU_EVICT_STATE"
+  return "$failed"
 }

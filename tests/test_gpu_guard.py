@@ -277,3 +277,80 @@ class TestPulseNoteInMorningMail:
         assert "blocked by" not in line
         _, _, text = rn.build_mail(0, 0, None, [], None, None, notes)
         assert "GPU cron weekly_research_pulse: ok" in text
+
+
+FAKE_DOCKER = textwrap.dedent("""\\
+    #!/usr/bin/env bash
+    # Fake docker: protokolliert, `inspect -f {{.Name}} <id>` → /<FAKE_DOCKER_NAME_<id8>>.
+    echo "$*" >> "$FAKE_DOCKER_LOG"
+    case "$1" in
+      inspect) id="${@: -1}"; echo "/name-${id:0:8}" ;;
+      stop|start) [ "${FAKE_DOCKER_FAIL:-}" = "$1" ] && exit 1; exit 0 ;;
+    esac
+""")
+
+
+def _evict_env(tmp_path, pids_cgroups):
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    for name, body in (("docker", FAKE_DOCKER), ("pgrep", FAKE_PGREP)):
+        f = bindir / name
+        f.write_text(body)
+        f.chmod(0o755)
+    proc = tmp_path / "proc"
+    for pid, cg in pids_cgroups.items():
+        (proc / str(pid)).mkdir(parents=True, exist_ok=True)
+        (proc / str(pid) / "cgroup").write_text(cg)
+    return {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}", "GPU_PROC_ROOT": str(proc),
+            "GPU_GUARD_DATA_DIR": str(tmp_path / "data"), "FAKE_DOCKER_LOG": str(tmp_path / "docker.log"),
+            "FAKE_PGREP_OUT": str(tmp_path / "pgrep.out")}
+
+
+def _sh(script, env):
+    return subprocess.run(["bash", "-c", f"source {GUARD}; {script}"], env=env,
+                          capture_output=True, text=True)
+
+
+def test_evict_stops_docker_container_once_and_restores(tmp_path):
+    a, b = "a" * 64, "b" * 64
+    env = _evict_env(tmp_path, {
+        101: f"0::/system.slice/docker-{a}.scope\n",
+        102: f"0::/system.slice/docker-{a}.scope\n",           # zweiter Prozess, selber Container
+        103: f"12:memory:/docker/{b}\n",                       # cgroup v1
+    })
+    r = _sh("gpu_evict_pid 101 && gpu_evict_pid 102 && gpu_evict_pid 103 && echo OK", env)
+    assert r.returncode == 0 and "OK" in r.stdout, r.stdout + r.stderr
+    log = (tmp_path / "docker.log").read_text()
+    assert log.count(f"stop -t 30 {a}") == 1 and log.count(f"stop -t 30 {b}") == 1
+    state = tmp_path / "data" / "gpu_evicted_containers"
+    assert state.read_text().split() == ["name-aaaaaaaa", "name-bbbbbbbb"]
+    r = _sh("gpu_evict_restore && echo RESTORED", env)
+    assert "RESTORED" in r.stdout, r.stdout + r.stderr
+    assert "start name-aaaaaaaa" in (tmp_path / "docker.log").read_text()
+    assert not state.exists()
+
+
+def test_evict_restore_waits_for_foreign_gpu_job(tmp_path):
+    env = _evict_env(tmp_path, {101: f"0::/system.slice/docker-{'c' * 64}.scope\n"})
+    _sh("gpu_evict_pid 101", env)
+    sleeper = subprocess.Popen(["sleep", "30"])
+    try:
+        (tmp_path / "pgrep.out").write_text(f"{sleeper.pid}\n")
+        r = _sh("gpu_evict_restore; echo rc=$?", env)
+    finally:
+        sleeper.kill()
+    assert "rc=1" in r.stdout and "NOT restarted" in r.stdout
+    assert "start" not in (tmp_path / "docker.log").read_text().replace("stop -t", "")
+    assert (tmp_path / "data" / "gpu_evicted_containers").exists()
+
+
+def test_evict_non_container_and_failures(tmp_path):
+    env = _evict_env(tmp_path, {})
+    victim = subprocess.Popen(["sleep", "30"])
+    r = _sh(f"gpu_evict_pid {victim.pid}; echo rc=$?", env)
+    assert "rc=0" in r.stdout and victim.wait(timeout=5) != 0
+    r = _sh("gpu_evict_pid 1; echo rc=$?", env)                         # init gehört root
+    assert "rc=1" in r.stdout and "kill 1 failed" in r.stdout
+    env = _evict_env(tmp_path, {201: f"0::/system.slice/docker-{'d' * 64}.scope\n"})
+    r = _sh("gpu_evict_pid 201; echo rc=$?", {**env, "FAKE_DOCKER_FAIL": "stop"})
+    assert "rc=1" in r.stdout and "docker stop name-dddddddd failed" in r.stdout

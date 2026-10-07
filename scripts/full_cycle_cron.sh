@@ -81,7 +81,7 @@ mkdir -p "$(dirname "$LOG")"
       [ -n "$epid" ] || continue
       if printf '%s' "$ename" | grep -Eq "$GPU_EVICT_PATTERNS"; then
         echo "  evicting PID $epid ($ename, ${emem} MiB) — not needed during the cycle (GPU_EVICT_PATTERNS)"
-        kill "$epid" 2>/dev/null && EVICTED=$((EVICTED + 1))
+        gpu_evict_pid "$epid" && EVICTED=$((EVICTED + 1))
       fi
     done < <(nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader,nounits 2>/dev/null)
     [ "$EVICTED" -gt 0 ] && echo "  evicted $EVICTED day-time GPU process(es)"
@@ -117,6 +117,12 @@ mkdir -p "$(dirname "$LOG")"
   bash "$REPO/scripts/scheduled_cycle.sh" "$CYCLE_BATCH"
   RC=$?
   echo "----- scheduled_cycle.sh exit code: $RC -----"
+
+  # Vor dem Lauf gestoppte Tagesanwendungen (Docker, s. gpu_evict_pid) wieder starten —
+  # auch nach einem Fehlschlag. Laeuft inzwischen ein fremder GPU-Job, bleiben sie aus
+  # (Hinweis im Log, der Vermerk data/gpu_evicted_containers bleibt stehen).
+  echo "----- day-time GPU apps -----"
+  gpu_evict_restore || true
 
   # Morning reminder for the grounding-hold review queue (#71). Stays silent
   # when nothing was held, so a mail only ever arrives with real work in it.
