@@ -988,10 +988,14 @@ EUR-Lex beantwortet Bots mit einer Challenge; Rechtsakte kommen daher über den 
 Amts für Veröffentlichungen, artikelweise geschnitten.
 
 **Korpus-MCP für Claude Code:** `.mcp.json` registriert den Server `catandary-corpus`
-(`bash tools/research/run_mcp.sh`). Werkzeuge: `search_signals`, `get_signal`,
-`search_research`, `search_patents`, `term_counts`, `field_list`, `field_week`,
-`field_sheet`, `field_probe`, `tir_block`, `emerging_nests`, `web_search`, `fetch_url`,
-`eurlex_search`. Alles lesend; der Server startet den Korpus-Dienst
+(`bash tools/research/run_mcp.sh`). Werkzeuge: `research_facets`, `term_counts`,
+`search_research`, `search_patents`, `search_signals`, `get_signal`, `field_list`,
+`field_week`, `field_sheet`, `field_probe`, `tir_block`, `emerging_nests`, `web_search`,
+`fetch_url`, `eurlex_search`, `verify_report`. Seit 08.10.: Eingrenzung (`subfields`/
+`fields` für Forschung, `cpc` für Patente, `vertical` für Markt/Förderung; welche Fachgebiete
+eine Phrase trifft, zeigt `research_facets`) und Belegprüfung (`verify_report`: DOIs,
+CELEX-/Patentnummern, Zahlen und genannte Werkzeuge gegen die Ergebnisse der Sitzung,
+den Korpus, Crossref und EUR-Lex — `pipeline/report_check.py`). Alles lesend; der Server startet den Korpus-Dienst
 (`pipeline/corpus_service.py`) als Kindprozess mit Einmal-Token. Log:
 `/tmp/catandary-corpus-mcp.log`. Zwei Skills nutzen ihn: `.claude/skills/field-setup`
 und `.claude/skills/regulatory-annex`. Beim ersten Start in einem Worktree fragt Claude

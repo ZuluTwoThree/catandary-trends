@@ -2084,6 +2084,16 @@ ins Blatt (Mensch schreibt um), für geholte Texte gilt die 1825-Tage-Regel.
   `requirements-research.txt`: gpt-researcher **0.16.1** — 0.16.0 auf PyPI hat einen
   Importfehler —, `mcp` 1.30.0, `langchain-anthropic`, `pytest`). **Nie in die Cron-venv**
   (`.venv` = Symlink auf main); Test `tests/test_field_research.py` pinnt das.
+- **Eingrenzung + Belegprüfung (seit 08.10., Owner, nach dem Elektrolyse-Bericht vom 07.10.: neun erfundene
+  DOIs, drei behauptete aber nie aufgerufene Werkzeuge, Phrasenzählungen voller Energie-/Medizin-Fehltreffer):**
+  `research_facets` (Treffer je OpenAlex-Subfield/Field, Zuordnung Thema → Subfield aus `openalex_topics`,
+  98 % der Werke), `subfields`/`fields` an `search_research`/`term_counts`, `cpc`-Präfixe an
+  `search_patents`/`term_counts` (über `patent_cpc`), `vertical` an `term_counts`; `verify_report`
+  (`pipeline/report_check.py`, deterministisch): der Korpus-Dienst merkt sich jedes Werkzeugergebnis
+  (`corpus_api.record_result`, je Prozess, max. 40 Mio. Zeichen), die Prüfung vergleicht DOIs
+  (Korpus, Crossref, Titelabgleich), CELEX (Cellar), Patentnummern (`patent_cpc`), Zahlen und
+  genannte Werkzeuge damit. Werkzeugbeschreibungen + Server-Anweisung neu (Ablauf eingrenzen → messen →
+  lesen → prüfen). Test `tests/test_report_check.py`.
 - **Korpus-API** `pipeline/corpus_api.py` (nur lesend, READ ONLY + `statement_timeout`):
   `search_signals` (Text/Bedeutung/RRF; Bedeutung mit Ebenen-Filter fällt auf
   Wortkandidaten + Vektorsortierung zurück, weil Patente/Förderung im Vektorraum

@@ -184,6 +184,100 @@ def rrf_merge(*ranked: list[int], k: int = RRF_K) -> list[tuple[int, float]]:
 
 
 # ---------------------------------------------------------------------------
+# Eingrenzung (seit 2026-10-08, Owner): Fachgebiet für Forschung, CPC für Patente
+# ---------------------------------------------------------------------------
+# Anlass: Der Elektrolyse-Bericht vom 07.10. zählte unter „electrolyzed water" vor allem
+# Katalysatoren der Wasserspaltung (Energie), unter „single cell protein" Einzelzell-
+# Proteomik. Eine ODER-Liste aus Lebensmittelwörtern lief über 47,7 Mio. Werke ins
+# Zeitlimit. Stattdessen: OpenAlex-Hierarchie Thema → Subfield → Field (Tabelle
+# openalex_topics, deckt 4.146 von 4.516 Themen = 98 % der Werke ab) als Filter auf
+# research_corpus.topic, und für Patente ein CPC-Präfix über patent_cpc (Index auf cpc).
+_TOPIC_MAP: dict[str, tuple[str, str]] = {}
+_TOPIC_MAP_AT = 0.0
+CPC_PREFIX_RE = re.compile(r"^[A-HY]\d{2}(?:[A-Z](?:\d{1,4}(?:/\d{1,6})?)?)?$")
+
+
+def topic_map() -> dict[str, tuple[str, str]]:
+    """OpenAlex-Thema → (Subfield, Field), einmal je Prozess und Tag geladen."""
+    global _TOPIC_MAP, _TOPIC_MAP_AT
+    import time
+    if _TOPIC_MAP and time.time() - _TOPIC_MAP_AT < 86_400:
+        return _TOPIC_MAP
+    with _ReadOnly("60s") as cur:
+        cur.execute("""SELECT DISTINCT ON (topic) topic, subfield, field FROM openalex_topics
+                       WHERE topic IS NOT NULL AND subfield IS NOT NULL ORDER BY topic, subfield""")
+        _TOPIC_MAP = {r["topic"]: (r["subfield"], r["field"]) for r in cur.fetchall()}
+    _TOPIC_MAP_AT = time.time()
+    return _TOPIC_MAP
+
+
+def scope_topics(subfields=None, fields=None, tmap: dict | None = None) -> list[str] | None:
+    """Themen der genannten Subfields/Fields (Groß-/Kleinschreibung egal). None = kein Filter.
+    Unbekannte Namen → ToolError mit den nächstliegenden gültigen Namen."""
+    import difflib
+    subs, flds = _terms(subfields) if subfields else [], _terms(fields) if fields else []
+    if not subs and not flds:
+        return None
+    tmap = tmap if tmap is not None else topic_map()
+    known_sub = {v[0].lower(): v[0] for v in tmap.values()}
+    known_fld = {v[1].lower(): v[1] for v in tmap.values() if v[1]}
+    for name, known, kind in [(x, known_sub, "subfield") for x in subs] + [(x, known_fld, "field") for x in flds]:
+        if name.lower() not in known:
+            near = difflib.get_close_matches(name.lower(), list(known), n=3, cutoff=0.5)
+            raise ToolError(f"unknown {kind} {name!r}; closest: {[known[k] for k in near] or 'see research_facets'}")
+    want_sub, want_fld = {x.lower() for x in subs}, {x.lower() for x in flds}
+    return sorted(t for t, (sf, fd) in tmap.items() if sf.lower() in want_sub or (fd or "").lower() in want_fld)
+
+
+def cpc_prefixes(prefixes) -> list[str] | None:
+    """Geprüfte CPC-Präfixe (z. B. A23, A23L, A23L3/32), ohne Leerzeichen. None = kein Filter."""
+    if not prefixes:
+        return None
+    out = []
+    for p in _terms(prefixes):
+        q = re.sub(r"\s+", "", p).upper()
+        if not CPC_PREFIX_RE.match(q):
+            raise ToolError(f"cpc prefix {p!r}: expected e.g. A23, A23L, A23L3/32")
+        out.append(q)
+    return out
+
+
+def research_facets(query: str, since_year: int | None = 2010, limit: int = 15) -> dict:
+    """Wo landen die Treffer einer Suche fachlich? Treffer je OpenAlex-Subfield/Field und
+    die häufigsten Themen — VOR einer Zählung oder Suche, um Fehltreffer zu erkennen und
+    `subfields`/`fields` zu wählen."""
+    query = (query or "").strip()
+    if not query:
+        raise ToolError("query is required")
+    n = _limit(limit, 15)
+    params: list = [query]
+    sql = f"tsv @@ {tsquery_sql(query)}"
+    if since_year:
+        sql += " AND year >= %s"
+        params.append(int(since_year))
+    with _ReadOnly("60s") as cur:
+        cur.execute(f"SELECT topic, count(*) AS n FROM research_corpus WHERE {sql} GROUP BY topic", params)
+        rows = cur.fetchall()
+    tmap = topic_map()
+    by_sub, by_fld, unmapped, total = {}, {}, 0, 0
+    for r in rows:
+        total += r["n"]
+        sf, fd = tmap.get(r["topic"] or "", (None, None))
+        if not sf:
+            unmapped += r["n"]
+            continue
+        by_sub[(sf, fd)] = by_sub.get((sf, fd), 0) + r["n"]
+        by_fld[fd] = by_fld.get(fd, 0) + r["n"]
+    subs = sorted(by_sub.items(), key=lambda kv: -kv[1])[:n]
+    flds = sorted(by_fld.items(), key=lambda kv: -kv[1])[:n]
+    tops = sorted(((r["topic"], r["n"]) for r in rows if r["topic"]), key=lambda kv: -kv[1])[:n]
+    return {"query": query, "since_year": since_year, "total": total, "unmapped": unmapped,
+            "subfields": [{"subfield": k[0], "field": k[1], "n": v} for k, v in subs],
+            "fields": [{"field": k, "n": v} for k, v in flds],
+            "topics": [{"topic": t, "subfield": tmap.get(t, (None,))[0], "n": v} for t, v in tops]}
+
+
+# ---------------------------------------------------------------------------
 # Signale
 # ---------------------------------------------------------------------------
 def _signal_filters(tier, vertical, since, until) -> tuple[str, list]:
@@ -348,7 +442,7 @@ def get_signal(signal_id: int, max_chars: int = DEFAULT_TEXT_CHARS) -> dict:
 # Forschung, Patente
 # ---------------------------------------------------------------------------
 def search_research(query: str, since_year: int | None = None, order: str = "cited",
-                    limit: int = 20, abstract_chars: int = 600) -> dict:
+                    limit: int = 20, abstract_chars: int = 600, subfields=None, fields=None) -> dict:
     """Forschungswerke (OpenAlex-Korpus, ab 2010) per Volltextsuche über Titel+Abstract."""
     query = (query or "").strip()
     if not query:
@@ -361,6 +455,10 @@ def search_research(query: str, since_year: int | None = None, order: str = "cit
     if since_year:
         sql += " AND rc.year >= %s"
         params.append(int(since_year))
+    topics = scope_topics(subfields, fields)
+    if topics is not None:
+        sql += " AND rc.topic = ANY(%s)"
+        params.append(topics)
     order_sql = ("COALESCE(ws.cited_by_count, rc.cited_by_count) DESC NULLS LAST" if order == "cited"
                  else "rc.published DESC NULLS LAST")
     with _ReadOnly("40s") as cur:
@@ -373,14 +471,16 @@ def search_research(query: str, since_year: int | None = None, order: str = "cit
         rows = cur.fetchall()
     out = [{"id": r["id"], "doi": r["doi"], "url": doi_url(r["doi"]),
             "title": strip_markup(r["title"]), "year": r["year"], "published": _iso(r["published"]), "type": r["type"],
-            "topic": r["topic"], "cited_by": r["cited_by_count"],
+            "topic": r["topic"], "subfield": topic_map().get(r["topic"] or "", (None,))[0],
+            "cited_by": r["cited_by_count"],
             "fwci": round(r["fwci"], 2) if r["fwci"] is not None else None,
             "citation_percentile": round(r["cnp"], 3) if r["cnp"] is not None else None,
             "abstract": _clip(r["abstract"], _chars(abstract_chars, 600))} for r in rows]
-    return {"query": query, "order": order, "n": len(out), "results": out}
+    return {"query": query, "order": order, "subfields": subfields, "fields": fields,
+            "n": len(out), "results": out}
 
 
-def search_patents(query: str, since: str | None = None, limit: int = 20) -> dict:
+def search_patents(query: str, since: str | None = None, limit: int = 20, cpc=None) -> dict:
     """Patente (Volltextindex Titel+Abstract), neueste zuerst, mit Anmeldern."""
     query = (query or "").strip()
     if not query:
@@ -391,6 +491,10 @@ def search_patents(query: str, since: str | None = None, limit: int = 20) -> dic
     if since:
         sql += " AND p.published >= %s"
         params.append(_date(since, "since"))
+    cpcs = cpc_prefixes(cpc)
+    if cpcs:
+        sql += " AND EXISTS (SELECT 1 FROM patent_cpc c WHERE c.pub_number = p.pub_number AND c.cpc LIKE ANY(%s))"
+        params.append([x + "%" for x in cpcs])
     with _ReadOnly("40s") as cur:
         cur.execute(f"""SELECT p.pub_number, p.published FROM patent_search p WHERE {sql}
                         ORDER BY p.published DESC NULLS LAST LIMIT %s""", params + [n])
@@ -408,14 +512,24 @@ def search_patents(query: str, since: str | None = None, limit: int = 20) -> dic
         out.append({"pub_number": h["pub_number"], "published": _iso(h["published"]),
                     "title": m.get("title"), "url": m.get("url"),
                     "abstract": _clip(m.get("excerpt"), 600), "assignees": assg.get(h["pub_number"], [])})
-    return {"query": query, "n": len(out), "results": out}
+    return {"query": query, "cpc": cpcs, "n": len(out), "results": out}
 
 
-def term_counts(terms, since_year: int = 1990) -> dict:
+def term_counts(terms, since_year: int = 1990, subfields=None, fields=None, cpc=None,
+                vertical: str | None = None) -> dict:
     """Treffer je Begriff und Ebene (Feld-Einrichtung): wie stark trägt ein Begriff
-    im Korpus? Phrasen-Suche wie in Field Watch (`phraseto_tsquery`)."""
+    im Korpus? Phrasen-Suche wie in Field Watch (`phraseto_tsquery`). Eingrenzung je
+    Ebene (seit 08.10.): Wissenschaft per `subfields`/`fields` (OpenAlex), Patente per
+    `cpc` (Präfixe), Markt/Förderung per `vertical`."""
     terms = _terms(terms)
     y0 = int(since_year or 1990)
+    topics = scope_topics(subfields, fields)
+    cpcs = cpc_prefixes(cpc)
+    vert = str(vertical).upper() if vertical else None
+    sci_extra, sci_p = (" AND topic = ANY(%s)", [topics]) if topics is not None else ("", [])
+    pat_extra, pat_p = ((" AND EXISTS (SELECT 1 FROM patent_cpc c WHERE c.pub_number = p.pub_number"
+                         " AND c.cpc LIKE ANY(%s))"), [[x + "%" for x in cpcs]]) if cpcs else ("", [])
+    mkt_extra, mkt_p = (" AND t.primary_vertical = %s", [vert]) if vert else ("", [])
     out = []
     with _ReadOnly("60s") as cur:
         for term in terms:
@@ -424,22 +538,24 @@ def term_counts(terms, since_year: int = 1990) -> dict:
                 cur.execute(f"""SELECT ({_tier_sql()}) AS tier, count(*) AS n FROM trends t
                                 JOIN raw_entries r ON r.id = t.raw_entry_id JOIN sources s ON s.id = r.source_id
                                 WHERE {FTS} @@ phraseto_tsquery('english', %s) AND t.sort_date >= %s
-                                  AND r.pub_number IS NULL GROUP BY 1""", (term, date(y0, 1, 1)))
+                                  AND r.pub_number IS NULL{mkt_extra} GROUP BY 1""", [term, date(y0, 1, 1)] + mkt_p)
                 tiers = {r["tier"]: r["n"] for r in cur.fetchall() if r["tier"]}
                 row["market"] = tiers.get("market", 0)
                 row["funding"] = tiers.get("funding", 0)
-                cur.execute("SELECT count(*) n FROM research_corpus WHERE tsv @@ phraseto_tsquery('english', %s) AND year >= %s",
-                            (term, max(y0, 2010)))
+                cur.execute("SELECT count(*) n FROM research_corpus WHERE tsv @@ phraseto_tsquery('english', %s)"
+                            " AND year >= %s" + sci_extra, [term, max(y0, 2010)] + sci_p)
                 row["science"] = cur.fetchone()["n"]
-                cur.execute("SELECT count(*) n FROM patent_search WHERE tsv @@ phraseto_tsquery('english', %s) AND published >= %s",
-                            (term, date(y0, 1, 1)))
+                cur.execute("SELECT count(*) n FROM patent_search p WHERE p.tsv @@ phraseto_tsquery('english', %s)"
+                            " AND p.published >= %s" + pat_extra, [term, date(y0, 1, 1)] + pat_p)
                 row["patent"] = cur.fetchone()["n"]
             except Exception as exc:                                # noqa: BLE001
                 cur.connection.rollback()
                 cur.execute("SET statement_timeout = '60s'")
                 row["error"] = type(exc).__name__
             out.append(row)
-    return {"since_year": y0, "science_from": 2010, "terms": out}
+    return {"since_year": y0, "science_from": 2010,
+            "scope": {"subfields": subfields, "fields": fields, "cpc": cpcs, "vertical": vert},
+            "terms": out}
 
 
 # ---------------------------------------------------------------------------
@@ -829,12 +945,127 @@ def gptr_fetch(urls) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Werkzeug-Register (Name → Funktion); der Dienst ruft nur, was hier steht
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Belegprüfung (seit 2026-10-08, Owner): Ergebnisspeicher der Sitzung + verify_report
+# ---------------------------------------------------------------------------
+# Der Korpus-Dienst ist je MCP-Server ein eigener Prozess (Claude Code: je Sitzung; Open WebUI:
+# der Dienst catandary-corpus-mcp für alle Chats). Er legt jedes Werkzeugergebnis hier ab;
+# verify_report prüft einen Bericht gegen die Ergebnisse der letzten `window_minutes`.
+import threading as _threading
+import time as _time
+from collections import deque as _deque
+
+RESULT_LOG_MAX_CHARS = 40_000_000
+RESULT_ITEM_MAX_CHARS = 2_000_000
+_RESULT_LOG: _deque = _deque()
+_RESULT_LOCK = _threading.Lock()
+_RESULT_CHARS = 0
+NOT_LOGGED = {"verify_report", "gptr_retrieve", "gptr_fetch"}
+
+
+def record_result(tool: str, args: dict, result) -> None:
+    """Werkzeugergebnis für die Belegprüfung merken (begrenzt, älteste fallen heraus)."""
+    global _RESULT_CHARS
+    if tool in NOT_LOGGED:
+        return
+    text = json.dumps(result, ensure_ascii=False, default=str)[:RESULT_ITEM_MAX_CHARS]
+    with _RESULT_LOCK:
+        _RESULT_LOG.append({"tool": tool, "ts": _time.time(), "text": text})
+        _RESULT_CHARS += len(text)
+        while _RESULT_CHARS > RESULT_LOG_MAX_CHARS and _RESULT_LOG:
+            _RESULT_CHARS -= len(_RESULT_LOG.popleft()["text"])
+
+
+def recent_results(window_minutes: float) -> list[dict]:
+    cutoff = _time.time() - float(window_minutes) * 60
+    with _RESULT_LOCK:
+        return [r for r in _RESULT_LOG if r["ts"] >= cutoff]
+
+
+def _doi_lookup(dois: list[str]) -> dict[str, str]:
+    keys = [f"https://doi.org/{d}" for d in dois] + dois
+    with _ReadOnly("30s") as cur:
+        cur.execute("SELECT doi, title FROM research_corpus WHERE doi = ANY(%s)", (keys,))
+        rows = cur.fetchall()
+    from pipeline.report_check import norm_doi
+    return {norm_doi(r["doi"]): strip_markup(r["title"] or "") for r in rows}
+
+
+PATENT_KINDS = ("A", "A1", "A2", "A3", "A4", "A8", "A9", "B", "B1", "B2", "B3", "C", "C1", "C2", "U", "U1", "Y", "T", "E")
+
+
+def _patent_lookup(pubs: list[str]) -> set[str]:
+    cands = set()
+    for p in pubs:
+        cands.add(p)
+        if p.count("-") == 1:
+            cands.update(f"{p}-{k}" for k in PATENT_KINDS)
+    with _ReadOnly("30s") as cur:
+        cur.execute("SELECT DISTINCT pub_number FROM patent_cpc WHERE pub_number = ANY(%s)", (sorted(cands),))
+        found = {r["pub_number"] for r in cur.fetchall()}
+    return found | {f.rsplit("-", 1)[0] for f in found}
+
+
+def _doi_crossref(doi: str) -> str | None:
+    import httpx
+
+    from pipeline.article_fetcher import UA
+    try:
+        r = httpx.get(f"https://api.crossref.org/works/{doi}", headers={"User-Agent": UA}, timeout=12)
+    except Exception:                                               # noqa: BLE001
+        return None
+    if r.status_code != 200:
+        return None
+    t = (r.json().get("message") or {}).get("title") or []
+    return (t[0] if t else "(title unknown)")
+
+
+def _celex_exists(celex: str) -> str | None:
+    import httpx
+
+    from pipeline.article_fetcher import UA
+    try:
+        r = httpx.get(f"https://publications.europa.eu/resource/celex/{celex}", follow_redirects=True,
+                      headers={"User-Agent": UA, "Accept": "application/xhtml+xml"}, timeout=20)
+    except Exception:                                               # noqa: BLE001
+        return None
+    return "exists (Cellar)" if r.status_code == 200 else None
+
+
+def verify_report(text: str, window_minutes: int = 240, check_external: bool = True) -> dict:
+    """Bericht gegen die Werkzeugergebnisse dieser Sitzung und den Korpus prüfen (deterministisch)."""
+    from pipeline import report_check
+    text = (text or "").strip()
+    if not text:
+        raise ToolError("text is required (the full report)")
+    if len(text) > 300_000:
+        raise ToolError("text too long (max 300,000 characters)")
+    window = max(5, min(int(window_minutes or 240), 24 * 60))
+    budget = {"n": 25}
+
+    def ext_doi(d):
+        if budget["n"] <= 0:
+            return None
+        budget["n"] -= 1
+        return _doi_crossref(d)
+
+    out = report_check.check_report(
+        text, recent_results(window), [t for t in TOOLS if t not in NOT_LOGGED],
+        doi_lookup=_doi_lookup, patent_lookup=_patent_lookup,
+        doi_external=ext_doi if check_external else None,
+        celex_lookup=_celex_exists if check_external else None)
+    out["window_minutes"] = window
+    return out
+
+
 TOOLS = {
     "search_signals": search_signals,
     "get_signal": get_signal,
     "search_research": search_research,
     "search_patents": search_patents,
     "term_counts": term_counts,
+    "research_facets": research_facets,
+    "verify_report": verify_report,
     "field_list": field_list,
     "field_week": field_week,
     "field_sheet": field_sheet,

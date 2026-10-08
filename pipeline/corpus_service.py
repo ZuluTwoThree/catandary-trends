@@ -64,7 +64,9 @@ def call_tool(name: str, args: dict):
     unknown = [k for k in args if k not in params]
     if unknown:
         raise corpus_api.ToolError(f"unknown argument(s) {unknown}; allowed: {list(params)}")
-    return fn(**args)
+    result = fn(**args)
+    corpus_api.record_result(name, args, result)    # Belegprüfung (verify_report)
+    return result
 
 
 class Handler(BaseHTTPRequestHandler):

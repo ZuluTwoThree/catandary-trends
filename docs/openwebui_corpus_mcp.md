@@ -7,7 +7,7 @@ Stand 06.10.2026 · Open WebUI 0.11.4 auf der Workstation · Dienst `catandary-c
 | Teil | Wo | Rolle |
 |---|---|---|
 | Open WebUI | Workstation, `:8080` (Tailnet: `https://kiworkstation.tail678c6e.ts.net:8443`) | Oberfläche, führt die Werkzeugaufrufe aus |
-| Korpus-MCP | Workstation, `http://127.0.0.1:8096/mcp` (nur lokal) | 14 lesende Werkzeuge auf die Catandary-Datenbank + konforme Websuche |
+| Korpus-MCP | Workstation, `http://127.0.0.1:8096/mcp` (nur lokal) | 16 lesende Werkzeuge auf die Catandary-Datenbank + konforme Websuche + Belegprüfung |
 | Modell (z. B. Nemotron) | bequietUbuntu, `:8090` | entscheidet, welche Werkzeuge es aufruft, und schreibt die Antwort |
 
 Das Modell sieht die Datenbank nie direkt, nur die Werkzeugergebnisse im Gespräch.
@@ -64,10 +64,27 @@ Erwartet: ein Werkzeugaufruf `term_counts` wird angezeigt, danach Zahlen je Eben
 
 ## Werkzeuge
 
-`search_signals` · `get_signal` · `search_research` · `search_patents` · `term_counts` ·
-`field_list` · `field_week` · `field_sheet` · `field_probe` · `tir_block` · `emerging_nests` ·
-`web_search` · `fetch_url` · `eurlex_search` — alles lesend. `field_sheet` und `field_week`
-brauchen Minuten; solange ist der Dienst belegt.
+`research_facets` · `term_counts` · `search_research` · `search_patents` · `search_signals` ·
+`get_signal` · `field_list` · `field_week` · `field_sheet` · `field_probe` · `tir_block` ·
+`emerging_nests` · `web_search` · `fetch_url` · `eurlex_search` · `verify_report` — alles lesend.
+`field_sheet` und `field_week` brauchen Minuten; solange ist der Dienst belegt.
+
+**Seit 08.10.:**
+- **Eingrenzen:** `research_facets` zeigt, in welchen Fachgebieten die Treffer einer Phrase
+  liegen („electrolyzed water": Biotechnologie 242, Pflanzen 86, Energie 79 … Food Science 55).
+  `term_counts` und `search_research` nehmen `subfields`/`fields` (OpenAlex), `term_counts`
+  und `search_patents` CPC-Präfixe (`cpc`, z. B. `A23`), `term_counts` eine `vertical` für
+  Markt/Förderung. Beispiel: „electrolyzed water" ungefiltert 953 Arbeiten / 3.429 Patente,
+  eingegrenzt (Food Science, A23) 55 / 284.
+- **Belegprüfung:** `verify_report` prüft einen Berichtsentwurf deterministisch gegen die
+  Werkzeugergebnisse der letzten 4 h, den Korpus, Crossref und EUR-Lex: erfundene oder
+  falsch zugeordnete DOIs, nicht existierende CELEX-/Patentnummern, genannte aber nie
+  aufgerufene Werkzeuge, Zahlen ohne Werkzeugbeleg. Am Nemotron-Bericht vom 07.10. hätte
+  sie alle neun DOIs und die drei nie aufgerufenen Werkzeuge gemeldet.
+- Die Werkzeugbeschreibungen sagen jetzt je Werkzeug, wofür es gedacht ist, wofür nicht und
+  welche Fallen es gibt; die Server-Anweisung schreibt den Ablauf vor (eingrenzen → messen →
+  Quellen lesen → `verify_report`). Nach einem Update in Open WebUI unter *External Tools*
+  einmal **Verify Connection**, damit die neue Werkzeugliste geladen wird.
 
 ## Systemanweisung (Vorschlag, kurz)
 
@@ -79,7 +96,9 @@ und steht mit Ebene und Zeitraum da; nichts selbst schätzen. Korpuszahlen sind 
 Marktstatistik. Die Verbesserungsrate K ist relative Entwicklung, keine Vorhersage.
 Jede Tatsache mit Link; Catandary-Artikel sind maschinengeschrieben — zitiere die Quelle
 dahinter. Trenne: Gemessen · Belegt · Einschätzung · Lücken · Quellen. Dünne Evidenz
-offen benennen. Höchstens etwa 12 Werkzeugaufrufe je Frage.
+offen benennen. Fachbegriffe vor dem Zählen mit research_facets eingrenzen. Vor der
+Antwort den vollständigen Text mit verify_report prüfen und alles Gemeldete korrigieren
+oder streichen. Höchstens etwa 15 Werkzeugaufrufe je Frage.
 ```
 
 ## Fehlerbilder
