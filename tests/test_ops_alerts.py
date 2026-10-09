@@ -208,13 +208,29 @@ def test_the_spinning_disk_keeps_its_own_lower_limit(db):
     assert _temps(oa, {"disks": [_disk("sda", temp=56.0, rot=True)]})["disk_temp"].findings
 
 
+def _temps_day(oa, sample, prev, day_ago):
+    return {r.kind: r for r in oa.rule_disks(sample, prev, oa.DEFAULTS, day_ago)}
+
+
 def test_the_drive_itself_is_the_witness_when_it_says_it_was_too_hot(db):
     _, oa = db
-    prev = {"disks": [_disk(warning_temp_time=10, critical_comp_time=0)]}
-    now = {"disks": [_disk(temp=52.0, warning_temp_time=14, critical_comp_time=0)]}
-    f = _temps(oa, now, prev)["disk_smart"].findings
+    """Seit 09.10.: gezaehlt wird die Warmzeit in 24 h, nicht jede neue Minute."""
+    day = {"disks": [_disk(warning_temp_time=400, critical_comp_time=0)]}
+    prev = {"disks": [_disk(warning_temp_time=438, critical_comp_time=0)]}
+    now = {"disks": [_disk(temp=52.0, warning_temp_time=440, critical_comp_time=0)]}
+    f = _temps_day(oa, now, prev, day)["disk_smart"].findings
     assert len(f) == 1
-    assert "own warning temperature" in f[0].message and "10 → 14" in f[0].message
+    assert "40 minutes above its own warning temperature in 24 h" in f[0].message
+
+
+def test_a_few_warm_minutes_a_day_are_no_longer_mailed(db):
+    _, oa = db
+    """Anlass 09.10.: „rising 438 → 439" kam als Mail + Entwarnung, 2-3x am Tag."""
+    day = {"disks": [_disk(warning_temp_time=434, critical_comp_time=1)]}
+    prev = {"disks": [_disk(warning_temp_time=438, critical_comp_time=1)]}
+    now = {"disks": [_disk(warning_temp_time=439, critical_comp_time=1)]}
+    assert _temps_day(oa, now, prev, day)["disk_smart"].findings == []
+    assert _temps(oa, now, prev)["disk_smart"].findings == []        # ohne 24-h-Vergleich: kein Alarm
 
 
 def test_time_above_the_critical_temperature_is_reported_separately(db):

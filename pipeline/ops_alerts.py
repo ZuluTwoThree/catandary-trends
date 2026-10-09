@@ -40,6 +40,7 @@ DEFAULTS: dict = {
     "job_slow_factor": 2.0, "job_hang_hours": 6,
     "job_failed_lookback_days": 14, "job_failed_ignore_rc": [75],
     "backlog_growth_days": 3, "sampler_stale_min": 5,
+    "nvme_warning_temp_min_per_day": 30,
 }
 
 
@@ -74,13 +75,14 @@ class RuleResult:
 
 # --- Regeln ---------------------------------------------------------------------------
 
-def rule_disks(sample: dict, prev_full: dict | None, t: dict) -> list[RuleResult]:
+def rule_disks(sample: dict, prev_full: dict | None, t: dict, day_ago: dict | None = None) -> list[RuleResult]:
     disks = sample.get("disks") or []
     free: list[Finding] = []
     temp: list[Finding] = []
     smart: list[Finding] = []
     smart_checked = False
     prev_smart = {d.get("dev"): (d.get("smart") or {}) for d in (prev_full or {}).get("disks") or []}
+    day_smart = {d.get("dev"): (d.get("smart") or {}) for d in (day_ago or {}).get("disks") or []}
     for d in disks:
         dev = d.get("dev", "?")
         for m in d.get("mounts") or []:
@@ -119,11 +121,28 @@ def rule_disks(sample: dict, prev_full: dict | None, t: dict) -> list[RuleResult
                 # Zahl wir oben gesetzt haben. Anlass 2026-09-16: der Alarm
                 # feuerte bei 65,8 °C, waehrend dasselbe Laufwerk
                 # warning_temp_time 0 meldete, also nie gewarnt hatte.
-                for k, label in (("warning_temp_time", "minutes above its own warning temperature"),
-                                 ("critical_comp_time", "minutes above its own CRITICAL temperature")):
-                    if _rose(p.get(k), s.get(k)):
-                        smart.append(Finding("disk_smart", dev,
-                                             f"{dev}: {label} rising {p.get(k)} → {s.get(k)}"))
+                # Seit 2026-10-09 (Owner: zu viele Mails): die WARN-Zeit zaehlt erst ab
+                # `nvme_warning_temp_min_per_day` Minuten in 24 h, verglichen mit der vollen
+                # Messung von vor 24 h. Vorher meldete jede einzelne neue Minute (Vergleich mit
+                # der Messung 10 min vorher) — 29 Alarme = 58 Mails seit 17.09., jeder 1-4
+                # Minuten. Gemessen: das Lexar NM790 sammelt an normalen Tagen 0-6, an Tagen
+                # mit schwerer Schreiblast (OpenAlex-Verarbeitung, Nachholauf, 05.-07.10.)
+                # 13-26 Minuten; die minuetlichen Messungen zeigten dabei hoechstens 63 °C
+                # (Schwelle der Platte 89 °C) — kurze Spitzen. Ein Kuehlproblem bringt
+                # Stunden. Die KRITISCHE Zeit bleibt sofort ein Alarm.
+                w_now, w_day = s.get("warning_temp_time"), (day_smart.get(dev) or {}).get("warning_temp_time")
+                try:
+                    w_delta = int(w_now) - int(w_day) if w_now is not None and w_day is not None else None
+                except (TypeError, ValueError):
+                    w_delta = None
+                if w_delta is not None and w_delta >= t["nvme_warning_temp_min_per_day"]:
+                    smart.append(Finding("disk_smart", dev,
+                                         f"{dev}: {w_delta} minutes above its own warning temperature in 24 h "
+                                         f"(limit {t['nvme_warning_temp_min_per_day']}; total {w_now})"))
+                if _rose(p.get("critical_comp_time"), s.get("critical_comp_time")):
+                    smart.append(Finding("disk_smart", dev,
+                                         f"{dev}: minutes above its own CRITICAL temperature rising "
+                                         f"{p.get('critical_comp_time')} → {s.get('critical_comp_time')}"))
             elif s.get("type") == "ata":
                 for k, label in (("reallocated", "reallocated sectors"), ("pending", "pending sectors"),
                                  ("uncorrectable", "uncorrectable sectors")):
@@ -224,7 +243,7 @@ def _db_context(t: dict | None = None) -> dict:
     """prev_full (SMART-Vergleich), offene Laeufe, Mediane, Backlog-Tagesmaxima,
     letzter abgeschlossener Lauf je Job."""
     t = t or load_thresholds()
-    ctx: dict = {"prev_full": None, "open": [], "medians": {}, "daily_max": []}
+    ctx: dict = {"prev_full": None, "day_ago": None, "open": [], "medians": {}, "daily_max": []}
     with get_connection() as conn:
         rows = conn.execute("SELECT disks FROM ops_samples WHERE is_full = ? ORDER BY ts DESC LIMIT 2",
                             (True if USE_POSTGRES else 1,)).fetchall()
@@ -234,6 +253,17 @@ def _db_context(t: dict | None = None) -> dict:
                 import json
                 d = json.loads(d)
             ctx["prev_full"] = {"disks": d}
+        # volle Messung von vor ~24 h (Waermezeit der NVMe je Tag); Samples bleiben 7 Tage
+        from datetime import timedelta as _td
+        cutoff = datetime.now(timezone.utc) - _td(hours=24)
+        row = conn.execute("SELECT disks FROM ops_samples WHERE is_full = ? AND ts <= ? ORDER BY ts DESC LIMIT 1",
+                           (True if USE_POSTGRES else 1, cutoff if USE_POSTGRES else cutoff.isoformat())).fetchone()
+        if row:
+            d = row["disks"] if hasattr(row, "keys") else row[0]
+            if isinstance(d, str):
+                import json
+                d = json.loads(d)
+            ctx["day_ago"] = {"disks": d}
         ctx["open"] = [dict(r) for r in conn.execute(
             "SELECT job, started_at FROM ops_events WHERE ended_at IS NULL").fetchall()]
         if USE_POSTGRES:
@@ -264,7 +294,7 @@ def evaluate(sample: dict, ctx: dict, t: dict, now: datetime | None = None) -> l
     now = now or datetime.now(timezone.utc)
     prev_full = ctx.get("prev_full") if sample.get("is_full") else None
     results: list[RuleResult] = []
-    disk_results = rule_disks(sample, prev_full, t)
+    disk_results = rule_disks(sample, prev_full, t, ctx.get("day_ago") if sample.get("is_full") else None)
     if not sample.get("is_full"):
         # SMART nur in vollen Messungen — ohne Daten keine Aussage.
         disk_results = [r if r.kind != "disk_smart" else RuleResult("disk_smart", False, []) for r in disk_results]

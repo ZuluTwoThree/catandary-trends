@@ -1123,6 +1123,10 @@ Sampler nach jeder Messung; Schwellen in `ops_alerts.yaml` (Repo-Root, ohne Code
 SMART FAILED / NVMe critical
 warning / Verschleiß ≥ 90 % / Reserve < 10 % / Sektor- und Medienfehler-Zähler
 **steigen** (gegen die vorige volle Messung, ein stabiler Wert ist kein Alarm),
+NVMe-Zeit über der **eigenen** Warnschwelle ≥ `nvme_warning_temp_min_per_day` (30) Minuten in 24 h
+(seit 09.10., Owner — vorher jede einzelne neue Minute: 29 Alarme = 58 Mails seit 17.09.; gemessen
+0-6 min/Tag normal, 13-26 an Tagen mit schwerer Schreiblast, minütlich nie über 63 °C bei Schwelle
+89 °C), Zeit über der kritischen Schwelle sofort,
 GPU > 88 °C, Platten-Temperatur (HDD > 55 °C, SSD > 68 °C), Fremdbelegung (> 1,5 GB VRAM, aber kein llama-server antwortet und
 kein Job hält die Karte — der Ruhezustand mit 8B ist keiner), DB-Verbindungen
 > 80 %, letzter abgeschlossener Lauf eines Jobs endete mit `rc != 0` (seit

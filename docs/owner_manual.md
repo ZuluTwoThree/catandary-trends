@@ -2236,7 +2236,9 @@ Repo-Root und wirken ohne Code beim nächsten Minutentakt. Was gemeldet wird:
 Platte unter 10 % frei (`/` mit Postgres schon unter 20 %), HDD über 55 °C /
 SSD über 68 °C (aus den Datenblättern der verbauten Laufwerke, 16.09.), SMART FAILED, NVMe-Verschleiß ≥ 90 % oder Reserve < 10 %,
 Sektor-/Medienfehler-Zähler, die gegenüber der vorigen Messung **steigen**,
-GPU über 88 °C, Grafikspeicher belegt ohne antwortenden llama-server und ohne
+NVMe mehr als 30 Minuten in 24 h über ihrer eigenen Warnschwelle
+(`nvme_warning_temp_min_per_day`; seit 09.10. — vorher kam jede einzelne Minute als Mail),
+Zeit über der kritischen Schwelle sofort, GPU über 88 °C, Grafikspeicher belegt ohne antwortenden llama-server und ohne
 bekannten Job, mehr als 80 % der DB-Verbindungen, ein Job, der länger als das
 Doppelte seines Medians läuft, ein Job über 6 h (gezählt wird nur ein Lauf,
 dessen Prozess noch lebt — eine Zeile, deren Prozess ohne Ende-Eintrag starb,

@@ -19,6 +19,10 @@ disk_free_pct_min_system: 20   # "/" (System + Postgres): schon bei 80 % voll wa
 # ganz ohne diese Zahlen (Regel disk_smart).
 disk_temp_hdd_max_c: 55
 disk_temp_ssd_max_c: 68
+# NVMe-Warmzeit: Alarm erst ab so vielen Minuten ueber der EIGENEN Warnschwelle der Platte in 24 h
+# (seit 09.10., Owner: vorher meldete jede einzelne Minute). Gemessen 0-6 min/Tag normal, 13-26 an
+# Tagen mit schwerer Schreiblast; die kritische Zeit (critical_comp_time) bleibt ein Sofort-Alarm.
+nvme_warning_temp_min_per_day: 30
 nvme_wear_pct_max: 90
 nvme_spare_pct_min: 10
 # HDD-Sektorzaehler und NVMe-Medienfehler: Alarm nur, wenn sie STEIGEN
