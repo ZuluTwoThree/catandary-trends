@@ -24,7 +24,7 @@ start_server() {  # port model [llama-server args...]
   local port=$1 model=$2
   shift 2
   ( cd "$LLAMA" && exec ./build/bin/llama-server -m "./models/$model" --host 127.0.0.1 \
-      --port "$port" -ngl 99 --no-mmap "$@" ) > "$LOGD/server-$port.log" 2>&1 &
+      --port "$port" -ngl 99 --load-mode none "$@" ) > "$LOGD/server-$port.log" 2>&1 &
   local pid=$!
   PIDS+=("$pid")
   echo "$pid $$" > "$MARK"

@@ -39,7 +39,7 @@ systemctl --user stop llama-server.service
 sleep 3
 echo "[$(date +%T)] VRAM after stop: $(nvidia-smi --query-gpu=memory.used --format=csv,noheader)"
 ( cd "$LLAMA" && exec ./build/bin/llama-server -m ./models/Qwen3-Embedding-8B-Q4_K_M.gguf --host 127.0.0.1 \
-    --port 8095 -ngl 99 --no-mmap --embedding --pooling last -c 65536 -np 16 -ub 8192 -b 8192 ) > "$LOG" 2>&1 &
+    --port 8095 -ngl 99 --load-mode none --embedding --pooling last -c 65536 -np 16 -ub 8192 -b 8192 ) > "$LOG" 2>&1 &
 PID=$!
 echo "$PID $$" > "$MARK"
 for _ in $(seq 1 120); do

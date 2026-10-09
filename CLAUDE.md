@@ -2189,6 +2189,13 @@ Kalibrier-Protokoll: `docs/newsletter_deep_dive.md`.
 
 ## Technische Hinweise
 
+- **llama.cpp-Build (seit 2026-10-09, Owner):** ki-workstation und bequietUbuntu laufen aus DEMSELBEN
+  Quellstand — ggml-org/llama.cpp `79e2e74eb` (Build 11538) plus `bonsai-upstream-prs.diff` (drei offene
+  PrismML-PRs für Ternary-Bonsai). Inhalt, Update-Ablauf und Rückweg: `~/llama.cpp/BUILD-LIESMICH.md`
+  (auf beiden Maschinen). **`--no-mmap` gibt es nicht mehr** — llama-server bricht damit ab; Ersatz
+  `--load-mode none`. Die Startskripte in `~/llama.cpp` sind umgestellt (Sicherung
+  `start-skripte-vor-b11538.tar.gz`), im Repo die beiden Eval-Skripte `scripts/space_eval/run_abstract_eval.sh`
+  und `scripts/tag_eval/run_pilots.sh`. Neue Startskripte und Testserver: nie `--no-mmap`.
 - **Aktuell (Linux-Workstation, Stand 2026-09-02):** Python = `.venv/bin/python` im Repo. Ollama ist installiert (`~/.local/bin/ollama`), aber **kein systemd-Dienst und produktiv nicht aktiv** (Port 11434 am 02.09. leer) — der ganze Cycle läuft über den llama-server auf :8090 (s. „Backend-Realität" oben). Ollama nur manuell starten, wenn ein Stage auf `STAGE*_BACKEND=ollama` steht; Client-Adresse dann `OLLAMA_CLIENT_HOST` (Default `http://127.0.0.1:11434`, `pipeline/config.py`; `.env.example` setzt `OLLAMA_HOST` für den Server-Bind).
 - *(Historisch, Windows-Ära bis ~06/2026: Ollama als Windows-Exe, Python unter `C:\Users\Dirk\...\Python313`. Nicht mehr gültig.)*
 - **Poller-Dry-Run** (seit 2026-09-09): `python -m pipeline.feed_poller [VERTICAL …] --dry-run` holt die
