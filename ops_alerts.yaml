@@ -31,6 +31,9 @@ nvme_spare_pct_min: 10
 # GPU lokal
 gpu_temp_max_c: 88
 gpu_foreign_vram_mib: 1500     # mehr belegt, aber kein llama-server antwortet und kein Job haelt die Karte (Ruhezustand mit 8B = kein Alarm)
+# Seit 09.10. (Owner: zu viele Mails): NeMo/Whisper (GPU_EVICT_PATTERNS) zaehlen nicht als fremd,
+# und der Zustand muss so viele Minuten in Folge bestehen (Ladephasen dauerten 1-2 min).
+gpu_foreign_min_minutes: 5
 
 # Postgres
 db_connections_pct_max: 80
@@ -38,6 +41,18 @@ db_connections_pct_max: 80
 # Laeufe (ops_events)
 job_slow_factor: 2.0           # laeuft noch und schon laenger als Faktor x Median (28 Tage, >= 3 Laeufe)
 job_hang_hours: 6              # laeuft noch, seit mehr als N Stunden
+# Seit 09.10.: Jobs mit planmaessig langen Fenstern bekommen eigene Grenzen (Stunden).
+job_hang_hours_by_job:
+  openalex_download: 11        # Fenster 23:00-08:30 = 9,5 h
+  sync_openalex_monthly: 9     # Fenster 09:00-17:00 = 8 h
+  history_embed_3090: 10       # Vollbestand ~7 h
+  history_embed_5080: 10
+# "langsam" erst, wenn ein Lauf ausserdem mindestens so viele Minuten ueber seinem Median liegt
+# (Faktor 2 auf Minuten-Mediane meldete jede Schwankung).
+job_slow_min_extra_min: 30
+# Jobs, deren Dauer an der Datenmenge haengt (Tage ohne neue Daten: Sekunden, Release-Tage: Stunden) —
+# ihr Median sagt nichts; gegen Haengen schuetzt job_hang_hours_by_job.
+job_slow_ignore: [openalex_download, sync_openalex_monthly]
 
 # Rueckstand
 backlog_growth_days: 3         # Tagesmaximum des Backlogs steigt N Tage in Folge

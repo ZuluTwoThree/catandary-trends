@@ -1127,13 +1127,17 @@ NVMe-Zeit über der **eigenen** Warnschwelle ≥ `nvme_warning_temp_min_per_day`
 (seit 09.10., Owner — vorher jede einzelne neue Minute: 29 Alarme = 58 Mails seit 17.09.; gemessen
 0-6 min/Tag normal, 13-26 an Tagen mit schwerer Schreiblast, minütlich nie über 63 °C bei Schwelle
 89 °C), Zeit über der kritischen Schwelle sofort,
-GPU > 88 °C, Platten-Temperatur (HDD > 55 °C, SSD > 68 °C), Fremdbelegung (> 1,5 GB VRAM, aber kein llama-server antwortet und
-kein Job hält die Karte — der Ruhezustand mit 8B ist keiner), DB-Verbindungen
+GPU > 88 °C, Platten-Temperatur (HDD > 55 °C, SSD > 68 °C), Fremdbelegung (> 1,5 GB VRAM durch UNBEKANNTE Prozesse,
+kein llama-server antwortet, kein Job hält die Karte, und das seit `gpu_foreign_min_minutes` = 5 Messungen — seit 09.10.
+zählen NeMo/Whisper aus `GPU_EVICT_PATTERNS` nicht mit, `ops_probe.probe_gpu_known`; der Ruhezustand mit 8B ist keiner), DB-Verbindungen
 > 80 %, letzter abgeschlossener Lauf eines Jobs endete mit `rc != 0` (seit
 2026-09-26; `job_failed_ignore_rc` klammert rc=75 = Wächter-Skip aus — Anlass:
 `discovery_loop` meldete drei Sonntage in Folge rc=1, die Zeile stand in
 `ops_events`, aber keine Regel las sie), Job läuft > 2 × seinen Median
-(28 d, ≥ 3 Läufe), Job läuft > 6 h
+(28 d, ≥ 3 Läufe) UND ≥ 30 min darüber (`job_slow_min_extra_min`; OpenAlex-Download/-Sync ausgenommen,
+`job_slow_ignore` — ihre Dauer hängt an der Datenmenge), Job läuft > 6 h (je Job eigene Grenzen in
+`job_hang_hours_by_job`: Download 11, Sync 9, history_embed 10 — seit 09.10., Owner: zu viele Mails;
+vorher 78 Alarme = ~156 Mails in drei Wochen, nachgerechnet bleiben ~6)
 („läuft" = Zeile offen **und** Prozess lebt — tote Läufe schließt der Sampler
 vorher, s. Laufprotokoll; Startzeit in der Mail seit 12.09. lokal mit Zone, nicht
 mehr fälschlich „UTC"),

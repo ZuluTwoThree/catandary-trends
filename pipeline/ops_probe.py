@@ -103,6 +103,41 @@ def parse_nvidia_smi(text: str) -> dict:
             "gpu_power_w": num(4, float)}
 
 
+def gpu_evict_patterns() -> str:
+    """GPU_EVICT_PATTERNS aus scripts/lib/gpu_guard.sh (bekannte Tagesanwendungen, die der
+    Nachtlauf stoppt: nemo-speech, whisper-server)."""
+    try:
+        m = re.search(r'GPU_EVICT_PATTERNS="\$\{GPU_EVICT_PATTERNS:-([^}]*)\}"',
+                      GPU_GUARD_SH.read_text(encoding="utf-8"))
+        if m:
+            return m.group(1)
+    except OSError:
+        pass
+    return "nemo-speech|whisper-server"
+
+
+def probe_gpu_known() -> int | None:
+    """VRAM (MiB) der bekannten Tagesanwendungen — für die Regel gpu_foreign (nicht gespeichert)."""
+    pat = gpu_evict_patterns()
+    if not pat:
+        return 0
+    try:
+        r = _run(["nvidia-smi", "--query-compute-apps=process_name,used_memory", "--format=csv,noheader,nounits"])
+    except Exception:                                               # noqa: BLE001
+        return None
+    if r.returncode != 0:
+        return None
+    total = 0
+    for line in r.stdout.strip().splitlines():
+        name, _, mem = line.rpartition(",")
+        if re.search(pat, name.strip()):
+            try:
+                total += int(float(mem.strip()))
+            except ValueError:
+                pass
+    return total
+
+
 def probe_local_model() -> str | None:
     try:
         r = httpx.get(f"{LLAMACPP_HOST}/v1/models", timeout=3)
@@ -489,6 +524,7 @@ def take_sample(*, full: bool | None = None, now: datetime | None = None,
     sample.update(probe_gpu())
     sample["gpu_model"] = probe_local_model()
     sample["gpu_job"] = probe_gpu_job()
+    sample["gpu_known_mib"] = probe_gpu_known()     # nur für ops_alerts, nicht in COLUMNS
     sample.update(probe_remote(now=now.astimezone()))
     sample["cpu_pct"] = cpu_pct_from(state.get("cpu"), cpu_now)
     try:

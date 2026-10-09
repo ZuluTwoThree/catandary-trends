@@ -2238,9 +2238,11 @@ SSD über 68 °C (aus den Datenblättern der verbauten Laufwerke, 16.09.), SMART
 Sektor-/Medienfehler-Zähler, die gegenüber der vorigen Messung **steigen**,
 NVMe mehr als 30 Minuten in 24 h über ihrer eigenen Warnschwelle
 (`nvme_warning_temp_min_per_day`; seit 09.10. — vorher kam jede einzelne Minute als Mail),
-Zeit über der kritischen Schwelle sofort, GPU über 88 °C, Grafikspeicher belegt ohne antwortenden llama-server und ohne
-bekannten Job, mehr als 80 % der DB-Verbindungen, ein Job, der länger als das
-Doppelte seines Medians läuft, ein Job über 6 h (gezählt wird nur ein Lauf,
+Zeit über der kritischen Schwelle sofort, GPU über 88 °C, Grafikspeicher durch unbekannte Prozesse belegt (NeMo/Whisper zählen nicht)
+ohne antwortenden llama-server und ohne bekannten Job, mindestens 5 Minuten lang, mehr als 80 % der DB-Verbindungen, ein Job, der länger als das
+Doppelte seines Medians UND mindestens 30 Minuten darüber läuft (OpenAlex-Download/-Sync
+ausgenommen), ein Job über 6 h (Download 11 h, Sync 9 h, history_embed 10 h; alles in
+`ops_alerts.yaml`) (gezählt wird nur ein Lauf,
 dessen Prozess noch lebt — eine Zeile, deren Prozess ohne Ende-Eintrag starb,
 schließt der Sampler binnen einer Minute selbst und die Seite zeigt sie als
 „aborted"), **ein Job, dessen letzter abgeschlossener Lauf mit `rc != 0`

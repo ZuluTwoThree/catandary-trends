@@ -41,6 +41,8 @@ DEFAULTS: dict = {
     "job_failed_lookback_days": 14, "job_failed_ignore_rc": [75],
     "backlog_growth_days": 3, "sampler_stale_min": 5,
     "nvme_warning_temp_min_per_day": 30,
+    "job_slow_min_extra_min": 30, "job_slow_ignore": [], "job_hang_hours_by_job": {},
+    "gpu_foreign_min_minutes": 5,
 }
 
 
@@ -159,7 +161,7 @@ def _rose(prev, cur) -> bool:
         return False
 
 
-def rule_gpu(sample: dict, open_jobs: list[str], t: dict) -> list[RuleResult]:
+def rule_gpu(sample: dict, open_jobs: list[str], t: dict, recent: list[dict] | None = None) -> list[RuleResult]:
     temp: list[Finding] = []
     foreign: list[Finding] = []
     tc = sample.get("gpu_temp_c")
@@ -168,11 +170,25 @@ def rule_gpu(sample: dict, open_jobs: list[str], t: dict) -> list[RuleResult]:
     # Fremd = Speicher belegt, aber weder antwortet unser llama-server (/v1/models)
     # noch haelt ein bekannter Job die Karte. Der Ruhezustand (8B geladen, ~22 GB)
     # ist KEIN Alarm — dort antwortet der Server.
+    # Seit 2026-10-09 (Owner: zu viele Mails; 19 Alarme in drei Wochen):
+    #  * die bekannten Tagesanwendungen (NeMo, Whisper; GPU_EVICT_PATTERNS) zählen nicht als
+    #    fremd — ihre ~2,4-3 GB ließen den Alarm jedes Mal auslösen, wenn der llama-server
+    #    gerade nicht antwortete (Modellwechsel, Neustart);
+    #  * der Zustand muss `gpu_foreign_min_minutes` Messungen in Folge bestehen — Ladephasen
+    #    eines Jobs, bevor er seinen Besitzvermerk schreibt, dauerten 1-2 Minuten.
     used = sample.get("gpu_mem_used_mib")
-    if (used is not None and used > t["gpu_foreign_vram_mib"] and not sample.get("gpu_model")
-            and not sample.get("gpu_job") and not open_jobs):
+    unknown = None if used is None else used - (sample.get("gpu_known_mib") or 0)
+    def _raw_foreign(x: dict) -> bool:
+        u = x.get("gpu_mem_used_mib")
+        return u is not None and u > t["gpu_foreign_vram_mib"] and not x.get("gpu_model") and not x.get("gpu_job")
+    need = max(1, int(t["gpu_foreign_min_minutes"]))
+    history = list(recent or [])[:need]
+    lasting = len(history) >= need and all(_raw_foreign(x) for x in history) if need > 1 else True
+    if (unknown is not None and unknown > t["gpu_foreign_vram_mib"] and not sample.get("gpu_model")
+            and not sample.get("gpu_job") and not open_jobs and lasting):
         foreign.append(Finding("gpu_foreign", "local",
-                               f"{used} MiB VRAM held, but no llama-server answers and no known job owns the card"))
+                               f"{unknown} MiB VRAM held by unknown processes for ≥ {need} min "
+                               f"(total {used} MiB), no llama-server answers and no known job owns the card"))
     return [RuleResult("gpu_temp", tc is not None, temp), RuleResult("gpu_foreign", used is not None, foreign)]
 
 
@@ -196,11 +212,19 @@ def rule_jobs(open_events: list[dict], medians: dict[str, float], t: dict, now: 
             started = started.replace(tzinfo=timezone.utc)
         hours = (now - started).total_seconds() / 3600
         job = ev["job"]
-        if hours > t["job_hang_hours"]:
+        # Je Job eigene Grenze (ops_alerts.yaml job_hang_hours_by_job): der OpenAlex-Download
+        # läuft planmäßig bis 9,5 h (Fenster 23:00-08:30), der Sync bis 8 h — beide lösten
+        # „running for 6.0 h" aus, obwohl sie im Plan lagen.
+        hang_limit = (t.get("job_hang_hours_by_job") or {}).get(job, t["job_hang_hours"])
+        if hours > hang_limit:
             # lokale Uhrzeit mit Zonenkuerzel — die Mail vom 12.09. sagte "07:49 UTC" fuer 07:49 CEST
             hang.append(Finding("job_hang", job, f"{job} running for {hours:.1f} h (started {started.astimezone():%d.%m. %H:%M %Z})"))
         med = medians.get(job)
-        if med and hours * 3600 > t["job_slow_factor"] * med:
+        # „langsam" erst ab Faktor x Median UND mindestens job_slow_min_extra_min Minuten über
+        # dem Median (seit 09.10.): bei Medianen von Minuten meldete Faktor 2 jede kleine
+        # Schwankung („purge_raw_content running 0.0 h, median is 0.0 h", 17 Alarme in 3 Wochen).
+        if (med and job not in (t.get("job_slow_ignore") or []) and hours * 3600 > t["job_slow_factor"] * med
+                and hours * 3600 - med > 60 * t["job_slow_min_extra_min"]):
             slow.append(Finding("job_slow", job, f"{job} running {hours:.1f} h, median is {med / 3600:.1f} h"))
     return [RuleResult("job_slow", True, slow), RuleResult("job_hang", True, hang)]
 
@@ -264,6 +288,10 @@ def _db_context(t: dict | None = None) -> dict:
                 import json
                 d = json.loads(d)
             ctx["day_ago"] = {"disks": d}
+        n_recent = max(1, int(t.get("gpu_foreign_min_minutes") or 1))
+        ctx["recent_gpu"] = [dict(r) for r in conn.execute(
+            "SELECT gpu_mem_used_mib, gpu_model, gpu_job FROM ops_samples ORDER BY ts DESC LIMIT ?",
+            (n_recent,)).fetchall()]
         ctx["open"] = [dict(r) for r in conn.execute(
             "SELECT job, started_at FROM ops_events WHERE ended_at IS NULL").fetchall()]
         if USE_POSTGRES:
@@ -299,7 +327,7 @@ def evaluate(sample: dict, ctx: dict, t: dict, now: datetime | None = None) -> l
         # SMART nur in vollen Messungen — ohne Daten keine Aussage.
         disk_results = [r if r.kind != "disk_smart" else RuleResult("disk_smart", False, []) for r in disk_results]
     results += disk_results
-    results += rule_gpu(sample, [e["job"] for e in ctx.get("open", [])], t)
+    results += rule_gpu(sample, [e["job"] for e in ctx.get("open", [])], t, ctx.get("recent_gpu"))
     results.append(rule_db(sample, t))
     results += rule_jobs(ctx.get("open", []), ctx.get("medians", {}), t, now)
     results.append(rule_job_failed(ctx["last_runs"], t) if ctx.get("last_runs") is not None

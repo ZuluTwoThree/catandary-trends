@@ -103,9 +103,47 @@ def test_gpu_db_job_backlog_rules(db):
     assert ("job_hang", "full_cycle_cron") in f
     assert ("job_slow", "backup_db") in f               # 1 h gegen Median 20 min
     assert ("backlog_growth", "backlog") in f
-    # ohne offenen Job ist der belegte Speicher fremd
-    res2 = oa.evaluate(s, {**ctx, "open": []}, t, now=now)
+    # ohne offenen Job ist der belegte Speicher fremd — wenn es seit 5 Messungen so ist
+    lasting = [{"gpu_mem_used_mib": 22000, "gpu_model": None, "gpu_job": None}] * 5
+    res2 = oa.evaluate(s, {**ctx, "open": [], "recent_gpu": lasting}, t, now=now)
     assert ("gpu_foreign", "local") in _findings(res2)
+
+
+# --- Weniger Mails (Owner 2026-10-09) ----------------------------------------
+
+def test_gpu_foreign_ignores_known_day_apps_and_short_blips(db):
+    _, oa = db
+    t = dict(oa.DEFAULTS)
+    foreign = {"gpu_mem_used_mib": 3049, "gpu_model": None, "gpu_job": None}
+    lasting = [foreign] * 5
+    # NeMo + Whisper (~3 GB) bei gerade nicht antwortendem llama-server: kein Alarm
+    r = {x.kind: x for x in oa.rule_gpu({**foreign, "gpu_known_mib": 2434}, [], t, lasting)}
+    assert r["gpu_foreign"].findings == []
+    # 14 GB unbekannt, aber erst seit 2 Minuten (Ladephase eines Jobs): kein Alarm
+    big = {"gpu_mem_used_mib": 14154, "gpu_model": None, "gpu_job": None, "gpu_known_mib": 0}
+    blip = [big, big, {"gpu_mem_used_mib": 7562, "gpu_model": "Qwen3-8B", "gpu_job": None}] + [big] * 2
+    assert {x.kind: x for x in oa.rule_gpu(big, [], t, blip)}["gpu_foreign"].findings == []
+    # dieselben 14 GB seit 5 Minuten: Alarm, mit Anteil der unbekannten Prozesse
+    f = {x.kind: x for x in oa.rule_gpu(big, [], t, [big] * 5)}["gpu_foreign"].findings
+    assert len(f) == 1 and "14154 MiB VRAM held by unknown processes" in f[0].message
+
+
+def test_job_slow_needs_real_minutes_and_hang_has_per_job_limits(db):
+    _, oa = db
+    t = {**oa.DEFAULTS, "job_hang_hours_by_job": {"openalex_download": 11}}
+    now = datetime(2026, 10, 7, 6, 40, tzinfo=timezone.utc)
+    open_ev = [{"job": "purge_raw_content", "started_at": now - timedelta(minutes=3)},     # Median 1 min
+               {"job": "backup_db", "started_at": now - timedelta(minutes=36)},            # Median 18 min
+               {"job": "full_cycle_cron", "started_at": now - timedelta(hours=8)},         # Median 3 h
+               {"job": "openalex_download", "started_at": now - timedelta(hours=7.6)}]
+    med = {"purge_raw_content": 60.0, "backup_db": 1080.0, "full_cycle_cron": 10800.0}
+    r = {x.kind: {f.key for f in x.findings} for x in oa.rule_jobs(open_ev, med, t, now)}
+    assert r["job_slow"] == {"full_cycle_cron"}          # 8 h gegen 3 h; die Kleinen schwanken nur
+    assert r["job_hang"] == {"full_cycle_cron"}          # der Download hat 11 h Spielraum
+    t2 = {**t, "job_slow_ignore": ["openalex_download"]}
+    ev2 = [{"job": "openalex_download", "started_at": now - timedelta(hours=7)}]
+    r2 = {x.kind: {f.key for f in x.findings} for x in oa.rule_jobs(ev2, {"openalex_download": 5.0}, t2, now)}
+    assert r2["job_slow"] == set()                       # Release-Tag statt Leerlauf: kein Alarm
 
 
 def test_sync_raises_once_and_resolves_once(db, monkeypatch):
