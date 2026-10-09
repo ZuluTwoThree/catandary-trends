@@ -52,6 +52,11 @@ LLAMA_REST_SCRIPT="${LLAMA_REST_SCRIPT:-start-qwen3-8b.sh}"
 # waehrend des Pipeline-Laufs nicht gebraucht; ohne das passt das 22-GB-8B nicht neben
 # ihre ~4,8 GB. Leer = nichts beenden.
 GPU_EVICT_PATTERNS="${GPU_EVICT_PATTERNS:-nemo-speech|whisper-server}"
+# Seit 2026-10-09 (Owner: 16 Fächer fürs 8B) stoppt der Nachtlauf diese Anwendungen NICHT mehr —
+# das 8B braucht 16,2 statt ~22 GB und passt daneben. Die Liste bleibt: der Ops-Wächter zählt
+# sie als bekannt (ops_probe.gpu_evict_patterns). GPU_EVICT_DAY_APPS=1 stellt das Stoppen wieder an
+# (nötig, wenn LLAMA_8B_WORK_SCRIPT=start-qwen3-8b-208k.sh, 24 Fächer).
+GPU_EVICT_DAY_APPS="${GPU_EVICT_DAY_APPS:-0}"
 GPU_GUARD_POLL_SEC="${GPU_GUARD_POLL_SEC:-60}"
 GPU_GUARD_DATA_DIR="${GPU_GUARD_DATA_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)/data}"
 # Vermerk der vor dem Nachtlauf gestoppten Docker-Container (gpu_evict_pid/gpu_evict_restore).

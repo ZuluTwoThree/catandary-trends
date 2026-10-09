@@ -134,7 +134,8 @@ STAGE_8B_MODEL = os.getenv("STAGE_8B_MODEL", "Qwen3-8B-UD-Q4_K_XL.gguf")
 # via a thread pool against the llama-server's parallel slots. Default 24 matches
 # the 208K/24-slot 8B server the handover brings up (see MODEL_START_SCRIPTS).
 # Set 0/1 for sequential (e.g. Ollama single-stream). Validated sweet spot: 24.
-CLASSIFY_WORKERS = int(os.getenv("CLASSIFY_WORKERS", "24"))
+# 16 = Fächer des Arbeitsservers (start-qwen3-8b-16slot.sh, seit 2026-10-09; vorher 24)
+CLASSIFY_WORKERS = int(os.getenv("CLASSIFY_WORKERS", "16"))
 
 # Stage 5 (Embeddings + Dedup) backend.
 # "ollama" (default) uses MODEL_EMBEDDING on Ollama. "llamacpp" routes embedding

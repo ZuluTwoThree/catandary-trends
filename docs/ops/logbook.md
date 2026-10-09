@@ -13,6 +13,16 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-10-09 · change · Nacht-8B mit 16 statt 24 Fächern — Mitschrift bleibt nachts an
+
+- Messung Nachtlauf 09.10.: 24 Fächer à 8.960 im Mittel zu 22,8 belegt, aber je Anfrage nur 13 % gefüllt
+  (Median 1.138 Token), KV ~14 % genutzt, GPU 69 %, 365 Token/s.
+- Test (600 bzw. 200 echte Extraktionen, 24 parallel): gemeinsamer Cache 32k/64k mit Abbrüchen, 128k ohne,
+  aber nur 208 Token/s (halbes Tempo); feste Fächer 16 und 20 je ~322 Token/s, 16,2 bzw. 19,0 GB;
+  Ergebnisse in allen Fällen im Rauschen gleich.
+- Owner: Default 16 Fächer (`start-qwen3-8b-16slot.sh`, `CLASSIFY_WORKERS=16`), NeMo/Whisper bleiben an
+  (`GPU_EVICT_DAY_APPS=0`), Richter-Vorab-Check 3500 MiB. Probe-Handover: 18,9 GB mit Mitschrift.
+
 ## 2026-10-07 · change · Nachtlauf-Ausfall, Container-Fix, Router-Neuverbindung, Schriften lokal
 
 - **Nachtlauf 07.10. fiel aus** (0 Trends): `kill` auf NeMo/Whisper (root, Docker) scheiterte still,

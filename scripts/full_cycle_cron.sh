@@ -74,7 +74,7 @@ mkdir -p "$(dirname "$LOG")"
   # Nachtlauf beendet — das 24-Slot-8B der Stufen 2-4 braucht ~22 GB und passt nicht
   # neben ihre ~4,8 GB. Nur Prozesse, die laut nvidia-smi VRAM halten UND auf
   # GPU_EVICT_PATTERNS (scripts/lib/gpu_guard.sh) passen; alles andere bleibt stehen.
-  if [ -n "${GPU_EVICT_PATTERNS:-}" ]; then
+  if [ "${GPU_EVICT_DAY_APPS:-0}" = "1" ] && [ -n "${GPU_EVICT_PATTERNS:-}" ]; then
     EVICTED=0
     while IFS=, read -r epid ename emem; do
       epid=$(echo "$epid" | tr -d ' '); ename=$(echo "$ename" | tr -d ' ')
@@ -87,12 +87,13 @@ mkdir -p "$(dirname "$LOG")"
     [ "$EVICTED" -gt 0 ] && echo "  evicted $EVICTED day-time GPU process(es)"
   fi
 
-  echo "----- waiting for VRAM to clear (<1500 MiB) -----"
+  [ "${GPU_EVICT_DAY_APPS:-0}" = "1" ] || echo "  day-time apps stay on (GPU_EVICT_DAY_APPS=0; 8B with 16 slots fits next to them)"
+  echo "----- waiting for VRAM to clear (<3000 MiB) -----"
   for i in $(seq 1 20); do
     sleep 2
     USED=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1)
     echo "  [$i] VRAM used: ${USED} MiB"
-    [ "${USED:-9999}" -lt 1500 ] && break
+    [ "${USED:-9999}" -lt 3000 ] && break
   done
 
   # Batchgroesse: so bemessen, dass ein normaler Tag in EINEM Lauf durchgeht.

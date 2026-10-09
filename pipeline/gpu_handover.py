@@ -67,14 +67,16 @@ MODEL_START_SCRIPTS: dict[str, Path] = {
     #  der Eintrag zeigte seitdem auf eine Datei, die es nicht gibt. Gefunden
     #  von tests/test_start_scripts_match_registry.py am 2026-09-25.)
     # Phase 2-4 default: the 208K-context / 24-slot 8B (parallel classification).
-    # CLASSIFY_WORKERS=24 fans out across its slots. Swapped out for Stage 5/6.
+    # CLASSIFY_WORKERS (16) fans out across its 16 slots. Swapped out for Stage 5/6.
     # This is the WORKING configuration of the 8B; the resting state between jobs
     # is the lean script below (RESTING_START_SCRIPT: -c 32768, llama.cpp's default
     # 4 slots x 8 192) — same GGUF, ~7.6 GB instead
     # of ~22 GB, because the 24 slots' KV cache (16.7 GB) is only needed while
     # Stages 2-4/8 or the Saturday distill fan out (owner 2026-10-04: VRAM for
     # other models and apps by day).
-    "Qwen3-8B-UD-Q4_K_XL.gguf":        LLAMA_CPP_ROOT / os.getenv("LLAMA_8B_WORK_SCRIPT", "start-qwen3-8b-208k.sh"),
+    # 16 feste Fächer seit 2026-10-09 (Owner): 16,2 statt ~22 GB, ~10 % weniger Durchsatz — passt
+    # neben NeMo/Whisper, die Mitschrift bleibt nachts an. Rückweg: LLAMA_8B_WORK_SCRIPT=start-qwen3-8b-208k.sh
+    "Qwen3-8B-UD-Q4_K_XL.gguf":        LLAMA_CPP_ROOT / os.getenv("LLAMA_8B_WORK_SCRIPT", "start-qwen3-8b-16slot.sh"),
     "Qwen3-Embedding-8B-Q4_K_M.gguf":  LLAMA_CPP_ROOT / "start-qwen3-emb.sh",
     # Content-gen candidate under evaluation (#11): Gemma 4 26B-A4B MoE (QAT).
     # Registered so the handover can swap it in for A/B runs against the 30B.

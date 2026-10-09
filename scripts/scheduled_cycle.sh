@@ -86,16 +86,17 @@ mkdir -p "$(dirname "$LOG")"
   # >>> Stages 2/3/4/8 on llama.cpp 8B — `git revert` this commit to disable >>>
   # Activates the llama.cpp 8B backend for the four qwen3:8b stages ONLY if the
   # 8B start script exists and references the expected GGUF. The pipeline's
-  # in-run eight_b_on_llamacpp handover swaps the symlink to the 208K/24-slot
-  # start script (start-qwen3-8b-208k.sh) before Stages 2-4 and Stage 8 and
-  # restores it afterwards — phase 2-4 then runs parallel (CLASSIFY_WORKERS=24).
+  # in-run eight_b_on_llamacpp handover swaps the symlink to the 16-slot work
+  # script (start-qwen3-8b-16slot.sh, seit 2026-10-09 — vorher 24 Fächer/208k)
+  # before Stages 2-4 and Stage 8 and restores it afterwards — phase 2-4 then
+  # runs parallel (CLASSIFY_WORKERS=16).
   # Fail-safe: missing script or wrong GGUF reference → fall back to Ollama.
   export STAGE_8B_MODEL="Qwen3-8B-UD-Q4_K_XL.gguf"
   # 2048 statt Default 1024: die richer extraction (#11) sprengt bei langen
   # Volltexten sonst das Token-Limit → JSON-Truncation, 3 verlorene Retries
   # (14× im Cron-Lauf 2026-07-29).
   export LLAMACPP_MAX_TOKENS=2048
-  ACTIVE_8B="/home/dirk/llama.cpp/start-qwen3-8b-208k.sh"
+  ACTIVE_8B="/home/dirk/llama.cpp/${LLAMA_8B_WORK_SCRIPT:-start-qwen3-8b-16slot.sh}"
   if [ -f "$ACTIVE_8B" ] && grep -q "$STAGE_8B_MODEL" "$ACTIVE_8B" 2>/dev/null; then
     export STAGE_8B_BACKEND=llamacpp
     echo "----- Stages 2/3/4/8 backend: llamacpp ($STAGE_8B_MODEL) -----"
@@ -142,7 +143,8 @@ mkdir -p "$(dirname "$LOG")"
     sleep 2
     USED=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits)
     echo "  [${i}] VRAM used: ${USED} MiB"
-    if [ "${USED:-9999}" -lt 1500 ]; then break; fi
+    # 3000 statt 1500 (2026-10-09): NeMo/Whisper (~2,4 GB) bleiben nachts an
+    if [ "${USED:-9999}" -lt 3000 ]; then break; fi
   done
 
   # Watermark: max raw_entries.id BEFORE the poll. Both runs are scoped to
@@ -250,8 +252,10 @@ PY
     JUDGE_VRAM_OK=0
     for i in $(seq 1 8); do
       VRAM_USED=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -1)
-      if [ -n "$VRAM_USED" ] && [ "$VRAM_USED" -lt 1100 ]; then JUDGE_VRAM_OK=1; break; fi
-      echo "  [$i/8] VRAM belegt: ${VRAM_USED:-?} MiB (27B braucht <1100 frei-Rest) — warte"
+      # Seit 2026-10-09: 3500 statt 1100. Die 1100 stammten aus der 262k-Konfiguration (23,4 GB);
+      # der 27B mit 16k braucht 17,6 GB und lief am 09.10. neben NeMo/Whisper (2,4 GB) einwandfrei.
+      if [ -n "$VRAM_USED" ] && [ "$VRAM_USED" -lt "${JUDGE_VRAM_MAX_MIB:-3500}" ]; then JUDGE_VRAM_OK=1; break; fi
+      echo "  [$i/8] VRAM belegt: ${VRAM_USED:-?} MiB (27B startet unter ${JUDGE_VRAM_MAX_MIB:-3500}) — warte"
       sleep 5
     done
     if [ "$JUDGE_VRAM_OK" != "1" ]; then

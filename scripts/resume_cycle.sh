@@ -32,7 +32,7 @@ export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUN
 REPO="/home/dirk/projects/catandary-trends"
 PY="$REPO/.venv/bin/python"
 LLAMA="/home/dirk/llama.cpp"
-STAGE8_START="start-qwen3-8b-208k.sh"
+STAGE8_START="${LLAMA_8B_WORK_SCRIPT:-start-qwen3-8b-16slot.sh}"
 STAGE8_GGUF="Qwen3-8B-UD-Q4_K_XL.gguf"
 DEADLINE_HHMM="${DEADLINE_HHMM:-0345}"
 LOG="/home/dirk/logs/catandary-resume-$(date +%Y%m%d-%H%M).log"

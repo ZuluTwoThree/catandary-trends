@@ -59,10 +59,19 @@ class TestDayAppsAreEvictedOnlyByPattern:
         assert "--query-compute-apps=pid,process_name,used_memory" in wrapper
 
     def test_eviction_is_gated_by_the_pattern_variable(self, wrapper):
-        assert 'if [ -n "${GPU_EVICT_PATTERNS:-}" ]' in wrapper
+        # seit 09.10.2026 zusätzlich hinter GPU_EVICT_DAY_APPS (Default 0: 8B mit 16 Fächern passt daneben)
+        assert 'if [ "${GPU_EVICT_DAY_APPS:-0}" = "1" ] && [ -n "${GPU_EVICT_PATTERNS:-}" ]' in wrapper
         assert 'grep -Eq "$GPU_EVICT_PATTERNS"' in wrapper
         assert "pkill" not in wrapper.split("GPU_EVICT_PATTERNS", 1)[1].split("waiting for VRAM", 1)[0]
 
     def test_default_pattern_names_the_owner_apps(self):
         guard = (Path(__file__).parent.parent / "scripts" / "lib" / "gpu_guard.sh").read_text()
         assert 'GPU_EVICT_PATTERNS="${GPU_EVICT_PATTERNS:-nemo-speech|whisper-server}"' in guard
+
+    def test_day_apps_stay_on_by_default_since_16_slots(self):
+        """Owner 09.10.2026: das 8B läuft nachts mit 16 Fächern (16,2 GB) — die Mitschrift bleibt an."""
+        guard = (Path(__file__).parent.parent / "scripts" / "lib" / "gpu_guard.sh").read_text()
+        assert 'GPU_EVICT_DAY_APPS="${GPU_EVICT_DAY_APPS:-0}"' in guard
+        from pipeline import config, gpu_handover
+        assert config.CLASSIFY_WORKERS == 16
+        assert gpu_handover.MODEL_START_SCRIPTS["Qwen3-8B-UD-Q4_K_XL.gguf"].name == "start-qwen3-8b-16slot.sh"
