@@ -42,6 +42,14 @@ from pipeline.config import DUPLICATE_SIMILARITY_THRESHOLD
 logger = logging.getLogger("draft_judge")
 
 STATS_PATH = Path("data/draft_judge_last.json")
+# Liegengebliebene mitnehmen (Owner 2026-10-09): der Richter sah nur die letzten 30 h und
+# höchstens 600 Entwürfe. An Werktagen landen 530-740 Entwürfe unter der Schwelle bei ihm,
+# und in Nächten ohne Richter (02.10.: 643) blieb alles liegen — ein nicht beurteilter Entwurf
+# kam nie wieder dran (984 am 09.10.). Jetzt: frische zuerst, danach Liegengebliebene der
+# letzten JUDGE_BACKLOG_DAYS Tage (älteste zuerst, damit keiner aus dem Fenster fällt), und
+# ein Limit, das einen normalen Tag plus Rückstand trägt (~3,2 s je Entwurf → 900 ≈ 48 min).
+JUDGE_BACKLOG_DAYS = int(os.getenv("JUDGE_BACKLOG_DAYS", "7"))
+JUDGE_LIMIT = int(os.getenv("JUDGE_LIMIT", "900"))
 REJUDGE_STATS_PATH = Path("data/draft_judge_rejudge.json")
 JUDGE_MODEL = "Qwen3.8-27B"
 JUDGE_START_SCRIPT = "start-qwen3.8-27b-ctx16k.sh"  # 16K/q8_0 seit 2026-09-25
@@ -199,7 +207,7 @@ def publish_draft(conn, trend_id: int, auto: bool) -> bool:
 # --- Nightly judge -----------------------------------------------------------
 
 def _fetch_candidates(since_hours: int, limit: int, rejudge: bool = False,
-                      min_source_chars: int = 0) -> list[dict]:
+                      min_source_chars: int = 0, backlog_days: int = 0) -> list[dict]:
     """Drafts to judge tonight.
 
     `rejudge` drops the judged_at condition — the whole point of the stamp is
@@ -213,20 +221,30 @@ def _fetch_candidates(since_hours: int, limit: int, rejudge: bool = False,
     params: list = []
     if not rejudge:
         where.append("t.judged_at IS NULL")
+    backlog = bool(backlog_days) and not rejudge
+    window = max(since_hours, backlog_days * 24) if backlog else since_hours
     where.append("t.created_at > CURRENT_TIMESTAMP - make_interval(hours => ?)")
-    params.append(since_hours)
+    params.append(window)
     if min_source_chars:
         where.append("length(COALESCE(re.raw_content, re.excerpt, '')) > ?")
         params.append(min_source_chars)
+    order = "t.id"
+    fresh_sql = ""
+    if backlog:
+        # frische Entwürfe (letzte since_hours) zuerst, dann Liegengebliebene, je älteste zuerst
+        fresh_sql = ("CASE WHEN t.created_at > CURRENT_TIMESTAMP - make_interval(hours => ?) "
+                     "THEN 1 ELSE 0 END AS fresh, ")
+        params.insert(0, since_hours)
+        order = "fresh DESC, t.id"
     params.append(limit)
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT t.id, t.title_en, t.body_en, t.confidence, t.source_name, "
+            "SELECT " + fresh_sql + "t.id, t.title_en, t.body_en, t.confidence, t.source_name, "
             "       re.id AS re_id, re.url AS re_url, "
             "       re.title AS re_title, re.raw_content, re.excerpt, re.extraction_json "
             "  FROM trends t LEFT JOIN raw_entries re ON re.id = t.raw_entry_id "
             " WHERE " + " AND ".join(where) +
-            " ORDER BY t.id LIMIT ?",
+            " ORDER BY " + order + " LIMIT ?",
             tuple(params),
         ).fetchall()
     return [dict(r) for r in rows]
@@ -305,9 +323,24 @@ def judge_one(d: dict) -> JudgeVerdict | None:
         system=JUDGE_SYSTEM, temperature=0.0, require_all_fields=True)
 
 
+def _unjudged_left(backlog_days: int) -> int | None:
+    """Wie viele Entwürfe unter der Schwelle sind im Rückstandsfenster noch unbeurteilt?"""
+    try:
+        with get_connection() as conn:
+            r = conn.execute(
+                "SELECT count(*) AS n FROM trends t WHERE t.status = 'draft' AND t.judged_at IS NULL "
+                "AND (t.confidence < 0.85 OR t.confidence IS NULL) "
+                "AND t.created_at > CURRENT_TIMESTAMP - make_interval(hours => ?)",
+                (max(1, backlog_days) * 24,)).fetchone()
+        return int(r["n"] if hasattr(r, "keys") else r[0])
+    except Exception as exc:                                        # noqa: BLE001
+        logger.warning("draft judge: could not count the waiting drafts: %s", exc)
+        return None
+
+
 def judge_recent_drafts(since_hours: int = 30, limit: int = 600,
                         dry_run: bool = False, rejudge: bool = False,
-                        min_source_chars: int = 0) -> dict:
+                        min_source_chars: int = 0, backlog_days: int = 0) -> dict:
     """Judge last night's sub-threshold drafts; release approvals, hold the rest.
 
     Returns the stats dict and persists it to STATS_PATH for the morning mail —
@@ -315,12 +348,14 @@ def judge_recent_drafts(since_hours: int = 30, limit: int = 600,
     the morning mail keeps reporting the night's own run.
     """
     t0 = time.time()
-    cands = _fetch_candidates(since_hours, limit, rejudge, min_source_chars)
+    cands = _fetch_candidates(since_hours, limit, rejudge, min_source_chars, backlog_days)
     stats = {"date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
              "judged": 0, "released": 0, "held": 0, "gate_blocked": 0,
              "dup_blocked": 0, "garbled": 0, "errors": 0, "categories": {},
              "dry_run": dry_run, "rejudge": rejudge,
-             "min_source_chars": min_source_chars}
+             "min_source_chars": min_source_chars,
+             "backlog_days": backlog_days,
+             "carried_over": sum(1 for c in cands if c.get("fresh") == 0)}
     logger.info("draft judge: %d candidates (last %dh%s%s)", len(cands), since_hours,
                 ", re-judging already-judged rows" if rejudge else "",
                 f", source > {min_source_chars} chars" if min_source_chars else "")
@@ -373,6 +408,11 @@ def judge_recent_drafts(since_hours: int = 30, limit: int = 600,
             elif dry_run:
                 stats["released"] += 1
     stats["seconds"] = round(time.time() - t0, 1)
+    if backlog_days and not rejudge:
+        stats["still_waiting"] = _unjudged_left(backlog_days)
+        if stats["carried_over"] or stats["still_waiting"]:
+            logger.info("draft judge: %d carried over from earlier days, %s still waiting (last %d days)",
+                        stats["carried_over"], stats["still_waiting"], backlog_days)
     out_path = REJUDGE_STATS_PATH if rejudge else STATS_PATH
     out_path.parent.mkdir(exist_ok=True)
     out_path.write_text(json.dumps(stats, indent=2))
@@ -388,7 +428,10 @@ def main() -> int:
                         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     ap = argparse.ArgumentParser(description="Judge held drafts with the local 27B")
     ap.add_argument("--since-hours", type=int, default=30)
-    ap.add_argument("--limit", type=int, default=600)
+    ap.add_argument("--limit", type=int, default=JUDGE_LIMIT, help="Env JUDGE_LIMIT, Default 900")
+    ap.add_argument("--backlog-days", type=int, default=JUDGE_BACKLOG_DAYS,
+                    help="nach den frischen Entwürfen Liegengebliebene dieser Tage mitnehmen "
+                         "(Env JUDGE_BACKLOG_DAYS, Default 7; 0 = nur die letzten --since-hours)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--rejudge", action="store_true",
                     help="also take drafts that already carry a judged_at stamp "
@@ -399,7 +442,8 @@ def main() -> int:
                          "narrows a backfill to the rows the change can move")
     args = ap.parse_args()
     judge_recent_drafts(args.since_hours, args.limit, args.dry_run,
-                        rejudge=args.rejudge, min_source_chars=args.min_source_chars)
+                        rejudge=args.rejudge, min_source_chars=args.min_source_chars,
+                        backlog_days=args.backlog_days)
     return 0
 
 

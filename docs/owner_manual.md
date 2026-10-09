@@ -244,6 +244,13 @@ weshalb Zahlen und Namen aus dem hinteren Teil langer Artikel als erfunden
 galten („source_mismatch"). An einer Stichprobe von 25 gehaltenen Entwürfen
 waren 5 von 10 solchen Urteilen aus genau diesem Grund falsch.
 
+**Liegengebliebene Entwürfe (seit 09.10.).** Der Richter nimmt jede Nacht zuerst die
+frischen Entwürfe der letzten 30 Stunden, danach noch unbeurteilte der letzten 7 Tage
+(älteste zuerst), zusammen höchstens 900. So wächst keine Warteschlange, wenn eine Nacht
+mehr als üblich liefert oder der Richter einmal ausfällt. Die Morgen-Mail nennt unter
+„Backlog", wie viele er nachgeholt hat und wie viele noch warten. Stellschrauben:
+`JUDGE_BACKLOG_DAYS` (0 = alter Stand) und `JUDGE_LIMIT`.
+
 **Eine Kohorte noch einmal beurteilen lassen.** Normalerweise wird jeder
 Entwurf genau einmal beurteilt. Nach einer Änderung daran, *was* der Richter
 liest, lohnt ein Nachlauf — der muss ausdrücklich angefordert werden:

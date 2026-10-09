@@ -93,3 +93,27 @@ def test_rejudge_flag_controls_the_judged_at_condition(monkeypatch):
 def test_rejudge_writes_its_own_stats_file():
     """A backfill must not overwrite the file the morning mail reads."""
     assert dj.REJUDGE_STATS_PATH != dj.STATS_PATH
+
+
+def test_backlog_pickup_takes_fresh_first_then_leftovers(monkeypatch):
+    """Owner 09.10.: Liegengebliebene der letzten Tage nach den frischen Entwürfen mitnehmen."""
+    sqls = []
+
+    class FakeConn:
+        def execute(self, sql, params=None):
+            sqls.append((sql, params))
+
+            class R:
+                def fetchall(self_inner): return []
+            return R()
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    monkeypatch.setattr(dj, "get_connection", lambda: FakeConn())
+    dj._fetch_candidates(30, 900, backlog_days=7)
+    sql, params = sqls[-1]
+    assert "AS fresh" in sql and "ORDER BY fresh DESC, t.id" in sql
+    assert params == (30, 168, 900)          # Frisch-Grenze, Fenster 7 Tage, Limit
+    dj._fetch_candidates(720, 2000, rejudge=True, backlog_days=7)   # Nachbeurteilung: kein Rückstandsmodus
+    assert "AS fresh" not in sqls[-1][0]
+    assert dj.JUDGE_LIMIT >= 900 and dj.JUDGE_BACKLOG_DAYS == 7

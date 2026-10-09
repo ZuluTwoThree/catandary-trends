@@ -256,6 +256,10 @@ def build_mail(today: int, total: int, oldest: str | None,
                      f"{judge.get('judged', 0)} judged, {judge.get('released', 0)} released, "
                      f"{judge.get('held', 0)} held, {judge.get('gate_blocked', 0)} gate-blocked, "
                      f"{judge.get('dup_blocked', 0)} duplicates.")
+        if judge.get("carried_over") or judge.get("still_waiting"):
+            lines.append(f"  Backlog: {judge.get('carried_over', 0)} carried over from earlier days, "
+                         f"{judge.get('still_waiting', '?')} still waiting "
+                         f"(last {judge.get('backlog_days', 7)} days).")
         if cats:
             lines.append(f"  Categories: {cats}")
         lines.append("")

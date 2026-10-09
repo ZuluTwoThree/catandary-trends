@@ -476,6 +476,12 @@ RSS-Eintrag (Titel + Teaser + URL + Datum)
       gehaltene Kohorte jede Nacht neu und die frischen Drafts verhungerten
       am 600er-Limit); Kandidaten holen sich vorher fehlenden Volltext
       (nur Opt-in-Quellen, fulltext_filled in der JSON)
+    → **Liegengebliebene (seit 2026-10-09, Owner):** nach den frischen Drafts (30 h)
+      nimmt der Richter unbeurteilte Drafts der letzten `JUDGE_BACKLOG_DAYS` (7) Tage mit,
+      älteste zuerst; Limit `JUDGE_LIMIT` 900 statt 600 (~48 min). Anlass: an Werktagen
+      landen 530-740 Drafts bei ihm, in Nächten ohne Richter (02.10.: 643) blieb alles liegen —
+      984 Drafts nie beurteilt (am 09.10. per Sonderlauf nachgeholt). `carried_over` und
+      `still_waiting` stehen in data/draft_judge_last.json und in der Morgen-Mail.
     → GPU-Handover mit zwei Guards (seit 2026-08-26): VRAM-Vorab-Check
       + Modell-Identitäts-Check gegen /v1/models (llama-server ignoriert
       den model-Namen im Request — ohne Check würde ein geplatzter
