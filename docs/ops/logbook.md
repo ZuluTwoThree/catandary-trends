@@ -13,6 +13,13 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-10-10 · change · Förderung: Sperrseiten-Fix, Titel-only als Signal, Testlauf Artikelpfad
+
+- Fetcher erkennt Bot-Sperrseiten (`bot_wall`); 51 gespeicherte Radware/DigiTimes-Seiten geleert, 2 „Bot Detection"-Entwürfe verworfen.
+- Förder-Einträge ohne Text werden Signal statt `insufficient_source_text`.
+- Testlauf (140 Einträge, 9 min): 77 Entwürfe, 50 Signale, 3 published (alle Nicht-Förderung); Richter 71/74 gehalten (64 `no_signal`) — Entscheid offen.
+- Nationale Förderaufruf-Feeds geprüft: UKRI Opportunities, ANR, DFG ok; SNF robots-gesperrt; Eureka ohne Links; FFG/Innosuisse/Vinnova/NWO/Forskningsrådet ohne Feed.
+
 ## 2026-10-09 · change · Nacht-8B mit 16 statt 24 Fächern — Mitschrift bleibt nachts an
 
 - Messung Nachtlauf 09.10.: 24 Fächer à 8.960 im Mittel zu 22,8 belegt, aber je Anfrage nur 13 % gefüllt

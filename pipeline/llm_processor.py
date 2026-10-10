@@ -1126,7 +1126,8 @@ def hybrid_classify(survivors: list[dict]) -> tuple[list[dict], int, int]:
                     continue
                 kept.append(entry)
         # extraction (brand names) on the 8B for the kept survivors
-        to_ext = [e for e in kept if not e.get("extraction_json")]
+        # (Förder-Signale ohne Text brauchen keine: aus einem Titel gibt es nichts zu extrahieren)
+        to_ext = [e for e in kept if not e.get("extraction_json") and not e.get("_signal_only")]
         ext_res = dict(zip((e["id"] for e in to_ext), _concurrent(
             lambda e: step_extraction(e["title"], e["excerpt"] or ""), to_ext)))
 
@@ -1190,6 +1191,7 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
             entry["excerpt"] = full
 
     created = 0
+    signals_only = 0
     filtered = 0
     errors = 0
 
@@ -1211,9 +1213,17 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
         # is nothing for the grounding gate to check, so anything the model
         # invents passes silently — never generate from a bare title.
         if len((entry.get("excerpt") or "").strip()) < MIN_SOURCE_TEXT_CHARS:
-            mark_filtered(entry["id"], "insufficient_source_text")
-            filtered += 1
-            continue
+            if is_public_funding(entry.get("source_name")) and title.strip():
+                # Öffentliche Förderung wird nie verworfen (Owner 10.10.2026), aus einem
+                # bloßen Titel entsteht aber auch kein Artikel: der Eintrag wird ein
+                # Signal ohne Text (status 'signal', klassifiziert + eingebettet) — wie
+                # die Register auf dem Signalpfad. Gemessen 10.10.: 43 von 105
+                # requeueten Förderdatenbank-Einträgen haben unter 80 Zeichen.
+                entry["_signal_only"] = True
+            else:
+                mark_filtered(entry["id"], "insufficient_source_text")
+                filtered += 1
+                continue
         is_dup, sim = is_title_duplicate(title, existing_titles_norm)
         if is_dup:
             mark_filtered(entry["id"], f"title_duplicate: sim={sim:.3f}")
@@ -1453,12 +1463,16 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
         total_stage6 = len(survivors)
         cache_hits_stage6 = 0
         garbled_stage6 = 0
-        needs_gen = any(not e.get("content_en_json") for e in survivors)
+        needs_gen = any(not e.get("content_en_json") and not e.get("_signal_only")
+                        for e in survivors)
         gpu_ctx = (gpu_handover.content_gen_on_llamacpp(STAGE5_MODEL)
                    if STAGE5_BACKEND == "llamacpp" and needs_gen
                    else nullcontext())
         with gpu_ctx:
             for i, entry in enumerate(survivors, 1):
+                if entry.get("_signal_only"):       # Förderung ohne Text: kein Artikel
+                    next_survivors.append(entry)
+                    continue
                 try:
                     cached = entry.get("content_en_json")
                     if cached:
@@ -1547,7 +1561,7 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
                 "source_name": entry.get("source_name", "Unknown"),
                 "embedding": embedding_to_bytes(entry["_embedding"]),
             }
-            if signal_mode:
+            if signal_mode or entry.get("_signal_only"):
                 title = entry["title"] or "(untitled signal)"
                 trend_data = {
                     **common,
@@ -1568,7 +1582,10 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
                 }
             insert_trend(entry["id"], trend_data)
             mark_processed(entry["id"])
-            created += 1
+            if entry.get("_signal_only") and not signal_mode:
+                signals_only += 1           # kein Draft — zählt nicht für Stage 8/9
+            else:
+                created += 1
         except Exception as e:
             logger.error("[%d] insert error: %s", entry["id"], e, exc_info=True)
             mark_processed(entry["id"])
@@ -1612,11 +1629,13 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
 
     elapsed = time.time() - start
     logger.info(
-        "BATCH complete in %.1fs: %d entries, %d created, %d filtered, %d errors, %d published",
-        elapsed, len(entries), created, filtered, errors, published,
+        "BATCH complete in %.1fs: %d entries, %d created, %d signals without text, %d filtered, "
+        "%d errors, %d published",
+        elapsed, len(entries), created, signals_only, filtered, errors, published,
     )
-    return {"processed": len(entries), "created": created, "filtered": filtered,
-            "errors": errors, "published": published, "garbled_ids": garbled_ids}
+    return {"processed": len(entries), "created": created, "signals_only": signals_only,
+            "filtered": filtered, "errors": errors, "published": published,
+            "garbled_ids": garbled_ids}
 
 
 def run_pipeline(limit: int = 50):
