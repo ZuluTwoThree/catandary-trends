@@ -28,6 +28,7 @@ from math import sqrt
 
 from slugify import slugify
 
+from pipeline.tiers import is_public_funding
 from pipeline.config import (
     ANTHROPIC_MODEL_CLASSIFY,
     CLASSIFY_BACKEND,
@@ -849,8 +850,11 @@ def process_entry(entry: dict) -> dict | None:
         mark_filtered(entry_id, "insufficient_source_text")
         return None
 
-    # Step 1: Relevance Filter
-    relevance = step_relevance_filter(title, excerpt, source_vertical)
+    # Step 1: Relevance Filter — öffentliche Förderung ist immer ein Signal (Owner 10.10.2026)
+    if is_public_funding(entry.get("source_name")):
+        relevance = public_funding_relevance(entry)
+    else:
+        relevance = step_relevance_filter(title, excerpt, source_vertical)
     if relevance is None:
         logger.warning("[%d] Relevance filter returned None, skipping", entry_id)
         mark_filtered(entry_id, "relevance_filter_error")
@@ -893,6 +897,8 @@ def process_entry(entry: dict) -> dict | None:
         logger.warning("[%d] Classification failed, skipping", entry_id)
         mark_filtered(entry_id, "classification_error")
         return None
+    if is_public_funding(entry.get("source_name")):    # Owner 10.10.2026
+        classification.trend_signal_type = "funding"
 
     logger.info("[%d] Classified: verticals=%s, pestel=%s, type=%s",
                 entry_id, classification.verticals, classification.pestel, classification.trend_signal_type)
@@ -973,6 +979,16 @@ def process_entry(entry: dict) -> dict | None:
 _DISTILL_CLF = None  # cached DistillClassifier
 
 
+def public_funding_relevance(entry: dict) -> RelevanceResult:
+    """Relevanz per Regel für öffentliche Förderung (Owner 2026-10-10): Förderaufrufe und bewilligte
+    Projekte der öffentlichen Hand sind Trendsignale; der Relevanzfilter (auf Presse-Trendmeldungen
+    trainiert) verwarf bei Förderinfo Bund/Förderdatenbank seit Juli 131 von 310 Einträgen."""
+    vert = (entry.get("source_vertical") or "TECH").upper()
+    if vert not in ("FOOD", "TECH", "HEALTH", "ECO", "DESIGN", "FASHION", "BIZ", "LIFESTYLE"):
+        vert = "TECH"
+    return RelevanceResult(is_relevant=True, confidence=1.0, primary_vertical=vert, reason="rule:public_funding")
+
+
 def relevance_band(rel: float | None, has_head: bool,
                    low: float = DISTILL_REL_LOW, high: float = DISTILL_REL_HIGH) -> str:
     """Hybrid relevance routing (pure, unit-tested): 'keep' / 'drop' / 'llm'.
@@ -1001,6 +1017,8 @@ def _distill_signal_type(e: dict, pred: dict | None = None) -> str:
     sn = (e.get("source_name") or "").lower()
     if e.get("pub_number"):
         return "patent"
+    if is_public_funding(sn):          # Förderaufrufe/-register der öffentlichen Hand (10.10.2026)
+        return "funding"
     if st == "research" or any(m in sn for m in ("arxiv", "rxiv", "preprint")):
         return "research"
     if st == "api" and any(m in sn for m in ("nsf", "nih", "reporter", "openaire", "ukri", "form d")):
@@ -1069,6 +1087,7 @@ def hybrid_classify(survivors: list[dict]) -> tuple[list[dict], int, int]:
 
     # ---- hybrid relevance: confident tails by distill, uncertain band → 8B ----
     kept, uncertain = [], []
+    public_kept = 0
     rel_min = source_relevance_min()
     for entry, pred in zip(embedded, preds):
         entry["_distill"] = pred
@@ -1078,14 +1097,17 @@ def hybrid_classify(survivors: list[dict]) -> tuple[list[dict], int, int]:
         # goes to the 8B and strong signals pass unchanged.
         src_min = rel_min.get(entry.get("source_name") or "", 0.0)
         band = relevance_band(rel, has_rel, low=max(DISTILL_REL_LOW, src_min))
+        if is_public_funding(entry.get("source_name")):
+            band = "keep"            # öffentliche Förderung ist immer ein Signal (Owner 10.10.2026)
+            public_kept += 1
         if band == "keep":
             kept.append(entry)
         elif band == "drop":
             mark_filtered(entry["id"], f"not_relevant_distill:{rel:.2f}"); filtered += 1
         else:
             uncertain.append(entry)                        # grey band / no head → 8B
-    logger.info("Hybrid relevance: %d distill-kept, %d → 8B fallback, %d distill-dropped",
-                len(kept), len(uncertain), filtered)
+    logger.info("Hybrid relevance: %d distill-kept (%d public funding by rule), %d → 8B fallback, "
+                "%d distill-dropped", len(kept), public_kept, len(uncertain), filtered)
 
     # 8B relevance only for the uncertain band + extraction for all kept survivors
     gpu_ctx_8b = (gpu_handover.eight_b_on_llamacpp(STAGE_8B_MODEL)
@@ -1241,6 +1263,9 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
             cache_hits_stage2 = 0
             # Dispatch the LLM calls for uncached entries concurrently, then apply the
             # cache/save/filter logic sequentially (DB writes stay single-threaded).
+            for e in survivors:      # öffentliche Förderung: kein Relevanzfilter (Owner 10.10.2026)
+                if is_public_funding(e.get("source_name")) and not e.get("relevance_json"):
+                    e["relevance_json"] = public_funding_relevance(e).model_dump_json()
             to_call = [e for e in survivors if not e.get("relevance_json")]
             rel_res = dict(zip((e["id"] for e in to_call), _concurrent(
                 lambda e: step_relevance_filter(e["title"], e["excerpt"] or "", e.get("source_vertical", "TECH")), to_call)))
@@ -1314,6 +1339,8 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
                         mark_filtered(entry["id"], "classification_error")
                         filtered += 1
                         continue
+                    if is_public_funding(entry.get("source_name")):   # Owner 10.10.2026
+                        cls.trend_signal_type = "funding"
                     entry["_classification"] = cls
                     next_survivors.append(entry)
                 except Exception as e:

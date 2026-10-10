@@ -24,6 +24,17 @@ PATENT_PREFIXES = ("google patents", "epo ")
 FUNDING_PREFIXES = ("nih reporter", "nsf ", "openaire", "ukri", "sec form d",
                     "sbir/sttr", "sbir ", "cordis")
 SCIENCE_MARKERS = ("preprints",)
+# Öffentliche Förderung (Owner 2026-10-10: „Was von öffentlicher Hand gefördert wird, ist ein
+# Trendsignal“): Register bewilligter Projekte und die Förderaufrufe/-richtlinien des Bundes. Für sie
+# entscheidet kein Relevanzfilter (llm_processor.public_funding_relevance), und ihr Signaltyp ist
+# immer 'funding' — damit zählen auch die Presse-Feeds (press_wire) überall zur Ebene Förderung.
+# SEC Form D ist private Finanzierung und gehört NICHT hierher (Regeln in pipeline/signal_rules.py).
+PUBLIC_FUNDING_PREFIXES = ("nih reporter", "nsf ", "openaire", "ukri", "sbir/sttr", "sbir ", "cordis",
+                           "förderinfo bund", "förderdatenbank")
+
+
+def is_public_funding(source_name: str | None) -> bool:
+    return (source_name or "").strip().lower().startswith(PUBLIC_FUNDING_PREFIXES)
 MARKET_TYPES = {"trade_media", "press_wire", "brand"}
 
 
