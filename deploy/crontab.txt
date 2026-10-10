@@ -37,10 +37,10 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # Download getrennt von der Verarbeitung (Owner 05./06.10.2026): offene Teilstücke laden, vorfiltern
 # (15 % der Größe) und auf der HDD ablegen; der Sync 09:00–17:00 verarbeitet nur noch lokale Dateien
 # (SYNC_LOCAL_ONLY=1, Default). ZWISCHEN 19 UND 23 UHR KEIN DOWNLOAD (Owner: Leitung frei) — zwei
-# Fenster: 17:00–18:55 und 23:00–08:30 (letzter Start; laufende Downloads werden fertig).
+# Fenster: 23:00–08:30 (letzter Start; laufende Downloads werden fertig).
+# 10.10.2026 (Owner): 17-Uhr-Fenster entfernt — der Rückstand ist seit 07.10. abgeholt; das Nachtfenster bleibt, weil der Sync nur lokal Abgelegtes liest (Releases).
 # Installiert 06.10.2026. Nachholen abgeschlossen 07.10.2026 (Download 06:40, Verarbeitung 12:17):
 # DL_REDO_SINCE / SYNC_REDO_SINCE / SYNC_WORKERS=3 / SYNC_WAIT_MAX_MIN=600 am 07.10. entfernt (Owner).
-0 17 * * * [ -x /home/dirk/projects/catandary-trends/scripts/openalex_download.sh ] && DL_START=17:00 DL_UNTIL=18:55 /home/dirk/projects/catandary-trends/scripts/openalex_download.sh
 0 23 * * * [ -x /home/dirk/projects/catandary-trends/scripts/openalex_download.sh ] && DL_START=23:00 DL_UNTIL=08:30 /home/dirk/projects/catandary-trends/scripts/openalex_download.sh
 0 9 * * * [ -x /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh ] && /home/dirk/projects/catandary-trends/scripts/sync_openalex_monthly.sh || echo "$(date -Iseconds) skip sync_openalex (Skript fehlt)" >> /home/dirk/logs/catandary-openalex-skip.log
 

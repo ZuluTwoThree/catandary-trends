@@ -13,6 +13,10 @@ erscheint im Wochenplan der Seite), **decision**, **idea**. Direkt unter der
 Freitext in Markdown. Neueste Einträge oben ist Konvention, die Seite sortiert
 selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 
+## 2026-10-10 · change · OpenAlex-Download nur noch nachts
+
+- 17:00-Fenster aus Crontab und `deploy/crontab.txt` entfernt (Owner): Rückstand seit 07.10. abgeholt. 23:00–08:30 bleibt — der Sync (09:00) liest nur lokal Abgelegtes, ohne Download käme kein Release an (nächster 14.10.).
+
 ## 2026-10-10 · change · Förderung: Sperrseiten-Fix, Titel-only als Signal, Testlauf Artikelpfad
 
 - Fetcher erkennt Bot-Sperrseiten (`bot_wall`); 51 gespeicherte Radware/DigiTimes-Seiten geleert, 2 „Bot Detection"-Entwürfe verworfen.

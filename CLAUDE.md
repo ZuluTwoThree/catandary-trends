@@ -1005,7 +1005,7 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 #     ~/.local/state/catandary/openalex_sync.lock, wartet bis SYNC_WAIT_MAX_MIN auf Nachtlauf/Patent-
 #     Jobs/Startup-Register/Ingester/Publish/Backup. Ohne neue Teilstücke nach dem S3-Listing fertig.
 #   * DOWNLOAD GETRENNT (Owner 05.10. nachts, auf dev): scripts/download_openalex.py + openalex_download.sh
-#     laden in zwei Fenstern 17:00–18:55 und 23:00–08:30 (19–23 Uhr bleibt die Leitung frei, Owner 06.10.) am Stück, filtern mit DEMSELBEN Filter (ingest.keep_mask) auf behaltene
+#     laden seit 10.10. nur noch im Nachtfenster 23:00–08:30 (bis dahin zusätzlich 17:00–18:55 für den Rückstand; Owner 10.10.: abgeschlossen) am Stück, filtern mit DEMSELBEN Filter (ingest.keep_mask) auf behaltene
 #     Zeilen + benötigte Spalten (gemessen 15 % der Größe) → /mnt/data-hdd/openalex_staging; Status
 #     openalex_download_state. Der Ingest liest Abgelegtes lokal (--local-only, Wrapper-Default
 #     SYNC_LOCAL_ONLY=1) und gibt die Ablage danach frei. Gemessen: Verarbeitung aus lokaler Datei 29 s
@@ -1025,7 +1025,6 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 # SYNC_WAIT_MAX_MIN=600) ist seit 07.10. abends aus der Crontab (Owner).
 # Befund + Zeitvergleich alter/neuer Weg: docs/openalex_sync_2026-10-05.md.
 0 9 * * *    scripts/sync_openalex_monthly.sh
-0 17 * * *   DL_START=17:00 DL_UNTIL=18:55 scripts/openalex_download.sh
 0 23 * * *   DL_START=23:00 DL_UNTIL=08:30 scripts/openalex_download.sh
 
 # Nicht-RSS-Ingester wöchentlich (Samstag 06:00, seit 2026-08-09; 05:00→06:00 am 2026-08-29 entzerrt): Preprints
