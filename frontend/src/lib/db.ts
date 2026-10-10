@@ -1880,7 +1880,7 @@ async function fetchMethodologyStats(): Promise<MethodologyStats> {
          WHEN s.source_type = 'research' THEN 'science'
          WHEN s.source_type = 'api' AND (s.name LIKE '%NSF%' OR s.name LIKE '%NIH%'
               OR s.name LIKE '%OpenAIRE%' OR s.name LIKE '%UKRI%' OR s.name LIKE '%RePORTER%'
-              OR s.name LIKE '%Gateway to Research%') THEN 'funding'
+              OR s.name LIKE '%Gateway to Research%' OR s.name LIKE 'Funding call%') THEN 'funding'
          WHEN s.source_type = 'api' AND (s.name LIKE '%arXiv%' OR s.name LIKE '%rxiv%'
               OR s.name LIKE '%Preprint%') THEN 'science'
          ELSE 'market'

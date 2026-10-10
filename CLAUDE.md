@@ -1024,7 +1024,12 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 
 # Nicht-RSS-Ingester wöchentlich (Samstag 06:00, seit 2026-08-09; 05:00→06:00 am 2026-08-29 entzerrt): Preprints
 # (arXiv/bioRxiv/medRxiv, 14-Tage-Fenster) + Funding (NSF/NIH/OpenAIRE/UKRI — `--backend all` = NSF+NIH+OpenAIRE,
-# UKRI nur auf Wunsch; OpenAIRE seit 10.10.2026 über die Graph API v1 (/graph/v1/projects, Startdatum
+# UKRI nur auf Wunsch; seit 10.10.2026 zusätzlich FÖRDERAUFRUFE (Owner: öffentliche Förderung ist ein
+# Trendsignal): scripts/ingest_funding_calls.py — EU Funding & Tenders Portal (SEDIA-Such-API + Topic-Details,
+# ~940 offene/angekündigte Aufrufe), grants.gov (search2 + fetchOpportunity nur für neue, ~1.470), NSF-RSS;
+# Quellen „Funding call: …" (api) → Ebene Förderung in allen Ebenen-Regeln, kein Relevanzfilter, Signalpfad
+# statt Artikel; geschlossene/abgelaufene nicht übernommen, Kontaktdaten aus Texten entfernt;
+# OpenAIRE seit 10.10.2026 über die Graph API v1 (/graph/v1/projects, Startdatum
 # serverseitig gefiltert), weil die alte Suchschnittstelle nicht mehr antwortete; tote Quellen brechen nach
 # FUNDING_DEAD_AFTER=8 Netzfehlern in Folge ab, die übrigen laufen weiter, rc 3 → Ops-Alarm job_failed —
 # vorher kostete der Ausfall 3 h und hielt den Research Pulse auf;

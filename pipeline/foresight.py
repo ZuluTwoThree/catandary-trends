@@ -98,10 +98,10 @@ TIER_FILTERS: dict[str, tuple[str, list[str]]] = {
     # Owner 2026-09-16: a startup raising money is a funding signal however
     # loudly the trade press reports it; the market starts at the product.
     # Keep in step with pipeline.tiers.tier_of (tests/test_tiers.py checks).
-    "funding": ("((" + " OR ".join(["t.source_name LIKE ?"] * 5) + ")"
+    "funding": ("((" + " OR ".join(["t.source_name LIKE ?"] * 6) + ")"
                 " OR (s.source_type IN ('trade_media', 'press_wire', 'brand')"
                 "     AND t.trend_signal_type = 'funding'))",
-                ["NIH RePORTER%", "NSF %", "OpenAIRE%", "UKRI%", "SEC Form D%"]),
+                ["NIH RePORTER%", "NSF %", "OpenAIRE%", "UKRI%", "SEC Form D%", "Funding call%"]),
     "market": ("s.source_type IN ('trade_media', 'press_wire', 'brand')"
                " AND COALESCE(t.trend_signal_type, '') <> 'funding'", []),
 }

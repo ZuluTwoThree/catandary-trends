@@ -58,7 +58,7 @@ PATENT_SOURCE = "Patentamt (EPO/USPTO/WIPO via BDDS)"
 # Forschung, Markt; Presse-Meldung zu einer Finanzierungsrunde = Foerderung).
 TIER_SQL = """CASE
   WHEN lower(s.name) LIKE 'google patents%%' OR lower(s.name) LIKE 'epo %%' THEN 'patent'
-  WHEN lower(s.name) ~ '^(nih reporter|nsf |openaire|ukri|sec form d|sbir)' OR lower(s.name) LIKE 'cordis%%' THEN 'funding'
+  WHEN lower(s.name) ~ '^(nih reporter|nsf |openaire|ukri|sec form d|sbir|funding call)' OR lower(s.name) LIKE 'cordis%%' THEN 'funding'
   WHEN s.source_type='research' OR lower(s.name) LIKE '%%preprints%%' OR lower(s.name) LIKE 'openalex%%' THEN 'science'
   WHEN s.source_type IN ('trade_media','press_wire','brand') THEN CASE WHEN t.trend_signal_type='funding' THEN 'funding' ELSE 'market' END
   END"""

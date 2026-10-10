@@ -30,6 +30,15 @@ wieder her.
 
 ---
 
+
+> **Förderung (seit 10.10.2026):** Was von öffentlicher Hand gefördert wird, gilt als Trendsignal und wird
+> nie vom Relevanzfilter verworfen — die Förder-Feeds des Bundes (Förderinfo Bund, Förderdatenbank)
+> werden im Nachtlauf zu Artikeln, die Register (NIH, NSF, OpenAIRE, UKRI, SBIR, CORDIS) und die neuen
+> **Förderaufrufe** (EU Funding & Tenders Portal, grants.gov, NSF; `scripts/ingest_funding_calls.py`,
+> Samstagslauf) zu Signalen der Ebene Förderung — suchbar über den Korpus-MCP (`search_signals`
+> mit `tier="funding"`) und in Field Watch. Ein Aufruf trägt im Auszug Programm/Behörde, Kennung,
+> Status, Frist und Budget. Nachholen verworfener Förder-Feeds: `scripts/requeue_public_funding.py`.
+
 ## 1. Morgenroutine — was nachts passiert und was morgens zu tun ist
 
 **Nachts (Mo–Fr, automatisch; seit 22.09. 1 h 15 min früher, damit der Lauf beim Frühstück fertig ist).** 01:30 Postgres-Backup · 02:15 Volltext-Retention

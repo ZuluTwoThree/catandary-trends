@@ -32,7 +32,7 @@ VERTICALS = ["FOOD", "TECH", "HEALTH", "ECO", "DESIGN", "FASHION", "BIZ", "LIFES
 TIER_ORDER = {"science": 0, "patent": 1, "funding": 2, "market": 3}
 EARLY_TIERS = ("science", "patent", "funding")
 PREPRINT_MARKERS = ("arxiv", "biorxiv", "medrxiv", "preprint")
-FUNDING_MARKERS = ("nsf", "nih", "reporter", "openaire", "ukri", "gateway to research", "form d")
+FUNDING_MARKERS = ("nsf", "nih", "reporter", "openaire", "ukri", "gateway to research", "form d", "funding call")
 
 
 def tier_of(source_type: str | None, source_name: str | None, pub_number) -> str:

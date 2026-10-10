@@ -121,6 +121,13 @@ with get_connection() as c:
   echo; echo "----- Funding (NSF/NIH/OpenAIRE/UKRI) seit $SINCE_FUNDING -----"
   python -u scripts/ingest_funding.py --backend all --since "$SINCE_FUNDING" || RC=$?
 
+  # Förderaufrufe der öffentlichen Hand (Owner 10.10.2026): offene + angekündigte Aufrufe aus dem
+  # EU Funding & Tenders Portal, grants.gov und NSF. Quellen „Funding call: …" (api) → Ebene
+  # Förderung, kein Relevanzfilter; eingeordnet unten im api-Schritt (min_id). Nur neue Aufrufe
+  # kosten Detailabfragen; geschlossene/abgelaufene werden nicht übernommen.
+  echo; echo "----- Förderaufrufe (EU F&T, grants.gov, NSF) -----"
+  python -u scripts/ingest_funding_calls.py --backend all || RC=$?
+
   # Form D: Quartals-Datasets erscheinen NACH Quartalsende → nur im jeweils
   # ersten Quartalsmonat das Vorquartal ziehen (idempotent bei Wiederholung).
   M=$(date +%m); Y=$(date +%Y)

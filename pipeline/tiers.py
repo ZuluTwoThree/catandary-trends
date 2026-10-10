@@ -22,7 +22,8 @@ TIERS = ("science", "patent", "funding", "market")
 # Matched against source_name, case-insensitive, as prefixes.
 PATENT_PREFIXES = ("google patents", "epo ")
 FUNDING_PREFIXES = ("nih reporter", "nsf ", "openaire", "ukri", "sec form d",
-                    "sbir/sttr", "sbir ", "cordis")
+                    "sbir/sttr", "sbir ", "cordis",
+                    "funding call")   # Förderaufrufe: EU F&T, grants.gov, NSF (ingest_funding_calls, 10.10.)
 SCIENCE_MARKERS = ("preprints",)
 # Öffentliche Förderung (Owner 2026-10-10: „Was von öffentlicher Hand gefördert wird, ist ein
 # Trendsignal“): Register bewilligter Projekte und die Förderaufrufe/-richtlinien des Bundes. Für sie
@@ -30,7 +31,7 @@ SCIENCE_MARKERS = ("preprints",)
 # immer 'funding' — damit zählen auch die Presse-Feeds (press_wire) überall zur Ebene Förderung.
 # SEC Form D ist private Finanzierung und gehört NICHT hierher (Regeln in pipeline/signal_rules.py).
 PUBLIC_FUNDING_PREFIXES = ("nih reporter", "nsf ", "openaire", "ukri", "sbir/sttr", "sbir ", "cordis",
-                           "förderinfo bund", "förderdatenbank")
+                           "förderinfo bund", "förderdatenbank", "funding call")
 
 
 def is_public_funding(source_name: str | None) -> bool:
