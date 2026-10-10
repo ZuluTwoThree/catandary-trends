@@ -32,12 +32,17 @@ wieder her.
 
 
 > **Förderung (seit 10.10.2026):** Was von öffentlicher Hand gefördert wird, gilt als Trendsignal und wird
-> nie vom Relevanzfilter verworfen — die Förder-Feeds des Bundes (Förderinfo Bund, Förderdatenbank)
-> werden im Nachtlauf zu Artikeln, die Register (NIH, NSF, OpenAIRE, UKRI, SBIR, CORDIS) und die neuen
+> nie vom Relevanzfilter verworfen — die Förder-Feeds (Förderinfo Bund, DFG, UKRI, ANR) werden im
+> Nachtlauf zu Artikeln, die Förderdatenbank nur zu Signalen (s. u.), die Register (NIH, NSF, OpenAIRE, UKRI, SBIR, CORDIS) und die neuen
 > **Förderaufrufe** (EU Funding & Tenders Portal, grants.gov, NSF; `scripts/ingest_funding_calls.py`,
 > Samstagslauf) zu Signalen der Ebene Förderung — suchbar über den Korpus-MCP (`search_signals`
 > mit `tier="funding"`) und in Field Watch. Ein Aufruf trägt im Auszug Programm/Behörde, Kennung,
 > Status, Frist und Budget. Nachholen verworfener Förder-Feeds: `scripts/requeue_public_funding.py`.
+> **Seit 10.10. abends (Owner):** Artikel schreiben nur Förderinfo Bund, DFG, UKRI Funding Opportunities
+> und ANR (Frankreich); die **Förderdatenbank liefert nur Signale** (Landesprogramme, zu dünn für Artikel),
+> ebenso jede Förderzeile ohne Text. Der Richter kennt die Regel „Förderung ist ein Signal“ und prüft bei
+> diesen Quellen nur noch Quellentreue und Gehalt. Nicht anbindbar: SNF (robots), FFG/Innosuisse/Vinnova/
+> NWO (kein Feed).
 
 ## 1. Morgenroutine — was nachts passiert und was morgens zu tun ist
 

@@ -197,6 +197,28 @@ def source_from_parts(title: str | None, excerpt: str | None, *token_lists) -> s
     return " ".join(p for p in parts if p)
 
 
+_NUMERIC_DATE_RE = re.compile(
+    r"\b(?P<d>\d{1,2})\.(?P<m>\d{1,2})\.(?P<y>(?:19|20)\d{2})\b"        # 24.09.2026 (DE)
+    r"|\b(?P<y2>(?:19|20)\d{2})-(?P<m2>\d{2})-(?P<d2>\d{2})\b")            # 2026-09-24 (ISO)
+
+
+def _numeric_date_parts(text: str) -> set[str]:
+    """Tag, Monat, Jahr aus numerischen Datumsangaben der Quelle (2026-10-10).
+
+    Förderinfo Bund schreibt die Laufzeit als „02.09.2026 - 14.10.2026“; der Artikel
+    sagt „September 2, 2026“. Der Datums-Token der Quelle ist für _norm_token eine
+    einzige Ziffernfolge („2092026“), der Tag „2“ fand also keinen Beleg — 14 von 14
+    vom Richter freigegebenen Förder-Entwürfen scheiterten daran. Exakt verglichen wie
+    die Zahlwörter, nie als Teilstring (sonst belegte „2“ eine erfundene „250“)."""
+    out: set[str] = set()
+    for m in _NUMERIC_DATE_RE.finditer(text or ""):
+        d, mo, y = (m.group("d"), m.group("m"), m.group("y")) if m.group("d") else (
+            m.group("d2"), m.group("m2"), m.group("y2"))
+        if 1 <= int(d) <= 31 and 1 <= int(mo) <= 12:
+            out.update({d.lstrip("0"), mo.lstrip("0"), y})
+    return out
+
+
 def ungrounded_specifics(body: str, source: str) -> list[str]:
     """Concrete tokens (year / number / % / money) in `body` that do not appear
     in `source` (title + excerpt + extracted claims). Empty list = grounded.
@@ -211,7 +233,7 @@ def ungrounded_specifics(body: str, source: str) -> list[str]:
     # Word-implied numerals match EXACTLY and never feed the substring
     # allowance: "fünf" implies "5", and letting a bare "5" ground a body's
     # "150" by substring would gut the check.
-    implied = _implied_tokens(source or "")
+    implied = _implied_tokens(source or "") | _numeric_date_parts(source or "")
     names = _identifier_digits(body) | _designator_digits(body)
     bad: list[str] = []
     for t in _concrete_tokens(body):

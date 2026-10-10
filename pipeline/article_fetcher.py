@@ -69,6 +69,30 @@ DEFAULT_USER_AGENT = ("CatandaryTrendsBot/1.0 "
                       "(+https://catandary.de/trends/methodology)")
 UA = os.getenv("CRAWLER_USER_AGENT", DEFAULT_USER_AGENT)
 MIN_TEXT_CHARS = 400          # below this the extraction is not worth keeping
+# Sperr- und Prüfseiten (Bot-Abwehr) sind kein Artikeltext. Bis 2026-10-10 wurde
+# die Radware-Seite der Förderdatenbank („We apologize for the inconvenience …
+# you are a bot“, 484 Zeichen) bei 50 Einträgen als Volltext gespeichert; Stage 6
+# schrieb daraus u. a. „Bot Detection Protocols and Network Access Restrictions“.
+# Geprüft wird nur kurzer Text: ein Artikel ÜBER Captchas (Golem, Handelsblatt,
+# Ars Technica im Bestand) ist lang und bleibt. Gemessen über 102.369 Volltexte
+# der letzten 120 Tage: 51 Treffer, alle echte Sperrseiten (50 Radware, 1 DigiTimes).
+BOT_WALL_MAX_CHARS = 1500
+BOT_WALL_MARKERS = (
+    "you are a bot", "we apologize for the inconvenience",
+    "unusual traffic from your computer network", "has been blocked temporarily",
+    "verify you are human", "verify that you are human", "checking your browser",
+    "please enable javascript and cookies", "attention required! | cloudflare",
+    "pardon our interruption", "request unsuccessful. incapsula",
+    "access to this page has been denied",
+)
+
+
+def looks_like_bot_wall(text: str | None) -> bool:
+    """True, wenn der extrahierte Text eine Sperr-/Prüfseite ist statt eines Artikels."""
+    if not text or len(text) > BOT_WALL_MAX_CHARS:
+        return False
+    low = text.lower()
+    return any(m in low for m in BOT_WALL_MARKERS)
 MAX_TEXT_CHARS = 12_000       # cap what we store (stages slice the first ~1.5k anyway)
 PDF_MAX_PAGES = 60            # a Grundschutz building block is ~10 pages; a whole compendium is not wanted
 PER_HOST_DELAY = 1.0          # seconds between requests to the same host
@@ -476,6 +500,9 @@ def fetch_fulltext_result(url: str, client: httpx.Client | None = None,
             text = trafilatura.extract(
                 r.text, include_comments=False, include_tables=False,
                 no_fallback=False, favor_precision=True)
+        if looks_like_bot_wall(text):
+            logger.info("bot wall instead of article — nothing stored: %s", final)
+            return FetchResult(None, "bot_wall")
         if not text or len(text) < MIN_TEXT_CHARS:
             return FetchResult(None, "too_short")
         return FetchResult(text[:(MAX_TEXT_CHARS if max_chars is None else int(max_chars))])
