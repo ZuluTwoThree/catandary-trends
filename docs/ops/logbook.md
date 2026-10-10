@@ -19,6 +19,7 @@ selbst. Bearbeiten im Editor, committen — keine zweite Wahrheit in der DB.
 - Förder-Einträge ohne Text werden Signal statt `insufficient_source_text`.
 - Testlauf (140 Einträge, 9 min): 77 Entwürfe, 50 Signale, 3 published (alle Nicht-Förderung); Richter 71/74 gehalten (64 `no_signal`) — Entscheid offen.
 - Nationale Förderaufruf-Feeds geprüft: UKRI Opportunities, ANR, DFG ok; SNF robots-gesperrt; Eureka ohne Links; FFG/Innosuisse/Vinnova/NWO/Forskningsrådet ohne Feed.
+- Owner-Entscheid (abends): Förderdatenbank nur Signal, Richter mit Förder-Regel, UKRI Opportunities + ANR neu, DFG als Förderung; Belegprüfung erkennt numerische Quelldaten. Nachbeurteilung 12 von 19 freigegeben.
 
 ## 2026-10-09 · change · Nacht-8B mit 16 statt 24 Fächern — Mitschrift bleibt nachts an
 

@@ -12,7 +12,8 @@ from pipeline.models import ClassificationResult, ExtractionResult, RelevanceRes
 
 TITLES = {1: "Förderung von Verbundvorhaben MARE:N Küstenforschung",
           2: "Quarterly market outlook for snack bars",
-          3: "Investitionszuschuss Elektrolyseure Niedersachsen"}
+          3: "Investitionszuschuss Elektrolyseure Niedersachsen",
+          4: "Wohnraumförderung Hamburg Neubau"}
 
 
 def _entry(i, source, excerpt):
@@ -22,9 +23,12 @@ def _entry(i, source, excerpt):
 
 
 def test_title_only_public_funding_becomes_signal(monkeypatch):
-    entries = [_entry(1, "Förderdatenbank des Bundes", ""),
+    entries = [_entry(1, "Förderinfo Bund – Bekanntmachungen (alle)", ""),
                _entry(2, "Some Trade Journal", ""),
-               _entry(3, "Förderdatenbank des Bundes",
+               _entry(4, "Förderdatenbank des Bundes",
+                      "Sie erhalten zinsgünstige Darlehen und Zuschüsse für den Neubau von "
+                      "Mietwohnungen in Hamburg, wenn die Förderbedingungen erfüllt sind."),
+               _entry(3, "Förderinfo Bund – Bekanntmachungen (alle)",
                       "Sie erhalten einen Zuschuss für Investitionen in Elektrolyseure, wenn Sie "
                       "ein kleines oder mittleres Unternehmen in Niedersachsen sind.")]
     monkeypatch.setattr(lp, "init_db", lambda: None)
@@ -49,7 +53,8 @@ def test_title_only_public_funding_becomes_signal(monkeypatch):
     monkeypatch.setattr(lp, "hybrid_classify", hybrid)
     vec = [0.0] * 8
     monkeypatch.setattr(lp, "generate_embedding", lambda model, text: [1.0] + vec[1:] if "MARE" in text
-                        else [0.0, 1.0] + vec[2:])
+                        else ([0.0, 0.0, 1.0] + vec[3:] if "Hamburg" in text
+                              else [0.0, 1.0] + vec[2:]))
 
     generated = []
 
@@ -70,5 +75,13 @@ def test_title_only_public_funding_becomes_signal(monkeypatch):
     assert by_id[1]["status"] == "signal"                      # Titel-only Förderung: Signal
     assert by_id[1]["body_en"] is None and by_id[1]["trend_signal_type"] == "funding"
     assert "status" not in by_id[3] and by_id[3]["body_en"]     # mit Text: normaler Artikel
-    assert generated == [entries[2]["title"]]                  # kein Modelltext aus einem Titel
-    assert out["created"] == 1 and out["signals_only"] == 1
+    assert by_id[4]["status"] == "signal"                      # Förderdatenbank: nur Signal (1b)
+    assert generated == [TITLES[3]]                            # kein Modelltext aus Titel/Förderdatenbank
+    assert out["created"] == 1 and out["signals_only"] == 2
+
+
+def test_foerderdatenbank_with_text_is_signal_only(monkeypatch):
+    """Owner 10.10. (1b): Förderdatenbank nie Artikel, auch mit Text."""
+    import inspect
+    src = inspect.getsource(lp.run_pipeline_batch)
+    assert "is_funding_signal_only" in src

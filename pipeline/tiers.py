@@ -31,11 +31,20 @@ SCIENCE_MARKERS = ("preprints",)
 # immer 'funding' — damit zählen auch die Presse-Feeds (press_wire) überall zur Ebene Förderung.
 # SEC Form D ist private Finanzierung und gehört NICHT hierher (Regeln in pipeline/signal_rules.py).
 PUBLIC_FUNDING_PREFIXES = ("nih reporter", "nsf ", "openaire", "ukri", "sbir/sttr", "sbir ", "cordis",
-                           "förderinfo bund", "förderdatenbank", "funding call")
+                           "förderinfo bund", "förderdatenbank", "funding call",
+                           "dfg")   # DFG „Informationen für die Wissenschaft“ = Ausschreibungen (Owner 10.10.)
+# Förderquellen, die nur Signale liefern, nie Artikel (Owner 10.10.2026, Entscheid 1b): die
+# Förderdatenbank sind überwiegend Landesprogramme (Wohnungsbau, Filmförderung, Betriebsberatung)
+# mit 1–3 Sätzen Beschreibung — der Testlauf ergab quellentreue, aber dünne Artikel (Ø 76 Wörter).
+FUNDING_SIGNAL_ONLY_PREFIXES = ("förderdatenbank",)
 
 
 def is_public_funding(source_name: str | None) -> bool:
     return (source_name or "").strip().lower().startswith(PUBLIC_FUNDING_PREFIXES)
+
+
+def is_funding_signal_only(source_name: str | None) -> bool:
+    return (source_name or "").strip().lower().startswith(FUNDING_SIGNAL_ONLY_PREFIXES)
 MARKET_TYPES = {"trade_media", "press_wire", "brand"}
 
 

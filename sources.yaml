@@ -4352,6 +4352,28 @@ cross_industry:
     lead_time_tier: market
     tdm_checked: "2026-09-04"
     tdm_status: blocked   # robots.txt disallows the feed URL
+  # Nationale Förderaufrufe (Owner 2026-10-10, Stufe 3 nach Probe): öffentliche Förderung ist
+  # ein Trendsignal — die Namen treffen PUBLIC_FUNDING_PREFIXES (pipeline/tiers.py: „ukri“,
+  # „funding call“), also kein Relevanzfilter, Signaltyp funding, Ebene Förderung. Geprüft
+  # 10.10. mit probe_source_compliance: robots allow, Bot-UA 200, kein TDM-Vorbehalt.
+  # Nicht aufgenommen: SNF (robots sperrt /api, wo der Feed liegt), Eureka (Einträge ohne
+  # Link), FFG/Innosuisse/Vinnova/NWO/Forskningsrådet (kein Feed, nur HTML-Listen).
+  - name: UKRI Funding Opportunities
+    fulltext: true
+    feed_url: https://www.ukri.org/opportunity/feed/
+    type: press_wire
+    lead_time_tier: market
+    tdm_checked: "2026-10-10"
+    tdm_status: ok
+    discovered_via: own   # Ausschreibungen von UKRI/Innovate UK/Research Councils
+  - name: "Funding call: ANR Appels à projets (France)"
+    fulltext: true
+    feed_url: https://anr.fr/rss/?aap
+    type: press_wire
+    lead_time_tier: market
+    tdm_checked: "2026-10-10"
+    tdm_status: ok
+    discovered_via: own   # Agence nationale de la recherche, nur Aufrufe (?aap)
   science:
   - name: Nature (main)
     llm_pipeline: false   # Signalbetrieb seit 2026-09-09 (#97, Weg A): TDM-Vorbehalt — nie Artikelmaterial

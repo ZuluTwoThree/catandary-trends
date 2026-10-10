@@ -28,7 +28,7 @@ from math import sqrt
 
 from slugify import slugify
 
-from pipeline.tiers import is_public_funding
+from pipeline.tiers import is_funding_signal_only, is_public_funding
 from pipeline.config import (
     ANTHROPIC_MODEL_CLASSIFY,
     CLASSIFY_BACKEND,
@@ -1212,7 +1212,9 @@ def run_pipeline_batch(limit: int = 200, signal_mode: bool = False, min_id: int 
         # Stage 0b: minimum source text (#97, 2026-09-09). Without a body there
         # is nothing for the grounding gate to check, so anything the model
         # invents passes silently — never generate from a bare title.
-        if len((entry.get("excerpt") or "").strip()) < MIN_SOURCE_TEXT_CHARS:
+        if is_funding_signal_only(entry.get("source_name")) and title.strip():
+            entry["_signal_only"] = True     # Förderdatenbank: nur Signal, nie Artikel (Owner 10.10.)
+        elif len((entry.get("excerpt") or "").strip()) < MIN_SOURCE_TEXT_CHARS:
             if is_public_funding(entry.get("source_name")) and title.strip():
                 # Öffentliche Förderung wird nie verworfen (Owner 10.10.2026), aus einem
                 # bloßen Titel entsteht aber auch kein Artikel: der Eintrag wird ein

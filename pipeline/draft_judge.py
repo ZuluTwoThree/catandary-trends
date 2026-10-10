@@ -38,6 +38,7 @@ from pipeline.content_guard import garbage_reasons
 from pipeline.db import get_connection
 from pipeline.grounding import source_from_parts, ungrounded_names, ungrounded_specifics
 from pipeline.config import DUPLICATE_SIMILARITY_THRESHOLD
+from pipeline.tiers import is_public_funding
 
 logger = logging.getLogger("draft_judge")
 
@@ -308,12 +309,23 @@ def _extraction_block(extraction_json: str | None) -> str:
             + json.dumps(e, ensure_ascii=False)[:JUDGE_EXTRACTION_MAX_CHARS])
 
 
+# Öffentliche Förderung ist immer ein Trendsignal (Owner 2026-10-10, Entscheid 1a). Der Richter
+# kannte die Regel nicht: im Testlauf vom 10.10. hielt er 64 von 71 Förder-Entwürfen als
+# `no_signal` zurück. Für Förderquellen entscheidet er deshalb nur noch über die Qualität.
+PUBLIC_FUNDING_NOTE = (
+    "EDITORIAL RULE FOR THIS SOURCE: it is a public funding programme or call for proposals. "
+    "Catandary treats every publicly funded programme as a trend signal — it shows where public "
+    "money is directed. Set signal=true and do NOT use no_signal. Judge only source fidelity "
+    "(source_mismatch), thin_content and broken_text; publish=true if the category is ok.\n\n")
+
+
 def judge_one(d: dict) -> JudgeVerdict | None:
     from pipeline import llamacpp_client
     src = ((d["re_title"] or "") + " | "
            + (d["raw_content"] or d["excerpt"] or ""))[:JUDGE_SOURCE_MAX_CHARS]
     ext = _extraction_block(d.get("extraction_json"))
-    prompt = (f"SOURCE ({d['source_name'] or 'unknown'}):\n{src}{ext}\n\n"
+    rule = PUBLIC_FUNDING_NOTE if is_public_funding(d.get("source_name")) else ""
+    prompt = (f"{rule}SOURCE ({d['source_name'] or 'unknown'}):\n{src}{ext}\n\n"
               f"DRAFT ARTICLE:\n{d['title_en']}\n\n{(d['body_en'] or '')[:2200]}\n\n"
               'Answer with JSON only: {"publish": true/false, "signal": true/false, '
               '"category": "ok"|"no_signal"|"thin_content"|"source_mismatch"|"broken_text", '
