@@ -52,3 +52,14 @@ erreicht mehr, braucht aber Suchbegriffe je Artikel.
   (≥ 1 Ebene) bzw. ~75/Tag (≥ 2 Ebenen).
 - Story-Gruppierung A ist sofort brauchbar (67/Tag, ~95 % sauber) und spart als Einheit ~127
   Generierungen/Tag — Kontext bringt sie nicht mit.
+
+## Nachtrag: Wirkung von Dedup und Relevanzfilter (Owner-Frage 10.10.)
+- **Stories:** Stage 5 verwirft Presse-Einträge mit Kosinus > 0,92 zu einem Artikel der letzten 30 Tage
+  (14 Tage: 499 mit Vektor, Median-Kosinus zum Treffer 0,947) plus 170 Titel-Dubletten ohne Vektor.
+  Wieder eingerechnet: **67 → 76 Stories/Tag** (≥ 3 Hosts 22 → 25). Mit den vom Relevanzfilter
+  verworfenen Presse-Einträgen (7.531 mit Vektor) 100/Tag (≥ 3 Hosts 32) — der Zuwachs enthält aber
+  Ereignisse, die nie Trendsignal sind.
+- **Kontext:** Dedup entfernt Kopien, nicht Themen — ein naher Vertreter bleibt im Bestand. Die
+  gefilterten Forschungs-/Förderzeilen mit Vektor (37.010 Wissenschaft, davon 33.415 Relevanz;
+  23.780 Förderung, alle Dedup) hinzugenommen: Wissenschaft 17,2 → 18,2 %, Förderung 6,5 → 6,7 %.
+  Der begrenzende Faktor ist, was überhaupt eingebettet ist, nicht was aussortiert wurde.
