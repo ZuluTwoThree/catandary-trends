@@ -1021,7 +1021,11 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 0 23 * * *   DL_START=23:00 DL_UNTIL=08:30 scripts/openalex_download.sh
 
 # Nicht-RSS-Ingester wöchentlich (Samstag 06:00, seit 2026-08-09; 05:00→06:00 am 2026-08-29 entzerrt): Preprints
-# (arXiv/bioRxiv/medRxiv, 14-Tage-Fenster) + Funding (NSF/NIH/OpenAIRE/UKRI,
+# (arXiv/bioRxiv/medRxiv, 14-Tage-Fenster) + Funding (NSF/NIH/OpenAIRE/UKRI — `--backend all` = NSF+NIH+OpenAIRE,
+# UKRI nur auf Wunsch; OpenAIRE seit 10.10.2026 über die Graph API v1 (/graph/v1/projects, Startdatum
+# serverseitig gefiltert), weil die alte Suchschnittstelle nicht mehr antwortete; tote Quellen brechen nach
+# FUNDING_DEAD_AFTER=8 Netzfehlern in Folge ab, die übrigen laufen weiter, rc 3 → Ops-Alarm job_failed —
+# vorher kostete der Ausfall 3 h und hielt den Research Pulse auf;
 # 45 Tage) + SEC Form D (Vorquartal, nur im 1. Quartalsmonat) + sofortige
 # Distill-Verarbeitung der Neuzugänge via signal_batch_embedded (GPU-Handover).
 # Seit 2026-08-23 (#87) zusätzlich die Startup-Explorer-Signale: Presse-Regex,

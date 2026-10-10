@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 import time
 from datetime import datetime, date
@@ -113,9 +114,25 @@ def _excerpt(funder: str, geo: str, amount: str, abstract: str) -> str:
     return (prefix + (abstract or "").strip())[:2000]
 
 
+class SourceDown(RuntimeError):
+    """Eine Quelle antwortet gar nicht mehr — der Rest ihres Laufs wird übersprungen."""
+
+
+# Abbruch für tote Quellen (seit 2026-10-10, Owner): am 10.10. antwortete die alte OpenAIRE-
+# Suchschnittstelle nicht mehr; jeder der 39 Suchbegriffe lief sechsmal in 45-s-Timeouts mit
+# Backoff — 142 Zeitüberschreitungen, der Samstagslauf stand drei statt 1,3 Stunden und hielt den
+# Research Pulse auf. Jetzt zählt jede Quelle (Host) ihre Netzfehler IN FOLGE über alle Anfragen;
+# ab DEAD_AFTER ohne eine einzige Antwort dazwischen gilt sie als tot (SourceDown), ihr Backend
+# endet, die anderen laufen weiter, der Lauf endet mit rc 3 (→ Ops-Alarm job_failed).
+DEAD_AFTER = int(os.getenv("FUNDING_DEAD_AFTER", "8"))
+_FAIL_STREAK: dict[str, int] = {}
+
+
 def _get_json(client: httpx.Client, url: str, *, params=None, method="GET",
               json_body=None, tries: int = 6, timeout: int = 45):
-    """HTTP GET/POST returning parsed JSON, with exponential backoff on 429/5xx."""
+    """HTTP GET/POST returning parsed JSON, with exponential backoff on 429/5xx.
+    Raises SourceDown after DEAD_AFTER consecutive network errors against the same host."""
+    host = httpx.URL(url).host
     for i in range(tries):
         try:
             if method == "POST":
@@ -123,9 +140,13 @@ def _get_json(client: httpx.Client, url: str, *, params=None, method="GET",
             else:
                 r = client.get(url, params=params, timeout=timeout)
         except Exception as e:  # noqa: BLE001 — transient network
+            _FAIL_STREAK[host] = _FAIL_STREAK.get(host, 0) + 1
+            if _FAIL_STREAK[host] >= DEAD_AFTER:
+                raise SourceDown(f"{host}: {_FAIL_STREAK[host]} network errors in a row ({e})")
             logger.warning("request error (%s), retry %d/%d", e, i + 1, tries)
             time.sleep(2 ** i)
             continue
+        _FAIL_STREAK[host] = 0
         if r.status_code == 200:
             try:
                 return r.json()
@@ -256,57 +277,55 @@ def _oa(node, *path):
     return cur
 
 
+OPENAIRE_GRAPH = "https://api.openaire.eu/graph/v1/projects"
+
+
+def _oa_text(t: str | None) -> str:
+    """OpenAIRE-Texte tragen Excel-Reste (`_x000D_`) und Mehrfach-Leerraum."""
+    return " ".join((t or "").replace("_x000D_", " ").split())
+
+
 def ingest_openaire(since: str, limit: int, dry_run: bool) -> dict:
-    # OpenAIRE's startYear/endYear params over-filter unreliably (they cut on
-    # project END, dropping long active grants). Instead we sort by start date
-    # descending and filter client-side: skip far-future noise, keep [since ..
-    # today+3y], and stop a shard once results drop below `since` (sorted desc).
+    """OpenAIRE-Projekte über die Graph API v1 (seit 2026-10-10).
+
+    Die alte Suchschnittstelle (api.openaire.eu/search/projects) antwortete am 10.10. nicht mehr.
+    Die Graph API filtert das Startdatum serverseitig (fromStartDate/toStartDate) — die frühere
+    Krücke „absteigend sortieren und clientseitig abbrechen" entfällt (startYear/endYear der alten
+    API schnitten auf das Projekt-ENDE). Projekt-IDs haben dasselbe Format wie vorher
+    (`<quelle>::<hash>`), die URL und damit die Dubletten-Erkennung bleiben gleich."""
     stats = {"seen": 0, "inserted": 0, "duplicates": 0, "skipped": 0, "old": 0, "future": 0}
     future_cap = f"{date.today().year + 3}-12-31"
     source_id = -1 if dry_run else db.upsert_source(
         "OpenAIRE Projects (EU + National Funders)",
-        "https://api.openaire.eu/search/projects", "api", "CROSS")
+        "https://api.openaire.eu/search/projects", "api", "CROSS")   # unverändert: dieselbe Quellzeile
     per_shard = max(300, limit // max(1, len(TECH_SHARDS)))
     with httpx.Client(headers=HEADERS) as client:
         for kw in TECH_SHARDS:
-            got, page, size, stop = 0, 1, 50, False
-            while got < per_shard and page * size <= 10000 and stats["seen"] < limit and not stop:
-                data = _get_json(client, "https://api.openaire.eu/search/projects",
-                                 params={"format": "json", "keywords": kw,
-                                         "sortBy": "projectstartdate,descending",
-                                         "size": size, "page": page})
-                results = (((data or {}).get("response") or {}).get("results") or {}).get("result")
+            got, page, size = 0, 1, 50
+            while got < per_shard and page * size <= 10000 and stats["seen"] < limit:
+                data = _get_json(client, OPENAIRE_GRAPH,
+                                 params={"search": kw, "fromStartDate": since, "toStartDate": future_cap,
+                                         "sortBy": "startDate DESC", "pageSize": size, "page": page})
+                results = (data or {}).get("results") or []
                 if not results:
                     break
-                if isinstance(results, dict):
-                    results = [results]
                 for item in results:
-                    try:
-                        hdr = item["header"]
-                        proj = item["metadata"]["oaf:entity"]["oaf:project"]
-                    except (KeyError, TypeError):
-                        stats["skipped"] += 1
-                        continue
-                    pub = (_oa(proj, "startdate") or "")[:10]
-                    if pub and pub > future_cap:   # far-future noise, sorted first
-                        stats["future"] += 1
-                        continue
-                    if pub and pub < since:         # sorted desc → rest are older
-                        stats["old"] += 1
-                        stop = True
-                        break
                     stats["seen"] += 1
                     got += 1
-                    obj_id = _oa(hdr, "dri:objIdentifier")
-                    title = (_oa(proj, "title") or "").strip()
+                    obj_id, title = item.get("id"), _oa_text(item.get("title"))
                     if not obj_id or not title:
                         stats["skipped"] += 1
                         continue
+                    pub = (item.get("startDate") or "")[:10]
                     url = f"https://explore.openaire.eu/search/project?projectId={obj_id}"
-                    funder = _oa(proj, "fundingtree", "funder", "name") or "—"
-                    juris = _oa(proj, "fundingtree", "funder", "jurisdiction") or ""
-                    amt = _amount(_oa(proj, "fundedamount") or _oa(proj, "totalcost"), "€")
-                    excerpt = _excerpt(funder, juris, amt, _oa(proj, "summary") or "")
+                    f0 = (item.get("fundings") or [{}])[0] or {}
+                    funder = f0.get("name") or f0.get("shortName") or "—"
+                    juris = f0.get("jurisdiction") or ""
+                    g = item.get("granted") or {}
+                    cur = g.get("currency") or "€"
+                    cur = "€" if cur in ("EUR", "€") else cur
+                    amt = _amount(g.get("fundedAmount") or g.get("totalCost") or None, cur)
+                    excerpt = _excerpt(funder, juris, amt, _oa_text(item.get("summary")))
                     if dry_run:
                         stats["inserted"] += 1
                         continue
@@ -315,8 +334,7 @@ def ingest_openaire(since: str, limit: int, dry_run: bool) -> dict:
                 page += 1
                 if len(results) < size:
                     break
-            logger.info("[openaire] '%s': seen=%d inserted=%d (old=%d future=%d)",
-                        kw, stats["seen"], stats["inserted"], stats["old"], stats["future"])
+            logger.info("[openaire] '%s': seen=%d inserted=%d", kw, stats["seen"], stats["inserted"])
     return stats
 
 
@@ -388,10 +406,16 @@ def main() -> int:
 
     backends = DEFAULT_ALL if args.backend == "all" else [args.backend]
     grand = {"seen": 0, "inserted": 0, "duplicates": 0, "skipped": 0}
+    down: list[str] = []
     for b in backends:
         logger.info("=== backend=%s since=%s limit=%d dry=%s ===",
                     b, args.since, args.limit, args.dry_run)
-        s = BACKENDS[b](args.since, args.limit, args.dry_run)
+        try:
+            s = BACKENDS[b](args.since, args.limit, args.dry_run)
+        except SourceDown as e:
+            logger.error("[%s] source down — skipped the rest of this backend: %s", b, e)
+            down.append(b)
+            continue
         for k in grand:
             grand[k] += s.get(k, 0)
         tag = "[dry] would insert" if args.dry_run else "inserted"
@@ -399,6 +423,9 @@ def main() -> int:
               f"{s['duplicates']} dup | {s['skipped']} skip")
     print(f"{'TOTAL':9s}: seen {grand['seen']:6d} | inserted {grand['inserted']:6d} | "
           f"{grand['duplicates']} dup | {grand['skipped']} skip")
+    if down:
+        print(f"SOURCE DOWN: {', '.join(down)} (rc 3)")
+        return 3
     return 0
 
 
