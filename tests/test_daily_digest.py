@@ -129,6 +129,8 @@ def test_mail_text_numbers_citations_with_url_list():
     t = dd.render_mail_text(_result(), base="https://example.test/trends/")
     assert "[1, 999?]" in t
     assert "[1] https://example.test/trends/apple-home" in t
+    assert "###" not in t and "SCHLAGZEILE" in t
+    assert "  - Thema [1]" in t
 
 
 def test_load_last_ignores_stale_and_empty(tmp_path, monkeypatch):

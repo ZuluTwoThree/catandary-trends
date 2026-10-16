@@ -518,7 +518,9 @@ def render_mail_text(res: dict, base: str | None = None) -> str:
                 else:
                     nums.append(f"{i}?")
             return "[" + ", ".join(nums) + "]"
-        return CITE_RE.sub(rep, text).replace("**", "")
+        text = CITE_RE.sub(rep, text).replace("**", "")
+        text = re.sub(r"^\s*#+\s*(.+)$", lambda m: m.group(1).upper(), text, flags=re.M)
+        return re.sub(r"^\s*[-*•]\s+", "  - ", text, flags=re.M)
 
     lines = [f"DAILY DIGEST {day_label(res)}", _quality_line(res), "", sub(res.get("overview", "")), ""]
     for v, text in res.get("sections", {}).items():
