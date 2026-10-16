@@ -27,6 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 GROUPS = (
     ("feed", "Feed pipeline (nightly cycle, Mon–Fri 04:00)"),
     ("judge", "Draft judge (Stage 10)"),
+    ("digest", "Daily digest (Stage 10b, owner morning mail)"),
     ("foresight", "Foresight layer"),
     ("newsletter", "Newsletter"),
     ("ondemand", "Owner tools, on demand only"),
@@ -193,6 +194,25 @@ def build_catalog() -> list[PromptEntry]:
         symbol="pipeline.draft_judge:JUDGE_SYSTEM",
         notes=["Structured output (JudgeVerdict). Counts go to data/draft_judge_last.json → morning mail."]),
         "pipeline.draft_judge", "JUDGE_SYSTEM"))
+
+    E.append(_load(PromptEntry(
+        key="stage10b-digest", group="digest", title="Stage 10b · Daily digest",
+        function=("Writes the owner's daily overview of the articles the run published, in German: "
+                  "one call per vertical (all titles plus the summaries of the twelve strongest "
+                  "articles, one per story) and one overview call over those sections. Counts "
+                  "(signal types, mega-trends, multi-source stories) are computed beforehand, not by "
+                  "the model. Every statement must cite article IDs; citations not in the call's "
+                  "material and numbers absent from it are counted and flagged red in the mail. "
+                  "The overview prompt is pipeline.daily_digest:overview_prompt()."),
+        model="Qwen3.8-27B (llama.cpp) — the judge's server, still loaded after Stage 10",
+        trigger="Nightly full cycle right after the draft judge (DAILY_DIGEST=0 disables); "
+                "scripts/daily_digest.py --handover by hand",
+        symbol="pipeline.daily_digest:DIGEST_SYSTEM",
+        notes=["Temperature 0.4, seed 42, max 1,100 output tokens, thinking off.",
+               "Prompt budget 16,384 − 1,100 − 400 tokens; the weakest titles are dropped and the "
+               "prompt says so when a vertical does not fit.",
+               "Output → data/daily_digest_last.json → morning mail (scripts/review_notify.py)."]),
+        "pipeline.daily_digest", "DIGEST_SYSTEM", user_func="vertical_prompt"))
 
     # ---------------- Foresight ----------------
     E.append(_load(PromptEntry(

@@ -83,7 +83,8 @@ PUBLISH_LOG_GLOB = "catandary-publish-{stamp}.log"
 SCHEDULED_LOG_GLOB = "catandary-scheduled-{stamp}-*.log"
 STAGES_RE = re.compile(r"scheduled_cycle\.sh end\s+(\S+)\s+\(([^)]*)\)")
 STAGE_LABEL = {"rc1": "LLM run 1", "rc2": "LLM run 2", "rc3": "resting llama-server",
-               "agent": "review agent (stage 11)"}
+               "agent": "review agent (stage 11)",
+               "digest": "daily digest (stage 10b)"}
 PUBLISH_RUNNING_HINTS = ("publish_static_site",)
 
 

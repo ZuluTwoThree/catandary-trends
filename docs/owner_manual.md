@@ -49,8 +49,8 @@ wieder her.
 **Nachts (Mo–Fr, automatisch; seit 22.09. 1 h 15 min früher, damit der Lauf beim Frühstück fertig ist).** 01:30 Postgres-Backup · 02:15 Volltext-Retention
 (`raw_content` älter 60 Monate → NULL) · **02:45 Full Cycle** (`scripts/full_cycle_cron.sh`
 → `scheduled_cycle.sh`): VRAM freiräumen, RSS-Poll, Stages 1–9, Draft-Richter
-(Stage 10), Ruhezustand wiederherstellen, Morgen-Mail (`scripts/review_notify.py`)
-verschicken · 07:45 Wächter (`scripts/cycle_watchdog.py`). Der Cycle endet
+(Stage 10), Daily Digest (Stage 10b, §1.1), Ruhezustand wiederherstellen, Morgen-Mail
+(`scripts/review_notify.py`) verschicken · 07:45 Wächter (`scripts/cycle_watchdog.py`). Der Cycle endet
 typischerweise 05:55–06:12.
 
 **Morgens (Owner).**
@@ -70,6 +70,9 @@ typischerweise 05:55–06:12.
      gelaufenen und übersprungenen GPU-Schritte, Blockierer; §11.8). Ein
      `blocked`/`failed` erzwingt die Mail auch bei leerer Queue.
      Link: `REVIEW_URL` (Default `http://localhost:3001/trends/review`).
+   - Seit 16.10. (scharf mit dem `main`-Merge) beginnt die Review-Mail mit dem
+     **Daily Digest** des Laufs, Betreff „Daily Digest TT.MM. · Review: …“ (§1.1).
+     Ein frischer Digest erzwingt die Mail auch bei leerer Queue.
 2. **Review-Queue abarbeiten** (Abschnitt 3) — jeder gehaltene Artikel braucht
    eine Entscheidung, sonst wächst der Backlog.
 3. **Feed sichten:** `http://localhost:3001/trends` zeigt, was die Nacht
@@ -77,6 +80,53 @@ typischerweise 05:55–06:12.
 4. **Bei Verdacht ins Log:** `~/logs/catandary-full-cycle-<YYYYMMDD-HHMM>.log`
    (Wrapper) und `~/logs/catandary-scheduled-<…>.log` (Stages). Die letzte Zeile
    des Wrappers ist `… end … rc=<Exit-Code>`.
+
+### 1.1 Daily Digest (Stage 10b, seit 2026-10-16 auf `dev`, scharf mit dem `main`-Merge)
+
+**Wozu.** Ein Tagesüberblick über die Artikel, die der Lauf veröffentlicht hat: je
+Vertikale eine Kurzlage, 3–5 Themen, die mehrere Artikel verbinden, und höchstens ein
+Einzelstück; darüber Schlagzeile, „Was heute auffiel“ und Querverbindungen. Auf Deutsch,
+nur für den Owner (steht in der Morgen-Mail, nirgends öffentlich).
+
+**Wie er entsteht.** `scheduled_cycle.sh` ruft direkt nach dem Richter, auf demselben
+Qwen3.8-27B-Server, `python -m scripts.daily_digest --since "$CYCLE_STARTED_AT"` auf
+(~3 min, kein eigener Modellwechsel). Vorher wird ohne Modell gezählt: je Vertikale
+Signaltypen, Mega-Trends und die mehrfach berichteten Meldungen (Story-Regel #109, im
+Speicher, nichts geschrieben). Das Modell bekommt je Vertikale alle Titel und die
+Kurzfassung der zwölf stärksten Artikel (einer je Story), danach die acht Abschnitte für
+den Überblick. Vertikalen mit weniger als drei Artikeln bekommen keinen Abschnitt.
+Passt eine Vertikale nicht in den Kontext (16k Token), werden die schwächsten Titel
+gestrichen; die Mail nennt dann „N Titel aus Platzgründen nicht gelesen“.
+
+**Was das Ergebnis bedeutet.** Jede Aussage trägt Artikel-IDs in eckigen Klammern; jede
+ID ist ein Link auf den Artikel (Default die Owner-Instanz
+`https://kiworkstation.tail678c6e.ts.net:3001/trends/<slug>` — öffentlich erscheinen die
+Artikel eines Laufs erst mit dem Export der folgenden Nacht; umstellen mit
+`DIGEST_ARTICLE_BASE=https://catandary.de/trends/` in `.env`). Die Kopfzeile nennt
+Belege, **ungültige Belege** (ID steht nicht im Material dieses Abschnitts — rot
+durchgestrichen, ohne Link) und **Zahlen ohne Beleg** (rot hinterlegt; 44.9/44,9 und
+1,000/1.000 gelten als dieselbe Zahl). Ob ein gültig zitierter Artikel die Aussage auch
+trägt, prüft niemand — der Link ist dafür da.
+
+**Von Hand.**
+
+```bash
+.venv/bin/python -m scripts.daily_digest --since-hours 8 --dry-run          # nur zählen, Token schätzen
+.venv/bin/python -m scripts.daily_digest --since "2026-10-16 02:45" --handover --preview /tmp/digest.html
+.venv/bin/python -m scripts.review_notify --test                            # Morgen-Mail jetzt, Betreff „[Test] …“
+```
+
+`--handover` holt Qwen3.8 per GPU-Handover (bricht mit rc 75 ab, wenn ein anderer
+GPU-Job läuft) und startet danach das 8B wieder. Ergebnis:
+`data/daily_digest_last.json` (liest die Mail, nur wenn < 24 h alt) und eine Kopie je Tag
+unter `data/daily_digest/<datum>.json`.
+
+**Grenzen.** Fällt der Richter aus (VRAM, falsches Modell, `DRAFT_JUDGE=0`), fällt der
+Digest mit aus — die Mail hat dann keinen. Was der Review-Agent (Stage 11) danach noch
+freigibt, steht nicht im Digest. Abschalten: `DAILY_DIGEST=0`. Scheitert der Schritt,
+steht `digest=1` in der Stage-Bilanz und der Wächter meldet es. Versuch vom 15.10.
+(1.638 Artikel): Qwen3.8 0 ungültige Belege in 155 s, Gemma-4-26B 15 und eine
+Falschaussage in 38 s — daher Qwen3.8.
 
 Wochenende: Samstag 06:00 laufen die Nicht-RSS-Ingester (Preprints, Funding,
 Startup-Signale, OpenAlex-Fresh, Patent-Signale, Research-Index-Rebuild),

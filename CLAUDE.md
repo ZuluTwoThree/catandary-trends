@@ -552,6 +552,24 @@ Zahlen → `data/review_agent_last.json` → Morgen-Mail. Erste Messung 22.09.:
 von 183 Holds 100 äquivalent, danach 15 weitere repariert.
 `REVIEW_AGENT_APPLY=0` lässt ihn nur prüfen.
 
+**Stage 10b: Daily Digest (seit 2026-10-16 auf `dev`, scharf erst mit dem `main`-Merge; `DAILY_DIGEST=0` schaltet ab).**
+Direkt nach dem Richter, im selben Block und auf demselben Qwen3.8-27B-Server (kein
+eigener Modellwechsel, ~3 min), schreibt `python -m scripts.daily_digest --since
+"$CYCLE_STARTED_AT"` einen deutschen Tagesüberblick über die im Lauf angelegten und
+veröffentlichten Artikel (`pipeline/daily_digest.py`). Erst gezählt (Signaltypen,
+Mega-Trends, Storys #109 im Speicher), dann je Vertikale ab 3 Artikeln ein Aufruf (alle
+Titel + Kurzfassung der zwölf stärksten, eine je Story; über dem 16k-Budget werden die
+schwächsten Titel gestrichen und das im Prompt gesagt), danach ein Überblick. Jede Aussage
+mit Artikel-IDs; `check()` zählt ungültige Belege (nicht im Material des Aufrufs) und Zahlen
+ohne Beleg (Formatvarianten 44.9/44,9 gelten gleich). Ergebnis
+`data/daily_digest_last.json` + `data/daily_digest/<datum>.json` → die Morgen-Mail beginnt
+damit (`scripts/review_notify.py`, Betreff „Daily Digest TT.MM. · …“, IDs verlinken auf
+`DIGEST_ARTICLE_BASE` + Slug, Default die Owner-Instanz im Tailnet — öffentlich erscheinen
+die Artikel erst mit dem Export der folgenden Nacht). Stage-Bilanz `digest=` in der end-Zeile,
+der Wächter meldet `!= 0`. Fällt der Richter aus, fällt der Digest mit aus. Modellwahl nach
+Versuch 15.10. (1.638 Artikel): Qwen3.8 0 ungültige Belege / 155 s, Gemma-4-26B 15 und eine
+Falschaussage / 38 s.
+
 **KI-Kennzeichnung je Artikel (#99, seit 2026-09-06, EU AI Act Art. 50 Abs. 4).**
 Alles oben ab Schritt 5 ist Maschinenarbeit, und die Schritte 9/10 sind
 ausschließlich automatische Gates — auch der Draft-Richter ist ein Modell. Ein

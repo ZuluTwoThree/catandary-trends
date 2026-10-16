@@ -11,6 +11,11 @@ arrives every day regardless is one you stop reading.
     python -m scripts.review_notify --dry-run   # print, never send
     python -m scripts.review_notify             # send if there is anything
 
+Since 2026-10-16 the mail opens with the Daily Digest of the run (Stage 10b,
+pipeline/daily_digest.py, data/daily_digest_last.json) when one is fresh.
+
+    python -m scripts.review_notify --test      # send now, subject "[Test] …"
+
 Runs after the nightly cycle (see scripts/full_cycle_cron.sh).
 """
 from __future__ import annotations
@@ -112,6 +117,16 @@ def agent_stats() -> dict | None:
             return None
         return d
     except (json.JSONDecodeError, KeyError, ValueError):
+        return None
+
+
+def digest_stats() -> dict | None:
+    """Der Daily Digest dieser Nacht (Stage 10b, pipeline/daily_digest.py), wenn frisch."""
+    try:
+        from pipeline import daily_digest as dd
+        return dd.load_last()
+    except Exception as e:                                      # noqa: BLE001
+        logger.warning("digest not readable: %r", e)
         return None
 
 
@@ -231,9 +246,14 @@ def build_mail(today: int, total: int, oldest: str | None,
                items: list[dict], judge: dict | None = None,
                deep_dive: dict | None = None,
                gpu_jobs: list[dict] | None = None,
-               agent: dict | None = None) -> tuple[str, str, str]:
+               agent: dict | None = None,
+               digest: dict | None = None) -> tuple[str, str, str]:
     subject = (f"Review: {today} article{'s' if today != 1 else ''} held overnight"
                if today else f"Review queue: {total} waiting")
+    if digest:
+        # Der Tagesüberblick (Stage 10b) ist der Teil, den man zuerst liest.
+        from pipeline import daily_digest as dd
+        subject = f"Daily Digest {dd.day_label(digest)} · {subject}"
 
     lines = [f"{today} article(s) were held by the quality gate last night."]
     if total > today:
@@ -275,6 +295,8 @@ def build_mail(today: int, total: int, oldest: str | None,
         lines.append("")
     lines.append(f"Review: {REVIEW_URL}")
     text = "\n".join(lines)
+    if digest:
+        text = dd.render_mail_text(digest) + "\n\n" + "-" * 60 + "\n\n" + text
 
     rows_html = "".join(
         f'<li style="margin-bottom:6px">{html.escape(str(it.get("title_en","")))}'
@@ -285,6 +307,8 @@ def build_mail(today: int, total: int, oldest: str | None,
     )
     body_html = (
         '<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.6">'
+        + (dd.render_mail_html(digest) if digest else "")
+        + ''
         f"<p><strong>{today}</strong> article(s) were held by the quality gate last night."
         + (f" {total} in the queue in total"
            + (f", oldest from {html.escape(oldest)}." if oldest else ".")
@@ -351,18 +375,24 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="print, never send")
     ap.add_argument("--force", action="store_true",
                     help="send even when nothing was held (for testing the wiring)")
+    ap.add_argument("--test", action="store_true",
+                    help="like --force, subject prefixed with [Test] (prototype mails)")
     args = ap.parse_args()
+    if args.test:
+        args.force = True
 
     today, total, oldest, items = fetch_queue()
     judge = judge_stats()
     agent = agent_stats()
     deep_dive = deep_dive_stats()
+    digest = digest_stats()
     gpu_jobs = gpu_job_notes()
     gpu_trouble = [n for n in gpu_jobs if n.get("status") != "ok"]
-    logger.info("queue: %d held today, %d total, oldest %s | judge: %s | agent: %s | deep dive: %s | gpu crons: %s",
+    logger.info("queue: %d held today, %d total, oldest %s | judge: %s | agent: %s | digest: %s | deep dive: %s | gpu crons: %s",
                 today, total, oldest,
                 f"{judge['released']} released / {judge['held']} held" if judge else "no fresh run",
                 f"{agent['equivalent']}+{agent.get('repaired', 0)} of {agent['checked']}" if agent else "no fresh run",
+                f"{digest['articles']} articles" if digest else "no fresh run",
                 deep_dive.get("status") if deep_dive else "no fresh run",
                 ", ".join(f"{n.get('job')}={n.get('status')}" for n in gpu_jobs) or "no fresh note")
 
@@ -370,11 +400,15 @@ def main() -> int:
     # judge run AND no deep-dive run AND no blocked/failed GPU cron. A night
     # where the judge released 200 articles deserves a mail even if the >=0.85
     # gate held nothing.
-    if today == 0 and judge is None and agent is None and deep_dive is None and not gpu_trouble and not args.force:
+    if (today == 0 and judge is None and agent is None and deep_dive is None and digest is None
+            and not gpu_trouble and not args.force):
         logger.info("nothing held today, no judge run, no agent run, no deep dive, GPU crons fine — no mail sent")
         return 0
 
-    subject, body_html, text = build_mail(today, total, oldest, items, judge, deep_dive, gpu_jobs, agent)
+    subject, body_html, text = build_mail(today, total, oldest, items, judge, deep_dive, gpu_jobs, agent,
+                                          digest=digest)
+    if args.test:
+        subject = "[Test] " + subject
     if args.dry_run:
         print(f"--- Subject: {subject}\n\n{text}")
         return 0

@@ -39,9 +39,11 @@ BATCH="${1:-600}"
 LOG="/home/dirk/logs/catandary-scheduled-$(date +%Y%m%d-%H%M).log"
 mkdir -p "$(dirname "$LOG")"
 
+# Laufbeginn — der Daily Digest (Stage 10b) fasst die Artikel zusammen, die ab hier angelegt werden.
+CYCLE_STARTED_AT="$(date -Iseconds)"
 {
   echo "================================================================"
-  echo "scheduled_cycle.sh start  $(date -Iseconds)"
+  echo "scheduled_cycle.sh start  $CYCLE_STARTED_AT"
   echo "  repo  : $REPO"
   echo "  batch : $BATCH"
   echo "  log   : $LOG"
@@ -281,6 +283,19 @@ PY
           python -m pipeline.draft_judge --since-hours 30
           RCJ=$?
           echo "----- draft judge exit code: $RCJ -----"
+          # >>> Stage 10b: Daily Digest (Owner 2026-10-16) >>>
+          # Tagesüberblick über die veröffentlichten Artikel dieses Laufs für die
+          # Morgen-Mail, auf demselben Qwen3.8-27B (kein eigener Modellwechsel,
+          # ~3 min). data/daily_digest_last.json → scripts/review_notify.py.
+          # Fällt der Richter aus, fällt der Digest mit aus (die Mail sagt es nicht
+          # extra — sie hat dann einfach keinen Digest). Abschalten: DAILY_DIGEST=0.
+          if [ "${DAILY_DIGEST:-1}" = "1" ]; then
+            echo "----- stage 10b: daily digest -----"
+            python -m scripts.daily_digest --since "$CYCLE_STARTED_AT"
+            RCD=$?
+            echo "----- daily digest exit code: $RCD -----"
+          fi
+          # <<< Stage 10b <<<
         else
           echo "----- draft judge SKIPPED: falsches Modell geladen ($SERVED) -----"
         fi
@@ -348,5 +363,5 @@ PY
   fi
 
   echo
-  echo "scheduled_cycle.sh end  $(date -Iseconds)  (rc1=$RC1 rc2=$RC2 rc3=$RC3 agent=${RCA:--})"
+  echo "scheduled_cycle.sh end  $(date -Iseconds)  (rc1=$RC1 rc2=$RC2 rc3=$RC3 agent=${RCA:--} digest=${RCD:--})"
 } >> "$LOG" 2>&1
